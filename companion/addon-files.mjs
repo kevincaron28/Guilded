@@ -36,26 +36,79 @@ const hasGuildedDatabase = (text) => typeof text === "string" && /(^|\n)\s*Guild
 
 const compactKey = (key) => String(key ?? "").replace(/\s+/g, "").toLowerCase();
 
+const baseName = (name) => String(name ?? "").split("-")[0].toLowerCase();
+const entriesOf = (sdb) => Object.values(sdb.myCharacters ?? {}).filter((entry) => entry && typeof entry.name === "string" && entry.name);
+
+/** name (lower case) -> guild key of each character of this account ("" = no guild). Old entries without the field take the file's key. */
+function guildLookup(sdb) {
+  const map = new Map();
+  for (const entry of entriesOf(sdb)) map.set(baseName(entry.name), entry.guildKey ?? sdb.guildKey ?? "");
+  if (sdb.character?.name && !map.has(baseName(sdb.character.name))) map.set(baseName(sdb.character.name), sdb.guildKey ?? "");
+  return map;
+}
+
 /**
- * A GuildedDB-shaped table from a GuildedDungeonsDB, for parseAddonExportDatabase. `guildKey`: the key to export (omitted when
- * Guilded's own data decides it). `onlyGuild`: keep only the characters saved for that guild.
+ * The guild one upload of this file belongs to: the key of the last character that logged in with a guild (the file's root key),
+ * else the guild of the most recently seen character that has one (the last login was an unguilded alt). null when none is known.
+ */
+export function uploadGuild(sdb) {
+  if (typeof sdb.guildKey === "string" && sdb.guildKey) return sdb.guildKey;
+  let best = null;
+  for (const entry of entriesOf(sdb)) {
+    if (typeof entry.guildKey !== "string" || !entry.guildKey) continue;
+    if (!best || Number(entry.capturedAt ?? 0) >= Number(best.capturedAt ?? 0)) best = entry;
+  }
+  return best ? best.guildKey : null;
+}
+
+/**
+ * Does this run belong to `guild`? A run counts for the guild of a character of this account that was in it (the recorder first).
+ * A run none of our characters played (copied from a guildmate over the guild channel) belongs to the guild the file's root key names.
+ */
+function runInGuild(run, sdb, lookup, guild) {
+  const wanted = compactKey(guild);
+  const names = [run?.recorder, ...Object.keys(run?.players ?? {})].map(baseName).filter((name) => lookup.has(name));
+  if (names.length) return names.some((name) => compactKey(lookup.get(name)) === wanted);
+  return compactKey(sdb.guildKey) === wanted;
+}
+
+function dungeonForGuild(sdb, guild) {
+  const dungeon = sdb.dungeon ?? { runs: [] };
+  if (!guild || !dungeon.runs || typeof dungeon.runs !== "object") return dungeon;
+  const lookup = guildLookup(sdb);
+  const list = Array.isArray(dungeon.runs) ? dungeon.runs : Object.values(dungeon.runs);
+  const kept = {};
+  for (const run of list) if (run && run.id !== undefined && runInGuild(run, sdb, lookup, guild)) kept[run.id] = run;
+  return { ...dungeon, runs: kept };
+}
+
+/**
+ * A GuildedDB-shaped table from a GuildedDungeonsDB, for parseAddonExportDatabase. `withGuild`: export the guild key and the
+ * logged-in character (omitted when Guilded's own data decides them). `onlyGuild`: keep only the characters and the runs of that
+ * guild (a PC whose account has characters in two guilds uploads one guild per file, never mixes them).
  */
 export function standaloneAsGuildedDatabase(sdb, { withGuild = true, onlyGuild = null, savedAt = new Date(0) } = {}) {
+  const lookup = guildLookup(sdb);
+  const guild = onlyGuild || null;
   const seen = new Set();
   const characters = [];
-  for (const entry of [sdb.character, ...Object.values(sdb.myCharacters ?? {})]) {
+  for (const entry of [sdb.character, ...entriesOf(sdb)]) {
     if (!entry || typeof entry.name !== "string" || !entry.name) continue;
     const id = entry.name.toLowerCase();
     if (seen.has(id)) continue;
-    if (onlyGuild && compactKey(entry.guildKey ?? sdb.guildKey) !== compactKey(onlyGuild)) continue;
+    if (guild && compactKey(lookup.get(baseName(entry.name))) !== compactKey(guild)) continue;
     seen.add(id);
     characters.push({ ...entry, class: entry.class || sdb.character?.class });
   }
+  let character = sdb.character;
+  if (guild && character && compactKey(lookup.get(baseName(character.name))) !== compactKey(guild)) {
+    character = characters.length ? { name: characters[0].name, realm: characters[0].realm, class: characters[0].class } : undefined;
+  }
   return {
-    ...(withGuild && sdb.guildKey ? { guildKey: sdb.guildKey } : {}),
-    ...(withGuild && sdb.character ? { character: sdb.character } : {}),
+    ...(withGuild && guild ? { guildKey: guild } : {}),
+    ...(withGuild && character ? { character } : {}),
     myCharacters: characters,
-    dungeon: sdb.dungeon ?? { runs: [] },
+    dungeon: dungeonForGuild(sdb, guild),
     ...(sdb.displayNames ? { displayNames: sdb.displayNames } : {}),
     addonVersion: sdb.addonVersion ?? null,
     exports: { [savedAt.toISOString()]: true }
@@ -75,14 +128,17 @@ export function parseSavedFiles({ guilded = null, standalone = null, standaloneA
     // No standalone data: the plain Guilded export (a missing GuildedDB throws the usual "was not found" error).
     const full = parseAddonExportText(guilded ?? "", realm);
     if (!standaloneDb) return { full, source: "guilded", noGuildKey: false };
-    const extra = parseAddonExportDatabase(standaloneAsGuildedDatabase(standaloneDb, { withGuild: false, onlyGuild: full.wowGuild || null, savedAt }), realm);
+    // Only runs of the guild Guilded exports (and only characters saved for it); with no guild there, nothing is added.
+    const extra = full.wowGuild
+      ? parseAddonExportDatabase(standaloneAsGuildedDatabase(standaloneDb, { withGuild: false, onlyGuild: full.wowGuild, savedAt }), realm)
+      : { dungeonRuns: [], alts: [] };
     const runs = new Map((full.dungeonRuns ?? []).map((run) => [run.id, run]));
     for (const run of extra.dungeonRuns ?? []) if (!runs.has(run.id)) runs.set(run.id, run);
     const known = new Set([full.character?.name, ...(full.alts ?? []).map((entry) => entry.name)].map((name) => String(name ?? "").toLowerCase()));
     const alts = [...(full.alts ?? []), ...(extra.alts ?? []).filter((entry) => !known.has(String(entry.name).toLowerCase()))];
     return { full: { ...full, dungeonRuns: [...runs.values()], ...(alts.length ? { alts } : {}) }, source: "both", noGuildKey: false };
   }
-  const full = parseAddonExportDatabase(standaloneAsGuildedDatabase(standaloneDb, { savedAt }), realm);
+  const full = parseAddonExportDatabase(standaloneAsGuildedDatabase(standaloneDb, { onlyGuild: uploadGuild(standaloneDb), savedAt }), realm);
   return { full, source: "standalone", noGuildKey: !full.wowGuild };
 }
 

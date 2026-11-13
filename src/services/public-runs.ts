@@ -481,3 +481,20 @@ export async function publishGuildRuns(database: PrismaClient, store: PublicRunS
   }
   return published;
 }
+
+export interface OwnCharacter { name: string; realm: string }
+
+/** The query that finds an upload's own characters among the players of its accepted runs (any own character, never a party member). */
+export function ownPlayersFilter(own: OwnCharacter[], forever: boolean) {
+  return own.map((entry) => ({
+    character: { equals: entry.name, mode: "insensitive" as const },
+    ...(forever ? {} : { realm: { equals: entry.realm, mode: "insensitive" as const } })
+  }));
+}
+
+/** The character a personal upload's score is shown for: the logged-in one when it was in an accepted run, else the first own character that was. */
+export function pickScoreCharacter(players: { character: string; realm: string | null }[], main: OwnCharacter): OwnCharacter {
+  const mine = players.find((player) => player.character.toLowerCase() === main.name.toLowerCase());
+  const picked = mine ?? players[0];
+  return picked?.realm ? { name: picked.character, realm: picked.realm } : main;
+}

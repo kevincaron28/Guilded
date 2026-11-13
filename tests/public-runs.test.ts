@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agrees, evidenceUpgrade, checkPublicRun, ingestPublicRuns, PublicUploadError, seasonOf, summarize, type PublicRunStore, type RunSummary, type StoredRun } from "../src/services/public-runs.js";
+import { agrees, evidenceUpgrade, checkPublicRun, ingestPublicRuns, ownPlayersFilter, pickScoreCharacter, PublicUploadError, seasonOf, summarize, type PublicRunStore, type RunSummary, type StoredRun } from "../src/services/public-runs.js";
 import { dungeonRunSchema } from "../src/services/dungeon-rules.js";
 
 const NOW = new Date("2026-11-10T20:00:00Z");
@@ -217,5 +217,17 @@ describe("personal uploads with several characters", () => {
     const memory = memoryRunStore();
     const result = await ingestPublicRuns(memory.store, { uploaderKey: "account:1", character: "Zed", source: "personal", runs: [run()] }, NOW);
     expect(result.rejected[0]?.reason).toBe("your character was not in this run");
+  });
+
+  it("links and scores an alt's run: every own character is searched, the alt is shown when the main was not in the run", () => {
+    const own = [{ name: "Zed", realm: "R1" }, { name: "Amy", realm: "R2" }];
+    expect(ownPlayersFilter(own, true)).toEqual([
+      { character: { equals: "Zed", mode: "insensitive" } },
+      { character: { equals: "Amy", mode: "insensitive" } },
+    ]);
+    expect(ownPlayersFilter(own, false)[1]).toMatchObject({ realm: { equals: "R2" } });
+    expect(pickScoreCharacter([{ character: "Amy", realm: "R2" }], own[0]!)).toEqual({ name: "Amy", realm: "R2" });
+    expect(pickScoreCharacter([{ character: "Amy", realm: "R2" }, { character: "zed", realm: "R1" }], own[0]!)).toEqual({ name: "zed", realm: "R1" });
+    expect(pickScoreCharacter([], own[0]!)).toEqual(own[0]);
   });
 });

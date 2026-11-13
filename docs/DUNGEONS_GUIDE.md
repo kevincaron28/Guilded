@@ -14,7 +14,9 @@ Dungeons alone plus the companion sends its runs to your guild's dungeon boards
 exactly like a PC with full Guilded: the companion reads `GuildedDungeons.lua`
 (and `Guilded.lua` too when both exist; the runs are combined, nothing recorded by
 either addon is lost). Guilded Dungeons saves your guild and every character of
-your account that logs in with it, so alts count. Roster, officer and raid
+your account that logs in with it, so alts count. If your account has characters in two guilds, each upload
+sends the guild of the character that logged in last (its runs and its characters only); a
+guildless alt logging in later does not change that. Roster, officer and raid
 information still needs full Guilded.
 
 Use the files offered on the [Guilded releases page](https://github.com/kevincaron28/Guilded/releases).

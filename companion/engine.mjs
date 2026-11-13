@@ -539,7 +539,7 @@ export function createEngine(initialConfig, hooks = {}) {
     }
     // T1: the bot linked and imported nothing because this server does not know the saved file's guild.
     if (response.ok && body.skipped === "wrong-server") {
-      state.lastUpload = { at: new Date().toISOString(), message: state.guildWarning ?? "Nothing was uploaded: this server does not know the saved file's guild." };
+      state.lastUpload = { at: new Date().toISOString(), message: noGuildKey ? NO_GUILD_KEY_MESSAGE : state.guildWarning ?? "Nothing was uploaded: this server does not know the saved file's guild." };
       state.syncPhase = "needs-attention";
       state.uploadError = null;
       failures = 0;
@@ -658,7 +658,7 @@ export function createEngine(initialConfig, hooks = {}) {
       const line = runReportMessage(counts);
       check.tries++;
       if (line && line.message !== check.last) { check.last = line.message; state.lastRuns = { at: new Date().toISOString(), message: line.message }; log(line.level, line.message); }
-      if (counts.unconfirmed === 0 || check.tries >= 3) pendingRunCheck = null;
+      if (counts.unconfirmed === 0 || check.tries >= 6) pendingRunCheck = null;
     }
     state.botVersion = result.botVersion ?? state.botVersion;
     state.lastStandings = { at: new Date().toISOString(), message: result.acceptedOnly ? "Dungeon run receipts saved for Guilded Dungeons. Use /reload in WoW to load them." : result.downloadedOnly ? "Standings downloaded. Select this connection to write them to the shared addon folder." : result.unchanged || result.refreshOnly ? `Standings already up to date (${result.count} characters).` : `Wrote standings for ${result.count} character(s). Use /reload in WoW to load them.` };

@@ -28,9 +28,9 @@ export function deviceRunCounts(sentRuns, body) {
   return classify(idsOf(sentRuns), receipts.acceptedRunRefs, receipts.runNotes, receipts.pendingRunNotes);
 }
 
-/** Signed-in upload: the runs went with the guild upload; the bot's standings answer (acceptedRunRefs, runNotes) says what it holds. */
+/** Signed-in upload: the runs went with the guild upload; the bot's standings answer (acceptedRunRefs, runNotes, and pendingRunNotes for runs waiting for a second statement) says what it holds. */
 export function signedRunCounts(sentRuns, standings) {
-  return classify(idsOf(sentRuns), standings?.acceptedRunRefs, standings?.runNotes);
+  return classify(idsOf(sentRuns), standings?.acceptedRunRefs, standings?.runNotes, standings?.pendingRunNotes);
 }
 
 /** Personal (public leaderboards) upload: the website's answer lists new, confirmed, already sent and refused runs. */

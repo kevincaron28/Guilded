@@ -23,6 +23,8 @@ function load(withGuilded: boolean) {
     NS.compat.isDungeonFinalBoss = function(_, id) return id == 9000 end`);
 }
 
+const NOW_ADVANCE = (seconds: number) => { s.run(`NOW = NOW + ${seconds}`); };
+
 function playRun() {
   s.run(`fire_event("PLAYER_ENTERING_WORLD")
     fire_event("PLAYER_REGEN_DISABLED")
@@ -132,7 +134,7 @@ describe("Guilded Dungeons saves who it belongs to", () => {
     s.run(`GuildedDungeonsDB.guildKey = nil; GuildedDungeonsDB.myCharacters = nil
       IsInGuild = function() return false end; fire_event("PLAYER_LOGIN")`);
     expect(s.run("return tostring(GuildedDungeonsDB.guildKey)")).toBe("nil");
-    expect(s.run("return tostring(GuildedDungeonsDB.myCharacters.Tester.guildKey)")).toBe("nil");
+    expect(s.run("return tostring(GuildedDungeonsDB.myCharacters.Tester.guildKey)")).toBe("");
     s.run(`IsInGuild = function() return true end; fire_event("PLAYER_GUILD_UPDATE", "player")`);
     expect(s.run("return GuildedDungeonsDB.guildKey")).toBe("Test Guild-TestRealm");
   });
@@ -152,6 +154,77 @@ describe("Guilded Dungeons saves who it belongs to", () => {
   it("stays quiet when Guilded is installed", () => {
     load(true);
     expect(s.run("return tostring(GuildedDungeonsDB.guildKey) .. tostring(GuildedDungeonsDB.myCharacters)")).toBe("nilnil");
+  });
+
+  // Fresh login with set-up globals (load() logs in at once).
+  function loginWith(setup: string) {
+    s = newLuaSession();
+    s.run(`NS = {}; GuildedDB = nil; GuildedDungeonsDB = nil
+      C_AddOns = { IsAddOnLoaded = function() return false end }
+      NOW = 1800000000; GetServerTime = function() return NOW end
+      TIMERS = {}; AFTERS = 0
+      C_Timer = { After = function(_, fn) AFTERS = AFTERS + 1; TIMERS[#TIMERS + 1] = fn end }
+      function run_timers() local list = TIMERS; TIMERS = {}; for _, fn in ipairs(list) do fn() end end
+      ${setup}`);
+    for (const file of tocFiles()) {
+      const source = readFileSync(new URL(`../../addon/GuildedDungeons/${file}`, import.meta.url), "utf8");
+      s.run(`loadaddon("GuildedDungeons", [=====[${source}]=====], NS)`);
+    }
+    s.run(`fire_event("PLAYER_LOGIN")`);
+  }
+  const keyOf = () => s.run("return tostring(GuildedDungeonsDB.guildKey)");
+
+  it("two guilds on one account: each character keeps its own guild, the root key follows the last guild login", () => {
+    load(false);
+    s.run(`UnitName = function() return "Bee" end; GetGuildInfo = function() return "Other Guild", "R", 1, "TestRealm" end; fire_event("PLAYER_LOGIN")`);
+    expect(s.run("return GuildedDungeonsDB.myCharacters.Tester.guildKey")).toBe("Test Guild-TestRealm");
+    expect(s.run("return GuildedDungeonsDB.myCharacters.Bee.guildKey")).toBe("Other Guild-TestRealm");
+    expect(keyOf()).toBe("Other Guild-TestRealm");
+  });
+
+  it("leaving a guild clears the key and the character's guild", () => {
+    load(false);
+    s.run(`IsInGuild = function() return false end; GetGuildInfo = function() return nil end; fire_event("PLAYER_GUILD_UPDATE", "player")`);
+    expect(keyOf()).toBe("nil");
+    expect(s.run("return GuildedDungeonsDB.myCharacters.Tester.guildKey")).toBe("");
+  });
+
+  it("an unguilded alt logging in last does not leave the other character's guild as the file's key", () => {
+    load(false);
+    s.run(`UnitName = function() return "Loner" end; IsInGuild = function() return false end; GetGuildInfo = function() return nil end; fire_event("PLAYER_LOGIN")`);
+    expect(keyOf()).toBe("nil");
+    expect(s.run("return GuildedDungeonsDB.myCharacters.Tester.guildKey")).toBe("Test Guild-TestRealm");
+    expect(s.run("return GuildedDungeonsDB.myCharacters.Loner.guildKey")).toBe("");
+  });
+
+  it("Forever: waits for the guild's home realm, then writes the compact key (spaced realm names)", () => {
+    loginWith(`GUILDED_TEST_HOME_WAIT = 20
+      GetRealmName = function() return "CAMWOW US2 Realm 2 PvP" end
+      HOME = ""
+      GetGuildInfo = function() return "Québec Gold", "R", 1, HOME end`);
+    expect(keyOf()).toBe("nil"); // home realm unknown: nothing stored yet (own realm may be another segment)
+    NOW_ADVANCE(5);
+    s.run("run_timers()");
+    expect(keyOf()).toBe("nil");
+    s.run(`HOME = "CAMWOWUS2Realm1PvP"; fire_event("PLAYER_GUILD_UPDATE", "player")`);
+    expect(keyOf()).toBe("Québec Gold-CAMWOWUS2Realm1PvP");
+  });
+
+  it("Forever: when the wait is over and no home realm ever comes, the own realm is the home", () => {
+    loginWith(`GUILDED_TEST_HOME_WAIT = 20
+      GetRealmName = function() return "CAMWOW US2 Realm 2 PvP" end
+      GetGuildInfo = function() return "Québec Gold", "R", 1, "" end`);
+    expect(keyOf()).toBe("nil");
+    NOW_ADVANCE(25);
+    s.run("run_timers()");
+    expect(keyOf()).toBe("Québec Gold-CAMWOWUS2Realm2PvP");
+  });
+
+  it("a burst of guild updates adds no further timers while the retries are pending", () => {
+    loginWith(`GUILDED_TEST_HOME_WAIT = 20; GetGuildInfo = function() return nil end`);
+    const afterLogin = Number(s.run("return AFTERS"));
+    for (let i = 0; i < 10; i++) s.run(`fire_event("PLAYER_GUILD_UPDATE", "player")`);
+    expect(Number(s.run("return AFTERS"))).toBe(afterLogin);
   });
 
   // The companion matches the Discord server from this key, so it must be spelled exactly like full Guilded's.

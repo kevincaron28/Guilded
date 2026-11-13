@@ -48,7 +48,10 @@ function standaloneSaved(options: { characters?: string[]; guild?: boolean; runA
     NS.compat.isDungeonFinalBoss = function(_, id) return id == 9000 end`);
   for (const name of characters) {
     const guild = options.guildOf?.[name] ?? "Test Guild";
-    lua.run(`UnitName = function() return ${JSON.stringify(name)} end; GetGuildInfo = function() return ${JSON.stringify(guild)}, "Member", 3, "TestRealm" end; fire_event("PLAYER_LOGIN")`);
+    // guildOf: { Name: "" } is a character without a guild.
+    lua.run(`UnitName = function() return ${JSON.stringify(name)} end
+      IsInGuild = function() return ${guild !== "" && options.guild !== false} end
+      GetGuildInfo = function() ${guild === "" ? "return nil" : `return ${JSON.stringify(guild)}, "Member", 3, "TestRealm"`} end; fire_event("PLAYER_LOGIN")`);
   }
   // The last character to log in plays the run; its party is Bob and Amy.
   lua.run(`fire_event("PLAYER_ENTERING_WORLD"); fire_event("PLAYER_REGEN_DISABLED"); STAMP = STAMP + 900; fire_event("ENCOUNTER_END", 9000, "Bazzalan", 1, 5, 1)`);
@@ -56,7 +59,7 @@ function standaloneSaved(options: { characters?: string[]; guild?: boolean; runA
   lua.run(`local id, run = next(GuildedDungeonsDB.dungeon.runs)
     ${options.runId ? `GuildedDungeonsDB.dungeon.runs[id] = nil; run.id = ${JSON.stringify(options.runId)}; GuildedDungeonsDB.dungeon.runs[run.id] = run` : ""}
     run.players = { [${JSON.stringify(played)}] = { class = "WARRIOR", level = 20, deaths = 0, presentSec = 900, inGuild = true }, Bob = { class = "MAGE", level = 20, deaths = 0, presentSec = 900, inGuild = true }, Amy = { class = "PRIEST", level = 20, deaths = 0, presentSec = 900, inGuild = true } }
-    run.reporters = { [${JSON.stringify(played)}] = true }
+    run.reporters = { [${JSON.stringify(played)}] = true }; run.recorder = ${JSON.stringify(played)}
     for _, copy in ipairs({ ${(options.copies ?? []).map((id) => JSON.stringify(id)).join(", ")} }) do
       local clone = {}; for k, v in pairs(run) do clone[k] = v end; clone.id = copy; GuildedDungeonsDB.dungeon.runs[copy] = clone
     end
@@ -177,6 +180,26 @@ describe("a PC with Guilded Dungeons alone", () => {
   });
 });
 
+describe("signed-in standalone PC without a saved guild key", () => {
+  it("shows the clear update-the-addon message, not the bot's generic wrong-guild error", async () => {
+    const { standaloneFile } = layout({ standalone: standaloneSaved({ old: true }) });
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ skipped: "wrong-server", serverWowGuild: { name: "Test Guild" } })));
+    const logs: { level: string; message: string }[] = [];
+    const engine = createEngine({ watchFile: standaloneFile, uploadUrl: "https://bot.test/api/v1/addon-imports", guildDiscordId: "1", companionCredential: "c".repeat(40) }, { onLog: (entry: { level: string; message: string }) => logs.push(entry) });
+    try {
+      expect(await engine.start()).toBe(true);
+      await vi.waitFor(() => expect(engine.state().lastUpload?.message).toBe(NO_GUILD_KEY_MESSAGE));
+    } finally { await engine.stop(); }
+    expect(logs.some((entry) => entry.level === "warn" && entry.message === NO_GUILD_KEY_MESSAGE)).toBe(true);
+  });
+
+  it("counts a run waiting for a second statement as waiting", () => {
+    const counts = signedRunCounts(["A", "B"], { acceptedRunRefs: ["A"], runNotes: {}, pendingRunNotes: { B: "Waiting for a second player" } });
+    expect(counts).toMatchObject({ sent: 2, stored: 1, waiting: 1, unconfirmed: 0 });
+    expect(dungeonRunReport(counts)?.message).toBe("Dungeon runs: 2 sent, 1 stored, 1 waiting for a second player.");
+  });
+});
+
 describe("a PC with both addons", () => {
   it("unions the runs by id: Guilded's copy wins, a run only the standalone addon recorded is kept", async () => {
     const standalone = standaloneSaved({ characters: ["Kev"], runId: "SHARED", copies: ["ONLY-STANDALONE"] });
@@ -204,6 +227,48 @@ describe("a PC with both addons", () => {
     const { full, source } = parseSavedFiles({ guilded: guildedSaved(guildedRun("G1")) }, "TestRealm");
     expect(source).toBe("guilded");
     expect(full.dungeonRuns.map((run: { id: string }) => run.id)).toEqual(["G1"]);
+  });
+});
+
+describe("two guilds on one account", () => {
+  const ids = (full: { dungeonRuns: { id: string }[] }) => full.dungeonRuns.map((run) => run.id);
+
+  it("uploads only the runs of the guild of the last login, never the other guild's", () => {
+    // A1 (Test Guild) ran, then B1 (Other Guild) logged in last.
+    const text = standaloneSaved({ characters: ["B1", "A1"], runAs: "A1", guildOf: { B1: "Other Guild" } });
+    // The run was recorded by A1 (Test Guild): the last login A1 is in Test Guild, so it uploads for Test Guild.
+    const forA = parseSavedFiles({ standalone: text }, "TestRealm").full;
+    expect(forA.wowGuild).toBe("Test Guild-TestRealm");
+    expect(ids(forA).length).toBe(1);
+    expect([forA.character.name, ...(forA.alts ?? []).map((a: { name: string }) => a.name)]).not.toContain("B1");
+    // Same account, B1 logged in last: the run of A1 stays out of Other Guild's upload.
+    const other = standaloneSaved({ characters: ["A1", "B1"], runAs: "A1", guildOf: { B1: "Other Guild" } });
+    const forB = parseSavedFiles({ standalone: other }, "TestRealm").full;
+    expect(forB.wowGuild).toBe("Other Guild-TestRealm");
+    expect(ids(forB)).toEqual([]);
+    expect(forB.character.name).toBe("B1");
+  });
+
+  it("a guildless alt logging in last leaves the earlier guild's upload intact", () => {
+    const text = standaloneSaved({ characters: ["Main", "Alt"], runAs: "Main", guildOf: { Alt: "" } });
+    const { full, noGuildKey } = parseSavedFiles({ standalone: text }, "TestRealm");
+    expect(noGuildKey).toBe(false);
+    expect(full.wowGuild).toBe("Test Guild-TestRealm");
+    expect(ids(full).length).toBe(1);
+    expect(full.character.name).toBe("Main");
+  });
+
+  it("a character that left its guild stops sending runs to it", () => {
+    const text = standaloneSaved({ characters: ["Solo"], guild: false });
+    const { full, noGuildKey } = parseSavedFiles({ standalone: text }, "TestRealm");
+    expect(noGuildKey).toBe(true);
+    expect(full.wowGuild).toBeUndefined();
+  });
+
+  it("a leftover GuildedDungeons.lua beside Guilded adds only the Guilded guild's runs", () => {
+    const standalone = standaloneSaved({ characters: ["Kev", "Other"], runAs: "Other", runId: "FOREIGN", guildOf: { Other: "Other Guild" } });
+    const { full } = parseSavedFiles({ guilded: guildedSaved(guildedRun("G1")), standalone, standaloneAt: 1 }, "TestRealm");
+    expect(ids(full)).toEqual(["G1"]);
   });
 });
 

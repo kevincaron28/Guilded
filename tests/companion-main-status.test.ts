@@ -116,7 +116,7 @@ describe("mainStatus: four lines and one needs-you line", () => {
 describe("the Syncing now / Trying again progress note", () => {
   const start = { startedAt: 1000, sawUploading: false };
   it("stays while the upload runs and clears when it ends, in success or failure", () => {
-    let step = syncNoteStep(start, "uploading", 1500);
+    const step = syncNoteStep(start, "uploading", 1500);
     expect(step.clear).toBe(false);
     for (const end of ["synced", "needs-attention", "retry", "waiting-save"]) {
       expect(syncNoteStep(step.note, end, 3000).clear, end).toBe(true);

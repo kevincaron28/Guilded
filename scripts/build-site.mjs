@@ -149,7 +149,7 @@ const pages = [...JSON.parse(readFileSync("site/pages.json", "utf8")), ...editio
 // The bot-served public pages too, in each edition's section; published guild pages have their
 // own sitemap, served by the bot.
 const isRedirected = path => Object.hasOwn(GUIDE_REDIRECTS, path) || Object.hasOwn(GUIDE_REDIRECTS, path.replace(/\/$/, ""));
-const publicUrls = ["/", ...guides.map(name => `/docs/${name}`), ...EDITION_SECTIONS.flatMap(({ slug }) => ["leaderboards/", "leaderboards/guilds/", "recruitment/", "recruitment/guilds/", "players/"].map(page => `/${slug}/${page}`))];
+const publicUrls = ["/", ...guides.map(name => `/docs/${name}`), ...EDITION_SECTIONS.flatMap(({ slug }) => ["leaderboards/", "leaderboards/guilds/", "recruitment/", "recruitment/guilds/", "players/"].map(page => `/${slug}/${page}`))].filter(path => !isRedirected(path));
 for (const page of pages) {
   const prefix = "../".repeat(page.path.split("/").filter(Boolean).length);
   const french = page.lang === "fr";

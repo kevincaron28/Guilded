@@ -39,7 +39,7 @@ describe("search-engine fixes in the Worker", () => {
 describe("built site", () => {
   beforeAll(() => execFileSync(process.execPath, ["scripts/build-site.mjs"], { stdio: "pipe" }), 60000);
   const out = "dist/site";
-  const locs = () => [...readFileSync(`${out}/sitemap.xml`, "utf8").matchAll(/<loc>([^<]+)<\/loc>/g)].map(match => match[1]);
+  const locs = () => [...readFileSync(`${out}/sitemap.xml`, "utf8").matchAll(/<loc>([^<]+)<\/loc>/g)].map(match => match[1]!);
   it("lists only https://guildedwow.com URLs and no redirecting page", () => {
     const urls = locs();
     expect(urls.length).toBeGreaterThan(5);

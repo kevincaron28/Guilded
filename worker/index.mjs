@@ -288,7 +288,7 @@ export function canonicalRedirect(request, env, url = new URL(request.url)) {
 // every host, so search engines index one address. /fr/ pages are French by their path, so ?lang is dropped there.
 export function indexHtmlRedirect(request, url = new URL(request.url)) {
   if (!["GET", "HEAD"].includes(request.method) || !/\/index\.html$/.test(url.pathname)) return null;
-  if (/^\/(?:api|downloads)\//.test(url.pathname)) return null;
+  if (/^\/(?:api|downloads|companion)\//.test(url.pathname)) return null; // the companion page has its own rule below
   const query = new URLSearchParams(url.search);
   if (url.pathname.startsWith("/fr/")) query.delete("lang");
   const rest = query.toString();

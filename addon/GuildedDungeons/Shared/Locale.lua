@@ -2794,6 +2794,9 @@ local DE = {
   ["Whole guild"] = "Ganze Gilde",
   ["Window and language"] = "Fenster und Sprache",
   ["World PvP stats"] = "Welt-PvP-Statistiken",
+  -- 9.3 settings page (Modules/SettingsPage.lua)
+  ["All settings"] = "Alle Einstellungen",
+  ["Opens Guilded's page in the game's options: every setting in tabs, each with a description."] = "\195\150ffnet Guildeds Seite in den Spieloptionen: alle Einstellungen in Reitern, jede mit Beschreibung.",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -4620,6 +4623,9 @@ local ES = {
   ["Whole guild"] = "Toda la hermandad",
   ["Window and language"] = "Ventana e idioma",
   ["World PvP stats"] = "Estad\195\173sticas de JcJ mundial",
+  -- 9.3 settings page (Modules/SettingsPage.lua)
+  ["All settings"] = "Todos los ajustes",
+  ["Opens Guilded's page in the game's options: every setting in tabs, each with a description."] = "Abre la p\195\161gina de Guilded en las opciones del juego: todos los ajustes en pesta\195\177as, cada uno con su descripci\195\179n.",
 }
 -- END ES
 
@@ -4802,6 +4808,9 @@ FR["Who wants an item and what it costs, on item tooltips."] = "Qui veut un obje
 FR["Whole guild"] = "Toute la guilde"
 FR["Window and language"] = "Fen\195\170tre et langue"
 FR["World PvP stats"] = "Statistiques JcJ mondial"
+-- 9.3 settings page: tabs, groups and descriptions (Modules/SettingsPage.lua).
+FR["All settings"] = "Tous les r\195\169glages"
+FR["Opens Guilded's page in the game's options: every setting in tabs, each with a description."] = "Ouvre la page de Guilded dans les options du jeu : tous les r\195\169glages en onglets, chacun avec sa description."
 FR["Invites"] = "Invitations"
 FR["Officers only."] = "R\195\169serv\195\169 aux officiers."
 FR["Advanced..."] = "Avanc\195\169..."

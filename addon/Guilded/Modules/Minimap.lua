@@ -2459,7 +2459,8 @@ end
 -- The Advanced view of Settings (the game options' "Info, data and developer tools" button).
 function ns.openAdvancedSettings()
   if InCombatLockdown and InCombatLockdown() then return end
-  ns.openToolsPage("Info")
+  ns.openToolsPage("Tools")
+  if ui.showAdvanced then ui.showAdvanced(true) end
 end
 
 -- Opens one page of the tools by name (the setup window's "Set up my guild" uses it).

@@ -125,3 +125,71 @@ export function renderBannerCard(spec: NextCardSpec): Promise<RenderedCard> {
     return c.finish([{ input: banner, left: 0, top: 0 }]);
   });
 }
+
+/** A guild name seen by the recorder's game client: display text only. Trimmed, clipped to 24 characters, shown as "<Name>". Empty when unknown. */
+export function guildTag(guild: string | null | undefined, max = 24): string {
+  const g = (guild ?? "").replace(/[<>]/g, "").replace(/\s+/g, " ").trim();
+  if (!g) return "";
+  const chars = [...g];
+  return `<${chars.length > max ? `${chars.slice(0, max - 1).join("").trimEnd()}…` : g}>`;
+}
+
+export interface DungeonPartyRow { name: string; color: string; role: "tank" | "healer" | "dps"; score?: string | undefined; guild?: string | null | undefined }
+export interface DungeonCardSpec {
+  /** "DUNGEON · HEROIC" style label. */
+  label: string;
+  /** Dungeon name. */
+  title: string;
+  /** The time (or "Failed"/"Abandoned"). */
+  hero: string; heroColor?: string | undefined;
+  /** The record line under the time ("New guild record, was 24:10"). */
+  heroNote?: string | undefined;
+  /** "2 deaths", "Score 1840": shown together on one line. */
+  facts: string[];
+  party: DungeonPartyRow[];
+  /** Raw SVG markup of the death map, drawn without a box over the right side of the painting (caller positions it in card pixels). */
+  mapSvg?: string | undefined;
+  mapLabel?: string | undefined;
+  strip?: string | undefined;
+  art: Buffer;
+}
+
+const ROLE_COLOR = { tank: "#7fb2ff", healer: "#86e66a", dps: "#ff9a8a" } as const;
+const ROLE_GLYPH = {
+  tank: '<path d="M32 6 L54 14 V32 Q54 50 32 60 Q10 50 10 32 V14 Z"/>',
+  healer: '<path d="M24 8 H40 V24 H56 V40 H40 V56 H24 V40 H8 V24 H24 Z"/>',
+  dps: '<path d="M14 54 L50 14 M44 8 L56 20 M10 50 L18 58"/>'
+} as const;
+
+/** Result card for a dungeon run: the painting full bleed, the left half carries time, record, facts and the party, the death map floats on the painting. */
+export function renderDungeonCard(spec: DungeonCardSpec): Promise<RenderedCard> {
+  return serial(async () => {
+    const c = new CardCanvas(), { accent, tint } = ACCENTS.dungeon, x = 56, colW = 610;
+    c.gradient(0, 0, 830, CARD_H, "h", [[0, "#000", 0.9], [0.82, "#000", 0.82], [1, "#000", 0]]);
+    c.rect(0, 548, CARD_W, 82, "#060504", { opacity: 0.66 });
+    c.rect(0, 546, CARD_W, 3, accent, { opacity: 0.9 });
+    c.emblem("gate", x, 30, 40, tint);
+    await c.text(spec.label, x + 54, 34, { size: 26, face: "bold", color: tint, spacing: 1500, maxW: colW - 54 });
+    await c.text(spec.title, x, 78, { size: 44, face: "serif", maxW: colW });
+    const hero = await c.text(spec.hero, x, 126, { size: 84, face: "bold", color: spec.heroColor ?? GOOD, maxW: 300 });
+    if (spec.heroNote) await c.text(spec.heroNote, x + hero.w + 18, 164, { size: 28, color: SUB, maxW: colW - hero.w - 18 });
+    let y = 126 + hero.h + 18;
+    if (spec.facts.length) { await c.text(spec.facts.join("  ·  "), x, y, { size: 30, color: INK, maxW: colW }); y += 46; }
+    y += 6;
+    const pitch = 40;
+    for (const p of spec.party.slice(0, 5)) {
+      c.raw(`<g transform="translate(${x} ${y + 3}) scale(${26 / 64})" fill="none" stroke="${ROLE_COLOR[p.role]}" stroke-width="7" stroke-linejoin="round" stroke-linecap="round">${ROLE_GLYPH[p.role]}</g>`);
+      const scoreW = p.score ? 80 : 0;
+      const tag = guildTag(p.guild);
+      const n = await c.text(p.name, x + 38, y, { size: 30, face: "bold", color: p.color, maxW: tag ? 230 : colW - 38 - scoreW });
+      if (tag) await c.text(tag, x + 38 + 244, y + 3, { size: 24, color: SUB, maxW: colW - 38 - 244 - scoreW - 10 });
+      if (p.score) await c.text(p.score, x + colW, y, { size: 30, face: "bold", anchor: "r", maxW: scoreW });
+      y += pitch; void n;
+    }
+    if (spec.mapSvg) {
+      c.raw(spec.mapSvg);
+    }
+    if (spec.strip) await c.text(spec.strip, x, 575, { size: 26, color: SUB, maxW: CARD_W - 112 });
+    return c.finish([{ input: await fitted(spec.art), left: 0, top: 0 }]);
+  });
+}

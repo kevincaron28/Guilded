@@ -1105,7 +1105,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const account = await personalAccess(personalStore, typeof secret === "string" ? secret : undefined);
         if (!account) { recordFailure(address); json(response, 401, { error: "Connect this companion with a code from your Guilded page (guilded.kcaron.top/me/)." }); return; }
         if (!allowPublicUpload(account.accountId)) { json(response, 429, { error: "Too many uploads in the last hour. Try again later." }); return; }
-        const body = await readBody(request) as { character?: { name?: unknown; displayName?: unknown; realm?: unknown; gameEdition?: unknown; interface?: unknown }; runs?: unknown; includeScore?: unknown } | null;
+        const body = await readBody(request) as { character?: { name?: unknown; displayName?: unknown; realm?: unknown; gameEdition?: unknown; interface?: unknown }; runs?: unknown; includeScore?: unknown; characters?: unknown } | null;
         let gameEdition;
         try {
           gameEdition = gameEditionOf(body?.character ?? {});
@@ -1122,7 +1122,14 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const realm = gameEdition === "forever" ? rawRealm : realmKey(rawRealm);
         if (gameEdition !== "forever" && !realm) { json(response, 400, { error: "character.realm is required" }); return; }
         try {
-          const result = await ingestPublicRuns(publicRuns, { uploaderKey: `account:${account.accountId}`, gameEdition, character: characterKey(character, realm, gameEdition), source: "personal", runs: body?.runs });
+          // (9.3.0) The account's other saved characters: a run of any of them counts, not only the one that logged in last.
+          const others = (Array.isArray(body?.characters) ? body.characters : []).slice(0, 12).flatMap((entry: { name?: unknown; realm?: unknown } | null) => {
+            const name = typeof entry?.name === "string" ? entry.name.trim().slice(0, 40) : "";
+            if (!name) return [];
+            const otherRealm = typeof entry?.realm === "string" ? entry.realm.trim().slice(0, 100) : "";
+            return [characterKey(name, gameEdition === "forever" ? otherRealm : realmKey(otherRealm), gameEdition)];
+          });
+          const result = await ingestPublicRuns(publicRuns, { uploaderKey: `account:${account.accountId}`, gameEdition, character: characterKey(character, realm, gameEdition), characters: others, source: "personal", runs: body?.runs });
           const refs = [...result.accepted, ...result.confirmed, ...result.duplicates];
           if (refs.length) {
             // Link only this uploader's named character in a run accepted from this request.

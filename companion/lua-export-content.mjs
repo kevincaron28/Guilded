@@ -97,7 +97,12 @@ export function readDatabase(lua, name = "GuildedDB") {
 }
 
 export function parseAddonExportText(text, realm) {
-  const database = readDatabase(text.replace(/^\uFEFF/, ""));
+  return parseAddonExportDatabase(readDatabase(text.replace(/^\uFEFF/, "")), realm);
+}
+
+// The export of an already read GuildedDB. A synthetic one built from a standalone Guilded Dungeons file
+// (addon-files.mjs) goes through the same code, so it has the same shape as a full-Guilded save with nothing in it.
+export function parseAddonExportDatabase(database, realm) {
   const edition = editionMetadata(database.character ?? {});
   if (edition.gameEdition !== "forever") realm = String(database.character?.realm || realm);
   const transactions = [];

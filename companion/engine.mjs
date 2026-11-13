@@ -4,7 +4,8 @@ import { createHash } from "node:crypto";
 import { readSavedText } from "./saved-file.mjs";
 import { watch } from "node:fs";
 import { basename, dirname } from "node:path";
-import { readAddonExport } from "./lua-export.mjs";
+import { readSavedExport, watchedSavedFiles, NO_GUILD_KEY_MESSAGE } from "./addon-files.mjs";
+import { dungeonRunReport, runReportMessage, deviceRunCounts, signedRunCounts } from "./run-report.mjs";
 import { standingsFileHolds, writeStandings } from "./standings.mjs";
 import { credentialHeaders, checkUrl, requestJson, jsonBody, MAX_UPLOAD_BYTES } from "./request.mjs";
 import { acknowledgements, pruneAcknowledged } from "./delta.mjs";
@@ -101,7 +102,7 @@ export async function savedGuildKey(config) {
   try {
     if (!config?.watchFile) return "";
     const full = config.watchFile.toLowerCase().endsWith(".lua")
-      ? await readAddonExport(config.watchFile, config.realm)
+      ? (await readSavedExport(config.watchFile, config.realm)).full
       : JSON.parse(await readSavedText(config.watchFile));
     return typeof full?.wowGuild === "string" ? full.wowGuild.trim().slice(0, 120) : "";
   } catch { return ""; }
@@ -266,6 +267,8 @@ export function createEngine(initialConfig, hooks = {}) {
   let etag = null;
   let gzipOff = false;
   let lastFile = null;
+  // The runs of the last guild upload still to be checked against the bot's standings answer (run-report.mjs).
+  let pendingRunCheck = null;
   let lastText = null;
   let watchRestarts = 0;
   let watchStartedAt = 0;
@@ -277,6 +280,7 @@ export function createEngine(initialConfig, hooks = {}) {
     watching: null,
     lastUpload: null,     // { at, message }
     lastStandings: null,  // { at, message }
+    lastRuns: null,       // { at, message }: what happened to the last dungeon runs sent (run-report.mjs)
     lastError: null,      // { at, message }
     botVersion: null,
     addonVersion: null,
@@ -333,7 +337,8 @@ export function createEngine(initialConfig, hooks = {}) {
     try { const info = await stat(path); return `${info.mtimeMs}:${info.size}`; } catch { return null; }
   }
   // Personal mode reads both addons' saved files from the folder (personal-runs.mjs).
-  const watchedFiles = (current = config) => (current.personal ? personalSavedFiles(current.watchFile) : [current.watchFile]);
+  // Guild and device uploads read Guilded.lua and GuildedDungeons.lua together (addon-files.mjs), so both are watched.
+  const watchedFiles = (current = config) => (current.personal ? personalSavedFiles(current.watchFile) : watchedSavedFiles(current.watchFile));
   async function savedStamp(current = config) {
     const [first, ...rest] = await Promise.all(watchedFiles(current).map(fileStamp));
     return first === null ? null : [first, ...rest].join("|");
@@ -393,6 +398,8 @@ export function createEngine(initialConfig, hooks = {}) {
       failures = 0;
       state.pendingUpload = false;
       log(result.level, result.message);
+      const runLine = dungeonRunReport(result.runCounts);
+      if (runLine) { state.lastRuns = { at: new Date().toISOString(), message: runLine.message }; log(runLine.level, runLine.message); }
     } catch (error) {
       if (epoch !== generation) return;
       state.uploadError = describeError(error);
@@ -423,15 +430,15 @@ export function createEngine(initialConfig, hooks = {}) {
     state.retryAt = null;
     const startedAt = Date.now();
     try {
-      lastFile = await fileStamp(current.watchFile);
-      const full = await readAddonExport(current.watchFile, current.realm);
+      lastFile = await savedStamp(current);
+      const { full, source, noGuildKey } = await readSavedExport(current.watchFile, current.realm);
       // (9.1.3) The same evidence as a signed-in upload (one revision for saved, sent and received), so the
       // Sync page shows "Sent" and "Received" instead of "Unknown" after an unsigned sync.
       const revision = createHash("sha256").update(JSON.stringify(full)).digest("hex");
       state.syncEvidence = { savedAt: new Date().toISOString(), savedRevision: revision, character: full.character?.name ? `${full.character.name} — ${full.character.realm || current.realm || "?"}` : null, edition: full.gameEdition || full.character?.gameEdition };
       // Runs the bot already acknowledged (kept in the addon's data file) are not sent again: only the newest 50 go in one upload.
       const acknowledged = new Set((await readDeviceReceipts(current)).refs);
-      const { response, body } = await uploadAsDevice(current, full, controller.signal, { acknowledged });
+      const { response, body, sent } = await uploadAsDevice(current, full, controller.signal, { acknowledged });
       if (epoch !== generation) return;
       state.botVersion = body.botVersion ?? state.botVersion;
       if (!response.ok) {
@@ -446,7 +453,8 @@ export function createEngine(initialConfig, hooks = {}) {
         try { await writeDeviceReceipts(current, { ...(body.runReceipts ?? {}), reported: body.reported }, controller.signal); }
         catch (error) { if (epoch !== generation) return; log("warn", `Could not save the run receipts for the addon: ${describeError(error)}`); }
       }
-      const message = deviceMessage(summary);
+      // Guilded Dungeons alone with no guild saved yet: the bot cannot match a server, so say what to do instead of a vague wait.
+      const message = noGuildKey && summary?.status !== "synced" ? NO_GUILD_KEY_MESSAGE : deviceMessage(summary);
       state.lastUpload = { at: new Date().toISOString(), message };
       state.syncPhase = summary?.status === "synced" ? "synced" : "needs-attention";
       if (summary?.status === "synced") Object.assign(state.syncEvidence, { uploadedAt: state.lastUpload.at, uploadedRevision: revision, acceptedAt: state.lastUpload.at, acceptedRevision: revision });
@@ -454,7 +462,10 @@ export function createEngine(initialConfig, hooks = {}) {
       state.uploadError = null;
       failures = 0;
       state.pendingUpload = false;
-      log(summary?.status === "synced" ? "ok" : "warn", message);
+      log(summary?.status === "synced" && !noGuildKey ? "ok" : "warn", message);
+      // 9.3.0: what happened to the dungeon runs this upload carried, so "Uploaded" proves something.
+      const runLine = runReportMessage(deviceRunCounts(sent?.dungeonRuns, body), source);
+      if (runLine) { state.lastRuns = { at: new Date().toISOString(), message: runLine.message }; log(runLine.level, runLine.message); }
       if (summary?.status === "claimed") hooks.onDeviceClaimed?.();
     } catch (error) {
       if (epoch !== generation) return;
@@ -488,12 +499,15 @@ export function createEngine(initialConfig, hooks = {}) {
     state.retryAt = null;
     const startedAt = Date.now();
     try {
-    lastFile = await fileStamp(current.watchFile);
-    const full = current.watchFile.toLowerCase().endsWith(".lua")
-      ? await readAddonExport(current.watchFile, current.realm)
-      : JSON.parse(await readSavedText(current.watchFile));
-    const stamp = await stat(current.watchFile);
-    if (`${stamp.mtimeMs}:${stamp.size}` !== lastFile) throw new Error("Saved data changed during reading. Retrying the latest save.");
+    const readStamp = await fileStamp(current.watchFile);
+    lastFile = await savedStamp(current);
+    let source = "guilded", noGuildKey = false;
+    let full;
+    if (current.watchFile.toLowerCase().endsWith(".lua")) ({ full, source, noGuildKey } = await readSavedExport(current.watchFile, current.realm));
+    else full = JSON.parse(await readSavedText(current.watchFile));
+    const stamp = await stat(current.watchFile).catch(() => null) ?? { mtimeMs: 0, size: 0, mtime: new Date() };
+    if (readStamp !== null && `${stamp.mtimeMs}:${stamp.size}` !== readStamp) throw new Error("Saved data changed during reading. Retrying the latest save.");
+    if (noGuildKey) log("warn", NO_GUILD_KEY_MESSAGE);
     // (9.0) The addon's guild sync counters are for the support summary only, never uploaded,
     // and they change at every save, so they stay out of the revision too.
     if (full && typeof full === "object" && "syncStats" in full) {
@@ -552,10 +566,14 @@ export function createEngine(initialConfig, hooks = {}) {
         : body.professionRelay
           ? `Professions and recipes synced. Guild ledger imports still await officer review.${pairingNote(body.pairedCharacterStatus)}`
           : `Uploaded ${body.transactionCount} ledger entries. Apply on Discord with: /import apply id:${body.importId}.${pairingNote(body.pairedCharacterStatus)}`;
+      pendingRunCheck = { ids: (exported.dungeonRuns ?? []).map(run => run.id), source, tries: 0, last: null };
+      const sentLine = runReportMessage({ sent: pendingRunCheck.ids.length, stored: 0, copies: 0, waiting: 0, unconfirmed: 0, notCounted: {} }, source);
       state.lastUpload = { at: new Date().toISOString(), message };
       state.syncPhase = body.applyError ? "apply-error" : body.applying ? "synced" : body.autoApplied?.held || !body.autoApplied && !body.professionRelay ? "officer-review" : "synced";
       state.uploads += 1;
       log(body.applyError || body.autoApplied?.held ? "warn" : "ok", message + leftNote);
+      // 9.3.0: the dungeon runs this upload carried; the standings answer that follows says how many the bot holds.
+      if (sentLine && pendingRunCheck.ids.length) log("info", sentLine.message);
       // A live standings connection hears about the change by itself.
       if (state.standingsMode !== "live") track(refreshStandings());
     } else if (response.status === 409 && body.importId) {
@@ -634,9 +652,18 @@ export function createEngine(initialConfig, hooks = {}) {
     lastText = result.text ?? null;
     features = new Set(Array.isArray(result.body?.features) ? result.body.features : []);
     ack = acknowledgements(result.body);
+    if (pendingRunCheck && pendingRunCheck.ids.length) {
+      const check = pendingRunCheck;
+      const counts = signedRunCounts(check.ids, result.body);
+      const line = runReportMessage(counts, check.source);
+      check.tries++;
+      if (line && line.message !== check.last) { check.last = line.message; state.lastRuns = { at: new Date().toISOString(), message: line.message }; log(line.level, line.message); }
+      if (counts.unconfirmed === 0 || check.tries >= 3) pendingRunCheck = null;
+    }
     state.botVersion = result.botVersion ?? state.botVersion;
-    state.lastStandings = { at: new Date().toISOString(), message: result.downloadedOnly ? "Standings downloaded. Select this connection to write them to the shared addon folder." : result.unchanged || result.refreshOnly ? `Standings already up to date (${result.count} characters).` : `Wrote standings for ${result.count} character(s). Use /reload in WoW to load them.` };
-    if (!result.unchanged && !result.refreshOnly) log("ok", `Updated addon data for ${result.count} character(s) in ${result.path}.`);
+    state.lastStandings = { at: new Date().toISOString(), message: result.acceptedOnly ? "Dungeon run receipts saved for Guilded Dungeons. Use /reload in WoW to load them." : result.downloadedOnly ? "Standings downloaded. Select this connection to write them to the shared addon folder." : result.unchanged || result.refreshOnly ? `Standings already up to date (${result.count} characters).` : `Wrote standings for ${result.count} character(s). Use /reload in WoW to load them.` };
+    if (result.acceptedOnly) { if (!result.unchanged) log("ok", state.lastStandings.message); else hooks.onState?.(snapshot()); }
+    else if (!result.unchanged && !result.refreshOnly) log("ok", `Updated addon data for ${result.count} character(s) in ${result.path}.`);
     else hooks.onState?.(snapshot());
     return result;
   }

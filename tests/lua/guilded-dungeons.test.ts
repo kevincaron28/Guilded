@@ -105,6 +105,81 @@ describe("Guilded Dungeons hears its guild", () => {
   });
 });
 
+// 9.3.0 (owner report, 13 November 2026: runs recorded by the standalone addon never reached the board): the
+// companion needs the guild key and every character of the account, like full Guilded saves.
+describe("Guilded Dungeons saves who it belongs to", () => {
+  it("writes the guild key, edition and the logging-in character", () => {
+    load(false);
+    expect(s.run("return GuildedDungeonsDB.guildKey")).toBe("Test Guild-TestRealm");
+    expect(s.run("return GuildedDungeonsDB.guildEdition")).toBe("forever");
+    expect(s.run("local c = GuildedDungeonsDB.myCharacters['Tester']; return c.name .. ':' .. c.realm .. ':' .. c.class .. ':' .. c.level .. ':' .. c.guildKey")).toBe("Tester:TestRealm:WARRIOR:60:Test Guild-TestRealm");
+    expect(s.run("return GuildedDungeonsDB.character.name")).toBe("Tester");
+  });
+
+  it("keeps every alt of the account and updates the guild when it changes", () => {
+    load(false);
+    s.run(`UnitName = function() return "Altone" end; fire_event("PLAYER_LOGIN")`);
+    s.run(`UnitName = function() return "Alttwo" end; GetGuildInfo = function() return "Other Guild", "Member", 3, "OtherRealm" end; fire_event("PLAYER_LOGIN")`);
+    expect(s.run("local n = {}; for k in pairs(GuildedDungeonsDB.myCharacters) do n[#n+1] = k end; table.sort(n); return table.concat(n, ',')")).toBe("Altone,Alttwo,Tester");
+    expect(s.run("return GuildedDungeonsDB.myCharacters.Altone.guildKey")).toBe("Test Guild-TestRealm");
+    expect(s.run("return GuildedDungeonsDB.myCharacters.Alttwo.guildKey")).toBe("Other Guild-OtherRealm");
+    expect(s.run("return GuildedDungeonsDB.guildKey")).toBe("Other Guild-OtherRealm");
+    expect(s.run("return GuildedDungeonsDB.character.name")).toBe("Alttwo");
+  });
+
+  it("notices the guild once the client knows it (guild info empty at login)", () => {
+    load(false);
+    s.run(`GuildedDungeonsDB.guildKey = nil; GuildedDungeonsDB.myCharacters = nil
+      IsInGuild = function() return false end; fire_event("PLAYER_LOGIN")`);
+    expect(s.run("return tostring(GuildedDungeonsDB.guildKey)")).toBe("nil");
+    expect(s.run("return tostring(GuildedDungeonsDB.myCharacters.Tester.guildKey)")).toBe("nil");
+    s.run(`IsInGuild = function() return true end; fire_event("PLAYER_GUILD_UPDATE", "player")`);
+    expect(s.run("return GuildedDungeonsDB.guildKey")).toBe("Test Guild-TestRealm");
+  });
+
+  it("loads an old file without these fields and fills them in", () => {
+    s = newLuaSession();
+    s.run(`NS = {}; GuildedDB = nil; C_AddOns = { IsAddOnLoaded = function() return false end }
+      GuildedDungeonsDB = { settings = {}, character = { name = "Old", realm = "TestRealm" }, dungeon = { runs = {} } }`);
+    for (const file of tocFiles()) {
+      const source = readFileSync(new URL(`../../addon/GuildedDungeons/${file}`, import.meta.url), "utf8");
+      s.run(`loadaddon("GuildedDungeons", [=====[${source}]=====], NS)`);
+    }
+    s.run(`fire_event("PLAYER_LOGIN")`);
+    expect(s.run("return GuildedDungeonsDB.guildKey")).toBe("Test Guild-TestRealm");
+  });
+
+  it("stays quiet when Guilded is installed", () => {
+    load(true);
+    expect(s.run("return tostring(GuildedDungeonsDB.guildKey) .. tostring(GuildedDungeonsDB.myCharacters)")).toBe("nilnil");
+  });
+
+  // The companion matches the Discord server from this key, so it must be spelled exactly like full Guilded's.
+  it("spells the guild key exactly like full Guilded", () => {
+    const cases = [
+      { guild: "Test Guild", home: "", realm: "TestRealm" },
+      { guild: "Québec Gold", home: "CAMWOWUS2Realm2PvP", realm: "CAMWOW US2 Realm 2 PvP" },
+      { guild: "Québec Gold", home: "", realm: "CAMWOW US2 Realm 2 PvP" },
+    ];
+    for (const c of cases) {
+      const setup = `GetGuildInfo = function() return ${JSON.stringify(c.guild)}, "R", 1, ${JSON.stringify(c.home)} end
+        GetRealmName = function() return ${JSON.stringify(c.realm)} end`;
+      load(false);
+      s.run(setup);
+      const standalone = s.run("return NS.currentGuildKey()");
+      s.close();
+      s = newLuaSession();
+      s.run(`GuildedDB = nil; NS = {}`);
+      s.load("Core.lua");
+      s.load("Compat.lua");
+      s.run(setup);
+      const full = s.run("return NS.currentGuildKey()");
+      expect(standalone).toBe(full);
+      expect(standalone).toMatch(/^Québec Gold-|^Test Guild-/);
+    }
+  });
+});
+
 describe("Guilded Dungeons next to Guilded", () => {
   it("stays quiet so Guilded alone counts the run", () => {
     load(true);

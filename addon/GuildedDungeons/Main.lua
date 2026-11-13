@@ -42,9 +42,77 @@ SLASH_GUILDEDDUNGEONS2 = "/gdg"
 -- every Blizzard slash command typed afterwards (/ginvite, ...) is blocked as "only available to the Blizzard UI".
 SlashCmdList["GUILDEDDUNGEONS"] = function(text) ns.slash(text) end
 
+-- The guild key, spelled exactly like full Guilded's GuildedDB.guildKey (addon/Guilded/Core.lua
+-- currentGuildKey: "<guild name>-<home realm>", Forever realms without spaces). The companion matches a
+-- standalone-only PC to its Discord server from this. Plain reads only: no protected calls.
+local function compactRealm(realm) return (string.gsub(realm, "%s+", "")) end
+function ns.currentGuildKey()
+  if not (IsInGuild and IsInGuild()) then return nil end
+  local guildName = GetGuildInfo and GetGuildInfo("player")
+  if type(guildName) ~= "string" or guildName == "" or ns.isSecret(guildName) then return nil end
+  local realm = (ns.compat and ns.compat.identity().realm) or (GetRealmName and GetRealmName()) or ""
+  local home
+  if ns.util.isForever() and GetGuildInfo then
+    local ok, _, _, _, value = pcall(GetGuildInfo, "player")
+    if ok and type(value) == "string" and value ~= "" and not ns.isSecret(value) then home = value end
+  end
+  if ns.util.isForever() then return guildName .. "-" .. compactRealm(home or realm) end
+  return guildName .. "-" .. (home or realm)
+end
+
+local MAX_CHARACTERS = 50
+
+-- Everything the companion needs about whose runs these are: the guild key and edition, and every
+-- character of this account that logged in with this addon (name, realm, class, level, guild key).
+-- Written at login and whenever the guild becomes known or changes. Old files without these fields load as before.
+local function noteIdentity()
+  if ns.guildedPresent() then return end
+  local db = ns.getDb()
+  local character = db.character
+  if type(character) ~= "table" or not character.name or character.name == "Unknown" then return end
+  local key = ns.currentGuildKey()
+  if key then
+    db.guildKey = key
+    db.guildEdition = ns.util.gameEdition()
+  end
+  db.myCharacters = type(db.myCharacters) == "table" and db.myCharacters or {}
+  local id = ns.util.characterKey(character.name, character.realm)
+  db.myCharacters[id] = {
+    name = character.name, displayName = character.displayName, realm = character.realm,
+    class = character.class, level = character.level, guildKey = key or (db.myCharacters[id] and db.myCharacters[id].guildKey),
+    gameEdition = character.gameEdition, interface = character.interface,
+    capturedAt = date and date("!%Y-%m-%dT%H:%M:%SZ") or nil,
+  }
+  local count, oldest, oldestAt = 0, nil, nil
+  for name, entry in pairs(db.myCharacters) do
+    count = count + 1
+    if not oldestAt or (entry.capturedAt or "") < oldestAt then oldest, oldestAt = name, entry.capturedAt or "" end
+  end
+  if count > MAX_CHARACTERS and oldest and oldest ~= id then db.myCharacters[oldest] = nil end
+end
+ns.noteIdentity = noteIdentity
+
+-- The guild is only known once the client has loaded it: try again a few times after login, and on guild changes.
+local GUILD_RETRY_SECONDS = { 2, 5, 15, 25 }
+local function noteIdentitySoon()
+  local function try()
+    local ok, err = pcall(noteIdentity)
+    if not ok then ns.logDiagnostic("LUA_ERROR", "identity: " .. tostring(err)) end
+  end
+  try()
+  if C_Timer and C_Timer.After then
+    for _, delay in ipairs(GUILD_RETRY_SECONDS) do C_Timer.After(delay, try) end
+  end
+end
+
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("PLAYER_LOGIN")
-frame:SetScript("OnEvent", function()
+frame:RegisterEvent("PLAYER_GUILD_UPDATE")
+frame:SetScript("OnEvent", function(_, event)
+  if event == "PLAYER_GUILD_UPDATE" then
+    if not ns.guildedPresent() and ns.getDb().character.name then noteIdentitySoon() end
+    return
+  end
   local ok, err = pcall(function()
     local db = ns.getDb()
     db.addonVersion = ns.compat.addonVersion()
@@ -62,6 +130,7 @@ frame:SetScript("OnEvent", function()
     if type(board) == "table" and type(board.character) == "string" and type(board.realm) == "string"
       and ns.normalizeName(board.character) == ns.playerName()
       and string.lower(board.realm) == string.lower(identity.realm or "") then db.dungeonBoard = board end
+    noteIdentitySoon()
     if ns.dungeonScorePanel then ns.dungeonScorePanel.refreshVisible() end
   end)
   if not ok then ns.logDiagnostic("LUA_ERROR", "login: " .. tostring(err)) end

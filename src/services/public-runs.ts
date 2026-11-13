@@ -36,6 +36,18 @@ const key = (name: string) => name.trim().toLowerCase();
 
 export interface PublicCheck { ok: boolean; reason?: string }
 
+/**
+ * (9.3.0) The character of a personal upload that was in this run: the main one first, then the account's other saved
+ * characters (an alt's run is not refused because another alt logged in last). null: no character is claimed (a guild
+ * upload); undefined: none of the claimed characters was in the run.
+ */
+export function ownCharacterIn(run: DungeonRunInput, main: string | null, others: readonly string[] = []): string | null | undefined {
+  const edition = gameEditionOf(run);
+  const claimed = [main, ...others].filter((name): name is string => !!name);
+  if (!claimed.length) return null;
+  return claimed.find((name) => run.players.some((player) => characterKey(player.character, player.realm, edition) === characterKey(name, "", edition)));
+}
+
 export function checkPublicRun(run: DungeonRunInput, uploaderCharacter: string | null, now = new Date()): PublicCheck {
   const base = validateRun(run, now);
   if (!base.ok) return base;
@@ -223,7 +235,7 @@ export interface PublicRunStore {
 export interface IngestResult { accepted: string[]; confirmed: string[]; duplicates: string[]; historyOnly: string[]; rejected: { id: string; reason: string }[]; acceptedRunRefs: string[] }
 export class PublicUploadError extends Error { constructor(message: string, readonly status: number) { super(message); } }
 
-export async function ingestPublicRuns(store: PublicRunStore, input: { uploaderKey: string; character: string | null; gameEdition?: string; source: "personal" | "guild"; runs: unknown }, now = new Date()): Promise<IngestResult> {
+export async function ingestPublicRuns(store: PublicRunStore, input: { uploaderKey: string; character: string | null; /** The account's other saved characters (9.3.0). */ characters?: string[]; gameEdition?: string; source: "personal" | "guild"; runs: unknown }, now = new Date()): Promise<IngestResult> {
   const cutoff = dungeonResetCutoff();
   if (!Array.isArray(input.runs)) throw new PublicUploadError("runs must be a list", 400);
   if (input.runs.length > PUBLIC_LIMITS.runsPerUpload) throw new PublicUploadError(`Send at most ${PUBLIC_LIMITS.runsPerUpload} runs at once.`, 413);
@@ -247,7 +259,8 @@ export async function ingestPublicRuns(store: PublicRunStore, input: { uploaderK
     if (predatesDungeonReset(run, cutoff)) { result.rejected.push({ id: run.id, reason: "run predates the owner's dungeon history reset" }); continue; }
     // Unfinished runs are simply not public; they are not an error.
     if (run.state !== "COMPLETED") continue;
-    const check = checkPublicRun(run, input.character, now);
+    const own = ownCharacterIn(run, input.character, input.characters);
+    const check = checkPublicRun(run, own === undefined ? input.character : own, now);
     if (!check.ok) { result.rejected.push({ id: run.id, reason: check.reason! }); continue; }
     const summary = summarize(run, now);
     const seenKey=store.supportsEvidenceRevisions ? JSON.stringify(evidenceFacts(summary)) : summary.runKey;
@@ -255,7 +268,7 @@ export async function ingestPublicRuns(store: PublicRunStore, input: { uploaderK
     seen.add(seenKey);
     // A personal upload is its character's report; a guild's copy carries its reporters' and recorder's.
     const observer = observationOf(summary, summary.gameEdition)?.observer;
-    const reporters = [...new Set((observer ? [observer] : input.character ? [input.character] : [...run.reporterNames ?? [], ...run.recorder ? [run.recorder] : []]).map(key))];
+    const reporters = [...new Set((observer ? [observer] : (own ?? input.character) ? [(own ?? input.character)!] : [...run.reporterNames ?? [], ...run.recorder ? [run.recorder] : []]).map(key))];
     const uploader = { key: input.uploaderKey, reporters };
     let stored = await store.findRun(summary.runKey);
     if (!stored) {

@@ -1371,11 +1371,13 @@ local function buildHomePage(page)
     linkWidget(tip(below(newButton(page, "Get the companion", 170, function() ns.companionLink.openCopyWindow() end, 24), PAGE_WIDTH - 170, -134), "Opens a box with the download link to copy (Ctrl+C). The game cannot open web pages."))
   end
   ui.linkStatus = linkWidget(below(newLabel(page, "", "GameFontHighlightSmall"), 0, -158))
-  ui.linkStatus:SetWidth(PAGE_WIDTH)
+  -- The scrolled page shows 574 px of the 582 (the scroll bar's margin): full-width text stops 16 px short of the edge.
+  local HOME_WIDTH = PAGE_WIDTH - 16
+  ui.linkStatus:SetWidth(HOME_WIDTH)
   local howTo = linkWidget(below(newLabel(page,
     "Easiest: install the Guilded Windows app (steps below). It syncs by itself, no sign-in needed. No app? In Discord use /character pair, then paste the code below.",
     "GameFontDisableSmall"), 0, -176))
-  howTo:SetWidth(PAGE_WIDTH)
+  howTo:SetWidth(HOME_WIDTH)
   ui.linkBox = linkWidget(placeholder(below(newEdit(page, 170), 6, -222), "Code from /character pair"))
   ui.linkBox:SetMaxLetters(24)
   ui.linkBox:SetScript("OnEnterPressed", function(self)
@@ -1396,11 +1398,13 @@ local function buildHomePage(page)
   -- Get the companion (8.5.0): links to copy, since an addon cannot open a web page.
   if ns.companionLink then
     below(newLabel(page, L("Get the Windows companion (select a link, Ctrl+C):"), "GameFontNormal"), 0, -262)
-    -- Two boxes that together fill the page width, so the longer link is not cut off at the right edge.
-    below(copyBox(page, ns.companionLink.SHORT, 270), 6, -282)
-    below(copyBox(page, ns.companionLink.DIRECT, 280), 286, -282)
-    local steps = below(newLabel(page, table.concat(ns.companionLink.steps(), "\n"), "GameFontHighlightSmall"), 0, -312)
-    steps:SetWidth(PAGE_WIDTH)
+    -- One under the other, each as wide as the page: the direct link (62 characters) did not fit beside the short one.
+    ui.companionBoxes = {
+      below(copyBox(page, ns.companionLink.SHORT, HOME_WIDTH - 12), 6, -282),
+      below(copyBox(page, ns.companionLink.DIRECT, HOME_WIDTH - 12), 6, -306),
+    }
+    local steps = below(newLabel(page, table.concat(ns.companionLink.steps(), "\n"), "GameFontHighlightSmall"), 0, -338)
+    steps:SetWidth(HOME_WIDTH)
     steps:SetJustifyH("LEFT")
   end
 end
@@ -2288,13 +2292,12 @@ selectTab = function(index)
   ui.currentTab = index
   ui.lastInGroup = ui.lastInGroup or {}
   ui.lastInGroup[ui.tabs[index].group or ""] = index
-  -- The unsent-changes block means nothing on pages that only read (the secure button is left
-  -- alone in combat: hiding it then is blocked).
-  if not (InCombatLockdown and InCombatLockdown()) then
+  -- The unsent-changes block means nothing on pages that only read. The save button is a secure frame that lives outside the
+  -- window (see ui.updateSendButton), so it follows after combat if this happens in combat.
+  do
     local readOnly = READ_ONLY_PAGES[ui.tabs[index].name]
-    for _, widget in ipairs({ ui.sidebarSync, ui.sidebarSave }) do
-      if widget then if readOnly then widget:Hide() else widget:Show() end end
-    end
+    if ui.sidebarSync then if readOnly then ui.sidebarSync:Hide() else ui.sidebarSync:Show() end end
+    if ui.updateSendButton then ui.updateSendButton() end
   end
   for i, tab in ipairs(ui.tabs) do
     if i == index then tab.page:Show(); tab.button:LockHighlight() else tab.page:Hide(); tab.button:UnlockHighlight() end
@@ -2393,9 +2396,15 @@ local function buildPanel()
   ui.sidebarSync:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 24, 70)
   -- Inside the sidebar: a long translation wraps upwards instead of running over the page.
   ui.sidebarSync:SetWidth(SIDEBAR_WIDTH - 24)
-  local sendButton = ns.syncNow and ns.syncNow.reloadButton(panel, L(ns.isOfficer() and "Send to Discord" or "Save my addon data"), 132, 26)
-    or newButton(panel, L(ns.isOfficer() and "Send to Discord" or "Save my addon data"), 132, function() run("sync") end, 26)
-  sendButton:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 22, 40)
+  -- The save button runs /reload for you, so it is a secure button. A secure frame makes the frames around it protected in
+  -- combat (the window could not be shown, hidden or moved: "Guilded tried to call GuildedPanel:Show()", 13 Nov 2026, and the
+  -- bursts of "UNKNOWN()" after roster updates). So it is not inside the window: its parent is UIParent and nothing is
+  -- anchored to the window; it is placed over the sidebar from the window's rectangle, out of combat only.
+  local sendButton = ns.syncNow and ns.syncNow.reloadButton(UIParent, L(ns.isOfficer() and "Send to Discord" or "Save my addon data"), 132, 26)
+    or newButton(UIParent, L(ns.isOfficer() and "Send to Discord" or "Save my addon data"), 132, function() run("sync") end, 26)
+  sendButton:SetFrameStrata("DIALOG")
+  sendButton:SetFrameLevel((panel:GetFrameLevel() or 1) + 30)
+  sendButton:Hide()
   ui.sidebarSave = sendButton
   ui.homeSave = sendButton -- one shared save action; retained internal alias
   tip(sendButton, function() return ui.syncStatus end)
@@ -2456,6 +2465,50 @@ local function buildPanel()
       setPlayer(ns.util.unitKey("target"))
     end
   end)
+  -- The save button follows the window: placed, shown and hidden with it (out of combat), tracking a drag or a scale change.
+  function ui.updateSendButton()
+    local button = ui.sidebarSave
+    if not button or not panel then return end
+    local tab = ui.tabs[ui.currentTab or 0]
+    local wanted = panel:IsShown() and not (tab and READ_ONLY_PAGES[tab.name])
+    if InCombatLockdown and InCombatLockdown() then
+      -- A secure frame is not touched in combat (it would be refused); it is made invisible instead, and fixed afterwards.
+      local placed = ui.sendPlaced
+      local inPlace = placed and panel:GetLeft() == placed[1] and panel:GetBottom() == placed[2]
+        and (panel.GetEffectiveScale and panel:GetEffectiveScale() or 1) == placed[3]
+      if button.SetAlpha then button:SetAlpha((wanted and inPlace) and 1 or 0) end
+      ui.sendPending = true
+      return
+    end
+    ui.sendPending = false
+    if not wanted then button:Hide() return end
+    local left, bottom = panel:GetLeft(), panel:GetBottom()
+    if type(left) == "number" and type(bottom) == "number" then
+      local panelScale = panel.GetEffectiveScale and panel:GetEffectiveScale() or 1
+      local uiScale = UIParent.GetEffectiveScale and UIParent:GetEffectiveScale() or 1
+      if button.SetScale and uiScale and uiScale > 0 then button:SetScale(panelScale / uiScale) end
+      button:ClearAllPoints()
+      button:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", left + 22, bottom + 40)
+      ui.sendPlaced = { left, bottom, panelScale }
+    end
+    if button.SetAlpha then button:SetAlpha(1) end
+    button:Show()
+  end
+  do
+    local follow, since = CreateFrame("Frame"), 0
+    follow:RegisterEvent("PLAYER_REGEN_ENABLED")
+    follow:SetScript("OnEvent", function() if ui.sendPending then ui.updateSendButton() end end)
+    follow:SetScript("OnUpdate", function(_, elapsed)
+      since = since + (elapsed or 0)
+      if since < 0.15 or not panel:IsShown() then return end
+      since = 0
+      local placed = ui.sendPlaced
+      local left, bottom = panel:GetLeft(), panel:GetBottom()
+      local scale = panel.GetEffectiveScale and panel:GetEffectiveScale() or 1
+      if not placed or placed[1] ~= left or placed[2] ~= bottom or placed[3] ~= scale then ui.updateSendButton() end
+    end)
+  end
+  panel:SetScript("OnHide", function() if ui.updateSendButton then ui.updateSendButton() end end)
   panel:SetScript("OnShow", function()
     ui.lastOfficer = nil -- re-check rank and modules every time the window opens
     -- Reopening the window does not show an old result (such as a diagnostics line).
@@ -2466,6 +2519,7 @@ local function buildPanel()
       setPlayer(ns.playerName())
     end
     refresh()
+    ui.updateSendButton()
   end)
   -- Long pages (standings, crafting, the officer pages) scroll in this frame.
   ui.guildScroll = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")

@@ -94,18 +94,17 @@ describe("guild roster tooltip", () => {
       end
       EXISTING = ENTRY("Amy-Realm")
       CALLBACKS = {}
-      ScrollUtil = { AddInitializedFrameCallback = function(box, fn, owner, iterateExisting)
-        CALLBACKS[#CALLBACKS + 1] = fn
-        if iterateExisting then fn(owner, EXISTING, {}) end
-      end }
-      CommunitiesFrame = { MemberList = { ScrollBox = {} } }
+      ScrollUtil = { AddInitializedFrameCallback = function() CALLBACKS[#CALLBACKS + 1] = true end }
+      ROWS_ON_SCREEN = { EXISTING }
+      CommunitiesFrame = { MemberList = { ScrollBox = { ForEachFrame = function(self, fn) for _, r in ipairs(ROWS_ON_SCREEN) do fn(r) end end } } }
       GuildRosterButton_OnEnter = function() end`);
     s.run("NS.rosterProfessions.install(); NS.rosterProfessions.install()");
     // The mixin is untouched; only the plain global function got a secure hook.
     expect(s.run("return tostring(CommunitiesMemberListEntryMixin.OnEnter == ORIGINAL) .. ' ' .. table.concat(HOOKED, ',')")).toBe("true GuildRosterButton_OnEnter");
-    // One list callback; the frame already on screen and a new one are hooked once each.
-    s.run("NEW = ENTRY('Bob-Realm'); CALLBACKS[1](NS.rosterProfessions, NEW, {}); CALLBACKS[1](NS.rosterProfessions, NEW, {})");
-    expect(s.run("return #CALLBACKS .. ' ' .. EXISTING.hooks .. ' ' .. NEW.hooks")).toBe("1 1 1");
+    // (9.3.1) The game's scroll box never runs a Guilded callback (it continued tainted): rows are looked at from Guilded's own
+    // scan; the frame already on screen and a new one are hooked once each.
+    s.run("NEW = ENTRY('Bob-Realm'); ROWS_ON_SCREEN[2] = NEW; NS.rosterProfessions.scanMemberList(); NS.rosterProfessions.scanMemberList()");
+    expect(s.run("return #CALLBACKS .. ' ' .. EXISTING.hooks .. ' ' .. NEW.hooks")).toBe("0 1 1");
     s.run("EXISTING.scripts.OnEnter(EXISTING)");
     expect(s.run('return table.concat(LINES, "|")')).toContain("Alchemy 300");
   });

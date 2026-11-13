@@ -49,6 +49,12 @@ local SETTLE_AFTER = 6 * 3600   -- a request the feed never showed is settled on
 local ALERT_GAP = 30            -- seconds between two chat alerts for the same sender
 local PER_SENDER = 5            -- heard requests kept per sender
 
+-- A profession as the one English name every client agrees on (Util.lua): a French "Cuisine" is "Cooking".
+local function canonProfession(text)
+  if type(text) ~= "string" or text == "" then return text end
+  return ns.util and ns.util.professionName and ns.util.professionName(text) or text
+end
+
 local function state()
   local db = ns.getDb and ns.getDb()
   if not db then return nil end
@@ -339,7 +345,7 @@ function orders.decode(text)
     key = tonumber(key)
     result.orders[#result.orders + 1] = { id = id, key = key ~= 0 and key or nil, qty = math.max(1, tonumber(qty) or 1), status = STATUS_BACK[status], at = tonumber(at), mats = mats == "1",
       item = string.sub(fields[1], 1, 100), by = string.sub(fields[2], 1, 60), crafter = string.sub(fields[3], 1, 60), character = string.sub(fields[4], 1, 60),
-      asked = string.sub(fields[5], 1, 60), prof = string.sub(fields[6], 1, 40), note = string.sub(fields[7], 1, 80) }
+      asked = string.sub(fields[5], 1, 60), prof = canonProfession(string.sub(fields[6], 1, 40)), note = string.sub(fields[7], 1, 80) }
   end
   return result
 end
@@ -641,7 +647,7 @@ function orders.submit(opts)
   end
   local qty = math.max(1, math.min(200, math.floor(tonumber(opts.qty) or 1)))
   local ref = string.format("g%x%03x", now, math.random(0, 4095))
-  local row = { ref = ref, item = item, key = tonumber(opts.key), prof = opts.prof and cleanText(opts.prof, 40) or nil, qty = qty,
+  local row = { ref = ref, item = item, key = tonumber(opts.key), prof = opts.prof and canonProfession(cleanText(opts.prof, 40)) or nil, qty = qty,
     note = opts.note and cleanText(opts.note, 80) or nil, mats = false,
     asked = opts.asked and cleanText(opts.asked, 60) or nil, character = me, at = now }
   for _, field in ipairs({ "prof", "note", "asked" }) do if row[field] == "" then row[field] = nil end end
@@ -685,7 +691,7 @@ local function receiveNew(text, sender)
   request.at = math.min(request.at, clock() + 60)          -- a clock far ahead cannot pin a request to the top
   request.item = cleanText(request.item, 60)
   if #request.item < 2 then return end
-  request.prof, request.asked, request.note = cleanText(request.prof, 24), cleanText(request.asked, 60), cleanText(request.note, 40)
+  request.prof, request.asked, request.note = canonProfession(cleanText(request.prof, 24)), cleanText(request.asked, 60), cleanText(request.note, 40)
   for _, field in ipairs({ "prof", "asked", "note" }) do if request[field] == "" then request[field] = nil end end
   local key = request.ref .. "@" .. sender
   if s.heardRequests[key] then return end             -- asked once, never again

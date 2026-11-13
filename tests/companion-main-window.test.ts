@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -113,3 +113,15 @@ describe("autoOpenDecision", () => {
     expect(main).toContain("savedFileChecked = true;");
   });
 });
+
+describe("the header band (approved banner art)", () => {
+  const css = readFileSync("companion-app/renderer/main.css", "utf8");
+  it("is a small local image on the main window's header only, with light text kept readable", () => {
+    expect(statSync("companion-app/renderer/banner.webp").size).toBeLessThan(200 * 1024);
+    expect(css).toContain('#home > .top {');
+    expect(css).toContain('url("banner.webp")');
+    expect(css).not.toMatch(/#advanced[^{]*\.top[^{]*\{[^}]*banner/);
+    expect(html).toContain("img-src 'self' blob:");
+  });
+});
+

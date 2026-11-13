@@ -281,6 +281,55 @@ do
   if type(add) == "function" then pcall(add, "CHAT_MSG_SYSTEM", module.filter) end
 end
 
+-- ---------------------------------------------------------------------
+-- How to set up the tab (9.3.0). Guilded cannot set a chat window's font size or message groups (those calls
+-- write into Blizzard's chat frames and taint them, see the top of this file and tests/addon-no-global-taint.test.ts),
+-- so it tells the player the steps. Labels come from the game's own global strings when the client has them (so
+-- they are in the player's language and are the words the Settings window really shows); English otherwise.
+-- ---------------------------------------------------------------------
+-- { global string the game labels the group with, English fallback }
+local CHAT_GROUPS = {
+  { "SAY", "Say" }, { "EMOTE", "Emote" }, { "YELL", "Yell" }, { "WHISPER", "Whisper" }, { "PARTY", "Party" },
+  { "PARTY_LEADER", "Party Leader" }, { "RAID", "Raid" }, { "RAID_LEADER", "Raid Leader" }, { "RAID_WARNING", "Raid Warning" },
+  { "GUILD", "Guild" }, { "OFFICER", "Officer" }, { "INSTANCE_CHAT", "Instance" }, { "INSTANCE_CHAT_LEADER", "Instance Leader" },
+  { "BN_WHISPER", "Battle.net Whisper" }
+}
+local OTHER_GROUPS = {
+  { "SYSTEM_MESSAGES", "System" }, { "SKILL", "Skill" }, { "LOOT", "Loot" }, { "MONEY", "Money" }, { "CURRENCY", "Currency" },
+  { "ACHIEVEMENTS", "Achievements" }, { "GUILD_ACHIEVEMENT", "Guild Achievements" }, { "COMBAT_XP_GAIN", "Experience" },
+  { "COMBAT_HONOR_GAIN", "Honor" }, { "COMBAT_FACTION_CHANGE", "Faction changes" }
+}
+local function labels(list)
+  local out = {}
+  for _, entry in ipairs(list) do
+    local text = _G[entry[1]]
+    table.insert(out, type(text) == "string" and text ~= "" and text or entry[2])
+  end
+  -- The Discord guild group exists only on clients that have it.
+  if list == OTHER_GROUPS and type(_G.GUILD_DISCORD) == "string" and _G.GUILD_DISCORD ~= "" then table.insert(out, _G.GUILD_DISCORD) end
+  return table.concat(out, ", ")
+end
+
+-- The steps, one string per line (translated by Locale.lua). The settings page shows the same lines.
+function module.howTo()
+  return {
+    L("How to set up the Guilded chat tab. WoW keeps these settings and addons cannot change them, so you do it once:"),
+    L("1. Right-click the Guilded tab and choose Settings."),
+    string.format(L("2. Under Chat, tick: %s."), labels(CHAT_GROUPS)),
+    string.format(L("3. Under Other, tick: %s."), labels(OTHER_GROUPS)),
+    L("4. Right-click the tab again, choose Font Size, then 12. Leave Channels empty."),
+    L("Guilded hides the game's own online/offline line here because it prints its own.")
+  }
+end
+ns.chatTabHowTo = module.howTo
+
+ns.commandHandlers["chattab"] = function()
+  for _, line in ipairs(module.howTo()) do
+    if ns.message then ns.message(line) else say(line) end
+  end
+end
+table.insert(ns.commandHelp, "/guilded chattab - how to set up the Guilded chat tab (which boxes to tick, font size)")
+
 -- First login with no saved choice: the tab is on by default (8.5). Guilded's lines use a chat
 -- window named Guilded when there is one; otherwise they stay in the main chat and one line says
 -- how to make the window. Nothing here touches the chat windows (see the top of this file).

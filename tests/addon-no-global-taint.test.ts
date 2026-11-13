@@ -116,3 +116,24 @@ describe("protected calls only where the player's click runs them (taint)", () =
     expect(text).toContain("/ginvite");
   });
 });
+
+// 13 November 2026 (9.2.0): "Guilded tried to call UNKNOWN() (after UNIT_INVENTORY_CHANGED)" with nothing protected
+// on the inventory path (it only reads). The item and unit tooltip post-calls run inside the game's own tooltip
+// code, so they are the way Guilded can leave a game routine tainted. They must stay small: skip combat, and the
+// decorators only act on the main tooltips (never on the comparison tooltips filled while gear is swapped).
+describe("tooltip post-calls stay out of the game's way (taint)", () => {
+  const source = (file: string) => readFileSync(file, "utf8").replace(/--[^\n]*/g, "");
+  it.each(["addon/Guilded/Modules/Tooltip.lua", "addon/Guilded/Modules/Scores.lua"])("%s skips combat and non-main tooltips", (file) => {
+    const text = source(file);
+    expect(text).toMatch(/ns\.util\.inCombat\(\)/);
+    expect(text).toMatch(/tooltip ~= GameTooltip/);
+  });
+  it("the inventory path only reads (no protected or tooltip call)", () => {
+    const core = source("addon/Guilded/Core.lua");
+    const start = core.indexOf("inspectReadiness = function(");
+    const end = core.indexOf("local function canonicalKey", start);
+    expect(start).toBeGreaterThan(-1);
+    const body = core.slice(start, end);
+    expect(body).not.toMatch(/\b(?:EquipItemByName|UseInventoryItem|PickupInventoryItem|SocketInventoryItem|NotifyInspect|SetCVar|RepairAllItems)\b|SetInventoryItem\s*\(|C_TooltipInfo/);
+  });
+});

@@ -83,6 +83,13 @@ local function decorate(tooltip, fresh)
   if not tooltip or (not fresh and tooltip.guildedDone) then return end
   if ns.moduleActive and not ns.moduleActive("tooltip") then return end
   if not tooltip.GetItem then return end
+  -- (9.2.1) The data processor runs this inside the game's own tooltip code, so whatever runs here taints the
+  -- rest of that code (a later protected call is then refused: "Guilded tried to call UNKNOWN()" after a gear
+  -- change, 13 Nov 2026). Keep the footprint small: never in combat, and only the main item tooltips
+  -- (not the comparison tooltips the equipment code fills while gear is being swapped).
+  if ns.util and ns.util.inCombat and ns.util.inCombat() then return end
+  if GameTooltip and tooltip ~= GameTooltip and tooltip ~= ItemRefTooltip then return end
+  ns.lastTooltipAt = GetTime and GetTime() or nil
   local ok, name, link = pcall(tooltip.GetItem, tooltip)
   if not ok or type(name) ~= "string" then return end
   if ns.isSecret and ns.isSecret(name) then return end

@@ -1,3 +1,4 @@
+import { welcomeCardFile } from "./welcome-card.js";
 import { hostedPilot } from "../hosted-pilot.js";
 import { PILOT_DENIED } from "./pilot-policy.js";
 import { type ButtonInteraction, type Guild as DiscordGuild, type GuildMember, type PartialGuildMember, MessageFlags } from "discord.js";
@@ -134,13 +135,16 @@ export async function sendWelcome(discordGuild: DiscordGuild, member: GuildMembe
   if (!welcomeEnabled(settings)) return result;
   const delivery = welcomeDelivery(settings);
   const message = buildWelcomeMessage(settings, discordGuild, { id: member.id, username: member.user.username });
+  // 9.3: the same welcome, with a card picture (avatar, role, first steps) when one can be drawn.
+  const card = await welcomeCardFile(discordGuild, member, settings.language);
+  const files = card ? [card] : [];
   if (delivery !== "CHANNEL") {
-    result.dm = await member.send({ ...message, components: [...message.components, linkedCharactersRow(asLang(settings.language))] }).then(() => true).catch(() => false);
+    result.dm = await member.send({ ...message, ...(files.length ? { files } : {}), components: [...message.components, linkedCharactersRow(asLang(settings.language))] }).then(() => true).catch(() => false);
   }
   if ((delivery !== "DM" || !result.dm) && settings.welcomeChannelId) {
     const channel = await discordGuild.channels.fetch(settings.welcomeChannelId).catch(() => null);
     if (channel?.isTextBased()) {
-      result.channel = await channel.send({ ...message, allowedMentions: { users: [member.id] } })
+      result.channel = await channel.send({ ...message, ...(files.length ? { files } : {}), allowedMentions: { users: [member.id] } })
         .then(() => true)
         .catch((error: unknown) => { console.error("Failed to send welcome message", error); return false; });
     }

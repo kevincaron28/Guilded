@@ -27,8 +27,10 @@ describe("deploy/application-update.sh dependency reuse (static)", () => {
   });
 
   it("copies rather than links, and runs npm ci only for a real dependency change", () => {
-    expect(library).toContain('cp -a "$app/node_modules" "$STAGED_APP/node_modules"');
-    expect(library).not.toMatch(/\bln\b|cp -al|cp -rl/);
+    expect(library).toContain('cp -a --reflink=auto "$from" "$to"');
+    expect(library).toContain('copy_tree "$app/node_modules" "$STAGED_APP/node_modules" "$owner"');
+    // Never a hard link: npm install rewrites files in place, which would reach the live tree.
+    expect(library).not.toMatch(/\bln\b|cp -al|cp -rl|cp -a -l|--link/);
     expect(library).toContain("NODE_OPTIONS=--max-old-space-size=512 npm ci --prefer-offline --no-audit --no-fund");
   });
 
@@ -43,9 +45,21 @@ describe("deploy/application-update.sh dependency reuse (static)", () => {
   });
 
   it("runs every heavy step through run_heavy, inside the memory ceiling", () => {
-    expect(library.match(/^\s*run_heavy sudo -u "\$owner"/gm)).toHaveLength(5);
+    // npm ci, npm install, npm ls, prisma generate and the bundle build; the big copies use run_heavy_idle.
+    expect(library.match(/run_heavy sudo -u "\$owner"/g)).toHaveLength(5);
+    expect(library.match(/run_heavy_idle sudo -u "\$owner"/g)).toHaveLength(1);
     expect(library).not.toMatch(/^\s*sudo -u "\$owner"/m);
-    expect(library).toContain("MemoryMax=450M -p MemorySwapMax=200M -p CPUWeight=20 -p IOWeight=20");
+    expect(library).toContain("HEAVY_PROPS_FULL=(MemoryMax=450M MemorySwapMax=200M CPUWeight=20 IOWeight=20 CPUQuota=50%)");
+    // MemoryHigh is for the copies only; the install, generate and build keep the 450M / 200M limits they were measured under.
+    expect(library).toContain("HEAVY_COPY_HIGH=MemoryHigh=360M");
+    expect(library).toContain('run_heavy() { run_heavy_io "-c2 -n7" 0 "$@"; }');
+    expect(library).toContain('run_heavy_idle() { run_heavy_io "-c3" 1 "$@"; }');
+    expect(library).toContain("HEAVY_PROPS_MEMORY=(MemoryMax=450M MemorySwapMax=200M)");
+    // ionice is probed once and skipped where it cannot be set.
+    expect(library).toContain("HEAVY_IONICE_OK");
+    expect(library).toContain("command -v ionice");
+    expect(library).toContain('run_heavy_io "-c2 -n7"');
+    expect(library).toContain('run_heavy_io "-c3"');
     expect(library).toContain("command -v systemd-run");
     expect(library).toContain("HEAVY_CAPPED=0");
     expect(library).toContain("cannot set a memory ceiling here");
@@ -66,6 +80,7 @@ describe("deploy/application-update.sh dependency reuse (static)", () => {
 
   it("caps the Node heap for Prisma generation and the bundle build", () => {
     expect(library).toContain("NODE_OPTIONS=--max-old-space-size=512 ./node_modules/.bin/prisma generate");
+    expect(library).toContain("timed_step ");
     expect(library).toContain("NODE_OPTIONS=--max-old-space-size=384 npm run companion:build");
   });
 });
@@ -82,7 +97,23 @@ describe.skipIf(!hasRsync || !hasGroup)("deploy/application-update.sh dependency
     // The live application has no node_modules (nothing to copy), so a dependency change must do a full npm ci.
     noLiveModules?: boolean;
     // "works": systemd-run passes the command through and logs its limits. "fails": it refuses, as on a box without cgroup limits.
-    systemdRun?: "works" | "fails";
+    systemdRun?: "works" | "fails" | "memory-only";
+    // The Prisma schema of the source differs from the live application's.
+    schemaChanged?: boolean;
+    // The live application has no generated Prisma client to copy.
+    noLiveClient?: boolean;
+    // The live application recorded the hash of the companion sources it was built from (and has the outputs).
+    builtLive?: boolean;
+    // A companion source file changed since the live build.
+    companionChanged?: boolean;
+    // ionice exists but refuses (a restricted VM or container).
+    ionice?: "works" | "fails";
+    // The generated-client copy or the bundle copy fails.
+    failCopy?: "client" | "bundle";
+    // prisma.config.ts differs from the live application's.
+    configChanged?: boolean;
+    // Writing the companion build stamp (its chown) fails.
+    failStampChown?: boolean;
   };
 
   function fixture(f: Fixture = {}) {
@@ -103,6 +134,24 @@ describe.skipIf(!hasRsync || !hasGroup)("deploy/application-update.sh dependency
     writeFileSync(join(source, "package.json"), manifest(f.sourceVersion ?? "9.0.2"));
     writeFileSync(join(source, "package-lock.json"), f.sourceLock ?? lock(f.sourceVersion ?? "9.0.2"));
     writeFileSync(join(app, "node_modules", "marker.js"), "live");
+    // Schema, generated client, companion sources and the live bundle outputs.
+    for (const dir of [app, source]) {
+      for (const sub of ["src", "prisma", "companion", "companion-app/renderer", "scripts", "docs/branding", "site"]) mkdirSync(join(dir, sub), { recursive: true });
+      writeFileSync(join(dir, "prisma", "schema.prisma"), dir === source && f.schemaChanged ? "schema B" : "schema A");
+      writeFileSync(join(dir, "companion", "a.mjs"), dir === source && f.companionChanged ? "export const a = 2;" : "export const a = 1;");
+      writeFileSync(join(dir, "companion-app", "renderer", "ui-entry.js"), "entry");
+      writeFileSync(join(dir, "scripts", "build-companion-renderer.mjs"), "build");
+      writeFileSync(join(dir, "docs", "branding", "guilded-logo-400.png"), "logo");
+      writeFileSync(join(dir, "site", "nav.mjs"), "nav");
+    }
+    if (f.configChanged) { writeFileSync(join(app, "prisma.config.ts"), "config A"); writeFileSync(join(source, "prisma.config.ts"), "config B"); }
+    if (!f.noLiveClient) { mkdirSync(join(app, "src", "generated", "prisma"), { recursive: true }); writeFileSync(join(app, "src", "generated", "prisma", "client.ts"), "live client"); }
+    if (f.builtLive) {
+      mkdirSync(join(app, "companion-app", "assets"), { recursive: true });
+      writeFileSync(join(app, "companion-app", "assets", "icon.png"), "icon");
+      writeFileSync(join(app, "companion-app", "renderer", "ui-bundle.js"), "live bundle");
+      writeFileSync(join(app, "companion-app", "renderer", "logo.png"), "live logo");
+    }
     // The Prisma CLI in the copied tree logs its call and its heap cap.
     const prisma = join(app, "node_modules", ".bin", "prisma");
     writeFileSync(prisma, `#!/bin/sh\necho "prisma $* heap=$NODE_OPTIONS" >> "${log}"\n`);
@@ -127,16 +176,31 @@ exit 0
     const systemdRun = f.systemdRun === "fails"
       ? `#!/bin/sh\necho "systemd-run $*" >> "${log}"\nexit 1\n`
       : `#!/bin/sh\necho "systemd-run $*" >> "${log}"\nwhile [ "$#" -gt 0 ] && [ "$1" != "--" ]; do shift; done\n[ "$#" -gt 0 ] && shift\nexec "$@"\n`;
-    writeFileSync(join(shims, "systemd-run"), systemdRun);
+    // "memory-only": refuses CPU and I/O properties, as a box without those controllers would.
+    const memoryOnly = `#!/bin/sh\necho "systemd-run $*" >> "${log}"\ncase "$*" in *CPUQuota*|*CPUWeight*|*IOWeight*) exit 1;; esac\nwhile [ "$#" -gt 0 ] && [ "$1" != "--" ]; do shift; done\n[ "$#" -gt 0 ] && shift\nexec "$@"\n`;
+    writeFileSync(join(shims, "systemd-run"), f.systemdRun === "memory-only" ? memoryOnly : systemdRun);
+    // ionice logs its class and runs the rest.
+    writeFileSync(join(shims, "ionice"), f.ionice === "fails"
+      ? `#!/bin/sh\necho "ionice $*" >> "${log}"\nexit 1\n`
+      : `#!/bin/sh\necho "ionice $*" >> "${log}"\nwhile [ "\${1#-}" != "$1" ]; do shift; done\nexec "$@"\n`);
+    chmodSync(join(shims, "ionice"), 0o755);
+    // cp and chown pass through, except for the faults a fixture asks for.
+    const realCp = execFileSync("sh", ["-c", "command -v cp"], { encoding: "utf8" }).trim();
+    const realChown = execFileSync("sh", ["-c", "command -v chown"], { encoding: "utf8" }).trim();
+    writeFileSync(join(shims, "cp"), `#!/bin/sh\ncase "$*" in\n  *src/generated*) [ "${f.failCopy ?? ""}" = client ] && exit 1;;\n  *ui-bundle.js*) [ "${f.failCopy ?? ""}" = bundle ] && exit 1;;\nesac\nexec "${realCp}" "$@"\n`);
+    writeFileSync(join(shims, "chown"), `#!/bin/sh\ncase "$*" in *companion-build-stamp*) [ "${f.failStampChown ? "yes" : ""}" = yes ] && exit 1;; esac\nexec "${realChown}" "$@"\n`);
+    chmodSync(join(shims, "cp"), 0o755);
+    chmodSync(join(shims, "chown"), 0o755);
     chmodSync(join(shims, "systemd-run"), 0o755);
     if (f.noLiveModules) rmSync(join(app, "node_modules"), { recursive: true, force: true });
     const meminfo = join(root, "meminfo");
     writeFileSync(meminfo, f.meminfo ?? "MemTotal: 1000000 kB\nMemAvailable: 900000 kB\nSwapTotal: 0 kB\nSwapFree: 0 kB\n");
+    const stamp = f.builtLive ? `source "${resolve("deploy/application-update.sh")}"\ncompanion_build_fingerprint "${app}" > "${app}/.companion-build-stamp"\n` : "";
     const script = `set -euo pipefail
 export PATH="${shims}:$PATH"
 export MEMINFO_FILE="${meminfo}"
 source "${resolve("deploy/application-update.sh")}"
-if prepare_application "${source}" "${app}" "${owner}"; then echo "RESULT=ok"; else echo "RESULT=refused"; fi
+${stamp}if prepare_application "${source}" "${app}" "${owner}"; then echo "RESULT=ok"; else echo "RESULT=refused"; fi
 echo "STAGED=\${STAGED_APP:-}"`;
     const out = execFileSync("bash", ["-c", script], { encoding: "utf8" });
     const staged = /STAGED=(.*)/.exec(out)?.[1]?.trim() ?? "";
@@ -145,17 +209,124 @@ echo "STAGED=\${STAGED_APP:-}"`;
     return { app, staged, calls, out, stageDirs };
   }
 
-  it("a version-only bump copies node_modules, regenerates Prisma and never runs npm ci", () => {
+  it("a version-only bump copies node_modules and the generated client, and never runs npm ci", () => {
     const { app, staged, calls, out } = fixture({ sourceVersion: "9.0.3" });
     expect(out).toContain("RESULT=ok");
     expect(calls).not.toContain("npm ci");
-    expect(calls).toContain("prisma generate heap=--max-old-space-size=512");
+    expect(calls).not.toContain("prisma generate");
     expect(calls).toContain("npm run companion:build heap=--max-old-space-size=384");
     expect(readFileSync(join(staged, "node_modules", "marker.js"), "utf8")).toBe("live");
     // A real copy: a different inode, and writing it leaves the live tree alone.
     expect(statSync(join(staged, "node_modules", "marker.js")).ino).not.toBe(statSync(join(app, "node_modules", "marker.js")).ino);
     writeFileSync(join(staged, "node_modules", "marker.js"), "changed in staging");
     expect(readFileSync(join(app, "node_modules", "marker.js"), "utf8")).toBe("live");
+    // The generated client is a copy too: staging writes never reach the live tree.
+    expect(readFileSync(join(staged, "src", "generated", "prisma", "client.ts"), "utf8")).toBe("live client");
+    writeFileSync(join(staged, "src", "generated", "prisma", "client.ts"), "changed in staging");
+    expect(readFileSync(join(app, "src", "generated", "prisma", "client.ts"), "utf8")).toBe("live client");
+  });
+
+  it("regenerates the Prisma client when the schema changed or the live client is missing", () => {
+    const changedSchema = fixture({ sourceVersion: "9.0.3", schemaChanged: true });
+    expect(changedSchema.out).toContain("RESULT=ok");
+    expect(changedSchema.calls).toContain("prisma generate heap=--max-old-space-size=512");
+    expect(existsSync(join(changedSchema.staged, "src", "generated", "prisma", "client.ts"))).toBe(false);
+    const noClient = fixture({ sourceVersion: "9.0.3", noLiveClient: true });
+    expect(noClient.calls).toContain("prisma generate heap=--max-old-space-size=512");
+  });
+
+  it("prints a timing line for each preparation step and a total", () => {
+    const { out } = fixture({ sourceVersion: "9.0.3" });
+    for (const label of ["mode: reuse", "copy source: ", "copy node_modules: ", "copy prisma client: ", "companion build: ", "total: "]) expect(out).toContain(`[prepare] ${label}`);
+    const incremental = fixture({ sourceLock: changed });
+    for (const label of ["copy node_modules: ", "npm install: ", "npm ls: ", "companion build: "]) expect(incremental.out).toContain(`[prepare] ${label}`);
+  });
+
+  it("copies the live companion bundle when its sources are unchanged, and builds when they changed", () => {
+    const same = fixture({ sourceVersion: "9.0.3", builtLive: true });
+    expect(same.out).toContain("RESULT=ok");
+    expect(same.out).toContain("copying the live bundle");
+    expect(same.calls).not.toContain("companion:build");
+    expect(readFileSync(join(same.staged, "companion-app", "renderer", "ui-bundle.js"), "utf8")).toBe("live bundle");
+    expect(readFileSync(join(same.staged, ".companion-build-stamp"), "utf8")).toBe(readFileSync(join(same.app, ".companion-build-stamp"), "utf8"));
+    const edited = fixture({ sourceVersion: "9.0.3", builtLive: true, companionChanged: true });
+    expect(edited.out).toContain("RESULT=ok");
+    expect(edited.out).not.toContain("copying the live bundle");
+    expect(edited.calls).toContain("npm run companion:build heap=--max-old-space-size=384");
+    expect(readFileSync(join(edited.staged, ".companion-build-stamp"), "utf8")).not.toBe(readFileSync(join(edited.app, ".companion-build-stamp"), "utf8"));
+    // Without a recorded stamp (the first deploy with this feature) it builds.
+    expect(fixture({ sourceVersion: "9.0.3" }).calls).toContain("companion:build");
+  });
+
+  it("copies at idle I/O priority and runs the other steps at the lowest best-effort priority", () => {
+    const { calls } = fixture({ sourceLock: changed });
+    expect(calls).toMatch(/^ionice -c3 sudo -u .* cp -a --reflink=auto /m);
+    expect(calls).toMatch(/^ionice -c2 -n7 sudo -u .* npm install/m);
+  });
+
+  it("falls back to the memory limits alone when the box cannot set CPU or I/O limits", () => {
+    const { calls, out } = fixture({ sourceVersion: "9.0.3", systemdRun: "memory-only" });
+    expect(out).toContain("RESULT=ok");
+    expect(out).toContain("memory limits only");
+    const heavy = calls.split("\n").filter((line) => line.startsWith("systemd-run") && line.includes("-- ionice"));
+    expect(heavy.length).toBeGreaterThan(0);
+    for (const line of heavy) expect(line).not.toMatch(/CPUQuota|CPUWeight|IOWeight/);
+    expect(heavy[0]).toContain("-p MemoryMax=450M -p MemorySwapMax=200M");
+  });
+
+  it("keeps MemoryHigh off npm install, npm ls and prisma generate", () => {
+    const { calls } = fixture({ sourceLock: changed });
+    const scoped = calls.split("\n").filter((line) => line.startsWith("systemd-run"));
+    for (const step of ["npm install", "npm ls"]) {
+      const lines = scoped.filter((line) => line.includes(step));
+      expect(lines.length).toBeGreaterThan(0);
+      for (const line of lines) expect(line).not.toContain("MemoryHigh");
+    }
+    const generate = fixture({ sourceVersion: "9.0.3", schemaChanged: true }).calls.split("\n").filter((line) => line.startsWith("systemd-run") && line.includes("prisma generate"));
+    expect(generate.length).toBeGreaterThan(0);
+    for (const line of generate) expect(line).not.toContain("MemoryHigh");
+  });
+
+  it("runs without ionice, and says so, when it cannot set an I/O priority", () => {
+    const { calls, out } = fixture({ sourceVersion: "9.0.3", ionice: "fails" });
+    expect(out).toContain("RESULT=ok");
+    expect(out).toContain("ionice cannot set an I/O priority here");
+    for (const line of calls.split("\n").filter((l) => l.startsWith("systemd-run"))) expect(line).not.toContain("ionice");
+    expect(calls).toContain("npm run companion:build");
+  });
+
+  it("rebuilds the companion bundle after a dependency change even when the bundle sources are unchanged", () => {
+    const { out, calls } = fixture({ sourceLock: changed, builtLive: true });
+    expect(out).toContain("RESULT=ok");
+    expect(out).not.toContain("copying the live bundle");
+    expect(calls).toContain("npm run companion:build");
+  });
+
+  it("generates the Prisma client when prisma.config.ts changed", () => {
+    const { calls, out } = fixture({ sourceVersion: "9.0.3", configChanged: true });
+    expect(out).toContain("RESULT=ok");
+    expect(out).not.toContain("copying the live generated client");
+    expect(calls).toContain("prisma generate");
+  });
+
+  it("falls back to generating and building when copying the client or the bundle fails", () => {
+    const client = fixture({ sourceVersion: "9.0.3", failCopy: "client" });
+    expect(client.out).toContain("RESULT=ok");
+    expect(client.out).toContain("Copying the client failed; generating it instead.");
+    expect(client.calls).toContain("prisma generate");
+    const bundle = fixture({ sourceVersion: "9.0.3", builtLive: true, failCopy: "bundle" });
+    expect(bundle.out).toContain("RESULT=ok");
+    expect(bundle.out).toContain("Copying the bundle failed; building it instead.");
+    expect(bundle.calls).toContain("npm run companion:build");
+  });
+
+  it("only warns when the companion build hash cannot be recorded", () => {
+    for (const builtLive of [true, false]) {
+      const { out, staged } = fixture({ sourceVersion: "9.0.3", builtLive, failStampChown: true });
+      expect(out).toContain("RESULT=ok");
+      expect(out).toContain("Could not record the companion build hash");
+      expect(existsSync(join(staged, ".companion-build-stamp"))).toBe(false);
+    }
   });
 
   it("a version-only bump still reuses node_modules on a low-memory box", () => {
@@ -179,7 +350,7 @@ echo "STAGED=\${STAGED_APP:-}"`;
     expect(calls).not.toContain("prisma generate");
     // The live tree was copied, and the live one is untouched.
     expect(readFileSync(join(staged, "node_modules", "marker.js"), "utf8")).toBe("live");
-    expect(existsSync(join(app, "src", "generated"))).toBe(false);
+    expect(readFileSync(join(app, "src", "generated", "prisma", "client.ts"), "utf8")).toBe("live client");
   });
 
   it("an incremental install needs only the small sanity floor, not the full-install memory", () => {
@@ -232,17 +403,22 @@ echo "STAGED=\${STAGED_APP:-}"`;
   it("runs the heavy steps under the ceiling: a probe, then prisma and the bundle", () => {
     const { calls, out } = fixture({ sourceVersion: "9.0.3" });
     expect(out).toContain("RESULT=ok");
-    expect(calls).toContain("-p MemoryMax=450M -p MemorySwapMax=200M -p CPUWeight=20 -p IOWeight=20");
-    // The probe, Prisma generation and the bundle build: three systemd-run calls for a version-only bump.
-    expect(calls.match(/^systemd-run /gm)).toHaveLength(3);
+    expect(calls).toContain("-p MemoryMax=450M -p MemorySwapMax=200M -p CPUWeight=20 -p IOWeight=20 -p CPUQuota=50% -p MemoryHigh=360M");
+    // MemoryHigh only on the copies: the install-class steps keep MemoryMax 450M and 200M swap alone.
+    const scoped = calls.split("\n").filter((line) => line.startsWith("systemd-run"));
+    expect(scoped.filter((line) => line.includes("cp -a")).every((line) => line.includes("MemoryHigh=360M"))).toBe(true);
+    expect(scoped.filter((line) => line.includes("companion:build")).every((line) => !line.includes("MemoryHigh"))).toBe(true);
+    expect(scoped.filter((line) => line.includes("companion:build")).length).toBeGreaterThan(0);
+    // The probe, the node_modules copy, the generated-client copy and the bundle build: four systemd-run calls for a version-only bump.
+    expect(calls.match(/^systemd-run /gm)).toHaveLength(4);
   });
 
   it("runs the incremental install and its check under the ceiling for a real dependency change", () => {
     const { calls, out } = fixture({ sourceLock: changed });
     expect(out).toContain("RESULT=ok");
-    // Probe, npm install, npm ls, bundle build.
-    expect(calls.match(/^systemd-run /gm)).toHaveLength(4);
-    expect(calls).toContain("-- sudo -u");
+    // Probe, node_modules copy, npm install, npm ls, bundle build.
+    expect(calls.match(/^systemd-run /gm)).toHaveLength(5);
+    expect(calls).toMatch(/-- ionice -c\d.* sudo -u/);
   });
 
   it("runs a full npm ci under the ceiling when there is no live node_modules", () => {

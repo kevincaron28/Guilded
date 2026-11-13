@@ -432,9 +432,9 @@ export async function autoApplyImportWith(input: AutoApplyInput): Promise<AutoAp
     metadata: { auto: true, ...(input.retried ? { retried: true } : {}), epgpTransactionCount: result.epgpTransactions.length, readinessSnapshotCount: result.readinessSnapshots.length, discovered: result.discovery.discovered }
   });
   // The follow-up is all Discord (cards, notices, directory, boards): the response carries only the counts below.
-  inBackground("Follow-up of an addon import", async () => {
+  inGuildBackground(input.guildId, "Follow-up of an addon import", async (overCap) => {
     const discordGuild = input.client ? await input.client.guilds.fetch(input.discordId).catch(() => null) : null;
-    await followUpImport(discordGuild, input.guildId, result, { since: input.since });
+    await followUpImport(discordGuild, input.guildId, result, { since: input.since, refresh: !overCap });
   });
   return { epgp: result.epgpTransactions.length, discovered: result.discovery.discovered, held: result.held.rows.length, voided: result.voided, rejected: result.rejected.length };
 }
@@ -642,6 +642,27 @@ export function inBackground(label: string, task: () => Promise<unknown>): void 
   void Promise.resolve().then(task).catch((error: unknown) => console.warn(`${label} failed`, error));
 }
 
+// Background Discord work for one guild runs one task at a time (boards, directories and cards are find-or-post, so two
+// at once could each post a new one). At most BACKGROUND_CAP wait per guild; past that, a task is told to skip its idempotent
+// refresh parts (the next one catches up) but still does its per-import parts, in order.
+const BACKGROUND_CAP = 5;
+const backgroundDepth = new Map<string, number>();
+export function inGuildBackground(guildId: string, label: string, task: (overCap: boolean) => Promise<unknown>): void {
+  const depth = backgroundDepth.get(guildId) ?? 0;
+  const overCap = depth >= BACKGROUND_CAP;
+  backgroundDepth.set(guildId, depth + 1);
+  inBackground(label, () => serializeByKey(`followup:${guildId}`, () => task(overCap)).finally(() => {
+    const left = (backgroundDepth.get(guildId) ?? 1) - 1;
+    if (left <= 0) backgroundDepth.delete(guildId); else backgroundDepth.set(guildId, left);
+  }));
+}
+
+/** A request made in game is posted once: a task that waited its turn skips one another upload already posted (or that was closed). */
+export async function craftRequestNeedsPost(id: string): Promise<boolean> {
+  const row = await prisma.craftRequest.findUnique({ where: { id }, select: { threadId: true, orderMessageId: true, status: true } }).catch(() => null);
+  return !!row && !row.threadId && !row.orderMessageId && row.status === "OPEN";
+}
+
 /** Phase timer for one upload: one journal line with the phases over 200 ms (no names, no Discord ids). */
 export function createUploadTimer() {
   const phases: Array<[string, number]> = [];
@@ -673,9 +694,9 @@ async function applyGuildBoardUpload(guildId: string, memberId: string, officer:
   const created = posts.length ? await createBoardService(prisma).fromAddon(guildId, memberId, author, posts) : [];
   if (client && (polls.size || created.length)) {
     // Loaded only when needed: the poll command module is not part of the API's start-up.
-    inBackground("Game board Discord update", async () => {
+    inGuildBackground(guildId, "Game board Discord update", async (overCap) => {
       const { postGameNews, syncPollById } = await import("./commands/poll.js");
-      for (const pollId of polls) await syncPollById(client, pollId).catch((error: unknown) => console.warn("Poll refresh after game votes failed", error));
+      if (!overCap) for (const pollId of polls) await syncPollById(client, pollId).catch((error: unknown) => console.warn("Poll refresh after game votes failed", error));
       for (const post of created) await postGameNews(client, guildId, post).catch((error: unknown) => console.warn("Game news post failed", error));
     });
   }
@@ -1326,11 +1347,14 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const postNow = toPost.filter((id) => !postingCraftRequests.has(id));
         if (postNow.length && client) {
           for (const id of postNow) postingCraftRequests.add(id);
-          inBackground("Craft request posts", async () => {
+          inGuildBackground(guild.id, "Craft request posts", async () => {
             try {
               const discordGuild = await client.guilds.fetch(guild.discordId).catch(() => null);
               for (const id of postNow) {
                 if (!discordGuild) break;
+                // Another upload's task may have posted it while this one waited its turn: only a request with no forum post
+                // and no orders line yet (the same rule that picks the retries) is posted.
+                if (!await craftRequestNeedsPost(id)) continue;
                 const result = await withGuildScope(prisma, guild.id, () => postCraftRequest(discordGuild, id)).catch((error: unknown) => { console.warn("Craft request post failed", error); return null; });
                 if (!result?.posted && !retry.includes(id)) console.warn(`Craft request ${id} made in game was not posted to Discord yet; the next upload retries`);
               }
@@ -1375,10 +1399,10 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         ? await timed("profession-relay", () => relayProfessions(prisma, guild.id, preview.snapshot)) : null;
       if (professionRelay) {
         // Discord work (linking by name, the directory post): in order, after the response is decided.
-        inBackground("Profession directory", async () => {
+        inGuildBackground(guild.id, "Profession directory", async (overCap) => {
           const discordGuild = client ? await client.guilds.fetch(guild.discordId).catch(() => null) : null;
           if (discordGuild && professionRelay.discovered) await autoLinkUnclaimed(discordGuild, prisma, guild.id, { since: uploadStartedAt }).catch((error: unknown) => console.warn("Profession character linking failed", error));
-          await updateProfessionDirectory(discordGuild);
+          if (!overCap) await updateProfessionDirectory(discordGuild);
         });
       }
       if (preview.duplicate) {

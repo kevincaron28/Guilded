@@ -2637,13 +2637,14 @@ end
 ns.minimapClick = minimapClick
 
 -- The tooltip: every shortcut, then live status.
-local function fillTooltip()
-  GameTooltip:AddLine("Guilded")
-  GameTooltip:AddLine(L("Left-click: open the tools window"), 1, 1, 1)
-  GameTooltip:AddLine(L("Right-click: quick menu"), 1, 1, 1)
-  if ns.callForHelp and ns.callForHelp.open then GameTooltip:AddLine(L("Shift-right-click: call for help"), 1, 0.5, 0.4) end
+local function fillTooltip(tip)
+  tip = tip or GameTooltip
+  tip:AddLine("Guilded")
+  tip:AddLine(L("Left-click: open the tools window"), 1, 1, 1)
+  tip:AddLine(L("Right-click: quick menu"), 1, 1, 1)
+  if ns.callForHelp and ns.callForHelp.open then tip:AddLine(L("Shift-right-click: call for help"), 1, 0.5, 0.4) end
   local waiting = ns.syncNow and ns.syncNow.isDirty and ns.syncNow.isDirty()
-  if waiting then GameTooltip:AddLine(L("Changes waiting to be saved (/reload)"), 1, 0.82, 0.2) end
+  if waiting then tip:AddLine(L("Changes waiting to be saved (/reload)"), 1, 0.82, 0.2) end
 end
 
 -- ---------------------------------------------------------------------
@@ -2811,14 +2812,30 @@ table.insert(ns.commandHelp, "/guilded minimap show|hide|reset - the minimap but
 function Guilded_OnAddonCompartmentClick(_, mouseButton)
   minimapClick(mouseButton)
 end
+-- The compartment calls these from Blizzard's own code, so they use a tooltip of Guilded's own: filling and showing the
+-- game's GameTooltip here ran the game's tooltip code under Guilded's taint (13 Nov 2026). The minimap button's own
+-- hover above is Guilded's frame and keeps GameTooltip.
+local compartmentTip
+local function compartmentTooltip()
+  if compartmentTip ~= nil then return compartmentTip or nil end
+  compartmentTip = false
+  if CreateFrame then
+    local ok, frame = pcall(CreateFrame, "GameTooltip", "GuildedCompartmentTooltip", UIParent, "GameTooltipTemplate")
+    if ok and type(frame) == "table" then compartmentTip = frame end
+  end
+  return compartmentTip or nil
+end
 function Guilded_OnAddonCompartmentEnter(_, anchor)
-  if not GameTooltip then return end
-  GameTooltip:SetOwner(anchor or UIParent, "ANCHOR_LEFT")
-  fillTooltip()
-  GameTooltip:Show()
+  local tip = compartmentTooltip()
+  if not tip then return end
+  pcall(function()
+    tip:SetOwner(anchor or UIParent, "ANCHOR_LEFT")
+    fillTooltip(tip)
+    tip:Show()
+  end)
 end
 function Guilded_OnAddonCompartmentLeave()
-  if GameTooltip then GameTooltip:Hide() end
+  if compartmentTip and compartmentTip.Hide then compartmentTip:Hide() end
 end
 
 -- Wait until the world has loaded so Core.lua's saved settings exist.

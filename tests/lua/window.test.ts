@@ -789,8 +789,19 @@ describe("minimap button shortcuts (Track E2)", () => {
   });
   it("lists the short set of clicks in the tooltip", () => {
     const s = setup();
-    s.run(`TIP = {}; GameTooltip = { SetOwner = function() end, AddLine = function(_, t) TIP[#TIP + 1] = t end, Show = function() end, Hide = function() end }
-      Guilded_OnAddonCompartmentEnter(nil, UIParent)`);
+    // The compartment callback fills a tooltip of Guilded's own (CreateFrame), never the game's GameTooltip.
+    s.run(`TIP = {}; GAME = 0
+      GameTooltip = { SetOwner = function() GAME = GAME + 1 end, AddLine = function() GAME = GAME + 1 end, Show = function() GAME = GAME + 1 end, Hide = function() GAME = GAME + 1 end }
+      local make = CreateFrame
+      CreateFrame = function(kind, name, ...)
+        if name == "GuildedCompartmentTooltip" then
+          return { SetOwner = function() end, AddLine = function(_, t) TIP[#TIP + 1] = t end, Show = function() end, Hide = function() end }
+        end
+        return make(kind, name, ...)
+      end
+      Guilded_OnAddonCompartmentEnter(nil, UIParent)
+      Guilded_OnAddonCompartmentLeave()`);
+    expect(s.run("return GAME")).toBe("0");
     const tip = s.run(`return table.concat(TIP, "|")`);
     for (const word of ["Left-click", "Right-click: quick menu"]) expect(tip).toContain(word);
     for (const word of ["Shift-click", "Ctrl-click", "Alt-click", "Middle-click"]) expect(tip).not.toContain(word);

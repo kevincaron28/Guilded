@@ -757,14 +757,21 @@ function buildRecipes(saved, realm) {
 
 // Dungeon runs (addon Modules/Dungeon.lua) in the bot's dungeonRunSchema shape. Shared by the
 // guild upload and the personal one (personal-runs.mjs, GuildedDungeonsDB has the same shape).
+//
+// (9.3) options.includeParked also returns the finished, unsynced runs of other guilds this PC's saved file holds
+// (GuildedDB.otherGuilds[guildKey].dungeon.runs, parked when a character of another guild logged in), each tagged
+// `wowGuild` with its own guild key so the uploader can send them to that guild's server. Off by default.
 export function exportDungeonRuns(database, realm, options = {}) {
   const dungeonRuns = [];
+  const addRuns = (database, guildKey, onlyOpen) => {
   // Dungeon runs (addon Modules/Dungeon.lua). The bot validates each run and
   // ignores ones it already has, so exporting all of them every time is safe.
   for (const run of Object.values(database.dungeon?.runs ?? {})) {
-    if (options.skipSynced && run?.synced) continue;
+    if ((options.skipSynced || onlyOpen) && run?.synced) continue;
+    if (onlyOpen && (run?.syncedVia || !["COMPLETED", "ABANDONED"].includes(run?.state) || !(Number(run?.endedAt) > Date.now() / 1000 - 30 * 86400))) continue;
     if (!run?.id || !run.state || !run.instanceId) continue;
     dungeonRuns.push({
+      ...(guildKey ? { wowGuild: guildKey } : {}),
       id: String(run.id),
       protocolVersion: Number(run.protocolVersion ?? 1),
       ...(run.addonVersion ? { addonVersion: String(run.addonVersion) } : {}),
@@ -788,6 +795,8 @@ export function exportDungeonRuns(database, realm, options = {}) {
       ...(run.completedBy ? { completedBy: String(run.completedBy) } : {}),
       ...(run.endReason ? { endReason: String(run.endReason) } : {}),
       ...(run.recorder ? { recorder: String(run.recorder) } : {}),
+      // (9.3) Why an ABANDONED run did not complete: ids and boss names only (addon Dungeon.lua explainAbandoned).
+      ...(typeof run.diagnostic === "string" && run.diagnostic ? { diagnostic: run.diagnostic.slice(0, 240) } : {}),
       encounters: Object.values(run.encounters ?? {}).slice(0, 100).flatMap(encounter => {
         if (!encounter || !Number.isInteger(encounter.id) || encounter.id <= 0 || typeof encounter.success !== "boolean") return [];
         return [{ id: encounter.id, success: encounter.success,
@@ -829,6 +838,8 @@ export function exportDungeonRuns(database, realm, options = {}) {
           ...(player.integrity.knownIntervals ? { knownIntervals: Object.values(player.integrity.knownIntervals).map(interval => Object.values(interval)) } : {}),
           mixedRole: player.integrity.mixedRole, ...(dungeonRole(player.integrity.lockedRole) ? { lockedRole: dungeonRole(player.integrity.lockedRole) } : {}) } } : {}),
         ...(player.spec ? { spec: String(player.spec).slice(0, 40) } : {}),
+        // (9.3) The guild the game reported for this player (absent when none or unknown); old runs have none.
+        ...(typeof player.guild === "string" && player.guild.trim() ? { guild: player.guild.trim().slice(0, 80) } : {}),
         deaths: typeof player.deaths === "number" ? player.deaths : null,
         ...(Number.isInteger(player.level) && player.level >= 1 && player.level <= 100 ? { level: player.level } : {}),
         ...(Number.isInteger(player.minLevel) && player.minLevel >= 1 && player.minLevel <= 100 ? { minLevel: player.minLevel } : {}),
@@ -836,6 +847,14 @@ export function exportDungeonRuns(database, realm, options = {}) {
         inGuild: player.inGuild === true
       }))
     });
+  }
+  };
+  addRuns(database);
+  if (options.includeParked && database.otherGuilds && typeof database.otherGuilds === "object") {
+    for (const [guildKey, parked] of Object.entries(database.otherGuilds).slice(0, 10)) {
+      if (!guildKey.includes("@") && parked && typeof parked === "object") addRuns(parked, guildKey, true);
+    }
+    if (dungeonRuns.length > 500) dungeonRuns.length = 500;
   }
   return dungeonRuns;
 }

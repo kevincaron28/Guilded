@@ -56,6 +56,8 @@ end
 
 local function now() return compat.serverTime() end
 local function me() return ns.playerName() end
+-- Member-facing text through the locale table when it is loaded (Locale.lua comes before this file).
+local function T(text) return ns.L and ns.L(text) or text end
 
 -- ---------------------------------------------------------------------
 -- Messaging (queued while in combat, spaced out)
@@ -139,6 +141,8 @@ local function updatePlayers(run)
     end
     player.guid = member.guid or player.guid
     player.inGuild = member.inGuild or player.inGuild
+    -- (9.3) The guild the game reports for this player; kept when it is unknown for a moment (out of range).
+    if member.guild then player.guild = member.guild end
     if member.name == me() then
       local identity = ns.getDb().character
       if identity and type(identity.spec) == "string" and identity.spec ~= "" then player.spec = identity.spec end
@@ -312,6 +316,32 @@ end
 
 local serialize
 
+-- (9.3) Never silent: a run that ended ABANDONED after bosses died will not count, and the member is told
+-- once why and what to do. A compact diagnostic (dungeon, instance id, last kills, how the final boss is
+-- known) is saved on the run and goes to the bot with it, so a final boss the addon does not know can be
+-- found from production instead of guessed. Only ids and boss names; nothing about people.
+local function diagText(value, max) return string.sub((string.gsub(tostring(value or ""), "[|;:,=\r\n]", " ")), 1, max) end
+local function explainAbandoned(run)
+  if run.state ~= "ABANDONED" or run.explained then return end
+  local kills = {}
+  for _, encounter in ipairs(run.encounters or {}) do
+    if encounter.success and not encounter.kind and tonumber(encounter.id) then kills[#kills + 1] = encounter end
+  end
+  if #kills == 0 then return end
+  run.explained = true
+  local how = "unknown"
+  if run.finalEncounterId then how = "journal"
+  elseif compat.dungeonFinalKnown and compat.dungeonFinalKnown(tonumber(run.instanceId)) then how = "table" end
+  local last = {}
+  for index = math.max(1, #kills - 2), #kills do last[#last + 1] = tostring(tonumber(kills[index].id)) .. "/" .. diagText(kills[index].name, 30) end
+  run.diagnostic = string.sub(string.format("i=%s;d=%s;ed=%s;k=%d;f=%s;last=%s;why=%s", tostring(tonumber(run.instanceId) or 0),
+    tostring(tonumber(run.difficultyId) or 0), diagText(run.gameEdition, 20), #kills, how, table.concat(last, "+"), diagText(run.endReason, 30)), 1, 240)
+  if run.endReason == "manual" then return end
+  local command = ns.standalone and "/gdungeons check" or "/guilded dungeon check"
+  ns.message(string.format(T("This dungeon run (%s) ended before its final boss was killed (%d boss(es) down), so it will not count. If you did kill the final boss, type %s and tell an officer what it says."),
+    tostring(run.name or "?"), #kills, command))
+end
+
 -- Stores a finished run for export, tells the group, and shares it with
 -- officers who are online.
 local function finalize(run)
@@ -339,6 +369,7 @@ local function finalize(run)
   if ns.onDungeonResultReady then pcall(ns.onDungeonResultReady, run) end
   ns.message(string.format("Dungeon run %s: %s%s.", run.state, run.name or "?",
     run.durationSec and run.state == "COMPLETED" and string.format(" in %d:%02d", math.floor(run.durationSec / 60), run.durationSec % 60) or ""))
+  pcall(explainAbandoned, run)
   if ns.onDungeonChange then pcall(ns.onDungeonChange) end
 end
 
@@ -409,6 +440,16 @@ local function evaluate()
     if inDungeon and instance.id == run.instanceId then
       run.inside = true
       run.leftAt = nil
+      -- (9.3) The Encounter Journal is skipped in combat and may not know the map right at the zone-in, so a run
+      -- that started without its final boss id looks again on the next quiet ticks (the same rule as newRun).
+      if not run.finalEncounterId and (run.bossLookups or 0) < 10 and not compat.inCombat() then
+        run.bossLookups = (run.bossLookups or 0) + 1
+        local bosses = compat.dungeonBosses(instance.id)
+        if bosses and #bosses > 0 then
+          run.bossCount = #bosses
+          run.finalEncounterId = bosses[#bosses].id
+        end
+      end
     else
       run.inside = false
       run.leftAt = run.leftAt or now()
@@ -508,6 +549,16 @@ serialize = function(run)
       .. ";ix=" .. table.concat(intervals, ",") .. ";ns=" .. table.concat(native, ",") .. ";wa=" .. (run.integrity.witnessAt or "")
     if #summary + #extra <= CHUNK_BYTES * 20 then summary = summary .. extra end
   end
+  -- (9.3) Last, so it never crowds out the timeline or the integrity data: each player's guild as the game reported
+  -- it, so a guildmate's copy of the run carries it too.
+  local guilds = {}
+  for name, player in pairs(run.players) do
+    if player.guild and player.guild ~= "" then guilds[#guilds + 1] = clean(name) .. ":" .. clean(string.sub(player.guild, 1, 40)) end
+  end
+  if #guilds > 0 then
+    local guildData = ";gu=" .. table.concat(guilds, ",")
+    if #summary + #guildData <= CHUNK_BYTES * 20 then summary = summary .. guildData end
+  end
   return summary
 end
 
@@ -564,6 +615,11 @@ local function deserialize(id, text)
     name = name and ns.normalizeName(name)
     if name and run.players[name] then run.players[name].spec = string.sub(spec, 1, 40) end
   end
+  for entry in string.gmatch(fields.gu or "", "[^,]+") do
+    local name, guild = string.match(entry, "^([^:]+):([^:]+)$")
+    name = name and ns.normalizeName(name)
+    if name and run.players[name] then run.players[name].guild = string.sub(guild, 1, 80) end
+  end
   if fields.iv == "2" and (fields.iw == "unknown" or fields.iw == "native-reset" and tonumber(fields.wa)) and (fields.ic == "1" or fields.ic == "0") then
     run.integrity = { version = 2, startWitness = fields.iw, witnessAt = tonumber(fields.wa), startTrigger = fields.it or "unknown", continuous = fields.ic == "1",
       observer = fields.io and ns.normalizeName(fields.io), detectedAt = tonumber(fields.ie), combatAt = tonumber(fields.ia) }
@@ -592,6 +648,51 @@ end
 dungeon.serialize = serialize
 dungeon.deserialize = deserialize
 
+-- Recovery for runs that ended ABANDONED although the final boss was recorded (see dungeon.recoverRuns below).
+-- A run is completed only from a saved, timestamped, successful kill of a boss that today's tables call final,
+-- taken inside the run's own time span: the client's own native kill, or (9.3) the same kill in a guildmate's copy
+-- of this run (storePeerRun adds it with viaPeer). Nothing else is invented; the end time becomes the kill.
+local RECOVERY_VERSION = 1
+local function recoverOne(run)
+  if not (run.state == "ABANDONED" and run.startedAt and run.endedAt and run.gameEdition == ns.util.gameEdition()) then return false end
+  local final
+  for _, encounter in ipairs(run.encounters or {}) do
+    if encounter.success and not encounter.kind and (encounter.source == "native" or encounter.viaPeer) and tonumber(encounter.id)
+      and tonumber(encounter.at) and encounter.at > run.startedAt and encounter.at <= run.endedAt
+      and ((run.finalEncounterId and tonumber(encounter.id) == run.finalEncounterId)
+        or compat.isDungeonFinalBoss(run.instanceId, encounter.id, encounter.name, run.difficultyId)) then
+      if not final or encounter.at > final.at then final = encounter end
+    end
+  end
+  if not final then return false end
+  local abandonedAt = run.endedAt
+  run.state, run.endedAt, run.completedBy = "COMPLETED", final.at, "final boss"
+  run.endReason, run.synced, run.diagnostic, run.explained = nil, nil, nil, nil
+  run.recoveredFrom = { state = "ABANDONED", endedAt = abandonedAt, version = RECOVERY_VERSION, via = final.viaPeer }
+  run.durationSec = run.endedAt - run.startedAt
+  -- Presence never exceeds the (shorter) run; observed intervals stop at the kill.
+  for _, player in pairs(run.players or {}) do
+    player.presentSec = math.min(player.presentSec or 0, run.durationSec)
+    local seen = player.integrity
+    if seen then
+      local kept, known = {}, 0
+      for _, span in ipairs(seen.knownIntervals or {}) do
+        local from, to = span[1], math.min(span[2], run.endedAt)
+        if from < to then kept[#kept + 1] = { from, to }; known = known + (to - from) end
+      end
+      seen.knownIntervals, seen.knownSec = kept, known
+      seen.unknownSec = math.max(0, math.min(seen.unknownSec or 0, run.durationSec - known))
+    end
+  end
+  if run.durationSec > 0 then
+    if ns.onDungeonRunFinished then pcall(ns.onDungeonRunFinished, run) end
+    return true
+  end
+  run.state, run.endedAt, run.completedBy, run.endReason, run.recoveredFrom = "ABANDONED", abandonedAt, nil, "left the dungeon", nil
+  run.durationSec = run.endedAt - run.startedAt
+  return false
+end
+
 -- A run someone else reported: keep it, or merge into our copy (more
 -- reporters = more trust; deaths take the highest count anyone saw).
 local function storePeerRun(run, sender)
@@ -606,6 +707,27 @@ local function storePeerRun(run, sender)
   end
   existing.reporters = existing.reporters or {}
   existing.reporters[sender] = true
+  -- (9.3) Our copy ended ABANDONED but a guildmate who was in the same run reports it COMPLETED by the final
+  -- boss: take their saved kill (inside our own run window, and a boss our tables call final) and recover.
+  if existing.state == "ABANDONED" and run.state == "COMPLETED" and run.completedBy == "final boss"
+    and existing.instanceId == run.instanceId and existing.players and existing.players[sender] and existing.startedAt and existing.endedAt then
+    for _, kill in ipairs(run.encounters or {}) do
+      if kill.success and not kill.kind and tonumber(kill.id) and tonumber(kill.at) and kill.at > existing.startedAt and kill.at <= existing.endedAt
+        and ((existing.finalEncounterId and tonumber(kill.id) == existing.finalEncounterId)
+          or compat.isDungeonFinalBoss(existing.instanceId, kill.id, kill.name, existing.difficultyId)) then
+        local known = false
+        for _, old in ipairs(existing.encounters) do
+          if tonumber(old.id) == tonumber(kill.id) and old.success and not old.kind and old.at == kill.at then known = true end
+        end
+        if not known and #existing.encounters < 100 then
+          table.insert(existing.encounters, { id = tonumber(kill.id), name = kill.name, success = true, at = kill.at, viaPeer = sender })
+        end
+      end
+    end
+    if recoverOne(existing) then
+      ns.message(string.format("Guilded recovered a dungeon run (%s) from a guildmate's copy: its final boss was killed; it uploads with your next sync.", tostring(existing.name or "?")))
+    end
+  end
   -- An officer may first receive an old client's summary with IDs only.
   local function coverage(encounters)
     local count = 0
@@ -1121,52 +1243,12 @@ end
 -- from its own saved, timestamped, successful native kill of a boss that today's tables
 -- call final, taken inside the run's own time span. Nothing else is invented: a run with
 -- no such kill stays ABANDONED, and the end time becomes the kill, not the abandon time.
-local RECOVERY_VERSION = 1
 function dungeon.recoverRuns()
   local d = db()
   if not d then return 0 end
   local recovered = 0
   for _, run in pairs(d.runs) do
-    if run.state == "ABANDONED" and run.startedAt and run.endedAt
-      and run.gameEdition == ns.util.gameEdition() then
-      local final
-      for _, encounter in ipairs(run.encounters or {}) do
-        if encounter.success and not encounter.kind and encounter.source == "native" and tonumber(encounter.id)
-          and tonumber(encounter.at) and encounter.at > run.startedAt and encounter.at <= run.endedAt
-          and ((run.finalEncounterId and tonumber(encounter.id) == run.finalEncounterId)
-            or compat.isDungeonFinalBoss(run.instanceId, encounter.id, encounter.name, run.difficultyId)) then
-          if not final or encounter.at > final.at then final = encounter end
-        end
-      end
-      if final then
-        local abandonedAt = run.endedAt
-        run.state, run.endedAt, run.completedBy = "COMPLETED", final.at, "final boss"
-        run.endReason, run.synced = nil, nil
-        run.recoveredFrom = { state = "ABANDONED", endedAt = abandonedAt, version = RECOVERY_VERSION }
-        run.durationSec = run.endedAt - run.startedAt
-        -- Presence never exceeds the (shorter) run; observed intervals stop at the kill.
-        for _, player in pairs(run.players or {}) do
-          player.presentSec = math.min(player.presentSec or 0, run.durationSec)
-          local seen = player.integrity
-          if seen then
-            local kept, known = {}, 0
-            for _, span in ipairs(seen.knownIntervals or {}) do
-              local from, to = span[1], math.min(span[2], run.endedAt)
-              if from < to then kept[#kept + 1] = { from, to }; known = known + (to - from) end
-            end
-            seen.knownIntervals, seen.knownSec = kept, known
-            seen.unknownSec = math.max(0, math.min(seen.unknownSec or 0, run.durationSec - known))
-          end
-        end
-        if run.durationSec > 0 then
-          recovered = recovered + 1
-          if ns.onDungeonRunFinished then pcall(ns.onDungeonRunFinished, run) end
-        else
-          run.state, run.endedAt, run.completedBy, run.endReason, run.recoveredFrom = "ABANDONED", abandonedAt, nil, "left the dungeon", nil
-          run.durationSec = run.endedAt - run.startedAt
-        end
-      end
-    end
+    if recoverOne(run) then recovered = recovered + 1 end
   end
   if recovered > 0 then
     ns.message(string.format("Guilded recovered %d dungeon run(s) whose final boss was killed; they upload with your next sync.", recovered))

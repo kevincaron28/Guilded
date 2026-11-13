@@ -545,15 +545,6 @@ function map.statusText()
   return table.concat(lines, "\n")
 end
 
--- The key bound to the world map ("M" by default), for the hint above.
-function map.mapKey()
-  if GetBindingKey then
-    local ok, key = pcall(GetBindingKey, "TOGGLEWORLDMAP")
-    if ok and type(key) == "string" and key ~= "" and not secret(key) then return key end
-  end
-  return "M"
-end
-
 ns.commandHandlers = ns.commandHandlers or {}
 ns.commandHandlers["map"] = function(args)
   local s = settings()
@@ -561,14 +552,6 @@ ns.commandHandlers["map"] = function(args)
   local what, value = string.lower(args[1] or ""), string.lower(args[2] or "")
   if what == "check" then
     for line in string.gmatch(map.statusText(), "[^\n]+") do ns.message(line) end
-    return
-  end
-  if what == "open" then
-    -- Never open the world map from addon code: that runs the map's own code tainted, and its pins
-    -- are then blocked in combat for the rest of the session (see refreshWorldMap). Say which key does.
-    if not worldMapShown() then ns.message(string.format(L("Open your world map (%s) to see guildmates."), map.mapKey())) end
-    map.requestPositions()
-    map.refresh()
     return
   end
   if what == "show" and (value == "on" or value == "off") then

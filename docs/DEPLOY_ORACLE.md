@@ -158,9 +158,21 @@ to that server were frozen for 7 and 8 November. The owner decides when the free
   scope capped at 450 MB of memory and 200 MB of swap, with low CPU and I/O weight. A step that
   exceeds the cap is killed and the deploy stops; the bot is untouched. If `systemd-run` cannot
   set the cap here, the steps run without it and the update says so.
-- A version-only bump reuses the running `node_modules`. A real dependency change runs `npm ci`
-  only after a memory check: it needs 384 MB available (768 MB with swap), otherwise the update
-  refuses before creating anything.
+- A version-only bump reuses the running `node_modules`. A real dependency change cannot use a
+  fresh `npm ci` here: measured on 13 November 2026, it is OOM-killed inside the 450 MB cap every
+  time (about 388 MB resident at the kill, even with a 300 MB heap, 3 sockets and no scripts).
+  So the updater first copies the running `node_modules` into the staging directory and runs
+  `npm install --prefer-offline --no-audit --no-fund` there (heap cap 384 MB, lifecycle scripts
+  on, so the `postinstall` regenerates the Prisma client once). By hand under the same cap this took
+  32 s. It is accepted only if all of these hold: `package-lock.json` in staging is byte-identical
+  to the source one, `npm ls --all` exits 0 (nothing missing, invalid or extraneous; `npm install`
+  against a lockfile also prunes packages the lockfile no longer lists), and `src/generated/prisma/client.ts`
+  exists. The output says "Updating changed dependencies on a copy of the live ones". If any step
+  fails, the staged `node_modules` is removed, the output says "falling back to a full install", and
+  a fresh `npm ci` runs, but only after a memory check (384 MB available, 768 MB with swap; otherwise
+  the update refuses and the bot keeps running). The incremental path only needs 256 MB available
+  as a sanity floor (the scope cap, not this number, is what protects the bot). With no running
+  `node_modules` to copy, the fresh `npm ci` path is used directly. The live tree is never touched.
 - The bot's unit (`deploy/guilded.service`) keeps `MemoryMax=700M`, adds `MemoryLow=256M` and
   `OOMScoreAdjust=-500` (the kernel prefers to kill the deploy's install over the bot), and
   keeps `Restart=always`. An updated unit is written beside the old one and moved into place; if

@@ -309,6 +309,8 @@ local function decorateUnit(tooltip, fresh)
   if not active() or not tooltip or not tooltip.GetUnit then return end
   -- In combat a unit tooltip holds secret values; leave it to the game.
   if ns.util and ns.util.inCombat and ns.util.inCombat() then return end
+  if GameTooltip and tooltip ~= GameTooltip then return end
+  ns.lastTooltipAt = GetTime and GetTime() or nil
   local ok, _, unit = pcall(tooltip.GetUnit, tooltip)
   if not ok or not unit or (ns.isSecret and ns.isSecret(unit)) then return end
   if UnitIsPlayer and not UnitIsPlayer(unit) then return end

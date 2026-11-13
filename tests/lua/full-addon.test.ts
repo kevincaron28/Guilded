@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
@@ -187,6 +187,27 @@ describe("the whole addon, loaded in .toc order", () => {
     expect(s.run(`return type(NS.commandHandlers.welcome) .. type(NS.commandHandlers.finder) .. type(NS.commandHandlers.probe) .. type(NS.levelPartners)`)).toBe("nilnilnilnil");
     expect(problems(s).filter((line) => !line.includes("removed in 9.2"))).toEqual([]);
     expect(diagnostics(s)).toBe("0");
+  });
+
+  it("answers /guilded free with a removal line, never sends availability traffic, and ignores older addons' GuildedFree messages", () => {
+    const s = fullAddon(1);
+    s.run(`
+      for _, text in ipairs({ "1|forever|F|ANY", "1|forever|G|ANY", "garbage" }) do
+        fire_event("CHAT_MSG_ADDON", "GuildedFree", text, "GUILD", "Old-Officer")
+      end
+      for _, command in ipairs({ "free", "free share on", "free activity" }) do SlashCmdList["GUILDED"](command) end
+    `);
+    const chat = s.chat().join("\n");
+    expect(chat).toContain("/guilded free was removed: Availability sharing was removed because nobody used it.");
+    expect(chat).not.toContain("removed in 9.2: Availability");
+    expect(s.run(`return type(NS.presence) .. type(NS.commandHandlers.free) .. tostring(NS.moduleName and NS.moduleName("presence"))`)).toMatch(/^nilnil/);
+    expect(s.run(`return tostring(NS.comm.pending("GuildedFree"))`)).toBe("0");
+    expect(problems(s)).toEqual([]);
+    expect(diagnostics(s)).toBe("0");
+    // No module registers or sends the old prefix; its saved variable stays declared so nothing is deleted.
+    const sources = readdirSync("addon/Guilded/Modules").map((file) => readFileSync(`addon/Guilded/Modules/${file}`, "utf8")).join("\n");
+    expect(sources).not.toContain("GuildedFree");
+    expect(readFileSync("addon/Guilded/Guilded.toc", "utf8")).toContain("GuildedPresenceDB");
   });
 
   it("loads, logs in and opens the window as an officer without a single error", () => {

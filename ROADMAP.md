@@ -232,7 +232,7 @@ State words: **Released** = in a published client (members have it); **Live** = 
 | 11, 19 | Roster admin window, native WoW fit | Released 9.0.1 | #478, #480 |
 | 12 | Race to 60 redesign + reach-60 card | Live; top 50; no real level 60 seen yet | #471, #518 |
 | 13 | Dungeon cards (one per run, heat map) | Live; traced maps under the heat map released 9.0.2 | #461, #483, #503, #559 |
-| 14 | Remove availability module | Hidden, code kept | #477 |
+| 14 | Remove availability module | Hidden in 9.0.1; the addon page, module, `/guilded free` and `GuildedFree` traffic removed after 9.2.0 (owner, 13 Nov). The website "Who's free?" page (`src/services/web-availability.ts`) is bot-side and untouched | #477 |
 | 15 | One name standard | Live (guard test) | #476, #495, #513 |
 | 16 | One #invitation-guilde, in the WoW category | Done | #477 |
 | 17 | Guild overview panel | Released 9.0.2 | #501 |

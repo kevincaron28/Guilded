@@ -32,6 +32,6 @@ describe("dungeon card mock-up", () => {
     });
     assertCardRules(report);
     expect(Math.min(...report.map((r) => r.size))).toBeGreaterThanOrEqual(24);
-    if (process.env.CARD_RENDER_DIR) fs.writeFileSync(`${process.env.CARD_RENDER_DIR}/dungeon-run-guilds.png`, png);
+    if (process.env["CARD_RENDER_DIR"]) fs.writeFileSync(`${process.env["CARD_RENDER_DIR"]}/dungeon-run-guilds.png`, png);
   });
 });

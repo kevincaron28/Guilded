@@ -86,7 +86,9 @@ describe('website refresh', () => {
 
   it('lists the public data pages and the guild-page sitemap for search engines', () => {
     const sitemap = page('sitemap.xml');
-    for (const path of ['/forever/leaderboards/', '/forever/recruitment/guilds/', '/forever/players/', '/officers/', '/forever/']) expect(sitemap).toContain(`<loc>https://guildedwow.com${path}</loc>`);
+    for (const path of ['/forever/leaderboards/', '/forever/recruitment/guilds/', '/forever/players/', '/guide/officers/', '/forever/']) expect(sitemap).toContain(`<loc>https://guildedwow.com${path}</loc>`);
+    // /officers/ answers 301 (worker/localized-assets.mjs): the sitemap lists its target once, never the redirect.
+    expect(sitemap).not.toContain('<loc>https://guildedwow.com/officers/</loc>');
     for (const slug of ['retail', 'tbc', 'mists', 'classic-era']) expect(sitemap).not.toContain(`guildedwow.com/${slug}/`);
     expect(page('robots.txt')).toContain('Sitemap: https://guildedwow.com/recruitment/guilds/sitemap.xml');
   });

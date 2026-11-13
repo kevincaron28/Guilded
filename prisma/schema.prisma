@@ -1736,8 +1736,12 @@ model DungeonRun {
   importId        String?
   // Who vouches for the run (docs/plans/RUN_TRUST_2026-11-10.md). null or "member": a signed-in member's upload
   // brought it. "device": one unsigned companion, a party member is in the roster. "witnessed": two unsigned
-  // companions speaking for two party members. Only null and "member" runs are published to the public boards.
+  // companions speaking for two party members. (13 November 2026: with SINGLE_WITNESS every stored run is published; see run-trust.ts.)
   trust           String?
+  /// (13 November 2026) Plausibility flags raised when the run was stored: [{ code, detail }]. Report only; the run still counts.
+  anomalies       Json?
+  /// Independent statements that agree (a signed-in member's upload counts as one). Information only: "confirmed by N players".
+  witnessCount    Int                       @default(1)
   createdAt       DateTime                  @default(now())
   guild           Guild                     @relation(fields: [guildId], references: [id], onDelete: Cascade)
   season          DungeonSeason?            @relation(fields: [seasonId], references: [id], onDelete: SetNull)
@@ -2348,6 +2352,9 @@ model CompanionDevice {
   claimedMemberId String?
   claimedAt       DateTime?
   revokedAt       DateTime?
+  /// (13 November 2026) An owner or officer excluded this install: its runs are refused (the device key is the unit of exclusion).
+  excludedAt      DateTime?
+  excludedReason  String?
   uploads         Int       @default(0)
   guild           Guild?    @relation(fields: [guildId], references: [id], onDelete: SetNull)
   claimedMember   Member?   @relation(fields: [claimedMemberId], references: [id], onDelete: SetNull)

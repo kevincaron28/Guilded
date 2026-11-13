@@ -35,6 +35,7 @@ function fakeDatabase() {
     guildSettings: { findUnique: async () => ({ dungeonLeaderboardChannelId: null }) },
     dungeonSeason: { findFirst: async () => season, create: async () => season, update: vi.fn() },
     dungeonRun: {
+      aggregate: async () => ({ _min: { durationSec: null }, _count: { _all: 0 } }),
       updateMany: async () => ({ count: 0 }),
       findUnique: async ({ where }: { where: { guildId_runRef: { runRef: string } } }) => runs.find((r) => r["runRef"] === where.guildId_runRef.runRef) ?? null,
       findMany: async ({ where }: { where: { runRef?: { in: string[] }; instanceId?: number; valid?: boolean; state?: string; completedBy?: string } }) => runs.filter((r) =>

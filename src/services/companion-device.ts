@@ -3,6 +3,7 @@ import { z } from "zod";
 import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
 import { characterKey, foreverSameName } from "../../companion/character-identity.mjs";
 import { firstNameKey, importDungeonRuns, receiptReason, RETRY_OUTCOME, saveRunReceipts } from "./dungeon-import.js";
+import { plausibilityFlags, type NeighbourRun } from "./run-plausibility.js";
 import { anchored, countsDeviceOnlyRuns, decide, fingerprintOf, independent, RUN_TRUST, sameRun, voucherOf, type RunFingerprint, type Statement } from "./run-trust.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
 import { withEdition } from "./edition-context.js";
@@ -312,9 +313,10 @@ function sweepIdleDevices(store: DeviceStore, now: Date): void {
   void store.expireIdle(new Date(now.getTime() - DEVICE_LIMITS.idleDays * 86_400_000)).catch((error: unknown) => console.error("Idle device sweep failed", error));
 }
 
-type RunTx = Pick<Prisma.TransactionClient, "officialSeason" | "guild" | "dungeonRun" | "character" | "guildSettings" | "dungeonRunWitness" | "guildRosterEntry"> & Parameters<typeof importDungeonRuns>[0] & Parameters<typeof enqueueDiscordJob>[0];
+type RunTx = Pick<Prisma.TransactionClient, "officialSeason" | "guild" | "dungeonRun" | "companionDevice" | "character" | "guildSettings" | "dungeonRunWitness" | "guildRosterEntry"> & Parameters<typeof importDungeonRuns>[0] & Parameters<typeof enqueueDiscordJob>[0];
 const DEVICE_SOURCE = "companion device";
 const COPY_REASON = "Counted with a guildmate's copy of this run";
+export const EXCLUDED_REASON = "This PC was excluded by an officer";
 const epoch = (date: Date | null | undefined) => date ? Math.floor(date.getTime() / 1000) : null;
 const near = (endedAt: number) => ({ gte: new Date((endedAt - RUN_TRUST.endToleranceSec) * 1000), lte: new Date((endedAt + RUN_TRUST.endToleranceSec) * 1000) });
 interface WitnessRow { id: string; deviceId: string; runRef: string; kind: string; voucher: string; instanceId: number; difficultyId: number; startedAt: Date | null; endedAt: Date | null;
@@ -334,6 +336,12 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
   const result: DeviceRunResult = { stored: 0, skipped: runs.length - entries.length };
   if (!entries.length) return result;
   const refs = entries.map((entry) => entry.ref);
+  // (13 November 2026) The device key is the unit of exclusion: an excluded PC's runs are refused, answered with the reason.
+  const standing = await tx.companionDevice.findUnique({ where: { id: source.deviceId }, select: { excludedAt: true } });
+  if (standing?.excludedAt) {
+    await saveRunReceipts(tx, guildId, refs.map((runRef) => ({ runRef, outcome: "refused" as const, reason: EXCLUDED_REASON, runId: null })), now);
+    return { ...result, skipped: result.skipped + entries.length };
+  }
   const deviceKeys = new Set(source.characterKeys);
   const nowSec = Math.floor(now.getTime() / 1000);
   const guild = await tx.guild.findUnique({ where: { id: guildId }, select: { gameEdition: true } });
@@ -362,6 +370,30 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
     await tx.dungeonRunWitness.upsert({ where: { guildId_runRef_deviceId: { guildId, runRef: ref, deviceId: source.deviceId } },
       create: { guildId, deviceId: source.deviceId, runRef: ref, firstSeenAt: now, ...row }, update: row });
   };
+  /** This statement plus every other device's statement that speaks for another party member. */
+  const witnessesOf = (statement: Statement, rows: readonly WitnessRow[]): number => new Set([statement.voucher, ...rows.map((row) => row.voucher)]).size;
+  // Plausibility flags (run-plausibility.ts): report only, the run counts either way.
+  const flagsFor = async (raw: unknown, ref: string): Promise<{ code: string; detail: string }[]> => {
+    const data = raw as { instanceId?: number; difficultyId?: number; startedAt?: number; endedAt?: number; players?: { character?: unknown; level?: unknown }[]; encounters?: { id?: unknown; at?: unknown; success?: unknown; kind?: unknown }[] };
+    const started = typeof data.startedAt === "number" ? data.startedAt : null, ended = typeof data.endedAt === "number" ? data.endedAt : null;
+    if (typeof data.instanceId !== "number") return [];
+    const reach = ended ? { gte: new Date((ended - 4 * 3600) * 1000), lte: new Date((ended + 4 * 3600) * 1000) } : undefined;
+    const [fastest, nearby, mineRows] = await Promise.all([
+      tx.dungeonRun.aggregate({ where: { guildId, instanceId: data.instanceId, difficultyId: data.difficultyId ?? 0, valid: true, state: "COMPLETED", durationSec: { not: null }, runRef: { not: ref } }, _min: { durationSec: true }, _count: { _all: true } }),
+      reach ? tx.dungeonRun.findMany({ where: { guildId, valid: true, endedAt: reach }, select: { runRef: true, instanceId: true, startedAt: true, endedAt: true, players: { select: { character: true } } }, take: 200 }) : Promise.resolve([]),
+      reach ? tx.dungeonRunWitness.findMany({ where: { guildId, deviceId: source.deviceId, status: "stored", endedAt: reach }, take: 100 }) as Promise<WitnessRow[]> : Promise.resolve([] as WitnessRow[])
+    ]);
+    const neighbour = (row: { runRef: string; instanceId: number; startedAt: Date | null; endedAt: Date | null }, characters: string[]): NeighbourRun => ({ runRef: row.runRef, instanceId: row.instanceId, startedAt: epoch(row.startedAt), endedAt: epoch(row.endedAt), characters });
+    return plausibilityFlags({
+      instanceId: data.instanceId, startedAt: started, endedAt: ended,
+      players: (data.players ?? []).flatMap((player) => typeof player.character === "string" ? [{ character: player.character, level: typeof player.level === "number" ? player.level : null }] : []),
+      kills: (data.encounters ?? []).flatMap((boss) => boss.success === true && boss.kind !== "npc" && typeof boss.id === "number" ? [{ id: boss.id, at: typeof boss.at === "number" ? boss.at : null }] : [])
+    }, {
+      runRef: ref, fastest: { seconds: fastest._min.durationSec ?? null, count: fastest._count._all },
+      neighbours: nearby.map((row) => neighbour(row, row.players.map((player) => player.character))),
+      deviceRuns: mineRows.map((row) => neighbour({ runRef: row.runRef, instanceId: row.instanceId, startedAt: row.startedAt, endedAt: row.endedAt }, row.players))
+    });
+  };
   const othersNear = async (print: RunFingerprint): Promise<WitnessRow[]> => print.endedAt ? await tx.dungeonRunWitness.findMany({ where: { guildId, instanceId: print.instanceId,
     deviceId: { not: source.deviceId }, status: { in: ["pending", "stored"] }, endedAt: near(print.endedAt) }, take: 50 }) as WitnessRow[] : [];
   const storedCopy = async (print: RunFingerprint) => {
@@ -383,9 +415,14 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
     if (existing) {
       // Never touched. A run one device vouched for alone becomes witnessed when an independent device agrees.
       if (!sameId) await saveRunReceipts(tx, guildId, [{ runRef: ref, outcome: "copy", state: "COMPLETED", reason: COPY_REASON, runId: existing.id }], now);
-      if (existing.trust === "device") {
+      {
         const others = await othersNear(print);
-        if (others.some((other) => independent(statement, statementOfRow(other)))) await tx.dungeonRun.updateMany({ where: { id: existing.id, trust: "device" }, data: { trust: "witnessed" } });
+        const independents = others.filter((other) => independent(statement, statementOfRow(other)));
+        if (independents.length) {
+          if (existing.trust === "device") await tx.dungeonRun.updateMany({ where: { id: existing.id, trust: "device" }, data: { trust: "witnessed" } });
+          // "Confirmed by N players" is information only: the distinct players whose statements agree.
+          await tx.dungeonRun.updateMany({ where: { id: existing.id, witnessCount: { lt: witnessesOf(statement, independents) } }, data: { witnessCount: witnessesOf(statement, independents) } });
+        }
       }
       await record(ref, raw, statement, { status: "stored", runId: existing.id });
       result.skipped++;
@@ -418,6 +455,11 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
       continue;
     }
     if (made.runId) await tx.dungeonRun.updateMany({ where: { id: made.runId, trust: null }, data: { trust: decision.store } });
+    if (made.runId) {
+      const flags = await flagsFor(usePartner ? partner.payload : raw, made.runRef ?? ref);
+      const confirmed = witnessesOf(statement, others.filter((other) => independent(statement, statementOfRow(other))));
+      if (flags.length || confirmed > 1) await tx.dungeonRun.updateMany({ where: { id: made.runId }, data: { ...(flags.length ? { anomalies: flags as Prisma.InputJsonValue } : {}), ...(confirmed > 1 ? { witnessCount: confirmed } : {}) } });
+    }
     result.stored++;
     if (decision.store === "device") storedToday++;
     await record(ref, raw, statement, { status: "stored", trust: decision.store, runId: made.runId ?? null, decided: true });

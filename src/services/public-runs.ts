@@ -8,6 +8,7 @@ import { dungeonRunSchema, validateRun, type DungeonRunInput } from "./dungeon-r
 import { bracketForLevel, DEFAULT_DUNGEON_BRACKETS } from "./dungeon-november-rules.js";
 import { publicRouteKey, readRuleSnapshot } from "./public-score.js";
 import { gameEditionOf } from "./game-edition.js";
+import { SINGLE_WITNESS } from "./run-trust.js";
 import { characterKey, characterReference } from "../../companion/character-identity.mjs";
 import { challengesAgree, readChallenge, type ChallengeEvidence } from "./challenge-evidence.js";
 import { observationReport, reconcileParticipation } from "./dungeon-observations.js";
@@ -436,7 +437,8 @@ export async function publishGuildRuns(database: PrismaClient, store: PublicRunS
         guildId, valid: true, state: "COMPLETED",
         // From Season 2 on, runs only anonymous companions vouch for (trust "device"/"witnessed") stay on the guild boards
         // (docs/plans/RUN_TRUST_2026-11-10.md). Season 1 publishes them like any run.
-        ...(season2Start ? { OR: [{ trust: null }, { endedAt: { lt: season2Start } }] } : {}),
+        // (13 November 2026) With one witness enough (SINGLE_WITNESS) every stored run publishes; the evidence rules still apply.
+        ...(season2Start && !SINGLE_WITNESS ? { OR: [{ trust: null }, { endedAt: { lt: season2Start } }] } : {}),
         endedAt: { gte: new Date(now.getTime() - PUBLIC_LIMITS.maxAgeDays * 86_400_000) },
         ...(publicDungeonRunsSince ? { startedAt: { gte: publicDungeonRunsSince } } : {})
       },

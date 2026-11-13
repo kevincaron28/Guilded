@@ -1,5 +1,27 @@
 # Changelog
 
+## 9.3.0 — 13 November 2026
+
+Polish after 9.2.0: addon settings and chat, dungeon and duel cards, and a few removals. Details: docs/V9_3_0_RELEASE_NOTES.md. Not yet checked in a real game client (see docs/V9_3_0_RELEASE_ACCEPTANCE.md).
+
+**Addon (Guilded)**
+- The Availability module is removed (#821); the website "Who's free?" page now redirects to the account page (#832).
+- Settings are in tabs, with grouped sections and a description for each setting (#828).
+- The Guilded chat tab shows one online/offline line (#823); `/guilded chattab` explains how to add the tab (#826).
+- Guilded no longer drives the game's tooltips: tooltip lines skip combat and comparison tooltips, the roster tooltip is owned by Guilded, and the chat filter is guarded (#822, #826). This targets the forbidden-action warning seen on 13 November; it is not yet confirmed in a real client.
+- Dungeon paintings sit behind the in-game result card and the Run tab band (#830).
+- The duel leaderboard is redesigned and there is a card at the end of a duel (#829).
+- The Guilded map shortcut is removed; use the game's map (#825).
+
+**Companion**
+- The "Syncing now" line clears when the sync ends (#819).
+- Docs, website and Store listing describe the single window (#824). Store: 9.3.0.0 package built, not submitted (Guild Sync Companion 9.2.0.0 certifying).
+
+**Bot and website**
+- Shared card backdrop service with art slots for ladders and end cards (#827).
+- Site SEO fixes: French language links, a sitemap listing final pages only, one redirect table for the Worker and the sitemap (#820, #831).
+- Dependency updates (#763, #764).
+
 ## 9.2.0 — 12 November 2026 (published 13 November 2026 UTC)
 
 A simpler addon and companion, plus the Crafting page. Details: docs/V9_2_0_RELEASE_NOTES.md.

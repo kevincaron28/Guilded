@@ -394,6 +394,20 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
       const unfinishedCopy = await sameRunAs(tx, guildId, run, true);
       if (unfinishedCopy && unfinishedCopy.instanceId === run.instanceId) { existing = unfinishedCopy; copyUpgrade = true; }
     }
+    // (9.3) A run whose final boss only a guildmate's copy vouched for (the addon recovered it from that copy, `peerConfirmed`)
+    // ranks only when the guildmate's OWN copy is also stored COMPLETED by final boss: two reporters agree. Until then it
+    // gets a retry receipt (not an acknowledgement) so the addon keeps it. When they agree, ours folds into that stored run
+    // as a corroborating copy (the run is never stored or ranked twice).
+    let peerAgrees: Awaited<ReturnType<typeof sameRunAs>> = null;
+    if (run.peerConfirmed && run.state === "COMPLETED" && check.ok && existing?.state !== "COMPLETED") {
+      const candidate = run.startedAt && run.endedAt ? await sameRunAs(tx, guildId, run) : null;
+      if (candidate && candidate.state === "COMPLETED" && candidate.valid && candidate.completedBy === "final boss" && candidate.runRef !== run.id && candidate.instanceId === run.instanceId) peerAgrees = candidate;
+      else {
+        logDungeonRun("peer-recovered run waits for the guildmate's own copy", run);
+        receipts.push({ runRef: run.id, outcome: RETRY_OUTCOME, reason: "Waiting for the guildmate's own copy", runId: null, fresh: true });
+        continue;
+      }
+    }
     let reconciled = false;
     if (existing && existing.valid && existing.state === "COMPLETED" && check.ok && run.integrity?.observer && run.startedAt && run.endedAt) {
       const data = existing.competitionData as { observerReports?: unknown[]; lateObserverReports?: unknown[]; [key:string]:unknown } | null;
@@ -436,7 +450,7 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
     // addon recovers a final-boss kill it did not recognise (8.4.4 to 8.4.6, Forever dungeons).
     // It replaces the stored copy once; a COMPLETED run is never rewritten this way.
     let upgraded: typeof existing = null;
-    if (existing && !reconciled && existing.state !== "COMPLETED" && run.state === "COMPLETED" && check.ok
+    if (existing && !reconciled && !peerAgrees && existing.state !== "COMPLETED" && run.state === "COMPLETED" && check.ok
       && existing.instanceId === run.instanceId && run.startedAt && run.endedAt) {
       const recoveredDuration = run.endedAt - run.startedAt;
       upgraded = await tx.dungeonRun.update({ where: { id: existing.id }, data: {
@@ -454,14 +468,14 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
           class: player.class ?? null, role: dungeonRole(player.role), deaths: player.deaths ?? null, presentSec: player.presentSec, inGuild: player.inGuild, guild: player.guild ?? null })) }
       } });
     }
-    if (existing && !reconciled && !upgraded) {
+    if (existing && !reconciled && !upgraded && !peerAgrees) {
       // Routine: the companion sends every saved run on each upload. Not logged any more (it filled
       // the journal); the receipt is what tells the addon to stop waiting for it.
       receipts.push({ runRef: run.id, outcome: "stored", reason: receiptReason(existing.invalidReason ?? (existing.state === "COMPLETED" ? null : "Not completed")), runId: existing.id });
       summary.duplicates++;
       continue;
     }
-    const sameRun = existing ? null : await sameRunAs(tx, guildId, run);
+    const sameRun = peerAgrees ?? (existing ? null : await sameRunAs(tx, guildId, run));
     if (sameRun) {
       logDungeonRun("another observer's copy of a stored run", run);
       // Keep the copy as evidence and add anyone the first report missed. Never a new run, never a new post.
@@ -587,6 +601,7 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
         recorder: run.recorder ?? null,
         reporterNames: run.reporterNames ?? [],
         competitionData: { ...(run.integrity ? { integrity: run.integrity } : {}), players: run.players.map(p => ({ name: p.character, level: p.level ?? null, minLevel: p.minLevel ?? null, ...(p.integrity ? { integrity: p.integrity } : {}) })), encounters: run.encounters ?? [], ...(run.deathPoints?.length ? { deathPoints: run.deathPoints } : {}),
+          ...(run.diagnostic ? { diagnostic: run.diagnostic } : {}),
           observerReports:[run],
           gameBuild: run.gameBuild ?? null, startTrigger: run.startTrigger ?? null,
           challengeMode: run.challengeMode ?? false, ...(run.challenge ? { challenge: run.challenge } : {}) },

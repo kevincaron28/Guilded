@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { importDungeonRuns, receiptReason, saveRunReceipts } from "../src/services/dungeon-import.js";
+import { dungeonRunSchema } from "../src/services/dungeon-rules.js";
 import { standingsConsistentReads } from "../src/companion-api.js";
 import { standingsToLua } from "../companion/standings-format.mjs";
 import * as ratingService from "../src/services/dungeon-rating.js";
@@ -214,6 +215,65 @@ describe("9.3 run loss", () => {
     const again = await importDungeonRuns(tx, "g1", [run("friend-copy", { startedAt: start + 20 })], characters, "officer", null, new Date(later.getTime() + 60_000));
     expect(runs).toHaveLength(1);
     expect(again.duplicates).toBe(1);
+  });
+
+  const abandoned = (id: string, extra: Record<string, unknown> = {}) => run(id, { state: "ABANDONED", completedBy: undefined, endReason: "left the dungeon", ...extra });
+
+  it("keeps what the addon sends: guild, diagnostic, peer marker and the peer encounter source pass the schema and the diagnostic is stored", async () => {
+    const parsed = dungeonRunSchema.parse(run("keep-all", { diagnostic: "i=36;k=1", peerConfirmed: true, encounters: [{ id: 5, success: true, at: start + 100, source: "peer" }],
+      players: [{ character: "Hulke Hogan", realm: "Forever", deaths: 0, presentSec: 1500, inGuild: true, guild: "Québec Gold" }] }));
+    expect(parsed).toMatchObject({ diagnostic: "i=36;k=1", peerConfirmed: true });
+    expect(parsed.encounters?.[0]?.source).toBe("peer");
+    expect(parsed.players[0]?.guild).toBe("Québec Gold");
+    const { tx, runs } = fakeTx();
+    await importDungeonRuns(tx, "g1", [abandoned("kept-note", { diagnostic: "i=36;d=1;k=2;f=unknown;last=7/Boss" })], characters, "officer", null, now);
+    expect((runs[0]?.competitionData as { diagnostic?: string }).diagnostic).toBe("i=36;d=1;k=2;f=unknown;last=7/Boss");
+  });
+
+  it("upgrades the stored ABANDONED version of a run the addon recovered locally (same id, completed later)", async () => {
+    const { tx, runs, receipts } = fakeTx();
+    await importDungeonRuns(tx, "g1", [abandoned("mine-local", { diagnostic: "i=36;k=1" })], characters, "officer", null, now);
+    expect(runs.map((row) => row.state)).toEqual(["ABANDONED"]);
+    await importDungeonRuns(tx, "g1", [run("mine-local", { encounters: [{ id: 9, success: true, at: start + 1400, source: "native" }] })], characters, "officer", null, new Date(now.getTime() + 60_000));
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({ state: "COMPLETED", valid: true });
+    expect(byRef(receipts)["mine-local"]).toMatchObject({ outcome: "stored", reason: null });
+  });
+
+  it("holds a peer-recovered run until the guildmate's own copy is stored COMPLETED, then counts it once", async () => {
+    const { tx, runs, receipts } = fakeTx();
+    await importDungeonRuns(tx, "g1", [abandoned("mine-peer")], characters, "officer", null, now);
+    const peerRecovered = run("mine-peer", { peerConfirmed: true, startedAt: start + 10, encounters: [{ id: 9, success: true, at: start + 1400, source: "peer" }] });
+    // No agreeing copy yet: not ranked, not acknowledged, the stored copy is untouched.
+    await importDungeonRuns(tx, "g1", [peerRecovered], characters, "officer", null, new Date(now.getTime() + 60_000));
+    expect(runs.map((row) => row.state)).toEqual(["ABANDONED"]);
+    expect(byRef(receipts)["mine-peer"]).toMatchObject({ outcome: "retry", reason: "Waiting for the guildmate's own copy" });
+    // A claim from an ABANDONED guildmate copy does not agree either.
+    await importDungeonRuns(tx, "g1", [abandoned("friend-gave-up", { startedAt: start + 20 })], characters, "officer", null, new Date(now.getTime() + 90_000));
+    await importDungeonRuns(tx, "g1", [peerRecovered], characters, "officer", null, new Date(now.getTime() + 100_000));
+    expect(byRef(receipts)["mine-peer"]?.outcome).toBe("retry");
+    // The guildmate's own COMPLETED copy arrives: it completes the stored unfinished run (one run, never two), and ours is then acknowledged.
+    await importDungeonRuns(tx, "g1", [run("friend-own", { startedAt: start + 30 })], characters, "officer", null, new Date(now.getTime() + 120_000));
+    expect(runs.filter((row) => row.state === "COMPLETED")).toHaveLength(1);
+    await importDungeonRuns(tx, "g1", [peerRecovered], characters, "officer", null, new Date(now.getTime() + 180_000));
+    expect(runs.filter((row) => row.state === "COMPLETED")).toHaveLength(1);
+    expect(byRef(receipts)["mine-peer"]?.outcome).not.toBe("retry");
+  });
+
+  it("folds a peer-recovered run into the guildmate's stored COMPLETED copy as a corroborating copy, without a second ranking", async () => {
+    const { tx, runs, receipts } = fakeTx();
+    await importDungeonRuns(tx, "g1", [run("friend-own")], characters, "officer", null, now);
+    await importDungeonRuns(tx, "g1", [run("mine-peer-2", { peerConfirmed: true, startedAt: start + 10, encounters: [{ id: 9, success: true, at: start + 1400, source: "peer" }] })],
+      characters, "officer", null, new Date(now.getTime() + 60_000));
+    expect(runs).toHaveLength(1);
+    expect(byRef(receipts)["mine-peer-2"]).toMatchObject({ outcome: "copy", reason: "Counted with a guildmate's copy of this run", runId: "run-1" });
+  });
+
+  it("never lets a peer-confirmed run rank on its own, even when nothing else is stored", async () => {
+    const { tx, runs, receipts } = fakeTx();
+    await importDungeonRuns(tx, "g1", [run("only-peer", { peerConfirmed: true })], characters, "officer", null, now);
+    expect(runs).toHaveLength(0);
+    expect(byRef(receipts)["only-peer"]?.outcome).toBe("retry");
   });
 
   it("leaves a different, unrelated unfinished run alone", async () => {

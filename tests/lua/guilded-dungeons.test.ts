@@ -95,14 +95,15 @@ describe("Guilded Dungeons hears its guild", () => {
     expect(s.chat().at(-1)).toContain("Saved runs: 1 (0 waiting to reach Discord).");
   });
 
-  it("replays for an officer's request only, and keeps no copies of guildmates' runs", () => {
+  it("replays for an officer's request only, and keeps no half-received summary from an unauthorized sender", () => {
     guild();
     s.run("NS.dungeon.lastReplay = nil");
     hear("REQUEST|1", "Lebowski-TestRealm");
     expect(s.run("return tostring(NS.dungeon.lastReplay)")).toBe("nil");
     hear("REQUEST|1", "Boss-TestRealm");
     expect(s.run("return tostring(NS.dungeon.lastReplay ~= nil)")).toBe("true");
-    hear("SUM|someone-else|1|2|abc", "Lebowski-TestRealm");
+    // (9.3) A guildmate's summary is now buffered (relay for members without a companion); a stranger's never is.
+    hear("SUM|someone-else|1|2|abc", "Stranger-TestRealm");
     expect(s.run("return tostring(next(NS.dungeon.incoming))")).toBe("nil");
   });
 });

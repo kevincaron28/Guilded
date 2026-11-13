@@ -61,6 +61,17 @@ async function createRows<Row, Out>(store: { create: (args: { data: Row }) => Pr
   return created;
 }
 
+/**
+ * The fingerprint that decides "this export was already received". What the import itself does not use is left out, so an
+ * unchanged saved file dedupes: the export stamp, and the guild roster, event log and MOTD (applied straight away by
+ * guild-data.ts, whose `lastOnline` is "now minus age" and moves on every save). Everything else counts.
+ */
+export function snapshotChecksum(snapshot: AddonSnapshot): string {
+  const rest: Record<string, unknown> = { ...snapshot };
+  for (const volatile of ["exportedAt", "guildRoster", "guildEvents", "guildInfo"]) delete rest[volatile];
+  return createHash("sha256").update(JSON.stringify(rest)).digest("hex");
+}
+
 export function createAddonImportService(database: PrismaClient) {
   return {
     parse(payload: unknown): AddonSnapshot {
@@ -76,7 +87,7 @@ export function createAddonImportService(database: PrismaClient) {
       const guild = await database.guild.findUnique({ where: { id: guildId }, select: { gameEdition: true, wowSpace: { select: { name: true, realm: true } } } });
       assertSnapshotEdition(snapshot, gameEditionOf(guild ?? {}));
       assertAddonGuildScope(snapshot, guild);
-      const checksum = createHash("sha256").update(JSON.stringify(snapshot)).digest("hex");
+      const checksum = snapshotChecksum(snapshot);
       const existing = await database.addonImport.findFirst({ where: { guildId, checksum } });
       return {
         snapshot,
@@ -131,6 +142,11 @@ export function createAddonImportService(database: PrismaClient) {
         const imported = await tx.addonImport.findFirst({ where: { id: importId, guildId } });
         if (!imported) throw new Error("Addon import not found.");
         if (imported.status === "APPLIED") throw new Error("Addon import has already been applied.");
+        const applyStarted = Date.now();
+        let lastSection = applyStarted;
+        const sections: string[] = [];
+        // Where a slow apply spends its time: one journal line (sections over 300 ms) when the whole apply takes over 3 s.
+        const sec = (name: string) => { const now = Date.now(); if (now - lastSection > 300) sections.push(`${name}:${now - lastSection}`); lastSection = now; };
         const settings = await tx.guildSettings.findUnique({ where: { guildId }, select: { dataResetAt: true, dungeonLeaderboardChannelId: true, duelBoardEnabled: true, duelBoardChannelId: true, craftChannelId: true, coreLootOnly: true, characterSignups: true } });
         const resetAt = settings?.dataResetAt ?? null;
         const snapshot = excludeHistoryBeforeReset(parseAddonSnapshot(imported.payload), resetAt);
@@ -280,6 +296,7 @@ export function createAddonImportService(database: PrismaClient) {
 
         // Readiness is best-effort: an unlinked character shouldn't block the
         // DKP/EPGP transactions in the same import from being applied.
+        sec("ledger-discovery");
         const readinessSnapshots = [];
         const readiness = changed("readiness", snapshot.readiness) ? snapshot.readiness : [];
         // Which of these checks are stored already, in one query instead of one per entry.
@@ -344,6 +361,7 @@ export function createAddonImportService(database: PrismaClient) {
           }));
         }
 
+        sec("readiness");
         // Attunements are self- or officer-reported, not financial — same
         // best-effort matching as readiness.
         const attunements = [];
@@ -357,6 +375,7 @@ export function createAddonImportService(database: PrismaClient) {
           }));
         }
 
+        sec("attunements");
         // The officer's last /guilded consumes scan: newest result per character wins.
         let consumables = 0;
         if (snapshot.consumeScan) {
@@ -379,6 +398,7 @@ export function createAddonImportService(database: PrismaClient) {
           }
         }
 
+        sec("consumables");
         // The soft-reserve list from the addon replaces the bot's copy when it is newer.
         const reserves = await applyReserves(tx, guildId, snapshot.reserves);
 
@@ -391,6 +411,7 @@ export function createAddonImportService(database: PrismaClient) {
           ? await applyRecipeData(tx, guildId, recipeInput)
           : { recipeSets: 0, recipes: 0, cooldownSets: 0 };
 
+        sec("reserves-prices-recipes");
         // In-game calendar events -> which Discord raid, who answered (the signups are made after this commits).
         const calendarPlan = await planCalendarSync(tx, guildId, snapshot.calendarEvents,
           characters.map((character) => ({ id: character.id, name: character.name, realm: character.realm, memberId: character.memberId })));
@@ -408,6 +429,7 @@ export function createAddonImportService(database: PrismaClient) {
         const loot = await applyAddonLoot(tx, guildId, snapshot.loot, characters, raidIds, appliedBy, settings?.coreLootOnly ?? false, dismissed("LOOT"));
         for (const row of loot.held) held.push({ kind: "LOOT", sourceRef: row.ref, character: row.character, reason: "NO_CORE_RAID", detail: `${row.item}${row.gp ? ` (${row.gp} GP)` : ""}`.slice(0, 200) });
 
+        sec("calendar-raids-loot");
         // What is waiting is remembered (and shown with /import held); what went through, or was
         // voided, leaves the list.
         const known = new Set(knownHeld.map((row) => `${row.kind}:${row.sourceRef}`));
@@ -434,6 +456,7 @@ export function createAddonImportService(database: PrismaClient) {
         const duels = await importDuelResults(tx, guildId, guildEdition, imported.pairedMemberId, characters.map((character) => ({ id: character.id, name: character.name, realm: character.realm, memberId: character.memberId, level: character.level })), snapshot.duelResults);
         const milestones = await importMilestones(tx, guildId, guildEdition, imported.pairedMemberId, characters.filter((character) => character.memberId === imported.pairedMemberId), snapshot.milestones);
 
+        sec("held-dungeons-duels");
         await tx.addonImport.update({
           where: { id: imported.id },
           // Everything in the payload is now in the ledger tables; only a summary stays (checksum and source
@@ -455,6 +478,7 @@ export function createAddonImportService(database: PrismaClient) {
         }
         if (signupJobs.length) await enqueueDiscordJob(tx, guildId, `signup-answers:${imported.id}`, "SIGNUP_ANSWERS", { answers: JSON.parse(JSON.stringify(signupJobs)) });
         if (calendarPlan.matches.length) await enqueueDiscordJob(tx, guildId, `calendar:${imported.id}`, "CALENDAR", { plan: JSON.parse(JSON.stringify(calendarPlan)) });
+        if (Date.now() - applyStarted > 3_000) { sec("enqueue"); console.info(`import-apply-sections import=${imported.id.slice(-8)} total=${Date.now() - applyStarted} ${sections.join(",") || "-"}`); }
         return {
           import: imported, transactions, epgpTransactions, readinessSnapshots, attunements, consumables, reserves, itemPrices, crafting, calendarPlan, discovery, raids, loot, dungeons, battlegrounds, duels, milestones, skipped,
           voided, held: { rows: held, fresh: newlyHeld.length }, rejected: snapshot.rejected, unchangedSections

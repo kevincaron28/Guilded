@@ -2855,6 +2855,14 @@ local DE = {
   -- 9.3 world PvP deaths (Modules/WorldPVP.lua)
   ["K/D: %s this week, %s in total."] = "K/D: %s diese Woche, %s insgesamt.",
   ["Deadliest zones: %s."] = "Gef\195\164hrlichste Zonen: %s.",
+  -- Duel card: painted background, stat columns, non-guild duels (9.3)
+  ["Record"] = "Bilanz",
+  ["Points"] = "Punkte",
+  ["Guild rank"] = "Gildenrang",
+  ["total %d"] = "gesamt %d",
+  ["up %d (was #%d)"] = "+%d (war #%d)",
+  ["down %d (was #%d)"] = "-%d (war #%d)",
+  ["Not counted on the guild ladder: %s is not in your guild."] = "Nicht im Gildenranking gez\195\164hlt: %s ist nicht in deiner Gilde.",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -4735,6 +4743,14 @@ local ES = {
   -- 9.3 world PvP deaths (Modules/WorldPVP.lua)
   ["K/D: %s this week, %s in total."] = "K/D: %s esta semana, %s en total.",
   ["Deadliest zones: %s."] = "Zonas m\195\161s letales: %s.",
+  -- Duel card: painted background, stat columns, non-guild duels (9.3)
+  ["Record"] = "Balance",
+  ["Points"] = "Puntos",
+  ["Guild rank"] = "Rango de hermandad",
+  ["total %d"] = "total %d",
+  ["up %d (was #%d)"] = "+%d (era #%d)",
+  ["down %d (was #%d)"] = "-%d (era #%d)",
+  ["Not counted on the guild ladder: %s is not in your guild."] = "No cuenta en la clasificaci\195\179n de la hermandad: %s no est\195\161 en tu hermandad.",
 }
 -- END ES
 
@@ -5764,3 +5780,11 @@ FR["opponent's health left %d%%"] = "sant\195\169 de l'adversaire : %d%%"
 
 FR["Shows a small card with the result, the record and the rank change after each of your guild duels. Type /guilded duels card test to preview it."] = "Affiche une petite carte avec le r\195\169sultat, le bilan et le changement de rang apr\195\168s chacun de vos duels de guilde. Tapez /guilded duels card test pour l'aper\195\167u."
 FR["Not recorded: you duelled this player a moment ago, so this result is not added."] = "Non enregistr\195\169 : vous venez d'affronter ce joueur, ce r\195\169sultat n'est donc pas ajout\195\169."
+-- Duel card: painted background, stat columns, non-guild duels (9.3)
+FR["Record"] = "Bilan"
+FR["Points"] = "Points"
+FR["Guild rank"] = "Rang de guilde"
+FR["total %d"] = "total %d"
+FR["up %d (was #%d)"] = "+%d (\195\169tait #%d)"
+FR["down %d (was #%d)"] = "-%d (\195\169tait #%d)"
+FR["Not counted on the guild ladder: %s is not in your guild."] = "Non compt\195\169 au classement de la guilde : %s n'est pas dans votre guilde."

@@ -1,6 +1,6 @@
 # Changelog
 
-## 9.2.0 — 12 November 2026
+## 9.2.0 — 12 November 2026 (published 13 November 2026 UTC)
 
 A simpler addon and companion, plus the Crafting page. Details: docs/V9_2_0_RELEASE_NOTES.md.
 
@@ -24,11 +24,20 @@ A simpler addon and companion, plus the Crafting page. Details: docs/V9_2_0_RELE
 - World PvP extras on by default; the Discord call-for-help post is removed (#780, #791).
 - Painted dungeon card backgrounds for 34 dungeons (#775).
 - Craft requests made in game become Discord orders (#804).
+- Upload fixes shipped on 12-13 November, after the owner's officer uploads started timing out at 20 s:
+  - The guild roster apply writes only what changed and batches its statements (uploads no longer take 19 s) (#811).
+  - Discord side effects (cards, notices, boards, directory refreshes, craft posts) run in the background, one at a time per guild, and one timing line per upload is logged (#813).
+  - The timing line is gap-free (`body`, `auth`, `access`, every step, `other`) and the guild's settings are read once per upload (#814).
+  - The upload is answered within 10 s with `applying` while the apply finishes in the background, retries for the same uploader coalesce, and an unchanged saved file dedupes (the export stamp and the guild roster, events and MOTD no longer count in the checksum) (#815).
+  - Recipes, cooldowns and character discovery are applied in batches; a superseded waiting import stops listing as waiting and a resent one applies again; a member whose late apply fails for good gets one private message (#817).
 
-**Not yet verified in a real client**
-- The new single addon window, the Crafting page requests (Request, Cancel, the relay for members without the companion), Layer invite and the call-for-help toast have been tested only in the offline Lua harness and CI, not in the live WoW Forever client.
-- The companion's single window, tray menu and Advanced view have not been tried on a fresh Windows install or through the Store build.
-- Whether the "messages are limited" spam is gone on a busy guild is only known from tests.
+**Verified in a real client on 13 November 2026 (owner's PC, WoW Forever)**
+- The single addon window and all its tabs, the short `/guilded help`, a craft request and its cancel, a reload with no blocked action, the four polish fixes (#812), the companion installed over 9.1.6 keeping its settings, and a real sync of an officer upload. Record: docs/V9_2_0_RELEASE_ACCEPTANCE.md.
+
+**Not yet verified**
+- Anything that needs a second player: accepting a Layer invite, a crafter claiming a request, the relay for a member without the companion, a real call for help.
+- Combat behaviour, and the first minute after login for the "messages are limited" message.
+- The Microsoft Store build of the companion (Submission 13 is in certification).
 
 ## 9.1.6 — 10 November 2026
 

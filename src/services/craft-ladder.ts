@@ -1,4 +1,5 @@
-import { AttachmentBuilder, EmbedBuilder, escapeMarkdown, type Guild as DiscordGuild, type Message } from "discord.js";
+import { cardAttachment } from "./card-alt.js";
+import { EmbedBuilder, escapeMarkdown, type Guild as DiscordGuild, type Message } from "discord.js";
 import { isOwnBoard } from "./board-identity.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
@@ -77,7 +78,8 @@ export function craftLadderCard(standings: readonly CrafterStanding[], totalCraf
 export function craftLadderEmbed(standings: readonly CrafterStanding[], lang: Lang, guildId: string, image?: string): EmbedBuilder {
   const t = (en: string, fr: string) => lang === "fr" ? fr : en;
   const embed = new EmbedBuilder().setColor(0xc9a227).setTitle(t("🔨 Top crafters", "🔨 Meilleurs artisans"));
-  embed.setDescription(standings.length ? standings.slice(0, image ? 3 : 10).map((row, index) =>
+  // With the picture the top 3 repeat the card, so the embed keeps only its title (9.3).
+  if (!(image && standings.length)) embed.setDescription(standings.length ? standings.slice(0, 10).map((row, index) =>
     `${["🥇", "🥈", "🥉"][index] ?? `**${index + 1}.**`} ${escapeMarkdown(row.name).slice(0, 40)} — ${row.points} ${t("pt", "pt")} · ${row.month} ${t("in 30 days", "en 30 jours")}`).join("\n")
     : t("No finished crafts yet. Ask on the craft board!", "Aucune commande terminée. Demandez sur le tableau d'artisanat!"));
   if (image && standings.length) embed.setImage(`attachment://${image}`);
@@ -125,7 +127,7 @@ export async function updateCraftLadder(db: BoardDb, discordGuild: DiscordGuild 
     const moves = standings.length ? await trackRanks(db, guild.id, "crafters", standings.slice(0, LADDER_TOP).map((row) => row.memberId)) : null;
     const png = standings.length ? await scoreCardPng(craftLadderCard(standings, total, lang, new Date(), moves)).catch(() => null) : null;
     const payload = { embeds: [craftLadderEmbed(standings, lang, guild.id, png ? CRAFT_CARD_FILE : undefined).setTimestamp(new Date())],
-      files: png ? [new AttachmentBuilder(png, { name: CRAFT_CARD_FILE })] : [], allowedMentions: { parse: [] as never[] } };
+      files: png ? [cardAttachment(png, CRAFT_CARD_FILE)] : [], allowedMentions: { parse: [] as never[] } };
     const botId = discordGuild.client.user?.id ?? "";
     let existing: Message | null = settings.craftLadderMessageId ? await channel.messages.fetch(settings.craftLadderMessageId).catch(() => null) : null;
     if (existing && existing.author.id !== botId) existing = null;

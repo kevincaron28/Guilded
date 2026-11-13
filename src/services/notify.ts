@@ -67,8 +67,8 @@ async function notifyTarget(discordGuild: DiscordGuild, kind: NotifyKind = "noti
 }
 
 // A card is stored as plain data and drawn when the job is delivered, so retries need no stored image.
-async function durableMessage(guild: DiscordGuild, guildId: string, channelId: string, message: MessageCreateOptions, route: NotifyKind | "dungeon" | "officerReport", coreId: string | null = null, card: ScoreCard | null = null): Promise<boolean> {
-  const job = await enqueueDiscordJob(prisma, guildId, `message:${randomUUID()}`, "MESSAGE", { channelId, route, coreId, message: JSON.parse(JSON.stringify(message)), ...(card ? { card: JSON.parse(JSON.stringify(card)) } : {}) } as Prisma.InputJsonValue);
+async function durableMessage(guild: DiscordGuild, guildId: string, channelId: string, message: MessageCreateOptions, route: NotifyKind | "dungeon" | "officerReport", coreId: string | null = null, card: ScoreCard | null = null, cardOnly: { content?: string | undefined; embeds: EmbedBuilder[] } | null = null): Promise<boolean> {
+  const job = await enqueueDiscordJob(prisma, guildId, `message:${randomUUID()}`, "MESSAGE", { channelId, route, coreId, message: JSON.parse(JSON.stringify(message)), ...(card ? { card: JSON.parse(JSON.stringify(card)) } : {}), ...(card && cardOnly ? { cardOnly: JSON.parse(JSON.stringify({ content: cardOnly.content, embeds: cardOnly.embeds })) } : {}) } as Prisma.InputJsonValue);
   await deliverDiscordJob(prisma, job.id, current => dispatchDiscordJob(guild, current));
   return (await prisma.discordJob.findUnique({ where: { id: job.id } }))?.status === "DONE";
 }
@@ -83,7 +83,8 @@ export const resolveNotifyAddress = notifyAddress;
 // Dungeon challenge posts go to /config channel, or the normal
 // announcements channel when none is set. A post is an embed, an optional card drawn on delivery
 // and optional buttons (the run post's Chronologie button).
-export interface DungeonMessage { embed: EmbedBuilder; card?: ScoreCard | null; components?: ActionRowBuilder<ButtonBuilder>[]; content?: string | undefined }
+/** `cardOnly`: the reduced message sent instead when the card is drawn (card-only.ts). */
+export interface DungeonMessage { embed: EmbedBuilder; card?: ScoreCard | null; cardOnly?: { content?: string | undefined; embed: EmbedBuilder } | undefined; components?: ActionRowBuilder<ButtonBuilder>[]; content?: string | undefined }
 export async function notifyDungeon(discordGuild: DiscordGuild | null, post: Localized<DungeonMessage>): Promise<boolean> {
   if (!discordGuild) return false;
   try {
@@ -92,7 +93,7 @@ export async function notifyDungeon(discordGuild: DiscordGuild | null, post: Loc
     const channelId = settings?.dungeonChannelId ?? settings?.notifyChannelId;
     if (!channelId) return false;
     const message = post(asLang(settings?.language));
-    return durableMessage(discordGuild, guild.id, channelId, { ...(message.content ? { content: message.content } : {}), embeds: [message.embed], ...(message.components?.length ? { components: message.components } : {}) }, "dungeon", null, message.card ?? null);
+    return durableMessage(discordGuild, guild.id, channelId, { ...(message.content ? { content: message.content } : {}), embeds: [message.embed], ...(message.components?.length ? { components: message.components } : {}) }, "dungeon", null, message.card ?? null, message.cardOnly ? { content: message.cardOnly.content, embeds: [message.cardOnly.embed] } : null);
   } catch (error) {
     console.error("Failed to post dungeon announcement", error);
     return false;

@@ -1,3 +1,4 @@
+import { textlessEmbed } from "./card-only.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { ACHIEVEMENT_CATALOGUE_VERSION, RETIRED_ACHIEVEMENT_IDS, achievementById, TIER_LABEL } from "./achievements-catalogue.js";
 import { syncMemberAchievements } from "./achievements.js";
@@ -53,7 +54,9 @@ export async function announceNewAchievements(db: Db, guildId: string, memberId:
     await enqueueDiscordJob(tx, guildId, `achievement-unlock:${memberId}:${now.getTime()}`, "MESSAGE", {
       route: "achievements", channelId: settings.achievementChannelId!, mentionUsers: [member.discordUserId],
       message: { content, embeds: [{ title: title.slice(0, 250), description: lines.join("\n").slice(0, 3800), footer: { text: lang === "fr" ? "Calculé à partir des données enregistrées · aucun point" : "Computed from recorded data · no points" } }] },
-      card: JSON.parse(JSON.stringify(card)), cardMember: member.discordUserId
+      card: JSON.parse(JSON.stringify(card)), cardMember: member.discordUserId,
+      // 9.3: with the card drawn, only the congratulation line (it names the member, who is pinged) is sent; the card lists the achievements.
+      cardOnly: { content, embeds: [textlessEmbed(0xd4a017)] }
     });
     return ids.length;
   }).catch(error => { if (error instanceof Error && error.message === "achievements already announced") return 0; throw error; });

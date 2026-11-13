@@ -1,3 +1,4 @@
+import { cardAttachment } from "./card-alt.js";
 import { armoryUrl } from "./armory-link.js";
 import { AttachmentBuilder, ChannelType, EmbedBuilder, escapeMarkdown, PermissionFlagsBits, type Guild as DiscordGuild, type Message } from "discord.js";
 import { characterKey, foreverNameMatches } from "../../companion/character-identity.mjs";
@@ -182,7 +183,8 @@ export function raceBoardEmbed(data: RaceBoardData, lang: Lang, options: { image
       if (used + line.length + 1 > DESCRIPTION_BUDGET) { lines.push("…"); break; }
       lines.push(line); used += line.length + 1;
     }
-    embed.setDescription(`${head}\n\n${lines.join("\n")}`);
+    // With the card (not the Hall of Fame list) the leaders and counts repeat the picture: the embed keeps its title and footer.
+    if (hall || !options.image) embed.setDescription(`${head}\n\n${lines.join("\n")}`);
     const gainers = data.rows.filter(row => row.weekGain > 0).sort((a, b) => b.weekGain - a.weekGain || a.name.localeCompare(b.name)).slice(0, GAINERS);
     if (gainers.length && !hall && !options.image) embed.addFields({ name: t("Most levels this week", "Plus de niveaux cette semaine"), value: gainers.map(row => `${escapeMarkdown(row.name).slice(0, 32)} +${row.weekGain}`).join("\n").slice(0, 1024), inline: true });
     if (!options.image) embed.addFields({ name: t("Level 60", "Niveau 60"), value: String(data.finished), inline: true });
@@ -263,7 +265,7 @@ export function hallEmbed(entry: HallRecord, lang: Lang, guildId = "", nameKey =
 /** The message payload of one Hall of Fame post: the embed and its card (no card when drawing is busy or fails). */
 export async function hallPayload(entry: HallRecord, lang: Lang, guildId: string, nameKey: string, memberName: string | null = null): Promise<HallPayload> {
   const png = await scoreCardPng(hallCard(entry, lang, memberName)).catch(() => null);
-  return { embeds: [hallEmbed(entry, lang, guildId, nameKey, png ? HALL_CARD_FILE : undefined)], files: png ? [new AttachmentBuilder(png, { name: HALL_CARD_FILE })] : [], allowedMentions: { parse: [] as never[] } };
+  return { embeds: [hallEmbed(entry, lang, guildId, nameKey, png ? HALL_CARD_FILE : undefined)], files: png ? [cardAttachment(png, HALL_CARD_FILE)] : [], allowedMentions: { parse: [] as never[] } };
 }
 
 /** Pure: the single message that replaces individual posts for every 60 found on the first run. */
@@ -727,7 +729,7 @@ export async function updateRaceBoard(discordGuild: DiscordGuild | null, deliver
     const moves = data.total && !hall ? await trackRanks(prisma, guild.id, "race", leaderboardOrder(data.rows).map(row => row.key)) : null;
     const png = data.total && !hall ? await scoreCardPng(raceCard(data, lang, top, names, new Date(), moves)).catch(() => null) : null;
     const embed = raceBoardEmbed(data, lang, { image: png ? RACE_CARD_FILE : undefined, top, hall }).setTimestamp(new Date());
-    const payload = { embeds: [embed], files: png ? [new AttachmentBuilder(png, { name: RACE_CARD_FILE })] : [], allowedMentions: { parse: [] as never[] } };
+    const payload = { embeds: [embed], files: png ? [cardAttachment(png, RACE_CARD_FILE)] : [], allowedMentions: { parse: [] as never[] } };
     const botId = discordGuild.client.user?.id ?? "";
     let existing: Message | null = settings.raceBoardMessageId ? await channel.messages.fetch(settings.raceBoardMessageId).catch(() => null) : null;
     if (existing && existing.author.id !== botId) existing = null;

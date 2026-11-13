@@ -1,4 +1,5 @@
-import { AttachmentBuilder, EmbedBuilder, escapeMarkdown, type Guild as DiscordGuild, type Message } from "discord.js";
+import { cardAttachment } from "./card-alt.js";
+import { EmbedBuilder, escapeMarkdown, type Guild as DiscordGuild, type Message } from "discord.js";
 import { isOwnBoard } from "./board-identity.js";
 import { prisma } from "../database.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
@@ -58,7 +59,8 @@ export function duelBoardEmbed(data: DuelBoardData, lang: Lang, image?: string):
       const medal = ["🥇", "🥈", "🥉"][index] ?? `**${index + 1}.**`;
       return `${medal} ${name(row.name)} — ${row.score} pts · ${row.wins}${t("W", "V")} ${row.losses}${t("L", "D")} · ${percent(row.winRate)} · ${t("best streak", "meilleure série")} ${row.bestStreak} · ${streakText(row.streak)}`;
     });
-    embed.setDescription(rows.join("\n"));
+    // With the picture, its top 3 repeat the card: the embed keeps only the title and the latest duels (9.3).
+    if (!image) embed.setDescription(rows.join("\n"));
     if (data.recent.length) {
       embed.addFields({ name: t("Latest duels", "Derniers duels"), value: data.recent.slice(0, RECENT).map(duel =>
         `<t:${Math.floor(duel.endedAt.getTime() / 1000)}:R> · **${name(duel.winner)}** ${duel.reason === "retreat" ? t("won (opponent fled) against", "gagne (adversaire en fuite) contre") : t("beat", "bat")} ${name(duel.loser)}`).join("\n").slice(0, 1024) });
@@ -111,7 +113,7 @@ export async function updateDuelBoard(discordGuild: DiscordGuild | null, deliver
     const moves = data.standings.length ? await trackRanks(prisma, guild.id, "duel", data.standings.map(row => row.memberId)) : null;
     const png = data.standings.length ? await scoreCardPng(duelBoardCard(data, lang, await loadClassBook(prisma, guild.id).catch(() => new Map<string, string>()), new Date(), moves)).catch(() => null) : null;
     const embed = duelBoardEmbed(data, lang, png ? DUEL_CARD_FILE : undefined).setTimestamp(new Date());
-    const payload = { embeds: [embed], files: png ? [new AttachmentBuilder(png, { name: DUEL_CARD_FILE })] : [], allowedMentions: { parse: [] as never[] } };
+    const payload = { embeds: [embed], files: png ? [cardAttachment(png, DUEL_CARD_FILE)] : [], allowedMentions: { parse: [] as never[] } };
     const botId = discordGuild.client.user?.id ?? "";
     let existing: Message | null = settings.duelBoardMessageId ? await channel.messages.fetch(settings.duelBoardMessageId).catch(() => null) : null;
     if (existing && existing.author.id !== botId) existing = null;

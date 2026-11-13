@@ -5,6 +5,7 @@ import type { WebResponse } from "./web-app.js";
 import type { RosterVisual } from "./roster-visual.js";
 import { dungeonArt, type DungeonArtTheme } from "./dungeon-art.js";
 import { dungeonBackdrop } from "./dungeon-backdrop.js";
+import { cardAltText } from "./card-alt.js";
 import { cardBackdropArt, BANNER_HEIGHT, type CardBackdrop } from "./card-backdrop.js";
 import type { RecordVisual } from "./record-card.js";
 
@@ -298,7 +299,7 @@ async function render(card: ScoreCard): Promise<Buffer> {
   if (card.ladder) return renderLadder(card);
   const accent = { gold: th.gold, green: th.green, red: th.red } as const;
   const shapes = chrome();
-  withArt(shapes, await cardBackdropArt(card.backdrop, "full"), 630);
+  withArt(shapes, await cardBackdropArt(card.backdrop, card.rows?.length ? "full" : "wide"), 630);
   const layers: Layer[] = [];
   const put = async (markup: string, size: number, left: number, top: number, maxWidth = 1080) => {
     const t = await text(markup, size, maxWidth); layers.push({ input: t.input, left: Math.round(left), top: Math.round(top) }); return t;
@@ -862,6 +863,10 @@ async function renderRoster(card: ScoreCard): Promise<Buffer> {
   return sharp(base).composite(layers).png().toBuffer();
 }
 
+/** Alt text of each drawn picture, kept by the buffer itself so the image goes out with its description (card-alt.ts). */
+const altTexts = new WeakMap<Buffer, string>();
+export const altTextOf = (png: Buffer): string | undefined => altTexts.get(png);
+
 // Cache by the complete facts, not a player id, so changed scores immediately get a different image.
 // Bound both memory (32 images) and concurrent render work (2 distinct images); null means busy.
 export async function scoreCardPng(card: ScoreCard): Promise<Buffer | null> {
@@ -877,6 +882,7 @@ export async function scoreCardPng(card: ScoreCard): Promise<Buffer | null> {
   try {
     const binaryBody = await work;
     images.set(key, binaryBody);
+    altTexts.set(binaryBody, cardAltText(card));
     while (images.size > 32) images.delete(images.keys().next().value!);
     return binaryBody;
   } finally { if (pending.get(key) === work) pending.delete(key); }

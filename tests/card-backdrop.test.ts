@@ -58,11 +58,21 @@ describe("card backdrops", () => {
     expect((await sharp(full!).metadata())).toMatchObject({ width: 1200, height: 630 });
     expect(await textContrast(banner!, "banner")).toBeGreaterThanOrEqual(4.5);
     expect(await textContrast(full!, "full")).toBeGreaterThanOrEqual(4.5);
+    const wide = await backdropFor(KIND, "bright", "wide");
+    expect(await textContrast(wide!, "wide")).toBeGreaterThanOrEqual(4.5);
     const withArt = await scoreCardPng(ladder({ kind: KIND, key: "bright" })), plain = await scoreCardPng(ladder());
     expect(hash(withArt!)).not.toBe(hash(plain!));
     expect(await sharp(withArt!).metadata()).toMatchObject({ width: 1200 });
     // The fallback key is used when the first key has no file.
     expect(await cardBackdropArt({ kind: KIND, key: "nope", fallbackKey: "bright" }, "full")).toBeTruthy();
+  });
+
+  it("lays a transparent picture on the card background, not black", async () => {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(`${dir}clear.png`, await sharp({ create: { width: 1200, height: 630, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).png().toBuffer());
+    const art = await backdropFor(KIND, "clear", "full");
+    const { data } = await sharp(art!).extract({ left: 900, top: 300, width: 1, height: 1 }).raw().toBuffer({ resolveWithObject: true });
+    expect(data[0]! + data[1]! + data[2]!).toBeGreaterThan(0);
   });
 
   it("never holds more than its byte budget", async () => {

@@ -16,5 +16,7 @@ that muted card text keeps 4.5:1 contrast where text is drawn.
 arathi-basin, eye-of-the-storm, strand-of-the-ancients, isle-of-conquest; `battleground/default` is the fallback), `raid/default`,
 `roster/default`. Dungeon paintings stay in `site/dungeon-art/` (dungeon-backdrop.ts).
 
+**When new art shows:** a missing file is remembered for 10 minutes, and a card already drawn is kept in the rendered-PNG cache, so a picture added while the bot runs can take up to 10 minutes (or a restart) to appear. Art ships with the bot deploy (`site/` files are read from disk by the bot).
+
 **Memory:** only finished JPEGs are cached, limited to 4 MB of bytes; pictures are prepared one at a time; absent files are
 remembered for 10 minutes so no disk reads happen per render.

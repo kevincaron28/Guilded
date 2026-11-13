@@ -48,10 +48,10 @@ describe("leaderboard cards share the ladder layout", () => {
     expect(rows[0]).not.toHaveProperty("move");
     expect(card.ladder!.columns.map(column => column.label)).toEqual(["Score", "V", "D", "% vict.", "Record", "Série"]);
     expect(card.ladder!.meta).toBe(ladderMeta("fr", at));
-    // With the card attached, the embed only names the top 3 and points at the image.
+    // With the card attached, the embed drops the top 3 (they repeat the card) and points at the image.
     const embed = duelBoardEmbed(duelData(30), "en", "duels.png").toJSON();
     expect(embed.image?.url).toBe("attachment://duels.png");
-    expect(embed.description!.split("\n")).toHaveLength(3);
+    expect(embed.description).toBeUndefined();
     expect(duelBoardEmbed(duelData(30), "en").toJSON().description!.split("\n")).toHaveLength(10);
   });
   it("battlegrounds: one panel per mode and bracket", () => {

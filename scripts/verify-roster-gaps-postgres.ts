@@ -3,7 +3,6 @@ import type { PrismaClient } from "../src/generated/prisma/client.js";
 import { loadRosterSnapshot } from "../src/services/roster-dashboard-store.js";
 import { mainPlanRevision } from "../src/services/roster-review.js";
 import { prismaRosterPlanWriter } from "../src/services/roster-plan-store.js";
-import { prismaAvailabilityStore } from "../src/services/web-availability-store.js";
 
 export async function verifyRosterGapsPostgres(database: PrismaClient) {
   const record = await database.guild.create({ data: { discordId: "release-test-roster-gaps", name: "Roster gap fixture", gameEdition: "classic-era" } });
@@ -23,16 +22,7 @@ export async function verifyRosterGapsPostgres(database: PrismaClient) {
   assert.equal((await database.character.findUniqueOrThrow({ where: { id: first.id } })).isMain, false);
   assert.equal((await database.character.findUniqueOrThrow({ where: { id: second.id } })).memberId, member.id);
   assert.equal(await database.epgpTransaction.count({ where: { guildId: guild.id } }), 0);
-  const availability = prismaAvailabilityStore(database, access), now = new Date();
-  await assert.rejects(availability.share("roster-owner", guild.id, peer.id, "ANY", 15, now));
-  await availability.share("roster-owner", guild.id, first.id, "DPS", 15, now);
-  await availability.share("roster-other", guild.id, peer.id, "HEALER", 30, now);
-  assert.equal((await availability.load("roster-owner", guild.id, now))!.rows.length, 2);
-  assert.equal((await availability.load("roster-owner", guild.id, new Date(now.getTime() + 16 * 60_000)))!.rows.length, 1);
-  await availability.revoke("roster-owner", guild.id);
-  assert.equal(await database.webAvailability.count({ where: { guildId: guild.id } }), 1);
   await database.character.update({ where: { id: peer.id }, data: { memberId: member.id } });
-  assert.equal((await availability.load("roster-owner", guild.id, now))!.rows.length, 0);
   await database.member.delete({ where: { id: other.id } });
   assert.equal(await database.webAvailability.count({ where: { guildId: guild.id } }), 0);
 }

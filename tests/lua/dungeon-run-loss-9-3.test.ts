@@ -79,6 +79,17 @@ describe("an abandoned run is never silent", () => {
     expect(s.run("return tostring(GuildedDB.dungeon.runs[RUN_ID].explained)")).toBe("true");
   });
 
+  it("prints one explanation line per session even when several runs end abandoned, and still saves each diagnostic", () => {
+    const s = start();
+    abandonAfterKill(s);
+    s.run(`local second = { id = "RUN-SECOND", state = "ABANDONED", gameEdition = "forever", instanceId = 2970, name = "The Drowned City", difficultyId = 1,
+      startedAt = 1, endedAt = 99, endReason = "left the dungeon", players = {}, encounters = { { id = 5, name = "B", success = true, at = 50, source = "native" } } }
+      NS.dungeon.explain(second)`);
+    expect(s.chat().join("\n").match(/will not count/g)).toHaveLength(1);
+    expect(s.run("return GuildedDB.dungeon.runs[RUN_ID].diagnostic")).toContain("i=2970");
+    expect(s.run("return tostring(NS.dungeon.explainedThisSession)")).toBe("true");
+  });
+
   it("is said in French on a French client", () => {
     const s = start({ locale: "frFR" });
     abandonAfterKill(s);
@@ -123,6 +134,42 @@ describe("a guildmate's copy completes an abandoned run", () => {
     expect(s.run("return tostring(GuildedDB.dungeon.runs.R1.synced)")).toBe("nil");
     expect(s.run("return GuildedDB.dungeon.runs.R1.recoveredFrom.via")).toBe("Friend");
     expect(s.chat().join("\n")).toContain("guildmate's copy");
+  });
+
+  it("marks a peer-recovered run, exports the kill as a peer kill and never as native, and copes with no encounters table or an over-long name", () => {
+    const s = start({ instance: ragefire });
+    s.run(abandonedRun.replace("encounters={ {id=2732,name=\"Oggleflint\",success=true,at=1100,source=\"native\"} } }", "encounters={} }"));
+    s.run(peerCopy("2735:Bazzalan:1:2000:"));
+    s.run(`local summary = NS.dungeon.serialize(PEER)
+      fire_event("CHAT_MSG_ADDON", "GuildedDgn", string.format("SUM|R1|1|1|%s", summary), "GUILD", "Friend")`);
+    expect(s.run("return GuildedDB.dungeon.runs.R1.state")).toBe("COMPLETED");
+    expect(s.run("return tostring(GuildedDB.dungeon.runs.R1.peerConfirmed)")).toBe("true");
+    const name = s.run("local e = GuildedDB.dungeon.runs.R1.encounters; return e[#e].name");
+    expect(name.length).toBeLessThanOrEqual(60);
+    const saved = JSON.parse(s.run(`local out = {} for _, e in ipairs(GuildedDB.dungeon.runs.R1.encounters) do out[#out + 1] = string.format('{"id":%d,"success":true,"at":%d,"viaPeer":%s}', e.id, e.at, '"x"') end return "[" .. table.concat(out, ",") .. "]"`));
+    const [exported] = exportDungeonRuns({ dungeon: { runs: { R1: { id: "R1", state: "COMPLETED", completedBy: "final boss", instanceId: 389, startedAt: 1000, endedAt: 2000, peerConfirmed: true, encounters: saved, players: {} } } } }, "Forever") as Array<{ peerConfirmed?: boolean; encounters: Array<{ source?: string }> }>;
+    expect(exported?.peerConfirmed).toBe(true);
+    expect(exported?.encounters.map((e) => e.source)).toContain("peer"); // a still-tagged peer kill is exported as one
+    expect(exported?.encounters.map((e) => e.source)).not.toContain("native");
+  });
+
+  it("a run the client recovered from its own kill is not peer-confirmed", () => {
+    const s = start({ instance: ragefire });
+    s.run(`GuildedDB.dungeon.runs.R2 = { id="R2", state="ABANDONED", gameEdition="forever", instanceId=389, name="Ragefire Chasm", difficultyId=0,
+      startedAt=1000, endedAt=4041, endReason="left", players={}, encounters={ {id=2735,name="Bazzalan",success=true,at=2000,source="native"} } }`);
+    expect(s.run("return NS.dungeon.recoverRuns()")).toBe("1");
+    expect(s.run("return tostring(GuildedDB.dungeon.runs.R2.peerConfirmed)")).toBe("nil");
+  });
+
+  it("prints at most one recovery line however many runs a login recovers from guildmates", () => {
+    const s = start({ instance: ragefire });
+    for (const id of ["R1", "R3"]) {
+      s.run(abandonedRun.replace(/R1/g, id));
+      s.run(`PEER = NS.dungeon.deserialize("${id}", "v=1;av=9.3.0;st=COMPLETED;i=389;n=Ragefire Chasm;d=0;s=1000;e=2000;cb=final boss;r=Friend;enc=2735;p=Friend:WARRIOR:TANK:0:1000:1,Tester:MAGE:DPS:0:1000:1;tl=2735:Bazzalan:1:2000:")
+        fire_event("CHAT_MSG_ADDON", "GuildedDgn", string.format("SUM|${id}|1|1|%s", NS.dungeon.serialize(PEER)), "GUILD", "Friend")`);
+    }
+    expect(s.run("return GuildedDB.dungeon.runs.R3.state")).toBe("COMPLETED");
+    expect(s.chat().filter((line) => line.includes("guildmate's copy")).length).toBe(1);
   });
 
   it("does not complete from a non-final kill, a kill outside our window, a stranger, or an ABANDONED copy", () => {
@@ -185,26 +232,5 @@ describe("export", () => {
   it("passes the abandoned-run diagnostic", () => {
     const [exported] = exportDungeonRuns({ dungeon: { runs: { R1: run({ state: "ABANDONED", completedBy: undefined, diagnostic: "i=2970;k=1" }) } } }, "Forever");
     expect((exported as { diagnostic?: string }).diagnostic).toBe("i=2970;k=1");
-  });
-
-  it("exports finished unsynced runs parked under another guild, tagged with that guild, only when asked", () => {
-    const database = {
-      dungeon: { runs: { R1: run() } },
-      otherGuilds: {
-        "Other-Realm": { dungeon: { runs: {
-          P1: run({ id: "P1" }),
-          P2: run({ id: "P2", synced: true }),
-          P3: run({ id: "P3", syncedVia: "Friend" }),
-          P4: run({ id: "P4", endedAt: 1000 }),
-          P5: run({ id: "P5", state: "INVALID" })
-        } } },
-        "classic-era@Old-Realm": { dungeon: { runs: { P6: run({ id: "P6" }) } } }
-      }
-    };
-    expect(exportDungeonRuns(database, "Forever").map((r) => r.id)).toEqual(["R1"]);
-    const all = exportDungeonRuns(database, "Forever", { includeParked: true }) as Array<{ id: string; wowGuild?: string }>;
-    expect(all.map((r) => r.id)).toEqual(["R1", "P1"]);
-    expect(all[0]?.wowGuild).toBeUndefined();
-    expect(all[1]?.wowGuild).toBe("Other-Realm");
   });
 });

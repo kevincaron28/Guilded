@@ -338,10 +338,15 @@ local function explainAbandoned(run)
   run.diagnostic = string.sub(string.format("i=%s;d=%s;ed=%s;k=%d;f=%s;last=%s;why=%s", tostring(tonumber(run.instanceId) or 0),
     tostring(tonumber(run.difficultyId) or 0), diagText(run.gameEdition, 20), #kills, how, table.concat(last, "+"), diagText(run.endReason, 30)), 1, 240)
   if run.endReason == "manual" then return end
+  -- One line per session at most: a login that finishes several old runs must not flood the chat.
+  if dungeon.explainedThisSession then return end
+  dungeon.explainedThisSession = true
   local command = ns.standalone and "/gdungeons check" or "/guilded dungeon check"
   ns.message(string.format(T("This dungeon run (%s) ended before its final boss was killed (%d boss(es) down), so it will not count. If you did kill the final boss, type %s and tell an officer what it says."),
     tostring(run.name or "?"), #kills, command))
 end
+
+dungeon.explain = explainAbandoned
 
 -- Stores a finished run for export, tells the group, and shares it with
 -- officers who are online.
@@ -670,6 +675,8 @@ local function recoverOne(run)
   run.state, run.endedAt, run.completedBy = "COMPLETED", final.at, "final boss"
   run.endReason, run.synced, run.diagnostic, run.explained = nil, nil, nil, nil
   run.recoveredFrom = { state = "ABANDONED", endedAt = abandonedAt, version = RECOVERY_VERSION, via = final.viaPeer }
+  -- (9.3) A kill only a guildmate's copy vouched for: exported as such, never as this client's own native kill.
+  run.peerConfirmed = final.viaPeer and true or nil
   run.durationSec = run.endedAt - run.startedAt
   -- Presence never exceeds the (shorter) run; observed intervals stop at the kill.
   for _, player in pairs(run.players or {}) do
@@ -689,7 +696,7 @@ local function recoverOne(run)
     if ns.onDungeonRunFinished then pcall(ns.onDungeonRunFinished, run) end
     return true
   end
-  run.state, run.endedAt, run.completedBy, run.endReason, run.recoveredFrom = "ABANDONED", abandonedAt, nil, "left the dungeon", nil
+  run.state, run.endedAt, run.completedBy, run.endReason, run.recoveredFrom, run.peerConfirmed = "ABANDONED", abandonedAt, nil, "left the dungeon", nil, nil
   run.durationSec = run.endedAt - run.startedAt
   return false
 end
@@ -716,16 +723,18 @@ local function storePeerRun(run, sender)
       if kill.success and not kill.kind and tonumber(kill.id) and tonumber(kill.at) and kill.at > existing.startedAt and kill.at <= existing.endedAt
         and ((existing.finalEncounterId and tonumber(kill.id) == existing.finalEncounterId)
           or compat.isDungeonFinalBoss(existing.instanceId, kill.id, kill.name, existing.difficultyId)) then
+        existing.encounters = existing.encounters or {}
         local known = false
         for _, old in ipairs(existing.encounters) do
           if tonumber(old.id) == tonumber(kill.id) and old.success and not old.kind and old.at == kill.at then known = true end
         end
         if not known and #existing.encounters < 100 then
-          table.insert(existing.encounters, { id = tonumber(kill.id), name = kill.name, success = true, at = kill.at, viaPeer = sender })
+          table.insert(existing.encounters, { id = tonumber(kill.id), name = diagText(kill.name, 60), success = true, at = kill.at, viaPeer = sender })
         end
       end
     end
-    if recoverOne(existing) then
+    if recoverOne(existing) and not dungeon.peerRecoveryNoticed then
+      dungeon.peerRecoveryNoticed = true
       ns.message(string.format("Guilded recovered a dungeon run (%s) from a guildmate's copy: its final boss was killed; it uploads with your next sync.", tostring(existing.name or "?")))
     end
   end

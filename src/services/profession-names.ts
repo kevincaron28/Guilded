@@ -28,7 +28,9 @@ export const PROFESSION_IDENTITIES: Record<string, ProfessionIdentity> = {
   Cooking: { skillLine: 185, names: { enUS: ["Cooking"], frFR: ["Cuisine"], deDE: ["Kochkunst"], esES: ["Cocina"], esMX: ["Cocina"], ptBR: ["Culinária"], itIT: ["Cucina"], ruRU: ["Кулинария"] } },
   "First Aid": { skillLine: 129, names: { enUS: ["First Aid"], frFR: ["Premiers soins", "Secourisme"], deDE: ["Erste Hilfe"], esES: ["Primeros auxilios"], esMX: ["Primeros auxilios"], ptBR: ["Primeiros Socorros"], itIT: ["Primo Soccorso"], ruRU: ["Первая помощь"] } },
   Fishing: { skillLine: 356, names: { enUS: ["Fishing"], frFR: ["Pêche"], deDE: ["Angeln"], esES: ["Pesca"], esMX: ["Pesca"], ptBR: ["Pesca"], itIT: ["Pesca"], ruRU: ["Рыбная ловля"] } },
-  Archaeology: { skillLine: 794, names: { enUS: ["Archaeology"], frFR: ["Archéologie"], deDE: ["Archäologie"], esES: ["Arqueología"], esMX: ["Arqueología"], ptBR: ["Arqueologia"], itIT: ["Archeologia"], ruRU: ["Археология"] } }
+  Archaeology: { skillLine: 794, names: { enUS: ["Archaeology"], frFR: ["Archéologie"], deDE: ["Archäologie"], esES: ["Arqueología"], esMX: ["Arqueología"], ptBR: ["Arqueologia"], itIT: ["Archeologia"], ruRU: ["Археология"] } },
+  // Added 13 November 2026: the production database already held "Poisons" rows (migration 20270212000000 maps the other spellings).
+  Poisons: { skillLine: 40, names: { enUS: ["Poisons"], frFR: ["Poisons"], deDE: ["Gifte"], esES: ["Venenos"], esMX: ["Venenos"], ptBR: ["Venenos"], itIT: ["Veleni"], ruRU: ["Яды"] } }
 };
 
 /** Lower-case, accent-tolerant comparison key ("Dépeçage" and "depecage" match, trailing spaces and case do not matter). */

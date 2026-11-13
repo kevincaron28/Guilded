@@ -1073,7 +1073,7 @@ end
 -- src/services/profession-names.ts (tests/lua/profession-names.test.ts keeps them equal). Accented
 -- names are escapes because the validator rejects non-ASCII.
 -- ---------------------------------------------------------------------
-local SKILL_LINES = { [171] = "Alchemy", [164] = "Blacksmithing", [333] = "Enchanting", [202] = "Engineering", [182] = "Herbalism", [773] = "Inscription", [755] = "Jewelcrafting", [165] = "Leatherworking", [186] = "Mining", [393] = "Skinning", [197] = "Tailoring", [185] = "Cooking", [129] = "First Aid", [356] = "Fishing", [794] = "Archaeology" }
+local SKILL_LINES = { [171] = "Alchemy", [164] = "Blacksmithing", [333] = "Enchanting", [202] = "Engineering", [182] = "Herbalism", [773] = "Inscription", [755] = "Jewelcrafting", [165] = "Leatherworking", [186] = "Mining", [393] = "Skinning", [197] = "Tailoring", [185] = "Cooking", [129] = "First Aid", [356] = "Fishing", [794] = "Archaeology", [40] = "Poisons" }
 local NAMES = {
   ["Alchemy"] = "Alchemy", ["Alchimie"] = "Alchemy", ["Alquimia"] = "Alchemy", ["Alchimia"] = "Alchemy", ["\208\144\208\187\209\133\208\184\208\188\208\184\209\143"] = "Alchemy",
   ["Blacksmithing"] = "Blacksmithing", ["Forge"] = "Blacksmithing", ["Schmiedekunst"] = "Blacksmithing", ["Herrer\195\173a"] = "Blacksmithing", ["Ferraria"] = "Blacksmithing", ["Forgiatura"] = "Blacksmithing", ["\208\154\209\131\208\183\208\189\208\181\209\135\208\189\208\190\208\181 \208\180\208\181\208\187\208\190"] = "Blacksmithing",
@@ -1089,7 +1089,8 @@ local NAMES = {
   ["Cooking"] = "Cooking", ["Cuisine"] = "Cooking", ["Kochkunst"] = "Cooking", ["Cocina"] = "Cooking", ["Culin\195\161ria"] = "Cooking", ["Cucina"] = "Cooking", ["\208\154\209\131\208\187\208\184\208\189\208\176\209\128\208\184\209\143"] = "Cooking",
   ["First Aid"] = "First Aid", ["Premiers soins"] = "First Aid", ["Secourisme"] = "First Aid", ["Erste Hilfe"] = "First Aid", ["Primeros auxilios"] = "First Aid", ["Primeiros Socorros"] = "First Aid", ["Primo Soccorso"] = "First Aid", ["\208\159\208\181\209\128\208\178\208\176\209\143 \208\191\208\190\208\188\208\190\209\137\209\140"] = "First Aid",
   ["Fishing"] = "Fishing", ["P\195\170che"] = "Fishing", ["Angeln"] = "Fishing", ["Pesca"] = "Fishing", ["\208\160\209\139\208\177\208\189\208\176\209\143 \208\187\208\190\208\178\208\187\209\143"] = "Fishing",
-  ["Archaeology"] = "Archaeology", ["Arch\195\169ologie"] = "Archaeology", ["Arch\195\164ologie"] = "Archaeology", ["Arqueolog\195\173a"] = "Archaeology", ["Arqueologia"] = "Archaeology", ["Archeologia"] = "Archaeology", ["\208\144\209\128\209\133\208\181\208\190\208\187\208\190\208\179\208\184\209\143"] = "Archaeology",
+  ["Archaeology"] = "Archaeology", ["Arch\195\169ologie"] = "Archaeology", ["Arch\195\164ologie"] = "Archaeology", ["Arqueolog\195\173a"] = "Archaeology", ["Arqueologia"] = "Archaeology", ["Archeologia"] = "Archaeology",
+  ["Poisons"] = "Poisons", ["Gifte"] = "Poisons", ["Venenos"] = "Poisons", ["Veleni"] = "Poisons", ["\208\175\208\180\209\139"] = "Poisons", ["\208\144\209\128\209\133\208\181\208\190\208\187\208\190\208\179\208\184\209\143"] = "Archaeology",
 }
 
 local function trimText(text)

@@ -30,7 +30,23 @@ Not yet published. Polish after 9.2.0 (addon settings and chat, dungeon and duel
 - Stable guild addresses and fuller guild pages (#841).
 - Deploys update only the dependencies that changed (#839).
 
+**Later additions (addon)**
+- The To invite window shows only who still needs an invite (#860, #869).
+- One profession under one name in the roster tooltip, reminders, craft orders and saved data, with Poisons (#858, #864; bot #857).
+- World PvP deaths with zone and time, K/D and deadliest zones (#862; bot #863).
+- UI polish: a left menu that no longer jumps, fields below the tab row, clamped windows, cards that remember their position and never overlap (#866).
+- The end-of-duel card has the duel painting, a stat row and a card for duels outside the guild (#867).
+
 **Companion**
+- A painted banner at the top of the window (#848).
+- The installer closes a running companion by itself, with bounded waits and safe silent runs (#853).
+
+**Bot and website (more)**
+- Cards: welcome, rookie of the week, season, World PvP weekly recap, the card redesign kit and twelve more backgrounds (#849-#852, #855, #861).
+- Dungeon runs are not lost: copy upgrades, bounded retry, early run commit, loose guild-name match, per-player guild stored (#844).
+- A painted hero on the website home page (#847); gentler deploy preparation on the small server (#854).
+
+**Companion (earlier)**
 - The "Syncing now" line clears when the sync ends (#819).
 - Docs, website and Store listing describe the single window (#824). Store: 9.3.0.0 package built, not submitted (Guild Sync Companion 9.2.0.0 certifying).
 

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { foreverNameMatches } from "../../companion/character-identity.mjs";
+import { DUEL_RULES } from "./duel-rules.js";
 
 // Guild duels (8.4.5; level-difference score 9.1). The addon records "X has defeated Y in a duel" when both players are in the guild and each
 // paired participant's companion uploads it. Nothing here posts anything or awards points.
@@ -12,9 +13,9 @@ import { foreverNameMatches } from "../../companion/character-identity.mjs";
 // pair counts at most PAIR_DAILY_CAP duels per UTC day and each reporter at most REPORTER_DAILY_CAP, the rest are
 // stored as not counted (so a replay cannot count them later either).
 
-export const PAIR_DAILY_CAP = 5;
-export const REPORTER_DAILY_CAP = 25;
-export const DEDUPE_SECONDS = 120;
+export const PAIR_DAILY_CAP = DUEL_RULES.pairDailyCap;
+export const REPORTER_DAILY_CAP = DUEL_RULES.reporterDailyCap;
+export const DEDUPE_SECONDS = DUEL_RULES.dedupeSeconds;
 const MAX_AGE_DAYS = 30;
 
 export const duelResultSchema = z.object({
@@ -141,7 +142,7 @@ export async function importMilestones(tx: Pick<Tx, "memberMilestone"> & Partial
 export interface DuelStanding { memberId: string; name: string; score: number; wins: number; losses: number; games: number; winRate: number; streak: number; bestStreak: number }
 
 /** Points for one win. */
-export const DUEL_BASE_POINTS = 10, DUEL_POINTS_PER_LEVEL = 2, DUEL_MAX_POINTS = 20;
+export const DUEL_BASE_POINTS = DUEL_RULES.basePoints, DUEL_POINTS_PER_LEVEL = DUEL_RULES.pointsPerLevel, DUEL_MAX_POINTS = DUEL_RULES.maxPoints;
 
 /**
  * Pure: what a win is worth, by level difference (opponent level minus winner level). Base 10; each level the loser was above the

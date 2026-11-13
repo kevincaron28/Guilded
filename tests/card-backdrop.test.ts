@@ -42,7 +42,7 @@ describe("card backdrops", () => {
     expect(plain && asking).toBeTruthy();
     expect(hash(asking!)).toBe(hash(plain!));
     // The same holds for the default two-column layout, and a card queued before `backdrop` existed has no such field at all.
-    const raid = raidEndCard({ title: "Raid", bossesPlanned: 1, bossesKilled: 1, killedNames: ["Boss"], topLoot: [], raiders: 10, late: 0, absent: 0, durationMinutes: 60, lootCount: 0, gpSpent: 0, epAwarded: 0, epRecipients: 0, startedAt: new Date(0), endedAt: new Date(1000) } as never);
+    const raid: ScoreCard = { ...raidEndCard({ title: "Raid", bossesPlanned: 1, bossesKilled: 1, killedNames: ["Boss"], topLoot: [], raiders: 10, late: 0, absent: 0, durationMinutes: 60, lootCount: 0, gpSpent: 0, epAwarded: 0, epRecipients: 0, startedAt: new Date(0), endedAt: new Date(1000) } as never), backdrop: { kind: "raid", key: "missing-art" } };
     const queued: ScoreCard = { ...raid };
     delete queued.backdrop;
     expect(hash((await scoreCardPng(raid))!)).toBe(hash((await scoreCardPng(queued))!));

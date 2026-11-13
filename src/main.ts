@@ -113,7 +113,7 @@ import { refreshExistingBotGuides } from "./services/bot-messages.js";
 import { refreshBgPanels } from "./services/battleground-setup.js";
 import { BACKUP_DIR, runBackup } from "./services/backup.js";
 import { asLang } from "./i18n.js";
-import { queueSeasonCards } from "./services/season-cards.js";
+import { queueSeasonEndCards, queueSeasonStartCard } from "./services/season-cards.js";
 import { loadClassBook } from "./services/ladder-classes.js";
 import { freezeSeasonRules, loadOfficialWindows, rotateOfficialSeasons, startOfficialSeason } from "./services/official-seasons.js";
 import { finalizeClosingSeasons } from "./services/dungeon-admin.js";
@@ -457,11 +457,11 @@ client.once(Events.ClientReady, (readyClient) => {
           const guild = await prisma.guild.findUnique({ where: { id: row.guildId }, select: { discordId: true } });
           const discordGuild = guild ? readyClient.guilds.cache.get(guild.discordId) ?? null : null;
           await withGuildScope(prisma, row.guildId, () => updateDungeonLeaderboard(discordGuild)).catch(reportJobError("Dungeon leaderboard after season rotation"));
-          // 9.3: the podium of the season that ended and the card of the one that begins (a job per season, queued once).
-          if (row.season !== "Upload grace finalized") {
-            const settings = await prisma.guildSettings.findUnique({ where: { guildId: row.guildId }, select: { language: true } });
-            await queueSeasonCards(prisma, row.guildId, row.ended, asLang(settings?.language), await loadClassBook(prisma, row.guildId).catch(() => new Map<string, string>())).catch(reportJobError("Season cards"));
-          }
+          // 9.3: the podium of a season only once it ended WITH its results (after the upload grace for rated seasons), and the card of the one that begins.
+          const cardLang = asLang((await prisma.guildSettings.findUnique({ where: { guildId: row.guildId }, select: { language: true } }))?.language);
+          const cardClasses = await loadClassBook(prisma, row.guildId).catch(() => new Map<string, string>());
+          await queueSeasonEndCards(prisma, row.guildId, cardLang, cardClasses).catch(reportJobError("Season end cards"));
+          if (row.season !== "Upload grace finalized") await queueSeasonStartCard(prisma, row.guildId, cardLang).catch(reportJobError("Season start card"));
         }
       })
       .catch(reportJobError("Dungeon seasons"))); })().finally(() => { rotating = false; });

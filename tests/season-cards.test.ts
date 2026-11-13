@@ -1,46 +1,83 @@
 import { describe, expect, it, vi } from "vitest";
-import { queueSeasonCards, seasonCardChannel, seasonEndCard, seasonStartCard } from "../src/services/season-cards.js";
+
+// The real rating validators need full frozen rule sets; the podium only needs "is this season rated" and the rows, so they are stubbed.
+vi.mock("../src/services/dungeon-rating.js", () => ({ hasDungeonRating: (rules: { rated?: boolean } | null) => rules?.rated === true, frozenRating: (value: unknown) => Array.isArray(value) ? value : null }));
+
+import { queueSeasonEndCards, queueSeasonStartCard, seasonCardChannel, seasonEndCard, seasonPodium, seasonStartCard } from "../src/services/season-cards.js";
 import { cardAltText } from "../src/services/card-alt.js";
 import { scoreCardPng } from "../src/services/score-card.js";
 
 const info = { name: "Season 1", startsAt: new Date("2026-11-04T23:00:00Z"), endsAt: new Date("2026-12-02T23:00:00Z") };
-const rows = [{ memberId: "a", name: "Aldric", points: 300 }, { memberId: "b", name: "Brenna", points: 250 }, { memberId: "c", name: "Cedric", points: 90 }, { memberId: "d", name: "Dara", points: 10 }];
+const standings = [{ memberId: "a", name: "Aldric", points: 300 }, { memberId: "b", name: "Brenna", points: 250 }, { memberId: "c", name: "Cedric", points: 90 }, { memberId: "d", name: "Dara", points: 10 }];
 const classes = new Map([["aldric", "Warrior"]]);
+const rated = { rated: true };
+const ratingRow = (memberId: string, name: string, points: number, bracket?: string) => ({ memberId, name, points, dungeons: points / 100, ...(bracket ? { bracket } : {}) });
+
+describe("season podium data", () => {
+  it("uses the final standings of an unrated season, with competition ranking and every champion named", () => {
+    const tied = [{ memberId: "a", name: "Aldric", points: 300 }, { memberId: "b", name: "Brenna", points: 300 }, { memberId: "c", name: "Cedric", points: 250 }, { memberId: "d", name: "Dara", points: 250 }, { memberId: "e", name: "Eli", points: 100 }, { memberId: "f", name: "Fay", points: 50 }];
+    const podium = seasonPodium({ finalStandings: tied })!;
+    expect(podium.entries.map(e => `${e.rank} ${e.name}`)).toEqual(["1 Aldric", "1 Brenna", "3 Cedric", "3 Dara"]);
+    expect(podium.ranked).toBe(6);
+  });
+
+  it("uses the frozen rating of a rated season (the board's source), skipping unlinked rows", () => {
+    const podium = seasonPodium({ ratingRules: rated, finalRating: [ratingRow("char:x", "Ghost", 900), ratingRow("a", "Aldric", 700)], finalStandings: standings });
+    expect(podium?.entries.map(e => e.name)).toEqual(["Aldric"]);
+    expect(podium?.ranked).toBe(1);
+    // An invalid rated snapshot is not a podium at all (and never falls back to older points).
+    expect(seasonPodium({ ratingRules: rated, finalRating: "nope", finalStandings: standings })).toBeNull();
+  });
+
+  it("shows each bracket's champion on one card when the season has brackets", () => {
+    const rows = [ratingRow("a", "Aldric", 700, "20-29"), ratingRow("b", "Brenna", 500, "20-29"), ratingRow("c", "Cedric", 600, "30-39"), ratingRow("d", "Dara", 600, "30-39")];
+    const podium = seasonPodium({ ratingRules: rated, finalRating: rows });
+    {
+      expect(podium!.entries.map(e => `${e.label}:${e.name}`)).toEqual(["20-29:Aldric", "30-39:Cedric", "30-39:Dara"]);
+      expect(seasonEndCard(info, podium, "en", classes).rows?.[0]?.sub).toContain("20-29");
+    }
+  });
+});
 
 describe("season cards", () => {
-  it("draws the podium of the season that ended", async () => {
-    const card = seasonEndCard(info, rows, "en", classes);
+  it("draws the podium and says so in words when nobody was ranked", async () => {
+    const card = seasonEndCard(info, seasonPodium({ finalStandings: standings }), "en", classes);
     expect(card.title).toBe("Season 1 is over");
-    expect(card.rows?.map(r => r.name)).toEqual(["Aldric", "Brenna", "Cedric"]);
-    expect(card.rows?.[0]).toMatchObject({ color: "#c79c6e", right: "300 pts" });
-    expect(card.stats[1]!.value).toBe("4");
+    expect(card.backdrop).toEqual({ kind: "board", key: "season-podium", fallbackKey: "dungeon-season" });
+    expect(card.rows?.[0]).toMatchObject({ name: "Aldric", color: "#c79c6e", right: "300 pts" });
     expect(cardAltText(card)).toContain("Season 1 is over");
     expect((await scoreCardPng(card))?.subarray(1, 4).toString()).toBe("PNG");
+    const empty = seasonEndCard(info, seasonPodium({ finalStandings: [] }), "fr", new Map());
+    expect(empty.rows?.[0]?.name).toBe("Aucun joueur classé cette saison");
+    expect((await scoreCardPng(seasonStartCard({ ...info, endsAt: null }, "fr")))?.subarray(1, 4).toString()).toBe("PNG");
   });
 
-  it("says so in words when nobody was ranked, in French too", () => {
-    const card = seasonEndCard(info, null, "fr", new Map());
-    expect(card.title).toBe("Season 1 est terminée");
-    expect(card.rows?.[0]?.name).toBe("Aucun joueur classé cette saison");
-  });
-
-  it("draws the start card with or without an end date", async () => {
-    expect(seasonStartCard({ ...info, endsAt: null }, "en").subtitle).toBe("From 2026-11-04");
-    expect((await scoreCardPng(seasonStartCard(info, "fr")))?.subarray(1, 4).toString()).toBe("PNG");
-  });
-
-  it("queues each season's cards once, only with the switch on and a channel", async () => {
-    const created: { key: string; payload: { route: string } }[] = [];
-    const db = (switchOn: boolean, existing = false) => ({
+  function fakeDb(seasons: unknown[], existing = false, switchOn = true) {
+    const created: { key: string }[] = [];
+    const database = {
       guildSettings: { findUnique: vi.fn().mockResolvedValue({ seasonCardsEnabled: switchOn, dungeonLeaderboardChannelId: "c1" }) },
-      dungeonSeason: { findFirst: vi.fn(async ({ where }: { where: { status: unknown } }) => where.status === "ACTIVE" ? { id: "s2", name: "Season 2", startsAt: new Date(), endsAt: null } : { id: "s1", ...info, finalStandings: rows }) },
-      discordJob: { findUnique: vi.fn().mockResolvedValue(existing ? { id: "x" } : null), create: vi.fn(async ({ data }: { data: { key: string; payload: { route: string } } }) => { created.push(data); }) }
-    }) as never;
-    expect(await queueSeasonCards(db(true), "g", "Season 1", "en", classes)).toBe(2);
-    expect(created.map(j => j.key)).toEqual(["season-card:end:s1", "season-card:start:s2"]);
-    expect(created[0]!.payload.route).toBe("seasonCard");
-    expect(await queueSeasonCards(db(false), "g", "Season 1", "en", classes)).toBe(0);
-    expect(await queueSeasonCards(db(true, true), "g", "Season 1", "en", classes)).toBe(0);
+      dungeonSeason: { findMany: vi.fn().mockResolvedValue(seasons), findFirst: vi.fn().mockResolvedValue({ id: "s2", name: "Season 2", startsAt: new Date(), endsAt: null }) },
+      discordJob: { findUnique: vi.fn().mockResolvedValue(existing ? { id: "x" } : null), create: vi.fn(async ({ data }: { data: { key: string } }) => { created.push(data); }) }
+    } as never;
+    return { database, created };
+  }
+
+  it("posts no end card while a season is CLOSING (no results), then one once it is finalized", async () => {
+    const now = new Date("2026-12-03T00:00:00Z");
+    // CLOSING seasons are never returned by the ENDED query; a season marked ENDED without any results is skipped too.
+    const closing = fakeDb([{ id: "s1", ...info, status: "ENDED", finalStandings: null, finalRating: null }]);
+    expect(await queueSeasonEndCards(closing.database, "g", "en", classes, now)).toBe(0);
+    expect(closing.created).toEqual([]);
+    const finalized = fakeDb([{ id: "s1", ...info, status: "ENDED", finalStandings: standings, finalRating: null }]);
+    expect(await queueSeasonEndCards(finalized.database, "g", "en", classes, now)).toBe(1);
+    expect(finalized.created.map(j => j.key)).toEqual(["season-card:end:s1"]);
+    expect(await queueSeasonEndCards(fakeDb([{ id: "s1", ...info, status: "ENDED", finalStandings: standings }], true).database, "g", "en", classes, now)).toBe(0);
+  });
+
+  it("queues the start card once, only with the switch on", async () => {
+    expect(await queueSeasonStartCard(fakeDb([]).database, "g", "en")).toBe(1);
+    expect(await queueSeasonStartCard(fakeDb([], true).database, "g", "en")).toBe(0);
+    expect(await queueSeasonStartCard(fakeDb([], false, false).database, "g", "en")).toBe(0);
   });
 
   it("re-checks the switch and channel only for season-card jobs", () => {

@@ -74,7 +74,8 @@ describe("Guilded Dungeons hears its guild", () => {
     expect(s.run(`return tostring(NS.isGuildMember("Lebowski-TestRealm")) .. tostring(NS.isGuildMember("Stranger")) .. tostring(NS.isOfficerName("Boss")) .. tostring(NS.isOfficerName("Lebowski"))`)).toBe("truefalsetruefalse");
     expect(s.run(`return tostring(NS.comm.authorized("Lebowski-TestRealm", "guild")) .. tostring(NS.comm.authorized("Stranger-TestRealm", "guild")) .. tostring(NS.comm.authorized("Lebowski-TestRealm", "officer"))`)).toBe("truefalsefalse");
     // No roster yet (just logged in): nobody is trusted.
-    s.run("ROSTER = {}");
+    // (9.3: the roster is cached and the game's GUILD_ROSTER_UPDATE drops the cache.)
+    s.run(`ROSTER = {}; fire_event("GUILD_ROSTER_UPDATE")`);
     expect(s.run(`return tostring(NS.isGuildMember("Lebowski"))`)).toBe("false");
   });
 
@@ -87,6 +88,8 @@ describe("Guilded Dungeons hears its guild", () => {
     hear(`ACK|${id}`, "Stranger-TestRealm");
     hear(`ACK|${id}`, "Lebowski-TestRealm", "PARTY");
     expect(via()).toBe("nil");
+    // (9.3) A confirmation counts at once only from someone heard holding the run.
+    s.run(`NS.dungeon.markHeard("${id}", "Lebowski")`);
     hear(`ACK|${id}`, "Lebowski-TestRealm");
     expect(via()).toBe("Lebowski");
     s.run("SUMS = 0; NS.dungeon.lastReplay = nil; NS.dungeon.replayPending()");

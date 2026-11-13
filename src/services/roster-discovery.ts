@@ -1,4 +1,5 @@
 import type { Prisma } from "../generated/prisma/client.js";
+import { mergeProfessionSkills } from "./profession-names.js";
 import type { AddonCharacter } from "../integrations/addon.js";
 import { syncProfessionSnapshot } from "./profession-snapshot.js";
 import { findCharacter } from "./character-match.js";
@@ -53,6 +54,7 @@ export async function applyDiscoveredCharacters(tx: Tx, guildId: string, entries
     const key = characterKey(entry.name, entry.realm, gameEdition);
     if (!key || seen.has(key)) continue;
     seen.add(key);
+    const professions = mergeProfessionSkills(entry.professions);
     const className = entry.class ? normalizeClassName(entry.class) : "";
     const race = entry.race ? normalizeRaceName(entry.race) : null;
     const level = entry.level >= 1 ? entry.level : null;
@@ -61,7 +63,7 @@ export async function applyDiscoveredCharacters(tx: Tx, guildId: string, entries
     if (existing) {
       const data = { ...(entry.displayName ? { displayName: entry.displayName } : {}), ...(className ? { className } : {}), ...(race ? { race } : {}), ...(level ? { level } : {}), ...(spec ? { spec } : {}), ...guildRankUpdate(entry), lastSeenAt: new Date() };
       if (!sameStored(existing, data)) await tx.character.update({ where: { id: existing.id }, data });
-      await syncProfessionSnapshot(tx, guildId, existing, entry.professions, entry.professionsComplete === true, entry.professionsAt ?? new Date(),
+      await syncProfessionSnapshot(tx, guildId, existing, professions, entry.professionsComplete === true, entry.professionsAt ?? new Date(),
         "professionsUpdatedAt" in existing ? { professionsUpdatedAt: existing.professionsUpdatedAt ?? null } : undefined);
       result.refreshed++;
       continue;
@@ -80,17 +82,17 @@ export async function applyDiscoveredCharacters(tx: Tx, guildId: string, entries
       name: entry.name, realm: entry.realm, className, race, level, spec,
       gameEdition,
       ...(entry.displayName ? { displayName: entry.displayName } : {}),
-      ...(acceptProfessions ? { professions: entry.professions as unknown as Prisma.InputJsonValue, ...(entry.professionsComplete === true ? { professionsUpdatedAt: at } : {}) } : {}), lastSeenAt: new Date(),
+      ...(acceptProfessions ? { professions: professions as unknown as Prisma.InputJsonValue, ...(entry.professionsComplete === true ? { professionsUpdatedAt: at } : {}) } : {}), lastSeenAt: new Date(),
       // 8.5 C5: the rank the officer's upload reported (omitted by older uploads, which keep the last one).
       ...(entry.guildRankName !== undefined ? { guildRankName: entry.guildRankName, guildRankAt: new Date() } : {})
     };
     await tx.unclaimedCharacter.upsert({
       where: { guildId_nameKey: { guildId, nameKey: key } },
-      create: { guildId, nameKey: key, professions: entry.professions as unknown as Prisma.InputJsonValue, ...data },
+      create: { guildId, nameKey: key, professions: professions as unknown as Prisma.InputJsonValue, ...data },
       update: data
     });
     if (acceptProfessions && entry.professionsComplete === true) {
-      const where = { guildId, character: entry.name, realm: entry.realm, profession: { notIn: entry.professions.map((profession) => profession.name) } };
+      const where = { guildId, character: entry.name, realm: entry.realm, profession: { notIn: professions.map((profession) => profession.name) } };
       await tx.recipeKnown.deleteMany({ where });
       await tx.professionCooldown.deleteMany({ where });
     }

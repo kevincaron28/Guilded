@@ -9,6 +9,7 @@ import { createGuildService } from "./guild.js";
 import { fullNameOf } from "./forever-names.js";
 import { localClassName, localRaceName } from "./character-display.js";
 import { professionName } from "./profession-style.js";
+import { canonicalProfessionText, mergeProfessionSkills } from "./profession-names.js";
 import { dayStart, participationDay } from "./participation-rules.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./discord-jobs.js";
 import { classColor, ladderMeta, scoreCardPng, type ScoreCard } from "./score-card.js";
@@ -224,7 +225,7 @@ export function hallCard(entry: HallRecord, lang: Lang, memberName: string | nul
   const fr = lang === "fr";
   const took = timeToSixty(entry);
   const color = classColor(entry.className);
-  const professions = (entry.professions ?? "").split(",").map(part => part.trim()).filter(Boolean).slice(0, 3).map(part => {
+  const professions = canonicalProfessionText(entry.professions).split(",").map(part => part.trim()).filter(Boolean).slice(0, 3).map(part => {
     const match = /^(.*?)\s+(\d+)$/.exec(part);
     return { name: professionName(match?.[1] ?? part, lang), color: "#f5e6c0", ...(match ? { right: match[2] } : {}) };
   });
@@ -255,7 +256,7 @@ export function hallEmbed(entry: HallRecord, lang: Lang, guildId = "", nameKey =
   const took = timeToSixty(entry);
   if (took !== null) lines.push(t(`${formatDuration(took, lang)} after launch (4 Nov 2026)`, `${formatDuration(took, lang)} après le lancement (4 nov. 2026)`));
   if (entry.reachedAt.getTime() > entry.firstSeenAt.getTime()) lines.push(t(`${days} day${days === 1 ? "" : "s"} after first being seen in the guild`, `${days} jour${days === 1 ? "" : "s"} après sa première apparition dans la guilde`));
-  if (entry.professions) lines.push(entry.professions);
+  if (entry.professions) lines.push(canonicalProfessionText(entry.professions).split(", ").map(part => { const match = /^(.*?)\s+(\d+)$/.exec(part); return match ? `${professionName(match[1] ?? part, lang)} ${match[2]}` : professionName(part, lang); }).join(", "));
   if (entry.memberDiscordId) lines.push(`<@${entry.memberDiscordId}>`);
   const embed = new EmbedBuilder().setColor(0xffd100).setTitle(t(`🏆 #${entry.order} to reach ${LEVEL_CAP}`, `🏆 N° ${entry.order} à atteindre le niveau ${LEVEL_CAP}`)).setDescription(lines.join("\n"))
     .setFooter({ text: `${HALL_MARKER} • ${guildId} • ${nameKey}`.slice(0, 2048) });
@@ -286,7 +287,8 @@ export function hallSummaryEmbed(entries: HallRecord[], lang: Lang, guildId = ""
 interface ProfessionJson { name?: unknown; skillLevel?: unknown }
 const professionText = (name: string, skill: number) => `${name} ${skill}`;
 const jsonProfessions = (value: unknown): string[] => Array.isArray(value)
-  ? (value as ProfessionJson[]).flatMap(item => typeof item?.name === "string" && typeof item.skillLevel === "number" ? [professionText(item.name, item.skillLevel)] : []) : [];
+  ? mergeProfessionSkills((value as ProfessionJson[]).flatMap(item => typeof item?.name === "string" && typeof item.skillLevel === "number" ? [{ name: item.name, skillLevel: item.skillLevel }] : []))
+    .map(item => professionText(item.name, item.skillLevel)) : [];
 
 /**
  * The best full name known for a character: a one-word Forever name whose display name is that first name plus a last name shows
@@ -355,7 +357,7 @@ export async function loadRaceBoardData(db: Pick<PrismaClient, "character" | "un
   for (const row of linked) {
     const key = String(characterKey(row.name, row.realm, edition));
     if (row.level) chars.set(key, { key, name: bestName(row.name, row.displayName, unclaimedFull.get(key) ?? null), className: row.className, race: row.race, level: row.level, memberId: row.memberId, discordId: row.member?.discordUserId ?? null,
-      professions: (row.professions ?? []).map(skill => professionText(skill.profession, skill.skillLevel)), lastSeenAt: row.lastSeenAt });
+      professions: mergeProfessionSkills((row.professions ?? []).map(skill => ({ name: skill.profession, skillLevel: skill.skillLevel }))).map(skill => professionText(skill.name, skill.skillLevel)), lastSeenAt: row.lastSeenAt });
   }
   const stored = new Map((await db.levelRaceEntry.findMany({ where: { guildId } })).map(entry => [entry.nameKey, entry]));
   const rows: RaceRow[] = [];

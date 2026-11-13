@@ -4,6 +4,7 @@ import type { Lang } from "../i18n.js";
 import { byLastSeen, lastSeenOf, lastSeenText } from "./last-seen.js";
 import { crafterLine, professionLegend, professionTitle, seenDot } from "./profession-style.js";
 import { professionDetailsRow } from "./profession-details.js";
+import { normalizeProfessionName, professionSlug } from "./profession-names.js";
 import { displayCharacterName, emptyNameBook, loadFullNameBook, type FullNameBook } from "./character-display.js";
 import { nullItemDataProvider, type ItemDataProvider } from "./item-preview-data.js";
 
@@ -44,6 +45,8 @@ export interface ProfessionPost {
 
 type Db = Pick<PrismaClient, "professionSkill" | "recipeKnown">;
 const key = (value: string) => value.trim().toLowerCase();
+// Professions are grouped by their canonical name: French "Cuisine" and English "Cooking" rows are one post.
+const pkey = (value: string) => professionSlug(value);
 
 /** Everything the profession posts and the gallery show, grouped by profession (spelling variants merged). */
 export async function loadProfessionPosts(db: Db, guildId: string, names: FullNameBook = emptyNameBook): Promise<ProfessionPost[]> {
@@ -56,19 +59,26 @@ export async function loadProfessionPosts(db: Db, guildId: string, names: FullNa
   const lastSeenFor = (name: string, scannedAt: Date) => lastSeenOf(seenByName.get(key(name)), scannedAt);
   const posts = new Map<string, ProfessionPost>();
   const post = (profession: string) => {
-    const existing = posts.get(key(profession));
+    const existing = posts.get(pkey(profession));
     if (existing) return existing;
-    const created: ProfessionPost = { profession: profession.trim(), skilled: [], recipes: [] };
-    posts.set(key(profession), created);
+    const created: ProfessionPost = { profession: normalizeProfessionName(profession), skilled: [], recipes: [] };
+    posts.set(pkey(profession), created);
     return created;
   };
   const newestScan = new Map<string, Date>();
   for (const row of recipes) { const current = newestScan.get(key(row.character)); if (!current || row.scannedAt > current) newestScan.set(key(row.character), row.scannedAt); }
-  for (const row of skills) post(row.profession).skilled.push({ character: shown(row.character.name), skillLevel: row.skillLevel, lastSeen: lastSeenOf(row.character.lastSeenAt, newestScan.get(key(row.character.name))) });
+  for (const row of skills) {
+    const entry = post(row.profession);
+    const character = shown(row.character.name);
+    // One character with the profession stored under two spellings is listed once, at the higher skill.
+    const twin = entry.skilled.find(skilled => skilled.character === character);
+    if (twin) { twin.skillLevel = Math.max(twin.skillLevel, row.skillLevel); continue; }
+    entry.skilled.push({ character, skillLevel: row.skillLevel, lastSeen: lastSeenOf(row.character.lastSeenAt, newestScan.get(key(row.character.name))) });
+  }
   const byItem = new Map<string, ProfessionRecipe>();
   for (const row of recipes) {
     const target = post(row.profession);
-    const id = `${key(row.profession)}|${row.itemKey}`;
+    const id = `${pkey(row.profession)}|${row.itemKey}`;
     let recipe = byItem.get(id);
     if (!recipe) { recipe = { itemKey: row.itemKey, itemName: row.itemName, crafters: [] }; byItem.set(id, recipe); target.recipes.push(recipe); }
     // One entry per shown name: several scans or name keys of the same character (first name vs full name)
@@ -142,7 +152,7 @@ async function existingPosts(forum: ForumChannel): Promise<Map<string, ThreadCha
   const archived = await forum.threads.fetchArchived({ limit: 100 }).catch(() => null);
   const found = new Map<string, ThreadChannel>();
   for (const thread of new Map([...(archived?.threads ?? []), ...active.threads]).values()) {
-    if (thread.name.startsWith(THREAD_PREFIX)) found.set(key(thread.name.slice(THREAD_PREFIX.length)), thread);
+    if (thread.name.startsWith(THREAD_PREFIX)) found.set(pkey(thread.name.slice(THREAD_PREFIX.length)), thread);
   }
   return found;
 }
@@ -170,7 +180,7 @@ export async function updateProfessionPosts(discordGuild: DiscordGuild, forum: F
       if (!post.skilled.length && !post.recipes.length) continue;
       const details = professionDetailsRow(post, lang);
       const payload = { embeds: [professionPostEmbed(post, lang, guildId, now, siteUrl)], components: details ? [details] : [], allowedMentions: { parse: [] as never[] } };
-      const thread = existing.get(key(post.profession));
+      const thread = existing.get(pkey(post.profession));
       if (thread) {
         const starter = await thread.fetchStarterMessage().catch(() => null);
         if (!starter?.editable) continue;

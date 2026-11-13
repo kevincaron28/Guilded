@@ -6,6 +6,10 @@
 # thrash the running bot, so the update stops first. Tunable here; a version-only bump never needs them.
 MIN_AVAILABLE_KB=393216        # 384 MB MemAvailable
 MIN_AVAILABLE_PLUS_SWAP_KB=786432  # 768 MB MemAvailable + SwapFree
+# The incremental path (npm install on a copy of the live node_modules) peaked far lower than a fresh npm ci,
+# which is OOM-killed inside the 450 MB scope. It is capped by that scope anyway, so this is only a sanity floor
+# (256 MB MemAvailable) against starting while the box is already short, not a model of the install's needs.
+MIN_INCREMENTAL_AVAILABLE_KB=262144
 MEMINFO_FILE="${MEMINFO_FILE:-/proc/meminfo}"
 
 # The heavy preparation steps (npm ci, prisma generate, the bundle build) run in a systemd scope with a
@@ -37,10 +41,17 @@ run_heavy() {
 }
 
 prepare_application() {
-  local source="$1" app="$2" owner="$3" reuse=0
+  local source="$1" app="$2" owner="$3" mode=full
   [ -d "$source" ] && [ -d "$app" ] && [ ! -L "$app" ] || return 1
-  # Decide before anything is created: a fresh npm ci needs memory headroom, or the update stops here.
-  if can_reuse_dependencies "$source" "$app"; then reuse=1; else memory_ok_for_install || return 1; fi
+  # Decide before anything is created. Same dependencies: reuse. Changed dependencies and a live node_modules:
+  # update a copy of it (needs little memory). Otherwise a full npm ci, which needs memory headroom or the update stops here.
+  if can_reuse_dependencies "$source" "$app"; then
+    mode=reuse
+  elif [ -d "$app/node_modules" ] && [ ! -L "$app/node_modules" ] && incremental_memory_ok; then
+    mode=incremental
+  else
+    memory_ok_for_install || return 1
+  fi
   decide_heavy_cap
   STAGED_APP="$(mktemp -d "${app}.stage.XXXXXXXX")" || return 1
   chmod 700 "$STAGED_APP"
@@ -55,19 +66,57 @@ prepare_application() {
   # Arguments, not interpolated shell text: paths may contain spaces.
   # The live bot still serves Discord's short interaction deadline while staging.
   # Prefer its CPU work over npm extraction/Prisma generation on the small VM.
-  if [ "$reuse" = 1 ]; then
+  if [ "$mode" = incremental ]; then
+    echo "Updating changed dependencies on a copy of the live ones."
+    if ! install_dependencies_incrementally "$source" "$app" "$owner"; then
+      echo "The incremental update did not verify; falling back to a full install."
+      rm -rf -- "$STAGED_APP/node_modules" || return 1
+      memory_ok_for_install || return 1
+      mode=full
+    fi
+  fi
+  if [ "$mode" = reuse ]; then
     # Same dependencies as the running application (a version-only bump still counts): copy its node_modules
     # rather than running npm ci, the step that drove the 1 GB server into swap. A real copy, not links, so
     # nothing written in staging can reach the live tree. Prisma's client is regenerated; npm ci would have done that too.
     cp -a "$app/node_modules" "$STAGED_APP/node_modules" || return 1
     chown -R "$owner:$owner" "$STAGED_APP/node_modules" || return 1
     run_heavy sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && NODE_OPTIONS=--max-old-space-size=512 ./node_modules/.bin/prisma generate' _ "$STAGED_APP" || return 1
-  else
-    # A genuine dependency change: prefer the npm cache and cap the heap so npm cannot push the box into swap.
+  elif [ "$mode" = full ]; then
+    # No usable live tree: prefer the npm cache and cap the heap so npm cannot push the box into swap.
+    echo "Installing all dependencies with a full npm ci."
     run_heavy sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && NODE_OPTIONS=--max-old-space-size=512 npm ci --prefer-offline --no-audit --no-fund' _ "$STAGED_APP" || return 1
   fi
   # The bundle build gets a heap cap so it cannot take the memory the running bot needs.
   run_heavy sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && NODE_OPTIONS=--max-old-space-size=384 npm run companion:build' _ "$STAGED_APP"
+}
+
+# Sanity floor for the incremental path only (see MIN_INCREMENTAL_AVAILABLE_KB). Silent; on failure the caller
+# tries the full-install gate, which prints the reason and stops the update if memory is short.
+incremental_memory_ok() {
+  local available
+  available="$(awk '/^MemAvailable:/{print $2}' "$MEMINFO_FILE" 2>/dev/null || true)"
+  case "$available" in ''|*[!0-9]*) return 1 ;; esac
+  [ "$available" -ge "$MIN_INCREMENTAL_AVAILABLE_KB" ]
+}
+
+# Changed dependencies: copy the live node_modules into staging and let npm install bring it to the new
+# lockfile. A fresh npm ci is OOM-killed inside the 450 MB scope; this measured 32 s under the same cap.
+# Lifecycle scripts stay on, so the root postinstall ("prisma generate") produces the Prisma client here, once.
+# npm install against a lockfile prunes packages the lockfile no longer lists (extraneous), and npm ls then
+# confirms the tree matches. Both are checked below rather than assumed. Returns 1 on any failure; the caller
+# removes the staged node_modules and falls back to npm ci. Nothing here touches the live tree.
+install_dependencies_incrementally() {
+  local source="$1" app="$2" owner="$3"
+  cp -a "$app/node_modules" "$STAGED_APP/node_modules" || return 1
+  chown -R "$owner:$owner" "$STAGED_APP/node_modules" || return 1
+  run_heavy sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && NODE_OPTIONS=--max-old-space-size=384 npm install --prefer-offline --no-audit --no-fund' _ "$STAGED_APP" || return 1
+  # (1) npm must not have rewritten the lockfile: the tree has to match exactly what was reviewed and committed.
+  cmp -s "$source/package-lock.json" "$STAGED_APP/package-lock.json" || { echo "npm install changed package-lock.json."; return 1; }
+  # (2) Nothing missing, invalid or extraneous against the lockfile (npm ls exits non-zero on all three).
+  run_heavy sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && NODE_OPTIONS=--max-old-space-size=384 npm ls --all >/dev/null' _ "$STAGED_APP" || { echo "npm ls found a problem in the updated tree."; return 1; }
+  # (3) The Prisma client the build and the bot import must exist (written by the postinstall).
+  [ -f "$STAGED_APP/src/generated/prisma/client.ts" ] || { echo "The Prisma client was not generated."; return 1; }
 }
 
 # Prints a hash of the dependency content of a source tree: the dependency fields of package.json and the

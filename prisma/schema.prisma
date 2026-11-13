@@ -1001,6 +1001,8 @@ model GuildSettings {
   duelBoardEnabled         Boolean @default(true)
   // 9.3: one Discord card per counted duel in the duel channel (separate from the board); officers turn it off with /battleground duel-cards.
   duelCardsEnabled         Boolean @default(true)
+  // 9.3: podium card when an official dungeon season ends and a card when one begins (dungeon leaderboard channel); /bg season-cards.
+  seasonCardsEnabled       Boolean @default(true)
   unifiedGroupFinder Boolean @default(true)
   duelBoardMessageId       String?
   // 8.5 track B: the duel ladder has its own channel (duel-ladder); the battleground ladder stays in bgStatsChannelId.

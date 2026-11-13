@@ -188,6 +188,8 @@ describe("what counts as set up", () => {
 describe("the installer closes the old companion before replacing files", () => {
   const nsis = readFileSync("companion-app/installer.nsh", "utf8");
   const check = nsis.slice(nsis.indexOf("!macro customCheckAppRunning"));
+  // The closer only (the store replacement and uninstall parts below and above have their own commands).
+  const closer = nsis.slice(nsis.indexOf("; Before any file is replaced"), nsis.indexOf("; Replace a Microsoft Store"));
 
   it("asks a running companion to quit with a request file, never by starting it a second time", () => {
     // Starting the exe again made an older companion flash its window.
@@ -195,20 +197,54 @@ describe("the installer closes the old companion before replacing files", () => 
     expect(check).toMatch(/FileOpen \$R3 "\$APPDATA\\\$\{PRODUCT_NAME\}\\quit-for-update" w/);
     // Only while a companion runs: the request is written after the first find.
     expect(check.indexOf("!insertmacro GUILDED_FIND")).toBeLessThan(check.indexOf("quit-for-update"));
-    // And removed afterwards, also when the install is cancelled.
-    expect(check.match(/Delete "\$APPDATA\\\$\{PRODUCT_NAME\}\\quit-for-update"/g)).toHaveLength(2);
+    // And removed afterwards, also when the install is cancelled or a silent run stops.
+    expect(check.match(/Delete "\$APPDATA\\\$\{PRODUCT_NAME\}\\quit-for-update"/g)).toHaveLength(3);
   });
 
-  it("closes what is left by itself for about 30 s before asking, and a silent update cancels", () => {
-    // 15 s for a clean quit, then a kill every half second, 60 times, before the message box.
-    expect(check).toMatch(/\$\{andIf\} \$R1 < 30[\s\S]*Sleep 500[\s\S]*Goto guilded_wait_graceful/);
-    expect(check).toMatch(/\$\{if\} \$R1 > 60[\s\S]*MessageBox MB_RETRYCANCEL\|MB_ICONEXCLAMATION "\$\(appCannotBeClosed\)" \/SD IDCANCEL IDRETRY guilded_retry/);
-    expect(check).toMatch(/!insertmacro GUILDED_KILL\s+Sleep 500\s+Goto guilded_kill/);
-    // Found and closed by name and Windows session, not by matching the user name; tasklist is the fallback.
-    expect(nsis).toContain("Where-Object { $$_.SessionId -eq $$s }");
-    expect(nsis).toContain("Stop-Process -Force");
-    expect(nsis).not.toContain("USERNAME eq");
-    expect(nsis).toMatch(/\$\{if\} \$R0 != 0\s+\$\{andIf\} \$R0 != 3[\s\S]*GUILDED_TASKLIST/);
+  it("ends the companion by exe name only: no process tree, never the installer", () => {
+    // The companion's own update starts this installer as a child of the app: a tree kill would end it too.
+    expect(closer).not.toMatch(/taskkill[^\n]*\/T/);
+    expect(closer).toContain('taskkill /F /IM "${APP_EXECUTABLE_FILENAME}"');
+    // The path-based close skips its own PowerShell and its parent (the installer), by process id.
+    expect(closer).toContain("$$_.ProcessId -ne $$PID -and $$_.ProcessId -ne $$me");
+    expect(closer).toContain("ParentProcessId");
+    expect(closer).toContain("Stop-Process -Id $$_.ProcessId -Force");
+    expect(check).not.toMatch(/RMDir[^\n]*APPDATA/);
+  });
+
+  it("matches by path with a trailing backslash, never on an empty folder, and quote-safe", () => {
+    // "...\Guilded Companion" must not match "...\Guilded Companion Beta".
+    expect(closer).toContain("$$d.TrimEnd('\\') + '\\'");
+    expect(closer).toContain("StartsWith($$d, [System.StringComparison]::OrdinalIgnoreCase)");
+    // An empty folder matches nothing.
+    expect(closer).toContain("if ($$d) {");
+    expect(check).toMatch(/\$\{if\} \$INSTDIR != ""\s+System::Call 'kernel32::SetEnvironmentVariable\(t "GUILDED_INSTDIR", t "\$INSTDIR"\)/);
+    // The folder reaches PowerShell through the environment, never inside the command text (a name like O'Brien).
+    expect(closer).toContain("$$env:GUILDED_INSTDIR");
+    expect(closer).not.toContain("StartsWith('$INSTDIR'");
+  });
+
+  it("is bounded by the clock and never hangs, and a silent run stops with exit code 2 instead of half-replacing", () => {
+    // 6 s for a clean quit, 25 s of closing in all, one path-based round after 10 s.
+    expect(check).toMatch(/\$\{if\} \$R6 < 6000\s+Sleep 500\s+Goto guilded_wait_graceful/);
+    expect(check).toMatch(/\$\{if\} \$R6 > 10000\s+\$\{andIf\} \$R9 == "no"[\s\S]*GUILDED_PATHKILL/);
+    expect(check).toMatch(/\$\{if\} \$R6 < 25000\s+Sleep 500\s+Goto guilded_kill/);
+    // Every external command has a time limit.
+    expect(nsis.match(/nsExec::ExecToStack \/TIMEOUT=\d+/g)).toHaveLength(3);
+    expect(closer).not.toMatch(/nsExec::Exec `/);
+    // Still locked: a silent run exits with code 2 (the old install stays), otherwise the member decides.
+    expect(check).toMatch(/\$\{if\} \$\{Silent\}\s+Delete "[^\n]*quit-for-update"\s+SetErrorLevel 2\s+Quit\s+\$\{endIf\}\s+MessageBox MB_RETRYCANCEL\|MB_ICONEXCLAMATION "\$\(appCannotBeClosed\)" \/SD IDCANCEL IDRETRY guilded_close_round/);
+    // The test for "closed" is the exe: it cannot be opened for writing while it runs.
+    expect(closer).toContain('FileOpen $R3 "$INSTDIR\\${APP_EXECUTABLE_FILENAME}" a');
+  });
+
+  it("logs what it did in one place, without paths or user names", () => {
+    expect(nsis).toContain("guilded-companion-installer.log");
+    expect(nsis).not.toMatch(/USERNAME|\$\{USERNAME\}|whoami/);
+    // The log is rewritten on every run, so it stays small.
+    expect(check).toMatch(/FileOpen \$R4 "\$TEMP\\guilded-companion-installer\.log" w/);
+    // The "running" lines come from tasklist (image name and ids only).
+    expect(nsis).toContain("tasklist /FI");
   });
 
   it("is the companion's answer: save and quit on the request file or a second launch, never start one", () => {

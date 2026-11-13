@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createLeaderboardPages, filterGuildOverview, GUILD_COUNT, guildDungeonSummary, guildOverview, pageNumbers, rankCharacters, rankGuilds, readGuildOverviewFilters, readLeaderFilters, type GuildStats, type LeaderboardStore, type LeaderRun } from "../src/services/public-leaderboard.js";
+import { guildPageStats, guildSlugs, unrankedReason } from "../src/services/guild-public-stats.js";
+import { characterKey } from "../companion/character-identity.mjs";
+import { publicRules } from "../src/services/public-score.js";
 import { exchangePersonalCode, isPersonalCode, issuePersonalCode, personalAccess, type PersonalStore } from "../src/services/personal-pairing.js";
 import { createWebApp, type WebRequest, type WebResponse } from "../src/services/web-app.js";
 import { memoryWebStore } from "./helpers/memory-web-store.js";
@@ -271,18 +274,46 @@ describe("leaderboard and personal pages", () => {
     const guilds = await request("GET", "/leaderboards/guilds/?lang=fr");
     expect(guilds.status).toBe(200);
     expect(guilds.body).toContain("Classement des guildes");
-    expect(guilds.body).toMatch(/<td><span class="medal m1" aria-label="#1">1<\/span><\/td><td(?: class="wrap")?><a href="\/forever\/leaderboards\/guild\/g1\?lang=fr">Quebec Gold<\/a>/);
+    expect(guilds.body).toMatch(/<td><span class="medal m1" aria-label="#1">1<\/span><\/td><td(?: class="wrap")?><a href="\/forever\/leaderboards\/guild\/quebec-gold\?lang=fr">Quebec Gold<\/a>/);
     expect(guilds.body).toContain('href="/g/quebec-gold/"');
     expect(guilds.body).toContain('class="crumbs"');
-    const season = await request("GET", "/leaderboards/guild/g1/");
+    const season = await request("GET", "/leaderboards/guild/quebec-gold/");
     expect(season.body).toContain("#1 / 1");
     expect(season.body).toContain("Guild page →");
     expect(season.body).not.toContain("<b>Bad</b>");
-    const guild = await request("GET", "/leaderboards/guild/g1?period=week");
+    const guild = await request("GET", "/leaderboards/guild/quebec-gold?period=week");
     expect(guild.status).toBe(200);
     expect(guild.body).toContain("Quebec Gold");
     expect(guild.body).toContain(">Kev<");
     expect((await request("GET", "/leaderboards/guild/nope")).status).toBe(404);
+  });
+
+  it("gives a guild a readable address, redirects the old id and tags its members on player rows", async () => {
+    const { request } = setup();
+    const old = await request("GET", "/leaderboards/guild/g1?lang=fr");
+    expect(old.status).toBe(302);
+    expect(old.headers["location"]).toContain("/leaderboards/guild/quebec-gold");
+    const page = await request("GET", "/leaderboards/guild/quebec-gold?lang=fr");
+    expect(page.body).toContain("Joueurs classés");
+    expect(page.body).toContain("Meilleur joueur par rôle");
+    expect(page.body).toContain("Ragefire Chasm");
+    expect(page.body).toContain(">Record<");
+    const rows = await request("GET", "/leaderboards/characters/?bracket=15-29");
+    expect(rows.body).toContain('class="tag guild-tag">&lt;<a href="/forever/leaderboards/guild/quebec-gold');
+    expect(rows.body).not.toContain("guild/g1");
+  });
+
+  it("serves guild JSON with the rank, dungeons and no ids", async () => {
+    const { request } = setup();
+    const one = JSON.parse((await request("GET", "/leaderboards/guild/quebec-gold.json")).body) as { name: string; rankedPlayers: number; ranks: { rank: number; of: number }[]; dungeons: { instanceId: number; clears: number }[]; unranked: string | null };
+    expect(one.name).toBe("Quebec Gold");
+    expect(one.rankedPlayers).toBe(2);
+    expect(one.ranks[0]).toMatchObject({ rank: 1, of: 1 });
+    expect(one.dungeons).toEqual([expect.objectContaining({ instanceId: 389, clears: 2 })]);
+    expect(one.unranked).toBeNull();
+    const all = JSON.parse((await request("GET", "/leaderboards/guilds.json")).body) as { guilds: { slug: string; path: string }[] };
+    expect(all.guilds[0]).toMatchObject({ slug: "quebec-gold", path: "/leaderboards/guild/quebec-gold" });
+    expect((await request("GET", "/leaderboards/guild/nope.json")).status).toBe(404);
   });
 
   it("shows the guild table, character rankings with medals and a run page with its party", async () => {
@@ -337,5 +368,27 @@ describe("leaderboard and personal pages", () => {
     expect((await request("GET", "/me/", { cookie })).body).toContain("A companion is connected");
     expect((await request("POST", "/me/pair/revoke", form, `csrf=${encodeURIComponent(csrf)}`)).status).toBe(303);
     expect(personal.credentials.every((row) => row.revoked)).toBe(true);
+  });
+});
+
+describe("guild page stats", () => {
+  const french = (id: string, sec: number, name: string) => leaderRun(id, sec, [player("Kev", "Warrior", "TANK"), player("Amy", "Priest", "HEALER")], { instanceId: 48, dungeonName: name });
+  it("groups dungeons by instance id, never by name, and flags records", () => {
+    const runs = [french("a", 1500, "Profondeurs de Brassenoire"), french("b", 1400, "Blackfathom Deeps"), french("c", 1600, "Profondeurs de Brassenoire")];
+    const stats = guildPageStats(runs, ["kev-doomhowl", "amy-doomhowl"].map((n) => characterKey(n.split("-")[0]!, "Doomhowl", "forever")), publicRules(), runs);
+    expect(stats.dungeons).toHaveLength(1);
+    expect(stats.dungeons[0]).toMatchObject({ instanceId: 48, runs: 3, bestSec: 1400, bestRunId: "b", name: "Profondeurs de Brassenoire", record: true });
+    expect(stats.runs).toBe(3);
+  });
+  it("names the reason a guild has no rank", () => {
+    const empty = guildPageStats([], [], publicRules(), []);
+    expect(unrankedReason([], empty)).toBe("no-runs");
+    const runs = [french("a", 1500, "X")];
+    const strangers = guildPageStats(runs, [], publicRules(), runs);
+    expect(unrankedReason(runs, strangers)).toBe("no-member-in-runs");
+  });
+  it("gives guilds with the same name distinct stable slugs", () => {
+    const slugs = guildSlugs([{ id: "b", name: "⚜Quebec Gold⚜" }, { id: "a", name: "Quebec Gold" }, { id: "c", name: "Équipe d'été" }]);
+    expect([...slugs.entries()]).toEqual(expect.arrayContaining([["a", "quebec-gold"], ["b", "quebec-gold-2"], ["c", "equipe-d-ete"]]));
   });
 });

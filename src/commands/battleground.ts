@@ -70,6 +70,8 @@ export const battlegroundCommand = new SlashCommandBuilder().setName("bg").setDe
     .addBooleanOption(o => o.setName("enabled").setDescription("Turn the live board on or off").setDescriptionLocalizations({ fr: "Activer ou désactiver le tableau" }).setRequired(true)))
   .addSubcommand(s => s.setName("duel-cards").setDescription("Officers: a card in the duel channel for each counted duel (on by default)").setDescriptionLocalizations({ fr: "Officiers : une carte dans le salon des duels pour chaque duel compté (activé par défaut)" })
     .addBooleanOption(o => o.setName("enabled").setDescription("Turn the duel cards on or off").setDescriptionLocalizations({ fr: "Activer ou désactiver les cartes" }).setRequired(true)))
+  .addSubcommand(s => s.setName("season-cards").setDescription("Officers: season start and end cards (on by default)").setDescriptionLocalizations({ fr: "Officiers : cartes de début et fin de saison (activé par défaut)" })
+    .addBooleanOption(o => o.setName("enabled").setDescription("Turn the season cards on or off").setDescriptionLocalizations({ fr: "Activer ou désactiver les cartes" }).setRequired(true)))
   .addSubcommand(s => s.setName("bg-ladder").setDescription("Officers: the battleground ladder message in the ladder channel (on by default)").setDescriptionLocalizations({ fr: "Officiers : classement des champs de bataille dans le salon du classement (activé par défaut)" })
     .addBooleanOption(o => o.setName("enabled").setDescription("Turn the battleground ladder on or off").setDescriptionLocalizations({ fr: "Activer ou désactiver le classement" }).setRequired(true)))
   .addSubcommand(s => s.setName("world-pvp").setDescription("Officers: world PvP (kills, defends) on the ladder message (on by default)").setDescriptionLocalizations({ fr: "Officiers : JcJ en monde ouvert sur le classement (activé par défaut)" })
@@ -117,7 +119,7 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
   const t = (en: string, french: string) => fr ? french : en;
   const sub = command?.options.getSubcommand() ?? input?.action ?? "";
   if (["create", "manage"].includes(sub) && !hasPermission(actor, "raidLeader")) throw new Error("Raid Leader required / Responsable de raid requis.");
-  if ((sub === "setup" || sub === "duel-board" || sub === "duel-cards" || sub === "pvp-module" || sub === "group-finder" || sub === "bg-ladder" || sub === "world-pvp") && !hasPermission(actor, "officer")) throw new Error("Officer required / Officier requis.");
+  if ((sub === "setup" || sub === "duel-board" || sub === "duel-cards" || sub === "season-cards" || sub === "pvp-module" || sub === "group-finder" || sub === "bg-ladder" || sub === "world-pvp") && !hasPermission(actor, "officer")) throw new Error("Officer required / Officier requis.");
   if (sub === "bg-ladder") {
     const enabled = command?.options.getBoolean("enabled", true) ?? false;
     await prisma.guildSettings.update({ where: { guildId: ctx.guildId }, data: { bgLadderEnabled: enabled } });
@@ -172,6 +174,13 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
     await i.editReply({ content: enabled
       ? t(`Live duel board ${posted ? "posted" : "saved; it appears on the next refresh"} in <#${settings.duelBoardChannelId}>. It is edited in place, never re-posted.`, `Tableau des duels ${posted ? "publié" : "enregistré; il apparaîtra au prochain rafraîchissement"} dans <#${settings.duelBoardChannelId}>. Il est modifié sur place, jamais republié.`)
       : t("Live duel board off. The existing message stays; delete it if you wish.", "Tableau des duels désactivé. Le message existant reste; supprimez-le si vous le souhaitez."), allowedMentions: { parse: [] } }); return;
+  }
+  if (sub === "season-cards") {
+    const enabled = command?.options.getBoolean("enabled", true) ?? false;
+    await prisma.guildSettings.update({ where: { guildId: ctx.guildId }, data: { seasonCardsEnabled: enabled } });
+    await i.editReply({ content: enabled
+      ? t("Season cards on (the default): a podium card when a dungeon season ends and a card when one begins, in the dungeon leaderboard channel. Nothing is awarded.", "Cartes de saison activées (par défaut) : une carte de podium à la fin d'une saison de donjons et une carte au début de la suivante, dans le salon du classement des donjons. Rien n'est attribué.")
+      : t("Season cards off. Cards already queued are not posted either.", "Cartes de saison désactivées. Les cartes déjà en file ne sont pas publiées non plus."), allowedMentions: { parse: [] } }); return;
   }
   if (sub === "duel-cards") {
     const enabled = command?.options.getBoolean("enabled", true) ?? false;

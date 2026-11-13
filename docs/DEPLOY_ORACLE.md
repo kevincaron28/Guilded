@@ -158,6 +158,22 @@ to that server were frozen for 7 and 8 November. The owner decides when the free
   scope capped at 450 MB of memory and 200 MB of swap, with low CPU and I/O weight. A step that
   exceeds the cap is killed and the deploy stops; the bot is untouched. If `systemd-run` cannot
   set the cap here, the steps run without it and the update says so.
+- **Gentler on the running bot (14 November 2026).** On 13 November a deploy that changed dependencies made the
+  bot's long polls take 43-60 s instead of 12-17 s and one upload hit a Prisma P2028. What changed:
+  the `node_modules` copy now runs inside the scope, as the app's owner (no recursive `chown`), so the page cache it
+  fills is charged to the scope and, under `MemoryHigh=360M` (copies only), reclaimed there instead of from the bot.
+  `npm install`, `npm ls`, `prisma generate` and the bundle build keep the limits they were measured under (450M,
+  200M swap); the scope adds `CPUQuota=50%` next to the weights. `ionice` (idle class for the copies, `-c2 -n7` for the
+  rest) is probed once and skipped where it cannot be set; on a disk with the `none` scheduler it does nothing.
+  If the box cannot set these properties the steps fall back to the memory limits alone, then to no scope.
+  The copy uses `cp --reflink=auto` (copy-on-write where the filesystem has it, a plain copy elsewhere, never hard
+  links: npm install rewrites files in place and must not reach the live tree). An unchanged `prisma/schema.prisma`
+  and `prisma.config.ts` copy the live generated client instead of running `prisma generate`; an unchanged
+  companion interface (hash of `companion/`, `companion-app/`, the shared `site/*.mjs`, the logo and the dependency
+  fingerprint, stored in `.companion-build-stamp`) copies the live bundle instead of running `companion:build` (the
+  first deploy after this change has no stamp and builds; a stamp that cannot be written only warns). A failed
+  copy of either falls back to generating or building. Every step prints `[prepare] <step>: <n>s`, plus
+  `[prepare] mode:` and `[prepare] total:`: read them in the next deploy output.
 - A version-only bump reuses the running `node_modules`. A real dependency change cannot use a
   fresh `npm ci` here: measured on 13 November 2026, it is OOM-killed inside the 450 MB cap every
   time (about 388 MB resident at the kill, even with a 300 MB heap, 3 sockets and no scripts).
@@ -191,3 +207,7 @@ emailed to the repository owner by GitHub. No secrets are needed for the email.
 3. If it is still down after 10 minutes, in the Oracle Cloud console open the instance and choose
    **Reboot**. Wait about 5 minutes, then check `/health` again.
 4. If it is still down after the reboot, contact the developer. Do not redeploy from the console.
+
+## Craft forum: one thread per profession (13 November 2026)
+
+A profession could have two threads in the craft forum, "📚 Cooking" and "📚 Cuisine". On every craft-board refresh the bot keeps one (the bot-made one, else an open one titled in the server language), renames it to the server language, and archives the other only when the bot made both, after posting a line that points to the kept thread. Nothing is deleted and a member-made thread is never touched. To preview first, set `PROFESSION_DUPLICATES_DRY_RUN=true`, restart, read the `Profession post duplicate ...` log lines, then unset it. No officer action is needed otherwise; a thread the bot cannot archive (missing Manage Threads) is left as it was and logged.

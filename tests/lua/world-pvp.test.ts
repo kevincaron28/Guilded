@@ -192,3 +192,78 @@ describe("world PvP weeks and the readout", () => {
     expect(s!.run(`return tostring(DB.worldPvp)`)).toBe("nil");
   });
 });
+
+describe("world PvP deaths: zone, K/D and what never counts", () => {
+  const die = () => s!.run(`CLOCK = CLOCK + 90; return tostring(NS.worldPvp.noteDeath())`);
+
+  it("keeps the zone and time of a death, never the killer", () => {
+    setup();
+    s!.run(`ATTACKED = true`);
+    expect(die()).toBe("true");
+    expect(s!.run(`local d = DB.worldPvp.deathsRecent[1]; return d.z .. "|" .. tostring(d.at) .. "|" .. tostring(d.n) .. "|" .. tostring(d.c)`)).toBe("Silverpine Forest|1800000000|nil|nil");
+    expect(s!.run(`return DB.worldPvp.zones["Silverpine Forest"]`)).toBe("1");
+  });
+
+  it("counts nothing for a creature, a fall or a duel (no confirmed enemy-player attack)", () => {
+    setup();
+    s!.run(`ATTACKED = false`);
+    expect(die()).toBe("false");
+    expect(stat("total", "deaths")).toBe("0");
+    expect(s!.run(`return tostring(DB.worldPvp.zones)`)).toBe("nil");
+  });
+
+  it("counts nothing in a battleground, arena, dungeon or raid", () => {
+    setup();
+    s!.run(`ATTACKED = true; INST = true`);
+    expect(die()).toBe("false");
+    expect(stat("total", "deaths")).toBe("0");
+    s!.run(`INST = false`);
+    expect(die()).toBe("true");
+  });
+
+  it("computes K/D and lists the deadliest zones, most first", () => {
+    setup();
+    s!.run(`ATTACKED = true`);
+    kill("A"); s!.run(`CLOCK = CLOCK + 10`); kill("B"); s!.run(`CLOCK = CLOCK + 10`); kill("C"); s!.run(`CLOCK = CLOCK + 10`); kill("D");
+    die();
+    s!.run(`ZONE = "Hillsbrad Foothills"`); die(); die();
+    expect(s!.run(`return NS.worldPvp.kd(select(2, NS.worldPvp.stats()))`)).toBe("1.3");
+    expect(s!.run(`local z = NS.worldPvp.deadliestZones(2); return z[1].zone .. z[1].deaths .. "|" .. z[2].zone .. z[2].deaths`)).toBe("Hillsbrad Foothills2|Silverpine Forest1");
+    s!.run(`NS.commandHandlers.worldpvp()`);
+    const out = s!.run(`return table.concat(MSGS, " | ")`);
+    expect(out).toContain("K/D: 1.3 this week, 1.3 in total.");
+    expect(out).toContain("Deadliest zones: Hillsbrad Foothills (2), Silverpine Forest (1).");
+  });
+
+  it("shows kills as K/D with no deaths and prints no extra lines", () => {
+    setup();
+    kill("A");
+    expect(s!.run(`return NS.worldPvp.kd(select(2, NS.worldPvp.stats()))`)).toBe("1.0");
+    expect(s!.run(`return #NS.worldPvp.details()`)).toBe("0");
+  });
+
+  it("keeps at most 25 zones, dropping the least deadly", () => {
+    setup();
+    s!.run(`ATTACKED = true`);
+    for (let i = 1; i <= 30; i++) { s!.run(`ZONE = "Zone ${i}"`); die(); }
+    expect(s!.run(`local n = 0; for _ in pairs(DB.worldPvp.zones) do n = n + 1 end; return n`)).toBe("25");
+    expect(s!.run(`return #DB.worldPvp.deathsRecent <= 30 and "ok" or "many"`)).toBe("ok");
+  });
+
+  it("loads saved data from before deaths had zones", () => {
+    setup();
+    s!.run(`DB.worldPvp = { total = { kills = 5, deaths = 2, defends = 0, calls = 0, answered = 0, responded = 0 }, week = { kills = 1, deaths = 1, defends = 0, calls = 0, answered = 0, responded = 0 }, weekKey = NS.worldPvp.weekKey(), recent = {} }`);
+    expect(s!.run(`return NS.worldPvp.kd(select(2, NS.worldPvp.stats()))`)).toBe("2.5");
+    expect(s!.run(`return #NS.worldPvp.deadliestZones()`)).toBe("0");
+    s!.run(`ATTACKED = true`);
+    expect(die()).toBe("true");
+    expect(stat("total", "deaths")).toBe("3");
+    expect(s!.run(`return NS.worldPvp.details()[2]`)).toContain("Silverpine Forest (1)");
+  });
+
+  it("translates the two new lines", () => {
+    setup();
+    s!.run(`NS.getSettings = function() return { language = "fr" } end`);
+    expect(s!.run(`return NS.L("K/D: %s this week, %s in total.")`)).toContain("cette semaine");
+  });
+});

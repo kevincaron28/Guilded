@@ -583,7 +583,7 @@ export function exportGuildMap(database) {
 }
 
 // World PvP counters (addon Modules/WorldPvP.lua, db.worldPvp): this week's kills, defends and calls answered, and the last
-// 30 kills (victim and time only, for the repeat-victim cap). Deaths stay on the player's PC. The bot caps and checks them
+// 30 kills (victim and time only, for the repeat-victim cap), and this week's death count (never who killed: no enemy name, class or zone list leaves the PC). The bot caps and checks them
 // (src/services/world-pvp.ts).
 export function exportWorldPvp(database) {
   const state = database?.worldPvp;
@@ -597,8 +597,8 @@ export function exportWorldPvp(database) {
   // the last two weeks and keeps the larger number.
   const block = (weekKey, week) => {
     if (!week || typeof week !== "object" || !Number.isInteger(weekKey) || weekKey < 0) return [];
-    const kills = count(week.kills), defends = count(week.defends), responded = count(week.responded);
-    return kills || defends || responded ? [{ weekKey, kills, defends, responded, recent }] : [];
+    const kills = count(week.kills), defends = count(week.defends), responded = count(week.responded), deaths = count(week.deaths);
+    return kills || defends || responded || deaths ? [{ weekKey, kills, defends, responded, deaths, recent }] : [];
   };
   const blocks = [...block(state.weekKey, state.week), ...block(state.prev?.weekKey, state.prev?.week)];
   return blocks.length ? { worldPvp: blocks } : {};

@@ -1,3 +1,4 @@
+import { seasonCardChannel } from "./season-cards.js";
 import { siteUrl } from "../site-url.js";
 import { pilotGuildScope } from "../hosted-pilot.js";
 import { currentGuildScope, withGuildScope } from "./guild-scope.js";
@@ -158,6 +159,12 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
       const current = settings?.weeklyReportChannelId ?? settings?.notifyChannelId;
       if (!current) throw new Error("Configure WoW weekly reports first");
       channelId = current;
+    } else if (route === "seasonCard") {
+      // 9.3: only season-card jobs follow the season cards switch and the dungeon leaderboard channel, checked now.
+      const settings = await prisma.guildSettings.findUnique({ where: { guildId: job.guildId }, select: { seasonCardsEnabled: true, dungeonLeaderboardChannelId: true } });
+      const current = seasonCardChannel(job.key, settings);
+      if (!current) return;
+      channelId = current;
     } else if (route === "duelCard") {
       // 9.3: re-checked at delivery, so a card queued before an officer turned the cards off, or moved the duel channel, never posts to the old place.
       const settings = await prisma.guildSettings.findUnique({ where: { guildId: job.guildId }, select: { duelCardsEnabled: true, duelBoardChannelId: true } });
@@ -222,23 +229,35 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
     const card = cardDefinition ? await scoreCardPng(cardDefinition).catch(() => null) : null;
     // A post that asks for it (the duel cards) tries again later when the picture could not be drawn (the renderer was busy), before settling for the text.
     if (cardDefinition && !card && payload["retryCard"] === true && job.attempts < 3) throw Object.assign(new Error("Card renderer busy"), { code: "card-busy" });
-    const message = messageForDelivery(payload["message"] as MessageCreateOptions, payload["cardOnly"], Boolean(card));
-    const embeds = (message.embeds ?? []).map(embed => new EmbedBuilder("toJSON" in embed ? embed.toJSON() : embed));
-    if (!embeds.length) embeds.push(new EmbedBuilder().setDescription(message.content || "Guilded update"));
-    const last = embeds[embeds.length - 1]!;
-    // An embed without a title keeps its link invisible; with titles everywhere, an extra empty-looking embed would
-    // show, so the last one gets the link and its title simply links to the website.
-    const carrier = embeds.find(embed => !embed.data.title && !embed.data.url) ?? embeds.find(embed => !embed.data.url) ?? last;
-    if (!carrier.data.url) carrier.setURL(link);
     // Nobody is notified, except the users a job names explicitly (the hall of fame's opt-in MVP ping).
     const users = Array.isArray(payload["mentionUsers"]) ? payload["mentionUsers"].filter((id): id is string => typeof id === "string" && /^\d{17,20}$/.test(id)).slice(0, 10) : [];
-    // The picture sits in the first embed that has no text of its own (so a card can head a post with text embeds under it), else the last one.
-    if (card) (embeds.find(embed => !embed.data.title && !embed.data.description && !embed.data.fields?.length) ?? last).setImage("attachment://card.png");
-    await channel.send({ ...message, embeds, ...(card ? { files: [new AttachmentBuilder(card, { name: "card.png" }).setDescription(cardAltText(cardDefinition!))] } : {}), allowedMentions: { parse: [], users }, nonce: job.id.slice(-25), enforceNonce: true });
+    // The post as it goes out with the picture (the reduced card-only message) or, when the picture is refused, as the full text post.
+    const compose = (withPicture: boolean): MessageCreateOptions => {
+      const message = messageForDelivery(payload["message"] as MessageCreateOptions, payload["cardOnly"], withPicture);
+      const embeds = (message.embeds ?? []).map(embed => new EmbedBuilder("toJSON" in embed ? embed.toJSON() : embed));
+      if (!embeds.length) embeds.push(new EmbedBuilder().setDescription(message.content || "Guilded update"));
+      const last = embeds[embeds.length - 1]!;
+      // An embed without a title keeps its link invisible; with titles everywhere, an extra empty-looking embed would
+      // show, so the last one gets the link and its title simply links to the website.
+      const carrier = embeds.find(embed => !embed.data.title && !embed.data.url) ?? embeds.find(embed => !embed.data.url) ?? last;
+      if (!carrier.data.url) carrier.setURL(link);
+      // The picture sits in the first embed that has no text of its own (so a card can head a post with text embeds under it), else the last one.
+      if (withPicture) (embeds.find(embed => !embed.data.title && !embed.data.description && !embed.data.fields?.length) ?? last).setImage("attachment://card.png");
+      return { ...message, embeds, ...(withPicture ? { files: [new AttachmentBuilder(card!, { name: "card.png" }).setDescription(cardAltText(cardDefinition!))] } : {}), allowedMentions: { parse: [], users }, nonce: job.id.slice(-25), enforceNonce: true };
+    };
+    await sendWithPictureFallback(options => channel.send(options), compose(Boolean(card)), card ? () => compose(false) : null);
   } else if (job.kind === "INVITE_CLEANUP") {
     const { runInviteCleanupJob } = await import("./invite-cleanup.js");
     await runInviteCleanupJob(guild, prisma, job);
   } else throw new Error("Unknown job type");
+}
+
+/** A post carrying a picture is refused when the bot lacks Attach Files (50013) or the file is too large (40005). */
+const pictureRefused = (error: unknown) => { const code = (error as { code?: unknown } | null)?.code; return code === 50013 || code === 40005; };
+/** Sends the post with its picture; when Discord refuses the picture, the same post goes out once as text so a missing permission never loses it. */
+export async function sendWithPictureFallback(send: (options: MessageCreateOptions) => Promise<unknown>, withPicture: MessageCreateOptions, plain: (() => MessageCreateOptions) | null): Promise<void> {
+  try { await send(withPicture); }
+  catch (error) { if (!plain || !pictureRefused(error)) throw error; console.error("Card picture refused, posting the text instead", error); await send(plain()); }
 }
 
 /** Only the weekly report (key weekly-wow:) follows its switch; the daily recap shares the route and has its own. */

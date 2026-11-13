@@ -131,6 +131,11 @@ describe("daily recap", () => {
     const card = dailyRecapCard(sample, "fr", "Les Braves");
     expect(card.recap?.sections.map(section => section.title)).toEqual(["Course au 60 · niveaux", "Donjons · records", "JcJ"]);
     expect(card.stats).toHaveLength(4);
+    // 9.3: the day picks one of three approved paintings (dawn, day, night); the same day always picks the same one.
+    const keys = new Set(["2026-11-10", "2026-11-11", "2026-11-12", "2026-11-13"].map(day => dailyRecapCard({ ...sample, day }, "en", "G").backdrop?.key));
+    expect([...keys].every(key => ["dawn", "day", "night"].includes(key!))).toBe(true);
+    expect(card.backdrop?.kind).toBe("recap");
+    expect(dailyRecapCard(sample, "en", "G").backdrop).toEqual(card.backdrop);
     const png = await scoreCardPng(card);
     expect(png?.subarray(1, 4).toString()).toBe("PNG");
     const text = dailyRecapEmbed(sample, "en").data.description!;

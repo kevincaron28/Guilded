@@ -66,6 +66,8 @@ prints this week and the total. Nothing is sent anywhere. Tests: `tests/lua/worl
 
 ## Open questions for the owner
 
-- Should deaths appear on the public board? Suggest no (only kills, defends, calls answered), since a
-  death count mostly shames the member.
+- Deaths on the board: decided yes on 13 November 2026 (owner request). The addon keeps zone and time of each death (never the
+  killer's name or class), the bot stores `WorldPvpWeek.deaths` (capped at 500 a week, only goes up) and shows deaths and K/D beside
+  kills on the board and in the Tuesday recap (one guild-total line). Deaths never raise a rank: the order stays kills, defends,
+  calls answered, then fewer deaths, then name, and a member with only deaths is left off. An addon older than 9.3 sends no deaths (0).
 - Weekly reset: matches the raid week (Tuesday). Confirm, or use a rolling 7 days.

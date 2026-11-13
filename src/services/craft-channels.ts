@@ -1,7 +1,7 @@
 import type { Guild as DiscordGuild } from "discord.js";
 import type { CraftRequestStatus, PrismaClient } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
-import { PROFESSION_FR } from "./profession-style.js";
+import { professionName as shownProfession } from "./profession-style.js";
 
 // 9.1 (owner, 7 November 2026): the crafting category, split so it stays tidy.
 //   * #craft-orders: every open request is one short message, edited when a crafter takes it,
@@ -24,7 +24,7 @@ type Request = {
 
 const ICON: Record<CraftRequestStatus, string> = { OPEN: "🟢", CLAIMED: "🟡", DONE: "✅", CANCELLED: "⛔" };
 const clean = (text: string) => text.replace(/[*_`~|<>@]/g, "").slice(0, 100);
-const professionName = (lang: Lang, profession: string) => lang === "fr" ? PROFESSION_FR[profession] ?? profession : profession;
+const professionName = (lang: Lang, profession: string) => shownProfession(profession, lang);
 
 /** One line in #craft-orders. */
 export function orderLine(request: Request, lang: Lang): string {

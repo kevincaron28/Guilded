@@ -119,7 +119,7 @@ describe("ChatTab.lua how-to (9.3.0)", () => {
     const text = s.run(`return table.concat(SAID, " | ")`);
     expect(s.run(`return #SAID`)).toBe("6");
     expect(text).toContain("Right-click the Guilded tab and choose Settings.");
-    expect(text).toContain("tick: Dire, Emote, Yell, Whisper, Party, Party Leader, Raid, Raid Leader, Raid Warning, Guilde, Officer, Instance, Instance Leader, Battle.net Whisper.");
+    expect(text).toContain("tick: Dire, Emote, Yell, Whisper, Party, Party Leader, Raid, Raid Leader, Raid Warning, Guilde, Officer, Instance, Instance Leader, BN Whisper.");
     expect(text).toContain("Syst\u00e8me, Skill, Loot, Money, Currency, Achievements, Guild Achievements, Experience, Honor, Faction changes, Discord.");
     expect(text).toContain("Font Size, then 12. Leave Channels empty.");
     expect(text).toContain("Guilded hides the game's own online/offline line here because it prints its own.");

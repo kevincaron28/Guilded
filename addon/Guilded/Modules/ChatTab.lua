@@ -292,7 +292,7 @@ local CHAT_GROUPS = {
   { "SAY", "Say" }, { "EMOTE", "Emote" }, { "YELL", "Yell" }, { "WHISPER", "Whisper" }, { "PARTY", "Party" },
   { "PARTY_LEADER", "Party Leader" }, { "RAID", "Raid" }, { "RAID_LEADER", "Raid Leader" }, { "RAID_WARNING", "Raid Warning" },
   { "GUILD", "Guild" }, { "OFFICER", "Officer" }, { "INSTANCE_CHAT", "Instance" }, { "INSTANCE_CHAT_LEADER", "Instance Leader" },
-  { "BN_WHISPER", "Battle.net Whisper" }
+  { "BN_WHISPER", "BN Whisper" }
 }
 local OTHER_GROUPS = {
   { "SYSTEM_MESSAGES", "System" }, { "SKILL", "Skill" }, { "LOOT", "Loot" }, { "MONEY", "Money" }, { "CURRENCY", "Currency" },

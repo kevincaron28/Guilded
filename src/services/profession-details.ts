@@ -1,4 +1,5 @@
 import { ActionRowBuilder, EmbedBuilder, StringSelectMenuBuilder, escapeMarkdown } from "discord.js";
+import { professionSlug } from "./profession-names.js";
 import type { Lang } from "../i18n.js";
 import { lastSeenText } from "./last-seen.js";
 import { crafterLine, professionLegend, professionTitle } from "./profession-style.js";
@@ -12,7 +13,7 @@ import type { ProfessionPost, ProfessionRecipe } from "./profession-board.js";
 
 export const PROFESSION_DETAILS_PREFIX = "pdet:";
 const MAX_OPTIONS = 25;
-export const professionKey = (profession: string) => profession.trim().toLowerCase().slice(0, 60);
+export const professionKey = (profession: string) => professionSlug(profession).slice(0, 60);
 
 /** The "Details" menu under a profession post: the first recipes of the post, by name. Null when there is nothing to pick. */
 export function professionDetailsRow(post: ProfessionPost, lang: Lang): ActionRowBuilder<StringSelectMenuBuilder> | null {

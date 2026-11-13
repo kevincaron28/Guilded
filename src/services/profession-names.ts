@@ -69,3 +69,23 @@ export function mergeProfessionSkills<T extends { name: string; skillLevel: numb
   }
   return [...merged.values()];
 }
+
+/** The key two spellings of one profession share ("Cuisine", "cooking " and "Cooking" are all "cooking"). Names that are not known stay as typed. */
+export const professionSlug = (name: string): string => normalizeProfessionName(name).toLowerCase();
+
+/** "Cuisine 300, Pêche 150" (any language) as the canonical English names with the highest skill each: "Cooking 300, Fishing 150". Unreadable parts are kept. */
+export function canonicalProfessionText(text: string | null | undefined): string {
+  const order: string[] = [];
+  const best = new Map<string, number | null>();
+  for (const raw of (text ?? "").split(",")) {
+    const part = raw.trim();
+    if (!part) continue;
+    const match = /^(.*?)\s+(\d+)$/.exec(part);
+    const name = normalizeProfessionName(match?.[1] ?? part);
+    const skill = match?.[2] ? Number(match[2]) : null;
+    if (!best.has(name)) order.push(name);
+    const before = best.get(name);
+    if (!best.has(name) || (skill !== null && (before === null || before === undefined || skill > before))) best.set(name, skill);
+  }
+  return order.map(name => { const skill = best.get(name); return skill === null || skill === undefined ? name : `${name} ${skill}`; }).join(", ");
+}

@@ -2,8 +2,9 @@ import { EmbedBuilder, escapeMarkdown, type ForumChannel, type Guild as DiscordG
 import type { PrismaClient } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
 import { byLastSeen, lastSeenOf, lastSeenText } from "./last-seen.js";
-import { crafterLine, professionLegend, professionTitle, seenDot } from "./profession-style.js";
+import { crafterLine, professionLegend, professionName, professionTitle, seenDot } from "./profession-style.js";
 import { professionDetailsRow } from "./profession-details.js";
+import { normalizeProfessionName, professionSlug } from "./profession-names.js";
 import { displayCharacterName, emptyNameBook, loadFullNameBook, type FullNameBook } from "./character-display.js";
 import { nullItemDataProvider, type ItemDataProvider } from "./item-preview-data.js";
 
@@ -44,6 +45,8 @@ export interface ProfessionPost {
 
 type Db = Pick<PrismaClient, "professionSkill" | "recipeKnown">;
 const key = (value: string) => value.trim().toLowerCase();
+// Professions are grouped by their canonical name: French "Cuisine" and English "Cooking" rows are one post.
+const pkey = (value: string) => professionSlug(value);
 
 /** Everything the profession posts and the gallery show, grouped by profession (spelling variants merged). */
 export async function loadProfessionPosts(db: Db, guildId: string, names: FullNameBook = emptyNameBook): Promise<ProfessionPost[]> {
@@ -56,19 +59,26 @@ export async function loadProfessionPosts(db: Db, guildId: string, names: FullNa
   const lastSeenFor = (name: string, scannedAt: Date) => lastSeenOf(seenByName.get(key(name)), scannedAt);
   const posts = new Map<string, ProfessionPost>();
   const post = (profession: string) => {
-    const existing = posts.get(key(profession));
+    const existing = posts.get(pkey(profession));
     if (existing) return existing;
-    const created: ProfessionPost = { profession: profession.trim(), skilled: [], recipes: [] };
-    posts.set(key(profession), created);
+    const created: ProfessionPost = { profession: normalizeProfessionName(profession), skilled: [], recipes: [] };
+    posts.set(pkey(profession), created);
     return created;
   };
   const newestScan = new Map<string, Date>();
   for (const row of recipes) { const current = newestScan.get(key(row.character)); if (!current || row.scannedAt > current) newestScan.set(key(row.character), row.scannedAt); }
-  for (const row of skills) post(row.profession).skilled.push({ character: shown(row.character.name), skillLevel: row.skillLevel, lastSeen: lastSeenOf(row.character.lastSeenAt, newestScan.get(key(row.character.name))) });
+  for (const row of skills) {
+    const entry = post(row.profession);
+    const character = shown(row.character.name);
+    // One character with the profession stored under two spellings is listed once, at the higher skill.
+    const twin = entry.skilled.find(skilled => skilled.character === character);
+    if (twin) { twin.skillLevel = Math.max(twin.skillLevel, row.skillLevel); continue; }
+    entry.skilled.push({ character, skillLevel: row.skillLevel, lastSeen: lastSeenOf(row.character.lastSeenAt, newestScan.get(key(row.character.name))) });
+  }
   const byItem = new Map<string, ProfessionRecipe>();
   for (const row of recipes) {
     const target = post(row.profession);
-    const id = `${key(row.profession)}|${row.itemKey}`;
+    const id = `${pkey(row.profession)}|${row.itemKey}`;
     let recipe = byItem.get(id);
     if (!recipe) { recipe = { itemKey: row.itemKey, itemName: row.itemName, crafters: [] }; byItem.set(id, recipe); target.recipes.push(recipe); }
     // One entry per shown name: several scans or name keys of the same character (first name vs full name)
@@ -137,19 +147,68 @@ export async function recipeCrafters(db: Db, guildId: string, itemKey: number): 
 }
 
 /** The forum's profession posts by thread (title starts with the marker emoji); archived ones are opened. */
-async function existingPosts(forum: ForumChannel): Promise<Map<string, ThreadChannel>> {
-  const active = await forum.threads.fetchActive();
-  const archived = await forum.threads.fetchArchived({ limit: 100 }).catch(() => null);
-  const found = new Map<string, ThreadChannel>();
-  for (const thread of new Map([...(archived?.threads ?? []), ...active.threads]).values()) {
-    if (thread.name.startsWith(THREAD_PREFIX)) found.set(key(thread.name.slice(THREAD_PREFIX.length)), thread);
-  }
-  return found;
+async function existingPosts(forum: ForumChannel, lang: Lang = "en"): Promise<Map<string, ThreadChannel>> {
+  return (await sortedPosts(forum, lang)).chosen;
 }
 
+/**
+ * Finds the profession threads under any spelling of the name. When one profession has more than one thread (a post made
+ * as "Cooking" before the 9.1.2 key and another as "Cuisine" after it), the one to keep is the open one titled in the
+ * guild's language, else any open one, else the archived ones; the others come back as duplicates.
+ */
+async function sortedPosts(forum: ForumChannel, lang: Lang): Promise<{ chosen: Map<string, ThreadChannel>; duplicates: ThreadChannel[] }> {
+  const active = await forum.threads.fetchActive();
+  const archived = await forum.threads.fetchArchived({ limit: 100 }).catch(() => null);
+  const groups = new Map<string, ThreadChannel[]>();
+  for (const thread of new Map([...(archived?.threads ?? []), ...active.threads]).values()) {
+    if (!thread.name.startsWith(THREAD_PREFIX)) continue;
+    const key = pkey(thread.name.slice(THREAD_PREFIX.length));
+    groups.set(key, [...(groups.get(key) ?? []), thread]);
+  }
+  const chosen = new Map<string, ThreadChannel>();
+  const duplicates: ThreadChannel[] = [];
+  for (const [key, threads] of groups) {
+    // The bot can only edit its own thread, so a thread it made is the keeper whatever its title; then open before archived, then the guild's language.
+    const rank = (thread: ThreadChannel) => (isBotThread(forum, thread) ? 0 : 4) + (thread.archived ? 2 : 0) + (thread.name === threadTitle(thread.name.slice(THREAD_PREFIX.length), lang) ? 0 : 1);
+    const ordered = [...threads].sort((a, b) => rank(a) - rank(b));
+    chosen.set(key, ordered[0]!);
+    duplicates.push(...ordered.slice(1));
+  }
+  return { chosen, duplicates };
+}
+
+const isBotThread = (forum: ForumChannel, thread: ThreadChannel): boolean => !!forum.client?.user?.id && thread.ownerId === forum.client.user.id;
+const MAX_ARCHIVES_PER_REFRESH = 5;
+
+/**
+ * Archives the extra threads of a profession the bot itself made, so a French and an English post of one profession do not
+ * both stay up. Never deletes anything and never touches a thread a member made. PROFESSION_DUPLICATES_DRY_RUN=true only logs.
+ */
+async function archiveDuplicates(forum: ForumChannel, duplicates: ThreadChannel[], kept: Map<string, ThreadChannel>, lang: Lang): Promise<number> {
+  const dryRun = process.env["PROFESSION_DUPLICATES_DRY_RUN"] === "true";
+  let done = 0;
+  for (const thread of duplicates) {
+    if (thread.archived) continue;
+    const keeper = kept.get(pkey(thread.name.slice(THREAD_PREFIX.length)));
+    // Only the bot's own thread, and only when the kept one is the bot's too: never archive the working thread in favour of a member's.
+    const reason = !isBotThread(forum, thread) ? "not made by the bot, left alone" : !keeper || !isBotThread(forum, keeper) ? "the kept thread is not the bot's, left alone"
+      : done >= MAX_ARCHIVES_PER_REFRESH ? "limit per refresh reached, left for the next one" : dryRun ? "dry run, would archive" : "";
+    if (reason) { console.log(`Profession post duplicate "${thread.name}" (${thread.id}), keeping "${keeper?.name}" (${keeper?.id}): ${reason}`); continue; }
+    const pointer = lang === "fr" ? `Ce métier est suivi dans <#${keeper!.id}>. Ce fil est archivé.` : `This profession is kept up to date in <#${keeper!.id}>. This thread is archived.`;
+    await thread.send({ content: pointer, allowedMentions: { parse: [] as never[] } }).catch(() => undefined);
+    const archived = await thread.setArchived(true).then(() => true, () => false);
+    console.log(`Profession post duplicate "${thread.name}" (${thread.id}), keeping "${keeper!.name}" (${keeper!.id}): ${archived ? "archived" : "could not archive (missing permission?), left as it was"}`);
+    if (archived) done++;
+  }
+  return done;
+}
+
+/** The forum thread title of a profession post, in the guild's language (found again under any spelling by its canonical name). */
+export const threadTitle = (profession: string, lang: Lang): string => `${THREAD_PREFIX}${professionName(profession, lang)}`.slice(0, 100);
+
 /** Thread ids of the profession posts, for the directory's links. */
-export async function professionPostLinks(forum: ForumChannel): Promise<Map<string, string>> {
-  return new Map([...(await existingPosts(forum))].map(([profession, thread]) => [profession, thread.id]));
+export async function professionPostLinks(forum: ForumChannel, lang: Lang = "en"): Promise<Map<string, string>> {
+  return new Map([...(await existingPosts(forum, lang))].map(([profession, thread]) => [profession, thread.id]));
 }
 
 /**
@@ -162,7 +221,14 @@ export async function updateProfessionPosts(discordGuild: DiscordGuild, forum: F
   const siteUrl = process.env["PUBLIC_SITE_URL"]?.trim() || undefined;
   let written = 0;
   try {
-    const existing = await existingPosts(forum);
+    const found = await sortedPosts(forum, lang);
+    const existing = found.chosen;
+    await archiveDuplicates(forum, found.duplicates, existing, lang);
+    // Thread titles are in the guild's language like the tags, the directory and the post's own title (a French server saw
+    // the thread "📚 Cooking" next to the tag and the post titled "Cuisine"). Discord limits renames of one channel, so
+    // at most one thread is renamed per refresh (counting only renames that worked, so a thread that cannot be renamed
+    // does not block the others); the others follow on the next ones.
+    let renamed = 0;
     const names = await loadFullNameBook(db, guildId);
     const posts = await loadProfessionPosts(db, guildId, names);
     await addItemQuality(posts, items);
@@ -170,15 +236,17 @@ export async function updateProfessionPosts(discordGuild: DiscordGuild, forum: F
       if (!post.skilled.length && !post.recipes.length) continue;
       const details = professionDetailsRow(post, lang);
       const payload = { embeds: [professionPostEmbed(post, lang, guildId, now, siteUrl)], components: details ? [details] : [], allowedMentions: { parse: [] as never[] } };
-      const thread = existing.get(key(post.profession));
+      const thread = existing.get(pkey(post.profession));
       if (thread) {
         const starter = await thread.fetchStarterMessage().catch(() => null);
         if (!starter?.editable) continue;
         if (thread.archived) await thread.setArchived(false).catch(() => undefined);
+        const title = threadTitle(post.profession, lang);
+        if (thread.name !== title && renamed < 1 && typeof thread.setName === "function" && await thread.setName(title).then(() => true, () => false)) renamed++;
         await starter.edit(payload);
         written++;
       } else {
-        await forum.threads.create({ name: `${THREAD_PREFIX}${post.profession}`.slice(0, 100), message: payload });
+        await forum.threads.create({ name: threadTitle(post.profession, lang), message: payload });
         written++;
       }
     }

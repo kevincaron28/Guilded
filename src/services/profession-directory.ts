@@ -11,6 +11,7 @@ import { byLastSeen, lastSeenText } from "./last-seen.js";
 import { displayCharacterName, loadFullNameBook } from "./character-display.js";
 import { professionPostLinks, updateProfessionPosts } from "./profession-board.js";
 import { professionEmoji, professionLegend, professionName } from "./profession-style.js";
+import { professionSlug } from "./profession-names.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./discord-jobs.js";
 
 // 8.5 track D2: the directory is now a short index. Each profession has its own auto-updated post (profession-board.ts)
@@ -27,7 +28,7 @@ ${professionLegend(lang)}`;
   for (const row of coverage) {
     const holders = await findProfessionHolders(database, guildId, row.profession);
     const recent = [...holders].sort((a, b) => byLastSeen(a.lastSeen, b.lastSeen))[0];
-    const link = links.get(row.profession.trim().toLowerCase());
+    const link = links.get(professionSlug(row.profession));
     const crafters = lang === "fr" ? `${row.characters} artisan${row.characters === 1 ? "" : "s"}` : `${row.characters} crafter${row.characters === 1 ? "" : "s"}`;
     const seen = recent ? ` · ${lang === "fr" ? "vu récemment" : "last seen"}: ${displayCharacterName(recent.character, book)} (${lastSeenText(recent.lastSeen, lang, now)})` : "";
     const line = `\n${professionEmoji(row.profession)} **${professionName(row.profession, lang)}** · ${crafters}${seen}${link ? ` → <#${link}>` : ""}`;
@@ -39,8 +40,8 @@ ${professionLegend(lang)}`;
 
 /** Jump buttons under the directory: one link button per profession post (Discord allows 25 per message). */
 export function professionNavRows(professions: readonly string[], links: ReadonlyMap<string, string>, discordGuildId: string, lang: Lang = "en"): ActionRowBuilder<ButtonBuilder>[] {
-  const buttons = professions.filter(profession => links.has(profession.trim().toLowerCase())).slice(0, 25).map(profession =>
-    new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel(professionName(profession, lang).slice(0, 80)).setEmoji(professionEmoji(profession)).setURL(`https://discord.com/channels/${discordGuildId}/${links.get(profession.trim().toLowerCase())}`));
+  const buttons = professions.filter(profession => links.has(professionSlug(profession))).slice(0, 25).map(profession =>
+    new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel(professionName(profession, lang).slice(0, 80)).setEmoji(professionEmoji(profession)).setURL(`https://discord.com/channels/${discordGuildId}/${links.get(professionSlug(profession))}`));
   const rows: ActionRowBuilder<ButtonBuilder>[] = [];
   for (let index = 0; index < buttons.length; index += 5) rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(buttons.slice(index, index + 5)));
   return rows;
@@ -69,7 +70,7 @@ export async function updateProfessionDirectory(discordGuild: DiscordGuild | nul
     const lang = asLang(guild.settings.language);
     // The per-profession posts first, so the directory can link to them.
     await updateProfessionPosts(discordGuild, forum, prisma, guild.id, lang, new Date(), itemData);
-    const links = guild.settings.professionPostsEnabled ? await professionPostLinks(forum).catch(() => new Map<string, string>()) : new Map<string, string>();
+    const links = guild.settings.professionPostsEnabled ? await professionPostLinks(forum, lang).catch(() => new Map<string, string>()) : new Map<string, string>();
     const description = (await professionDirectoryText(prisma, guild.id, lang, links) + await offerDirectoryText(prisma, guild.id, lang)).slice(0, 1990);
     const navRows = professionNavRows((await professionCoverage(prisma, guild.id)).map(row => row.profession), links, discordGuild.id, lang);
     const archived = await forum.threads.fetchArchived({ limit: 100 });

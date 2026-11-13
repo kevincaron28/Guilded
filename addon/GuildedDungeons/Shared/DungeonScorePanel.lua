@@ -240,6 +240,11 @@ local function buildRun(pane, width)
   run:EnableMouse(true)
   local bg = run:CreateTexture(nil, "BACKGROUND"); bg:SetAllPoints()
   bg:SetTexture("Interface\\FrameGeneral\\UI-Background-Marble", "REPEAT", "REPEAT"); bg:SetHorizTile(true); bg:SetVertTile(true)
+  -- The painting of the dungeon being recorded, as a dark band behind the "Current run" text (same textures as the result
+  -- card; the upper part of the picture, before it fades). Hidden without a run, a painting, or with Card art off.
+  run.banner = run:CreateTexture(nil, "BACKGROUND", nil, 1)
+  run.banner:SetPoint("TOPLEFT", run, "TOPLEFT", 4, -4); run.banner:SetPoint("TOPRIGHT", run, "TOPRIGHT", -4, -4)
+  run.banner:SetHeight(100); run.banner:SetTexCoord(0, 1, 0.06, 0.5); run.banner:Hide()
   -- Current run: what is being recorded now.
   label(run, 16, -6, width - 32, "GameFontNormal"):SetText(L("Current run"))
   run.status = label(run, 16, -26, width - 32)
@@ -251,12 +256,17 @@ local function buildRun(pane, width)
     pane.pendingAction = nil
   end
   run.action = action
-  run.last = tip(button(run, "Last result", 16, -146, 150, function() action("results") end), "Shows the result card of your last run.")
-  run.timer = tip(button(run, "Live timer", 174, -146, 200, function()
+  run.last = tip(button(run, "Last result", 16, -146, 120, function() action("results") end), "Shows the result card of your last run.")
+  run.timer = tip(button(run, "Live timer", 142, -146, 170, function()
     if not active("dungeon") then return end
     if ns.runResults then ns.runResults.setTimerEnabled(not ns.runResults.timerEnabled()) end
     pane:Refresh()
   end), "Shows the run clock and boss splits on screen while you are in a dungeon.")
+  run.cardArt = tip(button(run, "Card art", 318, -146, 150, function()
+    if not active("dungeon") then return end
+    if ns.dungeonArt then ns.dungeonArt.setEnabled(not ns.dungeonArt.enabled()) end
+    pane:Refresh()
+  end), "Shows the dungeon's painting behind the result card. Turn it off to save a little memory.")
   -- History: your latest saved runs, with the season each one counts in.
   label(run, 16, -186, width - 32, "GameFontNormal"):SetText(L("Recent runs"))
   run.recent = label(run, 16, -206, width - 32)
@@ -268,6 +278,9 @@ local function buildRun(pane, width)
     local model = view.runModel()
     if not active("dungeon") then self.status:SetText(L("Dungeon recording is off in Settings.")); self.boss:SetText(""); self.recent:SetText(""); return end
     local current = model.current
+    local bannerPath = current and ns.dungeonArt and ns.dungeonArt.enabled() and ns.dungeonArt.path(current.name) or nil
+    self.bannerPath = bannerPath
+    if bannerPath then self.banner:SetTexture(bannerPath); self.banner:Show() else self.banner:Hide() end
     local lines = {}
     if current then
       local now = GetServerTime and GetServerTime() or time()
@@ -293,6 +306,7 @@ local function buildRun(pane, width)
     end
     self.recent:SetText(#lines > 0 and table.concat(lines, "\n\n") or L("No saved dungeon result yet."))
     self.timer:SetText(L("Live timer") .. ": " .. L(ns.runResults and ns.runResults.timerEnabled() and "on" or "off"))
+    self.cardArt:SetText(L("Card art") .. ": " .. L(ns.dungeonArt and ns.dungeonArt.enabled() and "on" or "off"))
   end
   run:Hide()
   return run

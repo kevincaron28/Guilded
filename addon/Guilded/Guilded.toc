@@ -52,6 +52,7 @@ Modules\AutoInvite.lua
 Modules\Dungeon.lua
 Modules\CatchUp.lua
 Modules\Battleground.lua
+Modules\DungeonArt.lua
 Modules\RunResults.lua
 Modules\SeasonSync.lua
 Modules\Tooltip.lua

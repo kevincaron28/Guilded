@@ -2,7 +2,7 @@
 // there is one source. `node scripts/build-dungeons-addon.mjs` copies them into
 // addon/GuildedDungeons/Shared/; `--check` fails if a copy differs from its source (the addon
 // validator runs it); `--zip` also builds dist/GuildedDungeons-v<version>.zip. Never publishes.
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { zipSync, unzipSync } from "fflate";
@@ -12,7 +12,7 @@ const repo = join(dirname(fileURLToPath(import.meta.url)), "..");
 const source = join(repo, "addon", "Guilded");
 const target = join(repo, "addon", "GuildedDungeons");
 // Load order matters: Util and Compat first, then the modules (same order as Guilded.toc).
-export const SHARED = ["Util.lua", "Transport.lua", "Compat.lua", "Locale.lua", "DungeonRoutes.lua", "Modules/Dungeon.lua", "Modules/RunResults.lua", "Modules/Scores.lua", "Modules/SeasonDetails.lua", "Modules/DungeonStats.lua", "Modules/DungeonScorePanel.lua"];
+export const SHARED = ["Util.lua", "Transport.lua", "Compat.lua", "Locale.lua", "DungeonRoutes.lua", "Modules/Dungeon.lua", "Modules/DungeonArt.lua", "Modules/RunResults.lua", "Modules/Scores.lua", "Modules/SeasonDetails.lua", "Modules/DungeonStats.lua", "Modules/DungeonScorePanel.lua"];
 const header = (file) => `-- Copied from addon/Guilded/${file} by scripts/build-dungeons-addon.mjs. Edit the original, then run npm run dungeons:sync.\n`;
 
 export function expectedCopy(file) {
@@ -20,13 +20,24 @@ export function expectedCopy(file) {
 }
 export const copyPath = (file) => join(target, "Shared", file.replace(/^Modules\//, ""));
 
+// The dungeon card paintings (Media/Dungeons/*.blp, made by scripts/build-dungeon-textures.mjs) are copied byte for byte.
+const mediaSource = join(source, "Media", "Dungeons"), mediaTarget = join(target, "Media", "Dungeons");
+export const mediaFiles = () => (existsSync(mediaSource) ? readdirSync(mediaSource).filter((f) => /\.(blp|tga)$/.test(f)).sort() : []);
+
 export function sync() {
   mkdirSync(join(target, "Shared"), { recursive: true });
   for (const file of SHARED) writeFileSync(copyPath(file), expectedCopy(file));
+  rmSync(mediaTarget, { recursive: true, force: true });
+  mkdirSync(mediaTarget, { recursive: true });
+  for (const file of mediaFiles()) writeFileSync(join(mediaTarget, file), readFileSync(join(mediaSource, file)));
 }
 
 export function check() {
   const stale = SHARED.filter((file) => !existsSync(copyPath(file)) || readFileSync(copyPath(file), "utf8").replace(/\r\n/g, "\n") !== expectedCopy(file));
+  const media = mediaFiles();
+  const have = existsSync(mediaTarget) ? readdirSync(mediaTarget).sort() : [];
+  if (media.join() !== have.join()) stale.push("Media/Dungeons (file list)");
+  else for (const f of media) if (!readFileSync(join(mediaSource, f)).equals(readFileSync(join(mediaTarget, f)))) stale.push(`Media/Dungeons/${f}`);
   if (stale.length) throw new Error(`GuildedDungeons copies differ from Guilded: ${stale.join(", ")}. Run npm run dungeons:sync.`);
 }
 
@@ -46,6 +57,7 @@ function zip() {
     if (file.endsWith(".lua")) luaparse.parse(text, { luaVersion: "5.1" });
     files[`GuildedDungeons/${file}`] = new TextEncoder().encode(text);
   }
+  for (const file of mediaFiles()) files[`GuildedDungeons/Media/Dungeons/${file}`] = new Uint8Array(readFileSync(join(mediaTarget, file)));
   const packed = zipSync(files, { level: 9 });
   const unpacked = unzipSync(packed);
   for (const file of tocFiles()) if (!unpacked[`GuildedDungeons/${file}`]) throw new Error(`Missing ${file}`);

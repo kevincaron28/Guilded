@@ -26,7 +26,7 @@ describe("companion link and weekly reminder", () => {
   it("reminds a member with no companion file, then waits a week", () => {
     const s = withLink();
     expect(s.run(`return tostring(NS.companionLink.remind())`)).toBe("true");
-    expect(s.run(`return MSGS[1]`)).toContain("guilded.kcaron.top/companion");
+    expect(s.run(`return MSGS[1]`)).toContain("guildedwow.com/companion");
     expect(s.run(`return tostring(NS.companionLink.remind())`)).toBe("false");
     s.run(`NOW = NOW + 6 * 86400`);
     expect(s.run(`return tostring(NS.companionLink.remind())`)).toBe("false");
@@ -69,7 +69,7 @@ describe("companion link and weekly reminder", () => {
     const s = withLink();
     s.run(`NS.commandHandlers["companion"]({})`);
     const out = s.run(`return table.concat(MSGS, "|")`);
-    expect(out).toContain("guilded.kcaron.top/companion/");
+    expect(out).toContain("guildedwow.com/companion/");
     expect(out).toContain("Guilded.Companion.Setup.exe");
   });
 });

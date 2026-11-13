@@ -47,7 +47,7 @@ end
 function browser.copy(index, role, realm)
   local rows = browser.rows(role, realm)
   local row = rows[tonumber(index) or 0]
-  local url = row and row.inviteUrl or "https://guilded.kcaron.top/recruitment/?kind=raids"
+  local url = row and row.inviteUrl or "https://guildedwow.com/recruitment/?kind=raids"
   -- Copyable links only; no game invitations or HTTP requests.
   if ns.showCopyText then ns.showCopyText(url, L("Guilded - copy the link into your browser")) else ns.message(url) end
 end

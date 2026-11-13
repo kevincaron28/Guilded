@@ -70,7 +70,7 @@ describe("companion download window", () => {
       local popup = NS.companionLink.openCopyWindow()
       return tostring(popup ~= nil) .. "|" .. NS.companionLink.DIRECT
     `);
-    expect(text).toContain("true|https://guilded.kcaron.top/downloads/Guilded.Companion.Setup.exe");
+    expect(text).toContain("true|https://guildedwow.com/downloads/Guilded.Companion.Setup.exe");
   });
 });
 

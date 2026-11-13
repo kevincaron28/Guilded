@@ -1438,7 +1438,7 @@ local function buildHomePage(page)
     return ui.homeLinks[name]
   end
   link("Me", "My character", 0, -18, 170, "Your gear check and attunements.")
-  link("Dungeons", "Dungeons", 178, -18, 170, "Opens the Guilded dungeons page in the game's group finder.")
+  link("Dungeons", "Dungeons", 178, -18, 170, "Your dungeon runs and the guild's dungeon boards.")
   link("Standings", "Guild tools", 356, -18, 170, "Opens Guilded inside the game's guild window: standings, crafting, availability.")
   link("Calendar", "Calendar", 0, -56, 170, "Opens Guilded inside the game's calendar.")
   officerOnly(link("Raid", "Run a raid", 178, -56, 170, "Start a raid, record bosses and attendance."))
@@ -1497,6 +1497,9 @@ local SECTION_ROW = { Guild = true }
 -- The section buttons are as wide as their text (capped); a row that would pass the page width wraps to a
 -- second line. The page itself starts at -66, below two lines (12 + 22 high, then 24 per extra line).
 local SECTION_Y, SECTION_LINE, SECTION_GAP, SECTION_MAX = 12, 24, 6, 200
+-- The window's - / + / close buttons sit at the top right, over the first line of the row: that line ends
+-- before them (reserved width), later lines run the full page width.
+local SECTION_FIRST_LINE_RESERVE = 96
 local function sectionWidth(text)
   return math.min(SECTION_MAX, math.max(60, #text * 7 + 20))
 end
@@ -1726,6 +1729,17 @@ local function buildSettingsPage(page)
   if general.HookScript then general:HookScript("OnShow", function() if ui.refreshAnnouncements then ui.refreshAnnouncements() end end) end
 end
 
+-- Dungeons (9.2): the runs and boards live in their own window (inside the game's group finder). This page
+-- stays in the Guilded window so the tab you clicked is the page you see; the button opens that window.
+local function buildDungeonsPage(page)
+  local intro = at(newLabel(page, L("Your dungeon runs, your season score and the guild's dungeon boards open in their own window."), "GameFontHighlight"), page, 0, 0)
+  intro:SetWidth(PAGE_WIDTH)
+  intro:SetJustifyH("LEFT")
+  tip(at(newButton(page, "Open dungeons window", 200, function()
+    if ns.dungeonScorePanel then ns.dungeonScorePanel.open("run") end
+  end, 30), page, 0, -52), "Opens the Guilded dungeons page in the game's group finder.")
+end
+
 local TAB_DEFS = {
   { name = "Home", hint = "what is going on, and your data", group = "Home", build = buildHomePage },
   { name = "Guild overview", hint = "classes and levels of the whole guild at a glance", group = "Guild", build = function(page) if ns.guildOverview and ns.guildOverview.buildPage then ns.guildOverview.buildPage(page, { newLabel = newLabel, newButton = newButton, at = at, width = PAGE_WIDTH }) end end },
@@ -1748,7 +1762,7 @@ local TAB_DEFS = {
   { name = "Officer tools", hint = "guild log, prospects, guild bank, imports", group = "Officer", officer = true, build = buildOfficerToolsPage },
   { name = "Loot", hint = "bids and loot", group = "Raids", lootModes = { EPGP = true }, officer = true, usesPlayer = true, build = buildLootPage },
   { name = "Council", hint = "loot council: BiS / upgrade / off-spec answers", group = "Raids", module = "council", lootModes = { COUNCIL = true, PRIORITY = true }, officer = true, usesPlayer = true, build = buildCouncilPage },
-  { name = "Dungeons", hint = "your runs and the guild's dungeon boards", group = "Dungeons", link = function() if ns.dungeonScorePanel then ns.dungeonScorePanel.open("run") end end, available = function() return ns.dungeonScorePanel ~= nil end, build = function() end },
+  { name = "Dungeons", hint = "your runs and the guild's dungeon boards", group = "Dungeons", available = function() return ns.dungeonScorePanel ~= nil end, build = buildDungeonsPage },
   { name = "Duels", hint = "guild duel leaderboard", group = "Guild", module = "duels", build = function(page) if ns.duels and ns.duels.buildPage then ns.duels.buildPage(page, { newLabel = newLabel, at = at, width = PAGE_WIDTH }) end end },
   { name = "Tools", label = "Settings", hint = "switch parts on or off, announcements, diagnostics, advanced", group = "Settings", build = buildSettingsPage }
 }
@@ -1785,7 +1799,7 @@ local updateGuildScroll
 local READ_ONLY_PAGES = { ["Open raids"] = true, Calendar = true }
 -- Long pages scroll inside the window; the rest sit on the window directly.
 local SCROLLED_PAGES = { Standings = true, Gear = true, EPGP = true, ["Local guild"] = true, ["Roster admin"] = true,
-  ["Officer tools"] = true, Calendar = true, Crafting = true, Availability = true, ["Layer invite"] = true }
+  ["Officer tools"] = true, Calendar = true, Crafting = true, Availability = true, ["Layer invite"] = true, Home = true }
 
 local function clock(seconds)
   seconds = math.max(0, math.floor(seconds or 0))
@@ -1874,7 +1888,8 @@ local function layoutTabs(officer)
           end
           if group == currentGroup and SECTION_ROW[group] and #list > 1 then
             local width = sectionWidth(L(tab.label or tab.name))
-            if sectionX and sectionX + width > PAGE_WIDTH then sectionX = 0; sectionLine = sectionLine + 1 end
+            local room = PAGE_WIDTH - (sectionLine == 0 and SECTION_FIRST_LINE_RESERVE or 0)
+            if sectionX and sectionX > 0 and sectionX + width > room then sectionX = 0; sectionLine = sectionLine + 1 end
             sectionX = sectionX or 0
             tab.button:SetWidth(width)
             at(tab.button, panel, CONTENT_X + sectionX, -(SECTION_Y + SECTION_LINE * sectionLine))
@@ -2222,6 +2237,10 @@ updateGuildScroll = function()
   elseif tab.name == "Local guild" then height = (ui.localGuildInfoTop or 220) + textHeight(ui.localGuildInfo) + 12
   elseif tab.name == "Crafting" then
     height = ui.craftHeight and ui.craftHeight() or 400
+  elseif tab.name == "Home" then
+    -- Greeting and "Right now" (54), the gear check, then the Discord block ending with the companion steps
+    -- (the last label hangs 312 below the gear text): the whole page scrolls instead of being cut at the bottom.
+    height = 54 + textHeight(ui.homeNow) + 16 + 16 + 6 + textHeight(ui.homeGear) + 312 + (ui.homeSteps and textHeight(ui.homeSteps) or 0) + 12
   elseif tab.name == "Availability" then height = 540 + textHeight(ui.presenceText) + 12
   elseif tab.name == "Layer invite" then height = 264 -- the last of five request rows ends near y=-250
   elseif tab.name == "EPGP" then height = 252 -- the lowest widget ends near y=-218, a 22 px button
@@ -2507,10 +2526,10 @@ selectTabByNameNow = function(name)
     local mode = ns.loot.mode()
     if mode == "RESERVE" then name = "Reserves" elseif mode == "COUNCIL" or mode == "PRIORITY" then name = "Council" end
   end
-  if name == "Dungeons" or name == "Season" or name == "Scores" then
+  if name == "Season" or name == "Scores" then
     if ns.dungeonScorePanel then
       -- The Guilded panel stays open: the dungeons page opens in the group finder beside it.
-      ns.dungeonScorePanel.open(name == "Dungeons" and "run" or "season")
+      ns.dungeonScorePanel.open("season")
     end
     return
   end

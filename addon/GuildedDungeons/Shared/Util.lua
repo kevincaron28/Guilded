@@ -35,8 +35,8 @@ ns.util = util
 -- The companion (Windows app that sends your data to Discord), in the same three steps everywhere
 -- members look: Home, /guilded companion, the login reminder and the "runs waiting" notice.
 -- Zero setup since 9.1.0: it finds WoW and the Discord server by itself; signing in is optional.
-util.COMPANION_PAGE = "https://guilded.kcaron.top/companion/"
-util.COMPANION_DOWNLOAD = "https://guilded.kcaron.top/downloads/Guilded.Companion.Setup.exe"
+util.COMPANION_PAGE = "https://guildedwow.com/companion/"
+util.COMPANION_DOWNLOAD = "https://guildedwow.com/downloads/Guilded.Companion.Setup.exe"
 function util.companionSteps()
   local function L(text) return ns.L and ns.L(text) or text end
   return {

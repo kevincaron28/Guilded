@@ -3,6 +3,10 @@
 -- its own Invite button: one click runs /ginvite for that name (a secure macro button: the game refuses the invite API to addons). Nothing is invited
 -- automatically, and the list never leaves this computer. The bot puts the check mark on Discord when the character
 -- shows up in a roster upload; the panel also hides names that are already in the guild.
+-- 9.3: the window shows only what needs action: "To invite now", then the invitations still pending (with the time since, and
+-- Invite again), then a toggle for the handled names (already in another guild, or declined). Names already in OUR guild are gone.
+-- The panel's own marks (invited, handled, removed) are local to this computer: the bot is told nothing new, it still checks a
+-- name off when the character shows in a roster upload.
 local _, ns = ...
 ns = ns or {}
 local module = {}
@@ -11,7 +15,6 @@ local function L(s) return ns.L and ns.L(s) or s end
 local function db() return ns.getDb and ns.getDb() end
 local function nowSeconds() return (GetServerTime and GetServerTime()) or (time and time()) or 0 end
 local RECENT_SECONDS = 600
-local MAX_ROWS = 12
 
 -- Accents folded like the bot's foldKey (invite-queue.ts): codepoint+letter pairs for Latin-1 and Latin Extended-A.
 local FOLD = {}
@@ -96,13 +99,23 @@ local function guildKeys()
 end
 module.splitRealm = splitRealm
 
--- Waiting names: { { name, at, invitedAt } }, oldest first. Names already in the guild are left out.
-function module.list()
+-- Waiting names in three groups (9.3): `todo` (still to invite, oldest first; a name the game could not find stays here with
+-- its Remove button), `invited` (the officer sent the line less than RECENT_SECONDS ago and the player has not joined: the
+-- invitation is still pending, or has just expired), and `handled` (already in another guild, or declined). A name already
+-- in OUR guild is gone from all three. One row per name. Each item: { name, at, sent (seconds since the invite), state }.
+local function classify(item)
+  if item.state == "notfound" then return "todo" end
+  if item.state == "inguild" or item.state == "declined" then return "handled" end
+  if item.sent then return "invited" end
+  return "todo"
+end
+function module.sections()
   if not officer() then return nil, L("Current officer access is required.") end
+  local out = { todo = {}, invited = {}, handled = {} }
   local data = _G.GuildedInvites
-  if type(data) ~= "table" or type(data.names) ~= "table" then return {} end
+  if type(data) ~= "table" or type(data.names) ~= "table" then return out end
   local inGuild, realms = guildKeys()
-  local d, out, at = db() or {}, {}, nowSeconds()
+  local d, at, seen = db() or {}, nowSeconds(), {}
   d.inviteSent = type(d.inviteSent) == "table" and d.inviteSent or {}
   d.inviteState = type(d.inviteState) == "table" and d.inviteState or {}
   d.inviteRemoved = type(d.inviteRemoved) == "table" and d.inviteRemoved or {}
@@ -111,21 +124,36 @@ function module.list()
     -- A request typed with its realm ("Anna Smith-RealmName") is checked without it too.
     local base, suffix = splitRealm(k or "")
     local joined = k and (inGuild[k] or (suffix and realms[suffix] and inGuild[base]))
-    if k and row.name ~= "" and not joined then
+    if k and row.name ~= "" and not joined and not seen[k] then
       local sent = d.inviteSent[k]
       local answer = d.inviteState[k]
       -- A row the officer removed stays gone until the requester posts the name again (a newer post).
       local removed = d.inviteRemoved[k]
       local hidden = removed and (type(row.at) ~= "string" or type(removed.postAt) ~= "string" or row.at <= removed.postAt)
       if not hidden and not (answer and answer.state == "joined") then
+        seen[k] = true
         -- An answer only counts for the click it followed.
         if answer and sent and answer.at < sent then answer = nil end
-        out[#out + 1] = { name = row.name, at = row.at, sent = sent and (at - sent) < RECENT_SECONDS and sent or nil,
-          state = answer and answer.state or nil }
+        -- "Already invited" means the invitation is pending: it counts from the game's answer.
+        local since = sent or (answer and answer.state == "already" and answer.at) or nil
+        local pending = since and (at - since) < RECENT_SECONDS and (at - since) or nil
+        local state = answer and answer.state or nil
+        if state == "already" and not pending then state = nil end
+        local item = { name = row.name, at = row.at, sent = pending, state = state }
+        local list = out[classify(item)]
+        list[#list + 1] = item
       end
     end
   end
+  -- The oldest invitation (closest to expiring) first.
+  table.sort(out.invited, function(x, y) return x.sent > y.sent end)
   return out
+end
+-- What still needs an invite now.
+function module.list()
+  local sections, err = module.sections()
+  if not sections then return nil, err end
+  return sections.todo
 end
 
 -- The Invite button shows "/ginvite First Last" in the copy box (util.inviteButton) for the officer to paste in chat: the
@@ -142,7 +170,6 @@ function module.markInvited(name)
   if type(name) ~= "string" or name == "" or name:find("%c") then return false, L("Unknown or ambiguous character.") end
   local d = db()
   if d then d.inviteSent = type(d.inviteSent) == "table" and d.inviteSent or {}; d.inviteSent[key(name)] = nowSeconds() end
-  module.selected = key(name)
   if d and d.inviteState then d.inviteState[key(name)] = nil end
   return true, string.format(L("Copy %s for the highlighted row (Ctrl+C), paste it in your chat box (Ctrl+V) and press Enter."), "/ginvite " .. name)
 end
@@ -192,13 +219,16 @@ local STATE_TEXT = {
 }
 local function rowText(item)
   if item.state and STATE_TEXT[item.state] then return item.name .. " (" .. L(STATE_TEXT[item.state]) .. ")" end
-  return item.name .. (item.sent and (" (" .. L("invited") .. ")") or "")
+  return item.name
+end
+local function agoText(seconds)
+  if seconds < 60 then return L("just now") end
+  return string.format(L("%d min ago"), math.floor(seconds / 60))
 end
 
 function module.text()
   local rows, err = module.list()
   if not rows then return err end
-  if #rows == 0 then return L("Nobody is waiting for a guild invite.") end
   local lines = {}
   for _, row in ipairs(rows) do
     if row.state ~= "notfound" then lines[#lines + 1] = "/ginvite " .. row.name end
@@ -207,32 +237,84 @@ function module.text()
   return table.concat(lines, "\n")
 end
 
-local window, rows = nil, {}
+local MAX_TODO, MAX_INVITED, MAX_HANDLED = 10, 8, 8
+local ROW_HEIGHT = 26
+local window
+local pools = { todo = {}, invited = {}, handled = {} }
+module.showHandled = false
+
+local function place(region, y)
+  region:ClearAllPoints(); region:SetPoint("TOPLEFT", 18, y)
+end
+-- The window shows only what needs action: "To invite now (N)" first, then the dimmer pending invitations, then a
+-- small toggle for the handled names. The first name still to invite is highlighted and named in the header.
 local function refreshNow()
   if not window then return end
-  local list, err = module.list()
-  window.status:SetText(list and string.format(L("%d waiting for a guild invite."), #list) or tostring(err))
-  for i = 1, MAX_ROWS do
-    local row, item = rows[i], list and list[i]
-    if item then
-      row.label:SetText(rowText(item))
-      row.item = item; row.label:Show()
-      -- A name the game could not find is not sent again: Remove instead of Invite.
-      if item.state == "notfound" then
-        row.button:Hide(); row.button.setInvite(nil); row.remove:Show()
+  local sections, err = module.sections()
+  if not sections then window.status:SetText(tostring(err)); return end
+  local todo, invited, handled = sections.todo, sections.invited, sections.handled
+  local first
+  for _, item in ipairs(todo) do if item.state ~= "notfound" then first = item; break end end
+  module.selected = first and key(first.name) or nil
+  window.status:SetText(first and string.format(L("Copy %s for the highlighted row (Ctrl+C), paste it in your chat box (Ctrl+V) and press Enter."), "/ginvite " .. first.name) or "")
+  local y = -70
+  local function fill(group, list, max, show)
+    local pool = pools[group]
+    for i = 1, #pool do
+      local row, item = pool[i], list[i]
+      if item and i <= max and show then
+        place(row.label, y - 4); row.label:Show()
+        row.item = item
+        if group == "invited" then
+          row.label:SetText(item.name .. "  |cff8c96a3" .. string.format(L("invited %s"), agoText(item.sent or 0)) .. "|r")
+        else
+          row.label:SetText(rowText(item))
+        end
+        if group == "invited" or group == "handled" then row.label:SetTextColor(0.65, 0.7, 0.76) else row.label:SetTextColor(1, 1, 1) end
+        if group ~= "handled" and item.state ~= "notfound" then
+          row.button:ClearAllPoints(); row.button:SetPoint("TOPLEFT", 310, y); row.button:Show(); row.button.setInvite(item.name)
+          row.remove:Hide()
+        elseif group ~= "handled" then
+          row.button:Hide(); row.button.setInvite(nil)
+          row.remove:ClearAllPoints(); row.remove:SetPoint("TOPLEFT", 310, y); row.remove:Show()
+        else
+          row.button:Hide(); row.button.setInvite(nil); row.remove:Hide()
+        end
+        if row.highlight then
+          if group == "todo" and first and item == first then
+            row.highlight:ClearAllPoints(); row.highlight:SetPoint("TOPLEFT", 12, y + 2); row.highlight:Show()
+          else row.highlight:Hide() end
+        end
+        y = y - ROW_HEIGHT
       else
-        row.remove:Hide(); row.button:Show(); row.button.setInvite(item.name)
+        row.item = nil; row.label:Hide(); row.button:Hide(); row.button.setInvite(nil); row.remove:Hide()
+        if row.highlight then row.highlight:Hide() end
       end
-      if row.highlight then
-        if module.selected and module.selected == key(item.name) then row.highlight:Show() else row.highlight:Hide() end
-      end
-    else
-      row.item = nil; row.label:Hide(); row.button:Hide(); row.button.setInvite(nil); row.remove:Hide()
-      if row.highlight then row.highlight:Hide() end
     end
   end
-  window.empty:SetText(list and #list == 0 and L("Nobody is waiting for a guild invite.") or "")
-  window.more:SetText(list and #list > MAX_ROWS and string.format(L("+%d more"), #list - MAX_ROWS) or "")
+  -- To invite now
+  place(window.todoHead, y); window.todoHead:SetText(string.format(L("To invite now (%d)"), #todo)); y = y - 22
+  if #todo == 0 then
+    place(window.empty, y); window.empty:SetText(L("Nobody to invite right now.")); y = y - 24
+  else window.empty:SetText("") end
+  fill("todo", todo, MAX_TODO, true)
+  place(window.todoMore, y); window.todoMore:SetText(#todo > MAX_TODO and string.format(L("+%d more"), #todo - MAX_TODO) or "")
+  if #todo > MAX_TODO then y = y - 18 end
+  -- Invited, waiting for them to accept
+  if #invited > 0 then
+    y = y - 8
+    place(window.invitedHead, y); window.invitedHead:SetText(string.format(L("Invited, waiting for them to accept (%d)"), #invited)); y = y - 22
+  else window.invitedHead:SetText("") end
+  fill("invited", invited, MAX_INVITED, true)
+  -- Handled: already in another guild, or declined
+  if #handled > 0 then
+    y = y - 8
+    window.handledToggle:ClearAllPoints(); window.handledToggle:SetPoint("TOPLEFT", 14, y)
+    window.handledToggle:SetText(string.format(L(module.showHandled and "Hide handled (%d)" or "Show handled (%d)"), #handled))
+    window.handledToggle:Show(); y = y - 28
+  else window.handledToggle:Hide() end
+  fill("handled", handled, MAX_HANDLED, module.showHandled and #handled > 0)
+  if window.SetHeight then window:SetHeight(math.max(160, -y + 24)) end
 end
 
 -- Rows and labels change together, out of combat (kept from the secure-button days; plain buttons would allow more).
@@ -252,38 +334,44 @@ end
 function build()
   if window then window:Show(); module.refresh(); return end
   local f = CreateFrame("Frame", "GuildedInviteQueuePanel", UIParent, "BasicFrameTemplateWithInset")
-  window = f; f:SetSize(420, 120 + MAX_ROWS * 26); f:SetPoint("CENTER"); f:SetMovable(true); f:EnableMouse(true)
+  window = f; f:SetSize(420, 420); f:SetPoint("CENTER"); f:SetMovable(true); f:EnableMouse(true)
   f:RegisterForDrag("LeftButton"); f:SetScript("OnDragStart", f.StartMoving); f:SetScript("OnDragStop", f.StopMovingOrSizing)
   if f.TitleText then f.TitleText:SetText(L("To invite")) end
   if UISpecialFrames then table.insert(UISpecialFrames, "GuildedInviteQueuePanel") end
-  local function text(y)
-    local t = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  local function text(y, font)
+    local t = f:CreateFontString(nil, "OVERLAY", font or "GameFontHighlightSmall")
     t:SetPoint("TOPLEFT", 18, y); t:SetWidth(380); t:SetJustifyH("LEFT"); return t
   end
-  f.status = text(-34)
-  f.empty = text(-60)
-  f.more = text(-90 - MAX_ROWS * 26)
-  for i = 1, MAX_ROWS do
-    local y = -56 - (i - 1) * 26
+  f.status = text(-30)
+  f.todoHead = text(-70, "GameFontNormal")
+  f.empty = text(-92)
+  f.todoMore = text(-92)
+  f.invitedHead = text(-92, "GameFontDisableSmall")
+  f.handledToggle = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+  f.handledToggle:SetSize(190, 22)
+  f.handledToggle:SetScript("OnClick", function() module.showHandled = not module.showHandled; refreshNow() end)
+  local function makeRow(group, index, buttonText)
     local highlight = f:CreateTexture(nil, "BACKGROUND")
     if highlight.SetColorTexture then highlight:SetColorTexture(1, 0.82, 0, 0.18) end
-    highlight:SetPoint("TOPLEFT", 12, y + 2); highlight:SetSize(396, 24); highlight:Hide()
+    highlight:SetSize(396, 24); highlight:Hide()
     local label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    label:SetPoint("TOPLEFT", 18, y - 4); label:SetWidth(280); label:SetJustifyH("LEFT")
-    local button = ns.util.inviteButton(f, "guild", L("Invite"), 90, 22, function(name)
-      local ok, message = module.markInvited(name)
+    label:SetPoint("TOPLEFT", 18, -92); label:SetWidth(285); label:SetJustifyH("LEFT")
+    local button = ns.util.inviteButton(f, "guild", buttonText, 100, 22, function(name)
+      module.markInvited(name)
       module.refresh()
-      f.status:SetText(message or "")
     end)
-    button:SetPoint("TOPLEFT", 310, y)
+    button:SetPoint("TOPLEFT", 310, -92)
     local remove = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    remove:SetSize(90, 22); remove:SetText(L("Remove")); remove:SetPoint("TOPLEFT", 310, y); remove:Hide()
+    remove:SetSize(100, 22); remove:SetText(L("Remove")); remove:SetPoint("TOPLEFT", 310, -92); remove:Hide()
     remove:SetScript("OnClick", function()
-      local item = rows[i] and rows[i].item
+      local item = pools[group][index] and pools[group][index].item
       if item then module.remove(item.name) end
     end)
-    rows[i] = { label = label, button = button, remove = remove, highlight = highlight }
+    pools[group][index] = { label = label, button = button, remove = remove, highlight = highlight }
   end
+  for i = 1, MAX_TODO do makeRow("todo", i, L("Invite")) end
+  for i = 1, MAX_INVITED do makeRow("invited", i, L("Invite again")) end
+  for i = 1, MAX_HANDLED do makeRow("handled", i, L("Invite")) end
   f:SetScript("OnShow", function() module.refresh() end)
   module.refresh()
 end

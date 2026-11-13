@@ -53,7 +53,7 @@ describe("canonical profession names", () => {
   });
 
   it("keeps the migration's name list equal to the table in code", () => {
-    const sql = readFileSync("prisma/migrations/20270130000000_canonical_profession_names/migration.sql", "utf8");
+    const sql = ["20270130000000_canonical_profession_names", "20270212000000_poisons_profession_name"].map((name) => readFileSync(`prisma/migrations/${name}/migration.sql`, "utf8")).join(String.fromCharCode(10));
     const rows = [...sql.matchAll(/^\s+\('((?:[^']|'')+)', '([^']+)'\),?$/gm)].map((m) => [m[1]!.replace(/''/g, "'"), m[2]!] as const);
     const expected = new Map<string, string>();
     for (const [canonical, identity] of Object.entries(PROFESSION_IDENTITIES)) for (const names of Object.values(identity.names)) for (const name of names) expected.set(name.toLowerCase(), canonical);

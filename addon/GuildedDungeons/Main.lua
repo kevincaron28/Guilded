@@ -42,7 +42,7 @@ SLASH_GUILDEDDUNGEONS2 = "/gdg"
 -- every Blizzard slash command typed afterwards (/ginvite, ...) is blocked as "only available to the Blizzard UI".
 SlashCmdList["GUILDEDDUNGEONS"] = function(text) ns.slash(text) end
 
--- The guild key, spelled exactly like full Guilded's GuildedDB.guildKey (addon/Guilded/Core.lua
+-- The guild key, spelled exactly like full Guilded's saved guild key (addon/Guilded/Core.lua
 -- currentGuildKey: "<guild name>-<home realm>", Forever realms without spaces). The companion matches a
 -- standalone-only PC to its Discord server from this. Plain reads only: no protected calls.
 local function compactRealm(realm) return (string.gsub(realm, "%s+", "")) end
@@ -81,12 +81,12 @@ local function noteIdentity()
     name = character.name, displayName = character.displayName, realm = character.realm,
     class = character.class, level = character.level, guildKey = key or (db.myCharacters[id] and db.myCharacters[id].guildKey),
     gameEdition = character.gameEdition, interface = character.interface,
-    capturedAt = date and date("!%Y-%m-%dT%H:%M:%SZ") or nil,
+    capturedAt = time and time() or 0,
   }
   local count, oldest, oldestAt = 0, nil, nil
   for name, entry in pairs(db.myCharacters) do
     count = count + 1
-    if not oldestAt or (entry.capturedAt or "") < oldestAt then oldest, oldestAt = name, entry.capturedAt or "" end
+    if not oldestAt or (entry.capturedAt or 0) < oldestAt then oldest, oldestAt = name, entry.capturedAt or 0 end
   end
   if count > MAX_CHARACTERS and oldest and oldest ~= id then db.myCharacters[oldest] = nil end
 end

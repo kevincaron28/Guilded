@@ -431,7 +431,7 @@ export function createEngine(initialConfig, hooks = {}) {
     const startedAt = Date.now();
     try {
       lastFile = await savedStamp(current);
-      const { full, source, noGuildKey } = await readSavedExport(current.watchFile, current.realm);
+      const { full, noGuildKey } = await readSavedExport(current.watchFile, current.realm);
       // (9.1.3) The same evidence as a signed-in upload (one revision for saved, sent and received), so the
       // Sync page shows "Sent" and "Received" instead of "Unknown" after an unsigned sync.
       const revision = createHash("sha256").update(JSON.stringify(full)).digest("hex");
@@ -464,7 +464,7 @@ export function createEngine(initialConfig, hooks = {}) {
       state.pendingUpload = false;
       log(summary?.status === "synced" && !noGuildKey ? "ok" : "warn", message);
       // 9.3.0: what happened to the dungeon runs this upload carried, so "Uploaded" proves something.
-      const runLine = runReportMessage(deviceRunCounts(sent?.dungeonRuns, body), source);
+      const runLine = runReportMessage(deviceRunCounts(sent?.dungeonRuns, body));
       if (runLine) { state.lastRuns = { at: new Date().toISOString(), message: runLine.message }; log(runLine.level, runLine.message); }
       if (summary?.status === "claimed") hooks.onDeviceClaimed?.();
     } catch (error) {
@@ -567,7 +567,7 @@ export function createEngine(initialConfig, hooks = {}) {
           ? `Professions and recipes synced. Guild ledger imports still await officer review.${pairingNote(body.pairedCharacterStatus)}`
           : `Uploaded ${body.transactionCount} ledger entries. Apply on Discord with: /import apply id:${body.importId}.${pairingNote(body.pairedCharacterStatus)}`;
       pendingRunCheck = { ids: (exported.dungeonRuns ?? []).map(run => run.id), source, tries: 0, last: null };
-      const sentLine = runReportMessage({ sent: pendingRunCheck.ids.length, stored: 0, copies: 0, waiting: 0, unconfirmed: 0, notCounted: {} }, source);
+      const sentLine = runReportMessage({ sent: pendingRunCheck.ids.length, stored: 0, copies: 0, waiting: 0, unconfirmed: 0, notCounted: {} });
       state.lastUpload = { at: new Date().toISOString(), message };
       state.syncPhase = body.applyError ? "apply-error" : body.applying ? "synced" : body.autoApplied?.held || !body.autoApplied && !body.professionRelay ? "officer-review" : "synced";
       state.uploads += 1;
@@ -655,7 +655,7 @@ export function createEngine(initialConfig, hooks = {}) {
     if (pendingRunCheck && pendingRunCheck.ids.length) {
       const check = pendingRunCheck;
       const counts = signedRunCounts(check.ids, result.body);
-      const line = runReportMessage(counts, check.source);
+      const line = runReportMessage(counts);
       check.tries++;
       if (line && line.message !== check.last) { check.last = line.message; state.lastRuns = { at: new Date().toISOString(), message: line.message }; log(line.level, line.message); }
       if (counts.unconfirmed === 0 || check.tries >= 3) pendingRunCheck = null;

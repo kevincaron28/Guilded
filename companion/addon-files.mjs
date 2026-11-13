@@ -67,6 +67,7 @@ export function standaloneAsGuildedDatabase(sdb, { withGuild = true, onlyGuild =
  * `noGuildKey`: the data comes from Guilded Dungeons alone and that addon has not saved the guild yet (an addon older than
  * 9.3.0, or no login in a guild yet): the bot cannot find the Discord server from it.
  */
+/** @param {{ guilded?: string | null, standalone?: string | null, standaloneAt?: number }} files */
 export function parseSavedFiles({ guilded = null, standalone = null, standaloneAt = 0 }, realm) {
   const standaloneDb = hasStandaloneDatabase(standalone) ? readDatabase(standalone, "GuildedDungeonsDB") : null;
   const savedAt = new Date(standaloneAt || 0);

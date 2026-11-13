@@ -5,7 +5,7 @@ import { readSavedText } from "./saved-file.mjs";
 import { credentialHeaders, requestJson } from "./request.mjs";
 import { writeDataAddon } from "./data-addon.mjs";
 import { dirname, join, sep } from "node:path";
-import { readSavedIdentity, savedFilePair } from "./addon-files.mjs";
+import { readSavedIdentity } from "./addon-files.mjs";
 import { standaloneReceiptsToLua } from "./device-receipts.mjs";
 import { existsSync } from "node:fs";
 import { assertSameEdition } from "./game-edition.mjs";

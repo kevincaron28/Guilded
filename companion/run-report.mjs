@@ -37,8 +37,9 @@ export function signedRunCounts(sentRuns, standings) {
 export function personalRunCounts(sentRuns, body) {
   const ids = idsOf(sentRuns);
   const counts = { sent: ids.length, stored: 0, copies: 0, waiting: 0, unconfirmed: 0, notCounted: /** @type {Record<string, number>} */ ({}) };
-  const held = new Set([...(body?.accepted ?? []), ...(body?.confirmed ?? []), ...(body?.duplicates ?? []), ...(body?.historyOnly ?? [])]);
-  const refused = new Map((body?.rejected ?? []).map((row) => [row?.id, String(row?.reason ?? "refused")]));
+  const list = (value) => (Array.isArray(value) ? value : []);
+  const held = new Set([...list(body?.accepted), ...list(body?.confirmed), ...list(body?.duplicates), ...list(body?.historyOnly)]);
+  const refused = new Map(list(body?.rejected).map((row) => [row?.id, String(row?.reason ?? "refused")]));
   for (const id of ids) {
     if (held.has(id)) counts.stored++;
     else if (refused.has(id)) counts.notCounted[refused.get(id)] = (counts.notCounted[refused.get(id)] ?? 0) + 1;
@@ -62,7 +63,7 @@ export function dungeonRunReport(counts) {
   return { level: bad ? "warn" : "ok", message: `Dungeon runs: ${[`${counts.sent} sent`, ...parts].join(", ")}.` };
 }
 
-/** Same as dungeonRunReport; `source` ("guilded", "standalone" or "both") is accepted for callers that want to vary the wording later. */
-export function runReportMessage(counts, _source) {
+/** The line for the log (same as dungeonRunReport; callers may pass the saved-file source, which does not change the wording). */
+export function runReportMessage(counts) {
   return dungeonRunReport(counts);
 }

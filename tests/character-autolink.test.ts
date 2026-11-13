@@ -57,3 +57,43 @@ describe("discovering characters from the guild digests", () => {
     expect(upserts).toHaveLength(1);
   });
 });
+
+describe("discovery of a whole guild's roster writes only what changed", () => {
+  const COUNT = 120;
+  const recent = () => new Date(Date.now() - 10 * 60_000);
+  const entry = (name: string, extra: Record<string, unknown> = {}) => ({ name, realm: "Classic Beta PvP", class: "PRIEST", race: "Scourge", level: 6, spec: "", professions: [], ...extra });
+  const names = Array.from({ length: COUNT }, (_, i) => `Person${i}`);
+
+  function world() {
+    const characterReads = vi.fn(async () => null);
+    const update = vi.fn(async () => ({}));
+    const unclaimedRows = names.slice(COUNT / 2).map((name, i) => ({ id: `u${i}`, nameKey: name.toLowerCase(), professionsUpdatedAt: new Date("2026-11-01T00:00:00Z"), lastSeenAt: recent(),
+      className: "Priest", race: "Undead", level: 6, spec: null, displayName: null, guildRankName: null }));
+    const findMany = vi.fn(async () => unclaimedRows);
+    const upsert = vi.fn(async () => ({}));
+    const client = { character: { findUnique: characterReads, update }, professionSkill: { upsert: vi.fn() }, unclaimedCharacter: { findMany, findUnique: vi.fn(async () => null), upsert }, recipeKnown: { deleteMany: vi.fn() }, professionCooldown: { deleteMany: vi.fn() } };
+    const linked = names.slice(0, COUNT / 2).map((name, i) => ({ id: `c${i}`, name, realm: "Classic Beta PvP", className: "Priest", race: "Undead", level: 6, spec: null, displayName: null,
+      guildRankName: null, guildRankIndex: null, lastSeenAt: recent(), professionsUpdatedAt: new Date("2026-11-01T00:00:00Z") }));
+    return { client, linked, characterReads, update, findMany, upsert };
+  }
+
+  it("an unchanged roster seen within the hour: no character update, no per-row reads, no unclaimed upsert", async () => {
+    const { client, linked, characterReads, update, findMany, upsert } = world();
+    const result = await applyDiscoveredCharacters(client as never, "g", names.map((name) => entry(name)), linked);
+    expect(result).toEqual({ refreshed: COUNT / 2, discovered: 0 });
+    expect(update).not.toHaveBeenCalled();
+    expect(characterReads).not.toHaveBeenCalled();
+    expect(findMany).toHaveBeenCalledTimes(1);
+    expect(client.unclaimedCharacter.findUnique).not.toHaveBeenCalled();
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  it("a changed level, a new person and an hour-old sighting still write", async () => {
+    const { client, linked, update, upsert } = world();
+    linked[1]!.lastSeenAt = new Date(Date.now() - 2 * 3_600_000);
+    const result = await applyDiscoveredCharacters(client as never, "g", [...names.map((name) => entry(name, name === "Person0" ? { level: 7 } : {})), entry("Newcomer")], linked);
+    expect(update.mock.calls.map((call) => (call as unknown as [{ where: { id: string } }])[0].where.id).sort()).toEqual(["c0", "c1"]);
+    expect(upsert).toHaveBeenCalledTimes(1);
+    expect(result.discovered).toBe(1);
+  });
+});

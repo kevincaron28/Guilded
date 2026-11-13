@@ -674,9 +674,14 @@ const applyLanes = new Map<string, { pending: unknown }>();
  * null comes back: the caller answers "received" at once. When the running apply ends, the waiting job runs once, and its
  * outcome goes to `onNext`. `run` must not throw (it returns its outcome).
  */
-export function startApplyLane<J, O>(key: string, job: J, run: (job: J) => Promise<O>, onNext: (outcome: O, job: J) => void): Promise<O> | null {
+export function startApplyLane<J, O>(key: string, job: J, run: (job: J) => Promise<O>, onNext: (outcome: O, job: J) => void, onSuperseded?: (job: J) => void): Promise<O> | null {
   const running = applyLanes.get(key);
-  if (running) { running.pending = job; return null; }
+  if (running) {
+    const replaced = running.pending as J | null;
+    running.pending = job;
+    if (replaced) onSuperseded?.(replaced);
+    return null;
+  }
   const lane: { pending: unknown } = { pending: null };
   applyLanes.set(key, lane);
   const first = run(job);
@@ -1477,8 +1482,16 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       };
       // Not applied: the reason goes to the server log, to the uploader (when still waiting) and, for a guild upload, to the officers.
       // A transient database failure is retried in the background first and only told to the officers if the retries fail too.
-      const failApply = (outcome: Extract<ApplyOutcome, { ok: false }>, job: ApplyJob): string | null => {
+      const failApply = (outcome: Extract<ApplyOutcome, { ok: false }>, job: ApplyJob, late = false): string | null => {
         const failure = classifyApplyFailure(outcome.error);
+        // The companion already showed "applying" and moved on: a member whose apply then failed for good is told by private message
+        // (officers get the notice in the officer channel below). Closed DMs are skipped quietly.
+        if (late && !access.officer && !failure.transient && !outcome.applied && client && !/already been applied/i.test(outcome.error instanceof Error ? outcome.error.message : "")) {
+          const text = settings?.language === "fr"
+            ? `⚠️ **Guilded** : votre dernier envoi du companion a été reçu mais n'a pas pu être appliqué : ${failure.message} [${failure.reason}]\nRien n'en a été importé. Un officier peut regarder le journal du bot ; le prochain envoi réessaie.`
+            : `⚠️ **Guilded**: your last companion upload was received but could not be applied: ${failure.message} [${failure.reason}]\nNothing from it was imported. An officer can check the bot's log; the next upload tries again.`;
+          inBackground("Member notice for a failed late apply", async () => { await client.users.send(createdBy, { content: text, allowedMentions: { parse: [] } }).catch(() => undefined); });
+        }
         if (job.retried) {
           if (/already been applied/i.test(outcome.error instanceof Error ? outcome.error.message : "")) return null;
           console.info(applyFailureLogLine({ guildId: guild.id, importId: job.importId, failure, attempts: 1, ms: outcome.ms, officer: !!access.officer, retriedDuplicate: true }));
@@ -1503,11 +1516,14 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // What happens to an apply that ends after the response went out (or that waited in the lane).
       const settleLate = (outcome: ApplyOutcome, job: ApplyJob) => {
         console.info(`import-apply-finished guild=${guildHash} ms=${outcome.ms} late=1 ok=${outcome.ok ? 1 : 0}`);
-        if (!outcome.ok) failApply(outcome, job);
+        if (!outcome.ok) failApply(outcome, job, true);
       };
       // Runs the apply (or queues it behind the one running) and waits for it only until the deadline.
       const applyWithDeadline = async (job: ApplyJob): Promise<{ state: "done"; outcome: ApplyOutcome } | { state: "applying" }> => {
-        const first = startApplyLane(laneKey, job, runApply, settleLate);
+        // A waiting import that a newer one replaces will never be applied: it stops listing as waiting (/import, handover, status).
+        const first = startApplyLane(laneKey, job, runApply, settleLate, (replaced) => inBackground("Superseded import", async () => {
+          await prisma.addonImport.updateMany({ where: { id: replaced.importId, guildId: guild.id, status: "PREVIEWED" }, data: { status: "SUPERSEDED" } });
+        }));
         if (!first) return { state: "applying" };
         const wait = Math.min(APPLY_DEADLINE_MS, APPLY_DEADLINE_MAX_MS) - (Date.now() - requestStartedAt);
         const outcome = await raceDeadline(first, Math.max(1_000, wait));

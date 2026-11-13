@@ -222,3 +222,29 @@ describe("cooldown list and pings", () => {
     expect(send).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("applyRecipeData issues a handful of statements for a whole guild's upload", () => {
+  it("60 characters with 3 professions each and cooldowns: reads, one delete and one insert per table, not four per profession", async () => {
+    const { db, recipes, cooldowns } = fakeDb();
+    const calls: string[] = [];
+    for (const [name, table] of Object.entries({ recipeKnown: db.recipeKnown, professionCooldown: db.professionCooldown })) {
+      for (const method of ["findMany", "deleteMany", "createMany", "aggregate", "updateMany"] as const) {
+        const original = (table as Record<string, (...args: never[]) => unknown>)[method]!;
+        (table as Record<string, unknown>)[method] = (...args: never[]) => { calls.push(`${name}.${method}`); return original(...args); };
+      }
+    }
+    const people = Array.from({ length: 60 }, (_, i) => `Person${i}`);
+    const sets = people.flatMap((person) => ["Alchemy", "Tailoring", "Mining"].map((profession) => set(person, profession, [1001, 1002, 1003])));
+    const cooldownSets = people.map((person) => ({ character: person, realm: "F", at: at("2026-10-01T18:00:00Z"), entries: [{ profession: "Alchemy", name: "Transmute", readyAt: at("2026-10-03T18:00:00Z") }] }));
+    const summary = await applyRecipeData(db as never, "g1", { recipes: sets, recipeNames: { "1001": "A" }, cooldowns: cooldownSets });
+    expect(summary).toEqual({ recipeSets: 180, recipes: 540, cooldownSets: 60 });
+    expect(recipes()).toHaveLength(540);
+    expect(cooldowns()).toHaveLength(60);
+    expect(calls.length).toBeLessThanOrEqual(10);
+    expect(calls.filter((call) => call.endsWith(".aggregate"))).toEqual([]);
+    // The same upload again changes nothing (not newer) and writes nothing.
+    calls.length = 0;
+    expect(await applyRecipeData(db as never, "g1", { recipes: sets, recipeNames: {}, cooldowns: cooldownSets })).toEqual({ recipeSets: 0, recipes: 0, cooldownSets: 0 });
+    expect(calls.filter((call) => /delete|create/i.test(call))).toEqual([]);
+  });
+});

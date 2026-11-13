@@ -17,7 +17,7 @@ Logic lives in `companion-app/update-check.cjs`; wiring in `companion-app/main.c
 Since 8 November 2026 (GitHub release downloads timed out for hours), the addon download follows the same order: Repair and Install addon take the zip's SHA-256 from releases.json (`guilded.addonZips`, file name → SHA-256) or else the release's `SHA256SUMS`, then fetch `/downloads/Guilded-vX.Y.Z-forever.zip` from the website and the GitHub zip second. The Problems panel's Get the addon opens the website's zip when it answers, the GitHub one otherwise.
 3. It installs silently (`/S --updated`) when the member quits the companion, or at the next start (then the new version restarts). The checksum is verified again just before running it; a mismatch, a stale file, a wrong folder or two failed attempts discards the download.
 4. After an update the app shows "Updated to vX" once. No notification is shown for the update itself.
-5. Settings → "Install updates automatically" turns it off; "Check for updates" checks now. "Update now" in the Overview banner still works.
+5. Advanced → "Install updates automatically" turns it off. "Update now" in the companion window still works (the window shows it when an update is ready).
 
 The development checkout (`app.isPackaged` false) and non-Windows platforms never self-update.
 

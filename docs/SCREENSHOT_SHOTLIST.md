@@ -23,16 +23,16 @@ rectangle or arrow. Game shots at the normal UI scale, no other addons' clutter.
 | `install-ingame-window.png` | In game, the Guilded window open after `/guilded` | The gold minimap coin and the window title |
 | `install-store-listing.png` | Microsoft Store, the Guilded Companion page (apps.microsoft.com/detail/9N680XX3QFL9) | The Get / Install button |
 | `install-smartscreen.png` | Windows SmartScreen on the direct installer, after pressing More info | The Run anyway button |
-| `install-companion-first-launch.png` | Companion, Home page on a fresh profile ("Welcome to Guilded.") with the WoW/addon setup note showing | The Set up WoW and the addon button |
+| `install-companion-first-launch.png` | Companion (9.2 single window) on a fresh profile: World of Warcraft Found, Guilded addon with its Install button | The Install button and the status lines |
 
 ## Link your character (`/guides/link/`)
 
 | File (`site/assets/guides/`) | Window and state | Highlight |
 |---|---|---|
-| `link-companion-link-everything.png` | Companion, Link everything page, not signed in yet | The Sign in with Discord button |
+| `link-companion-link-everything.png` | Companion window, not signed in yet ("This PC, not signed in" in Advanced, or the sign-in line on the main window) | The Sign in with Discord button |
 | `link-browser-connect.png` | Browser, the "Connect your companion" page on guilded.kcaron.top/me/companion with the server choice | The server choice and the Connect button (blur the URL's request id) |
 | `link-ingame-reload.png` | WoW chat box with `/reload` typed, before pressing Enter | The typed command |
-| `link-companion-linked.png` | Companion, Link everything page after linking: green check, "Everything is linked. Nothing more to do." and the Your characters table with ✓ Linked on at least two characters | The green check, the Linked column |
+| `link-companion-linked.png` | Companion window after linking: all status lines green and "Synced as <name> (Discord)" | The green dots and the Synced as line |
 | `link-discord-confirmation.png` | Discord, the direct message from the bot naming the linked characters | The character names |
 | `link-discord-character-pair.png` | Discord, the private reply to `/character pair` showing the `/guilded verify CODE` line (blur the code) | The `/guilded verify` line |
 | `link-ingame-verify.png` | WoW chat after pasting `/guilded verify CODE` and pressing Enter, with the "Your Discord link code is saved" line | The confirmation line (blur the code) |

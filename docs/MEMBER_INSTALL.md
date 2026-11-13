@@ -112,18 +112,16 @@ the [direct download on GitHub](https://github.com/kevincaron28/Guilded/releases
 which is unsigned, so Windows may warn before running it. You can also press **Connect optional
 companion / Connecter le compagnon (facultatif)** in the `/character pair` reply and use its
 **Get the Windows companion** button. In
-**Connection & setup**, choose **Sign in with Discord**: your browser opens, pick
+the companion window, press **Sign in with Discord** (optional, it syncs without): your browser opens, pick
 your server and press **Connect**. Nothing to type: the Windows app
-receives the approval by itself (only the command-line companion still shows a
-short code to type). Then save preferences. Sync your intended main
+receives the approval by itself. Sync your intended main
 first if no character is linked yet; later characters become alts. The addon is still required. Each device you sign in stays
 connected; manage them under Connections on the website.
 
 **Main already linked?** Keep your working companion: log in on an alt, `/reload`,
 then **Sync now**. It links as an alt without changing your main; nothing new to
 type for each alt. Run `/character list` after syncing to check the result.
-Companions older than 7.2 have no **Sign in with Discord**: use the one-time code
-from `/character pair` under **Older companions or your guild's own bot**.
+Companions older than 7.2 have no **Sign in with Discord**: install the current companion.
 Community-only members can skip WoW setup entirely.
 
 **If you see Choose SavedVariables folder** (enhanced browser build on supported
@@ -161,20 +159,17 @@ and PoE2 log tracking, especially useful for leaders and officers.
 1. Install `Guilded Companion Setup <version>.exe` from your guild's release link,
    then open Guilded Companion. The installed app does not need Node.js.
    Current installers are unsigned; verify the download source before running one.
-2. Open **Connection & setup** (new installations open it automatically) and
-   choose **Sign in with Discord**. Your browser opens: pick your server and press
-   **Connect**. Nothing to type.
-3. Guild with its own bot (not the hosted one)? First paste **Your guild's bot
-   address** from your officer, ending in `/api/v1/addon-imports`, under
-   **Older companions or your guild's own bot**. Companions older than 7.2 use the
-   one-time code from `/character pair` there instead (it expires after 15 minutes).
-4. Enable **World of Warcraft**. Press **Find it**, then verify the selected
-   `Guilded.lua` belongs to your current client and account:
-   `<client>\WTF\Account\<account>\SavedVariables\Guilded.lua`. Several WoW
-   accounts on this PC sync by themselves: see below.
-   Do not select the addon code in `Interface\AddOns`.
-5. Press **Save & start syncing**. In WoW, `/reload`. Check **Activity** for a
-   successful upload and the message that your character is linked.
+2. The window opens by itself the first time and tells you in plain words what works and what needs you: the game
+   folder, the addon, the sync. There is nothing to choose: it finds WoW and installs the Guilded addon.
+   **Sign in with Discord** is optional: press it to confirm your characters, then pick your server in the browser
+   and press **Connect**. Nothing to type.
+3. A guild with its own bot (not the hosted one)? A custom upload address or a one-time pairing code can no longer be
+   typed in the window: the companion uses the hosted setup and the Discord sign-in only.
+4. If the game folder is not found, the window says so and offers **Choose WoW folder**: pick the folder that holds
+   `_forever_`. **Advanced** shows the saved file it uses (your account's `SavedVariables` folder, `Guilded.lua`).
+   Do not select the addon code in `Interface/AddOns`. Several WoW accounts on this PC sync by themselves: see below.
+5. In WoW, `/reload`. The **Last sync** line turns green with the time, and the message that your character is linked
+   shows under **Advanced > Activity**.
 6. Let the companion refresh standings, then `/reload` again: the addon loads and
    uses the Discord standings by itself.
 
@@ -187,15 +182,14 @@ Leave the companion in the tray while playing. New game data reaches disk on
 automatic; `/guilded recipes mine` is only a way to inspect the stored result.
 
 **Several WoW accounts on one PC (WoW1, WoW2…).** Each syncs by itself. When the
-companion finds Guilded's data on another account of the same WoW, it asks once on
-the Sync page whether that account is yours too: **Yes, sync it too** adds it;
+companion finds Guilded's data on another account of the same WoW, it asks once in
+the companion window whether that account is yours too: **Yes, sync it too** adds it;
 **No, not mine** (a partner who plays on this PC with their own Discord) is
-remembered and never asked again. Each account then has its own line on the Sync
-page, and **Settings → Your WoW folder** has a switch beside each extra account.
+remembered and never asked again. Each account then has its own line under **Advanced > WoW accounts**, with a checkbox to change the answer later.
 Log in once on a new account and `/reload` so WoW saves its data.
 
 Signing in on another companion adds a device; your other companions stay
-connected. Remove a device under Connections on the website. **Update now** on the Overview page opens the new version's
+connected. Remove a device under Connections on the website. **Update now** in the companion window opens the new version's
 installer, which shows its progress and restarts the companion; if an update does
 not finish, the next start offers **Run the installer**.
 
@@ -286,10 +280,9 @@ soutien financier est facultatif et ne donne aucune priorité.
 5. **Compagnon facultatif :** dans **Lier mon personnage WoW**, choisissez
    **Connecter le compagnon (facultatif)**, ou utilisez `/character pair`.
    Installez le compagnon Windows avec **Obtenir le compagnon Windows** (Microsoft Store d'abord).
-6. Dans **Connection & setup**, choisissez **Sign in with Discord** : le navigateur
-   s'ouvre, choisissez votre serveur et appuyez sur **Connect**. Rien à taper.
-   Les compagnons plus anciens que 7.2 utilisent plutôt le code à usage unique de
-   `/character pair` (15 minutes), sous **Older companions or your guild's own bot**.
+6. Dans la fenêtre du compagnon, appuyez sur **Se connecter avec Discord** (facultatif) : le navigateur
+   s'ouvre, choisissez votre serveur et appuyez sur **Connecter**. Rien à taper.
+   Les compagnons plus anciens que 7.2 doivent être mis à jour.
    Sélectionnez le dossier `SavedVariables` de votre compte et, avec
    **Save standings to addon**, le dossier `Interface/AddOns/Guilded`.
 7. Après `/reload`, cliquez sur **Sync now**. Synchronisez votre principal d'abord
@@ -304,9 +297,9 @@ arrière-plan et le suivi PoE2, particulièrement utile aux chefs et officiers.
 faites `/reload`, puis **Sync now** dans le même compagnon. Votre principal reste
 le même; rien à refaire pour chaque alt. Se reconnecter avec **Sign in with
 Discord** remplace la connexion compagnon précédente. `/character list` montre le
-résultat après la synchro. **Update now** ouvre l'installateur de la nouvelle
+résultat après la synchro. **Mettre à jour** ouvre l'installateur de la nouvelle
 version, qui montre sa progression et redémarre le compagnon; si une mise à jour
-ne se termine pas, le prochain démarrage propose **Run the installer**.
+ne se termine pas, le prochain démarrage propose de lancer l'installateur.
 
 **Plusieurs comptes WoW sur un PC (WoW1, WoW2…) :** chacun se synchronise tout
 seul. Quand le compagnon trouve des données Guilded sur un autre compte du même

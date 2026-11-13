@@ -1,6 +1,7 @@
 import type { Lang } from "../i18n.js";
 import type { ScoreCard } from "./score-card.js";
 import type { WeekRecap } from "./world-pvp-extras.js";
+import { killDeathRatio } from "./world-pvp.js";
 
 // The weekly world PvP recap as a card (9.3). The recap already exists (on by default, /bg world-pvp turns it off, pvpRecapEnabled); the card carries
 // every line of its text (top killer, defender, most calls answered, quickest all clear), so when it is drawn the message is the picture alone and
@@ -24,7 +25,9 @@ export function worldPvpRecapCard(recap: WeekRecap, lang: Lang): ScoreCard {
     backdrop: { kind: "board", key: "world-pvp-recap", fallbackKey: "world-pvp" },
     stats: [
       ...(recap.killer ? [{ label: t("Top kills", "Meilleur total"), value: String(recap.killer.kills), accent: "red" as const }] : []),
-      { label: t("Calls for help", "Appels à l'aide"), value: String(recap.calls), accent: "gold" as const }
+      { label: t("Calls for help", "Appels à l'aide"), value: String(recap.calls), accent: "gold" as const },
+      // The text recap's guild-total deaths line: kept here (and so in the alt text) because the card goes out without text.
+      ...(recap.totals.deaths > 0 ? [{ label: t("Guild deaths", "Morts de la guilde"), value: String(recap.totals.deaths), note: `${t("K/D", "R/M")} ${killDeathRatio(recap.totals.kills, recap.totals.deaths)}`, accent: "red" as const }] : [])
     ],
     rowsLabel: t("Players of the week", "Joueurs de la semaine"), rows,
     footer: t("Counted by members' Guilded addon, capped each week · No points or awards · guildedwow.com", "Comptés par l'addon Guilded des membres, plafonnés chaque semaine · Aucun point ni récompense · guildedwow.com")

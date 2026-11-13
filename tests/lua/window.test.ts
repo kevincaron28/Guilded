@@ -117,7 +117,7 @@ describe("the five member tabs", () => {
     const s = openWindow(5);
     const row = () => s.run(`local out = {}; for _, t in ipairs(NS.windowState().tabs) do if t.button.shown then local p = t.button.points[#t.button.points]; out[#out + 1] = t.name .. "@" .. tostring(p[5]) end end; return table.concat(out, ",")`);
     s.run(`NS.windowState().groupButtons.Guild.scripts.OnClick()`);
-    expect(row()).toBe("Guild overview@-12,Board@-12,Layer invite@-12,Standings@-12,Availability@-12,Duels@-36");
+    expect(row()).toBe("Guild overview@-12,Board@-12,Layer invite@-12,Standings@-12,Availability@-36,Duels@-36"); // the first line ends before the window's - / + / close buttons
     expect(s.run(`return NS.windowState().pageTitle.text`)).toBe("");
     s.run(`NS.windowState().groupButtons.Crafting.scripts.OnClick()`);
     expect(row()).toBe("");   // one page: no section row
@@ -136,7 +136,8 @@ describe("the five member tabs", () => {
       expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].group`), name).toBe(group);
     }
     s.run(`NS.windowState().selectTabByName("Dungeons")`);
-    expect(s.run("return openedMode")).toBe("run");
+    expect(s.run("return tostring(openedMode)")).toBe("nil"); // the page opens in the Guilded window; its button opens the dungeons window
+    expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].group`)).toBe("Dungeons");
   });
 
   it("opens Standings from the Guild page and Dungeons from its tab", () => {
@@ -145,6 +146,10 @@ describe("the five member tabs", () => {
     s.run(`for _, t in ipairs(NS.windowState().tabs) do if t.name == "Standings" then t.button.scripts.OnClick() end end`);
     expect(s.run("return NS.windowState().tabs[NS.windowState().currentTab].name")).toBe("Standings");
     s.run(`NS.windowState().groupButtons.Dungeons.scripts.OnClick()`);
+    // The tab you click is the page you see; nothing opens by itself and the selection stays on it.
+    expect(s.run("return tostring(openedMode)")).toBe("nil");
+    expect(s.run("return NS.windowState().tabs[NS.windowState().currentTab].name")).toBe("Dungeons");
+    s.run(`for _, f in ipairs(FRAMES) do if f.text == "Open dungeons window" then f.scripts.OnClick() end end`);
     expect(s.run("return openedMode")).toBe("run");
   });
   it("shows the raid-night tools to a raid leader or officer under Raids, not hidden until a raid starts", () => {
@@ -172,6 +177,7 @@ describe("the section row of the Guild page", () => {
         expect(r.x + r.width).toBeLessThanOrEqual(pageWidth);          // never past the right edge
         expect(r.width).toBeGreaterThanOrEqual(r.text.length * 7 + 20 > 200 ? 200 : r.text.length * 7 + 20); // fits its text
         expect(r.line).toBeLessThanOrEqual(1);                          // the page starts below two lines
+        if (r.line === 0) expect(r.x + r.width).toBeLessThanOrEqual(pageWidth - 90); // clear of the - / + / close buttons
       }
     }
   });
@@ -183,8 +189,6 @@ describe("the tools window (sidebar and Home page)", () => {
     s.run(`NS.dungeonScorePanel = { open = function(mode) openedMode = mode end }
       NS.windowState().selectTabByName("Scores")`);
     expect(s.run("return openedMode")).toBe("season");
-    s.run(`NS.windowState().selectTabByName("Dungeons")`);
-    expect(s.run("return openedMode")).toBe("run");
     s.run(`NS.windowState().selectTabByName("Calendar")`);
     expect(s.run("return NS.windowState().tabs[NS.windowState().currentTab].name")).toBe("Home");
     expect(s.run(`local n = {}; for _, t in ipairs(NS.windowState().tabs) do n[#n+1]=t.name end; return table.concat(n,",")`)).not.toMatch(/Season|Scores/);
@@ -233,7 +237,10 @@ describe("the tools window (sidebar and Home page)", () => {
     const s = openWindow(1);
     s.run(`UI = NS.windowState(); UI.selectTabByName("Standings")`);
     expect(s.run("return tostring(UI.guildScroll.shown and UI.guildScroll.scrollChild == UI.tabs[UI.currentTab].page)")).toBe("true");
+    // Home scrolls too (its Discord block runs below the window's bottom edge); My character fits.
     s.run(`UI.selectTabByName("Home")`);
+    expect(s.run("return tostring(UI.guildScroll.shown and UI.guildScroll.scrollChild == UI.tabs[UI.currentTab].page)")).toBe("true");
+    s.run(`UI.selectTabByName("Me")`);
     expect(s.run("return tostring(UI.guildScroll.shown)")).toBe("false");
   });
   it("defers the guild tab in combat and does not replace native handlers", () => {

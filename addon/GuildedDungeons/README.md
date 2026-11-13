@@ -7,11 +7,11 @@ deaths, and keeps your personal records. No guild needed.
 - Runs start on the first observed combat in a dungeon and finish on the detected last boss.
 - Send your runs to Discord in 3 steps (`/gdungeons companion` shows them in game):
   1. Download the free Guilded Companion (Windows only): search "Guild Sync Companion" in the Microsoft Store, or
-     https://guilded.kcaron.top/companion/
+     https://guildedwow.com/companion/
   2. Run the installer. It finds WoW and your guild's Discord server by itself.
   3. Keep it open (it starts with Windows). `/reload` or log out and your runs are sent. Signing in with Discord is optional.
-- Optional: public leaderboards at https://guilded.kcaron.top/leaderboards/ with the Guilded
-  Windows companion (free, Microsoft Store; download page https://guilded.kcaron.top/companion/):
+- Optional: public leaderboards at https://guildedwow.com/leaderboards/ with the Guilded
+  Windows companion (free, Microsoft Store; download page https://guildedwow.com/companion/):
   1. In the companion, Connection & setup: **Sign in with Discord**, then choose
      **Public dungeon leaderboards only**. Nothing to type.
   2. In step 2, choose your `WTF\Account\<account>\SavedVariables` folder (or

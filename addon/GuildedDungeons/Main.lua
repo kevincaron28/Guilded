@@ -1,6 +1,6 @@
 -- Guilded Dungeons: slash command and login. /gdungeons (or /gdg) status | results | start |
 -- complete | abandon | check | score | lang. The Guilded companion reads GuildedDungeonsDB and,
--- once paired with a personal code from guilded.kcaron.top/me/, sends finished runs to the public
+-- once paired with a personal code from guildedwow.com/me/, sends finished runs to the public
 -- leaderboards.
 local _, ns = ...
 

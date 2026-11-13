@@ -145,6 +145,7 @@ describe("the tools window in French", () => {
         expect(r.x + r.width).toBeLessThanOrEqual(pageWidth);          // never past the right edge
         expect(r.width).toBeGreaterThanOrEqual(r.text.length * 7 + 20 > 200 ? 200 : r.text.length * 7 + 20); // fits its text
         expect(r.line).toBeLessThanOrEqual(1);                          // the page starts below two lines
+        if (r.line === 0) expect(r.x + r.width).toBeLessThanOrEqual(pageWidth - 90); // clear of the - / + / close buttons
       }
     }
   });

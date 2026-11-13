@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 // Owner request (8 November 2026): links members click to get the companion or the addon go to the
-// website (guilded.kcaron.top), never straight to GitHub. GitHub stays only as a deliberate fallback
+// website (guildedwow.com), never straight to GitHub. GitHub stays only as a deliberate fallback
 // inside the companion updater, the Worker, releases.json and release notes.
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const GITHUB_DOWNLOAD = /github\.com\/kevincaron28\/Guilded\/releases\/(?:latest|download)/;
@@ -10,7 +10,7 @@ const GITHUB_DOWNLOAD = /github\.com\/kevincaron28\/Guilded\/releases\/(?:latest
 describe("member-facing download links point at the website", () => {
   it("the addon's companion copy box", () => {
     const lua = read("addon/Guilded/Modules/CompanionLink.lua");
-    expect(lua).toContain('module.DIRECT = "https://guilded.kcaron.top/downloads/Guilded.Companion.Setup.exe"');
+    expect(lua).toContain('module.DIRECT = "https://guildedwow.com/downloads/Guilded.Companion.Setup.exe"');
     expect(lua).not.toMatch(GITHUB_DOWNLOAD);
   });
 

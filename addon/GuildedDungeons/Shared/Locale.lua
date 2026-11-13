@@ -2872,6 +2872,15 @@ local DE = {
   -- 9.3 world PvP deaths (Modules/WorldPVP.lua)
   ["K/D: %s this week, %s in total."] = "K/D: %s diese Woche, %s insgesamt.",
   ["Deadliest zones: %s."] = "Gef\195\164hrlichste Zonen: %s.",
+  -- Duel card: painted background, stat columns, non-guild duels (9.3)
+  ["Record"] = "Bilanz",
+  ["Points"] = "Punkte",
+  ["Guild rank"] = "Gildenrang",
+  ["total %d"] = "gesamt %d",
+  ["up %d (was #%d)"] = "+%d (war #%d)",
+  ["down %d (was #%d)"] = "-%d (war #%d)",
+  ["Not counted on the guild ladder: %s is not in your guild."] = "Nicht im Gildenranking gez\195\164hlt: %s ist nicht in deiner Gilde.",
+  ["Not counted yet: the guild roster has not loaded."] = "Noch nicht gez\195\164hlt: die Gildenliste ist noch nicht geladen.",
   -- 9.3 UI polish (Modules/LayerInvite.lua)
   ["When a guildmate on another layer asks to be invited, they appear here with an Invite button. Press Change layer to ask for an invite yourself."] = "Wenn ein Gildenmitglied auf einem anderen Layer eine Einladung anfragt, erscheint es hier mit einem Einladen-Knopf. Dr\195\188cke auf Layer wechseln, um selbst eine Einladung anzufragen.",
   -- 9.3 UI polish (Modules/RunResults.lua)
@@ -4770,6 +4779,15 @@ local ES = {
   -- 9.3 world PvP deaths (Modules/WorldPVP.lua)
   ["K/D: %s this week, %s in total."] = "K/D: %s esta semana, %s en total.",
   ["Deadliest zones: %s."] = "Zonas m\195\161s letales: %s.",
+  -- Duel card: painted background, stat columns, non-guild duels (9.3)
+  ["Record"] = "Balance",
+  ["Points"] = "Puntos",
+  ["Guild rank"] = "Rango de hermandad",
+  ["total %d"] = "total %d",
+  ["up %d (was #%d)"] = "+%d (era #%d)",
+  ["down %d (was #%d)"] = "-%d (era #%d)",
+  ["Not counted on the guild ladder: %s is not in your guild."] = "No cuenta en la clasificaci\195\179n de la hermandad: %s no est\195\161 en tu hermandad.",
+  ["Not counted yet: the guild roster has not loaded."] = "A\195\186n no cuenta: la lista de la hermandad no se ha cargado.",
   -- 9.3 UI polish (Modules/LayerInvite.lua)
   ["When a guildmate on another layer asks to be invited, they appear here with an Invite button. Press Change layer to ask for an invite yourself."] = "Cuando un miembro de la hermandad en otra capa pide una invitaci\195\179n, aparece aqu\195\173 con un bot\195\179n Invitar. Pulsa Cambiar de capa para pedir una invitaci\195\179n t\195\186 mismo.",
   -- 9.3 UI polish (Modules/RunResults.lua)
@@ -5807,6 +5825,15 @@ FR["opponent's health left %d%%"] = "sant\195\169 de l'adversaire : %d%%"
 
 FR["Shows a small card with the result, the record and the rank change after each of your guild duels. Type /guilded duels card test to preview it."] = "Affiche une petite carte avec le r\195\169sultat, le bilan et le changement de rang apr\195\168s chacun de vos duels de guilde. Tapez /guilded duels card test pour l'aper\195\167u."
 FR["Not recorded: you duelled this player a moment ago, so this result is not added."] = "Non enregistr\195\169 : vous venez d'affronter ce joueur, ce r\195\169sultat n'est donc pas ajout\195\169."
+-- Duel card: painted background, stat columns, non-guild duels (9.3)
+FR["Record"] = "Bilan"
+FR["Points"] = "Points"
+FR["Guild rank"] = "Rang de guilde"
+FR["total %d"] = "total %d"
+FR["up %d (was #%d)"] = "+%d (\195\169tait #%d)"
+FR["down %d (was #%d)"] = "-%d (\195\169tait #%d)"
+FR["Not counted on the guild ladder: %s is not in your guild."] = "Non compt\195\169 au classement de la guilde : %s n'est pas dans votre guilde."
+FR["Not counted yet: the guild roster has not loaded."] = "Pas encore compt\195\169 : la liste de la guilde n'est pas charg\195\169e."
 -- Officer "To invite" window in three sections (9.3)
 FR["To invite now (%d)"] = "\195\128 inviter maintenant (%d)"
 FR["Nobody to invite right now."] = "Personne \195\160 inviter pour le moment."

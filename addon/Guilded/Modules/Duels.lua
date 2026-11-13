@@ -20,7 +20,7 @@
 --   /guilded duels            the top of the board in chat
 --   /guilded duels me         my record
 --   /guilded duels card on|off|test   the end-of-duel card (on by default)
-local _, ns = ...
+local addonName, ns = ...
 local duels = {}
 ns.duels = duels
 
@@ -342,10 +342,12 @@ local session
 
 function duels.sessionStop() session = nil end
 
+local targetInfo -- defined below (class and level of my target)
 local function startFight(seconds)
   local zone
   if GetZoneText then local ok, v = pcall(GetZoneText); if ok and type(v) == "string" and v ~= "" and not (ns.isSecret and ns.isSecret(v)) then zone = v end end
-  session = { startedAt = clock() + (tonumber(seconds) or 0), opponent = session and session.opponent, zone = zone }
+  local opponent = session and session.opponent
+  session = { startedAt = clock() + (tonumber(seconds) or 0), opponent = opponent, zone = zone, oppInfo = targetInfo(opponent) }
 end
 
 -- Health left, in percent, of a unit; nil when the client does not say.
@@ -358,6 +360,36 @@ local function healthPercent(unit)
     return math.max(0, math.min(100, math.floor(cur / max * 100 + 0.5)))
   end)
   return ok and value or nil
+end
+-- Class and level of my target when it is the duel opponent (a non-guildmate has no roster row). Optional card data: pcall.
+function targetInfo(opponent)
+  if not (UnitExists and UnitName) then return nil end
+  local ok, info = pcall(function()
+    if not UnitExists("target") then return nil end
+    local name = UnitName("target")
+    if type(name) ~= "string" or (ns.isSecret and ns.isSecret(name)) then return nil end
+    if opponent and not same(name, opponent) then return nil end
+    local level = UnitLevel and tonumber(UnitLevel("target"))
+    local _, file
+    if UnitClass then _, file = UnitClass("target") end
+    return { name = name, level = level and level > 0 and level or nil, class = type(file) == "string" and file:match("^%u+$") or nil }
+  end)
+  return ok and info or nil
+end
+-- The opponent's class and level: my target now when it is the opponent, else what the target was when the duel started.
+local function opponentInfo(s, oppName)
+  local live = targetInfo(oppName)
+  if live then return live end
+  local early = s and s.oppInfo
+  if early and early.name and same(early.name, oppName) then return early end
+  return nil
+end
+-- True while the guild roster has not loaded (right after login): "not in the guild" cannot be said yet.
+local function rosterPending()
+  if not (IsInGuild and IsInGuild()) then return false end
+  if type(GetNumGuildMembers) ~= "function" then return false end
+  local ok, count = pcall(GetNumGuildMembers)
+  return ok and (tonumber(count) or 0) == 0
 end
 -- My health left, and the opponent's when my target is the duel opponent.
 local function healthLeft(opponent)
@@ -392,6 +424,7 @@ function duels.cardData(winner, loser, at, reason, ctx)
   local won = mine and same(mine, winner) or false
   local myName, oppName = won and winner or loser, won and loser or winner
   local myInfo, oppInfo = infoFor(myName), infoFor(oppName)
+  if ctx.oppInfo then oppInfo = { level = oppInfo.level or ctx.oppInfo.level, class = oppInfo.class or ctx.oppInfo.class } end
   if ctx.row then
     local mineRow = won and { level = ctx.row.wlv, class = ctx.row.wcl } or { level = ctx.row.llv, class = ctx.row.lcl }
     local oppRow = won and { level = ctx.row.llv, class = ctx.row.lcl } or { level = ctx.row.wlv, class = ctx.row.wcl }
@@ -403,6 +436,12 @@ function duels.cardData(winner, loser, at, reason, ctx)
     me = myName, opponent = oppName, myClass = myInfo.class, oppClass = oppInfo.class, myLevel = myInfo.level, oppLevel = oppInfo.level,
     duration = ctx.duration, zone = ctx.zone, counted = ctx.counted ~= false, health = ctx.health, recorded = ctx.recorded ~= false,
   }
+  if ctx.outsider then
+    -- The opponent is not in the guild: the result is shown, never recorded, no points, record or rank.
+    data.outsider, data.recorded, data.counted = not ctx.rosterPending, false, false
+    data.rosterPending = ctx.rosterPending or nil
+    return data
+  end
   if ctx.recorded == false then
     -- A rematch within DEDUPE seconds of the last duel of this pair is not added to the board: no points, record or rank.
     data.recorded, data.counted = false, false
@@ -412,7 +451,7 @@ function duels.cardData(winner, loser, at, reason, ctx)
   local rows = duels.standings()
   local row = duels.rowFor(rows, myName)
   if row then
-    data.wins, data.losses, data.streak, data.rank, data.best = row.wins, row.losses, row.streak, row.rank, row.best
+    data.wins, data.losses, data.streak, data.rank, data.best, data.total = row.wins, row.losses, row.streak, row.rank, row.best, row.points
     data.rate = percent(row.rate)
   end
   if ctx.before and row then
@@ -448,7 +487,11 @@ function duels.cardLines(data)
     if h.opponent then parts[#parts + 1] = string.format(L("opponent's health left %d%%"), h.opponent) end
     lines[#lines + 1] = "|cffffd36a" .. table.concat(parts, "  -  ") .. "|r"
   end
-  if data.recorded == false then
+  if data.rosterPending then
+    lines[#lines + 1] = "|cffe0a050" .. L("Not counted yet: the guild roster has not loaded.") .. "|r"
+  elseif data.outsider then
+    lines[#lines + 1] = "|cffe0a050" .. string.format(L("Not counted on the guild ladder: %s is not in your guild."), displayName(data.opponent)) .. "|r"
+  elseif data.recorded == false then
     lines[#lines + 1] = "|cffe0a050" .. L("Not recorded: you duelled this player a moment ago, so this result is not added.") .. "|r"
   elseif not data.counted then
     lines[#lines + 1] = "|cffe0a050" .. L("Not counted: 5 duels per pair of players per day.") .. "|r"
@@ -472,8 +515,9 @@ function duels.cardLines(data)
 end
 
 local card, pendingCard
--- Drop a texture path here when the card artwork is approved; the plain styled background shows until then.
-duels.CARD_ART = nil
+-- The painting behind the card (Media\\DuelCard.blp, made by scripts/build-duel-texture.mjs). Members who turned "Card art" off
+-- (settings.cardArt, the Run tab button) get the plain card.
+duels.CARD_ART = "Interface\\AddOns\\" .. tostring(addonName or "Guilded") .. "\\Media\\DuelCard"
 
 local function savePosition(self)
   local st = settings()
@@ -498,9 +542,33 @@ function duels.hideCard()
 end
 local function closeCard() duels.hideCard() end
 
+-- Layout (9.3): one big result word, the two names in class colours, a row of compact stats with small labels at fixed
+-- columns, duration and zone in small print, the rematch hint last. A stat the data does not have is not drawn.
+local CARD_W, CARD_H, COLUMNS_W = 360, 196, 328
+local STAT_MAX = 4
+
+-- A name cut to fit its line (the card never grows or clips): "Averyveryverylongname" -> "Averyveryverylo...".
+local function fit(name, max)
+  name = tostring(name or "")
+  if #name <= max then return name end
+  -- Cut on a character boundary: step back over UTF-8 continuation bytes (0x80-0xBF) so an accent is never split.
+  local cut = max - 3
+  while cut > 0 do
+    local byte = name:byte(cut + 1)
+    if byte and byte >= 128 and byte < 192 then cut = cut - 1 else break end
+  end
+  return name:sub(1, cut) .. "..."
+end
+duels.fitName = fit
+
+local function artOn()
+  local st = settings()
+  return not (st and st.cardArt == false) and type(duels.CARD_ART) == "string" and duels.CARD_ART ~= ""
+end
+
 local function buildCard()
   card = CreateFrame("Frame", "GuildedDuelCard", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
-  card:SetSize(340, 200)
+  card:SetSize(CARD_W, CARD_H)
   card:SetClampedToScreen(true)
   card:SetFrameStrata("DIALOG")
   card:SetMovable(true); card:EnableMouse(true); card:RegisterForDrag("LeftButton")
@@ -513,14 +581,32 @@ local function buildCard()
     card:SetBackdropColor(0.035, 0.045, 0.065, 0.97)
     card:SetBackdropBorderColor(0.72, 0.54, 0.2, 1)
   end
-  -- Optional artwork slot behind everything (hidden until duels.CARD_ART is set).
+  -- The painting, then a dark scrim over it so the text keeps its contrast (both hidden when the art is off).
   card.art = card:CreateTexture(nil, "BACKGROUND")
-  card.art:SetAllPoints(card)
+  card.art:SetPoint("TOPLEFT", 3, -3); card.art:SetPoint("BOTTOMRIGHT", -3, 3)
   card.art:Hide()
-  card.title = card:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
-  card.title:SetPoint("TOPLEFT", 16, -14); card.title:SetJustifyH("LEFT")
-  card.body = card:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  card.body:SetPoint("TOPLEFT", 16, -48); card.body:SetWidth(308); card.body:SetJustifyH("LEFT"); card.body:SetJustifyV("TOP")
+  card.scrim = card:CreateTexture(nil, "BACKGROUND", nil, 1)
+  card.scrim:SetPoint("TOPLEFT", 3, -3); card.scrim:SetPoint("BOTTOMRIGHT", -3, 3)
+  if card.scrim.SetColorTexture then card.scrim:SetColorTexture(0.02, 0.025, 0.04, 0.42) end
+  card.scrim:Hide()
+  local function text(font, x, y, width, justify)
+    local fs = card:CreateFontString(nil, "OVERLAY", font)
+    fs:SetPoint("TOPLEFT", x, y); fs:SetWidth(width or COLUMNS_W); fs:SetJustifyH(justify or "LEFT")
+    if fs.SetWordWrap then fs:SetWordWrap(false) end
+    return fs
+  end
+  card.title = text("GameFontNormalHuge", 16, -12, 240)
+  card.me = text("GameFontHighlight", 16, -44)
+  card.vs = text("GameFontHighlight", 16, -62)
+  card.stats = {}
+  for i = 1, STAT_MAX do
+    card.stats[i] = { label = text("GameFontDisableSmall", 16, -88, 80), value = text("GameFontNormalLarge", 16, -101, 80), sub = text("GameFontHighlightSmall", 16, -121, 80) }
+  end
+  card.note = text("GameFontHighlightSmall", 16, -90)
+  if card.note.SetWordWrap then card.note:SetWordWrap(true) end
+  card.facts = text("GameFontHighlightSmall", 16, -144)
+  card.health = text("GameFontHighlightSmall", 16, -158)
+  card.hint = text("GameFontDisableSmall", 16, -176)
   card.close = CreateFrame("Button", nil, card, "UIPanelCloseButton")
   card.close:SetPoint("TOPRIGHT", 0, 0)
   card.close:SetScript("OnClick", closeCard)
@@ -534,21 +620,90 @@ local function buildCard()
   end)
 end
 
+local function colored(hex, text) return "|cff" .. hex .. text .. "|r" end
+local function personLine(name, class, level)
+  local text = classHex(class) .. fit(displayName(name), 20) .. "|r"
+  local detail = {}
+  if class then detail[#detail + 1] = className(class) end
+  if level then detail[#detail + 1] = string.format(L("level %d"), level) end
+  if #detail > 0 then text = text .. "  |cffb0b8c4" .. table.concat(detail, " ") .. "|r" end
+  return text
+end
+
+-- The stat columns for a card's data: { label, value, sub } in order. Pure, so the tests can read it.
+function duels.cardStats(data)
+  local out = {}
+  if data.outsider or data.rosterPending or data.recorded == false or not data.counted or not data.wins then return out end
+  out[#out + 1] = { label = L("Record"), value = string.format("%d-%d", data.wins, data.losses), sub = string.format("%d%%", data.rate or 0) }
+  out[#out + 1] = { label = L("Points"), value = "+" .. (data.points or 0), sub = data.total and string.format(L("total %d"), data.total) or "" }
+  if data.rank then
+    local sub = ""
+    if data.rankChange and data.rankChange > 0 then sub = colored("66e08a", string.format(L("up %d (was #%d)"), data.rankChange, data.rankBefore or data.rank + data.rankChange))
+    elseif data.rankChange and data.rankChange < 0 then sub = colored("e07066", string.format(L("down %d (was #%d)"), -data.rankChange, data.rankBefore or data.rank + data.rankChange)) end
+    out[#out + 1] = { label = L("Guild rank"), value = "#" .. data.rank, sub = sub }
+  end
+  if data.streak and math.abs(data.streak) >= 2 then
+    out[#out + 1] = { label = L("Streak"), value = streakText(data.streak), sub = data.newBest and colored("66e08a", L("New best streak!")) or "" }
+  end
+  return out
+end
+
 local function drawCard(data)
   if not (UIParent and CreateFrame) then return end
   if not card then buildCard() end
   card.data = data
   restorePosition(card)
-  if data.won then
+  local won = data.won
+  if won then
     card.title:SetText(L("VICTORY")); card.title:SetTextColor(0.4, 0.85, 0.6)
   else
     card.title:SetText(L("DEFEAT")); card.title:SetTextColor(0.9, 0.45, 0.4)
   end
-  card.body:SetText(table.concat(duels.cardLines(data), "\n"))
-  local h = card.body.GetStringHeight and card.body:GetStringHeight()
-  if type(h) ~= "number" or h < 20 then h = 112 end
-  card:SetHeight(math.max(140, math.floor(h + 66)))
-  if duels.CARD_ART and card.art then card.art:SetTexture(duels.CARD_ART); card.art:Show() elseif card.art then card.art:Hide() end
+  -- The painting, tinted: green-gold for a win, muted red for a defeat. Off: the plain card.
+  if card.art and artOn() then
+    card.art:SetTexture(duels.CARD_ART)
+    if card.art.SetVertexColor then if won then card.art:SetVertexColor(0.85, 1, 0.72) else card.art:SetVertexColor(1, 0.55, 0.5) end end
+    card.art:Show(); card.scrim:Show()
+  else
+    if card.art then card.art:Hide() end
+    if card.scrim then card.scrim:Hide() end
+  end
+  card.me:SetText(personLine(data.me, data.myClass, data.myLevel))
+  card.vs:SetText("|cffb0b8c4" .. L("against") .. "|r  " .. personLine(data.opponent, data.oppClass, data.oppLevel))
+  local stats = duels.cardStats(data)
+  local colW = math.floor(COLUMNS_W / math.max(#stats, 1))
+  for i = 1, STAT_MAX do
+    local cell, col = card.stats[i], stats[i]
+    if col then
+      local x = 16 + (i - 1) * colW
+      for _, key in ipairs({ "label", "value", "sub" }) do
+        local fs = cell[key]
+        fs:ClearAllPoints(); fs:SetPoint("TOPLEFT", x, key == "label" and -88 or key == "value" and -101 or -121); fs:SetWidth(colW - 6); fs:Show()
+      end
+      cell.label:SetText(col.label); cell.value:SetText(col.value); cell.sub:SetText(col.sub)
+    else
+      cell.label:SetText(""); cell.value:SetText(""); cell.sub:SetText("")
+      cell.label:Hide(); cell.value:Hide(); cell.sub:Hide()
+    end
+  end
+  -- No stats (not counted, a rematch, or a non-guild opponent): one plain sentence in their place.
+  local note = ""
+  if data.rosterPending then note = L("Not counted yet: the guild roster has not loaded.")
+  elseif data.outsider then note = string.format(L("Not counted on the guild ladder: %s is not in your guild."), displayName(data.opponent))
+  elseif data.recorded == false then note = L("Not recorded: you duelled this player a moment ago, so this result is not added.")
+  elseif not data.counted then note = L("Not counted: 5 duels per pair of players per day.") end
+  card.note:SetText(note ~= "" and colored("e0a050", note) or "")
+  local facts = {}
+  if data.duration then facts[#facts + 1] = L("Duration") .. " " .. clockText(data.duration) end
+  if data.zone then facts[#facts + 1] = fit(data.zone, 40) end
+  if data.reason == "retreat" then facts[#facts + 1] = won and L("the opponent fled") or L("you fled") end
+  card.facts:SetText(#facts > 0 and ("|cffc4ccd8" .. table.concat(facts, "  -  ") .. "|r") or "")
+  local h, parts = data.health, {}
+  if h and h.me then parts[#parts + 1] = string.format(L("your health left %d%%"), h.me) end
+  if h and h.opponent then parts[#parts + 1] = string.format(L("opponent's health left %d%%"), h.opponent) end
+  card.health:SetText(#parts > 0 and ("|cffffd36a" .. table.concat(parts, "  -  ") .. "|r") or "")
+  card.hint:SetText(string.format(L("Rematch? Target %s and choose Duel."), fit(displayName(data.opponent), 20)))
+  card:SetHeight(CARD_H)
   card.age = 0
   card:SetAlpha(1)
   -- Stacked above the dungeon result card when both are on screen.
@@ -590,17 +745,37 @@ end
 function duels.onSystem(text)
   local winner, loser, reason = duels.parse(text)
   if not winner then return false end
-  -- Both players must be in the guild (a duel with an outsider never counts).
-  if not (guildMember(winner) and guildMember(loser)) then return false end
   local at = epoch()
   local mine = me()
   local involved = mine and (same(mine, winner) or same(mine, loser)) or false
+  -- Both players must be in the guild for a duel to count (an outsider's never does: not recorded, not shared with the guild or
+  -- the bot). My own duel with an outsider still gets the card, saying so, with what my client knows of the opponent.
+  if not (guildMember(winner) and guildMember(loser)) then
+    if involved then
+      pcall(function()
+        local ctx = { me = mine, outsider = true, rosterPending = rosterPending() }
+        local s = session
+        if s and s.startedAt and clock() - s.startedAt >= 0 and clock() - s.startedAt < SESSION_MAX then
+          ctx.duration, ctx.zone = clock() - s.startedAt, s.zone
+          ctx.health = healthLeft(s.opponent)
+        end
+        local oppName = same(mine, winner) and loser or winner
+        ctx.oppInfo = opponentInfo(s, oppName)
+        local data = duels.cardData(winner, loser, at, reason, ctx)
+        duels.lastCard = data
+        duels.showCard(data)
+      end)
+      session = nil
+    end
+    return false
+  end
   -- My side of the duel: duration, zone and health left. This is optional card data: a failure here must never stop the record.
   local ctx
   if involved then
     ctx = { me = mine }
     local okCtx = pcall(function()
       local s = session
+      ctx.oppInfo = targetInfo(same(mine, winner) and loser or winner)
       if s and s.startedAt and clock() - s.startedAt >= 0 and clock() - s.startedAt < SESSION_MAX then
         ctx.duration = clock() - s.startedAt
         ctx.zone = s.zone

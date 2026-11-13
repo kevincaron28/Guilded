@@ -18,6 +18,7 @@ Not yet published. Polish after 9.2.0 (addon settings and chat, dungeon and duel
 - Fewer finished runs end as abandoned: the dungeon journal is re-read when a run starts (#842).
 - A chat line explains why an abandoned run will not count (#842).
 - A run can be completed from a guildmate's copy, runs are relayed for members without a companion in every pairing of the two addons, and each player's guild is recorded on a run (#842).
+- A run nobody heard is offered again: a short runs-only catch-up at login and when more guildmates come online (one answer per offer, at most three runs re-sent a round), the recorder is told in chat when a guildmate's companion uploaded the run, `/guilded dungeon` shows how many of your runs are not uploaded yet, slow or refused chunks no longer lose a run silently, a player with a companion is told once when guildmates' runs wait for it, and the standalone addon reads the guild roster once instead of per message and waits for it after login.
 
 **Bot (Discord)**
 - A card for every counted duel, with its own switch `/bg duel-cards` (#840).

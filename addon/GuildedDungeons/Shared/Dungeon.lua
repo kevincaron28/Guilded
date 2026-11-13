@@ -78,13 +78,13 @@ local function flush()
     local channel = message.channel == "GROUP" and groupChannel() or message.channel
     -- (9.0) Guild summaries wait until the player is outside: guild messages from inside an
     -- instance are unreliable, and nobody in the guild needs them before the group leaves.
-    if channel then ns.comm.send(PREFIX, message.text, channel, nil, nil, channel == "GUILD" and "hold-in-instance" or nil) end
+    if channel then ns.comm.send(PREFIX, message.text, channel, nil, nil, channel == "GUILD" and "hold-in-instance" or nil, message.onLost) end
   end
 end
 
 -- channel "GROUP" = party/raid at send time, or "GUILD".
-local function send(text, channel)
-  table.insert(dungeon.outbox, { text = text, channel = channel or "GROUP" })
+local function send(text, channel, onLost)
+  table.insert(dungeon.outbox, { text = text, channel = channel or "GROUP", onLost = onLost })
   flush()
 end
 
@@ -365,10 +365,7 @@ local function finalize(run)
   d.current = nil
   -- Stay finished across zone notifications and /reload inside the same clear.
   if run.state == "COMPLETED" then d.completedInstanceId = run.instanceId end
-  local summary = serialize(run)
-  local chunks = {}
-  for index = 1, #summary, CHUNK_BYTES do table.insert(chunks, string.sub(summary, index, index + CHUNK_BYTES - 1)) end
-  for index, chunk in ipairs(chunks) do send(string.format("SUM|%s|%d|%d|%s", run.id, index, #chunks, chunk), "GUILD") end
+  pcall(dungeon.sendRun, run)
   -- Dungeon scores (Scores.lua) learn from every finished run.
   if ns.onDungeonRunFinished then pcall(ns.onDungeonRunFinished, run) end
   -- Automatic results wait for a safe exit. The summary hook remains the manual reopen action.
@@ -887,12 +884,13 @@ local function onAddonMessage(text, sender)
     -- (9.0) A guildmate whose companion's bot already stored this run: stop replaying it at
     -- every login. Only our own copy is marked; the bot still dedupes by run id.
     local id = string.match(text, "^ACK|([^|]+)$")
-    local saved = id and d and d.runs[id]
-    if saved and not saved.synced and not saved.syncedVia then
-      saved.syncedVia = sender
-      saved.syncedViaAt = now()
-      dungeon.stats.acksHeard = dungeon.stats.acksHeard + 1
-    end
+    if id then dungeon.noteAck(id, sender) end
+  elseif kind == "ACKS" then
+    for _, id in ipairs(dungeon.listOf(text, "ACKS")) do dungeon.noteAck(id, sender) end
+  elseif kind == "OFR" then
+    dungeon.onOffer(text, sender)
+  elseif kind == "WNT" then
+    dungeon.onWant(text, sender)
   elseif kind == "SUM" then
     local id, index, total, payload = string.match(text, "^SUM|([^|]+)|(%d+)|(%d+)|(.*)$")
     index, total = tonumber(index), tonumber(total)
@@ -914,6 +912,8 @@ local function onAddonMessage(text, sender)
     if pending and pending.total ~= total then dungeon.incoming[key] = nil; return end
     if not pending and (count >= 64 or senderCount >= 4) then return end
     pending = pending or { parts = {}, count = 0, total = total, at = now(), sender = sender }
+    -- (9.3) Every chunk renews the clock: a transfer slower than a minute overall is fine while chunks keep coming.
+    pending.at = now()
     dungeon.incoming[key] = pending
     if not pending.parts[index] then pending.parts[index] = payload; pending.count = pending.count + 1 end
     if pending.count >= pending.total then
@@ -999,9 +999,13 @@ local function onEvent(_, event, ...)
       -- After markSynced: a recovered run is changed, so it must upload again.
       pcall(dungeon.recoverRuns)
       pcall(dungeon.remindWaiting)
+      pcall(dungeon.remindGuildmateRuns)
       pcall(dungeon.noteOtherAddonVersion)
       dungeon.replayPending()
       if ns.isOfficer and ns.isOfficer() then send("REQUEST|1", "GUILD") end
+      -- (9.3) Offer the runs nobody confirmed, a random moment later so a whole guild logging in does not speak at once.
+      dungeon.lastOnline = dungeon.onlineGuildmates()
+      dungeon.scheduleOffer(10)
     end) end
     return
   end
@@ -1029,6 +1033,7 @@ local function onEvent(_, event, ...)
     if run and run.state == "STARTING" and run.inside then activate() end
   elseif event == "PLAYER_REGEN_ENABLED" then
     flush()
+    dungeon.flushAckNotices()
   elseif event == "ENCOUNTER_START" then
     local encounterId, name = ...
     local run, instance = d.current, compat.instance()
@@ -1081,11 +1086,29 @@ local function onEvent(_, event, ...)
       save(run)
       send(string.format("DEATH|%s|%s|%d", run.id, me(), mine.deaths))
     end
+  elseif event == "GUILD_ROSTER_UPDATE" then
+    if ns.invalidateRoster then ns.invalidateRoster() end
+    dungeon.noteOnline()
+    -- Guild messages heard before the roster was loaded are handled now (see CHAT_MSG_ADDON below).
+    local held = dungeon.early
+    if held and (not ns.rosterReady or ns.rosterReady()) then
+      dungeon.early = nil
+      for _, item in ipairs(held) do
+        if now() - item.at <= 120 then pcall(onEvent, nil, "CHAT_MSG_ADDON", item.prefix, item.text, item.channel, item.sender) end
+      end
+    end
   elseif event == "CHAT_MSG_ADDON" then
     local prefix, text, channel, sender = ...
+    -- (9.3) Right after login the guild roster may not be loaded yet, so no guildmate can be recognised: keep a guild message
+    -- for a short while instead of refusing it (the standalone addon reads the game's roster; Guilded has its own saved one).
+    if ns.rosterReady and not ns.rosterReady() and prefix == PREFIX and channel == "GUILD" and type(text) == "string"
+      and not ns.isSecret(text) and not ns.isSecret(sender) then
+      dungeon.holdEarly(prefix, text, channel, sender)
+      return
+    end
     if not ns.comm.accept(prefix, text, channel, sender, PREFIX, function(author, delivery)
       local kind = string.match(text, "^(%u+)|")
-      if kind == "SUM" or kind == "REQUEST" or kind == "ACK" then
+      if kind == "SUM" or kind == "REQUEST" or kind == "ACK" or kind == "ACKS" or kind == "OFR" or kind == "WNT" then
         return delivery == "GUILD" and ns.comm.authorized(author, "guild")
       end
       return (delivery == "PARTY" or delivery == "RAID" or delivery == "INSTANCE_CHAT")
@@ -1117,6 +1140,7 @@ function dungeon.markSynced()
   for _, run in pairs(d.runs) do
     if run.syncNote == NOT_THIS_PC then run.synced, run.syncNote = nil, nil end
   end
+  dungeon.hasCompanion() -- remembers that a companion has synced with this PC (the guildmate-run reminder needs it)
   for _, id in ipairs(accepted) do
     local run = d.runs[id]
     local note = notes and notes[id]
@@ -1275,22 +1299,234 @@ function dungeon.replayPending()
   if dungeon.lastReplay and now() - dungeon.lastReplay < 60 then return end
   dungeon.lastReplay = now()
   local d = db()
+  local runs = dungeon.ownUnconfirmed()
+  for index = 1, math.min(REPLAY_RUNS, #runs) do dungeon.sendRun(runs[index]) end
+end
+
+-- ---------------------------------------------------------------------
+-- (9.3) Runs-only catch-up on the GuildedDgn prefix (both addons). The summary of a finished run goes to the guild once, at
+-- its end, and again at login; a guildmate who comes online later never heard it, and the standalone addon has no catch-up
+-- module. Now a player with runs nobody confirmed OFFERS their ids (OFR, at most OFFER_IDS, once per OFFER_EVERY seconds, at
+-- login and when more guildmates are online); a holder whose bot has a run answers ACKS, a holder with a companion that lacks
+-- it answers WNT, and the author re-sends only what was asked for (at most RESEND_RUNS runs a round). Every answer waits a
+-- random moment and is dropped when someone else answered first, so one holder answers in a big guild. Same acceptance as
+-- every GuildedDgn guild message (GUILD channel, authorized sender; a SUM still needs the sender to be in the run).
+-- ---------------------------------------------------------------------
+local OFFER_EVERY = 600
+local OFFER_IDS = 5
+local RESEND_RUNS = 3
+local RESEND_COOLDOWN = 300
+local ANSWER_IDS = 24
+local OFFER_FROM_SENDER_EVERY = 240
+dungeon.offerSeen, dungeon.resentAt = {}, {}
+dungeon.answers = { acks = {}, wants = {}, count = 0, scheduled = false }
+
+-- A companion has synced with this PC when its files exist with content (the empty Accepted.lua shipped with the addon is not one).
+local function companionSeen()
+  if type(GuildedCompanion) == "table" or type(GuildedLinkedMeta) == "table" then return true end
+  if type(GuildedDungeonAccepted) == "table" and next(GuildedDungeonAccepted) ~= nil then return true end
+  if type(GuildedDungeonNotes) == "table" and next(GuildedDungeonNotes) ~= nil then return true end
+  return false
+end
+function dungeon.hasCompanion()
+  local d = db()
+  if companionSeen() then
+    if d then d.companionEver = true end
+    return true
+  end
+  return d and d.companionEver == true or false
+end
+
+-- Own finished runs nobody confirmed yet, newest first (a run whose chunks were lost goes first).
+function dungeon.ownUnconfirmed()
+  local d = db()
   local runs = {}
   for _, run in pairs(d and d.runs or {}) do
     if not run.synced and not run.syncedVia and run.players and run.players[me()] and TERMINAL[run.state]
       and (run.endedAt or 0) >= now() - REPLAY_DAYS * 86400 then runs[#runs + 1] = run end
   end
-  table.sort(runs, function(a, b) return (a.endedAt or 0) > (b.endedAt or 0) end)
-  for index = 1, math.min(REPLAY_RUNS, #runs) do
-    local run = runs[index]
-    local summary = serialize(run)
-    local total = math.ceil(#summary / CHUNK_BYTES)
-    if total <= 20 then
-      for part = 1, total do
-        send(string.format("SUM|%s|%d|%d|%s", run.id, part, total, string.sub(summary, (part - 1) * CHUNK_BYTES + 1, part * CHUNK_BYTES)), "GUILD")
-      end
+  table.sort(runs, function(a, b)
+    if (a.shareLostAt ~= nil) ~= (b.shareLostAt ~= nil) then return a.shareLostAt ~= nil end
+    return (a.endedAt or 0) > (b.endedAt or 0)
+  end)
+  return runs
+end
+
+-- Sends the summary of one saved run in chunks; a chunk the game keeps refusing marks the run to be offered first next time.
+function dungeon.sendRun(run)
+  local summary = serialize(run)
+  local total = math.ceil(#summary / CHUNK_BYTES)
+  if total > 20 then return false end
+  run.shareLostAt = nil
+  local function lost() run.shareLostAt = now(); dungeon.resentAt[run.id] = nil; dungeon.lastReplay = nil end
+  for part = 1, total do
+    send(string.format("SUM|%s|%d|%d|%s", run.id, part, total, string.sub(summary, (part - 1) * CHUNK_BYTES + 1, part * CHUNK_BYTES)), "GUILD", lost)
+  end
+  return true
+end
+
+function dungeon.offerRuns(force)
+  local d = db()
+  if not d then return false end
+  if not force and dungeon.lastOffer and now() - dungeon.lastOffer < OFFER_EVERY then return false end
+  local ids, size = {}, 4
+  for _, run in ipairs(dungeon.ownUnconfirmed()) do
+    if #ids >= OFFER_IDS or size + #run.id + 1 > 240 then break end
+    ids[#ids + 1] = run.id
+    size = size + #run.id + 1
+  end
+  if #ids == 0 then return false end
+  dungeon.lastOffer = now()
+  send("OFR|" .. table.concat(ids, ","), "GUILD")
+  return true
+end
+
+-- At login (once the 30 s timer ran) and when more guildmates are online than at the last look, after a random moment.
+local function scheduleOffer(delayBase)
+  if dungeon.offerScheduled or not C_Timer or not C_Timer.After then return end
+  dungeon.offerScheduled = true
+  C_Timer.After((delayBase or 5) + math.random(0, 30), function()
+    dungeon.offerScheduled = false
+    pcall(dungeon.offerRuns)
+  end)
+end
+dungeon.scheduleOffer = scheduleOffer
+
+local function onlineGuildmates()
+  if not GetNumGuildMembers then return nil end
+  local ok, _, online = pcall(GetNumGuildMembers)
+  return ok and type(online) == "number" and online or nil
+end
+dungeon.onlineGuildmates = onlineGuildmates
+-- Called on roster updates: a guildmate came online since the last look.
+function dungeon.noteOnline()
+  local online = onlineGuildmates()
+  if not online then return end
+  local more = dungeon.lastOnline and online > dungeon.lastOnline
+  dungeon.lastOnline = online
+  if more and dungeon.loadedAt and now() - dungeon.loadedAt >= 30 then scheduleOffer(5) end
+end
+
+local function listOf(text, tag)
+  local list = string.match(text, "^" .. tag .. "|([^|]*)$")
+  local ids = {}
+  for id in string.gmatch(list or "", "[^,]+") do
+    if #id <= 120 and #ids < 40 then ids[#ids + 1] = id end
+  end
+  return ids
+end
+dungeon.listOf = listOf
+
+function dungeon.flushAnswers()
+  local q = dungeon.answers
+  q.scheduled = false
+  local acks, wants = {}, {}
+  for id in pairs(q.acks) do acks[#acks + 1] = id end
+  for id in pairs(q.wants) do wants[#wants + 1] = id end
+  table.sort(acks); table.sort(wants)
+  q.acks, q.wants, q.count = {}, {}, 0
+  local function emit(tag, ids)
+    local line, used = {}, 0
+    for _, id in ipairs(ids) do
+      if used + #id + 1 > 200 and #line > 0 then send(tag .. "|" .. table.concat(line, ","), "GUILD"); line, used = {}, 0 end
+      line[#line + 1] = id
+      used = used + #id + 1
+    end
+    if #line > 0 then send(tag .. "|" .. table.concat(line, ","), "GUILD") end
+  end
+  for _, id in ipairs(acks) do dungeon.acked[id] = true end
+  dungeon.stats.acksSent = dungeon.stats.acksSent + #acks
+  emit("ACKS", acks)
+  emit("WNT", wants)
+end
+
+function dungeon.onOffer(text, sender)
+  local d = db()
+  if not d then return end
+  local last = dungeon.offerSeen[sender]
+  if last and now() - last < OFFER_FROM_SENDER_EVERY then return end
+  dungeon.offerSeen[sender] = now()
+  local q = dungeon.answers
+  for index, id in ipairs(listOf(text, "OFR")) do
+    if index > OFFER_IDS or q.count >= ANSWER_IDS then break end
+    local saved = d.runs[id]
+    if saved then
+      if saved.synced and not dungeon.acked[id] and not q.acks[id] then q.acks[id] = true; q.count = q.count + 1 end
+    elseif not q.wants[id] and dungeon.hasCompanion() then
+      q.wants[id] = true
+      q.count = q.count + 1
     end
   end
+  if q.count > 0 and not q.scheduled and C_Timer and C_Timer.After then
+    q.scheduled = true
+    C_Timer.After(2 + math.random(0, 10), function() pcall(dungeon.flushAnswers) end)
+  end
+end
+
+function dungeon.onWant(text, sender)
+  local d = db()
+  if not d then return end
+  local sent = 0
+  for _, id in ipairs(listOf(text, "WNT")) do
+    dungeon.answers.wants[id] = nil -- someone asked already: no second ask from this PC
+    local run = d.runs[id]
+    if run and not run.synced and not run.syncedVia and run.players and run.players[me()] and TERMINAL[run.state] and sent < RESEND_RUNS
+      and (not dungeon.resentAt[id] or now() - dungeon.resentAt[id] >= RESEND_COOLDOWN) then
+      dungeon.resentAt[id] = now()
+      if dungeon.sendRun(run) then sent = sent + 1 end
+    end
+  end
+end
+
+-- A guildmate's bot has this run: stop replaying it, and tell the recorder once (out of combat) who uploaded it.
+function dungeon.noteAck(id, sender)
+  local d = db()
+  local saved = id and d and d.runs[id]
+  dungeon.answers.acks[id or ""] = nil
+  dungeon.answers.wants[id or ""] = nil
+  if saved and not saved.synced and not saved.syncedVia then
+    saved.syncedVia = sender
+    saved.syncedViaAt = now()
+    dungeon.stats.acksHeard = dungeon.stats.acksHeard + 1
+    if saved.players and saved.players[me()] and not saved.ackNoticed then
+      saved.ackNoticed = true
+      dungeon.ackNotices = dungeon.ackNotices or {}
+      dungeon.ackNotices[#dungeon.ackNotices + 1] = { id = id, who = sender }
+      dungeon.flushAckNotices()
+    end
+  end
+end
+
+function dungeon.flushAckNotices()
+  if compat.inCombat() or not dungeon.ackNotices then return end
+  local d = db()
+  local list = dungeon.ackNotices
+  dungeon.ackNotices = nil
+  for _, item in ipairs(list) do
+    local run = d and d.runs[item.id]
+    local who = ns.displayName and ns.displayName(item.who) or item.who
+    ns.message(string.format(L("Your run %s was uploaded by %s's companion."), tostring(run and run.name or "?"), tostring(who or item.who)))
+  end
+end
+
+-- Once per session: guildmates' runs wait for THIS PC's companion (only for a player who has a companion).
+function dungeon.remindGuildmateRuns()
+  if dungeon.guildmateReminded or not dungeon.hasCompanion() then return false end
+  local count = 0
+  for _, run in ipairs(dungeon.waitingRuns()) do
+    if not (run.players and run.players[me()]) then count = count + 1 end
+  end
+  if count == 0 then return false end
+  dungeon.guildmateReminded = true
+  ns.message(string.format(L("%d guildmate run(s) are waiting: /reload sends them to your companion."), count))
+  return true
+end
+
+-- Guild messages that arrived before the guild roster did (right after login) wait here and are handled once it is there.
+function dungeon.holdEarly(prefix, text, channel, sender)
+  dungeon.early = dungeon.early or {}
+  if #dungeon.early >= 30 then return end
+  dungeon.early[#dungeon.early + 1] = { prefix = prefix, text = text, channel = channel, sender = sender, at = now() }
 end
 
 -- ---------------------------------------------------------------------
@@ -1323,6 +1559,8 @@ local function status()
     for _ in pairs(d and d.runs or {}) do total = total + 1 end
     local pending = #dungeon.waitingRuns()
     ns.message(string.format(L("No dungeon run in progress. Saved runs: %d (%d waiting to reach Discord)."), total, pending))
+    local mine = #dungeon.ownUnconfirmed()
+    if mine > 0 then ns.message(string.format(L("Not uploaded yet: %d of your runs."), mine)) end
     local held = dungeon.pendingRuns()
     if #held > 0 then
       ns.message(string.format(L("%d received by Discord, not counted yet: %s."), #held, string.sub((string.gsub(held[1].reason, "|", "")), 1, 80)))
@@ -1420,7 +1658,7 @@ table.insert(ns.commandHelp, "/guilded dungeon status | results | start | comple
 
 local frame = CreateFrame("Frame")
 for _, event in ipairs({ "PLAYER_LOGIN", "PLAYER_LOGOUT", "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "GROUP_ROSTER_UPDATE",
-  "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "ENCOUNTER_END", "PLAYER_DEAD", "CHAT_MSG_ADDON" }) do
+  "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "ENCOUNTER_END", "PLAYER_DEAD", "CHAT_MSG_ADDON", "GUILD_ROSTER_UPDATE" }) do
   compat.registerEvent(frame, event)
 end
 compat.registerEvent(frame, "BOSS_KILL", true)

@@ -74,7 +74,8 @@ describe("Guilded Dungeons hears its guild", () => {
     expect(s.run(`return tostring(NS.isGuildMember("Lebowski-TestRealm")) .. tostring(NS.isGuildMember("Stranger")) .. tostring(NS.isOfficerName("Boss")) .. tostring(NS.isOfficerName("Lebowski"))`)).toBe("truefalsetruefalse");
     expect(s.run(`return tostring(NS.comm.authorized("Lebowski-TestRealm", "guild")) .. tostring(NS.comm.authorized("Stranger-TestRealm", "guild")) .. tostring(NS.comm.authorized("Lebowski-TestRealm", "officer"))`)).toBe("truefalsefalse");
     // No roster yet (just logged in): nobody is trusted.
-    s.run("ROSTER = {}");
+    // (9.3: the roster is cached and the game's GUILD_ROSTER_UPDATE drops the cache.)
+    s.run(`ROSTER = {}; fire_event("GUILD_ROSTER_UPDATE")`);
     expect(s.run(`return tostring(NS.isGuildMember("Lebowski"))`)).toBe("false");
   });
 

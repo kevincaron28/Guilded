@@ -893,6 +893,8 @@ pump = function(prefix)
         if item.tries >= MAX_TRIES then
           removeItem(b, index)
           b.results.abandoned = b.results.abandoned + 1
+          -- (9.3) The sender may want to offer the data again later instead of losing it silently.
+          if type(item.onAbandon) == "function" then pcall(item.onAbandon) end
           diag("SEND", prefix .. ": gave up on a message after " .. MAX_TRIES .. " throttled tries")
         end
         break
@@ -916,7 +918,7 @@ end
 -- "hold-in-instance" does the same and also waits while the player is inside a dungeon, raid,
 -- battleground or arena (guild messages are unreliable there), for background sync only.
 -- A false result or error discards the packet without consuming a send token.
-function comm.send(prefix, text, channel, target, guard, priority)
+function comm.send(prefix, text, channel, target, guard, priority, onAbandon)
   if not channel then return false end
   text = tostring(text)
   local b = bucket(prefix)
@@ -933,7 +935,7 @@ function comm.send(prefix, text, channel, target, guard, priority)
   end
   local hold = priority == "hold-in-instance"
   local item = { text = text, channel = channel, target = target, guard = guard,
-    interactive = priority == "interactive", retryLockdown = hold or priority == "retry-lockdown", holdInInstance = hold }
+    onAbandon = onAbandon, interactive = priority == "interactive", retryLockdown = hold or priority == "retry-lockdown", holdInInstance = hold }
   -- A position or presence note is only worth sending fresh: the oldest waiting one gives way.
   if LOW_VALUE[prefix] then
     while #b.queue >= LOW_VALUE_MAX_QUEUED do

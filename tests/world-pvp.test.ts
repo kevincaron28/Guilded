@@ -51,8 +51,8 @@ describe("upload parsing", () => {
   it("is accepted by the addon snapshot schema and exported from the saved variables", () => {
     const exported = exportWorldPvp({ worldPvp: { weekKey: KEY, week: { kills: 4, defends: 1, responded: 2, deaths: 9 },
       recent: { 1: { n: "Thu|g", at: inWeek(1), d: 1 }, 2: { n: "", at: inWeek(2) }, 3: { n: "Old", at: 5 } } } });
-    expect(exported.worldPvp).toEqual([{ weekKey: KEY, kills: 4, defends: 1, responded: 2, recent: [{ n: "Thu g", at: inWeek(1), d: 1 }] }]);
-    expect(JSON.stringify(exported)).not.toContain("deaths");
+    expect(exported.worldPvp).toEqual([{ weekKey: KEY, kills: 4, defends: 1, responded: 2, deaths: 9, recent: [{ n: "Thu g", at: inWeek(1), d: 1 }] }]);
+    // Only the count leaves the PC: no killer, no zone.
     expect(exportWorldPvp({})).toEqual({});
     expect(exportWorldPvp({ worldPvp: { weekKey: KEY, week: { kills: 0 } } })).toEqual({});
     const snapshot = parseAddonSnapshot({ source: "Guilded", exportedAt: NOW.toISOString(), ...exported });

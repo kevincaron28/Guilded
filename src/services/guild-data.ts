@@ -48,10 +48,11 @@ type Tx = Pick<Prisma.TransactionClient, "guildRosterEntry" | "guildEventEntry" 
 const toDate = (epoch: number | undefined) => epoch === undefined ? undefined : new Date(epoch * 1000);
 // Last seen / last online only move when the move means something: the addon sends "now minus age" for offline members,
 // so almost every offline member would otherwise move by a different few seconds on every upload (one write each).
-const ONLINE_MIN_MOVE_MS = 10 * 60_000;
+// Online members always move (readers treat "seen in the last 10 minutes" as online now); they all share one value, so they batch.
+const ONLINE_MIN_MOVE_MS = 0;
 const OFFLINE_MIN_MOVE_MS = 60 * 60_000;
 const movedForward = (stored: Date | null | undefined, candidate: Date | undefined, minMs: number) =>
-  candidate && (!stored || candidate.getTime() - stored.getTime() >= minMs) ? candidate : undefined;
+  candidate && (!stored || (candidate.getTime() > stored.getTime() && candidate.getTime() - stored.getTime() >= minMs)) ? candidate : undefined;
 interface UnclaimedRow { id: string; nameKey: string; level: number | null; lastSeenAt: Date; guildRankName: string | null; guildRankAt: Date | null }
 const sameTime = (a: Date | null | undefined, b: Date | null | undefined) => (a?.getTime() ?? null) === (b?.getTime() ?? null);
 const titleClass = (value: string) => value.charAt(0) + value.slice(1).toLowerCase();

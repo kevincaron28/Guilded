@@ -16,8 +16,10 @@ function fakeDb(seed: { characters?: Row[]; unclaimed?: Row[] } = {}) {
   const tables: { roster: Row[]; events: Row[]; text: Row[]; characters: Row[]; unclaimed: Row[]; rankSeen: Row[] } = { roster: [], events: [], text: [], characters: seed.characters ?? [], unclaimed: seed.unclaimed ?? [], rankSeen: [] };
   let n = 0;
   const id = () => `id${++n}`;
-  const match = (row: Row, where: Record<string, unknown>) => Object.entries(where).every(([k, v]) => {
-    if (k === "member" || k === "OR" || k === "guildRankName" && typeof v === "object") return true;
+  const match = (row: Row, where: Record<string, unknown>): boolean => Object.entries(where).every(([k, v]) => {
+    if (k === "OR") return (v as Record<string, unknown>[]).some((clause) => match(row, clause));
+    if (k === "member" || k === "guildRankName" && typeof v === "object") return true;
+    if (v && typeof v === "object" && "lt" in (v as object)) return row[k] instanceof Date && (row[k] as Date) < (v as { lt: Date }).lt;
     if (v && typeof v === "object" && "in" in (v as object)) return ((v as { in: unknown[] }).in).includes(row[k]);
     if (v && typeof v === "object" && "gte" in (v as object)) return (row[k] as Date) >= (v as { gte: Date }).gte;
     return row[k] === v;
@@ -296,6 +298,22 @@ describe("offline members do not cause a write each (the addon sends lastOnline 
     if (bad.length) throw new Error(`${bad.length} of ${db.tables.roster!.length}: ${JSON.stringify(bad[0])}`);
     expect(db.tables.roster!.map((r) => ({ key: r.nameKey, lastOnlineAt: r.lastOnlineAt }))).toEqual(before);
     expect(db.tables.characters![0]!.lastSeenAt.getTime()).toBe((T - 600 - age(0)) * 1000);
+  });
+
+  it("an online member re-uploaded five minutes later moves to the new reading time everywhere, in a handful of statements", async () => {
+    const characters = Array.from({ length: COUNT / 2 }, (_, i) => linked(`c${i}`, `Person${String(i).padStart(3, "0")}`, { level: 40, className: "Mage", lastSeenAt: new Date((T - 600) * 1000) }));
+    const unclaimed = Array.from({ length: COUNT / 2 }, (_, k) => { const i = COUNT / 2 + k; return { id: `u${i}`, nameKey: `person${String(i).padStart(3, "0")}`, name: `Person${String(i).padStart(3, "0")}`, level: 40, lastSeenAt: new Date((T - 600) * 1000) }; });
+    const db = fakeDb({ characters, unclaimed });
+    const online = (at: number) => upload(roster(at, () => ({ online: true, lastOnline: undefined })), {}, at);
+    await applyGuildData(db.tx, "g", officer, online(T - 600), NOW);
+    db.writes.length = 0;
+    await applyGuildData(db.tx, "g", officer, online(T - 300), NOW);
+    expect(db.writes.length).toBeLessThanOrEqual(8);
+    expect(db.writes.filter((w) => /\.(update|upsert|create)$/.test(w))).toEqual([]);
+    const want = (T - 300) * 1000;
+    expect(db.tables.roster!.every((r) => (r.lastOnlineAt as Date).getTime() === want)).toBe(true);
+    expect(db.tables.characters!.every((c) => c.lastSeenAt.getTime() === want)).toBe(true);
+    expect(db.tables.unclaimed!.every((c) => c.lastSeenAt.getTime() === want)).toBe(true);
   });
 
   it("leave and rejoin, a real move of last online, and online members", async () => {

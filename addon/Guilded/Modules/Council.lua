@@ -571,6 +571,7 @@ local function buildPopup()
   popup:SetPoint("TOP", UIParent, "TOP", 0, -140)
   popup:SetFrameStrata("DIALOG")
   popup:SetMovable(true)
+  popup:SetClampedToScreen(true) -- a dragged popup cannot be lost off screen
   popup:EnableMouse(true)
   popup:RegisterForDrag("LeftButton")
   popup:SetScript("OnDragStart", popup.StartMoving)

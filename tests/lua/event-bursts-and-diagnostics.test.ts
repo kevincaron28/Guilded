@@ -94,6 +94,20 @@ describe("blocked calls and diagnostics", () => {
     expect(s.run("return MOTD_CALLS")).toBe("0");
   });
 
+  // 9.3.1: "UNKNOWN()" names no function, so the record says what else was going on.
+  it("records combat, the open window page and the last event beside an unnamed blocked call", () => {
+    const s = loggedIn(`CLOCK = 100; function GetTime() return CLOCK end`);
+    s.run(`INCOMBAT = true; fire_event("GUILD_ROSTER_UPDATE"); CLOCK = 102.5; fire_event("ADDON_ACTION_BLOCKED", "Guilded", "UNKNOWN()")`);
+    const detail = s.run("local d = GuildedDB.diagnostics; return d[#d].detail");
+    expect(detail).toContain("tried to call UNKNOWN()");
+    expect(detail).toContain("(after GUILD_ROSTER_UPDATE)");
+    expect(detail).toContain("in combat");
+    expect(detail).toContain("last event <5 s ago");
+    // Out of combat with no window open, nothing is claimed.
+    s.run(`INCOMBAT = false; fire_event("ADDON_ACTION_BLOCKED", "Guilded", "UNKNOWN()")`);
+    expect(s.run("local d = GuildedDB.diagnostics; return d[#d].detail")).not.toContain("in combat");
+  });
+
   it("does not list name-migration debug lines for ordinary members in /guilded diag", () => {
     const s = loggedIn(`GetGuildInfo = function() return "Test Guild", "Member", 5 end`);
     s.run(`GuildedDB.nameMigration = { flagged = { a = { table = "roster", key = "El", candidates = { "El Chacal", "El Daron" }, reason = "shared first name" } } }`);

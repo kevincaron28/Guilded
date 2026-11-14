@@ -15,7 +15,10 @@ const path = require("node:path");
 const MINIMIZED_IN_USE_MS = 30 * 60 * 1000;
 // The installer restarts the companion within a minute or so of starting; a marker older than this is a leftover
 // (a failed or cancelled install) and must not hide the window of a manual start.
-const MARKER_FRESH_MS = 3 * 60 * 1000;
+const MARKER_FRESH_MS = 5 * 60 * 1000;
+// While the installer runs, the companion that started it rewrites the marker this often, so the time counts from
+// the moment the installer closed it, not from when it started (a slow silent install still restarts hidden).
+const MARKER_REFRESH_MS = 20 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MARKER_NAME = "update-restart.json";
 const INSTALLER_ARGS = ["/S", "--updated", "--force-run"];
@@ -48,10 +51,29 @@ function markerIsFresh(marker, now = Date.now()) {
  * A missing, unreadable or old marker means a manual start, which shows the window.
  */
 function consumeMarker(file, now = Date.now(), fsImpl = fs) {
+  return readMarker(file, now, fsImpl).quiet;
+}
+
+/**
+ * Like consumeMarker, but also says whether an old marker is the trace of an update that did not finish:
+ * { quiet, unfinished } where `unfinished` is the version the marker was written for (a manual start, the window shows).
+ */
+function readMarker(file, now = Date.now(), fsImpl = fs) {
   let marker;
-  try { marker = JSON.parse(fsImpl.readFileSync(file, "utf8")); } catch { return false; }
+  try { marker = JSON.parse(fsImpl.readFileSync(file, "utf8")); } catch { return { quiet: false, unfinished: null }; }
   try { fsImpl.rmSync(file, { force: true }); } catch { /* none */ }
-  return markerIsFresh(marker, now);
+  const quiet = markerIsFresh(marker, now);
+  return { quiet, unfinished: !quiet && typeof marker?.version === "string" ? marker.version : null };
+}
+
+/** Whether WoW counts as running for the idle decision: a failed or timed-out process listing is "unknown", which counts as running. */
+function wowBlocks({ running, checkFailed, checked = true }) {
+  return running === true || checkFailed === true || checked === false;
+}
+
+/** Whether a sync (or the addon's own automatic update) is in progress or about to retry; an unreadable state counts as busy. */
+function syncBlocks({ phase, addonAutoUpdating = false, unreadable = false }) {
+  return unreadable || addonAutoUpdating === true || phase === "uploading" || phase === "retry";
 }
 
 /**
@@ -98,6 +120,10 @@ function createIdleInstaller(deps) {
   let active = false;
   let lastNote = "";
   let child = null;
+  let refresh = null;
+  const setTimer = deps.setInterval ?? setInterval;
+  const clearTimer = deps.clearInterval ?? clearInterval;
+  const stopRefresh = () => { if (refresh) { clearTimer(refresh); refresh = null; } };
 
   function note(text) {
     if (text === lastNote) return;
@@ -127,6 +153,7 @@ function createIdleInstaller(deps) {
   function failed(version, why) {
     const config = deps.getConfig();
     config.updateFailure = recordFailure(config.updateFailure, version, now());
+    stopRefresh();
     deps.clearMarker();
     active = false; child = null;
     deps.log(`install of ${version} failed (${why}); not tried again before ${config.updateFailure.nextAt}`);
@@ -164,6 +191,8 @@ function createIdleInstaller(deps) {
       }
       child.unref?.();
       started = true;
+      refresh = setTimer(() => { try { deps.writeMarker(verdict.version); } catch { /* the marker is a convenience */ } }, MARKER_REFRESH_MS);
+      refresh?.unref?.();
       deps.log(`installer for ${verdict.version} started; it asks the companion to quit and restarts it hidden`);
       // The companion keeps running: the installer closes it. An installer that ends with an error leaves it running.
       child.once("exit", (code) => {
@@ -181,4 +210,4 @@ function createIdleInstaller(deps) {
   return { run, inspect, isActive: () => active };
 }
 
-module.exports = { createIdleInstaller, decideIdle, backoffMs, recordFailure, inBackoff, markerIsFresh, consumeMarker, hashFileAsync, MARKER_NAME, INSTALLER_ARGS, MINIMIZED_IN_USE_MS, MARKER_FRESH_MS };
+module.exports = { createIdleInstaller, decideIdle, backoffMs, recordFailure, inBackoff, markerIsFresh, consumeMarker, readMarker, wowBlocks, syncBlocks, hashFileAsync, MARKER_NAME, INSTALLER_ARGS, MINIMIZED_IN_USE_MS, MARKER_FRESH_MS, MARKER_REFRESH_MS };

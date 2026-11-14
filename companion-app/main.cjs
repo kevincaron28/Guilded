@@ -346,8 +346,9 @@ const idleInstaller = idleUpdate.createIdleInstaller({
   getConfig: () => config,
   saveConfig: () => saveConfig(),
   window: () => ({ visible: !!win && !win.isDestroyed() && win.isVisible(), minimized: !!win && !win.isDestroyed() && win.isMinimized(), minimizedAt }),
-  wowRunning: () => wowRunning,
-  syncBusy: () => { try { return engine?.state?.()?.syncPhase === "uploading"; } catch { return false; } },
+  // Unknown counts as busy: a failed or timed-out tasklist is not "WoW is closed", an unreadable state is not "no sync".
+  wowRunning: () => idleUpdate.wowBlocks({ running: wowRunning, checkFailed: wowCheckFailed, checked: wowChecked }),
+  syncBusy: () => { try { return idleUpdate.syncBlocks({ phase: engine?.state?.()?.syncPhase, addonAutoUpdating }); } catch { return idleUpdate.syncBlocks({ unreadable: true }); } },
   checkDisk: () => checkDisk(),
   writeMarker: (version) => { try { fs.writeFileSync(idleUpdateMarkerFile(), JSON.stringify({ at: new Date().toISOString(), version })); } catch { /* the window may show once */ } },
   clearMarker: () => { try { fs.rmSync(idleUpdateMarkerFile(), { force: true }); } catch { /* none */ } },
@@ -422,11 +423,20 @@ let storePageUpdate = null;
 let storeUpdateBusy = false;
 let storePromptPending = false;
 let restartedQuietly = false;
+let updateUnfinished = null;
 const restartMarkerFile = () => path.join(app.getPath("userData"), "store-update-restart.json");
 function readRestartMarker() {
   if (!STORE_PACKAGE) {
     // A direct-download update the companion started while idle (idle-update.cjs): the restart stays in the tray.
-    const quiet = idleUpdate.consumeMarker(idleUpdateMarkerFile());
+    const { quiet, unfinished } = idleUpdate.readMarker(idleUpdateMarkerFile());
+    if (unfinished && updates.isNewer(unfinished, app.getVersion())) {
+      // The installer closed the companion and did not finish: nothing relaunched it, this is a manual start.
+      // The window says so and offers the update again.
+      updateUnfinished = unfinished;
+      config.updateFailure = idleUpdate.recordFailure(config.updateFailure, unfinished, Date.now());
+      updateLine(`start: the update to ${unfinished} did not finish (a leftover restart marker); the window offers it again`);
+      pushLog({ time: new Date().toISOString(), level: "warn", message: E("The update to Guilded Companion {0} did not finish. Use Update to try again.", unfinished) });
+    }
     if (quiet) pushLog({ time: new Date().toISOString(), level: "info", message: E("Guilded Companion was updated while idle and restarted in the tray.") });
     return quiet;
   }
@@ -549,7 +559,7 @@ async function refreshSavedFile() {
 // Problems panel (8.5, companion/problems.mjs): what is wrong right now, each with its fix.
 // Whether WoW is open is checked every 20 seconds (tasklist, Windows only); the moment it exits, an addon
 // update that was waiting for it runs (maybeAutoUpdateAddon).
-let wowRunning = false;
+let wowRunning = false, wowChecked = false, wowCheckFailed = false;
 let addonAutoUpdating = false, addonUpdateFailed = false, addonUpdateFailedAt = 0;
 // The last installed-addon reading, kept so a waiting update does not depend on a fresh file check (9.3.2).
 let lastAddon = null, lastAddonNote = "";
@@ -559,6 +569,7 @@ const addonWaiting = () => addonInstallerModule().decideAutoAddonUpdate({ addon:
 function checkWowRunning() {
   if (process.platform !== "win32") return;
   execFile("tasklist", ["/FO", "CSV", "/NH", "/FI", "IMAGENAME eq Wow*"], { windowsHide: true, timeout: 15_000 }, (error, stdout) => {
+    wowChecked = true; wowCheckFailed = !!error;
     const running = !error && engineModules.wowRunningFrom(stdout);
     if (running !== wowRunning) {
       const exited = wowRunning && !running;
@@ -580,7 +591,7 @@ function problems(state) {
   if (typeof engineModules?.companionProblems !== "function") return [];
   return engineModules.companionProblems({
     config, state, savedFile, update, version: app.getVersion(), store: STORE_INSTALL, autoUpdate: config.autoUpdate !== false,
-    updateAttempts: config.pendingUpdate?.attempts ?? 0, wowRunning, online, diskSpace, settingsSave: settingsSaveState(), addonUpdateFailed
+    updateAttempts: config.pendingUpdate?.attempts ?? 0, wowRunning, online, diskSpace, settingsSave: settingsSaveState(), addonUpdateFailed, updateUnfinished
   });
 }
 // Install addon / Update addon (8.5, track F3): offered when the watched game folder has no

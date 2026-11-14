@@ -18,11 +18,13 @@ vi.mock("../src/database.js", () => {
 describe("standingsParts wiring", () => {
   it("makes one snapshot read for several members of a guild and one ledger-refs read per member", async () => {
     const { standingsParts } = await import("../src/companion-api.js");
+    const { markGuildChanged } = await import("../src/services/standings-feed.js");
     const guild = { id: "g1", discordId: "d1" };
     const members = ["m1", "m2", "m3", "m4"];
     counts.clear();
     await standingsParts(guild, { memberId: "solo", actorId: "a-solo" });
     const oneMember = new Map(counts);
+    markGuildChanged("g1"); // a change: the first run's reads are not reused
     counts.clear();
     const parts = await Promise.all(members.map((memberId) => standingsParts(guild, { memberId, actorId: `a-${memberId}` })));
     expect(parts).toHaveLength(4);

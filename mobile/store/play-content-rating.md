@@ -1,5 +1,7 @@
 # Google Play content rating (IARC questionnaire) — Guilded
 
+French copy: [play-content-rating.fr.md](play-content-rating.fr.md). Guilded Clash is not in the published app, so nothing here covers it.
+
 Where to fill it in: Play Console → **Policy → App content → Content ratings → Start questionnaire**. Use the
 support contact email from [play-listing.md](play-listing.md), not a personal address.
 

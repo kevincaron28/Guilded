@@ -13,7 +13,8 @@ import { relayableCraftData, relayableDungeonRuns, type RelayLinkedCharacter } f
 // A credential is revocable and scoped to one active Discord member in one guild.
 // Never accept the old server-wide upload token as member authorization.
 export async function companionAccess(database: PrismaClient, client: Client | undefined, guildId: string, discordId: string, secret: string) {
-  if (!hostedPilot.allows(discordId) || !client || secret.length < 32 || secret.length > 256) return null;
+  if (!hostedPilot.allows(discordId) || secret.length < 32 || secret.length > 256) return null;
+  if (!client) throw new CompanionUnavailable();
   const credential = await database.companionCredential.findFirst({
     where: { tokenHash: hashCompanionSecret(secret), revokedAt: null, member: { guildId, status: "ACTIVE" } },
     select: { memberId: true, member: { select: { discordUserId: true } } }
@@ -22,11 +23,18 @@ export async function companionAccess(database: PrismaClient, client: Client | u
   noteCredentialUse(database.companionCredential, hashCompanionSecret(secret));
   // Force a fresh fetch: a demoted or departed member must not retain officer access.
   const guild = await client.guilds.fetch(discordId);
-  const member = await guild.members.fetch({ user: credential.member.discordUserId, force: true }).catch(() => null);
+  const member = await guild.members.fetch({ user: credential.member.discordUserId, force: true }).catch((error: unknown) => {
+    if (error && typeof error === "object" && "code" in error && error.code === 10007) return null;
+    throw new CompanionUnavailable();
+  });
   if (!member) return null;
   const scope = currentGuildScope();
   if (scope?.memberRoleId && !member.permissions.has("Administrator") && !member.roles.cache.has(scope.memberRoleId)) return null;
   return { memberId: credential.memberId, actorId: member.id, officer: hasPermission(member, "officer"), raidLeader: hasPermission(member, "raidLeader") };
+}
+
+export class CompanionUnavailable extends Error {
+  constructor() { super("Discord membership could not be checked. Try again shortly."); }
 }
 
 // Personal companions cannot change the ledger, other players' readiness, prices,

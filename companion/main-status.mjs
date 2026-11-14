@@ -96,6 +96,7 @@ function needsYou({ config, state, problems, savedFile, update, otherAccount }) 
   if (savedFile?.candidate && !has(problems, "saved-file-missing")) return item("folder-moved", "warn", ["Your addon data seems to be in another WoW folder now."], ["Nothing is deleted."], [{ action: "switch-folder", label: "Use the new folder" }]);
   const outdated = has(problems, "companion-outdated");
   if (outdated || (update && config.autoUpdate === false)) {
+    if (outdated?.data.unfinished) return item("companion-update", "warn", ["The update did not finish."], ["Version {0}", outdated.data.latest ?? ""], [{ action: "install-update", label: "Try again" }]);
     return item("companion-update", "warn", ["A new version is out."], ["Version {0}", outdated?.data.latest ?? update?.version ?? ""], [{ action: outdated?.data.store ? "open-store" : "install-update", label: "Update" }]);
   }
   return null;

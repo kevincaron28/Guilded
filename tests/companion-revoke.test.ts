@@ -7,7 +7,7 @@ afterEach(() => vi.unstubAllGlobals());
 it("revokes only the presented token in either credential store without membership gates", async () => {
   const db = { companionCredential: { updateMany: vi.fn(async () => ({ count: 1 })) }, webCompanionCredential: { updateMany: vi.fn(async () => ({ count: 0 })) } };
   expect(await revokeCompanionCredential(db as unknown as PrismaClient, "x".repeat(43))).toBe(true);
-  for (const table of Object.values(db)) expect(table.updateMany).toHaveBeenCalledWith({ where: { tokenHash: hashCompanionSecret("x".repeat(43)), revokedAt: null }, data: { revokedAt: expect.any(Date) } });
+  for (const table of Object.values(db)) expect(table.updateMany).toHaveBeenCalledWith({ where: { OR: [{ tokenHash: hashCompanionSecret("x".repeat(43)) }, { previousTokenHash: hashCompanionSecret("x".repeat(43)), previousValidUntil: { gt: expect.any(Date) } }], revokedAt: null }, data: { revokedAt: expect.any(Date) } });
   expect(await revokeCompanionCredential(db as unknown as PrismaClient, "bad")).toBe(false);
   expect(db.companionCredential.updateMany).toHaveBeenCalledOnce();
 });

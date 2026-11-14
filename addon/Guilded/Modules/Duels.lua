@@ -1208,15 +1208,20 @@ function duels.flushPending(final)
     askRoster()
     local keep = {}
     for _, entry in ipairs(list) do
-      if final or epoch() - (tonumber(entry.at) or 0) > PENDING_AGE then dropPending(entry, final and "roster never loaded" or "too old")
+      if type(entry) ~= "table" then dropPending({}, "not a duel")
+      elseif final or epoch() - (tonumber(entry.at) or 0) > PENDING_AGE then dropPending(entry, final and "roster never loaded" or "too old")
       else keep[#keep + 1] = entry end
     end
     d.pending = #keep > 0 and keep or nil
+    -- (9.3.3) Nothing waits any more: the next wait asks for the roster again.
+    if not d.pending then pendingTries, rosterAsked = 0, false end
     return 0
   end
   local mine = me()
   for _, entry in ipairs(list) do
-    if type(entry) == "table" and entry.winner and entry.loser then
+    -- (9.3.3) One entry that fails to record is dropped with a diagnostic, never kept: the timer cannot repeat on it forever.
+    local ok, err = pcall(function()
+      if type(entry) ~= "table" or not entry.winner or not entry.loser then error("not a duel") end
       local ext = type(entry.ext) == "table" and entry.ext or {}
       if guildMember(entry.winner) and guildMember(entry.loser) then
         local isNew = duels.record(entry.winner, entry.loser, entry.at, entry.reason, { dur = ext.duration, zone = ext.zone })
@@ -1225,11 +1230,11 @@ function duels.flushPending(final)
           share(entry.winner, entry.loser, entry.at, entry.reason)
           if mine and same(mine, entry.winner) and ns.milestones then pcall(ns.milestones.checkDuelWins, duels.myWins()) end
         end
-      else
-        local ok, added = pcall(duels.recordExternal, entry.winner, entry.loser, entry.at, entry.reason, ext)
-        if ok and added then done = done + 1 end
+      elseif duels.recordExternal(entry.winner, entry.loser, entry.at, entry.reason, ext) then
+        done = done + 1
       end
-    end
+    end)
+    if not ok then dropPending(type(entry) == "table" and entry or {}, "error: " .. tostring(err)) end
   end
   d.pending = nil
   pendingTries, rosterAsked = 0, false
@@ -1243,8 +1248,22 @@ local function schedulePending()
     if duels.pendingCount() == 0 then pendingTries = 0; return end
     pendingTries = pendingTries + 1
     local ok, err = pcall(duels.flushPending, pendingTries >= PENDING_TRIES)
-    if not ok then diagnose("LUA_ERROR", err) end
-    if duels.pendingCount() > 0 then schedulePending() else pendingTries = 0 end
+    if not ok then
+      -- (9.3.3) A failure outside one entry (the roster check, the saved table): the oldest waiting duel goes, so every
+      -- failing round shortens the list and the 10 s timer ends.
+      diagnose("LUA_ERROR", err)
+      local list = pendingList(false)
+      if list and #list > 0 then
+        local entry = table.remove(list, 1)
+        dropPending(type(entry) == "table" and entry or {}, "error: " .. tostring(err))
+        if #list == 0 then local d = store(); if d then d.pending = nil end end
+      end
+    end
+    if duels.pendingCount() > 0 and pendingTries < PENDING_TRIES then schedulePending()
+    else
+      if duels.pendingCount() > 0 then local d = store(); for _, entry in ipairs(d and d.pending or {}) do dropPending(type(entry) == "table" and entry or {}, "roster never loaded") end; if d then d.pending = nil end end
+      pendingTries, rosterAsked = 0, false
+    end
   end)
 end
 function duels.holdForRoster(winner, loser, at, reason, ext)

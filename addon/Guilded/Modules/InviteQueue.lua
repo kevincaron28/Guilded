@@ -43,7 +43,9 @@ module.foldKey = key
 -- localized global strings are used when it has them): notfound, inguild, already (invited), declined, joined.
 local function fmtPattern(fmt)
   if type(fmt) ~= "string" then return nil end
-  local p = string.gsub(fmt, "[%^%$%(%)%.%[%]%*%+%-%?]", "%%%0")
+  -- (9.3.3) Positional forms ("%1$s", "%2$d", as in some clients' strings) read like the plain ones.
+  local p = string.gsub(fmt, "%%%d+%$([sd])", "%%%1")
+  p = string.gsub(p, "[%^%$%(%)%.%[%]%*%+%-%?]", "%%%0")
   p = string.gsub(p, "%%s", "(.+)")
   p = string.gsub(p, "%%d", "(%%d+)")
   return "^" .. p .. "$"
@@ -242,14 +244,34 @@ local function presenceLine(text)
   return string.find(low, "has come online", 1, true) ~= nil or string.find(low, "has gone offline", 1, true) ~= nil
     or string.find(low, "est maintenant en ligne", 1, true) ~= nil or string.find(low, "s'est d\195\169connect", 1, true) ~= nil
     or string.find(low, "vient de se connecter", 1, true) ~= nil or string.find(low, "vient de se d\195\169connecter", 1, true) ~= nil
+    -- (9.3.3) German and Spanish clients, for when their global strings are missing.
+    or string.find(low, "ist jetzt online", 1, true) ~= nil or string.find(low, "ist jetzt offline", 1, true) ~= nil
+    or string.find(low, "se ha conectado", 1, true) ~= nil or string.find(low, "se ha desconectado", 1, true) ~= nil
 end
+-- (9.3.3) Whether the folded line names the folded player as a whole name: "ann lee" is found in "ann lee has..." or
+-- "[ann lee-realm]", never inside "joann lee". A letter, a digit or an accented letter (any byte from 128) on either
+-- side means it is part of a longer name.
+local function namesPlayer(foldedText, foldedName)
+  if type(foldedText) ~= "string" or type(foldedName) ~= "string" or foldedName == "" then return false end
+  local from = 1
+  while true do
+    local s, e = string.find(foldedText, foldedName, from, true)
+    if not s then return false end
+    local before = s > 1 and string.byte(foldedText, s - 1) or nil
+    local after = string.byte(foldedText, e + 1)
+    local function wordByte(b) return b ~= nil and (b >= 128 or (b >= 48 and b <= 57) or (b >= 97 and b <= 122) or (b >= 65 and b <= 90)) end
+    if not wordByte(before) and not wordByte(after) then return true end
+    from = s + 1
+  end
+end
+module.namesPlayer = namesPlayer
 function module.noteLine(kind, text)
   if not module.clickedAt or type(text) ~= "string" or (ns.isSecret and ns.isSecret(text)) then return end
   if not (GetTime and (GetTime() - module.clickedAt) <= CAPTURE_SECONDS) then return end
   if presenceLine(text) then return end
   if (module.captured or 0) >= CAPTURE_MAX then return end
-  local named = module.clickedKey and string.find(key(text), module.clickedKey, 1, true)
-  if kind == "system" and not named then return end
+  -- (9.3.3) System and error lines alike are kept only when they name the player just clicked.
+  if not (module.clickedKey and namesPlayer(key(text), module.clickedKey)) then return end
   local d = db()
   if not d then return end
   module.captured = (module.captured or 0) + 1

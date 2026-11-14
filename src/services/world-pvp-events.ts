@@ -34,25 +34,39 @@ export function parsePvpEvents(value: unknown, now = new Date()): PvpEventRow[] 
   return rows;
 }
 
-type EventDb = Pick<PrismaClient, "worldPvpEvent">;
-/** Stores the rows (a resent upload changes nothing) and forgets what is older than five weeks. Returns how many rows were new. */
+type EventDb = Pick<PrismaClient, "worldPvpEvent" | "$transaction">;
+/** Stores the rows (a resent upload changes nothing) and forgets what is older than five weeks. At the per-member cap the member's OLDEST rows make room for the new ones.
+ *  Count, insert and trim run in one transaction under a per-member advisory lock, so two uploads of the same member never overshoot the cap. Returns how many rows were new. */
 export async function applyPvpEvents(db: EventDb, guildId: string, memberId: string, rows: readonly PvpEventRow[], now = new Date()): Promise<number> {
   const cutoff = new Date(now.getTime() - KEEP_DAYS * 86_400_000);
   const fresh = rows.filter((row) => row.at >= cutoff);
   if (!fresh.length) return 0;
-  // Nothing older than five weeks is stored; a member's stored events stop at the cap (the newest rows of an upload come first).
-  await db.worldPvpEvent.deleteMany({ where: { guildId, memberId, at: { lt: cutoff } } });
-  const room = Math.max(0, PVP_EVENTS_PER_MEMBER - await db.worldPvpEvent.count({ where: { memberId } }));
-  const take = fresh.slice(0, room);
-  if (!take.length) return 0;
-  const created = await db.worldPvpEvent.createMany({
-    data: take.map((row) => ({ guildId, memberId, weekKey: weekKeyOf(row.at), kind: row.kind, at: row.at, mapId: row.mapId, x: row.x, y: row.y, approx: row.approx, eventId: row.eventId })),
-    skipDuplicates: true
+  return db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${"pvp-events:" + memberId}))`;
+    await tx.worldPvpEvent.deleteMany({ where: { guildId, memberId, at: { lt: cutoff } } });
+    const created = await tx.worldPvpEvent.createMany({
+      data: fresh.map((row) => ({ guildId, memberId, weekKey: weekKeyOf(row.at), kind: row.kind, at: row.at, mapId: row.mapId, x: row.x, y: row.y, approx: row.approx, eventId: row.eventId })),
+      skipDuplicates: true
+    });
+    const excess = (await tx.worldPvpEvent.count({ where: { memberId } })) - PVP_EVENTS_PER_MEMBER;
+    if (excess > 0) {
+      const oldest = await tx.worldPvpEvent.findMany({ where: { memberId }, orderBy: [{ at: "asc" }, { id: "asc" }], take: excess, select: { id: true } });
+      if (oldest.length) await tx.worldPvpEvent.deleteMany({ where: { id: { in: oldest.map((row) => row.id) } } });
+    }
+    return created.count;
   });
-  return created.count;
 }
 
-/** Daily job: everything older than five weeks goes, for every member (an inactive member's rows too). */
+const PURGE_BATCH = 5_000;
+/** Daily job: everything older than five weeks goes, for every member (an inactive member's rows too), in batches so one huge delete never holds the table. */
 export async function purgeOldPvpEvents(db: Pick<PrismaClient, "worldPvpEvent">, now = new Date()): Promise<number> {
-  return (await db.worldPvpEvent.deleteMany({ where: { at: { lt: new Date(now.getTime() - KEEP_DAYS * 86_400_000) } } })).count;
+  const cutoff = new Date(now.getTime() - KEEP_DAYS * 86_400_000);
+  let total = 0;
+  for (let i = 0; i < 1_000; i++) {
+    const ids = await db.worldPvpEvent.findMany({ where: { at: { lt: cutoff } }, select: { id: true }, take: PURGE_BATCH });
+    if (!ids.length) break;
+    total += (await db.worldPvpEvent.deleteMany({ where: { id: { in: ids.map((row) => row.id) } } })).count;
+    if (ids.length < PURGE_BATCH) break;
+  }
+  return total;
 }

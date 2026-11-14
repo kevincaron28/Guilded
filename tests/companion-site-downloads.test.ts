@@ -50,7 +50,7 @@ const folder = () => { const dir = mkdtempSync(join(tmpdir(), "qg-site-")); dirs
 describe("update check: website first", () => {
   it("reads the version, size and SHA-256 from the website and downloads the versioned installer from it", async () => {
     const latest = await updates.fetchLatestRelease(fetchVia((url) => url === updates.SITE_RELEASES ? json(siteJson()) : new Error("GitHub not needed")));
-    expect(latest).toEqual({
+    expect(latest).toEqual({ source: "website",
       version: "9.1.0", url: "https://github.com/kevincaron28/Guilded/releases/tag/v9.1.0",
       installer: { name: "Guilded.Companion.Setup.9.1.0.exe", url: "https://guilded.kcaron.top/downloads/Guilded.Companion.Setup.9.1.0.exe", size: bytes.length, sha256: sha(bytes) }
     });

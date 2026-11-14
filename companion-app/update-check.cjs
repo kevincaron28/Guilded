@@ -45,13 +45,17 @@ function pickUpdate(current, latest) {
 }
 
 // The website's releases.json "guilded" block, or null when the site is unreachable, slow or answers oddly.
-async function fetchSiteReleases(fetchImpl = globalThis.fetch) {
+// `report(text)` (optional) is told why, so the start-up log can say what a check saw (9.3.2).
+async function fetchSiteReleases(fetchImpl = globalThis.fetch, report = () => {}) {
   try {
     const response = await fetchImpl(SITE_RELEASES, { headers: { accept: "application/json", "user-agent": "Guilded-Companion" }, signal: AbortSignal.timeout(10_000) });
-    if (!response.ok) return null;
+    if (!response.ok) { report(`the website feed answered ${response.status}`); return null; }
     const body = await response.json();
-    return body && typeof body.guilded === "object" && body.guilded ? body.guilded : null;
-  } catch {
+    if (body && typeof body.guilded === "object" && body.guilded) return body.guilded;
+    report("the website feed has no release block");
+    return null;
+  } catch (error) {
+    report(`the website feed could not be read: ${error instanceof Error ? error.message : String(error)}`);
     return null;
   }
 }
@@ -72,26 +76,32 @@ function siteRelease(guilded) {
 }
 
 // The latest stable release: the website's releases.json first, the GitHub API when the site fails.
-async function fetchLatestRelease(fetchImpl = globalThis.fetch) {
-  const fromSite = siteRelease(await fetchSiteReleases(fetchImpl));
-  return fromSite ?? fetchGithubRelease(fetchImpl);
+// `report(text)` (optional) hears every reason a source was not used; the result gets `source` ("website" or "github").
+async function fetchLatestRelease(fetchImpl = globalThis.fetch, report = () => {}) {
+  const feed = await fetchSiteReleases(fetchImpl, report);
+  const fromSite = siteRelease(feed);
+  if (fromSite) return { ...fromSite, source: "website" };
+  if (feed) report("the website feed has no usable installer (version or checksum missing)");
+  const fromGithub = await fetchGithubRelease(fetchImpl, report);
+  return fromGithub ? { ...fromGithub, source: "github" } : null;
 }
 
 // The latest stable GitHub release, or null when GitHub is unreachable or answers oddly.
-async function fetchGithubRelease(fetchImpl = globalThis.fetch) {
+async function fetchGithubRelease(fetchImpl = globalThis.fetch, report = () => {}) {
   try {
     const response = await fetchImpl(RELEASES_API, {
       headers: { accept: "application/vnd.github+json", "user-agent": "Guilded-Companion" },
       signal: AbortSignal.timeout(10_000)
     });
-    if (!response.ok) return null;
+    if (!response.ok) { report(`GitHub answered ${response.status}`); return null; }
     const body = await response.json();
-    if (body?.draft || body?.prerelease || !parseVersion(body?.tag_name)) return null;
+    if (body?.draft || body?.prerelease || !parseVersion(body?.tag_name)) { report("GitHub's latest release is not a stable version"); return null; }
     const url = typeof body.html_url === "string" && body.html_url.startsWith("https://github.com/") ? body.html_url : RELEASES_PAGE;
     const version = parseVersion(body.tag_name).join(".");
     const installer = installerFrom(body.assets, version);
     return { version, url, ...(installer ? { installer } : {}) };
-  } catch {
+  } catch (error) {
+    report(`GitHub could not be read: ${error instanceof Error ? error.message : String(error)}`);
     return null;
   }
 }
@@ -193,6 +203,27 @@ function decideAutoUpdate({ store, packaged, platform = "win32", enabled, curren
   return { action: "download", update };
 }
 
+// One line for startup.log: what the update decision was (never a path or a secret).
+function describeDecision(decision) {
+  if (!decision) return "unknown";
+  if (decision.action === "skip") return `skipped (${decision.reason})`;
+  if (decision.action === "none") return "up to date";
+  if (decision.action === "staged") return `${decision.update.version} is already downloaded`;
+  if (decision.action === "download") return `download ${decision.update.version}`;
+  return String(decision.action);
+}
+
+// A downloaded update waits for the next quit or start. A companion that runs for days in the tray never
+// quits, so it installs by itself when nobody is using it: the window is hidden and WoW is not running.
+function decideInstallWhenIdle({ verdict, windowVisible, wowRunning, installing, autoUpdate }) {
+  if (autoUpdate === false) return { install: false, reason: "disabled" };
+  if (!verdict || verdict.action !== "install") return { install: false, reason: "nothing-staged" };
+  if (installing) return { install: false, reason: "busy" };
+  if (windowVisible) return { install: false, reason: "window-open" };
+  if (wowRunning) return { install: false, reason: "wow-running" };
+  return { install: true, reason: "idle" };
+}
+
 // SHA-256 of a file, read in chunks so a 120 MB installer is never held in memory (also works at quit).
 function hashFileSync(file, fs = require("node:fs")) {
   const { createHash } = require("node:crypto");
@@ -261,4 +292,4 @@ function versionStatus({ current, latest = null, pending = null, pendingReady = 
   return { ...base, status: "unknown", action: "check", ...(checkFailed ? { checkFailed: true } : {}) };
 }
 
-module.exports = { versionStatus, STORE_LISTING, parseVersion, isNewer, pickUpdate, fetchLatestRelease, fetchGithubRelease, fetchSiteReleases, siteRelease, installerSources, SITE, SITE_RELEASES, SITE_DOWNLOADS, installerFrom, downloadInstaller, launchInstaller, isStoreInstall, decideAutoUpdate, hashFileSync, inspectPending, launchInstallerOnExit, RELEASES_PAGE, DIRECT_DOWNLOAD_URL, CHECK_INTERVAL_MS };
+module.exports = { versionStatus, STORE_LISTING, parseVersion, isNewer, pickUpdate, fetchLatestRelease, fetchGithubRelease, fetchSiteReleases, siteRelease, installerSources, SITE, SITE_RELEASES, SITE_DOWNLOADS, installerFrom, downloadInstaller, launchInstaller, isStoreInstall, decideAutoUpdate, hashFileSync, inspectPending, launchInstallerOnExit, describeDecision, decideInstallWhenIdle, RELEASES_PAGE, DIRECT_DOWNLOAD_URL, CHECK_INTERVAL_MS };

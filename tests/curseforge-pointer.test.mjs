@@ -22,8 +22,10 @@ describe("CurseForge pointer", () => {
     expect(creator).toContain("CurseForge");
     expect(creator).toContain(">9.3.1<");
     const forever = readFileSync("dist/site/editions/forever/index.html", "utf8");
-    expect(forever).toContain("9605848");
-    expect(forever).toContain("9605856");
+    // The edition page links the CurseForge files only while CurseForge carries the same version as the release.
+    const linked = releases.guilded.curseforge.version === releases.guilded.github.version;
+    expect(forever.includes("9605848")).toBe(linked);
+    expect(forever.includes("9605856")).toBe(linked);
     expect(readFileSync("docs/RELEASE_CURSEFORGE.md", "utf8")).toContain("https://api.cfwidget.com/1712677");
     expect(readFileSync("scripts/curseforge-upload.mjs", "utf8")).toContain("api.cfwidget.com/1754138");
     expect(readFileSync("scripts/curseforge-upload.mjs", "utf8")).toContain('game-version", "1.60.1"');

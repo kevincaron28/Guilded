@@ -25,6 +25,36 @@
   !endif
 !endif
 
+; Writes the uninstall entry back after an install that did not finish (see customCheckAppRunning).
+!macro GUILDED_RESTORE_UNINSTALL
+  ReadRegStr $R0 SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY}" GuildedUninstallStringBackup
+  ReadRegStr $R1 SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY}" UninstallString
+  ${if} $R0 != ""
+  ${andIf} $R1 == ""
+    WriteRegStr SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY}" UninstallString "$R0"
+  ${endIf}
+  DeleteRegValue SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY}" GuildedUninstallStringBackup
+  !ifdef UNINSTALL_REGISTRY_KEY_2
+    ReadRegStr $R0 SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY_2}" GuildedUninstallStringBackup
+    ReadRegStr $R1 SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY_2}" UninstallString
+    ${if} $R0 != ""
+    ${andIf} $R1 == ""
+      WriteRegStr SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY_2}" UninstallString "$R0"
+    ${endIf}
+    DeleteRegValue SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY_2}" GuildedUninstallStringBackup
+  !endif
+!macroend
+
+; At the top of the installer script (electron-builder inserts this macro before the pages): an install that
+; fails after the uninstall entry was set aside puts it back.
+!macro customHeader
+  !ifndef BUILD_UNINSTALLER
+    Function .onInstFailed
+      !insertmacro GUILDED_RESTORE_UNINSTALL
+    FunctionEnd
+  !endif
+!macroend
+
 !macro customUnInstall
   ${ifNot} ${isUpdated}
     DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Guilded Companion"
@@ -68,6 +98,11 @@
     FileWrite $0 "1"
     FileClose $0
   ${endIf}
+  ; The install finished and the entry is written again: the set-aside copy is no longer needed.
+  DeleteRegValue SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY}" GuildedUninstallStringBackup
+  !ifdef UNINSTALL_REGISTRY_KEY_2
+    DeleteRegValue SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY_2}" GuildedUninstallStringBackup
+  !endif
   ; A silent run that closed a running companion starts it again (the app's own update does that itself
   ; with --force-run; an interactive run starts it at the end).
   ${if} $guildedWasRunning == "1"
@@ -178,6 +213,8 @@
       FileClose $R4
     ${endIf}
     StrCpy $guildedWasRunning "0"
+    ; An earlier manual run that did not finish left the entry set aside: put it back first.
+    !insertmacro GUILDED_RESTORE_UNINSTALL
   !endif
   ; The install folder for the path-based close, through the environment. Nothing matches by path while it is empty.
   ${if} $INSTDIR != ""
@@ -254,10 +291,22 @@
       ; install ended with exit code 2 on 13 November). The new files are copied over the old ones and the
       ; uninstall entry is written again by the installer. The app's own update (--updated) keeps the usual path.
       ${ifNot} ${isUpdated}
-        DeleteRegValue SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY}" UninstallString
+        ; The old value is kept next to it (GuildedUninstallStringBackup) and written back if this install
+        ; does not finish (.onInstFailed below) or at the start of the next run; a finished install removes it.
+        ReadRegStr $R0 SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY}" UninstallString
+        ${if} $R0 != ""
+          WriteRegStr SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY}" GuildedUninstallStringBackup "$R0"
+          DeleteRegValue SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY}" UninstallString
+        ${endIf}
         !ifdef UNINSTALL_REGISTRY_KEY_2
-          DeleteRegValue SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY_2}" UninstallString
+          ReadRegStr $R0 SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY_2}" UninstallString
+          ${if} $R0 != ""
+            WriteRegStr SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY_2}" GuildedUninstallStringBackup "$R0"
+            DeleteRegValue SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY_2}" UninstallString
+          ${endIf}
         !endif
+        ; The installer copy electron-builder keeps (the old uninstaller removed it; user data is not touched).
+        RMDir /r "$LOCALAPPDATA\guilded-companion-updater"
         !insertmacro GUILDED_LOG "old uninstaller skipped"
       ${endIf}
     !endif

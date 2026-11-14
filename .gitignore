@@ -33,3 +33,7 @@ companion-app/renderer/fonts/
 
 # Link-coverage report (npm run link:coverage): holds members' Discord IDs.
 link-coverage.md
+
+# Firebase credentials never go in the repo (owner keeps them in Documents/guilded-secrets)
+google-services.json
+*firebase-adminsdk*.json

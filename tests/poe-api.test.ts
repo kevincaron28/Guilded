@@ -11,6 +11,7 @@ const db = vi.hoisted(() => ({
   member: { findFirst: vi.fn() },
   companionCredential: { findFirst: vi.fn(), updateMany: vi.fn() },
   webCompanionCredential: { updateMany: vi.fn() },
+  mobileDevice: { updateMany: vi.fn() },
   poeMapVisit: { createMany: vi.fn(), findMany: vi.fn() },
   $transaction: vi.fn()
 }));
@@ -76,7 +77,7 @@ describe("PoE2 HTTP authentication and personal scope", () => {
     const response = await fetch(`${address}/api/v1/companion/logout`, { method: "POST", headers: { "content-type": "application/json", "x-companion-credential": secret }, body: JSON.stringify({ guildDiscordId: "123" }) });
     expect(response.status).toBe(200);
     for (const table of [db.companionCredential, db.webCompanionCredential]) {
-      expect(table.updateMany).toHaveBeenCalledWith({ where: { tokenHash: hashCompanionSecret(secret), revokedAt: null }, data: { revokedAt: expect.any(Date) } });
+      expect(table.updateMany).toHaveBeenCalledWith({ where: { OR: [{ tokenHash: hashCompanionSecret(secret) }, { previousTokenHash: hashCompanionSecret(secret), previousValidUntil: { gt: expect.any(Date) } }], revokedAt: null }, data: { revokedAt: expect.any(Date) } });
     }
     // Revocation remains available when a member has left or approval was withdrawn.
     expect(fetchMember).not.toHaveBeenCalled();
@@ -103,8 +104,11 @@ describe("PoE2 HTTP authentication and personal scope", () => {
     expect(db.poeMapVisit.createMany).not.toHaveBeenCalled();
   });
   it("refuses revoked/departed memberships and disabled guilds", async () => {
-    fetchMember.mockRejectedValueOnce(new Error("Member left"));
+    // Discord answers 10007 (Unknown Member) for a departed member; any other failure is "cannot check" (503), not a refusal.
+    fetchMember.mockRejectedValueOnce(Object.assign(new Error("Unknown Member"), { code: 10007 }));
     expect((await post({ guildDiscordId: "123", visits: [visit] })).status).toBe(401);
+    fetchMember.mockRejectedValueOnce(new Error("Discord unreachable"));
+    expect((await post({ guildDiscordId: "123", visits: [visit] })).status).toBe(503);
     db.companionCredential.findFirst.mockResolvedValueOnce(null);
     expect((await post({ guildDiscordId: "123", visits: [visit] })).status).toBe(401);
     db.guildSettings.findUnique.mockResolvedValue({ poeTrackingEnabled: false });

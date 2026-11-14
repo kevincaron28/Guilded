@@ -1,0 +1,10 @@
+ALTER TABLE "CompanionCredential" ADD COLUMN "previousTokenHash" TEXT, ADD COLUMN "previousValidUntil" TIMESTAMP(3);
+ALTER TABLE "WebCompanionCredential" ADD COLUMN "previousTokenHash" TEXT, ADD COLUMN "previousValidUntil" TIMESTAMP(3);
+CREATE UNIQUE INDEX "CompanionCredential_previousTokenHash_key" ON "CompanionCredential"("previousTokenHash");
+CREATE UNIQUE INDEX "WebCompanionCredential_previousTokenHash_key" ON "WebCompanionCredential"("previousTokenHash");
+CREATE TABLE "MobileDevice" ("id" TEXT PRIMARY KEY, "credentialId" TEXT NOT NULL REFERENCES "CompanionCredential"("id") ON DELETE CASCADE ON UPDATE CASCADE, "expoPushToken" TEXT, "enabled" BOOLEAN NOT NULL DEFAULT false, "locale" TEXT NOT NULL DEFAULT 'en', "snapshot" JSONB NOT NULL DEFAULT '{}', "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE UNIQUE INDEX "MobileDevice_credentialId_key" ON "MobileDevice"("credentialId");
+CREATE UNIQUE INDEX "MobileDevice_expoPushToken_key" ON "MobileDevice"("expoPushToken");
+CREATE TABLE "MobileDelivery" ("id" TEXT PRIMARY KEY, "deviceId" TEXT NOT NULL REFERENCES "MobileDevice"("id") ON DELETE CASCADE ON UPDATE CASCADE, "eventKey" TEXT NOT NULL, "payload" JSONB NOT NULL, "status" TEXT NOT NULL DEFAULT 'PENDING', "attempts" INTEGER NOT NULL DEFAULT 0, "nextAttemptAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "lockedUntil" TIMESTAMP(3), "deliveredAt" TIMESTAMP(3));
+CREATE UNIQUE INDEX "MobileDelivery_deviceId_eventKey_key" ON "MobileDelivery"("deviceId", "eventKey");
+CREATE INDEX "MobileDelivery_status_nextAttemptAt_idx" ON "MobileDelivery"("status", "nextAttemptAt");

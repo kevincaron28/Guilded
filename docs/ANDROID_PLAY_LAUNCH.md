@@ -1,6 +1,6 @@
 # Android: Google Play launch (owner steps)
 
-Written 8 November 2026. The developer account is paid; identity verification is pending. Menu names are Play
+Written 8 November 2026. The developer account is paid; the owner finished identity, device and phone verifications on 9 November 2026. On that day the Play Console showed no app yet (Create app asks for the three declarations in step 4). Menu names are Play
 Console's and Firebase's as of November 2026. If a label has moved, look for the same words nearby.
 Agents must not create accounts, sign in for the owner, or change store ids (`top.kcaron.guilded`) or EAS settings.
 
@@ -27,6 +27,16 @@ Agents must not create accounts, sign in for the owner, or change store ids (`to
    commit it. Click **Next**, **Next** and **Continue to console**; skip the Gradle steps, because Expo does them.
 5. Gear icon → **Project settings** → **Service accounts** tab → **Generate new private key** → **Generate key**.
    Keep that JSON file next to the other one. It lets Expo send pushes (FCM v1). Never commit it.
+
+## 1b. EXPO_TOKEN (automatic phone updates from GitHub)
+
+Optional but wanted: `.github/workflows/mobile-update.yml` publishes JavaScript-only updates when main changes `mobile/`, once this secret exists. It never builds an APK.
+
+1. Open https://expo.dev, sign in as `kevincaron28`, click your account name (top right) → **Access tokens** (https://expo.dev/accounts/kevincaron28/settings/access-tokens).
+2. **Create token** → name `github-actions` → **Create**. Copy the token now: Expo shows it once.
+3. Open https://github.com/kevincaron28/Guilded/settings/secrets/actions → **New repository secret**.
+4. Name: `EXPO_TOKEN` (exactly). Secret: paste the token → **Add secret**.
+5. Done. Never paste the token in chat or commit it. To revoke it later, delete it on the Expo access tokens page.
 
 ## 2. Give both files to EAS (from `mobile\` on the PC)
 
@@ -65,7 +75,7 @@ Answer each card with the files in `mobile/store/`:
 
 | Card | Where the answers are |
 | --- | --- |
-| Privacy policy | `https://guilded.kcaron.top/docs/PRIVACY` |
+| Privacy policy | `https://guildedwow.com/docs/PRIVACY` |
 | App access | "All or some functionality is restricted" → add instructions: the text in play-content-rating.md (sample guild) |
 | Ads | No ads |
 | Content ratings | play-content-rating.md → category **All Other App Types** |
@@ -87,7 +97,7 @@ Each card needs **Save**, and some need **Submit**. The dashboard ticks them off
 6. **Manage translations → Add your own translation text → French (Canada) – fr-CA** → paste the French blocks →
    **Save**. The same graphics are fine for French.
 7. **Store settings**: Category **Social**, contact email (the placeholder in play-listing.md: pick a support
-   address), website `https://guilded.kcaron.top` → **Save**.
+   address), website `https://guildedwow.com` → **Save**.
 
 ## 7. Closed test: at least 12 testers for 14 days (required for new personal accounts)
 

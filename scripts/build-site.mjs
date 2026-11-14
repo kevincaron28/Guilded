@@ -83,6 +83,8 @@ cpSync("site/images/addon", `${out}/images/addon`, { recursive: true });
 cpSync("site/images/discord", `${out}/images/discord`, { recursive: true });
 cpSync("site/images/phone", `${out}/images/phone`, { recursive: true });
 cpSync("site/images/hero", `${out}/images/hero`, { recursive: true });
+// Painted badge frames and emblems (scripts/build-badge-art.mjs): the achievements page layers them as images.
+cpSync("site/badge-art", `${out}/badge-art`, { recursive: true });
 cpSync("site/creator", `${out}/creator`, { recursive: true });
 // Guide screenshots (docs/SCREENSHOT_SHOTLIST.md): captured later; until a file exists the page shows a marked placeholder.
 if (existsSync("site/assets")) cpSync("site/assets", `${out}/assets`, { recursive: true });

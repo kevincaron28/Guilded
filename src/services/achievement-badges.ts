@@ -1,5 +1,6 @@
 import type { AchievementDef, AchievementGame, AchievementMetric, AchievementTier, WowEdition } from "./achievements-catalogue.js";
 import { ACHIEVEMENTS, TIER_LABEL, achievementGameVisible } from "./achievements-catalogue.js";
+import { EMBLEM_BOX, badgeToken, emblemFor, hasFrame } from "./badge-art.js";
 
 // Badge artwork for the achievements, generated as SVG from this one module (original shapes, no game
 // or publisher artwork). Tier picks the frame shape and metal, the game picks the colours of the centre
@@ -150,6 +151,32 @@ export function badgeInner(def: AchievementDef, earned: boolean, tracking?: bool
     + gloss + gem + pips
     + `<g transform="translate(${def.rank ? "20 16.500" : "18.200 18.800"}) scale(${def.rank ? "1" : "1.150"})" color="${glyph}" fill="none" stroke="currentColor" stroke-width="1.900" stroke-linecap="round" stroke-linejoin="round"${earned ? "" : ` opacity=".7"`}>${body}</g>`;
 }
+
+/**
+ * The badge a card draws (the `icon` of a card row or unlock): the painted badge (tier frame + emblem, site/badge-art) as a small token that
+ * scoreCardPng turns into the picture, or, when an asset is missing, the old code-drawn SVG (badgeInner), so nothing can break.
+ */
+export function badgeIcon(def: AchievementDef, earned: boolean, tracking?: boolean): string {
+  if (!achievementGameVisible(def, tracking)) return "";
+  const emblem = emblemFor(def);
+  return emblem && hasFrame(def.tier) ? badgeToken(emblem, def.tier, earned, def.rank) : badgeInner(def, earned, tracking);
+}
+
+/**
+ * The painted badge for a web page: two layered images (the tier frame, then the emblem; locked is the same pair darkened by CSS) with width
+ * and height set, lazy loading and the achievement's name and tier as the emblem's alt text. Falls back to the SVG badge when art is missing.
+ * The page needs BADGE_IMG_STYLE once.
+ */
+export function badgeImg(def: AchievementDef, earned: boolean, lang: "en" | "fr", size = 64, tracking?: boolean): string {
+  if (!achievementGameVisible(def, tracking)) return "";
+  const emblem = emblemFor(def);
+  if (!emblem || !hasFrame(def.tier)) return badgeSvg(def, earned, { size, label: badgeLabel(def, earned, lang), ...(tracking === undefined ? {} : { tracking }) });
+  const pixels = size > 64 ? 256 : 128, box = Math.round(size * EMBLEM_BOX), offset = Math.round((size - box) / 2);
+  const pips = def.rank ? `<span class="bdg-pips" aria-hidden="true">${"<i></i>".repeat(Math.min(def.rank, 10))}</span>` : "";
+  return `<span class="bdg${earned ? "" : " bdg-locked"}" style="width:${size}px;height:${size}px"><img src="/badge-art/frames/${def.tier}-${pixels}.webp" width="${size}" height="${size}" alt="" loading="lazy" decoding="async">`
+    + `<img src="/badge-art/emblems/${emblem}-${pixels}.webp" width="${box}" height="${box}" alt="${escapeAttr(badgeLabel(def, earned, lang))}" loading="lazy" decoding="async" style="left:${offset}px;top:${offset}px">${pips}</span>`;
+}
+export const BADGE_IMG_STYLE = `<style>.bdg{position:relative;display:inline-block;flex:none}.bdg img{position:absolute;left:0;top:0;max-width:none}.bdg-locked img{filter:grayscale(1) brightness(.5)}.bdg-pips{position:absolute;left:0;right:0;top:78%;display:flex;justify-content:center;gap:2px}.bdg-pips i{width:3px;height:3px;border-radius:50%;background:#ffd45c;display:block}</style>`;
 
 /**
  * A standalone badge. With `label` it is an image with that accessible name; without, it is decorative

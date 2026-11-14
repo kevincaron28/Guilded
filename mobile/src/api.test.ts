@@ -105,7 +105,7 @@ describe("public boards and guild page", () => {
 
 describe("badge album", () => {
   const body = { cards: [
-    { id: "a", name: "First", description: "Do it.", tier: "bronze", tierLabel: "Bronze", tierColor: "#cd7f32", set: "Forever", rank: 1, threshold: 1, earnedAt: "2026-11-05T10:00:00.000Z" },
+    { id: "a", name: "First", description: "Do it.", tier: "bronze", tierLabel: "Bronze", tierColor: "#cd7f32", set: "Forever", rank: 1, threshold: 1, earnedAt: "2026-11-05T10:00:00.000Z", emblem: "dungeons-gate" },
     { id: "b", name: "Second", description: "Do more.", tier: "weird", tierLabel: "", tierColor: "red", set: "Forever", rank: null, threshold: 5, earnedAt: null },
     { id: "c", name: "Guild one", description: "", tier: "gold", tierLabel: "Gold", tierColor: "#ffd100", set: "Guild", rank: null, threshold: 1, earnedAt: null },
     { name: "no id" }
@@ -114,7 +114,8 @@ describe("badge album", () => {
   it("reads cards, drops malformed ones and repairs an unknown tier or colour", () => {
     const album = parseAlbum(body);
     expect(album).toMatchObject({ earned: 1, total: 3 });
-    expect(album.cards[1]).toMatchObject({ tier: "bronze", tierLabel: "bronze", tierColor: "#8a8a80" });
+    expect(album.cards[1]).toMatchObject({ tier: "bronze", tierLabel: "bronze", tierColor: "#8a8a80", emblem: null });
+    expect(album.cards[0]).toMatchObject({ emblem: "dungeons-gate" });
     expect(() => parseAlbum({})).toThrow();
   });
 

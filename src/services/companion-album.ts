@@ -7,6 +7,7 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { ACHIEVEMENTS, EDITION_LABEL, GAME_LABEL, TIER_COLOR, TIER_LABEL, achievementGameVisible, type AchievementDef } from "./achievements-catalogue.js";
 import { storedAchievements } from "./achievements.js";
+import { emblemFor } from "./badge-art.js";
 
 type Db = Pick<PrismaClient, "member" | "guildSettings" | "memberAchievement">;
 export type AlbumLang = "en" | "fr";
@@ -14,6 +15,8 @@ export interface AlbumCard {
   id: string; name: string; description: string; tier: AchievementDef["tier"]; tierLabel: string; tierColor: string;
   /** The set it belongs to: a WoW edition or the guild set. */
   set: string; rank: number | null; threshold: number; earnedAt: string | null;
+  /** The painted emblem (a file name in the site's /badge-art/emblems/, without size): the app layers it over /badge-art/frames/<tier>-128.webp. Null: draw the plain medal. */
+  emblem: string | null;
 }
 export interface Album { cards: AlbumCard[]; earned: number; total: number }
 
@@ -24,7 +27,7 @@ export function albumCards(earned: Map<string, Date>, lang: AlbumLang): AlbumCar
     .map(def => ({
       id: def.id, name: def[lang].name, description: def[lang].description, tier: def.tier, tierLabel: TIER_LABEL[def.tier][lang], tierColor: TIER_COLOR[def.tier],
       set: def.edition ? `${GAME_LABEL.wow[lang]} · ${EDITION_LABEL[def.edition][lang]}` : GAME_LABEL[def.game][lang],
-      rank: def.rank ?? null, threshold: def.threshold, earnedAt: earned.get(def.id)?.toISOString() ?? null
+      rank: def.rank ?? null, threshold: def.threshold, earnedAt: earned.get(def.id)?.toISOString() ?? null, emblem: emblemFor(def)
     }));
 }
 

@@ -1,7 +1,7 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { loadGeneratedAchievements } from "./game-achievements.js";
 import { ACHIEVEMENTS, ACTIVE_ACHIEVEMENTS, achievementById, generatedAchievements, achievementGameVisible, EDITION_LABEL, GAME_LABEL, TIER_COLOR, TIER_LABEL, WOW_EDITIONS, ladderKey } from "./achievements-catalogue.js";
-import { badgeLabel, badgeSvg } from "./achievement-badges.js";
+import { BADGE_IMG_STYLE, badgeImg, badgeLabel } from "./achievement-badges.js";
 import { storedAchievements, syncMemberAchievements } from "./achievements.js";
 import { achievementsCard } from "./end-cards.js";
 import { scoreCardResponse, type ScoreCard } from "./score-card.js";
@@ -57,7 +57,7 @@ export function createAchievementsWeb(db: Db, allows: (discordGuildId: string) =
   // Each tile is a hidden checkbox + label + details panel, so it needs no script (the pages run under a strict
   // CSP): a tap or click (or Space on the focused tile) toggles it, and on a mouse device hover or keyboard focus
   // also shows it. On touch screens the open tile spans the row; with a mouse the panel floats over the rows below.
-  const TILE_STYLE = `<style>
+  const TILE_STYLE = BADGE_IMG_STYLE + `<style>
 .ach-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px;position:relative}
 .ach{min-width:0}
 .ach>input.ach-t{position:absolute;width:1px;height:1px;margin:0;padding:0;border:0;opacity:0}
@@ -93,7 +93,7 @@ export function createAchievementsWeb(db: Db, allows: (discordGuildId: string) =
         : showProgress ? `${t("Locked", "Verrouillé")} · ${Math.min(r.value, def.threshold)}/${def.threshold}` : t("Locked", "Verrouillé");
     };
     // The badge is decorative with its accessible name in a title; the name, tier and status are all text too.
-    const badge = (def: (typeof ACHIEVEMENTS)[number], size: number) => `<span title="${escapeHtml(badgeLabel(def, Boolean(row(def.id).earnedAt), lang))}" style="flex:none;display:block;width:${size}px;height:${size}px">${badgeSvg(def, Boolean(row(def.id).earnedAt), { size })}</span>`;
+    const badge = (def: (typeof ACHIEVEMENTS)[number], size: number) => `<span title="${escapeHtml(badgeLabel(def, Boolean(row(def.id).earnedAt), lang))}" style="flex:none;display:block;width:${size}px;height:${size}px">${badgeImg(def, Boolean(row(def.id).earnedAt), lang, size)}</span>`;
     const next = showProgress ? ACTIVE_ACHIEVEMENTS.filter(def => !row(def.id).earnedAt && row(def.id).value > 0 && !(def.rank && ACTIVE_ACHIEVEMENTS.some(other => ladderKey(other) === ladderKey(def) && other.threshold < def.threshold && !row(other.id).earnedAt))).sort((a, b) => row(b.id).value / b.threshold - row(a.id).value / a.threshold).slice(0, 3) : [];
     const nextUp = next.length ? `<h3>${t("Next up", "Prochains succès")}</h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">${next.map(def => `<article class="card" style="display:flex;gap:12px;align-items:center;border-left:4px solid ${TIER_COLOR[def.tier]}">${badge(def, 48)}<div style="min-width:0;flex:1"><h4 style="margin:0">${escapeHtml(def[lang].name)}</h4><p style="margin:2px 0 6px;font-size:.85em">${escapeHtml(def[lang].description)}</p>${bar(def, row(def.id).value)}<p class="tag" style="margin:4px 0 0">${escapeHtml(statusOf(def))}</p></div></article>`).join("")}</div>` : "";
     // The details panel: full text, tier, edition, how it is worked out, the date or the progress, and how to share it.

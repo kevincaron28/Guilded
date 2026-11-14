@@ -83,6 +83,8 @@ cpSync("site/images/addon", `${out}/images/addon`, { recursive: true });
 cpSync("site/images/discord", `${out}/images/discord`, { recursive: true });
 cpSync("site/images/phone", `${out}/images/phone`, { recursive: true });
 cpSync("site/images/hero", `${out}/images/hero`, { recursive: true });
+// Continent pictures behind the PvP zone map (src/services/pvp-zone-rects.ts CONTINENT_IMAGES).
+cpSync("site/images/pvp-map", `${out}/images/pvp-map`, { recursive: true });
 // Painted badge frames and emblems (scripts/build-badge-art.mjs): the achievements page layers them as images.
 cpSync("site/badge-art", `${out}/badge-art`, { recursive: true });
 cpSync("site/creator", `${out}/creator`, { recursive: true });

@@ -5,8 +5,7 @@
 -- from the client's global strings so every language works, and only when BOTH players are in the guild.
 -- A participant shares the result with the guild (addon channel, not chat); every client keeps one copy per
 -- duel: the same pair within DEDUPE seconds is the same duel, whoever reports it. A shared result counts only
--- if the sender is the winner or the loser. At most PAIR_DAILY duels per pair per day count, so two friends
--- cannot farm the board. The paired companion uploads the results to the Discord /bg duels board and the site.
+-- if the sender is the winner or the loser. The paired companion uploads the results to the Discord /bg duels board and the site.
 --
 -- What the client really tells us about a duel (no protected call anywhere):
 --   * the winner and the loser, and whether the loser fled (the system line);
@@ -25,15 +24,18 @@ local duels = {}
 ns.duels = duels
 
 local PREFIX = "GuildedDuel"
-local DEDUPE = 60
-local PAIR_DAILY = 5
+local DEDUPE = 120
 local KEEP = 500
 local MAX_AGE = 30 * 86400
 local DAY = 86400
 local WEEK = 7 * DAY
--- The same scoring as the Discord board (src/services/duels.ts duelPoints): 10 per win, +2 per level the loser is
--- above the winner, -2 per level below, 0..20; unknown levels give the base.
-local BASE_POINTS, LEVEL_POINTS, MAX_POINTS = 10, 2, 20
+-- The rating (docs/DUEL_RATING_ADDON_SPEC.md, the same rules as src/services/duel-rating.ts; tests/fixtures/duel-rating-vectors.json
+-- holds shared cases). Ladders start on 13 November 2026 00:00 UTC; the first season runs to 1 January 2027 00:00 UTC, then months.
+local RATING_START_AT = 1794528000
+local FIRST_SEASON_END = 1798761600
+local RESET_ANCHOR = 486000 -- a Tuesday 15:00 UTC: the weekly reset the pair weights count within
+local RATING = { start = 1000, handicapPerLevel = 20, handicapMaxLevels = 5, maxLevelGap = 10, shrinkGames = 10 }
+local ZERO_LINK = "0000000000000000"
 local CARD_SECONDS = 15
 local SESSION_MAX = 1800
 
@@ -164,11 +166,230 @@ local function prune(d)
   for i = 1, #list - KEEP do d.results[list[i].id] = nil end
 end
 
--- What a win is worth, by level difference (the Discord board's formula).
-function duels.points(winnerLevel, loserLevel)
-  winnerLevel, loserLevel = tonumber(winnerLevel), tonumber(loserLevel)
-  if not winnerLevel or not loserLevel or winnerLevel < 1 or loserLevel < 1 then return BASE_POINTS end
-  return math.max(0, math.min(MAX_POINTS, BASE_POINTS + LEVEL_POINTS * (loserLevel - winnerLevel)))
+local function round(value) return math.floor(value + 0.5) end
+duels.round = round
+-- "+12", "-12" or "0".
+function duels.changeText(change)
+  local r = round(tonumber(change) or 0)
+  if r > 0 then return "+" .. r elseif r < 0 then return tostring(r) end
+  return "0"
+end
+
+local function ratingStart()
+  local d = store()
+  local v = d and tonumber(d.ratingStartsAt)
+  return v and v > 0 and v or RATING_START_AT
+end
+duels.ratingStart = ratingStart
+
+-- Days since 1970-01-01 to year and month (UTC), and a month's first second.
+local function civil(days)
+  local z = days + 719468
+  local era = math.floor(z / 146097)
+  local doe = z - era * 146097
+  local yoe = math.floor((doe - math.floor(doe / 1460) + math.floor(doe / 36524) - math.floor(doe / 146096)) / 365)
+  local y = yoe + era * 400
+  local doy = doe - (365 * yoe + math.floor(yoe / 4) - math.floor(yoe / 100))
+  local mp = math.floor((5 * doy + 2) / 153)
+  local m = mp < 10 and mp + 3 or mp - 9
+  if m <= 2 then y = y + 1 end
+  return y, m
+end
+local function monthStart(y, m)
+  if m <= 2 then y = y - 1 end
+  local era = math.floor(y / 400)
+  local yoe = y - era * 400
+  local mp = m > 2 and m - 3 or m + 9
+  local doy = math.floor((153 * mp + 2) / 5)
+  local doe = yoe * 365 + math.floor(yoe / 4) - math.floor(yoe / 100) + doy
+  return (era * 146097 + doe - 719468) * DAY
+end
+-- The season a time falls in: id "YYYY-MM", first and (exclusive) last second; nil before the ladders start.
+function duels.seasonOf(at, startsAt)
+  startsAt = startsAt or ratingStart()
+  at = tonumber(at)
+  if not at or at < startsAt then return nil end
+  if startsAt < FIRST_SEASON_END and at < FIRST_SEASON_END then
+    local y, m = civil(math.floor(startsAt / DAY))
+    return string.format("%04d-%02d", y, m), startsAt, FIRST_SEASON_END
+  end
+  local y, m = civil(math.floor(at / DAY))
+  local from = monthStart(y, m)
+  local ny, nm = y, m + 1
+  if nm > 12 then ny, nm = y + 1, 1 end
+  return string.format("%04d-%02d", y, m), from < startsAt and startsAt or from, monthStart(ny, nm)
+end
+function duels.currentSeason() return (duels.seasonOf(epoch())) end
+-- Season ids from the current one back to the first, newest first.
+function duels.seasons()
+  local out, startsAt, at = {}, ratingStart(), epoch()
+  for _ = 1, 60 do
+    local id, from = duels.seasonOf(at, startsAt)
+    if not id then break end
+    out[#out + 1] = id
+    at = from - 1
+  end
+  return out
+end
+
+local function kFor(rated) if rated < 10 then return 40 elseif rated < 30 then return 24 end return 16 end
+local function weekStartOf(at) return RESET_ANCHOR + math.floor((at - RESET_ANCHOR) / WEEK) * WEEK end
+local function clampLevels(v) return math.max(-RATING.handicapMaxLevels, math.min(RATING.handicapMaxLevels, v)) end
+
+-- The repeat-duel fractions are the server's (the bot hands them over; nothing is published here): the n-th duel of a pair in a weekly
+-- window uses entry n and later ones count for nothing. Without a table every duel counts in full.
+function duels.setPairWeights(weights)
+  local d = store()
+  if not d then return false end
+  if weights == nil then d.pairWeights = nil; return true end
+  if type(weights) ~= "table" or #weights == 0 or #weights > 50 then return false end
+  local clean = {}
+  for i, v in ipairs(weights) do
+    if type(v) ~= "number" or v < 0 or v > 1 then return false end
+    clean[i] = v
+  end
+  d.pairWeights = clean
+  return true
+end
+local function storedWeights()
+  local d = store()
+  return d and type(d.pairWeights) == "table" and #d.pairWeights > 0 and d.pairWeights or nil
+end
+
+-- Rates ONE season's counted duels, each { winner, loser, wlv, llv, at }. Pure: the arrival order does not matter (end time, then
+-- lower-cased winner, then loser). Returns players by lower-cased name and `changes` (parallel to `ordered`) with each side's shown
+-- score before and after; a duel that moved nothing has rated = false.
+function duels.rate(list, weights)
+  weights = weights or storedWeights()
+  local ordered = {}
+  for i, r in ipairs(list or {}) do ordered[i] = r end
+  table.sort(ordered, function(x, y)
+    if x.at ~= y.at then return x.at < y.at end
+    local xw, yw = x.winner:lower(), y.winner:lower()
+    if xw ~= yw then return xw < yw end
+    return x.loser:lower() < y.loser:lower()
+  end)
+  local players, changes, pairs_ = {}, {}, {}
+  local function entry(name, level, at)
+    local key = name:lower()
+    local row = players[key]
+    if not row then
+      row = { name = name, rating = RATING.start, score = RATING.start, games = 0, rated = 0, wins = 0, losses = 0, run = 0, best = 0, seen = {}, opponents = 0, lastAt = at }
+      players[key] = row
+    end
+    row.name, row.lastAt = name, at
+    if tonumber(level) and level > 0 then row.level = level end
+    return row
+  end
+  for _, r in ipairs(ordered) do
+    local w, l = entry(r.winner, r.wlv, r.at), entry(r.loser, r.llv, r.at)
+    w.games = w.games + 1; l.games = l.games + 1; w.wins = w.wins + 1; l.losses = l.losses + 1
+    w.run = w.run > 0 and w.run + 1 or 1; if w.run > w.best then w.best = w.run end
+    l.run = l.run < 0 and l.run - 1 or -1
+    local a, b = r.winner:lower(), r.loser:lower()
+    local pair = (a < b and a .. "|" .. b or b .. "|" .. a) .. "|" .. weekStartOf(r.at)
+    local nth = pairs_[pair] or 0
+    pairs_[pair] = nth + 1
+    local wl, ll = tonumber(r.wlv) or 0, tonumber(r.llv) or 0
+    local tooFar = wl > 0 and ll > 0 and math.abs(wl - ll) > RATING.maxLevelGap
+    local weight = tooFar and 0 or (weights and (weights[nth + 1] or 0) or 1)
+    local change = { src = r, winner = r.winner, loser = r.loser, rated = false, winnerDelta = 0, loserDelta = 0, winnerScore = w.score, loserScore = l.score }
+    if weight > 0 then
+      local beforeW, beforeL = w.score, l.score
+      local handicap = (wl > 0 and ll > 0) and RATING.handicapPerLevel * clampLevels(ll - wl) or 0
+      local expected = 1 / (1 + 10 ^ ((l.rating + handicap - w.rating) / 400))
+      local gain = 1 - expected
+      local kw, kl = kFor(w.rated), kFor(l.rated)
+      w.rating = w.rating + kw * weight * gain
+      l.rating = l.rating - kl * weight * gain
+      w.rated = w.rated + 1; l.rated = l.rated + 1
+      if not w.seen[b] then w.seen[b] = true; w.opponents = w.opponents + 1 end
+      if not l.seen[a] then l.seen[a] = true; l.opponents = l.opponents + 1 end
+      w.score = RATING.start + (w.rating - RATING.start) * w.rated / (w.rated + RATING.shrinkGames)
+      l.score = RATING.start + (l.rating - RATING.start) * l.rated / (l.rated + RATING.shrinkGames)
+      change.rated, change.winnerDelta, change.loserDelta = true, w.score - beforeW, l.score - beforeL
+      change.winnerScore, change.loserScore = w.score, l.score
+    end
+    changes[#changes + 1] = change
+  end
+  for _, row in pairs(players) do row.streak = row.run; row.ranked = row.games >= 1 end
+  return { players = players, ordered = ordered, changes = changes }
+end
+
+local SHA_K = {
+  0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
+  0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+  0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
+  0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+  0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc,
+  0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+  0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
+  0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+  0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
+  0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+  0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3,
+  0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+  0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5,
+  0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+  0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
+  0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+}
+local SHA_H = { 0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19 }
+
+-- The first 16 hex characters of SHA-256 of a text (the hash chain of docs/DUEL_RATING_ADDON_SPEC.md); nil when the client has no bit library.
+function duels.sha16(msg)
+  if type(bit) ~= "table" then return nil end
+  local band, bor, bxor, bnot, lshift, rshift = bit.band, bit.bor, bit.bxor, bit.bnot, bit.lshift, bit.rshift
+  if not (band and bor and bxor and bnot and lshift and rshift) then return nil end
+  local function rrot(x, n) return bor(rshift(x, n), lshift(x, 32 - n)) end
+  local function add(...)
+    local total = 0
+    for i = 1, select("#", ...) do total = total + select(i, ...) end
+    return band(total, 0xffffffff)
+  end
+  msg = tostring(msg)
+  local length = #msg
+  local bytes = { msg:byte(1, -1) }
+  if length == 0 then bytes = {} end
+  bytes[#bytes + 1] = 0x80
+  while #bytes % 64 ~= 56 do bytes[#bytes + 1] = 0 end
+  local bits = length * 8
+  for shift = 7, 0, -1 do
+    bytes[#bytes + 1] = shift >= 4 and 0 or (math.floor(bits / (256 ^ shift)) % 256)
+  end
+  local hh = { SHA_H[1], SHA_H[2], SHA_H[3], SHA_H[4], SHA_H[5], SHA_H[6], SHA_H[7], SHA_H[8] }
+  for chunk = 0, #bytes / 64 - 1 do
+    local w = {}
+    for i = 1, 16 do
+      local at = chunk * 64 + (i - 1) * 4
+      w[i] = bor(bor(lshift(bytes[at + 1], 24), lshift(bytes[at + 2], 16)), bor(lshift(bytes[at + 3], 8), bytes[at + 4]))
+    end
+    for i = 17, 64 do
+      local s0 = bxor(bxor(rrot(w[i - 15], 7), rrot(w[i - 15], 18)), rshift(w[i - 15], 3))
+      local s1 = bxor(bxor(rrot(w[i - 2], 17), rrot(w[i - 2], 19)), rshift(w[i - 2], 10))
+      w[i] = add(w[i - 16], s0, w[i - 7], s1)
+    end
+    local a, b, c, d, e, f, g, h = hh[1], hh[2], hh[3], hh[4], hh[5], hh[6], hh[7], hh[8]
+    for i = 1, 64 do
+      local big1 = bxor(bxor(rrot(e, 6), rrot(e, 11)), rrot(e, 25))
+      local ch = bxor(band(e, f), band(bnot(e), g))
+      local t1 = add(h, big1, ch, SHA_K[i], w[i])
+      local big0 = bxor(bxor(rrot(a, 2), rrot(a, 13)), rrot(a, 22))
+      local maj = bxor(bxor(band(a, b), band(a, c)), band(b, c))
+      local t2 = add(big0, maj)
+      h, g, f, e, d, c, b, a = g, f, e, add(d, t1), c, b, a, add(t1, t2)
+    end
+    hh[1], hh[2], hh[3], hh[4] = add(hh[1], a), add(hh[2], b), add(hh[3], c), add(hh[4], d)
+    hh[5], hh[6], hh[7], hh[8] = add(hh[5], e), add(hh[6], f), add(hh[7], g), add(hh[8], h)
+  end
+  local digits, out = "0123456789abcdef", {}
+  for word = 1, 2 do
+    for nibble = 7, 0, -1 do
+      local v = band(rshift(hh[word], nibble * 4), 15)
+      out[#out + 1] = digits:sub(v + 1, v + 1)
+    end
+  end
+  return table.concat(out)
 end
 
 -- My own level and class when the roster does not say (the roster may not be loaded yet).
@@ -186,6 +407,91 @@ local function infoFor(name)
     info = { level = info and info.level or own.level, class = info and info.class or own.class }
   end
   return info or {}
+end
+
+
+-- ----- duels against players outside the guild: recorded for upload, never on the guild ladder ----------------------------------
+
+local EXTERNAL_KEEP = 200
+local function realmName()
+  local ok, value = pcall(function() return (GetNormalizedRealmName and GetNormalizedRealmName()) or (GetRealmName and GetRealmName()) end)
+  return ok and type(value) == "string" and #value <= 60 and not value:find("[|%c]") and value or ""
+end
+local function ownGuild()
+  if not GetGuildInfo then return nil end
+  local ok, name = pcall(GetGuildInfo, "player")
+  if ok and type(name) == "string" and name ~= "" and #name <= 80 and not (ns.isSecret and ns.isSecret(name)) and not name:find("[|%c]") then return name end
+  return nil
+end
+local function englishClass(file)
+  if type(file) ~= "string" or not file:match("^%u+$") then return nil end
+  return file:sub(1, 1) .. file:sub(2):lower()
+end
+local function levelOf(value)
+  value = tonumber(value)
+  return value and value >= 1 and value <= 60 and math.floor(value) or nil
+end
+-- The newest challenge handed to this install (whatever delivers it calls this): every record made afterwards carries it.
+function duels.setChallenge(nonce)
+  local d = store()
+  if not d then return false end
+  if type(nonce) == "string" and #nonce >= 8 and #nonce <= 64 and nonce:match("^%x+$") then d.challenge = nonce:lower(); return true end
+  return false
+end
+
+-- One of MY duels with a player outside the guild, kept for the upload (`externalDuels`). `ext` carries what only this client saw:
+-- the opponent's class, level and guild text from my target, the duration and zone, and the times of the countdown and the start.
+-- Returns true when a record was added.
+function duels.recordExternal(winner, loser, at, reason, ext)
+  local d = store()
+  local mine = me()
+  if not d or not mine then return false end
+  ext = type(ext) == "table" and ext or {}
+  winner, loser = bare(winner), bare(loser)
+  at = math.floor(tonumber(at) or 0)
+  if not winner or not loser or same(winner, loser) or at < ratingStart() or at > epoch() + 300 then return false end
+  local iWon = same(mine, winner)
+  if not (iWon or same(mine, loser)) then return false end
+  local list = d.external
+  if type(list) ~= "table" then list = {}; d.external = list end
+  for _, r in pairs(list) do
+    if type(r) == "table" and same(r.winner, winner) and same(r.loser, loser) and math.abs((r.at or 0) - at) <= DEDUPE then return false end
+  end
+  local realm, mineInfo, oppInfo = realmName(), selfInfo(), type(ext.oppInfo) == "table" and ext.oppInfo or {}
+  local row = { winner = winner, loser = loser, winnerRealm = realm, loserRealm = realm, at = at, reason = reason == "retreat" and "retreat" or "knockout",
+    side = iWon and "winner" or "loser" }
+  local mineClass, oppClass = englishClass(mineInfo.class), englishClass(oppInfo.class)
+  local mineLevel, oppLevel = levelOf(mineInfo.level), levelOf(oppInfo.level)
+  local mineGuild, oppGuild = ownGuild(), type(oppInfo.guild) == "string" and oppInfo.guild ~= "" and #oppInfo.guild <= 80 and not oppInfo.guild:find("[|%c]") and oppInfo.guild or nil
+  if iWon then
+    row.winnerClass, row.loserClass, row.winnerLevel, row.loserLevel, row.winnerGuild, row.loserGuild = mineClass, oppClass, mineLevel, oppLevel, mineGuild, oppGuild
+  else
+    row.winnerClass, row.loserClass, row.winnerLevel, row.loserLevel, row.winnerGuild, row.loserGuild = oppClass, mineClass, oppLevel, mineLevel, oppGuild, mineGuild
+  end
+  if type(ext.zone) == "string" and ext.zone ~= "" and #ext.zone <= 80 then row.zone = ext.zone end
+  local duration = tonumber(ext.duration)
+  if duration and duration >= 3 and duration <= SESSION_MAX then row.durationSec = math.floor(duration) end
+  row.evidence = { endAt = at, countdownAt = tonumber(ext.countdownAt) and math.floor(ext.countdownAt) or nil,
+    startAt = tonumber(ext.startAt) and math.floor(ext.startAt) or nil, zoneWinner = row.zone, zoneLoser = row.zone }
+  -- The running number and the hash chain tie the record to the challenge it was made under and to the record before it.
+  d.extSeq = (tonumber(d.extSeq) or 0) + 1
+  row.seq = d.extSeq
+  local nonce = type(d.challenge) == "string" and #d.challenge >= 8 and #d.challenge <= 64 and d.challenge:match("^%x+$") and d.challenge or nil
+  if nonce then
+    row.nonce = nonce
+    local prev = type(d.extChain) == "string" and #d.extChain == 16 and d.extChain:match("^%x+$") and d.extChain or ZERO_LINK
+    local chain = duels.sha16(table.concat({ prev, nonce, row.seq, winner, row.winnerRealm, loser, row.loserRealm, at, row.reason }, "|"))
+    if chain then row.prev, row.chain = prev, chain; d.extChain = chain end
+  end
+  list[winner .. "|" .. loser .. "|" .. at] = row
+  local keep = {}
+  for key, r in pairs(list) do keep[#keep + 1] = { key = key, at = type(r) == "table" and r.at or 0 } end
+  if #keep > EXTERNAL_KEEP then
+    table.sort(keep, function(x, y) return x.at < y.at end)
+    for i = 1, #keep - EXTERNAL_KEEP do list[keep[i].key] = nil end
+  end
+  if ns.syncNow and ns.syncNow.mark then pcall(ns.syncNow.mark) end
+  return true
 end
 
 -- The stored duel of this pair within DEDUPE seconds of `at`, if any.
@@ -222,58 +528,61 @@ function duels.record(winner, loser, at, reason, extra)
   return true, key
 end
 
+-- The duels that count, oldest first: those since the ladders started.
 local function counted()
   local d = store()
+  local startsAt = ratingStart()
   local list = {}
-  for _, r in pairs(d and d.results or {}) do if type(r) == "table" and r.winner and r.loser and r.at then list[#list + 1] = r end end
-  table.sort(list, function(x, y) return x.at < y.at end)
-  -- Daily allowance per pair, oldest first.
-  local perPair, kept = {}, {}
-  for _, r in ipairs(list) do
-    local a, b = r.winner:lower(), r.loser:lower()
-    local key = (a < b and a .. ":" .. b or b .. ":" .. a) .. ":" .. math.floor(r.at / DAY)
-    perPair[key] = (perPair[key] or 0) + 1
-    if perPair[key] <= PAIR_DAILY then kept[#kept + 1] = r end
+  for _, r in pairs(d and d.results or {}) do
+    if type(r) == "table" and r.winner and r.loser and r.at and r.at >= startsAt then list[#list + 1] = r end
   end
-  return kept
+  table.sort(list, function(x, y) return x.at < y.at end)
+  return list
 end
 local function isCounted(row)
   for _, r in ipairs(counted()) do if r == row then return true end end
   return false
 end
 
--- Wins, losses, win rate, current/best streak, points and last duel per player, best first (the order of the
--- Discord board: points, then wins). opts: since / before (epoch seconds), class (a class file: only those players,
--- ranked among themselves). Each row carries its rank.
+-- What one stored duel did to the two shown scores (nil when it does not count): the season is re-rated from its counted duels,
+-- never patched, so a duel that arrived late is placed where it belongs.
+function duels.changeFor(row)
+  if type(row) ~= "table" or not row.at then return nil end
+  local id = duels.seasonOf(row.at)
+  if not id then return nil end
+  local list = {}
+  for _, r in ipairs(counted()) do if duels.seasonOf(r.at) == id then list[#list + 1] = r end end
+  for _, change in ipairs(duels.rate(list).changes) do if change.src == row then return change end end
+  return nil
+end
+
+-- Wins, losses, win rate, streaks, rating and last duel per player, best first (shown score, then wins). opts: season (an id; default
+-- the current one), before (epoch seconds: only duels up to then), class (a class file: only those players, ranked among themselves).
+-- Everyone with a counted duel is ranked; each row carries its rank.
 function duels.standings(opts)
   opts = opts or {}
-  local by, rows = {}, {}
-  local function entry(name)
-    local key = name:lower()
-    if not by[key] then by[key] = { name = name, wins = 0, losses = 0, games = 0, run = 0, best = 0, points = 0, lastAt = 0 }; rows[#rows + 1] = by[key] end
-    by[key].name = name
-    return by[key]
-  end
-  for _, r in ipairs(counted()) do
-    if (not opts.since or r.at >= opts.since) and (not opts.before or r.at <= opts.before) then
-      local w, l = entry(r.winner), entry(r.loser)
-      w.wins = w.wins + 1; w.games = w.games + 1; w.run = w.run > 0 and w.run + 1 or 1; if w.run > w.best then w.best = w.run end
-      w.points = w.points + duels.points(r.wlv, r.llv)
-      l.losses = l.losses + 1; l.games = l.games + 1; l.run = l.run < 0 and l.run - 1 or -1
-      w.lastAt, l.lastAt = r.at, r.at
-      if r.wcl then w.class = r.wcl end
-      if r.lcl then l.class = r.lcl end
-      if tonumber(r.wlv) then w.level = r.wlv end
-      if tonumber(r.llv) then l.level = r.llv end
+  local season = opts.season or duels.currentSeason()
+  local list = {}
+  if season then
+    for _, r in ipairs(counted()) do
+      if duels.seasonOf(r.at) == season and (not opts.before or r.at <= opts.before) then list[#list + 1] = r end
     end
   end
-  for _, row in ipairs(rows) do row.rate = row.games > 0 and row.wins / row.games or 0; row.streak = row.run end
+  local result = duels.rate(list)
+  for _, r in ipairs(result.ordered) do
+    local w, l = result.players[r.winner:lower()], result.players[r.loser:lower()]
+    if r.wcl then w.class = r.wcl end
+    if r.lcl then l.class = r.lcl end
+  end
+  local rows = {}
+  for _, row in pairs(result.players) do
+    row.rate = row.games > 0 and row.wins / row.games or 0
+    rows[#rows + 1] = row
+  end
   table.sort(rows, function(x, y)
-    if x.points ~= y.points then return x.points > y.points end
+    if x.score ~= y.score then return x.score > y.score end
     if x.wins ~= y.wins then return x.wins > y.wins end
-    if x.rate ~= y.rate then return x.rate > y.rate end
-    if x.losses ~= y.losses then return x.losses < y.losses end
-    return x.name < y.name
+    return x.name:lower() < y.name:lower()
   end)
   for i, row in ipairs(rows) do row.rank = i end
   if opts.class then
@@ -301,7 +610,7 @@ function duels.headToHead(a, b, opts)
   opts = opts or {}
   local out = { wins = 0, losses = 0, lastAt = nil, lastWon = nil }
   for _, r in ipairs(counted()) do
-    if not opts.since or r.at >= opts.since then
+    if not opts.season or duels.seasonOf(r.at) == opts.season then
       if same(r.winner, a) and same(r.loser, b) then out.wins = out.wins + 1; out.lastAt, out.lastWon = r.at, true
       elseif same(r.winner, b) and same(r.loser, a) then out.losses = out.losses + 1; out.lastAt, out.lastWon = r.at, false end
     end
@@ -347,7 +656,8 @@ local function startFight(seconds)
   local zone
   if GetZoneText then local ok, v = pcall(GetZoneText); if ok and type(v) == "string" and v ~= "" and not (ns.isSecret and ns.isSecret(v)) then zone = v end end
   local opponent = session and session.opponent
-  session = { startedAt = clock() + (tonumber(seconds) or 0), opponent = opponent, zone = zone, oppInfo = targetInfo(opponent) }
+  local wait = tonumber(seconds) or 0
+  session = { startedAt = clock() + wait, opponent = opponent, zone = zone, oppInfo = targetInfo(opponent), countdownAt = epoch(), startAt = epoch() + wait }
 end
 
 -- Health left, in percent, of a unit; nil when the client does not say.
@@ -372,7 +682,12 @@ function targetInfo(opponent)
     local level = UnitLevel and tonumber(UnitLevel("target"))
     local _, file
     if UnitClass then _, file = UnitClass("target") end
-    return { name = name, level = level and level > 0 and level or nil, class = type(file) == "string" and file:match("^%u+$") or nil }
+    local guild
+    if GetGuildInfo then
+      local okGuild, text = pcall(GetGuildInfo, "target")
+      if okGuild and type(text) == "string" and text ~= "" and not (ns.isSecret and ns.isSecret(text)) then guild = text end
+    end
+    return { name = name, level = level and level > 0 and level or nil, class = type(file) == "string" and file:match("^%u+$") or nil, guild = guild }
   end)
   return ok and info or nil
 end
@@ -447,12 +762,20 @@ function duels.cardData(winner, loser, at, reason, ctx)
     data.recorded, data.counted = false, false
     return data
   end
-  if won and data.counted then data.points = duels.points(myInfo.level, oppInfo.level) end
   local rows = duels.standings()
   local row = duels.rowFor(rows, myName)
   if row then
-    data.wins, data.losses, data.streak, data.rank, data.best, data.total = row.wins, row.losses, row.streak, row.rank, row.best, row.points
+    data.wins, data.losses, data.streak, data.rank, data.best = row.wins, row.losses, row.streak, row.rank, row.best
+    data.score = row.score
     data.rate = percent(row.rate)
+  end
+  -- What this duel did to the two shown scores (the season is re-rated from its duels; a card already shown is never edited).
+  local change = ctx.row and duels.changeFor(ctx.row) or nil
+  if change then
+    data.change = won and change.winnerDelta or change.loserDelta
+    data.score = won and change.winnerScore or change.loserScore
+    data.oppChange = won and change.loserDelta or change.winnerDelta
+    data.oppScore = won and change.loserScore or change.winnerScore
   end
   if ctx.before and row then
     data.rankBefore = ctx.before.rank
@@ -494,13 +817,17 @@ function duels.cardLines(data)
   elseif data.recorded == false then
     lines[#lines + 1] = "|cffe0a050" .. L("Not recorded: you duelled this player a moment ago, so this result is not added.") .. "|r"
   elseif not data.counted then
-    lines[#lines + 1] = "|cffe0a050" .. L("Not counted: 5 duels per pair of players per day.") .. "|r"
+    lines[#lines + 1] = "|cffe0a050" .. L("Not counted on the ladder.") .. "|r"
   elseif data.wins then
     local record = string.format(L("Record %d-%d (%d%%)"), data.wins, data.losses, data.rate)
     if data.streak and math.abs(data.streak) > 1 then record = record .. "  " .. L("Streak") .. " " .. streakText(data.streak) end
     lines[#lines + 1] = record
     local extra = {}
-    if data.points then extra[#extra + 1] = string.format(L("+%d points"), data.points) end
+    if data.score then
+      local text = L("Rating") .. " "
+      if data.change ~= nil then text = text .. duels.changeText(data.change) .. " -> " end
+      extra[#extra + 1] = text .. round(data.score)
+    end
     if data.rank then
       local rank = "#" .. data.rank
       if data.rankChange and data.rankChange > 0 then rank = rank .. " (+" .. data.rankChange .. ")"
@@ -621,13 +948,20 @@ local function buildCard()
 end
 
 local function colored(hex, text) return "|cff" .. hex .. text .. "|r" end
-local function personLine(name, class, level)
+local function personLine(name, class, level, rating)
   local text = classHex(class) .. fit(displayName(name), 20) .. "|r"
   local detail = {}
   if class then detail[#detail + 1] = className(class) end
   if level then detail[#detail + 1] = string.format(L("level %d"), level) end
   if #detail > 0 then text = text .. "  |cffb0b8c4" .. table.concat(detail, " ") .. "|r" end
+  if rating then text = text .. "  |cffffd36a" .. rating .. "|r" end
   return text
+end
+-- The opponent's rating as the card writes it: "990 (-12)".
+function duels.opponentRating(data)
+  if not data or data.oppScore == nil then return nil end
+  if data.oppChange ~= nil then return round(data.oppScore) .. " (" .. duels.changeText(data.oppChange) .. ")" end
+  return tostring(round(data.oppScore))
 end
 
 -- The stat columns for a card's data: { label, value, sub } in order. Pure, so the tests can read it.
@@ -635,7 +969,13 @@ function duels.cardStats(data)
   local out = {}
   if data.outsider or data.rosterPending or data.recorded == false or not data.counted or not data.wins then return out end
   out[#out + 1] = { label = L("Record"), value = string.format("%d-%d", data.wins, data.losses), sub = string.format("%d%%", data.rate or 0) }
-  out[#out + 1] = { label = L("Points"), value = "+" .. (data.points or 0), sub = data.total and string.format(L("total %d"), data.total) or "" }
+  if data.score then
+    if data.change ~= nil then
+      out[#out + 1] = { label = L("Rating"), value = duels.changeText(data.change), sub = "-> " .. round(data.score) }
+    else
+      out[#out + 1] = { label = L("Rating"), value = tostring(round(data.score)), sub = "" }
+    end
+  end
   if data.rank then
     local sub = ""
     if data.rankChange and data.rankChange > 0 then sub = colored("66e08a", string.format(L("up %d (was #%d)"), data.rankChange, data.rankBefore or data.rank + data.rankChange))
@@ -669,7 +1009,7 @@ local function drawCard(data)
     if card.scrim then card.scrim:Hide() end
   end
   card.me:SetText(personLine(data.me, data.myClass, data.myLevel))
-  card.vs:SetText("|cffb0b8c4" .. L("against") .. "|r  " .. personLine(data.opponent, data.oppClass, data.oppLevel))
+  card.vs:SetText("|cffb0b8c4" .. L("against") .. "|r  " .. personLine(data.opponent, data.oppClass, data.oppLevel, duels.opponentRating(data)))
   local stats = duels.cardStats(data)
   local colW = math.floor(COLUMNS_W / math.max(#stats, 1))
   for i = 1, STAT_MAX do
@@ -691,7 +1031,7 @@ local function drawCard(data)
   if data.rosterPending then note = L("Not counted yet: the guild roster has not loaded.")
   elseif data.outsider then note = string.format(L("Not counted on the guild ladder: %s is not in your guild."), displayName(data.opponent))
   elseif data.recorded == false then note = L("Not recorded: you duelled this player a moment ago, so this result is not added.")
-  elseif not data.counted then note = L("Not counted: 5 duels per pair of players per day.") end
+  elseif not data.counted then note = L("Not counted on the ladder.") end
   card.note:SetText(note ~= "" and colored("e0a050", note) or "")
   local facts = {}
   if data.duration then facts[#facts + 1] = L("Duration") .. " " .. clockText(data.duration) end
@@ -752,6 +1092,7 @@ function duels.onSystem(text)
   -- the bot). My own duel with an outsider still gets the card, saying so, with what my client knows of the opponent.
   if not (guildMember(winner) and guildMember(loser)) then
     if involved then
+      local ext = {}
       pcall(function()
         local ctx = { me = mine, outsider = true, rosterPending = rosterPending() }
         local s = session
@@ -761,10 +1102,13 @@ function duels.onSystem(text)
         end
         local oppName = same(mine, winner) and loser or winner
         ctx.oppInfo = opponentInfo(s, oppName)
+        ext = { oppInfo = ctx.oppInfo, duration = ctx.duration, zone = ctx.zone, countdownAt = s and s.countdownAt, startAt = s and s.startAt, rosterPending = ctx.rosterPending }
         local data = duels.cardData(winner, loser, at, reason, ctx)
         duels.lastCard = data
         duels.showCard(data)
       end)
+      -- Recorded for the upload (not on the guild ladder), unless the guild roster has not loaded and "outside the guild" cannot be said yet.
+      if not (ext.rosterPending or rosterPending()) then pcall(duels.recordExternal, winner, loser, at, reason, ext) end
       session = nil
     end
     return false
@@ -848,12 +1192,13 @@ ns.commandHandlers["duels"] = function(args)
     end
     return
   end
-  local rows = duels.standings()
+  local season = first:match("^%d%d%d%d%-%d%d$")
+  local rows = duels.standings({ season = season })
   if first == "me" then
     local mine = me()
     for _, row in ipairs(rows) do
       if same(row.name, mine) then
-        ns.message(string.format(L("Duels: %d wins, %d losses (%d%%), streak %s."), row.wins, row.losses, percent(row.rate), streakText(row.streak)))
+        ns.message(string.format(L("Duels: %d wins, %d losses (%d%%), streak %s, rating %d."), row.wins, row.losses, percent(row.rate), streakText(row.streak), round(row.score)))
         return
       end
     end
@@ -864,11 +1209,11 @@ ns.commandHandlers["duels"] = function(args)
   ns.message(L("Guild duel leaderboard:"))
   for i = 1, math.min(10, #rows) do
     local row = rows[i]
-    ns.message(string.format("%d. %s - %dW %dL (%d%%) %s", i, row.name, row.wins, row.losses, percent(row.rate), streakText(row.streak)))
+    ns.message(string.format("%d. %s - %d (%dW %dL) %s", i, row.name, round(row.score), row.wins, row.losses, streakText(row.streak)))
   end
 end
 ns.commandHelp = ns.commandHelp or {}
-table.insert(ns.commandHelp, "/guilded duels [me] - guild duel leaderboard (wins, losses, win rate, streak)")
+table.insert(ns.commandHelp, "/guilded duels [me | YYYY-MM] - guild duel ladder by rating (wins, losses, streak)")
 table.insert(ns.commandHelp, "/guilded duels card on | off | test - the card shown after each of your duels")
 
 -- ----- the Duels page --------------------------------------------------
@@ -876,36 +1221,35 @@ table.insert(ns.commandHelp, "/guilded duels card on | off | test - the card sho
 local ROWS = 12
 local COLUMNS = { -- x, width, justify
   rank = { 0, 26, "RIGHT" }, change = { 30, 34, "LEFT" }, name = { 66, 190, "LEFT" }, wins = { 262, 40, "RIGHT" }, losses = { 308, 40, "RIGHT" },
-  rate = { 354, 50, "RIGHT" }, streak = { 410, 50, "RIGHT" }, points = { 466, 48, "RIGHT" }, last = { 522, 66, "LEFT" },
+  rate = { 354, 50, "RIGHT" }, streak = { 410, 50, "RIGHT" }, score = { 466, 52, "RIGHT" }, last = { 526, 62, "LEFT" },
 }
-local PERIODS = { { key = "week", label = "This week", days = 7 }, { key = "month", label = "30 days", days = 30 }, { key = "all", label = "All kept", days = nil } }
-local pageState = { period = 1, myClass = false, selected = nil }
+local pageState = { season = 1, myClass = false, selected = nil }
 
 -- The rows the page shows for the current filters, plus my own row (pinned when it is not among them) and the
 -- 24 h rank change per player. Pure data, so the tests can read it without a window.
 function duels.view(state)
   state = state or pageState
-  local period = PERIODS[state.period] or PERIODS[1]
-  local since = period.days and (epoch() - period.days * DAY) or nil
+  local seasons = duels.seasons()
+  local season = seasons[math.max(1, math.min(tonumber(state.season) or 1, math.max(#seasons, 1)))]
   local mine = me()
-  local opts = { since = since }
+  local opts = { season = season or "none" }
   local all = duels.standings(opts)
   if state.myClass and mine then
     opts.class = infoFor(mine).class
     opts.class = opts.class or (duels.rowFor(all, mine) or {}).class
   end
   local rows = opts.class and duels.standings(opts) or all
-  local yesterday = duels.standings({ since = since, before = epoch() - DAY, class = opts.class })
+  local yesterday = duels.standings({ season = opts.season, before = epoch() - DAY, class = opts.class })
   local before = {}
   for _, row in ipairs(yesterday) do before[row.name:lower()] = row.rank end
   for _, row in ipairs(rows) do
     local old = before[row.name:lower()]
     row.change = old and (old - row.rank) or nil
   end
-  local view = { rows = {}, total = #rows, period = period, mine = mine and duels.rowFor(rows, mine) or nil, pinned = false }
+  local view = { rows = {}, total = #rows, season = season, seasons = #seasons, mine = mine and duels.rowFor(rows, mine) or nil, pinned = false }
   for i = 1, math.min(ROWS, #rows) do view.rows[i] = rows[i] end
   if view.mine and view.mine.rank > ROWS then view.pinned = true end
-  if state.selected then view.versus = duels.headToHead(mine, state.selected, { since = since }) end
+  if state.selected then view.versus = duels.headToHead(mine, state.selected, { season = opts.season }) end
   return view
 end
 
@@ -930,9 +1274,9 @@ function duels.buildPage(page, ui)
     local needed = fs and fs.GetStringWidth and fs:GetStringWidth()
     b:SetWidth(type(needed) == "number" and math.max(minWidth, needed + 24) or minWidth)
   end
-  at(newLabel(page, "Guild duels: only duels between guildmates count, at most 5 per pair of players per day.", "GameFontHighlightSmall"), page, 0, 0)
+  at(newLabel(page, "Guild duels: a rating that starts at 1000 each season. Everyone is ranked from the first duel.", "GameFontHighlightSmall"), page, 0, 0)
   -- Filters.
-  local periodButton = button("", 120, function() pageState.period = pageState.period % #PERIODS + 1; duels.refreshPage() end)
+  local periodButton = button("", 120, function() pageState.season = pageState.season % math.max(#duels.seasons(), 1) + 1; duels.refreshPage() end)
   at(periodButton, page, 0, -22)
   local classButton = button("", 150, function() pageState.myClass = not pageState.myClass; duels.refreshPage() end)
   at(classButton, page, 126, -22)
@@ -940,7 +1284,7 @@ function duels.buildPage(page, ui)
   local heads = {}
   local function headText(key, text) heads[key] = label(text, "GameFontNormalSmall", COLUMNS[key][1], -54, COLUMNS[key][2], COLUMNS[key][3]) end
   headText("rank", "#"); headText("name", "Player"); headText("wins", "W"); headText("losses", "L"); headText("rate", "Win %")
-  headText("streak", "Streak"); headText("points", "Pts"); headText("last", "Last")
+  headText("streak", "Streak"); headText("score", "Rating"); headText("last", "Last")
   local rows = {}
   for i = 1, ROWS + 1 do
     local y = -72 - (i - 1) * 20 - (i > ROWS and 6 or 0)
@@ -981,14 +1325,14 @@ function duels.buildPage(page, ui)
     c.wins:SetText(tostring(row.wins)); c.losses:SetText(tostring(row.losses))
     c.rate:SetText(percent(row.rate) .. "%")
     c.streak:SetText(streakText(row.streak))
-    c.points:SetText(tostring(row.points))
+    c.score:SetText(tostring(round(row.score)))
     c.last:SetText(agoText(row.lastAt))
     rowFrame:Show()
   end
 
   function duels.refreshPage()
     local view = duels.view(pageState)
-    local periodLabel = L(view.period.label)
+    local periodLabel = string.format(L("Season %s"), view.season or "-")
     periodButton:SetText(periodLabel); fit(periodButton, 120)
     classButton:SetText(pageState.myClass and L("My class only") or L("All classes")); fit(classButton, 150)
     cardBox:SetChecked(duels.cardEnabled())
@@ -1005,9 +1349,9 @@ function duels.buildPage(page, ui)
       local v = view.versus
       text = string.format(L("You against %s: %d wins, %d losses"), displayName(pageState.selected), v.wins, v.losses)
       if v.lastAt then text = text .. "  -  " .. string.format(L("last duel: %s, %s"), L(v.lastWon and "won" or "lost"), agoText(v.lastAt)) end
-      if v.wins + v.losses == 0 then text = string.format(L("You have not duelled %s in this period."), displayName(pageState.selected)) end
+      if v.wins + v.losses == 0 then text = string.format(L("You have not duelled %s in this season."), displayName(pageState.selected)) end
     elseif mine then
-      text = string.format(L("Your record: %d wins, %d losses (%d%%), streak %s. Click a player to see your record against them."), mine.wins, mine.losses, percent(mine.rate), streakText(mine.streak))
+      text = string.format(L("Your record: %d wins, %d losses (%d%%), streak %s, rating %d. Click a player to see your record against them."), mine.wins, mine.losses, percent(mine.rate), streakText(mine.streak), round(mine.score))
     elseif view.total > 0 then
       text = L("Click a player to see your record against them.")
     end

@@ -5,6 +5,8 @@ import { readSavedText } from "./saved-file.mjs";
 import { watch } from "node:fs";
 import { basename, dirname } from "node:path";
 import { GROUP_RELAY_FEATURE } from "./group-relay.mjs";
+import { CARRY_FEATURE } from "./carry-content.mjs";
+import { readCarryReceipts, writeCarryReceipts } from "./carry.mjs";
 import { readSavedExport, watchedSavedFiles, NO_GUILD_KEY_MESSAGE } from "./addon-files.mjs";
 import { dungeonRunReport, runReportMessage, deviceRunCounts, signedRunCounts } from "./run-report.mjs";
 import { standingsFileHolds, writeStandings } from "./standings.mjs";
@@ -563,8 +565,11 @@ export function createEngine(initialConfig, hooks = {}) {
       const revision = createHash("sha256").update(JSON.stringify(full)).digest("hex");
       state.syncEvidence = { savedAt: new Date().toISOString(), savedRevision: revision, character: full.character?.name ? `${full.character.name} — ${full.character.realm || current.realm || "?"}` : null, edition: full.gameEdition || full.character?.gameEdition };
       // Only the newest 50 runs go in one upload.
-      const { response, body, sent } = await uploadAsDevice(current, full, controller.signal, { acknowledged, groupRelay: deviceFeatureSet.has(GROUP_RELAY_FEATURE) });
+      const carryAcknowledged = await readCarryReceipts(current).catch(() => new Set());
+      const { response, body, sent } = await uploadAsDevice(current, full, controller.signal, { acknowledged, groupRelay: deviceFeatureSet.has(GROUP_RELAY_FEATURE), carry: deviceFeatureSet.has(CARRY_FEATURE), carryAcknowledged });
       if (epoch !== generation) return;
+      // The bot's receipts for carried records are written whatever else the answer says (a duplicate upload still dealt with them).
+      if (response.ok || response.status === 409) await writeCarryReceipts(current, body, controller.signal).catch(() => undefined);
       state.botVersion = body.botVersion ?? state.botVersion;
       if (!response.ok) {
         const error = new Error(`Upload failed (${response.status}): ${describeApiError(response.status, body.error)}`);
@@ -667,10 +672,13 @@ export function createEngine(initialConfig, hooks = {}) {
       return;
     }
     // Leave out what the bot already stored (it said so in the last standings answer).
-    const { exported, omitted } = pruneAcknowledged(full, ack, features);
+    const carry = await readCarryReceipts(current).catch(() => new Set());
+    const { exported, omitted } = pruneAcknowledged(full, { ...(ack ?? {}), carry }, features);
     const uploadedAt = new Date().toISOString();
     const { response, body } = await withUploadGate(current.watchFile, () => send(current, exported, epoch));
     if (epoch !== generation) return;
+    // Receipts for carried records first: a wrong-server answer or a duplicate upload has still dealt with them.
+    if (response.ok || response.status === 409) await writeCarryReceipts(current, body, controller.signal).catch(() => undefined);
     // The bot says whether this server knows the character's in-game guild; a wrong connection is warned about, never silent.
     if (body.serverWowGuild) {
       state.guildWarning = body.serverWowGuild.known === false

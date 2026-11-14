@@ -1,6 +1,7 @@
 import { requestJson } from "./request.mjs";
 import { foreverSameName } from "./character-identity.mjs";
 import { leaveOut } from "./group-relay.mjs";
+import { carryId } from "./carry-content.mjs";
 
 // Zero-setup companion (docs/ZERO_SETUP_COMPANION.md). Without a Discord sign-in, the companion
 // syncs with a device key it gets on first start (kept in its encrypted settings). It sends only
@@ -61,7 +62,9 @@ export function deviceUploadBody(full, options = {}) {
     const vouching = characters.filter(own => dungeonRuns.some(run => Array.isArray(run.players) && run.players.some(player => typeof player?.character === "string" && foreverSameName(own.name, player.character))));
     return { runsOnly: true, guild: splitGuildKey(full?.wowGuild), characters: vouching, ...(dungeonRuns.length ? { dungeonRuns } : {}) };
   }
-  return { guild: splitGuildKey(full?.wowGuild), characters, ...(dungeonRuns.length ? { dungeonRuns } : {}), ...(options.server ? { server: String(options.server) } : {}) };
+  // (9.3.2) Records the addon carried for players near this PC, only to a bot that announced the feature.
+  const carriedRecords = options.carry === true && Array.isArray(full?.carriedRecords) ? full.carriedRecords.filter((record) => !(options.carryAcknowledged instanceof Set && options.carryAcknowledged.has(carryId(record)))).slice(0, 200) : [];
+  return { guild: splitGuildKey(full?.wowGuild), characters, ...(dungeonRuns.length ? { dungeonRuns } : {}), ...(carriedRecords.length ? { carriedRecords } : {}), ...(options.server ? { server: String(options.server) } : {}) };
 }
 
 const base = (config) => config.uploadUrl;
@@ -76,7 +79,7 @@ export async function registerDevice(config, signal) {
 
 /** One unsigned upload. The answer says where the data went (or why it waits). */
 export async function uploadAsDevice(config, full, signal, options = {}) {
-  const sent = deviceUploadBody(full, { server: options.runsOnly ? undefined : config.deviceServer, acknowledged: options.acknowledged, runsOnly: options.runsOnly, groupRelay: options.groupRelay });
+  const sent = deviceUploadBody(full, { server: options.runsOnly ? undefined : config.deviceServer, acknowledged: options.acknowledged, runsOnly: options.runsOnly, groupRelay: options.groupRelay, carry: options.carry, carryAcknowledged: options.carryAcknowledged });
   const { response, body } = await requestJson(new URL("/api/v1/device/uploads", base(config)), {
     method: "POST",
     headers: { ...deviceHeaders(config), "content-type": "application/json", ...(options.runsOnly ? { "x-guilded-runs-only": "1" } : {}) },

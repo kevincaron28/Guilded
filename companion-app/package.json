@@ -95,6 +95,8 @@
           "run-report.mjs",
           "parked-runs.mjs",
           "group-relay.mjs",
+          "carry.mjs",
+          "carry-content.mjs",
           "main-status.mjs"
         ]
       },

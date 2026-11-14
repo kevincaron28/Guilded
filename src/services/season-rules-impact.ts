@@ -1,3 +1,4 @@
+import { cleanCharacterName } from "./character-display.js";
 import { bossTally } from "./dungeon-boss-scoring.js";
 import { routeBosses } from "./dungeon-bosses.js";
 import type { BracketedRules } from "./dungeon-november-rules.js";
@@ -60,7 +61,7 @@ export function impactLines(impact: Impact, top: number): string[] {
     lines.push("", `## Top ${top}, bracket ${bracket}`, "| # | Character | Score now -> new | Rank now -> new |", "|---|---|---|---|");
     for (const r of rows) {
       const move = r.rankAfter === null ? "out" : r.rankAfter === r.rankBefore ? "same" : r.rankAfter < r.rankBefore ? `up ${r.rankBefore - r.rankAfter}` : `down ${r.rankAfter - r.rankBefore}`;
-      lines.push(`| ${r.rankBefore} | ${r.character} | ${r.before} -> ${r.after} | ${r.rankBefore} -> ${r.rankAfter ?? "–"} (${move}) |`);
+      lines.push(`| ${r.rankBefore} | ${cleanCharacterName(r.character)} | ${r.before} -> ${r.after} | ${r.rankBefore} -> ${r.rankAfter ?? "–"} (${move}) |`);
     }
   }
   lines.push("", `${impact.rowsChanged} of ${impact.rows} character rows would score differently.`);

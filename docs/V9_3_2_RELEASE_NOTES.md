@@ -1,6 +1,6 @@
 # Guilded 9.3.2 — release notes (14 November 2026)
 
-**Duel records, group runs and the PvP map.** Not yet published. Protocol 2, WoW Forever only. No bot migration.
+**Duel records, group runs and the PvP map.** Published 14 November 2026. Protocol 2, WoW Forever only. Two bot migrations shipped since 9.3.1 (`world_pvp_events` and `carried_records`); both are already applied on production.
 
 Real-client checks: docs/V9_3_2_RELEASE_ACCEPTANCE.md. Nothing in 9.3.2 is confirmed in a real game client yet.
 

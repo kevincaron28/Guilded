@@ -5,16 +5,16 @@ import { describe, expect, it } from "vitest";
 describe("CurseForge pointer", () => {
   const releases = JSON.parse(readFileSync("site/releases.json", "utf8"));
 
-  it("points at the public 9.3.1 Forever files and leaves GitHub at 9.3.1", () => {
+  it("points at the public 9.3.1 Forever files and leaves GitHub at 9.3.2", () => {
     expect(releases.verifiedAt).toBe("2026-11-14");
-    expect(releases.guilded.github.version).toBe("9.3.1");
+    expect(releases.guilded.github.version).toBe("9.3.2");
     expect(releases.guilded.curseforge.version).toBe("9.3.1");
     expect(releases.guilded.curseforge.url).toBe("https://www.curseforge.com/wow/addons/guilded");
     expect(releases.guilded.curseforge.editions.forever).toEqual({
       guilded: "https://www.curseforge.com/wow/addons/guilded/files/9605848",
       dungeons: "https://www.curseforge.com/wow/addons/guilded-dungeons/files/9605856"
     });
-    expect(releases.guilded.companionDirect.version).toBe("9.3.1");
+    expect(releases.guilded.companionDirect.version).toBe("9.3.2");
   });
 
   it("shows CurseForge 9.3.1 on the creator page and links the approved files from the edition page", () => {

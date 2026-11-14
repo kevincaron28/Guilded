@@ -1,6 +1,6 @@
 import { provisionalSeasonRules } from "./dungeon-bracket-season.js";
 import { createBracketedDungeonRules, leniencyOf, routeTargetAt, validBracketedRules, type BracketedRules } from "./dungeon-november-rules.js";
-import { SCARLET_WINGS, bracketedVerdict, completionReason, penalized, presentEnough, timeRating, type RatingRun } from "./dungeon-rating.js";
+import { SCARLET_WINGS, bracketedVerdict, completionReason, penalized, presentEnough, timeRating, verdictPoints, type RatingRun } from "./dungeon-rating.js";
 import type { OfficialWindow } from "./official-seasons.js";
 import { weekWindow } from "./dungeon-periods.js";
 import { integrityPresence, withIntegrityWindow } from "./dungeon-integrity.js";
@@ -32,7 +32,7 @@ export interface ScoreRun {
   /** Null on runs uploaded before 7.4. */
   evidence?: RunEvidence | null;
 }
-export interface RunScore { key: string; bracket: string; points: number; penaltyPercent: number }
+export interface RunScore { key: string; bracket: string; points: number; penaltyPercent: number; /** Bosses killed of the dungeon, when the season scores boss skips. */ bosses?: { killed: number; total: number } }
 /** A run's score, or why it is unranked (still shown as activity, with its time). */
 export interface RunVerdict { score: RunScore | null; reason?: string }
 
@@ -69,6 +69,7 @@ export function addedRules(frozen: BracketedRules, current: BracketedRules): { r
     const rules = createBracketedDungeonRules({ ...(frozen.gameEdition ? { gameEdition: frozen.gameEdition } : {}), routes: [...frozen.routes, ...routes], brackets: [...frozen.brackets, ...brackets], overlevelPenalty: frozen.overlevelPenalty,
       ...(frozen.keystoneRating ? { keystoneRating: frozen.keystoneRating } : {}),
       ...(frozen.evidencePolicy ? { evidencePolicy: frozen.evidencePolicy } : {}),
+      ...(frozen.bossScoring ? { bossScoring: frozen.bossScoring } : {}),
       ...(lenient || frozen.leniency === 1 ? { leniency: 1 } : {}),
       ...(!frozen.provisional && current.provisional && routes.length ? { provisional: current.provisional } : {}),
       ...(frozen.provisional ? { provisional: { plan: frozen.provisional.plan, waiting: current.provisional?.waiting ?? frozen.provisional.waiting } } : {}),
@@ -99,7 +100,7 @@ export function rateRun(run: ScoreRun, rules: BracketedRules = publicRules(), pl
     if (player && rules.evidencePolicy === "current-v2" && !integrityPresence(player.integrity, run.durationSec, run.evidence.startedAt ? run.evidence.startedAt.getTime()/1000 : undefined)) return { score: null, reason: "Known in-instance presence under 80%" };
     if (!player && rules.evidencePolicy === "current-v2" && !run.players.some(p=>presentEnough(p.presentSec??0,run.durationSec)
       && integrityPresence(p.integrity,run.durationSec,run.evidence?.startedAt ? run.evidence.startedAt.getTime()/1000 : undefined))) return {score:null,reason:"Known in-instance presence under 80%"};
-    return { score: { key: verdict.key, bracket: rules.routeBracket[verdict.key]!, points: penalized(timeRating(run.durationSec, verdict.targetSec), verdict.penaltyPercent), penaltyPercent: verdict.penaltyPercent } };
+    return { score: { key: verdict.key, bracket: rules.routeBracket[verdict.key]!, points: verdictPoints(run.durationSec, verdict), penaltyPercent: verdict.penaltyPercent, ...(verdict.bosses ? { bosses: verdict.bosses } : {}) } };
   }
   // Uploaded before 7.4: route, difficulty and party levels only.
   const key = run.routeKey ?? (run.instanceId === 189 ? null : String(run.instanceId));
@@ -165,7 +166,11 @@ export function characterScores(runs: ScoreRun[], rules: BracketedRules = public
 
 // Public seasons: "beta" (before Season 1), "s1", "s2", ...; a week is the current one only.
 // A season that froze its rules carries them; every other period uses today's (publicRules).
-export interface PublicPeriod { id: string; label: string; labelFr: string; from: Date | null; to: Date | null; rules?: BracketedRules; frozenAt?: Date }
+export interface PublicPeriod { id: string; label: string; labelFr: string; from: Date | null; to: Date | null; rules?: BracketedRules; frozenAt?: Date; /** When the running season's rules last changed (season-rules-change.ts), if they ever did. */ changedAt?: Date }
+const lastChange = (snapshot: PublicRuleSnapshot): { changedAt?: Date } => {
+  const at = (snapshot as { revisions?: { at?: unknown }[] }).revisions?.map((r) => r.at).filter((v): v is string => typeof v === "string").sort().pop();
+  return at && !Number.isNaN(Date.parse(at)) ? { changedAt: new Date(at) } : {};
+};
 export const periodRules = (period: PublicPeriod): BracketedRules => {
   const rules = period.rules ?? (/^s\d+$/.test(period.id) ? { ...publicRules(), evidencePolicy: "current-v1" as const } : publicRules());
   return period.from ? withIntegrityWindow(rules, period.from, period.to) : rules;
@@ -184,7 +189,7 @@ export function publicSeasons(now: Date, windows: OfficialWindow[] = DEFAULT_OFF
   const sorted = [...windows].sort((a, b) => a.start.getTime() - b.start.getTime());
   const list: PublicPeriod[] = sorted.filter((w) => w.start <= now).reverse()
     .map((w) => ({ id: `s${w.number}`, label: w.name, labelFr: frenchName(w.name), from: w.start, to: w.end,
-      ...(w.rules ? { rules: w.rules.rules, frozenAt: new Date(w.rules.frozenAt) } : {}) }));
+      ...(w.rules ? { rules: w.rules.rules, frozenAt: new Date(w.rules.frozenAt), ...lastChange(w.rules) } : {}) }));
   list.push({ id: "beta", label: "Beta (before Season 1)", labelFr: "Bêta (avant la saison 1)", from: null, to: sorted[0]?.start ?? null });
   return list;
 }

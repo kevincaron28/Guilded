@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
+import { BOSS_SCORING_V1 } from "./dungeon-boss-scoring.js";
 import { startSeason } from "./dungeon-admin.js";
 import { createBracketedDungeonRules, validBracketedRules, type BracketedRules } from "./dungeon-november-rules.js";
 import { addedRules, publicRules, readRuleSnapshot, snapshotRules, type PublicRuleSnapshot } from "./public-score.js";
@@ -81,11 +82,12 @@ export async function freezeSeasonRules(database: Db, now: Date, current: Bracke
     if (!snapshot || !addedRules(snapshot.rules, current)) return null;
   }
   return mutateCalendar(database,now,async (database,now)=>{
-  const row = await database.officialSeason.findFirst({ where: { gameEdition: currentEdition(), startsAt: { lte: now } }, orderBy: { startsAt: "desc" }, select: { id: true, name: true, rules: true } });
+  const row = await database.officialSeason.findFirst({ where: { gameEdition: currentEdition(), startsAt: { lte: now } }, orderBy: { startsAt: "desc" }, select: { id: true, name: true, number: true, rules: true } });
   if (!row) return null;
   const save = (snapshot: PublicRuleSnapshot) => database.officialSeason.update({ where: { id: row.id }, data: { rules: snapshot as unknown as Prisma.InputJsonValue } });
   if (row.rules === null) {
-    await save(snapshotRules(current, now));
+    // From Season 2 on, the default rules carry the boss-skip rule (owner, 14 November 2026).
+    await save(snapshotRules(row.number >= 2 && !current.bossScoring ? { ...current, bossScoring: BOSS_SCORING_V1 } : current, now));
     return { season: row.name, frozen: true, routes: [], brackets: [] };
   }
   // A stored value this code cannot read is left alone, never replaced.

@@ -1,3 +1,5 @@
+> **Retired 14 November 2026.** The separate ladder was merged into the community leaderboard (`docs/plans/COMMUNITY_LEADERBOARD_MERGE_2026-11-14.md`). `services/guild-activity.ts`, `/stats activity` and `/stats activity-board` are gone; the stored switch, message id and `activity:*` snapshots stay readable. This note is history.
+
 # Guild activity ladder
 
 Owner request, 7 November 2026: "Add duel points to guild dungeon participation points and make a common participation points

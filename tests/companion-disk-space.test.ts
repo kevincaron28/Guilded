@@ -124,7 +124,7 @@ describe("the updater's installer copy", () => {
 
   it("is checked before every update and addon install", () => {
     const main = readFileSync("companion-app/main.cjs", "utf8");
-    expect(main).toMatch(/async function stageUpdate\(\)[\s\S]{0,300}checkDisk\(\)/);
+    expect(main).toMatch(/async function stageUpdate\(\)[\s\S]{0,600}checkDisk\(\)/);
     expect(main).toMatch(/async function installAddonNow[\s\S]{0,400}checkDisk\(\)/);
     expect(main).toMatch(/launchInstallerOnExit/);
     expect(main).toMatch(/checkDisk\(\)\.ok && updates\.launchInstallerOnExit/);

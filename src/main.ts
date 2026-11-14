@@ -76,6 +76,7 @@ import { backCheckAllInvites, handleInviteDoneButton, handleInviteMessage, handl
 import { ROSTER_BUTTON_PREFIX, handleRosterButton } from "./commands/roster.js";
 import { RANK_ROLES_BUTTON_PREFIX, handleRankRolesButton } from "./commands/rank-roles.js";
 import { sweepAchievementAnnouncements } from "./services/achievement-announce.js";
+import { purgeOldPvpEvents } from "./services/world-pvp-events.js";
 import { sweepServerAnniversaries } from "./services/server-anniversary.js";
 import { executePoll, handlePollButton, handleWeeklyQuestionButton, POLL_PREFIX, WEEKLY_QUESTION_PREFIX } from "./commands/poll.js";
 import { CRAFT_PREFIX, handleCraftButton, handleCraftModal, handleCraftSelect } from "./commands/craft-board.js";
@@ -105,7 +106,7 @@ import { queueExpiredPolls } from "./services/poll-expiry.js";
 import { runCooldownPings } from "./services/recipes.js";
 import { DUNGEON_SEASON_SELECT, handleDungeonSeasonSelect, updateDungeonLeaderboard } from "./services/dungeon-leaderboard.js";
 import { updateDuelBoard } from "./services/duel-board.js";
-import { updateActivityBoard } from "./services/guild-activity.js";
+import { retireActivityBoard } from "./services/activity-retire.js";
 import { updateRaceBoard } from "./services/race-board.js";
 import { updateBgLadder } from "./services/bg-ladder.js";
 import { scheduleWeeklyRecap } from "./services/world-pvp-extras.js";
@@ -321,6 +322,9 @@ client.once(Events.ClientReady, (readyClient) => {
   setInterval(() => void runDiscordJobs(readyClient).catch(reportJobError("Discord delivery queue")), 60_000);
   // Opt-in achievement celebrations: hourly evaluation of guilds that turned them on (no-op otherwise).
   setInterval(() => void sweepAchievementAnnouncements(prisma, new Date(), reportJobError("Achievement announcements")).catch(reportJobError("Achievement announcements")), 60 * 60_000);
+  // World PvP events older than five weeks are deleted for every member, once a day (and shortly after start).
+  setTimeout(() => void purgeOldPvpEvents(prisma).catch(reportJobError("PvP events purge")), 5 * 60_000).unref?.();
+  setInterval(() => void purgeOldPvpEvents(prisma).catch(reportJobError("PvP events purge")), 24 * 3_600_000);
   // The server's birthday: one card per anniversary, to the same opt-in channel (no-op until announcements are on).
   setInterval(() => void sweepServerAnniversaries(prisma, new Date(), reportJobError("Server anniversary")).catch(reportJobError("Server anniversary")), 60 * 60_000);
   // WoW guild rank to Discord role: on by default, inert for a guild until an officer maps a rank.
@@ -370,7 +374,7 @@ client.once(Events.ClientReady, (readyClient) => {
         await updateDuelBoard(guild).catch(reportJobError("Duel board", origin));
         await updateRaceBoard(guild).catch(reportJobError("Race board", origin));
         await updateBgLadder(guild).catch(reportJobError("Battleground ladder", origin));
-        await updateActivityBoard(guild).catch(reportJobError("Activity board", origin));
+        await retireActivityBoard(guild).catch(reportJobError("Activity board retirement", origin));
         await updateProfessionDirectory(guild).catch(reportJobError("Profession directory", origin));
         await repairCoreRaids(guild, true).catch(reportJobError("Core channels and raid posts", origin));
       });
@@ -393,7 +397,6 @@ client.once(Events.ClientReady, (readyClient) => {
           await updateRaceBoard(guild).catch(reportJobError("Race board refresh", origin));
           await updateBgLadder(guild).catch(reportJobError("Battleground ladder refresh", origin));
           await scheduleWeeklyRecap(prisma, guild.id).catch(reportJobError("World PvP recap", origin));
-          await updateActivityBoard(guild).catch(reportJobError("Activity board refresh", origin));
         });
       }
     } finally { refreshingBoards = false; }

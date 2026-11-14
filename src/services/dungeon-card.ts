@@ -1,3 +1,4 @@
+import { bossTally } from "./dungeon-boss-scoring.js";
 import type { Lang } from "../i18n.js";
 import { canonicalClass } from "./character-display.js";
 import { CLASS_NAMES_FR } from "../permissions.js";
@@ -233,6 +234,7 @@ export function dungeonRunCard(run: Run, lang: Lang, options: DungeonCardOptions
   const tracked = party.filter((row) => row.detail.deaths !== null && row.detail.deaths !== undefined).length;
   const totalDeaths = party.reduce((sum, row) => sum + (row.detail.deaths ?? 0), 0);
   const boss = finalBoss(run);
+  const tally = run.challenge || run.instanceId === undefined ? null : bossTally(run.instanceId, run.encounters);
   const date = run.endedAt ? new Date(run.endedAt * 1000).toISOString().slice(0, 10) : undefined;
   const members = party.filter((row) => row.guild).length;
   const mark = run.challenge ? `Mythic+ +${run.challenge.level}` : undefined;
@@ -245,7 +247,7 @@ export function dungeonRunCard(run: Run, lang: Lang, options: DungeonCardOptions
     stats: [
       { label: t("Time", "Temps"), value: formatDuration(run.durationSec ?? 0), accent: "gold",
         note: run.completedBy === "final boss" ? t("Final boss defeated", "Boss final vaincu") : run.completedBy === "manual" ? t("Completed manually", "Fin manuelle") : undefined },
-      { label: t("Final boss", "Boss final"), value: boss ?? "—", accent: "green" },
+      { label: t("Final boss", "Boss final"), value: boss ?? "—", accent: "green", ...(tally ? { note: t(`Bosses ${tally.killed}/${tally.total}`, `Boss ${tally.killed}/${tally.total}`) } : {}) },
       { label: t("Deaths", "Morts"), value: tracked ? String(totalDeaths) : "—", accent: totalDeaths ? "red" : "green",
         note: tracked && tracked < party.length ? t(`${tracked}/${party.length} tracked`, `${tracked}/${party.length} suivis`) : tracked ? undefined : t("Not tracked", "Non suivies") },
       scoreStat(run, party, t, lang)

@@ -71,3 +71,12 @@ prints this week and the total. Nothing is sent anywhere. Tests: `tests/lua/worl
   kills on the board and in the Tuesday recap (one guild-total line). Deaths never raise a rank: the order stays kills, defends,
   calls answered, then fewer deaths, then name, and a member with only deaths is left off. An addon older than 9.3 sends no deaths (0).
 - Weekly reset: matches the raid week (Tuesday). Confirm, or use a rolling 7 days.
+
+## Kills and deaths by place (14 November 2026)
+
+The 9.3.2 addon stores, per kill and death, the zone's map id, the position on that zone's map (0-1) and a stable id; the companion sends
+the newest 500 as `pvpEvents` `{ k, t, m, x, y, s, a }` only to a bot that advertises the feature `pvp-events` (`a: 1` = approximate position).
+The bot stores them in `WorldPvpEvent` (unique per member, event id and time, so a resent upload changes nothing; kept 35 days; deleted
+with the member's data; no enemy name). The public PvP page (`/leaderboards/pvp/`) draws them on the zone map: heat becomes kills plus
+deaths, with red (kills) and blue (deaths) dots at their position, and the table shows kills, deaths and total. Only guilds that publish
+show anything. Until events exist the map is lit by calls for help. See docs/plans/PVP_ZONE_MAP_2026-11-14.md and docs/PRIVACY.md.

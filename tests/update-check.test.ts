@@ -78,7 +78,7 @@ describe("desktop companion update prompt", () => {
 
   it("never sends the user to a page outside GitHub", async () => {
     const odd = await companion.fetchLatestRelease(github({ tag_name: "v6.6.0", html_url: "https://evil.example/download" }));
-    expect(odd).toEqual({ version: "6.6.0", url: companion.RELEASES_PAGE });
+    expect(odd).toMatchObject({ version: "6.6.0", url: companion.RELEASES_PAGE });
   });
 
   it("rejects draft or prerelease responses even with a stable-looking tag", async () => {

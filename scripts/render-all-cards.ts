@@ -11,7 +11,7 @@ import { dungeonRunCard } from "../src/services/dungeon-card.js";
 import type { DungeonImportResult } from "../src/services/dungeon-import.js";
 import { dungeonSeasonCard } from "../src/services/dungeon-leaderboard.js";
 import { achievementUnlockedCard, achievementsCard, battlegroundEndCard, raidEndCard, serverAnniversaryCard } from "../src/services/end-cards.js";
-import { activityCard } from "../src/services/guild-activity.js";
+import { communityBoardCard } from "../src/services/community-leaderboard.js";
 import { buildClassBook } from "../src/services/ladder-classes.js";
 import { pvpGroupCard } from "../src/services/pvp-group-post.js";
 import { hallCard, raceCard, type RaceRow } from "../src/services/race-board.js";
@@ -85,8 +85,8 @@ function cards(lang: Lang): [string, ScoreCard | null][] {
     ["bg", bgLadderCard({ participations: 40, edition: "forever", brackets: [{ mode: "Warsong Gulch", bracket: "20-29", games: 20, standings: Array.from({ length: 6 }, (_, i) => ({ memberId: `m${i}`, name: name(i), games: 8, wins: 6 - i % 4, losses: 2 + i % 4, draws: 0, winRate: 0.6 })) }] }, lang, book, at)],
     ["dungeon-season-25", dungeonSeasonCard(Array.from({ length: 25 }, (_, i) => ({ name: name(i), points: 545 - i * 19, dungeons: 4 - Math.floor(i / 7), key: `d${i}` })), "Season 1", lang, true, book, at, moves(Array.from({ length: 25 }, (_, i) => `d${i}`)))],
     ["dungeon-season-empty", dungeonSeasonCard([], "Season 1", lang, true, book, at)],
-    ["activity", activityCard({ view: "season", label: "Season 1", since: at, rows: Array.from({ length: 4 }, (_, i) => ({ memberId: `a${i}`, name: name(i), dungeons: 250 - i * 60, duels: i * 5, battlegrounds: 0, total: 250 - i * 55 })) }, lang, book, at)],
-    ["activity-empty", activityCard({ view: "week", label: lang === "fr" ? "Cette semaine" : "This week", since: at, rows: [] }, lang, book, at)],
+    ["community", communityBoardCard({ lang, season: { name: "Season 1", number: 1, status: "ACTIVE" }, board: Array.from({ length: 4 }, (_, i) => ({ userId: `a${i}`, balance: 0, discord: 120 - i * 20, dungeons: 50 - i * 10, pvp: 8 - i, points: 178 - i * 31 })), names: new Map(Array.from({ length: 4 }, (_, i) => [`a${i}`, name(i)])), updatedAt: at })],
+    ["community-empty", communityBoardCard({ lang, season: null, board: [], names: new Map(), updatedAt: at })],
     ["crafters", craftLadderCard(Array.from({ length: 12 }, (_, i) => ({ memberId: `c${i}`, name: name(i), className: cls(i), points: 90 - i * 6, crafts: 30 - i, month: 10 - (i % 5), topProfession: ["Blacksmithing", "Leatherworking", "Alchemy"][i % 3]!, lastAt: at })), 312, lang, at)],
     ["crafters-empty", craftLadderCard([], 0, lang, at)],
     ["world-pvp", worldPvpCard({ weekKey: 1, standings: Array.from({ length: 9 }, (_, i) => ({ memberId: `w${i}`, name: name(i), kills: 20 - i * 2, defends: i % 4, helped: i % 3 })) }, lang, book, at)],

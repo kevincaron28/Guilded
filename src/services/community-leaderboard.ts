@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { guildWhere } from "./guild-scope.js";
 import { REST, Routes, ChannelType, PermissionFlagsBits, EmbedBuilder, escapeMarkdown, ButtonBuilder, ButtonStyle, ActionRowBuilder, type APIChannel, type APIGuildCategoryChannel, type APIGuildTextChannel, type APIMessage, type APIGuildMember, type APIUser } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
@@ -6,10 +7,17 @@ import { asLang, type Lang } from "../i18n.js";
 import { COMMUNITY_CHANNEL_SPECS, communityChannelNames } from "../setup-names.js";
 import { standings, type Standing } from "./community-rules.js";
 import { communitySeasonLabel } from "./community-display.js";
+import { boardWindow, breakdownOf, loadInGamePoints, mergeStandings, type MergedStanding } from "./community-ingame.js";
+import { moveColumn, moveFields, trackRanks, type Movements } from "./ladder-snapshots.js";
+import { altTextOf, ladderMeta, scoreCardPng, type ScoreCard } from "./score-card.js";
 import { communityHubButton, communityHubCard, COMMUNITY_HUB_MARKER } from "./community-panels.js";
 import { POE_TRACKING_ENABLED } from "../../companion/active-games.mjs";
 
 export const COMMUNITY_BOARD_MARKER = "Guilded · Community podium";
+export const COMMUNITY_CARD_PREFIX = "community-board-";
+const CARD_TOP = 25, TEXT_TOP = 10;
+/** A standing as the board holds it: the ledger's, plus the split between Discord, dungeons and PvP once in-game points are merged in. */
+export type BoardRow = Standing & Partial<Pick<MergedStanding, "discord" | "dungeons" | "pvp">>;
 
 /** A pinned guide's text without the PoE 2 mention while PoE 2 tracking is off (unchanged otherwise, or when not found). */
 export function withoutHiddenGames(text: string, poeTracking = POE_TRACKING_ENABLED): string {
@@ -24,27 +32,29 @@ const NAME_CACHE_MS = 6 * 60 * 60_000;
 
 export function communityLeaderboardCard(input: {
   lang: Lang; discordId: string; season: { id: string; name: string; number?: number; status: string } | null;
-  board: Standing[]; names?: ReadonlyMap<string, string>; activitiesId?: string | undefined; chatId?: string | undefined;
+  board: BoardRow[]; names?: ReadonlyMap<string, string>; activitiesId?: string | undefined; chatId?: string | undefined; image?: string | undefined;
 }) {
   const { lang, season, board } = input;
   const active = season?.status === "ACTIVE";
   const points = (value: number) => value.toLocaleString(lang === "fr" ? "fr-CA" : "en-CA");
   const ranked = board.filter(row => row.points > 0);
-  const top = ranked.slice(0, 10);
+  const top = ranked.slice(0, TEXT_TOP);
   const podium = new EmbedBuilder().setColor(BRAND.color)
     .setTitle(say(lang, "🏆 THE COMMUNITY PODIUM", "🏆 LE PODIUM DE LA GANG"))
     .setDescription(say(lang,
-      "Every game night, helping hand and challenge makes this community stronger. **Your next point starts here.**",
-      "Une soirée, un coup de main, un défi : c’est la gang qui fait vivre la communauté. **Ta prochaine place au classement commence ici !**"))
+      "Every game night, helping hand and challenge makes this community stronger, and so does every dungeon, battleground and duel. **Your next point starts here.**\n💬 Discord · 🏰 Dungeons · ⚔️ PvP (battlegrounds, duels, open world)",
+      "Une soirée, un coup de main, un défi, mais aussi chaque donjon, champ de bataille et duel : c’est la gang qui fait vivre la communauté. **Ta prochaine place au classement commence ici !**\n💬 Discord · 🏰 Donjons · ⚔️ JcJ (champs de bataille, duels, monde ouvert)"))
     .addFields({ name: season ? `${active ? "🟢" : "🏁"} ${escapeMarkdown(communitySeasonLabel(season, lang))}` : say(lang, "✨ The next season is coming", "✨ La prochaine saison s’en vient"),
       value: top.map(row => {
         const rank = 1 + ranked.filter(other => other.points > row.points).length;
         const name = input.names?.get(row.userId) || say(lang, `Member …${row.userId.slice(-4)}`, `Membre …${row.userId.slice(-4)}`);
-        return `${["🥇", "🥈", "🥉"][rank - 1] ?? `**${rank}.**`} **${escapeMarkdown(name.replace(/[\r\n]/g, " ").slice(0, 32))}** — **${points(row.points)} pts**`;
+        const split = row.discord === undefined ? "" : ` · 💬 ${points(row.discord)} · 🏰 ${points(row.dungeons ?? 0)} · ⚔️ ${points(row.pvp ?? 0)}`;
+        return `${["🥇", "🥈", "🥉"][rank - 1] ?? `**${rank}.**`} **${escapeMarkdown(name.replace(/[\r\n]/g, " ").slice(0, split ? 24 : 32))}** — **${points(row.points)} pts**${split}`;
       }).join("\n") || say(lang, "The podium is open. Be the first to earn points!", "Le podium est libre. Qui va ouvrir le bal ?"), inline: false })
     .addFields({ name: say(lang, "🤝 Together, we’ve earned", "🤝 Les efforts de la gang"),
       value: `${points(ranked.length)} ${say(lang, "participants", "participants")} · **${points(ranked.reduce((total, row) => total + row.points, 0))} pts**`, inline: false })
     .setFooter({ text: `${COMMUNITY_BOARD_MARKER} · ${say(lang, "Ties share a rank · Earned points, not wallet balance", "Ex æquo = même rang · Points gagnés, pas le solde")}` });
+  if (input.image && top.length) podium.setImage(`attachment://${input.image}`);
 
   const guide = new EmbedBuilder().setColor(0x2b8a78)
     .setTitle(say(lang, "✨ TAKE YOUR PLACE", "✨ À TOI DE JOUER"))
@@ -68,6 +78,35 @@ export function communityLeaderboardCard(input: {
     communityHubButton("board", season.id, say(lang, "🏆 Full rankings", "🏆 Classement complet")),
     communityHubButton("archives", season.id, say(lang, "📚 Seasons", "📚 Saisons"))).toJSON()] : [];
   return { content: "", embeds: [podium.toJSON(), guide.toJSON()], components: [...actions, ...(links.components.length ? [links.toJSON()] : [])], allowed_mentions: { parse: [] as string[] } };
+}
+
+/**
+ * The podium's picture (the shared ladder layout, drawn in the banner-and-body style by card-next.ts): rank with the medals for the
+ * top 3, the member, the Discord / dungeons / PvP split in small figures, the total in gold and the "since yesterday" arrows.
+ */
+export function communityBoardCard(input: { lang: Lang; season: { name: string; number?: number; status: string } | null; board: BoardRow[]; names: ReadonlyMap<string, string>;
+  moves?: Movements | null; updatedAt?: Date }): ScoreCard {
+  const { lang, season } = input, fr = lang === "fr";
+  const ranked = input.board.filter(row => row.points > 0);
+  const label = season ? communitySeasonLabel({ name: season.name, ...(season.number === undefined ? {} : { number: season.number }) }, lang) : fr ? "4 dernières semaines" : "Last 4 weeks";
+  const figure = (value: number) => value.toLocaleString(fr ? "fr-CA" : "en-CA");
+  return {
+    eyebrow: fr ? "Guilded · Communauté" : "Guilded · Community", title: fr ? "Classement de la communauté" : "Community leaderboard",
+    subtitle: fr ? `${label} · ${ranked.length} membres` : `${label} · ${ranked.length} members`,
+    backdrop: { kind: "board", key: "community", fallbackKey: "season-podium" }, stats: [],
+    footer: fr ? "Discord, donjons, duels, champs de bataille et JcJ en monde ouvert : tout compte au même classement." : "Discord, dungeons, duels, battlegrounds and open-world PvP all count on the same board.",
+    ladder: {
+      meta: ladderMeta(lang, input.updatedAt ?? new Date(), null),
+      empty: fr ? "Aucun point pour le moment." : "No points yet.",
+      columns: [{ label: "Discord", width: 64 }, { label: fr ? "Donjons" : "Dungeons", width: 70 }, { label: fr ? "JcJ" : "PvP", width: 56 },
+        { label: "Total", width: 70, primary: true }, ...(input.moves ? [moveColumn(lang)] : [])],
+      boards: [{ rows: ranked.slice(0, CARD_TOP).map(row => {
+        const split = breakdownOf(row), rank = 1 + ranked.filter(other => other.points > row.points).length;
+        const name = (input.names.get(row.userId) || (fr ? `Membre …${row.userId.slice(-4)}` : `Member …${row.userId.slice(-4)}`)).replace(/[\r\n]/g, " ");
+        return { rank, name, color: "#f3ead2", values: [figure(split.discord), figure(split.dungeons), figure(split.pvp), figure(row.points), ""], ...moveFields(input.moves, row.userId, lang) };
+      }) }]
+    }
+  };
 }
 
 export function communityAudience(channel: { permission_overwrites?: { id: string; type: number; allow: string; deny: string }[] }, botId: string): string {
@@ -126,12 +165,21 @@ export async function updateCommunityLeaderboard(rest: REST, database: PrismaCli
   const hub = activityChannels.length === 1 && communityAudience(activityChannels[0]!, botId) === communityAudience(channel, botId) ? activityChannels[0] : undefined;
   // A hub-hosted season is eligible only when its visibility matches the podium.
   const season = await database.communitySeason.findFirst({ where: { guildId: record.id, channelId: hub ? { in: [channel.id, hub.id] } : channel.id, game: "DISCORD", audienceRoleId: null }, orderBy: [{ status: "asc" }, { createdAt: "desc" }, { id: "desc" }] });
-  const board = season ? season.status === "ENDED" ? (season.finalStandings ?? []) as unknown as Standing[]
+  // Discord points from the ledger (or the frozen standings of a closed season) plus the in-game points of the same window. A failed
+  // in-game read never takes the board down: it falls back to the Discord points alone.
+  const base: Standing[] = season ? season.status === "ENDED" ? (season.finalStandings ?? []) as unknown as Standing[]
     : standings(await database.communityPoint.findMany({ where: { seasonId: season.id }, select: { userId: true, kind: true, amount: true } })) : [];
+  let board: BoardRow[] = base;
+  if (!season || season.status !== "ENDED") {
+    try {
+      const { since, until } = boardWindow(season);
+      board = mergeStandings(base, await loadInGamePoints(database, record.id, since, until));
+    } catch (error) { console.error("Community board: in-game points unavailable", error); }
+  }
   // Embed mentions depend on each reader's client cache. Render actual names so
   // uncached and departed members remain readable, without pinging anyone.
   const names = new Map<string, string>();
-  const topIds = board.filter(row => row.points > 0).slice(0, 10).map(row => row.userId);
+  const topIds = board.filter(row => row.points > 0).slice(0, CARD_TOP).map(row => row.userId);
   const missing = topIds.filter(id => {
     const cached = nameCache.get(`${discordId}:${id}`);
     if (cached && cached.expiresAt > Date.now()) { names.set(id, cached.name); return false; }
@@ -150,16 +198,28 @@ export async function updateCommunityLeaderboard(rest: REST, database: PrismaCli
     }
   }
   const sibling = (key: "activities" | "chat") => channels.find(c => c.type === ChannelType.GuildText && c.parent_id === category.id && communityChannelNames(key).includes(c.name ?? ""))?.id;
-  const body = communityLeaderboardCard({ lang, discordId, season, board, names, activitiesId: sibling("activities"), chatId: sibling("chat") });
+  const ranked = board.filter(row => row.points > 0);
+  const moves = ranked.length ? await trackRanks(database, record.id, `community:${season?.id ?? "recent"}`.slice(0, 120), ranked.map(row => row.userId)) : null;
+  const cardInput = { lang, season, board, names, moves };
+  const png = ranked.length ? await scoreCardPng(communityBoardCard(cardInput)).catch(() => null) : null;
+  // The file name carries a hash of what the card shows, so a changed card is a new file and an unchanged one is never re-sent.
+  const shown = JSON.stringify(ranked.slice(0, CARD_TOP).map(row => [row.userId, names.get(row.userId) ?? "", row.points, breakdownOf(row), moves?.get(row.userId) ?? null]));
+  const file = png ? `${COMMUNITY_CARD_PREFIX}${createHash("sha256").update(`${lang}|${season?.id ?? ""}|${shown}`).digest("hex").slice(0, 12)}.png` : undefined;
+  const body = communityLeaderboardCard({ lang, discordId, season, board, names, activitiesId: sibling("activities"), chatId: sibling("chat"), image: file });
+  const plain = (embeds: { image?: unknown }[]) => embeds.map(embed => { const copy = { ...embed }; delete copy.image; return copy; });
   const pins = await rest.get(Routes.channelMessagesPins(channel.id)) as { items: { message: APIMessage }[] };
   let message = pins.items.map(item => item.message).find(m => m.author.id === botId && m.embeds.some(e => e.footer?.text.startsWith(COMMUNITY_BOARD_MARKER)));
   if (!message) {
     const recent = await rest.get(Routes.channelMessages(channel.id), { query: new URLSearchParams({ limit: "100" }) }) as APIMessage[];
     message = recent.find(m => m.author.id === botId && m.embeds.some(e => e.footer?.text.startsWith(COMMUNITY_BOARD_MARKER)));
   }
+  const attachments = file && png ? [{ id: 0, filename: file, description: altTextOf(png) }] : [];
+  const upload = file && png ? { files: [{ name: file, data: png }] } : {};
   if (message) {
-    if (JSON.stringify({ embeds: message.embeds, components: message.components }) !== JSON.stringify({ embeds: body.embeds, components: body.components })) await rest.patch(Routes.channelMessage(channel.id, message.id), { body });
-  } else message = await rest.post(Routes.channelMessages(channel.id), { body: { ...body, nonce: `cp:${channel.id}`, enforce_nonce: true } }) as APIMessage;
+    const sameFile = (message.attachments ?? []).map(a => a.filename).join() === (file ?? "");
+    const same = sameFile && JSON.stringify({ embeds: plain(message.embeds), components: message.components }) === JSON.stringify({ embeds: plain(body.embeds), components: body.components });
+    if (!same) await rest.patch(Routes.channelMessage(channel.id, message.id), { body: { ...body, ...(sameFile ? {} : { attachments }) }, ...(sameFile ? {} : upload) });
+  } else message = await rest.post(Routes.channelMessages(channel.id), { body: { ...body, attachments, nonce: `cp:${channel.id}`, enforce_nonce: true }, ...upload }) as APIMessage;
   if (!pins.items.some(item => item.message.id === message!.id)) await rest.put(Routes.channelMessagesPin(channel.id, message.id));
   // The older pinned guide ("Classements et participation", written once in October) names PoE 2 seasons. While PoE 2
   // tracking is off, that sentence drops PoE 2; nothing else in the guide changes.

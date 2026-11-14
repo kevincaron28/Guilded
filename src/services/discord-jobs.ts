@@ -84,8 +84,7 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
     const { updateDuelBoard } = await import("./duel-board.js");
     if (!await updateDuelBoard(guild, true)) throw new Error("Duel board unavailable");
   } else if (job.kind === "ACTIVITY_BOARD") {
-    const { updateActivityBoard } = await import("./guild-activity.js");
-    if (!await updateActivityBoard(guild, true)) throw new Error("Activity board unavailable");
+    // Retired on 14 November 2026 (merged into the community leaderboard): a job queued before the update finishes quietly.
   } else if (job.kind === "WHOS_WHO_BOARD") {
     // Retired in 9.0.2: a job queued before the update finishes quietly and posts nothing.
   } else if (job.kind === "BG_LADDER") {

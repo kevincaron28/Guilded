@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 // scripts/ is not type-checked, so a script can import a name its module does not export and only fail when run on the server.
 // For the owner-run scripts below, every named value import from ../src must exist in that module.
-const SCRIPTS = ["scripts/recover-drowned-city-runs.ts"];
+const SCRIPTS = ["scripts/recover-drowned-city-runs.ts", "scripts/season-rules-change.ts"];
 
 describe("owner-run scripts import only names that exist", () => {
   for (const script of SCRIPTS) {

@@ -144,12 +144,15 @@ export type TargetRecalibration = z.infer<typeof recalibrationSchema>;
  * below lengthens it. `minParty` leaves a run with fewer observed players unranked.
  */
 const scoringSchema = z.object({ version: z.literal(2), timePerLevel: z.number().min(0).max(0.15), minParty: z.number().int().min(1).max(5) });
+// `since` (optional) is the date the rule took effect when it was switched on in a running season; it only labels the rules.
+const bossScoringSchema = z.object({ version: z.literal(1), since: z.string().datetime().optional() });
 export function createBracketedDungeonRules(input: unknown) {
   const parsed = z.object({ gameEdition: z.enum(GAME_EDITIONS).optional(), routes: z.array(bracketRouteSchema).max(100), brackets: z.array(bracketSchema).max(10),
     overlevelPenalty: penaltySchema.default({ ...DEFAULT_OVERLEVEL_PENALTY }),
     evidencePolicy: z.enum(["current-v1", "current-v2"]).optional(),
     leniency: z.literal(1).optional(),
     scoring: scoringSchema.optional(),
+    bossScoring: bossScoringSchema.optional(),
     seasonWindow: z.object({ from: z.string().datetime(), to: z.string().datetime().nullable() }).optional(),
     provisional: provisionalSchema.optional(),
     // Retail Mythic+ rating rules from before WoW Forever only: kept opaque so stored rule sets still validate.
@@ -189,6 +192,7 @@ export function createBracketedDungeonRules(input: unknown) {
     ...(parsed.evidencePolicy ? { evidencePolicy: parsed.evidencePolicy } : {}),
     ...(parsed.leniency ? { leniency: parsed.leniency } : {}),
     ...(parsed.scoring ? { scoring: parsed.scoring } : {}),
+    ...(parsed.bossScoring ? { bossScoring: parsed.bossScoring } : {}),
     ...(parsed.seasonWindow ? { seasonWindow: parsed.seasonWindow } : {}),
     minimumPresence: 0.8, automaticCompletionOnly: true, minimumScore: 50, maximumScore: 400,
     participationModel: "weekly-variety-v1", routeEvidenceVersion: 1, routes, brackets, routeBracket, overlevelPenalty: { ...parsed.overlevelPenalty },
@@ -230,14 +234,28 @@ export function validBracketedRules(value: unknown): value is BracketedRules {
   if (!value || typeof value !== "object" || (value as { version?: unknown }).version !== 6) return false;
   const r = value as BracketedRules;
   try {
-    return sameJson(r, createBracketedDungeonRules({ ...(r.gameEdition ? { gameEdition: r.gameEdition } : {}), routes: r.routes, brackets: r.brackets, overlevelPenalty: r.overlevelPenalty ?? null,
-      ...(r.keystoneRating !== undefined ? { keystoneRating: r.keystoneRating } : {}),
-      ...(r.evidencePolicy !== undefined ? { evidencePolicy: r.evidencePolicy } : {}),
-      ...(r.leniency !== undefined ? { leniency: r.leniency } : {}),
-      ...(r.scoring !== undefined ? { scoring: r.scoring } : {}),
-      ...(r.seasonWindow !== undefined ? { seasonWindow: r.seasonWindow } : {}),
-      ...(r.provisional !== undefined ? { provisional: r.provisional } : {}), ...(r.recalibrations !== undefined ? { recalibrations: r.recalibrations } : {}) }));
+    return sameJson(r, createBracketedDungeonRules(bracketedInput(r)));
   } catch { return false; }
+}
+/** The inputs a stored rule set is built from (what createBracketedDungeonRules takes). */
+function bracketedInput(r: BracketedRules): Record<string, unknown> {
+  return { ...(r.gameEdition ? { gameEdition: r.gameEdition } : {}), routes: r.routes, brackets: r.brackets, overlevelPenalty: r.overlevelPenalty ?? null,
+    ...(r.keystoneRating !== undefined ? { keystoneRating: r.keystoneRating } : {}),
+    ...(r.evidencePolicy !== undefined ? { evidencePolicy: r.evidencePolicy } : {}),
+    ...(r.leniency !== undefined ? { leniency: r.leniency } : {}),
+    ...(r.scoring !== undefined ? { scoring: r.scoring } : {}),
+    ...(r.bossScoring !== undefined ? { bossScoring: r.bossScoring } : {}),
+    ...(r.seasonWindow !== undefined ? { seasonWindow: r.seasonWindow } : {}),
+    ...(r.provisional !== undefined ? { provisional: r.provisional } : {}), ...(r.recalibrations !== undefined ? { recalibrations: r.recalibrations } : {}) };
+}
+/** A scoring block to switch on (an object) or off (null). Only blocks that change how a run is scored can be revised. */
+export interface ScoringPatch { bossScoring?: { version: 1; since?: string | undefined } | null }
+/** The same rules with `patch` applied, rebuilt and validated. Targets, brackets, routes and best-N are never touched. */
+export function reviseRules(rules: BracketedRules, patch: ScoringPatch): BracketedRules {
+  const input = bracketedInput(rules);
+  if (patch.bossScoring === null) delete input["bossScoring"];
+  else if (patch.bossScoring) input["bossScoring"] = patch.bossScoring;
+  return createBracketedDungeonRules(input);
 }
 function sameJson(a: unknown, b: unknown): boolean {
   if (a === b) return true;

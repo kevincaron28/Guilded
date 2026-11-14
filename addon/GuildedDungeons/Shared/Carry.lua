@@ -30,6 +30,7 @@ local HI_GAP = 300
 local PER_SENDER_PER_HOUR, SENDER_ASSEMBLIES, MAX_ASSEMBLIES, ASSEMBLY_SECONDS = 20, 3, 30, 120
 local DONE_KEEP, SENT_KEEP, OWN_CACHE_SECONDS = 400, 200, 60
 local JOIN_RETRY = { 30, 120, 600, 1800 }
+local RESEND_SECONDS, EXPIRE_TICK, HI_MAX = 1800, 25, 100
 
 local carry = { carriers = {}, assemblies = {}, received = {}, hiAt = {}, channelId = 0, channelName = nil, whispered = {}, offered = {}, joinTries = 0,
   lastAnnounce = 0, stats = { stored = 0, offered = 0, receipts = 0 } }
@@ -250,21 +251,26 @@ function carry.offerTo(entry)
   local sent = 0
   for _, record in ipairs(records) do
     local id = record.kind .. ":" .. record.key
-    if entry.sent >= SESSION_PER_CARRIER then entry.pauseUntil = now() + PAUSE_SECONDS; entry.sent = 0; break end
-    local body = carry.encode(record.data)
-    local parts = {}
-    for i = 1, #body, CHUNK do parts[#parts + 1] = string.sub(body, i, i + CHUNK - 1) end
-    if #parts >= 1 and #parts <= MAX_CHUNKS then
-      for i, part in ipairs(parts) do
-        send(string.format("R|%s|%s|%d/%d|%s", record.kind, record.key, i, #parts, part), "WHISPER", entry.name)
+    -- Already whispered to this carrier lately: not sent again, so the newest few are not resent every time and older records get their turn.
+    local before = s and s.sentTo[id]
+    local skip = type(before) == "table" and sameName(before.name, entry.name) and now() - (tonumber(before.at) or 0) < RESEND_SECONDS
+    if not skip then
+      if entry.sent >= SESSION_PER_CARRIER then entry.pauseUntil = now() + PAUSE_SECONDS; entry.sent = 0; break end
+      local body = carry.encode(record.data)
+      local parts = {}
+      for i = 1, #body, CHUNK do parts[#parts + 1] = string.sub(body, i, i + CHUNK - 1) end
+      if #parts >= 1 and #parts <= MAX_CHUNKS then
+        for i, part in ipairs(parts) do
+          send(string.format("R|%s|%s|%d/%d|%s", record.kind, record.key, i, #parts, part), "WHISPER", entry.name)
+        end
+        -- Kept in the saved variables: a receipt can arrive after this player's /reload.
+        if s then s.sentTo[id] = { name = entry.name, at = now() } end
+        carry.whispered[entry.name] = now()
+        carry.offered[entry.name] = true
+        entry.sent = entry.sent + 1
+        sent = sent + 1
+        carry.stats.offered = carry.stats.offered + 1
       end
-      -- Kept in the saved variables: a receipt can arrive after this player's /reload.
-      if s then s.sentTo[id] = { name = entry.name, at = now() } end
-      carry.whispered[entry.name] = now()
-      carry.offered[entry.name] = true
-      entry.sent = entry.sent + 1
-      sent = sent + 1
-      carry.stats.offered = carry.stats.offered + 1
     end
   end
   return sent
@@ -411,6 +417,9 @@ local function onAddonMessage(prefix, text, channel, sender)
     if channel ~= "WHISPER" and string.match(text, "^HI|%d+$") then
       local last = carry.hiAt[who]
       if last and now() - last < HI_GAP then return end
+      local n = 0
+      for _ in pairs(carry.hiAt) do n = n + 1 end
+      if n >= HI_MAX then for name, at in pairs(carry.hiAt) do if now() - at > HI_GAP then carry.hiAt[name] = nil end end end
       carry.hiAt[who] = now()
       local entry = noteCarrier(who, NEAR[channel] == true)
       if entry then carry.offerTo(entry) end
@@ -426,13 +435,18 @@ end
 -- ---- receipts (written by the companion) -----------------------------------------------------------------------------------------------
 
 -- Reads Carry.lua: records the bot holds are no longer carried, here or for the player who whispered them. The global is only replaced when
--- the game loads the file, so this is cheap to repeat; it runs at login and on every tick.
+-- the game loads the file, so it is read at login (and /reload) only: during a session the carrier's K whisper is what reaches the author.
+-- Each id is handled once per session.
 function carry.applyReceipts()
   local s = store()
   if not s or type(GuildedCarryReceipts) ~= "table" then return 0 end
   local n = 0
+  carry.receiptsSeen = carry.receiptsSeen or {}
   for _, id in ipairs(GuildedCarryReceipts) do
-    if type(id) == "string" and #id <= 150 and not s.done[id] then
+    if type(id) ~= "string" or carry.receiptsSeen[id] then
+      -- already handled in this session
+    elseif #id <= 150 and not s.done[id] then
+      carry.receiptsSeen[id] = true
       markDone(s, id)
       s.sentTo[id] = nil
       local record = s.records[id]
@@ -445,8 +459,11 @@ function carry.applyReceipts()
           send("K|" .. id, "WHISPER", record.from)
         end
       end
-    elseif type(id) == "string" and s.records[id] then
+    elseif s.records[id] then
+      carry.receiptsSeen[id] = true
       s.records[id] = nil
+    else
+      carry.receiptsSeen[id] = true
     end
   end
   prune(s)
@@ -508,8 +525,9 @@ function carry.joinChannel()
     carry.channelFailed = true
     if ok == false then return end -- this client has no join function: nothing to retry
     carry.joinTries = carry.joinTries + 1
-    local wait = JOIN_RETRY[carry.joinTries]
-    if wait then after(wait, function() carry.joinChannel() end) end
+    -- After the ladder the retry goes on slowly (the last pause), as long as carrying is on.
+    local wait = JOIN_RETRY[carry.joinTries] or JOIN_RETRY[#JOIN_RETRY]
+    after(wait, function() carry.joinChannel() end)
   end)
 end
 
@@ -577,7 +595,7 @@ local function setGuildOff(off)
   local s = store()
   if not s or not (ns.isOfficer and ns.isOfficer()) then return false end
   s.guild = { off = off and true or false, at = now(), by = me() }
-  if IsInGuild and IsInGuild() then ns.comm.send(PREFIX, string.format("GOFF|%d|%d", off and 1 or 0, s.guild.at), "GUILD") end
+  if IsInGuild and IsInGuild() then send(string.format("GOFF|%d|%d", off and 1 or 0, s.guild.at), "GUILD") end
   if off then carry.leaveChannel() else carry.joinChannel() end
   return true
 end
@@ -589,6 +607,9 @@ ns.commandHandlers["carry"] = function(args)
   if not s then return end
   if choice == "off" then
     s.off = true
+    -- The same switch as /gdungeons carry off and /guilded dungeon carry off.
+    local root = ns.getDb and ns.getDb()
+    if root and type(root.dungeon) == "table" then root.dungeon.carryGroupRuns = false end
     carry.leaveChannel()
     ns.message(L("Carrying records is off: the shared channel is left and nothing is offered, kept or announced."))
     return
@@ -646,7 +667,7 @@ local function startup()
   after(45, function()
     local s = store()
     if s and type(s.guild) == "table" and s.guild.off and ns.isOfficer and ns.isOfficer() and IsInGuild and IsInGuild() then
-      ns.comm.send(PREFIX, string.format("GOFF|1|%d", s.guild.at), "GUILD")
+      send(string.format("GOFF|1|%d", s.guild.at), "GUILD")
     end
   end)
 end
@@ -679,9 +700,11 @@ if CreateFrame then
 end
 
 if C_Timer and C_Timer.NewTicker then
+  -- Half-assembled records and sender notes expire on a short timer, not only on the announcement tick.
+  C_Timer.NewTicker(EXPIRE_TICK, function() if carry.enabled() then pcall(expire) end end)
   C_Timer.NewTicker(ANNOUNCE_SECONDS, function()
     if carry.enabled() then
-      pcall(carry.applyReceipts); pcall(carry.announce, true); pcall(expire); pcall(carry.offerAll)
+      pcall(carry.announce, true); pcall(expire); pcall(carry.offerAll)
       if carry.channelId > 0 and channelNow() == 0 then carry.joinChannel() end
     end
   end)

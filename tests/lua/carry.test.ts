@@ -20,8 +20,8 @@ function client(kind: Kind, name: string, opts: { companion?: boolean } = {}): L
     function GetServerTime() return CLOCK end
     function GetTime() GT = GT + 1; return GT end
     function InCombatLockdown() return COMBAT end
-    TIMERS = {}
-    C_Timer = { After = function(_, fn) TIMERS[#TIMERS + 1] = fn end, NewTicker = function() return {} end }
+    TIMERS = {}; TICKERS = {}
+    C_Timer = { After = function(_, fn) TIMERS[#TIMERS + 1] = fn end, NewTicker = function(seconds, fn) TICKERS[#TICKERS + 1] = { seconds = seconds, fn = fn }; return {} end }
     function run_timers() for _ = 1, 20 do local list = TIMERS; TIMERS = {}; if #list == 0 then return end; for _, fn in ipairs(list) do fn() end end end
     C_ChatInfo = { RegisterAddonMessagePrefix = function() return true end, SendAddonMessage = function(prefix, text, channel, target) SENT = SENT or {}; SENT[#SENT + 1] = { prefix = prefix, text = text, channel = channel, target = target }; return 0 end }
     function IsInGroup() return false end
@@ -44,6 +44,7 @@ const duel = (s: LuaSession, winner = "Aye", loser = "Zed", at = CLOCK - 100) =>
   root.duels.external[${JSON.stringify(`${winner}|${loser}|${at}`)}] = { winner = ${JSON.stringify(winner)}, loser = ${JSON.stringify(loser)}, winnerRealm = "Forever", loserRealm = "Forever", winnerClass = "MAGE", loserClass = "ROGUE",
     winnerLevel = 30, loserLevel = 31, zone = "Elwynn Forest", at = ${at}, durationSec = 40, reason = "knockout", side = "winner", seq = 5, nonce = "abcdef0123456789", chain = "0123456789abcdef", evidence = { endAt = ${at} } }`);
 const sent = (s: LuaSession) => s.run(`local out = {}; for _, m in ipairs(SENT or {}) do out[#out + 1] = m.prefix .. ">" .. m.channel .. ">" .. tostring(m.target) .. ">" .. m.text end; SENT = {}; return table.concat(out, "\\n")`).split("\n").filter(Boolean);
+const CLOCK_STEP = (s: LuaSession, seconds: number) => s.run(`CLOCK = CLOCK + ${seconds}`);
 const flush = (s: LuaSession) => s.run("run_timers()");
 const hear = (to: LuaSession, from: string, text: string, channel: string) =>
   to.run(`fire_event("CHAT_MSG_ADDON", "GuildedCry", ${JSON.stringify(text)}, ${JSON.stringify(channel)}, "${from}-Realm")`);
@@ -238,6 +239,54 @@ describe("names, receipts and the channel", () => {
     expect(player.run(`return tostring(NS.getDb().carry.sentTo[${JSON.stringify(id)}])`)).toBe("nil");
   });
 
+  it("does not resend to a carrier what it already whispered, so older records get their turn", () => {
+    const player = client("guilded", "Aye");
+    duel(player, "Aye", "Zed", CLOCK - 300);
+    hear(player, "Bee", "HI|1", "GUILD");
+    expect(queued(player, "WHISPER", "Bee").length).toBeGreaterThan(0);
+    const first = player.run("for id in pairs(NS.getDb().carry.sentTo) do return id end");
+    CLOCK_STEP(player, 400);
+    player.run("NS.carry.carriers.Bee.sent = 0; NS.carry.carriers.Bee.pauseUntil = 0");
+    hear(player, "Bee", "HI|1", "GUILD");
+    expect(queued(player, "WHISPER", "Bee")).toEqual([]);
+    duel(player, "Aye", "Yan", CLOCK - 200);
+    CLOCK_STEP(player, 400);
+    hear(player, "Bee", "HI|1", "GUILD");
+    const texts = queued(player, "WHISPER", "Bee");
+    expect(texts.length).toBeGreaterThan(0);
+    expect(texts.join(" ")).not.toContain(first.split(":")[1]!);
+  });
+
+  it("acts on each companion receipt once per session", () => {
+    const carrier = client("guilded", "Bee", { companion: true });
+    hear(carrier, "Aye", part("1799999000-aaaaaa", 1, 1, "winner=sAye&loser=sZed&at=n1799999000"), "WHISPER");
+    const id = carrier.run("for id in pairs(NS.getDb().carry.records) do return id end");
+    carrier.run(`GuildedCarryReceipts = { ${JSON.stringify(id)} }`);
+    expect(carrier.run("return tostring(NS.carry.applyReceipts())")).toBe("1");
+    carrier.run(`NS.getDb().carry.records[${JSON.stringify(id)}] = { kind = "externalDuel", key = "again", author = "Aye", data = {}, got = CLOCK }`);
+    expect(carrier.run("return tostring(NS.carry.applyReceipts())")).toBe("0");
+    expect(records(carrier)).toBe("1");
+  });
+
+  it("expires half-assembled records and old sender notes on a short timer", () => {
+    const carrier = client("guilded", "Bee", { companion: true });
+    hear(carrier, "Mallory", part("1800000000-aaaaaa", 1, 2), "WHISPER");
+    hear(carrier, "Mallory", "HI|1", "GUILD");
+    expect(count(carrier, "NS.carry.assemblies")).toBe(1);
+    carrier.run("CLOCK = CLOCK + 700; for _, t in ipairs(TICKERS) do if t.seconds == 25 then t.fn() end end");
+    expect(count(carrier, "NS.carry.assemblies")).toBe(0);
+    expect(count(carrier, "NS.carry.hiAt")).toBe(0);
+  });
+
+  it("an officer's switch and the login replay are sent only when quiet, and /guilded carry off is the same switch as /gdungeons carry off", () => {
+    const player = client("guilded", "Aye");
+    player.run("NS.getDb().dungeon = NS.getDb().dungeon or {}; NS.commandHandlers.carry({ 'off' })");
+    expect(player.run("return tostring(NS.getDb().dungeon.carryGroupRuns)")).toBe("false");
+    expect(player.run("return tostring(NS.dungeon.carryOn())")).toBe("false");
+    player.run("NS.commandHandlers.carry({ 'on' })");
+    expect(player.run("return tostring(NS.dungeon.carryOn())")).toBe("true");
+  });
+
   it("reads the companion's receipts again while the game runs", () => {
     const carrier = client("guilded", "Bee", { companion: true });
     hear(carrier, "Aye", part("1799999000-aaaaaa", 1, 1, "winner=sAye&loser=sZed&at=n1799999000"), "WHISPER");
@@ -252,8 +301,8 @@ describe("names, receipts and the channel", () => {
     carrier.run("COMBAT = true; NS.carry.joinChannel()");
     expect(carrier.run("return tostring(JOINS)")).toBe("0");
     carrier.run("COMBAT = false; CH = 0; run_timers()");
-    // The game never answers: the first try and four retries, then guild and group only.
-    expect(Number(carrier.run("return tostring(JOINS)"))).toBe(5);
+    // The game never answers: the first try and the four retries of the ladder, and the slow retries go on after it.
+    expect(Number(carrier.run("return tostring(JOINS)"))).toBeGreaterThan(5);
     expect(carrier.run("return tostring(NS.carry.channelFailed)")).toBe("true");
     const fresh = client("guilded", "Dee", { companion: true });
     fresh.run(`JOINS = 0; CH = 0; function JoinTemporaryChannel() JOINS = JOINS + 1; if JOINS == 2 then CH = 7 end end; function GetChannelName() return CH end`);

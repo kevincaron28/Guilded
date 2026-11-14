@@ -17,7 +17,7 @@ function start(options: { locale?: string; instance?: string } = {}) {
     GetBuildInfo = function() return "1.60.1", "70790", "date", 16001 end
     STAMP = 1800000000
     NS.compat.serverTime = function() return STAMP end
-    INSTANCE = ${options.instance ?? '{id=2970, type="party", name="The Drowned City", difficultyId=1}'}
+    INSTANCE = ${options.instance ?? '{id=2971, type="party", name="The Test Dungeon", difficultyId=1}'}
     NS.compat.instance = function() return INSTANCE end
     MOCK_UNITS = { player = { name = "Tester" } }
     NS.isGuildMember = function() return true end
@@ -74,7 +74,7 @@ describe("an abandoned run is never silent", () => {
     expect(text).toContain("/guilded dungeon check");
     expect(text.match(/will not count/g)).toHaveLength(1);
     const diagnostic = s.run("return GuildedDB.dungeon.runs[RUN_ID].diagnostic");
-    expect(diagnostic).toBe("i=2970;d=1;ed=forever;k=1;f=unknown;last=101/Early Boss;why=left the dungeon");
+    expect(diagnostic).toBe("i=2971;d=1;ed=forever;k=1;f=unknown;last=101/Early Boss;why=left the dungeon");
     expect(diagnostic.length).toBeLessThanOrEqual(240);
     expect(s.run("return tostring(GuildedDB.dungeon.runs[RUN_ID].explained)")).toBe("true");
   });
@@ -82,11 +82,11 @@ describe("an abandoned run is never silent", () => {
   it("prints one explanation line per session even when several runs end abandoned, and still saves each diagnostic", () => {
     const s = start();
     abandonAfterKill(s);
-    s.run(`local second = { id = "RUN-SECOND", state = "ABANDONED", gameEdition = "forever", instanceId = 2970, name = "The Drowned City", difficultyId = 1,
+    s.run(`local second = { id = "RUN-SECOND", state = "ABANDONED", gameEdition = "forever", instanceId = 2971, name = "The Test Dungeon", difficultyId = 1,
       startedAt = 1, endedAt = 99, endReason = "left the dungeon", players = {}, encounters = { { id = 5, name = "B", success = true, at = 50, source = "native" } } }
       NS.dungeon.explain(second)`);
     expect(s.chat().join("\n").match(/will not count/g)).toHaveLength(1);
-    expect(s.run("return GuildedDB.dungeon.runs[RUN_ID].diagnostic")).toContain("i=2970");
+    expect(s.run("return GuildedDB.dungeon.runs[RUN_ID].diagnostic")).toContain("i=2971");
     expect(s.run("return tostring(NS.dungeon.explainedThisSession)")).toBe("true");
   });
 

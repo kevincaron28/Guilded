@@ -57,8 +57,9 @@ async function battlegroundCard(card: ScoreCard): Promise<Buffer | null> {
 /** Data cards (weekly report, raid report, rookie, season, welcome, PvP recap, achievements...): the painting as a banner, the first figure as the hero, the other figures on the right, up to three rows. */
 const DATA_LOOK: Record<string, Kind> = { raid: { type: "raid", emblem: "flame" }, weekly: { type: "weekly", emblem: "cup" }, "world-pvp": { type: "battleground", emblem: "duel" } };
 async function dataCard(card: ScoreCard): Promise<Buffer | null> {
-  // A share image with the member's picture keeps the older layout, which draws it beside the name (the banner layout has no place for it).
-  if (!card.backdrop || card.stats.length === 0 || card.portrait) return null;
+  // The achievements card keeps the row layout (medallion badges, "Latest achievements" label, all rows, footer, the member's picture on share images)
+  // with the painting behind it: the banner layout has room for none of those.
+  if (!card.backdrop || card.stats.length === 0 || card.backdrop.key === "achievements") return null;
   const art = await cardBackdropArt(card.backdrop, "wide");
   if (!art) return null;
   const [lead, ...rest] = card.stats as [ScoreCard["stats"][number], ...ScoreCard["stats"]];

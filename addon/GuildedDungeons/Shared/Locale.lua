@@ -2887,6 +2887,13 @@ local DE = {
   ["The result and duel cards are back in their usual place."] = "Die Ergebnis- und Duellkarten sind wieder an ihrem \195\188blichen Platz.",
   -- 9.3 UI polish (Modules/RunResults.lua)
   ["Save: available after combat"] = "Speichern: nach dem Kampf verf\195\188gbar",
+  ["Not counted on the ladder."] = "Nicht in der Rangliste gewertet.",
+  ["Rating"] = "Wertung",
+  ["Season %s"] = "Saison %s",
+  ["Duels: %d wins, %d losses (%d%%), streak %s, rating %d."] = "Duelle: %d Siege, %d Niederlagen (%d%%), Serie %s, Wertung %d.",
+  ["Guild duels: a rating that starts at 1000 each season. Everyone is ranked from the first duel."] = "Gildenduelle: eine Wertung, die jede Saison bei 1000 beginnt. Alle werden ab dem ersten Duell gerankt.",
+  ["Your record: %d wins, %d losses (%d%%), streak %s, rating %d. Click a player to see your record against them."] = "Deine Bilanz: %d Siege, %d Niederlagen (%d%%), Serie %s, Wertung %d. Klicke auf einen Spieler, um deine Bilanz gegen ihn zu sehen.",
+  ["You have not duelled %s in this season."] = "Du hast dich in dieser Saison nicht mit %s duelliert.",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -4796,6 +4803,13 @@ local ES = {
   ["The result and duel cards are back in their usual place."] = "Las tarjetas de resultado y de duelo vuelven a su lugar habitual.",
   -- 9.3 UI polish (Modules/RunResults.lua)
   ["Save: available after combat"] = "Guardar: disponible tras el combate",
+  ["Not counted on the ladder."] = "No cuenta en la clasificaci\195\179n.",
+  ["Rating"] = "Puntuaci\195\179n",
+  ["Season %s"] = "Temporada %s",
+  ["Duels: %d wins, %d losses (%d%%), streak %s, rating %d."] = "Duelos: %d victorias, %d derrotas (%d%%), racha %s, puntuaci\195\179n %d.",
+  ["Guild duels: a rating that starts at 1000 each season. Everyone is ranked from the first duel."] = "Duelos de hermandad: una puntuaci\195\179n que empieza en 1000 cada temporada. Todos entran en la clasificaci\195\179n desde el primer duelo.",
+  ["Your record: %d wins, %d losses (%d%%), streak %s, rating %d. Click a player to see your record against them."] = "Tu marca: %d victorias, %d derrotas (%d%%), racha %s, puntuaci\195\179n %d. Haz clic en un jugador para ver tu marca contra \195\169l.",
+  ["You have not duelled %s in this season."] = "No has due\195\177ado con %s en esta temporada.",
 }
 -- END ES
 
@@ -5851,3 +5865,11 @@ FR["Hide handled (%d)"] = "Masquer les trait\195\169s (%d)"
 -- To invite window: copied vs invited, per-officer marks (9.3)
 FR["copied %s, waiting"] = "copi\195\169 %s, en attente"
 FR["Marks stay on this computer: another officer may invite the same names."] = "Les marques restent sur cet ordinateur : un autre officier peut inviter les m\195\170mes noms."
+-- Duel rating (9.3)
+FR["Not counted on the ladder."] = "Non compt\195\169 au classement."
+FR["Rating"] = "Cote"
+FR["Season %s"] = "Saison %s"
+FR["Duels: %d wins, %d losses (%d%%), streak %s, rating %d."] = "Duels : %d victoires, %d d\195\169faites (%d%%), s\195\169rie %s, cote %d."
+FR["Guild duels: a rating that starts at 1000 each season. Everyone is ranked from the first duel."] = "Duels de guilde : une cote qui part de 1000 \195\160 chaque saison. Tout le monde est class\195\169 d\195\168s le premier duel."
+FR["Your record: %d wins, %d losses (%d%%), streak %s, rating %d. Click a player to see your record against them."] = "Votre bilan : %d victoires, %d d\195\169faites (%d%%), s\195\169rie %s, cote %d. Cliquez sur un joueur pour voir votre bilan contre lui."
+FR["You have not duelled %s in this season."] = "Vous n'avez pas affront\195\169 %s cette saison."

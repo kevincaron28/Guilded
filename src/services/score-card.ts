@@ -68,6 +68,8 @@ export type DungeonMotif = "cave" | "fire" | "sea" | "keep" | "mine" | "thorn";
  */
 export interface DungeonCardMember { name: string; color: string; role?: "TANK" | "HEALER" | "DPS" | undefined; roleLabel?: string | undefined; sub?: string | undefined; guild: boolean;
   score?: string | undefined; scoreNote?: string | undefined;
+  /** 9.3.2: the player's level, the score this run added to their season score (0 when it added nothing) and their season total. Only set when the bot knows them: never estimated. */
+  level?: number | undefined; gain?: number | undefined; total?: number | undefined;
   /** 9.1: the addon's name for this player, so delivery can find the guild character's picture (card-pictures.ts). */
   character?: string | undefined;
   /** 9.3: the guild the recorder's game client showed for a player outside this server's guild (display text only: clipped, never used for links, ranking or matching). */
@@ -80,6 +82,7 @@ export interface DungeonCardMember { name: string; color: string; role?: "TANK" 
  * and switch the death map on.
  */
 export interface DungeonVisual { theme: DungeonArtTheme; party: DungeonCardMember[]; scoreLabel?: string | undefined;
+  /** 9.3.2: column headers of the party rows (level, score added this run, season total). */ columns?: { level: string; gain: string; total: string } | undefined;
   guildLabel: string; outsiderLabel: string; moreLabel: string; /** Slug of the dungeon; `site/dungeon-maps/<mapKey>.png` is the map the deaths are drawn on, when that file exists. */ mapKey?: string; deathPoints?: { x: number; y: number }[]; deathMapLabel?: string;
   /** The traced outline of the death map's floor: walked cells of a 200 x 200 grid (key = column * 200 + row), see dungeon-map-grid.ts. */
   mapOutline?: { map: number; cells: number[] } }

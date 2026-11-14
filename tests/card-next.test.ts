@@ -33,11 +33,11 @@ const party = (): Details => [
 const names = { Aldric: "Aldric Stormvale", Brenna: "Brenna Ironwood", Thessaly: "Thessaly Moonbright", Korvin: "Korvin Ashgrove", Ysolde: "Ysolde Fairwind" };
 
 describe("dungeon run card (redesign)", () => {
-  it("carries the guild name of players outside the guild only, clipped and never raw", () => {
+  it("carries every player's recorded guild name (9.3.2), clipped and never raw", () => {
     const card = dungeonRunCard(run(party(), { fullNames: names, inGuildPlayers: ["Aldric", "Brenna"], unlinked: ["Thessaly", "Korvin", "Ysolde"] }), "en");
     const [a, b, c, , e] = card.dungeon!.party;
     expect(a!.guildName).toBeUndefined();
-    expect(b!.guildName).toBeUndefined(); // in this server's guild: nothing extra
+    expect(b!.guildName).toBe("Our Own Guild"); // 9.3.2: shown for everyone the recorder saw a guild for
     expect(c!.guildName).toBe("Moonwell Vanguard of th…");
     expect(c!.guildName!.length).toBeLessThanOrEqual(24);
     expect(e!.guildName).toBe("Evil & \"Co\"");

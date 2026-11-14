@@ -699,11 +699,44 @@ end
 
 -- A run someone else reported: keep it, or merge into our copy (more
 -- reporters = more trust; deaths take the highest count anyone saw).
-local function storePeerRun(run, sender)
+local function storePeerRun(run, sender, delivery)
   local d = db()
   if not d or not run.id then return end
   local existing = d.runs[run.id]
+  -- (9.3.1) A summary that came through the party or raid never changes a run this PC already holds (a stranger in the group
+  -- cannot add reporters or players, recover or replace a guild run): only the guild's own copies merge.
+  if existing and delivery ~= nil and delivery ~= "GUILD" then return end
   if not existing then
+    -- (9.3.1) A run that only reached this PC through the group (a player outside the guild) is kept apart, in its own table
+    -- (dungeon.carried): an older companion only reads dungeon.runs, so it can never upload a stranger's run as a guild one. A
+    -- companion that knows the group relay reads the table and sends them to the public boards.
+    local carried = d.carried
+    if delivery ~= nil and delivery ~= "GUILD" then
+      carried = carried or {}
+      d.carried = carried
+      local held = carried[run.id]
+      if held then
+        held.reporters = held.reporters or {}
+        held.reporters[sender] = true
+        return
+      end
+      -- Carried runs still waiting for the companion are limited in total and per sender (a stranger cannot fill the saved file,
+      -- and the ones the companion already took do not count).
+      local count, fromSender = 0, 0
+      for _, other in pairs(carried) do
+        if not other.groupSynced then
+          count = count + 1
+          if other.reporters and other.reporters[sender] then fromSender = fromSender + 1 end
+        end
+      end
+      if count >= 100 or fromSender >= 10 then return end
+      run.reporters = { [sender] = true }
+      run.viaGroup = true
+      carried[run.id] = run
+      return
+    end
+    -- A copy through the guild: it is a guild run, and the carried copy (if any) is dropped (the guild lane takes it from here).
+    if carried then carried[run.id] = nil end
     run.reporters = { [sender] = true }
     d.runs[run.id] = run
     if ns.onDungeonRunFinished then pcall(ns.onDungeonRunFinished, run) end
@@ -808,7 +841,7 @@ local function leaderIs(name)
   return false
 end
 
-local function onAddonMessage(text, sender)
+local function onAddonMessage(text, sender, delivery)
   local d = db()
   local run = d and d.current
   local kind = string.match(text, "^(%u+)|")
@@ -883,13 +916,13 @@ local function onAddonMessage(text, sender)
     -- (9.0) A guildmate whose companion's bot already stored this run: stop replaying it at
     -- every login. Only our own copy is marked; the bot still dedupes by run id.
     local id = string.match(text, "^ACK|([^|]+)$")
-    if id then dungeon.noteAck(id, sender) end
+    if id then dungeon.noteAck(id, sender, delivery) end
   elseif kind == "ACKS" then
-    for _, id in ipairs(dungeon.listOf(text, "ACKS")) do dungeon.noteAck(id, sender) end
+    for _, id in ipairs(dungeon.listOf(text, "ACKS")) do dungeon.noteAck(id, sender, delivery) end
   elseif kind == "OFR" then
-    dungeon.onOffer(text, sender)
+    dungeon.onOffer(text, sender, delivery)
   elseif kind == "WNT" then
-    dungeon.onWant(text, sender)
+    dungeon.onWant(text, sender, delivery)
   elseif kind == "SUM" then
     local id, index, total, payload = string.match(text, "^SUM|([^|]+)|(%d+)|(%d+)|(.*)$")
     index, total = tonumber(index), tonumber(total)
@@ -928,9 +961,9 @@ local function onAddonMessage(text, sender)
         if known and known.synced and not dungeon.ackedRecently(id) then
           dungeon.acked[id] = now()
           dungeon.stats.acksSent = dungeon.stats.acksSent + 1
-          dungeon.guild("ack:" .. id, "ACK|" .. id)
+          if delivery == "GUILD" then dungeon.guild("ack:" .. id, "ACK|" .. id) else dungeon.toGroup("ack:" .. id, "ACK|" .. id) end
         end
-        storePeerRun(peer, sender)
+        storePeerRun(peer, sender, delivery)
       end
     end
   end
@@ -1021,6 +1054,7 @@ local function onEvent(_, event, ...)
     evaluate()
   elseif event == "GROUP_ROSTER_UPDATE" then
     sayHello(false)
+    pcall(dungeon.noteGroupChange)
     if not compat.inGroup() and d.current and d.current.state == "ACTIVE" and not d.current.inside then
       finish("ABANDONED", "group disbanded")
     elseif d.current then
@@ -1108,16 +1142,20 @@ local function onEvent(_, event, ...)
     end
     if not ns.comm.accept(prefix, text, channel, sender, PREFIX, function(author, delivery)
       local kind = string.match(text, "^(%u+)|")
-      if kind == "SUM" or kind == "REQUEST" or kind == "ACK" or kind == "ACKS" or kind == "OFR" or kind == "WNT" then
-        return delivery == "GUILD" and ns.comm.authorized(author, "guild")
+      if kind == "SUM" or kind == "ACK" or kind == "ACKS" or kind == "OFR" or kind == "WNT" then
+        if delivery == "GUILD" then return ns.comm.authorized(author, "guild") end
+        -- (9.3.1) The same run messages also travel in a party or raid, from players of any guild, to a player who carries them.
+        return (delivery == "PARTY" or delivery == "RAID" or delivery == "INSTANCE_CHAT")
+          and (kind ~= "SUM" or dungeon.canCarry()) and ns.comm.authorized(author, "group")
       end
+      if kind == "REQUEST" then return delivery == "GUILD" and ns.comm.authorized(author, "guild") end
       return (delivery == "PARTY" or delivery == "RAID" or delivery == "INSTANCE_CHAT")
         and ns.comm.authorized(author, "group")
     end) then return end
     if ns.isSecret(prefix) or ns.isSecret(text) or ns.isSecret(sender) or prefix ~= PREFIX then return end
     sender = ns.normalizeName(sender)
     if not sender or sender == me() then return end
-    onAddonMessage(text, sender)
+    onAddonMessage(text, sender, channel)
   end
 end
 
@@ -1142,7 +1180,13 @@ function dungeon.markSynced()
   end
   dungeon.hasCompanion() -- remembers that a companion has synced with this PC (the guildmate-run reminder needs it)
   for _, id in ipairs(accepted) do
-    local run = d.runs[id]
+    local carried = type(id) == "string" and string.sub(id, 1, 6) == "group:"
+    if carried then
+      -- (9.3.1) The companion took a run that only reached this PC through the group: it went to the public boards, not a guild.
+      local viaGroupRun = d.carried and d.carried[string.sub(id, 7)]
+      if viaGroupRun then viaGroupRun.groupSynced = true end
+    end
+    local run = (not carried) and d.runs[id] or nil
     local note = notes and notes[id]
     if run and note ~= NOT_THIS_PC then
       run.synced = true
@@ -1165,6 +1209,11 @@ function dungeon.markSynced()
       d.runs[id] = nil
       dungeon.stats.pruned = dungeon.stats.pruned + 1
     end
+  end
+  -- Carried runs of other players: taken ones go after the synced window, untaken ones when the companion would no longer read them.
+  for id, run in pairs(d.carried or {}) do
+    local at = type(run) == "table" and (run.endedAt or run.detectedAt) or 0
+    if type(run) ~= "table" or (run.groupSynced and at < cutoff) or (not run.groupSynced and at < peerCutoff) then d.carried[id] = nil end
   end
   -- (9.3.1) The runs of a guild another character of this PC belongs to (parked in GuildedDB.otherGuilds) age out the same way: a
   -- synced one after the synced window, an unsent one when the companion would no longer read it. Said once, in neutral words.
@@ -1346,6 +1395,7 @@ local LATER_EVERY = 30
 dungeon.offerSeen, dungeon.resentAt, dungeon.resendGap = {}, {}, {}
 dungeon.solicited, dungeon.heard, dungeon.later = {}, {}, {}
 dungeon.answers = { acks = {}, wants = {}, count = 0, scheduled = false }
+dungeon.groupAnswers = { acks = {}, wants = {}, count = 0, scheduled = false }
 
 -- (9.3) Guild traffic never queues while the player is inside an instance: the queue is one line per prefix, so a guild
 -- message held back there would also hold back this player's own START, DEATH and END for the live run. It waits here instead
@@ -1441,12 +1491,22 @@ function dungeon.ownUnconfirmed()
 end
 
 -- Sends the summary of one saved run in chunks; a chunk the game keeps refusing marks the run to be offered first next time.
-function dungeon.sendRun(run)
+function dungeon.sendRun(run, channel)
+  channel = channel == "GROUP" and "GROUP" or "GUILD"
   -- Inside an instance the chunks wait (see above): held guild chunks at the head of the queue would hold up the live run's own messages.
-  if not outside() then dungeon.defer("send:" .. tostring(run.id), function() dungeon.sendRun(run) end) return true end
+  if not outside() then dungeon.defer("send:" .. channel .. ":" .. tostring(run.id), function() dungeon.sendRun(run, channel) end) return true end
   local summary = serialize(run)
   local total = math.ceil(#summary / CHUNK_BYTES)
   if total > 20 then return false end
+  if channel == "GROUP" then
+    -- (9.3.1) To the party you are in now (any guild), for whoever there carries it with a companion. Nothing when alone or in a raid.
+    if not dungeon.smallGroup() then return false end
+    dungeon.solicited[run.id] = now()
+    for part = 1, total do
+      send(string.format("SUM|%s|%d|%d|%s", run.id, part, total, string.sub(summary, (part - 1) * CHUNK_BYTES + 1, part * CHUNK_BYTES)), "GROUP")
+    end
+    return true
+  end
   run.shareLostAt = nil
   if run.syncedVia then run.slowOfferedAt = now() end
   dungeon.solicited[run.id] = now()
@@ -1454,10 +1514,43 @@ function dungeon.sendRun(run)
   for part = 1, total do
     send(string.format("SUM|%s|%d|%d|%s", run.id, part, total, string.sub(summary, (part - 1) * CHUNK_BYTES + 1, part * CHUNK_BYTES)), "GUILD", lost)
   end
+  -- A finished run of this player also goes to the group once, when it ends (a player with no companion and no guild is carried by it).
+  if run.state == "COMPLETED" and not run.groupShared and run.players and run.players[me()] and dungeon.smallGroup() then
+    if dungeon.sendRun(run, "GROUP") then run.groupShared = true end
+  end
   return true
 end
--- A re-send asked for by a guildmate (sendRun itself waits for the end of an instance).
-function dungeon.resend(run) return dungeon.sendRun(run) end
+-- A re-send asked for by a guildmate or a group member (sendRun itself waits for the end of an instance).
+function dungeon.resend(run, channel) return dungeon.sendRun(run, channel) end
+
+-- (9.3.1) Only a party of five or fewer shares runs with the group: in a raid, up to forty players would each send a summary.
+function dungeon.smallGroup()
+  if ns.util.groupChannel() ~= "PARTY" then return false end
+  local size = GetNumGroupMembers and GetNumGroupMembers() or 1
+  return type(size) == "number" and size <= 5
+end
+
+-- (9.3.1) Carrying for other players: this PC's companion uploads the runs of players near it. On by default; /guilded dungeon carry off.
+function dungeon.carryOn()
+  local d = db()
+  return not d or d.carryGroupRuns ~= false
+end
+-- A player who carries needs a companion on this PC (it is the only thing that can leave the game).
+-- (9.3.1) and a companion that says it knows the group relay (an older one would not read the carried table, and a bot that is not
+-- told about it could not place the runs): GuildedCompanionFeatures is written by the companion with every update and goes stale
+-- when it stops.
+local FEATURES_FRESH = 7 * 86400
+function dungeon.companionRelays()
+  local features = type(GuildedCompanionFeatures) == "table" and GuildedCompanionFeatures or nil
+  if not features or features["group-relay"] ~= true then return false end
+  local at = tonumber(features.at)
+  return at ~= nil and now() - at <= FEATURES_FRESH and at <= now() + 86400
+end
+function dungeon.canCarry() return dungeon.carryOn() and dungeon.companionRelays() end
+-- A short group message (a confirmation): the same waiting rule as guild messages.
+function dungeon.toGroup(key, text)
+  if outside() then send(text, "GROUP") else dungeon.defer(key, function() dungeon.toGroup(key, text) end) end
+end
 -- A short guild message (a confirmation, an officer request): the same waiting rule.
 dungeon.outside = outside
 function dungeon.guild(key, text)
@@ -1494,6 +1587,38 @@ local function scheduleOffer(delayBase)
 end
 dungeon.scheduleOffer = scheduleOffer
 
+-- (9.3.1) The same offer to the party or raid you are in: the ids of your runs nobody confirmed, so a player there whose companion
+-- lacks one asks for it (WNT) and gets it (SUM) in the group. At most once per OFFER_EVERY seconds, a random moment after the
+-- group changed.
+function dungeon.offerToGroup()
+  local d = db()
+  if not d or not dungeon.smallGroup() then return false end
+  if not outside() then dungeon.defer("offer-group", dungeon.offerToGroup) return false end
+  if dungeon.lastGroupOffer and now() - dungeon.lastGroupOffer < OFFER_EVERY then return false end
+  local ids, size = {}, 4
+  for _, run in ipairs(dungeon.ownUnconfirmed()) do
+    -- A run a group member said they hold is offered again slowly: only the companion's own receipt ends the offers.
+    local slow = run.groupAckedAt and now() - run.groupAckedAt < SLOW_REOFFER
+    if not slow and #ids < OFFER_IDS and size + #run.id + 1 <= 240 then
+      ids[#ids + 1] = run.id
+      size = size + #run.id + 1
+      dungeon.solicited[run.id] = now()
+    end
+  end
+  if #ids == 0 then return false end
+  dungeon.lastGroupOffer = now()
+  send("OFR|" .. table.concat(ids, ","), "GROUP")
+  return true
+end
+function dungeon.noteGroupChange()
+  if dungeon.groupOfferScheduled or not C_Timer or not C_Timer.After or not dungeon.smallGroup() then return end
+  dungeon.groupOfferScheduled = true
+  C_Timer.After(20 + math.random(0, 20), function()
+    dungeon.groupOfferScheduled = false
+    pcall(dungeon.offerToGroup)
+  end)
+end
+
 local function onlineGuildmates()
   if not GetNumGuildMembers then return nil end
   local ok, _, online = pcall(GetNumGuildMembers)
@@ -1519,9 +1644,10 @@ local function listOf(text, tag)
 end
 dungeon.listOf = listOf
 
-function dungeon.flushAnswers()
-  local q = dungeon.answers
-  if not outside() then dungeon.defer("answers", dungeon.flushAnswers) return end
+function dungeon.flushAnswers(channel)
+  channel = channel == "GROUP" and "GROUP" or "GUILD"
+  local q = channel == "GROUP" and dungeon.groupAnswers or dungeon.answers
+  if not outside() then dungeon.defer("answers" .. channel, function() dungeon.flushAnswers(channel) end) return end
   q.scheduled = false
   local acks, wants = {}, {}
   for id in pairs(q.acks) do acks[#acks + 1] = id end
@@ -1531,11 +1657,11 @@ function dungeon.flushAnswers()
   local function emit(tag, ids)
     local line, used = {}, 0
     for _, id in ipairs(ids) do
-      if used + #id + 1 > 200 and #line > 0 then send(tag .. "|" .. table.concat(line, ","), "GUILD"); line, used = {}, 0 end
+      if used + #id + 1 > 200 and #line > 0 then send(tag .. "|" .. table.concat(line, ","), channel); line, used = {}, 0 end
       line[#line + 1] = id
       used = used + #id + 1
     end
-    if #line > 0 then send(tag .. "|" .. table.concat(line, ","), "GUILD") end
+    if #line > 0 then send(tag .. "|" .. table.concat(line, ","), channel) end
   end
   -- Remembered for a few minutes only: an answer the game dropped is given again when the offer comes back.
   for _, id in ipairs(acks) do dungeon.acked[id] = now() end
@@ -1544,45 +1670,54 @@ function dungeon.flushAnswers()
   emit("WNT", wants)
 end
 
-function dungeon.onOffer(text, sender)
+function dungeon.onOffer(text, sender, delivery)
   local d = db()
   if not d then return end
+  local channel = delivery == "GUILD" and "GUILD" or "GROUP"
   local last = dungeon.offerSeen[sender]
   if last and now() - last < OFFER_FROM_SENDER_EVERY then return end
   dungeon.offerSeen[sender] = now()
-  local q = dungeon.answers
+  local q = channel == "GROUP" and dungeon.groupAnswers or dungeon.answers
+  -- A guildmate's run is asked for by a guild companion; a group member's by any companion that carries (device mode included).
+  local mayAsk = (channel == "GROUP" and dungeon.canCarry()) or (channel == "GUILD" and dungeon.canUploadOthers())
   for index, id in ipairs(listOf(text, "OFR")) do
     if index > OFFER_IDS or q.count >= ANSWER_IDS then break end
     local saved = d.runs[id]
+    local held = channel == "GROUP" and d.carried and d.carried[id] or nil
     if saved then
       if saved.synced and not ackedRecently(id) and not q.acks[id] then q.acks[id] = true; q.count = q.count + 1 end
-    elseif not q.wants[id] and dungeon.canUploadOthers() then
+    elseif held then
+      -- Already carried here: said once the companion took it, never asked for again.
+      if held.groupSynced and not ackedRecently(id) and not q.acks[id] then q.acks[id] = true; q.count = q.count + 1 end
+    elseif not q.wants[id] and mayAsk then
       q.wants[id] = true
       q.count = q.count + 1
     end
   end
   if q.count > 0 and not q.scheduled and C_Timer and C_Timer.After then
     q.scheduled = true
-    C_Timer.After(2 + math.random(0, 10), function() pcall(dungeon.flushAnswers) end)
+    C_Timer.After(2 + math.random(0, 10), function() pcall(dungeon.flushAnswers, channel) end)
   end
 end
 
 -- A guildmate asks for a run. Only answered for a run this PC offered a moment ago (or one the asker played), at most
 -- RESEND_RUNS runs a round, and a run asked for again and again waits twice as long each time (a holder that keeps asking
 -- for a run it then refuses cannot make this PC repeat it).
-function dungeon.onWant(text, sender)
+function dungeon.onWant(text, sender, delivery)
   local d = db()
   if not d then return end
+  local channel = delivery == "GUILD" and "GUILD" or "GROUP"
   local sent = 0
   for _, id in ipairs(listOf(text, "WNT")) do
     dungeon.answers.wants[id] = nil -- someone asked already: no second ask from this PC
+    dungeon.groupAnswers.wants[id] = nil
     local run = d.runs[id]
     if run and not run.synced and (run.ackCount or 0) < 2 and run.players and run.players[me()] and TERMINAL[run.state] and sent < RESEND_RUNS
       and (solicitedRecently(id) or run.players[sender])
       and (not dungeon.resentAt[id] or now() - dungeon.resentAt[id] >= (dungeon.resendGap[id] or RESEND_COOLDOWN)) then
       dungeon.resentAt[id] = now()
       dungeon.resendGap[id] = math.min((dungeon.resendGap[id] or RESEND_COOLDOWN / 2) * 2, RESEND_GAP_MAX)
-      if dungeon.resend(run) then sent = sent + 1 end
+      if dungeon.resend(run, channel) then sent = sent + 1 end
     end
   end
 end
@@ -1595,12 +1730,20 @@ local function plausibleAcker(saved, id, sender)
   if saved.reporters and saved.reporters[sender] then return true end
   return dungeon.heard[id] ~= nil and dungeon.heard[id][sender] == true
 end
-function dungeon.noteAck(id, sender)
+function dungeon.noteAck(id, sender, delivery)
   local d = db()
   local saved = id and d and d.runs[id]
   dungeon.answers.acks[id or ""] = nil
   dungeon.answers.wants[id or ""] = nil
+  dungeon.groupAnswers.acks[id or ""] = nil
+  dungeon.groupAnswers.wants[id or ""] = nil
   if not saved or saved.synced or not sender then return end
+  -- (9.3.1) A confirmation heard in a group proves nothing (any player in it can send one): it only makes the next offer to the
+  -- group slower. Only the guild's confirmations, or this PC's own companion, mark a run as taken.
+  if delivery ~= nil and delivery ~= "GUILD" then
+    saved.groupAckedAt = now()
+    return
+  end
   saved.ackers = saved.ackers or {}
   if saved.ackers[sender] == nil and (saved.ackCount or 0) < 5 then
     saved.ackers[sender] = now()
@@ -1746,6 +1889,10 @@ local function handleDungeonCommand(args)
     if latest and ns.onDungeonSummary then ns.onDungeonSummary(latest)
     else ns.message(ns.L and ns.L("No saved dungeon result yet.") or "No saved dungeon result yet.") end
   elseif action == "check" then check()
+  elseif action == "carry" then
+    local choice = string.lower(args[2] or "")
+    if choice == "on" then d.carryGroupRuns = nil elseif choice == "off" then d.carryGroupRuns = false end
+    ns.message(dungeon.carryOn() and L("Your companion carries the runs of players in your group: on.") or L("Your companion carries the runs of players in your group: off."))
   elseif action == "start" then
     if not d.current then ns.message("Not in a tracked dungeon run.") return end
     if not canControl() then ns.message("Only the group leader or an officer can do that.") return end
@@ -1757,7 +1904,7 @@ local function handleDungeonCommand(args)
     if not canControl() then ns.message("Only the group leader or an officer can do that.") return end
     finish("ABANDONED", "manual")
   else
-    ns.message("/guilded dungeon status | results | start | complete | abandon | check")
+    ns.message("/guilded dungeon status | results | start | complete | abandon | check | carry on|off")
   end
 end
 ns.commandHandlers["dungeon"] = function(args)

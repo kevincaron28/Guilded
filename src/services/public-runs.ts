@@ -231,12 +231,14 @@ export interface PublicRunStore {
   uploadsSince(uploaderKey: string, since: Date): Promise<number>;
   /** The run ids this uploader's runs are stored under, for the addon's "synced" marks. */
   storedRefs(uploaderKey: string, gameEdition?: string): Promise<string[]>;
+  /** (9.3.1) Removes a run that only relayed copies created (every uploader key starts with "relay:"), so a first-hand report can replace it. */
+  discardRelayRun?(runId: string): Promise<boolean>;
 }
 
 export interface IngestResult { accepted: string[]; confirmed: string[]; duplicates: string[]; historyOnly: string[]; rejected: { id: string; reason: string }[]; acceptedRunRefs: string[] }
 export class PublicUploadError extends Error { constructor(message: string, readonly status: number) { super(message); } }
 
-export async function ingestPublicRuns(store: PublicRunStore, input: { uploaderKey: string; character: string | null; /** The account's other saved characters (9.3.0). */ characters?: string[]; gameEdition?: string; source: "personal" | "guild"; runs: unknown }, now = new Date()): Promise<IngestResult> {
+export async function ingestPublicRuns(store: PublicRunStore, input: { uploaderKey: string; character: string | null; /** The account's other saved characters (9.3.0). */ characters?: string[]; gameEdition?: string; source: "personal" | "guild"; /** Runs a companion carried for other players (9.3.1): they never dispute a first-hand run. */ relayed?: boolean; runs: unknown }, now = new Date()): Promise<IngestResult> {
   const cutoff = dungeonResetCutoff();
   if (!Array.isArray(input.runs)) throw new PublicUploadError("runs must be a list", 400);
   if (input.runs.length > PUBLIC_LIMITS.runsPerUpload) throw new PublicUploadError(`Send at most ${PUBLIC_LIMITS.runsPerUpload} runs at once.`, 413);
@@ -269,7 +271,8 @@ export async function ingestPublicRuns(store: PublicRunStore, input: { uploaderK
     seen.add(seenKey);
     // A personal upload is its character's report; a guild's copy carries its reporters' and recorder's.
     const observer = observationOf(summary, summary.gameEdition)?.observer;
-    const reporters = [...new Set((observer ? [observer] : (own ?? input.character) ? [(own ?? input.character)!] : [...run.reporterNames ?? [], ...run.recorder ? [run.recorder] : []]).map(key))];
+    // A relayed copy (a companion carrying the run for others) records no reporter: it never counts as a confirmation.
+    const reporters = input.relayed ? [] : [...new Set((observer ? [observer] : (own ?? input.character) ? [(own ?? input.character)!] : [...run.reporterNames ?? [], ...run.recorder ? [run.recorder] : []]).map(key))];
     const uploader = { key: input.uploaderKey, reporters };
     let stored = await store.findRun(summary.runKey);
     if (!stored) {
@@ -285,6 +288,12 @@ export async function ingestPublicRuns(store: PublicRunStore, input: { uploaderK
         stored = await store.findRun(summary.runKey);
         if (!stored) throw error;
       }
+    }
+    if (input.relayed && !agrees(stored, summary)) { result.rejected.push({ id: run.id, reason: "other party members sent a different result; the run is held for review" }); continue; }
+    if (!input.relayed && !agrees(stored, summary) && stored.uploaders.length > 0 && stored.uploaders.every((uploader) => uploader.startsWith("relay:")) && store.discardRelayRun && await store.discardRelayRun(stored.id)) {
+      // The first-hand report of a player in the run wins over a run that only relayed copies made.
+      try { await store.createRun(summary, uploader, input.source); result.accepted.push(run.id); continue; }
+      catch (error) { if (!error || typeof error !== "object" || !("code" in error) || error.code !== "P2002") throw error; stored = await store.findRun(summary.runKey); if (!stored) throw error; }
     }
     if (stored.uploaders.includes(input.uploaderKey) && !store.supportsEvidenceRevisions) { result.duplicates.push(run.id); continue; }
     const { agree, duplicate, historyOnly } = await store.addUpload(stored.id, uploader, summary);
@@ -412,6 +421,15 @@ export function prismaPublicRunStore(database: PrismaClient, clock:()=>Date=()=>
             players: { deleteMany: {}, create: promoted.players } } : {})
         } });
         return { agree, duplicate: false };
+      }, PUBLIC_RUN_TX);
+    },
+    async discardRelayRun(runId) {
+      return database.$transaction(async tx => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`public-run:${runId}`}, 0))`;
+        const uploads = await tx.publicRunUpload.findMany({ where: { runId }, select: { uploaderKey: true } });
+        if (!uploads.length || !uploads.every((upload) => upload.uploaderKey.startsWith("relay:"))) return false;
+        await tx.publicRun.delete({ where: { id: runId } });
+        return true;
       }, PUBLIC_RUN_TX);
     },
     uploadsSince: (uploaderKey, since) => database.publicRunUpload.count({ where: { uploaderKey, createdAt: { gte: since } } }),

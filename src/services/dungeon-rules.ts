@@ -43,6 +43,8 @@ export const dungeonRunSchema = z.object({
   reporters: z.number().int().nonnegative().default(1),
   // Characters whose addon reported the run (newer companions only).
   reporterNames: z.array(z.string().min(1).max(100)).max(10).optional(),
+  /** (9.3.1) Reached the uploader only through its group: a public-board run, not a guild one. */
+  viaGroup: z.boolean().optional(),
   // Optional presentation metadata must never invalidate otherwise valid awards.
   encounters: z.array(z.object({
     id: z.number().int().positive(), kind: z.literal("npc").optional(), name: z.string().max(100).optional(), success: z.boolean(),

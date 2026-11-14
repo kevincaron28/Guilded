@@ -9,10 +9,14 @@
 // and the bot skips duplicates.
 
 // ack: { ledger?: Iterable<string>, loot?: Iterable<string> } from the last standings answer.
+import { GROUP_RELAY_FEATURE, isGroupRun, leaveOut } from "./group-relay.mjs";
+
 export function acknowledgements(body) {
   return {
     ledger: new Set(Array.isArray(body?.acceptedLedgerRefs) ? body.acceptedLedgerRefs : []),
-    loot: new Set(Array.isArray(body?.acceptedLootRefs) ? body.acceptedLootRefs : [])
+    loot: new Set(Array.isArray(body?.acceptedLootRefs) ? body.acceptedLootRefs : []),
+    // The runs the bot already holds (only the "group:" receipts matter here: runs carried for other players are sent once).
+    runs: new Set(Array.isArray(body?.personal?.acceptedRunRefs) ? body.personal.acceptedRunRefs : [])
   };
 }
 
@@ -37,7 +41,12 @@ export function pruneOldRaids(exported, now = Date.now()) {
 }
 
 export function pruneAcknowledged(full, ack, features = new Set(["ledger-delta", "loot-delta"]), now = Date.now()) {
-  const { exported, omitted: raidsOmitted } = pruneOldRaids(full, now);
+  const pruned = pruneOldRaids(full, now);
+  const raidsOmitted = pruned.omitted;
+  // (9.3.1) Runs carried for players near this PC go only to a bot that announced the feature, and only once.
+  const exported = pruned.exported && Array.isArray(pruned.exported.dungeonRuns) && pruned.exported.dungeonRuns.some(isGroupRun)
+    ? { ...pruned.exported, dungeonRuns: pruned.exported.dungeonRuns.filter((run) => !isGroupRun(run) || !leaveOut(run, { enabled: features.has(GROUP_RELAY_FEATURE), acknowledged: ack?.runs ?? new Set() })) }
+    : pruned.exported;
   if (!ack || !exported) return { exported, omitted: { ledger: 0, loot: 0, raids: raidsOmitted } };
   const ledger = features.has("ledger-delta") ? ack.ledger ?? new Set() : new Set();
   const loot = features.has("loot-delta") ? ack.loot ?? new Set() : new Set();

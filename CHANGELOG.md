@@ -1,5 +1,25 @@
 # Changelog
 
+## 9.3.1 — 14 November 2026
+
+Published 14 November 2026 (GitHub and the website; CurseForge upload pending). Fixes after 9.3.0 and after the real-client tour of 13 November. Details: docs/V9_3_1_RELEASE_NOTES.md. Most fixes were seen working on a real client on 14 November; the rest are listed as not yet verified (see docs/V9_3_1_RELEASE_ACCEPTANCE.md).
+
+**Addon (Guilded)**
+- The save button no longer blocks the Guilded window in combat (#874).
+- The duel rating in the game starts from 1000 and the season ladder runs from 13 November 2026; duels outside the guild are kept, and old history is pruned by season (#882, #886).
+- 21 fixes from the tour (#884): a character without a guild is no longer shown as an officer; `/gdg` and `/guilded dungeons` open the dungeons window; the dungeon result card and the options panel are opaque; French text that overlapped is fixed; invite marks survive a reload; the copy box opens below the To invite window; the window says how old its list is; the Store name reads "Guild Sync Companion" in the companion steps.
+
+**Dungeon runs**
+- Runs made for another guild wait for that guild's server (#856).
+
+**Companion**
+- The installer, run by hand over a running companion, finishes and restarts it; the uninstall entry is safe (#877, #885). Store: 9.3.1.0 package built, not submitted (Submission 13 certifying).
+
+**Bot and website (already live)**
+- Card redesign (#865, #881) and painted badges (#875, #879).
+- Duel rating with guild and global ladders and public pages (#876, #878).
+- One witness is enough for a dungeon run; officers review held runs with `/officer dungeon flagged` (#872, #883).
+
 ## 9.3.0 — 13 November 2026
 
 Not yet published. Polish after 9.2.0 (addon settings and chat, dungeon and duel cards, a few removals) and dungeon-run fixes. Details: docs/V9_3_0_RELEASE_NOTES.md. Not yet checked in a real game client (see docs/V9_3_0_RELEASE_ACCEPTANCE.md).

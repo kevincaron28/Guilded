@@ -660,8 +660,8 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
         `Des scénarios, pas des prédictions. Pour chaque parcours : le temps le plus lent qui ajouterait au moins ${GAIN_STEP} points au score de saison (ou ce qui reste) une fois les ${n} meilleurs parcours choisis de nouveau, et ce que ce temps ajoute exactement; plus rapide ajoute plus. L'essai doit être classé (dernier boss vu, présence de 80 %); les cibles sont celles de la saison.`)}${assumed}</p>`
       + `<p>${lead}${outside}</p>`
       + table([t("Dungeon", "Donjon"), t("Levels", "Niveaux"), t("Target", "Cible"), t("Best", "Meilleur"), t(`In best ${n}`, `Dans les ${n} meilleurs`), t("Next gain (scenario)", "Prochain gain (scénario)"), t("Eligibility and trust", "Admissibilité et confiance")],
-        plan.routes.map((r) => `<tr><td>${escapeHtml(r.name)}</td><td>${levels(r)}</td><td class="num">${time(r.targetSec)}</td>`
-          + `<td class="num">${r.best ? `${time(r.best.durationSec)} · <span class="score">${r.best.points}</span>` : "–"}</td><td>${r.best ? (r.best.counted ? "✔" : t("no", "non")) : "–"}</td><td>${nextGain(r)}</td><td>${status(r)}</td></tr>`), [2, 3]);
+        plan.routes.map((r) => `<tr><td>${escapeHtml(r.name)}</td><td data-l="${t("Levels", "Niveaux")}">${levels(r)}</td><td class="num" data-l="${t("Target", "Cible")}">${time(r.targetSec)}</td>`
+          + `<td class="num" data-l="${t("Best", "Meilleur")}">${r.best ? `${time(r.best.durationSec)} · <span class="score">${r.best.points}</span>` : "–"}</td><td data-l="${t(`In best ${n}`, `Dans les ${n} meilleurs`)}">${r.best ? (r.best.counted ? "✔" : t("no", "non")) : "–"}</td><td data-l="${t("Next gain", "Prochain gain")}">${nextGain(r)}</td><td>${status(r)}</td></tr>`), [2, 3], "rank-cards");
   }
 
   // Tank, healer and DPS scores, each from that role's runs only: separate, never added together.
@@ -746,8 +746,14 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
   const allGuildStats = (): Promise<GuildStats[]> => deps.store.guildStats
     ? cached(`guild-stats:${currentEdition()}`, async () => deps.store.guildStats!((await cached("guilds", () => deps.store.guilds())).map((g) => g.id)))
     : Promise.resolve([]);
-  const guildPath = (ctx: WebContext, guild: PublicGuild) => `/leaderboards/guild/${encodeURIComponent(indexOf(ctx).slugs.get(guild.id) ?? guild.publicSlug ?? guild.id)}`;
-  const guildLink = (ctx: WebContext, guild: PublicGuild) => `<a href="${link(guildPath(ctx, guild), ctx.lang)}">${escapeHtml(guild.name)}</a>`;
+  // A guild is linked only by its public slug; without one (index missing) the name is shown without a link.
+  const guildPath = (ctx: WebContext, guild: PublicGuild): string | null => {
+    const slug = indexOf(ctx).slugs.get(guild.id) ?? guild.publicSlug;
+    return slug ? `/leaderboards/guild/${encodeURIComponent(slug)}` : null;
+  };
+  // For pages that are only reached through a guild slug, so the path always exists.
+  const guildBase = (ctx: WebContext, guild: PublicGuild) => guildPath(ctx, guild) ?? "/leaderboards/guilds/";
+  const guildLink = (ctx: WebContext, guild: PublicGuild) => { const path = guildPath(ctx, guild); return path ? `<a href="${link(path, ctx.lang)}">${escapeHtml(guild.name)}</a>` : escapeHtml(guild.name); };
   const guildOf = (ctx: WebContext, player: LeaderPlayer): PublicGuild | null => {
     const index = indexOf(ctx);
     // Only a roster character with a public run of that guild is tagged. The uploader-supplied player.guild text is stored for later, validated use and never printed.
@@ -799,7 +805,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
         return `<tr><td>${rankCell(rank)}</td><td class="wrap">${name}</td><td>${faction(s?.faction)}</td><td>${s?.realm ? escapeHtml(s.realm) : dash}</td>`
           + (withStats ? `<td class="num">${num(s?.members)}</td><td class="num">${num(s?.linked)}</td><td class="num" title="${t("Linked characters at level 60, out of those with a known level", "Personnages liés au niveau 60, sur ceux dont le niveau est connu")}">${s ? `${s.at60}<span class="tag">/${s.levelled}</span>` : dash}</td><td class="num">${num(averageLevel(s))}</td>` : "")
           + `<td class="num score">${row.points === null ? dash : `${row.points}`}${row.bracket ? ` <span class="tag">${escapeHtml(row.bracket.replace("-", "–"))}</span>` : ""}</td><td class="num">${row.rated}</td><td class="num">${row.runs}</td><td class="num">${row.records}</td>`
-          + (withStats ? `<td class="num">${s?.duels ? `<a href="${link(`${guildPath(ctx, row.guild)}/duels`, lang)}">${num(s.duels)}</a>` : num(s?.duels)}</td>` : "") + `</tr>`;
+          + (withStats ? `<td class="num">${s?.duels && guildPath(ctx, row.guild) ? `<a href="${link(`${guildPath(ctx, row.guild)}/duels`, lang)}">${num(s.duels)}</a>` : num(s?.duels)}</td>` : "") + `</tr>`;
       }).join("") + `</tbody></table></div>`
       : `<p class="muted">${t("No guild matches these filters.", "Aucune guilde ne correspond à ces filtres.")}</p>`;
     return `<h2>${t("All guilds", "Toutes les guildes")} <span class="tag">(${shown.length})</span></h2>` + form + table + pager(ctx, "/leaderboards/guilds/", keep, page, pages)
@@ -846,7 +852,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     // Movement since the weekly reset, shown only when there is an earlier record to compare with.
     const weekFrom = publicWeek(now()).from!;
     const running = filters.season !== "all" && (!period.to || period.to > now());
-    const moves = running && bracket && all.some((run) => run.endedAt < weekFrom) ? rankMovement(all, weekFrom, rules, bracket) : null;
+    const moves = running && bracket && all.some((run) => run.endedAt < weekFrom) ? rankMovement(all, weekFrom, rules, bracket, keepPlayer(filters, rules)) : null;
     const bestRuns = (row: ScoreRow) => row.routes.filter((r) => r.counted).sort((a, b) => b.points - a.points).slice(0, 3)
       .map((r) => `<a href="${link(runPath(r.run.runId), lang)}">${escapeHtml(r.run.dungeonName)}</a> <span class="tag">${r.points}</span>`).join(" ");
     const list = rows.length ? `<div class="table-wrap"><table class="dense rank-cards"><thead><tr><th>#</th><th>${t("Character", "Personnage")}</th><th>${t("Role", "Rôle")}</th><th class="num">${t("Score", "Score")}</th><th class="num">${t("Routes", "Parcours")}</th><th>${t("Best runs", "Meilleurs essais")}</th></tr></thead><tbody>`
@@ -885,6 +891,21 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     return kit.page(200, t("Guild rankings", "Classement des guildes"), body, { description: t("WoW Forever guild rankings by dungeon score: each guild's five best members per level bracket.", "Classement des guildes WoW Forever par score de donjon : les cinq meilleurs membres de chaque guilde par tranche de niveaux.") });
   }
 
+  // Every character that appears in a public run of any season, folded for matching and ordered by best score; built once a minute.
+  const searchIndex = () => cached("search:index", async () => {
+    const periods = await seasonsNow();
+    const rules = periodRules(periods[0]!);
+    const everything = (await deps.store.runs({ from: null, to: null })).filter((run) => !run.challenge);
+    const best = new Map<string, number>();
+    for (const row of characterScores(everything, rules)) best.set(characterId(row.player), Math.max(best.get(characterId(row.player)) ?? 0, row.points));
+    const seen = new Map<string, { player: LeaderPlayer; folded: string; points: number }>();
+    for (const run of [...everything].sort(newestFirst)) for (const player of run.players as LeaderPlayer[]) {
+      const id = characterId(player);
+      if (!seen.has(id)) seen.set(id, { player, folded: `${foldText(player.displayName || player.character)} ${foldText(player.character)}`, points: best.get(id) ?? 0 });
+    }
+    return { people: [...seen.values()].sort((a, b) => b.points - a.points || a.player.character.localeCompare(b.player.character)) };
+  });
+
   // The landing page of the leaderboards: this season's podiums, what is happening now and what changed this week.
   async function hub(ctx: WebContext, kit: WebKit): Promise<WebResponse> {
     const { t, lang } = ctx;
@@ -893,10 +914,17 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     await ensureIndex(ctx, period);
     const rules = periodRules(period);
     const all = (await periodRuns(period)).filter((run) => !run.challenge);
-    const bracket = chosenBracket(rules.brackets, null);
+    const bracket = chosenBracket(rules.brackets, ctx.request.query.get("bracket"));
     const week = publicWeek(now());
     const weekStart = week.from!;
-    const scores = bracket ? characterScores(all, rules).filter((row) => row.bracket === bracket.key) : [];
+    // The computed panels are shared by every visitor for a minute.
+    const panels = await cached(`hub:${period.id}:${bracket?.key ?? ""}`, async () => ({
+      scores: bracket ? characterScores(all, rules).filter((row) => row.bracket === bracket.key) : [],
+      risers: bracket ? climbers(all, weekStart, rules, bracket.key, 5) : [],
+      broken: recordsBroken(all, weekStart, rules, 5),
+      latest: [...all].sort(newestFirst).slice(0, 6)
+    }));
+    const scores = panels.scores;
     const edition = currentEdition();
     const q = (ctx.request.query.get("q") ?? "").trim().slice(0, 40);
     const nameOf = (player: LeaderPlayer) => player.displayName || player.character;
@@ -905,7 +933,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
 
     // Guilds: the season's top three and the guild with the best score this week.
     const ranks = bracket ? (await guildRanks(period)).filter((r) => r.bracket === bracket.key) : [];
-    const guildEntries3: PodiumEntry[] = ranks.slice(0, 3).map((r) => ({ name: r.guild.name, href: link(guildPath(ctx, r.guild), lang), sub: t(`${r.rated} rated`, `${r.rated} classés`), value: String(r.points) }));
+    const guildEntries3: PodiumEntry[] = ranks.slice(0, 3).map((r) => ({ name: r.guild.name, href: guildPath(ctx, r.guild) ? link(guildPath(ctx, r.guild)!, lang) : null, sub: t(`${r.rated} rated`, `${r.rated} classés`), value: String(r.points) }));
     const weekPeriod = { ...week, rules } as PublicPeriod;
     const weekRanks = bracket ? (await guildRanks(weekPeriod)).filter((r) => r.bracket === bracket.key) : [];
     const guildOfWeek = weekRanks[0] ?? null;
@@ -923,60 +951,64 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     }
 
     // Latest runs, climbers and records broken this week.
-    const latest = [...all].sort(newestFirst).slice(0, 6);
+    const latest = panels.latest;
     const latestStrip = strip(latest.map((run) => ({
       main: `<a href="${link(runPath(run.runId), lang)}">${escapeHtml(run.dungeonName)}</a> <span class="muted">${run.players.slice(0, 3).map((p) => escapeHtml(nameOf(p))).join(", ")}${run.players.length > 3 ? "…" : ""}</span>`,
       side: time(run.durationSec)
     })));
-    const risers = bracket ? climbers(all, weekStart, rules, bracket.key, 5) : [];
+    const risers = panels.risers;
     const riserStrip = strip(risers.map((entry) => ({
       main: `<a class="c-${classSlug(entry.row.player.className)}" href="${link(characterPath(entry.row.player), lang)}">${escapeHtml(nameOf(entry.row.player as LeaderPlayer))}</a>`,
       side: `<span class="up">▲ ${entry.gain}</span> <span class="muted">${entry.row.points}</span>`
     })));
-    const broken = recordsBroken(all, weekStart, rules, 5);
+    const broken = panels.broken;
     const recordStrip = strip(broken.map(({ run, previousSec }) => ({
       main: `<a href="${link(runPath(run.runId), lang)}">${escapeHtml(run.dungeonName)}</a> <span class="muted">${run.players.slice(0, 3).map((p) => escapeHtml(nameOf(p))).join(", ")}</span>`,
       side: `${time(run.durationSec)}${previousSec !== null ? ` <span class="muted">(${t("was", "avant")} ${time(previousSec)})</span>` : ` <span class="muted">${t("first", "premier")}</span>`}`
     })));
 
-    // Search: characters and guilds by name (accents and case ignored).
+    // Search: characters (any season) and guilds by name, accents and case ignored, best score first; two letters at least.
     let results = "";
     if (q) {
       const folded = foldText(q);
-      const seen = new Map<string, LeaderPlayer>();
-      for (const run of all) for (const player of run.players) if (foldText(nameOf(player)).includes(folded) || foldText(player.character).includes(folded)) seen.set(characterId(player), player);
-      const people = [...seen.values()].slice(0, 12);
-      const guilds = (await cached("guilds", () => deps.store.guilds())).filter((g) => foldText(g.name).includes(folded)).slice(0, 8);
-      results = `<section class="hub-results" aria-live="polite"><h2>${t("Results for", "Résultats pour")} “${escapeHtml(q)}”</h2>`
-        + (people.length || guilds.length
+      let inner: string;
+      if ([...folded].length < 2) inner = `<p class="muted">${t("Type at least 2 characters.", "Tapez au moins 2 caractères.")}</p>`;
+      else {
+        const index = await searchIndex();
+        const people = index.people.filter((entry) => entry.folded.includes(folded)).slice(0, 12).map((entry) => entry.player);
+        const guilds = (await cached("guilds", () => deps.store.guilds())).filter((g) => foldText(g.name).includes(folded)).slice(0, 8);
+        inner = people.length || guilds.length
           ? (people.length ? `<h3>${t("Characters", "Personnages")}</h3>` + strip(people.map((p) => ({ main: `<a class="c-${classSlug(p.className)}" href="${link(characterPath(p), lang)}">${escapeHtml(nameOf(p))}</a>`, side: escapeHtml(classText(p)) }))) : "")
             + (guilds.length ? `<h3>${t("Guilds", "Guildes")}</h3>` + strip(guilds.map((g) => ({ main: guildLink(ctx, g) }))) : "")
-          : emptyBox(t("Nobody found", "Aucun résultat"), [t("Check the spelling, or find the character in the Players tab.", "Vérifiez l'orthographe, ou cherchez le personnage dans l'onglet Joueurs.")]))
-        + `</section>`;
+          : emptyBox(t("Nobody found", "Aucun résultat"), [t("Check the spelling, or find the character in the Players tab.", "Vérifiez l'orthographe, ou cherchez le personnage dans l'onglet Joueurs.")]);
+      }
+      results = `<section class="hub-results" aria-live="polite"><h2>${t("Results for", "Résultats pour")} “${escapeHtml(q)}”</h2>${inner}</section>`;
     }
 
     const empty = (what: string) => emptyBox(what, [t("Install Guilded Dungeons, sign in and connect the companion: your first finished run puts you on the board.", "Installez Guilded Dungeons, connectez-vous et reliez le compagnon : votre premier donjon terminé vous place au classement."), `<a href="/companion/">${t("Get the companion", "Obtenir le compagnon")}</a>`]);
     const card = (title: string, emblem: string, inner: string, href: string, more: string) => `<section class="hub-card"><h2><img src="${emblem}" alt="" width="28" height="28" loading="lazy">${escapeHtml(title)}</h2>${inner}<a class="more" href="${href}">${escapeHtml(more)} →</a></section>`;
     const bracketName_ = bracket ? bracketName(ctx, bracket.key) : "";
     const kpis = `<div class="kpis"><span><b>${scores.length}</b> ${t("ranked players", "joueurs classés")}</span><span><b>${all.length}</b> ${t("runs this season", "essais cette saison")}</span><span><b>${(await cached("guilds", () => deps.store.guilds())).length}</b> ${t("guilds", "guildes")}</span>${globalOpen() ? `<span><b>${duelCount}</b> ${t("duels", "duels")}</span>` : ""}</div>`;
+    const picker = rules.brackets.length > 1 ? `<form class="hub-picker" method="get" action="/leaderboards/"><input type="hidden" name="lang" value="${lang}">${q ? `<input type="hidden" name="q" value="${escapeHtml(q)}">` : ""}<label for="hub-bracket">${t("Levels", "Niveaux")}</label><select id="hub-bracket" name="bracket" onchange="this.form.submit()">${rules.brackets.map((b) => `<option value="${escapeHtml(b.key as string)}"${b.key === bracket?.key ? " selected" : ""}>${escapeHtml(bracketName(ctx, b.key as string))}</option>`).join("")}</select><noscript><button class="button" type="submit">${t("Show", "Afficher")}</button></noscript></form>` : "";
     const body = PAGE_CSS + HUB_CSS
       + `<header class="hub-banner"><p class="eyebrow">Guilded · ${escapeHtml(periodName(ctx, period))}</p><h1>${t("WoW Forever leaderboards", "Classements WoW Forever")}</h1>`
       + `<p>${t("Dungeon runs, duels, players and guilds: who is fastest, who is climbing, and what changed this week.", "Donjons, duels, joueurs et guildes : qui est le plus rapide, qui monte, et ce qui a changé cette semaine.")}</p>${searchForm(t, lang, q, edition)}</header>`
-      + hubTabs(t, lang, "overview") + results + kpis
+      + hubTabs(t, lang, "overview") + results + kpis + picker
       + `<div class="hub-grid">`
       + card(t("Top players", "Meilleurs joueurs") + (bracketName_ ? ` · ${bracketName_}` : ""), HUB_EMBLEMS.players, charEntries.length ? podium(charEntries) : empty(t("No ranked player yet", "Aucun joueur classé")), link("/leaderboards/characters/", lang), t("Full player ranking", "Classement des joueurs"))
       + card(t("Top guilds", "Meilleures guildes"), HUB_EMBLEMS.guilds, guildEntries3.length ? podium(guildEntries3) : emptyBox(t("No ranked guild yet", "Aucune guilde classée"), [t("Officers publish their guild's runs with /mod leaderboard in Discord.", "Les officiers publient les essais de leur guilde avec /mod leaderboard dans Discord.")]), link("/leaderboards/guilds/", lang), t("All guilds", "Toutes les guildes"))
       + (globalOpen() ? card(t("Duel ladder", "Classement des duels"), HUB_EMBLEMS.duels, duelEntries.length ? podium(duelEntries) : emptyBox(t("No duel yet", "Aucun duel"), [t("Duel a guildmate with the Guilded addon to get on the ladder.", "Affrontez un membre de la guilde avec l'addon Guilded pour entrer au classement.")]), link("/leaderboards/duels/", lang), t("Full duel ladder", "Classement des duels complet")) : "")
       + `</div><div class="hub-grid two" style="margin-top:16px">`
-      + `<section class="hub-card"><h3>${t("Latest runs", "Derniers essais")}</h3>${latest.length ? latestStrip : empty(t("No run yet", "Aucun essai"))}<a class="more" href="${link("/leaderboards/dungeons/", lang)}">${t("All dungeons", "Tous les donjons")} →</a></section>`
-      + (globalOpen() ? `<section class="hub-card"><h3>${t("Latest duels", "Derniers duels")}</h3>${duelStrip || `<p class="muted">${t("No duel yet.", "Aucun duel.")}</p>`}<a class="more" href="${link("/leaderboards/duels/", lang)}">${t("All duels", "Tous les duels")} →</a></section>` : "")
-      + `<section class="hub-card"><h3>▲ ${t("Biggest climbers this week", "Plus fortes hausses cette semaine")}</h3>${risers.length ? riserStrip : `<p class="muted">${t("Nobody has gained points since the weekly reset yet.", "Personne n'a gagné de points depuis la réinitialisation hebdomadaire.")}</p>`}</section>`
-      + `<section class="hub-card"><h3>🏆 ${t("Records broken this week", "Records battus cette semaine")}</h3>${broken.length ? recordStrip : `<p class="muted">${t("No dungeon record has fallen this week.", "Aucun record de donjon battu cette semaine.")}</p>`}<a class="more" href="${link("/leaderboards/dungeons/", lang)}">${t("Dungeon records", "Records des donjons")} →</a></section>`
+      + `<section class="hub-card"><h2>${t("Latest runs", "Derniers essais")}</h2>${latest.length ? latestStrip : empty(t("No run yet", "Aucun essai"))}<a class="more" href="${link("/leaderboards/dungeons/", lang)}">${t("All dungeons", "Tous les donjons")} →</a></section>`
+      + (globalOpen() ? `<section class="hub-card"><h2>${t("Latest duels", "Derniers duels")}</h2>${duelStrip || `<p class="muted">${t("No duel yet.", "Aucun duel.")}</p>`}<a class="more" href="${link("/leaderboards/duels/", lang)}">${t("All duels", "Tous les duels")} →</a></section>` : "")
+      + `<section class="hub-card"><h2>▲ ${t("Biggest climbers this week", "Plus fortes hausses cette semaine")}</h2>${risers.length ? riserStrip : `<p class="muted">${t("Nobody has gained points since the weekly reset yet.", "Personne n'a gagné de points depuis la réinitialisation hebdomadaire.")}</p>`}</section>`
+      + `<section class="hub-card"><h2>🏆 ${t("Records broken this week", "Records battus cette semaine")}</h2>${broken.length ? recordStrip : `<p class="muted">${t("No dungeon record has fallen this week.", "Aucun record de donjon battu cette semaine.")}</p>`}<a class="more" href="${link("/leaderboards/dungeons/", lang)}">${t("Dungeon records", "Records des donjons")} →</a></section>`
       + `</div>`
-      + (guildOfWeek ? `<section class="hub-card" style="margin-top:16px"><h3><img src="${HUB_EMBLEMS.guilds}" alt="" width="28" height="28" loading="lazy">${t("Guild of the week", "Guilde de la semaine")}</h3><p>${guildLink(ctx, guildOfWeek.guild)} · <strong>${guildOfWeek.points}</strong> ${t("points", "points")} · ${t(`${guildOfWeek.rated} rated members`, `${guildOfWeek.rated} membres classés`)}</p></section>` : "")
+      + (guildOfWeek ? `<section class="hub-card" style="margin-top:16px"><h2><img src="${HUB_EMBLEMS.guilds}" alt="" width="28" height="28" loading="lazy">${t("Guild of the week", "Guilde de la semaine")}</h2><p>${guildLink(ctx, guildOfWeek.guild)} · <strong>${guildOfWeek.points}</strong> ${t("points", "points")} · ${t(`${guildOfWeek.rated} rated members`, `${guildOfWeek.rated} membres classés`)}</p></section>` : "")
       + `<p class="muted" style="margin-top:18px">${t("Community reports from guilds that publish their runs; players can hide their profile. ", "Rapports communautaires de guildes qui publient leurs essais; les joueurs peuvent masquer leur profil. ")}<a href="${link("/me/", lang)}">${t("Find your characters in My Guilded →", "Retrouvez vos personnages dans Mon Guilded →")}</a></p>`;
     return kit.page(200, t("WoW Forever leaderboards", "Classements WoW Forever"), body, {
-      description: t("WoW Forever dungeon, duel, player and guild leaderboards: podiums, latest runs, weekly climbers and records.", "Classements WoW Forever des donjons, duels, joueurs et guildes : podiums, derniers essais, hausses de la semaine et records.")
+      description: t("WoW Forever dungeon, duel, player and guild leaderboards: podiums, latest runs, weekly climbers and records.", "Classements WoW Forever des donjons, duels, joueurs et guildes : podiums, derniers essais, hausses de la semaine et records."),
+      shareImage: "/images/hero/site-hero-1600.webp"
     });
   }
 
@@ -1097,13 +1129,15 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     }
     // Duel rating of this character on the global ladder (the same key the ladder uses), when the ladder is open.
     let duelPanel = "";
+    let duelRank = 0;
     if (me && globalOpen()) {
       const key = duelKey(me.character, me.realm ?? realm ?? "");
       const all = await cached("duels:global", () => deps.store.globalDuelRows!());
       const seasonId = seasonOf(now(), RATING_START).id;
       const trend = playerDuelTrend(all, seasonId, RATING_START, key);
       if (trend.length) {
-        const row = buildGlobalBoard(all, seasonId, RATING_START, { className: null, levels: null }).rows.find((r) => r.key === key);
+        const row = (await cached(`duels:board:${seasonId}::`, async () => buildGlobalBoard(all, seasonId, RATING_START, { className: null, levels: null }))).rows.find((r) => r.key === key);
+        duelRank = row?.rank ?? 0;
         const wins = trend.filter((d) => d.won).length;
         duelPanel = `<h2>${t("Duels", "Duels")} · ${escapeHtml(ratingSeasonName(seasonId, lang))}</h2>`
           + `<p><span class="score">${Math.round(trend[trend.length - 1]!.score)}</span> ${row?.rank ? `<span class="badge">#${row.rank}</span> ` : ""}<span class="muted">${wins}–${trend.length - wins}</span> `
@@ -1112,11 +1146,24 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
           + `<p><a href="${link("/leaderboards/duels/", lang, { p: key })}">${t("All duels of this player →", "Tous les duels de ce joueur →")}</a></p>`;
       }
     }
+    // Badges drawn from what the page already shows: standing among this season's ranked characters, duel standing, dungeons cleared.
+    const badgeList: { img: string; text: string }[] = [];
+    if (me && current.length) {
+      const seasonAll = (await periodRuns(seasons[0]!)).filter((run) => !run.challenge);
+      const seasonScores = characterScores(seasonAll, periodRules(seasons[0]!));
+      for (const row of current) {
+        const place = seasonScores.filter((r) => r.bracket === row.bracket).findIndex((r) => characterId(r.player) === characterId(row.player)) + 1;
+        if (place >= 1 && place <= 3) badgeList.push({ img: HUB_EMBLEMS.players, text: t(`Top ${place} · ${bracketName(ctx, row.bracket)}`, `Top ${place} · ${bracketName(ctx, row.bracket)}`) });
+      }
+    }
+    if (duelRank >= 1 && duelRank <= 10) badgeList.push({ img: HUB_EMBLEMS.duels, text: t(`Duel ladder #${duelRank}`, `Classement des duels n° ${duelRank}`) });
+    if (best.size >= 5) badgeList.push({ img: HUB_EMBLEMS.dungeons, text: t(`${best.size} dungeons cleared`, `${best.size} donjons terminés`) });
+    const badgeShelf = badgeList.length ? `<div class="pbadges" aria-label="${t("Badges", "Badges")}">${badgeList.map((b) => `<span><img src="${b.img}" alt="" width="28" height="28" loading="lazy">${escapeHtml(b.text)}</span>`).join("")}</div>` : "";
     const history = seasons.map((p) => ({ p, rows: mine(characterScores(inPeriod(p), periodRules(p))) })).filter((h) => h.rows.length);
     const top = Math.max(1, ...history.flatMap((h) => h.rows.map((r) => r.points)));
     const body = PAGE_CSS + HUB_CSS + hubTabs(t, lang, "players") + `<p class="eyebrow">${t("Character", "Personnage")}</p><div class="hero">${face ? `<img src="${escapeHtml(pictureUrl(face.characterId, face.version, "thumb"))}" alt="" width="64" height="64" style="border-radius:50%;align-self:center">` : ""}<h1 class="c-${classSlug(me?.className ?? null)}">${escapeHtml(title)}</h1>`
       + (me?.className ? `<span>${escapeHtml(classLabel(me.className, lang))}${me.level ? ` · ${t("level", "niveau")} ${me.level}` : ""}</span>` : "") + `</div>`
-      + (runs.length ? `<h2>${t("Score", "Score")} · ${escapeHtml(periodName(ctx, seasons[0]!))}</h2>`
+      + (runs.length ? badgeShelf + `<h2>${t("Score", "Score")} · ${escapeHtml(periodName(ctx, seasons[0]!))}</h2>`
         + (current.length ? `<p>${current.map((row) => `<span class="badge">${escapeHtml(bracketName(ctx, row.bracket))}</span> <span class="score">${row.points}</span>`).join(" &nbsp; ")}</p>` : `<p class="muted">${t("No rated run this season yet.", "Aucun essai classé cette saison.")}</p>`)
         + roles + guidance
         + `<h2>${t("Routes", "Parcours")}</h2><p class="muted">${t(`${best.size} ${best.size === 1 ? "dungeon" : "dungeons"} with a public best time.`, `${best.size} ${best.size === 1 ? "donjon" : "donjons"} avec un meilleur temps public.`)}</p>`
@@ -1215,7 +1262,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const { t, lang } = ctx;
     await ensureIndex(ctx);
     const guild = findGuild(ctx, await cached("guilds", () => deps.store.guilds()), id);
-    if (guild && id !== indexOf(ctx).slugs.get(guild.id)) return kit.redirect(link(guildPath(ctx, guild), lang, Object.fromEntries([...ctx.request.query].filter(([k]) => k !== "lang"))));
+    if (guild && id !== indexOf(ctx).slugs.get(guild.id)) return kit.redirect(link(guildBase(ctx, guild), lang, Object.fromEntries([...ctx.request.query].filter(([k]) => k !== "lang"))));
     if (!guild) return kit.page(404, t("Not found", "Introuvable"), PAGE_CSS + `<h1>${t("Guild not found", "Guilde introuvable")}</h1><p class="muted">${t("Only guilds that publish their runs have a page.", "Seules les guildes qui publient leurs essais ont une page.")}</p><p><a href="${link("/leaderboards/guilds/", lang)}">${t("Guild rankings", "Classement des guildes")}</a></p>`, { noindex: true });
     const { filters, period } = await pageFilters(ctx);
     const runs = await guildRuns(guild.id, period);
@@ -1254,7 +1301,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       stats.topByRole.map(({ role, row }) => `<tr><td>${escapeHtml(roleLabel(role, lang))}</td><td>${who(ctx, row.player)}</td><td>${escapeHtml(bracketName(ctx, row.bracket))}</td><td class="num score">${row.points}</td></tr>`), [3]) : "";
     const peak = Math.max(1, ...stats.activity.map((w) => w.runs));
     const activity = stats.activity.length ? table([t("Week of", "Semaine du"), t("Runs", "Essais"), ""], stats.activity.map((w) => `<tr><td>${w.week}</td><td class="num">${w.runs}</td><td class="bar-cell"><div class="meter" style="width:${Math.round(100 * w.runs / peak)}%"></div></td></tr>`), [1]) : "";
-    const base = guildPath(ctx, guild);
+    const base = guildBase(ctx, guild);
     const topMembers = rules.brackets[0] ? scores.filter((row) => row.bracket === rules.brackets[0]!.key).slice(0, 3) : [];
     const memberPodium = topMembers.length ? `<h2>${t("Top members", "Meilleurs membres")} · ${escapeHtml(bracketName(ctx, rules.brackets[0]!.key))}</h2>` + podium(topMembers.map((row): PodiumEntry => ({ name: (row.player as LeaderPlayer).displayName || row.player.character, href: link(characterPath(row.player), lang), sub: row.player.className ? classLabel(row.player.className, lang) : "", value: String(row.points), className: classSlug(row.player.className) }))) : "";
     const body = PAGE_CSS + HUB_CSS + hubTabs(t, lang, "guilds") + breadcrumbs(lang, [[t("Leaderboards", "Classements"), link("/leaderboards/", lang)], [t("Guilds", "Guildes"), link("/leaderboards/guilds/", lang)], [guild.name, null]], escapeHtml)
@@ -1314,7 +1361,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const f = await duelFilters(ctx, startsAt);
     const board = duelBoardFor(all, f, startsAt);
     const ratingView = !!board.season;
-    const base = guildPath(ctx, guild);
+    const base = guildBase(ctx, guild);
     const here = `${base}/duels`;
     const presentClasses = [...new Set(duelBoardFor(all, { ...f, filters: { ...f.filters, className: null } }, startsAt).rows.map((row) => row.className).filter((c): c is string => !!c))].sort();
     const seasonOptions = (() => {
@@ -1393,8 +1440,10 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const all = await cached("duels:global", () => deps.store.globalDuelRows!());
     const f = await duelFilters(ctx, RATING_START);
     const seasonId = f.seasonId ?? seasonOf(now(), RATING_START).id;
-    const scoped = all.filter((d) => seasonOf(d.endedAt, RATING_START).id === seasonId);
-    return { all, scoped, f, seasonId, board: buildGlobalBoard(all, seasonId, RATING_START, { className: f.className, levels: f.filters.levels }) };
+    // The rated board is worked out once a minute per season and filter, not once per request.
+    const scoped = await cached(`duels:scoped:${seasonId}`, async () => all.filter((d) => seasonOf(d.endedAt, RATING_START).id === seasonId));
+    const board = await cached(`duels:board:${seasonId}:${f.className ?? ""}:${f.band?.key ?? ""}`, async () => buildGlobalBoard(all, seasonId, RATING_START, { className: f.className, levels: f.filters.levels }));
+    return { all, scoped, f, seasonId, board };
   }
   // Guild text from a client: plain, clipped and escaped; it links only when it is exactly the name of a listed guild.
   const guildLinkFor = async (ctx: WebContext, text: string | null): Promise<string> => {
@@ -1402,7 +1451,8 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const clipped = escapeHtml(text.slice(0, 60));
     const guilds = await cached("guilds", () => deps.store.guilds());
     const match = guilds.find((g) => g.name.trim().toLowerCase() === text.trim().toLowerCase());
-    return match ? `<a href="${link(guildPath(ctx, match), ctx.lang)}">${clipped}</a>` : clipped;
+    const path = match ? guildPath(ctx, match) : null;
+    return path ? `<a href="${link(path, ctx.lang)}">${clipped}</a>` : clipped;
   };
   async function globalDuelsPage(ctx: WebContext, kit: WebKit): Promise<WebResponse> {
     const { t, lang } = ctx;
@@ -1541,7 +1591,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const ranks = rankGuilds(entries, rules);
     const send = (status: number, value: unknown): WebResponse => ({ status, headers: jsonHeaders(), body: ctx.request.method === "HEAD" ? "" : JSON.stringify(value) });
     if (key === null) {
-      return send(200, { season: periodName(ctx, period), guilds: entries.map(({ guild }) => ({ slug: indexOf(ctx).slugs.get(guild.id) ?? null, name: guild.name, path: guildPath(ctx, guild),
+      return send(200, { season: periodName(ctx, period), guilds: entries.map(({ guild }) => ({ slug: indexOf(ctx).slugs.get(guild.id) ?? null, name: guild.name, path: guildBase(ctx, guild),
         ranks: ranks.filter((r) => r.guild.id === guild.id).map((r) => ({ bracket: r.bracket, rank: ranks.filter((o) => o.bracket === r.bracket).findIndex((o) => o.guild.id === guild.id) + 1, points: r.points, rated: r.rated })) })) });
     }
     const entry = entries.find(({ guild }) => indexOf(ctx).slugs.get(guild.id) === key.toLowerCase() || guild.id === key);
@@ -1570,7 +1620,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const run = /^\/leaderboards\/run\/([A-Za-z0-9_-]{1,40})(\/card\.png)?$/.exec(path);
     if (run && ["GET", "HEAD"].includes(ctx.request.method)) return runPage(ctx, kit, run[1]!, !!run[2]);
     // The bare address is the landing page; any filter keeps the dungeon board it always showed.
-    if (path === "/leaderboards/" && ctx.request.method !== "POST") return [...ctx.request.query.keys()].every((key) => ["lang", "edition", "q"].includes(key)) ? hub(ctx, kit) : board(ctx, kit);
+    if (path === "/leaderboards/" && ctx.request.method !== "POST") return [...ctx.request.query.keys()].every((key) => ["lang", "edition", "q", "bracket"].includes(key)) ? hub(ctx, kit) : board(ctx, kit);
     if ((path === "/leaderboards/dungeons/" || path === "/leaderboards/dungeons") && ctx.request.method !== "POST") return board(ctx, kit);
     const match = /^\/leaderboards\/character\/([^/]{1,200})$/.exec(path);
     if (match && ctx.request.method !== "POST") return character(ctx, kit, match[1]!);

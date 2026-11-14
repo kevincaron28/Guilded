@@ -30,6 +30,9 @@ export const HUB_CSS = `<style>
 .trend{display:inline-block;vertical-align:middle}.trend rect{fill:var(--gold);opacity:.75}.trend rect:last-child{opacity:1}
 .hub-empty{border:1px dashed var(--line);border-radius:12px;padding:16px;background:rgba(255,255,255,.02)}.hub-empty p{margin:0 0 6px}
 .hub-results h2{margin:18px 0 6px}.kpis{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 18px}.kpis span{border:1px solid var(--line);border-radius:999px;padding:4px 12px;background:var(--panel);font-size:14px}.kpis b{color:var(--gold)}
+.hub-picker{display:flex;gap:8px;align-items:center;margin:0 0 14px;flex-wrap:wrap}.hub-picker label{margin:0;display:inline}.hub-picker select{width:auto;min-width:150px;flex:none;min-height:44px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:inherit;padding:0 10px}
+.pbadges{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}.pbadges span{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:4px 12px 4px 6px;background:var(--panel);font-size:14px}.pbadges img{width:28px;height:28px;object-fit:contain}
+@media(max-width:480px){table.rank-cards td[data-l]:before{content:attr(data-l) ": ";color:var(--muted)}}
 @media(max-width:520px){.podium .pts{font-size:17px}.hub-banner{padding:20px 14px 16px}}
 </style>`;
 
@@ -52,13 +55,13 @@ export const searchForm = (t: T, lang: Lang, q: string, edition: string): string
   + `<input id="hub-q" name="q" type="search" maxlength="40" value="${escapeHtml(q)}" placeholder="${t("Find a character or guild", "Trouver un personnage ou une guilde")}" autocomplete="off">`
   + `<button class="button" type="submit">${t("Search", "Chercher")}</button></form>`;
 
-export interface PodiumEntry { name: string; href: string; sub?: string; value: string; className?: string }
+export interface PodiumEntry { name: string; href?: string | null; sub?: string; value: string; className?: string }
 /** Top three as a podium (2 - 1 - 3). Fewer than three entries fill from the left of the middle step. */
 export function podium(entries: PodiumEntry[]): string {
   if (!entries.length) return "";
   const order = [entries[1], entries[0], entries[2]].map((entry, i) => entry ? { entry, place: [2, 1, 3][i]! } : null);
   return `<div class="podium">` + order.map((slot) => slot
-    ? `<div class="step p${slot.place}"><span class="num">#${slot.place}</span><a class="name${slot.entry.className ? ` c-${slot.entry.className}` : ""}" href="${slot.entry.href}">${escapeHtml(slot.entry.name)}</a>`
+    ? `<div class="step p${slot.place}"><span class="num">#${slot.place}</span>${slot.entry.href ? `<a class="name${slot.entry.className ? ` c-${slot.entry.className}` : ""}" href="${slot.entry.href}">${escapeHtml(slot.entry.name)}</a>` : `<span class="name">${escapeHtml(slot.entry.name)}</span>`}`
       + (slot.entry.sub ? `<span class="sub">${escapeHtml(slot.entry.sub)}</span>` : "") + `<span class="pts">${escapeHtml(slot.entry.value)}</span></div>`
     : `<div></div>`).join("") + `</div>`;
 }

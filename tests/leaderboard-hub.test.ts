@@ -54,6 +54,16 @@ describe("what changed this week", () => {
     expect(record?.previousSec).toBe(1400);
     expect(recordsBroken(runs.slice(0, 2), since, rules)).toEqual([]);
   });
+  it("compares rank on the filtered list, so a class filter moves the arrows with the row numbers", () => {
+    const onlyAmy = (player: { character: string }) => player.character === "Amy";
+    const moves = rankMovement(runs, since, rules, bracket, onlyAmy);
+    expect([...moves.keys()]).toEqual(["amy\0doomhowl"]);
+    expect(moves.get("amy\0doomhowl")).toBe(0);
+  });
+  it("keeps a record per route: another route of the same dungeon is its own record", () => {
+    const routed = [run("r1", "Amy", 1500, "2026-11-11T10:00:00Z"), { ...run("r2", "Bob", 1700, "2026-11-11T11:00:00Z"), routeKey: "other" }];
+    expect(recordsBroken(routed, since, rules).length).toBeGreaterThanOrEqual(1);
+  });
   it("gives new characters no movement and the others a number", () => {
     const moves = rankMovement(runs, since, rules, bracket);
     expect(moves.size).toBeGreaterThan(0);

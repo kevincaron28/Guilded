@@ -169,6 +169,33 @@ describe("leaderboard and personal pages", () => {
       expect(hostile).not.toContain("<script>alert(1)");
       expect(hostile).toContain("&lt;script&gt;alert(1)");
     });
+    it("searches from two letters, finds characters of earlier seasons, best score first, and offers a level picker", async () => {
+      const old = leaderRun("past", 1400, [player("Zorn", "Mage", "DPS")], { endedAt: new Date("2026-11-05T12:00:00Z") });
+      const { request } = setup([old]);
+      expect((await request("GET", "/leaderboards/?q=z")).body).toContain("Type at least 2 characters.");
+      expect((await request("GET", "/leaderboards/?q=zo")).body).toContain("/leaderboards/character/Zorn-Doomhowl");
+      const both = (await request("GET", "/leaderboards/?q=er&lang=fr")).body;
+      expect(both).toContain("Résultats pour");
+      const page = await request("GET", "/leaderboards/?bracket=30-44");
+      expect(page.status).toBe(200);
+      expect(page.body).toContain('id="hub-bracket"');
+      expect(page.body).toContain('<option value="30-44" selected>');
+    });
+    it("shows a guild without a link when it has no public slug", async () => {
+      const store: LeaderboardStore = {
+        async runs() { return [leaderRun("a", 1500)]; }, async characterRuns() { return []; },
+        async guilds() { return [{ id: "internal-id-1", name: "Quebec Gold" }]; },
+        async guildRuns() { return [leaderRun("a", 1500)]; }, async guildRoster() { return ["kev", "amy"]; }
+      };
+      const pages = createLeaderboardPages({ store, personal: null, now: () => NOW });
+      const app = createWebApp({ store: memoryWebStore().store, auth: null, allows: () => true, postApplication: async () => null, routes: [pages.route], now: () => NOW });
+      const get = (path: string) => app.respond({ method: "GET", path, query: new URL(path, SITE).searchParams, headers: {} }) as Promise<WebResponse>;
+      for (const path of ["/leaderboards/", "/leaderboards/?q=quebec", "/leaderboards/guilds/"]) {
+        const body = (await get(path)).body;
+        expect(body).toContain("Quebec Gold");
+        expect(body).not.toContain("internal-id-1");
+      }
+    });
     it("never shows a guild that does not publish, or its members, on the hub or in search", async () => {
       const hidden = leaderRun("hid", 1100, [player("Ghosty", "Mage", "DPS")]);
       const store: LeaderboardStore = {

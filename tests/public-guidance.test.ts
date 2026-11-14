@@ -148,7 +148,7 @@ describe("character page guidance", () => {
     expect(body).toContain("Beating 50:00 adds nothing until the run scores over 180.");
     expect(body.match(/adds nothing until the run scores/g)).toHaveLength(1);
     expect(body).toContain('title="Over-level penalty at level 20"');
-    expect(body).toContain("<td>Ragefire Chasm</td><td>15–18 <span");
+    expect(body).toContain("<td>Ragefire Chasm</td><td data-l=\"Levels\">15–18 <span");
     expect(body).toContain("From level 24: <strong>21:40</strong> → +5");
     expect(body).toContain("<h2>Score by role · Season 1</h2>");
     expect(body).toContain("They are separate scores, never added together.");

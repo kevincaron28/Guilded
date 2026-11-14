@@ -1675,11 +1675,36 @@ ns.removedCommands = ns.removedCommands or {
   motd = "WoW does not let addons set the guild message.",
   welcome = "WoW does not let addons send the automatic welcome whisper.",
   finder = "Blizzard's group finder is not available to addons on WoW Forever.",
-  probe = "the achievement probe finished its job.",
   partners = "levelling partners were replaced by Layer invite (/guilded layer).",
   -- No version number: this one went out after 9.2.0 (the line then reads "was removed: ...").
   free = { text = "Availability sharing was removed because nobody used it.", since = false },
 }
+
+-- /guilded probe maps: the client's map ids, names, parents and rectangles, written to the saved variables (probes.maps) so new
+-- zones can be read without typed scripts. Plain read-only map calls; nothing is sent.
+ns.commandHandlers["probe"] = function(args)
+  if string.lower((args and args[1]) or "") ~= "maps" then message(L("Usage: /guilded probe maps")); return end
+  if InCombatLockdown and InCombatLockdown() then message(L("Not in combat.")); return end
+  if not (C_Map and C_Map.GetMapInfo) then message(L("This client has no map data to read.")); return end
+  local rows = {}
+  for id = 1, 3000 do
+    local ok, info = pcall(C_Map.GetMapInfo, id)
+    if ok and type(info) == "table" and type(info.name) == "string" then
+      local parent = tonumber(info.parentMapID) or 0
+      local left, right, top, bottom = "", "", "", ""
+      if parent > 0 and C_Map.GetMapRectOnMap then
+        local okRect, l, r, t, b = pcall(C_Map.GetMapRectOnMap, id, parent)
+        if okRect and type(l) == "number" then left, right, top, bottom = string.format("%.5f", l), string.format("%.5f", r or 0), string.format("%.5f", t or 0), string.format("%.5f", b or 0) end
+      end
+      rows[#rows + 1] = table.concat({ id, (info.name:gsub("[|%c]", " ")), tostring(info.mapType or ""), parent, left, right, top, bottom }, "|")
+    end
+  end
+  db.probes = type(db.probes) == "table" and db.probes or {}
+  db.probes.maps = { at = now(), build = (GetBuildInfo and select(4, GetBuildInfo())) or 0, columns = "id|name|type|parent|left|right|top|bottom", rows = rows }
+  if ns.logDiagnostic then ns.logDiagnostic("PROBE", string.format("%d maps read", #rows), true) end
+  message(string.format(L("Map probe: %d maps written to the saved variables (probes.maps). Reload or log out to save the file."), #rows))
+end
+table.insert(ns.commandHelp, "/guilded probe maps - write the game's map ids, names and rectangles to the saved variables for diagnostics")
 
 -- /guilded names: saved first-name keys (from before 8.5) that could not move to a full Forever
 -- name on their own. Nothing is changed here; an officer moves or merges them by hand.
@@ -1726,7 +1751,7 @@ ns.MODULES = {
   { key = "pugcheck", name = "Pug gear check", desc = "item level and missing enchants of group members from outside the guild", commands = { "pugcheck" } },
   { key = "milestones", name = "Milestone announcements", desc = "level, first dungeon clear, honorable kills and duel wins in guild chat, if you turn them on", commands = { "milestones", "announce" } },
   { key = "raidsignup", name = "Raid sign-up", desc = "sign up for guild raids in game, with role and class counts", commands = { "signups" } },
-  { key = "worldpvp", name = "World PvP stats", desc = "open-world kills, deaths, defends and calls for help, for the PvP ladder", commands = { "worldpvp", "wpvp" } },
+  { key = "worldpvp", name = "World PvP stats", desc = "open-world kills, deaths, defends and calls for help; kills and deaths are shown by zone and position on the public pages of guilds that publish", commands = { "worldpvp", "wpvp" } },
   { key = "duels", name = "Guild duels", desc = "duel results between guildmates and a leaderboard", commands = { "duels" } },
   { key = "imports", name = "Loot imports", desc = "softres.it lists and That's My BiS priorities", commands = { "import", "tmb" } },
 }

@@ -2909,6 +2909,10 @@ local DE = {
   ["You have not duelled %s in this season."] = "Du hast dich in dieser Saison nicht mit %s duelliert.",
   -- 9.3.1 UI polish
   ["Preview: sample numbers, nothing is saved."] = "Vorschau: Beispielwerte, nichts wird gespeichert.",
+  ["Kills and deaths are shown by zone and position on the public pages of guilds that publish."] = "Kills und Tode werden nach Zone und Position auf den \195\182ffentlichen Seiten von Gilden angezeigt, die ver\195\182ffentlichen.",
+  ["Usage: /guilded probe maps"] = "Verwendung: /guilded probe maps",
+  ["This client has no map data to read."] = "Dieser Client hat keine Kartendaten zum Lesen.",
+  ["Map probe: %d maps written to the saved variables (probes.maps). Reload or log out to save the file."] = "Kartenpr\195\188fung: %d Karten in die gespeicherten Variablen geschrieben (probes.maps). Lade neu oder melde dich ab, um die Datei zu speichern.",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -4837,6 +4841,10 @@ local ES = {
   ["You have not duelled %s in this season."] = "No has due\195\177ado con %s en esta temporada.",
   -- 9.3.1 UI polish
   ["Preview: sample numbers, nothing is saved."] = "Vista previa: n\195\186meros de ejemplo, no se guarda nada.",
+  ["Kills and deaths are shown by zone and position on the public pages of guilds that publish."] = "Las eliminaciones y las muertes se muestran por zona y posici\195\179n en las p\195\161ginas p\195\186blicas de las hermandades que publican.",
+  ["Usage: /guilded probe maps"] = "Uso: /guilded probe maps",
+  ["This client has no map data to read."] = "Este cliente no tiene datos de mapa que leer.",
+  ["Map probe: %d maps written to the saved variables (probes.maps). Reload or log out to save the file."] = "Sondeo de mapas: %d mapas escritos en las variables guardadas (probes.maps). Recarga o cierra sesi\195\179n para guardar el archivo.",
 }
 -- END ES
 
@@ -5909,3 +5917,8 @@ FR["Duels: %d wins, %d losses (%d%%), streak %s, rating %d."] = "Duels : %d vict
 FR["Guild duels: a rating that starts at 1000 each season. Everyone is ranked from the first duel."] = "Duels de guilde : une cote qui part de 1000 \195\160 chaque saison. Tout le monde est class\195\169 d\195\168s le premier duel."
 FR["Your record: %d wins, %d losses (%d%%), streak %s, rating %d. Click a player to see your record against them."] = "Votre bilan : %d victoires, %d d\195\169faites (%d%%), s\195\169rie %s, cote %d. Cliquez sur un joueur pour voir votre bilan contre lui."
 FR["You have not duelled %s in this season."] = "Vous n'avez pas affront\195\169 %s cette saison."
+-- World PvP places and the map probe
+FR["Kills and deaths are shown by zone and position on the public pages of guilds that publish."] = "Les victimes et les morts sont affich\195\169es par zone et par position sur les pages publiques des guildes qui publient."
+FR["Usage: /guilded probe maps"] = "Utilisation : /guilded probe maps"
+FR["This client has no map data to read."] = "Ce client n'a pas de donn\195\169es de carte \195\160 lire."
+FR["Map probe: %d maps written to the saved variables (probes.maps). Reload or log out to save the file."] = "Sonde des cartes : %d cartes \195\169crites dans les variables enregistr\195\169es (probes.maps). Rechargez ou d\195\169connectez-vous pour enregistrer le fichier."

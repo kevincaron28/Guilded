@@ -7,10 +7,13 @@
 --             battlegrounds, read from the client's global string so every language works
 --   deaths    I died within a minute of an attack by an enemy player that Call for help confirmed (never in an instance,
 --             battleground, arena or duel; the zone and time are kept, never the enemy's name or class)
+--   places    each kill and death also keeps the map id and my position on it (0..1, 4 decimals), read with plain map calls;
+--             where the game refuses it (combat, instances) the last position seen before is used and marked approximate
 --   defends   an honorable kill within 5 minutes of pressing On my way on a guildmate's call, in the zone the call named
 --   calls     calls for help I made, how many a guildmate answered, and how many I answered
--- Stored in the saved variables as worldPvp (totals, the current week, the week before, and the last 30 kills) so the
--- companion can carry it to the Discord PvP ladder. Nothing is sent from here.
+-- Stored in the saved variables as worldPvp (totals, the current week, the week before, the last 30 kills and the newest
+-- events with their places) so the companion can carry it to the Discord PvP ladder and the public pages of guilds that
+-- publish. Nothing is sent from here. With the module off nothing is recorded and the stored events are dropped.
 local _, ns = ...
 local wp = {}
 ns.worldPvp = wp
@@ -20,6 +23,10 @@ local DEATH_WINDOW_SECONDS = 60
 local DEDUPE_SECONDS = 5
 local RECENT = 30
 local MAX_ZONES = 25
+local EVENTS_KEEP = 300
+local EVENTS_MAX_AGE = 30 * 86400
+local SAMPLE_SECONDS = 5
+local STALE_SECONDS = 600
 local WEEK = 7 * 86400
 local WEEK_OFFSET = 5 * 86400 + 15 * 3600 -- Tuesday 15:00 UTC, counted from the epoch (a Thursday)
 
@@ -114,6 +121,61 @@ end
 local lastKill, lastDeathAt
 local defendingUntil, defendingZone, defendingMap
 
+local function inCombat()
+  if ns.compat and ns.compat.inCombat then return ns.compat.inCombat() == true end
+  if not InCombatLockdown then return false end
+  local ok, value = pcall(InCombatLockdown)
+  return ok and value == true
+end
+local function round4(value) return math.floor(value * 10000 + 0.5) / 10000 end
+
+-- My map id and position on it with plain map calls (never a protected function); the position is nil where the game does not give
+-- one (instances, a refusal, secret values), the map id alone may still be known.
+local function readPosition()
+  if inInstance() then return nil end
+  if not (C_Map and C_Map.GetBestMapForUnit and C_Map.GetPlayerMapPosition) then return nil end
+  local ok, mapId = pcall(C_Map.GetBestMapForUnit, "player")
+  if not ok or type(mapId) ~= "number" or mapId <= 0 or (ns.isSecret and ns.isSecret(mapId)) then return nil end
+  local okPos, position = pcall(C_Map.GetPlayerMapPosition, mapId, "player")
+  if not okPos or not position then return mapId end
+  local okXY, x, y = pcall(function() return position:GetXY() end)
+  if not okXY or type(x) ~= "number" or type(y) ~= "number" or (ns.isSecret and (ns.isSecret(x) or ns.isSecret(y))) then return mapId end
+  if x <= 0 and y <= 0 or x > 1 or y > 1 then return mapId end
+  return mapId, round4(x), round4(y)
+end
+
+-- The last position seen out of combat (sampled on a zone change and every few seconds), for the moments the game refuses it.
+local lastPlace
+function wp.sample()
+  if not active() or inCombat() then return false end
+  local mapId, x, y = readPosition()
+  if mapId and x then lastPlace = { m = mapId, x = x, y = y, at = clock() } end
+  return mapId ~= nil
+end
+
+-- Where a kill or death happened: { m, x, y, a } with a = true when the position is the last one seen before (approximate).
+function wp.where()
+  local mapId, x, y = readPosition()
+  if mapId and x then return { m = mapId, x = x, y = y } end
+  if lastPlace and clock() - lastPlace.at <= STALE_SECONDS and (not mapId or mapId == lastPlace.m) then
+    return { m = lastPlace.m, x = lastPlace.x, y = lastPlace.y, a = true }
+  end
+  return mapId and { m = mapId } or {}
+end
+
+-- One kill or death in the newest-events list: kind, time, zone text and place. Bounded by count and by age.
+local function addEvent(s, kind, zone, at, place)
+  s.events = type(s.events) == "table" and s.events or {}
+  local list = s.events
+  list[#list + 1] = { k = kind, t = at, z = zone, m = place.m, x = place.x, y = place.y, a = place.a and 1 or nil }
+  local kept = {}
+  for _, e in ipairs(list) do
+    if type(e) == "table" and tonumber(e.t) and at - e.t <= EVENTS_MAX_AGE then kept[#kept + 1] = e end
+  end
+  while #kept > EVENTS_KEEP do table.remove(kept, 1) end
+  s.events = kept
+end
+
 local function currentZone()
   local zone = GetRealZoneText and GetRealZoneText() or ""
   if type(zone) ~= "string" or (ns.isSecret and ns.isSecret(zone)) then return "" end
@@ -151,8 +213,10 @@ function wp.noteKill(text)
   local s = store()
   local zone = GetRealZoneText and GetRealZoneText() or ""
   if ns.isSecret and ns.isSecret(zone) then zone = "" end
-  s.recent[#s.recent + 1] = { n = victim, z = clean(zone, 40), at = epoch(), d = wp.defending() and 1 or nil }
+  local place, at = wp.where(), epoch()
+  s.recent[#s.recent + 1] = { n = victim, z = clean(zone, 40), at = at, d = wp.defending() and 1 or nil, m = place.m, x = place.x, y = place.y, a = place.a and 1 or nil }
   while #s.recent > RECENT do table.remove(s.recent, 1) end
+  addEvent(s, "kill", clean(zone, 40), at, place)
   if wp.defending() then bump("defends") end
   return true
 end
@@ -170,8 +234,10 @@ function wp.noteDeath()
   local st = store()
   local zone = clean(currentZone(), 40)
   st.deathsRecent = type(st.deathsRecent) == "table" and st.deathsRecent or {}
-  st.deathsRecent[#st.deathsRecent + 1] = { z = zone, at = epoch() }
+  local place, at = wp.where(), epoch()
+  st.deathsRecent[#st.deathsRecent + 1] = { z = zone, at = at, m = place.m, x = place.x, y = place.y, a = place.a and 1 or nil }
   while #st.deathsRecent > RECENT do table.remove(st.deathsRecent, 1) end
+  addEvent(st, "death", zone, at, place)
   if zone ~= "" then
     st.zones = type(st.zones) == "table" and st.zones or {}
     if not st.zones[zone] then
@@ -255,10 +321,11 @@ ns.commandHandlers["worldpvp"] = function()
   ns.message(a)
   ns.message(b)
   for _, extra in ipairs(wp.details()) do ns.message(extra) end
+  ns.message(L("Kills and deaths are shown by zone and position on the public pages of guilds that publish."))
 end
 ns.commandHandlers["wpvp"] = ns.commandHandlers["worldpvp"]
 ns.commandHelp = ns.commandHelp or {}
-table.insert(ns.commandHelp, "/guilded worldpvp - my open-world kills, deaths, defends and calls for help, this week and in total")
+table.insert(ns.commandHelp, "/guilded worldpvp - my open-world kills, deaths, defends and calls for help, this week and in total; kills and deaths are shown by zone and position on the public pages of guilds that publish")
 
 local frame = CreateFrame("Frame")
 local function register(event)
@@ -267,10 +334,29 @@ local function register(event)
 end
 register("CHAT_MSG_COMBAT_HONOR_GAIN")
 register("PLAYER_DEAD")
+register("PLAYER_ENTERING_WORLD")
+register("ZONE_CHANGED_NEW_AREA")
+local sampleTimer = 0
+function wp.tick(elapsed)
+  sampleTimer = sampleTimer + (tonumber(elapsed) or 0)
+  if sampleTimer < SAMPLE_SECONDS then return end
+  sampleTimer = 0
+  pcall(function()
+    if active() then wp.sample()
+    else
+      -- Module off: nothing is recorded, and what was kept of kills' and deaths' places is dropped.
+      local db = ns.getDb and ns.getDb()
+      if type(db) == "table" and type(db.worldPvp) == "table" and db.worldPvp.events then db.worldPvp.events = nil end
+      lastPlace = nil
+    end
+  end)
+end
+frame:SetScript("OnUpdate", function(_, elapsed) wp.tick(elapsed) end)
 frame:SetScript("OnEvent", function(_, event, text)
   local ok, err = pcall(function()
     if event == "CHAT_MSG_COMBAT_HONOR_GAIN" then wp.noteKill(text)
-    elseif event == "PLAYER_DEAD" then wp.noteDeath() end
+    elseif event == "PLAYER_DEAD" then wp.noteDeath()
+    else wp.sample() end
   end)
   if not ok and ns.logDiagnostic then ns.logDiagnostic("LUA_ERROR", "world pvp: " .. tostring(err)) end
 end)

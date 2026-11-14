@@ -637,7 +637,29 @@ export function exportWorldPvp(database) {
     return kills || defends || responded || deaths ? [{ weekKey, kills, defends, responded, deaths, recent }] : [];
   };
   const blocks = [...block(state.weekKey, state.week), ...block(state.prev?.weekKey, state.prev?.week)];
-  return blocks.length ? { worldPvp: blocks } : {};
+  // Kills and deaths with their place (the newest 300, no enemy name): kept in the export, sent only to a bot that announced "pvp-events"
+  // (companion/delta.mjs removes them otherwise, so an older bot gets exactly what it always did).
+  const pvpEvents = exportPvpEvents(state.events);
+  return { ...(blocks.length ? { worldPvp: blocks } : {}), ...(pvpEvents.length ? { pvpEvents } : {}) };
+}
+
+export const PVP_EVENTS_FEATURE = "pvp-events";
+export const PVP_EVENTS_MAX = 300;
+// { k: "kill" | "death", t: unix seconds, m: uiMapID, x, y } (x and y only when both are known, 0..1 with 4 decimals), newest last.
+export function exportPvpEvents(events) {
+  if (!events || typeof events !== "object") return [];
+  const out = [];
+  for (const e of Object.values(events)) {
+    if (!e || (e.k !== "kill" && e.k !== "death") || !Number.isSafeInteger(e.t) || e.t <= 1_600_000_000 || e.t >= 4_000_000_000) continue;
+    if (!Number.isSafeInteger(e.m) || e.m <= 0 || e.m > 100_000) continue;
+    const row = { k: e.k, t: e.t, m: e.m };
+    if (typeof e.x === "number" && typeof e.y === "number" && e.x >= 0 && e.x <= 1 && e.y >= 0 && e.y <= 1 && Number.isFinite(e.x) && Number.isFinite(e.y)) {
+      row.x = Math.round(e.x * 10000) / 10000;
+      row.y = Math.round(e.y * 10000) / 10000;
+    }
+    out.push(row);
+  }
+  return out.sort((a, b) => a.t - b.t).slice(-PVP_EVENTS_MAX);
 }
 
 // What the game shows every member about the whole guild (addon Modules/GuildSnapshot.lua and

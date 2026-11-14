@@ -176,17 +176,32 @@ describe("the whole addon, loaded in .toc order", () => {
         fire_event("CHAT_MSG_ADDON", prefix, "WELCOMED|1|Zed", "GUILD", "Old-Officer")
       end
       fire_event("CHAT_MSG_SYSTEM", "Zed has joined the guild.")
-      for _, command in ipairs({ "welcome on", "finder", "probe achievements", "import history", "officer auto greet off", "partners" }) do
+      for _, command in ipairs({ "welcome on", "finder", "import history", "officer auto greet off", "partners" }) do
         SlashCmdList["GUILDED"](command)
       end
     `);
     const chat = s.chat().join("\n");
-    for (const name of ["welcome", "finder", "probe", "import history", "officer auto greet", "partners"]) {
+    for (const name of ["welcome", "finder", "import history", "officer auto greet", "partners"]) {
       expect(chat).toContain(`/guilded ${name} was removed in 9.2`);
     }
-    expect(s.run(`return type(NS.commandHandlers.welcome) .. type(NS.commandHandlers.finder) .. type(NS.commandHandlers.probe) .. type(NS.levelPartners)`)).toBe("nilnilnilnil");
+    expect(s.run(`return type(NS.commandHandlers.welcome) .. type(NS.commandHandlers.finder) .. type(NS.levelPartners)`)).toBe("nilnilnil");
     expect(problems(s).filter((line) => !line.includes("removed in 9.2"))).toEqual([]);
     expect(diagnostics(s)).toBe("0");
+  });
+
+  it("writes the client's maps with /guilded probe maps, and refuses anything else or combat", () => {
+    const s = fullAddon(1);
+    s.run(`
+      local maps = { [10] = { name = "Eastern Kingdoms", parentMapID = 0, mapType = 2 }, [20] = { name = "Elwynn|Forest", parentMapID = 10, mapType = 3 } }
+      C_Map = C_Map or {}
+      C_Map.GetMapInfo = function(id) return maps[id] end
+      C_Map.GetMapRectOnMap = function(id, parent) return 0.1, 0.2, 0.3, 0.4 end
+      SlashCmdList["GUILDED"]("probe maps")
+    `);
+    expect(s.run(`local m = NS.getDb().probes.maps; return #m.rows .. "|" .. m.rows[1] .. "|" .. m.rows[2]`)).toBe("2|10|Eastern Kingdoms|2|0|||||20|Elwynn Forest|3|10|0.10000|0.20000|0.30000|0.40000");
+    expect(s.chat().join(" ")).toContain("2 maps written");
+    s.run(`NS.getDb().probes = nil; SlashCmdList["GUILDED"]("probe")`);
+    expect(s.run(`return tostring(NS.getDb().probes)`)).toBe("nil");
   });
 
   it("answers /guilded free with a removal line, never sends availability traffic, and ignores older addons' GuildedFree messages", () => {

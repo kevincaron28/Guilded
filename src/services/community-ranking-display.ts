@@ -3,6 +3,14 @@ import type { PrismaClient } from '../generated/prisma/client.js';
 import type { Lang } from '../i18n.js';
 import { discordNames } from './community-honors.js';
 import type { Standing } from './community-rules.js';
+import { breakdownOf } from './community-ingame.js';
+
+/** " · 💬 12 · 🏰 30 · ⚔️ 4" for a row that carries the in-game split, else nothing. */
+export const splitSuffix = (row: Standing & { discord?: number; dungeons?: number; pvp?: number }) => {
+  if (row.discord === undefined) return '';
+  const split = breakdownOf(row);
+  return ` · 💬 ${split.discord} · 🏰 ${split.dungeons} · ⚔️ ${split.pvp}`;
+};
 
 // A mobile reader may never have loaded the ranked members. Resolve names on
 // the server so the full list works without Discord's per-device mention cache.
@@ -22,6 +30,6 @@ export async function communityRankingLines(database: PrismaClient, guild: Guild
     const fallback = `${lang === 'fr' ? 'Membre' : 'Member'} …${row.userId.slice(-4)}`;
     const name = (resolved.get(row.userId) || fallback).replace(/[\r\n]/g, ' ').slice(0, 32)
       .replace(/@/g, '@\u200b').replace(/</g, '‹');
-    return `${rank}. **${escapeMarkdown(name)}** · ${row.points} pts`;
+    return `${rank}. **${escapeMarkdown(name)}** · ${row.points} pts${splitSuffix(row)}`;
   }).join('\n');
 }

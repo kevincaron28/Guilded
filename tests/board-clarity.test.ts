@@ -1,11 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { isOwnBoard } from "../src/services/board-identity.js";
-import { withoutHiddenGames } from "../src/services/community-leaderboard.js";
+import { communityBoardCard, withoutHiddenGames } from "../src/services/community-leaderboard.js";
 import { provisionalSeasonRules } from "../src/services/dungeon-bracket-season.js";
 import { seasonBestRuns } from "../src/services/dungeon-best-runs.js";
 import { dungeonSeasonCard, seasonHeader } from "../src/services/dungeon-leaderboard.js";
 import { ratingEmbed } from "../src/services/dungeon-rating.js";
-import { activityCard, activityEmbed, type ActivityData } from "../src/services/guild-activity.js";
 import { seasonLabel } from "../src/services/season-label.js";
 
 // Owner request, 8 November 2026: the board channels must be accurate and easy to read.
@@ -49,25 +48,12 @@ describe("French season names", () => {
     expect(seasonLabel("Season 1", "en")).toBe("Season 1");
     expect(seasonLabel("Hiver des braves", "fr")).toBe("Hiver des braves");
   });
-  it("uses it on the Exploration board, the season header, the dungeon card and the activity board", () => {
+  it("uses it on the Exploration board, the season header, the dungeon card and the community board", () => {
     const { rules } = provisionalSeasonRules();
     expect(ratingEmbed([], "Season 1", "fr", rules).toJSON().title).toBe("🏅 Exploration · Saison 1 · provisoire");
     expect(seasonHeader({ name: "Season 1", startsAt: new Date(0) }, "fr")).toContain("**Saison 1**");
     expect(dungeonSeasonCard([{ name: "Kev Caron", points: 10 }], "Season 1", "fr", true).ladder!.meta).toContain("Saison 1");
-    const season: ActivityData = { view: "season", label: "Season 1", since: new Date(0), rows: [{ memberId: "a", name: "Kev Caron", dungeons: 10, duels: 0, battlegrounds: 0, total: 10 }] };
-    expect(activityCard(season, "fr").subtitle).toContain("Saison 1");
-  });
-});
-
-describe("activity board", () => {
-  const row = (memberId: string, total: number) => ({ memberId, name: memberId, dungeons: total, duels: 0, battlegrounds: 0, total });
-  const week: ActivityData = { view: "week", label: "Cette semaine", since: new Date(0), rows: [row("a", 250), row("b", 100)] };
-  it("shows one field when the week and the season are the same, two when they differ", () => {
-    const same = activityEmbed(week, { ...week, view: "season", label: "Season 1" }, "fr").toJSON();
-    expect(same.fields).toHaveLength(1);
-    expect(same.fields![0]!.name).toBe("Saison 1 · cette semaine aussi");
-    const differ = activityEmbed(week, { ...week, view: "season", label: "Season 1", rows: [row("a", 400), row("b", 100)] }, "fr").toJSON();
-    expect(differ.fields!.map(f => f.name)).toEqual(["Cette semaine", "Saison 1"]);
+    expect(communityBoardCard({ lang: "fr", season: { name: "Season 1", status: "ACTIVE" }, board: [{ userId: "a", points: 10, balance: 0 }], names: new Map([["a", "Kev Caron"]]) }).subtitle).toContain("Saison 1");
   });
 });
 

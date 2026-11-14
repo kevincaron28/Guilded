@@ -6,6 +6,7 @@ import { assertLotteryGame, challengeRules, COMMUNITY_GAMES, COMMUNITY_REWARDS, 
 import { communityActivityChannel, communityMonthName, communitySeasonLabel } from "./community-display.js";
 import { asLang } from "../i18n.js";
 import { localParts } from "./raid-time.js";
+import { mergedSeasonStandings } from "./community-ingame.js";
 import { retryTransientTransaction, SHORT_TRANSACTION } from "./transaction-retry.js";
 
 type Tx = Prisma.TransactionClient;
@@ -24,6 +25,11 @@ export function createCommunityService(database: PrismaClient) {
     if (!row) return fail("Saison introuvable / Season not found.");
     if (active && row.status !== "ACTIVE") return fail("Saison terminée / Season ended.");
     return row;
+  };
+  // A Discord season's standings: the ledger's plus the in-game points of its window (community-ingame.ts). Other games' seasons stay ledger-only.
+  const finalOf = async (tx: Tx, row: CommunitySeason, endedAt: Date) => {
+    const base = standings(await tx.communityPoint.findMany({ where: { seasonId: row.id } }));
+    return row.game === "DISCORD" ? mergedSeasonStandings(tx, row.guildId, { createdAt: row.createdAt, endedAt, status: "ENDED" }, base, endedAt) : base;
   };
   const activity = async (tx: Tx, guildId: string, id: string, kind?: string) => {
     const row = await tx.communityActivity.findFirst({ where: { id, season: { guildId }, ...(kind ? { kind } : {}) }, include: { season: true } });
@@ -74,7 +80,7 @@ export function createCommunityService(database: PrismaClient) {
           if (await tx.communityActivity.count({ where: { seasonId: row.id, status: "OPEN" } })
             || await tx.communityEntry.count({ where: { activity: { seasonId: row.id, kind: "CHALLENGE", status: { not: "CANCELLED" } }, status: "PENDING" } })
             || await tx.communityKudos.count({ where: { seasonId: row.id, status: "PENDING" } })) continue;
-          const final = standings(await tx.communityPoint.findMany({ where: { seasonId: row.id } }));
+          const final = await finalOf(tx, row, now);
           const ended = await tx.communitySeason.update({ where: { id: row.id }, data: { status: "ENDED", endedAt: now, finalStandings: json(final) } });
           const counter = await tx.communitySeasonCounter.upsert({ where: { guildId_game: { guildId, game: row.game } }, create: { guildId, game: row.game, nextNumber: 2 }, update: { nextNumber: { increment: 1 } } });
           const started = await tx.communitySeason.create({ data: { guildId, name: communityMonthName(now, timezone, lang), number: counter.nextNumber - 1, game: row.game, channelId: row.channelId,
@@ -99,8 +105,9 @@ export function createCommunityService(database: PrismaClient) {
         if (await tx.communityActivity.count({ where: { seasonId, status: "OPEN" } })) fail("Ferme les activités avant la saison / Close activities before ending the season.");
         if (await tx.communityEntry.count({ where: { activity: { seasonId, kind: "CHALLENGE", status: { not: "CANCELLED" } }, status: "PENDING" } })) fail("Traite les preuves en attente avant d'archiver / Review pending evidence before archiving.");
         if (await tx.communityKudos.count({ where: { seasonId, status: "PENDING" } })) fail("Traite les nominations avant d'archiver / Review helper nominations before archiving.");
-        const final = standings(await tx.communityPoint.findMany({ where: { seasonId } }));
-        return tx.communitySeason.update({ where: { id: seasonId }, data: { status: "ENDED", endedAt: new Date(), finalStandings: json(final) } });
+        const endedAt = new Date();
+        const final = await finalOf(tx, row, endedAt);
+        return tx.communitySeason.update({ where: { id: seasonId }, data: { status: "ENDED", endedAt, finalStandings: json(final) } });
       });
     },
     async create(guildId: string, seasonId: string, data: { kind: string; title: string; rules: unknown; startsAt?: Date; endsAt: Date; actorId: string }, now = new Date()) {
@@ -313,7 +320,9 @@ export function createCommunityService(database: PrismaClient) {
     },
     async board(guildId: string, seasonId: string) {
       const current = await season(database, guildId, seasonId, false);
-      return current.status === "ENDED" ? current.finalStandings as unknown as ReturnType<typeof standings> : standings(await database.communityPoint.findMany({ where: { seasonId } }));
+      if (current.status === "ENDED") return current.finalStandings as unknown as ReturnType<typeof standings>;
+      const base = standings(await database.communityPoint.findMany({ where: { seasonId } }));
+      return current.game === "DISCORD" ? mergedSeasonStandings(database, guildId, current, base) : base;
     }
   };
 }

@@ -108,7 +108,7 @@ type Kind = Pick<NextCardSpec, "type" | "emblem">;
 /** The look of each board by its painting key (the stored definition names it); anything else gets the weekly look. */
 const BOARD_LOOK: Record<string, Kind & { focus?: number }> = {
   duel: { type: "duel", emblem: "bars" }, battlegrounds: { type: "battleground", emblem: "flag" }, "world-pvp": { type: "battleground", emblem: "duel" },
-  "dungeon-season": { type: "dungeon", emblem: "gate" }, crafters: { type: "crafting", emblem: "anvil" }, activity: { type: "weekly", emblem: "bars" },
+  "dungeon-season": { type: "dungeon", emblem: "gate" }, crafters: { type: "crafting", emblem: "anvil" }, activity: { type: "weekly", emblem: "bars" }, community: { type: "weekly", emblem: "crown" },
   "race-to-60": { type: "achievement", emblem: "crown" }
 };
 
@@ -129,6 +129,8 @@ async function ladderCard(card: ScoreCard): Promise<Buffer | null> {
   const scoreAndRecord = (values: string[]): { score: string; record?: string | undefined } => {
     if (key === "duel") return { score: cell(values, 0), record: [cell(values, 1), cell(values, 2)].every(Boolean) ? `${cell(values, 1)}-${cell(values, 2)}` : undefined };
     if (key === "battlegrounds") return { score: cell(values, 2) || cell(values, 0), record: [cell(values, 0), cell(values, 1)].every(Boolean) ? `${cell(values, 0)}-${cell(values, 1)}` : undefined };
+    // Community: Discord / dungeons / PvP packed tight so three-digit figures still fit beside a long name.
+    if (key === "community") return { score: cell(values, 3), record: [0, 1, 2].map(i => cell(values, i)).join("/") };
     if (key === "world-pvp") return { score: cell(values, 0), record: cell(values, 4) ? `${cell(values, 4)} ${cols[4]?.label ?? ""}`.trim() : undefined };
     const rest = plain.map(({ i }) => cell(values, i)).filter(Boolean).slice(0, 3);
     return { score: cell(values, primary) || (bar >= 0 ? cell(values, primary) : ""), record: rest.length ? rest.join(" / ") : undefined };

@@ -186,8 +186,8 @@ export function createCompanionHub(database: PrismaClient, hooks: HubHooks = {})
           await update({ readinessPostsEnabled: action.on });
           return { message: action.on ? "Readiness posts are on: the daily list and the raid night check before each raid." : "Readiness posts are off. /lead readiness-raid still works.", audit: { setting: "readinessPostsEnabled", value: action.on } };
         case "server.activityBoard":
-          await update({ activityBoardEnabled: action.on });
-          return { message: action.on ? "The guild activity ladder is on: dungeons, duels and battlegrounds in one board, refreshed every 30 minutes." : "The guild activity ladder is off. The existing message stays; /stats activity still works.", audit: { setting: "activityBoardEnabled", value: action.on } };
+          // Retired 14 November 2026: the guild activity ladder is part of the community leaderboard. Accepted so an older companion does not error.
+          return { message: "The guild activity ladder now lives in the community leaderboard; nothing to change here.", audit: { setting: "activityBoardEnabled", value: action.on } };
         case "server.autoImport":
           await update({ autoApplyImports: action.on });
           return { message: action.on ? "Uploads are applied automatically." : "Officers apply uploads themselves with /import apply.", audit: { setting: "autoApplyImports", value: action.on } };

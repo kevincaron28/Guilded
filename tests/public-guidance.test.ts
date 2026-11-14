@@ -136,7 +136,7 @@ describe("character page guidance", () => {
     // Overall best 5: Wailing 240 (as healer), Hall of Thanes 214 (no role), Ruins 200, Ragefire 190, Shadowfang 180 = 1024.
     const runs = [...full(), run("43", 2000, { role: "HEALER" }), run("3065", 1400, { role: null })];
     const body = await page(runs);
-    expect(body).toContain('<span class="score">1024</span>');
+    expect(body).toContain('<span class="score st-epic">1024</span>');
     expect(body).toContain("<h2>Best next improvement · Levels 15–29</h2>");
     expect(body).toContain("Scenarios, not predictions.");
     expect(body).toContain("Counts toward your score");

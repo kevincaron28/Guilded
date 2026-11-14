@@ -184,7 +184,7 @@ describe("leaderboard pages say why a run is unranked", () => {
     // Rows that do not count say so without saying how runs are checked.
     expect(page.body).toContain('title="Not completed"');
     expect(page.body).not.toMatch(/older check|final-boss completion|current evidence|presence/i);
-    expect(page.body).not.toContain('<span class="score">218</span>');
+    expect(page.body).not.toContain('<span class="score st-bronze">218</span>');
     const fr = await get("/leaderboards/character/Kev-Doomhowl?lang=fr");
     expect(fr.body).toContain("Non terminé");
     expect(fr.body).not.toMatch(/Preuves|preuves|présence/);

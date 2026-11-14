@@ -428,7 +428,7 @@ describe("global duels: what a carried report cannot do", () => {
   it("does not attach to a duel that is already counted, adds no confirmation and fills nothing in", async () => {
     const { tx, duels } = fakeTx();
     await recordGlobalDuels(tx, { reporterKey: "member:ma" }, [rec()], NOW);
-    const before = { confirmations: duels[0]!.confirmations, reports: duels[0]!.reports.length, loserClass: duels[0]!.loserClass };
+    const before = { confirmations: duels[0]!.confirmations, reports: duels[0]!.reports.length, loserClass: duels[0]!["loserClass"] };
     await recordGlobalDuels(tx, carried("member:2", "brenna-kronos"), [rec({ side: "loser", loserClass: "ROGUE", loserLevel: 31, loserGuild: "Fake Guild" })], NOW);
     expect(duels[0]).toMatchObject({ confirmations: before.confirmations, loserClass: before.loserClass, held: false, counted: true });
     expect(duels[0]!.reports).toHaveLength(before.reports);

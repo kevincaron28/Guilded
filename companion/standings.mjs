@@ -9,6 +9,7 @@ import { readSavedIdentity } from "./addon-files.mjs";
 import { standaloneReceiptsToLua } from "./device-receipts.mjs";
 import { existsSync } from "node:fs";
 import { assertSameEdition } from "./game-edition.mjs";
+import { readRecord, withRecordReceipts } from "./parked-runs.mjs";
 
 // SavedVariables live at <game>\WTF\Account\<acct>\SavedVariables\Guilded.lua,
 // and the addon at <game>\Interface\AddOns\Guilded. `standingsFile` in
@@ -83,7 +84,8 @@ export async function writeStandings(config, signal, options = {}) {
   for (const { member } of mine) tally.set(member, (tally.get(member) ?? 0) + 1);
   const self = [...tally.entries()].sort((x, y) => y[1] - x[1])[0]?.[0];
   const linked = account ? mine.filter(({ member }) => member === self).map(({ name }) => ({ name, discord: account, confirmed: true })) : [];
-  const text = standingsToLua(body) + linkedAsLua(config.discordAccount) + linkedMapLua(linked, body.updatedAt ?? new Date().toISOString());
+  // Runs of a parked guild the bot acknowledged stay in the accepted list (the answer above only knows this server's guild).
+  const text = standingsToLua(withRecordReceipts(body, await readRecord(config))) + linkedAsLua(config.discordAccount) + linkedMapLua(linked, body.updatedAt ?? new Date().toISOString());
   if (config.writeStandingsEnabled === false) return { notModified: false, etag, body, path, text: null, count: body.standings.length, unchanged: true, downloadedOnly: true, botVersion: body.botVersion };
   // 9.3.0: Guilded Dungeons alone (no Guilded folder): it has no standings, only the run receipts. They go to its own
   // Accepted.lua, so it stops resending runs the bot holds and shows why one earned nothing.

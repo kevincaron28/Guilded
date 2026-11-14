@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { duelPoints, importDuelResults, importMilestones, standingsFromDuels, duelLeaderboard, PAIR_DAILY_CAP, REPORTER_DAILY_CAP } from "../src/services/duels.js";
-import { exportDuelResults, exportMilestones } from "../companion/lua-export-content.mjs";
+import { exportDuelResults, exportExternalDuels, exportMilestones } from "../companion/lua-export-content.mjs";
 import { parseAddonSnapshot } from "../src/integrations/addon.js";
 import { personalSnapshot } from "../src/services/companion-access.js";
 
@@ -145,6 +145,26 @@ describe("snapshot plumbing", () => {
     expect(exportDuelResults(database)).toEqual([{ winner: "Kev", loser: "Bob", at: 1800000000, reason: "knockout" }]);
     expect(exportMilestones(database)).toEqual([{ character: "Kev", realm: "R", kind: "hk", ref: "hk:100", value: 100, at: 1800000000 }]);
     expect(exportDuelResults({})).toEqual([]);
+  });
+
+  it("exports duels against outsiders field by field, dropping anything outside the schema or out of range", () => {
+    const evidence = { countdownAt: 1799999940, startAt: 1799999943, endAt: 1800000000, zoneWinner: "Elwynn Forest", zoneLoser: "Elwynn Forest" };
+    const good = { winner: "Kev Caron", loser: "Zed", winnerRealm: "Mirage Raceway", loserRealm: "Mirage Raceway", winnerClass: "Warrior", loserClass: "Warlock", winnerLevel: 60, loserLevel: 23,
+      winnerGuild: "Quebec Gold", loserGuild: "Zed's Band", zone: "Elwynn Forest", at: 1800000000, durationSec: 57, reason: "knockout", side: "winner", seq: 3,
+      nonce: "0123456789abcdef", prev: "0000000000000000", chain: "89abcdef01234567", evidence };
+    const database = { duels: { external: {
+      a: { ...good, secret: "x", evidence: { ...evidence, extra: 1 } },
+      b: { ...good, at: 1800000100, winnerLevel: 99, durationSec: 2, chain: "short", seq: 0, loserGuild: "bad|name" },
+      c: { ...good, at: 1800000200, side: "other" },
+      d: { ...good, at: 1800000300, loser: "kev caron" }
+    } } };
+    const out = exportExternalDuels(database);
+    expect(out).toHaveLength(2);
+    expect(out[1]).toEqual(good);
+    // The second record keeps what is valid and drops what is not (level, duration, chain, running number, guild text).
+    expect(out[0]).toMatchObject({ at: 1800000100, winner: "Kev Caron", side: "winner", nonce: "0123456789abcdef" });
+    for (const gone of ["winnerLevel", "durationSec", "chain", "seq", "loserGuild"]) expect(Object.keys(out[0]!)).not.toContain(gone);
+    expect(exportExternalDuels({})).toEqual([]);
   });
 
   it("a personal companion keeps only its own duels and milestones", () => {

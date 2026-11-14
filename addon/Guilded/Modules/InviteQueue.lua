@@ -215,10 +215,24 @@ function module.markInvited(name)
   local d = db()
   if d then d.inviteSent = type(d.inviteSent) == "table" and d.inviteSent or {}; d.inviteSent[key(name)] = nowSeconds() end
   if d and d.inviteState then d.inviteState[key(name)] = nil end
-  return true, string.format(L("Copy %s for the highlighted row (Ctrl+C), paste it in your chat box (Ctrl+V) and press Enter."), "/ginvite " .. name)
+  module.clickedAt = (GetTime and GetTime()) or 0
+  module.captured = 0
+  return true, L("Click Invite on a row, then Ctrl+C, paste it in your chat box (Ctrl+V) and press Enter.")
 end
 
 -- The game's reply to a /ginvite: shown on the row in place of "(invited)".
+-- (9.3.1) What WoW Forever prints after a pasted /ginvite is not known yet. For 10 seconds after an Invite click the system
+-- and error lines nothing here recognised are written to the diagnostics (/guilded diag), at most 12 per click, 120
+-- characters each. Nothing is shown to members; row feedback waits for that capture.
+local CAPTURE_SECONDS, CAPTURE_MAX = 10, 12
+function module.noteLine(kind, text)
+  if not module.clickedAt or type(text) ~= "string" or (ns.isSecret and ns.isSecret(text)) then return end
+  if not (GetTime and (GetTime() - module.clickedAt) <= CAPTURE_SECONDS) then return end
+  if (module.captured or 0) >= CAPTURE_MAX then return end
+  module.captured = (module.captured or 0) + 1
+  if ns.logDiagnostic then ns.logDiagnostic("INVITE_REPLY", kind .. ": " .. string.sub(text, 1, 120)) end
+end
+
 function module.onSystemMessage(text)
   if type(text) ~= "string" or (ns.isSecret and ns.isSecret(text)) then return false end
   local d = db()
@@ -392,6 +406,9 @@ local function refreshNow()
   if module.showHandled and #handled > limits.handled then y = y - 18 end
   -- The marks are per officer: say so plainly (nothing is shared between officers' computers).
   place(window.help, y - 6); window.help:SetText(L("Marks stay on this computer: another officer may invite the same names.")); y = y - 24
+  -- When the companion last wrote the list: inside the window, under the help line, wherever that ends up.
+  place(window.listAge, y)
+  if window.listAge:GetText() ~= "" then y = y - 18 end
   if window.SetHeight then window:SetHeight(math.min(screen * 0.95, math.max(160, -y + 24))) end
 end
 
@@ -422,7 +439,7 @@ function build()
   end
   f.status = text(-30)
   -- When the companion last wrote the waiting names, so an old list is not mistaken for a complete one.
-  f.listAge = text(-398, "GameFontDisableSmall")
+  f.listAge = text(-92, "GameFontDisableSmall") -- placed under the help line by refreshNow
   f.todoHead = text(-70, "GameFontNormal")
   f.empty = text(-92)
   f.todoMore = text(-92)
@@ -482,11 +499,20 @@ end
 local frame = CreateFrame("Frame")
 pcall(frame.RegisterEvent, frame, "PLAYER_ENTERING_WORLD")
 pcall(frame.RegisterEvent, frame, "CHAT_MSG_SYSTEM")
+pcall(frame.RegisterEvent, frame, "UI_ERROR_MESSAGE")
 pcall(frame.RegisterEvent, frame, "GUILD_ROSTER_UPDATE")
 local rosterWait, rosterNotified
-frame:SetScript("OnEvent", function(_, event, text)
+frame:SetScript("OnEvent", function(_, event, text, extra)
   if event == "CHAT_MSG_SYSTEM" then
-    if officer() then pcall(module.onSystemMessage, text) end
+    if officer() then
+      local ok, matched = pcall(module.onSystemMessage, text)
+      if not (ok and matched) then pcall(module.noteLine, "system", text) end
+    end
+    return
+  end
+  if event == "UI_ERROR_MESSAGE" then
+    -- (errorType, message): the message is the second argument on current clients.
+    if officer() then pcall(module.noteLine, "error", type(extra) == "string" and extra or text) end
     return
   end
   if event == "GUILD_ROSTER_UPDATE" then

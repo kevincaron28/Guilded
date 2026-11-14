@@ -480,3 +480,23 @@ describe("InviteQueue.lua: after a slow reload", () => {
     expect(s.run("return table.concat(ANCHORS, ',')")).toBe("true");
   });
 });
+
+describe("InviteQueue.lua: capture of the game's reply (9.3.1)", () => {
+  it("records unmatched system and error lines for 10 seconds after an Invite click, bounded, and nothing before a click", () => {
+    const s = withQueue();
+    s.run(String.raw`DIAG = {}; NS.logDiagnostic = function(kind, detail) DIAG[#DIAG + 1] = kind .. "|" .. detail end; CLOCK = 100; function GetTime() return CLOCK end`);
+    s.run("NS.inviteQueue.open()");
+    const fire = (event: string, ...args: string[]) => s.run(`for _, f in ipairs(FRAMES) do if f.scripts.OnEvent and not rawget(f, "template") then f.scripts.OnEvent(f, ${JSON.stringify(event)}, ${args.map((a) => JSON.stringify(a)).join(", ")}) end end`);
+    fire("CHAT_MSG_SYSTEM", "Something nobody asked for.");
+    expect(s.run("return #DIAG")).toBe("0"); // no click yet
+    s.run(`local f = INVITES()[1] f.scripts.OnClick(f)`);
+    fire("CHAT_MSG_SYSTEM", "Unknown reply to the invite.");
+    fire("UI_ERROR_MESSAGE", "0", "Some error line");
+    expect(s.run("return table.concat(DIAG, ';')")).toBe("INVITE_REPLY|system: Unknown reply to the invite.;INVITE_REPLY|error: Some error line");
+    s.run("CLOCK = 120");
+    fire("CHAT_MSG_SYSTEM", "Too late.");
+    expect(s.run("return #DIAG")).toBe("2");
+    s.run(`local f = INVITES()[1] CLOCK = 130; f.scripts.OnClick(f); for i = 1, 30 do NS.inviteQueue.noteLine("system", "line " .. i) end`);
+    expect(s.run("return #DIAG")).toBe("14"); // 12 more, no more
+  });
+});

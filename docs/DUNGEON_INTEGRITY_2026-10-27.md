@@ -2,6 +2,8 @@
 
 # Dungeon integrity: first implementation tranche
 
+> **13 November 2026:** a run no longer needs a second witness, in Season 1 too (owner decision). Plausibility flags, device exclusion and the officer anomaly report replace it: [plans/SINGLE_WITNESS_2026-11-13.md](plans/SINGLE_WITNESS_2026-11-13.md).
+
 Base: `3a0fc3a` (live badge release). This tranche is a draft change, not deployed
 or a new public addon release. Product version remains 7.5.0, protocol 2.
 Kevin requested launch improvements and matching full/standalone behavior.

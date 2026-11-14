@@ -15,6 +15,16 @@
 ; https://www.electron.build/configuration/nsis#custom-nsis-script.
 ; An upgrade (a newer installer, or "Update now" in the app) also runs this uninstaller,
 ; with --updated: keep the entry then, or every update would turn Start with Windows off.
+; Set by the closer below when a companion ran: a manual run then goes without the old uninstaller and
+; starts the companion again afterwards.
+; Only the installer uses it: an unused variable is a warning, and warnings fail the uninstaller build.
+!ifndef BUILD_UNINSTALLER
+  !ifndef GUILDED_VARS
+    !define GUILDED_VARS
+    Var /GLOBAL guildedWasRunning
+  !endif
+!endif
+
 !macro customUnInstall
   ${ifNot} ${isUpdated}
     DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Guilded Companion"
@@ -57,6 +67,14 @@
   ${ifNot} ${Errors}
     FileWrite $0 "1"
     FileClose $0
+  ${endIf}
+  ; A silent run that closed a running companion starts it again (the app's own update does that itself
+  ; with --force-run; an interactive run starts it at the end).
+  ${if} $guildedWasRunning == "1"
+  ${andIf} ${Silent}
+  ${andIfNot} ${isForceRun}
+    ; (not the StartApp macro: it declares a variable and is already used once by the installer)
+    ${StdUtils.ExecShellAsUser} $0 "$launchLink" "open" ""
   ${endIf}
 !macroend
 
@@ -136,7 +154,11 @@
   FileOpen $R4 "$TEMP\guilded-companion-installer.log" a
   ${ifNot} ${Errors}
     FileSeek $R4 0 END
-    FileWrite $R4 "${TEXT}$\r$\n"
+    !ifdef BUILD_UNINSTALLER
+      FileWrite $R4 "[uninstaller] ${TEXT}$\r$\n"
+    !else
+      FileWrite $R4 "[installer] ${TEXT}$\r$\n"
+    !endif
     FileClose $R4
   ${endIf}
 !macroend
@@ -148,12 +170,15 @@
 !macroend
 
 !macro customCheckAppRunning
-  ; A fresh log for this run.
-  ClearErrors
-  FileOpen $R4 "$TEMP\guilded-companion-installer.log" w
-  ${ifNot} ${Errors}
-    FileClose $R4
-  ${endIf}
+  ; A fresh log for this run (the old uninstaller an installer starts adds its lines after the installer's).
+  !ifndef BUILD_UNINSTALLER
+    ClearErrors
+    FileOpen $R4 "$TEMP\guilded-companion-installer.log" w
+    ${ifNot} ${Errors}
+      FileClose $R4
+    ${endIf}
+    StrCpy $guildedWasRunning "0"
+  !endif
   ; The install folder for the path-based close, through the environment. Nothing matches by path while it is empty.
   ${if} $INSTDIR != ""
     System::Call 'kernel32::SetEnvironmentVariable(t "GUILDED_INSTDIR", t "$INSTDIR")i.R2'
@@ -222,6 +247,20 @@
     ; The request is no longer needed (an older companion never reads it).
     Delete "$APPDATA\${PRODUCT_NAME}\quit-for-update"
     !insertmacro GUILDED_LOG "closed; going on"
+    !ifndef BUILD_UNINSTALLER
+      StrCpy $guildedWasRunning "1"
+      ; A manual run (not the app's own update): this installer has closed the companion, so the old version's
+      ; uninstaller is not needed and must not be able to stop the install with its own closing check (a manual
+      ; install ended with exit code 2 on 13 November). The new files are copied over the old ones and the
+      ; uninstall entry is written again by the installer. The app's own update (--updated) keeps the usual path.
+      ${ifNot} ${isUpdated}
+        DeleteRegValue SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY}" UninstallString
+        !ifdef UNINSTALL_REGISTRY_KEY_2
+          DeleteRegValue SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY_2}" UninstallString
+        !endif
+        !insertmacro GUILDED_LOG "old uninstaller skipped"
+      ${endIf}
+    !endif
     ; Give Windows a moment to release the files.
     Sleep 1000
   ${endIf}

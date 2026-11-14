@@ -267,3 +267,88 @@ describe("world PvP deaths: zone, K/D and what never counts", () => {
     expect(s!.run(`return NS.L("K/D: %s this week, %s in total.")`)).toContain("cette semaine");
   });
 });
+
+describe("world PvP places", () => {
+  const map = `COMBAT = false; POS = { x = 0.4567891, y = 0.25 }; MAPID = 1429
+    function InCombatLockdown() return COMBAT end
+    C_Map = { GetBestMapForUnit = function() return MAPID end,
+      GetPlayerMapPosition = function() if not POS then return nil end return { GetXY = function() return POS.x, POS.y end } end }`;
+  const events = () => s!.run(`local out = {}; for _, e in ipairs(DB.worldPvp.events or {}) do out[#out + 1] = table.concat({ e.k, tostring(e.m), tostring(e.x), tostring(e.y), tostring(e.a) }, ",") end; return table.concat(out, ";")`);
+
+  it("keeps the map id and the position (4 decimals) with a kill and a death", () => {
+    setup(); s!.run(map);
+    kill("Thug");
+    s!.run(`ATTACKED = true`);
+    s!.run(`NS.worldPvp.noteDeath()`);
+    expect(events()).toBe("kill,1429,0.4568,0.25,nil;death,1429,0.4568,0.25,nil");
+    expect(s!.run(`return DB.worldPvp.recent[1].m .. "|" .. DB.worldPvp.recent[1].x`)).toBe("1429|0.4568");
+  });
+
+  it("gives every event a counter id that survives the list being pruned", () => {
+    setup(); s!.run(map);
+    kill("A"); s!.run(`CLOCK = CLOCK + 10`); kill("B");
+    s!.run(`DB.worldPvp.events = { DB.worldPvp.events[2] }`);
+    s!.run(`CLOCK = CLOCK + 10`); kill("C");
+    expect(s!.run(`return DB.worldPvp.events[1].s .. "," .. DB.worldPvp.events[2].s`)).toBe("2,3");
+  });
+
+  it("uses the last position seen out of combat, marked approximate, when the game refuses", () => {
+    setup(); s!.run(map);
+    s!.run(`NS.worldPvp.sample(); POS = nil; COMBAT = true; CLOCK = CLOCK + 30`);
+    kill("Thug");
+    expect(events()).toBe("kill,1429,0.4568,0.25,1");
+    s!.run(`CLOCK = CLOCK + 5000`);
+    kill("Late");
+    expect(events().split(";")[1]).toBe("kill,1429,nil,nil,nil");
+  });
+
+  it("keeps no map and no position in an instance, and no number for the map when the game gives none", () => {
+    setup(); s!.run(map);
+    s!.run(`INST = true`);
+    expect(s!.run(`local p = NS.worldPvp.where(); return tostring(p.m) .. tostring(p.x)`)).toBe("nilnil");
+    s!.run(`INST = false; C_Map.GetBestMapForUnit = function() return nil end`);
+    kill("Thug");
+    expect(events()).toBe("kill,nil,nil,nil,nil");
+  });
+
+  it("rejects any coordinate outside 0 to 1 and a 0,0 position, keeping only the map id", () => {
+    setup(); s!.run(map);
+    for (const pos of ["x = -0.2, y = 0.5", "x = 0.5, y = -0.2", "x = 1.2, y = 0.5", "x = 0.5, y = 1.01", "x = 0, y = 0"]) {
+      s!.run(`DB.worldPvp = nil; POS = { ${pos} }; CLOCK = CLOCK + 10`);
+      kill("Thug");
+      expect(events(), pos).toBe("kill,1429,nil,nil,nil");
+    }
+  });
+
+  it("starts from a saved file with no events (before 9.3.1) and keeps the ids after a reload", () => {
+    setup(); s!.run(map);
+    s!.run(`DB.worldPvp = { total = { kills = 2 }, week = {}, recent = {}, zones = {} }`);
+    kill("A");
+    expect(s!.run(`return DB.worldPvp.events[1].s .. "|" .. DB.worldPvp.seq`)).toBe("1|1");
+    setup(); s!.run(map);
+    s!.run(`DB.worldPvp = { events = { { k = "kill", t = 1800000000, m = 1429, s = 1 } }, seq = 1, recent = {}, zones = {}, total = {}, week = {} }`);
+    s!.run(`CLOCK = CLOCK + 10`); kill("B");
+    expect(s!.run(`return DB.worldPvp.events[1].s .. "," .. DB.worldPvp.events[2].s`)).toBe("1,2");
+  });
+
+  it("bounds the stored events by count and by age", () => {
+    setup(); s!.run(map);
+    for (let i = 0; i < 520; i++) { kill(`V${i}`); s!.run(`CLOCK = CLOCK + 10`); }
+    expect(s!.run(`return #DB.worldPvp.events`)).toBe("500");
+    s!.run(`EPOCH = EPOCH + 31 * 86400`);
+    kill("Fresh");
+    expect(s!.run(`return #DB.worldPvp.events`)).toBe("1");
+  });
+
+  it("drops the stored events and records nothing when the module is off", () => {
+    setup(); s!.run(map);
+    s!.run(`NS.moduleActive = function() return false end`);
+    expect(kill("Thug")).toBe("false");
+    s!.run(`DB.worldPvp = { events = { { k = "kill", t = 1, m = 1 } }, recent = { { n = "X", z = "Z", at = 1, m = 5, x = 0.1, y = 0.2, a = 1 } }, deathsRecent = { { z = "Z", at = 1, m = 5, x = 0.1, y = 0.2 } } }`);
+    s!.run(`fire_event("PLAYER_ENTERING_WORLD")`);
+    expect(s!.run(`return #(DB.worldPvp.events or {})`)).toBe("1"); // an event does not drop them, the timer does
+    s!.run(`NS.worldPvp.tick(6)`);
+    expect(s!.run(`return tostring(DB.worldPvp.events)`)).toBe("nil");
+    expect(s!.run(`local r, d = DB.worldPvp.recent[1], DB.worldPvp.deathsRecent[1]; return table.concat({ tostring(r.m), tostring(r.x), tostring(r.y), tostring(r.a), tostring(d.m), tostring(d.x), tostring(d.y), r.z, d.z }, ",")`)).toBe("nil,nil,nil,nil,nil,nil,nil,Z,Z");
+  });
+});

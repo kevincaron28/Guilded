@@ -176,17 +176,59 @@ describe("the whole addon, loaded in .toc order", () => {
         fire_event("CHAT_MSG_ADDON", prefix, "WELCOMED|1|Zed", "GUILD", "Old-Officer")
       end
       fire_event("CHAT_MSG_SYSTEM", "Zed has joined the guild.")
-      for _, command in ipairs({ "welcome on", "finder", "probe achievements", "import history", "officer auto greet off", "partners" }) do
+      for _, command in ipairs({ "welcome on", "finder", "import history", "officer auto greet off", "partners" }) do
         SlashCmdList["GUILDED"](command)
       end
     `);
     const chat = s.chat().join("\n");
-    for (const name of ["welcome", "finder", "probe", "import history", "officer auto greet", "partners"]) {
+    for (const name of ["welcome", "finder", "import history", "officer auto greet", "partners"]) {
       expect(chat).toContain(`/guilded ${name} was removed in 9.2`);
     }
-    expect(s.run(`return type(NS.commandHandlers.welcome) .. type(NS.commandHandlers.finder) .. type(NS.commandHandlers.probe) .. type(NS.levelPartners)`)).toBe("nilnilnilnil");
+    expect(s.run(`return type(NS.commandHandlers.welcome) .. type(NS.commandHandlers.finder) .. type(NS.levelPartners)`)).toBe("nilnilnil");
     expect(problems(s).filter((line) => !line.includes("removed in 9.2"))).toEqual([]);
     expect(diagnostics(s)).toBe("0");
+  });
+
+  it("writes the client's maps with /guilded probe maps, and refuses anything else or combat", () => {
+    const s = fullAddon(1);
+    s.run(`
+      local maps = { [10] = { name = "Eastern Kingdoms", parentMapID = 0, mapType = 2 }, [20] = { name = "Elwynn|Forest", parentMapID = 10, mapType = 3 } }
+      C_Map = C_Map or {}
+      C_Map.GetMapInfo = function(id) return maps[id] end
+      C_Map.GetMapRectOnMap = function(id, parent) return 0.1, 0.2, 0.3, 0.4 end
+      SlashCmdList["GUILDED"]("probe maps")
+    `);
+    expect(s.run(`local m = NS.getDb().probes.maps; return #m.rows .. "|" .. m.rows[1] .. "|" .. m.rows[2]`)).toBe("2|10|Eastern Kingdoms|2|0|||||20|Elwynn Forest|3|10|0.10000|0.20000|0.30000|0.40000");
+    expect(s.chat().join(" ")).toContain("2 maps written");
+    s.run(`NS.getDb().probes = nil; SlashCmdList["GUILDED"]("probe")`);
+    expect(s.run(`return tostring(NS.getDb().probes)`)).toBe("nil");
+    s.run(`INCOMBAT = true; function InCombatLockdown() return INCOMBAT end; SlashCmdList["GUILDED"]("probe maps"); SlashCmdList["GUILDED"]("probe comm")`);
+    expect(s.run(`return tostring(NS.getDb().probes)`)).toBe("nil");
+  });
+
+  it("drops probes.maps at the next login, and /guilded probe comm joins a channel, sends on it and by whisper through ns.comm, and leaves", () => {
+    const s = fullAddon(1);
+    s.run(`
+      TIMERS = {}; JOINED = {}; LEFT = {}; SENT = {}
+      C_Timer = { After = function(_, fn) TIMERS[#TIMERS + 1] = fn end }
+      function JoinTemporaryChannel(name) JOINED[#JOINED + 1] = name end
+      function GetChannelName(name) return JOINED[1] == name and 5 or 0 end
+      function LeaveChannelByName(name) LEFT[#LEFT + 1] = name end
+      SlashCmdList["GUILDED"]("probe comm")
+    `);
+    s.run(`for i = 1, #TIMERS do TIMERS[i]() end`);
+    const out = s.run(`
+      local c = NS.getDb().probes.comm
+      local sent = {}
+      for _, m in ipairs(SENT) do if m.prefix == "GuildedProbe" then sent[#sent + 1] = m.target .. ":" .. m.text end end
+      return #JOINED .. "|" .. #LEFT .. "|" .. table.concat(sent, ",") .. "|" .. c.steps[#c.steps]`);
+    expect(out).toContain("1|1|");
+    expect(out).toContain("probe-channel");
+    expect(out).toContain("probe-whisper");
+    expect(out).toContain("left the channel");
+    // the saved map list does not survive the next login, and an armed probe runs on its own
+    s.run(`NS.getDb().probes = { maps = { rows = { "x" } }, commAuto = true }; TIMERS = {}; JOINED = {}; fire_event("PLAYER_LOGIN"); for i = 1, #TIMERS do TIMERS[i]() end`);
+    expect(s.run(`return tostring(NS.getDb().probes.maps) .. tostring(NS.getDb().probes.commAuto) .. #JOINED`)).toBe("nilnil1");
   });
 
   it("answers /guilded free with a removal line, never sends availability traffic, and ignores older addons' GuildedFree messages", () => {

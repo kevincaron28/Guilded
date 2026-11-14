@@ -1675,11 +1675,104 @@ ns.removedCommands = ns.removedCommands or {
   motd = "WoW does not let addons set the guild message.",
   welcome = "WoW does not let addons send the automatic welcome whisper.",
   finder = "Blizzard's group finder is not available to addons on WoW Forever.",
-  probe = "the achievement probe finished its job.",
   partners = "levelling partners were replaced by Layer invite (/guilded layer).",
   -- No version number: this one went out after 9.2.0 (the line then reads "was removed: ...").
   free = { text = "Availability sharing was removed because nobody used it.", since = false },
 }
+
+-- /guilded probe maps: the client's map ids, names, parents and rectangles, written to the saved variables (probes.maps) so new
+-- zones can be read without typed scripts. Plain read-only map calls; nothing is sent.
+-- /guilded probe comm [auto]: the two-client addon-message test, run from addon code (no typed script): register a test prefix, join
+-- a temporary custom channel, send one addon message on it and one addon whisper to my own full name, log the API results and
+-- what came back, then leave the channel. "auto" arms the same probe to run by itself 10 seconds after the next login or /reload.
+-- Everything goes through ns.comm.send; the results go to the diagnostics (PROBE) and to probes.comm.
+local COMM_PROBE_PREFIX = "GuildedProbe"
+local function inCombatNow() return InCombatLockdown and InCombatLockdown() end
+local function runCommProbe()
+  if inCombatNow() then message(L("Not in combat.")); return end
+  local result = { at = now(), steps = {}, heard = {} }
+  local function step(text)
+    result.steps[#result.steps + 1] = text
+    logDiagnostic("PROBE", "comm: " .. text, true)
+  end
+  db.probes = type(db.probes) == "table" and db.probes or {}
+  db.probes.comm = result
+  ns.comm.register(COMM_PROBE_PREFIX)
+  local listener
+  if CreateFrame then
+    listener = CreateFrame("Frame")
+    listener:RegisterEvent("CHAT_MSG_ADDON")
+    listener:SetScript("OnEvent", function(_, _, prefix, text, channel, sender)
+      if isSecret(prefix) or isSecret(text) or prefix ~= COMM_PROBE_PREFIX then return end
+      result.heard[#result.heard + 1] = tostring(channel) .. ":" .. tostring(text) .. ":" .. (isSecret(sender) and "?" or tostring(sender))
+    end)
+  end
+  local channelName = "GuildedProbe" .. tostring((time and time() or 0) % 100000)
+  local joinOk, joinErr = pcall(function()
+    if JoinTemporaryChannel then return JoinTemporaryChannel(channelName) end
+    if JoinChannelByName then return JoinChannelByName(channelName) end
+    error("no join function")
+  end)
+  step(string.format("join %s: %s", channelName, joinOk and "called" or ("failed " .. tostring(joinErr))))
+  local function after(seconds, fn) if C_Timer and C_Timer.After then C_Timer.After(seconds, fn) end end
+  after(2, function()
+    local id = 0
+    local idOk, number = pcall(GetChannelName, channelName)
+    if idOk and tonumber(number) then id = tonumber(number) end
+    step(string.format("channel number %d (%s)", id, id > 0 and "joined" or "NOT joined"))
+    if id > 0 then step("channel send queued: " .. tostring(ns.comm.send(COMM_PROBE_PREFIX, "probe-channel", "CHANNEL", id, nil, "interactive"))) end
+    local realm = (GetNormalizedRealmName and GetNormalizedRealmName()) or (GetRealmName and (GetRealmName() or ""):gsub("%s", "")) or ""
+    local me = (UnitName and UnitName("player") or "?") .. (realm ~= "" and ("-" .. realm) or "")
+    step("whisper send queued: " .. tostring(ns.comm.send(COMM_PROBE_PREFIX, "probe-whisper", "WHISPER", me, nil, "interactive")))
+  end)
+  after(6, function()
+    local status = ns.comm.status(COMM_PROBE_PREFIX)
+    step(string.format("results sent=%d refused=%d errors=%d throttled=%d queued=%d last=%s code=%s", status.sent, status.refused, status.errors,
+      status.throttled, status.queued, tostring(status.lastResult), tostring(status.lastCode)))
+    step(string.format("heard %d: %s", #result.heard, table.concat(result.heard, ", ")))
+    pcall(function() if LeaveChannelByName then LeaveChannelByName(channelName) end end)
+    if listener then listener:UnregisterAllEvents() end
+    step("left the channel")
+    message(L("Comm probe finished: the results are in the diagnostics (PROBE) and the saved variables (probes.comm)."))
+  end)
+  message(L("Comm probe started: results in about 6 seconds."))
+end
+ns.runCommProbe = runCommProbe
+
+ns.commandHandlers["probe"] = function(args)
+  local what = string.lower((args and args[1]) or "")
+  if what == "comm" then
+    if string.lower((args and args[2]) or "") == "auto" then
+      db.probes = type(db.probes) == "table" and db.probes or {}
+      db.probes.commAuto = true
+      message(L("Comm probe armed: it runs by itself 10 seconds after the next login or /reload."))
+    else
+      runCommProbe()
+    end
+    return
+  end
+  if what ~= "maps" then message(L("Usage: /guilded probe maps | comm | comm auto")); return end
+  if inCombatNow() then message(L("Not in combat.")); return end
+  if not (C_Map and C_Map.GetMapInfo) then message(L("This client has no map data to read.")); return end
+  local rows = {}
+  for id = 1, 3000 do
+    local ok, info = pcall(C_Map.GetMapInfo, id)
+    if ok and type(info) == "table" and type(info.name) == "string" then
+      local parent = tonumber(info.parentMapID) or 0
+      local left, right, top, bottom = "", "", "", ""
+      if parent > 0 and C_Map.GetMapRectOnMap then
+        local okRect, l, r, t, b = pcall(C_Map.GetMapRectOnMap, id, parent)
+        if okRect and type(l) == "number" then left, right, top, bottom = string.format("%.5f", l), string.format("%.5f", r or 0), string.format("%.5f", t or 0), string.format("%.5f", b or 0) end
+      end
+      rows[#rows + 1] = table.concat({ id, (info.name:gsub("[|%c]", " ")), tostring(info.mapType or ""), parent, left, right, top, bottom }, "|")
+    end
+  end
+  db.probes = type(db.probes) == "table" and db.probes or {}
+  db.probes.maps = { at = now(), build = (GetBuildInfo and select(4, GetBuildInfo())) or 0, columns = "id|name|type|parent|left|right|top|bottom", rows = rows }
+  if ns.logDiagnostic then ns.logDiagnostic("PROBE", string.format("%d maps read", #rows), true) end
+  message(string.format(L("Map probe: %d maps written to the saved variables (probes.maps). Reload or log out to save the file."), #rows))
+end
+table.insert(ns.commandHelp, "/guilded probe maps - write the game's map ids, names and rectangles to the saved variables for diagnostics; /guilded probe comm [auto] - test addon messages on a temporary channel and by whisper")
 
 -- /guilded names: saved first-name keys (from before 8.5) that could not move to a full Forever
 -- name on their own. Nothing is changed here; an officer moves or merges them by hand.
@@ -1726,7 +1819,7 @@ ns.MODULES = {
   { key = "pugcheck", name = "Pug gear check", desc = "item level and missing enchants of group members from outside the guild", commands = { "pugcheck" } },
   { key = "milestones", name = "Milestone announcements", desc = "level, first dungeon clear, honorable kills and duel wins in guild chat, if you turn them on", commands = { "milestones", "announce" } },
   { key = "raidsignup", name = "Raid sign-up", desc = "sign up for guild raids in game, with role and class counts", commands = { "signups" } },
-  { key = "worldpvp", name = "World PvP stats", desc = "open-world kills, deaths, defends and calls for help, for the PvP ladder", commands = { "worldpvp", "wpvp" } },
+  { key = "worldpvp", name = "World PvP stats", desc = "open-world kills, deaths, defends and calls for help; kills and deaths are shown by zone and position on the public pages of guilds that publish", commands = { "worldpvp", "wpvp" } },
   { key = "duels", name = "Guild duels", desc = "duel results between guildmates and a leaderboard", commands = { "duels" } },
   { key = "imports", name = "Loot imports", desc = "softres.it lists and That's My BiS priorities", commands = { "import", "tmb" } },
 }
@@ -2288,6 +2381,14 @@ local function onEvent(_, event, ...)
     end
     snapshotModules()
     registerPrefix()
+    -- A map probe is read once from the saved file: it does not stay in the saved variables after the next login.
+    if type(db.probes) == "table" then
+      db.probes.maps = nil
+      if db.probes.commAuto then
+        db.probes.commAuto = nil
+        if C_Timer and C_Timer.After then C_Timer.After(10, function() pcall(ns.runCommProbe) end) end
+      end
+    end
     message(activeRaid
       and string.format(L("Loaded. /guilded help for commands - raid '%s' is still active."), activeRaid.title)
       or L("Loaded. /guilded help for commands."))

@@ -2,13 +2,9 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-// @ts-expect-error -- plain JavaScript module without types
 import { carryReceiptsToLua, exportCarriedRecords, parseCarryReceipts, readCarryReceipts, receiptIdsOf, writeCarryReceipts } from "../companion/carry.mjs";
-// @ts-expect-error -- plain JavaScript module without types
 import { pruneAcknowledged } from "../companion/delta.mjs";
-// @ts-expect-error -- plain JavaScript module without types
 import { deviceUploadBody } from "../companion/device-sync.mjs";
-// @ts-expect-error -- plain JavaScript module without types
 import { featuresLua } from "../companion/group-relay.mjs";
 
 // 9.3.2: the companion sends the records an addon carried for nearby players, and writes the bot's receipts where the addon reads them.
@@ -20,6 +16,8 @@ const database = { carry: { records: {
   broken: { kind: "externalDuel", key: "x", author: "", data: duel },
   huge: { kind: "externalDuel", key: "x3-aaaa", author: "Aldric Stone", data: { text: "y".repeat(3000) }, at: 30 }
 } } };
+
+const body = (full: unknown, options: Record<string, unknown>) => deviceUploadBody(full, options) as { carriedRecords?: unknown[] };
 
 describe("carried records in the saved file", () => {
   it("exports valid records newest first and leaves out malformed or oversized ones", () => {
@@ -39,10 +37,10 @@ describe("carried records in the saved file", () => {
 
   it("is part of an unsigned upload only when the bot handles it", () => {
     const full = { wowGuild: "Quebec Gold|Forever", character: { name: "Kev", realm: "Forever" }, carriedRecords: exportCarriedRecords(database) };
-    expect(deviceUploadBody(full, {}).carriedRecords).toBeUndefined();
-    expect(deviceUploadBody(full, { carry: true }).carriedRecords).toHaveLength(2);
-    expect(deviceUploadBody(full, { carry: true, carryAcknowledged: new Set(["externalDuel:x1-aaaa"]) }).carriedRecords).toHaveLength(1);
-    expect(deviceUploadBody(full, { carry: true, runsOnly: true }).carriedRecords).toBeUndefined();
+    expect(body(full, {}).carriedRecords).toBeUndefined();
+    expect(body(full, { carry: true }).carriedRecords).toHaveLength(2);
+    expect(body(full, { carry: true, carryAcknowledged: new Set(["externalDuel:x1-aaaa"]) }).carriedRecords).toHaveLength(1);
+    expect(body(full, { carry: true, runsOnly: true }).carriedRecords).toBeUndefined();
   });
 
   it("tells the addon this companion carries records", () => {

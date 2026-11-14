@@ -2,7 +2,7 @@
 
 ## 9.3.1 — 14 November 2026
 
-Published 14 November 2026 (GitHub and the website; CurseForge upload pending). Fixes after 9.3.0 and after the real-client tour of 13 November. Details: docs/V9_3_1_RELEASE_NOTES.md. Most fixes were seen working on a real client on 14 November; the rest are listed as not yet verified (see docs/V9_3_1_RELEASE_ACCEPTANCE.md).
+Published 14 November 2026 (GitHub and the website; CurseForge approved 14 November 2026). Fixes after 9.3.0 and after the real-client tour of 13 November. Details: docs/V9_3_1_RELEASE_NOTES.md. Most fixes were seen working on a real client on 14 November; the rest are listed as not yet verified (see docs/V9_3_1_RELEASE_ACCEPTANCE.md).
 
 **Addon (Guilded)**
 - The save button no longer blocks the Guilded window in combat (#874).

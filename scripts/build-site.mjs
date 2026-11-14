@@ -85,6 +85,8 @@ cpSync("site/images/addon", `${out}/images/addon`, { recursive: true });
 cpSync("site/images/discord", `${out}/images/discord`, { recursive: true });
 cpSync("site/images/phone", `${out}/images/phone`, { recursive: true });
 cpSync("site/images/hero", `${out}/images/hero`, { recursive: true });
+// Painted website pictures (banner, tiles, section headers, medals): site/images/web.
+cpSync("site/images/web", `${out}/images/web`, { recursive: true });
 // Continent pictures behind the PvP zone map (src/services/pvp-zone-rects.ts CONTINENT_IMAGES).
 cpSync("site/images/pvp-map", `${out}/images/pvp-map`, { recursive: true });
 // Painted badge frames and emblems (scripts/build-badge-art.mjs): the achievements page layers them as images.
@@ -176,7 +178,7 @@ for (const page of pages) {
   // A page whose address redirects (worker/localized-assets.mjs) is not a sitemap entry; its target is listed once.
   if (!page.draft && !isRedirected(`/${page.path}`)) publicUrls.push(`/${page.path}`);
 }
-// Styled 404: a header, one sentence and a way home (wrangler.jsonc not_found_handling "404-page" serves it for unknown addresses).
+// Styled 404: a header, one sentence and a way home (the Worker serves it, with status 404, for an address nobody serves: worker/localized-assets.mjs notFoundPage).
 {
   const b = (en, fr) => `<span data-en="${escape(en)}" data-fr="${escape(fr)}">${en}</span>`;
   writeFileSync(`${out}/404.html`, `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#111312"><meta name="robots" content="noindex"><title data-en="Page not found · Guilded" data-fr="Page introuvable · Guilded">Page not found · Guilded</title><link rel="icon" href="/favicon.png" type="image/png"><link rel="stylesheet" href="/design-tokens.css"><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/atelier.css"><script src="/site.js" defer></script><script src="/language.js" type="module"></script></head><body class="site-page features-page"><a class="skip" href="#main">${b('Skip to content', 'Aller au contenu')}</a>${siteHeader('/', false, null, true)}<main class="guide not-found" id="main" tabindex="-1"><span class="nf-code">404</span><h1>${b('This page wandered off', 'Cette page s’est égarée')}</h1><p>${b('The address may be old or mistyped. Head back to the start and pick up from there.', 'L’adresse est peut-être ancienne ou mal écrite. Revenez à l’accueil et reprenez à partir de là.')}</p><p><a class="button" href="/">${b('Go home', 'Retour à l’accueil')}</a></p></main></body></html>`);

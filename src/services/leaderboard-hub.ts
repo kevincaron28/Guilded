@@ -12,7 +12,7 @@ export const HUB_EMBLEMS: Record<Exclude<HubTab, "overview">, string> = {
 };
 
 export const HUB_CSS = `<style>
-.hub-banner{position:relative;margin:0 -4px 20px;padding:28px 20px 22px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#15110d linear-gradient(90deg,rgba(14,11,8,.94) 8%,rgba(14,11,8,.55) 62%,rgba(14,11,8,.25)),url(/images/hero/site-hero-800.webp) center/cover}
+.hub-banner{position:relative;margin:0 -4px 20px;padding:28px 20px 22px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#15110d linear-gradient(90deg,rgba(14,11,8,.94) 8%,rgba(14,11,8,.55) 62%,rgba(14,11,8,.25)),url(/images/web/season-banner-1600.webp) center/cover}@media(max-width:800px){.hub-banner{background-image:linear-gradient(90deg,rgba(14,11,8,.94) 8%,rgba(14,11,8,.55) 62%,rgba(14,11,8,.25)),url(/images/web/season-banner-800.webp)}}
 .hub-banner h1{margin:4px 0 8px;font-size:clamp(28px,6vw,46px)}.hub-banner p{max-width:560px;margin:0 0 12px}
 .hub-search{display:flex;gap:8px;max-width:520px}.hub-search input{flex:1;min-width:0;min-height:44px;padding:0 12px;border-radius:8px;border:1px solid var(--line);background:rgba(0,0,0,.45);color:inherit}
 .hub-search button{min-height:44px;padding:0 16px}
@@ -20,6 +20,7 @@ export const HUB_CSS = `<style>
 .hub-tabs a img{width:22px;height:22px;object-fit:contain}.hub-tabs a.on{border-color:var(--gold);color:var(--gold);font-weight:700}
 .hub-grid{display:grid;gap:16px;grid-template-columns:minmax(0,1fr)}.hub-grid>*{min-width:0}@media(min-width:760px){.hub-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.hub-grid.two{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .hub-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 14px 12px;min-width:0}.hub-card h2,.hub-card h3{margin:0 0 4px;font-size:18px;display:flex;align-items:center;gap:8px}.hub-card h2 img,.hub-card h3 img{width:28px;height:28px}
+.sec-art{display:block;width:100%;height:auto;aspect-ratio:1600/360;object-fit:cover;border-radius:12px;border:1px solid var(--line);margin:0 0 14px}.podium .medal{display:block;width:44px;height:44px;margin:0 auto 4px}.podium .p1 .medal{width:56px;height:56px}
 .hub-card .more{display:block;margin-top:8px;font-size:14px}
 .podium{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr) minmax(0,1fr);align-items:end;gap:6px;margin:10px 0 6px;text-align:center}.podium .step{border:1px solid var(--line);border-radius:10px 10px 4px 4px;padding:8px 4px 8px;background:rgba(255,255,255,.03);min-width:0}
 .podium .step.p1{border-color:var(--gold);padding-top:14px;background:rgba(214,170,70,.09)}.podium .num{font-size:12px;letter-spacing:.1em;color:var(--muted)}.podium .p1 .num{color:var(--gold)}
@@ -62,7 +63,7 @@ export function podium(entries: PodiumEntry[]): string {
   if (!entries.length) return "";
   const order = [entries[1], entries[0], entries[2]].map((entry, i) => entry ? { entry, place: [2, 1, 3][i]! } : null);
   return `<div class="podium">` + order.map((slot) => slot
-    ? `<div class="step p${slot.place}"><span class="num">#${slot.place}</span>${slot.entry.href ? `<a class="name${slot.entry.className ? ` c-${slot.entry.className}` : ""}" href="${slot.entry.href}">${escapeHtml(slot.entry.name)}</a>` : `<span class="name">${escapeHtml(slot.entry.name)}</span>`}`
+    ? `<div class="step p${slot.place}"><img class="medal" src="/images/web/medal-${["", "gold", "silver", "bronze"][slot.place]}.webp" alt="" width="44" height="44" loading="lazy"><span class="num">#${slot.place}</span>${slot.entry.href ? `<a class="name${slot.entry.className ? ` c-${slot.entry.className}` : ""}" href="${slot.entry.href}">${escapeHtml(slot.entry.name)}</a>` : `<span class="name">${escapeHtml(slot.entry.name)}</span>`}`
       + (slot.entry.sub ? `<span class="sub">${escapeHtml(slot.entry.sub)}</span>` : "") + `<span class="pts">${escapeHtml(slot.entry.value)}</span></div>`
     : `<div></div>`).join("") + `</div>`;
 }
@@ -94,3 +95,7 @@ export function trendBars(values: number[], label: string): string {
 }
 
 export const emptyBox = (title: string, lines: string[]): string => `<div class="hub-empty"><p><strong>${escapeHtml(title)}</strong></p>${lines.map((line) => `<p class="muted">${line}</p>`).join("")}</div>`;
+
+/** Painted section header (1600 x 360, WebP at 1600 and 800 wide) at the very top of a leaderboard page, so it loads eagerly; decorative, so the alt text is empty. */
+export const sectionArt = (kind: "dungeons" | "players" | "duels" | "guilds"): string =>
+  `<img class="sec-art" src="/images/web/header-${kind}-1600.webp" srcset="/images/web/header-${kind}-800.webp 800w, /images/web/header-${kind}-1600.webp 1600w" sizes="(max-width:900px) 100vw, 900px" alt="" width="1600" height="360" loading="eager" fetchpriority="high">`;

@@ -216,8 +216,8 @@ describe("guild duels", () => {
     lua.run(`CLOCK = CLOCK + 4; NS.duels.onAddonMessage("D|Kev|Bob|" .. CLOCK .. "|knockout", "Kev-Realm")`);
     lua.run(knock("Kev", "Bob"));
     expect(lua.run(`local r = NS.duels.standings(); return #r .. ":" .. r[1].wins`)).toBe("2:1");
-    // The same pair 90 seconds later is a new duel.
-    lua.run(`CLOCK = CLOCK + 90; NS.duels.onAddonMessage("D|Kev|Bob|" .. CLOCK .. "|knockout", "Bob-Realm")`);
+    // The same pair 130 seconds later is a new duel.
+    lua.run(`CLOCK = CLOCK + 130; NS.duels.onAddonMessage("D|Kev|Bob|" .. CLOCK .. "|knockout", "Bob-Realm")`);
     expect(lua.run(`return tostring(NS.duels.standings()[1].wins)`)).toBe("2");
   });
 
@@ -244,9 +244,9 @@ describe("guild duels", () => {
 
   it("counts at most five duels per pair per day, and ranks by wins, win rate and streak", () => {
     const lua = setup();
-    lua.run(`for i = 1, 8 do CLOCK = CLOCK + 120; NS.duels.record("Kev", "Bob", CLOCK, "knockout") end`);
-    lua.run(`CLOCK = CLOCK + 120; NS.duels.record("Bob", "Cy", CLOCK, "knockout")`);
-    lua.run(`CLOCK = CLOCK + 120; NS.duels.record("Cy", "Kev", CLOCK, "retreat")`);
+    lua.run(`for i = 1, 8 do CLOCK = CLOCK + 130; NS.duels.record("Kev", "Bob", CLOCK, "knockout") end`);
+    lua.run(`CLOCK = CLOCK + 130; NS.duels.record("Bob", "Cy", CLOCK, "knockout")`);
+    lua.run(`CLOCK = CLOCK + 130; NS.duels.record("Cy", "Kev", CLOCK, "retreat")`);
     const board = lua.run(`local t = {}; for _, r in ipairs(NS.duels.standings()) do t[#t + 1] = r.name .. "=" .. r.wins .. "/" .. r.losses .. "/" .. r.best .. "/" .. r.streak end; return table.concat(t, " ")`);
     // Kev won 5 counted duels (the other 3 were over the allowance) and lost the last one to Cy.
     expect(board).toBe("Kev=5/1/5/-1 Cy=1/1/1/1 Bob=1/5/1/1");

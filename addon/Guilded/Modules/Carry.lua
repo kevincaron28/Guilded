@@ -46,6 +46,8 @@ local function bare(name)
 end
 
 local function store()
+  -- Guilded Dungeons next to Guilded stays silent: it never even creates its table.
+  if ns.moduleActive and not ns.moduleActive("carry") then return nil end
   local root = ns.getDb and ns.getDb()
   if not root then return nil end
   local s = root.carry

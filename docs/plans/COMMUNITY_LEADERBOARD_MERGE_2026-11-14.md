@@ -101,3 +101,7 @@ the split on each line, in English and French. The card is attached by REST and 
 
 Community seasons and participation keep their officer switches. There is no new automatic message. The old ladder's off switch
 disappears with the ladder.
+
+## Update, 14 November (owner: "divide by 3")
+
+The scale above (one fifth) is superseded: every in-game source is divided by 3 (dungeons, battlegrounds, duels, open-world PvP), per the production numbers in `COMMUNITY_SCORING_PROPOSAL_2026-11-14.md`. The values live in server-side config (`scoring()` in `community-ingame.ts`, optional environment override `COMMUNITY_INGAME_SCORING`), never in member text. Built with it: a soft daily curve for duels and battlegrounds (full, then half, then a quarter), a rematch rule for duels (same opponent within 7 days counts half), the in-game read done before the season-end transaction opens, a one-minute cache of a live window, ordered reads, and the open-world week that overlaps the window start. PvP is rechecked after the first battleground weeks and the 9 December raids.

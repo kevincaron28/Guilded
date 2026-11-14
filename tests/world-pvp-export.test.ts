@@ -29,13 +29,17 @@ describe("companion export of world PvP deaths", () => {
 
 describe("companion export of kill and death places", () => {
   const T = 1_800_000_000;
-  it("sends { k, t, m, x, y } with no enemy name, approximate flag or zone text, x and y left out when unknown", () => {
+  it("sends { k, t, m, x, y } with no enemy name or zone text, a: 1 only for an approximate position, x and y left out when unknown", () => {
     const rows = exportPvpEvents([
       { k: "kill", t: T, z: "Hillsbrad", m: 1424, x: 0.45678, y: 0.5, a: 1 },
       { k: "death", t: T + 5, m: 1424 },
       { k: "kill", t: T + 6, m: 1424, x: 1.5, y: 0.2 }
     ]);
-    expect(rows).toEqual([{ k: "kill", t: T, m: 1424, x: 0.4568, y: 0.5 }, { k: "death", t: T + 5, m: 1424 }, { k: "kill", t: T + 6, m: 1424 }]);
+    expect(rows).toEqual([
+      { k: "kill", t: T, m: 1424, s: T % 2_000_000_000, x: 0.4568, y: 0.5, a: 1 },
+      { k: "death", t: T + 5, m: 1424, s: (T + 5) % 2_000_000_000 },
+      { k: "kill", t: T + 6, m: 1424, s: (T + 6) % 2_000_000_000 }
+    ]);
     expect(JSON.stringify(rows)).not.toContain("Hillsbrad");
   });
 
@@ -48,9 +52,16 @@ describe("companion export of kill and death places", () => {
     expect(out[out.length - 1]?.t).toBe(T + PVP_EVENTS_MAX + 19);
   });
 
+  it("carries the stored id, and the same event gets the same id on every export", () => {
+    const stored = [{ k: "kill", t: T, m: 1, s: 41 }, { k: "death", t: T + 1, m: 1, s: 42 }, { k: "kill", t: T + 2, m: 1, s: 3_000_000_000 }];
+    const first = exportPvpEvents(JSON.parse(JSON.stringify(stored)));
+    expect(first.map((r: { s: number }) => r.s)).toEqual([41, 42, (T + 2) % 2_000_000_000]);
+    expect(exportPvpEvents(JSON.parse(JSON.stringify(stored)))).toEqual(first);
+  });
+
   it("puts the events in the export beside the weekly block", () => {
-    const out = exportWorldPvp({ worldPvp: { weekKey: 2900, week: { kills: 1 }, events: [{ k: "kill", t: T, m: 1424, x: 0.1, y: 0.2 }] } }) as Record<string, unknown>;
-    expect(out["pvpEvents"]).toEqual([{ k: "kill", t: T, m: 1424, x: 0.1, y: 0.2 }]);
+    const out = exportWorldPvp({ worldPvp: { weekKey: 2900, week: { kills: 1 }, events: [{ k: "kill", t: T, m: 1424, x: 0.1, y: 0.2, s: 7 }] } }) as Record<string, unknown>;
+    expect(out["pvpEvents"]).toEqual([{ k: "kill", t: T, m: 1424, s: 7, x: 0.1, y: 0.2 }]);
     expect(exportWorldPvp({ worldPvp: { weekKey: 2900, week: { kills: 1 } } })).not.toHaveProperty("pvpEvents");
   });
 

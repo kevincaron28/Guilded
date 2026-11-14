@@ -190,7 +190,7 @@ ils ne sont jamais publics. C'est activé par défaut ; l'interrupteur **Partage
 et efface toutes vos positions gardées, et les officiers peuvent couper la carte pour le serveur
 (`/officer roster map`). Supprimer mes données les efface aussi.
 
-**Les victoires et les morts du PvP mondial sont publiques** (décision du propriétaire, 14 novembre 2026). Pour chaque victoire et chaque mort
+**Les éliminations et les morts du PvP mondial sont publiques** (décision du propriétaire, 14 novembre 2026). Pour chaque élimination et chaque mort
 en monde ouvert, l'addon garde l'heure, la zone et votre position sur la carte (jamais le nom ni la classe de l'ennemi), et le compagnon envoie
 les plus récentes au bot lorsque celui-ci le gère. Elles sont affichées par zone et par position sur les pages publiques des guildes qui
 publient. Couper le module PvP mondial (`/guilded modules off worldpvp`) arrête leur enregistrement et efface celles qui sont gardées sur votre PC.

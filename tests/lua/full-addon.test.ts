@@ -202,6 +202,33 @@ describe("the whole addon, loaded in .toc order", () => {
     expect(s.chat().join(" ")).toContain("2 maps written");
     s.run(`NS.getDb().probes = nil; SlashCmdList["GUILDED"]("probe")`);
     expect(s.run(`return tostring(NS.getDb().probes)`)).toBe("nil");
+    s.run(`INCOMBAT = true; function InCombatLockdown() return INCOMBAT end; SlashCmdList["GUILDED"]("probe maps"); SlashCmdList["GUILDED"]("probe comm")`);
+    expect(s.run(`return tostring(NS.getDb().probes)`)).toBe("nil");
+  });
+
+  it("drops probes.maps at the next login, and /guilded probe comm joins a channel, sends on it and by whisper through ns.comm, and leaves", () => {
+    const s = fullAddon(1);
+    s.run(`
+      TIMERS = {}; JOINED = {}; LEFT = {}; SENT = {}
+      C_Timer = { After = function(_, fn) TIMERS[#TIMERS + 1] = fn end }
+      function JoinTemporaryChannel(name) JOINED[#JOINED + 1] = name end
+      function GetChannelName(name) return JOINED[1] == name and 5 or 0 end
+      function LeaveChannelByName(name) LEFT[#LEFT + 1] = name end
+      SlashCmdList["GUILDED"]("probe comm")
+    `);
+    s.run(`for i = 1, #TIMERS do TIMERS[i]() end`);
+    const out = s.run(`
+      local c = NS.getDb().probes.comm
+      local sent = {}
+      for _, m in ipairs(SENT) do if m.prefix == "GuildedProbe" then sent[#sent + 1] = m.target .. ":" .. m.text end end
+      return #JOINED .. "|" .. #LEFT .. "|" .. table.concat(sent, ",") .. "|" .. c.steps[#c.steps]`);
+    expect(out).toContain("1|1|");
+    expect(out).toContain("probe-channel");
+    expect(out).toContain("probe-whisper");
+    expect(out).toContain("left the channel");
+    // the saved map list does not survive the next login, and an armed probe runs on its own
+    s.run(`NS.getDb().probes = { maps = { rows = { "x" } }, commAuto = true }; TIMERS = {}; JOINED = {}; fire_event("PLAYER_LOGIN"); for i = 1, #TIMERS do TIMERS[i]() end`);
+    expect(s.run(`return tostring(NS.getDb().probes.maps) .. tostring(NS.getDb().probes.commAuto) .. #JOINED`)).toBe("nilnil1");
   });
 
   it("answers /guilded free with a removal line, never sends availability traffic, and ignores older addons' GuildedFree messages", () => {

@@ -644,18 +644,19 @@ export function exportWorldPvp(database) {
 }
 
 export const PVP_EVENTS_FEATURE = "pvp-events";
-export const PVP_EVENTS_MAX = 300;
-// { k: "kill" | "death", t: unix seconds, m: uiMapID, x, y } (x and y only when both are known, 0..1 with 4 decimals), newest last.
+export const PVP_EVENTS_MAX = 500;
+// { k: "kill" | "death", t: unix seconds, m: uiMapID, s: stable id (below 2^31), x, y } (x and y only when both are known, 0..1 with 4 decimals), newest last.
 export function exportPvpEvents(events) {
   if (!events || typeof events !== "object") return [];
   const out = [];
   for (const e of Object.values(events)) {
     if (!e || (e.k !== "kill" && e.k !== "death") || !Number.isSafeInteger(e.t) || e.t <= 1_600_000_000 || e.t >= 4_000_000_000) continue;
     if (!Number.isSafeInteger(e.m) || e.m <= 0 || e.m > 100_000) continue;
-    const row = { k: e.k, t: e.t, m: e.m };
+    const row = { k: e.k, t: e.t, m: e.m, s: Number.isSafeInteger(e.s) && e.s > 0 && e.s < 2_147_483_648 ? e.s : e.t % 2_000_000_000 };
     if (typeof e.x === "number" && typeof e.y === "number" && e.x >= 0 && e.x <= 1 && e.y >= 0 && e.y <= 1 && Number.isFinite(e.x) && Number.isFinite(e.y)) {
       row.x = Math.round(e.x * 10000) / 10000;
       row.y = Math.round(e.y * 10000) / 10000;
+      if (e.a === 1) row.a = 1; // approximate: the last position seen before the game refused it
     }
     out.push(row);
   }

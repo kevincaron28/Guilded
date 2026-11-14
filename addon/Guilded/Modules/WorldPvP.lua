@@ -23,10 +23,10 @@ local DEATH_WINDOW_SECONDS = 60
 local DEDUPE_SECONDS = 5
 local RECENT = 30
 local MAX_ZONES = 25
-local EVENTS_KEEP = 300
+local EVENTS_KEEP = 500
 local EVENTS_MAX_AGE = 30 * 86400
 local SAMPLE_SECONDS = 5
-local STALE_SECONDS = 600
+local STALE_SECONDS = 60
 local WEEK = 7 * 86400
 local WEEK_OFFSET = 5 * 86400 + 15 * 3600 -- Tuesday 15:00 UTC, counted from the epoch (a Thursday)
 
@@ -131,6 +131,9 @@ local function round4(value) return math.floor(value * 10000 + 0.5) / 10000 end
 
 -- My map id and position on it with plain map calls (never a protected function); the position is nil where the game does not give
 -- one (instances, a refusal, secret values), the map id alone may still be known.
+-- The map is whatever GetBestMapForUnit returns: in a capital city that is the city map with city-local coordinates (the website
+-- has the cities' rectangles), and in a cave or micro-dungeon the game may return another map type; the id is kept as it comes and
+-- the website places it with the rectangles from /guilded probe maps.
 local function readPosition()
   if inInstance() then return nil end
   if not (C_Map and C_Map.GetBestMapForUnit and C_Map.GetPlayerMapPosition) then return nil end
@@ -140,7 +143,7 @@ local function readPosition()
   if not okPos or not position then return mapId end
   local okXY, x, y = pcall(function() return position:GetXY() end)
   if not okXY or type(x) ~= "number" or type(y) ~= "number" or (ns.isSecret and (ns.isSecret(x) or ns.isSecret(y))) then return mapId end
-  if x <= 0 and y <= 0 or x > 1 or y > 1 then return mapId end
+  if x < 0 or x > 1 or y < 0 or y > 1 or (x == 0 and y == 0) then return mapId end
   return mapId, round4(x), round4(y)
 end
 
@@ -167,7 +170,9 @@ end
 local function addEvent(s, kind, zone, at, place)
   s.events = type(s.events) == "table" and s.events or {}
   local list = s.events
-  list[#list + 1] = { k = kind, t = at, z = zone, m = place.m, x = place.x, y = place.y, a = place.a and 1 or nil }
+  -- s: an id kept with the event, so every upload of the same event carries the same number (a counter, kept below 2^30).
+  s.seq = ((tonumber(s.seq) or 0) % 1073741823) + 1
+  list[#list + 1] = { k = kind, t = at, z = zone, m = place.m, x = place.x, y = place.y, a = place.a and 1 or nil, s = s.seq }
   local kept = {}
   for _, e in ipairs(list) do
     if type(e) == "table" and tonumber(e.t) and at - e.t <= EVENTS_MAX_AGE then kept[#kept + 1] = e end
@@ -346,7 +351,15 @@ function wp.tick(elapsed)
     else
       -- Module off: nothing is recorded, and what was kept of kills' and deaths' places is dropped.
       local db = ns.getDb and ns.getDb()
-      if type(db) == "table" and type(db.worldPvp) == "table" and db.worldPvp.events then db.worldPvp.events = nil end
+      local s = type(db) == "table" and db.worldPvp
+      if type(s) == "table" then
+        s.events = nil
+        for _, list in ipairs({ s.recent or {}, s.deathsRecent or {} }) do
+          for _, row in ipairs(list) do
+            if type(row) == "table" then row.m, row.x, row.y, row.a = nil, nil, nil, nil end
+          end
+        end
+      end
       lastPlace = nil
     end
   end)

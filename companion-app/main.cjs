@@ -426,13 +426,9 @@ const restartMarkerFile = () => path.join(app.getPath("userData"), "store-update
 function readRestartMarker() {
   if (!STORE_PACKAGE) {
     // A direct-download update the companion started while idle (idle-update.cjs): the restart stays in the tray.
-    try {
-      const marker = JSON.parse(fs.readFileSync(idleUpdateMarkerFile(), "utf8"));
-      fs.rmSync(idleUpdateMarkerFile(), { force: true });
-      const quiet = idleUpdate.markerIsFresh(marker);
-      if (quiet) pushLog({ time: new Date().toISOString(), level: "info", message: E("Guilded Companion was updated while idle and restarted in the tray.") });
-      return quiet;
-    } catch { return false; }
+    const quiet = idleUpdate.consumeMarker(idleUpdateMarkerFile());
+    if (quiet) pushLog({ time: new Date().toISOString(), level: "info", message: E("Guilded Companion was updated while idle and restarted in the tray.") });
+    return quiet;
   }
   try {
     const quiet = storeUpdatesModule().restartedAfterUpdate(JSON.parse(fs.readFileSync(restartMarkerFile(), "utf8")));

@@ -360,6 +360,10 @@ export function createSiteApp(client?: Client) {
   const profiles = createPlayerProfiles(prismaProfileStore(prisma, hostedPilot.allows), achievementsWeb, pictures, openPictures);
   const directory = createGuildDirectory(prismaGuildDirectoryStore(prisma, (id) => hostedPilot.allows(id)));
   const leaderboards = createLeaderboardPages({ store: prismaLeaderboardStore(prisma, (id) => hostedPilot.allows(id)), personal: personalStore, calendar: () => loadOfficialWindows(prisma), picture: (name, realm) => openPictures.byCharacter(name, realm) });
+  // Warm the leaderboards landing page once the bot is ready, then refresh it every 50 s (before its 60 s cache expires), so no visitor pays the cold load.
+  const warmLeaderboards = () => { if (client && !client.isReady()) return; void leaderboards.warm().catch((error) => console.warn("Leaderboard warm-up failed", error instanceof Error ? error.message : error)); };
+  setTimeout(warmLeaderboards, 20_000).unref();
+  setInterval(warmLeaderboards, 50_000).unref();
   const signInPage = companionSignInRoute({
     signIn: companionSignIn,
     servers: (discordUserId) => signInServers(client, discordUserId),

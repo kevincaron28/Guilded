@@ -196,6 +196,28 @@ describe("leaderboard and personal pages", () => {
         expect(body).not.toContain("internal-id-1");
       }
     });
+    it("serves an expired entry at once while it reloads, and warms the hub before anyone asks", async () => {
+      let loads = 0, clock = NOW.getTime();
+      const run = leaderRun("a", 1500, [player("Kev", "PALADIN", "TANK")]);
+      const store: LeaderboardStore = {
+        async runs() { loads += 1; return [run]; }, async characterRuns() { return []; },
+        async guilds() { return []; }, async guildRuns() { return []; }, async guildRoster() { return []; }
+      };
+      const pages = createLeaderboardPages({ store, personal: null, now: () => new Date(clock) });
+      const app = createWebApp({ store: memoryWebStore().store, auth: null, allows: () => true, postApplication: async () => null, routes: [pages.route], now: () => new Date(clock) });
+      const get = (path: string) => app.respond({ method: "GET", path, query: new URL(path, SITE).searchParams, headers: {} }) as Promise<WebResponse>;
+      await pages.warm();
+      const afterWarm = loads;
+      expect(afterWarm).toBeGreaterThan(0);
+      const first = (await get("/leaderboards/")).body;
+      expect(loads).toBe(afterWarm);
+      expect(first).toContain("Paladin");
+      expect(first).not.toContain("PALADIN");
+      clock += 61_000;
+      expect((await get("/leaderboards/")).status).toBe(200);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(loads).toBeGreaterThan(afterWarm);
+    });
     it("never shows a guild that does not publish, or its members, on the hub or in search", async () => {
       const hidden = leaderRun("hid", 1100, [player("Ghosty", "Mage", "DPS")]);
       const store: LeaderboardStore = {

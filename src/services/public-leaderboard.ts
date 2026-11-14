@@ -10,7 +10,7 @@ import { CLASSES } from "../wow-data.js";
 import { formatDuration } from "./dungeon-rules.js";
 import { issuePersonalCode, type PersonalStore } from "./personal-pairing.js";
 import { GAIN_STEP, planImprovements, roleScores, type ImprovementPlan, type RoutePlan } from "./public-guidance.js";
-import { classLabel, className as classFromText, factionLabel, FACTIONS, roleLabel, ROLES } from "./recruitment.js";
+import { classLabel as classLabelRaw, className as classFromText, factionLabel, FACTIONS, roleLabel, ROLES } from "./recruitment.js";
 import type { OfficialWindow } from "./official-seasons.js";
 import type { BracketedRules } from "./dungeon-november-rules.js";
 import { characterId, characterScores, DEFAULT_OFFICIAL, periodRules, publicRules, publicSeasons, publicWeek, rateRun, rulesAt, type PublicPeriod, type ScoreRow, type ScoreRun } from "./public-score.js";
@@ -119,6 +119,8 @@ export const GUILD_SORTS = ["score", "members", "at60", "level", "runs", "record
 export type GuildSort = typeof GUILD_SORTS[number];
 export interface GuildOverviewFilters { q: string; faction: string | null; realm: string | null; sort: GuildSort; page: number }
 
+// Stored class names may be upper case ("PALADIN"); people see "Paladin" (or the French name).
+const classLabel = (name: string, lang: "en" | "fr") => classLabelRaw(name.toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase()), lang);
 const foldText = (text: string) => text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 export function readGuildOverviewFilters(query: URLSearchParams): GuildOverviewFilters {
   const faction = (query.get("faction") ?? "").toUpperCase();
@@ -517,7 +519,7 @@ export interface LeaderboardDeps { store: LeaderboardStore; personal: PersonalSt
   /** The character's Public picture (public-pictures.ts), shown on its page and card; none when left out. */
   picture?: (name: string, realm: string | null) => Promise<PublicPicture | null> }
 
-export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute; meSection: (context: WebContext) => Promise<string> } {
+export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute; meSection: (context: WebContext) => Promise<string>; warm: () => Promise<void> } {
   const now = deps.now ?? (() => new Date());
   const cacheMs = deps.cacheMs ?? 60_000;
   const cache = new Map<string, { at: number; value: unknown }>();
@@ -525,18 +527,28 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
   async function cached<T>(id: string, load: () => Promise<T>): Promise<T> {
     id = `${currentEdition()}:${id}`;
     const hit = cache.get(id);
-    if (hit && now().getTime() - hit.at < cacheMs) return hit.value as T;
+    const age = hit ? now().getTime() - hit.at : Infinity;
+    if (hit && age < cacheMs) return hit.value as T;
     // Concurrent cold requests for the same key share one load.
     const running = coldLoads.get(id);
+    const start = () => {
+      const loading = (async () => {
+        const value = await load();
+        cache.set(id, { at: now().getTime(), value });
+        if (cache.size > 500) cache.delete(cache.keys().next().value!);
+        return value;
+      })();
+      coldLoads.set(id, loading);
+      loading.then(() => coldLoads.delete(id), () => coldLoads.delete(id));
+      return loading;
+    };
+    // An expired entry is served at once while one reload runs in the background, so a visitor does not wait for the database.
+    if (hit && age < cacheMs * 20) {
+      if (!running) start().catch(() => undefined);
+      return hit.value as T;
+    }
     if (running) return running as Promise<T>;
-    const loading = (async () => {
-      const value = await load();
-      cache.set(id, { at: now().getTime(), value });
-      if (cache.size > 500) cache.delete(cache.keys().next().value!);
-      return value;
-    })();
-    coldLoads.set(id, loading);
-    try { return await loading; } finally { coldLoads.delete(id); }
+    return start();
   }
   // This request's seasons: the calendar, read at most once a minute.
   const seasonsNow = async () => publicSeasons(now(), await cached("calendar", () => deps.calendar?.() ?? Promise.resolve(DEFAULT_OFFICIAL)));
@@ -906,6 +918,41 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     return { people: [...seen.values()].sort((a, b) => b.points - a.points || a.player.character.localeCompare(b.player.character)) };
   });
 
+  // The hub's computed panels: shared by every visitor for a minute (and refreshed in the background by the warm-up).
+  const hubPanels = (period: PublicPeriod, bracketKey: string | null) => cached(`hub:${period.id}:${bracketKey ?? ""}`, async () => {
+    const rules = periodRules(period);
+    const all = (await periodRuns(period)).filter((run) => !run.challenge);
+    const weekStart = publicWeek(now()).from!;
+    return {
+      scores: bracketKey ? characterScores(all, rules).filter((row) => row.bracket === bracketKey) : [],
+      risers: bracketKey ? climbers(all, weekStart, rules, bracketKey, 5) : [],
+      broken: recordsBroken(all, weekStart, rules, 5),
+      latest: [...all].sort(newestFirst).slice(0, 6)
+    };
+  });
+
+  // Loads everything the landing page needs, so the first visitor after a restart does not pay for it. Run at start and about every 50 s:
+  // already-loaded entries are marked stale first, so they keep being served while the reload runs.
+  async function warm(): Promise<void> {
+    for (const entry of cache.values()) entry.at = Math.min(entry.at, now().getTime() - cacheMs - 1);
+    const periods = await seasonsNow();
+    const period = periods[0]!;
+    const ctx = { request: { query: new URLSearchParams() }, lang: "en" } as unknown as WebContext;
+    await ensureIndex(ctx, period);
+    await periodRuns(period);
+    await cached("guilds", () => deps.store.guilds());
+    await allGuildStats();
+    await searchIndex();
+    if (globalOpen()) await cached("duels:global", () => deps.store.globalDuelRows!());
+    const rules = periodRules(period);
+    for (const bracket of rules.brackets) await hubPanels(period, bracket.key as string);
+    const bracket = rules.brackets[0];
+    if (bracket) {
+      await guildRanks(period);
+      await guildRanks({ ...publicWeek(now()), rules } as PublicPeriod);
+    }
+  }
+
   // The landing page of the leaderboards: this season's podiums, what is happening now and what changed this week.
   async function hub(ctx: WebContext, kit: WebKit): Promise<WebResponse> {
     const { t, lang } = ctx;
@@ -916,14 +963,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const all = (await periodRuns(period)).filter((run) => !run.challenge);
     const bracket = chosenBracket(rules.brackets, ctx.request.query.get("bracket"));
     const week = publicWeek(now());
-    const weekStart = week.from!;
-    // The computed panels are shared by every visitor for a minute.
-    const panels = await cached(`hub:${period.id}:${bracket?.key ?? ""}`, async () => ({
-      scores: bracket ? characterScores(all, rules).filter((row) => row.bracket === bracket.key) : [],
-      risers: bracket ? climbers(all, weekStart, rules, bracket.key, 5) : [],
-      broken: recordsBroken(all, weekStart, rules, 5),
-      latest: [...all].sort(newestFirst).slice(0, 6)
-    }));
+    const panels = await hubPanels(period, bracket?.key ?? null);
     const scores = panels.scores;
     const edition = currentEdition();
     const q = (ctx.request.query.get("q") ?? "").trim().slice(0, 40);
@@ -988,7 +1028,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const empty = (what: string) => emptyBox(what, [t("Install Guilded Dungeons, sign in and connect the companion: your first finished run puts you on the board.", "Installez Guilded Dungeons, connectez-vous et reliez le compagnon : votre premier donjon terminé vous place au classement."), `<a href="/companion/">${t("Get the companion", "Obtenir le compagnon")}</a>`]);
     const card = (title: string, emblem: string, inner: string, href: string, more: string) => `<section class="hub-card"><h2><img src="${emblem}" alt="" width="28" height="28" loading="lazy">${escapeHtml(title)}</h2>${inner}<a class="more" href="${href}">${escapeHtml(more)} →</a></section>`;
     const bracketName_ = bracket ? bracketName(ctx, bracket.key) : "";
-    const kpis = `<div class="kpis"><span><b>${scores.length}</b> ${t("ranked players", "joueurs classés")}</span><span><b>${all.length}</b> ${t("runs this season", "essais cette saison")}</span><span><b>${(await cached("guilds", () => deps.store.guilds())).length}</b> ${t("guilds", "guildes")}</span>${globalOpen() ? `<span><b>${duelCount}</b> ${t("duels", "duels")}</span>` : ""}</div>`;
+    const kpis = `<div class="kpis"><span><b>${scores.length}</b> ${t("ranked players", "joueurs classés")}</span><span><b>${all.length}</b> ${t("runs this season", "essais cette saison")}</span><span><b>${(await cached("guilds", () => deps.store.guilds())).length}</b> ${t("guilds", "guildes")}</span>${globalOpen() ? `<span><b>${duelCount}</b> ${t("duels on the global ladder", "duels au classement mondial")}</span>` : ""}</div>`;
     const picker = rules.brackets.length > 1 ? `<form class="hub-picker" method="get" action="/leaderboards/"><input type="hidden" name="lang" value="${lang}">${q ? `<input type="hidden" name="q" value="${escapeHtml(q)}">` : ""}<label for="hub-bracket">${t("Levels", "Niveaux")}</label><select id="hub-bracket" name="bracket" onchange="this.form.submit()">${rules.brackets.map((b) => `<option value="${escapeHtml(b.key as string)}"${b.key === bracket?.key ? " selected" : ""}>${escapeHtml(bracketName(ctx, b.key as string))}</option>`).join("")}</select><noscript><button class="button" type="submit">${t("Show", "Afficher")}</button></noscript></form>` : "";
     const body = PAGE_CSS + HUB_CSS
       + `<header class="hub-banner"><p class="eyebrow">Guilded · ${escapeHtml(periodName(ctx, period))}</p><h1>${t("WoW Forever leaderboards", "Classements WoW Forever")}</h1>`
@@ -1666,5 +1706,5 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     try { edition = gameEditionOf({ gameEdition: ctx.request.query.get("edition") ?? "forever" }); }
     catch { return Promise.resolve(kit.page(400, "Unknown WoW edition", "")); }
     return withEdition(edition, () => route(ctx, kit));
-  }, meSection };
+  }, meSection, warm };
 }

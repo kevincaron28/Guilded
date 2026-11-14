@@ -158,12 +158,19 @@ local function same(a, b)
   return aBare and a == b:match("^(%S+)") or bBare and b == a:match("^(%S+)") or false
 end
 duels.same = same
+-- Rows from before the ladders started go; the whole current season stays; earlier seasons keep their newest KEEP rows.
 local function prune(d)
-  local list = {}
-  for id, r in pairs(d.results) do list[#list + 1] = { id = id, at = type(r) == "table" and r.at or 0 } end
-  if #list <= KEEP then return end
-  table.sort(list, function(x, y) return x.at < y.at end)
-  for i = 1, #list - KEEP do d.results[list[i].id] = nil end
+  local startsAt = duels.ratingStart and duels.ratingStart() or 0
+  local current = duels.currentSeason and duels.currentSeason() or nil
+  local older = {}
+  for id, r in pairs(d.results) do
+    local at = type(r) == "table" and tonumber(r.at) or 0
+    if at < startsAt then d.results[id] = nil
+    elseif not (current and duels.seasonOf(at) == current) then older[#older + 1] = { id = id, at = at } end
+  end
+  if #older <= KEEP then return end
+  table.sort(older, function(x, y) return x.at < y.at end)
+  for i = 1, #older - KEEP do d.results[older[i].id] = nil end
 end
 
 local function round(value) return math.floor(value + 0.5) end
@@ -236,8 +243,7 @@ local function kFor(rated) if rated < 10 then return 40 elseif rated < 30 then r
 local function weekStartOf(at) return RESET_ANCHOR + math.floor((at - RESET_ANCHOR) / WEEK) * WEEK end
 local function clampLevels(v) return math.max(-RATING.handicapMaxLevels, math.min(RATING.handicapMaxLevels, v)) end
 
--- The repeat-duel fractions are the server's (the bot hands them over; nothing is published here): the n-th duel of a pair in a weekly
--- window uses entry n and later ones count for nothing. Without a table every duel counts in full.
+-- Server-supplied repeat-duel fractions; without them every duel counts in full.
 function duels.setPairWeights(weights)
   local d = store()
   if not d then return false end
@@ -815,7 +821,7 @@ function duels.cardLines(data)
   elseif data.outsider then
     lines[#lines + 1] = "|cffe0a050" .. string.format(L("Not counted on the guild ladder: %s is not in your guild."), displayName(data.opponent)) .. "|r"
   elseif data.recorded == false then
-    lines[#lines + 1] = "|cffe0a050" .. L("Not recorded: you duelled this player a moment ago, so this result is not added.") .. "|r"
+    lines[#lines + 1] = "|cffe0a050" .. L("Not recorded.") .. "|r"
   elseif not data.counted then
     lines[#lines + 1] = "|cffe0a050" .. L("Not counted on the ladder.") .. "|r"
   elseif data.wins then
@@ -1048,7 +1054,7 @@ local function drawCard(data)
   local note = ""
   if data.rosterPending then note = L("Not counted yet: the guild roster has not loaded.")
   elseif data.outsider then note = string.format(L("Not counted on the guild ladder: %s is not in your guild."), displayName(data.opponent))
-  elseif data.recorded == false then note = L("Not recorded: you duelled this player a moment ago, so this result is not added.")
+  elseif data.recorded == false then note = L("Not recorded.")
   elseif not data.counted then note = L("Not counted on the ladder.") end
   card.note:SetText(note ~= "" and colored("e0a050", note) or "")
   local facts = {}

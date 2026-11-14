@@ -22,7 +22,7 @@ The companion uploads each character's recorded milestones (`milestones`: kind, 
 - The addon reads the client's `DUEL_WINNER_KNOCKOUT` / `DUEL_WINNER_RETREAT` strings (argument order taken from the `%1$s` / `%2$s` markers, so every language works) and records a duel only when both players are in the guild.
 - A participant shares the result on the addon channel (`GuildedDuel`); the same pair within 60 seconds is the same duel, whoever reports it. A shared result is believed only from the winner or the loser.
 - In-game: `/guilded duels [me]`, and a **Duels** page in the tools window ("Fun and runs").
-- Bot: duels arrive with the paired companion upload. The uploader must be the winner or the loser; both players' uploads of the same duel (within 120 s) are one row. `DuelResult` rows over the daily allowance (5 per pair per UTC day, 25 per reporter) are kept but not counted.
+- Bot: duels arrive with the paired companion upload. The uploader must be the winner or the loser; both players' uploads of the same duel (within 120 s) are one row.
 - Discord: `/bg duels`. Website: `/leaderboards/guild/<id>/duels` (guilds that publish their runs). Forever-first: the guild's own edition.
 
 ## Not verified in game

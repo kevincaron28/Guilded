@@ -356,6 +356,12 @@ describe("PvP leaderboards: pages", () => {
     for (const [continent, image] of Object.entries(CONTINENT_IMAGES)) if (image) expect(existsSync(`site${image}`), continent).toBe(true);
   });
 
+  it("credits the map artwork in English and French when the pictures are in-game maps", async () => {
+    const { get } = setup(async () => data());
+    expect((await get("/leaderboards/pvp/", "en")).body).toContain("Map artwork © Blizzard Entertainment; tiles prepared by the OpenMap addon. Guilded is not affiliated with Blizzard.");
+    expect((await get("/leaderboards/pvp/", "fr")).body).toContain("Illustrations de la carte © Blizzard Entertainment; tuiles préparées par");
+  });
+
   it("keeps a visible keyboard focus ring and a tooltip that fits the map for the longest French zone name", async () => {
     const d: PvpData = { ...data(), calls: PVP_ZONES.map((z) => ({ guildId: "g1", zone: z.fr, mapId: z.id, calledAt: NOW })) };
     const { get } = setup(async () => d);

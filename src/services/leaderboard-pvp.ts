@@ -302,7 +302,7 @@ export function continentView(continent: Continent): { x: number; y: number; w: 
   return { x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2, w, h };
 }
 
-const HEAT_FILLS = ["rgba(214,170,70,.30)", "rgba(214,170,70,.48)", "rgba(238,138,61,.58)", "rgba(229,82,63,.66)", "rgba(229,40,40,.78)"];
+const HEAT_FILLS = ["rgba(255,214,90,.14)", "rgba(255,190,70,.22)", "rgba(255,140,50,.30)", "rgba(240,80,50,.38)", "rgba(230,30,40,.46)"];
 export const PVP_MAP_CSS = `<style>
 .pvp-maps{display:grid;gap:16px;grid-template-columns:minmax(0,1fr);margin:8px 0 16px;justify-items:center}@media(min-width:900px){.pvp-maps{grid-template-columns:repeat(2,minmax(0,1fr))}}.pvp-map{width:100%;max-width:560px}
 .pvp-map{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#12171a;min-width:0;margin:0}.pvp-map h3{margin:10px 14px 4px;font-size:16px}
@@ -388,7 +388,8 @@ export function zoneMapHtml(env: PvpEnv, stats: ZoneStat[], f: PvpFilters): stri
   const notes = [kinds.has("kill") ? t("Red dots: kills.", "Points rouges : victimes.") : "", kinds.has("death") ? t("Blue dots: deaths.", "Points bleus : morts.") : "",
     !kd ? t("Calls for help are shown by zone only, never by position. The class, level and mode filters do not apply to them.", "Les appels à l'aide sont montrés par zone seulement, jamais par position. Les filtres de classe, de niveau et de mode ne s'y appliquent pas.") : ""].filter(Boolean);
   const dotNote = notes.length ? `<p class="muted">${notes.join(" ")}</p>` : "";
-  return `${PVP_MAP_CSS}<style>${svgs.map((s) => s.css).join("")}</style><h2 id="zone-map">${t("Zone map", "Carte des zones")} · ${period}</h2>${legend}<div class="pvp-maps">${maps}</div>${dotNote}${panels}<h3>${t("Zones", "Zones")}</h3>${table}`;
+  const credit = t("Map artwork © Blizzard Entertainment; tiles prepared by the OpenMap addon. Guilded is not affiliated with Blizzard.", "Illustrations de la carte © Blizzard Entertainment; tuiles préparées par l'addon OpenMap. Guilded n'est pas affilié à Blizzard.");
+  return `${PVP_MAP_CSS}<style>${svgs.map((s) => s.css).join("")}</style><h2 id="zone-map">${t("Zone map", "Carte des zones")} · ${period}</h2>${legend}<div class="pvp-maps">${maps}</div>${dotNote}<p class="muted map-credit">${credit}</p>${panels}<h3>${t("Zones", "Zones")}</h3>${table}`;
 }
 
 /** The hub's two PvP cards' contents: a podium of this week's top killers and the latest battleground results. */

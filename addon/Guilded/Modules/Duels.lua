@@ -464,7 +464,9 @@ function duels.recordExternal(winner, loser, at, reason, ext)
     if type(r) == "table" and same(r.winner, winner) and same(r.loser, loser) and math.abs((r.at or 0) - at) <= DEDUPE then return false end
   end
   local realm, mineInfo, oppInfo = realmName(), selfInfo(), type(ext.oppInfo) == "table" and ext.oppInfo or {}
-  local row = { winner = winner, loser = loser, winnerRealm = realm, loserRealm = realm, at = at, reason = reason == "retreat" and "retreat" or "knockout",
+  -- My realm is mine; the opponent's is the one their unit reported (mine only when the game said none).
+  local oppRealm = type(oppInfo.realm) == "string" and oppInfo.realm ~= "" and #oppInfo.realm <= 60 and not oppInfo.realm:find("[|%c]") and oppInfo.realm or realm
+  local row = { winner = winner, loser = loser, winnerRealm = iWon and realm or oppRealm, loserRealm = iWon and oppRealm or realm, at = at, reason = reason == "retreat" and "retreat" or "knockout",
     side = iWon and "winner" or "loser" }
   local mineClass, oppClass = englishClass(mineInfo.class), englishClass(oppInfo.class)
   local mineLevel, oppLevel = levelOf(mineInfo.level), levelOf(oppInfo.level)
@@ -699,7 +701,13 @@ function targetInfo(opponent)
       local okGuild, text = pcall(GetGuildInfo, "target")
       if okGuild and type(text) == "string" and text ~= "" and not (ns.isSecret and ns.isSecret(text)) then guild = text end
     end
-    return { name = name, level = level and level > 0 and level or nil, class = type(file) == "string" and file:match("^%u+$") or nil, guild = guild }
+    -- The opponent's own realm (UnitFullName gives none for a player of my realm): never assume it is mine.
+    local realm
+    if UnitFullName then
+      local okRealm, _, text = pcall(UnitFullName, "target")
+      if okRealm and type(text) == "string" and text ~= "" and #text <= 60 and not (ns.isSecret and ns.isSecret(text)) and not text:find("[|%c]") then realm = text:gsub("%s", "") end
+    end
+    return { name = name, level = level and level > 0 and level or nil, class = type(file) == "string" and file:match("^%u+$") or nil, guild = guild, realm = realm }
   end)
   return ok and info or nil
 end
@@ -1274,7 +1282,7 @@ function duels.holdForRoster(winner, loser, at, reason, ext)
     if same(entry.winner, winner) and same(entry.loser, loser) and math.abs((entry.at or 0) - at) <= DEDUPE then return false end
   end
   -- Only what the records need, nothing else from the moment.
-  local keep = { oppInfo = type(ext.oppInfo) == "table" and { name = ext.oppInfo.name, level = ext.oppInfo.level, class = ext.oppInfo.class, guild = ext.oppInfo.guild } or nil,
+  local keep = { oppInfo = type(ext.oppInfo) == "table" and { name = ext.oppInfo.name, level = ext.oppInfo.level, class = ext.oppInfo.class, guild = ext.oppInfo.guild, realm = ext.oppInfo.realm } or nil,
     duration = tonumber(ext.duration), zone = type(ext.zone) == "string" and ext.zone or nil, countdownAt = tonumber(ext.countdownAt), startAt = tonumber(ext.startAt) }
   list[#list + 1] = { winner = winner, loser = loser, at = at, reason = reason == "retreat" and "retreat" or "knockout", ext = keep }
   while #list > PENDING_MAX do dropPending(table.remove(list, 1), "too many waiting") end

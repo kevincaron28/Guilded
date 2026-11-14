@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { carryReceiptsToLua, exportCarriedRecords, parseCarryReceipts, readCarryReceipts, receiptIdsOf, writeCarryReceipts } from "../companion/carry.mjs";
+import { carryReceiptsToLua, carryReport, exportCarriedRecords, parseCarryReceipts, readCarryReceipts, receiptIdsOf, writeCarryReceipts } from "../companion/carry.mjs";
 import { pruneAcknowledged } from "../companion/delta.mjs";
 import { deviceUploadBody } from "../companion/device-sync.mjs";
 import { featuresLua } from "../companion/group-relay.mjs";
@@ -76,5 +76,43 @@ describe("receipts for the addon", () => {
     expect([...await readCarryReceipts(config)].sort()).toEqual(["externalDuel:x1-aaaa", "externalDuel:x2-bbbb"]);
     expect(await readFile(join(addons, "GuildedDungeons", "Carry.lua"), "utf8")).toContain("GuildedCarryReceipts");
     expect(await writeCarryReceipts(config, { carriedReceipts: ["carry:externalDuel:x2-bbbb"] })).toEqual([]);
+  });
+});
+
+describe("the activity line for carried records", () => {
+  const sentRows = [{ kind: "externalDuel", key: "1794678973-a67318" }, { kind: "externalDuel", key: "1794679100-b11c02" }];
+
+  it("says how many went and how many the bot accepted, from the receipts of the answer", () => {
+    expect(carryReport(sentRows, { carriedReceipts: ["carry:externalDuel:1794678973-a67318", "carry:externalDuel:1794679100-b11c02"] })).toEqual({ level: "ok", message: "Carried records: 2 sent, 2 accepted." });
+    expect(carryReport(sentRows, { carriedReceipts: ["carry:externalDuel:1794678973-a67318"] })).toEqual({ level: "info", message: "Carried records: 2 sent, 1 accepted, 1 not answered yet." });
+    expect(carryReport(sentRows, {})?.message).toBe("Carried records: 2 sent, 0 accepted, 2 not answered yet.");
+  });
+
+  it("says nothing when no record was sent, and names the bot's answer when the upload was refused", () => {
+    expect(carryReport([], { carriedReceipts: ["carry:externalDuel:x"] })).toBeNull();
+    expect(carryReport(undefined, {})).toBeNull();
+    expect(carryReport(sentRows, {}, { ok: false, error: "Too many requests: wait a minute." })).toEqual({ level: "warn", message: "Carried records: 2 sent, not accepted (Too many requests: wait a minute.)." });
+  });
+
+  it("is translated for the French window", async () => {
+    const { createRequire } = await import("node:module");
+    const i18n = createRequire(import.meta.url)("../companion-app/i18n.cjs") as { message: (language: string, text: string) => string };
+    expect(i18n.message("fr", "Carried records: 2 sent, 2 accepted.")).toBe("Données relayées : 2 envoyée(s), 2 acceptée(s).");
+    expect(i18n.message("fr", "Carried records: 2 sent, 1 accepted, 1 not answered yet.")).toContain("1 sans réponse");
+    expect(i18n.message("fr", "Carried records: 2 sent, not accepted (Too many requests).")).toContain("non acceptée(s) (Too many requests)");
+  });
+
+  it("writes the receipt of a real-shaped record where the addon reads it, from a device config without a standings file", async () => {
+    const root = await mkdtemp(join(tmpdir(), "carry-real-"));
+    try {
+    const addons = join(root, "Interface", "AddOns");
+    await mkdir(join(addons, "Guilded"), { recursive: true });
+    const config = { watchFile: join(root, "WTF", "Account", "ACC", "SavedVariables", "Guilded.lua") };
+    const written = await writeCarryReceipts(config, { carriedReceipts: ["carry:externalDuel:1794678973-a67318"] });
+    expect(written).toEqual([join(addons, "Guilded", "Carry.lua")]);
+    const text = await readFile(join(addons, "Guilded", "Carry.lua"), "utf8");
+    expect(parseCarryReceipts(text)).toEqual(["externalDuel:1794678973-a67318"]);
+    expect(text).toContain("GuildedCarryReceipts = {");
+    } finally { await rm(root, { recursive: true, force: true }); }
   });
 });

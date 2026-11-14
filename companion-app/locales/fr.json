@@ -1184,6 +1184,9 @@
   "The first account syncs while World of Warcraft is on.": "Le premier compte se synchronise tant que World of Warcraft est lancé.",
   "Sync this account": "Synchroniser ce compte",
   "Dungeon runs: none to send.": "Parcours de donjon : aucun à envoyer.",
+  "Carried records: {0} sent, {1} accepted.": "Données relayées : {0} envoyée(s), {1} acceptée(s).",
+  "Carried records: {0} sent, {1} accepted, {2} not answered yet.": "Données relayées : {0} envoyée(s), {1} acceptée(s), {2} sans réponse pour l’instant.",
+  "Carried records: {0} sent, not accepted ({1}).": "Données relayées : {0} envoyée(s), non acceptée(s) ({1}).",
   "Dungeon run receipts saved for Guilded Dungeons. Use /reload in WoW to load them.": "Accusés de réception des parcours enregistrés pour Guilded Dungeons. Tapez /reload dans WoW pour les charger.",
   "Guilded Dungeons has not saved your guild yet, so the bot cannot tell which Discord server your runs belong to. Update Guilded Dungeons to 9.3.0 or newer, log in to WoW once with it enabled, then type /reload.": "Guilded Dungeons n’a pas encore enregistré votre guilde : le bot ne peut donc pas savoir à quel serveur Discord vos parcours appartiennent. Mettez Guilded Dungeons à jour (9.3.0 ou plus récent), connectez-vous une fois à WoW avec l’addon activé, puis tapez /reload."
 }

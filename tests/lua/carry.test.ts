@@ -101,6 +101,34 @@ describe.each<Kind>(["guilded", "standalone"])("records carried by a nearby comp
     expect(waiting(player)).toBe("0");
   });
 
+  it("a carrier that already has a record done answers it when it is offered again, so a player who was offline at the first receipt clears it", () => {
+    if (!own) return;
+    const carrier = client(kind, "Bee", { companion: true });
+    const player = client("guilded", "Aye");
+    duel(player);
+    hear(player, "Bee", "HI|1", "GUILD");
+    const frames = queued(player, "WHISPER", "Bee");
+    for (const text of frames) hear(carrier, "Aye", text, "WHISPER");
+    const id = carrier.run("for id in pairs(NS.getDb().carry.records) do return id end");
+    // The carrier reloads with the bot's receipt; the player was offline, so the first K reached nobody.
+    carrier.run(`GuildedCarryReceipts = { ${JSON.stringify(id)} }`);
+    carrier.run("NS.carry.applyReceipts()");
+    queued(carrier, "WHISPER", "Aye");
+    expect(waiting(player)).toBe("1");
+    // The player offers it again (a later announcement): the carrier answers once, and the player clears it.
+    CLOCK_STEP(player, 4000);
+    hear(player, "Bee", "HI|1", "GUILD");
+    const again = queued(player, "WHISPER", "Bee");
+    expect(again.length).toBeGreaterThan(0);
+    for (const text of again) hear(carrier, "Aye", text, "WHISPER");
+    const told = queued(carrier, "WHISPER", "Aye");
+    expect(told).toEqual([`K|${id}`]);
+    for (const text of again) hear(carrier, "Aye", text, "WHISPER");
+    expect(queued(carrier, "WHISPER", "Aye")).toEqual([]);
+    hear(player, "Bee", told[0]!, "WHISPER");
+    expect(waiting(player)).toBe("0");
+  });
+
   it("a receipt from a name the record was never handed to changes nothing", () => {
     if (!own) return;
     const player = client("guilded", "Aye");

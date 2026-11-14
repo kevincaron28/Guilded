@@ -76,6 +76,24 @@ function decideAddonInstall({ addon, companionVersion, wowRunning = false, wowEn
   return wowRunning ? { ...decision, blocked: "wow-running" } : decision;
 }
 
+/**
+ * The automatic addon update (9.3.2): what to do right now about a wanted update. `install` runs it; `wait` says why it cannot yet
+ * (WoW holds the files, or a failed try is cooling down); `none` means there is nothing to do or it is switched off.
+ * @returns {{ action: "install" | "wait" | "none", reason: string }}
+ */
+function decideAutoAddonUpdate({ addon, companionVersion, wowRunning = false, autoUpdate = true, wowEnabled = true, failedAt = 0, now = Date.now(), busy = false, retryAfterMs = 10 * 60 * 1000 } = {}) {
+  if (busy) return { action: "none", reason: "busy" };
+  if (!autoUpdate) return { action: "none", reason: "auto-update-off" };
+  if (!wowEnabled) return { action: "none", reason: "wow-off" };
+  if (!addon) return { action: "none", reason: "unchecked" };
+  const decision = decideAddonInstall({ addon, companionVersion, wowRunning: false });
+  const wanted = decision.action === "install" || (decision.action === "update" && (decision.reason === "older" || decision.reason === "unknown-version"));
+  if (!wanted) return { action: "none", reason: decision.reason };
+  if (wowRunning) return { action: "wait", reason: "wow-running" };
+  if (failedAt && now - failedAt < retryAfterMs) return { action: "wait", reason: "retry-later" };
+  return { action: "install", reason: decision.reason };
+}
+
 /** The hash SHA256SUMS lists for `name` ("<hex>  <name>" or "<hex> *<name>"), or null. */
 function checksumFor(sums, name) {
   for (const line of String(sums ?? "").split(/\r?\n/)) {
@@ -255,4 +273,4 @@ async function installAddon({ addon, companionVersion, wowRunning = false, force
   return { folder: main.folder, backup: main.backup, files: main.files, action: decision.action, version: main.version, updated: done.map((entry) => ({ name: entry.name, folder: entry.folder, backup: entry.backup })), failed };
 }
 
-module.exports = { EXTRA_ADDONS, installedVersion, releaseAssets, siteChecksumFor, decideAddonInstall, checksumFor, verifyChecksum, readZip, installAddonFiles, installAddon, MAX_ZIP_BYTES };
+module.exports = { decideAutoAddonUpdate, EXTRA_ADDONS, installedVersion, releaseAssets, siteChecksumFor, decideAddonInstall, checksumFor, verifyChecksum, readZip, installAddonFiles, installAddon, MAX_ZIP_BYTES };

@@ -166,3 +166,30 @@ describe("addon install: whole flow", () => {
     expect(calls).toBe(0);
   });
 });
+
+describe("the automatic addon update (9.3.2)", () => {
+  const old = { folder: "x", expected: "forever", status: "ok", version: "9.3.0" };
+  const base = { addon: old, companionVersion: "9.3.1", wowRunning: false, autoUpdate: true, wowEnabled: true };
+  it("installs at any moment WoW is not running, including right at start-up", () => {
+    expect(installer.decideAutoAddonUpdate(base)).toEqual({ action: "install", reason: "older" });
+  });
+  it("waits while WoW runs, then installs on the very next look (a close and restart inside one poll is not needed)", () => {
+    expect(installer.decideAutoAddonUpdate({ ...base, wowRunning: true })).toEqual({ action: "wait", reason: "wow-running" });
+    expect(installer.decideAutoAddonUpdate({ ...base, wowRunning: false }).action).toBe("install");
+  });
+  it("retries a failed install after ten minutes, not before", () => {
+    const now = 1_000_000;
+    expect(installer.decideAutoAddonUpdate({ ...base, failedAt: now - 60_000, now })).toEqual({ action: "wait", reason: "retry-later" });
+    expect(installer.decideAutoAddonUpdate({ ...base, failedAt: now - 11 * 60_000, now }).action).toBe("install");
+  });
+  it("does nothing when up to date, switched off, unchecked or already running", () => {
+    expect(installer.decideAutoAddonUpdate({ ...base, addon: { ...old, version: "9.3.1" } }).action).toBe("none");
+    expect(installer.decideAutoAddonUpdate({ ...base, autoUpdate: false })).toEqual({ action: "none", reason: "auto-update-off" });
+    expect(installer.decideAutoAddonUpdate({ ...base, addon: null })).toEqual({ action: "none", reason: "unchecked" });
+    expect(installer.decideAutoAddonUpdate({ ...base, busy: true })).toEqual({ action: "none", reason: "busy" });
+  });
+  it("installs a missing addon, and an older GuildedDungeons beside a current Guilded", () => {
+    expect(installer.decideAutoAddonUpdate({ ...base, addon: { ...old, status: "not-installed", version: null } }).reason).toBe("missing");
+    expect(installer.decideAutoAddonUpdate({ ...base, addon: { ...old, version: "9.3.1", extras: [{ name: "GuildedDungeons", version: "9.3.0" }] } }).action).toBe("install");
+  });
+});

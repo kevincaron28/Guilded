@@ -496,28 +496,32 @@ const french = () => language() === "fr";
 
 async function refreshSavedFile() {
   const ticket = ++savedFileCheck;
-  let result = null;
+  let result = null, addonSeen = null;
   if (config.wowEnabled !== false && config.watchFile) {
     try {
       result = await engineModules.checkSavedFile(config.watchFile, { ignore: config.liveFolderDeclined ?? [] });
       // A build for another edition in this game folder never loads (companion/addon-install.mjs).
       result.addon = await engineModules.checkInstalledAddon(config.watchFile);
+      addonSeen = result.addon;
     } catch { /* checked again within the hour */ }
+    // The installed addon is read on its own too: a saved-file read that fails must not hide an addon update that is waiting.
+    if (!addonSeen) { try { addonSeen = await engineModules.checkInstalledAddon(config.watchFile); } catch { /* checked again soon */ } }
   } else if (config.wowEnabled !== false) {
     // Nothing chosen yet: a fresh PC whose AddOns folder is empty never saves a Guilded.lua to
     // choose. Check the WoW install the app finds so the Problems panel can say so.
     try {
       const found = detectSavedVariables(savedNames(), engineModules.isOtherEditionFolder, wowSearchOptions())[0];
-      if (found) result = { addon: await engineModules.checkInstalledAddon(found.path) };
+      if (found) { result = { addon: await engineModules.checkInstalledAddon(found.path) }; addonSeen = result.addon; }
       else {
         // WoW installed but never started with this account (Guilded Setup on a fresh PC): the
         // addon can still go in, from the install folder alone.
         const install = searchWow(savedNames(), engineModules.isOtherEditionFolder, wowSearchOptions()).installs[0];
-        if (install) result = { addon: await engineModules.checkInstalledAddon(path.join(install, "_forever_", "WTF", "Account", "-", "SavedVariables", "Guilded.lua")) };
+        if (install) { result = { addon: await engineModules.checkInstalledAddon(path.join(install, "_forever_", "WTF", "Account", "-", "SavedVariables", "Guilded.lua")) }; addonSeen = result.addon; }
       }
     } catch { /* checked again later */ }
   }
-  void maybeAutoUpdateAddon(result?.addon);
+  lastAddon = addonSeen;
+  void maybeAutoUpdateAddon(addonSeen);
   const another = otherAccounts();
   if (ticket !== savedFileCheck) return;
   savedFile = result;
@@ -547,16 +551,29 @@ async function refreshSavedFile() {
 // update that was waiting for it runs (maybeAutoUpdateAddon).
 let wowRunning = false;
 let addonAutoUpdating = false, addonUpdateFailed = false, addonUpdateFailedAt = 0;
+// The last installed-addon reading, kept so a waiting update does not depend on a fresh file check (9.3.2).
+let lastAddon = null, lastAddonNote = "";
+// While an addon update waits for WoW to close, look every 4 seconds instead of 20: a client closed and restarted within a
+// poll interval used to be missed, and the update then waited for the next 5-minute file check that also found WoW open.
+const addonWaiting = () => addonInstallerModule().decideAutoAddonUpdate({ addon: lastAddon, companionVersion: app.getVersion(), wowRunning, autoUpdate: config.autoUpdate !== false, wowEnabled: config.wowEnabled !== false }).action !== "none";
 function checkWowRunning() {
   if (process.platform !== "win32") return;
   execFile("tasklist", ["/FO", "CSV", "/NH", "/FI", "IMAGENAME eq Wow*"], { windowsHide: true, timeout: 15_000 }, (error, stdout) => {
     const running = !error && engineModules.wowRunningFrom(stdout);
-    if (running === wowRunning) return;
-    const exited = wowRunning && !running;
-    wowRunning = running;
-    if (engine) onState(engine.state());
-    if (exited) setTimeout(() => void refreshSavedFile(), 3000);
+    if (running !== wowRunning) {
+      const exited = wowRunning && !running;
+      wowRunning = running;
+      if (engine) onState(engine.state());
+      if (exited) setTimeout(() => void refreshSavedFile(), 3000);
+    }
+    // A pending addon update is tried at every look while WoW is not running (not only at the moment it exits).
+    if (!running && lastAddon) void maybeAutoUpdateAddon(lastAddon);
   });
+}
+function scheduleWowCheck() {
+  const next = () => { try { return addonWaiting() ? 4000 : 20000; } catch { return 20000; } };
+  const run = () => { try { checkWowRunning(); } finally { setTimeout(run, next()).unref?.(); } };
+  run();
 }
 let online = true;
 function problems(state) {
@@ -888,8 +905,7 @@ app.whenReady().then(async () => {
   setInterval(zeroSetup, 5 * 60 * 1000).unref?.();
   // Every 5 minutes: a few file dates, so a /reload that did not save Guilded.lua shows up soon.
   setInterval(() => void refreshSavedFile(), 5 * 60 * 1000);
-  checkWowRunning();
-  setInterval(checkWowRunning, 20 * 1000);
+  scheduleWowCheck();
   // Look for a newer release shortly after start, then every few hours.
   setTimeout(() => void checkForUpdate(), 20_000);
   setInterval(() => void checkForUpdate(), updates.CHECK_INTERVAL_MS);
@@ -1395,24 +1411,34 @@ async function installAddonAnswer(force) {
 // notice says what happened. A failed try is repeated every 10 minutes and, until it works, shows as a
 // problem with the manual button as the fallback. "Install updates automatically" off stops all of it.
 async function maybeAutoUpdateAddon(addon) {
-  if (addonAutoUpdating || config.autoUpdate === false || config.wowEnabled === false || !addon) return;
-  const decision = addonInstallerModule().decideAddonInstall({ addon, companionVersion: app.getVersion(), wowRunning: false });
-  const wanted = decision.action === "install" || (decision.action === "update" && (decision.reason === "older" || decision.reason === "unknown-version"));
-  if (!wanted) { if (addonUpdateFailed) { addonUpdateFailed = false; if (engine) onState(engine.state()); } return; }
-  // WoW holds the addon files: wait for it (the next check after it exits comes back here).
-  if (process.platform === "win32" && await wowIsRunning()) return;
-  if (addonUpdateFailed && Date.now() - addonUpdateFailedAt < 10 * 60 * 1000) return;
+  const running = process.platform === "win32" ? await wowIsRunning() : false;
+  const decision = addonInstallerModule().decideAutoAddonUpdate({ addon, companionVersion: app.getVersion(), wowRunning: running, autoUpdate: config.autoUpdate !== false, wowEnabled: config.wowEnabled !== false,
+    failedAt: addonUpdateFailed ? addonUpdateFailedAt : 0, busy: addonAutoUpdating || addonInstalling });
+  if (decision.action === "none" && addonUpdateFailed && decision.reason !== "busy") { addonUpdateFailed = false; if (engine) onState(engine.state()); }
+  // Every change of state is written once (startup.log), so "why is the addon still old" can be read from that file.
+  const note = `${decision.action}:${decision.reason}`;
+  if (decision.reason !== "busy" && note !== lastAddonNote) {
+    if (decision.action !== "none") updateLine(`addon update ${decision.action === "wait" ? "waiting" : "starting"}: ${decision.reason}; installed ${addon?.version ?? "none"}, companion ${app.getVersion()}`);
+    else if (lastAddonNote && !lastAddonNote.startsWith("none")) updateLine(`addon update not needed: ${decision.reason}`);
+    lastAddonNote = note;
+  }
+  if (decision.action !== "install") return;
   addonAutoUpdating = true;
   try {
+    updateLine(`addon update attempt: ${addon?.version ?? "none"} -> ${app.getVersion()}`);
     const result = await installAddonNow({ refresh: false });
     addonUpdateFailed = false;
+    lastAddonNote = "";
+    updateLine(`addon update installed ${result.version}`);
     const names = (result.updated ?? []).map((entry) => entry.name).join(", ");
     pushLog({ time: new Date().toISOString(), level: "ok", message: E("Guilded addons updated to {0} ({1}). Type /reload in WoW, or start it, to use them.", result.version, names || "Guilded") });
     if (Notification.isSupported()) new Notification({ title: T("Guilded addon updated to {0}", result.version), body: T("Start WoW, or type /reload, to use it. Your old version is kept in Interface\\Guilded backups."), icon: asset("icon.png") }).show();
     setTimeout(() => void refreshSavedFile(), 1000);
   } catch (error) {
-    // WoW started in between: not a failure, the next exit tries again.
-    if (!/Exit World of Warcraft first/.test(error instanceof Error ? error.message : String(error))) { addonUpdateFailed = true; addonUpdateFailedAt = Date.now(); }
+    // WoW started in between: not a failure, the next look tries again.
+    const message = error instanceof Error ? error.message : String(error);
+    updateLine(`addon update failed: ${message.slice(0, 160)}`);
+    if (!/Exit World of Warcraft first/.test(message)) { addonUpdateFailed = true; addonUpdateFailedAt = Date.now(); }
   } finally {
     addonAutoUpdating = false;
     if (engine) onState(engine.state());

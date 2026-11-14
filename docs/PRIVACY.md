@@ -20,7 +20,7 @@ the map off for the server (`/officer roster map`). Delete my data removes them 
 **World PvP kills and deaths are public** (owner decision, 14 November 2026). For each open-world kill and death the addon keeps the
 time, the zone and your position on the map (never the enemy's name or class), and the companion sends the newest of them to the bot
 when the bot supports it. They are shown by zone and position on the public pages of guilds that publish. Turning off the World PvP module
-(`/guilded modules off worldpvp`) stops recording them and drops the ones stored on your PC.
+(`/guilded modules off worldpvp`) stops recording them and drops the ones stored on your PC. A point appears on the public map only about six hours after it happened, rounded to a square of about 1% of the zone, and only where the points shown come from at least three members. The bot keeps at most five weeks of them.
 
 This notice describes Guilded Companion, the Guilded website and the project-hosted
 Guilded service operated by Kevin Caron (Guilded). A guild using its own server has
@@ -201,7 +201,7 @@ et efface toutes vos positions gardées, et les officiers peuvent couper la cart
 **Les éliminations et les morts du PvP mondial sont publiques** (décision du propriétaire, 14 novembre 2026). Pour chaque élimination et chaque mort
 en monde ouvert, l'addon garde l'heure, la zone et votre position sur la carte (jamais le nom ni la classe de l'ennemi), et le compagnon envoie
 les plus récentes au bot lorsque celui-ci le gère. Elles sont affichées par zone et par position sur les pages publiques des guildes qui
-publient. Couper le module PvP mondial (`/guilded modules off worldpvp`) arrête leur enregistrement et efface celles qui sont gardées sur votre PC.
+publient. Couper le module PvP mondial (`/guilded modules off worldpvp`) arrête leur enregistrement et efface celles qui sont gardées sur votre PC. Un point n'apparaît sur la carte publique qu'environ six heures après l'événement, arrondi à un carré d'environ 1 % de la zone, et seulement là où les points affichés viennent d'au moins trois membres. Le bot en garde cinq semaines au plus.
 
 Le bilan hebdomadaire facultatif conserve votre horaire, fuseau, heures de silence,
 choix actif/inactif et dernier résultat d'envoi. Un MP Discord est envoyé seulement

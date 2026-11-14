@@ -176,17 +176,26 @@ describe("PvP leaderboards: review fixes", () => {
       { memberId: "a", guildId: "g1", mapId: 1411, kind: "kill", weekKey: week, _count: { _all: 2 } },
       { memberId: "a", guildId: "g1", mapId: 99999, kind: "kill", weekKey: week, _count: { _all: 1 } }
     ];
-    const rows = [{ memberId: "a", guildId: "g1", kind: "kill", weekKey: week, at: NOW, mapId: 1434, x: 0.4, y: 0.6, approx: false }, { memberId: "a", guildId: "g1", kind: "death", weekKey: week, at: NOW, mapId: 1434, x: 0.45, y: 0.65, approx: true }];
+    const rows = [{ memberId: "a", guildId: "g1", kind: "kill", weekKey: week, at: NOW, mapId: 1434, x: 0.4, y: 0.6, approx: false }, { memberId: "a", guildId: "g1", kind: "death", weekKey: week, at: NOW, mapId: 1434, x: 0.45, y: 0.65, approx: true }, { memberId: "b", guildId: "g1", kind: "kill", weekKey: week, at: NOW, mapId: 1434, x: 0.401, y: 0.604, approx: false }, { memberId: "c", guildId: "g1", kind: "kill", weekKey: week, at: NOW, mapId: 1434, x: 0.9, y: 0.1, approx: false }];
     const chars = [{ memberId: "a", name: "Dara", displayName: null, realm: "Doomhowl", className: "Rogue", level: 60 }];
     const seen: Record<string, unknown>[] = [];
     const database = { worldPvpWeek: { findMany: async () => [], groupBy: async () => [] }, battlegroundReport: { findMany: async () => [] }, guildHelpCall: { findMany: async () => [] }, character: { findMany: async () => chars },
       worldPvpEvent: { groupBy: async (args: Record<string, unknown>) => { seen.push(args); return groups; }, findMany: async (args: Record<string, unknown>) => { seen.push(args); return rows; } } };
     const loaded = await loadPvpData(database as never, ["g1"], "forever", NOW);
     expect(seen.every((a) => JSON.stringify(a["where"]).includes('"isTest":false'))).toBe(true);
+    // hidden and test members are left out, and an event is public only after six hours
+    expect(seen.every((a) => JSON.stringify(a["where"]).includes('"raceHidden":false'))).toBe(true);
+    const eventQuery = seen.find((a) => (a["where"] as Record<string, unknown>)["x"]) as { where: { at: { lt: Date } } };
+    expect(eventQuery.where.at.lt.getTime()).toBe(NOW.getTime() - 6 * 3_600_000);
     const f = { className: null, band: null, period: "week" as const, mode: null };
     const stats = zoneStats(loaded, f);
     expect(stats.find((z) => z.zone?.id === 1434)).toMatchObject({ kills: 8, deaths: 3, heat: 11 });
-    expect(stats.find((z) => z.zone?.id === 1434)!.dots.map((d) => d.kind).sort()).toEqual(["death", "kill"]);
+    expect(stats.find((z) => z.zone?.id === 1434)!.dots.map((d) => d.kind).sort()).toEqual(["death", "kill", "kill"]);
+    // coordinates are rounded to 1% of the zone
+    expect(stats.find((z) => z.zone?.id === 1434)!.dots.every((d) => Math.abs(d.x * 100 - Math.round(d.x * 100)) < 1e-9)).toBe(true);
+    // a filter that leaves fewer than three members keeps the heat but draws no point
+    const few = zoneStats({ ...loaded, events: loaded.events!.slice(0, 2) }, f).find((z) => z.zone?.id === 1434)!;
+    expect(few.dots).toEqual([]); expect(few.kills + few.deaths).toBe(11);
     expect(stats.find((z) => z.zone === null)).toMatchObject({ kills: 1 });
     expect(zoneStats(loaded, { ...f, className: "Mage" }).find((z) => z.zone?.id === 1434)).toMatchObject({ kills: 0, deaths: 0 });
     const { get } = setup(async () => loaded);

@@ -20,14 +20,15 @@ export interface PvpGame extends PvpPlayer { mode: string; bracket: string; mapI
 export interface PvpCall { guildId: string; zone: string; mapId?: number | null; calledAt: Date }
 export interface PvpData { weekKey: number; week: PvpWorldRow[]; total: PvpWorldRow[]; games: PvpGame[]; calls: PvpCall[]; /** Kills and deaths per zone (exact counts) and the newest of them with a position, from the pvp-events upload. */ zoneActivity?: PvpZoneActivity[]; events?: PvpEvent[] }
 /** One kill or death with its place: zone map position 0-1 (null when the game gave none), no enemy name. */
-export interface PvpEvent { guildId: string; kind: "kill" | "death"; weekKey: number; at: Date; mapId: number; x: number | null; y: number | null; approx: boolean; className: string | null; level: number | null }
+/** `memberId` is only used to count how many members a zone's points come from; it never reaches a page. */
+export interface PvpEvent { memberId?: string; guildId: string; kind: "kill" | "death"; weekKey: number; at: Date; mapId: number; x: number | null; y: number | null; approx: boolean; className: string | null; level: number | null }
 export const emptyPvp = (weekKey: number): PvpData => ({ weekKey, week: [], total: [], games: [], calls: [] });
 
 export const PVP_LEVEL_BANDS: { key: string; from: number; to: number }[] = [
   { key: "1-19", from: 1, to: 19 }, { key: "20-39", from: 20, to: 39 }, { key: "40-59", from: 40, to: 59 }, { key: "60", from: 60, to: 60 }
 ];
 export const PVP_MODES = ["casual", "rated", "blitz"] as const;
-const BG_DAYS = 30, WORLD_ROWS = 5_000, GAME_ROWS = 5_000, CALL_ROWS = 2_000, CALL_DAYS = 28, EVENT_GROUPS = 5_000, EVENT_ROWS = 2_000;
+const BG_DAYS = 30, WORLD_ROWS = 5_000, GAME_ROWS = 5_000, CALL_ROWS = 2_000, CALL_DAYS = 28, EVENT_GROUPS = 5_000, EVENT_ROWS = 2_000, EVENT_DELAY_MS = 6 * 3_600_000, MIN_DOT_MEMBERS = 3;
 
 const MAPS: Record<number, [string, string]> = {
   30: ["Alterac Valley", "Vallée d'Alterac"], 489: ["Warsong Gulch", "Goulet des Chanteguerres"], 529: ["Arathi Basin", "Bassin d'Arathi"],
@@ -56,7 +57,7 @@ export async function loadPvpData(database: PrismaClient, guildIds: readonly str
       select: { guildId: true, mode: true, bracket: true, mapId: true, outcome: true, endedAt: true, premadeNonce: true, character: { select: { name: true, displayName: true, realm: true, className: true, level: true } } } }),
     database.guildHelpCall.findMany({ where: { guildId: { in: ids }, calledAt: { gte: callsSince, lt: now }, member: VISIBLE }, select: { guildId: true, zone: true, mapId: true, calledAt: true }, orderBy: { calledAt: "desc" }, take: CALL_ROWS }),
     database.worldPvpEvent.groupBy({ by: ["memberId", "guildId", "mapId", "kind", "weekKey"], where: { guildId: { in: ids }, at: { gte: callsSince, lt: now }, member: VISIBLE }, _count: { _all: true }, orderBy: { _count: { id: "desc" } }, take: EVENT_GROUPS }),
-    database.worldPvpEvent.findMany({ where: { guildId: { in: ids }, at: { gte: callsSince, lt: now }, x: { not: null }, y: { not: null }, member: VISIBLE }, select: { memberId: true, guildId: true, kind: true, weekKey: true, at: true, mapId: true, x: true, y: true, approx: true }, orderBy: { at: "desc" }, take: EVENT_ROWS })
+    database.worldPvpEvent.findMany({ where: { guildId: { in: ids }, at: { gte: callsSince, lt: new Date(now.getTime() - EVENT_DELAY_MS) }, x: { not: null }, y: { not: null }, member: VISIBLE }, select: { memberId: true, guildId: true, kind: true, weekKey: true, at: true, mapId: true, x: true, y: true, approx: true }, orderBy: { at: "desc" }, take: EVENT_ROWS })
   ]);
   const worldWeek = weekRows.map((row) => ({ memberId: row.memberId, guildId: row.guildId, kills: row.kills, deaths: row.deaths, defends: row.defends, helped: row.helped }));
   const worldTotal = totalRows.map((row) => ({ memberId: row.memberId, guildId: row.guildId, kills: row._sum.kills ?? 0, deaths: row._sum.deaths ?? 0, defends: row._sum.defends ?? 0, helped: row._sum.helped ?? 0 }));
@@ -91,7 +92,7 @@ export async function loadPvpData(database: PrismaClient, guildIds: readonly str
     activity.set(key, entry);
   }
   if (activity.size) data.zoneActivity = [...activity.values()];
-  if (eventRows.length) data.events = eventRows.map((row) => ({ guildId: row.guildId, kind: row.kind === "death" ? "death" as const : "kill" as const, weekKey: row.weekKey, at: row.at, mapId: row.mapId, x: row.x, y: row.y, approx: row.approx, ...classOf(row.memberId) }));
+  if (eventRows.length) data.events = eventRows.map((row) => ({ memberId: row.memberId, guildId: row.guildId, kind: row.kind === "death" ? "death" as const : "kill" as const, weekKey: row.weekKey, at: row.at, mapId: row.mapId, x: row.x, y: row.y, approx: row.approx, ...classOf(row.memberId) }));
   data.week = world(shown.week);
   data.total = world(shown.total);
   data.games = reports.map((row) => ({ ...player(row.character, row.guildId), mode: row.mode, bracket: row.bracket, mapId: row.mapId, outcome: row.outcome, endedAt: row.endedAt, matchKey: matchKeyOf(row.guildId, row.mapId, row.mode, row.endedAt, row.premadeNonce) }));
@@ -186,13 +187,20 @@ export function zoneStats(data: PvpData, f: PvpFilters, guildId: string | null =
     stat.kills += row.kills; stat.deaths += row.deaths;
     stat.by.set(row.guildId, (stat.by.get(row.guildId) ?? 0) + row.kills + row.deaths);
   }
+  // Exact places, public only for events older than six hours (the load asks for those), on a grid of 1% of the zone, and only where the
+  // points of the chosen filter come from at least three members: below that the zone is lit but no point is drawn.
+  const places = new Map<number, { members: Set<string>; dots: Map<string, ZoneStat["dots"][number]> }>();
   for (const event of data.events ?? []) {
     if ((guildId && event.guildId !== guildId) || (f.period === "week" && event.weekKey !== data.weekKey) || !matches({ className: event.className, level: event.level } as PvpPlayer, f)) continue;
     const zone = zoneById(event.mapId);
     if (!zone || event.x === null || event.y === null) continue;
-    const stat = slot(zone, zone.en);
-    if (stat.dots.length < 120) stat.dots.push({ mapId: event.mapId, x: event.x, y: event.y, kind: event.kind, approx: event.approx });
+    const place = places.get(zone.id) ?? { members: new Set<string>(), dots: new Map() };
+    places.set(zone.id, place);
+    place.members.add(event.memberId ?? `${event.guildId}:${event.at.getTime()}`);
+    const x = Math.round(event.x * 100) / 100, y = Math.round(event.y * 100) / 100, key = `${event.kind}|${x}|${y}`;
+    if (!place.dots.has(key) && place.dots.size < 120) place.dots.set(key, { mapId: event.mapId, x, y, kind: event.kind, approx: event.approx });
   }
+  for (const [id, place] of places) if (place.members.size >= MIN_DOT_MEMBERS) slot(zoneById(id)!, zoneById(id)!.en).dots.push(...place.dots.values());
   // The map is lit by kills plus deaths as soon as any exist for the period; until then by calls for help.
   const kd = [...stats.values()].some((stat) => stat.kills + stat.deaths > 0);
   return [...stats.values()].map(({ by, ...stat }) => ({ ...stat, heat: kd ? stat.kills + stat.deaths : stat.calls,

@@ -3673,8 +3673,6 @@ model LadderSnapshot {
   @@unique([guildId, board, day])
 }
 
-// World PvP (9.1): one row per member per week, set from the addon's own counters after the anti-farming caps
-// (src/services/world-pvp.ts). A re-upload can only raise a number. Weeks are the raid week (Tuesday reset).
 // One open-world kill or death with its place (9.3.2 addon, companion feature "pvp-events"). The zone is the game's map id; x and y are 0-1
 // fractions of that zone map (null when the game gave no position, e.g. inside an instance). eventId is the addon's stable id: a resent upload
 // changes nothing. No enemy name is stored. Kept about five weeks, deleted with the member's data.
@@ -3697,6 +3695,8 @@ model WorldPvpEvent {
   @@index([guildId, weekKey])
 }
 
+// World PvP (9.1): one row per member per week, set from the addon's own counters after the anti-farming caps
+// (src/services/world-pvp.ts). A re-upload can only raise a number. Weeks are the raid week (Tuesday reset).
 model WorldPvpWeek {
   id String @id @default(cuid())
   guildId String

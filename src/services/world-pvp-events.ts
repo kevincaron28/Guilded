@@ -8,6 +8,8 @@ import { weekKeyOf } from "./world-pvp.js";
 export const PVP_EVENTS_FEATURE = "pvp-events";
 export const PVP_EVENTS_MAX = 500;
 const KEEP_DAYS = 35;
+/** Most events kept for one member (server-side only; nothing is said to the member about it). */
+export const PVP_EVENTS_PER_MEMBER = 2000;
 
 const eventSchema = z.object({
   k: z.enum(["kill", "death"]),
@@ -35,11 +37,22 @@ export function parsePvpEvents(value: unknown, now = new Date()): PvpEventRow[] 
 type EventDb = Pick<PrismaClient, "worldPvpEvent">;
 /** Stores the rows (a resent upload changes nothing) and forgets what is older than five weeks. Returns how many rows were new. */
 export async function applyPvpEvents(db: EventDb, guildId: string, memberId: string, rows: readonly PvpEventRow[], now = new Date()): Promise<number> {
-  if (!rows.length) return 0;
+  const cutoff = new Date(now.getTime() - KEEP_DAYS * 86_400_000);
+  const fresh = rows.filter((row) => row.at >= cutoff);
+  if (!fresh.length) return 0;
+  // Nothing older than five weeks is stored; a member's stored events stop at the cap (the newest rows of an upload come first).
+  await db.worldPvpEvent.deleteMany({ where: { guildId, memberId, at: { lt: cutoff } } });
+  const room = Math.max(0, PVP_EVENTS_PER_MEMBER - await db.worldPvpEvent.count({ where: { memberId } }));
+  const take = fresh.slice(0, room);
+  if (!take.length) return 0;
   const created = await db.worldPvpEvent.createMany({
-    data: rows.map((row) => ({ guildId, memberId, weekKey: weekKeyOf(row.at), kind: row.kind, at: row.at, mapId: row.mapId, x: row.x, y: row.y, approx: row.approx, eventId: row.eventId })),
+    data: take.map((row) => ({ guildId, memberId, weekKey: weekKeyOf(row.at), kind: row.kind, at: row.at, mapId: row.mapId, x: row.x, y: row.y, approx: row.approx, eventId: row.eventId })),
     skipDuplicates: true
   });
-  await db.worldPvpEvent.deleteMany({ where: { guildId, memberId, at: { lt: new Date(now.getTime() - KEEP_DAYS * 86_400_000) } } });
   return created.count;
+}
+
+/** Daily job: everything older than five weeks goes, for every member (an inactive member's rows too). */
+export async function purgeOldPvpEvents(db: Pick<PrismaClient, "worldPvpEvent">, now = new Date()): Promise<number> {
+  return (await db.worldPvpEvent.deleteMany({ where: { at: { lt: new Date(now.getTime() - KEEP_DAYS * 86_400_000) } } })).count;
 }

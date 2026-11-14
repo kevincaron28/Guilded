@@ -5,7 +5,7 @@ import { emptyNameBook } from "../src/services/character-display.js";
 import { scoreCardPng } from "../src/services/score-card.js";
 
 const duel = (n: number, extra = {}) => ({ reportKey: `k${n}`, winnerId: "w", loserId: "l", winnerCharacter: "Aldric", loserCharacter: "Brenna", winnerLevel: 58, loserLevel: 60, reason: "knockout", endedAt: new Date(Date.UTC(2026, 10, 13, 12, n)), ...extra });
-const history = (n: number) => Array.from({ length: n }, (_, i) => ({ reportKey: `k${i + 1}`, winnerId: "w", loserId: "l", winnerLevel: 58, loserLevel: 60 }));
+const history = (n: number) => Array.from({ length: n }, (_, i) => ({ reportKey: `k${i + 1}`, winnerId: "w", loserId: "l", winnerLevel: 58, loserLevel: 60, endedAt: new Date(Date.UTC(2026, 10, 13, 11, i)) }));
 const classes = new Map([["aldric", "Warrior"], ["brenna", "Mage"]]);
 
 function fakeDb(existingOne = 0, existingMore: { status: string; payload: unknown } | null = null, rows = history(5)) {

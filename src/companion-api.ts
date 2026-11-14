@@ -1,4 +1,5 @@
 import { createPugWeb } from "./services/pug-web.js";
+import { issueDuelChallenge } from "./services/duel-integrity.js";
 import { cachedOfficerCheck, meSection, type MeSectionInput } from "./services/me-layout.js";
 import { revokeCompanionCredential } from "./services/companion-revoke.js";
 import { createWebCommunityBadges } from "./services/web-community-badges.js";
@@ -876,7 +877,10 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         }
         if (!deviceUploadsPerDevice(device.id) || !deviceUploadsPerIp(address)) { json(response, 429, { error: "Too many uploads in the last hour. Try again later." }); return; }
         try {
-          json(response, 200, { ...await handleDeviceUpload(devices, device, await readBody(request), { allows: (id) => hostedPilot.allows(id) }), botVersion: BOT_VERSION });
+          const answered = await handleDeviceUpload(devices, device, await readBody(request), { allows: (id) => hostedPilot.allows(id) });
+          // A fresh challenge for the duel records the addon makes next (the companion writes it where the addon reads it).
+          const duelChallenge = await issueDuelChallenge(prisma, device.id).catch(() => null);
+          json(response, 200, { ...answered, botVersion: BOT_VERSION, ...(duelChallenge ? { duelChallenge } : {}) });
         } catch (error) {
           if (error instanceof DeviceError) { json(response, error.status, { error: error.message }); return; }
           throw error;

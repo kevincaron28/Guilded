@@ -259,7 +259,7 @@ async function renderLadder(card: ScoreCard): Promise<Buffer> {
       if (medal) {
         body.push(`<circle cx="${x + 32}" cy="${mid}" r="14" fill="${medal}"/><circle cx="${x + 32}" cy="${mid}" r="10.5" fill="none" stroke="#120d08" stroke-opacity=".35" stroke-width="1.5"/>`);
         await putCentre(span("#1a1206", String(row.rank)), 15, x + 32, mid);
-      } else await putCentre(span(th.muted, String(row.rank)), 17, x + 32, mid);
+      } else await putCentre(span(th.muted, (row.rank > 0 ? String(row.rank) : "·")), 17, x + 32, mid);
       // Name in the class colour, the second line muted.
       const chars = Math.max(8, Math.floor(nameW / 9.6));
       await put(span(row.color, clip(row.name, chars)), 20, nameX, row.sub ? ry + 4 : mid - 13, nameW);

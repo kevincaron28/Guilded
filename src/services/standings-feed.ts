@@ -33,6 +33,10 @@ export interface StandingsFeedOptions {
   // A burst of writes (an import creates many rows) wakes waiting companions once.
   wakeDelayMs?: number;
   maxEntries?: number;
+  /** Total size of the cached answers; the least recently used are dropped past it (default 150 MB). */
+  maxBytes?: number;
+  /** How long a finished guild-wide shared read is reused while nothing changed (default 3 s), so a burst after a restart reads once. */
+  sharedTtlMs?: number;
   /** A shared guild-wide read that takes longer fails for everyone waiting on it (default 25 s), so joiners never hang. */
   sharedTimeoutMs?: number;
   // A rebuild slower than this answers with the member's previous answer, if any (default 10 s).
@@ -44,6 +48,23 @@ export interface StandingsFeedOptions {
   onStamp?: (guildId: string, stamp: Stamp) => void;
 }
 
+// Each large value of a feed answer (the standings, the loot rules, ...) is the same object for every member of a guild, so its JSON is
+// made once and reused: the answer text is joined from these pieces instead of stringifying the whole 1 MB body again per member.
+// The result is exactly what JSON.stringify of the whole object gives (same key order, undefined skipped), so ETags and stamps keep
+// their values.
+const pieces = new WeakMap<object, string | undefined>();
+export function serializeObject(value: Record<string, unknown>): string {
+  const out: string[] = [];
+  for (const [key, entry] of Object.entries(value)) {
+    let json: string | undefined;
+    if (entry !== null && typeof entry === "object") {
+      if (pieces.has(entry)) json = pieces.get(entry); else { json = JSON.stringify(entry); pieces.set(entry, json); }
+    } else json = JSON.stringify(entry);
+    if (json !== undefined) out.push(`${JSON.stringify(key)}:${json}`);
+  }
+  return `{${out.join(",")}}`;
+}
+
 export function contentHash(value: unknown): string {
   return createHash("sha256").update(typeof value === "string" ? value : JSON.stringify(value)).digest("hex");
 }
@@ -53,13 +74,17 @@ export function createStandingsFeed(options: StandingsFeedOptions = {}) {
   const maxWaitMs = options.maxWaitMs ?? 25_000;
   const wakeDelayMs = options.wakeDelayMs ?? 1_500;
   const maxEntries = options.maxEntries ?? 500;
+  const maxBytes = options.maxBytes ?? 150 * 1024 * 1024;
+  const sharedTtlMs = options.sharedTtlMs ?? 3_000;
+  let cachedBytes = 0;
+  const sizeOf = (entry: Cached) => Buffer.byteLength(entry.body);
   const sharedTimeoutMs = options.sharedTimeoutMs ?? 25_000;
   const composeBudgetMs = options.composeBudgetMs ?? 10_000;
   const answerWithinMs = options.answerWithinMs ?? 17_000;
   const now = options.now ?? Date.now;
   const cache = new Map<string, Cached>();
   const inflight = new Map<string, Promise<Cached>>();
-  const sharedReads = new Map<string, { generation: number; work: Promise<unknown> }>();
+  const sharedReads = new Map<string, { generation: number; work: Promise<unknown>; doneAt?: number }>();
   const generations = new Map<string, number>();
   const stamps = new Map<string, Stamp>();
   const waiters = new Map<string, Set<() => void>>();
@@ -96,13 +121,19 @@ export function createStandingsFeed(options: StandingsFeedOptions = {}) {
   }
   let stampListener = options.onStamp;
 
+  function forget(key: string) {
+    const old = cache.get(key);
+    if (old) { cachedBytes -= sizeOf(old); cache.delete(key); }
+  }
   function remember(key: string, entry: Cached) {
-    cache.delete(key);
+    forget(key);
     cache.set(key, entry);
-    while (cache.size > maxEntries) {
+    cachedBytes += sizeOf(entry);
+    // Least recently used first; the answer just stored always stays.
+    while ((cache.size > maxEntries || cachedBytes > maxBytes) && cache.size > 1) {
       const oldest = cache.keys().next().value;
       if (oldest === undefined) break;
-      cache.delete(oldest);
+      forget(oldest);
     }
   }
 
@@ -142,8 +173,8 @@ export function createStandingsFeed(options: StandingsFeedOptions = {}) {
         // A write during the read invalidates this snapshot. Never stamp old data as newer
         // than another member's response; the addon trusts that timestamp when syncing.
         if (started !== generation(guildId)) continue;
-        const updatedAt = sharedStamp(guildId, contentHash({ shared: parts.shared, stampOnly: parts.stampOnly ?? null }));
-        const body = JSON.stringify({ ...header, updatedAt, ...parts.shared, ...parts.personal });
+        const updatedAt = sharedStamp(guildId, contentHash(`{"shared":${serializeObject(parts.shared)},"stampOnly":${parts.stampOnly ? serializeObject(parts.stampOnly) : "null"}}`));
+        const body = serializeObject({ ...header, updatedAt, ...parts.shared, ...parts.personal });
         const entry = { at: now(), generation: started, etag: `"${contentHash(body).slice(0, 32)}"`, body };
         remember(key, entry);
         return entry;
@@ -156,7 +187,7 @@ export function createStandingsFeed(options: StandingsFeedOptions = {}) {
       unstable(guildId);
       const parts = latest!;
       const updatedAt = new Date(stamps.get(guildId)?.at ?? 0).toISOString();
-      const body = JSON.stringify({ ...header, updatedAt, ...parts.shared, ...parts.personal });
+      const body = serializeObject({ ...header, updatedAt, ...parts.shared, ...parts.personal });
       return { at: now(), generation: -1, etag: `"${contentHash(body).slice(0, 32)}"`, body };
     }
   }
@@ -186,6 +217,7 @@ export function createStandingsFeed(options: StandingsFeedOptions = {}) {
         const cached = cache.get(key);
         const fresh = cached && cached.generation === generation(input.guildId) && now() - cached.at < ttlMs;
         const budget = composeBudgetMs <= 0 ? 0 : Math.min(composeBudgetMs, Math.max(1_000, startedAt + answerWithinMs - now()));
+        if (fresh) { cache.delete(key); cache.set(key, cached); }
         const entry = fresh ? cached : await build(key, input.guildId, input.compose, input.header, cached, budget);
         if (!input.ifNoneMatch || input.ifNoneMatch !== entry.etag) return { status: 200, etag: entry.etag, body: entry.body };
         const left = deadline - now();
@@ -215,16 +247,15 @@ export function createStandingsFeed(options: StandingsFeedOptions = {}) {
     shared<T>(guildId: string, name: string, read: () => Promise<T>): Promise<T> {
       const key = `${guildId}:${name}`;
       const current = sharedReads.get(key);
-      if (current && current.generation === generation(guildId)) return current.work as Promise<T>;
-      const entry = { generation: generation(guildId), work: undefined as unknown as Promise<unknown> };
+      if (current && current.generation === generation(guildId) && (current.doneAt === undefined || now() - current.doneAt < sharedTtlMs)) return current.work as Promise<T>;
+      const entry: { generation: number; work: Promise<unknown>; doneAt?: number } = { generation: generation(guildId), work: undefined as unknown as Promise<unknown> };
       entry.work = new Promise<T>((resolve, reject) => {
         const timer = setTimeout(() => reject(new Error(`shared read ${name} for the guild took over ${sharedTimeoutMs} ms`)), sharedTimeoutMs);
         timer.unref?.();
         Promise.resolve().then(read).then(resolve, reject).finally(() => clearTimeout(timer));
       });
       sharedReads.set(key, entry);
-      const done = () => { if (sharedReads.get(key) === entry) sharedReads.delete(key); };
-      entry.work.then(done, done);
+      entry.work.then(() => { entry.doneAt = now(); }, () => { if (sharedReads.get(key) === entry) sharedReads.delete(key); });
       return entry.work as Promise<T>;
     },
 
@@ -244,7 +275,7 @@ export function createStandingsFeed(options: StandingsFeedOptions = {}) {
     onStamp(listener: ((guildId: string, stamp: Stamp) => void) | undefined) { stampListener = listener; },
 
     clear() {
-      cache.clear(); inflight.clear(); sharedReads.clear(); generations.clear(); stamps.clear();
+      cache.clear(); cachedBytes = 0; inflight.clear(); sharedReads.clear(); generations.clear(); stamps.clear();
       for (const timer of wakeTimers.values()) clearTimeout(timer);
       wakeTimers.clear();
       for (const set of waiters.values()) for (const wake of [...set]) wake();

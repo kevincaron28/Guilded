@@ -204,8 +204,19 @@ describe("reads shared between the members of one guild", () => {
     release("one");
     expect(await answers).toEqual(["one", "one", "one"]);
     expect(read).toHaveBeenCalledTimes(1);
-    // Finished: the next request reads again.
-    await feed.shared("g", "reads", async () => "two");
+    // Finished: within the short TTL the next request reuses it, after a change (or the TTL) it reads again.
+    expect(await feed.shared("g", "reads", async () => "two")).toBe("one");
+    feed.markChanged("g");
+    expect(await feed.shared("g", "reads", async () => "two")).toBe("two");
+  });
+  it("reuses a finished read for a few seconds, then reads again", async () => {
+    let clock = 0;
+    const feed = createStandingsFeed({ now: () => clock, sharedTtlMs: 3_000 });
+    const read = vi.fn(async () => "x");
+    await feed.shared("g", "reads", read); clock = 2_000; await feed.shared("g", "reads", read);
+    expect(read).toHaveBeenCalledTimes(1);
+    clock = 3_500; await feed.shared("g", "reads", read);
+    expect(read).toHaveBeenCalledTimes(2);
   });
   it("keeps guilds and names apart", async () => {
     const feed = createStandingsFeed();
@@ -241,5 +252,49 @@ describe("a shared read that hangs", () => {
     await vi.advanceTimersByTimeAsync(1_001);
     await failed;
     expect(await feed.shared("g", "reads", async () => "fresh")).toBe("fresh");
+  });
+});
+
+describe("the answer cache is bounded by bytes", () => {
+  const big = (n: number) => parts([{ pad: "x".repeat(n) }]);
+  it("drops the least recently used answers past maxBytes and keeps the newest", async () => {
+    const feed = createStandingsFeed({ maxBytes: 2_500, maxEntries: 100, ttlMs: 60_000 });
+    const compose = (n: number) => vi.fn(async () => big(n));
+    const a = compose(1_000), b = compose(1_000), c = compose(1_000);
+    await feed.get({ guildId: "g", memberKey: "a", header, compose: a });
+    await feed.get({ guildId: "g", memberKey: "b", header, compose: b });
+    await feed.get({ guildId: "g", memberKey: "a", header, compose: a }); // a is now the most recently used
+    await feed.get({ guildId: "g", memberKey: "c", header, compose: c }); // over the cap: b (least recently used) goes
+    await feed.get({ guildId: "g", memberKey: "a", header, compose: a });
+    await feed.get({ guildId: "g", memberKey: "b", header, compose: b });
+    expect(a).toHaveBeenCalledTimes(1);
+    expect(b).toHaveBeenCalledTimes(2);
+  });
+  it("still answers when one answer alone is over the cap", async () => {
+    const feed = createStandingsFeed({ maxBytes: 100 });
+    const answer = await feed.get({ guildId: "g", memberKey: "a", header, compose: async () => big(1_000) });
+    expect(answer.status).toBe(200);
+  });
+});
+
+describe("the answer text is joined from per-value JSON", () => {
+  it("is exactly what JSON.stringify gives, so ETags and stamps keep their values", async () => {
+    const feed = createStandingsFeed();
+    const shared = { standings: [{ ep: 1, note: "é\"x" }], nothing: undefined, when: new Date("2026-11-14T00:00:00Z"), n: 3, s: null };
+    const personal = { raids: [1, 2], standings: [{ ep: 9 }] }; // a later key overrides, keeping the first position
+    const answer = await feed.get({ guildId: "g", memberKey: "a", header, compose: async () => ({ shared, personal }) });
+    const updatedAt = JSON.parse(answer.body!).updatedAt as string;
+    expect(answer.body).toBe(JSON.stringify({ ...header, updatedAt, ...shared, ...personal }));
+    const { contentHash } = await import("../src/services/standings-feed.js");
+    expect(answer.etag).toBe(`"${contentHash(answer.body!).slice(0, 32)}"`);
+  });
+  it("serialises a guild-wide value once for all members", async () => {
+    const feed = createStandingsFeed();
+    const standings = [{ ep: 1 }];
+    const spy = vi.spyOn(JSON, "stringify");
+    for (const member of ["a", "b", "c"]) await feed.get({ guildId: "g", memberKey: member, header, compose: async () => ({ shared: { standings }, personal: { m: member } }) });
+    const calls = spy.mock.calls.filter(([value]) => value === standings).length;
+    spy.mockRestore();
+    expect(calls).toBe(1);
   });
 });

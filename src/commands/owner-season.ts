@@ -3,6 +3,7 @@ import { prisma } from "../database.js";
 import { withEdition } from "../services/edition-context.js";
 import { validTimeZone, zonedInstant } from "../services/dungeon-season-schedule.js";
 import { activateSeason2, observationsEmbed, loadSeasonObservations, reviewSeason2, season2Embed } from "../services/dungeon-season2-admin.js";
+import { BOSS_SCORING_V1 } from "../services/dungeon-boss-scoring.js";
 import { SCORING_V2, SEASON2_DATE, SEASON2_NAME } from "../services/dungeon-season2.js";
 import {
   cancelNextSeason, configureNextSeasonRules, loadOfficialWindows, officialWindowAt, scheduleNextSeason, scheduledNext, SeasonCalendarError, type OfficialWindow
@@ -28,12 +29,12 @@ export const ownerSeasonCommand = new SlashCommandBuilder()
   .addSubcommand(sub => sub.setName("observations").setDescription("Real completion times per dungeon this season (observation only)"))
   .addSubcommand(sub => sub.setName("season2-review").setDescription("Preview Season 2's targets computed from observed times (nothing is scheduled)")
     .addStringOption(o => o.setName("evidence").setDescription("Evidence policy (default current-v2)").addChoices({ name: "current-v2", value: "current-v2" }, { name: "current-v1", value: "current-v1" }))
-    .addBooleanOption(o => o.setName("scoring_v2").setDescription("Level-fair targets and a party minimum")))
+    .addBooleanOption(o => o.setName("scoring_v2").setDescription("Level-fair targets and a party minimum")).addBooleanOption(o => o.setName("boss_scoring").setDescription("Skipped bosses cost points")))
   .addSubcommand(sub => sub.setName("season2-activate").setDescription("Schedule Season 2 (default 9 December) and store the computed targets")
     .addStringOption(o => o.setName("date").setDescription(`Start date (default ${SEASON2_DATE.date})`))
     .addStringOption(o => o.setName("evidence").setDescription("Evidence policy (default current-v2)").addChoices({ name: "current-v2", value: "current-v2" }, { name: "current-v1", value: "current-v1" }))
     .addBooleanOption(o => o.setName("keep_rules").setDescription("Keep rules already uploaded for the next season"))
-    .addBooleanOption(o => o.setName("scoring_v2").setDescription("Level-fair targets and a party minimum")))
+    .addBooleanOption(o => o.setName("scoring_v2").setDescription("Level-fair targets and a party minimum")).addBooleanOption(o => o.setName("boss_scoring").setDescription("Skipped bosses cost points")))
   .addSubcommand((sub) => sub.setName("cancel").setDescription("Cancel the next season (the current one keeps running)"));
 
 let ownerId: string | null = null;
@@ -79,6 +80,7 @@ function season2Start(interaction: ChatInputCommandInteraction): Date {
   return zonedInstant(y, m - 1, d, SEASON2_DATE.hour, SEASON2_DATE.timeZone);
 }
 const season2Scoring = (interaction: ChatInputCommandInteraction) => interaction.options.getBoolean("scoring_v2") ? SCORING_V2 : undefined;
+const season2BossScoring = (interaction: ChatInputCommandInteraction) => interaction.options.getBoolean("boss_scoring") ? BOSS_SCORING_V1 : undefined;
 const season2Policy = (interaction: ChatInputCommandInteraction) => interaction.options.getString("evidence") === "current-v1" ? "current-v1" as const : "current-v2" as const;
 async function executeInEdition(interaction: ChatInputCommandInteraction): Promise<void> {
   const sub = interaction.options.getSubcommand();
@@ -117,13 +119,13 @@ async function executeInEdition(interaction: ChatInputCommandInteraction): Promi
       if (!loaded) throw new SeasonCalendarError("No season has started yet: nothing to observe.");
       embeds = [observationsEmbed(loaded)];
     } else if (sub === "season2-review") {
-      const review = await reviewSeason2(prisma, season2Start(interaction), now, season2Policy(interaction), season2Scoring(interaction));
+      const review = await reviewSeason2(prisma, season2Start(interaction), now, season2Policy(interaction), season2Scoring(interaction), season2BossScoring(interaction));
       if (!review) throw new SeasonCalendarError("No season has started yet: nothing to compute from.");
       embeds = [season2Embed(review)];
       files = [new AttachmentBuilder(Buffer.from(JSON.stringify(review.proposal.rules, null, 2)), { name: "season2-rules.json" })];
     } else if (sub === "season2-activate") {
       const result = await activateSeason2(prisma, { startsAt: season2Start(interaction), name: SEASON2_NAME, actorId: interaction.user.id,
-        keepRules: interaction.options.getBoolean("keep_rules") ?? false, policy: season2Policy(interaction), scoring: season2Scoring(interaction) }, now);
+        keepRules: interaction.options.getBoolean("keep_rules") ?? false, policy: season2Policy(interaction), scoring: season2Scoring(interaction), bossScoring: season2BossScoring(interaction) }, now);
       note = result.routes === null ? `Scheduled **${result.name}**; the rules already uploaded for it were kept.`
         : `Scheduled **${result.name}** with ${result.routes} targets computed from this season's observed times${result.replaced ? " (replacing the rules stored before)" : ""}. Run \`/guilded-season status\` to confirm.`;
     } else if (sub === "cancel") {

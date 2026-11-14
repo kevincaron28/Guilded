@@ -14,6 +14,7 @@ import { GAIN_STEP, planImprovements, roleScores, type ImprovementPlan, type Rou
 import { classLabel as classLabelRaw, className as classFromText, factionLabel, FACTIONS, roleLabel, ROLES } from "./recruitment.js";
 import type { OfficialWindow } from "./official-seasons.js";
 import type { BracketedRules } from "./dungeon-november-rules.js";
+import { BOSS_RULE_TEXT, bossTally } from "./dungeon-boss-scoring.js";
 import { characterId, characterScores, DEFAULT_OFFICIAL, periodRules, publicRules, publicSeasons, publicWeek, rateRun, rulesAt, type PublicPeriod, type ScoreRow, type ScoreRun } from "./public-score.js";
 import { breadcrumbs } from "./site-header.js";
 import { HUB_CSS, HUB_EMBLEMS, emptyBox, hubTabs, movement, podium, searchForm, strip, trendBars, type PodiumEntry } from "./leaderboard-hub.js";
@@ -715,6 +716,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     + `<p>${ctx.t("The fastest dungeon clears by players and guilds using Guilded. Beat the final boss with your group, sync your runs and climb the board.", "Les donjons les plus rapides des joueurs et des guildes qui utilisent Guilded. Battez le boss final en groupe, synchronisez vos essais et montez au classement.")}</p>`
     + `<details class="rules"><summary>${ctx.t("How scores work", "Comment les scores sont calculés")}</summary><p class="muted">${ctx.t("Team-clear scores and times from Guilded and Guilded Dungeons. Your score compares your time with each route's target; your best routes count, and targets remain provisional.",
       "Scores et temps d'équipe de Guilded et Guilded Dungeons. Votre score compare votre temps à la cible de chaque parcours; vos meilleurs parcours comptent, et les cibles restent provisoires.")}`
+    + (periodRules(period).bossScoring ? ` ${ctx.t(BOSS_RULE_TEXT.en, BOSS_RULE_TEXT.fr)}` : "")
     + (period.frozenAt ? ` ${ctx.t(`This season's rules were frozen on ${date(period.frozenAt)}.`, `Les règles de cette saison sont figées depuis le ${date(period.frozenAt)}.`)}` : "") + `</p></details>`;
 
   // The one tab bar of every leaderboard page: Overview | Dungeons | Duels | Players | Guilds.
@@ -1267,6 +1269,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       const timeNote = run.challenge ? (run.challenge.onTime ? t("Finished in time", "Terminé à temps") : t("Finished over the timer", "Terminé hors délai"))
         : target ? (run.durationSec <= target ? t(`Target ${time(target)} · ${time(delta)} faster`, `Cible ${time(target)} · ${time(delta)} plus vite`) : t(`Target ${time(target)} · ${time(delta)} slower`, `Cible ${time(target)} · ${time(delta)} plus lent`))
           : t("No target for this route yet", "Pas encore de cible pour ce parcours");
+      const cardBosses = run.challenge ? null : bossTally(run.instanceId, run.evidence?.encounters);
       const levels = run.players.flatMap((p) => p.level ?? []);
       const levelRange = levels.length ? (Math.min(...levels) === Math.max(...levels) ? `${levels[0]}` : `${Math.min(...levels)}–${Math.max(...levels)}`) : null;
       const stats: CardStat[] = run.challenge ? [
@@ -1284,11 +1287,13 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
         rows: run.players.map((p) => ({ name: p.displayName || p.character, color: classColor(p.className), sub: p.className ? classLabel(p.className, lang) : undefined, right: roleName(p.role) ?? undefined })),
         rowsLabel: `${t("Party", "Groupe")} · ${run.players.length} ${t("players", "joueurs")}`,
         badges: [
+          ...(cardBosses ? [{ text: t(`Bosses ${cardBosses.killed}/${cardBosses.total}`, `Boss ${cardBosses.killed}/${cardBosses.total}`), tone: cardBosses.killed < cardBosses.total ? "warn" as const : "ok" as const }] : []),
           ...(!run.challenge && run.deaths !== null ? [{ text: run.deaths === 1 ? t("1 death", "1 mort") : t(`${run.deaths} deaths`, `${run.deaths} morts`), tone: "muted" as const }] : []),
         ],
         footer: t("Community report · Provisional targets · Not Blizzard verified · guildedwow.com", "Rapport communautaire · Cibles provisoires · Non vérifié par Blizzard · guildedwow.com")
       }, ctx.request.method === "HEAD");
     }
+    const bosses = run.challenge ? null : bossTally(run.instanceId, run.evidence?.encounters);
     const description = `${title} · ${displayedTime} · ${score}`;
     const target = verdict.score ? routeTargetAt(rules, verdict.score.key, run.endedAt) : undefined;
     const tile = (key: string, value: string, note = "") => `<div class="tile"><div class="k">${key}</div><div class="v">${value}</div>${note ? `<div class="tag">${note}</div>` : ""}</div>`;
@@ -1298,6 +1303,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
         run.challenge ? escapeHtml(run.challenge.onTime ? t("In time", "À temps") : t("Overtime", "Hors délai")) : verdict.score?.penaltyPercent ? `−${verdict.score.penaltyPercent}%` : "")
       + tile(t("Levels", "Niveaux"), escapeHtml((verdict.score?.bracket ?? run.bracket ?? "?").replace("-", "–")))
       + tile(t("Deaths", "Morts"), run.deaths === null ? "?" : String(run.deaths))
+      + (bosses ? tile(t("Bosses", "Boss"), `${bosses.killed}/${bosses.total}`, bosses.killed < bosses.total ? escapeHtml(t("some skipped", "certains sautés")) : "") : "")
       + tile(t("Season", "Saison"), escapeHtml(period ? periodName(ctx, period) : t("Past run", "Ancien donjon")), escapeHtml(`${date(run.endedAt)} UTC`)) + `</div>`;
     const partyTable = table([t("Character", "Personnage"), t("Class", "Classe"), t("Role", "Rôle"), t("Level", "Niveau")],
       run.players.map((p) => `<tr><td>${who(ctx, p)}</td><td class="c-${classSlug(p.className)}">${p.className ? escapeHtml(classLabel(p.className, lang)) : ""}</td><td>${p.role ? escapeHtml(roleLabel(p.role, lang)) : ""}</td><td class="num">${p.level ?? "?"}</td></tr>`), [3]);

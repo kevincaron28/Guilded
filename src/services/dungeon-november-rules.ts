@@ -144,12 +144,14 @@ export type TargetRecalibration = z.infer<typeof recalibrationSchema>;
  * below lengthens it. `minParty` leaves a run with fewer observed players unranked.
  */
 const scoringSchema = z.object({ version: z.literal(2), timePerLevel: z.number().min(0).max(0.15), minParty: z.number().int().min(1).max(5) });
+const bossScoringSchema = z.object({ version: z.literal(1) });
 export function createBracketedDungeonRules(input: unknown) {
   const parsed = z.object({ gameEdition: z.enum(GAME_EDITIONS).optional(), routes: z.array(bracketRouteSchema).max(100), brackets: z.array(bracketSchema).max(10),
     overlevelPenalty: penaltySchema.default({ ...DEFAULT_OVERLEVEL_PENALTY }),
     evidencePolicy: z.enum(["current-v1", "current-v2"]).optional(),
     leniency: z.literal(1).optional(),
     scoring: scoringSchema.optional(),
+    bossScoring: bossScoringSchema.optional(),
     seasonWindow: z.object({ from: z.string().datetime(), to: z.string().datetime().nullable() }).optional(),
     provisional: provisionalSchema.optional(),
     // Retail Mythic+ rating rules from before WoW Forever only: kept opaque so stored rule sets still validate.
@@ -189,6 +191,7 @@ export function createBracketedDungeonRules(input: unknown) {
     ...(parsed.evidencePolicy ? { evidencePolicy: parsed.evidencePolicy } : {}),
     ...(parsed.leniency ? { leniency: parsed.leniency } : {}),
     ...(parsed.scoring ? { scoring: parsed.scoring } : {}),
+    ...(parsed.bossScoring ? { bossScoring: parsed.bossScoring } : {}),
     ...(parsed.seasonWindow ? { seasonWindow: parsed.seasonWindow } : {}),
     minimumPresence: 0.8, automaticCompletionOnly: true, minimumScore: 50, maximumScore: 400,
     participationModel: "weekly-variety-v1", routeEvidenceVersion: 1, routes, brackets, routeBracket, overlevelPenalty: { ...parsed.overlevelPenalty },
@@ -235,6 +238,7 @@ export function validBracketedRules(value: unknown): value is BracketedRules {
       ...(r.evidencePolicy !== undefined ? { evidencePolicy: r.evidencePolicy } : {}),
       ...(r.leniency !== undefined ? { leniency: r.leniency } : {}),
       ...(r.scoring !== undefined ? { scoring: r.scoring } : {}),
+      ...(r.bossScoring !== undefined ? { bossScoring: r.bossScoring } : {}),
       ...(r.seasonWindow !== undefined ? { seasonWindow: r.seasonWindow } : {}),
       ...(r.provisional !== undefined ? { provisional: r.provisional } : {}), ...(r.recalibrations !== undefined ? { recalibrations: r.recalibrations } : {}) }));
   } catch { return false; }

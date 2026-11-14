@@ -1,6 +1,6 @@
 import { provisionalSeasonRules } from "./dungeon-bracket-season.js";
 import { createBracketedDungeonRules, leniencyOf, routeTargetAt, validBracketedRules, type BracketedRules } from "./dungeon-november-rules.js";
-import { SCARLET_WINGS, bracketedVerdict, completionReason, penalized, presentEnough, timeRating, type RatingRun } from "./dungeon-rating.js";
+import { SCARLET_WINGS, bracketedVerdict, completionReason, penalized, presentEnough, timeRating, verdictPoints, type RatingRun } from "./dungeon-rating.js";
 import type { OfficialWindow } from "./official-seasons.js";
 import { weekWindow } from "./dungeon-periods.js";
 import { integrityPresence, withIntegrityWindow } from "./dungeon-integrity.js";
@@ -32,7 +32,7 @@ export interface ScoreRun {
   /** Null on runs uploaded before 7.4. */
   evidence?: RunEvidence | null;
 }
-export interface RunScore { key: string; bracket: string; points: number; penaltyPercent: number }
+export interface RunScore { key: string; bracket: string; points: number; penaltyPercent: number; /** Bosses killed of the dungeon, when the season scores boss skips. */ bosses?: { killed: number; total: number } }
 /** A run's score, or why it is unranked (still shown as activity, with its time). */
 export interface RunVerdict { score: RunScore | null; reason?: string }
 
@@ -69,6 +69,7 @@ export function addedRules(frozen: BracketedRules, current: BracketedRules): { r
     const rules = createBracketedDungeonRules({ ...(frozen.gameEdition ? { gameEdition: frozen.gameEdition } : {}), routes: [...frozen.routes, ...routes], brackets: [...frozen.brackets, ...brackets], overlevelPenalty: frozen.overlevelPenalty,
       ...(frozen.keystoneRating ? { keystoneRating: frozen.keystoneRating } : {}),
       ...(frozen.evidencePolicy ? { evidencePolicy: frozen.evidencePolicy } : {}),
+      ...(frozen.bossScoring ? { bossScoring: frozen.bossScoring } : {}),
       ...(lenient || frozen.leniency === 1 ? { leniency: 1 } : {}),
       ...(!frozen.provisional && current.provisional && routes.length ? { provisional: current.provisional } : {}),
       ...(frozen.provisional ? { provisional: { plan: frozen.provisional.plan, waiting: current.provisional?.waiting ?? frozen.provisional.waiting } } : {}),
@@ -99,7 +100,7 @@ export function rateRun(run: ScoreRun, rules: BracketedRules = publicRules(), pl
     if (player && rules.evidencePolicy === "current-v2" && !integrityPresence(player.integrity, run.durationSec, run.evidence.startedAt ? run.evidence.startedAt.getTime()/1000 : undefined)) return { score: null, reason: "Known in-instance presence under 80%" };
     if (!player && rules.evidencePolicy === "current-v2" && !run.players.some(p=>presentEnough(p.presentSec??0,run.durationSec)
       && integrityPresence(p.integrity,run.durationSec,run.evidence?.startedAt ? run.evidence.startedAt.getTime()/1000 : undefined))) return {score:null,reason:"Known in-instance presence under 80%"};
-    return { score: { key: verdict.key, bracket: rules.routeBracket[verdict.key]!, points: penalized(timeRating(run.durationSec, verdict.targetSec), verdict.penaltyPercent), penaltyPercent: verdict.penaltyPercent } };
+    return { score: { key: verdict.key, bracket: rules.routeBracket[verdict.key]!, points: verdictPoints(run.durationSec, verdict), penaltyPercent: verdict.penaltyPercent, ...(verdict.bosses ? { bosses: verdict.bosses } : {}) } };
   }
   // Uploaded before 7.4: route, difficulty and party levels only.
   const key = run.routeKey ?? (run.instanceId === 189 ? null : String(run.instanceId));

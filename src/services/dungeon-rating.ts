@@ -7,6 +7,7 @@ import { foreverNameMatches, foreverSameName } from "../../companion/character-i
 import { displayCharacterName, loadFullNameBook } from "./character-display.js";
 import { currentEdition } from "./edition-context.js";
 import type { Lang } from "../i18n.js";
+import { bossAdjusted, bossTally, validTally, type BossTally } from "./dungeon-boss-scoring.js";
 import { bracketForLevel, leniencyOf, nativeCompletionReason, novemberDungeonKey, resolveNovemberRoute, routeTargetAt, validBracketedRules, validNovemberRules,
   type BracketedRules, type DungeonBracket, type NovemberRules } from "./dungeon-november-rules.js";
 
@@ -75,6 +76,8 @@ export function hasDungeonRating(value: unknown): boolean {
 export interface DungeonRatingDetail {
   instanceId: number; name: string; points: number; speedBonus: number; durationSec: number;
   targetSec: number | null; runRef: string; dungeonKey?: string; ratingVersion?: 3 | 4 | 5 | 6; counted?: boolean; penaltyPercent?: number; unrankedReason?: string; bosses?: BossRecord[];
+  /** Boss-skip scoring: bosses of the dungeon this run killed, and how many it has. Present only when the season's rules carry it. */
+  bossesKilled?: number; bossesTotal?: number;
 }
 // Version 6 rows are per character AND bracket; each row freezes its bracket's best-N.
 export interface RatingRow { memberId: string; character?: string; name: string; points: number; dungeons: number; details?: DungeonRatingDetail[]; bracket?: string; bestCount?: number;
@@ -158,7 +161,11 @@ export function playerIntegrityOf(run: RatingRun, character?: string): unknown {
   const players = (run.competitionData as { players?: { name?: string; integrity?: unknown }[] } | null)?.players;
   return Array.isArray(players) ? players.find(p => p.name === character)?.integrity : undefined;
 }
-export function bracketedVerdict(run: RatingRun, rules: BracketedRules): ReturnType<typeof resolveNovemberRoute> & { penaltyPercent: number; targetSec: number | null } {
+/** The run's time points under the verdict: target, boss-skip rule (when the season has it) and over-level penalty. */
+export function verdictPoints(durationSec: number, verdict: { targetSec: number | null; penaltyPercent: number; bosses?: BossTally | undefined }): number {
+  return penalized(bossAdjusted(timeRating(durationSec, verdict.targetSec), verdict.bosses), verdict.targetSec ? verdict.penaltyPercent : 0);
+}
+export function bracketedVerdict(run: RatingRun, rules: BracketedRules): ReturnType<typeof resolveNovemberRoute> & { penaltyPercent: number; targetSec: number | null; bosses?: BossTally } {
   const route = resolveNovemberRoute(run, rules);
   const band = rules.levelBands[route.key];
   const data = run.competitionData as { integrity?: unknown; players?: unknown; encounters?: unknown } | null;
@@ -177,12 +184,15 @@ export function bracketedVerdict(run: RatingRun, rules: BracketedRules): ReturnT
   const partySize = Array.isArray(data?.players) ? (data.players as unknown[]).length : run.players.length;
   const reason = base ?? (scoring && partySize < scoring.minParty ? "Party too small" : undefined);
   const target = routeTargetAt(rules, route.key, run.endedAt) ?? null;
+  // Boss-skip scoring (only when the season's rules carry it): the bosses of this dungeon the run killed.
+  const tally = rules.bossScoring && !reason && target ? bossTally(run.instanceId, data?.encounters) : null;
+  const bossPart = tally ? { bosses: tally } : {};
   if (scoring && !reason && band && target) {
     const below = Math.max(0, ...knownLevels(run).map(p => band.min - p.minLevel));
     const factor = Math.max(0.5, 1 - scoring.timePerLevel * overlevelBy(run, band) + scoring.timePerLevel * below);
-    return { ...route, penaltyPercent: 0, targetSec: Math.round(target * factor) };
+    return { ...route, penaltyPercent: 0, targetSec: Math.round(target * factor), ...bossPart };
   }
-  return { ...route, ...(reason ? { reason } : {}), penaltyPercent: !reason && band ? overlevelBy(run, band) * rules.overlevelPenalty.percentPerLevel : 0, targetSec: target };
+  return { ...route, ...(reason ? { reason } : {}), penaltyPercent: !reason && band ? overlevelBy(run, band) * rules.overlevelPenalty.percentPerLevel : 0, targetSec: target, ...bossPart };
 }
 function bossRecords(run: RatingRun): BossRecord[] {
   const data = run.competitionData as { encounters?: unknown[] } | null;
@@ -241,7 +251,8 @@ export function calculateDungeonRating(runs: RatingRun[], rules?: unknown): Rati
       const member = members.get(identity) ?? { memberId, name: player.character.trim(), ...(bracket ? { bracket } : {}), bests: new Map<string, DungeonRatingDetail>() };
       const targetSec = verdict ? verdict.targetSec : targets[key] ?? null;
       const speedBonus = timed ? 0 : speedPoints(run.durationSec, targetSec);
-      const detail: DungeonRatingDetail = { ...(timed ? { ratingVersion: version as 3 | 4 | 5 | 6, dungeonKey: key, ...(reason || !targetSec ? { unrankedReason: reason ?? "Target not calibrated" } : {}), bosses: [] } : {}), instanceId: run.instanceId, name: route?.route?.name ?? (key.startsWith("189:") ? `Scarlet Monastery: ${key.split(":")[1]}` : run.dungeonName ?? `#${run.instanceId}`), points: timed ? reason ? 0 : penalized(timeRating(run.durationSec, targetSec), targetSec ? playerPenalty : 0) : 100 + speedBonus,
+      const detail: DungeonRatingDetail = { ...(timed ? { ratingVersion: version as 3 | 4 | 5 | 6, dungeonKey: key, ...(reason || !targetSec ? { unrankedReason: reason ?? "Target not calibrated" } : {}), bosses: [] } : {}), instanceId: run.instanceId, name: route?.route?.name ?? (key.startsWith("189:") ? `Scarlet Monastery: ${key.split(":")[1]}` : run.dungeonName ?? `#${run.instanceId}`), points: timed ? reason ? 0 : verdict ? verdictPoints(run.durationSec, { targetSec, penaltyPercent: playerPenalty, bosses: verdict.bosses }) : penalized(timeRating(run.durationSec, targetSec), targetSec ? playerPenalty : 0) : 100 + speedBonus,
+        ...(verdict?.bosses && !reason ? { bossesKilled: verdict.bosses.killed, bossesTotal: verdict.bosses.total } : {}),
         ...(playerPenalty && targetSec ? { penaltyPercent: playerPenalty } : {}),
         speedBonus, durationSec: run.durationSec, targetSec, runRef: run.runRef ?? "" };
       const previous = member.bests.get(key);
@@ -334,7 +345,9 @@ function validDetails(row: RatingRow): boolean {
       // Only version 6 has the over-level penalty; it never applies to an unranked run.
       const penalty = detail.penaltyPercent;
       if (penalty !== undefined && (detail.ratingVersion !== 6 || !Number.isInteger(penalty) || penalty < 1 || penalty > 99 || detail.unrankedReason)) return false;
-      if (detail.speedBonus !== 0 || detail.points !== (detail.unrankedReason ? 0 : penalized(timeRating(detail.durationSec, detail.targetSec), penalty ?? 0))) return false;
+      const tally = detail.bossesTotal === undefined && detail.bossesKilled === undefined ? null : { killed: detail.bossesKilled as number, total: detail.bossesTotal as number };
+      if (tally && (detail.ratingVersion !== 6 || detail.unrankedReason || !validTally(tally.killed, tally.total))) return false;
+      if (detail.speedBonus !== 0 || detail.points !== (detail.unrankedReason ? 0 : penalized(bossAdjusted(timeRating(detail.durationSec, detail.targetSec), tally), penalty ?? 0))) return false;
       if (detail.unrankedReason !== undefined && !["Level range not configured", "Different difficulty", "Party levels unknown", "Overlevel carry", "Below level range", "Target not calibrated", "Dungeon route unknown", ...(detail.ratingVersion === 5 || detail.ratingVersion === 6 ? ["Required encounter evidence missing", "Participation-only route"] : [])].includes(detail.unrankedReason)) return false;
       if (detail.bosses !== undefined && (!Array.isArray(detail.bosses) || detail.bosses.length > 100
         || new Set(detail.bosses.map(b => b.id)).size !== detail.bosses.length

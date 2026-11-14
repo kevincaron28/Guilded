@@ -24,8 +24,6 @@ export const RATING = {
   handicapMaxLevels: 5,
   /** A duel between players more than this many levels apart (both levels known) counts for nothing. */
   maxLevelGap: 10,
-  /** The n-th duel of the same pair in one weekly-reset window moves ratings by this fraction; later ones by nothing. */
-  pairWeights: [1, 1, 0.5, 0.5, 0.25, 0.25],
   /** The shown score is start + (rating - start) * rated / (rated + shrinkGames). */
   shrinkGames: 10,
   /** Ranked once the player has this many rated duels against this many distinct opponents. */
@@ -87,7 +85,21 @@ export function seasonOf(at: Date, startsAt: Date = RATING_START): SeasonInfo {
 export const ratingApplies = (at: Date, startsAt: Date = RATING_START) => at >= startsAt;
 
 export const kFor = (ratedDuels: number) => RATING.kBands.find(band => ratedDuels < band.upTo)!.k;
-export const pairWeight = (nth: number) => RATING.pairWeights[nth] ?? 0;
+/**
+ * Repeat duels between the same pair inside one weekly-reset window move ratings by a fraction that depends on how many came before.
+ * The fractions are server configuration (environment DUEL_PAIR_WEIGHTS, a JSON array: the n-th duel uses entry n, later ones count for nothing),
+ * not part of the published rules. Unset or invalid: no reduction.
+ */
+export function loadPairWeights(env: Record<string, string | undefined> = process.env): readonly number[] | null {
+  const raw = env["DUEL_PAIR_WEIGHTS"];
+  if (!raw) return null;
+  try {
+    const value: unknown = JSON.parse(raw);
+    return Array.isArray(value) && value.every(item => typeof item === "number" && item >= 0 && item <= 1) ? value : null;
+  } catch { return null; }
+}
+export const PAIR_WEIGHTS = loadPairWeights();
+export const pairWeight = (nth: number, weights: readonly number[] | null = PAIR_WEIGHTS) => weights ? weights[nth] ?? 0 : 1;
 const clamp = (value: number, low: number, high: number) => Math.max(low, Math.min(high, value));
 
 /** Rating points added to the loser's side for the level difference; 0 when either level is unknown. */
@@ -117,7 +129,7 @@ const byOrder = (a: RatedDuel, b: RatedDuel) => a.endedAt.getTime() - b.endedAt.
  * Order: ended-at, then winner name, then loser name (lower case), so the result does not depend on the order of arrival.
  * `changes` is parallel to `ordered`.
  */
-export function rateSeason(duels: readonly RatedDuel[]): { players: Map<string, RatedPlayer>; ordered: RatedDuel[]; changes: RatingChange[] } {
+export function rateSeason(duels: readonly RatedDuel[], pairWeights: readonly number[] | null = PAIR_WEIGHTS): { players: Map<string, RatedPlayer>; ordered: RatedDuel[]; changes: RatingChange[] } {
   const ordered = [...duels].sort(byOrder);
   const players = new Map<string, RatedPlayer & { run: number; seen: Set<string> }>();
   const entry = (key: string, name: string, level: number | null, at: Date) => {
@@ -135,7 +147,7 @@ export function rateSeason(duels: readonly RatedDuel[]): { players: Map<string, 
     const pair = `${[duel.winnerKey, duel.loserKey].sort().join("|")}|${weekStart(duel.endedAt).getTime()}`;
     const nth = pairs.get(pair) ?? 0; pairs.set(pair, nth + 1);
     const tooFar = !!duel.winnerLevel && !!duel.loserLevel && Math.abs(duel.winnerLevel - duel.loserLevel) > RATING.maxLevelGap;
-    const weight = tooFar ? 0 : pairWeight(nth);
+    const weight = tooFar ? 0 : pairWeight(nth, pairWeights);
     if (weight === 0) { changes.push({ winnerDelta: 0, loserDelta: 0, winnerScore: w.score, loserScore: l.score, rated: false }); continue; }
     const before = { w: w.score, l: l.score };
     const gain = 1 - expectedScore(w.rating, l.rating, levelHandicap(duel.winnerLevel, duel.loserLevel));

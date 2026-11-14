@@ -1,7 +1,7 @@
 import { emptyNameBook } from "../src/services/character-display.js";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { RATING, RATING_START, expectedScore, isRanked, kFor, levelHandicap, pairWeight, rateSeason, ratingApplies, seasonOf, shrunk, showChange, type RatedDuel } from "../src/services/duel-rating.js";
+import { RATING, RATING_START, loadPairWeights, expectedScore, isRanked, kFor, levelHandicap, pairWeight, rateSeason, ratingApplies, seasonOf, shrunk, showChange, type RatedDuel } from "../src/services/duel-rating.js";
 import { ADDON_SHOWS_RATING, duelRuleLines, ratingFooter, ratingRuleLines } from "../src/services/duel-rules.js";
 import { duelLadder, ratingStartOf } from "../src/services/duels.js";
 import { duelBoardCard, duelBoardEmbed, loadDuelBoardData } from "../src/services/duel-board.js";
@@ -15,6 +15,8 @@ interface Vector { name: string; duels: { winner: string; loser: string; winnerL
   expect: { players: Record<string, { rating: number; score: number; rated: number; games: number; wins: number; losses: number; opponents: number; ranked: boolean }>; changes: { winner: string; loser: string; winnerDelta: number; loserDelta: number; rated: boolean }[] } }
 const vectors = JSON.parse(readFileSync("tests/fixtures/duel-rating-vectors.json", "utf8")) as { rules: typeof RATING; tolerance: number; cases: Vector[]; seasons: { at: string; id: string; from: string; to: string | null; rated: boolean }[] };
 const rated = (v: Vector): RatedDuel[] => v.duels.map((x) => ({ winnerKey: x.winner, loserKey: x.loser, winnerName: x.winner, loserName: x.loser, winnerLevel: x.winnerLevel, loserLevel: x.loserLevel, endedAt: new Date(x.at) }));
+// Test-only repeat-duel fractions (the real ones are server configuration, DUEL_PAIR_WEIGHTS).
+const TEST_WEIGHTS = [1, 0.5, 0];
 const near = (a: number, b: number) => expect(Math.abs(a - b)).toBeLessThanOrEqual(vectors.tolerance);
 
 describe("duel rating: shared test vectors", () => {
@@ -23,7 +25,7 @@ describe("duel rating: shared test vectors", () => {
   });
   for (const v of vectors.cases) {
     it(v.name, () => {
-      const result = rateSeason(rated(v));
+      const result = rateSeason(rated(v), TEST_WEIGHTS);
       for (const [name, want] of Object.entries(v.expect.players)) {
         const got = [...result.players.values()].find((p) => p.name === name)!;
         near(got.rating, want.rating); near(got.score, want.score);
@@ -52,7 +54,10 @@ describe("duel rating: the formulas, by hand", () => {
   it("K by games, handicap, pair weight, shrink and the ranked rule", () => {
     expect([kFor(0), kFor(9), kFor(10), kFor(29), kFor(30), kFor(500)]).toEqual([40, 40, 24, 24, 16, 16]);
     expect([levelHandicap(50, 55), levelHandicap(55, 50), levelHandicap(50, 99), levelHandicap(null, 50)]).toEqual([100, -100, 100, 0]);
-    expect([pairWeight(0), pairWeight(2), pairWeight(5), pairWeight(6)]).toEqual([1, 0.5, 0.25, 0]);
+    expect([pairWeight(0, TEST_WEIGHTS), pairWeight(1, TEST_WEIGHTS), pairWeight(2, TEST_WEIGHTS), pairWeight(9, TEST_WEIGHTS)]).toEqual([1, 0.5, 0, 0]);
+    expect([pairWeight(0, null), pairWeight(40, null)]).toEqual([1, 1]);
+    expect(loadPairWeights({ DUEL_PAIR_WEIGHTS: "[1,0.5]" })).toEqual([1, 0.5]);
+    expect([loadPairWeights({}), loadPairWeights({ DUEL_PAIR_WEIGHTS: "oops" }), loadPairWeights({ DUEL_PAIR_WEIGHTS: "[2]" })]).toEqual([null, null, null]);
     expect(expectedScore(1000, 1000, 0)).toBe(0.5);
     expect(shrunk(1100, 10)).toBe(1050);
     expect([isRanked(8, 4), isRanked(7, 4), isRanked(8, 3)]).toEqual([true, true, true]);
@@ -162,7 +167,7 @@ describe("duel rating: the member-facing text", () => {
     for (const text of [en, fr]) {
       expect(text).toContain(String(RATING.start));
             expect(text).toContain("UTC");
-      expect(text).toContain(RATING.pairWeights.join(", "));
+      expect(text).not.toMatch(/same pair|même duo|factors|facteurs \d+, /i);
     }
     expect(en).toContain("ranked from their first counted duel");
     expect(en).not.toMatch(/per pair per day|placement/);
@@ -171,7 +176,7 @@ describe("duel rating: the member-facing text", () => {
     expect(en).not.toMatch(/Season 0/);
     expect(fr).toContain("13 novembre 2026");
     expect(fr).not.toMatch(/Saison 0/);
-    expect(fr).toContain("réinitialisation du mardi");
+    expect(fr).not.toContain("réinitialisation du mardi");
     expect(duelRuleLines("en").join(" ")).toContain("10 points");
     expect(ratingFooter("en", "December 2026", RATING_START, true)).not.toContain("old score");
   });

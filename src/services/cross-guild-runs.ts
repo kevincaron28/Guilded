@@ -3,7 +3,7 @@ import { characterKey, characterReference } from "../../companion/character-iden
 import { withEdition } from "./edition-context.js";
 import { gameEditionOf } from "./game-edition.js";
 import { dungeonRunSchema, validateRun, type DungeonRunInput } from "./dungeon-rules.js";
-import type { DungeonImportSummary } from "./dungeon-import.js";
+import { firstNameKey, type DungeonImportSummary } from "./dungeon-import.js";
 import { storeDeviceRuns } from "./companion-device.js";
 import { integrityConfig } from "./run-integrity-config.js";
 import { voucherOf } from "./run-trust.js";
@@ -65,14 +65,16 @@ export async function guildsWithMembersIn(database: Pick<PrismaClient, "characte
 }
 
 /** The copy for one guild: only that guild's own roster members are marked as in the guild (the origin guild's marks do not carry over). */
-export function localiseRun(raw: unknown, roster: ReadonlySet<string>, edition: string): unknown {
+export function localiseRun(raw: unknown, roster: ReadonlySet<string>, edition: string, reporter?: string): unknown {
   const run = raw as { players?: { character?: unknown; realm?: unknown; inGuild?: unknown }[] };
   if (!Array.isArray(run.players)) return raw;
-  return { ...run, players: run.players.map((player) => ({ ...player,
+  return { ...run, ...(reporter ? { reporterNames: [reporter] } : {}), players: run.players.map((player) => ({ ...player,
     inGuild: typeof player.character === "string" && roster.has(keyOf(player.character, typeof player.realm === "string" ? player.realm : "", edition)) })) };
 }
 
-const inboxToken = (guildId: string) => `xguild-inbox:${guildId}`;
+/** Each guild's copies of other guilds' runs are kept under one hidden inbox device whose token hash starts with this. */
+export const INBOX_PREFIX = "xguild-inbox:";
+export const inboxToken = (guildId: string) => `${INBOX_PREFIX}${guildId}`;
 
 /**
  * Offers `rawRuns` to every other guild with a member in them. Never throws: the work that stored the runs is already saved, and one
@@ -91,15 +93,21 @@ export async function shareRuns(database: PrismaClient, origin: ShareOrigin, raw
         const run = parsed.data;
         // A finished, valid run that its own lane accepted, with a player of the run behind it (the uploader's own character, or a
         // participant's own report); a name written in the file is not enough.
-        if (run.state !== "COMPLETED" || run.viaGroup === true || !validateRun(run, origin.receivedAt).ok || !voucherOf(raw, keys)) continue;
-        const targets = [...await guildsWithMembersIn(database, run, origin.guildId)].slice(0, config.crossGuildMaxGuilds);
-        for (const [guildId, candidate] of targets) {
+        const standing = voucherOf(raw, keys);
+        if (run.state !== "COMPLETED" || run.viaGroup === true || !validateRun(run, origin.receivedAt).ok || !standing) continue;
+        // The copy keeps who vouched for it (a player of the run), so it can be judged and released later without the sending PC.
+        const voucher = run.players.find((player) => firstNameKey(player.character) === standing.voucher)?.character;
+        if (!voucher) continue;
+        let taken = 0;
+        for (const [guildId, candidate] of await guildsWithMembersIn(database, run, origin.guildId)) {
+          if (taken >= config.crossGuildMaxGuilds) break;
           if (options.eligible && !options.eligible(candidate.guild.discordId)) continue;
           if (device?.excludedGuilds?.includes(guildId)) continue;
           // A run the guild holds for review is not copied.
           if (await database.dungeonRunWitness.findFirst({ where: { guildId, runRef: run.id, status: "held" }, select: { id: true } })) continue;
+          taken++;
           const entry = perGuild.get(guildId) ?? { candidate, runs: [] };
-          entry.runs.push(localiseRun(raw, candidate.roster, gameEditionOf(candidate.guild)));
+          entry.runs.push(localiseRun(raw, candidate.roster, gameEditionOf(candidate.guild), voucher));
           perGuild.set(guildId, entry);
         }
       } catch (error) {
@@ -116,9 +124,10 @@ export async function shareRuns(database: PrismaClient, origin: ShareOrigin, raw
       const since = new Date(origin.receivedAt.getTime() - 86_400_000);
       const received = await database.dungeonRunWitness.count({ where: { guildId, deviceId: device.id, firstSeenAt: { gte: since } } });
       const room = Math.max(0, config.crossGuildCopiesPerDay - received);
+      // Over the day's allowance a copy is dropped, not retried: the guild's own members' uploads still count as usual.
       if (!room) continue;
       const result = await withEdition(gameEditionOf(candidate.guild), () => database.$transaction((tx) => storeDeviceRuns(tx as never, guildId, runs.slice(0, room), origin.receivedAt,
-        { deviceId: device.id, characterKeys: [...origin.characterKeys], sealKey: null, shared: true }), { timeout: 60_000, maxWait: 15_000 }));
+        { deviceId: device.id, characterKeys: [], sealKey: null, shared: true }), { timeout: 60_000, maxWait: 15_000 }));
       if (result.summaries?.length) shared.push({ guildId, guildName: candidate.guild.name, discordId: candidate.guild.discordId, summaries: result.summaries });
     } catch (error) {
       console.error(`Cross-guild run could not be stored for a guild: ${error instanceof Error ? error.message : String(error)}`);

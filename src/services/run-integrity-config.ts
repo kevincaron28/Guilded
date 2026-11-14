@@ -16,8 +16,9 @@ export interface RunIntegrityConfig {
   relayedRunsPerDay: number;
   /** Runs made with other guilds' members: at most this many other guilds get a copy of one run. */
   crossGuildMaxGuilds: number;
-  /** ... and only a run at least this many players' addons reported. */
+  /** The most copies of other guilds' runs one guild receives per day (over it, a copy is dropped, not retried). */
   crossGuildCopiesPerDay: number;
+  /** The most run cards one guild is given per day for copies of other guilds' runs. */
   crossGuildCardsPerDay: number;
 }
 

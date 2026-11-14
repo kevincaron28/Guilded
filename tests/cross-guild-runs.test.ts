@@ -132,4 +132,13 @@ describe("cross-guild run sharing: the copy", () => {
     expect(shared.map((item) => item.guildId)).toEqual(["g-gamma"]);
     error.mockRestore();
   });
+
+  it("applies the cut after the filters, so a guild that cannot take the run does not use a slot, and keeps who vouched for the copy", async () => {
+    process.env["RUN_INTEGRITY_CONFIG"] = JSON.stringify({ crossGuildMaxGuilds: 1 });
+    const w = world({ off: [], characters: [...world().characters, { guildId: "g-aaa", name: "Zed Gamma", realm: "Forever" }], roster: [...world().roster, { guildId: "g-aaa", nameKey: "zed gamma" }], discord: { ...world().discord, "g-aaa": "d-aaa" }, held: ["g-aaa:QG-X15"] });
+    await shareRuns(fakeDatabase(w) as never, origin(), [run("QG-X15")]);
+    expect(calls.map((call) => call.guildId)).toEqual(["g-beta"]);
+    expect((calls[0]!.runs[0] as unknown as { reporterNames: string[] }).reporterNames).toEqual(["Kev Alpha"]);
+    expect(calls[0]!.source).toMatchObject({ characterKeys: [] });
+  });
 });

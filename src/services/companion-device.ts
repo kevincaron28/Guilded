@@ -404,12 +404,13 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
   const started = await tx.officialSeason.findMany({ where: { gameEdition: gameEditionOf(guild ?? {}), startsAt: { lte: now } }, select: { number: true } });
   const allowDeviceOnly = countsDeviceOnlyRuns(started.map((season) => season.number));
   let waiting = await tx.dungeonRunWitness.count({ where: { deviceId: source.deviceId, status: "pending" } });
-  let storedToday = await tx.dungeonRunWitness.count({ where: { deviceId: source.deviceId, trust: "device", decidedAt: { gte: new Date(now.getTime() - 86_400_000) } } });
+  // A copy of another guild's run (shared) is judged on its own: the per-device day count, overlap input and strikes of the guild's shared inbox do not apply.
+  let storedToday = source.shared ? 0 : await tx.dungeonRunWitness.count({ where: { deviceId: source.deviceId, trust: "device", decidedAt: { gte: new Date(now.getTime() - 86_400_000) } } });
   const pending: Record<string, string> = {};
   const config = integrityConfig();
   const batchFlags = source.shared ? new Map<string, Anomaly[]>() : verifyBatch(entries.map(({ ref, raw }) => ({ raw, ref, endedAt: fingerprintOf(raw)?.endedAt ?? null, kind: voucherOf(raw, deviceKeys)?.kind ?? "relay" as const, earlier: mine.get(ref)?.reason === "released" })),
     { deviceId: source.deviceId, sealKey: source.sealKey ?? null, secret: challengeSecret(), windowSec: config.challengeWindowSec, clockSlackSec: config.clockSlackSec, deviceSince: epoch(standing?.createdAt), requireSeal: config.requireSeal });
-  let strikes = config.strikeWindowSec === null ? 0 : await tx.dungeonRunWitness.count({ where: { deviceId: source.deviceId, status: "held", firstSeenAt: { gte: new Date(now.getTime() - config.strikeWindowSec * 1000) } } });
+  let strikes = source.shared || config.strikeWindowSec === null ? 0 : await tx.dungeonRunWitness.count({ where: { deviceId: source.deviceId, status: "held", firstSeenAt: { gte: new Date(now.getTime() - config.strikeWindowSec * 1000) } } });
 
   const record = async (ref: string, raw: unknown, statement: Statement, data: { status: string; reason?: string | null; trust?: string | null; runId?: string | null; decided?: boolean; keepPayload?: boolean; flags?: Anomaly[] }) => {
     const text = data.keepPayload ? JSON.stringify(raw) : "";
@@ -444,7 +445,7 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
   const instances = [...new Set(newPrints.map((print) => print.instanceId))];
   const fastestRows = newPrints.length && config.limits ? await tx.dungeonRun.groupBy({ by: ["instanceId", "difficultyId"], where: { guildId, instanceId: { in: instances }, valid: true, state: "COMPLETED", durationSec: { not: null } }, _min: { durationSec: true }, _count: { _all: true } }) : [];
   const nearbyRows = await perWindow((endedAt) => tx.dungeonRun.findMany({ where: { guildId, valid: true, endedAt }, orderBy: { endedAt: "desc" }, select: { runRef: true, instanceId: true, startedAt: true, endedAt: true, players: { select: { character: true } } }, take: 100 }));
-  const ownRows = await perWindow((endedAt) => tx.dungeonRunWitness.findMany({ where: { guildId, deviceId: source.deviceId, kind: "first-hand", status: "stored", endedAt }, orderBy: { endedAt: "desc" }, take: 60 }) as Promise<WitnessRow[]>);
+  const ownRows = source.shared ? [] : await perWindow((endedAt) => tx.dungeonRunWitness.findMany({ where: { guildId, deviceId: source.deviceId, kind: "first-hand", status: "stored", endedAt }, orderBy: { endedAt: "desc" }, take: 60 }) as Promise<WitnessRow[]>);
   const flagsFor = (raw: unknown, ref: string): Anomaly[] => {
     const data = raw as { instanceId?: number; difficultyId?: number; startedAt?: number; endedAt?: number; players?: { character?: unknown; level?: unknown }[]; encounters?: { id?: unknown; at?: unknown; success?: unknown; kind?: unknown }[] };
     const started = typeof data.startedAt === "number" ? data.startedAt : null, ended = typeof data.endedAt === "number" ? data.endedAt : null;
@@ -520,7 +521,7 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
     const flagList: Anomaly[] = [...(batchFlags.get(ref) ?? []), ...flagsFor(usePartner ? partner.payload : raw, ref),
       ...(others.some((other) => contradicts(statement, statementOfRow(other), config.limits)) ? [{ code: "comparison", detail: "comparison" }] : [])];
     if (decision.store !== "witnessed" && earlier?.reason !== "released" && holdsRun(flagList.map((flag) => flag.code), config, strikes)) {
-      strikes++;
+      if (!source.shared) strikes++;
       await holdRun(ref, raw, statement, flagList);
       continue;
     }

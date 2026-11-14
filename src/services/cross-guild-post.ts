@@ -3,20 +3,18 @@ import { prisma } from "../database.js";
 import { announceDungeonRuns } from "./import-followup.js";
 import { updateDungeonLeaderboard } from "./dungeon-leaderboard.js";
 import { withGuildScope } from "./guild-scope.js";
-import { shareRuns, type ShareOrigin } from "./cross-guild-runs.js";
+import { inboxToken, shareRuns, type ShareOrigin } from "./cross-guild-runs.js";
 import { integrityConfig } from "./run-integrity-config.js";
 
-const cardsToday = new Map<string, { day: string; count: number }>();
-/** How many more run cards this guild may be given today for runs that came from other guilds (the run is stored either way). */
-export function cardRoom(guildId: string, now = new Date()): number {
-  const day = now.toISOString().slice(0, 10);
-  const entry = cardsToday.get(guildId);
-  return Math.max(0, integrityConfig().crossGuildCardsPerDay - (entry && entry.day === day ? entry.count : 0));
-}
-function spendCards(guildId: string, count: number, now = new Date()): void {
-  const day = now.toISOString().slice(0, 10);
-  const entry = cardsToday.get(guildId);
-  cardsToday.set(guildId, { day, count: (entry && entry.day === day ? entry.count : 0) + count });
+/**
+ * How many of `count` new cards this guild may still be given today for copies of other guilds' runs: counted from the copies it has
+ * stored today (so a restart does not reset it), the ones just stored included.
+ */
+async function cardRoom(guildId: string, count: number, now: Date): Promise<number> {
+  const inbox = await prisma.companionDevice.findUnique({ where: { tokenHash: inboxToken(guildId) }, select: { id: true } });
+  if (!inbox) return 0;
+  const storedToday = await prisma.dungeonRunWitness.count({ where: { guildId, deviceId: inbox.id, status: "stored", decidedAt: { gte: new Date(now.getTime() - 86_400_000) } } });
+  return Math.max(0, Math.min(count, integrityConfig().crossGuildCardsPerDay - Math.max(0, storedToday - count)));
 }
 
 /**
@@ -32,9 +30,8 @@ export async function shareAndAnnounce(client: Client | null | undefined, origin
         const discordGuild = client ? await client.guilds.fetch(item.discordId).catch(() => null) : null;
         // No Discord server, or past the day's allowance: the run is stored without a card.
         if (!discordGuild) continue;
-        const summaries = item.summaries.slice(0, cardRoom(item.guildId, origin.receivedAt));
+        const summaries = item.summaries.slice(0, await cardRoom(item.guildId, item.summaries.length, origin.receivedAt));
         if (!summaries.length) continue;
-        spendCards(item.guildId, summaries.length, origin.receivedAt);
         await withGuildScope(prisma, item.guildId, async () => {
           let posted = false;
           for (const summary of summaries) posted = await announceDungeonRuns(discordGuild, summary, item.guildId) || posted;

@@ -215,6 +215,9 @@ function page.allEntries()
   check("dungeons", "Duels", "Show a card after each of my duels", "Shows a small card with the result, the record and the rank change after each of your guild duels. Type /guilded duels card test to preview it.", "me", "settings.duelCard",
     function() return not ns.duels or ns.duels.cardEnabled() end,
     function(on) if ns.duels then ns.duels.setCardEnabled(on) end end, { wide = true })
+  check("dungeons", "Duels", "Say the result of my duels in chat", "One line in your own chat after each of your duels: who won. Only you see it. Same as /guilded duels line on | off.", "me", "settings.duelLine",
+    function() local s = settings(); return not (s and s.duelLine == false) end,
+    function(on) if ns.duels and ns.duels.setNoticeEnabled then ns.duels.setNoticeEnabled(on) end end, { wide = true })
 
   -- ----- Officers (shown to officers only; each affects the whole guild or this officer's client) -----
   check("officers", "Whole guild", "Allow milestone announcements", "When off, nobody's milestones are announced in guild chat: this wins over every member's own choice.", "guild",

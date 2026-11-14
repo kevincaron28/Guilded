@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
 import { characterKey, foreverSameName } from "../../companion/character-identity.mjs";
-import { firstNameKey, importDungeonRuns, receiptReason, RETRY_OUTCOME, saveRunReceipts } from "./dungeon-import.js";
+import { firstNameKey, importDungeonRuns, receiptReason, RETRY_OUTCOME, saveRunReceipts, type DungeonImportSummary } from "./dungeon-import.js";
 import { plausibilityFlags, type Anomaly, type NeighbourRun } from "./run-plausibility.js";
 import { challengeSecret, holdsRun, integrityConfig } from "./run-integrity-config.js";
 import { contradicts, issueChallenge, verifyBatch } from "./run-challenge.js";
@@ -130,9 +130,11 @@ export interface ServerCandidate {
 }
 
 /** The device a batch of runs came from, and the characters it reported. */
-export interface DeviceRunSource { deviceId: string; characterKeys: readonly string[]; /** Signing key derived from the device key sent with this upload. */ sealKey?: string | null }
+export interface DeviceRunSource { deviceId: string; characterKeys: readonly string[]; /** Signing key derived from the device key sent with this upload. */ sealKey?: string | null;
+  /** (9.3.2) A copy of a run another guild's lane stored (cross-guild-runs.ts): judged like a device's run, but there is no device signature to check. */ shared?: boolean }
 export interface DeviceRunResult { stored: number; skipped: number; /** Run ref -> why it waits (not a run anywhere yet). */ pending?: Record<string, string>;
-  /** (9.3.2) The runs stored by this call (for the other guilds with a member in them). */ shareable?: unknown[] }
+  /** (9.3.2) The runs stored by this call (for the other guilds with a member in them). */ shareable?: unknown[];
+  /** (9.3.2) What each stored run came to, for the run cards. */ summaries?: DungeonImportSummary[] }
 
 export interface DeviceStore {
   create(tokenHash: string, now: Date): Promise<{ id: string }>;
@@ -241,7 +243,7 @@ export function runsOfDevice(raw: unknown[], deviceKeys: ReadonlySet<string>): u
 
 export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, body: unknown, options: { allows?: (discordId: string) => boolean; now?: Date; runLimiter?: (deviceId: string) => boolean; sealKey?: string | null;
   /** (9.3.2) Runs this upload stored (a guild's id) or placed on the public boards (null): other guilds with a member in them get a copy. Called after the runs are saved. */
-  afterShare?: (originGuildId: string | null, runs: unknown[]) => void } = {}): Promise<DeviceUploadAnswer> {
+  afterShare?: (origin: { guildId: string | null; deviceId: string; characterKeys: string[]; receivedAt: Date }, runs: unknown[]) => void } = {}): Promise<DeviceUploadAnswer> {
   if (device.claimedMemberId) return { status: "claimed" };
   const parsed = deviceUploadSchema.safeParse(body);
   if (!parsed.success) throw new DeviceError("This upload is not valid.", 400);
@@ -294,7 +296,7 @@ export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, 
     // Carried runs have their own caps (per upload here, per day in the relay lane): they never spend the device's shared hourly budget,
     // which is for the guild lane.
     const allowedGroup = split.group.slice(0, RUN_TRUST.relayedPerUpload);
-    if (allowedGroup.length) carried.push(...await store.publicRuns(device.id, allowedGroup, now, known, options.afterShare ? (placed) => options.afterShare!(null, placed) : undefined).catch(() => []));
+    if (allowedGroup.length) carried.push(...await store.publicRuns(device.id, allowedGroup, now, known, options.afterShare ? (placed) => options.afterShare!({ guildId: null, deviceId: device.id, characterKeys: [...known], receivedAt: now }, placed) : undefined).catch(() => []));
   }
   const carriedReceipts: DeviceRunReceipts | undefined = carried.length ? { acceptedRunRefs: carried, runNotes: {} } : undefined;
   if (!guild || "none" in decision) return { status: "no-guild", guild, ...(carriedReceipts ? { runReceipts: carriedReceipts } : {}) };
@@ -317,7 +319,7 @@ export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, 
     }
     const result = allowed.length ? await store.importRuns(target.guildId, allowed, now, { deviceId: device.id, characterKeys: [...known], sealKey: options.sealKey ?? null }) : { stored: 0, skipped: 0 };
     pending = result.pending ?? {};
-    if (result.shareable?.length) options.afterShare?.(target.guildId, result.shareable);
+    if (result.shareable?.length) options.afterShare?.({ guildId: target.guildId, deviceId: device.id, characterKeys: [...known], receivedAt: now }, result.shareable);
     runs = { received: guildRuns.length, stored: result.stored, skipped: result.skipped, ...(Object.keys(pending).length ? { pending: Object.keys(pending).length } : {}) };
   }
   // Every ref this upload carried that the server now holds (stored, a guildmate's copy, refused), so the addon stops waiting.
@@ -405,7 +407,7 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
   let storedToday = await tx.dungeonRunWitness.count({ where: { deviceId: source.deviceId, trust: "device", decidedAt: { gte: new Date(now.getTime() - 86_400_000) } } });
   const pending: Record<string, string> = {};
   const config = integrityConfig();
-  const batchFlags = verifyBatch(entries.map(({ ref, raw }) => ({ raw, ref, endedAt: fingerprintOf(raw)?.endedAt ?? null, kind: voucherOf(raw, deviceKeys)?.kind ?? "relay" as const, earlier: mine.get(ref)?.reason === "released" })),
+  const batchFlags = source.shared ? new Map<string, Anomaly[]>() : verifyBatch(entries.map(({ ref, raw }) => ({ raw, ref, endedAt: fingerprintOf(raw)?.endedAt ?? null, kind: voucherOf(raw, deviceKeys)?.kind ?? "relay" as const, earlier: mine.get(ref)?.reason === "released" })),
     { deviceId: source.deviceId, sealKey: source.sealKey ?? null, secret: challengeSecret(), windowSec: config.challengeWindowSec, clockSlackSec: config.clockSlackSec, deviceSince: epoch(standing?.createdAt), requireSeal: config.requireSeal });
   let strikes = config.strikeWindowSec === null ? 0 : await tx.dungeonRunWitness.count({ where: { deviceId: source.deviceId, status: "held", firstSeenAt: { gte: new Date(now.getTime() - config.strikeWindowSec * 1000) } } });
 
@@ -537,6 +539,7 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
     }
     result.stored++;
     (result.shareable ??= []).push(usePartner ? partner.payload : raw);
+    (result.summaries ??= []).push(summary);
     if (decision.store === "device") storedToday++;
     await record(ref, raw, statement, { status: "stored", trust: decision.store, runId: made.runId ?? null, decided: true });
     const agreeing = others.filter((other) => sameRun(print, statementOfRow(other)));

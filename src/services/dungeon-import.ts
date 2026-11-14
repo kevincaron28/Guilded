@@ -96,6 +96,8 @@ export interface DungeonImportSummary {
   receipts?: RunReceipt[];
   /** (9.3.2) The runs this import stored as completed and valid: other guilds with a member in them get a copy (cross-guild-runs.ts), after this import is saved. */
   shareable?: unknown[];
+  /** When the bot received these runs (the time the season window is judged on for other guilds' copies). */
+  receivedAt?: Date;
 }
 
 // "retry" (9.3): refused for a cause a later bot version can fix (the run data could not be read). It is NOT an acknowledgement:
@@ -314,7 +316,7 @@ export async function importDungeonRuns(
   // Same transaction as the import: stored, copied and refused runs are all acknowledged.
   await saveRunReceipts(tx, guildId, summary.receipts ?? [], now);
   const completed = new Set(summary.results.filter((result) => result.valid && result.state === "COMPLETED").map((result) => result.runRef));
-  if (completed.size) summary.shareable = rawRuns.filter((raw) => completed.has(refOf(raw) ?? ""));
+  if (completed.size) { summary.shareable = rawRuns.filter((raw) => completed.has(refOf(raw) ?? "")); summary.receivedAt = now; }
   console.info(uploadRunsLine(guildId, importId, rawRuns.length, summary));
   return summary;
 }
@@ -773,15 +775,4 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
       achievements
     });
   }
-}
-
-/**
- * (9.3.2) One run, imported into another guild that has a member in it (cross-guild-runs.ts): the same pipeline as that guild's own
- * uploads, with that guild's own season and rules, points only for that guild's own members, and receipts so the run is never counted twice.
- */
-export async function importSharedRun(tx: Tx, guildId: string, run: unknown, characters: LinkedCharacter[], now: Date): Promise<DungeonImportSummary> {
-  const summary: DungeonImportSummary = { results: [], duplicates: 0, malformed: 0, receipts: [] };
-  await importRuns(tx, guildId, [run], characters, "cross-guild", null, now, summary);
-  await saveRunReceipts(tx, guildId, summary.receipts ?? [], now);
-  return summary;
 }

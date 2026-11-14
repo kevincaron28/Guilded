@@ -1343,7 +1343,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // (9.3.1) Runs that only reached the uploader's addon through a party or raid never enter a guild lane, signed in or not: they go
       // to the public boards' relay lane (relay-public.ts), with "group:" receipts so a later guildmate copy still reaches the guild.
       await carrySignedGroupRuns(preview.snapshot, { carrier: `member:${access.memberId ?? access.actorId}`, store: publicRuns,
-        onPlaced: (placed) => { void import("./services/cross-guild-post.js").then((module) => module.shareAndAnnounce(client, null, placed)).catch(() => undefined); },
+        onPlaced: (placed) => { void import("./services/cross-guild-post.js").then((module) => module.shareAndAnnounce(client, { guildId: null, characterKeys: [], receivedAt: new Date() }, placed)).catch(() => undefined); },
         saveReceipts: (refs) => prisma.$transaction((tx) => saveRunReceipts(tx, guild.id, refs.map((runRef) => ({ runRef, outcome: "stored" as const, reason: null, runId: null })), new Date())).then(() => undefined) });
       // T1 (10 Nov 2026): a signed upload only links and imports in a server that knows the saved file's in-game guild.
       // Officers stay exempt (their server may not list every guild an alt is in). The companion shows the warning.

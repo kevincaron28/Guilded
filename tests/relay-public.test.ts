@@ -136,3 +136,15 @@ describe("the relay lane", () => {
     expect(calls).toEqual([]);
   });
 });
+
+describe("sharing what the relay placed (9.3.2)", () => {
+  it("hands the runs placed on the public boards to the cross-guild hook, with only the reporter's own statement", async () => {
+    const { store } = memoryStore();
+    const placed: unknown[][] = [];
+    await ingestRelayedRuns(store, { carrier: "dev1", carrierKeys: carrier("zed"), runs: [run("QG-S1"), run("QG-S2", { reporterNames: ["Mallory"] })], now: NOW, onPlaced: (runs) => placed.push(runs) });
+    expect(placed).toHaveLength(1);
+    expect(placed[0]!.map((entry) => (entry as { id: string }).id)).toEqual(["QG-S1"]);
+    expect(placed[0]![0]).toMatchObject({ reporterNames: ["Amy"], reporters: 1 });
+    expect(placed[0]![0]).not.toHaveProperty("viaGroup");
+  });
+});

@@ -5,6 +5,7 @@ import { provisionalSeasonRules } from "../src/services/dungeon-bracket-season.j
 import { FR_TEXT } from "../src/i18n-fr.js";
 import { releaseHeldRuns } from "../src/services/run-release.js";
 import { NO_PREV, canonicalText, deriveSealKey, issueChallenge, sealMac } from "../src/services/run-challenge.js";
+import { localiseRun } from "../src/services/cross-guild-runs.js";
 import { dungeonRating } from "../src/services/dungeon-rating.js";
 
 // Zero-setup companion: dungeon runs from an unsigned device are stored like any run and count on the guild board.
@@ -104,6 +105,18 @@ describe("device upload with runs", () => {
     const answer = await handleDeviceUpload(s, device, body([run("a"), run("b", { players: [{ character: "Zed", realm: "", presentSec: 1, inGuild: true }] })]), { now });
     expect(answer).toMatchObject({ status: "synced", runs: { received: 2, stored: 1, skipped: 0 } });
     expect(imported[0]).toHaveLength(1);
+  });
+
+  it("hands the runs it stored to the cross-guild hook with the device and its own characters (9.3.2)", async () => {
+    const { s } = store();
+    s.importRuns = async (_guildId, runs) => ({ stored: runs.length, skipped: 0, shareable: runs });
+    const device = (await deviceFor(s, (await registerDevice(s)).deviceSecret))!;
+    const seen: { origin: { guildId: string | null; deviceId: string; characterKeys: string[] }; runs: unknown[] }[] = [];
+    await handleDeviceUpload(s, device, body([run("a")]), { now, afterShare: (origin, runs) => seen.push({ origin, runs }) });
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.origin).toMatchObject({ guildId: "g1", deviceId: "d1" });
+    expect(seen[0]!.origin.characterKeys).toContain("kev");
+    expect(seen[0]!.runs).toHaveLength(1);
   });
 
   it("does not import for a claimed device or more than the per-upload cap", async () => {
@@ -442,5 +455,25 @@ describe("Season 1: runs only anonymous devices vouch for still count (owner dec
       startedAt: new Date(start * 1000), endedAt: new Date((start + 2700) * 1000), players: ["amy", "bob", "kev"], bosses: [], payload: null, firstSeenAt: now });
     // The companion resends a waiting run on every upload.
     expect(await storeDeviceRuns(shared.tx, "g1", [run("QG-1")], now, SRC)).toMatchObject({ stored: 1 });
+  });
+});
+
+describe("a copy of a mixed-party run in another guild (9.3.2)", () => {
+  const five = ["Kev", "Bob", "Amy", "Zed", "Liz"].map((character) => ({ character, realm: "Forever", deaths: 0, presentSec: 2700, inGuild: true, level: 30, minLevel: 30 }));
+  it("is judged like one player's report in that guild: only its own roster members count as guildmates, the run keeps a real trust and is listed for review", async () => {
+    const { tx, runs, witnesses } = fakeTx([], [], ["kev", "bob"]);
+    const copy = localiseRun(run("QG-MIX", { players: five, reporterNames: ["Zed"] }), new Set(["kev", "bob"]), "forever");
+    const result = await storeDeviceRuns(tx, "g2", [copy], now, { deviceId: "inbox", characterKeys: [], sealKey: null, shared: true });
+    expect(result).toMatchObject({ stored: 1 });
+    const stored = runs[0] as { players: { character: string; inGuild: boolean }[]; trust: string | null };
+    expect(stored.players.filter((player) => player.inGuild).map((player) => player.character).sort()).toEqual(["Bob", "Kev"]);
+    expect(stored.trust).toBe("device");
+    expect(witnesses).toMatchObject([{ status: "stored", voucher: "zed" }]);
+  });
+  it("is not stored for a guild that excluded the sending PC, and a stranger's copy (nobody in the run vouches) is refused", async () => {
+    const held = fakeTx([], [], ["kev"], [1], ["inbox"]);
+    expect(await storeDeviceRuns(held.tx, "g1", [localiseRun(run("QG-EX", { reporterNames: ["Kev"] }), new Set(["kev"]), "forever")], now, { deviceId: "inbox", characterKeys: [], sealKey: null, shared: true })).toMatchObject({ stored: 0 });
+    const stranger = fakeTx([], [], ["kev"]);
+    expect(await storeDeviceRuns(stranger.tx, "g2", [localiseRun(run("QG-ST"), new Set(["kev"]), "forever")], now, { deviceId: "inbox", characterKeys: [], sealKey: null, shared: true })).toMatchObject({ stored: 0, skipped: 1 });
   });
 });

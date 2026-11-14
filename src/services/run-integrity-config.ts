@@ -17,11 +17,12 @@ export interface RunIntegrityConfig {
   /** Runs made with other guilds' members: at most this many other guilds get a copy of one run. */
   crossGuildMaxGuilds: number;
   /** ... and only a run at least this many players' addons reported. */
-  crossGuildMinReporters: number;
+  crossGuildCopiesPerDay: number;
+  crossGuildCardsPerDay: number;
 }
 
 export const DEFAULT_CONFIG: RunIntegrityConfig = {
-  limits: null, weights: {}, defaultWeight: 0, holdScore: Infinity, deviceStrikes: Infinity, challengeWindowSec: null, clockSlackSec: null, requireSeal: false, strikeWindowSec: null, relayedRunsPerDay: 60, crossGuildMaxGuilds: 6, crossGuildMinReporters: 1
+  limits: null, weights: {}, defaultWeight: 0, holdScore: Infinity, deviceStrikes: Infinity, challengeWindowSec: null, clockSlackSec: null, requireSeal: false, strikeWindowSec: null, relayedRunsPerDay: 60, crossGuildMaxGuilds: 6, crossGuildCopiesPerDay: 60, crossGuildCardsPerDay: 30
 };
 
 const num = (value: unknown): number | undefined => typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
@@ -58,7 +59,8 @@ export function parseIntegrityConfig(text: string | undefined): RunIntegrityConf
     strikeWindowSec: num(raw["strikeWindowSec"]) ?? null,
     relayedRunsPerDay: num(raw["relayedRunsPerDay"]) ?? DEFAULT_CONFIG.relayedRunsPerDay,
     crossGuildMaxGuilds: num(raw["crossGuildMaxGuilds"]) ?? DEFAULT_CONFIG.crossGuildMaxGuilds,
-    crossGuildMinReporters: num(raw["crossGuildMinReporters"]) ?? DEFAULT_CONFIG.crossGuildMinReporters
+    crossGuildCopiesPerDay: num(raw["crossGuildCopiesPerDay"]) ?? DEFAULT_CONFIG.crossGuildCopiesPerDay,
+    crossGuildCardsPerDay: num(raw["crossGuildCardsPerDay"]) ?? DEFAULT_CONFIG.crossGuildCardsPerDay
   };
 }
 

@@ -29,7 +29,7 @@ local HI_GAP = 300
 local PER_SENDER_PER_HOUR, SENDER_ASSEMBLIES, MAX_ASSEMBLIES, ASSEMBLY_SECONDS = 20, 3, 30, 120
 local DONE_KEEP, SENT_KEEP, OWN_CACHE_SECONDS = 400, 200, 60
 local JOIN_RETRY = { 30, 120, 600, 1800 }
-local RESEND_SECONDS, EXPIRE_TICK, HI_MAX = 1800, 30, 100
+local RESEND_SECONDS, EXPIRE_TICK, HI_MAX = 1800, 25, 100
 
 local carry = { carriers = {}, assemblies = {}, received = {}, hiAt = {}, channelId = 0, channelName = nil, whispered = {}, offered = {}, joinTries = 0,
   lastAnnounce = 0, stats = { stored = 0, offered = 0, receipts = 0 } }

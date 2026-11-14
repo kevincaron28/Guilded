@@ -273,7 +273,7 @@ describe("names, receipts and the channel", () => {
     hear(carrier, "Mallory", part("1800000000-aaaaaa", 1, 2), "WHISPER");
     hear(carrier, "Mallory", "HI|1", "GUILD");
     expect(count(carrier, "NS.carry.assemblies")).toBe(1);
-    carrier.run("CLOCK = CLOCK + 700; for _, t in ipairs(TICKERS) do if t.seconds == 30 then t.fn() end end");
+    carrier.run("CLOCK = CLOCK + 700; for _, t in ipairs(TICKERS) do if t.seconds == 25 then t.fn() end end");
     expect(count(carrier, "NS.carry.assemblies")).toBe(0);
     expect(count(carrier, "NS.carry.hiAt")).toBe(0);
   });

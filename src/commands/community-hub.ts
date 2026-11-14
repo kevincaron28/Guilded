@@ -15,6 +15,14 @@ import { participationBadge, participationRules } from "../services/participatio
 import { eligibleParticipationMember } from "../services/participation-discord.js";
 import { parseRaidTime } from "../services/raid-time.js";
 import { communityRankingLines } from "../services/community-ranking-display.js";
+import { breakdownOf } from "../services/community-ingame.js";
+
+/** "Where your points come from" line of My points (nothing when the season has no in-game split, e.g. an older closed one). */
+const mineSplit = (row: Parameters<typeof breakdownOf>[0], T: (en: string, fr: string) => string) => {
+  if (row.discord === undefined) return "";
+  const split = breakdownOf(row);
+  return `${T("Sources", "Sources")} : 💬 Discord **${split.discord}** · 🏰 ${T("Dungeons", "Donjons")} **${split.dungeons}** · ⚔️ ${T("PvP", "JcJ")} **${split.pvp}**\n`;
+};
 import { decideNominationFromCard, postNominationCards } from "../services/nomination-cards.js";
 
 const service = createCommunityService(prisma), participation = createParticipationService(prisma);
@@ -138,7 +146,7 @@ export async function handleCommunityHub(interaction: HubInteraction): Promise<v
     }
     const mine = board.find(row => row.userId === actor);
     const history = await prisma.communityPoint.findMany({ where: { seasonId: season.id, userId: actor }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 5 });
-    content = `📊 **${escapeMarkdown(communitySeasonLabel(season, lang))}**\n${T("Earned score", "Score gagné")} : **${mine?.points ?? 0}** · ${T("Available balance", "Solde disponible")} : **${mine?.balance ?? 0}**\n` + history.map(p => `${p.amount > 0 ? "+" : ""}${p.amount} · ${escapeMarkdown(p.reason.slice(0, 100))}`).join("\n");
+    content = `📊 **${escapeMarkdown(communitySeasonLabel(season, lang))}**\n${T("Earned score", "Score gagné")} : **${mine?.points ?? 0}** · ${T("Available balance", "Solde disponible")} : **${mine?.balance ?? 0}**\n` + (mine ? mineSplit(mine, T) : "") + history.map(p => `${p.amount > 0 ? "+" : ""}${p.amount} · ${escapeMarkdown(p.reason.slice(0, 100))}`).join("\n");
     if (season.game === "DISCORD") {
       const summary = await participation.summary(record.id, season.id, actor);
       content += `\n\n🏅 ${T("Milestone", "Palier")} : ${participationBadge(mine?.points ?? 0)} (${COMMUNITY_MILESTONE_LABEL})\n${T("Participation", "Participation")} : ${season.status === "ACTIVE" && summary.season.participation?.enabled ? T("enabled", "activée") : T("paused / unconfigured", "en pause / non configurée")}\n${T("Today", "Aujourd’hui")} : ${summary.today?.messages ?? 0}/${summary.rules.messageDailyCap} messages · ${summary.today?.reactions ?? 0}/${summary.rules.reactionDailyCap} ${T("reactions", "réactions")} · ${Math.floor((summary.today?.voiceMs ?? 0) / 60000)}/${summary.rules.voiceDailyMinutes} min\n${T("Weekly goal", "Objectif hebdomadaire")} : ${summary.participants}/${summary.rules.weeklyGoal} ${T("members", "membres")}\n${T("Helpers", "Entraide")} : ${summary.helpers.map(([user, points]) => `<@${user}> (${points} pts)`).join(", ") || "—"}`;

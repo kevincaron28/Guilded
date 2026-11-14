@@ -6,6 +6,8 @@ import { assertLotteryGame, challengeRules, COMMUNITY_GAMES, COMMUNITY_REWARDS, 
 import { communityActivityChannel, communityMonthName, communitySeasonLabel } from "./community-display.js";
 import { asLang } from "../i18n.js";
 import { localParts } from "./raid-time.js";
+import type { Standing } from "./community-rules.js";
+import { loadInGamePoints, boardWindow, mergedSeasonStandings, mergeStandings, type InGamePoints } from "./community-ingame.js";
 import { retryTransientTransaction, SHORT_TRANSACTION } from "./transaction-retry.js";
 
 type Tx = Prisma.TransactionClient;
@@ -24,6 +26,16 @@ export function createCommunityService(database: PrismaClient) {
     if (!row) return fail("Saison introuvable / Season not found.");
     if (active && row.status !== "ACTIVE") return fail("Saison terminée / Season ended.");
     return row;
+  };
+  // A Discord season's standings: the ledger's plus the in-game points of its window (community-ingame.ts). Other games' seasons stay ledger-only.
+  const finalOf = (row: CommunitySeason, base: Standing[], inGame: ReadonlyMap<string, InGamePoints> | undefined) =>
+    row.game === "DISCORD" && inGame ? mergeStandings(base, inGame) : base;
+  // The in-game read happens BEFORE the season-end transaction opens: a failed query inside a Postgres transaction aborts it, and a
+  // catch could not save the season update. On failure the archive keeps the Discord points alone.
+  const preload = async (guildId: string, row: { createdAt: Date; game: string }, endedAt: Date) => {
+    if (row.game !== "DISCORD") return undefined;
+    try { const { since, until } = boardWindow({ createdAt: row.createdAt, endedAt, status: "ENDED" }, endedAt); return await loadInGamePoints(database, guildId, since, until); }
+    catch (error) { console.error("Community archive: in-game points unavailable", error); return undefined; }
   };
   const activity = async (tx: Tx, guildId: string, id: string, kind?: string) => {
     const row = await tx.communityActivity.findFirst({ where: { id, season: { guildId }, ...(kind ? { kind } : {}) }, include: { season: true } });
@@ -64,6 +76,9 @@ export function createCommunityService(database: PrismaClient) {
     // next one: same game, channels, audience and participation rules. One that still has an open
     // activity, pending evidence or a pending nomination waits; the next check tries again.
     async rotateMonthly(guildId: string, now = new Date()) {
+      const due = await database.communitySeason.findMany({ where: { guildId, status: "ACTIVE", monthly: true, game: "DISCORD" }, select: { id: true, createdAt: true, game: true } });
+      const preloaded = new Map<string, Awaited<ReturnType<typeof preload>>>();
+      for (const row of due) preloaded.set(row.id, await preload(guildId, row, now));
       return locked(guildId, async tx => {
         const settings = await tx.guildSettings.findUnique({ where: { guildId }, select: { timezone: true, language: true } });
         const timezone = settings?.timezone ?? "America/Toronto", lang = asLang(settings?.language);
@@ -74,7 +89,7 @@ export function createCommunityService(database: PrismaClient) {
           if (await tx.communityActivity.count({ where: { seasonId: row.id, status: "OPEN" } })
             || await tx.communityEntry.count({ where: { activity: { seasonId: row.id, kind: "CHALLENGE", status: { not: "CANCELLED" } }, status: "PENDING" } })
             || await tx.communityKudos.count({ where: { seasonId: row.id, status: "PENDING" } })) continue;
-          const final = standings(await tx.communityPoint.findMany({ where: { seasonId: row.id } }));
+          const final = finalOf(row, standings(await tx.communityPoint.findMany({ where: { seasonId: row.id } })), preloaded.get(row.id));
           const ended = await tx.communitySeason.update({ where: { id: row.id }, data: { status: "ENDED", endedAt: now, finalStandings: json(final) } });
           const counter = await tx.communitySeasonCounter.upsert({ where: { guildId_game: { guildId, game: row.game } }, create: { guildId, game: row.game, nextNumber: 2 }, update: { nextNumber: { increment: 1 } } });
           const started = await tx.communitySeason.create({ data: { guildId, name: communityMonthName(now, timezone, lang), number: counter.nextNumber - 1, game: row.game, channelId: row.channelId,
@@ -93,14 +108,17 @@ export function createCommunityService(database: PrismaClient) {
       });
     },
     async endSeason(guildId: string, seasonId: string) {
+      const endedAt = new Date();
+      const peek = await database.communitySeason.findFirst({ where: { id: seasonId, guildId }, select: { createdAt: true, game: true, status: true } });
+      const inGame = peek && peek.status !== "ENDED" ? await preload(guildId, peek, endedAt) : undefined;
       return locked(guildId, async tx => {
         const row = await season(tx, guildId, seasonId, false);
         if (row.status === "ENDED") return row;
         if (await tx.communityActivity.count({ where: { seasonId, status: "OPEN" } })) fail("Ferme les activités avant la saison / Close activities before ending the season.");
         if (await tx.communityEntry.count({ where: { activity: { seasonId, kind: "CHALLENGE", status: { not: "CANCELLED" } }, status: "PENDING" } })) fail("Traite les preuves en attente avant d'archiver / Review pending evidence before archiving.");
         if (await tx.communityKudos.count({ where: { seasonId, status: "PENDING" } })) fail("Traite les nominations avant d'archiver / Review helper nominations before archiving.");
-        const final = standings(await tx.communityPoint.findMany({ where: { seasonId } }));
-        return tx.communitySeason.update({ where: { id: seasonId }, data: { status: "ENDED", endedAt: new Date(), finalStandings: json(final) } });
+        const final = finalOf(row, standings(await tx.communityPoint.findMany({ where: { seasonId: row.id } })), inGame);
+        return tx.communitySeason.update({ where: { id: seasonId }, data: { status: "ENDED", endedAt, finalStandings: json(final) } });
       });
     },
     async create(guildId: string, seasonId: string, data: { kind: string; title: string; rules: unknown; startsAt?: Date; endsAt: Date; actorId: string }, now = new Date()) {
@@ -313,7 +331,9 @@ export function createCommunityService(database: PrismaClient) {
     },
     async board(guildId: string, seasonId: string) {
       const current = await season(database, guildId, seasonId, false);
-      return current.status === "ENDED" ? current.finalStandings as unknown as ReturnType<typeof standings> : standings(await database.communityPoint.findMany({ where: { seasonId } }));
+      if (current.status === "ENDED") return current.finalStandings as unknown as ReturnType<typeof standings>;
+      const base = standings(await database.communityPoint.findMany({ where: { seasonId } }));
+      return current.game === "DISCORD" ? mergedSeasonStandings(database, guildId, current, base) : base;
     }
   };
 }

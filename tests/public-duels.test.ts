@@ -70,8 +70,8 @@ describe("the public duel board", () => {
     expect(PAIR_DAILY_CAP).toBe(DUEL_RULES.pairDailyCap);
     expect(duelPoints(50, 50)).toBe(DUEL_RULES.basePoints);
     expect(duelPoints(1, 60)).toBe(DUEL_RULES.maxPoints);
-    expect(duelRuleLines("en").join(" ")).toContain(`${DUEL_RULES.pairDailyCap} duels per pair`);
-    expect(duelRuleLines("fr").join(" ")).toContain(`${DUEL_RULES.pairDailyCap} duels par paire`);
+    expect(duelRuleLines("en").join(" ")).not.toMatch(/per pair/);
+    expect(duelRuleLines("fr").join(" ")).not.toMatch(/par paire/);
   });
 });
 

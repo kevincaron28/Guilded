@@ -40,14 +40,18 @@ export function badgeFamily(def: Pick<AchievementDef, "metric" | "en">): BadgeFa
   return FAMILY_BY_METRIC[def.metric] ?? "guild";
 }
 
-/**
- * Finer emblems the owner has not approved yet, by achievement id (the brief's items A2-I3). A file named here that does not exist in
- * site/badge-art/emblems/ is simply ignored and the badge keeps its family emblem; adding the file is all it takes.
- */
+/** Finer emblems by metric (all owner-approved 13 November 2026). A name whose file is missing is ignored and the badge keeps its family emblem. */
+export const METRIC_EMBLEMS: Record<string, string> = {
+  messagesSent: "guild-sun-tablet", voiceHours: "guild-horn", reactionsGiven: "guild-hand", reactionsReceived: "guild-sparkle-hand", communityPoints: "guild-pouch", mvpWeeks: "guild-trophy",
+  activeDays: "guild-brazier", serverAnniversaries: "guild-brazier", wowEditionCap: "levelling-cap", wowMaxLevel: "levelling-cap",
+  professionsMastered: "professions-gem", professionFirsts: "professions-first-laurel", rareRecipes: "professions-mortar"
+};
+/** Finer emblems by achievement id (these win over the metric's). */
 export const ITEM_EMBLEMS: Record<string, string> = {
   "dungeon-runs-10": "dungeons-key", "dungeon-runs-25": "dungeons-torch", "dungeon-variety-1": "dungeons-map", "dungeon-variety-5": "dungeons-map", "dungeon-variety-10": "dungeons-map",
   "raids-10": "raids-horn", "raids-25": "raids-siege", "raid-clears-1": "raids-skull", "raid-clears-5": "raids-skull", "raid-clears-10": "raids-skull",
-  "duel-streak-5": "duels-flame", "duel-beat-top": "duels-throne"
+  "duel-streak-5": "duels-flame", "duel-beat-top": "duels-throne",
+  "honorable-kills-500": "pvp-drum", "honorable-kills-1000": "pvp-drum", "crafts-done-100": "professions-tools-crown", "crafts-done-250": "professions-tools-crown"
 };
 
 const ART_DIR = fileURLToPath(new URL("../../site/badge-art/", import.meta.url));
@@ -59,9 +63,16 @@ export function availableEmblems(): Set<string> {
 }
 export const hasFrame = (tier: AchievementTier) => existsSync(`${ART_DIR}frames/${tier}-256.webp`);
 
+/** In-game achievements pick a finer emblem from their text: exploring, quests and lore, reputation and factions. */
+const GENERATED_EMBLEM: [RegExp, string][] = [[/explor|discover|zone|travel|flight|journey/i, "ingame-boot"], [/quest|lore|story|scroll|\bbook/i, "ingame-scroll"], [/reputation|faction|exalted|revered|honored|friendly/i, "ingame-banner"]];
+function generatedEmblem(def: Pick<AchievementDef, "en">): string | undefined {
+  const text = `${def.en.name} ${def.en.description}`;
+  return GENERATED_EMBLEM.find(([pattern]) => pattern.test(text))?.[1];
+}
+
 /** The emblem a badge draws: its own picture when it exists, else its family's, else null (the SVG badge is drawn). */
 export function emblemFor(def: Pick<AchievementDef, "id" | "metric" | "en">): string | null {
-  const present = availableEmblems(), own = ITEM_EMBLEMS[def.id];
+  const present = availableEmblems(), own = ITEM_EMBLEMS[def.id] ?? (def.metric === "gameAchievement" ? generatedEmblem(def) : METRIC_EMBLEMS[def.metric]);
   if (own && present.has(own)) return own;
   const family = FAMILY_EMBLEM[badgeFamily(def)];
   return present.has(family) ? family : null;

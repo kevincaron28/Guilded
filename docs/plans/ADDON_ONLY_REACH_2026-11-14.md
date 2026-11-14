@@ -107,3 +107,28 @@ Outside-guild duels store the opponent's class, level, guild text and zone as th
 1. Every addon user joins the shared meeting channel by default, with a member off switch: the missing piece for a fully functional standalone addon.
 2. All PvP data is public and a single report is trusted: carried world PvP and badge counters count straight away, under the same server checks as every other record.
 3. The outside-guild duel fix goes in (this PR).
+
+## 9. Built for the next addon release (9.3.2 work, three PRs)
+
+What exists now, and where it differs from the design above.
+
+- **Bot (#910).** `carriedRecords` in the signed upload (the addon snapshot) and in the device upload; answered with `carriedReceipts` (refs `carry:<kind>:<key>`). Kinds handled: outside duel (global duel lane, only as the reporting side's own statement), guild duel and milestone (only for a registered guild's linked character with that exact name, through the kind's existing applier). A record about the carrier's own character is answered without being applied. Table `CarriedRecord` dedupes by (kind, key) and counts per carrier; the per-carrier daily allowance is `carriedRecordsPerDay` in RUN_INTEGRITY_CONFIG. An unknown kind gets no receipt, so a newer addon keeps the record. Announced to companions as feature `carry-records`.
+- **Companion.** Reads `<DB>.carry.records` from the saved files, sends `carriedRecords` only to a bot that announced `carry-records` (never in a runs-only upload), writes the bot's receipts to `Carry.lua` beside each installed addon (a file only the carry code writes), and adds `["carry-records"] = true` to `GuildedCompanionFeatures`.
+- **Addon.** `Modules/Carry.lua`, shared with Guilded Dungeons by `npm run dungeons:sync`. The store is `GuildedDB.carry` / `GuildedDungeonsDB.carry` (not a separate saved variable): `records` holds what this PC carries for others, `done` the ids already acknowledged, `off` the member's switch. A player's OWN records are not copied into the store: they are collected on demand from the data the addon already keeps (today: its outside duels in `duels.external`, stripped of the check-chain fields), so the saved file does not grow.
+- **Frames.** Prefix `GuildedCry`. `HI|1` (a carrier's announcement: guild, group, shared channel). `R|<kind>|<key>|<i>/<n>|<chunk>` (whisper only; 150 bytes of a flat `key=Tvalue&...` record per chunk, at most 14 chunks). `K|<kind>:<key>` (whisper only: a carrier tells the author the bot holds it). The author of a stored record is the whisper sender, never a name the message claims.
+- **Pacing.** Everything goes through `ns.comm.send` with the `hold-in-instance` priority and a guard that refuses in combat, so nothing is sent in combat or inside an instance. At most 8 records per carrier per session, then a pause of 10 minutes. A receiver keeps at most 20 records per sender per hour, 20 half-assembled records at once, 200 records in all, for 30 days.
+- **Meeting channel.** One temporary channel per faction (`GuildedCarryA`, `GuildedCarryH`), joined 25 seconds after login (after the player's own channels), only `HI` on it. The game's "joined" notice for it is hidden from the chat frames; the "no player named" answer to one of our own whispers is hidden and counted against that carrier (2 failures and the carrier is dropped; a carrier is also forgotten after 20 minutes without an announcement). If the join does not give a channel number, the feature uses guild and group only. Not yet decided by a real client: cross-faction, a busy channel, and the effect on the player's channel list.
+- **Switch.** `/guilded carry [on|off]`. The existing `/guilded dungeon carry off` and `/gdungeons carry off` also stop all carrying (one switch for the member).
+- **Not carried yet.** Battleground reports, world PvP counters, badge counters, character cards (the bot side has no applier for them yet). Dungeon runs keep their own #880 lane. Member-facing privacy text for outside-guild duels is still to write with the release.
+- **Probe.** `/guilded probe comm` now whispers the bare name and, separately, "Name-Realm". The first probe sent only the second form and heard nothing back while a typed whisper to the bare name came back, so the realm suffix is the likely cause of the missing echo (the window was not too short; it is now 8 seconds anyway).
+
+### Two-player real-client check (9.3.2)
+
+1. Player A: addon only (Guilded or Guilded Dungeons), no companion. Player B: the companion running, no common guild or group. Both in the open world, same faction.
+2. B: `/reload`, wait a minute: `/guilded carry` says the companion carries records. A: `/guilded carry` shows a carrier heard within a few minutes ("one is in range").
+3. A makes a duel with a third player (outside any registered guild). A's `/guilded carry` shows a record waiting; within a minute of B's announcement it says it was offered. B's `/guilded carry` shows it received; B's companion log shows the upload; the website shows the duel once.
+4. B `/reload`s once more after the upload: the record is removed from B and A hears the receipt (A's waiting count goes to 0 after A's next `/reload` or the whisper).
+5. Chat: neither player sees a joined-channel line, a changed channel number or a "no player named" line (at most one for a stale carrier). `/guilded carry off` leaves the channel and silences both.
+6. A third addon-only player C whispering a forged record can only create a record under C's own name; a forged receipt in the channel changes nothing on A.
+7. Combat and instances: nothing sent; the game's own chat is not throttled.
+8. Cross-faction: whether the channel and the whisper reach (it is not assumed).

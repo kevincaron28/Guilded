@@ -90,9 +90,16 @@ export interface DuelSource {
   /** The reporter's guild name and realm when the records come from a guild server (fills a side's guild text when the client sent none). */
   guildName?: string | null;
   guildRealm?: string | null;
+  /**
+   * A record a companion carried for the player who made it (9.3.2, services/carried-records.ts): it is stored held and flagged "c", and
+   * only counts once the other participant's own report of the same duel arrives (a different carrier, or any non-carried report).
+   */
+  carried?: boolean;
   /** Mirrored guild duels know the members behind each side. */
   winnerMemberId?: string | null; loserMemberId?: string | null;
 }
+/** The carrier behind a carried report's reporterKey ("install:carried|<carrier>|<author>"), or null for any other reporter. */
+export const carrierOfReporter = (reporterKey: string): string | null => reporterKey.startsWith("install:carried|") ? (reporterKey.split("|")[1] ?? "") : null;
 export interface GlobalImportResult { recorded: number; counted: number; capped: number; confirmed: number; rejected: number; replays: number; excluded: boolean; held: number }
 
 const dayOf = (at: Date) => at.toISOString().slice(0, 10);
@@ -127,7 +134,7 @@ export async function recordGlobalDuels(tx: Pick<Tx, "publicDuel" | "publicDuelR
     const held = flags.length >= cfg.holdAt || deviceHeld;
     const near = await tx.publicDuel.findFirst({ where: { gameEdition: edition, winnerKey, loserKey,
       endedAt: { gte: new Date(endedAt.getTime() - DUEL_RULES.dedupeSeconds * 1000), lte: new Date(endedAt.getTime() + DUEL_RULES.dedupeSeconds * 1000) } },
-      select: { id: true, winnerClass: true, loserClass: true, winnerLevel: true, loserLevel: true, winnerGuild: true, loserGuild: true, reports: { select: { reporterCharacterKey: true } } } });
+      select: { id: true, winnerClass: true, loserClass: true, winnerLevel: true, loserLevel: true, winnerGuild: true, loserGuild: true, held: true, holdFlags: true, reports: { select: { reporterCharacterKey: true, reporterKey: true } } } });
     const guildText = (own: string | undefined, mine: boolean) => cleanText(own) || (mine ? cleanText(source.guildName) : "") || null;
     const winnerGuild = guildText(d.winnerGuild, d.side === "winner"), loserGuild = guildText(d.loserGuild, d.side === "loser");
     if (near) {
@@ -140,7 +147,16 @@ export async function recordGlobalDuels(tx: Pick<Tx, "publicDuel" | "publicDuelR
           ...(!near.winnerClass && d.winnerClass ? { winnerClass: cleanText(d.winnerClass, 30) } : {}), ...(!near.loserClass && d.loserClass ? { loserClass: cleanText(d.loserClass, 30) } : {}),
           ...(near.winnerLevel == null && d.winnerLevel ? { winnerLevel: d.winnerLevel } : {}), ...(near.loserLevel == null && d.loserLevel ? { loserLevel: d.loserLevel } : {}),
           ...(!near.winnerGuild && winnerGuild ? { winnerGuild } : {}), ...(!near.loserGuild && loserGuild ? { loserGuild } : {}) } });
-        if (keys.has(winnerKey) && keys.has(loserKey)) result.confirmed++;
+        const bothSides = keys.has(winnerKey) && keys.has(loserKey);
+        if (bothSides) result.confirmed++;
+        // A carried duel is released when the other participant's own report agrees and the two reports do not come through one carrier.
+        if (bothSides && near.held && near.holdFlags.includes("c")) {
+          const carriers = [...near.reports.map(r => r.reporterKey), source.reporterKey].map(carrierOfReporter);
+          if (carriers.some(c => c === null) || new Set(carriers).size > 1) {
+            const rest = near.holdFlags.filter(f => f !== "c");
+            await tx.publicDuel.update({ where: { id: near.id }, data: { holdFlags: rest, held: rest.length >= cfg.holdAt || rest.includes("x") || rest.includes("d") } });
+          }
+        }
       }
       continue;
     }
@@ -160,11 +176,11 @@ export async function recordGlobalDuels(tx: Pick<Tx, "publicDuel" | "publicDuelR
       winnerClass: cleanText(d.winnerClass, 30) || null, loserClass: cleanText(d.loserClass, 30) || null, winnerLevel: d.winnerLevel ?? null, loserLevel: d.loserLevel ?? null,
       winnerGuild, loserGuild, winnerMemberId: source.winnerMemberId ?? null, loserMemberId: source.loserMemberId ?? null,
       zone: cleanText(d.zone) || null, endedAt, durationSec: d.durationSec || null, reason: d.reason, counted, pairKey: pair, dayKey: day,
-      held: held || contradicted, holdFlags: contradicted ? [...flags, "x"] : flags,
+      held: held || contradicted || !!source.carried, holdFlags: [...flags, ...(contradicted ? ["x"] : []), ...(source.carried ? ["c"] : [])],
       reports: { create: [{ reporterKey: source.reporterKey, reporterCharacterKey, deviceId: source.deviceId ?? null, guildId: source.guildId ?? null, dayKey: day, seq: d.seq ?? null, nonce: d.nonce ?? null, chain: d.chain ?? null, ...(d.evidence ? { evidence: d.evidence } : {}) }] }
     } });
     result.recorded++;
-    if (held || contradicted) result.held++;
+    if (held || contradicted || source.carried) result.held++;
     if (counted) result.counted++; else result.capped++;
   }
   return result;

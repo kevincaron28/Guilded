@@ -45,7 +45,7 @@ function fakeTx() {
         const d = duels.find((x) => x.id === where.id)!;
         for (const [k, v] of Object.entries<any>(data)) {
           if (k === "confirmations") d.confirmations += v.increment;
-          else if (k === "holdFlags" && v?.push) d.holdFlags.push(v.push);
+          else if (k === "holdFlags" && !Array.isArray(v) && v?.push) d.holdFlags.push(v.push);
           else d[k] = v;
         }
         return d;
@@ -346,5 +346,39 @@ describe("global duels: seasons from 13 November", () => {
     expect(ratingSeasonIds(new Date("2027-02-10T00:00:00Z"))).toEqual(["2027-02", "2027-01", "2026-11"]);
     expect(ratingSeasonName("2026-11", "en")).toBe("November 13 – December 31, 2026");
     expect(ratingSeasonName("2027-01", "en")).toBe("January 2027");
+  });
+});
+
+describe("global duels: a carried report is held until the other participant's own report agrees", () => {
+  const carried = (carrier: string, author: string) => ({ reporterKey: `install:carried|${carrier}|${author}`, carried: true });
+  it("stores a carried duel held and flagged, outside every ladder", async () => {
+    const { tx, duels } = fakeTx();
+    const out = await recordGlobalDuels(tx, carried("device:1", "aldric-kronos"), [rec()], NOW);
+    expect(out).toMatchObject({ recorded: 1, held: 1 });
+    expect(duels[0]).toMatchObject({ held: true, holdFlags: ["c"] });
+  });
+  it("releases it when the other side reports through another carrier, or on its own", async () => {
+    for (const other of [carried("device:2", "brenna-kronos"), { reporterKey: "member:m2" }]) {
+      const { tx, duels } = fakeTx();
+      await recordGlobalDuels(tx, carried("device:1", "aldric-kronos"), [rec()], NOW);
+      const out = await recordGlobalDuels(tx, other, [rec({ side: "loser" })], NOW);
+      expect(out.confirmed).toBe(1);
+      expect(duels[0]).toMatchObject({ held: false, holdFlags: [] });
+    }
+  });
+  it("keeps it held when both sides come through one carrier, and when the same side reports again", async () => {
+    const { tx, duels } = fakeTx();
+    await recordGlobalDuels(tx, carried("device:1", "aldric-kronos"), [rec()], NOW);
+    await recordGlobalDuels(tx, carried("device:1", "brenna-kronos"), [rec({ side: "loser" })], NOW);
+    expect(duels[0]).toMatchObject({ held: true, holdFlags: ["c"] });
+    await recordGlobalDuels(tx, carried("device:1", "aldric-kronos"), [rec()], NOW);
+    expect(duels[0]!.held).toBe(true);
+  });
+  it("does not release a duel that something else holds", async () => {
+    const { tx, duels } = fakeTx();
+    await recordGlobalDuels(tx, carried("device:1", "aldric-kronos"), [rec()], NOW);
+    duels[0]!.holdFlags.push("x");
+    await recordGlobalDuels(tx, { reporterKey: "member:m2" }, [rec({ side: "loser" })], NOW);
+    expect(duels[0]).toMatchObject({ held: true, holdFlags: ["x"] });
   });
 });

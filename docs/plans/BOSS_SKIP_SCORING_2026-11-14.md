@@ -81,9 +81,11 @@ What apply does, in one transaction under the exclusive calendar lock:
 
 Restore applies the inverse of the latest change that was not already undone (also recorded, as a "restore" revision), so the history stays honest and the rules return exactly.
 
-Everything that shows a Season 1 score follows, because it reads the same rules: the guild boards, the public leaderboards, player pages, the run page and card, season cards, and "best next improvement" (its scenarios assume a full clear, which is exactly what the rule rewards). The **addon** does not compute scores: its season score, best-run points and board come from the standings the companion writes (`companion/standings-format.mjs`) from the bot's numbers. After apply the game shows the new scores at the next companion sync, with no addon release; until then the game and the website can differ for a member whose companion has not synced. Only the addon's own rule sentence (and a "bosses 5/6" hover line) waits for the next addon release.
+Everything that shows a Season 1 score follows, because it reads the same rules: the guild boards, the public leaderboards, player pages, the run page and card, season cards, and "best next improvement" (its scenarios assume a full clear, which is exactly what the rule rewards). **Addon dependency (found in review, 14 November 2026).** The 9.3.1 addon checks each run row of a member's season details against its own recomputation `clamp(200 x target / time, 50, 400)` times the penalty, and drops the member's season detail panel when a counted run's points differ. A boss-adjusted row differs, so the rule is safe for members only from the addon release that carries the `SeasonDetails.lua` tolerance (a counted row at or below the recomputation is shown with the server's points). Order: merge with the rule off, then release that addon, then apply to Season 1. Season 2's default-on depends on the same release. The post-run "~points" estimate in `RunResults.lua` stays a labelled provisional estimate that ignores bosses until the addon gets the boss lists.
 
-Known edge: a cooperative goal stores a hash of its season rules; goals created before the change will not match the new hash. If any are active they need to be recreated.
+Active cooperative goals: a goal stores a hash of its season rules, so after a change it no longer matches and has to be recreated.
+
+Caches: the script runs outside the bot, so the website can show old scores for about 20 minutes; restarting the bot after `--apply` forces every board to refresh at once.
 
 Order on production (each with a backup first, docs/DEPLOY_ORACLE.md): the Drowned City recovery (`scripts/recover-drowned-city-runs.ts`, dry run then `--apply`), then `--kill-shares` and the boss-list check, then this rules change (dry run, then `--apply --by`), then any target recalibration.
 
@@ -98,5 +100,6 @@ Season 2 defaults to the new rules: `season2-review` / `season2-activate` includ
 ## 8. Owner decisions
 
 1. Run the dry run on production, look at the tables, then apply (the owner chose Season 1 now).
-2. Check the optional flags against the `--kill-shares` table before applying.
-3. Cooperative goals: recreate any active goal after apply (see above).
+2. Order: merge with the rule off, release the addon with the tolerance, then apply to Season 1 (never before).
+3. Optional bosses follow one rule: killed in fewer than 60% of at least 5 completed runs (14 November 2026: Old Serra'kis, Lordaeron Captain, Lyn the Ignored). With fewer runs the journal and judgement decided: Cookie, Lorgus Jett and Obsidian Sentinel (never or once seen, rare or secret in the game), Ragglesnout (a rare, 1 of 2 runs). Re-run `--kill-shares` as data grows.
+4. Cooperative goals: recreate any active goal after apply (see above).

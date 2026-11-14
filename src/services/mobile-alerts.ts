@@ -4,6 +4,7 @@ import { Routes, type APIGuildScheduledEvent, type Client, type GuildMember } fr
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { hostedPilot } from "../hosted-pilot.js";
 import { hashCompanionSecret } from "./character-pairing.js";
+import { credentialBySecret } from "./companion-renew.js";
 import { loadGuildScope } from "./guild-scope.js";
 import { config } from "../config.js";
 import { mergeCalendarEvents } from "./discord-calendar.js";
@@ -28,9 +29,29 @@ export function mobileRaidChanges(previous: Snapshot, current: Snapshot, now: Da
   }
   return result;
 }
+/** The phone's sign-in was not found (revoked, replaced more than a day ago, or never issued). Answered as 401. */
+export class MobileCredentialUnknown extends Error {
+  constructor() { super("This device connection is no longer valid. Sign in again."); }
+}
+/** Whether push alerts are on for the device that holds this secret. */
+export async function mobileDeviceEnabled(database: PrismaClient, secret: string, now = new Date()): Promise<boolean> {
+  const credential = await database.companionCredential.findFirst({ where: { ...credentialBySecret(secret, now), revokedAt: null }, select: { id: true } });
+  if (!credential) throw new MobileCredentialUnknown();
+  const device = await database.mobileDevice.findUnique({ where: { credentialId: credential.id }, select: { enabled: true } });
+  return device?.enabled ?? false;
+}
+/**
+ * Sign-out: the phone stops receiving at once. The token and the raid snapshot are cleared and the generation moves
+ * on, so alerts already queued for this device are dropped at send time instead of reaching a signed-out phone.
+ * Called after the credential is revoked, so it does not ask for a live credential.
+ */
+export async function retireMobileDevice(database: Pick<PrismaClient, "mobileDevice">, secret: string, now = new Date()) {
+  return database.mobileDevice.updateMany({ where: { credential: credentialBySecret(secret, now) }, data: { enabled: false, expoPushToken: null, snapshot: {}, generation: { increment: 1 } } });
+}
 export async function configureMobileDevice(database: PrismaClient, secret: string, payload: unknown) {
   const input = enrollment.parse(payload);
-  const credential = await database.companionCredential.findUniqueOrThrow({ where: { tokenHash: hashCompanionSecret(secret) }, include: { member: true } });
+  const credential = await database.companionCredential.findFirst({ where: { ...credentialBySecret(secret), revokedAt: null }, include: { member: true } });
+  if (!credential) throw new MobileCredentialUnknown();
   return database.$transaction(async tx => {
     // An OS token can belong to only one active account on a phone. Switching
     // accounts retires its prior enrollment rather than sending both guilds.
@@ -67,6 +88,13 @@ async function canSeeRaid(member: GuildMember, channelId: string | null): Promis
 // Durable per-device outbox. Run from the bot scheduler, independently of Discord
 // reminder settings. Enrollment is the only switch that enables phone delivery.
 export async function runMobileAlerts(database: PrismaClient, client: Client, now = new Date(), send: typeof fetch = fetch) {
+  // Idle tick: one indexed lookup. Nothing to do unless a phone has alerts on, a notice is still on its way, or an
+  // old delivery row is due for removal.
+  const work = await database.mobileDevice.findFirst({ where: { OR: [
+    { enabled: true },
+    { deliveries: { some: { OR: [{ status: { in: ["PENDING", "ACCEPTED"] } }, { createdAt: { lt: new Date(now.getTime() - 30 * 86_400_000) } }] } } }
+  ] }, select: { id: true } });
+  if (!work) return;
   await database.mobileDelivery.updateMany({ where: { status: { in: ["PENDING", "ACCEPTED"] }, expiresAt: { lte: now } }, data: { status: "EXPIRED", payload: {}, tokenHash: null, receiptId: null, receiptCheckAt: null } });
   await database.mobileDelivery.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - 30 * 86_400_000) } } });
   await pollMobileReceipts(database, now, send);
@@ -100,7 +128,10 @@ export async function runMobileAlerts(database: PrismaClient, client: Client, no
         }
         await tx.mobileDevice.updateMany({ where: { id: device.id, generation: device.generation, enabled: true }, data: { snapshot } });
       });
-    } catch { /* Keep the previous snapshot and retry membership/API failures next tick. */ }
+    } catch (error) {
+      // Keep the previous snapshot and retry membership/API failures next tick.
+      noteDeviceFailure(error);
+    }
     finally { await database.mobileDevice.updateMany({ where: { id: device.id }, data: { checkedAt: now } }); }
   }
   const pending = await database.mobileDelivery.findMany({ where: { status: "PENDING", nextAttemptAt: { lte: now }, OR: [{ lockedUntil: null }, { lockedUntil: { lte: now } }] }, take: 100, orderBy: { nextAttemptAt: "asc" } });
@@ -138,6 +169,20 @@ export async function runMobileAlerts(database: PrismaClient, client: Client, no
       await database.mobileDelivery.update({ where: { id: delivery.id }, data: { nextAttemptAt: new Date(now.getTime() + Math.min(3_600_000, 30_000 * 2 ** Math.min(delivery.attempts, 7))) } });
     } finally { await database.mobileDelivery.update({ where: { id: delivery.id }, data: { lockedUntil: null } }); }
   }
+}
+// One line at most every ten minutes, with a count. Only the error's class and code are logged: Prisma and Discord
+// messages can echo arguments, and push tokens and member ids must never reach the logs.
+const DEVICE_FAILURE_LOG_MS = 600_000;
+let deviceFailures = 0, deviceFailureLoggedAt = 0;
+export function noteDeviceFailure(error: unknown, at = Date.now(), log: (line: string) => void = console.warn): boolean {
+  deviceFailures++;
+  if (deviceFailureLoggedAt && at - deviceFailureLoggedAt < DEVICE_FAILURE_LOG_MS) return false;
+  const name = error instanceof Error ? error.name : typeof error;
+  const code = error && typeof error === "object" && "code" in error && /^[A-Za-z0-9_]{1,20}$/.test(String(error.code)) ? ` ${String(error.code)}` : "";
+  log(`Mobile alerts: ${deviceFailures} device check${deviceFailures === 1 ? "" : "s"} failed and will be retried (latest: ${name}${code}).`);
+  deviceFailures = 0;
+  deviceFailureLoggedAt = at;
+  return true;
 }
 async function drop(database: PrismaClient, id: string) { await database.mobileDelivery.update({ where: { id }, data: { status: "DROPPED", payload: {}, tokenHash: null, receiptId: null, receiptCheckAt: null } }); }
 

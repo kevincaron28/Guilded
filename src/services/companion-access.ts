@@ -4,6 +4,7 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import { hasPermission } from "../permissions.js";
 import { hashCompanionSecret } from "./character-pairing.js";
 import { noteCredentialUse } from "./credential-use.js";
+import { credentialBySecret } from "./companion-renew.js";
 import { parseAddonSnapshot, type AddonSnapshot } from "../integrations/addon.js";
 import { currentGuildScope } from "./guild-scope.js";
 import { characterKey, foreverSameName } from "../../companion/character-identity.mjs";
@@ -12,11 +13,12 @@ import { relayableCraftData, relayableDungeonRuns, type RelayLinkedCharacter } f
 
 // A credential is revocable and scoped to one active Discord member in one guild.
 // Never accept the old server-wide upload token as member authorization.
-export async function companionAccess(database: PrismaClient, client: Client | undefined, guildId: string, discordId: string, secret: string) {
+// previousSecretToo: the phone's alert settings also accept the secret a renewal replaced less than a day ago.
+export async function companionAccess(database: PrismaClient, client: Client | undefined, guildId: string, discordId: string, secret: string, previousSecretToo = false) {
   if (!hostedPilot.allows(discordId) || secret.length < 32 || secret.length > 256) return null;
   if (!client) throw new CompanionUnavailable();
   const credential = await database.companionCredential.findFirst({
-    where: { tokenHash: hashCompanionSecret(secret), revokedAt: null, member: { guildId, status: "ACTIVE" } },
+    where: { ...(previousSecretToo ? credentialBySecret(secret) : { tokenHash: hashCompanionSecret(secret) }), revokedAt: null, member: { guildId, status: "ACTIVE" } },
     select: { memberId: true, member: { select: { discordUserId: true } } }
   });
   if (!credential) return null;

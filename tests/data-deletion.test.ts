@@ -12,6 +12,7 @@ function fixture() {
     memberMilestone: del("memberMilestone"), recurringRecap: del("recurringRecap"), groupAlert: del("groupAlert"), webAvailability: del("webAvailability"),
     poeLevelReached: del("poeLevelReached"), poeMapVisit: del("poeMapVisit"), guildMapSighting: del("guildMapSighting"), guildHelpCall: del("guildHelpCall"), worldPvpWeek: del("worldPvpWeek"), worldPvpEvent: del("worldPvpEvent"), characterPairing: del("characterPairing"),
     characterVerifyCode: del("characterVerifyCode"), characterVerifyClaim: del("characterVerifyClaim"), companionCredential: del("companionCredential"),
+    mobileDelivery: del("mobileDelivery"), mobileDevice: del("mobileDevice"),
     character: del("character", 3)
   };
   const db = { $transaction: vi.fn(async (fn: (t: typeof tx) => unknown) => fn(tx)) };
@@ -19,6 +20,16 @@ function fixture() {
 }
 
 describe("Delete my data", () => {
+  it("removes the phone's push registration and queued notices before the sign-in they belong to", async () => {
+    const f = fixture();
+    await deleteMyData(f.db, "123456789012345678");
+    const own = { memberId: { in: ["m1", "m2"] } };
+    expect(f.tx.mobileDelivery.deleteMany).toHaveBeenCalledWith({ where: { device: { credential: own } } });
+    expect(f.tx.mobileDevice.deleteMany).toHaveBeenCalledWith({ where: { credential: own } });
+    const order = ["mobileDelivery", "mobileDevice", "companionCredential"].map(name => f.calls.indexOf(name));
+    expect(order.every(index => index >= 0)).toBe(true);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+  });
   it("removes the account and personal rows, then anonymises the member rows", async () => {
     const f = fixture();
     const summary = await deleteMyData(f.db, "123456789012345678");

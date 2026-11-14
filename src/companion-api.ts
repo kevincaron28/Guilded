@@ -1351,7 +1351,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // (9.3.2) Records the uploader's addon carried for players near it: applied by each kind's own code, answered by key.
       const carriedRecords = preview.snapshot.carriedRecords ?? [];
       const carriedAnswer = carriedRecords.length
-        ? await applyCarriedRecords(prisma, { carrier: `member:${access.memberId ?? access.actorId}`, carrierKeys: new Set([preview.snapshot.character, ...preview.snapshot.alts, ...preview.snapshot.characters].flatMap((entry) => entry ? [entry.name.trim().toLowerCase()] : [])), records: carriedRecords }).catch(() => ({ receipts: [] as string[], applied: 0 }))
+        ? await applyCarriedRecords(prisma, { carrier: `member:${access.actorId}`, carrierKeys: new Set([preview.snapshot.character, ...preview.snapshot.alts, ...preview.snapshot.characters].flatMap((entry) => entry ? [entry.name.trim().toLowerCase()] : [])), records: carriedRecords }).catch(() => ({ receipts: [] as string[], applied: 0 }))
         : { receipts: [] as string[], applied: 0 };
       const carriedExtra = carriedAnswer.receipts.length ? { carriedReceipts: carriedAnswer.receipts } : {};
       // T1 (10 Nov 2026): a signed upload only links and imports in a server that knows the saved file's in-game guild.

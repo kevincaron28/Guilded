@@ -84,7 +84,7 @@ Guilded server, the addon can hand the result to the companion of a player near 
 to Guilded, and your companion does the same for other players near you. A result holds both
 players' names and realms, classes and levels, the time, how the duel ended and which side reported
 it. Once the other player's own report confirms it, it appears on the public duel pages and
-ladders, with both players' names. Turn it off with `/guilded carry off` (or `/gdungeons carry off`);
+ladders, with both players' names. A carried result nobody confirms is deleted after about 60 days. Turn it off with `/guilded carry off` (or `/gdungeons carry off`);
 an officer can turn it off for a whole guild. **Delete my data** removes what is linked to your account.
 
 Companion connections have separate credentials and device names. Manage or
@@ -280,6 +280,7 @@ qui l'envoie à Guilded, et votre companion fait de même pour les autres joueur
 résultat contient les noms et royaumes des deux joueurs, leurs classes et niveaux, l'heure, la façon
 dont le duel s'est terminé et le camp qui l'a signalé. Une fois confirmé par le rapport de l'autre
 joueur, il apparaît sur les pages et classements publics des duels, avec le nom des deux joueurs.
+Un résultat relayé que personne ne confirme est supprimé après environ 60 jours.
 Désactivez-le avec `/guilded carry off` (ou `/gdungeons carry off`); un officier peut le désactiver
 pour toute la guilde. **Supprimer mes données** efface ce qui est lié à votre compte.
 

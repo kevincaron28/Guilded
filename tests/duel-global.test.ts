@@ -408,3 +408,39 @@ describe("global duels: a carried report is held until the other participant's o
     expect(duels[0]).toMatchObject({ held: true, holdFlags: ["x"] });
   });
 });
+
+describe("global duels: what a carried report cannot do", () => {
+  const carried = (carrier: string, author: string) => ({ reporterKey: `install:carried|${carrier}|${author}`, carried: true });
+  it("is not released by the carried side's own upload plus a carried record of the other side from a device", async () => {
+    const { tx, duels } = fakeTx();
+    await recordGlobalDuels(tx, carried("device:1", "aldric-kronos"), [rec()], NOW);
+    await recordGlobalDuels(tx, { reporterKey: "member:ma" }, [rec()], NOW);
+    await recordGlobalDuels(tx, carried("device:2", "brenna-kronos"), [rec({ side: "loser" })], NOW);
+    expect(duels[0]).toMatchObject({ held: true, counted: false });
+  });
+  it("is not released when one member carried both sides and a second member repeated one of them", async () => {
+    const { tx, duels } = fakeTx();
+    await recordGlobalDuels(tx, carried("member:1", "aldric-kronos"), [rec()], NOW);
+    await recordGlobalDuels(tx, carried("member:1", "brenna-kronos"), [rec({ side: "loser" })], NOW);
+    await recordGlobalDuels(tx, carried("member:2", "aldric-kronos"), [rec()], NOW);
+    expect(duels[0]!.held).toBe(true);
+  });
+  it("does not attach to a duel that is already counted, adds no confirmation and fills nothing in", async () => {
+    const { tx, duels } = fakeTx();
+    await recordGlobalDuels(tx, { reporterKey: "member:ma" }, [rec()], NOW);
+    const before = { confirmations: duels[0]!.confirmations, reports: duels[0]!.reports.length, loserClass: duels[0]!.loserClass };
+    await recordGlobalDuels(tx, carried("member:2", "brenna-kronos"), [rec({ side: "loser", loserClass: "ROGUE", loserLevel: 31, loserGuild: "Fake Guild" })], NOW);
+    expect(duels[0]).toMatchObject({ confirmations: before.confirmations, loserClass: before.loserClass, held: false, counted: true });
+    expect(duels[0]!.reports).toHaveLength(before.reports);
+  });
+  it("fills nothing in and adds no confirmation on a duel waiting for it either, and never holds another player's counted duel", async () => {
+    const { tx, duels } = fakeTx();
+    await recordGlobalDuels(tx, carried("member:1", "aldric-kronos"), [rec()], NOW);
+    await recordGlobalDuels(tx, carried("member:2", "brenna-kronos"), [rec({ side: "loser", loserClass: "ROGUE", loserLevel: 31 })], NOW);
+    expect(duels[0]).toMatchObject({ confirmations: 1, loserClass: null });
+    const other = fakeTx();
+    await recordGlobalDuels(other.tx, { reporterKey: "member:ma" }, [rec({ winner: "Brenna", loser: "Aldric", side: "winner" })], NOW);
+    await recordGlobalDuels(other.tx, carried("member:1", "aldric-kronos"), [rec()], NOW);
+    expect(other.duels[0]).toMatchObject({ held: false, holdFlags: [] });
+  });
+});

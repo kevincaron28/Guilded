@@ -214,3 +214,11 @@ describe("more limits and the public reader", () => {
     expect(out).toHaveLength(1);
   });
 });
+
+describe("who the carrier is", () => {
+  it("is keyed on the Discord id, so one person in two servers is one carrier", () => {
+    const source = readFileSync(new URL("../src/companion-api.ts", import.meta.url), "utf8");
+    expect(source).toContain("await applyCarriedRecords(prisma, { carrier: `member:${access.actorId}`");
+    expect(source).not.toMatch(/applyCarriedRecords\(prisma, \{ carrier: `member:\$\{access\.memberId/);
+  });
+});

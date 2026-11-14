@@ -255,17 +255,17 @@ export function pvpPageBody(env: PvpEnv, data: PvpData, f: PvpFilters, classes: 
     + `<div><label for="pvp-mode">${t("Battlegrounds", "Champs de bataille")}</label><select id="pvp-mode" name="mode">${options([{ value: "", label: t("All modes", "Tous les modes") }, ...PVP_MODES.map((m) => ({ value: m, label: modeText(t, m) }))], f.mode ?? "")}</select></div>`
     + `<div><button class="button" type="submit">${t("Show", "Afficher")}</button></div></form>`;
   const tile = (k: string, v: string) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div></div>`;
-  const tiles = `<div class="tiles">${tile(f.period === "all" ? t("Kills", "Victimes") : t("Kills this week", "Victimes cette semaine"), String(world.kills))}${tile(t("Deaths", "Morts"), String(world.deaths))}${tile(t("K/D", "V/M"), killDeathRatio(world.kills, world.deaths))}${tile(t("Battlegrounds, last 30 days", "Champs de bataille, 30 derniers jours"), String(bg.games))}</div>`;
-  const worldTable = world.rows.length ? env.table([t("#", "#"), t("Player", "Joueur"), t("Guild", "Guilde"), t("Level", "Niveau"), t("Kills", "Victimes"), t("Deaths", "Morts"), t("K/D", "V/M"), t("Defends", "Défenses"), t("Helped", "Aides")],
+  const tiles = `<div class="tiles">${tile(f.period === "all" ? t("Kills", "Éliminations") : t("Kills this week", "Éliminations cette semaine"), String(world.kills))}${tile(t("Deaths", "Morts"), String(world.deaths))}${tile(t("K/D", "É/M"), killDeathRatio(world.kills, world.deaths))}${tile(t("Battlegrounds, last 30 days", "Champs de bataille, 30 derniers jours"), String(bg.games))}</div>`;
+  const worldTable = world.rows.length ? env.table([t("#", "#"), t("Player", "Joueur"), t("Guild", "Guilde"), t("Level", "Niveau"), t("Kills", "Éliminations"), t("Deaths", "Morts"), t("K/D", "É/M"), t("Defends", "Défenses"), t("Helped", "Aides")],
     world.rows.slice(0, 100).map((row, index) => `<tr><td class="num">${index + 1}</td><td>${env.person(row)}</td><td>${env.guild(row.guildId)}</td><td class="num">${row.level ?? "–"}</td><td class="num score">${row.kills}</td><td class="num">${row.deaths}</td><td class="num">${killDeathRatio(row.kills, row.deaths)}</td><td class="num">${row.defends}</td><td class="num">${row.helped}</td></tr>`), [0, 3, 4, 5, 6, 7, 8], "dense")
-    : emptyBox(t("No open-world PvP yet", "Aucun PvP mondial"), [t("Kills and deaths in the open world appear here as players update the Guilded addon and the companion sends them.", "Les victimes et les morts en monde ouvert apparaissent ici quand les joueurs mettent à jour l'addon Guilded et que le compagnon les envoie.")]);
+    : emptyBox(t("No open-world PvP yet", "Aucun PvP mondial"), [t("Kills and deaths in the open world appear here as players update the Guilded addon and the companion sends them.", "Les éliminations et les morts en monde ouvert apparaissent ici quand les joueurs mettent à jour l'addon Guilded et que le compagnon les envoie.")]);
   const bgTable = bg.rows.length ? env.table([t("#", "#"), t("Player", "Joueur"), t("Guild", "Guilde"), t("Wins", "Victoires"), t("Losses", "Défaites"), t("Draws", "Nuls"), t("Win rate", "Taux")],
     bg.rows.slice(0, 100).map((row, index) => `<tr><td class="num">${index + 1}</td><td>${env.person(row)}</td><td>${env.guild(row.guildId)}</td><td class="num score">${row.wins}</td><td class="num">${row.losses}</td><td class="num">${row.draws}</td><td class="num">${Math.round(row.winRate * 100)}%</td></tr>`), [0, 3, 4, 5, 6], "dense")
     : emptyBox(t("No battleground yet", "Aucun champ de bataille"), [t("Play a battleground with the Guilded addon and your result shows up here.", "Jouez un champ de bataille avec l'addon Guilded et votre résultat apparaît ici.")]);
   const mapTable = bg.byMap.length ? env.table([t("Battleground", "Champ de bataille"), t("Games", "Parties"), t("Wins", "Victoires")], bg.byMap.map((m) => `<tr><td>${escapeHtml(mapTitle(m.mapId, lang))}</td><td class="num">${m.games}</td><td class="num">${m.wins}</td></tr>`), [1, 2], "dense") : "";
   const recent = bg.recent.length ? env.table([t("Date", "Date"), t("Player", "Joueur"), t("Battleground", "Champ de bataille"), t("Mode", "Mode"), t("Result", "Résultat")],
     bg.recent.map((g) => `<tr><td>${date(g.endedAt)}</td><td>${env.person(g)}</td><td>${escapeHtml(mapTitle(g.mapId, lang))}</td><td>${escapeHtml(modeText(t, g.mode))}</td><td>${outcomeText(t, g.outcome)}</td></tr>`), [], "dense") : "";
-  return `<p class="eyebrow">PvP</p><h1>${t("PvP", "PvP")}</h1><p class="muted">${t("Open-world kills and deaths, battleground results and the zones where players called for help, across guilds that publish.", "Victimes et morts en monde ouvert, résultats de champs de bataille et zones où des joueurs ont appelé à l'aide, dans les guildes qui publient.")}</p>`
+  return `<p class="eyebrow">PvP</p><h1>${t("PvP", "PvP")}</h1><p class="muted">${t("Open-world kills and deaths, battleground results and the zones where players called for help, across guilds that publish.", "Éliminations et morts en monde ouvert, résultats de champs de bataille et zones où des joueurs ont appelé à l'aide, dans les guildes qui publient.")}</p>`
     + tiles + form
     + `<h2>${t("World PvP", "PvP mondial")} · ${f.period === "all" ? t("all weeks", "toutes les semaines") : t("this week", "cette semaine")}</h2><p class="muted">${t("Shown on each player's main character.", "Affiché sur le personnage principal de chaque joueur.")}</p>${worldTable}`
     + zoneMapHtml(env, zones, f)
@@ -322,7 +322,8 @@ const levelOf = (heat: number, max: number) => heat <= 0 ? 0 : Math.max(1, Math.
 const zoneName = (env: PvpEnv, stat: ZoneStat) => env.lang === "fr" ? stat.fr : stat.en;
 function zoneNumbers(env: PvpEnv, stat: ZoneStat, kd: boolean): string {
   const { t } = env;
-  return kd ? `${stat.kills} ${t("kills", "victimes")} · ${stat.deaths} ${t("deaths", "morts")}` : `${stat.calls} ${t("calls for help", "appels à l'aide")}`;
+  const one = (n: number, en: [string, string], fr: [string, string]) => t(n === 1 ? en[0] : en[1], n === 1 ? fr[0] : fr[1]);
+  return kd ? `${stat.kills} ${one(stat.kills, ["kill", "kills"], ["élimination", "éliminations"])} · ${stat.deaths} ${one(stat.deaths, ["death", "deaths"], ["mort", "morts"])}` : `${stat.calls} ${one(stat.calls, ["call for help", "calls for help"], ["appel à l'aide", "appels à l'aide"])}`;
 }
 
 /** A readable zone name, centred in its zone (our own text over the art): one line when it fits, else two, else nothing; "sm" labels are hidden on phones. */
@@ -424,15 +425,15 @@ export function zoneMapHtml(env: PvpEnv, stats: ZoneStat[], f: PvpFilters): stri
   const lit = stats.filter((s) => s.heat > 0);
   const max = Math.max(0, ...stats.map((s) => s.heat));
   const period = f.period === "all" ? t("last 4 weeks", "4 dernières semaines") : t("this week", "cette semaine");
-  const heatOf = kd ? t("kills plus deaths", "victimes plus morts") : t("calls for help", "appels à l'aide");
-  const legend = `<p class="heat-legend"><span>${t("Colour shows", "La couleur montre")}: ${escapeHtml(heatOf)}.</span>${HEAT_FILLS.map((c, i) => `<span><i style="background:${c}"></i>${i === 0 ? t("fewer", "moins") : i === 4 ? t("more", "plus") : ""}</span>`).join("")}</p>`;
+  const heatOf = kd ? t("kills plus deaths", "éliminations plus morts") : t("calls for help", "appels à l'aide");
+  const legend = `<p class="heat-legend"><span>${t("Colour shows", "La couleur montre")}${t(":", " :")} ${escapeHtml(heatOf)}.</span>${HEAT_FILLS.map((c, i) => `<span><i style="background:${c}"></i>${i === 0 ? t("fewer", "moins") : i === 4 ? t("more", "plus") : ""}</span>`).join("")}</p>`;
   const svgs = (["kalimdor", "eastern"] as Continent[]).map((continent) => ({ continent, ...continentSvg(env, continent, stats, max, kd) }));
   const maps = svgs.map(({ continent, svg, legend }) => `<figure class="pvp-map"><h3>${escapeHtml(CONTINENT_NAMES[continent][lang === "fr" ? 1 : 0])}</h3>${svg}${legend.length ? `<ul class="map-key">${legend.map((name, i) => `<li><b>${i + 1}</b>${escapeHtml(name)}</li>`).join("")}</ul>` : ""}</figure>`).join("");
   const panels = lit.filter((s) => s.zone).map((stat) => `<section class="zone-panel" id="zone-${stat.zone!.id}"><h3>${escapeHtml(zoneName(env, stat))}</h3><p>${escapeHtml(zoneNumbers(env, stat, kd))}${kd && stat.calls ? ` · ${stat.calls} ${t("calls for help", "appels à l'aide")}` : ""}</p>`
-    + (stat.guilds.length ? `<p>${t("Most active guilds", "Guildes les plus actives")}: ${stat.guilds.map((g) => `${env.guild(g.guildId) || "–"} (${g.count})`).join(", ")}</p>` : "")
+    + (stat.guilds.length ? `<p>${t("Most active guilds", "Guildes les plus actives")}${t(":", " :")} ${stat.guilds.map((g) => `${env.guild(g.guildId) || "–"} (${g.count})`).join(", ")}</p>` : "")
     + `<p><a href="#zone-map">${t("Back to the map", "Retour à la carte")}</a></p></section>`).join("");
   const continentOf = (stat: ZoneStat) => stat.zone ? CONTINENT_NAMES[stat.zone.continent][lang === "fr" ? 1 : 0] : "";
-  const head = kd ? [t("Zone", "Zone"), t("Continent", "Continent"), t("Kills", "Victimes"), t("Deaths", "Morts"), t("Total", "Total"), t("Calls for help", "Appels à l'aide"), t("Most active guild", "Guilde la plus active")]
+  const head = kd ? [t("Zone", "Zone"), t("Continent", "Continent"), t("Kills", "Éliminations"), t("Deaths", "Morts"), t("Total", "Total"), t("Calls for help", "Appels à l'aide"), t("Most active guild", "Guilde la plus active")]
     : [t("Zone", "Zone"), t("Continent", "Continent"), t("Calls for help", "Appels à l'aide"), t("Most active guild", "Guilde la plus active")];
   const row = (s: ZoneStat) => `<tr><td>${s.zone ? `<a href="#zone-${s.zone.id}">${escapeHtml(zoneName(env, s))}</a>` : escapeHtml(zoneName(env, s).slice(0, 60))}</td><td>${escapeHtml(continentOf(s))}</td>`
     + (kd ? `<td class="num">${s.kills}</td><td class="num">${s.deaths}</td><td class="num score">${s.kills + s.deaths}</td><td class="num">${s.calls}</td>` : `<td class="num score">${s.calls}</td>`)
@@ -440,10 +441,10 @@ export function zoneMapHtml(env: PvpEnv, stats: ZoneStat[], f: PvpFilters): stri
   const table = lit.length ? env.table(head, lit.slice(0, 60).map(row), kd ? [2, 3, 4, 5] : [2], "dense")
     : `<p class="muted">${t("Nothing recorded for this period.", "Rien d'enregistré pour cette période.")}</p>`;
   const kinds = new Set(stats.flatMap((s) => s.dots.map((d) => d.kind)));
-  const notes = [kinds.has("kill") ? t("Red dots: kills.", "Points rouges : victimes.") : "", kinds.has("death") ? t("Blue dots: deaths.", "Points bleus : morts.") : "",
+  const notes = [kinds.has("kill") ? t("Red dots: kills.", "Points rouges : éliminations.") : "", kinds.has("death") ? t("Blue dots: deaths.", "Points bleus : morts.") : "",
     !kd ? t("Calls for help are shown by zone only, never by position. The class, level and mode filters do not apply to them.", "Les appels à l'aide sont montrés par zone seulement, jamais par position. Les filtres de classe, de niveau et de mode ne s'y appliquent pas.") : ""].filter(Boolean);
   const dotNote = notes.length ? `<p class="muted">${notes.join(" ")}</p>` : "";
-  const credit = t("Map artwork © Blizzard Entertainment; tiles prepared by the OpenMap addon. Guilded is not affiliated with Blizzard.", "Illustrations de la carte © Blizzard Entertainment; tuiles préparées par l'addon OpenMap. Guilded n'est pas affilié à Blizzard.");
+  const credit = t("Map artwork © Blizzard Entertainment; tiles prepared by the OpenMap addon. Guilded is not affiliated with Blizzard.", "Illustrations de la carte © Blizzard Entertainment ; tuiles préparées par l'addon OpenMap. Guilded n'est pas affilié à Blizzard.");
   return `${PVP_MAP_CSS}<style>${svgs.map((s) => s.css).join("")}</style><h2 id="zone-map">${t("Zone map", "Carte des zones")} · ${period}</h2>${legend}<div class="pvp-maps">${maps}</div>${dotNote}<p class="muted map-credit">${credit}</p>${panels}<h3>${t("Zones", "Zones")}</h3>${table}`;
 }
 
@@ -464,7 +465,7 @@ export function playerPvpPanel(env: PvpEnv, data: PvpData, character: string, re
   if (!mine.week && !mine.total && !mine.record.games) return "";
   const world = mine.total ?? mine.week;
   return `<h2>PvP</h2>`
-    + (world ? `<p><span class="score">${world.kills}</span> ${t("kills", "victimes")} · ${world.deaths} ${t("deaths", "morts")} · ${t("K/D", "V/M")} ${killDeathRatio(world.kills, world.deaths)}${mine.week ? ` <span class="muted">(${t("this week", "cette semaine")}: ${mine.week.kills} / ${mine.week.deaths})</span>` : ""}</p>` : "")
+    + (world ? `<p><span class="score">${world.kills}</span> ${t("kills", "éliminations")} · ${world.deaths} ${t("deaths", "morts")} · ${t("K/D", "É/M")} ${killDeathRatio(world.kills, world.deaths)}${mine.week ? ` <span class="muted">(${t("this week", "cette semaine")}: ${mine.week.kills} / ${mine.week.deaths})</span>` : ""}</p>` : "")
     + (mine.record.games ? `<p>${t("Battlegrounds, last 30 days", "Champs de bataille, 30 derniers jours")}: <span class="score">${mine.record.wins}</span>–${mine.record.losses} <span class="muted">${mine.record.games} ${t("games", "parties")}</span></p>`
       + strip(mine.games.map((g) => ({ main: `${outcomeText(t, g.outcome)} ${escapeHtml(mapTitle(g.mapId, lang))}`, side: date(g.endedAt) }))) : "")
     + `<p><a href="${link("/leaderboards/pvp/", lang)}">${t("PvP leaderboards →", "Classements PvP →")}</a></p>`;
@@ -476,8 +477,8 @@ export function guildPvpPanel(env: PvpEnv, data: PvpData, guildId: string): stri
   const mine = guildPvp(data, guildId);
   if (!mine.top.length && !mine.games && !mine.zones.length) return "";
   const tile = (k: string, v: string) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div></div>`;
-  return `<h2>PvP</h2><div class="tiles">${tile(t("Kills this week", "Victimes cette semaine"), String(mine.week.kills))}${tile(t("Deaths this week", "Morts cette semaine"), String(mine.week.deaths))}${tile(t("K/D this week", "V/M cette semaine"), killDeathRatio(mine.week.kills, mine.week.deaths))}${tile(t("Battleground wins", "Victoires en champ de bataille"), `${mine.wins}<span class="tag">/${mine.games}</span>`)}</div>`
-    + (mine.top.length ? env.table([t("Player", "Joueur"), t("Kills", "Victimes"), t("Deaths", "Morts")], mine.top.map((row) => `<tr><td>${env.person(row)}</td><td class="num score">${row.kills}</td><td class="num">${row.deaths}</td></tr>`), [1, 2], "dense") : "")
-    + (mine.zones.length ? `<p class="muted">${t("Most active zones", "Zones les plus actives")}: ${mine.zones.map((z) => `${escapeHtml(lang === "fr" ? z.fr : z.en)} (${z.heat})`).join(", ")}</p>` : "")
+  return `<h2>PvP</h2><div class="tiles">${tile(t("Kills this week", "Éliminations cette semaine"), String(mine.week.kills))}${tile(t("Deaths this week", "Morts cette semaine"), String(mine.week.deaths))}${tile(t("K/D this week", "É/M cette semaine"), killDeathRatio(mine.week.kills, mine.week.deaths))}${tile(t("Battleground wins", "Victoires en champ de bataille"), `${mine.wins}<span class="tag">/${mine.games}</span>`)}</div>`
+    + (mine.top.length ? env.table([t("Player", "Joueur"), t("Kills", "Éliminations"), t("Deaths", "Morts")], mine.top.map((row) => `<tr><td>${env.person(row)}</td><td class="num score">${row.kills}</td><td class="num">${row.deaths}</td></tr>`), [1, 2], "dense") : "")
+    + (mine.zones.length ? `<p class="muted">${t("Most active zones", "Zones les plus actives")}${t(":", " :")} ${mine.zones.map((z) => `${escapeHtml(lang === "fr" ? z.fr : z.en)} (${z.heat})`).join(", ")}</p>` : "")
     + `<p><a href="${link("/leaderboards/pvp/", lang)}">${t("PvP leaderboards →", "Classements PvP →")}</a></p>`;
 }

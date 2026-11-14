@@ -362,7 +362,7 @@ describe("PvP leaderboards: pages", () => {
   it("credits the map artwork in English and French when the pictures are in-game maps", async () => {
     const { get } = setup(async () => data());
     expect((await get("/leaderboards/pvp/", "en")).body).toContain("Map artwork © Blizzard Entertainment; tiles prepared by the OpenMap addon. Guilded is not affiliated with Blizzard.");
-    expect((await get("/leaderboards/pvp/", "fr")).body).toContain("Illustrations de la carte © Blizzard Entertainment; tuiles préparées par");
+    expect((await get("/leaderboards/pvp/", "fr")).body).toContain("Illustrations de la carte © Blizzard Entertainment ; tuiles préparées par");
   });
 
   it("labels every zone on both maps in the page language, inside the map, without taking clicks", async () => {
@@ -433,7 +433,7 @@ describe("PvP leaderboards: pages", () => {
     const { get } = setup(async () => data());
     const res = await get("/leaderboards/pvp/", "fr");
     expect(res.status).toBe(200);
-    for (const text of ["PvP mondial", "Carte des zones", "Vallée de Strangleronce", "Classement des champs de bataille", "Derniers résultats", "Goulet des Chanteguerres", "Victimes", "Classement des duels"]) expect(res.body).toContain(text);
+    for (const text of ["PvP mondial", "Carte des zones", "Vallée de Strangleronce", "Classement des champs de bataille", "Derniers résultats", "Goulet des Chanteguerres", "Éliminations", "Classement des duels"]) expect(res.body).toContain(text);
     expect(res.body).not.toContain("Zone map");
     expect(res.body).not.toContain("Battleground ladder");
   });

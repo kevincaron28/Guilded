@@ -55,7 +55,7 @@ describe("runs an unsigned device sends", () => {
 
   it("stores the run and it counts on the guild board for an in-guild reported character", async () => {
     const { tx, runs } = fakeTx();
-    expect(await storeDeviceRuns(tx, "g1", [run("QG-1")], now, SRC)).toEqual({ stored: 1, skipped: 0 });
+    expect(await storeDeviceRuns(tx, "g1", [run("QG-1")], now, SRC)).toMatchObject({ stored: 1, skipped: 0 });
     expect(runs).toHaveLength(1);
     const rows = await dungeonRating(tx, "g1", season);
     expect(rows.find((row) => row.character === "Kev")?.points).toBeGreaterThan(0);
@@ -129,7 +129,7 @@ describe("run trust (docs/plans/SINGLE_WITNESS_2026-11-13.md)", () => {
 
   it("stores a run with one statement", async () => {
     const { tx, runs, witnesses } = fakeTx([], [], [], [1, 2]);
-    expect(await storeDeviceRuns(tx, "g1", [run("QG-1")], now, SRC)).toEqual({ stored: 1, skipped: 0 });
+    expect(await storeDeviceRuns(tx, "g1", [run("QG-1")], now, SRC)).toMatchObject({ stored: 1, skipped: 0 });
     expect(trustOf(runs)).toEqual([["QG-1", "device"]]);
     expect(witnesses).toMatchObject([{ status: "stored", voucher: "kev", trust: "device" }]);
   });

@@ -1030,6 +1030,8 @@ model GuildSettings {
   raceHallBackfilledAt     DateTime?
   // 9.1 records and recaps (docs/plans/RECORDS_AND_RECAPS.md): record/challenge callouts on run posts and the daily recap card, both on by default.
   dungeonHighlightsEnabled Boolean @default(true)
+  // 9.3.2 (docs/plans/CROSS_GUILD_RUN_SHARING_2026-11-14.md): runs made with another guild's members also count for this guild's members. Officers can switch it off.
+  crossGuildRuns           Boolean @default(true)
   dailyRecapEnabled        Boolean @default(true)
   dailyRecapLastDay        String?
   // Separate battleground ladder message in the ladder channel (the duel board keeps its own message and points).

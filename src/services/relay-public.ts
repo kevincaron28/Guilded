@@ -38,7 +38,8 @@ export interface RelayResult {
  * - The same plausibility checks as other runs, and a per-carrier daily cap from the server configuration. The day's count is read
  *   from the stored uploads of the carrier, so it survives a restart. Runs over the cap are receipted (dropped), not re-sent for ever.
  */
-export async function ingestRelayedRuns(store: PublicRunStore, input: { carrier: string; carrierKeys: ReadonlySet<string>; runs: readonly unknown[]; now?: Date }): Promise<RelayResult> {
+export async function ingestRelayedRuns(store: PublicRunStore, input: { carrier: string; carrierKeys: ReadonlySet<string>; runs: readonly unknown[]; now?: Date;
+  /** (9.3.2) Called with the runs this call placed on the public boards (the guilds with a member in them get a copy). */ onPlaced?: (runs: unknown[]) => void }): Promise<RelayResult> {
   const now = input.now ?? new Date();
   const config = integrityConfig();
   const receipts: string[] = [];
@@ -83,6 +84,8 @@ export async function ingestRelayedRuns(store: PublicRunStore, input: { carrier:
     const result = await ingestPublicRuns(store, { uploaderKey: carrierKey, character: null, source: "personal", relayed: true, runs: batch }).catch(() => null);
     if (!result) continue;
     published += result.accepted.length + result.confirmed.length;
+    const placed = new Set([...result.accepted, ...result.confirmed]);
+    if (placed.size) input.onPlaced?.(batch.filter((entry) => placed.has((entry as { id: string }).id)));
     for (const entry of batch) receipts.push(`${GROUP_RECEIPT_PREFIX}${(entry as { id: string }).id}`);
   }
   return { receipts: [...new Set(receipts)], published };
@@ -93,12 +96,12 @@ export async function ingestRelayedRuns(store: PublicRunStore, input: { carrier:
  * on the public boards and records the "group:" receipts. Never throws: the upload's own work goes on whatever happens here.
  */
 export async function carrySignedGroupRuns(snapshot: { dungeonRuns: unknown[]; character?: { name: string } | null | undefined; alts: { name: string }[]; characters: { name: string }[] },
-  options: { carrier: string; store: PublicRunStore; saveReceipts: (refs: string[]) => Promise<void> }): Promise<RelayResult | null> {
+  options: { carrier: string; store: PublicRunStore; saveReceipts: (refs: string[]) => Promise<void>; onPlaced?: (runs: unknown[]) => void }): Promise<RelayResult | null> {
   const { group, rest } = splitGroupCarried(snapshot.dungeonRuns ?? []);
   if (!group.length) return null;
   snapshot.dungeonRuns = rest;
   const carrierKeys = new Set([snapshot.character, ...snapshot.alts, ...snapshot.characters].flatMap((entry) => entry ? [entry.name] : []).map((name) => name.trim().toLowerCase()));
-  const carried = await ingestRelayedRuns(options.store, { carrier: options.carrier, carrierKeys, runs: group.slice(0, RUN_TRUST.relayedPerUpload) }).catch(() => null);
+  const carried = await ingestRelayedRuns(options.store, { carrier: options.carrier, carrierKeys, runs: group.slice(0, RUN_TRUST.relayedPerUpload), ...(options.onPlaced ? { onPlaced: options.onPlaced } : {}) }).catch(() => null);
   if (carried?.receipts.length) await options.saveReceipts(carried.receipts).catch(() => undefined);
   return carried;
 }

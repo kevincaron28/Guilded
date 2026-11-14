@@ -93,6 +93,8 @@ export async function followUpImport(discordGuild: DiscordGuild | null, guildId:
     for (const award of awards) await notify(discordGuild, notifications.lootAwarded(award.itemName, award.member.displayName, award.amount), "loot", award.raidId ? coreByRaid.get(award.raidId) ?? null : null);
   }
   if (await announceDungeonRuns(discordGuild, result.dungeons, guildId) && refresh) await updateDungeonLeaderboard(discordGuild);
+  // (9.3.2) A run with players of other guilds is also stored (and its card posted) in those guilds.
+  if (result.dungeons.shareable?.length) void import("./cross-guild-post.js").then((module) => module.shareAndAnnounce(discordGuild?.client, guildId, result.dungeons.shareable)).catch(() => undefined);
   if (refresh && (result.readinessSnapshots.length > 0 || result.consumables > 0)) await postReadinessBoard(discordGuild, guildId);
   // In-game calendar answers fill in the signups of the matching Discord raids.
   let calendar: CalendarSummary | null = null;

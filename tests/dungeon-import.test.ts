@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { importDungeonRuns } from "../src/services/dungeon-import.js";
+import { importDungeonRuns, importSharedRun } from "../src/services/dungeon-import.js";
 import * as ratingService from "../src/services/dungeon-rating.js";
 import { bestEightBetaRules } from "../src/services/dungeon-beta-preset.js";
 import { novemberRulesFixture, novemberFixtures } from "./fixtures/november-routes.js";
@@ -475,5 +475,24 @@ describe("death positions", () => {
     const result = await importDungeonRuns(plain.tx, "g1", [run("no-points")], characters, "officer", null, now);
     expect(result.results[0]).not.toHaveProperty("deathPoints");
     expect(plain.runs[0]!.competitionData).not.toHaveProperty("deathPoints");
+  });
+});
+
+describe("sharing a run with other guilds (9.3.2)", () => {
+  it("lists the completed runs a guild stored as shareable, and nothing for a run it did not finish", async () => {
+    const { tx } = fakeTx();
+    const result = await importDungeonRuns(tx, "g1", [run("QG-S1"), run("QG-S2", { state: "ABANDONED" })], characters, "officer", null, now);
+    expect((result.shareable ?? []).map((raw) => (raw as { id: string }).id)).toEqual(["QG-S1"]);
+  });
+  it("stores a shared run for another guild with points only for that guild's own members", async () => {
+    const { tx, runs, points } = fakeTx();
+    const mine = characters.filter((character) => character.name === "Kev");
+    const result = await importSharedRun(tx, "g2", run("QG-S3"), mine, now);
+    expect(result.results).toHaveLength(1);
+    expect(runs).toHaveLength(1);
+    expect(runs[0]!.players.filter((player) => player.memberId).map((player) => player.memberId)).toEqual(["m-kev"]);
+    expect(new Set(points.map((point) => point.memberId))).toEqual(new Set(["m-kev"]));
+    await importSharedRun(tx, "g2", run("QG-S3"), mine, now);
+    expect(runs).toHaveLength(1);
   });
 });

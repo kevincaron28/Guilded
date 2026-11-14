@@ -131,7 +131,8 @@ export interface ServerCandidate {
 
 /** The device a batch of runs came from, and the characters it reported. */
 export interface DeviceRunSource { deviceId: string; characterKeys: readonly string[]; /** Signing key derived from the device key sent with this upload. */ sealKey?: string | null }
-export interface DeviceRunResult { stored: number; skipped: number; /** Run ref -> why it waits (not a run anywhere yet). */ pending?: Record<string, string> }
+export interface DeviceRunResult { stored: number; skipped: number; /** Run ref -> why it waits (not a run anywhere yet). */ pending?: Record<string, string>;
+  /** (9.3.2) The runs stored by this call (for the other guilds with a member in them). */ shareable?: unknown[] }
 
 export interface DeviceStore {
   create(tokenHash: string, now: Date): Promise<{ id: string }>;
@@ -163,7 +164,7 @@ export interface DeviceStore {
    * (9.3.1) Runs of players outside this device's guild that reached its addon through a party or raid: the public boards' own
    * lane (the same checks as any public run). Returns the refs the server now holds.
    */
-  publicRuns?(deviceId: string, runs: unknown[], now: Date, deviceKeys: ReadonlySet<string>): Promise<string[]>;
+  publicRuns?(deviceId: string, runs: unknown[], now: Date, deviceKeys: ReadonlySet<string>, onPlaced?: (runs: unknown[]) => void): Promise<string[]>;
 }
 
 /**
@@ -238,7 +239,9 @@ export function runsOfDevice(raw: unknown[], deviceKeys: ReadonlySet<string>): u
   });
 }
 
-export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, body: unknown, options: { allows?: (discordId: string) => boolean; now?: Date; runLimiter?: (deviceId: string) => boolean; sealKey?: string | null } = {}): Promise<DeviceUploadAnswer> {
+export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, body: unknown, options: { allows?: (discordId: string) => boolean; now?: Date; runLimiter?: (deviceId: string) => boolean; sealKey?: string | null;
+  /** (9.3.2) Runs this upload stored (a guild's id) or placed on the public boards (null): other guilds with a member in them get a copy. Called after the runs are saved. */
+  afterShare?: (originGuildId: string | null, runs: unknown[]) => void } = {}): Promise<DeviceUploadAnswer> {
   if (device.claimedMemberId) return { status: "claimed" };
   const parsed = deviceUploadSchema.safeParse(body);
   if (!parsed.success) throw new DeviceError("This upload is not valid.", 400);
@@ -291,7 +294,7 @@ export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, 
     // Carried runs have their own caps (per upload here, per day in the relay lane): they never spend the device's shared hourly budget,
     // which is for the guild lane.
     const allowedGroup = split.group.slice(0, RUN_TRUST.relayedPerUpload);
-    if (allowedGroup.length) carried.push(...await store.publicRuns(device.id, allowedGroup, now, known).catch(() => []));
+    if (allowedGroup.length) carried.push(...await store.publicRuns(device.id, allowedGroup, now, known, options.afterShare ? (placed) => options.afterShare!(null, placed) : undefined).catch(() => []));
   }
   const carriedReceipts: DeviceRunReceipts | undefined = carried.length ? { acceptedRunRefs: carried, runNotes: {} } : undefined;
   if (!guild || "none" in decision) return { status: "no-guild", guild, ...(carriedReceipts ? { runReceipts: carriedReceipts } : {}) };
@@ -314,6 +317,7 @@ export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, 
     }
     const result = allowed.length ? await store.importRuns(target.guildId, allowed, now, { deviceId: device.id, characterKeys: [...known], sealKey: options.sealKey ?? null }) : { stored: 0, skipped: 0 };
     pending = result.pending ?? {};
+    if (result.shareable?.length) options.afterShare?.(target.guildId, result.shareable);
     runs = { received: guildRuns.length, stored: result.stored, skipped: result.skipped, ...(Object.keys(pending).length ? { pending: Object.keys(pending).length } : {}) };
   }
   // Every ref this upload carried that the server now holds (stored, a guildmate's copy, refused), so the addon stops waiting.
@@ -532,6 +536,7 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
       if (flags.length || confirmed > 1) await tx.dungeonRun.updateMany({ where: { id: made.runId }, data: { ...(flags.length ? { anomalies: flags as unknown as Prisma.InputJsonValue } : {}), ...(confirmed > 1 ? { witnessCount: confirmed } : {}) } });
     }
     result.stored++;
+    (result.shareable ??= []).push(usePartner ? partner.payload : raw);
     if (decision.store === "device") storedToday++;
     await record(ref, raw, statement, { status: "stored", trust: decision.store, runId: made.runId ?? null, decided: true });
     const agreeing = others.filter((other) => sameRun(print, statementOfRow(other)));
@@ -635,9 +640,9 @@ export function prismaInstallStore(database: PrismaClient, serverName: (discordI
     guildCharacterCount: (guildId) => database.deviceCharacter.count({ where: { device: { guildId, claimedMemberId: null, revokedAt: null } } }),
     // Claimed devices stay (the member sees and revokes them on /me/connections); characters and waiting runs go with the device.
     expireIdle: async (before) => (await database.companionDevice.deleteMany({ where: { claimedMemberId: null, lastSeenAt: { lt: before } } })).count,
-    async publicRuns(deviceId, runs, now, deviceKeys) {
+    async publicRuns(deviceId, runs, now, deviceKeys, onPlaced) {
       // The relay lane: only a participant's statement counts, the plausibility checks and a daily cap apply, no guild is claimed.
-      return (await ingestRelayedRuns(prismaPublicRunStore(database), { carrier: deviceId, carrierKeys: deviceKeys, runs, now })).receipts;
+      return (await ingestRelayedRuns(prismaPublicRunStore(database), { carrier: deviceId, carrierKeys: deviceKeys, runs, now, ...(onPlaced ? { onPlaced } : {}) })).receipts;
     },
     async noteAlias(guildId, guild, now) {
       const nameKey = looseKey(guild.name);

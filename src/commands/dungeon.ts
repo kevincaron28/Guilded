@@ -53,7 +53,9 @@ export const dungeonCommand = new SlashCommandBuilder()
   .addSubcommand((sub) => sub.setName("records").setDescription("Fastest clears and boss kills: every dungeon, or the top times of one")
     .addStringOption((o) => o.setName("dungeon").setDescription("One dungeon (pick from the list)").setAutocomplete(true))
     .addBooleanOption((o) => o.setName("announce").setDescription("Officers: record and challenge callouts on run posts (default on)")
-      .setDescriptionLocalizations({ fr: "Officiers : annonces des records et défis sur les parcours (actives par défaut)" })))
+      .setDescriptionLocalizations({ fr: "Officiers : annonces des records et défis sur les parcours (actives par défaut)" }))
+    .addBooleanOption((o) => o.setName("other-guilds").setDescription("Officers: also list runs your members did in a party with other guilds (default on)")
+      .setDescriptionLocalizations({ fr: "Officiers : ajouter les parcours de vos membres faits avec d'autres guildes (actif par défaut)" })))
   .addSubcommand((sub) => sub.setName("player").setDescription("A player's points, best times and recent runs (default: you)")
     .addUserOption((o) => o.setName("member").setDescription("Discord member"))
     .addStringOption((o) => o.setName("character").setDescription("Or a character name")))
@@ -210,6 +212,16 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
     if (season && hasDungeonRating(season.ratingRules)) embed.setTitle(lang === "fr" ? "Points de participation" : "Participation points");
   } else if (subcommand === "records") {
     const announce = interaction.options.getBoolean("announce");
+    const otherGuilds = interaction.options.getBoolean("other-guilds");
+    if (otherGuilds !== null) {
+      if (!interaction.member || !hasPermission(interaction.member as Parameters<typeof hasPermission>[0], "officer")) throw new Error(lang === "fr" ? "Réservé aux officiers." : "Officers only.");
+      await prisma.guildSettings.update({ where: { guildId: context.guildId }, data: { crossGuildRuns: otherGuilds } });
+      await interaction.reply({ content: otherGuilds
+        ? lang === "fr" ? "🤝 Les parcours de vos membres faits avec d'autres guildes sont ajoutés à votre classement." : "🤝 Runs your members did in a party with other guilds are added to your board."
+        : lang === "fr" ? "Les parcours faits avec d'autres guildes ne sont plus ajoutés (ceux déjà ajoutés restent)." : "Runs done in a party with other guilds are no longer added (the ones already added stay).",
+        flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+      return;
+    }
     if (announce !== null) {
       if (!interaction.member || !hasPermission(interaction.member as Parameters<typeof hasPermission>[0], "officer")) throw new Error(lang === "fr" ? "Réservé aux officiers." : "Officers only.");
       await prisma.guildSettings.update({ where: { guildId: context.guildId }, data: { dungeonHighlightsEnabled: announce } });

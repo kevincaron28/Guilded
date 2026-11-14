@@ -92,7 +92,7 @@ const ms = (iso) => (typeof iso === "string" && Number.isFinite(Date.parse(iso))
  *     addon?: { status: string, expected?: string, installed?: string[], version?: string | null } } | null,
  *   update?: { version: string, installer?: unknown } | null,
  *   version?: string, store?: boolean, autoUpdate?: boolean, updateAttempts?: number,
- *   wowRunning?: boolean, online?: boolean, addonUpdateFailed?: boolean,
+ *   wowRunning?: boolean, online?: boolean, addonUpdateFailed?: boolean, updateUnfinished?: string | null,
  *   diskSpace?: { ok: boolean, freeMb: number | null, neededMb: number } | null,
  *   settingsSave?: { failed: boolean, stuck: boolean, step?: string | null } | null
  * }} input
@@ -174,7 +174,10 @@ export function companionProblems(input = {}) {
   // or, for the Store build, a bot a whole version ahead while the Store has not updated yet.
   const version = input.version ?? null;
   const update = input.update ?? null;
-  if (update && version && newerVersion(update.version, version)) {
+  if (input.updateUnfinished && version && newerVersion(input.updateUnfinished, version) && input.store !== true) {
+    // An update the installer started closed the companion and did not finish: offered again, never silent.
+    add("companion-outdated", { latest: input.updateUnfinished, current: version, store: false, unfinished: true });
+  } else if (update && version && newerVersion(update.version, version)) {
     const automatic = input.autoUpdate !== false && !!update.installer && (input.updateAttempts ?? 0) < 2;
     if (!automatic) add("companion-outdated", { latest: update.version, current: version, store: input.store === true });
   } else if (input.store === true && version && minorNewer(state.botVersion, version)) {
@@ -198,7 +201,7 @@ const SAFE = {
   "saved-file-not-updated": { moved: "boolean", days: "number" },
   "upload-rejected": { status: "number", applyError: "boolean" },
   "wow-running-update": { installed: "version", running: "version" },
-  "companion-outdated": { latest: "version", current: "version", store: "boolean" }
+  "companion-outdated": { latest: "version", current: "version", store: "boolean", unfinished: "boolean" }
 };
 function safeValue(kind, value) {
   if (kind === "boolean") return typeof value === "boolean" ? value : undefined;

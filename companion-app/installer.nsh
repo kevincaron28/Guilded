@@ -17,9 +17,12 @@
 ; with --updated: keep the entry then, or every update would turn Start with Windows off.
 ; Set by the closer below when a companion ran: a manual run then goes without the old uninstaller and
 ; starts the companion again afterwards.
-!ifndef GUILDED_VARS
-  !define GUILDED_VARS
-  Var /GLOBAL guildedWasRunning
+; Only the installer uses it: an unused variable is a warning, and warnings fail the uninstaller build.
+!ifndef BUILD_UNINSTALLER
+  !ifndef GUILDED_VARS
+    !define GUILDED_VARS
+    Var /GLOBAL guildedWasRunning
+  !endif
 !endif
 
 !macro customUnInstall

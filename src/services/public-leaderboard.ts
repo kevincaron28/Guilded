@@ -955,7 +955,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     await periodRuns(period);
     await cached("guilds", () => deps.store.guilds());
     await allGuildStats();
-    await pvpData();
+    await pvpDataSafe();
     if (globalOpen()) await cached("duels:global", () => deps.store.globalDuelRows!());
     const rules = periodRules(period);
     for (const bracket of rules.brackets) await hubPanels(period, bracket.key as string);
@@ -1043,7 +1043,8 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const bracketName_ = bracket ? bracketName(ctx, bracket.key) : "";
     const kpis = `<div class="kpis"><span><b>${scores.length}</b> ${t("ranked players", "joueurs classés")}</span><span><b>${all.length}</b> ${t("runs this season", "essais cette saison")}</span><span><b>${(await cached("guilds", () => deps.store.guilds())).length}</b> ${t("guilds", "guildes")}</span>${globalOpen() ? `<span><b>${duelCount}</b> ${t("duels on the global ladder", "duels au classement mondial")}</span>` : ""}</div>`;
     const picker = rules.brackets.length > 1 ? `<form class="hub-picker" method="get" action="/leaderboards/"><input type="hidden" name="lang" value="${lang}"><input type="hidden" name="edition" value="${escapeHtml(edition)}">${q ? `<input type="hidden" name="q" value="${escapeHtml(q)}">` : ""}<label for="hub-bracket">${t("Levels", "Niveaux")}</label><select id="hub-bracket" name="bracket">${rules.brackets.map((b) => `<option value="${escapeHtml(b.key as string)}"${b.key === bracket?.key ? " selected" : ""}>${escapeHtml(bracketName(ctx, b.key as string))}</option>`).join("")}</select><button class="button" type="submit">${t("Show", "Afficher")}</button></form>` : "";
-    const pvpHub = pvpOpen() ? pvpHubParts(await pvpEnv(ctx), await pvpData()) : null;
+    const pvpNow = pvpOpen() ? await pvpDataSafe() : null;
+    const pvpHub = pvpNow ? pvpHubParts(await pvpEnv(ctx), pvpNow) : null;
     const body = PAGE_CSS + HUB_CSS
       + `<header class="hub-banner"><p class="eyebrow">Guilded · ${escapeHtml(periodName(ctx, period))}</p><h1>${t("WoW Forever leaderboards", "Classements WoW Forever")}</h1>`
       + `<p>${t("Dungeon runs, duels, players and guilds: who is fastest, who is climbing, and what changed this week.", "Donjons, duels, joueurs et guildes : qui est le plus rapide, qui monte, et ce qui a changé cette semaine.")}</p>${searchForm(t, lang, q, edition)}</header>`
@@ -1202,7 +1203,9 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
           + `<p><a href="${link("/leaderboards/duels/", lang, { p: key })}">${t("All duels of this player →", "Tous les duels de ce joueur →")}</a></p>`;
       }
     }
-    const pvpPanel = me && pvpOpen() ? playerPvpPanel(await pvpEnv(ctx), await pvpData(), me.character, me.realm ?? realm ?? null) : "";
+    const pvpForMe = pvpOpen() ? await pvpDataSafe() : null;
+    // A player with PvP but no public dungeon run still has a page (the PvP boards link to it).
+    const pvpPanel = pvpForMe ? playerPvpPanel(await pvpEnv(ctx), pvpForMe, me?.character ?? name, me?.realm ?? realm ?? null) : "";
     // Badges drawn from what the page already shows: standing among this season's ranked characters, duel standing, dungeons cleared.
     const badgeList: { img: string; text: string }[] = [];
     if (me && current.length) {
@@ -1234,13 +1237,13 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
         + `<h2>${t("Score history", "Historique du score")}</h2>` + (history.length
           ? table([t("Season", "Saison"), t("Levels", "Niveaux"), t("Score", "Score"), ""], history.flatMap((h) => h.rows.map((row) => `<tr><td>${escapeHtml(periodName(ctx, h.p))}</td><td>${escapeHtml(bracketName(ctx, row.bracket))}</td><td class="num score">${row.points}</td><td class="bar-cell"><div class="meter" style="width:${Math.round(100 * row.points / top)}%"></div></td></tr>`)), [2])
           : `<p class="muted">${t("No rated season yet.", "Aucune saison classée.")}</p>`)
-        : `<p class="muted">${t("No public run for this character yet.", "Aucun essai public pour ce personnage.")}</p>`);
+        : `<p class="muted">${t("No public run for this character yet.", "Aucun essai public pour ce personnage.")}</p>` + pvpPanel);
     // The link preview leads with this season's score per bracket, so a pasted link shows it.
     const scoreLine = current.map((row) => `${row.points} (${bracketName(ctx, row.bracket)})`).join(", ");
     const description = scoreLine
       ? t(`${title}: dungeon score ${scoreLine} · ${periodName(ctx, seasons[0]!)} · Guilded leaderboards.`, `${title} : score de donjon ${scoreLine} · ${periodName(ctx, seasons[0]!)} · classements Guilded.`)
       : t(`${title}: dungeon score and times on Guilded's public leaderboards.`, `${title} : score et temps de donjon sur les classements publics de Guilded.`);
-    return kit.page(runs.length ? 200 : 404, title, body + (runs.length ? `<p><a href="${imagePath}">${t("Download score card", "Télécharger la carte de score")}</a></p>` : ""), { description, ...(runs.length ? { shareImage: imagePath } : { noindex: true }) });
+    return kit.page(runs.length || pvpPanel ? 200 : 404, title, body + (runs.length ? `<p><a href="${imagePath}">${t("Download score card", "Télécharger la carte de score")}</a></p>` : ""), { description, ...(runs.length ? { shareImage: imagePath } : { noindex: true }) });
   }
 
   async function runPage(ctx: WebContext, kit: WebKit, id: string, image: boolean): Promise<WebResponse> {
@@ -1352,6 +1355,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       stats.topByRole.map(({ role, row }) => `<tr><td>${escapeHtml(roleLabel(role, lang))}</td><td>${who(ctx, row.player)}</td><td>${escapeHtml(bracketName(ctx, row.bracket))}</td><td class="num score">${row.points}</td></tr>`), [3]) : "";
     const peak = Math.max(1, ...stats.activity.map((w) => w.runs));
     const activity = stats.activity.length ? table([t("Week of", "Semaine du"), t("Runs", "Essais"), ""], stats.activity.map((w) => `<tr><td>${w.week}</td><td class="num">${w.runs}</td><td class="bar-cell"><div class="meter" style="width:${Math.round(100 * w.runs / peak)}%"></div></td></tr>`), [1]) : "";
+    const pvpForGuild = pvpOpen() ? await pvpDataSafe() : null;
     const base = guildBase(ctx, guild);
     const topMembers = rules.brackets[0] ? scores.filter((row) => row.bracket === rules.brackets[0]!.key).slice(0, 3) : [];
     const memberPodium = topMembers.length ? `<h2>${t("Top members", "Meilleurs membres")} · ${escapeHtml(bracketName(ctx, rules.brackets[0]!.key))}</h2>` + podium(topMembers.map((row): PodiumEntry => ({ name: (row.player as LeaderPlayer).displayName || row.player.character, href: link(characterPath(row.player), lang), sub: row.player.className ? classLabel(row.player.className, lang) : "", value: String(row.points), className: classSlug(row.player.className) }))) : "";
@@ -1360,7 +1364,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       + (guild.slug ? `<a href="/g/${encodeURIComponent(guild.slug)}/">${t("Guild page →", "Page de guilde →")}</a>` : "") + `</div>`
       + (standing.length ? `<p>${standing.join(" &nbsp; ")}</p>` : "")
       + `<nav class="tabs"><a class="${filters.week ? "" : "on"}" href="${link(base, lang)}">${t("Season", "Saison")}</a><a class="${filters.week ? "on" : ""}" href="${link(base, lang, { period: "week" })}">${t("This week", "Cette semaine")}</a>${deps.store.guildDuelRows ? `<a href="${link(`${base}/duels`, lang)}">${t("Duels", "Duels")}</a>` : ""}</nav>`
-      + tiles + memberPodium + (pvpOpen() ? guildPvpPanel(await pvpEnv(ctx), await pvpData(), guild.id) : "") + (reason ? `<p class="notice">${reasonText[reason]}</p>` : "")
+      + tiles + memberPodium + (pvpForGuild ? guildPvpPanel(await pvpEnv(ctx), pvpForGuild, guild.id) : "") + (reason ? `<p class="notice">${reasonText[reason]}</p>` : "")
       + `<h2>${t("Dungeons", "Donjons")}</h2>` + dungeonTable
       + (roleRows ? `<h2>${t("Top player per role", "Meilleur joueur par rôle")}</h2>${roleRows}` : "")
       + (activity ? `<h2>${t("Activity", "Activité")}</h2>${activity}` : "")
@@ -1507,17 +1511,19 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
   };
   // PvP (world PvP, battlegrounds, hot zones): one cached read per week, aggregated per request (a few thousand rows at most).
   const pvpOpen = () => !!deps.store.pvp;
+  // One fixed key: the loader takes the week from the clock, so the reset does not force a blocking cold load.
   async function pvpData(): Promise<PvpData> {
-    const week = weekKeyOf(now());
-    return cached(`pvp:${week}`, async () => deps.store.pvp ? deps.store.pvp(await cached("guilds", () => deps.store.guilds()), now()) : emptyPvp(week));
+    return cached("pvp", async () => deps.store.pvp ? deps.store.pvp(await cached("guilds", () => deps.store.guilds()), now()) : emptyPvp(weekKeyOf(now())));
   }
+  /** For the hub and the player and guild pages: a PvP failure must only hide the PvP card. */
+  const pvpDataSafe = (): Promise<PvpData | null> => pvpData().catch(() => null);
   async function pvpEnv(ctx: WebContext): Promise<PvpEnv> {
-    await ensureIndex(ctx);
     const guilds = await cached("guilds", () => deps.store.guilds());
+    const slugs = guildSlugs(guilds);
     return {
       t: ctx.t, lang: ctx.lang, edition: currentEdition(), duelsOpen: globalOpen(), table, classLabel: (name) => classLabel(name, ctx.lang), classSlug,
       person: (p: PvpPlayer) => `<a class="char c-${classSlug(p.className)}" href="${link(characterPath({ character: p.name, realm: p.realm }), ctx.lang)}">${escapeHtml(p.name)}</a>`,
-      guild: (id) => { const found = guilds.find((g) => g.id === id); return found ? guildLink(ctx, found) : ""; }
+      guild: (id) => { const found = guilds.find((g) => g.id === id); if (!found) return ""; const slug = slugs.get(found.id) ?? found.publicSlug; return slug ? `<a href="${link(`/leaderboards/guild/${encodeURIComponent(slug)}`, ctx.lang)}">${escapeHtml(found.name)}</a>` : escapeHtml(found.name); }
     };
   }
   async function pvpPage(ctx: WebContext, kit: WebKit): Promise<WebResponse> {

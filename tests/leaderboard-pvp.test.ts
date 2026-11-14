@@ -9,7 +9,7 @@ const NOW = new Date("2026-12-10T20:00:00Z");
 const week = weekKeyOf(NOW);
 const person = (name: string, className: string, level: number, guildId = "g1", realm = "Doomhowl") => ({ key: `${name.toLowerCase()}-${realm.toLowerCase()}`, name, short: name.split(" ")[0]!, realm, className, level, guildId });
 const world = (name: string, className: string, level: number, kills: number, deaths: number, extra: Partial<PvpWorldRow> = {}): PvpWorldRow => ({ ...person(name, className, level), kills, deaths, defends: 0, helped: 0, ...extra });
-const game = (name: string, className: string, outcome: string, hoursAgo: number, over: Partial<PvpGame> = {}): PvpGame => ({ ...person(name, className, 60), mode: "casual", bracket: "60", mapId: 489, outcome, endedAt: new Date(NOW.getTime() - hoursAgo * 3_600_000), ...over });
+const game = (name: string, className: string, outcome: string, hoursAgo: number, over: Partial<PvpGame> = {}): PvpGame => ({ ...person(name, className, 60), mode: "casual", bracket: "60", mapId: 489, outcome, endedAt: new Date(NOW.getTime() - hoursAgo * 3_600_000), matchKey: `${name}-${hoursAgo}`, ...over });
 const HOSTILE = `<img src=x onerror=alert(1)>`;
 const data = (): PvpData => ({
   weekKey: week,
@@ -87,8 +87,79 @@ describe("PvP leaderboards: the store query", () => {
     expect(calls.map((c) => c.table).sort()).toEqual(["battlegroundReport", "guildHelpCall", "worldPvpWeek", "worldPvpWeek.total"]);
     for (const call of calls) {
       expect(call.where["guildId"]).toEqual({ in: ["g1"] });
-      expect(call.where["member"]).toEqual({ status: "ACTIVE", isTest: false, raceHidden: false });
+      expect(call.where["member"]).toEqual({ status: { in: ["ACTIVE", "TRIAL"] }, isTest: false, raceHidden: false });
     }
+  });
+});
+
+describe("PvP leaderboards: review fixes", () => {
+  const fakeDb = (weekRows: unknown[], totalRows: unknown[], characters: unknown[], reports: unknown[] = []) => ({
+    worldPvpWeek: { findMany: async () => weekRows, groupBy: async () => totalRows }, battlegroundReport: { findMany: async () => reports }, guildHelpCall: { findMany: async () => [] }, character: { findMany: async () => characters }
+  });
+  it("keeps every world PvP row (more than 300), so a small guild and a low-ranked player are still counted", async () => {
+    const rows = Array.from({ length: 400 }, (_, i) => ({ memberId: `m${i}`, guildId: "g1", kills: 500 - i, deaths: 1, defends: 0, helped: 0 }));
+    rows.push({ memberId: "small", guildId: "g2", kills: 1, deaths: 0, defends: 0, helped: 0 });
+    const total = rows.map((r) => ({ memberId: r.memberId, guildId: r.guildId, _sum: { kills: r.kills, deaths: r.deaths, defends: 0, helped: 0 } }));
+    const chars = rows.map((r, i) => ({ memberId: r.memberId, name: `Player${i}`, displayName: null, realm: "Doomhowl", className: "Mage", level: 60 }));
+    const loaded = await loadPvpData(fakeDb(rows, total, chars) as never, ["g1", "g2"], "forever", NOW);
+    expect(loaded.week).toHaveLength(401);
+    expect(guildPvp(loaded, "g2").week.kills).toBe(1);
+    expect(playerPvp(loaded, "Player399", "Doomhowl").week?.kills).toBe(101);
+    expect(worldBoard(loaded, { className: null, band: null, period: "week", mode: null }).kills).toBe(rows.reduce((n, r) => n + r.kills, 0));
+  });
+
+  it("counts one battleground once however many guildmates reported it", () => {
+    const shared = { matchKey: "g1|489|casual|nonce-1" };
+    const d: PvpData = { ...data(), games: ["Dara", "Corvin", "Edda", "Fenn", "Gus"].map((n) => game(n, "Mage", "win", 1, shared)).concat([game("Dara", "Mage", "loss", 5)]) };
+    const f = { className: null, band: null, period: "week" as const, mode: null };
+    const board = bgBoard(d, f);
+    expect(board.games).toBe(2);
+    expect(board.byMap.find((m) => m.mapId === 489)).toMatchObject({ games: 2, wins: 1 });
+    expect(board.rows.find((r) => r.name === "Dara")).toMatchObject({ games: 2, wins: 1, losses: 1 });
+    expect(guildPvp(d, "g1")).toMatchObject({ games: 2, wins: 1 });
+  });
+
+  it("builds the match key from the premade id, else guild, map, mode and the end time to ten minutes", async () => {
+    const report = (nonce: string | null, minutes: number) => ({ guildId: "g1", mode: "casual", bracket: "60", mapId: 489, outcome: "win", endedAt: new Date(NOW.getTime() - minutes * 60_000), premadeNonce: nonce, character: { name: "Dara", displayName: null, realm: "Doomhowl", className: "Rogue", level: 60 } });
+    const loaded = await loadPvpData(fakeDb([], [], [], [report("n1", 60), report("n1", 61), report(null, 120), report(null, 121)]) as never, ["g1"], "forever", NOW);
+    const keys = loaded.games.map((g) => g.matchKey);
+    expect(keys[0]).toBe(keys[1]);
+    expect(keys[2]).toBe(keys[3]);
+    expect(keys[0]).not.toBe(keys[2]);
+  });
+
+  it("shows one row for a person in two public guilds, with the sums, and matches players by full name and realm", async () => {
+    const week = [{ memberId: "a", guildId: "g1", kills: 5, deaths: 1, defends: 0, helped: 0 }, { memberId: "b", guildId: "g2", kills: 7, deaths: 2, defends: 0, helped: 0 }];
+    const chars = [{ memberId: "a", name: "Dara", displayName: null, realm: "Doomhowl", className: "Rogue", level: 60 }, { memberId: "b", name: "Dara", displayName: null, realm: "Doomhowl", className: "Rogue", level: 60 }];
+    const loaded = await loadPvpData(fakeDb(week, [], chars) as never, ["g1", "g2"], "forever", NOW);
+    expect(loaded.week).toHaveLength(1);
+    expect(loaded.week[0]).toMatchObject({ kills: 12, deaths: 3 });
+    expect(playerPvp(data(), "Dar", "Doomhowl").week).toBeNull();
+    expect(playerPvp(data(), "Dara", "Elsewhere").week).toBeNull();
+  });
+
+  it("uses the same window for the three guild tiles", async () => {
+    const mine = guildPvp(data(), "g1");
+    expect(mine.week).toMatchObject({ kills: 82, deaths: 19 });
+    const { get } = setup(async () => data());
+    const res = await get("/leaderboards/guild/quebec-gold");
+    expect(res.body).toContain("K/D this week");
+  });
+
+  it("a player with PvP but no public dungeon run still has a character page", async () => {
+    const { get } = setup(async () => data());
+    const res = await get("/leaderboards/character/Edda-Doomhowl");
+    expect(res.status).toBe(200);
+    expect(res.body).toContain("12");
+    expect(res.body).toContain("PvP leaderboards");
+    expect((await get("/leaderboards/character/Nobody-Doomhowl")).status).toBe(404);
+  });
+
+  it("a PvP load failure hides the PvP cards and does not break the hub", async () => {
+    const { get } = setup(async () => { throw new Error("database down"); });
+    const hub = await get("/leaderboards/");
+    expect(hub.status).toBe(200);
+    expect(hub.body).not.toContain("Latest battlegrounds");
   });
 });
 
@@ -97,7 +168,7 @@ describe("PvP leaderboards: pages", () => {
     const { get } = setup(async () => data());
     const res = await get("/leaderboards/pvp/");
     expect(res.status).toBe(200);
-    for (const text of ["World PvP", "Hot zones", "Battleground ladder", "Latest results", "Warsong Gulch", "Stranglethorn Vale", "Dara", "Corvin", "K/D", "Kills this week"]) expect(res.body).toContain(text);
+    for (const text of ["World PvP", "Calls for help by zone", "Battleground ladder", "Latest results", "Warsong Gulch", "Stranglethorn Vale", "Dara", "Corvin", "K/D", "Kills this week"]) expect(res.body).toContain(text);
     expect(res.body).toMatch(/href="[^"]*\/leaderboards\/duels\//);
     expect(res.body).toContain('class="on" aria-current="page"');
     expect(res.body).not.toMatch(/<script|onchange=|onclick=/i);
@@ -110,8 +181,8 @@ describe("PvP leaderboards: pages", () => {
     const { get } = setup(async () => data());
     const res = await get("/leaderboards/pvp/", "fr");
     expect(res.status).toBe(200);
-    for (const text of ["PvP mondial", "Zones chaudes", "Classement des champs de bataille", "Derniers résultats", "Goulet des Chanteguerres", "Victimes", "Classement des duels"]) expect(res.body).toContain(text);
-    expect(res.body).not.toContain("Hot zones");
+    for (const text of ["PvP mondial", "Appels à l'aide par zone", "Classement des champs de bataille", "Derniers résultats", "Goulet des Chanteguerres", "Victimes", "Classement des duels"]) expect(res.body).toContain(text);
+    expect(res.body).not.toContain("Calls for help by zone");
     expect(res.body).not.toContain("Battleground ladder");
   });
 

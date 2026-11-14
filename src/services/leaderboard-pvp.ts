@@ -13,7 +13,7 @@ type T = (en: string, fr: string) => string;
 
 export interface PvpPlayer { key: string; name: string; short: string; realm: string; className: string | null; level: number | null; guildId: string }
 export interface PvpWorldRow extends PvpPlayer { kills: number; deaths: number; defends: number; helped: number }
-export interface PvpGame extends PvpPlayer { mode: string; bracket: string; mapId: number; outcome: string; endedAt: Date }
+export interface PvpGame extends PvpPlayer { mode: string; bracket: string; mapId: number; outcome: string; endedAt: Date; /** One value per battleground match, shared by every member who reported it. */ matchKey: string }
 export interface PvpCall { guildId: string; zone: string; calledAt: Date }
 export interface PvpData { weekKey: number; week: PvpWorldRow[]; total: PvpWorldRow[]; games: PvpGame[]; calls: PvpCall[] }
 export const emptyPvp = (weekKey: number): PvpData => ({ weekKey, week: [], total: [], games: [], calls: [] });
@@ -22,7 +22,7 @@ export const PVP_LEVEL_BANDS: { key: string; from: number; to: number }[] = [
   { key: "1-19", from: 1, to: 19 }, { key: "20-39", from: 20, to: 39 }, { key: "40-59", from: 40, to: 59 }, { key: "60", from: 60, to: 60 }
 ];
 export const PVP_MODES = ["casual", "rated", "blitz"] as const;
-const BG_DAYS = 30, WORLD_ROWS = 300, GAME_ROWS = 5_000, CALL_ROWS = 2_000;
+const BG_DAYS = 30, WORLD_ROWS = 5_000, GAME_ROWS = 5_000, CALL_ROWS = 2_000;
 
 const MAPS: Record<number, [string, string]> = {
   30: ["Alterac Valley", "Vallée d'Alterac"], 489: ["Warsong Gulch", "Goulet des Chanteguerres"], 529: ["Arathi Basin", "Bassin d'Arathi"],
@@ -32,7 +32,9 @@ export const mapTitle = (id: number, lang: Lang) => MAPS[id]?.[lang === "fr" ? 1
 
 // ----- the store query (public guilds only) -----
 
-const VISIBLE = { status: "ACTIVE", isTest: false, raceHidden: false } as const;
+const VISIBLE = { status: { in: ["ACTIVE" as const, "TRIAL" as const] }, isTest: false, raceHidden: false };
+/** One battleground match is one key: the premade id when the reports carry it, else guild + map + mode + the end time rounded to ten minutes. */
+export const matchKeyOf = (guildId: string, mapId: number, mode: string, endedAt: Date, nonce: string | null) => `${guildId}|${mapId}|${mode}|${nonce || Math.round(endedAt.getTime() / 600_000)}`;
 
 /** The public PvP data of this edition for the guilds given (already the ones that publish). Bounded: at most a few thousand rows per table. */
 export async function loadPvpData(database: PrismaClient, guildIds: readonly string[], edition: string, now: Date): Promise<PvpData> {
@@ -43,15 +45,15 @@ export async function loadPvpData(database: PrismaClient, guildIds: readonly str
   const since = new Date(now.getTime() - BG_DAYS * 86_400_000);
   const range = weekRange(weekKey);
   const [weekRows, totalRows, reports, calls] = await Promise.all([
-    database.worldPvpWeek.findMany({ where: { guildId: { in: ids }, weekKey, member: VISIBLE }, select: { memberId: true, guildId: true, kills: true, deaths: true, defends: true, helped: true }, take: 5_000 }),
-    database.worldPvpWeek.groupBy({ by: ["memberId", "guildId"], where: { guildId: { in: ids }, member: VISIBLE }, _sum: { kills: true, deaths: true, defends: true, helped: true }, orderBy: { _sum: { kills: "desc" } }, take: 5_000 }),
+    database.worldPvpWeek.findMany({ where: { guildId: { in: ids }, weekKey, member: VISIBLE }, select: { memberId: true, guildId: true, kills: true, deaths: true, defends: true, helped: true }, orderBy: { kills: "desc" }, take: WORLD_ROWS }),
+    database.worldPvpWeek.groupBy({ by: ["memberId", "guildId"], where: { guildId: { in: ids }, member: VISIBLE }, _sum: { kills: true, deaths: true, defends: true, helped: true }, orderBy: { _sum: { kills: "desc" } }, take: WORLD_ROWS }),
     database.battlegroundReport.findMany({ where: { guildId: { in: ids }, gameEdition: edition, status: "PROVISIONAL", endedAt: { gte: since, lt: now }, member: VISIBLE }, orderBy: { endedAt: "desc" }, take: GAME_ROWS,
-      select: { guildId: true, mode: true, bracket: true, mapId: true, outcome: true, endedAt: true, character: { select: { name: true, displayName: true, realm: true, className: true, level: true } } } }),
+      select: { guildId: true, mode: true, bracket: true, mapId: true, outcome: true, endedAt: true, premadeNonce: true, character: { select: { name: true, displayName: true, realm: true, className: true, level: true } } } }),
     database.guildHelpCall.findMany({ where: { guildId: { in: ids }, calledAt: { gte: range.from, lt: range.to }, member: VISIBLE }, select: { guildId: true, zone: true, calledAt: true }, orderBy: { calledAt: "desc" }, take: CALL_ROWS })
   ]);
   const worldWeek = weekRows.map((row) => ({ memberId: row.memberId, guildId: row.guildId, kills: row.kills, deaths: row.deaths, defends: row.defends, helped: row.helped }));
   const worldTotal = totalRows.map((row) => ({ memberId: row.memberId, guildId: row.guildId, kills: row._sum.kills ?? 0, deaths: row._sum.deaths ?? 0, defends: row._sum.defends ?? 0, helped: row._sum.helped ?? 0 }));
-  const top = (rows: typeof worldWeek) => rows.filter((row) => row.kills || row.defends || row.helped).sort((a, b) => b.kills - a.kills || a.deaths - b.deaths).slice(0, WORLD_ROWS);
+  const top = (rows: typeof worldWeek) => rows.filter((row) => row.kills || row.defends || row.helped).sort((a, b) => b.kills - a.kills || a.deaths - b.deaths);
   const shown = { week: top(worldWeek), total: top(worldTotal) };
   const memberIds = [...new Set([...shown.week, ...shown.total].map((row) => row.memberId))];
   const characters = memberIds.length ? await database.character.findMany({ where: { memberId: { in: memberIds }, gameEdition: edition }, orderBy: [{ isMain: "desc" }, { name: "asc" }],
@@ -60,10 +62,21 @@ export async function loadPvpData(database: PrismaClient, guildIds: readonly str
   for (const character of characters) if (!mainOf.has(character.memberId)) mainOf.set(character.memberId, character);
   const player = (c: { name: string; displayName: string | null; realm: string | null; className: string | null; level: number | null }, guildId: string): PvpPlayer =>
     ({ key: characterKey(c.name, c.realm ?? "", edition), name: c.displayName?.trim() || c.name, short: c.name, realm: c.realm ?? "", className: c.className, level: c.level, guildId });
-  const world = (rows: typeof worldWeek): PvpWorldRow[] => rows.flatMap((row) => { const c = mainOf.get(row.memberId); return c ? [{ ...player(c, row.guildId), kills: row.kills, deaths: row.deaths, defends: row.defends, helped: row.helped }] : []; });
+  const world = (rows: typeof worldWeek): PvpWorldRow[] => {
+    const merged = new Map<string, PvpWorldRow>();
+    for (const row of rows) {
+      const c = mainOf.get(row.memberId);
+      if (!c) continue;
+      const one = { ...player(c, row.guildId), kills: row.kills, deaths: row.deaths, defends: row.defends, helped: row.helped };
+      const seen = merged.get(one.key);
+      if (!seen) merged.set(one.key, one);
+      else { seen.kills += one.kills; seen.deaths += one.deaths; seen.defends += one.defends; seen.helped += one.helped; }
+    }
+    return [...merged.values()];
+  };
   data.week = world(shown.week);
   data.total = world(shown.total);
-  data.games = reports.map((row) => ({ ...player(row.character, row.guildId), mode: row.mode, bracket: row.bracket, mapId: row.mapId, outcome: row.outcome, endedAt: row.endedAt }));
+  data.games = reports.map((row) => ({ ...player(row.character, row.guildId), mode: row.mode, bracket: row.bracket, mapId: row.mapId, outcome: row.outcome, endedAt: row.endedAt, matchKey: matchKeyOf(row.guildId, row.mapId, row.mode, row.endedAt, row.premadeNonce) }));
   data.calls = calls.map((row) => ({ guildId: row.guildId, zone: row.zone.trim().slice(0, 60), calledAt: row.calledAt })).filter((row) => row.zone && row.zone !== "?");
   return data;
 }
@@ -99,11 +112,16 @@ export function bgBoard(data: PvpData, f: PvpFilters): PvpBgBoard {
   const games = data.games.filter((game) => matches(game, f) && (!f.mode || game.mode === f.mode));
   const by = new Map<string, BgRow>();
   const maps = new Map<number, BgMapRow>();
+  const seenMatch = new Set<string>();
+  let matches_ = 0;
   for (const game of games) {
     const row = by.get(game.key) ?? { ...game, games: 0, wins: 0, losses: 0, draws: 0, winRate: 0 };
     row.games += 1;
     if (game.outcome === "win") row.wins += 1; else if (game.outcome === "loss") row.losses += 1; else if (game.outcome === "draw") row.draws += 1;
     by.set(game.key, row);
+    if (seenMatch.has(game.matchKey)) continue;
+    seenMatch.add(game.matchKey);
+    matches_ += 1;
     const map = maps.get(game.mapId) ?? { mapId: game.mapId, games: 0, wins: 0 };
     map.games += 1;
     if (game.outcome === "win") map.wins += 1;
@@ -111,7 +129,7 @@ export function bgBoard(data: PvpData, f: PvpFilters): PvpBgBoard {
   }
   const rows = [...by.values()].map((row) => ({ ...row, winRate: row.games ? row.wins / row.games : 0 }))
     .sort((a, b) => b.wins - a.wins || b.winRate - a.winRate || b.games - a.games || a.name.localeCompare(b.name));
-  return { rows, games: games.length, byMap: [...maps.values()].sort((a, b) => b.games - a.games || a.mapId - b.mapId),
+  return { rows, games: matches_, byMap: [...maps.values()].sort((a, b) => b.games - a.games || a.mapId - b.mapId),
     recent: [...games].sort((a, b) => b.endedAt.getTime() - a.endedAt.getTime()).slice(0, 30) };
 }
 
@@ -130,9 +148,9 @@ export function hotZoneRows(calls: readonly PvpCall[], guildId: string | null = 
 
 /** A character's PvP, found by name (and realm when the page knows it): this week and all weeks, and the battleground record. */
 export function playerPvp(data: PvpData, character: string, realm: string | null) {
-  const name = character.trim().toLowerCase(), first = name.split(/\s+/)[0]!;
+  const name = character.trim().toLowerCase();
   const fold = (value: string) => value.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
-  const same = (p: PvpPlayer) => (p.name.toLowerCase() === name || p.short.toLowerCase() === name || p.short.toLowerCase() === first) && (!realm || !p.realm || fold(p.realm) === fold(realm));
+  const same = (p: PvpPlayer) => (p.name.toLowerCase() === name || p.short.toLowerCase() === name) && (!realm || !p.realm || fold(p.realm) === fold(realm));
   const week = data.week.find(same) ?? null, total = data.total.find(same) ?? null;
   const games = data.games.filter(same);
   const wins = games.filter((g) => g.outcome === "win").length, losses = games.filter((g) => g.outcome === "loss").length;
@@ -143,7 +161,8 @@ export function guildPvp(data: PvpData, guildId: string) {
   const own = (rows: readonly PvpWorldRow[]) => rows.filter((row) => row.guildId === guildId);
   const week = own(data.week), total = own(data.total);
   const sum = (rows: readonly PvpWorldRow[]) => ({ kills: rows.reduce((n, r) => n + r.kills, 0), deaths: rows.reduce((n, r) => n + r.deaths, 0) });
-  const games = data.games.filter((g) => g.guildId === guildId);
+  const seen = new Set<string>();
+  const games = data.games.filter((g) => g.guildId === guildId && !seen.has(g.matchKey) && !!seen.add(g.matchKey));
   return { week: sum(week), total: sum(total), top: [...total].sort((a, b) => b.kills - a.kills || a.deaths - b.deaths || a.name.localeCompare(b.name)).slice(0, 5),
     games: games.length, wins: games.filter((g) => g.outcome === "win").length, zones: hotZoneRows(data.calls, guildId, 3) };
 }
@@ -188,8 +207,8 @@ export function pvpPageBody(env: PvpEnv, data: PvpData, f: PvpFilters, classes: 
     bg.recent.map((g) => `<tr><td>${date(g.endedAt)}</td><td>${env.person(g)}</td><td>${escapeHtml(mapTitle(g.mapId, lang))}</td><td>${escapeHtml(modeText(t, g.mode))}</td><td>${outcomeText(t, g.outcome)}</td></tr>`), [], "dense") : "";
   return `<p class="eyebrow">PvP</p><h1>${t("PvP", "PvP")}</h1><p class="muted">${t("Open-world kills and deaths, battleground results and the zones where players called for help, across guilds that publish.", "Victimes et morts en monde ouvert, résultats de champs de bataille et zones où des joueurs ont appelé à l'aide, dans les guildes qui publient.")}</p>`
     + tiles + form
-    + `<h2>${t("World PvP", "PvP mondial")} · ${f.period === "all" ? t("all weeks", "toutes les semaines") : t("this week", "cette semaine")}</h2>${worldTable}`
-    + `<h2>${t("Hot zones", "Zones chaudes")} · ${t("this week", "cette semaine")}</h2>${zoneTable}`
+    + `<h2>${t("World PvP", "PvP mondial")} · ${f.period === "all" ? t("all weeks", "toutes les semaines") : t("this week", "cette semaine")}</h2><p class="muted">${t("Shown on each player's main character.", "Affiché sur le personnage principal de chaque joueur.")}</p>${worldTable}`
+    + `<h2>${t("Calls for help by zone", "Appels à l'aide par zone")} · ${t("this week", "cette semaine")}</h2>${zoneTable}`
     + `<h2>${t("Battleground ladder", "Classement des champs de bataille")}</h2><p class="muted">${t("Last 30 days.", "30 derniers jours.")}</p>${bgTable}`
     + (mapTable ? `<h2>${t("By battleground", "Par champ de bataille")}</h2>${mapTable}` : "")
     + (recent ? `<h2>${t("Latest results", "Derniers résultats")}</h2>${recent}` : "")
@@ -225,8 +244,8 @@ export function guildPvpPanel(env: PvpEnv, data: PvpData, guildId: string): stri
   const mine = guildPvp(data, guildId);
   if (!mine.top.length && !mine.games && !mine.zones.length) return "";
   const tile = (k: string, v: string) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div></div>`;
-  return `<h2>PvP</h2><div class="tiles">${tile(t("Kills this week", "Victimes cette semaine"), String(mine.week.kills))}${tile(t("Deaths this week", "Morts cette semaine"), String(mine.week.deaths))}${tile(t("K/D", "V/M"), killDeathRatio(mine.total.kills, mine.total.deaths))}${tile(t("Battleground wins", "Victoires en champ de bataille"), `${mine.wins}<span class="tag">/${mine.games}</span>`)}</div>`
+  return `<h2>PvP</h2><div class="tiles">${tile(t("Kills this week", "Victimes cette semaine"), String(mine.week.kills))}${tile(t("Deaths this week", "Morts cette semaine"), String(mine.week.deaths))}${tile(t("K/D this week", "V/M cette semaine"), killDeathRatio(mine.week.kills, mine.week.deaths))}${tile(t("Battleground wins", "Victoires en champ de bataille"), `${mine.wins}<span class="tag">/${mine.games}</span>`)}</div>`
     + (mine.top.length ? env.table([t("Player", "Joueur"), t("Kills", "Victimes"), t("Deaths", "Morts")], mine.top.map((row) => `<tr><td>${env.person(row)}</td><td class="num score">${row.kills}</td><td class="num">${row.deaths}</td></tr>`), [1, 2], "dense") : "")
-    + (mine.zones.length ? `<p class="muted">${t("Hot zones", "Zones chaudes")}: ${mine.zones.map((z) => `${escapeHtml(z.zone)} (${z.calls})`).join(", ")}</p>` : "")
+    + (mine.zones.length ? `<p class="muted">${t("Calls for help", "Appels à l'aide")}: ${mine.zones.map((z) => `${escapeHtml(z.zone)} (${z.calls})`).join(", ")}</p>` : "")
     + `<p><a href="${link("/leaderboards/pvp/", lang)}">${t("PvP leaderboards →", "Classements PvP →")}</a></p>`;
 }

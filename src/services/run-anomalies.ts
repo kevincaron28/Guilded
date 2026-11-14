@@ -4,7 +4,7 @@ import type { Anomaly } from "./run-plausibility.js";
 
 // The review list for officers and the owner: flagged runs and runs held for review. Shown only in officer replies.
 
-type Db = Pick<PrismaClient, "dungeonRun" | "dungeonRunWitness" | "companionDevice">;
+type Db = Pick<PrismaClient, "dungeonRun" | "dungeonRunWitness" | "companionDevice" | "$executeRaw">;
 
 export interface AnomalyRow { runRef: string; dungeon: string; endedAt: Date | null; characters: string[]; flags: Anomaly[]; device: string | null; witnesses: number }
 export interface HeldRow { runRef: string; instanceId: number; endedAt: Date | null; device: string; flags: Anomaly[]; firstSeenAt: Date }
@@ -60,9 +60,8 @@ export async function setDeviceExcluded(database: Db, guildId: string, short: st
   const match = witnesses.map((row) => row.deviceId).filter((id) => id.toLowerCase().endsWith(suffix));
   if (match.length !== 1) return null;
   const id = match[0]!;
-  const device = await database.companionDevice.findUnique({ where: { id }, select: { excludedGuilds: true } });
-  const current = device?.excludedGuilds ?? [];
-  const next = excluded ? [...new Set([...current, guildId])] : current.filter((entry) => entry !== guildId);
-  await database.companionDevice.update({ where: { id }, data: { excludedGuilds: next } });
+  // One statement, so two officers changing the same PC at once cannot overwrite each other.
+  if (excluded) await database.$executeRaw`UPDATE "CompanionDevice" SET "excludedGuilds" = array_append(array_remove(COALESCE("excludedGuilds", ARRAY[]::TEXT[]), ${guildId}), ${guildId}) WHERE "id" = ${id}`;
+  else await database.$executeRaw`UPDATE "CompanionDevice" SET "excludedGuilds" = array_remove(COALESCE("excludedGuilds", ARRAY[]::TEXT[]), ${guildId}) WHERE "id" = ${id}`;
   return id;
 }

@@ -21,6 +21,7 @@ DungeonRoutes.lua
 Compat.lua
 Locale.lua
 Standings.lua
+Carry.lua
 Modules\LootRoll.lua
 Modules\Sync.lua
 Modules\OfficerBridge.lua
@@ -50,6 +51,7 @@ Modules\History.lua
 Modules\SyncNow.lua
 Modules\AutoInvite.lua
 Modules\Dungeon.lua
+Modules\Carry.lua
 Modules\CatchUp.lua
 Modules\Battleground.lua
 Modules\DungeonArt.lua

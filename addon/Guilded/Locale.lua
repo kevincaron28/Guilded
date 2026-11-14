@@ -2954,6 +2954,10 @@ local DE = {
   ["Comm probe finished: the results are in the diagnostics (PROBE) and the saved variables (probes.comm)."] = "Kommunikationspr\195\188fung beendet: Die Ergebnisse stehen in der Diagnose (PROBE) und in den gespeicherten Variablen (probes.comm).",
   ["Comm probe started: results in about 6 seconds."] = "Kommunikationspr\195\188fung gestartet: Ergebnisse in etwa 6 Sekunden.",
   ["Comm probe armed: it runs by itself 10 seconds after the next login or /reload."] = "Kommunikationspr\195\188fung vorbereitet: Sie l\195\164uft 10 Sekunden nach der n\195\164chsten Anmeldung oder /reload von selbst.",
+  -- 9.3.2 invite replies
+  ["ignoring you"] = "ignoriert dich",
+  ["guild is full"] = "Gilde ist voll",
+  ["%d invites waiting: copy each line from the box (Ctrl+C), paste it in your chat box and press Enter; Next shows the following name."] = "%d Einladungen warten: kopiere jede Zeile aus dem Feld (Strg+C), f\195\188ge sie in dein Chatfeld ein und dr\195\188cke Enter; Weiter zeigt den n\195\164chsten Namen.",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -4912,6 +4916,10 @@ local ES = {
   ["Comm probe finished: the results are in the diagnostics (PROBE) and the saved variables (probes.comm)."] = "Sondeo de comunicaci\195\179n terminado: los resultados est\195\161n en el diagn\195\179stico (PROBE) y en las variables guardadas (probes.comm).",
   ["Comm probe started: results in about 6 seconds."] = "Sondeo de comunicaci\195\179n iniciado: resultados en unos 6 segundos.",
   ["Comm probe armed: it runs by itself 10 seconds after the next login or /reload."] = "Sondeo de comunicaci\195\179n preparado: se ejecuta solo 10 segundos despu\195\169s del pr\195\179ximo inicio de sesi\195\179n o /reload.",
+  -- 9.3.2 invite replies
+  ["ignoring you"] = "te ignora",
+  ["guild is full"] = "la hermandad est\195\161 llena",
+  ["%d invites waiting: copy each line from the box (Ctrl+C), paste it in your chat box and press Enter; Next shows the following name."] = "%d invitaciones esperando: copia cada l\195\173nea del cuadro (Ctrl+C), p\195\169gala en tu chat y pulsa Intro; Siguiente muestra el nombre siguiente.",
 }
 -- END ES
 
@@ -5117,6 +5125,10 @@ FR["switch parts on or off, announcements, diagnostics, advanced"] = "activer ou
 FR["List from %s. Reload after the companion syncs."] = "Liste de %s. Faites /reload apr\195\168s la synchronisation du compagnon."
 -- 9.3.1 UI polish.
 FR["Preview: sample numbers, nothing is saved."] = "Aper\195\167u : chiffres d'exemple, rien n'est enregistr\195\169."
+-- 9.3.2 invite replies.
+FR["ignoring you"] = "vous ignore"
+FR["guild is full"] = "la guilde est pleine"
+FR["%d invites waiting: copy each line from the box (Ctrl+C), paste it in your chat box and press Enter; Next shows the following name."] = "%d invitations en attente : copie chaque ligne de la bo\195\174te (Ctrl+C), colle-la dans ton chat et appuie sur Entr\195\169e ; Suivant montre le nom suivant."
 FR["Invites"] = "Invitations"
 FR["Officers only."] = "R\195\169serv\195\169 aux officiers."
 FR["Advanced..."] = "Avanc\195\169..."
@@ -5746,7 +5758,8 @@ FR["joined"] = "a rejoint"
 FR["Copy %s for the highlighted row (Ctrl+C), paste it in your chat box (Ctrl+V) and press Enter."] = "Copie %s pour la ligne surlign\195\169e (Ctrl+C), colle-le dans ta zone de discussion (Ctrl+V) et appuie sur Entr\195\169e."
 FR["%d waiting for a guild invite. Open them with /guilded invites."] = "%d en attente d'une invitation de guilde. Ouvre la liste avec /guilded invites."
 FR["Copy %s (Ctrl+C), paste it in your chat box (Ctrl+V) and press Enter."] = "Copie %s (Ctrl+C), colle-le dans ta zone de discussion (Ctrl+V) et appuie sur Entr\195\169e."
-FR["Copy with Ctrl+C, then paste in chat"] = "Copie avec Ctrl+C, puis colle dans le chat"FR["Type %s to invite them."] = "Tape %s pour l'inviter."
+FR["Copy with Ctrl+C, then paste in chat"] = "Copie avec Ctrl+C, puis colle dans le chat"
+FR["Type %s to invite them."] = "Tape %s pour l'inviter."
 FR["The game would not send the invite. Invite them by hand."] = "Le jeu n'a pas envoy\195\169 l'invitation. Invite le joueur \195\160 la main."
 FR["Your rank cannot invite to the guild."] = "Ton rang ne peut pas inviter dans la guilde."
 FR["Promotion requested. Wait for the roster to confirm it before the next one."] = "Promotion demand\195\169e. Attendez que la liste la confirme avant la suivante."

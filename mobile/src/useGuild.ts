@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AppState } from "react-native";
 import { ApiError, GuildedClient, parseHub, parseManage, parseStandings, type HubView, type ManageView, type StandingsView } from "./api";
 import { t, type Lang } from "./i18n";
-import { syncRaidReminders, type ReminderSync } from "./notify";
+import { pushToken, syncRaidReminders, type ReminderSync } from "./notify";
 import { planReminders, soonRaids } from "./reminders";
 import { sampleHubBody, sampleManageBody, sampleStandingsBody } from "./sample";
-import { clearSession, readLang, readOrigin, readReminders, readSession, saveLang, saveReminders, type Session } from "./storage";
+import { clearSession, readLang, readOrigin, readReminders, readSession, renewSession, saveLang, saveReminders, type Session } from "./storage";
 
 // The signed-in guild, shared by every tab (moved out of the old GuildScreen for the five-tab shell).
 // Storage keys and the session format are unchanged.
@@ -30,6 +31,12 @@ export function useGuild(defaultOrigin: string) {
   const [loading, setLoading] = useState(false);
   const [remindersOn, setRemindersState] = useState(false);
   const [reminderSync, setReminderSync] = useState<ReminderSync | null>(null);
+  const [remoteOn, setRemoteOn] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushNotice, setPushNotice] = useState<string | null>(null);
+  const sessionRef = useRef<Session | null>(null);
+  const inFlight = useRef(false);
+  sessionRef.current = session;
 
   useEffect(() => {
     let active = true;
@@ -45,8 +52,16 @@ export function useGuild(defaultOrigin: string) {
     return () => { active = false; };
   }, []);
 
-  const load = useCallback(async (current: Session) => {
+  const load = useCallback(async (original: Session) => {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setLoading(true);
+    try {
+    // Renewal is housekeeping: only a revoked credential (401) stops here; other failures must not hide guild data.
+    let current = original;
+    try { current = await renewSession(original); }
+    catch (renewError) { if (!(renewError instanceof ApiError) || renewError.status === 401) { await clearSession(); setSession(null); setSnapshot(null); setRemoteOn(false); setLoading(false); return; } }
+    if (current !== original) setSession(current);
     const client = new GuildedClient(current.apiOrigin, current.companionCredential);
     const [hub, manage, standings] = await Promise.allSettled([
       client.hub(current.guildDiscordId),
@@ -62,9 +77,11 @@ export function useGuild(defaultOrigin: string) {
       await clearSession();
       setSession(null);
       setSnapshot(null);
+      setRemoteOn(false);
       setLoading(false);
       return;
     }
+    void client.deviceStatus(current.guildDiscordId).then(setRemoteOn).catch(() => {});
     setSnapshot({
       hub: hub.status === "fulfilled" ? hub.value : null,
       manage: manage.status === "fulfilled" ? manage.value : null,
@@ -72,7 +89,17 @@ export function useGuild(defaultOrigin: string) {
       errors
     });
     setLoading(false);
+    } finally { inFlight.current = false; }
   }, [lang]);
+
+  // Back in the app: refresh the guild (also renews the credential and re-checks push).
+  useEffect(() => {
+    const resume = AppState.addEventListener("change", (state) => {
+      const current = sessionRef.current;
+      if (state === "active" && current && !current.personal && !preview) void load(current);
+    });
+    return () => resume.remove();
+  }, [load, preview]);
 
   useEffect(() => {
     if (!ready || preview || !session || session.personal) return;
@@ -86,13 +113,25 @@ export function useGuild(defaultOrigin: string) {
   useEffect(() => {
     if (!snapshot || preview) return;
     let active = true;
-    void syncRaidReminders(remindersOn, planned).then((result) => { if (active) setReminderSync(result); });
+    // Server push replaces on-device reminders so a raid is never announced twice.
+    void syncRaidReminders(remindersOn && !remoteOn, planned, session?.guildDiscordId).then((result) => { if (active) setReminderSync(result); });
     return () => { active = false; };
-  }, [snapshot, preview, remindersOn, planned]);
+  }, [snapshot, preview, remindersOn, remoteOn, planned, session?.guildDiscordId]);
 
   const setLang = (next: Lang) => { setLangState(next); void saveLang(next); };
   const setRemindersOn = (on: boolean) => { setRemindersState(on); if (!preview) void saveReminders(on); };
   const startPreview = () => { setPreview(true); setSnapshot(sampleSnapshot()); };
+  const togglePush = async () => {
+    if (!session || session.personal || preview || pushBusy) return;
+    setPushBusy(true); setPushNotice(null);
+    try {
+      const token = remoteOn ? undefined : await pushToken();
+      await new GuildedClient(session.apiOrigin, session.companionCredential).device(session.guildDiscordId, !remoteOn, lang, token);
+      if (sessionRef.current?.companionCredential !== session.companionCredential) return;
+      setRemoteOn(!remoteOn);
+    } catch (error) { setPushNotice(error instanceof Error ? error.message : t(lang, "alertsDenied")); }
+    finally { setPushBusy(false); }
+  };
   const refresh = async () => { if (!preview && session && !session.personal) await load(session); };
 
   const leave = async () => {
@@ -104,6 +143,8 @@ export function useGuild(defaultOrigin: string) {
     setPreview(false);
     setSession(null);
     setSnapshot(null);
+    setRemoteOn(false);
+    setPushNotice(null);
   };
 
   /** A guild to show: signed in to a guild server, or the sample guild. */
@@ -116,6 +157,7 @@ export function useGuild(defaultOrigin: string) {
     lang, setLang, ready, session, setSession, preview, startPreview, leave, refresh,
     originDraft, setOriginDraft, snapshot, setSnapshot, loading,
     remindersOn, setRemindersOn, planned, imminent, reminderSync,
+    remoteOn, pushBusy, pushNotice, togglePush,
     hasGuild, signedIn, guildName
   };
 }

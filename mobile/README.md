@@ -1,5 +1,10 @@
 # Guilded Mobile
 
+Android and iOS share this Expo SDK 58 project. Mobile version **0.3.0**
+(the Android versionCode is kept and raised by EAS on each store build) is separate from the bot,
+addon and Windows companion version. Both store identifiers are
+`top.kcaron.guilded`; the Expo slug is `guilded-mobile`.
+
 The phone app for Guilded. Android and iOS share one Expo project. It does not
 change the shared product version (`package.json` at the repo root stays the
 bot, addon and Windows companion version). Store identifiers are
@@ -18,7 +23,10 @@ bot, addon and Windows companion version). Store identifiers are
 - **Alerts**: raid reminders on this phone, plus help-call, dungeon and raid
   vacancy alerts listed as switched off until push lands (PR #345).
 - **News**: Wowhead headlines and the Blizzard news link. Public.
-- **Guilded Clash** (Me tab, under the badges; `src/clash/`): the collection, free
+- **Guilded Clash is hidden** (on hold since 14 November 2026, not deleted). It appears only in a build made with
+  `EXPO_PUBLIC_GUILDED_CLASH=1`: without it `metro.config.js` swaps `src/clash/entry` for an empty module, so the
+  bundle carries neither the game nor its card art, and the Me tab shows no teaser. What follows describes the game
+  when the flag is on (Me tab, under the badges; `src/clash/`): the collection, free
   packs with crafting, matches against the AI and the PvE gauntlet, from
   `/api/v1/companion/cards` and `/api/v1/companion/clash/*`. Signed out, in the
   sample guild, or on a server without the game, a local sample game runs
@@ -77,7 +85,7 @@ Shared pieces live in `src/ui/`; the signed-in state is `src/useGuild.ts`.
 Desktop-only work stays on the Windows companion: WoW SavedVariables, writing
 standings back into the game, and PoE2 `Client.txt`.
 
-The default server is `https://guilded.kcaron.top`. A guild that runs its own
+The default server is `https://guildedwow.com`. A guild that runs its own
 bot can change **Server address** on the sign-in screen, or set
 `EXPO_PUBLIC_GUILDED_WEB_URL` before starting Expo. Use https. http is accepted
 only for localhost.
@@ -86,41 +94,142 @@ only for localhost.
 
 ```sh
 cd mobile
-npm install
+npm ci
 npm start
+npm run typecheck
+npx expo install --check
+npx expo-doctor
 ```
 
-Expo Go on a phone can open the QR code when the Expo Go app matches this SDK
-(Expo 58). `npm run web` opens the same UI in a browser. `npm run typecheck`
-is `tsc --noEmit`.
+`npm run web` provides a browser preview. Use a native development/store build
+for device credentials, remote push and verified links; Expo Go does not prove
+release notification, app-link, signing or OTA behavior. The default API is
+`https://guildedwow.com`; self-hosted guilds can choose an HTTPS server.
+HTTP is accepted only for localhost development.
 
-From the repo root, the phone client is covered by the normal test run
-(`npx vitest run mobile/src/api.test.ts`). It does not need Discord or a database.
+Guild sign-in uses the existing companion approval page and polling API, not
+the website cookie. Credentials use SecureStore on native devices. The web
+preview stores credentials in that browser, so sign out on shared machines.
+Sample mode uses fictional data and must not register devices or send writes.
+SavedVariables and PoE2 Client.txt remain Windows companion responsibilities.
 
-## Store binaries
+## Existing account and project setup
 
-The Expo account, Apple Developer Program and Google Play Console are the
-owner's. Nothing in this repo signs a store build.
+On 4 November 2026, `eas whoami --non-interactive` returned **Not logged in**.
+No verified Expo project UUID, Android signing fingerprint or Apple team ID
+was available. No account/project was created and no build was submitted.
+These are release inputs, not values to guess.
+
+After signing into the owner's actual Expo account, inspect the existing
+project with `npx eas-cli project:info`. Use the verified UUID as
+`EAS_PROJECT_ID`, and the actual account slug as `EAS_OWNER` if required. Keep
+these public identifiers consistent in local build/update and EAS environments.
+Set `GOOGLE_SERVICES_JSON` as an EAS **file** environment variable containing
+the actual Android Firebase configuration. The config consumes its local path;
+Android EAS builds fail if it is missing. Configure FCM V1 service credentials
+separately through EAS; never commit either file.
+
+`app.config.js` adds `extra.eas.projectId` and the Expo update URL only when the
+UUID is present; native EAS builds fail clearly if it is missing. Local Expo
+preview remains usable without it. Never put signing keys, service account
+JSON, APNs keys or access tokens in the repository or EXPO_PUBLIC variables.
+
+Discord OAuth still finishes on the existing website callback. The phone is
+not a new OAuth client. Configure notification credentials through the actual
+EAS project: Android FCM V1 and iOS APNs. The native notifications plugin enables
+remote notifications, but that alone does not provide delivery credentials,
+backend deployment or end-to-end acceptance. Notifications require explicit
+member opt-in.
+
+## Build profiles and versions
+
+| Profile | Android | iOS | OTA channel |
+| --- | --- | --- | --- |
+| preview | Internal APK | Simulator build | preview |
+| device | Internal APK | Physical-device ad hoc build | preview |
+| production | Store AAB | App Store build | production |
+| store | Alias of production | Alias of production | production |
 
 ```sh
-cd mobile
-npx eas-cli login
 npx eas-cli build --platform android --profile preview
 npx eas-cli build --platform ios --profile preview
+npx eas-cli build --platform ios --profile device
+npx eas-cli build --platform android --profile production
+npx eas-cli build --platform ios --profile production
 ```
 
-`preview` makes an Android APK and an iOS simulator build for direct installs.
-`production` is the existing APK profile. Play Store uploads want an Android
-App Bundle, and the App Store wants an iOS store build:
+Production requires Google Play/App Store accounts and signing. iOS ad hoc
+requires registered devices; simulator output cannot install on an iPhone.
+There is no automatic submit configuration. Build/submission commands are for
+the owner to run after release review; they were not run during preparation.
+EAS raises the Android versionCode (and the iOS buildNumber) by itself on each store build;
+update mobile/package.json and expo.version together for a new user
+version. Do not bump the repository root version for a mobile-only release.
+
+## OTA updates
+
+The `appVersion` runtime policy accepts updates for the same mobile app version.
+A native dependency/config change needs a new native build **and a new app
+version** so incompatible updates cannot target old installs. Preview and
+production use separate channels. On launch, before interactive screens,
+`prepareLaunchUpdate()` checks and fetches a compatible update and reloads only
+if the fetched result is new. It runs once per launch, skips development and
+web, and disables the duplicate automatic native check.
+Network failure keeps the embedded/latest successful update. Without a real
+project UUID, OTA stays disabled. Use the same verified EAS project/environment
+when building and publishing, and verify on a signed preview build first.
 
 ```sh
-npx eas-cli build --platform android --profile store
-npx eas-cli build --platform ios --profile store
+npx eas-cli update --channel preview --environment preview
+npx eas-cli update --channel production --environment production
 ```
 
-`eas.json` keeps `appVersionSource` on `local`. Version and versionCode live
-in `app.json` (`0.1.0`, Android `versionCode` 1). Bump those when you ship a
-store build. Do not bump the repo root version for a phone-only build: that
+Updates must respect store rules; OTA is not a replacement for native review.
+No update was published during preparation.
+
+## App links and website association
+
+Native builds register `guilded://` and the narrow HTTPS path
+`https://guilded.kcaron.top/app/*`. OAuth and general website navigation remain
+on the website. The Worker gives `/app/raids` and `/app/alerts` a calendar
+browser fallback, ranks a leaderboard fallback, and other guild screens a
+signed-in profile fallback. Only EN/FR language is forwarded; arbitrary redirect
+parameters are ignored.
+
+For verified HTTPS links, configure the website build with public identities
+from the real signing accounts:
+
+- `MOBILE_ANDROID_SHA256_FINGERPRINTS`: comma-separated colon-delimited SHA-256
+  certificate fingerprints. For Play installs, use the **Play App Signing**
+  certificate from Play Console; an upload certificate alone is insufficient.
+  Include the preview certificate only if preview links should also verify.
+- `MOBILE_APPLE_TEAM_ID`: the actual ten-character Apple team identifier.
+
+`scripts/mobile-associations.mjs` validates these inputs and the site build
+emits `/.well-known/assetlinks.json` and/or
+`/.well-known/apple-app-site-association`. Missing inputs omit that platform's
+file and remove stale output. No placeholder identity is published. Deploy the
+website with these inputs, then check both endpoints return HTTP 200 JSON
+without authentication or redirects before testing device links. HTTPS link
+verification remains pending until this is done; custom schemes need an
+installed native app but no association file.
+
+## Release checks still requiring devices/accounts
+
+Confirm sign-in/revocation and guild isolation with real accounts; opt-in,
+opt-out, Android permission denial, iOS push and notification taps on physical
+devices; verified HTTPS links from another app; offline launch and cached data;
+preview OTA installation/rollback; store privacy forms and screenshots; and
+release signing/submission. Source/build checks do not establish these results.
+
+Reference: [Expo updates](https://docs.expo.dev/versions/latest/sdk/updates/),
+[runtime versions](https://docs.expo.dev/eas-update/runtime-versions/),
+[Android app links](https://docs.expo.dev/linking/android-app-links/),
+[iOS universal links](https://docs.expo.dev/linking/ios-universal-links/).
+
+`eas.json` sets `appVersionSource` to `remote` with `autoIncrement` on the
+`production` profile: EAS keeps the Android versionCode, seeded from `app.json`, and
+raises it on each store build. The version name lives in `app.json`. Do not bump the repo root version for a phone-only build: that
 version posts a Discord notice from the bot.
 
 Submission (`npx eas-cli submit`) needs the Apple and Google accounts. The

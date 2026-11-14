@@ -13,7 +13,8 @@ export interface PlannedReminder {
 
 export function planReminders(raids: Pick<RaidEvent, "id" | "title" | "at" | "core">[], now = Date.now(), lang: "en" | "fr" = "en"): PlannedReminder[] {
   const planned: PlannedReminder[] = [];
-  for (const raid of raids) {
+  for (const raid of [...raids].sort((a, b) => Date.parse(a.at) - Date.parse(b.at))) {
+    if (planned.some((reminder) => reminder.id === raid.id)) continue;
     const start = Date.parse(raid.at);
     if (!Number.isFinite(start) || start <= now) continue;
     const fire = start - REMINDER_LEAD_MS;
@@ -42,6 +43,6 @@ export function soonRaids<T extends { at: string }>(raids: T[], now = Date.now()
 }
 
 export function notificationId(raidId: string): string {
-  const clean = raidId.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 48);
-  return `guilded-raid-${clean || "event"}`;
+  // Encode, rather than discard, separators so distinct source IDs cannot collide.
+  return `guilded-raid-${encodeURIComponent(raidId)}`;
 }

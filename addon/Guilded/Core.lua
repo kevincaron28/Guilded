@@ -2428,6 +2428,22 @@ local function onEvent(_, event, ...)
       end
       -- (9.2.1) A tooltip line added just before is the usual way a tainted game routine ends up refused.
       if ns.lastTooltipAt and GetTime and (GetTime() - ns.lastTooltipAt) < 2 then detail = detail .. " (Guilded tooltip line added <2 s before)" end
+      -- (9.3.1) What was going on: combat, the Guilded window (shown, which page), and how long ago the last event was handled.
+      -- "UNKNOWN()" gives no name, so these narrow down which frame the game refused to touch.
+      local context = {}
+      if InCombatLockdown and InCombatLockdown() then context[#context + 1] = "in combat" end
+      local win = ns.windowState and ns.windowState()
+      local panel = _G.GuildedPanel
+      if panel and panel.IsShown and panel:IsShown() then
+        local tab = win and win.tabs and win.tabs[win.currentTab or 0]
+        context[#context + 1] = "window open on " .. tostring(tab and tab.name or "?")
+      end
+      if ns.lastEventAt and GetTime then
+        -- Coarse on purpose: the same refusal then folds into one counted entry instead of one per second.
+        local age = GetTime() - ns.lastEventAt
+        context[#context + 1] = "last event " .. (age < 1 and "<1 s" or age < 5 and "<5 s" or "5+ s") .. " ago"
+      end
+      if #context > 0 then detail = detail .. " {" .. table.concat(context, ", ") .. "}" end
       local named = type(blockedFunction) == "string" and string.gsub(blockedFunction, "%(%)$", "") or nil
       if named and ns.guildSnapshot and ns.guildSnapshot.onBlocked then pcall(ns.guildSnapshot.onBlocked, named) end
     end
@@ -2472,7 +2488,7 @@ frame:RegisterEvent("UI_ERROR_MESSAGE")
 local SLOW_HANDLER_MS = 50
 frame:SetScript("OnEvent", function(_, event, ...)
   local started = debugprofilestop and debugprofilestop()
-  if event ~= "ADDON_ACTION_BLOCKED" and event ~= "ADDON_ACTION_FORBIDDEN" and event ~= "CHAT_MSG_ADDON" then ns.lastEvent = event end
+  if event ~= "ADDON_ACTION_BLOCKED" and event ~= "ADDON_ACTION_FORBIDDEN" and event ~= "CHAT_MSG_ADDON" then ns.lastEvent = event; ns.lastEventAt = GetTime and GetTime() or nil end
   local ok, err = pcall(onEvent, _, event, ...)
   if not ok then logDiagnostic("LUA_ERROR", "Guilded event handler: " .. tostring(err)) end
   if started then

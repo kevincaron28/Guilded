@@ -372,22 +372,28 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
     await tx.dungeonRunWitness.upsert({ where: { guildId_runRef_deviceId: { guildId, runRef: ref, deviceId: source.deviceId } },
       create: { guildId, deviceId: source.deviceId, runRef: ref, firstSeenAt: now, ...row }, update: row });
   };
-  /** Keeps the run for review; the PC gets an ordinary receipt so it stops sending it. */
+  /** Holds the run for review. */
   const holdRun = async (ref: string, raw: unknown, statement: Statement, flags: Anomaly[]) => {
     await record(ref, raw, statement, { status: "held", reason: "held", keepPayload: true, flags });
     await saveRunReceipts(tx, guildId, [{ runRef: ref, outcome: "stored", reason: null, runId: null }], now);
   };
   /** This statement plus every other device's statement that speaks for another party member. */
   const witnessesOf = (statement: Statement, rows: readonly WitnessRow[]): number => new Set([statement.voucher, ...rows.map((row) => row.voucher)]).size;
-  // Neighbouring runs, this PC's own runs and the fastest known clears are read once per upload.
+  // Lookups for the run checks, once per upload.
   const newPrints = entries.filter((entry) => !mine.has(entry.ref) && !held.has(entry.ref)).flatMap((entry) => { const print = fingerprintOf(entry.raw); return print ? [print] : []; });
   const ends = newPrints.flatMap((print) => print.endedAt ? [print.endedAt] : []);
-  const reachAll = ends.length ? { gte: new Date((Math.min(...ends) - 4 * 3600) * 1000), lte: new Date((Math.max(...ends) + 4 * 3600) * 1000) } : null;
+  const merged = [...ends].sort((a, b) => a - b).reduce<{ from: number; to: number }[]>((list, end) => {
+    const last = list[list.length - 1];
+    if (last && end - 4 * 3600 <= last.to) last.to = end + 4 * 3600; else list.push({ from: end - 4 * 3600, to: end + 4 * 3600 });
+    return list;
+  }, []);
+  const spans = merged.length > 40 ? [{ from: merged[0]!.from, to: merged[merged.length - 1]!.to }] : merged;
+  const reachAll = spans.length ? { OR: spans.map((span) => ({ endedAt: { gte: new Date(span.from * 1000), lte: new Date(span.to * 1000) } })) } : null;
   const instances = [...new Set(newPrints.map((print) => print.instanceId))];
   const [fastestRows, nearbyRows, ownRows] = newPrints.length ? await Promise.all([
     tx.dungeonRun.groupBy({ by: ["instanceId", "difficultyId"], where: { guildId, instanceId: { in: instances }, valid: true, state: "COMPLETED", durationSec: { not: null } }, _min: { durationSec: true }, _count: { _all: true } }),
-    reachAll ? tx.dungeonRun.findMany({ where: { guildId, valid: true, endedAt: reachAll }, select: { runRef: true, instanceId: true, startedAt: true, endedAt: true, players: { select: { character: true } } }, take: 500 }) : Promise.resolve([]),
-    reachAll ? tx.dungeonRunWitness.findMany({ where: { guildId, deviceId: source.deviceId, kind: "first-hand", status: "stored", endedAt: reachAll }, take: 300 }) as Promise<WitnessRow[]> : Promise.resolve([] as WitnessRow[])
+    reachAll ? tx.dungeonRun.findMany({ where: { guildId, valid: true, ...reachAll }, orderBy: { endedAt: "desc" }, select: { runRef: true, instanceId: true, startedAt: true, endedAt: true, players: { select: { character: true } } }, take: 500 }) : Promise.resolve([]),
+    reachAll ? tx.dungeonRunWitness.findMany({ where: { guildId, deviceId: source.deviceId, kind: "first-hand", status: "stored", ...reachAll }, orderBy: { endedAt: "desc" }, take: 300 }) as Promise<WitnessRow[]> : Promise.resolve([] as WitnessRow[])
   ]) : [[], [], [] as WitnessRow[]];
   const flagsFor = (raw: unknown, ref: string): Anomaly[] => {
     const data = raw as { instanceId?: number; difficultyId?: number; startedAt?: number; endedAt?: number; players?: { character?: unknown; level?: unknown }[]; encounters?: { id?: unknown; at?: unknown; success?: unknown; kind?: unknown }[] };
@@ -401,7 +407,7 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
       players: (data.players ?? []).flatMap((player) => typeof player.character === "string" ? [{ character: player.character, level: typeof player.level === "number" ? player.level : null }] : []),
       kills: (data.encounters ?? []).flatMap((boss) => boss.success === true && boss.kind !== "npc" && typeof boss.id === "number" ? [{ id: boss.id, at: typeof boss.at === "number" ? boss.at : null }] : [])
     }, {
-      runRef: ref, limits: config.limits, fastest: { seconds: fastest?._min.durationSec ?? null, count: fastest?._count._all ?? 0 },
+      runRef: ref, ...(config.limits ? { limits: config.limits } : {}), fastest: { seconds: fastest?._min.durationSec ?? null, count: fastest?._count._all ?? 0 },
       neighbours: (nearbyRows as { runRef: string; instanceId: number; startedAt: Date | null; endedAt: Date | null; players: { character: string }[] }[]).filter(within).map((row) => neighbour(row, row.players.map((player) => player.character))),
       deviceRuns: ownRows.filter(within).map((row) => neighbour({ runRef: row.runRef, instanceId: row.instanceId, startedAt: row.startedAt, endedAt: row.endedAt }, row.players))
     });
@@ -423,7 +429,7 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
     const statement: Statement = { ...print, deviceId: source.deviceId, ...standing };
     const earlier = mine.get(ref);
     if (earlier?.status === "held") { await saveRunReceipts(tx, guildId, [{ runRef: ref, outcome: "stored", reason: null, runId: null }], now); continue; }
-    if (excludedHere && earlier?.reason !== "released") { await holdRun(ref, raw, statement, [{ code: "pc-excluded", detail: "PC excluded by an officer" }]); continue; }
+    if (excludedHere && earlier?.reason !== "released" && earlier?.status !== "stored") { await holdRun(ref, raw, statement, [{ code: "pc-excluded", detail: "PC excluded by an officer" }]); continue; }
     const sameId = held.get(ref);
     const existing = sameId ?? await storedCopy(print);
     if (existing) {

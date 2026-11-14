@@ -122,18 +122,18 @@ describe("device upload with runs", () => {
   });
 });
 
-describe("run trust: one witness is enough (docs/plans/SINGLE_WITNESS_2026-11-13.md; before 13 November a second statement was needed from Season 2)", () => {
+describe("run trust (docs/plans/SINGLE_WITNESS_2026-11-13.md)", () => {
   const two = { deviceId: "d2", characterKeys: ["bob"] };
   const trustOf = (runs: Record<string, unknown>[]) => runs.map((r) => [r["runRef"], r["trust"]]);
 
-  it("stores a run nobody in the party is known for, from Season 2 on too: one witness is enough", async () => {
+  it("stores a run with one statement", async () => {
     const { tx, runs, witnesses } = fakeTx([], [], [], [1, 2]);
     expect(await storeDeviceRuns(tx, "g1", [run("QG-1")], now, SRC)).toEqual({ stored: 1, skipped: 0 });
     expect(trustOf(runs)).toEqual([["QG-1", "device"]]);
     expect(witnesses).toMatchObject([{ status: "stored", voucher: "kev", trust: "device" }]);
   });
 
-  it("a second device speaking for another party member only adds to it: witnessed, confirmed by 2, nothing stored twice", async () => {
+  it("a second device adds to a stored run", async () => {
     const { tx, runs } = fakeTx([], [], [], [1, 2]);
     await storeDeviceRuns(tx, "g1", [run("QG-1")], now, SRC);
     const later = new Date(now.getTime() + 60_000);
@@ -142,7 +142,7 @@ describe("run trust: one witness is enough (docs/plans/SINGLE_WITNESS_2026-11-13
     expect(runs[0]).toMatchObject({ runRef: "QG-1", trust: "witnessed", witnessCount: 2 });
   });
 
-  it("never lets one device witness itself, and a replay changes nothing", async () => {
+  it("a replay changes nothing", async () => {
     const { tx, runs } = fakeTx([], [], [], [1, 2]);
     await storeDeviceRuns(tx, "g1", [run("QG-1")], now, SRC);
     expect(await storeDeviceRuns(tx, "g1", [run("QG-1b")], now, { deviceId: "d1", characterKeys: ["kev", "bob"] })).toMatchObject({ stored: 0 });
@@ -151,7 +151,7 @@ describe("run trust: one witness is enough (docs/plans/SINGLE_WITNESS_2026-11-13
     expect(runs[0]!["witnessCount"]).toBeUndefined();
   });
 
-  it("does not count two devices that rest on the same party member, and a different clear is a different run", async () => {
+  it("separates runs", async () => {
     const { tx, runs } = fakeTx([], [], [], [1, 2]);
     await storeDeviceRuns(tx, "g1", [run("QG-1")], now, SRC);
     expect(await storeDeviceRuns(tx, "g1", [run("QG-2")], now, { deviceId: "d2", characterKeys: ["kev"] })).toMatchObject({ stored: 0 });
@@ -160,19 +160,9 @@ describe("run trust: one witness is enough (docs/plans/SINGLE_WITNESS_2026-11-13
     expect(runs).toHaveLength(2);
   });
 
-  it("flags a run that looks unlikely but still stores and counts it (a level above the cap, kills before the run began)", async () => {
-    const { tx, runs } = fakeTx([], [], ["kev"], [1, 2]);
-    const odd = run("QG-ODD", { encounters: [{ id: 1, success: true, kind: "boss", at: start - 5000 }],
-      players: ["Kev", "Bob", "Amy"].map((character) => ({ character, realm: "Forever", deaths: 0, presentSec: 2700, inGuild: true, level: 70, minLevel: 70 })) });
-    expect(await storeDeviceRuns(tx, "g1", [odd], now, SRC)).toMatchObject({ stored: 1 });
-    expect((runs[0]!["anomalies"] as { code: string }[]).map((flag) => flag.code).sort()).toEqual(["kill-outside-run", "level-above-cap"]);
-    const clean = fakeTx([], [], ["kev"], [1, 2]);
-    await storeDeviceRuns(clean.tx, "g1", [run("QG-OK")], now, SRC);
-    expect(clean.runs[0]!["anomalies"]).toBeUndefined();
-  });
-
+  const LIMITS = { levelCap: 60, killSlackSec: 30, minSecondsPerBoss: 30 };
   const withHold = async (config: Record<string, unknown>, body: () => Promise<void>) => {
-    process.env["RUN_INTEGRITY_CONFIG"] = JSON.stringify(config);
+    process.env["RUN_INTEGRITY_CONFIG"] = JSON.stringify({ limits: LIMITS, defaultWeight: 1, ...config });
     try { await body(); } finally { delete process.env["RUN_INTEGRITY_CONFIG"]; }
   };
   const players = (level: number) => ["Kev", "Bob", "Amy"].map((character) => ({ character, realm: "Forever", deaths: 0, presentSec: 2700, inGuild: true, level, minLevel: level }));
@@ -188,7 +178,27 @@ describe("run trust: one witness is enough (docs/plans/SINGLE_WITNESS_2026-11-13
     return { tx: { ...(tx as object), dungeonRunReceipt: table } as never, receipts };
   };
 
-  it("holds a run that trips several checks, gives its PC an ordinary receipt, and keeps it for review", async () => {
+  it("case 1", async () => {
+    await withHold({}, async () => {
+      const { tx, runs } = fakeTx([], [], ["kev"], [1, 2]);
+      const odd = run("QG-ODD", { encounters: [{ id: 1, success: true, kind: "boss", at: start - 5000 }],
+        players: ["Kev", "Bob", "Amy"].map((character) => ({ character, realm: "Forever", deaths: 0, presentSec: 2700, inGuild: true, level: 70, minLevel: 70 })) });
+      expect(await storeDeviceRuns(tx, "g1", [odd], now, SRC)).toMatchObject({ stored: 1 });
+      expect((runs[0]!["anomalies"] as { code: string }[]).map((flag) => flag.code).sort()).toEqual(["kill-outside-run", "level-above-cap"]);
+      const clean = fakeTx([], [], ["kev"], [1, 2]);
+      await storeDeviceRuns(clean.tx, "g1", [run("QG-OK")], now, SRC);
+      expect(clean.runs[0]!["anomalies"]).toBeUndefined();
+    });
+  });
+
+  it("case 1b", async () => {
+    const { tx, runs } = fakeTx([], [], ["kev"], [1, 2]);
+    const odd = run("QG-ODD", { players: ["Kev", "Bob", "Amy"].map((character) => ({ character, realm: "Forever", deaths: 0, presentSec: 2700, inGuild: true, level: 70, minLevel: 70 })) });
+    expect(await storeDeviceRuns(tx, "g1", [odd], now, SRC)).toMatchObject({ stored: 1 });
+    expect(runs[0]!["anomalies"]).toBeUndefined();
+  });
+
+  it("case 2", async () => {
     await withHold({ holdScore: 2 }, async () => {
       const base = fakeTx([], [], ["kev"], [1, 2]);
       const { tx, receipts } = withReceipts(base.tx);
@@ -202,7 +212,7 @@ describe("run trust: one witness is enough (docs/plans/SINGLE_WITNESS_2026-11-13
     });
   });
 
-  it("counts a held run at once when an officer releases it, by its full code or a unique beginning, even a long one", async () => {
+  it("case 3", async () => {
     await withHold({ holdScore: 2 }, async () => {
       const longId = `QG-${"z".repeat(90)}`;
       const base = fakeTx([], [], ["kev"], [1, 2]);
@@ -210,15 +220,15 @@ describe("run trust: one witness is enough (docs/plans/SINGLE_WITNESS_2026-11-13
       expect(base.witnesses).toHaveLength(1);
       const database = { dungeonRunWitness: (base.tx as never as { dungeonRunWitness: unknown }).dungeonRunWitness, deviceCharacter: { findMany: async () => [{ nameKey: "kev" }] },
         $transaction: async (fn: (tx: never) => Promise<unknown>) => fn(base.tx) } as never;
-      expect(await releaseHeldRuns(database, "g1", { runRef: "QG" })).toMatchObject({ released: 0 }); // too short to pick one
+      expect(await releaseHeldRuns(database, "g1", { runRef: "QG" })).toMatchObject({ picked: 0 });
       const done = await releaseHeldRuns(database, "g1", { runRef: longId.slice(0, 30) });
-      expect(done).toMatchObject({ released: 1, counted: 1, ambiguous: false });
+      expect(done).toMatchObject({ picked: 1, counted: 1, ambiguous: false });
       expect(base.runs).toHaveLength(1);
       expect(base.witnesses[0]).toMatchObject({ status: "stored" });
     });
   });
 
-  it("does not hold a run two PCs agree on", async () => {
+  it("case 4", async () => {
     await withHold({ holdScore: 1 }, async () => {
       const { tx, runs, witnesses } = fakeTx([], [], ["kev"], [1, 2]);
       await storeDeviceRuns(tx, "g1", [oddRun("QG-A")], now, { deviceId: "d1", characterKeys: ["kev"] });
@@ -233,7 +243,7 @@ describe("run trust: one witness is enough (docs/plans/SINGLE_WITNESS_2026-11-13
     });
   });
 
-  it("holds a single flagged run from a PC that already has several held runs, and stores it from a clean PC", async () => {
+  it("case 5", async () => {
     await withHold({ holdScore: 5, deviceStrikes: 2 }, async () => {
       const one = run("QG-ONE", { players: players(70) });
       const clean = fakeTx([], [], ["kev"], [1, 2]);
@@ -245,7 +255,7 @@ describe("run trust: one witness is enough (docs/plans/SINGLE_WITNESS_2026-11-13
     });
   });
 
-  it("keeps a released run released when it reaches the daily limit", async () => {
+  it("case 6", async () => {
     const { tx, witnesses } = fakeTx([], [], ["kev"]);
     for (let i = 0; i < 20; i++) witnesses.push({ deviceId: "d1", status: "stored", trust: "device", decidedAt: now });
     witnesses.push({ deviceId: "d1", guildId: "g1", runRef: "QG-X", status: "pending", reason: "released", kind: "first-hand", voucher: "kev", instanceId: 90, difficultyId: 0, players: [], bosses: [], firstSeenAt: now });
@@ -253,7 +263,7 @@ describe("run trust: one witness is enough (docs/plans/SINGLE_WITNESS_2026-11-13
     expect(witnesses.find((row) => row["runRef"] === "QG-X")).toMatchObject({ status: "pending", reason: "released" });
   });
 
-  it("holds every run of an excluded PC on that server only, and counts them when it is restored", async () => {
+  it("case 7", async () => {
     const { tx, runs, witnesses } = fakeTx([], [], ["kev"], [1], ["d1"]);
     expect(await storeDeviceRuns(tx, "g1", [run("QG-1"), run("QG-2", { startedAt: start + 9000, endedAt: start + 11700 })], now, SRC)).toEqual({ stored: 0, skipped: 0 });
     expect(runs).toHaveLength(0);
@@ -264,10 +274,31 @@ describe("run trust: one witness is enough (docs/plans/SINGLE_WITNESS_2026-11-13
     expect(await storeDeviceRuns(other.tx, "g2", [run("QG-3")], now, SRC)).toMatchObject({ stored: 1 }); // another server is not affected
   });
 
-  it("checks signed records against the device key and the server's challenge", async () => {
+  it("case 10: an excluded PC resending a stored run leaves it stored", async () => {
+    const { tx, runs, witnesses } = fakeTx([], [], ["kev"], [1], ["d1"]);
+    witnesses.push({ deviceId: "d1", guildId: "g1", runRef: "QG-1", status: "stored", trust: "device", kind: "first-hand", voucher: "kev", instanceId: 90, difficultyId: 0, players: [], bosses: [], firstSeenAt: now });
+    await storeDeviceRuns(tx, "g1", [run("QG-1")], now, SRC);
+    expect(witnesses.find((row) => row["runRef"] === "QG-1")).toMatchObject({ status: "stored" });
+    expect(runs.length).toBeLessThanOrEqual(1);
+  });
+
+  it("case 11: a released run without a kept copy is not counted, and a scoped restore picks only its own", async () => {
+    const { tx } = fakeTx([], [], ["kev"], [1]);
+    const witnesses = (tx as never as { dungeonRunWitness: { findMany: (a: unknown) => Promise<Record<string, unknown>[]> } }).dungeonRunWitness;
+    void witnesses;
+    const rows: Record<string, unknown>[] = [
+      { id: "a", guildId: "g1", deviceId: "d1", status: "held", runRef: "QG-AAAA", payload: null, flags: [{ code: "pc-excluded" }] },
+      { id: "b", guildId: "g1", deviceId: "d1", status: "held", runRef: "QG-BBBB", payload: run("QG-BBBB"), flags: [{ code: "other" }] }
+    ];
+    const database = { dungeonRunWitness: { findMany: async () => rows, updateMany: async () => ({ count: 0 }) }, deviceCharacter: { findMany: async () => [] }, $transaction: async () => ({ stored: 0, skipped: 0 }) } as never;
+    expect(await releaseHeldRuns(database, "g1", { runRef: "QG-AAAA" })).toEqual({ picked: 1, counted: 0, ambiguous: false });
+    expect(await releaseHeldRuns(database, "g1", { deviceId: "d1" })).toEqual({ picked: 1, counted: 0, ambiguous: false });
+  });
+
+  it("case 8", async () => {
     const secret = "server-secret-0123456789";
     process.env["RUN_CHALLENGE_SECRET"] = secret;
-    process.env["RUN_INTEGRITY_CONFIG"] = JSON.stringify({ holdScore: 2, weights: { "seal-invalid": 2 } });
+    process.env["RUN_INTEGRITY_CONFIG"] = JSON.stringify({ limits: LIMITS, defaultWeight: 1, holdScore: 2, weights: { "seal-invalid": 2 } });
     try {
       const sealKey = deriveSealKey("device-key-abc");
       const nonce = issueChallenge(secret, "d1", start - 600);
@@ -284,7 +315,7 @@ describe("run trust: one witness is enough (docs/plans/SINGLE_WITNESS_2026-11-13
     } finally { delete process.env["RUN_INTEGRITY_CONFIG"]; delete process.env["RUN_CHALLENGE_SECRET"]; }
   });
 
-  it("answers a run's neighbours and fastest clears with a fixed number of reads, however many runs one upload carries", async () => {
+  it("case 9", async () => {
     const { tx } = fakeTx([], [], ["kev"], [1, 2]);
     let reads = 0;
     const counted = { ...(tx as object), dungeonRun: { ...(tx as unknown as { dungeonRun: Record<string, (...args: never[]) => unknown> }).dungeonRun } } as unknown as { dungeonRun: Record<string, (...args: never[]) => unknown> };

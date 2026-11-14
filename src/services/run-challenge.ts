@@ -70,16 +70,16 @@ export interface BatchContext {
   sealKey: string | null;
   /** The challenge secret; null turns challenge handling off. */
   secret: string | null;
-  windowSec: number;
-  clockSlackSec: number;
-  /** When this PC registered (seconds); records that ended before it are not matched against its challenges. */
+  windowSec: number | null;
+  clockSlackSec: number | null;
+  /** When this PC registered, in seconds. */
   deviceSince: number | null;
   requireSeal: boolean;
 }
 
 export interface BatchEntry { raw: unknown; ref: string; endedAt: number | null; kind: Statement["kind"]; earlier: boolean }
 
-/** Checks a batch of records one PC sent; returns flags by reference. Records already seen before are not re-checked. */
+/** Check results for a batch of records, by reference. */
 export function verifyBatch(entries: readonly BatchEntry[], context: BatchContext): Map<string, Anomaly[]> {
   const flags = new Map<string, Anomaly[]>();
   const add = (ref: string, code: string, detail: string) => { const list = flags.get(ref) ?? []; if (!list.some((flag) => flag.code === code)) list.push({ code, detail }); flags.set(ref, list); };
@@ -87,7 +87,8 @@ export function verifyBatch(entries: readonly BatchEntry[], context: BatchContex
   for (const entry of entries) {
     if (entry.earlier) continue;
     const seal = sealOf(entry.raw);
-    if (!seal) { if (context.requireSeal && entry.kind === "first-hand") add(entry.ref, "seal-missing", "no record seal"); continue; }
+    if (entry.kind !== "first-hand") continue;
+    if (!seal) { if (context.requireSeal) add(entry.ref, "seal-missing", "no record seal"); continue; }
     const canonical = canonicalText(entry.raw, seal);
     if (context.sealKey) {
       if (!seal.mac) add(entry.ref, "seal-unsigned", "record not signed");
@@ -96,17 +97,16 @@ export function verifyBatch(entries: readonly BatchEntry[], context: BatchContex
         if (expected.length !== given.length || !timingSafeEqual(expected, given)) add(entry.ref, "seal-invalid", "signature does not match");
       }
     }
-    if (entry.kind !== "first-hand") continue;
     const before = context.deviceSince !== null && entry.endedAt !== null && entry.endedAt < context.deviceSince;
     if (context.secret && !before) {
       const issued = challengeTime(context.secret, context.deviceId, seal.nonce);
       if (issued === null) add(entry.ref, "nonce-foreign", "challenge not issued to this PC");
-      else if (entry.endedAt !== null && issued > entry.endedAt + context.clockSlackSec) add(entry.ref, "nonce-future", "challenge issued after the run ended");
-      else if (entry.endedAt !== null && entry.endedAt - issued > context.windowSec) add(entry.ref, "nonce-window", "run ended long after its challenge was issued");
+      else if (entry.endedAt !== null && context.clockSlackSec !== null && issued > entry.endedAt + context.clockSlackSec) add(entry.ref, "nonce-future", "challenge issued after the run ended");
+      else if (entry.endedAt !== null && context.windowSec !== null && entry.endedAt - issued > context.windowSec) add(entry.ref, "nonce-window", "run ended long after its challenge was issued");
     }
     sealed.push({ entry, seal, canonical });
   }
-  // Links between records sent together: record n names the hash of a record numbered n-1.
+  // Chain links.
   const hashesByNumber = new Map<number, Set<string>>();
   for (const item of sealed) hashesByNumber.set(item.seal.n, new Set([...(hashesByNumber.get(item.seal.n) ?? []), chainHash(item.canonical)]));
   for (const item of sealed) {
@@ -116,7 +116,7 @@ export function verifyBatch(entries: readonly BatchEntry[], context: BatchContex
   return flags;
 }
 
-/** Two statements about what looks like one run, overlapping in time with shared players, that do not match as one run. */
+/** Whether two statements conflict. */
 export function contradicts(a: Statement, b: Statement): boolean {
   if (a.instanceId !== b.instanceId || a.difficultyId !== b.difficultyId || !a.endedAt || !b.endedAt || !a.startedAt || !b.startedAt) return false;
   if (Math.abs(a.endedAt - b.endedAt) > 5 * RUN_TRUST.endToleranceSec) return false;

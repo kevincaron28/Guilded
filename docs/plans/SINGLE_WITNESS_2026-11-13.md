@@ -28,8 +28,7 @@ peer-vouched hold) stay.
 
 ## What the server adds
 
-- Server-side checks on every run, with weights and thresholds read from the server's private configuration (`RUN_INTEGRITY_CONFIG`,
-  `RUN_CHALLENGE_SECRET`; `src/services/run-integrity-config.ts` holds only safe defaults).
+- Server-side checks on every run, set by the server's private configuration (`RUN_INTEGRITY_CONFIG`, `RUN_CHALLENGE_SECRET`).
 - Runs the server cannot accept yet are kept for officer review (`DungeonRunWitness.status = 'held'`).
 - `/officer dungeon flagged` (officers and the owner, ephemeral): the held list, the flagged list, `pc:` to exclude a PC on this server
   (`exclude:false` restores it and counts its held runs), `run:` to release a held run (a full code or a unique beginning; it counts at once).

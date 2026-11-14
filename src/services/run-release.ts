@@ -1,27 +1,38 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { storeDeviceRuns } from "./companion-device.js";
 
-// Lets runs held for review through: the kept runs are stored now, as if their PC had sent them again.
+// Releases runs held for review: the kept runs are stored now, as if their PC had sent them again.
 
-export interface ReleaseResult { released: number; counted: number; ambiguous: boolean }
+export interface ReleaseResult {
+  /** Held runs picked for release. */
+  picked: number;
+  /** Runs stored by this release. */
+  counted: number;
+  ambiguous: boolean;
+}
 
-/** Releases one held run (by its full code or a unique beginning of it) or every held run of one PC on this server. */
+const heldBecauseExcluded = (flags: unknown): boolean => Array.isArray(flags) && flags.some((flag) => (flag as { code?: unknown } | null)?.code === "pc-excluded");
+
+/**
+ * Releases one held run (its full code or a unique beginning of it), or, with `deviceId`, the runs of that PC on this server
+ * that were held because the PC was excluded.
+ */
 export async function releaseHeldRuns(database: PrismaClient, guildId: string, target: { runRef?: string; deviceId?: string }, now = new Date()): Promise<ReleaseResult> {
-  const where = target.deviceId ? { guildId, deviceId: target.deviceId, status: "held" } : { guildId, status: "held", runRef: { startsWith: (target.runRef ?? "").trim() } };
-  if (!target.deviceId && (target.runRef ?? "").trim().length < 4) return { released: 0, counted: 0, ambiguous: false };
-  const rows = await database.dungeonRunWitness.findMany({ where, select: { id: true, runRef: true, deviceId: true, payload: true }, take: 200 });
-  const exact = target.runRef ? rows.filter((row) => row.runRef === target.runRef?.trim()) : [];
-  const picked = exact.length ? exact : rows;
-  if (!target.deviceId && picked.length > 1) return { released: 0, counted: 0, ambiguous: true };
+  const wanted = (target.runRef ?? "").trim();
+  if (!target.deviceId && wanted.length < 4) return { picked: 0, counted: 0, ambiguous: false };
+  const where = target.deviceId ? { guildId, deviceId: target.deviceId, status: "held" } : { guildId, status: "held", runRef: { startsWith: wanted } };
+  const rows = await database.dungeonRunWitness.findMany({ where, select: { id: true, runRef: true, deviceId: true, payload: true, flags: true }, take: 500 });
+  const exact = target.deviceId ? [] : rows.filter((row) => row.runRef === wanted);
+  const picked = target.deviceId ? rows.filter((row) => heldBecauseExcluded(row.flags)) : exact.length ? exact : rows;
+  if (!target.deviceId && picked.length > 1) return { picked: 0, counted: 0, ambiguous: true };
   let counted = 0;
   for (const deviceId of [...new Set(picked.map((row) => row.deviceId))]) {
-    const mine = picked.filter((row) => row.deviceId === deviceId);
-    await database.dungeonRunWitness.updateMany({ where: { id: { in: mine.map((row) => row.id) } }, data: { status: "pending", reason: "released" } });
-    const payloads = mine.flatMap((row) => row.payload ? [row.payload] : []);
-    if (!payloads.length) continue;
+    const withPayload = picked.filter((row) => row.deviceId === deviceId && row.payload);
+    if (!withPayload.length) continue;
+    await database.dungeonRunWitness.updateMany({ where: { id: { in: withPayload.map((row) => row.id) } }, data: { status: "pending", reason: "released" } });
     const characterKeys = (await database.deviceCharacter.findMany({ where: { deviceId }, select: { nameKey: true } })).map((row) => row.nameKey);
-    const done = await database.$transaction((tx) => storeDeviceRuns(tx, guildId, payloads, now, { deviceId, characterKeys }), { timeout: 60_000, maxWait: 15_000 });
+    const done = await database.$transaction((tx) => storeDeviceRuns(tx, guildId, withPayload.map((row) => row.payload), now, { deviceId, characterKeys }), { timeout: 60_000, maxWait: 15_000 });
     counted += done.stored;
   }
-  return { released: picked.length, counted, ambiguous: false };
+  return { picked: picked.length, counted, ambiguous: false };
 }

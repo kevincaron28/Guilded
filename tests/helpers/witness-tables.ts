@@ -2,6 +2,7 @@ import { vi } from "vitest";
 
 type Row = Record<string, unknown>;
 const matches = (row: Row, where: Row): boolean => Object.entries(where).every(([key, condition]) => {
+  if (key === "OR") return (condition as Row[]).some((branch) => matches(row, branch));
   const value = row[key];
   if (condition && typeof condition === "object" && !(condition instanceof Date) && !Array.isArray(condition)) {
     const c = condition as Record<string, unknown>;

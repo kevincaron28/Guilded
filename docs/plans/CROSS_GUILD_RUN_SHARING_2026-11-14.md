@@ -51,8 +51,8 @@ Once a lane has stored or placed a run, the bot stores the same run again, throu
 - **Per-player guild text accuracy.** The addon records each player's guild when it can read it (inspect or the group frame). Reading it more reliably in a party improves the card text only.
 - **Addon-only players in a mixed party** already reach the public lane through #880; they reach a guild board through the fan-out once the addon with the group relay ships.
 
-## Decisions for the owner
+## Owner decisions (14 November 2026)
 
-1. Sharing on by default for every server, with an officer switch (recommended, as the other 8.5 features).
-2. One player's report is enough to give another guild a copy (recommended, the same as the "one witness" decision), or a second report first.
-3. Other guilds' dungeon channels get a run card for runs that came in through the device path too (recommended), or boards only.
+1. Sharing is on by default for every server, with an officer switch (`/dungeon records other-guilds:false`; English and French help text).
+2. One player's report is enough to give another guild its copy (`crossGuildMinReporters` stays at 1 in the server configuration).
+3. The other guild's dungeon channel gets the run card too, for device-path runs as well. The card goes through the same announce path as that guild's own runs: its own dungeon channel, its record callout switch and its queued delivery pace.

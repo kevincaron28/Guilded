@@ -356,9 +356,9 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
   let storedToday = await tx.dungeonRunWitness.count({ where: { deviceId: source.deviceId, trust: "device", decidedAt: { gte: new Date(now.getTime() - 86_400_000) } } });
   const pending: Record<string, string> = {};
   const config = integrityConfig();
-  const batchFlags = verifyBatch(entries.map(({ ref, raw }) => ({ raw, ref, endedAt: fingerprintOf(raw)?.endedAt ?? null, kind: voucherOf(raw, deviceKeys)?.kind ?? "relay" as const, earlier: mine.has(ref) || held.has(ref) })),
+  const batchFlags = verifyBatch(entries.map(({ ref, raw }) => ({ raw, ref, endedAt: fingerprintOf(raw)?.endedAt ?? null, kind: voucherOf(raw, deviceKeys)?.kind ?? "relay" as const, earlier: mine.get(ref)?.reason === "released" })),
     { deviceId: source.deviceId, sealKey: source.sealKey ?? null, secret: challengeSecret(), windowSec: config.challengeWindowSec, clockSlackSec: config.clockSlackSec, deviceSince: epoch(standing?.createdAt), requireSeal: config.requireSeal });
-  let strikes = await tx.dungeonRunWitness.count({ where: { deviceId: source.deviceId, status: "held", firstSeenAt: { gte: new Date(now.getTime() - 7 * 86_400_000) } } });
+  let strikes = config.strikeWindowSec === null ? 0 : await tx.dungeonRunWitness.count({ where: { deviceId: source.deviceId, status: "held", firstSeenAt: { gte: new Date(now.getTime() - config.strikeWindowSec * 1000) } } });
 
   const record = async (ref: string, raw: unknown, statement: Statement, data: { status: string; reason?: string | null; trust?: string | null; runId?: string | null; decided?: boolean; keepPayload?: boolean; flags?: Anomaly[] }) => {
     const text = data.keepPayload ? JSON.stringify(raw) : "";
@@ -379,27 +379,26 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
   };
   /** This statement plus every other device's statement that speaks for another party member. */
   const witnessesOf = (statement: Statement, rows: readonly WitnessRow[]): number => new Set([statement.voucher, ...rows.map((row) => row.voucher)]).size;
-  // Lookups for the run checks, once per upload.
-  const newPrints = entries.filter((entry) => !mine.has(entry.ref) && !held.has(entry.ref)).flatMap((entry) => { const print = fingerprintOf(entry.raw); return print ? [print] : []; });
-  const ends = newPrints.flatMap((print) => print.endedAt ? [print.endedAt] : []);
-  const merged = [...ends].sort((a, b) => a - b).reduce<{ from: number; to: number }[]>((list, end) => {
-    const last = list[list.length - 1];
-    if (last && end - 4 * 3600 <= last.to) last.to = end + 4 * 3600; else list.push({ from: end - 4 * 3600, to: end + 4 * 3600 });
-    return list;
-  }, []);
-  const spans = merged.length > 40 ? [{ from: merged[0]!.from, to: merged[merged.length - 1]!.to }] : merged;
-  const reachAll = spans.length ? { OR: spans.map((span) => ({ endedAt: { gte: new Date(span.from * 1000), lte: new Date(span.to * 1000) } })) } : null;
+  // Lookups for the run checks.
+  const needsChecks = (ref: string): boolean => { const row = mine.get(ref); return !held.has(ref) && row?.reason !== "released" && !["stored", "held", "expired"].includes(row?.status ?? ""); };
+  const newPrints = entries.filter((entry) => needsChecks(entry.ref)).flatMap((entry) => { const print = fingerprintOf(entry.raw); return print ? [print] : []; });
+  const reach = config.limits?.reachSec;
+  const windows = typeof reach === "number" ? newPrints.flatMap((print) => print.endedAt ? [{ gte: new Date((print.endedAt - reach) * 1000), lte: new Date((print.endedAt + reach) * 1000) }] : []) : [];
+  /** One bounded query per run, so a busy stretch around one run cannot hide the neighbours of another. */
+  const perWindow = async <T extends { runRef: string }>(query: (endedAt: { gte: Date; lte: Date }) => Promise<T[]>): Promise<T[]> => {
+    const found: T[] = [];
+    for (let at = 0; at < windows.length; at += 10) found.push(...(await Promise.all(windows.slice(at, at + 10).map(query))).flat());
+    return [...new Map(found.map((row) => [row.runRef, row])).values()];
+  };
   const instances = [...new Set(newPrints.map((print) => print.instanceId))];
-  const [fastestRows, nearbyRows, ownRows] = newPrints.length ? await Promise.all([
-    tx.dungeonRun.groupBy({ by: ["instanceId", "difficultyId"], where: { guildId, instanceId: { in: instances }, valid: true, state: "COMPLETED", durationSec: { not: null } }, _min: { durationSec: true }, _count: { _all: true } }),
-    reachAll ? tx.dungeonRun.findMany({ where: { guildId, valid: true, ...reachAll }, orderBy: { endedAt: "desc" }, select: { runRef: true, instanceId: true, startedAt: true, endedAt: true, players: { select: { character: true } } }, take: 500 }) : Promise.resolve([]),
-    reachAll ? tx.dungeonRunWitness.findMany({ where: { guildId, deviceId: source.deviceId, kind: "first-hand", status: "stored", ...reachAll }, orderBy: { endedAt: "desc" }, take: 300 }) as Promise<WitnessRow[]> : Promise.resolve([] as WitnessRow[])
-  ]) : [[], [], [] as WitnessRow[]];
+  const fastestRows = newPrints.length && config.limits ? await tx.dungeonRun.groupBy({ by: ["instanceId", "difficultyId"], where: { guildId, instanceId: { in: instances }, valid: true, state: "COMPLETED", durationSec: { not: null } }, _min: { durationSec: true }, _count: { _all: true } }) : [];
+  const nearbyRows = await perWindow((endedAt) => tx.dungeonRun.findMany({ where: { guildId, valid: true, endedAt }, orderBy: { endedAt: "desc" }, select: { runRef: true, instanceId: true, startedAt: true, endedAt: true, players: { select: { character: true } } }, take: 100 }));
+  const ownRows = await perWindow((endedAt) => tx.dungeonRunWitness.findMany({ where: { guildId, deviceId: source.deviceId, kind: "first-hand", status: "stored", endedAt }, orderBy: { endedAt: "desc" }, take: 60 }) as Promise<WitnessRow[]>);
   const flagsFor = (raw: unknown, ref: string): Anomaly[] => {
     const data = raw as { instanceId?: number; difficultyId?: number; startedAt?: number; endedAt?: number; players?: { character?: unknown; level?: unknown }[]; encounters?: { id?: unknown; at?: unknown; success?: unknown; kind?: unknown }[] };
     const started = typeof data.startedAt === "number" ? data.startedAt : null, ended = typeof data.endedAt === "number" ? data.endedAt : null;
     if (typeof data.instanceId !== "number") return [];
-    const within = (row: { endedAt: Date | null }) => ended === null || !row.endedAt || Math.abs(epoch(row.endedAt)! - ended) <= 4 * 3600;
+    const within = (row: { endedAt: Date | null }) => ended === null || !row.endedAt || Math.abs(epoch(row.endedAt)! - ended) <= (reach ?? 0);
     const fastest = (fastestRows as { instanceId: number; difficultyId: number; _min: { durationSec: number | null }; _count: { _all: number } }[]).find((row) => row.instanceId === data.instanceId && row.difficultyId === (data.difficultyId ?? 0));
     const neighbour = (row: { runRef: string; instanceId: number; startedAt: Date | null; endedAt: Date | null }, characters: string[]): NeighbourRun => ({ runRef: row.runRef, instanceId: row.instanceId, startedAt: epoch(row.startedAt), endedAt: epoch(row.endedAt), characters });
     return plausibilityFlags({
@@ -468,7 +467,7 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
     const partner = decision.store === "witnessed" ? others.find((other) => independent(statement, statementOfRow(other))) : undefined;
     const usePartner = partner && statement.kind === "relay" && partner.kind === "first-hand" && partner.payload;
     const flagList: Anomaly[] = [...(batchFlags.get(ref) ?? []), ...flagsFor(usePartner ? partner.payload : raw, ref),
-      ...(others.some((other) => contradicts(statement, statementOfRow(other))) ? [{ code: "contradicts-copy", detail: "another player's copy of this run disagrees" }] : [])];
+      ...(others.some((other) => contradicts(statement, statementOfRow(other), config.limits)) ? [{ code: "comparison", detail: "comparison" }] : [])];
     if (decision.store !== "witnessed" && earlier?.reason !== "released" && holdsRun(flagList.map((flag) => flag.code), config, strikes)) {
       strikes++;
       await holdRun(ref, raw, statement, flagList);

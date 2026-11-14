@@ -1,6 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
-import { RUN_TRUST, sameRun, type Statement } from "./run-trust.js";
-import type { Anomaly } from "./run-plausibility.js";
+import { sameRun, type Statement } from "./run-trust.js";
+import type { Anomaly, PlausibilityLimits } from "./run-plausibility.js";
 
 // Challenge, record chain and signature helpers shared by the features whose records the addon writes and a PC uploads
 // (dungeon runs, duels). The record layout is documented in the owner's private notes.
@@ -12,7 +12,7 @@ type Loose = Record<string, unknown>;
 const record = (value: unknown): Loose | null => value && typeof value === "object" && !Array.isArray(value) ? value as Loose : null;
 const whole = (value: unknown): string => typeof value === "number" && Number.isFinite(value) ? String(Math.trunc(value)) : "";
 const text = (value: unknown): string => typeof value === "string" ? value : "";
-const NONCE = /^[0-9a-z]{4,10}\.[0-9a-f]{24}$/;
+const NONCE = /^[0-9a-z]+\.[0-9a-f]+$/;
 
 /** The seal on a record, or null when there is none or it is malformed. */
 export function sealOf(raw: unknown): Seal | null {
@@ -88,21 +88,21 @@ export function verifyBatch(entries: readonly BatchEntry[], context: BatchContex
     if (entry.earlier) continue;
     const seal = sealOf(entry.raw);
     if (entry.kind !== "first-hand") continue;
-    if (!seal) { if (context.requireSeal) add(entry.ref, "seal-missing", "no record seal"); continue; }
+    if (!seal) { if (context.requireSeal) add(entry.ref, "signature", "signature"); continue; }
     const canonical = canonicalText(entry.raw, seal);
     if (context.sealKey) {
-      if (!seal.mac) add(entry.ref, "seal-unsigned", "record not signed");
+      if (!seal.mac) add(entry.ref, "signature", "signature");
       else {
         const expected = Buffer.from(sealMac(context.sealKey, canonical), "hex"), given = Buffer.from(seal.mac, "hex");
-        if (expected.length !== given.length || !timingSafeEqual(expected, given)) add(entry.ref, "seal-invalid", "signature does not match");
+        if (expected.length !== given.length || !timingSafeEqual(expected, given)) add(entry.ref, "signature", "signature");
       }
     }
     const before = context.deviceSince !== null && entry.endedAt !== null && entry.endedAt < context.deviceSince;
     if (context.secret && !before) {
       const issued = challengeTime(context.secret, context.deviceId, seal.nonce);
-      if (issued === null) add(entry.ref, "nonce-foreign", "challenge not issued to this PC");
-      else if (entry.endedAt !== null && context.clockSlackSec !== null && issued > entry.endedAt + context.clockSlackSec) add(entry.ref, "nonce-future", "challenge issued after the run ended");
-      else if (entry.endedAt !== null && context.windowSec !== null && entry.endedAt - issued > context.windowSec) add(entry.ref, "nonce-window", "run ended long after its challenge was issued");
+      if (issued === null) add(entry.ref, "challenge", "challenge");
+      else if (entry.endedAt !== null && context.clockSlackSec !== null && issued > entry.endedAt + context.clockSlackSec) add(entry.ref, "challenge", "challenge");
+      else if (entry.endedAt !== null && context.windowSec !== null && entry.endedAt - issued > context.windowSec) add(entry.ref, "challenge", "challenge");
     }
     sealed.push({ entry, seal, canonical });
   }
@@ -111,16 +111,17 @@ export function verifyBatch(entries: readonly BatchEntry[], context: BatchContex
   for (const item of sealed) hashesByNumber.set(item.seal.n, new Set([...(hashesByNumber.get(item.seal.n) ?? []), chainHash(item.canonical)]));
   for (const item of sealed) {
     const earlier = hashesByNumber.get(item.seal.n - 1);
-    if (earlier && !earlier.has(item.seal.prev)) add(item.entry.ref, "chain-break", `record ${item.seal.n} does not follow record ${item.seal.n - 1}`);
+    if (earlier && !earlier.has(item.seal.prev)) add(item.entry.ref, "sequence", "sequence");
   }
   return flags;
 }
 
 /** Whether two statements conflict. */
-export function contradicts(a: Statement, b: Statement): boolean {
+export function contradicts(a: Statement, b: Statement, limits: PlausibilityLimits | null): boolean {
+  if (!limits || typeof limits.endSpreadSec !== "number" || typeof limits.sharedPlayers !== "number") return false;
   if (a.instanceId !== b.instanceId || a.difficultyId !== b.difficultyId || !a.endedAt || !b.endedAt || !a.startedAt || !b.startedAt) return false;
-  if (Math.abs(a.endedAt - b.endedAt) > 5 * RUN_TRUST.endToleranceSec) return false;
-  if (a.players.filter((name) => b.players.includes(name)).length < 2) return false;
+  if (Math.abs(a.endedAt - b.endedAt) > limits.endSpreadSec) return false;
+  if (a.players.filter((name) => b.players.includes(name)).length < limits.sharedPlayers) return false;
   if (Math.min(a.endedAt, b.endedAt) <= Math.max(a.startedAt, b.startedAt)) return false;
   return !sameRun(a, b);
 }

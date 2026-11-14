@@ -6,19 +6,9 @@ import { firstNameKey } from "./dungeon-import.js";
 // how many independent statements agree, never by which anonymous key uploaded it. Pure functions; the database side
 // is storeDeviceRuns (companion-device.ts).
 
-/**
- * Owner decision, 13 November 2026 (docs/plans/SINGLE_WITNESS_2026-11-13.md): one witness is enough for a run to be stored and
- * ranked, in device and signed mode, now and from Season 2 on. Server-side checks (run-integrity-config.ts, run-challenge.ts)
- * replace the second statement. One switch: set false to bring back the second-statement rules (anchor or a second device from
- * Season 2, pending and expiry, public boards without device runs from Season 2).
- */
+/** One witness is enough for a run to be stored and ranked (docs/plans/SINGLE_WITNESS_2026-11-13.md). Set false for the earlier rules. */
 export const SINGLE_WITNESS = true;
-/**
- * The date from which one witness is enough, for docs and the public page ("from 13 November 2026 one witness is enough"). It applies to
- * the current Season 1 too (owner, 13 November: "apply to season 1"), an explicit override of the frozen-season-rules principle for this one
- * point: the hashed rules snapshot is not touched, runs that already counted are not re-scored or reordered, and runs that were held
- * (pending) are stored at their device's next upload, with the plausibility flags.
- */
+/** The date from which one witness is enough. */
 export const SINGLE_WITNESS_SINCE = "2026-11-13";
 
 export const RUN_TRUST = {

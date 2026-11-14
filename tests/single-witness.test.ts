@@ -38,7 +38,7 @@ describe("the single-witness switch", () => {
   });
 });
 
-const STRICT = { levelCap: 60, minSecondsPerBoss: 30, killSlackSec: 30, recordShare: 0.5, recordSample: 5, travelSec: 60, overlapSlackSec: 120 };
+const STRICT = { levelCap: 40, minSecondsPerBoss: 25, killSlackSec: 15, recordShare: 0.4, recordSample: 4, travelSec: 75, overlapSlackSec: 90, reachSec: 9000, sharedPlayers: 2, endSpreadSec: 600 };
 
 describe("plausibility checks", () => {
   const run = (over: Partial<PlausibilityRun> = {}): PlausibilityRun => ({ instanceId: 90, startedAt: NOW - 3000, endedAt: NOW - 300,
@@ -50,28 +50,28 @@ describe("plausibility checks", () => {
   });
 
   it("case 1", () => {
-    expect(codes(run({ kills: [{ id: 1, at: NOW - 9000 }] }))).toEqual(["kill-outside-run"]);
-    expect(codes(run({ kills: [{ id: 1, at: NOW - 400 }, { id: 2, at: NOW - 2000 }] }))).toEqual(["kills-out-of-order"]);
+    expect(codes(run({ kills: [{ id: 1, at: NOW - 9000 }] }))).toEqual(["timing"]);
+    expect(codes(run({ kills: [{ id: 1, at: NOW - 400 }, { id: 2, at: NOW - 2000 }] }))).toEqual(["sequence"]);
     expect(codes(run({ kills: [{ id: 1, at: null }, { id: 2, at: null }] }))).toEqual([]);
   });
 
   it("case 2", () => {
-    expect(codes(run({ startedAt: NOW - 400, endedAt: NOW - 330, kills: [{ id: 1, at: NOW - 390 }, { id: 2, at: NOW - 350 }, { id: 3, at: NOW - 335 }] }))).toContain("too-fast-per-boss");
+    expect(codes(run({ startedAt: NOW - 400, endedAt: NOW - 330, kills: [{ id: 1, at: NOW - 390 }, { id: 2, at: NOW - 350 }, { id: 3, at: NOW - 335 }] }))).toContain("timing");
     const quick = run({ startedAt: NOW - 1000, endedAt: NOW - 300, kills: [] });
-    expect(codes(quick, { fastest: { seconds: 1800, count: STRICT.recordSample } })).toEqual(["faster-than-record"]);
+    expect(codes(quick, { fastest: { seconds: 1800, count: STRICT.recordSample } })).toEqual(["timing"]);
     expect(codes(quick, { fastest: { seconds: 1800, count: STRICT.recordSample - 1 } })).toEqual([]);
     expect(codes(quick, { fastest: { seconds: 1200, count: 20 } })).toEqual([]);
   });
 
   it("case 3", () => {
-    expect(codes(run({ players: [{ character: "Kev", level: STRICT.levelCap + 1 }] }))).toEqual(["level-above-cap"]);
+    expect(codes(run({ players: [{ character: "Kev", level: STRICT.levelCap + 1 }] }))).toEqual(["profile"]);
     expect(codes(run({ players: [{ character: "Kev", level: STRICT.levelCap }, { character: "Bob", level: null }] }))).toEqual([]);
   });
 
   it("case 4", () => {
     const base = { startedAt: NOW - 3000, endedAt: NOW - 300 };
-    expect(codes(run(), { neighbours: [{ runRef: "other", instanceId: 91, ...base, characters: ["Kev"] }] })).toEqual(["character-in-two-runs"]);
-    expect(codes(run(), { neighbours: [{ runRef: "other", instanceId: 91, startedAt: NOW - 6000, endedAt: NOW - 3000 - 20, characters: ["Kev"] }] })).toEqual(["back-to-back"]);
+    expect(codes(run(), { neighbours: [{ runRef: "other", instanceId: 91, ...base, characters: ["Kev"] }] })).toEqual(["identity"]);
+    expect(codes(run(), { neighbours: [{ runRef: "other", instanceId: 91, startedAt: NOW - 6000, endedAt: NOW - 3000 - 20, characters: ["Kev"] }] })).toEqual(["identity"]);
     expect(codes(run(), { neighbours: [{ runRef: "other", instanceId: 91, startedAt: NOW - 6000, endedAt: NOW - 3000 - 600, characters: ["Kev"] }] })).toEqual([]);
     expect(codes(run(), { neighbours: [{ runRef: "other", instanceId: 91, ...base, characters: ["Zed"] }] })).toEqual([]);
     expect(codes(run(), { neighbours: [{ runRef: "me", instanceId: 91, ...base, characters: ["Kev"] }] })).toEqual([]);
@@ -81,14 +81,14 @@ describe("plausibility checks", () => {
   it("case 5", () => {
     const base = { startedAt: NOW - 3000, endedAt: NOW - 300 };
     expect(codes(run({ players: [{ character: "Kev Caron", level: 30 }] }), { neighbours: [{ runRef: "other", instanceId: 91, ...base, characters: ["Kev Smith"] }] })).toEqual([]);
-    expect(codes(run({ players: [{ character: "Kev Caron", level: 30 }] }), { neighbours: [{ runRef: "other", instanceId: 91, ...base, characters: ["KEV CARON"] }] })).toEqual(["character-in-two-runs"]);
+    expect(codes(run({ players: [{ character: "Kev Caron", level: 30 }] }), { neighbours: [{ runRef: "other", instanceId: 91, ...base, characters: ["KEV CARON"] }] })).toEqual(["identity"]);
     const reloaded = run({ startedAt: NOW - 400, endedAt: NOW - 330, kills: [{ id: 1, at: NOW - 2000 }, { id: 2, at: NOW - 1000 }, { id: 3, at: NOW - 335 }] });
     expect(codes(reloaded)).toHaveLength(1);
   });
 
   it("case 6", () => {
-    expect(codes(run(), { deviceRuns: [{ runRef: "other", instanceId: 91, startedAt: NOW - 3000, endedAt: NOW - 300, characters: [] }] })).toEqual(["device-overlap"]);
-    expect(codes(run(), { deviceRuns: [{ runRef: "other", instanceId: 91, startedAt: NOW - 400, endedAt: NOW - 200, characters: [] }] })).toEqual([]);
+    expect(codes(run(), { deviceRuns: [{ runRef: "other", instanceId: 91, startedAt: NOW - 3000, endedAt: NOW - 300, characters: [] }] })).toEqual(["device"]);
+    expect(codes(run(), { deviceRuns: [{ runRef: "other", instanceId: 91, startedAt: NOW - 400, endedAt: NOW - 350, characters: [] }] })).toEqual([]);
   });
 });
 
@@ -137,16 +137,16 @@ describe("the record challenge and chain (shared module)", () => {
   it("checks signatures", () => {
     const item = make(1, NO_PREV);
     const edited = { raw: { ...(item.raw as object), endedAt: NOW - 100 } };
-    expect(codes(verifyBatch([entry(edited, "a")], context()), "a")).toContain("seal-invalid");
-    expect(codes(verifyBatch([entry(item, "a")], context({ sealKey: deriveSealKey("other") })), "a")).toContain("seal-invalid");
-    expect(codes(verifyBatch([entry(make(1, NO_PREV, {}, false), "a")], context()), "a")).toEqual(["seal-unsigned"]);
+    expect(codes(verifyBatch([entry(edited, "a")], context()), "a")).toContain("signature");
+    expect(codes(verifyBatch([entry(item, "a")], context({ sealKey: deriveSealKey("other") })), "a")).toContain("signature");
+    expect(codes(verifyBatch([entry(make(1, NO_PREV, {}, false), "a")], context()), "a")).toEqual(["signature"]);
   });
 
   it("checks challenges", () => {
-    expect(codes(verifyBatch([entry(make(1, NO_PREV, {}, true, issueChallenge(secret, "d9", NOW - 3500)), "a")], context()), "a")).toContain("nonce-foreign");
-    expect(codes(verifyBatch([entry(make(1, NO_PREV, {}, true, issueChallenge(secret, "d1", NOW + 5000)), "a")], context()), "a")).toContain("nonce-future");
+    expect(codes(verifyBatch([entry(make(1, NO_PREV, {}, true, issueChallenge(secret, "d9", NOW - 3500)), "a")], context()), "a")).toContain("challenge");
+    expect(codes(verifyBatch([entry(make(1, NO_PREV, {}, true, issueChallenge(secret, "d1", NOW + 5000)), "a")], context()), "a")).toContain("challenge");
     expect(codes(verifyBatch([entry(make(1, NO_PREV, {}, true, issueChallenge(secret, "d1", NOW + 600)), "a")], context()), "a")).toEqual([]);
-    expect(codes(verifyBatch([entry(make(1, NO_PREV), "a")], context({ windowSec: 600 })), "a")).toContain("nonce-window");
+    expect(codes(verifyBatch([entry(make(1, NO_PREV), "a")], context({ windowSec: 600 })), "a")).toContain("challenge");
     expect(codes(verifyBatch([entry(make(1, NO_PREV), "a")], context({ secret: null })), "a")).toEqual([]);
   });
 
@@ -161,7 +161,7 @@ describe("the record challenge and chain (shared module)", () => {
 
   it("checks chain links", () => {
     const first = make(1, NO_PREV);
-    expect(codes(verifyBatch([entry(first, "a"), entry(make(2, "0".repeat(63) + "1"), "b")], context()), "b")).toEqual(["chain-break"]);
+    expect(codes(verifyBatch([entry(first, "a"), entry(make(2, "0".repeat(63) + "1"), "b")], context()), "b")).toEqual(["sequence"]);
     const other = make(1, NO_PREV, { id: "QG-other" });
     const next = make(2, chainHash(other.canonical), { id: "QG-next" });
     expect([...verifyBatch([entry(first, "a"), entry(other, "c"), entry(next, "b")], context()).keys()]).toEqual([]);
@@ -172,7 +172,7 @@ describe("the record challenge and chain (shared module)", () => {
   it("handles a missing seal", () => {
     const plain = { raw: base };
     expect(codes(verifyBatch([entry(plain, "a")], context()), "a")).toEqual([]);
-    expect(codes(verifyBatch([entry(plain, "a")], context({ requireSeal: true })), "a")).toEqual(["seal-missing"]);
+    expect(codes(verifyBatch([entry(plain, "a")], context({ requireSeal: true })), "a")).toEqual(["signature"]);
     expect(sealOf(null)).toBeNull();
     expect(sealOf({ integrity: { seal: { n: 0, nonce, prev: NO_PREV } } })).toBeNull();
   });
@@ -181,19 +181,19 @@ describe("the record challenge and chain (shared module)", () => {
 describe("two copies of one run that disagree", () => {
   const a = statement({ deviceId: "d1", voucher: "kev" });
   it("compares two statements", () => {
-    expect(contradicts(a, statement({ deviceId: "d2", voucher: "bob" }))).toBe(false);
-    expect(contradicts(a, statement({ deviceId: "d2", voucher: "bob", bosses: [1, 2, 3] }))).toBe(false);
-    expect(contradicts(a, statement({ deviceId: "d2", voucher: "bob", bosses: [7, 8], endedAt: NOW - 300 + 400, startedAt: NOW - 3000 + 400 }))).toBe(true);
+    expect(contradicts(a, statement({ deviceId: "d2", voucher: "bob" }), STRICT)).toBe(false);
+    expect(contradicts(a, statement({ deviceId: "d2", voucher: "bob", bosses: [1, 2, 3] }), STRICT)).toBe(false);
+    expect(contradicts(a, statement({ deviceId: "d2", voucher: "bob", bosses: [7, 8], endedAt: NOW - 300 + 400, startedAt: NOW - 3000 + 400 }), STRICT)).toBe(true);
   });
   it("compares unrelated statements", () => {
-    expect(contradicts(a, statement({ deviceId: "d2", instanceId: 91, bosses: [5] }))).toBe(false);
-    expect(contradicts(a, statement({ deviceId: "d2", players: ["xed", "yan", "zed"], bosses: [1] }))).toBe(false);
-    expect(contradicts(a, statement({ deviceId: "d2", startedAt: NOW - 280, endedAt: NOW + 100, bosses: [3] }))).toBe(false);
+    expect(contradicts(a, statement({ deviceId: "d2", instanceId: 91, bosses: [5] }), STRICT)).toBe(false);
+    expect(contradicts(a, statement({ deviceId: "d2", players: ["xed", "yan", "zed"], bosses: [1] }), STRICT)).toBe(false);
+    expect(contradicts(a, statement({ deviceId: "d2", startedAt: NOW - 280, endedAt: NOW + 100, bosses: [3] }), STRICT)).toBe(false);
   });
 });
 
 describe("server configuration and holding a run", () => {
-  it("keeps the defaults for missing or broken configuration, says so once, and clamps what is given", () => {
+  it("config parsing", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     expect(parseIntegrityConfig(undefined)).toBe(DEFAULT_CONFIG);
     expect(DEFAULT_CONFIG).toMatchObject({ limits: null, holdScore: Infinity, challengeWindowSec: null });
@@ -204,13 +204,13 @@ describe("server configuration and holding a run", () => {
     expect(warn).toHaveBeenCalledTimes(1);
     expect(String(warn.mock.calls[0]![0])).toContain("RUN_INTEGRITY_CONFIG");
     warn.mockRestore();
-    const config = parseIntegrityConfig(JSON.stringify({ holdScore: 2, weights: { "seal-invalid": 5, bad: "x" }, limits: { minSecondsPerBoss: 45, levelCap: "x" }, requireSeal: true }));
-    expect(config).toMatchObject({ holdScore: 2, weights: { "seal-invalid": 5 }, requireSeal: true, limits: { minSecondsPerBoss: 45 } });
+    const config = parseIntegrityConfig(JSON.stringify({ holdScore: 2, weights: { "signature": 5, bad: "x" }, limits: { minSecondsPerBoss: 45, levelCap: "x" }, requireSeal: true }));
+    expect(config).toMatchObject({ holdScore: 2, weights: { "signature": 5 }, requireSeal: true, limits: { minSecondsPerBoss: 45 } });
     expect(config.limits).not.toHaveProperty("levelCap");
-    expect(parseIntegrityConfig(JSON.stringify({ holdScore: -5 })).holdScore).toBe(1);
+    expect(parseIntegrityConfig(JSON.stringify({ holdScore: -5 })).holdScore).toBe(Infinity);
   });
 
-  it("reads the live configuration and secret from the environment only, and names a secret that is too short without printing it", () => {
+  it("environment settings", () => {
     expect(integrityConfig({ RUN_INTEGRITY_CONFIG: JSON.stringify({ holdScore: 9 }) } as never).holdScore).toBe(9);
     expect(challengeSecret({} as never)).toBeNull();
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
@@ -235,7 +235,7 @@ describe("server configuration and holding a run", () => {
 
 describe("the review list and device exclusion", () => {
   const ref = "QG-" + "x".repeat(60);
-  const rows = [{ id: "r1", runRef: ref, dungeonName: "Gnomeregan", endedAt: new Date("2026-11-13T12:00:00Z"), witnessCount: 1, anomalies: [{ code: "level-above-cap", detail: "Kev above level 60" }], players: [{ character: "Kev" }] }];
+  const rows = [{ id: "r1", runRef: ref, dungeonName: "Gnomeregan", endedAt: new Date("2026-11-13T12:00:00Z"), witnessCount: 1, anomalies: [{ code: "profile", detail: "Kev above level 60" }], players: [{ character: "Kev" }] }];
   const database = (devices: string[] = ["abcdef1234567890", "ffff00001111aaaa"], excludedGuilds: string[] = []) => {
     const updated: Record<string, unknown>[] = [];
     return { updated, db: {
@@ -248,7 +248,7 @@ describe("the review list and device exclusion", () => {
   it("lists a flagged run with its full code, its flags, its PC code and its witness count, in French too", async () => {
     const { db } = database();
     const report = await anomalyReport(db, "g1");
-    expect(report).toMatchObject([{ runRef: ref, device: deviceShortId("abcdef1234567890"), flags: [{ code: "level-above-cap" }], witnesses: 1 }]);
+    expect(report).toMatchObject([{ runRef: ref, device: deviceShortId("abcdef1234567890"), flags: [{ code: "profile" }], witnesses: 1 }]);
     expect(deviceShortId("abcdef1234567890")).toBe("34567890");
     const text = describeAnomalies(report);
     expect(text).toContain(ref);

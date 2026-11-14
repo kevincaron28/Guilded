@@ -126,9 +126,9 @@ export async function executeDungeonAdmin(interaction: ChatInputCommandInteracti
     const release = interaction.options.getString("run");
     if (release) {
       const done = await releaseHeldRuns(prisma, context.guildId, { runRef: release });
-      if (done.counted) await log("released a held dungeon run", { runRef: release });
+      if (done.picked) await log("released a held dungeon run", { runRef: release });
       await interaction.reply({ content: done.ambiguous ? tx(lang, "Several held runs start with that code: give more of it.") : !done.picked ? tx(lang, "No held run has that code.")
-        : done.counted ? tx(lang, "Released: it counts now.") : tx(lang, "Released, but it could not be counted."), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+        : done.counted ? tx(lang, "Released: it counts now.") : done.already ? tx(lang, "That run already counts.") : tx(lang, "Released: it counts when its PC sends it again."), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
       return;
     }
     if (!pc) {

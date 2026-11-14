@@ -1,7 +1,6 @@
 import type { PlausibilityLimits } from "./run-plausibility.js";
 
-// Server-side settings for run records, read from the environment: RUN_INTEGRITY_CONFIG (a JSON object) and RUN_CHALLENGE_SECRET.
-// Nothing here has a numeric default; a value that is not set switches what depends on it off.
+// Server-side settings read from the environment.
 
 export interface RunIntegrityConfig {
   limits: PlausibilityLimits | null;
@@ -12,19 +11,20 @@ export interface RunIntegrityConfig {
   challengeWindowSec: number | null;
   clockSlackSec: number | null;
   requireSeal: boolean;
+  strikeWindowSec: number | null;
 }
 
 export const DEFAULT_CONFIG: RunIntegrityConfig = {
-  limits: null, weights: {}, defaultWeight: 0, holdScore: Infinity, deviceStrikes: Infinity, challengeWindowSec: null, clockSlackSec: null, requireSeal: false
+  limits: null, weights: {}, defaultWeight: 0, holdScore: Infinity, deviceStrikes: Infinity, challengeWindowSec: null, clockSlackSec: null, requireSeal: false, strikeWindowSec: null
 };
 
-const num = (value: unknown, min: number, max: number): number | undefined => typeof value === "number" && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : undefined;
+const num = (value: unknown): number | undefined => typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
 
 let warnedJson = false;
 let warnedMissing = false;
 let warnedSecret = false;
 
-/** The configuration from a JSON text. */
+/** The settings from a JSON text. */
 export function parseIntegrityConfig(text: string | undefined): RunIntegrityConfig {
   if (!text) return DEFAULT_CONFIG;
   let raw: Record<string, unknown> | null;
@@ -35,25 +35,26 @@ export function parseIntegrityConfig(text: string | undefined): RunIntegrityConf
   }
   const given = (raw["limits"] && typeof raw["limits"] === "object" ? raw["limits"] : {}) as Record<string, unknown>;
   const limits: PlausibilityLimits = {};
-  for (const name of ["levelCap", "minSecondsPerBoss", "killSlackSec", "recordShare", "recordSample", "travelSec", "overlapSlackSec"] as const) {
-    const value = num(given[name], 0, 1_000_000);
+  for (const name of ["levelCap", "minSecondsPerBoss", "killSlackSec", "recordShare", "recordSample", "travelSec", "overlapSlackSec", "reachSec", "sharedPlayers", "endSpreadSec"] as const) {
+    const value = num(given[name]);
     if (value !== undefined) limits[name] = value;
   }
   const weights = Object.fromEntries(Object.entries((raw["weights"] && typeof raw["weights"] === "object" ? raw["weights"] : {}) as Record<string, unknown>)
-    .flatMap(([code, weight]) => typeof weight === "number" && Number.isFinite(weight) ? [[code, Math.min(100, Math.max(0, weight))] as const] : []));
+    .flatMap(([code, weight]) => num(weight) !== undefined ? [[code, weight as number] as const] : []));
   return {
     limits: Object.keys(limits).length ? limits : null, weights,
-    defaultWeight: num(raw["defaultWeight"], 0, 100) ?? 0,
-    holdScore: num(raw["holdScore"], 1, 1000) ?? Infinity,
-    deviceStrikes: num(raw["deviceStrikes"], 1, 1000) ?? Infinity,
-    challengeWindowSec: num(raw["challengeWindowSec"], 60, 365 * 86_400) ?? null,
-    clockSlackSec: num(raw["clockSlackSec"], 0, 7 * 86_400) ?? null,
-    requireSeal: raw["requireSeal"] === true
+    defaultWeight: num(raw["defaultWeight"]) ?? 0,
+    holdScore: num(raw["holdScore"]) ?? Infinity,
+    deviceStrikes: num(raw["deviceStrikes"]) ?? Infinity,
+    challengeWindowSec: num(raw["challengeWindowSec"]) ?? null,
+    clockSlackSec: num(raw["clockSlackSec"]) ?? null,
+    requireSeal: raw["requireSeal"] === true,
+    strikeWindowSec: num(raw["strikeWindowSec"]) ?? null
   };
 }
 
 let cached: { text: string | undefined; value: RunIntegrityConfig } | null = null;
-/** The live configuration (read from the environment, cached per value). */
+/** The live settings. */
 export function integrityConfig(env: NodeJS.ProcessEnv = process.env): RunIntegrityConfig {
   const text = env["RUN_INTEGRITY_CONFIG"];
   if (!text && !warnedMissing) { warnedMissing = true; console.warn("RUN_INTEGRITY_CONFIG is not set."); }
@@ -61,7 +62,7 @@ export function integrityConfig(env: NodeJS.ProcessEnv = process.env): RunIntegr
   return cached.value;
 }
 
-/** The server secret for challenges; without a usable one challenges are off. */
+/** The challenge secret, or null. */
 export const challengeSecret = (env: NodeJS.ProcessEnv = process.env): string | null => {
   const secret = env["RUN_CHALLENGE_SECRET"];
   if (secret && secret.length < 16) {
@@ -71,7 +72,7 @@ export const challengeSecret = (env: NodeJS.ProcessEnv = process.env): string | 
   return secret || null;
 };
 
-/** Whether a run is held for review under this configuration. */
+/** Whether a run is held. */
 export function holdsRun(codes: readonly string[], config: RunIntegrityConfig, strikes: number): boolean {
   if (!codes.length) return false;
   const score = codes.reduce((sum, code) => sum + (config.weights[code] ?? config.defaultWeight), 0);

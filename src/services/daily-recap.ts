@@ -43,7 +43,7 @@ export async function dailyRecap(db: RecapDb, guildId: string, day: string, time
     db.dungeonRun.findMany({ where: { guildId, valid: true, state: "COMPLETED", durationSec: { not: null }, endedAt: window, NOT: { runRef: { startsWith: "SIM-" } }, players: { some: GUILD_PLAYER } },
       select: { instanceId: true, players: { where: GUILD_PLAYER, select: { memberId: true, character: true, member: { select: { displayName: true } } } } }, take: 2000 }),
     db.dungeonHighlight.findMany({ where: { guildId, createdAt: window }, select: { kind: true, label: true, valueSec: true, previousSec: true, dungeonName: true }, orderBy: { createdAt: "asc" }, take: 30 }),
-    db.duelResult.findMany({ where: { guildId, counted: true, endedAt: window }, select: { winnerId: true, winnerCharacter: true }, take: 2000 }),
+    db.duelResult.findMany({ where: { guildId, counted: true, archived: false, endedAt: window }, select: { winnerId: true, winnerCharacter: true }, take: 2000 }),
     db.battlegroundReport.findMany({ where: { guildId, endedAt: window, status: { notIn: ["WITHDRAWN", "CONFLICT"] }, member: { status: "ACTIVE", battlegroundConsent: { guildStats: true } } },
       select: { outcome: true }, take: 2000 })
   ]);

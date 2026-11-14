@@ -12,8 +12,10 @@ import { weekStart } from "./dungeon-rules.js";
 
 export const RATING = {
   id: "rating-v1",
-  /** The first rated season starts here (1 December 2026 00:00 UTC). Before it, the old points rules apply unchanged ("Season 0"). */
-  startsAt: "2026-12-01T00:00:00.000Z",
+  /** The ladders start here (13 November 2026 00:00 UTC, owner decision). Duels that ended before it are archived test data and appear nowhere. */
+  startsAt: "2026-11-13T00:00:00.000Z",
+  /** The first season runs from `startsAt` to here (1 January 2027 00:00 UTC, exclusive); after it seasons are calendar months. */
+  firstSeasonEndsAt: "2027-01-01T00:00:00.000Z",
   start: 1000,
   /** K by the number of RATED duels the player already has: below `upTo` use `k`. */
   kBands: [{ upTo: 10, k: 40 }, { upTo: 30, k: 24 }, { upTo: 1_000_000, k: 16 }],
@@ -31,7 +33,12 @@ export const RATING = {
   rankedOpponents: 4
 } as const;
 
-export const RATING_START = new Date(RATING.startsAt);
+/**
+ * The one switch: set the environment variable DUEL_RATING=off and every board goes back to the points ladder (counting only duels since the
+ * start) without a deploy of code. Unset (the default) = the rating is on.
+ */
+export const RATING_SWITCHED_ON = process.env["DUEL_RATING"] !== "off";
+export const RATING_START = RATING_SWITCHED_ON ? new Date(RATING.startsAt) : new Date("2100-01-01T00:00:00.000Z");
 
 export interface RatedDuel {
   /** Member ids (any stable string; never printed). */
@@ -63,9 +70,14 @@ export interface RatingChange {
 
 export interface SeasonInfo { id: string; from: Date; to: Date | null; rated: boolean }
 
-/** The rating season a time falls in: "s0" (the old points, before the start) or a calendar month "YYYY-MM" in UTC. */
+/**
+ * The rating season a time falls in: "s0" before the start (archived: no board shows it), the first season (from the start to
+ * `firstSeasonEndsAt`, id "YYYY-MM" of the start month), then calendar months "YYYY-MM" in UTC.
+ */
 export function seasonOf(at: Date, startsAt: Date = RATING_START): SeasonInfo {
   if (at < startsAt) return { id: "s0", from: new Date(0), to: startsAt, rated: false };
+  const firstEnd = new Date(RATING.firstSeasonEndsAt);
+  if (startsAt < firstEnd && at < firstEnd) return { id: `${startsAt.getUTCFullYear()}-${String(startsAt.getUTCMonth() + 1).padStart(2, "0")}`, from: startsAt, to: firstEnd, rated: true };
   const from = new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), 1));
   const to = new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth() + 1, 1));
   return { id: `${from.getUTCFullYear()}-${String(from.getUTCMonth() + 1).padStart(2, "0")}`, from: from < startsAt ? startsAt : from, to, rated: true };
@@ -157,8 +169,26 @@ export function showChange(value: number): string {
   return rounded > 0 ? `+${rounded}` : rounded < 0 ? `${rounded}` : "0";
 }
 
-/** A season's name for a board: "Season 0 (points)", "December 2026". */
+/** Season ids from the one `now` is in back to the first, newest first. */
+export function ratingSeasonIds(now: Date, startsAt: Date = RATING_START): string[] {
+  const out: string[] = [];
+  let at = now;
+  for (let i = 0; i < 60 && at >= startsAt; i++) {
+    const season = seasonOf(at, startsAt);
+    out.push(season.id);
+    at = new Date(season.from.getTime() - 1);
+  }
+  return out;
+}
+
+/** A season's name for a board: "November 13 – December 31, 2026" (the first), "January 2027". */
 export function ratingSeasonName(id: string, lang: "en" | "fr"): string {
-  if (id === "s0") return lang === "fr" ? "Saison 0 (points)" : "Season 0 (points)";
+  const first = seasonOf(RATING_START, RATING_START);
+  if (first.rated && id === first.id) {
+    const last = new Date(first.to!.getTime() - 1);
+    const day = (d: Date) => d.toLocaleDateString(lang === "fr" ? "fr-CA" : "en-CA", { day: "numeric", month: "long", timeZone: "UTC" });
+    const year = last.getUTCFullYear();
+    return lang === "fr" ? `${day(first.from)} – ${day(last)} ${year}` : `${day(first.from)} – ${day(last)}, ${year}`;
+  }
   return new Date(`${id}-01T00:00:00Z`).toLocaleDateString(lang === "fr" ? "fr-CA" : "en-CA", { month: "long", year: "numeric", timeZone: "UTC" });
 }

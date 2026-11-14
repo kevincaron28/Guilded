@@ -80,7 +80,7 @@ export function duelBoardEmbed(data: DuelBoardData, lang: Lang, image?: string):
 
 export async function loadDuelBoardData(db: Pick<PrismaClient, "duelResult"> & { guildSettings?: Pick<PrismaClient["guildSettings"], "findUnique"> }, guildId: string, edition: string, now = new Date()): Promise<DuelBoardData> {
   const { standings, duels, mode, season, startsAt } = await duelLadder(db, guildId, edition, { limit: CARD_TOP, now });
-  const recentRows = await db.duelResult.findMany({ where: { guildId, gameEdition: edition, counted: true, endedAt: { gte: new Date(now.getTime() - RECENT_DAYS * 86_400_000) } },
+  const recentRows = await db.duelResult.findMany({ where: { guildId, gameEdition: edition, counted: true, archived: false, endedAt: { gte: new Date(now.getTime() - RECENT_DAYS * 86_400_000) } },
     orderBy: { endedAt: "desc" }, take: RECENT, select: { winnerCharacter: true, loserCharacter: true, endedAt: true, reason: true } });
   return { standings, duels, edition, mode, ...(season ? { seasonId: season.id } : {}), startsAt,
     recent: recentRows.map(row => ({ winner: row.winnerCharacter, loser: row.loserCharacter, endedAt: row.endedAt, reason: row.reason })) };

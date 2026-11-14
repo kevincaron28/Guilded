@@ -35,7 +35,6 @@ The simulation (`duelsim`, seeded, 13 players, 21 days, 265 duels before caps) i
 * **Class and gear imbalance** cannot be fixed by scoring; only level and result are known (the addon cannot read gear or the combat log).
 * **New players never catch up.** Points are cumulative all-time: Fay (22, 9-3) is 7th.
 * **Inactivity.** Nothing decays, so a veteran who stopped in November stays on top.
-* **Reporting trust.** Every result comes from a member's own addon; two cooperating members can invent duels (the dedupe only checks winner, loser, time). The caps limit the damage but do not remove it.
 
 ## 3. How comparable ladders score (and what fits a small guild)
 
@@ -45,7 +44,7 @@ The simulation (`duelsim`, seeded, 13 players, 21 days, 265 duels before caps) i
 * **Win-streak bonuses** are popular for fun but amplify farming (a friend can feed a streak), so they are better kept as a displayed statistic than as points.
 * **Minimum games / distinct opponents to be ranked** is the cheapest anti-farming rule: a ranking with one opponent is meaningless.
 * **Diminishing returns per pair** (the n-th duel of the same pair in a window is worth less) is used by trading-card and fighting-game ladders against win-trading.
-* **Fit for a small guild with self-reported results**: results can be faked by two cooperating members, so (1) do not make the number depend on a single pair, (2) require several distinct opponents, (3) keep the pair cap, (4) reduce the value of repeated pairs, (5) keep the stakes social: no rewards (already the rule). Elo's zero-sum nature helps here: a farmer takes rating from a friend, and with few opponents that friend is simply unranked.
+* **Fit for a small guild with self-reported results**: a ranking should not rest on one pair, so (1) do not make the number depend on a single pair, (2) require several distinct opponents, (3) keep the pair cap, (4) reduce the value of repeated pairs, (5) keep the stakes social: no rewards (already the rule). Elo's zero-sum nature helps here: a farmer takes rating from a friend, and with few opponents that friend is simply unranked.
 
 ## 4. Three proposed rule sets, simulated
 
@@ -88,7 +87,7 @@ and degrades well when results are self-reported. Cost: it is a number members h
 Switching without rewriting history unfairly:
 
 1. Keep every stored result and the old points. Nothing is deleted or recalculated into old rows.
-2. **Start the new rules at a date** (best: the start of a calendar month, announced a week before), with the old ladder frozen as "Season 0 (points)" and kept as a read-only page. The new ladder starts everyone at 1000.
+2. **Start the new rules at a date** (best: the start of a calendar month, announced a week before), with the earlier duels archived. The new ladder starts everyone at 1000.
 3. The board shows which rules apply (`DUEL_RULES.id`, name and start date), and in the transition month both can be shown.
 4. A season is a calendar month or a quarter; the rating resets each season (or is pulled halfway to 1000) so new players can catch up. The page already supports a season filter for this.
 
@@ -104,6 +103,7 @@ Open questions for the owner: minimum duels/opponents (5/4 is tuned for a guild 
 
 The owner chose rule set C. Implemented as `src/services/duel-rating.ts` (rules and pure functions), with these defaults: ranked after 8 duels against 4
 different opponents (placement shown as "3/8"), the weekly pair weight of section 4 (the weekly window is the existing Tuesday 15:00 UTC reset), duels between
-players more than 10 levels apart move nothing, calendar-month seasons in UTC, everyone back to 1000 each season, and the first rated season starting on
-1 December 2026 00:00 UTC. Earlier duels stay as the frozen "Season 0 (points)". `GuildSettings.duelRatingStartsAt` lets one server move its own start date
+players more than 10 levels apart move nothing, calendar-month seasons in UTC, everyone back to 1000 each season, and the ladders starting on
+13 November 2026 00:00 UTC (owner, 13 November): the first season runs to 31 December 2026, then calendar months. Duels before the start were test data: they
+are flagged `archived` (not deleted) and appear nowhere; undo with `UPDATE "DuelResult" SET "archived" = false WHERE "endedAt" < '2026-11-13T00:00:00Z'`. `GuildSettings.duelRatingStartsAt` lets one server move its own start date
 (for tests); null means the default. The addon follows [DUEL_RATING_ADDON_SPEC.md](DUEL_RATING_ADDON_SPEC.md).

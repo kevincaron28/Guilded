@@ -158,8 +158,8 @@ export async function gatherAchievementFacts(db: Db, guildId: string, memberId: 
     db.communityHonorAward.findMany({ where: { guildId, kind: "WEEK", userId: member.discordUserId }, select: { createdAt: true }, orderBy: { createdAt: "asc" }, take: 200 }),
     // Lifetime honorable kills as the member's own addon reported them (the highest step it has recorded).
     db.memberMilestone.aggregate({ where: { guildId, memberId, kind: "hk" }, _max: { value: true } }),
-    db.duelResult.findMany({ where: { guildId, counted: true, OR: [{ winnerId: memberId }, { loserId: memberId }] }, orderBy: { endedAt: "asc" }, take: 5000, select: { winnerId: true, loserId: true } }),
-    db.duelResult.groupBy({ by: ["winnerId"], where: { guildId, counted: true }, _count: { _all: true }, orderBy: { _count: { winnerId: "desc" } }, take: 1 }),
+    db.duelResult.findMany({ where: { guildId, counted: true, archived: false, OR: [{ winnerId: memberId }, { loserId: memberId }] }, orderBy: { endedAt: "asc" }, take: 5000, select: { winnerId: true, loserId: true } }),
+    db.duelResult.groupBy({ by: ["winnerId"], where: { guildId, counted: true, archived: false }, _count: { _all: true }, orderBy: { _count: { winnerId: "desc" } }, take: 1 }),
     // Craft-board requests this member finished for someone else.
     db.craftRequest.findMany({ where: { guildId, crafterId: memberId, status: "DONE", requesterId: { not: memberId } }, select: { doneAt: true, updatedAt: true }, orderBy: { updatedAt: "asc" }, take: Math.max(1000, max("craftsDone") * 4) }),
     // Guild-wide: who reached skill 300 and when (live reaches are `profnew:<key>`, steps `prof:<key>-300`).

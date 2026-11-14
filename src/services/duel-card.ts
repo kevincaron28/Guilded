@@ -175,7 +175,7 @@ const base = (card: ScoreCard, fallback: EmbedBuilder) => ({ route: "duelCard", 
  */
 export async function queueDuelCards(database: Database, guildId: string, edition: string, lang: Lang, fresh: readonly FreshDuel[], classes: ClassBook, names: FullNameBook, now = new Date()): Promise<number> {
   if (!fresh.length) return 0;
-  const history = await database.duelResult.findMany({ where: { guildId, gameEdition: edition, counted: true }, orderBy: { endedAt: "asc" }, take: 20_000,
+  const history = await database.duelResult.findMany({ where: { guildId, gameEdition: edition, counted: true, archived: false }, orderBy: { endedAt: "asc" }, take: 20_000,
     select: { reportKey: true, winnerId: true, loserId: true, winnerCharacter: true, loserCharacter: true, winnerLevel: true, loserLevel: true, endedAt: true } });
   const startsAt = await ratingStartOf(database, guildId);
   const duels = withRatings(withStandings([...fresh].sort((a, b) => a.endedAt.getTime() - b.endedAt.getTime()), standingsAfterEach(history, new Set(fresh.map(duel => duel.reportKey)))), history, startsAt);

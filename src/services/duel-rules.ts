@@ -34,13 +34,19 @@ export function duelRuleLines(lang: "en" | "fr"): string[] {
   ];
 }
 
-// ----- rating-v1 (from 1 December 2026; see duel-rating.ts and docs/DUEL_SCORING_RESEARCH.md) -----
+// ----- rating-v1 (from 13 November 2026; see duel-rating.ts and docs/DUEL_SCORING_RESEARCH.md) -----
 
 /**
  * False until the addon release that shows the rating in game ships. While false, a board that scores by rating says that the
  * game still shows the old score. Flip it in the same release that updates the addon (docs/DUEL_RATING_ADDON_SPEC.md).
  */
 export const ADDON_SHOWS_RATING = false;
+
+/**
+ * Duels that ended before this instant (13 November 2026 00:00 UTC) were test data: they are stored with `archived = true` and appear in no
+ * ladder, card, count or page. Nothing is deleted. Undo: `UPDATE "DuelResult" SET "archived" = false WHERE "endedAt" < '2026-11-13T00:00:00Z'`.
+ */
+export const DUEL_ARCHIVE_BEFORE = new Date("2026-11-13T00:00:00.000Z");
 
 const dayText = (iso: string, lang: "en" | "fr") => new Date(iso).toLocaleDateString(lang === "fr" ? "fr-CA" : "en-CA", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 
@@ -50,14 +56,14 @@ export function ratingRuleLines(lang: "en" | "fr", startsAt: Date = new Date(RAT
   const [k1, k2, k3] = r.kBands.map(band => band.k);
   const weights = r.pairWeights.map(String).join(", ");
   return lang === "fr" ? [
-    `Depuis le ${dayText(r.startsAt, "fr")} (UTC), les duels sont classés par cote, par saison d'un mois civil (UTC). Tout le monde commence à ${r.start}. Les anciens duels restent dans la « Saison 0 (points) », figée.`,
+    `Depuis le ${dayText(r.startsAt, "fr")} (UTC), les duels sont classés par cote. La première saison dure jusqu'au 31 décembre 2026, puis chaque saison est un mois civil (UTC). Tout le monde commence à ${r.start} à chaque saison.`,
     `Battre un joueur plus fort fait gagner plus; perdre contre un joueur plus faible fait perdre plus. Chaque niveau d'écart ajoute ${r.handicapPerLevel} points de cote à l'adversaire de plus haut niveau (jusqu'à ${r.handicapMaxLevels} niveaux). Un duel entre joueurs séparés de plus de ${r.maxLevelGap} niveaux ne change rien.`,
     `Le changement est plus grand au début : facteur ${k1} pour les 10 premiers duels, ${k2} jusqu'à 30, puis ${k3}. Le même duo ne compte pleinement que deux fois par semaine (réinitialisation du mardi, 15 h UTC) : facteurs ${weights}, puis plus rien.`,
     `Le score affiché rapproche la cote de ${r.start} tant que le dossier est court : ${r.start} + (cote − ${r.start}) × duels / (duels + ${r.shrinkGames}).`,
     `Classé après ${r.rankedDuels} duels contre ${r.rankedOpponents} adversaires différents; avant, « placement 3/${r.rankedDuels} ».`,
     `${c.pairDailyCap} duels par paire et par jour (UTC) et ${c.reporterDailyCap} par joueur rapporteur et par jour comptent au maximum. Les duels comptés sont réévalués dans l'ordre des dates : un duel rapporté en retard prend sa place et peut déplacer des cotes déjà affichées. Aucune récompense.`
   ] : [
-    `From ${dayText(r.startsAt, "en")} (UTC), duels are ranked by a rating, in one-month seasons (calendar months, UTC). Everyone starts at ${r.start}. Older duels stay in a frozen "Season 0 (points)".`,
+    `From ${dayText(r.startsAt, "en")} (UTC), duels are ranked by a rating. The first season runs to December 31, 2026, then each season is a calendar month (UTC). Everyone starts at ${r.start} each season.`,
     `Beating a stronger player earns more; losing to a weaker one costs more. Each level of difference adds ${r.handicapPerLevel} rating points to the higher-level player's side (up to ${r.handicapMaxLevels} levels). A duel between players more than ${r.maxLevelGap} levels apart changes nothing.`,
     `Moves are bigger early on: factor ${k1} for the first 10 duels, ${k2} up to 30, then ${k3}. The same pair counts in full only twice per weekly reset (Tuesday 15:00 UTC): factors ${weights}, then nothing.`,
     `The score shown pulls the rating toward ${r.start} while a record is short: ${r.start} + (rating − ${r.start}) × duels / (duels + ${r.shrinkGames}).`,
@@ -70,6 +76,6 @@ export function ratingRuleLines(lang: "en" | "fr", startsAt: Date = new Date(RAT
 export function ratingFooter(lang: "en" | "fr", seasonLabel: string, startsAt: Date = new Date(RATING.startsAt), addonUpdated = ADDON_SHOWS_RATING): string {
   const r = { ...RATING, startsAt: startsAt.toISOString() };
   return lang === "fr"
-    ? `Cote ${r.start} au départ · saison ${seasonLabel} (depuis le ${dayText(r.startsAt, "fr")}) · classé après ${r.rankedDuels} duels · ${DUEL_RULES.pairDailyCap} par paire et par jour · aucune récompense${addonUpdated ? "" : " · le jeu affiche l'ancien score jusqu'à la mise à jour de l'addon"}`
-    : `Rating starts at ${r.start} · season ${seasonLabel} (since ${dayText(r.startsAt, "en")}) · ranked after ${r.rankedDuels} duels · ${DUEL_RULES.pairDailyCap} per pair per day · no rewards${addonUpdated ? "" : " · the game shows the old score until the addon is updated"}`;
+    ? `Cote ${r.start} au départ · saison ${seasonLabel} (depuis le ${dayText(r.startsAt, "fr")}) · classé après ${r.rankedDuels} duels · ${DUEL_RULES.pairDailyCap} par paire et par jour · aucune récompense${addonUpdated ? "" : " · le classement dans le jeu affiche l'ancien score jusqu'à la prochaine mise à jour de l'addon"}`
+    : `Rating starts at ${r.start} · season ${seasonLabel} (since ${dayText(r.startsAt, "en")}) · ranked after ${r.rankedDuels} duels · ${DUEL_RULES.pairDailyCap} per pair per day · no rewards${addonUpdated ? "" : " · the in-game ladder shows the old score until the next addon update"}`;
 }

@@ -10,7 +10,8 @@ import { postToLogChannel } from "../services/housekeeping.js";
 import { runCredit } from "../services/dungeon-held-credit.js";
 import { findPlayer } from "../services/player-search.js";
 import { explainDungeonRuns } from "../services/dungeon-explain.js";
-import { anomalyReport, describeAnomalies, describeHeld, heldReport, releaseHeld, setDeviceExcluded } from "../services/run-anomalies.js";
+import { anomalyReport, describeAnomalies, describeHeld, heldReport, setDeviceExcluded } from "../services/run-anomalies.js";
+import { releaseHeldRuns } from "../services/run-release.js";
 import { asLang, tx } from "../i18n.js";
 import { guildService, requireGuildContext } from "./context.js";
 
@@ -124,19 +125,24 @@ export async function executeDungeonAdmin(interaction: ChatInputCommandInteracti
     const exclude = interaction.options.getBoolean("exclude");
     const release = interaction.options.getString("run");
     if (release) {
-      const done = await releaseHeld(prisma, context.guildId, release);
-      if (done) await log("released a held dungeon run", { runRef: release });
-      await interaction.reply({ content: done ? "Released: it counts at its PC's next upload." : "No held run has that code.", flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+      const done = await releaseHeldRuns(prisma, context.guildId, { runRef: release });
+      if (done.released) await log("released a held dungeon run", { runRef: release });
+      await interaction.reply({ content: done.ambiguous ? tx(lang, "Several held runs start with that code: give more of it.") : !done.released ? tx(lang, "No held run has that code.")
+        : done.counted ? tx(lang, "Released: it counts now.") : tx(lang, "Released: it counts when its PC sends it again."), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
       return;
     }
     if (!pc) {
       const [flagged, held] = await Promise.all([anomalyReport(prisma, context.guildId), heldReport(prisma, context.guildId)]);
-      await interaction.reply({ content: [describeHeld(held), describeAnomalies(flagged)].filter(Boolean).join("\n\n").slice(0, 1990), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+      await interaction.reply({ content: [describeHeld(held, lang), describeAnomalies(flagged, lang)].filter(Boolean).join("\n\n").slice(0, 1990), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
       return;
     }
-    const done = await setDeviceExcluded(prisma, context.guildId, pc, exclude !== false, "officer");
-    if (done) await log(`${exclude === false ? "restored" : "excluded"} a PC that sends dungeon runs`, { pc });
-    reply = done ? (exclude === false ? "That PC is restored." : "That PC is excluded: its dungeon runs are refused from now on. Runs it already sent stay until you invalidate them.") : "No single PC that sent runs to this server matches that code.";
+    const deviceId = await setDeviceExcluded(prisma, context.guildId, pc, exclude !== false);
+    if (deviceId) await log(`${exclude === false ? "restored" : "excluded"} a PC that sends dungeon runs`, { pc });
+    if (!deviceId) reply = tx(lang, "No single PC that sent runs to this server matches that code.");
+    else if (exclude === false) {
+      const done = await releaseHeldRuns(prisma, context.guildId, { deviceId });
+      reply = tx(lang, "That PC is restored. {n} of its held runs were counted.", { n: done.counted });
+    } else reply = tx(lang, "That PC is excluded: its dungeon runs are held from now on, and count if you restore it.");
   } else if (subcommand === "bracket-preview") {
     await interaction.reply({ embeds: [provisionalSeasonEmbed()], flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
     return;

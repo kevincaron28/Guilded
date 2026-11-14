@@ -30,16 +30,15 @@ peer-vouched hold) stay.
 
 - Server-side checks on every run, with weights and thresholds read from the server's private configuration (`RUN_INTEGRITY_CONFIG`,
   `RUN_CHALLENGE_SECRET`; `src/services/run-integrity-config.ts` holds only safe defaults).
-- Runs and PCs that fail several checks are held for the owner's review without telling the member (`DungeonRunWitness.status = 'held'`).
-  A single soft result only reports.
-- `/officer dungeon flagged` (officers and the owner, ephemeral): the held list, the flagged list, `pc:` to exclude a PC (`exclude:false`
-  restores it), `run:` to release a held run (it counts at its PC's next upload).
+- Runs the server cannot accept yet are kept for officer review (`DungeonRunWitness.status = 'held'`).
+- `/officer dungeon flagged` (officers and the owner, ephemeral): the held list, the flagged list, `pc:` to exclude a PC on this server
+  (`exclude:false` restores it and counts its held runs), `run:` to release a held run (a full code or a unique beginning; it counts at once).
 - "Confirmed by N players" (`DungeonRun.witnessCount`) is information only. It changes no rank and no point.
 - The sync answer carries a fresh challenge for the companion; the shared module is `src/services/run-challenge.ts` (also meant for duels).
   The addon and companion rules are in the owner's private notes, not in this repository.
 
-Migration `20270217000000_single_witness`: `DungeonRun.anomalies`, `DungeonRun.witnessCount`, `CompanionDevice.excludedAt`,
-`excludedReason`, `chainSeq`, `chainHash`, `DungeonRunWitness.flags`.
+Migration `20270217000000_single_witness`: `DungeonRun.anomalies`, `DungeonRun.witnessCount`, `CompanionDevice.excludedGuilds`,
+`DungeonRunWitness.flags`.
 
 ## Season 1, public boards, records
 

@@ -1,4 +1,3 @@
-import { firstNameKey } from "./dungeon-import.js";
 
 // Plausibility checks for a dungeon run. Pure functions; the database reads live in companion-device.ts (storeDeviceRuns). The
 // limits below are safe defaults only: the live values come from the server's private configuration (run-integrity-config.ts).
@@ -47,6 +46,9 @@ export interface PlausibilityContext {
   limits?: PlausibilityLimits;
 }
 
+const TIMING = new Set(["kill-outside-run", "too-fast-per-boss", "faster-than-record"]);
+const fullName = (name: string): string => name.normalize("NFC").trim().toLowerCase();
+
 const overlap = (a: { startedAt: number | null; endedAt: number | null }, b: { startedAt: number | null; endedAt: number | null }): number => {
   if (!a.startedAt || !a.endedAt || !b.startedAt || !b.endedAt) return 0;
   return Math.min(a.endedAt, b.endedAt) - Math.max(a.startedAt, b.startedAt);
@@ -76,10 +78,10 @@ export function plausibilityFlags(run: PlausibilityRun, context: PlausibilityCon
   const high = run.players.filter((player) => typeof player.level === "number" && player.level > limit.levelCap);
   if (high.length) add("level-above-cap", `${high.map((player) => player.character).join(", ")} above level ${limit.levelCap}`);
 
-  const mine = new Set(run.players.map((player) => firstNameKey(player.character)));
+  const mine = new Set(run.players.map((player) => fullName(player.character)));
   for (const other of context.neighbours ?? []) {
     if (other.runRef === context.runRef) continue;
-    const shared = other.characters.filter((name) => mine.has(firstNameKey(name)));
+    const shared = other.characters.filter((name) => mine.has(fullName(name)));
     if (!shared.length) continue;
     if (other.instanceId === run.instanceId && overlap(run, other) > 0) continue; // the same clear under another id: copy matching handles it
     const together = overlap(run, other);
@@ -94,6 +96,9 @@ export function plausibilityFlags(run: PlausibilityRun, context: PlausibilityCon
     if (other.instanceId === run.instanceId && overlap(run, other) > 0) continue;
     if (overlap(run, other) > limit.overlapSlackSec) add("device-overlap", `this PC also sent run ${other.runRef}, which overlaps in time`);
   }
-  // One flag per code: a long list of the same thing is noise.
-  return flags.filter((flag, index) => flags.findIndex((other) => other.code === flag.code) === index);
+  const unique = flags.filter((flag, index) => flags.findIndex((other) => other.code === flag.code) === index);
+  // Results that come from the same measurement (the run's start, end and kill times) are one finding.
+  const timing = unique.filter((flag) => TIMING.has(flag.code));
+  if (timing.length < 2) return unique;
+  return unique.filter((flag) => !TIMING.has(flag.code) || flag === timing[0]).map((flag) => flag === timing[0] ? { ...flag, detail: timing.map((item) => item.detail).join("; ") } : flag);
 }

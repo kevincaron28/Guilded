@@ -1,9 +1,5 @@
--- Single witness (13 November 2026, docs/plans/SINGLE_WITNESS_2026-11-13.md): plausibility flags and the witness count on a run,
--- and a device exclusion. Hand-written; additive only.
+-- Single witness (13 November 2026, docs/plans/SINGLE_WITNESS_2026-11-13.md): check results and the witness count on a run, and a per-server device exclusion. Hand-written; additive only.
 ALTER TABLE "DungeonRun" ADD COLUMN "anomalies" JSONB;
 ALTER TABLE "DungeonRun" ADD COLUMN "witnessCount" INTEGER NOT NULL DEFAULT 1;
-ALTER TABLE "CompanionDevice" ADD COLUMN "excludedAt" TIMESTAMP(3);
-ALTER TABLE "CompanionDevice" ADD COLUMN "excludedReason" TEXT;
-ALTER TABLE "CompanionDevice" ADD COLUMN "chainSeq" INTEGER;
-ALTER TABLE "CompanionDevice" ADD COLUMN "chainHash" TEXT;
 ALTER TABLE "DungeonRunWitness" ADD COLUMN "flags" JSONB;
+ALTER TABLE "CompanionDevice" ADD COLUMN "excludedGuilds" TEXT[] DEFAULT ARRAY[]::TEXT[];

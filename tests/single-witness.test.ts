@@ -1,9 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { decide, EXPIRED_REASON, LIMIT_REASON, RUN_TRUST, SINGLE_WITNESS, SINGLE_WITNESS_SINCE, countsDeviceOnlyRuns, type Statement } from "../src/services/run-trust.js";
 import { PLAUSIBILITY, plausibilityFlags, type PlausibilityRun } from "../src/services/run-plausibility.js";
 import { NO_PREV, canonicalText, chainHash, challengeTime, contradicts, deriveSealKey, issueChallenge, sealMac, sealOf, verifyBatch, type BatchContext, type BatchEntry } from "../src/services/run-challenge.js";
 import { DEFAULT_CONFIG, challengeSecret, holdsRun, integrityConfig, parseIntegrityConfig } from "../src/services/run-integrity-config.js";
-import { anomalyReport, describeAnomalies, deviceShortId, setDeviceExcluded } from "../src/services/run-anomalies.js";
+import { anomalyReport, describeAnomalies, describeHeld, deviceShortId, setDeviceExcluded } from "../src/services/run-anomalies.js";
 
 // One witness is enough (docs/plans/SINGLE_WITNESS_2026-11-13.md): the protections that stay and the checks that replace the second statement.
 
@@ -40,7 +40,7 @@ describe("the single-witness switch", () => {
 
 const STRICT = { ...PLAUSIBILITY, minSecondsPerBoss: 30, killSlackSec: 30, recordShare: 0.5, recordSample: 5, travelSec: 60, overlapSlackSec: 120 };
 
-describe("plausibility flags", () => {
+describe("plausibility checks", () => {
   const run = (over: Partial<PlausibilityRun> = {}): PlausibilityRun => ({ instanceId: 90, startedAt: NOW - 3000, endedAt: NOW - 300,
     players: [{ character: "Kev", level: 30 }, { character: "Bob", level: 30 }], kills: [{ id: 1, at: NOW - 2000 }, { id: 2, at: NOW - 400 }], ...over });
   const codes = (r: PlausibilityRun, context: Partial<Parameters<typeof plausibilityFlags>[1]> = {}) => plausibilityFlags(r, { runRef: "me", limits: STRICT, ...context }).map((flag) => flag.code);
@@ -79,6 +79,14 @@ describe("plausibility flags", () => {
     expect(codes(run(), { neighbours: [{ runRef: "copy", instanceId: 90, ...base, characters: ["Kev"] }] })).toEqual([]);
   });
 
+  it("matches characters by their full name, and counts a start-time reset (kills before the new start, a short clear) once", () => {
+    const base = { startedAt: NOW - 3000, endedAt: NOW - 300 };
+    expect(codes(run({ players: [{ character: "Kev Caron", level: 30 }] }), { neighbours: [{ runRef: "other", instanceId: 91, ...base, characters: ["Kev Smith"] }] })).toEqual([]);
+    expect(codes(run({ players: [{ character: "Kev Caron", level: 30 }] }), { neighbours: [{ runRef: "other", instanceId: 91, ...base, characters: ["KEV CARON"] }] })).toEqual(["character-in-two-runs"]);
+    const reloaded = run({ startedAt: NOW - 400, endedAt: NOW - 330, kills: [{ id: 1, at: NOW - 2000 }, { id: 2, at: NOW - 1000 }, { id: 3, at: NOW - 335 }] });
+    expect(codes(reloaded)).toHaveLength(1);
+  });
+
   it("flags one PC sending two overlapping runs", () => {
     expect(codes(run(), { deviceRuns: [{ runRef: "other", instanceId: 91, startedAt: NOW - 3000, endedAt: NOW - 300, characters: [] }] })).toEqual(["device-overlap"]);
     expect(codes(run(), { deviceRuns: [{ runRef: "other", instanceId: 91, startedAt: NOW - 400, endedAt: NOW - 200, characters: [] }] })).toEqual([]);
@@ -100,8 +108,8 @@ describe("the record challenge and chain (shared module)", () => {
     return { raw: { ...run, integrity: { seal: { ...seal, ...(sign ? { mac: sealMac(sealKey, canonical) } : {}) } } }, canonical };
   };
   const entry = (item: { raw: unknown }, ref: string, over: Partial<BatchEntry> = {}): BatchEntry => ({ raw: item.raw, ref, endedAt: NOW - 300, kind: "first-hand", earlier: false, ...over });
-  const context = (over: Partial<BatchContext> = {}): BatchContext => ({ deviceId: "d1", sealKey, secret, head: null, windowSec: 14 * 86400, requireSeal: false, ...over });
-  const codes = (result: { flags: Map<string, { code: string }[]> }, ref: string) => (result.flags.get(ref) ?? []).map((flag) => flag.code);
+  const context = (over: Partial<BatchContext> = {}): BatchContext => ({ deviceId: "d1", sealKey, secret, windowSec: 14 * 86400, clockSlackSec: 3600, deviceSince: null, requireSeal: false, ...over });
+  const codes = (result: Map<string, { code: string }[]>, ref: string) => (result.get(ref) ?? []).map((flag) => flag.code);
 
   it("issues a challenge that only its own PC and this server can have made", () => {
     expect(challengeTime(secret, "d1", nonce)).toBe(NOW - 3500);
@@ -122,14 +130,12 @@ describe("the record challenge and chain (shared module)", () => {
     expect(deriveSealKey("a")).not.toBe(deriveSealKey("b"));
   });
 
-  it("accepts a linked chain of signed records and moves the head", () => {
+  it("accepts a linked chain of signed records", () => {
     const first = make(1, NO_PREV), second = make(2, chainHash(first.canonical));
-    const result = verifyBatch([entry(first, "a"), entry(second, "b")], context());
-    expect([...result.flags.keys()]).toEqual([]);
-    expect(result.head).toEqual({ n: 2, hash: chainHash(second.canonical) });
+    expect([...verifyBatch([entry(first, "a"), entry(second, "b")], context()).keys()]).toEqual([]);
   });
 
-  it("flags a record edited after signing, or signed with another key, and one never signed", () => {
+  it("flags a record changed after signing, or signed with another key, and one never signed", () => {
     const item = make(1, NO_PREV);
     const edited = { raw: { ...(item.raw as object), endedAt: NOW - 100 } };
     expect(codes(verifyBatch([entry(edited, "a")], context()), "a")).toContain("seal-invalid");
@@ -140,27 +146,27 @@ describe("the record challenge and chain (shared module)", () => {
   it("flags a challenge the PC was never given, one from the future and one far older than the run", () => {
     expect(codes(verifyBatch([entry(make(1, NO_PREV, {}, true, issueChallenge(secret, "d9", NOW - 3500)), "a")], context()), "a")).toContain("nonce-foreign");
     expect(codes(verifyBatch([entry(make(1, NO_PREV, {}, true, issueChallenge(secret, "d1", NOW + 5000)), "a")], context()), "a")).toContain("nonce-future");
+    expect(codes(verifyBatch([entry(make(1, NO_PREV, {}, true, issueChallenge(secret, "d1", NOW + 600)), "a")], context()), "a")).toEqual([]); // a slow clock
     expect(codes(verifyBatch([entry(make(1, NO_PREV), "a")], context({ windowSec: 600 })), "a")).toContain("nonce-window");
     expect(codes(verifyBatch([entry(make(1, NO_PREV), "a")], context({ secret: null })), "a")).toEqual([]);
   });
 
-  it("does not hold a guildmate's relayed record to this PC's challenges or chain", () => {
+  it("leaves alone a run made before this PC registered, and a guildmate's relayed record", () => {
+    const old = make(1, NO_PREV, {}, true, issueChallenge(secret, "old-install", NOW - 90000));
+    expect(codes(verifyBatch([entry(old, "a")], context({ deviceSince: NOW - 100 })), "a")).toEqual([]);
     const relayed = make(7, "f".repeat(64), {}, true, issueChallenge(secret, "someone-else", NOW - 3500));
     expect(codes(verifyBatch([entry(relayed, "a", { kind: "relay" })], context()), "a")).toEqual([]);
   });
 
-  it("flags a broken link, a forked number and a number already used", () => {
+  it("flags a record that does not follow the one before it, but not a restarted counter or a resent record", () => {
     const first = make(1, NO_PREV);
     expect(codes(verifyBatch([entry(first, "a"), entry(make(2, "0".repeat(63) + "1"), "b")], context()), "b")).toEqual(["chain-break"]);
-    const twin = make(1, NO_PREV, { id: "QG-twin" });
-    const fork = verifyBatch([entry(first, "a"), entry(twin, "b")], context());
-    expect(codes(fork, "a")).toContain("chain-fork");
-    expect(codes(fork, "b")).toContain("chain-fork");
-    const head = { n: 5, hash: "a".repeat(64) };
-    expect(codes(verifyBatch([entry(make(3, NO_PREV), "a")], context({ head })), "a")).toEqual(["chain-fork"]);
-    expect(codes(verifyBatch([entry(make(6, "b".repeat(64)), "a")], context({ head })), "a")).toEqual(["chain-break"]);
-    expect(codes(verifyBatch([entry(make(6, head.hash), "a")], context({ head })), "a")).toEqual([]);
-    expect(codes(verifyBatch([entry(make(3, NO_PREV), "a", { earlier: true })], context({ head })), "a")).toEqual([]);
+    // A reinstall restarts the counter: both installs' number 1 and 2 are present, and the second record links to one of them.
+    const other = make(1, NO_PREV, { id: "QG-other" });
+    const next = make(2, chainHash(other.canonical), { id: "QG-next" });
+    expect([...verifyBatch([entry(first, "a"), entry(other, "c"), entry(next, "b")], context()).keys()]).toEqual([]);
+    expect(codes(verifyBatch([entry(make(3, NO_PREV), "a", { earlier: true })], context()), "a")).toEqual([]);
+    expect(codes(verifyBatch([entry(make(9, NO_PREV), "a")], context()), "a")).toEqual([]); // nothing numbered 8 was sent with it
   });
 
   it("counts a missing seal only when the server requires one", () => {
@@ -174,10 +180,10 @@ describe("the record challenge and chain (shared module)", () => {
 
 describe("two copies of one run that disagree", () => {
   const a = statement({ deviceId: "d1", voucher: "kev" });
-  it("agrees when both copies match, and flags a near-match that is not the same run", () => {
+  it("agrees when both copies match, and flags an overlapping near-match that is not the same run", () => {
     expect(contradicts(a, statement({ deviceId: "d2", voucher: "bob" }))).toBe(false);
-    expect(contradicts(a, statement({ deviceId: "d2", voucher: "bob", bosses: [1, 2, 3] }))).toBe(true);
-    expect(contradicts(a, statement({ deviceId: "d2", voucher: "bob", endedAt: NOW - 300 + 60, startedAt: NOW - 3000 + 60 }))).toBe(true);
+    expect(contradicts(a, statement({ deviceId: "d2", voucher: "bob", bosses: [1, 2, 3] }))).toBe(false); // an extra kill is a longer view of the same clear
+    expect(contradicts(a, statement({ deviceId: "d2", voucher: "bob", bosses: [7, 8], endedAt: NOW - 300 + 400, startedAt: NOW - 3000 + 400 }))).toBe(true);
   });
   it("ignores other dungeons, strangers and a clear right after another", () => {
     expect(contradicts(a, statement({ deviceId: "d2", instanceId: 91, bosses: [5] }))).toBe(false);
@@ -187,61 +193,78 @@ describe("two copies of one run that disagree", () => {
 });
 
 describe("server configuration and holding a run", () => {
-  it("keeps the defaults for missing or broken configuration and clamps what is given", () => {
+  it("keeps the defaults for missing or broken configuration, says so once, and clamps what is given", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     expect(parseIntegrityConfig(undefined)).toBe(DEFAULT_CONFIG);
     expect(parseIntegrityConfig("{nope")).toBe(DEFAULT_CONFIG);
+    expect(parseIntegrityConfig("{nope")).toBe(DEFAULT_CONFIG);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0]![0])).toContain("RUN_INTEGRITY_CONFIG");
+    warn.mockRestore();
     const config = parseIntegrityConfig(JSON.stringify({ holdScore: 2, weights: { "seal-invalid": 5, bad: "x" }, limits: { minSecondsPerBoss: 45, levelCap: "x" }, requireSeal: true }));
     expect(config).toMatchObject({ holdScore: 2, weights: { "seal-invalid": 5 }, requireSeal: true, limits: { minSecondsPerBoss: 45, levelCap: PLAUSIBILITY.levelCap } });
     expect(parseIntegrityConfig(JSON.stringify({ holdScore: -5 })).holdScore).toBe(1);
   });
 
-  it("reads the live configuration and secret from the environment only", () => {
+  it("reads the live configuration and secret from the environment only, and names a secret that is too short without printing it", () => {
     expect(integrityConfig({ RUN_INTEGRITY_CONFIG: JSON.stringify({ holdScore: 9 }) } as never).holdScore).toBe(9);
     expect(challengeSecret({} as never)).toBeNull();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     expect(challengeSecret({ RUN_CHALLENGE_SECRET: "short" } as never)).toBeNull();
+    expect(challengeSecret({ RUN_CHALLENGE_SECRET: "short" } as never)).toBeNull();
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0]![0])).toContain("RUN_CHALLENGE_SECRET");
+    expect(String(warn.mock.calls[0]![0])).not.toContain("short\"");
+    warn.mockRestore();
     expect(challengeSecret({ RUN_CHALLENGE_SECRET: "a-long-enough-secret" } as never)).toBe("a-long-enough-secret");
   });
 
-  it("holds a run whose weights add up, or any flagged run from a PC with strikes; one soft flag only reports", () => {
+  it("holds a run whose weights reach the hold score, or a flagged run from a PC with enough held runs", () => {
     const config = parseIntegrityConfig(JSON.stringify({ holdScore: 3, deviceStrikes: 2, weights: { hard: 3 } }));
     expect(holdsRun([], config, 99)).toBe(false);
-    expect(holdsRun(["soft"], config, 0)).toBe(false);
-    expect(holdsRun(["soft", "soft2", "soft3"], config, 0)).toBe(true);
+    expect(holdsRun(["a"], config, 0)).toBe(false);
+    expect(holdsRun(["a", "b", "c"], config, 0)).toBe(true);
     expect(holdsRun(["hard"], config, 0)).toBe(true);
-    expect(holdsRun(["soft"], config, 2)).toBe(true);
+    expect(holdsRun(["a"], config, 2)).toBe(true);
   });
 });
 
-describe("the anomaly report and device exclusion", () => {
-  const rows = [{ id: "r1", runRef: "QG-1", dungeonName: "Gnomeregan", endedAt: new Date("2026-11-13T12:00:00Z"), witnessCount: 1, anomalies: [{ code: "level-above-cap", detail: "Kev above level 60" }], players: [{ character: "Kev" }] }];
-  const database = (devices: string[] = ["abcdef1234567890", "ffff00001111aaaa"]) => {
+describe("the review list and device exclusion", () => {
+  const ref = "QG-" + "x".repeat(60);
+  const rows = [{ id: "r1", runRef: ref, dungeonName: "Gnomeregan", endedAt: new Date("2026-11-13T12:00:00Z"), witnessCount: 1, anomalies: [{ code: "level-above-cap", detail: "Kev above level 60" }], players: [{ character: "Kev" }] }];
+  const database = (devices: string[] = ["abcdef1234567890", "ffff00001111aaaa"], excludedGuilds: string[] = []) => {
     const updated: Record<string, unknown>[] = [];
     return { updated, db: {
       dungeonRun: { findMany: async () => rows },
       dungeonRunWitness: { findMany: async (args: { where: { runId?: unknown } }) => args.where.runId ? [{ runId: "r1", deviceId: devices[0] }] : devices.map((deviceId) => ({ deviceId })) },
-      companionDevice: { update: async (args: Record<string, unknown>) => { updated.push(args); return {}; } }
+      companionDevice: { findUnique: async () => ({ excludedGuilds }), update: async (args: Record<string, unknown>) => { updated.push(args); return {}; } }
     } as never };
   };
 
-  it("lists a flagged run with its flags, its PC code and its witness count, and says they count", async () => {
+  it("lists a flagged run with its full code, its flags, its PC code and its witness count, in French too", async () => {
     const { db } = database();
     const report = await anomalyReport(db, "g1");
-    expect(report).toMatchObject([{ runRef: "QG-1", device: deviceShortId("abcdef1234567890"), flags: [{ code: "level-above-cap" }], witnesses: 1 }]);
+    expect(report).toMatchObject([{ runRef: ref, device: deviceShortId("abcdef1234567890"), flags: [{ code: "level-above-cap" }], witnesses: 1 }]);
+    expect(deviceShortId("abcdef1234567890")).toBe("34567890");
     const text = describeAnomalies(report);
-    expect(text).toContain("Flagged runs");
+    expect(text).toContain(ref);
     expect(text).toContain("Kev above level 60");
+    expect(text).toContain("`/officer dungeon flagged`");
     expect(describeAnomalies([])).toMatch(/No dungeon run was flagged/);
+    expect(describeAnomalies([], "fr")).toMatch(/signalé/);
+    expect(describeHeld([{ runRef: ref, instanceId: 90, endedAt: null, device: "34567890", flags: [{ code: "x", detail: "d" }], firstSeenAt: new Date() }])).toContain(ref);
   });
 
-  it("excludes and restores a PC by the code, only when exactly one matches", async () => {
+  it("excludes and restores a PC for this server only, by the code, only when exactly one matches", async () => {
     const { db, updated } = database();
-    expect(await setDeviceExcluded(db, "g1", deviceShortId("abcdef1234567890"), true, "officer")).toBe(true);
-    expect(updated[0]).toMatchObject({ where: { id: "abcdef1234567890" }, data: { excludedReason: "officer" } });
-    expect(await setDeviceExcluded(db, "g1", deviceShortId("abcdef1234567890"), false, "")).toBe(true);
-    expect(updated[1]).toMatchObject({ data: { excludedAt: null, excludedReason: null } });
-    expect(await setDeviceExcluded(db, "g1", "nomatch1", true, "")).toBe(false);
-    expect(await setDeviceExcluded(db, "g1", "ab", true, "")).toBe(false);
+    expect(await setDeviceExcluded(db, "g1", deviceShortId("abcdef1234567890"), true)).toBe("abcdef1234567890");
+    expect(updated[0]).toMatchObject({ where: { id: "abcdef1234567890" }, data: { excludedGuilds: ["g1"] } });
+    const other = database(undefined, ["g1", "g2"]);
+    expect(await setDeviceExcluded(other.db, "g1", deviceShortId("abcdef1234567890"), false)).toBe("abcdef1234567890");
+    expect(other.updated[0]).toMatchObject({ data: { excludedGuilds: ["g2"] } });
+    expect(await setDeviceExcluded(db, "g1", "nomatch1", true)).toBeNull();
+    expect(await setDeviceExcluded(db, "g1", "ab", true)).toBeNull();
     const ambiguous = database(["aaaa1234", "bbbb1234"]);
-    expect(await setDeviceExcluded(ambiguous.db, "g1", "1234", true, "")).toBe(false);
+    expect(await setDeviceExcluded(ambiguous.db, "g1", "1234", true)).toBeNull();
   });
 });

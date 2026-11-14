@@ -1,20 +1,16 @@
 import { PLAUSIBILITY, type PlausibilityLimits } from "./run-plausibility.js";
 
-// Server-side configuration of the run checks. The live values come from the environment (RUN_INTEGRITY_CONFIG, a JSON object, and
-// RUN_CHALLENGE_SECRET); the numbers here are safe defaults only. Nothing from this module is ever shown to members.
+// Server-side settings for run records. The live values come from the environment (RUN_INTEGRITY_CONFIG, a JSON object, and
+// RUN_CHALLENGE_SECRET); the numbers here are defaults only.
 
 export interface RunIntegrityConfig {
   limits: PlausibilityLimits;
-  /** Weight of each check code; a code not listed weighs `defaultWeight`. */
   weights: Record<string, number>;
   defaultWeight: number;
-  /** A run whose weights add up to this much is held for review. */
   holdScore: number;
-  /** A PC with this many held runs in the last 7 days has every further flagged run held. */
   deviceStrikes: number;
-  /** How long a challenge stays usable for the runs made after it, in seconds. */
   challengeWindowSec: number;
-  /** Runs without the new record format count as flagged when true (set once the addon release is out). */
+  clockSlackSec: number;
   requireSeal: boolean;
 }
 
@@ -25,17 +21,27 @@ export const DEFAULT_CONFIG: RunIntegrityConfig = {
   holdScore: 3,
   deviceStrikes: 3,
   challengeWindowSec: 14 * 86_400,
+  clockSlackSec: 3600,
   requireSeal: false
 };
 
 const number = (value: unknown, fallback: number, min: number, max: number): number => typeof value === "number" && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
 
+let warnedJson = false;
+let warnedSecret = false;
+
 /** The configuration from a JSON text; anything missing or out of range keeps its default. */
 export function parseIntegrityConfig(text: string | undefined): RunIntegrityConfig {
   if (!text) return DEFAULT_CONFIG;
   let raw: Record<string, unknown>;
-  try { raw = JSON.parse(text) as Record<string, unknown>; } catch { return DEFAULT_CONFIG; }
-  if (!raw || typeof raw !== "object") return DEFAULT_CONFIG;
+  try { raw = JSON.parse(text) as Record<string, unknown>; } catch {
+    if (!warnedJson) { warnedJson = true; console.warn("RUN_INTEGRITY_CONFIG is not valid JSON; the defaults are in use."); }
+    return DEFAULT_CONFIG;
+  }
+  if (!raw || typeof raw !== "object") {
+    if (!warnedJson) { warnedJson = true; console.warn("RUN_INTEGRITY_CONFIG is not a JSON object; the defaults are in use."); }
+    return DEFAULT_CONFIG;
+  }
   const given = (raw["limits"] && typeof raw["limits"] === "object" ? raw["limits"] : {}) as Record<string, unknown>;
   const limits = Object.fromEntries(Object.entries(PLAUSIBILITY).map(([name, fallback]) => [name, number(given[name], fallback as number, 0, 1_000_000)])) as unknown as PlausibilityLimits;
   const weights = Object.fromEntries(Object.entries((raw["weights"] && typeof raw["weights"] === "object" ? raw["weights"] : {}) as Record<string, unknown>)
@@ -46,6 +52,7 @@ export function parseIntegrityConfig(text: string | undefined): RunIntegrityConf
     holdScore: number(raw["holdScore"], DEFAULT_CONFIG.holdScore, 1, 1000),
     deviceStrikes: number(raw["deviceStrikes"], DEFAULT_CONFIG.deviceStrikes, 1, 1000),
     challengeWindowSec: number(raw["challengeWindowSec"], DEFAULT_CONFIG.challengeWindowSec, 60, 365 * 86_400),
+    clockSlackSec: number(raw["clockSlackSec"], DEFAULT_CONFIG.clockSlackSec, 0, 7 * 86_400),
     requireSeal: raw["requireSeal"] === true
   };
 }
@@ -58,13 +65,17 @@ export function integrityConfig(env: NodeJS.ProcessEnv = process.env): RunIntegr
   return cached.value;
 }
 
-/** The server secret that issues challenges; without it challenges are off (nothing is issued, nothing checked). */
+/** The server secret for challenges; without a usable one challenges are off. */
 export const challengeSecret = (env: NodeJS.ProcessEnv = process.env): string | null => {
   const secret = env["RUN_CHALLENGE_SECRET"];
-  return secret && secret.length >= 16 ? secret : null;
+  if (secret && secret.length < 16) {
+    if (!warnedSecret) { warnedSecret = true; console.warn("RUN_CHALLENGE_SECRET is shorter than 16 characters; challenges are off."); }
+    return null;
+  }
+  return secret || null;
 };
 
-/** Whether a set of flags holds a run for review: the weights add up to the hold score, or the PC already has strikes. */
+/** Whether a run is held for review under this configuration. */
 export function holdsRun(codes: readonly string[], config: RunIntegrityConfig, strikes: number): boolean {
   if (!codes.length) return false;
   const score = codes.reduce((sum, code) => sum + (config.weights[code] ?? config.defaultWeight), 0);

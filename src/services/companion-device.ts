@@ -318,7 +318,6 @@ function sweepIdleDevices(store: DeviceStore, now: Date): void {
 type RunTx = Pick<Prisma.TransactionClient, "officialSeason" | "guild" | "dungeonRun" | "companionDevice" | "character" | "guildSettings" | "dungeonRunWitness" | "guildRosterEntry"> & Parameters<typeof importDungeonRuns>[0] & Parameters<typeof enqueueDiscordJob>[0];
 const DEVICE_SOURCE = "companion device";
 const COPY_REASON = "Counted with a guildmate's copy of this run";
-export const EXCLUDED_REASON = "This PC was excluded by an officer";
 const epoch = (date: Date | null | undefined) => date ? Math.floor(date.getTime() / 1000) : null;
 const near = (endedAt: number) => ({ gte: new Date((endedAt - RUN_TRUST.endToleranceSec) * 1000), lte: new Date((endedAt + RUN_TRUST.endToleranceSec) * 1000) });
 interface WitnessRow { id: string; deviceId: string; runRef: string; kind: string; voucher: string; instanceId: number; difficultyId: number; startedAt: Date | null; endedAt: Date | null;
@@ -338,13 +337,8 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
   const result: DeviceRunResult = { stored: 0, skipped: runs.length - entries.length };
   if (!entries.length) return result;
   const refs = entries.map((entry) => entry.ref);
-  // (13 November 2026) The device key is the unit of exclusion: an excluded PC's runs are refused, answered with the reason.
-  const standing = await tx.companionDevice.findUnique({ where: { id: source.deviceId }, select: { excludedAt: true, chainSeq: true, chainHash: true } });
-  if (standing?.excludedAt) {
-    await saveRunReceipts(tx, guildId, refs.map((runRef) => ({ runRef, outcome: "refused" as const, reason: EXCLUDED_REASON, runId: null })), now);
-    return { ...result, skipped: result.skipped + entries.length };
-  }
-  const chainHead = standing?.chainSeq && standing.chainHash ? { n: standing.chainSeq, hash: standing.chainHash } : null;
+  const standing = await tx.companionDevice.findUnique({ where: { id: source.deviceId }, select: { excludedGuilds: true, createdAt: true } });
+  const excludedHere = standing?.excludedGuilds?.includes(guildId) ?? false;
   const deviceKeys = new Set(source.characterKeys);
   const nowSec = Math.floor(now.getTime() / 1000);
   const guild = await tx.guild.findUnique({ where: { id: guildId }, select: { gameEdition: true } });
@@ -362,9 +356,8 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
   let storedToday = await tx.dungeonRunWitness.count({ where: { deviceId: source.deviceId, trust: "device", decidedAt: { gte: new Date(now.getTime() - 86_400_000) } } });
   const pending: Record<string, string> = {};
   const config = integrityConfig();
-  // Record checks for the whole batch (run-challenge.ts); what they weigh is server configuration.
-  const batch = verifyBatch(entries.map(({ ref, raw }) => ({ raw, ref, endedAt: fingerprintOf(raw)?.endedAt ?? null, kind: voucherOf(raw, deviceKeys)?.kind ?? "relay" as const, earlier: mine.has(ref) || held.has(ref) })),
-    { deviceId: source.deviceId, sealKey: source.sealKey ?? null, secret: challengeSecret(), head: chainHead, windowSec: config.challengeWindowSec, requireSeal: config.requireSeal });
+  const batchFlags = verifyBatch(entries.map(({ ref, raw }) => ({ raw, ref, endedAt: fingerprintOf(raw)?.endedAt ?? null, kind: voucherOf(raw, deviceKeys)?.kind ?? "relay" as const, earlier: mine.has(ref) || held.has(ref) })),
+    { deviceId: source.deviceId, sealKey: source.sealKey ?? null, secret: challengeSecret(), windowSec: config.challengeWindowSec, clockSlackSec: config.clockSlackSec, deviceSince: epoch(standing?.createdAt), requireSeal: config.requireSeal });
   let strikes = await tx.dungeonRunWitness.count({ where: { deviceId: source.deviceId, status: "held", firstSeenAt: { gte: new Date(now.getTime() - 7 * 86_400_000) } } });
 
   const record = async (ref: string, raw: unknown, statement: Statement, data: { status: string; reason?: string | null; trust?: string | null; runId?: string | null; decided?: boolean; keepPayload?: boolean; flags?: Anomaly[] }) => {
@@ -379,28 +372,38 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
     await tx.dungeonRunWitness.upsert({ where: { guildId_runRef_deviceId: { guildId, runRef: ref, deviceId: source.deviceId } },
       create: { guildId, deviceId: source.deviceId, runRef: ref, firstSeenAt: now, ...row }, update: row });
   };
+  /** Keeps the run for review; the PC gets an ordinary receipt so it stops sending it. */
+  const holdRun = async (ref: string, raw: unknown, statement: Statement, flags: Anomaly[]) => {
+    await record(ref, raw, statement, { status: "held", reason: "held", keepPayload: true, flags });
+    await saveRunReceipts(tx, guildId, [{ runRef: ref, outcome: "stored", reason: null, runId: null }], now);
+  };
   /** This statement plus every other device's statement that speaks for another party member. */
   const witnessesOf = (statement: Statement, rows: readonly WitnessRow[]): number => new Set([statement.voucher, ...rows.map((row) => row.voucher)]).size;
-  // Plausibility flags (run-plausibility.ts): report only, the run counts either way.
-  const flagsFor = async (raw: unknown, ref: string): Promise<{ code: string; detail: string }[]> => {
+  // Neighbouring runs, this PC's own runs and the fastest known clears are read once per upload.
+  const newPrints = entries.filter((entry) => !mine.has(entry.ref) && !held.has(entry.ref)).flatMap((entry) => { const print = fingerprintOf(entry.raw); return print ? [print] : []; });
+  const ends = newPrints.flatMap((print) => print.endedAt ? [print.endedAt] : []);
+  const reachAll = ends.length ? { gte: new Date((Math.min(...ends) - 4 * 3600) * 1000), lte: new Date((Math.max(...ends) + 4 * 3600) * 1000) } : null;
+  const instances = [...new Set(newPrints.map((print) => print.instanceId))];
+  const [fastestRows, nearbyRows, ownRows] = newPrints.length ? await Promise.all([
+    tx.dungeonRun.groupBy({ by: ["instanceId", "difficultyId"], where: { guildId, instanceId: { in: instances }, valid: true, state: "COMPLETED", durationSec: { not: null } }, _min: { durationSec: true }, _count: { _all: true } }),
+    reachAll ? tx.dungeonRun.findMany({ where: { guildId, valid: true, endedAt: reachAll }, select: { runRef: true, instanceId: true, startedAt: true, endedAt: true, players: { select: { character: true } } }, take: 500 }) : Promise.resolve([]),
+    reachAll ? tx.dungeonRunWitness.findMany({ where: { guildId, deviceId: source.deviceId, kind: "first-hand", status: "stored", endedAt: reachAll }, take: 300 }) as Promise<WitnessRow[]> : Promise.resolve([] as WitnessRow[])
+  ]) : [[], [], [] as WitnessRow[]];
+  const flagsFor = (raw: unknown, ref: string): Anomaly[] => {
     const data = raw as { instanceId?: number; difficultyId?: number; startedAt?: number; endedAt?: number; players?: { character?: unknown; level?: unknown }[]; encounters?: { id?: unknown; at?: unknown; success?: unknown; kind?: unknown }[] };
     const started = typeof data.startedAt === "number" ? data.startedAt : null, ended = typeof data.endedAt === "number" ? data.endedAt : null;
     if (typeof data.instanceId !== "number") return [];
-    const reach = ended ? { gte: new Date((ended - 4 * 3600) * 1000), lte: new Date((ended + 4 * 3600) * 1000) } : undefined;
-    const [fastest, nearby, mineRows] = await Promise.all([
-      tx.dungeonRun.aggregate({ where: { guildId, instanceId: data.instanceId, difficultyId: data.difficultyId ?? 0, valid: true, state: "COMPLETED", durationSec: { not: null }, runRef: { not: ref } }, _min: { durationSec: true }, _count: { _all: true } }),
-      reach ? tx.dungeonRun.findMany({ where: { guildId, valid: true, endedAt: reach }, select: { runRef: true, instanceId: true, startedAt: true, endedAt: true, players: { select: { character: true } } }, take: 200 }) : Promise.resolve([]),
-      reach ? tx.dungeonRunWitness.findMany({ where: { guildId, deviceId: source.deviceId, status: "stored", endedAt: reach }, take: 100 }) as Promise<WitnessRow[]> : Promise.resolve([] as WitnessRow[])
-    ]);
+    const within = (row: { endedAt: Date | null }) => ended === null || !row.endedAt || Math.abs(epoch(row.endedAt)! - ended) <= 4 * 3600;
+    const fastest = (fastestRows as { instanceId: number; difficultyId: number; _min: { durationSec: number | null }; _count: { _all: number } }[]).find((row) => row.instanceId === data.instanceId && row.difficultyId === (data.difficultyId ?? 0));
     const neighbour = (row: { runRef: string; instanceId: number; startedAt: Date | null; endedAt: Date | null }, characters: string[]): NeighbourRun => ({ runRef: row.runRef, instanceId: row.instanceId, startedAt: epoch(row.startedAt), endedAt: epoch(row.endedAt), characters });
     return plausibilityFlags({
       instanceId: data.instanceId, startedAt: started, endedAt: ended,
       players: (data.players ?? []).flatMap((player) => typeof player.character === "string" ? [{ character: player.character, level: typeof player.level === "number" ? player.level : null }] : []),
       kills: (data.encounters ?? []).flatMap((boss) => boss.success === true && boss.kind !== "npc" && typeof boss.id === "number" ? [{ id: boss.id, at: typeof boss.at === "number" ? boss.at : null }] : [])
     }, {
-      runRef: ref, fastest: { seconds: fastest._min.durationSec ?? null, count: fastest._count._all },
-      neighbours: nearby.map((row) => neighbour(row, row.players.map((player) => player.character))),
-      deviceRuns: mineRows.map((row) => neighbour({ runRef: row.runRef, instanceId: row.instanceId, startedAt: row.startedAt, endedAt: row.endedAt }, row.players))
+      runRef: ref, limits: config.limits, fastest: { seconds: fastest?._min.durationSec ?? null, count: fastest?._count._all ?? 0 },
+      neighbours: (nearbyRows as { runRef: string; instanceId: number; startedAt: Date | null; endedAt: Date | null; players: { character: string }[] }[]).filter(within).map((row) => neighbour(row, row.players.map((player) => player.character))),
+      deviceRuns: ownRows.filter(within).map((row) => neighbour({ runRef: row.runRef, instanceId: row.instanceId, startedAt: row.startedAt, endedAt: row.endedAt }, row.players))
     });
   };
   const othersNear = async (print: RunFingerprint): Promise<WitnessRow[]> => print.endedAt ? await tx.dungeonRunWitness.findMany({ where: { guildId, instanceId: print.instanceId,
@@ -419,13 +422,14 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
     if (!standing || !print) { result.skipped++; continue; }
     const statement: Statement = { ...print, deviceId: source.deviceId, ...standing };
     const earlier = mine.get(ref);
-    if (earlier?.status === "held") continue; // held for review: nothing is said to the member
+    if (earlier?.status === "held") { await saveRunReceipts(tx, guildId, [{ runRef: ref, outcome: "stored", reason: null, runId: null }], now); continue; }
+    if (excludedHere && earlier?.reason !== "released") { await holdRun(ref, raw, statement, [{ code: "pc-excluded", detail: "PC excluded by an officer" }]); continue; }
     const sameId = held.get(ref);
     const existing = sameId ?? await storedCopy(print);
     if (existing) {
       // Never touched. A run one device vouched for alone becomes witnessed when an independent device agrees.
       if (!sameId) await saveRunReceipts(tx, guildId, [{ runRef: ref, outcome: "copy", state: "COMPLETED", reason: COPY_REASON, runId: existing.id }], now);
-      {
+      if (earlier?.status !== "stored") {
         const others = await othersNear(print);
         const independents = others.filter((other) => independent(statement, statementOfRow(other)));
         if (independents.length) {
@@ -449,7 +453,7 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
     if ("wait" in decision) {
       if (!earlier && waiting >= RUN_TRUST.pendingPerDevice) { result.skipped++; continue; }
       if (!earlier || earlier.status !== "pending") waiting++;
-      await record(ref, raw, statement, { status: "pending", reason: decision.wait, keepPayload: true });
+      await record(ref, raw, statement, { status: "pending", reason: earlier?.reason === "released" ? "released" : decision.wait, keepPayload: true });
       pending[ref] = decision.wait;
       continue;
     }
@@ -457,12 +461,11 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
     // (a run that waited must not lose the season's upload window).
     const partner = decision.store === "witnessed" ? others.find((other) => independent(statement, statementOfRow(other))) : undefined;
     const usePartner = partner && statement.kind === "relay" && partner.kind === "first-hand" && partner.payload;
-    // Every check's result decides whether the run is held for review (never told to the member) or counted. A single soft flag only reports.
-    const flagList: Anomaly[] = [...(batch.flags.get(ref) ?? []), ...await flagsFor(usePartner ? partner.payload : raw, ref),
+    const flagList: Anomaly[] = [...(batchFlags.get(ref) ?? []), ...flagsFor(usePartner ? partner.payload : raw, ref),
       ...(others.some((other) => contradicts(statement, statementOfRow(other))) ? [{ code: "contradicts-copy", detail: "another player's copy of this run disagrees" }] : [])];
-    if (earlier?.reason !== "released" && holdsRun(flagList.map((flag) => flag.code), config, strikes)) {
+    if (decision.store !== "witnessed" && earlier?.reason !== "released" && holdsRun(flagList.map((flag) => flag.code), config, strikes)) {
       strikes++;
-      await record(ref, raw, statement, { status: "held", reason: "held", keepPayload: true, flags: flagList });
+      await holdRun(ref, raw, statement, flagList);
       continue;
     }
     const summary = await withEdition(gameEditionOf(guild ?? {}), () => importDungeonRuns(tx, guildId, [usePartner ? partner.payload : raw], linked, DEVICE_SOURCE, null, usePartner ? partner.firstSeenAt : earlier?.firstSeenAt ?? now));
@@ -486,7 +489,6 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
     const copies = [...new Set([ref, ...agreeing.map((other) => other.runRef)])].filter((other) => other !== made.runRef);
     if (copies.length) await saveRunReceipts(tx, guildId, copies.map((runRef) => ({ runRef, outcome: "copy" as const, state: "COMPLETED", reason: COPY_REASON, runId: made.runId ?? null })), now);
   }
-  if (batch.head && (!chainHead || batch.head.n > chainHead.n)) await tx.companionDevice.update({ where: { id: source.deviceId }, data: { chainSeq: batch.head.n, chainHash: batch.head.hash } });
   if (Object.keys(pending).length) result.pending = pending;
   const settings = await tx.guildSettings.findUnique({ where: { guildId }, select: { dungeonLeaderboardChannelId: true } });
   if (result.stored && settings?.dungeonLeaderboardChannelId) await enqueueDiscordJob(tx, guildId, "dungeon-board", "DUNGEON_BOARD");

@@ -1738,7 +1738,7 @@ model DungeonRun {
   // brought it. "device": one unsigned companion, a party member is in the roster. "witnessed": two unsigned
   // companions speaking for two party members. (13 November 2026: with SINGLE_WITNESS every stored run is published; see run-trust.ts.)
   trust           String?
-  /// (13 November 2026) Plausibility flags raised when the run was stored: [{ code, detail }]. Report only; the run still counts.
+  /// (13 November 2026) Check results recorded when the run was stored: [{ code, detail }].
   anomalies       Json?
   /// Independent statements that agree (a signed-in member's upload counts as one). Information only: "confirmed by N players".
   witnessCount    Int                       @default(1)
@@ -2352,12 +2352,8 @@ model CompanionDevice {
   claimedMemberId String?
   claimedAt       DateTime?
   revokedAt       DateTime?
-  /// (13 November 2026) An owner or officer excluded this install: its runs are refused (the device key is the unit of exclusion).
-  excludedAt      DateTime?
-  excludedReason  String?
-  /// Number and hash of the newest record chain link this install sent (shared challenge/chain checks).
-  chainSeq        Int?
-  chainHash       String?
+  /// (13 November 2026) Discord servers (Guild ids) whose officers excluded this install; its runs there are held.
+  excludedGuilds  String[]  @default([])
   uploads         Int       @default(0)
   guild           Guild?    @relation(fields: [guildId], references: [id], onDelete: SetNull)
   claimedMember   Member?   @relation(fields: [claimedMemberId], references: [id], onDelete: SetNull)
@@ -2391,7 +2387,7 @@ model DungeonRunWitness {
   payload      Json?
   /// pending | stored | expired | held (held for owner review, never shown to the member)
   status       String    @default("pending")
-  /// Check results behind a held statement, for officers only.
+  /// Check results behind a held statement.
   flags        Json?
   /// The trust the stored run got through this statement (device | witnessed).
   trust        String?

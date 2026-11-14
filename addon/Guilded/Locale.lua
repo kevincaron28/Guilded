@@ -8,6 +8,22 @@ local addonName, ns = ...
 ns = ns or {}
 
 local FR = {
+  -- 9.3.2 records carried for players near you.
+  ["Carrying records is turned off for the whole guild by an officer."] = "Le relais est d\195\169sactiv\195\169 pour toute la guilde par un officier.",
+  ["Carrying records is allowed for the guild again."] = "Le relais est de nouveau permis pour la guilde.",
+  ["Guilded now hands your duel results to a nearby player's companion, and does the same for other players, so they reach Discord without a companion of your own. Type /guilded carry off to stop."] = "Guilded confie d\195\169sormais vos r\195\169sultats de duel au companion d'un joueur proche, et fait de m\195\170me pour les autres joueurs, afin qu'ils arrivent sur Discord sans companion de votre c\195\180t\195\169. Tapez /guilded carry off pour arr\195\170ter.",
+  ["Carrying records is off. Type /guilded carry on to turn it on."] = "Le relais de donn\195\169es est d\195\169sactiv\195\169. Tapez /guilded carry on pour l'activer.",
+  ["Your companion carries records for players near you (%d waiting to be sent)."] = "Votre companion relaie les donn\195\169es des joueurs proches de vous (%d en attente d'envoi).",
+  ["%d records wait for a companion: one is in range and will take them."] = "%d donn\195\169es attendent un companion : il y en a un \195\160 port\195\169e, il les prendra.",
+  ["%d records wait for a companion. No companion heard yet."] = "%d donn\195\169es attendent un companion. Aucun companion rep\195\169r\195\169 pour l'instant.",
+  ["Your records were uploaded by a companion near you."] = "Vos donn\195\169es ont \195\169t\195\169 envoy\195\169es par un companion proche de vous.",
+  ["Nothing to carry. A player near you with the companion will take your records."] = "Rien \195\160 relayer. Un joueur proche de vous avec le companion prendra vos donn\195\169es.",
+  ["Carrying records is off: the shared channel is left and nothing is offered, kept or announced."] = "Le relais est d\195\169sactiv\195\169 : le canal commun est quitt\195\169, plus rien n'est propos\195\169, gard\195\169 ni annonc\195\169.",
+  ["Carrying records is on."] = "Le relais de donn\195\169es est activ\195\169.",
+  ["Carriers heard: %d. Shared channel: %s. Type /guilded carry off to stop."] = "Relais rep\195\169r\195\169s : %d. Canal commun : %s. Tapez /guilded carry off pour arr\195\170ter.",
+  ["carry channel joined"] = "rejoint",
+  ["carry channel not available, using guild and group"] = "indisponible, la guilde et le groupe sont utilis\195\169s",
+  ["carry channel not joined"] = "non rejoint",
   -- 9.3 an abandoned run says why it will not count.
   ["This dungeon run (%s) ended before its final boss was killed (%d boss(es) down), so it will not count. If you did kill the final boss, type %s and tell an officer what it says."] = "Ce donjon (%s) s'est termin\195\169 avant la mort du boss final (%d boss vaincu(s)) : il ne comptera donc pas. Si vous avez bien tu\195\169 le boss final, tapez %s et dites aux officiers ce qui s'affiche.",
   -- 9.0.8 waiting dungeon runs and run receipts.
@@ -984,6 +1000,22 @@ local FR = {
 -- scripts/addon-locale.mjs), then npm run dungeons:sync.
 -- BEGIN DE (written by npm run locale -- import; edit the CSV, not these lines)
 local DE = {
+  -- 9.3.2 records carried for players near you.
+  ["Carrying records is turned off for the whole guild by an officer."] = "Das Weitergeben von Daten ist f\195\188r die ganze Gilde von einem Offizier ausgeschaltet.",
+  ["Carrying records is allowed for the guild again."] = "Das Weitergeben von Daten ist f\195\188r die Gilde wieder erlaubt.",
+  ["Guilded now hands your duel results to a nearby player's companion, and does the same for other players, so they reach Discord without a companion of your own. Type /guilded carry off to stop."] = "Guilded gibt deine Duellergebnisse jetzt an den Companion eines Spielers in der N\195\164he weiter und tut das auch f\195\188r andere Spieler, damit sie ohne eigenen Companion bei Discord ankommen. Mit /guilded carry off beendest du es.",
+  ["Carrying records is off. Type /guilded carry on to turn it on."] = "Das Weitergeben von Daten ist aus. Mit /guilded carry on schaltest du es ein.",
+  ["Your companion carries records for players near you (%d waiting to be sent)."] = "Dein Companion gibt Daten von Spielern in deiner N\195\164he weiter (%d warten auf den Versand).",
+  ["%d records wait for a companion: one is in range and will take them."] = "%d Eintr\195\164ge warten auf einen Companion: einer ist in Reichweite und nimmt sie mit.",
+  ["%d records wait for a companion. No companion heard yet."] = "%d Eintr\195\164ge warten auf einen Companion. Noch keiner in der N\195\164he gefunden.",
+  ["Your records were uploaded by a companion near you."] = "Deine Eintr\195\164ge wurden von einem Companion in deiner N\195\164he hochgeladen.",
+  ["Nothing to carry. A player near you with the companion will take your records."] = "Nichts weiterzugeben. Ein Spieler in deiner N\195\164he mit dem Companion nimmt deine Eintr\195\164ge mit.",
+  ["Carrying records is off: the shared channel is left and nothing is offered, kept or announced."] = "Das Weitergeben ist aus: der gemeinsame Kanal ist verlassen, nichts wird angeboten, gespeichert oder angek\195\188ndigt.",
+  ["Carrying records is on."] = "Das Weitergeben von Daten ist an.",
+  ["Carriers heard: %d. Shared channel: %s. Type /guilded carry off to stop."] = "Gefundene \195\156bermittler: %d. Gemeinsamer Kanal: %s. Mit /guilded carry off beendest du es.",
+  ["carry channel joined"] = "beigetreten",
+  ["carry channel not available, using guild and group"] = "nicht verf\195\188gbar, Gilde und Gruppe werden genutzt",
+  ["carry channel not joined"] = "nicht beigetreten",
   ["This dungeon run (%s) ended before its final boss was killed (%d boss(es) down), so it will not count. If you did kill the final boss, type %s and tell an officer what it says."] = "Dieser Dungeon (%s) endete, bevor der letzte Boss besiegt war (%d Boss(e) erledigt), und z\195\164hlt daher nicht. Falls Ihr den letzten Boss doch besiegt habt, gebt %s ein und sagt einem Offizier, was dort steht.",
   ["Nearby (%d)"] = "In der N\195\164he (%d)",
   ["Nearby"] = "In der N\195\164he",
@@ -2919,6 +2951,22 @@ local DE = {
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
 local ES = {
+  -- 9.3.2 records carried for players near you.
+  ["Carrying records is turned off for the whole guild by an officer."] = "El reenv\195\173o de datos est\195\161 desactivado para toda la hermandad por un oficial.",
+  ["Carrying records is allowed for the guild again."] = "El reenv\195\173o de datos vuelve a estar permitido para la hermandad.",
+  ["Guilded now hands your duel results to a nearby player's companion, and does the same for other players, so they reach Discord without a companion of your own. Type /guilded carry off to stop."] = "Guilded ahora entrega tus resultados de duelo al companion de un jugador cercano, y hace lo mismo con otros jugadores, para que lleguen a Discord sin un companion propio. Escribe /guilded carry off para detenerlo.",
+  ["Carrying records is off. Type /guilded carry on to turn it on."] = "El reenv\195\173o de datos est\195\161 desactivado. Escribe /guilded carry on para activarlo.",
+  ["Your companion carries records for players near you (%d waiting to be sent)."] = "Tu companion reenv\195\173a datos de jugadores cercanos (%d esperando para enviarse).",
+  ["%d records wait for a companion: one is in range and will take them."] = "%d registros esperan a un companion: hay uno cerca y los llevar\195\161.",
+  ["%d records wait for a companion. No companion heard yet."] = "%d registros esperan a un companion. Todav\195\173a no se ha detectado ninguno.",
+  ["Your records were uploaded by a companion near you."] = "Tus registros fueron enviados por un companion cercano.",
+  ["Nothing to carry. A player near you with the companion will take your records."] = "Nada que reenviar. Un jugador cercano con el companion llevar\195\161 tus registros.",
+  ["Carrying records is off: the shared channel is left and nothing is offered, kept or announced."] = "El reenv\195\173o est\195\161 desactivado: se sale del canal com\195\186n y no se ofrece, guarda ni anuncia nada.",
+  ["Carrying records is on."] = "El reenv\195\173o de datos est\195\161 activado.",
+  ["Carriers heard: %d. Shared channel: %s. Type /guilded carry off to stop."] = "Portadores detectados: %d. Canal com\195\186n: %s. Escribe /guilded carry off para detenerlo.",
+  ["carry channel joined"] = "unido",
+  ["carry channel not available, using guild and group"] = "no disponible, se usan la hermandad y el grupo",
+  ["carry channel not joined"] = "sin unirse",
   ["This dungeon run (%s) ended before its final boss was killed (%d boss(es) down), so it will not count. If you did kill the final boss, type %s and tell an officer what it says."] = "Esta mazmorra (%s) termin\195\179 antes de matar al jefe final (%d jefe(s) derrotado(s)), as\195\173 que no contar\195\161. Si mataste al jefe final, escribe %s y dile a un oficial lo que muestra.",
   ["Nearby (%d)"] = "Cerca (%d)",
   ["Nearby"] = "Cerca",

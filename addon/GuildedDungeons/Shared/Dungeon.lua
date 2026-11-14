@@ -1894,6 +1894,9 @@ local function handleDungeonCommand(args)
     local choice = string.lower(args[2] or "")
     if choice == "on" then d.carryGroupRuns = nil elseif choice == "off" then d.carryGroupRuns = false end
     ns.message(dungeon.carryOn() and L("Your companion carries the runs of players in your group: on.") or L("Your companion carries the runs of players in your group: off."))
+    -- (9.3.2) The same words also reach the records module (status, its own switch, the officer switch), here and in Guilded Dungeons.
+    local records = ns.commandHandlers and ns.commandHandlers["carry"]
+    if records then pcall(records, { args[2], args[3] }) end
   elseif action == "start" then
     if not d.current then ns.message("Not in a tracked dungeon run.") return end
     if not canControl() then ns.message("Only the group leader or an officer can do that.") return end

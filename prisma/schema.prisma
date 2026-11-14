@@ -4049,6 +4049,20 @@ model PublicDuelExclusion {
   createdAt DateTime @default(now())
 }
 
+// A record a companion carried for another player (9.3.2, docs/plans/ADDON_ONLY_REACH_2026-11-14.md): the record's own key, so it is applied once
+// however many carriers send it, and the carrier's day count.
+model CarriedRecord {
+  id        String   @id @default(cuid())
+  kind      String
+  key       String
+  author    String
+  carrier   String
+  createdAt DateTime @default(now())
+
+  @@unique([kind, key])
+  @@index([carrier, createdAt])
+}
+
 // A fresh value the bot gives a companion at each sync; the addon puts it on the duel records it makes next.
 model DuelChallenge {
   id       String   @id @default(cuid())

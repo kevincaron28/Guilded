@@ -284,6 +284,8 @@ export const addonSnapshotSchema = z.object({
   // Duels against players outside the guild (global ladder; docs/DUEL_RATING_ADDON_SPEC.md section 8). Validated row by row on apply.
   externalDuels: z.array(z.unknown()).max(200).default([]),
   milestones: z.array(z.unknown()).max(600).default([]),
+  // Records the addon kept for the player and offered to a carrier, and records it heard from others (9.3.2): applied by services/carried-records.
+  carriedRecords: z.array(z.unknown()).max(200).default([]),
   // 8.5 guild data (services/guild-data.ts): the game's guild roster, event log and info text.
   // Validated row by row on apply, so one odd row never rejects the upload.
   guildRoster: z.object({ at: z.number().int().positive(), complete: z.boolean().default(false), members: z.array(z.unknown()).max(1000).default([]) }).optional(),

@@ -14,6 +14,7 @@ import { hashCompanionSecret } from "./character-pairing.js";
 import { looseKey } from "./loose-key.js";
 import { normalizeClassName, normalizeRaceName } from "./character-import.js";
 import { prismaPublicRunStore } from "./public-runs.js";
+import { CARRY_FEATURE } from "./carried-records.js";
 import { GROUP_RELAY_FEATURE, ingestRelayedRuns, splitGroupCarried } from "./relay-public.js";
 
 // Zero-setup companion (owner decision, 9 November 2026; docs/ZERO_SETUP_COMPANION.md).
@@ -31,7 +32,7 @@ import { GROUP_RELAY_FEATURE, ingestRelayedRuns, splitGroupCarried } from "./rel
 // links confirm characters (Character.confirmedAt); only a sign-in claims a device.
 
 /** What this bot's device endpoint can do, sent with every answer: an older bot ignores `runsOnly`, so a companion must not send one to it. */
-export const DEVICE_FEATURES = ["runs-only", GROUP_RELAY_FEATURE] as const;
+export const DEVICE_FEATURES = ["runs-only", GROUP_RELAY_FEATURE, CARRY_FEATURE] as const;
 
 export const DEVICE_LIMITS = {
   /** New device keys per IP address per hour (a household or LAN party shares one). */
@@ -107,7 +108,9 @@ export const deviceUploadSchema = z.object({
   runsOnly: z.boolean().optional(),
   deviceName: z.string().max(80).optional(),
   /** Finished dungeon runs from the saved file, in the bot's dungeonRunSchema shape (validated when imported). */
-  dungeonRuns: z.array(z.unknown()).max(DEVICE_LIMITS.runsPerUpload).default([])
+  dungeonRuns: z.array(z.unknown()).max(DEVICE_LIMITS.runsPerUpload).default([]),
+  /** (9.3.2) Records the addon carries for players near it (see carried-records.ts); each is validated when applied. */
+  carriedRecords: z.array(z.unknown()).max(200).default([])
 });
 export type DeviceUpload = z.infer<typeof deviceUploadSchema>;
 
@@ -241,7 +244,19 @@ export function runsOfDevice(raw: unknown[], deviceKeys: ReadonlySet<string>): u
   });
 }
 
-export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, body: unknown, options: { allows?: (discordId: string) => boolean; now?: Date; runLimiter?: (deviceId: string) => boolean; sealKey?: string | null;
+export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, body: unknown, options: Parameters<typeof handleDeviceUploadCore>[3] & {
+  /** (9.3.2) Applies the records this upload carries; answers their receipts (keys the lane has dealt with). */
+  applyCarried?: (records: unknown[], carrier: { deviceId: string; names: string[] }) => Promise<string[]> } = {}): Promise<DeviceUploadAnswer & { carriedReceipts?: string[] }> {
+  const { applyCarried, ...rest } = options;
+  const answer = await handleDeviceUploadCore(store, device, body, rest);
+  if (!applyCarried || answer.status === "claimed") return answer;
+  const parsed = deviceUploadSchema.safeParse(body);
+  if (!parsed.success || !parsed.data.carriedRecords.length) return answer;
+  const carriedReceipts = await applyCarried(parsed.data.carriedRecords, { deviceId: device.id, names: parsed.data.characters.map((character) => key(character.name)) }).catch(() => []);
+  return carriedReceipts.length ? { ...answer, carriedReceipts } : answer;
+}
+
+async function handleDeviceUploadCore(store: DeviceStore, device: DeviceRow, body: unknown, options: { allows?: (discordId: string) => boolean; now?: Date; runLimiter?: (deviceId: string) => boolean; sealKey?: string | null;
   /** (9.3.2) Runs this upload stored (a guild's id) or placed on the public boards (null): other guilds with a member in them get a copy. Called after the runs are saved. */
   afterShare?: (origin: { guildId: string | null; deviceId: string; characterKeys: string[]; receivedAt: Date }, runs: unknown[]) => void } = {}): Promise<DeviceUploadAnswer> {
   if (device.claimedMemberId) return { status: "claimed" };

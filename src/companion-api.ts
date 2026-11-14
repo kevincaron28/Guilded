@@ -113,6 +113,7 @@ import { claimDevice, DEVICE_FEATURES, DEVICE_LIMITS, networkKey, DeviceError, d
 import { loadOfficialWindows } from "./services/official-seasons.js";
 import { companionSignInRoute, createCompanionSignIn } from "./services/companion-signin.js";
 import { carrySignedGroupRuns } from "./services/relay-public.js";
+import { applyCarriedRecords } from "./services/carried-records.js";
 import { ingestPublicRuns, ownPlayersFilter, pickScoreCharacter, PUBLIC_LIMITS, prismaPublicRunStore, PublicUploadError } from "./services/public-runs.js";
 import { publicAddonBoard } from "./services/public-addon-board.js";
 import { publicSeasons } from "./services/public-score.js";
@@ -893,6 +894,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         if (runsOnly && !runsOnlyHeader && !deviceRunsOnlyPerDevice(device.id)) { json(response, 429, { error: "Too many uploads in the last hour. Try again later." }); return; }
         try {
           const answered = await handleDeviceUpload(devices, device, deviceBody, { allows: (id) => hostedPilot.allows(id), sealKey: deviceHeader(request) ? deriveSealKey(deviceHeader(request)!) : null,
+            applyCarried: async (records, carrier) => (await applyCarriedRecords(prisma, { carrier: `device:${carrier.deviceId}`, carrierKeys: new Set(carrier.names), records })).receipts,
             afterShare: (origin, placed) => { void import("./services/cross-guild-post.js").then((module) => module.shareAndAnnounce(client, origin, placed)).catch(() => undefined); } });
           // A fresh challenge for the duel records the addon makes next (the companion writes it where the addon reads it).
           // A runs-only upload (a parked guild) is not the device's own sync: no challenge for it.
@@ -1345,6 +1347,12 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       await carrySignedGroupRuns(preview.snapshot, { carrier: `member:${access.memberId ?? access.actorId}`, store: publicRuns,
         onPlaced: (placed) => { void import("./services/cross-guild-post.js").then((module) => module.shareAndAnnounce(client, { guildId: null, characterKeys: [], receivedAt: new Date() }, placed)).catch(() => undefined); },
         saveReceipts: (refs) => prisma.$transaction((tx) => saveRunReceipts(tx, guild.id, refs.map((runRef) => ({ runRef, outcome: "stored" as const, reason: null, runId: null })), new Date())).then(() => undefined) });
+      // (9.3.2) Records the uploader's addon carried for players near it: applied by each kind's own code, answered by key.
+      const carriedRecords = preview.snapshot.carriedRecords ?? [];
+      const carriedAnswer = carriedRecords.length
+        ? await applyCarriedRecords(prisma, { carrier: `member:${access.memberId ?? access.actorId}`, carrierKeys: new Set([preview.snapshot.character, ...preview.snapshot.alts, ...preview.snapshot.characters].flatMap((entry) => entry ? [entry.name.trim().toLowerCase()] : [])), records: carriedRecords }).catch(() => ({ receipts: [] as string[], applied: 0 }))
+        : { receipts: [] as string[], applied: 0 };
+      const carriedExtra = carriedAnswer.receipts.length ? { carriedReceipts: carriedAnswer.receipts } : {};
       // T1 (10 Nov 2026): a signed upload only links and imports in a server that knows the saved file's in-game guild.
       // Officers stay exempt (their server may not list every guild an alt is in). The companion shows the warning.
       const guildCheck = await timed("guild-check", () => serverKnowsWowGuild(prisma, guild, preview.snapshot.wowGuild)).catch(() => undefined);
@@ -1579,7 +1587,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       };
       // "Received, being applied": the upload is stored; the companion shows it as sent and does not send the same file again.
       const applyingAnswer = (status: number, importId: string) => json(response, status, {
-        applying: true, importId, checksum: preview.checksum, source: preview.snapshot.source, transactionCount: preview.transactionCount, pairedCharacterStatus,
+        applying: true, ...carriedExtra, importId, checksum: preview.checksum, source: preview.snapshot.source, transactionCount: preview.transactionCount, pairedCharacterStatus,
         ...(guildCheck ? { serverWowGuild: guildCheck } : {}), status: "PREVIEWED", scope: access.officer ? "officer" : "personal", botVersion: BOT_VERSION, protocolVersion: 2
       });
       if (preview.duplicate) {
@@ -1605,15 +1613,15 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
             }
           } else {
             json(response, 200, {
-              autoApplied: answer.outcome.result, importId: existing.id, checksum: preview.checksum, pairedCharacterStatus,
+              autoApplied: answer.outcome.result, ...carriedExtra, importId: existing.id, checksum: preview.checksum, pairedCharacterStatus,
               status: "APPLIED", scope: access.officer ? "officer" : "personal", botVersion: BOT_VERSION, protocolVersion: 2
             });
             return;
           }
-          json(response, 409, { error: "This export was already received", checksum: preview.checksum, pairedCharacterStatus, importId: existing.id, status: "APPLIED", botVersion: BOT_VERSION, protocolVersion: 2 });
+          json(response, 409, { error: "This export was already received", ...carriedExtra, checksum: preview.checksum, pairedCharacterStatus, importId: existing.id, status: "APPLIED", botVersion: BOT_VERSION, protocolVersion: 2 });
           return;
         }
-        json(response, 409, { error: "This export was already received", checksum: preview.checksum, pairedCharacterStatus, importId: existing?.id, status: existing?.status, botVersion: BOT_VERSION, protocolVersion: 2 });
+        json(response, 409, { error: "This export was already received", ...carriedExtra, checksum: preview.checksum, pairedCharacterStatus, importId: existing?.id, status: existing?.status, botVersion: BOT_VERSION, protocolVersion: 2 });
         return;
       }
       mark("duplicate-check");
@@ -1633,6 +1641,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       mark("apply-tail");
       // 9.0.9: does this server know the uploading character's WoW guild? The companion warns about a wrong connection.
       json(response, 201, {
+        ...carriedExtra,
         ...(guildCheck ? { serverWowGuild: guildCheck } : {}),
         autoApplied,
         applyError,

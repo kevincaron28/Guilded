@@ -120,6 +120,7 @@ import { backCheckInvites, completeInvitesFromRoster } from "./services/invite-c
 import { prelinkInvitedCharacters, tellPrelinked } from "./services/invite-prelink.js";
 import { COMPANION_FEATURES, markGuildChanged, standingsFeed, type FeedParts } from "./services/standings-feed.js";
 import { commandRegistration } from "./services/command-registration.js";
+import { deriveSealKey } from "./services/run-challenge.js";
 const BOT_VERSION = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version as string;
 
 const importService = createAddonImportService(prisma);
@@ -877,11 +878,15 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           json(response, ok ? 200 : 409, ok ? { ok: true } : { error: "This companion was already confirmed by another Discord account." });
           return;
         }
+        // The rate limits come before the body is read. A runs-only upload (a parked guild) says so in a header and has its own budget.
+        const runsOnlyHeader = headerOf(request, "x-guilded-runs-only") === "1";
+        if (!(runsOnlyHeader ? deviceRunsOnlyPerDevice(device.id) : deviceUploadsPerDevice(device.id)) || !deviceUploadsPerIp(address)) { json(response, 429, { error: "Too many uploads in the last hour. Try again later." }); return; }
         const deviceBody = await readBody(request);
         const runsOnly = (deviceBody as { runsOnly?: unknown } | null)?.runsOnly === true;
-        if (!(runsOnly ? deviceRunsOnlyPerDevice(device.id) : deviceUploadsPerDevice(device.id)) || !deviceUploadsPerIp(address)) { json(response, 429, { error: "Too many uploads in the last hour. Try again later." }); return; }
+        // A runs-only body without the header spends the runs-only budget as well.
+        if (runsOnly && !runsOnlyHeader && !deviceRunsOnlyPerDevice(device.id)) { json(response, 429, { error: "Too many uploads in the last hour. Try again later." }); return; }
         try {
-          const answered = await handleDeviceUpload(devices, device, deviceBody, { allows: (id) => hostedPilot.allows(id) });
+          const answered = await handleDeviceUpload(devices, device, deviceBody, { allows: (id) => hostedPilot.allows(id), sealKey: deviceHeader(request) ? deriveSealKey(deviceHeader(request)!) : null });
           // A fresh challenge for the duel records the addon makes next (the companion writes it where the addon reads it).
           // A runs-only upload (a parked guild) is not the device's own sync: no challenge for it.
           const duelChallenge = runsOnly ? null : await issueDuelChallenge(prisma, device.id).catch(() => null);

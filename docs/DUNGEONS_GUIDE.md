@@ -67,7 +67,7 @@ With Guilded Dungeons alone, choose `GuildedDungeons.lua` in step 3: the compani
 needs no other file. After each upload its log says what happened to your runs, for
 example `Dungeon runs: 3 sent, 2 stored, 1 not counted (Not completed).` (stored =
 the bot holds the run, copied = counted with a guildmate's copy, waiting = needs a
-second player's addon, not counted = the reason is shown). If it says Guilded
+second player's addon (before 13 November 2026 only; since then one witness is enough, a run over its daily limit waits for tomorrow), not counted = the reason is shown). If it says Guilded
 Dungeons has not saved your guild yet, update the addon to 9.3.0 or newer, log in
 once and `/reload`: the bot finds your Discord server from the guild the addon saved.
 

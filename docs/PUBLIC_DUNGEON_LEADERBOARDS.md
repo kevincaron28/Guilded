@@ -104,7 +104,7 @@ when the real-client checks below pass.
    choose `WTF\Account\<ACCOUNT>\SavedVariables\GuildedDungeons.lua`, Save and start. Activity says
    "Public leaderboards: 1 new…". `/reload`: the run shows as sent.
 3. https://guilded.kcaron.top/leaderboards/ lists the dungeon; open it, your character ranks; filters work.
-4. A second player in the same run uploads too: the row shows ✔ 2.
+4. A second player in the same run uploads too: the row shows ✔ 2 (information only: since 13 November 2026 one witness is enough for a run to count).
 5. With Guilded and Guilded Dungeons both installed, `/gdg status` says Guilded records the run, and
    only Guilded's file gets the run.
 6. In Quebec Gold: `/mod leaderboard share:true`; within 15 minutes recent guild runs appear.

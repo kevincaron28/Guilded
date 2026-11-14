@@ -1739,8 +1739,12 @@ model DungeonRun {
   importId        String?
   // Who vouches for the run (docs/plans/RUN_TRUST_2026-11-10.md). null or "member": a signed-in member's upload
   // brought it. "device": one unsigned companion, a party member is in the roster. "witnessed": two unsigned
-  // companions speaking for two party members. Only null and "member" runs are published to the public boards.
+  // companions speaking for two party members. (13 November 2026: with SINGLE_WITNESS every stored run is published; see run-trust.ts.)
   trust           String?
+  /// (13 November 2026) Check results recorded when the run was stored: [{ code, detail }].
+  anomalies       Json?
+  /// Independent statements that agree (a signed-in member's upload counts as one). Information only: "confirmed by N players".
+  witnessCount    Int                       @default(1)
   createdAt       DateTime                  @default(now())
   guild           Guild                     @relation(fields: [guildId], references: [id], onDelete: Cascade)
   season          DungeonSeason?            @relation(fields: [seasonId], references: [id], onDelete: SetNull)
@@ -2351,6 +2355,8 @@ model CompanionDevice {
   claimedMemberId String?
   claimedAt       DateTime?
   revokedAt       DateTime?
+  /// (13 November 2026) Discord servers (Guild ids) whose officers excluded this install; its runs there are held.
+  excludedGuilds  String[]  @default([])
   uploads         Int       @default(0)
   guild           Guild?    @relation(fields: [guildId], references: [id], onDelete: SetNull)
   claimedMember   Member?   @relation(fields: [claimedMemberId], references: [id], onDelete: SetNull)
@@ -2382,8 +2388,10 @@ model DungeonRunWitness {
   bosses       Int[]     @default([])
   /// The run as uploaded, kept while pending so it can be imported when a second statement arrives.
   payload      Json?
-  /// pending | stored | expired
+  /// pending | stored | expired | held (held for owner review, never shown to the member)
   status       String    @default("pending")
+  /// Check results behind a held statement.
+  flags        Json?
   /// The trust the stored run got through this statement (device | witnessed).
   trust        String?
   reason       String?

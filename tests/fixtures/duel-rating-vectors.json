@@ -1,4 +1,5 @@
 {
+ "_note": "pairWeights are server configuration (DUEL_PAIR_WEIGHTS); the tests use their own values",
  "rules": {
   "id": "rating-v1",
   "startsAt": "2026-11-13T00:00:00.000Z",
@@ -20,14 +21,6 @@
   "handicapPerLevel": 20,
   "handicapMaxLevels": 5,
   "maxLevelGap": 10,
-  "pairWeights": [
-   1,
-   1,
-   0.5,
-   0.5,
-   0.25,
-   0.25
-  ],
   "shrinkGames": 10,
   "rankedDuels": 1,
   "rankedOpponents": 1,
@@ -316,9 +309,9 @@
    "expect": {
     "players": {
      "Aldric": {
-      "rating": 997.3927736892712,
-      "score": 999.0222901334766,
-      "rated": 6,
+      "rating": 1008.8537673247541,
+      "score": 1001.475627887459,
+      "rated": 2,
       "games": 7,
       "wins": 4,
       "losses": 3,
@@ -326,9 +319,9 @@
       "ranked": true
      },
      "Brenna": {
-      "rating": 1002.6072263107288,
-      "score": 1000.9777098665234,
-      "rated": 6,
+      "rating": 991.1462326752459,
+      "score": 998.524372112541,
+      "rated": 2,
       "games": 7,
       "wins": 3,
       "losses": 4,
@@ -347,37 +340,37 @@
      {
       "winner": "Brenna",
       "loser": "Aldric",
-      "winnerDelta": 2.2002593765971596,
-      "loserDelta": -2.2002593765971596,
+      "winnerDelta": 0.34255393072282914,
+      "loserDelta": -0.34255393072282914,
       "rated": true
      },
      {
       "winner": "Aldric",
       "loser": "Brenna",
-      "winnerDelta": 2.1911910745268415,
-      "loserDelta": -2.1911910745268415,
-      "rated": true
+      "winnerDelta": 0,
+      "loserDelta": 0,
+      "rated": false
      },
      {
       "winner": "Brenna",
       "loser": "Aldric",
-      "winnerDelta": 2.5552504966457263,
-      "loserDelta": -2.5552504966457263,
-      "rated": true
+      "winnerDelta": 0,
+      "loserDelta": 0,
+      "rated": false
      },
      {
       "winner": "Aldric",
       "loser": "Brenna",
-      "winnerDelta": 1.5673634227666753,
-      "loserDelta": -1.5673634227666753,
-      "rated": true
+      "winnerDelta": 0,
+      "loserDelta": 0,
+      "rated": false
      },
      {
       "winner": "Brenna",
       "loser": "Aldric",
-      "winnerDelta": 1.7989363087558559,
-      "loserDelta": -1.7989363087558559,
-      "rated": true
+      "winnerDelta": 0,
+      "loserDelta": 0,
+      "rated": false
      },
      {
       "winner": "Aldric",
@@ -511,8 +504,8 @@
    "expect": {
     "players": {
      "Aldric": {
-      "rating": 1128.2599833808738,
-      "score": 1057.004437058166,
+      "rating": 1101.9116483739842,
+      "score": 1045.294065943993,
       "rated": 8,
       "games": 8,
       "wins": 8,
@@ -521,8 +514,8 @@
       "ranked": true
      },
      "Brenna": {
-      "rating": 965.2502252572571,
-      "score": 994.2083708762095,
+      "rating": 972.6251126286286,
+      "score": 995.4375187714381,
       "rated": 2,
       "games": 2,
       "wins": 0,
@@ -531,8 +524,8 @@
       "ranked": true
      },
      "Corvin": {
-      "rating": 967.1213852360007,
-      "score": 994.5202308726668,
+      "rating": 973.9411558677683,
+      "score": 995.6568593112947,
       "rated": 2,
       "games": 2,
       "wins": 0,
@@ -541,8 +534,8 @@
       "ranked": true
      },
      "Dara": {
-      "rating": 968.8697806509463,
-      "score": 994.811630108491,
+      "rating": 975.180166542321,
+      "score": 995.8633610903869,
       "rated": 2,
       "games": 2,
       "wins": 0,
@@ -551,8 +544,8 @@
       "ranked": true
      },
      "Edda": {
-      "rating": 970.4986254749218,
-      "score": 995.0831042458203,
+      "rating": 976.3419165872974,
+      "score": 996.0569860978829,
       "rated": 2,
       "games": 2,
       "wins": 0,
@@ -593,29 +586,29 @@
      {
       "winner": "Aldric",
       "loser": "Brenna",
-      "winnerDelta": 8.411446227678766,
-      "loserDelta": -3.9734473056086017,
+      "winnerDelta": 5.953150437221552,
+      "loserDelta": -2.7442994103799947,
       "rated": true
      },
      {
       "winner": "Aldric",
       "loser": "Corvin",
-      "winnerDelta": 8.933310758416837,
-      "loserDelta": -3.7661348142141833,
+      "winnerDelta": 6.068609797697036,
+      "loserDelta": -2.6295063755862884,
       "rated": true
      },
      {
       "winner": "Aldric",
       "loser": "Dara",
-      "winnerDelta": 9.256339992210314,
-      "loserDelta": -3.5726526141893373,
+      "winnerDelta": 6.136083375058206,
+      "loserDelta": -2.5209216322934935,
       "rated": true
      },
      {
       "winner": "Aldric",
       "loser": "Edda",
-      "winnerDelta": 9.434212199273588,
-      "loserDelta": -3.3924339280679305,
+      "winnerDelta": 6.167094453429627,
+      "loserDelta": -2.4185520760053123,
       "rated": true
      }
     ]
@@ -684,8 +677,8 @@
    "expect": {
     "players": {
      "Aldric": {
-      "rating": 1125.7758666805837,
-      "score": 1055.9003851913706,
+      "rating": 1106.9272093220864,
+      "score": 1047.5232041431495,
       "rated": 8,
       "games": 8,
       "wins": 8,
@@ -694,8 +687,8 @@
       "ranked": true
      },
      "Brenna": {
-      "rating": 951.8396710155829,
-      "score": 988.886077926673,
+      "rating": 958.1630204127026,
+      "score": 990.3453124029314,
       "rated": 3,
       "games": 3,
       "wins": 0,
@@ -704,8 +697,8 @@
       "ranked": true
      },
      "Corvin": {
-      "rating": 954.2944799524827,
-      "score": 989.4525722967268,
+      "rating": 960.1521072219678,
+      "score": 990.8043324358387,
       "rated": 3,
       "games": 3,
       "wins": 0,
@@ -714,8 +707,8 @@
       "ranked": true
      },
      "Dara": {
-      "rating": 968.0899823513505,
-      "score": 994.6816637252251,
+      "rating": 974.7576630432428,
+      "score": 995.7929438405405,
       "rated": 2,
       "games": 2,
       "wins": 0,
@@ -749,36 +742,36 @@
      {
       "winner": "Aldric",
       "loser": "Brenna",
-      "winnerDelta": 7.58525453826303,
-      "loserDelta": -4.125047832509267,
+      "winnerDelta": 5.3482005519563245,
+      "loserDelta": -2.8200996738303274,
       "rated": true
      },
      {
       "winner": "Aldric",
       "loser": "Corvin",
-      "winnerDelta": 8.39904377804271,
-      "loserDelta": -3.9065446404546265,
+      "winnerDelta": 5.618260044218914,
+      "loserDelta": -2.7025739390683157,
       "rated": true
      },
      {
       "winner": "Aldric",
       "loser": "Dara",
-      "winnerDelta": 8.932812085804699,
-      "loserDelta": -3.702618997455261,
+      "winnerDelta": 5.805202111328754,
+      "loserDelta": -2.591338882139894,
       "rated": true
      },
      {
       "winner": "Aldric",
       "loser": "Brenna",
-      "winnerDelta": 8.871364756369985,
-      "loserDelta": -5.170692422635852,
+      "winnerDelta": 8.693048916781663,
+      "loserDelta": -5.016406105056376,
       "rated": true
      },
      {
       "winner": "Aldric",
       "loser": "Corvin",
-      "winnerDelta": 9.04509445716144,
-      "loserDelta": -4.927248749699629,
+      "winnerDelta": 8.99167694313519,
+      "loserDelta": -4.779459311974051,
       "rated": true
      }
     ]
@@ -1029,9 +1022,9 @@
    "expect": {
     "players": {
      "Aldric": {
-      "rating": 1233.3155612876647,
-      "score": 1180.28929735865,
-      "rated": 34,
+      "rating": 1171.1026163538463,
+      "score": 1114.0684109025642,
+      "rated": 20,
       "games": 34,
       "wins": 34,
       "losses": 0,
@@ -1039,9 +1032,9 @@
       "ranked": true
      },
      "Brenna": {
-      "rating": 937.1812627903861,
-      "score": 974.1334611489825,
-      "rated": 7,
+      "rating": 956.2532374817926,
+      "score": 987.5009249947979,
+      "rated": 4,
       "games": 7,
       "wins": 0,
       "losses": 7,
@@ -1049,9 +1042,9 @@
       "ranked": true
      },
      "Corvin": {
-      "rating": 939.2359109313173,
-      "score": 974.9794927364247,
-      "rated": 7,
+      "rating": 957.8616516538259,
+      "score": 987.9604719010931,
+      "rated": 4,
       "games": 7,
       "wins": 0,
       "losses": 7,
@@ -1059,9 +1052,9 @@
       "ranked": true
      },
      "Dara": {
-      "rating": 941.1798067413191,
-      "score": 975.7799204228961,
-      "rated": 7,
+      "rating": 959.3867081120769,
+      "score": 988.3962023177363,
+      "rated": 4,
       "games": 7,
       "wins": 0,
       "losses": 7,
@@ -1069,9 +1062,9 @@
       "ranked": true
      },
      "Edda": {
-      "rating": 943.0154577657382,
-      "score": 976.5357767270687,
-      "rated": 7,
+      "rating": 960.8284860756196,
+      "score": 988.8081388787484,
+      "rated": 4,
       "games": 7,
       "wins": 0,
       "losses": 7,
@@ -1079,9 +1072,9 @@
       "ranked": true
      },
      "Fenn": {
-      "rating": 947.9894639400626,
-      "score": 980.4960489775235,
-      "rated": 6,
+      "rating": 962.1888106737948,
+      "score": 989.1968030496556,
+      "rated": 4,
       "games": 6,
       "wins": 0,
       "losses": 6,
@@ -1128,205 +1121,205 @@
      {
       "winner": "Aldric",
       "loser": "Brenna",
-      "winnerDelta": 8.934706158707513,
-      "loserDelta": -3.8337448999769776,
+      "winnerDelta": 6.326288600778753,
+      "loserDelta": -2.6744482075641827,
       "rated": true
      },
      {
       "winner": "Aldric",
       "loser": "Corvin",
-      "winnerDelta": 9.248918578044822,
-      "loserDelta": -3.6368101416686613,
+      "winnerDelta": 6.338237534531345,
+      "loserDelta": -2.562185971592953,
       "rated": true
      },
      {
       "winner": "Aldric",
       "loser": "Dara",
-      "winnerDelta": 9.421067830292714,
-      "loserDelta": -3.452944801996523,
+      "winnerDelta": 6.32465276563903,
+      "loserDelta": -2.4560480396989988,
       "rated": true
      },
      {
       "winner": "Aldric",
       "loser": "Edda",
-      "winnerDelta": 9.488957439809838,
-      "loserDelta": -3.2815999517426917,
+      "winnerDelta": 6.291614306734118,
+      "loserDelta": -2.3560420360794296,
       "rated": true
      },
      {
       "winner": "Aldric",
       "loser": "Fenn",
-      "winnerDelta": 9.480195409746784,
-      "loserDelta": -3.1221194854701935,
+      "winnerDelta": 6.243679389657473,
+      "loserDelta": -2.2620374194991655,
       "rated": true
      },
      {
       "winner": "Aldric",
       "loser": "Brenna",
-      "winnerDelta": 5.234938396061807,
-      "loserDelta": -3.3492337922252773,
+      "winnerDelta": 0,
+      "loserDelta": 0,
+      "rated": false
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Corvin",
+      "winnerDelta": 0,
+      "loserDelta": 0,
+      "rated": false
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Dara",
+      "winnerDelta": 0,
+      "loserDelta": 0,
+      "rated": false
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Edda",
+      "winnerDelta": 0,
+      "loserDelta": 0,
+      "rated": false
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Fenn",
+      "winnerDelta": 0,
+      "loserDelta": 0,
+      "rated": false
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Brenna",
+      "winnerDelta": 0,
+      "loserDelta": 0,
+      "rated": false
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Corvin",
+      "winnerDelta": 0,
+      "loserDelta": 0,
+      "rated": false
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Dara",
+      "winnerDelta": 0,
+      "loserDelta": 0,
+      "rated": false
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Edda",
+      "winnerDelta": 0,
+      "loserDelta": 0,
+      "rated": false
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Fenn",
+      "winnerDelta": 0,
+      "loserDelta": 0,
+      "rated": false
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Brenna",
+      "winnerDelta": 6.654066123330722,
+      "loserDelta": -4.471569158496891,
       "rated": true
      },
      {
       "winner": "Aldric",
       "loser": "Corvin",
-      "winnerDelta": 5.027956335544104,
-      "loserDelta": -3.2270005235403687,
+      "winnerDelta": 6.606465695283305,
+      "loserDelta": -4.323886670180173,
       "rated": true
      },
      {
       "winner": "Aldric",
       "loser": "Dara",
-      "winnerDelta": 4.845125743602466,
-      "loserDelta": -3.111856273908984,
+      "winnerDelta": 6.546028696031726,
+      "loserDelta": -4.182987135039639,
       "rated": true
      },
      {
       "winner": "Aldric",
       "loser": "Edda",
-      "winnerDelta": 4.682252067630316,
-      "loserDelta": -3.003629641428688,
+      "winnerDelta": 6.475585932043032,
+      "loserDelta": -4.048804943297569,
       "rated": true
      },
      {
       "winner": "Aldric",
       "loser": "Fenn",
-      "winnerDelta": 4.5360068061522725,
-      "loserDelta": -2.9020485823525632,
+      "winnerDelta": 6.397396072501351,
+      "loserDelta": -3.921176784774275,
       "rated": true
      },
      {
       "winner": "Aldric",
       "loser": "Brenna",
-      "winnerDelta": 4.302972593445475,
-      "loserDelta": -3.4759278603290795,
+      "winnerDelta": 4.218829092942542,
+      "loserDelta": -3.5348758209592006,
       "rated": true
      },
      {
       "winner": "Aldric",
       "loser": "Corvin",
-      "winnerDelta": 4.184079859616759,
-      "loserDelta": -3.369387884083949,
+      "winnerDelta": 4.113249576663293,
+      "loserDelta": -3.439821144014786,
       "rated": true
      },
      {
       "winner": "Aldric",
       "loser": "Dara",
-      "winnerDelta": 4.075853244203017,
-      "loserDelta": -3.2686336705096437,
+      "winnerDelta": 4.0166175652404945,
+      "loserDelta": -3.3490452302054337,
       "rated": true
      },
      {
       "winner": "Aldric",
       "loser": "Edda",
-      "winnerDelta": 3.976692154870989,
-      "loserDelta": -3.1735318149310388,
+      "winnerDelta": 3.9276054873257635,
+      "loserDelta": -3.2625523157628322,
       "rated": true
      },
      {
       "winner": "Aldric",
       "loser": "Fenn",
-      "winnerDelta": 3.8852867756666,
-      "loserDelta": -3.083867082971892,
+      "winnerDelta": 3.8451257210608674,
+      "loserDelta": -3.180259341857436,
       "rated": true
      },
      {
       "winner": "Aldric",
       "loser": "Brenna",
-      "winnerDelta": 5.443467970064148,
-      "loserDelta": -4.942306215327562,
-      "rated": true
+      "winnerDelta": 0,
+      "loserDelta": 0,
+      "rated": false
      },
      {
       "winner": "Aldric",
       "loser": "Corvin",
-      "winnerDelta": 5.372798381247321,
-      "loserDelta": -4.811492412056168,
-      "rated": true
+      "winnerDelta": 0,
+      "loserDelta": 0,
+      "rated": false
      },
      {
       "winner": "Aldric",
       "loser": "Dara",
-      "winnerDelta": 5.301591170116808,
-      "loserDelta": -4.686093572499544,
-      "rated": true
+      "winnerDelta": 0,
+      "loserDelta": 0,
+      "rated": false
      },
      {
       "winner": "Aldric",
       "loser": "Edda",
-      "winnerDelta": 5.229973015022779,
-      "loserDelta": -4.566024871937884,
-      "rated": true
-     },
-     {
-      "winner": "Aldric",
-      "loser": "Fenn",
-      "winnerDelta": 5.158088182193524,
-      "loserDelta": -4.451141231682982,
-      "rated": true
-     },
-     {
-      "winner": "Aldric",
-      "loser": "Brenna",
-      "winnerDelta": 4.82735519471521,
-      "loserDelta": -4.935963468154341,
-      "rated": true
-     },
-     {
-      "winner": "Aldric",
-      "loser": "Corvin",
-      "winnerDelta": 4.768381479431582,
-      "loserDelta": -4.821972342639583,
-      "rated": true
-     },
-     {
-      "winner": "Aldric",
-      "loser": "Dara",
-      "winnerDelta": 4.709472940419801,
-      "loserDelta": -4.712195800042537,
-      "rated": true
-     },
-     {
-      "winner": "Aldric",
-      "loser": "Edda",
-      "winnerDelta": 4.650614712336392,
-      "loserDelta": -4.606587205677442,
-      "rated": true
-     },
-     {
-      "winner": "Aldric",
-      "loser": "Fenn",
-      "winnerDelta": 4.5918275561607516,
-      "loserDelta": -4.505051235785345,
-      "rated": true
-     },
-     {
-      "winner": "Aldric",
-      "loser": "Brenna",
-      "winnerDelta": 2.3603825492632495,
-      "loserDelta": -3.511180796822373,
-      "rated": true
-     },
-     {
-      "winner": "Aldric",
-      "loser": "Corvin",
-      "winnerDelta": 2.3127324112206225,
-      "loserDelta": -3.440209646467565,
-      "rated": true
-     },
-     {
-      "winner": "Aldric",
-      "loser": "Dara",
-      "winnerDelta": 2.2681964220091686,
-      "loserDelta": -3.372638180827039,
-      "rated": true
-     },
-     {
-      "winner": "Aldric",
-      "loser": "Edda",
-      "winnerDelta": 2.226437638252719,
-      "loserDelta": -3.3083879611018574,
-      "rated": true
+      "winnerDelta": 0,
+      "loserDelta": 0,
+      "rated": false
      }
     ]
    }

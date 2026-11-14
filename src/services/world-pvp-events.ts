@@ -42,7 +42,8 @@ export async function applyPvpEvents(db: EventDb, guildId: string, memberId: str
   const fresh = rows.filter((row) => row.at >= cutoff);
   if (!fresh.length) return 0;
   return db.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${"pvp-events:" + memberId}))`;
+    // $executeRaw, not $queryRaw: the lock function returns void, which a row-reading call cannot decode (P2010 on production, 14 November 2026).
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${"pvp-events:" + memberId}))`;
     await tx.worldPvpEvent.deleteMany({ where: { guildId, memberId, at: { lt: cutoff } } });
     const created = await tx.worldPvpEvent.createMany({
       data: fresh.map((row) => ({ guildId, memberId, weekKey: weekKeyOf(row.at), kind: row.kind, at: row.at, mapId: row.mapId, x: row.x, y: row.y, approx: row.approx, eventId: row.eventId })),

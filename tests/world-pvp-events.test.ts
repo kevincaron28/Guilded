@@ -8,7 +8,7 @@ const t0 = Math.floor(NOW.getTime() / 1000) - 600;
 
 /** Adds the transaction plumbing a fake needs: the callback runs against the fake itself, and the advisory lock is recorded. */
 const locks: string[] = [];
-const tx = (db: Record<string, unknown>) => ({ $transaction: async (fn: (t: unknown) => unknown) => fn(db), $queryRaw: async (_s: TemplateStringsArray, ...v: unknown[]) => { locks.push(String(v[0])); return []; } });
+const tx = (db: Record<string, unknown>) => ({ $transaction: async (fn: (t: unknown) => unknown) => fn(db), $executeRaw: async (_s: TemplateStringsArray, ...v: unknown[]) => { locks.push(String(v[0])); return []; } });
 
 describe("pvp-events import", () => {
   it("is advertised to the companion", () => { expect(COMPANION_FEATURES).toContain("pvp-events"); });

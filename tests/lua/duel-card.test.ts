@@ -317,6 +317,15 @@ describe("duel leaderboard", () => {
     expect(lua.run(`return tostring(NS.duels.record("Kev Caron", "Bob Smith", CLOCK - 1000 + 121, "knockout"))`)).toBe("true");
   });
 
+  it("drops rows from before the ladders started and keeps the whole current season when it prunes", () => {
+    const lua = setup();
+    lua.run(`DB.duels = { results = {} }
+      for i = 1, 3 do DB.duels.results["old" .. i] = { winner = "Kev Caron", loser = "Bob Smith", at = 1794528000 - i * 4000, reason = "knockout" } end
+      for i = 1, 520 do DB.duels.results["cur" .. i] = { winner = "Kev Caron", loser = "Bob Smith", at = CLOCK - 1000000 + i * 200, reason = "knockout" } end
+      NS.duels.record("Cy Jones", "Di Lee", CLOCK - 100, "knockout")`);
+    expect(lua.run(`local n, old = 0, 0; for k in pairs(DB.duels.results) do n = n + 1; if k:find("^old") then old = old + 1 end end; return n .. ":" .. old`)).toBe("521:0");
+  });
+
   it("uses the repeat-duel fractions the server sends, and counts every duel in full without them", () => {
     const lua = setup();
     lua.run(`for i = 1, 4 do NS.duels.record("Kev Caron", "Bob Smith", CLOCK - 3000 + i * 200, "knockout") end`);

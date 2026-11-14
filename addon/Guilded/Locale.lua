@@ -2856,7 +2856,7 @@ local DE = {
   ["All settings"] = "Alle Einstellungen",
   ["Opens Guilded's page in the game's options: every setting in tabs, each with a description."] = "\195\150ffnet Guildeds Seite in den Spieloptionen: alle Einstellungen in Reitern, jede mit Beschreibung.",
   ["Shows a small card with the result, the record and the rank change after each of your guild duels. Type /guilded duels card test to preview it."] = "Zeigt nach jedem deiner Gildenduelle eine kleine Karte mit Ergebnis, Bilanz und Rangwechsel. Mit /guilded duels card test siehst du eine Vorschau.",
-  ["Not recorded: you duelled this player a moment ago, so this result is not added."] = "Nicht gespeichert: Du hast eben erst gegen diesen Spieler geduelliert, daher wird dieses Ergebnis nicht hinzugef\195\188gt.",
+  ["Not recorded."] = "Nicht erfasst.",
   -- Officer "To invite" window in three sections (9.3)
   ["To invite now (%d)"] = "Jetzt einzuladen (%d)",
   ["Nobody to invite right now."] = "Im Moment ist niemand einzuladen.",
@@ -4771,7 +4771,7 @@ local ES = {
   ["All settings"] = "Todos los ajustes",
   ["Opens Guilded's page in the game's options: every setting in tabs, each with a description."] = "Abre la p\195\161gina de Guilded en las opciones del juego: todos los ajustes en pesta\195\177as, cada uno con su descripci\195\179n.",
   ["Shows a small card with the result, the record and the rank change after each of your guild duels. Type /guilded duels card test to preview it."] = "Muestra una peque\195\177a tarjeta con el resultado, la marca y el cambio de puesto tras cada uno de tus duelos de hermandad. Escribe /guilded duels card test para verla.",
-  ["Not recorded: you duelled this player a moment ago, so this result is not added."] = "No registrado: acabas de duelar con este jugador, as\195\173 que este resultado no se a\195\177ade.",
+  ["Not recorded."] = "No registrado.",
   -- Officer "To invite" window in three sections (9.3)
   ["To invite now (%d)"] = "Para invitar ahora (%d)",
   ["Nobody to invite right now."] = "Nadie a quien invitar ahora.",
@@ -5840,7 +5840,7 @@ FR["your health left %d%%"] = "votre sant\195\169 restante : %d%%"
 FR["opponent's health left %d%%"] = "sant\195\169 de l'adversaire : %d%%"
 
 FR["Shows a small card with the result, the record and the rank change after each of your guild duels. Type /guilded duels card test to preview it."] = "Affiche une petite carte avec le r\195\169sultat, le bilan et le changement de rang apr\195\168s chacun de vos duels de guilde. Tapez /guilded duels card test pour l'aper\195\167u."
-FR["Not recorded: you duelled this player a moment ago, so this result is not added."] = "Non enregistr\195\169 : vous venez d'affronter ce joueur, ce r\195\169sultat n'est donc pas ajout\195\169."
+FR["Not recorded."] = "Non enregistr\195\169."
 -- Duel card: painted background, stat columns, non-guild duels (9.3)
 FR["Record"] = "Bilan"
 FR["Points"] = "Points"

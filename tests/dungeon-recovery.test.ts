@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { integrityPresence } from "../src/services/dungeon-integrity.js";
 import { completeAtFinalBoss } from "../src/services/dungeon-recovery.js";
 import { finalBossOf, routeBosses } from "../src/services/dungeon-bosses.js";
 import { dungeonRunSchema } from "../src/services/dungeon-rules.js";
@@ -50,5 +51,38 @@ describe("completing an abandoned run at its final boss", () => {
   it("takes the first successful kill when the boss was killed twice", () => {
     const done = completeAtFinalBoss(run({ encounters: [kill(3479, T + 4000), kill(3479, T + 5000)] }));
     expect("skip" in done ? 0 : done.endedAt).toBe(T + 4000);
+  });
+});
+
+describe("a recovered run keeps its observed presence consistent (evidence policy current-v2)", () => {
+  const withIntegrity = () => run({
+    integrity: { version: 2, startWitness: "unknown", observer: "Kev", detectedAt: T, combatAt: T + 60, startTrigger: "first combat", continuous: true },
+    players: [
+      { character: "Kev", realm: "Forever", presentSec: 9792, inGuild: true, integrity: { knownSec: 9700, unknownSec: 92, mixedRole: false, knownIntervals: [[T + 1, T + 3000], [T + 3100, T + 9792]] } },
+      { character: "Bob", realm: "Forever", presentSec: 3000, inGuild: true, integrity: { knownSec: 3800, unknownSec: 100, mixedRole: false, knownIntervals: [[T + 1, T + 3801]] } }
+    ]
+  });
+  it("clips intervals and seconds to the new end so integrityPresence still accepts the player", () => {
+    const original = withIntegrity();
+    const done = completeAtFinalBoss(original);
+    if ("skip" in done) throw new Error(done.skip);
+    const [kev, bob] = done.run["players"] as { integrity: { knownSec: number; unknownSec: number; knownIntervals: number[][] } }[];
+    expect(kev!.integrity.knownIntervals).toEqual([[T + 1, T + 3000], [T + 3100, T + 3900]]);
+    expect(kev!.integrity.knownSec).toBe(2999 + 800);
+    expect(kev!.integrity.knownSec + kev!.integrity.unknownSec).toBeLessThanOrEqual(3900);
+    expect(integrityPresence(kev!.integrity, 3900, T)).toBe(true);
+    expect(integrityPresence(bob!.integrity, 3900, T)).toBe(true);
+    // The same player before clipping fails against the new duration: the blocker the clipping fixes.
+    expect(integrityPresence((original["players"] as unknown as { integrity: unknown }[])[0]!.integrity, 3900, T)).toBe(false);
+    expect(dungeonRunSchema.safeParse(done.run).success).toBe(true);
+  });
+  it("keeps the dropped kills so the original report can be audited", () => {
+    const done = completeAtFinalBoss(run());
+    if ("skip" in done) throw new Error(done.skip);
+    expect(done.dropped).toHaveLength(1);
+  });
+  it("skips a run whose first combat is recorded after the final boss", () => {
+    const done = completeAtFinalBoss(run({ integrity: { version: 2, startWitness: "unknown", observer: "Kev", detectedAt: T, combatAt: T + 5000, startTrigger: "first combat", continuous: true } }));
+    expect(done).toEqual({ skip: "first combat is recorded after the final boss kill" });
   });
 });

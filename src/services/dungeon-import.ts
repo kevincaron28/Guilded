@@ -1,3 +1,5 @@
+import { completeAtFinalBoss } from "./dungeon-recovery.js";
+import { finalBossOf } from "./dungeon-bosses.js";
 import { publicRules, readRuleSnapshot } from "./public-score.js";
 import { lockDungeonCalendar } from "./dungeon-calendar-lock.js";
 import { reconcileEvidenceAwards } from "./dungeon-evidence-awards.js";
@@ -342,7 +344,7 @@ export function uploadRunsLine(guildId: string, importId: string | null, receive
  * What this cannot prevent: a modified client that omits the markers or labels a kill it never saw as native, or sends a run under
  * a fresh id. It is a check that two reporters agree for 9.3 addons, not protection against a cheating client.
  */
-function peerVouched(run: DungeonRunInput): boolean {
+export function peerVouched(run: DungeonRunInput): boolean {
   return run.peerConfirmed === true || !!run.encounters?.some((encounter) => encounter.source === "peer");
 }
 
@@ -365,6 +367,17 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
       receipts.push({ runRef: run.id, outcome: "refused", reason: "Played before the dungeon reset", runId: null });
       summary.duplicates++;
       return false;
+    })
+    // A run the addon stored unfinished although it killed the dungeon's final boss (an older addon that did not know that boss) is
+    // completed at that kill here (dungeon-recovery.ts); anything recorded after it belongs to a later run.
+    .map((run) => {
+      if (run.state === "COMPLETED" || !run.instanceId || !finalBossOf(run.instanceId)) return run;
+      const recovered = completeAtFinalBoss(run);
+      if ("skip" in recovered) return run;
+      const again = dungeonRunSchema.safeParse(recovered.run);
+      if (!again.success) return run;
+      logDungeonRun("completed at its final boss kill (unfinished upload)", again.data);
+      return again.data;
     })
     .sort((a, b) => (a.endedAt ?? a.startedAt ?? 0) - (b.endedAt ?? b.startedAt ?? 0));
   if (!sorted.length) return;

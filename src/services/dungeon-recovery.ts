@@ -6,9 +6,26 @@ import { finalBossOf } from "./dungeon-bosses.js";
 type Loose = Record<string, unknown>;
 interface Kill { id?: unknown; success?: unknown; at?: unknown; startedAt?: unknown }
 
-export type Recovery = { run: Loose; endedAt: number; trimmed: number } | { skip: string };
+export type Recovery = { run: Loose; endedAt: number; trimmed: number; dropped: unknown[] } | { skip: string };
 
 const record = (value: unknown): Loose | null => value && typeof value === "object" && !Array.isArray(value) ? value as Loose : null;
+
+/** A player's observed presence cut to the new end: intervals clipped, known seconds their sum, unknown seconds never more than what is left. */
+function clipIntegrity(own: Loose, endedAt: number, duration: number): Loose {
+  const out: Loose = { ...own };
+  const intervals = own["knownIntervals"];
+  if (Array.isArray(intervals)) {
+    const clipped = (intervals as unknown[]).flatMap((pair) => {
+      const [a, b] = Array.isArray(pair) ? pair as number[] : [];
+      if (typeof a !== "number" || typeof b !== "number" || a >= endedAt) return [];
+      return [[a, Math.min(b, endedAt)] as [number, number]];
+    }).filter(([a, b]) => b > a);
+    out["knownIntervals"] = clipped;
+    out["knownSec"] = clipped.reduce((sum, [a, b]) => sum + (b - a), 0);
+  } else if (typeof own["knownSec"] === "number") out["knownSec"] = Math.min(own["knownSec"], duration);
+  if (typeof own["unknownSec"] === "number") out["unknownSec"] = Math.min(own["unknownSec"], Math.max(0, duration - (out["knownSec"] as number)));
+  return out;
+}
 
 /** The run completed at its final boss kill, or the reason it cannot be. */
 export function completeAtFinalBoss(raw: unknown): Recovery {
@@ -27,12 +44,19 @@ export function completeAtFinalBoss(raw: unknown): Recovery {
   const endedAt = Math.min(...kills.map((entry) => entry.at as number));
   const kept = encounters.filter((entry) => !(typeof entry.at === "number" && entry.at > endedAt) && !(typeof entry.startedAt === "number" && entry.startedAt > endedAt));
   const duration = endedAt - startedAt;
+  const integrity = record(run["integrity"]);
+  if (typeof integrity?.["combatAt"] === "number" && integrity["combatAt"] > endedAt) return { skip: "first combat is recorded after the final boss kill" };
   const players = (Array.isArray(run["players"]) ? run["players"] : []).map((player) => {
     const entry = record(player);
-    return entry && typeof entry["presentSec"] === "number" ? { ...entry, presentSec: Math.min(entry["presentSec"], duration) } : player;
+    if (!entry) return player;
+    const out: Loose = { ...entry };
+    if (typeof entry["presentSec"] === "number") out["presentSec"] = Math.min(entry["presentSec"], duration);
+    const own = record(entry["integrity"]);
+    if (own) out["integrity"] = clipIntegrity(own, endedAt, duration);
+    return out;
   });
   const rest: Loose = { ...run };
   delete rest["endReason"];
   delete rest["diagnostic"];
-  return { run: { ...rest, state: "COMPLETED", completedBy: "final boss", endedAt, encounters: kept, players }, endedAt, trimmed: encounters.length - kept.length };
+  return { run: { ...rest, state: "COMPLETED", completedBy: "final boss", endedAt, encounters: kept, players }, endedAt, trimmed: encounters.length - kept.length, dropped: encounters.filter((entry) => !kept.includes(entry)) };
 }

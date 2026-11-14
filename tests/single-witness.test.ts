@@ -3,6 +3,7 @@ import { decide, EXPIRED_REASON, LIMIT_REASON, RUN_TRUST, SINGLE_WITNESS, SINGLE
 import { plausibilityFlags, type PlausibilityRun } from "../src/services/run-plausibility.js";
 import { NO_PREV, canonicalText, chainHash, challengeTime, contradicts, deriveSealKey, issueChallenge, sealMac, sealOf, verifyBatch, type BatchContext, type BatchEntry } from "../src/services/run-challenge.js";
 import { DEFAULT_CONFIG, challengeSecret, holdsRun, integrityConfig, parseIntegrityConfig } from "../src/services/run-integrity-config.js";
+import { releaseReply } from "../src/services/run-release.js";
 import { anomalyReport, describeAnomalies, describeHeld, deviceShortId, setDeviceExcluded } from "../src/services/run-anomalies.js";
 
 // One witness is enough (docs/plans/SINGLE_WITNESS_2026-11-13.md): the protections that stay and the checks that replace the second statement.
@@ -238,11 +239,13 @@ describe("the review list and device exclusion", () => {
   const rows = [{ id: "r1", runRef: ref, dungeonName: "Gnomeregan", endedAt: new Date("2026-11-13T12:00:00Z"), witnessCount: 1, anomalies: [{ code: "profile", detail: "Kev above level 60" }], players: [{ character: "Kev" }] }];
   const database = (devices: string[] = ["abcdef1234567890", "ffff00001111aaaa"], excludedGuilds: string[] = []) => {
     const updated: Record<string, unknown>[] = [];
+    let reads = 0;
     return { updated, db: {
       dungeonRun: { findMany: async () => rows },
       dungeonRunWitness: { findMany: async (args: { where: { runId?: unknown } }) => args.where.runId ? [{ runId: "r1", deviceId: devices[0] }] : devices.map((deviceId) => ({ deviceId })) },
-      companionDevice: { findUnique: async () => ({ excludedGuilds }), update: async (args: Record<string, unknown>) => { updated.push(args); return {}; } }
-    } as never };
+      companionDevice: { findUnique: async () => { reads++; return { excludedGuilds }; } },
+      $executeRaw: async (strings: TemplateStringsArray, ...values: unknown[]) => { updated.push({ sql: strings.join("?"), values }); return 1; }
+    } as never, reads: () => reads };
   };
 
   it("lists a flagged run with its full code, its flags, its PC code and its witness count, in French too", async () => {
@@ -262,13 +265,31 @@ describe("the review list and device exclusion", () => {
   it("excludes and restores a PC for this server only, by the code, only when exactly one matches", async () => {
     const { db, updated } = database();
     expect(await setDeviceExcluded(db, "g1", deviceShortId("abcdef1234567890"), true)).toBe("abcdef1234567890");
-    expect(updated[0]).toMatchObject({ where: { id: "abcdef1234567890" }, data: { excludedGuilds: ["g1"] } });
+    // One statement, no read first: nothing to overwrite between two officers.
+    expect(updated).toHaveLength(1);
+    expect(String(updated[0]!["sql"])).toContain("array_append");
+    expect(updated[0]!["values"]).toEqual(["g1", "g1", "abcdef1234567890"]);
     const other = database(undefined, ["g1", "g2"]);
     expect(await setDeviceExcluded(other.db, "g1", deviceShortId("abcdef1234567890"), false)).toBe("abcdef1234567890");
-    expect(other.updated[0]).toMatchObject({ data: { excludedGuilds: ["g2"] } });
+    expect(String(other.updated[0]!["sql"])).not.toContain("array_append");
+    expect(other.updated[0]!["values"]).toEqual(["g1", "abcdef1234567890"]);
+    expect(other.reads()).toBe(0);
     expect(await setDeviceExcluded(db, "g1", "nomatch1", true)).toBeNull();
     expect(await setDeviceExcluded(db, "g1", "ab", true)).toBeNull();
     const ambiguous = database(["aaaa1234", "bbbb1234"]);
     expect(await setDeviceExcluded(ambiguous.db, "g1", "1234", true)).toBeNull();
+  });
+});
+
+describe("officer release replies", () => {
+  const base = { picked: 1, counted: 0, copies: 0, stored: 0, noCopy: 0, already: false, ambiguous: false };
+  it("says what really happened", () => {
+    expect(releaseReply({ ...base, counted: 1, copies: 1, stored: 1 }, "en")).toBe("Released: it counts now.");
+    expect(releaseReply({ ...base, copies: 1, stored: 1 }, "en")).toBe("That run already counts.");
+    expect(releaseReply({ ...base, copies: 1 }, "en")).toBe("Released, but the import refused the kept copy: it does not count.");
+    expect(releaseReply({ ...base, noCopy: 1 }, "en")).toBe("Released: it counts when its PC sends it again.");
+    expect(releaseReply({ ...base, picked: 3, counted: 1, copies: 2, stored: 1, noCopy: 1 }, "en")).toBe("Released: it counts now. 1 kept copies were refused and 1 wait for their PC to send the run again.");
+    expect(releaseReply({ ...base, picked: 2, copies: 1, noCopy: 1 }, "en")).toBe("Released: 1 kept copies were refused and 1 wait for their PC to send the run again.");
+    expect(releaseReply({ ...base, copies: 1 }, "fr")).toBe("Libéré, mais l'import a refusé la copie gardée : elle ne compte pas.");
   });
 });

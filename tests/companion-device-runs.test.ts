@@ -161,7 +161,7 @@ describe("run trust (docs/plans/SINGLE_WITNESS_2026-11-13.md)", () => {
     expect(runs).toHaveLength(2);
   });
 
-  const LIMITS = { levelCap: 60, killSlackSec: 30, minSecondsPerBoss: 30 };
+  const LIMITS = { levelCap: 60, killSlackSec: 30, minSecondsPerBoss: 30, reachSec: 9000 };
   const withHold = async (config: Record<string, unknown>, body: () => Promise<void>) => {
     process.env["RUN_INTEGRITY_CONFIG"] = JSON.stringify({ limits: LIMITS, defaultWeight: 1, ...config });
     try { await body(); } finally { delete process.env["RUN_INTEGRITY_CONFIG"]; }
@@ -291,7 +291,7 @@ describe("run trust (docs/plans/SINGLE_WITNESS_2026-11-13.md)", () => {
     await withHold({ holdScore: 2 }, async () => {
       const base = fakeTx([], [], ["kev"], [1, 2]);
       base.witnesses.push({ id: "w1", deviceId: "d1", guildId: "g1", runRef: "QG-NOPAY", status: "held", kind: "first-hand", voucher: "kev", instanceId: 90, difficultyId: 0, players: [], bosses: [], payload: null, flags: [{ code: "pc-excluded" }], firstSeenAt: now });
-      expect(await releaseHeldRuns(releaseDb(base.tx), "g1", { runRef: "QG-NOPAY" })).toEqual({ picked: 1, counted: 0, noCopy: 1, already: false, ambiguous: false });
+      expect(await releaseHeldRuns(releaseDb(base.tx), "g1", { runRef: "QG-NOPAY" })).toEqual({ picked: 1, counted: 0, copies: 0, stored: 0, noCopy: 1, already: false, ambiguous: false });
       expect(base.witnesses[0]).toMatchObject({ status: "pending", reason: "released" });
       expect(await storeDeviceRuns(base.tx, "g1", [oddRun("QG-NOPAY")], now, SRC)).toMatchObject({ stored: 1 });
     });
@@ -339,6 +339,21 @@ describe("run trust (docs/plans/SINGLE_WITNESS_2026-11-13.md)", () => {
       expect(await storeDeviceRuns(base.tx, "g1", [oddRun("QG-WAIT")], now, SRC)).toEqual({ stored: 0, skipped: 0 });
       expect(base.runs).toHaveLength(0);
       expect(base.witnesses.find((row) => row["runRef"] === "QG-WAIT")).toMatchObject({ status: "held" });
+    });
+  });
+
+  it("case 17: the lookups for one upload stay bounded, one windowed query per run", async () => {
+    await withHold({}, async () => {
+      const { tx } = fakeTx([], [], ["kev"], [1, 2]);
+      const calls: { take?: number; where: { endedAt?: unknown } }[] = [];
+      const table = (name: "dungeonRun" | "dungeonRunWitness") => { const t = (tx as never as Record<string, { findMany: (a: never) => unknown }>)[name]!; const original = t.findMany.bind(t);
+        t.findMany = ((args: { orderBy?: unknown; take?: number; where: { endedAt?: unknown } }) => { if (args.orderBy) calls.push(args); return original(args as never); }) as never; };
+      table("dungeonRun"); table("dungeonRunWitness");
+      const batch = [1, 2, 3, 4, 5, 6].map((i) => run(`QG-B${i}`, { startedAt: start + i * 20000, endedAt: start + i * 20000 + 2700 }));
+      await storeDeviceRuns(tx, "g1", batch, now, SRC);
+      expect(calls.length).toBeGreaterThan(0);
+      expect(calls.length).toBeLessThanOrEqual(12);
+      for (const call of calls) { expect(call.take).toBeLessThanOrEqual(100); expect(call.where.endedAt).toMatchObject({ gte: expect.any(Date), lte: expect.any(Date) }); }
     });
   });
 

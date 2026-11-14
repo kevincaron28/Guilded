@@ -1,6 +1,7 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { saveRunReceipts } from "./dungeon-import.js";
 import { storeDeviceRuns } from "./companion-device.js";
+import { tx, type Lang } from "../i18n.js";
 
 // Releases runs held for review: the kept runs are stored now, as if their PC had sent them again.
 
@@ -9,6 +10,9 @@ export interface ReleaseResult {
   picked: number;
   /** Runs stored by this release. */
   counted: number;
+  /** Kept copies tried, and how many of those rows are stored now. */
+  copies: number;
+  stored: number;
   /** Picked rows that had no kept copy: they count when their PC sends the run again. */
   noCopy: number;
   /** The run was already counted (another PC's copy stored it). */
@@ -17,7 +21,7 @@ export interface ReleaseResult {
 }
 
 const heldBecauseExcluded = (flags: unknown): boolean => Array.isArray(flags) && flags.some((flag) => (flag as { code?: unknown } | null)?.code === "pc-excluded");
-const NONE: ReleaseResult = { picked: 0, counted: 0, noCopy: 0, already: false, ambiguous: false };
+const NONE: ReleaseResult = { picked: 0, counted: 0, copies: 0, stored: 0, noCopy: 0, already: false, ambiguous: false };
 
 /**
  * Releases one held run (its full code or a unique beginning; every PC's held row of that run), or, with `deviceId`, the runs of that
@@ -35,7 +39,7 @@ export async function releaseHeldRuns(database: PrismaClient, guildId: string, t
     if (refs.length > 1 && !refs.includes(wanted)) return { ...NONE, ambiguous: true };
     picked = rows.filter((row) => row.runRef === (refs.includes(wanted) ? wanted : refs[0]));
   }
-  let counted = 0, noCopy = 0, stored = 0;
+  let counted = 0, noCopy = 0, stored = 0, copies = 0;
   for (const deviceId of [...new Set(picked.map((row) => row.deviceId))]) {
     const mine = picked.filter((row) => row.deviceId === deviceId);
     const withCopy = mine.filter((row) => row.payload);
@@ -51,6 +55,18 @@ export async function releaseHeldRuns(database: PrismaClient, guildId: string, t
       }
     }, { timeout: 60_000, maxWait: 15_000 });
     noCopy += without.length;
+    copies += withCopy.length;
   }
-  return { picked: picked.length, counted, noCopy, already: counted === 0 && stored > 0, ambiguous: false };
+  return { picked: picked.length, counted, copies, stored, noCopy, already: counted === 0 && stored > 0, ambiguous: false };
+}
+
+/** The officer's answer for a release that picked at least one held row. */
+export function releaseReply(done: ReleaseResult, lang: Lang): string {
+  const refused = Math.max(0, done.copies - done.stored);
+  if (done.counted && !refused && !done.noCopy) return tx(lang, "Released: it counts now.");
+  if (done.counted) return tx(lang, "Released: it counts now. {n} kept copies were refused and {m} wait for their PC to send the run again.", { n: refused, m: done.noCopy });
+  if (done.stored && !refused && !done.noCopy) return tx(lang, "That run already counts.");
+  if (refused && !done.stored && !done.noCopy) return tx(lang, "Released, but the import refused the kept copy: it does not count.");
+  if (!done.copies && done.noCopy) return tx(lang, "Released: it counts when its PC sends it again.");
+  return tx(lang, "Released: {n} kept copies were refused and {m} wait for their PC to send the run again.", { n: refused, m: done.noCopy });
 }

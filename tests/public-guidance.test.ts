@@ -113,6 +113,7 @@ describe("role scores", () => {
     expect(total("HEALER")).toBe(450);
     expect(total("DPS")).toBeNull();
     expect(unknownRuns).toBe(2);
+    expect(roles.find((r) => r.role === "HEALER")!.runs).toBe(2); // the page shows a role's score only from MIN_ROLE_RUNS (3) ranked runs
     // The overall score picks the best run per route whatever the role: 250 + 200 + 200 + 200 + 180.
     expect(characterScores(runs, rules)[0]!.points).toBe(1030);
   });
@@ -154,7 +155,8 @@ describe("character page guidance", () => {
     expect(body).toContain("<h2>Score by role · Season 1</h2>");
     expect(body).toContain("They are separate scores, never added together.");
     expect(body).toContain('<tr><td>Tank</td><td class="num score">970</td></tr>');
-    expect(body).toContain('<tr><td>Healer</td><td class="num score">240</td></tr>');
+    expect(body).toContain('<tr><td>Healer</td><td class="num">–</td></tr>'); // one ranked healer run: hidden under 3 runs
+    expect(body).toContain("A role score appears after 3 ranked runs in that role.");
     expect(body).toContain('<tr><td>DPS</td><td class="num">–</td></tr>');
     expect(body).toContain("1 ranked run has no recorded role: it counts in the overall score only.");
     expect(body).not.toContain("<script");
@@ -170,7 +172,7 @@ describe("character page guidance", () => {
     expect(fr).toContain("Battre 50:00 n'ajoute rien tant que l'essai ne dépasse pas 180.");
     expect(fr).toContain("Dès le niveau 24 : ");
     expect(fr).toContain("<h2>Score par rôle · Saison 1</h2>");
-    expect(fr).toContain('<tr><td>Soigneur</td><td class="num score">240</td></tr>');
+    expect(fr).toContain('<tr><td>Soigneur</td><td class="num">–</td></tr>');
     expect(fr).toContain("1 essai classé n'a pas de rôle enregistré : il compte seulement dans le score global.");
   });
 

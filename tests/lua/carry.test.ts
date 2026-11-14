@@ -166,12 +166,11 @@ describe("limits on what a carrier takes in and who it offers to", () => {
   it("prefers a carrier in the guild or group over strangers, and records are not computed again on every announcement", () => {
     const player = client("guilded", "Aye");
     duel(player);
-    hear(player, "Stranger", "HI|1", "CHANNEL");
-    flush(player);
-    sent(player);
     hear(player, "Mate", "HI|1", "GUILD");
     const toMate = queued(player, "WHISPER", "Mate");
     expect(toMate.length).toBeGreaterThan(0);
+    hear(player, "Stranger", "HI|1", "CHANNEL");
+    expect(queued(player, "WHISPER", "Stranger")).toEqual([]);
     player.run("NS.carry.carriers.Mate.sent = 0; NS.carry.carriers.Mate.pauseUntil = 0");
     hear(player, "Other", "HI|1", "CHANNEL");
     expect(queued(player, "WHISPER", "Other")).toEqual([]);
@@ -195,9 +194,9 @@ describe("limits on what a carrier takes in and who it offers to", () => {
   it("limits each sender's share of the store so one sender cannot push the others out", () => {
     const carrier = client("guilded", "Bee", { companion: true });
     carrier.run(`local s = NS.getDb().carry
-      for i = 1, 100 do s.records["externalDuel:m" .. i .. "-aaaa"] = { kind = "externalDuel", key = "m" .. i .. "-aaaa", author = "Mallory", from = "Mallory", data = {}, at = CLOCK, got = CLOCK - 1000 + i } end
-      for i = 1, 99 do s.records["externalDuel:z" .. i .. "-aaaa"] = { kind = "externalDuel", key = "z" .. i .. "-aaaa", author = "Zed", from = "Zed", data = {}, at = CLOCK, got = CLOCK - 5000 + i } end
-      s.records["externalDuel:a1-aaaa"] = { kind = "externalDuel", key = "a1-aaaa", author = "Aye", from = "Aye", data = {}, at = CLOCK, got = CLOCK - 9000 }`);
+      for i = 1, 100 do s.records["externalDuel:m" .. i .. "-aaaa"] = { kind = "externalDuel", key = "m" .. i .. "-aaaa", author = "Mallory", from = "Mallory", data = {}, at = CLOCK, got = CLOCK - 600 + i } end
+      for i = 1, 99 do s.records["externalDuel:z" .. i .. "-aaaa"] = { kind = "externalDuel", key = "z" .. i .. "-aaaa", author = "Zed", from = "Zed", data = {}, at = CLOCK, got = CLOCK - 1500 + i } end
+      s.records["externalDuel:a1-aaaa"] = { kind = "externalDuel", key = "a1-aaaa", author = "Aye", from = "Aye", data = {}, at = CLOCK, got = CLOCK - 1700 }`);
     hear(carrier, "Cee", part("1800000001-dddddd", 1, 1), "WHISPER");
     const byAuthor = (name: string) => count(carrier, `(function() local t = {}; for id, r in pairs(NS.getDb().carry.records) do if r.author == "${name}" then t[id] = true end end; return t end)()`);
     expect(byAuthor("Aye")).toBe(1);
@@ -433,5 +432,71 @@ describe("the /guilded carry status line", () => {
   it("on the carrier, says the records wait for its companion's next upload", () => {
     const carrier = client("guilded", "Bee", { companion: true });
     expect(status(carrier)).toBe("Your companion carries records for players near you: 0 waiting for its next upload.");
+  });
+});
+
+// Real-client finding on 9.3.2: the second PC's companion was stopped, yet the addon kept carrying for a week (the marker counted as
+// fresh for 7 days), announced itself and kept its own new record instead of handing it to a real carrier nearby.
+describe("a companion that stopped is not trusted as a carrier", () => {
+  const here = (s: LuaSession) => s.run("return tostring(NS.carry.companionHere())");
+
+  it("a marker written more than 6 hours before this load does not make this PC a carrier: its own record goes to a real one", () => {
+    const player = client("guilded", "Aye");
+    player.run(`GuildedCompanionFeatures = { ["carry-records"] = true, at = CLOCK - 7 * 3600 }`);
+    expect(here(player)).toBe("false");
+    expect(player.run("return NS.carry.statusLine()")).not.toContain("Your companion carries");
+    player.run("NS.carry.announce(true)");
+    expect(queued(player, "GUILD")).toEqual([]);
+    duel(player);
+    hear(player, "Bee", "HI|1", "GUILD");
+    expect(queued(player, "WHISPER", "Bee").length).toBeGreaterThan(0);
+    // A marker 5 hours old at this load is still fresh, and stays so for the whole session (measured against the load).
+    player.run(`GuildedCompanionFeatures = { ["carry-records"] = true, at = CLOCK - 5 * 3600 }`);
+    expect(here(player)).toBe("true");
+    CLOCK_STEP(player, 10 * 3600);
+    expect(here(player)).toBe("true");
+  });
+
+  it("a carrier holding a record over 30 minutes with no receipt stops announcing, refuses new records and hands its own on", () => {
+    const carrier = client("guilded", "Bee", { companion: true });
+    hear(carrier, "Cee", part("1800000001-dddddd", 1, 1), "WHISPER");
+    expect(records(carrier)).toBe("1");
+    expect(here(carrier)).toBe("true");
+    CLOCK_STEP(carrier, 1700);
+    expect(here(carrier)).toBe("true");
+    CLOCK_STEP(carrier, 200);
+    expect(here(carrier)).toBe("false");
+    carrier.run("NS.carry.lastAnnounce = 0; NS.carry.announce(true)");
+    expect(queued(carrier, "GUILD")).toEqual([]);
+    hear(carrier, "Dee", part("1800000002-eeeeee", 1, 1), "WHISPER");
+    expect(records(carrier)).toBe("1");
+    // What it holds stays (its companion may still upload it); its own new record is handed to a carrier that works.
+    duel(carrier, "Bee", "Zed", CLOCK - 50);
+    hear(carrier, "Eve", "HI|1", "GUILD");
+    expect(queued(carrier, "WHISPER", "Eve").length).toBeGreaterThan(0);
+    // The receipt arrives at the next load: it carries again.
+    carrier.run(`GuildedCarryReceipts = { "externalDuel:1800000001-dddddd" }; NS.carry.applyReceipts()`);
+    expect(here(carrier)).toBe("true");
+  });
+
+  it("a record handed to one carrier is offered to another only after 24 hours without a receipt", () => {
+    const player = client("guilded", "Aye");
+    duel(player);
+    hear(player, "Bee", "HI|1", "GUILD");
+    expect(queued(player, "WHISPER", "Bee").length).toBeGreaterThan(0);
+    hear(player, "Cee", "HI|1", "GUILD");
+    expect(queued(player, "WHISPER", "Cee")).toEqual([]);
+    CLOCK_STEP(player, 23 * 3600);
+    player.run("NS.carry.carriers.Cee = nil; NS.carry.hiAt.Cee = nil");
+    hear(player, "Cee", "HI|1", "GUILD");
+    expect(queued(player, "WHISPER", "Cee")).toEqual([]);
+    CLOCK_STEP(player, 3601);
+    player.run("NS.carry.carriers.Cee = nil; NS.carry.hiAt.Cee = nil");
+    hear(player, "Cee", "HI|1", "GUILD");
+    expect(queued(player, "WHISPER", "Cee").length).toBeGreaterThan(0);
+    // Now handed to Cee: Bee does not get it again within the per-carrier pause.
+    player.run("NS.carry.carriers.Bee = nil; NS.carry.hiAt.Bee = nil");
+    hear(player, "Bee", "HI|1", "GUILD");
+    expect(queued(player, "WHISPER", "Bee")).toEqual([]);
   });
 });

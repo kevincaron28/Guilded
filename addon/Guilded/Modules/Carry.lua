@@ -24,7 +24,13 @@ local MAX_RECORDS, MAX_PER_AUTHOR, MAX_RECORD_BYTES, KEEP_DAYS = 200, 40, 2048, 
 local CHUNK, MAX_CHUNKS = 150, 14
 local SESSION_PER_CARRIER, PAUSE_SECONDS, SESSION_CARRIERS = 8, 600, 4
 local STALE_SECONDS, MAX_FAILURES, MAX_CARRIERS = 1200, 2, 40
-local ANNOUNCE_SECONDS, ANNOUNCE_MIN_GAP, FEATURES_FRESH = 600, 300, 7 * 86400
+-- (9.3.3) FEATURES_FRESH was 7 days: the marker is read only when the game loads the companion's file (login, /reload), and a long
+-- window meant a healthy companion was never doubted. It also meant a stopped or uninstalled companion kept this PC a "carrier" for a
+-- week. Now: at most 6 hours between the companion's last write and this load (it writes the marker at every sync), plus a live check:
+-- a record this PC holds for over UNCONFIRMED_SECONDS without its upload receipt makes it stop carrying until the next load shows
+-- the receipts. A record handed to a carrier is offered to a different carrier only after REOFFER_SECONDS without a receipt.
+local ANNOUNCE_SECONDS, ANNOUNCE_MIN_GAP, FEATURES_FRESH = 600, 300, 6 * 3600
+local UNCONFIRMED_SECONDS, REOFFER_SECONDS = 1800, 86400
 local HI_GAP = 300
 local PER_SENDER_PER_HOUR, SENDER_ASSEMBLIES, MAX_ASSEMBLIES, ASSEMBLY_SECONDS = 20, 3, 30, 120
 local DONE_KEEP, SENT_KEEP, OWN_CACHE_SECONDS = 400, 200, 60
@@ -78,11 +84,28 @@ function carry.enabled()
 end
 
 -- This PC's companion carries records for players near it (it writes GuildedCompanionFeatures with every update; it goes stale when it stops).
-function carry.companionHere()
+-- The marker as of this load (the game only replaces the global when it loads the file): fresh when the companion wrote it at most
+-- FEATURES_FRESH before the load. Measured against the load, so a long session does not flip it halfway.
+function carry.markerFresh()
   local features = type(GuildedCompanionFeatures) == "table" and GuildedCompanionFeatures or nil
   if not features or features["carry-records"] ~= true then return false end
   local at = tonumber(features.at)
-  return at ~= nil and now() - at <= FEATURES_FRESH and at <= now() + 86400
+  local loaded = carry.loadedAt or now()
+  return at ~= nil and loaded - at <= FEATURES_FRESH and at <= loaded + 86400
+end
+-- A record this PC holds without its receipt for over UNCONFIRMED_SECONDS: the companion is not uploading what it was handed.
+function carry.unconfirmed()
+  local root = ns.getDb and ns.getDb()
+  local records = root and type(root.carry) == "table" and type(root.carry.records) == "table" and root.carry.records or nil
+  if not records then return false end
+  local t = now()
+  for _, record in pairs(records) do
+    if type(record) == "table" and t - (tonumber(record.got) or t) > UNCONFIRMED_SECONDS then return true end
+  end
+  return false
+end
+function carry.companionHere()
+  return carry.markerFresh() and not carry.unconfirmed()
 end
 
 local function inCombat() return InCombatLockdown and InCombatLockdown() end
@@ -262,7 +285,13 @@ function carry.offerTo(entry)
     local id = record.kind .. ":" .. record.key
     -- Already whispered to this carrier lately: not sent again, so the newest few are not resent every time and older records get their turn.
     local before = s and s.sentTo[id]
-    local skip = type(before) == "table" and sameName(before.name, entry.name) and now() - (tonumber(before.at) or 0) < RESEND_SECONDS
+    local skip = false
+    if type(before) == "table" then
+      local age = now() - (tonumber(before.at) or 0)
+      -- (9.3.3) The same carrier: not again for RESEND_SECONDS. Another carrier: only once the first has given no receipt for
+      -- REOFFER_SECONDS, so one record is not sprayed to every carrier in range while the first one is still uploading it.
+      if sameName(before.name, entry.name) then skip = age < RESEND_SECONDS else skip = age < REOFFER_SECONDS end
+    end
     if not skip then
       if entry.sent >= SESSION_PER_CARRIER then entry.pauseUntil = now() + PAUSE_SECONDS; entry.sent = 0; break end
       local body = carry.encode(record.data)
@@ -707,6 +736,8 @@ local function onEvent(_, event, ...)
     local prefix, text, channel, sender = ...
     onAddonMessage(prefix, text, channel, sender)
   elseif event == "PLAYER_LOGIN" then
+    -- The moment the companion's files were loaded: the marker's age is measured against it.
+    carry.loadedAt = now()
     if ns.comm and ns.comm.register then ns.comm.register(PREFIX) end
     startup()
   elseif event == "GROUP_ROSTER_UPDATE" then

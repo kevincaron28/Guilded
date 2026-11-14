@@ -213,17 +213,6 @@ function describeDecision(decision) {
   return String(decision.action);
 }
 
-// A downloaded update waits for the next quit or start. A companion that runs for days in the tray never
-// quits, so it installs by itself when nobody is using it: the window is hidden and WoW is not running.
-function decideInstallWhenIdle({ verdict, windowVisible, wowRunning, installing, autoUpdate }) {
-  if (autoUpdate === false) return { install: false, reason: "disabled" };
-  if (!verdict || verdict.action !== "install") return { install: false, reason: "nothing-staged" };
-  if (installing) return { install: false, reason: "busy" };
-  if (windowVisible) return { install: false, reason: "window-open" };
-  if (wowRunning) return { install: false, reason: "wow-running" };
-  return { install: true, reason: "idle" };
-}
-
 // SHA-256 of a file, read in chunks so a 120 MB installer is never held in memory (also works at quit).
 function hashFileSync(file, fs = require("node:fs")) {
   const { createHash } = require("node:crypto");
@@ -238,7 +227,8 @@ function hashFileSync(file, fs = require("node:fs")) {
 
 // What to do with an installer downloaded earlier: "none" (nothing staged), "clear" (stale, damaged, tampered
 // with or tried too often: forget it) or "install" (still newer than this build and matching its checksum).
-function inspectPending({ pending, current, directory, fs = require("node:fs"), path = require("node:path") }) {
+// `hash` (optional) replaces the synchronous checksum so a caller can check the file without blocking.
+function inspectPending({ pending, current, directory, fs = require("node:fs"), path = require("node:path"), hash = (file) => hashFileSync(file, fs) }) {
   if (!pending) return { action: "none" };
   const shape = typeof pending.version === "string" && typeof pending.file === "string" && /^[0-9a-f]{64}$/.test(String(pending.sha256));
   if (!shape) return { action: "clear", reason: "invalid" };
@@ -247,7 +237,7 @@ function inspectPending({ pending, current, directory, fs = require("node:fs"), 
   if (path.dirname(file) !== path.resolve(directory) || !STAGED_NAME.test(path.basename(file))) return { action: "clear", reason: "location" };
   if ((pending.attempts ?? 0) >= MAX_INSTALL_ATTEMPTS) return { action: "clear", reason: "attempts" };
   try {
-    if (hashFileSync(file, fs) !== pending.sha256) return { action: "clear", reason: "checksum" };
+    if (hash(file) !== pending.sha256) return { action: "clear", reason: "checksum" };
   } catch { return { action: "clear", reason: "missing" }; }
   return { action: "install", file, version: parseVersion(pending.version).join(".") };
 }
@@ -292,4 +282,4 @@ function versionStatus({ current, latest = null, pending = null, pendingReady = 
   return { ...base, status: "unknown", action: "check", ...(checkFailed ? { checkFailed: true } : {}) };
 }
 
-module.exports = { versionStatus, STORE_LISTING, parseVersion, isNewer, pickUpdate, fetchLatestRelease, fetchGithubRelease, fetchSiteReleases, siteRelease, installerSources, SITE, SITE_RELEASES, SITE_DOWNLOADS, installerFrom, downloadInstaller, launchInstaller, isStoreInstall, decideAutoUpdate, hashFileSync, inspectPending, launchInstallerOnExit, describeDecision, decideInstallWhenIdle, RELEASES_PAGE, DIRECT_DOWNLOAD_URL, CHECK_INTERVAL_MS };
+module.exports = { versionStatus, STORE_LISTING, parseVersion, isNewer, pickUpdate, fetchLatestRelease, fetchGithubRelease, fetchSiteReleases, siteRelease, installerSources, SITE, SITE_RELEASES, SITE_DOWNLOADS, installerFrom, downloadInstaller, launchInstaller, isStoreInstall, decideAutoUpdate, hashFileSync, inspectPending, launchInstallerOnExit, describeDecision, RELEASES_PAGE, DIRECT_DOWNLOAD_URL, CHECK_INTERVAL_MS };

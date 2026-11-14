@@ -6,7 +6,6 @@ type Reporter = (text: string) => void;
 const updates = createRequire(import.meta.url)("../companion-app/update-check.cjs") as {
   fetchLatestRelease: (fetchImpl: unknown, report?: Reporter) => Promise<{ version: string; source?: string } | null>;
   describeDecision: (decision: unknown) => string;
-  decideInstallWhenIdle: (input: Record<string, unknown>) => { install: boolean; reason: string };
   SITE_RELEASES: string;
 };
 
@@ -48,37 +47,21 @@ describe("update check reports (9.3.2: a check is never invisible)", () => {
   });
 });
 
-describe("a downloaded update installs when the companion is idle", () => {
-  const ready = { verdict: { action: "install" }, windowVisible: false, wowRunning: false, installing: false, autoUpdate: true };
-  it("installs when the window is hidden and WoW is closed", () => {
-    expect(updates.decideInstallWhenIdle(ready)).toEqual({ install: true, reason: "idle" });
-  });
-  it("waits while the window is open, WoW runs, another install runs, or nothing is downloaded", () => {
-    expect(updates.decideInstallWhenIdle({ ...ready, windowVisible: true }).reason).toBe("window-open");
-    expect(updates.decideInstallWhenIdle({ ...ready, wowRunning: true }).reason).toBe("wow-running");
-    expect(updates.decideInstallWhenIdle({ ...ready, installing: true }).reason).toBe("busy");
-    expect(updates.decideInstallWhenIdle({ ...ready, verdict: { action: "none" } }).reason).toBe("nothing-staged");
-    expect(updates.decideInstallWhenIdle({ ...ready, verdict: { action: "clear" } }).install).toBe(false);
-  });
-  it("never when the member turned automatic updates off", () => {
-    expect(updates.decideInstallWhenIdle({ ...ready, autoUpdate: false })).toEqual({ install: false, reason: "disabled" });
-  });
-});
-
 describe("the companion writes every update check to startup.log", () => {
   const main = readFileSync("companion-app/main.cjs", "utf8");
   it("appends update lines for the whole run, not only until the window is ready", () => {
-    expect(main).toMatch(/function updateLine\(text\) \{\s*try \{ fs\.appendFileSync\(path\.join\(app\.getPath\("userData"\), "startup\.log"\)/);
+    expect(main).toMatch(/function updateLine\(text\) \{[\s\S]{0,420}try \{ fs\.appendFileSync\(path\.join\(app\.getPath\("userData"\), "startup\.log"\)/);
+    // At most 400 lines a run.
+    expect(main).toMatch(/if \(updateLines >= 400\) return;/);
     // The ordinary startup lines still stop when the window is ready; update lines do not depend on that.
-    expect(main).toMatch(/function updateLine[\s\S]{0,300}\} catch \{ \/\* diagnostics only \*\/ \}/);
+    expect(main).toMatch(/function updateLine[\s\S]{0,600}\} catch \{ \/\* diagnostics only \*\/ \}/);
     expect(main).not.toMatch(/function updateLine[^}]*startupLogging/);
   });
   it("logs the version seen, the decision, the disk, downloads, failures and the idle install", () => {
-    for (const text of ["check: running ${app.getVersion()}, the release feed says", "no release could be read", "check: decision ${updates.describeDecision(autoUpdateDecision())}", "download of ${version} started", "download failed:", "download not started: only", "install when idle:", "installer for ${verdict.version} started", "start: running ${current}"]) expect(main).toContain(text);
+    for (const text of ["check: running ${app.getVersion()}, the release feed says", "no release could be read", "check: decision ${updates.describeDecision(autoUpdateDecision())}", "download of ${version} started", "download failed:", "download not started: only", "start: running ${current}"]) expect(main).toContain(text);
   });
   it("looks for a quiet moment every 10 minutes and after each check", () => {
     expect(main).toMatch(/await stageUpdate\(\);\s+await installWhenIdle\(\);/);
     expect(main).toMatch(/setInterval\(\(\) => void installWhenIdle\(\)[\s\S]{0,200}10 \* 60 \* 1000/);
-    expect(main).toMatch(/async function installWhenIdle\(\) \{\s+if \(STORE_INSTALL \|\| !app\.isPackaged \|\| installerHandedOff \|\| installing\) return;/);
   });
 });

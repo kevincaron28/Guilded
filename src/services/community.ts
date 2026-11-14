@@ -29,7 +29,9 @@ export function createCommunityService(database: PrismaClient) {
   // A Discord season's standings: the ledger's plus the in-game points of its window (community-ingame.ts). Other games' seasons stay ledger-only.
   const finalOf = async (tx: Tx, row: CommunitySeason, endedAt: Date) => {
     const base = standings(await tx.communityPoint.findMany({ where: { seasonId: row.id } }));
-    return row.game === "DISCORD" ? mergedSeasonStandings(tx, row.guildId, { createdAt: row.createdAt, endedAt, status: "ENDED" }, base, endedAt) : base;
+    if (row.game !== "DISCORD") return base;
+    // The archive must never fail because the in-game read did: it then keeps the Discord points alone.
+    return mergedSeasonStandings(tx, row.guildId, { createdAt: row.createdAt, endedAt, status: "ENDED" }, base, endedAt).catch(() => base);
   };
   const activity = async (tx: Tx, guildId: string, id: string, kind?: string) => {
     const row = await tx.communityActivity.findFirst({ where: { id, season: { guildId }, ...(kind ? { kind } : {}) }, include: { season: true } });

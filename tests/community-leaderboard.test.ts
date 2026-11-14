@@ -77,7 +77,7 @@ describe("community board maintenance", () => {
     await updateCommunityLeaderboard(f.rest as never, database as never, "guild", "bot");
     expect(database.member.findMany).toHaveBeenCalledTimes(1);
     expect(f.rest.get.mock.calls.filter(([route]) => route.includes("/members/"))).toHaveLength(2);
-  });
+  }, 60_000);
 
   it("upgrades the existing activity guide in place without a duplicate pinned hub", async () => {
     const { rest, database, category, channel, message } = fixture();

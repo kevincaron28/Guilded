@@ -18,7 +18,6 @@ import { textlessEmbed } from "../services/card-only.js";
 import { personalWeeklyRecap, personalWeeklyRecapEmbed } from "../services/personal-weekly-recap.js";
 import { dailyRecap, dailyRecapCard, dailyRecapEmbed, queueDailyRecaps, recapDay, recapIsEmpty } from "../services/daily-recap.js";
 import { hasPermission } from "../permissions.js";
-import { activityChannelId, activityPayload, updateActivityBoard } from "../services/guild-activity.js";
 
 export const statsCommand = new SlashCommandBuilder()
   .setName("stats")
@@ -28,9 +27,6 @@ export const statsCommand = new SlashCommandBuilder()
   .addBooleanOption(o => o.setName("server").setDescription("Server statistics: members, activity and a class chart").setDescriptionLocalizations({ fr: "Statistiques du serveur : membres, activité, graphique des classes" }))
   .addBooleanOption(o => o.setName("recap").setDescription("Yesterday's daily recap card, privately").setDescriptionLocalizations({ fr: "Le bilan d'hier, en privé" }))
   .addBooleanOption(o => o.setName("recap-posts").setDescription("Officers: post the daily recap (default on)").setDescriptionLocalizations({ fr: "Officiers : publier le bilan quotidien (actif par défaut)" }))
-  .addStringOption(o => o.setName("activity").setDescription("Guild activity ladder: dungeons, duels, battlegrounds").setDescriptionLocalizations({ fr: "Classement d'activité : donjons, duels, champs de bataille" })
-    .addChoices({ name: "This week", value: "week", name_localizations: { fr: "Cette semaine" } }, { name: "Season", value: "season", name_localizations: { fr: "Saison" } }))
-  .addBooleanOption(o => o.setName("activity-board").setDescription("Officers: post the guild activity ladder (default on)").setDescriptionLocalizations({ fr: "Officiers : publier le classement d'activité (actif par défaut)" }))
   .addIntegerOption((o) => o.setName("days").setDescription("How far back (default 7)").setMinValue(1).setMaxValue(365))
   .addStringOption(o => o.setName("core").setDescription("Raid core (defaults to this channel)").setAutocomplete(true));
 
@@ -85,31 +81,6 @@ export async function executeStats(interaction: ChatInputCommandInteraction): Pr
       ? lang === "fr" ? "🗓️ Le bilan quotidien est publié chaque jour où il se passe quelque chose (salon du rapport hebdomadaire, sinon des annonces)." : "🗓️ The daily recap is posted every day something happens (weekly-report channel, else announcements)."
       : lang === "fr" ? "Le bilan quotidien n'est plus publié. /stats recap:true le montre toujours en privé." : "The daily recap is no longer posted. /stats recap:true still shows it privately.",
       flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
-    return;
-  }
-  const activityBoard = interaction.options.getBoolean("activity-board");
-  if (activityBoard !== null) {
-    const settings = await guildService.getSettings(context.guildId);
-    const lang = asLang(settings?.language);
-    if (!interaction.member || !hasPermission(interaction.member as Parameters<typeof hasPermission>[0], "officer")) throw new Error(lang === "fr" ? "Réservé aux officiers." : "Officers only.");
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    await prisma.guildSettings.update({ where: { guildId: context.guildId }, data: { activityBoardEnabled: activityBoard } });
-    const channelId = settings ? activityChannelId(settings) : null;
-    const posted = activityBoard && channelId ? await updateActivityBoard(interaction.guild) : false;
-    await interaction.editReply({ content: !activityBoard
-      ? lang === "fr" ? "Classement d'activité désactivé. Le message existant reste; supprimez-le si vous le souhaitez. /stats activity le montre toujours en privé." : "Guild activity ladder off. The existing message stays; delete it if you wish. /stats activity still shows it privately."
-      : !channelId ? lang === "fr" ? "Activé. Il apparaîtra quand le salon du classement des donjons existera (/setup)." : "On. It appears once the dungeon leaderboard channel exists (/setup)."
-      : lang === "fr" ? `🏅 Classement d'activité ${posted ? "publié" : "activé; il apparaîtra au prochain rafraîchissement"} dans <#${channelId}>. Il est modifié sur place toutes les 30 minutes.` : `🏅 Guild activity ladder ${posted ? "posted" : "on; it appears on the next refresh"} in <#${channelId}>. It is edited in place every 30 minutes.`,
-      allowedMentions: { parse: [] } });
-    return;
-  }
-  const activity = interaction.options.getString("activity");
-  if (activity === "week" || activity === "season") {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    const settings = await guildService.getSettings(context.guildId);
-    const guild = await prisma.guild.findUnique({ where: { id: context.guildId }, select: { gameEdition: true } });
-    // Private view: no rank snapshot, so looking at it never moves the public board's arrows.
-    await interaction.editReply(await activityPayload(context.guildId, guild?.gameEdition ?? "forever", asLang(settings?.language), activity, false));
     return;
   }
   if (interaction.options.getBoolean("recap")) {

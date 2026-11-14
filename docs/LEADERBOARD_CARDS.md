@@ -14,7 +14,7 @@ Every ranking card is drawn by one layout in `src/services/score-card.ts` (`Scor
 | Guild duels | `duelBoardCard` (duel-board.ts) | top 25 | wins, losses, win %, best streak, current streak |
 | Battlegrounds | `bgLadderCard` (bg-ladder.ts) | one panel per mode and bracket (up to 6), top 10 each | wins, losses, win %, games |
 | Dungeon season | `dungeonSeasonCard` (dungeon-leaderboard.ts) | top 25 | score and dungeons when the season is rated, else points |
-| Guild activity | `activityCard` (guild-activity.ts) | top 25, season (week in `/stats activity`) | dungeons, duels, BGs, total |
+| Community leaderboard | `communityBoardCard` (community-leaderboard.ts) | top 25, the community season (last 4 weeks with no season) | Discord, dungeons, PvP, total; replaced the guild activity ladder on 14 November 2026 (docs/plans/COMMUNITY_LEADERBOARD_MERGE_2026-11-14.md) |
 | Top crafters | `craftLadderCard` (craft-ladder.ts) | top 25 in #top-crafters | points (1 per finished craft), crafts in 30 days, main profession |
 | /stats server | `serverStatsCard` (stats-card.ts) | classes by count | bar, characters |
 

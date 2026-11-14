@@ -105,7 +105,7 @@ import { queueExpiredPolls } from "./services/poll-expiry.js";
 import { runCooldownPings } from "./services/recipes.js";
 import { DUNGEON_SEASON_SELECT, handleDungeonSeasonSelect, updateDungeonLeaderboard } from "./services/dungeon-leaderboard.js";
 import { updateDuelBoard } from "./services/duel-board.js";
-import { updateActivityBoard } from "./services/guild-activity.js";
+import { retireActivityBoard } from "./services/activity-retire.js";
 import { updateRaceBoard } from "./services/race-board.js";
 import { updateBgLadder } from "./services/bg-ladder.js";
 import { scheduleWeeklyRecap } from "./services/world-pvp-extras.js";
@@ -370,7 +370,7 @@ client.once(Events.ClientReady, (readyClient) => {
         await updateDuelBoard(guild).catch(reportJobError("Duel board", origin));
         await updateRaceBoard(guild).catch(reportJobError("Race board", origin));
         await updateBgLadder(guild).catch(reportJobError("Battleground ladder", origin));
-        await updateActivityBoard(guild).catch(reportJobError("Activity board", origin));
+        await retireActivityBoard(guild).catch(reportJobError("Activity board retirement", origin));
         await updateProfessionDirectory(guild).catch(reportJobError("Profession directory", origin));
         await repairCoreRaids(guild, true).catch(reportJobError("Core channels and raid posts", origin));
       });
@@ -393,7 +393,6 @@ client.once(Events.ClientReady, (readyClient) => {
           await updateRaceBoard(guild).catch(reportJobError("Race board refresh", origin));
           await updateBgLadder(guild).catch(reportJobError("Battleground ladder refresh", origin));
           await scheduleWeeklyRecap(prisma, guild.id).catch(reportJobError("World PvP recap", origin));
-          await updateActivityBoard(guild).catch(reportJobError("Activity board refresh", origin));
         });
       }
     } finally { refreshingBoards = false; }

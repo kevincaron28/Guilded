@@ -6,7 +6,7 @@ import { bgLadderCard } from "../src/services/bg-ladder.js";
 import { worldPvpCard } from "../src/services/world-pvp.js";
 import { craftLadderCard } from "../src/services/craft-ladder.js";
 import { dungeonSeasonCard } from "../src/services/dungeon-leaderboard.js";
-import { activityCard } from "../src/services/guild-activity.js";
+import { communityBoardCard } from "../src/services/community-leaderboard.js";
 import { raceCard } from "../src/services/race-board.js";
 import { scoreCardPng, type ScoreCard } from "../src/services/score-card.js";
 
@@ -24,7 +24,7 @@ const bg = { participations: 240, edition: "forever", brackets: [{ mode: "Warson
 const pvp = { weekKey: 1, standings: NAMES.slice(0, 10).map((name, i) => ({ memberId: name, name, kills: 90 - i * 7, defends: 14 - i, helped: 9, deaths: 12 + i, rank: i + 1 })) };
 const crafters = NAMES.slice(0, 12).map((name, i) => ({ memberId: name, name, className: CLASSES[i % 8]!, points: 80 - i * 5, crafts: 80 - i * 5, month: 20 - i, topProfession: i % 2 ? "Blacksmithing" : "Alchimie", lastAt: at }));
 const season = NAMES.slice(0, 12).map((name, i) => ({ name, points: 900 - i * 41, dungeons: 30 - i, key: name }));
-const activity = { view: "week" as const, label: "2026-W46", since: at, rows: NAMES.slice(0, 12).map((name, i) => ({ memberId: name, name, dungeons: 9 - (i % 5), duels: 7, battlegrounds: 3, total: 120 - i * 6 })) };
+const community = NAMES.slice(0, 12).map((name, i) => ({ userId: name, balance: 0, discord: 180 - i * 9, dungeons: 60 - i * 3, pvp: 24 - i, points: 264 - i * 13 }));
 const race = { total: 80, finished: 12, edition: "forever", rows: NAMES.slice(0, 12).map((name, i) => ({ key: name, name, className: CLASSES[i % 8]!, race: "Human", level: 60 - Math.floor(i / 3), reachedMaxAt: null, firstSeenAt: at, weekGain: i % 2 ? 3 : 0, memberId: null, discordId: null, professions: [], lastSeenAt: at })) };
 
 function boards(lang: "en" | "fr", rows = 12): [string, ScoreCard][] {
@@ -34,7 +34,7 @@ function boards(lang: "en" | "fr", rows = 12): [string, ScoreCard][] {
     ["world-pvp-board", worldPvpCard(pvp as never, lang, classes, at)],
     ["crafters", craftLadderCard(crafters as never, 640, lang, at, moves)],
     ["dungeon-season", dungeonSeasonCard(season, "Season 1", lang, true, classes, at, moves)],
-    ["activity", activityCard(activity as never, lang, classes, at, moves)],
+    ["community", communityBoardCard({ lang, season: { name: "Season 3 — November 2026", number: 3, status: "ACTIVE" }, board: community, names: new Map(NAMES.map(n => [n, n])), moves: new Map(NAMES.map((n, i) => [n, i % 3 === 0 ? 1 : i % 3 === 1 ? -2 : "new"])) as never, updatedAt: at })],
     ["race-to-60", raceCard(race as never, lang, 12, new Map(), at, moves)]
   ];
 }

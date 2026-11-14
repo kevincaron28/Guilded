@@ -859,7 +859,7 @@ local function restorePosition(self)
   if type(pos) == "table" and type(pos.point) == "string" and tonumber(pos.x) and tonumber(pos.y) then
     self:SetPoint(pos.point, UIParent, type(pos.relPoint) == "string" and pos.relPoint or pos.point, pos.x, pos.y)
   else
-    self:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -24, 330)
+    self:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -110, 330)
   end
 end
 
@@ -916,6 +916,16 @@ local function buildCard()
   card.scrim:SetPoint("TOPLEFT", 3, -3); card.scrim:SetPoint("BOTTOMRIGHT", -3, 3)
   if card.scrim.SetColorTexture then card.scrim:SetColorTexture(0.02, 0.025, 0.04, 0.42) end
   card.scrim:Hide()
+  -- An opaque body under everything (lowest layer): the tooltip background texture is see-through, and the quest tracker
+  -- showed through the card.
+  card.solid = card:CreateTexture(nil, "BACKGROUND", nil, -8)
+  card.solid:SetPoint("TOPLEFT", 3, -3); card.solid:SetPoint("BOTTOMRIGHT", -3, 3)
+  if card.solid.SetColorTexture then card.solid:SetColorTexture(0.035, 0.045, 0.065, 1) end
+  -- A darker band behind the stat row, so the small labels read over the painting.
+  card.band = card:CreateTexture(nil, "BACKGROUND", nil, 2)
+  card.band:SetPoint("TOPLEFT", 6, -84); card.band:SetPoint("TOPRIGHT", -6, -84); card.band:SetHeight(56)
+  if card.band.SetColorTexture then card.band:SetColorTexture(0, 0, 0, 0.6) end
+  card.band:Hide()
   local function text(font, x, y, width, justify)
     local fs = card:CreateFontString(nil, "OVERLAY", font)
     fs:SetPoint("TOPLEFT", x, y); fs:SetWidth(width or COLUMNS_W); fs:SetJustifyH(justify or "LEFT")
@@ -931,8 +941,15 @@ local function buildCard()
   end
   card.note = text("GameFontHighlightSmall", 16, -90)
   if card.note.SetWordWrap then card.note:SetWordWrap(true) end
-  card.facts = text("GameFontHighlightSmall", 16, -144)
-  card.health = text("GameFontHighlightSmall", 16, -158)
+  -- The small line under a stat (such as "down 2 (was #4)") may use two lines instead of being cut off.
+  for i = 1, STAT_MAX do
+    local sub = card.stats[i].sub
+    if sub.SetWordWrap then sub:SetWordWrap(true) end
+    if sub.SetHeight then sub:SetHeight(26) end
+    if sub.SetJustifyV then sub:SetJustifyV("TOP") end
+  end
+  card.facts = text("GameFontHighlightSmall", 16, -148)
+  card.health = text("GameFontHighlightSmall", 16, -161)
   card.hint = text("GameFontDisableSmall", 16, -176)
   card.close = CreateFrame("Button", nil, card, "UIPanelCloseButton")
   card.close:SetPoint("TOPRIGHT", 0, 0)
@@ -1011,6 +1028,7 @@ local function drawCard(data)
   card.me:SetText(personLine(data.me, data.myClass, data.myLevel))
   card.vs:SetText("|cffb0b8c4" .. L("against") .. "|r  " .. personLine(data.opponent, data.oppClass, data.oppLevel, duels.opponentRating(data)))
   local stats = duels.cardStats(data)
+  if card.band then if #stats > 0 then card.band:Show() else card.band:Hide() end end
   local colW = math.floor(COLUMNS_W / math.max(#stats, 1))
   for i = 1, STAT_MAX do
     local cell, col = card.stats[i], stats[i]
@@ -1188,7 +1206,7 @@ ns.commandHandlers["duels"] = function(args)
     elseif arg == "test" then
       duels.showCard(duels.sampleCard(), true)
     else
-      ns.message(string.format(L("Duel card: %s. /guilded duels card on | off | test"), L(duels.cardEnabled() and "on" or "off")))
+      ns.message(string.format(L("Duel card: %s. /guilded duels card on | off | test (test shows a preview)."), L(duels.cardEnabled() and "on" or "off")))
     end
     return
   end

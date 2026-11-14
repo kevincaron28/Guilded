@@ -19,7 +19,9 @@ function ns.slash(text)
   end
   local args = words(text)
   local action = string.lower(args[1] or "status")
-  if DUNGEON_ACTIONS[action] then
+  if not args[1] and ns.dungeonScorePanel and ns.dungeonScorePanel.openOrSay then
+    ns.dungeonScorePanel.openOrSay("run") -- /gdg alone opens the window (or says why not)
+  elseif DUNGEON_ACTIONS[action] then
     ns.commandHandlers["dungeon"]({ action })
   elseif action == "score" and not args[2] and ns.dungeonScorePanel then
     ns.dungeonScorePanel.open("season")

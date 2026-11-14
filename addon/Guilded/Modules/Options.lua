@@ -100,6 +100,10 @@ module.refresh = refresh
 local function build()
   panel = CreateFrame("Frame", "GuildedOptionsPanel", UIParent)
   panel.name = "Guilded"
+  -- An opaque dark body: the canvas has no background of its own, so the world and nameplates showed through the text.
+  local solid = panel:CreateTexture(nil, "BACKGROUND")
+  solid:SetAllPoints(panel)
+  if solid.SetColorTexture then solid:SetColorTexture(0.05, 0.055, 0.07, 1) end
   local title = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
   title:SetPoint("TOPLEFT", 16, -16)
   title:SetText(string.format(L("Guilded - Version %s"), ns.settingsPage and ns.settingsPage.version() or ""))

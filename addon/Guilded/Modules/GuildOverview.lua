@@ -153,9 +153,10 @@ local ROW_GAP = 4
 
 -- A native-looking bar: the game's status bar texture over a dark track, a label on the left and
 -- the count on the right.
+local COUNT_WIDTH = 58 -- a fixed column to the right of the longest bar, so a number is never drawn on top of a bar's end
 local function newBar(parent, width)
   local bar = CreateFrame("StatusBar", nil, parent)
-  bar:SetWidth(width)
+  bar:SetWidth(width - COUNT_WIDTH)
   bar:SetHeight(ROW_HEIGHT)
   bar:SetStatusBarTexture(BAR_TEXTURE)
   bar:SetMinMaxValues(0, 1)
@@ -168,8 +169,9 @@ local function newBar(parent, width)
   bar.label:SetPoint("LEFT", bar, "LEFT", 4, 0)
   bar.label:SetJustifyH("LEFT")
   bar.count = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  bar.count:SetPoint("RIGHT", bar, "RIGHT", -4, 0)
-  bar.count:SetJustifyH("RIGHT")
+  bar.count:SetPoint("LEFT", bar, "RIGHT", 6, 0)
+  bar.count:SetWidth(COUNT_WIDTH - 8)
+  bar.count:SetJustifyH("LEFT")
   bar:SetScript("OnEnter", function(self)
     if not (GameTooltip and self.tipTitle) then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")

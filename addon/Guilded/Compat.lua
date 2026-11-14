@@ -173,7 +173,8 @@ local bossCache = {}
 local finalBossFallbacks = {
   [36] = 2747,
   [389] = 2735,  -- Bazzalan, seen in the owner's Ragefire Chasm run of 5 Nov 2026
-  [3065] = 3496
+  [3065] = 3496,
+  [2970] = 3479  -- Min'loth the Serpent, last in both full clears of the Drowned City (10-14 Nov 2026)
 }
 
 -- Forever reports its own encounter ids (Ragefire Chasm 2732-2735, not the Classic Era
@@ -194,6 +195,7 @@ local foreverFinalBossNames = {
   [47]  = { "Charlga Razorflank" },
   [70]  = { "Archaedas" },
   [3065] = { "Durgen Dirgehammer" },
+  [2970] = { "Min'loth the Serpent" },
   -- Forever-only dungeons, from the community guides of 7 Nov 2026 (no saved run yet; English
   -- names only until a French client reports them). Ruins of Lordaeron's secret boss Viktor
   -- the Vile and Dalaran's Lyn the Ignored are optional, so they do not end the run.

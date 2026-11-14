@@ -7,6 +7,7 @@ import { EDITION_SECTIONS, editionHref, editionMenu, editionSection, editionSwit
 import { WOW_EDITIONS, editionCards, editionHubs, editionPages } from "../site/editions.mjs";
 import { GUIDE_REDIRECTS } from "../site/static-redirects.mjs";
 import { keepPage, stripPoe, withoutPoe } from "../site/focus.mjs";
+import { writeMobileAssociations } from "./mobile-associations.mjs";
 
 const guides = ["PRIVACY", "HOSTED_PILOT", "SUPPORT_GUILDED", "OWNER_WALKTHROUGH", "QUICK_START", "MEMBER_INSTALL", "DUNGEONS_GUIDE", "EPGP_GUIDE", "GUILD_OWNER_SETUP", "DEPLOY_ORACLE", "AI_SETUP_HELP", "AUTOMATION_QUICK_START"];
 // The public address written into canonical links, the sitemap and robots.txt (docs/plans/GUILDEDWOW_DOMAIN.md).
@@ -30,6 +31,7 @@ const guideDescriptions = {
 };
 const sources = new Set(guides.map(name => `docs/${name}.md`));
 const out = "dist/site";
+writeMobileAssociations(out);
 mkdirSync(`${out}/docs`, { recursive: true });
 // The creator's static JSON-LD remains allowed without enabling arbitrary inline scripts.
 const structuredData = [...readFileSync("site/creator/index.html", "utf8").matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)];

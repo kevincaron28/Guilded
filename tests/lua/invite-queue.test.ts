@@ -253,7 +253,7 @@ describe("InviteQueue.lua", () => {
     click(s, 1);
     say(s, "Amy Archer has joined the guild.");
     expect(labels(s)).toBe(""); // joined, and not on the roster list: hidden for that post
-    s.run("CLOCKS = CLOCKS + 200"); // (the click's pending window is over)
+    s.run("CLOCKS = CLOCKS + NS.inviteQueue.PENDING_SECONDS + 80"); // (the click's pending window is over)
     s.run(String.raw`GuildedInvites.names[1].at = "2026-11-12T10:00:00Z"`); // she left and posted again
     expect(labels(s)).toBe("todo:Amy Archer=nil");
     // Another guild's member: handled for that post, a todo again after a newer post.
@@ -324,7 +324,7 @@ describe("InviteQueue.lua", () => {
     click(s, 11); // the Invite again button on the invited row (after the ten to-invite rows)
     expect(s.run("return COPIED[#COPIED]")).toBe("/ginvite Amy Archer");
     expect(lines(s)).toBe("/ginvite Bob Brewer"); // marked again: waiting afresh
-    s.run("CLOCKS = CLOCKS + 121; NS.inviteQueue.refresh()");
+    s.run("CLOCKS = CLOCKS + NS.inviteQueue.PENDING_SECONDS + 1; NS.inviteQueue.refresh()");
     expect(s.run("local sec = NS.inviteQueue.sections() return #sec.todo .. ':' .. #sec.invited")).toBe("2:0");
     expect(shown(s)).not.toContain("Invited, waiting");
     expect(s.run("return #SENT .. #OPENED")).toBe("00"); // no invite API, nothing in the chat box
@@ -360,7 +360,7 @@ describe("InviteQueue.lua", () => {
     expect(s.run("return tostring(WIN.scripts.OnUpdate ~= nil)")).toBe("true");
     click(s, 1);
     expect(shown(s)).toContain("Invited, waiting for them to accept (1)");
-    s.run("CLOCKS = CLOCKS + 125"); // expired, but nothing refreshed yet
+    s.run("CLOCKS = CLOCKS + NS.inviteQueue.PENDING_SECONDS + 5"); // expired, but nothing refreshed yet
     expect(shown(s)).toContain("Invited, waiting for them to accept (1)");
     s.run("WIN.scripts.OnUpdate(WIN, 10)"); // under 30 s: nothing
     expect(shown(s)).toContain("Invited, waiting for them to accept (1)");
@@ -426,11 +426,11 @@ describe("InviteQueue.lua", () => {
     s.run("NS.inviteQueue.open()");
     expect(s.run("return NS.inviteQueue.selected")).toBe("amy archer");
     expect(highlights(s)).toBe("1");
-    expect(shown(s)).toContain("Copy /ginvite Amy Archer for the highlighted row (Ctrl+C), paste it in your chat box (Ctrl+V) and press Enter.");
+    expect(shown(s)).toContain("Click Invite on a row, then Ctrl+C, paste it in your chat box (Ctrl+V) and press Enter.");
     click(s, 1); // Amy is invited: the next one is highlighted
     expect(s.run("return NS.inviteQueue.selected")).toBe("bob brewer");
     expect(highlights(s)).toBe("1");
-    expect(shown(s)).toContain("Copy /ginvite Bob Brewer for the highlighted row");
+    expect(shown(s)).toContain("Click Invite on a row, then Ctrl+C");
     expect(shown(s)).not.toContain("Copy /ginvite Amy Archer");
     click(s, 1);
     expect(s.run("return tostring(NS.inviteQueue.selected)")).toBe("nil");
@@ -445,7 +445,7 @@ describe("InviteQueue.lua", () => {
     say(s, "Player Amy Archer not found.");
     // Amy needs a fix (Remove): the highlight and header go to the next name.
     expect(s.run("return NS.inviteQueue.selected")).toBe("bob brewer");
-    expect(shown(s)).toContain("Copy /ginvite Bob Brewer for the highlighted row");
+    expect(shown(s)).toContain("Click Invite on a row, then Ctrl+C");
   });
 
   it("speaks French on a French client", () => {
@@ -454,5 +454,49 @@ describe("InviteQueue.lua", () => {
     s.load("Locale.lua");
     s.run("NS.inviteQueue.open()");
     expect(shown(s)).toContain("\u00c0 inviter maintenant (2)");
+  });
+});
+
+// 9.3.1: marks survive a slow /reload; the copy box and the list age.
+describe("InviteQueue.lua: after a slow reload", () => {
+  const click = (lua: LuaSession, index: number) => lua.run(String.raw`local f = INVITES()[${index}] f.scripts.OnClick(f)`);
+  it("keeps a sent invitation as waiting for 30 minutes, so a three-minute /reload cannot make an officer invite twice", () => {
+    const s = withQueue();
+    s.run("NS.inviteQueue.open()");
+    click(s, 1);
+    s.run("CLOCKS = CLOCKS + 400"); // more than the three minutes a reload took on the owner's PC
+    expect(s.run("local sec = NS.inviteQueue.sections() return #sec.invited")).toBe("1");
+    expect(s.run("return NS.inviteQueue.PENDING_SECONDS")).toBe("1800");
+    // The mark itself is saved data (GuildedDB.inviteSent), not window state.
+    expect(s.run("local n = 0 for _ in pairs(DB.inviteSent or {}) do n = n + 1 end return n")).toBe("1");
+  });
+  it("says when the companion last wrote the list, and asks for the copy box below the window", () => {
+    const s = withQueue();
+    s.run(String.raw`GuildedInvites.fetchedAt = "2026-11-13T22:09:36Z"`);
+    s.run("NS.inviteQueue.open()");
+    expect(s.run(String.raw`local t = {} for _, r in ipairs(FS) do local x = rawget(r, "text") if type(x) == "string" and x:find("^List from") then t[#t + 1] = x end end return table.concat(t, "|")`)).toContain("Reload after the companion syncs.");
+    s.run(String.raw`ANCHORS = {}; NS.showCopyText = function(text, title, anchor) ANCHORS[#ANCHORS + 1] = tostring(anchor ~= nil and anchor.GetBottom ~= nil) end`);
+    click(s, 1);
+    expect(s.run("return table.concat(ANCHORS, ',')")).toBe("true");
+  });
+});
+
+describe("InviteQueue.lua: capture of the game's reply (9.3.1)", () => {
+  it("records unmatched system and error lines for 10 seconds after an Invite click, bounded, and nothing before a click", () => {
+    const s = withQueue();
+    s.run(String.raw`DIAG = {}; NS.logDiagnostic = function(kind, detail) DIAG[#DIAG + 1] = kind .. "|" .. detail end; CLOCK = 100; function GetTime() return CLOCK end`);
+    s.run("NS.inviteQueue.open()");
+    const fire = (event: string, ...args: string[]) => s.run(`for _, f in ipairs(FRAMES) do if f.scripts.OnEvent and not rawget(f, "template") then f.scripts.OnEvent(f, ${JSON.stringify(event)}, ${args.map((a) => JSON.stringify(a)).join(", ")}) end end`);
+    fire("CHAT_MSG_SYSTEM", "Something nobody asked for.");
+    expect(s.run("return #DIAG")).toBe("0"); // no click yet
+    s.run(`local f = INVITES()[1] f.scripts.OnClick(f)`);
+    fire("CHAT_MSG_SYSTEM", "Unknown reply to the invite.");
+    fire("UI_ERROR_MESSAGE", "0", "Some error line");
+    expect(s.run("return table.concat(DIAG, ';')")).toBe("INVITE_REPLY|system: Unknown reply to the invite.;INVITE_REPLY|error: Some error line");
+    s.run("CLOCK = 120");
+    fire("CHAT_MSG_SYSTEM", "Too late.");
+    expect(s.run("return #DIAG")).toBe("2");
+    s.run(`local f = INVITES()[1] CLOCK = 130; f.scripts.OnClick(f); for i = 1, 30 do NS.inviteQueue.noteLine("system", "line " .. i) end`);
+    expect(s.run("return #DIAG")).toBe("14"); // 12 more, no more
   });
 });

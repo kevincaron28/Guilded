@@ -42,7 +42,7 @@ export function duelBoardCard(data: DuelBoardData, lang: Lang, classes: ClassBoo
     eyebrow: `Guilded · ${fr ? "JcJ" : "PvP"}`, title: fr ? "Duels de la guilde" : "Guild duels",
     subtitle: (data.mode === "rating" && data.seasonId ? `${ratingSeasonName(data.seasonId, lang)} · ` : "") + (fr ? `${data.duels} duels comptés · ${data.standings.length} duellistes` : `${data.duels} counted duels · ${data.standings.length} duellists`),
     backdrop: { kind: "board", key: "duel" },
-    stats: [], footer: data.mode === "rating" && data.seasonId ? ratingFooter(lang, ratingSeasonName(data.seasonId, lang), data.startsAt) : fr ? "Score : 10 par victoire, +2 par niveau de l'adversaire au-dessus de vous, -2 par niveau en dessous (0-20) · 5 duels par paire et par jour au plus · aucune récompense" : "Score: 10 per win, +2 per level the opponent is above you, -2 per level below (0-20) · max 5 duels per pair per day · no rewards",
+    stats: [], footer: data.mode === "rating" && data.seasonId ? ratingFooter(lang, ratingSeasonName(data.seasonId, lang), data.startsAt) : fr ? "Score : 10 par victoire, +2 par niveau de l'adversaire au-dessus de vous, -2 par niveau en dessous (0-20) · aucune récompense" : "Score: 10 per win, +2 per level the opponent is above you, -2 per level below (0-20) · no rewards",
     ladder: {
       meta: ladderMeta(lang, updatedAt), empty: fr ? "Aucun duel enregistré." : "No duel recorded yet.",
       columns: [{ label: data.mode === "rating" ? (fr ? "Cote" : "Rating") : "Score", width: 52, primary: true }, { label: fr ? "V" : "W", width: 44 }, { label: fr ? "D" : "L", width: 44 }, { label: fr ? "% vict." : "Win %", width: 64 },
@@ -75,7 +75,7 @@ export function duelBoardEmbed(data: DuelBoardData, lang: Lang, image?: string):
   }
   if (image && data.standings.length) embed.setImage(`attachment://${image}`);
   if (data.mode === "rating" && data.seasonId) return embed.setFooter({ text: `${data.duels} ${t("counted duels", "duels comptés")} · ${ratingFooter(lang, ratingSeasonName(data.seasonId, lang), data.startsAt)}`.slice(0, 2000) });
-  return embed.setFooter({ text: t(`${data.duels} counted duels · score: 10 per win, +2 per level the opponent is above you, -2 per level below (0-20) · max 5 per pair per day · no rewards`, `${data.duels} duels comptés · score : 10 par victoire, +2 par niveau de l'adversaire au-dessus de vous, -2 en dessous (0-20) · 5 par paire et par jour · aucune récompense`) });
+  return embed.setFooter({ text: t(`${data.duels} counted duels · score: 10 per win, +2 per level the opponent is above you, -2 per level below (0-20) · no rewards`, `${data.duels} duels comptés · score : 10 par victoire, +2 par niveau de l'adversaire au-dessus de vous, -2 en dessous (0-20) · aucune récompense`) });
 }
 
 export async function loadDuelBoardData(db: Pick<PrismaClient, "duelResult"> & { guildSettings?: Pick<PrismaClient["guildSettings"], "findUnique"> }, guildId: string, edition: string, now = new Date()): Promise<DuelBoardData> {

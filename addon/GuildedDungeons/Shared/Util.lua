@@ -560,7 +560,8 @@ function util.inviteButton(parent, kind, text, width, height, onClick)
   local function tr(textKey) return ns.L and ns.L(textKey) or textKey end
   button:SetScript("OnClick", function()
     if not line then return end
-    local shown = type(ns.showCopyText) == "function" and (pcall(ns.showCopyText, line, tr("Copy with Ctrl+C, then paste in chat"))) or false
+    local anchor = type(button.copyAnchor) == "function" and button.copyAnchor() or button.copyAnchor
+    local shown = type(ns.showCopyText) == "function" and (pcall(ns.showCopyText, line, tr("Copy with Ctrl+C, then paste in chat"), anchor)) or false
     if ns.message then
       ns.message(string.format(shown and tr("Copy %s (Ctrl+C), paste it in your chat box (Ctrl+V) and press Enter.") or tr("Type %s to invite them."), line))
     end

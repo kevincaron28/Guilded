@@ -11,7 +11,7 @@ import { runCredit } from "../services/dungeon-held-credit.js";
 import { findPlayer } from "../services/player-search.js";
 import { explainDungeonRuns } from "../services/dungeon-explain.js";
 import { anomalyReport, describeAnomalies, describeHeld, heldReport, setDeviceExcluded } from "../services/run-anomalies.js";
-import { releaseHeldRuns } from "../services/run-release.js";
+import { releaseHeldRuns, releaseReply } from "../services/run-release.js";
 import { asLang, tx } from "../i18n.js";
 import { guildService, requireGuildContext } from "./context.js";
 
@@ -127,8 +127,7 @@ export async function executeDungeonAdmin(interaction: ChatInputCommandInteracti
     if (release) {
       const done = await releaseHeldRuns(prisma, context.guildId, { runRef: release });
       if (done.picked) await log("released a held dungeon run", { runRef: release });
-      await interaction.reply({ content: done.ambiguous ? tx(lang, "Several held runs start with that code: give more of it.") : !done.picked ? tx(lang, "No held run has that code.")
-        : done.counted ? tx(lang, "Released: it counts now.") : done.already ? tx(lang, "That run already counts.") : tx(lang, "Released: it counts when its PC sends it again."), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+      await interaction.reply({ content: done.ambiguous ? tx(lang, "Several held runs start with that code: give more of it.") : !done.picked ? tx(lang, "No held run has that code.") : releaseReply(done, lang), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
       return;
     }
     if (!pc) {

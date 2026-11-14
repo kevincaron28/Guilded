@@ -116,11 +116,11 @@ describe("result and duel cards", () => {
   it("starts bottom right without a saved position, and falls back from a malformed or hand-edited one", () => {
     setup();
     const start = `local f = fake(0, 0, 354, 276, true); NS.runResults.restorePosition(f); local p = f.pts[1]; return p[1] .. ":" .. p[4] .. ":" .. p[5]`;
-    expect(s!.run(start)).toBe("BOTTOMRIGHT:-24:150");
+    expect(s!.run(start)).toBe("BOTTOMRIGHT:-110:150");
     s!.run(`SETTINGS.runCardPos = { point = 5, x = "a" }`);
-    expect(s!.run(start)).toBe("BOTTOMRIGHT:-24:150");
+    expect(s!.run(start)).toBe("BOTTOMRIGHT:-110:150");
     s!.run(`SETTINGS.runCardPos = { point = "SIDEWAYS", relPoint = "MIDDLE", x = 1, y = 2 }`);
-    expect(s!.run(start)).toBe("BOTTOMRIGHT:-24:150"); // the invalid point name did not throw
+    expect(s!.run(start)).toBe("BOTTOMRIGHT:-110:150"); // the invalid point name did not throw
   });
 
   it("puts both cards back with the cards reset command", () => {

@@ -1892,7 +1892,9 @@ if not ns.standalone and SLASH_GUILDEDDUNGEONS1 == nil then
     local args = {}
     for word in string.gmatch(text or "", "%S+") do args[#args + 1] = word end
     local action = string.lower(args[1] or "")
-    if (action == "score" or action == "lang") and ns.commandHandlers[action] then
+    if action == "" and ns.dungeonScorePanel then
+      ns.dungeonScorePanel.openOrSay("run") -- /gdg alone opens the window (or says why not)
+    elseif (action == "score" or action == "lang") and ns.commandHandlers[action] then
       table.remove(args, 1)
       ns.commandHandlers[action](args)
     else
@@ -1900,7 +1902,13 @@ if not ns.standalone and SLASH_GUILDEDDUNGEONS1 == nil then
     end
   end
 end
+-- /guilded dungeons opens the dungeons window (/guilded dungeon is the run commands).
+ns.commandHandlers["dungeons"] = function()
+  if ns.dungeonScorePanel and ns.dungeonScorePanel.openOrSay then ns.dungeonScorePanel.openOrSay("run")
+  else ns.message(L("The dungeons window is not available.")) end
+end
 ns.commandHelp = ns.commandHelp or {}
+table.insert(ns.commandHelp, "/guilded dungeons - open the dungeons window")
 table.insert(ns.commandHelp, "/guilded dungeon status | results | start | complete | abandon | check - dungeon runs")
 
 local frame = CreateFrame("Frame")

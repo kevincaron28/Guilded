@@ -255,13 +255,13 @@ local function buildRun(pane, width)
     pane.pendingAction = nil
   end
   run.action = action
-  run.last = tip(button(run, "Last result", 16, -146, 120, function() action("results") end), "Shows the result card of your last run.")
-  run.timer = tip(button(run, "Live timer", 142, -146, 170, function()
+  run.last = tip(button(run, "Last result", 16, -146, width < 500 and 108 or 120, function() action("results") end), "Shows the result card of your last run.")
+  run.timer = tip(button(run, "Live timer", width < 500 and 130 or 142, -146, width < 500 and 150 or 170, function()
     if not active("dungeon") then return end
     if ns.runResults then ns.runResults.setTimerEnabled(not ns.runResults.timerEnabled()) end
     pane:Refresh()
   end), "Shows the run clock and boss splits on screen while you are in a dungeon.")
-  run.cardArt = tip(button(run, "Card art", 318, -146, 150, function()
+  run.cardArt = tip(button(run, "Card art", width < 500 and 286 or 318, -146, width < 500 and 138 or 150, function()
     if not active("dungeon") then return end
     if ns.dungeonArt then ns.dungeonArt.setEnabled(not ns.dungeonArt.enabled()) end
     pane:Refresh()
@@ -701,6 +701,20 @@ function view.build(parent, compact)
   pane:HookScript("OnHide", function() pane.more:Hide() end)
   pane:Hide()
   return pane
+end
+
+-- For slash commands: opens the window, or says why it cannot (a command must never end in silence).
+function view.openOrSay(mode)
+  if InCombatLockdown and InCombatLockdown() then
+    ns.message(ns.L("Guilded opens the dungeons window after combat. Try again when the fight is over."))
+    return false
+  end
+  if not enabled() then
+    ns.message(ns.L("The dungeons window is turned off. /guilded modules on dungeon turns it on."))
+    return false
+  end
+  view.open(mode)
+  return true
 end
 
 function view.open(mode)

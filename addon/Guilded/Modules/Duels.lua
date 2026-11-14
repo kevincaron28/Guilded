@@ -158,12 +158,19 @@ local function same(a, b)
   return aBare and a == b:match("^(%S+)") or bBare and b == a:match("^(%S+)") or false
 end
 duels.same = same
+-- Rows from before the ladders started go; the whole current season stays; earlier seasons keep their newest KEEP rows.
 local function prune(d)
-  local list = {}
-  for id, r in pairs(d.results) do list[#list + 1] = { id = id, at = type(r) == "table" and r.at or 0 } end
-  if #list <= KEEP then return end
-  table.sort(list, function(x, y) return x.at < y.at end)
-  for i = 1, #list - KEEP do d.results[list[i].id] = nil end
+  local startsAt = duels.ratingStart and duels.ratingStart() or 0
+  local current = duels.currentSeason and duels.currentSeason() or nil
+  local older = {}
+  for id, r in pairs(d.results) do
+    local at = type(r) == "table" and tonumber(r.at) or 0
+    if at < startsAt then d.results[id] = nil
+    elseif not (current and duels.seasonOf(at) == current) then older[#older + 1] = { id = id, at = at } end
+  end
+  if #older <= KEEP then return end
+  table.sort(older, function(x, y) return x.at < y.at end)
+  for i = 1, #older - KEEP do d.results[older[i].id] = nil end
 end
 
 local function round(value) return math.floor(value + 0.5) end
@@ -236,8 +243,7 @@ local function kFor(rated) if rated < 10 then return 40 elseif rated < 30 then r
 local function weekStartOf(at) return RESET_ANCHOR + math.floor((at - RESET_ANCHOR) / WEEK) * WEEK end
 local function clampLevels(v) return math.max(-RATING.handicapMaxLevels, math.min(RATING.handicapMaxLevels, v)) end
 
--- The repeat-duel fractions are the server's (the bot hands them over; nothing is published here): the n-th duel of a pair in a weekly
--- window uses entry n and later ones count for nothing. Without a table every duel counts in full.
+-- Server-supplied repeat-duel fractions; without them every duel counts in full.
 function duels.setPairWeights(weights)
   local d = store()
   if not d then return false end
@@ -815,7 +821,7 @@ function duels.cardLines(data)
   elseif data.outsider then
     lines[#lines + 1] = "|cffe0a050" .. string.format(L("Not counted on the guild ladder: %s is not in your guild."), displayName(data.opponent)) .. "|r"
   elseif data.recorded == false then
-    lines[#lines + 1] = "|cffe0a050" .. L("Not recorded: you duelled this player a moment ago, so this result is not added.") .. "|r"
+    lines[#lines + 1] = "|cffe0a050" .. L("Not recorded.") .. "|r"
   elseif not data.counted then
     lines[#lines + 1] = "|cffe0a050" .. L("Not counted on the ladder.") .. "|r"
   elseif data.wins then
@@ -859,7 +865,7 @@ local function restorePosition(self)
   if type(pos) == "table" and type(pos.point) == "string" and tonumber(pos.x) and tonumber(pos.y) then
     self:SetPoint(pos.point, UIParent, type(pos.relPoint) == "string" and pos.relPoint or pos.point, pos.x, pos.y)
   else
-    self:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -24, 330)
+    self:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -110, 330)
   end
 end
 
@@ -916,6 +922,16 @@ local function buildCard()
   card.scrim:SetPoint("TOPLEFT", 3, -3); card.scrim:SetPoint("BOTTOMRIGHT", -3, 3)
   if card.scrim.SetColorTexture then card.scrim:SetColorTexture(0.02, 0.025, 0.04, 0.42) end
   card.scrim:Hide()
+  -- An opaque body under everything (lowest layer): the tooltip background texture is see-through, and the quest tracker
+  -- showed through the card.
+  card.solid = card:CreateTexture(nil, "BACKGROUND", nil, -8)
+  card.solid:SetPoint("TOPLEFT", 3, -3); card.solid:SetPoint("BOTTOMRIGHT", -3, 3)
+  if card.solid.SetColorTexture then card.solid:SetColorTexture(0.035, 0.045, 0.065, 1) end
+  -- A darker band behind the stat row, so the small labels read over the painting.
+  card.band = card:CreateTexture(nil, "BACKGROUND", nil, 2)
+  card.band:SetPoint("TOPLEFT", 6, -84); card.band:SetPoint("TOPRIGHT", -6, -84); card.band:SetHeight(56)
+  if card.band.SetColorTexture then card.band:SetColorTexture(0, 0, 0, 0.6) end
+  card.band:Hide()
   local function text(font, x, y, width, justify)
     local fs = card:CreateFontString(nil, "OVERLAY", font)
     fs:SetPoint("TOPLEFT", x, y); fs:SetWidth(width or COLUMNS_W); fs:SetJustifyH(justify or "LEFT")
@@ -931,8 +947,15 @@ local function buildCard()
   end
   card.note = text("GameFontHighlightSmall", 16, -90)
   if card.note.SetWordWrap then card.note:SetWordWrap(true) end
-  card.facts = text("GameFontHighlightSmall", 16, -144)
-  card.health = text("GameFontHighlightSmall", 16, -158)
+  -- The small line under a stat (such as "down 2 (was #4)") may use two lines instead of being cut off.
+  for i = 1, STAT_MAX do
+    local sub = card.stats[i].sub
+    if sub.SetWordWrap then sub:SetWordWrap(true) end
+    if sub.SetHeight then sub:SetHeight(26) end
+    if sub.SetJustifyV then sub:SetJustifyV("TOP") end
+  end
+  card.facts = text("GameFontHighlightSmall", 16, -148)
+  card.health = text("GameFontHighlightSmall", 16, -161)
   card.hint = text("GameFontDisableSmall", 16, -176)
   card.close = CreateFrame("Button", nil, card, "UIPanelCloseButton")
   card.close:SetPoint("TOPRIGHT", 0, 0)
@@ -1011,6 +1034,7 @@ local function drawCard(data)
   card.me:SetText(personLine(data.me, data.myClass, data.myLevel))
   card.vs:SetText("|cffb0b8c4" .. L("against") .. "|r  " .. personLine(data.opponent, data.oppClass, data.oppLevel, duels.opponentRating(data)))
   local stats = duels.cardStats(data)
+  if card.band then if #stats > 0 then card.band:Show() else card.band:Hide() end end
   local colW = math.floor(COLUMNS_W / math.max(#stats, 1))
   for i = 1, STAT_MAX do
     local cell, col = card.stats[i], stats[i]
@@ -1030,7 +1054,7 @@ local function drawCard(data)
   local note = ""
   if data.rosterPending then note = L("Not counted yet: the guild roster has not loaded.")
   elseif data.outsider then note = string.format(L("Not counted on the guild ladder: %s is not in your guild."), displayName(data.opponent))
-  elseif data.recorded == false then note = L("Not recorded: you duelled this player a moment ago, so this result is not added.")
+  elseif data.recorded == false then note = L("Not recorded.")
   elseif not data.counted then note = L("Not counted on the ladder.") end
   card.note:SetText(note ~= "" and colored("e0a050", note) or "")
   local facts = {}
@@ -1188,7 +1212,7 @@ ns.commandHandlers["duels"] = function(args)
     elseif arg == "test" then
       duels.showCard(duels.sampleCard(), true)
     else
-      ns.message(string.format(L("Duel card: %s. /guilded duels card on | off | test"), L(duels.cardEnabled() and "on" or "off")))
+      ns.message(string.format(L("Duel card: %s. /guilded duels card on | off | test (test shows a preview)."), L(duels.cardEnabled() and "on" or "off")))
     end
     return
   end

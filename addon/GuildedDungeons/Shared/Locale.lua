@@ -2574,7 +2574,7 @@ local DE = {
   ["%s earned the achievement %s!"] = "%s hat den Erfolg %s erreicht!",
   ["Achievements in guild chat: %s."] = "Erfolge im Gildenchat: %s.",
   ["Sync with Discord in 3 steps (Windows only):"] = "In 3 Schritten mit Discord synchronisieren (nur Windows):",
-  ["1) Download it: copy the link, or search \"Guild Sync Companion\" in the Microsoft Store."] = "1) Herunterladen: Link kopieren oder im Microsoft Store nach \"Guilded Companion\" suchen.",
+  ["1) Download it: copy the link, or search \"Guild Sync Companion\" in the Microsoft Store."] = "1) Herunterladen: Link kopieren oder im Microsoft Store nach \"Guild Sync Companion\" suchen.",
   ["2) Run the installer. It finds WoW and your guild's Discord server by itself."] = "2) Installer ausf\195\188hren. Er findet WoW und den Discord-Server deiner Gilde von selbst.",
   ["3) Keep it open (it starts with Windows). Signing in with Discord is optional."] = "3) Offen lassen (startet mit Windows). Die Anmeldung mit Discord ist optional.",
   ["Easiest: install the Guilded Windows app (steps below). It syncs by itself, no sign-in needed. No app? In Discord use /character pair, then paste the code below."] = "Am einfachsten: Installiere die Guilded-Windows-App (Schritte unten). Sie synchronisiert von selbst, ohne Anmeldung. Keine App? Nutze in Discord /character pair und f\195\188ge den Code unten ein.",
@@ -2861,7 +2861,7 @@ local DE = {
   ["All settings"] = "Alle Einstellungen",
   ["Opens Guilded's page in the game's options: every setting in tabs, each with a description."] = "\195\150ffnet Guildeds Seite in den Spieloptionen: alle Einstellungen in Reitern, jede mit Beschreibung.",
   ["Shows a small card with the result, the record and the rank change after each of your guild duels. Type /guilded duels card test to preview it."] = "Zeigt nach jedem deiner Gildenduelle eine kleine Karte mit Ergebnis, Bilanz und Rangwechsel. Mit /guilded duels card test siehst du eine Vorschau.",
-  ["Not recorded: you duelled this player a moment ago, so this result is not added."] = "Nicht gespeichert: Du hast eben erst gegen diesen Spieler geduelliert, daher wird dieses Ergebnis nicht hinzugef\195\188gt.",
+  ["Not recorded."] = "Nicht erfasst.",
   -- Officer "To invite" window in three sections (9.3)
   ["To invite now (%d)"] = "Jetzt einzuladen (%d)",
   ["Nobody to invite right now."] = "Im Moment ist niemand einzuladen.",
@@ -2891,6 +2891,15 @@ local DE = {
   ["The result and duel cards are back in their usual place."] = "Die Ergebnis- und Duellkarten sind wieder an ihrem \195\188blichen Platz.",
   -- 9.3 UI polish (Modules/RunResults.lua)
   ["Save: available after combat"] = "Speichern: nach dem Kampf verf\195\188gbar",
+  -- 9.3.1 UI polish
+  ["Guilded opens the dungeons window after combat. Try again when the fight is over."] = "Guilded \195\182ffnet das Dungeonfenster nach dem Kampf. Versuche es erneut, wenn der Kampf vorbei ist.",
+  ["The dungeons window is turned off. /guilded modules on dungeon turns it on."] = "Das Dungeonfenster ist ausgeschaltet. /guilded modules on dungeon schaltet es ein.",
+  ["The dungeons window is not available."] = "Das Dungeonfenster ist nicht verf\195\188gbar.",
+  ["Duel card: %s. /guilded duels card on | off | test (test shows a preview)."] = "Duellkarte: %s. /guilded duels card on | off | test (test zeigt eine Vorschau).",
+  ["Click Invite on a row, then Ctrl+C, paste it in your chat box (Ctrl+V) and press Enter."] = "Klicke bei einer Zeile auf Einladen, dann Strg+C, f\195\188ge es in dein Chatfeld ein (Strg+V) und dr\195\188cke Enter.",
+  ["switch parts on or off, announcements, diagnostics, advanced"] = "Teile ein- oder ausschalten, Ank\195\188ndigungen, Diagnose, erweitert",
+  -- 9.3.1 UI polish
+  ["List from %s. Reload after the companion syncs."] = "Liste von %s. Lade nach der Synchronisierung des Companions neu (/reload).",
   ["Not counted on the ladder."] = "Nicht in der Rangliste gewertet.",
   ["Rating"] = "Wertung",
   ["Season %s"] = "Saison %s",
@@ -4491,7 +4500,7 @@ local ES = {
   ["%s earned the achievement %s!"] = "\194\161%s ha conseguido el logro %s!",
   ["Achievements in guild chat: %s."] = "Logros en el chat de hermandad: %s.",
   ["Sync with Discord in 3 steps (Windows only):"] = "Sincroniza con Discord en 3 pasos (solo Windows):",
-  ["1) Download it: copy the link, or search \"Guild Sync Companion\" in the Microsoft Store."] = "1) Desc\195\161rgalo: copia el enlace o busca \"Guilded Companion\" en la Microsoft Store.",
+  ["1) Download it: copy the link, or search \"Guild Sync Companion\" in the Microsoft Store."] = "1) Desc\195\161rgalo: copia el enlace o busca \"Guild Sync Companion\" en la Microsoft Store.",
   ["2) Run the installer. It finds WoW and your guild's Discord server by itself."] = "2) Ejecuta el instalador. Encuentra WoW y el servidor de Discord de tu hermandad por s\195\173 solo.",
   ["3) Keep it open (it starts with Windows). Signing in with Discord is optional."] = "3) D\195\169jalo abierto (arranca con Windows). Iniciar sesi\195\179n con Discord es opcional.",
   ["Easiest: install the Guilded Windows app (steps below). It syncs by itself, no sign-in needed. No app? In Discord use /character pair, then paste the code below."] = "Lo m\195\161s f\195\161cil: instala la aplicaci\195\179n de Windows de Guilded (pasos abajo). Sincroniza sola, sin iniciar sesi\195\179n. \194\191Sin la aplicaci\195\179n? En Discord usa /character pair y pega el c\195\179digo abajo.",
@@ -4778,7 +4787,7 @@ local ES = {
   ["All settings"] = "Todos los ajustes",
   ["Opens Guilded's page in the game's options: every setting in tabs, each with a description."] = "Abre la p\195\161gina de Guilded en las opciones del juego: todos los ajustes en pesta\195\177as, cada uno con su descripci\195\179n.",
   ["Shows a small card with the result, the record and the rank change after each of your guild duels. Type /guilded duels card test to preview it."] = "Muestra una peque\195\177a tarjeta con el resultado, la marca y el cambio de puesto tras cada uno de tus duelos de hermandad. Escribe /guilded duels card test para verla.",
-  ["Not recorded: you duelled this player a moment ago, so this result is not added."] = "No registrado: acabas de duelar con este jugador, as\195\173 que este resultado no se a\195\177ade.",
+  ["Not recorded."] = "No registrado.",
   -- Officer "To invite" window in three sections (9.3)
   ["To invite now (%d)"] = "Para invitar ahora (%d)",
   ["Nobody to invite right now."] = "Nadie a quien invitar ahora.",
@@ -4808,6 +4817,15 @@ local ES = {
   ["The result and duel cards are back in their usual place."] = "Las tarjetas de resultado y de duelo vuelven a su lugar habitual.",
   -- 9.3 UI polish (Modules/RunResults.lua)
   ["Save: available after combat"] = "Guardar: disponible tras el combate",
+  -- 9.3.1 UI polish
+  ["Guilded opens the dungeons window after combat. Try again when the fight is over."] = "Guilded abre la ventana de mazmorras tras el combate. Int\195\169ntalo de nuevo cuando termine la pelea.",
+  ["The dungeons window is turned off. /guilded modules on dungeon turns it on."] = "La ventana de mazmorras est\195\161 desactivada. /guilded modules on dungeon la activa.",
+  ["The dungeons window is not available."] = "La ventana de mazmorras no est\195\161 disponible.",
+  ["Duel card: %s. /guilded duels card on | off | test (test shows a preview)."] = "Tarjeta de duelo: %s. /guilded duels card on | off | test (test muestra una vista previa).",
+  ["Click Invite on a row, then Ctrl+C, paste it in your chat box (Ctrl+V) and press Enter."] = "Pulsa Invitar en una fila, luego Ctrl+C, pega en tu cuadro de chat (Ctrl+V) y pulsa Intro.",
+  ["switch parts on or off, announcements, diagnostics, advanced"] = "activar o desactivar partes, anuncios, diagn\195\179stico, avanzado",
+  -- 9.3.1 UI polish
+  ["List from %s. Reload after the companion syncs."] = "Lista de %s. Haz /reload cuando el companion sincronice.",
   ["Not counted on the ladder."] = "No cuenta en la clasificaci\195\179n.",
   ["Rating"] = "Puntuaci\195\179n",
   ["Season %s"] = "Temporada %s",
@@ -5009,6 +5027,15 @@ FR["When a guildmate on another layer asks to be invited, they appear here with 
 FR["The result and duel cards are back in their usual place."] = "Les cartes de r\195\169sultat et de duel sont revenues \195\160 leur place habituelle."
 -- 9.3 UI polish (Modules/RunResults.lua).
 FR["Save: available after combat"] = "Enregistrer : disponible apr\195\168s le combat"
+-- 9.3.1 UI polish.
+FR["Guilded opens the dungeons window after combat. Try again when the fight is over."] = "Guilded ouvre la fen\195\170tre des donjons apr\195\168s le combat. R\195\169essayez quand le combat est termin\195\169."
+FR["The dungeons window is turned off. /guilded modules on dungeon turns it on."] = "La fen\195\170tre des donjons est d\195\169sactiv\195\169e. /guilded modules on dungeon la r\195\169active."
+FR["The dungeons window is not available."] = "La fen\195\170tre des donjons n'est pas disponible."
+FR["Duel card: %s. /guilded duels card on | off | test (test shows a preview)."] = "Carte de duel : %s. /guilded duels card on | off | test (test affiche un aper\195\167u)."
+FR["Click Invite on a row, then Ctrl+C, paste it in your chat box (Ctrl+V) and press Enter."] = "Cliquez sur Inviter sur une ligne, puis Ctrl+C, collez dans votre zone de discussion (Ctrl+V) et appuyez sur Entr\195\169e."
+FR["switch parts on or off, announcements, diagnostics, advanced"] = "activer ou d\195\169sactiver des parties, annonces, diagnostics, avanc\195\169"
+-- 9.3.1 UI polish.
+FR["List from %s. Reload after the companion syncs."] = "Liste de %s. Faites /reload apr\195\168s la synchronisation du compagnon."
 FR["Invites"] = "Invitations"
 FR["Officers only."] = "R\195\169serv\195\169 aux officiers."
 FR["Advanced..."] = "Avanc\195\169..."
@@ -5751,7 +5778,7 @@ FR["Achievements in guild chat: %s."] = "Succ\195\168s dans le chat de guilde : 
 
 -- Companion in three steps (9.1: Util.lua companionSteps, Home page, /guilded companion)
 FR["Sync with Discord in 3 steps (Windows only):"] = "Synchroniser avec Discord en 3 \195\169tapes (Windows seulement) :"
-FR["1) Download it: copy the link, or search \"Guild Sync Companion\" in the Microsoft Store."] = "1) T\195\169l\195\169chargez-le : copiez le lien, ou cherchez \"Guilded Companion\" dans le Microsoft Store."
+FR["1) Download it: copy the link, or search \"Guild Sync Companion\" in the Microsoft Store."] = "1) T\195\169l\195\169chargez-le : copiez le lien, ou cherchez \"Guild Sync Companion\" dans le Microsoft Store."
 FR["2) Run the installer. It finds WoW and your guild's Discord server by itself."] = "2) Lancez l'installateur. Il trouve WoW et le serveur Discord de votre guilde tout seul."
 FR["3) Keep it open (it starts with Windows). Signing in with Discord is optional."] = "3) Laissez-le ouvert (il d\195\169marre avec Windows). La connexion avec Discord est facultative."
 FR["Easiest: install the Guilded Windows app (steps below). It syncs by itself, no sign-in needed. No app? In Discord use /character pair, then paste the code below."] = "Le plus simple : installez l'application Windows Guilded (\195\169tapes ci-dessous). Elle synchronise toute seule, sans connexion. Pas d'application ? Dans Discord, utilisez /character pair, puis collez le code ci-dessous."
@@ -5847,7 +5874,7 @@ FR["your health left %d%%"] = "votre sant\195\169 restante : %d%%"
 FR["opponent's health left %d%%"] = "sant\195\169 de l'adversaire : %d%%"
 
 FR["Shows a small card with the result, the record and the rank change after each of your guild duels. Type /guilded duels card test to preview it."] = "Affiche une petite carte avec le r\195\169sultat, le bilan et le changement de rang apr\195\168s chacun de vos duels de guilde. Tapez /guilded duels card test pour l'aper\195\167u."
-FR["Not recorded: you duelled this player a moment ago, so this result is not added."] = "Non enregistr\195\169 : vous venez d'affronter ce joueur, ce r\195\169sultat n'est donc pas ajout\195\169."
+FR["Not recorded."] = "Non enregistr\195\169."
 -- Duel card: painted background, stat columns, non-guild duels (9.3)
 FR["Record"] = "Bilan"
 FR["Points"] = "Points"

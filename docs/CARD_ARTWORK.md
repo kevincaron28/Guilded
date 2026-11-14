@@ -11,7 +11,7 @@ nothing recognisable from another studio. The owner approves each piece before t
 two-column cards (raid end, battleground end, Hall of Fame) use it whole under the left column. The loader darkens it and checks
 that muted card text keeps 4.5:1 contrast where text is drawn.
 
-**Wired slots:** `board/duel`, `board/battlegrounds`, `board/world-pvp`, `board/crafters`, `board/race-to-60`,
+**Wired slots:** `board/duel`, `board/achievements` (achievements and unlock cards, 14 Nov 2026), `board/battlegrounds`, `board/world-pvp`, `board/crafters`, `board/race-to-60`,
 `board/dungeon-season`, `board/activity`, `board/hall-of-fame`, `board/weekly`, `board/season-podium`, `board/rookie-of-the-week`,
 `board/member-welcome`, `board/world-pvp-recap`, `raid/molten-core` (chosen from the raid's title or the bosses it killed, English or French;
 any other raid uses `raid/default`), `recap/dawn`, `recap/day`, `recap/night` (the daily recap card, one per day by its seed, replacing the

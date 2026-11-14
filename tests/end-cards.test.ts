@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
-import { achievementUnlockedCard, battlegroundEndCard, raidArtKey, raidEndCard } from "../src/services/end-cards.js";
+import { achievementUnlockedCard, achievementsCard, battlegroundEndCard, raidArtKey, raidEndCard } from "../src/services/end-cards.js";
 import { scoreCardPng } from "../src/services/score-card.js";
 import { ACTIVE_ACHIEVEMENTS } from "../src/services/achievements-catalogue.js";
 import type { RaidReport } from "../src/services/raid-report.js";
@@ -71,5 +71,26 @@ describe("card art keys (batch 2)", () => {
     expect(battlegroundEndCard(row, [row]).backdrop).toEqual({ kind: "battleground", key: "warsong-gulch", fallbackKey: "default" });
     expect(battlegroundEndCard({ ...row, mapId: 529 }, [], "fr").backdrop?.key).toBe("arathi-basin");
     expect(battlegroundEndCard({ ...row, mapId: 30 }, [], "fr").backdrop?.key).toBe("alterac-valley");
+  });
+});
+
+describe("achievements card painting", () => {
+  const plain = (card: ReturnType<typeof achievementsCard>) => { const copy = { ...card }; delete copy.backdrop; return copy; };
+  const items = [{ id: "dungeon-runs-1", earnedAt: new Date("2026-11-01"), value: 1 }, { id: "raids-1", earnedAt: new Date("2026-11-02"), value: 1 }, { id: "messages-1000", earnedAt: null, value: 400 }];
+  it("asks for the painted trophy wall, keeps its painted badges and its row layout (label, rows, footer), and draws a real picture", async () => {
+    const card = achievementsCard("Aldric", items, "en");
+    expect(card.backdrop).toEqual({ kind: "board", key: "achievements" });
+    expect((card.rows ?? []).every(row => (row.icon ?? "").includes("<badge-art"))).toBe(true);
+    expect(card.rowsLabel).toBeTruthy();
+    expect(card.footer).toBeTruthy();
+    const { default: sharpLib } = await import("sharp");
+    const withArt = (await scoreCardPng(card))!, without = (await scoreCardPng(plain(card)))!;
+    expect(Buffer.compare(withArt, without)).not.toBe(0);
+    expect((await sharpLib(withArt).metadata()).height).toBe(630);
+  });
+  it("draws the plain card when the painting file is missing", async () => {
+    const card = achievementsCard("Aldric", items, "en");
+    const missing = (await scoreCardPng({ ...card, backdrop: { kind: "board", key: "no-such-picture" } }))!, without = (await scoreCardPng(plain(card)))!;
+    expect(Buffer.compare(missing, without)).toBe(0);
   });
 });

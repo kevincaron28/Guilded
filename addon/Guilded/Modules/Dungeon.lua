@@ -1166,6 +1166,26 @@ function dungeon.markSynced()
       dungeon.stats.pruned = dungeon.stats.pruned + 1
     end
   end
+  -- (9.3.1) The runs of a guild another character of this PC belongs to (parked in GuildedDB.otherGuilds) age out the same way: a
+  -- synced one after the synced window, an unsent one when the companion would no longer read it. Said once, in neutral words.
+  local root = GuildedDB
+  local dropped = 0
+  for _, parked in pairs(type(root) == "table" and type(root.otherGuilds) == "table" and root.otherGuilds or {}) do
+    local parkedRuns = type(parked) == "table" and type(parked.dungeon) == "table" and parked.dungeon.runs or nil
+    for id, run in pairs(type(parkedRuns) == "table" and parkedRuns or {}) do
+      local at = type(run) == "table" and (run.endedAt or run.detectedAt) or 0
+      if type(run) ~= "table" then parkedRuns[id] = nil
+      elseif run.synced and at < cutoff then parkedRuns[id] = nil
+      elseif not run.synced and at < peerCutoff then
+        parkedRuns[id] = nil
+        dropped = dropped + 1
+      end
+    end
+  end
+  if dropped > 0 then
+    dungeon.parkedDropped = true
+    dungeon.flushAckNotices()
+  end
 end
 
 -- A run one of this PC's characters played (the character logged in, or one Guilded saw log in here).
@@ -1609,6 +1629,10 @@ function dungeon.flushAckNotices()
     local run = d and d.runs[item.id]
     local who = ns.displayName and ns.displayName(item.who) or item.who
     ns.message(string.format(L("Your run %s was uploaded by %s's companion."), tostring(run and run.name or "?"), tostring(who or item.who)))
+  end
+  if dungeon.parkedDropped then
+    dungeon.parkedDropped = nil
+    ns.message(L("Some old dungeon runs of another guild could no longer be sent and were removed."))
   end
   if dungeon.remindAfterCombat then
     dungeon.remindAfterCombat = nil

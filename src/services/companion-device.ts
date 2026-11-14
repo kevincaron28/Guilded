@@ -28,6 +28,9 @@ import { normalizeClassName, normalizeRaceName } from "./character-import.js";
 // guildmates (Core.lua digest "|V:"), so any guildmate's saved file can hold it. Verify and officer
 // links confirm characters (Character.confirmedAt); only a sign-in claims a device.
 
+/** What this bot's device endpoint can do, sent with every answer: an older bot ignores `runsOnly`, so a companion must not send one to it. */
+export const DEVICE_FEATURES = ["runs-only"] as const;
+
 export const DEVICE_LIMITS = {
   /** New device keys per IP address per hour (a household or LAN party shares one). */
   registrationsPerIpPerHour: 5,
@@ -35,6 +38,8 @@ export const DEVICE_LIMITS = {
   uploadsPerDevicePerHour: 30,
   /** Uploads per IP address per hour, every device together. */
   uploadsPerIpPerHour: 120,
+  /** Runs-only uploads (a parked guild's runs, 9.3.1) per device per hour: apart from the loaded guild's budget above. */
+  runsOnlyPerDevicePerHour: 12,
   /** Characters one device may report: a member's alts on one WoW account. */
   charactersPerDevice: 12,
   /** Characters in one upload. */
@@ -92,6 +97,12 @@ export const deviceUploadSchema = z.object({
   characters: z.array(deviceCharacterSchema).max(DEVICE_LIMITS.charactersPerUpload).default([]),
   /** "Advanced: choose server": a Discord server ID among the candidates the bot listed. */
   server: z.string().regex(/^\d{5,25}$/).optional(),
+  /**
+   * (9.3.1) Runs only: the dungeon runs of a guild the addon parked (another guild's character logged in since). The guild and the
+   * characters named here belong to THAT guild: they are never stored as the device's guild, pick or characters, the member's
+   * "choose server" pick is not used for them, and a guild no server registered is never guessed from a roster (no alias).
+   */
+  runsOnly: z.boolean().optional(),
   deviceName: z.string().max(80).optional(),
   /** Finished dungeon runs from the saved file, in the bot's dungeonRunSchema shape (validated when imported). */
   dungeonRuns: z.array(z.unknown()).max(DEVICE_LIMITS.runsPerUpload).default([])
@@ -223,10 +234,14 @@ export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, 
   const guild = upload.guild ? { name: upload.guild.name, realm: upload.guild.realm } : null;
   const wowGuild = guild ? { key: `${key(guild.name)}|${key(guild.realm)}`, ...guild } : null;
   const characterKeys = upload.characters.map((character) => characterKey(character.name, character.realm, character.gameEdition));
-  const candidates = guild ? (await store.candidates(key(guild.name), key(guild.realm), characterKeys)).filter((candidate) => options.allows?.(candidate.discordId) ?? true) : [];
-  // The member's earlier pick sticks until they choose again.
-  const remembered = candidates.find((candidate) => candidate.guildId === device.chosenGuildId);
-  const chosen = upload.server ?? remembered?.discordId ?? null;
+  const runsOnly = upload.runsOnly === true;
+  if (runsOnly && !guild) throw new DeviceError("A runs-only upload names the guild its runs belong to.", 400);
+  // A runs-only upload finds its server by the guild's registered name only: the roster fallback (a renamed guild) would send a
+  // guild nobody set up to the server of a character's earlier guild.
+  const candidates = guild ? (await store.candidates(key(guild.name), key(guild.realm), characterKeys)).filter((candidate) => (options.allows?.(candidate.discordId) ?? true) && !(runsOnly && candidate.viaRoster)) : [];
+  // The member's earlier pick sticks until they choose again (it is for the loaded guild, never for a parked one).
+  const remembered = runsOnly ? undefined : candidates.find((candidate) => candidate.guildId === device.chosenGuildId);
+  const chosen = runsOnly ? null : upload.server ?? remembered?.discordId ?? null;
   const decision = pickServer(candidates, chosen);
   const target = "pick" in decision ? decision.pick : null;
   sweepIdleDevices(store, now);
@@ -234,10 +249,13 @@ export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, 
   const guildFull = target && store.guildCharacterCount ? await store.guildCharacterCount(target.guildId) >= DEVICE_LIMITS.charactersPerGuild : false;
   const chosenGuildId = upload.server && target?.discordId === upload.server ? target.guildId : remembered?.guildId ?? null;
 
-  // Characters: only ones this device already reported, plus new ones up to the cap.
-  const known = new Set(await store.characterKeys(device.id));
+  // Characters: only ones this device already reported, plus new ones up to the cap. A runs-only upload stores nothing of the
+  // device: its characters only vouch for its runs, and the device's guild and server pick stay as the loaded guild's upload left them.
+  // A runs-only upload vouches only with characters this device already reported through its own sync (never new ones: the cap stays).
+  const reportedBefore = await store.characterKeys(device.id);
+  const known = new Set(runsOnly ? characterKeys.filter((nameKey) => reportedBefore.includes(nameKey)) : reportedBefore);
   const rows: Parameters<DeviceStore["saveUpload"]>[2] = [];
-  for (const character of upload.characters) {
+  for (const character of runsOnly ? [] : upload.characters) {
     const nameKey = characterKey(character.name, character.realm, character.gameEdition);
     if (rows.some((row) => row.nameKey === nameKey)) continue;
     if (!known.has(nameKey)) {
@@ -252,11 +270,11 @@ export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, 
       ...(character.level ? { level: character.level } : {})
     });
   }
-  await store.saveUpload(device.id, { guildId: target?.guildId ?? null, chosenGuildId, wowGuild, now }, rows);
+  if (!runsOnly) await store.saveUpload(device.id, { guildId: target?.guildId ?? null, chosenGuildId, wowGuild, now }, rows);
   if (!guild || "none" in decision) return { status: "no-guild", guild };
   if ("choose" in decision) return { status: "choose", guild, servers: decision.choose.map((candidate) => ({ discordId: candidate.discordId, name: candidate.serverName })) };
   // T9: the guild was renamed in game. The roster sent this device to the right server; officers get the new name.
-  if (target?.viaRoster && store.noteAlias) await store.noteAlias(target.guildId, guild, now).catch(() => undefined);
+  if (!runsOnly && target?.viaRoster && store.noteAlias) await store.noteAlias(target.guildId, guild, now).catch(() => undefined);
   let runs: { received: number; stored: number; skipped: number; pending?: number } | undefined;
   let pending: Record<string, string> = {};
   if (upload.dungeonRuns.length && store.importRuns && target) {
@@ -293,7 +311,7 @@ export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, 
   // confirmed" for the one being played. Names the device itself sent, nothing else: no Discord name and nothing about
   // anyone else's characters ever goes back to an unsigned device.
   const reported = rows.map((row) => row.name);
-  return { status: "synced", server: { discordId: decision.pick.discordId, name: decision.pick.serverName }, guild, characters: known.size, claimed: false, notice: DEVICE_PVP_NOTICE, ...(challengeSecret() ? { challenge: issueChallenge(challengeSecret()!, device.id, now.getTime() / 1000) } : {}), ...(runs ? { runs } : {}), ...(runReceipts ? { runReceipts } : {}), ...(reported.length ? { reported } : {}) };
+  return { status: "synced", server: { discordId: decision.pick.discordId, name: decision.pick.serverName }, guild, characters: known.size, claimed: false, notice: DEVICE_PVP_NOTICE, ...(challengeSecret() ? { challenge: issueChallenge(challengeSecret()!, device.id, now.getTime() / 1000) } : {}), ...(runs ? { runs } : {}), ...(runReceipts ? { runReceipts } : {}), ...(reported.length && !runsOnly ? { reported } : {}) };
 }
 
 /**

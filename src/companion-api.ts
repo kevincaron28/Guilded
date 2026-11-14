@@ -109,7 +109,7 @@ import { prismaWebStore } from "./services/web-store.js";
 import { postWebApplication } from "./services/recruitment-discord.js";
 import { createLeaderboardPages, guildDungeonSummary, prismaLeaderboardStore } from "./services/public-leaderboard.js";
 import { exchangePersonalCode, isPersonalCode, issuePersonalCredential, personalAccess, prismaPersonalStore } from "./services/personal-pairing.js";
-import { claimDevice, DEVICE_LIMITS, networkKey, DeviceError, deviceFor, handleDeviceUpload, memberForCredential, pickServer, prismaInstallStore, registerDevice, windowLimiter } from "./services/companion-device.js";
+import { claimDevice, DEVICE_FEATURES, DEVICE_LIMITS, networkKey, DeviceError, deviceFor, handleDeviceUpload, memberForCredential, pickServer, prismaInstallStore, registerDevice, windowLimiter } from "./services/companion-device.js";
 import { loadOfficialWindows } from "./services/official-seasons.js";
 import { companionSignInRoute, createCompanionSignIn } from "./services/companion-signin.js";
 import { ingestPublicRuns, ownPlayersFilter, pickScoreCharacter, PUBLIC_LIMITS, prismaPublicRunStore, PublicUploadError } from "./services/public-runs.js";
@@ -283,6 +283,8 @@ export function allowPublicUpload(accountId: string, now = Date.now()): boolean 
 const deviceRegistrations = windowLimiter(DEVICE_LIMITS.registrationsPerIpPerHour, 3_600_000);
 const deviceUploadsPerDevice = windowLimiter(DEVICE_LIMITS.uploadsPerDevicePerHour, 3_600_000);
 const deviceUploadsPerIp = windowLimiter(DEVICE_LIMITS.uploadsPerIpPerHour, 3_600_000);
+// (9.3.1) Runs-only uploads (a parked guild's runs) have their own hourly budget, so they never use up the loaded guild's.
+const deviceRunsOnlyPerDevice = windowLimiter(DEVICE_LIMITS.runsOnlyPerDevicePerHour, 3_600_000);
 const deviceHeader = (request: IncomingMessage) => headerOf(request, "x-companion-device");
 
 // The companion's "Sign in with Discord" (7.2): pending requests, shared by the page and the API.
@@ -876,12 +878,19 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           json(response, ok ? 200 : 409, ok ? { ok: true } : { error: "This companion was already confirmed by another Discord account." });
           return;
         }
-        if (!deviceUploadsPerDevice(device.id) || !deviceUploadsPerIp(address)) { json(response, 429, { error: "Too many uploads in the last hour. Try again later." }); return; }
+        // The rate limits come before the body is read. A runs-only upload (a parked guild) says so in a header and has its own budget.
+        const runsOnlyHeader = headerOf(request, "x-guilded-runs-only") === "1";
+        if (!(runsOnlyHeader ? deviceRunsOnlyPerDevice(device.id) : deviceUploadsPerDevice(device.id)) || !deviceUploadsPerIp(address)) { json(response, 429, { error: "Too many uploads in the last hour. Try again later." }); return; }
+        const deviceBody = await readBody(request);
+        const runsOnly = (deviceBody as { runsOnly?: unknown } | null)?.runsOnly === true;
+        // A runs-only body without the header spends the runs-only budget as well.
+        if (runsOnly && !runsOnlyHeader && !deviceRunsOnlyPerDevice(device.id)) { json(response, 429, { error: "Too many uploads in the last hour. Try again later." }); return; }
         try {
-          const answered = await handleDeviceUpload(devices, device, await readBody(request), { allows: (id) => hostedPilot.allows(id), sealKey: deviceHeader(request) ? deriveSealKey(deviceHeader(request)!) : null });
+          const answered = await handleDeviceUpload(devices, device, deviceBody, { allows: (id) => hostedPilot.allows(id), sealKey: deviceHeader(request) ? deriveSealKey(deviceHeader(request)!) : null });
           // A fresh challenge for the duel records the addon makes next (the companion writes it where the addon reads it).
-          const duelChallenge = await issueDuelChallenge(prisma, device.id).catch(() => null);
-          json(response, 200, { ...answered, botVersion: BOT_VERSION, ...(duelChallenge ? { duelChallenge } : {}) });
+          // A runs-only upload (a parked guild) is not the device's own sync: no challenge for it.
+          const duelChallenge = runsOnly ? null : await issueDuelChallenge(prisma, device.id).catch(() => null);
+          json(response, 200, { ...answered, botVersion: BOT_VERSION, deviceFeatures: DEVICE_FEATURES, ...(duelChallenge ? { duelChallenge } : {}) });
         } catch (error) {
           if (error instanceof DeviceError) { json(response, error.status, { error: error.message }); return; }
           throw error;

@@ -92,6 +92,7 @@
           "device-receipts.mjs",
           "addon-files.mjs",
           "run-report.mjs",
+          "parked-runs.mjs",
           "main-status.mjs"
         ]
       },

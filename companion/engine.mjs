@@ -14,8 +14,9 @@ import { personalSavedFiles, uploadPersonalRuns } from "./personal-runs.mjs";
 import { GAME_EDITIONS } from "./game-edition.mjs";
 import { normalizeSavedPath } from "./saved-folder.mjs";
 import { errorDetail, isTimeout, rememberError } from "./error-detail.mjs";
-import { deviceHeaders, deviceMessage, deviceSummary, hasDeviceKey, uploadAsDevice } from "./device-sync.mjs";
-import { readDeviceReceipts, writeDeviceReceipts } from "./device-receipts.mjs";
+import { deviceHeaders, deviceMessage, deviceSummary, deviceUploadBody, hasDeviceKey, uploadAsDevice } from "./device-sync.mjs";
+import { readDeviceReceipts, writeDeviceReceipts, refreshParkedReceipts } from "./device-receipts.mjs";
+import { readRecord, writeRecord, recordAcknowledged, rememberServer, forgetServer, serverHoldsGuild, waitLine, chooseParked, noteOutcome, minimalParkedExport } from "./parked-runs.mjs";
 
 // Zero-setup companion (device-sync.mjs): no Discord sign-in yet, only the per-install device key.
 export const isDeviceMode = (config) => config?.device === true && hasDeviceKey(config) && !(typeof config.companionCredential === "string" && config.companionCredential.length >= 32);
@@ -269,6 +270,9 @@ export function createEngine(initialConfig, hooks = {}) {
   let lastFile = null;
   // The runs of the last guild upload still to be checked against the bot's standings answer (run-report.mjs).
   let pendingRunCheck = null;
+  // 9.3.0: runs of parked guilds sent with this profile, waiting for the standings answer that says what the bot holds.
+  let pendingParked = [];
+  let lastParkedWait = "";
   let lastText = null;
   let watchRestarts = 0;
   let watchStartedAt = 0;
@@ -418,6 +422,121 @@ export function createEngine(initialConfig, hooks = {}) {
     }
   }
 
+
+  // 9.3.0: the finished dungeon runs of guilds Guilded parked. Device (zero-setup) mode: the bot finds each guild's server from the guild key,
+  // so every guild's runs go to its own server and never to the loaded guild's. Only the guild key, the characters that vouch for the runs
+  // and the runs are sent, flagged runs-only (9.3.1): the bot then stores nothing of the device. Paced (parked-runs.mjs): after the loaded
+  // guild's upload, at most MAX_PER_SYNC guilds a sync, a dead end is not asked again for an hour, and a 429 ends the loop.
+  async function parkedDeviceUploads(current, parked, record, acknowledged, epoch) {
+    const candidates = parked.map(({ key, full }) => ({ key, full, ids: (deviceUploadBody(full, { acknowledged }).dungeonRuns ?? []).map((run) => run.id) })).filter((entry) => entry.ids.length);
+    let changed = false;
+    const waiting = [];
+    for (const { key, full, ids } of chooseParked(record, candidates)) {
+      let kind = "error";
+      try {
+        const { response, body, sent } = await uploadAsDevice(current, full, controller.signal, { acknowledged, runsOnly: true });
+        if (epoch !== generation) return;
+        if (response.status === 429) break; // out of uploads for this hour: the loaded guild's budget is separate, stop here
+        if (response.ok && body.status === "claimed") break;
+        if (!response.ok) { log("warn", `Dungeon runs of ${key}: the bot answered ${response.status}; they will be sent again later.`); }
+        else {
+          const result = recordAcknowledged(record, key, sent.dungeonRuns, body.runReceipts?.acceptedRunRefs, body.runReceipts?.runNotes);
+          record = result.record;
+          changed = changed || result.added > 0;
+          const line = runReportMessage(deviceRunCounts(sent.dungeonRuns, body));
+          if (line) log(line.level, line.message.replace("Dungeon runs:", `Dungeon runs of ${key}:`));
+          const unheld = sent.dungeonRuns.filter((run) => !(body.runReceipts?.acceptedRunRefs ?? []).includes(run.id));
+          kind = body.status === "no-guild" ? "no-guild" : body.status === "choose" ? "choose" : unheld.length ? "unvouched" : "ok";
+          if (kind !== "ok") waiting.push(waitLine(key, unheld.length || ids.length));
+        }
+      } catch (error) {
+        if (epoch !== generation) return;
+        log("warn", `Dungeon runs of ${key} could not be sent: ${describeError(error)}`);
+      }
+      record = noteOutcome(record, key, ids, kind);
+      changed = true;
+    }
+    const message = waiting.join(" ");
+    if (message && message !== lastParkedWait) { state.lastRuns = { at: new Date().toISOString(), message }; log("warn", message); }
+    if (waiting.length || !message) lastParkedWait = message;
+    if (changed) await persistParkedRecord(current, record, epoch);
+  }
+
+  async function persistParkedRecord(current, record, epoch) {
+    await writeRecord(current, record);
+    try { await refreshParkedReceipts(current, record, controller.signal); }
+    catch (error) { if (epoch === generation) log("warn", `Could not save the parked-guild run receipts for the addon: ${describeError(error)}`); }
+  }
+
+
+  // 9.3.0: signed-in profile: the finished runs of a parked guild go to this profile's server ONLY when it is that guild's server (the profile's
+  // own guild, or one an earlier upload showed the server knows). Otherwise they wait and the sync line says why. Nothing but the guild key,
+  // this account's characters in it and the runs is sent (parked-runs.mjs).
+  async function parkedSignedUploads(current, parked, _record, epoch) {
+    let record = await readRecord(current); // fresh: the loaded upload may have just remembered a server
+    const waiting = [];
+    const eligible = [];
+    for (const { key, full } of parked) {
+      const runs = (full.dungeonRuns ?? []).map((run) => ({ id: run.id, endedAt: run.endedAt }));
+      if (!runs.length) continue;
+      if (!serverHoldsGuild(current, record, key)) waiting.push(waitLine(key, runs.length));
+      else eligible.push({ key, full, runs, ids: runs.map((run) => run.id) });
+    }
+    let changed = false;
+    // After the loaded guild's upload, paced like the device path: at most a few guilds a sync, dead ends rest for an hour, a 429 ends the loop.
+    for (const { key, full, runs, ids } of chooseParked(record, eligible)) {
+      let kind = "error";
+      try {
+        // A purpose-built body (guild, this account's characters in it, the runs): no empty ledger, raid, loot or readiness sections.
+        const { response, body } = await withUploadGate(current.watchFile, () => send(current, minimalParkedExport(full), epoch));
+        if (epoch !== generation) return;
+        if (response.status === 429) break;
+        if (response.ok && body.skipped === "wrong-server") {
+          record = forgetServer(record, current.guildDiscordId, key);
+          kind = "no-guild";
+          waiting.push(waitLine(key, runs.length));
+        } else if (response.ok || (response.status === 409 && body.importId)) {
+          pendingParked = [...pendingParked.filter((entry) => entry.key !== key), { key, runs, tries: 0, last: null }];
+          // Sent: not asked again for the same runs within the hour; the standings answer that follows turns them into receipts (or not).
+          kind = "unconfirmed";
+          log("info", `Dungeon runs of ${key}: ${runs.length} sent.`);
+          if (state.standingsMode !== "live") track(refreshStandings());
+        } else log("warn", `Dungeon runs of ${key}: the bot answered ${response.status}; they will be sent again later.`);
+      } catch (error) {
+        if (epoch !== generation) return;
+        log("warn", `Dungeon runs of ${key} could not be sent: ${describeError(error)}`);
+      }
+      record = noteOutcome(record, key, ids, kind);
+      changed = true;
+    }
+    if (changed) await writeRecord(current, record);
+    const message = waiting.join(" ");
+    if (message && message !== lastParkedWait) { state.lastRuns = { at: new Date().toISOString(), message }; log("warn", message); }
+    lastParkedWait = message;
+  }
+
+  // The standings answer lists what the bot holds for this server's guild: the parked guild's runs it holds become receipts (record), so they are
+  // not sent again and show as synced in game when that guild loads.
+  async function checkParkedRuns(result) {
+    if (!pendingParked.length) return;
+    let record = await readRecord(config);
+    let changed = false;
+    for (const check of pendingParked) {
+      const counts = signedRunCounts(check.runs, result.body);
+      const next = recordAcknowledged(record, check.key, check.runs, result.body?.acceptedRunRefs, result.body?.runNotes);
+      record = next.record;
+      changed = changed || next.added > 0;
+      check.tries++;
+      const line = runReportMessage(counts);
+      if (line && line.message !== check.last) { check.last = line.message; log(line.level, line.message.replace("Dungeon runs:", `Dungeon runs of ${check.key}:`)); }
+      check.done = counts.unconfirmed === 0 || check.tries >= 6;
+      // Given up on: the bot has not confirmed them after six answers. They are not sent again for an hour (parked-runs.mjs pacing).
+      if (check.done && counts.unconfirmed > 0) { record = noteOutcome(record, check.key, check.runs.map((run) => run.id), "unconfirmed"); changed = true; }
+    }
+    pendingParked = pendingParked.filter((check) => !check.done);
+    if (changed) await persistParkedRecord(config, record, generation);
+  }
+
   // Zero-setup: this PC's characters and in-game guild only, with the device key (device-sync.mjs).
   async function deviceUpload() {
     if (uploading) { queued = true; return; }
@@ -431,13 +550,16 @@ export function createEngine(initialConfig, hooks = {}) {
     const startedAt = Date.now();
     try {
       lastFile = await savedStamp(current);
-      const { full, noGuildKey } = await readSavedExport(current.watchFile, current.realm);
+      // Runs the bot already acknowledged (kept in the addon's data file, and for a parked guild in the companion's record) are not sent again.
+      const receiptRefs = (await readDeviceReceipts(current)).refs;
+      const parkedRecord = await readRecord(current);
+      const acknowledged = new Set([...receiptRefs, ...Object.keys(parkedRecord.runs)]);
+      const { full, noGuildKey, parked } = await readSavedExport(current.watchFile, current.realm, { skip: acknowledged });
       // (9.1.3) The same evidence as a signed-in upload (one revision for saved, sent and received), so the
       // Sync page shows "Sent" and "Received" instead of "Unknown" after an unsigned sync.
       const revision = createHash("sha256").update(JSON.stringify(full)).digest("hex");
       state.syncEvidence = { savedAt: new Date().toISOString(), savedRevision: revision, character: full.character?.name ? `${full.character.name} — ${full.character.realm || current.realm || "?"}` : null, edition: full.gameEdition || full.character?.gameEdition };
-      // Runs the bot already acknowledged (kept in the addon's data file) are not sent again: only the newest 50 go in one upload.
-      const acknowledged = new Set((await readDeviceReceipts(current)).refs);
+      // Only the newest 50 runs go in one upload.
       const { response, body, sent } = await uploadAsDevice(current, full, controller.signal, { acknowledged });
       if (epoch !== generation) return;
       state.botVersion = body.botVersion ?? state.botVersion;
@@ -467,6 +589,12 @@ export function createEngine(initialConfig, hooks = {}) {
       const runLine = runReportMessage(deviceRunCounts(sent?.dungeonRuns, body));
       if (runLine) { state.lastRuns = { at: new Date().toISOString(), message: runLine.message }; log(runLine.level, runLine.message); }
       if (summary?.status === "claimed") hooks.onDeviceClaimed?.();
+      // Runs of a guild Guilded parked (another guild's character logged in since) go to THAT guild's server, after the loaded guild's own upload.
+      // Only a bot that says it knows runs-only uploads (an older one would store the parked guild as the device's guild).
+      else if (parked?.length) {
+        if (Array.isArray(body.deviceFeatures) && body.deviceFeatures.includes("runs-only")) await parkedDeviceUploads(current, parked, await readRecord(current), acknowledged, epoch);
+        else if (lastParkedWait !== "update") { lastParkedWait = "update"; log("info", "Dungeon runs of another guild of yours wait for a bot update."); }
+      }
     } catch (error) {
       if (epoch !== generation) return;
       state.uploadError = describeError(error);
@@ -501,9 +629,10 @@ export function createEngine(initialConfig, hooks = {}) {
     try {
     const readStamp = await fileStamp(current.watchFile);
     lastFile = await savedStamp(current);
-    let source = "guilded", noGuildKey = false;
+    let source = "guilded", noGuildKey = false, parked = [];
     let full;
-    if (current.watchFile.toLowerCase().endsWith(".lua")) ({ full, source, noGuildKey } = await readSavedExport(current.watchFile, current.realm));
+    const parkedRecord = await readRecord(current);
+    if (current.watchFile.toLowerCase().endsWith(".lua")) ({ full, source, noGuildKey, parked } = await readSavedExport(current.watchFile, current.realm, { skip: new Set(Object.keys(parkedRecord.runs)) }));
     else full = JSON.parse(await readSavedText(current.watchFile));
     const stamp = await stat(current.watchFile).catch(() => null) ?? { mtimeMs: 0, size: 0, mtime: new Date() };
     if (readStamp !== null && `${stamp.mtimeMs}:${stamp.size}` !== readStamp) throw new Error("Saved data changed during reading. Retrying the latest save.");
@@ -518,11 +647,19 @@ export function createEngine(initialConfig, hooks = {}) {
     state.syncEvidence = { savedAt: stamp.mtime.toISOString(), savedRevision: revision,
       character: full.character?.name ? `${full.character.name} — ${full.character.realm || current.realm || "?"}` : null,
       edition: full.gameEdition || full.character?.gameEdition };
+    // Runs of a guild Guilded parked (9.3.0): only to this profile's server and only when it is that guild's server; AFTER the loaded guild's
+    // own upload (or its skip), so they never use up its turn.
+    const afterLoaded = async () => {
+      if (!parked.length) return;
+      try { await parkedSignedUploads(current, parked, parkedRecord, epoch); }
+      catch (error) { if (epoch === generation) log("warn", `Dungeon runs of another guild of yours could not be sent: ${describeError(error)}`); }
+    };
     // The saved data belongs to one WoW guild; do not send an alt's other guild.
     if (current.wowGuild && (full.wowGuild || current.requireWowGuild) && full.wowGuild !== current.wowGuild) {
-      state.pendingUpload = false;
       state.syncPhase = "waiting-save";
       log("warn", `Skipped: the saved data belongs to "${full.wowGuild}", this companion is for "${current.wowGuild}".`);
+      await afterLoaded();
+      state.pendingUpload = false;
       return;
     }
     // Leave out what the bot already stored (it said so in the last standings answer).
@@ -536,6 +673,8 @@ export function createEngine(initialConfig, hooks = {}) {
         ? `This character's guild${full.wowGuild ? ` (${full.wowGuild})` : ""} isn't set up in ${current.profileName || current.wowGuildName || body.serverWowGuild.name || "this server"}. If this is the wrong server, remove it in the companion's Advanced settings.`
         : null;
       if (state.guildWarning) log("warn", state.guildWarning);
+      // The server knows this guild: remember it, so its runs can still go here when Guilded parks the guild later.
+      if (body.serverWowGuild.known === true && full.wowGuild) await writeRecord(current, rememberServer(await readRecord(current), current.guildDiscordId, full.wowGuild));
     }
     // T1: the bot linked and imported nothing because this server does not know the saved file's guild.
     if (response.ok && body.skipped === "wrong-server") {
@@ -543,6 +682,7 @@ export function createEngine(initialConfig, hooks = {}) {
       state.syncPhase = "needs-attention";
       state.uploadError = null;
       failures = 0;
+      await afterLoaded();
       state.pendingUpload = false;
       return;
     }
@@ -593,6 +733,7 @@ export function createEngine(initialConfig, hooks = {}) {
     }
       state.uploadError = null;
       failures = 0;
+      await afterLoaded();
       state.pendingUpload = false;
     } catch (error) {
       if (epoch !== generation) return;
@@ -660,6 +801,7 @@ export function createEngine(initialConfig, hooks = {}) {
       if (line && line.message !== check.last) { check.last = line.message; state.lastRuns = { at: new Date().toISOString(), message: line.message }; log(line.level, line.message); }
       if (counts.unconfirmed === 0 || check.tries >= 6) pendingRunCheck = null;
     }
+    await checkParkedRuns(result);
     state.botVersion = result.botVersion ?? state.botVersion;
     state.lastStandings = { at: new Date().toISOString(), message: result.acceptedOnly ? "Dungeon run receipts saved for Guilded Dungeons. Use /reload in WoW to load them." : result.downloadedOnly ? "Standings downloaded. Select this connection to write them to the shared addon folder." : result.unchanged || result.refreshOnly ? `Standings already up to date (${result.count} characters).` : `Wrote standings for ${result.count} character(s). Use /reload in WoW to load them.` };
     if (result.acceptedOnly) { if (!result.unchanged) log("ok", state.lastStandings.message); else hooks.onState?.(snapshot()); }

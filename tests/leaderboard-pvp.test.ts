@@ -138,12 +138,13 @@ describe("PvP leaderboards: the store query", () => {
     const record = (table: string, rows: unknown[]) => async (args: { where: Record<string, unknown> }) => { calls.push({ table, where: args.where }); return rows; };
     const database = {
       worldPvpWeek: { findMany: record("worldPvpWeek", []), groupBy: record("worldPvpWeek.total", []) },
-      battlegroundReport: { findMany: record("battlegroundReport", []) }, guildHelpCall: { findMany: record("guildHelpCall", []) }, character: { findMany: record("character", []) }
+      battlegroundReport: { findMany: record("battlegroundReport", []) }, guildHelpCall: { findMany: record("guildHelpCall", []) }, character: { findMany: record("character", []) },
+      worldPvpEvent: { findMany: record("worldPvpEvent", []), groupBy: record("worldPvpEvent.groups", []) }
     };
     expect(await loadPvpData(database as never, [], "forever", NOW)).toMatchObject({ week: [], games: [] });
     expect(calls).toHaveLength(0);
     await loadPvpData(database as never, ["g1"], "forever", NOW);
-    expect(calls.map((c) => c.table).sort()).toEqual(["battlegroundReport", "guildHelpCall", "worldPvpWeek", "worldPvpWeek.total"]);
+    expect(calls.map((c) => c.table).sort()).toEqual(["battlegroundReport", "guildHelpCall", "worldPvpEvent", "worldPvpEvent.groups", "worldPvpWeek", "worldPvpWeek.total"]);
     for (const call of calls) {
       expect(call.where["guildId"]).toEqual({ in: ["g1"] });
       expect(call.where["member"]).toEqual({ status: { in: ["ACTIVE", "TRIAL"] }, isTest: false, raceHidden: false });
@@ -153,7 +154,7 @@ describe("PvP leaderboards: the store query", () => {
 
 describe("PvP leaderboards: review fixes", () => {
   const fakeDb = (weekRows: unknown[], totalRows: unknown[], characters: unknown[], reports: unknown[] = []) => ({
-    worldPvpWeek: { findMany: async () => weekRows, groupBy: async () => totalRows }, battlegroundReport: { findMany: async () => reports }, guildHelpCall: { findMany: async () => [] }, character: { findMany: async () => characters }
+    worldPvpWeek: { findMany: async () => weekRows, groupBy: async () => totalRows }, battlegroundReport: { findMany: async () => reports }, guildHelpCall: { findMany: async () => [] }, character: { findMany: async () => characters }, worldPvpEvent: { findMany: async () => [], groupBy: async () => [] }
   });
   it("keeps every world PvP row (more than 300), so a small guild and a low-ranked player are still counted", async () => {
     const rows = Array.from({ length: 400 }, (_, i) => ({ memberId: `m${i}`, guildId: "g1", kills: 500 - i, deaths: 1, defends: 0, helped: 0 }));
@@ -165,6 +166,36 @@ describe("PvP leaderboards: review fixes", () => {
     expect(guildPvp(loaded, "g2").week.kills).toBe(1);
     expect(playerPvp(loaded, "Player399", "Doomhowl").week?.kills).toBe(101);
     expect(worldBoard(loaded, { className: null, band: null, period: "week", mode: null }).kills).toBe(rows.reduce((n, r) => n + r.kills, 0));
+  });
+
+  it("turns uploaded kills and deaths into exact zone counts and positioned dots, lights the map by kills plus deaths, and drops hidden members' rows in the query", async () => {
+    const week = weekKeyOf(NOW);
+    const groups = [
+      { memberId: "a", guildId: "g1", mapId: 1434, kind: "kill", weekKey: week, _count: { _all: 8 } },
+      { memberId: "a", guildId: "g1", mapId: 1434, kind: "death", weekKey: week, _count: { _all: 3 } },
+      { memberId: "a", guildId: "g1", mapId: 1411, kind: "kill", weekKey: week, _count: { _all: 2 } },
+      { memberId: "a", guildId: "g1", mapId: 99999, kind: "kill", weekKey: week, _count: { _all: 1 } }
+    ];
+    const rows = [{ memberId: "a", guildId: "g1", kind: "kill", weekKey: week, at: NOW, mapId: 1434, x: 0.4, y: 0.6, approx: false }, { memberId: "a", guildId: "g1", kind: "death", weekKey: week, at: NOW, mapId: 1434, x: 0.45, y: 0.65, approx: true }];
+    const chars = [{ memberId: "a", name: "Dara", displayName: null, realm: "Doomhowl", className: "Rogue", level: 60 }];
+    const seen: Record<string, unknown>[] = [];
+    const database = { worldPvpWeek: { findMany: async () => [], groupBy: async () => [] }, battlegroundReport: { findMany: async () => [] }, guildHelpCall: { findMany: async () => [] }, character: { findMany: async () => chars },
+      worldPvpEvent: { groupBy: async (args: Record<string, unknown>) => { seen.push(args); return groups; }, findMany: async (args: Record<string, unknown>) => { seen.push(args); return rows; } } };
+    const loaded = await loadPvpData(database as never, ["g1"], "forever", NOW);
+    expect(seen.every((a) => JSON.stringify(a["where"]).includes('"isTest":false'))).toBe(true);
+    const f = { className: null, band: null, period: "week" as const, mode: null };
+    const stats = zoneStats(loaded, f);
+    expect(stats.find((z) => z.zone?.id === 1434)).toMatchObject({ kills: 8, deaths: 3, heat: 11 });
+    expect(stats.find((z) => z.zone?.id === 1434)!.dots.map((d) => d.kind).sort()).toEqual(["death", "kill"]);
+    expect(stats.find((z) => z.zone === null)).toMatchObject({ kills: 1 });
+    expect(zoneStats(loaded, { ...f, className: "Mage" }).find((z) => z.zone?.id === 1434)).toMatchObject({ kills: 0, deaths: 0 });
+    const { get } = setup(async () => loaded);
+    const res = await get("/leaderboards/pvp/");
+    expect(res.body).toContain("Colour shows: kills plus deaths");
+    expect(res.body).toContain("8 kills · 3 deaths");
+    expect(res.body).toMatch(/class="ev kill" cx=/);
+    expect(res.body).toMatch(/class="ev death approx" cx=/);
+    expect(res.body).toContain("Blue dots: deaths.");
   });
 
   it("counts one battleground once however many guildmates reported it", () => {
@@ -304,7 +335,7 @@ describe("PvP leaderboards: pages", () => {
   it("logs an unknown zone map id once and remembers at most 200 of them", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const many = Array.from({ length: 300 }, (_, i) => ({ guildId: "g1", zone: `Z${i}`, mapId: 90_000 + i, calledAt: NOW }));
-    const db = { worldPvpWeek: { findMany: async () => [], groupBy: async () => [] }, battlegroundReport: { findMany: async () => [] }, character: { findMany: async () => [] }, guildHelpCall: { findMany: async () => many } };
+    const db = { worldPvpWeek: { findMany: async () => [], groupBy: async () => [] }, worldPvpEvent: { findMany: async () => [], groupBy: async () => [] }, battlegroundReport: { findMany: async () => [] }, character: { findMany: async () => [] }, guildHelpCall: { findMany: async () => many } };
     await loadPvpData(db as never, ["g1"], "forever", NOW);
     await loadPvpData(db as never, ["g1"], "forever", NOW);
     const logged = warn.mock.calls.filter((c) => String(c[0]).includes("unknown zone map id")).length;
@@ -314,6 +345,17 @@ describe("PvP leaderboards: pages", () => {
 
   it("only points at a painting that exists in the site folder", () => {
     for (const [continent, image] of Object.entries(CONTINENT_IMAGES)) if (image) expect(existsSync(`site${image}`), continent).toBe(true);
+  });
+
+  it("keeps a visible keyboard focus ring and a tooltip that fits the map for the longest French zone name", async () => {
+    const d: PvpData = { ...data(), calls: PVP_ZONES.map((z) => ({ guildId: "g1", zone: z.fr, mapId: z.id, calledAt: NOW })) };
+    const { get } = setup(async () => d);
+    const main = (await get("/leaderboards/pvp/", "fr")).body;
+    expect(main).toContain("a.z:focus-visible .r{");
+    const view = main.match(/<svg viewBox="([\d. -]+)"/)![1]!.split(" ").map(Number);
+    for (const m of main.matchAll(/<g class="tip"[^>]*><rect x="([\d.]+)" y="[\d.]+" width="([\d.]+)"/g)) {
+      expect(Number(m[1])).toBeGreaterThanOrEqual(view[0]!); expect(Number(m[1]) + Number(m[2])).toBeLessThanOrEqual(view[0]! + view[2]! + 0.5);
+    }
   });
 
   it("is served in French", async () => {

@@ -18,14 +18,16 @@ export interface PvpPlayer { key: string; name: string; short: string; realm: st
 export interface PvpWorldRow extends PvpPlayer { kills: number; deaths: number; defends: number; helped: number }
 export interface PvpGame extends PvpPlayer { mode: string; bracket: string; mapId: number; outcome: string; endedAt: Date; /** One value per battleground match, shared by every member who reported it. */ matchKey: string }
 export interface PvpCall { guildId: string; zone: string; mapId?: number | null; calledAt: Date }
-export interface PvpData { weekKey: number; week: PvpWorldRow[]; total: PvpWorldRow[]; games: PvpGame[]; calls: PvpCall[]; /** Kills and deaths per zone, when the zone of each is sent (none today). */ zoneActivity?: PvpZoneActivity[] }
+export interface PvpData { weekKey: number; week: PvpWorldRow[]; total: PvpWorldRow[]; games: PvpGame[]; calls: PvpCall[]; /** Kills and deaths per zone (exact counts) and the newest of them with a position, from the pvp-events upload. */ zoneActivity?: PvpZoneActivity[]; events?: PvpEvent[] }
+/** One kill or death with its place: zone map position 0-1 (null when the game gave none), no enemy name. */
+export interface PvpEvent { guildId: string; kind: "kill" | "death"; weekKey: number; at: Date; mapId: number; x: number | null; y: number | null; approx: boolean; className: string | null; level: number | null }
 export const emptyPvp = (weekKey: number): PvpData => ({ weekKey, week: [], total: [], games: [], calls: [] });
 
 export const PVP_LEVEL_BANDS: { key: string; from: number; to: number }[] = [
   { key: "1-19", from: 1, to: 19 }, { key: "20-39", from: 20, to: 39 }, { key: "40-59", from: 40, to: 59 }, { key: "60", from: 60, to: 60 }
 ];
 export const PVP_MODES = ["casual", "rated", "blitz"] as const;
-const BG_DAYS = 30, WORLD_ROWS = 5_000, GAME_ROWS = 5_000, CALL_ROWS = 2_000, CALL_DAYS = 28;
+const BG_DAYS = 30, WORLD_ROWS = 5_000, GAME_ROWS = 5_000, CALL_ROWS = 2_000, CALL_DAYS = 28, EVENT_GROUPS = 5_000, EVENT_ROWS = 2_000;
 
 const MAPS: Record<number, [string, string]> = {
   30: ["Alterac Valley", "Vallée d'Alterac"], 489: ["Warsong Gulch", "Goulet des Chanteguerres"], 529: ["Arathi Basin", "Bassin d'Arathi"],
@@ -47,18 +49,20 @@ export async function loadPvpData(database: PrismaClient, guildIds: readonly str
   const ids = [...guildIds];
   const since = new Date(now.getTime() - BG_DAYS * 86_400_000);
   const callsSince = new Date(now.getTime() - CALL_DAYS * 86_400_000);
-  const [weekRows, totalRows, reports, calls] = await Promise.all([
+  const [weekRows, totalRows, reports, calls, eventGroups, eventRows] = await Promise.all([
     database.worldPvpWeek.findMany({ where: { guildId: { in: ids }, weekKey, member: VISIBLE }, select: { memberId: true, guildId: true, kills: true, deaths: true, defends: true, helped: true }, orderBy: { kills: "desc" }, take: WORLD_ROWS }),
     database.worldPvpWeek.groupBy({ by: ["memberId", "guildId"], where: { guildId: { in: ids }, member: VISIBLE }, _sum: { kills: true, deaths: true, defends: true, helped: true }, orderBy: { _sum: { kills: "desc" } }, take: WORLD_ROWS }),
     database.battlegroundReport.findMany({ where: { guildId: { in: ids }, gameEdition: edition, status: "PROVISIONAL", endedAt: { gte: since, lt: now }, member: VISIBLE }, orderBy: { endedAt: "desc" }, take: GAME_ROWS,
       select: { guildId: true, mode: true, bracket: true, mapId: true, outcome: true, endedAt: true, premadeNonce: true, character: { select: { name: true, displayName: true, realm: true, className: true, level: true } } } }),
-    database.guildHelpCall.findMany({ where: { guildId: { in: ids }, calledAt: { gte: callsSince, lt: now }, member: VISIBLE }, select: { guildId: true, zone: true, mapId: true, calledAt: true }, orderBy: { calledAt: "desc" }, take: CALL_ROWS })
+    database.guildHelpCall.findMany({ where: { guildId: { in: ids }, calledAt: { gte: callsSince, lt: now }, member: VISIBLE }, select: { guildId: true, zone: true, mapId: true, calledAt: true }, orderBy: { calledAt: "desc" }, take: CALL_ROWS }),
+    database.worldPvpEvent.groupBy({ by: ["memberId", "guildId", "mapId", "kind", "weekKey"], where: { guildId: { in: ids }, at: { gte: callsSince, lt: now }, member: VISIBLE }, _count: { _all: true }, orderBy: { _count: { id: "desc" } }, take: EVENT_GROUPS }),
+    database.worldPvpEvent.findMany({ where: { guildId: { in: ids }, at: { gte: callsSince, lt: now }, x: { not: null }, y: { not: null }, member: VISIBLE }, select: { memberId: true, guildId: true, kind: true, weekKey: true, at: true, mapId: true, x: true, y: true, approx: true }, orderBy: { at: "desc" }, take: EVENT_ROWS })
   ]);
   const worldWeek = weekRows.map((row) => ({ memberId: row.memberId, guildId: row.guildId, kills: row.kills, deaths: row.deaths, defends: row.defends, helped: row.helped }));
   const worldTotal = totalRows.map((row) => ({ memberId: row.memberId, guildId: row.guildId, kills: row._sum.kills ?? 0, deaths: row._sum.deaths ?? 0, defends: row._sum.defends ?? 0, helped: row._sum.helped ?? 0 }));
   const top = (rows: typeof worldWeek) => rows.filter((row) => row.kills || row.defends || row.helped).sort((a, b) => b.kills - a.kills || a.deaths - b.deaths);
   const shown = { week: top(worldWeek), total: top(worldTotal) };
-  const memberIds = [...new Set([...shown.week, ...shown.total].map((row) => row.memberId))];
+  const memberIds = [...new Set([...shown.week, ...shown.total, ...eventGroups, ...eventRows].map((row) => row.memberId))];
   const characters = memberIds.length ? await database.character.findMany({ where: { memberId: { in: memberIds }, gameEdition: edition }, orderBy: [{ isMain: "desc" }, { name: "asc" }],
     select: { memberId: true, name: true, displayName: true, realm: true, className: true, level: true }, take: 10_000 }) : [];
   const mainOf = new Map<string, (typeof characters)[number]>();
@@ -77,6 +81,17 @@ export async function loadPvpData(database: PrismaClient, guildIds: readonly str
     }
     return [...merged.values()];
   };
+  const classOf = (memberId: string) => { const c = mainOf.get(memberId); return { className: c?.className ?? null, level: c?.level ?? null }; };
+  const zoneName = (mapId: number) => zoneById(mapId)?.en ?? `Map ${mapId}`;
+  const activity = new Map<string, PvpZoneActivity>();
+  for (const row of eventGroups) {
+    const who = classOf(row.memberId), key = `${row.weekKey}|${row.mapId}|${row.guildId}|${who.className}|${who.level}`;
+    const entry = activity.get(key) ?? { weekKey: row.weekKey, mapId: row.mapId, zone: zoneName(row.mapId), guildId: row.guildId, kills: 0, deaths: 0, ...who };
+    if (row.kind === "kill") entry.kills += row._count._all; else entry.deaths += row._count._all;
+    activity.set(key, entry);
+  }
+  if (activity.size) data.zoneActivity = [...activity.values()];
+  if (eventRows.length) data.events = eventRows.map((row) => ({ guildId: row.guildId, kind: row.kind === "death" ? "death" as const : "kill" as const, weekKey: row.weekKey, at: row.at, mapId: row.mapId, x: row.x, y: row.y, approx: row.approx, ...classOf(row.memberId) }));
   data.week = world(shown.week);
   data.total = world(shown.total);
   data.games = reports.map((row) => ({ ...player(row.character, row.guildId), mode: row.mode, bracket: row.bracket, mapId: row.mapId, outcome: row.outcome, endedAt: row.endedAt, matchKey: matchKeyOf(row.guildId, row.mapId, row.mode, row.endedAt, row.premadeNonce) }));
@@ -170,6 +185,13 @@ export function zoneStats(data: PvpData, f: PvpFilters, guildId: string | null =
     const stat = slot(zoneOf(row.mapId, row.zone), row.zone);
     stat.kills += row.kills; stat.deaths += row.deaths;
     stat.by.set(row.guildId, (stat.by.get(row.guildId) ?? 0) + row.kills + row.deaths);
+  }
+  for (const event of data.events ?? []) {
+    if ((guildId && event.guildId !== guildId) || (f.period === "week" && event.weekKey !== data.weekKey) || !matches({ className: event.className, level: event.level } as PvpPlayer, f)) continue;
+    const zone = zoneById(event.mapId);
+    if (!zone || event.x === null || event.y === null) continue;
+    const stat = slot(zone, zone.en);
+    if (stat.dots.length < 120) stat.dots.push({ mapId: event.mapId, x: event.x, y: event.y, kind: event.kind, approx: event.approx });
   }
   // The map is lit by kills plus deaths as soon as any exist for the period; until then by calls for help.
   const kd = [...stats.values()].some((stat) => stat.kills + stat.deaths > 0);
@@ -279,7 +301,7 @@ export const PVP_MAP_CSS = `<style>
 .pvp-map svg{display:block;width:100%;height:auto}.pvp-map .sea{fill:#0f1519}.pvp-map .land{fill:#22302f;stroke:none}.pvp-map .coast{fill:none;stroke:#0a0f11;stroke-width:6;opacity:.55}.pvp-map rect,.pvp-map path{vector-effect:non-scaling-stroke}.pvp-map .hit{fill:transparent;stroke:none}
 .pvp-map .r{fill:rgba(255,255,255,.015);stroke:rgba(190,170,120,.35);stroke-width:1.2}.pvp-map .h0 .r{pointer-events:none}
 .pvp-map .h1 .r{fill:${HEAT_FILLS[0]};stroke:#a98c3f}.pvp-map .h2 .r{fill:${HEAT_FILLS[1]};stroke:#c89b3c}.pvp-map .h3 .r{fill:${HEAT_FILLS[2]};stroke:#ee8a3d}.pvp-map .h4 .r{fill:${HEAT_FILLS[3]};stroke:#e5523f}.pvp-map .h5 .r{fill:${HEAT_FILLS[4]};stroke:#ff5a4a}
-.pvp-map a.z{outline:none;cursor:pointer}.pvp-map a.z:hover .r,.pvp-map a.z:focus .r{stroke:#fff;stroke-width:2}
+.pvp-map a.z{outline:none;cursor:pointer}.pvp-map a.z:hover .r,.pvp-map a.z:focus .r{stroke:#fff;stroke-width:2}.pvp-map a.z:focus-visible .r{stroke:#fff;stroke-width:3.5;stroke-dasharray:7 4}.pvp-map a.z:focus-visible .hit{stroke:#fff;stroke-width:2;stroke-dasharray:4 3}
 .pvp-map .ev{fill:#f2ead6;stroke:#12171a;stroke-width:1;pointer-events:none;vector-effect:non-scaling-stroke}.pvp-map .ev.kill{fill:#e5523f}.pvp-map .ev.death{fill:#8fa8ff}.pvp-map .ev.approx{opacity:.55}
 .pvp-map .tip{display:none;pointer-events:none}.pvp-map .tip rect{fill:#0d1012;stroke:var(--gold);stroke-width:1}.pvp-map .tip text{fill:#f2ead6}.pvp-map .tip .t1{font-weight:700;fill:#e8c47c}
 .zone-panel{display:none;border:1px solid var(--gold);border-radius:12px;padding:12px 16px;margin:12px 0;background:var(--panel);scroll-margin-top:80px}.zone-panel:target{display:block}.zone-panel h3{margin:0 0 6px}.zone-panel ul{margin:6px 0;padding-left:18px}

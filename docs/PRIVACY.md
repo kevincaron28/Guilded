@@ -43,6 +43,14 @@ loot and EP/GP activity. The data depends on the installed addon, selected mode
 and your permissions. Supported exports go to the configured Guilded service;
 returned standings are written into your selected addon folder.
 
+Open-world PvP kills and deaths are sent with where they happened: the game's zone
+(its map id) and your position on that zone's map, with the time. The enemy's name
+is not part of it. They appear as counts and dots by zone on the public PvP
+leaderboard page of a guild that has chosen to publish its leaderboards, next to
+your main character's class and level; a position can be approximate (the last one
+the game allowed). Records are kept about five weeks and are removed by "Delete my
+data". Guilds that do not publish show nothing.
+
 Optional Path of Exile 2 tracking reads recognized events from your selected
 Client.txt log and sends parsed map-visit records with your configured character
 and league information. It keeps a local retry journal. The visit payload does
@@ -216,6 +224,15 @@ préparation, les donjons, le butin et les activités EP/GP. Leur contenu dépen
 l'addon, du mode choisi et de vos permissions. Les exports pris en charge sont
 envoyés au service configuré; les classements reçus sont écrits dans le dossier
 d'addon sélectionné.
+
+Les victimes et les morts en PvP de monde ouvert sont envoyées avec le lieu : la zone
+du jeu (son identifiant de carte) et votre position sur la carte de la zone, avec
+l'heure. Le nom de l'ennemi n'en fait pas partie. Elles apparaissent en comptes et en
+points par zone sur la page publique des classements PvP d'une guilde qui a choisi de
+publier ses classements, avec la classe et le niveau de votre personnage principal;
+une position peut être approximative (la dernière que le jeu a permise). Les
+enregistrements sont conservés environ cinq semaines et supprimés par « Delete my
+data ». Les guildes qui ne publient pas n'affichent rien.
 
 Le suivi Path of Exile 2 facultatif lit les événements reconnus de Client.txt et
 transmet les visites de cartes analysées, avec le personnage et la ligue configurés.

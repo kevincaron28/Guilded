@@ -68,18 +68,18 @@ describe("arrows on the ladder card", () => {
     expect(card.ladder!.columns.at(-1)).toMatchObject({ label: "24h", kind: "move" });
     expect(card.ladder!.boards[0]!.rows.map(row => row.move)).toEqual([2, -3, 0, "new"]);
     const png = (await scoreCardPng(card))!;
-    // The move column is the rightmost (right edge at x=1122); the arrow sits left of its number. Rows are 38 px from y=216.
+    // The redesigned banner card draws the arrow as a small triangle between the rank and the name (x 94..110); rows are 56 px from y=208.
     const strip = async (top: number) => {
-      const { data, info } = await sharp(png).extract({ left: 1060, top, width: 62, height: 30 }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+      const { data, info } = await sharp(png).extract({ left: 90, top, width: 24, height: 26 }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
       let green = 0, red = 0;
       for (let i = 0; i < data.length; i += info.channels) {
         const [r, g, b] = [data[i]!, data[i + 1]!, data[i + 2]!];
         if (g > 150 && r < 160 && b < 120) green++;
-        if (r > 200 && g < 140 && b < 120) red++;
+        if (r > 200 && g < 150 && b < 135) red++;
       }
       return { green, red };
     };
-    const up = await strip(220), down = await strip(258);
+    const up = await strip(214), down = await strip(270);
     expect(up.green).toBeGreaterThan(10);
     expect(down.red).toBeGreaterThan(10);
     expect(up.red).toBe(0);

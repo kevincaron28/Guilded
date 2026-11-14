@@ -96,7 +96,8 @@ const BOARD_LOOK: Record<string, Kind & { focus?: number }> = {
 async function ladderCard(card: ScoreCard): Promise<Buffer | null> {
   const visual = card.ladder!, key = card.backdrop?.key ?? "";
   const boards = visual.boards.filter((board) => board.rows.length);
-  if (!boards.length || !card.backdrop) return null;
+  // A board longer than 25 rows (a race board set to its top 50) keeps the old long card: the banner layout shows twelve.
+  if (!boards.length || !card.backdrop || boards.some((board) => board.rows.length > 25)) return null;
   const art = await cardBackdropArt(card.backdrop, "wide");
   if (!art) return null;
   const cols = visual.columns;

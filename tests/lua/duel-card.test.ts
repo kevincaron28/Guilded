@@ -169,6 +169,17 @@ describe("end-of-duel card", () => {
     expect(stat("NS.duels.cardEnabled()")).toBe("true");
   });
 
+  it("the test preview always has a stat row (sample numbers, marked as a preview) and saves nothing", () => {
+    const lua = setup();
+    lua.run(`NS.commandHandlers.duels({ "card", "test" })`);
+    const labels = lua.run(String.raw`local t = {} for _, c in ipairs(NS.duels.cardStats(NS.duels.sampleCard())) do t[#t + 1] = c.label end return table.concat(t, "|")`);
+    expect(labels).toContain("Record");
+    expect(labels).toContain("Rating");
+    expect(labels).toContain("Guild rank");
+    expect(lua.run(`return tostring(NS.duels.sampleCard().preview)`)).toBe("true");
+    expect(lua.run(`return #(NS.duels.store and NS.duels.store().log or {})`)).toBe("0");
+  });
+
   it("closes with X or a right click, fades after 15 seconds, waits while hovered, moves and remembers its place", () => {
     const lua = setup();
     say("Kev Caron has defeated Bob Smith in a duel");

@@ -14,6 +14,14 @@ end
 
 function ns.slash(text)
   if ns.guildedPresent() then
+    -- Guilded is loaded: hand the command to it (a bare /gdg opens Guilded's dungeons window; the run commands go to
+    -- /guilded dungeon), so nothing here opens a second window or says nothing.
+    local handler = SlashCmdList and SlashCmdList["GUILDED"]
+    local first = string.lower(words(text)[1] or "")
+    if type(handler) == "function" and (first == "" or DUNGEON_ACTIONS[first]) then
+      pcall(handler, first == "" and "dungeons" or ("dungeon " .. text))
+      return
+    end
     ns.message(ns.L("Guilded is installed, so it records your dungeon runs: use /guilded dungeon. Guilded Dungeons stays quiet."))
     return
   end

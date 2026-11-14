@@ -133,6 +133,16 @@ describe("result and duel cards", () => {
     expect(s!.run(`return MSGS[#MSGS]`)).toContain("cards reset");
   });
 
+  it("hands /gdg to Guilded when Guilded is loaded: a bare /gdg opens its dungeons window, run commands go to /guilded dungeon", () => {
+    setup();
+    s!.run(`SETTINGS.x = 1; GOT = {}; SlashCmdList.GUILDED = function(text) GOT[#GOT + 1] = text end
+      NS.guildedPresent = function() return true end; NS.L = function(t) return t end; NS.standalone = true`);
+    s!.run(`loadaddon("GuildedDungeons", [====[${addonSource("../GuildedDungeons/Main.lua")}]====], NS)`);
+    s!.run(`SlashCmdList["GUILDEDDUNGEONS"]("")`);
+    s!.run(`SlashCmdList["GUILDEDDUNGEONS"]("results")`);
+    expect(s!.run(`return table.concat(GOT, "|")`)).toBe("dungeons|dungeon results");
+  });
+
   it("is reachable from the Guilded Dungeons slash command (/gdg cards reset)", () => {
     setup();
     s!.run(`SETTINGS.runCardPos = { point = "TOP", x = 1, y = 2 }; SETTINGS.duelCardPos = { point = "TOP", x = 3, y = 4 }

@@ -72,9 +72,9 @@ describe("receipts for the addon", () => {
     const config = { watchFile: join(root, "WTF", "Account", "A", "SavedVariables", "Guilded.lua") };
     const first = await writeCarryReceipts(config, { carriedReceipts: ["carry:externalDuel:x1-aaaa"] });
     expect(first).toHaveLength(2);
-    await writeCarryReceipts(config, { carriedReceipts: ["carry:duel:d1-aaaa"] });
-    expect([...await readCarryReceipts(config)].sort()).toEqual(["duel:d1-aaaa", "externalDuel:x1-aaaa"]);
+    await writeCarryReceipts(config, { carriedReceipts: ["carry:externalDuel:x2-bbbb"] });
+    expect([...await readCarryReceipts(config)].sort()).toEqual(["externalDuel:x1-aaaa", "externalDuel:x2-bbbb"]);
     expect(await readFile(join(addons, "GuildedDungeons", "Carry.lua"), "utf8")).toContain("GuildedCarryReceipts");
-    expect(await writeCarryReceipts(config, { carriedReceipts: ["carry:duel:d1-aaaa"] })).toEqual([]);
+    expect(await writeCarryReceipts(config, { carriedReceipts: ["carry:externalDuel:x2-bbbb"] })).toEqual([]);
   });
 });

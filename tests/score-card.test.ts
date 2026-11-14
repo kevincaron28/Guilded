@@ -42,7 +42,7 @@ describe("shareable dungeon cards", () => {
     const detail = await f.request("/leaderboards/run/r1");
     expect(detail?.body).toContain("Ragefire &lt;Chasm&gt;");
     expect(detail?.body).toContain("20:00");
-    expect(detail?.body).toContain("older check");
+    expect(detail?.body).not.toContain("older check");
     expect(detail?.body).toContain("/leaderboards/run/r1/card.png?lang=en");
     for (const path of ["/leaderboards/run/r1/card.png", "/leaderboards/character/K%C3%A9vin-Forever/card.png?lang=fr"]) {
       const png = await f.request(path);

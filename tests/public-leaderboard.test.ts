@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createLeaderboardPages, filterGuildOverview, GUILD_COUNT, guildDungeonSummary, guildOverview, pageNumbers, rankCharacters, rankGuilds, readGuildOverviewFilters, readLeaderFilters, type GuildStats, type LeaderboardStore, type LeaderRun } from "../src/services/public-leaderboard.js";
+import { clearLeaderboardCaches, createLeaderboardPages, filterGuildOverview, GUILD_COUNT, guildDungeonSummary, guildOverview, pageNumbers, rankCharacters, rankGuilds, readGuildOverviewFilters, readLeaderFilters, type GuildStats, type LeaderboardStore, type LeaderRun } from "../src/services/public-leaderboard.js";
 import { guildPageStats, guildSlugs, unrankedReason } from "../src/services/guild-public-stats.js";
 import { characterKey } from "../companion/character-identity.mjs";
 import { publicRules } from "../src/services/public-score.js";
@@ -169,6 +169,93 @@ describe("leaderboard and personal pages", () => {
       expect(hostile).not.toContain("<script>alert(1)");
       expect(hostile).toContain("&lt;script&gt;alert(1)");
     });
+    it("searches from two letters, finds characters of earlier seasons, best score first, and offers a level picker", async () => {
+      const old = leaderRun("past", 1400, [player("Zorn", "Mage", "DPS")], { endedAt: new Date("2026-11-05T12:00:00Z") });
+      const { request } = setup([old]);
+      expect((await request("GET", "/leaderboards/?q=z")).body).toContain("Type at least 2 characters.");
+      expect((await request("GET", "/leaderboards/?q=zo")).body).toContain("/leaderboards/character/Zorn-Doomhowl");
+      const both = (await request("GET", "/leaderboards/?q=er&lang=fr")).body;
+      expect(both).toContain("Résultats pour");
+      const page = await request("GET", "/leaderboards/?bracket=30-44");
+      expect(page.status).toBe(200);
+      expect(page.body).toContain('id="hub-bracket"');
+      expect(page.body).toMatch(/<form class="hub-picker"[^>]*>[\s\S]*<button class="button" type="submit">Show<\/button>/);
+      expect(page.body).toContain('name="edition"');
+      expect(page.body).not.toMatch(/onchange=|<noscript/);
+      expect(page.body).toContain('<option value="30-44" selected>');
+    });
+    it("shows a guild without a link when it has no public slug", async () => {
+      const store: LeaderboardStore = {
+        async runs() { return [leaderRun("a", 1500)]; }, async characterRuns() { return []; },
+        async guilds() { return [{ id: "internal-id-1", name: "Quebec Gold" }]; },
+        async guildRuns() { return [leaderRun("a", 1500)]; }, async guildRoster() { return ["kev", "amy"]; }
+      };
+      const pages = createLeaderboardPages({ store, personal: null, now: () => NOW });
+      const app = createWebApp({ store: memoryWebStore().store, auth: null, allows: () => true, postApplication: async () => null, routes: [pages.route], now: () => NOW });
+      const get = (path: string) => app.respond({ method: "GET", path, query: new URL(path, SITE).searchParams, headers: {} }) as Promise<WebResponse>;
+      for (const path of ["/leaderboards/", "/leaderboards/?q=quebec", "/leaderboards/guilds/"]) {
+        const body = (await get(path)).body;
+        expect(body).toContain("Quebec Gold");
+        expect(body).not.toContain("internal-id-1");
+      }
+    });
+    it("serves an expired entry at once while it reloads, and warms the hub before anyone asks", async () => {
+      let loads = 0, clock = NOW.getTime();
+      const run = leaderRun("a", 1500, [player("Kev", "PALADIN", "TANK")]);
+      const store: LeaderboardStore = {
+        async runs() { loads += 1; return [run]; }, async characterRuns() { return []; },
+        async guilds() { return []; }, async guildRuns() { return []; }, async guildRoster() { return []; }
+      };
+      const pages = createLeaderboardPages({ store, personal: null, now: () => new Date(clock) });
+      const app = createWebApp({ store: memoryWebStore().store, auth: null, allows: () => true, postApplication: async () => null, routes: [pages.route], now: () => new Date(clock) });
+      const get = (path: string) => app.respond({ method: "GET", path, query: new URL(path, SITE).searchParams, headers: {} }) as Promise<WebResponse>;
+      await pages.warm();
+      const afterWarm = loads;
+      expect(afterWarm).toBeGreaterThan(0);
+      const first = (await get("/leaderboards/")).body;
+      expect(loads).toBe(afterWarm);
+      expect(first).toContain("Paladin");
+      expect(first).not.toContain("PALADIN");
+      clock += 61_000;
+      expect((await get("/leaderboards/")).status).toBe(200);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(loads).toBeGreaterThan(afterWarm);
+    });
+    it("keeps the old entry when a reload fails, and clear() makes a hidden guild disappear at once", async () => {
+      let clock = NOW.getTime(), listed = true, failing = false;
+      const store: LeaderboardStore = {
+        async runs() { if (failing) throw new Error("database down"); return [leaderRun("a", 1500)]; }, async characterRuns() { return []; },
+        async guilds() { return listed ? [{ id: "g1", name: "Quebec Gold", publicSlug: "quebec-gold" }] : []; },
+        async guildRuns() { return [leaderRun("a", 1500)]; }, async guildRoster() { return ["kev"]; }
+      };
+      const pages = createLeaderboardPages({ store, personal: null, now: () => new Date(clock) });
+      const app = createWebApp({ store: memoryWebStore().store, auth: null, allows: () => true, postApplication: async () => null, routes: [pages.route], now: () => new Date(clock) });
+      const get = (path: string) => app.respond({ method: "GET", path, query: new URL(path, SITE).searchParams, headers: {} }) as Promise<WebResponse>;
+      expect((await get("/leaderboards/guilds/")).body).toContain("leaderboards/guild/quebec-gold");
+      clock += 61_000; failing = true;
+      const stale = await get("/leaderboards/");
+      expect(stale.status).toBe(200);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect((await get("/leaderboards/")).status).toBe(200);
+      failing = false; listed = false;
+      expect((await get("/leaderboards/guilds/")).body).toContain("leaderboards/guild/quebec-gold");
+      clearLeaderboardCaches();
+      expect((await get("/leaderboards/guilds/")).body).not.toContain("leaderboards/guild/quebec-gold");
+    });
+    it("keys the weekly panels by the week and keeps character-name entries out of the core cache", async () => {
+      let clock = Date.parse("2026-11-10T14:00:00Z"), loads = 0;
+      const store: LeaderboardStore = { async runs() { loads += 1; return [leaderRun("a", 1500)]; }, async characterRuns() { return []; }, async guilds() { return []; }, async guildRuns() { return []; }, async guildRoster() { return []; } };
+      const pages = createLeaderboardPages({ store, personal: null, now: () => new Date(clock) });
+      const app = createWebApp({ store: memoryWebStore().store, auth: null, allows: () => true, postApplication: async () => null, routes: [pages.route], now: () => new Date(clock) });
+      const get = (path: string) => app.respond({ method: "GET", path, query: new URL(path, SITE).searchParams, headers: {} }) as Promise<WebResponse>;
+      await get("/leaderboards/");
+      const before = loads;
+      for (let i = 0; i < 400; i++) await get(`/leaderboards/character/Name${i}-Doomhowl`);
+      await get("/leaderboards/");
+      expect(loads).toBeLessThanOrEqual(before + 1);
+      clock = Date.parse("2026-11-10T16:00:00Z");
+      expect((await get("/leaderboards/")).status).toBe(200);
+    });
     it("never shows a guild that does not publish, or its members, on the hub or in search", async () => {
       const hidden = leaderRun("hid", 1100, [player("Ghosty", "Mage", "DPS")]);
       const store: LeaderboardStore = {
@@ -268,7 +355,7 @@ describe("leaderboard and personal pages", () => {
     expect(dungeon.body).toContain("Classements des donjons");
     expect(dungeon.body.indexOf(">Kev<")).toBeLessThan(dungeon.body.indexOf(">Amy<"));
     expect(dungeon.body).not.toContain("<b>Bad</b>");
-    expect(dungeon.body).toContain("✔ Confirmé par le groupe · 2");
+    expect(dungeon.body).not.toContain("Confirmé par le groupe");
     const priests = await request("GET", "/leaderboards/?dungeon=389&class=Priest");
     expect(priests.body).toContain(">Amy<");
     expect(priests.body.match(/<tr><td>\d+<\/td>/g)).toHaveLength(1);
@@ -290,7 +377,7 @@ describe("leaderboard and personal pages", () => {
     // Ragefire Chasm: target 20:00 (provisional plan); 21:40 scores round(200 x 1200 / 1300) = 185.
     expect(home.body).toContain('<td class="num score">185</td>');
     expect(home.body).toContain('class="char c-warrior"');
-    expect(home.body).toContain("Confirmed by party");
+    expect(home.body).not.toMatch(/Confirmed by party|1 upload|older check|evidence/i);
     expect(home.body).not.toContain("<script");
     const beta = await request("GET", "/leaderboards/?season=beta&lang=fr");
     expect(beta.body).toContain("Bêta (avant la saison 1)");
@@ -320,7 +407,7 @@ describe("leaderboard and personal pages", () => {
     const scoreAt = home.body.indexOf('<td class="num score">');
     expect(scoreAt).toBeGreaterThan(0);
     expect(home.body.indexOf('id="season"')).toBeGreaterThan(scoreAt);
-    expect(home.body.indexOf("Your player profile is public by default")).toBeGreaterThan(scoreAt);
+    expect(home.body.indexOf("Your player profile is public when your guild publishes")).toBeGreaterThan(scoreAt);
     expect(home.body).toContain("table.rank-cards");
     expect(home.body).toContain('rel="canonical" href="https://guilded.kcaron.top/leaderboards/dungeons/"');
     expect(home.body).toContain('hreflang="fr" href="https://guilded.kcaron.top/leaderboards/dungeons/?lang=fr"');

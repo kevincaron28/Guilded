@@ -2,6 +2,7 @@ import { guildWhere } from "../services/guild-scope.js";
 import { MessageFlags, SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember } from "discord.js";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
+import { clearLeaderboardCaches } from "../services/leaderboard-cache-hooks.js";
 
 // /mod leaderboard: include this guild's dungeon runs on guilded.kcaron.top/leaderboards/ (7.0).
 // Only valid, completed runs, with character names, class, role, time and deaths.
@@ -18,6 +19,7 @@ export async function executePublicLeaderboard(interaction: ChatInputCommandInte
   if (!guild) { await interaction.reply({ content: "Run `/setup start` first.", flags: MessageFlags.Ephemeral }); return; }
   // Sharing is always on (owner decision, 7 November 2026): this only (re)asserts it and reports the window.
   const settings = await prisma.guildSettings.upsert({ where: { guildId: guild.id }, create: { guildId: guild.id, publicDungeonRuns: true }, update: { publicDungeonRuns: true } });
+  clearLeaderboardCaches();
   const window = settings.publicDungeonRunsSince
     ? `started since <t:${Math.ceil(settings.publicDungeonRunsSince.getTime() / 1000)}:f>, within the last 30 days`
     : "last 30 days";

@@ -16,8 +16,8 @@ export function climbers(runs: ScoreRun[], since: Date, rules: BracketedRules, b
 }
 
 /** Rank by character id in one bracket, before and now: for the little movement arrows (positive = moved up). */
-export function rankMovement(runs: ScoreRun[], since: Date, rules: BracketedRules, bracket: string): Map<string, number | null> {
-  const rankOf = (list: ScoreRun[]) => new Map(characterScores(list, rules).filter((row) => row.bracket === bracket).map((row, i) => [characterId(row.player), i + 1] as const));
+export function rankMovement(runs: ScoreRun[], since: Date, rules: BracketedRules, bracket: string, keep?: Parameters<typeof characterScores>[2]): Map<string, number | null> {
+  const rankOf = (list: ScoreRun[]) => new Map(characterScores(list, rules, keep).filter((row) => row.bracket === bracket).map((row, i) => [characterId(row.player), i + 1] as const));
   const now = rankOf(runs), before = rankOf(runs.filter((run) => run.endedAt < since));
   return new Map([...now].map(([id, rank]) => [id, before.has(id) ? before.get(id)! - rank : null]));
 }
@@ -26,12 +26,14 @@ export interface BrokenRecord { run: ScoreRun; previousSec: number | null }
 
 /** Dungeons whose best time was set since `since`, with the time it beat (null when it was the first). Only runs that score count. */
 export function recordsBroken(runs: ScoreRun[], since: Date, rules: BracketedRules, limit = 5): BrokenRecord[] {
-  const byDungeon = new Map<number, ScoreRun[]>();
+  const byDungeon = new Map<string, ScoreRun[]>();
   for (const run of runs) {
     if (run.challenge || !scoreRun(run, rules)) continue;
-    const list = byDungeon.get(run.instanceId) ?? [];
+    // One record per dungeon and route or difficulty: different routes are different races.
+    const key = `${run.instanceId}|${run.routeKey ?? ""}|${run.difficultyId ?? ""}`;
+    const list = byDungeon.get(key) ?? [];
     list.push(run);
-    byDungeon.set(run.instanceId, list);
+    byDungeon.set(key, list);
   }
   const out: BrokenRecord[] = [];
   for (const list of byDungeon.values()) {

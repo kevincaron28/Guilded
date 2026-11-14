@@ -226,23 +226,21 @@ describe("global duels: the page and JSON", () => {
     expect((await get("2026-11-10T12:00:00Z")("/leaderboards/duels.json")).status).toBe(404);
     expect((await get("2026-12-10T12:00:00Z", false)("/leaderboards/duels/")).status).toBe(404);
   });
-  it("shows the ranking, links a listed guild, escapes the rest and marks confirmed duels", async () => {
+  it("shows the ranking, links a listed guild, escapes the rest and says nothing about how duels are checked", async () => {
     const page = (await get("2026-12-10T12:00:00Z")("/leaderboards/duels/")).body;
     expect(page).toContain("Duel ladder");
     expect(page).toContain("November 13 – December 31, 2026");
     expect(page).toContain("Aldric");
     expect(page).toContain('href="/forever/leaderboards/guild/quebec-gold');
     expect(page).not.toContain("<b>Evil</b>");
-    expect(page).toContain("confirmed by both");
+    expect(page).not.toMatch(/confirmed by both|reported by opponents/);
     expect(page).not.toMatch(/cheat/i);
-    expect(page).toContain("Results are reported by players' addons");
+    expect(page).toContain("Results come from players' addons");
     expect(page).toContain("The in-game ladder shows the old score until the next addon update");
-    expect(page).toContain("ranked from their opponents&#39; reports");
-    expect(page).toContain("reported by opponents");
     expect(page).toContain("fills up as players update");
     const fr = (await get("2026-12-10T12:00:00Z")("/leaderboards/duels/?lang=fr")).body;
     expect(fr).toContain("Classement des duels");
-    expect(fr).toContain("confirmé par les deux");
+    expect(fr).not.toMatch(/confirmé par les deux|rapporté par les adversaires/);
   });
   it("lists everyone in the JSON and opens one player from a duel history", async () => {
     const json = JSON.parse((await get("2026-12-10T12:00:00Z")("/leaderboards/duels.json")).body) as { rules: { id: string }; season: string; players: { name: string; rank: number | null; realm: string }[]; recent: { winner: string; confirmedByBoth: boolean }[] };
@@ -250,12 +248,12 @@ describe("global duels: the page and JSON", () => {
     expect(json.season).toBe("2026-11");
     expect(json.players.map((p) => p.name).sort()).toEqual(["Aldric", "Brenna", "Corvin", "Dara", "Edda", "Fenn"]);
     expect(json.players.find((p) => p.name === "Aldric")).toMatchObject({ rank: 1, realm: "Kronos" });
-    expect(json.recent.some((d) => d.confirmedByBoth)).toBe(true);
+    expect(JSON.stringify(json)).not.toMatch(/confirmedByBoth|viaOpponents/);
     const head = (await get("2026-12-10T12:00:00Z")("/leaderboards/duels/?a=Aldric&b=Brenna")).body;
     expect(head).toContain("Aldric</strong> 2 – 0");
     const one = (await get("2026-12-10T12:00:00Z")("/leaderboards/duels/?p=brenna")).body;
     expect(one).toContain("<h2>Brenna</h2>");
-    expect(one).toContain("reported by opponents");
+    expect(one).not.toContain("reported by opponents");
   });
 });
 

@@ -39,6 +39,6 @@ describe("versioned official current-evidence policy",()=>{
     const smaller={...official,routes:official.routes.slice(1)};
     // The additive helper must preserve a previously frozen policy.
     const addition=addedRules(smaller,beta);expect(addition?.rules.evidencePolicy).toBe("current-v1");
-    expect(unrankedText({t:(_en:string,fr:string)=>fr} as never,rateRun(legacy,official).reason)).toContain("Preuves actuelles");
+    expect(unrankedText({t:(_en:string,fr:string)=>fr} as never,rateRun(legacy,official).reason)).toBe("Non terminé");
   });
 });

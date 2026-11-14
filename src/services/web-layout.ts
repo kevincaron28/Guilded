@@ -65,7 +65,7 @@ export function layout(input: LayoutInput): string {
     ? [`<span>${t("Signed in as", "Connecté :")} <strong>${escapeHtml(input.account.displayName ?? input.account.username)}</strong></span>`,
       `<a href="${link("/me/", input.lang)}">${t("My page", "Ma page")}</a>`,
       `<form class="inline" method="post" action="/auth/logout"><input type="hidden" name="csrf" value="${escapeHtml(input.csrf ?? "")}"><button class="link" type="submit">${t("Sign out", "Déconnexion")}</button></form>`]
-    : input.signInOn ? [`<span>${t("Your player profile is public by default; you can hide it in My Guilded.", "Votre profil joueur est public par défaut; vous pouvez le masquer dans Ma page.")}</span><a href="${escapeHtml(link("/auth/login", input.lang, { return: link(input.path, input.lang, input.languageParams) }))}">${t("Sign in with Discord", "Connexion avec Discord")}</a>`] : [];
+    : input.signInOn ? [`<span>${t("Your player profile is public when your guild publishes its runs.", "Votre profil joueur est public quand votre guilde publie ses essais.")}</span><a href="${escapeHtml(link("/auth/login", input.lang, { return: link(input.path, input.lang, input.languageParams) }))}">${t("Sign in with Discord", "Connexion avec Discord")}</a>`] : [];
   const here = link(input.path, input.lang, input.languageParams);
   const languages = input.lang === "fr" ? { en: link(input.path, other, input.languageParams), fr: here } : { en: here, fr: link(input.path, other, input.languageParams) };
   const description = escapeHtml((input.description ?? input.title).slice(0, 160));

@@ -1,3 +1,4 @@
+import { clearLeaderboardCaches } from "./leaderboard-cache-hooks.js";
 import {
   ActionRowBuilder, ChannelType, MessageFlags, ModalBuilder, OverwriteType, PermissionFlagsBits, TextInputBuilder, TextInputStyle,
   type ButtonInteraction, type ChatInputCommandInteraction, type Client, type Guild as DiscordGuild, type Interaction, type ModalSubmitInteraction,
@@ -229,6 +230,7 @@ export function createOwnerConsole(deps: ConsoleDeps) {
       const data: Record<string, unknown> = { [toggle.field]: next };
       if (toggle.field === "publicDungeonRuns") data["publicDungeonRunsSince"] = next ? new Date(clock()) : null;
       await db.guildSettings.update({ where: { guildId: dbId }, data: data as never });
+      if (toggle.field === "publicDungeonRuns") clearLeaderboardCaches();
       result = `Turned ${toggle.name} ${next ? "on" : "off"}.`;
     } else {
       if (!dbId) return "That server has not run /setup yet; there is nothing to act on.";

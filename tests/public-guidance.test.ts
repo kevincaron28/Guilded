@@ -138,8 +138,9 @@ describe("character page guidance", () => {
     expect(body).toContain('<span class="score">1024</span>');
     expect(body).toContain("<h2>Best next improvement · Levels 15–29</h2>");
     expect(body).toContain("Scenarios, not predictions.");
-    expect(body).toContain("Current best: ranked evidence.");
-    expect(body).toContain("Scenario: no run or confirmation yet.");
+    expect(body).toContain("Counts toward your score");
+    expect(body).toContain("Not cleared yet this season");
+    expect(body).not.toMatch(/evidence|independent report|presence|confirmation/i);
     expect(body).toContain("Level 20 is taken as the party's highest.");
     expect(body).toContain("Most within reach: Shadowfang Keep in 32:31 adds 5 (season score 1024 → 1029).");
     // Deadmines is outside the best 5: its next gain pushes Shadowfang out.
@@ -148,7 +149,7 @@ describe("character page guidance", () => {
     expect(body).toContain("Beating 50:00 adds nothing until the run scores over 180.");
     expect(body.match(/adds nothing until the run scores/g)).toHaveLength(1);
     expect(body).toContain('title="Over-level penalty at level 20"');
-    expect(body).toContain("<td>Ragefire Chasm</td><td>15–18 <span");
+    expect(body).toContain("<td>Ragefire Chasm</td><td data-l=\"Levels\">15–18 <span");
     expect(body).toContain("From level 24: <strong>21:40</strong> → +5");
     expect(body).toContain("<h2>Score by role · Season 1</h2>");
     expect(body).toContain("They are separate scores, never added together.");
@@ -161,8 +162,8 @@ describe("character page guidance", () => {
     const fr = await page(runs, "fr");
     expect(fr).toContain("<h2>Meilleure prochaine amélioration · Niveaux 15–29</h2>");
     expect(fr).toContain("Des scénarios, pas des prédictions.");
-    expect(fr).toContain("Admissibilité et confiance");
-    expect(fr).toContain("Scénario : aucun essai ni confirmation pour l'instant.");
+    expect(fr).toContain("Pas encore terminé cette saison");
+    expect(fr).not.toMatch(/preuves|présence|confirmation/i);
     expect(fr).toContain("Le plus accessible : Shadowfang Keep en 32:31 ajoute 5 (score de saison 1024 → 1029).");
     expect(fr).toContain("<strong>43:21</strong> → +5 (saison 1029) · remplace Shadowfang Keep (180)");
     expect(fr).toContain("Hors des 5 meilleurs, un essai n'ajoute rien tant qu'il ne dépasse pas 180 (Shadowfang Keep, le plus bas des parcours comptés).");

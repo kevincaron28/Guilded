@@ -46,8 +46,8 @@ export function bossAdjusted(timePoints: number, tally: BossTally | null | undef
 
 /** The rule in plain words, for "How scores work" (public pages and the Discord guide). */
 export const BOSS_RULE_TEXT = {
-  en: "Bosses count: a run that kills every boss of the dungeon keeps its full time score. A run that skips bosses is rated against the same target, but its time score is capped at the on-target score (200) and multiplied by the share of bosses killed, so skipping never beats a full clear. When the bosses of a run cannot be read, the run is scored as before.",
-  fr: "Les boss comptent : un essai qui tue tous les boss du donjon garde son score de temps complet. Un essai qui en saute est évalué contre la même cible, mais son score de temps est plafonné au score du rythme cible (200) puis multiplié par la part de boss tués : sauter des boss ne bat jamais un donjon complet. Quand les boss d'un essai ne peuvent pas être lus, l'essai est noté comme avant."
+  en: "Bosses count: a run that kills every boss of the dungeon keeps its full time score. A run that skips bosses is rated against the same target, but its time score is capped at the on-target score (200) and multiplied by the share of bosses killed, so skipping never beats a full clear.",
+  fr: "Les boss comptent : un essai qui tue tous les boss du donjon garde son score de temps complet. Un essai qui en saute est évalué contre la même cible, mais son score de temps est plafonné au score du rythme cible (200) puis multiplié par la part de boss tués : sauter des boss ne bat jamais un donjon complet."
 } as const;
 
 /** The rule text, with the date it took effect when it was switched on in a running season. */

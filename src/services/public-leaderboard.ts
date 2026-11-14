@@ -717,7 +717,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     + `<details class="rules"><summary>${ctx.t("How scores work", "Comment les scores sont calculés")}</summary><p class="muted">${ctx.t("Team-clear scores and times from Guilded and Guilded Dungeons. Your score compares your time with each route's target; your best routes count, and targets remain provisional.",
       "Scores et temps d'équipe de Guilded et Guilded Dungeons. Votre score compare votre temps à la cible de chaque parcours; vos meilleurs parcours comptent, et les cibles restent provisoires.")}`
     + (periodRules(period).bossScoring ? ` ${ctx.t(bossRuleText("en", periodRules(period).bossScoring), bossRuleText("fr", periodRules(period).bossScoring))}` : "")
-    + (period.frozenAt ? ` ${ctx.t(`This season's rules were frozen on ${date(period.frozenAt)}.`, `Les règles de cette saison sont figées depuis le ${date(period.frozenAt)}.`)}` : "") + `</p></details>`;
+    + (period.changedAt ? ` ${ctx.t(`Rules last changed on ${date(period.changedAt)}.`, `Règles modifiées pour la dernière fois le ${date(period.changedAt)}.`)}` : period.frozenAt ? ` ${ctx.t(`This season's rules were frozen on ${date(period.frozenAt)}.`, `Les règles de cette saison sont figées depuis le ${date(period.frozenAt)}.`)}` : "") + `</p></details>`;
 
   // The one tab bar of every leaderboard page: Overview | Dungeons | Duels | Players | Guilds.
   const views = (ctx: WebContext, active: "characters" | "guilds" | "rankings", filters: LeaderFilters) => HUB_CSS

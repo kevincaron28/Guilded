@@ -166,7 +166,11 @@ export function characterScores(runs: ScoreRun[], rules: BracketedRules = public
 
 // Public seasons: "beta" (before Season 1), "s1", "s2", ...; a week is the current one only.
 // A season that froze its rules carries them; every other period uses today's (publicRules).
-export interface PublicPeriod { id: string; label: string; labelFr: string; from: Date | null; to: Date | null; rules?: BracketedRules; frozenAt?: Date }
+export interface PublicPeriod { id: string; label: string; labelFr: string; from: Date | null; to: Date | null; rules?: BracketedRules; frozenAt?: Date; /** When the running season's rules last changed (season-rules-change.ts), if they ever did. */ changedAt?: Date }
+const lastChange = (snapshot: PublicRuleSnapshot): { changedAt?: Date } => {
+  const at = (snapshot as { revisions?: { at?: unknown }[] }).revisions?.map((r) => r.at).filter((v): v is string => typeof v === "string").sort().pop();
+  return at && !Number.isNaN(Date.parse(at)) ? { changedAt: new Date(at) } : {};
+};
 export const periodRules = (period: PublicPeriod): BracketedRules => {
   const rules = period.rules ?? (/^s\d+$/.test(period.id) ? { ...publicRules(), evidencePolicy: "current-v1" as const } : publicRules());
   return period.from ? withIntegrityWindow(rules, period.from, period.to) : rules;
@@ -185,7 +189,7 @@ export function publicSeasons(now: Date, windows: OfficialWindow[] = DEFAULT_OFF
   const sorted = [...windows].sort((a, b) => a.start.getTime() - b.start.getTime());
   const list: PublicPeriod[] = sorted.filter((w) => w.start <= now).reverse()
     .map((w) => ({ id: `s${w.number}`, label: w.name, labelFr: frenchName(w.name), from: w.start, to: w.end,
-      ...(w.rules ? { rules: w.rules.rules, frozenAt: new Date(w.rules.frozenAt) } : {}) }));
+      ...(w.rules ? { rules: w.rules.rules, frozenAt: new Date(w.rules.frozenAt), ...lastChange(w.rules) } : {}) }));
   list.push({ id: "beta", label: "Beta (before Season 1)", labelFr: "Bêta (avant la saison 1)", from: null, to: sorted[0]?.start ?? null });
   return list;
 }

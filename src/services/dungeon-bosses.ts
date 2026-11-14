@@ -7,6 +7,8 @@
 // - final: ends the dungeon. Exactly one per dungeon.
 // - optional: a rare or secret boss. It is not part of the "all bosses" total and killing it adds nothing, so a normal full clear never
 //   looks like a skip because of it.
+// Which bosses are optional follows one rule: killed in fewer than 60% of at least 5 completed runs (`season-rules-change.ts --kill-shares`, 14 Nov 2026:
+// Old Serra'kis, Lordaeron Captain, Lyn the Ignored); with fewer runs the journal and judgement decide (Cookie, Lorgus Jett, Obsidian Sentinel, Ragglesnout).
 // Scarlet Monastery shares one map (189); each wing has its own list under the key "189:<wing>", told apart by the wing's last boss.
 
 export interface RouteBoss {
@@ -44,10 +46,10 @@ export const ROUTE_BOSSES: readonly RouteBosses[] = [
     { ids: [3353], name: "Witherfang" },
     { ids: [3354], name: "Rath'mael", final: true },
     { ids: [3357], name: "The Abandoned" },
-    { ids: [3408], name: "Lordaeron Captain" },
-    { ids: [3411], name: "Viktor the Vile", optional: true },
+    { ids: [3408], name: "Lordaeron Captain", optional: true },
+    { ids: [3411], name: "Viktor the Vile" },
     { ids: [3412], name: "Bjork" },
-    { ids: [3355], name: "The Butcher", optional: true }
+    { ids: [3355], name: "The Butcher" }
   ] },
   { key: "36", instanceId: 36, name: "The Deadmines", bosses: [
     { ids: [161, 2741], name: "Rhahk'Zor" },
@@ -80,7 +82,7 @@ export const ROUTE_BOSSES: readonly RouteBosses[] = [
     { ids: [220, 2762, 2915], name: "Lady Sarevess" },
     { ids: [221, 2763, 2914], name: "Gelihast" },
     { ids: [222], name: "Lorgus Jett", optional: true },
-    { ids: [224, 2765, 2912], name: "Old Serra'kis" },
+    { ids: [224, 2765, 2912], name: "Old Serra'kis", optional: true },
     { ids: [225, 2766, 2911], name: "Twilight Lord Kelris" },
     { ids: [226, 2767, 2910], name: "Aku'mai", final: true }
   ] },
@@ -90,7 +92,7 @@ export const ROUTE_BOSSES: readonly RouteBosses[] = [
     { ids: [436, 2784], name: "Glutton" },
     { ids: [437, 2785], name: "Amnennar the Coldbringer", final: true },
     { ids: [2781], name: "Plaguemaw the Rotting" },
-    { ids: [2783], name: "Ragglesnout" }
+    { ids: [2783], name: "Ragglesnout", optional: true }
   ] },
   { key: "2998", instanceId: 2998, name: "Excavation Site: Wetlands", bosses: [
     { ids: [3480], name: "Saltspine" },
@@ -109,7 +111,7 @@ export const ROUTE_BOSSES: readonly RouteBosses[] = [
     { ids: [3303], name: "Shade of the Archmage", final: true },
     { ids: [3310], name: "Lyn the Ignored", optional: true },
     { ids: [3311], name: "Atrexis the Grave Knight" },
-    { ids: [3301], name: "Mana Elemental", optional: true }
+    { ids: [3301], name: "Mana Elemental" }
   ] },
   { key: "90", instanceId: 90, name: "Gnomeregan", bosses: [
     { ids: [378, 2769], name: "Viscous Fallout" },

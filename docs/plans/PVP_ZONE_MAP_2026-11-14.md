@@ -1,35 +1,35 @@
 # PvP zone map (14 November 2026)
 
-The interactive map on `/leaderboards/pvp/`: two continents, one marker per zone, lit by PvP activity for the chosen period.
+The interactive map on `/leaderboards/pvp/`: two continents, every zone drawn from the game's own coordinates, lit by PvP activity for the chosen period.
 
-## What it shows today
+## How the geography works
 
-- Both continents as inline SVG, one marker per catalogue zone (38 zones keyed by the game's map id, `src/services/pvp-zones.ts`, English and French names).
-- Heat = **calls for help** in the zone (the page says so). Marker size and colour grow with the count; zones with no activity are faint dots.
-- Hover or keyboard focus on a lit marker: a tip with the zone name and numbers. Tap or click: jumps to `#zone-<id>`, a details panel (`:target`) with the numbers, the guilds most active there (links) and the recent calls (date, subzone, guild). A plain table of the same numbers sits under the map (phones, screen readers).
-- Period: this week or the last 4 weeks (`?period=week|all`). The class, level and mode filters stay in the URL.
-- No JavaScript: server-rendered numbers, CSS `:hover` / `:focus` / `:target`. Works under `default-src 'none'`.
+- `src/services/pvp-zone-rects.ts` holds, per zone and capital city, the rectangle of its map on its continent map: `C_Map.GetMapRectOnMap(zone, continent)` read from the WoW Forever client on 14 November 2026 (`[minX, maxX, minY, maxY]`, fractions of the continent map). Zone identity is the map id (uiMapID 1411-1458), so French and English clients land on the same zone; only an older upload that has no map id is matched by its folded English or French name.
+- Each continent is drawn as an SVG: the zone rectangles (largest first, so small zones and cities stay clickable), cropped to their bounding box and a 2:3 portrait frame (`continentView`). A zone map is the frame of the zone, not its outline: rectangles overlap and the game's API gives no outlines, so the shape is exact for position and an approximation for coastline.
+- An event with a zone position (zone map x, y as 0-1) is placed by `zonePoint(mapId, x, y)`, which converts it through the zone's rectangle. Tests: a known coordinate lands inside its zone and the frame; every catalogue zone has a rectangle; the totals on the map equal the table.
+- Cities are their own small rectangles (1453-1458). Battlegrounds (1459-1461) have no rectangle and are not drawn; any unknown map id goes to the table only, with a `PvP map: unknown zone map id ...` log line so we learn the id.
+- Painted art is only a background (`CONTINENT_IMAGES`, null today): `Guilded-Art\website-art\PVP_MAP_PROMPTS.md` has the prompts that paint over the reference images (`reference-*.png`, exported from the same drawing) without moving anything. Where the art drifts the SVG wins. Pictures should be WebP, one per continent, lazy-loaded.
 
-## What the data can and cannot say (checked in the code)
+## What it shows
 
-- The addon (`Modules/WorldPvP.lua`) keeps, per kill, the victim name, the zone text (`GetRealZoneText`, **localized**: a French client sends French names) and the time; per death, the zone text and time. No coordinates for kills or deaths.
-- The companion (`exportWorldPvp`) deliberately sends none of that: only the weekly totals and the last 30 victim names ("no enemy name, class or zone list leaves the PC"). So the server has **no per-zone kills or deaths**.
-- What the server has per zone: calls for help (`GuildHelpCall`: zone, subzone, `mapId` (the language-independent uiMapID), x, y, continent). A French name and an English name land on one zone through the map id; a call without a known map id is matched by its folded English or French name; an unknown zone appears in the table only.
-- The page and the data model already carry `zoneActivity` (kills and deaths per zone with class and level): when it exists the heat becomes kills + deaths + calls, the tip, panel and table show all three, and the class and level filters apply to kills and deaths. Calls for help carry no class or level of the caller, so those two filters do not change the calls.
+- Heat = kills plus deaths in the zone as soon as any exist for the period; until then calls for help (the page says which). The tip shows the zone name and kills and deaths separately (or calls); the panel adds the guilds most active and the recent calls; the table repeats the numbers (zone, kills, deaths, total, calls).
+- Dots (yellow): where players called for help, at their real position.
+- No JavaScript: server-rendered, CSS `:hover` / `:focus` for the tip, `:target` for the panel, under `default-src 'none'`. Period, class and level filters stay in the URL; class and level apply to kills and deaths, not to calls (a call carries no class or level).
 
-## To light up kills and deaths (owner decision, not in this change)
+## What the data can and cannot say today (checked in the code)
 
-1. Companion: send the zone of each kill and death (with the map id, which the addon would add to the saved record) in `exportWorldPvp`: a companion release and a Store submission.
-2. Server: a `WorldPvpZoneWeek` table (guild, member, week, map id, kills, deaths), the upload schema, and `zoneActivity` filled from it.
-3. A privacy line: the zone of a kill or death is where a member was.
+- The addon (`Modules/WorldPvP.lua`) keeps, per kill, the victim name, the zone text (localized) and the time; per death, the zone text and time. No map id or position.
+- The companion (`exportWorldPvp`) sends only weekly totals and the last 30 victim names. So the server has **no per-zone kills or deaths** yet; only calls for help carry a map id and position.
 
-## The picture
+## Next (owner decision: all PvP data is public)
 
-`docs/` has no art. The prompts for three original hand-painted images (one per continent and a combined one) are in `Desktop\Guilded-Art\website-art\PVP_MAP_PROMPTS.md`. Once approved: put the files under `site/images/pvp-map/`, set `CONTINENT_IMAGES` and move each marker in `src/services/pvp-zone-positions.ts` (x, y as a percent of the picture). Until then the markers sit on a neutral dark background.
+1. Addon 9.3.2: store the uiMapID and the zone position of the player with each kill and death (reading `C_Map.GetBestMapForUnit` and `C_Map.GetPlayerMapPosition` only; never in a protected path).
+2. Companion: send per-event rows in the world PvP export under a feature flag `pvp-events` that the bot advertises: `{ k: "kill" | "death", t: unix seconds, m: uiMapID, x, y }`, x and y as 0-1 fractions of the zone map rounded to 4 decimals (absent when the game gives no position, e.g. inside an instance). Bounded to the newest events; no enemy names beyond what is already sent.
+3. Server (separate PR): `WorldPvpEvent` table (additive hand-written migration), the import field behind the flag, `zoneActivity` filled from it, dots for kills and deaths, and the privacy text.
 
 ## Pan and zoom (not built)
 
-A script would need one self-hosted file and `script-src 'self'` on this page only. Cost: a wider policy for one page and one more file to keep safe. 38 zones do not need it. Propose separately if wanted.
+A script would need one self-hosted file and `script-src 'self'` on this page only. Propose separately if wanted.
 
 ## Later (not built)
 

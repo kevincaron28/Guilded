@@ -4,8 +4,8 @@ import { className as classFromText } from "./recruitment.js";
 import { killDeathRatio, weekKeyOf, weekRange } from "./world-pvp.js";
 import { escapeHtml, link, options, type Lang } from "./web-layout.js";
 import { emptyBox, strip, type PodiumEntry } from "./leaderboard-hub.js";
-import { foldZoneName, PVP_ZONES, zoneOf, type Continent, type PvpZone } from "./pvp-zones.js";
-import { CONTINENT_IMAGES, ZONE_POSITIONS } from "./pvp-zone-positions.js";
+import { foldZoneName, PVP_ZONES, zoneById, zoneOf, type Continent, type PvpZone } from "./pvp-zones.js";
+import { CONTINENT_IMAGES, MAP_HEIGHT, MAP_WIDTH, ZONE_RECTS } from "./pvp-zone-rects.js";
 
 // The PvP tab of the public leaderboards: the world PvP board (kills, deaths, K/D), the battleground ladder and results, and the zones where
 // players called for help. Only guilds that publish their runs, members who are not hidden or test accounts, no Discord IDs: this module reads
@@ -16,7 +16,7 @@ type T = (en: string, fr: string) => string;
 export interface PvpPlayer { key: string; name: string; short: string; realm: string; className: string | null; level: number | null; guildId: string }
 export interface PvpWorldRow extends PvpPlayer { kills: number; deaths: number; defends: number; helped: number }
 export interface PvpGame extends PvpPlayer { mode: string; bracket: string; mapId: number; outcome: string; endedAt: Date; /** One value per battleground match, shared by every member who reported it. */ matchKey: string }
-export interface PvpCall { guildId: string; zone: string; mapId?: number | null; subzone?: string; calledAt: Date }
+export interface PvpCall { guildId: string; zone: string; mapId?: number | null; subzone?: string; /** Position on the zone map, 0-1. */ x?: number | null; y?: number | null; calledAt: Date }
 export interface PvpData { weekKey: number; week: PvpWorldRow[]; total: PvpWorldRow[]; games: PvpGame[]; calls: PvpCall[]; /** Kills and deaths per zone, when the zone of each is sent (none today). */ zoneActivity?: PvpZoneActivity[] }
 export const emptyPvp = (weekKey: number): PvpData => ({ weekKey, week: [], total: [], games: [], calls: [] });
 
@@ -51,7 +51,7 @@ export async function loadPvpData(database: PrismaClient, guildIds: readonly str
     database.worldPvpWeek.groupBy({ by: ["memberId", "guildId"], where: { guildId: { in: ids }, member: VISIBLE }, _sum: { kills: true, deaths: true, defends: true, helped: true }, orderBy: { _sum: { kills: "desc" } }, take: WORLD_ROWS }),
     database.battlegroundReport.findMany({ where: { guildId: { in: ids }, gameEdition: edition, status: "PROVISIONAL", endedAt: { gte: since, lt: now }, member: VISIBLE }, orderBy: { endedAt: "desc" }, take: GAME_ROWS,
       select: { guildId: true, mode: true, bracket: true, mapId: true, outcome: true, endedAt: true, premadeNonce: true, character: { select: { name: true, displayName: true, realm: true, className: true, level: true } } } }),
-    database.guildHelpCall.findMany({ where: { guildId: { in: ids }, calledAt: { gte: callsSince, lt: now }, member: VISIBLE }, select: { guildId: true, zone: true, subzone: true, mapId: true, calledAt: true }, orderBy: { calledAt: "desc" }, take: CALL_ROWS })
+    database.guildHelpCall.findMany({ where: { guildId: { in: ids }, calledAt: { gte: callsSince, lt: now }, member: VISIBLE }, select: { guildId: true, zone: true, subzone: true, mapId: true, x: true, y: true, calledAt: true }, orderBy: { calledAt: "desc" }, take: CALL_ROWS })
   ]);
   const worldWeek = weekRows.map((row) => ({ memberId: row.memberId, guildId: row.guildId, kills: row.kills, deaths: row.deaths, defends: row.defends, helped: row.helped }));
   const worldTotal = totalRows.map((row) => ({ memberId: row.memberId, guildId: row.guildId, kills: row._sum.kills ?? 0, deaths: row._sum.deaths ?? 0, defends: row._sum.defends ?? 0, helped: row._sum.helped ?? 0 }));
@@ -79,9 +79,11 @@ export async function loadPvpData(database: PrismaClient, guildIds: readonly str
   data.week = world(shown.week);
   data.total = world(shown.total);
   data.games = reports.map((row) => ({ ...player(row.character, row.guildId), mode: row.mode, bracket: row.bracket, mapId: row.mapId, outcome: row.outcome, endedAt: row.endedAt, matchKey: matchKeyOf(row.guildId, row.mapId, row.mode, row.endedAt, row.premadeNonce) }));
-  data.calls = calls.map((row) => ({ guildId: row.guildId, zone: row.zone.trim().slice(0, 60), mapId: row.mapId, subzone: (row.subzone ?? "").trim().slice(0, 60), calledAt: row.calledAt })).filter((row) => row.zone && row.zone !== "?");
+  data.calls = calls.map((row) => ({ guildId: row.guildId, zone: row.zone.trim().slice(0, 60), mapId: row.mapId, subzone: (row.subzone ?? "").trim().slice(0, 60), x: row.x, y: row.y, calledAt: row.calledAt })).filter((row) => row.zone && row.zone !== "?");
+  for (const call of data.calls) if (call.mapId && !zoneById(call.mapId) && !loggedMaps.has(call.mapId)) { loggedMaps.add(call.mapId); console.warn(`PvP map: unknown zone map id ${call.mapId} ("${call.zone.slice(0, 40)}"): shown in the table only`); }
   return data;
 }
+const loggedMaps = new Set<number>();
 
 // ----- filters and aggregation (pure) -----
 
@@ -142,6 +144,7 @@ export interface PvpZoneActivity { weekKey: number; mapId: number | null; zone: 
 export interface ZoneStat {
   key: string; zone: PvpZone | null; en: string; fr: string; calls: number; kills: number; deaths: number; heat: number;
   guilds: { guildId: string; count: number }[]; recent: { at: Date; guildId: string; subzone: string }[];
+  /** Where calls were made, on the zone map (0-1), newest first, at most 60. */ dots: { x: number; y: number }[];
 }
 /** Pure: every catalogue zone (lit or not) plus any named zone the catalogue does not know, for the chosen period and, when given, one guild. */
 export function zoneStats(data: PvpData, f: PvpFilters, guildId: string | null = null): ZoneStat[] {
@@ -150,16 +153,18 @@ export function zoneStats(data: PvpData, f: PvpFilters, guildId: string | null =
   const slot = (zone: PvpZone | null, name: string) => {
     const key = zone ? `z${zone.id}` : `n${foldZoneName(name)}`;
     let stat = stats.get(key);
-    if (!stat) { stat = { key, zone, en: zone?.en ?? name, fr: zone?.fr ?? name, calls: 0, kills: 0, deaths: 0, heat: 0, guilds: [], recent: [], by: new Map() }; stats.set(key, stat); }
+    if (!stat) { stat = { key, zone, en: zone?.en ?? name, fr: zone?.fr ?? name, calls: 0, kills: 0, deaths: 0, heat: 0, guilds: [], recent: [], dots: [], by: new Map() }; stats.set(key, stat); }
     return stat;
   };
   for (const zone of PVP_ZONES) slot(zone, zone.en);
   for (const call of data.calls) {
     if ((guildId && call.guildId !== guildId) || (from && call.calledAt < from)) continue;
-    const stat = slot(zoneOf(call.mapId, call.zone), call.zone);
+    const zone = zoneOf(call.mapId, call.zone);
+    const stat = slot(zone, call.zone);
     stat.calls += 1;
     stat.by.set(call.guildId, (stat.by.get(call.guildId) ?? 0) + 1);
     stat.recent.push({ at: call.calledAt, guildId: call.guildId, subzone: call.subzone ?? "" });
+    if (zone && typeof call.x === "number" && typeof call.y === "number" && call.x >= 0 && call.x <= 1 && call.y >= 0 && call.y <= 1 && stat.dots.length < 60) stat.dots.push({ x: call.x, y: call.y });
   }
   for (const row of data.zoneActivity ?? []) {
     if ((guildId && row.guildId !== guildId) || (f.period === "week" && row.weekKey !== data.weekKey) || !matches({ className: row.className, level: row.level } as PvpPlayer, f)) continue;
@@ -167,7 +172,9 @@ export function zoneStats(data: PvpData, f: PvpFilters, guildId: string | null =
     stat.kills += row.kills; stat.deaths += row.deaths;
     stat.by.set(row.guildId, (stat.by.get(row.guildId) ?? 0) + row.kills + row.deaths);
   }
-  return [...stats.values()].map(({ by, ...stat }) => ({ ...stat, heat: stat.calls + stat.kills + stat.deaths,
+  // The map is lit by kills plus deaths as soon as any exist for the period; until then by calls for help.
+  const kd = [...stats.values()].some((stat) => stat.kills + stat.deaths > 0);
+  return [...stats.values()].map(({ by, ...stat }) => ({ ...stat, heat: kd ? stat.kills + stat.deaths : stat.calls,
     guilds: [...by].map(([id, count]) => ({ guildId: id, count })).sort((a, b) => b.count - a.count || a.guildId.localeCompare(b.guildId)).slice(0, 3),
     recent: stat.recent.sort((a, b) => b.at.getTime() - a.at.getTime()).slice(0, 8) }))
     .sort((a, b) => b.heat - a.heat || a.en.localeCompare(b.en));
@@ -242,50 +249,76 @@ export function pvpPageBody(env: PvpEnv, data: PvpData, f: PvpFilters, classes: 
 
 
 // ----- the zone map (no script: an inline SVG of links, CSS :hover / :focus for the tip, :target for the details) -----
+// Geography is the game's own: every zone is drawn as its rectangle on the continent map (zone-rects, read from the client), and an event is
+// placed by converting its position on the zone map through that rectangle. Painted art, when it exists, is only a background behind it.
 
+/** A point on a zone map (x, y as 0-1 fractions of the zone map) as a point of the continent drawing (MAP_WIDTH x MAP_HEIGHT), or null when the zone is unknown. */
+export function zonePoint(mapId: number, x: number, y: number): { x: number; y: number } | null {
+  const rect = ZONE_RECTS[mapId];
+  if (!rect || !(x >= 0 && x <= 1 && y >= 0 && y <= 1)) return null;
+  return { x: (rect[0] + x * (rect[1] - rect[0])) * MAP_WIDTH, y: (rect[2] + y * (rect[3] - rect[2])) * MAP_HEIGHT };
+}
+/** A zone's rectangle in drawing units, or null. */
+export function zoneBox(mapId: number): { x: number; y: number; w: number; h: number } | null {
+  const rect = ZONE_RECTS[mapId];
+  return rect ? { x: rect[0] * MAP_WIDTH, y: rect[2] * MAP_HEIGHT, w: (rect[1] - rect[0]) * MAP_WIDTH, h: (rect[3] - rect[2]) * MAP_HEIGHT } : null;
+}
+
+/** The part of a continent map to draw: the zones' bounding box with a margin, widened or heightened to a 2:3 portrait picture (the shape of the painted backgrounds). */
+export function continentView(continent: Continent): { x: number; y: number; w: number; h: number } {
+  const boxes = PVP_ZONES.filter((zone) => zone.continent === continent).flatMap((zone) => { const b = zoneBox(zone.id); return b ? [b] : []; });
+  const x0 = Math.min(...boxes.map((b) => b.x)), x1 = Math.max(...boxes.map((b) => b.x + b.w)), y0 = Math.min(...boxes.map((b) => b.y)), y1 = Math.max(...boxes.map((b) => b.y + b.h));
+  const pad = 0.05 * Math.max(x1 - x0, y1 - y0);
+  let w = x1 - x0 + 2 * pad, h = y1 - y0 + 2 * pad;
+  if (w / h > 2 / 3) h = (w * 3) / 2; else w = (h * 2) / 3;
+  return { x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2, w, h };
+}
+
+const HEAT_FILLS = ["rgba(214,170,70,.30)", "rgba(214,170,70,.48)", "rgba(238,138,61,.58)", "rgba(229,82,63,.66)", "rgba(229,40,40,.78)"];
 export const PVP_MAP_CSS = `<style>
-.pvp-maps{display:grid;gap:16px;grid-template-columns:minmax(0,1fr);margin:8px 0 16px}@media(min-width:900px){.pvp-maps{grid-template-columns:repeat(2,minmax(0,1fr))}}
-.pvp-map{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#12171a;min-width:0}.pvp-map h3{margin:10px 14px 4px;font-size:16px}
-.pvp-map svg{display:block;width:100%;height:auto}.pvp-map .sea{fill:#0f1519}.pvp-map .land{fill:#1c2529;stroke:#34433f;stroke-width:.3}
-.pvp-map .dot{fill:#3a4543;stroke:#16130b;stroke-width:.25;opacity:.7}.pvp-map .h1 .dot{fill:#7a6a3a;opacity:1}.pvp-map .h2 .dot{fill:#a98c3f;opacity:1}.pvp-map .h3 .dot{fill:#d6aa46;opacity:1}.pvp-map .h4 .dot{fill:#ee8a3d;opacity:1}.pvp-map .h5 .dot{fill:#e5523f;opacity:1}
-.pvp-map .hit{fill:transparent}.pvp-map a.z{outline:none;cursor:pointer}.pvp-map a.z:hover .dot,.pvp-map a.z:focus .dot{stroke:#fff;stroke-width:.5}
-.pvp-map .tip{display:none;pointer-events:none}.pvp-map a.z:hover .tip,.pvp-map a.z:focus .tip{display:block}
-.pvp-map .tip rect{fill:#0d1012;stroke:var(--gold);stroke-width:.25}.pvp-map .tip text{font-size:2.5px;fill:#f2ead6}.pvp-map .tip .t1{font-weight:700;fill:#e8c47c}
+.pvp-maps{display:grid;gap:16px;grid-template-columns:minmax(0,1fr);margin:8px 0 16px;justify-items:center}@media(min-width:900px){.pvp-maps{grid-template-columns:repeat(2,minmax(0,1fr))}}.pvp-map{width:100%;max-width:560px}
+.pvp-map{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#12171a;min-width:0;margin:0}.pvp-map h3{margin:10px 14px 4px;font-size:16px}
+.pvp-map svg{display:block;width:100%;height:auto}.pvp-map .sea{fill:#0f1519}.pvp-map .land{fill:#1f2a2c;stroke:#2c3a3a;stroke-width:1}.pvp-map rect{vector-effect:non-scaling-stroke}
+.pvp-map .r{fill:rgba(255,255,255,.015);stroke:rgba(190,170,120,.35);stroke-width:1.2}.pvp-map .h0 .r{pointer-events:none}
+.pvp-map .h1 .r{fill:${HEAT_FILLS[0]};stroke:#a98c3f}.pvp-map .h2 .r{fill:${HEAT_FILLS[1]};stroke:#c89b3c}.pvp-map .h3 .r{fill:${HEAT_FILLS[2]};stroke:#ee8a3d}.pvp-map .h4 .r{fill:${HEAT_FILLS[3]};stroke:#e5523f}.pvp-map .h5 .r{fill:${HEAT_FILLS[4]};stroke:#ff5a4a}
+.pvp-map a.z{outline:none;cursor:pointer}.pvp-map a.z:hover .r,.pvp-map a.z:focus .r{stroke:#fff;stroke-width:2}
+.pvp-map .ev{fill:#f2ead6;stroke:#12171a;stroke-width:1;pointer-events:none;vector-effect:non-scaling-stroke}.pvp-map .ev.call{fill:#ffd36b}
+.pvp-map .tip{display:none;pointer-events:none}.pvp-map .tip rect{fill:#0d1012;stroke:var(--gold);stroke-width:1}.pvp-map .tip text{fill:#f2ead6}.pvp-map .tip .t1{font-weight:700;fill:#e8c47c}
 .zone-panel{display:none;border:1px solid var(--gold);border-radius:12px;padding:12px 16px;margin:12px 0;background:var(--panel);scroll-margin-top:80px}.zone-panel:target{display:block}.zone-panel h3{margin:0 0 6px}.zone-panel ul{margin:6px 0;padding-left:18px}
-.heat-legend{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;font-size:13px;color:var(--muted);margin:0 0 8px}.heat-legend i{display:inline-block;width:12px;height:12px;border-radius:50%;vertical-align:-1px;margin-right:4px}
+.heat-legend{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;font-size:13px;color:var(--muted);margin:0 0 8px}.heat-legend i{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:-2px;margin-right:4px;border:1px solid rgba(255,255,255,.25)}
 </style>`;
-const HEAT_COLOURS = ["#7a6a3a", "#a98c3f", "#d6aa46", "#ee8a3d", "#e5523f"];
-const LAND: Record<Continent, string> = {
-  kalimdor: "M16 4 L46 3 L62 7 L82 4 L90 12 L76 24 L82 34 L72 44 L66 54 L50 56 L34 53 L20 50 L12 38 L16 26 L10 14 Z",
-  eastern: "M24 5 L52 3 L70 8 L76 22 L72 34 L78 46 L68 56 L50 55 L34 56 L24 48 L28 36 L18 26 L20 14 Z"
-};
 const CONTINENT_NAMES: Record<Continent, [string, string]> = { kalimdor: ["Kalimdor", "Kalimdor"], eastern: ["Eastern Kingdoms", "Royaumes de l'Est"] };
-const HEIGHT = 56.25;
 
 const levelOf = (heat: number, max: number) => heat <= 0 ? 0 : Math.max(1, Math.min(5, Math.ceil((5 * heat) / Math.max(1, max))));
 const zoneName = (env: PvpEnv, stat: ZoneStat) => env.lang === "fr" ? stat.fr : stat.en;
 function zoneNumbers(env: PvpEnv, stat: ZoneStat, kd: boolean): string {
   const { t } = env;
-  return [`${stat.calls} ${t("calls for help", "appels à l'aide")}`, ...(kd ? [`${stat.kills} ${t("kills", "victimes")}`, `${stat.deaths} ${t("deaths", "morts")}`] : [])].join(" · ");
+  return kd ? `${stat.kills} ${t("kills", "victimes")} · ${stat.deaths} ${t("deaths", "morts")}` : `${stat.calls} ${t("calls for help", "appels à l'aide")}`;
 }
 
-function continentSvg(env: PvpEnv, continent: Continent, stats: ZoneStat[], max: number, kd: boolean): string {
+function continentSvg(env: PvpEnv, continent: Continent, stats: ZoneStat[], max: number, kd: boolean): { svg: string; css: string } {
   const image = CONTINENT_IMAGES[continent];
-  const marks = stats.flatMap((stat) => {
-    const at = stat.zone && stat.zone.continent === continent ? ZONE_POSITIONS[stat.zone.id] : undefined;
-    if (!at) return [];
-    const x = at[0], y = at[1] * HEIGHT / 100, level = levelOf(stat.heat, max);
-    const r = level === 0 ? 1.1 : 1.5 + 0.5 * level;
-    const dot = `<circle class="dot" cx="${x}" cy="${y.toFixed(2)}" r="${r}"/>`;
-    if (!level) return [`<g class="z h0" aria-hidden="true">${dot}</g>`];
+  const here = stats.filter((stat) => stat.zone && stat.zone.continent === continent && ZONE_RECTS[stat.zone.id])
+    .sort((a, b) => (zoneBox(b.zone!.id)!.w * zoneBox(b.zone!.id)!.h) - (zoneBox(a.zone!.id)!.w * zoneBox(a.zone!.id)!.h));
+  const fmt = (n: number) => n.toFixed(1);
+  const view = continentView(continent), font = view.w * 0.034, dotR = view.w * 0.011, corner = view.w * 0.02;
+  const land = image ? "" : here.filter((stat) => !stat.zone!.city).map((stat) => { const b = zoneBox(stat.zone!.id)!; return `<rect class="land" x="${fmt(b.x)}" y="${fmt(b.y)}" width="${fmt(b.w)}" height="${fmt(b.h)}" rx="${fmt(corner)}"/>`; }).join("");
+  const rects: string[] = [], tips: string[] = [], css: string[] = [], dots: string[] = [];
+  for (const stat of here) {
+    const b = zoneBox(stat.zone!.id)!, level = levelOf(stat.heat, max);
+    const rect = `<rect class="r" x="${fmt(b.x)}" y="${fmt(b.y)}" width="${fmt(b.w)}" height="${fmt(b.h)}" rx="${stat.zone!.city ? 2 : fmt(corner)}"/>`;
+    if (!level) { rects.push(`<g class="z h0" aria-hidden="true">${rect}</g>`); continue; }
     const line1 = zoneName(env, stat), line2 = zoneNumbers(env, stat, kd);
-    const w = Math.max(line1.length, line2.length) * 1.3 + 3, left = x > 58, down = y < 14;
-    const tx = left ? x - r - 1 - w : x + r + 1, ty = down ? y - 1 : y - 7;
-    return [`<a class="z h${level}" href="#zone-${stat.zone!.id}" aria-label="${escapeHtml(`${line1}: ${line2}`)}"><circle class="hit" cx="${x}" cy="${y.toFixed(2)}" r="3.4"/>${dot}`
-      + `<g class="tip"><rect x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" width="${w.toFixed(1)}" height="7" rx="1"/><text class="t1" x="${(tx + 1.5).toFixed(1)}" y="${(ty + 3).toFixed(1)}">${escapeHtml(line1)}</text><text x="${(tx + 1.5).toFixed(1)}" y="${(ty + 5.9).toFixed(1)}">${escapeHtml(line2)}</text></g></a>`];
-  });
-  const base = image ? `<image href="${escapeHtml(image)}" x="0" y="0" width="100" height="${HEIGHT}" preserveAspectRatio="xMidYMid slice"/>` : `<rect class="sea" width="100" height="${HEIGHT}"/><path class="land" d="${LAND[continent]}" transform="scale(1 ${(HEIGHT / 60).toFixed(4)})"/>`;
-  return `<svg viewBox="0 0 100 ${HEIGHT}" role="group" aria-label="${escapeHtml(CONTINENT_NAMES[continent][env.lang === "fr" ? 1 : 0])}">${base}${marks.join("")}</svg>`;
+    const w = Math.max(line1.length * font * 0.62, line2.length * font * 0.52) + font * 1.2, h = font * 3.1;
+    const tx = Math.max(view.x + 2, Math.min(view.x + view.w - w - 2, b.x + b.w / 2 - w / 2)), ty = b.y > view.y + h + font ? b.y - h - font * 0.4 : b.y + b.h + font * 0.4;
+    const id = stat.zone!.id;
+    rects.push(`<a class="z h${level}" href="#zone-${id}" data-heat="${stat.heat}" aria-label="${escapeHtml(`${line1}: ${line2}`)}">${rect}</a>`);
+    tips.push(`<g class="tip" data-t="${id}" font-size="${fmt(font)}"><rect x="${fmt(tx)}" y="${fmt(ty)}" width="${fmt(w)}" height="${fmt(h)}" rx="${fmt(font * 0.3)}"/><text class="t1" x="${fmt(tx + font * 0.6)}" y="${fmt(ty + font * 1.25)}">${escapeHtml(line1)}</text><text x="${fmt(tx + font * 0.6)}" y="${fmt(ty + font * 2.4)}">${escapeHtml(line2)}</text></g>`);
+    css.push(`.pvp-map a[href="#zone-${id}"]:hover~g[data-t="${id}"],.pvp-map a[href="#zone-${id}"]:focus~g[data-t="${id}"]{display:block}`);
+  }
+  for (const stat of here) for (const dot of stat.dots) { const p = zonePoint(stat.zone!.id, dot.x, dot.y); if (p) dots.push(`<circle class="ev call" cx="${fmt(p.x)}" cy="${fmt(p.y)}" r="${fmt(dotR)}"/>`); }
+  const base = image ? `<image href="${escapeHtml(image)}" x="${fmt(view.x)}" y="${fmt(view.y)}" width="${fmt(view.w)}" height="${fmt(view.h)}" preserveAspectRatio="none" loading="lazy"/>` : `<rect class="sea" x="${fmt(view.x)}" y="${fmt(view.y)}" width="${fmt(view.w)}" height="${fmt(view.h)}"/>`;
+  return { svg: `<svg viewBox="${fmt(view.x)} ${fmt(view.y)} ${fmt(view.w)} ${fmt(view.h)}" role="group" aria-label="${escapeHtml(CONTINENT_NAMES[continent][env.lang === "fr" ? 1 : 0])}">${base}${land}${rects.join("")}${dots.join("")}${tips.join("")}</svg>`, css: css.join("") };
 }
 
 /** The zone map section: a heat map of both continents, the details of each lit zone, and the plain table of the same numbers. */
@@ -295,18 +328,25 @@ export function zoneMapHtml(env: PvpEnv, stats: ZoneStat[], f: PvpFilters): stri
   const lit = stats.filter((s) => s.heat > 0);
   const max = Math.max(0, ...stats.map((s) => s.heat));
   const period = f.period === "all" ? t("last 4 weeks", "4 dernières semaines") : t("this week", "cette semaine");
-  const heatOf = kd ? t("kills, deaths and calls for help", "victimes, morts et appels à l'aide") : t("calls for help", "appels à l'aide");
-  const legend = `<p class="heat-legend"><span>${t("Colour and size show", "La couleur et la taille montrent")}: ${escapeHtml(heatOf)}.</span>${HEAT_COLOURS.map((c, i) => `<span><i style="background:${c}"></i>${i === 0 ? t("fewer", "moins") : i === 4 ? t("more", "plus") : ""}</span>`).join("")}</p>`;
-  const maps = (["kalimdor", "eastern"] as Continent[]).map((continent) => `<figure class="pvp-map" style="margin:0"><h3>${escapeHtml(CONTINENT_NAMES[continent][lang === "fr" ? 1 : 0])}</h3>${continentSvg(env, continent, stats, max, kd)}</figure>`).join("");
-  const panels = lit.filter((s) => s.zone).map((stat) => `<section class="zone-panel" id="zone-${stat.zone!.id}"><h3>${escapeHtml(zoneName(env, stat))}</h3><p>${escapeHtml(zoneNumbers(env, stat, kd))}</p>`
+  const heatOf = kd ? t("kills plus deaths", "victimes plus morts") : t("calls for help", "appels à l'aide");
+  const legend = `<p class="heat-legend"><span>${t("Colour shows", "La couleur montre")}: ${escapeHtml(heatOf)}.</span>${HEAT_FILLS.map((c, i) => `<span><i style="background:${c}"></i>${i === 0 ? t("fewer", "moins") : i === 4 ? t("more", "plus") : ""}</span>`).join("")}</p>`;
+  const svgs = (["kalimdor", "eastern"] as Continent[]).map((continent) => ({ continent, ...continentSvg(env, continent, stats, max, kd) }));
+  const maps = svgs.map(({ continent, svg }) => `<figure class="pvp-map"><h3>${escapeHtml(CONTINENT_NAMES[continent][lang === "fr" ? 1 : 0])}</h3>${svg}</figure>`).join("");
+  const panels = lit.filter((s) => s.zone).map((stat) => `<section class="zone-panel" id="zone-${stat.zone!.id}"><h3>${escapeHtml(zoneName(env, stat))}</h3><p>${escapeHtml(zoneNumbers(env, stat, kd))}${kd && stat.calls ? ` · ${stat.calls} ${t("calls for help", "appels à l'aide")}` : ""}</p>`
     + (stat.guilds.length ? `<p>${t("Most active guilds", "Guildes les plus actives")}: ${stat.guilds.map((g) => `${env.guild(g.guildId) || "–"} (${g.count})`).join(", ")}</p>` : "")
     + (stat.recent.length ? `<p>${t("Recent calls for help", "Derniers appels à l'aide")}</p><ul>${stat.recent.map((r) => `<li>${date(r.at)}${r.subzone ? ` · ${escapeHtml(r.subzone)}` : ""}${env.guild(r.guildId) ? ` · ${env.guild(r.guildId)}` : ""}</li>`).join("")}</ul>` : "")
     + `<p><a href="#zone-map">${t("Back to the map", "Retour à la carte")}</a></p></section>`).join("");
   const continentOf = (stat: ZoneStat) => stat.zone ? CONTINENT_NAMES[stat.zone.continent][lang === "fr" ? 1 : 0] : "";
-  const table = lit.length ? env.table([t("Zone", "Zone"), t("Continent", "Continent"), t("Calls for help", "Appels à l'aide"), ...(kd ? [t("Kills", "Victimes"), t("Deaths", "Morts")] : []), t("Most active guild", "Guilde la plus active")],
-    lit.slice(0, 40).map((s) => `<tr><td>${s.zone ? `<a href="#zone-${s.zone.id}">${escapeHtml(zoneName(env, s))}</a>` : escapeHtml(zoneName(env, s).slice(0, 60))}</td><td>${escapeHtml(continentOf(s))}</td><td class="num">${s.calls}</td>${kd ? `<td class="num">${s.kills}</td><td class="num">${s.deaths}</td>` : ""}<td>${s.guilds[0] ? env.guild(s.guilds[0].guildId) : ""}</td></tr>`), kd ? [2, 3, 4] : [2], "dense")
-    : `<p class="muted">${t("No call for help in this period.", "Aucun appel à l'aide pour cette période.")}</p>`;
-  return `${PVP_MAP_CSS}<h2 id="zone-map">${t("Zone map", "Carte des zones")} · ${period}</h2>${legend}<div class="pvp-maps">${maps}</div>${panels}<h3>${t("Zones", "Zones")}</h3>${table}`;
+  const head = kd ? [t("Zone", "Zone"), t("Continent", "Continent"), t("Kills", "Victimes"), t("Deaths", "Morts"), t("Total", "Total"), t("Calls for help", "Appels à l'aide"), t("Most active guild", "Guilde la plus active")]
+    : [t("Zone", "Zone"), t("Continent", "Continent"), t("Calls for help", "Appels à l'aide"), t("Most active guild", "Guilde la plus active")];
+  const row = (s: ZoneStat) => `<tr><td>${s.zone ? `<a href="#zone-${s.zone.id}">${escapeHtml(zoneName(env, s))}</a>` : escapeHtml(zoneName(env, s).slice(0, 60))}</td><td>${escapeHtml(continentOf(s))}</td>`
+    + (kd ? `<td class="num">${s.kills}</td><td class="num">${s.deaths}</td><td class="num score">${s.kills + s.deaths}</td><td class="num">${s.calls}</td>` : `<td class="num score">${s.calls}</td>`)
+    + `<td>${s.guilds[0] ? env.guild(s.guilds[0].guildId) : ""}</td></tr>`;
+  const table = lit.length ? env.table(head, lit.slice(0, 60).map(row), kd ? [2, 3, 4, 5] : [2], "dense")
+    : `<p class="muted">${t("Nothing recorded for this period.", "Rien d'enregistré pour cette période.")}</p>`;
+  const hasDots = stats.some((s) => s.dots.length);
+  const dotNote = hasDots ? `<p class="muted">${t("Yellow dots: where players called for help.", "Points jaunes : où des joueurs ont appelé à l'aide.")}</p>` : "";
+  return `${PVP_MAP_CSS}<style>${svgs.map((s) => s.css).join("")}</style><h2 id="zone-map">${t("Zone map", "Carte des zones")} · ${period}</h2>${legend}<div class="pvp-maps">${maps}</div>${dotNote}${panels}<h3>${t("Zones", "Zones")}</h3>${table}`;
 }
 
 /** The hub's two PvP cards' contents: a podium of this week's top killers and the latest battleground results. */

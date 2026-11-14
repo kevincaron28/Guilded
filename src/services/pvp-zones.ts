@@ -1,9 +1,9 @@
 // The zones of the two continents, keyed by the game's map id (uiMapID, the same in every language): a call for help names its zone by
 // map id, so a French and an English client land on one zone. A zone name alone (older uploads) is matched by its folded English or French
-// name. Marker positions live in pvp-zone-positions.ts.
+// name. Where each zone sits on its continent is in pvp-zone-rects.ts.
 
 export type Continent = "kalimdor" | "eastern";
-export interface PvpZone { id: number; continent: Continent; en: string; fr: string }
+export interface PvpZone { id: number; continent: Continent; en: string; fr: string; /** A capital city: a small rectangle inside its zone. */ city?: boolean }
 
 export const PVP_ZONES: readonly PvpZone[] = [
   { id: 1411, continent: "kalimdor", en: "Durotar", fr: "Durotar" }, { id: 1412, continent: "kalimdor", en: "Mulgore", fr: "Mulgore" },
@@ -25,7 +25,10 @@ export const PVP_ZONES: readonly PvpZone[] = [
   { id: 1445, continent: "kalimdor", en: "Dustwallow Marsh", fr: "Marécage d'Âprefange" }, { id: 1446, continent: "kalimdor", en: "Tanaris", fr: "Tanaris" },
   { id: 1447, continent: "kalimdor", en: "Azshara", fr: "Azshara" }, { id: 1448, continent: "kalimdor", en: "Felwood", fr: "Gangrebois" },
   { id: 1449, continent: "kalimdor", en: "Un'Goro Crater", fr: "Cratère d'Un'Goro" }, { id: 1450, continent: "kalimdor", en: "Moonglade", fr: "Reflet-de-Lune" },
-  { id: 1451, continent: "kalimdor", en: "Silithus", fr: "Silithus" }, { id: 1452, continent: "kalimdor", en: "Winterspring", fr: "Berceau-de-l'Hiver" }
+  { id: 1451, continent: "kalimdor", en: "Silithus", fr: "Silithus" }, { id: 1452, continent: "kalimdor", en: "Winterspring", fr: "Berceau-de-l'Hiver" },
+  { id: 1453, continent: "eastern", en: "Stormwind City", fr: "Hurlevent", city: true }, { id: 1454, continent: "kalimdor", en: "Orgrimmar", fr: "Orgrimmar", city: true },
+  { id: 1455, continent: "eastern", en: "Ironforge", fr: "Forgefer", city: true }, { id: 1456, continent: "kalimdor", en: "Thunder Bluff", fr: "Pitons-du-Tonnerre", city: true },
+  { id: 1457, continent: "kalimdor", en: "Darnassus", fr: "Darnassus", city: true }, { id: 1458, continent: "eastern", en: "Undercity", fr: "Fossoyeuse", city: true }
 ];
 
 const BY_ID = new Map(PVP_ZONES.map((zone) => [zone.id, zone]));

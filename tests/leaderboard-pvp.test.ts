@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { clearLeaderboardCaches, createLeaderboardPages, type LeaderRun, type LeaderboardStore } from "../src/services/public-leaderboard.js";
-import { bgBoard, guildPvp, loadPvpData, playerPvp, readPvpFilters, worldBoard, zoneStats, type PvpData, type PvpGame, type PvpWorldRow } from "../src/services/leaderboard-pvp.js";
+import { zoneBox, zonePoint, bgBoard, guildPvp, loadPvpData, playerPvp, readPvpFilters, worldBoard, zoneStats, type PvpData, type PvpGame, type PvpWorldRow } from "../src/services/leaderboard-pvp.js";
 import { weekKeyOf } from "../src/services/world-pvp.js";
 import { PVP_ZONES, zoneById, zoneByName, zoneOf } from "../src/services/pvp-zones.js";
-import { ZONE_POSITIONS } from "../src/services/pvp-zone-positions.js";
+import { MAP_HEIGHT, MAP_WIDTH, ZONE_RECTS } from "../src/services/pvp-zone-rects.js";
 import { createWebApp, type WebResponse } from "../src/services/web-app.js";
 import { memoryWebStore } from "./helpers/memory-web-store.js";
 
@@ -19,7 +19,7 @@ const data = (): PvpData => ({
   total: [world("Dara", "Rogue", 60, 140, 40), world("Corvin", "Mage", 60, 90, 20)],
   games: [game("Dara", "Rogue", "win", 1), game("Dara", "Rogue", "win", 2), game("Dara", "Rogue", "loss", 3, { mapId: 529, mode: "rated" }), game("Corvin", "Mage", "win", 4)],
   calls: [
-    { guildId: "g1", zone: "Stranglethorn Vale", mapId: 1434, subzone: "Booty Bay", calledAt: NOW }, { guildId: "g1", zone: "Stranglethorn Vale", mapId: 1434, calledAt: NOW },
+    { guildId: "g1", zone: "Stranglethorn Vale", mapId: 1434, subzone: "Booty Bay", x: 0.31, y: 0.77, calledAt: NOW }, { guildId: "g1", zone: "Stranglethorn Vale", mapId: 1434, calledAt: NOW },
     { guildId: "g1", zone: "Vallée de Strangleronce", calledAt: NOW },
     { guildId: "g1", zone: "Hillsbrad Foothills", mapId: 1424, calledAt: NOW }, { guildId: "g1", zone: `"><script>alert(1)</script>`, calledAt: NOW },
     { guildId: "g1", zone: "Tanaris", mapId: 1446, calledAt: new Date(NOW.getTime() - 20 * 86_400_000) }
@@ -79,7 +79,7 @@ describe("PvP leaderboards: aggregation", () => {
     expect(zoneOf(null, "Les Tarides")?.en).toBe("The Barrens");
     expect(zoneById(99999)).toBeNull();
     expect(new Set(PVP_ZONES.map((z) => z.id)).size).toBe(PVP_ZONES.length);
-    for (const zone of PVP_ZONES) expect(ZONE_POSITIONS[zone.id], zone.en).toBeDefined();
+    for (const zone of PVP_ZONES) expect(ZONE_RECTS[zone.id], zone.en).toBeDefined();
     const week = zoneStats(data(), { className: null, band: null, period: "week", mode: null });
     expect(week.find((z) => z.zone?.id === 1434)).toMatchObject({ calls: 3, kills: 0, deaths: 0, heat: 3 });
     expect(week.find((z) => z.zone?.id === 1434)!.recent[0]).toMatchObject({ guildId: "g1" });
@@ -90,6 +90,27 @@ describe("PvP leaderboards: aggregation", () => {
     expect(zoneStats(data(), { className: null, band: null, period: "week", mode: null }, "other").every((z) => z.heat === 0)).toBe(true);
   });
 
+  it("places a known coordinate inside its zone and inside the continent frame", () => {
+    const durotar = zoneBox(1411)!;
+    expect(durotar.x).toBeCloseTo(0.5171 * MAP_WIDTH, 0);
+    const centre = zonePoint(1411, 0.5, 0.5)!;
+    expect(centre.x).toBeCloseTo(durotar.x + durotar.w / 2, 5);
+    expect(centre.y).toBeCloseTo(durotar.y + durotar.h / 2, 5);
+    for (const [id] of Object.entries(ZONE_RECTS)) {
+      const b = zoneBox(Number(id))!;
+      for (const [x, y] of [[0, 0], [1, 1], [0.37, 0.81]] as const) {
+        const p = zonePoint(Number(id), x, y)!;
+        expect(p.x).toBeGreaterThanOrEqual(b.x - 1e-6); expect(p.x).toBeLessThanOrEqual(b.x + b.w + 1e-6);
+        expect(p.y).toBeGreaterThanOrEqual(b.y - 1e-6); expect(p.y).toBeLessThanOrEqual(b.y + b.h + 1e-6);
+        expect(p.x).toBeGreaterThanOrEqual(-1); expect(p.x).toBeLessThanOrEqual(MAP_WIDTH + 1);
+        expect(p.y).toBeGreaterThanOrEqual(-1); expect(p.y).toBeLessThanOrEqual(MAP_HEIGHT + 1);
+      }
+    }
+    expect(zonePoint(1411, 1.2, 0.5)).toBeNull();
+    expect(zonePoint(99999, 0.5, 0.5)).toBeNull();
+    expect(zonePoint(1411, Number.NaN, 0.5)).toBeNull();
+  });
+
   it("adds kills and deaths to the heat when zone activity exists, and filters them by class and level", () => {
     const d: PvpData = { ...data(), zoneActivity: [
       { weekKey: week, mapId: 1434, zone: "Stranglethorn Vale", guildId: "g1", kills: 8, deaths: 3, className: "Mage", level: 60 },
@@ -97,7 +118,7 @@ describe("PvP leaderboards: aggregation", () => {
       { weekKey: week - 1, mapId: 1434, zone: "Stranglethorn Vale", guildId: "g1", kills: 100, deaths: 100, className: "Mage", level: 60 }
     ] };
     const base = { className: null, band: null, period: "week" as const, mode: null };
-    expect(zoneStats(d, base).find((z) => z.zone?.id === 1434)).toMatchObject({ kills: 13, deaths: 4, calls: 3, heat: 20 });
+    expect(zoneStats(d, base).find((z) => z.zone?.id === 1434)).toMatchObject({ kills: 13, deaths: 4, calls: 3, heat: 17 });
     expect(zoneStats(d, { ...base, className: "Mage" }).find((z) => z.zone?.id === 1434)).toMatchObject({ kills: 8, deaths: 3 });
     expect(zoneStats(d, { ...base, band: { key: "40-59", from: 40, to: 59 } }).find((z) => z.zone?.id === 1434)).toMatchObject({ kills: 5, deaths: 1 });
   });
@@ -222,9 +243,13 @@ describe("PvP leaderboards: pages", () => {
     expect(main).toContain("3 calls for help");
     expect(main).toContain("Most active guilds");
     expect(main).toContain("Booty Bay");
-    expect(main).toContain("Colour and size show: calls for help");
+    expect(main).toContain("Colour shows: calls for help");
     expect(main).not.toMatch(/<script|onclick=|onmouseover=|javascript:/i);
     expect(main).toContain("<table");
+    // the totals on the map equal the table below: every call of the week is on one lit zone or in the table row of an unknown zone
+    const onMap = [...main.matchAll(/data-heat="(\d+)"/g)].reduce((n, m) => n + Number(m[1]), 0);
+    expect(onMap).toBe(3 + 1);
+    expect(main).toMatch(/class="ev call" cx="/);
     expect(main).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
     expect(main).not.toContain("<script>alert");
     expect(main).not.toContain('href="#zone-1446"');
@@ -233,7 +258,7 @@ describe("PvP leaderboards: pages", () => {
     expect(old.body).toContain("last 4 weeks");
     const fr = await get("/leaderboards/pvp/", "fr");
     expect(fr.body).toContain("3 appels à l&#39;aide");
-    expect(fr.body).not.toContain("Colour and size show");
+    expect(fr.body).not.toContain("Colour shows");
   });
 
   it("is served in French", async () => {

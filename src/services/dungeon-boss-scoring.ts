@@ -42,6 +42,12 @@ export const BOSS_RULE_TEXT = {
   fr: "Les boss comptent : un essai qui tue tous les boss du donjon garde son score de temps complet. Un essai qui en saute est évalué contre la même cible, mais son score de temps est plafonné au score du rythme cible (200) puis multiplié par la part de boss tués : sauter des boss ne bat jamais un donjon complet. Quand les boss d'un essai ne peuvent pas être lus, l'essai est noté comme avant."
 } as const;
 
+/** The rule text, with the date it took effect when it was switched on in a running season. */
+export function bossRuleText(lang: "en" | "fr", rule: { version?: number; since?: string | undefined } | undefined): string {
+  const day = rule?.since ? rule.since.slice(0, 10) : null;
+  return BOSS_RULE_TEXT[lang] + (day ? (lang === "fr" ? ` En vigueur depuis le ${day} (UTC).` : ` In force since ${day} (UTC).`) : "");
+}
+
 export function validTally(killed: unknown, total: unknown): boolean {
   return Number.isInteger(killed) && Number.isInteger(total) && (total as number) >= 2 && (total as number) <= 30 && (killed as number) >= 1 && (killed as number) <= (total as number);
 }

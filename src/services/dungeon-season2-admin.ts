@@ -51,7 +51,7 @@ export function observationsEmbed(loaded: LoadedObservations): EmbedBuilder {
 }
 
 export interface Season2Review { loaded: LoadedObservations; startsAt: Date; proposal: Season2Proposal }
-export async function reviewSeason2(database: PrismaClient, startsAt: Date, now: Date, policy: Season2Policy = "current-v2", scoring?: BracketedRules["scoring"], bossScoring?: BracketedRules["bossScoring"]): Promise<Season2Review | null> {
+export async function reviewSeason2(database: PrismaClient, startsAt: Date, now: Date, policy: Season2Policy = "current-v2", scoring?: BracketedRules["scoring"], bossScoring?: BracketedRules["bossScoring"] | null): Promise<Season2Review | null> {
   const loaded = await loadSeasonObservations(database, now);
   if (!loaded) return null;
   return { loaded, startsAt, proposal: season2Proposal(loaded.rules, loaded.observations.routes, startsAt, policy, scoring, bossScoring) };
@@ -81,7 +81,7 @@ export function season2Embed(review: Season2Review): EmbedBuilder {
  * Schedules Season 2 and stores the computed rules on it. Recomputes from the runs known now. With
  * `keepRules`, rules the owner already uploaded for the pending season are left alone.
  */
-export async function activateSeason2(database: PrismaClient, input: { startsAt: Date; name: string; actorId: string; keepRules: boolean; policy?: Season2Policy; scoring?: BracketedRules["scoring"]; bossScoring?: BracketedRules["bossScoring"] }, now: Date): Promise<{ name: string; routes: number | null; replaced: boolean }> {
+export async function activateSeason2(database: PrismaClient, input: { startsAt: Date; name: string; actorId: string; keepRules: boolean; policy?: Season2Policy; scoring?: BracketedRules["scoring"]; bossScoring?: BracketedRules["bossScoring"] | null }, now: Date): Promise<{ name: string; routes: number | null; replaced: boolean }> {
   const review = await reviewSeason2(database, input.startsAt, now, input.policy, input.scoring, input.bossScoring);
   if (!review) throw new SeasonCalendarError("Season 1 has not started: nothing to compute from.");
   const windows = await loadOfficialWindows(database);

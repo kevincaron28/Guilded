@@ -29,7 +29,7 @@ export const ownerSeasonCommand = new SlashCommandBuilder()
   .addSubcommand(sub => sub.setName("observations").setDescription("Real completion times per dungeon this season (observation only)"))
   .addSubcommand(sub => sub.setName("season2-review").setDescription("Preview Season 2's targets computed from observed times (nothing is scheduled)")
     .addStringOption(o => o.setName("evidence").setDescription("Evidence policy (default current-v2)").addChoices({ name: "current-v2", value: "current-v2" }, { name: "current-v1", value: "current-v1" }))
-    .addBooleanOption(o => o.setName("scoring_v2").setDescription("Level-fair targets and a party minimum")).addBooleanOption(o => o.setName("boss_scoring").setDescription("Skipped bosses cost points")))
+    .addBooleanOption(o => o.setName("scoring_v2").setDescription("Level-fair targets and a party minimum")).addBooleanOption(o => o.setName("boss_scoring").setDescription("Skipped bosses cost points (default on; false turns it off)")))
   .addSubcommand(sub => sub.setName("season2-activate").setDescription("Schedule Season 2 (default 9 December) and store the computed targets")
     .addStringOption(o => o.setName("date").setDescription(`Start date (default ${SEASON2_DATE.date})`))
     .addStringOption(o => o.setName("evidence").setDescription("Evidence policy (default current-v2)").addChoices({ name: "current-v2", value: "current-v2" }, { name: "current-v1", value: "current-v1" }))
@@ -80,7 +80,7 @@ function season2Start(interaction: ChatInputCommandInteraction): Date {
   return zonedInstant(y, m - 1, d, SEASON2_DATE.hour, SEASON2_DATE.timeZone);
 }
 const season2Scoring = (interaction: ChatInputCommandInteraction) => interaction.options.getBoolean("scoring_v2") ? SCORING_V2 : undefined;
-const season2BossScoring = (interaction: ChatInputCommandInteraction) => interaction.options.getBoolean("boss_scoring") ? BOSS_SCORING_V1 : undefined;
+const season2BossScoring = (interaction: ChatInputCommandInteraction) => interaction.options.getBoolean("boss_scoring") === false ? null : BOSS_SCORING_V1;
 const season2Policy = (interaction: ChatInputCommandInteraction) => interaction.options.getString("evidence") === "current-v1" ? "current-v1" as const : "current-v2" as const;
 async function executeInEdition(interaction: ChatInputCommandInteraction): Promise<void> {
   const sub = interaction.options.getSubcommand();

@@ -14,7 +14,7 @@ import { GAIN_STEP, planImprovements, roleScores, type ImprovementPlan, type Rou
 import { classLabel as classLabelRaw, className as classFromText, factionLabel, FACTIONS, roleLabel, ROLES } from "./recruitment.js";
 import type { OfficialWindow } from "./official-seasons.js";
 import type { BracketedRules } from "./dungeon-november-rules.js";
-import { BOSS_RULE_TEXT, bossTally } from "./dungeon-boss-scoring.js";
+import { bossRuleText, bossTally } from "./dungeon-boss-scoring.js";
 import { characterId, characterScores, DEFAULT_OFFICIAL, periodRules, publicRules, publicSeasons, publicWeek, rateRun, rulesAt, type PublicPeriod, type ScoreRow, type ScoreRun } from "./public-score.js";
 import { breadcrumbs } from "./site-header.js";
 import { HUB_CSS, HUB_EMBLEMS, emptyBox, hubTabs, movement, podium, searchForm, strip, trendBars, type PodiumEntry } from "./leaderboard-hub.js";
@@ -716,7 +716,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     + `<p>${ctx.t("The fastest dungeon clears by players and guilds using Guilded. Beat the final boss with your group, sync your runs and climb the board.", "Les donjons les plus rapides des joueurs et des guildes qui utilisent Guilded. Battez le boss final en groupe, synchronisez vos essais et montez au classement.")}</p>`
     + `<details class="rules"><summary>${ctx.t("How scores work", "Comment les scores sont calculés")}</summary><p class="muted">${ctx.t("Team-clear scores and times from Guilded and Guilded Dungeons. Your score compares your time with each route's target; your best routes count, and targets remain provisional.",
       "Scores et temps d'équipe de Guilded et Guilded Dungeons. Votre score compare votre temps à la cible de chaque parcours; vos meilleurs parcours comptent, et les cibles restent provisoires.")}`
-    + (periodRules(period).bossScoring ? ` ${ctx.t(BOSS_RULE_TEXT.en, BOSS_RULE_TEXT.fr)}` : "")
+    + (periodRules(period).bossScoring ? ` ${ctx.t(bossRuleText("en", periodRules(period).bossScoring), bossRuleText("fr", periodRules(period).bossScoring))}` : "")
     + (period.frozenAt ? ` ${ctx.t(`This season's rules were frozen on ${date(period.frozenAt)}.`, `Les règles de cette saison sont figées depuis le ${date(period.frozenAt)}.`)}` : "") + `</p></details>`;
 
   // The one tab bar of every leaderboard page: Overview | Dungeons | Duels | Players | Guilds.

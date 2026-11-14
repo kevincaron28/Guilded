@@ -1,6 +1,6 @@
 import { EmbedBuilder } from "discord.js";
 import type { Lang } from "../i18n.js";
-import { BOSS_RULE_TEXT } from "./dungeon-boss-scoring.js";
+import { bossRuleText } from "./dungeon-boss-scoring.js";
 import type { DungeonConfig } from "./dungeon-rules.js";
 import { hasDungeonRating, provisionalNote, seasonDungeonCatalog } from "./dungeon-rating.js";
 import { BETA_DUNGEONS } from "./dungeon-beta-preset.js";
@@ -86,7 +86,7 @@ function bracketGuide(rules: BracketedRules, fr: boolean): EmbedBuilder {
         : { name: fr ? "Participation et historique" : "Participation and history", value: fr
           ? "La participation suit les mêmes règles hebdomadaires que la saison niveau 60. Cibles, tranches et preuves sont figées pour la saison; les archives gardent chaque tranche séparément."
           : "Participation follows the same weekly rules as the level-60 season. Targets, brackets and evidence are frozen for the season; archives keep each bracket separately." },
-      ...(rules.bossScoring ? [{ name: fr ? "Boss" : "Bosses", value: (fr ? BOSS_RULE_TEXT.fr : BOSS_RULE_TEXT.en).slice(0, 1024) }] : []),
+      ...(rules.bossScoring ? [{ name: fr ? "Boss" : "Bosses", value: bossRuleText(fr ? "fr" : "en", rules.bossScoring).slice(0, 1024) }] : []),
       ...(rules.provisional ? provisionalFields(rules, fr) : [])
     );
 }

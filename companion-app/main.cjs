@@ -340,8 +340,8 @@ let minimizedAt = null;
 const idleUpdateMarkerFile = () => path.join(app.getPath("userData"), idleUpdate.MARKER_NAME);
 const idleInstaller = idleUpdate.createIdleInstaller({
   updates,
-  currentVersion: app.getVersion(),
-  directory: updateDirectory(),
+  currentVersion: () => app.getVersion(),
+  directory: () => updateDirectory(),
   eligible: () => !STORE_INSTALL && app.isPackaged && !installerHandedOff && !installing,
   getConfig: () => config,
   saveConfig: () => saveConfig(),

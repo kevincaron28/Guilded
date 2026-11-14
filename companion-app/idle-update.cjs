@@ -96,7 +96,7 @@ function createIdleInstaller(deps) {
     const config = deps.getConfig();
     const fsImpl = deps.fsImpl ?? fs;
     // Shape, version, location and attempts first; the file's checksum is checked here, once, without blocking.
-    const verdict = deps.updates.inspectPending({ pending: config.pendingUpdate, current: deps.currentVersion, directory: deps.directory, hash: () => config.pendingUpdate?.sha256 });
+    const verdict = deps.updates.inspectPending({ pending: config.pendingUpdate, current: typeof deps.currentVersion === "function" ? deps.currentVersion() : deps.currentVersion, directory: typeof deps.directory === "function" ? deps.directory() : deps.directory, hash: () => config.pendingUpdate?.sha256 });
     if (verdict.action !== "install") return verdict;
     let stat;
     try { stat = fsImpl.statSync(verdict.file); } catch { return { action: "clear", reason: "missing" }; }

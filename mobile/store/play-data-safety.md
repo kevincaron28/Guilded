@@ -59,8 +59,8 @@ diagnostics and other performance data.
 **Shared: No** for every type. Guilded's hosting and push providers (Cloudflare, Oracle Cloud, Aiven, Expo push and
 Firebase Cloud Messaging) process data on Guilded's behalf. Play does not count service providers as sharing.
 
-**With a `production-no-push` bundle** the Device or other IDs row is not true yet (no token exists). Declaring it
-anyway is allowed and saves a second review when push is turned on; leave it ticked.
+**With a `production-no-push` bundle** no push token exists yet. Keep the Device or other IDs row ticked all the
+same: it stays true for the update library's installation id, and it saves a second review when push is turned on.
 
 ## Update this form when
 

@@ -56,6 +56,7 @@ export function createStandingsFeed(options: StandingsFeedOptions = {}) {
   const now = options.now ?? Date.now;
   const cache = new Map<string, Cached>();
   const inflight = new Map<string, Promise<Cached>>();
+  const sharedReads = new Map<string, { generation: number; work: Promise<unknown> }>();
   const generations = new Map<string, number>();
   const stamps = new Map<string, Stamp>();
   const waiters = new Map<string, Set<() => void>>();
@@ -203,6 +204,23 @@ export function createStandingsFeed(options: StandingsFeedOptions = {}) {
       wakeTimers.set(guildId, timer);
     },
 
+    /**
+     * A read that is the same for every member of the guild, made once: a request that arrives while one is running for the same
+     * guild, name and generation (no change since it started) joins it instead of reading again. A change starts a new one, so
+     * nothing older than the change is ever shared. A failed read is not kept.
+     */
+    shared<T>(guildId: string, name: string, read: () => Promise<T>): Promise<T> {
+      const key = `${guildId}:${name}`;
+      const current = sharedReads.get(key);
+      if (current && current.generation === generation(guildId)) return current.work as Promise<T>;
+      const entry = { generation: generation(guildId), work: undefined as unknown as Promise<unknown> };
+      entry.work = Promise.resolve().then(read);
+      sharedReads.set(key, entry);
+      const done = () => { if (sharedReads.get(key) === entry) sharedReads.delete(key); };
+      entry.work.then(done, done);
+      return entry.work as Promise<T>;
+    },
+
     waiting(guildId: string) { return waiters.get(guildId)?.size ?? 0; },
 
     // Stamps saved before a restart. Identical shared data then keeps its old stamp, so the
@@ -219,7 +237,7 @@ export function createStandingsFeed(options: StandingsFeedOptions = {}) {
     onStamp(listener: ((guildId: string, stamp: Stamp) => void) | undefined) { stampListener = listener; },
 
     clear() {
-      cache.clear(); inflight.clear(); generations.clear(); stamps.clear();
+      cache.clear(); inflight.clear(); sharedReads.clear(); generations.clear(); stamps.clear();
       for (const timer of wakeTimers.values()) clearTimeout(timer);
       wakeTimers.clear();
       for (const set of waiters.values()) for (const wake of [...set]) wake();

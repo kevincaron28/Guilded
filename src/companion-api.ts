@@ -556,11 +556,6 @@ async function officerPromotionFeed(client: Client, guild: { id: string; discord
 async function standingsParts(guild: { id: string; discordId: string }, access: { memberId: string; actorId: string; officer?: boolean }, client?: Client): Promise<FeedParts> {
   // Officers only: who the promotion rule says is ready (never in the shared part, never for members).
   const promotion = access.officer && client ? await officerPromotionFeed(client, guild).catch(() => null) : null;
-  // How each raid core decides loot, with its item prices and own-pool standings. Configuration,
-  // read outside the transaction below: its per-core queries ran the 15 s budget out (P2028, 7 Nov).
-  const lootRead = lootRulesForAddon(prisma, guild.id, async (coreId, coreBaseGp) =>
-    (await createEpgpService(prisma).getGuildStandings(guild.id, coreBaseGp, coreId)).map((row) => ({ character: addonName(row.character, row.realm), ...(row.displayName ? { displayName: row.displayName } : {}), main: row.main, ep: row.ep, gp: row.gp })));
-  lootRead.catch(() => undefined);
   // At most 4 s (hotfix 2): otherwise the member's last known events (discord-calendar.ts).
   const scheduledEvents = await calendarEventsWithin(() => discordCalendarEvents(client, guild.discordId, access.actorId),
     `${guild.discordId}:${access.actorId}`).catch(() => {
@@ -571,29 +566,46 @@ async function standingsParts(guild: { id: string; discordId: string }, access: 
   // parallel, before the transaction. Inside it they ran the 15 s budget out under load (P2028,
   // 7 Nov, the same fix as #487 for loot rules). A failing one fails the answer as before
   // (items keep their empty fallback), so a transient error never writes empty data.
-  const [loot, dungeonBoard, nextRaid, items, botRaids, board, bank, officerInvites, pilotRaids, craftOrders] = await Promise.all([
-    lootRead,
-    addonDungeonBoard(prisma, guild.id),
-    nextRaidRoster(prisma, guild.id),
-    itemInsights(prisma, guild.id).catch(() => []),
-    upcomingRaidsForAddon(prisma, guild.id),
-    // 9.1 in-game guild board (guild-board.ts): news and open polls with counts; small and the same for everyone.
-    boardForAddon(prisma, guild.id),
+  // The reads below that are the same for every member are made once per guild and shared by every request that arrives while one
+  // is running (and are read again after a change): fourteen companions of one guild used to run all of them fourteen times
+  // at once, which ran the connection pool out (P2028, 14 Nov 2026).
+  const guildReads = standingsFeed.shared(guild.id, "reads", async () => {
+    // How each raid core decides loot, with its item prices and own-pool standings. Configuration,
+    // read outside the transaction below: its per-core queries ran the 15 s budget out (P2028, 7 Nov).
+    const lootRead = lootRulesForAddon(prisma, guild.id, async (coreId, coreBaseGp) =>
+      (await createEpgpService(prisma).getGuildStandings(guild.id, coreBaseGp, coreId)).map((row) => ({ character: addonName(row.character, row.realm), ...(row.displayName ? { displayName: row.displayName } : {}), main: row.main, ep: row.ep, gp: row.gp })));
+    lootRead.catch(() => undefined);
+    const [loot, dungeonBoard, nextRaid, items, botRaids, board, craftOrders] = await Promise.all([
+      lootRead,
+      addonDungeonBoard(prisma, guild.id),
+      nextRaidRoster(prisma, guild.id),
+      itemInsights(prisma, guild.id).catch(() => []),
+      upcomingRaidsForAddon(prisma, guild.id),
+      // 9.1 in-game guild board (guild-board.ts): news and open polls with counts; small and the same for everyone.
+      boardForAddon(prisma, guild.id),
+      // Crafting orders in game (craft-orders.ts): Discord craft requests for the addon's Orders page; the same for everyone.
+      craftOrdersForAddon(prisma, guild.id)
+    ]);
+    return { loot, dungeonBoard, nextRaid, items, botRaids, board, craftOrders };
+  });
+  const [{ loot, dungeonBoard, nextRaid, items, botRaids, board, craftOrders }, bank, officerInvites, pilotRaids] = await Promise.all([
+    guildReads,
     // 9.1 guild bank (guild-bank-member.ts): contents to search in game, the low list, this member's requests.
     bankForAddon(prisma, guild.id, access.memberId, !!access.officer),
     // Officers only (8.5 batch 3): the names waiting for a guild invite, for the addon's "To invite" panel. The bot does not
     // know which guild ranks hold the invite right, so members' files never carry applicants' names.
     access.officer ? pendingInvites(prisma, guild.id).then(inviteListForAddon) : Promise.resolve(null),
-    publicRaids(prisma, hostedPilot.allows),
-    // Crafting orders in game (craft-orders.ts): Discord craft requests for the addon's Orders page; the same for everyone.
-    craftOrdersForAddon(prisma, guild.id)
+    publicRaids(prisma, hostedPilot.allows)
   ]);
   // 9.1 guild board: this member's own picks on the open polls.
   const boardVotes = board.enabled ? await myBoardVotes(prisma, guild.id, access.memberId) : null;
   const raids = mergeCalendarEvents(botRaids, scheduledEvents);
-  const consistent = await prisma.$transaction((transaction) => standingsConsistentReads(transaction as unknown as PrismaClient, guild.id, access.memberId),
-    { isolationLevel: "RepeatableRead", timeout: STANDINGS_READ_BUDGET_MS.query, maxWait: STANDINGS_READ_BUDGET_MS.poolWait });
-  const { accounts, baseGp, standings, acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, runNotes, pendingRunNotes } = consistent;
+  // One snapshot per guild, shared like the reads above; only this member's ledger refs are read for them (they only grow, so reading
+  // them just after the snapshot never makes the addon resend less than it should).
+  const guildSnapshot = await standingsFeed.shared(guild.id, "snapshot", () => prisma.$transaction((transaction) => guildConsistentReads(transaction as unknown as PrismaClient, guild.id),
+    { isolationLevel: "RepeatableRead", timeout: STANDINGS_READ_BUDGET_MS.query, maxWait: STANDINGS_READ_BUDGET_MS.poolWait }));
+  const acceptedLedgerRefs = await ledgerRefsFor(prisma, guild.id, access.memberId);
+  const { accounts, baseGp, standings, acceptedLootRefs, acceptedRunRefs, runNotes, pendingRunNotes } = guildSnapshot;
   // Shared: the same for every member, so it sets the stamp. Discord events are filtered
   // per member and dungeon/ledger acknowledgements do not change what the addon shows.
   return {
@@ -613,6 +625,11 @@ async function standingsParts(guild: { id: string; discordId: string }, access: 
  * and run refs the addon uses to stop resending what the bot has. Everything else is read before.
  */
 export async function standingsConsistentReads(database: PrismaClient, guildId: string, memberId: string) {
+  return { ...(await guildConsistentReads(database, guildId)), acceptedLedgerRefs: await ledgerRefsFor(database, guildId, memberId) };
+}
+
+/** The guild-wide part of the consistent reads: the same for every member, so one snapshot serves all of them. */
+export async function guildConsistentReads(database: PrismaClient, guildId: string) {
   const baseGp = (await database.guildSettings.findUnique({ where: { guildId } }))?.baseGp ?? 0;
   // Dungeon runs the bot has stored lately, so the addon can mark them as synced (roadmap D3).
   // 9.0.8: plus every ref an upload brought (receipts: copies of a stored run and refused runs too, which
@@ -647,10 +664,9 @@ export async function standingsConsistentReads(database: PrismaClient, guildId: 
   const runNotes = Object.fromEntries(receipts.flatMap((row) => row.reason ? [[row.runRef, row.reason] as const] : []).slice(0, 300));
   const pendingRunNotes: Record<string, string> = Object.fromEntries(waiting.flatMap((row) => row.reason && !acceptedRunRefs.includes(row.runRef) ? [[row.runRef, row.reason.slice(0, 80)] as const] : []));
   const accounts = Object.fromEntries((await database.character.findMany({ where: { member: { guildId } }, select: { name: true, realm: true, memberId: true } })).map((c) => [addonName(c.name, c.realm), c.memberId]));
-  const acceptedLedgerRefs = await ledgerRefsFor(database, guildId, memberId);
   const acceptedLootRefs = await lootRefsFor(database, guildId);
   const standings = (await createEpgpService(database).getGuildStandings(guildId, baseGp)).map(row => ({ ...row, character: addonName(row.character, row.realm) }));
-  return { accounts, baseGp, standings, acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, runNotes, pendingRunNotes };
+  return { accounts, baseGp, standings, acceptedLootRefs, acceptedRunRefs, runNotes, pendingRunNotes };
 }
 
 // The guild board part of an upload: in-game votes (own and relayed) and officers' in-game news.

@@ -1,8 +1,8 @@
 # Guilded 9.3.1 — release notes (14 November 2026)
 
-**Fixes after 9.3.0.** Not yet published. Protocol 2, WoW Forever only. No bot migration.
+**Fixes after 9.3.0.** Published 14 November 2026. Protocol 2, WoW Forever only. No bot migration.
 
-Real-client checks: docs/V9_3_1_RELEASE_ACCEPTANCE.md. The 9.3.1 fixes themselves are not yet verified in a real game client.
+Real-client checks: docs/V9_3_1_RELEASE_ACCEPTANCE.md. Seen working on a real client on 14 November: see the acceptance record. Not yet verified there: the save button in combat, a real duel, a real dungeon run, the French pages and the options panel background.
 
 ## What changes for members
 

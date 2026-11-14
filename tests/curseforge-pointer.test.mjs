@@ -5,19 +5,19 @@ import { describe, expect, it } from "vitest";
 describe("CurseForge pointer", () => {
   const releases = JSON.parse(readFileSync("site/releases.json", "utf8"));
 
-  it("points at the public 9.2.0 Forever files and leaves GitHub at 9.3.0", () => {
-    expect(releases.verifiedAt).toBe("2026-11-13");
-    expect(releases.guilded.github.version).toBe("9.3.0");
+  it("points at the public 9.2.0 Forever files and leaves GitHub at 9.3.1", () => {
+    expect(releases.verifiedAt).toBe("2026-11-14");
+    expect(releases.guilded.github.version).toBe("9.3.1");
     expect(releases.guilded.curseforge.version).toBe("9.2.0");
     expect(releases.guilded.curseforge.url).toBe("https://www.curseforge.com/wow/addons/guilded");
     expect(releases.guilded.curseforge.editions.forever).toEqual({
       guilded: "https://www.curseforge.com/wow/addons/guilded/files/9585868",
       dungeons: "https://www.curseforge.com/wow/addons/guilded-dungeons/files/9585869"
     });
-    expect(releases.guilded.companionDirect.version).toBe("9.3.0");
+    expect(releases.guilded.companionDirect.version).toBe("9.3.1");
   });
 
-  it("shows CurseForge 9.2.0 on the creator page and does not call those files the 9.3.0 release", () => {
+  it("shows CurseForge 9.2.0 on the creator page and does not call those files the 9.3.1 release", () => {
     const creator = readFileSync("dist/site/creator/index.html", "utf8");
     expect(creator).toContain("CurseForge");
     expect(creator).toContain(">9.2.0<");

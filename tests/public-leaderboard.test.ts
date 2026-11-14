@@ -317,7 +317,7 @@ describe("leaderboard and personal pages", () => {
     expect(dungeon.body).toContain("Classements des donjons");
     expect(dungeon.body.indexOf(">Kev<")).toBeLessThan(dungeon.body.indexOf(">Amy<"));
     expect(dungeon.body).not.toContain("<b>Bad</b>");
-    expect(dungeon.body).toContain("✔ Confirmé par le groupe · 2");
+    expect(dungeon.body).not.toContain("Confirmé par le groupe");
     const priests = await request("GET", "/leaderboards/?dungeon=389&class=Priest");
     expect(priests.body).toContain(">Amy<");
     expect(priests.body.match(/<tr><td>\d+<\/td>/g)).toHaveLength(1);
@@ -339,7 +339,7 @@ describe("leaderboard and personal pages", () => {
     // Ragefire Chasm: target 20:00 (provisional plan); 21:40 scores round(200 x 1200 / 1300) = 185.
     expect(home.body).toContain('<td class="num score">185</td>');
     expect(home.body).toContain('class="char c-warrior"');
-    expect(home.body).toContain("Confirmed by party");
+    expect(home.body).not.toMatch(/Confirmed by party|1 upload|older check|evidence/i);
     expect(home.body).not.toContain("<script");
     const beta = await request("GET", "/leaderboards/?season=beta&lang=fr");
     expect(beta.body).toContain("Bêta (avant la saison 1)");

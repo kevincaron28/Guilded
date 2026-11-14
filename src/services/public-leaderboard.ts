@@ -246,9 +246,12 @@ const UNRANKED_FR: Record<string, string> = {
   "Official season window unavailable": "Période officielle de la saison indisponible",
   "Current-v2 evidence required": "Observations de la version actuelle requises"
 };
+// What a visitor is told about a run that does not count: level, route and season reasons a player can act on; anything about how a run is checked becomes one neutral line.
+const PUBLIC_REASONS = new Set(["Dungeon route unknown", "Route not rated yet", "Participation-only route", "Target not calibrated", "Level range not configured", "Different difficulty", "Party levels unknown", "Overlevel carry", "Below level range", "Run crosses season boundary", "Season upload grace expired", "Official season window unavailable", "Different WoW edition", "Mythic+ keystone runs are not scored"]);
 export function unrankedText(ctx: Pick<WebContext, "t">, reason: string | undefined): string {
-  const text = reason ?? "Not rated";
-  return ctx.t(`Unranked: ${text}`, `Non classé : ${UNRANKED_FR[text] ?? text}`);
+  const raw = reason ?? "Not rated";
+  if (!PUBLIC_REASONS.has(raw) && raw !== "Not rated") return ctx.t("Not counted for the ranking", "Non compté au classement");
+  return ctx.t(`Unranked: ${raw}`, `Non classé : ${UNRANKED_FR[raw] ?? raw}`);
 }
 
 export function readLeaderFilters(query: URLSearchParams, now = new Date(), periods: PublicPeriod[] = publicSeasons(now)): LeaderFilters {
@@ -565,10 +568,6 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
   const who = (ctx: WebContext, player: LeaderPlayer) => `<a class="char c-${classSlug(player.className)}" href="${link(characterPath(player), ctx.lang)}">${escapeHtml(player.displayName || player.character)}</a>`
     + (player.realm ? ` <span class="tag">${escapeHtml(player.realm)}</span>` : "");
   const party = (ctx: WebContext, run: LeaderRun) => run.players.map((player) => `<a class="c-${classSlug(player.className)}" href="${link(characterPath(player), ctx.lang)}">${escapeHtml(player.displayName || player.character)}</a>`).join(", ");
-  const trust = (ctx: WebContext, run: LeaderRun) => (run.confirmations >= 2
-    ? `<span class="badge ok" title="${ctx.t("Party members' uploads agree", "Les envois des membres du groupe concordent")}">✔ ${ctx.t("Confirmed by party", "Confirmé par le groupe")} · ${run.confirmations}</span>`
-    : `<span class="badge">${ctx.t("1 upload", "1 envoi")}</span>`)
-    + (run.evidence ? "" : ` <span class="tag" title="${ctx.t("Uploaded before Guilded kept completion evidence: checked on route, difficulty and levels only.", "Envoyé avant que Guilded garde les preuves de fin : vérifié sur le parcours, la difficulté et les niveaux seulement.")}">${ctx.t("older check", "ancienne vérif.")}</span>`);
   const bracketName = (ctx: WebContext, key: string) => key === "60" ? ctx.t("Level 60", "Niveau 60") : `${ctx.t("Levels", "Niveaux")} ${key.replace("-", "–")}`;
   const periodName = (ctx: WebContext, period: PublicPeriod) => ctx.t(period.label, period.labelFr);
   // A run's score cell: its points, or a dash that says why it is unranked.
@@ -603,7 +602,6 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       + `<div><label for="class">${t("Class", "Classe")}</label><select id="class" name="class">${options([any, ...classes.map((name) => ({ value: name, label: classLabel(name, lang) }))], filters.className)}</select></div>`
       + `<div><label for="role">${t("Role", "Rôle")}</label><select id="role" name="role">${options([any, ...ROLES.map((role) => ({ value: role, label: roleLabel(role, lang) }))], filters.role)}</select></div>`
       + `<div><label for="realm">${t("Realm", "Royaume")}</label><input id="realm" name="realm" maxlength="60" value="${escapeHtml(filters.realm ?? "")}"></div>`
-      + `<div><label><input type="checkbox" style="width:auto" name="confirmed" value="1"${filters.confirmed ? " checked" : ""}> ${t("Confirmed by the party", "Confirmés par le groupe")}</label></div>`
       + `<div><button class="button" type="submit">${t("Apply filters", "Appliquer les filtres")}</button></div></div></details></form>`;
   }
 
@@ -626,7 +624,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       + `<a href="${link("/editions/", ctx.lang)}">${t("Download", "Télécharger")}</a> · <a href="/docs/DUNGEONS_GUIDE.html${ctx.lang === "fr" ? "#fr" : ""}">${t("How it works", "Comment ça marche")}</a></p></div>`;
     return table([t("Dungeon", "Donjon"), t("Levels", "Niveaux"), t("Time", "Temps"), t("Score", "Score"), t("Party", "Groupe"), ""],
       rated.map(({ run, s }) => `<tr><td>${escapeHtml(run.dungeonName)}</td><td>${escapeHtml(bracketName(ctx, s.bracket))}</td><td class="num">${time(run.durationSec)}</td>`
-        + `<td class="num score">${s.points}${s.penaltyPercent ? ` <span class="tag">−${s.penaltyPercent}%</span>` : ""}</td><td>${party(ctx, run)}</td><td>${trust(ctx, run)}</td></tr>`), [2, 3]);
+        + `<td class="num score">${s.points}${s.penaltyPercent ? ` <span class="tag">−${s.penaltyPercent}%</span>` : ""}</td><td>${party(ctx, run)}</td><td></td></tr>`), [2, 3]);
   }
 
   // Best next improvement (public-guidance.ts): scenarios under the season's rules, not predictions.
@@ -657,21 +655,16 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
         : t("No run in this bracket can raise the season score.", "Aucun essai de cette tranche ne peut faire monter le score de saison.");
     const outside = plan.weakest ? ` ${t(`Outside the best ${n}, a run adds nothing until it scores over ${plan.weakest.points} (${nameOf(plan.weakest.key)}, the lowest counted route).`, `Hors des ${n} meilleurs, un essai n'ajoute rien tant qu'il ne dépasse pas ${plan.weakest.points} (${nameOf(plan.weakest.key)}, le plus bas des parcours comptés).`)}` : "";
     const assumed = plan.level !== null ? t(` Level ${plan.level} is taken as the party's highest.`, ` Le niveau ${plan.level} est pris comme le plus haut du groupe.`) : "";
-    const status = (r: RoutePlan) => {
-      const eligibility = r.fit === "unknown" ? t("Level unknown; eligibility unverified.", "Niveau inconnu; admissibilité non vérifiée.")
-        : r.fit === "below" ? t(`Eligible from level ${r.band.min}.`, `Admissible dès le niveau ${r.band.min}.`)
-          : r.fit === "carry" ? t("Overlevel: unranked.", "Niveau trop élevé : non classé.")
-            : t("Level fits; boss evidence and 80% presence still required.", "Niveau admissible; preuve des boss et présence de 80 % requises.");
-      const best = r.best ? (r.best.evidence === "legacy" ? t("Current best: legacy evidence.", "Meilleur actuel : preuves anciennes.")
-        : t("Current best: ranked evidence.", "Meilleur actuel : preuves de classement.")) + " "
-        + t(`${r.best.confirmations} independent report(s).`, `${r.best.confirmations} rapport(s) indépendant(s).`) : t("No ranked best yet.", "Aucun meilleur essai classé.");
-      return `${eligibility}<br>${best}<br>${t("Scenario: no run or confirmation yet.", "Scénario : aucun essai ni confirmation pour l'instant.")}`;
-    };
+    const status = (r: RoutePlan) => r.fit === "carry"
+      ? t(`Not ranked at your level (more than 3 levels above this route)`, `Non classé à votre niveau (plus de 3 niveaux au-dessus de ce parcours)`)
+      : r.best ? (r.best.counted ? t("Counts toward your score", "Compte dans votre score") : t("Cleared, but not in your best routes", "Terminé, mais pas parmi vos meilleurs parcours"))
+        : r.fit === "below" ? t(`Not cleared yet this season (from level ${r.band.min})`, `Pas encore terminé cette saison (dès le niveau ${r.band.min})`)
+          : t("Not cleared yet this season", "Pas encore terminé cette saison");
     return `<h2>${t("Best next improvement", "Meilleure prochaine amélioration")} · ${escapeHtml(bracketName(ctx, plan.bracket))}</h2>`
-      + `<p class="muted">${t(`Scenarios, not predictions. For each route: the slowest clear that would add at least ${GAIN_STEP} points to the season score (or all that is left) once the best ${n} routes are picked again, and exactly what that clear adds; a faster one adds more. The run must be ranked (final boss seen, 80% presence); targets are this season's.`,
-        `Des scénarios, pas des prédictions. Pour chaque parcours : le temps le plus lent qui ajouterait au moins ${GAIN_STEP} points au score de saison (ou ce qui reste) une fois les ${n} meilleurs parcours choisis de nouveau, et ce que ce temps ajoute exactement; plus rapide ajoute plus. L'essai doit être classé (dernier boss vu, présence de 80 %); les cibles sont celles de la saison.`)}${assumed}</p>`
+      + `<p class="muted">${t(`Scenarios, not predictions. For each route: the slowest clear that would add at least ${GAIN_STEP} points to the season score (or all that is left) once the best ${n} routes are picked again, and exactly what that clear adds; a faster one adds more. Targets are this season's.`,
+        `Des scénarios, pas des prédictions. Pour chaque parcours : le temps le plus lent qui ajouterait au moins ${GAIN_STEP} points au score de saison (ou ce qui reste) une fois les ${n} meilleurs parcours choisis de nouveau, et ce que ce temps ajoute exactement; plus rapide ajoute plus. Les cibles sont celles de la saison.`)}${assumed}</p>`
       + `<p>${lead}${outside}</p>`
-      + table([t("Dungeon", "Donjon"), t("Levels", "Niveaux"), t("Target", "Cible"), t("Best", "Meilleur"), t(`In best ${n}`, `Dans les ${n} meilleurs`), t("Next gain (scenario)", "Prochain gain (scénario)"), t("Eligibility and trust", "Admissibilité et confiance")],
+      + table([t("Dungeon", "Donjon"), t("Levels", "Niveaux"), t("Target", "Cible"), t("Best", "Meilleur"), t(`In best ${n}`, `Dans les ${n} meilleurs`), t("Next gain (scenario)", "Prochain gain (scénario)"), t("Status", "Statut")],
         plan.routes.map((r) => `<tr><td>${escapeHtml(r.name)}</td><td data-l="${t("Levels", "Niveaux")}">${levels(r)}</td><td class="num" data-l="${t("Target", "Cible")}">${time(r.targetSec)}</td>`
           + `<td class="num" data-l="${t("Best", "Meilleur")}">${r.best ? `${time(r.best.durationSec)} · <span class="score">${r.best.points}</span>` : "–"}</td><td data-l="${t(`In best ${n}`, `Dans les ${n} meilleurs`)}">${r.best ? (r.best.counted ? "✔" : t("no", "non")) : "–"}</td><td data-l="${t("Next gain", "Prochain gain")}">${nextGain(r)}</td><td>${status(r)}</td></tr>`), [2, 3], "rank-cards");
   }
@@ -697,11 +690,8 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     : `<p class="eyebrow">Guilded · ${escapeHtml(periodName(ctx, period))}</p><h1>${ctx.t("Dungeon leaderboards", "Classements des donjons")}</h1>`
     // One plain sentence first; the full scoring and evidence rules stay one click away.
     + `<p>${ctx.t("The fastest dungeon clears by players and guilds using Guilded. Beat the final boss with your group, sync your runs and climb the board.", "Les donjons les plus rapides des joueurs et des guildes qui utilisent Guilded. Battez le boss final en groupe, synchronisez vos essais et montez au classement.")}</p>`
-    + `<details class="rules"><summary>${ctx.t("How scores work", "Comment les scores sont calculés")}</summary><p class="muted">${ctx.t("Team-clear scores and times from Guilded and Guilded Dungeons. Current evidence requires detected final-boss completion and at least 80% recorded presence per credited player. Presence is an observer report, not proof of individual contribution. Round(200 × target ÷ time), clamp to 50–400 before the level penalty, then round again: 50 becomes 35 with a 30% penalty. Ranked runs stay in the route's bracket, including allowed overlevel players. Best distinct routes count; targets remain provisional.",
-      "Scores et temps d'équipe de Guilded et Guilded Dungeons. Les preuves actuelles exigent le boss final détecté et au moins 80 % de présence enregistrée par joueur crédité. Cette présence est une observation, pas une preuve de contribution individuelle. Arrondi(200 × cible ÷ temps), limité à 50–400 avant pénalité de niveau, puis nouvel arrondi : 50 devient 35 avec 30 % de pénalité. Les essais classés restent dans la tranche du parcours, même avec un dépassement de niveau autorisé. Les meilleurs parcours distincts comptent; les cibles restent provisoires.")}`
-    + (periodRules(period).evidencePolicy ? ` ${ctx.t("This season requires current stored evidence; legacy records remain visible without competitive credit.", "Cette saison exige les preuves actuelles enregistrées; les anciens essais restent visibles sans crédit compétitif.")}`
-      : ` ${ctx.t("Compatibility history retains its original evidence rules; it is not current-evidence official scoring.", "L'historique compatible conserve ses règles de preuve originales; ce n'est pas le classement officiel avec preuves actuelles.")}`)
-    + (periodRules(period).evidencePolicy === "current-v2" ? ` ${ctx.t("Native boss events are the foundation. Coverage follows this season's catalog; provisional final-boss routes do not prove a full untouched instance. Freshness remains unknown. Participation uses sourced observation intervals, with mixed roles counted overall only.", "Les événements de boss du jeu sont la base. La couverture suit le catalogue de cette saison; les parcours provisoires au boss final ne prouvent pas une instance complète et intacte. L'état initial reste inconnu. La participation utilise des intervalles d'observation avec leur source; les rôles mixtes comptent seulement au total.")}` : "")
+    + `<details class="rules"><summary>${ctx.t("How scores work", "Comment les scores sont calculés")}</summary><p class="muted">${ctx.t("Team-clear scores and times from Guilded and Guilded Dungeons. Your score compares your time with each route's target; your best routes count, and targets remain provisional.",
+      "Scores et temps d'équipe de Guilded et Guilded Dungeons. Votre score compare votre temps à la cible de chaque parcours; vos meilleurs parcours comptent, et les cibles restent provisoires.")}`
     + (period.frozenAt ? ` ${ctx.t(`This season's rules were frozen on ${date(period.frozenAt)}.`, `Les règles de cette saison sont figées depuis le ${date(period.frozenAt)}.`)}` : "") + `</p></details>`;
 
   // The one tab bar of every leaderboard page: Overview | Dungeons | Duels | Players | Guilds.
@@ -1073,7 +1063,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
         ? table(["#", t("Character", "Personnage"), t("Role", "Rôle"), t("Time", "Temps"), t("Score", "Score"), t("Deaths", "Morts"), t("Party", "Groupe"), t("Date", "Date"), ""],
           ranked.map((entry, index) => `<tr><td>${index + 1}</td><td>${identity(ctx, entry.player)}</td>`
             + `<td>${entry.player.role ? escapeHtml(roleLabel(entry.player.role, lang)) : ""}</td>`
-            + `<td class="num">${time(entry.run.durationSec)}</td><td class="num score">${scoreCell(ctx, entry.run, periodRules(period), entry.player)}</td><td class="num">${entry.run.deaths ?? "?"}</td><td>${party(ctx, entry.run)}</td><td>${date(entry.run.endedAt)}</td><td>${trust(ctx, entry.run)}</td></tr>`), [3, 4, 5], "rank-cards")
+            + `<td class="num">${time(entry.run.durationSec)}</td><td class="num score">${scoreCell(ctx, entry.run, periodRules(period), entry.player)}</td><td class="num">${entry.run.deaths ?? "?"}</td><td>${party(ctx, entry.run)}</td><td>${date(entry.run.endedAt)}</td><td></td></tr>`), [3, 4, 5], "rank-cards")
         : `<p class="muted">${t("No run matches these filters yet.", "Aucun essai ne correspond encore à ces filtres.")}</p>`);
     } else {
       const weekPeriod = filterPeriod({ season: filters.season, week: true }, now(), periods);
@@ -1209,11 +1199,11 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
         + `<h2>${t("Routes", "Parcours")}</h2><p class="muted">${t(`${best.size} ${best.size === 1 ? "dungeon" : "dungeons"} with a public best time.`, `${best.size} ${best.size === 1 ? "donjon" : "donjons"} avec un meilleur temps public.`)}</p>`
         + `<h2>${t("Best run per dungeon", "Meilleur essai par donjon")}</h2>`
         + table([t("Dungeon", "Donjon"), t("Time", "Temps"), t("Score", "Score"), t("Party", "Groupe"), t("Date", "Date"), ""],
-          [...best.values()].sort((a, b) => a.dungeonName.localeCompare(b.dungeonName)).map((run) => `<tr><td><a href="${link("/leaderboards/", lang, { dungeon: String(run.instanceId), season: "all" })}">${escapeHtml(run.dungeonName)}</a></td><td class="num">${time(run.durationSec)}</td><td class="num score">${cell(run)}</td><td>${party(ctx, run)}</td><td>${date(run.endedAt)}</td><td>${trust(ctx, run)}</td></tr>`), [1, 2])
+          [...best.values()].sort((a, b) => a.dungeonName.localeCompare(b.dungeonName)).map((run) => `<tr><td><a href="${link("/leaderboards/", lang, { dungeon: String(run.instanceId), season: "all" })}">${escapeHtml(run.dungeonName)}</a></td><td class="num">${time(run.durationSec)}</td><td class="num score">${cell(run)}</td><td>${party(ctx, run)}</td><td>${date(run.endedAt)}</td><td></td></tr>`), [1, 2])
         + duelPanel
         + `<h2>${t("Recent runs", "Essais récents")}</h2>`
         + table([t("Date", "Date"), t("Dungeon", "Donjon"), t("Time", "Temps"), t("Score", "Score"), t("Deaths", "Morts"), t("Levels", "Niveaux"), ""],
-          runs.slice(0, 30).map((run) => `<tr><td>${date(run.endedAt)}</td><td><a href="${link(runPath(run.runId), lang)}">${escapeHtml(run.dungeonName)}</a></td><td class="num">${time(run.durationSec)}</td><td class="num score">${cell(run)}</td><td class="num">${run.deaths ?? "?"}</td><td>${escapeHtml(run.bracket ?? "?")}</td><td>${trust(ctx, run)}</td></tr>`), [2, 3, 4])
+          runs.slice(0, 30).map((run) => `<tr><td>${date(run.endedAt)}</td><td><a href="${link(runPath(run.runId), lang)}">${escapeHtml(run.dungeonName)}</a></td><td class="num">${time(run.durationSec)}</td><td class="num score">${cell(run)}</td><td class="num">${run.deaths ?? "?"}</td><td>${escapeHtml(run.bracket ?? "?")}</td><td></td></tr>`), [2, 3, 4])
         + `<h2>${t("Score history", "Historique du score")}</h2>` + (history.length
           ? table([t("Season", "Saison"), t("Levels", "Niveaux"), t("Score", "Score"), ""], history.flatMap((h) => h.rows.map((row) => `<tr><td>${escapeHtml(periodName(ctx, h.p))}</td><td>${escapeHtml(bracketName(ctx, row.bracket))}</td><td class="num score">${row.points}</td><td class="bar-cell"><div class="meter" style="width:${Math.round(100 * row.points / top)}%"></div></td></tr>`)), [2])
           : `<p class="muted">${t("No rated season yet.", "Aucune saison classée.")}</p>`)
@@ -1238,7 +1228,6 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const score = run.challenge ? `+${run.challenge.level} · ${run.challenge.onTime ? t("In time", "À temps") : t("Overtime", "Hors délai")}`
       : verdict.score ? `${verdict.score.points} · ${verdict.score.bracket}` : t("Unrated", "Non classé");
     const displayedTime = run.challenge ? challengeClock(run.challenge.durationMs) : time(run.durationSec);
-    const evidence = run.confirmations >= 2 ? t("Party confirmed", "Confirmé par le groupe") : t("One upload", "Un envoi");
     const title = run.dungeonName;
     const subtitle = `${period ? periodName(ctx, period) : t("Past run", "Ancien donjon")} · ${date(run.endedAt)} UTC`;
     const imagePath = link(`${runPath(id)}/card.png`, lang);
@@ -1265,14 +1254,12 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
         rows: run.players.map((p) => ({ name: p.displayName || p.character, color: classColor(p.className), sub: p.className ? classLabel(p.className, lang) : undefined, right: roleName(p.role) ?? undefined })),
         rowsLabel: `${t("Party", "Groupe")} · ${run.players.length} ${t("players", "joueurs")}`,
         badges: [
-          { text: run.confirmations >= 2 ? t(`Party confirmed · ${run.confirmations} uploads agree`, `Confirmé par le groupe · ${run.confirmations} envois concordent`) : t("One upload · not yet confirmed", "Un envoi · pas encore confirmé"), tone: run.confirmations >= 2 ? "ok" : "warn" },
           ...(!run.challenge && run.deaths !== null ? [{ text: run.deaths === 1 ? t("1 death", "1 mort") : t(`${run.deaths} deaths`, `${run.deaths} morts`), tone: "muted" as const }] : []),
-          ...(run.evidence ? [] : [{ text: t("Older evidence check", "Ancienne vérification"), tone: "warn" as const }])
         ],
         footer: t("Community report · Provisional targets · Not Blizzard verified · guildedwow.com", "Rapport communautaire · Cibles provisoires · Non vérifié par Blizzard · guildedwow.com")
       }, ctx.request.method === "HEAD");
     }
-    const description = `${title} · ${displayedTime} · ${score} · ${evidence}`;
+    const description = `${title} · ${displayedTime} · ${score}`;
     const target = verdict.score ? routeTargetAt(rules, verdict.score.key, run.endedAt) : undefined;
     const tile = (key: string, value: string, note = "") => `<div class="tile"><div class="k">${key}</div><div class="v">${value}</div>${note ? `<div class="tag">${note}</div>` : ""}</div>`;
     const tiles = `<div class="tiles">`
@@ -1282,16 +1269,13 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       + tile(t("Levels", "Niveaux"), escapeHtml((verdict.score?.bracket ?? run.bracket ?? "?").replace("-", "–")))
       + tile(t("Deaths", "Morts"), run.deaths === null ? "?" : String(run.deaths))
       + tile(t("Season", "Saison"), escapeHtml(period ? periodName(ctx, period) : t("Past run", "Ancien donjon")), escapeHtml(`${date(run.endedAt)} UTC`)) + `</div>`;
-    const presence = (p: LeaderPlayer) => p.presentSec === null || p.presentSec === undefined || !run.durationSec ? "–" : `${Math.min(100, Math.round(100 * p.presentSec / run.durationSec))}%`;
-    const partyTable = table([t("Character", "Personnage"), t("Class", "Classe"), t("Role", "Rôle"), t("Level", "Niveau"), t("Present", "Présent")],
-      run.players.map((p) => `<tr><td>${who(ctx, p)}</td><td class="c-${classSlug(p.className)}">${p.className ? escapeHtml(classLabel(p.className, lang)) : ""}</td><td>${p.role ? escapeHtml(roleLabel(p.role, lang)) : ""}</td><td class="num">${p.level ?? "?"}</td><td class="num">${presence(p)}</td></tr>`), [3, 4]);
+    const partyTable = table([t("Character", "Personnage"), t("Class", "Classe"), t("Role", "Rôle"), t("Level", "Niveau")],
+      run.players.map((p) => `<tr><td>${who(ctx, p)}</td><td class="c-${classSlug(p.className)}">${p.className ? escapeHtml(classLabel(p.className, lang)) : ""}</td><td>${p.role ? escapeHtml(roleLabel(p.role, lang)) : ""}</td><td class="num">${p.level ?? "?"}</td></tr>`), [3]);
     return kit.page(200, title, PAGE_CSS + HUB_CSS + hubTabs(t, lang, "dungeons") + breadcrumbs(lang, [[t("Leaderboards", "Classements"), link("/leaderboards/", lang)], [title, null]], escapeHtml)
       + `<p class="eyebrow">${t("Dungeon run", "Essai de donjon")}</p><h1>${escapeHtml(title)}</h1><p class="muted">${escapeHtml(subtitle)}</p>` + tiles
       + (run.challenge ? `<p>${t("Official timer", "Chrono officiel")} · affixes ${run.challenge.affixIds.join(", ") || "—"}${run.challenge.practiceRun ? ` · ${t("Practice run", "Entraînement")}` : ""}</p>` : "")
       + (verdict.reason ? `<p>${escapeHtml(unrankedText(ctx, verdict.reason))}</p>` : "")
-      + `<p>${trust(ctx, run)}</p>`
       + `<h2>${t("Party", "Groupe")} <span class="tag">(${run.players.length})</span></h2>` + partyTable
-      + `<p class="muted">${t("Present: share of the run's time the player's own client saw them inside the dungeon, when recorded.", "Présent : part du temps de l'essai où le jeu du joueur l'a vu dans le donjon, quand c'est enregistré.")}</p>`
       + `<h2>${t("Run card", "Carte de l'essai")}</h2><p><img class="run-card" src="${imagePath}" alt="${escapeHtml(t(`Run card: ${title}, ${displayedTime}`, `Carte de l'essai : ${title}, ${displayedTime}`))}" loading="lazy"></p>`
       + `<p><a href="${imagePath}">${t("Download run card", "Télécharger la carte du donjon")}</a> · <a href="${link("/leaderboards/", lang, { dungeon: String(run.instanceId), season: "all" })}">${t("This dungeon's ranking", "Classement de ce donjon")}</a></p>`
       + `<p class="muted">${t("Scores use this run's season rules. Targets are provisional; community uploads are not Blizzard verification.", "Les scores suivent les règles de la saison du donjon. Les cibles sont provisoires; les envois communautaires ne sont pas vérifiés par Blizzard.")}</p>`, { description, shareImage: imagePath });
@@ -1323,7 +1307,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const reasonText = {
       "no-runs": t("This guild publishes its dungeon runs, but none has been received this period yet.", "Cette guilde publie ses donjons, mais aucun n'a encore été reçu pour cette période."),
       "no-member-in-runs": t("Runs were received, but none has a member of this guild linked to a character yet.", "Des donjons ont été reçus, mais aucun n'a de membre de cette guilde lié à un personnage."),
-      "no-ranked-member": t("Not ranked yet: a ranked clear needs the final boss and 80% presence from a member of this guild.", "Pas encore classée : un essai classé demande le boss final et 80 % de présence d'un membre de cette guilde.")
+      "no-ranked-member": t("Not ranked yet: no ranked clear by a member of this guild so far.", "Pas encore classée : aucun essai classé d'un membre de cette guilde pour l'instant.")
     };
     const tile = (k: string, v: string) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div></div>`;
     const dash = `<span class="muted">–</span>`;
@@ -1355,7 +1339,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       + (activity ? `<h2>${t("Activity", "Activité")}</h2>${activity}` : "")
       + rules.brackets.map((b) => `<h2>${escapeHtml(bracketName(ctx, b.key))}</h2>${scoreTable(ctx, scores.filter((row) => row.bracket === b.key), 100)}`).join("")
       + `<h2>${t("Recent runs", "Essais récents")}</h2>` + (runs.length
-        ? table([t("Date", "Date"), t("Dungeon", "Donjon"), t("Time", "Temps"), t("Score", "Score"), t("Party", "Groupe"), ""], runs.slice(0, 20).map((run) => `<tr><td>${date(run.endedAt)}</td><td><a href="${link(runPath(run.runId), lang)}">${escapeHtml(run.dungeonName)}</a></td><td class="num">${time(run.durationSec)}</td><td class="num score">${scoreCell(ctx, run, periodRules(period))}</td><td>${party(ctx, run)}</td><td>${trust(ctx, run)}</td></tr>`), [2, 3])
+        ? table([t("Date", "Date"), t("Dungeon", "Donjon"), t("Time", "Temps"), t("Score", "Score"), t("Party", "Groupe"), ""], runs.slice(0, 20).map((run) => `<tr><td>${date(run.endedAt)}</td><td><a href="${link(runPath(run.runId), lang)}">${escapeHtml(run.dungeonName)}</a></td><td class="num">${time(run.durationSec)}</td><td class="num score">${scoreCell(ctx, run, periodRules(period))}</td><td>${party(ctx, run)}</td><td></td></tr>`), [2, 3])
         : `<p class="muted">${t("No public run in this period yet.", "Aucun essai public pour cette période.")}</p>`);
     return kit.page(200, guild.name, body, { description: t(`${guild.name}: members' dungeon scores and guild ranking on Guilded.`, `${guild.name} : scores de donjon des membres et classement de la guilde sur Guilded.`) });
   }
@@ -1542,7 +1526,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const playerSection = !pKey ? "" : mine || theirs.length
       ? `<h2>${escapeHtml(mine?.name ?? (theirs[0]!.winnerKey === pKey ? theirs[0]!.winner : theirs[0]!.loser))}</h2>`
         + (mine ? `<p>${mine.rank ? `#${mine.rank} · ` : ""}${mine.placement ? `${t("placement", "placement")} ${mine.placement.duels}/${mine.placement.needDuels}` : `${t("Rating", "Cote")} ${Math.round(mine.score)}`} · ${mine.wins}–${mine.losses}${mine.viaOpponents ? ` · ${t("reported by opponents", "rapporté par les adversaires")}` : ""}</p>` : "")
-        + table([t("Date", "Date"), t("Winner", "Gagnant"), t("Loser", "Perdant"), ""], theirs.map((d) => `<tr><td>${date(d.endedAt)}</td><td>${escapeHtml(d.winner)}</td><td>${escapeHtml(d.loser)}</td><td>${d.confirmed ? `<span class="tag">${t("confirmed by both", "confirmé par les deux")}</span>` : `<span class="tag muted">${t("reported", "rapporté")}</span>`}</td></tr>`), [], "dense")
+        + table([t("Date", "Date"), t("Winner", "Gagnant"), t("Loser", "Perdant"), ""], theirs.map((d) => `<tr><td>${date(d.endedAt)}</td><td>${escapeHtml(d.winner)}</td><td>${escapeHtml(d.loser)}</td><td></td></tr>`), [], "dense")
       : `<p class="muted">${t("No duel found for this player this season.", "Aucun duel trouvé pour ce joueur cette saison.")}</p>`;
     const body = PAGE_CSS + HUB_CSS + hubTabs(t, lang, "duels") + breadcrumbs(lang, [[t("Leaderboards", "Classements"), link("/leaderboards/", lang)], [t("Duels", "Duels"), null]], escapeHtml)
       + `<p class="eyebrow">${t("Duels", "Duels")} · ${escapeHtml(ratingSeasonName(seasonId, lang))}</p><h1>${t("Duel ladder", "Classement des duels")}</h1>`

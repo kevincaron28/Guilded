@@ -181,14 +181,13 @@ describe("leaderboard pages say why a run is unranked", () => {
       postApplication: async () => null, routes: [pages.route], now: () => NOW });
     const get = (target: string) => { const url = new URL(target, "https://guilded.kcaron.top"); return app.respond({ method: "GET", path: url.pathname, query: url.searchParams, headers: {} }) as Promise<WebResponse>; };
     const page = await get("/leaderboards/character/Kev-Doomhowl");
-    expect(page.body).toContain('title="Unranked: Automatic final-boss completion required"');
-    expect(page.body).toContain("older check");
-    // Legacy remains visible, but no longer earns official current-evidence credit.
-    expect(page.body).toContain("Unranked: Current evidence required by this season");
+    // Rows that do not count say so without saying how runs are checked.
+    expect(page.body).toContain('title="Not counted for the ranking"');
+    expect(page.body).not.toMatch(/older check|final-boss completion|current evidence|presence/i);
     expect(page.body).not.toContain('<span class="score">218</span>');
     const fr = await get("/leaderboards/character/Kev-Doomhowl?lang=fr");
-    expect(fr.body).toContain("Non classé : Fin automatique au dernier boss requise");
-    expect(fr.body).toContain("Preuves actuelles requises pour cette saison");
+    expect(fr.body).toContain("Non compté au classement");
+    expect(fr.body).not.toMatch(/Preuves|preuves|présence/);
     const board = await get("/leaderboards/dungeons/");
     expect(board.body).toContain("This season's rules were frozen on 2026-11-04.");
   });

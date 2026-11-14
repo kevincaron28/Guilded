@@ -118,8 +118,7 @@ describe("Claude blocker 4: complete public pages",()=>{
       allows:()=>true,postApplication:async()=>null,routes:[pages.route],now:()=>now});
     const page=await app.respond({method:"GET",path:"/leaderboards/dungeons/",query:new URLSearchParams({lang}),headers:{}});
     expect(page!.status).toBe(200);
-    expect(page!.body).toContain(lang==="en"?"Freshness remains unknown":"L'état initial reste inconnu");
-    expect(page!.body).toContain(lang==="en"?"This season requires current stored evidence":"Cette saison exige les preuves actuelles enregistrées");
+    expect(page!.body).not.toMatch(/evidence|presence|présence|preuves|Freshness/i);
     const records=page!.body.split(lang==="en"?"<h2>Dungeon records</h2>":"<h2>Records des donjons</h2>")[1]!.split("</table>")[0]!;
     expect(records).toContain("Deadmines"); expect(records).not.toContain("RejectedCheckpoint");
     expect(records).not.toContain("NoEligibleParticipant");

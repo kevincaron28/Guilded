@@ -661,3 +661,108 @@ describe("duels outside the guild, recorded for the upload", () => {
     expect(field(lua, 1, "r.winnerGuild")).toBe("Quebec Gold");
   });
 });
+
+// The two-PC test of 14 November 2026: Lebowski Highspirits (no guild) beat Blunt Cruising (in the guild), in a party, with no
+// countdown seen on either side and both players still in combat when the result line came. Each side is one client.
+describe("a duel between a guild member and a player outside every guild, on both clients", () => {
+  const LINE = "Lebowski Highspirits has defeated Blunt Cruising in a duel";
+  function client(me: string, inGuild: boolean, locale = "enUS") {
+    const lua = setup(locale);
+    lua.run(`DIAGS = {}
+      NS.util.unitKey = function() return "${me}" end
+      UnitName = function(unit) if unit == "target" then return nil end return "${me.split(" ")[0]}" end
+      UnitExists = function() return false end
+      UnitClass = function() if ${inGuild} then return "Warlock", "WARLOCK" end return "Priest", "PRIEST" end
+      UnitLevel = function() if ${inGuild} then return 1 end return 4 end
+      GUILD_MEMBERS = ${inGuild ? `{ ["${me}"] = true, ["Bob Smith"] = true }` : "{}"}
+      ROSTER = ${inGuild ? `{ { "${me}", 1, "WARLOCK" }, { "Bob Smith", 58, "MAGE" } }` : "{}"}
+      IsInGuild = function() return ${inGuild} end
+      GetGuildInfo = function(unit) if unit == "player" and ${inGuild} then return "Quebec Gold" end return nil end
+      GetRealmName = function() return "Realm Two" end
+      GetZoneText = function() return "Valley of Trials" end
+      UnitAffectingCombat = function() return COMBAT end
+      NS.logDiagnostic = function(kind, detail) DIAGS[#DIAGS + 1] = kind .. " " .. tostring(detail) end`);
+    return lua;
+  }
+  const one = (lua: LuaSession, code: string) => lua.run(`local r; for _, v in pairs(DB.duels and DB.duels.external or {}) do r = v end; return tostring(r and ${code})`);
+  const count = (lua: LuaSession) => lua.run(`local n = 0; for _ in pairs(DB.duels and DB.duels.external or {}) do n = n + 1 end; return n`);
+
+  it("the winner outside every guild keeps the duel, sees one line at once and the card once combat ends", () => {
+    const lua = client("Lebowski Highspirits", false);
+    lua.run(`COMBAT = true`);
+    say(LINE);
+    expect(count(lua)).toBe("1");
+    expect(one(lua, "r.side .. '|' .. r.winner .. '|' .. r.loser .. '|' .. r.reason")).toBe("winner|Lebowski Highspirits|Blunt Cruising|knockout");
+    expect(one(lua, "r.winnerClass .. r.winnerLevel .. '|' .. tostring(r.winnerGuild)")).toBe("Priest4|nil");
+    // No countdown: the zone still comes from the result line, on the record and in its evidence.
+    expect(one(lua, "r.zone .. '|' .. r.evidence.zoneWinner .. '|' .. tostring(r.evidence.endAt == r.at) .. '|' .. tostring(r.durationSec)")).toBe("Valley of Trials|Valley of Trials|true|nil");
+    expect(stat("MSGS")).toContain("Duel won against Blunt Cruising.");
+    // In combat the card waits; it shows when combat ends.
+    expect(stat("SHOWS")).toBe("0");
+    lua.run(`COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")`);
+    expect(stat("SHOWS")).toBe("1");
+    expect(stat("NS.duels.lastCard.won")).toBe("true");
+    // Never on the guild ladder, never sent to a guild.
+    expect(lua.run("local n = 0 for _ in pairs(DB.duels.results) do n = n + 1 end return n")).toBe("0");
+    expect(lua.run("return #SENT_LINES")).toBe("0");
+    expect(lua.run("return #DIAGS")).toBe("0");
+  });
+
+  it("the loser in the guild keeps the same duel as the loser, with the same line and card", () => {
+    const lua = client("Blunt Cruising", true);
+    lua.run(`COMBAT = true`);
+    say(LINE);
+    expect(count(lua)).toBe("1");
+    expect(one(lua, "r.side .. '|' .. r.winner .. '|' .. r.loser .. '|' .. r.loserGuild .. '|' .. tostring(r.winnerGuild)")).toBe("loser|Lebowski Highspirits|Blunt Cruising|Quebec Gold|nil");
+    expect(one(lua, "r.loserClass .. r.loserLevel .. '|' .. r.zone")).toBe("Warlock1|Valley of Trials");
+    expect(stat("MSGS")).toContain("Duel lost against Lebowski Highspirits.");
+    lua.run(`COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")`);
+    expect(stat("SHOWS")).toBe("1");
+    expect(stat("NS.duels.lastCard.won")).toBe("false");
+    expect(lua.run("return #SENT_LINES")).toBe("0");
+  });
+
+  it("both clients make the same pair and time, so the bot can match the two reports", () => {
+    const winner = client("Lebowski Highspirits", false);
+    say(LINE);
+    const w = one(winner, "r.winner .. '|' .. r.loser .. '|' .. r.at .. '|' .. r.winnerRealm .. '|' .. r.loserRealm");
+    winner.close();
+    const loser = client("Blunt Cruising", true);
+    say(LINE);
+    expect(one(loser, "r.winner .. '|' .. r.loser .. '|' .. r.at .. '|' .. r.winnerRealm .. '|' .. r.loserRealm")).toBe(w);
+  });
+
+  it("a guild duel and a fled duel get their line too", () => {
+    const lua = client("Blunt Cruising", true);
+    say("Bob Smith has defeated Blunt Cruising in a duel");
+    expect(stat("MSGS")).toContain("Duel lost against Bob Smith.");
+    lua.run("CLOCK = CLOCK + 300");
+    say("Lebowski Highspirits has fled from Blunt Cruising in a duel");
+    expect(stat("MSGS")).toContain("Duel won: Lebowski Highspirits fled.");
+    lua.run("CLOCK = CLOCK + 300");
+    say("Blunt Cruising has fled from Bob Smith in a duel");
+    expect(stat("MSGS")).toContain("Duel lost: you fled from Bob Smith.");
+  });
+
+  it("a duel between two other players prints nothing", () => {
+    const lua = client("Blunt Cruising", true);
+    say("Bob Smith has defeated Zed Outsider in a duel");
+    expect(lua.run("return tostring(MSGS)")).toBe("nil");
+  });
+
+  it("the line still comes, the duel is still kept, and the failure is saved when the card cannot be drawn", () => {
+    const lua = client("Lebowski Highspirits", false);
+    lua.run(`NS.util.keepApart = function() error("card broke") end`);
+    say(LINE);
+    expect(stat("MSGS")).toContain("Duel won against Blunt Cruising.");
+    expect(count(lua)).toBe("1");
+    expect(lua.run("return DIAGS[1]")).toContain("card broke");
+    expect(lua.run("return DIAGS[1]")).toMatch(/^LUA_ERROR duels: /);
+  });
+
+  it("says it in French", () => {
+    client("Blunt Cruising", true, "frFR");
+    say(LINE);
+    expect(stat("MSGS")).toContain("Duel perdu contre Lebowski Highspirits.");
+  });
+});

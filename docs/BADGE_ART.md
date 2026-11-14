@@ -15,7 +15,7 @@ No badges in the addon (owner decision). Badges are for Discord cards, the websi
 
 Only the processed assets are committed: `site/badge-art/frames/<tier>-<size>.webp` and `site/badge-art/emblems/<emblem>-<size>.webp`,
 sizes 256 (the Discord hero badge) and 128 (list rows, the website's 56-64 px badges at 2x, the mobile album). Transparent WebP, trimmed and
-centred in a square; 30 files, about 430 KB in all (largest file under 30 KB).
+centred in a square; 82 files (6 tiers + 35 emblems, two sizes), about 1.25 MB in all (largest file under 30 KB).
 
 ## Build and check
 

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 // Turns PoE2 tracking on for this file (see tests/helpers/focus-switches.ts).
 vi.mock("../companion/active-games.mjs", async (original) => (await import("./helpers/focus-switches.js")).poeTrackingOn(await original()));
 import sharp from "sharp";
-import { FAMILY_EMBLEMS, TIERS, check, cutOut, expectedFiles, magentaResidue, prepare } from "../scripts/build-badge-art.mjs";
+import { ALL_EMBLEMS, TIERS, check, cutOut, expectedFiles, magentaResidue, prepare } from "../scripts/build-badge-art.mjs";
 import { BADGE_IMG_STYLE, badgeIcon, badgeImg, badgeInner, badgeLabel } from "../src/services/achievement-badges.js";
 import { ACHIEVEMENTS, generatedAchievements, setGeneratedAchievements } from "../src/services/achievements-catalogue.js";
 import { FAMILY_EMBLEM, availableEmblems, badgeCacheEntries, badgeFamily, composeBadge, emblemFor, hasBadgeToken, resetBadgeCache, withBadgeImages } from "../src/services/badge-art.js";
@@ -13,7 +13,7 @@ import { scoreCardPng } from "../src/services/score-card.js";
 describe("badge art assets", () => {
   it("the committed set is complete, transparent, free of magenta and small (the CI check)", async () => {
     expect(await check()).toEqual([]);
-    expect(expectedFiles()).toHaveLength((TIERS.length + FAMILY_EMBLEMS.length) * 2);
+    expect(expectedFiles()).toHaveLength((TIERS.length + ALL_EMBLEMS.length) * 2);
   });
 
   it("cuts magenta out cleanly: no pink left on the edge, a dark outline keeps its colour, the picture is trimmed and centred", async () => {
@@ -74,8 +74,10 @@ describe("badge families and emblems", () => {
     expect(badgeFamily(byId("duel-streak-5"))).toBe("duels");
     expect(badgeFamily({ metric: "honorableKills", en: { name: "x", description: "y" } })).toBe("pvp");
     expect(badgeFamily(byId("messages-100"))).toBe("guild");
-    // dungeons-torch is not approved yet (no file), so dungeon-runs-25 draws the family emblem.
-    expect(emblemFor(byId("dungeon-runs-25"))).toBe(FAMILY_EMBLEM.dungeons);
+    expect(emblemFor(byId("dungeon-runs-25"))).toBe("dungeons-torch");          // a finer approved emblem
+    expect(emblemFor(byId("dungeon-runs-1"))).toBe(FAMILY_EMBLEM.dungeons);       // the family emblem otherwise
+    expect(emblemFor(byId("messages-100"))).toBe("guild-sun-tablet");
+    expect(emblemFor(byId("honorable-kills-500"))).toBe("pvp-drum");
     expect(badgeFamily({ metric: "gameAchievement", en: { name: "Explorer of the Barrens", description: "Discover zones" } })).toBe("ingame");
     expect(badgeFamily({ metric: "gameAchievement", en: { name: "Honor rank", description: "" } })).toBe("pvp");
   });

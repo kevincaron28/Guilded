@@ -2,7 +2,7 @@
 
 ## 9.3.2 — 14 November 2026
 
-Not yet published. Duel records and PvP kill positions reach the guild from players who only have the addon, dungeon runs reach every guild in a group, and the companion keeps itself up to date more reliably. Details: docs/V9_3_2_RELEASE_NOTES.md. Nothing in 9.3.2 is confirmed in a real game client yet (see docs/V9_3_2_RELEASE_ACCEPTANCE.md).
+Published 14 November 2026 (GitHub and the website; CurseForge upload pending). The bot migrations `world_pvp_events` and `carried_records` are already applied on production. Duel records and PvP kill positions reach the guild from players who only have the addon, dungeon runs reach every guild in a group, and the companion keeps itself up to date more reliably. Details: docs/V9_3_2_RELEASE_NOTES.md. Nothing in 9.3.2 is confirmed in a real game client yet (see docs/V9_3_2_RELEASE_ACCEPTANCE.md).
 
 **Addon**
 - Duel records of a player who only has the addon can be carried to the guild by a nearby player's companion. On by default; `/guilded carry off` turns it off for you, and officers have a guild-wide switch (#916, #918).

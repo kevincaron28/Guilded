@@ -21,7 +21,7 @@ start 1000
 K by rated duels already played: <10 -> 40, <30 -> 24, else 16
 handicapPerLevel 20, handicapMaxLevels 5, maxLevelGap 10
 pairWeights { 1, 1, 0.5, 0.5, 0.25, 0.25 }   -- the 7th and later duel of a pair in a window: 0
-shrinkGames 10, rankedDuels 8, rankedOpponents 4
+shrinkGames 10, rankedDuels 1, rankedOpponents 1
 startsAt 2026-12-01T00:00:00Z
 ```
 
@@ -43,8 +43,7 @@ end time in epoch seconds. Everyone starts at 1000 with 0 rated duels.
      rated duels the player had BEFORE this duel.
    * both players' `rated += 1`; each adds the other to a set of distinct opponents (rated duels only).
    * shown score = `1000 + (rating - 1000) * rated / (rated + 10)`.
-3. `ranked = rated >= 8 and distinctOpponents >= 4`. Ranked players sort first by shown score (then wins, then name); the others follow
-   by rated duels and show **"placement 3/8"** (their rated-duel count, capped at 8) instead of a rank.
+3. Everyone with a counted duel is ranked (`ranked = games >= 1`), sorted by shown score, then wins, then name. There is no placement stage.
 
 Shown to the member: the shown score rounded to a whole number; the change of one duel is the difference of the shown score before and
 after, rounded, written `+12` / `-12` (`0` when the duel was not rated). Same text as the bot's per-duel card.
@@ -69,8 +68,8 @@ after, rounded, written `+12` / `-12` (`0` when the duel was not rated). Same te
 
 ## 6. What changes on screen
 
-* `/guilded duels` and the Duels window: rating column (shown score), "placement n/8" for unranked players, season name, rules since date.
-* The end-of-duel card: "Rating +12" for the winner and "-12" for the opponent, and the placement progress when unranked; no more "+N points".
+* `/guilded duels` and the Duels window: rating column (shown score) and rank for everyone, season name, rules since date.
+* The end-of-duel card: "+12 → 1039" for the winner and "-12 → 990" for the opponent (change and new rating); no more "+N points".
 * `Locale.lua` needs French for every new string (accents as `\195\169` escapes; the validator rejects non-ASCII).
 * Older addons keep showing the old points: that is why `ADDON_SHOWS_RATING` stays false until the new addon is released.
 
@@ -126,7 +125,7 @@ described here. A record the server does not accept is not shown and the client 
 
 * The Duels window keeps the guild ladder; the end-of-duel card shows both ratings when both players have one (the opponent's rating comes from
   the next sync; show nothing rather than a guess).
-* Everyone is ranked after 8 duels against 4 different opponents; a player without the addon is marked "reported by opponents" on the web.
+* Everyone is ranked from their first counted duel; a player without the addon is marked "reported by opponents" on the web.
 
 ### Privacy
 

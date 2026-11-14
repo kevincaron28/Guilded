@@ -55,7 +55,7 @@ describe("duel rating: the formulas, by hand", () => {
     expect([pairWeight(0), pairWeight(2), pairWeight(5), pairWeight(6)]).toEqual([1, 0.5, 0.25, 0]);
     expect(expectedScore(1000, 1000, 0)).toBe(0.5);
     expect(shrunk(1100, 10)).toBe(1050);
-    expect([isRanked(8, 4), isRanked(7, 4), isRanked(8, 3)]).toEqual([true, false, false]);
+    expect([isRanked(8, 4), isRanked(7, 4), isRanked(8, 3)]).toEqual([true, true, true]);
   });
 });
 
@@ -119,10 +119,10 @@ describe("duel rating: from the start date", () => {
     const ladder = await duelLadder(dbWith([...OLD, ...NEW]), "g1", "forever", { now });
     expect(ladder.mode).toBe("rating");
     expect(ladder.duels).toBe(3);
-    expect(ladder.standings.every((s) => !s.ranked && s.placement)).toBe(true);
+    expect(ladder.standings.every((s) => s.ranked && !s.placement && s.rank)).toBe(true);
     const aldric = ladder.standings.find((s) => s.name === "Aldric")!;
     expect(aldric.score).toBeGreaterThan(1000);
-    expect(aldric.placement).toMatchObject({ duels: 2, needDuels: 8 });
+    expect(aldric.rank).toBe(1);
   });
   it("the board says which rules apply, since when, and that the game shows the old score", async () => {
     expect(ADDON_SHOWS_RATING).toBe(false);
@@ -135,7 +135,7 @@ describe("duel rating: from the start date", () => {
     const fr = duelBoardCard(data, "fr");
     expect(fr.ladder!.columns[0]!.label).toBe("Cote");
     expect(fr.footer).toContain("le classement dans le jeu affiche l'ancien score");
-    expect(JSON.stringify(duelBoardEmbed(data, "fr").toJSON())).toContain("placement");
+    expect(JSON.stringify(duelBoardEmbed(data, "fr").toJSON())).toContain("1006");
   });
   it("the per-duel card shows the change for both players and the placement", () => {
     const fresh = [{ reportKey: "k", winnerId: "m-Aldric", loserId: "m-Brenna", winnerCharacter: "Aldric", loserCharacter: "Brenna", winnerLevel: 60, loserLevel: 60, reason: "knockout", endedAt: new Date("2026-12-02T10:00:00Z") }];
@@ -143,9 +143,9 @@ describe("duel rating: from the start date", () => {
     const card = withRatings(fresh.map((d) => ({ ...d, points: 0, winnerScore: 0, winnerStreak: 1, winnerBest: 1 })), history, T0)[0]!;
     expect(card.rating).toBeDefined();
     const built = duelResultCard(card, "en", new Map(), emptyNameBook);
-    expect(built.rows![0]!.right).toBe("+2");
-    expect(built.rows![1]!.right).toBe("-2");
-    expect(built.stats[0]!.note).toBe("placement 1/8");
+    expect(built.rows![0]!.right).toBe("+2 → 1002");
+    expect(built.rows![1]!.right).toBe("-2 → 998");
+    expect(built.footer).not.toMatch(/Score: 10|points/);
     expect(duelResultCard(card, "fr", new Map(), emptyNameBook).stats[0]!.label).toBe("Cote");
   });
   it("a duel before the start keeps the points card", () => {
@@ -161,11 +161,11 @@ describe("duel rating: the member-facing text", () => {
     const en = ratingRuleLines("en").join(" "), fr = ratingRuleLines("fr").join(" ");
     for (const text of [en, fr]) {
       expect(text).toContain(String(RATING.start));
-      expect(text).toContain(String(RATING.rankedDuels));
-      expect(text).toContain("UTC");
+            expect(text).toContain("UTC");
       expect(text).toContain(RATING.pairWeights.join(", "));
     }
-    expect(en).toContain("placement 3/8");
+    expect(en).toContain("ranked from their first counted duel");
+    expect(en).not.toMatch(/per pair per day|placement/);
     expect(en).toContain("November 13, 2026");
     expect(en).toContain("December 31, 2026");
     expect(en).not.toMatch(/Season 0/);
@@ -201,7 +201,7 @@ describe("duel rating: the public page and JSON", () => {
     const page = (await fn("/leaderboards/guild/quebec-gold/duels")).body;
     expect(page).toContain("December 2026");
     expect(page).toContain("Rating");
-    expect(page).toContain("placement 2/8");
+    expect(page).not.toMatch(/placement|per pair per day/);
     expect(page).toContain("How scoring works");
     expect(page).toContain("The in-game ladder shows the old score until the next addon update");
     expect(page).not.toMatch(/Season 0|value="s0"/);
@@ -212,18 +212,18 @@ describe("duel rating: the public page and JSON", () => {
     const json = JSON.parse((await fn("/leaderboards/guild/quebec-gold/duels.json")).body) as { rules: { id: string }; season: string; players: { rating?: number; ranked?: boolean; placement?: unknown }[]; recent: { winnerChange?: number }[] };
     expect(json.rules.id).toBe("rating-v1");
     expect(json.season).toBe("2026-12");
-    expect(json.players[0]).toMatchObject({ ranked: false });
+    expect(json.players[0]).toMatchObject({ ranked: true });
     expect(json.recent[0]).toHaveProperty("winnerChange");
   });
   it("starts on 13 November by default, and the single switch (DUEL_RATING=off) is read once at load", () => {
     expect(RATING_START.toISOString()).toBe("2026-11-13T00:00:00.000Z");
     expect(RATING.firstSeasonEndsAt).toBe("2027-01-01T00:00:00.000Z");
   });
-  it("buildRatingBoard keeps ranked players first and hides players who left", () => {
+  it("buildRatingBoard ranks everyone and hides players who left", () => {
     const eight = Array.from({ length: 8 }, (_, i) => duel("Aldric", ["Brenna", "Corvin", "Dara", "Edda"][i % 4]!, `2026-12-0${2 + Math.floor(i / 2)}T1${i}:00:00Z`));
     const board = buildRatingBoard([...eight, duel("Ghost", "Brenna", "2026-12-06T10:00:00Z")].map((d) => d.winner === "Ghost" ? { ...d, winnerShown: false } : d), "2026-12", T0, { className: null, levels: null });
     expect(board.rows[0]).toMatchObject({ name: "Aldric", rank: 1 });
     expect(board.rows.some((r) => r.name === "Ghost")).toBe(false);
-    expect(board.rows.find((r) => r.name === "Brenna")!.rank).toBe(0);
+    expect(board.rows.find((r) => r.name === "Brenna")!.rank).toBeGreaterThan(1);
   });
 });

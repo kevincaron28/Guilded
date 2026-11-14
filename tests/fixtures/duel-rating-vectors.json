@@ -29,8 +29,8 @@
    0.25
   ],
   "shrinkGames": 10,
-  "rankedDuels": 8,
-  "rankedOpponents": 4,
+  "rankedDuels": 1,
+  "rankedOpponents": 1,
   "firstSeasonEndsAt": "2027-01-01T00:00:00.000Z"
  },
  "tolerance": 0.001,
@@ -56,7 +56,7 @@
       "wins": 1,
       "losses": 0,
       "opponents": 1,
-      "ranked": false
+      "ranked": true
      },
      "Brenna": {
       "rating": 980,
@@ -66,7 +66,7 @@
       "wins": 0,
       "losses": 1,
       "opponents": 1,
-      "ranked": false
+      "ranked": true
      }
     },
     "changes": [
@@ -101,7 +101,7 @@
       "wins": 1,
       "losses": 0,
       "opponents": 1,
-      "ranked": false
+      "ranked": true
      },
      "Brenna": {
       "rating": 974.3974000078846,
@@ -111,7 +111,7 @@
       "wins": 0,
       "losses": 1,
       "opponents": 1,
-      "ranked": false
+      "ranked": true
      }
     },
     "changes": [
@@ -146,7 +146,7 @@
       "wins": 1,
       "losses": 0,
       "opponents": 1,
-      "ranked": false
+      "ranked": true
      },
      "Brenna": {
       "rating": 974.3974000078846,
@@ -156,7 +156,7 @@
       "wins": 0,
       "losses": 1,
       "opponents": 1,
-      "ranked": false
+      "ranked": true
      }
     },
     "changes": [
@@ -191,7 +191,7 @@
       "wins": 1,
       "losses": 0,
       "opponents": 1,
-      "ranked": false
+      "ranked": true
      },
      "Brenna": {
       "rating": 980,
@@ -201,7 +201,7 @@
       "wins": 0,
       "losses": 1,
       "opponents": 1,
-      "ranked": false
+      "ranked": true
      }
     },
     "changes": [
@@ -236,7 +236,7 @@
       "wins": 1,
       "losses": 0,
       "opponents": 0,
-      "ranked": false
+      "ranked": true
      },
      "Brenna": {
       "rating": 1000,
@@ -246,7 +246,7 @@
       "wins": 0,
       "losses": 1,
       "opponents": 0,
-      "ranked": false
+      "ranked": true
      }
     },
     "changes": [
@@ -323,7 +323,7 @@
       "wins": 4,
       "losses": 3,
       "opponents": 1,
-      "ranked": false
+      "ranked": true
      },
      "Brenna": {
       "rating": 1002.6072263107288,
@@ -333,7 +333,7 @@
       "wins": 3,
       "losses": 4,
       "opponents": 1,
-      "ranked": false
+      "ranked": true
      }
     },
     "changes": [
@@ -417,7 +417,7 @@
       "wins": 2,
       "losses": 0,
       "opponents": 1,
-      "ranked": false
+      "ranked": true
      },
      "Brenna": {
       "rating": 962.2924653504917,
@@ -427,7 +427,7 @@
       "wins": 0,
       "losses": 2,
       "opponents": 1,
-      "ranked": false
+      "ranked": true
      }
     },
     "changes": [
@@ -449,7 +449,7 @@
    }
   },
   {
-   "name": "ranked only after 8 duels against 4 opponents",
+   "name": "everyone is ranked from the first duel (eight duels, four opponents)",
    "duels": [
     {
      "winner": "Aldric",
@@ -528,7 +528,7 @@
       "wins": 0,
       "losses": 2,
       "opponents": 1,
-      "ranked": false
+      "ranked": true
      },
      "Corvin": {
       "rating": 967.1213852360007,
@@ -538,7 +538,7 @@
       "wins": 0,
       "losses": 2,
       "opponents": 1,
-      "ranked": false
+      "ranked": true
      },
      "Dara": {
       "rating": 968.8697806509463,
@@ -548,7 +548,7 @@
       "wins": 0,
       "losses": 2,
       "opponents": 1,
-      "ranked": false
+      "ranked": true
      },
      "Edda": {
       "rating": 970.4986254749218,
@@ -558,7 +558,7 @@
       "wins": 0,
       "losses": 2,
       "opponents": 1,
-      "ranked": false
+      "ranked": true
      }
     },
     "changes": [
@@ -622,7 +622,7 @@
    }
   },
   {
-   "name": "eight duels against only three opponents stay in placement",
+   "name": "eight duels against only three opponents are ranked too",
    "duels": [
     {
      "winner": "Aldric",
@@ -691,7 +691,7 @@
       "wins": 8,
       "losses": 0,
       "opponents": 3,
-      "ranked": false
+      "ranked": true
      },
      "Brenna": {
       "rating": 951.8396710155829,
@@ -701,7 +701,7 @@
       "wins": 0,
       "losses": 3,
       "opponents": 1,
-      "ranked": false
+      "ranked": true
      },
      "Corvin": {
       "rating": 954.2944799524827,
@@ -711,7 +711,7 @@
       "wins": 0,
       "losses": 3,
       "opponents": 1,
-      "ranked": false
+      "ranked": true
      },
      "Dara": {
       "rating": 968.0899823513505,
@@ -721,7 +721,7 @@
       "wins": 0,
       "losses": 2,
       "opponents": 1,
-      "ranked": false
+      "ranked": true
      }
     },
     "changes": [
@@ -1046,7 +1046,7 @@
       "wins": 0,
       "losses": 7,
       "opponents": 1,
-      "ranked": false
+      "ranked": true
      },
      "Corvin": {
       "rating": 939.2359109313173,
@@ -1056,7 +1056,7 @@
       "wins": 0,
       "losses": 7,
       "opponents": 1,
-      "ranked": false
+      "ranked": true
      },
      "Dara": {
       "rating": 941.1798067413191,
@@ -1066,7 +1066,7 @@
       "wins": 0,
       "losses": 7,
       "opponents": 1,
-      "ranked": false
+      "ranked": true
      },
      "Edda": {
       "rating": 943.0154577657382,
@@ -1076,7 +1076,7 @@
       "wins": 0,
       "losses": 7,
       "opponents": 1,
-      "ranked": false
+      "ranked": true
      },
      "Fenn": {
       "rating": 947.9894639400626,
@@ -1086,7 +1086,7 @@
       "wins": 0,
       "losses": 6,
       "opponents": 1,
-      "ranked": false
+      "ranked": true
      }
     },
     "changes": [
@@ -1366,7 +1366,7 @@
       "wins": 1,
       "losses": 1,
       "opponents": 2,
-      "ranked": false
+      "ranked": true
      },
      "Brenna": {
       "rating": 1001.1500225556907,
@@ -1376,7 +1376,7 @@
       "wins": 1,
       "losses": 1,
       "opponents": 2,
-      "ranked": false
+      "ranked": true
      },
      "Corvin": {
       "rating": 1001.2077486222607,
@@ -1386,7 +1386,7 @@
       "wins": 1,
       "losses": 1,
       "opponents": 2,
-      "ranked": false
+      "ranked": true
      }
     },
     "changes": [

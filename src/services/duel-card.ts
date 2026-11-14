@@ -34,11 +34,12 @@ export function duelResultCard(duel: DuelCardInput, lang: Lang, classes: ClassBo
   const fled = duel.reason === "retreat";
   if (duel.rating) {
     const r = duel.rating, lg = fr ? "fr" : "en";
-    const where = (score: number, place: string | null) => place ? `placement ${place}` : showRating(score);
+    const where = (score: number, place: string | null) => place ? `placement ${place}` : `→ ${showRating(score)}`;
+    const moved = (value: number, score: number) => `${change(value)} → ${showRating(score)}`;
     const change = (value: number) => r.rated ? showChange(value) : "0";
     return {
       eyebrow: `Guilded · ${t("PvP", "JcJ")}`, title: t("Duel result", "Résultat du duel"),
-      subtitle: `${fled ? t("Opponent fled", "Adversaire en fuite") : t("Won by knockout", "Victoire par K.O.")} · ${ratingSeasonName(r.seasonId, lg)}`,
+      subtitle: `${fled ? t("Opponent fled", "Adversaire en fuite") : t("Won by knockout", "Victoire par K.O.")}`,
       backdrop: { kind: "board", key: "duel" },
       stats: [
         { label: t("Rating", "Cote"), value: change(r.winnerDelta), accent: "gold", note: where(r.winnerScore, r.winnerPlacement) },
@@ -47,8 +48,8 @@ export function duelResultCard(duel: DuelCardInput, lang: Lang, classes: ClassBo
       ],
       rowsLabel: t("Duellists", "Duellistes"),
       rows: [
-        { name: winner, color: classColor(classOf(classes, duel.winnerCharacter)), sub: t("Winner", "Gagnant"), right: change(r.winnerDelta), rightTone: "green" },
-        { name: loser, color: classColor(classOf(classes, duel.loserCharacter)), sub: fled ? t("Fled", "A fui") : t("Defeated", "Vaincu"), right: change(r.loserDelta), rightTone: "red" }
+        { name: winner, color: classColor(classOf(classes, duel.winnerCharacter)), sub: t("Winner", "Gagnant"), right: moved(r.winnerDelta, r.winnerScore), rightTone: "green" },
+        { name: loser, color: classColor(classOf(classes, duel.loserCharacter)), sub: fled ? t("Fled", "A fui") : t("Defeated", "Vaincu"), right: moved(r.loserDelta, r.loserScore), rightTone: "red" }
       ],
       footer: `${r.rated ? "" : t("No rating change: the pair used its weekly allowance or the levels are too far apart · ", "Aucun changement : le duo a épuisé sa limite hebdomadaire ou l'écart de niveaux est trop grand · ")}${ratingFooter(lg, ratingSeasonName(r.seasonId, lg), new Date(r.startsAt))}`.slice(0, 300)
     };

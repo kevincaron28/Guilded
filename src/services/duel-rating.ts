@@ -29,8 +29,8 @@ export const RATING = {
   /** The shown score is start + (rating - start) * rated / (rated + shrinkGames). */
   shrinkGames: 10,
   /** Ranked once the player has this many rated duels against this many distinct opponents. */
-  rankedDuels: 8,
-  rankedOpponents: 4
+  rankedDuels: 1,
+  rankedOpponents: 1
 } as const;
 
 /**
@@ -146,14 +146,14 @@ export function rateSeason(duels: readonly RatedDuel[]): { players: Map<string, 
     w.score = shrunk(w.rating, w.rated); l.score = shrunk(l.rating, l.rated);
     changes.push({ winnerDelta: w.score - before.w, loserDelta: l.score - before.l, winnerScore: w.score, loserScore: l.score, rated: true });
   }
-  for (const row of players.values()) { row.ranked = isRanked(row.rated, row.opponents); row.streak = row.run; }
+  for (const row of players.values()) { row.ranked = row.games > 0 || isRanked(row.rated, row.opponents); row.streak = row.run; }
   const out = new Map<string, RatedPlayer>();
   for (const [key, row] of players) out.set(key, { key, name: row.name, level: row.level, rating: row.rating, score: row.score, games: row.games, rated: row.rated, wins: row.wins, losses: row.losses,
     opponents: row.opponents, ranked: row.ranked, streak: row.streak, bestStreak: row.bestStreak, lastAt: row.lastAt });
   return { players: out, ordered, changes };
 }
 
-/** Pure: ranked players first (by shown score, then wins), then the players still in placement (most duels first). */
+/** Pure: everyone with a counted duel is ranked, by shown score, then wins. */
 export function ratingStandings(players: ReadonlyMap<string, RatedPlayer>): (RatedPlayer & { rank: number | null })[] {
   const all = [...players.values()];
   const ranked = all.filter(row => row.ranked).sort((a, b) => b.score - a.score || b.wins - a.wins || a.name.localeCompare(b.name));

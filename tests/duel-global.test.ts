@@ -172,15 +172,15 @@ describe("global duels: the board", () => {
     const board = buildGlobalBoard(eight, "2026-11", RATING_START, { className: null, levels: null });
     expect(board.rows.map((row) => row.name).sort()).toEqual(["Aldric", "Brenna", "Corvin", "Dara", "Edda"]);
     expect(board.rows[0]).toMatchObject({ rank: 1, ranked: true, wins: 8, viaOpponents: false });
-    expect(board.rows.slice(1).every((row) => row.rank === 0 && row.viaOpponents)).toBe(true);
+    expect(board.rows.map((row) => row.rank)).toEqual([1, 2, 3, 4, 5]);
+    expect(board.rows.slice(1).every((row) => row.ranked && row.viaOpponents)).toBe(true);
     expect(board.recent).toHaveLength(8);
     expect(board.recent[0]!.loser).toBeTruthy();
     expect(board.duels).toBe(8);
   });
-  it("lists a reporter still in placement without a rank", () => {
+  it("ranks a player from the first counted duel", () => {
     const board = buildGlobalBoard(eight.slice(0, 2), "2026-11", RATING_START, { className: null, levels: null });
-    expect(board.rows[0]).toMatchObject({ rank: 0, ranked: false });
-    expect(board.rows[0]!.placement).toMatchObject({ duels: 2, needDuels: 8 });
+    expect(board.rows[0]).toMatchObject({ rank: 1, ranked: true, placement: null });
   });
   it("only counts the month asked and applies the class filter", () => {
     const mixed = [g("Aldric", "Brenna", "2026-12-05T10:00:00Z", { winnerClass: "Warrior" }), g("Corvin", "Dara", "2026-12-06T10:00:00Z", { winnerClass: "Mage", reporters: ["corvin"] }), g("Aldric", "Brenna", "2027-01-05T10:00:00Z")];

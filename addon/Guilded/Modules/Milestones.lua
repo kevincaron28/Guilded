@@ -76,6 +76,13 @@ function ms.enabled(kind)
   if not c or c.settings.enabled == false or ms.guildOff() then return false end
   return kind == nil or c.settings[kind] ~= false
 end
+-- True only when this character turned announcements off itself (all of them, or `kind`); the officer's guild-wide switch is not
+-- counted, and an unknown character is not "off". Duels.lua uses it for its local result line.
+function ms.memberOff(kind)
+  local c = current()
+  if not c then return false end
+  return c.settings.enabled == false or (kind ~= nil and c.settings[kind] == false)
+end
 function ms.setEnabled(on, kind)
   local c = current()
   if not c then return false end

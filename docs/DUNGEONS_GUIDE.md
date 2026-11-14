@@ -92,8 +92,8 @@ The website has two views:
   profile visibility, companion connection, recruitment applications and your
   looking-for-guild card. Pairing codes and application messages stay private.
 
-You can hide your player profile from My Guilded. This hides the account profile;
-already-public character results remain on the leaderboards. Scores are computed
+There is no way yet for a player to hide their profile from My Guilded: a profile is
+public while the guild publishes its runs, and a guild can stop publishing. Scores are computed
 from runs, not editable on a profile. Ask an officer or report a bug if a run is
 wrong; include its date, dungeon and character, never your pairing credential.
 
@@ -187,12 +187,12 @@ parcours n'est envoyé que si le PC d'un membre de votre groupe ou de votre guil
 avec le compagnon, l'a entendu. Un parcours en solo, sans compagnon dans le groupe
 ni la guilde, reste sur votre PC tant que vous n'installez pas le compagnon.
 
-Votre **profil joueur est public par défaut** : nom affiché, personnages liés et
+Votre **profil joueur est public tant que votre guilde publie ses essais** (aucune option pour le masquer pour l'instant) : nom affiché, personnages liés et
 donjons publics acceptés. Ouvrez un personnage pour ses scores saisonniers.
-[Ma page](https://guilded.kcaron.top/me/) permet de masquer le profil, gérer la
+[Ma page](https://guilded.kcaron.top/me/) permet de gérer la
 connexion du compagnon, voir les candidatures et modifier votre fiche de recherche
 de guilde. Les codes et messages privés ne sont jamais dans le profil public.
-Masquer le profil ne retire pas les résultats des classements.
+Une guilde peut arrêter de publier ses essais.
 
 Le [recrutement](https://guilded.kcaron.top/recruitment/) propose les guildes/cores
 permanents et les places d'une seule soirée. Rejoignez le Discord hôte puis son

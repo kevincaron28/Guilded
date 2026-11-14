@@ -10,6 +10,9 @@ ns = ns or {}
 
 local FR = {
   -- 9.3.2 records carried for players near you.
+  ["Carrying records is turned off for the whole guild by an officer."] = "Le relais est d\195\169sactiv\195\169 pour toute la guilde par un officier.",
+  ["Carrying records is allowed for the guild again."] = "Le relais est de nouveau permis pour la guilde.",
+  ["Guilded now hands your duel results to a nearby player's companion, and does the same for other players, so they reach Discord without a companion of your own. Type /guilded carry off to stop."] = "Guilded confie d\195\169sormais vos r\195\169sultats de duel au companion d'un joueur proche, et fait de m\195\170me pour les autres joueurs, afin qu'ils arrivent sur Discord sans companion de votre c\195\180t\195\169. Tapez /guilded carry off pour arr\195\170ter.",
   ["Carrying records is off. Type /guilded carry on to turn it on."] = "Le relais de donn\195\169es est d\195\169sactiv\195\169. Tapez /guilded carry on pour l'activer.",
   ["Your companion carries records for players near you (%d waiting to be sent)."] = "Votre companion relaie les donn\195\169es des joueurs proches de vous (%d en attente d'envoi).",
   ["%d records wait for a companion: one is in range and will take them."] = "%d donn\195\169es attendent un companion : il y en a un \195\160 port\195\169e, il les prendra.",
@@ -999,6 +1002,9 @@ local FR = {
 -- BEGIN DE (written by npm run locale -- import; edit the CSV, not these lines)
 local DE = {
   -- 9.3.2 records carried for players near you.
+  ["Carrying records is turned off for the whole guild by an officer."] = "Das Weitergeben von Daten ist f\195\188r die ganze Gilde von einem Offizier ausgeschaltet.",
+  ["Carrying records is allowed for the guild again."] = "Das Weitergeben von Daten ist f\195\188r die Gilde wieder erlaubt.",
+  ["Guilded now hands your duel results to a nearby player's companion, and does the same for other players, so they reach Discord without a companion of your own. Type /guilded carry off to stop."] = "Guilded gibt deine Duellergebnisse jetzt an den Companion eines Spielers in der N\195\164he weiter und tut das auch f\195\188r andere Spieler, damit sie ohne eigenen Companion bei Discord ankommen. Mit /guilded carry off beendest du es.",
   ["Carrying records is off. Type /guilded carry on to turn it on."] = "Das Weitergeben von Daten ist aus. Mit /guilded carry on schaltest du es ein.",
   ["Your companion carries records for players near you (%d waiting to be sent)."] = "Dein Companion gibt Daten von Spielern in deiner N\195\164he weiter (%d warten auf den Versand).",
   ["%d records wait for a companion: one is in range and will take them."] = "%d Eintr\195\164ge warten auf einen Companion: einer ist in Reichweite und nimmt sie mit.",
@@ -2947,6 +2953,9 @@ local DE = {
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
 local ES = {
   -- 9.3.2 records carried for players near you.
+  ["Carrying records is turned off for the whole guild by an officer."] = "El reenv\195\173o de datos est\195\161 desactivado para toda la hermandad por un oficial.",
+  ["Carrying records is allowed for the guild again."] = "El reenv\195\173o de datos vuelve a estar permitido para la hermandad.",
+  ["Guilded now hands your duel results to a nearby player's companion, and does the same for other players, so they reach Discord without a companion of your own. Type /guilded carry off to stop."] = "Guilded ahora entrega tus resultados de duelo al companion de un jugador cercano, y hace lo mismo con otros jugadores, para que lleguen a Discord sin un companion propio. Escribe /guilded carry off para detenerlo.",
   ["Carrying records is off. Type /guilded carry on to turn it on."] = "El reenv\195\173o de datos est\195\161 desactivado. Escribe /guilded carry on para activarlo.",
   ["Your companion carries records for players near you (%d waiting to be sent)."] = "Tu companion reenv\195\173a datos de jugadores cercanos (%d esperando para enviarse).",
   ["%d records wait for a companion: one is in range and will take them."] = "%d registros esperan a un companion: hay uno cerca y los llevar\195\161.",

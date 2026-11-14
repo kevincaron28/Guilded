@@ -34,9 +34,9 @@ function frameUri(): Promise<string | null> {
 
 const defs = (role: RoleKind) => {
   const f = FACE[role];
-  return `<linearGradient id="rm-${role}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${f.top}"/><stop offset="1" stop-color="${f.bottom}"/></linearGradient>`;
+  return `<linearGradient id="medal-${role}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${f.top}"/><stop offset="1" stop-color="${f.bottom}"/></linearGradient>`;
 };
-const RIM = `<linearGradient id="rm-rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fbeab0"/><stop offset=".45" stop-color="#c79a3a"/><stop offset="1" stop-color="#6b4a14"/></linearGradient>`;
+const RIM = `<linearGradient id="medalrim" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fbeab0"/><stop offset=".45" stop-color="#c79a3a"/><stop offset="1" stop-color="#6b4a14"/></linearGradient>`;
 
 /**
  * The emblem for one role at (x, y), `size` pixels square. `used` is the set of gradient ids already written into this card's
@@ -52,12 +52,12 @@ export async function roleEmblem(role: RoleKind, style: RoleStyle, x: number, y:
     out += `<g transform="translate(${x + size * 0.2} ${y + size * 0.2}) scale(${(size * 0.6) / 64})" fill="${f.glyph}" stroke="#000" stroke-opacity=".55" stroke-width="2" paint-order="stroke">${GLYPH[role]}</g>`;
     return out;
   }
-  need("rm-rim", RIM); need(`rm-${role}`, defs(role));
+  need("medalrim", RIM); need(`medal-${role}`, defs(role));
   out += `<g transform="translate(${x} ${y}) scale(${k})">`
     + `<circle cx="32" cy="32" r="31" fill="#000" fill-opacity=".5"/>`
-    + `<circle cx="32" cy="32" r="30" fill="url(#rm-rim)"/>`
+    + `<circle cx="32" cy="32" r="30" fill="url(#medalrim)"/>`
     + `<circle cx="32" cy="32" r="24.5" fill="#3a2810"/>`
-    + `<circle cx="32" cy="32" r="23" fill="url(#rm-${role})"/>`
+    + `<circle cx="32" cy="32" r="23" fill="url(#medal-${role})"/>`
     + `<path d="M10 28 A23 23 0 0 1 54 28 Q32 20 10 28 Z" fill="#fff" fill-opacity=".22"/>`
     + `<g transform="translate(32 32) scale(.7) translate(-32 -32)" fill="${f.glyph}" stroke="#000" stroke-opacity=".5" stroke-width="3" paint-order="stroke">${GLYPH[role]}</g>`
     + `</g>`;

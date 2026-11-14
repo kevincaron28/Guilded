@@ -17,6 +17,11 @@ your own characters were last seen outdoors (zone, map point and time, kept 28 d
 position** switch on the phone's Map tab turns it off and deletes every stored position of yours, and officers can turn
 the map off for the server (`/officer roster map`). Delete my data removes them too.
 
+**World PvP kills and deaths are public** (owner decision, 14 November 2026). For each open-world kill and death the addon keeps the
+time, the zone and your position on the map (never the enemy's name or class), and the companion sends the newest of them to the bot
+when the bot supports it. They are shown by zone and position on the public pages of guilds that publish. Turning off the World PvP module
+(`/guilded modules off worldpvp`) stops recording them and drops the ones stored on your PC.
+
 This notice describes Guilded Companion, the Guilded website and the project-hosted
 Guilded service operated by Kevin Caron (Guilded). A guild using its own server has
 its own operator; contact that operator about its hosting and retention choices.
@@ -184,6 +189,11 @@ gardés 28 jours) et vos propres appels à l'aide (gardés 7 jours). Seuls les m
 ils ne sont jamais publics. C'est activé par défaut ; l'interrupteur **Partager ma position** de l'onglet Carte le coupe
 et efface toutes vos positions gardées, et les officiers peuvent couper la carte pour le serveur
 (`/officer roster map`). Supprimer mes données les efface aussi.
+
+**Les éliminations et les morts du PvP mondial sont publiques** (décision du propriétaire, 14 novembre 2026). Pour chaque élimination et chaque mort
+en monde ouvert, l'addon garde l'heure, la zone et votre position sur la carte (jamais le nom ni la classe de l'ennemi), et le compagnon envoie
+les plus récentes au bot lorsque celui-ci le gère. Elles sont affichées par zone et par position sur les pages publiques des guildes qui
+publient. Couper le module PvP mondial (`/guilded modules off worldpvp`) arrête leur enregistrement et efface celles qui sont gardées sur votre PC.
 
 Le bilan hebdomadaire facultatif conserve votre horaire, fuseau, heures de silence,
 choix actif/inactif et dernier résultat d'envoi. Un MP Discord est envoyé seulement

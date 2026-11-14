@@ -2801,7 +2801,7 @@ local DE = {
   ["Officers"] = "Offiziere",
   ["Officers' prospect list."] = "Die Interessentenliste der Offiziere.",
   ["Open the options after combat."] = "\195\150ffne die Optionen nach dem Kampf.",
-  ["Open-world kills, deaths, defends and calls for help, for the PvP ladder."] = "Siege, Tode, Verteidigungen und Hilferufe in der offenen Welt, f\195\188r die PvP-Rangliste.",
+  ["Open-world kills, deaths, defends and calls for help; kills and deaths are shown by zone and position on the public pages of guilds that publish."] = "Siege, Tode, Verteidigungen und Hilferufe in der offenen Welt; Siege und Tode werden nach Zone und Position auf den \195\182ffentlichen Seiten von Gilden angezeigt, die ver\195\182ffentlichen.",
   ["Opens the Guilded window on its advanced view: guildmate data, officer tools, speed report and test raids."] = "\195\150ffnet das Guilded-Fenster in der erweiterten Ansicht: Gildendaten, Offizierswerkzeuge, Geschwindigkeitsbericht und Test-Raids.",
   ["Opens the Guilded window with the guild, crafting, dungeon and raid pages."] = "\195\150ffnet das Guilded-Fenster mit den Seiten f\195\188r Gilde, Handwerk, Dungeons und Raids.",
   ["Opt-in availability and local activity observations."] = "Freiwillige Verf\195\188gbarkeit und lokale Aktivit\195\164tsbeobachtungen.",
@@ -2908,6 +2908,13 @@ local DE = {
   ["You have not duelled %s in this season."] = "Du hast dich in dieser Saison nicht mit %s duelliert.",
   -- 9.3.1 UI polish
   ["Preview: sample numbers, nothing is saved."] = "Vorschau: Beispielwerte, nichts wird gespeichert.",
+  ["Kills and deaths are shown by zone and position on the public pages of guilds that publish."] = "Kills und Tode werden nach Zone und Position auf den \195\182ffentlichen Seiten von Gilden angezeigt, die ver\195\182ffentlichen.",
+  ["Usage: /guilded probe maps | comm | comm auto"] = "Verwendung: /guilded probe maps",
+  ["This client has no map data to read."] = "Dieser Client hat keine Kartendaten zum Lesen.",
+  ["Map probe: %d maps written to the saved variables (probes.maps). Reload or log out to save the file."] = "Kartenpr\195\188fung: %d Karten in die gespeicherten Variablen geschrieben (probes.maps). Lade neu oder melde dich ab, um die Datei zu speichern.",
+  ["Comm probe finished: the results are in the diagnostics (PROBE) and the saved variables (probes.comm)."] = "Kommunikationspr\195\188fung beendet: Die Ergebnisse stehen in der Diagnose (PROBE) und in den gespeicherten Variablen (probes.comm).",
+  ["Comm probe started: results in about 6 seconds."] = "Kommunikationspr\195\188fung gestartet: Ergebnisse in etwa 6 Sekunden.",
+  ["Comm probe armed: it runs by itself 10 seconds after the next login or /reload."] = "Kommunikationspr\195\188fung vorbereitet: Sie l\195\164uft 10 Sekunden nach der n\195\164chsten Anmeldung oder /reload von selbst.",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -4729,7 +4736,7 @@ local ES = {
   ["Officers"] = "Oficiales",
   ["Officers' prospect list."] = "La lista de aspirantes de los oficiales.",
   ["Open the options after combat."] = "Abre las opciones despu\195\169s del combate.",
-  ["Open-world kills, deaths, defends and calls for help, for the PvP ladder."] = "Muertes, bajas, defensas y peticiones de ayuda en el mundo abierto, para la clasificaci\195\179n JcJ.",
+  ["Open-world kills, deaths, defends and calls for help; kills and deaths are shown by zone and position on the public pages of guilds that publish."] = "Eliminaciones, muertes, defensas y peticiones de ayuda en el mundo abierto; las eliminaciones y las muertes se muestran por zona y posici\195\179n en las p\195\161ginas p\195\186blicas de las hermandades que publican.",
   ["Opens the Guilded window on its advanced view: guildmate data, officer tools, speed report and test raids."] = "Abre la ventana de Guilded en la vista avanzada: datos de miembros, herramientas de oficial, informe de velocidad y bandas de prueba.",
   ["Opens the Guilded window with the guild, crafting, dungeon and raid pages."] = "Abre la ventana de Guilded con las p\195\161ginas de hermandad, artesan\195\173a, mazmorras y bandas.",
   ["Opt-in availability and local activity observations."] = "Disponibilidad voluntaria y observaciones de actividad locales.",
@@ -4836,6 +4843,13 @@ local ES = {
   ["You have not duelled %s in this season."] = "No has due\195\177ado con %s en esta temporada.",
   -- 9.3.1 UI polish
   ["Preview: sample numbers, nothing is saved."] = "Vista previa: n\195\186meros de ejemplo, no se guarda nada.",
+  ["Kills and deaths are shown by zone and position on the public pages of guilds that publish."] = "Las eliminaciones y las muertes se muestran por zona y posici\195\179n en las p\195\161ginas p\195\186blicas de las hermandades que publican.",
+  ["Usage: /guilded probe maps | comm | comm auto"] = "Uso: /guilded probe maps",
+  ["This client has no map data to read."] = "Este cliente no tiene datos de mapa que leer.",
+  ["Map probe: %d maps written to the saved variables (probes.maps). Reload or log out to save the file."] = "Sondeo de mapas: %d mapas escritos en las variables guardadas (probes.maps). Recarga o cierra sesi\195\179n para guardar el archivo.",
+  ["Comm probe finished: the results are in the diagnostics (PROBE) and the saved variables (probes.comm)."] = "Sondeo de comunicaci\195\179n terminado: los resultados est\195\161n en el diagn\195\179stico (PROBE) y en las variables guardadas (probes.comm).",
+  ["Comm probe started: results in about 6 seconds."] = "Sondeo de comunicaci\195\179n iniciado: resultados en unos 6 segundos.",
+  ["Comm probe armed: it runs by itself 10 seconds after the next login or /reload."] = "Sondeo de comunicaci\195\179n preparado: se ejecuta solo 10 segundos despu\195\169s del pr\195\179ximo inicio de sesi\195\179n o /reload.",
 }
 -- END ES
 
@@ -4965,7 +4979,7 @@ FR["No call for help windows for 10 minutes (until you log out or reload)."] = "
 FR["Officers"] = "Officiers"
 FR["Officers' prospect list."] = "Liste des recrues potentielles des officiers."
 FR["Open the options after combat."] = "Ouvrez les options apr\195\168s le combat."
-FR["Open-world kills, deaths, defends and calls for help, for the PvP ladder."] = "Victoires, morts, d\195\169fenses et appels \195\160 l'aide en monde ouvert, pour le classement JcJ."
+FR["Open-world kills, deaths, defends and calls for help; kills and deaths are shown by zone and position on the public pages of guilds that publish."] = "Victoires, morts, d\195\169fenses et appels \195\160 l'aide en monde ouvert ; les \195\169liminations et les morts sont affich\195\169es par zone et par position sur les pages publiques des guildes qui publient."
 FR["Opens the Guilded window on its advanced view: guildmate data, officer tools, speed report and test raids."] = "Ouvre la fen\195\170tre Guilded en vue avanc\195\169e : donn\195\169es des membres, outils d'officier, rapport de vitesse et raids de test."
 FR["Opens the Guilded window with the guild, crafting, dungeon and raid pages."] = "Ouvre la fen\195\170tre Guilded avec les pages guilde, artisanat, donjons et raids."
 FR["Opt-in availability and local activity observations."] = "Disponibilit\195\169 sur inscription et observations d'activit\195\169 locales."
@@ -5908,3 +5922,11 @@ FR["Duels: %d wins, %d losses (%d%%), streak %s, rating %d."] = "Duels : %d vict
 FR["Guild duels: a rating that starts at 1000 each season. Everyone is ranked from the first duel."] = "Duels de guilde : une cote qui part de 1000 \195\160 chaque saison. Tout le monde est class\195\169 d\195\168s le premier duel."
 FR["Your record: %d wins, %d losses (%d%%), streak %s, rating %d. Click a player to see your record against them."] = "Votre bilan : %d victoires, %d d\195\169faites (%d%%), s\195\169rie %s, cote %d. Cliquez sur un joueur pour voir votre bilan contre lui."
 FR["You have not duelled %s in this season."] = "Vous n'avez pas affront\195\169 %s cette saison."
+-- World PvP places and the map probe
+FR["Kills and deaths are shown by zone and position on the public pages of guilds that publish."] = "Les \195\169liminations et les morts sont affich\195\169es par zone et par position sur les pages publiques des guildes qui publient."
+FR["Usage: /guilded probe maps | comm | comm auto"] = "Utilisation : /guilded probe maps"
+FR["This client has no map data to read."] = "Ce client n'a pas de donn\195\169es de carte \195\160 lire."
+FR["Map probe: %d maps written to the saved variables (probes.maps). Reload or log out to save the file."] = "Sonde des cartes : %d cartes \195\169crites dans les variables enregistr\195\169es (probes.maps). Rechargez ou d\195\169connectez-vous pour enregistrer le fichier."
+FR["Comm probe finished: the results are in the diagnostics (PROBE) and the saved variables (probes.comm)."] = "Sonde de communication termin\195\169e : les r\195\169sultats sont dans le diagnostic (PROBE) et les variables enregistr\195\169es (probes.comm)."
+FR["Comm probe started: results in about 6 seconds."] = "Sonde de communication lanc\195\169e : r\195\169sultats dans environ 6 secondes."
+FR["Comm probe armed: it runs by itself 10 seconds after the next login or /reload."] = "Sonde de communication arm\195\169e : elle se lance seule 10 secondes apr\195\168s la prochaine connexion ou le prochain /reload."

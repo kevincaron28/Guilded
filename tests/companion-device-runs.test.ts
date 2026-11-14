@@ -5,6 +5,7 @@ import { provisionalSeasonRules } from "../src/services/dungeon-bracket-season.j
 import { FR_TEXT } from "../src/i18n-fr.js";
 import { releaseHeldRuns } from "../src/services/run-release.js";
 import { NO_PREV, canonicalText, deriveSealKey, issueChallenge, sealMac } from "../src/services/run-challenge.js";
+import { localiseRun } from "../src/services/cross-guild-runs.js";
 import { dungeonRating } from "../src/services/dungeon-rating.js";
 
 // Zero-setup companion: dungeon runs from an unsigned device are stored like any run and count on the guild board.
@@ -55,7 +56,7 @@ describe("runs an unsigned device sends", () => {
 
   it("stores the run and it counts on the guild board for an in-guild reported character", async () => {
     const { tx, runs } = fakeTx();
-    expect(await storeDeviceRuns(tx, "g1", [run("QG-1")], now, SRC)).toEqual({ stored: 1, skipped: 0 });
+    expect(await storeDeviceRuns(tx, "g1", [run("QG-1")], now, SRC)).toMatchObject({ stored: 1, skipped: 0 });
     expect(runs).toHaveLength(1);
     const rows = await dungeonRating(tx, "g1", season);
     expect(rows.find((row) => row.character === "Kev")?.points).toBeGreaterThan(0);
@@ -106,6 +107,18 @@ describe("device upload with runs", () => {
     expect(imported[0]).toHaveLength(1);
   });
 
+  it("hands the runs it stored to the cross-guild hook with the device and its own characters (9.3.2)", async () => {
+    const { s } = store();
+    s.importRuns = async (_guildId, runs) => ({ stored: runs.length, skipped: 0, shareable: runs });
+    const device = (await deviceFor(s, (await registerDevice(s)).deviceSecret))!;
+    const seen: { origin: { guildId: string | null; deviceId: string; characterKeys: string[] }; runs: unknown[] }[] = [];
+    await handleDeviceUpload(s, device, body([run("a")]), { now, afterShare: (origin, runs) => seen.push({ origin, runs }) });
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.origin).toMatchObject({ guildId: "g1", deviceId: "d1" });
+    expect(seen[0]!.origin.characterKeys).toContain("kev");
+    expect(seen[0]!.runs).toHaveLength(1);
+  });
+
   it("does not import for a claimed device or more than the per-upload cap", async () => {
     const { s, imported } = store();
     const device = (await deviceFor(s, (await registerDevice(s)).deviceSecret))!;
@@ -129,7 +142,7 @@ describe("run trust (docs/plans/SINGLE_WITNESS_2026-11-13.md)", () => {
 
   it("stores a run with one statement", async () => {
     const { tx, runs, witnesses } = fakeTx([], [], [], [1, 2]);
-    expect(await storeDeviceRuns(tx, "g1", [run("QG-1")], now, SRC)).toEqual({ stored: 1, skipped: 0 });
+    expect(await storeDeviceRuns(tx, "g1", [run("QG-1")], now, SRC)).toMatchObject({ stored: 1, skipped: 0 });
     expect(trustOf(runs)).toEqual([["QG-1", "device"]]);
     expect(witnesses).toMatchObject([{ status: "stored", voucher: "kev", trust: "device" }]);
   });
@@ -219,7 +232,7 @@ describe("run trust (docs/plans/SINGLE_WITNESS_2026-11-13.md)", () => {
       const base = fakeTx([], [], ["kev"], [1, 2]);
       await storeDeviceRuns(base.tx, "g1", [oddRun(longId)], now, SRC);
       expect(base.witnesses).toHaveLength(1);
-      const database = { dungeonRunWitness: (base.tx as never as { dungeonRunWitness: unknown }).dungeonRunWitness, deviceCharacter: { findMany: async () => [{ nameKey: "kev" }] },
+      const database = { dungeonRunWitness: (base.tx as never as { dungeonRunWitness: unknown }).dungeonRunWitness, companionDevice: { findUnique: async () => ({ tokenHash: "hash" }) }, deviceCharacter: { findMany: async () => [{ nameKey: "kev" }] },
         $transaction: async (fn: (tx: never) => Promise<unknown>) => fn(base.tx) } as never;
       expect(await releaseHeldRuns(database, "g1", { runRef: "QG" })).toMatchObject({ picked: 0 });
       const done = await releaseHeldRuns(database, "g1", { runRef: longId.slice(0, 30) });
@@ -269,7 +282,7 @@ describe("run trust (docs/plans/SINGLE_WITNESS_2026-11-13.md)", () => {
     expect(await storeDeviceRuns(tx, "g1", [run("QG-1"), run("QG-2", { startedAt: start + 9000, endedAt: start + 11700 })], now, SRC)).toEqual({ stored: 0, skipped: 0 });
     expect(runs).toHaveLength(0);
     expect(witnesses.map((row) => row["status"])).toEqual(["held", "held"]);
-    const database = { dungeonRunWitness: (tx as never as { dungeonRunWitness: unknown }).dungeonRunWitness, deviceCharacter: { findMany: async () => [{ nameKey: "kev" }] }, $transaction: async (fn: (t: never) => Promise<unknown>) => fn(fakeTx().tx) } as never;
+    const database = { dungeonRunWitness: (tx as never as { dungeonRunWitness: unknown }).dungeonRunWitness, companionDevice: { findUnique: async () => ({ tokenHash: "hash" }) }, deviceCharacter: { findMany: async () => [{ nameKey: "kev" }] }, $transaction: async (fn: (t: never) => Promise<unknown>) => fn(fakeTx().tx) } as never;
     void database; // restoring uses the same release path as a single held run (covered above)
     const other = fakeTx([], [], ["kev"], [1], []);
     expect(await storeDeviceRuns(other.tx, "g2", [run("QG-3")], now, SRC)).toMatchObject({ stored: 1 }); // another server is not affected
@@ -283,7 +296,7 @@ describe("run trust (docs/plans/SINGLE_WITNESS_2026-11-13.md)", () => {
     expect(runs.length).toBeLessThanOrEqual(1);
   });
 
-  const releaseDb = (tx: unknown) => ({ dungeonRunWitness: (tx as { dungeonRunWitness: unknown }).dungeonRunWitness, deviceCharacter: { findMany: async () => [{ nameKey: "kev" }] },
+  const releaseDb = (tx: unknown) => ({ dungeonRunWitness: (tx as { dungeonRunWitness: unknown }).dungeonRunWitness, companionDevice: { findUnique: async () => ({ tokenHash: "hash" }) }, deviceCharacter: { findMany: async () => [{ nameKey: "kev" }] },
     $transaction: async (fn: (t: never) => Promise<unknown>) => fn(tx as never) }) as never;
   const D2 = { deviceId: "d2", characterKeys: ["kev"] };
 
@@ -442,5 +455,56 @@ describe("Season 1: runs only anonymous devices vouch for still count (owner dec
       startedAt: new Date(start * 1000), endedAt: new Date((start + 2700) * 1000), players: ["amy", "bob", "kev"], bosses: [], payload: null, firstSeenAt: now });
     // The companion resends a waiting run on every upload.
     expect(await storeDeviceRuns(shared.tx, "g1", [run("QG-1")], now, SRC)).toMatchObject({ stored: 1 });
+  });
+});
+
+describe("a copy of a mixed-party run in another guild (9.3.2)", () => {
+  const five = ["Kev", "Bob", "Amy", "Zed", "Liz"].map((character) => ({ character, realm: "Forever", deaths: 0, presentSec: 2700, inGuild: true, level: 30, minLevel: 30 }));
+  it("is judged like one player's report in that guild: only its own roster members count as guildmates, the run keeps a real trust and is listed for review", async () => {
+    const { tx, runs, witnesses } = fakeTx([], [], ["kev", "bob"]);
+    const copy = localiseRun(run("QG-MIX", { players: five, reporterNames: ["Zed"] }), new Set(["kev", "bob"]), "forever");
+    const result = await storeDeviceRuns(tx, "g2", [copy], now, { deviceId: "inbox", characterKeys: [], sealKey: null, shared: true });
+    expect(result).toMatchObject({ stored: 1 });
+    const stored = runs[0] as { players: { character: string; inGuild: boolean }[]; trust: string | null };
+    expect(stored.players.filter((player) => player.inGuild).map((player) => player.character).sort()).toEqual(["Bob", "Kev"]);
+    expect(stored.trust).toBe("device");
+    expect(witnesses).toMatchObject([{ status: "stored", voucher: "zed" }]);
+  });
+  it("is not stored for a guild that excluded the sending PC, and a stranger's copy (nobody in the run vouches) is refused", async () => {
+    const held = fakeTx([], [], ["kev"], [1], ["inbox"]);
+    expect(await storeDeviceRuns(held.tx, "g1", [localiseRun(run("QG-EX", { reporterNames: ["Kev"] }), new Set(["kev"]), "forever")], now, { deviceId: "inbox", characterKeys: [], sealKey: null, shared: true })).toMatchObject({ stored: 0 });
+    const stranger = fakeTx([], [], ["kev"]);
+    expect(await storeDeviceRuns(stranger.tx, "g2", [localiseRun(run("QG-ST"), new Set(["kev"]), "forever")], now, { deviceId: "inbox", characterKeys: [], sealKey: null, shared: true })).toMatchObject({ stored: 0, skipped: 1 });
+  });
+
+  it("a held copy of another guild's run is released by an officer and counts once (the vouching player is kept with the copy)", async () => {
+    const LIM = { levelCap: 55, killSlackSec: 20, minSecondsPerBoss: 25, reachSec: 9000 };
+    process.env["RUN_INTEGRITY_CONFIG"] = JSON.stringify({ limits: LIM, defaultWeight: 1, holdScore: 2 });
+    try {
+      const odd = run("QG-COPYODD", { encounters: [{ id: 1, success: true, kind: "boss", at: start - 5000 }], players: ["Kev", "Bob", "Amy"].map((character) => ({ character, realm: "Forever", deaths: 0, presentSec: 2700, inGuild: true, level: 70, minLevel: 70 })) });
+      const copy = localiseRun(odd, new Set(["kev"]), "forever", "Amy");
+      const base = fakeTx([], [], ["kev"], [1, 2]);
+      const inbox = { deviceId: "inbox", characterKeys: [] as string[], sealKey: null, shared: true };
+      expect(await storeDeviceRuns(base.tx, "g1", [copy], now, inbox)).toMatchObject({ stored: 0 });
+      expect(base.witnesses).toMatchObject([{ status: "held" }]);
+      const database = { dungeonRunWitness: (base.tx as never as { dungeonRunWitness: unknown }).dungeonRunWitness, companionDevice: { findUnique: async () => ({ tokenHash: "xguild-inbox:g1" }) },
+        deviceCharacter: { findMany: async () => [] }, $transaction: async (fn: (t: never) => Promise<unknown>) => fn(base.tx) } as never;
+      const done = await releaseHeldRuns(database, "g1", { runRef: "QG-COPYODD" });
+      expect(done).toMatchObject({ picked: 1, counted: 1, stored: 1 });
+      expect(base.runs).toHaveLength(1);
+    } finally { delete process.env["RUN_INTEGRITY_CONFIG"]; }
+  });
+
+  it("copies for one guild do not hold each other: earlier holds and simultaneous runs of other players do not count against a later copy", async () => {
+    const LIM = { levelCap: 55, killSlackSec: 20, minSecondsPerBoss: 25, reachSec: 9000 };
+    process.env["RUN_INTEGRITY_CONFIG"] = JSON.stringify({ limits: LIM, defaultWeight: 1, holdScore: 5, deviceStrikes: 1, strikeWindowSec: 700000 });
+    try {
+      const base = fakeTx([], [], ["kev", "zed"], [1, 2]);
+      base.witnesses.push({ deviceId: "inbox", status: "held", runRef: "H1", firstSeenAt: now }, { deviceId: "inbox", status: "held", runRef: "H2", firstSeenAt: now });
+      const mk = (id: string, names: string[], at: number) => localiseRun(run(id, { startedAt: at, endedAt: at + 2700, players: names.map((character) => ({ character, realm: "Forever", deaths: 0, presentSec: 2700, inGuild: true, level: 30, minLevel: 30 })) }), new Set(["kev", "zed"]), "forever", names[0]);
+      const inbox = { deviceId: "inbox", characterKeys: [] as string[], sealKey: null, shared: true };
+      const result = await storeDeviceRuns(base.tx, "g1", [mk("QG-SIM1", ["Kev", "Bob", "Amy"], start), mk("QG-SIM2", ["Zed", "Liz", "Cy"], start + 60)], now, inbox);
+      expect(result).toMatchObject({ stored: 2 });
+    } finally { delete process.env["RUN_INTEGRITY_CONFIG"]; }
   });
 });

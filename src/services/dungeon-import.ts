@@ -96,6 +96,10 @@ export interface DungeonImportSummary {
   malformed: number;
   // Every run ref this upload brought and what happened to it (9.0.8), saved as DungeonRunReceipt rows.
   receipts?: RunReceipt[];
+  /** (9.3.2) The runs this import stored as completed and valid: other guilds with a member in them get a copy (cross-guild-runs.ts), after this import is saved. */
+  shareable?: unknown[];
+  /** When the bot received these runs (the time the season window is judged on for other guilds' copies). */
+  receivedAt?: Date;
 }
 
 // "retry" (9.3): refused for a cause a later bot version can fix (the run data could not be read). It is NOT an acknowledgement:
@@ -313,6 +317,8 @@ export async function importDungeonRuns(
   await importRuns(tx, guildId, rawRuns, characters, appliedBy, importId, now, summary);
   // Same transaction as the import: stored, copied and refused runs are all acknowledged.
   await saveRunReceipts(tx, guildId, summary.receipts ?? [], now);
+  const completed = new Set(summary.results.filter((result) => result.valid && result.state === "COMPLETED").map((result) => result.runRef));
+  if (completed.size) { summary.shareable = rawRuns.filter((raw) => completed.has(refOf(raw) ?? "")); summary.receivedAt = now; }
   console.info(uploadRunsLine(guildId, importId, rawRuns.length, summary));
   return summary;
 }

@@ -41,6 +41,8 @@ export function pruneOldRaids(exported, now = Date.now()) {
 }
 
 export function pruneAcknowledged(full, ack, features = new Set(["ledger-delta", "loot-delta"]), now = Date.now()) {
+  // Kills and deaths with their place go only to a bot that announced the feature; an older bot gets exactly what it always did.
+  if (full && full.pvpEvents !== undefined && !features.has("pvp-events")) { full = { ...full }; delete full.pvpEvents; }
   const pruned = pruneOldRaids(full, now);
   const raidsOmitted = pruned.omitted;
   // (9.3.1) Runs carried for players near this PC go only to a bot that announced the feature, and only once.

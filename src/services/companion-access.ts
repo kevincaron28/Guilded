@@ -61,6 +61,8 @@ export function personalSnapshot(snapshot: AddonSnapshot, owned: { name: string;
     battlegroundReports: snapshot.battlegroundReports.filter((row) => row.edition === edition && names.has(key(row.character, row.realm))),
     // Duels where the member took part, and the member's own milestones (names are matched on apply).
     duelResults: snapshot.duelResults.filter((row) => { const r = row as { winner?: unknown; loser?: unknown } | null; return [r?.winner, r?.loser].some((n) => typeof n === "string" && ownsName(n)); }),
+    // Duels outside the guild: only the ones this member reported as a side of the duel (the record's own side decides).
+    externalDuels: snapshot.externalDuels.filter((row) => { const r = row as { winner?: unknown; loser?: unknown; side?: unknown } | null; const name = r?.side === "winner" ? r.winner : r?.side === "loser" ? r.loser : null; return typeof name === "string" && ownsName(name); }),
     milestones: snapshot.milestones.filter((row) => { const c = (row as { character?: unknown } | null)?.character; return typeof c === "string" && ownsName(c); }),
     // 8.5: the member's own dungeon runs and guildmates' runs reported by someone who played them
     // (guildmate-relay.ts). The usual run validation and one-row-per-run-id still apply on import.

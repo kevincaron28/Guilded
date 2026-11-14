@@ -121,3 +121,28 @@ describe("recovering runs that ended ABANDONED after the final boss died", () =>
     expect(summary).toContain("enc=2732,2735");
   });
 });
+
+// The Drowned City (instance 2970), from the guild's runs of 10-14 November 2026: Min'loth the Serpent (3479) was the last boss of both full clears.
+describe("The Drowned City final boss", () => {
+  const city = () => foreverRun('{id=2970, type="party", name="The Drowned City", difficultyId=1}');
+
+  it("ends the run on Min'loth the Serpent after the other bosses, by id or by name", () => {
+    const s = city();
+    for (const [id, name] of [[3474, "Zul'Alai"], [3511, "Primeval Elemental"], [3475, "Var'Taka"], [3476, "Captain Dreadrise"], [3478, "Deathless Guardians"]]) {
+      s.run(`STAMP=STAMP+300; fire_event("ENCOUNTER_END",${id},"${name}",0,5,1)`);
+      expect(s.run("return GuildedDB.dungeon.current.state")).toBe("ACTIVE");
+    }
+    s.run(`STAMP=STAMP+300; fire_event("ENCOUNTER_END",3479,"Min'loth the Serpent",0,5,1)`);
+    expect(s.run("return GuildedDB.dungeon.runs[RUN_ID].state")).toBe("COMPLETED");
+    expect(s.run("return GuildedDB.dungeon.runs[RUN_ID].completedBy")).toBe("final boss");
+    expect(s.run(`return tostring(NS.compat.isDungeonFinalBoss(2970,9999,"Min'loth the Serpent",1))`)).toBe("true");
+    expect(s.run(`return tostring(NS.compat.isDungeonFinalBoss(2970,3474,"Zul'Alai",1))`)).toBe("false");
+    expect(s.run("return tostring(NS.compat.dungeonFinalKnown(2970))")).toBe("true");
+  });
+
+  it("does not end the run on a wipe of the final boss", () => {
+    const s = city();
+    s.run(`fire_event("ENCOUNTER_END",3479,"Min'loth the Serpent",0,5,0)`);
+    expect(s.run("return GuildedDB.dungeon.current.state")).toBe("ACTIVE");
+  });
+});

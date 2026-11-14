@@ -96,6 +96,7 @@ export function achievementsCard(name: string, items: AchievementCardItem[], lan
       .map(row => ({ name: label(row.def), sub: `${Math.min(row.value, row.def.threshold)}/${row.def.threshold}`, color: "#8a7a5a", right: t("Locked", "Verrouillé"), icon: badgeInner(row.def, false) }));
   return {
     eyebrow: t("Guilded · Achievements", "Guilded · Succès"), title: name,
+    backdrop: { kind: "board", key: "achievements" },
     subtitle: t("Computed from recorded guild data", "Données enregistrées de la guilde"),
     stats: [
       { label: t("Unlocked", "Débloqués"), value: `${earned.length}/${rows.length}`, accent: earned.length ? "gold" : "red", note: t(`${Math.round(rows.length ? (earned.length / rows.length) * 100 : 0)}% of the catalogue`, `${Math.round(rows.length ? (earned.length / rows.length) * 100 : 0)} % du catalogue`) },
@@ -152,6 +153,7 @@ export function achievementUnlockedCard(name: string, ids: string[], totalEarned
   const tierCounts = (Object.keys(TIER_COLOR) as AchievementTier[]).flatMap(tier => { const count = defs.filter(def => def.tier === tier).length; return count ? [{ label: TIER_LABEL[tier][lang], color: TIER_COLOR[tier], count }] : []; });
   return {
     eyebrow: t("Guilded · Achievement unlocked", "Guilded · Succès débloqué"), title: name,
+    backdrop: { kind: "board", key: "achievements" },
     subtitle: t("Computed from recorded guild data", "Données enregistrées de la guilde"),
     stats: [
       { label: t("Unlocked now", "Débloqués"), value: `+${defs.length}`, accent: "gold" },

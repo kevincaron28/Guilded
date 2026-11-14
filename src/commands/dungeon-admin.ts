@@ -10,6 +10,8 @@ import { postToLogChannel } from "../services/housekeeping.js";
 import { runCredit } from "../services/dungeon-held-credit.js";
 import { findPlayer } from "../services/player-search.js";
 import { explainDungeonRuns } from "../services/dungeon-explain.js";
+import { anomalyReport, describeAnomalies, describeHeld, heldReport, setDeviceExcluded } from "../services/run-anomalies.js";
+import { releaseHeldRuns } from "../services/run-release.js";
 import { asLang, tx } from "../i18n.js";
 import { guildService, requireGuildContext } from "./context.js";
 
@@ -19,11 +21,11 @@ const auditService = createAuditService(prisma);
 // written to the audit log and the officer log channel.
 export const dungeonAdminCommand = new SlashCommandBuilder()
   .setName("dungeon-admin")
-  .setDescription("Guild-only dungeon corrections and rewards; public scoring is fixed.")
+  .setDescription("Dungeon corrections and rewards (guild only)")
   .addSubcommand((sub) => sub.setName("invalidate").setDescription("Stop a run from counting and take back its points")
     .addStringOption((o) => o.setName("run").setDescription("The run (pick from the list)").setAutocomplete(true).setRequired(true))
     .addStringOption((o) => o.setName("reason").setDescription("Why (shown in the history)").setRequired(true).setMaxLength(200)))
-  .addSubcommand((sub) => sub.setName("award").setDescription("Adjust guild participation points; public scores unchanged")
+  .addSubcommand((sub) => sub.setName("award").setDescription("Adjust guild participation points")
     .addIntegerOption((o) => o.setName("amount").setDescription("e.g. 25, or -25 to remove").setRequired(true).setMinValue(-10000).setMaxValue(10000))
     .addStringOption((o) => o.setName("reason").setDescription("Why (shown in the history)").setRequired(true).setMaxLength(200))
     .addUserOption((o) => o.setName("member").setDescription("Discord member"))
@@ -33,7 +35,11 @@ export const dungeonAdminCommand = new SlashCommandBuilder()
     .addStringOption((o) => o.setName("character").setDescription("Or a character name"))
     .addStringOption((o) => o.setName("run").setDescription("Or one run (pick from the list)").setAutocomplete(true))
     .addBooleanOption((o) => o.setName("why").setDescription("Explain why runs do or do not count")))
-  .addSubcommand((sub) => sub.setName("config").setDescription("View the fixed dungeon participation rules for all guilds"))
+  .addSubcommand((sub) => sub.setName("config").setDescription("View the fixed dungeon rules"))
+  .addSubcommand((sub) => sub.setName("flagged").setDescription("Unlikely runs; exclude a PC")
+    .addStringOption((o) => o.setName("pc").setDescription("PC code").setMaxLength(16))
+    .addStringOption((o) => o.setName("run").setDescription("Held run code").setMaxLength(100))
+    .addBooleanOption((o) => o.setName("exclude").setDescription("False restores")))
   .addSubcommand(sub => sub.setName("bracket-preview").setDescription("Preview shared season targets"))
   .addSubcommand(sub => sub.setName("recalibrate").setDescription("Timed-run evidence for future rules")
     .addStringOption(o => o.setName("route").setDescription("Route (pick from the list)").setAutocomplete(true).setRequired(true)));
@@ -114,6 +120,29 @@ export async function executeDungeonAdmin(interaction: ChatInputCommandInteracti
     const blocks = await explainDungeonRuns(prisma, context.guildId, { run: interaction.options.getString("run"), character: interaction.options.getString("character") });
     await interaction.reply({ content: blocks.join("\n\n").slice(0, 1990), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
     return;
+  } else if (subcommand === "flagged") {
+    const pc = interaction.options.getString("pc");
+    const exclude = interaction.options.getBoolean("exclude");
+    const release = interaction.options.getString("run");
+    if (release) {
+      const done = await releaseHeldRuns(prisma, context.guildId, { runRef: release });
+      if (done.picked) await log("released a held dungeon run", { runRef: release });
+      await interaction.reply({ content: done.ambiguous ? tx(lang, "Several held runs start with that code: give more of it.") : !done.picked ? tx(lang, "No held run has that code.")
+        : done.counted ? tx(lang, "Released: it counts now.") : done.already ? tx(lang, "That run already counts.") : tx(lang, "Released: it counts when its PC sends it again."), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+      return;
+    }
+    if (!pc) {
+      const [flagged, held] = await Promise.all([anomalyReport(prisma, context.guildId), heldReport(prisma, context.guildId)]);
+      await interaction.reply({ content: [describeHeld(held, lang), describeAnomalies(flagged, lang)].filter(Boolean).join("\n\n").slice(0, 1990), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+      return;
+    }
+    const deviceId = await setDeviceExcluded(prisma, context.guildId, pc, exclude !== false);
+    if (deviceId) await log(`${exclude === false ? "restored" : "excluded"} a PC that sends dungeon runs`, { pc });
+    if (!deviceId) reply = tx(lang, "No single PC that sent runs to this server matches that code.");
+    else if (exclude === false) {
+      const done = await releaseHeldRuns(prisma, context.guildId, { deviceId });
+      reply = tx(lang, "That PC is restored. {n} of its held runs were counted.", { n: done.counted });
+    } else reply = tx(lang, "That PC is excluded: its dungeon runs are held from now on, and count if you restore it.");
   } else if (subcommand === "bracket-preview") {
     await interaction.reply({ embeds: [provisionalSeasonEmbed()], flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
     return;

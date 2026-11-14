@@ -120,6 +120,7 @@ import { backCheckInvites, completeInvitesFromRoster } from "./services/invite-c
 import { prelinkInvitedCharacters, tellPrelinked } from "./services/invite-prelink.js";
 import { COMPANION_FEATURES, markGuildChanged, standingsFeed, type FeedParts } from "./services/standings-feed.js";
 import { commandRegistration } from "./services/command-registration.js";
+import { deriveSealKey } from "./services/run-challenge.js";
 const BOT_VERSION = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version as string;
 
 const importService = createAddonImportService(prisma);
@@ -877,7 +878,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         }
         if (!deviceUploadsPerDevice(device.id) || !deviceUploadsPerIp(address)) { json(response, 429, { error: "Too many uploads in the last hour. Try again later." }); return; }
         try {
-          const answered = await handleDeviceUpload(devices, device, await readBody(request), { allows: (id) => hostedPilot.allows(id) });
+          const answered = await handleDeviceUpload(devices, device, await readBody(request), { allows: (id) => hostedPilot.allows(id), sealKey: deviceHeader(request) ? deriveSealKey(deviceHeader(request)!) : null });
           // A fresh challenge for the duel records the addon makes next (the companion writes it where the addon reads it).
           const duelChallenge = await issueDuelChallenge(prisma, device.id).catch(() => null);
           json(response, 200, { ...answered, botVersion: BOT_VERSION, ...(duelChallenge ? { duelChallenge } : {}) });

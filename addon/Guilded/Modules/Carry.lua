@@ -24,12 +24,11 @@ local MAX_RECORDS, MAX_PER_AUTHOR, MAX_RECORD_BYTES, KEEP_DAYS = 200, 40, 2048, 
 local CHUNK, MAX_CHUNKS = 150, 14
 local SESSION_PER_CARRIER, PAUSE_SECONDS, SESSION_CARRIERS = 8, 600, 4
 local STALE_SECONDS, MAX_FAILURES, MAX_CARRIERS = 1200, 2, 40
--- (9.3.3) FEATURES_FRESH was 7 days: the marker is read only when the game loads the companion's file (login, /reload), and a long
--- window meant a healthy companion was never doubted. It also meant a stopped or uninstalled companion kept this PC a "carrier" for a
--- week. Now: at most 6 hours between the companion's last write and this load (it writes the marker at every sync), plus a live check:
--- a record this PC holds for over UNCONFIRMED_SECONDS without its upload receipt makes it stop carrying until the next load shows
--- the receipts. A record handed to a carrier is offered to a different carrier only after REOFFER_SECONDS without a receipt.
-local ANNOUNCE_SECONDS, ANNOUNCE_MIN_GAP, FEATURES_FRESH = 600, 300, 6 * 3600
+local ANNOUNCE_SECONDS, ANNOUNCE_MIN_GAP, FEATURES_FRESH = 600, 300, 7 * 86400
+-- (9.3.3) The marker's `at` moves only when the companion writes new standings, so its age alone cannot tell a stopped companion
+-- (that window moves to the shared Util helper with the companion's heartbeat). A live check instead: a record this PC holds for over
+-- UNCONFIRMED_SECONDS without its upload receipt makes it stop carrying until the next load shows the receipts. A record handed to a
+-- carrier is offered to a different carrier only after REOFFER_SECONDS without a receipt.
 local UNCONFIRMED_SECONDS, REOFFER_SECONDS = 1800, 86400
 local HI_GAP = 300
 local PER_SENDER_PER_HOUR, SENDER_ASSEMBLIES, MAX_ASSEMBLIES, ASSEMBLY_SECONDS = 20, 3, 30, 120
@@ -84,14 +83,12 @@ function carry.enabled()
 end
 
 -- This PC's companion carries records for players near it (it writes GuildedCompanionFeatures with every update; it goes stale when it stops).
--- The marker as of this load (the game only replaces the global when it loads the file): fresh when the companion wrote it at most
--- FEATURES_FRESH before the load. Measured against the load, so a long session does not flip it halfway.
+-- The marker as before (unchanged window); the shared Util helper replaces this once it is on main.
 function carry.markerFresh()
   local features = type(GuildedCompanionFeatures) == "table" and GuildedCompanionFeatures or nil
   if not features or features["carry-records"] ~= true then return false end
   local at = tonumber(features.at)
-  local loaded = carry.loadedAt or now()
-  return at ~= nil and loaded - at <= FEATURES_FRESH and at <= loaded + 86400
+  return at ~= nil and now() - at <= FEATURES_FRESH and at <= now() + 86400
 end
 -- A record this PC holds without its receipt for over UNCONFIRMED_SECONDS: the companion is not uploading what it was handed.
 function carry.unconfirmed()
@@ -736,8 +733,6 @@ local function onEvent(_, event, ...)
     local prefix, text, channel, sender = ...
     onAddonMessage(prefix, text, channel, sender)
   elseif event == "PLAYER_LOGIN" then
-    -- The moment the companion's files were loaded: the marker's age is measured against it.
-    carry.loadedAt = now()
     if ns.comm and ns.comm.register then ns.comm.register(PREFIX) end
     startup()
   elseif event == "GROUP_ROSTER_UPDATE" then

@@ -435,27 +435,10 @@ describe("the /guilded carry status line", () => {
   });
 });
 
-// Real-client finding on 9.3.2: the second PC's companion was stopped, yet the addon kept carrying for a week (the marker counted as
-// fresh for 7 days), announced itself and kept its own new record instead of handing it to a real carrier nearby.
+// Real-client finding on 9.3.2: the second PC's companion was stopped, yet the addon kept carrying, announced itself and kept its own
+// new record instead of handing it to a real carrier nearby. The marker's window is the shared Util helper's job; these are the live checks.
 describe("a companion that stopped is not trusted as a carrier", () => {
   const here = (s: LuaSession) => s.run("return tostring(NS.carry.companionHere())");
-
-  it("a marker written more than 6 hours before this load does not make this PC a carrier: its own record goes to a real one", () => {
-    const player = client("guilded", "Aye");
-    player.run(`GuildedCompanionFeatures = { ["carry-records"] = true, at = CLOCK - 7 * 3600 }`);
-    expect(here(player)).toBe("false");
-    expect(player.run("return NS.carry.statusLine()")).not.toContain("Your companion carries");
-    player.run("NS.carry.announce(true)");
-    expect(queued(player, "GUILD")).toEqual([]);
-    duel(player);
-    hear(player, "Bee", "HI|1", "GUILD");
-    expect(queued(player, "WHISPER", "Bee").length).toBeGreaterThan(0);
-    // A marker 5 hours old at this load is still fresh, and stays so for the whole session (measured against the load).
-    player.run(`GuildedCompanionFeatures = { ["carry-records"] = true, at = CLOCK - 5 * 3600 }`);
-    expect(here(player)).toBe("true");
-    CLOCK_STEP(player, 10 * 3600);
-    expect(here(player)).toBe("true");
-  });
 
   it("a carrier holding a record over 30 minutes with no receipt stops announcing, refuses new records and hands its own on", () => {
     const carrier = client("guilded", "Bee", { companion: true });

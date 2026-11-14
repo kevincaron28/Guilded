@@ -6,6 +6,7 @@ import { escapeHtml, link, options, type Lang } from "./web-layout.js";
 import { emptyBox, strip, type PodiumEntry } from "./leaderboard-hub.js";
 import { foldZoneName, PVP_ZONES, zoneById, zoneOf, type Continent, type PvpZone } from "./pvp-zones.js";
 import { CONTINENT_IMAGES, MAP_HEIGHT, MAP_WIDTH, ZONE_RECTS } from "./pvp-zone-rects.js";
+import { CONTINENT_LAND, ZONE_SHAPES } from "./pvp-zone-shapes.js";
 
 // The PvP tab of the public leaderboards: the world PvP board (kills, deaths, K/D), the battleground ladder and results, and the zones where
 // players called for help. Only guilds that publish their runs, members who are not hidden or test accounts, no Discord IDs: this module reads
@@ -16,7 +17,7 @@ type T = (en: string, fr: string) => string;
 export interface PvpPlayer { key: string; name: string; short: string; realm: string; className: string | null; level: number | null; guildId: string }
 export interface PvpWorldRow extends PvpPlayer { kills: number; deaths: number; defends: number; helped: number }
 export interface PvpGame extends PvpPlayer { mode: string; bracket: string; mapId: number; outcome: string; endedAt: Date; /** One value per battleground match, shared by every member who reported it. */ matchKey: string }
-export interface PvpCall { guildId: string; zone: string; mapId?: number | null; subzone?: string; /** Position on the zone map, 0-1. */ x?: number | null; y?: number | null; calledAt: Date }
+export interface PvpCall { guildId: string; zone: string; mapId?: number | null; calledAt: Date }
 export interface PvpData { weekKey: number; week: PvpWorldRow[]; total: PvpWorldRow[]; games: PvpGame[]; calls: PvpCall[]; /** Kills and deaths per zone, when the zone of each is sent (none today). */ zoneActivity?: PvpZoneActivity[] }
 export const emptyPvp = (weekKey: number): PvpData => ({ weekKey, week: [], total: [], games: [], calls: [] });
 
@@ -51,7 +52,7 @@ export async function loadPvpData(database: PrismaClient, guildIds: readonly str
     database.worldPvpWeek.groupBy({ by: ["memberId", "guildId"], where: { guildId: { in: ids }, member: VISIBLE }, _sum: { kills: true, deaths: true, defends: true, helped: true }, orderBy: { _sum: { kills: "desc" } }, take: WORLD_ROWS }),
     database.battlegroundReport.findMany({ where: { guildId: { in: ids }, gameEdition: edition, status: "PROVISIONAL", endedAt: { gte: since, lt: now }, member: VISIBLE }, orderBy: { endedAt: "desc" }, take: GAME_ROWS,
       select: { guildId: true, mode: true, bracket: true, mapId: true, outcome: true, endedAt: true, premadeNonce: true, character: { select: { name: true, displayName: true, realm: true, className: true, level: true } } } }),
-    database.guildHelpCall.findMany({ where: { guildId: { in: ids }, calledAt: { gte: callsSince, lt: now }, member: VISIBLE }, select: { guildId: true, zone: true, subzone: true, mapId: true, x: true, y: true, calledAt: true }, orderBy: { calledAt: "desc" }, take: CALL_ROWS })
+    database.guildHelpCall.findMany({ where: { guildId: { in: ids }, calledAt: { gte: callsSince, lt: now }, member: VISIBLE }, select: { guildId: true, zone: true, mapId: true, calledAt: true }, orderBy: { calledAt: "desc" }, take: CALL_ROWS })
   ]);
   const worldWeek = weekRows.map((row) => ({ memberId: row.memberId, guildId: row.guildId, kills: row.kills, deaths: row.deaths, defends: row.defends, helped: row.helped }));
   const worldTotal = totalRows.map((row) => ({ memberId: row.memberId, guildId: row.guildId, kills: row._sum.kills ?? 0, deaths: row._sum.deaths ?? 0, defends: row._sum.defends ?? 0, helped: row._sum.helped ?? 0 }));
@@ -79,8 +80,8 @@ export async function loadPvpData(database: PrismaClient, guildIds: readonly str
   data.week = world(shown.week);
   data.total = world(shown.total);
   data.games = reports.map((row) => ({ ...player(row.character, row.guildId), mode: row.mode, bracket: row.bracket, mapId: row.mapId, outcome: row.outcome, endedAt: row.endedAt, matchKey: matchKeyOf(row.guildId, row.mapId, row.mode, row.endedAt, row.premadeNonce) }));
-  data.calls = calls.map((row) => ({ guildId: row.guildId, zone: row.zone.trim().slice(0, 60), mapId: row.mapId, subzone: (row.subzone ?? "").trim().slice(0, 60), x: row.x, y: row.y, calledAt: row.calledAt })).filter((row) => row.zone && row.zone !== "?");
-  for (const call of data.calls) if (call.mapId && !zoneById(call.mapId) && !loggedMaps.has(call.mapId)) { loggedMaps.add(call.mapId); console.warn(`PvP map: unknown zone map id ${call.mapId} ("${call.zone.slice(0, 40)}"): shown in the table only`); }
+  data.calls = calls.map((row) => ({ guildId: row.guildId, zone: row.zone.trim().slice(0, 60), mapId: row.mapId, calledAt: row.calledAt })).filter((row) => row.zone && row.zone !== "?");
+  for (const call of data.calls) if (call.mapId && !zoneById(call.mapId) && !loggedMaps.has(call.mapId) && loggedMaps.size < 200) { loggedMaps.add(call.mapId); console.warn(`PvP map: unknown zone map id ${call.mapId} ("${call.zone.slice(0, 40)}"): shown in the table only`); }
   return data;
 }
 const loggedMaps = new Set<number>();
@@ -143,8 +144,8 @@ export function bgBoard(data: PvpData, f: PvpFilters): PvpBgBoard {
 export interface PvpZoneActivity { weekKey: number; mapId: number | null; zone: string; guildId: string; kills: number; deaths: number; className: string | null; level: number | null }
 export interface ZoneStat {
   key: string; zone: PvpZone | null; en: string; fr: string; calls: number; kills: number; deaths: number; heat: number;
-  guilds: { guildId: string; count: number }[]; recent: { at: Date; guildId: string; subzone: string }[];
-  /** Where calls were made, on the zone map (0-1), newest first, at most 60. */ dots: { x: number; y: number }[];
+  guilds: { guildId: string; count: number }[];
+  /** Exact places (kills and deaths only: a call for help is shown by its zone, never by a point), each with the zone map id it was recorded on. */ dots: { mapId: number; x: number; y: number; kind: "kill" | "death"; approx?: boolean }[];
 }
 /** Pure: every catalogue zone (lit or not) plus any named zone the catalogue does not know, for the chosen period and, when given, one guild. */
 export function zoneStats(data: PvpData, f: PvpFilters, guildId: string | null = null): ZoneStat[] {
@@ -153,7 +154,7 @@ export function zoneStats(data: PvpData, f: PvpFilters, guildId: string | null =
   const slot = (zone: PvpZone | null, name: string) => {
     const key = zone ? `z${zone.id}` : `n${foldZoneName(name)}`;
     let stat = stats.get(key);
-    if (!stat) { stat = { key, zone, en: zone?.en ?? name, fr: zone?.fr ?? name, calls: 0, kills: 0, deaths: 0, heat: 0, guilds: [], recent: [], dots: [], by: new Map() }; stats.set(key, stat); }
+    if (!stat) { stat = { key, zone, en: zone?.en ?? name, fr: zone?.fr ?? name, calls: 0, kills: 0, deaths: 0, heat: 0, guilds: [], dots: [], by: new Map() }; stats.set(key, stat); }
     return stat;
   };
   for (const zone of PVP_ZONES) slot(zone, zone.en);
@@ -163,8 +164,6 @@ export function zoneStats(data: PvpData, f: PvpFilters, guildId: string | null =
     const stat = slot(zone, call.zone);
     stat.calls += 1;
     stat.by.set(call.guildId, (stat.by.get(call.guildId) ?? 0) + 1);
-    stat.recent.push({ at: call.calledAt, guildId: call.guildId, subzone: call.subzone ?? "" });
-    if (zone && typeof call.x === "number" && typeof call.y === "number" && call.x >= 0 && call.x <= 1 && call.y >= 0 && call.y <= 1 && stat.dots.length < 60) stat.dots.push({ x: call.x, y: call.y });
   }
   for (const row of data.zoneActivity ?? []) {
     if ((guildId && row.guildId !== guildId) || (f.period === "week" && row.weekKey !== data.weekKey) || !matches({ className: row.className, level: row.level } as PvpPlayer, f)) continue;
@@ -175,8 +174,7 @@ export function zoneStats(data: PvpData, f: PvpFilters, guildId: string | null =
   // The map is lit by kills plus deaths as soon as any exist for the period; until then by calls for help.
   const kd = [...stats.values()].some((stat) => stat.kills + stat.deaths > 0);
   return [...stats.values()].map(({ by, ...stat }) => ({ ...stat, heat: kd ? stat.kills + stat.deaths : stat.calls,
-    guilds: [...by].map(([id, count]) => ({ guildId: id, count })).sort((a, b) => b.count - a.count || a.guildId.localeCompare(b.guildId)).slice(0, 3),
-    recent: stat.recent.sort((a, b) => b.at.getTime() - a.at.getTime()).slice(0, 8) }))
+    guilds: [...by].map(([id, count]) => ({ guildId: id, count })).sort((a, b) => b.count - a.count || a.guildId.localeCompare(b.guildId)).slice(0, 3) }))
     .sort((a, b) => b.heat - a.heat || a.en.localeCompare(b.en));
 }
 
@@ -278,11 +276,11 @@ const HEAT_FILLS = ["rgba(214,170,70,.30)", "rgba(214,170,70,.48)", "rgba(238,13
 export const PVP_MAP_CSS = `<style>
 .pvp-maps{display:grid;gap:16px;grid-template-columns:minmax(0,1fr);margin:8px 0 16px;justify-items:center}@media(min-width:900px){.pvp-maps{grid-template-columns:repeat(2,minmax(0,1fr))}}.pvp-map{width:100%;max-width:560px}
 .pvp-map{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#12171a;min-width:0;margin:0}.pvp-map h3{margin:10px 14px 4px;font-size:16px}
-.pvp-map svg{display:block;width:100%;height:auto}.pvp-map .sea{fill:#0f1519}.pvp-map .land{fill:#1f2a2c;stroke:#2c3a3a;stroke-width:1}.pvp-map rect{vector-effect:non-scaling-stroke}
+.pvp-map svg{display:block;width:100%;height:auto}.pvp-map .sea{fill:#0f1519}.pvp-map .land{fill:#22302f;stroke:none}.pvp-map .coast{fill:none;stroke:#0a0f11;stroke-width:6;opacity:.55}.pvp-map rect,.pvp-map path{vector-effect:non-scaling-stroke}.pvp-map .hit{fill:transparent;stroke:none}
 .pvp-map .r{fill:rgba(255,255,255,.015);stroke:rgba(190,170,120,.35);stroke-width:1.2}.pvp-map .h0 .r{pointer-events:none}
 .pvp-map .h1 .r{fill:${HEAT_FILLS[0]};stroke:#a98c3f}.pvp-map .h2 .r{fill:${HEAT_FILLS[1]};stroke:#c89b3c}.pvp-map .h3 .r{fill:${HEAT_FILLS[2]};stroke:#ee8a3d}.pvp-map .h4 .r{fill:${HEAT_FILLS[3]};stroke:#e5523f}.pvp-map .h5 .r{fill:${HEAT_FILLS[4]};stroke:#ff5a4a}
 .pvp-map a.z{outline:none;cursor:pointer}.pvp-map a.z:hover .r,.pvp-map a.z:focus .r{stroke:#fff;stroke-width:2}
-.pvp-map .ev{fill:#f2ead6;stroke:#12171a;stroke-width:1;pointer-events:none;vector-effect:non-scaling-stroke}.pvp-map .ev.call{fill:#ffd36b}
+.pvp-map .ev{fill:#f2ead6;stroke:#12171a;stroke-width:1;pointer-events:none;vector-effect:non-scaling-stroke}.pvp-map .ev.kill{fill:#e5523f}.pvp-map .ev.death{fill:#8fa8ff}.pvp-map .ev.approx{opacity:.55}
 .pvp-map .tip{display:none;pointer-events:none}.pvp-map .tip rect{fill:#0d1012;stroke:var(--gold);stroke-width:1}.pvp-map .tip text{fill:#f2ead6}.pvp-map .tip .t1{font-weight:700;fill:#e8c47c}
 .zone-panel{display:none;border:1px solid var(--gold);border-radius:12px;padding:12px 16px;margin:12px 0;background:var(--panel);scroll-margin-top:80px}.zone-panel:target{display:block}.zone-panel h3{margin:0 0 6px}.zone-panel ul{margin:6px 0;padding-left:18px}
 .heat-legend{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;font-size:13px;color:var(--muted);margin:0 0 8px}.heat-legend i{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:-2px;margin-right:4px;border:1px solid rgba(255,255,255,.25)}
@@ -301,23 +299,36 @@ function continentSvg(env: PvpEnv, continent: Continent, stats: ZoneStat[], max:
   const here = stats.filter((stat) => stat.zone && stat.zone.continent === continent && ZONE_RECTS[stat.zone.id])
     .sort((a, b) => (zoneBox(b.zone!.id)!.w * zoneBox(b.zone!.id)!.h) - (zoneBox(a.zone!.id)!.w * zoneBox(a.zone!.id)!.h));
   const fmt = (n: number) => n.toFixed(1);
-  const view = continentView(continent), font = view.w * 0.034, dotR = view.w * 0.011, corner = view.w * 0.02;
-  const land = image ? "" : here.filter((stat) => !stat.zone!.city).map((stat) => { const b = zoneBox(stat.zone!.id)!; return `<rect class="land" x="${fmt(b.x)}" y="${fmt(b.y)}" width="${fmt(b.w)}" height="${fmt(b.h)}" rx="${fmt(corner)}"/>`; }).join("");
+  const view = continentView(continent), font = view.w * 0.034, dotR = view.w * 0.011, corner = view.w * 0.02, minHit = view.w * 0.1;
+  /** The zone's own shape (traced from the game's zone land masks) placed on the continent through its rectangle; the rectangle itself when no shape exists. */
+  const shapeOf = (id: number, cls: string) => {
+    const b = zoneBox(id)!, d = ZONE_SHAPES[id];
+    return d ? `<path class="${cls}" fill-rule="evenodd" transform="translate(${fmt(b.x)} ${fmt(b.y)}) scale(${(b.w / 1000).toFixed(4)} ${(b.h / 1000).toFixed(4)})" d="${d}"/>`
+      : `<rect class="${cls}" x="${fmt(b.x)}" y="${fmt(b.y)}" width="${fmt(b.w)}" height="${fmt(b.h)}" rx="${stat_city(id) ? 2 : fmt(corner)}"/>`;
+  };
+  const stat_city = (id: number) => !!zoneById(id)?.city;
+  const fid = `coast-${continent}`;
+  const land = image ? "" : `<filter id="${fid}" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="${fmt(view.w * 0.006)}"/><feComponentTransfer><feFuncA type="linear" slope="18" intercept="-7"/></feComponentTransfer></filter>`
+    + `<g filter="url(#${fid})"><path class="land" fill-rule="evenodd" transform="scale(${(MAP_WIDTH / 1000).toFixed(4)} ${(MAP_HEIGHT / 1000).toFixed(4)})" d="${CONTINENT_LAND[continent]}"/>${here.filter((stat) => !stat.zone!.city).map((stat) => shapeOf(stat.zone!.id, "land")).join("")}</g>`;
   const rects: string[] = [], tips: string[] = [], css: string[] = [], dots: string[] = [];
   for (const stat of here) {
-    const b = zoneBox(stat.zone!.id)!, level = levelOf(stat.heat, max);
-    const rect = `<rect class="r" x="${fmt(b.x)}" y="${fmt(b.y)}" width="${fmt(b.w)}" height="${fmt(b.h)}" rx="${stat.zone!.city ? 2 : fmt(corner)}"/>`;
-    if (!level) { rects.push(`<g class="z h0" aria-hidden="true">${rect}</g>`); continue; }
+    const id = stat.zone!.id, b = zoneBox(id)!, level = levelOf(stat.heat, max);
+    const shape = shapeOf(id, "r");
+    if (!level) { rects.push(`<g class="z h0" aria-hidden="true">${shape}</g>`); continue; }
     const line1 = zoneName(env, stat), line2 = zoneNumbers(env, stat, kd);
     const w = Math.max(line1.length * font * 0.62, line2.length * font * 0.52) + font * 1.2, h = font * 3.1;
     const tx = Math.max(view.x + 2, Math.min(view.x + view.w - w - 2, b.x + b.w / 2 - w / 2)), ty = b.y > view.y + h + font ? b.y - h - font * 0.4 : b.y + b.h + font * 0.4;
-    const id = stat.zone!.id;
-    rects.push(`<a class="z h${level}" href="#zone-${id}" data-heat="${stat.heat}" aria-label="${escapeHtml(`${line1}: ${line2}`)}">${rect}</a>`);
+    // a small zone (a city) gets a larger invisible target, so a thumb can reach it
+    const hw = Math.max(b.w, minHit), hh = Math.max(b.h, minHit);
+    const hit = hw > b.w || hh > b.h ? `<rect class="hit" x="${fmt(b.x + b.w / 2 - hw / 2)}" y="${fmt(b.y + b.h / 2 - hh / 2)}" width="${fmt(hw)}" height="${fmt(hh)}"/>` : "";
+    rects.push(`<a class="z h${level}" href="#zone-${id}" data-heat="${stat.heat}" aria-label="${escapeHtml(`${line1}: ${line2}`)}">${hit}${shape}</a>`);
     tips.push(`<g class="tip" data-t="${id}" font-size="${fmt(font)}"><rect x="${fmt(tx)}" y="${fmt(ty)}" width="${fmt(w)}" height="${fmt(h)}" rx="${fmt(font * 0.3)}"/><text class="t1" x="${fmt(tx + font * 0.6)}" y="${fmt(ty + font * 1.25)}">${escapeHtml(line1)}</text><text x="${fmt(tx + font * 0.6)}" y="${fmt(ty + font * 2.4)}">${escapeHtml(line2)}</text></g>`);
     css.push(`.pvp-map a[href="#zone-${id}"]:hover~g[data-t="${id}"],.pvp-map a[href="#zone-${id}"]:focus~g[data-t="${id}"]{display:block}`);
   }
-  for (const stat of here) for (const dot of stat.dots) { const p = zonePoint(stat.zone!.id, dot.x, dot.y); if (p) dots.push(`<circle class="ev call" cx="${fmt(p.x)}" cy="${fmt(p.y)}" r="${fmt(dotR)}"/>`); }
-  const base = image ? `<image href="${escapeHtml(image)}" x="${fmt(view.x)}" y="${fmt(view.y)}" width="${fmt(view.w)}" height="${fmt(view.h)}" preserveAspectRatio="none" loading="lazy"/>` : `<rect class="sea" x="${fmt(view.x)}" y="${fmt(view.y)}" width="${fmt(view.w)}" height="${fmt(view.h)}"/>`;
+  for (const stat of here) for (const dot of stat.dots) { if (dot.mapId !== stat.zone!.id) continue; const p = zonePoint(stat.zone!.id, dot.x, dot.y); if (p) dots.push(`<circle class="ev ${dot.kind}${dot.approx ? " approx" : ""}" cx="${fmt(p.x)}" cy="${fmt(p.y)}" r="${fmt(dotR)}"/>`); }
+  // the sea is always drawn, so a painting that fails to load degrades to the plain map
+  const sea = `<rect class="sea" x="${fmt(view.x)}" y="${fmt(view.y)}" width="${fmt(view.w)}" height="${fmt(view.h)}"/>`;
+  const base = sea + (image ? `<image href="${escapeHtml(image)}" x="${fmt(view.x)}" y="${fmt(view.y)}" width="${fmt(view.w)}" height="${fmt(view.h)}" preserveAspectRatio="none" loading="lazy"/>` : "");
   return { svg: `<svg viewBox="${fmt(view.x)} ${fmt(view.y)} ${fmt(view.w)} ${fmt(view.h)}" role="group" aria-label="${escapeHtml(CONTINENT_NAMES[continent][env.lang === "fr" ? 1 : 0])}">${base}${land}${rects.join("")}${dots.join("")}${tips.join("")}</svg>`, css: css.join("") };
 }
 
@@ -334,7 +345,6 @@ export function zoneMapHtml(env: PvpEnv, stats: ZoneStat[], f: PvpFilters): stri
   const maps = svgs.map(({ continent, svg }) => `<figure class="pvp-map"><h3>${escapeHtml(CONTINENT_NAMES[continent][lang === "fr" ? 1 : 0])}</h3>${svg}</figure>`).join("");
   const panels = lit.filter((s) => s.zone).map((stat) => `<section class="zone-panel" id="zone-${stat.zone!.id}"><h3>${escapeHtml(zoneName(env, stat))}</h3><p>${escapeHtml(zoneNumbers(env, stat, kd))}${kd && stat.calls ? ` · ${stat.calls} ${t("calls for help", "appels à l'aide")}` : ""}</p>`
     + (stat.guilds.length ? `<p>${t("Most active guilds", "Guildes les plus actives")}: ${stat.guilds.map((g) => `${env.guild(g.guildId) || "–"} (${g.count})`).join(", ")}</p>` : "")
-    + (stat.recent.length ? `<p>${t("Recent calls for help", "Derniers appels à l'aide")}</p><ul>${stat.recent.map((r) => `<li>${date(r.at)}${r.subzone ? ` · ${escapeHtml(r.subzone)}` : ""}${env.guild(r.guildId) ? ` · ${env.guild(r.guildId)}` : ""}</li>`).join("")}</ul>` : "")
     + `<p><a href="#zone-map">${t("Back to the map", "Retour à la carte")}</a></p></section>`).join("");
   const continentOf = (stat: ZoneStat) => stat.zone ? CONTINENT_NAMES[stat.zone.continent][lang === "fr" ? 1 : 0] : "";
   const head = kd ? [t("Zone", "Zone"), t("Continent", "Continent"), t("Kills", "Victimes"), t("Deaths", "Morts"), t("Total", "Total"), t("Calls for help", "Appels à l'aide"), t("Most active guild", "Guilde la plus active")]
@@ -344,8 +354,10 @@ export function zoneMapHtml(env: PvpEnv, stats: ZoneStat[], f: PvpFilters): stri
     + `<td>${s.guilds[0] ? env.guild(s.guilds[0].guildId) : ""}</td></tr>`;
   const table = lit.length ? env.table(head, lit.slice(0, 60).map(row), kd ? [2, 3, 4, 5] : [2], "dense")
     : `<p class="muted">${t("Nothing recorded for this period.", "Rien d'enregistré pour cette période.")}</p>`;
-  const hasDots = stats.some((s) => s.dots.length);
-  const dotNote = hasDots ? `<p class="muted">${t("Yellow dots: where players called for help.", "Points jaunes : où des joueurs ont appelé à l'aide.")}</p>` : "";
+  const kinds = new Set(stats.flatMap((s) => s.dots.map((d) => d.kind)));
+  const notes = [kinds.has("kill") ? t("Red dots: kills.", "Points rouges : victimes.") : "", kinds.has("death") ? t("Blue dots: deaths.", "Points bleus : morts.") : "",
+    !kd ? t("Calls for help are shown by zone only, never by position. The class, level and mode filters do not apply to them.", "Les appels à l'aide sont montrés par zone seulement, jamais par position. Les filtres de classe, de niveau et de mode ne s'y appliquent pas.") : ""].filter(Boolean);
+  const dotNote = notes.length ? `<p class="muted">${notes.join(" ")}</p>` : "";
   return `${PVP_MAP_CSS}<style>${svgs.map((s) => s.css).join("")}</style><h2 id="zone-map">${t("Zone map", "Carte des zones")} · ${period}</h2>${legend}<div class="pvp-maps">${maps}</div>${dotNote}${panels}<h3>${t("Zones", "Zones")}</h3>${table}`;
 }
 

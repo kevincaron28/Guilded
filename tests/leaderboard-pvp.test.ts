@@ -1,9 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { clearLeaderboardCaches, createLeaderboardPages, type LeaderRun, type LeaderboardStore } from "../src/services/public-leaderboard.js";
-import { zoneBox, zonePoint, bgBoard, guildPvp, loadPvpData, playerPvp, readPvpFilters, worldBoard, zoneStats, type PvpData, type PvpGame, type PvpWorldRow } from "../src/services/leaderboard-pvp.js";
+import { continentView, zoneBox, zonePoint, zoneMapHtml, bgBoard, guildPvp, loadPvpData, playerPvp, readPvpFilters, worldBoard, zoneStats, type PvpData, type PvpGame, type PvpWorldRow } from "../src/services/leaderboard-pvp.js";
 import { weekKeyOf } from "../src/services/world-pvp.js";
 import { PVP_ZONES, zoneById, zoneByName, zoneOf } from "../src/services/pvp-zones.js";
-import { MAP_HEIGHT, MAP_WIDTH, ZONE_RECTS } from "../src/services/pvp-zone-rects.js";
+import { existsSync } from "node:fs";
+import { ZONE_SHAPES } from "../src/services/pvp-zone-shapes.js";
+import { CONTINENT_IMAGES, MAP_HEIGHT, MAP_WIDTH, ZONE_RECTS } from "../src/services/pvp-zone-rects.js";
 import { createWebApp, type WebResponse } from "../src/services/web-app.js";
 import { memoryWebStore } from "./helpers/memory-web-store.js";
 
@@ -19,7 +21,7 @@ const data = (): PvpData => ({
   total: [world("Dara", "Rogue", 60, 140, 40), world("Corvin", "Mage", 60, 90, 20)],
   games: [game("Dara", "Rogue", "win", 1), game("Dara", "Rogue", "win", 2), game("Dara", "Rogue", "loss", 3, { mapId: 529, mode: "rated" }), game("Corvin", "Mage", "win", 4)],
   calls: [
-    { guildId: "g1", zone: "Stranglethorn Vale", mapId: 1434, subzone: "Booty Bay", x: 0.31, y: 0.77, calledAt: NOW }, { guildId: "g1", zone: "Stranglethorn Vale", mapId: 1434, calledAt: NOW },
+    { guildId: "g1", zone: "Stranglethorn Vale", mapId: 1434, calledAt: NOW }, { guildId: "g1", zone: "Stranglethorn Vale", mapId: 1434, calledAt: NOW },
     { guildId: "g1", zone: "Vallée de Strangleronce", calledAt: NOW },
     { guildId: "g1", zone: "Hillsbrad Foothills", mapId: 1424, calledAt: NOW }, { guildId: "g1", zone: `"><script>alert(1)</script>`, calledAt: NOW },
     { guildId: "g1", zone: "Tanaris", mapId: 1446, calledAt: new Date(NOW.getTime() - 20 * 86_400_000) }
@@ -82,7 +84,8 @@ describe("PvP leaderboards: aggregation", () => {
     for (const zone of PVP_ZONES) expect(ZONE_RECTS[zone.id], zone.en).toBeDefined();
     const week = zoneStats(data(), { className: null, band: null, period: "week", mode: null });
     expect(week.find((z) => z.zone?.id === 1434)).toMatchObject({ calls: 3, kills: 0, deaths: 0, heat: 3 });
-    expect(week.find((z) => z.zone?.id === 1434)!.recent[0]).toMatchObject({ guildId: "g1" });
+    expect(week.find((z) => z.zone?.id === 1434)!.guilds[0]).toMatchObject({ guildId: "g1", count: 3 });
+    expect(week.every((z) => z.dots.length === 0)).toBe(true);
     expect(week.find((z) => z.zone?.id === 1446)!.calls).toBe(0);
     expect(week.find((z) => z.zone === null)).toMatchObject({ calls: 1 });
     expect(week.length).toBe(PVP_ZONES.length + 1);
@@ -242,14 +245,19 @@ describe("PvP leaderboards: pages", () => {
     expect(main).toContain('id="zone-1434"');
     expect(main).toContain("3 calls for help");
     expect(main).toContain("Most active guilds");
-    expect(main).toContain("Booty Bay");
+    expect(main).not.toContain("Booty Bay");
+    expect(main).not.toContain("Recent calls");
+    expect(main).not.toMatch(/class="ev /);
+    expect(main).toContain("never by position");
     expect(main).toContain("Colour shows: calls for help");
     expect(main).not.toMatch(/<script|onclick=|onmouseover=|javascript:/i);
     expect(main).toContain("<table");
-    // the totals on the map equal the table below: every call of the week is on one lit zone or in the table row of an unknown zone
-    const onMap = [...main.matchAll(/data-heat="(\d+)"/g)].reduce((n, m) => n + Number(m[1]), 0);
-    expect(onMap).toBe(3 + 1);
-    expect(main).toMatch(/class="ev call" cx="/);
+    // each zone's number on the map equals the cell of its table row
+    const onMap = new Map([...main.matchAll(/href="#zone-(\d+)" data-heat="(\d+)"/g)].map((m) => [m[1]!, Number(m[2])]));
+    const rows = new Map([...main.matchAll(/<tr><td><a href="#zone-(\d+)">[^<]*<\/a><\/td>.*?<td class="num score">(\d+)<\/td>/g)].map((m) => [m[1]!, Number(m[2])]));
+    expect(onMap.size).toBe(2);
+    expect(rows).toEqual(onMap);
+    expect(onMap.get("1434")).toBe(3);
     expect(main).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
     expect(main).not.toContain("<script>alert");
     expect(main).not.toContain('href="#zone-1446"');
@@ -259,6 +267,53 @@ describe("PvP leaderboards: pages", () => {
     const fr = await get("/leaderboards/pvp/", "fr");
     expect(fr.body).toContain("3 appels à l&#39;aide");
     expect(fr.body).not.toContain("Colour shows");
+  });
+
+  it("draws zone outlines, cities, the 2:3 crop, an enlarged city target and the sea under any painting", async () => {
+    const d: PvpData = { ...data(), calls: [...data().calls, { guildId: "g1", zone: "Stormwind City", mapId: 1453, calledAt: NOW }, { guildId: "g1", zone: "Orgrimmar", mapId: 1454, calledAt: NOW }] };
+    const { get } = setup(async () => d);
+    const main = (await get("/leaderboards/pvp/")).body;
+    const svgs = [...main.matchAll(/<svg viewBox="([\d. -]+)"/g)].map((m) => m[1]!.split(" ").map(Number));
+    expect(svgs.length).toBe(2);
+    for (const [, , w, h] of svgs) expect(w! / h!).toBeCloseTo(2 / 3, 1);
+    for (const continent of ["kalimdor", "eastern"] as const) {
+      const v = continentView(continent);
+      for (const zone of PVP_ZONES.filter((z) => z.continent === continent)) { const b = zoneBox(zone.id)!; expect(b.x).toBeGreaterThanOrEqual(v.x); expect(b.x + b.w).toBeLessThanOrEqual(v.x + v.w); expect(b.y).toBeGreaterThanOrEqual(v.y); expect(b.y + b.h).toBeLessThanOrEqual(v.y + v.h); }
+    }
+    expect(main).toMatch(/<path class="r"[^>]*fill-rule="evenodd"/);
+    expect(main).toContain('class="sea"');
+    expect(main).toContain('href="#zone-1453"');
+    expect(main).toContain('href="#zone-1454"');
+    expect(main).toMatch(/<a class="z h\d" href="#zone-1453"[^>]*><rect class="hit"/);
+    // the biggest zones come first, so a city or small zone drawn later stays on top of them
+    expect(main.indexOf('href="#zone-1434"')).toBeLessThan(main.indexOf('href="#zone-1453"'));
+    for (const id of Object.keys(ZONE_SHAPES)) expect(ZONE_RECTS[Number(id)], id).toBeDefined();
+    expect(Object.keys(ZONE_SHAPES).length).toBeGreaterThan(30);
+  });
+
+  it("draws a kill or death point only on the zone it was recorded on", () => {
+    const f = { className: null, band: null, period: "week" as const, mode: null };
+    const stats = zoneStats(data(), f);
+    stats.find((z) => z.zone?.id === 1434)!.dots.push({ mapId: 1434, x: 0.5, y: 0.5, kind: "kill" }, { mapId: 1411, x: 0.5, y: 0.5, kind: "death" });
+    const env = { t: (en: string) => en, lang: "en", edition: "forever", duelsOpen: false, table: () => "", person: () => "", guild: () => "", classLabel: (n: string) => n, classSlug: (n: string | null) => n ?? "" };
+    const html = zoneMapHtml(env as never, stats, f);
+    expect(html.match(/class="ev kill"/g)?.length).toBe(1);
+    expect(html).not.toContain('class="ev death"');
+  });
+
+  it("logs an unknown zone map id once and remembers at most 200 of them", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const many = Array.from({ length: 300 }, (_, i) => ({ guildId: "g1", zone: `Z${i}`, mapId: 90_000 + i, calledAt: NOW }));
+    const db = { worldPvpWeek: { findMany: async () => [], groupBy: async () => [] }, battlegroundReport: { findMany: async () => [] }, character: { findMany: async () => [] }, guildHelpCall: { findMany: async () => many } };
+    await loadPvpData(db as never, ["g1"], "forever", NOW);
+    await loadPvpData(db as never, ["g1"], "forever", NOW);
+    const logged = warn.mock.calls.filter((c) => String(c[0]).includes("unknown zone map id")).length;
+    expect(logged).toBeGreaterThan(0); expect(logged).toBeLessThanOrEqual(200);
+    warn.mockRestore();
+  });
+
+  it("only points at a painting that exists in the site folder", () => {
+    for (const [continent, image] of Object.entries(CONTINENT_IMAGES)) if (image) expect(existsSync(`site${image}`), continent).toBe(true);
   });
 
   it("is served in French", async () => {

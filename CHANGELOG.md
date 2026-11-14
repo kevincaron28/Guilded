@@ -1,5 +1,30 @@
 # Changelog
 
+## 9.3.2 — 14 November 2026
+
+Not yet published. Duel records and PvP kill positions reach the guild from players who only have the addon, dungeon runs reach every guild in a group, and the companion keeps itself up to date more reliably. Details: docs/V9_3_2_RELEASE_NOTES.md. Nothing in 9.3.2 is confirmed in a real game client yet (see docs/V9_3_2_RELEASE_ACCEPTANCE.md).
+
+**Addon**
+- Duel records of a player who only has the addon can be carried to the guild by a nearby player's companion. On by default; `/guilded carry off` turns it off for you, and officers have a guild-wide switch (#916, #918).
+- Dungeon runs made in a group with players from different guilds reach each of those guilds, and addon-only players' runs go through any companion in the group (#880, #896).
+- Every duel ends with a result line in chat, a duel that ends right after login is no longer lost, and card errors are saved (#919, #921).
+- Kill and death positions for the World PvP map are saved and sent by the companion (#902, #913).
+- Drowned City: Min'loth the Serpent is the final boss, and finished runs there are recovered (#895).
+- `/gdg` opens the dungeons window when both addons are installed, and the duel card preview always shows sample stats (#893).
+- Dungeon season details are read more tolerantly, ready for a coming boss rule (#899).
+- Guild invites: online and offline lines are no longer saved as invite problems, and the copy box shows one "N invites waiting" line with a Next button (#923).
+
+**Companion**
+- Every update check is logged, and a downloaded update installs when the companion is idle (#904, #909).
+- The companion sends carried duel records and writes their receipts for the addon (#911). Store: 9.3.2.0 package built, not submitted (Submission 13 certifying).
+
+**Bot and website (already live)**
+- One community leaderboard for Discord, dungeons and PvP with a painted card (#908); a PvP tab and an interactive zone map with the real in-game map and zone names, and kill and death positions on the public map (#900, #906, #913, #914, #917, #920).
+- Carried duel records reach the bot (#910); outside-guild duels of a signed member are kept (#901).
+- Painted role emblems, a fuller run card, a painted trophy wall behind the achievements card and banner cards for reports, welcome and recaps (#888, #897, #898, #903).
+- The standings feed uses one shared guild read for several companions at once (#915).
+- Website: leaderboards load at once, a level picker, badges on player pages (#890).
+
 ## 9.3.1 — 14 November 2026
 
 Published 14 November 2026 (GitHub and the website; CurseForge approved 14 November 2026). Fixes after 9.3.0 and after the real-client tour of 13 November. Details: docs/V9_3_1_RELEASE_NOTES.md. Most fixes were seen working on a real client on 14 November; the rest are listed as not yet verified (see docs/V9_3_1_RELEASE_ACCEPTANCE.md).

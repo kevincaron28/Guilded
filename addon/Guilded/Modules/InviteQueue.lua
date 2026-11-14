@@ -55,9 +55,12 @@ local ANSWERS = {
   { "already", "ERR_ALREADY_INVITED_TO_GUILD_S", "%s has already been invited to a guild." },
   { "declined", "ERR_GUILD_DECLINE_S", "%s declines your guild invitation." },
   { "joined", "ERR_GUILD_JOIN_S", "%s has joined the guild." },
+  { "ignored", "ERR_IGNORING_YOU_S", "%s is ignoring you." },
   { "sent", "ERR_GUILD_INVITE_S", "You have invited %s to join your guild." },
   { "expired", "ERR_GUILD_INVITE_EXPIRED_S", "The guild invitation to %s has expired." }
 }
+-- Outcomes the game words without the player's name ("Your guild is full."): they belong to the name just clicked.
+local UNNAMED = { { "full", "ERR_GUILD_ROSTER_FULL", "Your guild is full." } }
 local patterns
 local function answerPatterns()
   if patterns then return patterns end
@@ -216,6 +219,8 @@ function module.markInvited(name)
   if d then d.inviteSent = type(d.inviteSent) == "table" and d.inviteSent or {}; d.inviteSent[key(name)] = nowSeconds() end
   if d and d.inviteState then d.inviteState[key(name)] = nil end
   module.clickedAt = (GetTime and GetTime()) or 0
+  module.clickedName = name
+  module.clickedKey = key(name)
   module.captured = 0
   return true, L("Click Invite on a row, then Ctrl+C, paste it in your chat box (Ctrl+V) and press Enter.")
 end
@@ -224,19 +229,52 @@ end
 -- (9.3.1) What WoW Forever prints after a pasted /ginvite is not known yet. For 10 seconds after an Invite click the system
 -- and error lines nothing here recognised are written to the diagnostics (/guilded diag), at most 12 per click, 120
 -- characters each. Nothing is shown to members; row feedback waits for that capture.
+-- (9.3.2) Only a line that names the player just clicked is kept, and it goes to GuildedDB.inviteReplies, never to the
+-- diagnostics: guild and friend "has come online" / "has gone offline" lines used to be saved as problems and printed in red.
+-- Online and offline lines are never kept, whoever they name.
 local CAPTURE_SECONDS, CAPTURE_MAX = 10, 12
+local function presenceLine(text)
+  for _, g in ipairs({ "ERR_FRIEND_ONLINE_SS", "ERR_FRIEND_OFFLINE_S" }) do
+    local pat = fmtPattern(_G[g])
+    if pat and string.match(text, (string.gsub(pat, "%(%.%+%)", "%%S.-"))) then return true end
+  end
+  local low = string.lower(text)
+  return string.find(low, "has come online", 1, true) ~= nil or string.find(low, "has gone offline", 1, true) ~= nil
+    or string.find(low, "est maintenant en ligne", 1, true) ~= nil or string.find(low, "s'est d\195\169connect", 1, true) ~= nil
+    or string.find(low, "vient de se connecter", 1, true) ~= nil or string.find(low, "vient de se d\195\169connecter", 1, true) ~= nil
+end
 function module.noteLine(kind, text)
   if not module.clickedAt or type(text) ~= "string" or (ns.isSecret and ns.isSecret(text)) then return end
   if not (GetTime and (GetTime() - module.clickedAt) <= CAPTURE_SECONDS) then return end
+  if presenceLine(text) then return end
   if (module.captured or 0) >= CAPTURE_MAX then return end
+  local named = module.clickedKey and string.find(key(text), module.clickedKey, 1, true)
+  if kind == "system" and not named then return end
+  local d = db()
+  if not d then return end
   module.captured = (module.captured or 0) + 1
-  if ns.logDiagnostic then ns.logDiagnostic("INVITE_REPLY", kind .. ": " .. string.sub(text, 1, 120)) end
+  d.inviteReplies = type(d.inviteReplies) == "table" and d.inviteReplies or {}
+  d.inviteReplies[#d.inviteReplies + 1] = { at = nowSeconds(), text = kind .. ": " .. string.sub(text, 1, 120) }
+  while #d.inviteReplies > 20 do table.remove(d.inviteReplies, 1) end
 end
 
 function module.onSystemMessage(text)
   if type(text) ~= "string" or (ns.isSecret and ns.isSecret(text)) then return false end
   local d = db()
   if not d then return false end
+  if module.clickedName and module.clickedAt and GetTime and (GetTime() - module.clickedAt) <= CAPTURE_SECONDS then
+    for _, entry in ipairs(UNNAMED) do
+      local pat = fmtPattern(_G[entry[2]] or entry[3])
+      local en = fmtPattern(entry[3])
+      if (pat and string.match(text, pat)) or (en and string.match(text, en)) then
+        local k = key(module.clickedName)
+        d.inviteState = type(d.inviteState) == "table" and d.inviteState or {}
+        d.inviteState[k] = { state = entry[1], at = nowSeconds(), postAt = postTimeOf(k) }
+        module.refresh()
+        return true
+      end
+    end
+  end
   for _, entry in ipairs(answerPatterns()) do
     local name = string.match(text, entry[2])
     if name then
@@ -280,7 +318,7 @@ end
 
 local STATE_TEXT = {
   notfound = "not found: check the spelling", inguild = "already in a guild", already = "already invited",
-  declined = "declined", joined = "joined"
+  declined = "declined", joined = "joined", ignored = "ignoring you", full = "guild is full"
 }
 local MAX_TODO, MAX_INVITED, MAX_HANDLED = 10, 8, 8
 local ROW_HEIGHT = 26
@@ -456,10 +494,13 @@ function build()
     highlight:SetSize(396, 24); highlight:Hide()
     local label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     label:SetPoint("TOPLEFT", 18, -92); label:SetWidth(285); label:SetJustifyH("LEFT")
-    local button = ns.util.inviteButton(f, "guild", buttonText, 100, 22, function(name)
+    local button = ns.util.inviteButton(f, "guild", buttonText, 100, 22, function(name, shown, line)
+      module.hint(shown, line) -- before the mark: the clicked name still counts as waiting
       module.markInvited(name)
       module.refresh()
     end)
+    button.quiet = true -- one chat reminder for the whole list (module.hint), not a line per click
+    button.copyNext = function(name) return module.nextCallback(name) end
     button:SetPoint("TOPLEFT", 310, -92)
     button.copyAnchor = function() return window end -- the copy box opens below this window, not on top of the rows
     local remove = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
@@ -482,6 +523,49 @@ function build()
     if waited >= 30 then waited = 0; module.refresh() end
   end)
   module.refresh()
+end
+
+-- One chat line about the invite list, not one per click: "N invites waiting" once, and again only when a name that was not
+-- in the list at the last reminder shows up. The names go through the copy box one at a time (Next).
+local hinted = {}
+function module.hint(shown, line)
+  if not shown and ns.message and line then ns.message(string.format(L("Type %s to invite them."), line)); return end
+  local list = module.list()
+  if not list then return end
+  local waiting, fresh = {}, false
+  for _, item in ipairs(list) do
+    if item.state ~= "notfound" then
+      waiting[#waiting + 1] = key(item.name)
+      if not hinted[key(item.name)] then fresh = true end
+    end
+  end
+  for _, k in ipairs(waiting) do hinted[k] = true end
+  if not fresh or #waiting == 0 or not ns.message then return end
+  if #waiting == 1 then ns.message(string.format(L("Copy %s (Ctrl+C), paste it in your chat box (Ctrl+V) and press Enter."), line or ""))
+  else ns.message(string.format(L("%d invites waiting: copy each line from the box (Ctrl+C), paste it in your chat box and press Enter; Next shows the following name."), #waiting)) end
+end
+-- The copy box's Next button: marks the next name as copied and puts its line in the box; none left, the box closes.
+function module.nextCallback(current)
+  local currentKey = current and key(current)
+  local list = module.list()
+  local rest = 0
+  for _, item in ipairs(list or {}) do if item.state ~= "notfound" and key(item.name) ~= currentKey then rest = rest + 1 end end
+  if rest == 0 then return nil end
+  return function()
+    local items = module.list() or {}
+    for _, item in ipairs(items) do
+      if item.state ~= "notfound" and key(item.name) ~= module.clickedKey then
+        local bare = ns.util.isForever and ns.util.isForever() and ns.util.bareName and ns.util.bareName(item.name) or item.name
+        local line = ns.util.inviteMacro("guild", bare)
+        if line and ns.showCopyText then
+          pcall(ns.showCopyText, line, L("Copy with Ctrl+C, then paste in chat"), window, module.nextCallback(bare))
+          module.markInvited(bare)
+          module.refresh()
+        end
+        return
+      end
+    end
+  end
 end
 
 -- A quiet reminder in chat after login (officers only): how many names wait, once per count.

@@ -560,11 +560,12 @@ function util.inviteButton(parent, kind, text, width, height, onClick)
   button:SetScript("OnClick", function()
     if not line then return end
     local anchor = type(button.copyAnchor) == "function" and button.copyAnchor() or button.copyAnchor
-    local shown = type(ns.showCopyText) == "function" and (pcall(ns.showCopyText, line, tr("Copy with Ctrl+C, then paste in chat"), anchor)) or false
-    if ns.message then
+    local nextFn = type(button.copyNext) == "function" and button.copyNext(target) or nil
+    local shown = type(ns.showCopyText) == "function" and (pcall(ns.showCopyText, line, tr("Copy with Ctrl+C, then paste in chat"), anchor, nextFn)) or false
+    if ns.message and button.quiet ~= true then
       ns.message(string.format(shown and tr("Copy %s (Ctrl+C), paste it in your chat box (Ctrl+V) and press Enter.") or tr("Type %s to invite them."), line))
     end
-    if onClick then onClick(target, shown) end
+    if onClick then onClick(target, shown, line) end
   end)
   return button
 end

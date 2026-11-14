@@ -98,7 +98,7 @@ describe("InviteQueue.lua", () => {
     expect(s.run("return #COPIED .. COPIED[1]")).toBe("1/ginvite Amy Archer");
     expect(s.run("return TITLES[1]")).toBe("Copy with Ctrl+C, then paste in chat");
     expect(s.run("return #OPENED")).toBe("0");
-    expect(s.run("return CHAT[#CHAT]")).toBe("Copy /ginvite Amy Archer (Ctrl+C), paste it in your chat box (Ctrl+V) and press Enter.");
+    expect(s.run("return CHAT[#CHAT]")).toBe("2 invites waiting: copy each line from the box (Ctrl+C), paste it in your chat box and press Enter; Next shows the following name.");
     expect(s.run("return #CHAT")).toBe("1");
     expect(s.run(String.raw`return tostring(NS.inviteQueue.sections().invited[1].sent ~= nil)`)).toBe("true");
     expect(s.run("return #SENT")).toBe("0");
@@ -481,22 +481,68 @@ describe("InviteQueue.lua: after a slow reload", () => {
   });
 });
 
-describe("InviteQueue.lua: capture of the game's reply (9.3.1)", () => {
-  it("records unmatched system and error lines for 10 seconds after an Invite click, bounded, and nothing before a click", () => {
+describe("InviteQueue.lua: capture of the game's reply (9.3.2)", () => {
+  const fire = (s: LuaSession, event: string, ...args: string[]) => s.run(`for _, f in ipairs(FRAMES) do if f.scripts.OnEvent and not rawget(f, "template") then f.scripts.OnEvent(f, ${JSON.stringify(event)}, ${args.map((a) => JSON.stringify(a)).join(", ")}) end end`);
+  const setup = () => {
     const s = withQueue();
     s.run(String.raw`DIAG = {}; NS.logDiagnostic = function(kind, detail) DIAG[#DIAG + 1] = kind .. "|" .. detail end; CLOCK = 100; function GetTime() return CLOCK end`);
     s.run("NS.inviteQueue.open()");
-    const fire = (event: string, ...args: string[]) => s.run(`for _, f in ipairs(FRAMES) do if f.scripts.OnEvent and not rawget(f, "template") then f.scripts.OnEvent(f, ${JSON.stringify(event)}, ${args.map((a) => JSON.stringify(a)).join(", ")}) end end`);
-    fire("CHAT_MSG_SYSTEM", "Something nobody asked for.");
-    expect(s.run("return #DIAG")).toBe("0"); // no click yet
-    s.run(`local f = INVITES()[1] f.scripts.OnClick(f)`);
-    fire("CHAT_MSG_SYSTEM", "Unknown reply to the invite.");
-    fire("UI_ERROR_MESSAGE", "0", "Some error line");
-    expect(s.run("return table.concat(DIAG, ';')")).toBe("INVITE_REPLY|system: Unknown reply to the invite.;INVITE_REPLY|error: Some error line");
-    s.run("CLOCK = 120");
-    fire("CHAT_MSG_SYSTEM", "Too late.");
-    expect(s.run("return #DIAG")).toBe("2");
-    s.run(`local f = INVITES()[1] CLOCK = 130; f.scripts.OnClick(f); for i = 1, 30 do NS.inviteQueue.noteLine("system", "line " .. i) end`);
-    expect(s.run("return #DIAG")).toBe("14"); // 12 more, no more
+    return s;
+  };
+  const kept = (s: LuaSession) => s.run(String.raw`local t = {} for _, r in ipairs(DB.inviteReplies or {}) do t[#t + 1] = r.text end return table.concat(t, ";")`);
+  it("never logs online/offline lines, and never writes a diagnostic (no red chat line) for an invite reply", () => {
+    const s = setup();
+    s.run(String.raw`local f = INVITES()[1] f.scripts.OnClick(f)`);
+    fire(s, "CHAT_MSG_SYSTEM", "Assabim Lepoq has gone offline.");
+    fire(s, "CHAT_MSG_SYSTEM", "|Hplayer:Rosenoire Blackrose|h[Rosenoire Blackrose]|h has come online.");
+    fire(s, "CHAT_MSG_SYSTEM", "Amy Archer has gone offline."); // even the invited name
+    fire(s, "CHAT_MSG_SYSTEM", "Largent Dubeurre has gone offline.");
+    expect(kept(s)).toBe("");
+    fire(s, "CHAT_MSG_SYSTEM", "Amy Archer did something unexpected.");
+    expect(kept(s)).toBe("system: Amy Archer did something unexpected.");
+    expect(s.run("return #DIAG")).toBe("0");
+  });
+  it("ignores unrelated system lines, and lines before a click or after ten seconds", () => {
+    const s = setup();
+    fire(s, "CHAT_MSG_SYSTEM", "Amy Archer is busy.");
+    s.run(String.raw`local f = INVITES()[1] f.scripts.OnClick(f)`);
+    fire(s, "CHAT_MSG_SYSTEM", "Someone else entirely.");
+    s.run("CLOCK = 200");
+    fire(s, "CHAT_MSG_SYSTEM", "Amy Archer is late.");
+    expect(kept(s)).toBe("");
+  });
+  it("matches each real outcome in English and in French (the client's localized strings)", () => {
+    const outcomes: [string, string, string, string, string][] = [
+      ["ERR_GUILD_PLAYER_NOT_FOUND_S", "Joueur %s introuvable.", "Joueur Amy Archer introuvable.", "Amy Archer", "notfound"],
+      ["ERR_ALREADY_IN_GUILD_S", "%s est d\u00e9j\u00e0 dans une guilde.", "Amy Archer est d\u00e9j\u00e0 dans une guilde.", "Amy Archer", "inguild"],
+      ["ERR_ALREADY_INVITED_TO_GUILD_S", "%s a d\u00e9j\u00e0 \u00e9t\u00e9 invit\u00e9 dans une guilde.", "Amy Archer a d\u00e9j\u00e0 \u00e9t\u00e9 invit\u00e9 dans une guilde.", "Amy Archer", "already"],
+      ["ERR_GUILD_DECLINE_S", "%s refuse votre invitation.", "Amy Archer refuse votre invitation.", "Amy Archer", "declined"],
+      ["ERR_IGNORING_YOU_S", "%s vous ignore.", "Amy Archer vous ignore.", "Amy Archer", "ignored"],
+    ];
+    for (const [g, fmt, text, , state] of outcomes) {
+      const fr = setup();
+      fr.run(`_G.${g} = ${JSON.stringify(fmt)}`);
+      fr.run(String.raw`local f = INVITES()[1] f.scripts.OnClick(f)`);
+      expect(fr.run(`return tostring(NS.inviteQueue.onSystemMessage(${JSON.stringify(text)}))`)).toBe("true");
+      expect(fr.run(`return DB.inviteState["amy archer"].state`)).toBe(state);
+    }
+    const en = setup();
+    en.run(String.raw`local f = INVITES()[1] f.scripts.OnClick(f)`);
+    for (const [text, state] of [["Amy Archer is ignoring you.", "ignored"], ["Amy Archer declines your guild invitation.", "declined"], ["Amy Archer has already been invited to a guild.", "already"], ["Your guild is full.", "full"]]) {
+      expect(en.run(`return tostring(NS.inviteQueue.onSystemMessage(${JSON.stringify(text)}))`)).toBe("true");
+      expect(en.run(`return DB.inviteState["amy archer"].state`)).toBe(state);
+    }
+  });
+  it("shows one reminder line for several waiting invites, repeats it only for new names, and Next walks through the names", () => {
+    const s = setup();
+    s.run(String.raw`CHAT = {}; NEXTS = {}; NS.showCopyText = function(text, title, anchor, onNext) COPIED[#COPIED + 1] = text; NEXTS[#NEXTS + 1] = onNext end`);
+    s.run(String.raw`local f = INVITES()[1] f.scripts.OnClick(f)`);
+    s.run(String.raw`local f = INVITES()[2] f.scripts.OnClick(f)`);
+    expect(s.run("return #CHAT")).toBe("1"); // two clicks, one line
+    expect(s.run("return CHAT[1]")).toContain("invites waiting");
+    expect(s.run("return type(NEXTS[1])")).toBe("function"); // other names wait: Next is offered
+    s.run(String.raw`CHAT = {}; COPIED = {}; NEXTS[1]()`);
+    expect(s.run("return COPIED[1]")).toMatch(/^\/ginvite /);
+    expect(s.run("return #CHAT")).toBe("0");
   });
 });

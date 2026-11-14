@@ -941,7 +941,7 @@ end
 
 local exportFrame
 local exportTitle = "Guilded - copy this line (Ctrl+C), then in Discord: /character import"
-local function showCharacterExport(text, title, anchor)
+local function showCharacterExport(text, title, anchor, onNext)
   exportTitle = title or exportTitle
   if exportFrame and exportFrame.titleText then exportFrame.titleText:SetText(exportTitle) end
   if not exportFrame then
@@ -982,6 +982,18 @@ local function showCharacterExport(text, title, anchor)
     close:SetScript("OnClick", function() exportFrame:Hide() end)
     exportFrame.box = box
     exportFrame.scroll = scroll
+    -- Next (only when the caller passes a callback): shows the following line, e.g. the next name to invite.
+    local nextButton = CreateFrame("Button", nil, exportFrame, "UIPanelButtonTemplate")
+    nextButton:SetSize(80, 22)
+    nextButton:SetPoint("BOTTOMRIGHT", -14, 10)
+    nextButton:SetText(ns.L and ns.L("Next") or "Next")
+    nextButton:SetScript("OnClick", function() if exportFrame.onNext then exportFrame.onNext() end end)
+    nextButton:Hide()
+    exportFrame.nextButton = nextButton
+  end
+  exportFrame.onNext = type(onNext) == "function" and onNext or nil
+  if exportFrame.nextButton then
+    if exportFrame.onNext then exportFrame.nextButton:Show() else exportFrame.nextButton:Hide() end
   end
   -- A share code is one line; a raid summary has several, so the box grows for those.
   local lines = 1

@@ -13,7 +13,9 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const MINIMIZED_IN_USE_MS = 30 * 60 * 1000;
-const MARKER_FRESH_MS = 15 * 60 * 1000;
+// The installer restarts the companion within a minute or so of starting; a marker older than this is a leftover
+// (a failed or cancelled install) and must not hide the window of a manual start.
+const MARKER_FRESH_MS = 3 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MARKER_NAME = "update-restart.json";
 const INSTALLER_ARGS = ["/S", "--updated", "--force-run"];
@@ -39,6 +41,17 @@ function inBackoff(failure, version, now) {
 function markerIsFresh(marker, now = Date.now()) {
   const at = Date.parse(marker?.at ?? "");
   return Number.isFinite(at) && now - at >= 0 && now - at < MARKER_FRESH_MS;
+}
+
+/**
+ * At start: reads and removes the restart marker; true only when it is fresh (the restart after an idle update).
+ * A missing, unreadable or old marker means a manual start, which shows the window.
+ */
+function consumeMarker(file, now = Date.now(), fsImpl = fs) {
+  let marker;
+  try { marker = JSON.parse(fsImpl.readFileSync(file, "utf8")); } catch { return false; }
+  try { fsImpl.rmSync(file, { force: true }); } catch { /* none */ }
+  return markerIsFresh(marker, now);
 }
 
 /**
@@ -154,8 +167,10 @@ function createIdleInstaller(deps) {
       deps.log(`installer for ${verdict.version} started; it asks the companion to quit and restarts it hidden`);
       // The companion keeps running: the installer closes it. An installer that ends with an error leaves it running.
       child.once("exit", (code) => {
-        if (code === 0 || code === null) { active = false; child = null; return; }
-        void failed(verdict.version, `the installer ended with code ${code}`);
+        // The installer closes this companion before it installs, so an exit seen here means it did not update:
+        // with code 0 it is the silent "could not close the app" cancel. Either way the marker goes and the
+        // version waits out its backoff, so a manual start is not hidden and the retry does not repeat every 10 minutes.
+        void failed(verdict.version, code === 0 || code === null ? "the installer ended without updating (it could not close the companion)" : `the installer ended with code ${code}`);
       });
       return { started: true, reason: "idle", version: verdict.version };
     } finally {
@@ -166,4 +181,4 @@ function createIdleInstaller(deps) {
   return { run, inspect, isActive: () => active };
 }
 
-module.exports = { createIdleInstaller, decideIdle, backoffMs, recordFailure, inBackoff, markerIsFresh, hashFileAsync, MARKER_NAME, INSTALLER_ARGS, MINIMIZED_IN_USE_MS, MARKER_FRESH_MS };
+module.exports = { createIdleInstaller, decideIdle, backoffMs, recordFailure, inBackoff, markerIsFresh, consumeMarker, hashFileAsync, MARKER_NAME, INSTALLER_ARGS, MINIMIZED_IN_USE_MS, MARKER_FRESH_MS };

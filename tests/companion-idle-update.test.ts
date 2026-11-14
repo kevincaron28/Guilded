@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { createRequire } from "node:module";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -108,12 +108,16 @@ describe("the idle install runs the whole flow", () => {
     expect(idle.backoffMs(9)).toBe(7 * DAY);
   });
 
-  it("a finished install (exit 0) clears nothing and leaves no failure", async () => {
-    const { installer, config, spawned } = setup();
+  it("an installer that exits 0 while the companion is still alive did not update: marker cleared, backoff recorded", async () => {
+    const { installer, deps, config, spawned } = setup();
     await installer.run();
     spawned[0]!.emit("exit", 0);
-    expect(config.updateFailure).toBeUndefined();
+    await vi.waitFor(() => expect(config.updateFailure).toMatchObject({ version: "9.3.2", count: 1 }));
+    expect(deps.clearMarker).toHaveBeenCalled();
     expect(installer.isActive()).toBe(false);
+    // The next look waits for the backoff instead of retrying in ten minutes.
+    expect((await installer.run()).reason).toBe("backoff");
+    expect(deps.spawn).toHaveBeenCalledTimes(1);
   });
 
   it("waits while a sync is running, WoW runs, or the window is open", async () => {
@@ -168,15 +172,31 @@ describe("the idle install runs the whole flow", () => {
 describe("the restart marker and the backoff helpers", () => {
   it("keeps the restarted companion in the tray only for a fresh marker", () => {
     const now = Date.parse("2026-11-14T12:00:00Z");
-    expect(idle.markerIsFresh({ at: "2026-11-14T11:55:00Z" }, now)).toBe(true);
-    expect(idle.markerIsFresh({ at: "2026-11-14T11:30:00Z" }, now)).toBe(false);
+    expect(idle.markerIsFresh({ at: "2026-11-14T11:58:30Z" }, now)).toBe(true);
+    expect(idle.markerIsFresh({ at: "2026-11-14T11:50:00Z" }, now)).toBe(false);
     expect(idle.markerIsFresh({ at: "nonsense" }, now)).toBe(false);
     expect(idle.markerIsFresh(null, now)).toBe(false);
   });
 
+  it("a marker of about three minutes or less keeps the start quiet; an older leftover or no marker shows the window", () => {
+    const now = Date.parse("2026-11-14T12:00:00Z");
+    const file = join(directory, idle.MARKER_NAME);
+    const write = (at: string) => writeFileSync(file, JSON.stringify({ at, version: "9.3.2" }));
+    write("2026-11-14T11:58:30Z");
+    expect(idle.consumeMarker(file, now)).toBe(true);
+    expect(existsSync(file)).toBe(false); // read once, then gone
+    write("2026-11-14T11:50:00Z"); // left by a failed install: a manual start must show the window
+    expect(idle.consumeMarker(file, now)).toBe(false);
+    expect(existsSync(file)).toBe(false);
+    expect(idle.consumeMarker(file, now)).toBe(false); // no marker at all
+    writeFileSync(file, "not json");
+    expect(idle.consumeMarker(file, now)).toBe(false);
+  });
+
   it("main.cjs reads that marker at start so the window stays hidden, and tracks a minimized window", () => {
     const main = readFileSync("companion-app/main.cjs", "utf8");
-    expect(main).toMatch(/idleUpdate\.markerIsFresh\(marker\)/);
+    expect(main).toMatch(/idleUpdate\.consumeMarker\(idleUpdateMarkerFile\(\)\)/);
+    expect(main).toMatch(/restartedQuietly = readRestartMarker\(\);\s+pushLog/);
     expect(main).toMatch(/restartedQuietly = readRestartMarker\(\)/);
     expect(main).toMatch(/!startHidden && !restartedQuietly/);
     expect(main).toMatch(/win\.on\("minimize"/);

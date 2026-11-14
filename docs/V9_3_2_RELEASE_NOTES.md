@@ -11,6 +11,7 @@ Real-client checks: docs/V9_3_2_RELEASE_ACCEPTANCE.md. Nothing in 9.3.2 is confi
 - **Duels:** every duel ends with a result line in chat, and a duel that ends right after you log in is no longer lost.
 - **World PvP:** kill and death positions are saved and sent for the PvP map.
 - **Drowned City:** Min'loth the Serpent is the final boss.
+- **Guild invites:** online and offline lines are no longer saved as invite problems; the copy box shows one "N invites waiting" line with a Next button.
 - **`/gdg`** opens the dungeons window when both addons are installed.
 - **Companion:** every update check is logged, and a downloaded update installs when the companion is idle.
 
@@ -22,12 +23,12 @@ Real-client checks: docs/V9_3_2_RELEASE_ACCEPTANCE.md. Nothing in 9.3.2 is confi
 
 ## In short (English)
 
-Guilded 9.3.2: duel records from players who only have the addon can reach the guild through a nearby player's companion (turn it off with `/guilded carry off`). Dungeon runs made with players from other guilds reach each guild. Every duel ends with a result line. The PvP map shows kill and death positions. Drowned City has its final boss.
+Guilded 9.3.2: duel records from players who only have the addon can reach the guild through a nearby player's companion (turn it off with `/guilded carry off`). Dungeon runs made with players from other guilds reach each guild. Every duel ends with a result line. The PvP map shows kill and death positions. Drowned City has its final boss. The invite copy box shows one "N invites waiting" line with a Next button.
 
 ## En bref (français)
 
-Guilded 9.3.2 : les duels des joueurs qui n'ont que l'addon peuvent atteindre la guilde grâce au companion d'un joueur à proximité (désactivez avec `/guilded carry off`). Les donjons faits avec des joueurs d'autres guildes parviennent à chaque guilde. Chaque duel se termine par une ligne de résultat. La carte PvP montre les positions des victoires et des morts. Drowned City a maintenant son boss final.
+Guilded 9.3.2 : les duels des joueurs qui n'ont que l'addon peuvent atteindre la guilde grâce au companion d'un joueur à proximité (désactivez avec `/guilded carry off`). Les donjons faits avec des joueurs d'autres guildes parviennent à chaque guilde. Chaque duel se termine par une ligne de résultat. La carte PvP montre les positions des victoires et des morts. Drowned City a maintenant son boss final. La boîte de copie des invitations affiche une seule ligne « N invitations en attente » avec un bouton Suivant.
 
 ## Technical
 
-- #880, #893, #895, #896, #898, #899, #901-#904, #909-#911, #913, #915, #916, #918, #919, #921 since 9.3.1 (see CHANGELOG.md).
+- #880, #893, #895, #896, #898, #899, #901-#904, #909-#911, #913, #915, #916, #918, #919, #921, #923 since 9.3.1 (see CHANGELOG.md).

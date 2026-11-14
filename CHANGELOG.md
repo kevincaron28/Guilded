@@ -12,6 +12,7 @@ Not yet published. Duel records and PvP kill positions reach the guild from play
 - Drowned City: Min'loth the Serpent is the final boss, and finished runs there are recovered (#895).
 - `/gdg` opens the dungeons window when both addons are installed, and the duel card preview always shows sample stats (#893).
 - Dungeon season details are read more tolerantly, ready for a coming boss rule (#899).
+- Guild invites: online and offline lines are no longer saved as invite problems, and the copy box shows one "N invites waiting" line with a Next button (#923).
 
 **Companion**
 - Every update check is logged, and a downloaded update installs when the companion is idle (#904, #909).

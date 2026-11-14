@@ -263,6 +263,8 @@ end
 local function isOfficer()
   if not db then return false end
   local name = playerName()
+  -- No guild, no officer status: a name left in the officer list (or a rank number) means nothing without a guild.
+  if IsInGuild and not IsInGuild() then return false end
   if db.settings.officers[name] then return true end
   local _, _, rankIndex = GetGuildInfo("player")
   return rankIndex ~= nil and db.settings.officerRanks[rankIndex] == true
@@ -939,7 +941,7 @@ end
 
 local exportFrame
 local exportTitle = "Guilded - copy this line (Ctrl+C), then in Discord: /character import"
-local function showCharacterExport(text, title)
+local function showCharacterExport(text, title, anchor)
   exportTitle = title or exportTitle
   if exportFrame and exportFrame.titleText then exportFrame.titleText:SetText(exportTitle) end
   if not exportFrame then
@@ -992,6 +994,16 @@ local function showCharacterExport(text, title)
   exportFrame:SetSize(520, viewport + 90)
   exportFrame.box:SetText(text)
   exportFrame.scroll:SetVerticalScroll(0)
+  -- Beside a window that asked (the invite list): just below it, so the rows stay visible. Otherwise back in the centre.
+  if type(anchor) == "table" and anchor.GetBottom and exportFrame.ClearAllPoints then
+    exportFrame:ClearAllPoints()
+    exportFrame:SetPoint("TOP", anchor, "BOTTOM", 0, -4)
+    exportFrame.anchored = true
+  elseif exportFrame.anchored and exportFrame.ClearAllPoints then
+    exportFrame:ClearAllPoints()
+    exportFrame:SetPoint("CENTER")
+    exportFrame.anchored = nil
+  end
   exportFrame:Show()
   exportFrame.box:SetFocus()
   exportFrame.box:HighlightText()
@@ -1644,7 +1656,6 @@ local function showHelp()
   message(L("/guilded verify <code> - link all your characters to Discord at once (Discord: /character pair gives the line)"))
   message(L("/guilded companion - the three steps to set up the companion"))
   message(L("/guilded sync - save your addon data so the companion can send it"))
-  message(L("/guilded map - the guild map"))
   message(L("/guilded announce off - stop your guild-chat milestone announcements"))
   message(L("/guilded diag - problems the addon recorded, to copy for a bug report"))
   message(L("/gsos - call guildmates for help"))

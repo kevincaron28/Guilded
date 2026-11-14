@@ -181,3 +181,21 @@ describe("unfinished dungeons", () => {
     expect(problems(t)).toBe("1");
   });
 });
+
+describe("9.3.1 tour fixes: officer status, dungeons command, help", () => {
+  it("gives no officer status to a character without a guild, even if its name is in the officer list", () => {
+    const s = loggedIn(`GetGuildInfo = function() return "Test Guild", "Guild Master", 0 end`);
+    s.run(`GuildedDB.settings.officers = GuildedDB.settings.officers or {}; GuildedDB.settings.officers[NS.playerName()] = true`);
+    expect(s.run("return tostring(NS.isOfficer())")).toBe("true");
+    s.run(`IsInGuild = function() return false end; GetGuildInfo = function() return nil end`);
+    expect(s.run("return tostring(NS.isOfficer())")).toBe("false");
+  });
+  it("lists no map shortcut in /guilded help, and /guilded dungeons never ends in silence", () => {
+    const s = loggedIn();
+    s.run(`CHAT_LOG = {}; SlashCmdList.GUILDED("help")`);
+    expect(s.chat().join("\n")).not.toContain("/guilded map");
+    s.load("Modules/Dungeon.lua");
+    s.run(`NS.dungeonScorePanel = nil; CHAT_LOG = {}; SlashCmdList.GUILDED("dungeons")`);
+    expect(s.chat().length).toBeGreaterThan(0);
+  });
+});

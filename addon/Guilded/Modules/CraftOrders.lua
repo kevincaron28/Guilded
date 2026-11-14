@@ -923,7 +923,7 @@ function orders.buildCraftingPage(page, helpers)
     view.forMeRows[i] = row
   end
   view.hint = newLabel(page, "Claim an order, craft it, then press Done. Trade or mail the item to the requester; gold never goes through Guilded.", "GameFontDisableSmall")
-  view.hint:SetWidth(width)
+  view.hint:SetWidth(width - 12) -- inside the visible page, wrapping
 
   view.shareButton = newButton(page, "Share my recipes", 150, function() if helpers.run then helpers.run("recipes share") end end, 22)
   view.sourceLabel = newLabel(page, "", "GameFontDisableSmall")
@@ -1044,7 +1044,13 @@ function orders.render(view)
   view.forMeHeader:SetText(string.format("%s (%d)", L("Requests for me"), #rows))
   place(view.forMeHeader, page, 0, y)
   view.allButton:SetText(view.all and L("Show my recipes") or L("Show all open orders"))
-  place(view.allButton, page, (view.width or 580) - 170, y + 4)
+  -- Wide enough for the translated text (French "Toutes les commandes ouvertes" was cut off), kept inside the page.
+  local allWidth = 170
+  local allText = view.allButton.GetFontString and view.allButton:GetFontString()
+  local needed = allText and allText.GetStringWidth and allText:GetStringWidth()
+  if type(needed) == "number" and needed + 28 > allWidth then allWidth = math.ceil(needed + 28) end
+  view.allButton:SetWidth(allWidth)
+  place(view.allButton, page, (view.width or 580) - allWidth - 8, y + 4)
   y = y - 22
   for i, row in ipairs(view.forMeRows) do
     local entry = rows[i]

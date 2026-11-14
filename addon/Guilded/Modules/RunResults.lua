@@ -31,7 +31,7 @@ function results.restorePosition(frame)
     if ok then return end
     frame:ClearAllPoints()
   end
-  frame:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -24, 150)
+  frame:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -110, 150) -- clear of the right action bars
 end
 
 local function inCombat()
@@ -239,7 +239,7 @@ function results.show(run, resume)
   if not window then
     window = CreateFrame("Frame", "GuildedRunResults", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
     window:SetSize(354, 276)
-    window:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -24, 150)
+    window:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -110, 150)
     window:SetClampedToScreen(true)
     window:SetMovable(true); window:EnableMouse(true); window:RegisterForDrag("LeftButton")
     window:SetScript("OnDragStart", function(self) self:StartMoving() end)
@@ -249,6 +249,10 @@ function results.show(run, resume)
       window:SetBackdropColor(0.035, 0.045, 0.065, 0.97)
       window:SetBackdropBorderColor(0.72, 0.54, 0.2, 1)
     end
+    -- An opaque body: the tooltip background texture is see-through, and the quest tracker text showed through the lower half.
+    window.solid = window:CreateTexture(nil, "BACKGROUND", nil, -8)
+    window.solid:SetPoint("TOPLEFT", 3, -3); window.solid:SetPoint("BOTTOMRIGHT", -3, 3)
+    if window.solid.SetColorTexture then window.solid:SetColorTexture(0.035, 0.045, 0.065, 1) end
     -- The dungeon's painting behind the header text (Media\Dungeons, 256x128, darkened and faded into the card colour).
     -- A plain texture: no frame, no protected call. Hidden when the dungeon has no painting or the setting is off.
     window.art = window:CreateTexture(nil, "BACKGROUND", nil, 1)
@@ -320,7 +324,7 @@ function results.show(run, resume)
   window.content:SetHeight(math.max(1, window.text:GetStringHeight() + 12))
   window.scroll:SetVerticalScroll(0)
   window.footer:SetText(results.syncText(run))
-  window.hint:SetText(ns.standalone and L("Reopen: /gdg results") or L("Reopen: /guilded dungeon results"))
+  window.hint:SetText(L("Reopen: /gdg results")) -- short enough for one line (the long form was cut off)
   if not resume then
     window.age = 0; window.expanded = false; window:SetHeight(276)
     window.details:SetText(L("Details")); window.scroll:Hide()
@@ -396,7 +400,7 @@ ns.commandHandlers["cards"] = function(args)
     if st then st.runCardPos = nil; st.duelCardPos = nil end
     if window then results.restorePosition(window) end
     if _G.GuildedDuelCard and _G.GuildedDuelCard.ClearAllPoints then
-      _G.GuildedDuelCard:ClearAllPoints(); _G.GuildedDuelCard:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -24, 330)
+      _G.GuildedDuelCard:ClearAllPoints(); _G.GuildedDuelCard:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -110, 330)
     end
     ns.message(L("The result and duel cards are back in their usual place."))
   else

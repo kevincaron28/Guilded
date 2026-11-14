@@ -533,13 +533,13 @@ function page.build(parent, opts)
         b:SetText(L(tab.label))
       end
       if visible[tab.key] then
-        local w = math.max(70, #L(tab.label) * 7 + 22)
+        local w = math.max(56, #L(tab.label) * 6 + 20) -- narrow enough for the seven tabs on one row
         if x + w > width and x > 0 then x = 0; row = row + 1 end
         b:SetSize(w, 22)
         b:ClearAllPoints()
         b:SetPoint("TOPLEFT", bar, "TOPLEFT", x, -row * 24)
         b:Show()
-        x = x + w + 4
+        x = x + w + 2
       else
         b:Hide()
       end

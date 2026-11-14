@@ -31,7 +31,8 @@ local PANEL_HEIGHT = 600
 -- A sidebar of tabs on the left (grouped, like most modern addons), the page on the right.
 local SIDEBAR_WIDTH = 160
 local CONTENT_X = SIDEBAR_WIDTH + 26
-local PAGE_WIDTH = PANEL_WIDTH - CONTENT_X - 22
+-- 576: what a scrolled page really shows (the scroll frame ends 28 px from the right edge); 582 ran 6 px under it and cut text off.
+local PAGE_WIDTH = PANEL_WIDTH - CONTENT_X - 28
 local ATTUNEMENT_PRESETS = { "Barrow Deeps", "Hyjal Summit", "Onyxia's Lair" }
 
 local button, panel
@@ -613,8 +614,12 @@ local function buildPublicRaidsPage(page)
   ui.pugRealm:SetScript("OnEnterPressed", function(self) self:ClearFocus(); ui.pugPage = 1; update() end)
   at(newButton(page, "Filter", 80, function() ui.pugPage = 1; update() end), page, 230, -18)
   local roles = { { "All roles", nil }, { "Tank", "tanks" }, { "Healer", "healers" }, { "DPS", "dps" } }
+  local previousRole
   for i, choice in ipairs(roles) do
-    at(newButton(page, choice[1], 90, function() ui.pugRole = choice[2]; ui.pugPage = 1; update() end), page, (i - 1) * 96, -52)
+    local roleButton = at(newButton(page, choice[1], 90, function() ui.pugRole = choice[2]; ui.pugPage = 1; update() end), page, (i - 1) * 96, -52)
+    -- Each beside the last, wherever its (translated, widened) width ends, so "Tous les roles" never overlaps "Tank".
+    if previousRole then roleButton:ClearAllPoints(); roleButton:SetPoint("LEFT", previousRole, "RIGHT", 6, 0) end
+    previousRole = roleButton
   end
   ui.pugStatus = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -86)
   ui.pugStatus:SetWidth(PAGE_WIDTH)
@@ -1024,7 +1029,7 @@ local function buildGeneralSettings(page)
     tip(at(newButton(page, def[1], 84, function()
       local handler = ns.commandHandlers and ns.commandHandlers[def[2]]
       if handler then handler(def[3]) end
-    end), page, 232 + (i - 1) * 90, -274), def[4])
+    end), page, (i - 1) * 90, -300), def[4]) -- their own row, below the window size row
   end
   -- Announcements (merged in from their own page in 9.2).
   if ui.announcementsBlock then ui.announcementsBlock(page, -146) end
@@ -1032,17 +1037,21 @@ local function buildGeneralSettings(page)
   tip(at(newButton(page, "Advanced...", 170, function() if ui.showAdvanced then ui.showAdvanced(true) end end), page, PAGE_WIDTH - 170, -28), "Data and guildmate status, test tools, speed report, GRM import. Closed by default.")
 
   -- Window size, kept between sessions.
-  at(newLabel(page, "Window size", "GameFontNormalSmall"), page, 0, -278)
-  tip(at(newButton(page, "-", 30, function() run("menu scale smaller") end), page, 90, -274), "Smaller window")
-  tip(at(newButton(page, "+", 30, function() run("menu scale bigger") end), page, 124, -274), "Bigger window")
-  tip(at(newButton(page, "Reset", 60, function() run("menu scale reset") end), page, 158, -274), "Normal size, back in the middle of the screen")
+  -- One row: label, then the buttons each beside the last (a translated label or button may be wider than in English).
+  local sizeLabel = at(newLabel(page, "Window size", "GameFontNormalSmall"), page, 0, -278)
+  local smaller = tip(at(newButton(page, "-", 30, function() run("menu scale smaller") end), page, 90, -274), "Smaller window")
+  smaller:ClearAllPoints(); smaller:SetPoint("LEFT", sizeLabel, "RIGHT", 10, 0)
+  local bigger = tip(at(newButton(page, "+", 30, function() run("menu scale bigger") end), page, 124, -274), "Bigger window")
+  bigger:ClearAllPoints(); bigger:SetPoint("LEFT", smaller, "RIGHT", 4, 0)
+  local resetSize = tip(at(newButton(page, "Reset", 60, function() run("menu scale reset") end), page, 158, -274), "Normal size, back in the middle of the screen")
+  resetSize:ClearAllPoints(); resetSize:SetPoint("LEFT", bigger, "RIGHT", 4, 0)
 
   -- Get the companion (8.5.0): addons cannot open web pages, so the links are here to copy.
-  at(newLabel(page, L("Get the Windows companion (select a link, Ctrl+C):"), "GameFontNormalSmall"), page, 0, -306)
+  at(newLabel(page, L("Get the Windows companion (select a link, Ctrl+C):"), "GameFontNormalSmall"), page, 0, -332)
   if ns.companionLink then
-    at(copyBox(page, ns.companionLink.SHORT, 250), page, 6, -322)
-    at(copyBox(page, ns.companionLink.DIRECT, 250), page, 270, -322)
-    local steps = at(newLabel(page, table.concat(ns.companionLink.steps(), "\n"), "GameFontHighlightSmall"), page, 0, -348)
+    at(copyBox(page, ns.companionLink.SHORT, 250), page, 6, -348)
+    at(copyBox(page, ns.companionLink.DIRECT, 250), page, 270, -348)
+    local steps = at(newLabel(page, table.concat(ns.companionLink.steps(), "\n"), "GameFontHighlightSmall"), page, 0, -374)
     steps:SetWidth(PAGE_WIDTH - 40)
     steps:SetJustifyH("LEFT")
   end
@@ -1050,7 +1059,7 @@ local function buildGeneralSettings(page)
   local help = at(newLabel(page,
     L("Minimap button hidden? /guilded minimap show. Problem? Press Diagnostics and send a screenshot to an officer. A key can open this window: Options > Keybindings > Guilded.")
       .. " " .. L("Guilded is free. A coffee helps pay for hosting: kcaron.top/support"),
-    "GameFontHighlightSmall"), page, 0, -406)
+    "GameFontHighlightSmall"), page, 0, -432)
   help:SetWidth(PAGE_WIDTH - 40)
 
   -- Optional modules: your own switch, and (officers) the guild-wide one. There are more of
@@ -1425,7 +1434,7 @@ local SECTION_ROW = { Home = true, Guild = true, Raids = true, Officer = true }
 local SECTION_Y, SECTION_LINE, SECTION_GAP, SECTION_MAX = 12, 24, 6, 200
 -- The window's - / + / close buttons sit at the top right, over the first line of the row: that line ends
 -- before them (reserved width), later lines run the full page width.
-local SECTION_FIRST_LINE_RESERVE = 96
+local SECTION_FIRST_LINE_RESERVE = 90 -- clear of the - / + / close buttons (the page is 574 px wide now)
 local function sectionWidth(text)
   return math.min(SECTION_MAX, math.max(60, #text * 7 + 20))
 end
@@ -2264,7 +2273,7 @@ function ui.placePageTop()
   if ui.guildScroll then
     ui.guildScroll:ClearAllPoints()
     ui.guildScroll:SetPoint("TOPLEFT", panel, "TOPLEFT", CONTENT_X, -top)
-    ui.guildScroll:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -30, 44)
+    ui.guildScroll:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -28, 44)
   end
   if not SCROLLED_PAGES[tab.name] then
     tab.page:ClearAllPoints()
@@ -2541,7 +2550,7 @@ local function buildPanel()
   -- Long pages (standings, crafting, the officer pages) scroll in this frame.
   ui.guildScroll = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")
   ui.guildScroll:SetPoint("TOPLEFT", panel, "TOPLEFT", CONTENT_X, -66)
-  ui.guildScroll:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -30, 44)
+  ui.guildScroll:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -28, 44)
   enableWheel(ui.guildScroll, function() return ui.guildScrollRange or 0 end)
   ui.guildScroll:SetScript("OnSizeChanged", function() if updateGuildScroll then updateGuildScroll() end end)
   ui.guildScroll:Hide()

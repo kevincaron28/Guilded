@@ -17,7 +17,10 @@ local function nowSeconds() return (GetServerTime and GetServerTime()) or (time 
 -- Guesses, not game facts (the repo has no evidence of the client's real values; confirm in a real client): how long a sent
 -- invitation counts as pending, from when the officer may invite again, and how long a declined row stays in the invited
 -- section. A "declined" or "expired" system message acts at once.
-local PENDING_SECONDS, AGAIN_SECONDS, DECLINED_KEEP = 120, 60, 3600
+-- (9.3.1) PENDING was 120 s: after a slow /reload (the officer's took three minutes) every invited name was back under
+-- "To invite now" and would have been invited twice. A sent invitation is now kept as pending for 30 minutes (the marks
+-- are saved in GuildedDB and survive /reload and relog); "Invite again" stays available after AGAIN_SECONDS.
+local PENDING_SECONDS, AGAIN_SECONDS, DECLINED_KEEP = 1800, 60, 3600
 module.PENDING_SECONDS, module.AGAIN_SECONDS = PENDING_SECONDS, AGAIN_SECONDS
 
 -- Accents folded like the bot's foldKey (invite-queue.ts): codepoint+letter pairs for Latin-1 and Latin Extended-A.
@@ -304,7 +307,14 @@ local function refreshNow()
   local first
   for _, item in ipairs(todo) do if item.state ~= "notfound" then first = item; break end end
   module.selected = first and key(first.name) or nil
-  window.status:SetText(first and string.format(L("Copy %s for the highlighted row (Ctrl+C), paste it in your chat box (Ctrl+V) and press Enter."), "/ginvite " .. first.name) or "")
+  -- No row is highlighted and no copy box is shown until Invite is clicked, so the line says what to do, in order.
+  do
+    local fetched = type(_G.GuildedInvites) == "table" and _G.GuildedInvites.fetchedAt
+    local whenText = ns.util and ns.util.whenText
+    local when = type(fetched) == "string" and fetched ~= "" and whenText and whenText(fetched) or nil
+    window.listAge:SetText(type(when) == "string" and string.format(L("List from %s. Reload after the companion syncs."), when) or "")
+  end
+  window.status:SetText(first and L("Click Invite on a row, then Ctrl+C, paste it in your chat box (Ctrl+V) and press Enter.") or "")
   local y = -70
   -- The window never grows past the screen: the rows that fit are shared out todo first, then invited, then handled.
   local screen = UIParent and UIParent.GetHeight and UIParent:GetHeight()
@@ -411,6 +421,8 @@ function build()
     t:SetPoint("TOPLEFT", 18, y); t:SetWidth(380); t:SetJustifyH("LEFT"); return t
   end
   f.status = text(-30)
+  -- When the companion last wrote the waiting names, so an old list is not mistaken for a complete one.
+  f.listAge = text(-398, "GameFontDisableSmall")
   f.todoHead = text(-70, "GameFontNormal")
   f.empty = text(-92)
   f.todoMore = text(-92)
@@ -432,6 +444,7 @@ function build()
       module.refresh()
     end)
     button:SetPoint("TOPLEFT", 310, -92)
+    button.copyAnchor = function() return window end -- the copy box opens below this window, not on top of the rows
     local remove = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
     remove:SetSize(100, 22); remove:SetText(L("Remove")); remove:SetPoint("TOPLEFT", 310, -92); remove:Hide()
     remove:SetScript("OnClick", function()

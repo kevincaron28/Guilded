@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { clearLeaderboardCaches, createLeaderboardPages, type LeaderRun, type LeaderboardStore } from "../src/services/public-leaderboard.js";
-import { continentView, zoneBox, zonePoint, zoneMapHtml, bgBoard, guildPvp, loadPvpData, playerPvp, readPvpFilters, worldBoard, zoneStats, type PvpData, type PvpGame, type PvpWorldRow } from "../src/services/leaderboard-pvp.js";
+import { continentView, zoneBox, zoneLabel, zonePoint, zoneMapHtml, bgBoard, guildPvp, loadPvpData, playerPvp, readPvpFilters, worldBoard, zoneStats, type PvpData, type PvpGame, type PvpWorldRow } from "../src/services/leaderboard-pvp.js";
 import { weekKeyOf } from "../src/services/world-pvp.js";
 import { PVP_ZONES, zoneById, zoneByName, zoneOf } from "../src/services/pvp-zones.js";
 import { existsSync } from "node:fs";
@@ -354,6 +354,46 @@ describe("PvP leaderboards: pages", () => {
 
   it("only points at a painting that exists in the site folder", () => {
     for (const [continent, image] of Object.entries(CONTINENT_IMAGES)) if (image) expect(existsSync(`site${image}`), continent).toBe(true);
+  });
+
+  it("credits the map artwork in English and French when the pictures are in-game maps", async () => {
+    const { get } = setup(async () => data());
+    expect((await get("/leaderboards/pvp/", "en")).body).toContain("Map artwork © Blizzard Entertainment; tiles prepared by the OpenMap addon. Guilded is not affiliated with Blizzard.");
+    expect((await get("/leaderboards/pvp/", "fr")).body).toContain("Illustrations de la carte © Blizzard Entertainment; tuiles préparées par");
+  });
+
+  it("labels every zone on both maps in the page language, inside the map, without taking clicks", async () => {
+    const { get } = setup(async () => data());
+    for (const [lang, key] of [["en", "en"], ["fr", "fr"]] as const) {
+      const body = (await get("/leaderboards/pvp/", lang)).body;
+      const svgs = [...body.matchAll(/<svg viewBox="([\d. -]+)"[\s\S]*?<\/svg>/g)];
+      expect(svgs.length).toBe(2);
+      for (const [svg, box] of svgs) {
+        const [vx, vy, vw, vh] = box!.split(" ").map(Number) as [number, number, number, number];
+        expect(svg).toContain('class="lbls"');
+        for (const m of svg.matchAll(/<text class="(?:lbl|city)[^"]*" x="([\d.-]+)" y="([\d.-]+)"/g)) {
+          const x = Number(m[1]), y = Number(m[2]);
+          expect(x).toBeGreaterThan(vx!); expect(x).toBeLessThan(vx! + vw!); expect(y).toBeGreaterThan(vy!); expect(y).toBeLessThan(vy! + vh!);
+        }
+      }
+      const all = svgs.map((m) => m[0]).join("");
+      for (const name of [PVP_ZONES.find((z) => z.id === 1454)![key], PVP_ZONES.find((z) => z.id === 1455)![key]]) expect(all).toContain(`>${name}</text>`);
+      expect(all).toContain(key === "fr" ? "Hurlevent" : "Stormwind City");
+      expect(body).toContain(".pvp-map .lbls{pointer-events:none");
+      // most zones carry a label; only zones too small to hold readable text may lack one
+      expect((all.match(/<text class="(?:lbl|city)/g) ?? []).length).toBeGreaterThan(PVP_ZONES.length * 0.5);
+    }
+  });
+
+  it("zoneLabel fits the zone, splits long names and hides names that cannot fit", () => {
+    const view = { x: 0, y: 0, w: 400, h: 600 };
+    const big = zoneLabel("Dun Morogh", { x: 100, y: 100, w: 80, h: 60 }, view)!;
+    expect(big.lines).toEqual(["Dun Morogh"]);
+    const two = zoneLabel("Eastern Plaguelands", { x: 100, y: 100, w: 40, h: 40 }, view);
+    if (two) expect(two.lines.length).toBeLessThanOrEqual(2);
+    expect(zoneLabel("Eastern Plaguelands", { x: 100, y: 100, w: 6, h: 6 }, view)).toBeNull();
+    const edge = zoneLabel("Teldrassil", { x: 390, y: 10, w: 40, h: 40 }, view)!;
+    expect(edge.x + (edge.lines[0]!.length * 0.58 * edge.font) / 2).toBeLessThanOrEqual(view.x + view.w);
   });
 
   it("keeps a visible keyboard focus ring and a tooltip that fits the map for the longest French zone name", async () => {

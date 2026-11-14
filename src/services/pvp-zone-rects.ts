@@ -54,4 +54,4 @@ export const ZONE_RECTS: Readonly<Record<number, readonly [number, number, numbe
 export const MAP_WIDTH = 1002, MAP_HEIGHT = 668;
 
 /** Painted pictures behind the continents (same frame, 2:3), when approved and added under site/images/pvp-map/; null draws the plain vector map (2:3, 1024 x 1536). */
-export const CONTINENT_IMAGES: Readonly<Record<"kalimdor" | "eastern", string | null>> = { kalimdor: "/images/pvp-map/kalimdor.webp", eastern: "/images/pvp-map/eastern.webp" };
+export const CONTINENT_IMAGES: Readonly<Record<"kalimdor" | "eastern", string | null>> = { kalimdor: "/images/pvp-map/kalimdor-game.webp", eastern: "/images/pvp-map/eastern-game.webp" };

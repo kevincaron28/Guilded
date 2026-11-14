@@ -4,7 +4,7 @@
 -- leaderboards.
 local _, ns = ...
 
-local DUNGEON_ACTIONS = { status = true, results = true, start = true, complete = true, abandon = true, check = true }
+local DUNGEON_ACTIONS = { status = true, results = true, start = true, complete = true, abandon = true, check = true, carry = true }
 
 local function words(text)
   local list = {}
@@ -20,7 +20,7 @@ function ns.slash(text)
   local args = words(text)
   local action = string.lower(args[1] or "status")
   if DUNGEON_ACTIONS[action] then
-    ns.commandHandlers["dungeon"]({ action })
+    ns.commandHandlers["dungeon"](args)
   elseif action == "score" and not args[2] and ns.dungeonScorePanel then
     ns.dungeonScorePanel.open("season")
   elseif action == "companion" then

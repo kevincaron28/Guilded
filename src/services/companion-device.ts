@@ -10,6 +10,7 @@ import { gameEditionOf } from "./game-edition.js";
 import { hashCompanionSecret } from "./character-pairing.js";
 import { looseKey } from "./loose-key.js";
 import { normalizeClassName, normalizeRaceName } from "./character-import.js";
+import { ingestPublicRuns, prismaPublicRunStore } from "./public-runs.js";
 
 // Zero-setup companion (owner decision, 9 November 2026; docs/ZERO_SETUP_COMPANION.md).
 // The Windows companion makes a device key on first start and syncs without Discord sign-in. The
@@ -143,6 +144,25 @@ export interface DeviceStore {
   expireIdle?(before: Date): Promise<number>;
   /** Remembers an in-game guild name no /setup registered, for the server its roster pointed to (T9). */
   noteAlias?(guildId: string, guild: { name: string; realm: string }, now: Date): Promise<void>;
+  /**
+   * (9.3.1) Runs of players outside this device's guild that reached its addon through a party or raid: the public boards' own
+   * lane (the same checks as any public run). Returns the refs the server now holds.
+   */
+  publicRuns?(deviceId: string, runs: unknown[], now: Date): Promise<string[]>;
+}
+
+/**
+ * (9.3.1) Splits an upload's runs into those the device carries for players near it (the addon marks them viaGroup and none of
+ * this device's characters played them: a participant's addon sent them in a party or raid) and the rest, which keep the guild lane.
+ */
+export function splitGroupRuns(raw: unknown[], deviceKeys: ReadonlySet<string>): { group: unknown[]; rest: unknown[] } {
+  const group: unknown[] = [];
+  const rest: unknown[] = [];
+  for (const run of raw) {
+    const marked = (run as { viaGroup?: unknown } | null)?.viaGroup === true;
+    if (marked && voucherOf(run, deviceKeys)?.kind === "relay") group.push(run); else rest.push(run);
+  }
+  return { group, rest };
 }
 
 /** The runs of one unsigned upload the server now holds, in the shape the signed-in standings use. */
@@ -157,8 +177,8 @@ export const DEVICE_PVP_NOTICE: DeviceNotice = {
 
 export type DeviceUploadAnswer =
   | { status: "synced"; server: { discordId: string; name: string | null }; guild: { name: string; realm: string }; characters: number; claimed: boolean; runs?: { received: number; stored: number; skipped: number; pending?: number }; runReceipts?: DeviceRunReceipts; reported?: string[]; notice: DeviceNotice }
-  | { status: "no-guild"; guild: { name: string; realm: string } | null }
-  | { status: "choose"; guild: { name: string; realm: string }; servers: { discordId: string; name: string | null }[] }
+  | { status: "no-guild"; guild: { name: string; realm: string } | null; runReceipts?: DeviceRunReceipts }
+  | { status: "choose"; guild: { name: string; realm: string }; servers: { discordId: string; name: string | null }[]; runReceipts?: DeviceRunReceipts }
   | { status: "claimed" };
 
 export class DeviceError extends Error { constructor(message: string, readonly status: number) { super(message); } }
@@ -250,18 +270,32 @@ export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, 
     });
   }
   await store.saveUpload(device.id, { guildId: target?.guildId ?? null, chosenGuildId, wowGuild, now }, rows);
-  if (!guild || "none" in decision) return { status: "no-guild", guild };
-  if ("choose" in decision) return { status: "choose", guild, servers: decision.choose.map((candidate) => ({ discordId: candidate.discordId, name: candidate.serverName })) };
+  // (9.3.1) Runs this device carries for players near it go to the public boards, whatever this device's guild is (even none).
+  const split = splitGroupRuns(upload.dungeonRuns, known);
+  const carried: string[] = [];
+  if (split.group.length && store.publicRuns) {
+    const limiter = options.runLimiter ?? ((id: string) => deviceRunHits(id, now.getTime()));
+    const allowedGroup: unknown[] = [];
+    for (const run of split.group) {
+      if (allowedGroup.length >= RUN_TRUST.relayedPerUpload || !limiter(device.id)) break;
+      allowedGroup.push(run);
+    }
+    if (allowedGroup.length) carried.push(...await store.publicRuns(device.id, allowedGroup, now).catch(() => []));
+  }
+  const carriedReceipts: DeviceRunReceipts | undefined = carried.length ? { acceptedRunRefs: carried, runNotes: {} } : undefined;
+  if (!guild || "none" in decision) return { status: "no-guild", guild, ...(carriedReceipts ? { runReceipts: carriedReceipts } : {}) };
+  if ("choose" in decision) return { status: "choose", guild, servers: decision.choose.map((candidate) => ({ discordId: candidate.discordId, name: candidate.serverName })), ...(carriedReceipts ? { runReceipts: carriedReceipts } : {}) };
   // T9: the guild was renamed in game. The roster sent this device to the right server; officers get the new name.
   if (target?.viaRoster && store.noteAlias) await store.noteAlias(target.guildId, guild, now).catch(() => undefined);
   let runs: { received: number; stored: number; skipped: number; pending?: number } | undefined;
   let pending: Record<string, string> = {};
-  if (upload.dungeonRuns.length && store.importRuns && target) {
+  const guildRuns = split.rest;
+  if (guildRuns.length && store.importRuns && target) {
     const limiter = options.runLimiter ?? ((id: string) => deviceRunHits(id, now.getTime()));
     const allowed: unknown[] = [];
     let relayed = 0;
     // Runs this device has standing for: one of its characters played it, or a participant's addon sent it in game.
-    for (const run of upload.dungeonRuns) {
+    for (const run of guildRuns) {
       const standing = voucherOf(run, known);
       if (!standing || (standing.kind === "relay" && ++relayed > RUN_TRUST.relayedPerUpload)) continue;
       if (!limiter(device.id)) break;
@@ -269,23 +303,24 @@ export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, 
     }
     const result = allowed.length ? await store.importRuns(target.guildId, allowed, now, { deviceId: device.id, characterKeys: [...known] }) : { stored: 0, skipped: 0 };
     pending = result.pending ?? {};
-    runs = { received: upload.dungeonRuns.length, stored: result.stored, skipped: result.skipped, ...(Object.keys(pending).length ? { pending: Object.keys(pending).length } : {}) };
+    runs = { received: guildRuns.length, stored: result.stored, skipped: result.skipped, ...(Object.keys(pending).length ? { pending: Object.keys(pending).length } : {}) };
   }
   // Every ref this upload carried that the server now holds (stored, a guildmate's copy, refused), so the addon stops waiting.
   // A guildmate's run the addon got by peer sync (none of this PC's characters in it) is not stored and gets NO receipt
   // (9.1.4): a receipt marks the run synced in the addon, which then tells its author "my bot has your run" (ACK) and the
   // author stops replaying it, so a run no bot held looked delivered. It stays unconfirmed for a signed-in companion.
   let runReceipts: DeviceRunReceipts | undefined;
-  if (upload.dungeonRuns.length && store.receipts && target) {
+  if (guildRuns.length && store.receipts && target) {
     // A run that waits for a second statement is NOT held: a receipt would mark it synced in the addon, which then ACKs it to
     // its author. It is answered apart (pendingRunNotes) so the member sees why it waits.
-    const refs = [...new Set(upload.dungeonRuns.flatMap((run) => { const id = (run as { id?: unknown } | null)?.id; return typeof id === "string" && id.length <= 80 ? [id] : []; }))];
+    const refs = [...new Set(guildRuns.flatMap((run) => { const id = (run as { id?: unknown } | null)?.id; return typeof id === "string" && id.length <= 80 ? [id] : []; }))];
     const held = refs.length ? await store.receipts(target.guildId, refs) : [];
-    const acceptedRunRefs = held.map((row) => row.runRef);
+    const acceptedRunRefs = [...held.map((row) => row.runRef), ...carried];
     const runNotes: Record<string, string> = Object.fromEntries(held.flatMap((row) => row.reason ? [[row.runRef, row.reason] as const] : []));
     const waiting = Object.fromEntries(Object.entries(pending).filter(([ref]) => !acceptedRunRefs.includes(ref)));
     if (acceptedRunRefs.length || Object.keys(waiting).length) runReceipts = { acceptedRunRefs, runNotes, ...(Object.keys(waiting).length ? { pendingRunNotes: waiting } : {}) };
   }
+  if (!runReceipts && carriedReceipts) runReceipts = carriedReceipts;
   // (9.1.4) The characters THIS upload reported and the server holds for the device, so the addon can say "Reported, not
   // confirmed" for the one being played. Names the device itself sent, nothing else: no Discord name and nothing about
   // anyone else's characters ever goes back to an unsigned device.
@@ -522,6 +557,12 @@ export function prismaInstallStore(database: PrismaClient, serverName: (discordI
     guildCharacterCount: (guildId) => database.deviceCharacter.count({ where: { device: { guildId, claimedMemberId: null, revokedAt: null } } }),
     // Claimed devices stay (the member sees and revokes them on /me/connections); characters and waiting runs go with the device.
     expireIdle: async (before) => (await database.companionDevice.deleteMany({ where: { claimedMemberId: null, lastSeenAt: { lt: before } } })).count,
+    async publicRuns(deviceId, runs, now) {
+      // Each run is a statement of the device's group: one witness is enough, the usual public checks apply, no guild is claimed.
+      const result = await ingestPublicRuns(prismaPublicRunStore(database), { uploaderKey: `relay:${deviceId}`, character: null, source: "personal", runs }, now);
+      // Held (stored, a repeat, or not counted): the addon stops sending it. A run the hourly budget turned away is not listed, so it is retried.
+      return [...result.accepted, ...result.confirmed, ...result.duplicates, ...result.historyOnly, ...result.rejected.map((entry) => entry.id)];
+    },
     async noteAlias(guildId, guild, now) {
       const nameKey = looseKey(guild.name);
       if (!nameKey) return;

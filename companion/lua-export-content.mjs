@@ -827,6 +827,8 @@ export function exportDungeonRuns(database, realm, options = {}) {
         });
         return mapCells.length ? { mapCells } : {};
       })() : {}),
+      // (9.3.1) A run that only reached this PC through the group (a player outside the guild): the bot places it on the public boards.
+      ...(run.viaGroup === true ? { viaGroup: true } : {}),
       reporters: Object.keys(run.reporters ?? {}).length || 1,
       // Who reported it, so the bot can check at least one of them was in the run.
       ...(run.reporters && Object.keys(run.reporters).length ? { reporterNames: Object.keys(run.reporters).slice(0, 10) } : {}),

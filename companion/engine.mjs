@@ -449,7 +449,7 @@ export function createEngine(initialConfig, hooks = {}) {
       const summary = deviceSummary(body);
       state.device = summary;
       // (9.1.3) The bot's receipts for the runs this upload carried go to the addon, which marks them synced at the next load.
-      if (summary?.status === "synced" && (body.runReceipts || body.reported)) {
+      if ((summary?.status === "synced" || body.runReceipts) && (body.runReceipts || body.reported)) {
         try { await writeDeviceReceipts(current, { ...(body.runReceipts ?? {}), reported: body.reported }, controller.signal); }
         catch (error) { if (epoch !== generation) return; log("warn", `Could not save the run receipts for the addon: ${describeError(error)}`); }
       }

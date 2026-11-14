@@ -12,10 +12,12 @@ export interface RunIntegrityConfig {
   clockSlackSec: number | null;
   requireSeal: boolean;
   strikeWindowSec: number | null;
+  /** Runs one PC may place on the public boards for players near it, per day. */
+  relayedRunsPerDay: number;
 }
 
 export const DEFAULT_CONFIG: RunIntegrityConfig = {
-  limits: null, weights: {}, defaultWeight: 0, holdScore: Infinity, deviceStrikes: Infinity, challengeWindowSec: null, clockSlackSec: null, requireSeal: false, strikeWindowSec: null
+  limits: null, weights: {}, defaultWeight: 0, holdScore: Infinity, deviceStrikes: Infinity, challengeWindowSec: null, clockSlackSec: null, requireSeal: false, strikeWindowSec: null, relayedRunsPerDay: 60
 };
 
 const num = (value: unknown): number | undefined => typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
@@ -49,7 +51,8 @@ export function parseIntegrityConfig(text: string | undefined): RunIntegrityConf
     challengeWindowSec: num(raw["challengeWindowSec"]) ?? null,
     clockSlackSec: num(raw["clockSlackSec"]) ?? null,
     requireSeal: raw["requireSeal"] === true,
-    strikeWindowSec: num(raw["strikeWindowSec"]) ?? null
+    strikeWindowSec: num(raw["strikeWindowSec"]) ?? null,
+    relayedRunsPerDay: num(raw["relayedRunsPerDay"]) ?? DEFAULT_CONFIG.relayedRunsPerDay
   };
 }
 

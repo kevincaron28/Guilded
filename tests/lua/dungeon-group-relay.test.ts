@@ -136,4 +136,43 @@ describe.each<Kind>(["guilded", "standalone"])("runs carried through the group (
     for (const text of lines(walter).filter((line) => line.startsWith("GuildedDgn>GUILD>")).map((line) => line.split(">").slice(2).join(">"))) hear(lebowski, "Walter", text, "GUILD");
     expect(lebowski.run(`return tostring(${runs}["walter-rfc"].viaGroup)`)).toBe("nil");
   });
+
+  it("a confirmation heard in a group proves nothing: only the companion's own receipt marks a run taken", () => {
+    const walter = client(kind, "Walter", "Lebowski");
+    walter.run(makeRun("walter-rfc"));
+    hear(walter, "Lebowski", "ACK|walter-rfc", "PARTY");
+    hear(walter, "Lebowski", "ACKS|walter-rfc", "PARTY");
+    const mark = (field: string) => walter.run(`return tostring(${runs}["walter-rfc"].${field})`);
+    expect(mark("synced")).toBe("nil");
+    expect(mark("syncedVia")).toBe("nil");
+    expect(mark("groupAckedAt")).not.toBe("nil");
+    // Only the group: receipt of the companion ends the offers, and it never marks the run as held by a guild.
+    walter.run(`${runs}["walter-rfc"].viaGroup = true; GuildedDungeonAccepted = { "group:walter-rfc" }; NS.dungeon.markSynced()`);
+    expect(mark("groupSynced")).toBe("true");
+    expect(mark("synced")).toBe("nil");
+  });
+
+  it("sends nothing to a group bigger than a party of five", () => {
+    const walter = client(kind, "Walter", "Lebowski");
+    walter.run("function GetNumGroupMembers() return 6 end");
+    walter.run(makeRun("walter-rfc"));
+    walter.run("NS.dungeon.offerToGroup()");
+    walter.run(`NS.dungeon.sendRun(${runs}["walter-rfc"])`);
+    flush(walter);
+    expect(lines(walter).some((line) => line.startsWith("GuildedDgn>PARTY>"))).toBe(false);
+  });
+
+  it("keeps at most ten waiting runs from one sender", () => {
+    const walter = client(kind, "Walter", "Lebowski");
+    const lebowski = client(kind, "Lebowski", "Walter", false);
+    companion(lebowski);
+    for (let index = 0; index < 12; index++) {
+      walter.run(makeRun(`walter-${index}`));
+      walter.run(`NS.dungeon.sendRun(${runs}["walter-${index}"], "GROUP")`);
+      flush(walter);
+      deliver(walter, "Walter", lebowski, "PARTY", "SUM");
+    }
+    const count = Number(lebowski.run(`local n = 0; for id in pairs(${runs}) do if string.sub(id, 1, 7) == "walter-" then n = n + 1 end end; return n`));
+    expect(count).toBe(10);
+  });
 });

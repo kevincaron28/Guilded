@@ -52,7 +52,8 @@ import { applyGuildmateRelay } from "./services/guildmate-relay.js";
 import { applyGuildData } from "./services/guild-data.js";
 import { applyGuildBank } from "./services/guild-bank.js";
 import { serverKnowsWowGuild } from "./services/wow-guilds.js";
-import { RETRY_OUTCOME } from "./services/dungeon-import.js";
+import { RETRY_OUTCOME, saveRunReceipts } from "./services/dungeon-import.js";
+import { RUN_TRUST } from "./services/run-trust.js";
 import { retryWriteConflict, serializeByKey } from "./services/transaction-retry.js";
 import { alertLowStock, bankForAddon, parseAddonBankRequests, postRequestCard } from "./services/guild-bank-member.js";
 import { createBankService } from "./services/bank.js";
@@ -112,6 +113,7 @@ import { exchangePersonalCode, isPersonalCode, issuePersonalCredential, personal
 import { claimDevice, DEVICE_FEATURES, DEVICE_LIMITS, networkKey, DeviceError, deviceFor, handleDeviceUpload, memberForCredential, pickServer, prismaInstallStore, registerDevice, windowLimiter } from "./services/companion-device.js";
 import { loadOfficialWindows } from "./services/official-seasons.js";
 import { companionSignInRoute, createCompanionSignIn } from "./services/companion-signin.js";
+import { ingestRelayedRuns, splitGroupCarried } from "./services/relay-public.js";
 import { ingestPublicRuns, ownPlayersFilter, pickScoreCharacter, PUBLIC_LIMITS, prismaPublicRunStore, PublicUploadError } from "./services/public-runs.js";
 import { publicAddonBoard } from "./services/public-addon-board.js";
 import { publicSeasons } from "./services/public-score.js";
@@ -1333,6 +1335,17 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const mark = uploadTimer.mark;
       response.once("close", () => console.info(uploadTimer.line(guild.id, Number(request.headers["content-length"]) || 0, !!access.officer)));
       let preview = await timed("preview", () => importService.preview(guild.id, requestPayload.export, createdBy));
+      // (9.3.1) Runs that only reached the uploader's addon through a party or raid never enter a guild lane, signed in or not: they go
+      // to the public boards' relay lane. Their receipts carry a "group:" prefix, so a later copy from a guildmate still reaches the guild.
+      {
+        const { group, rest } = splitGroupCarried(preview.snapshot.dungeonRuns as unknown[]);
+        if (group.length) {
+          preview.snapshot.dungeonRuns = rest as typeof preview.snapshot.dungeonRuns;
+          const carrierKeys = new Set([preview.snapshot.character, ...preview.snapshot.alts, ...preview.snapshot.characters].flatMap((entry) => entry ? [entry.name] : []).map((name) => name.trim().toLowerCase()));
+          const carried = await ingestRelayedRuns(publicRuns, { carrier: `member:${access.memberId ?? access.actorId}`, carrierKeys, runs: group.slice(0, RUN_TRUST.relayedPerUpload) }).catch(() => null);
+          if (carried?.receipts.length) await prisma.$transaction((tx) => saveRunReceipts(tx, guild.id, carried.receipts.map((runRef) => ({ runRef, outcome: "stored" as const, reason: null, runId: null })), new Date())).catch(() => undefined);
+        }
+      }
       // T1 (10 Nov 2026): a signed upload only links and imports in a server that knows the saved file's in-game guild.
       // Officers stay exempt (their server may not list every guild an alt is in). The companion shows the warning.
       const guildCheck = await timed("guild-check", () => serverKnowsWowGuild(prisma, guild, preview.snapshot.wowGuild)).catch(() => undefined);

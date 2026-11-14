@@ -13,7 +13,8 @@ import { gameEditionOf } from "./game-edition.js";
 import { hashCompanionSecret } from "./character-pairing.js";
 import { looseKey } from "./loose-key.js";
 import { normalizeClassName, normalizeRaceName } from "./character-import.js";
-import { ingestPublicRuns, prismaPublicRunStore } from "./public-runs.js";
+import { prismaPublicRunStore } from "./public-runs.js";
+import { GROUP_RELAY_FEATURE, ingestRelayedRuns, splitGroupCarried } from "./relay-public.js";
 
 // Zero-setup companion (owner decision, 9 November 2026; docs/ZERO_SETUP_COMPANION.md).
 // The Windows companion makes a device key on first start and syncs without Discord sign-in. The
@@ -30,7 +31,7 @@ import { ingestPublicRuns, prismaPublicRunStore } from "./public-runs.js";
 // links confirm characters (Character.confirmedAt); only a sign-in claims a device.
 
 /** What this bot's device endpoint can do, sent with every answer: an older bot ignores `runsOnly`, so a companion must not send one to it. */
-export const DEVICE_FEATURES = ["runs-only"] as const;
+export const DEVICE_FEATURES = ["runs-only", GROUP_RELAY_FEATURE] as const;
 
 export const DEVICE_LIMITS = {
   /** New device keys per IP address per hour (a household or LAN party shares one). */
@@ -162,22 +163,14 @@ export interface DeviceStore {
    * (9.3.1) Runs of players outside this device's guild that reached its addon through a party or raid: the public boards' own
    * lane (the same checks as any public run). Returns the refs the server now holds.
    */
-  publicRuns?(deviceId: string, runs: unknown[], now: Date): Promise<string[]>;
+  publicRuns?(deviceId: string, runs: unknown[], now: Date, deviceKeys: ReadonlySet<string>): Promise<string[]>;
 }
 
 /**
- * (9.3.1) Splits an upload's runs into those the device carries for players near it (the addon marks them viaGroup and none of
- * this device's characters played them: a participant's addon sent them in a party or raid) and the rest, which keep the guild lane.
+ * (9.3.1) Splits an upload's runs into those the addon marked viaGroup (they reached it through a party or raid) and the rest.
+ * A viaGroup run never enters a guild lane, whoever is in it: it goes to the public lane (relay-public.ts).
  */
-export function splitGroupRuns(raw: unknown[], deviceKeys: ReadonlySet<string>): { group: unknown[]; rest: unknown[] } {
-  const group: unknown[] = [];
-  const rest: unknown[] = [];
-  for (const run of raw) {
-    const marked = (run as { viaGroup?: unknown } | null)?.viaGroup === true;
-    if (marked && voucherOf(run, deviceKeys)?.kind === "relay") group.push(run); else rest.push(run);
-  }
-  return { group, rest };
-}
+export const splitGroupRuns = (raw: unknown[]): { group: unknown[]; rest: unknown[] } => splitGroupCarried(raw);
 
 /** The runs of one unsigned upload the server now holds, in the shape the signed-in standings use. */
 export interface DeviceRunReceipts { acceptedRunRefs: string[]; runNotes: Record<string, string>; /** Received but not counted yet, with the reason. Never "synced". */ pendingRunNotes?: Record<string, string> }
@@ -292,7 +285,7 @@ export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, 
   }
   if (!runsOnly) await store.saveUpload(device.id, { guildId: target?.guildId ?? null, chosenGuildId, wowGuild, now }, rows);
   // (9.3.1) Runs this device carries for players near it go to the public boards, whatever this device's guild is (even none).
-  const split = splitGroupRuns(upload.dungeonRuns, known);
+  const split = splitGroupRuns(upload.dungeonRuns);
   const carried: string[] = [];
   if (split.group.length && store.publicRuns) {
     const limiter = options.runLimiter ?? ((id: string) => deviceRunHits(id, now.getTime()));
@@ -301,7 +294,7 @@ export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, 
       if (allowedGroup.length >= RUN_TRUST.relayedPerUpload || !limiter(device.id)) break;
       allowedGroup.push(run);
     }
-    if (allowedGroup.length) carried.push(...await store.publicRuns(device.id, allowedGroup, now).catch(() => []));
+    if (allowedGroup.length) carried.push(...await store.publicRuns(device.id, allowedGroup, now, known).catch(() => []));
   }
   const carriedReceipts: DeviceRunReceipts | undefined = carried.length ? { acceptedRunRefs: carried, runNotes: {} } : undefined;
   if (!guild || "none" in decision) return { status: "no-guild", guild, ...(carriedReceipts ? { runReceipts: carriedReceipts } : {}) };
@@ -643,11 +636,9 @@ export function prismaInstallStore(database: PrismaClient, serverName: (discordI
     guildCharacterCount: (guildId) => database.deviceCharacter.count({ where: { device: { guildId, claimedMemberId: null, revokedAt: null } } }),
     // Claimed devices stay (the member sees and revokes them on /me/connections); characters and waiting runs go with the device.
     expireIdle: async (before) => (await database.companionDevice.deleteMany({ where: { claimedMemberId: null, lastSeenAt: { lt: before } } })).count,
-    async publicRuns(deviceId, runs, now) {
-      // Each run is a statement of the device's group: one witness is enough, the usual public checks apply, no guild is claimed.
-      const result = await ingestPublicRuns(prismaPublicRunStore(database), { uploaderKey: `relay:${deviceId}`, character: null, source: "personal", runs }, now);
-      // Held (stored, a repeat, or not counted): the addon stops sending it. A run the hourly budget turned away is not listed, so it is retried.
-      return [...result.accepted, ...result.confirmed, ...result.duplicates, ...result.historyOnly, ...result.rejected.map((entry) => entry.id)];
+    async publicRuns(deviceId, runs, now, deviceKeys) {
+      // The relay lane: only a participant's statement counts, the plausibility checks and a daily cap apply, no guild is claimed.
+      return (await ingestRelayedRuns(prismaPublicRunStore(database), { carrier: deviceId, carrierKeys: deviceKeys, runs, now })).receipts;
     },
     async noteAlias(guildId, guild, now) {
       const nameKey = looseKey(guild.name);

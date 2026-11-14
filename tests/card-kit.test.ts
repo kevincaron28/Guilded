@@ -61,11 +61,49 @@ describe("redesigned card kit", () => {
     if (out) { mkdirSync(out, { recursive: true }); writeFileSync(join(out, `kit-${key}.png`), png); }
   }, 60_000);
 
-  it("reports a failure when a string would sit on a bright backdrop", async () => {
+  it("darkens the picture until a string on a bright painting passes, and says how much", async () => {
     const white = await sharp({ create: { width: CARD_W, height: CARD_H, channels: 3, background: "#ffffff" } }).jpeg().toBuffer();
+    const bare = new CardCanvas();
+    await bare.text("Sample", 100, 100, { size: 40 });
+    const raw = await bare.finish([{ input: white, left: 0, top: 0 }]);
+    expect(raw.scrim).toBeGreaterThan(0);
+    expect(raw.report.every((r) => r.ratio >= MIN_CONTRAST)).toBe(true);
+    // A text colour that can never reach the ratio (white on white) is the failure the guard cannot fix: assertCardRules must throw on it.
+    expect(() => assertCardRules([{ text: "x", size: 30, ratio: 2.1 }])).toThrow(/contrast/);
+    expect(() => assertCardRules([{ text: "x", size: 20, ratio: 9 }])).toThrow(/20px/);
     const { report } = await renderBannerCard({ ...SAMPLES["weekly"]!.spec(), art: white });
-    // The overlay darkens the banner's left, but the flat body is dark: only a string on the bright edge may fail; the guard must at least measure.
-    expect(report.every((r) => Number.isFinite(r.ratio))).toBe(true);
+    expect(report.every((r) => r.ratio >= MIN_CONTRAST)).toBe(true);
+  }, 60_000);
+
+  it("survives hostile names: control characters, emoji, an empty name, a bad colour, astral characters", async () => {
+    const c = new CardCanvas();
+    await c.text("Bad\u{0}Name\u{7}\n\u{202e}", 10, 10, { size: 30 });
+    await c.text("\u{1f600}\u{1f409}", 10, 50, { size: 30 });
+    const empty = await c.text("", 10, 90, { size: 30 });
+    expect(empty.w).toBe(0);
+    await c.text("ok", 10, 130, { size: 30, color: "red\" onload=\"x" });
+    const long = "\u{1d4d0}".repeat(5) + "é".repeat(200) + "\u{1f600}";
+    const clipped = await c.text(long, 10, 170, { size: 30, maxW: 300 });
+    expect(clipped.w).toBeLessThanOrEqual(300);
+    const last = c.texts.at(-1)!.str;
+    expect(last.endsWith("…")).toBe(true);
+    expect([...last].every((ch) => ch.codePointAt(0)! < 0xd800 || ch.codePointAt(0)! > 0xdfff)).toBe(true);
+    const done = await c.finish([]);
+    expect(done.png.length).toBeGreaterThan(1000);
+  }, 60_000);
+
+  it("keeps worst-case content inside the canvas and above the strip", async () => {
+    const long = "Aldric-de-la-Vallée-des-Tempêtes-Sombres-et-Lointaines";
+    const many = Array.from({ length: 9 }, (_, i) => ({ text: `${long} ${i}`, color: WAR }));
+    const rows = Array.from({ length: 9 }, (_, i) => ({ name: `${long} ${i}`, color: MAGE, sub: "Mage · Givre · 3 morts", right: "99 999 GP" }));
+    const stats = Array.from({ length: 6 }, (_, i) => ({ value: `${i}0:00`, label: "durée totale du passage de la guilde" }));
+    const result = await renderResultCard({ ...SAMPLES["duel"]!.spec(), names: many, stats, rows });
+    assertCardRules(result.report);
+    const banner = await renderBannerCard({ ...SAMPLES["raid"]!.spec(), rows, stats });
+    assertCardRules(banner.report);
+    // Rows beyond the budget are dropped, never drawn over the strip: strings per card are bounded.
+    expect(result.report.length).toBeLessThan(30);
+    expect(banner.report.length).toBeLessThan(25);
   }, 60_000);
 
   it("draws cards one at a time", async () => {

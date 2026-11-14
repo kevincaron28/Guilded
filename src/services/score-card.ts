@@ -69,6 +69,8 @@ export interface DungeonCardMember { name: string; color: string; role?: "TANK" 
   score?: string | undefined; scoreNote?: string | undefined;
   /** 9.1: the addon's name for this player, so delivery can find the guild character's picture (card-pictures.ts). */
   character?: string | undefined;
+  /** 9.3: the guild the recorder's game client showed for a player outside this server's guild (display text only: clipped, never used for links, ranking or matching). */
+  guildName?: string | undefined;
   /** Added at delivery, never stored: the character's picture thumb (base64 WebP), drawn in place of the role disc. */
   portrait?: string | undefined }
 /**
@@ -291,6 +293,10 @@ async function renderLadder(card: ScoreCard): Promise<Buffer> {
 }
 
 async function render(card: ScoreCard): Promise<Buffer> {
+  // 13 Nov 2026 redesign (card-next.ts): the result cards and the dungeon run card. Anything it does not recognise or cannot draw
+  // (null, or an error) is drawn exactly as before from the unchanged definition.
+  const next = await import("./card-next.js").then((m) => m.renderNextCard(card)).catch((error: unknown) => { console.warn(`card-next fell back: ${error instanceof Error ? error.message : String(error)}`); return null; });
+  if (next) return next;
   if (card.dungeon) return renderDungeon(card);
   if (card.recap) return renderRecap(card);
   if (card.record) return (await import("./record-card.js")).renderRecordCard(card);

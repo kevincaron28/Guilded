@@ -27,8 +27,8 @@ export function battlegroundResultCard(row: BattlegroundCardRecord, fr: boolean)
       { name: t("Correction", "Correction"), value: row.correctionReason ? safe(row.correctionReason)
         : t("To withdraw an incorrect report: /bg correct report:<ID> reason:<reason>. A correction never manufactures a win.",
           "Pour retirer un rapport erroné : /bg correct report:<ID> reason:<motif>. Une correction ne crée jamais une victoire.") })
-    .setFooter({ text: t("Private report. Provisional, incomplete, withdrawn or conflicting evidence does not earn competitive points.",
-      "Rapport privé. Les preuves provisoires, incomplètes, retirées ou contradictoires ne donnent aucun point compétitif.") });
+    .setFooter({ text: t("Private report. Provisional, incomplete, withdrawn or conflicting evidence does not earn competitive points. Not verified by Blizzard; no honor or ranking implied.",
+      "Rapport privé. Les preuves provisoires, incomplètes, retirées ou contradictoires ne donnent aucun point compétitif. Non vérifié par Blizzard; aucun honneur ni classement.") });
 }
 
 export function battlegroundPrivacyHelp(fr: boolean) {

@@ -256,6 +256,7 @@ export function dungeonRunCard(run: Run, lang: Lang, options: DungeonCardOptions
     dungeon: {
       theme: dungeonTheme(run.dungeonName),
       ...(score ? { scoreLabel: score.label } : {}),
+      ...(party.some((row) => typeof row.detail.ratingTotal === "number") ? { columns: { level: t("Lv", "Niv"), gain: t("This run", "Cette run"), total: t("Season", "Saison") } } : {}),
       party: party.slice(0, 40).map(({ detail, guild }, index) => {
         const cls = canonicalClass(detail.class);
         const spec = canonicalSpecialization(cls, detail.spec);
@@ -268,7 +269,9 @@ export function dungeonRunCard(run: Run, lang: Lang, options: DungeonCardOptions
           roleLabel: roleName(roles[index], lang),
           sub: [className(detail.class, lang), spec ? (fr ? spec.french : spec.name) : undefined, deaths].filter(Boolean).join(" · "),
           guild,
-          ...(!guild && guildDisplayName(detail.guild) ? { guildName: guildDisplayName(detail.guild)! } : {}),
+          ...(guildDisplayName(detail.guild) ? { guildName: guildDisplayName(detail.guild)! } : {}),
+          ...(typeof detail.level === "number" ? { level: detail.level } : {}),
+          ...(typeof detail.ratingTotal === "number" ? { total: Math.round(detail.ratingTotal), gain: Math.max(0, Math.round(Number.isFinite(detail.ratingGain) ? detail.ratingGain! : 0)) } : {}),
           ...(score ? score.of(detail) : {})
         };
       }),

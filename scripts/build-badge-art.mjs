@@ -17,9 +17,12 @@ export const OUT_DIR = join(repo, "site", "badge-art");
 export const TIERS = ["bronze", "silver", "gold", "platinum", "epic", "legendary"];
 /** The first approved batch (13 November 2026): one emblem per family. More are added by file name, never in code. */
 export const FAMILY_EMBLEMS = ["dungeons-gate", "raids-banner", "duels-blades", "pvp-helm", "professions-anvil", "levelling-axe", "guild-horn", "seasons-laurel", "ingame-star"];
+/** The second approved batch (13 November 2026, the rest of set A): finer emblems that metrics and achievements name in src/services/badge-art.ts. */
+export const MORE_EMBLEMS = ["duels-flame", "duels-throne", "dungeons-key", "dungeons-map", "dungeons-torch", "guild-brazier", "guild-hand", "guild-pouch", "guild-sparkle-hand", "guild-sun-tablet", "guild-trophy", "ingame-banner", "ingame-boot", "ingame-scroll", "levelling-cap", "professions-first-laurel", "professions-gem", "professions-mortar", "professions-tools-crown", "pvp-drum", "raids-horn", "raids-siege", "raids-skull", "seasons-attendee", "seasons-helper", "seasons-organizer"];
+export const ALL_EMBLEMS = [...FAMILY_EMBLEMS, ...MORE_EMBLEMS];
 export const SIZES = [256, 128];
 /** Largest file and total budget for the committed assets (bytes). */
-export const MAX_FILE_BYTES = 60_000, MAX_TOTAL_BYTES = 1_500_000;
+export const MAX_FILE_BYTES = 60_000, MAX_TOTAL_BYTES = 2_500_000;
 const MAGENTA = [255, 0, 255];
 
 /** How magenta a pixel is, 0 (none) to 1 (flat background): the share of #FF00FF it is made of. */
@@ -118,7 +121,7 @@ export function expectedFiles() {
   const files = [];
   for (const size of SIZES) {
     for (const tier of TIERS) files.push(`frames/${tier}-${size}.webp`);
-    for (const key of FAMILY_EMBLEMS) files.push(`emblems/${key}-${size}.webp`);
+    for (const key of ALL_EMBLEMS) files.push(`emblems/${key}-${size}.webp`);
   }
   return files;
 }
@@ -129,7 +132,7 @@ export async function build(source, only, extra = []) {
   if (!only || only === "frames") for (const tier of TIERS) jobs.push(["frames", tier]);
   if (!only || only === "emblems") {
     // Only the approved emblems (FAMILY_EMBLEMS, or the names passed with --emblem): the source folder may hold pictures not approved yet.
-    for (const key of extra.length ? extra : FAMILY_EMBLEMS) jobs.push(["emblems", key]);
+    for (const key of extra.length ? extra : ALL_EMBLEMS) jobs.push(["emblems", key]);
   }
   for (const [kind, key] of jobs) {
     const input = join(source, kind, `${key}.png`);

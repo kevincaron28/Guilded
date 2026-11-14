@@ -43,3 +43,9 @@ The simplified outlines were traced by us at the owner's request (14 November 20
 
 - The OpenMap addon's code is MIT-licensed, but the textures it ships are Blizzard Entertainment's map art; no licence file for them is installed with the addon. The owner chose, knowing this, to show the real map, in English lettering as the game draws it. The page footer carries the credit line (English and French): "Map artwork © Blizzard Entertainment; tiles prepared by the OpenMap addon. Guilded is not affiliated with Blizzard."
 - Only the two composed WebP pictures are in the repository; the source tiles, the decoder and the trace sources stay outside it. If Blizzard or the addon author objects, set `CONTINENT_IMAGES` back to the painted files.
+
+## Follow-up (14 November 2026)
+
+- Per-member cap (2000 rows): at the cap the member's oldest rows are deleted to make room for the new ones; count, insert and trim run in one transaction under a per-member advisory lock (`pg_advisory_xact_lock`), so concurrent uploads cannot overshoot. The daily purge deletes in batches of 5000.
+- Public zone counts and heat from kills and deaths use the same six-hour delay as the dots; the page never shows live kill/death activity (calls for help stay zone-level and are not delayed).
+- Zone names: a label when it fits; a zone too small for one gets a numbered marker and a legend under the map (EN/FR). Smaller labels are hidden on phones, where the tap panel names the zone.

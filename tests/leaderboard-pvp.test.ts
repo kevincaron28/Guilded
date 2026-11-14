@@ -187,6 +187,9 @@ describe("PvP leaderboards: review fixes", () => {
     expect(seen.every((a) => JSON.stringify(a["where"]).includes('"raceHidden":false'))).toBe(true);
     const eventQuery = seen.find((a) => (a["where"] as Record<string, unknown>)["x"]) as { where: { at: { lt: Date } } };
     expect(eventQuery.where.at.lt.getTime()).toBe(NOW.getTime() - 6 * 3_600_000);
+    // the public zone counts and heat use the same six-hour delay: the page never shows live activity
+    const groupQuery = seen.find((a) => (a as { by?: unknown }).by) as { where: { at: { lt: Date } } };
+    expect(groupQuery.where.at.lt.getTime()).toBe(NOW.getTime() - 6 * 3_600_000);
     const f = { className: null, band: null, period: "week" as const, mode: null };
     const stats = zoneStats(loaded, f);
     expect(stats.find((z) => z.zone?.id === 1434)).toMatchObject({ kills: 8, deaths: 3, heat: 11 });
@@ -394,6 +397,25 @@ describe("PvP leaderboards: pages", () => {
     expect(zoneLabel("Eastern Plaguelands", { x: 100, y: 100, w: 6, h: 6 }, view)).toBeNull();
     const edge = zoneLabel("Teldrassil", { x: 390, y: 10, w: 40, h: 40 }, view)!;
     expect(edge.x + (edge.lines[0]!.length * 0.58 * edge.font) / 2).toBeLessThanOrEqual(view.x + view.w);
+  });
+
+  it("names a zone too small for its label with a numbered marker and a legend under the map, in both languages", async () => {
+    const { get } = setup(async () => data());
+    for (const lang of ["en", "fr"] as const) {
+      const body = (await get("/leaderboards/pvp/", lang)).body;
+      const key = [...body.matchAll(/<ul class="map-key">([\s\S]*?)<\/ul>/g)];
+      expect(key.length).toBeGreaterThan(0);
+      for (const [svg] of body.matchAll(/<svg viewBox[\s\S]*?<\/svg>/g)) {
+        const markers = (svg.match(/class="mk"/g) ?? []).length, numbers = (svg.match(/class="mkn"/g) ?? []).length;
+        expect(markers).toBe(numbers);
+      }
+      // every zone is named somewhere on the map: its label, or its number in the legend
+      for (const z of PVP_ZONES.filter((zone) => !zone.city)) {
+        const name = (lang === "fr" ? z.fr : z.en).replace(/'/g, "&#39;");
+        expect(body.replace(/<\/tspan><tspan[^>]*>/g, " "), name).toContain(name);
+      }
+      expect(key.map((k) => (k[1]!.match(/<li>/g) ?? []).length).reduce((a, b) => a + b, 0)).toBe((body.match(/class="mkn"/g) ?? []).length);
+    }
   });
 
   it("keeps a visible keyboard focus ring and a tooltip that fits the map for the longest French zone name", async () => {

@@ -209,7 +209,7 @@ describe("the installer closes the old companion before replacing files", () => 
     expect(closer).toContain("$$_.ProcessId -ne $$PID -and $$_.ProcessId -ne $$me");
     expect(closer).toContain("ParentProcessId");
     expect(closer).toContain("Stop-Process -Id $$_.ProcessId -Force");
-    expect(check).not.toMatch(/RMDir[^\n]*APPDATA/);
+    expect(check).not.toMatch(/RMDir[^\n]*[^L]\$APPDATA/);
   });
 
   it("matches by path with a trailing backslash, never on an empty folder, and quote-safe", () => {
@@ -240,13 +240,31 @@ describe("the installer closes the old companion before replacing files", () => 
 
   it("a manual run does not depend on the old uninstaller and starts the companion again", () => {
     // 13 November: a manual run closed the companion and still ended with exit code 2 (the old uninstaller's own check).
-    expect(check).toMatch(/\$\{ifNot\} \$\{isUpdated\}\s+DeleteRegValue SHELL_CONTEXT "\$\{UNINSTALL_REGISTRY_KEY\}" UninstallString/);
+    expect(check).toMatch(/\$\{ifNot\} \$\{isUpdated\}[\s\S]{0,900}DeleteRegValue SHELL_CONTEXT "\$\{UNINSTALL_REGISTRY_KEY\}" UninstallString/);
     // Only once the companion is closed, and only in the installer: the app's own update (--updated) keeps the usual path.
     expect(check.indexOf('GUILDED_LOG "closed; going on"')).toBeLessThan(check.indexOf("DeleteRegValue SHELL_CONTEXT"));
     expect(check).toMatch(/!ifndef BUILD_UNINSTALLER\s+StrCpy \$guildedWasRunning "1"/);
     // A silent run that closed a companion starts it again; the app's own update does that with --force-run, an interactive run at the end.
     expect(nsis).toMatch(/\$\{if\} \$guildedWasRunning == "1"\s+\$\{andIf\} \$\{Silent\}\s+\$\{andIfNot\} \$\{isForceRun\}\s+(?:;[^\r\n]*\s+)?\$\{StdUtils\.ExecShellAsUser\} \$0 "\$launchLink" "open" ""/);
     expect(nsis.indexOf("launched-by-installer")).toBeLessThan(nsis.indexOf("StdUtils.ExecShellAsUser"));
+  });
+
+  it("sets the uninstall entry aside instead of losing it, and puts it back when the install does not finish", () => {
+    // Saved before it is deleted, in both uninstall keys.
+    expect(check).toMatch(/WriteRegStr SHELL_CONTEXT "\$\{UNINSTALL_REGISTRY_KEY\}" GuildedUninstallStringBackup "\$R0"\s+DeleteRegValue SHELL_CONTEXT "\$\{UNINSTALL_REGISTRY_KEY\}" UninstallString/);
+    expect(check).toMatch(/WriteRegStr SHELL_CONTEXT "\$\{UNINSTALL_REGISTRY_KEY_2\}" GuildedUninstallStringBackup "\$R0"/);
+    // Written back when the install fails, and at the start of the next run (a cancelled or killed install).
+    expect(nsis).toMatch(/Function \.onInstFailed\s+!insertmacro GUILDED_RESTORE_UNINSTALL\s+FunctionEnd/);
+    expect(check).toMatch(/StrCpy \$guildedWasRunning "0"[\s\S]{0,200}!insertmacro GUILDED_RESTORE_UNINSTALL/);
+    // Only when the entry is missing: a new one is never overwritten. A finished install drops the copy.
+    expect(nsis).toMatch(/\$\{if\} \$R0 != ""\s+\$\{andIf\} \$R1 == ""\s+WriteRegStr SHELL_CONTEXT "\$\{UNINSTALL_REGISTRY_KEY\}" UninstallString "\$R0"/);
+    expect(nsis).toMatch(/launched-by-installer[\s\S]*DeleteRegValue SHELL_CONTEXT "\$\{UNINSTALL_REGISTRY_KEY\}" GuildedUninstallStringBackup/);
+  });
+
+  it("clears the installer copy folder on the manual path, never the data folder", () => {
+    expect(check).toMatch(/!insertmacro GUILDED_LOG "old uninstaller skipped"/);
+    expect(check).toMatch(/RMDir \/r "\$LOCALAPPDATA\\guilded-companion-updater"\s+!insertmacro GUILDED_LOG "old uninstaller skipped"/);
+    expect(check).not.toMatch(/RMDir[^\n]*[^L]\$APPDATA/);
   });
 
   it("keeps the installer's log lines when the old uninstaller adds its own (tagged, truncated only by the installer)", () => {

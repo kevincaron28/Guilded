@@ -506,10 +506,17 @@ end
 
 -- Joins the shared channel: never in combat or inside an instance (it waits and tries again), and when the game gives no channel number
 -- the join is tried again a few times with a growing pause before the feature settles for guild and group.
+-- (9.3.2) Single flight: at most one join attempt or one scheduled retry exists at a time. A call while one is waiting (the ticker,
+-- /guilded carry on, the login step) does nothing; the waiting retry tries for all of them, so calls never add chains.
+local function retryJoin(wait)
+  if carry.joinScheduled then return end
+  carry.joinScheduled = true
+  after(wait, function() carry.joinScheduled = false; carry.joinChannel() end)
+end
 function carry.joinChannel()
-  if not carry.enabled() or carry.channelJoining then return end
+  if not carry.enabled() or carry.channelJoining or carry.joinScheduled then return end
   if channelNow() > 0 then return end
-  if not quiet() then after(30, function() carry.joinChannel() end); return end
+  if not quiet() then retryJoin(30); return end
   local name = CHANNEL_PREFIX .. faction()
   carry.channelName = name
   local ok = pcall(function()
@@ -526,7 +533,7 @@ function carry.joinChannel()
     carry.joinTries = carry.joinTries + 1
     -- After the ladder the retry goes on slowly (the last pause), as long as carrying is on.
     local wait = JOIN_RETRY[carry.joinTries] or JOIN_RETRY[#JOIN_RETRY]
-    after(wait, function() carry.joinChannel() end)
+    retryJoin(wait)
   end)
 end
 

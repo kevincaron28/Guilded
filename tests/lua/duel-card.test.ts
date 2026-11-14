@@ -765,4 +765,135 @@ describe("a duel between a guild member and a player outside every guild, on bot
     say(LINE);
     expect(stat("MSGS")).toContain("Duel perdu contre Lebowski Highspirits.");
   });
+
+  // Right after login a guild member's client has IsInGuild() but GetNumGuildMembers() == 0: who is a guildmate cannot be said yet.
+  function loading(me = "Blunt Cruising") {
+    const lua = client(me, true);
+    lua.run(`TIMERS = {}; ASKED = 0
+      C_Timer = { After = function(_, fn) TIMERS[#TIMERS + 1] = fn end }
+      function run_timers(n) for _ = 1, n or 20 do local list = TIMERS; TIMERS = {}; if #list == 0 then return end; for _, fn in ipairs(list) do fn() end end end
+      C_GuildInfo = { GuildRoster = function() ASKED = ASKED + 1 end }
+      SAVED_MEMBERS, SAVED_ROSTER = GUILD_MEMBERS, ROSTER
+      GUILD_MEMBERS, ROSTER = {}, {}
+      function load_roster() GUILD_MEMBERS, ROSTER = SAVED_MEMBERS, SAVED_ROSTER; fire_event("GUILD_ROSTER_UPDATE") end`);
+    return lua;
+  }
+
+  it("the loser's client keeps a duel that ended before the guild roster loaded, and records it once the roster is there", () => {
+    const lua = loading();
+    say(LINE);
+    expect(stat("MSGS")).toContain("Duel lost against Lebowski Highspirits.");
+    expect(count(lua)).toBe("0");
+    expect(stat("NS.duels.pendingCount()")).toBe("1");
+    // The roster is asked for once, out of combat; an update that still has no roster asks nothing more.
+    expect(stat("ASKED")).toBe("1");
+    lua.run(`fire_event("GUILD_ROSTER_UPDATE")`);
+    expect(stat("ASKED")).toBe("1");
+    expect(stat("NS.duels.pendingCount()")).toBe("1");
+    lua.run(`load_roster()`);
+    expect(stat("NS.duels.pendingCount()")).toBe("0");
+    expect(count(lua)).toBe("1");
+    expect(one(lua, "r.side .. '|' .. r.winner .. '|' .. r.loser .. '|' .. r.loserGuild .. '|' .. r.zone")).toBe("loser|Lebowski Highspirits|Blunt Cruising|Quebec Gold|Valley of Trials");
+    expect(lua.run("return #DIAGS")).toBe("0");
+  });
+
+  it("a waiting duel against a guildmate becomes a guild duel once the roster loads, and is shared then", () => {
+    const lua = loading();
+    say("Bob Smith has defeated Blunt Cruising in a duel");
+    expect(lua.run("local n = 0 for _ in pairs(DB.duels.results) do n = n + 1 end return n")).toBe("0");
+    expect(lua.run("return #SENT_LINES")).toBe("0");
+    lua.run(`load_roster()`);
+    expect(lua.run("local n = 0 for _ in pairs(DB.duels.results) do n = n + 1 end return n")).toBe("1");
+    expect(count(lua)).toBe("0");
+    expect(lua.run("return SENT_LINES[1]")).toMatch(/^D\|Bob Smith\|Blunt Cruising\|\d+\|knockout$/);
+  });
+
+  it("waits for the roster through a /reload: the duel is saved and tried again after login", () => {
+    const before = loading();
+    say(LINE);
+    const saved = before.run("local p = DB.duels.pending[1]; return p.winner .. '|' .. p.loser .. '|' .. p.at .. '|' .. p.reason .. '|' .. p.ext.zone");
+    expect(saved).toMatch(/^Lebowski Highspirits\|Blunt Cruising\|\d+\|knockout\|Valley of Trials$/);
+    before.close();
+    // After the reload: a new client state with the saved table, the roster loaded.
+    const [winner, loser, at, reason, zone] = saved.split("|");
+    const lua = client("Blunt Cruising", true);
+    lua.run(`TIMERS = {}; C_Timer = { After = function(_, fn) TIMERS[#TIMERS + 1] = fn end }
+      DB.duels = { results = {}, pending = { { winner = "${winner}", loser = "${loser}", at = ${at}, reason = "${reason}", ext = { zone = "${zone}" } } } }
+      fire_event("PLAYER_LOGIN"); for _, fn in ipairs(TIMERS) do fn() end`);
+    expect(count(lua)).toBe("1");
+    expect(lua.run("return tostring(DB.duels.pending)")).toBe("nil");
+  });
+
+  it("never asks for the roster in combat: once combat ends", () => {
+    const lua = loading();
+    lua.run("COMBAT = true");
+    say(LINE);
+    expect(stat("ASKED")).toBe("0");
+    lua.run(`COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")`);
+    expect(stat("ASKED")).toBe("1");
+  });
+
+  it("drops a duel the roster never came for after the last try, and saves why", () => {
+    const lua = loading();
+    say(LINE);
+    lua.run("run_timers(30)");
+    expect(stat("NS.duels.pendingCount()")).toBe("0");
+    expect(count(lua)).toBe("0");
+    expect(lua.run("return DIAGS[#DIAGS]")).toMatch(/^DUEL_DROPPED duels: Lebowski Highspirits v Blunt Cruising at \d+: roster never loaded$/);
+    // A bounded retry: the timer chain has ended.
+    expect(lua.run("return #TIMERS")).toBe("0");
+  });
+
+  it("keeps at most five duels waiting", () => {
+    const lua = loading();
+    for (let i = 0; i < 7; i++) { say(LINE); lua.run("CLOCK = CLOCK + 200"); }
+    expect(stat("NS.duels.pendingCount()")).toBe("5");
+    expect(lua.run("local n = 0 for _, d in ipairs(DIAGS) do if d:find('too many waiting') then n = n + 1 end end return n")).toBe("2");
+  });
+});
+
+describe("the duel result line follows the member's switches", () => {
+  const LINE = "Lebowski Highspirits has defeated Blunt Cruising in a duel";
+  function member() {
+    const lua = setup();
+    lua.run(`NS.util.unitKey = function() return "Blunt Cruising" end
+      GUILD_MEMBERS = { ["Blunt Cruising"] = true, ["Bob Smith"] = true }
+      ROSTER = { { "Blunt Cruising", 1, "WARLOCK" }, { "Bob Smith", 58, "MAGE" } }
+      UnitExists = function() return false end`);
+    return lua;
+  }
+
+  it("prints nothing and records nothing while the duels module is off", () => {
+    const lua = member();
+    lua.run(`NS.moduleActive = function(key) return key ~= "duels" end`);
+    say(LINE);
+    say("Bob Smith has defeated Blunt Cruising in a duel");
+    expect(lua.run("return tostring(MSGS)")).toBe("nil");
+    expect(lua.run("return tostring(DB.duels and next(DB.duels.external or {}))")).toBe("nil");
+    expect(lua.run("local n = 0 for _ in pairs(DB.duels and DB.duels.results or {}) do n = n + 1 end return n")).toBe("0");
+  });
+
+  it("/guilded duels line off stops the line only: the duel is still kept and the card still shows", () => {
+    const lua = member();
+    lua.run(`NS.commandHandlers.duels({ "line", "off" })`);
+    expect(stat("MSGS")).toContain("Duel result line: off.");
+    lua.run(`MSGS = nil`);
+    say(LINE);
+    expect(lua.run("return tostring(MSGS)")).toBe("nil");
+    expect(lua.run("return tostring(next(DB.duels.external) ~= nil)")).toBe("true");
+    expect(stat("SHOWS")).toBe("1");
+    lua.run(`NS.commandHandlers.duels({ "line", "on" }); MSGS = nil; CLOCK = CLOCK + 300`);
+    say(LINE);
+    expect(stat("MSGS")).toContain("Duel lost against Lebowski Highspirits.");
+  });
+
+  it("a member who turned their own duel announcements off gets no line; an officer's guild-wide off does not silence it", () => {
+    const lua = member();
+    lua.run(`NS.milestones.memberOff = function(kind) return kind == "duel" end`);
+    say(LINE);
+    expect(lua.run("return tostring(MSGS)")).toBe("nil");
+    lua.run(`NS.milestones.memberOff = function() return false end; NS.milestones.guildOff = function() return true end; CLOCK = CLOCK + 300`);
+    say(LINE);
+    expect(stat("MSGS")).toContain("Duel lost against Lebowski Highspirits.");
+  });
 });

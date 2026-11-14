@@ -1114,8 +1114,25 @@ end
 
 -- (9.3.2) One line in my own chat frame after each of MY duels, guild or not, whatever the card does: the result and the
 -- opponent. Printed locally (never sent), so it is safe in combat. The card shows the details when it is on.
+-- Off when the duels module is off, when the member turned the line off (/guilded duels line off), or when the member turned their own
+-- milestone announcements off (all of them, or duels). An officer's guild-wide off switch is about guild chat, not this local line.
+function duels.noticeEnabled()
+  if not active() then return false end
+  local st = settings()
+  if st and st.duelLine == false then return false end
+  local ms = ns.milestones
+  if ms and ms.memberOff then
+    local ok, off = pcall(ms.memberOff, "duel")
+    if ok and off == true then return false end
+  end
+  return true
+end
+function duels.setNoticeEnabled(on)
+  local st = settings()
+  if st then st.duelLine = on and true or false end
+end
 function duels.notice(winner, loser, reason, mine)
-  if not (ns.message and mine) then return false end
+  if not (ns.message and mine) or not duels.noticeEnabled() then return false end
   local won = same(mine, winner)
   local opponent = displayName(won and loser or winner)
   local text
@@ -1152,6 +1169,107 @@ local function share(winner, loser, at, reason)
   if IsInGuild and IsInGuild() then ns.comm.send(PREFIX, string.format("D|%s|%s|%d|%s", winner, loser, at, reason), "GUILD") end
 end
 
+-- (9.3.2) A duel of mine that ended while the guild roster had not loaded (right after login GetNumGuildMembers() is 0): whether the
+-- opponent is a guildmate cannot be said yet, so the duel waits here (saved, at most PENDING_MAX) and is recorded once the roster is
+-- there, as a guild duel or as an outside one. Retried on GUILD_ROSTER_UPDATE and on a short bounded timer; a duel still waiting
+-- after the last try, or older than PENDING_AGE, is dropped and a diagnostic is saved. The roster is asked for once, never in combat.
+local PENDING_MAX, PENDING_TRIES, PENDING_EVERY, PENDING_AGE = 5, 12, 10, 3600
+local pendingTries, pendingTimer, rosterAsked = 0, false, false
+local function pendingList(create)
+  local d = store()
+  if not d then return nil end
+  if type(d.pending) ~= "table" then
+    if not create then return nil end
+    d.pending = {}
+  end
+  return d.pending
+end
+local function askRoster()
+  if rosterAsked or inCombat() then return end
+  rosterAsked = true
+  pcall(function()
+    if C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster() elseif GuildRoster then GuildRoster() end
+  end)
+end
+local function dropPending(entry, why)
+  diagnose("DUEL_DROPPED", string.format("%s v %s at %s: %s", tostring(entry.winner), tostring(entry.loser), tostring(entry.at), why))
+end
+function duels.pendingCount()
+  local list = pendingList(false)
+  return list and #list or 0
+end
+-- Records what waits once the roster is there. `final` drops what still cannot be recorded. Returns how many were recorded.
+function duels.flushPending(final)
+  local list = pendingList(false)
+  if not list or #list == 0 then return 0 end
+  local d = store()
+  local done = 0
+  if rosterPending() then
+    askRoster()
+    local keep = {}
+    for _, entry in ipairs(list) do
+      if final or epoch() - (tonumber(entry.at) or 0) > PENDING_AGE then dropPending(entry, final and "roster never loaded" or "too old")
+      else keep[#keep + 1] = entry end
+    end
+    d.pending = #keep > 0 and keep or nil
+    return 0
+  end
+  local mine = me()
+  for _, entry in ipairs(list) do
+    if type(entry) == "table" and entry.winner and entry.loser then
+      local ext = type(entry.ext) == "table" and entry.ext or {}
+      if guildMember(entry.winner) and guildMember(entry.loser) then
+        local isNew = duels.record(entry.winner, entry.loser, entry.at, entry.reason, { dur = ext.duration, zone = ext.zone })
+        if isNew then
+          done = done + 1
+          share(entry.winner, entry.loser, entry.at, entry.reason)
+          if mine and same(mine, entry.winner) and ns.milestones then pcall(ns.milestones.checkDuelWins, duels.myWins()) end
+        end
+      else
+        local ok, added = pcall(duels.recordExternal, entry.winner, entry.loser, entry.at, entry.reason, ext)
+        if ok and added then done = done + 1 end
+      end
+    end
+  end
+  d.pending = nil
+  pendingTries, rosterAsked = 0, false
+  return done
+end
+local function schedulePending()
+  if pendingTimer or not (C_Timer and C_Timer.After) then return end
+  pendingTimer = true
+  C_Timer.After(PENDING_EVERY, function()
+    pendingTimer = false
+    if duels.pendingCount() == 0 then pendingTries = 0; return end
+    pendingTries = pendingTries + 1
+    local ok, err = pcall(duels.flushPending, pendingTries >= PENDING_TRIES)
+    if not ok then diagnose("LUA_ERROR", err) end
+    if duels.pendingCount() > 0 then schedulePending() else pendingTries = 0 end
+  end)
+end
+function duels.holdForRoster(winner, loser, at, reason, ext)
+  local list = pendingList(true)
+  if not list then return false end
+  ext = type(ext) == "table" and ext or {}
+  for _, entry in ipairs(list) do
+    if same(entry.winner, winner) and same(entry.loser, loser) and math.abs((entry.at or 0) - at) <= DEDUPE then return false end
+  end
+  -- Only what the records need, nothing else from the moment.
+  local keep = { oppInfo = type(ext.oppInfo) == "table" and { name = ext.oppInfo.name, level = ext.oppInfo.level, class = ext.oppInfo.class, guild = ext.oppInfo.guild } or nil,
+    duration = tonumber(ext.duration), zone = type(ext.zone) == "string" and ext.zone or nil, countdownAt = tonumber(ext.countdownAt), startAt = tonumber(ext.startAt) }
+  list[#list + 1] = { winner = winner, loser = loser, at = at, reason = reason == "retreat" and "retreat" or "knockout", ext = keep }
+  while #list > PENDING_MAX do dropPending(table.remove(list, 1), "too many waiting") end
+  askRoster()
+  schedulePending()
+  return true
+end
+-- GUILD_ROSTER_UPDATE. The roster is asked for at most once per wait (askRoster), so this event never starts a request loop.
+function duels.rosterLoaded()
+  if duels.pendingCount() == 0 then return end
+  duels.rosterRefresh()
+  duels.flushPending(false)
+end
+
 function duels.onSystem(text)
   local winner, loser, reason = duels.parse(text)
   if not winner then return false end
@@ -1182,7 +1300,9 @@ function duels.onSystem(text)
       end)
       if not okCard then diagnose("LUA_ERROR", errCard) end
       -- Recorded for the upload (not on the guild ladder), unless the guild roster has not loaded and "outside the guild" cannot be said yet.
-      if not (ext.rosterPending or rosterPending()) then pcall(duels.recordExternal, winner, loser, at, reason, ext) end
+      -- While it has not loaded, the duel waits (duels.holdForRoster) and is recorded once it has, as a guild duel or an outside one.
+      if not (ext.rosterPending or rosterPending()) then pcall(duels.recordExternal, winner, loser, at, reason, ext)
+      else pcall(duels.holdForRoster, winner, loser, at, reason, ext) end
       session = nil
     end
     return false
@@ -1256,6 +1376,16 @@ ns.commandHandlers = ns.commandHandlers or {}
 ns.commandHandlers["duels"] = function(args)
   args = type(args) == "table" and args or {}
   local first = string.lower(args[1] or "")
+  if first == "line" then
+    local arg = string.lower(args[2] or "")
+    if arg == "on" or arg == "off" then
+      duels.setNoticeEnabled(arg == "on")
+      ns.message(L(arg == "on" and "Duel result line: on." or "Duel result line: off."))
+    else
+      ns.message(string.format(L("Duel result line: %s. /guilded duels line on | off"), L(duels.noticeEnabled() and "on" or "off")))
+    end
+    return
+  end
   if first == "card" then
     local arg = string.lower(args[2] or "")
     if arg == "on" or arg == "off" then
@@ -1291,6 +1421,7 @@ end
 ns.commandHelp = ns.commandHelp or {}
 table.insert(ns.commandHelp, "/guilded duels [me | YYYY-MM] - guild duel ladder by rating (wins, losses, streak)")
 table.insert(ns.commandHelp, "/guilded duels card on | off | test - the card shown after each of your duels")
+table.insert(ns.commandHelp, "/guilded duels line on | off - the one-line result in chat after each of your duels")
 
 -- ----- the Duels page --------------------------------------------------
 
@@ -1439,7 +1570,7 @@ function duels.buildPage(page, ui)
 end
 
 local frame = CreateFrame("Frame")
-for _, event in ipairs({ "PLAYER_LOGIN", "CHAT_MSG_SYSTEM", "CHAT_MSG_ADDON", "DUEL_REQUESTED", "DUEL_COUNTDOWN", "PLAYER_REGEN_ENABLED", "PLAYER_ENTERING_WORLD" }) do
+for _, event in ipairs({ "PLAYER_LOGIN", "CHAT_MSG_SYSTEM", "CHAT_MSG_ADDON", "DUEL_REQUESTED", "DUEL_COUNTDOWN", "PLAYER_REGEN_ENABLED", "PLAYER_ENTERING_WORLD", "GUILD_ROSTER_UPDATE" }) do
   pcall(frame.RegisterEvent, frame, event)
 end
 local pollTime = 0
@@ -1452,12 +1583,18 @@ end)
 frame:SetScript("OnEvent", function(_, event, a, b, c, d)
   local ok, err = pcall(function()
     if not active() then return end
-    if event == "PLAYER_LOGIN" then ns.comm.register(PREFIX)
+    if event == "PLAYER_LOGIN" then
+      ns.comm.register(PREFIX)
+      -- A duel still waiting from before a /reload: tried again once the roster is there (or dropped, with a diagnostic).
+      if duels.pendingCount() > 0 then schedulePending() end
+    elseif event == "GUILD_ROSTER_UPDATE" then duels.rosterLoaded()
     elseif event == "CHAT_MSG_SYSTEM" then duels.onSystem(a)
     elseif event == "DUEL_REQUESTED" then
       session = { opponent = type(a) == "string" and not (ns.isSecret and ns.isSecret(a)) and bare(a) or nil }
     elseif event == "DUEL_COUNTDOWN" then startFight(a)
-    elseif event == "PLAYER_REGEN_ENABLED" then tryPending()
+    elseif event == "PLAYER_REGEN_ENABLED" then
+      tryPending()
+      if duels.pendingCount() > 0 and rosterPending() then askRoster() end
     elseif event == "PLAYER_ENTERING_WORLD" then duels.sessionStop()
     elseif event == "CHAT_MSG_ADDON" and ns.comm.accept(a, b, c, d, PREFIX, function(sender) return guildMember(sender) end) and c == "GUILD" then
       duels.onAddonMessage(b, d)

@@ -295,6 +295,24 @@ describe("names, receipts and the channel", () => {
     expect(records(carrier)).toBe("0");
   });
 
+  it("keeps one join chain at most: extra calls while a retry waits start nothing new", () => {
+    const carrier = client("guilded", "Bee", { companion: true });
+    carrier.run(`JOINS = 0; CH = 0; function JoinTemporaryChannel() JOINS = JOINS + 1 end; function GetChannelName() return CH end; TIMERS = {}`);
+    // In combat: five calls (ticker, /guilded carry on, login...) leave one waiting retry, not five.
+    carrier.run("COMBAT = true; for _ = 1, 5 do NS.carry.joinChannel() end");
+    expect(carrier.run("return #TIMERS")).toBe("1");
+    // Out of combat the one retry joins once; while its answer is awaited, more calls do nothing.
+    carrier.run("COMBAT = false; local list = TIMERS; TIMERS = {}; list[1](); for _ = 1, 5 do NS.carry.joinChannel() end");
+    expect(carrier.run("return tostring(JOINS) .. ':' .. #TIMERS")).toBe("1:1");
+    // The game gave no channel: one retry is scheduled; calls while it waits add no chain.
+    carrier.run("local list = TIMERS; TIMERS = {}; list[1](); for _ = 1, 5 do NS.carry.joinChannel() end");
+    expect(carrier.run("return tostring(JOINS) .. ':' .. #TIMERS")).toBe("1:1");
+    // Each later step still makes exactly one attempt and one next timer.
+    for (let step = 0; step < 4; step++) carrier.run("local list = TIMERS; TIMERS = {}; for _, fn in ipairs(list) do fn() end; NS.carry.joinChannel(); NS.carry.joinChannel()");
+    expect(Number(carrier.run("return #TIMERS"))).toBeLessThanOrEqual(1);
+    expect(Number(carrier.run("return JOINS"))).toBe(3);
+  });
+
   it("joins the shared channel only when quiet, retries a failed join with growing pauses, and refreshes the number before sending", () => {
     const carrier = client("guilded", "Bee", { companion: true });
     carrier.run(`JOINS = 0; CH = 0; function JoinTemporaryChannel() JOINS = JOINS + 1 end; function GetChannelName() return CH end`);

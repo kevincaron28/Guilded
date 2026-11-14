@@ -568,7 +568,8 @@ export function createEngine(initialConfig, hooks = {}) {
       const carryAcknowledged = await readCarryReceipts(current).catch(() => new Set());
       const { response, body, sent } = await uploadAsDevice(current, full, controller.signal, { acknowledged, groupRelay: deviceFeatureSet.has(GROUP_RELAY_FEATURE), carry: deviceFeatureSet.has(CARRY_FEATURE), carryAcknowledged });
       if (epoch !== generation) return;
-      if (response.ok) await writeCarryReceipts(current, body, controller.signal).catch(() => undefined);
+      // The bot's receipts for carried records are written whatever else the answer says (a duplicate upload still dealt with them).
+      if (response.ok || response.status === 409) await writeCarryReceipts(current, body, controller.signal).catch(() => undefined);
       state.botVersion = body.botVersion ?? state.botVersion;
       if (!response.ok) {
         const error = new Error(`Upload failed (${response.status}): ${describeApiError(response.status, body.error)}`);
@@ -676,6 +677,8 @@ export function createEngine(initialConfig, hooks = {}) {
     const uploadedAt = new Date().toISOString();
     const { response, body } = await withUploadGate(current.watchFile, () => send(current, exported, epoch));
     if (epoch !== generation) return;
+    // Receipts for carried records first: a wrong-server answer or a duplicate upload has still dealt with them.
+    if (response.ok || response.status === 409) await writeCarryReceipts(current, body, controller.signal).catch(() => undefined);
     // The bot says whether this server knows the character's in-game guild; a wrong connection is warned about, never silent.
     if (body.serverWowGuild) {
       state.guildWarning = body.serverWowGuild.known === false
@@ -700,7 +703,6 @@ export function createEngine(initialConfig, hooks = {}) {
       // A failed apply is not accepted, even when the same bytes were stored earlier.
       if (body.importId && !body.applyError) Object.assign(state.syncEvidence, { acceptedAt: new Date().toISOString(), acceptedRevision: revision });
     }
-    if (response.ok) await writeCarryReceipts(current, body, controller.signal).catch(() => undefined);
     state.botVersion = body.botVersion ?? state.botVersion;
     state.addonVersion = exported.addonVersion ?? state.addonVersion;
     const left = omitted.ledger + omitted.loot + (omitted.raids ?? 0);

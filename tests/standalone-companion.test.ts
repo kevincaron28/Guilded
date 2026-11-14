@@ -307,3 +307,26 @@ describe("personal mode with several characters", () => {
     expect(payload.runs).toHaveLength(1);
   });
 });
+
+describe("receipts for carried records reach the addon whatever else the bot answers (9.3.2)", () => {
+  const RECEIPT = "carry:externalDuel:x1-aaaa";
+  async function carryFileAfter(answer: () => Response, config: Record<string, unknown>) {
+    const { standaloneFile, addon } = layout({ standalone: standaloneSaved() });
+    vi.stubGlobal("fetch", vi.fn(async () => answer()));
+    const engine = createEngine({ watchFile: standaloneFile, uploadUrl: "https://bot.test/api/v1/addon-imports", ...config }, { onLog: () => undefined });
+    try {
+      expect(await engine.start()).toBe(true);
+      await vi.waitFor(() => expect(readFileSync(join(addon, "Carry.lua"), "utf8")).toContain("externalDuel:x1-aaaa"));
+    } finally { await engine.stop(); }
+    return readFileSync(join(addon, "Carry.lua"), "utf8");
+  }
+  it("writes them from a wrong-server answer", async () => {
+    expect(await carryFileAfter(() => Response.json({ skipped: "wrong-server", serverWowGuild: { name: "Test Guild" }, carriedReceipts: [RECEIPT] }), { guildDiscordId: "1", companionCredential: "c".repeat(40) })).toContain("GuildedCarryReceipts");
+  });
+  it("writes them from a duplicate-upload answer", async () => {
+    await carryFileAfter(() => Response.json({ error: "duplicate", importId: "i1", carriedReceipts: [RECEIPT] }, { status: 409 }), { guildDiscordId: "1", companionCredential: "c".repeat(40) });
+  });
+  it("writes them from an unsigned device's answer, even with no server matched", async () => {
+    await carryFileAfter(() => Response.json({ status: "no-guild", guild: null, carriedReceipts: [RECEIPT] }), { device: true, deviceSecret: KEY });
+  });
+});

@@ -802,7 +802,10 @@ export function exportDungeonRuns(database, realm, options = {}) {
   const dungeonRuns = [];
   // Dungeon runs (addon Modules/Dungeon.lua). The bot validates each run and
   // ignores ones it already has, so exporting all of them every time is safe.
-  for (const run of Object.values(database.dungeon?.runs ?? {})) {
+  // (9.3.1) Runs that reached this PC only through its party or raid are kept in their own table (dungeon.carried) that an older
+  // companion never reads; they are exported marked viaGroup so the bot places them on the public boards, never in a guild.
+  const carried = Object.values(database.dungeon?.carried ?? {}).filter((run) => run && typeof run === "object").map((run) => ({ ...run, viaGroup: true }));
+  for (const run of [...Object.values(database.dungeon?.runs ?? {}), ...carried]) {
     if (options.skipSynced && run?.synced) continue;
     if (!run?.id || !run.state || !run.instanceId) continue;
     dungeonRuns.push({
@@ -863,6 +866,8 @@ export function exportDungeonRuns(database, realm, options = {}) {
         });
         return mapCells.length ? { mapCells } : {};
       })() : {}),
+      // (9.3.1) A run that only reached this PC through the group (a player outside the guild): the bot places it on the public boards.
+      ...(run.viaGroup === true ? { viaGroup: true } : {}),
       reporters: Object.keys(run.reporters ?? {}).length || 1,
       // Who reported it, so the bot can check at least one of them was in the run.
       ...(run.reporters && Object.keys(run.reporters).length ? { reporterNames: Object.keys(run.reporters).slice(0, 10) } : {}),

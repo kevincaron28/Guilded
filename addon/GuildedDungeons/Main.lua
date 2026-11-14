@@ -4,7 +4,7 @@
 -- leaderboards.
 local _, ns = ...
 
-local DUNGEON_ACTIONS = { status = true, results = true, start = true, complete = true, abandon = true, check = true }
+local DUNGEON_ACTIONS = { status = true, results = true, start = true, complete = true, abandon = true, check = true, carry = true }
 
 local function words(text)
   local list = {}
@@ -22,7 +22,7 @@ function ns.slash(text)
   if not args[1] and ns.dungeonScorePanel and ns.dungeonScorePanel.openOrSay then
     ns.dungeonScorePanel.openOrSay("run") -- /gdg alone opens the window (or says why not)
   elseif DUNGEON_ACTIONS[action] then
-    ns.commandHandlers["dungeon"]({ action })
+    ns.commandHandlers["dungeon"](args)
   elseif action == "score" and not args[2] and ns.dungeonScorePanel then
     ns.dungeonScorePanel.open("season")
   elseif action == "companion" then

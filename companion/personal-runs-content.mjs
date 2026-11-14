@@ -1,6 +1,7 @@
 import { exportDungeonRuns, parseAddonExportText, readDatabase } from "./lua-export-content.mjs";
 import { publicScoreToLua } from "./standings-format.mjs";
 import { editionMetadata, gameEditionOf } from "./game-edition.mjs";
+import { featuresLua } from "./group-relay.mjs";
 
 // The browser-safe half of personal mode (no file system): shared by personal-runs.mjs (desktop
 // and command line) and the companion engine.
@@ -52,7 +53,7 @@ const luaString = (value) => `"${String(value).replace(/[\\"]/g, "\\$&").replace
 // Adds to the list instead of replacing it, so Guilded's own accepted runs survive when both
 // addons are installed (they share the GuildedDungeonAccepted name).
 export function acceptedToLua(refs) {
-  return `-- Written by the Guilded companion: runs the public leaderboards hold.\nGuildedDungeonAccepted = GuildedDungeonAccepted or {}\nfor _, id in ipairs({ ${refs.slice(0, 500).map(luaString).join(", ")} }) do table.insert(GuildedDungeonAccepted, id) end\n`;
+  return `-- Written by the Guilded companion: runs the public leaderboards hold.\nGuildedDungeonAccepted = GuildedDungeonAccepted or {}\nfor _, id in ipairs({ ${refs.slice(0, 500).map(luaString).join(", ")} }) do table.insert(GuildedDungeonAccepted, id) end\n${featuresLua(new Date().toISOString())}\n`;
 }
 
 export function personalResponseToLua(body) {

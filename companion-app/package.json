@@ -93,6 +93,7 @@
           "addon-files.mjs",
           "run-report.mjs",
           "parked-runs.mjs",
+          "group-relay.mjs",
           "main-status.mjs"
         ]
       },

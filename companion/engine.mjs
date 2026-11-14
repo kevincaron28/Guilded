@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { readSavedText } from "./saved-file.mjs";
 import { watch } from "node:fs";
 import { basename, dirname } from "node:path";
+import { GROUP_RELAY_FEATURE } from "./group-relay.mjs";
 import { readSavedExport, watchedSavedFiles, NO_GUILD_KEY_MESSAGE } from "./addon-files.mjs";
 import { dungeonRunReport, runReportMessage, deviceRunCounts, signedRunCounts } from "./run-report.mjs";
 import { standingsFileHolds, writeStandings } from "./standings.mjs";
@@ -264,6 +265,8 @@ export function createEngine(initialConfig, hooks = {}) {
   // What the bot can do (features), what it already stored (ack) and which standings answer the
   // addon folder holds now (etag). All three come from the standings answer.
   let features = new Set();
+  /** What the bot's device endpoint said it can do (the last answer): group-carried runs go only to a bot that handles them. */
+  let deviceFeatureSet = new Set();
   let ack = null;
   let etag = null;
   let gzipOff = false;
@@ -434,7 +437,7 @@ export function createEngine(initialConfig, hooks = {}) {
     for (const { key, full, ids } of chooseParked(record, candidates)) {
       let kind = "error";
       try {
-        const { response, body, sent } = await uploadAsDevice(current, full, controller.signal, { acknowledged, runsOnly: true });
+        const { response, body, sent } = await uploadAsDevice(current, full, controller.signal, { acknowledged, runsOnly: true, groupRelay: deviceFeatureSet.has(GROUP_RELAY_FEATURE) });
         if (epoch !== generation) return;
         if (response.status === 429) break; // out of uploads for this hour: the loaded guild's budget is separate, stop here
         if (response.ok && body.status === "claimed") break;
@@ -488,7 +491,7 @@ export function createEngine(initialConfig, hooks = {}) {
       let kind = "error";
       try {
         // A purpose-built body (guild, this account's characters in it, the runs): no empty ledger, raid, loot or readiness sections.
-        const { response, body } = await withUploadGate(current.watchFile, () => send(current, minimalParkedExport(full), epoch));
+        const { response, body } = await withUploadGate(current.watchFile, () => send(current, minimalParkedExport(full, { groupRelay: features.has(GROUP_RELAY_FEATURE) }), epoch));
         if (epoch !== generation) return;
         if (response.status === 429) break;
         if (response.ok && body.skipped === "wrong-server") {
@@ -560,7 +563,7 @@ export function createEngine(initialConfig, hooks = {}) {
       const revision = createHash("sha256").update(JSON.stringify(full)).digest("hex");
       state.syncEvidence = { savedAt: new Date().toISOString(), savedRevision: revision, character: full.character?.name ? `${full.character.name} — ${full.character.realm || current.realm || "?"}` : null, edition: full.gameEdition || full.character?.gameEdition };
       // Only the newest 50 runs go in one upload.
-      const { response, body, sent } = await uploadAsDevice(current, full, controller.signal, { acknowledged });
+      const { response, body, sent } = await uploadAsDevice(current, full, controller.signal, { acknowledged, groupRelay: deviceFeatureSet.has(GROUP_RELAY_FEATURE) });
       if (epoch !== generation) return;
       state.botVersion = body.botVersion ?? state.botVersion;
       if (!response.ok) {
@@ -568,10 +571,11 @@ export function createEngine(initialConfig, hooks = {}) {
         error.retryable = response.status === 429 || response.status >= 500;
         throw error;
       }
+      deviceFeatureSet = new Set(Array.isArray(body.deviceFeatures) ? body.deviceFeatures : []);
       const summary = deviceSummary(body);
       state.device = summary;
       // (9.1.3) The bot's receipts for the runs this upload carried go to the addon, which marks them synced at the next load.
-      if (summary?.status === "synced" && (body.runReceipts || body.reported)) {
+      if ((summary?.status === "synced" || body.runReceipts) && (body.runReceipts || body.reported)) {
         try { await writeDeviceReceipts(current, { ...(body.runReceipts ?? {}), reported: body.reported }, controller.signal); }
         catch (error) { if (epoch !== generation) return; log("warn", `Could not save the run receipts for the addon: ${describeError(error)}`); }
       }

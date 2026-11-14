@@ -272,4 +272,4 @@ export async function keepStampsOnDisk(feed: StandingsFeed, path = "backups/stan
 }
 
 // What this bot can do for a companion, so a newer companion only uses what is there.
-export const COMPANION_FEATURES = ["gzip-upload", "ledger-delta", "loot-delta", "etag", "long-poll"] as const;
+export const COMPANION_FEATURES = ["gzip-upload", "ledger-delta", "loot-delta", "etag", "long-poll", "group-relay"] as const;

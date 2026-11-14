@@ -1,5 +1,6 @@
 import { requestJson } from "./request.mjs";
 import { foreverSameName } from "./character-identity.mjs";
+import { leaveOut } from "./group-relay.mjs";
 
 // Zero-setup companion (docs/ZERO_SETUP_COMPANION.md). Without a Discord sign-in, the companion
 // syncs with a device key it gets on first start (kept in its encrypted settings). It sends only
@@ -52,7 +53,7 @@ export function deviceUploadBody(full, options = {}) {
     && characters.some(own => foreverSameName(own.name, player.character)));
   const heard = (run) => Array.isArray(run.reporterNames) && Array.isArray(run.players) && run.players.some(player => typeof player?.character === "string"
     && run.reporterNames.some(name => typeof name === "string" && foreverSameName(name, player.character)));
-  const dungeonRuns = (Array.isArray(full?.dungeonRuns) ? full.dungeonRuns : []).filter(run => run && run.state === "COMPLETED" && !acknowledged.has(run.id) && (played(run) || heard(run)))
+  const dungeonRuns = (Array.isArray(full?.dungeonRuns) ? full.dungeonRuns : []).filter(run => run && run.state === "COMPLETED" && !leaveOut(run, { enabled: options.groupRelay === true, acknowledged }) && (played(run) || heard(run)))
     .sort((a, b) => (b.endedAt ?? 0) - (a.endedAt ?? 0)).slice(0, MAX_RUNS);
   if (options.runsOnly) {
     // (9.3.1) A parked guild's runs: only the characters that vouch for them (one of them played a sent run), flagged so the bot stores
@@ -75,7 +76,7 @@ export async function registerDevice(config, signal) {
 
 /** One unsigned upload. The answer says where the data went (or why it waits). */
 export async function uploadAsDevice(config, full, signal, options = {}) {
-  const sent = deviceUploadBody(full, { server: options.runsOnly ? undefined : config.deviceServer, acknowledged: options.acknowledged, runsOnly: options.runsOnly });
+  const sent = deviceUploadBody(full, { server: options.runsOnly ? undefined : config.deviceServer, acknowledged: options.acknowledged, runsOnly: options.runsOnly, groupRelay: options.groupRelay });
   const { response, body } = await requestJson(new URL("/api/v1/device/uploads", base(config)), {
     method: "POST",
     headers: { ...deviceHeaders(config), "content-type": "application/json", ...(options.runsOnly ? { "x-guilded-runs-only": "1" } : {}) },

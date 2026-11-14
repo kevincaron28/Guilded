@@ -1,5 +1,6 @@
 import { readFile, writeFile, rename, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { leaveOut } from "./group-relay.mjs";
 
 // Dungeon runs of a PARKED guild (9.3.0). Full Guilded keeps one guild's data at the root of GuildedDB; when a character of another
 // guild logs in, everything except the guild key moves into GuildedDB.otherGuilds[<guild key>] (addon Core.lua resolveGuildData).
@@ -205,10 +206,11 @@ export function noteOutcome(record, guildKey, ids, kind, nowMs = Date.now()) {
 }
 
 /** The purpose-built body of a signed parked upload: the guild, this account's characters in it and the runs, nothing else (no empty sections). */
-export function minimalParkedExport(full) {
+export function minimalParkedExport(full, { groupRelay = false } = {}) {
   const out = {};
   for (const field of ["gameEdition", "interface", "source", "exportedAt", "addonVersion", "wowGuild", "character", "alts", "dungeonRuns"]) {
-    const value = full?.[field];
+    // (9.3.1) The same gate as every other upload: runs carried for players near this PC go only to a bot that announced the feature.
+    const value = field === "dungeonRuns" && Array.isArray(full?.[field]) ? full[field].filter((run) => !leaveOut(run, { enabled: groupRelay, acknowledged: new Set() })) : full?.[field];
     if (value === undefined || value === null || (Array.isArray(value) && value.length === 0)) continue;
     out[field] = value;
   }

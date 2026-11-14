@@ -304,6 +304,9 @@ export async function importDungeonRuns(
   now = new Date()
 ): Promise<DungeonImportSummary> {
   const summary: DungeonImportSummary = { results: [], duplicates: 0, malformed: 0, receipts: [] };
+  // (9.3.1) Backstop: a run marked viaGroup reached the uploader only through a party or raid and belongs to the public boards' relay
+  // lane, never to a guild. Every guild import path (signed upload, officer import, addon import) ends here, so none can store one.
+  rawRuns = rawRuns.filter((raw) => (raw as { viaGroup?: unknown } | null)?.viaGroup !== true);
   if (rawRuns.length === 0) return summary;
   await importRuns(tx, guildId, rawRuns, characters, appliedBy, importId, now, summary);
   // Same transaction as the import: stored, copied and refused runs are all acknowledged.

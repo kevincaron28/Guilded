@@ -238,6 +238,23 @@ describe("the installer closes the old companion before replacing files", () => 
     expect(closer).toContain('FileOpen $R3 "$INSTDIR\\${APP_EXECUTABLE_FILENAME}" a');
   });
 
+  it("a manual run does not depend on the old uninstaller and starts the companion again", () => {
+    // 13 November: a manual run closed the companion and still ended with exit code 2 (the old uninstaller's own check).
+    expect(check).toMatch(/\$\{ifNot\} \$\{isUpdated\}\s+DeleteRegValue SHELL_CONTEXT "\$\{UNINSTALL_REGISTRY_KEY\}" UninstallString/);
+    // Only once the companion is closed, and only in the installer: the app's own update (--updated) keeps the usual path.
+    expect(check.indexOf('GUILDED_LOG "closed; going on"')).toBeLessThan(check.indexOf("DeleteRegValue SHELL_CONTEXT"));
+    expect(check).toMatch(/!ifndef BUILD_UNINSTALLER\s+StrCpy \$guildedWasRunning "1"/);
+    // A silent run that closed a companion starts it again; the app's own update does that with --force-run, an interactive run at the end.
+    expect(nsis).toMatch(/\$\{if\} \$guildedWasRunning == "1"\s+\$\{andIf\} \$\{Silent\}\s+\$\{andIfNot\} \$\{isForceRun\}\s+!insertmacro StartApp/);
+    expect(nsis.indexOf("launched-by-installer")).toBeLessThan(nsis.indexOf("!insertmacro StartApp"));
+  });
+
+  it("keeps the installer's log lines when the old uninstaller adds its own (tagged, truncated only by the installer)", () => {
+    expect(check).toMatch(/!ifndef BUILD_UNINSTALLER\s+ClearErrors\s+FileOpen \$R4 "\$TEMP\\guilded-companion-installer\.log" w/);
+    expect(nsis).toContain('"[uninstaller] ${TEXT}');
+    expect(nsis).toContain('"[installer] ${TEXT}');
+  });
+
   it("logs what it did in one place, without paths or user names", () => {
     expect(nsis).toContain("guilded-companion-installer.log");
     expect(nsis).not.toMatch(/USERNAME|\$\{USERNAME\}|whoami/);

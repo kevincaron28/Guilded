@@ -658,9 +658,15 @@ local session
 function duels.sessionStop() session = nil end
 
 local targetInfo -- defined below (class and level of my target)
+-- My zone now (a plain read; nil when the client does not say).
+local function currentZone()
+  if not GetZoneText then return nil end
+  local ok, v = pcall(GetZoneText)
+  if ok and type(v) == "string" and v ~= "" and #v <= 80 and not (ns.isSecret and ns.isSecret(v)) then return v end
+  return nil
+end
 local function startFight(seconds)
-  local zone
-  if GetZoneText then local ok, v = pcall(GetZoneText); if ok and type(v) == "string" and v ~= "" and not (ns.isSecret and ns.isSecret(v)) then zone = v end end
+  local zone = currentZone()
   local opponent = session and session.opponent
   local wait = tonumber(seconds) or 0
   session = { startedAt = clock() + wait, opponent = opponent, zone = zone, oppInfo = targetInfo(opponent), countdownAt = epoch(), startAt = epoch() + wait }
@@ -1080,21 +1086,46 @@ local function drawCard(data)
 end
 
 -- Shows the card now, or after combat. `force` is the test command: it ignores the setting.
+-- (9.3.2) Every draw goes through here: a failure is kept in the saved diagnostics (it used to vanish inside a pcall or an
+-- OnUpdate), so a missing card after a real duel can be explained from the saved file.
+local function diagnose(kind, err)
+  if ns.logDiagnostic then pcall(ns.logDiagnostic, kind, "duels: " .. tostring(err)) end
+end
+local function safeDraw(data)
+  local ok, err = pcall(drawCard, data)
+  if not ok then diagnose("LUA_ERROR", err) end
+  return ok
+end
 function duels.showCard(data, force)
   if type(data) ~= "table" or not active() then return false end
   if not force and not duels.cardEnabled() then return false end
   duels.lastCard = data
   if inCombat() then pendingCard = data; return true end
   pendingCard = nil
-  drawCard(data)
-  return true
+  return safeDraw(data)
 end
 local function tryPending()
   if pendingCard and not inCombat() and duels.cardEnabled() then
     local data = pendingCard
     pendingCard = nil
-    drawCard(data)
+    safeDraw(data)
   elseif pendingCard and not duels.cardEnabled() then pendingCard = nil end
+end
+
+-- (9.3.2) One line in my own chat frame after each of MY duels, guild or not, whatever the card does: the result and the
+-- opponent. Printed locally (never sent), so it is safe in combat. The card shows the details when it is on.
+function duels.notice(winner, loser, reason, mine)
+  if not (ns.message and mine) then return false end
+  local won = same(mine, winner)
+  local opponent = displayName(won and loser or winner)
+  local text
+  if reason == "retreat" then
+    text = won and string.format(L("Duel won: %s fled."), opponent) or string.format(L("Duel lost: you fled from %s."), opponent)
+  else
+    text = won and string.format(L("Duel won against %s."), opponent) or string.format(L("Duel lost against %s."), opponent)
+  end
+  local ok = pcall(ns.message, text)
+  return ok
 end
 
 -- A sample card for /guilded duels card test.
@@ -1129,16 +1160,19 @@ function duels.onSystem(text)
   local involved = mine and (same(mine, winner) or same(mine, loser)) or false
   -- Both players must be in the guild for a duel to count (an outsider's never does: not recorded, not shared with the guild or
   -- the bot). My own duel with an outsider still gets the card, saying so, with what my client knows of the opponent.
+  if involved then duels.notice(winner, loser, reason, mine) end
   if not (guildMember(winner) and guildMember(loser)) then
     if involved then
       local ext = {}
-      pcall(function()
+      local okCard, errCard = pcall(function()
         local ctx = { me = mine, outsider = true, rosterPending = rosterPending() }
         local s = session
         if s and s.startedAt and clock() - s.startedAt >= 0 and clock() - s.startedAt < SESSION_MAX then
           ctx.duration, ctx.zone = clock() - s.startedAt, s.zone
           ctx.health = healthLeft(s.opponent)
         end
+        -- No countdown seen (I sent the challenge, or the client gave no countdown): my zone now is where the duel ended.
+        ctx.zone = ctx.zone or currentZone()
         local oppName = same(mine, winner) and loser or winner
         ctx.oppInfo = opponentInfo(s, oppName)
         ext = { oppInfo = ctx.oppInfo, duration = ctx.duration, zone = ctx.zone, countdownAt = s and s.countdownAt, startAt = s and s.startAt, rosterPending = ctx.rosterPending }
@@ -1146,6 +1180,7 @@ function duels.onSystem(text)
         duels.lastCard = data
         duels.showCard(data)
       end)
+      if not okCard then diagnose("LUA_ERROR", errCard) end
       -- Recorded for the upload (not on the guild ladder), unless the guild roster has not loaded and "outside the guild" cannot be said yet.
       if not (ext.rosterPending or rosterPending()) then pcall(duels.recordExternal, winner, loser, at, reason, ext) end
       session = nil
@@ -1164,6 +1199,7 @@ function duels.onSystem(text)
         ctx.zone = s.zone
         ctx.health = healthLeft(s.opponent)
       end
+      ctx.zone = ctx.zone or currentZone()
       ctx.before = duels.rowFor(duels.standings(), mine) or { best = 0 }
     end)
     if not okCtx then ctx.before = nil end
@@ -1173,7 +1209,7 @@ function duels.onSystem(text)
   if isNew and involved then share(winner, loser, at, reason) end
   if isNew and mine and same(mine, winner) and ns.milestones then pcall(ns.milestones.checkDuelWins, duels.myWins()) end
   if involved then
-    pcall(function()
+    local okCard, errCard = pcall(function()
       local row = key and store().results[key]
       ctx.recorded = isNew
       if not isNew then
@@ -1192,6 +1228,7 @@ function duels.onSystem(text)
       duels.lastCard = data
       duels.showCard(data)
     end)
+    if not okCard then diagnose("LUA_ERROR", errCard) end
   end
   return isNew
 end

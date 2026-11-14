@@ -1,3 +1,4 @@
+import { clearLeaderboardCaches } from "../services/leaderboard-cache-hooks.js";
 import { bindGuildScope } from "../services/guild-scope.js";
 import {
   ActionRowBuilder,
@@ -279,6 +280,7 @@ export async function performUninstall(guild: DiscordGuild, guildId: string, imp
   try {
     await prisma.$transaction(async tx => {
       await tx.guild.delete({ where: { id: guildId } });
+      clearLeaderboardCaches();
       if (reset) {
         const fresh = await tx.guild.create({ data: { discordId: guild.id, name: scoped ? scope.guild.name : guild.name,
           ...(scoped ? { scopeKey: scope.guild.scopeKey, gameEdition: scope.guild.gameEdition } : {}), settings: { create: { dataResetAt: new Date() } } } });

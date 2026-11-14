@@ -407,7 +407,7 @@ describe("leaderboard and personal pages", () => {
     const scoreAt = home.body.indexOf('<td class="num score">');
     expect(scoreAt).toBeGreaterThan(0);
     expect(home.body.indexOf('id="season"')).toBeGreaterThan(scoreAt);
-    expect(home.body.indexOf("Your player profile is public by default")).toBeGreaterThan(scoreAt);
+    expect(home.body.indexOf("Your player profile is public when your guild publishes")).toBeGreaterThan(scoreAt);
     expect(home.body).toContain("table.rank-cards");
     expect(home.body).toContain('rel="canonical" href="https://guilded.kcaron.top/leaderboards/dungeons/"');
     expect(home.body).toContain('hreflang="fr" href="https://guilded.kcaron.top/leaderboards/dungeons/?lang=fr"');

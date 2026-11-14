@@ -1,3 +1,4 @@
+import { clearLeaderboardCaches } from "./leaderboard-cache-hooks.js";
 import { guildWhere, currentGuildScope } from "./guild-scope.js";
 import { normalizeProfessionName } from "./profession-names.js";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
@@ -13,7 +14,7 @@ export function createGuildService(database: PrismaClient) {
       // Lite servers get a record for their setup and signups; scheduled jobs still skip them (pilotGuildScope).
       const tier = hostedPilot.tier(discordId);
       if (tier === "blocked") throw new Error(PILOT_DENIED);
-      return database.guild.upsert({
+      return Promise.resolve(database.guild.upsert({
         where: guildWhere(discordId),
         create: {
           discordId,
@@ -23,7 +24,7 @@ export function createGuildService(database: PrismaClient) {
           settings: { create: tier === "approved" ? { publicDungeonRuns: true, publicDungeonRunsSince: new Date() } : {} }
         },
         update: { name }
-      });
+      })).then((guild) => { if (tier === "approved") clearLeaderboardCaches(); return guild; });
     },
 
     async ensureMember(guildId: string, discordUserId: string, displayName: string) {

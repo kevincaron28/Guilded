@@ -56,7 +56,7 @@ export async function loadPvpData(database: PrismaClient, guildIds: readonly str
     database.battlegroundReport.findMany({ where: { guildId: { in: ids }, gameEdition: edition, status: "PROVISIONAL", endedAt: { gte: since, lt: now }, member: VISIBLE }, orderBy: { endedAt: "desc" }, take: GAME_ROWS,
       select: { guildId: true, mode: true, bracket: true, mapId: true, outcome: true, endedAt: true, premadeNonce: true, character: { select: { name: true, displayName: true, realm: true, className: true, level: true } } } }),
     database.guildHelpCall.findMany({ where: { guildId: { in: ids }, calledAt: { gte: callsSince, lt: now }, member: VISIBLE }, select: { guildId: true, zone: true, mapId: true, calledAt: true }, orderBy: { calledAt: "desc" }, take: CALL_ROWS }),
-    database.worldPvpEvent.groupBy({ by: ["memberId", "guildId", "mapId", "kind", "weekKey"], where: { guildId: { in: ids }, at: { gte: callsSince, lt: now }, member: VISIBLE }, _count: { _all: true }, orderBy: { _count: { id: "desc" } }, take: EVENT_GROUPS }),
+    database.worldPvpEvent.groupBy({ by: ["memberId", "guildId", "mapId", "kind", "weekKey"], where: { guildId: { in: ids }, at: { gte: callsSince, lt: new Date(now.getTime() - EVENT_DELAY_MS) }, member: VISIBLE }, _count: { _all: true }, orderBy: { _count: { id: "desc" } }, take: EVENT_GROUPS }),
     database.worldPvpEvent.findMany({ where: { guildId: { in: ids }, at: { gte: callsSince, lt: new Date(now.getTime() - EVENT_DELAY_MS) }, x: { not: null }, y: { not: null }, member: VISIBLE }, select: { memberId: true, guildId: true, kind: true, weekKey: true, at: true, mapId: true, x: true, y: true, approx: true }, orderBy: { at: "desc" }, take: EVENT_ROWS })
   ]);
   const worldWeek = weekRows.map((row) => ({ memberId: row.memberId, guildId: row.guildId, kills: row.kills, deaths: row.deaths, defends: row.defends, helped: row.helped }));
@@ -311,7 +311,7 @@ export const PVP_MAP_CSS = `<style>
 .pvp-map .h1 .r{fill:${HEAT_FILLS[0]};stroke:#a98c3f}.pvp-map .h2 .r{fill:${HEAT_FILLS[1]};stroke:#c89b3c}.pvp-map .h3 .r{fill:${HEAT_FILLS[2]};stroke:#ee8a3d}.pvp-map .h4 .r{fill:${HEAT_FILLS[3]};stroke:#e5523f}.pvp-map .h5 .r{fill:${HEAT_FILLS[4]};stroke:#ff5a4a}
 .pvp-map a.z{outline:none;cursor:pointer}.pvp-map a.z:hover .r,.pvp-map a.z:focus .r{stroke:#fff;stroke-width:2}.pvp-map a.z:focus-visible .r{stroke:#fff;stroke-width:3.5;stroke-dasharray:7 4}.pvp-map a.z:focus-visible .hit{stroke:#fff;stroke-width:2;stroke-dasharray:4 3}
 .pvp-map .ev{fill:#f2ead6;stroke:#12171a;stroke-width:1;pointer-events:none;vector-effect:non-scaling-stroke}.pvp-map .ev.kill{fill:#e5523f}.pvp-map .ev.death{fill:#8fa8ff}.pvp-map .ev.approx{opacity:.55}
-.pvp-map .lbls{pointer-events:none;font-weight:700;fill:#f6efdc;stroke:#0b0f12;paint-order:stroke;stroke-linejoin:round;text-anchor:middle}.pvp-map .lbls .city{fill:#ffe7a6}.pvp-map .lbls circle{fill:#ffe7a6;stroke:#0b0f12;stroke-width:1}@media(max-width:600px){.pvp-map .lbls .sm{display:none}}
+.pvp-map .lbls{pointer-events:none;font-weight:700;fill:#f6efdc;stroke:#0b0f12;paint-order:stroke;stroke-linejoin:round;text-anchor:middle}.pvp-map .lbls .city{fill:#ffe7a6}.pvp-map .lbls circle{fill:#ffe7a6;stroke:#0b0f12;stroke-width:1}.pvp-map .lbls .mkn{fill:#0b0f12;stroke:none}.map-key{margin:0 0 6px;padding:0;list-style:none;display:flex;flex-wrap:wrap;gap:2px 12px;font-size:12px;color:var(--muted)}.map-key b{display:inline-block;min-width:16px;height:16px;line-height:16px;border-radius:8px;background:#ffe7a6;color:#0b0f12;text-align:center;font-size:11px;margin-right:4px}@media(max-width:600px){.pvp-map .lbls .sm{display:none}}
 .pvp-map .tip{display:none;pointer-events:none}.pvp-map .tip rect{fill:#0d1012;stroke:var(--gold);stroke-width:1}.pvp-map .tip text{fill:#f2ead6}.pvp-map .tip .t1{font-weight:700;fill:#e8c47c}
 .zone-panel{display:none;border:1px solid var(--gold);border-radius:12px;padding:12px 16px;margin:12px 0;background:var(--panel);scroll-margin-top:80px}.zone-panel:target{display:block}.zone-panel h3{margin:0 0 6px}.zone-panel ul{margin:6px 0;padding-left:18px}
 .heat-legend{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;font-size:13px;color:var(--muted);margin:0 0 8px}.heat-legend i{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:-2px;margin-right:4px;border:1px solid rgba(255,255,255,.25)}
@@ -344,7 +344,7 @@ export function zoneLabel(name: string, b: { x: number; y: number; w: number; h:
   return { lines, font, x: cx, y: cy, small: font < view.w * 0.02, half };
 }
 
-function continentSvg(env: PvpEnv, continent: Continent, stats: ZoneStat[], max: number, kd: boolean): { svg: string; css: string } {
+function continentSvg(env: PvpEnv, continent: Continent, stats: ZoneStat[], max: number, kd: boolean): { svg: string; css: string; legend: string[] } {
   const image = CONTINENT_IMAGES[continent];
   const here = stats.filter((stat) => stat.zone && stat.zone.continent === continent && ZONE_RECTS[stat.zone.id])
     .sort((a, b) => (zoneBox(b.zone!.id)!.w * zoneBox(b.zone!.id)!.h) - (zoneBox(a.zone!.id)!.w * zoneBox(a.zone!.id)!.h));
@@ -385,6 +385,7 @@ function continentSvg(env: PvpEnv, continent: Continent, stats: ZoneStat[], max:
     taken.push({ x0: x - half, x1: x + half, y0: y - f, y1: y + f * 0.25 });
     labels.push(`<circle cx="${fmt(cx)}" cy="${fmt(cy)}" r="${fmt(r)}"/><text class="city" x="${fmt(x)}" y="${fmt(y)}" font-size="${fmt(f)}">${name}</text>`);
   }
+  const unnamed: ZoneStat[] = [];
   for (const stat of here.filter((s2) => !s2.zone!.city)) {
     const b = zoneBox(stat.zone!.id)!;
     let placed = false;
@@ -400,12 +401,20 @@ function continentSvg(env: PvpEnv, continent: Continent, stats: ZoneStat[], max:
       }
       if (placed) break;
     }
+    if (!placed) unnamed.push(stat);
   }
+  // a zone too small for its name gets a numbered marker, named in a legend under the map
+  const legend: string[] = [];
+  unnamed.forEach((stat, i) => {
+    const b = zoneBox(stat.zone!.id)!, r = view.w * 0.011, cx = Math.max(view.x + r, Math.min(view.x + view.w - r, b.x + b.w / 2)), cy = Math.max(view.y + r, Math.min(view.y + view.h - r, b.y + b.h / 2));
+    legend.push(zoneName(env, stat));
+    labels.push(`<circle class="mk" cx="${fmt(cx)}" cy="${fmt(cy)}" r="${fmt(r)}"/><text class="mkn" x="${fmt(cx)}" y="${fmt(cy + r * 0.38)}" font-size="${fmt(r * 1.15)}">${i + 1}</text>`);
+  });
   const labelGroup = `<g class="lbls" aria-hidden="true" stroke-width="${fmt(view.w * 0.007)}">${labels.join("")}</g>`;
   // the sea is always drawn, so a painting that fails to load degrades to the plain map
   const sea = `<rect class="sea" x="${fmt(view.x)}" y="${fmt(view.y)}" width="${fmt(view.w)}" height="${fmt(view.h)}"/>`;
   const base = sea + (image ? `<image href="${escapeHtml(image)}" x="${fmt(view.x)}" y="${fmt(view.y)}" width="${fmt(view.w)}" height="${fmt(view.h)}" preserveAspectRatio="none" loading="lazy"/>` : "");
-  return { svg: `<svg viewBox="${fmt(view.x)} ${fmt(view.y)} ${fmt(view.w)} ${fmt(view.h)}" role="group" aria-label="${escapeHtml(CONTINENT_NAMES[continent][env.lang === "fr" ? 1 : 0])}">${base}${land}${rects.join("")}${labelGroup}${dots.join("")}${tips.join("")}</svg>`, css: css.join("") };
+  return { svg: `<svg viewBox="${fmt(view.x)} ${fmt(view.y)} ${fmt(view.w)} ${fmt(view.h)}" role="group" aria-label="${escapeHtml(CONTINENT_NAMES[continent][env.lang === "fr" ? 1 : 0])}">${base}${land}${rects.join("")}${labelGroup}${dots.join("")}${tips.join("")}</svg>`, css: css.join(""), legend };
 }
 
 /** The zone map section: a heat map of both continents, the details of each lit zone, and the plain table of the same numbers. */
@@ -418,7 +427,7 @@ export function zoneMapHtml(env: PvpEnv, stats: ZoneStat[], f: PvpFilters): stri
   const heatOf = kd ? t("kills plus deaths", "victimes plus morts") : t("calls for help", "appels à l'aide");
   const legend = `<p class="heat-legend"><span>${t("Colour shows", "La couleur montre")}: ${escapeHtml(heatOf)}.</span>${HEAT_FILLS.map((c, i) => `<span><i style="background:${c}"></i>${i === 0 ? t("fewer", "moins") : i === 4 ? t("more", "plus") : ""}</span>`).join("")}</p>`;
   const svgs = (["kalimdor", "eastern"] as Continent[]).map((continent) => ({ continent, ...continentSvg(env, continent, stats, max, kd) }));
-  const maps = svgs.map(({ continent, svg }) => `<figure class="pvp-map"><h3>${escapeHtml(CONTINENT_NAMES[continent][lang === "fr" ? 1 : 0])}</h3>${svg}</figure>`).join("");
+  const maps = svgs.map(({ continent, svg, legend }) => `<figure class="pvp-map"><h3>${escapeHtml(CONTINENT_NAMES[continent][lang === "fr" ? 1 : 0])}</h3>${svg}${legend.length ? `<ul class="map-key">${legend.map((name, i) => `<li><b>${i + 1}</b>${escapeHtml(name)}</li>`).join("")}</ul>` : ""}</figure>`).join("");
   const panels = lit.filter((s) => s.zone).map((stat) => `<section class="zone-panel" id="zone-${stat.zone!.id}"><h3>${escapeHtml(zoneName(env, stat))}</h3><p>${escapeHtml(zoneNumbers(env, stat, kd))}${kd && stat.calls ? ` · ${stat.calls} ${t("calls for help", "appels à l'aide")}` : ""}</p>`
     + (stat.guilds.length ? `<p>${t("Most active guilds", "Guildes les plus actives")}: ${stat.guilds.map((g) => `${env.guild(g.guildId) || "–"} (${g.count})`).join(", ")}</p>` : "")
     + `<p><a href="#zone-map">${t("Back to the map", "Retour à la carte")}</a></p></section>`).join("");

@@ -85,4 +85,5 @@ table.ranked tbody tr:nth-child(-n+3) td:first-child{font-size:1.15em;font-weigh
 .not-found{text-align:center;padding:72px 16px 96px;max-width:560px;margin:0 auto}.not-found .nf-code{display:block;font-family:"Source Serif 4",Georgia,serif;font-style:italic;font-size:64px;line-height:1;margin:0 0 8px;color:var(--gold,#e0b85a);letter-spacing:.06em}.not-found h1{margin:0 0 12px}.not-found .button{display:inline-block;margin-top:8px}
 main h1{font-weight:700;letter-spacing:-.01em;line-height:1.1}main h1 em{font-family:"Source Serif 4",Georgia,serif;font-style:italic;font-weight:400;color:var(--gold,#e0b85a)}
 main .grid-links li a,main .grid-links li a small{text-decoration:none!important;border-bottom:0;background-image:none}
+.tile-art{display:block;width:100%;height:auto;aspect-ratio:16/9;object-fit:cover;border-radius:8px;margin:0 0 14px}
 /* site-chrome:end */

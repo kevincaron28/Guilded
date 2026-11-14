@@ -83,7 +83,7 @@ function languageUrl(raw, language) {
 async function notFoundPage(request, env, original) {
   const url = new URL(request.url);
   const wantsPage = (request.method === "GET" || request.method === "HEAD") && (request.headers.get("accept") || "").includes("text/html")
-    && !/.[a-z0-9]{2,5}$/i.test(url.pathname) && !url.pathname.startsWith("/api/");
+    && !/\.[a-z0-9]{2,5}$/i.test(url.pathname) && !url.pathname.startsWith("/api/");
   if (!wantsPage) return original;
   for (const path of ["/404", "/404.html"]) {
     const page = await env.ASSETS.fetch(new Request(new URL(path, url), { method: "GET" }));

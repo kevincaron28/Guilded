@@ -69,5 +69,6 @@ describe("the Worker's 404 page", () => {
     expect((await visit("/missing.png", "image/png")).status).toBe(404);
     expect(await (await visit("/missing.png", "image/png")).text()).toBe("");
     expect(await (await visit("/no-such-page/", "application/json")).text()).toBe("");
+    expect(await (await visit("/no-such-page")).text()).toBe(PAGE); // no trailing slash, no extension
   });
 });

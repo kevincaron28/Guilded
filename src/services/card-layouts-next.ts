@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import { roleEmblem, type RoleStyle } from "./card-roles.js";
 import { MAP_GRID, mapView } from "./score-card.js";
 import { ACCENTS, CARD_H, CARD_W, CardCanvas, GOOD, INK, SUB, type AccentKey, type EmblemKind, type TextReport } from "./card-kit.js";
 
@@ -163,7 +164,13 @@ export function guildTag(guild: string | null | undefined, max = 24): string {
   return `<${chars.length > max ? `${chars.slice(0, max - 1).join("").trimEnd()}…` : g}>`;
 }
 
-export interface DungeonPartyRow { name: string; color: string; role?: "tank" | "healer" | "dps" | undefined; score?: string | undefined; guild?: string | null | undefined }
+export interface DungeonPartyRow {
+  name: string; color: string; role?: "tank" | "healer" | "dps" | undefined;
+  /** The one-figure score column of cards queued before 9.3.2 (drawn in the total column). */
+  score?: string | undefined; guild?: string | null | undefined;
+  /** 9.3.2: level, what this run added to the player's season score (0 draws "+0" in grey; undefined draws nothing) and the season total. */
+  level?: number | undefined; gain?: number | undefined; total?: string | undefined;
+}
 /** Traced floor cells (200 x 200 grid, key = column * 200 + row), death points as 0..1 map fractions, optionally the dungeon's own map image (PNG buffer). */
 export interface DungeonMapSpec { cells: readonly number[]; points: readonly { x: number; y: number }[]; image?: Buffer | undefined }
 export interface DungeonCardSpec {
@@ -178,18 +185,15 @@ export interface DungeonCardSpec {
   /** "2 deaths", "Score 1840": shown together on one line. */
   facts: string[];
   party: DungeonPartyRow[];
+  /** Column headers (level, guild, score added this run, season total). Without them no header row is drawn. */
+  columns?: { level: string; guild: string; gain: string; total: string } | undefined;
+  /** Role emblem look: "medal" (default) or "frame" (the approved painted frame). */
+  roleStyle?: RoleStyle | undefined;
   /** The death map, drawn without a box on the painting. Only numbers (and one image buffer made by the caller from a repo file) go in; the kit builds the SVG. */
   map?: DungeonMapSpec | undefined;
   strip?: string | undefined;
   art: Buffer;
 }
-
-const ROLE_COLOR = { tank: "#7fb2ff", healer: "#86e66a", dps: "#ff9a8a" } as const;
-const ROLE_GLYPH = {
-  tank: '<path d="M32 6 L54 14 V32 Q54 50 32 60 Q10 50 10 32 V14 Z"/>',
-  healer: '<path d="M24 8 H40 V24 H56 V40 H40 V56 H24 V40 H8 V24 H24 Z"/>',
-  dps: '<path d="M14 54 L50 14 M44 8 L56 20 M10 50 L18 58"/>'
-} as const;
 
 const MAP_BOX = { left: 790, top: 300, width: 340, height: 226 };
 const num = (v: number, lo: number, hi: number) => (Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : lo);
@@ -218,30 +222,48 @@ async function drawDeathMap(c: CardCanvas, map: DungeonMapSpec): Promise<void> {
   c.raw(svg);
 }
 
-/** Result card for a dungeon run: the painting full bleed, the left half carries time, record, facts and the party, the death map floats on the painting. */
+/** Result card for a dungeon run: the painting full bleed, the left side carries time, record, facts and the party table (role, name, level, guild, +gained, season total), the death map floats on the painting. */
 export function renderDungeonCard(spec: DungeonCardSpec): Promise<RenderedCard> {
   return serial(async () => {
-    const c = new CardCanvas(), { accent, tint } = ACCENTS.dungeon, x = 56, colW = 610;
-    c.gradient(0, 0, 830, CARD_H, "h", [[0, "#000", 0.9], [0.82, "#000", 0.82], [1, "#000", 0]]);
+    const c = new CardCanvas(), { accent, tint } = ACCENTS.dungeon, x = 56, colW = 722;
+    c.gradient(0, 0, 870, CARD_H, "h", [[0, "#000", 0.9], [0.84, "#000", 0.82], [1, "#000", 0]]);
     c.rect(0, 548, CARD_W, 82, "#060504", { opacity: 0.66 });
     c.rect(0, 546, CARD_W, 3, accent, { opacity: 0.9 });
-    c.emblem("gate", x, 30, 40, tint);
-    await c.text(spec.label, x + 54, 34, { size: 26, face: "bold", color: tint, spacing: 1500, maxW: colW - 54 });
-    await c.text(spec.title, x, 78, { size: 44, face: "serif", maxW: colW });
-    const hero = await c.text(spec.hero, x, 126, { size: 84, face: "bold", color: spec.heroColor ?? GOOD, maxW: 300 });
-    if (spec.heroNote) await c.text(spec.heroNote, x + hero.w + 18, 164, { size: 28, color: SUB, maxW: colW - hero.w - 18 });
-    let y = 126 + hero.h + 18;
-    if (spec.facts.length) { await c.text(spec.facts.join("  ·  "), x, y, { size: 30, color: INK, maxW: colW }); y += 46; }
-    y += 6;
-    const pitch = 40;
-    for (const p of spec.party.slice(0, 5)) {
-      if (p.role) c.raw(`<g transform="translate(${x} ${y + 3}) scale(${26 / 64})" fill="none" stroke="${ROLE_COLOR[p.role]}" stroke-width="7" stroke-linejoin="round" stroke-linecap="round">${ROLE_GLYPH[p.role]}</g>`);
-      const scoreW = p.score ? 80 : 0;
-      const tag = guildTag(p.guild);
-      const n = await c.text(p.name, x + 38, y, { size: 30, face: "bold", color: p.color, maxW: tag ? 230 : colW - 38 - scoreW });
-      if (tag) await c.text(tag, x + 38 + 244, y + 3, { size: 24, color: SUB, maxW: colW - 38 - 244 - scoreW - 10 });
-      if (p.score) await c.text(p.score, x + colW, y, { size: 30, face: "bold", anchor: "r", maxW: scoreW });
-      y += pitch; void n;
+    c.emblem("gate", x, 26, 36, tint);
+    await c.text(spec.label, x + 50, 28, { size: 26, face: "bold", color: tint, spacing: 1500, maxW: colW - 50 });
+    await c.text(spec.title, x, 66, { size: 42, face: "serif", maxW: colW });
+    const hero = await c.text(spec.hero, x, 114, { size: 68, face: "bold", color: spec.heroColor ?? GOOD, maxW: 280 });
+    if (spec.heroNote) await c.text(spec.heroNote, x + hero.w + 18, 140, { size: 28, color: SUB, maxW: colW - hero.w - 18 });
+    let y = 114 + hero.h + 8;
+    if (spec.facts.length) { await c.text(spec.facts.join("  ·  "), x, y, { size: 28, color: INK, maxW: colW }); y += 40; }
+    // Column edges (right edges for numbers). Emblem 38 px, then name, level, guild, +gain, season total.
+    const E = x + 38 + 12, nameW = 214, levelR = E + nameW + 44, guildX = levelR + 14, gainR = x + colW - 104, totalR = x + colW, guildW = gainR - 82 - guildX;
+    const party = spec.party.slice(0, 5), pitch = 50;
+    if (spec.columns) {
+      y += 4;
+      const head = { size: 24, color: SUB } as const;
+      await c.text(spec.columns.level, levelR, y, { ...head, anchor: "r", maxW: 44 });
+      await c.text(spec.columns.guild, guildX, y, { ...head, maxW: guildW });
+      await c.text(spec.columns.gain, gainR, y, { ...head, anchor: "r", maxW: 100 });
+      await c.text(spec.columns.total, totalR, y, { ...head, anchor: "r", maxW: 108 });
+      c.rect(x, y + 30, colW, 2, "#ffffff", { opacity: 0.22 });
+      y += 40;
+    } else y += 6;
+    const used = new Set<string>();
+    let stripe = false;
+    for (const p of party) {
+      if (stripe) c.rect(x - 10, y - 8, colW + 20, pitch - 2, "#ffffff", { opacity: 0.05, rx: 8 });
+      stripe = !stripe;
+      if (p.role) c.raw(await roleEmblem(p.role, spec.roleStyle ?? "medal", x, y - 3, 38, used));
+      const tag = guildTag(p.guild).replace(/^<|>$/g, ""); // the Guild column header says what it is
+      const hasCols = p.level !== undefined || p.gain !== undefined || p.total !== undefined || p.score !== undefined || !!tag;
+      await c.text(p.name, E, y, { size: 30, face: "bold", color: p.color, maxW: hasCols ? nameW : colW - 46 });
+      if (p.level !== undefined) await c.text(String(p.level), levelR, y + 1, { size: 28, color: INK, anchor: "r", maxW: 44 });
+      if (tag) await c.text(tag, guildX, y + 3, { size: 24, color: SUB, maxW: guildW });
+      if (p.gain !== undefined) await c.text(`+${p.gain}`, gainR, y, { size: 30, face: "bold", color: p.gain > 0 ? GOOD : SUB, anchor: "r", maxW: 100 });
+      const total = p.total ?? p.score;
+      if (total) await c.text(total, totalR, y, { size: 30, face: "bold", color: INK, anchor: "r", maxW: 108 });
+      y += pitch;
     }
     if (spec.map) await drawDeathMap(c, spec.map);
     if (spec.strip) await c.text(spec.strip, x, 575, { size: 26, color: SUB, maxW: CARD_W - 112 });

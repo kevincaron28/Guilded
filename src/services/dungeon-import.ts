@@ -75,7 +75,7 @@ export interface DungeonImportResult {
   ratingEnabled?: boolean;
   ratingSpeedBonus?: number;
   ratingVersion?: number;
-  playerDetails?: { character: string; class?: string; role?: string; spec?: string; specSource?: "run" | "profile"; /** 9.3: the in-game guild the recorder's client showed for this player. Unverified display text. */ guild?: string; deaths: number | null; presentSec: number; points: number; ratingGain?: number; ratingTotal?: number; unrankedReason?: string; participationRecipient?: string; participationMode?: "none" | "completion" | "helper" | "full" }[];
+  playerDetails?: { character: string; class?: string; role?: string; spec?: string; specSource?: "run" | "profile"; /** 9.3: the in-game guild the recorder's client showed for this player. Unverified display text. */ guild?: string; /** 9.3.2: the player's level when the run was recorded. */ level?: number; deaths: number | null; presentSec: number; points: number; ratingGain?: number; ratingTotal?: number; unrankedReason?: string; participationRecipient?: string; participationMode?: "none" | "completion" | "helper" | "full" }[];
   unlinked: string[];
   // Party names the addon flagged as guild members (UnitIsInMyGuild). Absent on results built before 8.5.
   inGuildPlayers?: string[];
@@ -737,7 +737,7 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
             ?? (!ratingRules.targets[dungeonKey] ? "Target not calibrated"
               : player.presentSec < (durationSec ?? 0) * 0.8 ? `Presence ${Math.floor(100 * player.presentSec / (durationSec || 1))}% / 80% required` : undefined) : undefined;
         return {
-        character: player.character, ...(player.guild ? { guild: player.guild } : {}), ...(player.class ? { class: player.class } : {}), ...(cardRole(player) ? { role: cardRole(player)! } : {}),
+        character: player.character, ...(player.guild ? { guild: player.guild } : {}), ...(Number.isInteger(player.level) && player.level! > 0 && player.level! <= 100 ? { level: player.level! } : {}), ...(player.class ? { class: player.class } : {}), ...(cardRole(player) ? { role: cardRole(player)! } : {}),
         ...(player.spec ? { spec: player.spec, specSource: "run" as const }
           : character?.spec ? { spec: character.spec, specSource: "profile" as const } : {}),
         deaths: player.deaths ?? null, presentSec: player.presentSec,

@@ -167,6 +167,23 @@ describe("leaderboard and personal pages", () => {
       expect((await request("GET", "/leaderboards/?q=zzz&lang=fr")).body).toContain("Aucun résultat");
       const hostile = (await request("GET", "/leaderboards/?q=%3Cscript%3Ealert(1)%3C/script%3E")).body;
       expect(hostile).not.toContain("<script>alert(1)");
+      expect(hostile).toContain("&lt;script&gt;alert(1)");
+    });
+    it("never shows a guild that does not publish, or its members, on the hub or in search", async () => {
+      const hidden = leaderRun("hid", 1100, [player("Ghosty", "Mage", "DPS")]);
+      const store: LeaderboardStore = {
+        async runs() { return [leaderRun("a", 1500)]; }, async characterRuns() { return []; },
+        async guilds() { return [{ id: "g1", name: "Quebec Gold", slug: "quebec-gold" }]; },
+        async guildRuns(id) { return id === "g1" ? [leaderRun("a", 1500)] : [hidden]; }, async guildRoster(id) { return id === "g1" ? ["kev"] : ["ghosty"]; }
+      };
+      const pages = createLeaderboardPages({ store, personal: null, now: () => NOW });
+      const app = createWebApp({ store: memoryWebStore().store, auth: null, allows: () => true, postApplication: async () => null, routes: [pages.route], now: () => NOW });
+      const get = (path: string) => app.respond({ method: "GET", path, query: new URL(path, SITE).searchParams, headers: {} }) as Promise<WebResponse>;
+      for (const path of ["/leaderboards/", "/leaderboards/?q=ghosty", "/leaderboards/?q=secret", "/leaderboards/guilds/"]) {
+        const body = (await get(path)).body;
+        expect(body).not.toContain("Ghosty");
+        expect(body).not.toContain("Secret Guild");
+      }
     });
     it("keeps every old address working: filters still show the dungeon board, which also has its own address", async () => {
       const { request } = setup();

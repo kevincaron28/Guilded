@@ -40,7 +40,7 @@ describe("the signed-in companion's per-character map", () => {
   });
 
   it("writes an empty map when the sign-in has no name, and drops reported entries' names", () => {
-    expect(linkedMapLua([], "2026-11-10T00:00:00Z")).toBe('GuildedLinked = {\n}\nGuildedLinkedMeta = { updatedAt = "2026-11-10T00:00:00Z", }\nGuildedCompanionFeatures = { ["group-relay"] = true, at = 1794268800 }\n');
+    expect(linkedMapLua([], "2026-11-10T00:00:00Z")).toBe('GuildedLinked = {\n}\nGuildedLinkedMeta = { updatedAt = "2026-11-10T00:00:00Z", }\nGuildedCompanionFeatures = { ["group-relay"] = true, ["carry-records"] = true, at = 1794268800 }\n');
     expect(linkedMapLua([{ name: "Ann", discord: "Secret", confirmed: false }], "t")).toContain('["ann"] = { confirmed = false },');
     expect(linkedMapLua([{ name: "Ann", discord: "Secret", confirmed: false }], "t")).not.toContain("Secret");
   });

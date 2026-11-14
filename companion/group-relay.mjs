@@ -24,5 +24,5 @@ export function leaveOut(run, { enabled, acknowledged }) {
 export function featuresLua(stamp) {
   const parsed = Date.parse(String(stamp ?? ""));
   const at = Math.floor((Number.isNaN(parsed) ? Date.now() : parsed) / 1000);
-  return `GuildedCompanionFeatures = { ["${GROUP_RELAY_FEATURE}"] = true, at = ${at} }`;
+  return `GuildedCompanionFeatures = { ["${GROUP_RELAY_FEATURE}"] = true, ["carry-records"] = true, at = ${at} }`;
 }

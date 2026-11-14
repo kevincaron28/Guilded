@@ -111,6 +111,7 @@ export function standaloneAsGuildedDatabase(sdb, { withGuild = true, onlyGuild =
     myCharacters: characters,
     dungeon: dungeonForGuild(sdb, guild),
     ...(sdb.displayNames ? { displayNames: sdb.displayNames } : {}),
+    ...(sdb.carry ? { carry: sdb.carry } : {}),
     addonVersion: sdb.addonVersion ?? null,
     exports: { [savedAt.toISOString()]: true }
   };

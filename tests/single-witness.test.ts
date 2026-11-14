@@ -282,14 +282,26 @@ describe("the review list and device exclusion", () => {
 });
 
 describe("officer release replies", () => {
-  const base = { picked: 1, counted: 0, copies: 0, stored: 0, noCopy: 0, already: false, ambiguous: false };
-  it("says what really happened", () => {
-    expect(releaseReply({ ...base, counted: 1, copies: 1, stored: 1 }, "en")).toBe("Released: it counts now.");
-    expect(releaseReply({ ...base, copies: 1, stored: 1 }, "en")).toBe("That run already counts.");
-    expect(releaseReply({ ...base, copies: 1 }, "en")).toBe("Released, but the import refused the kept copy: it does not count.");
-    expect(releaseReply({ ...base, noCopy: 1 }, "en")).toBe("Released: it counts when its PC sends it again.");
-    expect(releaseReply({ ...base, picked: 3, counted: 1, copies: 2, stored: 1, noCopy: 1 }, "en")).toBe("Released: it counts now. 1 kept copies were refused and 1 wait for their PC to send the run again.");
-    expect(releaseReply({ ...base, picked: 2, copies: 1, noCopy: 1 }, "en")).toBe("Released: 1 kept copies were refused and 1 wait for their PC to send the run again.");
-    expect(releaseReply({ ...base, copies: 1 }, "fr")).toBe("Libéré, mais l'import a refusé la copie gardée : elle ne compte pas.");
+  const base = { picked: 1, counted: 0, copies: 0, stored: 0, waiting: 0, refused: 0, noCopy: 0, already: false, ambiguous: false };
+  const en = (over: Partial<typeof base>) => releaseReply({ ...base, ...over }, "en");
+  it("says each part that applies and never a zero part", () => {
+    expect(en({ counted: 1, copies: 1, stored: 1 })).toBe("Released: it counts now.");
+    expect(en({ copies: 1, stored: 1 })).toBe("That run already counts.");
+    expect(en({ copies: 1, refused: 1 })).toBe("Released, but nothing counts yet. 1 kept copy was refused.");
+    expect(en({ copies: 1, waiting: 1 })).toBe("Released, but nothing counts yet. 1 kept copy is still waiting.");
+    expect(en({ noCopy: 1 })).toBe("Released, but nothing counts yet. 1 PC has no kept copy: it counts when that PC sends the run again.");
+    expect(en({ copies: 2, stored: 1, refused: 1 })).toBe("That run already counts. 1 kept copy was refused.");
+    expect(en({ picked: 4, counted: 1, copies: 3, stored: 1, waiting: 1, refused: 1, noCopy: 1 })).toBe("Released: it counts now. 1 kept copy was refused. 1 kept copy is still waiting. 1 PC has no kept copy: it counts when that PC sends the run again.");
+    expect(en({ copies: 3, refused: 2, waiting: 1 })).toBe("Released, but nothing counts yet. 2 kept copies were refused. 1 kept copy is still waiting.");
+    expect(en({ noCopy: 2 })).toBe("Released, but nothing counts yet. 2 PCs have no kept copy: they count when those PCs send the run again.");
+    expect(en({ counted: 1, copies: 2, stored: 2, waiting: 0 })).not.toContain(" 0 ");
+  });
+  it("answers in French, singular and plural", () => {
+    const fr = (over: Partial<typeof base>) => releaseReply({ ...base, ...over }, "fr");
+    expect(fr({ copies: 1, refused: 1 })).toBe("Libéré, mais rien ne compte encore. 1 copie gardée a été refusée.");
+    expect(fr({ copies: 3, refused: 2, waiting: 1 })).toBe("Libéré, mais rien ne compte encore. 2 copies gardées ont été refusées. 1 copie gardée attend encore.");
+    expect(fr({ noCopy: 2 })).toContain("2 PC n'ont pas de copie gardée");
+    expect(fr({ noCopy: 1 })).toContain("1 PC n'a pas de copie gardée");
+    expect(fr({ copies: 2, stored: 1, waiting: 1 })).toBe("Cette course compte déjà. 1 copie gardée attend encore.");
   });
 });

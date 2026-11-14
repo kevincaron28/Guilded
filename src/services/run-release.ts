@@ -10,9 +10,11 @@ export interface ReleaseResult {
   picked: number;
   /** Runs stored by this release. */
   counted: number;
-  /** Kept copies tried, and how many of those rows are stored now. */
+  /** Kept copies tried, and where their rows stand now: stored, still waiting, or refused. */
   copies: number;
   stored: number;
+  waiting: number;
+  refused: number;
   /** Picked rows that had no kept copy: they count when their PC sends the run again. */
   noCopy: number;
   /** The run was already counted (another PC's copy stored it). */
@@ -21,7 +23,7 @@ export interface ReleaseResult {
 }
 
 const heldBecauseExcluded = (flags: unknown): boolean => Array.isArray(flags) && flags.some((flag) => (flag as { code?: unknown } | null)?.code === "pc-excluded");
-const NONE: ReleaseResult = { picked: 0, counted: 0, copies: 0, stored: 0, noCopy: 0, already: false, ambiguous: false };
+const NONE: ReleaseResult = { picked: 0, counted: 0, copies: 0, stored: 0, waiting: 0, refused: 0, noCopy: 0, already: false, ambiguous: false };
 
 /**
  * Releases one held run (its full code or a unique beginning; every PC's held row of that run), or, with `deviceId`, the runs of that
@@ -39,7 +41,7 @@ export async function releaseHeldRuns(database: PrismaClient, guildId: string, t
     if (refs.length > 1 && !refs.includes(wanted)) return { ...NONE, ambiguous: true };
     picked = rows.filter((row) => row.runRef === (refs.includes(wanted) ? wanted : refs[0]));
   }
-  let counted = 0, noCopy = 0, stored = 0, copies = 0;
+  let counted = 0, noCopy = 0, stored = 0, copies = 0, waiting = 0, refused = 0;
   for (const deviceId of [...new Set(picked.map((row) => row.deviceId))]) {
     const mine = picked.filter((row) => row.deviceId === deviceId);
     const withCopy = mine.filter((row) => row.payload);
@@ -51,22 +53,23 @@ export async function releaseHeldRuns(database: PrismaClient, guildId: string, t
       if (without.length) await saveRunReceipts(tx, guildId, without.map((row) => ({ runRef: row.runRef, outcome: "retry" as const, reason: "Counts when sent again", runId: null, fresh: true })), now);
       if (withCopy.length) {
         counted += (await storeDeviceRuns(tx, guildId, withCopy.map((row) => row.payload), now, { deviceId, characterKeys })).stored;
-        stored += await tx.dungeonRunWitness.count({ where: { id: { in: withCopy.map((row) => row.id) }, status: "stored" } });
+        const states = (await tx.dungeonRunWitness.findMany({ where: { id: { in: withCopy.map((row) => row.id) } }, select: { status: true } })).map((row) => row.status);
+        stored += states.filter((state) => state === "stored").length;
+        waiting += states.filter((state) => state === "pending" || state === "held").length;
+        refused += states.filter((state) => state !== "stored" && state !== "pending" && state !== "held").length;
       }
     }, { timeout: 60_000, maxWait: 15_000 });
     noCopy += without.length;
     copies += withCopy.length;
   }
-  return { picked: picked.length, counted, copies, stored, noCopy, already: counted === 0 && stored > 0, ambiguous: false };
+  return { picked: picked.length, counted, copies, stored, waiting, refused, noCopy, already: counted === 0 && stored > 0, ambiguous: false };
 }
 
-/** The officer's answer for a release that picked at least one held row. */
+/** The officer's answer for a release that picked at least one held row: what counts, then each part that did not. */
 export function releaseReply(done: ReleaseResult, lang: Lang): string {
-  const refused = Math.max(0, done.copies - done.stored);
-  if (done.counted && !refused && !done.noCopy) return tx(lang, "Released: it counts now.");
-  if (done.counted) return tx(lang, "Released: it counts now. {n} kept copies were refused and {m} wait for their PC to send the run again.", { n: refused, m: done.noCopy });
-  if (done.stored && !refused && !done.noCopy) return tx(lang, "That run already counts.");
-  if (refused && !done.stored && !done.noCopy) return tx(lang, "Released, but the import refused the kept copy: it does not count.");
-  if (!done.copies && done.noCopy) return tx(lang, "Released: it counts when its PC sends it again.");
-  return tx(lang, "Released: {n} kept copies were refused and {m} wait for their PC to send the run again.", { n: refused, m: done.noCopy });
+  const parts = [done.counted ? tx(lang, "Released: it counts now.") : done.stored ? tx(lang, "That run already counts.") : tx(lang, "Released, but nothing counts yet.")];
+  if (done.refused) parts.push(done.refused === 1 ? tx(lang, "1 kept copy was refused.") : tx(lang, "{n} kept copies were refused.", { n: done.refused }));
+  if (done.waiting) parts.push(done.waiting === 1 ? tx(lang, "1 kept copy is still waiting.") : tx(lang, "{n} kept copies are still waiting.", { n: done.waiting }));
+  if (done.noCopy) parts.push(done.noCopy === 1 ? tx(lang, "1 PC has no kept copy: it counts when that PC sends the run again.") : tx(lang, "{n} PCs have no kept copy: they count when those PCs send the run again.", { n: done.noCopy }));
+  return parts.join(" ");
 }

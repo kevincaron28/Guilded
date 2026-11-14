@@ -69,7 +69,7 @@ function setup(locale = "enUS") {
     NS = { getDb = function() return DB end, getSettings = function() return SETTINGS end, util = {}, commandHandlers = {}, commandHelp = {},
       message = function(text) MSGS = (MSGS or "") .. text .. "\\n" end, isSecret = function() return false end,
       isGuildMember = function(name) return GUILD_MEMBERS[(name or ""):match("^[^-]+")] == true end }
-    NS.util.unitKey = function() return "Kev Caron" end`);
+    NS.util.unitKey = function(unit) if unit ~= nil and unit ~= "player" then return nil end return "Kev Caron" end`);
   s.load("Locale.lua");
   s.load("Modules/Milestones.lua");
   s.load("Modules/Duels.lua");
@@ -669,7 +669,7 @@ describe("a duel between a guild member and a player outside every guild, on bot
   function client(me: string, inGuild: boolean, locale = "enUS") {
     const lua = setup(locale);
     lua.run(`DIAGS = {}
-      NS.util.unitKey = function() return "${me}" end
+      NS.util.unitKey = function(unit) if unit ~= nil and unit ~= "player" then return nil end return "${me}" end
       UnitName = function(unit) if unit == "target" then return nil end return "${me.split(" ")[0]}" end
       UnitExists = function() return false end
       UnitClass = function() if ${inGuild} then return "Warlock", "WARLOCK" end return "Priest", "PRIEST" end
@@ -897,7 +897,7 @@ describe("the duel result line follows the member's switches", () => {
   const LINE = "Lebowski Highspirits has defeated Blunt Cruising in a duel";
   function member() {
     const lua = setup();
-    lua.run(`NS.util.unitKey = function() return "Blunt Cruising" end
+    lua.run(`NS.util.unitKey = function(unit) if unit ~= nil and unit ~= "player" then return nil end return "Blunt Cruising" end
       GUILD_MEMBERS = { ["Blunt Cruising"] = true, ["Bob Smith"] = true }
       ROSTER = { { "Blunt Cruising", 1, "WARLOCK" }, { "Bob Smith", 58, "MAGE" } }
       UnitExists = function() return false end`);
@@ -936,5 +936,63 @@ describe("the duel result line follows the member's switches", () => {
     lua.run(`NS.milestones.memberOff = function() return false end; NS.milestones.guildOff = function() return true end; CLOCK = CLOCK + 300`);
     say(LINE);
     expect(stat("MSGS")).toContain("Duel lost against Lebowski Highspirits.");
+  });
+});
+
+// 9.3.2, 14 Nov 23:35Z: Blunt Cruising lost to Lebowski Highspirits (level 4 priest, no guild), and the card said "Paladin level 27": the
+// class and level of Lebowski Holyroller, a guildmate with the same first name. Names are matched by the full "First Last" only.
+describe("two characters with the same first name", () => {
+  const LINE = "Lebowski Highspirits has defeated Blunt Cruising in a duel";
+  function blunt(target: boolean, fullTarget = true) {
+    const lua = setup();
+    lua.run(`NS.util.unitKey = function(unit)
+        if unit == nil or unit == "player" then return "Blunt Cruising" end
+        if unit == "target" and ${target} and ${fullTarget} then return "Lebowski Highspirits" end
+        return nil
+      end
+      GUILD_MEMBERS = { ["Blunt Cruising"] = true, ["Lebowski Holyroller"] = true, ["Bob Smith"] = true }
+      ROSTER = { { "Blunt Cruising", 1, "WARLOCK" }, { "Lebowski Holyroller", 27, "PALADIN" }, { "Bob Smith", 58, "MAGE" } }
+      UnitExists = function(unit) return unit == "target" and ${target} end
+      UnitName = function(unit) if unit == "target" then return "Lebowski", "Highspirits" end return "Blunt", "Cruising" end
+      UnitClass = function(unit) if unit == "target" then return "Priest", "PRIEST" end return "Warlock", "WARLOCK" end
+      UnitLevel = function(unit) if unit == "target" then return 4 end return 1 end
+      GetGuildInfo = function(unit) if unit == "player" then return "Quebec Gold" end return nil end
+      GetRealmName = function() return "Realm Two" end`);
+    return lua;
+  }
+  const ext = (lua: LuaSession, code: string) => lua.run(`local r; for _, v in pairs(DB.duels and DB.duels.external or {}) do r = v end; return tostring(r and ${code})`);
+
+  it("the card and the record take the opponent's class and level from the target, never from the guildmate with the same first name", () => {
+    const lua = blunt(true);
+    say(LINE);
+    expect(stat("NS.duels.lastCard.oppClass .. NS.duels.lastCard.oppLevel")).toBe("PRIEST4");
+    const text = lua.run(`return table.concat(NS.duels.cardLines(NS.duels.lastCard), " / ")`);
+    expect(text).not.toContain("Paladin");
+    expect(text).not.toContain("27");
+    expect(ext(lua, "r.winnerClass .. r.winnerLevel .. '|' .. tostring(r.winnerGuild)")).toBe("Priest4|nil");
+  });
+
+  it("a client whose target gives only the first name still checks it against the opponent", () => {
+    blunt(true, false);
+    say(LINE);
+    expect(stat("NS.duels.lastCard.oppClass .. NS.duels.lastCard.oppLevel")).toBe("PRIEST4");
+  });
+
+  it("with no target the card says nothing about the opponent's class or level, rather than a guildmate's", () => {
+    const lua = blunt(false);
+    say(LINE);
+    expect(stat("NS.duels.lastCard.oppClass")).toBe("nil");
+    expect(stat("NS.duels.lastCard.oppLevel")).toBe("nil");
+    expect(ext(lua, "r.winnerClass")).toBe("nil");
+    expect(ext(lua, "r.winnerLevel")).toBe("nil");
+  });
+
+  it("a bare first name finds a guildmate only when no other guildmate has it", () => {
+    const lua = blunt(false);
+    lua.run("NS.duels.rosterRefresh()");
+    expect(lua.run(`local d = NS.duels.cardData("Bob", "Blunt Cruising", CLOCK, "knockout", { me = "Blunt Cruising" }); return tostring(d.oppClass) .. tostring(d.oppLevel)`)).toBe("MAGE58");
+    lua.run(`ROSTER[#ROSTER + 1] = { "Lebowski Bigsby", 12, "ROGUE" }; NS.duels.rosterRefresh()`);
+    expect(lua.run(`local d = NS.duels.cardData("Lebowski", "Blunt Cruising", CLOCK, "knockout", { me = "Blunt Cruising" }); return tostring(d.oppClass) .. tostring(d.oppLevel)`)).toBe("nilnil");
+    expect(lua.run(`local d = NS.duels.cardData("Lebowski Highspirits", "Blunt Cruising", CLOCK, "knockout", { me = "Blunt Cruising" }); return tostring(d.oppClass)`)).toBe("nil");
   });
 });

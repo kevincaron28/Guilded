@@ -118,12 +118,16 @@ function duels.rebuildPatterns() patterns = nil end
 
 -- ----- level and class from the guild roster ----------------------------
 
-local rosterMap, rosterAt
+-- (9.3.3) WoW Forever characters have a first AND a last name, and two characters can share a first name ("Lebowski Highspirits" and
+-- "Lebowski Holyroller"). A name is looked up by its full "First Last" only. Only a bare first name (an older line or client that
+-- gives no surname) falls back to the first name, and only when exactly one roster character has it. A full name that is not in the
+-- roster is not in the guild: it never borrows a guildmate's row.
+local rosterMap, rosterFirst, rosterAt
 local function rosterInfo(name)
   if type(name) ~= "string" then return nil end
   local t = clock()
   if not rosterMap or t - (rosterAt or 0) > 20 or t < (rosterAt or 0) then
-    rosterMap, rosterAt = {}, t
+    rosterMap, rosterFirst, rosterAt = {}, {}, t
     if type(GetNumGuildMembers) == "function" and type(GetGuildRosterInfo) == "function" then
       local okCount, count = pcall(GetNumGuildMembers)
       for i = 1, math.min(okCount and tonumber(count) or 0, 1000) do
@@ -133,12 +137,18 @@ local function rosterInfo(name)
           local entry = { level = tonumber(level), class = type(classFile) == "string" and classFile:match("^%u+$") or nil }
           rosterMap[full:lower()] = entry
           local first = full:match("^(%S+)")
-          if first and not rosterMap[first:lower()] then rosterMap[first:lower()] = entry end
+          if first then
+            first = first:lower()
+            -- false: several characters share this first name, so a bare first name cannot say which one.
+            if rosterFirst[first] == nil then rosterFirst[first] = entry else rosterFirst[first] = false end
+          end
         end
       end
     end
   end
-  local found = rosterMap[name:lower()] or rosterMap[(name:match("^(%S+)") or name):lower()]
+  local key = name:lower()
+  local found = rosterMap[key]
+  if not found and not key:find(" ", 1, true) then found = rosterFirst[key] or nil end
   -- An empty roster (just after login) is not remembered: the next duel asks the game again.
   if next(rosterMap) == nil then rosterMap = nil end
   return found
@@ -688,9 +698,21 @@ function targetInfo(opponent)
   if not (UnitExists and UnitName) then return nil end
   local ok, info = pcall(function()
     if not UnitExists("target") then return nil end
-    local name = UnitName("target")
+    -- (9.3.3) The target's full "First Last" (on Forever UnitName gives the surname as its second value): compared whole with the
+    -- opponent's full name, so a different character with the same first name is never taken for the opponent.
+    local name
+    if ns.util and ns.util.unitKey then
+      local okKey, full = pcall(ns.util.unitKey, "target")
+      if okKey and type(full) == "string" and full ~= "" then name = full end
+    end
+    name = name or UnitName("target")
     if type(name) ~= "string" or (ns.isSecret and ns.isSecret(name)) then return nil end
-    if opponent and not same(name, opponent) then return nil end
+    if opponent then
+      local a, b = name:lower(), opponent:lower()
+      local bothFull = a:find(" ", 1, true) and b:find(" ", 1, true)
+      if bothFull then if a ~= b then return nil end
+      elseif not same(name, opponent) then return nil end
+    end
     local level = UnitLevel and tonumber(UnitLevel("target"))
     local _, file
     if UnitClass then _, file = UnitClass("target") end
@@ -751,7 +773,8 @@ function duels.cardData(winner, loser, at, reason, ctx)
   local won = mine and same(mine, winner) or false
   local myName, oppName = won and winner or loser, won and loser or winner
   local myInfo, oppInfo = infoFor(myName), infoFor(oppName)
-  if ctx.oppInfo then oppInfo = { level = oppInfo.level or ctx.oppInfo.level, class = oppInfo.class or ctx.oppInfo.class } end
+  -- (9.3.3) What the game showed of the opponent's own unit (my target) comes first; the roster only fills what it did not say.
+  if ctx.oppInfo then oppInfo = { level = ctx.oppInfo.level or oppInfo.level, class = ctx.oppInfo.class or oppInfo.class } end
   if ctx.row then
     local mineRow = won and { level = ctx.row.wlv, class = ctx.row.wcl } or { level = ctx.row.llv, class = ctx.row.lcl }
     local oppRow = won and { level = ctx.row.llv, class = ctx.row.lcl } or { level = ctx.row.wlv, class = ctx.row.wcl }

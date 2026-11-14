@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- an in-memory stand-in for the few Prisma calls the lane makes */
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -166,5 +167,15 @@ describe("the device upload wrapper", () => {
     expect(applyCarried).not.toHaveBeenCalled();
     const failing = await handleDeviceUpload(s, device, body([record("a4-aaaa")]), { now: NOW, applyCarried: async () => { throw new Error("down"); } });
     expect(failing.carriedReceipts).toBeUndefined();
+  });
+});
+
+describe("the signed upload answers", () => {
+  it("lists the receipts in the duplicate (409) and wrong-server answers too, not only the applied one", () => {
+    const source = readFileSync(new URL("../src/companion-api.ts", import.meta.url), "utf8");
+    const answers = source.split("
+").filter((line) => line.includes('skipped: "wrong-server"') || line.includes('"This export was already received"'));
+    expect(answers.length).toBeGreaterThanOrEqual(3);
+    for (const line of answers) expect(line).toContain("...carriedExtra");
   });
 });

@@ -1357,7 +1357,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // Officers stay exempt (their server may not list every guild an alt is in). The companion shows the warning.
       const guildCheck = await timed("guild-check", () => serverKnowsWowGuild(prisma, guild, preview.snapshot.wowGuild)).catch(() => undefined);
       if (guildCheck?.known === false && !access.officer) {
-        json(response, 200, { skipped: "wrong-server", serverWowGuild: guildCheck, status: "SKIPPED", pairedCharacterStatus: "wrong-server", checksum: preview.checksum, scope: "personal", botVersion: BOT_VERSION, protocolVersion: 2 });
+        json(response, 200, { skipped: "wrong-server", ...carriedExtra, serverWowGuild: guildCheck, status: "SKIPPED", pairedCharacterStatus: "wrong-server", checksum: preview.checksum, scope: "personal", botVersion: BOT_VERSION, protocolVersion: 2 });
         return;
       }
       const uploadStartedAt = new Date();

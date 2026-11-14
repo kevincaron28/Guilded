@@ -546,3 +546,94 @@ describe("InviteQueue.lua: capture of the game's reply (9.3.2)", () => {
     expect(s.run("return #CHAT")).toBe("0");
   });
 });
+
+describe("InviteQueue.lua: which reply lines are kept (9.3.3)", () => {
+  const fire = (s: LuaSession, event: string, ...args: string[]) => s.run(`for _, f in ipairs(FRAMES) do if f.scripts.OnEvent and not rawget(f, "template") then f.scripts.OnEvent(f, ${JSON.stringify(event)}, ${args.map((a) => JSON.stringify(a)).join(", ")}) end end`);
+  const kept = (s: LuaSession) => s.run(String.raw`local t = {} for _, r in ipairs(DB.inviteReplies or {}) do t[#t + 1] = r.text end return table.concat(t, ";")`);
+  // `names`: the waiting names in GuildedInvites (none of them in the guild).
+  const setup = (names: string[] = ["Amy Archer", "Bob Brewer"]) => {
+    const s = withQueue();
+    s.run(`GuildedInvites = { fetchedAt = "x", names = { ${names.map((n, i) => `{ name = ${JSON.stringify(n)}, at = "2026-11-06T10:0${i}:00Z" }`).join(", ")} } }`);
+    s.run(String.raw`DIAG = {}; NS.logDiagnostic = function(kind, detail) DIAG[#DIAG + 1] = kind .. "|" .. detail end; CLOCK = 100; function GetTime() return CLOCK end`);
+    s.run("NS.inviteQueue.open()");
+    return s;
+  };
+  const clickName = (s: LuaSession, name: string) => s.run(String.raw`for _, f in ipairs(INVITES()) do if f.inviteName() == ${JSON.stringify(name)} then f.scripts.OnClick(f) return end end error("no row for " .. ${JSON.stringify(name)})`);
+
+  it("never keeps a French client's online and offline lines, from its strings or from the fallback words", () => {
+    const s = setup();
+    s.run(`ERR_FRIEND_ONLINE_SS = "|Hplayer:%s|h[%s]|h s'est connect\\195\\169(e)."; ERR_FRIEND_OFFLINE_S = "%s s'est d\\195\\169connect\\195\\169(e)."`);
+    clickName(s, "Amy Archer");
+    fire(s, "CHAT_MSG_SYSTEM", "|Hplayer:Amy Archer|h[Amy Archer]|h s'est connecté(e).");
+    fire(s, "CHAT_MSG_SYSTEM", "Amy Archer s'est déconnecté(e).");
+    fire(s, "CHAT_MSG_SYSTEM", "Amy Archer est maintenant en ligne.");
+    expect(kept(s)).toBe("");
+  });
+
+  it("never keeps German or Spanish online and offline lines, even without the client's strings", () => {
+    const s = setup();
+    clickName(s, "Amy Archer");
+    for (const line of ["Amy Archer ist jetzt online.", "Amy Archer ist jetzt offline.", "Amy Archer se ha conectado.", "Amy Archer se ha desconectado."]) fire(s, "CHAT_MSG_SYSTEM", line);
+    expect(kept(s)).toBe("");
+  });
+
+  it("reads the game's positional strings (%1$s) like the plain ones", () => {
+    const s = setup();
+    s.run(`ERR_GUILD_DECLINE_S = "%1$s lehnt Eure Gildeneinladung ab."`);
+    clickName(s, "Amy Archer");
+    expect(s.run(`return tostring(NS.inviteQueue.onSystemMessage("Amy Archer lehnt Eure Gildeneinladung ab."))`)).toBe("true");
+    expect(s.run(`return DB.inviteState["amy archer"].state`)).toBe("declined");
+  });
+
+  it("keeps an error line only when it names the player just clicked, with or without a realm", () => {
+    const s = setup();
+    clickName(s, "Amy Archer");
+    fire(s, "UI_ERROR_MESSAGE", "51", "You can't do that right now.");
+    fire(s, "UI_ERROR_MESSAGE", "51", "Bob Brewer is busy.");
+    expect(kept(s)).toBe("");
+    fire(s, "UI_ERROR_MESSAGE", "51", "Amy Archer-Mirage is busy.");
+    expect(kept(s)).toBe("error: Amy Archer-Mirage is busy.");
+  });
+
+  it("matches the whole name only: Ann Lee is not found inside Joann Lee or Ann Leeroy", () => {
+    const s = setup(["Ann Lee", "Bob Brewer"]);
+    clickName(s, "Ann Lee");
+    fire(s, "CHAT_MSG_SYSTEM", "Joann Lee did something unexpected.");
+    fire(s, "CHAT_MSG_SYSTEM", "Ann Leeroy did something unexpected.");
+    expect(kept(s)).toBe("");
+    fire(s, "CHAT_MSG_SYSTEM", "|Hplayer:Ann Lee|h[Ann Lee]|h did something unexpected.");
+    expect(kept(s)).toBe("system: |Hplayer:Ann Lee|h[Ann Lee]|h did something unexpected.");
+    expect(s.run("return tostring(NS.inviteQueue.namesPlayer('ann lee-mirage is busy', 'ann lee'))")).toBe("true");
+  });
+
+  it("finds an accented name however the line writes its accents", () => {
+    const s = setup(["Émilie Dûr", "Bob Brewer"]);
+    clickName(s, "Émilie Dûr");
+    fire(s, "CHAT_MSG_SYSTEM", "Émilie Dûr did something unexpected.");
+    expect(kept(s)).toBe("system: Émilie Dûr did something unexpected.");
+    fire(s, "CHAT_MSG_SYSTEM", "Amémilie Dûr did something unexpected.");
+    expect(s.run("return #DB.inviteReplies")).toBe("1");
+  });
+
+  it("keeps the newest 20 lines at most", () => {
+    const s = setup();
+    clickName(s, "Amy Archer");
+    for (let i = 1; i <= 12; i++) fire(s, "CHAT_MSG_SYSTEM", `Amy Archer odd line ${i}.`);
+    clickName(s, "Bob Brewer");
+    for (let i = 1; i <= 12; i++) fire(s, "CHAT_MSG_SYSTEM", `Bob Brewer odd line ${i}.`);
+    expect(s.run("return #DB.inviteReplies")).toBe("20");
+    expect(s.run("return DB.inviteReplies[1].text")).toBe("system: Amy Archer odd line 5.");
+    expect(s.run("return DB.inviteReplies[20].text")).toBe("system: Bob Brewer odd line 12.");
+  });
+
+  it("Next walks through every waiting name once, then the box offers no Next", () => {
+    const s = setup(["Amy Archer", "Bob Brewer", "Cid Cole", "Dee Dale"]);
+    s.run(String.raw`NEXTS = {}; NS.showCopyText = function(text, title, anchor, onNext) COPIED[#COPIED + 1] = text; NEXTS[#NEXTS + 1] = onNext or false end`);
+    clickName(s, "Amy Archer");
+    s.run("COPIED = {}");
+    // Each Next puts the following name in the box; the last box has no Next, so it closes after its copy.
+    for (let i = 0; i < 3; i++) s.run("local f = NEXTS[#NEXTS]; if f then f() end");
+    expect(s.run("return table.concat(COPIED, '|')")).toBe("/ginvite Bob Brewer|/ginvite Cid Cole|/ginvite Dee Dale");
+    expect(s.run("return tostring(NEXTS[#NEXTS])")).toBe("false");
+  });
+});

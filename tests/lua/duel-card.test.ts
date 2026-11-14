@@ -844,6 +844,47 @@ describe("a duel between a guild member and a player outside every guild, on bot
     expect(lua.run("return #TIMERS")).toBe("0");
   });
 
+  it("drops a waiting duel that fails to record, with a diagnostic, so the retry timer ends", () => {
+    const lua = loading();
+    say(LINE);
+    lua.run(`GUILD_MEMBERS, ROSTER = SAVED_MEMBERS, SAVED_ROSTER; NS.duels.recordExternal = function() error("broken record") end`);
+    lua.run("run_timers(30)");
+    expect(stat("NS.duels.pendingCount()")).toBe("0");
+    expect(lua.run("return DIAGS[#DIAGS]")).toMatch(/^DUEL_DROPPED duels: Lebowski Highspirits v Blunt Cruising at \d+: error: .*broken record/);
+    expect(lua.run("return #TIMERS")).toBe("0");
+  });
+
+  it("a failure outside the entries still shortens the list each round, and the timer stops", () => {
+    const lua = loading();
+    say(LINE);
+    lua.run("CLOCK = CLOCK + 200");
+    say(LINE);
+    lua.run(`NS.duels.flushPending = function() error("broken flush") end`);
+    lua.run("run_timers(30)");
+    expect(stat("NS.duels.pendingCount()")).toBe("0");
+    expect(lua.run("local n = 0 for _, d in ipairs(DIAGS) do if d:find('DUEL_DROPPED', 1, true) and d:find('broken flush', 1, true) then n = n + 1 end end return n")).toBe("2");
+    expect(lua.run("return #TIMERS")).toBe("0");
+  });
+
+  it("asks for the roster again for the next duel after a final drop", () => {
+    const lua = loading();
+    say(LINE);
+    lua.run("run_timers(30)");
+    expect(stat("NS.duels.pendingCount()")).toBe("0");
+    expect(stat("ASKED")).toBe("1");
+    lua.run("CLOCK = CLOCK + 300");
+    say(LINE);
+    expect(stat("ASKED")).toBe("2");
+  });
+
+  it("the result line is on in the default settings", () => {
+    const lua = client("Blunt Cruising", true);
+    expect(lua.run("return tostring(NS.duels.noticeEnabled())")).toBe("true");
+    lua.run("SETTINGS = nil; NS.getSettings = function() return nil end");
+    expect(lua.run("return tostring(NS.duels.noticeEnabled())")).toBe("true");
+    lua.run("NS.duels.setNoticeEnabled(false)"); // no settings table: nothing to save, no error
+  });
+
   it("keeps at most five duels waiting", () => {
     const lua = loading();
     for (let i = 0; i < 7; i++) { say(LINE); lua.run("CLOCK = CLOCK + 200"); }

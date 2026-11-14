@@ -72,7 +72,9 @@ local function defaultSettings()
     officerRanks = { [0] = true, [1] = true },
     officers = {},
     announceChannel = "RAID",
-    captureLoot = true
+    captureLoot = true,
+    -- The one-line result after each of my duels (Modules/Duels.lua); /guilded duels line off sets it to false.
+    duelLine = true
   }
 end
 

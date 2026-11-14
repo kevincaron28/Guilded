@@ -182,6 +182,16 @@ local function waitingCount()
   if carry.companionHere() then return 0 end
   return #carry.collectOwn()
 end
+-- My own records not acknowledged yet, split: (waiting for a companion, handed to a carrier with the receipt pending).
+function carry.ownCounts()
+  if carry.companionHere() then return 0, 0 end
+  local s = store()
+  local waiting, handed = 0, 0
+  for _, record in ipairs(carry.collectOwn()) do
+    if s and type(s.sentTo[record.kind .. ":" .. record.key]) == "table" then handed = handed + 1 else waiting = waiting + 1 end
+  end
+  return waiting, handed
+end
 
 -- ---- carriers ---------------------------------------------------------------------------------------------------------------------
 
@@ -586,12 +596,25 @@ function carry.statusLine()
   if carry.companionHere() then
     local n = 0
     for _ in pairs(s.records) do n = n + 1 end
-    return string.format(L("Your companion carries records for players near you (%d waiting to be sent)."), n)
+    return string.format(L("Your companion carries records for players near you: %d waiting for its next upload."), n)
   end
-  local waiting = waitingCount()
+  -- (9.3.3) My own records, in two counts: still waiting for a companion, and already handed to a carrier whose receipt (the bot has
+  -- it) has not come back yet. Both used to be counted as waiting.
+  local waiting, handed = carry.ownCounts()
+  if waiting > 0 and handed > 0 then
+    return (waiting == 1 and L("1 record waits for a companion") or string.format(L("%d records wait for a companion"), waiting)) .. ", "
+      .. (handed == 1 and L("1 handed over to a companion") or string.format(L("%d handed over to a companion"), handed)) .. "."
+  end
   if waiting > 0 then
-    if carry.carrierCount() > 0 then return string.format(L("%d records wait for a companion: one is in range and will take them."), waiting) end
-    return string.format(L("%d records wait for a companion. No companion heard yet."), waiting)
+    if carry.carrierCount() > 0 then
+      return waiting == 1 and L("1 record waits for a companion: one is in range and will take it.")
+        or string.format(L("%d records wait for a companion: one is in range and will take them."), waiting)
+    end
+    return waiting == 1 and L("1 record waits for a companion. No companion heard yet.") or string.format(L("%d records wait for a companion. No companion heard yet."), waiting)
+  end
+  if handed > 0 then
+    return handed == 1 and L("1 record handed over to a companion, waiting for its receipt.")
+      or string.format(L("%d records handed over to a companion, waiting for their receipts."), handed)
   end
   if (carry.stats.receipts or 0) > 0 then return L("Your records were uploaded by a companion near you.") end
   return L("Nothing to carry. A player near you with the companion will take your records.")

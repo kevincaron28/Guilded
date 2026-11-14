@@ -396,3 +396,42 @@ describe("the record text", () => {
     expect(out).toBe("A|B&C=D~E%F;12;true;true;true");
   });
 });
+
+// Real-client test of 9.3.2: "/guilded carry" said "2 records wait for a companion" although one had already been whispered to a carrier
+// (and applied by the bot): the two counts are told apart now.
+describe("the /guilded carry status line", () => {
+  const ids = (s: LuaSession) => s.run("local t = {}; for _, r in ipairs(NS.carry.collectOwn(true)) do t[#t + 1] = r.kind .. ':' .. r.key end; return table.concat(t, ',')").split(",");
+  const hand = (s: LuaSession, id: string) => s.run(`NS.getDb().carry.sentTo[${JSON.stringify(id)}] = { name = "Bee", at = CLOCK }; NS.carry.ownCache = nil`);
+  const status = (s: LuaSession) => s.run("return NS.carry.statusLine()");
+
+  it("counts the records still waiting apart from those handed over with the receipt pending", () => {
+    const player = client("guilded", "Aye");
+    duel(player, "Aye", "Zed", CLOCK - 300);
+    duel(player, "Aye", "Yan", CLOCK - 200);
+    expect(status(player)).toBe("2 records wait for a companion. No companion heard yet.");
+    const [first = "", second = ""] = ids(player);
+    hand(player, first);
+    expect(status(player)).toBe("1 record waits for a companion, 1 handed over to a companion.");
+    hand(player, second);
+    expect(status(player)).toBe("2 records handed over to a companion, waiting for their receipts.");
+    // The receipt for one comes back: only the other is still handed over.
+    hear(player, "Bee", `K|${first}`, "WHISPER");
+    expect(status(player)).toBe("1 record handed over to a companion, waiting for its receipt.");
+    hear(player, "Bee", `K|${second}`, "WHISPER");
+    expect(status(player)).not.toContain("handed over");
+    expect(status(player)).not.toContain("wait");
+  });
+
+  it("uses the singular for one waiting record, with or without a carrier in range", () => {
+    const player = client("guilded", "Aye");
+    duel(player);
+    expect(status(player)).toBe("1 record waits for a companion. No companion heard yet.");
+    player.run(`NS.carry.carriers.Bee = { name = "Bee", at = CLOCK, fails = 0, sent = 999, pauseUntil = CLOCK + 9999, near = true }`);
+    expect(status(player)).toBe("1 record waits for a companion: one is in range and will take it.");
+  });
+
+  it("on the carrier, says the records wait for its companion's next upload", () => {
+    const carrier = client("guilded", "Bee", { companion: true });
+    expect(status(carrier)).toBe("Your companion carries records for players near you: 0 waiting for its next upload.");
+  });
+});

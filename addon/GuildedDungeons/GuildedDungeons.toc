@@ -19,8 +19,10 @@ Shared\Dungeon.lua
 Shared\DungeonArt.lua
 Shared\RunResults.lua
 Shared\Scores.lua
+Shared\Carry.lua
 Shared\SeasonDetails.lua
 Shared\DungeonStats.lua
 Shared\DungeonScorePanel.lua
 Accepted.lua
+Carry.lua
 Main.lua

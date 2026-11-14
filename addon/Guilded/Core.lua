@@ -1722,10 +1722,14 @@ local function runCommProbe()
     step(string.format("channel number %d (%s)", id, id > 0 and "joined" or "NOT joined"))
     if id > 0 then step("channel send queued: " .. tostring(ns.comm.send(COMM_PROBE_PREFIX, "probe-channel", "CHANNEL", id, nil, "interactive"))) end
     local realm = (GetNormalizedRealmName and GetNormalizedRealmName()) or (GetRealmName and (GetRealmName() or ""):gsub("%s", "")) or ""
-    local me = (UnitName and UnitName("player") or "?") .. (realm ~= "" and ("-" .. realm) or "")
-    step("whisper send queued: " .. tostring(ns.comm.send(COMM_PROBE_PREFIX, "probe-whisper", "WHISPER", me, nil, "interactive")))
+    -- The full name alone is what a typed test whispered successfully; "Name-Realm" is sent as a second, separate payload so the result
+    -- says which spelling comes back (the first probe sent only "Name-Realm" and heard nothing).
+    local plain = UnitName and UnitName("player") or "?"
+    local me = plain .. (realm ~= "" and ("-" .. realm) or "")
+    step("whisper send queued (name only): " .. tostring(ns.comm.send(COMM_PROBE_PREFIX, "probe-whisper", "WHISPER", plain, nil, "interactive")))
+    if me ~= plain then step("whisper send queued (name-realm): " .. tostring(ns.comm.send(COMM_PROBE_PREFIX, "probe-whisper-realm", "WHISPER", me, nil, "interactive"))) end
   end)
-  after(6, function()
+  after(8, function()
     local status = ns.comm.status(COMM_PROBE_PREFIX)
     step(string.format("results sent=%d refused=%d errors=%d throttled=%d queued=%d last=%s code=%s", status.sent, status.refused, status.errors,
       status.throttled, status.queued, tostring(status.lastResult), tostring(status.lastCode)))

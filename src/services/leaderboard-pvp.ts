@@ -302,7 +302,7 @@ export function continentView(continent: Continent): { x: number; y: number; w: 
   return { x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2, w, h };
 }
 
-const HEAT_FILLS = ["rgba(214,170,70,.30)", "rgba(214,170,70,.48)", "rgba(238,138,61,.58)", "rgba(229,82,63,.66)", "rgba(229,40,40,.78)"];
+const HEAT_FILLS = ["rgba(255,214,90,.10)", "rgba(255,190,70,.16)", "rgba(255,140,50,.22)", "rgba(240,80,50,.28)", "rgba(230,30,40,.34)"];
 export const PVP_MAP_CSS = `<style>
 .pvp-maps{display:grid;gap:16px;grid-template-columns:minmax(0,1fr);margin:8px 0 16px;justify-items:center}@media(min-width:900px){.pvp-maps{grid-template-columns:repeat(2,minmax(0,1fr))}}.pvp-map{width:100%;max-width:560px}
 .pvp-map{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#12171a;min-width:0;margin:0}.pvp-map h3{margin:10px 14px 4px;font-size:16px}
@@ -311,6 +311,7 @@ export const PVP_MAP_CSS = `<style>
 .pvp-map .h1 .r{fill:${HEAT_FILLS[0]};stroke:#a98c3f}.pvp-map .h2 .r{fill:${HEAT_FILLS[1]};stroke:#c89b3c}.pvp-map .h3 .r{fill:${HEAT_FILLS[2]};stroke:#ee8a3d}.pvp-map .h4 .r{fill:${HEAT_FILLS[3]};stroke:#e5523f}.pvp-map .h5 .r{fill:${HEAT_FILLS[4]};stroke:#ff5a4a}
 .pvp-map a.z{outline:none;cursor:pointer}.pvp-map a.z:hover .r,.pvp-map a.z:focus .r{stroke:#fff;stroke-width:2}.pvp-map a.z:focus-visible .r{stroke:#fff;stroke-width:3.5;stroke-dasharray:7 4}.pvp-map a.z:focus-visible .hit{stroke:#fff;stroke-width:2;stroke-dasharray:4 3}
 .pvp-map .ev{fill:#f2ead6;stroke:#12171a;stroke-width:1;pointer-events:none;vector-effect:non-scaling-stroke}.pvp-map .ev.kill{fill:#e5523f}.pvp-map .ev.death{fill:#8fa8ff}.pvp-map .ev.approx{opacity:.55}
+.pvp-map .lbls{pointer-events:none;font-weight:700;fill:#f6efdc;stroke:#0b0f12;paint-order:stroke;stroke-linejoin:round;text-anchor:middle}.pvp-map .lbls .city{fill:#ffe7a6}.pvp-map .lbls circle{fill:#ffe7a6;stroke:#0b0f12;stroke-width:1}@media(max-width:600px){.pvp-map .lbls .sm{display:none}}
 .pvp-map .tip{display:none;pointer-events:none}.pvp-map .tip rect{fill:#0d1012;stroke:var(--gold);stroke-width:1}.pvp-map .tip text{fill:#f2ead6}.pvp-map .tip .t1{font-weight:700;fill:#e8c47c}
 .zone-panel{display:none;border:1px solid var(--gold);border-radius:12px;padding:12px 16px;margin:12px 0;background:var(--panel);scroll-margin-top:80px}.zone-panel:target{display:block}.zone-panel h3{margin:0 0 6px}.zone-panel ul{margin:6px 0;padding-left:18px}
 .heat-legend{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;font-size:13px;color:var(--muted);margin:0 0 8px}.heat-legend i{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:-2px;margin-right:4px;border:1px solid rgba(255,255,255,.25)}
@@ -322,6 +323,25 @@ const zoneName = (env: PvpEnv, stat: ZoneStat) => env.lang === "fr" ? stat.fr : 
 function zoneNumbers(env: PvpEnv, stat: ZoneStat, kd: boolean): string {
   const { t } = env;
   return kd ? `${stat.kills} ${t("kills", "victimes")} · ${stat.deaths} ${t("deaths", "morts")}` : `${stat.calls} ${t("calls for help", "appels à l'aide")}`;
+}
+
+/** A readable zone name, centred in its zone (our own text over the art): one line when it fits, else two, else nothing; "sm" labels are hidden on phones. */
+export function zoneLabel(name: string, b: { x: number; y: number; w: number; h: number }, view: { x: number; y: number; w: number; h: number }, scale = 1): { lines: string[]; font: number; x: number; y: number; small: boolean; half: number } | null {
+  const maxF = view.w * 0.028, minF = view.w * 0.014, cw = 0.58;
+  const fit = (lines: string[]) => Math.min(maxF, (b.w * 0.94) / (Math.max(...lines.map((l) => l.length)) * cw), (b.h * 0.9) / (lines.length * 1.15));
+  let lines = [name], font = fit(lines);
+  if (font < view.w * 0.022 && name.includes(" ")) {
+    const words = name.split(" ");
+    let best: string[] | null = null;
+    for (let i = 1; i < words.length; i++) { const two = [words.slice(0, i).join(" "), words.slice(i).join(" ")]; if (!best || Math.max(...two.map((l) => l.length)) < Math.max(...best.map((l) => l.length))) best = two; }
+    if (best && fit(best) > font) { lines = best; font = fit(best); }
+  }
+  font *= scale;
+  if (font < minF) return null;
+  const half = (Math.max(...lines.map((l) => l.length)) * cw * font) / 2;
+  const cx = Math.max(view.x + half + 1, Math.min(view.x + view.w - half - 1, b.x + b.w / 2));
+  const cy = Math.max(view.y + font, Math.min(view.y + view.h - font * (lines.length - 0.3), b.y + b.h / 2 - ((lines.length - 1) * font * 1.1) / 2 + font * 0.35));
+  return { lines, font, x: cx, y: cy, small: font < view.w * 0.02, half };
 }
 
 function continentSvg(env: PvpEnv, continent: Continent, stats: ZoneStat[], max: number, kd: boolean): { svg: string; css: string } {
@@ -356,10 +376,36 @@ function continentSvg(env: PvpEnv, continent: Continent, stats: ZoneStat[], max:
     css.push(`.pvp-map a[href="#zone-${id}"]:hover~g[data-t="${id}"],.pvp-map a[href="#zone-${id}"]:focus~g[data-t="${id}"]{display:block}`);
   }
   for (const stat of here) for (const dot of stat.dots) { if (dot.mapId !== stat.zone!.id) continue; const p = zonePoint(stat.zone!.id, dot.x, dot.y); if (p) dots.push(`<circle class="ev ${dot.kind}${dot.approx ? " approx" : ""}" cx="${fmt(p.x)}" cy="${fmt(p.y)}" r="${fmt(dotR)}"/>`); }
+  const labels: string[] = [], taken: { x0: number; x1: number; y0: number; y1: number }[] = [];
+  const free = (x0: number, x1: number, y0: number, y1: number) => !taken.some((t) => x0 < t.x1 && x1 > t.x0 && y0 < t.y1 && y1 > t.y0);
+  // cities first (they are small and the zone names make way for them), then zones from the largest down; a name that would overlap another is shrunk, nudged, or left out (the tap panel and the table still name the zone)
+  for (const stat of here.filter((s2) => s2.zone!.city)) {
+    const z = stat.zone!, b = zoneBox(z.id)!, name = escapeHtml(zoneName(env, stat)), r = view.w * 0.006, f = view.w * 0.02, cx = b.x + b.w / 2, cy = b.y + b.h / 2, half = (zoneName(env, stat).length * 0.58 * f) / 2;
+    const x = Math.max(view.x + half + 1, Math.min(view.x + view.w - half - 1, cx)), y = Math.max(view.y + f, cy - r * 1.8);
+    taken.push({ x0: x - half, x1: x + half, y0: y - f, y1: y + f * 0.25 });
+    labels.push(`<circle cx="${fmt(cx)}" cy="${fmt(cy)}" r="${fmt(r)}"/><text class="city" x="${fmt(x)}" y="${fmt(y)}" font-size="${fmt(f)}">${name}</text>`);
+  }
+  for (const stat of here.filter((s2) => !s2.zone!.city)) {
+    const b = zoneBox(stat.zone!.id)!;
+    let placed = false;
+    for (const scale of [1, 0.85, 0.72]) {
+      for (const nudge of [0, 0.9, -0.9]) {
+        const l = zoneLabel(zoneName(env, stat), b, view, scale);
+        if (!l) continue;
+        const y = l.y + nudge * l.font, h = l.lines.length * l.font * 1.1;
+        if (y - l.font < view.y || y - l.font + h > view.y + view.h || !free(l.x - l.half, l.x + l.half, y - l.font, y - l.font + h)) continue;
+        taken.push({ x0: l.x - l.half, x1: l.x + l.half, y0: y - l.font, y1: y - l.font + h });
+        labels.push(`<text class="lbl${l.small || scale < 1 ? " sm" : ""}" x="${fmt(l.x)}" y="${fmt(y)}" font-size="${fmt(l.font)}">${l.lines.map((line, i) => `<tspan x="${fmt(l.x)}"${i ? ` dy="${fmt(l.font * 1.1)}"` : ""}>${escapeHtml(line)}</tspan>`).join("")}</text>`);
+        placed = true; break;
+      }
+      if (placed) break;
+    }
+  }
+  const labelGroup = `<g class="lbls" aria-hidden="true" stroke-width="${fmt(view.w * 0.007)}">${labels.join("")}</g>`;
   // the sea is always drawn, so a painting that fails to load degrades to the plain map
   const sea = `<rect class="sea" x="${fmt(view.x)}" y="${fmt(view.y)}" width="${fmt(view.w)}" height="${fmt(view.h)}"/>`;
   const base = sea + (image ? `<image href="${escapeHtml(image)}" x="${fmt(view.x)}" y="${fmt(view.y)}" width="${fmt(view.w)}" height="${fmt(view.h)}" preserveAspectRatio="none" loading="lazy"/>` : "");
-  return { svg: `<svg viewBox="${fmt(view.x)} ${fmt(view.y)} ${fmt(view.w)} ${fmt(view.h)}" role="group" aria-label="${escapeHtml(CONTINENT_NAMES[continent][env.lang === "fr" ? 1 : 0])}">${base}${land}${rects.join("")}${dots.join("")}${tips.join("")}</svg>`, css: css.join("") };
+  return { svg: `<svg viewBox="${fmt(view.x)} ${fmt(view.y)} ${fmt(view.w)} ${fmt(view.h)}" role="group" aria-label="${escapeHtml(CONTINENT_NAMES[continent][env.lang === "fr" ? 1 : 0])}">${base}${land}${rects.join("")}${labelGroup}${dots.join("")}${tips.join("")}</svg>`, css: css.join("") };
 }
 
 /** The zone map section: a heat map of both continents, the details of each lit zone, and the plain table of the same numbers. */
@@ -388,7 +434,8 @@ export function zoneMapHtml(env: PvpEnv, stats: ZoneStat[], f: PvpFilters): stri
   const notes = [kinds.has("kill") ? t("Red dots: kills.", "Points rouges : victimes.") : "", kinds.has("death") ? t("Blue dots: deaths.", "Points bleus : morts.") : "",
     !kd ? t("Calls for help are shown by zone only, never by position. The class, level and mode filters do not apply to them.", "Les appels à l'aide sont montrés par zone seulement, jamais par position. Les filtres de classe, de niveau et de mode ne s'y appliquent pas.") : ""].filter(Boolean);
   const dotNote = notes.length ? `<p class="muted">${notes.join(" ")}</p>` : "";
-  return `${PVP_MAP_CSS}<style>${svgs.map((s) => s.css).join("")}</style><h2 id="zone-map">${t("Zone map", "Carte des zones")} · ${period}</h2>${legend}<div class="pvp-maps">${maps}</div>${dotNote}${panels}<h3>${t("Zones", "Zones")}</h3>${table}`;
+  const credit = t("Map artwork © Blizzard Entertainment; tiles prepared by the OpenMap addon. Guilded is not affiliated with Blizzard.", "Illustrations de la carte © Blizzard Entertainment; tuiles préparées par l'addon OpenMap. Guilded n'est pas affilié à Blizzard.");
+  return `${PVP_MAP_CSS}<style>${svgs.map((s) => s.css).join("")}</style><h2 id="zone-map">${t("Zone map", "Carte des zones")} · ${period}</h2>${legend}<div class="pvp-maps">${maps}</div>${dotNote}<p class="muted map-credit">${credit}</p>${panels}<h3>${t("Zones", "Zones")}</h3>${table}`;
 }
 
 /** The hub's two PvP cards' contents: a podium of this week's top killers and the latest battleground results. */

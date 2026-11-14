@@ -4,7 +4,7 @@
 
 ## Current stage — 7 November 2026
 
-Guilded **9.3.0** (not yet published: settings in tabs, dungeon paintings on the result card, the duel leaderboard, the Availability module removed, dungeon runs from a Dungeons-only PC and fewer lost runs, duel, weekly report and other Discord cards, the companion banner and installer fix, one name per profession, World PvP deaths, the To invite window, UI polish). The previous release is 9.2.0. Branch and doc names keep "8.5".
+Guilded **9.3.1** (not yet published; fixes after 9.3.0: duel rating from 1000 with a season ladder, the 21 fixes from the 13 November real-client tour, the installer over a running companion, runs for another guild). Earlier, 9.3.0 (settings in tabs, dungeon paintings on the result card, the duel leaderboard, the Availability module removed, dungeon runs from a Dungeons-only PC and fewer lost runs, duel, weekly report and other Discord cards, the companion banner and installer fix, one name per profession, World PvP deaths, the To invite window, UI polish). Before that: 9.2.0. Branch and doc names keep "8.5".
 WoW Forever (level cap 60) launched 4 November 2026; its first raids open 9 December.
 Guilded supports WoW Forever only (the other editions were removed 7 November) and PoE2 is hidden ([WoW Forever only](docs/FOREVER_ONLY_FOCUS.md)).
 Release history: [CHANGELOG.md](CHANGELOG.md). Older roadmap text, including every finished

@@ -703,6 +703,9 @@ local function storePeerRun(run, sender, delivery)
   local d = db()
   if not d or not run.id then return end
   local existing = d.runs[run.id]
+  -- (9.3.1) A summary that came through the party or raid never changes a run this PC already holds (a stranger in the group
+  -- cannot add reporters or players, recover or replace a guild run): only the guild's own copies merge.
+  if existing and delivery ~= nil and delivery ~= "GUILD" then return end
   if not existing then
     -- (9.3.1) A run that only reached this PC through the group (a player outside the guild) is kept apart, in its own table
     -- (dungeon.carried): an older companion only reads dungeon.runs, so it can never upload a stranger's run as a guild one. A

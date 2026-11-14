@@ -215,4 +215,21 @@ describe.each<Kind>(["guilded", "standalone"])("runs carried through the group (
     flush(walter);
     expect(walter.run(`return tostring(${runs}["walter-rfc"].groupShared)`)).toBe("true");
   });
+
+  it("a summary heard in the group changes nothing in a run this PC already holds", () => {
+    const walter = client(kind, "Walter", "Lebowski");
+    const lebowski = client(kind, "Lebowski", "Walter", false);
+    companion(lebowski);
+    walter.run(makeRun("walter-rfc"));
+    lebowski.run(makeRun("walter-rfc"));
+    lebowski.run(`${runs}["walter-rfc"].state = "ABANDONED"; ${runs}["walter-rfc"].completedBy = nil`);
+    const snapshot = () => lebowski.run(`local r = ${runs}["walter-rfc"]; local names = {}; for n in pairs(r.players) do names[#names + 1] = n end; table.sort(names); local rep = {}; for n in pairs(r.reporters or {}) do rep[#rep + 1] = n end; table.sort(rep); return r.state .. "|" .. table.concat(names, ",") .. "|" .. table.concat(rep, ",") .. "|" .. #(r.encounters or {})`);
+    const before = snapshot();
+    walter.run(`${runs}["walter-rfc"].players.Stranger = { class = "ROGUE", role = "DAMAGER", level = 20, deaths = 0, presentSec = 900 }; ${runs}["walter-rfc"].encounters = { { id = 1, success = true, at = CLOCK - 1200 } }`);
+    walter.run(`NS.dungeon.sendRun(${runs}["walter-rfc"], "GROUP")`);
+    flush(walter);
+    deliver(walter, "Walter", lebowski, "PARTY", "SUM");
+    expect(snapshot()).toBe(before);
+    expect(carried(lebowski, "walter-rfc")).toBe(false);
+  });
 });

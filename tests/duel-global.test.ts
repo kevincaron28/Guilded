@@ -9,7 +9,7 @@ import { memoryWebStore } from "./helpers/memory-web-store.js";
 
 // Global duel ladder: the plausibility rules, the import (dedupe, caps, confirmation, exclusions, replays), the board and the page.
 
-interface Report { reporterKey: string; reporterCharacterKey: string; deviceId: string | null; seq: number | null; chain: string | null; nonce: string | null; dayKey: string; duelId?: string; [k: string]: any }
+interface Report { reporterKey: string; reporterCharacterKey: string; deviceId: string | null; seq: number | null; chain: string | null; nonce: string | null; dayKey: string; duelId?: string; reportedAt?: Date; [k: string]: any }
 interface Duel { id: string; winnerKey: string; loserKey: string; endedAt: Date; pairKey: string; dayKey: string; counted: boolean; confirmations: number; held: boolean; holdFlags: string[]; reports: Report[]; [k: string]: any }
 /** The few Prisma calls recordGlobalDuels makes, over arrays. */
 const NOW_FAKE = new Date("2026-12-10T12:00:00Z");
@@ -30,7 +30,7 @@ function fakeTx() {
         return withChain.length ? { chain: withChain[withChain.length - 1]!.chain } : null;
       },
       count: async ({ where }: any) => typeof where.reporterKey === "object"
-        ? reports().filter((r) => r.reporterKey.startsWith(where.reporterKey.startsWith) && r.reportedAt >= where.reportedAt.gte && r.duel.held === where.duel.held).length
+        ? reports().filter((r) => r.reporterKey.startsWith(where.reporterKey.startsWith) && (r.reportedAt as Date) >= where.reportedAt.gte && r.duel.held === where.duel.held).length
         : where.duel?.held !== undefined
         ? reports().filter((r) => r.deviceId === where.deviceId && r.duel.held === where.duel.held).length
         : reports().filter((r) => r.reporterKey === where.reporterKey && r.dayKey === where.dayKey && r.duel.counted === where.duel.counted).length,

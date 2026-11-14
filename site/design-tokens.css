@@ -62,4 +62,27 @@
 .foot-note{margin-top:24px}
 @media(max-width:700px){.footer-cols{grid-template-columns:repeat(2,minmax(0,1fr))}.footer-cols a{min-height:44px}}
 .crumbs{font-size:13px;color:var(--muted);margin:14px 0 20px}.crumbs a{color:var(--muted)}.crumbs a:hover{color:var(--text)}
+/* shared polish (14 November 2026): one card system, rank emphasis, score tiers, scroll hints, section accents */
+:root{--ember:#e58a6e;--teal:#76c7c0;--ok:#7fd48a;--card-radius:12px}
+.hub-card,.card,.tile,.notice,.path-card,.live-stat,.live-runs{border-radius:var(--card-radius);box-shadow:inset 0 1px 0 rgba(255,255,255,.055)}
+a.hub-card,a.card,a.tile,.path-card{transition:transform .15s ease,border-color .15s ease,background-color .15s ease}
+a.hub-card:hover,a.card:hover,a.tile:hover,.path-card:hover{transform:translateY(-2px);border-color:var(--gold)}
+.hub-card:hover,.tile:hover{border-color:#4a5148}
+table.dense tbody tr,table.rank-cards tbody tr{transition:background-color .12s ease}
+table.dense tbody tr:hover,table.rank-cards tbody tr:hover{background:rgba(232,196,124,.075)}
+table.ranked tbody tr:nth-child(-n+3){background:rgba(232,196,124,.07)}table.ranked tbody tr:nth-child(1){background:rgba(232,196,124,.12);box-shadow:inset 3px 0 var(--gold)}
+table.ranked tbody tr:nth-child(-n+3) td:first-child{font-size:1.15em;font-weight:800}
+.score.st-bronze{color:#d49a62}.score.st-silver{color:#cfd5da}.score.st-gold{color:#f0c85a}.score.st-platinum{color:#8fe0d4}.score.st-epic{color:#c58cff}.score.st-legendary{color:#ff9a4d}
+.table-wrap{overflow-x:auto;background:linear-gradient(90deg,var(--bg) 30%,transparent) left center/36px 100% no-repeat local,linear-gradient(270deg,var(--bg) 30%,transparent) right center/36px 100% no-repeat local,linear-gradient(90deg,rgba(0,0,0,.5),transparent) left center/12px 100% no-repeat scroll,linear-gradient(270deg,rgba(0,0,0,.5),transparent) right center/12px 100% no-repeat scroll}
+.podium .name{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;line-height:1.25}
+.hub-tabs a img,.hub-card h3 img{width:22px;height:22px}.hub-card h2 img{width:28px;height:28px}
+.hub-tabs a[href*="/duels/"]{--tab:var(--ember)}.hub-tabs a[href*="/dungeons/"]{--tab:var(--teal)}.hub-tabs a.on{border-color:var(--tab,var(--gold));color:var(--tab,var(--gold))}
+.site-foot,.site-footer{position:relative}.site-foot:before,.site-footer:before{content:"";display:block;height:1px;margin:-1px 0 20px;background:linear-gradient(90deg,transparent,var(--gold),transparent);opacity:.55}.footer-cols{gap:20px 32px}
+.grid-links{list-style:none;margin:20px 0 28px;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.grid-links li{margin:0;padding:0}.grid-links a{display:block;height:100%;padding:16px 18px;border:1px solid var(--line);border-radius:var(--card-radius);background:var(--panel);box-shadow:inset 0 1px 0 rgba(255,255,255,.055);color:var(--text);font-weight:650;text-decoration:none;transition:transform .15s ease,border-color .15s ease}
+.grid-links a:hover{transform:translateY(-2px);border-color:var(--gold);color:var(--gold)}.grid-links small{display:block;margin-top:4px;color:var(--muted);font-weight:400;font-size:14px;line-height:1.4}
+@media(prefers-reduced-motion:reduce){a.hub-card,a.card,a.tile,.path-card,.grid-links a{transition:none}a.hub-card:hover,a.card:hover,a.tile:hover,.path-card:hover,.grid-links a:hover{transform:none}}
+.not-found{text-align:center;padding:72px 16px 96px;max-width:560px;margin:0 auto}.not-found .nf-code{display:block;font-family:"Source Serif 4",Georgia,serif;font-style:italic;font-size:64px;line-height:1;margin:0 0 8px;color:var(--gold,#e0b85a);letter-spacing:.06em}.not-found h1{margin:0 0 12px}.not-found .button{display:inline-block;margin-top:8px}
+main h1{font-weight:700;letter-spacing:-.01em;line-height:1.1}main h1 em{font-family:"Source Serif 4",Georgia,serif;font-style:italic;font-weight:400;color:var(--gold,#e0b85a)}
+main .grid-links li a,main .grid-links li a small{text-decoration:none!important;border-bottom:0;background-image:none}
 /* site-chrome:end */

@@ -2907,6 +2907,8 @@ local DE = {
   ["Guild duels: a rating that starts at 1000 each season. Everyone is ranked from the first duel."] = "Gildenduelle: eine Wertung, die jede Saison bei 1000 beginnt. Alle werden ab dem ersten Duell gerankt.",
   ["Your record: %d wins, %d losses (%d%%), streak %s, rating %d. Click a player to see your record against them."] = "Deine Bilanz: %d Siege, %d Niederlagen (%d%%), Serie %s, Wertung %d. Klicke auf einen Spieler, um deine Bilanz gegen ihn zu sehen.",
   ["You have not duelled %s in this season."] = "Du hast dich in dieser Saison nicht mit %s duelliert.",
+  -- 9.3.1 UI polish
+  ["Preview: sample numbers, nothing is saved."] = "Vorschau: Beispielwerte, nichts wird gespeichert.",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -4833,6 +4835,8 @@ local ES = {
   ["Guild duels: a rating that starts at 1000 each season. Everyone is ranked from the first duel."] = "Duelos de hermandad: una puntuaci\195\179n que empieza en 1000 cada temporada. Todos entran en la clasificaci\195\179n desde el primer duelo.",
   ["Your record: %d wins, %d losses (%d%%), streak %s, rating %d. Click a player to see your record against them."] = "Tu marca: %d victorias, %d derrotas (%d%%), racha %s, puntuaci\195\179n %d. Haz clic en un jugador para ver tu marca contra \195\169l.",
   ["You have not duelled %s in this season."] = "No has due\195\177ado con %s en esta temporada.",
+  -- 9.3.1 UI polish
+  ["Preview: sample numbers, nothing is saved."] = "Vista previa: n\195\186meros de ejemplo, no se guarda nada.",
 }
 -- END ES
 
@@ -5036,6 +5040,8 @@ FR["Click Invite on a row, then Ctrl+C, paste it in your chat box (Ctrl+V) and p
 FR["switch parts on or off, announcements, diagnostics, advanced"] = "activer ou d\195\169sactiver des parties, annonces, diagnostics, avanc\195\169"
 -- 9.3.1 UI polish.
 FR["List from %s. Reload after the companion syncs."] = "Liste de %s. Faites /reload apr\195\168s la synchronisation du compagnon."
+-- 9.3.1 UI polish.
+FR["Preview: sample numbers, nothing is saved."] = "Aper\195\167u : chiffres d'exemple, rien n'est enregistr\195\169."
 FR["Invites"] = "Invitations"
 FR["Officers only."] = "R\195\169serv\195\169 aux officiers."
 FR["Advanced..."] = "Avanc\195\169..."

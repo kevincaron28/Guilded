@@ -1066,7 +1066,11 @@ local function drawCard(data)
   if h and h.me then parts[#parts + 1] = string.format(L("your health left %d%%"), h.me) end
   if h and h.opponent then parts[#parts + 1] = string.format(L("opponent's health left %d%%"), h.opponent) end
   card.health:SetText(#parts > 0 and ("|cffffd36a" .. table.concat(parts, "  -  ") .. "|r") or "")
-  card.hint:SetText(string.format(L("Rematch? Target %s and choose Duel."), fit(displayName(data.opponent), 20)))
+  if data.preview then
+    card.hint:SetText(L("Preview: sample numbers, nothing is saved."))
+  else
+    card.hint:SetText(string.format(L("Rematch? Target %s and choose Duel."), fit(displayName(data.opponent), 20)))
+  end
   card:SetHeight(CARD_H)
   card.age = 0
   card:SetAlpha(1)
@@ -1096,8 +1100,19 @@ end
 -- A sample card for /guilded duels card test.
 function duels.sampleCard()
   local mine = me() or "You"
-  return duels.cardData(mine, "Rival Example", epoch(), "knockout", { me = mine, duration = 84, zone = L("Test zone"), counted = true,
+  local data = duels.cardData(mine, "Rival Example", epoch(), "knockout", { me = mine, duration = 84, zone = L("Test zone"), counted = true,
     health = { me = 38, opponent = 0 }, before = { rank = 3, best = 1 } })
+  -- (9.3.1) The preview always shows a stat row, with sample numbers when this character has no counted duel this season.
+  -- Only the card's own data is filled in: nothing is saved and no ladder changes.
+  data.preview = true
+  if not data.wins then
+    data.counted = true
+    data.wins, data.losses, data.rate = 7, 3, 70
+    data.score, data.change = 1024, 12
+    data.rank, data.rankBefore, data.rankChange = 3, 4, 1
+    data.points = data.points or 12
+  end
+  return data
 end
 
 -- ----- events ----------------------------------------------------------

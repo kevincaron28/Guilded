@@ -150,12 +150,14 @@ describe("an outdated addon is not a problem while the companion updates it by i
 
 describe("the main process wires the update to WoW's exit", () => {
   const source = readFileSync(new URL("../companion-app/main.cjs", import.meta.url), "utf8").replace(/\r\n/g, "\n");
-  it("looks for WoW's exit every 20 seconds and retries the update, with a notice after it", () => {
-    expect(source).toMatch(/setInterval\(checkWowRunning, 20 \* 1000\)/);
+  it("looks at WoW every 20 seconds (4 while an addon update waits), tries the update at every look with WoW closed, with a notice after it", () => {
+    expect(source).toMatch(/scheduleWowCheck\(\);/);
+    expect(source).toMatch(/setTimeout\(run, addonUpdater\(\)\.nextLookMs\(\)\)/);
     expect(source).toMatch(/const exited = wowRunning && !running;[\s\S]*if \(exited\) setTimeout\(\(\) => void refreshSavedFile\(\), 3000\)/);
-    expect(source).toMatch(/if \(process\.platform === "win32" && await wowIsRunning\(\)\) return;\n[\s\S]*installAddonNow\(\{ refresh: false \}\)/);
+    expect(source).toMatch(/void addonUpdater\(\)\.tick\(\);/);
+    // (behaviour is tested in companion-addon-auto-update.test.ts)
     expect(source).toContain('T("Guilded addon updated to {0}"');
-    expect(source).toContain("addonUpdateFailed");
+    expect(source).toContain("addonUpdateFailed: addonUpdater().failed()");
   });
 });
 

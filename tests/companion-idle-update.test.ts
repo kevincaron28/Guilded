@@ -228,11 +228,11 @@ describe("hardening: slow installs, unfinished updates, unknown WoW and busy syn
   it("main.cjs wires the unknown-state rules and the unfinished-update notice", () => {
     const main = readFileSync("companion-app/main.cjs", "utf8");
     expect(main).toMatch(/wowRunning: \(\) => idleUpdate\.wowBlocks\(\{ running: wowRunning, checkFailed: wowCheckFailed, checked: wowChecked \}\)/);
-    expect(main).toMatch(/idleUpdate\.syncBlocks\(\{ phase: engine\?\.state\?\.\(\)\?\.syncPhase, addonAutoUpdating \}\)/);
+    expect(main).toMatch(/idleUpdate\.syncBlocks\(\{ phase: engine\?\.state\?\.\(\)\?\.syncPhase, addonAutoUpdating: addonUpdater\(\)\.state\(\)\.busy \}\)/);
     expect(main).toMatch(/wowChecked = true; wowCheckFailed = !!error;/);
     expect(main).toMatch(/idleUpdate\.readMarker\(idleUpdateMarkerFile\(\)\)/);
     expect(main).toMatch(/updateUnfinished = unfinished;/);
-    expect(main).toMatch(/addonUpdateFailed, updateUnfinished/);
+    expect(main).toMatch(/addonUpdateFailed: addonUpdater\(\)\.failed\(\), updateUnfinished/);
   });
 });
 

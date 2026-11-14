@@ -22,7 +22,7 @@ export async function renderNextCard(card: ScoreCard): Promise<Buffer | null> {
   const kind = card.backdrop?.kind;
   if (kind === "board" && card.backdrop?.key === "duel" && card.rows?.length === 2 && card.stats.length === 3) return duelCard(card);
   if (kind === "battleground" && card.stats.length === 3) return battlegroundCard(card);
-  return null;
+  return dataCard(card);
 }
 
 async function duelCard(card: ScoreCard): Promise<Buffer | null> {
@@ -50,6 +50,24 @@ async function battlegroundCard(card: ScoreCard): Promise<Buffer | null> {
     hero: result.value, heroColor: ACCENT[result.accent ?? "gold"] ?? GOOD,
     stats: [{ value: time.value, label: time.label }, { value: format.value, label: format.note ?? format.label }].filter((s) => s.value && s.value !== "—"),
     strip: [card.subtitle, card.badges?.[0]?.text].filter(Boolean).join("  ·  "), art
+  });
+  return png;
+}
+
+/** Data cards (weekly report, raid report, rookie, season, welcome, PvP recap, achievements...): the painting as a banner, the first figure as the hero, the other figures on the right, up to three rows. */
+const DATA_LOOK: Record<string, Kind> = { raid: { type: "raid", emblem: "flame" }, weekly: { type: "weekly", emblem: "cup" }, "world-pvp": { type: "battleground", emblem: "duel" } };
+async function dataCard(card: ScoreCard): Promise<Buffer | null> {
+  if (!card.backdrop || card.stats.length === 0) return null;
+  const art = await cardBackdropArt(card.backdrop, "wide");
+  if (!art) return null;
+  const [lead, ...rest] = card.stats as [ScoreCard["stats"][number], ...ScoreCard["stats"]];
+  const look = DATA_LOOK[card.backdrop.kind] ?? DATA_LOOK[card.backdrop.key] ?? { type: "weekly" as const, emblem: "star" as const };
+  const { png } = await renderBannerCard({
+    type: look.type, emblem: look.emblem, label: (tail(card.eyebrow).at(-1) ?? card.title).toUpperCase(), title: card.title,
+    hero: lead.value, heroColor: ACCENT[lead.accent ?? "gold"] ?? GOOD, heroNote: lead.note ? `${lead.label} · ${lead.note}` : lead.label,
+    stats: rest.slice(0, 3).map((s) => ({ value: s.value, label: s.note ? `${s.label} · ${s.note}` : s.label })),
+    rows: (card.rows ?? []).slice(0, 4).map((r) => ({ name: r.name, color: r.color, sub: r.sub, right: r.right })),
+    strip: [card.subtitle, ...(card.badges ?? []).map((b) => b.text)].filter(Boolean).join("  ·  "), art
   });
   return png;
 }

@@ -125,14 +125,19 @@ export function renderBannerCard(spec: NextCardSpec): Promise<RenderedCard> {
       if (spec.strip) await c.text(spec.strip, 56, 586, { size: 24, color: SUB, maxW: CARD_W - 112 });
     } else {
       await c.text(spec.title, 56, 84, { size: 54, face: "serif", maxW: 560 });
-      await c.text(spec.hero, 56, 154, { size: 76, face: "bold", color: spec.heroColor ?? INK, maxW: 560 });
+      const hero = await c.text(spec.hero, 56, 154, { size: 76, face: "bold", color: spec.heroColor ?? INK, maxW: 560 });
+      if (spec.heroNote) await c.text(spec.heroNote, 56 + hero.w + 18, 190, { size: 30, color: SUB, maxW: Math.max(120, 740 - (56 + hero.w + 18)) });
       let y = bh + 28;
-      for (const r of (spec.rows ?? []).slice(0, 3)) { // 3 rows end at y 553: the strip starts at 580
-        c.rect(48, y - 8, 660, 66, "#ffffff", { opacity: 0.05, rx: 10 });
-        const n = await c.text(r.name, 66, y, { size: 38, face: "bold", color: r.color ?? INK, maxW: 330 });
-        if (r.sub) await c.text(r.sub, 66 + n.w + 14, y + 8, { size: 28, color: SUB, maxW: 150 });
-        if (r.right) await c.text(r.right, 690, y, { size: 38, face: "bold", anchor: "r", maxW: 170 });
-        y += 80;
+      const rows = (spec.rows ?? []).slice(0, 4), withSub = rows.some((r) => r.sub), compact = rows.length > 3; // 4 compact rows end at y 561; 3 roomy ones at 565: the strip starts at 580
+      for (const r of rows) {
+        const maxW = r.right ? 450 : 620, nameSize = compact ? 30 : withSub ? 34 : 38;
+        c.rect(48, y - 8, 660, compact ? 58 : withSub ? 76 : 66, "#ffffff", { opacity: 0.05, rx: 10 });
+        if (withSub) {
+          await c.text(r.name, 66, y - (compact ? 6 : 2), { size: nameSize, face: "bold", color: r.color ?? INK, maxW });
+          if (r.sub) await c.text(r.sub, 66, y + (compact ? 22 : 34), { size: compact ? 24 : 26, color: SUB, maxW });
+        } else await c.text(r.name, 66, y, { size: nameSize, face: "bold", color: r.color ?? INK, maxW });
+        if (r.right) await c.text(r.right, 690, y + (withSub && !compact ? 8 : 0), { size: compact ? 30 : 38, face: "bold", anchor: "r", maxW: 170 });
+        y += compact ? 62 : withSub ? 84 : 80;
       }
       let sy = bh + 28;
       for (const s of (spec.stats ?? []).slice(0, 3)) {

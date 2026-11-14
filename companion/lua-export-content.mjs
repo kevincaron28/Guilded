@@ -267,6 +267,7 @@ export function parseAddonExportDatabase(database, realm) {
   const dungeonRuns = exportDungeonRuns(database, realm);
   const battlegroundReports = exportBattlegroundReports(database);
   const duelResults = exportDuelResults(database);
+  const externalDuels = exportExternalDuels(database);
   const milestones = exportMilestones(database);
   const guildData = exportGuildData(database);
   const guildBank = exportGuildBank(database);
@@ -370,6 +371,7 @@ export function parseAddonExportDatabase(database, realm) {
     dungeonRuns,
     ...(battlegroundReports.length ? { battlegroundReports } : {}),
     ...(duelResults.length ? { duelResults } : {}),
+    ...(externalDuels.length ? { externalDuels } : {}),
     ...(milestones.length ? { milestones } : {}),
     ...guildData,
     ...guildBank,
@@ -432,6 +434,40 @@ export function exportDuelResults(database) {
       && (r.reason === "knockout" || r.reason === "retreat"))
     .sort((a, b) => b.at - a.at).slice(0, 200)
     .map((r) => ({ winner: r.winner, loser: r.loser, at: r.at, reason: r.reason }));
+}
+
+// Duels the addon recorded against players outside the guild (Modules/Duels.lua `external`), for the global ladder. Field by field:
+// anything not in the list is dropped, and a record with an impossible value is left out whole (docs/DUEL_RATING_ADDON_SPEC.md section 8).
+export function exportExternalDuels(database) {
+  const records = database?.duels?.external;
+  if (!records || typeof records !== "object") return [];
+  // eslint-disable-next-line no-control-regex
+  const text = (v, max) => typeof v === "string" && v.length > 0 && v.length <= max && !/[| -]/.test(v);
+  const int = (v, low, high) => Number.isSafeInteger(v) && v >= low && v <= high;
+  const hex16 = (v) => typeof v === "string" && /^[0-9a-f]{16}$/.test(v);
+  const out = [];
+  for (const r of Object.values(records)) {
+    if (!r || !text(r.winner, 80) || !text(r.loser, 80) || r.winner.toLowerCase() === r.loser.toLowerCase()) continue;
+    if (!int(r.at, 1, 4102444799) || (r.reason !== "knockout" && r.reason !== "retreat") || (r.side !== "winner" && r.side !== "loser")) continue;
+    const row = { winner: r.winner, loser: r.loser, winnerRealm: text(r.winnerRealm, 60) ? r.winnerRealm : "", loserRealm: text(r.loserRealm, 60) ? r.loserRealm : "", at: r.at, reason: r.reason, side: r.side };
+    for (const key of ["winnerClass", "loserClass"]) if (text(r[key], 30)) row[key] = r[key];
+    for (const key of ["winnerLevel", "loserLevel"]) if (int(r[key], 1, 60)) row[key] = r[key];
+    for (const key of ["winnerGuild", "loserGuild", "zone"]) if (text(r[key], 80)) row[key] = r[key];
+    if (int(r.durationSec, 3, 1800)) row.durationSec = r.durationSec;
+    if (int(r.seq, 1, 2_000_000_000)) row.seq = r.seq;
+    if (typeof r.nonce === "string" && /^[0-9a-f]{8,64}$/.test(r.nonce)) row.nonce = r.nonce;
+    if (hex16(r.prev)) row.prev = r.prev;
+    if (hex16(r.chain)) row.chain = r.chain;
+    const e = r.evidence;
+    if (e && typeof e === "object") {
+      const evidence = {};
+      for (const key of ["countdownAt", "startAt", "endAt"]) if (int(e[key], 1, 4102444799)) evidence[key] = e[key];
+      for (const key of ["zoneWinner", "zoneLoser"]) if (text(e[key], 80)) evidence[key] = e[key];
+      if (Object.keys(evidence).length > 0) row.evidence = evidence;
+    }
+    out.push(row);
+  }
+  return out.sort((a, b) => b.at - a.at).slice(0, 200);
 }
 
 // The guild bank (addon Modules/GuildBank.lua, 9.0): the last contents and gold, the gold history

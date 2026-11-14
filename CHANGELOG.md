@@ -11,6 +11,7 @@ Not yet published. Polish after 9.2.0 (addon settings and chat, dungeon and duel
 - Guilded no longer drives the game's tooltips: tooltip lines skip combat and comparison tooltips, the roster tooltip is owned by Guilded, and the chat filter is guarded (#822, #826). This targets the forbidden-action warning seen on 13 November; it is not yet confirmed in a real client.
 - Dungeon paintings sit behind the in-game result card and the Run tab band (#830).
 - The duel leaderboard is redesigned and there is a card at the end of a duel (#829).
+- Duels use a rating that starts at 1000 each season (the first season from 13 November 2026), on the in-game ladder and the end-of-duel card, with a season picker; a duel against a player outside the guild is kept for the global ladder.
 - The Guilded map shortcut is removed; use the game's map (#825).
 
 **Dungeon runs (addon)**

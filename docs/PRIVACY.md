@@ -71,6 +71,14 @@ guild only, or also on public pages if you choose Public. You can change or remo
 time; officers can remove it or turn pictures off for their server. Cards already posted in
 Discord keep the picture they were drawn with. **Delete my data** removes your pictures.
 
+Duels outside your guild and records carried for others: when you duel a player who is not in a
+Guilded server, the addon can hand the result to the companion of a player near you, which sends it
+to Guilded, and your companion does the same for other players near you. A result holds both
+players' names and realms, classes and levels, the time, how the duel ended and which side reported
+it. It can appear on the public duel pages and ladders. Turn it off with `/guilded carry off`
+(or `/gdungeons carry off`); an officer can turn it off for a whole guild. **Delete my data**
+removes what is linked to your account.
+
 Companion connections have separate credentials and device names. Manage or
 revoke them under your account's Connections page. Enabled Windows profiles keep
 syncing in the background until paused or the companion exits. Pausing one profile
@@ -248,6 +256,14 @@ pages de ce personnage pour votre guilde seulement, ou aussi sur les pages publi
 choisissez Public. Vous pouvez la changer ou la retirer en tout temps; les officiers peuvent la
 retirer ou désactiver les images pour leur serveur. Les cartes déjà publiées dans Discord gardent
 l'image avec laquelle elles ont été dessinées. **Supprimer mes données** efface vos images.
+
+Duels hors de votre guilde et données relayées pour d'autres : quand vous affrontez un joueur qui
+n'est pas dans un serveur Guilded, l'addon peut confier le résultat au companion d'un joueur proche,
+qui l'envoie à Guilded, et votre companion fait de même pour les autres joueurs proches de vous. Un
+résultat contient les noms et royaumes des deux joueurs, leurs classes et niveaux, l'heure, la façon
+dont le duel s'est terminé et le camp qui l'a signalé. Il peut apparaître sur les pages et classements
+publics des duels. Désactivez-le avec `/guilded carry off` (ou `/gdungeons carry off`); un officier
+peut le désactiver pour toute la guilde. **Supprimer mes données** efface ce qui est lié à votre compte.
 
 Chaque connexion compagnon possède son propre identifiant d'accès et nom d'appareil.
 La page Connexions de votre compte permet de les gérer ou révoquer. Les profils

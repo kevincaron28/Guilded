@@ -44,6 +44,9 @@ export async function deleteMyData(database: PrismaClient, discordUserId: string
     await tx.characterPairing.deleteMany({ where: own });
     await tx.characterVerifyCode.deleteMany({ where: own });
     await tx.characterVerifyClaim.deleteMany({ where: own });
+    // The phone's push registration and its queued notices go with the sign-in (the database also cascades them).
+    await tx.mobileDelivery.deleteMany({ where: { device: { credential: own } } });
+    await tx.mobileDevice.deleteMany({ where: { credential: own } });
     await tx.companionCredential.deleteMany({ where: own });
     const characters = await tx.character.deleteMany({ where: own });
     // Characters this member unlinked are kept under the holding member (character-move.ts): theirs to delete too.

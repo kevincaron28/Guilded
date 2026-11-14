@@ -1,6 +1,15 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { hashCompanionSecret } from "./character-pairing.js";
 
+/**
+ * A device keeps its previous secret for 24 hours after a renewal, in case it lost the answer. The phone's alert
+ * settings and sign-out accept that secret too, so they do not fail during that day.
+ */
+export function credentialBySecret(secret: string, now = new Date()) {
+  const hash = hashCompanionSecret(secret);
+  return { OR: [{ tokenHash: hash }, { previousTokenHash: hash, previousValidUntil: { gt: now } }] };
+}
+
 // The caller saves its proposed secret before sending. Retrying a lost response
 // is safe: the previous secret can only confirm the exact same rotation.
 export async function renewCompanionCredential(database: PrismaClient, secret: unknown, next: unknown, now = new Date()): Promise<boolean> {

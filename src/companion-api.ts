@@ -2,8 +2,8 @@ import { createPugWeb } from "./services/pug-web.js";
 import { issueDuelChallenge } from "./services/duel-integrity.js";
 import { cachedOfficerCheck, meSection, type MeSectionInput } from "./services/me-layout.js";
 import { revokeCompanionCredential } from "./services/companion-revoke.js";
-import { renewCompanionCredential } from "./services/companion-renew.js";
-import { configureMobileDevice } from "./services/mobile-alerts.js";
+import { credentialBySecret, renewCompanionCredential } from "./services/companion-renew.js";
+import { MobileCredentialUnknown, configureMobileDevice, mobileDeviceEnabled, retireMobileDevice } from "./services/mobile-alerts.js";
 import { createWebCommunityBadges } from "./services/web-community-badges.js";
 import { guildWhere, loadGuildScope, runInGuildScope, withGuildScope } from "./services/guild-scope.js";
 import { hostedPilot } from "./hosted-pilot.js";
@@ -940,7 +940,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         if (!allowCompanionRevocation(address)) { json(response, 429, { error: "Too many disconnect requests. Try again in a minute." }); return; }
         const secret = request.headers["x-companion-credential"] ?? request.headers.authorization?.replace(/^Bearer\s+/i, "");
         const ok = await revokeCompanionCredential(prisma, secret);
-        if (ok && typeof secret === "string") await prisma.mobileDevice.updateMany({ where: { credential: { OR: [{ tokenHash: hashCompanionSecret(secret) }, { previousTokenHash: hashCompanionSecret(secret), previousValidUntil: { gt: new Date() } }] } }, data: { enabled: false, expoPushToken: null } });
+        if (ok && typeof secret === "string") await retireMobileDevice(prisma, secret);
         if (!ok) recordFailure(address);
         json(response, ok ? 200 : 400, ok ? { ok: true } : { error: "A valid companion credential is required." });
         return;
@@ -1234,24 +1234,24 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // The credential binds the in-game guild. A caller cannot change scope by
       // substituting another guild ID in a request or selecting another file.
       const credential = typeof header === "string" ? await prisma.companionCredential.findFirst({
-        where: { tokenHash: hashCompanionSecret(header), revokedAt: null, member: { guild: { discordId: guildDiscordId }, status: "ACTIVE" } },
+        where: { ...(isMobileDevice ? credentialBySecret(header) : { tokenHash: hashCompanionSecret(header) }), revokedAt: null, member: { guild: { discordId: guildDiscordId }, status: "ACTIVE" } },
         select: { member: { select: { guild: true } } }
       }) : null;
       const guild = credential?.member.guild;
       if (!guild) { json(response, 401, { error: "Pair this companion with /character pair in the selected in-game guild." }); return; }
       return await runInGuildScope(await loadGuildScope(prisma, guild.id, guildDiscordId), async () => {
       const scopeLoadedAt = Date.now();
-      const access = typeof header === "string" ? await companionAccess(prisma, client, guild.id, guild.discordId, header) : null;
+      const access = typeof header === "string" ? await companionAccess(prisma, client, guild.id, guild.discordId, header, isMobileDevice) : null;
       const accessAt = Date.now();
       if (!access) {
         recordFailure(address);
         json(response, 401, { error: "Pair this companion with /character pair. The shared upload token no longer grants access." }); return;
       }
       if (isMobileDevice) {
-        const device = request.method === "GET"
-          ? await prisma.mobileDevice.findUnique({ where: { credentialId: (await prisma.companionCredential.findUniqueOrThrow({ where: { tokenHash: hashCompanionSecret(header as string) }, select: { id: true } })).id }, select: { enabled: true } })
-          : await configureMobileDevice(prisma, header as string, payload);
-        json(response, 200, { ok: true, enabled: device?.enabled ?? false });
+        const enabled = request.method === "GET"
+          ? await mobileDeviceEnabled(prisma, header as string)
+          : (await configureMobileDevice(prisma, header as string, payload)).enabled;
+        json(response, 200, { ok: true, enabled });
         return;
       }
       if (isMapView || isMapEdit) {
@@ -1700,6 +1700,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       });
     } catch (error) {
       if (error instanceof CompanionUnavailable) { json(response, 503, { error: error.message }); return; }
+      if (error instanceof MobileCredentialUnknown) { json(response, 401, { error: error.message }); return; }
       if (request.url?.split("?")[0] === "/api/v1/mobile/device") {
         // Prisma errors may echo write arguments. Push tokens never enter logs.
         json(response, error instanceof ZodError ? 400 : 503, { error: error instanceof ZodError ? "That mobile device setting is not valid." : "Mobile alert settings are temporarily unavailable. Try again shortly." });

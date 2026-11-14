@@ -17,6 +17,7 @@ import { linkedCharacterCount, scheduleLinkedCharacters } from "./services/compa
 import { companionMe } from "./services/companion-me.js";
 import { albumFor } from "./services/companion-album.js";
 import { applyWorldPvpUpload, parseWorldPvpUploads } from "./services/world-pvp.js";
+import { applyPvpEvents, parsePvpEvents } from "./services/world-pvp-events.js";
 import { scheduleBgLadderRefresh } from "./services/pvp-board-refresh.js";
 import { applyGuildMapUpload, guildMapFor, parseGuildMapUpload, setMapSharing } from "./services/guild-map.js";
 import { liveNewsFeed } from "./services/news-feed.js";
@@ -1485,6 +1486,11 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const worldChanged = await timed("world-pvp", () => applyWorldPvpUpload(prisma, guild.id, pairedMemberId, parseWorldPvpUploads(preview.snapshot.worldPvp)))
           .catch((error: unknown) => { console.warn("World PvP upload failed", error); return false; });
         if (worldChanged) { markGuildChanged(guild.id); void scheduleBgLadderRefresh(prisma, guild.id); }
+      }
+      // Kills and deaths with their place: stored per event (no enemy name), shown by zone on the public PvP map of guilds that publish.
+      if (pairedMemberId && preview.snapshot.pvpEvents.length) {
+        await timed("pvp-events", () => applyPvpEvents(prisma, guild.id, pairedMemberId, parsePvpEvents(preview.snapshot.pvpEvents)))
+          .catch((error: unknown) => { console.warn("PvP events upload failed", error); });
       }
       if (!access.officer) {
         // Guildmates heard in game (level, class, race, professions): applied to already-linked

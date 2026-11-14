@@ -34,3 +34,7 @@ A script would need one self-hosted file and `script-src 'self'` on this page on
 ## Later (not built)
 
 The same map for dungeon entrances and for where guild members are.
+
+## Credit
+
+The simplified outlines were traced by us at the owner's request (14 November 2026), with the MIT-licensed OpenMap addon as the reference; no file of it, and no file or picture of the game, is in this repository.

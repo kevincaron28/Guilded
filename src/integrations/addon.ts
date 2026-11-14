@@ -313,6 +313,8 @@ export const addonSnapshotSchema = z.object({
   helpCalls: z.array(z.unknown()).max(20).default([]),
   // World PvP counters for the current raid week (services/world-pvp.ts): one block, validated on apply.
   worldPvp: z.array(z.unknown()).max(2).default([]),
+  // Open-world kills and deaths with their place (services/world-pvp-events.ts), only from a companion the bot told about "pvp-events".
+  pvpEvents: z.array(z.unknown()).max(500).default([]),
   // Rows left out because they were malformed (see parseAddonSnapshot); the rest still imports.
   rejected: z.array(z.object({ section: z.string().max(40), label: z.string().max(120), reason: z.string().max(200) })).max(MAX_REJECTED).default([])
 });

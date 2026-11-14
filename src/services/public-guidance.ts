@@ -143,12 +143,15 @@ export function planImprovements(input: PlanInput): ImprovementPlan | null {
     weakest: weakest ? { key: weakest.key, points: weakest.points } : null, routes, easiest };
 }
 
-export interface RoleScores { role: Role; rows: ScoreRow[] }
+/** A role's score is shown only after this many ranked runs in that role (fewer is too little to mean anything). */
+export const MIN_ROLE_RUNS = 3;
+export interface RoleScores { role: Role; rows: ScoreRow[]; runs: number }
 /** Each role's season scores from the runs `me` played in that role only; runs with no known role are only counted. */
 export function roleScores(runs: ScoreRun[], rules: BracketedRules, me: ScorePlayer): { roles: RoleScores[]; unknownRuns: number } {
   const id = characterId(me);
   const roleOf = (player: ScorePlayer) => rules.evidencePolicy === "current-v2" ? integrityRole(player.integrity) : dungeonRole(player.role);
-  const roles = ROLES.map((role) => ({ role, rows: characterScores(runs, rules, (player) => characterId(player) === id && roleOf(player) === role) }));
+  const roles = ROLES.map((role) => ({ role, rows: characterScores(runs, rules, (player) => characterId(player) === id && roleOf(player) === role),
+    runs: runs.filter((run) => { const player = run.players.find((p) => characterId(p) === id); return !!player && roleOf(player) === role && !!rateRun(run, rules, player).score; }).length }));
   const unknownRuns = runs.filter((run) => {
     const player = run.players.find((p) => characterId(p) === id);
     return player && !roleOf(player) && rateRun(run, rules, player).score;

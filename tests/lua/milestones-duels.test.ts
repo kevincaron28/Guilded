@@ -242,14 +242,14 @@ describe("guild duels", () => {
     expect(Number(lua.run(`local sent = 0; for _, m in ipairs(SENT or {}) do if m.prefix == "GuildedDuel" then sent = sent + 1 end end; return tostring(sent + NS.comm.pending("GuildedDuel"))`))).toBe(1);
   });
 
-  it("counts at most five duels per pair per day, and ranks by wins, win rate and streak", () => {
+  it("ranks by wins, win rate and streak", () => {
     const lua = setup();
-    lua.run(`for i = 1, 8 do CLOCK = CLOCK + 130; NS.duels.record("Kev", "Bob", CLOCK, "knockout") end`);
+    lua.run(`for i = 1, 3 do CLOCK = CLOCK + 130; NS.duels.record("Kev", "Bob", CLOCK, "knockout") end`);
     lua.run(`CLOCK = CLOCK + 130; NS.duels.record("Bob", "Cy", CLOCK, "knockout")`);
     lua.run(`CLOCK = CLOCK + 130; NS.duels.record("Cy", "Kev", CLOCK, "retreat")`);
     const board = lua.run(`local t = {}; for _, r in ipairs(NS.duels.standings()) do t[#t + 1] = r.name .. "=" .. r.wins .. "/" .. r.losses .. "/" .. r.best .. "/" .. r.streak end; return table.concat(t, " ")`);
-    // Kev won 5 counted duels (the other 3 were over the allowance) and lost the last one to Cy.
-    expect(board).toBe("Kev=5/1/5/-1 Cy=1/1/1/1 Bob=1/5/1/1");
+    // Kev won 3 duels and lost the last one to Cy.
+    expect(board).toBe("Kev=3/1/3/-1 Cy=1/1/1/1 Bob=1/3/1/1");
   });
 
   it("a first duel win announces once as a milestone when announcements are on", () => {

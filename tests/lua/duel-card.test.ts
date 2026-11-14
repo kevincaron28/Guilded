@@ -261,14 +261,6 @@ describe("end-of-duel card", () => {
     expect(lua.run(`local r; for _, v in pairs(DB.duels.results) do if v.winner == "Kev Caron" then r = v end end; return r.wlv .. ":" .. r.llv`)).toBe("60:58");
   });
 
-  it("a duel over the daily pair allowance is marked not counted", () => {
-    const lua = setup();
-    lua.run(`for i = 1, 5 do CLOCK = CLOCK + 200; NS.duels.record("Kev Caron", "Bob Smith", CLOCK, "knockout") end; CLOCK = CLOCK + 200`);
-    say("Kev Caron has defeated Bob Smith in a duel");
-    expect(stat("NS.duels.lastCard.counted")).toBe("false");
-    expect(lua.run(`return table.concat(NS.duels.cardLines(NS.duels.lastCard), "\\n")`)).toContain("Not counted on the ladder.");
-  });
-
   it("speaks French on a French client", () => {
     const lua = setup("frFR");
     playDuel(lua, "Bob Smith has defeated Kev Caron in a duel");
@@ -318,13 +310,24 @@ describe("duel leaderboard", () => {
     expect(names(other, "NS.duels.standings()")).toBe(after);
   });
 
-  it("counts a duel on the same day as one of my own reports only up to the daily allowance, and a rematch inside two minutes as one duel", () => {
+  it("a rematch inside two minutes is one duel", () => {
     const lua = setup();
-    lua.run(`for i = 1, 30 do GUILD_MEMBERS["Q" .. i] = true; NS.duels.record("Kev Caron", "Q" .. i, CLOCK - i * 200, "knockout", { own = true }) end`);
-    expect(lua.run(`local n = 0; for _, r in ipairs(NS.duels.standings()) do if r.name == "Kev Caron" then n = r.games end end; return n`)).toBe("25");
     expect(lua.run(`return tostring(NS.duels.record("Kev Caron", "Bob Smith", CLOCK - 1000, "knockout"))`)).toBe("true");
     expect(lua.run(`return tostring(NS.duels.record("Kev Caron", "Bob Smith", CLOCK - 1000 + 119, "knockout"))`)).toBe("false");
     expect(lua.run(`return tostring(NS.duels.record("Kev Caron", "Bob Smith", CLOCK - 1000 + 121, "knockout"))`)).toBe("true");
+  });
+
+  it("uses the repeat-duel fractions the server sends, and counts every duel in full without them", () => {
+    const lua = setup();
+    lua.run(`for i = 1, 4 do NS.duels.record("Kev Caron", "Bob Smith", CLOCK - 3000 + i * 200, "knockout") end`);
+    const full = lua.run(`return NS.duels.round(NS.duels.standings()[1].score * 100)`);
+    expect(lua.run(`return tostring(NS.duels.setPairWeights({ 1, "x" }))`)).toBe("false");
+    expect(lua.run(`return tostring(NS.duels.setPairWeights({ 1, 0.5, 0 }))`)).toBe("true");
+    const reduced = lua.run(`return NS.duels.round(NS.duels.standings()[1].score * 100)`);
+    expect(Number(reduced)).toBeLessThan(Number(full));
+    expect(lua.run(`local r = NS.duels.standings()[1]; return r.wins .. "/" .. r.rated`)).toBe("4/2");
+    lua.run(`NS.duels.setPairWeights(nil)`);
+    expect(lua.run(`return NS.duels.round(NS.duels.standings()[1].score * 100)`)).toBe(full);
   });
 
   it("filters by my class, and re-ranks inside the filter", () => {

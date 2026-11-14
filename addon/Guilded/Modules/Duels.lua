@@ -5,8 +5,7 @@
 -- from the client's global strings so every language works, and only when BOTH players are in the guild.
 -- A participant shares the result with the guild (addon channel, not chat); every client keeps one copy per
 -- duel: the same pair within DEDUPE seconds is the same duel, whoever reports it. A shared result counts only
--- if the sender is the winner or the loser. At most PAIR_DAILY duels per pair per day count, so two friends
--- cannot farm the board. The paired companion uploads the results to the Discord /bg duels board and the site.
+-- if the sender is the winner or the loser. The paired companion uploads the results to the Discord /bg duels board and the site.
 --
 -- What the client really tells us about a duel (no protected call anywhere):
 --   * the winner and the loser, and whether the loser fled (the system line);
@@ -26,8 +25,6 @@ ns.duels = duels
 
 local PREFIX = "GuildedDuel"
 local DEDUPE = 120
-local PAIR_DAILY = 5
-local OWN_DAILY = 25
 local KEEP = 500
 local MAX_AGE = 30 * 86400
 local DAY = 86400
@@ -38,7 +35,6 @@ local RATING_START_AT = 1794528000
 local FIRST_SEASON_END = 1798761600
 local RESET_ANCHOR = 486000 -- a Tuesday 15:00 UTC: the weekly reset the pair weights count within
 local RATING = { start = 1000, handicapPerLevel = 20, handicapMaxLevels = 5, maxLevelGap = 10, shrinkGames = 10 }
-local PAIR_WEIGHTS = { 1, 1, 0.5, 0.5, 0.25, 0.25 }
 local ZERO_LINK = "0000000000000000"
 local CARD_SECONDS = 15
 local SESSION_MAX = 1800
@@ -240,10 +236,31 @@ local function kFor(rated) if rated < 10 then return 40 elseif rated < 30 then r
 local function weekStartOf(at) return RESET_ANCHOR + math.floor((at - RESET_ANCHOR) / WEEK) * WEEK end
 local function clampLevels(v) return math.max(-RATING.handicapMaxLevels, math.min(RATING.handicapMaxLevels, v)) end
 
+-- The repeat-duel fractions are the server's (the bot hands them over; nothing is published here): the n-th duel of a pair in a weekly
+-- window uses entry n and later ones count for nothing. Without a table every duel counts in full.
+function duels.setPairWeights(weights)
+  local d = store()
+  if not d then return false end
+  if weights == nil then d.pairWeights = nil; return true end
+  if type(weights) ~= "table" or #weights == 0 or #weights > 50 then return false end
+  local clean = {}
+  for i, v in ipairs(weights) do
+    if type(v) ~= "number" or v < 0 or v > 1 then return false end
+    clean[i] = v
+  end
+  d.pairWeights = clean
+  return true
+end
+local function storedWeights()
+  local d = store()
+  return d and type(d.pairWeights) == "table" and #d.pairWeights > 0 and d.pairWeights or nil
+end
+
 -- Rates ONE season's counted duels, each { winner, loser, wlv, llv, at }. Pure: the arrival order does not matter (end time, then
 -- lower-cased winner, then loser). Returns players by lower-cased name and `changes` (parallel to `ordered`) with each side's shown
 -- score before and after; a duel that moved nothing has rated = false.
-function duels.rate(list)
+function duels.rate(list, weights)
+  weights = weights or storedWeights()
   local ordered = {}
   for i, r in ipairs(list or {}) do ordered[i] = r end
   table.sort(ordered, function(x, y)
@@ -275,7 +292,7 @@ function duels.rate(list)
     pairs_[pair] = nth + 1
     local wl, ll = tonumber(r.wlv) or 0, tonumber(r.llv) or 0
     local tooFar = wl > 0 and ll > 0 and math.abs(wl - ll) > RATING.maxLevelGap
-    local weight = tooFar and 0 or (PAIR_WEIGHTS[nth + 1] or 0)
+    local weight = tooFar and 0 or (weights and (weights[nth + 1] or 0) or 1)
     local change = { src = r, winner = r.winner, loser = r.loser, rated = false, winnerDelta = 0, loserDelta = 0, winnerScore = w.score, loserScore = l.score }
     if weight > 0 then
       local beforeW, beforeL = w.score, l.score
@@ -437,17 +454,9 @@ function duels.recordExternal(winner, loser, at, reason, ext)
   if not (iWon or same(mine, loser)) then return false end
   local list = d.external
   if type(list) ~= "table" then list = {}; d.external = list end
-  local day, own = math.floor(at / DAY), 0
   for _, r in pairs(list) do
-    if type(r) == "table" then
-      if same(r.winner, winner) and same(r.loser, loser) and math.abs((r.at or 0) - at) <= DEDUPE then return false end
-      if math.floor((r.at or 0) / DAY) == day then own = own + 1 end
-    end
+    if type(r) == "table" and same(r.winner, winner) and same(r.loser, loser) and math.abs((r.at or 0) - at) <= DEDUPE then return false end
   end
-  for _, r in pairs(d.results) do
-    if type(r) == "table" and r.own and math.floor((r.at or 0) / DAY) == day then own = own + 1 end
-  end
-  if own >= OWN_DAILY then return false end
   local realm, mineInfo, oppInfo = realmName(), selfInfo(), type(ext.oppInfo) == "table" and ext.oppInfo or {}
   local row = { winner = winner, loser = loser, winnerRealm = realm, loserRealm = realm, at = at, reason = reason == "retreat" and "retreat" or "knockout",
     side = iWon and "winner" or "loser" }
@@ -511,7 +520,6 @@ function duels.record(winner, loser, at, reason, extra)
   if type(extra) == "table" then
     if tonumber(extra.dur) and extra.dur >= 0 and extra.dur < SESSION_MAX then row.dur = math.floor(extra.dur) end
     if type(extra.zone) == "string" and extra.zone ~= "" and #extra.zone <= 80 then row.zone = extra.zone end
-    if extra.own then row.own = true end
   end
   d.results[key] = row
   prune(d)
@@ -520,8 +528,7 @@ function duels.record(winner, loser, at, reason, extra)
   return true, key
 end
 
--- The duels that count, oldest first: only those since the ladders started, at most PAIR_DAILY per pair of players and OWN_DAILY of
--- my own reports per UTC day.
+-- The duels that count, oldest first: those since the ladders started.
 local function counted()
   local d = store()
   local startsAt = ratingStart()
@@ -530,18 +537,7 @@ local function counted()
     if type(r) == "table" and r.winner and r.loser and r.at and r.at >= startsAt then list[#list + 1] = r end
   end
   table.sort(list, function(x, y) return x.at < y.at end)
-  local perPair, perDay, kept = {}, {}, {}
-  for _, r in ipairs(list) do
-    local a, b = r.winner:lower(), r.loser:lower()
-    local day = math.floor(r.at / DAY)
-    local key = (a < b and a .. ":" .. b or b .. ":" .. a) .. ":" .. day
-    if (perPair[key] or 0) < PAIR_DAILY and not (r.own and (perDay[day] or 0) >= OWN_DAILY) then
-      perPair[key] = (perPair[key] or 0) + 1
-      if r.own then perDay[day] = (perDay[day] or 0) + 1 end
-      kept[#kept + 1] = r
-    end
-  end
-  return kept
+  return list
 end
 local function isCounted(row)
   for _, r in ipairs(counted()) do if r == row then return true end end
@@ -1120,7 +1116,7 @@ function duels.onSystem(text)
   -- My side of the duel: duration, zone and health left. This is optional card data: a failure here must never stop the record.
   local ctx
   if involved then
-    ctx = { me = mine, own = true }
+    ctx = { me = mine }
     local okCtx = pcall(function()
       local s = session
       ctx.oppInfo = targetInfo(same(mine, winner) and loser or winner)

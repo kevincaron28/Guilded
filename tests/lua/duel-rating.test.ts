@@ -34,10 +34,12 @@ function setup() {
 const lit = (value: string | number | null) => (value === null ? "nil" : typeof value === "number" ? String(value) : JSON.stringify(value));
 const seconds = (iso: string) => Date.parse(iso) / 1000;
 
+// Test-only repeat-duel fractions (the real ones are the server's and are not in the addon).
+const TEST_WEIGHTS = "{ 1, 0.5, 0 }";
 function rateInLua(duels: VectorDuel[]) {
   const rows = duels.map(d => `{ winner = ${lit(d.winner)}, loser = ${lit(d.loser)}, wlv = ${lit(d.winnerLevel)}, llv = ${lit(d.loserLevel)}, at = ${seconds(d.at)} }`);
   const out = s!.run(`
-    local res = NS.duels.rate({ ${rows.join(", ")} })
+    local res = NS.duels.rate({ ${rows.join(", ")} }, ${TEST_WEIGHTS})
     local lines = {}
     for _, p in pairs(res.players) do
       lines[#lines + 1] = table.concat({ "P", p.name, p.rating, p.score, p.rated, p.games, p.wins, p.losses, p.opponents, tostring(p.ranked) }, "|")

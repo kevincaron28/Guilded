@@ -5,6 +5,8 @@ import { readSavedText } from "./saved-file.mjs";
 import { watch } from "node:fs";
 import { basename, dirname } from "node:path";
 import { GROUP_RELAY_FEATURE } from "./group-relay.mjs";
+import { CARRY_FEATURE } from "./carry-content.mjs";
+import { readCarryReceipts, writeCarryReceipts } from "./carry.mjs";
 import { readSavedExport, watchedSavedFiles, NO_GUILD_KEY_MESSAGE } from "./addon-files.mjs";
 import { dungeonRunReport, runReportMessage, deviceRunCounts, signedRunCounts } from "./run-report.mjs";
 import { standingsFileHolds, writeStandings } from "./standings.mjs";
@@ -563,8 +565,10 @@ export function createEngine(initialConfig, hooks = {}) {
       const revision = createHash("sha256").update(JSON.stringify(full)).digest("hex");
       state.syncEvidence = { savedAt: new Date().toISOString(), savedRevision: revision, character: full.character?.name ? `${full.character.name} — ${full.character.realm || current.realm || "?"}` : null, edition: full.gameEdition || full.character?.gameEdition };
       // Only the newest 50 runs go in one upload.
-      const { response, body, sent } = await uploadAsDevice(current, full, controller.signal, { acknowledged, groupRelay: deviceFeatureSet.has(GROUP_RELAY_FEATURE) });
+      const carryAcknowledged = await readCarryReceipts(current).catch(() => new Set());
+      const { response, body, sent } = await uploadAsDevice(current, full, controller.signal, { acknowledged, groupRelay: deviceFeatureSet.has(GROUP_RELAY_FEATURE), carry: deviceFeatureSet.has(CARRY_FEATURE), carryAcknowledged });
       if (epoch !== generation) return;
+      if (response.ok) await writeCarryReceipts(current, body, controller.signal).catch(() => undefined);
       state.botVersion = body.botVersion ?? state.botVersion;
       if (!response.ok) {
         const error = new Error(`Upload failed (${response.status}): ${describeApiError(response.status, body.error)}`);
@@ -667,7 +671,8 @@ export function createEngine(initialConfig, hooks = {}) {
       return;
     }
     // Leave out what the bot already stored (it said so in the last standings answer).
-    const { exported, omitted } = pruneAcknowledged(full, ack, features);
+    const carry = await readCarryReceipts(current).catch(() => new Set());
+    const { exported, omitted } = pruneAcknowledged(full, { ...(ack ?? {}), carry }, features);
     const uploadedAt = new Date().toISOString();
     const { response, body } = await withUploadGate(current.watchFile, () => send(current, exported, epoch));
     if (epoch !== generation) return;
@@ -695,6 +700,7 @@ export function createEngine(initialConfig, hooks = {}) {
       // A failed apply is not accepted, even when the same bytes were stored earlier.
       if (body.importId && !body.applyError) Object.assign(state.syncEvidence, { acceptedAt: new Date().toISOString(), acceptedRevision: revision });
     }
+    if (response.ok) await writeCarryReceipts(current, body, controller.signal).catch(() => undefined);
     state.botVersion = body.botVersion ?? state.botVersion;
     state.addonVersion = exported.addonVersion ?? state.addonVersion;
     const left = omitted.ledger + omitted.loot + (omitted.raids ?? 0);

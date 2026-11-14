@@ -9,6 +9,7 @@
 // and the bot skips duplicates.
 
 // ack: { ledger?: Iterable<string>, loot?: Iterable<string> } from the last standings answer.
+import { CARRY_FEATURE, carryId } from "./carry-content.mjs";
 import { GROUP_RELAY_FEATURE, isGroupRun, leaveOut } from "./group-relay.mjs";
 
 export function acknowledgements(body) {
@@ -43,6 +44,14 @@ export function pruneOldRaids(exported, now = Date.now()) {
 export function pruneAcknowledged(full, ack, features = new Set(["ledger-delta", "loot-delta"]), now = Date.now()) {
   // Kills and deaths with their place go only to a bot that announced the feature; an older bot gets exactly what it always did.
   if (full && full.pvpEvents !== undefined && !features.has("pvp-events")) { full = { ...full }; delete full.pvpEvents; }
+  // (9.3.2) Records carried for nearby players go only to a bot that announced the feature.
+  if (full && full.carriedRecords !== undefined && !features.has(CARRY_FEATURE)) { full = { ...full }; delete full.carriedRecords; }
+  // Records the addon still lists but the bot already holds (Carry.lua, read by the engine) are not sent again.
+  if (full && Array.isArray(full.carriedRecords) && ack?.carry?.size) {
+    const rest = full.carriedRecords.filter((record) => !ack.carry.has(carryId(record)));
+    full = { ...full, carriedRecords: rest };
+    if (!rest.length) delete full.carriedRecords;
+  }
   const pruned = pruneOldRaids(full, now);
   const raidsOmitted = pruned.omitted;
   // (9.3.1) Runs carried for players near this PC go only to a bot that announced the feature, and only once.

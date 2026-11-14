@@ -4,7 +4,7 @@
 <p class="guide-tools"><label>Chercher dans le guide <input type="search" data-guide-search placeholder="installer, officiers, butin"></label></p>
 <ul class="grid-links" data-guide-list>
 <li data-guide><a href="/guide/start/">Commencer<small>Pour les joueurs.</small></a></li>
-<li data-guide><a href="/guide/install/">Installer l’addon<small>Les seules instructions d’installation.</small></a></li>
+<li data-guide><a href="/guide/install/">Installer l’addon<small>les seules instructions d’installation</small></a></li>
 <li data-guide><a href="/guide/companion/">Compagnon<small>Application Windows facultative.</small></a></li>
 <li data-guide><a href="/guide/link-character/">Lier votre personnage<small>Relier votre Discord et vos personnages.</small></a></li>
 <li data-guide><a href="/guide/dungeons/">Donjons et scores<small>Comment les essais sont comptés et notés.</small></a></li>

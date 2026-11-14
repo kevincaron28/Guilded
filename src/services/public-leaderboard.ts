@@ -182,9 +182,10 @@ export function filterGuildOverview(rows: GuildOverviewRow[], filters: Pick<Guil
   return kept.sort((a, b) => (filters.sort === "name" ? 0 : value(b) - value(a)) || (b.points ?? -1) - (a.points ?? -1) || a.guild.name.localeCompare(b.guild.name));
 }
 
-/** Top-3 medal for a rank (1-based), or the plain number. */
 /** The class that colours a dungeon score by the same six tiers as the badges (a quick read of how strong a score is; the CSS lives in site/design-tokens.css). */
 export const scoreTier = (score: number) => score >= 1250 ? "st-legendary" : score >= 1000 ? "st-epic" : score >= 750 ? "st-platinum" : score >= 500 ? "st-gold" : score >= 250 ? "st-silver" : "st-bronze";
+
+/** Top-3 medal for a rank (1-based), or the plain number. */
 export const rankCell = (rank: number) => rank <= 3 ? `<span class="medal m${rank}" aria-label="#${rank}">${rank}</span>` : `${rank}`;
 
 /** Numbered page links: first, last and up to two pages each side of the current one. */

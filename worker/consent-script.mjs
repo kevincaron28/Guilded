@@ -34,7 +34,7 @@ export const CONSENT_SCRIPT = String.raw`(function () {
   css.textContent = ".gc-banner{position:fixed;left:0;right:0;bottom:0;z-index:2147483000;display:flex;flex-wrap:wrap;align-items:center;gap:8px 20px;padding:10px 20px;border:0;border-top:1px solid #d4af37;background:#15171aF2;color:#f2efe6;font:14px/1.4 system-ui,sans-serif;box-shadow:0 -6px 24px rgba(0,0,0,.45)}.gc-banner p{margin:0;flex:1 1 360px}.gc-banner a{color:#e8c766}.gc-row{display:flex;gap:10px;flex:0 0 auto}.gc-btn{flex:0 0 auto;min-height:44px;padding:6px 22px;border:2px solid #d4af37;border-radius:8px;background:#d4af37;color:#15171a;font:inherit;font-weight:700;cursor:pointer}.gc-btn:focus-visible{outline:3px solid #fff;outline-offset:2px}.gc-link{background:none;border:0;padding:4px 0;color:inherit;font:inherit;text-decoration:underline;cursor:pointer}";
   document.head.appendChild(css);
   var banner = null;
-  function close() { if (banner && banner.parentNode) banner.parentNode.removeChild(banner); banner = null; }
+  function close() { if (banner && banner.parentNode) banner.parentNode.removeChild(banner); banner = null; if (document.body && document.body.style) document.body.style.paddingBottom = ""; }
   function choose(choice) {
     var before = read();
     write(choice);
@@ -56,6 +56,9 @@ export const CONSENT_SCRIPT = String.raw`(function () {
     });
     banner.appendChild(p); banner.appendChild(row);
     document.body.appendChild(banner);
+    // The bar is fixed: keep the page bottom reachable while it is shown (also after a resize, when the text wraps).
+    function room() { if (banner && document.body.style) document.body.style.paddingBottom = (banner.offsetHeight || 0) + "px"; }
+    room(); if (window.addEventListener) window.addEventListener("resize", room);
   }
   function footerLink() {
     var b = document.createElement("button"); b.type = "button"; b.className = "gc-link"; b.textContent = T.change;

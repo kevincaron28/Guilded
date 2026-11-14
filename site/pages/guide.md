@@ -3,9 +3,9 @@
 <p>Pick who you are. Each page does one job.</p>
 <p class="guide-tools"><label>Search the guide <input type="search" data-guide-search placeholder="install, officers, loot"></label></p>
 <ul class="grid-links" data-guide-list>
-<li data-guide><a href="/guide/start/">Get started<small>For players.</small></a></li>
-<li data-guide><a href="/guide/install/">Install the addon<small>The only install instructions.</small></a></li>
-<li data-guide><a href="/guide/companion/">Companion<small>Optional Windows app.</small></a></li>
+<li data-guide><a href="/guide/start/">Get started<small>players</small></a></li>
+<li data-guide><a href="/guide/install/">Install the addon<small>the only install instructions</small></a></li>
+<li data-guide><a href="/guide/companion/">Companion<small>optional Windows app</small></a></li>
 <li data-guide><a href="/guide/link-character/">Link your character<small>Connect your Discord and your characters.</small></a></li>
 <li data-guide><a href="/guide/dungeons/">Dungeons and scores<small>How runs are counted and scored.</small></a></li>
 <li data-guide><a href="/guide/officers/">Officers<small>Run your guild with Guilded.</small></a></li>

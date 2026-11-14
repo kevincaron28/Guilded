@@ -78,6 +78,20 @@ function languageUrl(raw, language) {
 
 // Translate the authored bilingual markup before sending HTML to crawlers and
 // browsers. User-generated bot pages retain their own server-side translations.
+// An address nobody serves (the Worker and the bot have already passed on it) answers with the styled page built as
+// 404.html; wrangler.jsonc keeps not_found_handling "none", because Worker-only addresses must reach the Worker.
+async function notFoundPage(request, env, original) {
+  const url = new URL(request.url);
+  const wantsPage = (request.method === "GET" || request.method === "HEAD") && (request.headers.get("accept") || "").includes("text/html")
+    && !/.[a-z0-9]{2,5}$/i.test(url.pathname) && !url.pathname.startsWith("/api/");
+  if (!wantsPage) return original;
+  for (const path of ["/404", "/404.html"]) {
+    const page = await env.ASSETS.fetch(new Request(new URL(path, url), { method: "GET" }));
+    if (page.status === 200) return new Response(request.method === "HEAD" ? null : page.body, { status: 404, headers: page.headers });
+  }
+  return original;
+}
+
 export async function localizedAsset(request, env) {
   const url = new URL(request.url);
   if (request.method === "GET" || request.method === "HEAD") {
@@ -94,6 +108,7 @@ export async function localizedAsset(request, env) {
     language = language || "fr";
   }
   const response = await env.ASSETS.fetch(assetRequest);
+  if (response.status === 404) return notFoundPage(request, env, response);
   if (!['en', 'fr'].includes(language) || !response.headers.get('content-type')?.startsWith('text/html')) return response;
   const rewrite = new HTMLRewriter()
     .on('html', { element(el) { el.setAttribute('lang', language); } })

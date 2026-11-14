@@ -11,7 +11,7 @@ import type { Prisma } from "../src/generated/prisma/client.js";
 import { prisma } from "../src/database.js";
 import { integrityPresence, withIntegrityWindow } from "../src/services/dungeon-integrity.js";
 import { importDungeonRuns, peerVouched } from "../src/services/dungeon-import.js";
-import { bracketedVerdict, presentEnough, verdictPoints } from "../src/services/dungeon-rating.js";
+import { bracketedVerdict, penalized, presentEnough, timeRating } from "../src/services/dungeon-rating.js";
 import { validBracketedRules } from "../src/services/dungeon-november-rules.js";
 import { completeAtFinalBoss } from "../src/services/dungeon-recovery.js";
 import { dungeonRunSchema, validateRun } from "../src/services/dungeon-rules.js";
@@ -65,7 +65,7 @@ try {
         for (const p of parsed.data.players) {
           const present = presentEnough(p.presentSec, seconds);
           const observed = rules.evidencePolicy !== "current-v2" || integrityPresence(p.integrity, seconds, began);
-          const points = verdict.reason ? `no points (${verdict.reason})` : !present ? "no points (presence under 80%)" : !observed ? "no points (known in-instance presence under 80%)" : `${verdictPoints(seconds, verdict)} points`;
+          const points = verdict.reason ? `no points (${verdict.reason})` : !present ? "no points (presence under 80%)" : !observed ? "no points (known in-instance presence under 80%)" : `${penalized(timeRating(seconds, verdict.targetSec), verdict.penaltyPercent)} points`;
           console.log(`      ${p.character}: ${points}`);
         }
       } else console.log("      (no rated season for this server: points not shown)");
@@ -78,11 +78,13 @@ try {
       const results = [];
       for (const { row, run, raw, dropped, endedAt } of prepared) {
         const result = await importDungeonRuns(tx, guildId, [run], characters, "recover:drowned-city", row.importId);
-        // Keep the original ABANDONED report next to the completed one.
-        const stored = await tx.dungeonRun.findUnique({ where: { id: row.id }, select: { competitionData: true } });
-        const data = isRecord(stored?.competitionData) ? stored.competitionData : {};
-        const recovery = { at: new Date().toISOString(), by: "recover-drowned-city-runs", oldState: row.state, oldEndedAt: row.endedAt?.toISOString() ?? null, oldDurationSec: row.durationSec, newEndedAt: iso(endedAt), droppedEncounters: dropped, originalReport: raw };
-        await tx.dungeonRun.update({ where: { id: row.id }, data: { competitionData: { ...data, recovery } as unknown as Prisma.InputJsonValue } });
+        // Keep the original ABANDONED report next to the completed one, only when the import really upgraded the run.
+        if (result.results.length > 0) {
+          const stored = await tx.dungeonRun.findUnique({ where: { id: row.id }, select: { competitionData: true } });
+          const data = isRecord(stored?.competitionData) ? stored.competitionData : {};
+          const recovery = { at: new Date().toISOString(), by: "recover-drowned-city-runs", oldState: row.state, oldEndedAt: row.endedAt?.toISOString() ?? null, oldDurationSec: row.durationSec, newEndedAt: iso(endedAt), droppedEncounters: dropped, originalReport: raw };
+          await tx.dungeonRun.update({ where: { id: row.id }, data: { competitionData: { ...data, recovery } as unknown as Prisma.InputJsonValue } });
+        }
         results.push(result);
       }
       return results;

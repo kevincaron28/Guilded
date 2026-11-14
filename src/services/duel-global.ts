@@ -318,3 +318,24 @@ export function sequenceProblems(seqs: readonly number[]): { gaps: number; repea
 }
 
 export const GLOBAL_RULE_ID = RATING.id;
+
+export interface DuelTrendPoint { at: Date; opponent: string; opponentKey: string; won: boolean; change: number; rated: boolean; score: number }
+
+/** One player's duels of a season in date order with the rating change and shown score after each (for a trend and a recent list). */
+export function playerDuelTrend(all: readonly GlobalDuel[], seasonId: string, startsAt: Date, key: string): DuelTrendPoint[] {
+  const source = new Map<RatedDuel, GlobalDuel>();
+  const rated: RatedDuel[] = all.filter(d => seasonOf(d.endedAt, startsAt).id === seasonId).map(d => {
+    const row: RatedDuel = { winnerKey: d.winnerKey, loserKey: d.loserKey, winnerName: d.winner, loserName: d.loser, winnerLevel: d.winnerLevel, loserLevel: d.loserLevel, endedAt: d.endedAt };
+    source.set(row, d);
+    return row;
+  });
+  const result = rateSeason(rated);
+  const out: DuelTrendPoint[] = [];
+  result.ordered.forEach((row, i) => {
+    const d = source.get(row)!, change = result.changes[i]!;
+    if (d.winnerKey !== key && d.loserKey !== key) return;
+    const won = d.winnerKey === key;
+    out.push({ at: d.endedAt, opponent: won ? d.loser : d.winner, opponentKey: won ? d.loserKey : d.winnerKey, won, change: won ? change.winnerDelta : change.loserDelta, rated: change.rated, score: won ? change.winnerScore : change.loserScore });
+  });
+  return out;
+}

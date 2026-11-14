@@ -189,7 +189,7 @@ describe("leaderboard pages say why a run is unranked", () => {
     const fr = await get("/leaderboards/character/Kev-Doomhowl?lang=fr");
     expect(fr.body).toContain("Non classé : Fin automatique au dernier boss requise");
     expect(fr.body).toContain("Preuves actuelles requises pour cette saison");
-    const board = await get("/leaderboards/");
+    const board = await get("/leaderboards/dungeons/");
     expect(board.body).toContain("This season's rules were frozen on 2026-11-04.");
   });
 });

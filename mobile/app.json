@@ -1,27 +1,102 @@
 {
   "expo": {
+    "owner": "kevincaron28",
+    "extra": { "eas": { "projectId": "ddda073f-f6bb-4e04-8a78-7ac343e03864" } },
     "name": "Guilded",
     "slug": "guilded-mobile",
-    "version": "0.1.0",
+    "version": "0.3.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "android": {
       "package": "top.kcaron.guilded",
-      "versionCode": 1
+      "versionCode": 3,
+      "permissions": [
+        "POST_NOTIFICATIONS"
+      ],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0b0c0b"
+      },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "guildedwow.com",
+              "pathPrefix": "/app/"
+            },
+            {
+              "scheme": "https",
+              "host": "guilded.kcaron.top",
+              "pathPrefix": "/app/"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "ios": {
-      "bundleIdentifier": "top.kcaron.guilded"
+      "bundleIdentifier": "top.kcaron.guilded",
+      "buildNumber": "3",
+      "supportsTablet": true,
+      "associatedDomains": [
+        "applinks:guildedwow.com",
+        "applinks:guilded.kcaron.top"
+      ],
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "plugins": [
       "expo-secure-store",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "targetSdkVersion": 36
+          }
+        }
+      ],
       [
         "expo-notifications",
         {
           "color": "#d5ad57",
           "defaultChannel": "raids",
-          "enableRemoteNotifications": false
+          "enableRemoteNotifications": true
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#0b0c0b"
         }
       ]
-    ]
+    ],
+    "scheme": "guilded",
+    "icon": "./assets/icon.png",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "enabled": false,
+      "checkAutomatically": "NEVER",
+      "fallbackToCacheTimeout": 0
+    }
   }
 }

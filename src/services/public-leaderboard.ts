@@ -183,6 +183,8 @@ export function filterGuildOverview(rows: GuildOverviewRow[], filters: Pick<Guil
 }
 
 /** Top-3 medal for a rank (1-based), or the plain number. */
+/** The class that colours a dungeon score by the same six tiers as the badges (a quick read of how strong a score is; the CSS lives in site/design-tokens.css). */
+export const scoreTier = (score: number) => score >= 1250 ? "st-legendary" : score >= 1000 ? "st-epic" : score >= 750 ? "st-platinum" : score >= 500 ? "st-gold" : score >= 250 ? "st-silver" : "st-bronze";
 export const rankCell = (rank: number) => rank <= 3 ? `<span class="medal m${rank}" aria-label="#${rank}">${rank}</span>` : `${rank}`;
 
 /** Numbered page links: first, last and up to two pages each side of the current one. */
@@ -824,7 +826,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       ...(withStats ? [t("Members", "Membres"), t("Linked", "Liés"), t("At 60", "Niv. 60"), t("Avg. level", "Niv. moyen")] : []),
       t("Dungeon score", "Score de donjon"), t("Rated", "Classés"), t("Runs", "Essais"), t("Records", "Records"), ...(withStats ? [t("Duels", "Duels")] : [])];
     const numeric = withStats ? [4, 5, 6, 7, 8, 9, 10, 11, 12] : [4, 5, 6, 7];
-    const table = shown.length ? `<div class="table-wrap"><table class="dense"><thead><tr>${head.map((h, i) => `<th${numeric.includes(i) ? ' class="num"' : ""}>${h}</th>`).join("")}</tr></thead><tbody>`
+    const table = shown.length ? `<div class="table-wrap"><table class="dense${page === 1 ? " ranked" : ""}"><thead><tr>${head.map((h, i) => `<th${numeric.includes(i) ? ' class="num"' : ""}>${h}</th>`).join("")}</tr></thead><tbody>`
       + shown.slice((page - 1) * GUILDS_PER_PAGE, page * GUILDS_PER_PAGE).map((row, index) => {
         const rank = (page - 1) * GUILDS_PER_PAGE + index + 1;
         const s = row.stats;
@@ -882,10 +884,10 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const moves = running && bracket && all.some((run) => run.endedAt < weekFrom) ? rankMovement(all, weekFrom, rules, bracket, keepPlayer(filters, rules)) : null;
     const bestRuns = (row: ScoreRow) => row.routes.filter((r) => r.counted).sort((a, b) => b.points - a.points).slice(0, 3)
       .map((r) => `<a href="${link(runPath(r.run.runId), lang)}">${escapeHtml(r.run.dungeonName)}</a> <span class="tag">${r.points}</span>`).join(" ");
-    const list = rows.length ? `<div class="table-wrap"><table class="dense rank-cards"><thead><tr><th>#</th><th>${t("Character", "Personnage")}</th><th>${t("Role", "Rôle")}</th><th class="num">${t("Score", "Score")}</th><th class="num">${t("Routes", "Parcours")}</th><th>${t("Best runs", "Meilleurs essais")}</th></tr></thead><tbody>`
+    const list = rows.length ? `<div class="table-wrap"><table class="dense rank-cards${page === 1 ? " ranked" : ""}"><thead><tr><th>#</th><th>${t("Character", "Personnage")}</th><th>${t("Role", "Rôle")}</th><th class="num">${t("Score", "Score")}</th><th class="num">${t("Routes", "Parcours")}</th><th>${t("Best runs", "Meilleurs essais")}</th></tr></thead><tbody>`
       + rows.slice((page - 1) * CHARACTERS_PER_PAGE, page * CHARACTERS_PER_PAGE).map((row, i) => `<tr><td>${rankCell((page - 1) * CHARACTERS_PER_PAGE + i + 1)}${moves ? ` ${movement(t, moves.get(characterId(row.player)) ?? null)}` : ""}</td><td>${identity(ctx, row.player)}</td>`
         + `<td>${row.player.role ? escapeHtml(roleLabel(row.player.role, lang)) : ""}</td>`
-        + `<td class="num score">${row.points}</td><td class="num">${row.routes.filter((r) => r.counted).length}/${row.routes.length}</td><td class="wrap best-runs">${bestRuns(row)}</td></tr>`).join("")
+        + `<td class="num score ${scoreTier(row.points)}">${row.points}</td><td class="num">${row.routes.filter((r) => r.counted).length}/${row.routes.length}</td><td class="wrap best-runs">${bestRuns(row)}</td></tr>`).join("")
       + `</tbody></table></div>`
       : `<p class="muted">${t("Nobody is ranked with these filters yet: your first ranked clear puts you on the board.", "Personne n'est encore classé avec ces filtres : votre premier essai classé vous place au classement.")}</p>`;
     const body = PAGE_CSS + breadcrumbs(lang, [[t("Leaderboards", "Classements"), link("/leaderboards/", lang)], [t("Characters", "Personnages"), null]], escapeHtml)
@@ -1226,7 +1228,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const body = PAGE_CSS + HUB_CSS + hubTabs(t, lang, "players") + `<p class="eyebrow">${t("Character", "Personnage")}</p><div class="hero">${face ? `<img src="${escapeHtml(pictureUrl(face.characterId, face.version, "thumb"))}" alt="" width="64" height="64" style="border-radius:50%;align-self:center">` : ""}<h1 class="c-${classSlug(me?.className ?? null)}">${escapeHtml(title)}</h1>`
       + (me?.className ? `<span>${escapeHtml(classLabel(me.className, lang))}${me.level ? ` · ${t("level", "niveau")} ${me.level}` : ""}</span>` : "") + `</div>`
       + (runs.length ? badgeShelf + `<h2>${t("Score", "Score")} · ${escapeHtml(periodName(ctx, seasons[0]!))}</h2>`
-        + (current.length ? `<p>${current.map((row) => `<span class="badge">${escapeHtml(bracketName(ctx, row.bracket))}</span> <span class="score">${row.points}</span>`).join(" &nbsp; ")}</p>` : `<p class="muted">${t("No rated run this season yet.", "Aucun essai classé cette saison.")}</p>`)
+        + (current.length ? `<p>${current.map((row) => `<span class="badge">${escapeHtml(bracketName(ctx, row.bracket))}</span> <span class="score ${scoreTier(row.points)}">${row.points}</span>`).join(" &nbsp; ")}</p>` : `<p class="muted">${t("No rated run this season yet.", "Aucun essai classé cette saison.")}</p>`)
         + roles + guidance
         + `<h2>${t("Routes", "Parcours")}</h2><p class="muted">${t(`${best.size} ${best.size === 1 ? "dungeon" : "dungeons"} with a public best time.`, `${best.size} ${best.size === 1 ? "donjon" : "donjons"} avec un meilleur temps public.`)}</p>`
         + `<h2>${t("Best run per dungeon", "Meilleur essai par donjon")}</h2>`
@@ -1348,7 +1350,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const tile = (k: string, v: string) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div></div>`;
     const dash = `<span class="muted">–</span>`;
     const tiles = `<div class="tiles">`
-      + tile(t("Faction", "Faction"), info?.faction ? `<span class="fac-${info.faction.toLowerCase()}">${escapeHtml(factionLabel(info.faction, lang))}</span>` : dash)
+      + (info?.faction ? tile(t("Faction", "Faction"), `<span class="fac-${info.faction.toLowerCase()}">${escapeHtml(factionLabel(info.faction, lang))}</span>`) : "")
       + tile(t("Realm", "Royaume"), info?.realm ? escapeHtml(info.realm) : dash)
       + tile(t("Ranked players", "Joueurs classés"), String(stats.ranked))
       + tile(t("Public runs", "Essais publics"), String(stats.runs))

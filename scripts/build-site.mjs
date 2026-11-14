@@ -176,6 +176,11 @@ for (const page of pages) {
   // A page whose address redirects (worker/localized-assets.mjs) is not a sitemap entry; its target is listed once.
   if (!page.draft && !isRedirected(`/${page.path}`)) publicUrls.push(`/${page.path}`);
 }
+// Styled 404: a header, one sentence and a way home (wrangler.jsonc not_found_handling "404-page" serves it for unknown addresses).
+{
+  const b = (en, fr) => `<span data-en="${escape(en)}" data-fr="${escape(fr)}">${en}</span>`;
+  writeFileSync(`${out}/404.html`, `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#111312"><meta name="robots" content="noindex"><title data-en="Page not found · Guilded" data-fr="Page introuvable · Guilded">Page not found · Guilded</title><link rel="icon" href="/favicon.png" type="image/png"><link rel="stylesheet" href="/design-tokens.css"><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/atelier.css"><script src="/site.js" defer></script><script src="/language.js" type="module"></script></head><body class="site-page features-page"><a class="skip" href="#main">${b('Skip to content', 'Aller au contenu')}</a>${siteHeader('/', false, null, true)}<main class="guide not-found" id="main" tabindex="-1"><span class="nf-code">404</span><h1>${b('This page wandered off', 'Cette page s’est égarée')}</h1><p>${b('The address may be old or mistyped. Head back to the start and pick up from there.', 'L’adresse est peut-être ancienne ou mal écrite. Revenez à l’accueil et reprenez à partir de là.')}</p><p><a class="button" href="/">${b('Go home', 'Retour à l’accueil')}</a></p></main></body></html>`);
+}
 writeFileSync(`${out}/sitemap.xml`, `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${publicUrls.map(path => `<url><loc>${origin}${path}</loc></url>`).join('')}</urlset>\n`);
 writeFileSync(`${out}/robots.txt`, `User-agent: *\nAllow: /\nSitemap: ${origin}/sitemap.xml\nSitemap: ${origin}/recruitment/guilds/sitemap.xml\n`);
 // Each bilingual public page has crawlable EN/FR alternatives. The Worker

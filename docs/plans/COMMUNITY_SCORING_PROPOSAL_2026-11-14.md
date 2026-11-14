@@ -62,3 +62,24 @@ select 'bg' src, date_trunc('week',"endedAt") wk, count(*) games, count(distinct
 union all select 'duel', date_trunc('week',"endedAt"), count(*), count(distinct "winnerId"), count(*) from "DuelResult" where "endedAt" > now() - interval '28 days' and counted group by 2
 union all select 'wpvp', null, sum(kills+defends+helped), count(distinct "memberId"), sum(kills) from "WorldPvpWeek" where "weekKey" >= (select max("weekKey")-3 from "WorldPvpWeek");
 ```
+
+## Production numbers (read-only, 14 November, last 28 days) and the recommendation
+
+- Discord: week of 9 Nov 34 members, 2099 points (about 62 per active member); 2 Nov 25 members, 1605; earlier weeks 5 to 13 members.
+- Dungeons (raw ledger points per member per week): 2 Nov 8 members, average 144, median 125, top 250; 9 Nov 17 members, average 229, median 100, top 675.
+- Battlegrounds: no rows. Duels: 3 counted in the week of 9 Nov. Open-world PvP: 2 members, 0 kills, 11 deaths in one week, 1 call answered in another.
+
+What this changes in the estimates above: a real chatter is about 62 a week (not 110), and a real dungeon runner does about one run a week (median 100 raw), not four.
+At the shipped 1/5 the median runner gets 20 against 62 for the chatter: dungeons are under-weighted, not over-weighted (raw 100 looks equal to chat only before dividing).
+
+**Recommended scale**
+
+| Source | Divider | Median week | Average | Top |
+| --- | --- | --- | --- | --- |
+| Dungeons | 1/3 | 33 | 76 | 225 (the soft curve trims the top further) |
+| Battleground game / win | 5 / +2 (1/3 of the old 15 / +5) | no data | | |
+| Duel win / loss | 1.7 / 0.7 (1/3) | no data | | |
+| Open-world PvP | 1/3 | no data | | |
+
+Rationale: a dungeon runner with one clean run (about 115 raw, 38) lands in the same 30 to 60 range as a chatter; a heavy runner (675 raw) is not buried and not 3x the whole server. PvP has too little data to tune: it follows the same 1/3 by design and is re-checked after the first battleground weeks (raids open 9 December). The soft per-day curve and rematch rule stay as proposed; they matter more for PvP than for dungeons today.
+Decision for the owner: ship 1/3 for dungeons and PvP (recommended), or keep 1/5 (safe but dungeons under-count), or 1/4 (in between).

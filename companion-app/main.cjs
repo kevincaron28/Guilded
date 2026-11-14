@@ -5,6 +5,7 @@ const { spawn, execFile } = require("node:child_process");
 const { pathToFileURL } = require("node:url");
 const { detectSavedVariables, pickSavedVariables, pickPrimaryAccount, pickerStart, accountsUnder, searchWow } = require("./detect-wow.cjs");
 const updates = require("./update-check.cjs");
+const idleUpdate = require("./idle-update.cjs");
 // Loaded on first use (Store build only): companion-app/store-update.cjs.
 const storeUpdatesModule = () => require("./store-update.cjs");
 const linkIdentity = require("./link-identity.cjs");
@@ -206,6 +207,16 @@ function startupLog(entry) {
   try { fs.appendFileSync(path.join(app.getPath("userData"), "startup.log"), `${entry.time} ${entry.level} ${entry.message}
 `); } catch { /* diagnostics only */ }
 }
+// Update checks (9.3.2): one line each in startup.log for the whole run, not only until the window is ready,
+// so "why is this still the old version" can be read from that file. Diagnostics only; never a secret or a path.
+let updateLines = 0;
+function updateLine(text) {
+  // At most 400 lines a run (the file is rotated only at start): a companion that runs for weeks stays small.
+  if (updateLines >= 400) return;
+  updateLines += 1;
+  if (updateLines === 400) text = "update log limit for this run reached; later lines are not written";
+  try { fs.appendFileSync(path.join(app.getPath("userData"), "startup.log"), `${new Date().toISOString()} update ${text}\n`); } catch { /* diagnostics only */ }
+}
 function pushLog(entry) {
   startupLog(entry);
   logs.push(entry);
@@ -266,16 +277,26 @@ function logLowDisk(result, action) {
 }
 
 async function fetchLatest() {
-  const found = await updates.fetchLatestRelease();
+  const reasons = [];
+  const found = await updates.fetchLatestRelease(undefined, (reason) => reasons.push(reason));
   latestRelease = found ?? latestRelease;
+  updateLine(found
+    ? `check: running ${app.getVersion()}, the release feed says ${found.version} (from the ${found.source}${found.installer ? "" : ", no checked installer"})${reasons.length ? "; " + reasons.join("; ") : ""}`
+    : `check: running ${app.getVersion()}, no release could be read${reasons.length ? ": " + reasons.join("; ") : ""}`);
   return found;
 }
 async function checkForUpdate() {
-  checkDisk();
-  if (STORE_PACKAGE) return;
-  await fetchLatest();
+  const disk = checkDisk();
+  if (STORE_PACKAGE) { updateLine("check: skipped (Microsoft Store build, the Store updates it)"); return; }
+  try {
+    await fetchLatest();
+  } catch (error) {
+    updateLine(`check: failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
   if (engine) onState(engine.state());
-  void stageUpdate();
+  updateLine(`check: decision ${updates.describeDecision(autoUpdateDecision())}, auto update ${config.autoUpdate === false ? "off" : "on"}, disk ${disk.ok ? "ok" : `low (${disk.freeMb} MB free of ${disk.neededMb} MB needed)`}`);
+  await stageUpdate();
+  await installWhenIdle();
 }
 
 // Store installs: the Guilded Companion listing itself, where the Store shows Update.
@@ -291,22 +312,51 @@ async function stageUpdate() {
   if (staging || installing) return;
   const decision = autoUpdateDecision();
   if (decision.action !== "download") return;
+  if (idleUpdate.inBackoff(config.updateFailure, decision.update.version, Date.now())) { updateLine(`download of ${decision.update.version} not started: its install failed before; next try after ${config.updateFailure.nextAt}`); return; }
   const disk = checkDisk();
-  if (!disk.ok) { logLowDisk(disk, E("The automatic update")); return; }
+  if (!disk.ok) { updateLine(`download not started: only ${disk.freeMb} MB free on ${disk.drive}, ${disk.neededMb} MB needed`); logLowDisk(disk, E("The automatic update")); return; }
   staging = true;
   try {
     fs.mkdirSync(updateDirectory(), { recursive: true });
     const { installer, version } = decision.update;
     const target = path.join(updateDirectory(), installer.name);
+    updateLine(`download of ${version} started`);
     // Size and SHA-256 are checked against the release before the file is kept (update-check.cjs).
     await updates.downloadInstaller(installer, target);
     config.pendingUpdate = { version, file: target, sha256: installer.sha256, attempts: 0 };
     await saveConfig();
+    updateLine(`download of ${version} finished and checked; it installs when the companion is idle, or at the next quit or start`);
     pushLog({ time: new Date().toISOString(), level: "info", message: E("Guilded Companion {0} was downloaded and checked. It installs when you quit the companion or start it next.", version) });
   } catch (error) {
     // Offline, rate limited or interrupted: stay quiet and try again at the next check.
+    updateLine(`download failed: ${error instanceof Error ? error.message : String(error)}`);
     pushLog({ time: new Date().toISOString(), level: "info", message: E("Automatic update download skipped: {0}", error instanceof Error ? error.message : String(error)) });
   } finally { staging = false; }
+}
+// A downloaded update installs by itself when nobody is using the companion (idle-update.cjs): window
+// hidden, WoW closed, no sync running. The installer quits and restarts the companion; the restart marker
+// keeps the restarted window hidden. Nothing here quits the app: a failed installer leaves it running.
+let minimizedAt = null;
+const idleUpdateMarkerFile = () => path.join(app.getPath("userData"), idleUpdate.MARKER_NAME);
+const idleInstaller = idleUpdate.createIdleInstaller({
+  updates,
+  currentVersion: () => app.getVersion(),
+  directory: () => updateDirectory(),
+  eligible: () => !STORE_INSTALL && app.isPackaged && !installerHandedOff && !installing,
+  getConfig: () => config,
+  saveConfig: () => saveConfig(),
+  window: () => ({ visible: !!win && !win.isDestroyed() && win.isVisible(), minimized: !!win && !win.isDestroyed() && win.isMinimized(), minimizedAt }),
+  wowRunning: () => wowRunning,
+  syncBusy: () => { try { return engine?.state?.()?.syncPhase === "uploading"; } catch { return false; } },
+  checkDisk: () => checkDisk(),
+  writeMarker: (version) => { try { fs.writeFileSync(idleUpdateMarkerFile(), JSON.stringify({ at: new Date().toISOString(), version })); } catch { /* the window may show once */ } },
+  clearMarker: () => { try { fs.rmSync(idleUpdateMarkerFile(), { force: true }); } catch { /* none */ } },
+  spawn,
+  log: (text) => updateLine(text)
+});
+async function installWhenIdle() {
+  const result = await idleInstaller.run();
+  if (result.started) pushLog({ time: new Date().toISOString(), level: "info", message: E("Installer started for Guilded Companion {0}; restarting the companion.", result.version) });
 }
 function forgetPendingUpdate(file) {
   config.pendingUpdate = undefined;
@@ -337,7 +387,9 @@ async function startupUpdateStep() {
     pushLog({ time: new Date().toISOString(), level: "info", message: E("Guilded Companion updated to {0}.", current) });
     if (Notification.isSupported()) new Notification({ title: T("Guilded Companion updated to {0}", current), body: T("Your settings and Discord link were kept."), icon: asset("icon.png") }).show();
   }
+  if (config.updateFailure && !updates.isNewer(config.updateFailure.version, current)) config.updateFailure = undefined;
   const verdict = updates.inspectPending({ pending: config.pendingUpdate, current, directory: updateDirectory() });
+  updateLine(`start: running ${current}, downloaded update ${verdict.action}${verdict.reason ? ` (${verdict.reason})` : ""}, auto update ${config.autoUpdate === false ? "off" : "on"}`);
   if (verdict.action === "clear") forgetPendingUpdate(config.pendingUpdate?.file);
   if (verdict.action !== "install" || config.autoUpdate === false) { await saveConfig(); return false; }
   // Never start an installer that would fail partway: the update waits until space is freed.
@@ -372,7 +424,16 @@ let storePromptPending = false;
 let restartedQuietly = false;
 const restartMarkerFile = () => path.join(app.getPath("userData"), "store-update-restart.json");
 function readRestartMarker() {
-  if (!STORE_PACKAGE) return false;
+  if (!STORE_PACKAGE) {
+    // A direct-download update the companion started while idle (idle-update.cjs): the restart stays in the tray.
+    try {
+      const marker = JSON.parse(fs.readFileSync(idleUpdateMarkerFile(), "utf8"));
+      fs.rmSync(idleUpdateMarkerFile(), { force: true });
+      const quiet = idleUpdate.markerIsFresh(marker);
+      if (quiet) pushLog({ time: new Date().toISOString(), level: "info", message: E("Guilded Companion was updated while idle and restarted in the tray.") });
+      return quiet;
+    } catch { return false; }
+  }
   try {
     const quiet = storeUpdatesModule().restartedAfterUpdate(JSON.parse(fs.readFileSync(restartMarkerFile(), "utf8")));
     fs.rmSync(restartMarkerFile(), { force: true });
@@ -571,6 +632,8 @@ function createWindow() {
   win.once("ready-to-show", () => { if ((!startHidden && !restartedQuietly) || engineModules.validateConfig(config).length > 0) win.show(); });
   // A Store update prompt (Windows 10 1607-1909) waits for a window the member can see.
   win.on("show", () => { if (storePromptPending) { storePromptPending = false; config.storeUpdateCheckedAt = undefined; void maybeStoreUpdate(); } });
+  win.on("minimize", () => { minimizedAt = Date.now(); });
+  win.on("restore", () => { minimizedAt = null; });
   win.on("close", (event) => {
     if (quitting) return;
     event.preventDefault();
@@ -834,6 +897,8 @@ app.whenReady().then(async () => {
   // Look for a newer release shortly after start, then every few hours.
   setTimeout(() => void checkForUpdate(), 20_000);
   setInterval(() => void checkForUpdate(), updates.CHECK_INTERVAL_MS);
+  // A downloaded update waits only for a quiet moment: looked at every 10 minutes, no network needed.
+  setInterval(() => void installWhenIdle().catch((error) => updateLine(`install when idle failed: ${error instanceof Error ? error.message : String(error)}`)), 10 * 60 * 1000).unref?.();
   // Store build (F5): look for a Store update a few minutes after start, then every 30 minutes;
   // store-update.cjs keeps it to once every 6 hours and never while WoW runs.
   if (STORE_PACKAGE) {

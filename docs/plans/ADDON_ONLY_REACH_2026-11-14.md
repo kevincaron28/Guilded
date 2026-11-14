@@ -52,50 +52,58 @@ Only dungeon runs can travel through other people outside a guild. Everything el
 
 ### Addon
 
-- One store, `GuildedCarry.records`, per kind and record key, holding only the player's OWN records (their own characters as author), each small (under a chunk or two), bounded in count and age, pruned by receipt or age. Kinds: dungeon run (the #880 `dungeon.carried` table becomes a kind of it), duel result, outside duel, world PvP weekly counters, battleground report, milestone and achievement entries, character card (level, class, race, professions, attunements).
-- Store-and-forward: a record stays until a receipt comes back for its key. It is offered when the addon hears a carrier, again after a long pause, and never in combat or inside an instance.
-- Meeting: a carrier is anyone whose companion advertises the feature. Today that is only written to the carrier's own file. Add a one-line announcement `HI|carry|version` that a carrier sends on GUILD, on PARTY or RAID when the group changes, and in the shared meeting channel below. Addon-only players keep a short list of carriers heard (name, when) and never send to a name they have not heard.
-- Meeting place for strangers (needs the two-client test): one temporary custom channel per faction and shard, `GldCarry<faction><0-3>` chosen by a hash of the player's name, joined quietly (not added to chat frames, no visible channel number if the game allows), left on logout or when the member switches the feature off. It carries only `HI` announcements and receipts. The records themselves go by WHISPER to a carrier just heard, small messages, paced. If the join is refused, the feature uses GUILD and PARTY only. Member switch: `/guilded carry off` (and `/gdungeons carry off`, which already exists for dungeon runs).
-- Visible state, one plain line in the status page and `/guilded carry`: "3 records waiting for a companion", "Uploaded by a companion in your group", "No companion heard yet".
-- Diagnostic: `/guilded probe comm` and `/gdungeons probe comm` repeat the channel and whisper checks and write the result to the diagnostics, so the two-client test needs no typed scripts.
+- **One store**, `GuildedCarry.records`, per kind and record key, holding only the player's OWN records (their own characters as author). Kinds: dungeon run (the #880 `dungeon.carried` table becomes one kind of it), duel result, outside duel, world PvP weekly counters, battleground report, milestone and achievement entries, character card (level, class, race, professions, attunements).
+- **Bounds.** At most 200 records and 64 KB in the store, each record at most 2 KB, oldest records dropped first; a record is dropped when its receipt arrives or after 30 days. These are storage limits, not server checks.
+- **Store and forward.** A record stays until a receipt comes back for its key. It is offered when the addon hears a carrier, and again after a long pause. Nothing is sent in combat or inside an instance.
+- **Pacing.** Everything goes through `ns.comm.send` (255-byte messages, the shared adaptive budget, low-value priority, held in instances and combat). At most one whisper transfer in flight per carrier, at most 8 records per carrier per login session before a pause of 10 minutes, and a record bigger than one message is cut into chunks of 200 bytes (at most 10 per record).
+- **Who is a carrier.** Anyone whose companion advertises it. Today the marker is only written to the carrier's own file; add a short announcement `HI|carry|version` sent on GUILD, on PARTY or RAID when the group changes, and in the meeting channel. An addon keeps a short list of carriers heard (name, last heard) and never sends to a name it has not heard.
+- **Meeting place for strangers** (to prove with the two-client test):
+  - One temporary custom channel per faction. Every carrier joins all shards of its faction; an addon-only player picks a shard by hash of its own name. The starting point is a single channel per faction, moving to shards only when a real client shows one channel is too busy or full. A player in any shard therefore always meets every carrier.
+  - It carries only `HI` announcements. Records and receipts go by whisper, never in the channel.
+  - Joined last at login (after the player's own channels), never reordered, left on logout or when the member switches the feature off. Whether the join takes a visible channel number, shifts the player's `/1` to `/10` channels or macros, or prints a "Joined channel" line is something to prove on a real client, not assumed. If it does, the feature uses guild and party only on that client.
+  - If the join is refused or the channel is full, the feature falls back quietly to GUILD and PARTY relay.
+  - Member switch: `/guilded carry off` (and `/gdungeons carry off`, which already exists for dungeon runs). On by default for every addon user (owner decision).
+- **Receipts** are accepted only by whisper from a carrier the addon heard and sent to, or from the companion's own file. Nothing read from the shared channel can delete a record.
+- **Stale carriers.** A carrier is forgotten after 20 minutes without a new announcement; a whisper that gets the game's "No player named ... is currently playing" answer counts as a failure, and after 2 failures the carrier is dropped for the session. The system line for our own whispers is hidden from the chat frames only if the game allows it without tainting; otherwise it stays.
+- **Visible state**, one plain line in the status page and `/guilded carry`: "3 records waiting for a companion", "Uploaded by a companion in your group", "No companion heard yet".
+- **Diagnostic.** `/guilded probe comm` and `/gdungeons probe comm` repeat the channel and whisper checks and write the result to the diagnostics, so the two-client test needs no typed scripts.
 
 ### Companion
 
-- Reads `GuildedCarry.records` of the files it already reads, sends them in the existing upload as `carriedRecords` (a list, bounded), and writes receipts back in the file the addon already reads for run receipts, keyed by record. It advertises the `carry` feature next to `group-relay`.
+Reads `GuildedCarry.records` of the files it already reads, sends them in the existing upload as `carriedRecords` (a bounded list), and writes receipts back in the file the addon already reads for run receipts, keyed by record. It advertises the `carry` feature next to `group-relay`.
 
 ### Bot
 
-- One lane, `carriedRecords`, accepted in a signed or device upload, applied only through each kind's existing applier, never a new write path:
-  - the record names its author (a character in the record); only the author's own statement counts, as in #880: the author must be a player of the record (duel winner or loser, run player, the character a counter belongs to);
-  - a carried record never replaces first-hand data from the author's own companion and is marked as carried;
-  - characters of a guild go to that guild when it is registered (reusing the cross-guild roster lookup of #896); anyone else goes to the public lane only;
-  - no Discord id, member id or link crosses from one guild to another; a guild sees the character names, classes, levels and guild names that are already on cards;
-  - a carrier has a daily allowance and a ceiling per upload in server configuration (`RUN_INTEGRITY_CONFIG`), and the existing plausibility checks apply to every kind; nothing is said to members about limits or how checks work;
-  - receipts: the carrier's receipt lists record keys, and the lane receipts records it dropped, so nobody resends for ever. The receipt to the author arrives when the author's own addon hears a carrier answer, or its own companion's receipt.
+- One lane, `carriedRecords`, accepted in a signed or device upload and applied only through each kind's existing applier, never a new write path. Carried records are validated on the server.
+- A record names its author, who must be a player of that record. Characters of a registered guild go to that guild (reusing the cross-guild lookup of #896); anyone else goes to the public lane only. No Discord id, member id or link crosses from one guild to another.
+- Receipts list the record keys the lane has dealt with, so nobody resends for ever.
 
-### What the bot cannot verify
+### Privacy
 
-A counter-style record (world PvP, badge) has one author and no counterparty, so a carrier that edits its own saved file could invent one for another name. The same is true today of any self-report. The bot limits the effect: carried counters are marked, count only for characters it has not seen first-hand from their own companion, are capped by the carrier's allowance, and stay out of ranked boards until a second independent carrier or the author's own companion confirms them.
+Outside-guild duels store the opponent's class, level, guild text and zone as the reporter's client saw them, and show them on the public duel pages. The privacy text for members says so plainly (the member-facing privacy page and the addon's first-run notice, to update with the addon release).
 
 ## 6. Order of work
 
-1. Bot fix for 4.1 (outside duels of a signed member) with a test. Bot only.
+1. Bot fix for 4.1 (outside duels of a signed member). Done in this PR.
 2. Author receipt for a #880 relayed run (the carrier's `group:` receipt also reaches the author when it asks). Addon and bot.
-3. The generic `carriedRecords` lane on the bot, kind by kind: outside duels, duel results, battleground reports, milestones, then counters and character cards, behind server configuration switches.
+3. The generic `carriedRecords` lane on the bot, kind by kind: outside duels, duel results, battleground reports, milestones, then counters and character cards.
 4. Addon store, `HI` announcements, whisper transfer, status line and `probe comm`. Companion transport and receipts. Next addon release, separate PR.
-5. Two-client real test: a second PC hears the custom channel; the join from addon code at login; whisper to a carrier just heard; chat frame side effects; throttling; cross-faction; a record made while the carrier is offline reaching it later.
+5. Two-client real test (section 7).
+6. Member-facing privacy text for outside-guild duels.
 
 ## 7. Real-client test between two players must check
 
 - Player A (addon only, no guild) and player B (companion running) in no common group: A's `probe comm` shows the join accepted and B's announcement heard; B's `probe comm` shows A's whisper received.
 - A makes a duel and a dungeon run while B is offline; B comes online; A's status line goes from "waiting" to "uploaded by a companion" and B's companion log shows the records sent; the website shows them once.
-- The channel produces no chat-frame line and no visible channel slot for either player; `/guilded carry off` leaves the channel.
-- Combat and instances: nothing is sent; throttling does not disturb the game's own chat.
-- A third player with the addon only cannot make B upload a record for a character that is not the sender.
+- The channel produces no chat-frame line, no shifted channel numbers and no changed macros for either player; `/guilded carry off` leaves the channel.
+- A player in another shard still meets the carrier.
+- Combat and instances: nothing is sent; the game's own chat is not throttled by it.
+- A third player with the addon only cannot make B upload a record for a character that is not the sender, and cannot delete A's records with a forged receipt in the channel.
+- A stale carrier (B logs out) produces no visible "No player named" line, or at most one.
 - Different faction: whether the channel and the whisper reach.
 
-## 8. Decisions for the owner
+## 8. Decisions (owner, 14 November 2026)
 
-1. A shared meeting channel for strangers, joined quietly by every addon user, on by default with a member off switch (recommended), or party and guild only.
-2. Counters (world PvP, badges) carried by someone else stay hidden from ranked boards until confirmed (recommended), or count at once.
-3. Fix the outside-duel drop for signed-in members now (recommended).
+1. Every addon user joins the shared meeting channel by default, with a member off switch: the missing piece for a fully functional standalone addon.
+2. All PvP data is public and a single report is trusted: carried world PvP and badge counters count straight away, under the same server checks as every other record.
+3. The outside-guild duel fix goes in (this PR).

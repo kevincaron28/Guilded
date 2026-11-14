@@ -48,7 +48,7 @@ The simulation (`duelsim`, seeded, 13 players, 21 days, 265 duels before caps) i
 
 ## 4. Three proposed rule sets, simulated
 
-All keep the existing caps (5 per pair per day, 25 per player per day) and the "no rewards" rule. "Weekly pair weight" = the n-th counted duel of a pair in a calendar week counts 1, 1, 0.5, 0.5, 0.25, 0.25, then nothing.
+All keep the existing caps (5 per pair per day, 25 per player per day) and the "no rewards" rule. "Weekly pair weight" = the n-th counted duel of a pair in a weekly window counts for a fraction set in server configuration (`DUEL_PAIR_WEIGHTS`; not published).
 
 * **A. Points, hardened.** Same points as today x the weekly pair weight; ranked only with 5 duels against 4 distinct opponents (unranked players are listed below the ranking, with their record).
 * **B. Elo.** Start 1000; K = 40 for a player's first 10 duels, 24 up to 30, then 16; expected result uses the rating gap plus a level handicap of 20 points per level of difference (capped at 5 levels); K multiplied by the weekly pair weight; ranked after 8 duels against 4 opponents. The old "duels won" counter stays as a fun statistic.
@@ -101,7 +101,7 @@ Open questions for the owner: minimum duels/opponents (5/4 is tuned for a guild 
 
 ## 6. Decision (13 November 2026)
 
-The owner chose rule set C. Implemented as `src/services/duel-rating.ts` (rules and pure functions), with these defaults: everyone ranked from their first counted duel (owner, 13 November; the shrink handles short records), the weekly pair weight of section 4 (the weekly window is the existing Tuesday 15:00 UTC reset), duels between
+The owner chose rule set C. Implemented as `src/services/duel-rating.ts` (rules and pure functions), with these defaults: everyone ranked from their first counted duel (owner, 13 November; the shrink handles short records), the weekly pair weight of section 4, now server configuration only (the weekly window is the existing Tuesday 15:00 UTC reset), duels between
 players more than 10 levels apart move nothing, calendar-month seasons in UTC, everyone back to 1000 each season, and the ladders starting on
 13 November 2026 00:00 UTC (owner, 13 November): the first season runs to 31 December 2026, then calendar months. Duels before the start were test data: they
 are flagged `archived` (not deleted) and appear nowhere; undo with `UPDATE "DuelResult" SET "archived" = false WHERE "endedAt" < '2026-11-13T00:00:00Z'`. `GuildSettings.duelRatingStartsAt` lets one server move its own start date

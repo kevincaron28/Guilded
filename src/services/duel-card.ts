@@ -51,7 +51,7 @@ export function duelResultCard(duel: DuelCardInput, lang: Lang, classes: ClassBo
         { name: winner, color: classColor(classOf(classes, duel.winnerCharacter)), sub: t("Winner", "Gagnant"), right: moved(r.winnerDelta, r.winnerScore), rightTone: "green" },
         { name: loser, color: classColor(classOf(classes, duel.loserCharacter)), sub: fled ? t("Fled", "A fui") : t("Defeated", "Vaincu"), right: moved(r.loserDelta, r.loserScore), rightTone: "red" }
       ],
-      footer: `${r.rated ? "" : t("No rating change: the pair used its weekly allowance or the levels are too far apart · ", "Aucun changement : le duo a épuisé sa limite hebdomadaire ou l'écart de niveaux est trop grand · ")}${ratingFooter(lg, ratingSeasonName(r.seasonId, lg), new Date(r.startsAt))}`.slice(0, 300)
+      footer: `${r.rated ? "" : t("No rating change for this duel · ", "Aucun changement de cote pour ce duel · ")}${ratingFooter(lg, ratingSeasonName(r.seasonId, lg), new Date(r.startsAt))}`.slice(0, 300)
     };
   }
   return {

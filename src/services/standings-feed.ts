@@ -33,6 +33,8 @@ export interface StandingsFeedOptions {
   // A burst of writes (an import creates many rows) wakes waiting companions once.
   wakeDelayMs?: number;
   maxEntries?: number;
+  /** A shared guild-wide read that takes longer fails for everyone waiting on it (default 25 s), so joiners never hang. */
+  sharedTimeoutMs?: number;
   // A rebuild slower than this answers with the member's previous answer, if any (default 10 s).
   composeBudgetMs?: number;
   /** Every answer leaves within this time of the request (the website Worker and companions give up at 20 s). */
@@ -51,6 +53,7 @@ export function createStandingsFeed(options: StandingsFeedOptions = {}) {
   const maxWaitMs = options.maxWaitMs ?? 25_000;
   const wakeDelayMs = options.wakeDelayMs ?? 1_500;
   const maxEntries = options.maxEntries ?? 500;
+  const sharedTimeoutMs = options.sharedTimeoutMs ?? 25_000;
   const composeBudgetMs = options.composeBudgetMs ?? 10_000;
   const answerWithinMs = options.answerWithinMs ?? 17_000;
   const now = options.now ?? Date.now;
@@ -214,7 +217,11 @@ export function createStandingsFeed(options: StandingsFeedOptions = {}) {
       const current = sharedReads.get(key);
       if (current && current.generation === generation(guildId)) return current.work as Promise<T>;
       const entry = { generation: generation(guildId), work: undefined as unknown as Promise<unknown> };
-      entry.work = Promise.resolve().then(read);
+      entry.work = new Promise<T>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error(`shared read ${name} for the guild took over ${sharedTimeoutMs} ms`)), sharedTimeoutMs);
+        timer.unref?.();
+        Promise.resolve().then(read).then(resolve, reject).finally(() => clearTimeout(timer));
+      });
       sharedReads.set(key, entry);
       const done = () => { if (sharedReads.get(key) === entry) sharedReads.delete(key); };
       entry.work.then(done, done);

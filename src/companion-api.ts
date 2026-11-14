@@ -553,7 +553,7 @@ async function officerPromotionFeed(client: Client, guild: { id: string; discord
 
 // Read-only EP/GP/PR per linked character and what goes with it. The companion writes it
 // into the addon folder so /guilded standings shows the bot's numbers.
-async function standingsParts(guild: { id: string; discordId: string }, access: { memberId: string; actorId: string; officer?: boolean }, client?: Client): Promise<FeedParts> {
+export async function standingsParts(guild: { id: string; discordId: string }, access: { memberId: string; actorId: string; officer?: boolean }, client?: Client): Promise<FeedParts> {
   // Officers only: who the promotion rule says is ready (never in the shared part, never for members).
   const promotion = access.officer && client ? await officerPromotionFeed(client, guild).catch(() => null) : null;
   // At most 4 s (hotfix 2): otherwise the member's last known events (discord-calendar.ts).

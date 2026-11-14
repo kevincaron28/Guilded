@@ -230,3 +230,16 @@ describe("reads shared between the members of one guild", () => {
     expect(await feed.shared("g", "reads", async () => "ok")).toBe("ok");
   });
 });
+
+describe("a shared read that hangs", () => {
+  it("fails for everyone waiting on it after the timeout, and the next request starts a new read", async () => {
+    vi.useFakeTimers();
+    const feed = createStandingsFeed({ sharedTimeoutMs: 1_000 });
+    const a = feed.shared("g", "reads", () => new Promise<string>(() => undefined));
+    const b = feed.shared("g", "reads", async () => "never used");
+    const failed = Promise.all([expect(a).rejects.toThrow("took over 1000 ms"), expect(b).rejects.toThrow("took over 1000 ms")]);
+    await vi.advanceTimersByTimeAsync(1_001);
+    await failed;
+    expect(await feed.shared("g", "reads", async () => "fresh")).toBe("fresh");
+  });
+});

@@ -6,6 +6,11 @@ import { firstNameKey } from "./dungeon-import.js";
 // how many independent statements agree, never by which anonymous key uploaded it. Pure functions; the database side
 // is storeDeviceRuns (companion-device.ts).
 
+/** One witness is enough for a run to be stored and ranked (docs/plans/SINGLE_WITNESS_2026-11-13.md). Set false for the earlier rules. */
+export const SINGLE_WITNESS = true;
+/** The date from which one witness is enough. */
+export const SINGLE_WITNESS_SINCE = "2026-11-13";
+
 export const RUN_TRUST = {
   /** Everyone sees the final boss die at the same moment on the game server's clock. */
   endToleranceSec: 120,
@@ -22,8 +27,8 @@ export const RUN_TRUST = {
 } as const;
 
 export const PENDING_REASON = "Waiting for a second player's addon to confirm it";
-export const EXPIRED_REASON = "Not confirmed by a second player";
-export const LIMIT_REASON = "Daily limit for this PC: waiting for a second player's addon";
+export const EXPIRED_REASON = SINGLE_WITNESS ? "Too old to count (over 30 days)" : "Not confirmed by a second player";
+export const LIMIT_REASON = SINGLE_WITNESS ? "Daily limit for this PC: the rest are counted tomorrow" : "Daily limit for this PC: waiting for a second player's addon";
 
 /**
  * Owner decision, 10 November 2026: during Season 1 a run only anonymous devices vouch for is stored and counted too
@@ -31,6 +36,7 @@ export const LIMIT_REASON = "Daily limit for this PC: waiting for a second playe
  * calendar: it is on until an official season numbered 2 or later has started. No stored flag, so nothing to forget to flip.
  */
 export function countsDeviceOnlyRuns(startedSeasonNumbers: readonly number[]): boolean {
+  if (SINGLE_WITNESS) return true;
   return !startedSeasonNumbers.some((number) => number >= 2);
 }
 

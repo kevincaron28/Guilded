@@ -20,7 +20,7 @@ TypeScript is the reference (and the disagreement is a bug to find, usually `^` 
 start 1000
 K by rated duels already played: <10 -> 40, <30 -> 24, else 16
 handicapPerLevel 20, handicapMaxLevels 5, maxLevelGap 10
-pairWeights { 1, 1, 0.5, 0.5, 0.25, 0.25 }   -- the 7th and later duel of a pair in a window: 0
+pairWeights: server configuration (env DUEL_PAIR_WEIGHTS), not published; the bot sends the table to clients in the sync answer when the addon needs it
 shrinkGames 10, rankedDuels 1, rankedOpponents 1
 startsAt 2026-12-01T00:00:00Z
 ```
@@ -35,7 +35,7 @@ end time in epoch seconds. Everyone starts at 1000 with 0 rated duels.
    * `pairKey` = the two names, lower-cased, sorted, joined; the window = the **weekly reset (Tuesday 15:00 UTC)** the duel falls in
      (the addon already has this: `weekStart` in the dungeon code; the bot uses `weekStart` of `dungeon-rules.ts`). `nth` = how many duels
      of this pair in this window came before this one (0 for the first).
-   * `weight` = `pairWeights[nth+1]` (Lua 1-based) or 0 past the table. If both levels are known and differ by more than `maxLevelGap`, `weight` = 0.
+   * `weight` = the server-configured pair weight for `nth` (1 when none is configured). If both levels are known and differ by more than `maxLevelGap`, `weight` = 0.
    * `weight == 0`: nothing moves (the duel still counts in wins/losses/streak and "last duel"). Stop.
    * handicap = `handicapPerLevel * clamp(loserLevel - winnerLevel, -5, 5)`; 0 when either level is nil/0.
    * `expected = 1 / (1 + 10 ^ ((loserRating + handicap - winnerRating) / 400))`.

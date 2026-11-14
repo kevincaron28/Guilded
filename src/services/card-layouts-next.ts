@@ -13,7 +13,8 @@ import { ACCENTS, CARD_H, CARD_W, CardCanvas, GOOD, INK, SUB, type AccentKey, ty
  */
 export interface CardLine { text: string; color?: string | undefined }
 export interface CardSpecRow { name: string; color?: string | undefined; sub?: string | undefined; right?: string | undefined }
-export interface CardSpecLadderRow { rank: number; name: string; color: string; score: string; record?: string | undefined }
+export interface CardSpecLadderRow { rank: number; name: string; color: string; score: string; record?: string | undefined; /** Rank movement: positive up, negative down, "new" a new entry (drawn as a small triangle or dot, not text). */ move?: number | "new" | undefined }
+export interface CardSpecBoard { title?: string | undefined; rows: CardSpecLadderRow[] }
 export interface CardSpecStat { value: string; label: string }
 export interface NextCardSpec {
   type: AccentKey; emblem: EmblemKind;
@@ -26,6 +27,8 @@ export interface NextCardSpec {
   stats?: CardSpecStat[] | undefined;
   rows?: CardSpecRow[] | undefined;
   ladder?: CardSpecLadderRow[] | undefined;
+  /** Several boards side by side (at most two, six rows each, each under its own title). Wins over `ladder`. */
+  boards?: CardSpecBoard[] | undefined;
   /** Small print along the bottom (date, context). Messages carry the legal wording, not the image. */
   strip?: string | undefined;
   /** The painting: any image buffer; it is fitted to 1200x630 here. */
@@ -42,6 +45,10 @@ const serial = <T,>(job: () => Promise<T>): Promise<T> => job();
 const fitted = (art: Buffer) => sharp(art).resize(CARD_W, CARD_H, { fit: "cover" }).removeAlpha().jpeg({ quality: 90 }).toBuffer();
 
 const RESULT_LIMIT = 540;
+/** One board of up to twelve rows: one wide column up to six rows, else two columns of six. */
+function splitRows(rows: CardSpecLadderRow[], title?: string): CardSpecBoard[] {
+  return rows.length > 6 ? [{ title, rows: rows.slice(0, 6) }, { rows: rows.slice(6, 12) }] : [{ title, rows }];
+}
 export function renderResultCard(spec: NextCardSpec): Promise<RenderedCard> {
   return serial(async () => {
     const c = new CardCanvas(), { accent, tint } = ACCENTS[spec.type], x = 56, colW = 410;
@@ -83,25 +90,37 @@ export function renderResultCard(spec: NextCardSpec): Promise<RenderedCard> {
 export function renderBannerCard(spec: NextCardSpec): Promise<RenderedCard> {
   return serial(async () => {
     const c = new CardCanvas(), { accent, tint } = ACCENTS[spec.type];
-    const ladder = spec.ladder && spec.ladder.length > 0 ? spec.ladder.slice(0, 12) : null;
+    // Ladder columns: several boards side by side (two at most), or one board of up to twelve rows split six and six.
+    const boards = (spec.boards ?? []).filter((x) => x.rows.length > 0).slice(0, 2);
+    const flat = spec.ladder && spec.ladder.length > 0 ? spec.ladder.slice(0, 12) : null;
+    const columns: CardSpecBoard[] | null = boards.length > 1 ? boards.map((x) => ({ ...x, rows: x.rows.slice(0, 6) }))
+      : boards.length === 1 ? splitRows(boards[0]!.rows.slice(0, 12), boards[0]!.title) : flat ? splitRows(flat) : null;
+    const ladder = columns !== null;
     const bh = ladder ? 190 : 285;
     c.gradient(0, 0, 760, bh, "h", [[0, "#000", 0.82], [0.7, "#000", 0.4], [1, "#000", 0]]);
     c.rect(0, bh, CARD_W, CARD_H - bh, "#15110d");
     c.rect(0, bh, CARD_W, 5, accent);
     c.emblem(spec.emblem, 56, 28, 44, tint);
     await c.text(spec.label, 116, 34, { size: 26, face: "bold", color: tint, spacing: 1500, maxW: 420 });
-    if (ladder) {
+    if (columns) {
       await c.text(spec.title, 56, 84, { size: 46, face: "serif", maxW: 420 });
       const hero = await c.text(spec.hero, 56, 130, { size: 40, face: "bold", color: spec.heroColor ?? INK, maxW: 420 });
       if (spec.heroNote) await c.text(spec.heroNote, 56 + hero.w + 16, 140, { size: 28, color: SUB, maxW: 330 });
-      const perColumn = ladder.length > 6 ? 6 : ladder.length, colw = ladder.length > 6 ? 560 : 1120, rowh = 56;
-      for (const [i, r] of ladder.entries()) {
-        const col = Math.floor(i / perColumn), row = i % perColumn, x = 56 + col * (colw + 24), y = bh + 22 + row * rowh;
-        c.rect(x - 8, y - 4, colw, rowh - 6, "#ffffff", { opacity: row % 2 ? 0 : 0.05, rx: 8 });
-        await c.text(String(r.rank), x + 30, y + 2, { size: 30, face: "bold", color: r.rank <= 3 ? tint : SUB, anchor: "r" });
-        await c.text(r.name, x + 50, y + 2, { size: 32, color: r.color, maxW: colw - 50 - (r.record ? 250 : 130) });
-        if (r.record) await c.text(r.record, x + colw - 130, y + 6, { size: 26, color: SUB, anchor: "r", maxW: 110 });
-        await c.text(r.score, x + colw - 24, y + 2, { size: 34, face: "bold", anchor: "r", maxW: 100 });
+      const colw = columns.length > 1 ? 560 : 1120, titled = columns.some((col) => col.title), rowh = titled ? 52 : 56, top = bh + 18 + (titled ? 34 : 0);
+      for (const [ci, col] of columns.entries()) {
+        const x = 56 + ci * (colw + 24);
+        if (col.title) await c.text(col.title, x, bh + 14, { size: 26, face: "bold", color: tint, maxW: colw - 10 });
+        const recW = colw > 600 ? 300 : 130;
+        for (const [row, r] of col.rows.entries()) {
+          const y = top + row * rowh;
+          c.rect(x - 8, y - 4, colw, rowh - 6, "#ffffff", { opacity: row % 2 ? 0 : 0.05, rx: 8 });
+          await c.text(String(r.rank), x + 30, y + 2, { size: 30, face: "bold", color: r.rank <= 3 ? tint : SUB, anchor: "r" });
+          if (r.move === "new") c.raw(`<circle cx="${x + 43}" cy="${y + 19}" r="4.5" fill="${tint}"/>`);
+          else if (typeof r.move === "number" && r.move !== 0) c.raw(`<path d="${r.move > 0 ? `M${x + 38} ${y + 24} L${x + 48} ${y + 24} L${x + 43} ${y + 14} Z` : `M${x + 38} ${y + 14} L${x + 48} ${y + 14} L${x + 43} ${y + 24} Z`}" fill="${r.move > 0 ? GOOD : "#ff8a7a"}"/>`);
+          await c.text(r.name, x + 56, y + 2, { size: 32, color: r.color, maxW: colw - 56 - 24 - 110 - (r.record ? recW + 12 : 0) });
+          if (r.record) await c.text(r.record, x + colw - 140, y + 6, { size: 26, color: SUB, anchor: "r", maxW: recW });
+          await c.text(r.score, x + colw - 24, y + 2, { size: 34, face: "bold", anchor: "r", maxW: 100 });
+        }
       }
       if (spec.strip) await c.text(spec.strip, 56, 586, { size: 24, color: SUB, maxW: CARD_W - 112 });
     } else {

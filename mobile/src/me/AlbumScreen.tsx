@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { ApiError, GuildedClient } from "../api";
 import { groupSets, isNew, parseAlbum, type Album, type AlbumCard } from "../album";
 import type { Lang } from "../i18n";
@@ -29,8 +29,15 @@ const sampleBody = { cards: [
   { id: "s3", name: "Raid Regular", description: "Attend 5 raids.", tier: "gold", tierColor: "#ffd100", tierLabel: "Gold", set: "Sample set", rank: null, threshold: 5, earnedAt: null }
 ] };
 
-function Medal({ card, earned }: { card: AlbumCard; earned: boolean }) {
-  return <MedalRing tier={card.tier} color={card.tierColor} rank={card.rank} earned={earned} />;
+/** The painted badge (tier frame + emblem, served by the site) when the card has an emblem; the plain code-drawn medal when it has none or a picture cannot load. */
+function Medal({ card, earned, origin }: { card: AlbumCard; earned: boolean; origin: string | null }) {
+  const [broken, setBroken] = useState(false);
+  if (!card.emblem || !origin || broken) return <MedalRing tier={card.tier} color={card.tierColor} rank={card.rank} earned={earned} />;
+  const size = 64, box = Math.round(size * 0.6), offset = Math.round((size - box) / 2);
+  return <View style={{ width: size, height: size, opacity: earned ? 1 : 0.35 }} accessibilityIgnoresInvertColors>
+    <Image source={{ uri: `${origin}/badge-art/frames/${card.tier}-128.webp` }} style={{ width: size, height: size, position: "absolute" }} onError={() => setBroken(true)} accessible={false} />
+    <Image source={{ uri: `${origin}/badge-art/emblems/${card.emblem}-128.webp` }} style={{ width: box, height: box, position: "absolute", left: offset, top: offset }} onError={() => setBroken(true)} accessibilityLabel={`${card.name}, ${card.tierLabel}`} />
+  </View>;
 }
 
 /** The badge album (APP_TCG option 1): a read-only collection of the member's own achievements. `session` null shows sample cards. */
@@ -73,7 +80,7 @@ export function AlbumScreen({ lang, session }: { lang: Lang; session: Session | 
         const expanded = open === card.id;
         return <Pressable key={card.id} onPress={() => setOpen(expanded ? null : card.id)} accessibilityRole="button" accessibilityLabel={`${card.name}, ${card.tierLabel}, ${earned ? w("mine", lang) : w("locked", lang)}`}
           style={[styles.tile, { borderTopColor: earned ? card.tierColor : colors.line }, !earned && styles.tileLocked, expanded && styles.tileOpen]}>
-          <Medal card={card} earned={earned} />
+          <Medal card={card} earned={earned} origin={session?.apiOrigin ?? null} />
           <Text style={styles.cardName}>{card.name}</Text>
           <Text style={styles.sub}>{card.tierLabel}{isNew(card, now) ? `  ·  ${w("fresh", lang)}` : ""}</Text>
           {expanded ? <View style={styles.more}>

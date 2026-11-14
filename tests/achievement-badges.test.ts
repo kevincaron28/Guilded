@@ -63,7 +63,7 @@ describe("achievement badge art", () => {
     const items = ACHIEVEMENTS.map((def, i) => ({ id: def.id, value: i < 4 ? def.threshold : 1, earnedAt: i < 4 ? new Date("2026-10-20T00:00:00Z") : null }));
     for (const lang of ["en", "fr"] as const) {
       const card = achievementsCard("Kev", items, lang);
-      expect(card.rows!.every(row => row.icon?.includes("<linearGradient"))).toBe(true);
+      expect(card.rows!.every(row => row.icon?.includes("<linearGradient") || row.icon?.includes("<badge-art"))).toBe(true);
       expect((await scoreCardPng(card))?.subarray(1, 4).toString()).toBe("PNG");
     }
   });

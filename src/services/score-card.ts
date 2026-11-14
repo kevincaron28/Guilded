@@ -7,6 +7,7 @@ import { dungeonArt, type DungeonArtTheme } from "./dungeon-art.js";
 import { dungeonBackdrop } from "./dungeon-backdrop.js";
 import { cardAltText } from "./card-alt.js";
 import { cardBackdropArt, BANNER_HEIGHT, type CardBackdrop } from "./card-backdrop.js";
+import { withBadgeImages } from "./badge-art.js";
 import type { RecordVisual } from "./record-card.js";
 
 /**
@@ -878,7 +879,7 @@ export async function scoreCardPng(card: ScoreCard): Promise<Buffer | null> {
   let work = pending.get(key);
   if (!work) {
     if (pending.size >= 2) return null;
-    work = render(card);
+    work = withBadgeImages(card).then(render);
     pending.set(key, work);
   }
   try {

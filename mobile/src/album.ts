@@ -5,6 +5,8 @@ export type CardTier = "bronze" | "silver" | "gold" | "platinum" | "epic" | "leg
 export interface AlbumCard {
   id: string; name: string; description: string; tier: CardTier; tierLabel: string; tierColor: string;
   set: string; rank: number | null; threshold: number; earnedAt: string | null;
+  /** The painted emblem's file name on the site (/badge-art/emblems/<emblem>-128.webp), or null for the plain medal. */
+  emblem: string | null;
 }
 export interface Album { cards: AlbumCard[]; earned: number; total: number }
 export interface AlbumSet { name: string; cards: AlbumCard[]; earned: number }
@@ -27,7 +29,8 @@ export function parseAlbum(body: unknown): Album {
     return [{
       id, name, description: text(c.description) ?? "", tier, tierLabel: text(c.tierLabel) ?? tier,
       tierColor: color && /^#[0-9a-f]{6}$/i.test(color) ? color : "#8a8a80",
-      set: text(c.set) ?? "Guilded", rank: typeof c.rank === "number" ? c.rank : null, threshold: count(c.threshold), earnedAt: text(c.earnedAt)
+      set: text(c.set) ?? "Guilded", rank: typeof c.rank === "number" ? c.rank : null, threshold: count(c.threshold), earnedAt: text(c.earnedAt),
+      emblem: /^[a-z0-9-]{1,40}$/.test(text(c.emblem) ?? "") ? text(c.emblem) : null
     }];
   });
   return { cards, earned: cards.filter((card) => card.earnedAt).length, total: cards.length };

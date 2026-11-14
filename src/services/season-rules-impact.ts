@@ -1,6 +1,6 @@
 import { cleanCharacterName } from "./character-display.js";
 import { bossTally } from "./dungeon-boss-scoring.js";
-import { routeBosses } from "./dungeon-bosses.js";
+import { isBoss, routesOfInstance } from "./dungeon-bosses.js";
 import type { BracketedRules } from "./dungeon-november-rules.js";
 import { characterScores, scoreRun, type ScoreRun } from "./public-score.js";
 
@@ -15,7 +15,7 @@ const rowKey = (row: { player: { character: string; realm: string }; bracket: st
 export function rulesImpact(runs: ScoreRun[], before: BracketedRules, after: BracketedRules, top = 20): Impact {
   const dungeons = new Map<number, DungeonImpact>();
   for (const run of runs) {
-    const row = dungeons.get(run.instanceId) ?? { key: run.instanceId, name: run.dungeonName, runs: 0, rated: 0, changed: 0, pointsLost: 0, skipped: 0, unreadable: 0, noBossList: !routeBosses(run.instanceId), unlistedBossIds: new Map() };
+    const row = dungeons.get(run.instanceId) ?? { key: run.instanceId, name: run.dungeonName, runs: 0, rated: 0, changed: 0, pointsLost: 0, skipped: 0, unreadable: 0, noBossList: !routesOfInstance(run.instanceId).length, unlistedBossIds: new Map() };
     row.runs++;
     const was = scoreRun(run, before);
     const now = scoreRun(run, after);
@@ -65,5 +65,42 @@ export function impactLines(impact: Impact, top: number): string[] {
     }
   }
   lines.push("", `${impact.rowsChanged} of ${impact.rows} character rows would score differently.`);
+  return lines;
+}
+
+/**
+ * Read-only: per dungeon, how many of its completed runs killed each boss id (successful encounters), so the boss lists can be checked
+ * against real play. A rare or optional boss shows a low share; a boss every run kills shows about 100%. Listed bosses with no recorded
+ * kill appear with 0%; ids that are in no list appear as "not listed".
+ */
+export function killShareLines(runs: ScoreRun[]): string[] {
+  const groups = new Map<string, { name: string; instanceId: number; runs: number; ids: Map<number, { name: string; runs: number }> }>();
+  for (const run of runs) {
+    const key = run.routeKey ?? String(run.instanceId);
+    const group = groups.get(key) ?? { name: run.dungeonName, instanceId: run.instanceId, runs: 0, ids: new Map() };
+    group.runs++;
+    const seen = new Set<number>();
+    for (const e of run.evidence?.encounters ?? []) {
+      const event = e as { id?: unknown; name?: unknown; success?: unknown; kind?: unknown };
+      if (event.success !== true || event.kind === "npc" || typeof event.id !== "number" || seen.has(event.id)) continue;
+      seen.add(event.id);
+      const entry = group.ids.get(event.id) ?? { name: typeof event.name === "string" ? event.name : "?", runs: 0 };
+      entry.runs++;
+      group.ids.set(event.id, entry);
+    }
+    groups.set(key, group);
+  }
+  const lines: string[] = [];
+  for (const [key, group] of [...groups].sort((a, b) => a[1].name.localeCompare(b[1].name))) {
+    const lists = routesOfInstance(group.instanceId).filter((r) => r.key === key || routesOfInstance(group.instanceId).length === 1);
+    const route = lists[0] ?? null;
+    lines.push("", `## ${group.name} (${key}): ${group.runs} completed run(s)${route ? "" : ", no boss list yet"}`, "| Boss id | Name seen | Runs that killed it | Share | In the list |", "|---|---|---|---|---|");
+    const share = (n: number) => `${Math.round(100 * n / group.runs)}%`;
+    for (const [id, entry] of [...group.ids].sort((a, b) => b[1].runs - a[1].runs)) {
+      const boss = route?.bosses.find((b) => isBoss(b, { id, name: entry.name })) ?? null;
+      lines.push(`| ${id} | ${entry.name} | ${entry.runs} | ${share(entry.runs)} | ${boss ? `${boss.name}${boss.final ? " (final)" : ""}${boss.optional ? " (optional)" : ""}` : "not listed"} |`);
+    }
+    for (const boss of route?.bosses ?? []) if (!boss.ids.some((id) => group.ids.has(id))) lines.push(`| ${boss.ids.join("/")} | – | 0 | 0% | ${boss.name}${boss.final ? " (final)" : ""}${boss.optional ? " (optional)" : ""} |`);
+  }
   return lines;
 }

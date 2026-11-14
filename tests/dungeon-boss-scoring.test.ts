@@ -22,11 +22,30 @@ describe("which bosses a run killed", () => {
     const events = [...kills([3474, 3479]), { id: 3475, success: false }, { id: 3476, kind: "npc", success: true }, { id: 999, success: true }];
     expect(bossTally(DC, events)).toEqual({ killed: 2, total: 6 });
   });
-  it("says nothing when the bosses cannot be read: no list for the dungeon, no encounters, or none of its bosses seen", () => {
-    expect(bossTally(389, kills(ALL))).toBeNull();
+  it("says nothing when the bosses cannot be read: no list for the dungeon, or no encounters at all", () => {
+    expect(bossTally(5, kills(ALL))).toBeNull();
     expect(bossTally(DC, undefined)).toBeNull();
     expect(bossTally(DC, [])).toBeNull();
-    expect(bossTally(DC, [{ id: 999, success: true }])).toBeNull();
+  });
+  it("reads a run with encounters but none of the dungeon's bosses as final-boss-only", () => {
+    expect(bossTally(DC, [{ id: 999, success: true }])).toEqual({ killed: 1, total: 6 });
+    expect(bossTally(DC, [{ id: 3475, success: false }])).toEqual({ killed: 1, total: 6 });
+  });
+  it("matches a boss by any of its ids, or by name when the id is unknown", () => {
+    expect(bossTally(389, [{ id: 430, success: true }, { id: 2733, success: true }])).toEqual({ killed: 3, total: 4 });
+    expect(bossTally(389, [{ id: 1, name: "Oggleflint", success: true }, { id: 2, name: "TARAGAMAN the Hungerer", success: true }, { id: 3, name: "Jergosh the Invoker", success: true }, { id: 2735, success: true }])).toEqual({ killed: 4, total: 4 });
+  });
+  it("leaves optional bosses out of the total: a full clear without them is a full clear", () => {
+    const deadmines = [161, 162, 163, 164, 166, 167].map((id) => ({ id, success: true }));
+    expect(bossTally(36, deadmines)).toEqual({ killed: 6, total: 6 });
+    expect(bossTally(36, [...deadmines, { id: 165, success: true }])).toEqual({ killed: 6, total: 6 });
+  });
+  it("tells the Scarlet Monastery wings apart by their last boss, and says nothing when the wing is unclear", () => {
+    expect(bossTally(189, [{ id: 444, success: true }, { id: 445, success: true }])).toEqual({ killed: 2, total: 2 });
+    expect(bossTally(189, [{ id: 446, success: true }, { id: 447, success: true }])).toEqual({ killed: 2, total: 2 });
+    expect(bossTally(189, [{ id: 444, success: true }])).toBeNull();
+    expect(bossTally(189, [{ id: 445, success: true }, { id: 447, success: true }])).toBeNull();
+    expect(bossTally(189, [{ id: 448, success: true }])).toBeNull(); // the Armory has one boss: nothing to skip
   });
 });
 
@@ -49,6 +68,12 @@ describe("the boss rule on the time points", () => {
     }
     expect(timeRating(2400, 2400)).toBe(200);
     expect(bossAdjusted(400, { killed: 5, total: 6 })).toBe(167);
+  });
+  it("raises a run with skips to the shared floor of 50 after the cap, never above its own time score", () => {
+    expect(bossAdjusted(400, { killed: 1, total: 6 })).toBe(50);
+    expect(bossAdjusted(100, { killed: 2, total: 8 })).toBe(50);
+    expect(bossAdjusted(50, { killed: 1, total: 6 })).toBe(50);
+    expect(bossAdjusted(200, { killed: 3, total: 6 })).toBe(100);
   });
   it("more bosses never score less at the same pace", () => {
     for (const seconds of [900, 1800, 2400, 3600, 5000]) {
@@ -124,6 +149,25 @@ describe("a season that carries the rule", () => {
     expect(rateRun(site, off, site.players[0]!).score).toMatchObject({ points: 400 });
     expect(rateRun(site, off, site.players[0]!).score).not.toHaveProperty("bosses");
   });
+  it("a run with the encounters on only one board is scored as before on the other", () => {
+    const { guild, site } = shapes(on, 1200, [3474, 3479]);
+    const guildOnly = { ...guild, competitionData: { ...(guild.competitionData as object) } };
+    const siteOnly = { ...site, evidence: { ...site.evidence!, encounters: [] } };
+    // the public board has no encounters: unadjusted, no boss share
+    expect(rateRun(siteOnly, on, siteOnly.players[0]!).score).toMatchObject({ points: 400 });
+    expect(rateRun(siteOnly, on, siteOnly.players[0]!).score).not.toHaveProperty("bosses");
+    // the guild board has no encounters either: unadjusted, no boss share
+    const noGuild = { ...guildOnly, competitionData: { ...(guildOnly.competitionData as object), encounters: [] } };
+    expect(calculateDungeonRating([noGuild], on).find((r) => r.name === "Kev")!.details![0]).not.toHaveProperty("bossesKilled");
+    // each board still adjusts when it does hold them
+    expect(rateRun(site, on, site.players[0]!).score).toMatchObject({ points: 67 });
+    expect(calculateDungeonRating([guild], on).find((r) => r.name === "Kev")!.details![0]!.points).toBe(67);
+  });
+  it("a run whose encounters hold none of the listed bosses counts as final-boss-only on both boards", () => {
+    const { guild, site } = shapes(on, 1200, [999]);
+    expect(rateRun(site, on, site.players[0]!).score).toMatchObject({ points: 50, bosses: { killed: 1, total: 6 } }); // 200/6 = 33, raised to the floor
+    expect(calculateDungeonRating([guild], on).find((r) => r.name === "Kev")!.details![0]!.points).toBe(50);
+  });
   it("when the bosses cannot be read, the run is scored as before and shows no boss share", () => {
     const { guild, site } = shapes(on, 1200, []);
     expect(rateRun(site, on, site.players[0]!).score).toMatchObject({ points: 400 });
@@ -137,5 +181,18 @@ describe("a season that carries the rule", () => {
     forged[0].details[0].bossesKilled = 6;
     forged[0].details[0].bossesTotal = 6;
     expect(frozenRating(forged)).toBeNull();
+  });
+});
+
+describe("the boss lists themselves", () => {
+  it("every list has exactly one final boss, no id is shared between two bosses of a list, and at least two required bosses", async () => {
+    const { ROUTE_BOSSES } = await import("../src/services/dungeon-bosses.js");
+    for (const route of ROUTE_BOSSES) {
+      expect(route.bosses.filter((boss) => boss.final), route.name).toHaveLength(1);
+      expect(route.bosses.find((boss) => boss.final)!.optional, route.name).toBeUndefined();
+      const ids = route.bosses.flatMap((boss) => boss.ids);
+      expect(new Set(ids).size, route.name).toBe(ids.length);
+      expect(route.bosses.filter((boss) => !boss.optional).length, route.name).toBeGreaterThanOrEqual(1);
+    }
   });
 });

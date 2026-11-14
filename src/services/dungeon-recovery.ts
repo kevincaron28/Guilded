@@ -1,4 +1,4 @@
-import { finalBossOf } from "./dungeon-bosses.js";
+import { recoverableFinalBoss } from "./dungeon-bosses.js";
 
 // Completes a run the addon stored as ABANDONED although its group killed the final boss: the run ends at that kill, and anything the
 // uploader recorded after it belongs to a new run. The result goes through the ordinary import (the stored run is upgraded once).
@@ -33,13 +33,13 @@ export function completeAtFinalBoss(raw: unknown): Recovery {
   if (!run) return { skip: "not a run" };
   const instanceId = run["instanceId"];
   if (typeof instanceId !== "number") return { skip: "no instance" };
-  const final = finalBossOf(instanceId);
+  const final = recoverableFinalBoss(instanceId);
   if (!final) return { skip: "no known final boss for this dungeon" };
   if (run["state"] === "COMPLETED") return { skip: "already completed" };
   const startedAt = run["startedAt"];
   if (typeof startedAt !== "number") return { skip: "no start time" };
   const encounters = Array.isArray(run["encounters"]) ? run["encounters"] as Kill[] : [];
-  const kills = encounters.filter((entry) => entry && entry.id === final.id && entry.success === true && typeof entry.at === "number" && (entry.at as number) > startedAt);
+  const kills = encounters.filter((entry) => entry && final.ids.includes(entry.id as number) && entry.success === true && typeof entry.at === "number" && (entry.at as number) > startedAt);
   if (!kills.length) return { skip: "no successful final boss kill" };
   const endedAt = Math.min(...kills.map((entry) => entry.at as number));
   const kept = encounters.filter((entry) => !(typeof entry.at === "number" && entry.at > endedAt) && !(typeof entry.startedAt === "number" && entry.startedAt > endedAt));

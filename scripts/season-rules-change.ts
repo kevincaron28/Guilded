@@ -5,6 +5,7 @@
 //   npx tsx scripts/season-rules-change.ts --restore               dry run of the undo of the latest change
 //   npx tsx scripts/season-rules-change.ts --restore --by "name"   undoes the latest change
 //   npx tsx scripts/season-rules-change.ts --history               prints every recorded change of the running season
+//   npx tsx scripts/season-rules-change.ts --kill-shares          read-only: per dungeon, each boss id with the share of completed runs that killed it
 //   options: --off (switch the boss rule off instead of on) --top 20 --note "why"
 //
 // Stored runs are never altered. Scores, ranks and boards are computed from the runs and the season's rules when they are read, so the
@@ -17,13 +18,13 @@ import { loadOfficialWindows } from "../src/services/official-seasons.js";
 import { prismaLeaderboardStore } from "../src/services/public-leaderboard.js";
 import { periodRules, publicSeasons } from "../src/services/public-score.js";
 import { applyRulesChange, describeRules, planRulesChange, restoreLastChange, revisionsOf, RulesChangeError } from "../src/services/season-rules-change.js";
-import { impactLines, rulesImpact } from "../src/services/season-rules-impact.js";
+import { impactLines, killShareLines, rulesImpact } from "../src/services/season-rules-impact.js";
 
 const args = process.argv.slice(2);
 const flag = (name: string) => args.includes(`--${name}`);
 const value = (name: string, fallback = "") => { const i = args.indexOf(`--${name}`); return i >= 0 && args[i + 1] && !args[i + 1]!.startsWith("--") ? args[i + 1]! : fallback; };
 const top = Math.max(1, Math.min(100, Number(value("top", "20")) || 20));
-const known = new Set(["apply", "restore", "history", "off", "top", "by", "note"]);
+const known = new Set(["apply", "restore", "history", "off", "top", "by", "note", "kill-shares"]);
 for (const a of args) if (a.startsWith("--") && !known.has(a.slice(2))) throw new Error(`Unknown option ${a}`);
 const NL = String.fromCharCode(10);
 
@@ -33,6 +34,12 @@ try {
     const rows = (await prisma.officialSeason.findMany({ where: { gameEdition: "forever" }, orderBy: { startsAt: "asc" } })).filter((r) => r.startsAt <= now);
     const revisions = revisionsOf(rows[rows.length - 1]?.rules);
     console.log(revisions.length ? revisions.map((r) => `${r.at}  ${r.action}  by ${r.by}: ${r.from} -> ${r.to} (${r.guilds} guild seasons)${r.note ? `  "${r.note}"` : ""}`).join(NL) : "No rules change was recorded for the running season.");
+  } else if (flag("kill-shares")) {
+    const plan = await planRulesChange(prisma, { bossScoring: { ...BOSS_SCORING_V1, since: now.toISOString() } }, now);
+    const period = publicSeasons(now, await loadOfficialWindows(prisma)).find((p) => p.id === `s${plan.season.number}`);
+    const runs = await prismaLeaderboardStore(prisma).runs({ from: period?.from ?? plan.season.start, to: period?.to ?? null });
+    console.log(`Boss kill shares, ${plan.season.name}: ${runs.length} public runs read. Nothing is written.`);
+    console.log(killShareLines(runs).join(NL));
   } else {
     const by = value("by");
     const restore = flag("restore");

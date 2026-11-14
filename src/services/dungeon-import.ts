@@ -1,5 +1,5 @@
 import { completeAtFinalBoss } from "./dungeon-recovery.js";
-import { finalBossOf } from "./dungeon-bosses.js";
+import { recoverableFinalBoss } from "./dungeon-bosses.js";
 import { publicRules, readRuleSnapshot } from "./public-score.js";
 import { lockDungeonCalendar } from "./dungeon-calendar-lock.js";
 import { reconcileEvidenceAwards } from "./dungeon-evidence-awards.js";
@@ -371,7 +371,7 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
     // A run the addon stored unfinished although it killed the dungeon's final boss (an older addon that did not know that boss) is
     // completed at that kill here (dungeon-recovery.ts); anything recorded after it belongs to a later run.
     .map((run) => {
-      if (run.state === "COMPLETED" || !run.instanceId || !finalBossOf(run.instanceId)) return run;
+      if (run.state === "COMPLETED" || !run.instanceId || !recoverableFinalBoss(run.instanceId)) return run;
       const recovered = completeAtFinalBoss(run);
       if ("skip" in recovered) return run;
       const again = dungeonRunSchema.safeParse(recovered.run);

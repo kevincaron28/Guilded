@@ -4,7 +4,7 @@ import { BOSS_SCORING_V1, bossRuleText } from "../src/services/dungeon-boss-scor
 import { createBracketedDungeonRules, reviseRules, validBracketedRules, type BracketedRules } from "../src/services/dungeon-november-rules.js";
 import { publicRules, snapshotRules, type ScoreRun } from "../src/services/public-score.js";
 import { applyRulesChange, planRulesChange, restoreLastChange, revisionsOf, RulesChangeError } from "../src/services/season-rules-change.js";
-import { impactLines, rulesImpact } from "../src/services/season-rules-impact.js";
+import { impactLines, killShareLines, rulesImpact } from "../src/services/season-rules-impact.js";
 
 // Owner decision, 14 November 2026: the running season's rules can change (reversibly, on the record); stored runs never do.
 
@@ -116,6 +116,21 @@ describe("the dry run", () => {
     expect(rows.find((r) => r.character === "Clearer")).toMatchObject({ before: 200, after: 200, rankBefore: 2, rankAfter: 1 });
     expect(impactLines(impact, 20).join("\n")).toContain("400 -> 67");
     expect(runs).toEqual(frozen);
+  });
+});
+
+describe("the kill-share dry run", () => {
+  it("prints, per dungeon, each boss id with the share of completed runs that killed it, and marks ids that are not listed", () => {
+    const off = rulesWithCity();
+    const band = off.levelBands[String(DC)]!;
+    const mk = (id: string, ids: number[]): ScoreRun => ({ runId: id, instanceId: DC, routeKey: null, difficultyId: band.difficultyId, dungeonName: "The Drowned City", durationSec: 2400, endedAt: new Date("2026-11-14T03:00:00Z"), confirmations: 1,
+      evidence: { startedAt: new Date("2026-11-14T02:00:00Z"), completedBy: "final boss", encounters: ids.map((boss, i) => ({ id: boss, name: `Boss ${boss}`, success: true, at: 1000 + i })) },
+      players: [{ character: "Kev", realm: "Doomhowl", className: null, role: null, level: band.min, minLevel: band.min, presentSec: 2400 }] });
+    const text = killShareLines([mk("1", ALL), mk("2", [...ALL, 9999]), mk("3", [3474, 3479]), mk("4", [3479])]).join(String.fromCharCode(10));
+    expect(text).toContain("The Drowned City (2970): 4 completed run(s)");
+    expect(text).toContain("| 3479 | Boss 3479 | 4 | 100% | Min'loth the Serpent (final) |");
+    expect(text).toContain("| 3474 | Boss 3474 | 3 | 75% | Zul'Alai |");
+    expect(text).toContain("| 9999 | Boss 9999 | 1 | 25% | not listed |");
   });
 });
 

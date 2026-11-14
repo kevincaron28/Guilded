@@ -1,9 +1,12 @@
+import { cardAttachment } from "./card-alt.js";
+import { scoreCardPng } from "./score-card.js";
+import { worldPvpRecapCard } from "./world-pvp-card.js";
 import { EmbedBuilder, escapeMarkdown, type Guild as DiscordGuild } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, type Lang } from "../i18n.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
 import { guildWhere } from "./guild-scope.js";
-import { loadWorldPvpData, weekKeyOf, weekRange, type WorldPvpStanding } from "./world-pvp.js";
+import { killDeathRatio, loadWorldPvpData, weekKeyOf, weekRange, type WorldPvpStanding } from "./world-pvp.js";
 
 // World PvP extras (docs/plans/WPVP_REVIEW_2026-11-10.md, recommendations 6, 7, 8). Three officer switches, every one ON by default
 // (owner decision, 13 November 2026) and switched off by an officer with /bg world-pvp: the weekly recap with the defender line, hot zones
@@ -81,6 +84,8 @@ export function mostWanted(calls: readonly WeekCall[], known: KnownNames = new S
 
 export interface WeekRecap {
   killer: WorldPvpStanding | null; defender: WorldPvpStanding | null; helper: WorldPvpStanding | null;
+  /** The guild's open-world deaths and kills for the week (deaths 0 when no addon sent any). */
+  totals: { kills: number; deaths: number };
   /** The call that was cleared fastest (all clear pressed), with the caller's character. */
   quickest: { character: string; zone: string; seconds: number } | null; calls: number;
 }
@@ -94,7 +99,8 @@ export function weekRecap(standings: readonly WorldPvpStanding[], calls: readonl
     if (seconds <= 0 || seconds > 3_600) continue;
     if (!quickest || seconds < quickest.seconds) quickest = { character: call.character, zone: call.zone, seconds };
   }
-  return { killer: best((s) => s.kills), defender: best((s) => s.defends), helper: best((s) => s.helped), quickest, calls: calls.length };
+  const totals = standings.reduce((sum, s) => ({ kills: sum.kills + s.kills, deaths: sum.deaths + (s.deaths ?? 0) }), { kills: 0, deaths: 0 });
+  return { killer: best((s) => s.kills), defender: best((s) => s.defends), helper: best((s) => s.helped), quickest, calls: calls.length, totals };
 }
 
 const duration = (seconds: number) => seconds < 90 ? `${seconds} s` : `${Math.round(seconds / 60)} min`;
@@ -132,6 +138,8 @@ export function recapText(recap: WeekRecap, lang: Lang): string {
   if (recap.defender) lines.push(`🛡️ ${t("Defender of the week", "Défenseur de la semaine")}: **${clean(recap.defender.name)}** (${recap.defender.defends} ${t("defends", "défenses")})`);
   if (recap.helper) lines.push(`📣 ${t("Most calls answered", "Le plus d'appels répondus")}: **${clean(recap.helper.name)}** (${recap.helper.helped})`);
   if (recap.quickest) lines.push(`⏱️ ${t("Quickest all clear", "Alerte levée la plus rapide")}: **${clean(recap.quickest.character)}** — ${clean(recap.quickest.zone)}, ${duration(recap.quickest.seconds)}`);
+  // The guild total, only once a member's addon sent deaths: the board ranks on kills, so this is context, not a contest.
+  if (recap.totals.deaths > 0) lines.push(`☠️ ${t("The guild's open-world deaths", "Morts de la guilde en monde ouvert")}: **${recap.totals.deaths}** (${t("K/D", "R/M")} ${killDeathRatio(recap.totals.kills, recap.totals.deaths)})`);
   lines.push(`-# ${t("Counted by members' Guilded addon, capped each week · no points or awards", "Comptés par l'addon Guilded des membres, plafonnés chaque semaine · aucun point ni récompense")}`);
   return lines.join("\n");
 }
@@ -214,8 +222,17 @@ export async function deliverWeeklyRecap(discordGuild: DiscordGuild, db: PostDb,
   const data = await loadWorldPvpData(db, guildId, record?.gameEdition ?? "forever", new Date(weekRange(week).from.getTime() + 1_000));
   const recap = weekRecap(data.standings, await loadWeekCalls(db, guildId, week));
   if (!recap.killer && !recap.defender && !recap.helper) return false;
-  try { await channel.send({ content: recapText(recap, asLang(settings.language)), allowedMentions: { parse: [] } }); }
-  catch (error) { if (isGone(error)) return false; throw error; }
+  // 9.3: the card carries every line of the text (the category is in each row's name, so the alt text keeps it). Any failure drawing or
+  // sending the picture (a channel without Attach Files, 50013, included) falls back to the text; the week is already claimed, so it must not be lost.
+  const lang = asLang(settings.language), text = { content: recapText(recap, lang), allowedMentions: { parse: [] as never[] } };
+  try {
+    let sent = false;
+    try {
+      const png = await scoreCardPng(worldPvpRecapCard(recap, lang)).catch(() => null);
+      if (png) { await channel.send({ files: [cardAttachment(png, "world-pvp-recap.png")], allowedMentions: { parse: [] } }); sent = true; }
+    } catch (error) { console.error("World PvP recap card not sent, falling back to text", error); }
+    if (!sent) await channel.send(text);
+  } catch (error) { if (isGone(error)) return false; throw error; }
   return true;
 }
 

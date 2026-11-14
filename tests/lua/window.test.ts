@@ -162,7 +162,7 @@ describe("the five member tabs", () => {
 describe("the section row of the Guild page", () => {
   it("keep every button inside the page width, sized to its text, in English", () => {
     const s = openWindow(1);
-    for (const group of ["Guild"]) {
+    for (const group of ["Home", "Guild", "Raids", "Officer"]) {
       s.run(`NS.windowState().groupButtons.${group}.scripts.OnClick()`);
       const rows = JSON.parse(s.run(`local t = {}; for _, r in ipairs(NS.windowState().sectionLayout) do
         local b; for _, tab in ipairs(NS.windowState().tabs) do if tab.name == r.name then b = tab.button end end
@@ -497,9 +497,13 @@ describe("the tools window (sidebar and Home page)", () => {
 
   it("titles each page with what it is for", () => {
     const s = openWindow(1);
-    expect(s.run(`return NS.windowState().pageTitle.text`)).toContain("Home");
+    // Pages of a group with several pages (Home, Guild, Raids, Officer) are named by the row of buttons on top instead (their hints are tooltips).
+    expect(s.run(`return NS.windowState().pageTitle.text`)).toBe("");
     s.run(`NS.windowState().selectTabByName("EPGP")`);
-    expect(s.run(`return NS.windowState().pageTitle.text`)).toContain("award EP and GP");
+    expect(s.run(`return NS.windowState().pageTitle.text`)).toBe("");
+    // A single-page group keeps its title and hint.
+    s.run(`NS.dungeonScorePanel = NS.dungeonScorePanel or {}; NS.windowState().selectTabByName("Tools")`);
+    expect(s.run(`return NS.windowState().pageTitle.text`)).toContain("Settings");
   });
 });
 
@@ -910,5 +914,161 @@ describe("Home page link buttons (8.5 in-game fix)", () => {
       local p = remove.points[#remove.points]
       return p[1] .. ":" .. p[3] .. ":" .. tostring(p[2] == save) .. ":" .. p[4]`);
     expect(anchor).toBe("LEFT:RIGHT:true:6");
+  });
+});
+
+describe("window geometry that must not move (UI polish)", () => {
+  const ys = (s: LuaSession) => JSON.parse(s.run(`local t = {}; for _, g in ipairs({ "Home", "Guild", "Dungeons", "Crafting", "Raids", "Officer", "Settings" }) do
+      local b = NS.windowState().groupButtons[g]
+      if b and b.shown then t[#t + 1] = string.format('"%s":%d', g, b.points[1][5]) end end
+      return "{" .. table.concat(t, ",") .. "}"`)) as Record<string, number>;
+
+  it("keeps the left menu where it is when a section opens", () => {
+    const s = openWindow(1);
+    const base = ys(s);
+    expect(Object.keys(base).length).toBeGreaterThan(3);
+    for (const group of Object.keys(base)) {
+      s.run(`NS.windowState().groupButtons.${group}.scripts.OnClick()`);
+      expect(ys(s)).toEqual(base);
+    }
+  });
+
+  it("puts the Player field below the section row and the page below the field", () => {
+    const s = openWindow(1);
+    s.run(`NS.windowState().groupButtons.Guild.scripts.OnClick(); NS.windowState().selectTabByName("Standings")`);
+    const g = (code: string) => Number(s.run(code));
+    const lines = g(`return NS.windowState().sectionLines`);
+    expect(lines).toBeGreaterThan(0);
+    const rowBottom = 12 + 22 + 24 * (lines - 1);
+    const boxTop = -g(`return NS.windowState().playerBox.points[1][5]`);
+    expect(boxTop).toBeGreaterThanOrEqual(rowBottom);                                  // not over the row
+    const scrollTop = -g(`for _, p in ipairs(NS.windowState().guildScroll.points) do if p[1] == "TOPLEFT" then return p[5] end end`);
+    expect(scrollTop).toBeGreaterThanOrEqual(boxTop + 22);                             // not over the field
+    // Without the field the page starts where it always did.
+    s.run(`NS.windowState().selectTabByName("Guild overview")`);
+    expect(g(`return NS.windowState().pageTop`)).toBe(66);
+  });
+});
+
+describe("the page title line under the section row", () => {
+  it("shows where you are under a one-line row, and nothing where there is no room", () => {
+    const s = openWindow(1);
+    s.run(`NS.windowState().groupButtons.Home.scripts.OnClick()`);
+    expect(s.run(`return tostring(NS.windowState().sectionLines)`)).toBe("1"); // Home has two short pages: one line
+    expect(s.run(`return NS.windowState().pageHint.text`)).toContain("Home");
+    expect(s.run(`return tostring(NS.windowState().pageHint.shown)`)).not.toBe("false");
+    s.run(`NS.windowState().selectTabByName("Me")`); // My character acts on a player: the Player field takes the place
+    expect(s.run(`return NS.windowState().pageHint.text`)).toBe("");
+  });
+});
+
+// 9.3.1 taint guard (13 Nov 2026: "Guilded tried to call GuildedPanel:Show()" in a duel). A frame with a secure descendant is
+// protected in combat, so the window must hold no secure frame, and the one secure button (the /reload save button) must not
+// be touched in combat at all.
+describe("taint guard: the window holds no secure frame", () => {
+  const SECURE_SETUP = String.raw`
+    SECURE = {}; COMBAT = false; TOUCHED = {}
+    function InCombatLockdown() return COMBAT end
+    local base = CreateFrame
+    CreateFrame = function(kind, name, parent, template)
+      local f = base(kind, name, parent, template)
+      f.parentRef = parent
+      if type(template) == "string" and template:find("Secure") then
+        SECURE[#SECURE + 1] = f
+        for _, method in ipairs({ "Show", "Hide", "SetPoint", "ClearAllPoints", "SetParent", "SetSize", "SetWidth", "SetHeight" }) do
+          local original = f[method]
+          f[method] = function(self, ...)
+            if COMBAT then TOUCHED[#TOUCHED + 1] = method end
+            return original(self, ...)
+          end
+        end
+      end
+      return f
+    end`;
+  // The follower frame is found by its name; the game fires PLAYER_REGEN_DISABLED just before the lockdown starts, so the
+  // event runs while COMBAT is still false and the button can still be hidden.
+  const regen = (which: string) => `for _, f in ipairs(FRAMES) do if f.frameName == "GuildedSendButtonFollower" then f.scripts.OnEvent(f, "PLAYER_REGEN_${which}") end end`;
+  const startCombat = (s: LuaSession) => { s.run(regen("DISABLED")); s.run("COMBAT = true; TOUCHED = {}"); };
+  const endCombat = (s: LuaSession) => { s.run(`COMBAT = false; ${regen("ENABLED")}`); };
+  const waitLabel = (s: LuaSession) => s.run("return tostring(NS.windowState().sendWait.shown)");
+  const buttonShown = (s: LuaSession) => s.run("return tostring(SECURE[1].shown)");
+  const panelOf = (s: LuaSession) => s.run(`for _, f in ipairs(FRAMES) do if f.frameName == "GuildedPanel" then PANEL = f end end; return tostring(PANEL ~= nil)`);
+
+  it("keeps the secure send button out of the window: parent UIParent, nothing anchored to the window", () => {
+    const s = openWindow(5, SECURE_SETUP);
+    // The button is built when the window is, which is after SECURE_SETUP wrapped CreateFrame.
+    expect(panelOf(s)).toBe("true");
+    expect(s.run("return #SECURE")).toBe("1");
+    expect(s.run("return tostring(SECURE[1].parentRef == UIParent)")).toBe("true");
+    // Not among the window's children, and no anchor point refers to the window (an anchor family would protect it too).
+    expect(s.run(`local n = 0; for _, c in ipairs(PANEL.children) do if c == SECURE[1] then n = n + 1 end end; return n`)).toBe("0");
+    expect(s.run(`local n = 0; for _, p in ipairs(SECURE[1].points) do if p[2] == PANEL then n = n + 1 end end; return n`)).toBe("0");
+    expect(s.run("return tostring(NS.windowState().homeSave == NS.windowState().sidebarSave)")).toBe("true");
+  });
+
+  it("opens, closes, switches pages and moves the window in combat without touching a secure frame", () => {
+    const s = openWindow(5, SECURE_SETUP);
+    panelOf(s);
+    s.run(`COMBAT = true; TOUCHED = {}`);
+    s.run(`PANEL:Hide(); Guilded_ToggleWindow(); Guilded_ToggleWindow(); Guilded_ToggleWindow()`);
+    s.run(`local st = NS.windowState(); for i = 1, math.min(#st.tabs, 6) do if st.tabs[i].visible then NS.windowState().selectTabByName(st.tabs[i].name) end end`);
+    s.run(`NS.windowState().selectTabByName("Home")`); // a page that has the save button (the others are read-only)
+    s.run(`PANEL:ClearAllPoints(); PANEL:SetPoint("CENTER", UIParent, "CENTER", 40, 10); PANEL.scripts.OnHide(PANEL); PANEL:Show(); PANEL.scripts.OnShow(PANEL)`);
+    expect(s.run(`return table.concat(TOUCHED, ",")`)).toBe("");
+    // The window follows the button back into place when the fight ends.
+    s.run(`COMBAT = false; ${regen("ENABLED")}`);
+    expect(s.run(`return tostring(SECURE[1].shown)`)).toBe("true");
+    expect(s.run(`return tostring(NS.windowState().sendPending)`)).toBe("false");
+  });
+
+  it("hides the send button with the window and places it from the window's rectangle out of combat", () => {
+    const s = openWindow(5, SECURE_SETUP);
+    panelOf(s);
+    expect(s.run(`return tostring(SECURE[1].shown)`)).toBe("true");
+    s.run(`PANEL:Hide(); PANEL.scripts.OnHide(PANEL)`);
+    expect(s.run(`return tostring(SECURE[1].shown)`)).toBe("false");
+    s.run(`PANEL:Show(); PANEL.scripts.OnShow(PANEL)`);
+    expect(s.run(`local p = SECURE[1].points[#SECURE[1].points]; return tostring(p[2] == UIParent) .. ":" .. p[1]`)).toBe("true:BOTTOMLEFT");
+  });
+  it("hides the send button when combat starts and keeps it hidden until combat ends: nothing invisible stays clickable", () => {
+    const s = openWindow(5, SECURE_SETUP);
+    panelOf(s);
+    s.run(`NS.windowState().selectTabByName("Home")`);
+    expect(buttonShown(s)).toBe("true");
+    // 1. The window stays open and is dragged in combat.
+    startCombat(s);
+    expect(buttonShown(s)).toBe("false");
+    expect(waitLabel(s)).toBe("true");
+    s.run(`PANEL:ClearAllPoints(); PANEL:SetPoint("CENTER", UIParent, "CENTER", 90, 0); PANEL.scripts.OnShow(PANEL)`);
+    expect(buttonShown(s)).toBe("false");
+    // 2. The window is closed in combat.
+    s.run(`PANEL:Hide(); PANEL.scripts.OnHide(PANEL)`);
+    expect(buttonShown(s)).toBe("false");
+    expect(waitLabel(s)).toBe("false");
+    // 3. It is opened again in combat, and moved to a read-only page.
+    s.run(`PANEL:Show(); PANEL.scripts.OnShow(PANEL)`);
+    expect(buttonShown(s)).toBe("false");
+    expect(waitLabel(s)).toBe("true");
+    s.run(`NS.windowState().selectTabByName("Open raids")`);
+    expect(buttonShown(s)).toBe("false");
+    expect(waitLabel(s)).toBe("false");
+    expect(s.run(`return table.concat(TOUCHED, ",")`)).toBe("");
+    // After the fight: back, on the page that has it, and the label is gone.
+    s.run(`NS.windowState().selectTabByName("Home")`);
+    endCombat(s);
+    expect(buttonShown(s)).toBe("true");
+    expect(waitLabel(s)).toBe("false");
+  });
+
+  it("opens the window mid-fight without a send button (the button is hidden at the start of every fight)", () => {
+    const s = openWindow(5, SECURE_SETUP);
+    panelOf(s);
+    s.run(`PANEL:Hide(); PANEL.scripts.OnHide(PANEL)`);
+    startCombat(s);
+    s.run(`PANEL:Show(); PANEL.scripts.OnShow(PANEL)`);
+    expect(buttonShown(s)).toBe("false");
+    expect(s.run(`return NS.windowState().sendWait.text`)).toContain("Save");
+    endCombat(s);
+    expect(buttonShown(s)).toBe("true");
   });
 });

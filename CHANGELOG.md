@@ -18,9 +18,11 @@ Not yet published. Polish after 9.2.0 (addon settings and chat, dungeon and duel
 - Fewer finished runs end as abandoned: the dungeon journal is re-read when a run starts (#842).
 - A chat line explains why an abandoned run will not count (#842).
 - A run can be completed from a guildmate's copy, runs are relayed for members without a companion in every pairing of the two addons, and each player's guild is recorded on a run (#842).
+- A run nobody heard is offered again: a short runs-only catch-up at login and when more guildmates come online (one answer per offer, at most three runs re-sent a round), the recorder is told in chat when a guildmate's companion uploaded the run, `/guilded dungeon` shows how many of your runs are not uploaded yet, slow or refused chunks no longer lose a run silently, a player with a companion is told once when guildmates' runs wait for it, and the standalone addon reads the guild roster once instead of per message and waits for it after login.
 
 **Bot (Discord)**
 - A card for every counted duel, with its own switch `/bg duel-cards` (#840).
+- Dungeon season cards: a podium card when a season ends (only once its final results are stored, for the season that just ended) and a card when one begins, in the dungeon leaderboard channel. A new message, so on by default with an officer off switch (`/bg season-cards enabled:`, ROADMAP rule 5). A post whose picture Discord refuses (no Attach Files) goes out once as text.
 - The weekly report is a card (#845).
 - Card-only messages with alt text, and ten painted card backgrounds (#833, #838).
 
@@ -28,7 +30,23 @@ Not yet published. Polish after 9.2.0 (addon settings and chat, dungeon and duel
 - Stable guild addresses and fuller guild pages (#841).
 - Deploys update only the dependencies that changed (#839).
 
+**Later additions (addon)**
+- The To invite window shows only who still needs an invite (#860, #869).
+- One profession under one name in the roster tooltip, reminders, craft orders and saved data, with Poisons (#858, #864; bot #857).
+- World PvP deaths with zone and time, K/D and deadliest zones (#862; bot #863).
+- UI polish: a left menu that no longer jumps, fields below the tab row, clamped windows, cards that remember their position and never overlap (#866).
+- The end-of-duel card has the duel painting, a stat row and a card for duels outside the guild (#867).
+
 **Companion**
+- A painted banner at the top of the window (#848).
+- The installer closes a running companion by itself, with bounded waits and safe silent runs (#853).
+
+**Bot and website (more)**
+- Cards: welcome, rookie of the week, season, World PvP weekly recap, the card redesign kit and twelve more backgrounds (#849-#852, #855, #861).
+- Dungeon runs are not lost: copy upgrades, bounded retry, early run commit, loose guild-name match, per-player guild stored (#844).
+- A painted hero on the website home page (#847); gentler deploy preparation on the small server (#854).
+
+**Companion (earlier)**
 - The "Syncing now" line clears when the sync ends (#819).
 - Docs, website and Store listing describe the single window (#824). Store: 9.3.0.0 package built, not submitted (Guild Sync Companion 9.2.0.0 certifying).
 

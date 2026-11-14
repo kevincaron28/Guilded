@@ -35,6 +35,45 @@ ns.util = util
 -- The companion (Windows app that sends your data to Discord), in the same three steps everywhere
 -- members look: Home, /guilded companion, the login reminder and the "runs waiting" notice.
 -- Zero setup since 9.1.0: it finds WoW and the Discord server by itself; signing in is optional.
+-- Two cards on the screen at once (the dungeon result card and the duel card) never overlap: when `frame` is about to be shown over
+-- `other` (a frame that is already shown), `frame` is moved just above it. The new place is an absolute offset from UIParent,
+-- computed from the other card's rectangle: one card is never anchored to the other (two cards anchored to each other is an error).
+-- A frame that was just positioned and has no rectangle yet is measured from its own anchor and size.
+local ANCHOR_FRACTION = { LEFT = 0, RIGHT = 1, CENTER = 0.5, BOTTOM = 0, TOP = 1 }
+local function anchorFractions(point)
+  point = tostring(point or "CENTER")
+  local x = ANCHOR_FRACTION[point:find("LEFT") and "LEFT" or point:find("RIGHT") and "RIGHT" or "CENTER"]
+  local y = ANCHOR_FRACTION[point:find("BOTTOM") and "BOTTOM" or point:find("TOP") and "TOP" or "CENTER"]
+  return x, y
+end
+local function cardRect(f)
+  local l, r, t, b = f.GetLeft and f:GetLeft(), f.GetRight and f:GetRight(), f.GetTop and f:GetTop(), f.GetBottom and f:GetBottom()
+  if type(l) == "number" and type(r) == "number" and type(t) == "number" and type(b) == "number" then return l, r, t, b end
+  -- Not laid out yet: from its first anchor to UIParent and its size.
+  if not (f.GetPoint and f.GetWidth and f.GetHeight and UIParent and UIParent.GetWidth and UIParent.GetHeight) then return end
+  local ok, point, rel, relPoint, x, y = pcall(f.GetPoint, f, 1)
+  local w, h = f:GetWidth(), f:GetHeight()
+  local pw, ph = UIParent:GetWidth(), UIParent:GetHeight()
+  if not (ok and type(w) == "number" and type(h) == "number" and type(pw) == "number" and type(ph) == "number") then return end
+  if rel and rel ~= UIParent then return end
+  local sx, sy = anchorFractions(point)
+  local px, py = anchorFractions(relPoint or point)
+  local left = px * pw + (tonumber(x) or 0) - sx * w
+  local bottom = py * ph + (tonumber(y) or 0) - sy * h
+  return left, left + w, bottom + h, bottom
+end
+function util.keepApart(frame, other, gap)
+  if not (frame and other and other ~= frame and other.IsShown and other:IsShown()) then return false end
+  local fl, fr, ft, fb = cardRect(frame)
+  local ol, orr, ot, ob = cardRect(other)
+  if not (fl and ol) or fr <= ol or fl >= orr or ft <= ob or fb >= ot then return false end
+  local ok = pcall(function()
+    frame:ClearAllPoints()
+    frame:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", ol, ot + (gap or 8))
+  end)
+  return ok
+end
+
 util.COMPANION_PAGE = "https://guildedwow.com/companion/"
 util.COMPANION_DOWNLOAD = "https://guildedwow.com/downloads/Guilded.Companion.Setup.exe"
 function util.companionSteps()
@@ -850,6 +889,12 @@ pump = function(prefix)
       for i, candidate in ipairs(b.queue) do if not candidate.interactive then index = i break end end
     end
     local item = b.queue[index]
+    -- (9.3) Guild items held back inside an instance never stand in front of the group messages of the live run.
+    if item.holdInInstance and util.inInstance() then
+      for i, candidate in ipairs(b.queue) do
+        if not candidate.holdInInstance then index = i; item = candidate break end
+      end
+    end
     -- The shared budget: wait for it (and any back-off) for the lane about to send, so an interactive
     -- message does not wait behind a bulk head of the queue.
     local wait = globalWait(item, prefix)
@@ -894,6 +939,8 @@ pump = function(prefix)
         if item.tries >= MAX_TRIES then
           removeItem(b, index)
           b.results.abandoned = b.results.abandoned + 1
+          -- (9.3) The sender may want to offer the data again later instead of losing it silently.
+          if type(item.onAbandon) == "function" then pcall(item.onAbandon) end
           diag("SEND", prefix .. ": gave up on a message after " .. MAX_TRIES .. " throttled tries")
         end
         break
@@ -917,7 +964,7 @@ end
 -- "hold-in-instance" does the same and also waits while the player is inside a dungeon, raid,
 -- battleground or arena (guild messages are unreliable there), for background sync only.
 -- A false result or error discards the packet without consuming a send token.
-function comm.send(prefix, text, channel, target, guard, priority)
+function comm.send(prefix, text, channel, target, guard, priority, onAbandon)
   if not channel then return false end
   text = tostring(text)
   local b = bucket(prefix)
@@ -934,7 +981,7 @@ function comm.send(prefix, text, channel, target, guard, priority)
   end
   local hold = priority == "hold-in-instance"
   local item = { text = text, channel = channel, target = target, guard = guard,
-    interactive = priority == "interactive", retryLockdown = hold or priority == "retry-lockdown", holdInInstance = hold }
+    onAbandon = onAbandon, interactive = priority == "interactive", retryLockdown = hold or priority == "retry-lockdown", holdInInstance = hold }
   -- A position or presence note is only worth sending fresh: the oldest waiting one gives way.
   if LOW_VALUE[prefix] then
     while #b.queue >= LOW_VALUE_MAX_QUEUED do
@@ -1073,7 +1120,7 @@ end
 -- src/services/profession-names.ts (tests/lua/profession-names.test.ts keeps them equal). Accented
 -- names are escapes because the validator rejects non-ASCII.
 -- ---------------------------------------------------------------------
-local SKILL_LINES = { [171] = "Alchemy", [164] = "Blacksmithing", [333] = "Enchanting", [202] = "Engineering", [182] = "Herbalism", [773] = "Inscription", [755] = "Jewelcrafting", [165] = "Leatherworking", [186] = "Mining", [393] = "Skinning", [197] = "Tailoring", [185] = "Cooking", [129] = "First Aid", [356] = "Fishing", [794] = "Archaeology" }
+local SKILL_LINES = { [171] = "Alchemy", [164] = "Blacksmithing", [333] = "Enchanting", [202] = "Engineering", [182] = "Herbalism", [773] = "Inscription", [755] = "Jewelcrafting", [165] = "Leatherworking", [186] = "Mining", [393] = "Skinning", [197] = "Tailoring", [185] = "Cooking", [129] = "First Aid", [356] = "Fishing", [794] = "Archaeology", [40] = "Poisons" }
 local NAMES = {
   ["Alchemy"] = "Alchemy", ["Alchimie"] = "Alchemy", ["Alquimia"] = "Alchemy", ["Alchimia"] = "Alchemy", ["\208\144\208\187\209\133\208\184\208\188\208\184\209\143"] = "Alchemy",
   ["Blacksmithing"] = "Blacksmithing", ["Forge"] = "Blacksmithing", ["Schmiedekunst"] = "Blacksmithing", ["Herrer\195\173a"] = "Blacksmithing", ["Ferraria"] = "Blacksmithing", ["Forgiatura"] = "Blacksmithing", ["\208\154\209\131\208\183\208\189\208\181\209\135\208\189\208\190\208\181 \208\180\208\181\208\187\208\190"] = "Blacksmithing",
@@ -1089,7 +1136,8 @@ local NAMES = {
   ["Cooking"] = "Cooking", ["Cuisine"] = "Cooking", ["Kochkunst"] = "Cooking", ["Cocina"] = "Cooking", ["Culin\195\161ria"] = "Cooking", ["Cucina"] = "Cooking", ["\208\154\209\131\208\187\208\184\208\189\208\176\209\128\208\184\209\143"] = "Cooking",
   ["First Aid"] = "First Aid", ["Premiers soins"] = "First Aid", ["Secourisme"] = "First Aid", ["Erste Hilfe"] = "First Aid", ["Primeros auxilios"] = "First Aid", ["Primeiros Socorros"] = "First Aid", ["Primo Soccorso"] = "First Aid", ["\208\159\208\181\209\128\208\178\208\176\209\143 \208\191\208\190\208\188\208\190\209\137\209\140"] = "First Aid",
   ["Fishing"] = "Fishing", ["P\195\170che"] = "Fishing", ["Angeln"] = "Fishing", ["Pesca"] = "Fishing", ["\208\160\209\139\208\177\208\189\208\176\209\143 \208\187\208\190\208\178\208\187\209\143"] = "Fishing",
-  ["Archaeology"] = "Archaeology", ["Arch\195\169ologie"] = "Archaeology", ["Arch\195\164ologie"] = "Archaeology", ["Arqueolog\195\173a"] = "Archaeology", ["Arqueologia"] = "Archaeology", ["Archeologia"] = "Archaeology", ["\208\144\209\128\209\133\208\181\208\190\208\187\208\190\208\179\208\184\209\143"] = "Archaeology",
+  ["Archaeology"] = "Archaeology", ["Arch\195\169ologie"] = "Archaeology", ["Arch\195\164ologie"] = "Archaeology", ["Arqueolog\195\173a"] = "Archaeology", ["Arqueologia"] = "Archaeology", ["Archeologia"] = "Archaeology",
+  ["Poisons"] = "Poisons", ["Gifte"] = "Poisons", ["Venenos"] = "Poisons", ["Veleni"] = "Poisons", ["\208\175\208\180\209\139"] = "Poisons", ["\208\144\209\128\209\133\208\181\208\190\208\187\208\190\208\179\208\184\209\143"] = "Archaeology",
 }
 
 local function trimText(text)
@@ -1148,11 +1196,21 @@ function util.professionKeyedTable(source, merge)
 end
 -- (9.0.10) Saved data from before the canonical names: the same profession was kept under every client language's
 -- name ("Cooking" and "Cuisine"). Rewrites the recipe book and the guildmates' digests in place.
+-- Two saved lists for one profession (one under each language's name): the newer list's order and stamp, plus every recipe
+-- the other one knew, so nothing is lost.
 local function newerRecipes(a, b)
   if type(a) ~= "table" then return b end
   if type(b) ~= "table" then return a end
-  if (tonumber(b.v) or 0) > (tonumber(a.v) or 0) then return b end
-  return a
+  local newer, older = a, b
+  if (tonumber(b.v) or 0) > (tonumber(a.v) or 0) then newer, older = b, a end
+  if type(newer.keys) ~= "table" or type(older.keys) ~= "table" then return newer end
+  local merged, seen = {}, {}
+  for _, key in ipairs(newer.keys) do if not seen[key] then seen[key] = true; merged[#merged + 1] = key end end
+  for _, key in ipairs(older.keys) do if not seen[key] then seen[key] = true; merged[#merged + 1] = key end end
+  local out = {}
+  for field, value in pairs(newer) do out[field] = value end
+  out.keys = merged
+  return out
 end
 function util.normalizeProfessionData(db)
   if type(db) ~= "table" then return false end
@@ -1177,6 +1235,34 @@ function util.normalizeProfessionData(db)
         end
       end
     end
+  end
+  -- Reminders ("Name:Cuisine" -> "Name:Cooking"), kept once per canonical profession.
+  if type(book) == "table" and type(book.reminded) == "table" then
+    local fixed, moved = {}, false
+    for key, value in pairs(book.reminded) do
+      local player, profession = string.match(tostring(key), "^(.*):([^:]+)$")
+      local name = player and util.professionName(profession) or nil
+      local newKey = name and (player .. ":" .. name) or key
+      if newKey ~= key then moved = true end
+      fixed[newKey] = fixed[newKey] or value
+    end
+    if moved then book.reminded = fixed; changed = true end
+  end
+  -- Craft orders saved or heard before this version: the profession on each.
+  local orders = db.craftOrders
+  if type(orders) == "table" then
+    local function fixList(list)
+      if type(list) ~= "table" then return end
+      for _, order in pairs(list) do
+        if type(order) == "table" and type(order.prof) == "string" and order.prof ~= "" then
+          local name = util.professionName(order.prof)
+          if name ~= order.prof then order.prof = name; changed = true end
+        end
+      end
+    end
+    fixList(orders.requests)
+    fixList(orders.heardRequests)
+    if type(orders.relayed) == "table" then fixList(orders.relayed.orders) end
   end
   if type(db.peerRoster) == "table" then
     for _, peer in pairs(db.peerRoster) do

@@ -43,7 +43,7 @@ export async function dailyRecap(db: RecapDb, guildId: string, day: string, time
     db.dungeonRun.findMany({ where: { guildId, valid: true, state: "COMPLETED", durationSec: { not: null }, endedAt: window, NOT: { runRef: { startsWith: "SIM-" } }, players: { some: GUILD_PLAYER } },
       select: { instanceId: true, players: { where: GUILD_PLAYER, select: { memberId: true, character: true, member: { select: { displayName: true } } } } }, take: 2000 }),
     db.dungeonHighlight.findMany({ where: { guildId, createdAt: window }, select: { kind: true, label: true, valueSec: true, previousSec: true, dungeonName: true }, orderBy: { createdAt: "asc" }, take: 30 }),
-    db.duelResult.findMany({ where: { guildId, counted: true, endedAt: window }, select: { winnerId: true, winnerCharacter: true }, take: 2000 }),
+    db.duelResult.findMany({ where: { guildId, counted: true, archived: false, endedAt: window }, select: { winnerId: true, winnerCharacter: true }, take: 2000 }),
     db.battlegroundReport.findMany({ where: { guildId, endedAt: window, status: { notIn: ["WITHDRAWN", "CONFLICT"] }, member: { status: "ACTIVE", battlegroundConsent: { guildStats: true } } },
       select: { outcome: true }, take: 2000 })
   ]);
@@ -89,6 +89,7 @@ function dayLabel(day: string, lang: Lang): string {
 }
 // The painted scene changes with the day (dungeon-art.ts scenes, never game art).
 const RECAP_SCENES: DungeonScene[] = ["stratholme", "scarlet", "blackrock", "forest", "dalaran", "wailing", "sunken", "shadowfang", "uldaman", "zulfarrak"];
+const RECAP_TIMES = ["dawn", "day", "night"];
 const seedOf = (text: string) => { let h = 2166136261; for (const c of text) h = Math.imul(h ^ c.codePointAt(0)!, 16777619); return h >>> 0; };
 
 /** The recap card: painted fortress scene, a stats strip and one frosted panel per section (recap layout in score-card.ts). */
@@ -128,6 +129,8 @@ export function dailyRecapCard(recap: DailyRecap, lang: Lang, guildName: string)
     subtitle: dayLabel(recap.day, lang),
     stats: stats.slice(0, 4),
     footer: t("Guilded · from the guild's addon uploads · /stats recap:true", "Guilded · d'après les envois de l'addon de la guilde · /stats recap:true"),
+    // 9.3: one of three approved paintings (recap/dawn, day, night), chosen by the day's seed like the scenes below; without a file the painted scene is drawn.
+    backdrop: { kind: "recap", key: RECAP_TIMES[seedOf(recap.day) % RECAP_TIMES.length]! },
     recap: { theme: { a: "#1e1236", b: "#6a4aa8", motif: "keep", seed: seedOf(recap.day), scene: RECAP_SCENES[seedOf(recap.day) % RECAP_SCENES.length]! }, sections: sections.slice(0, 3) }
   };
 }

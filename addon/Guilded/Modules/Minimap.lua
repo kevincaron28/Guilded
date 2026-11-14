@@ -1371,12 +1371,16 @@ local function buildHomePage(page)
     linkWidget(tip(below(newButton(page, "Get the companion", 170, function() ns.companionLink.openCopyWindow() end, 24), PAGE_WIDTH - 170, -134), "Opens a box with the download link to copy (Ctrl+C). The game cannot open web pages."))
   end
   ui.linkStatus = linkWidget(below(newLabel(page, "", "GameFontHighlightSmall"), 0, -158))
-  ui.linkStatus:SetWidth(PAGE_WIDTH)
-  local howTo = linkWidget(below(newLabel(page,
+  -- The scrolled page shows 574 px of the 582 (the scroll bar's margin): full-width text stops 16 px short of the edge.
+  local HOME_WIDTH = PAGE_WIDTH - 16
+  ui.linkStatus:SetWidth(HOME_WIDTH)
+  local howTo = linkWidget(newLabel(page,
     "Easiest: install the Guilded Windows app (steps below). It syncs by itself, no sign-in needed. No app? In Discord use /character pair, then paste the code below.",
-    "GameFontDisableSmall"), 0, -176))
-  howTo:SetWidth(PAGE_WIDTH)
-  ui.linkBox = linkWidget(placeholder(below(newEdit(page, 170), 6, -222), "Code from /character pair"))
+    "GameFontDisableSmall"))
+  -- Under the status line, wherever its (translated, possibly two-line) text ends, never at a fixed height.
+  howTo:SetPoint("TOPLEFT", ui.linkStatus, "BOTTOMLEFT", 0, -6)
+  howTo:SetWidth(HOME_WIDTH)
+  ui.linkBox = linkWidget(placeholder(below(newEdit(page, 170), 6, -242), "Code from /character pair"))
   ui.linkBox:SetMaxLetters(24)
   ui.linkBox:SetScript("OnEnterPressed", function(self)
     self:ClearFocus()
@@ -1387,19 +1391,22 @@ local function buildHomePage(page)
     if text == "" then ns.message(L("Paste the code from Discord (/character pair) first.")); return end
     run("verify " .. text)
     ui.linkBox:SetText("")
-  end), 182, -218), "Links all your characters on this WoW account. A guildmate's Guilded companion passes the code on when it next syncs."))
+  end), 182, -238), "Links all your characters on this WoW account. A guildmate's Guilded companion passes the code on when it next syncs."))
   -- Beside Save code, wherever its (translated) width ends, so the two never overlap.
-  local removeCode = linkWidget(tip(below(newButton(page, "Remove code", 110, function() run("verify off") end), 288, -218), "Forgets the saved code on this WoW account."))
+  local removeCode = linkWidget(tip(below(newButton(page, "Remove code", 110, function() run("verify off") end), 288, -238), "Forgets the saved code on this WoW account."))
   removeCode:ClearAllPoints()
   removeCode:SetPoint("LEFT", saveCode, "RIGHT", 6, 0)
 
   -- Get the companion (8.5.0): links to copy, since an addon cannot open a web page.
   if ns.companionLink then
-    below(newLabel(page, L("Get the Windows companion (select a link, Ctrl+C):"), "GameFontNormal"), 0, -262)
-    below(copyBox(page, ns.companionLink.SHORT, 250), 6, -282)
-    below(copyBox(page, ns.companionLink.DIRECT, 250), 270, -282)
-    local steps = below(newLabel(page, table.concat(ns.companionLink.steps(), "\n"), "GameFontHighlightSmall"), 0, -312)
-    steps:SetWidth(PAGE_WIDTH)
+    below(newLabel(page, L("Get the Windows companion (select a link, Ctrl+C):"), "GameFontNormal"), 0, -282)
+    -- One under the other, each as wide as the page: the direct link (62 characters) did not fit beside the short one.
+    ui.companionBoxes = {
+      below(copyBox(page, ns.companionLink.SHORT, HOME_WIDTH - 12), 6, -302),
+      below(copyBox(page, ns.companionLink.DIRECT, HOME_WIDTH - 12), 6, -326),
+    }
+    local steps = below(newLabel(page, table.concat(ns.companionLink.steps(), "\n"), "GameFontHighlightSmall"), 0, -358)
+    steps:SetWidth(HOME_WIDTH)
     steps:SetJustifyH("LEFT")
   end
 end
@@ -1410,7 +1417,9 @@ end
 local GROUPS = { "Home", "Guild", "Dungeons", "Crafting", "Raids", "Officer", "Settings" }
 -- Guild is one page: its sections are a row of buttons at the top of the content (the pages keep their own
 -- frames), not entries in the sidebar. Crafting is a single page of its own (9.2).
-local SECTION_ROW = { Guild = true }
+-- 9.3: every group with more than one page does this (Home, Guild, Raids, Officer), so the sidebar never changes under the
+-- cursor when a section opens. Crafting, Dungeons and Settings have one page each.
+local SECTION_ROW = { Home = true, Guild = true, Raids = true, Officer = true }
 -- The section buttons are as wide as their text (capped); a row that would pass the page width wraps to a
 -- second line. The page itself starts at -66, below two lines (12 + 22 high, then 24 per extra line).
 local SECTION_Y, SECTION_LINE, SECTION_GAP, SECTION_MAX = 12, 24, 6, 200
@@ -1419,6 +1428,23 @@ local SECTION_Y, SECTION_LINE, SECTION_GAP, SECTION_MAX = 12, 24, 6, 200
 local SECTION_FIRST_LINE_RESERVE = 96
 local function sectionWidth(text)
   return math.min(SECTION_MAX, math.max(60, #text * 7 + 20))
+end
+-- Used only when a row would need a third line (a long translation), which would run into the page.
+local function compactSectionWidth(text)
+  return math.min(SECTION_MAX, math.max(50, #text * 6 + 16))
+end
+-- Pure: where each button of the row goes ({ x, line, width }) and the last line used. A line that would pass the page width wraps.
+local function planSectionRow(texts, widthOf)
+  local plan, x, line = {}, nil, 0
+  for _, text in ipairs(texts) do
+    local width = widthOf(text)
+    local room = PAGE_WIDTH - (line == 0 and SECTION_FIRST_LINE_RESERVE or 0)
+    if x and x > 0 and x + width > room then x = 0; line = line + 1 end
+    x = x or 0
+    plan[#plan + 1] = { x = x, line = line, width = width }
+    x = x + width + SECTION_GAP
+  end
+  return plan, line
 end
 local function buildRosterAdminPage(page)
   local info = at(newLabel(page, "Change guild ranks and notes in bulk: paste a list of actions, preview the changes, then confirm.", "GameFontHighlightSmall"), page, 0, 0)
@@ -1773,9 +1799,9 @@ local function layoutTabs(officer)
   do
     local current = ui.tabs[ui.currentTab or 0]
     local currentGroup = current and current.group
-    local sectionX
-    local sectionLine = 0
+    local rowPlan, rowIndex
     ui.sectionLayout = {}
+    ui.sectionLines = 0
     for _, group in ipairs(GROUPS) do
       local list = groupList(group, officer)
       if #list > 0 then
@@ -1803,14 +1829,20 @@ local function layoutTabs(officer)
             firstVisible = firstVisible or i
           end
           if group == currentGroup and SECTION_ROW[group] and #list > 1 then
-            local width = sectionWidth(L(tab.label or tab.name))
-            local room = PAGE_WIDTH - (sectionLine == 0 and SECTION_FIRST_LINE_RESERVE or 0)
-            if sectionX and sectionX > 0 and sectionX + width > room then sectionX = 0; sectionLine = sectionLine + 1 end
-            sectionX = sectionX or 0
-            tab.button:SetWidth(width)
-            at(tab.button, panel, CONTENT_X + sectionX, -(SECTION_Y + SECTION_LINE * sectionLine))
-            ui.sectionLayout[#ui.sectionLayout + 1] = { name = tab.name, x = sectionX, line = sectionLine, width = width }
-            sectionX = sectionX + width + SECTION_GAP
+            if not rowPlan then
+              local texts = {}
+              for _, j in ipairs(list) do texts[#texts + 1] = L(ui.tabs[j].label or ui.tabs[j].name) end
+              local lastLine
+              rowPlan, lastLine = planSectionRow(texts, sectionWidth)
+              if lastLine > 1 then rowPlan = planSectionRow(texts, compactSectionWidth) end
+              rowIndex = 0
+            end
+            rowIndex = rowIndex + 1
+            local slot = rowPlan[rowIndex]
+            tab.button:SetWidth(slot.width)
+            at(tab.button, panel, CONTENT_X + slot.x, -(SECTION_Y + SECTION_LINE * slot.line))
+            ui.sectionLayout[#ui.sectionLayout + 1] = { name = tab.name, x = slot.x, line = slot.line, width = slot.width }
+            ui.sectionLines = math.max(ui.sectionLines or 0, slot.line + 1)
             tab.button:Show()
           elseif group == currentGroup and #list > 1 then
             at(tab.button, panel, 26, y)
@@ -1824,6 +1856,7 @@ local function layoutTabs(officer)
   end
   local current = ui.tabs[ui.currentTab or 0]
   if not current or not current.visible then selectTab(firstVisible) else current.page:Show() end
+  if ui.placePageTop then ui.placePageTop() end
 end
 
 local function moduleSignature()
@@ -2200,6 +2233,46 @@ end
 
 ui.relayoutCrafting = function() if updateGuildScroll then updateGuildScroll() end end
 
+-- Where the page starts. A page that acts on a player has the Player field above it; when the section row is shown (up to two
+-- lines high) the field moves down below that row and the page below the field, so the two never overlap.
+local PAGE_TOP = 66
+function ui.pageTopFor(tab)
+  local lines = ui.sectionLines or 0
+  if not (tab and tab.usesPlayer and lines > 0) then return PAGE_TOP, 0 end
+  local rowBottom = SECTION_Y + 22 + SECTION_LINE * (lines - 1)
+  local shift = rowBottom + 6 - 28 -- the Player field sits at 28 when there is no row
+  return PAGE_TOP + shift, shift
+end
+function ui.placePageTop()
+  local tab = ui.tabs[ui.currentTab or 0]
+  if not tab or not panel then return end
+  local top, shift = ui.pageTopFor(tab)
+  ui.pageTop = top
+  -- A short title under a one-line section row, in the gap above the page: where you are, and what it is for. Two-line rows
+  -- and pages with the Player field have no room and keep the tooltip.
+  if ui.pageHint then
+    if (ui.sectionLines or 0) == 1 and not tab.usesPlayer then
+      ui.pageHint:SetText(L(tab.label or tab.name) .. (tab.hint and ("   |cff999999" .. L(tab.hint) .. "|r") or ""))
+      ui.pageHint:Show()
+    else
+      ui.pageHint:SetText(""); ui.pageHint:Hide()
+    end
+  end
+  for _, widget in ipairs(ui.playerRow or {}) do
+    if widget.baseX then at(widget, panel, widget.baseX, widget.baseY - shift) end
+  end
+  if ui.guildScroll then
+    ui.guildScroll:ClearAllPoints()
+    ui.guildScroll:SetPoint("TOPLEFT", panel, "TOPLEFT", CONTENT_X, -top)
+    ui.guildScroll:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -30, 44)
+  end
+  if not SCROLLED_PAGES[tab.name] then
+    tab.page:ClearAllPoints()
+    tab.page:SetPoint("TOPLEFT", panel, "TOPLEFT", CONTENT_X, -top)
+    tab.page:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -22, 44)
+  end
+end
+
 selectTab = function(index)
   if not index or not ui.tabs[index] then return end
   if ui.guildScroll and not SCROLLED_PAGES[ui.tabs[index].name] then
@@ -2221,13 +2294,12 @@ selectTab = function(index)
   ui.currentTab = index
   ui.lastInGroup = ui.lastInGroup or {}
   ui.lastInGroup[ui.tabs[index].group or ""] = index
-  -- The unsent-changes block means nothing on pages that only read (the secure button is left
-  -- alone in combat: hiding it then is blocked).
-  if not (InCombatLockdown and InCombatLockdown()) then
+  -- The unsent-changes block means nothing on pages that only read. The save button is a secure frame that lives outside the
+  -- window (see ui.updateSendButton), so it follows after combat if this happens in combat.
+  do
     local readOnly = READ_ONLY_PAGES[ui.tabs[index].name]
-    for _, widget in ipairs({ ui.sidebarSync, ui.sidebarSave }) do
-      if widget then if readOnly then widget:Hide() else widget:Show() end end
-    end
+    if ui.sidebarSync then if readOnly then ui.sidebarSync:Hide() else ui.sidebarSync:Show() end end
+    if ui.updateSendButton then ui.updateSendButton() end
   end
   for i, tab in ipairs(ui.tabs) do
     if i == index then tab.page:Show(); tab.button:LockHighlight() else tab.page:Hide(); tab.button:UnlockHighlight() end
@@ -2241,6 +2313,8 @@ selectTab = function(index)
   for _, widget in ipairs(ui.playerRow or {}) do
     if ui.tabs[index].usesPlayer then widget:Show() else widget:Hide() end
   end
+  ui.currentTab = index
+  ui.placePageTop()
   local s = settings()
   if s then s.panelTab = ui.tabs[index].name end
   if picker then picker:Hide() end
@@ -2297,6 +2371,10 @@ local function buildPanel()
   -- Which page this is, and what it is for.
   ui.pageTitle = newLabel(panel, "", "GameFontNormal")
   ui.pageTitle:SetPoint("TOPLEFT", panel, "TOPLEFT", CONTENT_X, -16)
+  ui.pageHint = newLabel(panel, "", "GameFontNormalSmall")
+  ui.pageHint:SetPoint("TOPLEFT", panel, "TOPLEFT", CONTENT_X, -42)
+  ui.pageHint:SetWidth(PAGE_WIDTH)
+  ui.pageHint:SetHeight(14)
 
   -- Sidebar background, title and rank line.
   local sidebar = panel:CreateTexture(nil, "BACKGROUND")
@@ -2318,22 +2396,30 @@ local function buildPanel()
   -- Sidebar footer: one button that gets your data to Discord, and whether anything is waiting.
   ui.sidebarSync = newLabel(panel, "", "GameFontHighlightSmall")
   ui.sidebarSync:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 24, 70)
-  local sendButton = ns.syncNow and ns.syncNow.reloadButton(panel, L(ns.isOfficer() and "Send to Discord" or "Save my addon data"), 132, 26)
-    or newButton(panel, L(ns.isOfficer() and "Send to Discord" or "Save my addon data"), 132, function() run("sync") end, 26)
-  sendButton:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 22, 40)
+  -- Inside the sidebar: a long translation wraps upwards instead of running over the page.
+  ui.sidebarSync:SetWidth(SIDEBAR_WIDTH - 24)
+  -- The save button runs /reload for you, so it is a secure button. A secure frame makes the frames around it protected in
+  -- combat (the window could not be shown, hidden or moved: "Guilded tried to call GuildedPanel:Show()", 13 Nov 2026, and the
+  -- bursts of "UNKNOWN()" after roster updates). So it is not inside the window: its parent is UIParent and nothing is
+  -- anchored to the window; it is placed over the sidebar from the window's rectangle, out of combat only.
+  local sendButton = ns.syncNow and ns.syncNow.reloadButton(UIParent, L(ns.isOfficer() and "Send to Discord" or "Save my addon data"), 132, 26)
+    or newButton(UIParent, L(ns.isOfficer() and "Send to Discord" or "Save my addon data"), 132, function() run("sync") end, 26)
+  sendButton:SetFrameStrata("DIALOG")
+  sendButton:SetFrameLevel((panel:GetFrameLevel() or 1) + 30)
+  sendButton:Hide()
   ui.sidebarSave = sendButton
   ui.homeSave = sendButton -- one shared save action; retained internal alias
   tip(sendButton, function() return ui.syncStatus end)
 
   -- Shared player field (shown only on pages that act on a player).
   ui.playerRow = {}
-  local function playerWidget(widget) table.insert(ui.playerRow, widget) return widget end
-  playerWidget(at(newLabel(panel, L("Player")), panel, CONTENT_X, -32))
-  ui.playerBox = playerWidget(at(newEdit(panel, 150), panel, CONTENT_X + 54, -28))
+  local function playerWidget(widget, x, y) table.insert(ui.playerRow, widget); widget.baseX, widget.baseY = x, y; return widget end
+  playerWidget(at(newLabel(panel, L("Player")), panel, CONTENT_X, -32), CONTENT_X, -32)
+  ui.playerBox = playerWidget(at(newEdit(panel, 150), panel, CONTENT_X + 54, -28), CONTENT_X + 54, -28)
   ui.playerBox:SetScript("OnTextChanged", function() refresh() end)
-  playerWidget(at(newButton(panel, L("Target"), 70, fillFromTarget), panel, CONTENT_X + 212, -28))
-  playerWidget(at(newButton(panel, L("Me"), 50, function() setPlayer(ns.playerName()) end), panel, CONTENT_X + 286, -28))
-  playerWidget(at(newButton(panel, L("Group..."), 84, showPicker), panel, CONTENT_X + 340, -28))
+  playerWidget(at(newButton(panel, L("Target"), 70, fillFromTarget), panel, CONTENT_X + 212, -28), CONTENT_X + 212, -28)
+  playerWidget(at(newButton(panel, L("Me"), 50, function() setPlayer(ns.playerName()) end), panel, CONTENT_X + 286, -28), CONTENT_X + 286, -28)
+  playerWidget(at(newButton(panel, L("Group..."), 84, showPicker), panel, CONTENT_X + 340, -28), CONTENT_X + 340, -28)
 
   for i, def in ipairs(TAB_DEFS) do
     local page = CreateFrame("Frame", nil, panel)
@@ -2381,6 +2467,65 @@ local function buildPanel()
       setPlayer(ns.util.unitKey("target"))
     end
   end)
+  -- The save button follows the window: placed, shown and hidden with it (out of combat), tracking a drag or a scale change.
+  function ui.updateSendButton()
+    local button = ui.sidebarSave
+    if not button or not panel then return end
+    local tab = ui.tabs[ui.currentTab or 0]
+    local wanted = panel:IsShown() and not (tab and READ_ONLY_PAGES[tab.name])
+    if InCombatLockdown and InCombatLockdown() then
+      -- A secure frame is not touched in combat (it would be refused). The button was hidden when combat began (see below)
+      -- and stays hidden, so nothing invisible can be clicked; a plain label says why, and the button comes back afterwards.
+      if ui.sendWait then if wanted then ui.sendWait:Show() else ui.sendWait:Hide() end end
+      ui.sendPending = true
+      return
+    end
+    ui.sendPending = false
+    if ui.sendWait then ui.sendWait:Hide() end
+    if not wanted then button:Hide() return end
+    local left, bottom = panel:GetLeft(), panel:GetBottom()
+    if type(left) == "number" and type(bottom) == "number" then
+      local panelScale = panel.GetEffectiveScale and panel:GetEffectiveScale() or 1
+      local uiScale = UIParent.GetEffectiveScale and UIParent:GetEffectiveScale() or 1
+      if button.SetScale and uiScale and uiScale > 0 then button:SetScale(panelScale / uiScale) end
+      button:ClearAllPoints()
+      button:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", left + 22, bottom + 40)
+      ui.sendPlaced = { left, bottom, panelScale }
+    end
+    button:Show()
+  end
+  ui.sendWait = newLabel(panel, L("Save: available after combat"), "GameFontDisableSmall")
+  ui.sendWait:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 24, 46)
+  ui.sendWait:SetWidth(SIDEBAR_WIDTH - 24)
+  ui.sendWait:Hide()
+  do
+    local follow, since = CreateFrame("Frame", "GuildedSendButtonFollower"), 0
+    follow:RegisterEvent("PLAYER_REGEN_ENABLED")
+    follow:RegisterEvent("PLAYER_REGEN_DISABLED")
+    follow:SetScript("OnEvent", function(_, event)
+      if event == "PLAYER_REGEN_DISABLED" then
+        -- Fires just before the combat lockdown, while a protected frame can still be hidden: every time, whatever the window
+        -- is doing. It stays hidden for the whole fight.
+        if ui.sidebarSave then pcall(ui.sidebarSave.Hide, ui.sidebarSave) end
+        ui.sendPlaced = nil
+        ui.sendPending = true
+        local tab = ui.tabs[ui.currentTab or 0]
+        if ui.sendWait and panel:IsShown() and not (tab and READ_ONLY_PAGES[tab.name]) then ui.sendWait:Show() end
+      else
+        ui.updateSendButton()
+      end
+    end)
+    follow:SetScript("OnUpdate", function(_, elapsed)
+      since = since + (elapsed or 0)
+      if since < 0.15 or not panel:IsShown() or (InCombatLockdown and InCombatLockdown()) then return end
+      since = 0
+      local placed = ui.sendPlaced
+      local left, bottom = panel:GetLeft(), panel:GetBottom()
+      local scale = panel.GetEffectiveScale and panel:GetEffectiveScale() or 1
+      if not placed or placed[1] ~= left or placed[2] ~= bottom or placed[3] ~= scale then ui.updateSendButton() end
+    end)
+  end
+  panel:SetScript("OnHide", function() if ui.updateSendButton then ui.updateSendButton() end end)
   panel:SetScript("OnShow", function()
     ui.lastOfficer = nil -- re-check rank and modules every time the window opens
     -- Reopening the window does not show an old result (such as a diagnostics line).
@@ -2391,6 +2536,7 @@ local function buildPanel()
       setPlayer(ns.playerName())
     end
     refresh()
+    ui.updateSendButton()
   end)
   -- Long pages (standings, crafting, the officer pages) scroll in this frame.
   ui.guildScroll = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")

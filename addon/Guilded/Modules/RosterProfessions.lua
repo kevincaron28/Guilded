@@ -29,7 +29,14 @@ function module.parse(text)
   if type(text) ~= "string" then return skills end
   for name, skill in text:gmatch("([^:,]+):(%d+)") do
     -- Canonical English name whatever language the sender's client used (Util.lua), so the note tag and the icon match.
-    if #skills < 10 and #name <= 40 and #skill <= 4 then skills[#skills + 1] = { name = ns.util.professionName(trim(name)), skill = tonumber(skill) } end
+    if #name <= 40 and #skill <= 4 then
+      local canonical, level = ns.util.professionName(trim(name)), tonumber(skill)
+      -- "Cuisine:300,Cooking:150" (one profession sent under two spellings) is one entry at the higher skill.
+      local twin
+      for _, entry in ipairs(skills) do if entry.name == canonical then twin = entry break end end
+      if twin then twin.skill = math.max(twin.skill, level)
+      elseif #skills < 10 then skills[#skills + 1] = { name = canonical, skill = level } end
+    end
   end
   return skills
 end
@@ -158,15 +165,35 @@ end
 -- The Communities guild roster (load-on-demand): hook each member entry frame as its ScrollBox
 -- creates or reuses it (and the ones already there), or the older list's fixed buttons.
 local listHooked = false
+function module.scanMemberList()
+  local list = CommunitiesFrame and CommunitiesFrame.MemberList
+  local box = type(list) == "table" and list.ScrollBox
+  if type(box) ~= "table" or type(box.ForEachFrame) ~= "function" then return end
+  if type(list.IsShown) == "function" and not list:IsShown() then return end
+  pcall(box.ForEachFrame, box, function(frame) module.hookEntry(frame) end)
+end
 function module.hookMemberList()
   local list = CommunitiesFrame and CommunitiesFrame.MemberList
   if listHooked or type(list) ~= "table" then return listHooked end
   local box = list.ScrollBox
-  if type(box) == "table" and ScrollUtil and type(ScrollUtil.AddInitializedFrameCallback) == "function" then
-    -- The callback gets (owner, frame, elementData); take whichever argument is the frame.
-    listHooked = pcall(ScrollUtil.AddInitializedFrameCallback, box, function(a, b)
-      module.hookEntry(type(b) == "table" and b.HookScript and b or a)
-    end, module, true) or listHooked
+  if type(box) == "table" and type(box.ForEachFrame) == "function" then
+    -- (9.3.1) No ScrollUtil.AddInitializedFrameCallback: the game's scroll box runs that callback inside its own
+    -- secure refresh, which then continued tainted (roster updates logged "Guilded tried to call UNKNOWN()"). Guilded
+    -- looks at the rows itself, from its own timer, only while the member list is on screen.
+    listHooked = true
+    module.scanMemberList()
+    if not module.scanner and CreateFrame then
+      local since = 0
+      module.scanner = CreateFrame("Frame")
+      if module.scanner.SetScript then
+        module.scanner:SetScript("OnUpdate", function(_, elapsed)
+          since = since + (elapsed or 0)
+          if since < 0.5 then return end
+          since = 0
+          module.scanMemberList()
+        end)
+      end
+    end
   end
   -- The owned tooltip must not stay up when the list closes or scrolls away from the row it described.
   local function hideOn(frame, script)

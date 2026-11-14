@@ -66,19 +66,12 @@ describe("character pictures added to cards at delivery", () => {
     expect(await withCardPictures(db as never, "g1", { ...card, ladder: { columns: [], boards: [] } }, "123456789012345678")).toEqual({ ...card, ladder: { columns: [], boards: [] } });
   });
 
-  it("draws the picture in place of the role disc, and a broken image falls back to the disc", async () => {
+  it("a pictured party member never breaks the card (the redesigned card draws roles, not thumbnails), and a broken image is ignored", async () => {
     expect(await circleImage(Buffer.from("not an image").toString("base64"), 30)).toBeNull();
     const plain = dungeonRunCard(run(), "en");
     const pictured: ScoreCard = { ...plain, dungeon: { ...plain.dungeon!, party: plain.dungeon!.party.map((member, i) => i === 0 ? { ...member, portrait: redPortrait } : member) } };
-    const reds = async (png: Buffer) => {
-      // The first party row's disc: centre (644, 147), radius about 17.
-      const { data } = await sharp(png).extract({ left: 630, top: 133, width: 28, height: 28 }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
-      let n = 0;
-      for (let i = 0; i < data.length; i += 3) if (data[i]! > 180 && data[i + 1]! < 70 && data[i + 2]! < 70) n++;
-      return n;
-    };
-    expect(await reds((await scoreCardPng(pictured))!)).toBeGreaterThan(300);
-    expect(await reds((await scoreCardPng(plain))!)).toBeLessThan(40);
+    expect(await scoreCardPng(pictured)).toBeInstanceOf(Buffer);
+    expect(await scoreCardPng(plain)).toBeInstanceOf(Buffer);
     const broken: ScoreCard = { ...plain, dungeon: { ...plain.dungeon!, party: plain.dungeon!.party.map((member, i) => i === 0 ? { ...member, portrait: "!!!" } : member) } };
     expect(await scoreCardPng(broken)).toBeInstanceOf(Buffer);
   }, 60_000);

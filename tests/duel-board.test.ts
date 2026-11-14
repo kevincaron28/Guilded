@@ -53,7 +53,7 @@ describe("duel board embed", () => {
 describe("duel board data", () => {
   it("builds standings from counted duels only", async () => {
     const findMany = vi.fn()
-      .mockResolvedValueOnce([{ winnerId: "a", loserId: "b", winnerCharacter: "Aria", loserCharacter: "Brom" }])
+      .mockResolvedValueOnce([{ winnerId: "a", loserId: "b", winnerCharacter: "Aria", loserCharacter: "Brom", endedAt: new Date() }])
       .mockResolvedValueOnce([{ winnerCharacter: "Aria", loserCharacter: "Brom", endedAt: new Date(), reason: "knockout" }]);
     const result = await loadDuelBoardData({ duelResult: { findMany } } as never, "g1", "forever");
     expect(result.standings[0]).toMatchObject({ name: "Aria", wins: 1 });

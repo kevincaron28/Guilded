@@ -46,7 +46,7 @@ describe("the run card's dungeon score", () => {
     const pngs: (Buffer | null)[] = [];
     for (const c of cards) pngs.push(await scoreCardPng(dungeonRunCard(c, "fr")));
     const lit = async (png: Buffer) => {
-      const { data } = await sharp(png).extract({ left: 380, top: 215, width: 170, height: 160 }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+      const { data } = await sharp(png).extract({ left: 56, top: 200, width: 420, height: 50 }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
       let bright = 0; for (let i = 0; i < data.length; i += 3) if (data[i]! + data[i + 1]! + data[i + 2]! > 450) bright++;
       return bright;
     };

@@ -16,6 +16,8 @@ function fakeDb(rows: { id: string; guildId: string; discordId: string }[], earn
 describe("phone badge album", () => {
   it("lists the catalogue with dates on earned cards and nothing on locked ones", () => {
     const cards = albumCards(new Map([[firstId, new Date("2026-11-05T10:00:00Z")]]), "en");
+    // 9.3: every card names its painted emblem (the family's), which the app layers over the tier frame.
+    expect(cards.every(card => typeof card.emblem === "string" && /^[a-z0-9-]+$/.test(card.emblem))).toBe(true);
     expect(cards.length).toBeGreaterThan(20);
     expect(cards.find(card => card.id === firstId)?.earnedAt).toBe("2026-11-05T10:00:00.000Z");
     expect(cards.filter(card => card.earnedAt)).toHaveLength(1);

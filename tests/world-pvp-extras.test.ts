@@ -68,6 +68,12 @@ describe("recap and board lines", () => {
     expect(en[2]!.value).toBe("Gank — seen in 3 calls");
     expect(extrasFields({ switches: extrasSwitches({ pvpRecapEnabled: false, pvpHotZonesEnabled: false }), standings, calls }, "fr")[0]!.name).toBe("🎯 Les plus recherchés");
     expect(recapText(weekRecap(standings, []), "fr")).toContain("Défenseur de la semaine");
+    // Deaths: no line until an addon sent some; then one guild total line, in both languages.
+    expect(recapText(weekRecap(standings, []), "en")).not.toContain("deaths");
+    const withDeaths = [{ ...standing("Aria Vale", 40, 2, 9), deaths: 10 }, { ...standing("Bo Ren", 12, 7, 3), deaths: 3 }];
+    expect(recapText(weekRecap(withDeaths, []), "en")).toContain("The guild's open-world deaths: **13** (K/D 4.0)");
+    expect(recapText(weekRecap(withDeaths, []), "fr")).toContain("Morts de la guilde en monde ouvert : **13**".replace(" :", ":"));
+    expect(weekRecap(withDeaths, []).killer?.name).toBe("Aria Vale");
   });
   it("routes posts to the group finder, else the PvP groups channel, else the ladder channel", () => {
     expect(pvpPostChannelId({ dungeonSignupChannelId: "f", bgGroupsChannelId: "g", bgStatsChannelId: "l" })).toBe("f");
@@ -171,5 +177,15 @@ describe("weekly recap", () => {
     const w = world(settings(), []);
     expect(await deliverWeeklyRecap(w.discordGuild, w.db, "g1", week)).toBe(true);
     expect(w.send).toHaveBeenCalledTimes(1);
+  });
+  it("falls back to the text recap when the card cannot be sent (no Attach Files, 50013), and the week is not lost", async () => {
+    const w = world(settings(), []);
+    w.send.mockRejectedValueOnce(Object.assign(new Error("Missing Permissions"), { code: 50013 })).mockResolvedValue({ id: "m1" });
+    expect(await deliverWeeklyRecap(w.discordGuild, w.db, "g1", week)).toBe(true);
+    expect(w.send).toHaveBeenCalledTimes(2);
+    const [first, second] = w.send.mock.calls.map(call => call[0] as { content?: string; files?: unknown[] });
+    expect(first!.files).toHaveLength(1);
+    expect(second!.content).toContain("World PvP");
+    expect(second!.files).toBeUndefined();
   });
 });

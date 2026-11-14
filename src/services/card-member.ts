@@ -19,10 +19,10 @@ export async function withDiscordMember(guild: Guild, card: ScoreCard, userId: s
   } catch { return card; }
 }
 
-async function downloadImage(url: string): Promise<Buffer | null> {
+export async function downloadImage(url: string, timeoutMs = 4000): Promise<Buffer | null> {
   const parsed = new URL(url);
   if (parsed.protocol !== "https:" || parsed.hostname !== "cdn.discordapp.com") return null;
-  const response = await fetch(parsed, { signal: AbortSignal.timeout(4000) });
+  const response = await fetch(parsed, { signal: AbortSignal.timeout(timeoutMs) });
   if (!response.ok) return null;
   const bytes = Buffer.from(await response.arrayBuffer());
   return bytes.length <= MAX_AVATAR_BYTES ? bytes : null;

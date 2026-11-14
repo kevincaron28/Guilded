@@ -1,0 +1,1448 @@
+{
+ "rules": {
+  "id": "rating-v1",
+  "startsAt": "2026-11-13T00:00:00.000Z",
+  "start": 1000,
+  "kBands": [
+   {
+    "upTo": 10,
+    "k": 40
+   },
+   {
+    "upTo": 30,
+    "k": 24
+   },
+   {
+    "upTo": 1000000,
+    "k": 16
+   }
+  ],
+  "handicapPerLevel": 20,
+  "handicapMaxLevels": 5,
+  "maxLevelGap": 10,
+  "pairWeights": [
+   1,
+   1,
+   0.5,
+   0.5,
+   0.25,
+   0.25
+  ],
+  "shrinkGames": 10,
+  "rankedDuels": 1,
+  "rankedOpponents": 1,
+  "firstSeasonEndsAt": "2027-01-01T00:00:00.000Z"
+ },
+ "tolerance": 0.001,
+ "cases": [
+  {
+   "name": "first duel, equal levels",
+   "duels": [
+    {
+     "winner": "Aldric",
+     "loser": "Brenna",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-02T18:00:00Z"
+    }
+   ],
+   "expect": {
+    "players": {
+     "Aldric": {
+      "rating": 1020,
+      "score": 1001.8181818181819,
+      "rated": 1,
+      "games": 1,
+      "wins": 1,
+      "losses": 0,
+      "opponents": 1,
+      "ranked": true
+     },
+     "Brenna": {
+      "rating": 980,
+      "score": 998.1818181818181,
+      "rated": 1,
+      "games": 1,
+      "wins": 0,
+      "losses": 1,
+      "opponents": 1,
+      "ranked": true
+     }
+    },
+    "changes": [
+     {
+      "winner": "Aldric",
+      "loser": "Brenna",
+      "winnerDelta": 1.8181818181818699,
+      "loserDelta": -1.8181818181818699,
+      "rated": true
+     }
+    ]
+   }
+  },
+  {
+   "name": "level handicap: winner five levels below",
+   "duels": [
+    {
+     "winner": "Aldric",
+     "loser": "Brenna",
+     "winnerLevel": 50,
+     "loserLevel": 55,
+     "at": "2026-12-02T18:00:00Z"
+    }
+   ],
+   "expect": {
+    "players": {
+     "Aldric": {
+      "rating": 1025.6025999921153,
+      "score": 1002.3275090901923,
+      "rated": 1,
+      "games": 1,
+      "wins": 1,
+      "losses": 0,
+      "opponents": 1,
+      "ranked": true
+     },
+     "Brenna": {
+      "rating": 974.3974000078846,
+      "score": 997.6724909098077,
+      "rated": 1,
+      "games": 1,
+      "wins": 0,
+      "losses": 1,
+      "opponents": 1,
+      "ranked": true
+     }
+    },
+    "changes": [
+     {
+      "winner": "Aldric",
+      "loser": "Brenna",
+      "winnerDelta": 2.3275090901922795,
+      "loserDelta": -2.3275090901922795,
+      "rated": true
+     }
+    ]
+   }
+  },
+  {
+   "name": "level handicap is capped at five levels",
+   "duels": [
+    {
+     "winner": "Aldric",
+     "loser": "Brenna",
+     "winnerLevel": 50,
+     "loserLevel": 59,
+     "at": "2026-12-02T18:00:00Z"
+    }
+   ],
+   "expect": {
+    "players": {
+     "Aldric": {
+      "rating": 1025.6025999921153,
+      "score": 1002.3275090901923,
+      "rated": 1,
+      "games": 1,
+      "wins": 1,
+      "losses": 0,
+      "opponents": 1,
+      "ranked": true
+     },
+     "Brenna": {
+      "rating": 974.3974000078846,
+      "score": 997.6724909098077,
+      "rated": 1,
+      "games": 1,
+      "wins": 0,
+      "losses": 1,
+      "opponents": 1,
+      "ranked": true
+     }
+    },
+    "changes": [
+     {
+      "winner": "Aldric",
+      "loser": "Brenna",
+      "winnerDelta": 2.3275090901922795,
+      "loserDelta": -2.3275090901922795,
+      "rated": true
+     }
+    ]
+   }
+  },
+  {
+   "name": "unknown level: no handicap",
+   "duels": [
+    {
+     "winner": "Aldric",
+     "loser": "Brenna",
+     "winnerLevel": null,
+     "loserLevel": 60,
+     "at": "2026-12-02T18:00:00Z"
+    }
+   ],
+   "expect": {
+    "players": {
+     "Aldric": {
+      "rating": 1020,
+      "score": 1001.8181818181819,
+      "rated": 1,
+      "games": 1,
+      "wins": 1,
+      "losses": 0,
+      "opponents": 1,
+      "ranked": true
+     },
+     "Brenna": {
+      "rating": 980,
+      "score": 998.1818181818181,
+      "rated": 1,
+      "games": 1,
+      "wins": 0,
+      "losses": 1,
+      "opponents": 1,
+      "ranked": true
+     }
+    },
+    "changes": [
+     {
+      "winner": "Aldric",
+      "loser": "Brenna",
+      "winnerDelta": 1.8181818181818699,
+      "loserDelta": -1.8181818181818699,
+      "rated": true
+     }
+    ]
+   }
+  },
+  {
+   "name": "levels more than ten apart change nothing",
+   "duels": [
+    {
+     "winner": "Aldric",
+     "loser": "Brenna",
+     "winnerLevel": 60,
+     "loserLevel": 40,
+     "at": "2026-12-02T18:00:00Z"
+    }
+   ],
+   "expect": {
+    "players": {
+     "Aldric": {
+      "rating": 1000,
+      "score": 1000,
+      "rated": 0,
+      "games": 1,
+      "wins": 1,
+      "losses": 0,
+      "opponents": 0,
+      "ranked": true
+     },
+     "Brenna": {
+      "rating": 1000,
+      "score": 1000,
+      "rated": 0,
+      "games": 1,
+      "wins": 0,
+      "losses": 1,
+      "opponents": 0,
+      "ranked": true
+     }
+    },
+    "changes": [
+     {
+      "winner": "Aldric",
+      "loser": "Brenna",
+      "winnerDelta": 0,
+      "loserDelta": 0,
+      "rated": false
+     }
+    ]
+   }
+  },
+  {
+   "name": "same pair, seven duels in one weekly window",
+   "duels": [
+    {
+     "winner": "Aldric",
+     "loser": "Brenna",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-02T10:00:00Z"
+    },
+    {
+     "winner": "Brenna",
+     "loser": "Aldric",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-02T11:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Brenna",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-02T12:00:00Z"
+    },
+    {
+     "winner": "Brenna",
+     "loser": "Aldric",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-02T13:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Brenna",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-02T14:00:00Z"
+    },
+    {
+     "winner": "Brenna",
+     "loser": "Aldric",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-02T15:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Brenna",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-02T16:00:00Z"
+    }
+   ],
+   "expect": {
+    "players": {
+     "Aldric": {
+      "rating": 997.3927736892712,
+      "score": 999.0222901334766,
+      "rated": 6,
+      "games": 7,
+      "wins": 4,
+      "losses": 3,
+      "opponents": 1,
+      "ranked": true
+     },
+     "Brenna": {
+      "rating": 1002.6072263107288,
+      "score": 1000.9777098665234,
+      "rated": 6,
+      "games": 7,
+      "wins": 3,
+      "losses": 4,
+      "opponents": 1,
+      "ranked": true
+     }
+    },
+    "changes": [
+     {
+      "winner": "Aldric",
+      "loser": "Brenna",
+      "winnerDelta": 1.8181818181818699,
+      "loserDelta": -1.8181818181818699,
+      "rated": true
+     },
+     {
+      "winner": "Brenna",
+      "loser": "Aldric",
+      "winnerDelta": 2.2002593765971596,
+      "loserDelta": -2.2002593765971596,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Brenna",
+      "winnerDelta": 2.1911910745268415,
+      "loserDelta": -2.1911910745268415,
+      "rated": true
+     },
+     {
+      "winner": "Brenna",
+      "loser": "Aldric",
+      "winnerDelta": 2.5552504966457263,
+      "loserDelta": -2.5552504966457263,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Brenna",
+      "winnerDelta": 1.5673634227666753,
+      "loserDelta": -1.5673634227666753,
+      "rated": true
+     },
+     {
+      "winner": "Brenna",
+      "loser": "Aldric",
+      "winnerDelta": 1.7989363087558559,
+      "loserDelta": -1.7989363087558559,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Brenna",
+      "winnerDelta": 0,
+      "loserDelta": 0,
+      "rated": false
+     }
+    ]
+   }
+  },
+  {
+   "name": "the weekly window resets on Tuesday 15:00 UTC",
+   "duels": [
+    {
+     "winner": "Aldric",
+     "loser": "Brenna",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-08T14:59:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Brenna",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-08T15:00:00Z"
+    }
+   ],
+   "expect": {
+    "players": {
+     "Aldric": {
+      "rating": 1037.7075346495083,
+      "score": 1006.2845891082513,
+      "rated": 2,
+      "games": 2,
+      "wins": 2,
+      "losses": 0,
+      "opponents": 1,
+      "ranked": true
+     },
+     "Brenna": {
+      "rating": 962.2924653504917,
+      "score": 993.7154108917487,
+      "rated": 2,
+      "games": 2,
+      "wins": 0,
+      "losses": 2,
+      "opponents": 1,
+      "ranked": true
+     }
+    },
+    "changes": [
+     {
+      "winner": "Aldric",
+      "loser": "Brenna",
+      "winnerDelta": 1.8181818181818699,
+      "loserDelta": -1.8181818181818699,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Brenna",
+      "winnerDelta": 4.466407290069469,
+      "loserDelta": -4.466407290069469,
+      "rated": true
+     }
+    ]
+   }
+  },
+  {
+   "name": "everyone is ranked from the first duel (eight duels, four opponents)",
+   "duels": [
+    {
+     "winner": "Aldric",
+     "loser": "Brenna",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-02T10:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Corvin",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-02T11:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Dara",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-02T12:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Edda",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-03T13:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Brenna",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-03T14:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Corvin",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-03T15:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Dara",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-04T16:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Edda",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-04T17:00:00Z"
+    }
+   ],
+   "expect": {
+    "players": {
+     "Aldric": {
+      "rating": 1128.2599833808738,
+      "score": 1057.004437058166,
+      "rated": 8,
+      "games": 8,
+      "wins": 8,
+      "losses": 0,
+      "opponents": 4,
+      "ranked": true
+     },
+     "Brenna": {
+      "rating": 965.2502252572571,
+      "score": 994.2083708762095,
+      "rated": 2,
+      "games": 2,
+      "wins": 0,
+      "losses": 2,
+      "opponents": 1,
+      "ranked": true
+     },
+     "Corvin": {
+      "rating": 967.1213852360007,
+      "score": 994.5202308726668,
+      "rated": 2,
+      "games": 2,
+      "wins": 0,
+      "losses": 2,
+      "opponents": 1,
+      "ranked": true
+     },
+     "Dara": {
+      "rating": 968.8697806509463,
+      "score": 994.811630108491,
+      "rated": 2,
+      "games": 2,
+      "wins": 0,
+      "losses": 2,
+      "opponents": 1,
+      "ranked": true
+     },
+     "Edda": {
+      "rating": 970.4986254749218,
+      "score": 995.0831042458203,
+      "rated": 2,
+      "games": 2,
+      "wins": 0,
+      "losses": 2,
+      "opponents": 1,
+      "ranked": true
+     }
+    },
+    "changes": [
+     {
+      "winner": "Aldric",
+      "loser": "Brenna",
+      "winnerDelta": 1.8181818181818699,
+      "loserDelta": -1.8181818181818699,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Corvin",
+      "winnerDelta": 4.656814422536286,
+      "loserDelta": -1.7136343131189733,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Dara",
+      "winnerDelta": 6.591819335010541,
+      "loserDelta": -1.615717277319618,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Edda",
+      "winnerDelta": 7.902312304857901,
+      "loserDelta": -1.5244618261117466,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Brenna",
+      "winnerDelta": 8.411446227678766,
+      "loserDelta": -3.9734473056086017,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Corvin",
+      "winnerDelta": 8.933310758416837,
+      "loserDelta": -3.7661348142141833,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Dara",
+      "winnerDelta": 9.256339992210314,
+      "loserDelta": -3.5726526141893373,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Edda",
+      "winnerDelta": 9.434212199273588,
+      "loserDelta": -3.3924339280679305,
+      "rated": true
+     }
+    ]
+   }
+  },
+  {
+   "name": "eight duels against only three opponents are ranked too",
+   "duels": [
+    {
+     "winner": "Aldric",
+     "loser": "Brenna",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-10T12:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Corvin",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-11T12:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Dara",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-12T12:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Brenna",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-13T12:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Corvin",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-14T12:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Dara",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-15T12:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Brenna",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-16T12:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Corvin",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-17T12:00:00Z"
+    }
+   ],
+   "expect": {
+    "players": {
+     "Aldric": {
+      "rating": 1125.7758666805837,
+      "score": 1055.9003851913706,
+      "rated": 8,
+      "games": 8,
+      "wins": 8,
+      "losses": 0,
+      "opponents": 3,
+      "ranked": true
+     },
+     "Brenna": {
+      "rating": 951.8396710155829,
+      "score": 988.886077926673,
+      "rated": 3,
+      "games": 3,
+      "wins": 0,
+      "losses": 3,
+      "opponents": 1,
+      "ranked": true
+     },
+     "Corvin": {
+      "rating": 954.2944799524827,
+      "score": 989.4525722967268,
+      "rated": 3,
+      "games": 3,
+      "wins": 0,
+      "losses": 3,
+      "opponents": 1,
+      "ranked": true
+     },
+     "Dara": {
+      "rating": 968.0899823513505,
+      "score": 994.6816637252251,
+      "rated": 2,
+      "games": 2,
+      "wins": 0,
+      "losses": 2,
+      "opponents": 1,
+      "ranked": true
+     }
+    },
+    "changes": [
+     {
+      "winner": "Aldric",
+      "loser": "Brenna",
+      "winnerDelta": 1.8181818181818699,
+      "loserDelta": -1.8181818181818699,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Corvin",
+      "winnerDelta": 4.656814422536286,
+      "loserDelta": -1.7136343131189733,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Dara",
+      "winnerDelta": 6.591819335010541,
+      "loserDelta": -1.615717277319618,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Brenna",
+      "winnerDelta": 7.58525453826303,
+      "loserDelta": -4.125047832509267,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Corvin",
+      "winnerDelta": 8.39904377804271,
+      "loserDelta": -3.9065446404546265,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Dara",
+      "winnerDelta": 8.932812085804699,
+      "loserDelta": -3.702618997455261,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Brenna",
+      "winnerDelta": 8.871364756369985,
+      "loserDelta": -5.170692422635852,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Corvin",
+      "winnerDelta": 9.04509445716144,
+      "loserDelta": -4.927248749699629,
+      "rated": true
+     }
+    ]
+   }
+  },
+  {
+   "name": "K drops after 10 and after 30 rated duels",
+   "duels": [
+    {
+     "winner": "Aldric",
+     "loser": "Brenna",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-02T10:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Corvin",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-02T11:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Dara",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-02T12:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Edda",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-02T13:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Fenn",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-02T14:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Brenna",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-04T10:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Corvin",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-04T11:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Dara",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-04T12:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Edda",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-04T13:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Fenn",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-04T14:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Brenna",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-06T10:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Corvin",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-06T11:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Dara",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-06T12:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Edda",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-06T13:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Fenn",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-06T14:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Brenna",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-08T10:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Corvin",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-08T11:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Dara",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-08T12:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Edda",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-08T13:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Fenn",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-08T14:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Brenna",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-10T10:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Corvin",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-10T11:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Dara",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-10T12:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Edda",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-10T13:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Fenn",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-10T14:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Brenna",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-12T10:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Corvin",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-12T11:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Dara",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-12T12:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Edda",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-12T13:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Fenn",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-12T14:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Brenna",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-14T10:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Corvin",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-14T11:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Dara",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-14T12:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Edda",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-14T13:00:00Z"
+    }
+   ],
+   "expect": {
+    "players": {
+     "Aldric": {
+      "rating": 1233.3155612876647,
+      "score": 1180.28929735865,
+      "rated": 34,
+      "games": 34,
+      "wins": 34,
+      "losses": 0,
+      "opponents": 5,
+      "ranked": true
+     },
+     "Brenna": {
+      "rating": 937.1812627903861,
+      "score": 974.1334611489825,
+      "rated": 7,
+      "games": 7,
+      "wins": 0,
+      "losses": 7,
+      "opponents": 1,
+      "ranked": true
+     },
+     "Corvin": {
+      "rating": 939.2359109313173,
+      "score": 974.9794927364247,
+      "rated": 7,
+      "games": 7,
+      "wins": 0,
+      "losses": 7,
+      "opponents": 1,
+      "ranked": true
+     },
+     "Dara": {
+      "rating": 941.1798067413191,
+      "score": 975.7799204228961,
+      "rated": 7,
+      "games": 7,
+      "wins": 0,
+      "losses": 7,
+      "opponents": 1,
+      "ranked": true
+     },
+     "Edda": {
+      "rating": 943.0154577657382,
+      "score": 976.5357767270687,
+      "rated": 7,
+      "games": 7,
+      "wins": 0,
+      "losses": 7,
+      "opponents": 1,
+      "ranked": true
+     },
+     "Fenn": {
+      "rating": 947.9894639400626,
+      "score": 980.4960489775235,
+      "rated": 6,
+      "games": 6,
+      "wins": 0,
+      "losses": 6,
+      "opponents": 1,
+      "ranked": true
+     }
+    },
+    "changes": [
+     {
+      "winner": "Aldric",
+      "loser": "Brenna",
+      "winnerDelta": 1.8181818181818699,
+      "loserDelta": -1.8181818181818699,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Corvin",
+      "winnerDelta": 4.656814422536286,
+      "loserDelta": -1.7136343131189733,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Dara",
+      "winnerDelta": 6.591819335010541,
+      "loserDelta": -1.615717277319618,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Edda",
+      "winnerDelta": 7.902312304857901,
+      "loserDelta": -1.5244618261117466,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Fenn",
+      "winnerDelta": 8.773840462213798,
+      "loserDelta": -1.4397234042135096,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Brenna",
+      "winnerDelta": 8.934706158707513,
+      "loserDelta": -3.8337448999769776,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Corvin",
+      "winnerDelta": 9.248918578044822,
+      "loserDelta": -3.6368101416686613,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Dara",
+      "winnerDelta": 9.421067830292714,
+      "loserDelta": -3.452944801996523,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Edda",
+      "winnerDelta": 9.488957439809838,
+      "loserDelta": -3.2815999517426917,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Fenn",
+      "winnerDelta": 9.480195409746784,
+      "loserDelta": -3.1221194854701935,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Brenna",
+      "winnerDelta": 5.234938396061807,
+      "loserDelta": -3.3492337922252773,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Corvin",
+      "winnerDelta": 5.027956335544104,
+      "loserDelta": -3.2270005235403687,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Dara",
+      "winnerDelta": 4.845125743602466,
+      "loserDelta": -3.111856273908984,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Edda",
+      "winnerDelta": 4.682252067630316,
+      "loserDelta": -3.003629641428688,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Fenn",
+      "winnerDelta": 4.5360068061522725,
+      "loserDelta": -2.9020485823525632,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Brenna",
+      "winnerDelta": 4.302972593445475,
+      "loserDelta": -3.4759278603290795,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Corvin",
+      "winnerDelta": 4.184079859616759,
+      "loserDelta": -3.369387884083949,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Dara",
+      "winnerDelta": 4.075853244203017,
+      "loserDelta": -3.2686336705096437,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Edda",
+      "winnerDelta": 3.976692154870989,
+      "loserDelta": -3.1735318149310388,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Fenn",
+      "winnerDelta": 3.8852867756666,
+      "loserDelta": -3.083867082971892,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Brenna",
+      "winnerDelta": 5.443467970064148,
+      "loserDelta": -4.942306215327562,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Corvin",
+      "winnerDelta": 5.372798381247321,
+      "loserDelta": -4.811492412056168,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Dara",
+      "winnerDelta": 5.301591170116808,
+      "loserDelta": -4.686093572499544,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Edda",
+      "winnerDelta": 5.229973015022779,
+      "loserDelta": -4.566024871937884,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Fenn",
+      "winnerDelta": 5.158088182193524,
+      "loserDelta": -4.451141231682982,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Brenna",
+      "winnerDelta": 4.82735519471521,
+      "loserDelta": -4.935963468154341,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Corvin",
+      "winnerDelta": 4.768381479431582,
+      "loserDelta": -4.821972342639583,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Dara",
+      "winnerDelta": 4.709472940419801,
+      "loserDelta": -4.712195800042537,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Edda",
+      "winnerDelta": 4.650614712336392,
+      "loserDelta": -4.606587205677442,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Fenn",
+      "winnerDelta": 4.5918275561607516,
+      "loserDelta": -4.505051235785345,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Brenna",
+      "winnerDelta": 2.3603825492632495,
+      "loserDelta": -3.511180796822373,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Corvin",
+      "winnerDelta": 2.3127324112206225,
+      "loserDelta": -3.440209646467565,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Dara",
+      "winnerDelta": 2.2681964220091686,
+      "loserDelta": -3.372638180827039,
+      "rated": true
+     },
+     {
+      "winner": "Aldric",
+      "loser": "Edda",
+      "winnerDelta": 2.226437638252719,
+      "loserDelta": -3.3083879611018574,
+      "rated": true
+     }
+    ]
+   }
+  },
+  {
+   "name": "arrival order does not matter (same duels, shuffled)",
+   "duels": [
+    {
+     "winner": "Corvin",
+     "loser": "Aldric",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-05T10:00:00Z"
+    },
+    {
+     "winner": "Aldric",
+     "loser": "Brenna",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-03T10:00:00Z"
+    },
+    {
+     "winner": "Brenna",
+     "loser": "Corvin",
+     "winnerLevel": 60,
+     "loserLevel": 60,
+     "at": "2026-12-04T10:00:00Z"
+    }
+   ],
+   "expect": {
+    "players": {
+     "Aldric": {
+      "rating": 997.6422288220485,
+      "score": 999.6070381370081,
+      "rated": 2,
+      "games": 2,
+      "wins": 1,
+      "losses": 1,
+      "opponents": 2,
+      "ranked": true
+     },
+     "Brenna": {
+      "rating": 1001.1500225556907,
+      "score": 1000.1916704259485,
+      "rated": 2,
+      "games": 2,
+      "wins": 1,
+      "losses": 1,
+      "opponents": 2,
+      "ranked": true
+     },
+     "Corvin": {
+      "rating": 1001.2077486222607,
+      "score": 1000.2012914370434,
+      "rated": 2,
+      "games": 2,
+      "wins": 1,
+      "losses": 1,
+      "opponents": 2,
+      "ranked": true
+     }
+    },
+    "changes": [
+     {
+      "winner": "Aldric",
+      "loser": "Brenna",
+      "winnerDelta": 1.8181818181818699,
+      "loserDelta": -1.8181818181818699,
+      "rated": true
+     },
+     {
+      "winner": "Brenna",
+      "loser": "Corvin",
+      "winnerDelta": 2.009852244130343,
+      "loserDelta": -1.9227293232446527,
+      "rated": true
+     },
+     {
+      "winner": "Corvin",
+      "loser": "Aldric",
+      "winnerDelta": 2.12402076028809,
+      "loserDelta": -2.2111436811737804,
+      "rated": true
+     }
+    ]
+   }
+  }
+ ],
+ "seasons": [
+  {
+   "at": "2026-11-12T23:59:59Z",
+   "id": "s0",
+   "from": "1970-01-01T00:00:00.000Z",
+   "to": "2026-11-13T00:00:00.000Z",
+   "rated": false
+  },
+  {
+   "at": "2026-11-13T00:00:00Z",
+   "id": "2026-11",
+   "from": "2026-11-13T00:00:00.000Z",
+   "to": "2027-01-01T00:00:00.000Z",
+   "rated": true
+  },
+  {
+   "at": "2026-12-31T23:59:59Z",
+   "id": "2026-11",
+   "from": "2026-11-13T00:00:00.000Z",
+   "to": "2027-01-01T00:00:00.000Z",
+   "rated": true
+  },
+  {
+   "at": "2027-01-01T00:00:00Z",
+   "id": "2027-01",
+   "from": "2027-01-01T00:00:00.000Z",
+   "to": "2027-02-01T00:00:00.000Z",
+   "rated": true
+  }
+ ]
+}

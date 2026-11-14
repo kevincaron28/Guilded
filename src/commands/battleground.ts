@@ -11,7 +11,9 @@ import { battlegroundPrivacyHelp, battlegroundRecordPanel, battlegroundResultCar
 import { currentGuildScope } from "../services/guild-scope.js";
 import { battlegroundEndCard } from "../services/end-cards.js";
 import { scoreCardPng } from "../services/score-card.js";
-import { duelLeaderboard, percent, streakText } from "../services/duels.js";
+import { duelLadder, percent, streakText } from "../services/duels.js";
+import { ratingSeasonName, showRating } from "../services/duel-rating.js";
+import { ratingFooter } from "../services/duel-rules.js";
 import { updateDuelBoard } from "../services/duel-board.js";
 import { updateBgLadder } from "../services/bg-ladder.js";
 import { weekKeyOf } from "../services/world-pvp.js";
@@ -70,6 +72,8 @@ export const battlegroundCommand = new SlashCommandBuilder().setName("bg").setDe
     .addBooleanOption(o => o.setName("enabled").setDescription("Turn the live board on or off").setDescriptionLocalizations({ fr: "Activer ou désactiver le tableau" }).setRequired(true)))
   .addSubcommand(s => s.setName("duel-cards").setDescription("Officers: a card in the duel channel for each counted duel (on by default)").setDescriptionLocalizations({ fr: "Officiers : une carte dans le salon des duels pour chaque duel compté (activé par défaut)" })
     .addBooleanOption(o => o.setName("enabled").setDescription("Turn the duel cards on or off").setDescriptionLocalizations({ fr: "Activer ou désactiver les cartes" }).setRequired(true)))
+  .addSubcommand(s => s.setName("season-cards").setDescription("Officers: season start and end cards (on by default)").setDescriptionLocalizations({ fr: "Officiers : cartes de début et fin de saison (activé par défaut)" })
+    .addBooleanOption(o => o.setName("enabled").setDescription("Turn the season cards on or off").setDescriptionLocalizations({ fr: "Activer ou désactiver les cartes" }).setRequired(true)))
   .addSubcommand(s => s.setName("bg-ladder").setDescription("Officers: the battleground ladder message in the ladder channel (on by default)").setDescriptionLocalizations({ fr: "Officiers : classement des champs de bataille dans le salon du classement (activé par défaut)" })
     .addBooleanOption(o => o.setName("enabled").setDescription("Turn the battleground ladder on or off").setDescriptionLocalizations({ fr: "Activer ou désactiver le classement" }).setRequired(true)))
   .addSubcommand(s => s.setName("world-pvp").setDescription("Officers: world PvP (kills, defends) on the ladder message (on by default)").setDescriptionLocalizations({ fr: "Officiers : JcJ en monde ouvert sur le classement (activé par défaut)" })
@@ -117,7 +121,7 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
   const t = (en: string, french: string) => fr ? french : en;
   const sub = command?.options.getSubcommand() ?? input?.action ?? "";
   if (["create", "manage"].includes(sub) && !hasPermission(actor, "raidLeader")) throw new Error("Raid Leader required / Responsable de raid requis.");
-  if ((sub === "setup" || sub === "duel-board" || sub === "duel-cards" || sub === "pvp-module" || sub === "group-finder" || sub === "bg-ladder" || sub === "world-pvp") && !hasPermission(actor, "officer")) throw new Error("Officer required / Officier requis.");
+  if ((sub === "setup" || sub === "duel-board" || sub === "duel-cards" || sub === "season-cards" || sub === "pvp-module" || sub === "group-finder" || sub === "bg-ladder" || sub === "world-pvp") && !hasPermission(actor, "officer")) throw new Error("Officer required / Officier requis.");
   if (sub === "bg-ladder") {
     const enabled = command?.options.getBoolean("enabled", true) ?? false;
     await prisma.guildSettings.update({ where: { guildId: ctx.guildId }, data: { bgLadderEnabled: enabled } });
@@ -172,6 +176,13 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
     await i.editReply({ content: enabled
       ? t(`Live duel board ${posted ? "posted" : "saved; it appears on the next refresh"} in <#${settings.duelBoardChannelId}>. It is edited in place, never re-posted.`, `Tableau des duels ${posted ? "publié" : "enregistré; il apparaîtra au prochain rafraîchissement"} dans <#${settings.duelBoardChannelId}>. Il est modifié sur place, jamais republié.`)
       : t("Live duel board off. The existing message stays; delete it if you wish.", "Tableau des duels désactivé. Le message existant reste; supprimez-le si vous le souhaitez."), allowedMentions: { parse: [] } }); return;
+  }
+  if (sub === "season-cards") {
+    const enabled = command?.options.getBoolean("enabled", true) ?? false;
+    await prisma.guildSettings.update({ where: { guildId: ctx.guildId }, data: { seasonCardsEnabled: enabled } });
+    await i.editReply({ content: enabled
+      ? t("Season cards on (the default): a podium card when a dungeon season ends and a card when one begins, in the dungeon leaderboard channel. Nothing is awarded.", "Cartes de saison activées (par défaut) : une carte de podium à la fin d'une saison de donjons et une carte au début de la suivante, dans le salon du classement des donjons. Rien n'est attribué.")
+      : t("Season cards off. Cards already queued are not posted either.", "Cartes de saison désactivées. Les cartes déjà en file ne sont pas publiées non plus."), allowedMentions: { parse: [] } }); return;
   }
   if (sub === "duel-cards") {
     const enabled = command?.options.getBoolean("enabled", true) ?? false;
@@ -230,11 +241,12 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
   if (sub === "duels") {
     // Counted duels between this guild's members, reported by their own companions (services/duels.ts). Public in the guild; no points.
     const guild = await prisma.guild.findUniqueOrThrow({ where: { id: ctx.guildId }, select: { gameEdition: true } });
-    const { standings, duels } = await duelLeaderboard(prisma, ctx.guildId, guild.gameEdition, { limit: 15 });
-    const lines = standings.map((row, index) => `**${index + 1}.** ${escapeMarkdown(row.name)} — ${row.score} pts · ${row.wins}${t("W", "V")} ${row.losses}${t("L", "D")} (${percent(row.winRate)}) · ${streakText(row.streak)}`);
+    const { standings, duels, mode, season, startsAt } = await duelLadder(prisma, ctx.guildId, guild.gameEdition, { limit: 15 });
+    const scoreOf = (row: (typeof standings)[number]) => mode === "points" ? `${row.score} pts` : row.placement ? t(`placement ${row.placement.duels}/${row.placement.needDuels}`, `placement ${row.placement.duels}/${row.placement.needDuels}`) : showRating(row.score);
+    const lines = standings.map((row) => `**${row.rank ?? "·"}.** ${escapeMarkdown(row.name)} — ${scoreOf(row)} · ${row.wins}${t("W", "V")} ${row.losses}${t("L", "D")} (${percent(row.winRate)}) · ${streakText(row.streak)}`);
     await i.editReply({ embeds: [new EmbedBuilder().setTitle(t("Guild duel leaderboard", "Classement des duels de la guilde"))
       .setDescription(lines.length ? lines.join("\n") : t("No duel recorded yet. Duel a guildmate with the Guilded addon and companion on.", "Aucun duel enregistré. Affrontez un membre de la guilde avec l'addon et le compagnon Guilded."))
-      .setFooter({ text: t(`${duels} counted duels · ${guild.gameEdition} · score: 10 per win, +2 per level the opponent is above you, -2 per level below (0-20) · at most 5 per pair per day count · no rewards`, `${duels} duels comptés · ${guild.gameEdition} · score : 10 par victoire, +2 par niveau de l'adversaire au-dessus de vous, -2 en dessous (0-20) · 5 par paire et par jour au maximum · aucune récompense`) })], allowedMentions: { parse: [] } }); return;
+      .setFooter({ text: mode === "rating" && season ? `${duels} ${t("counted duels", "duels comptés")} · ${ratingFooter(fr ? "fr" : "en", ratingSeasonName(season.id, fr ? "fr" : "en"), startsAt)}`.slice(0, 2000) : t(`${duels} counted duels · ${guild.gameEdition} · score: 10 per win, +2 per level the opponent is above you, -2 per level below (0-20) · at most 5 per pair per day count · no rewards`, `${duels} duels comptés · ${guild.gameEdition} · score : 10 par victoire, +2 par niveau de l'adversaire au-dessus de vous, -2 en dessous (0-20) · 5 par paire et par jour au maximum · aucune récompense`) })], allowedMentions: { parse: [] } }); return;
   }
   if (sub === "panel") {
     await i.editReply({ components: [battlegroundPanel(fr, ctx.guildId), battlegroundRecordPanel(fr, ctx.guildId)], embeds: [new EmbedBuilder().setTitle(t("Battlegrounds", "Champs de bataille")).setDescription(t(

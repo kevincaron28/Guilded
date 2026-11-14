@@ -3,7 +3,8 @@ import { EmbedBuilder, escapeMarkdown, type Guild as DiscordGuild, type Message 
 import { isOwnBoard } from "./board-identity.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
-import { PROFESSION_FR } from "./profession-style.js";
+import { professionName as shownProfession } from "./profession-style.js";
+import { normalizeProfessionName } from "./profession-names.js";
 import { classColor, ladderMeta, scoreCardPng, type ScoreCard } from "./score-card.js";
 import { moveColumn, moveFields, trackRanks, type Movements } from "./ladder-snapshots.js";
 import { guildWhere } from "./guild-scope.js";
@@ -48,14 +49,14 @@ export function crafterStandings(rows: readonly { crafterId: string; points: num
     entry.crafts += 1;
     if (now.getTime() - row.doneAt.getTime() <= MONTH_MS) entry.month += 1;
     if (row.doneAt > entry.lastAt) entry.lastAt = row.doneAt;
-    if (row.profession) entry.professions.set(row.profession, (entry.professions.get(row.profession) ?? 0) + 1);
+    if (row.profession) { const profession = normalizeProfessionName(row.profession); entry.professions.set(profession, (entry.professions.get(profession) ?? 0) + 1); }
     by.set(row.crafterId, entry);
   }
   return [...by.values()].map(({ professions, ...entry }) => ({ ...entry, topProfession: [...professions.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? null }))
     .sort((a, b) => b.points - a.points || b.month - a.month || b.lastAt.getTime() - a.lastAt.getTime() || a.name.localeCompare(b.name));
 }
 
-const professionName = (lang: Lang, profession: string | null) => !profession ? "—" : lang === "fr" ? PROFESSION_FR[profession] ?? profession : profession;
+const professionName = (lang: Lang, profession: string | null) => !profession ? "—" : shownProfession(profession, lang);
 
 /** Pure: the ladder card. */
 export function craftLadderCard(standings: readonly CrafterStanding[], totalCrafts: number, lang: Lang, updatedAt = new Date(), moves: Movements | null = null): ScoreCard {

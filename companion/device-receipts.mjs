@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { resolveStandingsPath } from "./standings.mjs";
 import { writeDataAddon } from "./data-addon.mjs";
 import { linkedMapLua } from "./standings-format.mjs";
+import { patchReceiptBlocks, readRecord, recordReceipts } from "./parked-runs.mjs";
 
 // Zero-setup companion (9.1.3): an unsigned device never fetches the guild standings, so nothing told the
 // addon which of its dungeon runs the bot had received, and they stayed "waiting" for ever. The bot's answer
@@ -119,6 +120,10 @@ export async function writeDeviceReceipts(config, answer, signal, now = new Date
   const standings = resolveStandingsPath(config);
   if (!standings) return [];
   const merged = mergeDeviceReceipts(await readDeviceReceipts(config), answer);
+  // Runs of a parked guild the bot acknowledged (parked-runs.mjs) stay acknowledged: the addon marks them synced when that guild loads again.
+  const parked = recordReceipts(await readRecord(config));
+  merged.refs = [...new Set([...merged.refs, ...parked.refs])].slice(0, MAX_REFS);
+  merged.notes = { ...parked.notes, ...merged.notes };
   const stamp = now.toISOString();
   // `reported`: the characters of this PC the bot holds as reported (9.1.4); only the newest answer counts, never merged.
   const reported = Array.isArray(answer?.reported) ? answer.reported.filter((name) => typeof name === "string" && name).slice(0, 24) : [];
@@ -147,5 +152,24 @@ export async function writeDeviceReceipts(config, answer, signal, now = new Date
       written.push(accepted);
     } catch { signal?.throwIfAborted(); }
   }
+  return written;
+}
+
+/**
+ * Adds the record of acknowledged parked-guild runs to the Standings.lua already on disk (and the GuildedData copy) without touching
+ * anything else in it, so a run is shown as synced when its guild loads again even when no new standings or receipts arrived.
+ * Returns the paths written.
+ */
+export async function refreshParkedReceipts(config, record, signal) {
+  const standings = resolveStandingsPath(config);
+  if (!standings || !existsSync(dirname(standings))) return [];
+  let current;
+  try { current = await readFile(standings, "utf8"); } catch { return []; }
+  const text = patchReceiptBlocks(current, record);
+  if (text === current) return [];
+  signal?.throwIfAborted();
+  await writeAtomic(standings, text);
+  const written = [standings];
+  if (config.dataAddon !== false) { try { const data = await writeDataAddon(standings, text, new Date().toISOString(), signal); if (data) written.push(data); } catch { signal?.throwIfAborted(); } }
   return written;
 }

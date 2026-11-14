@@ -54,6 +54,12 @@ export function deviceUploadBody(full, options = {}) {
     && run.reporterNames.some(name => typeof name === "string" && foreverSameName(name, player.character)));
   const dungeonRuns = (Array.isArray(full?.dungeonRuns) ? full.dungeonRuns : []).filter(run => run && run.state === "COMPLETED" && !acknowledged.has(run.id) && (played(run) || heard(run)))
     .sort((a, b) => (b.endedAt ?? 0) - (a.endedAt ?? 0)).slice(0, MAX_RUNS);
+  if (options.runsOnly) {
+    // (9.3.1) A parked guild's runs: only the characters that vouch for them (one of them played a sent run), flagged so the bot stores
+    // nothing of the device (guild, server pick, characters) and never guesses the server from a roster.
+    const vouching = characters.filter(own => dungeonRuns.some(run => Array.isArray(run.players) && run.players.some(player => typeof player?.character === "string" && foreverSameName(own.name, player.character))));
+    return { runsOnly: true, guild: splitGuildKey(full?.wowGuild), characters: vouching, ...(dungeonRuns.length ? { dungeonRuns } : {}) };
+  }
   return { guild: splitGuildKey(full?.wowGuild), characters, ...(dungeonRuns.length ? { dungeonRuns } : {}), ...(options.server ? { server: String(options.server) } : {}) };
 }
 
@@ -69,10 +75,10 @@ export async function registerDevice(config, signal) {
 
 /** One unsigned upload. The answer says where the data went (or why it waits). */
 export async function uploadAsDevice(config, full, signal, options = {}) {
-  const sent = deviceUploadBody(full, { server: config.deviceServer, acknowledged: options.acknowledged });
+  const sent = deviceUploadBody(full, { server: options.runsOnly ? undefined : config.deviceServer, acknowledged: options.acknowledged, runsOnly: options.runsOnly });
   const { response, body } = await requestJson(new URL("/api/v1/device/uploads", base(config)), {
     method: "POST",
-    headers: { ...deviceHeaders(config), "content-type": "application/json" },
+    headers: { ...deviceHeaders(config), "content-type": "application/json", ...(options.runsOnly ? { "x-guilded-runs-only": "1" } : {}) },
     body: JSON.stringify(sent)
   }, signal);
   return { response, body, sent };

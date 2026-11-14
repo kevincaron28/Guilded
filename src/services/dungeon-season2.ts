@@ -1,3 +1,4 @@
+import { BOSS_SCORING_V1 } from "./dungeon-boss-scoring.js";
 import { createBracketedDungeonRules, type BracketedRules } from "./dungeon-november-rules.js";
 import type { RouteObservation } from "./dungeon-season-observations.js";
 
@@ -57,7 +58,7 @@ export interface Season2Proposal { rules: BracketedRules; rows: Season2Row[]; co
 export type Season2Policy = "current-v1" | "current-v2";
 /** Scoring model 2 defaults (docs/plans/DUNGEON_SCORING_V2.md): 5% of the time per level of difference, parties of 3 or more. */
 export const SCORING_V2 = { version: 2 as const, timePerLevel: 0.05, minParty: 3 };
-export function season2Proposal(base: BracketedRules, observations: RouteObservation[], startsAt: Date, policy: Season2Policy = "current-v2", scoring: BracketedRules["scoring"] = undefined): Season2Proposal {
+export function season2Proposal(base: BracketedRules, observations: RouteObservation[], startsAt: Date, policy: Season2Policy = "current-v2", scoring: BracketedRules["scoring"] = undefined, bossScoring: BracketedRules["bossScoring"] | null = BOSS_SCORING_V1): Season2Proposal {
   const byKey = new Map(observations.map(o => [o.key, o]));
   const rows: Season2Row[] = base.routes.filter(r => r.targetSec !== null).map(route => {
     const previousSec = base.targets[route.dungeonKey] ?? route.targetSec!;
@@ -70,7 +71,7 @@ export function season2Proposal(base: BracketedRules, observations: RouteObserva
     ...(base.gameEdition ? { gameEdition: base.gameEdition } : {}),
     // The route's own starting target is the Season 2 one; Season 1's recalibrations never carry over.
     routes: base.routes.map(r => r.targetSec === null ? r : { ...r, targetSec: target.get(r.dungeonKey)! }),
-    brackets: base.brackets, overlevelPenalty: base.overlevelPenalty, evidencePolicy: policy, ...(scoring ? { scoring } : {}),
+    brackets: base.brackets, overlevelPenalty: base.overlevelPenalty, evidencePolicy: policy, ...(scoring ? { scoring } : {}), ...(bossScoring ? { bossScoring } : {}),
     provisional: { plan: "season-2-from-season-1", waiting: base.provisional?.waiting ?? [] },
     ...(changed.length ? { recalibrations: changed.map(r => ({ dungeonKey: r.key, targetSec: r.targetSec, from: startsAt.toISOString(), runs: Math.max(1, r.samples) })) } : {})
   });

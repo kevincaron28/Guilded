@@ -204,7 +204,12 @@ local function parse(payload)
         local rating = target > 0 and math.max(50, math.min(400, math.floor(200 * target / seconds + 0.5))) or 0
         if penalty and penalty > 0 then rating = math.floor(rating * (100 - penalty) / 100 + 0.5) end
         if reason ~= "" and not reasons[reason] then return end
-        if bonus ~= 0 or points ~= (reason ~= "" and 0 or rating) then return end
+        -- The server is the authority on a run's points. A rule this addon does not know (for example a run that skipped bosses) can only
+        -- lower a counted run's points, never raise them, so a counted row is accepted at or below its own recomputation.
+        if bonus ~= 0 then return end
+        if reason ~= "" then
+          if points ~= 0 then return end
+        elseif points < 0 or points > rating then return end
       elseif reason ~= "" or points ~= 100 + bonus or bonus ~= expected or (result.version == 1 and (bonus ~= 0 or target ~= 0)) then return end
       runIds[key], sum = true, sum + points
       result.profile.details[#result.profile.details + 1] = { dungeonKey = key, instanceId = id, name = decode(fields[3]), points = points,

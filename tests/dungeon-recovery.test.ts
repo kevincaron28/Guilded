@@ -18,10 +18,12 @@ const run = (over: Record<string, unknown> = {}) => ({
 describe("the Drowned City boss data", () => {
   it("lists six bosses, and only Min'loth the Serpent ends the dungeon", () => {
     const route = routeBosses(2970)!;
-    expect(route.bosses.map((boss) => boss.id).sort()).toEqual([3474, 3475, 3476, 3478, 3479, 3511]);
-    expect(route.bosses.filter((boss) => boss.final).map((boss) => boss.id)).toEqual([3479]);
-    expect(finalBossOf(2970)).toMatchObject({ id: 3479, name: "Min'loth the Serpent" });
-    expect(finalBossOf(36)).toBeNull();
+    expect(route.bosses.flatMap((boss) => boss.ids).sort()).toEqual([3474, 3475, 3476, 3478, 3479, 3511]);
+    expect(route.bosses.filter((boss) => boss.final).flatMap((boss) => boss.ids)).toEqual([3479]);
+    expect(finalBossOf(2970)).toMatchObject({ ids: [3479], name: "Min'loth the Serpent" });
+    expect(finalBossOf(36)).toMatchObject({ ids: [167, 2747] });
+    expect(finalBossOf(189)).toBeNull();
+    expect(finalBossOf(5)).toBeNull();
   });
 });
 

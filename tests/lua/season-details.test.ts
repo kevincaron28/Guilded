@@ -162,6 +162,9 @@ it("round-trips wider ratings, separate boss records and unranked reasons", () =
   const unranked = "S;s;3;0;1\nC;36;Dungeon;1200\nR;36;Dungeon;0;0;600;1200;r;Overlevel carry";
   expect(s.run(`return NS.seasonDetails.parse(${JSON.stringify(unranked)}).profile.details[1].unrankedReason`)).toBe("Overlevel carry");
   expect(s.run(`return tostring((NS.seasonDetails.parse(${JSON.stringify(packet.replace(";235;0;1020", ";400;0;1020"))})))`)).toBe("nil");
+  // The server is the authority: a counted row below the addon's own recomputation (boss-skip scoring) is kept, a row above it is not.
+  const adjusted = "S;s;3;117;1\nC;36;Dungeon;1200\nR;36;Dungeon;117;0;1020;1200;r;";
+  expect(s.run(`return NS.seasonDetails.parse(${JSON.stringify(adjusted)}).profile.details[1].points`)).toBe("117");
 });
 
 it("keeps a paced large response alive through UI retries and more than sixty seconds", () => {

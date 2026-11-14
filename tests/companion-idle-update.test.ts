@@ -169,10 +169,77 @@ describe("the idle install runs the whole flow", () => {
   });
 });
 
+describe("hardening: slow installs, unfinished updates, unknown WoW and busy syncs", () => {
+  it("the marker stays fresh for five minutes and the live companion refreshes it while the installer runs", async () => {
+    expect(idle.MARKER_FRESH_MS).toBe(5 * 60 * 1000);
+    let tick: (() => void) | null = null;
+    const cleared = vi.fn();
+    const t = setup({ setInterval: (fn: () => void) => { tick = fn; return { unref: vi.fn() }; }, clearInterval: cleared });
+    await t.installer.run();
+    expect(t.deps.writeMarker).toHaveBeenCalledTimes(1);
+    tick!(); tick!();
+    expect(t.deps.writeMarker).toHaveBeenCalledTimes(3);
+    t.spawned[0]!.emit("exit", 2);
+    await vi.waitFor(() => expect(cleared).toHaveBeenCalled());
+  });
+
+  it("an old marker of a newer version is read as an update that did not finish", () => {
+    const now = Date.parse("2026-11-14T12:00:00Z");
+    const file = join(directory, idle.MARKER_NAME);
+    writeFileSync(file, JSON.stringify({ at: "2026-11-14T11:00:00Z", version: "9.3.3" }));
+    expect(idle.readMarker(file, now)).toEqual({ quiet: false, unfinished: "9.3.3" });
+    expect(existsSync(file)).toBe(false);
+    writeFileSync(file, JSON.stringify({ at: "2026-11-14T11:59:00Z", version: "9.3.3" }));
+    expect(idle.readMarker(file, now)).toEqual({ quiet: true, unfinished: null });
+    expect(idle.readMarker(file, now)).toEqual({ quiet: false, unfinished: null });
+  });
+
+  it("the window says so and offers the update again (problem, status item, French)", () => {
+    return Promise.all([import("../companion/problems.mjs"), import("../companion/main-status.mjs")]).then(([p, status]) => {
+      const list = p.companionProblems({ config: { companionCredential: "x" }, version: "9.3.2", updateUnfinished: "9.3.3" });
+      expect(list.find((x: { id: string }) => x.id === "companion-outdated")).toMatchObject({ data: { latest: "9.3.3", current: "9.3.2", unfinished: true } });
+      // A version that is already running is not offered.
+      expect(p.companionProblems({ config: { companionCredential: "x" }, version: "9.3.3", updateUnfinished: "9.3.3" }).some((x: { id: string }) => x.id === "companion-outdated")).toBe(false);
+      const fr = require("../companion-app/locales/fr.json") as Record<string, string>;
+      expect(fr["The update did not finish."]).toBeTruthy();
+      expect(fr["The update to Guilded Companion {0} did not finish. Use Update to try again."]).toBeTruthy();
+      expect(status).toBeDefined();
+    });
+  });
+
+  it("unknown WoW state counts as running, and a retry or addon update counts as a sync", () => {
+    expect(idle.wowBlocks({ running: false, checkFailed: false, checked: true })).toBe(false);
+    expect(idle.wowBlocks({ running: false, checkFailed: true, checked: true })).toBe(true);
+    expect(idle.wowBlocks({ running: false, checkFailed: false, checked: false })).toBe(true);
+    expect(idle.wowBlocks({ running: true, checkFailed: false, checked: true })).toBe(true);
+    expect(idle.syncBlocks({ phase: "synced" })).toBe(false);
+    for (const phase of ["uploading", "retry"]) expect(idle.syncBlocks({ phase })).toBe(true);
+    expect(idle.syncBlocks({ phase: "synced", addonAutoUpdating: true })).toBe(true);
+    expect(idle.syncBlocks({ unreadable: true })).toBe(true);
+  });
+
+  it("the flow waits when WoW state is unknown or a sync is retrying", async () => {
+    const unknown = setup({ wowRunning: () => idle.wowBlocks({ running: false, checkFailed: true }) });
+    expect((await unknown.installer.run()).reason).toBe("wow-running");
+    const retry = setup({ syncBusy: () => idle.syncBlocks({ phase: "retry" }) });
+    expect((await retry.installer.run()).reason).toBe("sync-running");
+  });
+
+  it("main.cjs wires the unknown-state rules and the unfinished-update notice", () => {
+    const main = readFileSync("companion-app/main.cjs", "utf8");
+    expect(main).toMatch(/wowRunning: \(\) => idleUpdate\.wowBlocks\(\{ running: wowRunning, checkFailed: wowCheckFailed, checked: wowChecked \}\)/);
+    expect(main).toMatch(/idleUpdate\.syncBlocks\(\{ phase: engine\?\.state\?\.\(\)\?\.syncPhase, addonAutoUpdating \}\)/);
+    expect(main).toMatch(/wowChecked = true; wowCheckFailed = !!error;/);
+    expect(main).toMatch(/idleUpdate\.readMarker\(idleUpdateMarkerFile\(\)\)/);
+    expect(main).toMatch(/updateUnfinished = unfinished;/);
+    expect(main).toMatch(/addonUpdateFailed, updateUnfinished/);
+  });
+});
+
 describe("the restart marker and the backoff helpers", () => {
   it("keeps the restarted companion in the tray only for a fresh marker", () => {
     const now = Date.parse("2026-11-14T12:00:00Z");
-    expect(idle.markerIsFresh({ at: "2026-11-14T11:58:30Z" }, now)).toBe(true);
+    expect(idle.markerIsFresh({ at: "2026-11-14T11:56:00Z" }, now)).toBe(true);
     expect(idle.markerIsFresh({ at: "2026-11-14T11:50:00Z" }, now)).toBe(false);
     expect(idle.markerIsFresh({ at: "nonsense" }, now)).toBe(false);
     expect(idle.markerIsFresh(null, now)).toBe(false);
@@ -182,7 +249,7 @@ describe("the restart marker and the backoff helpers", () => {
     const now = Date.parse("2026-11-14T12:00:00Z");
     const file = join(directory, idle.MARKER_NAME);
     const write = (at: string) => writeFileSync(file, JSON.stringify({ at, version: "9.3.2" }));
-    write("2026-11-14T11:58:30Z");
+    write("2026-11-14T11:56:00Z");
     expect(idle.consumeMarker(file, now)).toBe(true);
     expect(existsSync(file)).toBe(false); // read once, then gone
     write("2026-11-14T11:50:00Z"); // left by a failed install: a manual start must show the window
@@ -195,7 +262,7 @@ describe("the restart marker and the backoff helpers", () => {
 
   it("main.cjs reads that marker at start so the window stays hidden, and tracks a minimized window", () => {
     const main = readFileSync("companion-app/main.cjs", "utf8");
-    expect(main).toMatch(/idleUpdate\.consumeMarker\(idleUpdateMarkerFile\(\)\)/);
+    expect(main).toMatch(/idleUpdate\.readMarker\(idleUpdateMarkerFile\(\)\)/);
     expect(main).toMatch(/restartedQuietly = readRestartMarker\(\);\s+pushLog/);
     expect(main).toMatch(/restartedQuietly = readRestartMarker\(\)/);
     expect(main).toMatch(/!startHidden && !restartedQuietly/);

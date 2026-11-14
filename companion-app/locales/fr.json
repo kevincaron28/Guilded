@@ -1114,6 +1114,8 @@
   "Updated: restart WoW to use it": "Mis à jour : redémarrez WoW pour l’utiliser",
   "A new version is out.": "Une nouvelle version est disponible.",
   "Update": "Mettre à jour",
+  "The update did not finish.": "La mise à jour ne s'est pas terminée.",
+  "The update to Guilded Companion {0} did not finish. Use Update to try again.": "La mise à jour vers Guilded Companion {0} ne s'est pas terminée. Utilisez Mettre à jour pour réessayer.",
   "Sending your data…": "Envoi de vos données…",
   "Waiting for you to choose a server": "En attente du choix d’un serveur",
   "Several servers set up your guild {0}.": "Plusieurs serveurs ont configuré votre guilde {0}.",

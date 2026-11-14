@@ -193,3 +193,53 @@ describe("standings feed", () => {
     } finally { await rm(dir, { recursive: true, force: true }); }
   });
 });
+
+describe("reads shared between the members of one guild", () => {
+  it("runs a guild-wide read once for requests that arrive while it is running", async () => {
+    const feed = createStandingsFeed();
+    let release!: (value: string) => void;
+    const read = vi.fn(() => new Promise<string>((resolve) => { release = resolve; }));
+    const answers = Promise.all([feed.shared("g", "reads", read), feed.shared("g", "reads", read), feed.shared("g", "reads", read)]);
+    await Promise.resolve();
+    release("one");
+    expect(await answers).toEqual(["one", "one", "one"]);
+    expect(read).toHaveBeenCalledTimes(1);
+    // Finished: the next request reads again.
+    await feed.shared("g", "reads", async () => "two");
+  });
+  it("keeps guilds and names apart", async () => {
+    const feed = createStandingsFeed();
+    const read = vi.fn(async () => "x");
+    await Promise.all([feed.shared("g", "a", read), feed.shared("g", "b", read), feed.shared("h", "a", read)]);
+    expect(read).toHaveBeenCalledTimes(3);
+  });
+  it("never shares a read that started before a change", async () => {
+    const feed = createStandingsFeed();
+    let release!: (value: string) => void;
+    const first = feed.shared("g", "reads", () => new Promise<string>((resolve) => { release = resolve; }));
+    feed.markChanged("g");
+    const second = feed.shared("g", "reads", async () => "after the change");
+    await Promise.resolve();
+    release("before the change");
+    expect(await first).toBe("before the change");
+    expect(await second).toBe("after the change");
+  });
+  it("does not keep a failed read: the next request tries again", async () => {
+    const feed = createStandingsFeed();
+    await expect(feed.shared("g", "reads", async () => { throw new Error("pool"); })).rejects.toThrow("pool");
+    expect(await feed.shared("g", "reads", async () => "ok")).toBe("ok");
+  });
+});
+
+describe("a shared read that hangs", () => {
+  it("fails for everyone waiting on it after the timeout, and the next request starts a new read", async () => {
+    vi.useFakeTimers();
+    const feed = createStandingsFeed({ sharedTimeoutMs: 1_000 });
+    const a = feed.shared("g", "reads", () => new Promise<string>(() => undefined));
+    const b = feed.shared("g", "reads", async () => "never used");
+    const failed = Promise.all([expect(a).rejects.toThrow("took over 1000 ms"), expect(b).rejects.toThrow("took over 1000 ms")]);
+    await vi.advanceTimersByTimeAsync(1_001);
+    await failed;
+    expect(await feed.shared("g", "reads", async () => "fresh")).toBe("fresh");
+  });
+});

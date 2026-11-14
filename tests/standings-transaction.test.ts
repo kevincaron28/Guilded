@@ -36,7 +36,7 @@ describe("the standings transaction", () => {
     const source = readFileSync(new URL("../src/companion-api.ts", import.meta.url), "utf8");
     const body = source.slice(source.indexOf("async function standingsParts("), source.indexOf("export async function standingsConsistentReads("));
     const transactions = body.match(/prisma\.\$transaction\([^\n]*/g) ?? [];
-    expect(transactions).toEqual([expect.stringContaining("standingsConsistentReads(transaction as unknown as PrismaClient, guild.id, access.memberId)")]);
+    expect(transactions).toEqual([expect.stringContaining("guildConsistentReads(transaction as unknown as PrismaClient, guild.id)")]);
     // The other reads use the plain client, before the transaction.
     for (const read of ["boardForAddon(prisma", "bankForAddon(prisma", "upcomingRaidsForAddon(prisma", "publicRaids(prisma", "addonDungeonBoard(prisma", "itemInsights(prisma", "nextRaidRoster(prisma"]) {
       expect(body.indexOf(read), read).toBeGreaterThan(-1);

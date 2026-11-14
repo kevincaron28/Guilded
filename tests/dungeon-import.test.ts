@@ -477,3 +477,11 @@ describe("death positions", () => {
     expect(plain.runs[0]!.competitionData).not.toHaveProperty("deathPoints");
   });
 });
+
+describe("sharing a run with other guilds (9.3.2)", () => {
+  it("lists the completed runs a guild stored as shareable, and nothing for a run it did not finish", async () => {
+    const { tx } = fakeTx();
+    const result = await importDungeonRuns(tx, "g1", [run("QG-S1"), run("QG-S2", { state: "ABANDONED" })], characters, "officer", null, now);
+    expect((result.shareable ?? []).map((raw) => (raw as { id: string }).id)).toEqual(["QG-S1"]);
+  });
+});

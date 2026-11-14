@@ -1,6 +1,7 @@
 import { cleanCharacterName } from "../services/character-display.js";
 import { EmbedBuilder, SlashCommandBuilder, escapeMarkdown, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
+import { createAuditService } from "../services/audit.js";
 import { hasPermission } from "../permissions.js";
 import { config } from "../config.js";
 import { asLang, t, tx, type Lang } from "../i18n.js";
@@ -53,7 +54,9 @@ export const dungeonCommand = new SlashCommandBuilder()
   .addSubcommand((sub) => sub.setName("records").setDescription("Fastest clears and boss kills: every dungeon, or the top times of one")
     .addStringOption((o) => o.setName("dungeon").setDescription("One dungeon (pick from the list)").setAutocomplete(true))
     .addBooleanOption((o) => o.setName("announce").setDescription("Officers: record and challenge callouts on run posts (default on)")
-      .setDescriptionLocalizations({ fr: "Officiers : annonces des records et défis sur les parcours (actives par défaut)" })))
+      .setDescriptionLocalizations({ fr: "Officiers : annonces des records et défis sur les parcours (actives par défaut)" }))
+    .addBooleanOption((o) => o.setName("other-guilds").setDescription("Officers: receive the runs your members did in a party with other guilds (default on)")
+      .setDescriptionLocalizations({ fr: "Officiers : recevoir les parcours de vos membres faits avec d'autres guildes (actif par défaut)" })))
   .addSubcommand((sub) => sub.setName("player").setDescription("A player's points, best times and recent runs (default: you)")
     .addUserOption((o) => o.setName("member").setDescription("Discord member"))
     .addStringOption((o) => o.setName("character").setDescription("Or a character name")))
@@ -210,13 +213,19 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
     if (season && hasDungeonRating(season.ratingRules)) embed.setTitle(lang === "fr" ? "Points de participation" : "Participation points");
   } else if (subcommand === "records") {
     const announce = interaction.options.getBoolean("announce");
-    if (announce !== null) {
+    const otherGuilds = interaction.options.getBoolean("other-guilds");
+    if (announce !== null || otherGuilds !== null) {
       if (!interaction.member || !hasPermission(interaction.member as Parameters<typeof hasPermission>[0], "officer")) throw new Error(lang === "fr" ? "Réservé aux officiers." : "Officers only.");
-      await prisma.guildSettings.update({ where: { guildId: context.guildId }, data: { dungeonHighlightsEnabled: announce } });
-      await interaction.reply({ content: announce
+      await prisma.guildSettings.update({ where: { guildId: context.guildId }, data: { ...(announce !== null ? { dungeonHighlightsEnabled: announce } : {}), ...(otherGuilds !== null ? { crossGuildRuns: otherGuilds } : {}) } });
+      await createAuditService(prisma).record({ guildId: context.guildId, actorId: interaction.user.id, action: "DUNGEON_ADMIN", metadata: { action: "records", ...(announce !== null ? { announce } : {}), ...(otherGuilds !== null ? { otherGuilds } : {}) } }).catch(() => undefined);
+      const lines: string[] = [];
+      if (announce !== null) lines.push(announce
         ? lang === "fr" ? "🏆 Les records et défis sont annoncés sur les parcours." : "🏆 Records and challenges are called out on run posts."
-        : lang === "fr" ? "Les records et défis ne sont plus annoncés. Ils restent enregistrés (tableau et bilans)." : "Records and challenges are no longer called out. They are still recorded (board and recaps).",
-        flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+        : lang === "fr" ? "Les records et défis ne sont plus annoncés. Ils restent enregistrés (tableau et bilans)." : "Records and challenges are no longer called out. They are still recorded (board and recaps).");
+      if (otherGuilds !== null) lines.push(otherGuilds
+        ? lang === "fr" ? "🤝 Les parcours de vos membres faits avec d'autres guildes sont reçus et ajoutés à votre classement." : "🤝 Runs your members did in a party with other guilds are received and added to your board."
+        : lang === "fr" ? "Vous ne recevez plus les parcours faits avec d'autres guildes (ceux déjà reçus restent). Ce réglage ne change pas ce que les autres guildes reçoivent de vous." : "You no longer receive runs done in a party with other guilds (the ones already received stay). This setting does not change what other guilds receive from you.");
+      await interaction.reply({ content: lines.join("\n"), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
       return;
     }
     const instanceId = dungeonOption(interaction);

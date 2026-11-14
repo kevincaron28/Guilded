@@ -20,6 +20,8 @@ export const FAMILY_EMBLEMS = ["dungeons-gate", "raids-banner", "duels-blades", 
 /** The second approved batch (13 November 2026, the rest of set A): finer emblems that metrics and achievements name in src/services/badge-art.ts. */
 export const MORE_EMBLEMS = ["duels-flame", "duels-throne", "dungeons-key", "dungeons-map", "dungeons-torch", "guild-brazier", "guild-hand", "guild-pouch", "guild-sparkle-hand", "guild-sun-tablet", "guild-trophy", "ingame-banner", "ingame-boot", "ingame-scroll", "levelling-cap", "professions-first-laurel", "professions-gem", "professions-mortar", "professions-tools-crown", "pvp-drum", "raids-horn", "raids-siege", "raids-skull", "seasons-attendee", "seasons-helper", "seasons-organizer"];
 export const ALL_EMBLEMS = [...FAMILY_EMBLEMS, ...MORE_EMBLEMS];
+/** Painted role emblems for the dungeon run card (tank, healer, damage; 14 November 2026). Source files are <key>-CHOSEN.png; one 128 px size. */
+export const ROLE_EMBLEMS = ["tank", "healer", "damage"];
 export const SIZES = [256, 128];
 /** Largest file and total budget for the committed assets (bytes). */
 export const MAX_FILE_BYTES = 60_000, MAX_TOTAL_BYTES = 2_500_000;
@@ -123,6 +125,7 @@ export function expectedFiles() {
     for (const tier of TIERS) files.push(`frames/${tier}-${size}.webp`);
     for (const key of ALL_EMBLEMS) files.push(`emblems/${key}-${size}.webp`);
   }
+  for (const key of ROLE_EMBLEMS) files.push(`roles/${key}-128.webp`);
   return files;
 }
 
@@ -130,13 +133,14 @@ export async function build(source, only, extra = []) {
   let total = 0;
   const jobs = [];
   if (!only || only === "frames") for (const tier of TIERS) jobs.push(["frames", tier]);
+  if (only === "roles") for (const key of ROLE_EMBLEMS) jobs.push(["roles", key]);
   if (!only || only === "emblems") {
     // Only the approved emblems (FAMILY_EMBLEMS, or the names passed with --emblem): the source folder may hold pictures not approved yet.
     for (const key of extra.length ? extra : ALL_EMBLEMS) jobs.push(["emblems", key]);
   }
   for (const [kind, key] of jobs) {
-    const input = join(source, kind, `${key}.png`);
-    for (const size of SIZES) {
+    const input = kind === "roles" ? join(source, `${key}-CHOSEN.png`) : join(source, kind, `${key}.png`);
+    for (const size of kind === "roles" ? [128] : SIZES) {
       const buffer = await prepare(input, size), dest = join(OUT_DIR, kind, `${key}-${size}.webp`);
       mkdirSync(dirname(dest), { recursive: true });
       writeFileSync(dest, buffer); total += buffer.length;

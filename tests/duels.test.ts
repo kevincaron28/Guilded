@@ -177,6 +177,13 @@ describe("snapshot plumbing", () => {
     expect(own.duelResults).toHaveLength(1);
     expect(own.milestones).toHaveLength(1);
   });
+  it("keeps a member's own outside-guild duels and drops other players' ones", () => {
+    const outside = (winner: string, loser: string, side: string) => ({ winner, loser, side, at: 1800000000, reason: "won" });
+    const snapshot = parseAddonSnapshot({ source: "Guilded", exportedAt: "2026-11-10T00:00:00Z", gameEdition: "forever",
+      externalDuels: [outside("Kev", "Zed", "winner"), outside("Zed", "Kev", "winner"), outside("Cy", "Zed", "winner")] } as never);
+    const own = personalSnapshot(snapshot, [{ name: "Kev", realm: "R" }]);
+    expect(own.externalDuels).toHaveLength(1);
+  });
 });
 
 describe("duel and milestone achievements", () => {

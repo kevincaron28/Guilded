@@ -7,9 +7,10 @@ import sharp from "sharp";
  * Two looks, both made from code and the owner-approved badge frames (no new artwork):
  *  - "medal": a round metal medallion (bevelled gold rim, role-coloured enamel face, raised glyph), pure vector.
  *  - "frame": the approved painted hexagon frame (site/badge-art/frames) with the glyph in its dark centre.
+ *  - "painted": the owner-approved painted role emblem (site/badge-art/roles, 14 November 2026); the medal is drawn when the file is missing.
  */
 export type RoleKind = "tank" | "healer" | "dps";
-export type RoleStyle = "medal" | "frame";
+export type RoleStyle = "medal" | "frame" | "painted";
 
 const FACE = {
   tank: { top: "#5d9cff", bottom: "#17356b", glyph: "#e9f2ff" },
@@ -32,6 +33,18 @@ function frameUri(): Promise<string | null> {
   return frame;
 }
 
+const painted = new Map<RoleKind, Promise<string | null>>();
+/** The painted role emblem as a data URI (null when its file is missing). */
+function paintedUri(role: RoleKind): Promise<string | null> {
+  let found = painted.get(role);
+  if (!found) {
+    const file = fileURLToPath(new URL(`../../site/badge-art/roles/${role === "dps" ? "damage" : role}-128.webp`, import.meta.url));
+    found = readFile(file).then(async (bytes) => `data:image/png;base64,${(await sharp(bytes).resize(128, 128).png().toBuffer()).toString("base64")}`).catch(() => null);
+    painted.set(role, found);
+  }
+  return found;
+}
+
 const defs = (role: RoleKind) => {
   const f = FACE[role];
   return `<linearGradient id="medal-${role}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${f.top}"/><stop offset="1" stop-color="${f.bottom}"/></linearGradient>`;
@@ -46,6 +59,8 @@ export async function roleEmblem(role: RoleKind, style: RoleStyle, x: number, y:
   const f = FACE[role], k = size / 64;
   let out = "";
   const need = (id: string, markup: string) => { if (!used.has(id)) { used.add(id); out += `<defs>${markup}</defs>`; } };
+  const art = style === "painted" ? await paintedUri(role) : null;
+  if (art) return `<image x="${x}" y="${y}" width="${size}" height="${size}" href="${art}"/>`;
   const uri = style === "frame" ? await frameUri() : null;
   if (uri) {
     out += `<image x="${x - size * 0.06}" y="${y - size * 0.06}" width="${size * 1.12}" height="${size * 1.12}" href="${uri}"/>`;

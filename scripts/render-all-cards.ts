@@ -57,7 +57,7 @@ function dungeon(lang: Lang, partySize: number, longNames: boolean): ScoreCard {
   ].slice(0, partySize);
   const result: DungeonImportResult = {
     runRef: "QG-1", dungeonName: longNames ? "Scarlet Monastery: Cathedral" : "Ragefire Chasm", difficultyId: 1, state: "COMPLETED", valid: true, durationSec: 1958, points: 0, completedBy: "final boss",
-    guildRecord: true, previousGuildBest: 2100, personalRecords: [], players: party.map(p => p.c), deaths: 3, unlinked: [], inGuildPlayers: party.filter(p => p.rating !== undefined).map(p => p.c), achievements: [],
+    guildRecord: true, previousGuildBest: 2100, personalRecords: [], players: party.map(p => p.c), deaths: 3, unlinked: party.filter(p => p.rating === undefined).map(p => p.c), inGuildPlayers: party.filter(p => p.rating !== undefined).map(p => p.c), achievements: [],
     endedAt: 1794000000, startedAt: 1793998000, ratingEnabled: true, fullNames: Object.fromEntries(party.map(p => [p.c, p.full])),
     encounters: [{ id: 1, name: longNames ? "High Inquisitor Whitemane and Scarlet Commander Mograine" : "Bazzalan", success: true, at: 1794000000 }],
     playerDetails: party.map(p => ({ character: p.c, class: p.class, role: p.role, deaths: p.deaths, presentSec: 1900, points: 0, ...(p.rating !== undefined ? { ratingTotal: p.rating, ratingGain: p.gain } : {}) }))

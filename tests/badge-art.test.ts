@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 // Turns PoE2 tracking on for this file (see tests/helpers/focus-switches.ts).
 vi.mock("../companion/active-games.mjs", async (original) => (await import("./helpers/focus-switches.js")).poeTrackingOn(await original()));
 import sharp from "sharp";
-import { ALL_EMBLEMS, TIERS, check, cutOut, expectedFiles, magentaResidue, prepare } from "../scripts/build-badge-art.mjs";
+import { ALL_EMBLEMS, ROLE_EMBLEMS, TIERS, check, cutOut, expectedFiles, magentaResidue, prepare } from "../scripts/build-badge-art.mjs";
 import { BADGE_IMG_STYLE, badgeIcon, badgeImg, badgeInner, badgeLabel } from "../src/services/achievement-badges.js";
 import { ACHIEVEMENTS, generatedAchievements, setGeneratedAchievements } from "../src/services/achievements-catalogue.js";
 import { FAMILY_EMBLEM, availableEmblems, badgeCacheEntries, badgeFamily, composeBadge, emblemFor, hasBadgeToken, resetBadgeCache, withBadgeImages } from "../src/services/badge-art.js";
@@ -13,7 +13,7 @@ import { scoreCardPng } from "../src/services/score-card.js";
 describe("badge art assets", () => {
   it("the committed set is complete, transparent, free of magenta and small (the CI check)", async () => {
     expect(await check()).toEqual([]);
-    expect(expectedFiles()).toHaveLength((TIERS.length + ALL_EMBLEMS.length) * 2);
+    expect(expectedFiles()).toHaveLength((TIERS.length + ALL_EMBLEMS.length) * 2 + ROLE_EMBLEMS.length);
   });
 
   it("cuts magenta out cleanly: no pink left on the edge, a dark outline keeps its colour, the picture is trimmed and centred", async () => {

@@ -14,10 +14,16 @@ export interface RunIntegrityConfig {
   strikeWindowSec: number | null;
   /** Runs one PC may place on the public boards for players near it, per day. */
   relayedRunsPerDay: number;
+  /** Runs made with other guilds' members: at most this many other guilds get a copy of one run. */
+  crossGuildMaxGuilds: number;
+  /** The most copies of other guilds' runs one guild receives per day (over it, a copy is dropped, not retried). */
+  crossGuildCopiesPerDay: number;
+  /** The most run cards one guild is given per day for copies of other guilds' runs. */
+  crossGuildCardsPerDay: number;
 }
 
 export const DEFAULT_CONFIG: RunIntegrityConfig = {
-  limits: null, weights: {}, defaultWeight: 0, holdScore: Infinity, deviceStrikes: Infinity, challengeWindowSec: null, clockSlackSec: null, requireSeal: false, strikeWindowSec: null, relayedRunsPerDay: 60
+  limits: null, weights: {}, defaultWeight: 0, holdScore: Infinity, deviceStrikes: Infinity, challengeWindowSec: null, clockSlackSec: null, requireSeal: false, strikeWindowSec: null, relayedRunsPerDay: 60, crossGuildMaxGuilds: 6, crossGuildCopiesPerDay: 60, crossGuildCardsPerDay: 30
 };
 
 const num = (value: unknown): number | undefined => typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
@@ -52,7 +58,10 @@ export function parseIntegrityConfig(text: string | undefined): RunIntegrityConf
     clockSlackSec: num(raw["clockSlackSec"]) ?? null,
     requireSeal: raw["requireSeal"] === true,
     strikeWindowSec: num(raw["strikeWindowSec"]) ?? null,
-    relayedRunsPerDay: num(raw["relayedRunsPerDay"]) ?? DEFAULT_CONFIG.relayedRunsPerDay
+    relayedRunsPerDay: num(raw["relayedRunsPerDay"]) ?? DEFAULT_CONFIG.relayedRunsPerDay,
+    crossGuildMaxGuilds: num(raw["crossGuildMaxGuilds"]) ?? DEFAULT_CONFIG.crossGuildMaxGuilds,
+    crossGuildCopiesPerDay: num(raw["crossGuildCopiesPerDay"]) ?? DEFAULT_CONFIG.crossGuildCopiesPerDay,
+    crossGuildCardsPerDay: num(raw["crossGuildCardsPerDay"]) ?? DEFAULT_CONFIG.crossGuildCardsPerDay
   };
 }
 

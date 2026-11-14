@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- an in-memory stand-in for the few Prisma calls the import makes */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { CHAIN_START, DEFAULT_INTEGRITY, chainHash, checkRecord, issueDuelChallenge, loadIntegrityConfig } from "../src/services/duel-integrity.js";
 import { buildGlobalBoard, characterKey, duelAnomalies, duelSig, externalDuelSchema, implausible, mirrorGuildDuels, recordGlobalDuels, sequenceProblems, splitName, type ExternalDuelInput, type GlobalDuel } from "../src/services/duel-global.js";
 import { RATING_START, ratingSeasonIds, ratingSeasonName, seasonOf } from "../src/services/duel-rating.js";
@@ -12,6 +12,7 @@ import { memoryWebStore } from "./helpers/memory-web-store.js";
 interface Report { reporterKey: string; reporterCharacterKey: string; deviceId: string | null; seq: number | null; chain: string | null; nonce: string | null; dayKey: string; duelId?: string; [k: string]: any }
 interface Duel { id: string; winnerKey: string; loserKey: string; endedAt: Date; pairKey: string; dayKey: string; counted: boolean; confirmations: number; held: boolean; holdFlags: string[]; reports: Report[]; [k: string]: any }
 /** The few Prisma calls recordGlobalDuels makes, over arrays. */
+const NOW_FAKE = new Date("2026-12-10T12:00:00Z");
 function fakeTx() {
   const duels: Duel[] = [];
   const excluded = new Set<string>();
@@ -28,19 +29,21 @@ function fakeTx() {
         const withChain = reports().filter((r) => r.deviceId === where.deviceId && r.chain);
         return withChain.length ? { chain: withChain[withChain.length - 1]!.chain } : null;
       },
-      count: async ({ where }: any) => where.duel?.held !== undefined
+      count: async ({ where }: any) => typeof where.reporterKey === "object"
+        ? reports().filter((r) => r.reporterKey.startsWith(where.reporterKey.startsWith) && r.reportedAt >= where.reportedAt.gte && r.duel.held === where.duel.held).length
+        : where.duel?.held !== undefined
         ? reports().filter((r) => r.deviceId === where.deviceId && r.duel.held === where.duel.held).length
         : reports().filter((r) => r.reporterKey === where.reporterKey && r.dayKey === where.dayKey && r.duel.counted === where.duel.counted).length,
       createMany: async ({ data }: any) => {
         let count = 0;
-        for (const row of data) { const duel = duels.find((d) => d.id === row.duelId)!; if (!duel.reports.some((r) => r.reporterKey === row.reporterKey)) { duel.reports.push(row); count++; } }
+        for (const row of data) { const duel = duels.find((d) => d.id === row.duelId)!; if (!duel.reports.some((r) => r.reporterKey === row.reporterKey)) { duel.reports.push({ reportedAt: NOW_FAKE, ...row }); count++; } }
         return { count };
       }
     },
     publicDuel: {
       findFirst: async ({ where }: any) => duels.find((d) => d.winnerKey === where.winnerKey && d.loserKey === where.loserKey && within(d, where)) ?? null,
       count: async ({ where }: any) => duels.filter((d) => d.pairKey === where.pairKey && d.dayKey === where.dayKey && d.counted === where.counted).length,
-      create: async ({ data }: any) => { const { reports: r, ...rest } = data; duels.push({ held: false, holdFlags: [], ...rest, id: `d${++n}`, confirmations: 1, reports: r.create.map((x: any) => ({ ...x })) }); return null; },
+      create: async ({ data }: any) => { const { reports: r, ...rest } = data; duels.push({ held: false, holdFlags: [], ...rest, id: `d${++n}`, confirmations: 1, reports: r.create.map((x: any) => ({ reportedAt: NOW_FAKE, ...x })) }); return null; },
       update: async ({ where, data }: any) => {
         const d = duels.find((x) => x.id === where.id)!;
         for (const [k, v] of Object.entries<any>(data)) {
@@ -351,32 +354,55 @@ describe("global duels: seasons from 13 November", () => {
 
 describe("global duels: a carried report is held until the other participant's own report agrees", () => {
   const carried = (carrier: string, author: string) => ({ reporterKey: `install:carried|${carrier}|${author}`, carried: true });
-  it("stores a carried duel held and flagged, outside every ladder", async () => {
+  it("stores a carried duel held, uncounted and flagged, outside every ladder and every allowance", async () => {
     const { tx, duels } = fakeTx();
-    const out = await recordGlobalDuels(tx, carried("device:1", "aldric-kronos"), [rec()], NOW);
-    expect(out).toMatchObject({ recorded: 1, held: 1 });
-    expect(duels[0]).toMatchObject({ held: true, holdFlags: ["c"] });
+    const out = await recordGlobalDuels(tx, carried("member:1", "aldric-kronos"), [rec()], NOW);
+    expect(out).toMatchObject({ recorded: 1, held: 1, counted: 0 });
+    expect(duels[0]).toMatchObject({ held: true, counted: false, holdFlags: ["c"] });
   });
-  it("releases it when the other side reports through another carrier, or on its own", async () => {
-    for (const other of [carried("device:2", "brenna-kronos"), { reporterKey: "member:m2" }]) {
+  it("releases it, and counts it, when the other side's own non-carried report agrees", async () => {
+    const { tx, duels } = fakeTx();
+    await recordGlobalDuels(tx, carried("device:1", "aldric-kronos"), [rec()], NOW);
+    const out = await recordGlobalDuels(tx, { reporterKey: "member:m2" }, [rec({ side: "loser" })], NOW);
+    expect(out.confirmed).toBe(1);
+    expect(duels[0]).toMatchObject({ held: false, counted: true, holdFlags: [] });
+  });
+  it("releases it when both sides were carried by two different signed-in members", async () => {
+    const { tx, duels } = fakeTx();
+    await recordGlobalDuels(tx, carried("member:1", "aldric-kronos"), [rec()], NOW);
+    await recordGlobalDuels(tx, carried("member:2", "brenna-kronos"), [rec({ side: "loser" })], NOW);
+    expect(duels[0]).toMatchObject({ held: false, counted: true });
+  });
+  it("never releases on carried reports from bare devices, from one member, or from a member and a device", async () => {
+    const first = fakeTx();
+    await recordGlobalDuels(first.tx, carried("device:1", "aldric-kronos"), [rec()], NOW);
+    await recordGlobalDuels(first.tx, carried("device:2", "brenna-kronos"), [rec({ side: "loser" })], NOW);
+    expect(first.duels[0]).toMatchObject({ held: true, counted: false });
+    const second = fakeTx();
+    await recordGlobalDuels(second.tx, carried("member:1", "aldric-kronos"), [rec()], NOW);
+    await recordGlobalDuels(second.tx, carried("member:1", "brenna-kronos"), [rec({ side: "loser" })], NOW);
+    expect(second.duels[0]).toMatchObject({ held: true, counted: false });
+    const third = fakeTx();
+    await recordGlobalDuels(third.tx, carried("member:1", "aldric-kronos"), [rec()], NOW);
+    await recordGlobalDuels(third.tx, carried("device:9", "brenna-kronos"), [rec({ side: "loser" })], NOW);
+    expect(third.duels[0]!.held).toBe(true);
+  });
+  it("stops releasing for a member over the daily number of confirmations", async () => {
+    vi.stubEnv("RUN_INTEGRITY_CONFIG", JSON.stringify({ carriedConfirmationsPerDay: 1 }));
+    try {
       const { tx, duels } = fakeTx();
-      await recordGlobalDuels(tx, carried("device:1", "aldric-kronos"), [rec()], NOW);
-      const out = await recordGlobalDuels(tx, other, [rec({ side: "loser" })], NOW);
-      expect(out.confirmed).toBe(1);
-      expect(duels[0]).toMatchObject({ held: false, holdFlags: [] });
-    }
-  });
-  it("keeps it held when both sides come through one carrier, and when the same side reports again", async () => {
-    const { tx, duels } = fakeTx();
-    await recordGlobalDuels(tx, carried("device:1", "aldric-kronos"), [rec()], NOW);
-    await recordGlobalDuels(tx, carried("device:1", "brenna-kronos"), [rec({ side: "loser" })], NOW);
-    expect(duels[0]).toMatchObject({ held: true, holdFlags: ["c"] });
-    await recordGlobalDuels(tx, carried("device:1", "aldric-kronos"), [rec()], NOW);
-    expect(duels[0]!.held).toBe(true);
+      await recordGlobalDuels(tx, carried("member:1", "aldric-kronos"), [rec()], NOW);
+      await recordGlobalDuels(tx, carried("member:2", "brenna-kronos"), [rec({ side: "loser" })], NOW);
+      expect(duels[0]!.held).toBe(false);
+      const later = at("2026-12-09T14:00:00Z");
+      await recordGlobalDuels(tx, carried("member:1", "aldric-kronos"), [rec({ at: later })], NOW);
+      await recordGlobalDuels(tx, carried("member:2", "brenna-kronos"), [rec({ at: later, side: "loser" })], NOW);
+      expect(duels[1]!.held).toBe(true);
+    } finally { vi.unstubAllEnvs(); }
   });
   it("does not release a duel that something else holds", async () => {
     const { tx, duels } = fakeTx();
-    await recordGlobalDuels(tx, carried("device:1", "aldric-kronos"), [rec()], NOW);
+    await recordGlobalDuels(tx, carried("member:1", "aldric-kronos"), [rec()], NOW);
     duels[0]!.holdFlags.push("x");
     await recordGlobalDuels(tx, { reporterKey: "member:m2" }, [rec({ side: "loser" })], NOW);
     expect(duels[0]).toMatchObject({ held: true, holdFlags: ["x"] });

@@ -8,8 +8,9 @@ import { integrityConfig } from "./run-integrity-config.js";
 // records until a carrier is seen and offers them by whisper; a carrier's companion uploads them as `carriedRecords`.
 //
 // Trust: the origin of a record is only the carrier's word. So a carried record never reaches a public board on that word alone: an outside
-// duel is stored held and flagged "c" (see recordGlobalDuels' `carried`), and counts only once the other participant's own report of the
-// same duel arrives, through another carrier or any non-carried report. A carried record never writes into a guild.
+// duel is stored held, uncounted and flagged "c" (see recordGlobalDuels' `carried`), and counts only once the other participant's own
+// (non-carried) report of the same duel arrives, or both sides were carried by two different signed-in members. A carried record never
+// writes into a guild.
 
 /** What the bot advertises so a companion only sends records to a bot that handles them. */
 export const CARRY_FEATURE = "carry-records";
@@ -19,6 +20,8 @@ export const CARRY_RECEIPT_PREFIX = "carry:";
 export const CARRY_KINDS = ["externalDuel"] as const;
 /** The most a carried record can weigh as sent (the addon's own limit is 2 KB of record text). */
 export const CARRY_RECORD_MAX_JSON = 4096;
+/** Records of a kind this bot does not know that one upload may carry before they count against the carrier's day. */
+const MAX_UNKNOWN_KINDS = 10;
 
 const recordSchema = z.object({
   kind: z.string().min(1).max(24),
@@ -57,6 +60,7 @@ export async function applyCarriedRecords(database: PrismaClient, input: { carri
   const refuse = async (kind: string, key: string, authorKey: string, author: string) => {
     await database.carriedRecord.create({ data: { kind: kind.slice(0, 24), key: key.slice(0, 120), author: author.slice(0, 80), authorKey: authorKey.slice(0, 160), carrier: input.carrier, status: "rejected" } }).catch(() => undefined);
   };
+  let unknown = 0;
   for (const raw of input.records) {
     try {
       if (room <= 0) break;
@@ -65,14 +69,16 @@ export async function applyCarriedRecords(database: PrismaClient, input: { carri
       const parsed = recordSchema.safeParse(raw);
       if (!parsed.success) { room--; await refuse("invalid", createHash("sha256").update(text).digest("hex").slice(0, 32), "?", ""); continue; }
       const { kind, key, author, data } = parsed.data;
-      // A kind this bot does not know stays with the addon (no receipt), and is not counted as work.
-      if (!(CARRY_KINDS as readonly string[]).includes(kind)) continue;
+      // A kind this bot does not know stays with the addon (no receipt); a flood of them is counted as work past the first few.
+      if (!(CARRY_KINDS as readonly string[]).includes(kind)) { if (++unknown > MAX_UNKNOWN_KINDS) room--; continue; }
       const receipt = `${CARRY_RECEIPT_PREFIX}${kind}:${key}`;
       // An outside duel is the reporting side's own statement: the author must be that side, and the identity includes its realm.
       const row = externalDuelSchema.safeParse(data);
       if (!row.success) { room--; await refuse(kind, key, characterKey(nameOf(author), ""), author); receipts.push(receipt); continue; }
       const side = row.data.side === "winner" ? splitName(row.data.winner, row.data.winnerRealm) : splitName(row.data.loser, row.data.loserRealm);
       if (nameOf(side.name) !== nameOf(author)) { room--; await refuse(kind, key, characterKey(nameOf(author), ""), author); receipts.push(receipt); continue; }
+      // A side without a realm cannot be told from another player of the same name.
+      if (!side.realm.trim()) { room--; await refuse(kind, key, characterKey(nameOf(author), ""), author); receipts.push(receipt); continue; }
       const authorKey = characterKey(side.name, side.realm);
       // The carrier's own character, or a record already dealt with (by this author's key only): answered, not applied again.
       if (input.carrierKeys.has(lower(side.name)) || await database.carriedRecord.findUnique({ where: { kind_authorKey_key: { kind, authorKey, key } }, select: { id: true } })) { receipts.push(receipt); continue; }

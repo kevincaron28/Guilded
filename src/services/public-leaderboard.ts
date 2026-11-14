@@ -419,7 +419,7 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
     async globalDuelRows() {
       const edition = currentEdition();
       const [rows, excluded, open, hiddenMembers] = await Promise.all([
-        database.publicDuel.findMany({ where: { gameEdition: edition, counted: true }, orderBy: { endedAt: "desc" }, take: 50_000,
+        database.publicDuel.findMany({ where: { gameEdition: edition, counted: true, held: false }, orderBy: { endedAt: "desc" }, take: 50_000,
           select: { winnerKey: true, loserKey: true, winnerName: true, loserName: true, winnerRealm: true, loserRealm: true, winnerClass: true, loserClass: true, winnerLevel: true, loserLevel: true, winnerGuild: true, loserGuild: true,
             winnerMemberId: true, loserMemberId: true, endedAt: true, reason: true, zone: true, durationSec: true, reports: { select: { reporterCharacterKey: true, deviceId: true, guildId: true } } } }),
         database.publicDuelExclusion.findMany({ select: { deviceId: true }, take: 5_000 }),

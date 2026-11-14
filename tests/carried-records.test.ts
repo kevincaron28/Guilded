@@ -178,3 +178,39 @@ describe("the signed upload answers", () => {
     for (const line of answers) expect(line).toContain("...carriedExtra");
   });
 });
+
+describe("more limits and the public reader", () => {
+  it("refuses a record whose reporting side has no realm, and counts it", async () => {
+    const { db, stored } = fakeDb();
+    const out = await run(db, [record("nr-aaaa", { winnerRealm: "" })]);
+    expect(mocks.recordGlobalDuels).not.toHaveBeenCalled();
+    expect(out.applied).toBe(0);
+    expect(stored[0]).toMatchObject({ status: "rejected" });
+  });
+
+  it("counts records of unknown kinds past the first few against the carrier's day", async () => {
+    vi.stubEnv("RUN_INTEGRITY_CONFIG", JSON.stringify({ carriedRecordsPerDay: 3 }));
+    try {
+      const { db } = fakeDb();
+      const unknown = Array.from({ length: 14 }, (_, i) => ({ kind: "mystery", key: `u${i}-aaaa`, author: "Aldric Stone", data: {} }));
+      const out = await run(db, [...unknown, record("late-aaaa")]);
+      expect(out.receipts).toEqual([]);
+      expect(mocks.recordGlobalDuels).not.toHaveBeenCalled();
+    } finally { vi.unstubAllEnvs(); }
+  });
+
+  it("the public duel reader never returns a held duel", async () => {
+    const { prismaLeaderboardStore } = await import("../src/services/public-leaderboard.js");
+    const row = (held: boolean) => ({ held, counted: true, winnerKey: "aldric-kronos", loserKey: "brenna-kronos", winnerName: "Aldric", loserName: "Brenna", winnerRealm: "Kronos", loserRealm: "Kronos", winnerClass: null, loserClass: null, winnerLevel: 30, loserLevel: 30,
+      winnerGuild: null, loserGuild: null, winnerMemberId: null, loserMemberId: null, endedAt: NOW, reason: "knockout", zone: null, durationSec: 40, reports: [{ reporterCharacterKey: "aldric-kronos", deviceId: "d1", guildId: null }] });
+    const rows = [row(false), row(true)];
+    const database: any = {
+      publicDuel: { findMany: async ({ where }: any) => rows.filter((r) => (where.counted === undefined || r.counted === where.counted) && (where.held === undefined || r.held === where.held)) },
+      publicDuelExclusion: { findMany: async () => [] },
+      guildSettings: { findMany: async () => [] },
+      member: { findMany: async () => [] }
+    };
+    const out = await prismaLeaderboardStore(database).globalDuelRows!();
+    expect(out).toHaveLength(1);
+  });
+});

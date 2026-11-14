@@ -22,10 +22,12 @@ export interface RunIntegrityConfig {
   crossGuildCardsPerDay: number;
   /** The most records one carrier may place for other players per day (over it, a record is dropped, not retried). */
   carriedRecordsPerDay: number;
+  /** The most carried duels one signed-in carrier may help release (confirm) per day. */
+  carriedConfirmationsPerDay: number;
 }
 
 export const DEFAULT_CONFIG: RunIntegrityConfig = {
-  limits: null, weights: {}, defaultWeight: 0, holdScore: Infinity, deviceStrikes: Infinity, challengeWindowSec: null, clockSlackSec: null, requireSeal: false, strikeWindowSec: null, relayedRunsPerDay: 60, crossGuildMaxGuilds: 6, crossGuildCopiesPerDay: 60, crossGuildCardsPerDay: 30, carriedRecordsPerDay: 300
+  limits: null, weights: {}, defaultWeight: 0, holdScore: Infinity, deviceStrikes: Infinity, challengeWindowSec: null, clockSlackSec: null, requireSeal: false, strikeWindowSec: null, relayedRunsPerDay: 60, crossGuildMaxGuilds: 6, crossGuildCopiesPerDay: 60, crossGuildCardsPerDay: 30, carriedRecordsPerDay: 300, carriedConfirmationsPerDay: 20
 };
 
 const num = (value: unknown): number | undefined => typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
@@ -64,7 +66,8 @@ export function parseIntegrityConfig(text: string | undefined): RunIntegrityConf
     crossGuildMaxGuilds: num(raw["crossGuildMaxGuilds"]) ?? DEFAULT_CONFIG.crossGuildMaxGuilds,
     crossGuildCopiesPerDay: num(raw["crossGuildCopiesPerDay"]) ?? DEFAULT_CONFIG.crossGuildCopiesPerDay,
     crossGuildCardsPerDay: num(raw["crossGuildCardsPerDay"]) ?? DEFAULT_CONFIG.crossGuildCardsPerDay,
-    carriedRecordsPerDay: num(raw["carriedRecordsPerDay"]) ?? DEFAULT_CONFIG.carriedRecordsPerDay
+    carriedRecordsPerDay: num(raw["carriedRecordsPerDay"]) ?? DEFAULT_CONFIG.carriedRecordsPerDay,
+    carriedConfirmationsPerDay: num(raw["carriedConfirmationsPerDay"]) ?? DEFAULT_CONFIG.carriedConfirmationsPerDay
   };
 }
 

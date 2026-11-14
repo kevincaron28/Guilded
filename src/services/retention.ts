@@ -55,6 +55,8 @@ export async function runRetention(database: Db, now = new Date()): Promise<{ im
   await database.$executeRaw`DELETE FROM "DiscordJob" WHERE "status" = 'DONE' AND "deliveredAt" < ${before(30)}`;
   // Carried-record bookkeeping (services/carried-records.ts): a record older than a duel can be is refused anyway, so its row can go.
   await database.$executeRaw`DELETE FROM "CarriedRecord" WHERE "createdAt" < ${before(60)}`;
+  // A carried duel the other participant never confirmed (held with only the carried flag) is dropped after 60 days.
+  await database.$executeRaw`DELETE FROM "PublicDuel" WHERE "held" = true AND "holdFlags" = ARRAY['c']::text[] AND "createdAt" < ${before(60)}`;
   // Expired availability is immediately hidden by reads; purge rows every six hours.
   await database.$executeRaw`DELETE FROM "WebAvailability" WHERE "expiresAt" <= ${now}`;
   return { imports: imports.count + overflow, snapshots, errors: errors.count };

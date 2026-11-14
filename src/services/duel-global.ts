@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { Prisma } from "../generated/prisma/client.js";
 import { DUEL_ARCHIVE_BEFORE, DUEL_RULES } from "./duel-rules.js";
+import { integrityConfig } from "./run-integrity-config.js";
 import { checkRecord, loadIntegrityConfig, type AnomalyLimits, type DuelEvidence, type IntegrityConfig } from "./duel-integrity.js";
 import { placement, RATING, rateSeason, ratingStandings, seasonOf, type RatedDuel } from "./duel-rating.js";
 
@@ -91,8 +92,8 @@ export interface DuelSource {
   guildName?: string | null;
   guildRealm?: string | null;
   /**
-   * A record a companion carried for the player who made it (9.3.2, services/carried-records.ts): it is stored held and flagged "c", and
-   * only counts once the other participant's own report of the same duel arrives (a different carrier, or any non-carried report).
+   * A record a companion carried for the player who made it (9.3.2, services/carried-records.ts): it is stored held, uncounted and flagged "c",
+   * and only counts once the other participant's own report of the same duel arrives (or two signed-in members carried both sides).
    */
   carried?: boolean;
   /** Mirrored guild duels know the members behind each side. */
@@ -134,7 +135,7 @@ export async function recordGlobalDuels(tx: Pick<Tx, "publicDuel" | "publicDuelR
     const held = flags.length >= cfg.holdAt || deviceHeld;
     const near = await tx.publicDuel.findFirst({ where: { gameEdition: edition, winnerKey, loserKey,
       endedAt: { gte: new Date(endedAt.getTime() - DUEL_RULES.dedupeSeconds * 1000), lte: new Date(endedAt.getTime() + DUEL_RULES.dedupeSeconds * 1000) } },
-      select: { id: true, winnerClass: true, loserClass: true, winnerLevel: true, loserLevel: true, winnerGuild: true, loserGuild: true, held: true, holdFlags: true, reports: { select: { reporterCharacterKey: true, reporterKey: true } } } });
+      select: { id: true, winnerClass: true, loserClass: true, winnerLevel: true, loserLevel: true, winnerGuild: true, loserGuild: true, held: true, holdFlags: true, pairKey: true, dayKey: true, reports: { select: { reporterCharacterKey: true, reporterKey: true } } } });
     const guildText = (own: string | undefined, mine: boolean) => cleanText(own) || (mine ? cleanText(source.guildName) : "") || null;
     const winnerGuild = guildText(d.winnerGuild, d.side === "winner"), loserGuild = guildText(d.loserGuild, d.side === "loser");
     if (near) {
@@ -149,12 +150,24 @@ export async function recordGlobalDuels(tx: Pick<Tx, "publicDuel" | "publicDuelR
           ...(!near.winnerGuild && winnerGuild ? { winnerGuild } : {}), ...(!near.loserGuild && loserGuild ? { loserGuild } : {}) } });
         const bothSides = keys.has(winnerKey) && keys.has(loserKey);
         if (bothSides) result.confirmed++;
-        // A carried duel is released when the other participant's own report agrees and the two reports do not come through one carrier.
+        // A carried duel is released only by the other participant's own, non-carried report, or when both sides were carried by two
+        // different signed-in members (never by bare devices: one person can register many), each under a daily limit of confirmations.
         if (bothSides && near.held && near.holdFlags.includes("c")) {
           const carriers = [...near.reports.map(r => r.reporterKey), source.reporterKey].map(carrierOfReporter);
-          if (carriers.some(c => c === null) || new Set(carriers).size > 1) {
+          const byOwn = carriers.some(c => c === null);
+          const byMembers = !byOwn && carriers.every(c => c !== null && c.startsWith("member:")) && new Set(carriers).size >= 2;
+          let allowed = byOwn;
+          if (byMembers) {
+            const limit = integrityConfig().carriedConfirmationsPerDay;
+            const since = new Date(now.getTime() - 86_400_000);
+            const used = await Promise.all([...new Set(carriers)].map(c => tx.publicDuelReport.count({ where: { reporterKey: { startsWith: `install:carried|${c}|` }, reportedAt: { gte: since }, duel: { held: false } } })));
+            allowed = used.every(n => n < limit);
+          }
+          if (allowed) {
             const rest = near.holdFlags.filter(f => f !== "c");
-            await tx.publicDuel.update({ where: { id: near.id }, data: { holdFlags: rest, held: rest.length >= cfg.holdAt || rest.includes("x") || rest.includes("d") } });
+            const stillHeld = rest.length >= cfg.holdAt || rest.includes("x") || rest.includes("d");
+            const pairCount = await tx.publicDuel.count({ where: { gameEdition: edition, pairKey: near.pairKey, dayKey: near.dayKey, counted: true } });
+            await tx.publicDuel.update({ where: { id: near.id }, data: { holdFlags: rest, held: stillHeld, counted: pairCount < DUEL_RULES.pairDailyCap } });
           }
         }
       }
@@ -170,7 +183,8 @@ export async function recordGlobalDuels(tx: Pick<Tx, "publicDuel" | "publicDuelR
       tx.publicDuel.count({ where: { gameEdition: edition, pairKey: pair, dayKey: day, counted: true } }),
       tx.publicDuelReport.count({ where: { reporterKey: source.reporterKey, dayKey: day, duel: { counted: true, gameEdition: edition } } })
     ]);
-    const counted = pairCount < DUEL_RULES.pairDailyCap && reporterCount < DUEL_RULES.reporterDailyCap;
+    // A carried duel is stored uncounted (it takes no daily allowance) until it is released.
+    const counted = !source.carried && pairCount < DUEL_RULES.pairDailyCap && reporterCount < DUEL_RULES.reporterDailyCap;
     await tx.publicDuel.create({ data: {
       gameEdition: edition, winnerKey, loserKey, winnerName: w.name, winnerRealm: w.realm, loserName: l.name, loserRealm: l.realm,
       winnerClass: cleanText(d.winnerClass, 30) || null, loserClass: cleanText(d.loserClass, 30) || null, winnerLevel: d.winnerLevel ?? null, loserLevel: d.loserLevel ?? null,

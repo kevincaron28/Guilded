@@ -20,7 +20,7 @@ the map off for the server (`/officer roster map`). Delete my data removes them 
 **World PvP kills and deaths are public** (owner decision, 14 November 2026). For each open-world kill and death the addon keeps the
 time, the zone and your position on the map (never the enemy's name or class), and the companion sends the newest of them to the bot
 when the bot supports it. They are shown by zone and position on the public pages of guilds that publish. Turning off the World PvP module
-(`/guilded modules off worldpvp`) stops recording them and drops the ones stored on your PC.
+(`/guilded modules off worldpvp`) stops recording them and drops the ones stored on your PC. A point appears on the public map only about six hours after it happened, rounded to a square of about 1% of the zone, and only where the points shown come from at least three members. The bot keeps at most five weeks of them.
 
 This notice describes Guilded Companion, the Guilded website and the project-hosted
 Guilded service operated by Kevin Caron (Guilded). A guild using its own server has
@@ -42,6 +42,14 @@ roster and profession details, raid participation, gear/readiness, dungeon runs,
 loot and EP/GP activity. The data depends on the installed addon, selected mode
 and your permissions. Supported exports go to the configured Guilded service;
 returned standings are written into your selected addon folder.
+
+Open-world PvP kills and deaths are sent with where they happened: the game's zone
+(its map id) and your position on that zone's map, with the time. The enemy's name
+is not part of it. They appear as counts and dots by zone on the public PvP
+leaderboard page of a guild that has chosen to publish its leaderboards, next to
+your main character's class and level; a position can be approximate (the last one
+the game allowed). Records are kept about five weeks and are removed by "Delete my
+data". Guilds that do not publish show nothing.
 
 Optional Path of Exile 2 tracking reads recognized events from your selected
 Client.txt log and sends parsed map-visit records with your configured character
@@ -193,7 +201,7 @@ et efface toutes vos positions gardées, et les officiers peuvent couper la cart
 **Les éliminations et les morts du PvP mondial sont publiques** (décision du propriétaire, 14 novembre 2026). Pour chaque élimination et chaque mort
 en monde ouvert, l'addon garde l'heure, la zone et votre position sur la carte (jamais le nom ni la classe de l'ennemi), et le compagnon envoie
 les plus récentes au bot lorsque celui-ci le gère. Elles sont affichées par zone et par position sur les pages publiques des guildes qui
-publient. Couper le module PvP mondial (`/guilded modules off worldpvp`) arrête leur enregistrement et efface celles qui sont gardées sur votre PC.
+publient. Couper le module PvP mondial (`/guilded modules off worldpvp`) arrête leur enregistrement et efface celles qui sont gardées sur votre PC. Un point n'apparaît sur la carte publique qu'environ six heures après l'événement, arrondi à un carré d'environ 1 % de la zone, et seulement là où les points affichés viennent d'au moins trois membres. Le bot en garde cinq semaines au plus.
 
 Le bilan hebdomadaire facultatif conserve votre horaire, fuseau, heures de silence,
 choix actif/inactif et dernier résultat d'envoi. Un MP Discord est envoyé seulement
@@ -216,6 +224,15 @@ préparation, les donjons, le butin et les activités EP/GP. Leur contenu dépen
 l'addon, du mode choisi et de vos permissions. Les exports pris en charge sont
 envoyés au service configuré; les classements reçus sont écrits dans le dossier
 d'addon sélectionné.
+
+Les victimes et les morts en PvP de monde ouvert sont envoyées avec le lieu : la zone
+du jeu (son identifiant de carte) et votre position sur la carte de la zone, avec
+l'heure. Le nom de l'ennemi n'en fait pas partie. Elles apparaissent en comptes et en
+points par zone sur la page publique des classements PvP d'une guilde qui a choisi de
+publier ses classements, avec la classe et le niveau de votre personnage principal;
+une position peut être approximative (la dernière que le jeu a permise). Les
+enregistrements sont conservés environ cinq semaines et supprimés par « Delete my
+data ». Les guildes qui ne publient pas n'affichent rien.
 
 Le suivi Path of Exile 2 facultatif lit les événements reconnus de Client.txt et
 transmet les visites de cartes analysées, avec le personnage et la ligue configurés.

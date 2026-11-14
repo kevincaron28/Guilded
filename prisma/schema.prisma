@@ -141,6 +141,7 @@ model Guild {
   battlegroundReports BattlegroundReport[]
   battlegroundConsents BattlegroundConsent[]
   worldPvpWeeks WorldPvpWeek[]
+  worldPvpEvents WorldPvpEvent[]
   duelResults DuelResult[]
   memberMilestones MemberMilestone[]
   recurringRecaps RecurringRecap[]
@@ -481,6 +482,7 @@ model Member {
   battlegroundReports BattlegroundReport[]
   battlegroundConsent BattlegroundConsent?
   worldPvpWeeks WorldPvpWeek[]
+  worldPvpEvents WorldPvpEvent[]
   duelWins DuelResult[] @relation("DuelWinner")
   duelLosses DuelResult[] @relation("DuelLoser")
   milestones MemberMilestone[]
@@ -3669,6 +3671,28 @@ model LadderSnapshot {
   guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   @@unique([guildId, board, day])
+}
+
+// One open-world kill or death with its place (9.3.2 addon, companion feature "pvp-events"). The zone is the game's map id; x and y are 0-1
+// fractions of that zone map (null when the game gave no position, e.g. inside an instance). eventId is the addon's stable id: a resent upload
+// changes nothing. No enemy name is stored. Kept about five weeks, deleted with the member's data.
+model WorldPvpEvent {
+  id String @id @default(cuid())
+  guildId String
+  memberId String
+  weekKey Int
+  kind String
+  at DateTime
+  mapId Int
+  x Float?
+  y Float?
+  approx Boolean @default(false)
+  eventId Int
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  @@unique([memberId, eventId, at])
+  @@index([guildId, at])
+  @@index([guildId, weekKey])
 }
 
 // World PvP (9.1): one row per member per week, set from the addon's own counters after the anti-farming caps

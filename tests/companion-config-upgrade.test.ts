@@ -245,8 +245,8 @@ describe("the installer closes the old companion before replacing files", () => 
     expect(check.indexOf('GUILDED_LOG "closed; going on"')).toBeLessThan(check.indexOf("DeleteRegValue SHELL_CONTEXT"));
     expect(check).toMatch(/!ifndef BUILD_UNINSTALLER\s+StrCpy \$guildedWasRunning "1"/);
     // A silent run that closed a companion starts it again; the app's own update does that with --force-run, an interactive run at the end.
-    expect(nsis).toMatch(/\$\{if\} \$guildedWasRunning == "1"\s+\$\{andIf\} \$\{Silent\}\s+\$\{andIfNot\} \$\{isForceRun\}\s+!insertmacro StartApp/);
-    expect(nsis.indexOf("launched-by-installer")).toBeLessThan(nsis.indexOf("!insertmacro StartApp"));
+    expect(nsis).toMatch(/\$\{if\} \$guildedWasRunning == "1"\s+\$\{andIf\} \$\{Silent\}\s+\$\{andIfNot\} \$\{isForceRun\}\s+(?:;[^\r\n]*\s+)?\$\{StdUtils\.ExecShellAsUser\} \$0 "\$launchLink" "open" ""/);
+    expect(nsis.indexOf("launched-by-installer")).toBeLessThan(nsis.indexOf("StdUtils.ExecShellAsUser"));
   });
 
   it("keeps the installer's log lines when the old uninstaller adds its own (tagged, truncated only by the installer)", () => {

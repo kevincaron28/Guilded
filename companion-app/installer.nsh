@@ -73,7 +73,8 @@
   ${if} $guildedWasRunning == "1"
   ${andIf} ${Silent}
   ${andIfNot} ${isForceRun}
-    !insertmacro StartApp
+    ; (not the StartApp macro: it declares a variable and is already used once by the installer)
+    ${StdUtils.ExecShellAsUser} $0 "$launchLink" "open" ""
   ${endIf}
 !macroend
 

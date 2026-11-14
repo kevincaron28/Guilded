@@ -151,7 +151,7 @@ describe("the device upload wrapper", () => {
   it("applies the carried records of a device with no matching server and answers their receipts", async () => {
     const s = store();
     const device = (await deviceFor(s, (await registerDevice(s)).deviceSecret))!;
-    const applyCarried = vi.fn(async (records: unknown[], _carrier: unknown) => records.map((_, i) => `carry:externalDuel:k${i}`));
+    const applyCarried = vi.fn<(records: unknown[], carrier: { deviceId: string; names: string[] }) => Promise<string[]>>(async (records) => records.map((_, i) => `carry:externalDuel:k${i}`));
     const answer = await handleDeviceUpload(s, device, body([record("a1-aaaa"), record("a2-aaaa")]), { now: NOW, applyCarried });
     expect(answer.status).toBe("no-guild");
     expect(answer.carriedReceipts).toEqual(["carry:externalDuel:k0", "carry:externalDuel:k1"]);

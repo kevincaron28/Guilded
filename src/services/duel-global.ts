@@ -1,20 +1,19 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { Prisma } from "../generated/prisma/client.js";
-import { DUEL_RULES } from "./duel-rules.js";
+import { DUEL_ARCHIVE_BEFORE, DUEL_RULES } from "./duel-rules.js";
+import { checkRecord, loadIntegrityConfig, type AnomalyLimits, type DuelEvidence, type IntegrityConfig } from "./duel-integrity.js";
 import { placement, RATING, rateSeason, ratingStandings, seasonOf, type RatedDuel } from "./duel-rating.js";
 
-// The global duel ladder (rating-v1, from 1 December 2026 UTC): the same rating as the guild ladders, over every counted duel that
+// The global duel ladder (rating-v1, from 13 November 2026 UTC): the same rating as the guild ladders, over every counted duel that
 // a Guilded addon reported, whichever guild the players are in. One canonical row per duel (PublicDuel); every reporter adds a
 // PublicDuelReport. Ratings are never stored: they are recomputed per month from the counted rows, in date order.
 //
-// Trust (owner decision, 13 November 2026): one witness counts in full. This is NOT cheat-proof: the data comes from players' own
-// clients, and anything an unmodified addon can write, a modified one can write. The protections are the ones below: the caps,
-// plausibility checks, per-device sequence numbers, exclusions per device, an anomaly list for a human, and a "confirmed by both"
-// mark when both players' addons reported the same duel. Nothing here down-weights a result silently.
+// Trust (owner decision, 13 November 2026): one witness counts in full. Reports are verified by the server (duel-integrity.ts) and a
+// record that does not pass is held out of the ladders for the owner to review; a duel both players reported is marked "confirmed by both".
 
-/** Whether a character that never reported a duel itself can be ranked (its rating would rest on other people's reports only). */
-export const GLOBAL_RANK_OUTSIDERS = false;
+/** Whether a character that never reported a duel itself is ranked from its opponents' reports (owner decision, 13 November 2026: yes, everyone). */
+export const GLOBAL_RANK_OUTSIDERS = true;
 /** Whether a character outside any listed guild shows with its name (owner decision: yes). One switch to hide them as "a player outside the listed guilds". */
 export const SHOW_OUTSIDER_NAMES = true;
 /** Plausibility bounds for a reported duel. */
@@ -53,14 +52,19 @@ export const externalDuelSchema = z.object({
   side: z.enum(["winner", "loser"]),
   /** The addon's running number for this install, and the keyed checksum over the fields (see duelSig). */
   seq: z.number().int().min(1).max(2_000_000_000).optional(),
-  sig: z.string().regex(/^[0-9a-f]{16}$/).optional()
+  sig: z.string().regex(/^[0-9a-f]{16}$/).optional(),
+  /** The server's latest challenge, the previous link and this record's link of the hash chain (see duel-integrity.ts). */
+  nonce: z.string().regex(/^[0-9a-f]{8,64}$/).optional(),
+  prev: z.string().regex(/^[0-9a-f]{16}$/).optional(),
+  chain: z.string().regex(/^[0-9a-f]{16}$/).optional(),
+  /** What the addon saw around the duel: the system messages' times and the zone of each player. */
+  evidence: z.object({ countdownAt: z.number().int().positive().optional(), startAt: z.number().int().positive().optional(), endAt: z.number().int().positive().optional(),
+    zoneWinner: z.string().max(80).optional(), zoneLoser: z.string().max(80).optional() }).strict().optional()
 }).strict();
 export type ExternalDuelInput = z.infer<typeof externalDuelSchema>;
 
 /**
- * The checksum the addon puts on a record: the first 16 hex of SHA-256 over the install secret, the sequence number and the fields.
- * The server never learns the secret, so it cannot check this; the addon and the companion use it to notice a saved-variables file
- * that was edited by hand, and the server checks only its shape and the sequence. It stops casual edits, not a modified addon.
+ * The keyed check the addon puts on a record: the first 16 hex of SHA-256 over the install key, the sequence number and the fields.
  */
 export const duelSig = (secret: string, d: Pick<ExternalDuelInput, "winner" | "loser" | "winnerRealm" | "loserRealm" | "at" | "reason" | "seq">) =>
   createHash("sha256").update([secret, d.seq ?? 0, d.winner, d.winnerRealm ?? "", d.loser, d.loserRealm ?? "", d.at, d.reason].join("|")).digest("hex").slice(0, 16);
@@ -70,6 +74,7 @@ export function implausible(d: ExternalDuelInput, now: Date): string | null {
   const w = splitName(d.winner, d.winnerRealm), l = splitName(d.loser, d.loserRealm);
   if (characterKey(w.name, w.realm) === characterKey(l.name, l.realm)) return "same-character";
   const age = now.getTime() - d.at * 1000;
+  if (d.at * 1000 < DUEL_ARCHIVE_BEFORE.getTime()) return "before-start";
   if (age < -GLOBAL_LIMITS.futureSlackMs) return "future";
   if (age > GLOBAL_LIMITS.maxAgeDays * 86_400_000) return "old";
   if (d.durationSec !== undefined && d.durationSec > 0 && (d.durationSec < GLOBAL_LIMITS.minDurationSec || d.durationSec > GLOBAL_LIMITS.maxDurationSec)) return "duration";
@@ -88,14 +93,14 @@ export interface DuelSource {
   /** Mirrored guild duels know the members behind each side. */
   winnerMemberId?: string | null; loserMemberId?: string | null;
 }
-export interface GlobalImportResult { recorded: number; counted: number; capped: number; confirmed: number; rejected: number; replays: number; excluded: boolean }
+export interface GlobalImportResult { recorded: number; counted: number; capped: number; confirmed: number; rejected: number; replays: number; excluded: boolean; held: number }
 
 const dayOf = (at: Date) => at.toISOString().slice(0, 10);
 const pairOf = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
 
 /** Stores the duels a client reported. Runs inside the import transaction; one statement failing aborts it, so every row is validated first. */
-export async function recordGlobalDuels(tx: Pick<Tx, "publicDuel" | "publicDuelReport" | "publicDuelExclusion">, source: DuelSource, rows: unknown[], now = new Date(), edition = "forever"): Promise<GlobalImportResult> {
-  const result: GlobalImportResult = { recorded: 0, counted: 0, capped: 0, confirmed: 0, rejected: 0, replays: 0, excluded: false };
+export async function recordGlobalDuels(tx: Pick<Tx, "publicDuel" | "publicDuelReport" | "publicDuelExclusion" | "duelChallenge">, source: DuelSource, rows: unknown[], now = new Date(), edition = "forever", cfg: IntegrityConfig = loadIntegrityConfig()): Promise<GlobalImportResult> {
+  const result: GlobalImportResult = { recorded: 0, counted: 0, capped: 0, confirmed: 0, rejected: 0, replays: 0, excluded: false, held: 0 };
   if (!rows.length) return result;
   if (source.deviceId && await tx.publicDuelExclusion.findUnique({ where: { deviceId: source.deviceId }, select: { deviceId: true } })) return { ...result, rejected: rows.length, excluded: true };
   const parsed = rows.slice(0, GLOBAL_LIMITS.maxRows).flatMap(row => { const p = externalDuelSchema.safeParse(row); return p.success ? [p.data] : []; });
@@ -113,13 +118,20 @@ export async function recordGlobalDuels(tx: Pick<Tx, "publicDuel" | "publicDuelR
     }
     const reporterCharacterKey = d.side === "winner" ? winnerKey : loserKey;
     const day = dayOf(endedAt);
+    // Server-side verification. What it finds is stored for the reviewer and decides whether the record is held; it is never reported back.
+    const flags = source.deviceId ? checkRecord({ record: { winner: w.name, winnerRealm: w.realm, loser: l.name, loserRealm: l.realm, at: d.at, reason: d.reason, seq: d.seq, nonce: d.nonce, prev: d.prev, chain: d.chain, durationSec: d.durationSec, evidence: d.evidence as DuelEvidence | undefined },
+      lastChain: (await tx.publicDuelReport.findFirst({ where: { deviceId: source.deviceId, chain: { not: null } }, orderBy: { reportedAt: "desc" }, select: { chain: true } }))?.chain ?? null,
+      challengeIssuedAt: d.nonce ? (await tx.duelChallenge.findFirst({ where: { deviceId: source.deviceId, nonce: d.nonce }, select: { issuedAt: true } }))?.issuedAt ?? null : null, cfg, now }) : [];
+    const deviceHeld = source.deviceId ? await tx.publicDuelReport.count({ where: { deviceId: source.deviceId, duel: { held: true } } }) >= cfg.deviceHoldAfter : false;
+    if (deviceHeld) flags.push("d");
+    const held = flags.length >= cfg.holdAt || deviceHeld;
     const near = await tx.publicDuel.findFirst({ where: { gameEdition: edition, winnerKey, loserKey,
       endedAt: { gte: new Date(endedAt.getTime() - DUEL_RULES.dedupeSeconds * 1000), lte: new Date(endedAt.getTime() + DUEL_RULES.dedupeSeconds * 1000) } },
       select: { id: true, winnerClass: true, loserClass: true, winnerLevel: true, loserLevel: true, winnerGuild: true, loserGuild: true, reports: { select: { reporterCharacterKey: true } } } });
     const guildText = (own: string | undefined, mine: boolean) => cleanText(own) || (mine ? cleanText(source.guildName) : "") || null;
     const winnerGuild = guildText(d.winnerGuild, d.side === "winner"), loserGuild = guildText(d.loserGuild, d.side === "loser");
     if (near) {
-      const made = await tx.publicDuelReport.createMany({ skipDuplicates: true, data: [{ duelId: near.id, reporterKey: source.reporterKey, reporterCharacterKey, deviceId: source.deviceId ?? null, guildId: source.guildId ?? null, dayKey: day, seq: d.seq ?? null }] });
+      const made = await tx.publicDuelReport.createMany({ skipDuplicates: true, data: [{ duelId: near.id, reporterKey: source.reporterKey, reporterCharacterKey, deviceId: source.deviceId ?? null, guildId: source.guildId ?? null, dayKey: day, seq: d.seq ?? null, nonce: d.nonce ?? null, chain: d.chain ?? null, ...(d.evidence ? { evidence: d.evidence } : {}) }] });
       if (made.count) {
         // The other side's report: "confirmed by both". Fill only what the first report left empty.
         const keys = new Set([...near.reports.map(r => r.reporterCharacterKey), reporterCharacterKey]);
@@ -132,6 +144,11 @@ export async function recordGlobalDuels(tx: Pick<Tx, "publicDuel" | "publicDuelR
       }
       continue;
     }
+    // Cross-check: the other player's report of the same moment names the opposite winner. One of the two devices is wrong: both are held for review.
+    const opposite = await tx.publicDuel.findFirst({ where: { gameEdition: edition, winnerKey: loserKey, loserKey: winnerKey,
+      endedAt: { gte: new Date(endedAt.getTime() - DUEL_RULES.dedupeSeconds * 1000), lte: new Date(endedAt.getTime() + DUEL_RULES.dedupeSeconds * 1000) } }, select: { id: true, reports: { select: { reporterKey: true } } } });
+    const contradicted = !!opposite && !opposite.reports.some(r => r.reporterKey === source.reporterKey);
+    if (contradicted) await tx.publicDuel.update({ where: { id: opposite!.id }, data: { held: true, holdFlags: { push: "x" } } });
     const pair = pairOf(winnerKey, loserKey);
     const [pairCount, reporterCount] = await Promise.all([
       tx.publicDuel.count({ where: { gameEdition: edition, pairKey: pair, dayKey: day, counted: true } }),
@@ -143,9 +160,11 @@ export async function recordGlobalDuels(tx: Pick<Tx, "publicDuel" | "publicDuelR
       winnerClass: cleanText(d.winnerClass, 30) || null, loserClass: cleanText(d.loserClass, 30) || null, winnerLevel: d.winnerLevel ?? null, loserLevel: d.loserLevel ?? null,
       winnerGuild, loserGuild, winnerMemberId: source.winnerMemberId ?? null, loserMemberId: source.loserMemberId ?? null,
       zone: cleanText(d.zone) || null, endedAt, durationSec: d.durationSec || null, reason: d.reason, counted, pairKey: pair, dayKey: day,
-      reports: { create: [{ reporterKey: source.reporterKey, reporterCharacterKey, deviceId: source.deviceId ?? null, guildId: source.guildId ?? null, dayKey: day, seq: d.seq ?? null }] }
+      held: held || contradicted, holdFlags: contradicted ? [...flags, "x"] : flags,
+      reports: { create: [{ reporterKey: source.reporterKey, reporterCharacterKey, deviceId: source.deviceId ?? null, guildId: source.guildId ?? null, dayKey: day, seq: d.seq ?? null, nonce: d.nonce ?? null, chain: d.chain ?? null, ...(d.evidence ? { evidence: d.evidence } : {}) }] }
     } });
     result.recorded++;
+    if (held || contradicted) result.held++;
     if (counted) result.counted++; else result.capped++;
   }
   return result;
@@ -157,9 +176,9 @@ export interface MirroredDuel { winnerId: string; loserId: string; winnerCharact
  * The guild import mirrors each newly COUNTED guild duel here (reporter = the paired member who uploaded it). Hidden and test members are
  * skipped, so a duel of theirs never reaches the public ladder. `classes` maps a member id + lower-case name to the stored class.
  */
-export async function mirrorGuildDuels(tx: Pick<Tx, "publicDuel" | "publicDuelReport" | "publicDuelExclusion">, info: { guildId: string; guildName: string | null; realm: string; reporterMemberId: string; hidden: ReadonlySet<string>; classOf: (memberId: string, name: string) => string | null },
+export async function mirrorGuildDuels(tx: Pick<Tx, "publicDuel" | "publicDuelReport" | "publicDuelExclusion" | "duelChallenge">, info: { guildId: string; guildName: string | null; realm: string; reporterMemberId: string; hidden: ReadonlySet<string>; classOf: (memberId: string, name: string) => string | null },
   duels: readonly MirroredDuel[], now = new Date()): Promise<GlobalImportResult> {
-  const total: GlobalImportResult = { recorded: 0, counted: 0, capped: 0, confirmed: 0, rejected: 0, replays: 0, excluded: false };
+  const total: GlobalImportResult = { recorded: 0, counted: 0, capped: 0, confirmed: 0, rejected: 0, replays: 0, excluded: false, held: 0 };
   for (const duel of duels) {
     if (info.hidden.has(duel.winnerId) || info.hidden.has(duel.loserId)) { total.rejected++; continue; }
     const side = duel.winnerId === info.reporterMemberId ? "winner" : duel.loserId === info.reporterMemberId ? "loser" : null;
@@ -170,7 +189,7 @@ export async function mirrorGuildDuels(tx: Pick<Tx, "publicDuel" | "publicDuelRe
       ...(duel.winnerLevel ? { winnerLevel: duel.winnerLevel } : {}), ...(duel.loserLevel ? { loserLevel: duel.loserLevel } : {}),
       ...(info.guildName ? { winnerGuild: info.guildName, loserGuild: info.guildName } : {}),
       at: Math.floor(duel.endedAt.getTime() / 1000), reason: duel.reason === "retreat" ? "retreat" : "knockout", side }], now);
-    for (const key of ["recorded", "counted", "capped", "confirmed", "rejected", "replays"] as const) total[key] += r[key];
+    for (const key of ["recorded", "counted", "capped", "confirmed", "rejected", "replays", "held"] as const) total[key] += r[key];
   }
   return total;
 }
@@ -190,6 +209,8 @@ export interface GlobalDuel {
 
 export interface GlobalRow {
   key: string; name: string; realm: string; className: string | null; level: number | null; guild: string | null;
+  /** True when no addon of this player reported a duel: the rating comes from opponents' reports. */
+  viaOpponents: boolean;
   score: number; raw: number; rated: number; opponents: number; ranked: boolean; rank: number;
   wins: number; losses: number; games: number; winRate: number; streak: number; bestStreak: number; lastAt: Date;
   placement: ReturnType<typeof placement> | null;
@@ -226,7 +247,7 @@ export function buildGlobalBoard(all: readonly GlobalDuel[], seasonId: string, s
   let next = 0;
   const rows = standings.map((row): GlobalRow => {
     const i = info.get(row.key);
-    return { key: row.key, name: row.name, realm: i?.realm ?? "", className: i?.className ?? null, level: row.level, guild: i?.guild ?? null, score: row.score, raw: row.rating, rated: row.rated, opponents: row.opponents,
+    return { key: row.key, name: row.name, realm: i?.realm ?? "", className: i?.className ?? null, level: row.level, guild: i?.guild ?? null, viaOpponents: !reporters.has(row.key), score: row.score, raw: row.rating, rated: row.rated, opponents: row.opponents,
       ranked: row.ranked, rank: row.ranked ? ++next : 0, wins: row.wins, losses: row.losses, games: row.games, winRate: row.games ? row.wins / row.games : 0, streak: row.streak, bestStreak: row.bestStreak, lastAt: row.lastAt,
       placement: row.ranked ? null : placement(row.rated, row.opponents) };
   });
@@ -250,11 +271,10 @@ export function globalHeadToHead(all: readonly GlobalDuel[], a: string, b: strin
 }
 
 export interface Anomaly { kind: "one-sided-pair" | "rapid-repeat" | "few-opponents" | "long-streak"; keys: string[]; names: string[]; count: number; detail: string }
-export const ANOMALY_LIMITS = { pairMin: 10, pairShare: 0.9, rapidSeconds: 20, rapidMin: 3, fewOpponentsMin: 10, fewOpponentsMax: 2, streak: 15 } as const;
-
-/** Patterns that suggest a result swap or a script, for a human to look at (owner and officers). Nothing is hidden or down-weighted because of them. */
-export function duelAnomalies(all: readonly GlobalDuel[]): Anomaly[] {
+/** Patterns for the owner and officers to look at (the review queue; never shown to members). The limits come from the integrity configuration. */
+export function duelAnomalies(all: readonly GlobalDuel[], limits: AnomalyLimits = loadIntegrityConfig().anomaly): Anomaly[] {
   const out: Anomaly[] = [];
+  const ANOMALY_LIMITS = limits;
   const sorted = [...all].sort((a, b) => a.endedAt.getTime() - b.endedAt.getTime());
   const pairs = new Map<string, { a: string; b: string; an: string; bn: string; aw: number; bw: number; times: number[] }>();
   for (const d of sorted) {

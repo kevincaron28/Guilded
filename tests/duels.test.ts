@@ -45,7 +45,7 @@ const characters = [
   { id: "c1", name: "Kev", realm: "R", memberId: "m1" }, { id: "c2", name: "Bob", realm: "R", memberId: "m2" },
   { id: "c3", name: "Cy", realm: "R", memberId: "m3" }, { id: "c4", name: "Twin", realm: "R", memberId: "m1" }
 ];
-const now = new Date("2026-11-10T12:00:00Z");
+const now = new Date("2026-11-14T12:00:00Z");
 const at = (offsetSeconds: number) => Math.floor(now.getTime() / 1000) - 600 + offsetSeconds;
 const duel = (winner: string, loser: string, when: number, reason = "knockout") => ({ winner, loser, at: when, reason });
 
@@ -54,7 +54,7 @@ describe("duel ingest", () => {
     const { tx, rows } = fakeTx();
     const result = await importDuelResults(tx, "g", "forever", "m1", characters, [duel("Kev", "Bob", at(0))], now);
     expect(result).toMatchObject({ recorded: 1, counted: 1, rejected: 0 });
-    expect(rows[0]).toMatchObject({ winnerId: "m1", loserId: "m2", counted: true, gameEdition: "forever", reporterId: "m1", dayKey: "2026-11-10" });
+    expect(rows[0]).toMatchObject({ winnerId: "m1", loserId: "m2", counted: true, gameEdition: "forever", reporterId: "m1", dayKey: "2026-11-14" });
   });
 
   it("matches the other player's report of the same duel instead of counting twice", async () => {

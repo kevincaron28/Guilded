@@ -32,12 +32,12 @@ describe("duel rating: shared test vectors", () => {
       v.expect.changes.forEach((want, i) => { near(result.changes[i]!.winnerDelta, want.winnerDelta); near(result.changes[i]!.loserDelta, want.loserDelta); expect(result.changes[i]!.rated).toBe(want.rated); });
     });
   }
-  it("seasons are calendar months in UTC and the first starts on 1 December 2026", () => {
+  it("the first season runs from 13 November to 31 December 2026, then seasons are calendar months in UTC", () => {
     for (const s of vectors.seasons) {
       const got = seasonOf(new Date(s.at));
       expect([got.id, got.from.toISOString(), got.to?.toISOString() ?? null, got.rated]).toEqual([s.id, s.from, s.to, s.rated]);
     }
-    expect(RATING_START.toISOString()).toBe("2026-12-01T00:00:00.000Z");
+    expect(RATING_START.toISOString()).toBe("2026-11-13T00:00:00.000Z");
   });
 });
 
@@ -73,23 +73,26 @@ describe("duel rating: late reports and the season boundary", () => {
     const after = rateSeason([...history, late]).players.get("Aldric")!.score;
     expect(after).not.toBeCloseTo(before, 3);
   });
-  it("a duel that ended just before the start belongs to Season 0 and one at the start to the first rated season", () => {
-    expect(seasonOf(new Date("2026-11-30T23:59:59Z")).rated).toBe(false);
-    expect(seasonOf(new Date("2026-12-01T00:00:00Z")).id).toBe("2026-12");
-    expect(ratingApplies(new Date("2026-11-30T23:59:59Z"))).toBe(false);
-    expect(ratingApplies(new Date("2026-12-01T00:00:00Z"))).toBe(true);
+  it("a duel before the start is archived (no season) and one at the start is in the first season", () => {
+    expect(seasonOf(new Date("2026-11-12T23:59:59Z")).rated).toBe(false);
+    expect(seasonOf(new Date("2026-11-13T00:00:00Z")).id).toBe("2026-11");
+    expect(ratingApplies(new Date("2026-11-12T23:59:59Z"))).toBe(false);
+    expect(ratingApplies(new Date("2026-11-13T00:00:00Z"))).toBe(true);
+    // A server's own marker moves the start and the first season still ends on 31 December.
+    expect(seasonOf(new Date("2026-12-15T00:00:00Z"), T0).id).toBe("2026-12");
   });
 });
 
+const T0 = new Date("2026-12-01T00:00:00Z");
 const row = (winner: string, loser: string, at: string, wl = 60, ll = 60) => ({ winnerId: `m-${winner}`, loserId: `m-${loser}`, winnerCharacter: winner, loserCharacter: loser, winnerLevel: wl, loserLevel: ll, endedAt: new Date(at), reportKey: `${winner}-${loser}-${at}` });
-const dbWith = (rows: ReturnType<typeof row>[], startsAt: Date | null = null) => ({
+const dbWith = (rows: ReturnType<typeof row>[], startsAt: Date | null = T0) => ({
   duelResult: { findMany: async (args: { where: { endedAt?: { gte?: Date; lt?: Date } } }) => rows.filter((r) => (!args.where.endedAt?.gte || r.endedAt >= args.where.endedAt.gte) && (!args.where.endedAt?.lt || r.endedAt < args.where.endedAt.lt)) },
   guildSettings: { findUnique: async () => ({ duelRatingStartsAt: startsAt }) }
 }) as never;
 const OLD = [row("Aldric", "Brenna", "2026-11-20T10:00:00Z", 60, 58), row("Aldric", "Corvin", "2026-11-21T10:00:00Z")];
 
 describe("duel rating: inert until the start date", () => {
-  it("before 1 December the ladder is the old points, to the point", async () => {
+  it("before the start the ladder is the old points, to the point", async () => {
     const ladder = await duelLadder(dbWith(OLD), "g1", "forever", { now: new Date("2026-11-30T12:00:00Z") });
     expect(ladder.mode).toBe("points");
     expect(ladder.standings[0]).toMatchObject({ name: "Aldric", score: 16 });
@@ -102,7 +105,7 @@ describe("duel rating: inert until the start date", () => {
   });
   it("a server can move the start with its own marker", async () => {
     expect((await ratingStartOf(dbWith([], new Date("2026-11-01T00:00:00Z")), "g1")).toISOString()).toBe("2026-11-01T00:00:00.000Z");
-    expect(await ratingStartOf(dbWith([]), "g1")).toEqual(RATING_START);
+    expect(await ratingStartOf(dbWith([], null), "g1")).toEqual(RATING_START);
     const ladder = await duelLadder(dbWith(OLD, new Date("2026-11-01T00:00:00Z")), "g1", "forever", { now: new Date("2026-11-30T12:00:00Z") });
     expect(ladder.mode).toBe("rating");
     expect(ladder.season!.id).toBe("2026-11");
@@ -112,7 +115,7 @@ describe("duel rating: inert until the start date", () => {
 describe("duel rating: from the start date", () => {
   const NEW = [row("Aldric", "Brenna", "2026-12-02T10:00:00Z"), row("Aldric", "Corvin", "2026-12-03T10:00:00Z"), row("Brenna", "Corvin", "2026-12-04T10:00:00Z")];
   const now = new Date("2026-12-10T12:00:00Z");
-  it("season 0 duels do not count in the first rated season and everyone starts at 1000", async () => {
+  it("duels before the start do not count in the first rated season and everyone starts at 1000", async () => {
     const ladder = await duelLadder(dbWith([...OLD, ...NEW]), "g1", "forever", { now });
     expect(ladder.mode).toBe("rating");
     expect(ladder.duels).toBe(3);
@@ -126,18 +129,18 @@ describe("duel rating: from the start date", () => {
     const data = await loadDuelBoardData(dbWith(NEW), "g1", "forever", now);
     const card = duelBoardCard(data, "en");
     expect(card.footer).toContain("December 1, 2026");
-    expect(card.footer).toContain("the game shows the old score");
+    expect(card.footer).toContain("the in-game ladder shows the old score until the next addon update");
     expect(card.ladder!.columns[0]!.label).toBe("Rating");
     expect(card.subtitle).toContain("December 2026");
     const fr = duelBoardCard(data, "fr");
     expect(fr.ladder!.columns[0]!.label).toBe("Cote");
-    expect(fr.footer).toContain("le jeu affiche l'ancien score");
+    expect(fr.footer).toContain("le classement dans le jeu affiche l'ancien score");
     expect(JSON.stringify(duelBoardEmbed(data, "fr").toJSON())).toContain("placement");
   });
   it("the per-duel card shows the change for both players and the placement", () => {
     const fresh = [{ reportKey: "k", winnerId: "m-Aldric", loserId: "m-Brenna", winnerCharacter: "Aldric", loserCharacter: "Brenna", winnerLevel: 60, loserLevel: 60, reason: "knockout", endedAt: new Date("2026-12-02T10:00:00Z") }];
     const history = NEW.slice(0, 1).map((r) => ({ ...r, reportKey: "k" }));
-    const card = withRatings(fresh.map((d) => ({ ...d, points: 0, winnerScore: 0, winnerStreak: 1, winnerBest: 1 })), history, RATING_START)[0]!;
+    const card = withRatings(fresh.map((d) => ({ ...d, points: 0, winnerScore: 0, winnerStreak: 1, winnerBest: 1 })), history, T0)[0]!;
     expect(card.rating).toBeDefined();
     const built = duelResultCard(card, "en", new Map(), emptyNameBook);
     expect(built.rows![0]!.right).toBe("+2");
@@ -147,7 +150,7 @@ describe("duel rating: from the start date", () => {
   });
   it("a duel before the start keeps the points card", () => {
     const fresh: DuelCardInput = { reportKey: "k", winnerId: "a", loserId: "b", winnerCharacter: "A", loserCharacter: "B", winnerLevel: 60, loserLevel: 60, reason: "knockout", endedAt: new Date("2026-11-20T10:00:00Z"), points: 10, winnerScore: 10, winnerStreak: 1, winnerBest: 1 };
-    const out = withRatings([fresh], [], RATING_START)[0]!;
+    const out = withRatings([fresh], [], T0)[0]!;
     expect(out.rating).toBeUndefined();
     expect(duelResultCard(out, "en", new Map(), emptyNameBook).stats[0]!.value).toBe("+10");
   });
@@ -163,9 +166,11 @@ describe("duel rating: the member-facing text", () => {
       expect(text).toContain(RATING.pairWeights.join(", "));
     }
     expect(en).toContain("placement 3/8");
-    expect(en).toContain("Season 0 (points)");
-    expect(fr).toContain("Saison 0 (points)");
-    expect(fr).toContain("1 décembre 2026");
+    expect(en).toContain("November 13, 2026");
+    expect(en).toContain("December 31, 2026");
+    expect(en).not.toMatch(/Season 0/);
+    expect(fr).toContain("13 novembre 2026");
+    expect(fr).not.toMatch(/Saison 0/);
     expect(fr).toContain("réinitialisation du mardi");
     expect(duelRuleLines("en").join(" ")).toContain("10 points");
     expect(ratingFooter("en", "December 2026", RATING_START, true)).not.toContain("old score");
@@ -178,7 +183,7 @@ describe("duel rating: the public page and JSON", () => {
   const all: PublicDuel[] = [duel("Aldric", "Brenna", "2026-11-20T10:00:00Z"), duel("Aldric", "Corvin", "2026-12-02T10:00:00Z"), duel("Brenna", "Aldric", "2026-12-03T10:00:00Z"), duel("Dara", "Edda", "2026-12-04T10:00:00Z", 30, 30)];
   const get = (nowIso: string, start?: Date) => {
     const store: LeaderboardStore = { async runs() { return []; }, async characterRuns() { return []; }, async guilds() { return [{ id: "g1", name: "Quebec Gold", publicSlug: "quebec-gold" }]; }, async guildRuns() { return []; }, async guildRoster() { return []; }, async guildStats() { return []; },
-      async guildDuelRows() { return all; }, async guildDuelRatingStart() { return start ?? RATING_START; } };
+      async guildDuelRows() { return all; }, async guildDuelRatingStart() { return start ?? T0; } };
     const pages = createLeaderboardPages({ store, personal: null, now: () => new Date(nowIso) });
     const app = createWebApp({ store: memoryWebStore().store, auth: { clientId: "1", clientSecret: "x", siteUrl: "https://guildedwow.com", sessionSecret: "s".repeat(40) }, allows: () => true, postApplication: async () => null, routes: [pages.route], now: () => new Date(nowIso), fetch: fetch });
     return (path: string) => { const url = new URL(path, "https://guildedwow.com"); return app.respond({ method: "GET", path: url.pathname, query: url.searchParams, headers: {} }) as Promise<WebResponse>; };
@@ -186,24 +191,21 @@ describe("duel rating: the public page and JSON", () => {
   it("is unchanged before the start: points, no rating text", async () => {
     const page = (await get("2026-11-25T12:00:00Z")("/leaderboards/guild/quebec-gold/duels")).body;
     expect(page).toContain("Points");
-    expect(page).not.toContain("Season 0");
+    expect(page).not.toMatch(/Season 0/);
     const json = JSON.parse((await get("2026-11-25T12:00:00Z")("/leaderboards/guild/quebec-gold/duels.json")).body) as { rules: { id: string }; season: string | null };
     expect(json.rules.id).toBe("points-v1");
     expect(json.season).toBeNull();
   });
-  it("from the start shows the month's rating, placement, the rating rules, the old-score note and Season 0 apart", async () => {
+  it("from the start shows the season's rating, placement, the rating rules and the old-score note, with no Season 0", async () => {
     const fn = get("2026-12-10T12:00:00Z");
     const page = (await fn("/leaderboards/guild/quebec-gold/duels")).body;
     expect(page).toContain("December 2026");
     expect(page).toContain("Rating");
     expect(page).toContain("placement 2/8");
     expect(page).toContain("How scoring works");
-    expect(page).toContain("still shows the old points");
-    expect(page).toContain('value="s0"');
-    const s0 = (await fn("/leaderboards/guild/quebec-gold/duels?when=s0")).body;
-    expect(s0).toContain("Season 0");
-    expect(s0).toContain("Aldric");
-    expect(s0).toContain("frozen");
+    expect(page).toContain("The in-game ladder shows the old score until the next addon update");
+    expect(page).not.toMatch(/Season 0|value="s0"/);
+    expect((await fn("/leaderboards/guild/quebec-gold/duels?when=s0")).body).toContain("December 2026");
     const fr = (await fn("/leaderboards/guild/quebec-gold/duels?lang=fr")).body;
     expect(fr).toContain("Cote");
     expect(fr).toContain("Comment fonctionne le score");
@@ -213,9 +215,13 @@ describe("duel rating: the public page and JSON", () => {
     expect(json.players[0]).toMatchObject({ ranked: false });
     expect(json.recent[0]).toHaveProperty("winnerChange");
   });
+  it("starts on 13 November by default, and the single switch (DUEL_RATING=off) is read once at load", () => {
+    expect(RATING_START.toISOString()).toBe("2026-11-13T00:00:00.000Z");
+    expect(RATING.firstSeasonEndsAt).toBe("2027-01-01T00:00:00.000Z");
+  });
   it("buildRatingBoard keeps ranked players first and hides players who left", () => {
     const eight = Array.from({ length: 8 }, (_, i) => duel("Aldric", ["Brenna", "Corvin", "Dara", "Edda"][i % 4]!, `2026-12-0${2 + Math.floor(i / 2)}T1${i}:00:00Z`));
-    const board = buildRatingBoard([...eight, duel("Ghost", "Brenna", "2026-12-06T10:00:00Z")].map((d) => d.winner === "Ghost" ? { ...d, winnerShown: false } : d), "2026-12", RATING_START, { className: null, levels: null });
+    const board = buildRatingBoard([...eight, duel("Ghost", "Brenna", "2026-12-06T10:00:00Z")].map((d) => d.winner === "Ghost" ? { ...d, winnerShown: false } : d), "2026-12", T0, { className: null, levels: null });
     expect(board.rows[0]).toMatchObject({ name: "Aldric", rank: 1 });
     expect(board.rows.some((r) => r.name === "Ghost")).toBe(false);
     expect(board.rows.find((r) => r.name === "Brenna")!.rank).toBe(0);

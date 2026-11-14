@@ -1,4 +1,9 @@
--- Global duel ladder: canonical duels, their reports and device exclusions. Inert until the rating start (1 December 2026).
+-- Global duel ladder: canonical duels, their reports, device exclusions and the sync challenges; archived flag on the old duel results.
+-- Duels that ended before 13 November 2026 00:00 UTC were test data: flagged, never deleted.
+-- Undo: UPDATE "DuelResult" SET "archived" = false WHERE "endedAt" < '2026-11-13T00:00:00Z';
+ALTER TABLE "DuelResult" ADD COLUMN "archived" BOOLEAN NOT NULL DEFAULT false;
+UPDATE "DuelResult" SET "archived" = true WHERE "endedAt" < '2026-11-13T00:00:00Z';
+
 CREATE TABLE "PublicDuel" (
     "id" TEXT NOT NULL,
     "gameEdition" TEXT NOT NULL DEFAULT 'forever',
@@ -23,6 +28,8 @@ CREATE TABLE "PublicDuel" (
     "counted" BOOLEAN NOT NULL DEFAULT true,
     "pairKey" TEXT NOT NULL,
     "dayKey" TEXT NOT NULL,
+    "held" BOOLEAN NOT NULL DEFAULT false,
+    "holdFlags" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "confirmations" INTEGER NOT NULL DEFAULT 1,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "PublicDuel_pkey" PRIMARY KEY ("id")
@@ -37,6 +44,9 @@ CREATE TABLE "PublicDuelReport" (
     "guildId" TEXT,
     "dayKey" TEXT NOT NULL,
     "seq" INTEGER,
+    "nonce" TEXT,
+    "chain" TEXT,
+    "evidence" JSONB,
     "reportedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "PublicDuelReport_pkey" PRIMARY KEY ("id")
 );
@@ -57,3 +67,13 @@ CREATE INDEX "PublicDuelReport_deviceId_seq_idx" ON "PublicDuelReport"("deviceId
 CREATE INDEX "PublicDuelReport_reporterCharacterKey_idx" ON "PublicDuelReport"("reporterCharacterKey");
 
 ALTER TABLE "PublicDuelReport" ADD CONSTRAINT "PublicDuelReport_duelId_fkey" FOREIGN KEY ("duelId") REFERENCES "PublicDuel"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+CREATE TABLE "DuelChallenge" (
+    "id" TEXT NOT NULL,
+    "deviceId" TEXT NOT NULL,
+    "nonce" TEXT NOT NULL,
+    "issuedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "DuelChallenge_pkey" PRIMARY KEY ("id")
+);
+CREATE INDEX "DuelChallenge_deviceId_nonce_idx" ON "DuelChallenge"("deviceId", "nonce");
+CREATE INDEX "DuelChallenge_deviceId_issuedAt_idx" ON "DuelChallenge"("deviceId", "issuedAt");

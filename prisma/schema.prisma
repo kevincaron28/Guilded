@@ -3235,6 +3235,8 @@ model DuelResult {
   dayKey         String
   pairKey        String
   counted        Boolean  @default(true)
+  // Test data from before the ladders started (13 November 2026): kept, never shown or counted. Undo: set it back to false.
+  archived       Boolean  @default(false)
   reportKey      String
   reporterId     String?
   createdAt      DateTime @default(now())
@@ -3965,6 +3967,9 @@ model TcgQueue {
 // A duel is found again by winner + loser within the dedupe window, so two guilds' servers (or a guild and a standalone addon)
 // reporting the same duel add a report, not a second duel. Ratings are never stored: they are recomputed from the counted rows.
 model PublicDuel {
+  // Held back from every ladder pending the owner's review (never shown to clients, and which check tripped is not told to them).
+  held         Boolean  @default(false)
+  holdFlags    String[] @default([])
   id           String   @id @default(cuid())
   gameEdition  String   @default("forever")
   winnerKey    String
@@ -4014,6 +4019,10 @@ model PublicDuelReport {
   dayKey        String
   // The addon's running sequence number of this record, for gap and replay checks.
   seq           Int?
+  // The challenge the record was made under, its hash-chain link and the evidence the addon recorded (kept for review).
+  nonce         String?
+  chain         String?
+  evidence      Json?
   reportedAt    DateTime   @default(now())
   duel          PublicDuel @relation(fields: [duelId], references: [id], onDelete: Cascade)
 
@@ -4028,4 +4037,15 @@ model PublicDuelExclusion {
   deviceId  String   @id
   note      String   @default("")
   createdAt DateTime @default(now())
+}
+
+// A fresh value the bot gives a companion at each sync; the addon puts it on the duel records it makes next.
+model DuelChallenge {
+  id       String   @id @default(cuid())
+  deviceId String
+  nonce    String
+  issuedAt DateTime @default(now())
+
+  @@index([deviceId, nonce])
+  @@index([deviceId, issuedAt])
 }

@@ -136,7 +136,7 @@ export async function loadActivity(db: Db, guildId: string, edition: string, vie
     : { guildId, member: active, OR: [{ run: { endedAt: { gte: since } } }, { runId: null, createdAt: { gte: since } }] };
   const [points, duels, bgs] = await Promise.all([
     db.dungeonPointTransaction.groupBy({ by: ["memberId"], where: pointsWhere, _sum: { amount: true } }),
-    db.duelResult.findMany({ where: { guildId, gameEdition: edition, counted: true, endedAt: { gte: since, lte: now } }, take: 20_000,
+    db.duelResult.findMany({ where: { guildId, gameEdition: edition, counted: true, archived: false, endedAt: { gte: since, lte: now } }, take: 20_000,
       select: { winnerId: true, loserId: true, endedAt: true, winner: { select: { status: true } }, loser: { select: { status: true } } } }),
     db.battlegroundReport.findMany({ where: { guildId, gameEdition: edition, status: "PROVISIONAL", endedAt: { gte: since, lte: now }, member: active }, take: 20_000,
       select: { memberId: true, outcome: true, endedAt: true } })

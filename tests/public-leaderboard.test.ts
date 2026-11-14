@@ -149,6 +149,46 @@ describe("leaderboard and personal pages", () => {
     return { request, personal };
   }
 
+  describe("the landing page", () => {
+    const early = () => leaderRun("early", 1400, [player("Amy", "Priest", "HEALER")], { endedAt: new Date("2026-11-05T12:00:00Z") });
+    it("shows podiums, latest runs, weekly climbers, records broken, tabs and search in English and French", async () => {
+      const { request } = setup([early()]);
+      const home = await request("GET", "/leaderboards/");
+      expect(home.status).toBe(200);
+      for (const text of ["WoW Forever leaderboards", "Top players", "Top guilds", "Latest runs", "Biggest climbers this week", "Records broken this week", 'class="podium"', 'role="search"', "/leaderboards/dungeons/", "/leaderboards/guilds/"]) expect(home.body).toContain(text);
+      expect(home.body).not.toMatch(/Season 0|per pair|threshold/i);
+      const fr = await request("GET", "/leaderboards/?lang=fr");
+      for (const text of ["Classements WoW Forever", "Meilleurs joueurs", "Meilleures guildes", "Derniers essais", "Plus fortes hausses cette semaine", "Records battus cette semaine"]) expect(fr.body).toContain(text);
+    });
+    it("finds characters and guilds by name, ignores accents and escapes the query", async () => {
+      const { request } = setup([early()]);
+      expect((await request("GET", "/leaderboards/?q=kev")).body).toContain("/leaderboards/character/Kev-Doomhowl");
+      expect((await request("GET", "/leaderboards/?q=quebec")).body).toContain("Quebec Gold");
+      expect((await request("GET", "/leaderboards/?q=zzz&lang=fr")).body).toContain("Aucun résultat");
+      const hostile = (await request("GET", "/leaderboards/?q=%3Cscript%3Ealert(1)%3C/script%3E")).body;
+      expect(hostile).not.toContain("<script>alert(1)");
+    });
+    it("keeps every old address working: filters still show the dungeon board, which also has its own address", async () => {
+      const { request } = setup();
+      expect((await request("GET", "/leaderboards/?season=s1")).body).toContain("Dungeon leaderboards");
+      expect((await request("GET", "/leaderboards/?dungeon=389")).body).toContain("Ragefire Chasm");
+      const board = await request("GET", "/leaderboards/dungeons/");
+      expect(board.status).toBe(200);
+      expect(board.body).toContain("Dungeon leaderboards");
+      expect(board.body).toContain('class="hub-tabs"');
+      expect((await request("GET", "/leaderboards/characters/")).body).toContain('class="hub-tabs"');
+      expect((await request("GET", "/leaderboards/guilds/")).body).toContain('class="hub-tabs"');
+    });
+    it("explains how to get on the board when there is nothing yet", async () => {
+      const store: LeaderboardStore = { async runs() { return []; }, async characterRuns() { return []; }, async guilds() { return []; }, async guildRuns() { return []; }, async guildRoster() { return []; } };
+      const pages = createLeaderboardPages({ store, personal: null, now: () => NOW });
+      const app = createWebApp({ store: memoryWebStore().store, auth: null, allows: () => true, postApplication: async () => null, routes: [pages.route], now: () => NOW });
+      const page = await app.respond({ method: "GET", path: "/leaderboards/", query: new URLSearchParams(), headers: {} }) as WebResponse;
+      expect(page.body).toContain("No ranked player yet");
+      expect(page.body).toContain("/companion/");
+    });
+  });
+
   it("keeps a stored Retail keystone run readable, with no keystone board or rating (WoW Forever only)", async () => {
     const challenge = { mapId: 249, level: 10, affixIds: [3, 9], durationMs: 645123, timeLimitSec: 1980,
       onTime: true, practiceRun: false, eligibleForScore: true };
@@ -181,7 +221,7 @@ describe("leaderboard and personal pages", () => {
     expect(data.topRuns.length).toBeLessThanOrEqual(3);
     expect(data.topRuns.map((run) => run.score)).toContain(185);
     expect(summary.body).not.toMatch(/Kev|Amy|Bad/);
-    const board = await request("GET", "/leaderboards/?lang=fr");
+    const board = await request("GET", "/leaderboards/dungeons/?lang=fr");
     expect(board.body).toContain("<summary>Comment les scores sont calculés</summary>");
   });
 
@@ -203,7 +243,7 @@ describe("leaderboard and personal pages", () => {
 
   it("lists dungeons, ranks a dungeon and shows a character page", async () => {
     const { request } = setup();
-    const home = await request("GET", "/leaderboards/");
+    const home = await request("GET", "/leaderboards/dungeons/");
     expect(home.status).toBe(200);
     expect(home.body).toContain("Ragefire Chasm");
     expect(home.body).toContain("21:40");
@@ -223,7 +263,7 @@ describe("leaderboard and personal pages", () => {
 
   it("shows scores, top runs this week, class colours, confirmation badges and history", async () => {
     const { request } = setup();
-    const home = await request("GET", "/leaderboards/");
+    const home = await request("GET", "/leaderboards/dungeons/");
     expect(home.body).toContain("Top runs this week");
     expect(home.body).toContain("A weekly snapshot; character and guild rankings below use your selected period.");
     expect(home.body).toContain("Selected period");
@@ -265,8 +305,8 @@ describe("leaderboard and personal pages", () => {
     expect(home.body.indexOf('id="season"')).toBeGreaterThan(scoreAt);
     expect(home.body.indexOf("Your player profile is public by default")).toBeGreaterThan(scoreAt);
     expect(home.body).toContain("table.rank-cards");
-    expect(home.body).toContain('rel="canonical" href="https://guilded.kcaron.top/leaderboards/"');
-    expect(home.body).toContain('hreflang="fr" href="https://guilded.kcaron.top/leaderboards/?lang=fr"');
+    expect(home.body).toContain('rel="canonical" href="https://guilded.kcaron.top/leaderboards/dungeons/"');
+    expect(home.body).toContain('hreflang="fr" href="https://guilded.kcaron.top/leaderboards/dungeons/?lang=fr"');
     expect(home.body).toContain(">This week</a>");
     expect(home.body).toContain("position:sticky");
     expect(home.body).toContain("overflow-x:visible");

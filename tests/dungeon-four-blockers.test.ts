@@ -116,7 +116,7 @@ describe("Claude blocker 4: complete public pages",()=>{
       store:{runs:async()=>[row,rejected,lowPresence],characterRuns:async()=>[row,rejected,lowPresence],guilds:async()=>[],guildRuns:async()=>[],guildRoster:async()=>[]}});
     const app=createWebApp({store:memoryWebStore().store,auth:{clientId:"1",clientSecret:"x",siteUrl:"https://guilded.kcaron.top",sessionSecret:"s".repeat(40)},
       allows:()=>true,postApplication:async()=>null,routes:[pages.route],now:()=>now});
-    const page=await app.respond({method:"GET",path:"/leaderboards/",query:new URLSearchParams({lang}),headers:{}});
+    const page=await app.respond({method:"GET",path:"/leaderboards/dungeons/",query:new URLSearchParams({lang}),headers:{}});
     expect(page!.status).toBe(200);
     expect(page!.body).toContain(lang==="en"?"Freshness remains unknown":"L'état initial reste inconnu");
     expect(page!.body).toContain(lang==="en"?"This season requires current stored evidence":"Cette saison exige les preuves actuelles enregistrées");

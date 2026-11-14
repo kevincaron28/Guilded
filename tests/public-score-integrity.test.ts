@@ -182,11 +182,11 @@ describe("leaderboard pages say why a run is unranked", () => {
     const get = (target: string) => { const url = new URL(target, "https://guilded.kcaron.top"); return app.respond({ method: "GET", path: url.pathname, query: url.searchParams, headers: {} }) as Promise<WebResponse>; };
     const page = await get("/leaderboards/character/Kev-Doomhowl");
     // Rows that do not count say so without saying how runs are checked.
-    expect(page.body).toContain('title="Not counted for the ranking"');
+    expect(page.body).toContain('title="Not completed"');
     expect(page.body).not.toMatch(/older check|final-boss completion|current evidence|presence/i);
     expect(page.body).not.toContain('<span class="score">218</span>');
     const fr = await get("/leaderboards/character/Kev-Doomhowl?lang=fr");
-    expect(fr.body).toContain("Non compté au classement");
+    expect(fr.body).toContain("Non terminé");
     expect(fr.body).not.toMatch(/Preuves|preuves|présence/);
     const board = await get("/leaderboards/dungeons/");
     expect(board.body).toContain("This season's rules were frozen on 2026-11-04.");

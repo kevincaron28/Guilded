@@ -7,6 +7,7 @@ import { breadcrumbs, shareCard, SITE_HEADER_STYLE, siteFooterNav, siteHeader } 
 import { gameEditionOf } from "./game-edition.js";
 import { editionHref } from "../../site/nav.mjs";
 import type { GuildDungeonSummary } from "./public-leaderboard.js";
+import { clearLeaderboardCaches } from "./leaderboard-cache-hooks.js";
 
 // A guild's public page at /g/<slug>/ (docs/GUILD_PAGES_DESIGN.md). Read-only, no scripts, and
 // only what officers turned on. Names are character names, never Discord users or IDs.
@@ -329,6 +330,7 @@ export async function editGuildPage(database: PrismaClient, action: string, disc
       : null;
     if (!data) throw new Error(GUILD_PAGE_USAGE);
     page = await database.guildPage.update({ where: { id: page.id }, data });
+    clearLeaderboardCaches();
   }
   if (!page) return `${guild.name} has no page yet.`;
   return [

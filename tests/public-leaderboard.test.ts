@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createLeaderboardPages, filterGuildOverview, GUILD_COUNT, guildDungeonSummary, guildOverview, pageNumbers, rankCharacters, rankGuilds, readGuildOverviewFilters, readLeaderFilters, type GuildStats, type LeaderboardStore, type LeaderRun } from "../src/services/public-leaderboard.js";
+import { clearLeaderboardCaches, createLeaderboardPages, filterGuildOverview, GUILD_COUNT, guildDungeonSummary, guildOverview, pageNumbers, rankCharacters, rankGuilds, readGuildOverviewFilters, readLeaderFilters, type GuildStats, type LeaderboardStore, type LeaderRun } from "../src/services/public-leaderboard.js";
 import { guildPageStats, guildSlugs, unrankedReason } from "../src/services/guild-public-stats.js";
 import { characterKey } from "../companion/character-identity.mjs";
 import { publicRules } from "../src/services/public-score.js";
@@ -179,6 +179,9 @@ describe("leaderboard and personal pages", () => {
       const page = await request("GET", "/leaderboards/?bracket=30-44");
       expect(page.status).toBe(200);
       expect(page.body).toContain('id="hub-bracket"');
+      expect(page.body).toMatch(/<form class="hub-picker"[^>]*>[\s\S]*<button class="button" type="submit">Show<\/button>/);
+      expect(page.body).toContain('name="edition"');
+      expect(page.body).not.toMatch(/onchange=|<noscript/);
       expect(page.body).toContain('<option value="30-44" selected>');
     });
     it("shows a guild without a link when it has no public slug", async () => {
@@ -217,6 +220,41 @@ describe("leaderboard and personal pages", () => {
       expect((await get("/leaderboards/")).status).toBe(200);
       await new Promise((resolve) => setTimeout(resolve, 20));
       expect(loads).toBeGreaterThan(afterWarm);
+    });
+    it("keeps the old entry when a reload fails, and clear() makes a hidden guild disappear at once", async () => {
+      let clock = NOW.getTime(), listed = true, failing = false;
+      const store: LeaderboardStore = {
+        async runs() { if (failing) throw new Error("database down"); return [leaderRun("a", 1500)]; }, async characterRuns() { return []; },
+        async guilds() { return listed ? [{ id: "g1", name: "Quebec Gold", publicSlug: "quebec-gold" }] : []; },
+        async guildRuns() { return [leaderRun("a", 1500)]; }, async guildRoster() { return ["kev"]; }
+      };
+      const pages = createLeaderboardPages({ store, personal: null, now: () => new Date(clock) });
+      const app = createWebApp({ store: memoryWebStore().store, auth: null, allows: () => true, postApplication: async () => null, routes: [pages.route], now: () => new Date(clock) });
+      const get = (path: string) => app.respond({ method: "GET", path, query: new URL(path, SITE).searchParams, headers: {} }) as Promise<WebResponse>;
+      expect((await get("/leaderboards/guilds/")).body).toContain("leaderboards/guild/quebec-gold");
+      clock += 61_000; failing = true;
+      const stale = await get("/leaderboards/");
+      expect(stale.status).toBe(200);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect((await get("/leaderboards/")).status).toBe(200);
+      failing = false; listed = false;
+      expect((await get("/leaderboards/guilds/")).body).toContain("leaderboards/guild/quebec-gold");
+      clearLeaderboardCaches();
+      expect((await get("/leaderboards/guilds/")).body).not.toContain("leaderboards/guild/quebec-gold");
+    });
+    it("keys the weekly panels by the week and keeps character-name entries out of the core cache", async () => {
+      let clock = Date.parse("2026-11-10T14:00:00Z"), loads = 0;
+      const store: LeaderboardStore = { async runs() { loads += 1; return [leaderRun("a", 1500)]; }, async characterRuns() { return []; }, async guilds() { return []; }, async guildRuns() { return []; }, async guildRoster() { return []; } };
+      const pages = createLeaderboardPages({ store, personal: null, now: () => new Date(clock) });
+      const app = createWebApp({ store: memoryWebStore().store, auth: null, allows: () => true, postApplication: async () => null, routes: [pages.route], now: () => new Date(clock) });
+      const get = (path: string) => app.respond({ method: "GET", path, query: new URL(path, SITE).searchParams, headers: {} }) as Promise<WebResponse>;
+      await get("/leaderboards/");
+      const before = loads;
+      for (let i = 0; i < 400; i++) await get(`/leaderboards/character/Name${i}-Doomhowl`);
+      await get("/leaderboards/");
+      expect(loads).toBeLessThanOrEqual(before + 1);
+      clock = Date.parse("2026-11-10T16:00:00Z");
+      expect((await get("/leaderboards/")).status).toBe(200);
     });
     it("never shows a guild that does not publish, or its members, on the hub or in search", async () => {
       const hidden = leaderRun("hid", 1100, [player("Ghosty", "Mage", "DPS")]);

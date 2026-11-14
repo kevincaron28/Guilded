@@ -254,7 +254,7 @@ export function renderDungeonCard(spec: DungeonCardSpec): Promise<RenderedCard> 
     for (const p of party) {
       if (stripe) c.rect(x - 10, y - 8, colW + 20, pitch - 2, "#ffffff", { opacity: 0.05, rx: 8 });
       stripe = !stripe;
-      if (p.role) c.raw(await roleEmblem(p.role, spec.roleStyle ?? "medal", x, y - 3, 38, used));
+      if (p.role) c.raw(await roleEmblem(p.role, spec.roleStyle ?? "painted", x, y - 3, 38, used));
       const tag = guildTag(p.guild).replace(/^<|>$/g, ""); // the Guild column header says what it is
       const hasCols = p.level !== undefined || p.gain !== undefined || p.total !== undefined || p.score !== undefined || !!tag;
       await c.text(p.name, E, y, { size: 30, face: "bold", color: p.color, maxW: hasCols ? nameW : colW - 46 });

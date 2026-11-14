@@ -44,6 +44,7 @@ the edge, a file over 60 KB or a total over 1.5 MB.
   emblem's alt text (English and French); locked is CSS (`grayscale`, darker). `scripts/build-site.mjs` copies `site/badge-art` to the site build.
 - **Mobile app:** the badge album (`GET /api/v1/companion/achievements`) now returns each card's `emblem`; the app layers the site's frame and
   emblem images and keeps the plain medal when a card has no emblem or a picture does not load.
+- **Role emblems:** `site/badge-art/roles/{tank,healer,damage}-128.webp` (from `Guilded-Artole-emblems*-CHOSEN.png`, built with `--only roles`) are drawn by the dungeon run card (`card-roles.ts`, style "painted"); the code-drawn medal is the fallback.
 - **Companion app:** shows no achievements list today, so it gets no badges. A list would go on its Home view, reusing the same two images.
 
 ## Adding the next emblems

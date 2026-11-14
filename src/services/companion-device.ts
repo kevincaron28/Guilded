@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
 import { characterKey, foreverSameName } from "../../companion/character-identity.mjs";
-import { firstNameKey, importDungeonRuns, receiptReason, RETRY_OUTCOME, saveRunReceipts } from "./dungeon-import.js";
+import { firstNameKey, importDungeonRuns, receiptReason, RETRY_OUTCOME, saveRunReceipts, type DungeonImportSummary } from "./dungeon-import.js";
 import { plausibilityFlags, type Anomaly, type NeighbourRun } from "./run-plausibility.js";
 import { challengeSecret, holdsRun, integrityConfig } from "./run-integrity-config.js";
 import { contradicts, issueChallenge, verifyBatch } from "./run-challenge.js";
@@ -130,8 +130,11 @@ export interface ServerCandidate {
 }
 
 /** The device a batch of runs came from, and the characters it reported. */
-export interface DeviceRunSource { deviceId: string; characterKeys: readonly string[]; /** Signing key derived from the device key sent with this upload. */ sealKey?: string | null }
-export interface DeviceRunResult { stored: number; skipped: number; /** Run ref -> why it waits (not a run anywhere yet). */ pending?: Record<string, string> }
+export interface DeviceRunSource { deviceId: string; characterKeys: readonly string[]; /** Signing key derived from the device key sent with this upload. */ sealKey?: string | null;
+  /** (9.3.2) A copy of a run another guild's lane stored (cross-guild-runs.ts): judged like a device's run, but there is no device signature to check. */ shared?: boolean }
+export interface DeviceRunResult { stored: number; skipped: number; /** Run ref -> why it waits (not a run anywhere yet). */ pending?: Record<string, string>;
+  /** (9.3.2) The runs stored by this call (for the other guilds with a member in them). */ shareable?: unknown[];
+  /** (9.3.2) What each stored run came to, for the run cards. */ summaries?: DungeonImportSummary[] }
 
 export interface DeviceStore {
   create(tokenHash: string, now: Date): Promise<{ id: string }>;
@@ -163,7 +166,7 @@ export interface DeviceStore {
    * (9.3.1) Runs of players outside this device's guild that reached its addon through a party or raid: the public boards' own
    * lane (the same checks as any public run). Returns the refs the server now holds.
    */
-  publicRuns?(deviceId: string, runs: unknown[], now: Date, deviceKeys: ReadonlySet<string>): Promise<string[]>;
+  publicRuns?(deviceId: string, runs: unknown[], now: Date, deviceKeys: ReadonlySet<string>, onPlaced?: (runs: unknown[]) => void): Promise<string[]>;
 }
 
 /**
@@ -238,7 +241,9 @@ export function runsOfDevice(raw: unknown[], deviceKeys: ReadonlySet<string>): u
   });
 }
 
-export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, body: unknown, options: { allows?: (discordId: string) => boolean; now?: Date; runLimiter?: (deviceId: string) => boolean; sealKey?: string | null } = {}): Promise<DeviceUploadAnswer> {
+export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, body: unknown, options: { allows?: (discordId: string) => boolean; now?: Date; runLimiter?: (deviceId: string) => boolean; sealKey?: string | null;
+  /** (9.3.2) Runs this upload stored (a guild's id) or placed on the public boards (null): other guilds with a member in them get a copy. Called after the runs are saved. */
+  afterShare?: (origin: { guildId: string | null; deviceId: string; characterKeys: string[]; receivedAt: Date }, runs: unknown[]) => void } = {}): Promise<DeviceUploadAnswer> {
   if (device.claimedMemberId) return { status: "claimed" };
   const parsed = deviceUploadSchema.safeParse(body);
   if (!parsed.success) throw new DeviceError("This upload is not valid.", 400);
@@ -291,7 +296,7 @@ export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, 
     // Carried runs have their own caps (per upload here, per day in the relay lane): they never spend the device's shared hourly budget,
     // which is for the guild lane.
     const allowedGroup = split.group.slice(0, RUN_TRUST.relayedPerUpload);
-    if (allowedGroup.length) carried.push(...await store.publicRuns(device.id, allowedGroup, now, known).catch(() => []));
+    if (allowedGroup.length) carried.push(...await store.publicRuns(device.id, allowedGroup, now, known, options.afterShare ? (placed) => options.afterShare!({ guildId: null, deviceId: device.id, characterKeys: [...known], receivedAt: now }, placed) : undefined).catch(() => []));
   }
   const carriedReceipts: DeviceRunReceipts | undefined = carried.length ? { acceptedRunRefs: carried, runNotes: {} } : undefined;
   if (!guild || "none" in decision) return { status: "no-guild", guild, ...(carriedReceipts ? { runReceipts: carriedReceipts } : {}) };
@@ -314,6 +319,7 @@ export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, 
     }
     const result = allowed.length ? await store.importRuns(target.guildId, allowed, now, { deviceId: device.id, characterKeys: [...known], sealKey: options.sealKey ?? null }) : { stored: 0, skipped: 0 };
     pending = result.pending ?? {};
+    if (result.shareable?.length) options.afterShare?.({ guildId: target.guildId, deviceId: device.id, characterKeys: [...known], receivedAt: now }, result.shareable);
     runs = { received: guildRuns.length, stored: result.stored, skipped: result.skipped, ...(Object.keys(pending).length ? { pending: Object.keys(pending).length } : {}) };
   }
   // Every ref this upload carried that the server now holds (stored, a guildmate's copy, refused), so the addon stops waiting.
@@ -398,12 +404,13 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
   const started = await tx.officialSeason.findMany({ where: { gameEdition: gameEditionOf(guild ?? {}), startsAt: { lte: now } }, select: { number: true } });
   const allowDeviceOnly = countsDeviceOnlyRuns(started.map((season) => season.number));
   let waiting = await tx.dungeonRunWitness.count({ where: { deviceId: source.deviceId, status: "pending" } });
-  let storedToday = await tx.dungeonRunWitness.count({ where: { deviceId: source.deviceId, trust: "device", decidedAt: { gte: new Date(now.getTime() - 86_400_000) } } });
+  // A copy of another guild's run (shared) is judged on its own: the per-device day count, overlap input and strikes of the guild's shared inbox do not apply.
+  let storedToday = source.shared ? 0 : await tx.dungeonRunWitness.count({ where: { deviceId: source.deviceId, trust: "device", decidedAt: { gte: new Date(now.getTime() - 86_400_000) } } });
   const pending: Record<string, string> = {};
   const config = integrityConfig();
-  const batchFlags = verifyBatch(entries.map(({ ref, raw }) => ({ raw, ref, endedAt: fingerprintOf(raw)?.endedAt ?? null, kind: voucherOf(raw, deviceKeys)?.kind ?? "relay" as const, earlier: mine.get(ref)?.reason === "released" })),
+  const batchFlags = source.shared ? new Map<string, Anomaly[]>() : verifyBatch(entries.map(({ ref, raw }) => ({ raw, ref, endedAt: fingerprintOf(raw)?.endedAt ?? null, kind: voucherOf(raw, deviceKeys)?.kind ?? "relay" as const, earlier: mine.get(ref)?.reason === "released" })),
     { deviceId: source.deviceId, sealKey: source.sealKey ?? null, secret: challengeSecret(), windowSec: config.challengeWindowSec, clockSlackSec: config.clockSlackSec, deviceSince: epoch(standing?.createdAt), requireSeal: config.requireSeal });
-  let strikes = config.strikeWindowSec === null ? 0 : await tx.dungeonRunWitness.count({ where: { deviceId: source.deviceId, status: "held", firstSeenAt: { gte: new Date(now.getTime() - config.strikeWindowSec * 1000) } } });
+  let strikes = source.shared || config.strikeWindowSec === null ? 0 : await tx.dungeonRunWitness.count({ where: { deviceId: source.deviceId, status: "held", firstSeenAt: { gte: new Date(now.getTime() - config.strikeWindowSec * 1000) } } });
 
   const record = async (ref: string, raw: unknown, statement: Statement, data: { status: string; reason?: string | null; trust?: string | null; runId?: string | null; decided?: boolean; keepPayload?: boolean; flags?: Anomaly[] }) => {
     const text = data.keepPayload ? JSON.stringify(raw) : "";
@@ -438,7 +445,7 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
   const instances = [...new Set(newPrints.map((print) => print.instanceId))];
   const fastestRows = newPrints.length && config.limits ? await tx.dungeonRun.groupBy({ by: ["instanceId", "difficultyId"], where: { guildId, instanceId: { in: instances }, valid: true, state: "COMPLETED", durationSec: { not: null } }, _min: { durationSec: true }, _count: { _all: true } }) : [];
   const nearbyRows = await perWindow((endedAt) => tx.dungeonRun.findMany({ where: { guildId, valid: true, endedAt }, orderBy: { endedAt: "desc" }, select: { runRef: true, instanceId: true, startedAt: true, endedAt: true, players: { select: { character: true } } }, take: 100 }));
-  const ownRows = await perWindow((endedAt) => tx.dungeonRunWitness.findMany({ where: { guildId, deviceId: source.deviceId, kind: "first-hand", status: "stored", endedAt }, orderBy: { endedAt: "desc" }, take: 60 }) as Promise<WitnessRow[]>);
+  const ownRows = source.shared ? [] : await perWindow((endedAt) => tx.dungeonRunWitness.findMany({ where: { guildId, deviceId: source.deviceId, kind: "first-hand", status: "stored", endedAt }, orderBy: { endedAt: "desc" }, take: 60 }) as Promise<WitnessRow[]>);
   const flagsFor = (raw: unknown, ref: string): Anomaly[] => {
     const data = raw as { instanceId?: number; difficultyId?: number; startedAt?: number; endedAt?: number; players?: { character?: unknown; level?: unknown }[]; encounters?: { id?: unknown; at?: unknown; success?: unknown; kind?: unknown }[] };
     const started = typeof data.startedAt === "number" ? data.startedAt : null, ended = typeof data.endedAt === "number" ? data.endedAt : null;
@@ -514,7 +521,7 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
     const flagList: Anomaly[] = [...(batchFlags.get(ref) ?? []), ...flagsFor(usePartner ? partner.payload : raw, ref),
       ...(others.some((other) => contradicts(statement, statementOfRow(other), config.limits)) ? [{ code: "comparison", detail: "comparison" }] : [])];
     if (decision.store !== "witnessed" && earlier?.reason !== "released" && holdsRun(flagList.map((flag) => flag.code), config, strikes)) {
-      strikes++;
+      if (!source.shared) strikes++;
       await holdRun(ref, raw, statement, flagList);
       continue;
     }
@@ -532,6 +539,8 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
       if (flags.length || confirmed > 1) await tx.dungeonRun.updateMany({ where: { id: made.runId }, data: { ...(flags.length ? { anomalies: flags as unknown as Prisma.InputJsonValue } : {}), ...(confirmed > 1 ? { witnessCount: confirmed } : {}) } });
     }
     result.stored++;
+    (result.shareable ??= []).push(usePartner ? partner.payload : raw);
+    (result.summaries ??= []).push(summary);
     if (decision.store === "device") storedToday++;
     await record(ref, raw, statement, { status: "stored", trust: decision.store, runId: made.runId ?? null, decided: true });
     const agreeing = others.filter((other) => sameRun(print, statementOfRow(other)));
@@ -635,9 +644,9 @@ export function prismaInstallStore(database: PrismaClient, serverName: (discordI
     guildCharacterCount: (guildId) => database.deviceCharacter.count({ where: { device: { guildId, claimedMemberId: null, revokedAt: null } } }),
     // Claimed devices stay (the member sees and revokes them on /me/connections); characters and waiting runs go with the device.
     expireIdle: async (before) => (await database.companionDevice.deleteMany({ where: { claimedMemberId: null, lastSeenAt: { lt: before } } })).count,
-    async publicRuns(deviceId, runs, now, deviceKeys) {
+    async publicRuns(deviceId, runs, now, deviceKeys, onPlaced) {
       // The relay lane: only a participant's statement counts, the plausibility checks and a daily cap apply, no guild is claimed.
-      return (await ingestRelayedRuns(prismaPublicRunStore(database), { carrier: deviceId, carrierKeys: deviceKeys, runs, now })).receipts;
+      return (await ingestRelayedRuns(prismaPublicRunStore(database), { carrier: deviceId, carrierKeys: deviceKeys, runs, now, ...(onPlaced ? { onPlaced } : {}) })).receipts;
     },
     async noteAlias(guildId, guild, now) {
       const nameKey = looseKey(guild.name);

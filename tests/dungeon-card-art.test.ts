@@ -112,25 +112,13 @@ describe("rendered dungeon card", () => {
       const meta = await sharp(png).metadata();
       expect([meta.width, meta.height]).toEqual([1200, 630]);
     }
-    // The painted backdrop carries the dungeon's colour: a green cavern is greener than red magma (the gutter between the
-    // left column and the party panel, where the art shows through).
-    const [wr, wg] = await mean(wailing, 560, 60, 40, 450), [rr, rg] = await mean(ragefire, 560, 60, 40, 450);
+    // The painting carries the dungeon's colour (right side, where the redesigned card leaves it untouched): a green cavern is greener than red magma.
+    const [wr, wg] = await mean(wailing, 950, 60, 100, 200), [rr, rg] = await mean(ragefire, 950, 60, 100, 200);
     expect(wg / wr).toBeGreaterThan(rg / rr);
     expect(rr).toBeGreaterThan(rg);
-    // Text sits on dark ground: the empty part of the left column and the frosted panel stay dark.
-    expect(luma(await mean(wailing, 330, 200, 220, 140))).toBeLessThan(0.3);
-    expect(luma(await mean(ragefire, 330, 200, 220, 140))).toBeLessThan(0.3);
-    expect(luma(await mean(wailing, 900, 470, 220, 30))).toBeLessThan(0.25);
-    // The tank's mark (first party row) is drawn in the tank blue: the glyph's centre is blue-dominant.
-    const [tr, tg, tb] = await mean(wailing, 638, 142, 4, 10);
-    expect(tb).toBeGreaterThan(tr + 40);
-    expect(tb).toBeGreaterThan(tg);
-    // The healer's cross (second row) is green-dominant, the DPS swords (third row) red-dominant.
-    const [hr, hg, hb] = await mean(wailing, 642, 205, 4, 4);
-    expect(hg).toBeGreaterThan(hr + 40);
-    expect(hg).toBeGreaterThan(hb);
-    const [dr, dg] = await mean(wailing, 639, 262, 3, 3);
-    expect(dr).toBeGreaterThan(dg + 40);
+    // Text sits on dark ground: the left column stays dark.
+    expect(luma(await mean(wailing, 56, 300, 300, 150))).toBeLessThan(0.3);
+    expect(luma(await mean(ragefire, 56, 300, 300, 150))).toBeLessThan(0.3);
   }, 60_000);
 });
 

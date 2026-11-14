@@ -8,10 +8,18 @@ import { difficultyName } from "./dungeon-stats.js";
 import { highlightBadge } from "./dungeon-records.js";
 import type { DungeonScene } from "./dungeon-art.js";
 import { deathMapOf } from "./dungeon-map-grid.js";
-import { classColor, type DungeonMotif, type DungeonVisual, type ScoreCard } from "./score-card.js";
+import { classColor, drawable, type DungeonMotif, type DungeonVisual, type ScoreCard } from "./score-card.js";
 
 type Run = DungeonImportResult;
 type Detail = NonNullable<Run["playerDetails"]>[number];
+
+/** A guild name from a recorder's game client made ready to print: glyphs the font lacks dropped, angle brackets and control characters removed, clipped to 24 characters. Undefined when nothing is left. Display only. */
+export function guildDisplayName(guild: string | null | undefined): string | undefined {
+  const clean = drawable(String(guild ?? "")).replace(/[<>\p{Cc}]/gu, " ").replace(/\s+/g, " ").trim();
+  if (!clean) return undefined;
+  const chars = [...clean];
+  return chars.length > 24 ? `${chars.slice(0, 23).join("").trimEnd()}…` : clean;
+}
 
 /** The party's guild members: flagged by the addon, or matched to a linked character. A member may legitimately earn zero points. */
 export function guildPlayers(run: Run): Set<string> {
@@ -260,6 +268,7 @@ export function dungeonRunCard(run: Run, lang: Lang, options: DungeonCardOptions
           roleLabel: roleName(roles[index], lang),
           sub: [className(detail.class, lang), spec ? (fr ? spec.french : spec.name) : undefined, deaths].filter(Boolean).join(" · "),
           guild,
+          ...(!guild && guildDisplayName(detail.guild) ? { guildName: guildDisplayName(detail.guild)! } : {}),
           ...(score ? score.of(detail) : {})
         };
       }),

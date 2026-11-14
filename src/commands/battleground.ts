@@ -11,7 +11,9 @@ import { battlegroundPrivacyHelp, battlegroundRecordPanel, battlegroundResultCar
 import { currentGuildScope } from "../services/guild-scope.js";
 import { battlegroundEndCard } from "../services/end-cards.js";
 import { scoreCardPng } from "../services/score-card.js";
-import { duelLeaderboard, percent, streakText } from "../services/duels.js";
+import { duelLadder, percent, streakText } from "../services/duels.js";
+import { ratingSeasonName, showRating } from "../services/duel-rating.js";
+import { ratingFooter } from "../services/duel-rules.js";
 import { updateDuelBoard } from "../services/duel-board.js";
 import { updateBgLadder } from "../services/bg-ladder.js";
 import { weekKeyOf } from "../services/world-pvp.js";
@@ -239,11 +241,12 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
   if (sub === "duels") {
     // Counted duels between this guild's members, reported by their own companions (services/duels.ts). Public in the guild; no points.
     const guild = await prisma.guild.findUniqueOrThrow({ where: { id: ctx.guildId }, select: { gameEdition: true } });
-    const { standings, duels } = await duelLeaderboard(prisma, ctx.guildId, guild.gameEdition, { limit: 15 });
-    const lines = standings.map((row, index) => `**${index + 1}.** ${escapeMarkdown(row.name)} — ${row.score} pts · ${row.wins}${t("W", "V")} ${row.losses}${t("L", "D")} (${percent(row.winRate)}) · ${streakText(row.streak)}`);
+    const { standings, duels, mode, season, startsAt } = await duelLadder(prisma, ctx.guildId, guild.gameEdition, { limit: 15 });
+    const scoreOf = (row: (typeof standings)[number]) => mode === "points" ? `${row.score} pts` : row.placement ? t(`placement ${row.placement.duels}/${row.placement.needDuels}`, `placement ${row.placement.duels}/${row.placement.needDuels}`) : showRating(row.score);
+    const lines = standings.map((row) => `**${row.rank ?? "·"}.** ${escapeMarkdown(row.name)} — ${scoreOf(row)} · ${row.wins}${t("W", "V")} ${row.losses}${t("L", "D")} (${percent(row.winRate)}) · ${streakText(row.streak)}`);
     await i.editReply({ embeds: [new EmbedBuilder().setTitle(t("Guild duel leaderboard", "Classement des duels de la guilde"))
       .setDescription(lines.length ? lines.join("\n") : t("No duel recorded yet. Duel a guildmate with the Guilded addon and companion on.", "Aucun duel enregistré. Affrontez un membre de la guilde avec l'addon et le compagnon Guilded."))
-      .setFooter({ text: t(`${duels} counted duels · ${guild.gameEdition} · score: 10 per win, +2 per level the opponent is above you, -2 per level below (0-20) · at most 5 per pair per day count · no rewards`, `${duels} duels comptés · ${guild.gameEdition} · score : 10 par victoire, +2 par niveau de l'adversaire au-dessus de vous, -2 en dessous (0-20) · 5 par paire et par jour au maximum · aucune récompense`) })], allowedMentions: { parse: [] } }); return;
+      .setFooter({ text: mode === "rating" && season ? `${duels} ${t("counted duels", "duels comptés")} · ${ratingFooter(fr ? "fr" : "en", ratingSeasonName(season.id, fr ? "fr" : "en"), startsAt)}`.slice(0, 2000) : t(`${duels} counted duels · ${guild.gameEdition} · score: 10 per win, +2 per level the opponent is above you, -2 per level below (0-20) · at most 5 per pair per day count · no rewards`, `${duels} duels comptés · ${guild.gameEdition} · score : 10 par victoire, +2 par niveau de l'adversaire au-dessus de vous, -2 en dessous (0-20) · 5 par paire et par jour au maximum · aucune récompense`) })], allowedMentions: { parse: [] } }); return;
   }
   if (sub === "panel") {
     await i.editReply({ components: [battlegroundPanel(fr, ctx.guildId), battlegroundRecordPanel(fr, ctx.guildId)], embeds: [new EmbedBuilder().setTitle(t("Battlegrounds", "Champs de bataille")).setDescription(t(

@@ -80,6 +80,8 @@ function appFor(guilds = [{ id: "g1", name: "Quebec Gold", publicSlug: "quebec-g
     async runs() { return []; }, async characterRuns() { return []; }, async guilds() { return guilds; }, async guildRuns() { return []; }, async guildRoster() { return []; },
     async guildStats() { return []; },
     async guildDuelRows(id) { return id === "g1" ? rows : []; },
+    // These page tests are about the points-era board; the rating has its own tests.
+    async guildDuelRatingStart() { return new Date("2100-01-01T00:00:00Z"); },
     ...extra
   };
   const pages = createLeaderboardPages({ store, personal: null, now: () => NOW });
@@ -178,7 +180,7 @@ describe("the duel rows store under the page (hidden members, many duels, concur
   }
   const appWith = (database: unknown) => {
     // The real duel rows and guild list under test; the dungeon parts are not part of this case.
-    const store: LeaderboardStore = { ...prismaLeaderboardStore(database as never), async runs() { return []; }, async characterRuns() { return []; }, async guildRuns() { return []; }, async guildRoster() { return []; }, async guildStats() { return []; } };
+    const store: LeaderboardStore = { ...prismaLeaderboardStore(database as never), async guildDuelRatingStart() { return new Date("2100-01-01T00:00:00Z"); }, async runs() { return []; }, async characterRuns() { return []; }, async guildRuns() { return []; }, async guildRoster() { return []; }, async guildStats() { return []; } };
     const pages = createLeaderboardPages({ store, personal: null, now: () => NOW });
     const app = createWebApp({ store: memoryWebStore().store, auth: { clientId: "1", clientSecret: "x", siteUrl: "https://guildedwow.com", sessionSecret: "s".repeat(40) }, allows: () => true, postApplication: async () => null, routes: [pages.route], now: () => NOW, fetch });
     return (path: string) => { const url = new URL(path, "https://guildedwow.com"); return app.respond({ method: "GET", path: url.pathname, query: url.searchParams, headers: {} }) as Promise<WebResponse>; };

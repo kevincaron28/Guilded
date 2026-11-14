@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 import sharp, { type OverlayOptions } from "sharp";
+import { drawable } from "./score-card.js";
 
 /**
  * Drawing kit of the redesigned Discord cards (13 Nov 2026, owner-approved mock-ups "A art first" and "C banner and body").
@@ -59,6 +60,10 @@ export interface DrawnText { data: Buffer; left: number; top: number; w: number;
 export interface TextReport { text: string; size: number; ratio: number }
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+/** Client-supplied text (player and guild names) made safe to draw: glyphs the font lacks are dropped (as in score-card.ts), control characters become spaces. */
+export const cleanText = (s: string) => drawable(String(s ?? "")).replace(/\p{Cc}/gu, " ").replace(/\s{2,}/g, " ").trim();
+const HEX = /^#[0-9a-fA-F]{6}$/;
+const safeColor = (c: string | undefined, fallback: string) => (c && HEX.test(c) ? c : fallback);
 export function luminance(r: number, g: number, b: number): number {
   const lin = [r, g, b].map((v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }) as [number, number, number];
   return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2];
@@ -90,29 +95,58 @@ export class CardCanvas {
     this.svg += `<defs><linearGradient id="${id}" x1="0" y1="0" x2="${dir === "h" ? 1 : 0}" y2="${dir === "v" ? 1 : 0}">${stops.map(([o, c, a]) => `<stop offset="${o}" stop-color="${c}" stop-opacity="${a}"/>`).join("")}</linearGradient></defs><rect x="${x}" y="${y}" width="${w}" height="${h}" fill="url(#${id})"/>`;
   }
   emblem(kind: EmblemKind, x: number, y: number, size: number, color: string) {
-    this.svg += `<g transform="translate(${x} ${y}) scale(${size / 64})" fill="none" stroke="${color}" stroke-width="5" stroke-linejoin="round" stroke-linecap="round">${EMBLEMS[kind]}</g>`;
+    this.svg += `<g transform="translate(${x} ${y}) scale(${size / 64})" fill="none" stroke="${safeColor(color, INK)}" stroke-width="5" stroke-linejoin="round" stroke-linecap="round">${EMBLEMS[kind]}</g>`;
   }
-  /** Draws a string at (x, y = top of its box). Below MIN_TEXT_PX is a programming error; too wide shrinks to the floor, then ends with an ellipsis. */
+  /**
+   * Draws a string at (x, y = top of its box). Below MIN_TEXT_PX is a programming error; too wide shrinks to the floor, then
+   * is cut by code point (binary search on the measured width) and ends with an ellipsis. The text is cleaned first and an
+   * invalid colour falls back to the ink colour, so no player-supplied name can make a render throw. An empty string draws nothing.
+   */
   async text(str: string, x: number, y: number, o: TextOptions): Promise<{ w: number; h: number; right: number; bottom: number }> {
     if (o.size < MIN_TEXT_PX) throw new Error(`Card text "${str}" is ${o.size}px, below the ${MIN_TEXT_PX}px floor.`);
-    const color = o.color ?? INK, face = o.face ?? "sans";
-    let size = o.size, s = [...str].join("");
-    let r = await drawRaw(s, color, size, face, o.spacing);
-    while (o.maxW && r.w > o.maxW && size > MIN_TEXT_PX) { size = Math.max(MIN_TEXT_PX, size - 2); r = await drawRaw(s, color, size, face, o.spacing); }
-    while (o.maxW && r.w > o.maxW && s.length > 2) { s = `${s.slice(0, -2).trimEnd()}…`; r = await drawRaw(s, color, size, face, o.spacing); }
+    const color = safeColor(o.color, INK), face = o.face ?? "sans", spacing = Number.isFinite(o.spacing) ? o.spacing : undefined;
+    let s = cleanText(str);
+    if (!s) return { w: 0, h: 0, right: x, bottom: y };
+    let size = o.size;
+    let r = await drawRaw(s, color, size, face, spacing);
+    if (o.maxW && r.w > o.maxW && size > MIN_TEXT_PX) {
+      size = Math.max(MIN_TEXT_PX, Math.floor((size * o.maxW) / r.w));
+      r = await drawRaw(s, color, size, face, spacing);
+      while (r.w > o.maxW && size > MIN_TEXT_PX) { size -= 1; r = await drawRaw(s, color, size, face, spacing); }
+    }
+    if (o.maxW && r.w > o.maxW) {
+      const chars = [...s];
+      let lo = 1, hi = chars.length - 1, best = 1; // the longest prefix whose width with the ellipsis fits
+      while (lo <= hi) {
+        const mid = (lo + hi) >> 1, probe = await drawRaw(`${chars.slice(0, mid).join("").trimEnd()}…`, color, size, face, spacing);
+        if (probe.w <= o.maxW) { best = mid; lo = mid + 1; } else hi = mid - 1;
+      }
+      s = `${chars.slice(0, best).join("").trimEnd()}…`;
+      r = await drawRaw(s, color, size, face, spacing);
+    }
     const left = Math.round(o.anchor === "r" ? x - r.w : o.anchor === "c" ? x - r.w / 2 : x);
     this.texts.push({ data: r.data, left, top: Math.round(y), w: r.w, h: r.h, color, size, str: s });
     return { w: r.w, h: r.h, right: left + r.w, bottom: y + r.h };
   }
 
-  /** Composites `layers` (the painting first), then the shapes, then the text; returns the PNG and the contrast report of every string. */
-  async finish(layers: OverlayOptions[]): Promise<{ png: Buffer; report: TextReport[] }> {
+  /**
+   * Composites `layers` (the painting first), then the shapes, then the text; returns the PNG and the contrast report of every
+   * string. When a painting leaves a string under MIN_CONTRAST the whole picture is darkened under the shapes in steps (the same
+   * idea as card-backdrop.ts's guard) until every string passes, rather than shipping a low-contrast card.
+   */
+  async finish(layers: OverlayOptions[]): Promise<{ png: Buffer; report: TextReport[]; scrim: number }> {
     const svg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${CARD_H}">${this.svg}</svg>`);
-    const base = await sharp({ create: { width: CARD_W, height: CARD_H, channels: 3, background: "#0b0907" } }).composite([...layers, { input: svg, left: 0, top: 0 }]).png().toBuffer();
-    const px = await sharp(base).removeAlpha().raw().toBuffer();
-    const report = this.texts.map((t) => ({ text: t.str, size: t.size, ratio: contrastRatio(hexLum(t.color), backdropLuminance(px, t)) }));
+    let scrim = 0, base: Buffer, report: TextReport[];
+    for (;;) {
+      const dark = scrim > 0 ? [{ input: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${CARD_H}"><rect width="100%" height="100%" fill="#000" fill-opacity="${scrim}"/></svg>`), left: 0, top: 0 }] : [];
+      base = await sharp({ create: { width: CARD_W, height: CARD_H, channels: 3, background: "#0b0907" } }).composite([...layers, ...dark, { input: svg, left: 0, top: 0 }]).png().toBuffer();
+      const px = await sharp(base).removeAlpha().raw().toBuffer();
+      report = this.texts.map((t) => ({ text: t.str, size: t.size, ratio: contrastRatio(hexLum(t.color), backdropLuminance(px, t)) }));
+      if (report.every((r) => r.ratio >= MIN_CONTRAST) || scrim >= 0.8) break;
+      scrim = Math.round((scrim + 0.2) * 100) / 100;
+    }
     const png = await sharp(base).composite(this.texts.map((t) => ({ input: t.data, left: t.left, top: t.top }))).png().toBuffer();
-    return { png, report };
+    return { png, report, scrim };
   }
 }
 

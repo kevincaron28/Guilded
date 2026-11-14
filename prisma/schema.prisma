@@ -999,6 +999,9 @@ model GuildSettings {
   bgStatsMessageId         String?
   // Live "Duels de la guilde" board kept in the PvP statistics channel (8.4.6): opt-in, one message edited in place.
   duelBoardEnabled         Boolean @default(true)
+  // Duel rating (rating-v1): when this server's duels start to be scored by rating instead of the old points. Null = the built-in default
+  // (1 December 2026 00:00 UTC, src/services/duel-rating.ts). Duels that ended before it keep their old points as "Season 0".
+  duelRatingStartsAt       DateTime?
   // 9.3: one Discord card per counted duel in the duel channel (separate from the board); officers turn it off with /battleground duel-cards.
   duelCardsEnabled         Boolean @default(true)
   // 9.3: podium card when an official dungeon season ends and a card when one begins (dungeon leaderboard channel); /bg season-cards.
@@ -3240,6 +3243,8 @@ model DuelResult {
   dayKey         String
   pairKey        String
   counted        Boolean  @default(true)
+  // Test data from before the ladders started (13 November 2026): kept, never shown or counted. Undo: set it back to false.
+  archived       Boolean  @default(false)
   reportKey      String
   reporterId     String?
   createdAt      DateTime @default(now())
@@ -3964,4 +3969,91 @@ model TcgQueue {
   expiresAt     DateTime
 
   @@index([joinedAt])
+}
+
+// Global duel ladder (rating-v1, from 1 December 2026): one canonical row per duel, whoever reported it and wherever it happened.
+// A duel is found again by winner + loser within the dedupe window, so two guilds' servers (or a guild and a standalone addon)
+// reporting the same duel add a report, not a second duel. Ratings are never stored: they are recomputed from the counted rows.
+model PublicDuel {
+  // Held back from every ladder pending the owner's review (never shown to clients, and which check tripped is not told to them).
+  held         Boolean  @default(false)
+  holdFlags    String[] @default([])
+  id           String   @id @default(cuid())
+  gameEdition  String   @default("forever")
+  winnerKey    String
+  loserKey     String
+  winnerName   String
+  winnerRealm  String   @default("")
+  loserName    String
+  loserRealm   String   @default("")
+  winnerClass  String?
+  loserClass   String?
+  winnerLevel  Int?
+  loserLevel   Int?
+  // The guild text the reporter's client showed for each side (plain text, clipped); never trusted as an identity.
+  winnerGuild  String?
+  loserGuild   String?
+  // Guild members behind a duel mirrored from a guild import (hidden or test members drop out of the public ladder).
+  winnerMemberId String?
+  loserMemberId  String?
+  zone         String?
+  endedAt      DateTime
+  durationSec  Int?
+  reason       String
+  // 5 per pair per UTC day: the rest are stored uncounted (a replay cannot count them later).
+  counted      Boolean  @default(true)
+  pairKey      String
+  dayKey       String
+  // Reports from different reporters that agree on this duel ("confirmed by both" when two sides reported).
+  confirmations Int     @default(1)
+  createdAt    DateTime @default(now())
+  reports      PublicDuelReport[]
+
+  @@index([gameEdition, counted, endedAt])
+  @@index([pairKey, dayKey])
+  @@index([winnerKey, loserKey, endedAt])
+}
+
+// Who reported a public duel: a guild member ("member:<id>") or a standalone addon install ("install:<id>").
+model PublicDuelReport {
+  id            String     @id @default(cuid())
+  duelId        String
+  reporterKey   String
+  // The reporter's own character in the duel (winner or loser): only characters that reported are ranked.
+  reporterCharacterKey String
+  // The companion device key, when the report came through a device (exclusions act on it).
+  deviceId      String?
+  guildId       String?
+  dayKey        String
+  // The addon's running sequence number of this record, for gap and replay checks.
+  seq           Int?
+  // The challenge the record was made under, its hash-chain link and the evidence the addon recorded (kept for review).
+  nonce         String?
+  chain         String?
+  evidence      Json?
+  reportedAt    DateTime   @default(now())
+  duel          PublicDuel @relation(fields: [duelId], references: [id], onDelete: Cascade)
+
+  @@unique([duelId, reporterKey])
+  @@index([reporterKey, dayKey])
+  @@index([deviceId, seq])
+  @@index([reporterCharacterKey])
+}
+
+// A device whose duel reports no longer count (owner decision per device; ratings are recomputed without them).
+model PublicDuelExclusion {
+  deviceId  String   @id
+  note      String   @default("")
+  createdAt DateTime @default(now())
+}
+
+// A fresh value the bot gives a companion at each sync; the addon puts it on the duel records it makes next.
+model DuelChallenge {
+  id       String   @id @default(cuid())
+  deviceId String
+  nonce    String
+  issuedAt DateTime @default(now())
+
+  @@index([deviceId, nonce])
+  @@index([deviceId, issuedAt])
 }

@@ -85,22 +85,22 @@ describe("traced map on the dungeon card", () => {
     expect(b.x - a.x).toBeCloseTo(10 / 200 * 1.5 * view.scale);
     expect(a.y).toBeCloseTo(b.y);
   });
-  it("renders the outline in gold with the heat map on it; without an outline the painted scene shows through", async () => {
+  it("draws the traced floor and the heat on the painting, no box; without an outline only the painting shows", async () => {
     const traced = (await scoreCardPng(dungeonRunCard(base(), "en")))!;
     const plain = (await scoreCardPng(dungeonRunCard(withoutOutline(), "en")))!;
-    // Count gold outline pixels inside the map box (x 628..1112, y ~350..496).
-    const gold = async (png: Buffer) => {
-      const { data, info } = await sharp(png).extract({ left: 628, top: 352, width: 484, height: 140 }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    // The redesigned card floats the map on the painting (x 790..1130, y 300..526): count light floor pixels and hot death pixels there.
+    const count = async (png: Buffer, test: (r: number, g: number, b: number) => boolean) => {
+      const { data, info } = await sharp(png).extract({ left: 790, top: 300, width: 340, height: 226 }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
       let n = 0;
-      for (let i = 0; i < data.length; i += info.channels) if (data[i]! > 150 && data[i + 1]! > 110 && data[i + 2]! < 90) n++;
+      for (let i = 0; i < data.length; i += info.channels) if (test(data[i]!, data[i + 1]!, data[i + 2]!)) n++;
       return n;
     };
-    expect(await gold(traced)).toBeGreaterThan(150);
-    expect(await gold(plain)).toBeLessThan(50);
-    // The death sits on the room: a bright heat dot where the outline is.
-    const { data } = await sharp(traced).extract({ left: 600, top: 340, width: 540, height: 160 }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
-    let hot = 0;
-    for (let i = 0; i < data.length; i += 3) if (data[i]! > 140 && data[i]! > data[i + 1]! * 2 && data[i + 2]! < 100) hot++;
-    expect(hot).toBeGreaterThan(20);
+    // Without an outline only the painting and the death dots show: with one, many more pixels in the box differ from the painting alone.
+    const region = (png: Buffer) => sharp(png).extract({ left: 790, top: 300, width: 340, height: 226 }).removeAlpha().raw().toBuffer();
+    const [t, p] = [await region(traced), await region(plain)];
+    let differ = 0;
+    for (let i = 0; i < t.length; i += 3) if (Math.abs(t[i]! - p[i]!) + Math.abs(t[i + 1]! - p[i + 1]!) + Math.abs(t[i + 2]! - p[i + 2]!) > 90) differ++;
+    expect(differ).toBeGreaterThan(400);
+    expect(await count(traced, (r, g, b) => r > 140 && r > g * 2 && b < 100)).toBeGreaterThan(0);
   }, 60_000);
 });

@@ -5,7 +5,7 @@ import { highlightHeadline, highlightText } from "./dungeon-records.js";
 import type { DungeonImportResult, DungeonImportSummary } from "./dungeon-import.js";
 import { formatDuration } from "./dungeon-rules.js";
 import { dungeonTimeline } from "./dungeon-timeline.js";
-import { unrankedLabel, dungeonRunCard, finalBoss, guildPlayers, partyOf, roleName, className, runLabel } from "./dungeon-card.js";
+import { unrankedLabel, guildDisplayName, dungeonRunCard, finalBoss, guildPlayers, partyOf, roleName, className, runLabel } from "./dungeon-card.js";
 import type { ScoreCard } from "./score-card.js";
 import { recordItems } from "./record-card.js";
 
@@ -140,7 +140,8 @@ function dungeonEmbed(run: DungeonImportResult, lang: Lang): EmbedBuilder {
       const info = [className(row.detail.class, lang), roleName(row.detail.role, lang)].filter(Boolean).join(", ");
       // The addon sends "Unknown" when the game had not loaded a player's name yet.
       const who = row.detail.character === "Unknown" ? (fr ? "Inconnu" : "Unknown") : name(row.detail.character);
-      return `${who}${info ? ` (${escapeMarkdown(info)})` : ""}`;
+      const guildName = guildDisplayName(row.detail.guild);
+      return `${who}${info || guildName ? ` (${escapeMarkdown([info, guildName ? `<${guildName}>` : ""].filter(Boolean).join(", "))})` : ""}`;
     });
     lines.push(`🌐 ${fr ? "Hors guilde" : "Outside the guild"} (${outsiders.length})${fr ? " :" : ":"} ${shown.join(", ")}${outsiders.length > 8 ? ` ${t(lang, "dungeon.post.more", { count: outsiders.length - 8 })}` : ""}`);
   }

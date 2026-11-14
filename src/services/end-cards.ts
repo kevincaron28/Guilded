@@ -1,4 +1,5 @@
-import { badgeInner } from "./achievement-badges.js";
+// 9.3: badges are the painted ones (tier frame + emblem) when their assets exist, else the old SVG: badgeIcon decides.
+import { badgeIcon as badgeInner } from "./achievement-badges.js";
 import { POE_TRACKING_ENABLED } from "../../companion/active-games.mjs";
 import { ACTIVE_ACHIEVEMENTS, TIER_COLOR, TIER_LABEL, achievementById, groupLabel, ladderKey, type AchievementDef, type AchievementGame, type AchievementTier } from "./achievements-catalogue.js";
 import type { RaidReport } from "./raid-report.js";

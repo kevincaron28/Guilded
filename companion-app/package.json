@@ -41,6 +41,7 @@
       "sign-in-loopback.cjs",
       "store-update.cjs",
       "addon-installer.cjs",
+      "addon-auto-update.cjs",
       "link-identity.cjs",
       "repair.cjs",
       "disk-space.cjs",

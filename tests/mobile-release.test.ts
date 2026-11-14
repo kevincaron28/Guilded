@@ -24,17 +24,20 @@ describe("mobile release links", () => {
     expect(eas.build["production-no-push"]).toEqual({ extends: "production", env: { GUILDED_MOBILE_NO_PUSH: "1" } });
   });
   it("keeps Guilded Clash out of the app unless the build flag asks for it", () => {
-    // The game is on hold (owner, 14 November 2026): hidden, not deleted. Only me/MeTab.tsx may reach it,
-    // through a require guarded by the flag, so a store bundle carries neither its code nor its card art.
+    // The game is on hold (owner, 14 November 2026): hidden, not deleted. Only me/MeTab.tsx may reach it, through
+    // clash/entry, which Metro swaps for an empty module unless the flag is set.
     const sources = readdirSync("mobile/src", { recursive: true, encoding: "utf8" }).map(file => file.replace(/\\/g, "/"))
       .filter(file => /\.tsx?$/.test(file) && !file.startsWith("clash/") && !file.endsWith(".test.ts"));
     for (const file of [...sources.map(file => `mobile/src/${file}`), "mobile/App.tsx"]) {
       const text = readFileSync(file, "utf8");
-      expect(text, file).not.toMatch(/from\s+["'][^"']*\/clash\//);
-      if (!file.endsWith("me/MeTab.tsx")) expect(text, file).not.toMatch(/require\(["'][^"']*clash/);
+      expect(text.replace('import * as clashEntry from "../clash/entry";', ""), file).not.toMatch(/["'][^"']*\/clash\//);
     }
     const tab = readFileSync("mobile/src/me/MeTab.tsx", "utf8");
-    expect(tab).toContain('process.env.EXPO_PUBLIC_GUILDED_CLASH === "1" ? (require("../clash/entry")');
+    expect(tab).toContain('process.env.EXPO_PUBLIC_GUILDED_CLASH === "1" && typeof clashEntry.ClashHome === "function" ? clashEntry : null');
+    const metro = readFileSync("mobile/metro.config.js", "utf8");
+    expect(metro).toContain("process.env.EXPO_PUBLIC_GUILDED_CLASH === '1'");
+    expect(metro).toContain("return { type: 'empty' }");
+    expect(readFileSync(".github/workflows/quality.yml", "utf8") + readFileSync(".github/workflows/mobile-update.yml", "utf8")).not.toContain("EXPO_PUBLIC_GUILDED_CLASH");
     expect(JSON.stringify(JSON.parse(readFileSync("mobile/eas.json", "utf8")))).not.toContain("EXPO_PUBLIC_GUILDED_CLASH");
     expect(existsSync("mobile/src/clash/ClashHome.tsx")).toBe(true);
   });

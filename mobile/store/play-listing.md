@@ -5,7 +5,16 @@ Character counts were checked against Play's limits (see the table at the end). 
 [docs/ANDROID_PLAY_LAUNCH.md](../../docs/ANDROID_PLAY_LAUNCH.md). The data-safety answers are in
 [play-data-safety.md](play-data-safety.md), and the content-rating answers are in [play-content-rating.md](play-content-rating.md).
 
-This listing describes the five-tab app (redesign slice 3, PR #615). Ship it with a build that contains #615 and #345.
+This listing describes the five-tab app without Guilded Clash (the card game is on hold and is not in the Play build),
+version 0.3.0. Screenshot sizes and what each one must show: [play-screenshots.md](play-screenshots.md). The Play
+Console steps for the closed test: [play-console-checklist.md](play-console-checklist.md).
+
+**App name: an owner decision before Create app.** The Microsoft Store refused "Guilded Companion" on 3 November 2026
+(naming rule 10.1.1.1), and "Guilded" was also the name of a chat app that had a Play listing. Play can refuse a title it
+reads as another product's name. `Guilded` stays the first choice (it is the product's name everywhere); if Play
+refuses it, use `Guild Sync Companion` (the Store name) or `Guilded: guild companion`. Do not put "World of
+Warcraft" or "WoW" in the title or the icon: a game's name is allowed in the description, with the disclaimer that is
+already there, not in the title.
 
 ## App details
 
@@ -23,7 +32,7 @@ This listing describes the five-tab app (redesign slice 3, PR #615). Ship it wit
 | Contact email | `support@guildedwow.com` (Cloudflare Email Routing to the owner; Play shows it publicly) |
 | Website | https://guildedwow.com |
 | Privacy policy | https://guildedwow.com/docs/PRIVACY (live, HTTP 200 on 8 Nov 2026; `/privacy` is a 404, so do not use it) |
-| Account deletion URL | https://guildedwow.com/me/data (the **Delete my data** button) |
+| Account deletion URL | https://guildedwow.com/docs/PRIVACY#choices-access-and-deletion (public page with the steps; the button itself is at `/me/data` after sign-in, and in the app under Me → Settings) |
 
 ## English (en-US)
 
@@ -111,7 +120,7 @@ Guilded est un outil créé par des fans. Il n'est ni affilié à Blizzard Enter
 
 | Asset | Play requirement | File |
 | --- | --- | --- |
-| App icon | 512 × 512 PNG, 32-bit | Export `mobile/assets/icon.png` from PR #345 at 512 × 512 (not in this PR). |
+| App icon | 512 × 512 PNG, 32-bit | [`icon-512.png`](icon-512.png) (exported from `mobile/assets/icon.png`) |
 | Feature graphic | 1024 × 500 PNG or JPG, no transparency | [`feature-graphic-1024x500.png`](feature-graphic-1024x500.png) (source: [`feature-graphic.html`](feature-graphic.html)) |
 | Phone screenshots | 2–8, 16:9 or 9:16, 320–3840 px per side | [`screenshots/`](screenshots/): seven at 1080 × 1920 |
 

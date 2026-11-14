@@ -8,12 +8,12 @@ import { Language } from "../guild/SignIn";
 import { AlbumScreen } from "./AlbumScreen";
 import { Wishlist } from "./Wishlist";
 import { PRIVACY_URL, deleteDataUrl } from "../links";
+import * as clashEntry from "../clash/entry";
 
-// Guilded Clash is on hold (owner, 14 November 2026): hidden, not deleted. The flag is read here, in the same
-// expression as the require, so a build without EXPO_PUBLIC_GUILDED_CLASH=1 drops the game and its card art from
-// the bundle (Metro folds the constant before it collects dependencies). tests/mobile-release.test.ts guards this.
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const clashParts = process.env.EXPO_PUBLIC_GUILDED_CLASH === "1" ? (require("../clash/entry") as typeof import("../clash/entry")) : null;
+// Guilded Clash is on hold (owner, 14 November 2026): hidden, not deleted. metro.config.js resolves this module
+// to an empty one unless the build sets EXPO_PUBLIC_GUILDED_CLASH=1, so a store bundle carries neither the game
+// nor its card art; the flag is checked here as well. tests/mobile-release.test.ts guards both.
+const clashParts: typeof clashEntry | null = process.env.EXPO_PUBLIC_GUILDED_CLASH === "1" && typeof clashEntry.ClashHome === "function" ? clashEntry : null;
 
 /** Me tab: my characters, badges (album), wishlist, language and sign-out. Sign-out lives only here. */
 export function MeTab({ guild, webOrigin, onSignIn }: { guild: GuildState; webOrigin: string; onSignIn: () => void }) {

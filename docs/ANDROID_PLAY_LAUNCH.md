@@ -10,8 +10,14 @@ Agents must not create accounts, sign in for the owner, or change store ids (`to
 - [mobile/store/play-content-rating.md](../mobile/store/play-content-rating.md): the questionnaire, target audience and app access answers
 - `mobile/store/screenshots/` (7 at 1080 × 1920) and `mobile/store/feature-graphic-1024x500.png`
 
-**Before anything is uploaded:** merge PR #345 (push, sign-in renewal, icons, production build profile) and PR #615
-(five tabs). The listing and screenshots describe that build. PowerShell blocks plain `npx` on this PC, so use
+**Closed test with Testers Community (14 November 2026):** the short path, with who does each step, is
+[mobile/store/play-console-checklist.md](../mobile/store/play-console-checklist.md) (French:
+[play-console-checklist.fr.md](../mobile/store/play-console-checklist.fr.md)). This file keeps the longer notes.
+The Play build is version 0.3.0 without Guilded Clash. Firebase (steps 1 and 2) is needed only for push: the
+`production-no-push` profile builds a bundle without it (raid reminders stay on the phone).
+
+**Before anything is uploaded:** merge the Android launch pull request (push, sign-in renewal, icons, production build
+profile; it replaces #345). The listing and screenshots describe that build. PowerShell blocks plain `npx` on this PC, so use
 `npx.cmd`. The Expo account `kevincaron28` and the EAS project (`ddda073f-…`) already exist.
 
 ## 1. Firebase project (push notifications)
@@ -51,7 +57,7 @@ npx.cmd eas-cli credentials -p android
 In the menu: **production** → **Google Service Account** → **Manage your Google Service Account Key for Push
 Notifications (FCM V1)** → **Set up** → **Upload a new service account key** → pick the private-key JSON from step 1.5.
 
-`mobile/app.config.js` (from #345) reads `GOOGLE_SERVICES_JSON`, and refuses a production Android build without it.
+`mobile/app.config.js` reads `GOOGLE_SERVICES_JSON`, and refuses a production Android build without it.
 
 ## 3. Build the Play bundle
 
@@ -59,7 +65,7 @@ Notifications (FCM V1)** → **Set up** → **Upload a new service account key**
 npx.cmd eas-cli build -p android --profile production
 ```
 
-This produces an `.aab` (app bundle) on expo.dev. Download it when the build finishes. Before every later upload, bump
+Without Firebase, use `--profile production-no-push` instead. This produces an `.aab` (app bundle) on expo.dev. Download it when the build finishes. Before every later upload, bump
 `android.versionCode` in `mobile/app.json`: Play refuses a number it has seen. That is a reviewed PR, not an agent's
 side change.
 
@@ -90,7 +96,7 @@ Each card needs **Save**, and some need **Submit**. The dashboard ticks them off
 
 **Grow users → Store presence → Main store listing**:
 1. App name, short and full description: the English blocks in play-listing.md.
-2. App icon: 512 × 512 PNG exported from `mobile/assets/icon.png` (#345).
+2. App icon: `mobile/store/icon-512.png` (512 × 512).
 3. Feature graphic: `mobile/store/feature-graphic-1024x500.png`.
 4. Phone screenshots: the seven files in `mobile/store/screenshots/`, in number order.
 5. **Save**.

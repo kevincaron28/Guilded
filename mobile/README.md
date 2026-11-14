@@ -23,7 +23,10 @@ bot, addon and Windows companion version). Store identifiers are
 - **Alerts**: raid reminders on this phone, plus help-call, dungeon and raid
   vacancy alerts listed as switched off until push lands (PR #345).
 - **News**: Wowhead headlines and the Blizzard news link. Public.
-- **Guilded Clash** (Me tab, under the badges; `src/clash/`): the collection, free
+- **Guilded Clash is hidden** (on hold since 14 November 2026, not deleted). It appears only in a build made with
+  `EXPO_PUBLIC_GUILDED_CLASH=1`: without it `metro.config.js` swaps `src/clash/entry` for an empty module, so the
+  bundle carries neither the game nor its card art, and the Me tab shows no teaser. What follows describes the game
+  when the flag is on (Me tab, under the badges; `src/clash/`): the collection, free
   packs with crafting, matches against the AI and the PvE gauntlet, from
   `/api/v1/companion/cards` and `/api/v1/companion/clash/*`. Signed out, in the
   sample guild, or on a server without the game, a local sample game runs
@@ -82,7 +85,7 @@ Shared pieces live in `src/ui/`; the signed-in state is `src/useGuild.ts`.
 Desktop-only work stays on the Windows companion: WoW SavedVariables, writing
 standings back into the game, and PoE2 `Client.txt`.
 
-The default server is `https://guilded.kcaron.top`. A guild that runs its own
+The default server is `https://guildedwow.com`. A guild that runs its own
 bot can change **Server address** on the sign-in screen, or set
 `EXPO_PUBLIC_GUILDED_WEB_URL` before starting Expo. Use https. http is accepted
 only for localhost.
@@ -101,7 +104,7 @@ npx expo-doctor
 `npm run web` provides a browser preview. Use a native development/store build
 for device credentials, remote push and verified links; Expo Go does not prove
 release notification, app-link, signing or OTA behavior. The default API is
-`https://guilded.kcaron.top`; self-hosted guilds can choose an HTTPS server.
+`https://guildedwow.com`; self-hosted guilds can choose an HTTPS server.
 HTTP is accepted only for localhost development.
 
 Guild sign-in uses the existing companion approval page and polling API, not

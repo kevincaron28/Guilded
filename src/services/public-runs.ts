@@ -271,7 +271,8 @@ export async function ingestPublicRuns(store: PublicRunStore, input: { uploaderK
     seen.add(seenKey);
     // A personal upload is its character's report; a guild's copy carries its reporters' and recorder's.
     const observer = observationOf(summary, summary.gameEdition)?.observer;
-    const reporters = [...new Set((observer ? [observer] : (own ?? input.character) ? [(own ?? input.character)!] : [...run.reporterNames ?? [], ...run.recorder ? [run.recorder] : []]).map(key))];
+    // A relayed copy (a companion carrying the run for others) records no reporter: it never counts as a confirmation.
+    const reporters = input.relayed ? [] : [...new Set((observer ? [observer] : (own ?? input.character) ? [(own ?? input.character)!] : [...run.reporterNames ?? [], ...run.recorder ? [run.recorder] : []]).map(key))];
     const uploader = { key: input.uploaderKey, reporters };
     let stored = await store.findRun(summary.runKey);
     if (!stored) {

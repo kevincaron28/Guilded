@@ -1,4 +1,5 @@
 import { snapshotDungeonRole } from "./dungeon-role.mjs";
+import { featuresLua } from "./group-relay.mjs";
 function luaString(value) {
   return `"${String(value).replace(/\\/g, "\\\\").replace(/"/g, "\\\"").replace(/[\r\n]/g, " ")}"`;
 }
@@ -144,7 +145,7 @@ export function linkedMapLua(entries, updatedAt) {
     const discord = entry.confirmed === true ? plainDiscordName(entry.discord) : "";
     lines.push(`  [${luaString(key)}] = { ${discord ? `discord = ${luaString(discord)}, ` : ""}confirmed = ${discord ? "true" : "false"} },`);
   }
-  return ["GuildedLinked = {", ...lines, "}", `GuildedLinkedMeta = { updatedAt = ${luaString(updatedAt)}, }`, ""].join("\n");
+  return ["GuildedLinked = {", ...lines, "}", `GuildedLinkedMeta = { updatedAt = ${luaString(updatedAt)}, }`, featuresLua(updatedAt), ""].join("\n");
 }
 
 // The bot's "ready to promote" list for an OFFICER's addon (Modules/Promotion.lua). Members never receive it.

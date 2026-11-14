@@ -75,4 +75,12 @@ describe("runs carried for players in the group", () => {
     expect(answer.status).toBe("synced");
     expect((answer as { runReceipts?: unknown }).runReceipts).toBeUndefined();
   });
+
+  it("carried runs never spend the device's shared hourly budget", async () => {
+    const { s, importRuns, publicRuns } = store();
+    // The hourly budget refuses everything: the guild lane gets nothing, the relay lane has its own caps.
+    await handleDeviceUpload(s, device, body([run("QG-B1")]), { now, runLimiter: () => false });
+    expect(publicRuns).toHaveBeenCalledTimes(1);
+    expect(importRuns).not.toHaveBeenCalled();
+  });
 });

@@ -1,8 +1,8 @@
 import { firstNameKey } from "./dungeon-import.js";
-import { ingestPublicRuns, type PublicRunStore } from "./public-runs.js";
+import { ingestPublicRuns, PUBLIC_LIMITS, type PublicRunStore } from "./public-runs.js";
 import { plausibilityFlags } from "./run-plausibility.js";
 import { holdsRun, integrityConfig } from "./run-integrity-config.js";
-import { voucherOf } from "./run-trust.js";
+import { RUN_TRUST, voucherOf } from "./run-trust.js";
 
 // Runs a companion carries for players near it (a party, any guild; 9.3.1). The addon marks a run `viaGroup` when it only
 // reached that PC through the group. Such a run never enters a guild lane, on any path: it goes to the public boards here,
@@ -23,19 +23,6 @@ export function splitGroupCarried(runs: readonly unknown[]): { group: unknown[];
   return { group, rest };
 }
 
-// Per carrier and day, in memory (the limit itself comes from the server configuration).
-const days = new Map<string, { day: string; used: number }>();
-function spend(carrier: string, count: number, now: Date, perDay: number): number {
-  const day = now.toISOString().slice(0, 10);
-  const entry = days.get(carrier);
-  const state = entry && entry.day === day ? entry : { day, used: 0 };
-  const room = Math.max(0, Math.min(count, perDay - state.used));
-  state.used += room;
-  days.set(carrier, state);
-  if (days.size > 5000) for (const key of days.keys()) { if (days.get(key)!.day !== day) days.delete(key); }
-  return room;
-}
-
 export interface RelayResult {
   /** Receipt refs (prefixed) for every run this lane has dealt with, so the carrier stops sending them. */
   receipts: string[];
@@ -46,9 +33,10 @@ export interface RelayResult {
 /**
  * The public lane for runs a carrier holds for other players.
  * - Only a run a participant's addon sent, none of the carrier's own characters in it (otherwise it is the carrier's own run).
- * - The statement counted is the reporter's: the claimed reporter must be a player of the run, and copies of one reporter's run
- *   sent by several carriers are one source.
- * - The same plausibility checks as other runs, and a per-carrier daily cap from the server configuration.
+ * - The claimed reporter must be a player of the run. A relayed copy never counts as a confirmation (it records no reporter): only a
+ *   first-hand report from a player in the run does, so carriers (any number of devices) cannot confirm a run for each other.
+ * - The same plausibility checks as other runs, and a per-carrier daily cap from the server configuration. The day's count is read
+ *   from the stored uploads of the carrier, so it survives a restart. Runs over the cap are receipted (dropped), not re-sent for ever.
  */
 export async function ingestRelayedRuns(store: PublicRunStore, input: { carrier: string; carrierKeys: ReadonlySet<string>; runs: readonly unknown[]; now?: Date }): Promise<RelayResult> {
   const now = input.now ?? new Date();
@@ -67,9 +55,13 @@ export async function ingestRelayedRuns(store: PublicRunStore, input: { carrier:
     if (!reporter) { receipts.push(`${GROUP_RECEIPT_PREFIX}${id}`); continue; }
     candidates.push({ id, run, reporter });
   }
-  const room = spend(input.carrier, candidates.length, now, config.relayedRunsPerDay);
+  const carrierKey = `relay:${input.carrier}`;
+  const dayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const room = Math.max(0, config.relayedRunsPerDay - await store.uploadsSince(carrierKey, dayStart));
   const allowed = candidates.slice(0, room);
-  const byReporter = new Map<string, unknown[]>();
+  // Over the day's limit: dropped, but told as handled so they are not sent again at every sync.
+  for (const over of candidates.slice(room)) receipts.push(`${GROUP_RECEIPT_PREFIX}${over.id}`);
+  const accepted: unknown[] = [];
   for (const { id, run, reporter } of allowed) {
     const data = run as { instanceId?: unknown; startedAt?: unknown; endedAt?: unknown; players?: { character?: unknown; level?: unknown }[]; encounters?: { id?: unknown; at?: unknown; success?: unknown; kind?: unknown }[] };
     const flags = typeof data.instanceId === "number" ? plausibilityFlags({
@@ -82,22 +74,31 @@ export async function ingestRelayedRuns(store: PublicRunStore, input: { carrier:
     // Only the reporter's statement is kept: what the carrier's file says about who reported or recorded it is not used.
     const { recorder: _recorder, reporterNames: _reporters, reporters: _count, viaGroup: _via, ...rest } = run;
     void _recorder; void _reporters; void _count; void _via;
-    const key = firstNameKey(reporter);
-    const list = byReporter.get(key) ?? [];
-    list.push({ ...rest, reporterNames: [reporter], reporters: 1 });
-    byReporter.set(key, list);
+    accepted.push({ ...rest, reporterNames: [reporter], reporters: 1 });
   }
   let published = 0;
-  for (const [key, runs] of byReporter) {
+  for (let start = 0; start < accepted.length; start += PUBLIC_LIMITS.runsPerUpload) {
+    const batch = accepted.slice(start, start + PUBLIC_LIMITS.runsPerUpload);
     // A hard stop by the public lane's own budget leaves the runs unreceipted: they are sent again later.
-    const result = await ingestPublicRuns(store, { uploaderKey: `relay:${key}`, character: null, source: "personal", relayed: true, runs }).catch(() => null);
+    const result = await ingestPublicRuns(store, { uploaderKey: carrierKey, character: null, source: "personal", relayed: true, runs: batch }).catch(() => null);
     if (!result) continue;
     published += result.accepted.length + result.confirmed.length;
-    for (const entry of runs) {
-      const id = (entry as { id: string }).id;
-      // Dealt with unless the hourly budget turned it away (retried later).
-      receipts.push(`${GROUP_RECEIPT_PREFIX}${id}`);
-    }
+    for (const entry of batch) receipts.push(`${GROUP_RECEIPT_PREFIX}${(entry as { id: string }).id}`);
   }
   return { receipts: [...new Set(receipts)], published };
+}
+
+/**
+ * The signed upload's share of the relay: takes the group-carried runs out of the snapshot (so no guild import can see them), places them
+ * on the public boards and records the "group:" receipts. Never throws: the upload's own work goes on whatever happens here.
+ */
+export async function carrySignedGroupRuns(snapshot: { dungeonRuns: unknown[]; character?: { name: string } | null | undefined; alts: { name: string }[]; characters: { name: string }[] },
+  options: { carrier: string; store: PublicRunStore; saveReceipts: (refs: string[]) => Promise<void> }): Promise<RelayResult | null> {
+  const { group, rest } = splitGroupCarried(snapshot.dungeonRuns ?? []);
+  if (!group.length) return null;
+  snapshot.dungeonRuns = rest;
+  const carrierKeys = new Set([snapshot.character, ...snapshot.alts, ...snapshot.characters].flatMap((entry) => entry ? [entry.name] : []).map((name) => name.trim().toLowerCase()));
+  const carried = await ingestRelayedRuns(options.store, { carrier: options.carrier, carrierKeys, runs: group.slice(0, RUN_TRUST.relayedPerUpload) }).catch(() => null);
+  if (carried?.receipts.length) await options.saveReceipts(carried.receipts).catch(() => undefined);
+  return carried;
 }

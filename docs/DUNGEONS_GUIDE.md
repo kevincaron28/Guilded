@@ -119,9 +119,9 @@ Discord boards refresh each minute. The addon does not sign you up or invite you
 Nothing to install for a player with only the addon: when the run ends, and when you
 join a group later, the addon offers your finished runs to the party or raid you are in.
 Any player there whose Guilded companion is running uploads them for you, in a guild
-or not, and your run appears on the public boards. The addon then tells you whose
-companion uploaded it. If you run a companion, it does this for the players around you
-(`/gdungeons carry off` stops it, `/gdungeons carry on` starts it again).
+or not, and your run appears on the public boards. If you run a companion, it does this
+for the players around you (`/gdungeons carry off` stops it, `/gdungeons carry on` starts it
+again).
 
 ## If a run is missing
 

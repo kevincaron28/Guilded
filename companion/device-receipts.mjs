@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { resolveStandingsPath } from "./standings.mjs";
 import { writeDataAddon } from "./data-addon.mjs";
 import { linkedMapLua } from "./standings-format.mjs";
+import { featuresLua } from "./group-relay.mjs";
 import { patchReceiptBlocks, readRecord, recordReceipts } from "./parked-runs.mjs";
 
 // Zero-setup companion (9.1.3): an unsigned device never fetches the guild standings, so nothing told the
@@ -86,6 +87,7 @@ export function standaloneReceiptsToLua({ refs = [], notes = {}, pending = {} },
     `for _, id in ipairs({ ${refs.slice(0, MAX_REFS).map(luaString).join(", ")} }) do table.insert(GuildedDungeonAccepted, id) end`,
     "GuildedDungeonNotes = type(GuildedDungeonNotes) == \"table\" and GuildedDungeonNotes or {}",
     ...Object.entries(notes).slice(0, MAX_NOTES).map((pair) => entry("GuildedDungeonNotes", pair)),
+    featuresLua(updatedAt),
     "GuildedDungeonPending = type(GuildedDungeonPending) == \"table\" and GuildedDungeonPending or {}",
     ...Object.entries(pending).slice(-MAX_PENDING).map((pair) => entry("GuildedDungeonPending", pair)),
     ""
@@ -138,7 +140,7 @@ export async function writeDeviceReceipts(config, answer, signal, now = new Date
       let current = null;
       try { current = await readFile(standings, "utf8"); } catch { /* first write */ }
       // Unchanged except for the stamp: leave the file alone (the game only reads it on reload anyway).
-      const withoutStamp = (value) => value.replace(/updatedAt = "[^"]*"/, "");
+      const withoutStamp = (value) => value.replace(/updatedAt = "[^"]*"/, "").replace(/\bat = \d+/, "");
       if (current === null || withoutStamp(current) !== withoutStamp(text) || stampAge(current) > 86_400_000) await writeAtomic(standings, text);
       written.push(standings);
       if (config.dataAddon !== false) { try { const data = await writeDataAddon(standings, text, stamp, signal); if (data) written.push(data); } catch { signal?.throwIfAborted(); } }

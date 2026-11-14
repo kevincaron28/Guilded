@@ -491,7 +491,7 @@ export function createEngine(initialConfig, hooks = {}) {
       let kind = "error";
       try {
         // A purpose-built body (guild, this account's characters in it, the runs): no empty ledger, raid, loot or readiness sections.
-        const { response, body } = await withUploadGate(current.watchFile, () => send(current, minimalParkedExport(full), epoch));
+        const { response, body } = await withUploadGate(current.watchFile, () => send(current, minimalParkedExport(full, { groupRelay: features.has(GROUP_RELAY_FEATURE) }), epoch));
         if (epoch !== generation) return;
         if (response.status === 429) break;
         if (response.ok && body.skipped === "wrong-server") {

@@ -16,3 +16,13 @@ export function leaveOut(run, { enabled, acknowledged }) {
   if (isGroupRun(run)) return !enabled || acknowledged.has(`${GROUP_RECEIPT_PREFIX}${run.id}`);
   return acknowledged.has(run.id);
 }
+
+/**
+ * (9.3.1) The line that tells the addon this companion carries the runs of players in its group (it reads the addon's carried table and
+ * the bot places them on the public boards). An older companion writes no such line, so the addon keeps carried runs to itself.
+ */
+export function featuresLua(stamp) {
+  const parsed = Date.parse(String(stamp ?? ""));
+  const at = Math.floor((Number.isNaN(parsed) ? Date.now() : parsed) / 1000);
+  return `GuildedCompanionFeatures = { ["${GROUP_RELAY_FEATURE}"] = true, at = ${at} }`;
+}

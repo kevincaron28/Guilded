@@ -288,12 +288,9 @@ export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, 
   const split = splitGroupRuns(upload.dungeonRuns);
   const carried: string[] = [];
   if (split.group.length && store.publicRuns) {
-    const limiter = options.runLimiter ?? ((id: string) => deviceRunHits(id, now.getTime()));
-    const allowedGroup: unknown[] = [];
-    for (const run of split.group) {
-      if (allowedGroup.length >= RUN_TRUST.relayedPerUpload || !limiter(device.id)) break;
-      allowedGroup.push(run);
-    }
+    // Carried runs have their own caps (per upload here, per day in the relay lane): they never spend the device's shared hourly budget,
+    // which is for the guild lane.
+    const allowedGroup = split.group.slice(0, RUN_TRUST.relayedPerUpload);
     if (allowedGroup.length) carried.push(...await store.publicRuns(device.id, allowedGroup, now, known).catch(() => []));
   }
   const carriedReceipts: DeviceRunReceipts | undefined = carried.length ? { acceptedRunRefs: carried, runNotes: {} } : undefined;
@@ -378,6 +375,8 @@ const statementOfRow = (row: WitnessRow): Statement => ({ deviceId: row.deviceId
  * character) or a second device speaking for another party member agrees; otherwise the statement waits in DungeonRunWitness.
  */
 export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[], now: Date, source: DeviceRunSource): Promise<DeviceRunResult> {
+  // (9.3.1) Backstop: a run marked viaGroup never enters a guild lane (the relay lane takes it).
+  runs = runs.filter((raw) => (raw as { viaGroup?: unknown } | null)?.viaGroup !== true);
   const refOf = (run: unknown) => { const id = (run as { id?: unknown } | null)?.id; return typeof id === "string" && id.length >= 3 && id.length <= 100 ? id : null; };
   const entries = [...new Map(runs.flatMap((raw) => { const ref = refOf(raw); return ref ? [[ref, raw] as const] : []; })).entries()].map(([ref, raw]) => ({ ref, raw }));
   const result: DeviceRunResult = { stored: 0, skipped: runs.length - entries.length };

@@ -57,7 +57,9 @@ function deliver(from: LuaSession, fromName: string, to: LuaSession, channel: st
   return wanted;
 }
 const has = (s: LuaSession, id: string) => s.run(`return tostring(${runs}[${JSON.stringify(id)}] ~= nil)`) === "true";
-const companion = (s: LuaSession) => s.run("GuildedLinkedMeta = { mode = 'test' }");
+const companion = (s: LuaSession) => s.run(`GuildedLinkedMeta = { mode = 'test' }; GuildedCompanionFeatures = { ["group-relay"] = true, at = CLOCK }`);
+/** Carried runs of other players live in their own table, which a companion that does not know the relay never reads. */
+const carried = (s: LuaSession, id: string) => s.run(`local d = NS.getDb().dungeon; return tostring(d.carried ~= nil and d.carried[${JSON.stringify(id)}] ~= nil)`) === "true";
 
 describe.each<Kind>(["guilded", "standalone"])("runs carried through the group (%s)", (kind) => {
   it("a player with no companion offers a run to the group, a companion asks for it and keeps it marked as from the group", () => {
@@ -73,8 +75,9 @@ describe.each<Kind>(["guilded", "standalone"])("runs carried through the group (
     expect(deliver(lebowski, "Lebowski", walter, "PARTY")).toEqual(["WNT|walter-rfc"]);
     flush(walter);
     expect(deliver(walter, "Walter", lebowski, "PARTY", "SUM").length).toBeGreaterThan(0);
-    expect(has(lebowski, "walter-rfc")).toBe(true);
-    expect(lebowski.run(`return tostring(${runs}["walter-rfc"].viaGroup)`)).toBe("true");
+    // Kept apart: an exporter that only reads dungeon.runs (every companion before the group relay) never sees it.
+    expect(has(lebowski, "walter-rfc")).toBe(false);
+    expect(carried(lebowski, "walter-rfc")).toBe(true);
   });
 
   it("a run that ends in the group is also sent to the group once", () => {
@@ -106,11 +109,11 @@ describe.each<Kind>(["guilded", "standalone"])("runs carried through the group (
     walter.run(`NS.dungeon.sendRun(${runs}["walter-rfc"])`);
     flush(walter);
     deliver(walter, "Walter", plain, "PARTY");
-    expect(has(plain, "walter-rfc")).toBe(false);
+    expect(carried(plain, "walter-rfc")).toBe(false);
     companion(plain);
     plain.run("NS.dungeon.carryOn = function() return false end");
     deliver(walter, "Walter", plain, "PARTY");
-    expect(has(plain, "walter-rfc")).toBe(false);
+    expect(carried(plain, "walter-rfc")).toBe(false);
   });
 
   it("only a player in the same group may send it, and a copy through the guild clears the mark", () => {
@@ -122,19 +125,21 @@ describe.each<Kind>(["guilded", "standalone"])("runs carried through the group (
     flush(walter);
     // Lebowski's group is someone else: Walter is not in it.
     deliver(walter, "Walter", lebowski, "PARTY");
-    expect(has(lebowski, "walter-rfc")).toBe(false);
+    expect(carried(lebowski, "walter-rfc")).toBe(false);
     lebowski.run('GROUPMATE = "Walter"');
     const all = lines(walter);
     walter.run(`NS.dungeon.sendRun(${runs}["walter-rfc"], "GROUP")`);
     flush(walter);
     for (const text of lines(walter).filter((line) => line.startsWith("GuildedDgn>PARTY>")).map((line) => line.split(">").slice(2).join(">"))) hear(lebowski, "Walter", text, "PARTY");
     expect(all).toBeDefined();
-    expect(lebowski.run(`return tostring(${runs}["walter-rfc"].viaGroup)`)).toBe("true");
+    expect(carried(lebowski, "walter-rfc")).toBe(true);
     lebowski.run("NS.isGuildMember = function() return true end");
     walter.run(`NS.dungeon.sendRun(${runs}["walter-rfc"])`);
     flush(walter);
     for (const text of lines(walter).filter((line) => line.startsWith("GuildedDgn>GUILD>")).map((line) => line.split(">").slice(2).join(">"))) hear(lebowski, "Walter", text, "GUILD");
-    expect(lebowski.run(`return tostring(${runs}["walter-rfc"].viaGroup)`)).toBe("nil");
+    // The guild's copy is a guild run: it moves out of the carried table into the ordinary one.
+    expect(carried(lebowski, "walter-rfc")).toBe(false);
+    expect(has(lebowski, "walter-rfc")).toBe(true);
   });
 
   it("a confirmation heard in a group proves nothing: only the companion's own receipt marks a run taken", () => {
@@ -147,8 +152,8 @@ describe.each<Kind>(["guilded", "standalone"])("runs carried through the group (
     expect(mark("syncedVia")).toBe("nil");
     expect(mark("groupAckedAt")).not.toBe("nil");
     // Only the group: receipt of the companion ends the offers, and it never marks the run as held by a guild.
-    walter.run(`${runs}["walter-rfc"].viaGroup = true; GuildedDungeonAccepted = { "group:walter-rfc" }; NS.dungeon.markSynced()`);
-    expect(mark("groupSynced")).toBe("true");
+    walter.run(`NS.getDb().dungeon.carried = { ["walter-rfc"] = { id = "walter-rfc", endedAt = CLOCK } }; GuildedDungeonAccepted = { "group:walter-rfc" }; NS.dungeon.markSynced()`);
+    expect(walter.run(`return tostring(NS.getDb().dungeon.carried["walter-rfc"].groupSynced)`)).toBe("true");
     expect(mark("synced")).toBe("nil");
   });
 
@@ -172,7 +177,42 @@ describe.each<Kind>(["guilded", "standalone"])("runs carried through the group (
       flush(walter);
       deliver(walter, "Walter", lebowski, "PARTY", "SUM");
     }
-    const count = Number(lebowski.run(`local n = 0; for id in pairs(${runs}) do if string.sub(id, 1, 7) == "walter-" then n = n + 1 end end; return n`));
+    const count = Number(lebowski.run(`local n = 0; for id in pairs(NS.getDb().dungeon.carried or {}) do if string.sub(id, 1, 7) == "walter-" then n = n + 1 end end; return n`));
     expect(count).toBe(10);
+  });
+
+  it("a companion that does not announce the group relay (an older one, or a stale marker) carries nothing", () => {
+    const walter = client(kind, "Walter", "Lebowski");
+    const lebowski = client(kind, "Lebowski", "Walter", false);
+    lebowski.run("GuildedLinkedMeta = { mode = 'test' }");
+    walter.run(makeRun("walter-rfc"));
+    walter.run(`NS.dungeon.sendRun(${runs}["walter-rfc"], "GROUP")`);
+    flush(walter);
+    deliver(walter, "Walter", lebowski, "PARTY");
+    expect(carried(lebowski, "walter-rfc")).toBe(false);
+    // The marker went stale (the companion has not written for weeks): the same.
+    lebowski.run("GuildedCompanionFeatures = { [\"group-relay\"] = true, at = CLOCK - 20 * 86400 }");
+    deliver(walter, "Walter", lebowski, "PARTY");
+    expect(carried(lebowski, "walter-rfc")).toBe(false);
+    expect(lebowski.run("return tostring(NS.dungeon.canCarry())")).toBe("false");
+  });
+
+  it("the waiting reminder never counts runs carried for others", () => {
+    const lebowski = client(kind, "Lebowski", "Walter", false);
+    companion(lebowski);
+    lebowski.run(`NS.getDb().dungeon.carried = { ["x-1"] = { id = "x-1", state = "COMPLETED", endedAt = CLOCK - 100 } }`);
+    expect(lebowski.run("return tostring(#NS.dungeon.waitingRuns())")).toBe("0");
+  });
+
+  it("the end-of-run group send is only marked once it really went out", () => {
+    const walter = client(kind, "Walter", null);
+    walter.run(makeRun("walter-rfc"));
+    walter.run(`NS.dungeon.sendRun(${runs}["walter-rfc"])`);
+    flush(walter);
+    expect(walter.run(`return tostring(${runs}["walter-rfc"].groupShared)`)).toBe("nil");
+    walter.run("GROUPMATE = 'Lebowski'");
+    walter.run(`NS.dungeon.sendRun(${runs}["walter-rfc"])`);
+    flush(walter);
+    expect(walter.run(`return tostring(${runs}["walter-rfc"].groupShared)`)).toBe("true");
   });
 });

@@ -17,13 +17,13 @@ describe("CurseForge pointer", () => {
     expect(releases.guilded.companionDirect.version).toBe("9.3.1");
   });
 
-  it("shows CurseForge 9.3.1 on the creator page and keeps the file ids off the edition page", () => {
+  it("shows CurseForge 9.3.1 on the creator page and links the approved files from the edition page", () => {
     const creator = readFileSync("dist/site/creator/index.html", "utf8");
     expect(creator).toContain("CurseForge");
     expect(creator).toContain(">9.3.1<");
     const forever = readFileSync("dist/site/editions/forever/index.html", "utf8");
-    expect(forever).not.toContain("9605848");
-    expect(forever).not.toContain("9605856");
+    expect(forever).toContain("9605848");
+    expect(forever).toContain("9605856");
     expect(readFileSync("docs/RELEASE_CURSEFORGE.md", "utf8")).toContain("https://api.cfwidget.com/1712677");
     expect(readFileSync("scripts/curseforge-upload.mjs", "utf8")).toContain("api.cfwidget.com/1754138");
     expect(readFileSync("scripts/curseforge-upload.mjs", "utf8")).toContain('game-version", "1.60.1"');

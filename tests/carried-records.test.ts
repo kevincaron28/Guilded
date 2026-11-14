@@ -173,8 +173,7 @@ describe("the device upload wrapper", () => {
 describe("the signed upload answers", () => {
   it("lists the receipts in the duplicate (409) and wrong-server answers too, not only the applied one", () => {
     const source = readFileSync(new URL("../src/companion-api.ts", import.meta.url), "utf8");
-    const answers = source.split("
-").filter((line) => line.includes('skipped: "wrong-server"') || line.includes('"This export was already received"'));
+    const answers = source.split(/\r?\n/).filter((line) => line.includes('skipped: "wrong-server"') || line.includes('"This export was already received"'));
     expect(answers.length).toBeGreaterThanOrEqual(3);
     for (const line of answers) expect(line).toContain("...carriedExtra");
   });

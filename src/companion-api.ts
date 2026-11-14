@@ -1608,7 +1608,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           if (!answer.outcome.ok) {
             const applyError = failApply(answer.outcome, job);
             if (applyError) {
-              json(response, 409, { error: "This export was already received", checksum: preview.checksum, pairedCharacterStatus, importId: existing.id, status: "PREVIEWED", applyError, botVersion: BOT_VERSION, protocolVersion: 2 });
+              json(response, 409, { error: "This export was already received", ...carriedExtra, checksum: preview.checksum, pairedCharacterStatus, importId: existing.id, status: "PREVIEWED", applyError, botVersion: BOT_VERSION, protocolVersion: 2 });
               return;
             }
           } else {

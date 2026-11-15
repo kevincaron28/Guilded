@@ -32,6 +32,21 @@ end
 local util = ns.util or {}
 ns.util = util
 
+-- Whether this PC's companion is alive and has the named feature (GuildedCompanionFeatures, written into the generated files).
+-- (9.3.3) A marker with hb = 1 is rewritten by the companion at least hourly, so one a few hours old means the companion stopped;
+-- an older companion wrote it only when the guild's data changed, so such a marker keeps the long window.
+util.COMPANION_HEARTBEAT_FRESH = 3 * 3600
+util.COMPANION_LEGACY_FRESH = 7 * 86400
+function util.companionFeatureFresh(name)
+  local features = type(GuildedCompanionFeatures) == "table" and GuildedCompanionFeatures or nil
+  if not features or features[name] ~= true then return false end
+  local at = tonumber(features.at)
+  if not at then return false end
+  local current = (GetServerTime and GetServerTime()) or time()
+  local window = features.hb == 1 and util.COMPANION_HEARTBEAT_FRESH or util.COMPANION_LEGACY_FRESH
+  return current - at <= window and at <= current + 86400
+end
+
 -- The companion (Windows app that sends your data to Discord), in the same three steps everywhere
 -- members look: Home, /guilded companion, the login reminder and the "runs waiting" notice.
 -- Zero setup since 9.1.0: it finds WoW and the Discord server by itself; signing in is optional.

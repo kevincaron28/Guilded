@@ -1356,7 +1356,12 @@ function dungeon.recoverRuns()
     if recoverOne(run) then recovered = recovered + 1 end
   end
   if recovered > 0 then
-    ns.message(string.format("Guilded recovered %d dungeon run(s) whose final boss was killed; they upload with your next sync.", recovered))
+    -- (9.3.3) Only claims an upload when a companion is known here; otherwise says the runs are shared with the group and guild.
+    local key = dungeon.hasCompanion() and "Guilded recovered %d dungeon run(s) whose final boss was killed; they upload with your next sync."
+      or "Guilded recovered %d dungeon run(s) whose final boss was killed; they are offered to your group and guild."
+    ns.message(string.format(L(key), recovered))
+    if dungeon.noteGroupChange then pcall(dungeon.noteGroupChange) end
+    if dungeon.scheduleOffer then pcall(dungeon.scheduleOffer) end
     if ns.onDungeonChange then pcall(ns.onDungeonChange) end
   end
   return recovered
@@ -1503,6 +1508,7 @@ function dungeon.sendRun(run, channel)
     -- (9.3.1) To the party you are in now (any guild), for whoever there carries it with a companion. Nothing when alone or in a raid.
     if not dungeon.smallGroup() then return false end
     dungeon.solicited[run.id] = now()
+    run.groupSentAt = now()
     for part = 1, total do
       send(string.format("SUM|%s|%d|%d|%s", run.id, part, total, string.sub(summary, (part - 1) * CHUNK_BYTES + 1, part * CHUNK_BYTES)), "GROUP")
     end
@@ -1540,13 +1546,9 @@ end
 -- (9.3.1) and a companion that says it knows the group relay (an older one would not read the carried table, and a bot that is not
 -- told about it could not place the runs): GuildedCompanionFeatures is written by the companion with every update and goes stale
 -- when it stops.
-local FEATURES_FRESH = 7 * 86400
-function dungeon.companionRelays()
-  local features = type(GuildedCompanionFeatures) == "table" and GuildedCompanionFeatures or nil
-  if not features or features["group-relay"] ~= true then return false end
-  local at = tonumber(features.at)
-  return at ~= nil and now() - at <= FEATURES_FRESH and at <= now() + 86400
-end
+-- (9.3.3) The window lives in ns.util.companionFeatureFresh: a companion that rewrites the marker hourly counts as stopped after
+-- about three hours; an older one keeps the seven-day window.
+function dungeon.companionRelays() return ns.util.companionFeatureFresh("group-relay") end
 function dungeon.canCarry() return dungeon.carryOn() and dungeon.companionRelays() end
 -- A short group message (a confirmation): the same waiting rule as guild messages.
 function dungeon.toGroup(key, text)
@@ -1591,6 +1593,23 @@ dungeon.scheduleOffer = scheduleOffer
 -- (9.3.1) The same offer to the party or raid you are in: the ids of your runs nobody confirmed, so a player there whose companion
 -- lacks one asks for it (WNT) and gets it (SUM) in the group. At most once per OFFER_EVERY seconds, a random moment after the
 -- group changed.
+local GROUP_REOFFER_GAPS = { 6 * 3600, 12 * 3600, 24 * 3600 }
+local GROUP_REOFFER_DAYS = 7
+local function groupOfferDue(run)
+  local n = run.groupOffers or 0
+  if n == 0 then return true end
+  local current = now()
+  if current - (run.groupOfferFirst or current) > GROUP_REOFFER_DAYS * 86400 then return false end
+  local gap = GROUP_REOFFER_GAPS[n] or GROUP_REOFFER_GAPS[#GROUP_REOFFER_GAPS]
+  return current - (run.groupOfferedAt or 0) >= gap
+end
+dungeon.groupOfferDue = groupOfferDue
+local function noteGroupOffered(run)
+  run.groupOffers = (run.groupOffers or 0) + 1
+  run.groupOfferedAt = now()
+  run.groupOfferFirst = run.groupOfferFirst or run.groupOfferedAt
+  run.groupSentAt = run.groupSentAt or run.groupOfferedAt
+end
 function dungeon.offerToGroup()
   local d = db()
   if not d or not dungeon.smallGroup() then return false end
@@ -1598,12 +1617,13 @@ function dungeon.offerToGroup()
   if dungeon.lastGroupOffer and now() - dungeon.lastGroupOffer < OFFER_EVERY then return false end
   local ids, size = {}, 4
   for _, run in ipairs(dungeon.ownUnconfirmed()) do
-    -- A run a group member said they hold is offered again slowly: only the companion's own receipt ends the offers.
-    local slow = run.groupAckedAt and now() - run.groupAckedAt < SLOW_REOFFER
-    if not slow and #ids < OFFER_IDS and size + #run.id + 1 <= 240 then
+    -- (9.3.3) A run is offered to groups on a widening schedule (6 h, 12 h, 24 h, then daily) for seven days after its first offer;
+    -- a group member's confirmation proves nothing, so only the companion's own receipt (or the guild's) ends the offers earlier.
+    if groupOfferDue(run) and #ids < OFFER_IDS and size + #run.id + 1 <= 240 then
       ids[#ids + 1] = run.id
       size = size + #run.id + 1
       dungeon.solicited[run.id] = now()
+      noteGroupOffered(run)
     end
   end
   if #ids == 0 then return false end

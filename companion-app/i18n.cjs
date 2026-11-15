@@ -44,6 +44,8 @@ function message(language, value) {
       : `${match[1]} ${names[match[2]]}`);
     return `Parcours de donjon : ${[`${runReport[1]} envoyé(s)`, ...parts].join(', ')}.`;
   }
+  const relayedReport = /^Runs relayed for players near you: (\d+) sent(?:, (\d+) accepted)?\.$/.exec(value);
+  if (relayedReport) return relayedReport[2] === undefined ? translate(language, 'Runs relayed for players near you: {0} sent.', relayedReport[1]) : translate(language, 'Runs relayed for players near you: {0} sent, {1} accepted.', relayedReport[1], relayedReport[2]);
   const publicResult = /^Public leaderboards: (\d+) new, (\d+) confirmed, (\d+) already sent(?:, (\d+) refused \(([\s\S]*)\))?\.$/.exec(value);
   if (publicResult) return translate(language, 'Public leaderboards: {0} new, {1} confirmed, {2} already sent{3}.',
     publicResult[1], publicResult[2], publicResult[3], publicResult[4] ? translate(language, ', {0} refused ({1})', publicResult[4], publicResult[5]) : '');

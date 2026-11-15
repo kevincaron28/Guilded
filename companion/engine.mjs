@@ -3,17 +3,17 @@ import { POE_TRACKING_ENABLED, poeTrackingOn } from "./active-games.mjs";
 import { createHash } from "node:crypto";
 import { readSavedText } from "./saved-file.mjs";
 import { watch } from "node:fs";
-import { basename, dirname } from "node:path";
-import { GROUP_RELAY_FEATURE } from "./group-relay.mjs";
+import { basename, dirname, join } from "node:path";
+import { GROUP_RELAY_FEATURE, refreshMarkers } from "./group-relay.mjs";
 import { CARRY_FEATURE } from "./carry-content.mjs";
 import { carryReport, readCarryReceipts, writeCarryReceipts } from "./carry.mjs";
 import { readSavedExport, watchedSavedFiles, NO_GUILD_KEY_MESSAGE } from "./addon-files.mjs";
-import { dungeonRunReport, runReportMessage, deviceRunCounts, signedRunCounts } from "./run-report.mjs";
-import { standingsFileHolds, writeStandings } from "./standings.mjs";
+import { dungeonRunReport, runReportMessage, relayedRunReport, deviceRunCounts, signedRunCounts } from "./run-report.mjs";
+import { resolveStandingsPath, standingsFileHolds, writeStandings } from "./standings.mjs";
 import { credentialHeaders, checkUrl, requestJson, jsonBody, MAX_UPLOAD_BYTES } from "./request.mjs";
 import { acknowledgements, pruneAcknowledged } from "./delta.mjs";
 import { createPoeEngine, validatePoeConfig } from "./poe-engine.mjs";
-import { personalSavedFiles, uploadPersonalRuns } from "./personal-runs.mjs";
+import { personalSavedFiles, resolveAcceptedPath, uploadPersonalRuns } from "./personal-runs.mjs";
 import { GAME_EDITIONS } from "./game-edition.mjs";
 import { normalizeSavedPath } from "./saved-folder.mjs";
 import { errorDetail, isTimeout, rememberError } from "./error-detail.mjs";
@@ -598,8 +598,11 @@ export function createEngine(initialConfig, hooks = {}) {
       state.pendingUpload = false;
       log(summary?.status === "synced" && !noGuildKey ? "ok" : "warn", message);
       // 9.3.0: what happened to the dungeon runs this upload carried, so "Uploaded" proves something.
-      const runLine = runReportMessage(deviceRunCounts(sent?.dungeonRuns, body));
+      const runCounts = deviceRunCounts(sent?.dungeonRuns, body);
+      const runLine = runReportMessage(runCounts);
       if (runLine) { state.lastRuns = { at: new Date().toISOString(), message: runLine.message }; log(runLine.level, runLine.message); }
+      const relayedLine = relayedRunReport(runCounts);
+      if (relayedLine) log(relayedLine.level, relayedLine.message);
       if (summary?.status === "claimed") hooks.onDeviceClaimed?.();
       // Runs of a guild Guilded parked (another guild's character logged in since) go to THAT guild's server, after the loaded guild's own upload.
       // Only a bot that says it knows runs-only uploads (an older one would store the parked guild as the device's guild).
@@ -723,8 +726,8 @@ export function createEngine(initialConfig, hooks = {}) {
         : body.professionRelay
           ? `Professions and recipes synced. Guild ledger imports still await officer review.${pairingNote(body.pairedCharacterStatus)}`
           : `Uploaded ${body.transactionCount} ledger entries. Apply on Discord with: /import apply id:${body.importId}.${pairingNote(body.pairedCharacterStatus)}`;
-      pendingRunCheck = { ids: (exported.dungeonRuns ?? []).map(run => run.id), source, tries: 0, last: null };
-      const sentLine = runReportMessage({ sent: pendingRunCheck.ids.length, stored: 0, copies: 0, waiting: 0, unconfirmed: 0, notCounted: {} });
+      pendingRunCheck = { ids: (exported.dungeonRuns ?? []).map(run => ({ id: run.id, viaGroup: run.viaGroup === true })), source, tries: 0, last: null };
+      const sentLine = runReportMessage({ ...signedRunCounts(pendingRunCheck.ids, {}), unconfirmed: 0 });
       state.lastUpload = { at: new Date().toISOString(), message };
       state.syncPhase = body.applyError ? "apply-error" : body.applying ? "synced" : body.autoApplied?.held || !body.autoApplied && !body.professionRelay ? "officer-review" : "synced";
       state.uploads += 1;
@@ -794,6 +797,14 @@ export function createEngine(initialConfig, hooks = {}) {
 
   function track(promise) { active.add(promise); void promise.finally(() => active.delete(promise)); }
 
+  // Every generated file that carries the alive marker: Standings.lua, the personal Accepted.lua and the one beside Standings.lua.
+  function markerFiles() {
+    const standings = (() => { try { return resolveStandingsPath(config); } catch { return null; } })();
+    const personal = (() => { try { return resolveAcceptedPath(config); } catch { return null; } })();
+    const beside = standings ? join(dirname(dirname(standings)), "GuildedDungeons", "Accepted.lua") : null;
+    return [...new Set([standings, personal, beside].filter(Boolean))];
+  }
+
   // One standings answer: written to the addon folder (unless unchanged), and what it says about
   // the bot (features, stored entries) remembered. `waitSeconds` long-polls.
   async function fetchStandings(epoch, options = {}) {
@@ -816,6 +827,8 @@ export function createEngine(initialConfig, hooks = {}) {
       const line = runReportMessage(counts);
       check.tries++;
       if (line && line.message !== check.last) { check.last = line.message; state.lastRuns = { at: new Date().toISOString(), message: line.message }; log(line.level, line.message); }
+      const relayedLine = relayedRunReport(counts, { acceptedKnown: false });
+      if (relayedLine && relayedLine.message !== check.lastRelayed) { check.lastRelayed = relayedLine.message; log(relayedLine.level, relayedLine.message); }
       if (counts.unconfirmed === 0 || check.tries >= 6) pendingRunCheck = null;
     }
     await checkParkedRuns(result);
@@ -975,6 +988,8 @@ export function createEngine(initialConfig, hooks = {}) {
     // Safety net for the folder watch: a save it missed is noticed within 30 seconds.
     fileCheckTimer = setInterval(() => track((async () => {
       retryWatch();
+      // (9.3.3) The alive marker is rewritten at least hourly, even when the guild's data did not change (a quiet guild answers 304 for days).
+      if (state.running) await refreshMarkers(markerFiles()).catch(() => undefined);
       if (!state.running || uploading) return;
       const now = await savedStamp();
       if (now && now !== lastFile) scheduleUpload(0);

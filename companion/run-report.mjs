@@ -1,3 +1,4 @@
+import { GROUP_RECEIPT_PREFIX } from "./group-relay.mjs";
 // What happened to the dungeon runs one upload carried (9.3.0): "Dungeon runs: 3 sent, 2 stored, 1 copied from a guildmate."
 // An "Uploaded" line proved nothing about runs; this one says how many went, how many the bot holds and why a run earns nothing.
 // The wording is parsed again by companion-app/i18n.cjs for the French window: keep the grammar in step with it.
@@ -7,9 +8,16 @@ export const COPY_PREFIX = "Counted with a guildmate";
 
 const idsOf = (runs) => (Array.isArray(runs) ? runs : []).flatMap((run) => (typeof run === "string" ? [run] : typeof run?.id === "string" ? [run.id] : []));
 
-function classify(ids, accepted, notes, pending = {}) {
+// (9.3.3) Runs this PC only carried for players near it (the addon marks them `viaGroup`) are reported on their own line: the bot's receipt
+// for such a run is "group:<id>", so counting them with the PC's own runs would show them as "not confirmed yet".
+const relayedIds = (runs) => (Array.isArray(runs) ? runs : []).flatMap((run) => (run && typeof run === "object" && run.viaGroup === true && typeof run.id === "string" ? [run.id] : []));
+
+function classify(ids, accepted, notes, pending = {}, relayedSource = []) {
   const held = new Set(Array.isArray(accepted) ? accepted : []);
-  const counts = { sent: ids.length, stored: 0, copies: 0, waiting: 0, unconfirmed: 0, notCounted: /** @type {Record<string, number>} */ ({}) };
+  const relayed = new Set(relayedIds(relayedSource));
+  const relayedCount = { sent: relayed.size, accepted: [...relayed].filter((id) => held.has(`${GROUP_RECEIPT_PREFIX}${id}`)).length };
+  ids = ids.filter((id) => !relayed.has(id));
+  const counts = { sent: ids.length, stored: 0, copies: 0, waiting: 0, unconfirmed: 0, notCounted: /** @type {Record<string, number>} */ ({}), relayed: relayedCount };
   for (const id of ids) {
     if (held.has(id)) {
       const note = notes && typeof notes[id] === "string" ? notes[id] : "";
@@ -25,12 +33,12 @@ function classify(ids, accepted, notes, pending = {}) {
 /** Zero-setup (device) upload: the bot's answer lists the runs it holds (runReceipts) and those waiting for a second statement. */
 export function deviceRunCounts(sentRuns, body) {
   const receipts = body?.runReceipts ?? {};
-  return classify(idsOf(sentRuns), receipts.acceptedRunRefs, receipts.runNotes, receipts.pendingRunNotes);
+  return classify(idsOf(sentRuns), receipts.acceptedRunRefs, receipts.runNotes, receipts.pendingRunNotes, sentRuns);
 }
 
 /** Signed-in upload: the runs went with the guild upload; the bot's standings answer (acceptedRunRefs, runNotes, and pendingRunNotes for runs waiting for a second statement) says what it holds. */
 export function signedRunCounts(sentRuns, standings) {
-  return classify(idsOf(sentRuns), standings?.acceptedRunRefs, standings?.runNotes, standings?.pendingRunNotes);
+  return classify(idsOf(sentRuns), standings?.acceptedRunRefs, standings?.runNotes, standings?.pendingRunNotes, sentRuns);
 }
 
 /** Personal (public leaderboards) upload: the website's answer lists new, confirmed, already sent and refused runs. */
@@ -51,7 +59,7 @@ export function personalRunCounts(sentRuns, body) {
 /** { level, message } for the log, or null when there is nothing to say. */
 export function dungeonRunReport(counts) {
   if (!counts) return null;
-  if (counts.sent === 0) return { level: "info", message: "Dungeon runs: none to send." };
+  if (counts.sent === 0) return counts.relayed?.sent ? null : { level: "info", message: "Dungeon runs: none to send." };
   const parts = [];
   if (counts.stored) parts.push(`${counts.stored} stored`);
   if (counts.copies) parts.push(`${counts.copies} copied from a guildmate`);
@@ -61,6 +69,14 @@ export function dungeonRunReport(counts) {
   if (counts.unconfirmed) parts.push(`${counts.unconfirmed} not confirmed yet`);
   const bad = refused.length > 0 || counts.unconfirmed > 0;
   return { level: bad ? "warn" : "ok", message: `Dungeon runs: ${[`${counts.sent} sent`, ...parts].join(", ")}.` };
+}
+
+/** { level, message } for the runs this PC carried for players near it, or null when there were none. */
+export function relayedRunReport(counts, { acceptedKnown = true } = {}) {
+  const relayed = counts?.relayed;
+  if (!relayed || !relayed.sent) return null;
+  // A signed-in upload's answer does not list the bot's "group:" receipts: only the sending is said then.
+  return { level: "info", message: `Runs relayed for players near you: ${relayed.sent} sent${acceptedKnown ? `, ${relayed.accepted} accepted` : ""}.` };
 }
 
 /** The line for the log (same as dungeonRunReport; callers may pass the saved-file source, which does not change the wording). */

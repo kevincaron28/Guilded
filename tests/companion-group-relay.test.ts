@@ -3,7 +3,10 @@ import { deviceUploadBody } from "../companion/device-sync.mjs";
 import { acknowledgements, pruneAcknowledged } from "../companion/delta.mjs";
 import { exportDungeonRuns } from "../companion/lua-export-content.mjs";
 import { minimalParkedExport } from "../companion/parked-runs.mjs";
-import { featuresLua } from "../companion/group-relay.mjs";
+import { featuresLua, refreshMarkers, withFreshMarker, withoutFeatureStamp } from "../companion/group-relay.mjs";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { linkedMapLua } from "../companion/standings-format.mjs";
 import { acceptedToLua } from "../companion/personal-runs-content.mjs";
 import { deviceReceiptsToLua, standaloneReceiptsToLua } from "../companion/device-receipts.mjs";
@@ -54,11 +57,48 @@ describe("the companion and group-carried runs", () => {
   });
 
   it("every file the addon reads the companion's state from carries the marker", () => {
-    const marker = featuresLua("2026-11-14T10:00:00.000Z");
+    const at = (text: string) => text.replace(/ at = \d+/, " at = 0");
+    const marker = at(featuresLua("2026-11-14T10:00:00.000Z"));
     expect(marker).toContain('["group-relay"] = true');
-    expect(linkedMapLua([], "2026-11-14T10:00:00.000Z")).toContain(marker);
-    expect(deviceReceiptsToLua({ refs: [], notes: {}, pending: {}, reported: [] }, "2026-11-14T10:00:00.000Z")).toContain(marker);
-    expect(standaloneReceiptsToLua({ refs: [], notes: {}, pending: {} }, { mode: "device", updatedAt: "2026-11-14T10:00:00.000Z" } as never)).toContain(marker);
+    expect(at(linkedMapLua([], "2026-11-14T10:00:00.000Z"))).toContain(marker);
+    expect(at(deviceReceiptsToLua({ refs: [], notes: {}, pending: {}, reported: [] }, "2026-11-14T10:00:00.000Z"))).toContain(marker);
+    expect(at(standaloneReceiptsToLua({ refs: [], notes: {}, pending: {} }, { mode: "device", updatedAt: "2026-11-14T10:00:00.000Z" } as never))).toContain(marker);
     expect(acceptedToLua([])).toContain('["group-relay"] = true');
   });
 });
+
+describe("the alive marker (9.3.3)", () => {
+  it("is the time of writing, says it is a heartbeat, and never the standings stamp", () => {
+    expect(featuresLua("2020-01-01T00:00:00Z", 1_800_000_000_000)).toBe('GuildedCompanionFeatures = { ["group-relay"] = true, ["carry-records"] = true, hb = 1, at = 1800000000 }');
+  });
+  it("a refreshed marker does not make a file look changed", () => {
+    const text = `GuildedLinked = {
+}
+${featuresLua(null, 1_000_000)}
+`;
+    const fresh = withFreshMarker(text, 9_000_000_000)!;
+    expect(fresh).not.toBe(text);
+    expect(withoutFeatureStamp(fresh)).toBe(withoutFeatureStamp(text));
+    expect(withFreshMarker("no marker here")).toBeNull();
+  });
+  it("rewrites an old marker even when nothing else changed, leaves a fresh one and files without one", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "hb-"));
+    try {
+      const old = join(dir, "old.lua"), young = join(dir, "young.lua"), other = join(dir, "other.lua");
+      const now = 10_000_000_000;
+      await writeFile(old, `X = 1
+${featuresLua(null, now - 3 * 3_600_000)}
+`);
+      await writeFile(young, `X = 1
+${featuresLua(null, now - 60_000)}
+`);
+      await writeFile(other, "X = 1");
+      expect(await refreshMarkers([old, young, other, join(dir, "missing.lua")], { now })).toEqual([old]);
+      expect(await readFile(old, "utf8")).toBe(`X = 1
+${featuresLua(null, now)}
+`);
+      expect(await readFile(other, "utf8")).toBe("X = 1");
+    } finally { await rm(dir, { recursive: true, force: true }); }
+  });
+});
+

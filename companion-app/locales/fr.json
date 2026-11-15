@@ -607,6 +607,8 @@
   "enabled": "activé",
   "on": "activé",
   "The bot returned an unreadable response ({0}). Try again, or ask your guild owner to check the service.": "Le bot a renvoyé une réponse illisible ({0}). Réessayez ou demandez au responsable de votre guilde de vérifier le service.",
+  "Runs relayed for players near you: {0} sent, {1} accepted.": "Parcours relayés pour des joueurs proches : {0} envoyé(s), {1} accepté(s).",
+  "Runs relayed for players near you: {0} sent.": "Parcours relayés pour des joueurs proches : {0} envoyé(s).",
   "Public leaderboards: {0} new, {1} confirmed, {2} already sent{3}.": "Classements publics : {0} nouveaux, {1} confirmés, {2} déjà envoyés{3}.",
   ", {0} refused ({1})": ", {0} refusés ({1})",
   "Import from Guild Roster Manager": "Importer depuis Guild Roster Manager",

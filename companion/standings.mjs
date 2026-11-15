@@ -5,6 +5,7 @@ import { readSavedText } from "./saved-file.mjs";
 import { credentialHeaders, requestJson } from "./request.mjs";
 import { writeDataAddon } from "./data-addon.mjs";
 import { dirname, join, sep } from "node:path";
+import { withoutFeatureStamp } from "./group-relay.mjs";
 import { readSavedIdentity } from "./addon-files.mjs";
 import { standaloneReceiptsToLua } from "./device-receipts.mjs";
 import { existsSync } from "node:fs";
@@ -24,7 +25,7 @@ export function resolveStandingsPath(config) {
 
 // Older bots stamp every answer with the time of the request; compare the rest so an unchanged
 // table does not rewrite the file (the game only reads it on reload anyway).
-export const withoutStamps = (value) => value.replace(/updatedAt = "[^"]*",/g, "");
+export const withoutStamps = (value) => withoutFeatureStamp(value.replace(/updatedAt = "[^"]*",/g, ""));
 // Public vacancies expire after ten minutes in the addon. Keep writing their
 // freshness stamp, but do not announce that heartbeat as an EP/GP change.
 const withoutRefreshStamps = (value) => withoutStamps(value).replace(/fetchedAt = "[^"]*",/g, "");

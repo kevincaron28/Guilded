@@ -503,7 +503,9 @@ function view.build(parent, compact)
     -- (9.3.4) One line: when name, score and standing do not fit the pane, the words "Your season score" shrink to "Score".
     local summaryWidth = textWidth(self.summary)
     if summaryWidth and summaryWidth > (self.width or 440) - 32 and model.period ~= "week" then
-      self.summary:SetText((string.gsub(summaryText, L("Your season score") .. ":", L("Score") .. ":", 1)))
+      -- A plain find: the translated words may hold pattern characters.
+      local from, to = string.find(summaryText, L("Your season score") .. ":", 1, true)
+      if from then self.summary:SetText(string.sub(summaryText, 1, from - 1) .. L("Score") .. ":" .. string.sub(summaryText, to + 1)) end
     end
     self.note:SetText(model.available and (model.version == 6 and model.bracket and string.format(L("%s: best %d distinct routes. Verified route evidence required."), ns.scores.bracketLabel(model.bracket), model.bracket.bestCount)
       or model.version == 5 and L("Level 60: best 8 distinct routes. Maximum 3200. Verified route evidence required.") or model.version == 4 and L("Beta: best 8 distinct routes. Level 30. Maximum 3200. Provisional targets.") or model.version == 3 and L("200 at target. Best run per dungeon. Hover for boss records.") or model.version == 2 and L("100 per dungeon + up to 20 speed. Only your best run counts.")
@@ -527,7 +529,7 @@ function view.build(parent, compact)
         local levels = row.minLevel and ((row.maxLevel and row.maxLevel ~= row.minLevel) and (row.minLevel .. "-" .. row.maxLevel) or tostring(row.minLevel))
         card:Show(); card.name:SetText(row.name .. (levels and (" (" .. levels .. ")") or ""))
         local tierColor = ns.dungeonStats and ("|cff" .. ns.dungeonStats.tier(math.min(1, (row.points or 0) / ((model.version or 0) >= 3 and 400 or 120))).hex) or "|cffefca68"
-        card.value:SetText(row.sec and (tierColor .. (row.reason and ("|cff8993a4" .. L("Unranked")) or tostring(row.points)) .. (row.penalty and (" (-" .. row.penalty .. "%)") or "") .. (model.version == 2 and " (+" .. row.speedBonus .. ")" or "") .. ((model.version == 4 or model.version == 5) and row.counted == false and not row.reason and (" - " .. L("Not counted in best 8")) or "")
+        card.value:SetText(row.sec and (tierColor .. (row.reason and ("|cff8993a4" .. L("Unranked - no points")) or tostring(row.points)) .. (row.penalty and (" (-" .. row.penalty .. "%)") or "") .. (model.version == 2 and " (+" .. row.speedBonus .. ")" or "") .. ((model.version == 4 or model.version == 5) and row.counted == false and not row.reason and (" - " .. L("Not counted in best 8")) or "")
           .. (model.version == 6 and model.bracket and row.counted == false and not row.reason and (" - " .. string.format(L("Not counted in best %d"), model.bracket.bestCount)) or "") .. "|r  " .. duration(row.sec)
           .. " / " .. (row.targetSec and (duration(row.targetSec) .. (row.provisional and "*" or "")) or L("No target")))
           or ("|cff8993a4" .. (model.available and L("Not completed this season") or L("Breakdown unavailable")) .. "|r"

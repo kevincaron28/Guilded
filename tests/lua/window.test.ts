@@ -181,6 +181,30 @@ describe("the section row of the Guild page", () => {
   });
 });
 
+describe("the section row split and the save wording", () => {
+  it("splits a row that needs two lines evenly, never one button alone under the others", () => {
+    const s = openWindow(1);
+    // Six wide buttons: the greedy fill gives 5 + 1; the balanced split gives 3 + 3 (or 4 + 2), never 5 + 1.
+    const lines = JSON.parse(s.run(`local texts = { "Guild event log", "Calendar", "Administration", "Local guild", "Roster admin", "Officer tools" }
+      local plan = NS.layoutMath.balanceSectionRow(texts, NS.layoutMath.sectionWidth)
+      local a, b = 0, 0
+      for _, slot in ipairs(plan) do if slot.line == 0 then a = a + 1 else b = b + 1 end end
+      return string.format("[%d,%d]", a, b)`)) as [number, number];
+    expect(lines[0] + lines[1]).toBe(6);
+    expect(lines[1]).toBeGreaterThanOrEqual(2);
+  });
+
+  it("says Send to Discord only for an officer whose character is linked", () => {
+    const s = openWindow(1);
+    s.run(`NS.isOfficer = function() return true end; NS.verifyStatus = function() return { linked = false } end`);
+    expect(s.run("return tostring(NS.sendsToDiscord())")).toBe("false");
+    s.run(`NS.verifyStatus = function() return { linked = true } end`);
+    expect(s.run("return tostring(NS.sendsToDiscord())")).toBe("true");
+    s.run(`NS.isOfficer = function() return false end`);
+    expect(s.run("return tostring(NS.sendsToDiscord())")).toBe("false");
+  });
+});
+
 describe("the tools window (sidebar and Home page)", () => {
   it("routes dungeon shortcuts to one pane and keeps calendar administration officer-only", () => {
     const s = openWindow(5);

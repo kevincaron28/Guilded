@@ -1032,7 +1032,11 @@ function orders.render(view)
     end
   end
   if #mine > LIST_ROWS then view.mineEmpty:SetText(string.format(L("... and %d more."), #mine - LIST_ROWS)) elseif #mine == 0 then view.mineEmpty:SetText(L("No requests of yours.")) else view.mineEmpty:SetText("") end
-  if view.mineEmpty:GetText() ~= "" then place(view.mineEmpty, page, 4, y); view.mineEmpty:Show(); y = y - 18 else view.mineEmpty:Hide() end
+  -- (9.3.4) An empty list says so on the header's own line (no second line of empty space under it).
+  if #mine == 0 then
+    place(view.mineEmpty, page, 150, y + 20); view.mineEmpty:SetWidth((view.width or 580) - 160); view.mineEmpty:Show()
+  elseif view.mineEmpty:GetText() ~= "" then view.mineEmpty:SetWidth(view.width or 580); place(view.mineEmpty, page, 4, y); view.mineEmpty:Show(); y = y - 18
+  else view.mineEmpty:Hide() end
   y = y - 6
   -- Requests for me (orders for my recipes, asked of me, mine in progress), then guildmates' not on Discord yet.
   local forMe = off and {} or orders.list(view.all)
@@ -1081,8 +1085,12 @@ function orders.render(view)
     end
   end
   if #rows > LIST_ROWS then view.forMeEmpty:SetText(string.format(L("... and %d more."), #rows - LIST_ROWS))
-  elseif #rows == 0 then view.forMeEmpty:SetText(off and "" or (view.all and L("No open orders.") or L("No open orders for your recipes. Show all open orders to see the rest."))) else view.forMeEmpty:SetText("") end
-  if view.forMeEmpty:GetText() ~= "" then place(view.forMeEmpty, page, 4, y); view.forMeEmpty:Show(); y = y - 18 else view.forMeEmpty:Hide() end
+  elseif #rows == 0 then view.forMeEmpty:SetText(off and "" or (view.all and L("No open orders.") or L("No open orders for your recipes."))) else view.forMeEmpty:SetText("") end
+  if #rows == 0 and view.forMeEmpty:GetText() ~= "" then
+    -- On the header's line, left of the Show all button.
+    place(view.forMeEmpty, page, 190, y + 22); view.forMeEmpty:SetWidth(math.max(60, (view.width or 580) - allWidth - 206)); view.forMeEmpty:Show()
+  elseif view.forMeEmpty:GetText() ~= "" then view.forMeEmpty:SetWidth(view.width or 580); place(view.forMeEmpty, page, 4, y); view.forMeEmpty:Show(); y = y - 18
+  else view.forMeEmpty:Hide() end
   place(view.hint, page, 4, y); y = y - math.max(16, textHeight(view.hint) + 4)
   y = y - 8
   -- Share, source, Advanced.

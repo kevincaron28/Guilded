@@ -1177,6 +1177,18 @@ local function buildGearPage(page)
     ui.gearColumns[key] = column
   end
   ui.gearList = ui.gearColumns.name -- its height sets the scroll range
+  -- A long problems line is cut by the column: hovering it shows every member's whole line.
+  local hover = CreateFrame("Button", nil, page)
+  hover:SetPoint("TOPLEFT", page, "TOPLEFT", x.problems, -34)
+  hover:SetSize(w.problems, 200)
+  hover:SetScript("OnEnter", function(self)
+    if not GameTooltip or not ui.gearFull or #ui.gearFull == 0 then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    for _, line in ipairs(ui.gearFull) do GameTooltip:AddLine(line, 1, 1, 1, true) end
+    GameTooltip:Show()
+  end)
+  hover:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  ui.gearHover = hover
   ui.gearEmpty = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -40)
   ui.gearEmpty:SetWidth(PAGE_WIDTH)
 end
@@ -1498,6 +1510,8 @@ local function balanceSectionRow(texts, widthOf)
   end
   return plan
 end
+ns.layoutMath.balanceSectionRow = balanceSectionRow
+ns.layoutMath.sectionWidth = sectionWidth
 local function buildRosterAdminPage(page)
   local info = at(newLabel(page, "Change guild ranks and notes in bulk: paste a list of actions, preview the changes, then confirm.", "GameFontHighlightSmall"), page, 0, 0)
   info:SetWidth(PAGE_WIDTH - 8)
@@ -1885,7 +1899,7 @@ local function layoutTabs(officer)
               for _, j in ipairs(list) do texts[#texts + 1] = L(ui.tabs[j].label or ui.tabs[j].name) end
               local lastLine
               rowPlan, lastLine = planSectionRow(texts, sectionWidth)
-              if lastLine > 1 then
+              if lastLine >= 1 then -- zero-based: 1 is a row on two lines
                 rowPlan = balanceSectionRow(texts, sectionWidth) or balanceSectionRow(texts, compactSectionWidth) or planSectionRow(texts, compactSectionWidth)
               end
               rowIndex = 0
@@ -1949,10 +1963,19 @@ local function refreshModuleRows()
 end
 
 -- Home page text: plain-language state, and the Discord-sync line.
+-- (9.3.4) "Send to Discord" / "Unsent changes" only where the data really goes to Discord: an officer whose character is linked
+-- through a companion. Everyone else (members, in-game-only guilds, an officer with no companion yet) only saves the addon file.
+local function sendsToDiscord()
+  if ns.isInGameOnly and ns.isInGameOnly() then return false end
+  if not (ns.isOfficer and ns.isOfficer()) then return false end
+  local state = ns.verifyStatus and ns.verifyStatus() or {}
+  return state.linked and true or false
+end
+ns.sendsToDiscord = sendsToDiscord
 local function refreshHome(db, officer, me)
   if not ui.homeGreeting then return end
   local localOnly = ns.isInGameOnly and ns.isInGameOnly()
-  if ui.sidebarSave then ui.sidebarSave:SetText(L(localOnly and "Save my addon data" or (officer and "Send to Discord" or "Save my addon data"))) end
+  if ui.sidebarSave then ui.sidebarSave:SetText(L(sendsToDiscord() and "Send to Discord" or "Save my addon data")) end
   -- The guild rank name as the game shows it ("Guild Master", custom ranks), else Officer/Member.
   local rankName
   if GetGuildInfo then local _; _, rankName = GetGuildInfo("player") end
@@ -2017,7 +2040,7 @@ local function refreshHome(db, officer, me)
   ui.syncStatus = ns.syncNow and ns.syncNow.statusLine and ns.syncNow.statusLine() or ""
   if ui.sidebarSync then
     local dirty = ns.syncNow and ns.syncNow.isDirty and ns.syncNow.isDirty()
-    local text = dirty and L(not localOnly and ns.isOfficer() and "Unsent changes" or "Local changes") or L("All saved")
+    local text = dirty and L(sendsToDiscord() and "Unsent changes" or "Local changes") or L("All saved")
     -- Last save (a /reload or logout, when the companion can pick the data up), next to the button.
     local ago = ns.syncNow and ns.syncNow.savedAgoText and ns.syncNow.savedAgoText()
     ui.sidebarSync:SetText(ago and (text .. " - " .. ago) or text)
@@ -2211,6 +2234,7 @@ refresh = function()
   end
   if ui.gearColumns and ns.ready and ns.ready.gearColumns then
     local cols, count = ns.ready.gearColumns()
+    ui.gearFull = cols.full
     for key, column in pairs(ui.gearColumns) do column:SetText(table.concat(cols[key], "\n")) end
     -- Nothing shared yet: the explanation instead of an empty table.
     ui.gearEmpty:SetText(count == 0 and ns.ready.gearText() or "")
@@ -2461,8 +2485,8 @@ local function buildPanel()
   -- combat (the window could not be shown, hidden or moved: "Guilded tried to call GuildedPanel:Show()", 13 Nov 2026, and the
   -- bursts of "UNKNOWN()" after roster updates). So it is not inside the window: its parent is UIParent and nothing is
   -- anchored to the window; it is placed over the sidebar from the window's rectangle, out of combat only.
-  local sendButton = ns.syncNow and ns.syncNow.reloadButton(UIParent, L(ns.isOfficer() and "Send to Discord" or "Save my addon data"), 132, 26)
-    or newButton(UIParent, L(ns.isOfficer() and "Send to Discord" or "Save my addon data"), 132, function() run("sync") end, 26)
+  local sendButton = ns.syncNow and ns.syncNow.reloadButton(UIParent, L(sendsToDiscord() and "Send to Discord" or "Save my addon data"), 132, 26)
+    or newButton(UIParent, L(sendsToDiscord() and "Send to Discord" or "Save my addon data"), 132, function() run("sync") end, 26)
   sendButton:SetFrameStrata("DIALOG")
   sendButton:SetFrameLevel((panel:GetFrameLevel() or 1) + 30)
   sendButton:Hide()
@@ -2852,7 +2876,7 @@ local function fillTooltip(tip)
   tip:AddLine(L("Right-click: quick menu"), 1, 1, 1)
   if ns.callForHelp and ns.callForHelp.open then tip:AddLine(L("Shift-right-click: call for help"), 1, 0.5, 0.4) end
   local waiting = ns.syncNow and ns.syncNow.isDirty and ns.syncNow.isDirty()
-  if waiting then tip:AddLine(L("Your changes are not saved yet. Type /reload to save them."), 1, 0.82, 0.2) end
+  if waiting then tip:AddLine(L("Saved when you log out. To save now, type /reload."), 1, 0.82, 0.2) end
 end
 
 -- ---------------------------------------------------------------------

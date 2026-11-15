@@ -421,7 +421,7 @@ describe("officers' Gear page", () => {
       DB.readiness.Kev.itemLevel = 60.5
       DB.peerRoster.Amy.flags = "IL:62"
       DB.peerRoster.Amy.identity = { class = "PRIEST", level = 60 }
-      DB.peerRoster.Bob.flags = "NOFLASK"
+      DB.peerRoster.Bob.flags = "NOFLASK,ENCH:Chest"
     `);
     const out = s.run(`local c, n = NS.ready.gearColumns(NOW)
       return n .. "|" .. #c.name .. "|" .. #c.level .. "|" .. #c.itemLevel .. "|" .. #c.problems .. "|" .. #c.seen .. "|" .. table.concat(c.itemLevel, ",")`);
@@ -429,6 +429,8 @@ describe("officers' Gear page", () => {
     expect(Number(count)).toBeGreaterThanOrEqual(3);
     for (const l of lines.slice(0, 5)) expect(l).toBe(count);
     expect(lines[5]).toMatch(/^62,61,.*-$/);
+    // The cut-off problems column keeps the whole line for its tooltip.
+    expect(s.run(`local c = NS.ready.gearColumns(NOW); return c.full[1]`)).toMatch(/Bob: .*Chest/);
   });
 
   it("explains an empty list", () => {

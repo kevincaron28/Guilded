@@ -1,5 +1,26 @@
 # Changelog
 
+## 9.3.4 — 15 November 2026
+
+Not yet published. Guild-only Discord, a simpler website, Delete my data, addon polish and companion warnings. Not yet confirmed on real clients (see docs/V9_3_4_RELEASE_ACCEPTANCE.md). Details: docs/V9_3_4_RELEASE_NOTES.md. Guild board votes and news made in game on 9.3.3 no longer reach Discord.
+
+Addon and companion:
+
+- Guild board tab removed, Layer invite in the minimap right-click menu, window fixes (#969, #970).
+- Addon-only records ask for a companion player at once and show a plain waiting line (#973).
+- Companion: a warning for a damaged parked-uploads record, kept visible and updated at once (#958, #959, #960).
+
+Bot and website (already live):
+
+- Guild-only Discord: a guild's Discord shows only runs and duels with one of its players (#950).
+- Website without account tool pages, with a small Discord sign-in and one basic My Guilded page (#953, #968).
+- `/delete-my-data` Discord command and one public page (#964).
+- `/poll board` removed, `/poll news` Discord-only (#970).
+- Carried runs: a single statement is placed through the relay lane (#948).
+- Website art: companion hero, share images, 404 page, empty states (#961, #963, #965, #967).
+
+Phone app (keeps its own version): Delete my data inside the app, a GUILDED icon and a new Play name (#962, #966).
+
 ## 9.3.3 — 15 November 2026
 
 Published 15 November 2026 (GitHub and the website; CurseForge 9.3.3 approved). Fixes after 9.3.2 and after the two-PC tests of 14 November. Not yet confirmed on real clients (see docs/V9_3_3_RELEASE_ACCEPTANCE.md). Details: docs/V9_3_3_RELEASE_NOTES.md.

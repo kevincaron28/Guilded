@@ -32,6 +32,7 @@
       "detect-wow.cjs",
       "update-check.cjs",
       "idle-update.cjs",
+      "autostart.cjs",
       "i18n.cjs",
       "locales/**",
       "renderer/**",

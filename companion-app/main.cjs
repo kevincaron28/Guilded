@@ -6,6 +6,7 @@ const { pathToFileURL } = require("node:url");
 const { detectSavedVariables, pickSavedVariables, pickPrimaryAccount, pickerStart, accountsUnder, searchWow } = require("./detect-wow.cjs");
 const updates = require("./update-check.cjs");
 const idleUpdate = require("./idle-update.cjs");
+const autostart = require("./autostart.cjs");
 // Loaded on first use (Store build only): companion-app/store-update.cjs.
 const storeUpdatesModule = () => require("./store-update.cjs");
 const linkIdentity = require("./link-identity.cjs");
@@ -723,8 +724,21 @@ function createTray() {
 // Store build (9.0.8): the package startup task (store-startup.cjs), never a Run registry entry.
 // Its last known state; null until Windows answered.
 let storeStartupOn = null;
+// Direct download: what the Windows Run key really holds (autostart.cjs), read at start and every 5 minutes.
+// Electron's getLoginItemSettings() is only a fallback and must be asked with the same args the entry was written with.
+let directStartupOn = null, autostartReadWarned = false;
+// A failed or timed-out reg query is "unknown": the state we knew stays, and the failure is logged once.
+async function refreshAutostart() {
+  if (STORE_PACKAGE) return;
+  const state = await autostart.readState({ exePath: process.execPath });
+  if (state) { directStartupOn = state.on; autostartReadWarned = false; return; }
+  if (!autostartReadWarned) {
+    autostartReadWarned = true;
+    updateLine("autostart: the Windows Run key could not be read; the Start with Windows box keeps its last known state");
+  }
+}
 function autostartOn() {
-  return STORE_PACKAGE ? storeStartupOn === true : app.getLoginItemSettings().openAtLogin;
+  return STORE_PACKAGE ? storeStartupOn === true : (directStartupOn ?? app.getLoginItemSettings({ args: autostart.ARGS }).openAtLogin);
 }
 
 async function setAutostart(on) {
@@ -739,8 +753,10 @@ async function setAutostart(on) {
     }
     return storeStartupOn;
   }
-  app.setLoginItemSettings({ openAtLogin: !!on, args: ["--hidden"] });
-  return app.getLoginItemSettings().openAtLogin;
+  // Writes or removes every entry the companion or its installer ever created, then reports what Windows has.
+  const result = await autostart.apply(!!on, { exePath: process.execPath, electronSet: (value) => app.setLoginItemSettings({ openAtLogin: value, args: autostart.ARGS }) });
+  if (result !== null) directStartupOn = result;
+  return autostartOn();
 }
 
 // The Store build starts with Windows by default too (9.0.8; Store installs before it never could, so
@@ -787,7 +803,7 @@ async function removeAllDataAndQuit(skipPrompt = false) {
       detail: T("Local data will still be removed. Revoke those connections from your Guilded account or /character pair when the server is reachable.")
     });
   }
-  setAutostart(false);
+  await setAutostart(false);
   installerHandedOff = true; // removing data: never start an installer on the way out
   if (storeConfig) await storeConfig.flush().catch(() => {}); // A failed save has settled; deletion must still work.
   quitting = true;
@@ -884,6 +900,7 @@ app.whenReady().then(async () => {
       onLog: (entry) => pushLog(entry),
       onState
     });
+    await refreshAutostart();
     restartedQuietly = readRestartMarker();
     pushLog({ time: new Date().toISOString(), level: "info", message: E("Ready: {0} connection(s), signed in: {1}, restarted by Microsoft Store: {2}.", configLoadModule().configSummary(config).connections, configLoadModule().configSummary(config).signedIn ? "yes" : "no", restartedQuietly ? "yes" : "no") });
     startupLogging = false;
@@ -912,6 +929,7 @@ app.whenReady().then(async () => {
   zeroSetup();
   void importStoreSignIn().catch((error) => pushLog({ level: "warn", time: new Date().toISOString(), message: E("The Microsoft Store sign-in could not be imported: {0}", error instanceof Error ? error.message : String(error)) }));
   setInterval(zeroSetup, 5 * 60 * 1000).unref?.();
+  if (!STORE_PACKAGE) setInterval(() => void refreshAutostart(), 5 * 60 * 1000).unref?.();
   // Every 5 minutes: a few file dates, so a /reload that did not save Guilded.lua shows up soon.
   setInterval(() => void refreshSavedFile(), 5 * 60 * 1000);
   scheduleWowCheck();

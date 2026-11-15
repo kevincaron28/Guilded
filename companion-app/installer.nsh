@@ -60,6 +60,9 @@
     DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Guilded Companion"
     ; Electron writes its Start with Windows entry under "electron.app.<productName>" (9.1.3: this was left behind).
     DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "electron.app.${PRODUCT_NAME}"
+    ; Windows' Task Manager on/off mirror of each entry (companion-app/autostart.cjs lists every name the companion ever wrote).
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run" "Guilded Companion"
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run" "electron.app.${PRODUCT_NAME}"
     ; The member's settings stay unless they say otherwise; a silent uninstall never asks and never deletes.
     ${if} ${Silent}
       DetailPrint "Settings kept."

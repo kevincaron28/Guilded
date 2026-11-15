@@ -1,6 +1,6 @@
 # Guilded 9.3.3 — release notes (15 November 2026)
 
-**Fixes after 9.3.2.** Not yet published. Protocol 2, WoW Forever only. The two phone-alert migrations (`mobile_devices` and `mobile_receipts`) were already applied on production on 14 November 2026.
+**Fixes after 9.3.2.** Published 15 November 2026. Protocol 2, WoW Forever only. The two phone-alert migrations (`mobile_devices` and `mobile_receipts`) were already applied on production on 14 November 2026.
 
 Real-client checks: docs/V9_3_3_RELEASE_ACCEPTANCE.md. 9.3.3 is not yet confirmed on real clients.
 

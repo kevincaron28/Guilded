@@ -36,7 +36,7 @@ already there, not in the title.
 | Field | Value |
 | --- | --- |
 | App name (30 max) | `Guild Sync Companion` |
-| Default language | English (United States) – en-US |
+| Default language | English (Canada) – en-CA (what the existing Play app was created with; the English text below goes there) |
 | Translation | French (Canada) – fr-CA (text below) |
 | App or game | App |
 | Free or paid | Free |
@@ -49,7 +49,7 @@ already there, not in the title.
 | Privacy policy | https://guildedwow.com/docs/PRIVACY (live, HTTP 200 on 8 Nov 2026; `/privacy` is a 404, so do not use it) |
 | Account deletion URL | https://guildedwow.com/delete-my-data/ (public page: the Discord command and the support community, readable without signing in; in the app the button is under Me → Settings → Delete my data). The website is retiring its account pages: if its public deletion page gets its own address, use that one. |
 
-## English (en-US)
+## English (en-CA in Play Console)
 
 **Short description** (80 max):
 

@@ -37,6 +37,26 @@ export function scoring(): InGameScoring {
   catch { configured = defaultScoring(); }
   return configured;
 }
+/**
+ * The scoring that applied before the 15 November 2026 rebalance, kept exactly for seasons that began before 1 November 2026 once they
+ * are closed (owner decision: closed seasons keep their old numbers). Dungeons divide by 3 with no weekly bound; every other value is
+ * what origin/main had. The environment override never touches this set.
+ */
+export const legacyScoring = (): InGameScoring => ({
+  dungeons: { divisor: 3, weekCap: Infinity },
+  duels: { divisor: 3, win: 5, loss: 2, weekCap: 100, soft: { full: 4, half: 4 }, rematchDays: 7 },
+  battlegrounds: { divisor: 3, game: 15, win: 5, weekCap: 300, soft: { full: 3, half: 3 } },
+  worldPvp: { divisor: 3, kill: 5, defend: 5, call: 5, weekCap: 125 }
+});
+/** Seasons that began before this instant use the legacy scoring once ended; open and later seasons use the current one. */
+export const REBALANCE_FROM = new Date("2026-11-01T00:00:00Z");
+/**
+ * Which scoring a season uses, decided from the season's own start and status. The start is used rather than the end because a
+ * monthly season ends with its calendar month in guild time (October ends 1 Nov ~04:00 UTC, after the boundary). Closed seasons
+ * normally read their frozen finalStandings and never get here; this covers the archive-time computation and any recompute.
+ */
+export const scoringForSeason = (season: { createdAt: Date; status: string } | null): InGameScoring =>
+  season && season.status === "ENDED" && season.createdAt < REBALANCE_FROM ? legacyScoring() : scoring();
 /** With no active community season the board looks at this many days. */
 export const FALLBACK_DAYS = 28;
 
@@ -86,7 +106,9 @@ export function dungeonWeekPoints(events: readonly DungeonEvent[], weekCap = sco
   const weekly = new Map<string, number>();
   for (const event of events) { const key = `${event.memberId}|${weekKey(event.at)}`; weekly.set(key, (weekly.get(key) ?? 0) + event.amount); }
   const totals = new Map<string, number>();
-  for (const [key, sum] of weekly) { const memberId = key.split("|")[0]!; totals.set(memberId, (totals.get(memberId) ?? 0) + Math.min(weekCap, sum)); }
+  // Each week is bounded on its own and never below zero, so a negative admin adjustment cannot reduce another week. With no bound
+  // at all (the legacy scoring) the sums are added as they were, negatives included.
+  for (const [key, sum] of weekly) { const memberId = key.split("|")[0]!; totals.set(memberId, (totals.get(memberId) ?? 0) + (Number.isFinite(weekCap) ? Math.min(weekCap, Math.max(0, sum)) : sum)); }
   return totals;
 }
 
@@ -139,17 +161,18 @@ type Db = Pick<PrismaClient, "dungeonPointTransaction" | "duelResult" | "battleg
 export const boardWindow = (season: { createdAt: Date; endedAt: Date | null; status: string } | null, now = new Date()) =>
   season ? { since: season.createdAt, until: season.status === "ENDED" && season.endedAt ? season.endedAt : now } : { since: new Date(now.getTime() - FALLBACK_DAYS * 86_400_000), until: now };
 
+const DUNGEON_ROW_LIMIT = 200_000;
 /**
  * Loads the in-game community points per Discord user id for one window. Only active members, counted duels (the duel caps already
  * applied), consented battleground reports and the member's own dungeon ledger; open-world weeks that start inside the window.
  */
-export async function loadInGamePoints(db: Db, guildId: string, since: Date, until: Date): Promise<Map<string, InGamePoints>> {
+export async function loadInGamePoints(db: Db, guildId: string, since: Date, until: Date, config: InGameScoring = scoring()): Promise<Map<string, InGamePoints>> {
   const guild = await db.guild.findUnique({ where: { id: guildId }, select: { gameEdition: true } });
   const edition = guild?.gameEdition ?? "forever";
   const active = { guildId, status: "ACTIVE" as const };
   const range = { gte: since, lte: until };
   const [points, duels, bgs, worldRows] = await Promise.all([
-    db.dungeonPointTransaction.findMany({ where: { guildId, member: active, OR: [{ run: { endedAt: range } }, { runId: null, createdAt: range }] }, take: 200_000,
+    db.dungeonPointTransaction.findMany({ where: { guildId, member: active, OR: [{ run: { endedAt: range } }, { runId: null, createdAt: range }] }, take: DUNGEON_ROW_LIMIT,
       orderBy: { createdAt: "desc" }, select: { memberId: true, amount: true, createdAt: true, run: { select: { endedAt: true } } } }),
     db.duelResult.findMany({ where: { guildId, gameEdition: edition, counted: true, archived: false, endedAt: range }, take: 20_000, orderBy: { endedAt: "desc" },
       select: { winnerId: true, loserId: true, endedAt: true, winner: { select: { status: true } }, loser: { select: { status: true } } } }),
@@ -158,6 +181,7 @@ export async function loadInGamePoints(db: Db, guildId: string, since: Date, unt
     db.worldPvpWeek.findMany({ where: { guildId, member: active, weekKey: { gte: weekKeyOf(since), lte: weekKeyOf(until) } }, take: 20_000, orderBy: { weekKey: "desc" },
       select: { memberId: true, weekKey: true, kills: true, defends: true, helped: true } })
   ]);
+  if (points.length >= DUNGEON_ROW_LIMIT) console.warn(`Community in-game points: dungeon rows hit the ${DUNGEON_ROW_LIMIT} read limit for guild ${guildId}; older rows are left out`);
   const duelEvents: InGameEvent[] = duels.flatMap(duel => [
     ...(duel.winner.status === "ACTIVE" ? [{ memberId: duel.winnerId, win: true, at: duel.endedAt, opponentId: duel.loserId }] : []),
     ...(duel.loser.status === "ACTIVE" ? [{ memberId: duel.loserId, win: false, at: duel.endedAt, opponentId: duel.winnerId }] : [])]);
@@ -165,7 +189,7 @@ export async function loadInGamePoints(db: Db, guildId: string, since: Date, unt
   // A week that overlaps the window counts (a season that starts mid-week includes that week's open-world play).
   const worldWeeks = worldRows.filter(row => weekRange(row.weekKey).to > since);
   const byMember = inGamePoints({
-    dungeons: points.map(row => ({ memberId: row.memberId, amount: row.amount, at: row.run?.endedAt ?? row.createdAt })), duels: duelEvents, battlegrounds: bgEvents, worldWeeks });
+    dungeons: points.map(row => ({ memberId: row.memberId, amount: row.amount, at: row.run?.endedAt ?? row.createdAt })), duels: duelEvents, battlegrounds: bgEvents, worldWeeks }, config);
   if (!byMember.size) return new Map();
   const members = await db.member.findMany({ where: { guildId, id: { in: [...byMember.keys()] } }, select: { id: true, discordUserId: true } });
   const byUser = new Map<string, InGamePoints>();
@@ -187,10 +211,11 @@ export const clearInGameCache = () => cache.clear();
 export async function seasonInGamePoints(db: Db, guildId: string, season: { createdAt: Date; endedAt: Date | null; status: string }, now = new Date()): Promise<Map<string, InGamePoints>> {
   const { since, until } = boardWindow(season, now);
   const live = !(season.status === "ENDED" && season.endedAt);
-  const key = `${guildId}|${since.getTime()}|${live ? "live" : until.getTime()}`;
+  const config = scoringForSeason(season), legacy = config.dungeons.weekCap === Infinity;
+  const key = `${guildId}|${since.getTime()}|${live ? "live" : until.getTime()}|${legacy ? "legacy" : "current"}`;
   const hit = cache.get(key);
   if (hit && live && now.getTime() - hit.at < CACHE_MS && hit.at <= now.getTime() + 1000) return hit.value;
-  const value = await loadInGamePoints(db, guildId, since, until);
+  const value = await loadInGamePoints(db, guildId, since, until, config);
   if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value!);
   cache.set(key, { at: now.getTime(), value });
   return value;

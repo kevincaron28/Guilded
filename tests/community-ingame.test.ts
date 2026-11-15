@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { ChannelType } from "discord.js";
-import { boardWindow, breakdownOf, cappedPoints, clearInGameCache, defaultScoring, dungeonWeekPoints, inGamePoints, loadInGamePoints, mergeStandings, scoring, seasonInGamePoints, worldPvpPoints } from "../src/services/community-ingame.js";
+import { boardWindow, breakdownOf, cappedPoints, clearInGameCache, defaultScoring, dungeonWeekPoints, inGamePoints, legacyScoring, loadInGamePoints, mergeStandings, scoring, scoringForSeason, seasonInGamePoints, worldPvpPoints } from "../src/services/community-ingame.js";
 import { communityBoardCard, communityLeaderboardCard, COMMUNITY_BOARD_MARKER, updateCommunityLeaderboard } from "../src/services/community-leaderboard.js";
 import { splitSuffix } from "../src/services/community-ranking-display.js";
 import { retiredActivityNotice } from "../src/services/activity-retire.js";
@@ -124,6 +124,52 @@ describe("in-game points of the community board", () => {
     // a burst of reads for one live window hits the database once
     await seasonInGamePoints(a as never, "guildA", season, now);
     expect(a.dungeonPointTransaction.findMany).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("scoring versions: closed seasons keep their old numbers", () => {
+  const october = { createdAt: new Date("2026-10-01T04:00:00Z"), endedAt: new Date("2026-11-01T04:00:00Z"), status: "ENDED" };
+  const november = { createdAt: new Date("2026-11-01T04:00:00Z"), endedAt: null, status: "ACTIVE" };
+  const week = (at: Date, amounts: number[]) => amounts.map(amount => ({ memberId: "m", amount, at }));
+  it("picks the legacy set for an ended season that began before 1 November, the current set otherwise", () => {
+    expect(scoringForSeason(october)).toEqual(legacyScoring());
+    expect(scoringForSeason(november)).toEqual(scoring());
+    expect(scoringForSeason({ ...november, status: "ENDED" })).toEqual(scoring());
+    expect(scoringForSeason(null)).toEqual(scoring());
+    expect(legacyScoring().dungeons).toEqual({ divisor: 3, weekCap: Infinity });
+  });
+  it("an ended October season totals exactly what origin/main computed; November uses the new values", () => {
+    const input = {
+      dungeons: [...week(new Date("2026-10-07T12:00:00Z"), [400, 400, 400]), ...week(new Date("2026-10-14T12:00:00Z"), [300])],
+      duels: Array.from({ length: 80 }, () => ev("m", true, new Date("2026-10-07T12:00:00Z"))),
+      battlegrounds: Array.from({ length: 60 }, (_, i) => ev("m", true, new Date(Date.parse("2026-10-07T12:00:00Z") + Math.floor(i / 20) * 86_400_000))),
+      worldWeeks: [{ memberId: "m", weekKey: 1, kills: 40, defends: 10, helped: 10 }]
+    };
+    // origin/main: dungeons (1500 raw) / 3, duels capped 100 raw /3 per week, battlegrounds capped 300 /3, world capped 125 /3
+    const old = inGamePoints(input, scoringForSeason(october)).get("m")!;
+    expect(old.dungeons).toBe(500);
+    expect(old.pvp).toBe(Math.round(100 / 3) + Math.round(300 / 3) + Math.round(125 / 3));
+    const now = inGamePoints(input, scoringForSeason(november)).get("m")!;
+    expect(now.dungeons).toBe(Math.round((500 + 300) / 5));
+    expect(now.pvp).toBe(Math.round(80 / 3) + Math.round(150 / 3) + Math.round(75 / 3));
+  });
+  it("a negative admin adjustment in one week never reduces another week (current set)", () => {
+    const at1 = new Date("2026-11-09T12:00:00Z"), at2 = new Date("2026-11-16T12:00:00Z");
+    const rows = [...week(at1, [-300]), ...week(at2, [250])];
+    expect(dungeonWeekPoints(rows, 500).get("m")).toBe(250);
+    expect(dungeonWeekPoints(rows, Infinity).get("m")).toBe(-50);
+  });
+  it("warns when the dungeon read hits its limit", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const rows = Array.from({ length: 200_000 }, () => ({ memberId: "m", amount: 1, createdAt: new Date("2026-11-09T00:00:00Z"), run: null }));
+    const db = {
+      guild: { findUnique: vi.fn(async () => ({ gameEdition: "forever" })) }, dungeonPointTransaction: { findMany: vi.fn(async () => rows) },
+      duelResult: { findMany: vi.fn(async () => []) }, battlegroundReport: { findMany: vi.fn(async () => []) }, worldPvpWeek: { findMany: vi.fn(async () => []) },
+      member: { findMany: vi.fn(async () => [{ id: "m", discordUserId: "u" }]) }
+    };
+    await loadInGamePoints(db as never, "guildX", new Date("2026-11-01T00:00:00Z"), new Date("2026-11-14T00:00:00Z"));
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("guildX"));
+    warn.mockRestore();
   });
 });
 

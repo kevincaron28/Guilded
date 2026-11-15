@@ -1,10 +1,10 @@
 # Changelog
 
-## Unreleased
+## 9.3.3 — 15 November 2026
 
-Merged after the v9.3.2 tag, for the next release (no version change yet).
+Fixes after 9.3.2 and after the two-PC tests of 14 November. Not yet confirmed on real clients (see docs/V9_3_3_RELEASE_ACCEPTANCE.md). Details: docs/V9_3_3_RELEASE_NOTES.md.
 
-Addon and companion (ship with the next release):
+Addon and companion:
 
 - Companion idle update: the marker is kept fresh during the install and an unfinished update shows Try again (#928).
 - Duels and invites: waiting duels cannot loop, invite replies are matched by whole name (#930).
@@ -12,6 +12,7 @@ Addon and companion (ship with the next release):
 - Duel card uses the dueled character, the linked line ticks, carry counts, and a carrier stands down across reloads (#938).
 - Carry lane: opponent realm taken from the unit, a receipt on re-offer, a companion activity line (#939).
 - Dungeon relay and carry: companion heartbeat, freshness judged at load, bounded group re-offers (#941).
+- Companion: Start with Windows shows and changes the real startup entry (#944).
 
 Bot and website (already live):
 
@@ -23,7 +24,7 @@ Bot and website (already live):
 
 ## 9.3.2 — 14 November 2026
 
-Published 14 November 2026 (GitHub and the website; CurseForge 9.3.2 in review). The bot migrations `world_pvp_events` and `carried_records` are already applied on production. Duel records and PvP kill positions reach the guild from players who only have the addon, dungeon runs reach every guild in a group, and the companion keeps itself up to date more reliably. Details: docs/V9_3_2_RELEASE_NOTES.md. Nothing in 9.3.2 is confirmed in a real game client yet (see docs/V9_3_2_RELEASE_ACCEPTANCE.md).
+Published 14 November 2026 (GitHub and the website; CurseForge 9.3.2 approved). The bot migrations `world_pvp_events` and `carried_records` are already applied on production. Duel records and PvP kill positions reach the guild from players who only have the addon, dungeon runs reach every guild in a group, and the companion keeps itself up to date more reliably. Details: docs/V9_3_2_RELEASE_NOTES.md. Nothing in 9.3.2 is confirmed in a real game client yet (see docs/V9_3_2_RELEASE_ACCEPTANCE.md).
 
 **Addon**
 - Duel records of a player who only has the addon can be carried to the guild by a nearby player's companion. On by default; `/guilded carry off` turns it off for you, and officers have a guild-wide switch (#916, #918).

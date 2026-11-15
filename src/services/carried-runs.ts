@@ -4,7 +4,7 @@ import { characterKey } from "../../companion/character-identity.mjs";
 import { dungeonRunSchema, type DungeonRunInput } from "./dungeon-rules.js";
 import { ingestRelayedRuns, relayWouldPlace } from "./relay-public.js";
 import { integrityConfig } from "./run-integrity-config.js";
-import { agrees, summarize, type PublicRunStore } from "./public-runs.js";
+import { findSameRun, sameDetails, summarize, type PublicRunStore } from "./public-runs.js";
 
 // A dungeon run carried for a party with no companion at all (9.3.3). Each player's addon keeps its own finished run and whispers it to a
 // carrier met later (Carry.lua, kind "run"). Owner decision (14 November 2026): one report is enough evidence, so a single carried statement is
@@ -22,6 +22,8 @@ import { agrees, summarize, type PublicRunStore } from "./public-runs.js";
 
 /** How far the time in the run id may be from the run's start (seconds). */
 const ID_TIME_WINDOW = 600;
+/** A statement held by a check is retried for this many days, then closed. */
+const HELD_RETRY_DAYS = 2;
 /** Finished rows are deleted after this many days. */
 const KEEP_DAYS = 30;
 /** The cleanup runs at most this often. */
@@ -106,56 +108,83 @@ export async function placeCarriedRun(database: PrismaClient, input: { carrier: 
   // The carrier played in it: its own upload reports that run, a carried copy of it is not a second voice.
   if (unpacked.players.some((name) => input.carrierKeys.has(lower(name)))) { await refuse("carrier played in it", "own"); return true; }
   const authorKey = characterKey(authorName, "");
+  const name = input.author.split("-")[0] ?? input.author;
   // Filed per run and carrier: the same run sent again under another record key is the same row, and another carrier's copy cannot hide this one.
   const storedKey = `${unpacked.runKey}@${input.carrier}`.slice(0, 200);
-  const existing = await database.carriedRecord.findUnique({ where: { kind_authorKey_key: { kind: "run", authorKey, key: storedKey } }, select: { status: true } });
-  if (existing && (existing.status === "applied" || existing.status === "own")) return true;
+  const existing = await database.carriedRecord.findUnique({ where: { kind_authorKey_key: { kind: "run", authorKey, key: storedKey } }, select: { status: true, createdAt: true } });
+  if (existing && (existing.status === "applied" || existing.status === "own" || existing.status === "differs" || existing.status === "refused")) return true;
+  // A statement held by a check is sent again for a while; then it is closed for good (receipted as permanently refused, logged).
+  // (A refusal is filed under the record's own key.)
+  const held = (await database.carriedRecord.findMany({ where: { kind: "run", key: input.key, carrier: input.carrier, status: "held" }, select: { createdAt: true }, take: 1 }))[0];
+  if (held && input.now.getTime() - held.createdAt.getTime() > HELD_RETRY_DAYS * 86_400_000) {
+    await database.carriedRecord.updateMany({ where: { kind: "run", key: input.key, carrier: input.carrier, status: "held" }, data: { status: "refused" } });
+    console.info(`Carried run ${unpacked.runKey.slice(0, 50)} via ${input.carrier}: still held after ${HELD_RETRY_DAYS} days, closed as permanently refused`);
+    return true;
+  }
   if (!input.relay) { await refuse("no-public-store"); return false; }
   const { store } = input.relay;
   // The limits (server configuration), checked before anything is stored. A statement over a limit is not placed, and a repeat of a placed run is
   // answered without a row of its own.
   const { runKey } = unpacked;
-  const capReason = await limitReached(database, input.carrier, unpacked.runKey, input.now);
-  const stored = await store.findRun(unpacked.runKey);
-  if (stored) {
-    // A placed run is never changed by a later statement: a repeat is a duplicate (receipted, so it is not sent again).
-    const summary = summarize(dungeonRunSchema.parse(unpacked.run) as DungeonRunInput, input.now);
-    const differs = !agrees(stored, summary);
-    const recorderPlaced = await database.carriedRecord.count({ where: { kind: "run", runKey: unpacked.runKey, authorKey, status: "applied" } });
-    // Placed only by other players' relayed copies, and the recorder's own statement says otherwise: the recorder's statement wins, once.
-    // The run is removed only when the statement would be placed after it: a held, over-limit or refused statement never deletes a placed run.
-    const wouldPlace = differs && !recorderPlaced && stored.uploaders.length > 0 && stored.uploaders.every((uploader) => uploader.startsWith("relay:")) && store.discardRelayRun
-      ? await relayWouldPlace(store, { carrier: input.carrier, run: { ...unpacked.run, recorder: input.author.split("-")[0] ?? input.author, reporterNames: [input.author.split("-")[0] ?? input.author] }, now: input.now })
-      : "not-applicable";
-    if (wouldPlace === null && await store.discardRelayRun!(stored.id)) {
-      console.info(`Carried run ${unpacked.runKey.slice(0, 50)}: the recorder's statement replaces a run placed by other players' relayed copies`);
-    } else {
-      // The statement could replace the run but would not be placed: the original stays and nothing is receipted (sent again later).
-      if (wouldPlace !== null && wouldPlace !== "not-applicable") { await refuse(`replacement-not-placed (${wouldPlace})`); return false; }
-      if (differs) console.info(`Carried run ${unpacked.runKey.slice(0, 50)} via ${input.carrier}: differs from the run already placed, which stays (for review)`);
-      if (!capReason) await database.carriedRecord.create({ data: { kind: "run", key: storedKey, author: input.author.slice(0, 80), authorKey: authorKey.slice(0, 160), carrier: input.carrier, status: "applied", runKey: unpacked.runKey } }).catch((error: unknown) => { if ((error as { code?: string } | null)?.code !== "P2002") throw error; });
+  const capReason = await limitReached(database, input.carrier, runKey, input.now);
+  const summary = summarize(dungeonRunSchema.parse(unpacked.run) as DungeonRunInput, input.now);
+  // Files this statement's row (one per run and carrier): what became of it, visible to the owner.
+  const file = async (status: string) => {
+    const data = { kind: "run", key: storedKey, author: input.author.slice(0, 80), authorKey: authorKey.slice(0, 160), carrier: input.carrier, status, runKey };
+    try { await database.carriedRecord.create({ data }); }
+    catch (error) {
+      if ((error as { code?: string } | null)?.code !== "P2002") throw error;
+      await database.carriedRecord.updateMany({ where: { kind: "run", authorKey, key: storedKey }, data: { status, runKey } });
+    }
+  };
+  // The run on the boards this statement is about: the same run id, or another recorder's copy of the same real run.
+  let target = await store.findRun(runKey);
+  const near = !target;
+  if (near) target = await findSameRun(store, summary).catch(() => null);
+  let backup: unknown = null;
+  if (target) {
+    const differs = !sameDetails(target, summary);
+    if (!differs) {
+      // The same thing said again: a confirmation (receipted, no second run).
+      if (!capReason) await file("applied");
+      if (near) console.info(`Carried run ${runKey.slice(0, 50)} via ${input.carrier}: a copy of a run already placed`);
       return true;
     }
+    // A placed run is never changed by a later statement, with one exception: a run that only other players' relayed copies placed gives way, once,
+    // to the statement of the recorder whose run id it should have been. The statement must be placeable afterwards (checked before anything is removed).
+    const placedKey = target.runKey ?? runKey;
+    const placedRecorder = parseRunId(placedKey.slice(placedKey.indexOf(":") + 1))?.recorder;
+    const placedByRecorder = placedRecorder ? await database.carriedRecord.count({ where: { kind: "run", runKey: placedKey, authorKey: characterKey(placedRecorder, ""), status: "applied" } }) : 0;
+    const eligible = !placedByRecorder && target.uploaders.length > 0 && target.uploaders.every((uploader) => uploader.startsWith("relay:")) && !!store.discardRelayRun;
+    const wouldPlace = eligible ? await relayWouldPlace(store, { carrier: input.carrier, run: { ...unpacked.run, recorder: name, reporterNames: [name] }, now: input.now }) : "not-applicable";
+    if (eligible && wouldPlace !== null) { await refuse(`replacement-not-placed (${wouldPlace})`, "held"); return false; }
+    if (!eligible) {
+      // Another statement says something else and the placed run stays: receipted and recorded so it is never silently lost.
+      console.info(`Carried run ${runKey.slice(0, 50)} via ${input.carrier}: differs from the run already placed, which stays (for review)`);
+      if (!capReason) await file("differs");
+      return true;
+    }
+    backup = store.relayRunBackup ? await store.relayRunBackup(target.id).catch(() => null) : null;
+    if (!await store.discardRelayRun!(target.id)) { if (!capReason) await file("differs"); return true; }
+    console.info(`Carried run ${runKey.slice(0, 50)}: the recorder's statement replaces a run placed by other players' relayed copies`);
   }
 
-  if (capReason) { await refuse(capReason); return false; }
+  const putBack = async () => { if (backup && store.restoreRelayRun) await store.restoreRelayRun(backup).catch((error: unknown) => console.error(`Carried run ${runKey.slice(0, 50)}: the replaced run could not be put back: ${error instanceof Error ? error.message : String(error)}`)); };
+  if (capReason) { await putBack(); await refuse(capReason); return false; }
 
-  const name = input.author.split("-")[0] ?? input.author;
-  const result = await ingestRelayedRuns(store, { carrier: input.carrier, carrierKeys: input.carrierKeys, runs: [{ ...unpacked.run, recorder: name, reporterNames: [name] }], now: input.now,
-    ...(input.relay.onPlaced ? { onPlaced: input.relay.onPlaced } : {}) });
+  let result: Awaited<ReturnType<typeof ingestRelayedRuns>>;
+  try {
+    result = await ingestRelayedRuns(store, { carrier: input.carrier, carrierKeys: input.carrierKeys, runs: [{ ...unpacked.run, recorder: name, reporterNames: [name] }], now: input.now, skipNearMatch: true,
+      ...(input.relay.onPlaced ? { onPlaced: input.relay.onPlaced } : {}) });
+  } catch (error) { await putBack(); throw error; }
   if (result.published < 1 && result.known < 1) {
-    // Held by a plausibility check or over the day's limit: for review.
-    await refuse("not-placed (held by a check or over a limit)");
+    // Held by a plausibility check or over the day's limit: the original run (if one was removed) is put back. Sent again for a while, then closed.
+    await putBack();
+    await refuse("not-placed (held by a check or over a limit)", "held");
     return false;
   }
-  try {
-    await database.carriedRecord.create({ data: { kind: "run", key: storedKey, author: input.author.slice(0, 80), authorKey: authorKey.slice(0, 160), carrier: input.carrier, status: "applied", runKey } });
-  } catch (error) {
-    // A rejected row of the same record is already filed; it is now applied.
-    if ((error as { code?: string } | null)?.code !== "P2002") throw error;
-    await database.carriedRecord.updateMany({ where: { kind: "run", authorKey, key: storedKey }, data: { status: "applied", runKey } });
-  }
-  console.info(`Carried run ${runKey.slice(0, 50)} from ${input.author.slice(0, 40)} via ${input.carrier}: ${result.known ? "a copy of a run already placed" : "placed"}`);
+  await file("applied");
+  console.info(`Carried run ${runKey.slice(0, 50)} from ${input.author.slice(0, 40)} via ${input.carrier}: placed`);
   return true;
 }
 

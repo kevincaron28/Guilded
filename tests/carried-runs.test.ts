@@ -23,14 +23,15 @@ afterEach(() => { delete process.env["RUN_INTEGRITY_CONFIG"]; });
 function memoryStore() {
   const runs = new Map<string, StoredRun & { summary: RunSummary }>();
   const uploads: { key: string; at: Date }[] = [];
-  const calls = { addUpload: 0, discard: 0 };
+  const calls = { addUpload: 0, discard: 0, restore: 0 };
+  const failNext = { create: false };
   let next = 0;
   const store: PublicRunStore = {
     async findRun(runKey) { return runs.get(runKey) ?? null; },
     async findRunsNear(_edition, instanceId, startedAt, windowSec) {
       return [...runs.values()].filter((row) => row.instanceId === instanceId && Math.abs(row.startedAt.getTime() - startedAt.getTime()) <= windowSec * 1000);
     },
-    async createRun(summary, uploader) { uploads.push({ key: uploader.key, at: NOW }); runs.set(summary.runKey, { ...summary, id: `r${++next}`, status: "ACCEPTED", uploaders: [uploader.key], reporters: [...uploader.reporters], summary, confirmations: 1 } as never); },
+    async createRun(summary, uploader) { if (failNext.create) { failNext.create = false; throw new Error("store down"); } uploads.push({ key: uploader.key, at: NOW }); runs.set(summary.runKey, { ...summary, id: `r${++next}`, status: "ACCEPTED", uploaders: [uploader.key], reporters: [...uploader.reporters], summary, confirmations: 1 } as never); },
     async addUpload(runId, uploader, summary) {
       calls.addUpload++;
       const row = [...runs.values()].find((entry) => entry.id === runId)!;
@@ -42,6 +43,8 @@ function memoryStore() {
     },
     async uploadsSince(key, since) { return uploads.filter((entry) => entry.key === key && entry.at >= since).length; },
     async storedRefs() { return []; },
+    async relayRunBackup(runId) { const entry = [...runs.entries()].find(([, row]) => row.id === runId); return entry ? { key: entry[0], row: { ...entry[1] } } : null; },
+    async restoreRelayRun(backup) { const saved = backup as { key: string; row: StoredRun & { summary: RunSummary } }; if (!runs.has(saved.key)) { calls.restore++; runs.set(saved.key, saved.row); } },
     async discardRelayRun(runId) {
       const entry = [...runs.entries()].find(([, row]) => row.id === runId);
       if (!entry || !entry[1].uploaders.every((key) => key.startsWith("relay:"))) return false;
@@ -50,7 +53,7 @@ function memoryStore() {
       return true;
     }
   };
-  return { store, runs, calls };
+  return { store, runs, calls, failNext };
 }
 
 interface Row { id: number; kind: string; key: string; author: string; authorKey: string; carrier: string; status: string; runKey?: string | null; createdAt: Date }
@@ -198,6 +201,62 @@ describe("carried dungeon runs", () => {
     expect(calls.discard).toBe(0);
     expect(placed(runs).summary.durationSec).toBe(2000);
     expect(out.receipts).toEqual([]);
+  });
+
+  const zedId = idFor("Zed", start + 20);
+  /** A copy of the run another player's addon relayed under that player's own id, with a different result. */
+  const relayedCopy = (over: Record<string, unknown> = { en: start + 2000 }) => ({ ...unpackedSummary(over), runKey: `389:${zedId}`, runRef: zedId });
+
+  it("a run placed first under another id (relayed copies) gives way to the honest recorder's differing statement, logged", async () => {
+    const { db } = fakeDb();
+    const { store, runs, calls } = memoryStore();
+    await store.createRun(relayedCopy() as RunSummary, { key: "relay:device:x", reporters: [] }, "personal");
+    const out = await apply(db, store, [record("Aye")], "member:aye");
+    expect(out.receipts).toEqual([receipt("QG-1-aaaaaa")]);
+    expect(calls.discard).toBe(1);
+    expect(runs.size).toBe(1);
+    expect(placed(runs).summary.durationSec).toBe(1500);
+  });
+
+  it("a differing statement from someone else never changes a placed run: it is receipted and recorded as differs", async () => {
+    const { db, rows } = fakeDb();
+    const { store, runs } = memoryStore();
+    await apply(db, store, [record("Aye")], "member:aye");
+    const out = await apply(db, store, [record("Zed", "QG-2-zzzzzz", { id: zedId, en: start + 2600, ev: `2735:${start + 2600}` })], "member:zed");
+    expect(out.receipts).toEqual([receipt("QG-2-zzzzzz")]);
+    expect(runs.size).toBe(1);
+    expect(placed(runs).summary.durationSec).toBe(1500);
+    expect(rows.find((row) => row.carrier === "member:zed")).toMatchObject({ status: "differs" });
+  });
+
+  it("a replacement held by a plausibility check keeps the original run, and the statement is closed after a few days of retries", async () => {
+    const { db, rows } = fakeDb();
+    const { store, runs, calls } = memoryStore();
+    await store.createRun(relayedCopy() as RunSummary, { key: "relay:device:x", reporters: [] }, "personal");
+    // A boss killed in four seconds is not a plausible clear.
+    const fast = record("Aye", "QG-1-aaaaaa", { en: start + 4, ev: `2735:${start + 4}` });
+    const first = await apply(db, store, [fast], "member:aye");
+    expect(first.receipts).toEqual([]);
+    expect(calls.discard).toBe(0);
+    expect(placed(runs, `389:${zedId}`).summary.durationSec).toBe(2000);
+    expect(rows.find((row) => row.carrier === "member:aye")).toMatchObject({ status: "held" });
+    // Later: still refused, until the retry time is over; then it is receipted as permanently refused.
+    const later = await apply(db, store, [fast], "member:aye", { now: new Date(NOW.getTime() + 3 * 86_400_000) });
+    expect(later.receipts).toEqual([receipt("QG-1-aaaaaa")]);
+    expect(placed(runs, `389:${zedId}`).summary.durationSec).toBe(2000);
+  });
+
+  it("if placing the replacement fails after the original was removed, the original is put back", async () => {
+    const { db } = fakeDb();
+    const { store, runs, calls, failNext } = memoryStore();
+    await store.createRun(relayedCopy() as RunSummary, { key: "relay:device:x", reporters: [] }, "personal");
+    failNext.create = true;
+    const out = await apply(db, store, [record("Aye")], "member:aye");
+    expect(out.receipts).toEqual([]);
+    expect(calls.discard).toBe(1);
+    expect(calls.restore).toBe(1);
+    expect(runs.size).toBe(1);
+    expect(placed(runs, `389:${zedId}`).summary.durationSec).toBe(2000);
   });
 
   it("two recorders' statements of one real run make one run, the second is a receipted confirmation", async () => {

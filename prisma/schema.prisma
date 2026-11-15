@@ -2772,6 +2772,7 @@ model PublicRun {
   @@index([instanceId, status, season, durationSec])
   @@index([status, endedAt])
   @@index([gameEdition, status, endedAt])
+  @@index([gameEdition, instanceId, startedAt])
 }
 
 model PublicRunPlayer {

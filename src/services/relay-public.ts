@@ -1,5 +1,5 @@
 import { firstNameKey } from "./dungeon-import.js";
-import { checkPublicRun, findSameRun, ingestPublicRuns, PUBLIC_LIMITS, summarize, type PublicRunStore } from "./public-runs.js";
+import { checkPublicRun, findSameRun, ingestPublicRuns, PUBLIC_LIMITS, sameDetails, summarize, type PublicRunStore } from "./public-runs.js";
 import { dungeonRunSchema } from "./dungeon-rules.js";
 import { plausibilityFlags } from "./run-plausibility.js";
 import { holdsRun, integrityConfig } from "./run-integrity-config.js";
@@ -69,7 +69,8 @@ export async function relayWouldPlace(store: PublicRunStore, input: { carrier: s
  *   from the stored uploads of the carrier, so it survives a restart. Runs over the cap are receipted (dropped), not re-sent for ever.
  */
 export async function ingestRelayedRuns(store: PublicRunStore, input: { carrier: string; carrierKeys: ReadonlySet<string>; runs: readonly unknown[]; now?: Date;
-  /** (9.3.2) Called with the runs this call placed on the public boards (the guilds with a member in them get a copy). */ onPlaced?: (runs: unknown[]) => void }): Promise<RelayResult> {
+  /** (9.3.2) Called with the runs this call placed on the public boards (the guilds with a member in them get a copy). */ onPlaced?: (runs: unknown[]) => void;
+  /** (9.3.3) The caller deals with copies of a placed run itself (the carried lane). */ skipNearMatch?: boolean }): Promise<RelayResult> {
   const now = input.now ?? new Date();
   const config = integrityConfig();
   const receipts: string[] = [];
@@ -100,9 +101,15 @@ export async function ingestRelayedRuns(store: PublicRunStore, input: { carrier:
     if (holdsRun(flags.map((flag) => flag.code), config, 0)) { receipts.push(`${GROUP_RECEIPT_PREFIX}${id}`); console.info(`Relayed run ${id.slice(0, 40)} via ${input.carrier}: held (${flags.map((flag) => flag.code).join(",")})`); continue; }
     // Another recorder's copy of a run already on the boards (two addons in one party name the run after themselves): a confirmation, no second row.
     const parsed = dungeonRunSchema.safeParse(run);
-    if (parsed.success) {
+    if (parsed.success && !input.skipNearMatch) {
       const summary = summarize(parsed.data, now);
-      if (!await store.findRun(summary.runKey) && await findSameRun(store, summary).catch(() => null)) { receipts.push(`${GROUP_RECEIPT_PREFIX}${id}`); known++; console.info(`Relayed run ${id.slice(0, 40)} via ${input.carrier}: a copy of a run already placed`); continue; }
+      const near = !await store.findRun(summary.runKey) ? await findSameRun(store, summary).catch(() => null) : null;
+      if (near) {
+        // Only a statement that says the same is a confirmation; a different one never changes the placed run (logged for review).
+        receipts.push(`${GROUP_RECEIPT_PREFIX}${id}`); known++;
+        console.info(`Relayed run ${id.slice(0, 40)} via ${input.carrier}: ${sameDetails(near, summary) ? "a copy of a run already placed" : "differs from the run already placed, which stays (for review)"}`);
+        continue;
+      }
     }
     // Only the reporter's statement is kept: what the carrier's file says about who reported or recorded it is not used.
     const { recorder: _recorder, reporterNames: _reporters, reporters: _count, viaGroup: _via, ...rest } = run;

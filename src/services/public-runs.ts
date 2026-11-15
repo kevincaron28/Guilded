@@ -2,7 +2,7 @@ import { dungeonRole } from "../../companion/dungeon-role.mjs";
 import { isDeepStrictEqual } from "node:util";
 import { lockDungeonCalendar } from "./dungeon-calendar-lock.js";
 import { currentIntegrityPolicy, integrityStartReason, readDungeonIntegrity, readPlayerIntegrity, UPLOAD_GRACE_MS } from "./dungeon-integrity.js";
-import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
+import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
 import { dungeonResetCutoff, predatesDungeonReset } from "./dungeon-reset.js";
 import { dungeonRunSchema, validateRun, type DungeonRunInput } from "./dungeon-rules.js";
 import { bracketForLevel, DEFAULT_DUNGEON_BRACKETS } from "./dungeon-november-rules.js";
@@ -235,6 +235,10 @@ export interface PublicRunStore {
   storedRefs(uploaderKey: string, gameEdition?: string): Promise<string[]>;
   /** (9.3.1) Removes a run that only relayed copies created (every uploader key starts with "relay:"), so a first-hand report can replace it. */
   discardRelayRun?(runId: string): Promise<boolean>;
+  /** (9.3.3) A copy of a run (with its players and uploads) taken before it is discarded, so it can be put back if its replacement is not placed. */
+  relayRunBackup?(runId: string): Promise<unknown>;
+  /** (9.3.3) Puts back a run saved with `relayRunBackup` (nothing happens when a run with that key exists again). */
+  restoreRelayRun?(backup: unknown): Promise<void>;
 }
 
 export interface IngestResult { accepted: string[]; confirmed: string[]; duplicates: string[]; historyOnly: string[]; rejected: { id: string; reason: string }[]; acceptedRunRefs: string[] }
@@ -321,6 +325,17 @@ export async function findSameRun(store: PublicRunStore, summary: RunSummary, wi
   return near.find((row) => row.runKey !== summary.runKey && names(row.players) === wanted) ?? null;
 }
 
+/**
+ * (9.3.3) Do two statements of one run say the same thing? The usual agreement (duration, end, players, route) and the same bosses killed and the
+ * same completion method. A near-match that fails this is not a confirmation.
+ */
+export function sameDetails(stored: StoredRun, summary: RunSummary): boolean {
+  if (!agrees(stored, summary)) return false;
+  const bosses = (list: { id: number; kind?: "npc"; success?: boolean }[]) => list.filter((boss) => boss.success !== false).map(encounterKey).sort().join("|");
+  if (bosses(stored.encounters as never) !== bosses(summary.encounters as never)) return false;
+  return !stored.completedBy || !summary.completedBy || stored.completedBy === summary.completedBy;
+}
+
 /** Calendar cutoff uses the stored run's edition/end, never the late reporter's. */
 export function publicEvidenceFinalized(rows: { startsAt: Date; rules: unknown }[], endedAt: Date, receivedAt: Date): boolean {
   const sorted = [...rows].sort((a,b)=>a.startsAt.getTime()-b.startsAt.getTime());
@@ -366,7 +381,7 @@ export function prismaPublicRunStore(database: PrismaClient, clock:()=>Date=()=>
       return row ? storedRow(row) : null;
     },
     async findRunsNear(gameEdition, instanceId, startedAt, windowSec) {
-      const rows = await database.publicRun.findMany({ where: { gameEdition, instanceId, startedAt: { gte: new Date(startedAt.getTime() - windowSec * 1000), lte: new Date(startedAt.getTime() + windowSec * 1000) } }, select, take: 20 });
+      const rows = await database.publicRun.findMany({ where: { gameEdition, instanceId, startedAt: { gte: new Date(startedAt.getTime() - windowSec * 1000), lte: new Date(startedAt.getTime() + windowSec * 1000) } }, select, orderBy: { startedAt: "asc" }, take: 50 });
       return rows.map(storedRow);
     },
     async createRun(summary, uploader, source) {
@@ -441,6 +456,20 @@ export function prismaPublicRunStore(database: PrismaClient, clock:()=>Date=()=>
         } });
         return { agree, duplicate: false };
       }, PUBLIC_RUN_TX);
+    },
+    async relayRunBackup(runId) {
+      return database.publicRun.findUnique({ where: { id: runId }, include: { players: true, uploads: true } });
+    },
+    async restoreRelayRun(backup) {
+      const row = backup as Prisma.PublicRunGetPayload<{ include: { players: true; uploads: true } }> | null;
+      if (!row) return;
+      const { players, uploads, integrity, challenge, encounters, ...run } = row;
+      const json = (value: Prisma.JsonValue | null) => value === null ? Prisma.DbNull : value as Prisma.InputJsonValue;
+      try {
+        await database.publicRun.create({ data: { ...run, integrity: json(integrity), challenge: json(challenge), encounters: json(encounters),
+          players: { create: players.map(({ id: _id, runId: _runId, ...player }) => { void _id; void _runId; return player; }) },
+          uploads: { create: uploads.map(({ id: _id, runId: _runId, evidence, ...upload }) => { void _id; void _runId; return { ...upload, evidence: json(evidence) }; }) } } });
+      } catch (error) { if ((error as { code?: string } | null)?.code !== "P2002") throw error; }
     },
     async discardRelayRun(runId) {
       return database.$transaction(async tx => {

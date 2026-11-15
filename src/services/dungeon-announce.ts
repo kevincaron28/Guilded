@@ -42,7 +42,7 @@ function announced(summary: DungeonImportSummary): DungeonImportResult[] {
 export function dungeonPosts(summary: DungeonImportSummary, lang: Lang, options: { deathPoints?: Record<string, { x: number; y: number }[]> } = {}): DungeonPost[] {
   return announced(summary).slice(0, MAX_POSTS).map((run) => ({
     runRef: run.runRef,
-    ...(run.highlights?.length ? { content: highlightHeadline(run.highlights, runLabel(run), lang) } : {}),
+    ...(run.highlights?.length ? { content: highlightHeadline(run.highlights, runLabel(run, lang), lang) } : {}),
     embed: dungeonEmbed(run, lang),
     cardOnly: dungeonCardOnly(run, lang),
     card: dungeonRunCard(run, lang, options.deathPoints?.[run.runRef] ? { deathPoints: options.deathPoints[run.runRef]! } : {}),
@@ -61,7 +61,7 @@ export function dungeonPosts(summary: DungeonImportSummary, lang: Lang, options:
 export function dungeonCardOnly(run: DungeonImportResult, lang: Lang): { content?: string | undefined; embed: EmbedBuilder } {
   const fr = lang === "fr", members = guildPlayers(run), lines: string[] = [];
   const recordCardFollows = recordItems(run.highlights).length > 0;
-  if (run.points > 0) lines.push(`${run.points} ${run.ratingEnabled ? (fr ? "points de participation" : "participation points") : (fr ? "points attribués au total" : "total points awarded")}`);
+  if (run.points > 0) lines.push(`${run.points} ${run.ratingEnabled ? (fr ? "points de communauté" : "community points") : (fr ? "points attribués au total" : "total points awarded")}`);
   // Why a run is unranked: the card shows one reason, truncated; the post keeps every distinct reason and the count.
   const unranked = (run.playerDetails ?? []).filter((player) => members.has(player.character) && player.unrankedReason);
   if (unranked.length) {
@@ -81,10 +81,10 @@ export function dungeonCardOnly(run: DungeonImportResult, lang: Lang): { content
   const others = (run.highlights ?? []).filter(item => item.kind !== "clear" && item.kind !== "first");
   for (const item of others.slice(0, 6)) lines.push(highlightText(item, lang));
   if (!recordCardFollows && run.guildRecord && run.previousGuildBest !== null) {
-    lines.push(t(lang, "dungeon.post.guildRecord", { dungeon: runLabel(run), before: formatDuration(run.previousGuildBest), now: formatDuration(run.durationSec as number) }));
+    lines.push(t(lang, "dungeon.post.guildRecord", { dungeon: runLabel(run, lang), before: formatDuration(run.previousGuildBest), now: formatDuration(run.durationSec as number) }));
   }
   const personal = run.personalRecords.filter((record) => members.has(record.character));
-  if (personal.length) lines.push(t(lang, "dungeon.post.personal", { dungeon: runLabel(run), names: personal.map((record) => run.fullNames?.[record.character] ?? record.character).join(", ") }));
+  if (personal.length) lines.push(t(lang, "dungeon.post.personal", { dungeon: runLabel(run, lang), names: personal.map((record) => run.fullNames?.[record.character] ?? record.character).join(", ") }));
   const earned = new Map<string, string[]>();
   for (const achievement of run.achievements) {
     if (!members.has(achievement.character)) continue;
@@ -94,7 +94,7 @@ export function dungeonCardOnly(run: DungeonImportResult, lang: Lang): { content
   for (const [label, who] of earned) lines.push(`🎖️ ${label}: ${[...new Set(who)].join(", ")}`);
   const embed = new EmbedBuilder().setColor(0xd4a017);
   if (lines.length) embed.setDescription(lines.join("\n").slice(0, 3500));
-  const headline = others.length ? highlightHeadline(others, runLabel(run), lang) : undefined;
+  const headline = others.length ? highlightHeadline(others, runLabel(run, lang), lang) : undefined;
   return { ...(headline ? { content: headline } : {}), embed };
 }
 
@@ -125,7 +125,7 @@ function dungeonEmbed(run: DungeonImportResult, lang: Lang): EmbedBuilder {
   const linkedNote = linked > 0 && linked < members.size ? ` (${linked} ${fr ? (linked > 1 ? "liés" : "lié") : "linked"})` : "";
   const memberWord = fr ? (members.size > 1 ? "membres de la guilde" : "membre de la guilde") : (members.size > 1 ? "guild members" : "guild member");
   lines.push(`🏰 ${members.size} ${memberWord}${linkedNote}${fr ? " :" : ":"} ${tagged.join(", ")}`);
-  if (run.points > 0) lines.push(`${run.points} ${run.ratingEnabled ? (fr ? "points de participation" : "participation points") : (fr ? "points attribués au total" : "total points awarded")}`);
+  if (run.points > 0) lines.push(`${run.points} ${run.ratingEnabled ? (fr ? "points de communauté" : "community points") : (fr ? "points attribués au total" : "total points awarded")}`);
 
   // One "Non classé ×N" for the whole run, with the distinct reasons: never one line per member.
   const unranked = (run.playerDetails ?? []).filter((player) => members.has(player.character) && player.unrankedReason);
@@ -148,10 +148,10 @@ function dungeonEmbed(run: DungeonImportResult, lang: Lang): EmbedBuilder {
   // 9.1 records and challenges: the clear record keeps its own line below; boss records and challenges are listed here.
   for (const item of (run.highlights ?? []).filter(item => item.kind !== "clear").slice(0, 6)) lines.push(highlightText(item, lang));
   if (run.guildRecord && run.previousGuildBest !== null) {
-    lines.push(t(lang, "dungeon.post.guildRecord", { dungeon: runLabel(run), before: formatDuration(run.previousGuildBest), now: formatDuration(run.durationSec as number) }));
+    lines.push(t(lang, "dungeon.post.guildRecord", { dungeon: runLabel(run, lang), before: formatDuration(run.previousGuildBest), now: formatDuration(run.durationSec as number) }));
   }
   const personal = run.personalRecords.filter((record) => members.has(record.character));
-  if (personal.length) lines.push(t(lang, "dungeon.post.personal", { dungeon: runLabel(run), names: personal.map((record) => run.fullNames?.[record.character] ?? record.character).join(", ") }));
+  if (personal.length) lines.push(t(lang, "dungeon.post.personal", { dungeon: runLabel(run, lang), names: personal.map((record) => run.fullNames?.[record.character] ?? record.character).join(", ") }));
   const earned = new Map<string, string[]>();
   for (const achievement of run.achievements) {
     if (!members.has(achievement.character)) continue;
@@ -160,6 +160,6 @@ function dungeonEmbed(run: DungeonImportResult, lang: Lang): EmbedBuilder {
   }
   for (const [label, who] of earned) lines.push(`🎖️ ${label}: ${[...new Set(who)].join(", ")}`);
 
-  return new EmbedBuilder().setColor(0xd4a017).setTitle(`✅ ${runLabel(run)}`.slice(0, 256))
+  return new EmbedBuilder().setColor(0xd4a017).setTitle(`✅ ${runLabel(run, lang)}`.slice(0, 256))
     .setDescription(lines.join("\n").slice(0, 3500)).setFooter({ text: t(lang, "dungeon.post.footer") });
 }

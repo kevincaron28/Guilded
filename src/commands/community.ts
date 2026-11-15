@@ -38,9 +38,9 @@ const viewCommands = (builder: SlashCommandSubcommandsOnlyBuilder) => builder
   .addSubcommand(sub => ref(sub.setName("close").setDescription("Close activity").setDescriptionLocalizations({ fr: "Fermer l'activité" })))
   .addSubcommand(sub => ref(sub.setName("cancel").setDescription("Cancel activity").setDescriptionLocalizations({ fr: "Annuler l'activité" })));
 
-export const lotteryCommand = viewCommands(new SlashCommandBuilder().setName("lottery").setDescription("Free, activity points or in-game currency lotteries").setDescriptionLocalizations({ fr: "Loteries" })
+export const lotteryCommand = viewCommands(new SlashCommandBuilder().setName("lottery").setDescription("Free, community points or in-game currency lotteries").setDescriptionLocalizations({ fr: "Loteries" })
   .addSubcommand(sub => dateOption(titleOption(seasonOption(sub.setName("create").setDescription("Create lottery").setDescriptionLocalizations({ fr: "Créer une loterie" }))), "ends")
-    .addStringOption(o => o.setName("mode").setDescription("Ticket type").setDescriptionLocalizations({ fr: "Type de billet" }).setRequired(true).addChoices({ name: "Free / Gratuit", value: "FREE" }, { name: "Activity points / Points", value: "POINTS" }, { name: "WoW gold / Or WoW", value: "WOW_GOLD" }, ...(POE_ENABLED ? [{ name: "PoE currency / Monnaie PoE", value: "POE_CURRENCY" }] : [])))
+    .addStringOption(o => o.setName("mode").setDescription("Ticket type").setDescriptionLocalizations({ fr: "Type de billet" }).setRequired(true).addChoices({ name: "Free / Gratuit", value: "FREE" }, { name: "Community points / Points", value: "POINTS" }, { name: "WoW gold / Or WoW", value: "WOW_GOLD" }, ...(POE_ENABLED ? [{ name: "PoE currency / Monnaie PoE", value: "POE_CURRENCY" }] : [])))
     .addStringOption(o => o.setName("prize").setDescription("Prize per winner").setDescriptionLocalizations({ fr: "Lot par gagnant" }).setRequired(true).setMaxLength(250))
     .addIntegerOption(o => o.setName("cost").setDescription("Price per ticket").setDescriptionLocalizations({ fr: "Prix du billet" }).setMinValue(1).setMaxValue(1_000_000))
     .addStringOption(o => o.setName("currency").setDescription("e.g. gold, Divine Orb").setDescriptionLocalizations({ fr: "Monnaie" }).setMaxLength(80))
@@ -336,7 +336,7 @@ export function communityCard(row: CommunityActivity & { season: CommunitySeason
     description += say(lang, "One request per member. Every confirmed ticket has equal odds; each person can win once.\n", "Une demande par membre. Chaque billet confirmé a la même chance; une personne peut gagner une seule fois.\n");
     const result = row.result as { winners?: string[]; externalRefundsRequired?: { userId: string; amount: number }[] } | null;
     if (row.status === "CLOSED") description += `🏆 ${say(lang, "Winners", "Gagnants")} : ${result?.winners?.map(id => `<@${id}>`).join(", ") || say(lang, "No eligible entries", "Aucune participation admissible")}\n`;
-    if (row.status === "CANCELLED") description += say(lang, "Cancelled. Activity points refunded automatically. In-game refunds must be handled by organizers.\n", "Annulée. Points d'activité remboursés automatiquement. Les remboursements en jeu sont à faire par les organisateurs.\n");
+    if (row.status === "CANCELLED") description += say(lang, "Cancelled. Community points refunded automatically. In-game refunds must be handled by organizers.\n", "Annulée. Points de communauté remboursés automatiquement. Les remboursements en jeu sont à faire par les organisateurs.\n");
     if (result?.externalRefundsRequired?.length) description += `${say(lang, "In-game refunds", "Remboursements en jeu")} : ${result.externalRefundsRequired.length}\n`;
     addButton(rules.mode === "FREE" ? "free" : "tickets", rules.mode === "FREE" ? say(lang, "Enter for free", "Participer gratuitement") : say(lang, "Choose tickets", "Choisir mes billets"));
   } else if (row.kind === "EVENT") {

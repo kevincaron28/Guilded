@@ -12,6 +12,13 @@ describe("end of dungeon run summary", () => {
     session.run('NS.runResults.remove("SIM-1")');
     expect(session.run('return tostring(NS.runResults.last)..":"..tostring(ROOT.dungeon.pendingResult)')).toBe("nil:nil");
   });
+  it("names the Scarlet Monastery wing from the last boss killed", () => {
+    session = newLuaSession(); session.run('NS={getDb=function() return {} end}');
+    session.load("Modules/RunResults.lua");
+    expect(session.run('return NS.runResults.displayName({name="Scarlet Monastery",instanceId=189,encounters={{name="Arcanist Doan",success=true}}})')).toBe("Scarlet Monastery: Library");
+    expect(session.run('return NS.runResults.displayName({name="Scarlet Monastery",instanceId=189,encounters={}})')).toBe("Scarlet Monastery");
+    expect(session.run('return NS.runResults.displayName({name="Gnomeregan",instanceId=90,encounters={{name="Herod",success=true}}})')).toBe("Gnomeregan");
+  });
   it("displays Forever full names without estimating Forever ratings for another edition", () => {
     session = newLuaSession(); session.run('NS={getDb=function() return {displayNames={Kevin="Kevin Caron"}} end}');
     session.load("Modules/RunResults.lua");

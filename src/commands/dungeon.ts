@@ -42,10 +42,10 @@ export const dungeonCommand = new SlashCommandBuilder()
     .addBooleanOption(o => o.setName("pause").setDescription("Officers: pause/resume the goal")))
   .addSubcommand(sub => sub.setName("catalog").setDescription("November dungeon plan; separate from active season rules")
     .setDescriptionLocalizations({ fr: "Catalogue prévu pour novembre; distinct des règles actives" }))
-  .addSubcommand(sub => sub.setName("rules").setDescription("How dungeon rating and participation points are calculated")
-    .setDescriptionLocalizations({ fr: "Comment la cote et les points de participation sont calculés" }))
-  .addSubcommand((sub) => sub.setName("leaderboard").setDescription("Season rating or participation points")
-    .addStringOption(o => o.setName("metric").setDescription("Default: season rating; other periods use participation").addChoices({name:"Rating",value:"rating"},{name:"Participation",value:"participation"}))
+  .addSubcommand(sub => sub.setName("rules").setDescription("How dungeon rating and community points are calculated")
+    .setDescriptionLocalizations({ fr: "Comment la cote et les points de communauté sont calculés" }))
+  .addSubcommand((sub) => sub.setName("leaderboard").setDescription("Season rating or community points")
+    .addStringOption(o => o.setName("metric").setDescription("Default: season rating; other periods use community points").addChoices({name:"Rating",value:"rating"},{name:"Community points",value:"participation"}))
     .addStringOption((o) => o.setName("period").setDescription("Default: this season").addChoices(
       { name: "This week", value: "week" }, { name: "This month", value: "month" }, { name: "This season", value: "season" }, { name: "All time", value: "all" }))
     .addStringOption((o) => o.setName("season").setDescription("Browse a past season (overrides period)").setAutocomplete(true))
@@ -195,7 +195,7 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
         { lead: lang === "fr" ? `Depuis la réinitialisation hebdomadaire (${since}).` : `Since the weekly reset (${since}).`, link: await publicBoardLink(context.guildId, lang) }));
       return;
     }
-    if (metric === "rating" && !hasDungeonRating(season?.ratingRules)) throw new Error(lang === "fr" ? "Cette saison utilise les anciens points de participation." : "This season uses legacy participation points.");
+    if (metric === "rating" && !hasDungeonRating(season?.ratingRules)) throw new Error(lang === "fr" ? "Cette saison utilise les anciens points de communauté." : "This season uses legacy community points.");
     if (period === "season" && season && hasDungeonRating(season.ratingRules) && metric !== "participation") {
       const rows = await dungeonRating(prisma, context.guildId, season, instanceId);
       await interaction.reply(v2Reply(ratingEmbed(rows, season.name, lang, season.ratingRules, bracketChoice(interaction, rows, context.memberId)), { link: await publicBoardLink(context.guildId, lang) }));
@@ -210,7 +210,7 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
       embed.setFooter({ text: t(lang, "dungeon.board.dungeon", { dungeon: run?.dungeonName ?? String(instanceId) }) });
     }
     embed.setDescription(rows.length ? formatLeaderboard(rows) : t(lang, "dungeon.board.empty"));
-    if (season && hasDungeonRating(season.ratingRules)) embed.setTitle(lang === "fr" ? "Points de participation" : "Participation points");
+    if (season && hasDungeonRating(season.ratingRules)) embed.setTitle(lang === "fr" ? "Points de communauté" : "Community points");
   } else if (subcommand === "records") {
     const announce = interaction.options.getBoolean("announce");
     const otherGuilds = interaction.options.getBoolean("other-guilds");

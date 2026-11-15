@@ -36,3 +36,12 @@ The in-game card shows the same party table as the Discord run card (level, guil
 1. The bot stores `DungeonRunReceipt.card` (`receiptCardOf` in `src/services/dungeon-card.ts`, built from the same `playerDetails` the Discord card reads) and answers `runCards` ({ runRef: [{ n, l, g, a, t }] }, newest 30 runs, five players each) in the signed standings answer and the unsigned device answer. The field is optional: an older companion ignores it.
 2. The companion (`companion/run-cards.mjs`) writes it as `GuildedDungeonCards` in Standings.lua and Guilded Dungeons' Accepted.lua, and keeps earlier cards between answers.
 3. `Modules/RunResults.lua` reads `GuildedDungeonCards[run.id]`. Without an entry the card is exactly as before. The game reads those files only at login or `/reload`, so the table appears when the card is shown or reopened (`/gdg results`) after that; showing is deferred while in combat. `/guilded sim dungeon` then `/gdg results` previews the table with sample names.
+
+## Dark cards fix (15 November 2026)
+
+Discord run cards came out almost black for dark paintings (Deadmines, Blackfathom Deeps, Shadowfang, Wailing Caverns...): the card's left shade
+(`renderDungeonCard`, 0.9 to 0.82 black) sat on top of paintings whose text column already averaged 47-66 of 255. Now `lifted()` in
+`dungeon-backdrop.ts` brings the left 700 px of any painting (and of the procedural fallback) up to a mean of about 100 (gain at most 1.9, never
+darker), and the shade is 0.66 to 0.52. `tests/dungeon-art-mapping.test.ts` checks that every dungeon name the bot knows maps to an existing file
+and that every file is reached by a name. Scarlet Monastery: Armory still has no painting (procedural scene, lifted): a painting for it is a
+follow-up (also needs `Modules/DungeonArt.lua` and a `.blp` in the addon).

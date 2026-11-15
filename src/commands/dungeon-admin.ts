@@ -25,7 +25,7 @@ export const dungeonAdminCommand = new SlashCommandBuilder()
   .addSubcommand((sub) => sub.setName("invalidate").setDescription("Stop a run from counting and take back its points")
     .addStringOption((o) => o.setName("run").setDescription("The run (pick from the list)").setAutocomplete(true).setRequired(true))
     .addStringOption((o) => o.setName("reason").setDescription("Why (shown in the history)").setRequired(true).setMaxLength(200)))
-  .addSubcommand((sub) => sub.setName("award").setDescription("Adjust guild participation points")
+  .addSubcommand((sub) => sub.setName("award").setDescription("Adjust guild community points")
     .addIntegerOption((o) => o.setName("amount").setDescription("e.g. 25, or -25 to remove").setRequired(true).setMinValue(-10000).setMaxValue(10000))
     .addStringOption((o) => o.setName("reason").setDescription("Why (shown in the history)").setRequired(true).setMaxLength(200))
     .addUserOption((o) => o.setName("member").setDescription("Discord member"))
@@ -115,7 +115,7 @@ export async function executeDungeonAdmin(interaction: ChatInputCommandInteracti
       }).join("\n")
       : tx(lang, "No dungeon points recorded yet. Pick a member, character or run, or add why:true to see why a run scored as it did."));
   } else if (subcommand === "config") {
-    reply = `Dungeon scoring settings are locked for all guilds. These shared participation rules apply to new awards; existing points stay. Season targets, level bands and penalties are shared and frozen. See /dungeon rules for the active season.\n\n${describeConfig(sharedDungeonConfig(), new Map())}`;
+    reply = `Dungeon scoring settings are locked for all guilds. These shared community-points rules apply to new awards; existing points stay. Season targets, level bands and penalties are shared and frozen. See /dungeon rules for the active season.\n\n${describeConfig(sharedDungeonConfig(), new Map())}`;
   } else if (subcommand === "why") {
     const blocks = await explainDungeonRuns(prisma, context.guildId, { run: interaction.options.getString("run"), character: interaction.options.getString("character") });
     await interaction.reply({ content: blocks.join("\n\n").slice(0, 1990), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });

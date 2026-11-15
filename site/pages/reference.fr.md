@@ -39,7 +39,7 @@ suivent sont ses sous-commandes.
 | `/bank` `request` `mine` `cancel` | Demander un objet à la banque de guilde | Tout le monde |
 | `/apply` | Postuler à un core de raid | Tout le monde |
 | `/tag` `show` `list` | Afficher un texte enregistré (règles de raid, consommables) | Tout le monde |
-| `/community` `hub` `seasons` `leaderboard` `wallet` `dice` `badges` `honors` | Points d’activité, saisons, badges et palmarès | Tout le monde |
+| `/community` `hub` `seasons` `leaderboard` `wallet` `dice` `badges` `honors` | Points de communauté, saisons, badges et palmarès | Tout le monde |
 | `/community` `lottery` `gaming` `challenge` | Participer aux loteries, soirées de jeu et défis | Tout le monde |
 | `/participation` `status` `nominate` `history` | Votre participation sur Discord ; souligner l’aide d’un membre | Tout le monde |
 | `/report` `bug` `ping` `stats` | Envoyer un rapport de bogue privé ; vérifier que le bot répond ; activité de la guilde | Tout le monde |

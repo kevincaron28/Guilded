@@ -226,7 +226,7 @@ async function drawDeathMap(c: CardCanvas, map: DungeonMapSpec): Promise<void> {
 export function renderDungeonCard(spec: DungeonCardSpec): Promise<RenderedCard> {
   return serial(async () => {
     const c = new CardCanvas(), { accent, tint } = ACCENTS.dungeon, x = 56, colW = 722;
-    c.gradient(0, 0, 870, CARD_H, "h", [[0, "#000", 0.9], [0.84, "#000", 0.82], [1, "#000", 0]]);
+    c.gradient(0, 0, 870, CARD_H, "h", [[0, "#000", 0.66], [0.84, "#000", 0.52], [1, "#000", 0]]);
     c.rect(0, 548, CARD_W, 82, "#060504", { opacity: 0.66 });
     c.rect(0, 546, CARD_W, 3, accent, { opacity: 0.9 });
     c.emblem("gate", x, 26, 36, tint);

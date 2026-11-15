@@ -138,6 +138,19 @@ function results.routeKey(run)
   end
   return found and ("189:" .. found) or nil
 end
+-- Scarlet Monastery is one map for four wings: name the wing (from the last boss killed) so the card says which one was run.
+function results.displayName(run)
+  local name = run and run.name
+  if type(name) ~= "string" or run.instanceId ~= 189 then return name end
+  local lower = string.lower(name)
+  if string.find(lower, "graveyard") or string.find(lower, "library") or string.find(lower, "armory") or string.find(lower, "cathedral")
+    or string.find(lower, "biblioth") or string.find(lower, "armurerie") or string.find(lower, "cath") then return name end
+  local key = results.routeKey(run)
+  local wing = key and string.sub(key, 5)
+  local label = wing == "graveyard" and L("Graveyard") or wing == "library" and L("Library") or wing == "armory" and L("Armory")
+    or wing == "cathedral" and L("Cathedral") or nil
+  return label and (name .. ": " .. label) or name
+end
 function results.estimate(run)
   local key = results.routeKey(run)
   local route = targets[key]
@@ -400,8 +413,9 @@ function results.show(run, resume)
   local seconds = math.max(0, math.floor(run.durationSec or 0))
   local kills = 0
   for _, boss in ipairs(run.encounters or {}) do if boss.success then kills = kills + 1 end end
-  results.applyArt(run.name)
-  window.heading:SetText(run.name or L("Dungeon"))
+  local shownName = results.displayName(run)
+  results.applyArt(shownName)
+  window.heading:SetText(shownName or L("Dungeon"))
   window.status:SetText((run.state == "COMPLETED" and L("RUN COMPLETE") or L("Run not completed"))
     .. "  |cffb0b8c4" .. L("Bosses") .. " " .. kills .. (run.bossCount and ("/" .. run.bossCount) or "") .. "|r")
   if run.state == "COMPLETED" then window.status:SetTextColor(0.4, 0.85, 0.6)

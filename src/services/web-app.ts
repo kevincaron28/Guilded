@@ -364,18 +364,13 @@ export function createWebApp(deps: WebAppDeps) {
         : `<p class="muted">${t("None yet.", "Aucune pour l'instant.")} <a href="${link("/recruitment/", lang)}">${t("See who is recruiting", "Voir qui recrute")}</a></p>`)
       + `</section>`
       + `<section class="me-sec" id="sec-looking"><h3 id="looking-for-a-guild">${t("Looking for a guild", "Je cherche une guilde")}</h3><details class="me-fold"${error ? " open" : ""}><summary>${card ? t("Edit my card", "Modifier ma fiche") : t("Create my card", "Créer ma fiche")}</summary>${cardForm}</details></section>`;
-    const overviewOwn = `<p id="my-week">${t("My week: use", "Ma semaine : utilisez")} <code>/report stats personal:true</code> ${t("in your guild’s Discord for a private recap of the last complete week.", "dans le Discord de votre guilde pour un récapitulatif privé de la dernière semaine complète.")}</p>`;
     const quick = [
-      { href: "#characters", en: "Link a character", fr: "Lier un personnage" },
-      { href: "#achievements", en: "My achievements", fr: "Mes succès" },
-      { href: "/me/calendar", en: "My next raid", fr: "Mon prochain raid" },
-      { href: "/me/reserves", en: "Reserves and wishlist", fr: "Réserves et souhaits" },
       { href: "/companion/", en: "My sync", fr: "Ma synchronisation" }
     ];
     const body = [
       `<p class="eyebrow">Guilded</p><h1>${t("My Guilded", "Mon Guilded")}</h1>`,
       flash ? `<p class="notice">${escapeHtml(flash)}</p>` : "",
-      renderGroups(ctx, rendered, { overview: overviewOwn, guild: guildOwn }, quick)
+      renderGroups(ctx, rendered, { guild: guildOwn }, quick)
     ].join("");
     return kit.page(error ? 400 : 200, t("My Guilded", "Mon Guilded"), body, { noindex: true });
   }

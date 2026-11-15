@@ -106,8 +106,7 @@ What changed in 9.0, and why you would care.
 The dungeon finder's **Guilded** tab shows your recent runs, personal progress, guild rankings and past seasons. Runs are recorded without a connection; the [public leaderboards](/leaderboards/) receive them from your companion or from another player’s companion in your group. Public scoring rules are shared by every guild and frozen for the season. Unverified routes remain unrated.
 
 Prefer just dungeons? **Guilded Dungeons** is the standalone tracker, with no guild
-required. Sign in with Discord to sync finished runs, see your public player profile,
-and manage your connection on [My Guilded](/me/).
+required. Sign in with Discord in the companion to sync finished runs and see your public player profile.
 
 [Dungeon setup and troubleshooting](../docs/DUNGEONS_GUIDE.html) · [Player profiles](/players/)
 

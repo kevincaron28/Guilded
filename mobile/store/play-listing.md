@@ -9,21 +9,25 @@ This listing describes the five-tab app without Guilded Clash (the card game is 
 version 0.3.0. Screenshot sizes and what each one must show: [play-screenshots.md](play-screenshots.md). The Play
 Console steps for the closed test: [play-console-checklist.md](play-console-checklist.md).
 
-**App name: an owner decision before Create app.** Three options:
+**Decided by the owner on 15 November 2026:** the Play name is **`Guild Sync Companion`**, the label under the
+phone icon stays `Guilded`, and the first bundle goes out **without push** (profile `production-no-push`).
+The options that were weighed:
 
 | Option | For | Against |
 | --- | --- | --- |
-| A. `Guilded` | The product's name everywhere (bot, addon, website, the app's own header). Short. Nothing to rename. | Another product called Guilded (a chat app) has had a Play listing. Play can refuse the title as confusing, or act on a complaint later; a forced rename after launch costs a new review. The Microsoft Store already refused "Guilded Companion". |
-| B. `Guilded: guild companion` (24 characters) | Keeps the name members know and says what the app is, which makes it look less like the other product. Search still finds "Guilded". | Still starts with the same word, so the risk is lower, not gone. |
-| C. `Guild Sync Companion` (20 characters) | Already accepted by the Microsoft Store for the Windows companion, so one store name on both. No clash with the other product. | Members search for "Guilded" and would not find it by name; the app header and the website still say Guilded; it describes the Windows uploader better than the phone app. |
+| 1. `Guild Sync Companion` | The name the Microsoft Store already accepted for the Windows companion: one name on both stores, and no clash with the other "Guilded" on Play. | Members who search "Guilded" will not find it by name; the header inside the app and the website still say Guilded. |
+| 2. `Guild Sync` | Same family as the Store name, shorter, and fits a phone app that shows the guild instead of uploading for it. | A new name that is used nowhere else yet; a little generic, so check that Play has no app of that exact name before choosing it. |
+| 3. `Guilded: guild companion` | Keeps the name members know and says what the app is. Search still finds "Guilded". | Still starts with the other product's name, so Play can refuse it or act on a complaint later; a forced rename after launch costs a new review. |
 
-Recommended: **B**, with C as the fallback if Play refuses it. Whatever is chosen, the package id
+Chosen: **1**, because it is already accepted elsewhere and cannot be confused with the other app. Plain
+`Guilded` is not proposed: another app of that name is on Play. Whatever is chosen, the package id
 (`top.kcaron.guilded`) and the name on the phone's home screen (`Guilded`, from `app.json`) do not change.
 
 Background: The Microsoft Store refused "Guilded Companion" on 3 November 2026
 (naming rule 10.1.1.1), and "Guilded" was also the name of a chat app that had a Play listing. Play can refuse a title it
-reads as another product's name. `Guilded` stays the first choice (it is the product's name everywhere); if Play
-refuses it, use `Guild Sync Companion` (the Store name) or `Guilded: guild companion`. Do not put "World of
+reads as another product's name. The label under the icon comes from `name` in `mobile/app.json` and is `Guilded`
+and stays so (owner decision); changing it later is a one-line change and a new build.
+Do not put "World of
 Warcraft" or "WoW" in the title or the icon: a game's name is allowed in the description, with the disclaimer that is
 already there, not in the title.
 
@@ -31,7 +35,7 @@ already there, not in the title.
 
 | Field | Value |
 | --- | --- |
-| App name (30 max) | `Guilded` |
+| App name (30 max) | `Guild Sync Companion` |
 | Default language | English (United States) – en-US |
 | Translation | French (Canada) – fr-CA (text below) |
 | App or game | App |
@@ -43,7 +47,7 @@ already there, not in the title.
 | Contact email | `support@guildedwow.com` (Cloudflare Email Routing to the owner; Play shows it publicly) |
 | Website | https://guildedwow.com |
 | Privacy policy | https://guildedwow.com/docs/PRIVACY (live, HTTP 200 on 8 Nov 2026; `/privacy` is a 404, so do not use it) |
-| Account deletion URL | https://guildedwow.com/docs/PRIVACY#choices-access-and-deletion (public page with the steps; the button itself is at `/me/data` after sign-in, and in the app under Me → Settings) |
+| Account deletion URL | https://guildedwow.com/docs/PRIVACY#choices-access-and-deletion (public page with the steps, readable without signing in; in the app the button is under Me → Settings → Delete my data). The website is retiring its account pages: if its public deletion page gets its own address, use that one. |
 
 ## English (en-US)
 
@@ -56,9 +60,9 @@ Your guild's roster, map, raids, badges and leaderboards, right on your phone.
 **Full description** (4,000 max):
 
 ```
-Guilded keeps your World of Warcraft guild with you when you are away from the game.
+Guild Sync Companion is the phone app of Guilded. It keeps your World of Warcraft guild with you when you are away from the game.
 
-Guilded is the companion app for guilds that use the Guilded Discord bot. Sign in with the same Discord account you use with your guild, and the app shows what your guild already shares with you.
+It is for guilds that use the Guilded Discord bot. Sign in with the same Discord account you use with your guild, and the app shows what your guild already shares with you.
 
 GUILD
 • Roster: your characters, guild ranks, raid cores and soft reserves.
@@ -81,7 +85,7 @@ NEWS
 
 Want to look around first? Open the sample guild: every screen works with made-up names, without signing in.
 
-Free, no ads, nothing to buy. Positions and calls for help are kept only for your guild, for a limited time, and "Delete my data" on the website removes your data.
+Free, no ads, nothing to buy. Positions and calls for help are kept only for your guild, for a limited time, and "Delete my data" in the app's settings removes your data (backups and Discord messages already posted are not changed).
 
 Guilded is a fan-made tool. It is not affiliated with or endorsed by Blizzard Entertainment. World of Warcraft is a trademark of Blizzard Entertainment, Inc.
 ```
@@ -97,9 +101,9 @@ Membres, carte, raids, badges et classements de votre guilde, sur votre mobile.
 **Description complète** (4 000 max) :
 
 ```
-Guilded garde votre guilde World of Warcraft avec vous quand vous êtes loin du jeu.
+Guild Sync Companion est l'appli mobile de Guilded. Elle garde votre guilde World of Warcraft avec vous quand vous êtes loin du jeu.
 
-Guilded est l'appli compagnon des guildes qui utilisent le bot Discord Guilded. Connectez-vous avec le même compte Discord que dans votre guilde : l'appli affiche ce que votre guilde partage déjà avec vous.
+Elle s'adresse aux guildes qui utilisent le bot Discord Guilded. Connectez-vous avec le même compte Discord que dans votre guilde : l'appli affiche ce que votre guilde partage déjà avec vous.
 
 GUILDE
 • Membres : vos personnages, rangs de guilde, cores de raid et soft reserves.
@@ -122,7 +126,7 @@ NOUVELLES
 
 Envie de jeter un œil d'abord ? Ouvrez la guilde d'exemple : chaque écran fonctionne avec des noms inventés, sans connexion.
 
-Gratuit, sans publicité, rien à acheter. Les positions et les appels à l'aide sont gardés seulement pour votre guilde, pour une durée limitée, et « Supprimer mes données » sur le site efface vos données.
+Gratuit, sans publicité, rien à acheter. Les positions et les appels à l'aide sont gardés seulement pour votre guilde, pour une durée limitée, et « Supprimer mes données » dans les réglages de l'appli efface vos données (les sauvegardes et les messages Discord déjà publiés ne sont pas modifiés).
 
 Guilded est un outil créé par des fans. Il n'est ni affilié à Blizzard Entertainment ni approuvé par elle. World of Warcraft est une marque de commerce de Blizzard Entertainment, Inc.
 ```
@@ -150,11 +154,11 @@ They hold no real names and no personal data. The public endpoints were answered
 so live player names never appear. To regenerate them, see [`capture-screenshots.mjs`](capture-screenshots.mjs).
 No Blizzard art is used. The feature graphic says "Your guild" rather than "WoW", to keep trademarks out of the artwork.
 
-## Length check (8 Nov 2026)
+## Length check (15 Nov 2026)
 
 | Text | Characters | Limit |
 | --- | --- | --- |
 | EN short | 78 | 80 |
 | FR short | 79 | 80 |
-| EN full | 1,691 | 4,000 |
-| FR full | 1,951 | 4,000 |
+| EN full | 1,782 | 4,000 |
+| FR full | 2,078 | 4,000 |

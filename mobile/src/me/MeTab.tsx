@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { KeyboardAvoidingView, Linking, Platform, Pressable, Text, View } from "react-native";
 import { t } from "../i18n";
 import type { GuildState } from "../useGuild";
@@ -7,7 +7,7 @@ import { common } from "../ui/common";
 import { Language } from "../guild/SignIn";
 import { AlbumScreen } from "./AlbumScreen";
 import { Wishlist } from "./Wishlist";
-import { PRIVACY_URL, deleteDataUrl } from "../links";
+import { DELETE_INFO_URL, PRIVACY_URL } from "../links";
 import * as clashEntry from "../clash/entry";
 
 // Guilded Clash is on hold (owner, 14 November 2026): hidden, not deleted. metro.config.js resolves this module
@@ -16,7 +16,7 @@ import * as clashEntry from "../clash/entry";
 const clashParts: typeof clashEntry | null = process.env.EXPO_PUBLIC_GUILDED_CLASH === "1" && typeof clashEntry.ClashHome === "function" ? clashEntry : null;
 
 /** Me tab: my characters, badges (album), wishlist, language and sign-out. Sign-out lives only here. */
-export function MeTab({ guild, webOrigin, onSignIn }: { guild: GuildState; webOrigin: string; onSignIn: () => void }) {
+export function MeTab({ guild, onSignIn }: { guild: GuildState; onSignIn: () => void }) {
   const { lang, session, preview, snapshot } = guild;
   const [clash, setClash] = useState(false);
   const hub = snapshot?.hub ?? null;
@@ -25,7 +25,7 @@ export function MeTab({ guild, webOrigin, onSignIn }: { guild: GuildState; webOr
   if (!guild.signedIn) return <Screen>
     <SignInCard lang={lang} onSignIn={onSignIn} />
     {clashParts ? <clashParts.ClashTeaser lang={lang} onOpen={() => setClash(true)} /> : null}
-    <Settings guild={guild} webOrigin={webOrigin} />
+    <Settings guild={guild} />
   </Screen>;
   const characters = hub?.characters ?? [];
   return <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
@@ -42,9 +42,6 @@ export function MeTab({ guild, webOrigin, onSignIn }: { guild: GuildState; webOr
             <Text style={common.muted}>{[character.spec, character.className].filter(Boolean).join(" ")}{character.level ? ` · ${t(lang, "level")} ${character.level}` : ""}</Text>
           </Card>)}
       </> : null}
-      <Pressable onPress={() => void Linking.openURL(`${webOrigin}/auth/login?return=%2Fme%2F`)} accessibilityRole="link" style={common.textButton}>
-        <Text style={common.textButtonLabel}>{t(lang, "webProfile")} ↗</Text>
-      </Pressable>
       <Text style={common.label}>{t(lang, "badges").toUpperCase()}</Text>
       <AlbumScreen lang={lang} session={preview ? null : session} />
       {clashParts ? <clashParts.ClashTeaser lang={lang} onOpen={() => setClash(true)} /> : null}
@@ -55,13 +52,13 @@ export function MeTab({ guild, webOrigin, onSignIn }: { guild: GuildState; webOr
           onChange={(next) => guild.setSnapshot((current) => current ? { ...current, manage: next } : current)} />
         <Text style={common.muted}>{t(lang, "mapShareHere")}</Text>
       </> : null}
-      <Settings guild={guild} webOrigin={webOrigin} />
+      <Settings guild={guild} />
       <Pressable onPress={() => void guild.leave()} style={common.secondary}><Text style={common.secondaryText}>{preview ? t(lang, "closeSample") : t(lang, "signOut")}</Text></Pressable>
     </Screen>
   </KeyboardAvoidingView>;
 }
 
-function Settings({ guild, webOrigin }: { guild: GuildState; webOrigin: string }) {
+function Settings({ guild }: { guild: GuildState }) {
   return <>
     <Text style={common.label}>{t(guild.lang, "settings").toUpperCase()}</Text>
     <Text style={common.muted}>{t(guild.lang, "language")}</Text>
@@ -69,9 +66,61 @@ function Settings({ guild, webOrigin }: { guild: GuildState; webOrigin: string }
     <Pressable onPress={() => void Linking.openURL(PRIVACY_URL).catch(() => {})} accessibilityRole="link" style={common.textButton}>
       <Text style={common.textButtonLabel}>{t(guild.lang, "privacyPolicy")} ↗</Text>
     </Pressable>
-    <Pressable onPress={() => void Linking.openURL(deleteDataUrl(webOrigin)).catch(() => {})} accessibilityRole="link" style={common.textButton}>
-      <Text style={common.textButtonLabel}>{t(guild.lang, "deleteMyData")} ↗</Text>
-    </Pressable>
-    <Text style={common.muted}>{t(guild.lang, "deleteMyDataHelp")}</Text>
+    <DeleteMyData guild={guild} />
+  </>;
+}
+
+/**
+ * Delete my data, inside the app (Google Play asks for an in-app way). Signed in: a button, then a confirmation that
+ * says what is erased and what stays, then the erasure through the API. Signed out or in the sample guild there is
+ * no account on this phone to delete, so the public page that explains the other ways is offered instead.
+ */
+function DeleteMyData({ guild }: { guild: GuildState }) {
+  const { lang } = guild;
+  const [step, setStep] = useState<"idle" | "confirm" | "working">("idle");
+  const [problem, setProblem] = useState<string | null>(null);
+  // A second tap can land before the disabled state is drawn; a ref closes that gap, so only one request leaves.
+  const sending = useRef(false);
+  const info = <Pressable onPress={() => void Linking.openURL(DELETE_INFO_URL).catch(() => {})} accessibilityRole="link" style={common.textButton}>
+    <Text style={common.textButtonLabel}>{t(lang, "deleteMyDataHow")} ↗</Text>
+  </Pressable>;
+  if (!guild.session || guild.preview) return <>
+    <Text style={common.muted}>{t(lang, "deleteMyDataSignedOut")}</Text>
+    {info}
+  </>;
+  const run = async () => {
+    if (sending.current) return;
+    sending.current = true;
+    setStep("working");
+    setProblem(null);
+    try {
+      if (await guild.deleteMyData() === "unavailable") setProblem(t(lang, "deleteUnavailable"));
+    } catch (error) {
+      setProblem(error instanceof Error ? error.message : t(lang, "deleteUnavailable"));
+    } finally {
+      sending.current = false;
+    }
+    setStep("idle");
+  };
+  return <>
+    {step === "idle" ? <>
+      <Pressable onPress={() => { setProblem(null); setStep("confirm"); }} accessibilityRole="button" style={common.textButton}>
+        <Text style={common.textButtonLabel}>{t(lang, "deleteMyData")}</Text>
+      </Pressable>
+      <Text style={common.muted}>{t(lang, "deleteMyDataHelp")}</Text>
+    </> : <Card edge={null}>
+      <Text style={common.heroTitle}>{t(lang, "deleteConfirmTitle")}</Text>
+      <Text style={common.muted}>{t(lang, "deleteConfirmBody")}</Text>
+      <Pressable onPress={() => void run()} disabled={step === "working"} accessibilityRole="button" style={common.secondary}>
+        <Text style={[common.secondaryText, { color: "#e7b4a8" }]}>{step === "working" ? t(lang, "deleteWorking") : t(lang, "deleteConfirmYes")}</Text>
+      </Pressable>
+      <Pressable onPress={() => setStep("idle")} disabled={step === "working"} accessibilityRole="button" style={common.secondary}>
+        <Text style={common.secondaryText}>{t(lang, "deleteConfirmNo")}</Text>
+      </Pressable>
+    </Card>}
+    {problem ? <>
+      <Text accessibilityRole="alert" style={common.error}>{problem}</Text>
+      {info}
+    </> : null}
   </>;
 }

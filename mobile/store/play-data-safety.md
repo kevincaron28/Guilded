@@ -21,6 +21,7 @@ All of it goes to the Guilded server the member signed in to (default `https://g
 | `POST /api/v1/manage` | wishlist edits (item name, priority, character) | the member's raid wishlist |
 | `POST /api/v1/companion/guild-map` | `share: true/false` | the member's map-sharing switch (off deletes their positions on the server) |
 | `POST /api/v1/companion/logout` | the server id | sign out |
+| `POST /api/v1/companion/delete-my-data` | the confirm word | Delete my data, after the member confirms on the screen |
 | `POST /api/v1/companion/renew` | a new credential | renews the sign-in |
 | `POST /api/v1/mobile/device` | the Expo push token, the alert on/off switch and the language | push alerts, only after the member turns alerts on. A bundle built with the `production-no-push` profile has no Firebase, so it never gets a token and never sends this |
 | `GET https://u.expo.dev/<project id>` (Expo Updates, once per launch) | the app version, the update channel, the platform and a random installation id the update library makes on the phone (not tied to the account) | fetches a newer JavaScript bundle of the same app version |
@@ -41,8 +42,8 @@ permissions. Check the list Play shows for the uploaded bundle (App bundle explo
 | --- | --- |
 | Does your app collect or share any of the required user data types? | **Yes** |
 | Is all of the user data collected by your app encrypted in transit? | **Yes** (HTTPS only) |
-| Which ways can users request that their data is deleted? | **I provide a way for users to request deletion**. In the app: Me → Settings → **Delete my data**, which opens the website's Delete my data page after the Discord sign-in. On the web: https://guildedwow.com/docs/PRIVACY#choices-access-and-deletion (public, no sign-in needed to read it; it names the app, gives the steps and says what is deleted and what is kept). |
-| Account creation | Users sign in with an account created outside the app (Discord, through the Guilded website). If Console asks for a "Delete account URL", use https://guildedwow.com/docs/PRIVACY#choices-access-and-deletion (not `/me/data`, which answers "Sign in" to a visitor who is not signed in; Google wants a page anyone can read). |
+| Which ways can users request that their data is deleted? | **I provide a way for users to request deletion**. In the app: Me → Settings → **Delete my data** → **Delete everything**. It erases the account and its data on the server through the API and signs the phone out; no website visit is needed. On the web: https://guildedwow.com/docs/PRIVACY#choices-access-and-deletion (public, no sign-in needed to read it; it names the app, gives the steps and says what is deleted and what is kept). The website is retiring its account pages; if its public deletion page gets its own address, use that address here and in `DELETE_INFO_URL` (`mobile/src/links.ts`). |
+| Account creation | Users sign in with an account created outside the app (Discord, through the Guilded website). If Console asks for a "Delete account URL", use https://guildedwow.com/docs/PRIVACY#choices-access-and-deletion: Google wants a page anyone can read without signing in. |
 
 **Data types.** Tick only these:
 

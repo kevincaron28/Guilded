@@ -62,6 +62,8 @@ const apiMethods = new Map([
   ["/api/v1/poe/status", ["GET"]],
   ["/api/v1/companion/logout", ["POST"]],
   ["/api/v1/companion/leave", ["POST"]],
+  // Delete my data from the phone app (and the companion): the member's own sign-in plus the confirm word.
+  ["/api/v1/companion/delete-my-data", ["POST"]],
   ["/api/v1/companion/sign-in", ["POST"]],
   ["/api/v1/companion/sign-in/poll", ["POST"]],
   ["/api/v1/companion/renew", ["POST"]],

@@ -147,6 +147,25 @@ export function useGuild(defaultOrigin: string) {
     setPushNotice(null);
   };
 
+  /**
+   * Delete my data, then forget the sign-in on this phone. Throws with the server's reason when it refuses;
+   * returns "unavailable" (and changes nothing) when the server does not offer the route. A sign-in the server no
+   * longer knows counts as deleted: the phone must not stay signed in with a dead credential.
+   */
+  const deleteMyData = async (): Promise<"deleted" | "unavailable"> => {
+    if (!session || preview) return "unavailable";
+    const outcome = await new GuildedClient(session.apiOrigin, session.companionCredential).deleteMyData();
+    if (outcome === "unavailable") return outcome;
+    // The server removed the sign-in with the rest: nothing to sign out of, only the phone's copy to clear.
+    await clearSession();
+    if (remindersOn) void syncRaidReminders(false, []);
+    setSession(null);
+    setSnapshot(null);
+    setRemoteOn(false);
+    setPushNotice(null);
+    return "deleted";
+  };
+
   /** A guild to show: signed in to a guild server, or the sample guild. */
   const hasGuild = preview || Boolean(session && !session.personal);
   /** Signed in at all (a personal sign-in has badges but no guild), or the sample. */
@@ -154,7 +173,7 @@ export function useGuild(defaultOrigin: string) {
   const guildName = snapshot?.hub?.guildName || snapshot?.manage?.guildName || snapshot?.standings?.guildName || session?.guildName || null;
 
   return {
-    lang, setLang, ready, session, setSession, preview, startPreview, leave, refresh,
+    lang, setLang, ready, session, setSession, preview, startPreview, leave, deleteMyData, refresh,
     originDraft, setOriginDraft, snapshot, setSnapshot, loading,
     remindersOn, setRemindersOn, planned, imminent, reminderSync,
     remoteOn, pushBusy, pushNotice, togglePush,

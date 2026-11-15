@@ -3,7 +3,9 @@ export const DEFAULT_WEB_ORIGIN = "https://guildedwow.com";
 /** Hosts whose /app/ links open the app: the current site and the address older links and notices still use. */
 export const APP_LINK_ORIGINS = [DEFAULT_WEB_ORIGIN, "https://guilded.kcaron.top"];
 export const PRIVACY_URL = `${DEFAULT_WEB_ORIGIN}/docs/PRIVACY`;
-/** "Delete my data" lives on the website of the server the member signed in to; it asks for the Discord sign-in first. */
-export function deleteDataUrl(webOrigin: string): string {
-  return `${webOrigin.replace(/\/+$/, "")}/auth/login?return=%2Fme%2Fdata`;
-}
+/**
+ * The public page that explains how to delete an account and its data (no sign-in needed to read it). The app itself
+ * deletes through the API (GuildedClient.deleteMyData); this page is for someone who is signed out or whose server
+ * does not offer the route yet. One constant, so the address can follow the website when its deletion page moves.
+ */
+export const DELETE_INFO_URL = `${DEFAULT_WEB_ORIGIN}/docs/PRIVACY#choices-access-and-deletion`;

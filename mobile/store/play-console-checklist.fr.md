@@ -16,8 +16,8 @@ Les noms de menus sont ceux de Play Console en anglais (novembre 2026), pour qu'
 | # | Étape | Qui |
 | --- | --- | --- |
 | 0.1 | La demande de fusion de l'appli (appli mobile, trousse de la boutique, tâche d'intégration mobile) est fusionnée et l'intégration continue est verte sur `main`. La demande de fusion du serveur (bot, Worker, base de données) n'est pas nécessaire pour le test fermé. | Agent (la session maîtresse fusionne) |
-| 0.2 | Choisir le nom de l'appli (voir « App name » dans [play-listing.md](play-listing.md)). | **Propriétaire** |
-| 0.3 | Choisir avec ou sans notifications poussées pour ce premier paquet. **Sans** (recommandé pour le test fermé) : rien à configurer, on compile avec `production-no-push`. **Avec** : faire d'abord les étapes Firebase 1 et 2 de ANDROID_PLAY_LAUNCH.md (connexion Google, deux fichiers d'identifiants gardés dans `Documents\guilded-secrets\`), puis compiler avec `production`. | Le **propriétaire** décide; Firebase est au **propriétaire** |
+| 0.2 | Nom de l'appli : décidé le 15 novembre 2026, `Guild Sync Companion`. L'étiquette sous l'icône du téléphone reste `Guilded`. | Fait |
+| 0.3 | Avec ou sans notifications poussées : décidé le 15 novembre 2026, **sans** pour le premier paquet. Compiler avec `production-no-push`; aucune étape Firebase. | Fait |
 
 ## 1. Compiler le paquet (.aab)
 
@@ -42,7 +42,7 @@ Si la compilation échoue avec « Production Android builds require the Firebase
 | # | Étape | Qui |
 | --- | --- | --- |
 | 2.1 | https://play.google.com/console → **Create app**. | **Propriétaire** (connecté) |
-| 2.2 | Nom de l'appli (0.2), langue par défaut **English (United States) – en-US**, **App**, **Free**. | L'agent peut taper; le **propriétaire** vérifie |
+| 2.2 | Nom de l'appli `Guild Sync Companion`, langue par défaut **English (United States) – en-US**, **App**, **Free**. | L'agent peut taper; le **propriétaire** vérifie |
 | 2.3 | Cocher les déclarations (Developer Program Policies, lois américaines sur l'exportation) → **Create app**. | **Propriétaire** |
 
 Le nom de paquet `top.kcaron.guilded` est fixé pour toujours par le premier paquet téléversé. Il ne peut plus changer.

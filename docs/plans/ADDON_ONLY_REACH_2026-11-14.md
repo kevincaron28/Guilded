@@ -137,3 +137,41 @@ What exists now, and where it differs from the design above.
 
 - **Marker clock.** The companion GuildedCompanionFeatures marker carries `bt`, the bot time at the write (from the bot Date header), which the addon prefers to the PC time `at`; the future guard of a heartbeat marker is one hour. Tests cover the PC clock behind and ahead, and that stopping the engine (sign-out) stops the heartbeat.
 - **Run kind (transport only).** Carry.lua collects each player's own finished run (a run no bot holds, at most five players, up to 14 days old) as one flat `run` record and whispers it to a carrier met later, like an outside duel. A bot that does not know the kind ignores it and sends no receipt, so the record stays with the addon. The bot side (a held kind with its own release rules) is a separate change.
+
+### Bot side of the run kind (internal, not member-visible)
+
+Owner decision, 14 November 2026: a carried run with only one report (one player with the addon, no companion, nobody else in the group with the addon) is ranked, not held ("no we rank it"; consistent with "one player run enough evidence" and "with your anti cheat methods in store we can trust a single report").
+
+- A single carried statement goes through the relay lane (`ingestRelayedRuns`) like any single unsigned reporter: the same plausibility flags, the carrier's daily relay cap and the public lane's own checks. The author must be a player of the run; a run the carrier played in is the carrier's own upload's business (computed with `ownCarrierKeys`, so the roster of other players is never "own").
+- The first accepted statement places the run. A later statement of the same run (same instance and run id) can only confirm it; one that disagrees is refused by the public lane, the placed run stays and the refusal is logged ("not-placed ... differs from the run already placed") for review. Scores are never changed automatically.
+- A carrier is told a record was dealt with (receipt) only when the run was placed, confirmed, already known, or was the carrier's own. Every refusal is logged with its reason and filed once as a `rejected` row.
+- Floods, all in the server configuration (`RUN_INTEGRITY_CONFIG`, defaults in `run-integrity-config.ts`): `carriedRunRowsPerCarrierRun` 3, `carriedRunRowsPerRun` 40 (signed carriers), `carriedRunRowsPerRunDevice` 5 (unsigned devices, counted apart), `carriedRunKeysPerDay` 30 and `carriedRunKeysPerDayDevice` 10 distinct runs per carrier per day. Rows are filed per carrier (`key@carrier`) and deleted after 30 days.
+- No member-visible wording about how runs are checked or limited.
+
+#### Revision after the second review (internal)
+
+- **Who may claim a run id.** The addon makes the run id (`QG-YYYYMMDD-HHMMSS-name`) from the recorder's own name and the run's start. A carried statement is accepted only when its author is a player of the run, the id's name is the author's, and the id's time is within 10 minutes of the run's start. Anything else (an outsider using someone else's id, a wrong time, a malformed record) is refused with a reason and a receipt (it can never be accepted, so it is not re-sent) and never occupies the run id. Because each addon names its own runs, every recorder has its own id; how the public lane treats two recorders' runs of one dungeon is the lane's existing behaviour, unchanged here.
+- **A placed run is never changed by a later carried statement.** If the run already exists, the statement is a duplicate: it gets a receipt, nothing reaches `addUpload`, and a different result is only logged for review. Rows are filed per run and carrier (`runKey@carrier`), so the same carrier sending the run under another record key is the same row.
+- **One exception.** A run placed only by other players' relayed copies (every uploader key starts with `relay:`) gives way, once, to its own recorder's statement when that disagrees (logged); after the recorder's statement is placed nothing replaces it.
+- **Receipts.** Placed, duplicate, the carrier's own run, and statements that can never be accepted get a receipt. A statement over a limit or held by a plausibility check does not (it is sent again later). Duplicates over a per-run limit are still receipted but get no row.
+- **Sharing.** Both carry paths (signed and unsigned device) pass the placed runs to the same participant-gated cross-guild sharing.
+
+### Revision after the third review (internal)
+
+- **A replacement never deletes first.** When a recorder's statement would replace a run that only other players' relayed copies placed, the lane first checks, without changing anything, that the statement would be placed afterwards (the carrier's daily room, the plausibility hold, the public lane's own check). If it would not, the placed run stays, the statement is refused in the log and not receipted (sent again later).
+- **Two recorders, one run.** Every addon names its runs after its own recorder, so two addon players in one party make two run ids. Before placing, the lane looks for a placed run of the same game edition and instance, with the same set of character names and a start within five minutes; if there is one, the statement is a confirmation: receipted, an applied row of its own, no second run. This also covers the relayed lane (`known` count in the result). A different run by the same party an hour later is a second run. Existing rows are not touched: only new duplicates are prevented.
+- **Possible later switch (not built, default off):** a server-side option requiring a statement's author to be a known character (a Character row or on the guild roster) before the run is placed.
+- **Known limit:** a player who is in the run can place it first under their own name and a made-up result; the first statement that passes wins and a placed run is never changed. The limits (rows per run, runs per carrier and day) and the review log bound the damage; officers can still remove a run.
+
+### Revision after the fourth review (internal)
+
+- **A near-match is a confirmation only when it says the same.** Same instance, same name set and a start within five minutes are not enough: the duration, end and players must agree (the public lane's own agreement test) and the same bosses must be killed with the same completion method. A statement that differs never changes the placed run: it is receipted and filed as a "differs" row (one log line), so it is never silently lost.
+- **Recorder wins once, across ids.** If the placed run was made only by other players' relayed copies (no first-hand statement of the recorder its own run id names) and the differing statement comes from its own run id's recorder, the placed run is replaced, after the same pre-check as before. The relayed lane keeps a placed run when a near-match differs (logged).
+- **A replacement can fail safely.** The run is copied before it is removed and put back if the statement is then not placed (a check, a limit, an error).
+- **Held statements are closed.** A statement held by a check is retried for two days (rows with status "held"), then receipted as permanently refused (status "refused", logged).
+- **Index:** `PublicRun(gameEdition, instanceId, startedAt)` for the near-match lookup (same migration folder, hand-written); the lookup is ordered by start and reads up to 50 runs.
+
+### Follow-ups after the merge (internal)
+
+- A closed statement ("refused") that is sent again is receipted at once. A replaced run leaves a durable note (`CarriedRecord` kind `replaced-run`, with the original run key, duration and bosses; the 30-day cleanup only deletes kind `run`), and a run that already had one replacement, or is older than 25 days, is never replaced again, so the cleanup cannot re-open "recorder wins once". The original is put back only when nothing of the new statement is on the boards. Accepted limit (documented by a test): a forged run placed first under the forger's own name stays; the honest recorder's statement is filed as "differs".
+- Companion: after three unreadable reads of the parked-runs record in a row a damaged (not locked) record is moved aside as a timestamped `.bad` copy (last three kept), a new record starts and the Activity list shows a "Problem:" line (English and French).

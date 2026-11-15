@@ -88,6 +88,12 @@ function needsYou({ config, state, problems, savedFile, update, otherAccount }) 
   if (save) return item("settings-not-saved", "bad", ["Your settings could not be saved."], ["Restart Windows, then open the companion again."], [{ action: "problems", label: "See how to fix" }]);
   const disk = has(problems, "disk-space-low");
   if (disk) return item("disk-space-low", "bad", ["Not enough disk space: {0} MB free.", disk.data.freeMb], ["Free some space; the companion carries on."], [{ action: "storage", label: "Open Storage settings" }]);
+  const parked = has(problems, "parked-record-damaged");
+  if (parked) {
+    return parked.data.stuck
+      ? item("parked-record-damaged", "bad", ["A saved list of runs for other guilds is damaged."], ["Those runs are not sent until it is fixed. Restart the companion; if this stays, tell your officer."], [])
+      : item("parked-record-damaged", "warn", ["A saved list of runs for other guilds was damaged and has been reset."], ["Some runs of other guilds may be sent again. A copy was kept next to it as a .bad file."], []);
+  }
   if (otherAccount?.account) return item("new-wow-account", "warn", ["New WoW account found: is it yours?"], ["{0}", otherAccount.account], [{ action: "account-yes", label: "Yes" }, { action: "account-no", label: "No" }]);
   if (state.device?.status === "choose") return item("choose-server", "warn", ["Choose your guild's Discord server."], ["Several servers set up your guild {0}.", state.device.guild?.name ?? ""], [{ action: "choose-server", label: "Choose server" }]);
   if (state.device?.status === "no-guild" && state.device.guild?.name) {

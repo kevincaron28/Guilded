@@ -1,6 +1,6 @@
 # Guilded 9.3.3 — release notes (15 November 2026)
 
-**Fixes after 9.3.2.** Not yet published. Protocol 2, WoW Forever only. Two bot migrations since 9.3.2 (`mobile_devices` and `mobile_receipts`, for phone alerts); apply them with the bot deploy.
+**Fixes after 9.3.2.** Published 15 November 2026. Protocol 2, WoW Forever only. The two phone-alert migrations (`mobile_devices` and `mobile_receipts`) were already applied on production on 14 November 2026.
 
 Real-client checks: docs/V9_3_3_RELEASE_ACCEPTANCE.md. 9.3.3 is not yet confirmed on real clients.
 
@@ -13,6 +13,8 @@ Real-client checks: docs/V9_3_3_RELEASE_ACCEPTANCE.md. 9.3.3 is not yet confirme
 - **Group runs:** fewer repeated offers, and a run that was sent but not confirmed yet says so.
 - **Companion updates:** a waiting addon update installs the moment WoW is closed, and an unfinished companion update shows Try again.
 - **Start with Windows:** the box shows and changes the real startup entry.
+- **Parked guilds:** runs are no longer sent twice.
+- **Companion clock:** the update marker no longer depends on a wrong PC clock, and the heartbeat stops when you sign out.
 
 ## Discord and website (already live)
 
@@ -32,4 +34,4 @@ Guilded 9.3.3 : la carte de duel montre le personnage que vous avez affronté, u
 
 ## Technical
 
-- #928, #930, #931, #938, #939, #941, #944 (addon and companion); #927, #929, #934, #940, #942 (bot and website, already live) since 9.3.2 (see CHANGELOG.md).
+- #928, #930, #931, #938, #939, #941, #944, #947 (addon and companion); #927, #929, #934, #940, #942 (bot and website, already live) since 9.3.2 (see CHANGELOG.md).

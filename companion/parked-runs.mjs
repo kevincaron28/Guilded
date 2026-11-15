@@ -1,4 +1,4 @@
-import { readFile, writeFile, rename, rm } from "node:fs/promises";
+import { readFile, writeFile, rename, rm, readdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { leaveOut } from "./group-relay.mjs";
 
@@ -78,6 +78,114 @@ export async function readRecord(config) {
   const path = recordPathFor(config);
   if (!path) return emptyRecord();
   try { return parseRecord(await readFile(path, "utf8")); } catch { return emptyRecord(); }
+}
+
+/**
+ * Reads the record for a change that will be written back. A missing file is an empty record (nothing was saved yet). Any other failure is tried
+ * once more after a short wait. The answer is { record } or { record: null, corrupt }: `corrupt` is true only when the text was read but is not a
+ * record (it does not parse, or is not an object); a lock or permission error (EBUSY, EPERM, EACCES: antivirus, another program) and any other
+ * read error are not corruption, so a caller never writes over, or moves aside, a record that may be perfectly good.
+ */
+export async function readRecordDetailed(config, { retryMs = 150 } = {}) {
+  const path = recordPathFor(config);
+  if (!path) return { record: emptyRecord() };
+  let corrupt = false;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let text;
+    try { text = await readFile(path, "utf8"); }
+    catch (error) {
+      if (error?.code === "ENOENT") return { record: emptyRecord() };
+      corrupt = false;
+      if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, retryMs));
+      continue;
+    }
+    try {
+      const value = JSON.parse(text);
+      if (!value || typeof value !== "object") throw new Error("not a record");
+      return { record: parseRecord(text) };
+    } catch {
+      corrupt = true;
+      if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, retryMs));
+    }
+  }
+  return { record: null, corrupt };
+}
+
+/** The record, or null when it could not be read (see readRecordDetailed). */
+export async function readRecordStrict(config, options) {
+  return (await readRecordDetailed(config, options)).record;
+}
+
+// What the member sees in the Activity list (English here; the French window translates them: companion-app/locales/fr.json, keep in step).
+export const RECORD_SKIPPED = "The parked-guild run record could not be read; it is left as it is and this change is skipped.";
+export const RECORD_NOT_SAVED = "The parked-guild run record could not be saved; this change is lost until the next sync.";
+export const RECORD_MOVED = "Problem: the saved list of runs waiting for other guilds was damaged. It was kept as a .bad file next to it and a new list was started; some runs of other guilds may be sent again.";
+export const RECORD_STUCK = "Problem: the saved list of runs waiting for other guilds is damaged and could not be moved aside. Those runs are not sent until it is fixed.";
+
+const KEEP_BAD = 3;
+/** Moves the record aside as a timestamped .bad copy and keeps the last few. True when the record is out of the way. */
+async function moveAside(path) {
+  const stamp = new Date().toISOString().replace(/[-:.]/g, "").replace("T", "-").replace("Z", "");
+  if (!(await rename(path, `${path}.${stamp}.bad`).then(() => true, () => false))) return false;
+  try {
+    const folder = dirname(path);
+    const prefix = `${path.slice(folder.length + 1)}.`;
+    // Exactly the names made above (<record file>.<YYYYMMDD-HHMMSSmmm>.bad): nothing else in the folder is ever removed.
+    const copies = (await readdir(folder)).filter((name) => name.startsWith(prefix) && /^\d{8}-\d{9}\.bad$/.test(name.slice(prefix.length))).sort();
+    for (const old of copies.slice(0, Math.max(0, copies.length - KEEP_BAD))) await rm(join(folder, old), { force: true });
+  } catch { /* the copies are only kept tidy */ }
+  return true;
+}
+
+/**
+ * One change at a time to the record: each change is applied to the record read just before it, so a slower writer never puts back an older
+ * copy. `change(record)` returns the new record, or null to leave the file as it is. A record that cannot be read is left alone (one log line),
+ * and a failed write is logged. Resolves to what was written, or null. Only a record that is read but damaged (not a lock) counts toward
+ * `unreadableLimit`: after that many in a row it is moved aside and a new one is started.
+ */
+const noLog = (level, message) => { void level; void message; };
+/** After this many damaged reads in a row the record is moved aside and a new one is started. */
+export const UNREADABLE_LIMIT = 3;
+/** The "moved aside" warning stays visible at least this long (a fresh record that read well a moment later must not hide it before the member sees it). */
+export const MOVED_VISIBLE_MS = 15 * 60 * 1000;
+/** What the engine keeps in its state for the Problems panel, from an updater status. */
+export const parkedRecordState = (status) => (status === "moved" || status === "stuck" ? { moved: status === "moved", stuck: status === "stuck" } : null);
+export function createRecordUpdater({ onLog = noLog, onStatus = (status) => { void status; }, retryMs = 150, unreadableLimit = UNREADABLE_LIMIT, moveRecordAside = moveAside, clock = Date.now, movedVisibleMs = MOVED_VISIBLE_MS } = {}) {
+  let tail = Promise.resolve();
+  let damaged = 0;
+  // The member-visible problem (the Problems panel): "moved" or "stuck" until a later change finds a good record; null when there is none.
+  let problem = null;
+  let problemAt = 0;
+  const setProblem = (next) => { if (next !== problem) { problem = next; problemAt = clock(); onStatus(next); } };
+  return (config, change) => {
+    const run = tail.then(async () => {
+      const read = await readRecordDetailed(config, { retryMs });
+      let record = read.record;
+      if (!record) {
+        if (!read.corrupt) { onLog("warn", RECORD_SKIPPED); return null; }
+        damaged += 1;
+        if (damaged < unreadableLimit) { onLog("warn", RECORD_SKIPPED); return null; }
+        // Damaged several times in a row: the file is moved aside (kept as a .bad copy) and a fresh record is started, so the runs of other guilds are not stuck for good.
+        const path = recordPathFor(config);
+        if (!path || !(await moveRecordAside(path))) { onLog("error", RECORD_STUCK); setProblem("stuck"); return null; }
+        onLog("error", RECORD_MOVED);
+        setProblem("moved");
+        record = emptyRecord();
+        damaged = 0;
+      } else {
+        damaged = 0;
+        // A good record on a later change: the fresh record works, so the problem is over. A "moved" warning is kept for a while first: when the
+        // fresh record could not be written there is no file, which reads as good at the next change, within seconds.
+        if (problem === "stuck" || problem === "moved" && clock() - problemAt >= movedVisibleMs) setProblem(null);
+      }
+      const next = await change(record);
+      if (!next) return null;
+      if (!(await writeRecord(config, next))) { onLog("warn", RECORD_NOT_SAVED); return null; }
+      return next;
+    });
+    tail = run.then(() => undefined, () => undefined);
+    return run;
+  };
 }
 
 export async function writeRecord(config, record) {

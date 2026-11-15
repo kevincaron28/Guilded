@@ -1,5 +1,5 @@
 {
-  "verifiedAt": "2026-11-14",
+  "verifiedAt": "2026-11-15",
   "mobile": {
     "android": {
       "version": "0.2.0",
@@ -14,31 +14,31 @@
   },
   "guilded": {
     "github": {
-      "version": "9.3.2",
+      "version": "9.3.3",
       "stage": "release",
-      "url": "https://github.com/kevincaron28/Guilded/releases/tag/v9.3.2"
+      "url": "https://github.com/kevincaron28/Guilded/releases/tag/v9.3.3"
     },
     "curseforge": {
-      "version": "9.3.2",
+      "version": "9.3.3",
       "stage": "release",
       "url": "https://www.curseforge.com/wow/addons/guilded",
       "editions": {
         "forever": {
-          "guilded": "https://www.curseforge.com/wow/addons/guilded/files/9620000",
-          "dungeons": "https://www.curseforge.com/wow/addons/guilded-dungeons/files/9620020"
+          "guilded": "https://www.curseforge.com/wow/addons/guilded/files/9624204",
+          "dungeons": "https://www.curseforge.com/wow/addons/guilded-dungeons/files/9624207"
         }
       }
     },
     "companionDirect": {
-      "version": "9.3.2",
+      "version": "9.3.3",
       "url": "https://github.com/kevincaron28/Guilded/releases/latest/download/Guilded.Companion.Setup.exe",
       "siteUrl": "https://guilded.kcaron.top/downloads/Guilded.Companion.Setup.exe",
-      "size": 122713694,
-      "sha256": "b8af817adac3e4df26ad795eff96c10fee0092a5615aa8681f6b95c1bd5f3067"
+      "size": 122723382,
+      "sha256": "7a43eefc815f1979dc4b088000761ca98e1f3f4d049705ef824508f088b5e554"
     },
     "addonZips": {
-      "Guilded-v9.3.2-forever.zip": "26a4a6d3e41de29c435812bb8f3395c2642c15243881ec292dd5cc5307be7c3b",
-      "GuildedDungeons-v9.3.2-forever.zip": "049447d765a25e7e21fa6eed156572b67fd7efdac5b66fb2de7c71297113deb0"
+      "Guilded-v9.3.3-forever.zip": "4caeff6e09e0e24703b4c2e1d7003b8266e7bccf21d5616a1637c10ae961c988",
+      "GuildedDungeons-v9.3.3-forever.zip": "f75c556a7a911ced574459ef592ab007e60aa97523a074b40f4316a8b1a47fe3"
     },
     "microsoftStore": {
       "version": "8.3.0",

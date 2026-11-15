@@ -24,10 +24,17 @@ export interface RunIntegrityConfig {
   carriedRecordsPerDay: number;
   /** The most carried duels one signed-in carrier may help release (confirm) per day. */
   carriedConfirmationsPerDay: number;
+  /** Carried dungeon runs (kind "run"): rows kept per carrier and run, per run for signed carriers, per run for unsigned devices. */
+  carriedRunRowsPerCarrierRun: number;
+  carriedRunRowsPerRun: number;
+  carriedRunRowsPerRunDevice: number;
+  /** Distinct carried runs one carrier may hand in per day (signed, unsigned). */
+  carriedRunKeysPerDay: number;
+  carriedRunKeysPerDayDevice: number;
 }
 
 export const DEFAULT_CONFIG: RunIntegrityConfig = {
-  limits: null, weights: {}, defaultWeight: 0, holdScore: Infinity, deviceStrikes: Infinity, challengeWindowSec: null, clockSlackSec: null, requireSeal: false, strikeWindowSec: null, relayedRunsPerDay: 60, crossGuildMaxGuilds: 6, crossGuildCopiesPerDay: 60, crossGuildCardsPerDay: 30, carriedRecordsPerDay: 300, carriedConfirmationsPerDay: 20
+  limits: null, weights: {}, defaultWeight: 0, holdScore: Infinity, deviceStrikes: Infinity, challengeWindowSec: null, clockSlackSec: null, requireSeal: false, strikeWindowSec: null, relayedRunsPerDay: 60, crossGuildMaxGuilds: 6, crossGuildCopiesPerDay: 60, crossGuildCardsPerDay: 30, carriedRecordsPerDay: 300, carriedConfirmationsPerDay: 20, carriedRunRowsPerCarrierRun: 3, carriedRunRowsPerRun: 40, carriedRunRowsPerRunDevice: 5, carriedRunKeysPerDay: 30, carriedRunKeysPerDayDevice: 10
 };
 
 const num = (value: unknown): number | undefined => typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
@@ -67,7 +74,12 @@ export function parseIntegrityConfig(text: string | undefined): RunIntegrityConf
     crossGuildCopiesPerDay: num(raw["crossGuildCopiesPerDay"]) ?? DEFAULT_CONFIG.crossGuildCopiesPerDay,
     crossGuildCardsPerDay: num(raw["crossGuildCardsPerDay"]) ?? DEFAULT_CONFIG.crossGuildCardsPerDay,
     carriedRecordsPerDay: num(raw["carriedRecordsPerDay"]) ?? DEFAULT_CONFIG.carriedRecordsPerDay,
-    carriedConfirmationsPerDay: num(raw["carriedConfirmationsPerDay"]) ?? DEFAULT_CONFIG.carriedConfirmationsPerDay
+    carriedConfirmationsPerDay: num(raw["carriedConfirmationsPerDay"]) ?? DEFAULT_CONFIG.carriedConfirmationsPerDay,
+    carriedRunRowsPerCarrierRun: num(raw["carriedRunRowsPerCarrierRun"]) ?? DEFAULT_CONFIG.carriedRunRowsPerCarrierRun,
+    carriedRunRowsPerRun: num(raw["carriedRunRowsPerRun"]) ?? DEFAULT_CONFIG.carriedRunRowsPerRun,
+    carriedRunRowsPerRunDevice: num(raw["carriedRunRowsPerRunDevice"]) ?? DEFAULT_CONFIG.carriedRunRowsPerRunDevice,
+    carriedRunKeysPerDay: num(raw["carriedRunKeysPerDay"]) ?? DEFAULT_CONFIG.carriedRunKeysPerDay,
+    carriedRunKeysPerDayDevice: num(raw["carriedRunKeysPerDayDevice"]) ?? DEFAULT_CONFIG.carriedRunKeysPerDayDevice
   };
 }
 

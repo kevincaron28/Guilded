@@ -694,25 +694,36 @@ local function healthPercent(unit)
   return ok and value or nil
 end
 -- Class and level of my target when it is the duel opponent (a non-guildmate has no roster row). Optional card data: pcall.
+-- (9.3.3) My target's name as "First Last": util.unitKey, else UnitName's two values (on Forever the second is the surname).
+local function targetFullName()
+  if ns.util and ns.util.unitKey then
+    local ok, full = pcall(ns.util.unitKey, "target")
+    if ok and type(full) == "string" and full ~= "" and not (ns.isSecret and ns.isSecret(full)) and full:find(" ", 1, true) then return full end
+  end
+  if not UnitName then return nil end
+  local ok, first, second = pcall(UnitName, "target")
+  if not ok or type(first) ~= "string" or first == "" or (ns.isSecret and ns.isSecret(first)) then return nil end
+  if not first:find(" ", 1, true) and type(second) == "string" and not (ns.isSecret and ns.isSecret(second)) and second:match("^%S+$") then
+    return first .. " " .. second
+  end
+  return first
+end
+-- Whether `name` (my target) is the duel opponent. A full "First Last" opponent needs the same full name: a target that gives only a
+-- first name, or another character with the same first name, is not taken for it. Only a bare opponent name falls back to same().
+local function isOpponent(name, opponent)
+  if type(name) ~= "string" or type(opponent) ~= "string" then return false end
+  if opponent:find(" ", 1, true) then return name:find(" ", 1, true) ~= nil and name:lower() == opponent:lower() end
+  return same(name, opponent)
+end
 function targetInfo(opponent)
   if not (UnitExists and UnitName) then return nil end
   local ok, info = pcall(function()
     if not UnitExists("target") then return nil end
     -- (9.3.3) The target's full "First Last" (on Forever UnitName gives the surname as its second value): compared whole with the
     -- opponent's full name, so a different character with the same first name is never taken for the opponent.
-    local name
-    if ns.util and ns.util.unitKey then
-      local okKey, full = pcall(ns.util.unitKey, "target")
-      if okKey and type(full) == "string" and full ~= "" then name = full end
-    end
-    name = name or UnitName("target")
-    if type(name) ~= "string" or (ns.isSecret and ns.isSecret(name)) then return nil end
-    if opponent then
-      local a, b = name:lower(), opponent:lower()
-      local bothFull = a:find(" ", 1, true) and b:find(" ", 1, true)
-      if bothFull then if a ~= b then return nil end
-      elseif not same(name, opponent) then return nil end
-    end
+    local name = targetFullName()
+    if not name then return nil end
+    if opponent and not isOpponent(name, opponent) then return nil end
     local level = UnitLevel and tonumber(UnitLevel("target"))
     local _, file
     if UnitClass then _, file = UnitClass("target") end
@@ -746,8 +757,8 @@ local function healthLeft(opponent)
   if UnitExists and UnitName then
     local ok, there = pcall(UnitExists, "target")
     if ok and there then
-      local okName, name = pcall(UnitName, "target")
-      if okName and type(name) == "string" and not (ns.isSecret and ns.isSecret(name)) and opponent and same(name, opponent) then out.opponent = healthPercent("target") end
+      local name = targetFullName()
+      if name and opponent and isOpponent(name, opponent) then out.opponent = healthPercent("target") end
     end
   end
   return out

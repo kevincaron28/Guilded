@@ -978,6 +978,15 @@ describe("two characters with the same first name", () => {
     expect(stat("NS.duels.lastCard.oppClass .. NS.duels.lastCard.oppLevel")).toBe("PRIEST4");
   });
 
+  it("a target that gives only a first name is not taken for a full-named opponent, for the card or the health left", () => {
+    const lua = blunt(true, false);
+    lua.run(`UnitName = function(unit) if unit == "target" then return "Lebowski" end return "Blunt", "Cruising" end`);
+    say(LINE);
+    expect(stat("NS.duels.lastCard.oppClass")).toBe("nil");
+    expect(stat("NS.duels.lastCard.health and NS.duels.lastCard.health.opponent")).toBe("nil");
+    expect(lua.run(`local r; for _, v in pairs(DB.duels.external) do r = v end; return tostring(r.winnerClass)`)).toBe("nil");
+  });
+
   it("with no target the card says nothing about the opponent's class or level, rather than a guildmate's", () => {
     const lua = blunt(false);
     say(LINE);

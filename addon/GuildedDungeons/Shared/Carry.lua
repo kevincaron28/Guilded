@@ -27,10 +27,13 @@ local SESSION_PER_CARRIER, PAUSE_SECONDS, SESSION_CARRIERS = 8, 600, 4
 local STALE_SECONDS, MAX_FAILURES, MAX_CARRIERS = 1200, 2, 40
 local ANNOUNCE_SECONDS, ANNOUNCE_MIN_GAP, FEATURES_FRESH = 600, 300, 7 * 86400
 -- (9.3.3) The marker's `at` moves only when the companion writes new standings, so its age alone cannot tell a stopped companion
--- (that window moves to the shared Util helper with the companion's heartbeat). A live check instead: a record this PC holds for over
--- UNCONFIRMED_SECONDS without its upload receipt makes it stop carrying until the next load shows the receipts. A record handed to a
--- carrier is offered to a different carrier only after REOFFER_SECONDS without a receipt.
-local UNCONFIRMED_SECONDS, REOFFER_SECONDS = 1800, 86400
+-- (that window moves to the shared Util helper with the companion's heartbeat). A check from what this PC can see instead: the
+-- companion reads the saved data only at a /reload or logout, and its receipts reach the addon only at the next load. So only a record
+-- that was already held when this session loaded, and that the companion has written after (`got` older than the marker's `at` read
+-- at the load), can say the companion is not uploading. A record received during this session never does, however long it is held.
+-- Standing down ends at the next load whose receipts clear those records. A record handed to a carrier is offered to a different
+-- carrier only after REOFFER_SECONDS without a receipt.
+local UNCONFIRMED_GRACE, REOFFER_SECONDS = 60, 86400
 local HI_GAP = 300
 local PER_SENDER_PER_HOUR, SENDER_ASSEMBLIES, MAX_ASSEMBLIES, ASSEMBLY_SECONDS = 20, 3, 30, 120
 local DONE_KEEP, SENT_KEEP, OWN_CACHE_SECONDS = 400, 200, 60
@@ -91,14 +94,22 @@ function carry.markerFresh()
   local at = tonumber(features.at)
   return at ~= nil and now() - at <= FEATURES_FRESH and at <= now() + 86400
 end
--- A record this PC holds without its receipt for over UNCONFIRMED_SECONDS: the companion is not uploading what it was handed.
+-- What this session saw when it loaded: the load time and the marker's `at` (the game replaces the global only at a load).
+function carry.noteLoad()
+  carry.loadedAt = now()
+  local features = type(GuildedCompanionFeatures) == "table" and GuildedCompanionFeatures or nil
+  carry.markerAtLoad = features and tonumber(features.at) or nil
+end
+-- A record held since before this load that the companion wrote after, and still no receipt: it is not uploading what it was handed.
 function carry.unconfirmed()
+  local loaded, markerAt = carry.loadedAt, carry.markerAtLoad
+  if not loaded or not markerAt then return false end
   local root = ns.getDb and ns.getDb()
   local records = root and type(root.carry) == "table" and type(root.carry.records) == "table" and root.carry.records or nil
   if not records then return false end
-  local t = now()
   for _, record in pairs(records) do
-    if type(record) == "table" and t - (tonumber(record.got) or t) > UNCONFIRMED_SECONDS then return true end
+    local got = type(record) == "table" and tonumber(record.got) or nil
+    if got and got < loaded and got + UNCONFIRMED_GRACE < markerAt then return true end
   end
   return false
 end
@@ -734,6 +745,7 @@ local function onEvent(_, event, ...)
     local prefix, text, channel, sender = ...
     onAddonMessage(prefix, text, channel, sender)
   elseif event == "PLAYER_LOGIN" then
+    carry.noteLoad()
     if ns.comm and ns.comm.register then ns.comm.register(PREFIX) end
     startup()
   elseif event == "GROUP_ROSTER_UPDATE" then

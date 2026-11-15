@@ -440,15 +440,37 @@ describe("the /guilded carry status line", () => {
 describe("a companion that stopped is not trusted as a carrier", () => {
   const here = (s: LuaSession) => s.run("return tostring(NS.carry.companionHere())");
 
-  it("a carrier holding a record over 30 minutes with no receipt stops announcing, refuses new records and hands its own on", () => {
+  it("a carrier holds a record for 2 hours in one session and keeps carrying (its receipt can only come at the next load)", () => {
     const carrier = client("guilded", "Bee", { companion: true });
+    carrier.run("NS.carry.noteLoad()");
     hear(carrier, "Cee", part("1800000001-dddddd", 1, 1), "WHISPER");
     expect(records(carrier)).toBe("1");
+    CLOCK_STEP(carrier, 2 * 3600);
+    // The companion keeps writing standings during the session: the global does not change until a load, and nothing stands down.
+    carrier.run(`GuildedCompanionFeatures = { ["carry-records"] = true, at = CLOCK }`);
     expect(here(carrier)).toBe("true");
-    CLOCK_STEP(carrier, 1700);
+    carrier.run("NS.carry.lastAnnounce = 0; NS.carry.announce(true)");
+    expect(queued(carrier, "GUILD")).toEqual(["HI|1"]);
+    hear(carrier, "Dee", part("1800000002-eeeeee", 1, 1), "WHISPER");
+    expect(records(carrier)).toBe("2");
+  });
+
+  it("a record held across a reload with a live companion and no receipt makes it stand down until a load clears it", () => {
+    const carrier = client("guilded", "Bee", { companion: true });
+    carrier.run("NS.carry.noteLoad()");
+    hear(carrier, "Cee", part("1800000001-dddddd", 1, 1), "WHISPER");
     expect(here(carrier)).toBe("true");
-    CLOCK_STEP(carrier, 200);
+    // /reload 10 minutes later: the companion read the saved data and wrote again (marker newer than the record), yet no receipt.
+    CLOCK_STEP(carrier, 600);
+    carrier.run(`GuildedCompanionFeatures = { ["carry-records"] = true, at = CLOCK - 60 }; GuildedCarryReceipts = {}; NS.carry.noteLoad(); NS.carry.applyReceipts()`);
     expect(here(carrier)).toBe("false");
+    // A reload right after receiving (the companion has not written since): no conclusion yet.
+    const quick = client("guilded", "Dee", { companion: true });
+    quick.run("NS.carry.noteLoad()");
+    hear(quick, "Cee", part("1800000003-ffffff", 1, 1), "WHISPER");
+    CLOCK_STEP(quick, 5);
+    quick.run(`GuildedCompanionFeatures = { ["carry-records"] = true, at = CLOCK - 3600 }; NS.carry.noteLoad()`);
+    expect(here(quick)).toBe("true");
     carrier.run("NS.carry.lastAnnounce = 0; NS.carry.announce(true)");
     expect(queued(carrier, "GUILD")).toEqual([]);
     hear(carrier, "Dee", part("1800000002-eeeeee", 1, 1), "WHISPER");
@@ -458,7 +480,7 @@ describe("a companion that stopped is not trusted as a carrier", () => {
     hear(carrier, "Eve", "HI|1", "GUILD");
     expect(queued(carrier, "WHISPER", "Eve").length).toBeGreaterThan(0);
     // The receipt arrives at the next load: it carries again.
-    carrier.run(`GuildedCarryReceipts = { "externalDuel:1800000001-dddddd" }; NS.carry.applyReceipts()`);
+    carrier.run(`GuildedCarryReceipts = { "externalDuel:1800000001-dddddd" }; NS.carry.noteLoad(); NS.carry.applyReceipts()`);
     expect(here(carrier)).toBe("true");
   });
 

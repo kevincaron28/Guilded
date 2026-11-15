@@ -13,6 +13,7 @@ import { classOf, loadClassBook, type ClassBook } from "./ladder-classes.js";
 import { classColor, ladderMeta, scoreCardPng, type ScoreCard } from "./score-card.js";
 import { moveColumn, moveFields, trackRanks, type Movements } from "./ladder-snapshots.js";
 import { seasonLabel } from "./season-label.js";
+import { diagnoseDungeonBoard, emptyBoardNote } from "./dungeon-board-diagnosis.js";
 
 export const DUNGEON_BOARD_CARD_FILE = "dungeon-season.png";
 const CARD_TOP = 25;
@@ -91,15 +92,21 @@ export async function updateDungeonLeaderboard(discordGuild: DiscordGuild | null
     const best = bestRunsEmbed(await seasonBestRuns(prisma, guild.id, season.id), lang, await guildBossRecords(prisma, guild.id).catch(() => []));
     const ratingRows = hasDungeonRating(season.ratingRules) ? await dungeonRating(prisma, guild.id, season) : null;
     const rating = ratingRows ? ratingEmbed(ratingRows, season.name, lang, season.ratingRules) : null;
-    // The ladder picture rides on the rating embed; without it (drawing busy or failed) the embeds are unchanged.
+    // An empty board says why (runs received but none counted, or none received): the reason sits on the best-runs embed.
+    const unranked = !(ratingRows ?? cardRows).some(row => row.points > 0);
+    const emptyNote = unranked ? emptyBoardNote(await diagnoseDungeonBoard(prisma, guild.id).catch(() => ({ season: null, received: 0, counted: 1, reasons: [] })), lang === "fr" ? "fr" : "en") : null;
+    if (emptyNote && best.length + (rating?.length ?? 0) + emptyNote.length < 5800) best.setDescription(`${best.data.description ?? ""}
+
+${emptyNote}`.trim().slice(0, 4096));
+    // The ladder picture rides on the rating embed (on the best-runs embed for a season without rating rules); without it (drawing busy or failed) the embeds are unchanged.
     const ladderRows = (ratingRows ? ratingRows.map((row) => ({ name: row.name, points: row.points, dungeons: row.dungeons, key: `${row.memberId}:${row.character ?? ""}` }))
       : cardRows.map((row) => ({ name: row.name, points: row.points, key: row.memberId })))
       .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
     // A new season starts a new snapshot board, so arrows never compare two seasons.
     const moves = ladderRows.length ? await trackRanks(prisma, guild.id, `dungeon:${season.id}`, ladderRows.map((row) => row.key)) : null;
     const png = ladderRows.length ? await scoreCardPng(dungeonSeasonCard(ladderRows, season.name, lang === "fr" ? "fr" : "en", Boolean(ratingRows), await loadClassBook(prisma, guild.id).catch(() => new Map<string, string>()), new Date(), moves)).catch(() => null) : null;
-    if (png && rating) rating.setImage(`attachment://${DUNGEON_BOARD_CARD_FILE}`);
-    const payload = { embeds: rating ? [rating, best] : [best], components: [], files: png && rating ? [cardAttachment(png, DUNGEON_BOARD_CARD_FILE)] : [], allowedMentions: { parse: [] as never[] } };
+    if (png) (rating ?? best).setImage(`attachment://${DUNGEON_BOARD_CARD_FILE}`);
+    const payload = { embeds: rating ? [rating, best] : [best], components: [], files: png ? [cardAttachment(png, DUNGEON_BOARD_CARD_FILE)] : [], allowedMentions: { parse: [] as never[] } };
 
     const botId = discordGuild.client.user?.id ?? "";
     const saved = settings.dungeonLeaderboardMessageId

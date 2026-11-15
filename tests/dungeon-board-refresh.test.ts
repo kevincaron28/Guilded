@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EmbedBuilder } from "discord.js";
 
-const { settingsRow, updateSettings, ratingState } = vi.hoisted(() => ({ settingsRow: { current: null as Record<string, unknown> | null }, updateSettings: vi.fn(), ratingState: { on: false, embed: null as unknown } }));
+const { settingsRow, updateSettings, ratingState, boardState } = vi.hoisted(() => ({ settingsRow: { current: null as Record<string, unknown> | null }, updateSettings: vi.fn(), ratingState: { on: false, embed: null as unknown }, boardState: { rows: [] as { name: string; points: number; memberId: string }[], note: null as string | null } }));
 vi.mock("../src/database.js", () => ({ prisma: {
   $transaction: async (fn: (tx: unknown) => unknown) => fn({ $executeRaw: async () => 0 }),
   dungeonSeason: { findFirst: async () => null, findMany: async () => [{ id: "s1", name: "Season 1", status: "ACTIVE", startsAt: new Date("2026-11-04T23:00:00Z") }] }, discordJob: {}
@@ -9,7 +9,9 @@ vi.mock("../src/database.js", () => ({ prisma: {
 vi.mock("../src/services/guild.js", () => ({ createGuildService: () => ({
   ensureGuild: async () => ({ id: "g1" }), getSettings: async () => settingsRow.current, updateSettings
 }) }));
-vi.mock("../src/services/dungeon-stats.js", () => ({ leaderboard: async () => [], formatLeaderboard: () => "rows" }));
+vi.mock("../src/services/dungeon-stats.js", () => ({ leaderboard: async () => boardState.rows, formatLeaderboard: () => "rows" }));
+vi.mock("../src/services/dungeon-board-diagnosis.js", () => ({ diagnoseDungeonBoard: async () => ({}), emptyBoardNote: () => boardState.note }));
+vi.mock("../src/services/score-card.js", async importOriginal => ({ ...(await importOriginal<object>()), scoreCardPng: async () => Buffer.from("png") }));
 vi.mock("../src/services/dungeon-import.js", () => ({ activeSeason: async () => ({ id: "s1", name: "Season 1", startsAt: new Date("2026-11-04T23:00:00Z"), ratingRules: null }) }));
 vi.mock("../src/services/season-archive.js", () => ({ seasonRows: async () => [] }));
 vi.mock("../src/services/dungeon-best-runs.js", () => ({ seasonBestRuns: async () => [], bestRunsEmbed: () => new EmbedBuilder().setTitle("Best runs").setDescription("x") }));
@@ -74,6 +76,30 @@ describe("dungeon leaderboard panel", () => {
       expect(payload.embeds[1]!.toJSON().description).toBe("x");
       expect(JSON.stringify(payload)).not.toMatch(/Points de communauté|Voir une saison|dseason:choose|Saison passée/);
     } finally { ratingState.on = false; }
+  });
+
+  it("a season without rating rules keeps the ladder picture, on the best-runs embed", async () => {
+    boardState.rows = [{ name: "Ann", points: 10, memberId: "m1" }];
+    try {
+      const edit = vi.fn(async () => ({ id: "board" }));
+      const f = fixture([old("board", "🤝 Points de communauté", { edit })], "board");
+      expect(await updateDungeonLeaderboard(f.guild, true)).toBe(true);
+      const payload = (edit.mock.calls[0] as unknown as [{ embeds: EmbedBuilder[]; files: unknown[] }])[0];
+      expect(payload.embeds).toHaveLength(1);
+      expect(payload.embeds[0]!.toJSON().image?.url).toBe("attachment://dungeon-season.png");
+      expect(payload.files).toHaveLength(1);
+    } finally { boardState.rows = []; }
+  });
+
+  it("an empty board still says why, on the best-runs embed", async () => {
+    boardState.note = "Aucun parcours reçu : explication";
+    try {
+      const edit = vi.fn(async () => ({ id: "board" }));
+      const f = fixture([old("board", "🏅 Exploration · Season 1", { edit })], "board");
+      expect(await updateDungeonLeaderboard(f.guild, true)).toBe(true);
+      const payload = (edit.mock.calls[0] as unknown as [{ embeds: EmbedBuilder[] }])[0];
+      expect(payload.embeds.at(-1)!.toJSON().description).toContain("Aucun parcours reçu : explication");
+    } finally { boardState.note = null; }
   });
 
   it("when the saved message is gone it edits the newest old panel instead of posting a duplicate", async () => {

@@ -189,6 +189,7 @@ end
 
 -- Test cleanup must clear queued and visible results, not just the saved run.
 function results.remove(runId)
+  if results.simCards then results.simCards[runId] = nil end
   if pending and pending.run and pending.run.id == runId then pending = nil end
   local d = dungeonDb()
   if d and d.pendingResult == runId then d.pendingResult = nil end
@@ -227,6 +228,86 @@ function results.applyArt(name)
     if path then window.art:SetTexture(path); window.art:Show() else window.art:Hide() end
   end
   return path
+end
+
+-- (9.3.5) The party table of the result card, the same columns as the Discord run card: level, guild, score gained by this run
+-- and season total. The companion writes GuildedDungeonCards[runId] = { { n=, l=, g=, a=, t= }, ... } (at most five players) from the
+-- bot's receipt; without that entry the card is exactly what it was before, and a field the bot did not know is left blank.
+local CARD_PLAYERS, TABLE_HEIGHT, COLLAPSED, EXPANDED_EXTRA = 5, 96, 276, 174
+results.simCards = {}
+function results.cardRows(run)
+  if type(run) ~= "table" or type(run.id) ~= "string" then return nil end
+  local all = type(GuildedDungeonCards) == "table" and GuildedDungeonCards or nil
+  local rows = all and all[run.id]
+  if type(rows) ~= "table" and run.test then rows = results.simCards[run.id] end
+  if type(rows) ~= "table" then return nil end
+  local out = {}
+  for _, row in ipairs(rows) do
+    if type(row) == "table" and type(row.n) == "string" and row.n ~= "" then out[#out + 1] = row end
+    if #out >= CARD_PLAYERS then break end
+  end
+  return #out > 0 and out or nil
+end
+
+local function plain(text) return (string.gsub(tostring(text), "|", "")) end
+-- The five cells of one player's row (text only, so it can be checked without a frame).
+function results.cardCells(row)
+  local level, gain, total = tonumber(row.l), tonumber(row.a), tonumber(row.t)
+  local gainText = ""
+  if gain and total then
+    gainText = gain > 0 and ("|cff66d98f+" .. math.floor(gain) .. "|r") or "|cff8a929e+0|r"
+  end
+  return {
+    "|cffffd36a" .. plain(displayName(row.n)) .. "|r",
+    level and tostring(math.floor(level)) or "",
+    type(row.g) == "string" and plain(row.g) or "",
+    gainText,
+    (gain and total) and tostring(math.floor(total)) or ""
+  }
+end
+function results.cardHeader()
+  return { "", L("Lv"), L("Guild"), L("This run"), L("Season") }
+end
+
+local COLUMNS = { { 14, 104, "LEFT" }, { 118, 24, "RIGHT" }, { 150, 84, "LEFT" }, { 238, 46, "RIGHT" }, { 288, 52, "RIGHT" } }
+local shownRows
+local cellLabels = {} -- kept here, not on the frame: the labels belong to this module
+local function drawTable(frame, rows)
+  for line = 0, CARD_PLAYERS do
+    cellLabels[line] = cellLabels[line] or {}
+    local cells = rows and (line == 0 and results.cardHeader() or (rows[line] and results.cardCells(rows[line]))) or nil
+    for column, spec in ipairs(COLUMNS) do
+      local label = cellLabels[line][column]
+      if cells and not label then
+        label = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        label:SetPoint("TOPLEFT", spec[1], -166 - line * 14); label:SetWidth(spec[2]); label:SetJustifyH(spec[3])
+        if label.SetWordWrap then label:SetWordWrap(false) end
+        cellLabels[line][column] = label
+      end
+      if label then
+        if cells then
+          label:SetText(cells[column]); label:Show()
+          if line == 0 then label:SetTextColor(0.65, 0.7, 0.76) end
+        else
+          label:SetText(""); label:Hide()
+        end
+      end
+    end
+  end
+end
+local function baseHeight(rows) return rows and (COLLAPSED + TABLE_HEIGHT) or COLLAPSED end
+
+-- Test run for /guilded sim dungeon: sample rows (test names) so the table can be previewed with /gdg results. Never real data.
+function results.simCard(runId)
+  results.simCards[runId] = {
+    { n = "Tester One", l = 24, g = "Sample Guild", a = 36, t = 412 }, { n = "Tester Two", l = 23, g = "Sample Guild", a = 0, t = 388 },
+    { n = "Tester Three", l = 24, a = 12, t = 57 }, { n = "Tester Four", l = 22 }, { n = "Tester Five" }
+  }
+end
+
+-- A card already on screen takes new data at once, or when combat ends (show() queues it then).
+function results.refresh()
+  if results.last and window and window.IsShown and window:IsShown() then results.show(results.last, true) end
 end
 
 function results.show(run, resume)
@@ -287,7 +368,7 @@ function results.show(run, resume)
     window.details:SetSize(90, 22); window.details:SetPoint("BOTTOMLEFT", 14, 16)
     window.details:SetScript("OnClick", function()
       window.expanded = not window.expanded
-      window:SetHeight(window.expanded and 450 or 276)
+      window:SetHeight((window.expanded and EXPANDED_EXTRA or 0) + baseHeight(shownRows))
       window.details:SetText(window.expanded and L("Less detail") or L("Details"))
       if window.expanded then window.scroll:Show() else window.scroll:Hide() end
       window.age = 0; window:SetAlpha(1)
@@ -308,6 +389,7 @@ function results.show(run, resume)
     end)
   end
   local roster = rosterText(run)
+  shownRows = results.cardRows(run)
   local seconds = math.max(0, math.floor(run.durationSec or 0))
   local kills = 0
   for _, boss in ipairs(run.encounters or {}) do if boss.success then kills = kills + 1 end end
@@ -328,9 +410,13 @@ function results.show(run, resume)
   window.footer:SetText(results.syncText(run))
   window.hint:SetText(L("Reopen: /gdg results")) -- short enough for one line (the long form was cut off)
   if not resume then
-    window.age = 0; window.expanded = false; window:SetHeight(276)
+    window.age = 0; window.expanded = false
     window.details:SetText(L("Details")); window.scroll:Hide()
   end
+  window:SetHeight((window.expanded and EXPANDED_EXTRA or 0) + baseHeight(shownRows))
+  drawTable(window, shownRows)
+  window.scroll:ClearAllPoints()
+  window.scroll:SetPoint("TOPLEFT", 14, -174 - (shownRows and TABLE_HEIGHT or 0)); window.scroll:SetPoint("BOTTOMRIGHT", -30, 118)
   window:SetAlpha(1)
   results.restorePosition(window)
   -- Stacked above the duel card when both are on screen.

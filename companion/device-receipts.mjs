@@ -5,7 +5,7 @@ import { resolveStandingsPath } from "./standings.mjs";
 import { writeDataAddon } from "./data-addon.mjs";
 import { linkedMapLua } from "./standings-format.mjs";
 import { featuresLua } from "./group-relay.mjs";
-import { cleanRunCards, mergeRunCards, parseRunCards, runCardsToAddLua, runCardsToLua } from "./run-cards.mjs";
+import { mergeRunCards, parseRunCards, runCardsToAddLua, runCardsToLua } from "./run-cards.mjs";
 import { patchReceiptBlocks, readRecord, recordReceipts } from "./parked-runs.mjs";
 
 // Zero-setup companion (9.1.3): an unsigned device never fetches the guild standings, so nothing told the
@@ -53,6 +53,7 @@ export function mergeDeviceReceipts(previous, answer) {
   return { refs, notes: Object.fromEntries(Object.entries(notes).filter(([ref]) => refs.includes(ref)).slice(0, MAX_NOTES)), pending: Object.fromEntries(Object.entries(pending).slice(-MAX_PENDING)), cards: mergeRunCards(previous?.cards, answer?.runCards) };
 }
 
+/** @param {{ refs: string[], notes: Record<string, string>, pending?: Record<string, string>, reported?: string[], cards?: Record<string, any[]> }} receipts */
 export function deviceReceiptsToLua({ refs, notes, pending, reported, cards }, updatedAt) {
   return [
     "-- Written by the Guilded companion for an unsigned (zero-setup) PC. Overwritten automatically; edits here are lost.",
@@ -80,6 +81,7 @@ export function deviceReceiptsToLua({ refs, notes, pending, reported, cards }, u
  * ADD to whatever Guilded's file defined first (both addons installed). `mode` "device" tells the addon this PC has no Discord
  * sign-in, so it does not count a guildmate's run as waiting on this PC.
  */
+/** @param {{ refs?: string[], notes?: Record<string, string>, pending?: Record<string, string>, cards?: Record<string, any[]> }} receipts @param {{ mode?: string | null, updatedAt?: string }} [options] */
 export function standaloneReceiptsToLua({ refs = [], notes = {}, pending = {}, cards = {} }, { mode = null, updatedAt = "" } = {}) {
   const entry = (name, [ref, note]) => `${name}[${luaString(ref)}] = ${luaString(note)}`;
   return [

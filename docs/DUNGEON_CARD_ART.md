@@ -28,3 +28,11 @@ of every option; `--format tga` and `--size 512x256` also work. The mapping name
 The Guilded zip went from 0.8 MB (85 files) to 1.42 MB (119 files); GuildedDungeons from ~0.27 MB (18 files) to 0.87 MB (52).
 Alternatives if that is too much: 128x64 BLP (~0.2 MB), a shared set of ~8 mood backdrops by dungeon family, or textures in the
 Guilded Dungeons addon only.
+
+## In-game result card v2: party table (9.3.5)
+
+The in-game card shows the same party table as the Discord run card (level, guild, score gained by this run, season total) once the bot's receipt has come back:
+
+1. The bot stores `DungeonRunReceipt.card` (`receiptCardOf` in `src/services/dungeon-card.ts`, built from the same `playerDetails` the Discord card reads) and answers `runCards` ({ runRef: [{ n, l, g, a, t }] }, newest 30 runs, five players each) in the signed standings answer and the unsigned device answer. The field is optional: an older companion ignores it.
+2. The companion (`companion/run-cards.mjs`) writes it as `GuildedDungeonCards` in Standings.lua and Guilded Dungeons' Accepted.lua, and keeps earlier cards between answers.
+3. `Modules/RunResults.lua` reads `GuildedDungeonCards[run.id]`. Without an entry the card is exactly as before. The game reads those files only at login or `/reload`, so the table appears when the card is shown or reopened (`/gdg results`) after that; showing is deferred while in combat. `/guilded sim dungeon` then `/gdg results` previews the table with sample names.

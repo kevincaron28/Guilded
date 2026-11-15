@@ -2,6 +2,7 @@
 // them with its run receipts as `runCards` ({ runRef: [{ n, l, g, a, t }] }, newest runs first, five players at most); this module
 // cleans them and writes the GuildedDungeonCards global the addon reads. An older bot sends none and an older addon ignores the global.
 
+/** @typedef {{ n: string, l?: number, g?: string, a?: number, t?: number }} CardPlayer */
 export const MAX_CARD_RUNS = 30;
 export const MAX_CARD_PLAYERS = 5;
 const QUOTED = String.raw`"((?:[^"\\]|\\.)*)"`;
@@ -11,6 +12,7 @@ const whole = (value) => typeof value === "number" && Number.isFinite(value) && 
 
 /** The valid part of a `runCards` answer: at most MAX_CARD_RUNS runs of MAX_CARD_PLAYERS players, anything malformed dropped. */
 export function cleanRunCards(raw) {
+  /** @type {Record<string, CardPlayer[]>} */
   const out = {};
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out;
   for (const [ref, rows] of Object.entries(raw)) {
@@ -43,6 +45,7 @@ export function runCardsToAddLua(cards) {
 /** The cards a file written by runCardsToLua holds (anything else in it is ignored). */
 export function parseRunCards(text) {
   const block = new RegExp(String.raw`GuildedDungeonCards = \{([\s\S]*?)\n\}`).exec(text ?? "")?.[1] ?? "";
+  /** @type {Record<string, CardPlayer[]>} */
   const cards = {};
   const player = new RegExp(String.raw`\{ n = ${QUOTED}(?:, l = (\d+))?(?:, g = ${QUOTED})?(?:, a = (\d+), t = (\d+))? \}`, "g");
   for (const line of block.split("\n")) {

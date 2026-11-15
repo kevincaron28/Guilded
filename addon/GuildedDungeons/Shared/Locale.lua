@@ -989,6 +989,9 @@ local FR = {
 -- scripts/addon-locale.mjs), then npm run dungeons:sync.
 -- BEGIN DE (written by npm run locale -- import; edit the CSV, not these lines)
 local DE = {
+  -- Result card party table (9.3.5)
+  ["Lv"] = "Stufe",
+  ["This run"] = "Dieser Lauf",
   -- 9.3.2 records carried for players near you.
   ["Carrying records is turned off for the whole guild by an officer."] = "Das Weitergeben von Daten ist f\195\188r die ganze Gilde von einem Offizier ausgeschaltet.",
   ["Carrying records is allowed for the guild again."] = "Das Weitergeben von Daten ist f\195\188r die Gilde wieder erlaubt.",
@@ -2957,6 +2960,9 @@ local DE = {
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
 local ES = {
+  -- Result card party table (9.3.5)
+  ["Lv"] = "Nv",
+  ["This run"] = "Esta partida",
   -- 9.3.2 records carried for players near you.
   ["Carrying records is turned off for the whole guild by an officer."] = "El reenv\195\173o de datos est\195\161 desactivado para toda la hermandad por un oficial.",
   ["Carrying records is allowed for the guild again."] = "El reenv\195\173o de datos vuelve a estar permitido para la hermandad.",
@@ -6015,6 +6021,9 @@ FR["Hide handled (%d)"] = "Masquer les trait\195\169s (%d)"
 -- To invite window: copied vs invited, per-officer marks (9.3)
 FR["copied %s, waiting"] = "copi\195\169 %s, en attente"
 FR["Marks stay on this computer: another officer may invite the same names."] = "Les marques restent sur cet ordinateur : un autre officier peut inviter les m\195\170mes noms."
+-- Result card party table (9.3.5)
+FR["Lv"] = "Niv"
+FR["This run"] = "Cette run"
 -- Duel rating (9.3)
 FR["Not counted on the ladder."] = "Non compt\195\169 au classement."
 FR["Rating"] = "Cote"

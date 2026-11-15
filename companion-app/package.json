@@ -96,6 +96,7 @@
           "addon-files.mjs",
           "run-report.mjs",
           "parked-runs.mjs",
+          "run-cards.mjs",
           "group-relay.mjs",
           "carry.mjs",
           "carry-content.mjs",

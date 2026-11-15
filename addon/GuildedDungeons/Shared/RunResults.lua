@@ -450,6 +450,7 @@ function results.queue(run)
     or run.resultCardShown or run.resultCardDismissed then return end
   local d = dungeonDb()
   if d then d.pendingResult = run.id end
+  if ns.syncNow and ns.syncNow.noteResult then pcall(ns.syncNow.noteResult, "run") end
   settle = 1
 end
 

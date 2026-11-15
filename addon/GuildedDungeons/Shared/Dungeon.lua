@@ -912,7 +912,9 @@ local function onAddonMessage(text, sender, delivery)
       finalize(run)
     end
   elseif kind == "REQUEST" and ns.isOfficerName and ns.isOfficerName(sender) then
-    dungeon.replayPending()
+    dungeon.replayPending(true)
+  elseif kind == "DGS" and delivery == "GUILD" then
+    dungeon.onDigest(text, sender)
   elseif kind == "ACK" then
     -- (9.0) A guildmate whose companion's bot already stored this run: stop replaying it at
     -- every login. Only our own copy is marked; the bot still dedupes by run id.
@@ -1144,6 +1146,7 @@ local function onEvent(_, event, ...)
     end
     if not ns.comm.accept(prefix, text, channel, sender, PREFIX, function(author, delivery)
       local kind = string.match(text, "^(%u+)|")
+      if kind == "DGS" then return delivery == "GUILD" and ns.comm.authorized(author, "guild") end
       if kind == "SUM" or kind == "ACK" or kind == "ACKS" or kind == "OFR" or kind == "WNT" then
         if delivery == "GUILD" then return ns.comm.authorized(author, "guild") end
         -- (9.3.1) The same run messages also travel in a party or raid, from players of any guild, to a player who carries them.
@@ -1372,12 +1375,22 @@ end
 -- them; the server's run id makes a repeated upload idempotent.
 -- (9.1.4) 30 days and 10 runs (were 7 and 5): the bot takes a guildmate's relayed run up to 30
 -- days old (guildmate-relay.ts), and a run no guildmate heard in its first week was lost for good.
-function dungeon.replayPending()
+-- (9.3.5) `force` (an officer's REQUEST) skips the digest check below.
+function dungeon.replayPending(force)
   if dungeon.lastReplay and now() - dungeon.lastReplay < 60 then return end
   dungeon.lastReplay = now()
   local runs = dungeon.ownUnconfirmed()
-  for index = 1, math.min(REPLAY_RUNS, #runs) do dungeon.sendRun(runs[index]) end
+  local mine = (not force) and dungeon.digest() or nil
+  for index = 1, math.min(REPLAY_RUNS, #runs) do
+    -- A guildmate whose digest of this run's week equals ours already holds the run: nothing to send (the offer still goes out).
+    if mine and dungeon.peerHolds(runs[index], mine) then
+      dungeon.stats.digestSkipped = (dungeon.stats.digestSkipped or 0) + 1
+    else
+      dungeon.sendRun(runs[index])
+    end
+  end
 end
+
 
 -- ---------------------------------------------------------------------
 -- (9.3) Runs-only catch-up on the GuildedDgn prefix (both addons). The summary of a finished run goes to the guild once, at
@@ -1424,6 +1437,113 @@ function dungeon.defer(key, job)
   if not dungeon.laterScheduled and C_Timer and C_Timer.After then
     dungeon.laterScheduled = true
     C_Timer.After(LATER_EVERY + math.random(0, 10), dungeon.runLater)
+  end
+end
+
+-- ---------------------------------------------------------------------
+-- (9.3.5) Compare before sending. A guildmate's addon that says "D1" (the digest capability) sends one short line with a hash of
+-- the run ids it holds per week: DGS|1|D1|<week>:<hex6>,... (the last DIGEST_BUCKETS weeks; the hash is the sum of a 24-bit hash
+-- of each run id, so the order does not matter and the value stays far below 2^31). When a peer's hash for a week equals ours, that
+-- peer holds every run of ours in that week: the login replay does not send them again. When it differs we offer our own
+-- unconfirmed runs of that week (OFR) and only the runs the peer then asks for (WNT) are sent. An addon without D1 never sends a
+-- digest, so nobody skips anything for it and it keeps getting the replay exactly as before.
+-- ---------------------------------------------------------------------
+local DIGEST_WEEK, DIGEST_BUCKETS, DIGEST_MOD = 604800, 5, 16777216
+local DIGEST_EVERY, DIGEST_PEER_TTL, DIGEST_PEERS_MAX, DIGEST_REPLY_GAP, DIGEST_MISMATCH_GAP = 600, 1800, 200, 120, 240
+dungeon.CAPS = "D1"
+dungeon.peerDigests, dungeon.digestOffered = {}, {}
+dungeon.peerDigestCount = 0
+
+local function idHash(id)
+  local h = 7
+  for i = 1, #id do h = (h * 31 + string.byte(id, i)) % DIGEST_MOD end
+  return h
+end
+dungeon.idHash = idHash
+local function bucketOf(run) return math.floor((run.endedAt or 0) / DIGEST_WEEK) end
+dungeon.bucketOf = bucketOf
+
+-- { [week] = hash } of the finished runs held here that ended within the last REPLAY_DAYS days.
+function dungeon.digest()
+  local d = db()
+  local out = {}
+  local cutoff = now() - REPLAY_DAYS * 86400
+  for id, run in pairs(d and d.runs or {}) do
+    if type(run) == "table" and TERMINAL[run.state] and (run.endedAt or 0) >= cutoff then
+      local week = bucketOf(run)
+      out[week] = ((out[week] or 0) + idHash(tostring(id))) % DIGEST_MOD
+    end
+  end
+  return out
+end
+
+-- The newest DIGEST_BUCKETS weeks of a digest as "week:hex6,week:hex6".
+function dungeon.digestText(digest)
+  local weeks = {}
+  for week in pairs(digest) do weeks[#weeks + 1] = week end
+  table.sort(weeks, function(a, b) return a > b end)
+  local parts = {}
+  for i = 1, math.min(DIGEST_BUCKETS, #weeks) do parts[#parts + 1] = string.format("%d:%06x", weeks[i], digest[weeks[i]]) end
+  return table.concat(parts, ",")
+end
+
+function dungeon.sendDigest(force)
+  if not outside() then dungeon.defer("digest", function() dungeon.sendDigest(force) end) return false end
+  if not force and dungeon.lastDigest and now() - dungeon.lastDigest < DIGEST_EVERY then return false end
+  local text = dungeon.digestText(dungeon.digest())
+  if text == "" then return false end
+  dungeon.lastDigest = now()
+  send("DGS|1|" .. dungeon.CAPS .. "|" .. text, "GUILD")
+  return true
+end
+
+-- Whether a guildmate heard recently holds every run we hold in this run's week.
+function dungeon.peerHolds(run, mine)
+  mine = mine or dungeon.digest()
+  local week = bucketOf(run)
+  local ours = mine[week]
+  if ours == nil then return false end
+  local current = now()
+  for _, peer in pairs(dungeon.peerDigests) do
+    if current - peer.at <= DIGEST_PEER_TTL and peer.caps.D1 and peer.buckets[week] == ours then return true end
+  end
+  return false
+end
+
+function dungeon.onDigest(text, sender)
+  local capsText, list = string.match(text, "^DGS|1|([%w,]*)|([%d:%x,]*)$")
+  if not capsText or not list or #text > 200 then return end
+  local caps, buckets, count = {}, {}, 0
+  for cap in string.gmatch(capsText, "[^,]+") do caps[cap] = true end
+  if not caps.D1 then return end
+  for week, hash in string.gmatch(list, "(%d+):(%x+)") do
+    count = count + 1
+    if count > DIGEST_BUCKETS then break end
+    buckets[tonumber(week)] = tonumber(hash, 16)
+  end
+  if not dungeon.peerDigests[sender] then
+    dungeon.peerDigestCount = dungeon.peerDigestCount + 1
+    if dungeon.peerDigestCount > DIGEST_PEERS_MAX then dungeon.peerDigests, dungeon.peerDigestCount = {}, 1 end
+  end
+  dungeon.peerDigests[sender] = { at = now(), caps = caps, buckets = buckets }
+  -- Answer with ours when this peer has not heard it lately (a digest goes both ways, once), after a random moment.
+  -- One pending answer at most: the time is claimed now, so a burst of digests makes this client answer once, not once each.
+  if (not dungeon.lastDigest or now() - dungeon.lastDigest >= DIGEST_REPLY_GAP) and not dungeon.digestReplyPending and C_Timer and C_Timer.After then
+    dungeon.digestReplyPending = true
+    dungeon.lastDigest = now()
+    C_Timer.After(2 + math.random(0, 10), function()
+      dungeon.digestReplyPending = false
+      pcall(dungeon.sendDigest, true)
+    end)
+  end
+  -- A week where the hashes differ: offer our own unconfirmed runs of it (the peer asks for the ones it lacks).
+  local mine, differ = dungeon.digest(), nil
+  for week, hash in pairs(buckets) do
+    if mine[week] ~= nil and mine[week] ~= hash then differ = differ or {}; differ[week] = true end
+  end
+  if differ and (not dungeon.digestOffered[sender] or now() - dungeon.digestOffered[sender] >= DIGEST_MISMATCH_GAP) then
+    dungeon.digestOffered[sender] = now()
+    dungeon.offerRuns(true, differ)
   end
 end
 
@@ -1561,18 +1681,20 @@ function dungeon.guild(key, text)
   if outside() then send(text, "GUILD") else dungeon.defer(key, function() dungeon.guild(key, text) end) end
 end
 
-function dungeon.offerRuns(force)
+function dungeon.offerRuns(force, weeks)
   local d = db()
   if not d then return false end
-  if not outside() then dungeon.defer("offer", function() dungeon.offerRuns(force) end) return false end
+  if not outside() then dungeon.defer("offer", function() dungeon.offerRuns(force, weeks) end) return false end
   if not force and dungeon.lastOffer and now() - dungeon.lastOffer < OFFER_EVERY then return false end
   local ids, size = {}, 4
   for _, run in ipairs(dungeon.ownUnconfirmed()) do
     if #ids >= OFFER_IDS or size + #run.id + 1 > 240 then break end
-    ids[#ids + 1] = run.id
-    size = size + #run.id + 1
-    dungeon.solicited[run.id] = now()
-    if run.syncedVia then run.slowOfferedAt = now() end
+    if not weeks or weeks[dungeon.bucketOf(run)] then
+      ids[#ids + 1] = run.id
+      size = size + #run.id + 1
+      dungeon.solicited[run.id] = now()
+      if run.syncedVia then run.slowOfferedAt = now() end
+    end
   end
   if #ids == 0 then return false end
   dungeon.lastOffer = now()
@@ -1586,6 +1708,7 @@ local function scheduleOffer(delayBase)
   dungeon.offerScheduled = true
   C_Timer.After((delayBase or 5) + math.random(0, 30), function()
     dungeon.offerScheduled = false
+    pcall(dungeon.sendDigest)
     pcall(dungeon.offerRuns)
   end)
 end

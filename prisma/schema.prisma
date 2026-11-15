@@ -4151,3 +4151,18 @@ model DuelChallenge {
   @@index([deviceId, nonce])
   @@index([deviceId, issuedAt])
 }
+
+/// (9.3.5) What a companion says about itself on an upload (x-companion-health): records it parked, a damaged parked-uploads record.
+/// One row per companion (ownerKey member:<credential member id> or device:<device id>); read by the sync-health view (services/sync-health.ts).
+model SyncHealthReport {
+  id         String   @id @default(cuid())
+  guildId    String
+  ownerKey   String
+  memberId   String?
+  parked     Int      @default(0)
+  damaged    Boolean  @default(false)
+  reportedAt DateTime @default(now())
+
+  @@unique([guildId, ownerKey])
+  @@index([guildId, reportedAt])
+}

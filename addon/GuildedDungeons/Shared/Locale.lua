@@ -2959,6 +2959,16 @@ local DE = {
   ["Last check"] = "Letzte Pr\195\188fung",
   -- 9.3.4 window polish
   ["Saved when you log out. To save now, type /reload."] = "Wird beim Abmelden gespeichert. Zum sofortigen Speichern tippe /reload.",
+  ["Last saved for the companion: %s"] = "Zuletzt f\195\188r den Companion gespeichert: %s",
+  ["Type /reload when convenient to send this run now."] = "Tippe /reload, wenn es passt, um diesen Lauf jetzt zu senden.",
+  ["Type /reload when convenient to send this duel now."] = "Tippe /reload, wenn es passt, um dieses Duell jetzt zu senden.",
+  ["Reload reminder off."] = "Reload-Erinnerung aus.",
+  ["Reload reminder on."] = "Reload-Erinnerung an.",
+  ["Reload reminder is on. Turn it off: /guilded sync reminder off"] = "Reload-Erinnerung ist an. Ausschalten: /guilded sync reminder off",
+  ["Reload reminder is off. Turn it on: /guilded sync reminder on"] = "Reload-Erinnerung ist aus. Einschalten: /guilded sync reminder on",
+  ["Companion last active: %s"] = "Companion zuletzt aktiv: %s",
+  ["Reminder to /reload after a run or duel"] = "Erinnerung an /reload nach Lauf oder Duell",
+  ["Shows one quiet chat line per session after a finished run or duel, out of combat, suggesting /reload so the companion can send it. Never reloads by itself."] = "Zeigt pro Sitzung eine ruhige Chatzeile nach einem beendeten Lauf oder Duell (nie im Kampf), die /reload vorschl\195\164gt, damit der Companion es senden kann. L\195\164dt nie von selbst neu.",
   ["Unranked - no points"] = "Ohne Wertung - keine Punkte",
   -- 9.3.4 window polish
   -- 9.3.4 window polish
@@ -4934,6 +4944,16 @@ local ES = {
   ["Last check"] = "\195\154ltima revisi\195\179n",
   -- 9.3.4 window polish
   ["Saved when you log out. To save now, type /reload."] = "Se guarda al cerrar sesi\195\179n. Para guardar ahora, escribe /reload.",
+  ["Last saved for the companion: %s"] = "\195\154ltimo guardado para el acompa\195\177ante: %s",
+  ["Type /reload when convenient to send this run now."] = "Escribe /reload cuando te venga bien para enviar esta ejecuci\195\179n ahora.",
+  ["Type /reload when convenient to send this duel now."] = "Escribe /reload cuando te venga bien para enviar este duelo ahora.",
+  ["Reload reminder off."] = "Recordatorio de recarga desactivado.",
+  ["Reload reminder on."] = "Recordatorio de recarga activado.",
+  ["Reload reminder is on. Turn it off: /guilded sync reminder off"] = "El recordatorio de recarga est\195\161 activado. Desact\195\173valo: /guilded sync reminder off",
+  ["Reload reminder is off. Turn it on: /guilded sync reminder on"] = "El recordatorio de recarga est\195\161 desactivado. Act\195\173valo: /guilded sync reminder on",
+  ["Companion last active: %s"] = "Acompa\195\177ante activo por \195\186ltima vez: %s",
+  ["Reminder to /reload after a run or duel"] = "Recordatorio de /reload tras una mazmorra o un duelo",
+  ["Shows one quiet chat line per session after a finished run or duel, out of combat, suggesting /reload so the companion can send it. Never reloads by itself."] = "Muestra una l\195\173nea discreta en el chat por sesi\195\179n tras una mazmorra o un duelo terminado (nunca en combate), sugiriendo /reload para que el acompa\195\177ante lo env\195\173e. Nunca recarga por s\195\173 solo.",
   ["Unranked - no points"] = "Sin clasificar - sin puntos",
   -- 9.3.4 window polish
   -- 9.3.4 window polish
@@ -5156,6 +5176,16 @@ FR["Problems"] = "Probl\195\168mes"
 FR["Last check"] = "Derni\195\168re v\195\169rif."
 -- 9.3.4 window polish.
 FR["Saved when you log out. To save now, type /reload."] = "Enregistr\195\169 \195\160 la d\195\169connexion. Pour enregistrer maintenant, tape /reload."
+FR["Last saved for the companion: %s"] = "Dernier enregistrement pour le compagnon : %s"
+FR["Type /reload when convenient to send this run now."] = "Tape /reload quand tu peux pour envoyer cette course maintenant."
+FR["Type /reload when convenient to send this duel now."] = "Tape /reload quand tu peux pour envoyer ce duel maintenant."
+FR["Reload reminder off."] = "Rappel de rechargement d\195\169sactiv\195\169."
+FR["Reload reminder on."] = "Rappel de rechargement activ\195\169."
+FR["Reload reminder is on. Turn it off: /guilded sync reminder off"] = "Le rappel de rechargement est activ\195\169. Pour le d\195\169sactiver : /guilded sync reminder off"
+FR["Reload reminder is off. Turn it on: /guilded sync reminder on"] = "Le rappel de rechargement est d\195\169sactiv\195\169. Pour l'activer : /guilded sync reminder on"
+FR["Companion last active: %s"] = "Compagnon actif pour la derni\195\168re fois : %s"
+FR["Reminder to /reload after a run or duel"] = "Rappel de /reload apr\195\168s une course ou un duel"
+FR["Shows one quiet chat line per session after a finished run or duel, out of combat, suggesting /reload so the companion can send it. Never reloads by itself."] = "Affiche une ligne discr\195\168te dans le chat par session apr\195\168s une course ou un duel termin\195\169 (jamais en combat), pour sugg\195\169rer /reload afin que le compagnon l'envoie. Ne recharge jamais tout seul."
 FR["Unranked - no points"] = "Non class\195\169 - aucun point"
 -- 9.3.4 window polish.
 -- 9.3.4 window polish.

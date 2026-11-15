@@ -82,7 +82,7 @@ export async function uploadAsDevice(config, full, signal, options = {}) {
   const sent = deviceUploadBody(full, { server: options.runsOnly ? undefined : config.deviceServer, acknowledged: options.acknowledged, runsOnly: options.runsOnly, groupRelay: options.groupRelay, carry: options.carry, carryAcknowledged: options.carryAcknowledged });
   const { response, body } = await requestJson(new URL("/api/v1/device/uploads", base(config)), {
     method: "POST",
-    headers: { ...deviceHeaders(config), "content-type": "application/json", ...(options.runsOnly ? { "x-guilded-runs-only": "1" } : {}) },
+    headers: { ...deviceHeaders(config), "content-type": "application/json", ...(options.runsOnly ? { "x-guilded-runs-only": "1" } : {}), ...(options.health ? { "x-companion-health": options.health } : {}) },
     body: JSON.stringify(sent)
   }, signal);
   return { response, body, sent };

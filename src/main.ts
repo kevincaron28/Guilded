@@ -156,6 +156,7 @@ import { handleGameReminderButton, GAME_REMINDER_PREFIX } from "./commands/game-
 import { handleOnboardingInteraction, ONBOARD_PREFIX, runOnboardingNudges, runGameReminders } from "./services/onboarding.js";
 import { handleMemberJoin, handleMemberRolesChange, handleMemberLeave, handleWelcomeRoleButton, WELCOME_ROLE_PREFIX } from "./services/housekeeping.js";
 import { createErrorReportService, isMemberAnswer } from "./services/error-report.js";
+import { sendSyncHealthAlert } from "./services/sync-health-alert.js";
 import { buildGuildedReference } from "./services/guilded-reference.js";
 import { runRetention } from "./services/retention.js";
 import { runStatSnapshots } from "./services/stat-snapshots.js";
@@ -427,6 +428,8 @@ client.once(Events.ClientReady, (readyClient) => {
   // per-ClientReady check is enough (safe on reconnect too: it marks each
   // guild before posting, so it won't repeat once it's caught up).
   announceVersionUpdates(readyClient).catch(reportJobError("Version announcement"));
+  // Sync health: a once-a-day developer summary in the error-log channel (hourly tick, one post a day).
+  setInterval(() => void sendSyncHealthAlert(readyClient, prisma).catch(reportJobError("Sync health alert")), 60 * 60 * 1000);
   // A self-hosted bot learns about newer releases here (start, then daily).
   const updateCheck = () => announceAvailableUpdate(readyClient).catch(reportJobError("Update check"));
   void updateCheck();

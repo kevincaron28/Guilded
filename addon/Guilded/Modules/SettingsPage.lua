@@ -124,6 +124,10 @@ function page.allEntries()
     "Reminds you at most once a week to install the Windows companion, until you have it.", "me", "settings.companionReminder",
     function() return ns.companionLink and ns.companionLink.enabled() or false end,
     function(on) run(on and "companion on" or "companion off") end, { wide = true })
+  check("general", "Companion", "Reminder to /reload after a run or duel",
+    "Shows one quiet chat line per session after a finished run or duel, out of combat, suggesting /reload so the companion can send it. Never reloads by itself.", "me", "settings.syncReminder",
+    function() return ns.syncNow and ns.syncNow.reminderEnabled and ns.syncNow.reminderEnabled() or false end,
+    function(on) run(on and "sync reminder on" or "sync reminder off") end, { wide = true })
   add({ tab = "general", group = "Companion", kind = "copy", label = "Get the Windows companion (select a link, Ctrl+C):", who = "me", saved = "(no saved value)",
     texts = function() return ns.companionLink and { ns.companionLink.SHORT, ns.companionLink.DIRECT } or {} end,
     desc = "Addons cannot open web pages, so the download links are here to copy into your browser." })

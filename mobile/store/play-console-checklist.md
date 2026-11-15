@@ -14,8 +14,8 @@ Menu names are Play Console's as of November 2026. If a label has moved, look fo
 | # | Step | Who |
 | --- | --- | --- |
 | 0.1 | The app pull request (mobile app, store kit, mobile CI job) is merged, and CI is green on `main`. The server pull request (bot, Worker, database) is not needed for the closed test. | Agent (master merges) |
-| 0.2 | Decide the app name (see "App name" in [play-listing.md](play-listing.md)). | **Owner** |
-| 0.3 | Decide push or no push for this first bundle. **No push** (recommended for the closed test): nothing to set up, build with `production-no-push`. **Push**: do the Firebase steps 1 and 2 of ANDROID_PLAY_LAUNCH.md first (Google sign-in, two credential files kept in `Documents\guilded-secrets\`), then build with `production`. | **Owner** decides; Firebase is **Owner** |
+| 0.2 | App name: decided on 15 November 2026, `Guild Sync Companion`. The label under the phone icon stays `Guilded`. | Done |
+| 0.3 | Push or no push: decided on 15 November 2026, **no push** for the first bundle. Build with `production-no-push`; no Firebase step. | Done |
 
 ## 1. Build the bundle (.aab)
 
@@ -40,7 +40,7 @@ If the build fails with "Production Android builds require the Firebase GOOGLE_S
 | # | Step | Who |
 | --- | --- | --- |
 | 2.1 | https://play.google.com/console → **Create app**. | **Owner** (signed in) |
-| 2.2 | App name (0.2), default language **English (United States) – en-US**, **App**, **Free**. | Agent may type; **Owner** checks |
+| 2.2 | App name `Guild Sync Companion`, default language **English (United States) – en-US**, **App**, **Free**. | Agent may type; **Owner** checks |
 | 2.3 | Tick the declarations (Developer Program Policies, US export laws) → **Create app**. | **Owner** |
 
 The package name `top.kcaron.guilded` is fixed for ever by the first uploaded bundle. It cannot be changed later.

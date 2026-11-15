@@ -9,7 +9,9 @@ This listing describes the five-tab app without Guilded Clash (the card game is 
 version 0.3.0. Screenshot sizes and what each one must show: [play-screenshots.md](play-screenshots.md). The Play
 Console steps for the closed test: [play-console-checklist.md](play-console-checklist.md).
 
-**App name: an owner decision before Create app.** Three options:
+**Decided by the owner on 15 November 2026:** the Play name is **`Guild Sync Companion`**, the label under the
+phone icon stays `Guilded`, and the first bundle goes out **without push** (profile `production-no-push`).
+The options that were weighed:
 
 | Option | For | Against |
 | --- | --- | --- |
@@ -17,14 +19,14 @@ Console steps for the closed test: [play-console-checklist.md](play-console-chec
 | 2. `Guild Sync` | Same family as the Store name, shorter, and fits a phone app that shows the guild instead of uploading for it. | A new name that is used nowhere else yet; a little generic, so check that Play has no app of that exact name before choosing it. |
 | 3. `Guilded: guild companion` | Keeps the name members know and says what the app is. Search still finds "Guilded". | Still starts with the other product's name, so Play can refuse it or act on a complaint later; a forced rename after launch costs a new review. |
 
-Recommended: **1**, because it is already accepted elsewhere and cannot be confused with the other app. Plain
+Chosen: **1**, because it is already accepted elsewhere and cannot be confused with the other app. Plain
 `Guilded` is not proposed: another app of that name is on Play. Whatever is chosen, the package id
 (`top.kcaron.guilded`) and the name on the phone's home screen (`Guilded`, from `app.json`) do not change.
 
 Background: The Microsoft Store refused "Guilded Companion" on 3 November 2026
 (naming rule 10.1.1.1), and "Guilded" was also the name of a chat app that had a Play listing. Play can refuse a title it
 reads as another product's name. The label under the icon comes from `name` in `mobile/app.json` and is `Guilded`
-today; if the owner picks option 1 or 2 and wants the phone label to match, that is a one-line change and a new build.
+and stays so (owner decision); changing it later is a one-line change and a new build.
 Do not put "World of
 Warcraft" or "WoW" in the title or the icon: a game's name is allowed in the description, with the disclaimer that is
 already there, not in the title.
@@ -33,7 +35,7 @@ already there, not in the title.
 
 | Field | Value |
 | --- | --- |
-| App name (30 max) | the owner's choice among the three options above (`Guild Sync Companion` recommended) |
+| App name (30 max) | `Guild Sync Companion` |
 | Default language | English (United States) – en-US |
 | Translation | French (Canada) – fr-CA (text below) |
 | App or game | App |
@@ -58,9 +60,9 @@ Your guild's roster, map, raids, badges and leaderboards, right on your phone.
 **Full description** (4,000 max):
 
 ```
-Guilded keeps your World of Warcraft guild with you when you are away from the game.
+Guild Sync Companion is the phone app of Guilded. It keeps your World of Warcraft guild with you when you are away from the game.
 
-Guilded is the companion app for guilds that use the Guilded Discord bot. Sign in with the same Discord account you use with your guild, and the app shows what your guild already shares with you.
+It is for guilds that use the Guilded Discord bot. Sign in with the same Discord account you use with your guild, and the app shows what your guild already shares with you.
 
 GUILD
 • Roster: your characters, guild ranks, raid cores and soft reserves.
@@ -99,9 +101,9 @@ Membres, carte, raids, badges et classements de votre guilde, sur votre mobile.
 **Description complète** (4 000 max) :
 
 ```
-Guilded garde votre guilde World of Warcraft avec vous quand vous êtes loin du jeu.
+Guild Sync Companion est l'appli mobile de Guilded. Elle garde votre guilde World of Warcraft avec vous quand vous êtes loin du jeu.
 
-Guilded est l'appli compagnon des guildes qui utilisent le bot Discord Guilded. Connectez-vous avec le même compte Discord que dans votre guilde : l'appli affiche ce que votre guilde partage déjà avec vous.
+Elle s'adresse aux guildes qui utilisent le bot Discord Guilded. Connectez-vous avec le même compte Discord que dans votre guilde : l'appli affiche ce que votre guilde partage déjà avec vous.
 
 GUILDE
 • Membres : vos personnages, rangs de guilde, cores de raid et soft reserves.
@@ -152,11 +154,11 @@ They hold no real names and no personal data. The public endpoints were answered
 so live player names never appear. To regenerate them, see [`capture-screenshots.mjs`](capture-screenshots.mjs).
 No Blizzard art is used. The feature graphic says "Your guild" rather than "WoW", to keep trademarks out of the artwork.
 
-## Length check (8 Nov 2026)
+## Length check (15 Nov 2026)
 
 | Text | Characters | Limit |
 | --- | --- | --- |
 | EN short | 78 | 80 |
 | FR short | 79 | 80 |
-| EN full | 1,691 | 4,000 |
-| FR full | 1,951 | 4,000 |
+| EN full | 1,720 | 4,000 |
+| FR full | 2,002 | 4,000 |

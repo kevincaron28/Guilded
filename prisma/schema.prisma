@@ -4128,9 +4128,12 @@ model CarriedRecord {
   carrier   String
   // "applied", or "rejected" for what was refused: both count against the carrier's day.
   status    String   @default("applied")
+  // A carried dungeon run: its identity on the public lane (instance id and run id), for the per-run limits (src/services/carried-runs.ts).
+  runKey    String?
   createdAt DateTime @default(now())
 
   @@unique([kind, authorKey, key])
+  @@index([kind, runKey])
   @@index([carrier, createdAt])
   @@index([createdAt])
 }

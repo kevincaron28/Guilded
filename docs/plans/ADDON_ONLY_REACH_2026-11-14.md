@@ -137,3 +137,13 @@ What exists now, and where it differs from the design above.
 
 - **Marker clock.** The companion GuildedCompanionFeatures marker carries `bt`, the bot time at the write (from the bot Date header), which the addon prefers to the PC time `at`; the future guard of a heartbeat marker is one hour. Tests cover the PC clock behind and ahead, and that stopping the engine (sign-out) stops the heartbeat.
 - **Run kind (transport only).** Carry.lua collects each player's own finished run (a run no bot holds, at most five players, up to 14 days old) as one flat `run` record and whispers it to a carrier met later, like an outside duel. A bot that does not know the kind ignores it and sends no receipt, so the record stays with the addon. The bot side (a held kind with its own release rules) is a separate change.
+
+### Bot side of the run kind (internal, not member-visible)
+
+Owner decision, 14 November 2026: a carried run with only one report (one player with the addon, no companion, nobody else in the group with the addon) is ranked, not held ("no we rank it"; consistent with "one player run enough evidence" and "with your anti cheat methods in store we can trust a single report").
+
+- A single carried statement goes through the relay lane (`ingestRelayedRuns`) like any single unsigned reporter: the same plausibility flags, the carrier's daily relay cap and the public lane's own checks. The author must be a player of the run; a run the carrier played in is the carrier's own upload's business (computed with `ownCarrierKeys`, so the roster of other players is never "own").
+- The first accepted statement places the run. A later statement of the same run (same instance and run id) can only confirm it; one that disagrees is refused by the public lane, the placed run stays and the refusal is logged ("not-placed ... differs from the run already placed") for review. Scores are never changed automatically.
+- A carrier is told a record was dealt with (receipt) only when the run was placed, confirmed, already known, or was the carrier's own. Every refusal is logged with its reason and filed once as a `rejected` row.
+- Floods, all in the server configuration (`RUN_INTEGRITY_CONFIG`, defaults in `run-integrity-config.ts`): `carriedRunRowsPerCarrierRun` 3, `carriedRunRowsPerRun` 40 (signed carriers), `carriedRunRowsPerRunDevice` 5 (unsigned devices, counted apart), `carriedRunKeysPerDay` 30 and `carriedRunKeysPerDayDevice` 10 distinct runs per carrier per day. Rows are filed per carrier (`key@carrier`) and deleted after 30 days.
+- No member-visible wording about how runs are checked or limited.

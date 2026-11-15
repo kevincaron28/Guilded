@@ -11,7 +11,7 @@ export function publicSharingNotice(settings: { publicDungeonRuns?: boolean; pub
     ? T("Only runs started since {since}; older imports stay private.", { since: `<t:${Math.ceil(settings.publicDungeonRunsSince.getTime() / 1000)}:f>` })
     : T("Eligible saved runs from the last 30 days are included.");
   return [
-    T("**Public dungeon sharing: ON.** Anyone can see eligible runs at https://guilded.kcaron.top/leaderboards/: all recorded party members' character names/realms, class, role, level, times, deaths and scores, including non-guild players."),
+    T("**Public dungeon sharing: ON.** Anyone can see eligible runs at https://guildedwow.com/leaderboards/: all recorded party members' character names/realms, class, role, level, times, deaths and scores, including non-guild players."),
     window,
     T("Members can erase their own data any time with the /delete-my-data command.")
   ].join("\n");

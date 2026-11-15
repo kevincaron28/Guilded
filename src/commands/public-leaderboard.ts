@@ -4,7 +4,7 @@ import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
 import { clearLeaderboardCaches } from "../services/leaderboard-cache-hooks.js";
 
-// /mod leaderboard: include this guild's dungeon runs on guilded.kcaron.top/leaderboards/ (7.0).
+// /mod leaderboard: include this guild's dungeon runs on guildedwow.com/leaderboards/ (7.0).
 // Only valid, completed runs, with character names, class, role, time and deaths.
 export const publicLeaderboardCommand = new SlashCommandBuilder()
   .setName("leaderboard")
@@ -24,7 +24,7 @@ export async function executePublicLeaderboard(interaction: ChatInputCommandInte
     ? `started since <t:${Math.ceil(settings.publicDungeonRunsSince.getTime() / 1000)}:f>, within the last 30 days`
     : "last 30 days";
   await interaction.reply({
-    content: `This guild's valid completed dungeon runs (${window}, then every 15 minutes) go to https://guilded.kcaron.top/leaderboards/ for anyone to see: all recorded party members' character names/realms, class, role, level, time, deaths and scores, including non-guild players. Members can erase their own data with "Delete my data" on the website.`,
+    content: `This guild's valid completed dungeon runs (${window}, then every 15 minutes) go to https://guildedwow.com/leaderboards/ for anyone to see: all recorded party members' character names/realms, class, role, level, time, deaths and scores, including non-guild players. Members can erase their own data with "Delete my data" on the website.`,
     flags: MessageFlags.Ephemeral
   });
 }

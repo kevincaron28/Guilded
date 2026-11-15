@@ -2,7 +2,7 @@ import { config } from "../config.js";
 import { t, type Lang } from "../i18n.js";
 
 export const HOSTED_APPLICATION_ID = "1552633893587394590";
-const HOSTED_COMPANION_URL = "https://guilded.kcaron.top/companion/";
+const HOSTED_COMPANION_URL = "https://guildedwow.com/companion/";
 
 type LinkSettings = { COMPANION_WEB_URL?: string | undefined; DISCORD_CLIENT_ID?: string | undefined };
 

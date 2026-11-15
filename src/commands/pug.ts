@@ -53,7 +53,7 @@ export async function executePug(interaction: ChatInputCommandInteraction): Prom
       publicPug: open, ...(open ? { pugRealm: realm, pugFaction: faction, pugLanguage: language, pugInviteUrl: invite!.trim() } : {})
     } });
     await interaction.editReply({ content: open
-      ? "This raid is shared on the website, other guilds' boards and companion snapshots. Vacancies follow confirmed signups; full raids are hidden. Ensure guests can see the host signup channel. Only this occurrence is shared.\nhttps://guilded.kcaron.top/recruitment/?kind=raids"
+      ? "This raid is shared on the website, other guilds' boards and companion snapshots. Vacancies follow confirmed signups; full raids are hidden. Ensure guests can see the host signup channel. Only this occurrence is shared.\nhttps://guildedwow.com/recruitment/?kind=raids"
       : "This raid is no longer shared. Discord boards refresh within a minute; downloaded addon snapshots expire after 10 minutes.", allowedMentions: { parse: [] } });
     return;
   }

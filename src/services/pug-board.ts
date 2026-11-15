@@ -9,7 +9,7 @@ import { roleLabel, ROLES } from "./recruitment.js";
 export function pugBoardPayload(raids: PublicRaid[], lang: "en" | "fr", now = new Date()): Pick<MessageCreateOptions, "embeds" | "allowedMentions"> {
   const fr = lang === "fr";
   const embed = new EmbedBuilder().setTitle(fr ? "Places de raid — autres guildes" : "Open raids — other guilds")
-    .setURL(`https://guilded.kcaron.top/recruitment/?kind=raids&edition=${currentEdition()}`)
+    .setURL(`https://guildedwow.com/recruitment/?kind=raids&edition=${currentEdition()}`)
     .setDescription(fr
       ? "Rejoignez le Discord hôte, puis utilisez son inscription. Actualisé chaque minute; une place doit être confirmée chez l'hôte."
       : "Join the host Discord, then use its signup post. Refreshed every minute; confirm your spot with the host.")

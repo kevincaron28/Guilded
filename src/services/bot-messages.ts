@@ -4,7 +4,6 @@ import type { GuildSettings, PrismaClient } from "../generated/prisma/client.js"
 import { asLang, t, tx, type Lang } from "../i18n.js";
 import { dungeonGuideState, ensureDungeonSignupGuide } from "./dungeon-guide.js";
 import { ensureWelcomePanel, welcomePanelState } from "./onboarding.js";
-import { companionLinkText } from "./companion-links.js";
 import { ensureInstallPost, installPinHint, installPostState } from "./install-post.js";
 import { CURRENT_VERSION } from "./version-announce.js";
 
@@ -27,7 +26,7 @@ export function gettingStartedPost(lang: Lang): EmbedBuilder {
   return new EmbedBuilder()
     .setTitle(t(lang, "guide.title"))
     .setColor(0xd4af37)
-    .setDescription(t(lang, "guide.body", { url: ADDON_URL, companion: companionLinkText(lang) }))
+    .setDescription(t(lang, "guide.body", { url: ADDON_URL }))
     .setFooter({ text: `Guilded ${CURRENT_VERSION}` });
 }
 

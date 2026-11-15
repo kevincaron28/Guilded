@@ -58,10 +58,10 @@ describe("PoE2 HTTP authentication and personal scope", () => {
     for (const path of ["/companion", "/companion/", "/companion/app.js", "/companion/preload.cjs", "/companion/..%2F..%2F.env.local", "/companion/config.json", "/companion/fonts/inter-latin.woff2"]) {
       const response = await fetch(`${address}${path}`, { redirect: "manual" });
       expect(response.status, path).toBe(301);
-      expect(response.headers.get("location"), path).toBe("https://guilded.kcaron.top/companion/");
+      expect(response.headers.get("location"), path).toBe("https://guildedwow.com/companion/");
     }
     const french = await fetch(`${address}/companion/app.js?lang=fr`, { redirect: "manual" });
-    expect(french.headers.get("location")).toBe("https://guilded.kcaron.top/companion/?lang=fr");
+    expect(french.headers.get("location")).toBe("https://guildedwow.com/companion/?lang=fr");
     expect((await fetch(`${address}/companion/`, { method: "POST", redirect: "manual" })).status).toBe(405);
     expect(db.companionCredential.findFirst).not.toHaveBeenCalled();
   });

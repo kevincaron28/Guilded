@@ -638,7 +638,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     if (!rows.length) return `<p class="muted">${t("No rated run yet.", "Aucun essai classé pour l'instant.")}</p>`;
     return table(["#", t("Character", "Personnage"), t("Role", "Rôle"), t("Score", "Score"), t("Routes", "Parcours")],
       rows.slice(0, limit).map((row, i) => `<tr><td>${rankCell(i + 1)}</td><td>${identity(ctx, row.player)}</td>`
-        + `<td>${row.player.role ? escapeHtml(roleLabel(row.player.role, lang)) : ""}</td><td class="num score">${row.points}</td><td class="num">${row.routes.filter((r) => r.counted).length}/${row.routes.length}</td></tr>`), [3, 4], "rank-cards");
+        + `<td>${roleEmblem(row.player.role)}${row.player.role ? escapeHtml(roleLabel(row.player.role, lang)) : ""}</td><td class="num score">${row.points}</td><td class="num">${row.routes.filter((r) => r.counted).length}/${row.routes.length}</td></tr>`), [3, 4], "rank-cards");
   }
 
   function topRuns(ctx: WebContext, runs: LeaderRun[], filters: LeaderFilters, rules: BracketedRules, limit = 10): string {
@@ -888,7 +888,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       .map((r) => `<a href="${link(runPath(r.run.runId), lang)}">${escapeHtml(r.run.dungeonName)}</a> <span class="tag">${r.points}</span>`).join(" ");
     const list = rows.length ? `<div class="table-wrap"><table class="dense rank-cards${page === 1 ? " ranked" : ""}"><thead><tr><th>#</th><th>${t("Character", "Personnage")}</th><th>${t("Role", "Rôle")}</th><th class="num">${t("Score", "Score")}</th><th class="num">${t("Routes", "Parcours")}</th><th>${t("Best runs", "Meilleurs essais")}</th></tr></thead><tbody>`
       + rows.slice((page - 1) * CHARACTERS_PER_PAGE, page * CHARACTERS_PER_PAGE).map((row, i) => `<tr><td>${rankCell((page - 1) * CHARACTERS_PER_PAGE + i + 1)}${moves ? ` ${movement(t, moves.get(characterId(row.player)) ?? null)}` : ""}</td><td>${identity(ctx, row.player)}</td>`
-        + `<td>${row.player.role ? escapeHtml(roleLabel(row.player.role, lang)) : ""}</td>`
+        + `<td>${roleEmblem(row.player.role)}${row.player.role ? escapeHtml(roleLabel(row.player.role, lang)) : ""}</td>`
         + `<td class="num score ${scoreTier(row.points)}">${row.points}</td><td class="num">${row.routes.filter((r) => r.counted).length}/${row.routes.length}</td><td class="wrap best-runs">${bestRuns(row)}</td></tr>`).join("")
       + `</tbody></table></div>`
       : `<p class="muted">${t("Nobody is ranked with these filters yet: your first ranked clear puts you on the board.", "Personne n'est encore classé avec ces filtres : votre premier essai classé vous place au classement.")}</p>`;
@@ -1104,7 +1104,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       body = `<h2>${escapeHtml(name)}</h2>` + (ranked.length
         ? table(["#", t("Character", "Personnage"), t("Role", "Rôle"), t("Time", "Temps"), t("Score", "Score"), t("Deaths", "Morts"), t("Party", "Groupe"), t("Date", "Date"), ""],
           ranked.map((entry, index) => `<tr><td>${index + 1}</td><td>${identity(ctx, entry.player)}</td>`
-            + `<td>${entry.player.role ? escapeHtml(roleLabel(entry.player.role, lang)) : ""}</td>`
+            + `<td>${roleEmblem(entry.player.role)}${entry.player.role ? escapeHtml(roleLabel(entry.player.role, lang)) : ""}</td>`
             + `<td class="num">${time(entry.run.durationSec)}</td><td class="num score">${scoreCell(ctx, entry.run, periodRules(period), entry.player)}</td><td class="num">${entry.run.deaths ?? "?"}</td><td>${party(ctx, entry.run)}</td><td>${date(entry.run.endedAt)}</td><td></td></tr>`), [3, 4, 5], "rank-cards")
         : `<p class="muted">${t("No run matches these filters yet.", "Aucun essai ne correspond encore à ces filtres.")}</p>`);
     } else {
@@ -1337,7 +1337,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       + (bosses ? tile(t("Bosses", "Boss"), `${bosses.killed}/${bosses.total}`, bosses.killed < bosses.total ? escapeHtml(t("some skipped", "certains sautés")) : "") : "")
       + tile(t("Season", "Saison"), escapeHtml(period ? periodName(ctx, period) : t("Past run", "Ancien donjon")), escapeHtml(`${date(run.endedAt)} UTC`)) + `</div>`;
     const partyTable = table([t("Character", "Personnage"), t("Class", "Classe"), t("Role", "Rôle"), t("Level", "Niveau")],
-      run.players.map((p) => `<tr><td>${who(ctx, p)}</td><td class="c-${classSlug(p.className)}">${p.className ? escapeHtml(classLabel(p.className, lang)) : ""}</td><td>${p.role ? escapeHtml(roleLabel(p.role, lang)) : ""}</td><td class="num">${p.level ?? "?"}</td></tr>`), [3]);
+      run.players.map((p) => `<tr><td>${who(ctx, p)}</td><td class="c-${classSlug(p.className)}">${p.className ? escapeHtml(classLabel(p.className, lang)) : ""}</td><td>${roleEmblem(p.role)}${p.role ? escapeHtml(roleLabel(p.role, lang)) : ""}</td><td class="num">${p.level ?? "?"}</td></tr>`), [3]);
     return kit.page(200, title, PAGE_CSS + HUB_CSS + hubTabs(t, lang, "dungeons") + breadcrumbs(lang, [[t("Leaderboards", "Classements"), link("/leaderboards/", lang)], [title, null]], escapeHtml)
       + `<p class="eyebrow">${t("Dungeon run", "Essai de donjon")}</p><h1>${escapeHtml(title)}</h1><p class="muted">${escapeHtml(subtitle)}</p>` + tiles
       + (run.challenge ? `<p>${t("Official timer", "Chrono officiel")} · affixes ${run.challenge.affixIds.join(", ") || "—"}${run.challenge.practiceRun ? ` · ${t("Practice run", "Entraînement")}` : ""}</p>` : "")
@@ -1389,7 +1389,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       stats.dungeons.map((d) => `<tr><td>${escapeHtml(d.name)}${stats.dungeons.some((o) => o !== d && o.instanceId === d.instanceId) ? ` <span class="tag">${escapeHtml(d.routeKey ?? (d.difficultyId === null ? "" : `${t("difficulty", "difficulté")} ${d.difficultyId}`))}</span>` : ""}</td><td class="num">${d.runs}</td><td class="num"><a href="${link(runPath(d.bestRunId), lang)}">${time(d.bestSec)}</a></td><td>${date(d.bestAt)}</td><td>${d.record ? `<span class="badge ok" title="${t("Fastest public clear of this dungeon this period", "Essai public le plus rapide de ce donjon pour la période")}">${t("Record", "Record")}</span>` : ""}</td></tr>`), [1, 2])
       : `<p class="muted">${t("No dungeon cleared by a member in this period yet.", "Aucun donjon terminé par un membre pour cette période.")}</p>`;
     const roleRows = stats.topByRole.length ? table([t("Role", "Rôle"), t("Player", "Joueur"), t("Levels", "Niveaux"), t("Score", "Score")],
-      stats.topByRole.map(({ role, row }) => `<tr><td>${escapeHtml(roleLabel(role, lang))}</td><td>${who(ctx, row.player)}</td><td>${escapeHtml(bracketName(ctx, row.bracket))}</td><td class="num score">${row.points}</td></tr>`), [3]) : "";
+      stats.topByRole.map(({ role, row }) => `<tr><td>${roleEmblem(role)}${escapeHtml(roleLabel(role, lang))}</td><td>${who(ctx, row.player)}</td><td>${escapeHtml(bracketName(ctx, row.bracket))}</td><td class="num score">${row.points}</td></tr>`), [3]) : "";
     const peak = Math.max(1, ...stats.activity.map((w) => w.runs));
     const activity = stats.activity.length ? table([t("Week of", "Semaine du"), t("Runs", "Essais"), ""], stats.activity.map((w) => `<tr><td>${w.week}</td><td class="num">${w.runs}</td><td class="bar-cell"><div class="meter" style="width:${Math.round(100 * w.runs / peak)}%"></div></td></tr>`), [1]) : "";
     const pvpForGuild = pvpOpen() ? await pvpDataSafe() : null;

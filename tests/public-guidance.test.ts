@@ -154,10 +154,10 @@ describe("character page guidance", () => {
     expect(body).toContain("From level 24: <strong>21:40</strong> → +5");
     expect(body).toContain("<h2>Score by role · Season 1</h2>");
     expect(body).toContain("They are separate scores, never added together.");
-    expect(body).toMatch(/<tr><td>(?:<img [^>]*>)?Tank</td><td class="num score">970</td></tr>/);
-    expect(body).toContain('<tr><td>Healer</td><td class="num">–</td></tr>'); // one ranked healer run: hidden under 3 runs
+    expect(body).toMatch(/<tr><td>(?:<img [^>]*>)?Tank<\/td><td class="num score">970<\/td><\/tr>/);
+    expect(body).toMatch(/<tr><td>(?:<img [^>]*>)?Healer<\/td><td class="num">–<\/td><\/tr>/); // one ranked healer run: hidden under 3 runs
     expect(body).toContain("A role score appears after 3 ranked runs in that role.");
-    expect(body).toContain('<tr><td>DPS</td><td class="num">–</td></tr>');
+    expect(body).toMatch(/<tr><td>(?:<img [^>]*>)?DPS<\/td><td class="num">–<\/td><\/tr>/);
     expect(body).toContain("1 ranked run has no recorded role: it counts in the overall score only.");
     expect(body).not.toContain("<script");
 
@@ -172,7 +172,7 @@ describe("character page guidance", () => {
     expect(fr).toContain("Battre 50:00 n'ajoute rien tant que l'essai ne dépasse pas 180.");
     expect(fr).toContain("Dès le niveau 24 : ");
     expect(fr).toContain("<h2>Score par rôle · Saison 1</h2>");
-    expect(fr).toContain('<tr><td>Soigneur</td><td class="num">–</td></tr>');
+    expect(fr).toMatch(/<tr><td>(?:<img [^>]*>)?Soigneur<\/td><td class="num">–<\/td><\/tr>/);
     expect(fr).toContain("1 essai classé n'a pas de rôle enregistré : il compte seulement dans le score global.");
   });
 

@@ -25,5 +25,5 @@ Status: prepared 15 November 2026, not yet published. 9.3.4 is not yet confirmed
 - `/delete-my-data` and the public Delete my data page.
 - The website without account tool pages, the small Discord sign-in and the My Guilded page.
 - Carry between two real PCs, a real dungeon run and group relay across guilds (carried over from 9.3.3).
-- The bot migration `carried_runs` applied on production before or with the bot deploy.
+- The bot migration `carried_runs` (20270222000200) was already applied on production on 15 November 2026 (bot cc7dd3de); nothing to apply for 9.3.4.
 - Final-commit CI, packaging hashes, install over 9.3.3.

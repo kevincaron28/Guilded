@@ -32,9 +32,10 @@ declaration.
 ## Permissions in the bundle
 
 Read from the merged manifest of the store bundle 0.3.0 (versionCode 7, `production-no-push`, built 15 November 2026).
-The app's own code asks for the first two; the rest are added by the libraries it is built with. Play's own list for the
-uploaded bundle (Test and release → Latest releases and bundles → the bundle → Permissions) is the one to trust if it
-differs.
+The app's own code asks for the first two; the rest are added by the libraries it is built with. Checked against Play's
+own list for the uploaded bundle on 15 November 2026 (Test and release → Latest releases and bundles → View all app
+bundles → version 7 → Permissions): Play shows **28 permissions**, which are the rows below, the badge permissions
+counted one per launcher brand.
 
 | Permission | Why it is there |
 | --- | --- |
@@ -47,7 +48,9 @@ differs.
 | `USE_BIOMETRIC`, `USE_FINGERPRINT` | `expo-secure-store` declares them for its optional "ask for a fingerprint before reading" mode. The app does not use that mode and never asks for a fingerprint. |
 | `com.google.android.c2dm.permission.RECEIVE` | The Firebase Cloud Messaging library that `expo-notifications` always brings in. In this bundle there is no Firebase configuration, so it never starts, gets no token and receives nothing. |
 | `com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE` | Google's Install Referrer library, brought in by a dependency (which one was not traced). The app does not read the install referrer. |
-| Launcher badge permissions (`READ_APP_BADGE`, `CHANGE_BADGE`, launcher `READ_SETTINGS` / `WRITE_SETTINGS`, `android.provider.badge.*`) | The badge-count library inside `expo-notifications`, for the small number some launchers draw on an app's icon. The app sets no badge count. |
+| Launcher badge permissions: `android.permission.READ_APP_BADGE` and 15 brand-specific ones (Samsung, Huawei, HTC, Oppo, Sony, Apex, Solid and "everything" launchers: `...READ_SETTINGS`, `...WRITE_SETTINGS`, `...CHANGE_BADGE`, `...UPDATE_COUNT`, `...UPDATE_BADGE`, `...BROADCAST_BADGE`, `...PROVIDER_INSERT_BADGE`, `...BADGE_COUNT_READ` / `WRITE`, `...badge.permission.READ` / `WRITE`, `...UPDATE_SHORTCUT`) | The badge-count library inside `expo-notifications`, for the small number some launchers draw on an app's icon. The app sets no badge count. |
+| `com.android.vending.CHECK_LICENSE` | Google Play's licensing check. It is in Play's list for the bundle; which library or Play step adds it was not traced. The app does not check a licence itself and has nothing to buy. |
+| `top.kcaron.guilded.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` | The app's own private permission, added by the AndroidX library so that other apps cannot send it internal broadcasts. It grants nothing. |
 
 Not present: `com.google.android.gms.permission.AD_ID`, location, camera, microphone, contacts, storage.
 

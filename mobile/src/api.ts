@@ -499,10 +499,13 @@ export class GuildedClient {
    * Delete my data: the same erasure as the website's, proven by this device's sign-in. The server asks for the
    * confirm word; the app sends it only after the member confirmed on the screen. "unavailable" means the server
    * (or the website in front of it) does not offer the route yet: the caller then points at the public page.
+   * "gone" means the server no longer knows this sign-in (401): the data was already deleted (a lost answer, a
+   * second request) or the sign-in was revoked. Either way nothing is left to delete with it.
    */
-  async deleteMyData(): Promise<"deleted" | "unavailable"> {
+  async deleteMyData(): Promise<"deleted" | "gone" | "unavailable"> {
     const { status, body } = await this.call("/api/v1/companion/delete-my-data", { method: "POST", body: { confirm: "DELETE" } });
     if (status === 200) return "deleted";
+    if (status === 401) return "gone";
     if (status === 404 || status === 405 || (status === 403 && !record(body)?.error)) return "unavailable";
     throw new ApiError(messageOf(body, "Your data could not be deleted. Try again in a minute."), status);
   }

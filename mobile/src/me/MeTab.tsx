@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { KeyboardAvoidingView, Linking, Platform, Pressable, Text, View } from "react-native";
 import { t } from "../i18n";
 import type { GuildState } from "../useGuild";
@@ -79,6 +79,8 @@ function DeleteMyData({ guild }: { guild: GuildState }) {
   const { lang } = guild;
   const [step, setStep] = useState<"idle" | "confirm" | "working">("idle");
   const [problem, setProblem] = useState<string | null>(null);
+  // A second tap can land before the disabled state is drawn; a ref closes that gap, so only one request leaves.
+  const sending = useRef(false);
   const info = <Pressable onPress={() => void Linking.openURL(DELETE_INFO_URL).catch(() => {})} accessibilityRole="link" style={common.textButton}>
     <Text style={common.textButtonLabel}>{t(lang, "deleteMyDataHow")} ↗</Text>
   </Pressable>;
@@ -87,12 +89,16 @@ function DeleteMyData({ guild }: { guild: GuildState }) {
     {info}
   </>;
   const run = async () => {
+    if (sending.current) return;
+    sending.current = true;
     setStep("working");
     setProblem(null);
     try {
       if (await guild.deleteMyData() === "unavailable") setProblem(t(lang, "deleteUnavailable"));
     } catch (error) {
       setProblem(error instanceof Error ? error.message : t(lang, "deleteUnavailable"));
+    } finally {
+      sending.current = false;
     }
     setStep("idle");
   };

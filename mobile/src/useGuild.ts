@@ -149,12 +149,13 @@ export function useGuild(defaultOrigin: string) {
 
   /**
    * Delete my data, then forget the sign-in on this phone. Throws with the server's reason when it refuses;
-   * returns "unavailable" (and changes nothing) when the server does not offer the route.
+   * returns "unavailable" (and changes nothing) when the server does not offer the route. A sign-in the server no
+   * longer knows counts as deleted: the phone must not stay signed in with a dead credential.
    */
   const deleteMyData = async (): Promise<"deleted" | "unavailable"> => {
     if (!session || preview) return "unavailable";
     const outcome = await new GuildedClient(session.apiOrigin, session.companionCredential).deleteMyData();
-    if (outcome !== "deleted") return outcome;
+    if (outcome === "unavailable") return outcome;
     // The server removed the sign-in with the rest: nothing to sign out of, only the phone's copy to clear.
     await clearSession();
     if (remindersOn) void syncRaidReminders(false, []);

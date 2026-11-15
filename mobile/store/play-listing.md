@@ -85,7 +85,7 @@ NEWS
 
 Want to look around first? Open the sample guild: every screen works with made-up names, without signing in.
 
-Free, no ads, nothing to buy. Positions and calls for help are kept only for your guild, for a limited time, and "Delete my data" in the app's settings removes your data.
+Free, no ads, nothing to buy. Positions and calls for help are kept only for your guild, for a limited time, and "Delete my data" in the app's settings removes your data (backups and Discord messages already posted are not changed).
 
 Guilded is a fan-made tool. It is not affiliated with or endorsed by Blizzard Entertainment. World of Warcraft is a trademark of Blizzard Entertainment, Inc.
 ```
@@ -126,7 +126,7 @@ NOUVELLES
 
 Envie de jeter un œil d'abord ? Ouvrez la guilde d'exemple : chaque écran fonctionne avec des noms inventés, sans connexion.
 
-Gratuit, sans publicité, rien à acheter. Les positions et les appels à l'aide sont gardés seulement pour votre guilde, pour une durée limitée, et « Supprimer mes données » dans les réglages de l'appli efface vos données.
+Gratuit, sans publicité, rien à acheter. Les positions et les appels à l'aide sont gardés seulement pour votre guilde, pour une durée limitée, et « Supprimer mes données » dans les réglages de l'appli efface vos données (les sauvegardes et les messages Discord déjà publiés ne sont pas modifiés).
 
 Guilded est un outil créé par des fans. Il n'est ni affilié à Blizzard Entertainment ni approuvé par elle. World of Warcraft est une marque de commerce de Blizzard Entertainment, Inc.
 ```
@@ -160,5 +160,5 @@ No Blizzard art is used. The feature graphic says "Your guild" rather than "WoW"
 | --- | --- | --- |
 | EN short | 78 | 80 |
 | FR short | 79 | 80 |
-| EN full | 1,720 | 4,000 |
-| FR full | 2,002 | 4,000 |
+| EN full | 1,782 | 4,000 |
+| FR full | 2,078 | 4,000 |

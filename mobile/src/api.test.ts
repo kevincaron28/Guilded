@@ -133,7 +133,7 @@ describe("mobile companion client", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "Not found" }), { status: 404 })));
     expect(await client.deleteMyData()).toBe("unavailable");
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "This companion link is no longer valid. Sign in with Discord again." }), { status: 401 })));
-    await expect(client.deleteMyData()).rejects.toThrow(/no longer valid/);
+    expect(await client.deleteMyData()).toBe("gone");
     vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 429 })));
     await expect(client.deleteMyData()).rejects.toThrow(/could not be deleted/);
   });

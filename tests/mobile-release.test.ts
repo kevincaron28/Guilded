@@ -57,6 +57,11 @@ describe("mobile release links", () => {
     }
     expect(readFileSync("mobile/src/api.ts", "utf8")).toContain('"/api/v1/companion/delete-my-data"');
     expect(readFileSync("mobile/src/links.ts", "utf8")).toContain("DELETE_INFO_URL");
+    // A sign-in the server no longer knows (401) clears the phone too, and a double tap sends one request.
+    expect(readFileSync("mobile/src/useGuild.ts", "utf8")).toContain('if (outcome === "unavailable") return outcome;');
+    const tab = readFileSync("mobile/src/me/MeTab.tsx", "utf8");
+    expect(tab).toContain("if (sending.current) return;");
+    expect(tab).toContain("sending.current = false;");
   });
   it("opens app links from the current site and the older address", () => {
     const config = JSON.parse(readFileSync("mobile/app.json", "utf8")).expo;

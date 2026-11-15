@@ -59,7 +59,7 @@ import { retryWriteConflict, serializeByKey } from "./services/transaction-retry
 import { alertLowStock, bankForAddon, parseAddonBankRequests, postRequestCard } from "./services/guild-bank-member.js";
 import { createBankService } from "./services/bank.js";
 import { applyOrderActions, applyOrderRequests, craftOrdersForAddon, parseAddonOrderActions, parseAddonOrderRequests, unpostedGameRequests } from "./services/craft-orders.js";
-import { applyBoardVotes, applyRelayedBoardVotes, boardEnabled, boardForAddon, createBoardService, myBoardVotes, parseAddonBoardPosts, parseAddonBoardVotes } from "./services/guild-board.js";
+import { applyBoardVotes, applyRelayedBoardVotes, boardEnabled, createBoardService, parseAddonBoardPosts, parseAddonBoardVotes } from "./services/guild-board.js";
 import { asLang } from "./i18n.js";
 import { serveCompanionWeb } from "./services/companion-redirect.js";
 import { createGuildPageServer, loadGuildPageView } from "./services/guild-page.js";
@@ -536,20 +536,18 @@ export async function standingsParts(guild: { id: string; discordId: string }, a
     const lootRead = lootRulesForAddon(prisma, guild.id, async (coreId, coreBaseGp) =>
       (await createEpgpService(prisma).getGuildStandings(guild.id, coreBaseGp, coreId)).map((row) => ({ character: addonName(row.character, row.realm), ...(row.displayName ? { displayName: row.displayName } : {}), main: row.main, ep: row.ep, gp: row.gp })));
     lootRead.catch(() => undefined);
-    const [loot, dungeonBoard, nextRaid, items, botRaids, board, craftOrders] = await Promise.all([
+    const [loot, dungeonBoard, nextRaid, items, botRaids, craftOrders] = await Promise.all([
       lootRead,
       addonDungeonBoard(prisma, guild.id),
       nextRaidRoster(prisma, guild.id),
       itemInsights(prisma, guild.id).catch(() => []),
       upcomingRaidsForAddon(prisma, guild.id),
-      // 9.1 in-game guild board (guild-board.ts): news and open polls with counts; small and the same for everyone.
-      boardForAddon(prisma, guild.id),
       // Crafting orders in game (craft-orders.ts): Discord craft requests for the addon's Orders page; the same for everyone.
       craftOrdersForAddon(prisma, guild.id)
     ]);
-    return { loot, dungeonBoard, nextRaid, items, botRaids, board, craftOrders };
+    return { loot, dungeonBoard, nextRaid, items, botRaids, craftOrders };
   });
-  const [{ loot, dungeonBoard, nextRaid, items, botRaids, board, craftOrders }, bank, officerInvites, pilotRaids] = await Promise.all([
+  const [{ loot, dungeonBoard, nextRaid, items, botRaids, craftOrders }, bank, officerInvites, pilotRaids] = await Promise.all([
     guildReads,
     // 9.1 guild bank (guild-bank-member.ts): contents to search in game, the low list, this member's requests.
     bankForAddon(prisma, guild.id, access.memberId, !!access.officer),
@@ -558,8 +556,6 @@ export async function standingsParts(guild: { id: string; discordId: string }, a
     access.officer ? pendingInvites(prisma, guild.id).then(inviteListForAddon) : Promise.resolve(null),
     publicRaids(prisma, hostedPilot.allows)
   ]);
-  // 9.1 guild board: this member's own picks on the open polls.
-  const boardVotes = board.enabled ? await myBoardVotes(prisma, guild.id, access.memberId) : null;
   const raids = mergeCalendarEvents(botRaids, scheduledEvents);
   // One snapshot per guild, shared like the reads above; only this member's ledger refs are read for them (they only grow, so reading
   // them just after the snapshot never makes the addon resend less than it should).
@@ -570,11 +566,10 @@ export async function standingsParts(guild: { id: string; discordId: string }, a
   // Shared: the same for every member, so it sets the stamp. Discord events are filtered
   // per member and dungeon/ledger acknowledgements do not change what the addon shows.
   return {
-    shared: { accounts, baseGp, board, craftOrders, dungeonBoard, nextRaid, items, loot: loot ? { ...loot, cores: loot.cores.map((core) => ({ ...core, accounts })) } : null, standings },
+    shared: { accounts, baseGp, craftOrders, dungeonBoard, nextRaid, items, loot: loot ? { ...loot, cores: loot.cores.map((core) => ({ ...core, accounts })) } : null, standings },
     personal: { acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, runNotes, ...(Object.keys(pendingRunNotes).length ? { pendingRunNotes } : {}), raids, ...(promotion ? { promotion } : {}),
       ...(officerInvites ? { officerInvites } : {}),
       bank,
-      ...(boardVotes ? { boardVotes } : {}),
       publicRaids: { fetchedAt: new Date().toISOString(), raids: pilotRaids } },
     stampOnly: { botRaids }
   };

@@ -637,18 +637,9 @@ export const FR_TEXT: Record<string, string> = {
   "Community honor roles": "Rôles d’honneur de la communauté",
   "I can't give the honor roles because my role is below them. Server Settings > Roles: drag the Guilded role above the honor roles. I retry every 15 minutes.": "Je ne peux pas attribuer les rôles d’honneur, car mon rôle est en dessous. Paramètres du serveur > Rôles : glissez le rôle Guilded au-dessus des rôles d’honneur. Je réessaie toutes les 15 minutes.",
   "Give the bot role the \"Manage Nicknames\" permission, above the members it should rename.": "Accordez à mon rôle la permission « Gérer les pseudos », au-dessus des membres à renommer.",
-  // 9.1 in-game guild board (src/commands/poll.ts)
+  // Guild news (src/commands/poll.ts)
   "📌 Guild news": "📌 Nouvelles de la guilde",
-  "{name}, from the game · also on the in-game guild board": "{name}, depuis le jeu · aussi sur le tableau de guilde en jeu",
-  "{name} · also on the in-game guild board": "{name} · aussi sur le tableau de guilde en jeu",
-  "I can't post in this channel.": "Je ne peux pas publier dans ce salon.",
-  "News posted. Members see it on the Board page of the Guilded window after their next sync.": "Nouvelle publiée. Les membres la voient sur la page Tableau de la fenêtre Guilded après leur prochaine synchronisation.",
-  "News posted here. The in-game board is off (/poll board enabled:True turns it on).": "Nouvelle publiée ici. Le tableau en jeu est désactivé (/poll board enabled:True le réactive).",
-  "The in-game guild board is on.": "Le tableau de guilde en jeu est activé.",
-  "The in-game guild board is off: no news or polls in game, and votes from the game are ignored.": "Le tableau de guilde en jeu est désactivé : ni nouvelles ni sondages en jeu, et les votes faits en jeu sont ignorés.",
-  "News post taken down.": "Nouvelle retirée.",
-  "The in-game guild board is on: the newest news and the open polls show on the Board page of the Guilded window, and members vote from there.": "Le tableau de guilde en jeu est activé : les dernières nouvelles et les sondages ouverts s’affichent sur la page Tableau de la fenêtre Guilded, et les membres y votent.",
-  "The in-game guild board is off.": "Le tableau de guilde en jeu est désactivé.",
-  "News on the board: {count}.": "Nouvelles sur le tableau : {count}.",
-  "No news yet. Post some with /poll news.": "Aucune nouvelle pour l’instant. Publiez-en avec /poll news."
+  "{name}, from the game": "{name}, depuis le jeu",
+  "News posted.": "Nouvelle publiée.",
+  "I can't post in this channel.": "Je ne peux pas publier dans ce salon."
 };

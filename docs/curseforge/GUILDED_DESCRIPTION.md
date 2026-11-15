@@ -34,7 +34,7 @@ Guilded 9.0.x is Forever only: the other WoW versions were removed. Your saved d
 - Raid sign-up in game and in Discord, attendance, EP/GP, loot history and loot rules (GP bidding, loot council, soft reserves).
 
 **Guild life**
-- Guild overview panel, in-game guild board with polls, roster tools for officers, guild bank view with requests.
+- Guild overview panel, roster tools for officers, guild bank view with requests.
 - Crafting: guild crafters, recipes, cooldowns and in-game **crafting orders** linked to Discord.
 - Guild chat tab (joins, online/offline), achievements, race to 60 and Hall of Fame.
 

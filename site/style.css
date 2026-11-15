@@ -537,3 +537,5 @@ form { margin: 22px 0 0; }
 .guide-tools input { min-height: 44px; width: min(100%, 420px); margin-left: 8px; padding: 8px 12px; border: 1px solid var(--line, #494d40); border-radius: 6px; background: transparent; color: inherit; }
 [data-guide-empty] { color: var(--muted, #aab5ba); }
 @media print { .guide-tools, [data-guide-empty] { display: none; } }
+
+main.guide h2::after{content:"";display:block;width:min(100%,420px);height:35px;margin:2px 0 -6px;background:url(/images/web/divider-800.webp) left center/contain no-repeat}

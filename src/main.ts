@@ -91,6 +91,7 @@ import { GROUP_ALERT_OPEN_ID, GROUP_ALERT_PREFIX, handleGroupAlertComponent, ope
 import { runDailyRecaps, runWeeklyReports } from "./commands/stats.js";
 import { runAutoDecay } from "./services/auto-decay.js";
 import { executeBank, handleBankRequestButton } from "./commands/bank.js";
+import { executeDeleteMyData } from "./commands/delete-my-data.js";
 import { BANK_REQUEST_PREFIX } from "./services/guild-bank-member.js";
 import { executeCraft } from "./commands/craft.js";
 import { OFFER_PREFIX, handleOfferButton, sweepCraftOffers } from "./commands/craft-offers.js";
@@ -241,6 +242,7 @@ handlers.set("bg", executeBattleground);
 handlers.set("automation", executeAutomation);
 handlers.set("poll", executePoll);
 handlers.set("bank", executeBank);
+handlers.set("delete-my-data", executeDeleteMyData);
 handlers.set("craft", executeCraft);
 handlers.set("help", executeHelp);
 handlers.set("uninstall", executeUninstall);

@@ -66,7 +66,7 @@ import type { Client } from "discord.js";
 import { CompanionUnavailable, companionAccess, personalSnapshot } from "./services/companion-access.js";
 import { createMemberData, memberDataStore } from "./services/member-data.js";
 import { createPicturePages, prismaPictureStore } from "./services/character-picture.js";
-import { deleteMyData, deleteMyDataByCredential } from "./services/data-deletion.js";
+import { deleteMyDataByCredential } from "./services/data-deletion.js";
 import { promotionForAddon } from "./services/promotion-feed.js";
 import { readFileSync } from "node:fs";
 import { ZodError } from "zod";
@@ -356,7 +356,7 @@ export function createSiteApp(client?: Client) {
     issuePersonal: async (accountId, deviceName) => (await issuePersonalCredential(personalStore, accountId, deviceName)).companionCredential
   });
   const devices = createDevicePages(prismaDeviceStore(prisma));
-  const memberData = createMemberData(memberDataStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")), discordUserId => deleteMyData(prisma, discordUserId));
+  const memberData = createMemberData(memberDataStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")));
   const routes: WebRoute[] = [retiredToolsRoute, signInPage, retiredAvailabilityRoute, devices.route, memberData.route, leaderboards.route, liveNewsFeed().route, directory.route, achievementsWeb.route, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route];
   // The website keeps only what the companion and the phone app sign-in need, plus the connections and data pages.
   const meSections: MeSectionInput[] = [

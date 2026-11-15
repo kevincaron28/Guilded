@@ -38,25 +38,21 @@ describe("Delete my data: companion credential flow", () => {
       expect(f.client.$transaction).toHaveBeenCalledTimes(1);
     }
   });
-  it("the companion no longer deletes anything itself: it links to the website, and the bot endpoint stays for released companions", () => {
+  it("the companion no longer deletes anything itself: it links to the static deletion page, and the bot endpoint stays for released companions", () => {
     const main = read("companion-app/main.cjs"), html = read("companion-app/renderer/main.html");
     expect(main).not.toContain("deleteMyDataEverywhere");
     expect(main).not.toContain('registerIpc("delete-my-data"');
-    expect(html).toContain("/me/data");
+    expect(html).toContain("/delete-my-data/");
     expect(read("src/companion-api.ts")).toContain("deleteMyDataByCredential(");
   });
 });
 
 describe("Delete my data: the /me page", () => {
   const ctx = { t: (en: string) => en, lang: "en", csrf: "tok", account: { discordUserId: "1" } } as never;
-  it("shows the button, the one-line explanation and the typed confirm field only when erasing is wired", async () => {
-    const withErase = createMemberData(async () => ({}) as never, async () => ({ members: 0, characters: 0, account: false }));
-    const html = await withErase.meSection(ctx);
-    expect(html).toContain("Delete my data");
-    expect(html).toContain("It cannot be undone");
-    expect(html).toContain(`name="confirm"`);
-    expect(html).toContain('action="/me/data/delete');
-    expect(await createMemberData(async () => ({}) as never).meSection(ctx)).not.toContain("Delete my data");
+  it("has no delete button or typed confirm field: deletion is the Discord command", async () => {
+    const html = await createMemberData(async () => ({}) as never).meSection(ctx);
+    expect(html).not.toContain('name="confirm"');
+    expect(html).not.toContain("/me/data/delete");
   });
 });
 

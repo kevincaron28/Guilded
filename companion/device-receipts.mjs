@@ -5,6 +5,7 @@ import { resolveStandingsPath } from "./standings.mjs";
 import { writeDataAddon } from "./data-addon.mjs";
 import { linkedMapLua } from "./standings-format.mjs";
 import { featuresLua } from "./group-relay.mjs";
+import { mergeRunCards, parseRunCards, runCardsToAddLua, runCardsToLua } from "./run-cards.mjs";
 import { patchReceiptBlocks, readRecord, recordReceipts } from "./parked-runs.mjs";
 
 // Zero-setup companion (9.1.3): an unsigned device never fetches the guild standings, so nothing told the
@@ -30,7 +31,7 @@ export function parseDeviceReceipts(text) {
   for (const match of block("GuildedDungeonNotes").matchAll(new RegExp(String.raw`^\s*\[${QUOTED}\] = ${QUOTED},\s*$`, "gm"))) notes[unquote(match[1])] = unquote(match[2]);
   const pending = {};
   for (const match of block("GuildedDungeonPending").matchAll(new RegExp(String.raw`^\s*\[${QUOTED}\] = ${QUOTED},\s*$`, "gm"))) pending[unquote(match[1])] = unquote(match[2]);
-  return { refs, notes, pending };
+  return { refs, notes, pending, cards: parseRunCards(text) };
 }
 
 /** The note a 9.1.3 bot gave a guildmate's run it refused from this PC: no bot holds that run, so it is no receipt. */
@@ -49,10 +50,12 @@ export function mergeDeviceReceipts(previous, answer) {
   const pending = { ...(previous?.pending ?? {}) };
   for (const ref of refs) delete pending[ref];
   for (const [ref, note] of Object.entries(answer?.pendingRunNotes && typeof answer.pendingRunNotes === "object" ? answer.pendingRunNotes : {})) if (typeof note === "string" && note && !refs.includes(ref)) pending[ref] = note.slice(0, 80);
-  return { refs, notes: Object.fromEntries(Object.entries(notes).filter(([ref]) => refs.includes(ref)).slice(0, MAX_NOTES)), pending: Object.fromEntries(Object.entries(pending).slice(-MAX_PENDING)) };
+  const cards = mergeRunCards(previous?.cards, answer?.runCards);
+  return { refs, notes: Object.fromEntries(Object.entries(notes).filter(([ref]) => refs.includes(ref)).slice(0, MAX_NOTES)), pending: Object.fromEntries(Object.entries(pending).slice(-MAX_PENDING)), ...(Object.keys(cards).length ? { cards } : {}) };
 }
 
-export function deviceReceiptsToLua({ refs, notes, pending, reported }, updatedAt) {
+/** @param {{ refs: string[], notes: Record<string, string>, pending?: Record<string, string>, reported?: string[], cards?: Record<string, any[]> }} receipts */
+export function deviceReceiptsToLua({ refs, notes, pending, reported, cards }, updatedAt) {
   return [
     "-- Written by the Guilded companion for an unsigned (zero-setup) PC. Overwritten automatically; edits here are lost.",
     "-- This PC is not signed in with Discord, so any earlier \"Linked to Discord as ...\" line no longer applies.",
@@ -69,6 +72,7 @@ export function deviceReceiptsToLua({ refs, notes, pending, reported }, updatedA
     "GuildedDungeonPending = {",
     ...Object.entries(pending ?? {}).map(([ref, note]) => `  [${luaString(ref)}] = ${luaString(note)},`),
     "}",
+    ...runCardsToLua(cards),
     ""
   ].join("\n");
 }
@@ -78,7 +82,8 @@ export function deviceReceiptsToLua({ refs, notes, pending, reported }, updatedA
  * ADD to whatever Guilded's file defined first (both addons installed). `mode` "device" tells the addon this PC has no Discord
  * sign-in, so it does not count a guildmate's run as waiting on this PC.
  */
-export function standaloneReceiptsToLua({ refs = [], notes = {}, pending = {} }, { mode = null, updatedAt = "" } = {}) {
+/** @param {{ refs?: string[], notes?: Record<string, string>, pending?: Record<string, string>, cards?: Record<string, any[]> }} receipts @param {{ mode?: string | null, updatedAt?: string }} [options] */
+export function standaloneReceiptsToLua({ refs = [], notes = {}, pending = {}, cards = {} }, { mode = null, updatedAt = "" } = {}) {
   const entry = (name, [ref, note]) => `${name}[${luaString(ref)}] = ${luaString(note)}`;
   return [
     "-- Written by the Guilded companion. Overwritten automatically; edits here are lost.",
@@ -90,6 +95,7 @@ export function standaloneReceiptsToLua({ refs = [], notes = {}, pending = {} },
     featuresLua(updatedAt),
     "GuildedDungeonPending = type(GuildedDungeonPending) == \"table\" and GuildedDungeonPending or {}",
     ...Object.entries(pending).slice(-MAX_PENDING).map((pair) => entry("GuildedDungeonPending", pair)),
+    ...runCardsToAddLua(cards),
     ""
   ].join("\n");
 }
@@ -109,7 +115,7 @@ export async function readDeviceReceipts(config) {
     const text = await readFile(join(dirname(dirname(path)), "GuildedDungeons", "Accepted.lua"), "utf8");
     const list = /ipairs\(\{([^}]*)\}\)/.exec(text)?.[1] ?? "";
     const lines = (name) => Object.fromEntries([...text.matchAll(new RegExp(String.raw`^${name}\[${QUOTED}\] = ${QUOTED}\s*$`, "gm"))].map((match) => [unquote(match[1]), unquote(match[2])]));
-    return { refs: [...list.matchAll(new RegExp(QUOTED, "g"))].map((match) => unquote(match[1])), notes: lines("GuildedDungeonNotes"), pending: lines("GuildedDungeonPending") };
+    return { refs: [...list.matchAll(new RegExp(QUOTED, "g"))].map((match) => unquote(match[1])), notes: lines("GuildedDungeonNotes"), pending: lines("GuildedDungeonPending"), cards: {} };
   } catch { return { refs: [], notes: {} }; }
 }
 

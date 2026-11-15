@@ -18,6 +18,7 @@ import { anchored } from "./run-trust.js";
 import { guildMembership } from "./guild-participants.js";
 import { deathMapOf, mergeRunCells, outlineFor } from "./dungeon-map-grid.js";
 import { cleanCharacterName, displayCharacterName } from "./character-display.js";
+import { receiptCardOf, type ReceiptCardRow } from "./dungeon-card.js";
 export { cleanCharacterName };
 
 /** The name a run card shows: the guild's full name, keeping a real doubled last name ("Xaldin Xaldin") its own tables hold. */
@@ -108,7 +109,7 @@ export interface DungeonImportSummary {
 // the standings and device answers leave it out of the accepted refs, so the addon keeps the run waiting and sends it again.
 export const RETRY_OUTCOME = "retry";
 export const RETRY_GIVE_UP_MS = 3 * 86_400_000;
-export interface RunReceipt { runRef: string; outcome: "stored" | "copy" | "refused" | "retry"; reason: string | null; runId: string | null; state?: string | null; fresh?: boolean }
+export interface RunReceipt { runRef: string; outcome: "stored" | "copy" | "refused" | "retry"; reason: string | null; runId: string | null; state?: string | null; fresh?: boolean; /** (9.3.5) The result card rows of a stored run (receiptCardOf). */ card?: ReceiptCardRow[] | null }
 
 const RECEIPT_REASON_MAX = 80;
 // Short, member-facing reasons the addon shows next to a run that earned nothing.
@@ -147,14 +148,14 @@ export async function saveRunReceipts(tx: Partial<Pick<Prisma.TransactionClient,
   const retried = new Set(previous.filter((row) => row.outcome === RETRY_OUTCOME).map((row) => row.runRef));
   const created = rows.filter((row) => !existing.has(row.runRef));
   if (created.length) await table.createMany({ skipDuplicates: true, data: created.map((row) => ({ guildId, runRef: row.runRef, outcome: row.outcome,
-    state: row.state ?? null, reason: row.reason, runId: row.runId, createdAt: now, seenAt: now })) });
+    state: row.state ?? null, reason: row.reason, runId: row.runId, ...(row.card ? { card: row.card } : {}), createdAt: now, seenAt: now })) });
   const repeats = rows.filter((row) => existing.has(row.runRef) && !row.fresh && !(retried.has(row.runRef) && row.outcome !== RETRY_OUTCOME)).map((row) => row.runRef);
   if (repeats.length) await table.updateMany({ where: { guildId, runRef: { in: repeats } }, data: { seenAt: now } });
   // A newly stored (or recovered) run takes its new outcome and reason; a repeat only moves the date.
   for (const row of rows.filter((candidate) => existing.has(candidate.runRef) && (candidate.fresh || retried.has(candidate.runRef) && candidate.outcome !== RETRY_OUTCOME))) {
     await table.update({ where: { guildId_runRef: { guildId, runRef: row.runRef } },
       // A stored receipt turned into a retry starts the retry clock again (its createdAt is the first retry).
-      data: { seenAt: now, outcome: row.outcome, state: row.state ?? null, reason: row.reason, runId: row.runId, ...(row.outcome === RETRY_OUTCOME && !wasRetry.has(row.runRef) ? { createdAt: now } : {}) } });
+      data: { seenAt: now, outcome: row.outcome, state: row.state ?? null, reason: row.reason, runId: row.runId, ...(row.card ? { card: row.card } : {}), ...(row.outcome === RETRY_OUTCOME && !wasRetry.has(row.runRef) ? { createdAt: now } : {}) } });
   }
 }
 
@@ -802,5 +803,9 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
       })),
       achievements
     });
+    // (9.3.5) The same rows the Discord card shows go with this run's receipt, for the addon's result card.
+    const card = receiptCardOf(summary.results[summary.results.length - 1]!);
+    const receipt = card ? receipts.findLast((row) => row.runRef === run.id) : undefined;
+    if (receipt && card) receipt.card = card;
   }
 }

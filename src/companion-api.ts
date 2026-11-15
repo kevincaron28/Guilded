@@ -72,7 +72,8 @@ import { promotionForAddon } from "./services/promotion-feed.js";
 import { readFileSync } from "node:fs";
 import { ZodError } from "zod";
 import { addonCharacterSchema } from "./integrations/addon.js";
-import type { PrismaClient } from "./generated/prisma/client.js";
+import { Prisma, type PrismaClient } from "./generated/prisma/client.js";
+import { RECEIPT_CARD_RUNS, runCardsOf } from "./services/dungeon-card.js";
 import { GAME_ON_HOLD_NOTE, POE_TRACKING_ENABLED } from "../companion/active-games.mjs";
 import { createPoeMappingService, poeAreaName, PoeMappingError } from "./services/poe-mapping.js";
 import { notify } from "./services/notify.js";
@@ -563,15 +564,17 @@ export async function standingsParts(guild: { id: string; discordId: string }, a
     { isolationLevel: "RepeatableRead", timeout: STANDINGS_READ_BUDGET_MS.query, maxWait: STANDINGS_READ_BUDGET_MS.poolWait }));
   const acceptedLedgerRefs = await ledgerRefsFor(prisma, guild.id, access.memberId);
   const { accounts, baseGp, standings, acceptedLootRefs, acceptedRunRefs, runNotes, pendingRunNotes } = guildSnapshot;
+  const runCards = guildSnapshot.runCards ?? {};
   // Shared: the same for every member, so it sets the stamp. Discord events are filtered
   // per member and dungeon/ledger acknowledgements do not change what the addon shows.
   return {
     shared: { accounts, baseGp, craftOrders, dungeonBoard, nextRaid, items, loot: loot ? { ...loot, cores: loot.cores.map((core) => ({ ...core, accounts })) } : null, standings },
-    personal: { acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, runNotes, ...(Object.keys(pendingRunNotes).length ? { pendingRunNotes } : {}), raids, ...(promotion ? { promotion } : {}),
+    personal: { acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, runNotes, ...(Object.keys(pendingRunNotes).length ? { pendingRunNotes } : {}), ...(Object.keys(runCards).length ? { runCards } : {}), raids, ...(promotion ? { promotion } : {}),
       ...(officerInvites ? { officerInvites } : {}),
       bank,
       publicRaids: { fetchedAt: new Date().toISOString(), raids: pilotRaids } },
-    stampOnly: { botRaids }
+    // (9.3.5) A new or changed result card changes the stamp too, so a card that arrives after its run was acknowledged is fetched and written.
+    stampOnly: { botRaids, runCards }
   };
 }
 
@@ -600,6 +603,12 @@ export async function guildConsistentReads(database: PrismaClient, guildId: stri
     orderBy: { seenAt: "desc" },
     take: 1000
   }) : [];
+  // (9.3.5) The in-game result card rows (level, guild, +gain, season total) of the newest stored runs; the addon ignores a missing field.
+  const cardRows = receiptTable ? await receiptTable.findMany({
+    where: { guildId, seenAt: { gte: since }, outcome: { not: RETRY_OUTCOME }, card: { not: Prisma.DbNull } },
+    select: { runRef: true, card: true }, orderBy: { seenAt: "desc" }, take: RECEIPT_CARD_RUNS
+  }) : [];
+  const runCards = runCardsOf(cardRows);
   // (9.3) Runs received but not counted yet (a retry receipt: unreadable, or waiting for a guildmate's own copy): answered apart,
   // never as accepted, so the companion's sync line says why instead of counting them "unconfirmed" (same as the device answer).
   const waiting = receiptTable ? await receiptTable.findMany({
@@ -622,7 +631,7 @@ export async function guildConsistentReads(database: PrismaClient, guildId: stri
   const accounts = Object.fromEntries((await database.character.findMany({ where: { member: { guildId } }, select: { name: true, realm: true, memberId: true } })).map((c) => [addonName(c.name, c.realm), c.memberId]));
   const acceptedLootRefs = await lootRefsFor(database, guildId);
   const standings = (await createEpgpService(database).getGuildStandings(guildId, baseGp)).map(row => ({ ...row, character: addonName(row.character, row.realm) }));
-  return { accounts, baseGp, standings, acceptedLootRefs, acceptedRunRefs, runNotes, pendingRunNotes };
+  return { accounts, baseGp, standings, acceptedLootRefs, acceptedRunRefs, runNotes, pendingRunNotes, ...(Object.keys(runCards).length ? { runCards } : {}) };
 }
 
 // The guild board part of an upload: in-game votes (own and relayed) and officers' in-game news.

@@ -273,7 +273,7 @@ export function dungeonRunCard(run: Run, lang: Lang, options: DungeonCardOptions
           guild,
           ...(guildDisplayName(detail.guild) ? { guildName: guildDisplayName(detail.guild)! } : {}),
           ...(typeof detail.level === "number" ? { level: detail.level } : {}),
-          ...(typeof detail.ratingTotal === "number" ? { total: Math.round(detail.ratingTotal), gain: Math.max(0, Math.round(Number.isFinite(detail.ratingGain) ? detail.ratingGain! : 0)) } : {}),
+          ...ratingColumns(detail),
           ...(score ? score.of(detail) : {})
         };
       }),
@@ -284,6 +284,51 @@ export function dungeonRunCard(run: Run, lang: Lang, options: DungeonCardOptions
       ...(deathPoints.length && !options.deathPoints?.length && run.mapOutline && run.mapOutline.map === deathMapOf(run.deathPoints) ? { mapOutline: run.mapOutline } : {})
     }
   };
+}
+
+/** What a party row shows for the season rating: the season total and what this run added (never negative). Empty when the run was not rated for that player. */
+function ratingColumns(detail: Detail): { total: number; gain: number } | Record<string, never> {
+  return typeof detail.ratingTotal === "number" ? { total: Math.round(detail.ratingTotal), gain: Math.max(0, Math.round(Number.isFinite(detail.ratingGain) ? detail.ratingGain! : 0)) } : {};
+}
+
+/** One player of the in-game result card (9.3.5): short keys keep the Lua file small. */
+export type ReceiptCardRow = { n: string; l?: number; g?: string; a?: number; t?: number };
+export const RECEIPT_CARD_PLAYERS = 5;
+
+/**
+ * The rows the addon's result card shows for a stored run: the same party order, level, guild, gain and season total as the
+ * Discord card (dungeonRunCard), at most five players. Null when no row carries anything beyond a name.
+ */
+export function receiptCardOf(run: Run): ReceiptCardRow[] | null {
+  const rows = partyOf(run).slice(0, RECEIPT_CARD_PLAYERS).map(({ detail }): ReceiptCardRow => {
+    const rating = ratingColumns(detail);
+    const guild = guildDisplayName(detail.guild);
+    return { n: detail.character, ...(typeof detail.level === "number" ? { l: detail.level } : {}), ...(guild ? { g: guild } : {}),
+      ...("gain" in rating ? { a: rating.gain, t: rating.total } : {}) };
+  });
+  return rows.some((row) => row.l !== undefined || row.g !== undefined || row.t !== undefined) ? rows : null;
+}
+
+export const RECEIPT_CARD_RUNS = 30;
+/**
+ * The answer field `runCards` ({ runRef: rows }) from stored receipt cards: newest first as given, at most RECEIPT_CARD_RUNS runs,
+ * at most five valid players each. A malformed stored value is skipped, never thrown.
+ */
+export function runCardsOf(rows: { runRef: string; card?: unknown }[], maxRuns = RECEIPT_CARD_RUNS): Record<string, ReceiptCardRow[]> {
+  const out: Record<string, ReceiptCardRow[]> = {};
+  for (const { runRef, card } of rows) {
+    if (Object.keys(out).length >= maxRuns) break;
+    if (!Array.isArray(card) || out[runRef]) continue;
+    const players = card.flatMap((raw): ReceiptCardRow[] => {
+      const row = raw as Partial<ReceiptCardRow> | null;
+      if (!row || typeof row.n !== "string" || !row.n) return [];
+      const whole = (value: unknown) => typeof value === "number" && Number.isFinite(value) ? Math.round(value) : undefined;
+      const [l, a, t] = [whole(row.l), whole(row.a), whole(row.t)];
+      return [{ n: row.n.slice(0, 40), ...(l !== undefined ? { l } : {}), ...(typeof row.g === "string" && row.g ? { g: row.g.slice(0, 24) } : {}), ...(a !== undefined && t !== undefined ? { a, t } : {}) }];
+    }).slice(0, RECEIPT_CARD_PLAYERS);
+    if (players.length) out[runRef] = players;
+  }
+  return out;
 }
 
 /**

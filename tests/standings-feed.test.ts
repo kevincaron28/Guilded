@@ -12,6 +12,19 @@ function parts(standings: unknown[], personal: Record<string, unknown> = {}): Fe
 }
 
 describe("standings feed", () => {
+  it("changes the answer and its stamp when only the result cards change (9.3.5)", async () => {
+    const feed = createStandingsFeed();
+    const withCards = (runCards: Record<string, unknown>): FeedParts => ({ shared: { standings: [{ ep: 1 }] }, personal: { acceptedRunRefs: ["QG-1"], ...(Object.keys(runCards).length ? { runCards } : {}) }, stampOnly: { botRaids: [], runCards } });
+    const before = await feed.get({ guildId: "g", memberKey: "a", header, compose: async () => withCards({}) });
+    feed.markChanged("g");
+    const after = await feed.get({ guildId: "g", memberKey: "a", header, ifNoneMatch: before.etag, compose: async () => withCards({ "QG-1": [{ n: "Aldric", l: 24 }] }) });
+    expect(after.status).toBe(200);
+    expect(after.etag).not.toBe(before.etag);
+    expect(JSON.parse(after.body!).updatedAt).not.toBe(JSON.parse(before.body!).updatedAt);
+    expect(JSON.parse(after.body!).runCards["QG-1"][0].n).toBe("Aldric");
+    feed.clear();
+  });
+
   it("discards a snapshot invalidated while another member receives the newer standings", async () => {
     const feed = createStandingsFeed();
     let release!: (value: FeedParts) => void;

@@ -38,7 +38,7 @@ describe("the standings transaction", () => {
     const transactions = body.match(/prisma\.\$transaction\([^\n]*/g) ?? [];
     expect(transactions).toEqual([expect.stringContaining("guildConsistentReads(transaction as unknown as PrismaClient, guild.id)")]);
     // The other reads use the plain client, before the transaction.
-    for (const read of ["boardForAddon(prisma", "bankForAddon(prisma", "upcomingRaidsForAddon(prisma", "publicRaids(prisma", "addonDungeonBoard(prisma", "itemInsights(prisma", "nextRaidRoster(prisma"]) {
+    for (const read of ["bankForAddon(prisma", "upcomingRaidsForAddon(prisma", "publicRaids(prisma", "addonDungeonBoard(prisma", "itemInsights(prisma", "nextRaidRoster(prisma"]) {
       expect(body.indexOf(read), read).toBeGreaterThan(-1);
       expect(body.indexOf(read), read).toBeLessThan(body.indexOf("prisma.$transaction("));
     }

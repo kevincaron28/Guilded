@@ -194,6 +194,21 @@ describe("the section row split and the save wording", () => {
     expect(lines[1]).toBeGreaterThanOrEqual(2);
   });
 
+  it("lays the Officer group out on two balanced lines", () => {
+    const s = openWindow(1);
+    s.run(`NS.windowState().groupButtons.Officer.scripts.OnClick()`);
+    const perLine = s.run(`local n = {}; for _, r in ipairs(NS.windowState().sectionLayout) do n[r.line + 1] = (n[r.line + 1] or 0) + 1 end; return table.concat(n, "+")`);
+    expect(perLine).toBe("3+3");
+  });
+
+  it("names the save button in the status line after what it does", () => {
+    const s = openWindow(1);
+    s.run(`NS.isOfficer = function() return true end; NS.verifyStatus = function() return { linked = false } end`);
+    expect(s.run("return NS.syncNow.statusLine()")).toContain("Save my addon data");
+    s.run(`NS.verifyStatus = function() return { linked = true } end`);
+    expect(s.run("return NS.syncNow.statusLine()")).toContain("Send to Discord");
+  });
+
   it("says Send to Discord only for an officer whose character is linked", () => {
     const s = openWindow(1);
     s.run(`NS.isOfficer = function() return true end; NS.verifyStatus = function() return { linked = false } end`);

@@ -83,7 +83,8 @@ function module.reloadButton(parent, text, width, height, onClick, macro)
       if onClick then pcall(onClick) end
       ns.message(ns.isInGameOnly and ns.isInGameOnly()
         and (ns.L and ns.L("Save your local data with /reload or by logging out. Online sync is optional.") or "Save your local data with /reload or by logging out. Online sync is optional.")
-        or "Type /reload to send your data to Discord (the button works when the window is opened out of combat).")
+        or ((ns.sendsToDiscord and ns.sendsToDiscord()) and "Type /reload to send your data to Discord (the button works when the window is opened out of combat)."
+          or "Type /reload to save your data (the button works when the window is opened out of combat)."))
     end)
     return plain
   end
@@ -118,10 +119,14 @@ function module.statusLine()
   end
   if dirtyAt then
     local minutes = math.floor((clock() - dirtyAt) / 60)
-    return string.format("Changes are waiting (%s). Press Send to Discord (it reloads the UI), or they are sent when you log out.",
-      minutes <= 0 and "just now" or (minutes .. " min"))
+    local when = minutes <= 0 and "just now" or (minutes .. " min")
+    if ns.sendsToDiscord and ns.sendsToDiscord() then
+      return string.format("Changes are waiting (%s). Press Send to Discord (it reloads the UI), or they are sent when you log out.", when)
+    end
+    return string.format("Changes are waiting (%s). Press Save my addon data (it reloads the UI), or they are saved when you log out.", when)
   end
-  return "Everything is saved. After changes, press Send to Discord."
+  if ns.sendsToDiscord and ns.sendsToDiscord() then return "Everything is saved. After changes, press Send to Discord." end
+  return "Everything is saved. After changes, press Save my addon data."
 end
 
 ns.commandHandlers = ns.commandHandlers or {}

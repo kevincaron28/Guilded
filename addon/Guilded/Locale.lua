@@ -2730,7 +2730,6 @@ local DE = {
   ["opponent's health left %d%%"] = "Gesundheit des Gegners: %d%%",
   -- 9.3 settings page (Modules/SettingsPage.lua)
   ["A /ginvite line when someone whispers a phrase."] = "Eine /ginvite-Zeile, wenn jemand eine bestimmte Phrase fl\195\188stert.",
-  ["A Send to Discord button and reminder so the companion uploads sooner."] = "Eine Schaltfl\195\164che \226\128\158An Discord senden\226\128\156 und eine Erinnerung, damit der Companion fr\195\188her hochl\195\164dt.",
   ["A dungeon score per player from recorded runs, on tooltips."] = "Eine Dungeon-Wertung pro Spieler aus aufgezeichneten Durchl\195\164ufen, in den Tooltips.",
   ["Achievements"] = "Erfolge",
   ["Addons cannot open web pages, so the download links are here to copy into your browser."] = "Addons k\195\182nnen keine Webseiten \195\182ffnen. Die Download-Links hier kopieren und im Browser einf\195\188gen.",
@@ -2928,7 +2927,9 @@ local DE = {
   ["Saved when you log out. To save now, type /reload."] = "Wird beim Abmelden gespeichert. Zum sofortigen Speichern tippe /reload.",
   ["Unranked - no points"] = "Ohne Wertung - keine Punkte",
   -- 9.3.4 window polish
-  ["No open orders for your recipes."] = "Keine offenen Auftr\195\164ge f\195\188r deine Rezepte.",
+  -- 9.3.4 window polish
+  ["No open orders for you."] = "Keine offenen Auftr\195\164ge f\195\188r dich.",
+  ["A Save button and reminder so the companion uploads sooner."] = "Eine Speichern-Schaltfl\195\164che und eine Erinnerung, damit der Companion fr\195\188her hochl\195\164dt.",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -4686,7 +4687,6 @@ local ES = {
   ["opponent's health left %d%%"] = "salud del rival: %d%%",
   -- 9.3 settings page (Modules/SettingsPage.lua)
   ["A /ginvite line when someone whispers a phrase."] = "Una l\195\173nea /ginvite cuando alguien susurra una frase.",
-  ["A Send to Discord button and reminder so the companion uploads sooner."] = "Un bot\195\179n Enviar a Discord y un recordatorio para que el acompa\195\177ante suba los datos antes.",
   ["A dungeon score per player from recorded runs, on tooltips."] = "Una puntuaci\195\179n de mazmorra por jugador seg\195\186n las partidas registradas, en las descripciones emergentes.",
   ["Achievements"] = "Logros",
   ["Addons cannot open web pages, so the download links are here to copy into your browser."] = "Los addons no pueden abrir p\195\161ginas web: copia los enlaces de descarga en tu navegador.",
@@ -4884,7 +4884,9 @@ local ES = {
   ["Saved when you log out. To save now, type /reload."] = "Se guarda al cerrar sesi\195\179n. Para guardar ahora, escribe /reload.",
   ["Unranked - no points"] = "Sin clasificar - sin puntos",
   -- 9.3.4 window polish
-  ["No open orders for your recipes."] = "No hay pedidos abiertos para tus recetas.",
+  -- 9.3.4 window polish
+  ["No open orders for you."] = "No hay pedidos abiertos para ti.",
+  ["A Save button and reminder so the companion uploads sooner."] = "Un bot\195\179n Guardar y un recordatorio para que el acompa\195\177ante suba los datos antes.",
 }
 -- END ES
 
@@ -4945,7 +4947,6 @@ FR["nothing used the imported loot history."] = "plus rien n'utilisait l'histori
 FR["WoW does not let addons write guild notes or send the automatic welcome."] = "WoW ne permet pas aux addons d'\195\169crire dans les notes de guilde ni d'envoyer l'accueil automatique."
 -- 9.3 settings page: tabs, groups and descriptions (Modules/SettingsPage.lua).
 FR["A /ginvite line when someone whispers a phrase."] = "Une ligne /ginvite quand quelqu'un chuchote une phrase."
-FR["A Send to Discord button and reminder so the companion uploads sooner."] = "Un bouton Envoyer vers Discord et un rappel pour que le compagnon envoie plus vite."
 FR["A dungeon score per player from recorded runs, on tooltips."] = "Un score de donjon par joueur, calcul\195\169 sur les donjons enregistr\195\169s, dans les infobulles."
 FR["Achievements"] = "Hauts faits"
 FR["Addons cannot open web pages, so the download links are here to copy into your browser."] = "Les addons ne peuvent pas ouvrir de pages web : copiez les liens de t\195\169l\195\169chargement dans votre navigateur."
@@ -5105,7 +5106,9 @@ FR["Last check"] = "Derni\195\168re v\195\169rif."
 FR["Saved when you log out. To save now, type /reload."] = "Enregistr\195\169 \195\160 la d\195\169connexion. Pour enregistrer maintenant, tape /reload."
 FR["Unranked - no points"] = "Non class\195\169 - aucun point"
 -- 9.3.4 window polish.
-FR["No open orders for your recipes."] = "Aucune commande ouverte pour tes recettes."
+-- 9.3.4 window polish.
+FR["No open orders for you."] = "Aucune commande pour toi."
+FR["A Save button and reminder so the companion uploads sooner."] = "Un bouton Enregistrer et un rappel pour que le compagnon envoie plus vite."
 FR["Invites"] = "Invitations"
 FR["Officers only."] = "R\195\169serv\195\169 aux officiers."
 FR["Advanced..."] = "Avanc\195\169..."

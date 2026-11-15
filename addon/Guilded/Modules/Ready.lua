@@ -217,7 +217,7 @@ end
 function module.gearColumns(nowSeconds)
   local L = ns.L or function(text) return text end
   local now = nowSeconds or (GetServerTime and GetServerTime()) or time()
-  local cols = { name = {}, level = {}, itemLevel = {}, problems = {}, seen = {}, full = {} }
+  local cols = { name = {}, level = {}, itemLevel = {}, problems = {}, seen = {}, full = {}, fullByRow = {} }
   for _, row in ipairs(module.gearRows(now)) do
     cols.name[#cols.name + 1] = "|cffffd100" .. (ns.displayName and ns.displayName(row.name) or row.name) .. "|r"
     cols.level[#cols.level + 1] = row.level and row.level > 0 and tostring(row.level) or "-"
@@ -227,7 +227,9 @@ function module.gearColumns(nowSeconds)
     if row.enchants ~= "" then problems[#problems + 1] = L("no enchant") .. ": " .. row.enchants end
     if row.durability < 50 then problems[#problems + 1] = string.format(L("durability %d%%"), row.durability) end
     -- The whole text, for the tooltip: the column itself cuts a long line.
-    if #problems > 0 then cols.full[#cols.full + 1] = (ns.displayName and ns.displayName(row.name) or row.name) .. ": " .. table.concat(problems, ", ") end
+    -- One entry per row (nil when the member has none), so the tooltip can show the hovered row only.
+    cols.fullByRow[#cols.name] = #problems > 0 and ((ns.displayName and ns.displayName(row.name) or row.name) .. ": " .. table.concat(problems, ", ")) or false
+    if #problems > 0 then cols.full[#cols.full + 1] = cols.fullByRow[#cols.name] end
     cols.problems[#cols.problems + 1] = #problems > 0 and ("|cffff6060" .. table.concat(problems, " \194\183 ") .. "|r") or ""
     local days = row.at and math.floor((now - row.at) / 86400) or nil
     cols.seen[#cols.seen + 1] = days and (days < 1 and L("today") or string.format(L("%d d ago"), days)) or "-"

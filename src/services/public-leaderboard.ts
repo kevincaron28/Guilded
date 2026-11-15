@@ -935,6 +935,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     }
     // Players known only from the duel ladder (addon-only players whose duels another player's companion carried) are found too.
     if (globalOpen()) for (const d of await cached("duels:global", () => deps.store.globalDuelRows!())) {
+      if (seasonOf(d.endedAt, RATING_START).id !== seasonOf(now(), RATING_START).id) continue;
       for (const side of [{ character: d.winner, realm: d.winnerRealm, className: d.winnerClass, level: d.winnerLevel }, { character: d.loser, realm: d.loserRealm, className: d.loserClass, level: d.loserLevel }]) {
         const player: LeaderPlayer = { character: side.character, realm: side.realm, className: side.className, role: null, level: side.level };
         const id = characterId(player);
@@ -1152,10 +1153,22 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const me = runs.flatMap((run) => run.players.filter(isMe))[0];
     // A player with no public dungeon run but duels on the global ladder (an addon-only player whose duels another player's companion carried) still has a page.
     const duelsAll = globalOpen() ? await cached("duels:global", () => deps.store.globalDuelRows!()) : [];
-    let duelSide: { key: string; name: string; realm: string; className: string | null; level: number | null } | null = null;
-    if (!runs.length) for (const d of duelsAll) for (const side of [{ key: d.winnerKey, name: d.winner, realm: d.winnerRealm, className: d.winnerClass, level: d.winnerLevel }, { key: d.loserKey, name: d.loser, realm: d.loserRealm, className: d.loserClass, level: d.loserLevel }]) {
-      if (side.name.toLowerCase() === name.toLowerCase() && (realm === null || side.realm.toLowerCase() === realm.toLowerCase())) duelSide = side;
+    // Only duels of the current season are shown (the page and the search agree: a hit never leads to a missing page).
+    type DuelSide = { key: string; name: string; realm: string; className: string | null; level: number | null };
+    const seasonNow = seasonOf(now(), RATING_START).id;
+    const sidesFound = new Map<string, DuelSide>();
+    if (!runs.length) for (const d of duelsAll) {
+      if (seasonOf(d.endedAt, RATING_START).id !== seasonNow) continue;
+      for (const side of [{ key: d.winnerKey, name: d.winner, realm: d.winnerRealm, className: d.winnerClass, level: d.winnerLevel }, { key: d.loserKey, name: d.loser, realm: d.loserRealm, className: d.loserClass, level: d.loserLevel }]) {
+        if (side.name.toLowerCase() === name.toLowerCase() && (realm === null || side.realm.toLowerCase() === realm.toLowerCase())) sidesFound.set(side.key, side);
+      }
     }
+    // The same full name on two realms and no realm in the address: ask which one.
+    if (sidesFound.size > 1) {
+      const items = [...sidesFound.values()].sort((x, y) => x.realm.localeCompare(y.realm)).map(side => `<li><a href="${link(`/leaderboards/character/${encodeURIComponent(`${side.name}-${side.realm}`)}`, lang)}">${escapeHtml(side.name)}-${escapeHtml(side.realm)}</a></li>`).join("");
+      return kit.page(200, name, `<h1>${escapeHtml(name)}</h1><p>${t("Which character?", "Quel personnage ?")}</p><ul>${items}</ul>`, { noindex: true });
+    }
+    const duelSide: DuelSide | null = [...sidesFound.values()][0] ?? null;
     const title = `${me?.displayName || me?.character || duelSide?.name || name}${realm ? `-${realm}` : duelSide?.realm ? `-${duelSide.realm}` : ""}`;
     const face = deps.picture && runs.length ? await cached(`p:${name.toLowerCase()}:${realm?.toLowerCase() ?? ""}`, () => deps.picture!(name, realm).catch(() => null)) : null;
     const seasons = await seasonsNow();

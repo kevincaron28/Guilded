@@ -56,9 +56,12 @@
   },
   {
     "source": "guide-companion.md",
+    "sourceFr": "guide-companion.fr.md",
     "path": "guide/companion/",
     "title": "Guilded companion",
-    "description": "The Windows companion is optional for the addon and needed for Discord and the website.",
+    "description": "The Windows companion is optional: the addon works alone, and the companion links your characters to Discord and syncs instantly.",
+    "titleFr": "Compagnon Guilded",
+    "descriptionFr": "Le compagnon Windows est facultatif : l’addon fonctionne seul, et le compagnon lie vos personnages à Discord et synchronise tout de suite.",
     "lang": "en",
     "draft": false
   },
@@ -72,9 +75,12 @@
   },
   {
     "source": "guide-dungeons.md",
+    "sourceFr": "guide-dungeons.fr.md",
     "path": "guide/dungeons/",
     "title": "Dungeons and scores",
     "description": "How dungeon runs get onto the Guilded leaderboards.",
+    "titleFr": "Donjons et scores",
+    "descriptionFr": "Comment les essais de donjon arrivent aux classements Guilded.",
     "lang": "en",
     "draft": false
   },
@@ -112,9 +118,12 @@
   },
   {
     "source": "guide-troubleshooting.md",
+    "sourceFr": "guide-troubleshooting.fr.md",
     "path": "guide/troubleshooting/",
     "title": "Guilded troubleshooting",
     "description": "What to check when the addon, companion or leaderboard does not do what you expect.",
+    "titleFr": "Dépannage Guilded",
+    "descriptionFr": "À vérifier quand l’addon, le compagnon ou le classement ne fait pas ce que vous attendez.",
     "lang": "en",
     "draft": false
   },

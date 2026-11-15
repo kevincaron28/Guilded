@@ -38,9 +38,14 @@ local PER_SENDER_PER_HOUR, SENDER_ASSEMBLIES, MAX_ASSEMBLIES, ASSEMBLY_SECONDS =
 local DONE_KEEP, SENT_KEEP, OWN_CACHE_SECONDS = 400, 200, 60
 local JOIN_RETRY = { 30, 120, 600, 1800 }
 local RESEND_SECONDS, EXPIRE_TICK, HI_MAX = 1800, 25, 100
+-- (9.3.4) Finding a carrier without a guild or group: a player with records waiting and no carrier heard asks ("Q|1") on the shared
+-- channel, after waiting longer each time nobody answers; a carrier answers by whisper ("HI|1"), at most once per asker every
+-- ANSWER_GAP seconds and ANSWER_CAP answers a minute for the whole PC. The ask is only ever sent when quiet (not in combat, not in an instance).
+local ASK_BACKOFF = { 60, 180, 600, 1800 }
+local ANSWER_GAP, ANSWER_CAP, ANSWER_WINDOW, ANSWER_ACCEPT, ASKER_MAX = 300, 6, 60, 60, 100
 
 local carry = { carriers = {}, assemblies = {}, received = {}, hiAt = {}, channelId = 0, channelName = nil, whispered = {}, offered = {}, joinTries = 0,
-  lastAnnounce = 0, stats = { stored = 0, offered = 0, receipts = 0 } }
+  lastAnnounce = 0, stats = { stored = 0, offered = 0, receipts = 0, asked = 0, answered = 0 }, askTries = 0, askSentAt = nil, answers = {}, askers = {} }
 ns.carry = carry
 
 local compat = ns.compat
@@ -303,9 +308,9 @@ local function noteCarrier(sender, near)
   return entry
 end
 
-local function send(text, channel, target)
+local function send(text, channel, target, dropWhenBusy)
   if not ns.comm or not ns.comm.send then return false end
-  return ns.comm.send(PREFIX, text, channel, target, quiet, "hold-in-instance")
+  return ns.comm.send(PREFIX, text, channel, target, quiet, not dropWhenBusy and "hold-in-instance" or nil)
 end
 
 local function anyNearCarrier()
@@ -509,8 +514,14 @@ local function onAddonMessage(prefix, text, channel, sender)
   if not carry.enabled() then return end
   local who = bare(sender)
   if tag == "HI" then
+    if channel == "WHISPER" then
+      -- (9.3.4) A carrier's answer to this PC's own ask: only within a minute of asking, and only from a whisper.
+      if string.match(text, "^HI|%d+$") and carry.askSentAt and now() - carry.askSentAt <= ANSWER_ACCEPT then
+        local entry = noteCarrier(who, false)
+        if entry then carry.askTries = 0; carry.offerTo(entry) end
+      end
     -- A carrier says it is here (guild, group or the shared channel): at most one announcement per sender every few minutes is looked at.
-    if channel ~= "WHISPER" and string.match(text, "^HI|%d+$") then
+    elseif string.match(text, "^HI|%d+$") then
       local last = carry.hiAt[who]
       if last and now() - last < HI_GAP then return end
       local n = 0
@@ -520,6 +531,8 @@ local function onAddonMessage(prefix, text, channel, sender)
       local entry = noteCarrier(who, NEAR[channel] == true)
       if entry then carry.offerTo(entry) end
     end
+  elseif tag == "Q|" then
+    if channel == "CHANNEL" and string.match(text, "^Q|%d+$") then carry.answerAsk(who) end
   elseif channel == "WHISPER" then
     local kind, key, index, total, part = string.match(text, "^R|(%a+)|([^|]+)|(%d+)/(%d+)|(.*)$")
     if kind then onRecordPart(who, kind, key, tonumber(index), tonumber(total), part); return end
@@ -583,6 +596,59 @@ local function channelNow()
   return carry.channelId
 end
 
+-- (9.3.4) A carrier answers an ask on the shared channel with a whispered announcement. Quiet and bounded: one answer per asker per
+-- ANSWER_GAP seconds, ANSWER_CAP answers a minute in all, never in combat or an instance (the answer is dropped, the asker asks again later).
+function carry.answerAsk(who)
+  if not who or not carry.enabled() or not carry.companionHere() or not quiet() then return false end
+  local t = now()
+  local last = carry.askers[who]
+  if last and t - last < ANSWER_GAP then return false end
+  local recent = {}
+  for _, at in ipairs(carry.answers) do if t - at < ANSWER_WINDOW then recent[#recent + 1] = at end end
+  carry.answers = recent
+  if #recent >= ANSWER_CAP then return false end
+  local n = 0
+  for _ in pairs(carry.askers) do n = n + 1 end
+  if n >= ASKER_MAX then for name, at in pairs(carry.askers) do if t - at >= ANSWER_GAP then carry.askers[name] = nil end end end
+  if not send("HI|1", "WHISPER", who, true) then return false end
+  carry.askers[who] = t
+  carry.answers[#carry.answers + 1] = t
+  carry.whispered[who] = t
+  carry.stats.answered = carry.stats.answered + 1
+  return true
+end
+
+-- Asks for a carrier on the shared channel when this player has records that wait, nobody has been heard and nothing is in the way.
+-- Returns true when an ask was sent.
+function carry.ask()
+  local s = store()
+  if not s or not carry.enabled() or s.noAsk == true or carry.companionHere() or not quiet() then return false end
+  if carry.carrierCount() > 0 then return false end
+  local info = carry.pending()
+  if not info or info.count - info.handed <= 0 or channelNow() <= 0 then return false end
+  if not send("Q|1", "CHANNEL", carry.channelId, true) then return false end
+  carry.askSentAt = now()
+  carry.stats.asked = carry.stats.asked + 1
+  return true
+end
+
+-- One scheduled ask at a time (like the join retry). Nobody answering makes the next ask come later (ASK_BACKOFF, then the last pause
+-- again); a carrier heard resets it. Nothing to ask for ends the chain; the announcement ticker starts it again when records appear.
+function carry.scheduleAsk(wait)
+  if carry.askScheduled then return end
+  carry.askScheduled = true
+  after(wait or ASK_BACKOFF[1], function()
+    carry.askScheduled = false
+    local s = store()
+    if not s or not carry.enabled() or s.noAsk == true or carry.companionHere() then return end
+    if carry.carrierCount() > 0 then carry.askTries = 0; return end
+    local info = carry.pending()
+    if not info or info.count - info.handed <= 0 then return end
+    if carry.ask() then carry.askTries = carry.askTries + 1 end
+    carry.scheduleAsk(ASK_BACKOFF[math.min(carry.askTries + 1, #ASK_BACKOFF)])
+  end)
+end
+
 function carry.announce(force)
   if not carry.enabled() or not carry.companionHere() or not quiet() then return end
   if not force and now() - carry.lastAnnounce < ANNOUNCE_MIN_GAP then return end
@@ -624,7 +690,7 @@ function carry.joinChannel()
   carry.channelJoining = true
   after(4, function()
     carry.channelJoining = false
-    if channelNow() > 0 then carry.channelFailed = nil; carry.joinTries = 0; carry.announce(true); return end
+    if channelNow() > 0 then carry.channelFailed = nil; carry.joinTries = 0; carry.announce(true); carry.scheduleAsk(ASK_BACKOFF[1]); return end
     carry.channelFailed = true
     if ok == false then return end -- this client has no join function: nothing to retry
     carry.joinTries = carry.joinTries + 1
@@ -675,6 +741,45 @@ end
 
 -- ---- status and commands ------------------------------------------------------------------------------------------------------------------
 
+-- (9.3.4) What a player with records that wait is told, in plain words: how many, since when, why, and the way to send them at once.
+-- Empty when nothing waits (or this PC's own companion sends them). Nothing about how records are checked or counted.
+function carry.pending()
+  local s = store()
+  if not s or carry.companionHere() then return nil end
+  -- Read fresh (a duel recorded a moment ago counts) and not left in the cache the announcements use.
+  local list = carry.collectOwn(true)
+  carry.ownCache = nil
+  if #list == 0 then return nil end
+  local oldest, handed = nil, 0
+  for _, record in ipairs(list) do
+    if not oldest or record.at < oldest then oldest = record.at end
+    if type(s.sentTo[record.kind .. ":" .. record.key]) == "table" then handed = handed + 1 end
+  end
+  local why
+  if guildOff() or s.off == true then why = "off"
+  elseif handed == #list then why = "sent"
+  elseif carry.carrierCount() > 0 then why = "near"
+  else why = "none" end
+  return { count = #list, handed = handed, since = oldest, why = why }
+end
+function carry.windowLine()
+  local info = carry.pending()
+  if not info then return "" end
+  local when = ns.util and ns.util.whenText and ns.util.whenText(info.since) or ""
+  local head = info.count == 1 and string.format(L("1 record is waiting, since %s."), when) or string.format(L("%d records are waiting, since %s."), info.count, when)
+  local why = info.why == "off" and L("Carrying is off.") or info.why == "sent" and L("Sent, waiting for confirmation.")
+    or info.why == "near" and L("A player near you with the companion will take them.") or L("No player with the companion is near you yet.")
+  return head .. " " .. why .. " " .. L("Installing the companion sends them at once.")
+end
+-- Said once per session shortly after login, only when something waits.
+function carry.loginLine()
+  if carry.loginSaid then return end
+  local line = carry.windowLine()
+  if line == "" then return end
+  carry.loginSaid = true
+  if ns.message then ns.message(line) end
+end
+
 function carry.statusLine()
   local s = store()
   if not s then return "" end
@@ -685,24 +790,8 @@ function carry.statusLine()
     for _ in pairs(s.records) do n = n + 1 end
     return string.format(L("Your companion carries records for players near you: %d waiting for its next upload."), n)
   end
-  -- (9.3.3) My own records, in two counts: still waiting for a companion, and already handed to a carrier whose receipt (the bot has
-  -- it) has not come back yet. Both used to be counted as waiting.
-  local waiting, handed = carry.ownCounts()
-  if waiting > 0 and handed > 0 then
-    return (waiting == 1 and L("1 record waits for a companion") or string.format(L("%d records wait for a companion"), waiting)) .. ", "
-      .. (handed == 1 and L("1 handed over to a companion") or string.format(L("%d handed over to a companion"), handed)) .. "."
-  end
-  if waiting > 0 then
-    if carry.carrierCount() > 0 then
-      return waiting == 1 and L("1 record waits for a companion: one is in range and will take it.")
-        or string.format(L("%d records wait for a companion: one is in range and will take them."), waiting)
-    end
-    return waiting == 1 and L("1 record waits for a companion. No companion heard yet.") or string.format(L("%d records wait for a companion. No companion heard yet."), waiting)
-  end
-  if handed > 0 then
-    return handed == 1 and L("1 record handed over to a companion, waiting for its receipt.")
-      or string.format(L("%d records handed over to a companion, waiting for their receipts."), handed)
-  end
+  local line = carry.windowLine()
+  if line ~= "" then return line end
   if (carry.stats.receipts or 0) > 0 then return L("Your records were uploaded by a companion near you.") end
   return L("Nothing to carry. A player near you with the companion will take your records.")
 end
@@ -736,6 +825,12 @@ ns.commandHandlers["carry"] = function(args)
     carry.joinChannel()
     ns.message(L("Carrying records is on."))
     return
+  elseif choice == "ask" then
+    local want = string.lower((args and args[2]) or "")
+    if want == "off" then s.noAsk = true; ns.message(L("Asking for a carrier is off. Guild and group carriers still work."))
+    elseif want == "on" then s.noAsk = nil; carry.scheduleAsk(ASK_BACKOFF[1]); ns.message(L("Asking for a carrier is on."))
+    else ns.message("/guilded carry ask on | off") end
+    return
   elseif choice == "guild" then
     local want = string.lower((args and args[2]) or "")
     if want ~= "on" and want ~= "off" then ns.message("/guilded carry guild on | off"); return end
@@ -749,7 +844,7 @@ ns.commandHandlers["carry"] = function(args)
     carry.channelId > 0 and L("carry channel joined") or (carry.channelFailed and L("carry channel not available, using guild and group") or L("carry channel not joined"))))
 end
 ns.commandHelp = ns.commandHelp or {}
-table.insert(ns.commandHelp, "/guilded carry [on | off | guild on | guild off] - records carried for and by players near you")
+table.insert(ns.commandHelp, "/guilded carry [status | on | off | ask on | ask off | guild on | guild off] - records carried for and by players near you")
 
 -- ---- events and timers --------------------------------------------------------------------------------------------------------------------------
 
@@ -759,6 +854,7 @@ local function expire()
   for name, at in pairs(carry.whispered) do if t - at > 7200 then carry.whispered[name] = nil end end
   for name, entry in pairs(carry.received) do if t - entry.at > 3600 then carry.received[name] = nil end end
   for name, at in pairs(carry.hiAt) do if t - at > HI_GAP * 2 then carry.hiAt[name] = nil end end
+  for name, at in pairs(carry.askers) do if t - at > ANSWER_GAP then carry.askers[name] = nil end end
   expireCarriers()
 end
 carry.expire = expire
@@ -779,6 +875,7 @@ local function startup()
   -- The channel is joined last, well after the player's own channels, so nothing the player set up moves.
   after(25, function() if carry.enabled() then carry.joinChannel() end end)
   after(40, function() carry.announce(true) end)
+  after(15, function() pcall(carry.loginLine) end)
   -- An officer's guild-wide switch is repeated at login so members who were offline get it too.
   after(45, function()
     local s = store()
@@ -823,6 +920,7 @@ if C_Timer and C_Timer.NewTicker then
     if carry.enabled() then
       pcall(carry.announce, true); pcall(expire); pcall(carry.offerAll)
       if carry.channelId > 0 and channelNow() == 0 then carry.joinChannel() end
+      pcall(carry.scheduleAsk, ASK_BACKOFF[1])
     end
   end)
 end

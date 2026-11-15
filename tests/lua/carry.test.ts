@@ -431,30 +431,67 @@ describe("the /guilded carry status line", () => {
   const hand = (s: LuaSession, id: string) => s.run(`NS.getDb().carry.sentTo[${JSON.stringify(id)}] = { name = "Bee", at = CLOCK }; NS.carry.ownCache = nil`);
   const status = (s: LuaSession) => s.run("return NS.carry.statusLine()");
 
-  it("counts the records still waiting apart from those handed over with the receipt pending", () => {
+  it("tells how many records wait, since when and why, and that the companion sends them at once; handed records say they await confirmation", () => {
     const player = client("guilded", "Aye");
     duel(player, "Aye", "Zed", CLOCK - 300);
     duel(player, "Aye", "Yan", CLOCK - 200);
-    expect(status(player)).toBe("2 records wait for a companion. No companion heard yet.");
+    expect(status(player)).toMatch(/^2 records are waiting, since .+\. No player with the companion is near you yet\. Installing the companion sends them at once\.$/);
     const [first = "", second = ""] = ids(player);
     hand(player, first);
-    expect(status(player)).toBe("1 record waits for a companion, 1 handed over to a companion.");
+    // One still waits for a carrier: the reason is about the waiting one.
+    expect(status(player)).toMatch(/^2 records are waiting, since .+\. No player with the companion is near you yet\./);
     hand(player, second);
-    expect(status(player)).toBe("2 records handed over to a companion, waiting for their receipts.");
-    // The receipt for one comes back: only the other is still handed over.
+    expect(status(player)).toMatch(/^2 records are waiting, since .+\. Sent, waiting for confirmation\./);
+    // The receipt for one comes back: only the other is still waiting for confirmation.
     hear(player, "Bee", `K|${first}`, "WHISPER");
-    expect(status(player)).toBe("1 record handed over to a companion, waiting for its receipt.");
+    expect(status(player)).toMatch(/^1 record is waiting, since .+\. Sent, waiting for confirmation\./);
     hear(player, "Bee", `K|${second}`, "WHISPER");
-    expect(status(player)).not.toContain("handed over");
-    expect(status(player)).not.toContain("wait");
+    expect(status(player)).not.toContain("waiting");
+    expect(status(player)).toBe("Your records were uploaded by a companion near you.");
   });
 
-  it("uses the singular for one waiting record, with or without a carrier in range", () => {
+  it("uses the singular for one waiting record, says a carrier is near when one was heard and that carrying is off when it is", () => {
     const player = client("guilded", "Aye");
     duel(player);
-    expect(status(player)).toBe("1 record waits for a companion. No companion heard yet.");
+    expect(status(player)).toMatch(/^1 record is waiting, since .+\. No player with the companion is near you yet\. Installing the companion sends them at once\.$/);
     player.run(`NS.carry.carriers.Bee = { name = "Bee", at = CLOCK, fails = 0, sent = 999, pauseUntil = CLOCK + 9999, near = true }`);
-    expect(status(player)).toBe("1 record waits for a companion: one is in range and will take it.");
+    expect(status(player)).toContain("A player near you with the companion will take them.");
+    player.run("NS.commandHandlers.carry({ 'off' })");
+    expect(status(player)).toBe("Carrying records is off. Type /guilded carry on to turn it on.");
+    expect(player.run("return NS.carry.windowLine()")).toContain("Carrying is off.");
+    expect(player.run("return NS.carry.windowLine()")).toContain("Installing the companion sends them at once.");
+  });
+
+  it("the window line is empty when nothing waits or this PC's own companion sends them, and the Home page carries it", () => {
+    const player = client("guilded", "Aye");
+    expect(player.run("return NS.carry.windowLine()")).toBe("");
+    duel(player);
+    expect(player.run("return NS.carry.windowLine()")).toContain("1 record is waiting");
+    player.run(`GuildedCompanionFeatures = { ["carry-records"] = true, at = CLOCK }`);
+    expect(player.run("return NS.carry.windowLine()")).toBe("");
+  });
+
+  it("says it once at login, in the player's own words, and not again", () => {
+    const player = client("guilded", "Aye");
+    duel(player);
+    player.run("MSGS = {}; NS.message = function(text) MSGS[#MSGS + 1] = text end; NS.carry.loginSaid = nil; NS.carry.loginLine(); NS.carry.loginLine()");
+    expect(player.run("return #MSGS")).toBe("1");
+    expect(player.run("return MSGS[1]")).toContain("1 record is waiting");
+    const quietOne = client("guilded", "Dee");
+    quietOne.run("MSGS = {}; NS.message = function(text) MSGS[#MSGS + 1] = text end; NS.carry.loginLine()");
+    expect(quietOne.run("return #MSGS")).toBe("0");
+  });
+
+  it("French, German and Spanish have the new lines", () => {
+    for (const language of ["frFR", "deDE", "esES"]) {
+      const out = newLuaSession();
+      sessions.push(out);
+      out.run(`NS = {}; GetLocale = function() return "${language}" end`);
+      out.load("Locale.lua");
+      for (const line of ["1 record is waiting, since %s.", "%d records are waiting, since %s.", "Carrying is off.", "Sent, waiting for confirmation.", "A player near you with the companion will take them.", "No player with the companion is near you yet.", "Installing the companion sends them at once.", "Asking for a carrier is off. Guild and group carriers still work.", "Asking for a carrier is on."]) {
+        expect(out.run(`return NS.L(${JSON.stringify(line)})`), `${language}: ${line}`).not.toBe(line);
+      }
+    }
   });
 
   it("on the carrier, says the records wait for its companion's next upload", () => {
@@ -585,5 +622,119 @@ describe.each<Kind>(["guilded", "standalone"])("own dungeon runs carried (%s)", 
     const key = own(player);
     player.run(`GuildedCarryReceipts = { ${JSON.stringify(`run:${key}`)} }; NS.carry.noteLoad(); NS.carry.applyReceipts()`);
     expect(own(player)).toBe("");
+  });
+});
+
+// 9.3.4: a player with no guild or group finds a carrier on the shared channel, quietly and with back-off.
+describe("finding a carrier on the shared channel", () => {
+  const joined = (s: LuaSession) => s.run(`CH = 9; function GetChannelName() return CH end; NS.carry.channelName = "GuildedCarryN"; DELAYS = {}
+    C_Timer.After = function(seconds, fn) DELAYS[#DELAYS + 1] = seconds; TIMERS[#TIMERS + 1] = fn end; SENT = {}`);
+  const asked = (s: LuaSession) => queued(s, "CHANNEL", "9");
+
+  it("asks once on the channel when records wait and no carrier is known, and sends nothing in the cases it must stay quiet", () => {
+    const player = client("guilded", "Aye");
+    joined(player);
+    expect(player.run("return tostring(NS.carry.ask())")).toBe("false");
+    duel(player);
+    expect(player.run("return tostring(NS.carry.ask())")).toBe("true");
+    expect(asked(player)).toEqual(["Q|1"]);
+    player.run("COMBAT = true");
+    expect(player.run("return tostring(NS.carry.ask())")).toBe("false");
+    player.run("COMBAT = false; IsInInstance = function() return true end");
+    expect(player.run("return tostring(NS.carry.ask())")).toBe("false");
+    player.run("IsInInstance = function() return false end; CH = 0");
+    expect(player.run("return tostring(NS.carry.ask())")).toBe("false");
+    player.run("CH = 9; NS.carry.carriers.Bee = { name = 'Bee', at = CLOCK, fails = 0, sent = 0, pauseUntil = 0, near = false }");
+    expect(player.run("return tostring(NS.carry.ask())")).toBe("false");
+    player.run("NS.carry.carriers = {}; GuildedCompanionFeatures = { ['carry-records'] = true, at = CLOCK }");
+    expect(player.run("return tostring(NS.carry.ask())")).toBe("false");
+    expect(asked(player)).toEqual([]);
+  });
+
+  it("backs off while nobody answers (60, 180, 600, 1800 seconds, then 1800 again) and stops when nothing waits or a carrier answers", () => {
+    const player = client("guilded", "Aye");
+    joined(player);
+    duel(player);
+    player.run("NS.carry.askTries = 0; NS.carry.scheduleAsk(60); NS.carry.scheduleAsk(60)");
+    for (let round = 0; round < 6; round += 1) player.run("local list = TIMERS; TIMERS = {}; for _, fn in ipairs(list) do fn() end; CLOCK = CLOCK + 2000");
+    expect(player.run("return table.concat(DELAYS, ',')")).toBe("60,180,600,1800,1800,1800,1800");
+    // One chain at a time: the second schedule call at the start did nothing.
+    expect(player.run("return tostring(NS.carry.stats.asked)")).toBe("6");
+    // A carrier heard: the chain ends and the pause starts again at the first step.
+    player.run("NS.carry.carriers.Bee = { name = 'Bee', at = CLOCK, fails = 0, sent = 0, pauseUntil = 0, near = false }; local list = TIMERS; TIMERS = {}; for _, fn in ipairs(list) do fn() end");
+    expect(player.run("return #TIMERS .. ':' .. NS.carry.askTries")).toBe("0:0");
+  });
+
+  it("a carrier answers an ask with a whispered announcement, once per asker per five minutes and six a minute in all, never in combat or from guild chat", () => {
+    const carrier = client("guilded", "Bee", { companion: true });
+    hear(carrier, "Aye", "Q|1", "CHANNEL");
+    expect(queued(carrier, "WHISPER", "Aye")).toEqual(["HI|1"]);
+    hear(carrier, "Aye", "Q|1", "CHANNEL");
+    expect(queued(carrier, "WHISPER", "Aye")).toEqual([]);
+    CLOCK_STEP(carrier, 301);
+    hear(carrier, "Aye", "Q|1", "CHANNEL");
+    expect(queued(carrier, "WHISPER", "Aye")).toEqual(["HI|1"]);
+    for (let i = 0; i < 12; i += 1) hear(carrier, `Walker${String.fromCharCode(97 + i)}`, "Q|1", "CHANNEL");
+    flush(carrier);
+    expect(sent(carrier).filter((line) => line.includes(">WHISPER>Walker")).length).toBe(5);
+    CLOCK_STEP(carrier, 61);
+    hear(carrier, "Late", "Q|1", "CHANNEL");
+    expect(queued(carrier, "WHISPER", "Late")).toEqual(["HI|1"]);
+    carrier.run("COMBAT = true");
+    hear(carrier, "Combat", "Q|1", "CHANNEL");
+    carrier.run("COMBAT = false");
+    hear(carrier, "Guild", "Q|1", "GUILD");
+    hear(carrier, "Junk", "Q|x", "CHANNEL");
+    expect(sent(carrier).filter((line) => line.includes(">WHISPER>Combat") || line.includes(">WHISPER>Guild") || line.includes(">WHISPER>Junk"))).toEqual([]);
+    // A PC without a carrying companion, or with carrying off, never answers.
+    const plain = client("guilded", "Cee");
+    hear(plain, "Aye", "Q|1", "CHANNEL");
+    expect(queued(plain, "WHISPER", "Aye")).toEqual([]);
+    carrier.run("NS.commandHandlers.carry({ 'off' }); SENT = {}");
+    hear(carrier, "Fresh", "Q|1", "CHANNEL");
+    expect(queued(carrier, "WHISPER", "Fresh")).toEqual([]);
+  });
+
+  it("the asker takes a whispered answer only shortly after asking, then hands over its records", () => {
+    const carrier = client("guilded", "Bee", { companion: true });
+    const player = client("guilded", "Aye");
+    joined(player);
+    duel(player);
+    // An answer nobody asked for is ignored.
+    hear(player, "Bee", "HI|1", "WHISPER");
+    expect(player.run("return NS.carry.carrierCount()")).toBe("0");
+    player.run("NS.carry.ask()");
+    flush(player); sent(player);
+    hear(carrier, "Aye", "Q|1", "CHANNEL");
+    const [answer] = queued(carrier, "WHISPER", "Aye");
+    hear(player, "Bee", answer!, "WHISPER");
+    expect(player.run("return NS.carry.carrierCount()")).toBe("1");
+    const frames = queued(player, "WHISPER", "Bee");
+    expect(frames.length).toBeGreaterThan(0);
+    for (const text of frames) hear(carrier, "Aye", text, "WHISPER");
+    expect(records(carrier)).toBe("1");
+    // A late answer (more than a minute after the ask) is ignored.
+    const slow = client("guilded", "Dee");
+    joined(slow);
+    duel(slow);
+    slow.run("NS.carry.ask()");
+    CLOCK_STEP(slow, 61);
+    hear(slow, "Bee", "HI|1", "WHISPER");
+    expect(slow.run("return NS.carry.carrierCount()")).toBe("0");
+  });
+
+  it("/guilded carry ask off stops asking (guild and group carriers still work); ask on starts again", () => {
+    const player = client("guilded", "Aye");
+    joined(player);
+    duel(player);
+    player.run("MSGS = {}; NS.message = function(text) MSGS[#MSGS + 1] = text end; NS.commandHandlers.carry({ 'ask', 'off' })");
+    expect(player.run("return tostring(NS.carry.ask())")).toBe("false");
+    player.run("NS.carry.scheduleAsk(60); run_timers()");
+    expect(player.run("return tostring(NS.carry.stats.asked)")).toBe("0");
+    hear(player, "Bee", "HI|1", "GUILD");
+    expect(queued(player, "WHISPER", "Bee").length).toBeGreaterThan(0);
+    player.run("NS.carry.carriers = {}; NS.getDb().carry.sentTo = {}; NS.carry.ownCache = nil; NS.commandHandlers.carry({ 'ask', 'on' })");
+    expect(player.run("return tostring(NS.carry.ask())")).toBe("true");
+    expect(player.run("return MSGS[1] .. '|' .. MSGS[2]")).toBe("Asking for a carrier is off. Guild and group carriers still work.|Asking for a carrier is on.");
   });
 });

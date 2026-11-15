@@ -28,10 +28,10 @@ describe("sync health signals", () => {
   });
   it("flags a carried run whose own recorder never uploaded it", async () => {
     const db = fakeDb({ carried: [{ authorKey: "bob|realm", key: "1:QG-1-Bob@device:d", runKey: "1:QG-1-Bob" }],
-      runs: [{ runRef: "QG-1-Bob", reporterNames: ["carol"], players: [{ character: "Bob", memberId: "m2", member: { displayName: "Bob D" } }] }] });
+      runs: [{ runRef: "QG-1-Bob", instanceId: 1, reporterNames: ["carol"], players: [{ character: "Bob", memberId: "m2", member: { displayName: "Bob D" } }] }] });
     const issues = await collectSyncIssues(db, "g", now);
     expect(issues).toMatchObject([{ signal: "carried-only", who: "Bob D" }]);
-    const arrived = fakeDb({ carried: [{ authorKey: "bob|realm", key: "x", runKey: "1:QG-1-Bob" }], runs: [{ runRef: "QG-1-Bob", reporterNames: ["bob"], players: [{ character: "Bob", memberId: "m2", member: { displayName: "Bob D" } }] }] });
+    const arrived = fakeDb({ carried: [{ authorKey: "bob|realm", key: "x", runKey: "1:QG-1-Bob" }], runs: [{ runRef: "QG-1-Bob", instanceId: 1, reporterNames: ["bob"], players: [{ character: "Bob", memberId: "m2", member: { displayName: "Bob D" } }] }] });
     expect(await collectSyncIssues(arrived, "g", now)).toEqual([]);
   });
   it("flags receipts refused again and again for one reason, not a single refusal", async () => {

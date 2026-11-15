@@ -24,6 +24,7 @@ export const SYNC_HEALTH = {
   maxIssues: 25
 } as const;
 
+export const SUMMARY_PREFIX = "🩺 **Sync health";
 const HOUR = 3_600_000;
 const lower = (value: string) => value.toLowerCase();
 const firstName = (value: string) => lower(value.split("-")[0] ?? value);
@@ -66,24 +67,20 @@ export async function collectSyncIssues(db: Db, guildId: string, now = new Date(
   }
 
   // 2. A guildmate's carried run whose own recorder's upload never arrived.
-  const carried = await db.carriedRecord.findMany({ where: { kind: "run", status: "applied", createdAt: { gte: since(72), lte: since(SYNC_HEALTH.carriedWaitHours) } }, select: { authorKey: true, key: true, runKey: true }, take: 500 });
-  const refs = new Map<string, string>();
+  // Looked up from this server's own recent runs, so another server's busy carriers cannot crowd these out (CarriedRecord has no guild column; its [kind, runKey] index serves the lookup).
+  const recentRuns = await db.dungeonRun.findMany({ where: { guildId, createdAt: { gte: since(72), lte: since(SYNC_HEALTH.carriedWaitHours) } }, select: { runRef: true, instanceId: true, reporterNames: true, players: { select: { character: true, memberId: true, member: { select: { displayName: true } } } } }, take: 500 });
+  const runByKey = new Map(recentRuns.map((run) => [`${run.instanceId}:${run.runRef}`, run]));
+  const carried = runByKey.size ? await db.carriedRecord.findMany({ where: { kind: "run", status: "applied", runKey: { in: [...runByKey.keys()] } }, select: { authorKey: true, runKey: true }, take: 1_000 }) : [];
+  const waiting = new Map<string, Set<string>>();
   for (const row of carried) {
-    const id = (row.runKey ?? row.key).split("@")[0]?.split(":").slice(1).join(":");
-    if (id) refs.set(id, firstName(row.authorKey.split("|")[0] ?? row.authorKey));
+    const run = row.runKey ? runByKey.get(row.runKey) : undefined;
+    if (!run) continue;
+    const author = firstName(row.authorKey.split("|")[0] ?? row.authorKey);
+    if (run.reporterNames.some((name) => firstName(name) === author)) continue;
+    const who = run.players.find((candidate) => firstName(candidate.character) === author && candidate.memberId)?.member?.displayName;
+    if (who) (waiting.get(who) ?? waiting.set(who, new Set()).get(who)!).add(run.runRef);
   }
-  if (refs.size) {
-    const runs = await db.dungeonRun.findMany({ where: { guildId, runRef: { in: [...refs.keys()] } }, select: { runRef: true, reporterNames: true, players: { select: { character: true, memberId: true, member: { select: { displayName: true } } } } }, take: 500 });
-    const waiting = new Map<string, number>();
-    for (const run of runs) {
-      const author = refs.get(run.runRef);
-      if (!author || run.reporterNames.some((name) => firstName(name) === author)) continue;
-      const player = run.players.find((candidate) => firstName(candidate.character) === author && candidate.memberId);
-      const who = player?.member?.displayName;
-      if (who) waiting.set(who, (waiting.get(who) ?? 0) + 1);
-    }
-    for (const [who, count] of waiting) issues.push({ signal: "carried-only", who, detail: `${count} run${count === 1 ? "" : "s"} known only from a guildmate's copy for over ${SYNC_HEALTH.carriedWaitHours} h (their own addon's record never arrived)`, fix: FIX_OPEN });
-  }
+  for (const [who, runs] of waiting) issues.push({ signal: "carried-only", who, detail: `${runs.size} run${runs.size === 1 ? "" : "s"} known only from a guildmate's copy for over ${SYNC_HEALTH.carriedWaitHours} h (their own addon's record never arrived)`, fix: FIX_OPEN });
 
   // 3. Receipts refused (or kept as "retry") and brought again hours later: the same cause every time.
   const receipts = await db.dungeonRunReceipt.findMany({ where: { guildId, outcome: { in: ["refused", "retry"] }, seenAt: { gte: since(SYNC_HEALTH.playWindowHours) } }, select: { reason: true, createdAt: true, seenAt: true }, take: 500 });
@@ -143,7 +140,7 @@ export function developerSummary(guilds: readonly { name: string; issues: readon
     for (const issue of guild.issues) bySignal.set(issue.signal, (bySignal.get(issue.signal) ?? 0) + 1);
     return `• **${guild.name}**: ${[...bySignal].map(([signal, count]) => `${count} ${signal}`).join(", ")} — ${guild.issues.slice(0, 3).map((issue) => `${issue.who ?? "server"}: ${issue.detail}`).join("; ")}`;
   });
-  return `🩺 **Sync health, daily summary**\n${lines.join("\n")}\nDetails for officers: \`/officer dungeon sync\`.`.slice(0, 1_900);
+  return `${SUMMARY_PREFIX}, daily summary**\n${lines.join("\n")}\nDetails for officers: \`/officer dungeon sync\`.`.slice(0, 1_900);
 }
 
 /** Parses the x-companion-health header ("parked=2;damaged=1"). null when it says nothing usable. */

@@ -1,20 +1,34 @@
 # 9.3.3 release acceptance
 
-Status: prepared 15 November 2026, not yet published. 9.3.3 is not yet confirmed on real clients.
+Status: published 15 November 2026. 9.3.3 is not yet confirmed on real clients.
 
 ## Where it stands
 
 | Provider | State |
 | --- | --- |
-| GitHub | not yet published |
-| CurseForge | not yet uploaded |
-| Microsoft Store | 9.3.3.0 package built, not submitted (9.3.2.0 in certification) |
-| Website | still at 9.3.2 until the release is published |
+| GitHub | v9.3.3 is the latest release (tag at f849e748), six assets. |
+| Installer | `Guilded.Companion.Setup.exe` and `Guilded.Companion.Setup.9.3.3.exe` on the server and the R2 mirror. |
+| CurseForge | not yet uploaded; the website keeps pointing at the approved 9.3.2 files |
+| Microsoft Store | 9.3.3.0 package built; the 9.3.2.0 submission is being cancelled and 9.3.3.0 submitted |
+| Website | `site/releases.json` and the addon downloads point at 9.3.3. |
+
+## Published artifact hashes (SHA-256)
+
+| File | Bytes | SHA-256 |
+| --- | --- | --- |
+| `Guilded.Companion.Setup.exe` and `Guilded.Companion.Setup.9.3.3.exe` | 122723382 | `7a43eefc815f1979dc4b088000761ca98e1f3f4d049705ef824508f088b5e554` |
+| `Guilded-v9.3.3-forever.zip` | 1578992 | `4caeff6e09e0e24703b4c2e1d7003b8266e7bccf21d5616a1637c10ae961c988` |
+| `GuildedDungeons-v9.3.3-forever.zip` | 924192 | `f75c556a7a911ced574459ef592ab007e60aa97523a074b40f4316a8b1a47fe3` |
+| `Guilded.Companion.9.3.3.x64.STORE-SUBMISSION.msix` | 165445334 | `3059587915cb5e4770060a9c23d73299e6155a54b446f132d6798107839299f2` |
+| `Guilded-v9.3.3-Release-Notes.md` | 2695 | `27ef78d776b034a7a9b7e3812c208d3dd17fad861a96d3308c0da9185ffae126` |
+
+Never overwrite a published download; these are the bytes that went out.
 
 ## Tested so far
 
 - The merged pull requests passed CI (tests and packaging) on main.
 - Release pull request CI: see the pull request.
+- Build facts: three earlier attempts on 57fb60ea failed (missing phone-app packages in the build folder, then two tests that turned out to be real faults, fixed in #954 and #955). The final build from f849e748 passed 703 test files on the first run (`npm run release:prepare`, addon editions verified, Store package built).
 
 ## Checks owed (to be tested on real clients)
 
@@ -26,4 +40,4 @@ Status: prepared 15 November 2026, not yet published. 9.3.3 is not yet confirmed
 - A real dungeon run on this build, and group relay across guilds.
 - Parked guilds: a parked guild's runs are not sent twice after a sync.
 - The two phone-alert migrations (`mobile_devices`, `mobile_receipts`) were already applied on production on 14 November 2026; nothing to apply for 9.3.3.
-- Final-commit CI, packaging hashes, install over 9.3.2.
+- Install over 9.3.2.

@@ -2980,6 +2980,14 @@ local DE = {
   ["ignoring you"] = "ignoriert dich",
   ["guild is full"] = "Gilde ist voll",
   ["%d invites waiting: copy each line from the box (Ctrl+C), paste it in your chat box and press Enter; Next shows the following name."] = "%d Einladungen warten: kopiere jede Zeile aus dem Feld (Strg+C), f\195\188ge sie in dein Chatfeld ein und dr\195\188cke Enter; Weiter zeigt den n\195\164chsten Namen.",
+  -- 9.3.4 window polish
+  ["%d run"] = "%d Lauf",
+  ["Score"] = "Wertung",
+  ["Level"] = "Stufe",
+  ["iLvl"] = "GS",
+  ["Problems"] = "Probleme",
+  ["Last check"] = "Letzte Pr\195\188fung",
+  ["Your changes are not saved yet. Type /reload to save them."] = "Deine \195\132nderungen sind noch nicht gespeichert. Tippe /reload, um sie zu speichern.",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -4955,6 +4963,14 @@ local ES = {
   ["ignoring you"] = "te ignora",
   ["guild is full"] = "la hermandad est\195\161 llena",
   ["%d invites waiting: copy each line from the box (Ctrl+C), paste it in your chat box and press Enter; Next shows the following name."] = "%d invitaciones esperando: copia cada l\195\173nea del cuadro (Ctrl+C), p\195\169gala en tu chat y pulsa Intro; Siguiente muestra el nombre siguiente.",
+  -- 9.3.4 window polish
+  ["%d run"] = "%d partida",
+  ["Score"] = "Puntuaci\195\179n",
+  ["Level"] = "Nivel",
+  ["iLvl"] = "Niv. obj.",
+  ["Problems"] = "Problemas",
+  ["Last check"] = "\195\154ltima revisi\195\179n",
+  ["Your changes are not saved yet. Type /reload to save them."] = "Tus cambios a\195\186n no est\195\161n guardados. Escribe /reload para guardarlos.",
 }
 -- END ES
 
@@ -5164,6 +5180,14 @@ FR["Preview: sample numbers, nothing is saved."] = "Aper\195\167u : chiffres d'e
 FR["ignoring you"] = "vous ignore"
 FR["guild is full"] = "la guilde est pleine"
 FR["%d invites waiting: copy each line from the box (Ctrl+C), paste it in your chat box and press Enter; Next shows the following name."] = "%d invitations en attente : copie chaque ligne de la bo\195\174te (Ctrl+C), colle-la dans ton chat et appuie sur Entr\195\169e ; Suivant montre le nom suivant."
+-- 9.3.4 window polish.
+FR["%d run"] = "%d course"
+FR["Score"] = "Score"
+FR["Level"] = "Niveau"
+FR["iLvl"] = "Niv. obj."
+FR["Problems"] = "Probl\195\168mes"
+FR["Last check"] = "Derni\195\168re v\195\169rif."
+FR["Your changes are not saved yet. Type /reload to save them."] = "Tes modifications ne sont pas encore enregistr\195\169es. Tape /reload pour les enregistrer."
 FR["Invites"] = "Invitations"
 FR["Officers only."] = "R\195\169serv\195\169 aux officiers."
 FR["Advanced..."] = "Avanc\195\169..."

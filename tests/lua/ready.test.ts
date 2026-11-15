@@ -415,6 +415,22 @@ describe("officers' Gear page", () => {
     expect(text).not.toContain("Cy");
   });
 
+  it("gives the Gear page one aligned column per field, with a dash for unknown values", () => {
+    const s = withRaid();
+    s.run(`
+      DB.readiness.Kev.itemLevel = 60.5
+      DB.peerRoster.Amy.flags = "IL:62"
+      DB.peerRoster.Amy.identity = { class = "PRIEST", level = 60 }
+      DB.peerRoster.Bob.flags = "NOFLASK"
+    `);
+    const out = s.run(`local c, n = NS.ready.gearColumns(NOW)
+      return n .. "|" .. #c.name .. "|" .. #c.level .. "|" .. #c.itemLevel .. "|" .. #c.problems .. "|" .. #c.seen .. "|" .. table.concat(c.itemLevel, ",")`);
+    const [count, ...lines] = out.split("|");
+    expect(Number(count)).toBeGreaterThanOrEqual(3);
+    for (const l of lines.slice(0, 5)) expect(l).toBe(count);
+    expect(lines[5]).toMatch(/^62,61,.*-$/);
+  });
+
   it("explains an empty list", () => {
     const s = withRaid();
     s.run(`DB.peerRoster = {}; DB.readiness = {}`);

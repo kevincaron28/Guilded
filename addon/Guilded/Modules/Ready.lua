@@ -212,6 +212,27 @@ function module.gearText(nowSeconds)
   return #lines > 0 and table.concat(lines, "\n") or L("Nobody has shared a gear check yet. Each member's Guilded shares theirs after a gear change or /reload.")
 end
 
+-- (9.3.4) The same rows as aligned columns for the Gear page: one text per column, one line per member (best item level first),
+-- an unknown item level or level shown as a dash. Problems are in red. Every text has the same number of lines.
+function module.gearColumns(nowSeconds)
+  local L = ns.L or function(text) return text end
+  local now = nowSeconds or (GetServerTime and GetServerTime()) or time()
+  local cols = { name = {}, level = {}, itemLevel = {}, problems = {}, seen = {} }
+  for _, row in ipairs(module.gearRows(now)) do
+    cols.name[#cols.name + 1] = "|cffffd100" .. (ns.displayName and ns.displayName(row.name) or row.name) .. "|r"
+    cols.level[#cols.level + 1] = row.level and row.level > 0 and tostring(row.level) or "-"
+    cols.itemLevel[#cols.itemLevel + 1] = row.itemLevel and tostring(row.itemLevel) or "-"
+    local problems = {}
+    if row.missing > 0 then problems[#problems + 1] = string.format(L("%d missing"), row.missing) end
+    if row.enchants ~= "" then problems[#problems + 1] = L("no enchant") .. ": " .. row.enchants end
+    if row.durability < 50 then problems[#problems + 1] = string.format(L("durability %d%%"), row.durability) end
+    cols.problems[#cols.problems + 1] = #problems > 0 and ("|cffff6060" .. table.concat(problems, " \194\183 ") .. "|r") or ""
+    local days = row.at and math.floor((now - row.at) / 86400) or nil
+    cols.seen[#cols.seen + 1] = days and (days < 1 and L("today") or string.format(L("%d d ago"), days)) or "-"
+  end
+  return cols, #cols.name
+end
+
 -- What each groupmate's addon said about their own consumables: name -> { facts, at }.
 -- Only kept in memory: it is old within minutes and every ready check refreshes it.
 module.reports = {}

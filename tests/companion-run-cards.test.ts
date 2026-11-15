@@ -40,7 +40,7 @@ describe("run cards for the in-game result card (9.3.5)", () => {
     expect(read.cards["QG-1"]).toHaveLength(5);
     // A later answer without cards (an older bot) keeps them; a newer run's cards come first.
     const second = mergeDeviceReceipts(read, { acceptedRunRefs: ["QG-2"], runNotes: {}, runCards: { "QG-2": [{ n: "New", l: 10 }] } });
-    expect(Object.keys(second.cards)).toEqual(["QG-2", "QG-1"]);
+    expect(Object.keys(second.cards ?? {})).toEqual(["QG-2", "QG-1"]);
     expect(mergeDeviceReceipts(read, { acceptedRunRefs: [], runNotes: {} }).cards).toEqual(read.cards);
     expect(mergeRunCards(undefined, undefined)).toEqual({});
   });

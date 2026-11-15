@@ -50,7 +50,8 @@ export function mergeDeviceReceipts(previous, answer) {
   const pending = { ...(previous?.pending ?? {}) };
   for (const ref of refs) delete pending[ref];
   for (const [ref, note] of Object.entries(answer?.pendingRunNotes && typeof answer.pendingRunNotes === "object" ? answer.pendingRunNotes : {})) if (typeof note === "string" && note && !refs.includes(ref)) pending[ref] = note.slice(0, 80);
-  return { refs, notes: Object.fromEntries(Object.entries(notes).filter(([ref]) => refs.includes(ref)).slice(0, MAX_NOTES)), pending: Object.fromEntries(Object.entries(pending).slice(-MAX_PENDING)), cards: mergeRunCards(previous?.cards, answer?.runCards) };
+  const cards = mergeRunCards(previous?.cards, answer?.runCards);
+  return { refs, notes: Object.fromEntries(Object.entries(notes).filter(([ref]) => refs.includes(ref)).slice(0, MAX_NOTES)), pending: Object.fromEntries(Object.entries(pending).slice(-MAX_PENDING)), ...(Object.keys(cards).length ? { cards } : {}) };
 }
 
 /** @param {{ refs: string[], notes: Record<string, string>, pending?: Record<string, string>, reported?: string[], cards?: Record<string, any[]> }} receipts */

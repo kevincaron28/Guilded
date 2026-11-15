@@ -563,7 +563,8 @@ export async function standingsParts(guild: { id: string; discordId: string }, a
   const guildSnapshot = await standingsFeed.shared(guild.id, "snapshot", () => prisma.$transaction((transaction) => guildConsistentReads(transaction as unknown as PrismaClient, guild.id),
     { isolationLevel: "RepeatableRead", timeout: STANDINGS_READ_BUDGET_MS.query, maxWait: STANDINGS_READ_BUDGET_MS.poolWait }));
   const acceptedLedgerRefs = await ledgerRefsFor(prisma, guild.id, access.memberId);
-  const { accounts, baseGp, standings, acceptedLootRefs, acceptedRunRefs, runNotes, pendingRunNotes, runCards } = guildSnapshot;
+  const { accounts, baseGp, standings, acceptedLootRefs, acceptedRunRefs, runNotes, pendingRunNotes } = guildSnapshot;
+  const runCards = guildSnapshot.runCards ?? {};
   // Shared: the same for every member, so it sets the stamp. Discord events are filtered
   // per member and dungeon/ledger acknowledgements do not change what the addon shows.
   return {
@@ -629,7 +630,7 @@ export async function guildConsistentReads(database: PrismaClient, guildId: stri
   const accounts = Object.fromEntries((await database.character.findMany({ where: { member: { guildId } }, select: { name: true, realm: true, memberId: true } })).map((c) => [addonName(c.name, c.realm), c.memberId]));
   const acceptedLootRefs = await lootRefsFor(database, guildId);
   const standings = (await createEpgpService(database).getGuildStandings(guildId, baseGp)).map(row => ({ ...row, character: addonName(row.character, row.realm) }));
-  return { accounts, baseGp, standings, acceptedLootRefs, acceptedRunRefs, runNotes, pendingRunNotes, runCards };
+  return { accounts, baseGp, standings, acceptedLootRefs, acceptedRunRefs, runNotes, pendingRunNotes, ...(Object.keys(runCards).length ? { runCards } : {}) };
 }
 
 // The guild board part of an upload: in-game votes (own and relayed) and officers' in-game news.

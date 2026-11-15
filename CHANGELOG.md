@@ -11,12 +11,13 @@ Addon and companion:
 - Scarlet Monastery wings are named on the cards and in game (#990).
 - A "last saved" line in the addon and a quiet one-time /reload reminder (#992).
 - Dungeon runs: guildmates' addons compare a short weekly digest before the login replay, so runs a guildmate already has are not sent again (older addons keep the old replay) (#993).
+- Packed run summaries (Z1): run batches over 255 bytes are compressed and sent as one message, and older addons keep the old way (#994, #997).
 
 Bot and website (already live or live with the bot deploy):
 
 - Achievement-unlocked card with a painted trophy-hall background (#985).
 - A short guild guide with the essential commands (#987).
-- Community points rebalance: each dungeon run counts for a fifth, with a weekly bound, tighter PvP bounds (#989), and "community points" wording instead of participation points (#990).
+- Community podium: dungeon runs count less (about 15 points a clean run, at most 100 a week), and the weekly limits for duels, battlegrounds and World PvP are lower, so Discord activity and WoW activity weigh about the same. Seasons that ended before November keep their numbers (#989, #990).
 - Brighter dungeon cards (#990).
 - Sync health: `/officer dungeon sync` and a daily developer alert for stuck syncs (#991).
 - The old dungeon points embed and season picker are gone from the #classement-donjons board (#995).

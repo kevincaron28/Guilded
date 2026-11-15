@@ -10,9 +10,9 @@ Real-client checks: docs/V9_3_5_RELEASE_ACCEPTANCE.md. 9.3.5 is not yet confirme
 - **Dungeon result card in game:** it shows each player's level, guild, score gained and season total, taken from the bot's receipt.
 - **Dungeon cards:** brighter paintings, and the Scarlet Monastery wing is named on the cards and in game.
 - **Addon:** a "last saved" line tells you when the companion last saved your data, and one quiet chat line suggests `/reload` after a run or a duel. It never reloads by itself and can be turned off in the settings.
-- **Syncing:** guildmates compare a short weekly digest before the login replay, so a run a guildmate already has is not sent again. Older addons keep the old replay.
+- **Syncing:** guildmates compare a short weekly digest before the login replay, so a run a guildmate already has is not sent again. Older addons keep the old replay. Long run batches are now packed into one message (older addons keep the old way).
 - **Discord:** an achievement-unlocked card with a painted background, a short guide with the essential commands, and the old dungeon points embed is gone from the #classement-donjons board.
-- **Community points:** each dungeon run counts for a fifth with a weekly bound, duels, battlegrounds and World PvP have tighter bounds, and the wording says community points. Closed seasons keep their standings.
+- **Community podium:** dungeon runs count less (about 15 points a clean run, at most 100 a week), and the weekly limits for duels, battlegrounds and World PvP are lower, so Discord activity and WoW activity weigh about the same. Seasons that ended before November keep their numbers.
 - **Officers:** `/officer dungeon sync` shows stuck syncs, and the developer gets a daily alert.
 
 ## In short (English)
@@ -25,4 +25,4 @@ Guilded 9.3.5 : un nouveau logo peint, une carte de résultat de donjon en jeu a
 
 ## Technical
 
-- #985, #986, #987, #988, #989, #990, #991, #992, #993, #995 since 9.3.4 (see CHANGELOG.md). The bot parts are already on main; the bot is deployed after the GitHub release is published.
+- #985, #986, #987, #988, #989, #990, #991, #992, #993, #994, #997, #995 since 9.3.4 (see CHANGELOG.md). The bot parts are already on main; the bot is deployed after the GitHub release is published.

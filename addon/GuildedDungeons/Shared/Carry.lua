@@ -518,6 +518,10 @@ local function onAddonMessage(prefix, text, channel, sender)
     if channel == "WHISPER" then
       -- (9.3.4) A carrier's answer to this PC's own ask: only within a minute of asking, and only from a whisper.
       if string.match(text, "^HI|%d+$") and carry.askSentAt and now() - carry.askSentAt <= ANSWER_ACCEPT then
+        -- The same per-sender limit as announcements.
+        local last = carry.hiAt[who]
+        if last and now() - last < HI_GAP then return end
+        carry.hiAt[who] = now()
         local entry = noteCarrier(who, false)
         if entry then carry.askTries = 0; carry.offerTo(entry) end
       end
@@ -644,7 +648,7 @@ function carry.scheduleAsk(wait)
     if not s or not carry.enabled() or s.noAsk == true or carry.companionHere() then return end
     if carry.carrierCount() > 0 then carry.askTries = 0; return end
     local info = carry.pending()
-    if not info or info.count - info.handed <= 0 then return end
+    if not info or info.count - info.handed <= 0 then carry.askTries = 0; return end
     if carry.ask() then carry.askTries = carry.askTries + 1 end
     carry.scheduleAsk(ASK_BACKOFF[math.min(carry.askTries + 1, #ASK_BACKOFF)])
   end)
@@ -721,7 +725,7 @@ local function installFilters()
   pcall(ChatFrame_AddMessageEventFilter, "CHAT_MSG_CHANNEL_NOTICE_USER", function(_, _, ...) return ours(...) end)
   local pattern
   if type(ERR_CHAT_PLAYER_NOT_FOUND_S) == "string" then
-    pattern = "^" .. string.gsub(string.gsub(ERR_CHAT_PLAYER_NOT_FOUND_S, "([%^%$%(%)%.%[%]%*%+%-%?])", "%%%1"), "%%%%s", "(.+)") .. "$"
+    pattern = "^" .. string.gsub(string.gsub(ERR_CHAT_PLAYER_NOT_FOUND_S, "([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1"), "%%%%s", "(.+)") .. "$"
   end
   if pattern then
     pcall(ChatFrame_AddMessageEventFilter, "CHAT_MSG_SYSTEM", function(_, _, text)
@@ -747,17 +751,17 @@ end
 function carry.pending()
   local s = store()
   if not s or carry.companionHere() then return nil end
-  -- Read fresh (a duel recorded a moment ago counts) and not left in the cache the announcements use.
+  -- Read fresh (a duel recorded a moment ago counts). The fresh list is the cache the announcements use; an empty one is not kept,
+  -- because a new record most likely appears from nothing and nothing tells the cache.
   local list = carry.collectOwn(true)
-  carry.ownCache = nil
-  if #list == 0 then return nil end
+  if #list == 0 then carry.ownCache = nil; return nil end
   local oldest, handed = nil, 0
   for _, record in ipairs(list) do
     if not oldest or record.at < oldest then oldest = record.at end
     if type(s.sentTo[record.kind .. ":" .. record.key]) == "table" then handed = handed + 1 end
   end
   local why
-  if guildOff() or s.off == true then why = "off"
+  if not carry.enabled() then why = "off"
   elseif handed == #list then why = "sent"
   elseif carry.carrierCount() > 0 then why = "near"
   else why = "none" end
@@ -766,8 +770,13 @@ end
 function carry.windowLine()
   local info = carry.pending()
   if not info then return "" end
-  local when = ns.util and ns.util.whenText and ns.util.whenText(info.since) or ""
-  local head = info.count == 1 and string.format(L("1 record is waiting, since %s."), when) or string.format(L("%d records are waiting, since %s."), info.count, when)
+  local when = ns.util and ns.util.whenText and ns.util.whenText(info.since)
+  local head
+  if type(when) == "string" and when ~= "" then
+    head = info.count == 1 and string.format(L("1 record is waiting, since %s."), when) or string.format(L("%d records are waiting, since %s."), info.count, when)
+  else
+    head = info.count == 1 and L("1 record is waiting.") or string.format(L("%d records are waiting."), info.count)
+  end
   local why = info.why == "off" and L("Carrying is off.") or info.why == "sent" and L("Sent, waiting for confirmation.")
     or info.why == "near" and L("A player near you with the companion will take them.") or L("No player with the companion is near you yet.")
   return head .. " " .. why .. " " .. L("Installing the companion sends them at once.")
@@ -775,6 +784,14 @@ end
 -- Said once per session shortly after login, only when something waits.
 function carry.loginLine()
   if carry.loginSaid then return end
+  local s = store()
+  local info = s and carry.pending()
+  if not info then if s and carry.enabled() then s.offNoticed = nil end; return end
+  -- "Carrying is off" is said once (remembered); /guilded carry status always shows it. Switching carrying on again re-arms it.
+  if info.why == "off" then
+    if s.offNoticed then return end
+    s.offNoticed = now()
+  else s.offNoticed = nil end
   local line = carry.windowLine()
   if line == "" then return end
   carry.loginSaid = true
@@ -821,6 +838,7 @@ ns.commandHandlers["carry"] = function(args)
     return
   elseif choice == "on" then
     s.off = nil
+    s.offNoticed = nil
     local root = ns.getDb and ns.getDb()
     if root and type(root.dungeon) == "table" then root.dungeon.carryGroupRuns = nil end
     carry.joinChannel()
@@ -869,6 +887,8 @@ local function firstNotice()
 end
 
 local function startup()
+  -- (9.3.4) The waiting line is said once at login, also when carrying is off (it then says so, once).
+  after(15, function() pcall(carry.loginLine) end)
   if not carry.enabled() then return end
   installFilters()
   carry.applyReceipts()
@@ -876,7 +896,6 @@ local function startup()
   -- The channel is joined last, well after the player's own channels, so nothing the player set up moves.
   after(25, function() if carry.enabled() then carry.joinChannel() end end)
   after(40, function() carry.announce(true) end)
-  after(15, function() pcall(carry.loginLine) end)
   -- An officer's guild-wide switch is repeated at login so members who were offline get it too.
   after(45, function()
     local s = store()

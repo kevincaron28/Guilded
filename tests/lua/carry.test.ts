@@ -488,7 +488,7 @@ describe("the /guilded carry status line", () => {
       sessions.push(out);
       out.run(`NS = {}; GetLocale = function() return "${language}" end`);
       out.load("Locale.lua");
-      for (const line of ["1 record is waiting, since %s.", "%d records are waiting, since %s.", "Carrying is off.", "Sent, waiting for confirmation.", "A player near you with the companion will take them.", "No player with the companion is near you yet.", "Installing the companion sends them at once.", "Asking for a carrier is off. Guild and group carriers still work.", "Asking for a carrier is on."]) {
+      for (const line of ["1 record is waiting, since %s.", "%d records are waiting, since %s.", "1 record is waiting.", "%d records are waiting.", "Carrying is off.", "Sent, waiting for confirmation.", "A player near you with the companion will take them.", "No player with the companion is near you yet.", "Installing the companion sends them at once.", "Asking for a carrier is off. Guild and group carriers still work.", "Asking for a carrier is on."]) {
         expect(out.run(`return NS.L(${JSON.stringify(line)})`), `${language}: ${line}`).not.toBe(line);
       }
     }
@@ -736,5 +736,87 @@ describe("finding a carrier on the shared channel", () => {
     player.run("NS.carry.carriers = {}; NS.getDb().carry.sentTo = {}; NS.carry.ownCache = nil; NS.commandHandlers.carry({ 'ask', 'on' })");
     expect(player.run("return tostring(NS.carry.ask())")).toBe("true");
     expect(player.run("return MSGS[1] .. '|' .. MSGS[2]")).toBe("Asking for a carrier is off. Guild and group carriers still work.|Asking for a carrier is on.");
+  });
+
+  it("a whispered answer resets the back-off, and is limited per sender like announcements", () => {
+    const player = client("guilded", "Aye");
+    joined(player);
+    duel(player);
+    player.run("NS.carry.ask(); NS.carry.askTries = 3");
+    hear(player, "Bee", "HI|1", "WHISPER");
+    expect(player.run("return NS.carry.askTries")).toBe("0");
+    player.run("NS.carry.carriers = {}; NS.carry.askTries = 3");
+    hear(player, "Bee", "HI|1", "WHISPER");
+    expect(player.run("return NS.carry.askTries .. ':' .. NS.carry.carrierCount()")).toBe("3:0");
+  });
+
+  it("the back-off restarts from the first step once the records are gone", () => {
+    const player = client("guilded", "Aye");
+    joined(player);
+    duel(player);
+    player.run("NS.carry.askTries = 3; NS.getDb().duels.external = {}; NS.carry.ownCache = nil; NS.carry.scheduleAsk(60); run_timers()");
+    expect(player.run("return NS.carry.askTries")).toBe("0");
+  });
+
+  it("the ask switch lives in the saved variables, not in the session", () => {
+    const player = client("guilded", "Aye");
+    joined(player);
+    duel(player);
+    player.run("NS.message = function() end; NS.commandHandlers.carry({ 'ask', 'off' }); NS.carry.askTries = 0; NS.carry.askSentAt = nil; NS.carry.stats.asked = 0");
+    expect(player.run("return tostring(NS.getDb().carry.noAsk)")).toBe("true");
+    expect(player.run("return tostring(NS.carry.ask())")).toBe("false");
+  });
+
+  it("the dungeon carry switch turns the line to 'Carrying is off', with the same remedy", () => {
+    const player = client("guilded", "Aye");
+    duel(player);
+    player.run("NS.carry.carriers.Bee = { name = 'Bee', at = CLOCK, fails = 0, sent = 0, pauseUntil = 0, near = true }; NS.dungeon.carryOn = function() return false end");
+    const line = player.run("return NS.carry.windowLine()");
+    expect(line).toContain("Carrying is off.");
+    expect(line).not.toContain("will take them");
+    expect(line).not.toContain("near you yet");
+  });
+
+  it("drops the 'since' clause when the time cannot be written", () => {
+    const player = client("guilded", "Aye");
+    duel(player);
+    player.run("NS.util.whenText = function() return nil end");
+    expect(player.run("return NS.carry.windowLine()")).toMatch(/^1 record is waiting\. No player/);
+  });
+
+  it("does not undo the cache on every read when records wait", () => {
+    const player = client("guilded", "Aye");
+    duel(player);
+    player.run("NS.carry.windowLine()");
+    expect(player.run("return tostring(NS.carry.ownCache ~= nil)")).toBe("true");
+    const quietOne = client("guilded", "Dee");
+    quietOne.run("NS.carry.windowLine()");
+    expect(quietOne.run("return tostring(NS.carry.ownCache)")).toBe("nil");
+  });
+
+  it("says 'Carrying is off' at login once only, and again after carrying was switched on and off", () => {
+    const player = client("guilded", "Aye");
+    duel(player);
+    player.run("MSGS = {}; NS.message = function(text) MSGS[#MSGS + 1] = text end; NS.commandHandlers.carry({ 'off' }); MSGS = {}; NS.carry.loginSaid = nil; NS.carry.loginLine()");
+    expect(player.run("return #MSGS")).toBe("1");
+    expect(player.run("return MSGS[1]")).toContain("Carrying is off.");
+    player.run("NS.carry.loginSaid = nil; NS.carry.loginLine()");
+    expect(player.run("return #MSGS")).toBe("1");
+    // /guilded carry status still tells.
+    expect(player.run("return NS.carry.statusLine()")).toBe("Carrying records is off. Type /guilded carry on to turn it on.");
+    expect(player.run("return NS.carry.windowLine()")).toContain("Carrying is off.");
+    player.run("NS.commandHandlers.carry({ 'on' }); NS.commandHandlers.carry({ 'off' }); MSGS = {}; NS.carry.loginSaid = nil; NS.carry.loginLine()");
+    expect(player.run("return #MSGS")).toBe("1");
+  });
+
+  it("the game's 'no player named' line after a whispered answer is still hidden", () => {
+    const carrier = client("guilded", "Bee", { companion: true });
+    carrier.run(`FILTERS = {}; ERR_CHAT_PLAYER_NOT_FOUND_S = "No player named '%s' is currently playing."
+      function ChatFrame_AddMessageEventFilter(event, fn) FILTERS[event] = fn end
+      NS.carry.filtersInstalled = nil; fire_event("PLAYER_LOGIN")`);
+    hear(carrier, "Aye", "Q|1", "CHANNEL");
+    expect(queued(carrier, "WHISPER", "Aye")).toEqual(["HI|1"]);
+    expect(carrier.run("return tostring(FILTERS.CHAT_MSG_SYSTEM(nil, nil, \"No player named 'Aye' is currently playing.\"))")).toBe("true");
+    expect(carrier.run("return tostring(FILTERS.CHAT_MSG_SYSTEM(nil, nil, \"No player named 'Zed' is currently playing.\"))")).toBe("false");
   });
 });

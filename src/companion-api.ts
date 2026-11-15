@@ -1380,14 +1380,15 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       let preview = await timed("preview", () => importService.preview(guild.id, requestPayload.export, createdBy));
       // (9.3.1) Runs that only reached the uploader's addon through a party or raid never enter a guild lane, signed in or not: they go
       // to the public boards' relay lane (relay-public.ts), with "group:" receipts so a later guildmate copy still reaches the guild.
-      await carrySignedGroupRuns(preview.snapshot, { carrier: `member:${access.memberId ?? access.actorId}`, store: publicRuns,
+      // The uploader's OWN characters only (database + exported character + alts), never the roster in snapshot.characters.
+      const ownKeys = await ownCarrierKeys(prisma, { memberId: pairedMemberId, character: preview.snapshot.character, alts: preview.snapshot.alts });
+      await carrySignedGroupRuns(preview.snapshot, { carrier: `member:${access.memberId ?? access.actorId}`, ownKeys, store: publicRuns,
         onPlaced: (placed) => { void import("./services/cross-guild-post.js").then((module) => module.shareAndAnnounce(client, { guildId: null, characterKeys: [], receivedAt: new Date() }, placed)).catch(() => undefined); },
         saveReceipts: (refs) => prisma.$transaction((tx) => saveRunReceipts(tx, guild.id, refs.map((runRef) => ({ runRef, outcome: "stored" as const, reason: null, runId: null })), new Date())).then(() => undefined) });
       // (9.3.2) Records the uploader's addon carried for players near it: applied by each kind's own code, answered by key.
       const carriedRecords = preview.snapshot.carriedRecords ?? [];
       const carriedAnswer = carriedRecords.length
-        ? await ownCarrierKeys(prisma, { memberId: pairedMemberId, character: preview.snapshot.character, alts: preview.snapshot.alts })
-          .then((carrierKeys) => applyCarriedRecords(prisma, { carrier: `member:${access.actorId}`, carrierKeys, records: carriedRecords }))
+        ? await applyCarriedRecords(prisma, { carrier: `member:${access.actorId}`, carrierKeys: ownKeys, records: carriedRecords })
           .catch((error: unknown) => { console.error(`Carried records failed for member:${access.actorId}: ${error instanceof Error ? error.message : String(error)}`); return { receipts: [] as string[], applied: 0 }; })
         : { receipts: [] as string[], applied: 0 };
       const carriedExtra = carriedAnswer.receipts.length ? { carriedReceipts: carriedAnswer.receipts } : {};

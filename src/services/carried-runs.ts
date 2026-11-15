@@ -2,7 +2,7 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import { z } from "zod";
 import { characterKey } from "../../companion/character-identity.mjs";
 import { dungeonRunSchema, type DungeonRunInput } from "./dungeon-rules.js";
-import { ingestRelayedRuns } from "./relay-public.js";
+import { ingestRelayedRuns, relayWouldPlace } from "./relay-public.js";
 import { integrityConfig } from "./run-integrity-config.js";
 import { agrees, summarize, type PublicRunStore } from "./public-runs.js";
 
@@ -123,9 +123,15 @@ export async function placeCarriedRun(database: PrismaClient, input: { carrier: 
     const differs = !agrees(stored, summary);
     const recorderPlaced = await database.carriedRecord.count({ where: { kind: "run", runKey: unpacked.runKey, authorKey, status: "applied" } });
     // Placed only by other players' relayed copies, and the recorder's own statement says otherwise: the recorder's statement wins, once.
-    if (differs && !recorderPlaced && stored.uploaders.length > 0 && stored.uploaders.every((uploader) => uploader.startsWith("relay:")) && store.discardRelayRun && await store.discardRelayRun(stored.id)) {
+    // The run is removed only when the statement would be placed after it: a held, over-limit or refused statement never deletes a placed run.
+    const wouldPlace = differs && !recorderPlaced && stored.uploaders.length > 0 && stored.uploaders.every((uploader) => uploader.startsWith("relay:")) && store.discardRelayRun
+      ? await relayWouldPlace(store, { carrier: input.carrier, run: { ...unpacked.run, recorder: input.author.split("-")[0] ?? input.author, reporterNames: [input.author.split("-")[0] ?? input.author] }, now: input.now })
+      : "not-applicable";
+    if (wouldPlace === null && await store.discardRelayRun!(stored.id)) {
       console.info(`Carried run ${unpacked.runKey.slice(0, 50)}: the recorder's statement replaces a run placed by other players' relayed copies`);
     } else {
+      // The statement could replace the run but would not be placed: the original stays and nothing is receipted (sent again later).
+      if (wouldPlace !== null && wouldPlace !== "not-applicable") { await refuse(`replacement-not-placed (${wouldPlace})`); return false; }
       if (differs) console.info(`Carried run ${unpacked.runKey.slice(0, 50)} via ${input.carrier}: differs from the run already placed, which stays (for review)`);
       if (!capReason) await database.carriedRecord.create({ data: { kind: "run", key: storedKey, author: input.author.slice(0, 80), authorKey: authorKey.slice(0, 160), carrier: input.carrier, status: "applied", runKey: unpacked.runKey } }).catch((error: unknown) => { if ((error as { code?: string } | null)?.code !== "P2002") throw error; });
       return true;
@@ -137,7 +143,7 @@ export async function placeCarriedRun(database: PrismaClient, input: { carrier: 
   const name = input.author.split("-")[0] ?? input.author;
   const result = await ingestRelayedRuns(store, { carrier: input.carrier, carrierKeys: input.carrierKeys, runs: [{ ...unpacked.run, recorder: name, reporterNames: [name] }], now: input.now,
     ...(input.relay.onPlaced ? { onPlaced: input.relay.onPlaced } : {}) });
-  if (result.published < 1) {
+  if (result.published < 1 && result.known < 1) {
     // Held by a plausibility check or over the day's limit: for review.
     await refuse("not-placed (held by a check or over a limit)");
     return false;
@@ -149,7 +155,7 @@ export async function placeCarriedRun(database: PrismaClient, input: { carrier: 
     if ((error as { code?: string } | null)?.code !== "P2002") throw error;
     await database.carriedRecord.updateMany({ where: { kind: "run", authorKey, key: storedKey }, data: { status: "applied", runKey } });
   }
-  console.info(`Carried run ${runKey.slice(0, 50)} from ${input.author.slice(0, 40)} via ${input.carrier}: placed`);
+  console.info(`Carried run ${runKey.slice(0, 50)} from ${input.author.slice(0, 40)} via ${input.carrier}: ${result.known ? "a copy of a run already placed" : "placed"}`);
   return true;
 }
 

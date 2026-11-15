@@ -27,6 +27,9 @@ function memoryStore() {
   let next = 0;
   const store: PublicRunStore = {
     async findRun(runKey) { return runs.get(runKey) ?? null; },
+    async findRunsNear(_edition, instanceId, startedAt, windowSec) {
+      return [...runs.values()].filter((row) => row.instanceId === instanceId && Math.abs(row.startedAt.getTime() - startedAt.getTime()) <= windowSec * 1000);
+    },
     async createRun(summary, uploader) { uploads.push({ key: uploader.key, at: NOW }); runs.set(summary.runKey, { ...summary, id: `r${++next}`, status: "ACCEPTED", uploaders: [uploader.key], reporters: [...uploader.reporters], summary, confirmations: 1 } as never); },
     async addUpload(runId, uploader, summary) {
       calls.addUpload++;
@@ -183,6 +186,37 @@ describe("carried dungeon runs", () => {
     await apply(db, store, [record("Aye", "QG-2-bbbbbb", { en: start + 2500 })], "member:other");
     expect(calls.discard).toBe(1);
     expect(placed(runs).summary.durationSec).toBe(1500);
+  });
+
+  it("a recorder's statement that would be held or over the carrier's limit never deletes the run it was going to replace", async () => {
+    process.env["RUN_INTEGRITY_CONFIG"] = JSON.stringify({ relayedRunsPerDay: 1 });
+    const { db } = fakeDb();
+    const { store, runs, calls } = memoryStore();
+    await store.createRun({ ...({} as RunSummary), ...unpackedSummary({ en: start + 2000 }) }, { key: "relay:device:x", reporters: [] }, "personal");
+    // The carrier's day is used up (the relayed copy above counts), so the statement cannot be placed after a discard.
+    const out = await apply(db, store, [record("Aye", "QG-1-aaaaaa")], "device:x");
+    expect(calls.discard).toBe(0);
+    expect(placed(runs).summary.durationSec).toBe(2000);
+    expect(out.receipts).toEqual([]);
+  });
+
+  it("two recorders' statements of one real run make one run, the second is a receipted confirmation", async () => {
+    const { db, rows } = fakeDb();
+    const { store, runs } = memoryStore();
+    await apply(db, store, [record("Aye")], "member:aye");
+    const second = await apply(db, store, [record("Zed", "QG-2-zzzzzz", { id: idFor("Zed", start + 20) })], "member:zed");
+    expect(runs.size).toBe(1);
+    expect(second.receipts).toEqual([receipt("QG-2-zzzzzz")]);
+    expect(rows.filter((row) => row.status === "applied")).toHaveLength(2);
+  });
+
+  it("the same party running the same dungeon an hour later is a second run", async () => {
+    const { db } = fakeDb();
+    const { store, runs } = memoryStore();
+    await apply(db, store, [record("Aye")], "member:aye");
+    const later = start + 3600;
+    await apply(db, store, [{ kind: "run", key: "QG-3-cccccc", author: "Zed", data: data({ id: idFor("Zed", later), st: later, en: later + 1500, ev: `2735:${later + 1500}` }) }], "member:zed");
+    expect(runs.size).toBe(2);
   });
 
   it("a run the carrier played in is its own upload's business; the roster of other players is never the carrier's own", async () => {

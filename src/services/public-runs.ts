@@ -219,12 +219,14 @@ export function evidenceUpgrade(stored: RunEvidence, incoming: RunSummary): bool
 }
 
 /** reporters: every character (lowercase) whose report an upload of this run carried. */
-export interface StoredRun extends RunEvidence { id: string; status: string; uploaders: string[]; reporters: string[] }
+export interface StoredRun extends RunEvidence { id: string; status: string; uploaders: string[]; reporters: string[]; runKey?: string }
 export interface Uploader { key: string; reporters: string[] }
 
 export interface PublicRunStore {
   supportsEvidenceRevisions?: boolean;
   findRun(runKey: string): Promise<StoredRun | null>;
+  /** (9.3.3) Runs of the same instance that started within `windowSec` of `startedAt` (another recorder's copy of the same real run). Optional: a store without it finds none. */
+  findRunsNear?(gameEdition: string, instanceId: number, startedAt: Date, windowSec: number): Promise<StoredRun[]>;
   createRun(summary: RunSummary, uploader: Uploader, source: "personal" | "guild"): Promise<void | {historyOnly:boolean}>;
   /** Rechecks agreement and reporter independence atomically against the latest stored evidence. */
   addUpload(runId: string, uploader: Uploader, summary: RunSummary): Promise<{ agree: boolean; duplicate: boolean; historyOnly?: boolean }>;
@@ -306,6 +308,19 @@ export async function ingestPublicRuns(store: PublicRunStore, input: { uploaderK
   return result;
 }
 
+/**
+ * (9.3.3) Another recorder's copy of the same real run: a stored run of the same instance, the same set of players and a start within a few minutes.
+ * Every addon names the runs it records after its own recorder, so two addons in one party make two run ids for one run; the second is a
+ * confirmation, not another run. Compared by character name (the realm is not part of a Forever character's identity).
+ */
+export async function findSameRun(store: PublicRunStore, summary: RunSummary, windowSec = 300): Promise<StoredRun | null> {
+  if (!store.findRunsNear) return null;
+  const names = (players: { character: string }[]) => [...new Set(players.map((player) => key(player.character)))].sort().join("|");
+  const wanted = names(summary.players);
+  const near = await store.findRunsNear(summary.gameEdition, summary.instanceId, summary.startedAt, windowSec);
+  return near.find((row) => row.runKey !== summary.runKey && names(row.players) === wanted) ?? null;
+}
+
 /** Calendar cutoff uses the stored run's edition/end, never the late reporter's. */
 export function publicEvidenceFinalized(rows: { startsAt: Date; rules: unknown }[], endedAt: Date, receivedAt: Date): boolean {
   const sorted = [...rows].sort((a,b)=>a.startsAt.getTime()-b.startsAt.getTime());
@@ -336,7 +351,7 @@ function rawRevision(value: unknown): unknown {
 // budget is raised instead of moving reads out (the same budget as the other lock-protected upload transactions).
 export const PUBLIC_RUN_TX = { timeout: 60_000, maxWait: 15_000 } as const;
 export function prismaPublicRunStore(database: PrismaClient, clock:()=>Date=()=>new Date()): PublicRunStore {
-  const select = { id: true, status: true, gameEdition: true, instanceId: true, difficultyId: true, routeKey: true, durationSec: true, startedAt: true, endedAt: true,
+  const select = { id: true, runKey: true, status: true, gameEdition: true, instanceId: true, difficultyId: true, routeKey: true, durationSec: true, startedAt: true, endedAt: true,
     evidenceVersion: true, integrity: true, completedBy: true, encounters: true, challenge: true, players: true, uploads: { select: { uploaderKey: true, reporters: true, evidence: true, historyOnly: true } } } as const;
   function storedRow(row: Prisma.PublicRunGetPayload<{ select: typeof select }>): StoredRun {
     const { challenge, ...rest } = row;
@@ -349,6 +364,10 @@ export function prismaPublicRunStore(database: PrismaClient, clock:()=>Date=()=>
     async findRun(runKey) {
       const row = await database.publicRun.findUnique({ where: { runKey }, select });
       return row ? storedRow(row) : null;
+    },
+    async findRunsNear(gameEdition, instanceId, startedAt, windowSec) {
+      const rows = await database.publicRun.findMany({ where: { gameEdition, instanceId, startedAt: { gte: new Date(startedAt.getTime() - windowSec * 1000), lte: new Date(startedAt.getTime() + windowSec * 1000) } }, select, take: 20 });
+      return rows.map(storedRow);
     },
     async createRun(summary, uploader, source) {
       const { players, encounters, ...run } = summary;

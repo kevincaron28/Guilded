@@ -34,6 +34,7 @@ import { guildHealthCommand, executeGuildHealth } from "./guild-health.js";
 import { pollCommand } from "./poll.js";
 import { statsCommand, executeStats } from "./stats.js";
 import { bankCommand } from "./bank.js";
+import { deleteMyDataCommand } from "./delete-my-data.js";
 import { testRaidCommand, executeTestRaid } from "./testraid.js";
 import { craftCommand } from "./craft.js";
 import { setupCommand, executeSetup } from "./setup.js";
@@ -175,7 +176,7 @@ export const commands: AnyCommand[] = [
   wowCommand,
   setup, configCommand, helpCommand, character, raid, epgp, loot, dungeon, craftCommand,
   bankCommand, applyCommand, pollCommand, report, mod, coreCommand, tagCommand, importer,
-  community, ...(POE_TRACKING_ENABLED ? [poeCommand] : []), participationCommand, teamCommand, battlegroundCommand, automationCommand, lead, officer, organize
+  community, deleteMyDataCommand, ...(POE_TRACKING_ENABLED ? [poeCommand] : []), participationCommand, teamCommand, battlegroundCommand, automationCommand, lead, officer, organize
 ];
 
 // Commands whose every subcommand checks a leader role (Raid Leader for /lead, Officer or Guild

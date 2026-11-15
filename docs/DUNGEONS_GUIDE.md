@@ -88,8 +88,8 @@ The website has two views:
   seasonal scores and best runs. Personal-companion characters appear after a
   successful upload; party members are not automatically linked as your alts.
 - **Your connected devices** (signed in through the companion): the companion
-  connection, recruitment applications and your looking-for-guild card.
-  Application messages stay private.
+  connection and its sign-in. Recruitment applications and the looking-for-guild
+  card are on the website's recruitment pages.
 
 There is no way yet for a player to hide their profile: a profile is
 public while the guild publishes its runs, and a guild can stop publishing. Scores are computed

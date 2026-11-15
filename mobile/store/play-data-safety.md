@@ -42,8 +42,8 @@ permissions. Check the list Play shows for the uploaded bundle (App bundle explo
 | --- | --- |
 | Does your app collect or share any of the required user data types? | **Yes** |
 | Is all of the user data collected by your app encrypted in transit? | **Yes** (HTTPS only) |
-| Which ways can users request that their data is deleted? | **I provide a way for users to request deletion**. In the app: Me → Settings → **Delete my data** → **Delete everything**. It erases the account and its data on the server through the API and signs the phone out; no website visit is needed. On the web: https://guildedwow.com/docs/PRIVACY#choices-access-and-deletion (public, no sign-in needed to read it; it names the app, gives the steps and says what is deleted and what is kept). The website is retiring its account pages; if its public deletion page gets its own address, use that address here and in `DELETE_INFO_URL` (`mobile/src/links.ts`). |
-| Account creation | Users sign in with an account created outside the app (Discord, through the Guilded website). If Console asks for a "Delete account URL", use https://guildedwow.com/docs/PRIVACY#choices-access-and-deletion: Google wants a page anyone can read without signing in. |
+| Which ways can users request that their data is deleted? | **I provide a way for users to request deletion**. In the app: Me → Settings → **Delete my data** → **Delete everything**. It erases the account and its data on the server through the API and signs the phone out; no website visit is needed. On the web: https://guildedwow.com/delete-my-data/ (public, no sign-in needed to read it; it names the app, gives the steps and says what is deleted and what is kept). The website is retiring its account pages; if its public deletion page gets its own address, use that address here and in `DELETE_INFO_URL` (`mobile/src/links.ts`). |
+| Account creation | Users sign in with an account created outside the app (Discord, through the Guilded website). If Console asks for a "Delete account URL", use https://guildedwow.com/delete-my-data/: Google wants a page anyone can read without signing in. |
 
 **Data types.** Tick only these:
 

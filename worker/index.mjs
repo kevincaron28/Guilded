@@ -356,7 +356,7 @@ async function route(request, env, ctx) {
     if (!creator && (url.pathname === "/app" || url.pathname.startsWith("/app/"))) {
       if (!["GET", "HEAD"].includes(request.method)) return failure(405, "Method not allowed");
       const screen = url.pathname.replace(/^\/app\/?/, "").replace(/\/$/, "");
-      const targets = { ranks: "/leaderboards/", profile: "/me/", characters: "/me/", reserves: "/me/", wishlist: "/me/", raids: "/me/calendar", alerts: "/me/calendar", guild: "/me/", home: "/" };
+      const targets = { ranks: "/leaderboards/", profile: "/me/", characters: "/me/", reserves: "/", wishlist: "/", raids: "/leaderboards/", alerts: "/leaderboards/", guild: "/me/", home: "/" };
       const target = Object.hasOwn(targets, screen) ? targets[screen] : "/me/";
       const language = url.searchParams.get("lang");
       return new Response(null, { status: 302, headers: {

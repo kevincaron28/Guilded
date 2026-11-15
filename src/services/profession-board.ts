@@ -124,7 +124,7 @@ export function professionPostEmbed(post: ProfessionPost, lang: Lang, guildId = 
 **${t("Recipes", "Recettes")}** (${post.recipes.length}) — ${t("pick one below to request it or see its details", "choisissez-en une ci-dessous pour la demander ou voir ses détails")}
 ` : "";
   const more = omitted ? `
-${t(`…and ${omitted} more recipes. Search them with /craft who or on the Artisans' Gallery.`, `…et ${omitted} autres recettes. Cherchez-les avec /craft who ou dans la Galerie des artisans.`)}` : "";
+${t(`…and ${omitted} more recipes. Search them with /craft who.`, `…et ${omitted} autres recettes. Cherchez-les avec /craft who.`)}` : "";
   const empty = post.recipes.length ? "" : `
 
 ${t("No recipe recorded yet. Open this profession's window in game with Guilded to add yours.", "Aucune recette enregistrée. Ouvrez la fenêtre de ce métier en jeu avec Guilded pour ajouter les vôtres.")}`;

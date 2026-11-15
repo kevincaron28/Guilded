@@ -1,5 +1,16 @@
 [
   {
+    "source": "delete-my-data.md",
+    "sourceFr": "delete-my-data.fr.md",
+    "path": "delete-my-data/",
+    "title": "Delete my data",
+    "titleFr": "Supprimer mes données",
+    "description": "How to delete the data Guilded keeps about you: one Discord command, or ask the support community.",
+    "descriptionFr": "Comment supprimer les données que Guilded garde sur vous : une commande Discord, ou demandez à la communauté de soutien.",
+    "lang": "en",
+    "draft": false
+  },
+  {
     "source": "download.md",
     "sourceFr": "download.fr.md",
     "path": "download/",

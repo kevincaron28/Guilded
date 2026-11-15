@@ -12,8 +12,21 @@ export const LITE_COMMANDS: Record<string, null | Record<string, string[]>> = {
   dungeon: { group: [] },
   // Basic signups: no raid cores, weekly repeats, EP, attendance or seasons.
   raid: { "cancel-signup": [], status: [], roster: [] },
-  lead: { create: ["core", "weekly"], edit: [], cancel: [] }
+  lead: { create: ["core", "weekly"], edit: [], cancel: [] },
+  // Deleting one's own data must work in every server, whatever its tier.
+  "delete-my-data": null
 };
+
+/** Commands that run in every server, also a blocked one, and without the in-game guild's member role. */
+export const ALWAYS_ALLOWED_COMMANDS: readonly string[] = ["delete-my-data"];
+
+/** The tier gate for slash commands and their autocomplete: null lets the command run, otherwise which refusal applies. */
+export function tierDenial(tier: string, commandName: string, group: string | null, sub: string | null): "blocked" | "lite" | null {
+  if (ALWAYS_ALLOWED_COMMANDS.includes(commandName)) return null;
+  if (tier === "blocked") return "blocked";
+  if (tier === "lite" && !allowsLite(commandName, group, sub)) return "lite";
+  return null;
+}
 
 /** The Lite command set, ready for Discord's bulk-overwrite endpoint. */
 export function liteCommandJson(commands: Buildable[]): Json[] {

@@ -486,14 +486,21 @@ describe("sharing a run with other guilds (9.3.2)", () => {
   });
 });
 
-// 14 November 2026 (guild-only Discord): the guild's own import paths store a run only with a player of that guild in it.
+// 14 November 2026 (guild-only Discord): the guild's own import paths store a run only with a player of that guild in it, and read membership
+// generously (a roster that is empty or old, a rename and a recent leaver never make a guildmate's run a stranger's).
 describe("guild players only", () => {
   const strangers = ["Aaa Stranger", "Bbb Stranger", "Ccc Stranger", "Ddd Stranger", "Eee Stranger"].map((character) => ({ character, realm: "Forever", deaths: 0, presentSec: 1500, inGuild: false, level: 20, minLevel: 20 }));
   const options = { guildPlayersOnly: true };
+  const hour = 3_600_000;
+  const rosterOf = (tx: unknown, rows: { nameKey: string; inGuild?: boolean; observedAt?: Date; updatedAt?: Date }[]) => {
+    (tx as Record<string, unknown>)["guildRosterEntry"] = { findMany: async () => rows.map((row) => ({ inGuild: true, observedAt: new Date(now.getTime() - hour), updatedAt: new Date(now.getTime() - hour), ...row })) };
+  };
+  const guildmates = [{ nameKey: "kev" }, { nameKey: "bob" }];
 
-  it("a run of strangers only is not stored, scored or shared, whoever uploaded it; it is answered retry with no new text", async () => {
+  it("a run of strangers only is not stored, scored or shared by the guild lane; it is answered retry with no new text", async () => {
     const { tx, runs, points } = fakeTx();
-    const result = await importDungeonRuns(tx, "g1", [run("QG-STR", { players: strangers })], characters, "officer", null, now, options);
+    rosterOf(tx, guildmates);
+    const result = await importDungeonRuns(tx, "g1", [run("QG-STR", { players: strangers })], [], "officer", null, now, options);
     expect(runs).toEqual([]);
     expect(points).toEqual([]);
     expect(result.results).toEqual([]);
@@ -501,22 +508,57 @@ describe("guild players only", () => {
     expect(result.receipts).toEqual([{ runRef: "QG-STR", outcome: "retry", reason: "Not counted", runId: null }]);
   });
 
-  it("a mixed party is the guild's run: one linked guildmate is enough, the strangers are only the other participants", async () => {
+  it("a mixed party is the guild's run: one guildmate is enough, the strangers are only the other participants", async () => {
     const { tx, runs } = fakeTx();
+    rosterOf(tx, guildmates);
     const mixed = [...strangers.slice(0, 4), { ...strangers[0]!, character: "Kev" }];
-    await importDungeonRuns(tx, "g1", [run("QG-MIX", { players: mixed })], characters, "officer", null, now, options);
+    await importDungeonRuns(tx, "g1", [run("QG-MIX", { players: mixed })], [], "officer", null, now, options);
     expect(runs.map((stored) => stored.runRef)).toEqual(["QG-MIX"]);
   });
 
-  it("an unlinked guildmate (in the in-game roster only) makes the run the guild's", async () => {
+  it("an unlinked guildmate (roster only) makes the run the guild's; so does the uploader's own character", async () => {
     const { tx, runs } = fakeTx();
-    (tx as unknown as Record<string, unknown>)["guildRosterEntry"] = { findMany: async () => [{ nameKey: "aaa stranger" }] };
+    rosterOf(tx, [{ nameKey: "aaa stranger" }, { nameKey: "kev" }]);
     await importDungeonRuns(tx, "g1", [run("QG-UNL", { players: strangers })], [], "officer", null, now, options);
+    const own = fakeTx();
+    rosterOf(own.tx, guildmates);
+    await importDungeonRuns(own.tx, "g1", [run("QG-OWN", { players: strangers })], [{ name: "Aaa Stranger", realm: "Forever", memberId: "m-aaa" }], "officer", null, now, options);
     expect(runs.map((stored) => stored.runRef)).toEqual(["QG-UNL"]);
+    expect(own.runs.map((stored) => stored.runRef)).toEqual(["QG-OWN"]);
+  });
+
+  it("fails open on doubt: an empty roster or one not read for over 7 days does not judge anyone a stranger", async () => {
+    const empty = fakeTx();
+    rosterOf(empty.tx, []);
+    await importDungeonRuns(empty.tx, "g1", [run("QG-E", { players: strangers })], [], "officer", null, now, options);
+    expect(empty.runs).toHaveLength(1);
+    const stale = fakeTx();
+    rosterOf(stale.tx, guildmates.map((row) => ({ ...row, observedAt: new Date(now.getTime() - 8 * 24 * hour) })));
+    await importDungeonRuns(stale.tx, "g1", [run("QG-S", { players: strangers })], [], "officer", null, now, options);
+    expect(stale.runs).toHaveLength(1);
+    const unknown = fakeTx();
+    await importDungeonRuns(unknown.tx, "g1", [run("QG-U", { players: strangers })], [], "officer", null, now, options);
+    expect(unknown.runs).toHaveLength(1);
+  });
+
+  it("a member who left yesterday still counts for 14 days, a renamed character counts under the new name, someone gone for a month does not", async () => {
+    const left = fakeTx();
+    rosterOf(left.tx, [...guildmates, { nameKey: "aaa stranger", inGuild: false, updatedAt: new Date(now.getTime() - 24 * hour), observedAt: new Date(now.getTime() - 24 * hour) }]);
+    await importDungeonRuns(left.tx, "g1", [run("QG-L", { players: strangers })], [], "officer", null, now, options);
+    expect(left.runs).toHaveLength(1);
+    const renamed = fakeTx();
+    rosterOf(renamed.tx, [...guildmates, { nameKey: "aaa stranger" }]);
+    await importDungeonRuns(renamed.tx, "g1", [run("QG-R", { players: strangers })], [], "officer", null, now, options);
+    expect(renamed.runs).toHaveLength(1);
+    const gone = fakeTx();
+    rosterOf(gone.tx, [...guildmates, { nameKey: "aaa stranger", inGuild: false, updatedAt: new Date(now.getTime() - 30 * 24 * hour), observedAt: new Date(now.getTime() - 30 * 24 * hour) }]);
+    await importDungeonRuns(gone.tx, "g1", [run("QG-G", { players: strangers })], [], "officer", null, now, options);
+    expect(gone.runs).toHaveLength(0);
   });
 
   it("without the option nothing changes (other callers keep their behaviour)", async () => {
     const { tx, runs } = fakeTx();
+    rosterOf(tx, guildmates);
     await importDungeonRuns(tx, "g1", [run("QG-OLD", { players: strangers })], characters, "officer", null, now);
     expect(runs).toHaveLength(1);
   });

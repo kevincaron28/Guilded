@@ -6,7 +6,8 @@ import { firstNameKey, importDungeonRuns, receiptReason, RETRY_OUTCOME, saveRunR
 import { plausibilityFlags, type Anomaly, type NeighbourRun } from "./run-plausibility.js";
 import { challengeSecret, holdsRun, integrityConfig } from "./run-integrity-config.js";
 import { contradicts, issueChallenge, verifyBatch } from "./run-challenge.js";
-import { anchored, countsDeviceOnlyRuns, decide, EXPIRED_REASON, fingerprintOf, PENDING_REASON, independent, RUN_TRUST, sameRun, voucherOf, type RunFingerprint, type Statement } from "./run-trust.js";
+import { anchored, countsDeviceOnlyRuns, decide, fingerprintOf, independent, RUN_TRUST, sameRun, voucherOf, type RunFingerprint, type Statement } from "./run-trust.js";
+import { guildMembership, splitStrangerRuns, type GuildMembership } from "./guild-participants.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
 import { withEdition } from "./edition-context.js";
 import { gameEditionOf } from "./game-edition.js";
@@ -169,6 +170,8 @@ export interface DeviceStore {
    * (9.3.1) Runs of players outside this device's guild that reached its addon through a party or raid: the public boards' own
    * lane (the same checks as any public run). Returns the refs the server now holds.
    */
+  /** Who counts as a participant of this guild (guild-participants.ts); `own` is the uploading device's characters. */
+  membership?(guildId: string, own: ReadonlySet<string>, now: Date): Promise<GuildMembership>;
   publicRuns?(deviceId: string, runs: unknown[], now: Date, deviceKeys: ReadonlySet<string>, onPlaced?: (runs: unknown[]) => void): Promise<string[]>;
 }
 
@@ -313,14 +316,25 @@ async function handleDeviceUploadCore(store: DeviceStore, device: DeviceRow, bod
     const allowedGroup = split.group.slice(0, RUN_TRUST.relayedPerUpload);
     if (allowedGroup.length) carried.push(...await store.publicRuns(device.id, allowedGroup, now, known, options.afterShare ? (placed) => options.afterShare!({ guildId: null, deviceId: device.id, characterKeys: [...known], receivedAt: now }, placed) : undefined).catch(() => []));
   }
-  const carriedReceipts: DeviceRunReceipts | undefined = carried.length ? { acceptedRunRefs: carried, runNotes: {} } : undefined;
+  let carriedReceipts: DeviceRunReceipts | undefined = carried.length ? { acceptedRunRefs: carried, runNotes: {} } : undefined;
   if (!guild || "none" in decision) return { status: "no-guild", guild, ...(carriedReceipts ? { runReceipts: carriedReceipts } : {}) };
   if ("choose" in decision) return { status: "choose", guild, servers: decision.choose.map((candidate) => ({ discordId: candidate.discordId, name: candidate.serverName })), ...(carriedReceipts ? { runReceipts: carriedReceipts } : {}) };
   // T9: the guild was renamed in game. The roster sent this device to the right server; officers get the new name.
   if (!runsOnly && target?.viaRoster && store.noteAlias) await store.noteAlias(target.guildId, guild, now).catch(() => undefined);
   let runs: { received: number; stored: number; skipped: number; pending?: number } | undefined;
   let pending: Record<string, string> = {};
-  const guildRuns = split.rest;
+  // Guild-only Discord: a run with no player of this guild (and none of the device's own) is not the guild's. It goes to the public lane
+  // instead (ranked there like any single-report run), never to this guild's rows, cards, ranks or points.
+  let guildRuns = split.rest;
+  if (guildRuns.length && store.membership && store.publicRuns && target) {
+    const sorted = splitStrangerRuns(guildRuns, await store.membership(target.guildId, known, now));
+    guildRuns = sorted.guild;
+    if (sorted.strangers.length) {
+      console.info(`dungeon-run no-guild-player guild=${target.guildId.slice(-6)} count=${sorted.strangers.length}: sent to the public lane`);
+      carried.push(...await store.publicRuns(device.id, sorted.strangers.slice(0, RUN_TRUST.relayedPerUpload), now, known, options.afterShare ? (placed) => options.afterShare!({ guildId: null, deviceId: device.id, characterKeys: [...known], receivedAt: now }, placed) : undefined));
+    }
+  }
+  carriedReceipts = carried.length ? { acceptedRunRefs: carried, runNotes: {} } : undefined;
   if (guildRuns.length && store.importRuns && target) {
     const limiter = options.runLimiter ?? ((id: string) => deviceRunHits(id, now.getTime()));
     const allowed: unknown[] = [];
@@ -515,13 +529,7 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
       continue;
     }
     const others = await othersNear(print);
-    // A run another player's addon relayed (not the device's own character) counts here only with a player of THIS guild in it: a run of
-    // strangers waits (kept until it is too old), never stored on a second device's word or the Season 1 device-only allowance.
-    const strangers = standing.kind === "relay" && !anchored(raw, knownNames);
-    if (strangers) console.info(`dungeon-run no-guild-player guild=${guildId.slice(-6)} run=${ref.slice(0, 24)}`);
-    const decision = strangers
-      ? (statement.endedAt && nowSec - statement.endedAt > RUN_TRUST.maxAgeSec ? { expire: EXPIRED_REASON } : { wait: PENDING_REASON })
-      : decide(statement, others.map(statementOfRow), { anchored: anchored(raw, knownNames), storedToday, nowSec, allowDeviceOnly });
+    const decision = decide(statement, others.map(statementOfRow), { anchored: anchored(raw, knownNames), storedToday, nowSec, allowDeviceOnly });
     if ("expire" in decision) {
       await saveRunReceipts(tx, guildId, [{ runRef: ref, outcome: "refused", reason: decision.expire, runId: null }], now);
       await record(ref, raw, statement, { status: "expired", reason: decision.expire, decided: true });
@@ -665,6 +673,7 @@ export function prismaInstallStore(database: PrismaClient, serverName: (discordI
     guildCharacterCount: (guildId) => database.deviceCharacter.count({ where: { device: { guildId, claimedMemberId: null, revokedAt: null } } }),
     // Claimed devices stay (the member sees and revokes them on /me/connections); characters and waiting runs go with the device.
     expireIdle: async (before) => (await database.companionDevice.deleteMany({ where: { claimedMemberId: null, lastSeenAt: { lt: before } } })).count,
+    membership: (guildId, own, now) => guildMembership(database, guildId, now, own),
     async publicRuns(deviceId, runs, now, deviceKeys, onPlaced) {
       // The relay lane: only a participant's statement counts, the plausibility checks and a daily cap apply, no guild is claimed.
       return (await ingestRelayedRuns(prismaPublicRunStore(database), { carrier: deviceId, carrierKeys: deviceKeys, runs, now, ...(onPlaced ? { onPlaced } : {}) })).receipts;

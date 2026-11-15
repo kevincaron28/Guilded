@@ -84,3 +84,37 @@ describe("runs carried for players in the group", () => {
     expect(importRuns).not.toHaveBeenCalled();
   });
 });
+
+// Guild-only Discord (14 November 2026): a run with no player of the device's guild goes to the public lane, not the guild's.
+describe("runs of strangers reaching a guild's device lane", () => {
+  const strangers = (id: string, over: Record<string, unknown> = {}) => run(id, { viaGroup: undefined, reporterNames: ["Zed"], ...over });
+  const members = (names: string[], gate = true) => async () => ({ gate, names });
+
+  it("goes to the public lane and is receipted, and the guild lane gets only the guild's own run", async () => {
+    const { s, importRuns, publicRuns } = store();
+    s.membership = members(["kev", "bob"]);
+    const mine = run("QG-MINE", { viaGroup: undefined, players: ["Kev", "Zed"].map((character) => ({ character, realm: "Forever", deaths: 0, presentSec: 2700 })) });
+    const answer = await handleDeviceUpload(s, device, body([strangers("QG-STRANGERS"), mine]), { now });
+    expect(publicRuns).toHaveBeenCalledTimes(1);
+    expect((publicRuns.mock.calls[0]![1] as { id: string; viaGroup: boolean }[]).map((entry) => [entry.id, entry.viaGroup])).toEqual([["QG-STRANGERS", true]]);
+    expect((importRuns.mock.calls[0]![1] as { id: string }[]).map((entry) => entry.id)).toEqual(["QG-MINE"]);
+    expect((answer as { runReceipts?: { acceptedRunRefs: string[] } }).runReceipts?.acceptedRunRefs).toContain("QG-STRANGERS");
+  });
+
+  it("with no membership known (empty or old roster) the run stays with the guild lane as before", async () => {
+    const { s, importRuns, publicRuns } = store();
+    s.membership = members([], false);
+    await handleDeviceUpload(s, device, body([strangers("QG-DOUBT")]), { now });
+    expect(publicRuns).not.toHaveBeenCalled();
+    expect((importRuns.mock.calls[0]![1] as { id: string }[]).map((entry) => entry.id)).toEqual(["QG-DOUBT"]);
+  });
+
+  it("the device's own character counts as a participant", async () => {
+    const { s, importRuns, publicRuns } = store();
+    s.membership = async (_guildId, own) => ({ gate: true, names: [...own] });
+    const own = run("QG-OWNCHAR", { viaGroup: undefined, players: ["Kev", "Zed"].map((character) => ({ character, realm: "Forever", deaths: 0, presentSec: 2700 })) });
+    await handleDeviceUpload(s, device, body([own]), { now });
+    expect(publicRuns).not.toHaveBeenCalled();
+    expect(importRuns).toHaveBeenCalledTimes(1);
+  });
+});

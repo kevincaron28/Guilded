@@ -4,6 +4,7 @@ import type { AddonSnapshot } from "../integrations/addon.js";
 import { characterKey, foreverNameMatches } from "../../companion/character-identity.mjs";
 import { gameEditionOf } from "./game-edition.js";
 import { findCharacter } from "./character-match.js";
+import { clearGuildMembershipCache } from "./guild-participants.js";
 
 // What the game shows every member about the whole guild (8.5, docs/GUILD_DATA_INVENTORY.md):
 // the roster (level, class, rank, last online), the guild event log and the MOTD/info text.
@@ -207,6 +208,7 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
       const gone = stored.filter((row) => row.inGuild && !seenKeys.has(row.nameKey)).map((row) => row.id);
       if (gone.length) result.left = (await tx.guildRosterEntry.updateMany({ where: { id: { in: gone } }, data: { inGuild: false, observedAt } })).count;
     }
+    clearGuildMembershipCache(guildId);
     // One journal line per roster (counts only, no names) so the next slowdown is visible.
     console.info(`Guild roster applied: ${members.length} members, ${result.roster} roster rows changed, ${result.characters} characters, ${result.unclaimed} unlinked, `
       + `${stats.rowUpdates} single-row writes, ${stats.batches} batched writes, ${result.skippedOlder ? "older than stored, " : ""}${Date.now() - started} ms.`);

@@ -14,6 +14,8 @@ import { dungeonResetCutoff, predatesDungeonReset } from "./dungeon-reset.js";
 import type { Prisma } from "../generated/prisma/client.js";
 import { grantRunAchievements, type AchievementKey } from "./dungeon-achievements.js";
 import { findCharacter } from "./character-match.js";
+import { anchored } from "./run-trust.js";
+import { guildMembership } from "./guild-participants.js";
 import { deathMapOf, mergeRunCells, outlineFor } from "./dungeon-map-grid.js";
 import { cleanCharacterName, displayCharacterName } from "./character-display.js";
 export { cleanCharacterName };
@@ -307,14 +309,16 @@ export async function importDungeonRuns(
   characters: LinkedCharacter[],
   appliedBy: string,
   importId: string | null,
-  now = new Date()
+  now = new Date(),
+  /** `guildPlayersOnly`: a run needs a player of this guild (linked character or in-game roster) to be stored; the guild's own import paths set it. */
+  options: { guildPlayersOnly?: boolean } = {}
 ): Promise<DungeonImportSummary> {
   const summary: DungeonImportSummary = { results: [], duplicates: 0, malformed: 0, receipts: [] };
   // (9.3.1) Backstop: a run marked viaGroup reached the uploader only through a party or raid and belongs to the public boards' relay
   // lane, never to a guild. Every guild import path (signed upload, officer import, addon import) ends here, so none can store one.
   rawRuns = rawRuns.filter((raw) => (raw as { viaGroup?: unknown } | null)?.viaGroup !== true);
   if (rawRuns.length === 0) return summary;
-  await importRuns(tx, guildId, rawRuns, characters, appliedBy, importId, now, summary);
+  await importRuns(tx, guildId, rawRuns, characters, appliedBy, importId, now, summary, options.guildPlayersOnly === true);
   // Same transaction as the import: stored, copied and refused runs are all acknowledged.
   await saveRunReceipts(tx, guildId, summary.receipts ?? [], now);
   const completed = new Set(summary.results.filter((result) => result.valid && result.state === "COMPLETED").map((result) => result.runRef));
@@ -354,7 +358,7 @@ export function peerVouched(run: DungeonRunInput): boolean {
   return run.peerConfirmed === true || !!run.encounters?.some((encounter) => encounter.source === "peer");
 }
 
-async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], characters: LinkedCharacter[], appliedBy: string, importId: string | null, now: Date, summary: DungeonImportSummary): Promise<void> {
+async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], characters: LinkedCharacter[], appliedBy: string, importId: string | null, now: Date, summary: DungeonImportSummary, guildPlayersOnly: boolean): Promise<void> {
   const receipts = (summary.receipts ??= []);
   const cutoff = dungeonResetCutoff();
   const parsed = rawRuns.map((raw) => dungeonRunSchema.safeParse(raw));
@@ -387,6 +391,17 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
     })
     .sort((a, b) => (a.endedAt ?? a.startedAt ?? 0) - (b.endedAt ?? b.startedAt ?? 0));
   if (!sorted.length) return;
+  // A guild's runs have at least one player of that guild (a linked character or an in-game roster member). A run of strangers only is
+  // not stored, carded, ranked or paid here, whoever uploaded it; it is answered "retry" (kept three days, so a roster or link that
+  // arrives later still lets a real guild run in) and then refused. Simulations are exempt.
+  // Read generously (guild-participants.ts): a roster that is empty or old, a rename or a recent leaver never makes a guildmate's run a stranger's.
+  const membership = guildPlayersOnly ? await guildMembership(tx, guildId, now, characters.map((character) => character.name)) : null;
+  const outsiders = membership?.gate ? sorted.filter((run) => !run.id.startsWith("SIM-") && !anchored(run, membership.names)) : [];
+  if (outsiders.length) {
+    for (const run of outsiders) { logDungeonRun("no player of this guild", run); receipts.push({ runRef: run.id, outcome: RETRY_OUTCOME, reason: "Not counted", runId: null }); }
+    sorted.splice(0, sorted.length, ...sorted.filter((run) => !outsiders.includes(run)));
+    if (!sorted.length) return;
+  }
   const known = await knownRuns(tx, guildId, sorted);
   for (const receipt of known.values()) { receipts.push(receipt); summary.duplicates++; }
   const runs = sorted.filter((run) => !known.has(run.id));

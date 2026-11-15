@@ -115,6 +115,7 @@ import { exchangePersonalCode, isPersonalCode, issuePersonalCredential, personal
 import { claimDevice, DEVICE_FEATURES, DEVICE_LIMITS, networkKey, DeviceError, deviceFor, handleDeviceUpload, memberForCredential, pickServer, prismaInstallStore, registerDevice, windowLimiter } from "./services/companion-device.js";
 import { loadOfficialWindows } from "./services/official-seasons.js";
 import { companionSignInRoute, createCompanionSignIn } from "./services/companion-signin.js";
+import { guildMembership, splitStrangerRuns } from "./services/guild-participants.js";
 import { carrySignedGroupRuns } from "./services/relay-public.js";
 import { applyCarriedRecords, ownCarrierKeys } from "./services/carried-records.js";
 import { ingestPublicRuns, ownPlayersFilter, pickScoreCharacter, PUBLIC_LIMITS, prismaPublicRunStore, PublicUploadError } from "./services/public-runs.js";
@@ -1382,6 +1383,15 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // to the public boards' relay lane (relay-public.ts), with "group:" receipts so a later guildmate copy still reaches the guild.
       // The uploader's OWN characters only (database + exported character + alts), never the roster in snapshot.characters.
       const ownKeys = await ownCarrierKeys(prisma, { memberId: pairedMemberId, character: preview.snapshot.character, alts: preview.snapshot.alts });
+      // Guild-only Discord: a run with no player of this guild (and none of the uploader's own characters) is not the guild's. It is handed to the
+      // public relay lane below instead, never stored, carded, ranked or paid in this guild.
+      {
+        const sorted = splitStrangerRuns(preview.snapshot.dungeonRuns ?? [], await guildMembership(prisma, guild.id, new Date(), ownKeys));
+        if (sorted.strangers.length) {
+          console.info(`dungeon-run no-guild-player guild=${guild.id.slice(-6)} count=${sorted.strangers.length}: sent to the public lane`);
+          preview.snapshot.dungeonRuns = [...sorted.guild, ...sorted.strangers];
+        }
+      }
       await carrySignedGroupRuns(preview.snapshot, { carrier: `member:${access.memberId ?? access.actorId}`, ownKeys, store: publicRuns,
         onPlaced: (placed) => { void import("./services/cross-guild-post.js").then((module) => module.shareAndAnnounce(client, { guildId: null, characterKeys: [], receivedAt: new Date() }, placed)).catch(() => undefined); },
         saveReceipts: (refs) => prisma.$transaction((tx) => saveRunReceipts(tx, guild.id, refs.map((runRef) => ({ runRef, outcome: "stored" as const, reason: null, runId: null })), new Date())).then(() => undefined) });

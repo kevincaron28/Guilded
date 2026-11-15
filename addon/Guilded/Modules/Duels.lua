@@ -542,7 +542,9 @@ function duels.record(winner, loser, at, reason, extra)
   d.results[key] = row
   prune(d)
   if ns.syncNow and ns.syncNow.mark then pcall(ns.syncNow.mark) end
-  if ns.syncNow and ns.syncNow.noteResult then pcall(ns.syncNow.noteResult, "duel") end
+  -- Only this player's own duels (a duel heard from a guildmate is not theirs to send).
+  local mine = me()
+  if mine and (same(mine, winner) or same(mine, loser)) and ns.syncNow and ns.syncNow.noteResult then pcall(ns.syncNow.noteResult, "duel") end
   if ns.onDuelsChange then pcall(ns.onDuelsChange) end
   return true, key
 end

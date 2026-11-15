@@ -80,6 +80,50 @@ export async function readRecord(config) {
   try { return parseRecord(await readFile(path, "utf8")); } catch { return emptyRecord(); }
 }
 
+/**
+ * Reads the record for a change that will be written back. A missing file is an empty record (nothing was saved yet); any other failure (a lock
+ * by another program, a transient error, unreadable or corrupt text) is tried once more after a short wait and then reported as null, so a caller
+ * never writes over a record it could not read.
+ */
+export async function readRecordStrict(config, { retryMs = 150 } = {}) {
+  const path = recordPathFor(config);
+  if (!path) return emptyRecord();
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const text = await readFile(path, "utf8");
+      const value = JSON.parse(text);
+      if (!value || typeof value !== "object") throw new Error("not a record");
+      return parseRecord(text);
+    } catch (error) {
+      if (error?.code === "ENOENT") return emptyRecord();
+      if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, retryMs));
+    }
+  }
+  return null;
+}
+
+/**
+ * One change at a time to the record: each change is applied to the record read just before it, so a slower writer never puts back an older
+ * copy. `change(record)` returns the new record, or null to leave the file as it is. A record that cannot be read is left alone (one log line),
+ * and a failed write is logged. Resolves to what was written, or null.
+ */
+const noLog = (level, message) => { void level; void message; };
+export function createRecordUpdater({ onLog = noLog, retryMs = 150 } = {}) {
+  let tail = Promise.resolve();
+  return (config, change) => {
+    const run = tail.then(async () => {
+      const record = await readRecordStrict(config, { retryMs });
+      if (!record) { onLog("warn", "The parked-guild run record could not be read; it is left as it is and this change is skipped."); return null; }
+      const next = await change(record);
+      if (!next) return null;
+      if (!(await writeRecord(config, next))) { onLog("warn", "The parked-guild run record could not be saved; this change is lost until the next sync."); return null; }
+      return next;
+    });
+    tail = run.then(() => undefined, () => undefined);
+    return run;
+  };
+}
+
 export async function writeRecord(config, record) {
   const path = recordPathFor(config);
   if (!path) return false;

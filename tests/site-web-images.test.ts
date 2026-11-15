@@ -12,6 +12,7 @@ const FILES = [
   ...["home", "leaderboards", "dungeons", "duels", "players", "guilds", "community", "guide", "companion", "download"].map((n) => `../social/og-${n}.jpg`),
   ...["404-1200.webp", "404-800.webp"],
   ...["duel", "runs", "notfound", "search"].map((n) => `empty-${n}.webp`),
+  ...["addon", "companion", "discord"].map((n) => `step-${n}.webp`),
   ...["gold", "silver", "bronze"].map((n) => `medal-${n}.webp`),
 ];
 describe("website pictures", () => {
@@ -26,6 +27,7 @@ describe("website pictures", () => {
     const build = readFileSync("scripts/build-site.mjs", "utf8");
     for (const og of ["og-home.jpg", "og-download.jpg", "og-community.jpg", "og-guide.jpg", "og-companion.jpg"]) expect(build).toContain(og);
     expect(readFileSync("scripts/build-site.mjs", "utf8")).toContain("/images/web/404-1200.webp");
+    for (const f of ["download.md", "download.fr.md"]) expect(readFileSync(`site/pages/${f}`, "utf8")).toContain("/images/web/step-addon.webp");
     expect(readFileSync("site/pages/companion.md", "utf8")).toContain("companion-hero");
     const hub = readFileSync("src/services/leaderboard-hub.ts", "utf8");
     for (const key of ["season-banner-1600", "season-banner-800", "medal-", "header-${kind}"]) expect(hub).toContain(key);

@@ -133,6 +133,17 @@ Guilded est un outil créé par des fans. Il n'est ni affilié à Blizzard Enter
 
 ## Graphics
 
+**AI asset declaration (answered 15 November 2026, owner's decision).** When the listing is saved for review, Play asks
+"AI asset declaration: Regulations require that content that uses AI-generated assets be labeled under certain
+circumstances". The answer is **"Label assets as created or edited using AI"**, with **only the app icon** ticked: its
+badge art was made with an AI image tool (the wordmark is drawn in code, `scripts/build-app-icon.mjs`). The feature
+graphic is drawn in code (`feature-graphic.html`) and the screenshots are captures of the app, so they are not
+ticked. An earlier draft had the feature graphic and all seven screenshots ticked; that was corrected. Tick a new
+asset only if its picture comes from an AI image tool.
+
+On the listing page, **Save as draft** is not enough: the changes reach the Publishing overview only after **Next**
+(the review step with this declaration) and **Save**.
+
 | Asset | Play requirement | File |
 | --- | --- | --- |
 | App icon | 512 × 512 PNG, 32-bit | [`icon-512.png`](icon-512.png) (exported from `mobile/assets/icon.png`) |

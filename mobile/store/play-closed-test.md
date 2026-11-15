@@ -59,6 +59,21 @@ removes the Firebase messaging service and the `c2dm` permission from the merged
 `production-no-push`. It is not needed for the closed test: without the Firebase file the component does nothing. It
 would have to stay in the `production` (push) bundle.
 
+## Where the closed test stands (15 November 2026)
+
+- **Sent for review on 15 November 2026:** 16 changes, namely the release `0.3.0 (closed test)` with bundle version 7 on
+  "Closed testing - Alpha", all countries, the tester group, both store listings (en-CA and fr-CA) under the name
+  "Guild Sync Companion", the content rating, target audience, privacy policy, ads declaration, Data safety and the
+  category Entertainment.
+- **Testers:** managed by the Google Group `testers-community@googlegroups.com`, the address given in Testers
+  Community's signed-in guide "Start here: get your app tested" (step 2: under Google Groups, not Email lists).
+  Feedback address for testers: `support@guildedwow.com`.
+- **Managed publishing is off**, so the changes are published as soon as Google approves them.
+- **Links for testers:** web opt-in `https://play.google.com/apps/testing/top.kcaron.guilded`; Play page
+  `https://play.google.com/store/apps/details?id=top.kcaron.guilded`. Both work only once the review has passed and
+  only for members of the tester group.
+- **Not done, on purpose:** the Testers Community order (it spends the owner's credit; his own step, after approval).
+
 ## Target audience and content (recommended answers)
 
 | Form | Answer | Why |

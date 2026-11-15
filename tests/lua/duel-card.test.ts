@@ -594,6 +594,26 @@ describe("duels outside the guild, recorded for the upload", () => {
     expect(field(lua, 1, "r.side .. r.winnerLevel .. r.loserLevel .. r.winnerClass .. r.loserClass")).toBe("loser2360WarlockWarrior");
   });
 
+  it("takes the opponent's realm from their unit, never assuming it is mine", () => {
+    const lua = outsider();
+    lua.run(`UnitFullName = function(unit) if unit == "target" then return "Zed Outsider", "Other Realm" end return "Kev", nil end`);
+    say("Kev Caron has defeated Zed Outsider in a duel");
+    expect(field(lua, 1, "r.winnerRealm .. '/' .. r.loserRealm")).toBe("Mirage Raceway/OtherRealm");
+    lua.run("CLOCK = CLOCK + 300");
+    say("Zed Outsider has defeated Kev Caron in a duel");
+    expect(field(lua, 2, "r.winnerRealm .. '/' .. r.loserRealm")).toBe("OtherRealm/Mirage Raceway");
+  });
+
+  it("uses my realm for an opponent of my own realm (the game gives none), and ignores a damaged realm", () => {
+    const lua = outsider();
+    lua.run(`UnitFullName = function(unit) return "Zed Outsider", nil end`);
+    say("Kev Caron has defeated Zed Outsider in a duel");
+    expect(field(lua, 1, "r.loserRealm")).toBe("Mirage Raceway");
+    lua.run(`UnitFullName = function(unit) return "Zed Outsider", "Bad|Realm" end; CLOCK = CLOCK + 300`);
+    say("Kev Caron has defeated Zed Outsider in a duel");
+    expect(field(lua, 2, "r.loserRealm")).toBe("Mirage Raceway");
+  });
+
   it("without a challenge there is no chain, but the running number still counts up and is never reused", () => {
     const lua = outsider();
     lua.run(BIT);

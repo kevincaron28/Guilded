@@ -342,7 +342,18 @@ local function onRecordPart(sender, kind, key, index, total, part)
   local s = store()
   if not s then return end
   local id = kind .. ":" .. key
-  if s.records[id] or s.done[id] then return end
+  if s.done[id] then
+    -- The bot already holds it (this PC's companion uploaded it, or Carry.lua listed it): say so once, so a player who was offline when
+    -- the receipt first went out still learns it (a record offered again is how an author finds a carrier that has it done).
+    carry.receiptAnswered = carry.receiptAnswered or {}
+    local slotKey = sender .. "|" .. id
+    if index == 1 and not carry.receiptAnswered[slotKey] and quiet() then
+      carry.receiptAnswered[slotKey] = true
+      send("K|" .. id, "WHISPER", sender)
+    end
+    return
+  end
+  if s.records[id] then return end
   local slot = sender .. "|" .. id
   local assembly = carry.assemblies[slot]
   if not assembly then

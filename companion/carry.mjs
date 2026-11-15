@@ -39,6 +39,23 @@ export function receiptIdsOf(answer) {
   return list.filter((ref) => typeof ref === "string" && ref.startsWith(CARRY_RECEIPT_PREFIX)).map((ref) => ref.slice(CARRY_RECEIPT_PREFIX.length)).filter((id) => id.length <= 160);
 }
 
+/**
+ * One plain line for the activity list: what happened to the carried records an upload sent. null when none were sent.
+ * "Carried records: 2 sent, 2 accepted." A bot that refused the upload says why; a record the bot left unanswered (a kind it does not know) is counted apart.
+ * The wording is matched by the French window (companion-app/locales/fr.json): keep them in step.
+ */
+export function carryReport(sentRecords, body, { ok = true, error = "" } = {}) {
+  const list = Array.isArray(sentRecords) ? sentRecords : [];
+  if (!list.length) return null;
+  if (!ok) return { level: "warn", message: `Carried records: ${list.length} sent, not accepted (${String(error || "no reason given").slice(0, 160)}).` };
+  const answered = new Set(receiptIdsOf(body));
+  const accepted = list.filter((record) => answered.has(`${record?.kind}:${record?.key}`)).length;
+  const rest = list.length - accepted;
+  return rest > 0
+    ? { level: "info", message: `Carried records: ${list.length} sent, ${accepted} accepted, ${rest} not answered yet.` }
+    : { level: "ok", message: `Carried records: ${list.length} sent, ${accepted} accepted.` };
+}
+
 const carryPaths = (config) => {
   const standings = resolveStandingsPath(config);
   if (!standings) return [];

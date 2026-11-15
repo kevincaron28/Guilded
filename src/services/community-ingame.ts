@@ -11,19 +11,21 @@ import type { Standing } from "./community-rules.js";
 //
 // The old guild activity ladder's values and weekly bounds are kept as they were ("old units"); a divisor per source turns them into
 // community points so that game activity sits in the same range as Discord activity (owner choice 14 November 2026: divide by 3).
+// Rebalance, owner decision 15 November 2026 (docs/plans/COMMUNITY_SCORING_PROPOSAL_2026-11-14.md): dungeons divide by 5 and are
+// bounded at 500 raw per reset week (100 community points); duels cap 80, battlegrounds 150, open-world PvP 75 raw per week.
 
 // Server-side scoring configuration. Nothing here is shown to members: the board only says what kinds of play count. Defaults below
 // can be overridden for the whole bot with the optional environment variable COMMUNITY_INGAME_SCORING (a JSON object with any of
 // these keys); a value that does not parse is ignored and the defaults apply.
 const soft = (full: number, half: number) => z.object({ full: z.number().int().min(0).max(100).default(full), half: z.number().int().min(0).max(100).default(half) }).default({ full, half });
 const scoringSchema = z.object({
-  dungeons: z.object({ divisor: z.number().min(1).max(100).default(3) }).default({ divisor: 3 }),
-  duels: z.object({ divisor: z.number().min(1).max(100).default(3), win: z.number().min(0).default(5), loss: z.number().min(0).default(2), weekCap: z.number().min(0).default(100),
-    soft: soft(4, 4), rematchDays: z.number().min(0).max(60).default(7) }).default({ divisor: 3, win: 5, loss: 2, weekCap: 100, soft: { full: 4, half: 4 }, rematchDays: 7 }),
-  battlegrounds: z.object({ divisor: z.number().min(1).max(100).default(3), game: z.number().min(0).default(15), win: z.number().min(0).default(5), weekCap: z.number().min(0).default(300),
-    soft: soft(3, 3) }).default({ divisor: 3, game: 15, win: 5, weekCap: 300, soft: { full: 3, half: 3 } }),
-  worldPvp: z.object({ divisor: z.number().min(1).max(100).default(3), kill: z.number().min(0).default(5), defend: z.number().min(0).default(5), call: z.number().min(0).default(5), weekCap: z.number().min(0).default(125) })
-    .default({ divisor: 3, kill: 5, defend: 5, call: 5, weekCap: 125 })
+  dungeons: z.object({ divisor: z.number().min(1).max(100).default(5), weekCap: z.number().min(0).default(500) }).default({ divisor: 5, weekCap: 500 }),
+  duels: z.object({ divisor: z.number().min(1).max(100).default(3), win: z.number().min(0).default(5), loss: z.number().min(0).default(2), weekCap: z.number().min(0).default(80),
+    soft: soft(4, 4), rematchDays: z.number().min(0).max(60).default(7) }).default({ divisor: 3, win: 5, loss: 2, weekCap: 80, soft: { full: 4, half: 4 }, rematchDays: 7 }),
+  battlegrounds: z.object({ divisor: z.number().min(1).max(100).default(3), game: z.number().min(0).default(15), win: z.number().min(0).default(5), weekCap: z.number().min(0).default(150),
+    soft: soft(3, 3) }).default({ divisor: 3, game: 15, win: 5, weekCap: 150, soft: { full: 3, half: 3 } }),
+  worldPvp: z.object({ divisor: z.number().min(1).max(100).default(3), kill: z.number().min(0).default(5), defend: z.number().min(0).default(5), call: z.number().min(0).default(5), weekCap: z.number().min(0).default(75) })
+    .default({ divisor: 3, kill: 5, defend: 5, call: 5, weekCap: 75 })
 });
 export type InGameScoring = z.infer<typeof scoringSchema>;
 export const defaultScoring = (): InGameScoring => scoringSchema.parse({});
@@ -39,6 +41,8 @@ export function scoring(): InGameScoring {
 export const FALLBACK_DAYS = 28;
 
 export interface InGameEvent { memberId: string; win: boolean; at: Date; opponentId?: string }
+/** One dungeon ledger row: raw points and the moment they count (the run's end, else the row's own date). */
+export interface DungeonEvent { memberId: string; amount: number; at: Date }
 export interface InGameWorldWeek { memberId: string; weekKey: number; kills: number; defends: number; helped: number }
 /** Community points per source for one member (already divided and rounded). */
 export interface InGamePoints { dungeons: number; pvp: number; total: number }
@@ -77,6 +81,15 @@ export function cappedPoints(events: readonly InGameEvent[], win: number, other:
   return totals;
 }
 
+/** Pure: old-unit dungeon points per member: each reset week is summed then bounded by `weekCap`, and the weeks are added. */
+export function dungeonWeekPoints(events: readonly DungeonEvent[], weekCap = scoring().dungeons.weekCap): Map<string, number> {
+  const weekly = new Map<string, number>();
+  for (const event of events) { const key = `${event.memberId}|${weekKey(event.at)}`; weekly.set(key, (weekly.get(key) ?? 0) + event.amount); }
+  const totals = new Map<string, number>();
+  for (const [key, sum] of weekly) { const memberId = key.split("|")[0]!; totals.set(memberId, (totals.get(memberId) ?? 0) + Math.min(weekCap, sum)); }
+  return totals;
+}
+
 /** Pure: old-unit open-world PvP points per member, bounded per member per reset week (kills, defends and calls; deaths score nothing). */
 export function worldPvpPoints(weeks: readonly InGameWorldWeek[], config = scoring().worldPvp): Map<string, number> {
   const totals = new Map<string, number>();
@@ -88,14 +101,16 @@ export function worldPvpPoints(weeks: readonly InGameWorldWeek[], config = scori
 }
 
 /** Pure: community points per member id (dungeons, and PvP = battlegrounds + duels + open world), members with nothing left out. */
-export function inGamePoints(input: { dungeons: ReadonlyMap<string, number>; duels: readonly InGameEvent[]; battlegrounds: readonly InGameEvent[]; worldWeeks: readonly InGameWorldWeek[] }, config = scoring()): Map<string, InGamePoints> {
+export function inGamePoints(input: { dungeons: ReadonlyMap<string, number> | readonly DungeonEvent[]; duels: readonly InGameEvent[]; battlegrounds: readonly InGameEvent[]; worldWeeks: readonly InGameWorldWeek[] }, config = scoring()): Map<string, InGamePoints> {
   const duels = cappedPoints(input.duels, config.duels.win, config.duels.loss, config.duels.weekCap, { soft: config.duels.soft, rematchDays: config.duels.rematchDays });
   const battlegrounds = cappedPoints(input.battlegrounds, config.battlegrounds.game + config.battlegrounds.win, config.battlegrounds.game, config.battlegrounds.weekCap, { soft: config.battlegrounds.soft });
   const world = worldPvpPoints(input.worldWeeks, config.worldPvp);
-  const ids = new Set([...input.dungeons.keys(), ...duels.keys(), ...battlegrounds.keys(), ...world.keys()]);
+  // A plain map is a member total taken as is; dated rows are bounded per reset week first.
+  const dungeonTotals = input.dungeons instanceof Map ? input.dungeons : dungeonWeekPoints(input.dungeons as readonly DungeonEvent[], config.dungeons.weekCap);
+  const ids = new Set([...dungeonTotals.keys(), ...duels.keys(), ...battlegrounds.keys(), ...world.keys()]);
   const out = new Map<string, InGamePoints>();
   for (const id of ids) {
-    const dungeons = share(Math.max(0, input.dungeons.get(id) ?? 0), config.dungeons.divisor);
+    const dungeons = share(Math.max(0, dungeonTotals.get(id) ?? 0), config.dungeons.divisor);
     const pvp = share(duels.get(id) ?? 0, config.duels.divisor) + share(battlegrounds.get(id) ?? 0, config.battlegrounds.divisor) + share(world.get(id) ?? 0, config.worldPvp.divisor);
     if (dungeons + pvp > 0) out.set(id, { dungeons, pvp, total: dungeons + pvp });
   }
@@ -134,8 +149,8 @@ export async function loadInGamePoints(db: Db, guildId: string, since: Date, unt
   const active = { guildId, status: "ACTIVE" as const };
   const range = { gte: since, lte: until };
   const [points, duels, bgs, worldRows] = await Promise.all([
-    db.dungeonPointTransaction.groupBy({ by: ["memberId"], _sum: { amount: true },
-      where: { guildId, member: active, OR: [{ run: { endedAt: range } }, { runId: null, createdAt: range }] } }),
+    db.dungeonPointTransaction.findMany({ where: { guildId, member: active, OR: [{ run: { endedAt: range } }, { runId: null, createdAt: range }] }, take: 200_000,
+      orderBy: { createdAt: "desc" }, select: { memberId: true, amount: true, createdAt: true, run: { select: { endedAt: true } } } }),
     db.duelResult.findMany({ where: { guildId, gameEdition: edition, counted: true, archived: false, endedAt: range }, take: 20_000, orderBy: { endedAt: "desc" },
       select: { winnerId: true, loserId: true, endedAt: true, winner: { select: { status: true } }, loser: { select: { status: true } } } }),
     db.battlegroundReport.findMany({ where: { guildId, gameEdition: edition, status: "PROVISIONAL", endedAt: range, member: active }, take: 20_000, orderBy: { endedAt: "desc" },
@@ -150,7 +165,7 @@ export async function loadInGamePoints(db: Db, guildId: string, since: Date, unt
   // A week that overlaps the window counts (a season that starts mid-week includes that week's open-world play).
   const worldWeeks = worldRows.filter(row => weekRange(row.weekKey).to > since);
   const byMember = inGamePoints({
-    dungeons: new Map(points.map(row => [row.memberId, row._sum?.amount ?? 0] as const)), duels: duelEvents, battlegrounds: bgEvents, worldWeeks });
+    dungeons: points.map(row => ({ memberId: row.memberId, amount: row.amount, at: row.run?.endedAt ?? row.createdAt })), duels: duelEvents, battlegrounds: bgEvents, worldWeeks });
   if (!byMember.size) return new Map();
   const members = await db.member.findMany({ where: { guildId, id: { in: [...byMember.keys()] } }, select: { id: true, discordUserId: true } });
   const byUser = new Map<string, InGamePoints>();

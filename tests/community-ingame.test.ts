@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { ChannelType } from "discord.js";
-import { boardWindow, breakdownOf, cappedPoints, clearInGameCache, defaultScoring, inGamePoints, loadInGamePoints, mergeStandings, scoring, seasonInGamePoints, worldPvpPoints } from "../src/services/community-ingame.js";
+import { boardWindow, breakdownOf, cappedPoints, clearInGameCache, defaultScoring, dungeonWeekPoints, inGamePoints, loadInGamePoints, mergeStandings, scoring, seasonInGamePoints, worldPvpPoints } from "../src/services/community-ingame.js";
 import { communityBoardCard, communityLeaderboardCard, COMMUNITY_BOARD_MARKER, updateCommunityLeaderboard } from "../src/services/community-leaderboard.js";
 import { splitSuffix } from "../src/services/community-ranking-display.js";
 import { retiredActivityNotice } from "../src/services/activity-retire.js";
@@ -10,10 +10,36 @@ const monday = new Date("2026-11-09T12:00:00Z"); // inside the reset week that b
 const ev = (memberId: string, win: boolean, at = monday) => ({ memberId, win, at });
 
 describe("in-game points of the community board", () => {
-  it("defaults to dividing by three on every source, from server-side config", () => {
+  it("defaults to the 15 November rebalance (dungeons /5 with a 500 weekly bound, PvP /3 with tighter weekly bounds), from server-side config", () => {
     const config = defaultScoring();
-    expect([config.dungeons.divisor, config.duels.divisor, config.battlegrounds.divisor, config.worldPvp.divisor]).toEqual([3, 3, 3, 3]);
+    expect([config.dungeons.divisor, config.duels.divisor, config.battlegrounds.divisor, config.worldPvp.divisor]).toEqual([5, 3, 3, 3]);
+    expect([config.dungeons.weekCap, config.duels.weekCap, config.battlegrounds.weekCap, config.worldPvp.weekCap]).toEqual([500, 80, 150, 75]);
     expect(scoring()).toEqual(config);
+  });
+
+  it("twelve distinct dungeons in one week score exactly 100 community points", () => {
+    const runs = Array.from({ length: 12 }, (_, i) => ({ memberId: "m", amount: 75, at: new Date(monday.getTime() + i * 3_600_000) })); // 900 raw
+    expect(dungeonWeekPoints(runs).get("m")).toBe(500);
+    expect(inGamePoints({ dungeons: runs, duels: [], battlegrounds: [], worldWeeks: [] }).get("m")).toEqual({ dungeons: 100, pvp: 0, total: 100 });
+  });
+
+  it("bounds dungeon points per reset week, then sums the weeks", () => {
+    const next = new Date(monday.getTime() + 7 * 86_400_000);
+    const week = (at: Date) => Array.from({ length: 8 }, () => ({ memberId: "m", amount: 100, at })); // 800 raw a week
+    expect(inGamePoints({ dungeons: [...week(monday), ...week(next)], duels: [], battlegrounds: [], worldWeeks: [] }).get("m")!.dungeons).toBe(200);
+    // a quiet week is not topped up by a busy one: 300 + 500 (capped from 800) = 800 raw = 160
+    const quiet = [{ memberId: "m", amount: 300, at: monday }, ...week(next)];
+    expect(inGamePoints({ dungeons: quiet, duels: [], battlegrounds: [], worldWeeks: [] }).get("m")!.dungeons).toBe(160);
+  });
+
+  it("lets COMMUNITY_INGAME_SCORING override the new dungeon bound", async () => {
+    vi.resetModules();
+    process.env["COMMUNITY_INGAME_SCORING"] = JSON.stringify({ dungeons: { weekCap: 250 } });
+    try {
+      const fresh = await import("../src/services/community-ingame.js");
+      expect(fresh.scoring().dungeons).toEqual({ divisor: 5, weekCap: 250 });
+      expect(fresh.scoring().duels.weekCap).toBe(80);
+    } finally { delete process.env["COMMUNITY_INGAME_SCORING"]; vi.resetModules(); }
   });
 
   it("bounds a reset week, and the bound renews with the next week", () => {
@@ -21,7 +47,7 @@ describe("in-game points of the community board", () => {
     expect(cappedPoints(wins, 5, 2, 100).get("m")).toBe(100);
     const next = new Date(monday.getTime() + 7 * 86_400_000);
     expect(cappedPoints([...wins, ...wins.map(w => ({ ...w, at: next }))], 5, 2, 100).get("m")).toBe(200);
-    expect(worldPvpPoints([{ memberId: "m", weekKey: 1, kills: 30, defends: 8, helped: 5 }]).get("m")).toBe(125);
+    expect(worldPvpPoints([{ memberId: "m", weekKey: 1, kills: 30, defends: 8, helped: 5 }]).get("m")).toBe(75);
   });
 
   it("counts later actions of the same day for less (full, then half, then a quarter)", () => {
@@ -40,16 +66,16 @@ describe("in-game points of the community board", () => {
     expect(cappedPoints([duel("x", 0), duel("x", 8)], 5, 2, 1000, { rematchDays: 7 }).get("m")).toBe(10);
   });
 
-  it("scores a raider's month on the divide-by-three scale (dungeons 340 -> 113, PvP 9 + 28 + 42 = 79)", () => {
+  it("scores a raider's month on the divide-by-three scale (dungeons 340 -> 68, PvP 9 + 28 + 25 = 62; the world week is bounded at 75)", () => {
     const all = inGamePoints({
-      dungeons: new Map([["m", 340]]),
+      dungeons: new Map([["m", 340]]), // a plain member total is taken as is
       duels: [...Array.from({ length: 6 }, () => ev("m", true)), ...Array.from({ length: 4 }, () => ev("m", false))],
       battlegrounds: [...Array.from({ length: 4 }, () => ev("m", true)), ...Array.from({ length: 2 }, () => ev("m", false))],
       worldWeeks: [{ memberId: "m", weekKey: 1, kills: 30, defends: 8, helped: 5 }]
     });
-    expect(all.get("m")).toEqual({ dungeons: 113, pvp: 79, total: 192 });
+    expect(all.get("m")).toEqual({ dungeons: 68, pvp: 62, total: 130 });
     const [row] = mergeStandings([{ userId: "u", points: 180, balance: 40 }], new Map([["u", all.get("m")!]]));
-    expect(row).toMatchObject({ points: 372, balance: 40, discord: 180, dungeons: 113, pvp: 79 });
+    expect(row).toMatchObject({ points: 310, balance: 40, discord: 180, dungeons: 68, pvp: 62 });
   });
 
   it("never raises the spendable balance and ranks by the merged total", () => {
@@ -72,31 +98,32 @@ describe("in-game points of the community board", () => {
   it("loads per Discord user, summing members that share one account", async () => {
     const db = {
       guild: { findUnique: vi.fn(async () => ({ gameEdition: "forever" })) },
-      dungeonPointTransaction: { groupBy: vi.fn(async () => [{ memberId: "m1", _sum: { amount: 100 } }, { memberId: "m2", _sum: { amount: 50 } }]) },
+      dungeonPointTransaction: { findMany: vi.fn(async () => [{ memberId: "m1", amount: 100, createdAt: new Date("2026-11-09T00:00:00Z"), run: null }, { memberId: "m2", amount: 50, createdAt: new Date("2026-11-09T00:00:00Z"), run: null }]) },
       duelResult: { findMany: vi.fn(async () => []) }, battlegroundReport: { findMany: vi.fn(async () => []) }, worldPvpWeek: { findMany: vi.fn(async () => []) },
       member: { findMany: vi.fn(async () => [{ id: "m1", discordUserId: "u" }, { id: "m2", discordUserId: "u" }]) }
     };
     const loaded = await loadInGamePoints(db as never, "g", new Date("2026-11-01T00:00:00Z"), new Date("2026-11-14T00:00:00Z"));
-    expect(loaded.get("u")).toEqual({ dungeons: 50, pvp: 0, total: 50 });
+    expect(loaded.get("u")).toEqual({ dungeons: 30, pvp: 0, total: 30 });
+    expect(db.dungeonPointTransaction.findMany).toHaveBeenCalledTimes(1);
   });
 
   it("is isolated per guild: every read is scoped to the guild id and the cache never crosses guilds", async () => {
     clearInGameCache();
     const mk = (amount: number) => ({
       guild: { findUnique: vi.fn(async () => ({ gameEdition: "forever" })) },
-      dungeonPointTransaction: { groupBy: vi.fn(async (args: unknown) => { void args; return [{ memberId: "m", _sum: { amount } }]; }) },
+      dungeonPointTransaction: { findMany: vi.fn(async (args: unknown) => { void args; return [{ memberId: "m", amount, createdAt: new Date("2026-11-09T00:00:00Z"), run: null }]; }) },
       duelResult: { findMany: vi.fn(async () => []) }, battlegroundReport: { findMany: vi.fn(async () => []) }, worldPvpWeek: { findMany: vi.fn(async () => []) },
       member: { findMany: vi.fn(async (args: unknown) => { void args; return [{ id: "m", discordUserId: "u" }]; }) }
     });
     const a = mk(300), b = mk(30), season = { createdAt: new Date("2026-11-01T00:00:00Z"), endedAt: null, status: "ACTIVE" }, now = new Date("2026-11-14T00:00:00Z");
-    expect((await seasonInGamePoints(a as never, "guildA", season, now)).get("u")!.dungeons).toBe(100);
-    expect((await seasonInGamePoints(b as never, "guildB", season, now)).get("u")!.dungeons).toBe(10);
-    expect(a.dungeonPointTransaction.groupBy.mock.calls[0]![0]).toMatchObject({ where: { guildId: "guildA" } });
-    expect(b.dungeonPointTransaction.groupBy.mock.calls[0]![0]).toMatchObject({ where: { guildId: "guildB" } });
+    expect((await seasonInGamePoints(a as never, "guildA", season, now)).get("u")!.dungeons).toBe(60);
+    expect((await seasonInGamePoints(b as never, "guildB", season, now)).get("u")!.dungeons).toBe(6);
+    expect(a.dungeonPointTransaction.findMany.mock.calls[0]![0]).toMatchObject({ where: { guildId: "guildA" } });
+    expect(b.dungeonPointTransaction.findMany.mock.calls[0]![0]).toMatchObject({ where: { guildId: "guildB" } });
     expect(a.member.findMany.mock.calls[0]![0]).toMatchObject({ where: { guildId: "guildA" } });
     // a burst of reads for one live window hits the database once
     await seasonInGamePoints(a as never, "guildA", season, now);
-    expect(a.dungeonPointTransaction.groupBy).toHaveBeenCalledTimes(1);
+    expect(a.dungeonPointTransaction.findMany).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -137,7 +164,7 @@ describe("the live board with in-game points", () => {
       guild: { findUnique: vi.fn(async () => ({ id: "record", gameEdition: "forever", settings: { language: "en" } })) },
       communitySeason: { findFirst: vi.fn(async () => ({ id: "season", name: "Season 1", status: "ACTIVE", createdAt: new Date("2026-11-01T00:00:00Z"), endedAt: null })) },
       communityPoint: { findMany: vi.fn(async () => [{ userId: "u", amount: 50, kind: "AWARD" }]) },
-      dungeonPointTransaction: { groupBy: vi.fn(async () => [{ memberId: "m", _sum: { amount: 250 } }]) },
+      dungeonPointTransaction: { findMany: vi.fn(async () => [{ memberId: "m", amount: 250, createdAt: new Date("2026-11-09T00:00:00Z"), run: null }]) },
       duelResult: { findMany: vi.fn(async () => []) }, battlegroundReport: { findMany: vi.fn(async () => []) }, worldPvpWeek: { findMany: vi.fn(async () => []) },
       member: { findMany: vi.fn(async () => [{ id: "m", discordUserId: "u", displayName: "Kev" }]) },
       ladderSnapshot: { findFirst: vi.fn(async () => null), upsert: vi.fn(async () => ({})), deleteMany: vi.fn(async () => ({})) }
@@ -148,11 +175,11 @@ describe("the live board with in-game points", () => {
     };
     return { database, rest, message };
   }
-  it("posts the painted card with the merged total (50 Discord + 250/3 dungeons = 133)", async () => {
+  it("posts the painted card with the merged total (50 Discord + 250/5 dungeons = 100)", async () => {
     const { database, rest } = fixture(false);
     await updateCommunityLeaderboard(rest as never, database as never, "guild", "bot");
     const [, options] = rest.post.mock.calls[0] as unknown as [string, { body: { embeds: { fields: { value: string }[] }[]; attachments: { filename: string }[] }; files: { name: string; data: Buffer }[] }];
-    expect(options.body.embeds[0]!.fields[0]!.value).toContain("**133 pts** · 💬 50 · 🏰 83 · ⚔️ 0");
+    expect(options.body.embeds[0]!.fields[0]!.value).toContain("**100 pts** · 💬 50 · 🏰 50 · ⚔️ 0");
     expect(options.files).toHaveLength(1);
     expect(options.files[0]!.name).toMatch(/^community-board-[0-9a-f]{12}\.png$/);
     expect(options.body.attachments[0]!.filename).toBe(options.files[0]!.name);
@@ -171,7 +198,7 @@ describe("the live board with in-game points", () => {
   }, 60_000);
   it("falls back to the Discord points when the in-game read fails", async () => {
     const { database, rest } = fixture(false);
-    database.dungeonPointTransaction.groupBy.mockRejectedValue(new Error("down"));
+    database.dungeonPointTransaction.findMany.mockRejectedValue(new Error("down"));
     vi.spyOn(console, "error").mockImplementation(() => {});
     await updateCommunityLeaderboard(rest as never, database as never, "guild", "bot");
     const options = rest.post.mock.calls[0]![1] as unknown as { body: { embeds: { fields: { value: string }[] }[] } };
@@ -190,7 +217,7 @@ describe("season end", () => {
       communityPoint: { findMany: vi.fn(async () => [{ userId: "u", amount: 50, kind: "AWARD" }]) }
     };
     const read = { guild: { findUnique: vi.fn(async () => { order.push("read"); if (failRead) throw new Error("down"); return { gameEdition: "forever" }; }) },
-      dungeonPointTransaction: { groupBy: vi.fn(async () => [{ memberId: "m", _sum: { amount: 300 } }]) },
+      dungeonPointTransaction: { findMany: vi.fn(async () => [{ memberId: "m", amount: 300, createdAt: new Date("2026-11-09T00:00:00Z"), run: null }]) },
       duelResult: { findMany: vi.fn(async () => []) }, battlegroundReport: { findMany: vi.fn(async () => []) }, worldPvpWeek: { findMany: vi.fn(async () => []) },
       member: { findMany: vi.fn(async () => [{ id: "m", discordUserId: "u" }]) } };
     const database = { ...tx, ...read, $transaction: <T>(work: (t: typeof tx) => Promise<T>) => { order.push("transaction"); return work(tx); } };
@@ -202,11 +229,37 @@ describe("season end", () => {
   it("archives the merged standings, reading the in-game points before the transaction opens", async () => {
     const { order, season } = await run(false);
     expect(order.indexOf("read")).toBeLessThan(order.indexOf("transaction"));
-    expect(season["finalStandings"]).toEqual([{ userId: "u", points: 150, balance: 50, discord: 50, dungeons: 100, pvp: 0 }]);
+    expect(season["finalStandings"]).toEqual([{ userId: "u", points: 110, balance: 50, discord: 50, dungeons: 60, pvp: 0 }]);
   });
   it("keeps the Discord points alone when the in-game read fails, and still ends the season", async () => {
     const { season } = await run(true);
     expect(season["status"]).toBe("ENDED");
     expect(season["finalStandings"]).toEqual([{ userId: "u", points: 50, balance: 50 }]);
   });
+});
+
+describe("closed seasons are untouched by the scoring", () => {
+  it("a closed season's board and archive read its frozen standings, never a rescore", async () => {
+    const frozen = [{ userId: "u", points: 133, balance: 50, discord: 50, dungeons: 83, pvp: 0 }];
+    const category = { id: "category", name: "Communauté", type: ChannelType.GuildCategory, permission_overwrites: [] };
+    const channel = { id: "channel", parent_id: "category", name: "classement", type: ChannelType.GuildText, permission_overwrites: [] };
+    const message = { id: "message", author: { id: "bot" }, embeds: [] as unknown[], components: [] as unknown[], attachments: [] as { filename: string }[] };
+    const database = {
+      guild: { findUnique: vi.fn(async () => ({ id: "record", gameEdition: "forever", settings: { language: "en" } })) },
+      communitySeason: { findFirst: vi.fn(async () => ({ id: "s0", name: "Season 0", status: "ENDED", createdAt: new Date("2026-10-01T00:00:00Z"), endedAt: new Date("2026-10-31T00:00:00Z"), finalStandings: frozen })) },
+      communityPoint: { findMany: vi.fn(async () => []) },
+      dungeonPointTransaction: { findMany: vi.fn(async () => [{ memberId: "m", amount: 5000, createdAt: new Date("2026-10-10T00:00:00Z"), run: null }]) },
+      duelResult: { findMany: vi.fn(async () => []) }, battlegroundReport: { findMany: vi.fn(async () => []) }, worldPvpWeek: { findMany: vi.fn(async () => []) },
+      member: { findMany: vi.fn(async () => [{ id: "m", discordUserId: "u", displayName: "Kev" }]) },
+      ladderSnapshot: { findFirst: vi.fn(async () => null), upsert: vi.fn(async () => ({})), deleteMany: vi.fn(async () => ({})) }
+    };
+    const rest = {
+      get: vi.fn(async (route: string) => route.includes("/pins") ? { items: [] } : route.includes("/messages") ? [] : [category, channel]),
+      patch: vi.fn(async () => message), post: vi.fn(async (route: string, options?: unknown) => { void route; void options; return message; }), put: vi.fn(async () => {}), delete: vi.fn(async () => {})
+    };
+    await updateCommunityLeaderboard(rest as never, database as never, "guild", "bot");
+    const options = rest.post.mock.calls[0]![1] as unknown as { body: { embeds: { fields: { value: string }[] }[] } };
+    expect(options.body.embeds[0]!.fields[0]!.value).toContain("**133 pts** · 💬 50 · 🏰 83 · ⚔️ 0");
+    expect(database.dungeonPointTransaction.findMany).not.toHaveBeenCalled();
+  }, 60_000);
 });

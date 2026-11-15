@@ -58,14 +58,18 @@ async function writeBackup(database: PrismaClient, now: Date, dir: string, keep:
   if (existing.includes(file) && await isCompleteBackup(target)) return null;
 
   const temporary = join(dir, `.${file}.${randomUUID()}.tmp`);
+  // Kept outside the try so a failed backup can close them before its temporary file is removed.
+  let gzip: ReturnType<typeof createGzip> | undefined, sink: ReturnType<typeof createWriteStream> | undefined;
   try {
     // Stream table by table into the gzip file: only one table is in memory at a time. Same file format
     // as before ({"createdAt":..., "tables": {Model: [rows], ...}}).
-    const gzip = createGzip();
-    const sink = createWriteStream(temporary, { flags: "wx", mode: 0o600 });
+    gzip = createGzip();
+    sink = createWriteStream(temporary, { flags: "wx", mode: 0o600 });
     const done = pipeline(gzip, sink);
+    // A failed backup destroys the streams below; that rejection is expected and must not crash the process.
+    done.catch(() => undefined);
     const write = (chunk: string) => new Promise<void>((resolve, reject) => {
-      if (gzip.write(chunk, (error) => { if (error) reject(error); })) resolve(); else gzip.once("drain", resolve);
+      if (gzip!.write(chunk, (error) => { if (error) reject(error); })) resolve(); else gzip!.once("drain", resolve);
     });
     // One database snapshot: concurrent imports cannot leave parent/child tables out of step.
     const rows = await database.$transaction(async transaction => {
@@ -89,7 +93,13 @@ async function writeBackup(database: PrismaClient, now: Date, dir: string, keep:
     await rename(temporary, target);
     for (const old of backupsToDelete([...new Set([...existing, file])], keep)) await rm(join(dir, old), { force: true });
     return { file, rows };
-  } finally { await rm(temporary, { force: true }); }
+  } finally {
+    // The write stream opens its file asynchronously: removing the temporary file before the stream has closed can
+    // leave it behind (or recreate it), so a failed backup left a partial .tmp file in the folder.
+    gzip?.destroy();
+    if (sink && !sink.closed) { const closing = sink; await new Promise<void>((resolve) => { closing.once("close", () => resolve()); closing.destroy(); }); }
+    await rm(temporary, { force: true });
+  }
 }
 
 // AddonImport holds raw companion uploads and was ~97% of the backup's JSON (9 Nov 2026). Restoring a

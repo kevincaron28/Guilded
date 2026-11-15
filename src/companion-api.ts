@@ -116,7 +116,7 @@ import { claimDevice, DEVICE_FEATURES, DEVICE_LIMITS, networkKey, DeviceError, d
 import { loadOfficialWindows } from "./services/official-seasons.js";
 import { companionSignInRoute, createCompanionSignIn } from "./services/companion-signin.js";
 import { carrySignedGroupRuns } from "./services/relay-public.js";
-import { applyCarriedRecords } from "./services/carried-records.js";
+import { applyCarriedRecords, ownCarrierKeys } from "./services/carried-records.js";
 import { ingestPublicRuns, ownPlayersFilter, pickScoreCharacter, PUBLIC_LIMITS, prismaPublicRunStore, PublicUploadError } from "./services/public-runs.js";
 import { publicAddonBoard } from "./services/public-addon-board.js";
 import { publicSeasons } from "./services/public-score.js";
@@ -1386,7 +1386,9 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // (9.3.2) Records the uploader's addon carried for players near it: applied by each kind's own code, answered by key.
       const carriedRecords = preview.snapshot.carriedRecords ?? [];
       const carriedAnswer = carriedRecords.length
-        ? await applyCarriedRecords(prisma, { carrier: `member:${access.actorId}`, carrierKeys: new Set([preview.snapshot.character, ...preview.snapshot.alts, ...preview.snapshot.characters].flatMap((entry) => entry ? [entry.name.trim().toLowerCase()] : [])), records: carriedRecords }).catch(() => ({ receipts: [] as string[], applied: 0 }))
+        ? await ownCarrierKeys(prisma, { memberId: pairedMemberId, character: preview.snapshot.character, alts: preview.snapshot.alts })
+          .then((carrierKeys) => applyCarriedRecords(prisma, { carrier: `member:${access.actorId}`, carrierKeys, records: carriedRecords }))
+          .catch((error: unknown) => { console.error(`Carried records failed for member:${access.actorId}: ${error instanceof Error ? error.message : String(error)}`); return { receipts: [] as string[], applied: 0 }; })
         : { receipts: [] as string[], applied: 0 };
       const carriedExtra = carriedAnswer.receipts.length ? { carriedReceipts: carriedAnswer.receipts } : {};
       // T1 (10 Nov 2026): a signed upload only links and imports in a server that knows the saved file's in-game guild.

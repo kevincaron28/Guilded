@@ -1085,9 +1085,10 @@ function orders.render(view)
     end
   end
   if #rows > LIST_ROWS then view.forMeEmpty:SetText(string.format(L("... and %d more."), #rows - LIST_ROWS))
-  elseif #rows == 0 then view.forMeEmpty:SetText(off and "" or (view.all and L("No open orders.") or L("No open orders for your recipes."))) else view.forMeEmpty:SetText("") end
+  elseif #rows == 0 then view.forMeEmpty:SetText(off and "" or (view.all and L("No open orders.") or L("No open orders for you."))) else view.forMeEmpty:SetText("") end
   if #rows == 0 and view.forMeEmpty:GetText() ~= "" then
     -- On the header's line, left of the Show all button.
+    if view.forMeEmpty.SetWordWrap then view.forMeEmpty:SetWordWrap(false) end
     place(view.forMeEmpty, page, 190, y + 22); view.forMeEmpty:SetWidth(math.max(60, (view.width or 580) - allWidth - 206)); view.forMeEmpty:Show()
   elseif view.forMeEmpty:GetText() ~= "" then view.forMeEmpty:SetWidth(view.width or 580); place(view.forMeEmpty, page, 4, y); view.forMeEmpty:Show(); y = y - 18
   else view.forMeEmpty:Hide() end

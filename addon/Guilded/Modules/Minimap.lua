@@ -1188,6 +1188,32 @@ local function buildGearPage(page)
     GameTooltip:Show()
   end)
   hover:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  -- One member's problems per hover: the row under the cursor (the tooltip follows the mouse from row to row).
+  local function rowUnderCursor(self)
+    local count = ui.gearRowCount or 0
+    local height = ui.gearList and ui.gearList.GetStringHeight and ui.gearList:GetStringHeight()
+    if count == 0 or type(height) ~= "number" or height <= 0 or not GetCursorPosition or not self.GetTop then return nil end
+    local _, cursorY = GetCursorPosition()
+    local scale = self.GetEffectiveScale and self:GetEffectiveScale() or 1
+    local top = self:GetTop()
+    if type(cursorY) ~= "number" or type(top) ~= "number" or type(scale) ~= "number" or scale == 0 then return nil end
+    local index = math.floor((top - 20 - cursorY / scale) / (height / count)) + 1 -- 20: the header line above the rows
+    if index < 1 or index > count then return nil end
+    return index
+  end
+  local function showRow(self)
+    if not GameTooltip then return end
+    local index = rowUnderCursor(self)
+    local text = index and ui.gearFull and ui.gearFull[index]
+    if self.shownRow == index and GameTooltip:GetOwner() == self then return end
+    self.shownRow = index
+    if not text then GameTooltip:Hide() return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:AddLine(text, 1, 1, 1, true)
+    GameTooltip:Show()
+  end
+  hover:SetScript("OnEnter", function(self) self.shownRow = nil; showRow(self) end)
+  hover:SetScript("OnUpdate", function(self) if self:IsMouseOver() then showRow(self) end end)
   ui.gearHover = hover
   ui.gearEmpty = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -40)
   ui.gearEmpty:SetWidth(PAGE_WIDTH)
@@ -1802,7 +1828,7 @@ end
 
 local selectTab
 local updateGuildScroll
--- Pages that only read: the "Unsent changes / Send to Discord" block is hidden there.
+-- Pages that only read: the save block ("Unsent changes / Send to Discord" for a linked officer, else "Local changes / Save my addon data") is hidden there.
 local READ_ONLY_PAGES = { ["Open raids"] = true, Calendar = true }
 -- Long pages scroll inside the window; the rest sit on the window directly.
 local SCROLLED_PAGES = { Standings = true, Gear = true, EPGP = true, ["Local guild"] = true, ["Roster admin"] = true,
@@ -2234,7 +2260,8 @@ refresh = function()
   end
   if ui.gearColumns and ns.ready and ns.ready.gearColumns then
     local cols, count = ns.ready.gearColumns()
-    ui.gearFull = cols.full
+    ui.gearFull = cols.fullByRow
+    ui.gearRowCount = count
     for key, column in pairs(ui.gearColumns) do column:SetText(table.concat(cols[key], "\n")) end
     -- Nothing shared yet: the explanation instead of an empty table.
     ui.gearEmpty:SetText(count == 0 and ns.ready.gearText() or "")

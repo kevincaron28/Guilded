@@ -19,7 +19,7 @@ import { normalizeSavedPath } from "./saved-folder.mjs";
 import { errorDetail, isTimeout, rememberError } from "./error-detail.mjs";
 import { deviceHeaders, deviceMessage, deviceSummary, deviceUploadBody, hasDeviceKey, uploadAsDevice } from "./device-sync.mjs";
 import { readDeviceReceipts, writeDeviceReceipts, refreshParkedReceipts } from "./device-receipts.mjs";
-import { readRecord, readRecordStrict, createRecordUpdater, recordAcknowledged, rememberServer, forgetServer, serverHoldsGuild, waitLine, chooseParked, noteOutcome, minimalParkedExport } from "./parked-runs.mjs";
+import { readRecord, readRecordStrict, parkedRecordState, createRecordUpdater, recordAcknowledged, rememberServer, forgetServer, serverHoldsGuild, waitLine, chooseParked, noteOutcome, minimalParkedExport } from "./parked-runs.mjs";
 
 // Zero-setup companion (device-sync.mjs): no Discord sign-in yet, only the per-install device key.
 export const isDeviceMode = (config) => config?.device === true && hasDeviceKey(config) && !(typeof config.companionCredential === "string" && config.companionCredential.length >= 32);
@@ -263,7 +263,7 @@ export function createEngine(initialConfig, hooks = {}) {
   // The parked-runs record is changed by the parked uploads and by the standings check at the same time. Each change is applied to the freshly
   // read record, one at a time, so a slower writer never puts back an older copy (which made a parked guild look untried and be sent twice).
   // `change` gets the record and returns the new one, or null to leave it as it is. A record that cannot be read is never written over.
-  const updateRecord = createRecordUpdater({ onLog: (level, message) => log(level, message), onStatus: (status) => { state.parkedRecord = status ? { moved: status === "moved", stuck: status === "stuck" } : null; } });
+  const updateRecord = createRecordUpdater({ onLog: (level, message) => log(level, message), onStatus: (status) => { state.parkedRecord = parkedRecordState(status); hooks.onState?.(snapshot()); } });
   const heartbeat = createHeartbeat();
   let controller = new AbortController();
   let uploading = false;

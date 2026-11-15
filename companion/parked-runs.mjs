@@ -146,12 +146,17 @@ async function moveAside(path) {
 const noLog = (level, message) => { void level; void message; };
 /** After this many damaged reads in a row the record is moved aside and a new one is started. */
 export const UNREADABLE_LIMIT = 3;
-export function createRecordUpdater({ onLog = noLog, onStatus = (status) => { void status; }, retryMs = 150, unreadableLimit = UNREADABLE_LIMIT } = {}) {
+/** The "moved aside" warning stays visible at least this long (a fresh record that read well a moment later must not hide it before the member sees it). */
+export const MOVED_VISIBLE_MS = 15 * 60 * 1000;
+/** What the engine keeps in its state for the Problems panel, from an updater status. */
+export const parkedRecordState = (status) => (status === "moved" || status === "stuck" ? { moved: status === "moved", stuck: status === "stuck" } : null);
+export function createRecordUpdater({ onLog = noLog, onStatus = (status) => { void status; }, retryMs = 150, unreadableLimit = UNREADABLE_LIMIT, moveRecordAside = moveAside, clock = Date.now, movedVisibleMs = MOVED_VISIBLE_MS } = {}) {
   let tail = Promise.resolve();
   let damaged = 0;
   // The member-visible problem (the Problems panel): "moved" or "stuck" until a later change finds a good record; null when there is none.
   let problem = null;
-  const setProblem = (next) => { if (next !== problem) { problem = next; onStatus(next); } };
+  let problemAt = 0;
+  const setProblem = (next) => { if (next !== problem) { problem = next; problemAt = clock(); onStatus(next); } };
   return (config, change) => {
     const run = tail.then(async () => {
       const read = await readRecordDetailed(config, { retryMs });
@@ -162,15 +167,16 @@ export function createRecordUpdater({ onLog = noLog, onStatus = (status) => { vo
         if (damaged < unreadableLimit) { onLog("warn", RECORD_SKIPPED); return null; }
         // Damaged several times in a row: the file is moved aside (kept as a .bad copy) and a fresh record is started, so the runs of other guilds are not stuck for good.
         const path = recordPathFor(config);
-        if (!path || !(await moveAside(path))) { onLog("error", RECORD_STUCK); setProblem("stuck"); return null; }
+        if (!path || !(await moveRecordAside(path))) { onLog("error", RECORD_STUCK); setProblem("stuck"); return null; }
         onLog("error", RECORD_MOVED);
         setProblem("moved");
         record = emptyRecord();
         damaged = 0;
       } else {
         damaged = 0;
-        // A good record on a later change: the fresh record works, so the problem is over.
-        setProblem(null);
+        // A good record on a later change: the fresh record works, so the problem is over. A "moved" warning is kept for a while first: when the
+        // fresh record could not be written there is no file, which reads as good at the next change, within seconds.
+        if (problem === "stuck" || problem === "moved" && clock() - problemAt >= movedVisibleMs) setProblem(null);
       }
       const next = await change(record);
       if (!next) return null;

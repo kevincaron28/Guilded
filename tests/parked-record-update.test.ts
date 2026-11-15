@@ -7,7 +7,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { createRequire } from "node:module";
 import { companionProblems, reportableProblems } from "../companion/problems.mjs";
 import { mainStatus } from "../companion/main-status.mjs";
-import { createRecordUpdater, noteOutcome, readRecordDetailed, readRecordStrict, recordPathFor, RECORD_MOVED, RECORD_STUCK } from "../companion/parked-runs.mjs";
+import { createRecordUpdater, noteOutcome, parkedRecordState, readRecordDetailed, readRecordStrict, recordPathFor, RECORD_MOVED, RECORD_STUCK } from "../companion/parked-runs.mjs";
 
 // 9.3.3: the parked-runs record is changed one change at a time, each applied to the record read just before it, and a record that could not be
 // read is never written over.
@@ -164,7 +164,8 @@ describe("changing the record", () => {
   it("the Problems panel entry appears when the record is moved aside or stuck and clears once a fresh record works", async () => {
     const { config, path } = setup();
     const seen: (string | null)[] = [];
-    const update = createRecordUpdater({ onLog: () => {}, onStatus: (status: string | null) => { seen.push(status); }, retryMs: 1, unreadableLimit: 2 });
+    let time = 1_000_000;
+    const update = createRecordUpdater({ onLog: () => {}, onStatus: (status: string | null) => { seen.push(status); }, retryMs: 1, unreadableLimit: 2, clock: () => time, movedVisibleMs: 60_000 });
     writeFileSync(path, "{ not json");
     await update(config, (record: any) => record);
     expect(seen).toEqual([]);
@@ -174,10 +175,68 @@ describe("changing the record", () => {
     const state = { parkedRecord: { moved: true, stuck: false } };
     expect(companionProblems({ state }).map((problem: any) => problem.id)).toContain("parked-record-damaged");
     expect(mainStatus({ state, problems: companionProblems({ state }) }).needsYou?.id).toBe("parked-record-damaged");
-    // A later change finds the good record: it clears.
+    // A later change finds the good record, but not before the warning was visible for its time.
+    await update(config, (record: any) => record);
+    expect(seen).toEqual(["moved"]);
+    time += 60_000;
     await update(config, (record: any) => record);
     expect(seen).toEqual(["moved", null]);
     expect(companionProblems({ state: { parkedRecord: null } }).map((problem: any) => problem.id)).not.toContain("parked-record-damaged");
+  });
+
+  it("a moved warning stays when the fresh record could not be written (no file reads as good) and across lock or skipped updates, until its time is over", async () => {
+    const { config, path } = setup();
+    const seen: (string | null)[] = [];
+    let time = 0;
+    const update = createRecordUpdater({ onLog: () => {}, onStatus: (status: string | null) => { seen.push(status); }, retryMs: 1, unreadableLimit: 1, clock: () => time, movedVisibleMs: 600_000 });
+    writeFileSync(path, "{ not json");
+    // The change returns null: no fresh record is written, so the file is gone.
+    await update(config, () => null);
+    expect(seen).toEqual(["moved"]);
+    expect(existsSync(path)).toBe(false);
+    for (let index = 0; index < 4; index += 1) { time += 1000; await update(config, () => null); }
+    mkdirSync(path);
+    time += 1000; await update(config, (record: any) => record);
+    expect(seen).toEqual(["moved"]);
+    rmSync(path, { recursive: true, force: true });
+    time += 600_000; await update(config, (record: any) => record);
+    expect(seen).toEqual(["moved", null]);
+  });
+
+  it("when the damaged record cannot be moved aside the problem is stuck, and clears at the next good read", async () => {
+    const { config, path } = setup();
+    const { lines, onLog } = logs();
+    const seen: (string | null)[] = [];
+    const update = createRecordUpdater({ onLog, onStatus: (status: string | null) => { seen.push(status); }, retryMs: 1, unreadableLimit: 1, moveRecordAside: async () => false });
+    writeFileSync(path, "{ not json");
+    expect(await update(config, (record: any) => record)).toBeNull();
+    expect(seen).toEqual(["stuck"]);
+    expect(lines).toContain(RECORD_STUCK);
+    expect(readFileSync(path, "utf8")).toBe("{ not json");
+    writeFileSync(path, JSON.stringify({ version: 1, runs: {}, servers: {}, outcomes: {} }));
+    await update(config, (record: any) => record);
+    expect(seen).toEqual(["stuck", null]);
+  });
+
+  it("the engine's wiring: updater status -> parkedRecordState -> the Problems list, with the wording by severity", async () => {
+    const { config, path } = setup();
+    const state: { parkedRecord: ReturnType<typeof parkedRecordState> } = { parkedRecord: null };
+    const emitted: unknown[] = [];
+    const update = createRecordUpdater({ onLog: () => {}, onStatus: (status: string | null) => { state.parkedRecord = parkedRecordState(status); emitted.push(state.parkedRecord); }, retryMs: 1, unreadableLimit: 1, moveRecordAside: async () => false });
+    writeFileSync(path, "{ not json");
+    await update(config, (record: any) => record);
+    expect(companionProblems({ state }).find((problem: any) => problem.id === "parked-record-damaged")).toEqual({ id: "parked-record-damaged", data: { stuck: true } });
+    // A lock does not clear it.
+    rmSync(path); mkdirSync(path);
+    await update(config, (record: any) => record);
+    expect(companionProblems({ state }).map((problem: any) => problem.id)).toContain("parked-record-damaged");
+    expect(emitted).toHaveLength(1);
+    // Wording: stuck is a "bad" item, moved is a "warn" item.
+    const stuck = mainStatus({ state, problems: companionProblems({ state }) }).needsYou;
+    expect(stuck).toMatchObject({ id: "parked-record-damaged", tone: "bad" });
+    const moved = mainStatus({ state: { parkedRecord: { moved: true, stuck: false } }, problems: [{ id: "parked-record-damaged", data: { stuck: false } }] }).needsYou;
+    expect(moved).toMatchObject({ id: "parked-record-damaged", tone: "warn" });
+    expect(parkedRecordState(null)).toBeNull();
   });
 
   it("the Problems entry carries only its safe value in a report", () => {

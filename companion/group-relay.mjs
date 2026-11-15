@@ -21,11 +21,22 @@ export function leaveOut(run, { enabled, acknowledged }) {
  * (9.3.1) The line that tells the addon this companion carries the runs of players in its group (it reads the addon's carried table and
  * the bot places them on the public boards). An older companion writes no such line, so the addon keeps carried runs to itself.
  */
+// (9.3.3) `at` is this PC's clock; the addon compares with the game's server time. When the bot has answered, the marker also carries `bt`,
+// the bot's time at the write (the PC's clock plus the offset learned from the bot's Date header), which the addon prefers: a PC clock
+// that is hours off then neither makes a live companion look dead nor a dead one look alive.
+let botOffsetMs = null;
+export function noteBotClock(dateHeader, now = Date.now()) {
+  const botMs = Date.parse(String(dateHeader ?? ""));
+  if (Number.isFinite(botMs)) botOffsetMs = botMs - now;
+}
+export const botClockOffset = () => botOffsetMs;
+export function forgetBotClock() { botOffsetMs = null; }
+
 export function featuresLua(_stamp, now = Date.now()) {
   // (9.3.3) `at` is the time of writing, never the standings stamp (that only moves when the guild's data changes), and `hb = 1` says
   // this companion rewrites the line at least hourly, so the addon may treat a marker a few hours old as a companion that stopped.
   const at = Math.floor(now / 1000);
-  return `GuildedCompanionFeatures = { ["${GROUP_RELAY_FEATURE}"] = true, ["carry-records"] = true, hb = 1, at = ${at} }`;
+  return `GuildedCompanionFeatures = { ["${GROUP_RELAY_FEATURE}"] = true, ["carry-records"] = true, hb = 1, at = ${at}${botOffsetMs === null ? "" : `, bt = ${Math.floor((now + botOffsetMs) / 1000)}`} }`;
 }
 
 const FEATURES_LINE = /^GuildedCompanionFeatures = \{[^\n]*\}$/m;
@@ -51,7 +62,7 @@ export async function refreshMarkers(paths, { now = Date.now(), maxAgeMs = HEART
       const text = await readFile(path, "utf8");
       const line = text.match(FEATURES_LINE)?.[0];
       if (!line) continue;
-      const at = Number(/ at = (\d+) \}$/.exec(line)?.[1]);
+      const at = Number(/ at = (\d+)/.exec(line)?.[1]);
       if (Number.isFinite(at) && now - at * 1000 < maxAgeMs) continue;
       const temporary = `${path}.${process.pid}.hb.tmp`;
       try { await writeFile(temporary, withFreshMarker(text, now), "utf8"); await rename(temporary, path); written.push(path); }

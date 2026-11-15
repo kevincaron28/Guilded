@@ -1,4 +1,5 @@
 import { gzipSync } from "node:zlib";
+import { noteBotClock } from "./group-relay.mjs";
 
 export function credentialHeaders(config) {
   return { "x-companion-credential": config.companionCredential ?? "" };
@@ -34,6 +35,7 @@ export async function requestJson(url, options = {}, signal, timeoutMs = 20_000)
     ...options, redirect: "error",
     signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs)
   });
+  noteBotClock(response.headers?.get?.("date"));
   if (response.status === 304) return { response, body: {} };
   let body;
   try { body = await response.json(); }

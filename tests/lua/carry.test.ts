@@ -545,3 +545,45 @@ describe("a companion that stopped is not trusted as a carrier", () => {
     expect(queued(player, "WHISPER", "Bee")).toEqual([]);
   });
 });
+
+// 9.3.3: a party with no companion at all: each player's own finished run travels as a "run" record to a carrier met later.
+describe.each<Kind>(["guilded", "standalone"])("own dungeon runs carried (%s)", (kind) => {
+  const runs = "NS.getDb().dungeon.runs";
+  const makeRun = (id: string, extra = "") => `${runs}[${JSON.stringify(id)}] = { id = ${JSON.stringify(id)}, state = "COMPLETED", instanceId = 389, name = "Ragefire Chasm", difficultyId = 1,
+    startedAt = CLOCK - 2000, endedAt = CLOCK - 1100, completedBy = "final boss", recorder = "Aye", reporters = { Aye = true },
+    encounters = { { id = 2735, success = true, at = CLOCK - 1100 }, { id = 2732, success = false, at = CLOCK - 1500 } },
+    players = { Aye = { class = "WARRIOR", role = "TANK", level = 20, deaths = 0, presentSec = 900 }, Zed = { class = "MAGE", role = "DAMAGER", level = 20, deaths = 1, presentSec = 880 } } ${extra} }`;
+  const own = (s: LuaSession) => s.run(`local out = {}; for _, r in ipairs(NS.carry.collectOwn(true)) do if r.kind == "run" then out[#out + 1] = r.key end end; return table.concat(out, ",")`);
+
+  it("is a flat record of the player's own run, only for a finished run nobody holds", () => {
+    const player = client(kind, "Aye");
+    player.run(makeRun("QG-20261114-153000-Aye"));
+    expect(own(player)).toMatch(/^QG-20261114-153000-Aye-[0-9a-f]{6}$/);
+    const data = player.run(`local r; for _, x in ipairs(NS.carry.collectOwn(true)) do if x.kind == "run" then r = x end end; return NS.carry.encode(r.data)`);
+    expect(data).toContain("i=n389");
+    expect(data).toContain("p1=sAye;WARRIOR;TANK;20;900;0");
+    expect(data).toContain("ev=s2735:");
+    // Not a run nobody needs: held by a bot, still being recorded, a received group copy, someone else's, or too big a party.
+    player.run(makeRun("QG-synced", ", synced = true"));
+    player.run(makeRun("QG-active", ", state = \"ACTIVE\""));
+    player.run(makeRun("QG-group", ", viaGroup = true"));
+    player.run(`${runs}["QG-other"] = { id = "QG-other", state = "COMPLETED", instanceId = 389, startedAt = CLOCK - 2000, endedAt = CLOCK - 1100, players = { Zed = { level = 20 } } }`);
+    player.run(makeRun("QG-six", `, players = { Aye = {}, B = {}, C = {}, D = {}, E = {}, F = {} }`));
+    expect(own(player).split(",")).toHaveLength(1);
+  });
+
+  it("goes to a carrier by whisper, is stored under the sender's name, and stops once receipted", () => {
+    const player = client(kind, "Aye");
+    const carrier = client(kind, "Bee", { companion: true });
+    player.run(makeRun("QG-20261114-153000-Aye"));
+    hear(player, "Bee", "HI|1", "GUILD");
+    const whispers = queued(player, "WHISPER", "Bee");
+    expect(whispers.length).toBeGreaterThan(0);
+    expect(whispers.every((text) => text.startsWith("R|run|"))).toBe(true);
+    for (const text of whispers) hear(carrier, "Aye", text, "WHISPER");
+    expect(carrier.run(`local d = NS.getDb().carry.records; local n = 0; for id, r in pairs(d) do if string.sub(id, 1, 4) == "run:" and r.from == "Aye" then n = n + 1 end end; return tostring(n)`)).toBe("1");
+    const key = own(player);
+    player.run(`GuildedCarryReceipts = { ${JSON.stringify(`run:${key}`)} }; NS.carry.noteLoad(); NS.carry.applyReceipts()`);
+    expect(own(player)).toBe("");
+  });
+});

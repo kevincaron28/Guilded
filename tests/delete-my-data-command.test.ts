@@ -52,7 +52,7 @@ describe("/delete-my-data", () => {
   });
 });
 
-import { readFileSync } from "node:fs";
+import { gateOutcome, skipsGuildScope } from "../src/services/interaction-gate.js";
 import { tierDenial, ALWAYS_ALLOWED_COMMANDS, liteCommandJson } from "../src/commands/lite.js";
 import { commands } from "../src/commands/index.js";
 
@@ -63,9 +63,38 @@ describe("/delete-my-data in every tier", () => {
     expect(tierDenial("lite", "raid", null, "create")).toBe("lite");
     expect(tierDenial("lite", "report", null, "bug")).toBeNull();
   });
-  it("is in the Lite command set and skips the in-game guild role check", () => {
+  it("is in the Lite command set", () => {
     expect((liteCommandJson(commands) as { name: string }[]).some(c => c.name === "delete-my-data")).toBe(true);
     expect(ALWAYS_ALLOWED_COMMANDS).toContain("delete-my-data");
-    expect(readFileSync("src/main.ts", "utf8")).toMatch(/ALWAYS_ALLOWED_COMMANDS\.includes\(interaction\.commandName\)/);
+  });
+  // The global handler in main.ts asks these functions before replying or checking the member role.
+  const click = (customId: string) => ({ customId });
+  const slash = (commandName: string) => ({ commandName, options: { getSubcommandGroup: () => null, getSubcommand: () => null } });
+  it("leaves the confirm and cancel clicks to the command's collector in every tier, with no denial and no role check", async () => {
+    for (const tier of ["approved", "lite", "blocked"]) for (const id of ["deletemydata:i1:yes", "deletemydata:i1:no"]) {
+      expect(gateOutcome(tier, click(id), false)).toBe("collector");
+      expect(skipsGuildScope(click(id))).toBe(true);
+    }
+    expect(skipsGuildScope(slash("delete-my-data"))).toBe(true);
+    expect(skipsGuildScope(slash("raid"))).toBe(false);
+    expect(gateOutcome("blocked", click("other:button"), false)).toBe("blocked");
+    expect(gateOutcome("blocked", slash("delete-my-data"), true)).toBeNull();
+    expect(gateOutcome("blocked", slash("raid"), true)).toBe("blocked");
+  });
+  it("a click in a blocked server deletes once: the handler stays silent and the collector runs the service", async () => {
+    mocks.deleteMyData.mockClear();
+    const { value } = interaction("deletemydata:i1:yes");
+    expect(gateOutcome("blocked", click("deletemydata:i1:yes"), false)).toBe("collector");
+    await executeDeleteMyData(value);
+    expect(mocks.deleteMyData).toHaveBeenCalledTimes(1);
+  });
+  it("reports a failed acknowledgement instead of throwing", async () => {
+    mocks.deleteMyData.mockClear();
+    const errors: unknown[] = [];
+    const message = { awaitMessageComponent: vi.fn(async () => ({ user: { id: "u1" }, customId: "deletemydata:i1:yes", deferUpdate: vi.fn(async () => { throw new Error("already acknowledged"); }) })) };
+    const { value } = interaction(null, { fetchReply: vi.fn(async () => message) });
+    await executeDeleteMyData(value, error => errors.push(error));
+    expect(errors).toHaveLength(1);
+    expect(mocks.deleteMyData).not.toHaveBeenCalled();
   });
 });

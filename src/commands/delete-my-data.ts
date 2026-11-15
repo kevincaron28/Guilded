@@ -29,8 +29,8 @@ export async function executeDeleteMyData(interaction: ChatInputCommandInteracti
     await interaction.editReply({ content: fr ? "Annulé ou expiré. Rien n’a été supprimé." : "Cancelled or expired. Nothing was deleted.", components: [] }).catch(() => undefined);
     return;
   }
-  await choice.deferUpdate();
   try {
+    await choice.deferUpdate();
     const done = await deleteMyData(prisma, interaction.user.id);
     await interaction.editReply({ content: fr
       ? `Vos données ont été supprimées : ${done.characters} personnage(s) et ${done.account ? "votre compte du site" : "aucun compte du site"}. Pour effacer aussi ce PC, appuyez sur « Réinitialiser ce compagnon » dans le compagnon.`

@@ -1,3 +1,4 @@
+import { cleanRunCards } from "./run-cards.mjs";
 import { standingsToLua, linkedAsLua, linkedMapLua, linkedMapKey } from "./standings-format.mjs";
 export { standingsToLua } from "./standings-format.mjs";
 import { readFile, writeFile, rename, rm } from "node:fs/promises";
@@ -96,7 +97,7 @@ export async function writeStandings(config, signal, options = {}) {
   if (!config.standingsFile && !existsSync(guildedFolder)) {
     const accepted = join(dirname(guildedFolder), "GuildedDungeons", "Accepted.lua");
     if (existsSync(dirname(accepted))) {
-      const receipts = standaloneReceiptsToLua({ refs: Array.isArray(body.acceptedRunRefs) ? body.acceptedRunRefs : [], notes: body.runNotes && typeof body.runNotes === "object" ? body.runNotes : {} });
+      const receipts = standaloneReceiptsToLua({ refs: Array.isArray(body.acceptedRunRefs) ? body.acceptedRunRefs : [], notes: body.runNotes && typeof body.runNotes === "object" ? body.runNotes : {}, cards: cleanRunCards(body.runCards) });
       let same = false;
       try { same = await readFile(accepted, "utf8") === receipts; } catch { /* first write */ }
       if (!same) {

@@ -1,5 +1,6 @@
 import { snapshotDungeonRole } from "./dungeon-role.mjs";
 import { featuresLua } from "./group-relay.mjs";
+import { runCardsToLua } from "./run-cards.mjs";
 function luaString(value) {
   return `"${String(value).replace(/\\/g, "\\\\").replace(/"/g, "\\\"").replace(/[\r\n]/g, " ")}"`;
 }
@@ -198,6 +199,8 @@ export function standingsToLua(data) {
       .filter(([, note]) => typeof note === "string" && note)
       .map(([ref, note]) => `  [${luaString(ref)}] = ${luaString(String(note).slice(0, 80))},`),
     "}",
+    // 9.3.5: level, guild, score gained and season total of the newest stored runs, for the in-game result card.
+    ...runCardsToLua(data.runCards),
     "",
     "-- Dungeon points this season (top 10), for the addon's Dungeons tab.",
     ...dungeonBoardToLua(data.dungeonBoard, data.updatedAt),

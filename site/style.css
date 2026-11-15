@@ -239,6 +239,8 @@ form { margin: 22px 0 0; }
 .community-hero { padding: 5px 0 44px; border-bottom: 1px solid var(--line); }
 .community-hero h1 { font-size: clamp(42px, 6vw, 76px); max-width: 900px; }
 .community-hero > p:not(.eyebrow) { max-width: 700px; font-size: 17px; }
+.companion-hero { padding: 44px 28px 36px; border: 1px solid var(--line); border-radius: 14px; background: linear-gradient(90deg, rgba(17,19,18,.96) 6%, rgba(17,19,18,.7) 45%, rgba(17,19,18,.15)), url(/images/web/companion-hero-1600.webp) center / cover #15110d; }
+@media (max-width: 800px) { .companion-hero { padding: 28px 18px; background-image: linear-gradient(90deg, rgba(17,19,18,.96) 6%, rgba(17,19,18,.75) 60%, rgba(17,19,18,.4)), url(/images/web/companion-hero-800.webp); } }
 .community-hero .actions { margin-bottom: 25px; }
 .community-facts { display: flex; gap: 12px 28px; flex-wrap: wrap; font-size: 11px; color: #c2cab7; margin-top: 28px; }
 .community-facts span { display: inline-flex; align-items: center; gap: 9px; }

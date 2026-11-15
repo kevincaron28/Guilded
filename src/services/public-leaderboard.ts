@@ -896,7 +896,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       + `<p class="muted">${t("Score adds a character’s best distinct rated routes in the level bracket. Best runs are the counted routes with their points; open one for its party and time.", "Le score additionne les meilleurs parcours classés distincts du personnage dans la tranche. Les meilleurs essais sont les parcours comptés avec leurs points ; ouvrez-en un pour voir le groupe et le temps.")}</p>`
       + periodDates(ctx, period) + views(ctx, "rankings", { ...filters, bracket }) + form
       + `<h2>${t("Ranked characters", "Personnages classés")} <span class="tag">(${rows.length})</span></h2>` + list + pager(ctx, "/leaderboards/characters/", keep, page, pages);
-    return kit.page(200, t("Character rankings", "Classement des personnages"), body, { description: t("WoW Forever dungeon score rankings by season and level bracket, with class, role and realm filters.", "Classement des scores de donjon WoW Forever par saison et tranche de niveaux, avec filtres de classe, rôle et royaume.") });
+    return kit.page(200, t("Character rankings", "Classement des personnages"), body, { shareImage: "/images/social/og-players.jpg", description: t("WoW Forever dungeon score rankings by season and level bracket, with class, role and realm filters.", "Classement des scores de donjon WoW Forever par saison et tranche de niveaux, avec filtres de classe, rôle et royaume.") });
   }
 
   async function guildsBoard(ctx: WebContext, kit: WebKit): Promise<WebResponse> {
@@ -918,7 +918,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       + bracketSwitch(ctx, periodRules(period).brackets, (chosenBracket(periodRules(period).brackets, filters.bracket))?.key ?? null, (key) => link(base, lang, { season: filters.season, period: filters.week ? "week" : null, bracket: key }))
       + periodRules(period).brackets.filter((b) => b.key === (chosenBracket(periodRules(period).brackets, filters.bracket)?.key ?? b.key)).slice(0, 1).map((b) => `<section><h3>${escapeHtml(bracketName(ctx, b.key))}</h3>${guildTable(ctx, ranks.filter((r) => r.bracket === b.key), 50)}</section>`).join("")
       + `<p class="muted">${t("Officers publish their guild's runs with /mod leaderboard in Discord.", "Les officiers publient les essais de leur guilde avec /mod leaderboard dans Discord.")}</p>`;
-    return kit.page(200, t("Guild rankings", "Classement des guildes"), body, { description: t("WoW Forever guild rankings by dungeon score: each guild's five best members per level bracket.", "Classement des guildes WoW Forever par score de donjon : les cinq meilleurs membres de chaque guilde par tranche de niveaux.") });
+    return kit.page(200, t("Guild rankings", "Classement des guildes"), body, { shareImage: "/images/social/og-guilds.jpg", description: t("WoW Forever guild rankings by dungeon score: each guild's five best members per level bracket.", "Classement des guildes WoW Forever par score de donjon : les cinq meilleurs membres de chaque guilde par tranche de niveaux.") });
   }
 
   // Every character that appears in a public run of any season, folded for matching and ordered by best score; built once a minute.
@@ -1079,7 +1079,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       + `<p class="muted" style="margin-top:18px">${t("Community reports from guilds that publish their runs. ", "Rapports communautaires de guildes qui publient leurs essais. ")}<a href="${link("/me/", lang)}">${t("Find your characters in My Guilded →", "Retrouvez vos personnages dans Mon Guilded →")}</a></p>`;
     return kit.page(200, t("WoW Forever leaderboards", "Classements WoW Forever"), body, {
       description: t("WoW Forever dungeon, duel, player and guild leaderboards: podiums, latest runs, weekly climbers and records.", "Classements WoW Forever des donjons, duels, joueurs et guildes : podiums, derniers essais, hausses de la semaine et records."),
-      shareImage: "/images/hero/site-hero-1600.webp"
+      shareImage: "/images/social/og-leaderboards.jpg"
     });
   }
 
@@ -1136,7 +1136,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     }
     const scoreExample = `<p class="muted">${t("Standard dungeon score example: two counted routes worth 150 and 200 points give 350. Unranked reports add no points; provisional targets may still change before rules are frozen.", "Exemple de score des donjons standards : deux parcours comptabilisés à 150 et 200 points donnent 350. Les rapports non classés n'ajoutent aucun point ; les cibles provisoires peuvent évoluer avant le gel des règles.")}</p>`;
     return kit.page(200, t("Dungeon leaderboards", "Classements des donjons"), PAGE_CSS + HUB_CSS + hubTabs(t, lang, "dungeons") + intro(ctx, period) + body + periodDates(ctx, period) + `<p><a href="${link("/me/", lang)}">${t("Find your characters in My Guilded →", "Retrouvez vos personnages dans Mon Guilded →")}</a></p>` + `<nav class="tabs"><a class="${filters.week ? "" : "on"}" href="${link("/leaderboards/dungeons/", lang, { season: filters.season })}">${t("Season", "Saison")}</a><a class="${filters.week ? "on" : ""}" href="${link("/leaderboards/dungeons/", lang, { period: "week" })}">${t("This week", "Cette semaine")}</a></nav>` + filterForm(ctx, filters, filterDungeons, periods) + scoreExample,
-      { description: t("WoW Forever dungeon scores and leaderboards by season, week, level bracket, dungeon, class, role and realm.", "Scores et classements des donjons WoW Forever par saison, semaine, niveaux, donjon, classe, rôle et royaume.") });
+      { shareImage: "/images/social/og-dungeons.jpg", description: t("WoW Forever dungeon scores and leaderboards by season, week, level bracket, dungeon, class, role and realm.", "Scores et classements des donjons WoW Forever par saison, semaine, niveaux, donjon, classe, rôle et royaume.") });
   }
 
   async function character(ctx: WebContext, kit: WebKit, raw: string, image = false): Promise<WebResponse> {
@@ -1628,7 +1628,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       + (recent ? `<h2>${t("Recent duels", "Duels récents")}</h2>${recent}` : "")
       + `<h2>${t("Head to head", "Face à face")}</h2>` + h2hForm + h2h
       + `<p class="muted"><a href="${link("/leaderboards/duels.json", lang, { when: seasonId })}">JSON</a></p>`;
-    return kit.page(200, t("Duel ladder", "Classement des duels"), body, { description: t("The Guilded duel ladder: rating, record and recent duels of players across guilds.", "Le classement des duels de Guilded : cote, bilan et duels récents des joueurs de toutes les guildes.") });
+    return kit.page(200, t("Duel ladder", "Classement des duels"), body, { shareImage: "/images/social/og-duels.jpg", description: t("The Guilded duel ladder: rating, record and recent duels of players across guilds.", "Le classement des duels de Guilded : cote, bilan et duels récents des joueurs de toutes les guildes.") });
   }
   async function globalDuelsJson(ctx: WebContext): Promise<WebResponse> {
     const send = (status: number, value: unknown): WebResponse => ({ status, headers: jsonHeaders(), body: ctx.request.method === "HEAD" ? "" : JSON.stringify(value) });

@@ -1,4 +1,4 @@
-<section class="community-hero" aria-labelledby="companion-title">
+<section class="community-hero companion-hero" aria-labelledby="companion-title">
 <p class="eyebrow">COMPAGNON · WINDOWS</p>
 <h1 id="companion-title">Obtenir le compagnon <em>Guilded.</em></h1>
 <p>Une petite application Windows gratuite qui envoie les données enregistrées de votre addon à Discord et au site, et rapporte les classements dans le jeu.</p>

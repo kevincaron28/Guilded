@@ -83,3 +83,16 @@ At the shipped 1/5 the median runner gets 20 against 62 for the chatter: dungeon
 
 Rationale: a dungeon runner with one clean run (about 115 raw, 38) lands in the same 30 to 60 range as a chatter; a heavy runner (675 raw) is not buried and not 3x the whole server. PvP has too little data to tune: it follows the same 1/3 by design and is re-checked after the first battleground weeks (raids open 9 December). The soft per-day curve and rematch rule stay as proposed; they matter more for PvP than for dungeons today.
 Decision for the owner: ship 1/3 for dungeons and PvP (recommended), or keep 1/5 (safe but dungeons under-count), or 1/4 (in between).
+
+## Rebalance applied, 15 November 2026 (owner decision)
+
+The production numbers showed dungeons dominating the top ten (#1 533 = 325 Discord + 208 dungeons; #4 378 = 120 + 258; #9 301 = 168 + 133; #10 272 = 114 + 158). The owner decided to rebalance and to let the open November season be rescored (the board is computed at draw time). Closed seasons keep their frozen `finalStandings` and do not change.
+
+| Source | Divisor | Weekly bound (raw, per member per reset week) | Community points at the bound |
+| --- | --- | --- | --- |
+| Dungeons | 3 to **5** | **500 (new)** | 100 |
+| Duels | 3 | 100 to **80** | 26.7 |
+| Battlegrounds | 3 | 300 to **150** | 50 |
+| Open-world PvP | 3 | 125 to **75** | 25 |
+
+The dungeon bound sums each member's ledger rows per reset week (the run's end, else the row's date; same week boundary as the PvP bounds), bounds each week at 500, then adds the weeks. Twelve 75-point dungeons in one week score exactly 100. All values stay server-side in `scoring()` (`community-ingame.ts`) and can be overridden with `COMMUNITY_INGAME_SCORING`, now also `{"dungeons":{"weekCap":N}}`. No member-facing text states these numbers (the board only says what kinds of play count).

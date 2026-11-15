@@ -7,7 +7,7 @@ import { communityActivityChannel, communityMonthName, communitySeasonLabel } fr
 import { asLang } from "../i18n.js";
 import { localParts } from "./raid-time.js";
 import type { Standing } from "./community-rules.js";
-import { loadInGamePoints, boardWindow, mergedSeasonStandings, mergeStandings, type InGamePoints } from "./community-ingame.js";
+import { loadInGamePoints, boardWindow, scoringForSeason, mergedSeasonStandings, mergeStandings, type InGamePoints } from "./community-ingame.js";
 import { retryTransientTransaction, SHORT_TRANSACTION } from "./transaction-retry.js";
 
 type Tx = Prisma.TransactionClient;
@@ -34,7 +34,7 @@ export function createCommunityService(database: PrismaClient) {
   // catch could not save the season update. On failure the archive keeps the Discord points alone.
   const preload = async (guildId: string, row: { createdAt: Date; game: string }, endedAt: Date) => {
     if (row.game !== "DISCORD") return undefined;
-    try { const { since, until } = boardWindow({ createdAt: row.createdAt, endedAt, status: "ENDED" }, endedAt); return await loadInGamePoints(database, guildId, since, until); }
+    try { const { since, until } = boardWindow({ createdAt: row.createdAt, endedAt, status: "ENDED" }, endedAt); return await loadInGamePoints(database, guildId, since, until, scoringForSeason({ createdAt: row.createdAt, status: "ENDED" })); }
     catch (error) { console.error("Community archive: in-game points unavailable", error); return undefined; }
   };
   const activity = async (tx: Tx, guildId: string, id: string, kind?: string) => {

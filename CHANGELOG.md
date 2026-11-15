@@ -7,7 +7,7 @@ Not yet published. Guild-only Discord, a simpler website, Delete my data, addon 
 Addon and companion:
 
 - Guild board tab removed, Layer invite in the minimap right-click menu, window fixes (#969, #970).
-- Addon-only records ask for a companion player at once and show a plain waiting line (#973).
+- Addon-only records ask for a companion player at once and show a plain waiting line (#973, #976).
 - Companion: a warning for a damaged parked-uploads record, kept visible and updated at once (#958, #959, #960).
 
 Bot and website (already live):

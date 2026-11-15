@@ -26,4 +26,4 @@ Guilded 9.3.4 : le Discord d'une guilde ne montre que les donjons et les duels q
 
 ## Technical
 
-- #958, #959, #960, #969, #970, #973 (addon and companion); #948, #950, #953, #961, #963, #964, #965, #967, #968 (bot and website, already live); #962, #966 (phone app) since 9.3.3 (see CHANGELOG.md).
+- #958, #959, #960, #969, #970, #973, #976 (addon and companion); #948, #950, #953, #961, #963, #964, #965, #967, #968 (bot and website, already live); #962, #966 (phone app) since 9.3.3 (see CHANGELOG.md).

@@ -72,6 +72,21 @@ describe("changing the record", () => {
     expect(JSON.parse(readFileSync(path, "utf8")).servers).toEqual({ S: ["k"] });
   });
 
+  it("after several unreadable reads in a row the file is moved aside as .bad, a new record is started and a problem line is shown", async () => {
+    const { config, path } = setup();
+    const { lines, onLog } = logs();
+    writeFileSync(path, "{ not json");
+    const update = createRecordUpdater({ onLog, retryMs: 1 });
+    expect(await update(config, (record: any) => record)).toBeNull();
+    expect(await update(config, (record: any) => record)).toBeNull();
+    expect(existsSync(path + ".bad")).toBe(false);
+    const third = await update(config, (record: any) => ({ ...record, servers: { S: ["k"] } }));
+    expect(third).not.toBeNull();
+    expect(readFileSync(path + ".bad", "utf8")).toBe("{ not json");
+    expect(JSON.parse(readFileSync(path, "utf8")).servers).toEqual({ S: ["k"] });
+    expect(lines.some((line) => line.startsWith("Problem:") && line.includes(".bad"))).toBe(true);
+  });
+
   it("a missing file starts an empty record and writes it", async () => {
     const { config, path } = setup();
     const update = createRecordUpdater({ retryMs: 1 });

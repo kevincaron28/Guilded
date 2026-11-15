@@ -108,12 +108,24 @@ export async function readRecordStrict(config, { retryMs = 150 } = {}) {
  * and a failed write is logged. Resolves to what was written, or null.
  */
 const noLog = (level, message) => { void level; void message; };
-export function createRecordUpdater({ onLog = noLog, retryMs = 150 } = {}) {
+/** After this many unreadable reads in a row the record is moved aside and a new one is started. */
+export const UNREADABLE_LIMIT = 3;
+export function createRecordUpdater({ onLog = noLog, retryMs = 150, unreadableLimit = UNREADABLE_LIMIT } = {}) {
   let tail = Promise.resolve();
+  let unreadable = 0;
   return (config, change) => {
     const run = tail.then(async () => {
-      const record = await readRecordStrict(config, { retryMs });
-      if (!record) { onLog("warn", "The parked-guild run record could not be read; it is left as it is and this change is skipped."); return null; }
+      let record = await readRecordStrict(config, { retryMs });
+      if (!record) {
+        unreadable += 1;
+        if (unreadable < unreadableLimit) { onLog("warn", "The parked-guild run record could not be read; it is left as it is and this change is skipped."); return null; }
+        // Unreadable several times in a row: the file is moved aside (kept as a .bad copy) and a fresh record is started, so the runs of other guilds are not stuck for good.
+        const path = recordPathFor(config);
+        if (!path || !(await rename(path, `${path}.bad`).then(() => true, () => false))) { onLog("error", "Problem: the saved list of runs waiting for other guilds cannot be read and could not be moved aside. Those runs are not sent until it is fixed."); return null; }
+        onLog("error", "Problem: the saved list of runs waiting for other guilds was unreadable and was moved to a .bad file next to it. A new list was started; some runs of other guilds may be sent again.");
+        record = emptyRecord();
+      }
+      unreadable = 0;
       const next = await change(record);
       if (!next) return null;
       if (!(await writeRecord(config, next))) { onLog("warn", "The parked-guild run record could not be saved; this change is lost until the next sync."); return null; }

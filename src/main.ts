@@ -13,7 +13,7 @@ import { runRaidNightChecks } from "./services/raid-night-check.js";
 import { createPilotRequests, PILOT_REQUEST_PREFIX } from "./services/pilot-requests.js";
 import { warnIdleLite, welcomeApprovedOwner } from "./services/pilot-welcome.js";
 import { PILOT_DENIED, PILOT_LITE_DENIED } from "./services/pilot-policy.js";
-import { allowsLite, commandSetFor } from "./commands/lite.js";
+import { ALWAYS_ALLOWED_COMMANDS, commandSetFor, tierDenial } from "./commands/lite.js";
 import { ensureCoreDiscord } from "./services/raid-core.js";
 import { fillGuildWeeklyRaids } from "./services/core-weekly-raids.js";
 import { runTeamSchedules } from "./services/activity-core.js";
@@ -242,7 +242,7 @@ handlers.set("bg", executeBattleground);
 handlers.set("automation", executeAutomation);
 handlers.set("poll", executePoll);
 handlers.set("bank", executeBank);
-handlers.set("delete-my-data", executeDeleteMyData);
+handlers.set("delete-my-data", interaction => executeDeleteMyData(interaction, error => reportInteractionError("Delete my data", interaction, error)));
 handlers.set("craft", executeCraft);
 handlers.set("help", executeHelp);
 handlers.set("uninstall", executeUninstall);
@@ -702,7 +702,7 @@ client.on(Events.InteractionCreate, async interaction => {
     const globalButton = "customId" in interaction && [PILOT_REQUEST_PREFIX, COMMUNITY_PREFIX, WELCOME_ROLE_PREFIX, SELF_ROLE_PREFIX, ONBOARD_PREFIX, GAME_REMINDER_PREFIX, INVITE_REQUEST_PREFIX, LINKED_PREFIX, PUG_PREFIX, CONSOLE_PREFIX, ITEM_PREVIEW_PREFIX].some(prefix => interaction.customId.startsWith(prefix));
 
     const wowOrganize = interaction.isChatInputCommand() && interaction.commandName === "organize" && interaction.options.getSubcommandGroup(false) === "dungeon-seasons";
-    const globalCommand = "commandName" in interaction && serverCommands.includes(interaction.commandName) && !wowOrganize;
+    const globalCommand = "commandName" in interaction && (serverCommands.includes(interaction.commandName) || ALWAYS_ALLOWED_COMMANDS.includes(interaction.commandName)) && !wowOrganize;
     const scope = interaction.guildId && hostedPilot.allows(interaction.guildId) && !globalCommand && !globalButton
       ? ("customId" in interaction ? await entityGuildScope(prisma, interaction.guildId, interaction.customId) : null)
         ?? await interactionGuildScope(prisma, { discordId: interaction.guildId, userId: interaction.user.id, channelId: interaction.channelId, parentId: interaction.channel && "parentId" in interaction.channel ? interaction.channel.parentId : null }) : null;
@@ -748,10 +748,11 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   }
   const tier = interaction.guildId ? hostedPilot.tier(interaction.guildId) : "approved";
   // Lite: only the Lite slash commands (stale registrations included); its own buttons and modals pass.
-  const liteBlocked = tier === "lite" && (interaction.isChatInputCommand() || interaction.isAutocomplete())
-    && !allowsLite(interaction.commandName, interaction.options.getSubcommandGroup(false), interaction.options.getSubcommand(false));
+  const denial = interaction.isChatInputCommand() || interaction.isAutocomplete()
+    ? tierDenial(tier, interaction.commandName, interaction.options.getSubcommandGroup(false), interaction.options.getSubcommand(false))
+    : tier === "blocked" ? "blocked" : null;
   if (tier === "lite") void pilotRequests.touch(interaction.guildId!).catch(reportJobError("Lite activity", { guildId: interaction.guildId, channelId: interaction.channelId }));
-  if (tier === "blocked" || liteBlocked) {
+  if (denial !== null) {
     if (interaction.isAutocomplete()) await interaction.respond([]).catch(() => undefined);
     else if (interaction.isRepliable()) await interaction.reply({ content: tier === "lite" ? PILOT_LITE_DENIED : PILOT_DENIED, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     return;

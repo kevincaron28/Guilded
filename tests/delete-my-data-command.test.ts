@@ -51,3 +51,21 @@ describe("/delete-my-data", () => {
     expect(replies.at(-1).content).toContain("n’a pas pu être effectuée");
   });
 });
+
+import { readFileSync } from "node:fs";
+import { tierDenial, ALWAYS_ALLOWED_COMMANDS, liteCommandJson } from "../src/commands/lite.js";
+import { commands } from "../src/commands/index.js";
+
+describe("/delete-my-data in every tier", () => {
+  it("is never refused by the tier gate, also for blocked and Lite servers", () => {
+    for (const tier of ["approved", "lite", "blocked"]) expect(tierDenial(tier, "delete-my-data", null, null)).toBeNull();
+    expect(tierDenial("blocked", "report", null, "bug")).toBe("blocked");
+    expect(tierDenial("lite", "raid", null, "create")).toBe("lite");
+    expect(tierDenial("lite", "report", null, "bug")).toBeNull();
+  });
+  it("is in the Lite command set and skips the in-game guild role check", () => {
+    expect((liteCommandJson(commands) as { name: string }[]).some(c => c.name === "delete-my-data")).toBe(true);
+    expect(ALWAYS_ALLOWED_COMMANDS).toContain("delete-my-data");
+    expect(readFileSync("src/main.ts", "utf8")).toMatch(/ALWAYS_ALLOWED_COMMANDS\.includes\(interaction\.commandName\)/);
+  });
+});

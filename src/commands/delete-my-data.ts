@@ -10,7 +10,7 @@ export const deleteMyDataCommand = new SlashCommandBuilder()
   .setDescription("Delete the data Guilded keeps about you (asks you to confirm first).")
   .setDescriptionLocalizations({ fr: "Supprimer les données que Guilded garde sur vous (une confirmation est demandée)." });
 
-export async function executeDeleteMyData(interaction: ChatInputCommandInteraction): Promise<void> {
+export async function executeDeleteMyData(interaction: ChatInputCommandInteraction, onError: (error: unknown) => void = () => undefined): Promise<void> {
   const fr = interaction.locale.startsWith("fr");
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const confirmId = `deletemydata:${interaction.id}:yes`, cancelId = `deletemydata:${interaction.id}:no`;
@@ -25,7 +25,8 @@ export async function executeDeleteMyData(interaction: ChatInputCommandInteracti
     filter: c => c.user.id === interaction.user.id && [confirmId, cancelId].includes(c.customId) }).catch(() => null);
   if (!choice || choice.customId !== confirmId) {
     if (choice) await choice.deferUpdate();
-    await interaction.editReply({ content: fr ? "Annulé ou expiré. Rien n’a été supprimé." : "Cancelled or expired. Nothing was deleted.", components: [] });
+    // After the 120 s wait the interaction token may be gone: nothing more to say then.
+    await interaction.editReply({ content: fr ? "Annulé ou expiré. Rien n’a été supprimé." : "Cancelled or expired. Nothing was deleted.", components: [] }).catch(() => undefined);
     return;
   }
   await choice.deferUpdate();
@@ -34,7 +35,8 @@ export async function executeDeleteMyData(interaction: ChatInputCommandInteracti
     await interaction.editReply({ content: fr
       ? `Vos données ont été supprimées : ${done.characters} personnage(s) et ${done.account ? "votre compte du site" : "aucun compte du site"}. Pour effacer aussi ce PC, appuyez sur « Réinitialiser ce compagnon » dans le compagnon.`
       : `Your data was deleted: ${done.characters} character(s) and ${done.account ? "your website account" : "no website account"}. To clear this PC too, press “Reset this companion” in the companion.`, components: [] });
-  } catch {
+  } catch (error) {
+    onError(error);
     await interaction.editReply({ content: fr ? "La suppression n’a pas pu être effectuée. Réessayez, ou demandez-la dans la communauté de soutien Guilded." : "The deletion could not be completed. Try again, or ask in the Guilded support community.", components: [] });
   }
 }

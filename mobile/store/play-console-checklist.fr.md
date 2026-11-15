@@ -70,7 +70,7 @@ Chaque carte demande **Save**; certaines demandent **Submit**. Les réponses son
 | 4.1 | Nom, description courte et complète : les blocs anglais de [play-listing.md](play-listing.md). | L'agent tape |
 | 4.2 | Icône `icon-512.png`, image de présentation `feature-graphic-1024x500.png`, les sept captures pour téléphone dans l'ordre des numéros ([play-screenshots.md](play-screenshots.md)). | L'agent téléverse |
 | 4.3 | **Save**. Puis **Manage translations → Add your own translation text → French (Canada) – fr-CA**, coller les blocs français, **Save**. | L'agent tape, le **propriétaire** relit le français |
-| 4.4 | **Store settings** : catégorie **Social**, courriel `support@guildedwow.com`, site `https://guildedwow.com` → **Save**. Vérifier d'abord qu'un message envoyé à cette adresse arrive bien au propriétaire. | **Propriétaire** |
+| 4.4 | **Store settings** : catégorie **Entertainment** (pas Social : Play demande alors une déclaration « Child safety standards » prévue pour les applis sociales et de rencontre), courriel `support@guildedwow.com`, site `https://guildedwow.com` → **Save**. Vérifier d'abord qu'un message envoyé à cette adresse arrive bien au propriétaire. | **Propriétaire** |
 
 ## 5. Piste de test fermé
 

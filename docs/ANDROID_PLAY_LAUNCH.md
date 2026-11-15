@@ -102,7 +102,7 @@ Each card needs **Save**, and some need **Submit**. The dashboard ticks them off
 5. **Save**.
 6. **Manage translations → Add your own translation text → French (Canada) – fr-CA** → paste the French blocks →
    **Save**. The same graphics are fine for French.
-7. **Store settings**: Category **Social**, contact email (the placeholder in play-listing.md: pick a support
+7. **Store settings**: Category **Entertainment** (not Social, see play-listing.md), contact email (the placeholder in play-listing.md: pick a support
    address), website `https://guildedwow.com` → **Save**.
 
 ## 7. Closed test: at least 12 testers for 14 days (required for new personal accounts)

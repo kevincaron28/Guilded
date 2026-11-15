@@ -2,6 +2,8 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
 import { shareImageType } from "../src/services/web-layout.js";
+import { classEmblem, roleEmblem } from "../src/services/class-emblem.js";
+import { GUILD_BANNER_THEMES, guildBanner, guildBannerTheme } from "../src/services/guild-banner.js";
 import { emptyBox, emptyPage } from "../src/services/leaderboard-hub.js";
 
 // Painted website pictures live in site/images/web/. The site build copies image folders one by one: a folder it
@@ -13,6 +15,12 @@ const FILES = [
   ...["404-1200.webp", "404-800.webp"],
   ...["duel", "runs", "notfound", "search"].map((n) => `empty-${n}.webp`),
   ...["guild", "board", "players", "leaderboards", "quebec"].map((n) => `community-${n}-800.webp`),
+  ...["start", "install", "companion", "link", "dungeons", "officers", "epgp", "discord", "selfhost", "troubleshooting"].map((n) => `guide-${n}.webp`),
+  ...["addon", "companion", "discord"].map((n) => `step-${n}.webp`),
+  ...["forest", "mountain", "snow", "harbour", "cavern", "desert"].flatMap((n) => [`banner-${n}-1600.webp`, `banner-${n}-800.webp`]),
+  ...["druid", "hunter", "mage", "paladin", "priest", "rogue", "shaman", "warlock", "warrior"].map((n) => `class-${n}-64.webp`),
+  ...["tank", "healer", "damage"].map((n) => `role-${n}-64.webp`),
+  "divider-800.webp",
   ...["gold", "silver", "bronze"].map((n) => `medal-${n}.webp`),
 ];
 describe("website pictures", () => {
@@ -28,6 +36,9 @@ describe("website pictures", () => {
     for (const og of ["og-home.jpg", "og-download.jpg", "og-community.jpg", "og-guide.jpg", "og-companion.jpg"]) expect(build).toContain(og);
     expect(readFileSync("scripts/build-site.mjs", "utf8")).toContain("/images/web/404-1200.webp");
     for (const n of ["guild", "board", "players", "leaderboards", "quebec"]) for (const f of ["community.md", "community.fr.md"]) expect(readFileSync(`site/pages/${f}`, "utf8")).toContain(`community-${n}-800.webp`);
+    for (const f of ["guide.md", "guide.fr.md"]) expect(readFileSync(`site/pages/${f}`, "utf8")).toContain("/images/web/guide-start.webp");
+    for (const f of ["download.md", "download.fr.md"]) expect(readFileSync(`site/pages/${f}`, "utf8")).toContain("/images/web/step-addon.webp");
+    expect(readFileSync("site/style.css", "utf8")).toContain("/images/web/divider-800.webp");
     expect(readFileSync("site/pages/companion.md", "utf8")).toContain("companion-hero");
     const hub = readFileSync("src/services/leaderboard-hub.ts", "utf8");
     for (const key of ["season-banner-1600", "season-banner-800", "medal-", "header-${kind}"]) expect(hub).toContain(key);
@@ -75,5 +86,34 @@ describe("empty-state pictures", () => {
     expect(box).toContain('width="96" height="96" loading="lazy"');
     expect(emptyBox("Plain", [])).not.toContain("<img");
     expect(emptyPage("Nothing", [], "notfound")).toContain("<style>.hub-empty");
+  });
+});
+
+describe("guild banners", () => {
+  it("give a guild the same decorative picture every time, and every theme is used", () => {
+    expect(guildBannerTheme("guild-1")).toBe(guildBannerTheme("guild-1"));
+    expect(new Set(Array.from({ length: 200 }, (_, i) => guildBannerTheme(`g${i}`))).size).toBe(GUILD_BANNER_THEMES.length);
+    const html = guildBanner("abc");
+    expect(html).toContain('alt=""');
+    expect(html).toContain(`/images/web/banner-${guildBannerTheme("abc")}-1600.webp`);
+  });
+});
+
+describe("class and role emblems", () => {
+  it("name an existing picture, only for known classes and roles", () => {
+    expect(classEmblem("Mage")).toContain("/images/web/class-mage-64.webp");
+    expect(classEmblem("Death Knight")).toBe("");
+    expect(classEmblem(null)).toBe("");
+    expect(roleEmblem("RANGED")).toContain("role-damage-64.webp");
+    expect(roleEmblem("TANK")).toContain('alt=""');
+    expect(roleEmblem("UNKNOWN")).toBe("");
+  });
+});
+
+describe("decorative art does not take the guide image frame", () => {
+  it("excludes the tile, icon, step and 404 pictures from the framed .guide img rule", () => {
+    const css = readFileSync("site/style.css", "utf8");
+    expect(css).toContain(".guide img:not(.grid-art):not(.guide-icon):not(.step-art):not(.nf-art)");
+    expect(css).toContain(".guide h2.step::after");
   });
 });

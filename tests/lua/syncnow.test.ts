@@ -22,6 +22,7 @@ function withSync(officer = true): LuaSession {
     NS = {
       isOfficer = function() return ${officer} end,
       getDb = function() return DB end,
+      getSettings = function() DB.settings = DB.settings or {}; return DB.settings end,
       message = function(text) CHAT_LOG = CHAT_LOG or {}; CHAT_LOG[#CHAT_LOG + 1] = text end,
       commandHandlers = {}, commandHelp = {}
     }
@@ -120,6 +121,43 @@ describe("SyncNow.lua", () => {
     s.run(`NS.commandHandlers["sync"]({ "auto", "on" })`);
     expect(s.chat().join("\n")).toContain("Automatic saving is no longer possible");
     expect(Number(s.run(`return RELOADS`))).toBe(0);
+  });
+
+  it("says when it last saved and when the companion was last active", () => {
+    const s = withSync();
+    s.run(`NS.relay = { ageText = function(sec) return math.floor(sec / 60) .. " min ago" end }`);
+    expect(s.run("return tostring(NS.syncNow.lastSavedLine())")).toBe("nil");
+    s.run(`fire_event("PLAYER_LOGOUT")`);
+    advance(s, 600);
+    expect(s.run("return NS.syncNow.lastSavedLine()")).toBe("Last saved for the companion: 10 min ago");
+    s.run(`GuildedCompanionFeatures = { hb = 1, at = NOW - 120 }; NS.commandHandlers["sync"]({ "status" })`);
+    expect(s.chat().join("\n")).toContain("Companion last active: 2 min ago");
+  });
+
+  it("reminds about /reload once per session after a result, never in combat, and never reloads", () => {
+    const s = withSync();
+    s.run(`NS.sendsToDiscord = function() return true end`);
+    // In combat: nothing is said until the fight ends.
+    s.run(`COMBAT = true; NS.syncNow.noteResult("run")`);
+    expect(s.chat().join("\n")).not.toContain("/reload when convenient");
+    s.run(`COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")`);
+    expect(s.chat().filter((l) => l.includes("Type /reload when convenient to send this run now.")).length).toBe(1);
+    // One line per session.
+    s.run(`NS.syncNow.noteResult("run"); NS.syncNow.noteResult("duel")`);
+    expect(s.chat().filter((l) => l.includes("/reload when convenient")).length).toBe(1);
+    expect(Number(s.run("return RELOADS"))).toBe(0);
+  });
+
+  it("has an off switch, and says nothing without a companion to send to", () => {
+    const s = withSync();
+    s.run(`NS.sendsToDiscord = function() return true end; NS.commandHandlers["sync"]({ "reminder", "off" })`);
+    expect(s.run("return tostring(NS.syncNow.reminderEnabled())")).toBe("false");
+    s.run(`NS.syncNow.noteResult("duel")`);
+    expect(s.chat().join("\n")).not.toContain("/reload when convenient");
+    s.run(`NS.commandHandlers["sync"]({ "reminder", "on" })`);
+    expect(s.run("return tostring(NS.syncNow.reminderEnabled())")).toBe("true");
+    s.run(`NS.sendsToDiscord = function() return false end; NS.syncNow.noteResult("duel")`);
+    expect(s.chat().join("\n")).not.toContain("/reload when convenient");
   });
 
   it("Core marks data as changed when it logs an event", () => {

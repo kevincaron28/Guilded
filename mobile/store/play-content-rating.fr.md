@@ -15,25 +15,33 @@ ici ne le concerne.
 - Ce n'est pas une appli de nouvelles : l'onglet Nouvelles est un onglet sur cinq et n'affiche que des manchettes qui
   mènent ailleurs.
 
-## Réponses
+## Réponses (soumises le 15 novembre 2026)
 
-| Question (la formulation varie un peu dans la Console) | Réponse | Raison |
-| --- | --- | --- |
-| Violence, sang | Non | Du texte et des chiffres; aucune image ni séquence du jeu. |
-| Sexualité, nudité | Non | |
-| Langage grossier, humour cru | Non | Les manchettes sont des titres de tiers; l'appli ne produit aucun juron. |
-| Substances contrôlées (drogue, alcool, tabac) | Non | |
-| Jeux d'argent, jeux d'argent simulés, coffres à butin | Non | L'album de badges n'a ni paquets ni hasard : une carte s'ouvre seulement quand le succès est obtenu. |
-| Peur, horreur | Non | |
-| Les utilisateurs peuvent-ils interagir ou échanger du contenu entre eux ? | **Oui** | Les membres d'une même guilde voient les personnages, les inscriptions aux raids, les souhaits, les dernières positions dans le jeu et les appels à l'aide des autres. Il n'y a ni clavardage ni messagerie. |
-| Les utilisateurs peuvent-ils partager leur position physique ? | **Non** | L'appli ne lit jamais la position de l'appareil. La carte montre des positions dans le jeu, envoyées par le compagnon sur PC. |
-| L'appli permet-elle d'acheter des biens numériques ? | Non | Aucun achat. |
-| L'appli donne-t-elle un accès libre à Internet (navigateur intégré) ? | Non | Les liens s'ouvrent dans le navigateur du téléphone. |
-| L'appli est-elle un navigateur ou un moteur de recherche ? | Non | |
-| L'appli contient-elle du contenu généré par les utilisateurs ? | Limité | Noms d'objets de la liste de souhaits et noms de personnages, visibles dans la guilde seulement. |
+Le questionnaire affiché par Play le 15 novembre 2026 pour **All Other App Types**, et les réponses données par le
+propriétaire. Les questions sont en anglais dans la Console; leur libellé exact est dans
+[play-content-rating.md](play-content-rating.md). Courriel de contact : `support@guildedwow.com`. Remplir le
+questionnaire vaut acceptation des conditions de l'IARC.
 
-**Résultat attendu :** Tous / PEGI 3 / ESRB Everyone / USK 0, avec l'élément interactif **Users Interact**. Lire le
-résumé de la Console avant de l'appliquer.
+| # | Question de Play (résumé) | Réponse | Raison |
+| --- | --- | --- | --- |
+| 1 | Contenu sensible (sexe, violence, langage) dans le paquet de l'appli ? | Non | Du texte et des chiffres; aucune image ni séquence du jeu. |
+| 2 | Les utilisateurs peuvent-ils interagir ou échanger du contenu par la voix, du texte, des images ou du son ? | **Non** (propriétaire, 15 novembre 2026) | Aucun clavardage, aucune voix, aucun partage d'images ou de son. Les membres d'une guilde voient les personnages, les inscriptions aux raids, les souhaits et les positions dans le jeu des autres : ce sont des données de guilde, pas une conversation. Répondre Oui ouvre sept questions sur le partage public, le blocage, le signalement et la modération qui ne décrivent pas cette appli. |
+| 3 | L'appli présente-t-elle du contenu qui n'est pas dans le téléchargement initial mais accessible depuis l'appli (exemples de Play : films, catalogues de produits, chansons) ? | **Non** (propriétaire, 15 novembre 2026) | L'appli montre les données de la guilde et les classements publics; Nouvelles liste des manchettes qui s'ouvrent dans le navigateur. Ce n'est pas un catalogue de films, de musique ou de produits. |
+| 4 | Promotion ou vente de produits réservés aux adultes (tabac, alcool, armes, jeux d'argent) ? | Non | |
+| 5 | Partage de la position physique précise avec d'autres utilisateurs ? | Non | L'appli ne lit jamais la position de l'appareil. La carte montre des positions dans le jeu, envoyées par le compagnon sur PC. |
+| 6 | Achat de biens numériques ? | Non | Aucun achat. |
+| 7 | Récompenses en argent, cartes-cadeaux, jouer pour gagner, cryptomonnaie ou NFT ? | Non | |
+| 8 | Navigateur ou moteur de recherche ? | Non | |
+| 9 | Surtout un produit de nouvelles ou éducatif ? | Non | Les nouvelles sont un onglet sur cinq. |
+
+**Classifications rendues par Play :** ESRB Everyone, PEGI 3, USK tous âges, ClassInd (Brésil) tous âges, IARC 3+,
+Google Play 3+. Il n'y a pas d'élément « Users Interact », parce que la question 2 est Non.
+
+Le questionnaire remplacé avait été rempli comme un **jeu** avec achats numériques, prix aléatoires et clavardage
+modéré (héritage du jeu de cartes) et donnait « Mature » en Australie et 18+ au Brésil.
+
+Si l'appli reçoit un jour du clavardage, des commentaires, des téléversements ou des achats, refaire le
+questionnaire : les questions 2, 3 et 6 changent.
 
 ## Public cible et autres formulaires « App content »
 

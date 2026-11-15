@@ -40,8 +40,8 @@ declaration.
 Why not 18+ only: nothing here is adult. There is no free-text chat, no comments, no photo upload and no payments. What
 members exchange is game data (characters, ranks, wishlist item names, in-game last-seen positions), inside one guild.
 
-Content rating: use [play-content-rating.md](play-content-rating.md) unchanged. Expected result: Everyone / PEGI 3 with
-"Users Interact".
+Content rating: submitted on 15 November 2026 with the answers in [play-content-rating.md](play-content-rating.md).
+Result: Everyone / PEGI 3 / Google Play 3+, with no interactive element.
 
 ## Release notes (0.3.0)
 

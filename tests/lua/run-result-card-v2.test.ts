@@ -70,11 +70,14 @@ describe("result card v2 party table", () => {
     session.run("NS.runResults.show(RUN)");
     expect(session.run("return SHOWN")).toBe("1");
     session.run('GuildedDungeonCards = { ["QG-1"] = { { n = "Aldric", l = 24, a = 3, t = 9 } } }; COMBAT = true');
-    session.run("NS.runResults.refresh()");
-    expect(session.run("return SHOWN")).toBe("1"); // in combat: queued, nothing redrawn
+    session.run("NS.runResults.checkCards()");
+    expect(session.run("return SHOWN")).toBe("1"); // in combat: nothing redrawn
     expect(shownText()).not.toContain("This run");
-    session.run('COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")');
-    expect(session.run("return NS.runResults.cardRows(RUN)[1].n")).toBe("Aldric");
+    session.run('COMBAT = false; NS.runResults.checkCards()');
+    expect(session.run("return SHOWN")).toBe("2"); // out of combat: the card on screen is redrawn with the table
+    expect(shownText()).toContain("This run");
+    session.run("NS.runResults.checkCards()");
+    expect(session.run("return SHOWN")).toBe("2"); // and only once
   });
   it("labels the columns in French, German and Spanish and keeps blanks blank", () => {
     session = newLuaSession(); session.run("NS = {}"); session.load("Locale.lua"); session.load("Modules/RunResults.lua");

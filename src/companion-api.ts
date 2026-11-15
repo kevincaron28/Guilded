@@ -573,7 +573,8 @@ export async function standingsParts(guild: { id: string; discordId: string }, a
       ...(officerInvites ? { officerInvites } : {}),
       bank,
       publicRaids: { fetchedAt: new Date().toISOString(), raids: pilotRaids } },
-    stampOnly: { botRaids }
+    // (9.3.5) A new or changed result card changes the stamp too, so a card that arrives after its run was acknowledged is fetched and written.
+    stampOnly: { botRaids, runCards }
   };
 }
 

@@ -44,6 +44,13 @@ describe("run cards for the in-game result card (9.3.5)", () => {
     expect(mergeDeviceReceipts(read, { acceptedRunRefs: [], runNotes: {} }).cards).toEqual(read.cards);
     expect(mergeRunCards(undefined, undefined)).toEqual({});
   });
+  it("rewrites the standings file when only the cards change, whatever the stamp says", () => {
+    const body = { updatedAt: "2026-11-15T00:00:00Z", standings: [], acceptedRunRefs: ["QG-1"], runNotes: {} };
+    const a = standingsToLua({ ...body } as never);
+    const b = standingsToLua({ ...body, runCards: cards } as never);
+    const bare = (text: string) => text.replace(/updatedAt = "[^"]*",/g, "");
+    expect(bare(a)).not.toBe(bare(b));
+  });
   it("writes only the GuildedDungeonCards global an older addon never reads", () => {
     expect(runCardsToLua({})).toEqual(["GuildedDungeonCards = {", "}"]);
   });

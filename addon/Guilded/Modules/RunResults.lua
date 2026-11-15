@@ -309,6 +309,13 @@ function results.refresh()
   if results.last and window and window.IsShown and window:IsShown() then results.show(results.last, true) end
 end
 
+-- Polled with the pending-result check: a card on screen without a table takes the companion's data once it is there. Never in combat
+-- (the next poll tries again), and show() itself queues instead of drawing when combat starts.
+function results.checkCards()
+  if inCombat() or loading or not (window and window.IsShown and window:IsShown() and results.last) then return end
+  if not shownRows and results.cardRows(results.last) then results.refresh() end
+end
+
 function results.show(run, resume)
   if not active() or type(run) ~= "table" then return end
   results.last = run
@@ -476,7 +483,7 @@ if CreateFrame then
   end)
   events:SetScript("OnUpdate", function(_, elapsed)
     settle = math.max(0, settle - elapsed); poll = poll + elapsed
-    if poll >= 0.5 then poll = 0; results.tryPending() end
+    if poll >= 0.5 then poll = 0; results.tryPending(); results.checkCards() end
   end)
 end
 

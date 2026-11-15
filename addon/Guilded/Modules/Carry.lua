@@ -171,16 +171,59 @@ end
 -- reported it. The opponent's guild text and the zone stay on this PC.
 local DUEL_FIELDS = { "winner", "loser", "winnerRealm", "loserRealm", "winnerClass", "loserClass", "winnerLevel", "loserLevel", "at", "durationSec", "reason", "side" }
 
--- This player's own records waiting for a carrier: the outside duels that are not acknowledged yet (cached for a minute: it is read on every
--- announcement heard).
+-- A finished dungeon run of this player's own that no companion and no guild bot holds (a party with no companion at all): what a stranger
+-- needs to hold it, flat (the whisper format has no nesting): the run's id, place, times, how it ended, up to five players
+-- ("name;class;role;level;seconds present;deaths") and the bosses killed ("id:time,..."). It is a statement of this player only.
+local RUN_KEEP_SECONDS, RUN_MAX_PLAYERS, RUN_MAX_BOSSES = 14 * 86400, 5, 12
+local function runRecord(run, player)
+  if type(run) ~= "table" or run.state ~= "COMPLETED" or run.synced or run.syncedVia or run.viaGroup then return nil end
+  local instanceId, startedAt, endedAt = tonumber(run.instanceId), tonumber(run.startedAt), tonumber(run.endedAt)
+  if not instanceId or not startedAt or not endedAt or endedAt < now() - RUN_KEEP_SECONDS or type(run.id) ~= "string" or #run.id < 3 or #run.id > 100 then return nil end
+  if type(run.players) ~= "table" or type(run.players[player]) ~= "table" then return nil end
+  local names = {}
+  for name in pairs(run.players) do
+    if type(name) ~= "string" or string.find(name, "[;%c]") then return nil end
+    names[#names + 1] = name
+  end
+  if #names > RUN_MAX_PLAYERS then return nil end
+  table.sort(names)
+  local data = { id = run.id, i = instanceId, d = tonumber(run.difficultyId) or 0, st = startedAt, en = endedAt }
+  if type(run.completedBy) == "string" then data.cb = string.sub(run.completedBy, 1, 40) end
+  if type(run.name) == "string" then data.nm = string.sub(run.name, 1, 100) end
+  for index, name in ipairs(names) do
+    local p = run.players[name]
+    data["p" .. index] = string.format("%s;%s;%s;%d;%d;%d", name, type(p.class) == "string" and string.sub(p.class, 1, 20) or "", type(p.role) == "string" and string.sub(p.role, 1, 12) or "",
+      tonumber(p.level) or 0, math.floor(tonumber(p.presentSec) or 0), math.floor(tonumber(p.deaths) or 0))
+  end
+  local bosses = {}
+  for _, boss in ipairs(type(run.encounters) == "table" and run.encounters or {}) do
+    if type(boss) == "table" and boss.success == true and tonumber(boss.id) and tonumber(boss.at) and #bosses < RUN_MAX_BOSSES then bosses[#bosses + 1] = string.format("%d:%d", boss.id, boss.at) end
+  end
+  if #bosses > 0 then data.ev = table.concat(bosses, ",") end
+  if #carry.encode(data) > MAX_RECORD_BYTES then return nil end
+  local key = string.format("%s-%s", string.gsub(string.sub(run.id, 1, 60), "[^%w%-_:%.]", "_"), hash(run.id))
+  return { kind = "run", key = key, author = player, data = data, at = endedAt }
+end
+
+-- This player's own records waiting for a carrier: the outside duels and the finished runs that are not acknowledged yet (cached for a minute:
+-- it is read on every announcement heard).
 function carry.collectOwn(fresh)
   local s = store()
   local root = ns.getDb and ns.getDb()
   local list = root and root.duels and root.duels.external
-  if not s or type(list) ~= "table" then return {} end
+  if not s then return {} end
+  if type(list) ~= "table" then list = {} end
   local cache = carry.ownCache
   if not fresh and cache and now() - cache.at <= OWN_CACHE_SECONDS and cache.done == s.doneCount then return cache.list end
   local out = {}
+  local player = me()
+  local runs = player and root and root.dungeon and root.dungeon.runs
+  if type(runs) == "table" then
+    for _, run in pairs(runs) do
+      local record = runRecord(run, player)
+      if record and not s.done["run:" .. record.key] then out[#out + 1] = record end
+    end
+  end
   for _, row in pairs(list) do
     if type(row) == "table" and type(row.winner) == "string" and type(row.loser) == "string" and tonumber(row.at) then
       local data = {}

@@ -4126,11 +4126,16 @@ model CarriedRecord {
   // The identity the record is filed under: the author's lower-case name and realm, so one player's key cannot squat another's.
   authorKey String
   carrier   String
-  // "applied", or "rejected" for what was refused: both count against the carrier's day.
+  // "applied", or "rejected" for what was refused: both count against the carrier's day. A carried dungeon run is "held" (no effect on any
+  // board) until released by an independent report or two signed-in members, then "released", or "expired" (src/services/carried-runs.ts).
   status    String   @default("applied")
+  // A held run: its identity on the public lane (instance id and run id) and the run itself. Cleared on release.
+  runKey    String?
+  payload   Json?
   createdAt DateTime @default(now())
 
   @@unique([kind, authorKey, key])
+  @@index([kind, runKey])
   @@index([carrier, createdAt])
   @@index([createdAt])
 }

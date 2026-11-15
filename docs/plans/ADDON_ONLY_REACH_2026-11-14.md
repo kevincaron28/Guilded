@@ -132,3 +132,9 @@ What exists now, and where it differs from the design above.
 6. A third addon-only player C whispering a forged record can only create a record under C's own name; a forged receipt in the channel changes nothing on A.
 7. Combat and instances: nothing sent; the game's own chat is not throttled.
 8. Cross-faction: whether the channel and the whisper reach (it is not assumed).
+
+## 9.3.3: runs of a party with no companion (kind "run")
+
+- **Addon.** Carry.lua collects each player's own finished run (a run no bot holds, at most five players, up to 14 days old) as one flat `run` record and whispers it to a carrier met later, like an outside duel. The receipt (`carry:run:<key>`) ends it.
+- **Bot.** `src/services/carried-runs.ts`: the record is HELD (`CarriedRecord.status = "held"`, the run in `payload`, `runKey` = instance id and run id), with no effect on any board, guild, season or card. It is released only (a) by an independent report of the same run that did not come through a carrier (the run is then on the boards on its own evidence; nothing is published by the release), or (b) by statements of two different players carried by two different signed-in members (`member:` carriers), published through the relay lane (`ingestRelayedRuns`, same plausibility checks, daily cap). Never on unsigned (`device:`) carried reports alone. A held run nobody released within 14 days is dropped (`expired`). Migration `20270222000200_carried_runs`.
+- **Marker clock.** The companion's `GuildedCompanionFeatures` carries `bt`, the bot's time at the write (from the bot's `Date` header), which the addon prefers to the PC's `at`; the future guard of a heartbeat marker is one hour.

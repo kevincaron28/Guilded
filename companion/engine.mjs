@@ -19,7 +19,7 @@ import { normalizeSavedPath } from "./saved-folder.mjs";
 import { errorDetail, isTimeout, rememberError } from "./error-detail.mjs";
 import { deviceHeaders, deviceMessage, deviceSummary, deviceUploadBody, hasDeviceKey, uploadAsDevice } from "./device-sync.mjs";
 import { readDeviceReceipts, writeDeviceReceipts, refreshParkedReceipts } from "./device-receipts.mjs";
-import { readRecord, writeRecord, recordAcknowledged, rememberServer, forgetServer, serverHoldsGuild, waitLine, chooseParked, noteOutcome, minimalParkedExport } from "./parked-runs.mjs";
+import { readRecord, readRecordStrict, createRecordUpdater, recordAcknowledged, rememberServer, forgetServer, serverHoldsGuild, waitLine, chooseParked, noteOutcome, minimalParkedExport } from "./parked-runs.mjs";
 
 // Zero-setup companion (device-sync.mjs): no Discord sign-in yet, only the per-install device key.
 export const isDeviceMode = (config) => config?.device === true && hasDeviceKey(config) && !(typeof config.companionCredential === "string" && config.companionCredential.length >= 32);
@@ -262,14 +262,8 @@ export function createEngine(initialConfig, hooks = {}) {
   const fileLock = createFileLock();
   // The parked-runs record is changed by the parked uploads and by the standings check at the same time. Each change is applied to the freshly
   // read record, one at a time, so a slower writer never puts back an older copy (which made a parked guild look untried and be sent twice).
-  const recordLock = createFileLock();
-  // `change` gets the record and returns the new one, or null to leave it as it is. Resolves to what was written, or null.
-  const updateRecord = (current, change) => recordLock(async () => {
-    const next = await change(await readRecord(current));
-    if (!next) return null;
-    await writeRecord(current, next);
-    return next;
-  });
+  // `change` gets the record and returns the new one, or null to leave it as it is. A record that cannot be read is never written over.
+  const updateRecord = createRecordUpdater({ onLog: (level, message) => log(level, message) });
   const heartbeat = createHeartbeat();
   let controller = new AbortController();
   let uploading = false;
@@ -489,7 +483,9 @@ export function createEngine(initialConfig, hooks = {}) {
   // own guild, or one an earlier upload showed the server knows). Otherwise they wait and the sync line says why. Nothing but the guild key,
   // this account's characters in it and the runs is sent (parked-runs.mjs).
   async function parkedSignedUploads(current, parked, _record, epoch) {
-    const record = await readRecord(current); // fresh: the loaded upload may have just remembered a server
+    // fresh: the loaded upload may have just remembered a server. A record that cannot be read is not guessed at: no parked run is sent this sync.
+    const record = await readRecordStrict(current);
+    if (!record) { log("warn", "The parked-guild run record could not be read; the runs of other guilds wait for the next sync."); return; }
     const waiting = [];
     const eligible = [];
     for (const { key, full } of parked) {
@@ -619,7 +615,11 @@ export function createEngine(initialConfig, hooks = {}) {
       // Runs of a guild Guilded parked (another guild's character logged in since) go to THAT guild's server, after the loaded guild's own upload.
       // Only a bot that says it knows runs-only uploads (an older one would store the parked guild as the device's guild).
       else if (parked?.length) {
-        if (Array.isArray(body.deviceFeatures) && body.deviceFeatures.includes("runs-only")) await parkedDeviceUploads(current, parked, await readRecord(current), acknowledged, epoch);
+        if (Array.isArray(body.deviceFeatures) && body.deviceFeatures.includes("runs-only")) {
+          const record = await readRecordStrict(current);
+          if (record) await parkedDeviceUploads(current, parked, record, acknowledged, epoch);
+          else log("warn", "The parked-guild run record could not be read; the runs of other guilds wait for the next sync.");
+        }
         else if (lastParkedWait !== "update") { lastParkedWait = "update"; log("info", "Dungeon runs of another guild of yours wait for a bot update."); }
       }
     } catch (error) {

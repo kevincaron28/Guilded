@@ -542,6 +542,7 @@ function duels.record(winner, loser, at, reason, extra)
   d.results[key] = row
   prune(d)
   if ns.syncNow and ns.syncNow.mark then pcall(ns.syncNow.mark) end
+  if ns.syncNow and ns.syncNow.noteResult then pcall(ns.syncNow.noteResult, "duel") end
   if ns.onDuelsChange then pcall(ns.onDuelsChange) end
   return true, key
 end

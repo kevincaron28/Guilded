@@ -5,6 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { createRequire } from "node:module";
+import { companionProblems, reportableProblems } from "../companion/problems.mjs";
+import { mainStatus } from "../companion/main-status.mjs";
 import { createRecordUpdater, noteOutcome, readRecordDetailed, readRecordStrict, recordPathFor, RECORD_MOVED, RECORD_STUCK } from "../companion/parked-runs.mjs";
 
 // 9.3.3: the parked-runs record is changed one change at a time, each applied to the record read just before it, and a record that could not be
@@ -131,6 +133,56 @@ describe("changing the record", () => {
     const copies = badCopies(path);
     expect(copies).toHaveLength(3);
     expect(copies.map((name) => readFileSync(join(path, "..", name), "utf8"))).toEqual(["{ damaged 2", "{ damaged 3", "{ damaged 4"]);
+  });
+
+  it("bad, lock, bad, lock, bad still moves the record aside: a lock neither counts nor starts the count again", async () => {
+    const { config, path } = setup();
+    const update = createRecordUpdater({ onLog: () => {}, retryMs: 1 });
+    const damage = () => { rmSync(path, { recursive: true, force: true }); writeFileSync(path, "{ not json"); };
+    const lock = () => { rmSync(path, { recursive: true, force: true }); mkdirSync(path); };
+    damage(); await update(config, (record: any) => record);
+    lock(); await update(config, (record: any) => record);
+    damage(); await update(config, (record: any) => record);
+    lock(); await update(config, (record: any) => record);
+    damage();
+    expect(badCopies(path)).toHaveLength(0);
+    expect(await update(config, (record: any) => record)).not.toBeNull();
+    expect(badCopies(path)).toHaveLength(1);
+  });
+
+  it("only the exact timestamped .bad names are pruned: other files in the folder are never removed", async () => {
+    const { config, path } = setup();
+    const name = path.slice(join(path, "..").length + 1);
+    const keep = [`${name}.bad`, `${name}.notes.bad`, `${name}.x.20261115-000000000.bad.keep`, "other.20261115-000000000.bad"];
+    for (const file of keep) writeFileSync(join(path, "..", file), "keep me");
+    const update = createRecordUpdater({ onLog: () => {}, retryMs: 1, unreadableLimit: 1 });
+    for (let index = 0; index < 5; index += 1) { writeFileSync(path, `{ damaged ${index}`); await update(config, (record: any) => record); await delay(5); }
+    for (const file of keep) expect(existsSync(join(path, "..", file)), file).toBe(true);
+    expect(readdirSync(join(path, "..")).filter((entry) => /^GuildedCompanion-parked\.json\.\d{8}-\d{9}\.bad$/.test(entry))).toHaveLength(3);
+  });
+
+  it("the Problems panel entry appears when the record is moved aside or stuck and clears once a fresh record works", async () => {
+    const { config, path } = setup();
+    const seen: (string | null)[] = [];
+    const update = createRecordUpdater({ onLog: () => {}, onStatus: (status: string | null) => { seen.push(status); }, retryMs: 1, unreadableLimit: 2 });
+    writeFileSync(path, "{ not json");
+    await update(config, (record: any) => record);
+    expect(seen).toEqual([]);
+    await update(config, (record: any) => ({ ...record, servers: { S: ["k"] } }));
+    // The record was moved aside and a fresh one started: the problem shows now.
+    expect(seen).toEqual(["moved"]);
+    const state = { parkedRecord: { moved: true, stuck: false } };
+    expect(companionProblems({ state }).map((problem: any) => problem.id)).toContain("parked-record-damaged");
+    expect(mainStatus({ state, problems: companionProblems({ state }) }).needsYou?.id).toBe("parked-record-damaged");
+    // A later change finds the good record: it clears.
+    await update(config, (record: any) => record);
+    expect(seen).toEqual(["moved", null]);
+    expect(companionProblems({ state: { parkedRecord: null } }).map((problem: any) => problem.id)).not.toContain("parked-record-damaged");
+  });
+
+  it("the Problems entry carries only its safe value in a report", () => {
+    const [entry] = reportableProblems([{ id: "parked-record-damaged", data: { stuck: true, path: "C:\\secret" } }]);
+    expect(entry).toEqual({ id: "parked-record-damaged", stuck: true });
   });
 
   it("the problem lines are in the French window's catalogue, so they show in both languages in the Activity list", () => {

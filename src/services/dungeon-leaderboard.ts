@@ -1,12 +1,11 @@
 import { cardAttachment } from "./card-alt.js";
-import { ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder, type StringSelectMenuInteraction, type Guild as DiscordGuild, type Message, MessageFlags } from "discord.js";
+import type { Guild as DiscordGuild, Message } from "discord.js";
 import { prisma } from "../database.js";
-import { asLang, t } from "../i18n.js";
-import { formatLeaderboard, leaderboard } from "./dungeon-stats.js";
+import { asLang } from "../i18n.js";
+import { leaderboard } from "./dungeon-stats.js";
 import { activeSeason } from "./dungeon-import.js";
 import { createGuildService } from "./guild.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./discord-jobs.js";
-import { seasonRows } from "./season-archive.js";
 import { bestRunsEmbed, seasonBestRuns } from "./dungeon-best-runs.js";
 import { guildBossRecords } from "./dungeon-records.js";
 import { dungeonRating, hasDungeonRating, ratingEmbed } from "./dungeon-rating.js";
@@ -14,7 +13,6 @@ import { classOf, loadClassBook, type ClassBook } from "./ladder-classes.js";
 import { classColor, ladderMeta, scoreCardPng, type ScoreCard } from "./score-card.js";
 import { moveColumn, moveFields, trackRanks, type Movements } from "./ladder-snapshots.js";
 import { seasonLabel } from "./season-label.js";
-import { diagnoseDungeonBoard, emptyBoardNote } from "./dungeon-board-diagnosis.js";
 
 export const DUNGEON_BOARD_CARD_FILE = "dungeon-season.png";
 const CARD_TOP = 25;
@@ -44,8 +42,6 @@ export function dungeonSeasonCard(rows: readonly { name: string; points: number;
 }
 
 const guildService = createGuildService(prisma);
-export const DUNGEON_SEASON_SELECT = "dseason:choose";
-
 // Titles the bot has used for dungeon panels in this channel over time (beta scoring guide, rating and
 // participation boards, past-season blocks). A bot message with one of them that is not the live board is outdated.
 const PANEL_TITLE = /comment les points fonctionnent|how points work|^\W*(Exploration|Points de communauté|Community points|Points de participation|Participation points)|Meilleures tentatives|Best runs|Saison passée|Past season/i;
@@ -56,25 +52,6 @@ const isPanelMessage = (message: Pick<Message, "author" | "embeds" | "content">,
 export function seasonHeader(season: { name: string; startsAt: Date }, lang: "fr" | "en"): string {
   const when = `<t:${Math.floor(season.startsAt.getTime() / 1000)}:D>`;
   return lang === "fr" ? `📅 Saison en cours : **${seasonLabel(season.name, "fr")}** · depuis le ${when}` : `📅 Current season: **${season.name}** · since ${when}`;
-}
-
-export async function handleDungeonSeasonSelect(interaction: StringSelectMenuInteraction): Promise<void> {
-  if (!interaction.guild) return;
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  const guild = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
-  const selectedId = interaction.values[0];
-  if (!selectedId) { await interaction.editReply("Choose a season first."); return; }
-  const selected = await prisma.dungeonSeason.findFirst({ where: { guildId: guild.id, id: selectedId } });
-  if (!selected) { await interaction.editReply("That season is no longer available."); return; }
-  const lang = asLang((await guildService.getSettings(guild.id))?.language);
-  if (hasDungeonRating(selected.ratingRules)) {
-    await interaction.editReply({ embeds: [ratingEmbed(await dungeonRating(prisma, guild.id, selected), selected.name, lang, selected.ratingRules)], allowedMentions: { parse: [] } });
-    return;
-  }
-  const rows = await seasonRows(prisma, guild.id, selected);
-  await interaction.editReply({ embeds: [new EmbedBuilder().setColor(0xd4a017).setTitle(selected.name)
-    .setDescription(rows.length ? formatLeaderboard(rows) : t(lang, "dungeon.board.empty"))
-    .setFooter({ text: `${selected.status === "ACTIVE" ? "Current season" : "Archived season"} · ${selected.startsAt.toISOString().slice(0, 10)}${selected.endsAt ? " → " + selected.endsAt.toISOString().slice(0, 10) : ""}` })], allowedMentions: { parse: [] } });
 }
 
 // One leaderboard message in the dungeon leaderboard channel, edited in
@@ -107,49 +84,22 @@ export async function updateDungeonLeaderboard(discordGuild: DiscordGuild | null
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${guild.id}, 0))`;
         return activeSeason(tx, guild.id);
       }, { timeout: 75_000, maxWait: 15_000 });
-    const cardRows = await leaderboard(prisma, guild.id, "season", null, CARD_TOP), rows = cardRows.slice(0, 10);
-    const embed = new EmbedBuilder()
-      .setColor(0xd4a017)
-      .setTitle(t(lang, "dungeon.board.season", { season: seasonLabel(season?.name ?? "Season 1", lang) }))
-      .setDescription(`${seasonHeader(season, lang === "fr" ? "fr" : "en")}
-
-${rows.length ? formatLeaderboard(rows) : t(lang, "dungeon.board.empty")}`.slice(0, 4096))
-      .setTimestamp(new Date());
-    const seasons = await prisma.dungeonSeason.findMany({ where: { guildId: guild.id }, orderBy: { startsAt: "desc" }, take: 25 });
-    for (const past of seasons.filter((row) => row.status === "ENDED").slice(0, 3)) {
-      const top = await seasonRows(prisma, guild.id, past, 3);
-      embed.addFields({ name: `${lang === "fr" ? "Saison passée" : "Past season"}: ${seasonLabel(past.name, lang)}`.slice(0, 256), value: (top.length ? formatLeaderboard(top) : t(lang, "dungeon.board.empty")).slice(0, 1024) });
-    }
-    embed.setFooter({ text: lang === "fr" ? "Toutes les saisons : /dungeon archive. Champions : /dungeon hall-of-fame." : "All seasons: /dungeon archive. Champions: /dungeon hall-of-fame." });
-    const components = seasons.length ? [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder()
-      .setCustomId(DUNGEON_SEASON_SELECT).setPlaceholder(lang === "fr" ? "Voir une saison" : "Browse a season")
-      .addOptions(seasons.map((row) => ({ label: `${seasonLabel(row.name, lang)} (${row.status === "ACTIVE" ? lang === "fr" ? "actuelle" : "current" : lang === "fr" ? "passée" : "past"})`.slice(0, 100), value: row.id }))))] : [];
+    // 15 November 2026: the separate dungeon points embed ("Points de communauté", the season top 10, the past-season blocks) and its
+    // "Voir une saison" picker are retired: those points count in the community leaderboard now. An older message that still has them
+    // is rebuilt without them by this same edit (components cleared). The rating and best-runs embeds and the ladder picture are unchanged.
+    const cardRows = await leaderboard(prisma, guild.id, "season", null, CARD_TOP);
     const best = bestRunsEmbed(await seasonBestRuns(prisma, guild.id, season.id), lang, await guildBossRecords(prisma, guild.id).catch(() => []));
     const ratingRows = hasDungeonRating(season.ratingRules) ? await dungeonRating(prisma, guild.id, season) : null;
     const rating = ratingRows ? ratingEmbed(ratingRows, season.name, lang, season.ratingRules) : null;
-    if (rating) embed.setTitle(lang === "fr" ? "🤝 Points de communauté" : "🤝 Community points");
-    // An empty board says why (runs received but none counted, or none received) instead of only "no points yet".
-    const unranked = !(ratingRows ?? cardRows).some(row => row.points > 0);
-    const emptyNote = unranked ? emptyBoardNote(await diagnoseDungeonBoard(prisma, guild.id).catch(() => ({ season: null, received: 0, counted: 1, reasons: [] })), lang === "fr" ? "fr" : "en") : null;
-    if (emptyNote) embed.setDescription(`${embed.data.description ?? ""}
-
-${emptyNote}`.slice(0, 4096));
-    // Discord applies the 6,000-character budget across all embeds in a message.
-    if (embed.length + best.length + (rating?.length ?? 0) > 5900) embed.setFields([]);
-    if (embed.length + best.length + (rating?.length ?? 0) > 5900) embed.setDescription("/dungeon leaderboard metric:participation");
-    // The ladder picture rides on the first embed; without it (drawing busy or failed) the embeds are unchanged.
+    // The ladder picture rides on the rating embed; without it (drawing busy or failed) the embeds are unchanged.
     const ladderRows = (ratingRows ? ratingRows.map((row) => ({ name: row.name, points: row.points, dungeons: row.dungeons, key: `${row.memberId}:${row.character ?? ""}` }))
       : cardRows.map((row) => ({ name: row.name, points: row.points, key: row.memberId })))
       .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
     // A new season starts a new snapshot board, so arrows never compare two seasons.
     const moves = ladderRows.length ? await trackRanks(prisma, guild.id, `dungeon:${season.id}`, ladderRows.map((row) => row.key)) : null;
     const png = ladderRows.length ? await scoreCardPng(dungeonSeasonCard(ladderRows, season.name, lang === "fr" ? "fr" : "en", Boolean(ratingRows), await loadClassBook(prisma, guild.id).catch(() => new Map<string, string>()), new Date(), moves)).catch(() => null) : null;
-    if (png) (rating ?? embed).setImage(`attachment://${DUNGEON_BOARD_CARD_FILE}`);
-    // With the picture the season's top rows repeat the card: the embed keeps the season header (dates) and the empty-board reason.
-    if (png && !rating) embed.setDescription(`${seasonHeader(season, lang === "fr" ? "fr" : "en")}${emptyNote ? `
-
-${emptyNote}` : ""}`.slice(0, 4096));
-    const payload = { embeds: rating ? [rating, best, embed] : [embed, best], components, files: png ? [cardAttachment(png, DUNGEON_BOARD_CARD_FILE)] : [], allowedMentions: { parse: [] as never[] } };
+    if (png && rating) rating.setImage(`attachment://${DUNGEON_BOARD_CARD_FILE}`);
+    const payload = { embeds: rating ? [rating, best] : [best], components: [], files: png && rating ? [cardAttachment(png, DUNGEON_BOARD_CARD_FILE)] : [], allowedMentions: { parse: [] as never[] } };
 
     const botId = discordGuild.client.user?.id ?? "";
     const saved = settings.dungeonLeaderboardMessageId

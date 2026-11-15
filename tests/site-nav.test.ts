@@ -14,10 +14,13 @@ describe("site menu", () => {
   it("keeps the WoW Forever section through navigation, player links and sign-in in both languages", () => {
     for (const lang of ["en", "fr"] as const) withEdition("forever", () => {
       const html = page("/players/", lang);
-      for (const item of SITE_NAV.filter(item => item.bot)) expect(html).toContain(`href="/forever${item.href}?lang=${lang}"`);
+      for (const item of SITE_NAV.filter(item => item.bot && item.key !== "my-guilded")) expect(html).toContain(`href="/forever${item.href}?lang=${lang}"`);
       expect(link("/players/", lang)).toBe(`/forever/players/?lang=${lang}`);
-      expect(html).not.toContain("/auth/login");
-      expect(safeReturnPath(`/forever/players/?lang=${lang}`)).toBe(`/forever/players/?lang=${lang}`);
+      const login = /href="(\/auth\/login[^"]+)"/.exec(html)![1]!.replaceAll("&amp;", "&");
+      const returned = new URL(new URL(login, "https://guilded.test").searchParams.get("return")!, "https://guilded.test");
+      expect(returned.pathname).toBe("/forever/players/");
+      expect(returned.searchParams.get("lang")).toBe(lang);
+      expect(safeReturnPath(returned.pathname + returned.search)).toBe(returned.pathname + returned.search);
       expect(link("/me/", lang)).toBe(`/me/?lang=${lang}`);
     });
     // A removed edition's old section is not a sign-in return path any more.
@@ -60,10 +63,12 @@ describe("site menu", () => {
   it("shows every menu link on bot-served pages, in the page language", () => {
     const html = page("/leaderboards/", "fr");
     for (const item of SITE_NAV) {
-      expect(html).toContain(`>${item.fr}</a>`);
+      if (item.icon) expect(html).toContain(`aria-label="${item.fr}"`);
+      else expect(html).toContain(`>${item.fr}</a>`);
     }
     expect(html).toContain('href="/forever/leaderboards/?lang=fr" aria-current="page"');
     expect(html).toContain('href="/companion/?lang=fr"');
+    expect(page("/me/", "en")).toContain('href="/me/?lang=en" aria-current="page"');
     expect(page("/players/", "en")).not.toContain('aria-current="page"');
   });
 
@@ -105,13 +110,13 @@ describe("site menu", () => {
   });
 
   // 2 November 2026 rebuild: six visible entries, no hidden drop-downs for them, one button.
-  it("has five header items: Download, Guide, Quick reference, Leaderboards and Community, and no account link", () => {
+  it("has six header items: Download, Guide, Quick reference, Leaderboards, Community and a My Guilded icon", () => {
     const html = navLinks({ label: item => item.en, current: "leaderboards" });
-    expect([...html.matchAll(/<a /g)]).toHaveLength(5);
+    expect([...html.matchAll(/<a /g)]).toHaveLength(6);
     expect(html).not.toMatch(/<details|<summary/);
-    expect(SITE_NAV.map(item => item.key)).toEqual(["download", "guide", "reference", "leaderboards", "community"]);
+    expect(SITE_NAV.map(item => item.key)).toEqual(["download", "guide", "reference", "leaderboards", "community", "my-guilded"]);
     expect(html).toContain('<a href="/download/" class="nav-cta">Download</a>');
-    expect(html).not.toContain('My Guilded');
+    expect(html).toContain('aria-label="My Guilded"');
     expect(html.match(/class="nav-cta"/g)).toHaveLength(1);
     expect(html).toContain('<a href="/leaderboards/" aria-current="page">Leaderboards</a>');
     expect(html.match(/aria-current/g)).toHaveLength(1);

@@ -15,6 +15,7 @@ export const SITE_NAV = [
   { key: "leaderboards", href: "/leaderboards/", en: "Leaderboards", fr: "Classements", bot: true },
   // Community boards are served by the bot under the Forever section.
   { key: "community", href: "/community/", en: "Community", fr: "Communauté" },
+  { key: "my-guilded", href: "/me/", en: "My Guilded", fr: "Mon Guilded", bot: true, icon: true }
 ];
 
 /** @typedef {{ key: string, href: string, en: string, fr: string, column: string, bot?: boolean }} FooterItem */
@@ -39,6 +40,7 @@ export const FOOTER_NAV = [
   { key: "guilds", column: "community", href: "/recruitment/guilds/", en: "Find a guild", fr: "Trouver une guilde", bot: true },
   { key: "recruitment", column: "community", href: "/recruitment/", en: "Recruitment", fr: "Recrutement", bot: true },
   { key: "players", column: "community", href: "/players/", en: "Players", fr: "Joueurs", bot: true },
+  { key: "my-guilded", column: "community", href: "/me/", en: "My Guilded", fr: "Mon Guilded", bot: true },
   { key: "discord", column: "community", href: "https://discord.gg/YjzFwtP64V", en: "Ask on Discord ↗", fr: "Demander sur Discord ↗" },
   { key: "install", column: "help", href: "/guides/install/", en: "Install guide", fr: "Guide d’installation" },
   { key: "reference", column: "help", href: "/reference/", en: "Quick reference", fr: "Référence rapide" },

@@ -48,10 +48,13 @@ describe("the sign-in the companion and the phone app use still answers", () => 
     for (const name of ["devices.route", "memberData.route"]) expect(line).toContain(name);
     expect(source).toContain('new URL("/me/companion", auth.siteUrl)');
   });
-  it("the public nav and footer have no account link or sign-in button", () => {
+  it("a small sign-in link is back in the menu and /me/ is one basic page", () => {
     const nav = readFileSync(new URL("../site/nav.mjs", import.meta.url), "utf8");
-    expect(nav).not.toMatch(/key: "my-guilded"/);
+    expect(nav).toMatch(/key: "my-guilded"/);
     const layout = readFileSync(new URL("../src/services/web-layout.ts", import.meta.url), "utf8");
-    expect(layout).not.toContain("Sign in with Discord");
+    expect(layout).toContain("Sign in with Discord");
+    const api = readFileSync(new URL("../src/companion-api.ts", import.meta.url), "utf8");
+    const ids = [...api.matchAll(/meSection\(\{ id: "([a-z-]+)"/g)].map(match => match[1]);
+    expect(ids).toEqual(["characters", "connections", "your-data"]);
   });
 });

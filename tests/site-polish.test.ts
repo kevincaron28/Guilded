@@ -25,7 +25,7 @@ describe("website polish: rendered pages", () => {
       for (const [, list] of lists) {
         const items = [...list!.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/g)];
         expect(items.length, page).toBeGreaterThanOrEqual(5);
-        for (const [, item] of items) expect(item, page).toMatch(/<a href="[^"]+">[^<]+<small>[^<]+<\/small><\/a>/);
+        for (const [, item] of items) expect(item, page).toMatch(/<a href="[^"]+">(?:<img [^>]*>)?[^<]+<small>[^<]+<\/small><\/a>/);
       }
     }
     expect(read("guide/index.html")).toContain("data-guide-list");

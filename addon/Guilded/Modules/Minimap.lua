@@ -2038,6 +2038,8 @@ local function refreshHome(db, officer, me)
     table.insert(now, string.format(L("Dungeon standings: %s%s."), ns.util.whenText(board.updatedAt) or board.updatedAt,
       board.from and string.format(L(", shared by %s"), board.from) or ""))
   end
+  local carryLine = ns.carry and ns.carry.windowLine and ns.carry.windowLine() or ""
+  if carryLine ~= "" then table.insert(now, carryLine) end
   ui.homeNow:SetText(table.concat(now, "\n"))
 
   local snapshot = db.readiness and db.readiness[me]

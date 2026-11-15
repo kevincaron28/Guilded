@@ -178,7 +178,14 @@ export async function placeCarriedRun(database: PrismaClient, input: { carrier: 
   }
 
   // The original is put back only when nothing of this statement is on the boards (an error after the run was created must not leave two rows).
-  const putBack = async () => { if (backup && store.restoreRelayRun && !await store.findRun(runKey).catch(() => null) && !await findSameRun(store, summary).catch(() => null)) await store.restoreRelayRun(backup).catch((error: unknown) => console.error(`Carried run ${runKey.slice(0, 50)}: the replaced run could not be put back: ${error instanceof Error ? error.message : String(error)}`)); };
+  const putBack = async () => {
+    if (!backup || !store.restoreRelayRun) return;
+    try {
+      // A lookup that fails is not "nothing there": the original is not put back then (it could duplicate a run), and the owner sees why.
+      if (await store.findRun(runKey) || await findSameRun(store, summary)) return;
+      await store.restoreRelayRun(backup);
+    } catch (error) { console.error(`Carried run ${runKey.slice(0, 50)}: the replaced run was not put back: ${error instanceof Error ? error.message : String(error)}`); }
+  };
   if (capReason) { await putBack(); await refuse(capReason); return false; }
 
   let result: Awaited<ReturnType<typeof ingestRelayedRuns>>;

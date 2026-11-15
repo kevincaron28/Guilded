@@ -247,6 +247,19 @@ describe("carried dungeon runs", () => {
     expect(rows.find((row) => row.carrier === "member:aye")).toMatchObject({ status: "differs" });
   });
 
+  it("a failed lookup before putting the original back is not read as nothing there: nothing is restored", async () => {
+    const { db } = fakeDb();
+    const { store, runs, calls, failNext } = memoryStore();
+    await store.createRun(relayedCopy() as RunSummary, { key: "relay:device:x", reporters: [] }, "personal");
+    failNext.create = true;
+    const find = store.findRun.bind(store);
+    store.findRun = async (key) => { if (calls.discard > 0) throw new Error("database busy"); return find(key); };
+    await apply(db, store, [record("Aye")], "member:aye");
+    expect(calls.discard).toBe(1);
+    expect(calls.restore).toBe(0);
+    expect(runs.size).toBe(0);
+  });
+
   it("an error after the replacement was created does not put the original back beside it", async () => {
     const { db } = fakeDb();
     const { store, runs, calls } = memoryStore();

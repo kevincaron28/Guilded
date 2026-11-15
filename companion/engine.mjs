@@ -263,7 +263,7 @@ export function createEngine(initialConfig, hooks = {}) {
   // The parked-runs record is changed by the parked uploads and by the standings check at the same time. Each change is applied to the freshly
   // read record, one at a time, so a slower writer never puts back an older copy (which made a parked guild look untried and be sent twice).
   // `change` gets the record and returns the new one, or null to leave it as it is. A record that cannot be read is never written over.
-  const updateRecord = createRecordUpdater({ onLog: (level, message) => log(level, message) });
+  const updateRecord = createRecordUpdater({ onLog: (level, message) => log(level, message), onStatus: (status) => { state.parkedRecord = status ? { moved: status === "moved", stuck: status === "stuck" } : null; } });
   const heartbeat = createHeartbeat();
   let controller = new AbortController();
   let uploading = false;
@@ -297,6 +297,7 @@ export function createEngine(initialConfig, hooks = {}) {
     lastUpload: null,     // { at, message }
     lastStandings: null,  // { at, message }
     lastRuns: null,       // { at, message }: what happened to the last dungeon runs sent (run-report.mjs)
+    parkedRecord: null,   // { moved, stuck }: the parked-runs record was damaged and moved aside or could not be (Problems panel), until a fresh one works
     lastError: null,      // { at, message }
     botVersion: null,
     addonVersion: null,

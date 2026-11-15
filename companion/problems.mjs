@@ -18,6 +18,7 @@ export const PROBLEM_IDS = Object.freeze([
   "saved-file-missing",
   "saved-file-not-updated",
   "upload-rejected",
+  "parked-record-damaged",
   "wow-running-update",
   "companion-outdated"
 ]);
@@ -117,6 +118,10 @@ export function companionProblems(input = {}) {
   const disk = input.diskSpace;
   if (disk && disk.ok === false && Number.isFinite(disk.freeMb)) add("disk-space-low", { freeMb: disk.freeMb, neededMb: disk.neededMb ?? 600 });
 
+  // The saved list of runs waiting for other guilds was damaged (engine.mjs): moved aside as a .bad copy, or it could not be. Clears once a fresh list works.
+  const parked = state.parkedRecord;
+  if (parked && (parked.moved || parked.stuck)) add("parked-record-damaged", { stuck: Boolean(parked.stuck) });
+
   // Every error the engine holds right now: uploads, standings, and each background connection.
   const errors = [state.uploadError, state.standingsError, ...(state.profiles ?? []).map((profile) => profile?.error)]
     .filter((text) => typeof text === "string" && text.trim());
@@ -200,6 +205,7 @@ const SAFE = {
   "saved-file-missing": { chosen: "boolean", othersSaved: "boolean" },
   "saved-file-not-updated": { moved: "boolean", days: "number" },
   "upload-rejected": { status: "number", applyError: "boolean" },
+  "parked-record-damaged": { stuck: "boolean" },
   "wow-running-update": { installed: "version", running: "version" },
   "companion-outdated": { latest: "version", current: "version", store: "boolean", unfinished: "boolean" }
 };

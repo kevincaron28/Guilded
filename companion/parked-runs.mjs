@@ -130,7 +130,8 @@ async function moveAside(path) {
   try {
     const folder = dirname(path);
     const prefix = `${path.slice(folder.length + 1)}.`;
-    const copies = (await readdir(folder)).filter((name) => name.startsWith(prefix) && name.endsWith(".bad")).sort();
+    // Exactly the names made above (<record file>.<YYYYMMDD-HHMMSSmmm>.bad): nothing else in the folder is ever removed.
+    const copies = (await readdir(folder)).filter((name) => name.startsWith(prefix) && /^\d{8}-\d{9}\.bad$/.test(name.slice(prefix.length))).sort();
     for (const old of copies.slice(0, Math.max(0, copies.length - KEEP_BAD))) await rm(join(folder, old), { force: true });
   } catch { /* the copies are only kept tidy */ }
   return true;
@@ -145,9 +146,12 @@ async function moveAside(path) {
 const noLog = (level, message) => { void level; void message; };
 /** After this many damaged reads in a row the record is moved aside and a new one is started. */
 export const UNREADABLE_LIMIT = 3;
-export function createRecordUpdater({ onLog = noLog, retryMs = 150, unreadableLimit = UNREADABLE_LIMIT } = {}) {
+export function createRecordUpdater({ onLog = noLog, onStatus = (status) => { void status; }, retryMs = 150, unreadableLimit = UNREADABLE_LIMIT } = {}) {
   let tail = Promise.resolve();
   let damaged = 0;
+  // The member-visible problem (the Problems panel): "moved" or "stuck" until a later change finds a good record; null when there is none.
+  let problem = null;
+  const setProblem = (next) => { if (next !== problem) { problem = next; onStatus(next); } };
   return (config, change) => {
     const run = tail.then(async () => {
       const read = await readRecordDetailed(config, { retryMs });
@@ -158,11 +162,16 @@ export function createRecordUpdater({ onLog = noLog, retryMs = 150, unreadableLi
         if (damaged < unreadableLimit) { onLog("warn", RECORD_SKIPPED); return null; }
         // Damaged several times in a row: the file is moved aside (kept as a .bad copy) and a fresh record is started, so the runs of other guilds are not stuck for good.
         const path = recordPathFor(config);
-        if (!path || !(await moveAside(path))) { onLog("error", RECORD_STUCK); return null; }
+        if (!path || !(await moveAside(path))) { onLog("error", RECORD_STUCK); setProblem("stuck"); return null; }
         onLog("error", RECORD_MOVED);
+        setProblem("moved");
         record = emptyRecord();
+        damaged = 0;
+      } else {
+        damaged = 0;
+        // A good record on a later change: the fresh record works, so the problem is over.
+        setProblem(null);
       }
-      damaged = 0;
       const next = await change(record);
       if (!next) return null;
       if (!(await writeRecord(config, next))) { onLog("warn", RECORD_NOT_SAVED); return null; }

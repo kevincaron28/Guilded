@@ -121,4 +121,15 @@ describe("run digests before the login replay", () => {
     walter.run(`CLOCK = CLOCK + 4000`);
     expect(walter.run(`return tostring(NS.dungeon.peerHolds(NS.getDb().dungeon.runs["walter-rfc"]))`)).toBe("false");
   });
+
+  it("answers a burst of guildmate digests once, not once each", () => {
+    const walter = client("Walter");
+    giveRun(walter, "walter-rfc");
+    const week = walter.run(`return NS.dungeon.bucketOf(NS.getDb().dungeon.runs["walter-rfc"])`);
+    for (let i = 0; i < 10; i++) {
+      walter.run(`MEMBERS["Peer${i}"] = true; fire_event("CHAT_MSG_ADDON", "GuildedDgn", "DGS|1|D1|${week}:00000${i}", "GUILD", "Peer${i}-Realm")`);
+    }
+    walter.run(`run_timers()`);
+    expect(pump(walter, "Walter").filter((line) => line.startsWith("DGS|"))).toHaveLength(1);
+  });
 });

@@ -1578,8 +1578,14 @@ function dungeon.onDigest(text, sender)
   end
   dungeon.peerDigests[sender] = { at = now(), caps = caps, buckets = buckets }
   -- Answer with ours when this peer has not heard it lately (a digest goes both ways, once), after a random moment.
-  if (not dungeon.lastDigest or now() - dungeon.lastDigest >= DIGEST_REPLY_GAP) and C_Timer and C_Timer.After then
-    C_Timer.After(2 + math.random(0, 10), function() pcall(dungeon.sendDigest, true) end)
+  -- One pending answer at most: the time is claimed now, so a burst of digests makes this client answer once, not once each.
+  if (not dungeon.lastDigest or now() - dungeon.lastDigest >= DIGEST_REPLY_GAP) and not dungeon.digestReplyPending and C_Timer and C_Timer.After then
+    dungeon.digestReplyPending = true
+    dungeon.lastDigest = now()
+    C_Timer.After(2 + math.random(0, 10), function()
+      dungeon.digestReplyPending = false
+      pcall(dungeon.sendDigest, true)
+    end)
   end
   -- A week where the hashes differ: offer our own unconfirmed runs of it (the peer asks for the ones it lacks).
   local mine, differ = dungeon.digest(), nil

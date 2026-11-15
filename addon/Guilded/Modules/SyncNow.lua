@@ -42,9 +42,75 @@ function module.savedAgoText()
   return ns.relay.ageText(clock() - at)
 end
 
+local function L(text) return ns.L and ns.L(text) or text end
+
+-- (9.3.5) The companion writes GuildedCompanionFeatures.at (its own heartbeat, at least hourly) into the generated addon file;
+-- the game reads it at the last load, so this is "when the companion last looked at this PC's files".
+function module.companionSeenAge()
+  local features = type(GuildedCompanionFeatures) == "table" and GuildedCompanionFeatures or nil
+  if not features then return nil end
+  -- bt is the bot clock (compare with the game clock); at is the PC clock (compare with the PC clock).
+  local seen, now = tonumber(features.bt), GetServerTime and GetServerTime()
+  if not (seen and now) then seen, now = tonumber(features.at), clock() end
+  if not seen then return nil end
+  return math.max(0, now - seen)
+end
+
+-- "Last saved for the companion: 12 min ago" (nil before the first save). The companion reads the saved file after a /reload or logout.
+function module.lastSavedLine()
+  local ago = module.savedAgoText()
+  if not ago then return nil end
+  return string.format(L("Last saved for the companion: %s"), ago)
+end
+
+-- ---- One quiet reminder after a finished run or duel (off switch: settings.syncReminder = false) ----
+function module.reminderEnabled()
+  local s = ns.getSettings and ns.getSettings()
+  return not (s and s.syncReminder == false)
+end
+function module.setReminder(on)
+  local s = ns.getSettings and ns.getSettings()
+  if s then s.syncReminder = on and true or false end
+end
+
+local reminderShown, reminderWaiting
+
+local function inCombatNow()
+  if InCombatLockdown and InCombatLockdown() then return true end
+  if UnitAffectingCombat and UnitAffectingCombat("player") then return true end
+  return false
+end
+
+local function sayReminder()
+  reminderWaiting = nil
+  if reminderShown then return end
+  reminderShown = true
+  if ns.message then ns.message(L("Type /reload when convenient to send this run now.")) end
+end
+
+-- Called when a dungeon run completes or a duel is recorded. Says one line per session, never in combat (it waits for the
+-- fight to end), only for players who have a companion to send to, and never reloads anything itself.
+function module.noteResult(kind)
+  if reminderShown or not module.reminderEnabled() then return end
+  if not (ns.sendsToDiscord and ns.sendsToDiscord()) then return end
+  if ns.isInGameOnly and ns.isInGameOnly() then return end
+  if inCombatNow() then reminderWaiting = kind or true; return end
+  if kind == "duel" and ns.message then
+    reminderShown = true
+    ns.message(L("Type /reload when convenient to send this duel now."))
+    return
+  end
+  sayReminder()
+end
+
 local saver = CreateFrame("Frame")
+saver:RegisterEvent("PLAYER_REGEN_ENABLED")
 saver:RegisterEvent("PLAYER_LOGOUT")
 saver:SetScript("OnEvent", function(_, event)
+  if event == "PLAYER_REGEN_ENABLED" then
+    if reminderWaiting and not reminderShown then module.noteResult(reminderWaiting) end
+    return
+  end
   if event ~= "PLAYER_LOGOUT" then return end
   local db = ns.getDb and ns.getDb()
   if db then db.syncSavedAt = clock() end
@@ -132,6 +198,13 @@ end
 ns.commandHandlers = ns.commandHandlers or {}
 local lastPeerRequest
 ns.commandHandlers["sync"] = function(args)
+  if string.lower(args[1] or "") == "reminder" then
+    local choice = string.lower(args[2] or "")
+    if choice == "off" then module.setReminder(false); ns.message(L("Reload reminder off."))
+    elseif choice == "on" then module.setReminder(true); ns.message(L("Reload reminder on."))
+    else ns.message(module.reminderEnabled() and L("Reload reminder is on. Turn it off: /guilded sync reminder off") or L("Reload reminder is off. Turn it on: /guilded sync reminder on")) end
+    return
+  end
   if string.lower(args[1] or "") == "stats" then
     -- (9.0) Messages, bytes, relayed items and the last catch-up (Modules/CatchUp.lua).
     if ns.catchUp then for _, line in ipairs(ns.catchUp.statsLines()) do ns.message(line) end end
@@ -161,13 +234,22 @@ ns.commandHandlers["sync"] = function(args)
     -- The old automatic reload: the game no longer allows it (see the top of this file).
     ns.message("Automatic saving is no longer possible: the game only reloads on your own click. Press Send to Discord, or type /reload.")
   elseif action == "status" then
+    local saved = module.lastSavedLine()
+    if saved then ns.message(saved) end
+    local age = module.companionSeenAge()
+    if age and ns.relay and ns.relay.ageText then
+      ns.message(string.format(L("Companion last active: %s"), ns.relay.ageText(age)))
+    end
     ns.message("Sync to Discord: " .. (dirtyAt and ("changes waiting since " .. math.floor((clock() - dirtyAt) / 60) .. " min") or "nothing waiting") .. ".")
   else
     -- A slash command cannot reload either; the player types it (or clicks the button).
+    local saved = module.lastSavedLine()
+    if saved then ns.message(saved) end
     ns.message("To send your data to Discord now, type /reload (or press Send to Discord in the Guilded window).")
   end
 end
 ns.commandHelp = ns.commandHelp or {}
+table.insert(ns.commandHelp, "/guilded sync reminder on|off - the one-time line suggesting /reload after a run or duel")
 table.insert(ns.commandHelp, "/guilded sync peers - request shared data from online guildmates")
 table.insert(ns.commandHelp, "/guilded sync stats - guild sync traffic, relayed items and the last catch-up")
 table.insert(ns.commandHelp, "/guilded sync | sync status - how to send your data to Discord now (/reload, or the Send to Discord button)")

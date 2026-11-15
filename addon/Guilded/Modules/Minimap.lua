@@ -2066,6 +2066,10 @@ local function refreshHome(db, officer, me)
   end
 
   ui.syncStatus = ns.syncNow and ns.syncNow.statusLine and ns.syncNow.statusLine() or ""
+  do
+    local saved = ns.syncNow and ns.syncNow.lastSavedLine and ns.syncNow.lastSavedLine()
+    if saved then ui.syncStatus = ui.syncStatus .. " " .. saved end
+  end
   if ui.sidebarSync then
     local dirty = ns.syncNow and ns.syncNow.isDirty and ns.syncNow.isDirty()
     local text = dirty and L(sendsToDiscord() and "Unsent changes" or "Local changes") or L("All saved")

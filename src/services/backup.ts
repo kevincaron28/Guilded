@@ -97,8 +97,17 @@ async function writeBackup(database: PrismaClient, now: Date, dir: string, keep:
     // The write stream opens its file asynchronously: removing the temporary file before the stream has closed can
     // leave it behind (or recreate it), so a failed backup left a partial .tmp file in the folder.
     gzip?.destroy();
-    if (sink && !sink.closed) { const closing = sink; await new Promise<void>((resolve) => { closing.once("close", () => resolve()); closing.destroy(); }); }
-    await rm(temporary, { force: true });
+    if (sink && !sink.closed) {
+      const closing = sink;
+      // "close" is reliable, but a stalled file system must not block the next backup: give up waiting after 10 seconds.
+      await new Promise<void>((resolve) => {
+        const guard = setTimeout(resolve, 10_000);
+        closing.once("close", () => { clearTimeout(guard); resolve(); });
+        closing.destroy();
+      });
+    }
+    // Never let a cleanup error (EPERM or EBUSY on Windows) replace the error that made the backup fail.
+    await rm(temporary, { force: true }).catch(() => undefined);
   }
 }
 

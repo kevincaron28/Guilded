@@ -25,7 +25,8 @@ SHA-256 of the file: `{{ANDROID_SHA256}}`. You can compare it with the checksum 
 ## Do I need the Windows companion?
 
 - **Addon only:** no. The addon works in game on its own, and your guild shares EP/GP, loot and standings in game without the companion.
-- **Discord and website features:** yes. Achievements, leaderboards, your player page and standings synced with your guild's Discord need the companion to send your saved data.
+- **Leaderboards and your player page:** not required. Your dungeon runs and duels also reach the site through another player's companion (in your group or your guild). Your own companion makes it instant.
+- **Linking your characters to Discord, achievements and standings synced with your guild's Discord:** yes, these need the companion to send your saved data.
 
 The companion works on **Windows only**. There is no Mac or Linux version and no browser version.
 

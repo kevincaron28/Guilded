@@ -10,7 +10,7 @@
 <p class="small">Notes et sommes de contrôle : <a href="https://github.com/kevincaron28/Guilded/releases/tag/v{{GUILDED_VERSION}}">v{{GUILDED_VERSION}} ↗</a></p>
 
 <h2 id="companion">2. Compagnon (facultatif, Windows)</h2>
-<p>L’addon fonctionne seul. Le compagnon envoie vos données enregistrées à Discord et au site. Windows seulement. Version <strong>{{COMPANION_DIRECT_VERSION}}</strong>.</p>
+<p>L’addon fonctionne seul. Le compagnon envoie vos données enregistrées à Discord et au site, tout de suite. Il est facultatif : sans lui, le compagnon d’un autre joueur peut quand même transporter vos donjons et vos duels aux classements. Windows seulement. Version <strong>{{COMPANION_DIRECT_VERSION}}</strong>.</p>
 <div class="actions"><a class="button" href="https://apps.microsoft.com/detail/9N680XX3QFL9">Microsoft Store <span aria-hidden="true">↗</span></a><a class="button secondary" href="{{COMPANION_DIRECT_URL}}">Exe direct (non signé) <span aria-hidden="true">↓</span></a></div>
 <p class="small">Windows peut avertir à la première ouverture. SHA-256 : <code>{{COMPANION_DIRECT_SHA256}}</code></p>
 

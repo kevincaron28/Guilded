@@ -25,7 +25,8 @@ SHA-256 du fichier : `{{ANDROID_SHA256}}`. Vous pouvez le comparer à la somme d
 ## En ai-je besoin ?
 
 - **Addon seulement :** non. L’addon fonctionne seul en jeu, et votre guilde partage EP/GP, butin et classements en jeu sans le compagnon.
-- **Fonctions Discord et site :** oui. Les succès, les classements, votre page de joueur et les classements synchronisés avec le Discord de votre guilde exigent le compagnon pour envoyer vos données enregistrées.
+- **Classements et page de joueur :** pas obligatoire. Vos donjons et vos duels arrivent aussi sur le site par le compagnon d’un autre joueur (dans votre groupe ou votre guilde). Votre propre compagnon rend cela instantané.
+- **Lier vos personnages à Discord, succès et classements synchronisés avec le Discord de votre guilde :** oui, ils exigent le compagnon pour envoyer vos données enregistrées.
 
 Le compagnon fonctionne **sous Windows seulement**. Il n’existe pas de version Mac ou Linux, ni de version dans le navigateur.
 

@@ -30,7 +30,7 @@ Quebec Gold is a francophone WoW Forever guild on the Horde side of a PvP realm.
 <li><span class="step-number" aria-hidden="true">1</span><div><h3>Join the Discord</h3><p>Use the <a href="https://discord.gg/PCs8BeE8bg">invite link</a>, say hello and tell us which game you came for. For WoW, add your class, role and availability.</p></div></li>
 <li><span class="step-number" aria-hidden="true">2</span><div><h3>Post your character in #invitation-guilde</h3><p>Write your full character name, first and last name together (for example <em>Firstname Lastname</em>). The bot reacts with 👀 so you know it was read.</p></div></li>
 <li><span class="step-number" aria-hidden="true">3</span><div><h3>An officer invites you</h3><p>Officers see a queue of waiting names, in Discord and in game, and send the guild invite by hand. You get a ✅ when it is done.</p></div></li>
-<li><span class="step-number" aria-hidden="true">4</span><div><h3>Link your characters</h3><p>Install the free Windows companion once: it links your characters to your Discord account, so your boards, achievements and standings follow you.</p></div></li>
+<li><span class="step-number" aria-hidden="true">4</span><div><h3>Link your characters</h3><p>Install the free Windows companion once: it links your characters to your Discord account and syncs instantly, so your boards, achievements and standings follow you.</p></div></li>
 </ol>
 
 <!-- screenshot: the #invitation-guilde channel in Discord with one request showing the 👀 reaction and a finished one showing ✅ (hide Discord usernames). Landscape. -->

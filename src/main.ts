@@ -107,7 +107,7 @@ import { runRaidReminders } from "./services/reminders.js";
 import { runMobileAlerts } from "./services/mobile-alerts.js";
 import { queueExpiredPolls } from "./services/poll-expiry.js";
 import { runCooldownPings } from "./services/recipes.js";
-import { DUNGEON_SEASON_SELECT, handleDungeonSeasonSelect, updateDungeonLeaderboard } from "./services/dungeon-leaderboard.js";
+import { updateDungeonLeaderboard } from "./services/dungeon-leaderboard.js";
 import { updateDuelBoard } from "./services/duel-board.js";
 import { retireActivityBoard } from "./services/activity-retire.js";
 import { updateRaceBoard } from "./services/race-board.js";
@@ -808,10 +808,6 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
       if (interaction.deferred) await interaction.editReply({ content }).catch(() => undefined);
       else if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
-    return;
-  }
-  if (interaction.isStringSelectMenu() && interaction.customId === DUNGEON_SEASON_SELECT) {
-    await handleDungeonSeasonSelect(interaction).catch((error: unknown) => reportInteractionError("Dungeon season history", interaction, error));
     return;
   }
   if (interaction.isAutocomplete()) {

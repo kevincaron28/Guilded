@@ -60,7 +60,7 @@ describe("setup wizard screens", () => {
         for (const step of [0, 8]) {
           const screen = await renderStep(step, guild as never, "g1", "");
           const description = screen.embeds[0]!.toJSON().description!;
-          expect(description).toContain("https://guilded.kcaron.top/leaderboards/");
+          expect(description).toContain("https://guildedwow.com/leaderboards/");
           expect(description).toContain("<t:1794312000:f>");
           expect(description).toContain(language === "fr" ? "hors guilde" : "non-guild players");
           expect(description).toContain(language === "fr" ? "anciens imports restent privés" : "older imports stay private");

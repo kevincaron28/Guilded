@@ -218,6 +218,58 @@ describe("carried dungeon runs", () => {
     expect(placed(runs).summary.durationSec).toBe(1500);
   });
 
+  it("a replaced run is noted for the owner in a row that outlives the run rows, and is never replaced a second time", async () => {
+    const { db, rows } = fakeDb();
+    const { store, runs, calls } = memoryStore();
+    await store.createRun(relayedCopy() as RunSummary, { key: "relay:device:x", reporters: [] }, "personal");
+    await apply(db, store, [record("Aye")], "member:aye");
+    const note = rows.find((row) => row.kind === "replaced-run");
+    expect(note).toMatchObject({ status: "replaced", runKey: RUNKEY });
+    expect(note!.author).toContain("2000s");
+    // The run rows are cleaned after the holding time; the note stays, and the replacement does not open again for an old run.
+    for (const row of rows.filter((entry) => entry.kind === "run")) rows.splice(rows.indexOf(row), 1);
+    await apply(db, store, [record("Aye", "QG-5-eeeeee", { en: start + 2500, ev: `2735:${start + 2500}` })], "member:other");
+    expect(calls.discard).toBe(1);
+    expect(placed(runs).summary.durationSec).toBe(1500);
+  });
+
+  it("known limit: a forged run placed first under the forger's own name stays, and the honest recorder's statement is filed as differs", async () => {
+    const { db, rows } = fakeDb();
+    const { store, runs } = memoryStore();
+    const forgerId = idFor("Mallory", start + 20);
+    const party = { p3: "Mallory;ROGUE;DAMAGER;20;1300;0" };
+    await apply(db, store, [{ kind: "run", key: "QG-9-mmmmmm", author: "Mallory", data: data({ id: forgerId, en: start + 3000, ev: `2735:${start + 3000}`, ...party }) }], "member:mallory");
+    expect(runs.size).toBe(1);
+    const honest = await apply(db, store, [record("Aye", "QG-1-aaaaaa", party)], "member:aye");
+    expect(honest.receipts).toEqual([receipt("QG-1-aaaaaa")]);
+    expect(runs.size).toBe(1);
+    expect(placed(runs, `389:${forgerId}`).summary.durationSec).toBe(3000);
+    expect(rows.find((row) => row.carrier === "member:aye")).toMatchObject({ status: "differs" });
+  });
+
+  it("a failed lookup before putting the original back is not read as nothing there: nothing is restored", async () => {
+    const { db } = fakeDb();
+    const { store, runs, calls, failNext } = memoryStore();
+    await store.createRun(relayedCopy() as RunSummary, { key: "relay:device:x", reporters: [] }, "personal");
+    failNext.create = true;
+    const find = store.findRun.bind(store);
+    store.findRun = async (key) => { if (calls.discard > 0) throw new Error("database busy"); return find(key); };
+    await apply(db, store, [record("Aye")], "member:aye");
+    expect(calls.discard).toBe(1);
+    expect(calls.restore).toBe(0);
+    expect(runs.size).toBe(0);
+  });
+
+  it("an error after the replacement was created does not put the original back beside it", async () => {
+    const { db } = fakeDb();
+    const { store, runs, calls } = memoryStore();
+    await store.createRun(relayedCopy() as RunSummary, { key: "relay:device:x", reporters: [] }, "personal");
+    await apply(db, store, [record("Aye")], "member:aye", { relay: { store, onPlaced: () => { throw new Error("announcement failed"); } } });
+    expect(calls.restore).toBe(0);
+    expect(runs.size).toBe(1);
+    expect(placed(runs).summary.durationSec).toBe(1500);
+  });
+
   it("a differing statement from someone else never changes a placed run: it is receipted and recorded as differs", async () => {
     const { db, rows } = fakeDb();
     const { store, runs } = memoryStore();
@@ -244,6 +296,10 @@ describe("carried dungeon runs", () => {
     const later = await apply(db, store, [fast], "member:aye", { now: new Date(NOW.getTime() + 3 * 86_400_000) });
     expect(later.receipts).toEqual([receipt("QG-1-aaaaaa")]);
     expect(placed(runs, `389:${zedId}`).summary.durationSec).toBe(2000);
+    // Closed for good: sent again, it is receipted at once and stays closed.
+    const again = await apply(db, store, [fast], "member:aye", { now: new Date(NOW.getTime() + 4 * 86_400_000) });
+    expect(again.receipts).toEqual([receipt("QG-1-aaaaaa")]);
+    expect(rows.find((row) => row.carrier === "member:aye")).toMatchObject({ status: "refused" });
   });
 
   it("if placing the replacement fails after the original was removed, the original is put back", async () => {

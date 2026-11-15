@@ -170,3 +170,8 @@ Owner decision, 14 November 2026: a carried run with only one report (one player
 - **A replacement can fail safely.** The run is copied before it is removed and put back if the statement is then not placed (a check, a limit, an error).
 - **Held statements are closed.** A statement held by a check is retried for two days (rows with status "held"), then receipted as permanently refused (status "refused", logged).
 - **Index:** `PublicRun(gameEdition, instanceId, startedAt)` for the near-match lookup (same migration folder, hand-written); the lookup is ordered by start and reads up to 50 runs.
+
+### Follow-ups after the merge (internal)
+
+- A closed statement ("refused") that is sent again is receipted at once. A replaced run leaves a durable note (`CarriedRecord` kind `replaced-run`, with the original run key, duration and bosses; the 30-day cleanup only deletes kind `run`), and a run that already had one replacement, or is older than 25 days, is never replaced again, so the cleanup cannot re-open "recorder wins once". The original is put back only when nothing of the new statement is on the boards. Accepted limit (documented by a test): a forged run placed first under the forger's own name stays; the honest recorder's statement is filed as "differs".
+- Companion: after three unreadable reads of the parked-runs record in a row a damaged (not locked) record is moved aside as a timestamped `.bad` copy (last three kept), a new record starts and the Activity list shows a "Problem:" line (English and French).

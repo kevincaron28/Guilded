@@ -1,10 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- the record is plain JSON, shaped by the module under test */
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { createRecordUpdater, noteOutcome, readRecordStrict, recordPathFor } from "../companion/parked-runs.mjs";
+import { createRequire } from "node:module";
+import { createRecordUpdater, noteOutcome, readRecordDetailed, readRecordStrict, recordPathFor, RECORD_MOVED, RECORD_STUCK } from "../companion/parked-runs.mjs";
 
 // 9.3.3: the parked-runs record is changed one change at a time, each applied to the record read just before it, and a record that could not be
 // read is never written over.
@@ -36,7 +37,7 @@ describe("reading the record for a change", () => {
     const { config, path } = setup();
     writeFileSync(path, "{ not json");
     setTimeout(() => writeFileSync(path, JSON.stringify({ version: 1, runs: { A: { guild: "g", ended: 1 } }, servers: {}, outcomes: {} })), 20);
-    const record = await readRecordStrict(config, { retryMs: 80 });
+    const record = await readRecordStrict(config, { retryMs: 400 });
     expect(Object.keys(record!.runs)).toEqual(["A"]);
   });
 });
@@ -70,6 +71,76 @@ describe("changing the record", () => {
     writeFileSync(path, JSON.stringify({ version: 1, runs: {}, servers: {}, outcomes: {} }));
     expect(await update(config, (record: any) => ({ ...record, servers: { S: ["k"] } }))).not.toBeNull();
     expect(JSON.parse(readFileSync(path, "utf8")).servers).toEqual({ S: ["k"] });
+  });
+
+  const badCopies = (path: string) => readdirSync(join(path, "..")).filter((name) => name.endsWith(".bad")).sort();
+
+  it("after several damaged reads in a row the file is moved aside as a .bad copy, a new record is started and a problem line is shown", async () => {
+    const { config, path } = setup();
+    const { lines, onLog } = logs();
+    writeFileSync(path, "{ not json");
+    const update = createRecordUpdater({ onLog, retryMs: 1 });
+    expect(await update(config, (record: any) => record)).toBeNull();
+    expect(await update(config, (record: any) => record)).toBeNull();
+    expect(badCopies(path)).toHaveLength(0);
+    const third = await update(config, (record: any) => ({ ...record, servers: { S: ["k"] } }));
+    expect(third).not.toBeNull();
+    const [bad] = badCopies(path);
+    expect(readFileSync(join(path, "..", bad!), "utf8")).toBe("{ not json");
+    expect(JSON.parse(readFileSync(path, "utf8")).servers).toEqual({ S: ["k"] });
+    expect(lines).toContain(RECORD_MOVED);
+  });
+
+  it("a record that cannot be read for another reason than damage (a lock, a permission error) is never moved aside, however often", async () => {
+    const { config, path } = setup();
+    const { lines, onLog } = logs();
+    // A folder where the file should be: reading it fails with an error that is not a missing file and not damaged text (the same class as EBUSY, EPERM, EACCES).
+    mkdirSync(path);
+    expect((await readRecordDetailed(config, { retryMs: 1 }))).toEqual({ record: null, corrupt: false });
+    const update = createRecordUpdater({ onLog, retryMs: 1 });
+    for (let index = 0; index < 6; index += 1) expect(await update(config, (record: any) => record)).toBeNull();
+    expect(badCopies(path)).toHaveLength(0);
+    expect(lines).not.toContain(RECORD_MOVED);
+    expect(lines).toHaveLength(6);
+  });
+
+  it("damaged text is told apart from a lock, and a good record resets the count", async () => {
+    const { config, path } = setup();
+    writeFileSync(path, "{ not json");
+    expect(await readRecordDetailed(config, { retryMs: 1 })).toEqual({ record: null, corrupt: true });
+    const { onLog } = logs();
+    const update = createRecordUpdater({ onLog, retryMs: 1 });
+    await update(config, (record: any) => record);
+    await update(config, (record: any) => record);
+    writeFileSync(path, JSON.stringify({ version: 1, runs: {}, servers: {}, outcomes: {} }));
+    expect(await update(config, (record: any) => ({ ...record, servers: { A: ["1"] } }))).not.toBeNull();
+    writeFileSync(path, "{ not json");
+    await update(config, (record: any) => record);
+    await update(config, (record: any) => record);
+    expect(badCopies(path)).toHaveLength(0);
+  });
+
+  it("an earlier .bad copy is kept when a new one is made, and only the last three stay", async () => {
+    const { config, path } = setup();
+    const update = createRecordUpdater({ onLog: () => {}, retryMs: 1, unreadableLimit: 1 });
+    for (let index = 0; index < 5; index += 1) {
+      writeFileSync(path, `{ damaged ${index}`);
+      await update(config, (record: any) => record);
+      await delay(5);
+    }
+    const copies = badCopies(path);
+    expect(copies).toHaveLength(3);
+    expect(copies.map((name) => readFileSync(join(path, "..", name), "utf8"))).toEqual(["{ damaged 2", "{ damaged 3", "{ damaged 4"]);
+  });
+
+  it("the problem lines are in the French window's catalogue, so they show in both languages in the Activity list", () => {
+    const i18n = createRequire(import.meta.url)("../companion-app/i18n.cjs") as { message: (language: string, text: string) => string };
+    for (const line of [RECORD_MOVED, RECORD_STUCK]) {
+      expect(i18n.message("fr", line)).not.toBe(line);
+      expect(i18n.message("fr", line)).toContain("Probl\u00e8me");
+      expect(i18n.message("en", line)).toBe(line);
+    }
+    expect(i18n.message("fr", RECORD_MOVED)).toContain("renvoy\u00e9s");
   });
 
   it("a missing file starts an empty record and writes it", async () => {

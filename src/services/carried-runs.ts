@@ -115,7 +115,10 @@ export async function placeCarriedRun(database: PrismaClient, input: { carrier: 
   if (existing && (existing.status === "applied" || existing.status === "own" || existing.status === "differs" || existing.status === "refused")) return true;
   // A statement held by a check is sent again for a while; then it is closed for good (receipted as permanently refused, logged).
   // (A refusal is filed under the record's own key.)
-  const held = (await database.carriedRecord.findMany({ where: { kind: "run", key: input.key, carrier: input.carrier, status: "held" }, select: { createdAt: true }, take: 1 }))[0];
+  const filed = (await database.carriedRecord.findMany({ where: { kind: "run", key: input.key, carrier: input.carrier }, select: { status: true, createdAt: true }, take: 5 }));
+  // Closed for good: sent again, it is receipted at once (it never re-enters the flow).
+  if (filed.some((row) => row.status === "refused")) return true;
+  const held = filed.find((row) => row.status === "held");
   if (held && input.now.getTime() - held.createdAt.getTime() > HELD_RETRY_DAYS * 86_400_000) {
     await database.carriedRecord.updateMany({ where: { kind: "run", key: input.key, carrier: input.carrier, status: "held" }, data: { status: "refused" } });
     console.info(`Carried run ${unpacked.runKey.slice(0, 50)} via ${input.carrier}: still held after ${HELD_RETRY_DAYS} days, closed as permanently refused`);
@@ -142,6 +145,7 @@ export async function placeCarriedRun(database: PrismaClient, input: { carrier: 
   const near = !target;
   if (near) target = await findSameRun(store, summary).catch(() => null);
   let backup: unknown = null;
+  let replaced: { key: string; text: string } | null = null;
   if (target) {
     const differs = !sameDetails(target, summary);
     if (!differs) {
@@ -155,7 +159,10 @@ export async function placeCarriedRun(database: PrismaClient, input: { carrier: 
     const placedKey = target.runKey ?? runKey;
     const placedRecorder = parseRunId(placedKey.slice(placedKey.indexOf(":") + 1))?.recorder;
     const placedByRecorder = placedRecorder ? await database.carriedRecord.count({ where: { kind: "run", runKey: placedKey, authorKey: characterKey(placedRecorder, ""), status: "applied" } }) : 0;
-    const eligible = !placedByRecorder && target.uploaders.length > 0 && target.uploaders.every((uploader) => uploader.startsWith("relay:")) && !!store.discardRelayRun;
+    // Rows are deleted after KEEP_DAYS, which must never re-open the one replacement of an old run: a run that old, or one replaced before, is final.
+    const replacedBefore = await database.carriedRecord.count({ where: { kind: "replaced-run", runKey: placedKey } });
+    const oldRun = input.now.getTime() - target.startedAt.getTime() > (KEEP_DAYS - 5) * 86_400_000;
+    const eligible = !placedByRecorder && !replacedBefore && !oldRun && target.uploaders.length > 0 && target.uploaders.every((uploader) => uploader.startsWith("relay:")) && !!store.discardRelayRun;
     const wouldPlace = eligible ? await relayWouldPlace(store, { carrier: input.carrier, run: { ...unpacked.run, recorder: name, reporterNames: [name] }, now: input.now }) : "not-applicable";
     if (eligible && wouldPlace !== null) { await refuse(`replacement-not-placed (${wouldPlace})`, "held"); return false; }
     if (!eligible) {
@@ -166,10 +173,19 @@ export async function placeCarriedRun(database: PrismaClient, input: { carrier: 
     }
     backup = store.relayRunBackup ? await store.relayRunBackup(target.id).catch(() => null) : null;
     if (!await store.discardRelayRun!(target.id)) { if (!capReason) await file("differs"); return true; }
-    console.info(`Carried run ${runKey.slice(0, 50)}: the recorder's statement replaces a run placed by other players' relayed copies`);
+    replaced = { key: placedKey, text: `${target.durationSec}s bosses ${target.encounters.map((boss) => boss.id).join(",")}` };
+    console.info(`Carried run ${runKey.slice(0, 50)}: the recorder's statement replaces a run placed by other players' relayed copies (the original: ${replaced.key.slice(0, 60)}, ${replaced.text})`);
   }
 
-  const putBack = async () => { if (backup && store.restoreRelayRun) await store.restoreRelayRun(backup).catch((error: unknown) => console.error(`Carried run ${runKey.slice(0, 50)}: the replaced run could not be put back: ${error instanceof Error ? error.message : String(error)}`)); };
+  // The original is put back only when nothing of this statement is on the boards (an error after the run was created must not leave two rows).
+  const putBack = async () => {
+    if (!backup || !store.restoreRelayRun) return;
+    try {
+      // A lookup that fails is not "nothing there": the original is not put back then (it could duplicate a run), and the owner sees why.
+      if (await store.findRun(runKey) || await findSameRun(store, summary)) return;
+      await store.restoreRelayRun(backup);
+    } catch (error) { console.error(`Carried run ${runKey.slice(0, 50)}: the replaced run was not put back: ${error instanceof Error ? error.message : String(error)}`); }
+  };
   if (capReason) { await putBack(); await refuse(capReason); return false; }
 
   let result: Awaited<ReturnType<typeof ingestRelayedRuns>>;
@@ -184,6 +200,8 @@ export async function placeCarriedRun(database: PrismaClient, input: { carrier: 
     return false;
   }
   await file("applied");
+  // A durable note of what was replaced (not deleted with the run rows), for the owner.
+  if (replaced) await database.carriedRecord.create({ data: { kind: "replaced-run", key: replaced.key.slice(0, 120), author: replaced.text.slice(0, 80), authorKey: authorKey.slice(0, 160), carrier: input.carrier, status: "replaced", runKey } }).catch((error: unknown) => { if ((error as { code?: string } | null)?.code !== "P2002") console.error(`Replaced run note not saved: ${error instanceof Error ? error.message : String(error)}`); });
   console.info(`Carried run ${runKey.slice(0, 50)} from ${input.author.slice(0, 40)} via ${input.carrier}: placed`);
   return true;
 }

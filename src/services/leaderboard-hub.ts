@@ -12,7 +12,7 @@ export const HUB_EMBLEMS: Record<Exclude<HubTab, "overview">, string> = {
 };
 
 export const HUB_CSS = `<style>
-.hub-banner{position:relative;margin:0 -4px 20px;padding:28px 20px 22px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#15110d linear-gradient(90deg,rgba(14,11,8,.94) 8%,rgba(14,11,8,.55) 62%,rgba(14,11,8,.25)),url(/images/web/season-banner-1600.webp) center/cover}@media(max-width:800px){.hub-banner{background-image:linear-gradient(90deg,rgba(14,11,8,.94) 8%,rgba(14,11,8,.55) 62%,rgba(14,11,8,.25)),url(/images/web/season-banner-800.webp)}}
+.hub-banner{position:relative;margin:0 -4px 20px;padding:28px 20px 22px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:linear-gradient(90deg,rgba(14,11,8,.94) 8%,rgba(14,11,8,.55) 62%,rgba(14,11,8,.25)),url(/images/web/season-banner-1600.webp) center/cover #15110d}@media(max-width:800px){.hub-banner{background-image:linear-gradient(90deg,rgba(14,11,8,.94) 8%,rgba(14,11,8,.55) 62%,rgba(14,11,8,.25)),url(/images/web/season-banner-800.webp)}}
 .hub-banner h1{margin:4px 0 8px;font-size:clamp(28px,6vw,46px)}.hub-banner p{max-width:560px;margin:0 0 12px}
 .hub-search{display:flex;gap:8px;max-width:520px}.hub-search input{flex:1;min-width:0;min-height:44px;padding:0 12px;border-radius:8px;border:1px solid var(--line);background:rgba(0,0,0,.45);color:inherit}
 .hub-search button{min-height:44px;padding:0 16px}

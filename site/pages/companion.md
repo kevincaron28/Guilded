@@ -1,4 +1,4 @@
-<section class="community-hero" aria-labelledby="companion-title">
+<section class="community-hero companion-hero" aria-labelledby="companion-title">
 <p class="eyebrow">COMPANION · WINDOWS</p>
 <h1 id="companion-title">Get the Guilded <em>companion.</em></h1>
 <p>A small free Windows app that sends your addon's saved data to Discord and the website, and brings standings back to the game.</p>

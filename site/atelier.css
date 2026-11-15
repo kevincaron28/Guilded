@@ -114,6 +114,7 @@ body{font-family:var(--kc-font)}h1{font-size:clamp(40px,4.8vw,68px)}.site-header
 .site-header nav>a[aria-current=page]{color:var(--kc-text);box-shadow:inset 0 -2px var(--kc-accent);border-radius:0}
 .site-header nav a.nav-cta{margin-left:8px;padding:0 18px;background:var(--kc-accent);color:#1b2019;font-weight:650;border-radius:5px;box-shadow:none}
 .site-header nav a.nav-cta:hover{background:var(--kc-accent-hover);color:#1b2019}
+.site-header nav a.nav-account{display:inline-flex;align-items:center;gap:6px;min-height:44px;min-width:44px;justify-content:center;white-space:nowrap}.site-header nav a.nav-account .nav-account-icon{flex:none}
 .site-header .edition-menu{margin-right:8px}.site-header .edition-menu>summary{font-size:13px}
 .site-header .language-switch{margin-left:8px}
 .site-footer{margin:0 auto}

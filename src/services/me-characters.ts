@@ -1,4 +1,4 @@
-import type { WebContext, WebRoute } from "./web-app.js";
+import type { WebContext } from "./web-app.js";
 import { escapeHtml, link } from "./web-layout.js";
 import { linkStatusLines, type LinkStatus } from "./link-status.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
@@ -41,10 +41,3 @@ export function charactersMeSection(status: (discordUserId: string) => Promise<L
     return `<h2>${t("Your characters", "Vos personnages")}</h2><p>${lines}</p>${items ? `<ul>${items}</ul>${note}` : noCompanion}`;
   };
 }
-
-/** Old /me/battlenet links (Discord buttons, bookmarks) land on the characters block of /me/. */
-export const legacyBattleNetRedirect: WebRoute = async (ctx, kit) => {
-  if (!ctx.request.path.startsWith("/me/battlenet")) return null;
-  if (!["GET", "HEAD"].includes(ctx.request.method)) return null;
-  return kit.redirect(link("/me/#characters", ctx.lang));
-};

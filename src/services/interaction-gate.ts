@@ -3,10 +3,10 @@ import { ALWAYS_ALLOWED_COMMANDS, tierDenial } from "../commands/lite.js";
 /** Custom-id prefix of the confirm and cancel buttons of /delete-my-data (src/commands/delete-my-data.ts). */
 export const DELETE_MY_DATA_PREFIX = "deletemydata:";
 
-type Gated = { commandName?: unknown; customId?: unknown; options?: unknown };
+type Gated = { commandName?: unknown; customId?: unknown; isButton?: () => boolean; options?: unknown };
 type Options = { getSubcommandGroup(required: boolean): string | null; getSubcommand(required: boolean): string | null };
 
-export const isDeleteMyDataButton = (interaction: Gated): boolean => typeof interaction.customId === "string" && interaction.customId.startsWith(DELETE_MY_DATA_PREFIX);
+export const isDeleteMyDataButton = (interaction: Gated): boolean => typeof interaction.isButton === "function" && interaction.isButton() && typeof interaction.customId === "string" && interaction.customId.startsWith(DELETE_MY_DATA_PREFIX);
 
 /** Deleting one's own data needs no in-game guild role and no server scope: the command and its buttons skip that check. */
 export const skipsGuildScope = (interaction: Gated): boolean =>

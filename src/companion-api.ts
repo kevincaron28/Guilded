@@ -1,5 +1,6 @@
 import { createPugWeb } from "./services/pug-web.js";
 import { issueDuelChallenge } from "./services/duel-integrity.js";
+import { charactersMeSection, meCharacterList } from "./services/me-characters.js";
 import { meSection, type MeSectionInput } from "./services/me-layout.js";
 import { revokeCompanionCredential } from "./services/companion-revoke.js";
 import { credentialBySecret, renewCompanionCredential } from "./services/companion-renew.js";
@@ -358,8 +359,9 @@ export function createSiteApp(client?: Client) {
   const devices = createDevicePages(prismaDeviceStore(prisma));
   const memberData = createMemberData(memberDataStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")));
   const routes: WebRoute[] = [retiredToolsRoute, signInPage, retiredAvailabilityRoute, devices.route, memberData.route, leaderboards.route, liveNewsFeed().route, directory.route, achievementsWeb.route, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route];
-  // The website keeps only what the companion and the phone app sign-in need, plus the connections and data pages.
+  // One basic page (owner, 15 Nov 2026): your characters (read-only), connected devices, your data, recruitment card and applications.
   const meSections: MeSectionInput[] = [
+    meSection({ id: "characters", group: "overview", render: charactersMeSection(discordUserId => memberLinkStatus(prisma, discordUserId), meCharacterList(prisma)) }),
     meSection({ id: "connections", group: "account", render: devices.meSection }),
     meSection({ id: "your-data", group: "account", render: memberData.meSection })
   ];

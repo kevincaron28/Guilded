@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- a small fake of a Discord interaction */
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ deleteMyData: vi.fn(async () => ({ members: 2, characters: 3, account: true })) }));
@@ -68,7 +69,7 @@ describe("/delete-my-data in every tier", () => {
     expect(ALWAYS_ALLOWED_COMMANDS).toContain("delete-my-data");
   });
   // The global handler in main.ts asks these functions before replying or checking the member role.
-  const click = (customId: string) => ({ customId });
+  const click = (customId: string, button = true) => ({ customId, isButton: () => button });
   const slash = (commandName: string) => ({ commandName, options: { getSubcommandGroup: () => null, getSubcommand: () => null } });
   it("leaves the confirm and cancel clicks to the command's collector in every tier, with no denial and no role check", async () => {
     for (const tier of ["approved", "lite", "blocked"]) for (const id of ["deletemydata:i1:yes", "deletemydata:i1:no"]) {
@@ -78,6 +79,9 @@ describe("/delete-my-data in every tier", () => {
     expect(skipsGuildScope(slash("delete-my-data"))).toBe(true);
     expect(skipsGuildScope(slash("raid"))).toBe(false);
     expect(gateOutcome("blocked", click("other:button"), false)).toBe("blocked");
+    // A modal or select menu with the same prefix is not one of our buttons.
+    expect(skipsGuildScope(click("deletemydata:i1:yes", false))).toBe(false);
+    expect(gateOutcome("blocked", click("deletemydata:i1:yes", false), false)).toBe("blocked");
     expect(gateOutcome("blocked", slash("delete-my-data"), true)).toBeNull();
     expect(gateOutcome("blocked", slash("raid"), true)).toBe("blocked");
   });
@@ -96,5 +100,21 @@ describe("/delete-my-data in every tier", () => {
     await executeDeleteMyData(value, error => errors.push(error));
     expect(errors).toHaveLength(1);
     expect(mocks.deleteMyData).not.toHaveBeenCalled();
+  });
+  it("main.ts asks the gate before the member-role check and the tier block", () => {
+    const main = readFileSync("src/main.ts", "utf8");
+    expect(main).toContain("skipsGuildScope(interaction)");
+    expect(main).toContain("gateOutcome(tier, interaction");
+    expect(main).toMatch(/denial === "collector"\) return/);
+  });
+  it("a dead token cannot throw from the cancel or failure paths", async () => {
+    const dead = vi.fn(async () => { throw new Error("Unknown interaction"); });
+    const message = { awaitMessageComponent: vi.fn(async () => ({ user: { id: "u1" }, customId: "deletemydata:i1:no", deferUpdate: dead })) };
+    const first = interaction(null, { fetchReply: vi.fn(async () => message) });
+    await expect(executeDeleteMyData(first.value)).resolves.toBeUndefined();
+    mocks.deleteMyData.mockRejectedValueOnce(new Error("db"));
+    let calls = 0;
+    const second = interaction("deletemydata:i1:yes", { editReply: vi.fn(async () => { if (++calls > 1) throw new Error("Invalid Webhook Token"); }) });
+    await expect(executeDeleteMyData(second.value)).resolves.toBeUndefined();
   });
 });

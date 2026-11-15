@@ -5,6 +5,7 @@ import { readSavedText } from "./saved-file.mjs";
 import { credentialHeaders, requestJson } from "./request.mjs";
 import { writeDataAddon } from "./data-addon.mjs";
 import { dirname, join, sep } from "node:path";
+import { withoutFeatureStamp } from "./group-relay.mjs";
 import { readSavedIdentity } from "./addon-files.mjs";
 import { standaloneReceiptsToLua } from "./device-receipts.mjs";
 import { existsSync } from "node:fs";
@@ -24,7 +25,7 @@ export function resolveStandingsPath(config) {
 
 // Older bots stamp every answer with the time of the request; compare the rest so an unchanged
 // table does not rewrite the file (the game only reads it on reload anyway).
-export const withoutStamps = (value) => value.replace(/updatedAt = "[^"]*",/g, "");
+export const withoutStamps = (value) => withoutFeatureStamp(value.replace(/updatedAt = "[^"]*",/g, ""));
 // Public vacancies expire after ten minutes in the addon. Keep writing their
 // freshness stamp, but do not announce that heartbeat as an EP/GP change.
 const withoutRefreshStamps = (value) => withoutStamps(value).replace(/fetchedAt = "[^"]*",/g, "");
@@ -89,6 +90,8 @@ export async function writeStandings(config, signal, options = {}) {
   if (config.writeStandingsEnabled === false) return { notModified: false, etag, body, path, text: null, count: body.standings.length, unchanged: true, downloadedOnly: true, botVersion: body.botVersion };
   // 9.3.0: Guilded Dungeons alone (no Guilded folder): it has no standings, only the run receipts. They go to its own
   // Accepted.lua, so it stops resending runs the bot holds and shows why one earned nothing.
+  // (9.3.3) Reading and replacing the generated files is one job at a time with the companion's heartbeat (options.lock).
+  return (options.lock ?? ((job) => job()))(async () => {
   const guildedFolder = dirname(path);
   if (!config.standingsFile && !existsSync(guildedFolder)) {
     const accepted = join(dirname(guildedFolder), "GuildedDungeons", "Accepted.lua");
@@ -124,6 +127,7 @@ export async function writeStandings(config, signal, options = {}) {
     try { dataPath = await writeDataAddon(path, text, body.updatedAt, signal); } catch { signal?.throwIfAborted(); dataPath = null; }
   }
   return { notModified: false, etag, body, path, dataPath, text, count: body.standings.length, unchanged, refreshOnly, botVersion: body.botVersion };
+  });
 }
 
 // True when the addon's Standings.lua still holds `text` (an addon update replaces it with the

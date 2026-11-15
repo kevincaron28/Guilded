@@ -21,8 +21,72 @@ export function leaveOut(run, { enabled, acknowledged }) {
  * (9.3.1) The line that tells the addon this companion carries the runs of players in its group (it reads the addon's carried table and
  * the bot places them on the public boards). An older companion writes no such line, so the addon keeps carried runs to itself.
  */
-export function featuresLua(stamp) {
-  const parsed = Date.parse(String(stamp ?? ""));
-  const at = Math.floor((Number.isNaN(parsed) ? Date.now() : parsed) / 1000);
-  return `GuildedCompanionFeatures = { ["${GROUP_RELAY_FEATURE}"] = true, ["carry-records"] = true, at = ${at} }`;
+export function featuresLua(_stamp, now = Date.now()) {
+  // (9.3.3) `at` is the time of writing, never the standings stamp (that only moves when the guild's data changes), and `hb = 1` says
+  // this companion rewrites the line at least hourly, so the addon may treat a marker a few hours old as a companion that stopped.
+  const at = Math.floor(now / 1000);
+  return `GuildedCompanionFeatures = { ["${GROUP_RELAY_FEATURE}"] = true, ["carry-records"] = true, hb = 1, at = ${at} }`;
+}
+
+const FEATURES_LINE = /^GuildedCompanionFeatures = \{[^\n]*\}$/m;
+/** A file's text without the marker's time, so a refreshed marker never counts as a change of the data. */
+export const withoutFeatureStamp = (text) => text.replace(FEATURES_LINE, "GuildedCompanionFeatures = {}");
+
+/** The text with a fresh marker, or null when it carries none (a file of another kind is never touched). */
+export function withFreshMarker(text, now = Date.now()) {
+  return FEATURES_LINE.test(text) ? text.replace(FEATURES_LINE, () => featuresLua(null, now)) : null;
+}
+
+export const HEARTBEAT_MS = 50 * 60 * 1000;
+
+/**
+ * Rewrites the marker of each file that has one when it is older than the heartbeat, even when nothing else changed (a quiet guild
+ * answers 304 for days). Written next to the file and renamed, like the other generated files. Returns the paths rewritten.
+ */
+export async function refreshMarkers(paths, { now = Date.now(), maxAgeMs = HEARTBEAT_MS } = {}) {
+  const { readFile, rename, rm, writeFile } = await import("node:fs/promises");
+  const written = [];
+  for (const path of paths) {
+    try {
+      const text = await readFile(path, "utf8");
+      const line = text.match(FEATURES_LINE)?.[0];
+      if (!line) continue;
+      const at = Number(/ at = (\d+) \}$/.exec(line)?.[1]);
+      if (Number.isFinite(at) && now - at * 1000 < maxAgeMs) continue;
+      const temporary = `${path}.${process.pid}.hb.tmp`;
+      try { await writeFile(temporary, withFreshMarker(text, now), "utf8"); await rename(temporary, path); written.push(path); }
+      finally { await rm(temporary, { force: true }).catch(() => undefined); }
+    } catch { /* a missing or locked file is tried again at the next check */ }
+  }
+  return written;
+}
+
+/** Runs jobs one after another (the heartbeat, the standings write and the receipts write all touch the same generated files). */
+export function createFileLock() {
+  let tail = Promise.resolve();
+  return (job) => {
+    const run = tail.then(job, job);
+    tail = run.then(() => undefined, () => undefined);
+    return run;
+  };
+}
+
+export const HEARTBEAT_RECHECK_MS = 10 * 60 * 1000;
+/**
+ * Keeps the time of the last marker write in memory, so the files are read only when a heartbeat is due (not every check).
+ * Any write of the marker (a standings write, or the heartbeat itself) calls `wrote()`.
+ */
+export function createHeartbeat({ maxAgeMs = HEARTBEAT_MS, recheckMs = HEARTBEAT_RECHECK_MS } = {}) {
+  let dueAt = 0;
+  return {
+    due: (now = Date.now()) => now >= dueAt,
+    wrote(now = Date.now()) { dueAt = now + maxAgeMs; },
+    /** Reads the files only when due; a pass that wrote nothing looks again after `recheckMs`. */
+    async run(paths, now = Date.now()) {
+      if (now < dueAt) return [];
+      const written = await refreshMarkers(paths, { now, maxAgeMs });
+      dueAt = now + (written.length ? maxAgeMs : recheckMs);
+      return written;
+    }
+  };
 }

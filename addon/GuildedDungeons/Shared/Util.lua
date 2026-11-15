@@ -32,6 +32,35 @@ end
 local util = ns.util or {}
 ns.util = util
 
+-- Whether this PC's companion is alive and has the named feature (GuildedCompanionFeatures, written into the generated files).
+-- (9.3.3) A marker with hb = 1 is rewritten by the companion at least hourly, so one a few hours old means the companion stopped;
+-- an older companion wrote it only when the guild's data changed, so such a marker keeps the long window.
+util.COMPANION_HEARTBEAT_FRESH = 3 * 3600
+util.COMPANION_LEGACY_FRESH = 7 * 86400
+-- The game replaces the file's global only at a load (login or /reload), so the marker is judged AT THE LOAD: the time of the load and the
+-- marker as it was then. A player with a healthy companion who plays for many hours without reloading keeps relaying; one whose marker was
+-- already old at the load does not. util.noteCompanionLoad() is called once at login; before that (and in tests) the live time is used.
+local function serverNow() return (GetServerTime and GetServerTime()) or time() end
+function util.noteCompanionLoad()
+  local features = type(GuildedCompanionFeatures) == "table" and GuildedCompanionFeatures or nil
+  if util.companionLoad and util.companionLoad.source == features then return end
+  local copy = {}
+  if features then for key, value in pairs(features) do copy[key] = value end end
+  util.companionLoad = { at = serverNow(), features = copy, source = features }
+end
+function util.companionFeatureFresh(name)
+  -- A different table than the one noted (the game never does this inside a session; a test does) is noted again.
+  if util.companionLoad then util.noteCompanionLoad() end
+  local load = util.companionLoad
+  local features = load and load.features or (type(GuildedCompanionFeatures) == "table" and GuildedCompanionFeatures or nil)
+  if not features or features[name] ~= true then return false end
+  local at = tonumber(features.at)
+  if not at then return false end
+  local current = load and load.at or serverNow()
+  local window = features.hb == 1 and util.COMPANION_HEARTBEAT_FRESH or util.COMPANION_LEGACY_FRESH
+  return current - at <= window and at <= current + 86400
+end
+
 -- The companion (Windows app that sends your data to Discord), in the same three steps everywhere
 -- members look: Home, /guilded companion, the login reminder and the "runs waiting" notice.
 -- Zero setup since 9.1.0: it finds WoW and the Discord server by itself; signing in is optional.

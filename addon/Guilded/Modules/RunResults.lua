@@ -100,6 +100,7 @@ function results.syncText(run)
   if run.synced and type(run.syncNote) == "string" and run.syncNote ~= "" then
     return string.format(L("Received by Discord. Not scored: %s"), L(run.syncNote))
   end
+  if not run.synced and run.groupSentAt then return L("Sent to a group member's companion, not confirmed yet.") end
   return run.synced and L("Companion receipt recorded. Check the website or guild Season for validation and visibility.")
     or L("Saved in game. Type /reload or log out, then let your paired companion sync. Upload and public listing are not confirmed here.")
 end

@@ -806,7 +806,7 @@ export async function createSectionChannels(guild: DiscordGuild, guildId: string
   const update: Partial<Record<ChannelField, string>> = {};
   for (const field of missing) {
     const spec = channelSpec(field, lang);
-    // The invite channel is in the WoW category but stays open to everyone who wants in (no game-role gate).
+    // The guide channel is visible to the whole server (read-only); the invite channel is in the WoW category but stays open to everyone who wants in (no game-role gate).
     let overwrites = overwritesFor(guild, spec.access, spec.category === "guild" || field === "inviteChannelId");
     if (field === "weeklyReportChannelId" && settings?.raidSignupChannelId) {
       const source = await guild.channels.fetch(settings.raidSignupChannelId);
@@ -818,7 +818,7 @@ export async function createSectionChannels(guild: DiscordGuild, guildId: string
     // Follow the server's own layout: next to the group's other channels, behind its game role.
     const layout = spec.category === "guild" ? null : serverLayout(guild, { ...settings, ...update }, spec.category, field);
     const gateRoles = currentGuildScope()?.memberRoleId ? [currentGuildScope()!.memberRoleId!] : layout?.gateRoleIds ?? [];
-    if (gateRoles.length && overwrites && spec.access !== "officers" && spec.access !== "leaders" && field !== "inviteChannelId") {
+    if (gateRoles.length && overwrites && spec.access !== "officers" && spec.access !== "leaders" && field !== "inviteChannelId" && field !== "guideChannelId") {
       overwrites = withGameGate(overwrites, guild.roles.everyone.id, gateRoles);
     }
     const ownCategory = layout?.categoryId ? guild.channels.cache.get(layout.categoryId) : undefined;

@@ -1,5 +1,6 @@
 import { firstNameKey } from "./dungeon-import.js";
-import { ingestPublicRuns, PUBLIC_LIMITS, type PublicRunStore } from "./public-runs.js";
+import { checkPublicRun, findSameRun, ingestPublicRuns, PUBLIC_LIMITS, sameDetails, summarize, type PublicRunStore } from "./public-runs.js";
+import { dungeonRunSchema } from "./dungeon-rules.js";
 import { plausibilityFlags } from "./run-plausibility.js";
 import { holdsRun, integrityConfig } from "./run-integrity-config.js";
 import { RUN_TRUST, voucherOf } from "./run-trust.js";
@@ -28,6 +29,35 @@ export interface RelayResult {
   receipts: string[];
   /** Runs placed on the public boards. */
   published: number;
+  /** Runs dealt with as another recorder's copy of a run already on the boards (a confirmation: no second row). */
+  known: number;
+}
+
+/** The plausibility flags of a relayed run (what decides whether it is held). */
+function relayFlags(run: Record<string, unknown>, id: string, config: ReturnType<typeof integrityConfig>) {
+  const data = run as { instanceId?: unknown; startedAt?: unknown; endedAt?: unknown; players?: { character?: unknown; level?: unknown }[]; encounters?: { id?: unknown; at?: unknown; success?: unknown; kind?: unknown }[] };
+  return typeof data.instanceId === "number" ? plausibilityFlags({
+    instanceId: data.instanceId, startedAt: typeof data.startedAt === "number" ? data.startedAt : null, endedAt: typeof data.endedAt === "number" ? data.endedAt : null,
+    players: (data.players ?? []).flatMap((player) => typeof player.character === "string" ? [{ character: player.character, level: typeof player.level === "number" ? player.level : null }] : []),
+    kills: (data.encounters ?? []).flatMap((boss) => boss.success === true && boss.kind !== "npc" && typeof boss.id === "number" ? [{ id: boss.id, at: typeof boss.at === "number" ? boss.at : null }] : [])
+  }, { runRef: id, ...(config.limits ? { limits: config.limits } : {}), fastest: { seconds: null, count: 0 } }) : [];
+}
+
+/**
+ * Would this lane place the run now? Null when yes; otherwise why not (the carrier's daily room, a plausibility hold, the public lane's own
+ * check). Nothing is changed: used before something is removed to make room for the run.
+ */
+export async function relayWouldPlace(store: PublicRunStore, input: { carrier: string; run: Record<string, unknown>; now?: Date }): Promise<string | null> {
+  const now = input.now ?? new Date();
+  const config = integrityConfig();
+  const id = typeof input.run["id"] === "string" ? input.run["id"] : "?";
+  const dayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  if (Math.max(0, config.relayedRunsPerDay - await store.uploadsSince(`relay:${input.carrier}`, dayStart)) < 1) return "carrier's daily limit";
+  if (holdsRun(relayFlags(input.run, id, config).map((flag) => flag.code), config, 0)) return "held by a plausibility check";
+  const parsed = dungeonRunSchema.safeParse(input.run);
+  if (!parsed.success) return "not a valid run";
+  const check = checkPublicRun(parsed.data, null, now);
+  return check.ok ? null : check.reason ?? "refused by the public lane";
 }
 
 /**
@@ -39,7 +69,8 @@ export interface RelayResult {
  *   from the stored uploads of the carrier, so it survives a restart. Runs over the cap are receipted (dropped), not re-sent for ever.
  */
 export async function ingestRelayedRuns(store: PublicRunStore, input: { carrier: string; carrierKeys: ReadonlySet<string>; runs: readonly unknown[]; now?: Date;
-  /** (9.3.2) Called with the runs this call placed on the public boards (the guilds with a member in them get a copy). */ onPlaced?: (runs: unknown[]) => void }): Promise<RelayResult> {
+  /** (9.3.2) Called with the runs this call placed on the public boards (the guilds with a member in them get a copy). */ onPlaced?: (runs: unknown[]) => void;
+  /** (9.3.3) The caller deals with copies of a placed run itself (the carried lane). */ skipNearMatch?: boolean }): Promise<RelayResult> {
   const now = input.now ?? new Date();
   const config = integrityConfig();
   const receipts: string[] = [];
@@ -63,15 +94,23 @@ export async function ingestRelayedRuns(store: PublicRunStore, input: { carrier:
   // Over the day's limit: dropped, but told as handled so they are not sent again at every sync.
   for (const over of candidates.slice(room)) { receipts.push(`${GROUP_RECEIPT_PREFIX}${over.id}`); console.info(`Relayed run ${over.id.slice(0, 40)} via ${input.carrier}: not placed (carrier's daily limit)`); }
   const accepted: unknown[] = [];
+  let known = 0;
   for (const { id, run, reporter } of allowed) {
-    const data = run as { instanceId?: unknown; startedAt?: unknown; endedAt?: unknown; players?: { character?: unknown; level?: unknown }[]; encounters?: { id?: unknown; at?: unknown; success?: unknown; kind?: unknown }[] };
-    const flags = typeof data.instanceId === "number" ? plausibilityFlags({
-      instanceId: data.instanceId, startedAt: typeof data.startedAt === "number" ? data.startedAt : null, endedAt: typeof data.endedAt === "number" ? data.endedAt : null,
-      players: (data.players ?? []).flatMap((player) => typeof player.character === "string" ? [{ character: player.character, level: typeof player.level === "number" ? player.level : null }] : []),
-      kills: (data.encounters ?? []).flatMap((boss) => boss.success === true && boss.kind !== "npc" && typeof boss.id === "number" ? [{ id: boss.id, at: typeof boss.at === "number" ? boss.at : null }] : [])
-    }, { runRef: id, ...(config.limits ? { limits: config.limits } : {}), fastest: { seconds: null, count: 0 } }) : [];
+    const flags = relayFlags(run, id, config);
     // A held run is not published; the carrier is told it was dealt with.
     if (holdsRun(flags.map((flag) => flag.code), config, 0)) { receipts.push(`${GROUP_RECEIPT_PREFIX}${id}`); console.info(`Relayed run ${id.slice(0, 40)} via ${input.carrier}: held (${flags.map((flag) => flag.code).join(",")})`); continue; }
+    // Another recorder's copy of a run already on the boards (two addons in one party name the run after themselves): a confirmation, no second row.
+    const parsed = dungeonRunSchema.safeParse(run);
+    if (parsed.success && !input.skipNearMatch) {
+      const summary = summarize(parsed.data, now);
+      const near = !await store.findRun(summary.runKey) ? await findSameRun(store, summary).catch(() => null) : null;
+      if (near) {
+        // Only a statement that says the same is a confirmation; a different one never changes the placed run (logged for review).
+        receipts.push(`${GROUP_RECEIPT_PREFIX}${id}`); known++;
+        console.info(`Relayed run ${id.slice(0, 40)} via ${input.carrier}: ${sameDetails(near, summary) ? "a copy of a run already placed" : "differs from the run already placed, which stays (for review)"}`);
+        continue;
+      }
+    }
     // Only the reporter's statement is kept: what the carrier's file says about who reported or recorded it is not used.
     const { recorder: _recorder, reporterNames: _reporters, reporters: _count, viaGroup: _via, ...rest } = run;
     void _recorder; void _reporters; void _count; void _via;
@@ -88,7 +127,7 @@ export async function ingestRelayedRuns(store: PublicRunStore, input: { carrier:
     if (placed.size) input.onPlaced?.(batch.filter((entry) => placed.has((entry as { id: string }).id)));
     for (const entry of batch) receipts.push(`${GROUP_RECEIPT_PREFIX}${(entry as { id: string }).id}`);
   }
-  return { receipts: [...new Set(receipts)], published };
+  return { receipts: [...new Set(receipts)], published, known };
 }
 
 /**

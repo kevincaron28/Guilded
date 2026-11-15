@@ -922,7 +922,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         if (runsOnly && !runsOnlyHeader && !deviceRunsOnlyPerDevice(device.id)) { json(response, 429, { error: "Too many uploads in the last hour. Try again later." }); return; }
         try {
           const answered = await handleDeviceUpload(devices, device, deviceBody, { allows: (id) => hostedPilot.allows(id), sealKey: deviceHeader(request) ? deriveSealKey(deviceHeader(request)!) : null,
-            applyCarried: async (records, carrier) => (await applyCarriedRecords(prisma, { carrier: `device:${carrier.deviceId}`, carrierKeys: new Set(carrier.names), records })).receipts,
+            applyCarried: async (records, carrier) => (await applyCarriedRecords(prisma, { carrier: `device:${carrier.deviceId}`, carrierKeys: new Set(carrier.names), records, relay: { store: publicRuns, onPlaced: (placed) => { void import("./services/cross-guild-post.js").then((module) => module.shareAndAnnounce(client, { guildId: null, deviceId: carrier.deviceId, characterKeys: [...carrier.names], receivedAt: new Date() }, placed)).catch(() => undefined); } } })).receipts,
             afterShare: (origin, placed) => { void import("./services/cross-guild-post.js").then((module) => module.shareAndAnnounce(client, origin, placed)).catch(() => undefined); } });
           // A fresh challenge for the duel records the addon makes next (the companion writes it where the addon reads it).
           // A runs-only upload (a parked guild) is not the device's own sync: no challenge for it.
@@ -1388,7 +1388,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // (9.3.2) Records the uploader's addon carried for players near it: applied by each kind's own code, answered by key.
       const carriedRecords = preview.snapshot.carriedRecords ?? [];
       const carriedAnswer = carriedRecords.length
-        ? await applyCarriedRecords(prisma, { carrier: `member:${access.actorId}`, carrierKeys: ownKeys, records: carriedRecords })
+        ? await applyCarriedRecords(prisma, { carrier: `member:${access.actorId}`, carrierKeys: ownKeys, records: carriedRecords, relay: { store: publicRuns, onPlaced: (placed) => { void import("./services/cross-guild-post.js").then((module) => module.shareAndAnnounce(client, { guildId: null, characterKeys: [], receivedAt: new Date() }, placed)).catch(() => undefined); } } })
           .catch((error: unknown) => { console.error(`Carried records failed for member:${access.actorId}: ${error instanceof Error ? error.message : String(error)}`); return { receipts: [] as string[], applied: 0 }; })
         : { receipts: [] as string[], applied: 0 };
       const carriedExtra = carriedAnswer.receipts.length ? { carriedReceipts: carriedAnswer.receipts } : {};

@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { characterKey, externalDuelSchema, recordGlobalDuels, splitName } from "./duel-global.js";
 import { integrityConfig } from "./run-integrity-config.js";
+import { cleanCarriedRuns, placeCarriedRun, type RunPlacement } from "./carried-runs.js";
 
 // Records a companion carries for players near it (9.3.2, docs/plans/ADDON_ONLY_REACH_2026-11-14.md). The addon keeps the player's own
 // records until a carrier is seen and offers them by whisper; a carrier's companion uploads them as `carriedRecords`.
@@ -17,7 +18,7 @@ export const CARRY_FEATURE = "carry-records";
 /** A receipt for a carried record: it never marks anything held by a guild (the addon keeps these apart from run receipts). */
 export const CARRY_RECEIPT_PREFIX = "carry:";
 /** The kinds this bot applies. A record of any other kind is left unanswered, so a newer addon keeps it until the bot knows the kind. */
-export const CARRY_KINDS = ["externalDuel"] as const;
+export const CARRY_KINDS = ["externalDuel", "run"] as const;
 /** The most a carried record can weigh as sent (the addon's own limit is 2 KB of record text). */
 export const CARRY_RECORD_MAX_JSON = 4096;
 /** Records of a kind this bot does not know that one upload may carry before they count against the carrier's day. */
@@ -65,7 +66,8 @@ export async function ownCarrierKeys(database: PrismaClient, input: { memberId: 
  * carrier's own character is its own upload's business, not a carried one. Every record looked at counts against the carrier's day, the
  * refused ones too.
  */
-export async function applyCarriedRecords(database: PrismaClient, input: { carrier: string; carrierKeys: ReadonlySet<string>; records: readonly unknown[]; now?: Date; edition?: string }): Promise<CarryResult> {
+export async function applyCarriedRecords(database: PrismaClient, input: { carrier: string; carrierKeys: ReadonlySet<string>; records: readonly unknown[]; now?: Date; edition?: string;
+  /** (9.3.3) The public run lane a carried run is placed on. Without it carried runs are refused. */ relay?: RunPlacement }): Promise<CarryResult> {
   const now = input.now ?? new Date();
   const edition = input.edition ?? "forever";
   const config = integrityConfig();
@@ -93,6 +95,14 @@ export async function applyCarriedRecords(database: PrismaClient, input: { carri
       // A kind this bot does not know stays with the addon (no receipt); a flood of them is counted as work past the first few.
       if (!(CARRY_KINDS as readonly string[]).includes(kind)) { if (++unknown > MAX_UNKNOWN_KINDS) room--; continue; }
       const receipt = `${CARRY_RECEIPT_PREFIX}${kind}:${key}`;
+      // (9.3.3) A dungeon run of a party with no companion: ranked like a single unsigned reporter's run (carried-runs.ts).
+      if (kind === "run") {
+        room--;
+        const dealt = await placeCarriedRun(database, { carrier: input.carrier, carrierKeys: input.carrierKeys, key, author, data, now, relay: input.relay },
+          (reason, status = "rejected") => refuse(kind, key, characterKey(nameOf(author), ""), author, reason, status));
+        if (dealt) receipts.push(receipt);
+        continue;
+      }
       // An outside duel is the reporting side's own statement: the author must be that side, and the identity includes its realm.
       const row = externalDuelSchema.safeParse(data);
       if (!row.success) { room--; await refuse(kind, key, characterKey(nameOf(author), ""), author, "bad-duel-data"); receipts.push(receipt); continue; }
@@ -123,5 +133,6 @@ export async function applyCarriedRecords(database: PrismaClient, input: { carri
       console.error(`Carried record failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
+  await cleanCarriedRuns(database, now);
   return { receipts: [...new Set(receipts)], applied };
 }

@@ -922,7 +922,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         if (runsOnly && !runsOnlyHeader && !deviceRunsOnlyPerDevice(device.id)) { json(response, 429, { error: "Too many uploads in the last hour. Try again later." }); return; }
         try {
           const answered = await handleDeviceUpload(devices, device, deviceBody, { allows: (id) => hostedPilot.allows(id), sealKey: deviceHeader(request) ? deriveSealKey(deviceHeader(request)!) : null,
-            applyCarried: async (records, carrier) => (await applyCarriedRecords(prisma, { carrier: `device:${carrier.deviceId}`, carrierKeys: new Set(carrier.names), records, relay: { store: publicRuns } })).receipts,
+            applyCarried: async (records, carrier) => (await applyCarriedRecords(prisma, { carrier: `device:${carrier.deviceId}`, carrierKeys: new Set(carrier.names), records, relay: { store: publicRuns, onPlaced: (placed) => { void import("./services/cross-guild-post.js").then((module) => module.shareAndAnnounce(client, { guildId: null, deviceId: carrier.deviceId, characterKeys: [...carrier.names], receivedAt: new Date() }, placed)).catch(() => undefined); } } })).receipts,
             afterShare: (origin, placed) => { void import("./services/cross-guild-post.js").then((module) => module.shareAndAnnounce(client, origin, placed)).catch(() => undefined); } });
           // A fresh challenge for the duel records the addon makes next (the companion writes it where the addon reads it).
           // A runs-only upload (a parked guild) is not the device's own sync: no challenge for it.

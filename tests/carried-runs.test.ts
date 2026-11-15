@@ -2,40 +2,52 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { agrees, type PublicRunStore, type RunSummary, type StoredRun } from "../src/services/public-runs.js";
 import { applyCarriedRecords, CARRY_RECEIPT_PREFIX } from "../src/services/carried-records.js";
-import { unpackCarriedRun } from "../src/services/carried-runs.js";
+import { parseRunId, unpackCarriedRun } from "../src/services/carried-runs.js";
 
-// 9.3.3 (owner decision 14 November 2026): one carried statement of a run is ranked like any single unsigned reporter's run. A later statement
-// of the same run only confirms it; floods are bounded by server-side limits.
+// 9.3.3 (owner decision 14 November 2026): one carried statement of a run is ranked like any single unsigned reporter's run, but only for the
+// player whose id the run carries; a placed run is never changed by a later statement; floods are bounded by server-side limits.
 
 const NOW = new Date(Math.floor(Date.now() / 60_000) * 60_000);
 const start = Math.floor(NOW.getTime() / 1000) - 7200;
-const data = (over: Record<string, unknown> = {}) => ({ id: "QG-20261210-100000-Aye", i: 389, d: 1, st: start, en: start + 1500, cb: "final boss", nm: "Ragefire Chasm",
+const stamp = (at: number) => new Date(at * 1000).toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "").replace("T", "-");
+const idFor = (name: string, at = start) => `QG-${stamp(at)}-${name}`;
+const RUNKEY = `389:${idFor("Aye")}`;
+const data = (over: Record<string, unknown> = {}) => ({ id: idFor("Aye"), i: 389, d: 1, st: start, en: start + 1500, cb: "final boss", nm: "Ragefire Chasm",
   p1: "Aye;WARRIOR;TANK;20;1400;0", p2: "Zed;MAGE;DAMAGER;20;1380;1", ev: `2735:${start + 1500}`, ...over });
-const record = (author = "Aye", key = "QG-1-aaaaaa", over: Record<string, unknown> = {}) => ({ kind: "run", key, author, data: data(over) });
+const record = (author = "Aye", key = "QG-1-aaaaaa", over: Record<string, unknown> = {}) => ({ kind: "run", key, author, data: data({ id: idFor(author.split("-")[0]!), ...over }) });
 
 afterEach(() => { delete process.env["RUN_INTEGRITY_CONFIG"]; });
 
+// A store that behaves like the public one for what these tests need: a run is created once, a later upload of the same run id goes through
+// addUpload (counted: a carried statement must never reach it), and a run only relayed copies made can be discarded.
 function memoryStore() {
   const runs = new Map<string, StoredRun & { summary: RunSummary }>();
   const uploads: { key: string; at: Date }[] = [];
+  const calls = { addUpload: 0, discard: 0 };
   let next = 0;
   const store: PublicRunStore = {
     async findRun(runKey) { return runs.get(runKey) ?? null; },
     async createRun(summary, uploader) { uploads.push({ key: uploader.key, at: NOW }); runs.set(summary.runKey, { ...summary, id: `r${++next}`, status: "ACCEPTED", uploaders: [uploader.key], reporters: [...uploader.reporters], summary, confirmations: 1 } as never); },
     async addUpload(runId, uploader, summary) {
+      calls.addUpload++;
       const row = [...runs.values()].find((entry) => entry.id === runId)!;
       const agree = agrees(row, summary);
       row.uploaders.push(uploader.key);
       uploads.push({ key: uploader.key, at: NOW });
-      row.reporters.push(...uploader.reporters);
       if (!agree) row.status = "DISPUTED";
       return { agree, duplicate: false };
     },
     async uploadsSince(key, since) { return uploads.filter((entry) => entry.key === key && entry.at >= since).length; },
     async storedRefs() { return []; },
-    async discardRelayRun() { return false; }
+    async discardRelayRun(runId) {
+      const entry = [...runs.entries()].find(([, row]) => row.id === runId);
+      if (!entry || !entry[1].uploaders.every((key) => key.startsWith("relay:"))) return false;
+      calls.discard++;
+      runs.delete(entry[0]);
+      return true;
+    }
   };
-  return { store, runs };
+  return { store, runs, calls };
 }
 
 interface Row { id: number; kind: string; key: string; author: string; authorKey: string; carrier: string; status: string; runKey?: string | null; createdAt: Date }
@@ -70,11 +82,12 @@ function fakeDb() {
 const apply = (db: any, store: PublicRunStore, records: unknown[], carrier: string, extra: Record<string, unknown> = {}, keys: string[] = ["carrier one"]) =>
   applyCarriedRecords(db, { carrier, carrierKeys: new Set(keys), now: NOW, records, relay: { store }, ...extra });
 const receipt = (key: string) => `${CARRY_RECEIPT_PREFIX}run:${key}`;
+const placed = (runs: Map<string, StoredRun & { summary: RunSummary }>, key = RUNKEY) => runs.get(key)!;
 
-describe("unpacking a carried run", () => {
+describe("unpacking a carried run and its id", () => {
   it("rebuilds a finished Forever run from the flat record, and refuses what is not one", () => {
     const unpacked = unpackCarriedRun(data())!;
-    expect(unpacked.runKey).toBe("389:QG-20261210-100000-Aye");
+    expect(unpacked.runKey).toBe(RUNKEY);
     expect(unpacked.players).toEqual(["Aye", "Zed"]);
     expect(unpacked.run).toMatchObject({ state: "COMPLETED", instanceId: 389, completedBy: "final boss" });
     expect(unpackCarriedRun(data({ p1: "Aye;WARRIOR;TANK;x;1400;0" }))).toBeNull();
@@ -83,49 +96,93 @@ describe("unpacking a carried run", () => {
     expect(unpackCarriedRun({ ...data(), i: -1 })).toBeNull();
     expect(unpackCarriedRun("nope")).toBeNull();
   });
+
+  it("reads the recorder and the time out of an addon run id", () => {
+    expect(parseRunId("QG-20261210-100000-Aye")).toEqual({ at: Date.UTC(2026, 11, 10, 10, 0, 0) / 1000, recorder: "aye" });
+    expect(parseRunId("QG-20261210-100000-Aye-Realm")?.recorder).toBe("aye");
+    expect(parseRunId("something else")).toBeNull();
+  });
 });
 
 describe("carried dungeon runs", () => {
   it("a single statement is placed on the public boards and the carrier is told", async () => {
     const { db, rows } = fakeDb();
     const { store, runs } = memoryStore();
-    const placed: unknown[][] = [];
-    const out = await apply(db, store, [record()], "device:1", { relay: { store, onPlaced: (list: unknown[]) => placed.push(list) } });
+    const shared: unknown[][] = [];
+    const out = await apply(db, store, [record()], "device:1", { relay: { store, onPlaced: (list: unknown[]) => shared.push(list) } });
     expect(out.receipts).toEqual([receipt("QG-1-aaaaaa")]);
-    expect(runs.size).toBe(1);
-    expect(runs.get("389:QG-20261210-100000-Aye")).toMatchObject({ status: "ACCEPTED" });
-    expect(placed).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ status: "applied", runKey: "389:QG-20261210-100000-Aye", authorKey: "aye" });
+    expect(placed(runs)).toMatchObject({ status: "ACCEPTED" });
+    expect(shared).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ status: "applied", runKey: RUNKEY, authorKey: "aye" });
   });
 
-  it("a second agreeing statement of the same run is no new run, and is receipted", async () => {
-    const { db } = fakeDb();
-    const { store, runs } = memoryStore();
-    await apply(db, store, [record("Aye")], "device:1");
-    const second = await apply(db, store, [record("Zed", "QG-2-bbbbbb")], "member:m2");
-    expect(runs.size).toBe(1);
-    expect(second.receipts).toEqual([receipt("QG-2-bbbbbb")]);
-  });
-
-  it("a second, disagreeing statement does not change the placed run and is not receipted (logged for review)", async () => {
+  it("an outsider cannot occupy a run id: a statement under someone else's id is refused with a receipt, and the honest one still places the run", async () => {
     const { db, rows } = fakeDb();
-    const { store, runs } = memoryStore();
-    await apply(db, store, [record("Aye")], "device:1");
-    const before = JSON.stringify([...runs.values()].map((row) => row.summary));
-    const second = await apply(db, store, [record("Zed", "QG-2-bbbbbb", { en: start + 2400, d: 2 })], "member:m2");
-    expect(second.receipts).toEqual([]);
-    expect(JSON.stringify([...runs.values()].map((row) => row.summary))).toBe(before);
-    expect([...runs.values()][0]!.status).toBe("ACCEPTED");
-    expect(rows.find((row) => row.carrier === "member:m2")).toMatchObject({ status: "rejected" });
-  });
-
-  it("refuses a statement whose author is not in the run, and a malformed one; neither is placed or receipted", async () => {
-    const { db, rows } = fakeDb();
-    const { store, runs } = memoryStore();
-    const out = await apply(db, store, [record("Mallory"), { kind: "run", key: "QG-5-hhhhhh", author: "Aye", data: { id: "x" } }], "device:1");
-    expect(out.receipts).toEqual([]);
+    const { store, runs, calls } = memoryStore();
+    // Mallory is in the (claimed) party and knows the id format, so claims Aye's id with a slower, different run.
+    const forged = { kind: "run", key: "QG-9-mmmmmm", author: "Mallory", data: data({ id: idFor("Aye"), en: start + 3000, p3: "Mallory;ROGUE;DAMAGER;20;1300;0" }) };
+    const first = await apply(db, store, [forged], "member:mallory");
+    expect(first.receipts).toEqual([receipt("QG-9-mmmmmm")]);
     expect(runs.size).toBe(0);
-    expect(rows.map((row) => row.status)).toEqual(["rejected", "rejected"]);
+    expect(rows[0]).toMatchObject({ status: "rejected" });
+    // Under his own id the claim is about his own run, which is a different run.
+    const honest = await apply(db, store, [record("Aye")], "device:1");
+    expect(honest.receipts).toEqual([receipt("QG-1-aaaaaa")]);
+    expect(placed(runs).summary.durationSec).toBe(1500);
+    expect(calls.addUpload).toBe(0);
+  });
+
+  it("a statement whose id time is far from the run's start, or whose author is not in the run, is refused with a receipt and places nothing", async () => {
+    const { db, rows } = fakeDb();
+    const { store, runs } = memoryStore();
+    const out = await apply(db, store, [
+      { kind: "run", key: "QG-T-tttttt", author: "Aye", data: data({ id: idFor("Aye", start - 6 * 3600) }) },
+      record("Mallory"),
+      { kind: "run", key: "QG-5-hhhhhh", author: "Aye", data: { id: "x" } }], "device:1");
+    expect(out.receipts).toEqual([receipt("QG-T-tttttt"), receipt("QG-1-aaaaaa"), receipt("QG-5-hhhhhh")]);
+    expect(runs.size).toBe(0);
+    expect(rows.map((row) => row.status)).toEqual(["rejected", "rejected", "rejected"]);
+  });
+
+  it("the same carrier sending the run again under another record key is a receipted duplicate, not a revision", async () => {
+    const { db, rows } = fakeDb();
+    const { store, runs, calls } = memoryStore();
+    await apply(db, store, [record("Aye", "QG-1-aaaaaa")], "device:1");
+    const again = await apply(db, store, [record("Aye", "QG-2-bbbbbb", { en: start + 1400 })], "device:1");
+    expect(again.receipts).toEqual([receipt("QG-2-bbbbbb")]);
+    expect(rows).toHaveLength(1);
+    expect(placed(runs).summary.durationSec).toBe(1500);
+    expect(calls.addUpload).toBe(0);
+  });
+
+  it("an agreeing or disagreeing later statement from another carrier leaves the placed run untouched, and is receipted", async () => {
+    const { db } = fakeDb();
+    const { store, runs, calls } = memoryStore();
+    await apply(db, store, [record("Aye")], "device:1");
+    const before = JSON.stringify(placed(runs).summary);
+    const agreeing = await apply(db, store, [record("Aye", "QG-2-bbbbbb")], "member:m2");
+    const different = await apply(db, store, [record("Aye", "QG-3-cccccc", { en: start + 2400, d: 2, p2: "Zed;MAGE;DAMAGER;20;900;5" })], "member:m3");
+    expect(agreeing.receipts).toEqual([receipt("QG-2-bbbbbb")]);
+    expect(different.receipts).toEqual([receipt("QG-3-cccccc")]);
+    expect(JSON.stringify(placed(runs).summary)).toBe(before);
+    expect(placed(runs).status).toBe("ACCEPTED");
+    expect(placed(runs).uploaders).toHaveLength(1);
+    expect(calls.addUpload).toBe(0);
+  });
+
+  it("a run placed only by other players' relayed copies gives way once to its own recorder's statement when that disagrees", async () => {
+    const { db } = fakeDb();
+    const { store, runs, calls } = memoryStore();
+    // Someone else's relayed copy of Aye's run, with a result that differs from what Aye recorded.
+    await store.createRun({ ...({} as RunSummary), ...unpackedSummary({ en: start + 2000 }) }, { key: "relay:device:x", reporters: [] }, "personal");
+    expect(placed(runs).summary.durationSec).toBe(2000);
+    await apply(db, store, [record("Aye", "QG-1-aaaaaa")], "member:aye");
+    expect(calls.discard).toBe(1);
+    expect(placed(runs).summary.durationSec).toBe(1500);
+    // Once: a later disagreeing statement does not replace it again.
+    await apply(db, store, [record("Aye", "QG-2-bbbbbb", { en: start + 2500 })], "member:other");
+    expect(calls.discard).toBe(1);
+    expect(placed(runs).summary.durationSec).toBe(1500);
   });
 
   it("a run the carrier played in is its own upload's business; the roster of other players is never the carrier's own", async () => {
@@ -135,7 +192,6 @@ describe("carried dungeon runs", () => {
     expect(ownOut.receipts).toEqual([receipt("QG-1-aaaaaa")]);
     expect(ownStore.runs.size).toBe(0);
     expect(own.rows[0]).toMatchObject({ status: "own" });
-    // A carrier whose own characters are not in the run places it, however many guildmates are in it.
     const other = fakeDb();
     const otherStore = memoryStore();
     await apply(other.db, otherStore.store, [record("Aye")], "member:m1", {}, ["somebody else"]);
@@ -148,26 +204,40 @@ describe("carried dungeon runs", () => {
     expect(out.receipts).toEqual([]);
   });
 
-  it("a run over the carrier's daily relay limit is refused, not receipted", async () => {
+  it("a run over the carrier's daily relay limit is not placed and not receipted", async () => {
     process.env["RUN_INTEGRITY_CONFIG"] = JSON.stringify({ relayedRunsPerDay: 1 });
     const { db } = fakeDb();
     const { store, runs } = memoryStore();
-    const out = await apply(db, store, [record("Aye", "QG-1-aaaaaa"), record("Aye", "QG-2-bbbbbb", { id: "QG-other-Aye", st: start - 9000, en: start - 7500, ev: `2735:${start - 7500}` })], "device:1");
+    const later = start - 9000;
+    const out = await apply(db, store, [record("Aye", "QG-1-aaaaaa"), { kind: "run", key: "QG-2-bbbbbb", author: "Aye", data: data({ id: idFor("Aye", later), st: later, en: later + 1500, ev: `2735:${later + 1500}` }) }], "device:1");
     expect(runs.size).toBe(1);
     expect(out.receipts).toEqual([receipt("QG-1-aaaaaa")]);
   });
 });
 
+/** The summary of the run the default record describes, with some fields changed (what a relayed copy would have made). */
+function unpackedSummary(over: Record<string, unknown>): RunSummary {
+  const unpacked = unpackCarriedRun(data(over))!;
+  const run = unpacked.run as any;
+  return {
+    gameEdition: "forever", runKey: unpacked.runKey, runRef: run.id, instanceId: run.instanceId, dungeonName: run.name, difficultyId: run.difficultyId,
+    startedAt: new Date(run.startedAt * 1000), endedAt: new Date(run.endedAt * 1000), durationSec: run.endedAt - run.startedAt, deaths: 1, maxLevel: 20, bracket: null, season: null,
+    routeKey: "r", evidenceVersion: 1, evidenceReceivedAt: NOW, completedBy: "final boss", encounters: run.encounters,
+    players: run.players.map((player: any) => ({ character: player.character, realm: "", className: player.class, role: "DAMAGER", level: player.level, minLevel: null, presentSec: player.presentSec, deaths: player.deaths }))
+  } as unknown as RunSummary;
+}
+
 describe("floods", () => {
-  it("unsigned devices are capped low for one run, and the cap does not use up the room of signed members", async () => {
-    const { db } = fakeDb();
+  it("unsigned devices are capped low for one run, answers stay receipted, and signed members keep their room", async () => {
+    const { db, rows } = fakeDb();
     const { store, runs } = memoryStore();
     const answers: string[][] = [];
-    for (let index = 0; index < 7; index += 1) answers.push((await apply(db, store, [record("Aye", `QG-d${index}-dddddd`)], `device:${index}`)).receipts);
-    expect(answers.slice(0, 5).every((receipts) => receipts.length === 1)).toBe(true);
-    expect(answers.slice(5).every((receipts) => receipts.length === 0)).toBe(true);
-    const signed = await apply(db, store, [record("Zed", "QG-s-ssssss")], "member:m1");
+    for (let index = 0; index < 8; index += 1) answers.push((await apply(db, store, [record("Aye", `QG-d${index}-dddddd`)], `device:${index}`)).receipts);
+    expect(answers.every((receipts) => receipts.length === 1)).toBe(true);
+    expect(rows.filter((row) => row.carrier.startsWith("device:"))).toHaveLength(5);
+    const signed = await apply(db, store, [record("Aye", "QG-s-ssssss")], "member:m1");
     expect(signed.receipts).toEqual([receipt("QG-s-ssssss")]);
+    expect(rows.filter((row) => row.carrier.startsWith("member:"))).toHaveLength(1);
     expect(runs.size).toBe(1);
   });
 
@@ -177,19 +247,9 @@ describe("floods", () => {
     const { store, runs } = memoryStore();
     for (let index = 0; index < 6; index += 1) {
       const at = start - index * 7200;
-      await apply(db, store, [record("Aye", `QG-r${index}-rrrrrr`, { id: `QG-run-${index}-Aye`, st: at, en: at + 1500, ev: `2735:${at + 1500}` })], "device:1");
+      await apply(db, store, [{ kind: "run", key: `QG-r${index}-rrrrrr`, author: "Aye", data: data({ id: idFor("Aye", at), st: at, en: at + 1500, ev: `2735:${at + 1500}` }) }], "device:1");
     }
     expect(runs.size).toBe(3);
-  });
-
-  it("the same record sent again by one carrier is one row, and another carrier's copy is filed apart", async () => {
-    const { db, rows } = fakeDb();
-    const { store } = memoryStore();
-    await apply(db, store, [record("Aye")], "device:1");
-    const again = await apply(db, store, [record("Aye")], "device:1");
-    expect(again.receipts).toEqual([receipt("QG-1-aaaaaa")]);
-    await apply(db, store, [record("Aye")], "member:m1");
-    expect(rows.map((row) => row.carrier).sort()).toEqual(["device:1", "member:m1"]);
   });
 
   it("finished rows are deleted after the holding time", async () => {

@@ -10,6 +10,9 @@ import { shareCard, SITE_HEADER_STYLE, siteFooterNav, siteHeader } from "./site-
 export type Lang = "en" | "fr";
 export const escapeHtml = (text: string) => text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
+/** MIME type of a share image from its extension: the website cards are JPEG, score cards and the default card are PNG. */
+export const shareImageType = (path?: string): string => /\.jpe?g(?:\?|$)/i.test(path ?? "") ? "image/jpeg" : "image/png";
+
 export function langFrom(query: URLSearchParams, acceptLanguage: string | undefined): Lang {
   const chosen = query.get("lang");
   if (chosen === "fr" || chosen === "en") return chosen;
@@ -79,7 +82,7 @@ export function layout(input: LayoutInput): string {
     + `<meta property="og:site_name" content="Guilded"><meta property="og:type" content="website"><meta property="og:title" content="${escapeHtml(input.title)}">`
     // Score cards and the website's own card (the default) are both 1200 × 630 PNGs.
     + `<meta property="og:description" content="${description}"><meta property="og:image" content="${escapeHtml(input.shareImage ?? shareCard())}"><meta property="og:locale" content="${input.lang === "fr" ? "fr_CA" : "en_CA"}">`
-    + '<meta property="og:image:type" content="image/png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">'
+    + `<meta property="og:image:type" content="${shareImageType(input.shareImage)}"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">`
     + `<meta name="twitter:card" content="summary_large_image"><meta name="theme-color" content="#d4af37">`
     + `<link rel="icon" href="/favicon.png" type="image/png"><style>${PAGE_STYLE}\n${FORM_STYLE}</style></head><body><a class="skip" href="#content">${t("Skip to content", "Aller au contenu")}</a>${siteHeader(input.lang, input.path, languages)}<main><div id="content" tabindex="-1">${input.body}</div>${who.length ? `<div class="who">${who.join("")}</div>` : ""}`
     + `<footer class="site-foot">${siteFooterNav(input.lang)}<p class="foot-note">${t("Made with", "Créé avec")} <a href="${siteUrl("/")}">Guilded</a>. ${t("Not affiliated with Blizzard Entertainment.", "Sans affiliation avec Blizzard Entertainment.")}</p></footer></main></body></html>`;

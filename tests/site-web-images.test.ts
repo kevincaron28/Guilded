@@ -1,5 +1,7 @@
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
+import { shareImageType } from "../src/services/web-layout.js";
 
 // Painted website pictures live in site/images/web/. The site build copies image folders one by one: a folder it
 // does not copy is a 404 on the live site. Every picture a page names must exist and stay light.
@@ -35,5 +37,26 @@ describe("painted backgrounds are valid CSS", () => {
     for (const file of ["src/services/leaderboard-hub.ts", "site/style.css", "site/design-tokens.css", "site/atelier.css"]) {
       expect(readFileSync(file, "utf8"), file).not.toMatch(/background:\s*#[0-9a-fA-F]{3,8}\s+(?:linear-gradient|url)\([^;}]*,\s*url\(/);
     }
+  });
+});
+
+describe("painted pictures land in the built site", () => {
+  beforeAll(() => { execFileSync(process.execPath, ["scripts/build-site.mjs"], { stdio: "ignore" }); }, 120_000);
+  it("copies every picture, and section subpages use their section's share image", () => {
+    for (const file of FILES) {
+      const built = file.startsWith("../") ? `dist/site/images/social/${file.slice(3 + "social/".length)}` : `dist/site/images/web/${file}`;
+      expect(existsSync(built), built).toBe(true);
+    }
+    const og = (page: string) => /og:image" content="[^"]*\/([^"/]+)"/.exec(readFileSync(`dist/site/${page}/index.html`, "utf8"))?.[1];
+    expect(og("guide/start")).toBe("og-guide.jpg");
+    expect(og("guide/install")).toBe("og-guide.jpg");
+    expect(og("download")).toBe("og-download.jpg");
+    expect(og("editions/forever")).toBe("og-download.jpg");
+    expect(og("start")).toBe("guilded-card.png");
+  });
+  it("names the share image's type from its extension", () => {
+    expect(shareImageType("/images/social/og-duels.jpg")).toBe("image/jpeg");
+    expect(shareImageType("/images/social/guilded-card.png")).toBe("image/png");
+    expect(shareImageType(undefined)).toBe("image/png");
   });
 });

@@ -40,7 +40,7 @@ export function memberDataStore(database: PrismaClient, access: GuildDashboardAc
 type Snapshot = Awaited<ReturnType<ReturnType<typeof memberDataStore>>>;
 export function createMemberData(load: (account: WebAccountView) => Promise<Snapshot>) {
   const path = "/me/data";
-  const meSection = async (ctx: WebContext) => `<h2>${ctx.t("Your data", "Vos données")}</h2><p><a href="${link(path, ctx.lang)}">${ctx.t("Visibility, devices, history and export", "Visibilité, appareils, historique et exportation")}</a></p>`;
+  const meSection = async (ctx: WebContext) => `<h2>${ctx.t("Your data", "Vos données")}</h2><p><a href="${link(path, ctx.lang)}">${ctx.t("Visibility, devices, history and export", "Visibilité, appareils, historique et exportation")}</a> · <a href="${link("/delete-my-data/", ctx.lang)}">${ctx.t("Delete my data", "Supprimer mes données")}</a></p>`;
   const route: WebRoute = async (ctx, kit) => {
     if (ctx.request.path !== path) return null;
     if (!ctx.account) return kit.signInPrompt();
@@ -58,7 +58,7 @@ export function createMemberData(load: (account: WebAccountView) => Promise<Snap
       const role = (value: string) => roles[value] ?? t("Unknown", "Inconnu");
       const body = `<h1>${title}</h1><p>${t("Everything Guilded records about you is shared; there are no sharing settings. Guild records are shown only where your current membership can be verified.", "Tout ce que Guilded enregistre sur vous est partagé; il n'y a aucun réglage de partage. Les données de guilde sont affichées uniquement lorsque votre appartenance actuelle est vérifiée.")}</p>`
         + `<h2>${t("Public profile", "Profil public")}</h2><p><a href="${link("/me/", lang)}">${t("Manage my public profile and recruitment card", "Gérer mon profil public et ma fiche de recrutement")}</a></p>`
-        + `<h2>${t("Devices", "Appareils")} (${data.devices.length})</h2><p><a href="${link("/me/connections", lang)}">${t("Review and manage individual connections", "Vérifier et gérer chaque connexion")}</a> · <a href="${link("/me/battlenet", lang)}">Battle.net</a></p>`
+        + `<h2>${t("Devices", "Appareils")} (${data.devices.length})</h2><p><a href="${link("/me/connections", lang)}">${t("Review and manage individual connections", "Vérifier et gérer chaque connexion")}</a></p>`
         + `<h2>${t("Private recap delivery", "Envoi du bilan privé")}</h2><p>${t("Manage or pause in your guild: /automation recap. Automatic delivery is off unless you opt in.", "Gérez ou suspendez dans votre guilde : /automation recap. L'envoi automatique est désactivé sans votre accord.")}</p><ul>${data.recapSchedules.map(row => `<li>${h(data.guilds.find(g => g.id === row.guildId)?.name ?? row.guildId)} · ${row.enabled ? "ON" : "OFF"} · ${h(row.status)}</li>`).join("") || `<li>${t("No recurring recap configured.", "Aucun bilan récurrent configuré.")}</li>`}</ul>`
         + `<h2>${t("Battleground reports", "Rapports JcJ")}</h2><p>${t("Everything is shared: review /bg history and withdraw incorrect evidence with /bg correct. Up to 100 recent own reports are included in this export.", "Tout est partagé : consultez /bg history et retirez une preuve erronée avec /bg correct. Jusqu'à 100 rapports récents sont inclus dans cette exportation.")}</p>`
         + `<h2>${t("My linked guild characters", "Mes personnages liés en guilde")}</h2>`

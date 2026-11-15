@@ -86,4 +86,5 @@ table.ranked tbody tr:nth-child(-n+3) td:first-child{font-size:1.15em;font-weigh
 main h1{font-weight:700;letter-spacing:-.01em;line-height:1.1}main h1 em{font-family:"Source Serif 4",Georgia,serif;font-style:italic;font-weight:400;color:var(--gold,#e0b85a)}
 main .grid-links li a,main .grid-links li a small{text-decoration:none!important;border-bottom:0;background-image:none}
 .tile-art{display:block;width:100%;height:auto;aspect-ratio:16/9;object-fit:cover;border-radius:8px;margin:0 0 14px}
+.site-top nav a.nav-account,.site-header nav a.nav-account{display:inline-flex;align-items:center;gap:6px;min-height:44px;min-width:44px;justify-content:center;white-space:nowrap}.nav-account-icon{flex:none}
 /* site-chrome:end */

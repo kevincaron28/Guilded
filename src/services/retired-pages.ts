@@ -12,7 +12,7 @@ export const retiredAvailabilityRoute: WebRoute = async (ctx, kit) => {
 // The website no longer has account tools (calendar, raid plans, loot lists, pictures, badges, artisans, officer dashboards, the
 // leaderboards pairing panel). Their old addresses answer with one short page instead of an error. Only what the companion and
 // the phone app sign-in need is kept (/auth/*, /me/companion, /me/connections) plus /me/ itself, /me/data and the recruitment pages.
-const RETIRED_TOOLS = /^\/me\/(?:calendar|reserves|wishlist|battlenet|pictures|badges|artisans|roster|history|teams|groups|crafters|handover|raid-plans|statistics|guild-bank|pair|achievements\.png)(?:\/.*)?$/;
+export const RETIRED_TOOLS = /^\/me\/(?:calendar|reserves|wishlist|battlenet|pictures|badges|artisans|roster|history|teams|groups|crafters|handover|raid-plans|statistics|guild-bank|pair|achievements\.png)(?:\/.*)?$/;
 export const retiredToolsRoute: WebRoute = async (ctx, kit) => {
   if (!RETIRED_TOOLS.test(ctx.request.path)) return null;
   const { t, lang } = ctx;

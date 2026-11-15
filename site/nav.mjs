@@ -173,7 +173,7 @@ const accountIcon = `<svg class="nav-account-icon" width="20" height="20" viewBo
 export function navLinks({ label, href = (item) => item.href, current = null }) {
   return SITE_NAV.map((item) => {
     const currentAttr = item.key === current ? ' aria-current="page"' : "";
-    if (item.icon) return `<a class="nav-account" href="${escape(href(item))}"${currentAttr} aria-label="${escape(label(item))}">${accountIcon}</a>`;
+    if (item.icon) return `<a class="nav-account" href="${escape(href(item))}"${currentAttr} aria-label="${escape(label(item))}">${accountIcon}<span class="nav-account-label">${escape(label(item))}</span></a>`;
     return `<a href="${escape(href(item))}"${item.cta ? ' class="nav-cta"' : ""}${currentAttr}>${label(item)}</a>`;
   }).join("");
 }

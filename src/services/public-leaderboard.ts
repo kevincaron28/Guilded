@@ -17,7 +17,7 @@ import type { BracketedRules } from "./dungeon-november-rules.js";
 import { bossRuleText, bossTally } from "./dungeon-boss-scoring.js";
 import { characterId, characterScores, DEFAULT_OFFICIAL, periodRules, publicRules, publicSeasons, publicWeek, rateRun, rulesAt, type PublicPeriod, type ScoreRow, type ScoreRun } from "./public-score.js";
 import { breadcrumbs } from "./site-header.js";
-import { HUB_CSS, HUB_EMBLEMS, emptyBox, hubTabs, movement, podium, searchForm, sectionArt, strip, trendBars, type PodiumEntry } from "./leaderboard-hub.js";
+import { HUB_CSS, HUB_EMBLEMS, emptyBox, emptyPage, hubTabs, movement, podium, searchForm, sectionArt, strip, trendBars, type PodiumEntry } from "./leaderboard-hub.js";
 import { climbers, rankMovement, recordsBroken } from "./leaderboard-highlights.js";
 import { escapeHtml, link, options } from "./web-layout.js";
 import type { WebContext, WebKit, WebResponse, WebRoute } from "./web-app.js";
@@ -1047,7 +1047,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
         inner = people.length || guilds.length
           ? (people.length ? `<h3>${t("Characters", "Personnages")}</h3>` + strip(people.map((p) => ({ main: `<a class="c-${classSlug(p.className)}" href="${link(characterPath(p), lang)}">${escapeHtml(nameOf(p))}</a>`, side: escapeHtml(classText(p)) }))) : "")
             + (guilds.length ? `<h3>${t("Guilds", "Guildes")}</h3>` + strip(guilds.map((g) => ({ main: guildLink(ctx, g) }))) : "")
-          : emptyBox(t("Nobody found", "Aucun résultat"), [t("Check the spelling, or find the character in the Players tab.", "Vérifiez l'orthographe, ou cherchez le personnage dans l'onglet Joueurs.")]);
+          : emptyBox(t("Nobody found", "Aucun résultat"), [t("Check the spelling, or find the character in the Players tab.", "Vérifiez l'orthographe, ou cherchez le personnage dans l'onglet Joueurs.")], "search");
       }
       results = `<section class="hub-results" aria-live="polite"><h2>${t("Results for", "Résultats pour")} “${escapeHtml(q)}”</h2>${inner}</section>`;
     }
@@ -1066,9 +1066,9 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       + `<div class="hub-grid">`
       + card(t("Top players", "Meilleurs joueurs") + (bracketName_ ? ` · ${bracketName_}` : ""), HUB_EMBLEMS.players, charEntries.length ? podium(charEntries) : empty(t("No ranked player yet", "Aucun joueur classé")), link("/leaderboards/characters/", lang), t("Full player ranking", "Classement des joueurs"))
       + card(t("Top guilds", "Meilleures guildes"), HUB_EMBLEMS.guilds, guildEntries3.length ? podium(guildEntries3) : emptyBox(t("No ranked guild yet", "Aucune guilde classée"), [t("Officers publish their guild's runs with /mod leaderboard in Discord.", "Les officiers publient les essais de leur guilde avec /mod leaderboard dans Discord.")]), link("/leaderboards/guilds/", lang), t("All guilds", "Toutes les guildes"))
-      + (globalOpen() ? card(t("Duel ladder", "Classement des duels"), HUB_EMBLEMS.duels, duelEntries.length ? podium(duelEntries) : emptyBox(t("No duel yet", "Aucun duel"), [t("Duel someone with the Guilded addon to get on the ladder: your duel arrives when your companion, or another player's, sends it.", "Affrontez quelqu'un avec l'addon Guilded pour entrer au classement : votre duel arrive quand votre compagnon, ou celui d'un autre joueur, l'envoie.")]), link("/leaderboards/duels/", lang), t("Full duel ladder", "Classement des duels complet")) : "")
+      + (globalOpen() ? card(t("Duel ladder", "Classement des duels"), HUB_EMBLEMS.duels, duelEntries.length ? podium(duelEntries) : emptyBox(t("No duel yet", "Aucun duel"), [t("Duel someone with the Guilded addon to get on the ladder: your duel arrives when your companion, or another player's, sends it.", "Affrontez quelqu'un avec l'addon Guilded pour entrer au classement : votre duel arrive quand votre compagnon, ou celui d'un autre joueur, l'envoie.")], "duel"), link("/leaderboards/duels/", lang), t("Full duel ladder", "Classement des duels complet")) : "")
       + `</div><div class="hub-grid two" style="margin-top:16px">`
-      + `<section class="hub-card"><h2>${t("Latest runs", "Derniers essais")}</h2>${latest.length ? latestStrip : empty(t("No run yet", "Aucun essai"))}<a class="more" href="${link("/leaderboards/dungeons/", lang)}">${t("All dungeons", "Tous les donjons")} →</a></section>`
+      + `<section class="hub-card"><h2>${t("Latest runs", "Derniers essais")}</h2>${latest.length ? latestStrip : emptyBox(t("No run yet", "Aucun essai"), [t("Finish a dungeon with Guilded Dungeons installed and it shows up here.", "Terminez un donjon avec Guilded Dungeons installé et il apparaîtra ici.")], "runs")}<a class="more" href="${link("/leaderboards/dungeons/", lang)}">${t("All dungeons", "Tous les donjons")} →</a></section>`
       + (globalOpen() ? `<section class="hub-card"><h2>${t("Latest duels", "Derniers duels")}</h2>${duelStrip || `<p class="muted">${t("No duel yet.", "Aucun duel.")}</p>`}<a class="more" href="${link("/leaderboards/duels/", lang)}">${t("All duels", "Tous les duels")} →</a></section>` : "")
       + (pvpHub ? card(t("PvP this week", "PvP cette semaine"), HUB_EMBLEMS.pvp, pvpHub.podium.length ? podium(pvpHub.podium) : emptyBox(t("No PvP yet", "Aucun PvP"), [t("Open-world kills and battleground results from the Guilded addon show up here.", "Les éliminations en monde ouvert et les résultats de champs de bataille de l'addon Guilded apparaissent ici.")]), link("/leaderboards/pvp/", lang), t("PvP leaderboards", "Classements PvP"))
         + `<section class="hub-card"><h2>${t("Latest PvP", "Derniers événements PvP")}</h2>${pvpHub.latest || `<p class="muted">${t("No battleground yet.", "Aucun champ de bataille.")}</p>`}<a class="more" href="${link("/leaderboards/pvp/", lang)}">${t("All PvP", "Tout le PvP")} →</a></section>` : "")
@@ -1146,7 +1146,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const dash = decoded.indexOf("-");
     const name = (dash > 0 ? decoded.slice(0, dash) : decoded).slice(0, 40);
     const realm = dash > 0 ? decoded.slice(dash + 1).slice(0, 60) : null;
-    if (!name) return kit.page(404, t("Not found", "Introuvable"), `<h1>${t("Character not found", "Personnage introuvable")}</h1>`, { noindex: true });
+    if (!name) return kit.page(404, t("Not found", "Introuvable"), `<h1>${t("Character not found", "Personnage introuvable")}</h1>` + emptyPage(t("Nobody by that name", "Personne sous ce nom"), [t("Check the spelling, or find the character in the Players tab.", "Vérifiez l'orthographe, ou cherchez le personnage dans l'onglet Joueurs.")], "notfound"), { noindex: true });
     const runs = await cached(`c:${name.toLowerCase()}:${realm?.toLowerCase() ?? ""}`, () => deps.store.characterRuns(name, realm));
     const isMe = (player: LeaderPlayer) => [player.character, ...(player.aliases ?? [])].some((n) => n.toLowerCase() === name.toLowerCase())
       && (realm === null || player.realm.toLowerCase() === realm.toLowerCase());
@@ -1353,7 +1353,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     await ensureIndex(ctx);
     const guild = findGuild(ctx, await cached("guilds", () => deps.store.guilds()), id);
     if (guild && id !== indexOf(ctx).slugs.get(guild.id)) return kit.redirect(link(guildBase(ctx, guild), lang, Object.fromEntries([...ctx.request.query].filter(([k]) => k !== "lang"))));
-    if (!guild) return kit.page(404, t("Not found", "Introuvable"), PAGE_CSS + `<h1>${t("Guild not found", "Guilde introuvable")}</h1><p class="muted">${t("Only guilds that publish their runs have a page.", "Seules les guildes qui publient leurs essais ont une page.")}</p><p><a href="${link("/leaderboards/guilds/", lang)}">${t("Guild rankings", "Classement des guildes")}</a></p>`, { noindex: true });
+    if (!guild) return kit.page(404, t("Not found", "Introuvable"), PAGE_CSS + `<h1>${t("Guild not found", "Guilde introuvable")}</h1>${emptyPage(t("No page for this guild", "Pas de page pour cette guilde"), [], "notfound")}<p class="muted">${t("Only guilds that publish their runs have a page.", "Seules les guildes qui publient leurs essais ont une page.")}</p><p><a href="${link("/leaderboards/guilds/", lang)}">${t("Guild rankings", "Classement des guildes")}</a></p>`, { noindex: true });
     const { filters, period } = await pageFilters(ctx);
     const runs = await guildRuns(guild.id, period);
     const rosterKeys = await cached(`roster:${guild.id}`, () => deps.store.guildRoster(guild.id));
@@ -1446,7 +1446,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     await ensureIndex(ctx);
     const guild = findGuild(ctx, await cached("guilds", () => deps.store.guilds()), id);
     if (guild && deps.store.guildDuelRows && id !== indexOf(ctx).slugs.get(guild.id)) return kit.redirect(link(`${guildPath(ctx, guild)}/duels`, lang, Object.fromEntries([...ctx.request.query].filter(([k]) => k !== "lang"))));
-    if (!guild || !deps.store.guildDuelRows) return kit.page(404, t("Not found", "Introuvable"), PAGE_CSS + `<h1>${t("Guild not found", "Guilde introuvable")}</h1>`, { noindex: true });
+    if (!guild || !deps.store.guildDuelRows) return kit.page(404, t("Not found", "Introuvable"), PAGE_CSS + `<h1>${t("Guild not found", "Guilde introuvable")}</h1>${emptyPage(t("No page for this guild", "Pas de page pour cette guilde"), [], "notfound")}`, { noindex: true });
     const all = await cached(`duels:${guild.id}`, () => deps.store.guildDuelRows!(guild.id));
     const startsAt = await duelStart(guild.id);
     const f = await duelFilters(ctx, startsAt);

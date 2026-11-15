@@ -17,6 +17,7 @@ import type { BracketedRules } from "./dungeon-november-rules.js";
 import { bossRuleText, bossTally } from "./dungeon-boss-scoring.js";
 import { characterId, characterScores, DEFAULT_OFFICIAL, periodRules, publicRules, publicSeasons, publicWeek, rateRun, rulesAt, type PublicPeriod, type ScoreRow, type ScoreRun } from "./public-score.js";
 import { breadcrumbs } from "./site-header.js";
+import { guildBanner } from "./guild-banner.js";
 import { HUB_CSS, HUB_EMBLEMS, emptyBox, emptyPage, hubTabs, movement, podium, searchForm, sectionArt, strip, trendBars, type PodiumEntry } from "./leaderboard-hub.js";
 import { climbers, rankMovement, recordsBroken } from "./leaderboard-highlights.js";
 import { escapeHtml, link, options } from "./web-layout.js";
@@ -1396,7 +1397,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const topMembers = rules.brackets[0] ? scores.filter((row) => row.bracket === rules.brackets[0]!.key).slice(0, 3) : [];
     const memberPodium = topMembers.length ? `<h2>${t("Top members", "Meilleurs membres")} · ${escapeHtml(bracketName(ctx, rules.brackets[0]!.key))}</h2>` + podium(topMembers.map((row): PodiumEntry => ({ name: (row.player as LeaderPlayer).displayName || row.player.character, href: link(characterPath(row.player), lang), sub: row.player.className ? classLabel(row.player.className, lang) : "", value: String(row.points), className: classSlug(row.player.className) }))) : "";
     const body = PAGE_CSS + HUB_CSS + hubTabs(t, lang, "guilds") + breadcrumbs(lang, [[t("Leaderboards", "Classements"), link("/leaderboards/", lang)], [t("Guilds", "Guildes"), link("/leaderboards/guilds/", lang)], [guild.name, null]], escapeHtml)
-      + `<p class="eyebrow">${t("Guild", "Guilde")} · ${escapeHtml(periodName(ctx, period))}</p><div class="hero"><h1>${escapeHtml(guild.name)}</h1>`
+      + guildBanner(guild.id) + `<p class="eyebrow">${t("Guild", "Guilde")} · ${escapeHtml(periodName(ctx, period))}</p><div class="hero"><h1>${escapeHtml(guild.name)}</h1>`
       + (guild.slug ? `<a href="/g/${encodeURIComponent(guild.slug)}/">${t("Guild page →", "Page de guilde →")}</a>` : "") + `</div>`
       + (standing.length ? `<p>${standing.join(" &nbsp; ")}</p>` : "")
       + `<nav class="tabs"><a class="${filters.week ? "" : "on"}" href="${link(base, lang)}">${t("Season", "Saison")}</a><a class="${filters.week ? "on" : ""}" href="${link(base, lang, { period: "week" })}">${t("This week", "Cette semaine")}</a>${deps.store.guildDuelRows ? `<a href="${link(`${base}/duels`, lang)}">${t("Duels", "Duels")}</a>` : ""}</nav>`

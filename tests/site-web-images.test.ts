@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
 import { shareImageType } from "../src/services/web-layout.js";
+import { emptyBox, emptyPage } from "../src/services/leaderboard-hub.js";
 
 // Painted website pictures live in site/images/web/. The site build copies image folders one by one: a folder it
 // does not copy is a 404 on the live site. Every picture a page names must exist and stay light.
@@ -10,6 +11,7 @@ const FILES = [
   ...["players", "officers", "guild"].map((n) => `tile-${n}-800.webp`),
   ...["home", "leaderboards", "dungeons", "duels", "players", "guilds", "community", "guide", "companion", "download"].map((n) => `../social/og-${n}.jpg`),
   ...["404-1200.webp", "404-800.webp"],
+  ...["duel", "runs", "notfound", "search"].map((n) => `empty-${n}.webp`),
   ...["gold", "silver", "bronze"].map((n) => `medal-${n}.webp`),
 ];
 describe("website pictures", () => {
@@ -60,5 +62,16 @@ describe("painted pictures land in the built site", () => {
     expect(shareImageType("/images/social/og-duels.jpg")).toBe("image/jpeg");
     expect(shareImageType("/images/social/guilded-card.png")).toBe("image/png");
     expect(shareImageType(undefined)).toBe("image/png");
+  });
+});
+
+describe("empty-state pictures", () => {
+  it("are decorative, sized and lazy, and the not-found pages carry their own styles", () => {
+    const box = emptyBox("No duel yet", ["Duel someone."], "duel");
+    expect(box).toContain('src="/images/web/empty-duel.webp"');
+    expect(box).toContain('alt=""');
+    expect(box).toContain('width="96" height="96" loading="lazy"');
+    expect(emptyBox("Plain", [])).not.toContain("<img");
+    expect(emptyPage("Nothing", [], "notfound")).toContain("<style>.hub-empty");
   });
 });

@@ -168,7 +168,7 @@ export function createAddonImportService(database: PrismaClient) {
           await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${guildId}, 0))`;
           return withEdition(gameEditionOf(guild ?? {}), async () => {
             const characters = await tx.character.findMany({ where: { member: { guildId } }, include: { member: true } });
-            const summary = await importDungeonRuns(tx, guildId, snapshot.dungeonRuns, characters.map(runCharacter), appliedBy, importId);
+            const summary = await importDungeonRuns(tx, guildId, snapshot.dungeonRuns, characters.map(runCharacter), appliedBy, importId, undefined, { guildPlayersOnly: true });
             const payload = (imported.payload && typeof imported.payload === "object" ? imported.payload : {}) as Record<string, unknown>;
             const earlier = Array.isArray(payload["earlyDungeonResults"]) ? payload["earlyDungeonResults"] as typeof summary.results : [];
             if (summary.results.length) {
@@ -498,7 +498,7 @@ export function createAddonImportService(database: PrismaClient) {
         }
         // Guildmates who linked since their run was stored get their credit now (held credit).
         await creditHeldRunPlayers(tx, guildId, characters, appliedBy);
-        const dungeons = earlyDungeons ?? await importDungeonRuns(tx, guildId, snapshot.dungeonRuns, characters.map(runCharacter), appliedBy, importId);
+        const dungeons = earlyDungeons ?? await importDungeonRuns(tx, guildId, snapshot.dungeonRuns, characters.map(runCharacter), appliedBy, importId, undefined, { guildPlayersOnly: true });
         const battlegrounds = await importBattlegroundReports(tx, guildId, imported.pairedMemberId, snapshot.battlegroundReports);
         // Duels and milestones come only from a paired member's own companion (never an officer's whole-guild upload).
         const guildEdition = gameEditionOf(guild ?? {});

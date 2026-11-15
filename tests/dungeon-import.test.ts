@@ -485,3 +485,39 @@ describe("sharing a run with other guilds (9.3.2)", () => {
     expect((result.shareable ?? []).map((raw) => (raw as { id: string }).id)).toEqual(["QG-S1"]);
   });
 });
+
+// 14 November 2026 (guild-only Discord): the guild's own import paths store a run only with a player of that guild in it.
+describe("guild players only", () => {
+  const strangers = ["Aaa Stranger", "Bbb Stranger", "Ccc Stranger", "Ddd Stranger", "Eee Stranger"].map((character) => ({ character, realm: "Forever", deaths: 0, presentSec: 1500, inGuild: false, level: 20, minLevel: 20 }));
+  const options = { guildPlayersOnly: true };
+
+  it("a run of strangers only is not stored, scored or shared, whoever uploaded it; it is answered retry with no new text", async () => {
+    const { tx, runs, points } = fakeTx();
+    const result = await importDungeonRuns(tx, "g1", [run("QG-STR", { players: strangers })], characters, "officer", null, now, options);
+    expect(runs).toEqual([]);
+    expect(points).toEqual([]);
+    expect(result.results).toEqual([]);
+    expect(result.shareable ?? []).toEqual([]);
+    expect(result.receipts).toEqual([{ runRef: "QG-STR", outcome: "retry", reason: "Not counted", runId: null }]);
+  });
+
+  it("a mixed party is the guild's run: one linked guildmate is enough, the strangers are only the other participants", async () => {
+    const { tx, runs } = fakeTx();
+    const mixed = [...strangers.slice(0, 4), { ...strangers[0]!, character: "Kev" }];
+    await importDungeonRuns(tx, "g1", [run("QG-MIX", { players: mixed })], characters, "officer", null, now, options);
+    expect(runs.map((stored) => stored.runRef)).toEqual(["QG-MIX"]);
+  });
+
+  it("an unlinked guildmate (in the in-game roster only) makes the run the guild's", async () => {
+    const { tx, runs } = fakeTx();
+    (tx as unknown as Record<string, unknown>)["guildRosterEntry"] = { findMany: async () => [{ nameKey: "aaa stranger" }] };
+    await importDungeonRuns(tx, "g1", [run("QG-UNL", { players: strangers })], [], "officer", null, now, options);
+    expect(runs.map((stored) => stored.runRef)).toEqual(["QG-UNL"]);
+  });
+
+  it("without the option nothing changes (other callers keep their behaviour)", async () => {
+    const { tx, runs } = fakeTx();
+    await importDungeonRuns(tx, "g1", [run("QG-OLD", { players: strangers })], characters, "officer", null, now);
+    expect(runs).toHaveLength(1);
+  });
+});

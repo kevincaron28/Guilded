@@ -129,6 +129,19 @@ describe("carried records", () => {
     expect(stored.at(-1)).toMatchObject({ status: "own" });
   });
 
+  // Guild-only Discord (14 November 2026): a carried duel between two unaffiliated players, handed to a guild member's companion, stays on the
+  // public duel lane: no guild table is read or written, so no Discord card, board row or points can come from it in the carrier's guild.
+  it("a carried duel between two strangers, uploaded by a guild member, touches only the carried-record and public duel lane", async () => {
+    const { db } = fakeDb();
+    const guarded: any = new Proxy(db, { get: (target, name) => { if (["carriedRecord", "$transaction"].includes(String(name))) return target[name]; throw new Error(`guild table touched: ${String(name)}`); } });
+    const out = await applyCarriedRecords(guarded, { carrier: "member:officer1", carrierKeys: new Set(["guild officer"]), records: [record("1794698999-111111", { winner: "Aaa Stranger", loser: "Bbb Stranger" }, "Aaa Stranger")], now: NOW });
+    expect(out.applied).toBe(1);
+    const [tx, source] = mocks.recordGlobalDuels.mock.calls[0]! as [unknown, Record<string, unknown>];
+    expect(tx).toBe(db);
+    expect(source).toMatchObject({ carried: true });
+    expect(source).not.toHaveProperty("guildId");
+  });
+
   it("ownCarrierKeys adds the exported character and alts, survives odd entries and a failing read", async () => {
     const broken: any = { character: { findMany: () => Promise.reject(new Error("db down")) } };
     const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);

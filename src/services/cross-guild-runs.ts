@@ -46,7 +46,9 @@ export async function guildsWithMembersIn(database: Pick<PrismaClient, "characte
     select: { guildId: true, name: true, realm: true }
   });
   const mine = rows.filter((row) => keys.includes(keyOf(row.name, row.realm, edition)));
-  const guildIds = [...new Set(mine.map((row) => row.guildId))].sort();
+  // A player who is in a guild's in-game roster but linked to nobody (an addon-only guildmate) is a participant too: the run is that guild's.
+  const rosterOnly = await database.guildRosterEntry.findMany({ where: { gameEdition: edition, inGuild: true, nameKey: { in: keys }, ...(exceptGuildId ? { guildId: { not: exceptGuildId } } : {}) }, select: { guildId: true } });
+  const guildIds = [...new Set([...mine.map((row) => row.guildId), ...rosterOnly.map((row) => row.guildId)])].sort();
   if (!guildIds.length) return found;
   const [roster, off, guilds] = await Promise.all([
     database.guildRosterEntry.findMany({ where: { guildId: { in: guildIds }, gameEdition: edition, inGuild: true, nameKey: { in: keys } }, select: { guildId: true, nameKey: true } }),
@@ -57,8 +59,8 @@ export async function guildsWithMembersIn(database: Pick<PrismaClient, "characte
   for (const guild of guilds) {
     if (disabled.has(guild.id) || !guild.discordId) continue;
     const inRoster = new Set(roster.filter((row) => row.guildId === guild.id).map((row) => row.nameKey));
-    // The guild's own character must be in its in-game roster.
-    if (!mine.some((row) => row.guildId === guild.id && inRoster.has(keyOf(row.name, row.realm, edition)))) continue;
+    // A player of the run must be in the guild's in-game roster (a linked character or an unlinked guildmate).
+    if (!inRoster.size) continue;
     found.set(guild.id, { guild: { id: guild.id, name: guild.name, gameEdition: guild.gameEdition, discordId: guild.discordId }, roster: inRoster });
   }
   return new Map([...found].sort(([a], [b]) => a < b ? -1 : 1));

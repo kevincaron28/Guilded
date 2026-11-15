@@ -442,6 +442,24 @@ describe("Season 1: runs only anonymous devices vouch for still count (owner dec
     expect(runs.map((r) => [r["runRef"], r["trust"]])).toEqual([["QG-1", "device"]]);
   });
 
+  // 14 November 2026 (guild-only Discord): a run another addon relayed counts in a guild only with a player of THAT guild in it.
+  it("does not store a relayed run of strangers, even in Season 1 where a single report counts; it waits and is never carded", async () => {
+    const strangers = ["Zed", "Amy", "Bob"].map((character) => ({ character, realm: "Forever", deaths: 0, presentSec: 2700, inGuild: false, level: 30, minLevel: 30 }));
+    const { tx, runs } = fakeTx([], [], ["kev"], [1]);
+    const result = await storeDeviceRuns(tx, "g1", [run("QG-STR", { reporterNames: ["Amy"], players: strangers })], now, { deviceId: "d9", characterKeys: ["nobody here"] });
+    expect(result.stored).toBe(0);
+    expect(result.pending?.["QG-STR"]).toBeDefined();
+    expect(runs).toHaveLength(0);
+    expect(result.summaries ?? []).toEqual([]);
+  });
+
+  it("stores the same relayed run once one of its players is in the guild's roster (an unlinked guildmate)", async () => {
+    const strangers = ["Zed", "Amy", "Bob"].map((character) => ({ character, realm: "Forever", deaths: 0, presentSec: 2700, inGuild: true, level: 30, minLevel: 30 }));
+    const { tx, runs } = fakeTx([], [], ["amy"], [1]);
+    expect(await storeDeviceRuns(tx, "g1", [run("QG-STR2", { reporterNames: ["Amy"], players: strangers })], now, { deviceId: "d9", characterKeys: ["nobody here"] })).toMatchObject({ stored: 1 });
+    expect(runs.map((r) => r["runRef"])).toEqual(["QG-STR2"]);
+  });
+
   it("keeps the daily cap, and never changes a stored run", async () => {
     const { tx, runs, witnesses } = fakeTx([], [], [], [1]);
     for (let i = 0; i < 20; i++) witnesses.push({ deviceId: "d1", status: "stored", trust: "device", decidedAt: now });

@@ -6,7 +6,7 @@ import { firstNameKey, importDungeonRuns, receiptReason, RETRY_OUTCOME, saveRunR
 import { plausibilityFlags, type Anomaly, type NeighbourRun } from "./run-plausibility.js";
 import { challengeSecret, holdsRun, integrityConfig } from "./run-integrity-config.js";
 import { contradicts, issueChallenge, verifyBatch } from "./run-challenge.js";
-import { anchored, countsDeviceOnlyRuns, decide, fingerprintOf, independent, RUN_TRUST, sameRun, voucherOf, type RunFingerprint, type Statement } from "./run-trust.js";
+import { anchored, countsDeviceOnlyRuns, decide, EXPIRED_REASON, fingerprintOf, PENDING_REASON, independent, RUN_TRUST, sameRun, voucherOf, type RunFingerprint, type Statement } from "./run-trust.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
 import { withEdition } from "./edition-context.js";
 import { gameEditionOf } from "./game-edition.js";
@@ -515,7 +515,13 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
       continue;
     }
     const others = await othersNear(print);
-    const decision = decide(statement, others.map(statementOfRow), { anchored: anchored(raw, knownNames), storedToday, nowSec, allowDeviceOnly });
+    // A run another player's addon relayed (not the device's own character) counts here only with a player of THIS guild in it: a run of
+    // strangers waits (kept until it is too old), never stored on a second device's word or the Season 1 device-only allowance.
+    const strangers = standing.kind === "relay" && !anchored(raw, knownNames);
+    if (strangers) console.info(`dungeon-run no-guild-player guild=${guildId.slice(-6)} run=${ref.slice(0, 24)}`);
+    const decision = strangers
+      ? (statement.endedAt && nowSec - statement.endedAt > RUN_TRUST.maxAgeSec ? { expire: EXPIRED_REASON } : { wait: PENDING_REASON })
+      : decide(statement, others.map(statementOfRow), { anchored: anchored(raw, knownNames), storedToday, nowSec, allowDeviceOnly });
     if ("expire" in decision) {
       await saveRunReceipts(tx, guildId, [{ runRef: ref, outcome: "refused", reason: decision.expire, runId: null }], now);
       await record(ref, raw, statement, { status: "expired", reason: decision.expire, decided: true });

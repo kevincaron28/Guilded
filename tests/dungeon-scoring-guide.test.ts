@@ -30,7 +30,7 @@ describe("dungeon scoring explanation", () => {
       const before = JSON.stringify(rules);
       const embed = dungeonScoringGuide(dungeonConfig({}), lang, rules);
       const fields = embed.toJSON().fields ?? [];
-      const leveling = fields.find(field => field.name.includes("participation only") || field.name.includes("participation seulement"));
+      const leveling = fields.find(field => field.name.includes("community points only") || field.name.includes("points de communauté seulement"));
       expect(leveling?.value).toContain("The Hall of Thanes");
       expect(leveling?.value).toContain("Ruins of Lordaeron");
       expect(leveling?.value).toContain("The Deadmines");

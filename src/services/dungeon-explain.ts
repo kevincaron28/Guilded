@@ -11,8 +11,8 @@ import { formatDuration } from "./dungeon-rules.js";
 
 type Db = Pick<PrismaClient, "dungeonRun" | "dungeonSeason" | "character">;
 const PARTICIPATION: Record<string, string> = {
-  full: "full participation points", completion: "completion points only (no records or bonuses)",
-  helper: "helper points (completion only)", none: "no participation points"
+  full: "full community points", completion: "completion points only (no records or bonuses)",
+  helper: "helper points (completion only)", none: "no community points"
 };
 
 export async function explainDungeonRuns(database: Db, guildId: string, filter: { run?: string | null; character?: string | null; limit?: number }): Promise<string[]> {

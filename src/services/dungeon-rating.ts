@@ -515,7 +515,7 @@ export function ratingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, r
   if (!rows.length) lines.push(timed ? (fr ? "Terminez un donjon calibré pour établir votre score." : "Complete a calibrated dungeon to establish your score.") : fr ? "Le premier nouveau donjon admissible rapporte 100." : "Your first eligible new dungeon earns 100.");
   return new EmbedBuilder().setColor(0x8b5cf6).setTitle(`${fr ? "🏅 Exploration" : "🏅 Exploration rating"} · ${seasonName}`.slice(0, 256))
     .setDescription(lines.join("\n\n"))
-    .setFooter({ text: fr ? "Boss final détecté + présence ≥ 80 %. Points de participation séparés." : "Detected final boss + ≥80% presence. Participation points are separate." });
+    .setFooter({ text: fr ? "Boss final détecté + présence ≥ 80 %. Points de communauté séparés." : "Detected final boss + ≥80% presence. Community points are separate." });
 }
 
 const rankLine = (rows: RatingRow[], row: RatingRow, fr: boolean) => {
@@ -533,7 +533,7 @@ export const provisionalNote = (fr: boolean) => fr
   : "⚠️ **Provisional targets**: recommendations until real timed runs exist. Targets are shared by all guilds and frozen for the season; adjustments wait for a future season.";
 /** The footer states the presence rule the season actually applies (80% strict, 50% with leniency). */
 const footerText = (fr: boolean, rules: BracketedRules) => { const pct = Math.round(leniencyOf(rules).presence * 100);
-  return fr ? `Boss final détecté + présence ≥ ${pct} %. Points de participation séparés.` : `Detected final boss + ≥${pct}% presence. Participation points are separate.`; };
+  return fr ? `Boss final détecté + présence ≥ ${pct} %. Points de communauté séparés.` : `Detected final boss + ≥${pct}% presence. Community points are separate.`; };
 const bracketLabel = (b: DungeonBracket, fr: boolean) => b.min === b.max ? `${fr ? "Niveau" : "Level"} ${b.min}` : `${fr ? "Niveaux" : "Levels"} ${b.min}–${b.max}`;
 // One bracket in full, or (no bracket chosen) the top five of every bracket.
 function bracketRatingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, rules: BracketedRules, key?: string): EmbedBuilder {

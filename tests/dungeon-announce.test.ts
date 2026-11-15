@@ -28,13 +28,13 @@ describe("dungeonPosts", () => {
       expect(body).not.toMatch(/calibrat/i);
       expect(body).not.toContain("Score de vitesse");
       expect(body).not.toContain("0 pts");
-      expect(body).not.toContain("participation points");
+      expect(body).not.toContain("community points");
     }
     expect(en.split("\n").length).toBeLessThanOrEqual(3);
   });
   it("shows the points line only above zero", () => {
-    expect(text(result({ ratingEnabled: true, points: 75 }))).toContain("75 participation points");
-    expect(text(result({ ratingEnabled: true, points: 75 }), "fr")).toContain("75 points de participation");
+    expect(text(result({ ratingEnabled: true, points: 75 }))).toContain("75 community points");
+    expect(text(result({ ratingEnabled: true, points: 75 }), "fr")).toContain("75 points de communauté");
     expect(text(result({ points: 58 }))).toContain("58 total points awarded");
   });
   it("sums unranked members into ONE line with the distinct reasons", () => {

@@ -28,7 +28,7 @@ function sample(dungeonName: string, i: number): DungeonImportResult {
     personalRecords: [], players: party.map((p) => p.character), deaths: 3, unlinked: ["Pug"], inGuildPlayers: guild, achievements: [],
     endedAt: 1794000000, startedAt: 1793998800, ratingEnabled: true,
     fullNames: Object.fromEntries(party.map((p) => [p.character, p.full])),
-    encounters: [{ id: 1, name: "Final Boss of the Place", success: true, at: 1794000000 }],
+    encounters: [{ id: 1, name: dungeonName.startsWith("Scarlet") ? "Arcanist Doan" : "Final Boss of the Place", success: true, at: 1794000000 }],
     playerDetails: party.map((p) => ({ character: p.character, class: p.class, role: p.role, ...(p.spec ? { spec: p.spec } : {}), deaths: p.deaths, presentSec: 1100, points: 0,
       ...(p.rating !== undefined ? { ratingTotal: p.rating, ratingGain: p.gain } : {}) }))
   };

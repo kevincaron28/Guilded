@@ -38,7 +38,7 @@ sub-commands.
 | `/bank` `request` `mine` `cancel` | Ask the guild bank for an item | Everyone |
 | `/apply` | Apply to a raid core | Everyone |
 | `/tag` `show` `list` | Post a saved text (raid rules, consumables) | Everyone |
-| `/community` `hub` `seasons` `leaderboard` `wallet` `dice` `badges` `honors` | Activity points, seasons, badges and hall of fame | Everyone |
+| `/community` `hub` `seasons` `leaderboard` `wallet` `dice` `badges` `honors` | Community points, seasons, badges and hall of fame | Everyone |
 | `/community` `lottery` `gaming` `challenge` | Join lotteries, gaming nights and challenges | Everyone |
 | `/participation` `status` `nominate` `history` | Your Discord participation; recognise a helper | Everyone |
 | `/report` `bug` `ping` `stats` | Send a private bug report; check the bot is up; guild activity | Everyone |

@@ -1,5 +1,6 @@
 import { bossTally } from "./dungeon-boss-scoring.js";
 import type { Lang } from "../i18n.js";
+import { SCARLET_WINGS } from "./dungeon-rating.js";
 import { canonicalClass } from "./character-display.js";
 import { CLASS_NAMES_FR } from "../permissions.js";
 import { canonicalSpecialization } from "../wow-specializations.js";
@@ -97,10 +98,26 @@ export function finalBoss(run: Run): string | null {
   return kills.length ? kills[kills.length - 1]!.name ?? null : null;
 }
 
-export function runLabel(run: { runRef: string; dungeonName: string; difficultyId: number }): string {
+const WING_NAME: Record<string, [string, string]> = { graveyard: ["Graveyard", "Cimetière"], library: ["Library", "Bibliothèque"], armory: ["Armory", "Armurerie"], cathedral: ["Cathedral", "Cathédrale"] };
+const HAS_WING = /graveyard|library|armory|cathedral|cimeti[èe]re|biblioth|armurerie|cath[ée]drale/i;
+/**
+ * Scarlet Monastery is one map (189) for four wings and the game reports only "Scarlet Monastery". The wing is told apart by the last
+ * boss killed, the same rule the rating uses (SCARLET_WINGS). A name that already carries a wing, other dungeons and a run with no
+ * wing boss (or bosses of two wings) keep the name as received.
+ */
+export function dungeonDisplayName(run: { dungeonName: string; encounters?: readonly { name?: string | undefined; success?: boolean | undefined }[] | undefined }, lang: Lang = "en"): string {
+  if (!/scarlet|[ée]carlate/i.test(run.dungeonName) || HAS_WING.test(run.dungeonName)) return run.dungeonName;
+  const killed = new Set((run.encounters ?? []).filter((e) => e.success === true).map((e) => e.name?.toLowerCase()));
+  const wings = SCARLET_WINGS.filter(([, bosses]) => bosses.some((boss) => killed.has(boss)));
+  if (wings.length !== 1) return run.dungeonName;
+  const [en, fr] = WING_NAME[wings[0]![0]]!;
+  return `${run.dungeonName}${lang === "fr" ? " : " : ": "}${lang === "fr" ? fr : en}`;
+}
+export function runLabel(run: { runRef: string; dungeonName: string; difficultyId: number; encounters?: readonly { name?: string | undefined; success?: boolean | undefined }[] | undefined }, lang: Lang = "en"): string {
   const difficulty = difficultyName(run.difficultyId);
   const test = run.runRef.startsWith("SIM-") ? "[TEST] " : "";
-  return difficulty ? `${test}${run.dungeonName} (${difficulty})` : `${test}${run.dungeonName}`;
+  const name = dungeonDisplayName(run, lang);
+  return difficulty ? `${test}${name} (${difficulty})` : `${test}${name}`;
 }
 
 // Painted backgrounds are original procedural scenes (dungeon-art.ts), chosen here from the dungeon's English or French
@@ -242,7 +259,7 @@ export function dungeonRunCard(run: Run, lang: Lang, options: DungeonCardOptions
   const roles = partyRoles(party.map((row) => row.detail));
   return {
     eyebrow: t("Guilded · Dungeon completed", "Guilded · Donjon terminé"),
-    title: runLabel(run).replace(/ \(.*\)$/, ""),
+    title: runLabel(run, lang).replace(/ \(.*\)$/, ""),
     subtitle: [difficultyName(run.difficultyId), mark, date].filter(Boolean).join(" · "),
     stats: [
       { label: t("Time", "Temps"), value: formatDuration(run.durationSec ?? 0), accent: "gold",
@@ -256,7 +273,7 @@ export function dungeonRunCard(run: Run, lang: Lang, options: DungeonCardOptions
     badges: rankBadges(run, t, lang),
     footer: t("Guilded · Dungeon run as recorded by the party's addons · guildedwow.com", "Guilded · Donjon noté par les addons du groupe · guildedwow.com"),
     dungeon: {
-      theme: dungeonTheme(run.dungeonName),
+      theme: dungeonTheme(dungeonDisplayName(run, lang)),
       ...(score ? { scoreLabel: score.label } : {}),
       ...(party.some((row) => typeof row.detail.ratingTotal === "number") ? { columns: { level: t("Lv", "Niv"), gain: t("This run", "Cette run"), total: t("Season", "Saison") } } : {}),
       party: party.slice(0, 40).map(({ detail, guild }, index) => {

@@ -48,7 +48,7 @@ export const DUNGEON_SEASON_SELECT = "dseason:choose";
 
 // Titles the bot has used for dungeon panels in this channel over time (beta scoring guide, rating and
 // participation boards, past-season blocks). A bot message with one of them that is not the live board is outdated.
-const PANEL_TITLE = /comment les points fonctionnent|how points work|^\W*(Exploration|Points de participation|Participation points)|Meilleures tentatives|Best runs|Saison passée|Past season/i;
+const PANEL_TITLE = /comment les points fonctionnent|how points work|^\W*(Exploration|Points de communauté|Community points|Points de participation|Participation points)|Meilleures tentatives|Best runs|Saison passée|Past season/i;
 const isPanelMessage = (message: Pick<Message, "author" | "embeds" | "content">, botId: string) =>
   message.author.id === botId && message.embeds.some(embed => PANEL_TITLE.test(embed.title ?? "") || PANEL_TITLE.test(embed.fields?.[0]?.name ?? ""));
 
@@ -127,7 +127,7 @@ ${rows.length ? formatLeaderboard(rows) : t(lang, "dungeon.board.empty")}`.slice
     const best = bestRunsEmbed(await seasonBestRuns(prisma, guild.id, season.id), lang, await guildBossRecords(prisma, guild.id).catch(() => []));
     const ratingRows = hasDungeonRating(season.ratingRules) ? await dungeonRating(prisma, guild.id, season) : null;
     const rating = ratingRows ? ratingEmbed(ratingRows, season.name, lang, season.ratingRules) : null;
-    if (rating) embed.setTitle(lang === "fr" ? "🤝 Points de participation" : "🤝 Participation points");
+    if (rating) embed.setTitle(lang === "fr" ? "🤝 Points de communauté" : "🤝 Community points");
     // An empty board says why (runs received but none counted, or none received) instead of only "no points yet".
     const unranked = !(ratingRows ?? cardRows).some(row => row.points > 0);
     const emptyNote = unranked ? emptyBoardNote(await diagnoseDungeonBoard(prisma, guild.id).catch(() => ({ season: null, received: 0, counted: 1, reasons: [] })), lang === "fr" ? "fr" : "en") : null;

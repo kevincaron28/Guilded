@@ -361,6 +361,12 @@ export function createEngine(initialConfig, hooks = {}) {
     return first === null ? null : [first, ...rest].join("|");
   }
 
+  // (9.3.5) What this companion tells the bot about itself, so officers can see a stuck sync: records waiting in the parked-uploads file and a damaged record.
+  function healthHeader() {
+    const parked = Math.min(99_999, pendingParked.length);
+    return [`parked=${parked}`, state.parkedRecord ? "damaged=1" : ""].join(";").replace(/;$/, "");
+  }
+
   async function send(current, exported, epoch) {
     const gzip = features.has("gzip-upload") && !gzipOff;
     const payload = jsonBody({ guildDiscordId: current.guildDiscordId, export: exported }, { gzip });
@@ -372,7 +378,7 @@ export function createEngine(initialConfig, hooks = {}) {
     state.lastUploadBytes = payload.bytes;
     const result = await requestJson(current.uploadUrl, {
       method: "POST",
-      headers: { ...credentialHeaders(current), ...payload.headers },
+      headers: { ...credentialHeaders(current), ...payload.headers, ...(healthHeader() ? { "x-companion-health": healthHeader() } : {}) },
       body: payload.body
     }, controller.signal);
     // A compressed upload the bot (or something on the way) could not read: send it plain from now on.
@@ -575,7 +581,7 @@ export function createEngine(initialConfig, hooks = {}) {
       state.syncEvidence = { savedAt: new Date().toISOString(), savedRevision: revision, character: full.character?.name ? `${full.character.name} — ${full.character.realm || current.realm || "?"}` : null, edition: full.gameEdition || full.character?.gameEdition };
       // Only the newest 50 runs go in one upload.
       const carryAcknowledged = await readCarryReceipts(current).catch(() => new Set());
-      const { response, body, sent } = await uploadAsDevice(current, full, controller.signal, { acknowledged, groupRelay: deviceFeatureSet.has(GROUP_RELAY_FEATURE), carry: deviceFeatureSet.has(CARRY_FEATURE), carryAcknowledged });
+      const { response, body, sent } = await uploadAsDevice(current, full, controller.signal, { acknowledged, groupRelay: deviceFeatureSet.has(GROUP_RELAY_FEATURE), carry: deviceFeatureSet.has(CARRY_FEATURE), carryAcknowledged, health: healthHeader() });
       if (epoch !== generation) return;
       // The bot's receipts for carried records are written whatever else the answer says (a duplicate upload still dealt with them).
       if (response.ok || response.status === 409) await writeCarryReceipts(current, body, controller.signal).catch(() => undefined);

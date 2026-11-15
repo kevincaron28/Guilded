@@ -12,6 +12,7 @@ import { findPlayer } from "../services/player-search.js";
 import { explainDungeonRuns } from "../services/dungeon-explain.js";
 import { anomalyReport, describeAnomalies, describeHeld, heldReport, setDeviceExcluded } from "../services/run-anomalies.js";
 import { releaseHeldRuns, releaseReply } from "../services/run-release.js";
+import { describeSyncIssues, syncHealth } from "../services/sync-health.js";
 import { asLang, tx } from "../i18n.js";
 import { guildService, requireGuildContext } from "./context.js";
 
@@ -21,7 +22,7 @@ const auditService = createAuditService(prisma);
 // written to the audit log and the officer log channel.
 export const dungeonAdminCommand = new SlashCommandBuilder()
   .setName("dungeon-admin")
-  .setDescription("Dungeon corrections and rewards (guild only)")
+  .setDescription("Dungeon corrections and rewards")
   .addSubcommand((sub) => sub.setName("invalidate").setDescription("Stop a run from counting and take back its points")
     .addStringOption((o) => o.setName("run").setDescription("The run (pick from the list)").setAutocomplete(true).setRequired(true))
     .addStringOption((o) => o.setName("reason").setDescription("Why (shown in the history)").setRequired(true).setMaxLength(200)))
@@ -34,12 +35,13 @@ export const dungeonAdminCommand = new SlashCommandBuilder()
     .addUserOption((o) => o.setName("member").setDescription("Discord member"))
     .addStringOption((o) => o.setName("character").setDescription("Or a character name"))
     .addStringOption((o) => o.setName("run").setDescription("Or one run (pick from the list)").setAutocomplete(true))
-    .addBooleanOption((o) => o.setName("why").setDescription("Explain why runs do or do not count")))
+    .addBooleanOption((o) => o.setName("why").setDescription("Explain why runs count or not")))
   .addSubcommand((sub) => sub.setName("config").setDescription("View the fixed dungeon rules"))
   .addSubcommand((sub) => sub.setName("flagged").setDescription("Unlikely runs; exclude a PC")
     .addStringOption((o) => o.setName("pc").setDescription("PC code").setMaxLength(16))
     .addStringOption((o) => o.setName("run").setDescription("Held run code").setMaxLength(100))
     .addBooleanOption((o) => o.setName("exclude").setDescription("False restores")))
+  .addSubcommand((sub) => sub.setName("sync").setDescription("Stuck syncs"))
   .addSubcommand(sub => sub.setName("bracket-preview").setDescription("Preview shared season targets"))
   .addSubcommand(sub => sub.setName("recalibrate").setDescription("Timed-run evidence for future rules")
     .addStringOption(o => o.setName("route").setDescription("Route (pick from the list)").setAutocomplete(true).setRequired(true)));
@@ -119,6 +121,9 @@ export async function executeDungeonAdmin(interaction: ChatInputCommandInteracti
   } else if (subcommand === "why") {
     const blocks = await explainDungeonRuns(prisma, context.guildId, { run: interaction.options.getString("run"), character: interaction.options.getString("character") });
     await interaction.reply({ content: blocks.join("\n\n").slice(0, 1990), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+    return;
+  } else if (subcommand === "sync") {
+    await interaction.reply({ content: describeSyncIssues(await syncHealth(prisma, context.guildId), lang), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
     return;
   } else if (subcommand === "flagged") {
     const pc = interaction.options.getString("pc");

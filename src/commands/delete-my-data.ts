@@ -24,7 +24,7 @@ export async function executeDeleteMyData(interaction: ChatInputCommandInteracti
   const choice = await preview.awaitMessageComponent({ time: 120_000,
     filter: c => c.user.id === interaction.user.id && [confirmId, cancelId].includes(c.customId) }).catch(() => null);
   if (!choice || choice.customId !== confirmId) {
-    if (choice) await choice.deferUpdate();
+    if (choice) await choice.deferUpdate().catch(() => undefined);
     // After the 120 s wait the interaction token may be gone: nothing more to say then.
     await interaction.editReply({ content: fr ? "Annulé ou expiré. Rien n’a été supprimé." : "Cancelled or expired. Nothing was deleted.", components: [] }).catch(() => undefined);
     return;
@@ -37,6 +37,7 @@ export async function executeDeleteMyData(interaction: ChatInputCommandInteracti
       : `Your data was deleted: ${done.characters} character(s) and ${done.account ? "your website account" : "no website account"}. To clear this PC too, press “Reset this companion” in the companion.`, components: [] });
   } catch (error) {
     onError(error);
-    await interaction.editReply({ content: fr ? "La suppression n’a pas pu être effectuée. Réessayez, ou demandez-la dans la communauté de soutien Guilded." : "The deletion could not be completed. Try again, or ask in the Guilded support community.", components: [] });
+    // The token may be dead by now (that can be why we are here): never throw from the failure message.
+    await interaction.editReply({ content: fr ? "La suppression n’a pas pu être effectuée. Réessayez, ou demandez-la dans la communauté de soutien Guilded." : "The deletion could not be completed. Try again, or ask in the Guilded support community.", components: [] }).catch(() => undefined);
   }
 }

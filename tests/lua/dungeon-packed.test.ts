@@ -128,7 +128,7 @@ describe("packed run summaries (Z1)", () => {
     const walter = client("Walter"), lebowski = client("Lebowski");
     longRun(walter);
     const packed = ask(walter, "D1,Z1").filter((m) => m.text.startsWith("SUMZ|"));
-    hear(lebowski, "Stranger", "WHISPER", packed[0].text);                         // not a guildmate
+    hear(lebowski, "Stranger", "WHISPER", packed[0]!.text);                         // not a guildmate
     for (const m of packed) hear(lebowski, "Walter", "GUILD", m.text);             // SUMZ is whisper only
     expect(holds(lebowski, "walter-rfc")).toBe(false);
     hear(lebowski, "Walter", "WHISPER", "SUMZ|walter-rfc|1|1|BAD00");              // not packed data

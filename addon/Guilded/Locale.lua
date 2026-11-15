@@ -945,7 +945,6 @@ local FR = {
   ["Give back"] = "Rendre",
   ["Given back - goes to Discord with your next sync"] = "Rendue - part vers Discord \195\160 la prochaine synchro",
   ["No open orders for your recipes. /guilded orders all lists every open order."] = "Aucune commande ouverte pour vos recettes. /guilded orders all liste toutes les commandes ouvertes.",
-  ["No open orders for your recipes. Show all open orders to see the rest."] = "Aucune commande ouverte pour vos recettes. Affichez toutes les commandes pour voir le reste.",
   ["No open orders."] = "Aucune commande ouverte.",
   ["No orders from Discord yet. They arrive after your companion syncs, or when a guildmate who has it shares them."] = "Pas encore de commandes de Discord. Elles arrivent apr\195\168s la synchro de votre compagnon, ou quand un membre qui l'a les partage.",
   ["Not in your recipes"] = "Hors de vos recettes",
@@ -2498,7 +2497,6 @@ local DE = {
   ["Give back"] = "Zur\195\188ckgeben",
   ["Given back - goes to Discord with your next sync"] = "Zur\195\188ckgegeben - geht mit der n\195\164chsten Synchronisierung an Discord",
   ["No open orders for your recipes. /guilded orders all lists every open order."] = "Keine offenen Auftr\195\164ge f\195\188r deine Rezepte. /guilded orders all zeigt alle offenen Auftr\195\164ge.",
-  ["No open orders for your recipes. Show all open orders to see the rest."] = "Keine offenen Auftr\195\164ge f\195\188r deine Rezepte. Zeige alle offenen Auftr\195\164ge, um den Rest zu sehen.",
   ["No open orders."] = "Keine offenen Auftr\195\164ge.",
   ["No orders from Discord yet. They arrive after your companion syncs, or when a guildmate who has it shares them."] = "Noch keine Auftr\195\164ge aus Discord. Sie kommen nach der Synchronisierung deines Begleiters oder wenn ein Gildenmitglied mit Begleiter sie teilt.",
   ["Not in your recipes"] = "Nicht in deinen Rezepten",
@@ -2929,6 +2927,8 @@ local DE = {
   -- 9.3.4 window polish
   ["Saved when you log out. To save now, type /reload."] = "Wird beim Abmelden gespeichert. Zum sofortigen Speichern tippe /reload.",
   ["Unranked - no points"] = "Ohne Wertung - keine Punkte",
+  -- 9.3.4 window polish
+  ["No open orders for your recipes."] = "Keine offenen Auftr\195\164ge f\195\188r deine Rezepte.",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -4453,7 +4453,6 @@ local ES = {
   ["Give back"] = "Devolver",
   ["Given back - goes to Discord with your next sync"] = "Devuelto - se env\195\173a a Discord en la pr\195\179xima sincronizaci\195\179n",
   ["No open orders for your recipes. /guilded orders all lists every open order."] = "No hay pedidos abiertos para tus recetas. /guilded orders all muestra todos los pedidos abiertos.",
-  ["No open orders for your recipes. Show all open orders to see the rest."] = "No hay pedidos abiertos para tus recetas. Muestra todos los pedidos para ver el resto.",
   ["No open orders."] = "No hay pedidos abiertos.",
   ["No orders from Discord yet. They arrive after your companion syncs, or when a guildmate who has it shares them."] = "A\195\186n no hay pedidos de Discord. Llegan tras la sincronizaci\195\179n de tu compa\195\177ero, o cuando un miembro que lo tiene los comparte.",
   ["Not in your recipes"] = "No est\195\161 en tus recetas",
@@ -4884,6 +4883,8 @@ local ES = {
   -- 9.3.4 window polish
   ["Saved when you log out. To save now, type /reload."] = "Se guarda al cerrar sesi\195\179n. Para guardar ahora, escribe /reload.",
   ["Unranked - no points"] = "Sin clasificar - sin puntos",
+  -- 9.3.4 window polish
+  ["No open orders for your recipes."] = "No hay pedidos abiertos para tus recetas.",
 }
 -- END ES
 
@@ -5103,6 +5104,8 @@ FR["Last check"] = "Derni\195\168re v\195\169rif."
 -- 9.3.4 window polish.
 FR["Saved when you log out. To save now, type /reload."] = "Enregistr\195\169 \195\160 la d\195\169connexion. Pour enregistrer maintenant, tape /reload."
 FR["Unranked - no points"] = "Non class\195\169 - aucun point"
+-- 9.3.4 window polish.
+FR["No open orders for your recipes."] = "Aucune commande ouverte pour tes recettes."
 FR["Invites"] = "Invitations"
 FR["Officers only."] = "R\195\169serv\195\169 aux officiers."
 FR["Advanced..."] = "Avanc\195\169..."

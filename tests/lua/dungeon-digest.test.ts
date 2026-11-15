@@ -61,7 +61,7 @@ describe("run digests before the login replay", () => {
     const digest = kinds(lines, "DGS");
     expect(digest).toHaveLength(1);
     expect(digest[0]).toMatch(/^DGS\|1\|D1\|\d+:[0-9a-f]{6}$/);
-    expect(digest[0].length).toBeLessThan(80);
+    expect(digest[0]!.length).toBeLessThan(80);
   });
 
   it("does not send a run again to a guildmate whose digest already matches (no duplicates)", () => {

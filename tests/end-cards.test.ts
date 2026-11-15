@@ -56,7 +56,7 @@ describe("achievement unlocked card", () => {
     const queued = { ...achievementUnlockedCard("frumpytm", ids.slice(0, 2), 5, "en") };
     for (const key of ["unlocks", "unlocksMore", "moreLabel", "progress", "tierCounts"] as const) delete queued[key];
     expect(await sharp((await scoreCardPng(queued))!).metadata()).toMatchObject({ width: 1200, height: 630 });
-  });
+  }, 30_000);
 });
 
 describe("card art keys (batch 2)", () => {

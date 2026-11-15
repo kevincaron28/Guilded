@@ -116,6 +116,11 @@ function view.guidanceText(row)
   return table.concat(lines, "\n")
 end
 
+-- The full width of a one-line text, wrapped or not (nil when the client cannot say).
+local function textWidth(fontString)
+  local get = fontString.GetUnboundedStringWidth or fontString.GetStringWidth
+  return get and tonumber(get(fontString)) or nil
+end
 local function label(parent, x, y, width, font)
   local text = parent:CreateFontString(nil, "OVERLAY", font or "GameFontHighlightSmall")
   text:SetPoint("TOPLEFT", parent, "TOPLEFT", x, y)
@@ -335,7 +340,9 @@ function view.build(parent, compact)
   pane.title:SetText(L("Dungeons"))
   -- My season: your score, then the one thing worth doing next, then the rules line.
   pane.summary = label(pane, 16, PAGE_Y - 6, width - 32, "GameFontNormal")
+  if pane.summary.SetWordWrap then pane.summary:SetWordWrap(false) end
   pane.nextLine = label(pane, 16, PAGE_Y - 26, width - 32)
+  if pane.nextLine.SetWordWrap then pane.nextLine:SetWordWrap(false) end
   pane.note = label(pane, 16, PAGE_Y - 44, width - 32, "GameFontDisableSmall")
   pane.note:SetText(L("100 per dungeon + up to 20 speed. Only your best run counts."))
   pane.cards = {}
@@ -492,6 +499,13 @@ function view.build(parent, compact)
       summaryText = summaryText .. "  |cffa0a0a0" .. string.format(L("(#%d of %d, top %d%%)"), standing.rank, standing.count, standing.topPercent) .. "|r"
     end
     self.summary:SetText(summaryText)
+    -- (9.3.4) One line: when name, score and standing do not fit the pane, the words "Your season score" shrink to "Score".
+    local summaryWidth = textWidth(self.summary)
+    if summaryWidth and summaryWidth > (self.width or 440) - 32 and model.period ~= "week" then
+      -- A plain find: the translated words may hold pattern characters.
+      local from, to = string.find(summaryText, L("Your season score") .. ":", 1, true)
+      if from then self.summary:SetText(string.sub(summaryText, 1, from - 1) .. L("Score") .. ":" .. string.sub(summaryText, to + 1)) end
+    end
     self.note:SetText(model.available and (model.version == 6 and model.bracket and string.format(L("%s: best %d distinct routes. Verified route evidence required."), ns.scores.bracketLabel(model.bracket), model.bracket.bestCount)
       or model.version == 5 and L("Level 60: best 8 distinct routes. Maximum 3200. Verified route evidence required.") or model.version == 4 and L("Beta: best 8 distinct routes. Level 30. Maximum 3200. Provisional targets.") or model.version == 3 and L("200 at target. Best run per dungeon. Hover for boss records.") or model.version == 2 and L("100 per dungeon + up to 20 speed. Only your best run counts.")
       or L("Historical rules: 100 per distinct dungeon, no speed bonus."))
@@ -514,7 +528,7 @@ function view.build(parent, compact)
         local levels = row.minLevel and ((row.maxLevel and row.maxLevel ~= row.minLevel) and (row.minLevel .. "-" .. row.maxLevel) or tostring(row.minLevel))
         card:Show(); card.name:SetText(row.name .. (levels and (" (" .. levels .. ")") or ""))
         local tierColor = ns.dungeonStats and ("|cff" .. ns.dungeonStats.tier(math.min(1, (row.points or 0) / ((model.version or 0) >= 3 and 400 or 120))).hex) or "|cffefca68"
-        card.value:SetText(row.sec and (tierColor .. (row.reason and L("Unranked") or tostring(row.points)) .. (row.penalty and (" (-" .. row.penalty .. "%)") or "") .. (model.version == 2 and " (+" .. row.speedBonus .. ")" or "") .. ((model.version == 4 or model.version == 5) and row.counted == false and not row.reason and (" - " .. L("Not counted in best 8")) or "")
+        card.value:SetText(row.sec and (tierColor .. (row.reason and ("|cff8993a4" .. L("Unranked - no points")) or tostring(row.points)) .. (row.penalty and (" (-" .. row.penalty .. "%)") or "") .. (model.version == 2 and " (+" .. row.speedBonus .. ")" or "") .. ((model.version == 4 or model.version == 5) and row.counted == false and not row.reason and (" - " .. L("Not counted in best 8")) or "")
           .. (model.version == 6 and model.bracket and row.counted == false and not row.reason and (" - " .. string.format(L("Not counted in best %d"), model.bracket.bestCount)) or "") .. "|r  " .. duration(row.sec)
           .. " / " .. (row.targetSec and (duration(row.targetSec) .. (row.provisional and "*" or "")) or L("No target")))
           or ("|cff8993a4" .. (model.available and L("Not completed this season") or L("Breakdown unavailable")) .. "|r"
@@ -528,7 +542,7 @@ function view.build(parent, compact)
           card.stats = ns.dungeonStats.forCard(self.statsData, row)
           -- Runs and your best time on the card itself; the rest is in the tooltip and detail page.
           local s = card.stats
-          card.extra:SetText(s and s.runs > 0 and (string.format(L("%d runs"), s.runs) .. (s.rank and s.members > 1 and string.format("  #%d/%d", s.rank, s.members) or "")) or "")
+          card.extra:SetText(s and s.runs > 0 and (string.format(s.runs == 1 and L("%d run") or L("%d runs"), s.runs) .. (s.rank and s.members > 1 and string.format("  #%d/%d", s.rank, s.members) or "")) or "")
         else card.stats = false; card.extra:SetText("") end
         if (row.points or 0) > 0 then card.bar:Show() else card.bar:Hide() end
       else card.row = nil; card.stats = false; card.art:SetTexture(nil); card.art:Hide(); card:Hide() end
@@ -592,7 +606,11 @@ function view.build(parent, compact)
     end
     if ranking then
       -- Guild board: where you stand, the top score and the average.
-      self.nextLine:SetText(ns.dungeonStats and ns.dungeonStats.boardLine(ns.dungeonStats.boardSummary(model.rows, name)) or "")
+      -- (9.3.4) One line: the guild's best is row 1 just below, so it is dropped when the full line would wrap.
+      local summary = ns.dungeonStats and ns.dungeonStats.boardSummary(model.rows, name)
+      self.nextLine:SetText(ns.dungeonStats and ns.dungeonStats.boardLine(summary) or "")
+      local lineWidth = textWidth(self.nextLine)
+      if lineWidth and lineWidth > (self.width or 440) - 32 then self.nextLine:SetText(ns.dungeonStats.boardLine(summary, true)) end
     elseif easiest then
       self.nextLine:SetText("|cffffd100" .. L("Best next improvement") .. ":|r " .. easiest.name .. " (+" .. easiest.next.gain .. "). " .. L("Hover for the scenario."))
     else

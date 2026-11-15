@@ -2,8 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   applyBoardVotes, applyRelayedBoardVotes, boardForAddon, boardText, createBoardService, myBoardVotes, parseAddonBoardPosts, parseAddonBoardVotes, setBoardPicks
 } from "../src/services/guild-board.js";
-import { exportGuildBoard } from "../companion/lua-export-content.mjs";
-import { guildBoardToLua } from "../companion/standings-format.mjs";
 
 // 9.1 in-game guild board (docs/GUILD_BOARD.md): news and open polls in the feed, votes from the game.
 type Poll = { id: string; guildId: string; question: string; options: string[]; maxChoices: number; closed: boolean; closesAt: Date | null; createdAt: Date };
@@ -141,33 +139,5 @@ describe("officers' news", () => {
     await expect(service.remove(post.id, "g1")).rejects.toThrow(/not on the board/);
     expect((await boardForAddon(db as never, "g1")).news).toHaveLength(1);
     expect(boardText("a\u0007b||c", 10)).toBe("a b c");
-  });
-});
-
-describe("the companion", () => {
-  it("writes the board for the addon with options and picks numbered from 1, or off", () => {
-    const lua = guildBoardToLua({ enabled: true, news: [{ id: "n1", at: NOW, by: "Ann", text: "Say \"hi\"", ref: "r-123456" }],
-      polls: [{ id: "pollaaa1", q: "Night?", opts: ["Fri", "Sat"], counts: [1, 3], total: 4, max: 1, closes: null, at: NOW }, { id: "solo", opts: ["only"] }] },
-    { pollaaa1: [1] }, "2026-11-07T12:00:00.000Z").join("\n");
-    expect(lua).toContain('GuildedBoard = { at = "2026-11-07T12:00:00.000Z", news = {');
-    expect(lua).toContain('text = "Say \\"hi\\"", ref = "r-123456"');
-    expect(lua).toContain('opts = { "Fri", "Sat" }, counts = { 1, 3 }, mine = { 2 }');
-    expect(lua).not.toContain("solo");
-    expect(guildBoardToLua({ enabled: false }, {}, "x")).toEqual(['GuildedBoard = { at = "x", off = true }']);
-    expect(guildBoardToLua(undefined, undefined, "x")).toEqual(["GuildedBoard = nil"]);
-  });
-
-  it("uploads waiting votes (from 0), heard votes with the sender and officers' news", () => {
-    const out = exportGuildBoard({ board: {
-      votes: { pollaaa1: { picks: [2, 1], at: NOW, boardAt: "x" }, "bad id": { picks: [1], at: NOW }, pollold1: { picks: [1], at: 5 } },
-      heard: { "pollaaa1@Ann Walker": { poll: "pollaaa1", picks: { 1: 3 }, at: NOW, name: "Ann Walker" }, junk: { poll: "pollaaa1", picks: [1], at: NOW, name: "A|B" } },
-      posts: { "1767000000-123456": { ref: "1767000000-123456", text: "Bring\npots", at: NOW } }
-    } });
-    expect(out).toEqual({
-      boardVotes: [{ poll: "pollaaa1", picks: [0, 1], at: NOW }],
-      boardRelayVotes: [{ poll: "pollaaa1", picks: [2], at: NOW, name: "Ann Walker" }],
-      boardPosts: [{ ref: "1767000000-123456", text: "Bring pots", at: NOW }]
-    });
-    expect(exportGuildBoard({})).toEqual({});
   });
 });

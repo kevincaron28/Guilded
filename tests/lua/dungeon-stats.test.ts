@@ -87,6 +87,9 @@ describe("dungeon stats", () => {
     expect(s.run("return NS.dungeonStats.boardLine(NS.dungeonStats.boardSummary(DB.dungeonBoard.rows, 'Tester'))"))
       .toBe("You: #2 of 3 (top 67%)  |  Guild best: Officer 1200  |  Average: 800");
     expect(s.run("return P.summary.text")).toContain("(#2 of 3, top 67%)");
+    // The short form (a narrow pane) drops the guild best so the header stays on one line.
+    expect(s.run("return NS.dungeonStats.boardLine(NS.dungeonStats.boardSummary(DB.dungeonBoard.rows, 'Tester'), true)"))
+      .toBe("You: #2 of 3 (top 67%)  |  Average: 800");
   });
 
   it("puts runs and rank on the card and the full record in its tooltip", () => {

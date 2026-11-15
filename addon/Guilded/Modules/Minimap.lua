@@ -1159,8 +1159,38 @@ end
 local function buildGearPage(page)
   local intro = at(newLabel(page, "Each member's last gear check, shared by their own Guilded. Members without Guilded are not listed.", "GameFontHighlightSmall"), page, 0, 0)
   intro:SetWidth(PAGE_WIDTH)
-  ui.gearList = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -40)
-  ui.gearList:SetWidth(PAGE_WIDTH)
+  -- (9.3.4) Aligned columns: one text per column, one line per member, so the numbers line up.
+  local x = { name = 0, level = 176, itemLevel = 222, problems = 280, seen = PAGE_WIDTH - 72 }
+  local w = { name = 170, level = 36, itemLevel = 44, problems = PAGE_WIDTH - 280 - 78, seen = 70 }
+  local justify = { name = "LEFT", level = "RIGHT", itemLevel = "RIGHT", problems = "LEFT", seen = "LEFT" }
+  ui.gearHeaders = {}
+  for key, text in pairs({ name = "Player", level = "Level", itemLevel = "iLvl", problems = "Problems", seen = "Last check" }) do
+    local head = at(newLabel(page, text, "GameFontNormalSmall"), page, x[key], -34)
+    head:SetWidth(w[key]); head:SetJustifyH(justify[key])
+    ui.gearHeaders[key] = head
+  end
+  ui.gearColumns = {}
+  for key in pairs(x) do
+    local column = at(newLabel(page, "", "GameFontHighlightSmall"), page, x[key], -54)
+    column:SetWidth(w[key]); column:SetJustifyH(justify[key])
+    if column.SetWordWrap then column:SetWordWrap(false) end
+    ui.gearColumns[key] = column
+  end
+  ui.gearList = ui.gearColumns.name -- its height sets the scroll range
+  -- A long problems line is cut by the column: hovering it shows every member's whole line.
+  local hover = CreateFrame("Button", nil, page)
+  hover:SetPoint("TOPLEFT", page, "TOPLEFT", x.problems, -34)
+  hover:SetSize(w.problems, 200)
+  hover:SetScript("OnEnter", function(self)
+    if not GameTooltip or not ui.gearFull or #ui.gearFull == 0 then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    for _, line in ipairs(ui.gearFull) do GameTooltip:AddLine(line, 1, 1, 1, true) end
+    GameTooltip:Show()
+  end)
+  hover:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  ui.gearHover = hover
+  ui.gearEmpty = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -40)
+  ui.gearEmpty:SetWidth(PAGE_WIDTH)
 end
 
 local function buildReadyPage(page)
@@ -1455,6 +1485,33 @@ local function planSectionRow(texts, widthOf)
   end
   return plan, line
 end
+-- (9.3.4) A row that needs two lines is split evenly (3 + 3), not 5 + 1 with one button alone below the others: the split
+-- that fits both lines (the first one ends before the window's buttons) with the smallest longer line. nil when none fits.
+local function balanceSectionRow(texts, widthOf)
+  local best, bestLongest
+  for cut = 1, #texts - 1 do
+    local one, two = 0, 0
+    for i, text in ipairs(texts) do
+      local w = widthOf(text) + SECTION_GAP
+      if i <= cut then one = one + w else two = two + w end
+    end
+    one, two = one - SECTION_GAP, two - SECTION_GAP
+    if one <= PAGE_WIDTH - SECTION_FIRST_LINE_RESERVE and two <= PAGE_WIDTH and (not best or math.max(one, two) < bestLongest) then
+      best, bestLongest = cut, math.max(one, two)
+    end
+  end
+  if not best then return nil end
+  local plan, x = {}, 0
+  for i, text in ipairs(texts) do
+    local width = widthOf(text)
+    if i == best + 1 then x = 0 end
+    plan[#plan + 1] = { x = x, line = i <= best and 0 or 1, width = width }
+    x = x + width + SECTION_GAP
+  end
+  return plan
+end
+ns.layoutMath.balanceSectionRow = balanceSectionRow
+ns.layoutMath.sectionWidth = sectionWidth
 local function buildRosterAdminPage(page)
   local info = at(newLabel(page, "Change guild ranks and notes in bulk: paste a list of actions, preview the changes, then confirm.", "GameFontHighlightSmall"), page, 0, 0)
   info:SetWidth(PAGE_WIDTH - 8)
@@ -1695,7 +1752,6 @@ end
 local TAB_DEFS = {
   { name = "Home", hint = "what is going on, and your data", group = "Home", build = buildHomePage },
   { name = "Guild overview", hint = "classes and levels of the whole guild at a glance", group = "Guild", build = function(page) if ns.guildOverview and ns.guildOverview.buildPage then ns.guildOverview.buildPage(page, { newLabel = newLabel, newButton = newButton, at = at, width = PAGE_WIDTH }) end end },
-  { name = "Board", label = "Guild board", hint = "officers' news and open polls, vote from the game", group = "Guild", build = function(page) if ns.guildBoard and ns.guildBoard.buildPage then ns.guildBoard.buildPage(page, { newLabel = newLabel, newButton = newButton, newEdit = newEdit, at = at, width = PAGE_WIDTH }) end end },
   { name = "Crafting", label = "Crafting", hint = "find a crafter and request an item, crafting requests, your professions", group = "Crafting", module = "recipes", build = buildCraftingPage },
   { name = "Me", label = "My character", hint = "your gear check and attunements", group = "Home", usesPlayer = true, build = buildMePage },
   { name = "Open raids", hint = "find a raid with room for you", group = "Raids", build = buildPublicRaidsPage },
@@ -1843,7 +1899,9 @@ local function layoutTabs(officer)
               for _, j in ipairs(list) do texts[#texts + 1] = L(ui.tabs[j].label or ui.tabs[j].name) end
               local lastLine
               rowPlan, lastLine = planSectionRow(texts, sectionWidth)
-              if lastLine > 1 then rowPlan = planSectionRow(texts, compactSectionWidth) end
+              if lastLine >= 1 then -- zero-based: 1 is a row on two lines
+                rowPlan = balanceSectionRow(texts, sectionWidth) or balanceSectionRow(texts, compactSectionWidth) or planSectionRow(texts, compactSectionWidth)
+              end
               rowIndex = 0
             end
             rowIndex = rowIndex + 1
@@ -1905,10 +1963,19 @@ local function refreshModuleRows()
 end
 
 -- Home page text: plain-language state, and the Discord-sync line.
+-- (9.3.4) "Send to Discord" / "Unsent changes" only where the data really goes to Discord: an officer whose character is linked
+-- through a companion. Everyone else (members, in-game-only guilds, an officer with no companion yet) only saves the addon file.
+local function sendsToDiscord()
+  if ns.isInGameOnly and ns.isInGameOnly() then return false end
+  if not (ns.isOfficer and ns.isOfficer()) then return false end
+  local state = ns.verifyStatus and ns.verifyStatus() or {}
+  return state.linked and true or false
+end
+ns.sendsToDiscord = sendsToDiscord
 local function refreshHome(db, officer, me)
   if not ui.homeGreeting then return end
   local localOnly = ns.isInGameOnly and ns.isInGameOnly()
-  if ui.sidebarSave then ui.sidebarSave:SetText(L(localOnly and "Save my addon data" or (officer and "Send to Discord" or "Save my addon data"))) end
+  if ui.sidebarSave then ui.sidebarSave:SetText(L(sendsToDiscord() and "Send to Discord" or "Save my addon data")) end
   -- The guild rank name as the game shows it ("Guild Master", custom ranks), else Officer/Member.
   local rankName
   if GetGuildInfo then local _; _, rankName = GetGuildInfo("player") end
@@ -1973,7 +2040,7 @@ local function refreshHome(db, officer, me)
   ui.syncStatus = ns.syncNow and ns.syncNow.statusLine and ns.syncNow.statusLine() or ""
   if ui.sidebarSync then
     local dirty = ns.syncNow and ns.syncNow.isDirty and ns.syncNow.isDirty()
-    local text = dirty and L(not localOnly and ns.isOfficer() and "Unsent changes" or "Local changes") or L("All saved")
+    local text = dirty and L(sendsToDiscord() and "Unsent changes" or "Local changes") or L("All saved")
     -- Last save (a /reload or logout, when the companion can pick the data up), next to the button.
     local ago = ns.syncNow and ns.syncNow.savedAgoText and ns.syncNow.savedAgoText()
     ui.sidebarSync:SetText(ago and (text .. " - " .. ago) or text)
@@ -2165,7 +2232,14 @@ refresh = function()
     end
     ui.standingsList:SetText(table.concat(lines, "\n"))
   end
-  if ui.gearList and ns.ready and ns.ready.gearText then ui.gearList:SetText(ns.ready.gearText()) end
+  if ui.gearColumns and ns.ready and ns.ready.gearColumns then
+    local cols, count = ns.ready.gearColumns()
+    ui.gearFull = cols.full
+    for key, column in pairs(ui.gearColumns) do column:SetText(table.concat(cols[key], "\n")) end
+    -- Nothing shared yet: the explanation instead of an empty table.
+    ui.gearEmpty:SetText(count == 0 and ns.ready.gearText() or "")
+    for _, head in pairs(ui.gearHeaders) do if count == 0 then head:Hide() else head:Show() end end
+  end
   if updateGuildScroll then updateGuildScroll() end
 end
 
@@ -2202,7 +2276,7 @@ updateGuildScroll = function()
   elseif tab.name == "EPGP" then height = 252 -- the lowest widget ends near y=-218, a 22 px button
   elseif tab.name == "Roster admin" then height = 36 + 30 + 40
   elseif tab.name == "Officer tools" then height = 12 + math.ceil(#OFFICER_TOOLS / 2) * 38 + 12
-  elseif tab.name == "Gear" then height = 40 + textHeight(ui.gearList) + 12
+  elseif tab.name == "Gear" then height = 54 + math.max(textHeight(ui.gearList), textHeight(ui.gearEmpty)) + 12
   elseif tab.name == "Calendar" then height = 70 + textHeight(ui.calendarStatus) + 12 end
   local scroll = ui.guildScroll
   local viewport = math.max(1, scroll:GetHeight())
@@ -2374,7 +2448,7 @@ local function buildPanel()
   ui.solidBack = panel:CreateTexture(nil, "BACKGROUND", nil, -7)
   ui.solidBack:SetPoint("TOPLEFT", panel, "TOPLEFT", 11, -12)
   ui.solidBack:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -12, 11)
-  if ui.solidBack.SetColorTexture then ui.solidBack:SetColorTexture(0.04, 0.04, 0.05, 0.92) end
+  if ui.solidBack.SetColorTexture then ui.solidBack:SetColorTexture(0.04, 0.04, 0.05, 1) end
   ui.solidBack:Show()
 
   -- Which page this is, and what it is for.
@@ -2411,8 +2485,8 @@ local function buildPanel()
   -- combat (the window could not be shown, hidden or moved: "Guilded tried to call GuildedPanel:Show()", 13 Nov 2026, and the
   -- bursts of "UNKNOWN()" after roster updates). So it is not inside the window: its parent is UIParent and nothing is
   -- anchored to the window; it is placed over the sidebar from the window's rectangle, out of combat only.
-  local sendButton = ns.syncNow and ns.syncNow.reloadButton(UIParent, L(ns.isOfficer() and "Send to Discord" or "Save my addon data"), 132, 26)
-    or newButton(UIParent, L(ns.isOfficer() and "Send to Discord" or "Save my addon data"), 132, function() run("sync") end, 26)
+  local sendButton = ns.syncNow and ns.syncNow.reloadButton(UIParent, L(sendsToDiscord() and "Send to Discord" or "Save my addon data"), 132, 26)
+    or newButton(UIParent, L(sendsToDiscord() and "Send to Discord" or "Save my addon data"), 132, function() run("sync") end, 26)
   sendButton:SetFrameStrata("DIALOG")
   sendButton:SetFrameLevel((panel:GetFrameLevel() or 1) + 30)
   sendButton:Hide()
@@ -2708,6 +2782,9 @@ local function quickMenuItems()
     { "Dungeons", openDungeons }
   }
   if ns.callForHelp and ns.callForHelp.open then table.insert(items, { "Call for help", function() ns.callForHelp.open() end }) end
+  -- (9.3.4) Same as the Change layer button on the Layer invite tab: asks guildmates on your continent for an invite
+  -- (module.ask prints its own confirmation or the reason it cannot ask). A plain click on a normal button: nothing protected.
+  if ns.layerInvite and ns.layerInvite.ask then table.insert(items, { "Layer invite", function() ns.layerInvite.ask() end }) end
   table.insert(items, { "Settings", function() openPage("Tools") end })
   return items
 end
@@ -2799,7 +2876,7 @@ local function fillTooltip(tip)
   tip:AddLine(L("Right-click: quick menu"), 1, 1, 1)
   if ns.callForHelp and ns.callForHelp.open then tip:AddLine(L("Shift-right-click: call for help"), 1, 0.5, 0.4) end
   local waiting = ns.syncNow and ns.syncNow.isDirty and ns.syncNow.isDirty()
-  if waiting then tip:AddLine(L("Changes waiting to be saved (/reload)"), 1, 0.82, 0.2) end
+  if waiting then tip:AddLine(L("Saved when you log out. To save now, type /reload."), 1, 0.82, 0.2) end
 end
 
 -- ---------------------------------------------------------------------

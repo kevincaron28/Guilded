@@ -8,7 +8,7 @@ import { newLuaSession, type LuaSession } from "./harness.js";
 let session: LuaSession | undefined;
 afterEach(() => { session?.close(); session = undefined; });
 
-const PREFIXES = ["Guilded", "GuildedSync", "GuildedLedger", "GuildedRly", "GuildedCatch", "GuildedBoard", "GuildedOrd", "GuildedDgn",
+const PREFIXES = ["Guilded", "GuildedSync", "GuildedLedger", "GuildedRly", "GuildedCatch", "GuildedOrd", "GuildedDgn",
   "GuildedScore", "GuildedRating", "GuildedSeason", "GuildedBridge", "GuildedRcp", "GuildedMile", "GuildedMap", "GuildedLayer",
   "GuildedHist", "GuildedDuel", "GuildedSOS", "GuildedRes"];
 

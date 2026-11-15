@@ -379,17 +379,17 @@ function module.buildPage(page, helpers)
   at(newButton(page, "Change layer", 150, function() module.ask(); module.refreshPage() end), page, 0, -50)
   local status = at(newLabel(page, "", "GameFontHighlightSmall"), page, 160, -54)
   status:SetWidth(width - 168)
-  at(newLabel(page, "Open requests", "GameFontNormal"), page, 0, -92)
-  local empty = at(newLabel(page, "No open requests.", "GameFontHighlightSmall"), page, 0, -118)
+  at(newLabel(page, "Open requests", "GameFontNormal"), page, 0, -80)
+  local empty = at(newLabel(page, "No open requests.", "GameFontHighlightSmall"), page, 0, -104)
   -- What the empty list means and what to do next, under the line above.
-  local emptyHelp = at(newLabel(page, "When a guildmate on another layer asks to be invited, they appear here with an Invite button. Press Change layer to ask for an invite yourself.", "GameFontDisableSmall"), page, 0, -140)
+  local emptyHelp = at(newLabel(page, "When a guildmate on another layer asks to be invited, they appear here with an Invite button. Press Change layer to ask for an invite yourself.", "GameFontDisableSmall"), page, 0, -124)
   emptyHelp:SetWidth(width - 8)
   for i = 1, MAX_ROWS do
     local row = {}
-    row.label = at(newLabel(page, "", "GameFontHighlight"), page, 0, -116 - (i - 1) * 28)
+    row.label = at(newLabel(page, "", "GameFontHighlight"), page, 0, -104 - (i - 1) * 28)
     row.label:SetWidth(width - 110)
     row.invite = ns.util.inviteButton(page, "party", L("Invite"), 80, 22, function() if row.request then module.claim(row.request); module.refreshPage() end end)
-    row.invite:SetPoint("TOPLEFT", page, "TOPLEFT", width - 96, -112 - (i - 1) * 28)
+    row.invite:SetPoint("TOPLEFT", page, "TOPLEFT", width - 96, -100 - (i - 1) * 28)
     rows[i] = row
   end
   function module.refreshPage()

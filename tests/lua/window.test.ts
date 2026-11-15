@@ -110,14 +110,14 @@ describe("the five member tabs", () => {
     s.run(`NS.windowState().groupButtons.Raids.scripts.OnClick()`);
     expect(shownPages(s)).toBe("Open raids,Reserves,Signups");
     s.run(`NS.windowState().groupButtons.Guild.scripts.OnClick()`);
-    expect(shownPages(s)).toBe("Guild overview,Board,Layer invite,Standings,Duels");
+    expect(shownPages(s)).toBe("Guild overview,Layer invite,Standings,Duels");
   });
 
   it("shows Guild as one page with its sections in a row at the top, and Crafting as a single page", () => {
     const s = openWindow(5);
     const row = () => s.run(`local out = {}; for _, t in ipairs(NS.windowState().tabs) do if t.button.shown then local p = t.button.points[#t.button.points]; out[#out + 1] = t.name .. "@" .. tostring(p[5]) end end; return table.concat(out, ",")`);
     s.run(`NS.windowState().groupButtons.Guild.scripts.OnClick()`);
-    expect(row()).toBe("Guild overview@-12,Board@-12,Layer invite@-12,Standings@-12,Duels@-12"); // all on the first line, which ends before the window's - / + / close buttons
+    expect(row()).toBe("Guild overview@-12,Layer invite@-12,Standings@-12,Duels@-12"); // all on the first line, which ends before the window's - / + / close buttons
     expect(s.run(`return NS.windowState().pageTitle.text`)).toBe("");
     s.run(`NS.windowState().groupButtons.Crafting.scripts.OnClick()`);
     expect(row()).toBe("");   // one page: no section row
@@ -129,7 +129,7 @@ describe("the five member tabs", () => {
 
   it("keeps every old page name working", () => {
     const s = openWindow(5, `NS.dungeonScorePanel = { open = function(mode) openedMode = mode end }`);
-    for (const [name, group] of [["Home", "Home"], ["Me", "Home"], ["Board", "Guild"], ["Crafting", "Crafting"], ["Open raids", "Raids"], ["Signups", "Raids"], ["Duels", "Guild"], ["Tools", "Settings"], ["Announcements", "Settings"], ["Info", "Settings"]]) {
+    for (const [name, group] of [["Home", "Home"], ["Me", "Home"], ["Crafting", "Crafting"], ["Open raids", "Raids"], ["Signups", "Raids"], ["Duels", "Guild"], ["Tools", "Settings"], ["Announcements", "Settings"], ["Info", "Settings"]]) {
       s.run(`NS.windowState().selectTabByName("${name}")`);
       expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].group`), name).toBe(group);
     }
@@ -178,6 +178,30 @@ describe("the section row of the Guild page", () => {
         if (r.line === 0) expect(r.x + r.width).toBeLessThanOrEqual(pageWidth - 90); // clear of the - / + / close buttons
       }
     }
+  });
+});
+
+describe("the section row split and the save wording", () => {
+  it("splits a row that needs two lines evenly, never one button alone under the others", () => {
+    const s = openWindow(1);
+    // Six wide buttons: the greedy fill gives 5 + 1; the balanced split gives 3 + 3 (or 4 + 2), never 5 + 1.
+    const lines = JSON.parse(s.run(`local texts = { "Guild event log", "Calendar", "Administration", "Local guild", "Roster admin", "Officer tools" }
+      local plan = NS.layoutMath.balanceSectionRow(texts, NS.layoutMath.sectionWidth)
+      local a, b = 0, 0
+      for _, slot in ipairs(plan) do if slot.line == 0 then a = a + 1 else b = b + 1 end end
+      return string.format("[%d,%d]", a, b)`)) as [number, number];
+    expect(lines[0] + lines[1]).toBe(6);
+    expect(lines[1]).toBeGreaterThanOrEqual(2);
+  });
+
+  it("says Send to Discord only for an officer whose character is linked", () => {
+    const s = openWindow(1);
+    s.run(`NS.isOfficer = function() return true end; NS.verifyStatus = function() return { linked = false } end`);
+    expect(s.run("return tostring(NS.sendsToDiscord())")).toBe("false");
+    s.run(`NS.verifyStatus = function() return { linked = true } end`);
+    expect(s.run("return tostring(NS.sendsToDiscord())")).toBe("true");
+    s.run(`NS.isOfficer = function() return false end`);
+    expect(s.run("return tostring(NS.sendsToDiscord())")).toBe("false");
   });
 });
 
@@ -398,9 +422,9 @@ describe("the tools window (sidebar and Home page)", () => {
   });
 
   it("officers see every group in order; members only what they can use", () => {
-    expect(visibleTabs(openWindow(1))).toBe("Home,Guild overview,Board,Crafting,Me,Open raids,Layer invite,Standings,Gear,Ready,Reserves,Signups,Calendar,Raid,EPGP,Local guild,Roster admin,Officer tools,Loot,Council,Duels,Tools");
+    expect(visibleTabs(openWindow(1))).toBe("Home,Guild overview,Crafting,Me,Open raids,Layer invite,Standings,Gear,Ready,Reserves,Signups,Calendar,Raid,EPGP,Local guild,Roster admin,Officer tools,Loot,Council,Duels,Tools");
     session?.close();
-    expect(visibleTabs(openWindow(5))).toBe("Home,Guild overview,Board,Crafting,Me,Open raids,Layer invite,Standings,Reserves,Signups,Duels,Tools");
+    expect(visibleTabs(openWindow(5))).toBe("Home,Guild overview,Crafting,Me,Open raids,Layer invite,Standings,Reserves,Signups,Duels,Tools");
   });
 
   it("lets ordinary members page through open raids, filter them and copy the matching host", () => {
@@ -837,7 +861,19 @@ describe("minimap button shortcuts (Track E2)", () => {
     click(s, "RightButton");
     const names = s.run(`local t = {}; for i = 1, #MENU.buttons do if MENU.buttons[i].shown then t[#t + 1] = MENU.buttons[i].text.text end end; return table.concat(t, ",")`);
     expect(names).toBe("Dungeons,Call for help,Settings");
-  });});
+  });
+
+  it("the quick menu has a Layer invite entry that asks for an invite like the tab's Change layer button", () => {
+    const s = setup();
+    s.run(`NS.layerInvite = { ask = function() DONE[#DONE + 1] = "layer" end }`);
+    click(s, "RightButton");
+    s.run(`for _, f in ipairs(FRAMES) do if f.frameName == "GuildedQuickMenu" then MENU = f end end`);
+    const names = s.run(`local t = {}; for i = 1, #MENU.buttons do if MENU.buttons[i].shown then t[#t + 1] = MENU.buttons[i].text.text end end; return table.concat(t, ",")`);
+    expect(names).toBe("Dungeons,Layer invite,Settings");
+    s.run(`for i = 1, #MENU.buttons do if MENU.buttons[i].text.text == "Layer invite" then MENU.buttons[i].scripts.OnClick(MENU.buttons[i]) end end`);
+    expect(s.run(`return tostring(DONE[#DONE])`)).toBe("layer");
+  });
+});
 
 // 8.5 in-game test (French Forever): the minimap button was missing and /guilded minimap show was silent.
 describe("the minimap button", () => {

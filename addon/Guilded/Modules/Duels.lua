@@ -1488,7 +1488,7 @@ table.insert(ns.commandHelp, "/guilded duels line on | off - the one-line result
 
 local ROWS = 12
 local COLUMNS = { -- x, width, justify
-  rank = { 0, 26, "RIGHT" }, change = { 30, 34, "LEFT" }, name = { 66, 190, "LEFT" }, wins = { 262, 40, "RIGHT" }, losses = { 308, 40, "RIGHT" },
+  rank = { 0, 24, "RIGHT" }, change = { 36, 28, "LEFT" }, name = { 66, 190, "LEFT" }, wins = { 262, 40, "RIGHT" }, losses = { 308, 40, "RIGHT" },
   rate = { 354, 50, "RIGHT" }, streak = { 410, 50, "RIGHT" }, score = { 466, 52, "RIGHT" }, last = { 526, 62, "LEFT" },
 }
 local pageState = { season = 1, myClass = false, selected = nil }
@@ -1624,6 +1624,12 @@ function duels.buildPage(page, ui)
       text = L("Click a player to see your record against them.")
     end
     versus:SetText(text)
+    -- (9.3.4) The hint and the card checkbox sit right under the last row, not at the foot of an empty page.
+    local used = 0
+    for i = 1, ROWS do if view.rows[i] then used = i end end
+    local bottom = view.pinned and (-72 - (ROWS + 1) * 20 - 6) or (-72 - math.max(used, 1) * 20)
+    at(versus, page, 0, bottom - 10)
+    at(cardBox, page, 0, bottom - 46)
   end
   page:SetScript("OnShow", duels.refreshPage)
   ns.onDuelsChange = function() if page.IsShown and page:IsShown() then duels.refreshPage() end end

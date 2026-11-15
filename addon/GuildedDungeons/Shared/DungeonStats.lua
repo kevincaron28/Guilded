@@ -208,13 +208,13 @@ function stats.boardSummary(rows, me)
   return out
 end
 
-function stats.boardLine(summary)
+function stats.boardLine(summary, short)
   if not summary then return "" end
   local parts = {}
   if summary.rank then
     parts[#parts + 1] = string.format(L("You: #%d of %d (top %d%%)"), summary.rank, summary.count, summary.topPercent)
   end
-  if summary.best then
+  if summary.best and not short then
     parts[#parts + 1] = string.format(L("Guild best: %s %d"), ns.displayName and ns.displayName(summary.best.name) or summary.best.name, tonumber(summary.best.points) or 0)
   end
   parts[#parts + 1] = string.format(L("Average: %d"), math.floor(summary.average + 0.5))

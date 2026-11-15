@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+Merged after the v9.3.2 tag, for the next release (no version change yet).
+
+Addon and companion (ship with the next release):
+
+- Companion idle update: the marker is kept fresh during the install and an unfinished update shows Try again (#928).
+- Duels and invites: waiting duels cannot loop, invite replies are matched by whole name (#930).
+- Companion: a waiting addon update installs at the next moment WoW is closed, with backoff (#931).
+- Duel card uses the dueled character, the linked line ticks, carry counts, and a carrier stands down across reloads (#938).
+- Carry lane: opponent realm taken from the unit, a receipt on re-offer, a companion activity line (#939).
+- Dungeon relay and carry: companion heartbeat, freshness judged at load, bounded group re-offers (#941).
+
+Bot and website (already live):
+
+- Standings feed: byte-bounded cache, short shared-read TTL, one serialisation per value (#927).
+- World PvP: the cap keeps the newest, delayed zone counts, markers for tiny zones, batched purge (#929).
+- French site audit: eliminations wording, plurals, typography (#934).
+- World PvP events: the member lock is taken with `executeRaw`; the import had failed on production (#940).
+- Carried duel records and relayed runs: own characters belong to the uploader, not the roster (#942).
+
 ## 9.3.2 — 14 November 2026
 
 Published 14 November 2026 (GitHub and the website; CurseForge 9.3.2 in review). The bot migrations `world_pvp_events` and `carried_records` are already applied on production. Duel records and PvP kill positions reach the guild from players who only have the addon, dungeon runs reach every guild in a group, and the companion keeps itself up to date more reliably. Details: docs/V9_3_2_RELEASE_NOTES.md. Nothing in 9.3.2 is confirmed in a real game client yet (see docs/V9_3_2_RELEASE_ACCEPTANCE.md).

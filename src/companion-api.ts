@@ -1,10 +1,9 @@
 import { createPugWeb } from "./services/pug-web.js";
 import { issueDuelChallenge } from "./services/duel-integrity.js";
-import { cachedOfficerCheck, meSection, type MeSectionInput } from "./services/me-layout.js";
+import { meSection, type MeSectionInput } from "./services/me-layout.js";
 import { revokeCompanionCredential } from "./services/companion-revoke.js";
 import { credentialBySecret, renewCompanionCredential } from "./services/companion-renew.js";
 import { MobileCredentialUnknown, configureMobileDevice, mobileDeviceEnabled, retireMobileDevice } from "./services/mobile-alerts.js";
-import { createWebCommunityBadges } from "./services/web-community-badges.js";
 import { guildWhere, loadGuildScope, runInGuildScope, withGuildScope } from "./services/guild-scope.js";
 import { hostedPilot } from "./hosted-pilot.js";
 import { assertForeverEdition, GameEditionError, gameEditionOf } from "./services/game-edition.js";
@@ -12,7 +11,7 @@ import { withEdition } from "./services/edition-context.js";
 import { addonName } from "./services/addon-name.js";
 import { characterKey, realmKey } from "../companion/character-identity.mjs";
 import { relayProfessions } from "./services/profession-relay.js";
-import { retiredAvailabilityRoute } from "./services/retired-pages.js";
+import { retiredAvailabilityRoute, retiredToolsRoute } from "./services/retired-pages.js";
 import { autoLinkUnclaimed } from "./services/character-autolink.js";
 import { linkUploaderCharacters, repairMissingLinks } from "./services/upload-linking.js";
 import { linkedCharacterCount, scheduleLinkedCharacters } from "./services/companion-link-dm.js";
@@ -30,7 +29,6 @@ import { gunzipSync } from "node:zlib";
 import { config } from "./config.js";
 import { createDevicePages, prismaDeviceStore } from "./services/companion-devices.js";
 import { memberLinkStatus } from "./services/link-status.js";
-import { charactersMeSection, legacyBattleNetRedirect, meCharacterList } from "./services/me-characters.js";
 import { prisma } from "./database.js";
 import { createAddonImportService } from "./services/addon-import.js";
 import { createEpgpService } from "./services/epgp.js";
@@ -69,11 +67,7 @@ import { CompanionUnavailable, companionAccess, personalSnapshot } from "./servi
 import { createMemberData, memberDataStore } from "./services/member-data.js";
 import { createPicturePages, prismaPictureStore } from "./services/character-picture.js";
 import { deleteMyData, deleteMyDataByCredential } from "./services/data-deletion.js";
-import { createPersonalCalendar, personalCalendarStore } from "./services/personal-calendar.js";
-import { createOfficerHandover, officerHandoverStore } from "./services/officer-handover.js";
 import { promotionForAddon } from "./services/promotion-feed.js";
-import { raidPlanningStore } from "./services/raid-planning.js";
-import { createRaidPlanning } from "./services/raid-planning-page.js";
 import { readFileSync } from "node:fs";
 import { ZodError } from "zod";
 import { addonCharacterSchema } from "./integrations/addon.js";
@@ -87,25 +81,13 @@ import { baselineAchievements } from "./services/achievement-announce.js";
 import { setupChecks } from "./services/setup-status.js";
 import { syncCoreRoster } from "./services/raid-core.js";
 import { createWebApp, isWebPath, webFormLimit, type WebRoute } from "./services/web-app.js";
-import { createRosterDashboard } from "./services/roster-dashboard.js";
-import { prismaRosterPlanWriter } from "./services/roster-plan-store.js";
-import { createRosterReview } from "./services/roster-review.js";
-import { prismaRosterDashboardStore } from "./services/roster-dashboard-store.js";
 import { guildDashboardAccess } from "./services/guild-dashboard-access.js";
-import { createWebLootLists, prismaLootListStore } from "./services/web-loot-lists.js";
-import { prismaGuildToolsStore } from "./services/guild-tools-store.js";
-import { createGuildToolsPages } from "./services/guild-tools-pages.js";
-import { createStatsPage } from "./services/stats-page.js";
-import { createGuildBankPage } from "./services/guild-bank-page.js";
 import { feedAccess, recentSnapshots, statsCsv, MAX_FEED_DAYS } from "./services/stat-snapshots.js";
 import { collectionFor, craftCard, openPack, tcgAllowed, TcgError } from "./services/tcg-store.js";
 import { markSeenInApp } from "./services/tcg-presence.js";
 import { DUEL_ROUTES, handleDuelRoute } from "./services/tcg-duel-api.js";
 import { cancelTrade, confirmTrade, editTrade, getTrade, listTrades, offerTrade, setTradingOff, tradableCards, tradePartners } from "./services/tcg-trade.js";
 import { concedeMatch, getMatch, isAiLevel, isClassKey, listMatches, parseIntent, pveProgress, startMatch, submitIntent } from "./services/tcg-match.js";
-import { createArtisansGallery } from "./services/artisans-gallery.js";
-import { withDeadline } from "./services/blizzard-items.js";
-import { itemData } from "./item-data.js";
 import { announceOrderChanges, postCraftRequest } from "./commands/craft-board.js";
 import { webAuthConfig } from "./services/web-auth.js";
 import { prismaWebStore } from "./services/web-store.js";
@@ -339,15 +321,6 @@ async function signInGuildCredential(client: Client | undefined, account: { disc
 }
 
 export function createSiteApp(client?: Client) {
-  const rosterStore = prismaRosterDashboardStore(prisma, client, id => hostedPilot.allows(id));
-  const roster = createRosterDashboard(rosterStore);
-  const guildTools = createGuildToolsPages(prismaGuildToolsStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))));
-  const gallery = createArtisansGallery({ db: prisma, access: guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"), items: withDeadline(itemData, 1_500),
-    post: async (guildId, requestId, askCrafter) => {
-      const record = await prisma.guild.findUnique({ where: { id: guildId }, select: { discordId: true } });
-      const discordGuild = record && client ? await client.guilds.fetch(record.discordId).catch(() => null) : null;
-      return discordGuild ? (await withGuildScope(prisma, guildId, () => postCraftRequest(discordGuild, requestId, askCrafter))).posted : false;
-    } });
   const openPictures = publicPictures(prisma, id => hostedPilot.allows(id));
   const achievementsWeb = createAchievementsWeb(prisma, hostedPilot.allows, (discordUserId, own) => openPictures.byAccount(discordUserId, own));
   const pictures = createPicturePages(prismaPictureStore(prisma), guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"), {
@@ -382,33 +355,14 @@ export function createSiteApp(client?: Client) {
     },
     issuePersonal: async (accountId, deviceName) => (await issuePersonalCredential(personalStore, accountId, deviceName)).companionCredential
   });
-  const badges = createWebCommunityBadges(prisma, client, id => hostedPilot.allows(id));
   const devices = createDevicePages(prismaDeviceStore(prisma));
   const memberData = createMemberData(memberDataStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")), discordUserId => deleteMyData(prisma, discordUserId));
-  const raidPlanning = createRaidPlanning(raidPlanningStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"), guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)), client));
-  const handover = createOfficerHandover(officerHandoverStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))));
-  const lootLists = createWebLootLists(prismaLootListStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")));
-  const personalCalendar = createPersonalCalendar(personalCalendarStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"), client));
-  const routes: WebRoute[] = [badges.route, signInPage, retiredAvailabilityRoute, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, createStatsPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))).route, createGuildBankPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)), guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")).route, gallery.route, leaderboards.route, liveNewsFeed().route, directory.route, achievementsWeb.route, achievementsWeb.ownerRoute, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route];
-  const isOfficer = cachedOfficerCheck(rosterStore.guilds);
+  const routes: WebRoute[] = [retiredToolsRoute, signInPage, retiredAvailabilityRoute, devices.route, memberData.route, leaderboards.route, liveNewsFeed().route, directory.route, achievementsWeb.route, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route];
+  // The website keeps only what the companion and the phone app sign-in need, plus the connections and data pages.
   const meSections: MeSectionInput[] = [
-    meSection({ id: "profile", group: "overview", render: profiles.meSection, fold: { en: "Privacy and details", fr: "Confidentialité et détails" } }),
-    meSection({ id: "characters", group: "overview", render: charactersMeSection(discordUserId => memberLinkStatus(prisma, discordUserId), meCharacterList(prisma)) }),
-    meSection({ id: "pictures", group: "overview", render: pictures.meSection }),
-    meSection({ id: "achievements", group: "play", render: achievementsWeb.meSection }),
-    meSection({ id: "badges", group: "play", render: badges.meSection }),
-    meSection({ id: "calendar", group: "play", render: personalCalendar.meSection }),
-    meSection({ id: "raid-planning", group: "play", render: raidPlanning.meSection }),
-    meSection({ id: "raid-loot", group: "play", render: lootLists.meSection }),
-    meSection({ id: "leaderboards", group: "play", render: leaderboards.meSection, fold: { en: "How to connect the companion", fr: "Comment connecter le compagnon" } }),
-    meSection({ id: "guild-tools", group: "guild", render: guildTools.meSection }),
-    meSection({ id: "artisans", group: "guild", render: gallery.meSection }),
-    meSection({ id: "roster", group: "guild", render: roster.meSection, officer: true, visible: isOfficer }),
-    meSection({ id: "handover", group: "guild", render: handover.meSection, officer: true, visible: isOfficer }),
     meSection({ id: "connections", group: "account", render: devices.meSection }),
     meSection({ id: "your-data", group: "account", render: memberData.meSection })
   ];
-  routes.unshift(pictures.route, devices.route, legacyBattleNetRedirect, memberData.route, personalCalendar.route, handover.route, raidPlanning.route, lootLists.route);
   return createWebApp({
     publicRaids: now => publicRaids(prisma, hostedPilot.allows, now),
     store: prismaWebStore(prisma), auth: webAuthConfig(config), allows: (id) => hostedPilot.allows(id), routes, meSections,
@@ -997,7 +951,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         // A personal code from the website (7.0): no guild, public dungeon runs only.
         if (isPersonalCode(pairingPayload.code)) {
           const personal = await exchangePersonalCode(personalStore, pairingPayload.code);
-          if (!personal) { recordFailure(address); json(response, 401, { error: "This companion code is invalid, expired or already used. Get a new one on your Guilded page (guilded.kcaron.top/me/)." }); return; }
+          if (!personal) { recordFailure(address); json(response, 401, { error: "This companion code is invalid, expired or already used. Press Sign in with Discord in the companion to connect it again." }); return; }
           json(response, 200, { ...personal, personal: true });
           return;
         }
@@ -1169,7 +1123,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         // Personal companions (website accounts) send their own finished dungeon runs.
         const secret = request.headers["x-companion-credential"];
         const account = await personalAccess(personalStore, typeof secret === "string" ? secret : undefined);
-        if (!account) { recordFailure(address); json(response, 401, { error: "Connect this companion with a code from your Guilded page (guilded.kcaron.top/me/)." }); return; }
+        if (!account) { recordFailure(address); json(response, 401, { error: "Press Sign in with Discord in the companion to connect it." }); return; }
         if (!allowPublicUpload(account.accountId)) { json(response, 429, { error: "Too many uploads in the last hour. Try again later." }); return; }
         const body = await readBody(request) as { character?: { name?: unknown; displayName?: unknown; realm?: unknown; gameEdition?: unknown; interface?: unknown }; runs?: unknown; includeScore?: unknown; characters?: unknown } | null;
         let gameEdition;

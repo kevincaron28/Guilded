@@ -40,10 +40,9 @@ describe("/me/ grouping", () => {
   it("keeps existing anchors and offers the most-used actions at the top", async () => {
     const body = (await page(sections)).body;
     expect(body).toContain('id="achievements"');
-    expect(body).toContain('id="my-week"');
     expect(body).toContain('id="sec-achievements"');
     expect(body.indexOf('class="me-quick"')).toBeLessThan(body.indexOf('id="overview"'));
-    for (const href of ["#characters", "#achievements"]) expect(body).toContain(`href="${href}`);
+    expect(body).toContain('href="/companion/?lang=en"');
   });
 
   it("uses one h2 per group and h3 for sections", async () => {

@@ -58,16 +58,16 @@ describe("profession card", () => {
     expect((await loadProfessionCard(db() as never, guild, "Tailoring", ["Some Nickname"], "u1"))?.character).toBe("Lebowski Holyroller");
     expect(await loadProfessionCard(db() as never, guild, "Tailoring", ["Some Nickname"], "u3")).toBeNull();
   });
-  it("shows the best-quality recipes first, a count, '+N more' and the full-list link", async () => {
+  it("shows the best-quality recipes first, a count and '+N more', with no website link", async () => {
     const card = (await loadProfessionCard(db() as never, guild, "Tailoring", ["Lebowski"]))!;
     await addCardQualities(card, { lookup: async item => item.itemId === 4245 ? { name: "Small Silk Pack", quality: 2 } : null });
-    const embed = professionCardEmbed(card, "en", "https://guilded.example");
+    const embed = professionCardEmbed(card, "en");
     expect(embed.title).toBe("🧵 Tailoring · Lebowski Holyroller");
     const lines = (embed.description ?? "").split("\n");
     expect(lines[0]).toContain("150 · 11 known recipe(s)");
     expect(lines[1]).toBe("🟩 [Small Silk Pack](https://www.wowhead.com/classic/item=4245)");
     expect(embed.description).toContain("+3 more");
-    expect(embed.url).toBe("https://guilded.example/me/artisans?guild=g1&edition=forever&q=Lebowski&lang=en");
+    expect(embed.url).toBeUndefined();
     expect(embed.color).toBe(0x1eff00);
     expect(professionCardEmbed(card, "fr").title).toBe("🧵 Couture · Lebowski Holyroller");
   });

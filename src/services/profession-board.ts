@@ -96,7 +96,7 @@ export async function loadProfessionPosts(db: Db, guildId: string, names: FullNa
 }
 
 /** Pure: one profession's embed. Same input and clock, same output. */
-export function professionPostEmbed(post: ProfessionPost, lang: Lang, guildId = "", now = new Date(), siteUrl?: string): EmbedBuilder {
+export function professionPostEmbed(post: ProfessionPost, lang: Lang, guildId = "", now = new Date()): EmbedBuilder {
   const fr = lang === "fr";
   const t = (en: string, french: string) => fr ? french : en;
   const name = (value: string) => escapeMarkdown(value).slice(0, 40);
@@ -128,8 +128,7 @@ ${t(`…and ${omitted} more recipes. Search them with /craft who or on the Artis
   const empty = post.recipes.length ? "" : `
 
 ${t("No recipe recorded yet. Open this profession's window in game with Guilded to add yours.", "Aucune recette enregistrée. Ouvrez la fenêtre de ce métier en jeu avec Guilded pour ajouter les vôtres.")}`;
-  const gallery = siteUrl ? `
-${t("Gallery", "Galerie")}: ${new URL("/me/artisans", siteUrl).href}` : "";
+  const gallery = "";
   return new EmbedBuilder().setColor(0xd4af37).setTitle(professionTitle(post.profession, lang).slice(0, 256))
     .setDescription(`${header}${recipesTitle}${rows.join("\n")}${more}${empty}${gallery}`.slice(0, 4096))
     .setFooter({ text: `${PROFESSION_POST_MARKER} • ${guildId} • ${t("recipes come from members' profession scans · last seen from the guild roster", "recettes tirées des relevés de métiers · dernière présence selon le registre de guilde")}`.slice(0, 2048) });
@@ -218,7 +217,6 @@ export async function professionPostLinks(forum: ForumChannel, lang: Lang = "en"
 export async function updateProfessionPosts(discordGuild: DiscordGuild, forum: ForumChannel, db: PrismaClient, guildId: string, lang: Lang, now = new Date(), items: ItemDataProvider = nullItemDataProvider): Promise<number> {
   const settings = await db.guildSettings.findUnique({ where: { guildId }, select: { professionPostsEnabled: true } });
   if (!settings?.professionPostsEnabled) return 0;
-  const siteUrl = process.env["PUBLIC_SITE_URL"]?.trim() || undefined;
   let written = 0;
   try {
     const found = await sortedPosts(forum, lang);
@@ -235,7 +233,7 @@ export async function updateProfessionPosts(discordGuild: DiscordGuild, forum: F
     for (const post of posts) {
       if (!post.skilled.length && !post.recipes.length) continue;
       const details = professionDetailsRow(post, lang);
-      const payload = { embeds: [professionPostEmbed(post, lang, guildId, now, siteUrl)], components: details ? [details] : [], allowedMentions: { parse: [] as never[] } };
+      const payload = { embeds: [professionPostEmbed(post, lang, guildId, now)], components: details ? [details] : [], allowedMentions: { parse: [] as never[] } };
       const thread = existing.get(pkey(post.profession));
       if (thread) {
         const starter = await thread.fetchStarterMessage().catch(() => null);

@@ -193,7 +193,7 @@ ${PANEL_HINT}`,
         await prisma.guildSettings.update({ where: { guildId: context.guildId }, data: { characterPicturesEnabled: action === "on" } });
         if (interaction.guild) await postToLogChannel(interaction.guild, `${interaction.user.username} turned character pictures ${action}.`);
         await interaction.reply({ content: action === "on"
-          ? "Character pictures are on: members pick one on their Guilded page (My page > Character pictures), and cards show it."
+          ? "Character pictures are on: cards show a character's picture when one is set. Picking pictures is paused for now."
           : "Character pictures are off for this server: cards and pages stop showing them. Stored pictures are kept; turn them on again to show them.", flags: MessageFlags.Ephemeral });
         return;
       }

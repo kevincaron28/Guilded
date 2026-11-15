@@ -32,10 +32,10 @@ describe("plain words on the member's path", () => {
     for (const old of ["Find my saved data", "Guilded.lua was not updated by your last /reload.", "The bot refused your last upload.", "Your WoW saved data is not chosen yet."]) expect(fr[old], old).toBeUndefined();
   });
 
-  it("points officers to Discord for exports, and members to their Guilded page", () => {
+  it("points officers to Discord for exports, and members to their connected devices", () => {
     const html = read("companion-app/renderer/main.html");
     expect(html).toContain("/officer export");
-    for (const path of ["/me/", "/me/battlenet", "/me/data", "/docs/PRIVACY.html", "/companion/"]) expect(html).toContain(`https://guildedwow.com${path}"`);
+    for (const path of ["/me/connections", "/me/data", "/docs/PRIVACY.html", "/companion/"]) expect(html).toContain(`https://guildedwow.com${path}"`);
     // Delete my data on the website erases server data only: the window says so and points to Reset.
     expect(html).toContain("on the server only. Afterwards press Reset this companion");
     // Local export and GRM import stay reachable from Advanced.

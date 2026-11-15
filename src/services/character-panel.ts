@@ -4,7 +4,6 @@ import {
 } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, t, type Lang } from "../i18n.js";
-import { siteUrl } from "../site-url.js";
 import { displayCharacterName, loadFullNameBook } from "./character-display.js";
 import { characterTrustMap, trustSuffix } from "./character-trust.js";
 import { claimCharacter } from "./character-autolink.js";
@@ -79,7 +78,6 @@ export async function characterPanel(database: Db, discordUserId: string, discor
   const options = (rows: typeof characters) => rows.map((character) => ({ label: label(displayCharacterName(character, book), 100), value: character.id, description: label(character.className, 100) }));
   const buttons = [
     new ButtonBuilder().setCustomId(id("link", discordGuildId)).setLabel(t(lang, "panel.link")).setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setLabel(t(lang, "panel.picture")).setStyle(ButtonStyle.Link).setURL(siteUrl("/me/pictures/")),
     new ButtonBuilder().setCustomId(id("refresh", discordGuildId, String(page))).setLabel(t(lang, "panel.refresh")).setStyle(ButtonStyle.Secondary)
   ];
   if (pages > 1) buttons.push(

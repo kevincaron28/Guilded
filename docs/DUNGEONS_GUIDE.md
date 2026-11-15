@@ -76,9 +76,8 @@ uploaded only if a party or guild member's PC with the companion heard it. A sol
 run with no companion anywhere in your party or guild stays on your PC until you
 install the companion.
 
-Never paste your companion credential into Discord or a public profile. For old
-companions without Discord sign-in, obtain a personal code from
-[My Guilded](https://guilded.kcaron.top/me/).
+Never paste your companion credential into Discord or a public profile. Update an old
+companion that has no Discord sign-in.
 
 ## Your player profile and management page
 
@@ -88,11 +87,11 @@ The website has two views:
   display name, linked characters and accepted public runs. Character links open
   seasonal scores and best runs. Personal-companion characters appear after a
   successful upload; party members are not automatically linked as your alts.
-- **[My Guilded](https://guilded.kcaron.top/me/):** your signed-in controls for
-  profile visibility, companion connection, recruitment applications and your
-  looking-for-guild card. Pairing codes and application messages stay private.
+- **Your connected devices** (signed in through the companion): the companion
+  connection, recruitment applications and your looking-for-guild card.
+  Application messages stay private.
 
-There is no way yet for a player to hide their profile from My Guilded: a profile is
+There is no way yet for a player to hide their profile: a profile is
 public while the guild publishes its runs, and a guild can stop publishing. Scores are computed
 from runs, not editable on a profile. Ask an officer or report a bug if a run is
 wrong; include its date, dungeon and character, never your pairing credential.
@@ -189,9 +188,7 @@ ni la guilde, reste sur votre PC tant que vous n'installez pas le compagnon.
 
 Votre **profil joueur est public tant que votre guilde publie ses essais** (aucune option pour le masquer pour l'instant) : nom affiché, personnages liés et
 donjons publics acceptés. Ouvrez un personnage pour ses scores saisonniers.
-[Ma page](https://guilded.kcaron.top/me/) permet de gérer la
-connexion du compagnon, voir les candidatures et modifier votre fiche de recherche
-de guilde. Les codes et messages privés ne sont jamais dans le profil public.
+Les messages privés ne sont jamais dans le profil public.
 Une guilde peut arrêter de publier ses essais.
 
 Le [recrutement](https://guilded.kcaron.top/recruitment/) propose les guildes/cores

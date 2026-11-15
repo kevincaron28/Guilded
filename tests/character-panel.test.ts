@@ -128,7 +128,7 @@ describe("character panel", () => {
     expect(view.content).toContain("Ray");
     expect(view.content).not.toContain("Other");
     expect(view.content).not.toContain("Old");
-    expect(ids(view)).toEqual(expect.arrayContaining(["linked:p:link:dg1", "linked:p:refresh:dg1:0", "linked:p:main:dg1", "linked:p:unlink:dg1", expect.stringContaining("/me/pictures/")]));
+    expect(ids(view)).toEqual(expect.arrayContaining(["linked:p:link:dg1", "linked:p:refresh:dg1:0", "linked:p:main:dg1", "linked:p:unlink:dg1"]));
   });
 
   it("answers a stranger without showing anyone's characters", async () => {

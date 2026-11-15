@@ -36,7 +36,7 @@ The companion works on **Windows only**. There is no Mac or Linux version and no
 2. **Run it.** Open the file you downloaded. Windows may say it "protected your PC": choose **More info → Run anyway** (the installer is free and not code-signed). There is nothing to choose: it installs and opens the companion by itself.
 3. **Keep it open.** It starts with Windows and lives in the tray. The companion finds World of Warcraft on any drive, installs or updates the Guilded addon, and picks your guild's Discord server from your in-game guild. After your next `/reload` in WoW (or when you log out) it syncs by itself.
 
-**Signing in with Discord is optional.** Until you sign in, your characters are shown as reported by your PC; press **Sign in with Discord** in the companion to confirm them and unlock your personal page and Discord messages.
+**Signing in with Discord is optional.** Until you sign in, your characters are shown as reported by your PC; press **Sign in with Discord** in the companion to confirm them and unlock Discord messages.
 
 That's all. The companion **updates itself**: new versions download in the background and install when you quit or restart it, or at once with **Update now** in its window.
 

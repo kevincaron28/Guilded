@@ -104,7 +104,7 @@ Ce qui change dans la 9.0, et pourquoi cela vous sert.
 
 L’onglet **Guilded** de la recherche de donjons présente vos runs récents, votre progression, le classement de guilde et les anciennes saisons. Les runs sont enregistrés sans connexion; les [classements publics](/leaderboards/?lang=fr) les reçoivent de votre compagnon ou de celui d’un autre joueur de votre groupe. Les règles des classements publics sont communes à toutes les guildes et figées pour la saison. Les parcours non vérifiés restent non classés.
 
-Vous voulez seulement les donjons ? **Guilded Dungeons** est un addon indépendant, sans guilde requise. Connectez-vous avec Discord pour synchroniser vos runs terminés, consulter votre profil public et gérer votre connexion sur [Ma page](/me/?lang=fr).
+Vous voulez seulement les donjons ? **Guilded Dungeons** est un addon indépendant, sans guilde requise. Connectez-vous avec Discord dans le compagnon pour synchroniser vos runs terminés et consulter votre profil public.
 
 [Configuration et dépannage des donjons](../docs/DUNGEONS_GUIDE.html#fr) · [Profils des joueurs](/players/?lang=fr)
 

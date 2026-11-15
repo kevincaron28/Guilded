@@ -1,5 +1,7 @@
 # Artisans' Gallery and last seen (8.5, track D)
 
+> **Website page retired (15 November 2026):** the web page described here was taken off the site (owner decision: addon first). The Discord and addon parts stay. The code is unmounted, not deleted.
+
 Built on data Guilded already stores (`RecipeKnown`, `ProfessionSkill`, `ProfessionCooldown`, `CraftOffer`, `Character`); no new database.
 
 - **Gallery page** (`/me/artisans`, signed-in members of the guild only): search an item name, item id or crafter. Each recipe lists every crafter who knows it with skill and last seen, open crafter offers and a **Request** button that creates the normal craft request (and posts it on the craft board). Crafter cards show professions, skill, rarest recipes and cooldowns that are ready. Reagent search is not possible yet: the addon reads recipe materials but they are not uploaded or stored. Item icons are not shown (the site's content policy allows no outside images and no item database is bundled); quality colour appears when an item data provider supplies it.

@@ -1,5 +1,7 @@
 # Character pictures (9.1)
 
+> **Website page retired (15 November 2026):** the web page described here was taken off the site (owner decision: addon first). The Discord and addon parts stay. The code is unmounted, not deleted.
+
 A member picks a picture for each linked character; cards and profile pages show it. Built in three stacked pull requests: slice 1 (storage and upload), slice 2 (cards), slice 3 (profiles and reports). Plan and owner decisions: [plans/CHARACTER_VISUALS.md](plans/CHARACTER_VISUALS.md). Owner decisions (7 November 2026):
 - pictures are guild-only unless the member chooses Public;
 - officers can switch pictures off for the server;

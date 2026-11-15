@@ -2,7 +2,7 @@
 
 ## 9.3.3 — 15 November 2026
 
-Published 15 November 2026 (GitHub and the website; CurseForge 9.3.3 in review). Fixes after 9.3.2 and after the two-PC tests of 14 November. Not yet confirmed on real clients (see docs/V9_3_3_RELEASE_ACCEPTANCE.md). Details: docs/V9_3_3_RELEASE_NOTES.md.
+Published 15 November 2026 (GitHub and the website; CurseForge 9.3.3 approved). Fixes after 9.3.2 and after the two-PC tests of 14 November. Not yet confirmed on real clients (see docs/V9_3_3_RELEASE_ACCEPTANCE.md). Details: docs/V9_3_3_RELEASE_NOTES.md.
 
 Addon and companion:
 

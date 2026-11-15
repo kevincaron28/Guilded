@@ -1,5 +1,7 @@
 # Guild bank ledger (9.0)
 
+> **Website page retired (15 November 2026):** the web page described here was taken off the site (owner decision: addon first). The Discord and addon parts stay. The code is unmounted, not deleted.
+
 The owner confirmed on 6 November 2026 that WoW Forever has a guild bank. Guilded now keeps a
 read-only ledger of it: what it holds, the gold over time, and who deposited or withdrew what.
 Nothing here can change the bank, EP/GP or anyone's rank.

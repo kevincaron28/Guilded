@@ -20,6 +20,7 @@ function fakeDb() {
   const matches = (row: Row, where: any): boolean => Object.entries(where ?? {}).every(([field, wanted]) => {
     if (field === "id" && (wanted as any)?.in) return (wanted as any).in.includes(row.id);
     if (field === "createdAt" && (wanted as any)?.lt) return row.createdAt < (wanted as any).lt;
+    if (field === "status" && (wanted as any)?.not !== undefined) return row.status !== (wanted as any).not;
     if (field === "createdAt" && (wanted as any)?.gte) return row.createdAt >= (wanted as any).gte;
     return (row as any)[field] === wanted;
   });
@@ -36,6 +37,7 @@ function fakeDb() {
         if (rows.some((row) => row.kind === created.kind && row.authorKey === created.authorKey && row.key === created.key)) throw Object.assign(new Error("unique"), { code: "P2002" });
         rows.push({ id: ++counter, createdAt: NOW, ...created }); return created;
       },
+      deleteMany: async ({ where }: any) => { const hit = rows.filter((row) => matches(row, where)); for (const row of hit) rows.splice(rows.indexOf(row), 1); return { count: hit.length }; },
       updateMany: async ({ where, data: changes }: any) => { const hit = rows.filter((row) => matches(row, where)); for (const row of hit) { Object.assign(row, changes); if ("payload" in changes) row.payload = null; } return { count: hit.length }; }
     }
   };
@@ -118,7 +120,7 @@ describe("carried dungeon runs are held", () => {
     const { db, rows } = fakeDb();
     await apply(db, [record("Aye")], "device:1", { release: { store: storeWith(null) } });
     expect(rows[0]!.status).toBe("held");
-    await apply(db, [{ kind: "run", key: "QG-x-eeeeee", author: "Aye", data: "bad" }], "device:9", { release: { store: storeWith(["account:1"]) } });
+    await apply(db, [{ kind: "run", key: "QG-x-eeeeee", author: "Aye", data: "bad" }], "device:9", { now: new Date(NOW.getTime() + 11 * 60_000), release: { store: storeWith(["account:1"]) } });
     expect(rows[0]!.status).toBe("released");
   });
 
@@ -126,8 +128,61 @@ describe("carried dungeon runs are held", () => {
     const { db, rows } = fakeDb();
     await apply(db, [record("Aye")], "device:1", { release: { store: storeWith(null) } });
     rows[0]!.createdAt = new Date(NOW.getTime() - (HELD_DAYS + 1) * 86_400_000);
-    await apply(db, [{ kind: "run", key: "QG-x-ffffff", author: "Aye", data: "bad" }], "device:9", { release: { store: storeWith(null) } });
+    await apply(db, [{ kind: "run", key: "QG-x-ffffff", author: "Aye", data: "bad" }], "device:9", { now: new Date(NOW.getTime() + 11 * 60_000), release: { store: storeWith(null) } });
     expect(rows[0]!.status).toBe("expired");
+    expect(rows[0]!.payload ?? null).toBeNull();
+    rows[0]!.createdAt = new Date(NOW.getTime() - 31 * 86_400_000);
+    await apply(db, [{ kind: "run", key: "QG-x-iiiiii", author: "Aye", data: "bad" }], "device:9", { now: new Date(NOW.getTime() + 30 * 60_000), release: { store: storeWith(null) } });
+    expect(rows.some((row) => row.status === "expired")).toBe(false);
+  });
+
+  it("a forged second author by another account, with a different payload, does not release the honest carry", async () => {
+    const { db, rows } = fakeDb();
+    const store = storeWith(null);
+    await apply(db, [record("Aye")], "member:m1", { release: { store } });
+    // The forger names an invented author and invents the run around that author; it is not a player of the honest statement.
+    await apply(db, [record("Mallory", "QG-7-iiiiii", { p1: "Mallory;MAGE;DAMAGER;60;1500;0", p2: "Aye;WARRIOR;TANK;60;1500;0", en: start + 90_000 })], "member:m2", { release: { store } });
+    // Even naming a real player, a statement that disagrees on the run does not pair.
+    await apply(db, [record("Zed", "QG-8-jjjjjj", { en: start + 9000 })], "member:m3", { release: { store } });
+    expect(rows.every((row) => row.status === "held")).toBe(true);
+    expect(mocks.ingestRelayedRuns).not.toHaveBeenCalled();
+  });
+
+  it("statements that name the same run but differ on its players do not pair", async () => {
+    const { db } = fakeDb();
+    const store = storeWith(null);
+    await apply(db, [record("Aye")], "member:m1", { release: { store } });
+    await apply(db, [record("Zed", "QG-2-bbbbbb", { p3: "Extra;PRIEST;HEALER;20;1300;0" })], "member:m2", { release: { store } });
+    expect(mocks.ingestRelayedRuns).not.toHaveBeenCalled();
+  });
+
+  it("one carrier holding two authors is one voice; agreeing carries by two members publish the earlier statement", async () => {
+    const { db, rows } = fakeDb();
+    const store = storeWith(null);
+    await apply(db, [record("Aye"), record("Zed", "QG-2-bbbbbb")], "member:m1", { release: { store } });
+    expect(mocks.ingestRelayedRuns).not.toHaveBeenCalled();
+    await apply(db, [record("Zed", "QG-3-cccccc", { en: start + 1530 })], "member:m2", { release: { store } });
+    expect(mocks.ingestRelayedRuns).toHaveBeenCalledTimes(1);
+    expect(mocks.ingestRelayedRuns.mock.calls[0]![1].runs[0]).toMatchObject({ endedAt: start + 1500, recorder: "Aye" });
+    expect(rows.every((row) => row.status === "released")).toBe(true);
+  });
+
+  it("a forged record squatting a key does not make the genuine record of that key, from another carrier, look known", async () => {
+    const { db, rows } = fakeDb();
+    const store = storeWith(null);
+    await apply(db, [record("Aye", "QG-1-aaaaaa", { p2: "Mallory;MAGE;DAMAGER;20;1380;1" })], "member:forger", { release: { store } });
+    await apply(db, [record("Aye", "QG-1-aaaaaa")], "member:honest", { release: { store } });
+    expect(rows).toHaveLength(2);
+  });
+
+  it("evaluates held runs at most every ten minutes", async () => {
+    const { db } = fakeDb();
+    const spy = vi.spyOn(db.carriedRecord, "findMany");
+    const store = storeWith(null);
+    await apply(db, [{ kind: "run", key: "QG-x-aaaaaa", author: "Aye", data: "bad" }], "device:1", { release: { store } });
+    const first = spy.mock.calls.length;
+    await apply(db, [{ kind: "run", key: "QG-x-bbbbbb", author: "Aye", data: "bad" }], "device:1", { release: { store } });
+    expect(spy.mock.calls.length).toBe(first);
   });
 
   it("refuses a run the author was not in, a run the carrier played, and a malformed one; each is answered, none held", async () => {

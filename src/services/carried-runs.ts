@@ -13,8 +13,15 @@ import type { PublicRunStore } from "./public-runs.js";
 // A held run that nobody released within HELD_DAYS is dropped.
 
 export const HELD_DAYS = 14;
+/** Finished rows (released, expired, refused) are deleted after this many days. */
+const KEEP_DAYS = 30;
+/** Start and end times of two statements of one run may differ by this much (seconds). */
+const TIME_TOLERANCE = 120;
+/** The held-run sweep runs at most this often. */
+const SWEEP_EVERY_MS = 10 * 60_000;
+const lastSweep = new WeakMap<object, number>();
 /** Rows looked at per sweep for an independent report that arrived after the carried one. */
-const SWEEP_LIMIT = 50;
+const SWEEP_LIMIT = 10;
 
 const lower = (text: string) => text.trim().normalize("NFC").toLowerCase();
 const text = (max: number) => z.string().max(max);
@@ -77,12 +84,14 @@ export async function holdCarriedRun(database: PrismaClient, input: { carrier: s
   const authorName = lower(input.author.split("-")[0] ?? input.author);
   if (!unpacked.players.some((name) => lower(name) === authorName)) { await refuse("author-not-in-run"); return true; }
   const authorKey = characterKey(authorName, "");
-  const existing = await database.carriedRecord.findUnique({ where: { kind_authorKey_key: { kind: "run", authorKey, key: input.key } }, select: { id: true } });
+  // Filed per carrier too: a forged record that squats a key cannot make the genuine record of the same key, carried by someone else, look known.
+  const storedKey = `${input.key}@${input.carrier}`.slice(0, 200);
+  const existing = await database.carriedRecord.findUnique({ where: { kind_authorKey_key: { kind: "run", authorKey, key: storedKey } }, select: { id: true } });
   if (existing) return true;
   // The carrier played in it: its own upload reports that run, a carried copy of it is not a second voice.
   if (unpacked.players.some((name) => input.carrierKeys.has(lower(name)))) { await refuse("carrier played in it", "own"); return true; }
   try {
-    await database.carriedRecord.create({ data: { kind: "run", key: input.key, author: input.author.slice(0, 80), authorKey: authorKey.slice(0, 160), carrier: input.carrier, status: "held", runKey: unpacked.runKey, payload: unpacked.run as Prisma.InputJsonValue } });
+    await database.carriedRecord.create({ data: { kind: "run", key: storedKey, author: input.author.slice(0, 80), authorKey: authorKey.slice(0, 160), carrier: input.carrier, status: "held", runKey: unpacked.runKey, payload: unpacked.run as Prisma.InputJsonValue } });
   } catch (error) {
     // Two carriers handing in the same record at the same moment: the other one stored it.
     if ((error as { code?: string } | null)?.code !== "P2002") throw error;
@@ -98,7 +107,7 @@ export async function holdCarriedRun(database: PrismaClient, input: { carrier: s
  * report publishes nothing itself (that report already put the run on the boards on its own evidence).
  */
 export async function releaseHeldRuns(database: PrismaClient, runKey: string, release: HeldRelease, now: Date): Promise<"none" | "independent" | "signed"> {
-  const rows = await database.carriedRecord.findMany({ where: { kind: "run", runKey, status: "held" }, select: { id: true, carrier: true, authorKey: true, author: true, payload: true }, take: 20 });
+  const rows = await database.carriedRecord.findMany({ where: { kind: "run", runKey, status: "held" }, select: { id: true, carrier: true, authorKey: true, author: true, payload: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], take: 20 });
   if (!rows.length) return "none";
   const ids = rows.map((row) => row.id);
   const stored = await release.store.findRun(runKey);
@@ -108,24 +117,46 @@ export async function releaseHeldRuns(database: PrismaClient, runKey: string, re
     return "independent";
   }
   const signed = rows.filter((row) => row.carrier.startsWith("member:"));
-  const carriers = new Set(signed.map((row) => row.carrier));
-  const authors = new Set(signed.map((row) => row.authorKey));
-  if (carriers.size < 2 || authors.size < 2) return "none";
-  const first = signed[0]!;
-  const payload = first.payload as Record<string, unknown> | null;
-  if (!payload) return "none";
-  const reporters = [...new Set(signed.map((row) => row.author.split("-")[0] ?? row.author))];
-  const result = await ingestRelayedRuns(release.store, { carrier: first.carrier, carrierKeys: new Set(), runs: [{ ...payload, recorder: reporters[0], reporterNames: reporters }], now, ...(release.onPlaced ? { onPlaced: release.onPlaced } : {}) });
-  // Dealt with (placed, held by the plausibility checks, or over the carrier's day): the rows are no longer waiting.
-  if (result.receipts.length) await database.carriedRecord.updateMany({ where: { id: { in: signed.map((row) => row.id) } }, data: { status: "released", payload: Prisma.DbNull } });
-  return "signed";
+  // Two statements count only as a pair: different carriers, different authors, each author a player of the run in both statements, and the
+  // two statements agreeing on the run. A carrier's rows never pair with each other. The earlier statement of the first pair is published.
+  for (const [index, first] of signed.entries()) {
+    for (const second of signed.slice(index + 1)) {
+      if (first.carrier === second.carrier || first.authorKey === second.authorKey) continue;
+      if (!statementsAgree(first, second)) continue;
+      const names = [first.author, second.author].map((author) => author.split("-")[0] ?? author);
+      const result = await ingestRelayedRuns(release.store, { carrier: first.carrier, carrierKeys: new Set(), runs: [{ ...(first.payload as Record<string, unknown>), recorder: names[0], reporterNames: names }], now, ...(release.onPlaced ? { onPlaced: release.onPlaced } : {}) });
+      // Dealt with (placed, held by the plausibility checks, or over the carrier's day): the rows are no longer waiting.
+      if (result.receipts.length) await database.carriedRecord.updateMany({ where: { id: { in: ids } }, data: { status: "released", payload: Prisma.DbNull } });
+      return "signed";
+    }
+  }
+  return "none";
+}
+
+interface Statement { author: string; authorKey: string; payload: unknown }
+const asRun = (payload: unknown) => payload as { instanceId?: number; startedAt?: number; endedAt?: number; players?: { character?: string }[] } | null;
+const nameSet = (run: NonNullable<ReturnType<typeof asRun>>) => (run.players ?? []).map((player) => lower(String(player.character ?? ""))).sort();
+
+/** Both statements describe the same run, and each author is a player of it in both. */
+function statementsAgree(a: Statement, b: Statement): boolean {
+  const first = asRun(a.payload), second = asRun(b.payload);
+  if (!first || !second || first.instanceId !== second.instanceId) return false;
+  if (typeof first.startedAt !== "number" || typeof second.startedAt !== "number" || typeof first.endedAt !== "number" || typeof second.endedAt !== "number") return false;
+  if (Math.abs(first.startedAt - second.startedAt) > TIME_TOLERANCE || Math.abs(first.endedAt - second.endedAt) > TIME_TOLERANCE) return false;
+  const players = nameSet(first);
+  if (players.join("|") !== nameSet(second).join("|")) return false;
+  return [a, b].every((row) => players.includes(lower(row.author.split("-")[0] ?? row.author)));
 }
 
 /** Drops held runs nobody released, and releases the ones an independent report has since covered. Never throws. */
 export async function sweepHeldRuns(database: PrismaClient, release: HeldRelease | undefined, now: Date): Promise<void> {
   try {
+    const last = lastSweep.get(database);
+    if (last !== undefined && now.getTime() - last < SWEEP_EVERY_MS) return;
+    lastSweep.set(database, now.getTime());
     const cutoff = new Date(now.getTime() - HELD_DAYS * 86_400_000);
-    await database.carriedRecord.updateMany({ where: { kind: "run", status: "held", createdAt: { lt: cutoff } }, data: { status: "expired" } });
+    await database.carriedRecord.updateMany({ where: { kind: "run", status: "held", createdAt: { lt: cutoff } }, data: { status: "expired", payload: Prisma.DbNull } });
+    await database.carriedRecord.deleteMany({ where: { kind: "run", status: { not: "held" }, createdAt: { lt: new Date(now.getTime() - KEEP_DAYS * 86_400_000) } } });
     if (!release) return;
     const keys = await database.carriedRecord.findMany({ where: { kind: "run", status: "held" }, distinct: ["runKey"], select: { runKey: true }, orderBy: { createdAt: "desc" }, take: SWEEP_LIMIT });
     for (const { runKey } of keys) if (runKey) await releaseHeldRuns(database, runKey, release, now);

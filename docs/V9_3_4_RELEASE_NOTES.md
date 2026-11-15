@@ -1,6 +1,6 @@
 # Guilded 9.3.4 — release notes (15 November 2026)
 
-**Guild-only Discord, a simpler website and Delete my data.** Not yet published. Protocol 2, WoW Forever only. The one bot migration since 9.3.3 (`carried_runs`) was already applied on production on 15 November 2026 with the bot deploy.
+**Guild-only Discord, a simpler website and Delete my data.** Published 15 November 2026. Protocol 2, WoW Forever only. The one bot migration since 9.3.3 (`carried_runs`) was already applied on production on 15 November 2026 with the bot deploy.
 
 Real-client checks: docs/V9_3_4_RELEASE_ACCEPTANCE.md. 9.3.4 is not yet confirmed on real clients.
 

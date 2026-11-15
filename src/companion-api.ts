@@ -950,7 +950,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         // A personal code from the website (7.0): no guild, public dungeon runs only.
         if (isPersonalCode(pairingPayload.code)) {
           const personal = await exchangePersonalCode(personalStore, pairingPayload.code);
-          if (!personal) { recordFailure(address); json(response, 401, { error: "This companion code is invalid, expired or already used. Get a new one on your Guilded page (guilded.kcaron.top/me/)." }); return; }
+          if (!personal) { recordFailure(address); json(response, 401, { error: "This companion code is invalid, expired or already used. Press Sign in with Discord in the companion to connect it again." }); return; }
           json(response, 200, { ...personal, personal: true });
           return;
         }
@@ -1122,7 +1122,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         // Personal companions (website accounts) send their own finished dungeon runs.
         const secret = request.headers["x-companion-credential"];
         const account = await personalAccess(personalStore, typeof secret === "string" ? secret : undefined);
-        if (!account) { recordFailure(address); json(response, 401, { error: "Connect this companion with a code from your Guilded page (guilded.kcaron.top/me/)." }); return; }
+        if (!account) { recordFailure(address); json(response, 401, { error: "Press Sign in with Discord in the companion to connect it." }); return; }
         if (!allowPublicUpload(account.accountId)) { json(response, 429, { error: "Too many uploads in the last hour. Try again later." }); return; }
         const body = await readBody(request) as { character?: { name?: unknown; displayName?: unknown; realm?: unknown; gameEdition?: unknown; interface?: unknown }; runs?: unknown; includeScore?: unknown; characters?: unknown } | null;
         let gameEdition;

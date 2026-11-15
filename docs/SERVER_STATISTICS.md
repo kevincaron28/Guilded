@@ -1,5 +1,7 @@
 # Server statistics (8.5, Track G)
 
+> **Website page retired (15 November 2026):** the web page described here was taken off the site (owner decision: addon first). The Discord and addon parts stay. The code is unmounted, not deleted.
+
 Guilded writes one statistics row per server per UTC day. Officers read them as charts on the website and, if they want
 Google Sheets, through a read-only CSV address. **On by default** (an officer can turn it off); nothing is posted to Discord.
 

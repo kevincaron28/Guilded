@@ -18,7 +18,7 @@ Scores are Guilded's own, based on supported evidence and the current season rul
 1. Download the file, close WoW and put the **GuildedDungeons** folder in `_forever_/Interface/AddOns`. Keep your SavedVariables. Enable **Load out of date AddOns** if asked.
 2. Use `/gdungeons` or `/gdg` for status, results and score. Recording and local results need no Discord and no companion.
 3. For online sync, install the free [Microsoft Store companion](https://apps.microsoft.com/detail/9N680XX3QFL9) (Store-signed, updates itself; the GitHub EXE is unsigned). It sets itself up and syncs every WoW account on the PC.
-4. Choose **Sign in with Discord**, pick your server or the standalone-player connection from [your player page](https://guilded.kcaron.top/me/), then `/reload` before syncing.
+4. Choose **Sign in with Discord**, pick your server or the standalone-player connection on the page that opens, then `/reload` before syncing.
 
 [WoW Forever download](https://guilded.kcaron.top/editions/forever/) · [Release notes](https://github.com/kevincaron28/Guilded/releases)
 

@@ -13,7 +13,7 @@ export async function professionCardFor(db: Pick<PrismaClient, "guild" | "charac
     const card = await loadProfessionCard(db, guild, profession, names, discordUserId);
     if (!card) continue;
     await addCardQualities(card, withDeadline(items, 3_000)); // slow answers still fill the cache for next time
-    return professionCardEmbed(card, asLang(guild.settings?.language), process.env["PUBLIC_SITE_URL"]?.trim() || undefined);
+    return professionCardEmbed(card, asLang(guild.settings?.language));
   }
   return null;
 }

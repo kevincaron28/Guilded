@@ -123,7 +123,7 @@ export async function addCardQualities(card: ProfessionCardData, items: ItemData
 }
 
 /** The compact card: profession and skill, the most notable recipes (best quality first), a count and the gallery link. */
-export function professionCardEmbed(card: ProfessionCardData, lang: Lang = "en", siteUrl?: string): WebhookEmbed {
+export function professionCardEmbed(card: ProfessionCardData, lang: Lang = "en"): WebhookEmbed {
   const fr = lang === "fr";
   const sorted = [...card.recipes].sort((a, b) => (b.quality ?? -1) - (a.quality ?? -1) || a.itemName.localeCompare(b.itemName));
   const lines = sorted.slice(0, CARD_RECIPES).map(recipe => {
@@ -134,7 +134,7 @@ export function professionCardEmbed(card: ProfessionCardData, lang: Lang = "en",
   const head = card.skill !== null ? `${skillBar(card.skill, 8)} ${card.skill}` : fr ? "Compétence inconnue" : "Skill unknown";
   const count = fr ? `${card.recipes.length} recette(s) connue(s)` : `${card.recipes.length} known recipe(s)`;
   const more = card.recipes.length > CARD_RECIPES ? (fr ? `\n+${card.recipes.length - CARD_RECIPES} autres` : `\n+${card.recipes.length - CARD_RECIPES} more`) : "";
-  const gallery = siteUrl ? new URL(`/me/artisans?${new URLSearchParams({ guild: card.guildId, edition: card.edition, q: card.storedName, lang }).toString()}`, siteUrl).href : undefined;
+  const gallery: string | undefined = undefined;
   const best = sorted[0]?.quality;
   const embed: WebhookEmbed = {
     title: `${professionTitle(card.profession, lang)} · ${sanitizeName(card.character, 60)}`.slice(0, 256),

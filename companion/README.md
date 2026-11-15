@@ -84,8 +84,8 @@ when the bot supports it (`gzip-upload`, `ledger-delta`). See
 ## Personal mode: public dungeon leaderboards (7.0)
 
 No guild needed. In Connection & setup choose **Sign in with Discord**, then **Public dungeon
-leaderboards only** on the page that opens, after typing the code shown by your companion. Companions older than 7.2 use a
-code from https://guilded.kcaron.top/me/ instead (a personal code starts with `P`). Choose
+leaderboards only** on the page that opens, after typing the code shown by your companion. Companions older than 7.2 are no
+longer supported: update the companion. Choose
 `GuildedDungeons.lua` or `Guilded.lua` as the saved-data file (online: the SavedVariables folder):
 the companion reads both from that folder, because with both addons installed Guilded records
 the runs and Guilded Dungeons stays quiet. It sends your finished dungeon runs to

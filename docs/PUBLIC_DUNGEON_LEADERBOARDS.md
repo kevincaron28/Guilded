@@ -100,7 +100,7 @@ when the real-client checks below pass.
 
 1. Install only Guilded Dungeons (unzip `dist/GuildedDungeons-v7.0.0.zip` into AddOns). `/gdg check`, then
    run a dungeon: `/gdg status` shows the timer; after the last boss `/gdg results`.
-2. Sign in at https://guilded.kcaron.top/me/ → **Get a companion code** → in the companion paste it,
+2. In the companion choose **Sign in with Discord** → **Public dungeon leaderboards only**,
    choose `WTF\Account\<ACCOUNT>\SavedVariables\GuildedDungeons.lua`, Save and start. Activity says
    "Public leaderboards: 1 new…". `/reload`: the run shows as sent.
 3. https://guilded.kcaron.top/leaderboards/ lists the dungeon; open it, your character ranks; filters work.

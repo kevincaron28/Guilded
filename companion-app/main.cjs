@@ -1193,7 +1193,7 @@ async function applyPairing(next, result) {
     pushLog({ time: new Date().toISOString(), level: claimed.ok ? "info" : "warn", message: claimed.ok ? E("This PC's earlier uploads now belong to your Discord account.") : E("This PC's earlier uploads could not be moved to your Discord account ({0}); your next sync sends them again.", claimed.status ?? "offline") });
   }
   if (engineModules.deviceSync.hasDeviceKey(config) || config.device) config = { ...config, deviceSecret: undefined, device: false, deviceServer: undefined };
-  // A code from guilded.kcaron.top/me/ pairs a personal account (public dungeon runs, no guild).
+  // A personal code pairs a personal account (public dungeon runs, no guild).
   config = { ...config, ...next, gameEdition: result.gameEdition, wowGuildId: result.wowGuildId, wowGuildName: result.wowGuildName, ...(result.uploadUrl ? { uploadUrl: result.uploadUrl } : {}), pairingCode: "", companionCredential: result.companionCredential, personal: result.personal === true, guildDiscordId: result.personal ? "" : result.guildDiscordId || next.guildDiscordId || config.guildDiscordId };
   await saveConfig();
   const started = await engine.configure(config);

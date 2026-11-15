@@ -152,8 +152,7 @@ export function weeklyBankText(rows: Parameters<typeof summarizeLedger>[0], gold
     ...(extra.low?.length ? [`${t("Below minimum", "Sous le minimum")}:`, ...lowStockLines(extra.low, lang, 8)] : []),
     ...(extra.openRequests ? [`${t("Open bank requests", "Demandes ouvertes")}: **${extra.openRequests}** (\`/bank list\`)`] : [])
   ];
-  return [goldLine, `${rows.length} ${t("log line(s) this week", "ligne(s) de journal cette semaine")}`, ...(extraLines.length ? ["", ...extraLines] : []), "", ...people,
-    "", t("Full ledger: the Guild bank page on the guild tools site.", "Registre complet : la page Banque de guilde du site d'outils.")].filter((line, i) => line || i > 0).join("\n").slice(0, 3900);
+  return [goldLine, `${rows.length} ${t("log line(s) this week", "ligne(s) de journal cette semaine")}`, ...(extraLines.length ? ["", ...extraLines] : []), "", ...people].filter((line, i) => line || i > 0).join("\n").slice(0, 3900);
 }
 
 const DAY = 86_400_000;

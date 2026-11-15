@@ -61,7 +61,7 @@ describe("profession card", () => {
   it("shows the best-quality recipes first, a count, '+N more' and the full-list link", async () => {
     const card = (await loadProfessionCard(db() as never, guild, "Tailoring", ["Lebowski"]))!;
     await addCardQualities(card, { lookup: async item => item.itemId === 4245 ? { name: "Small Silk Pack", quality: 2 } : null });
-    const embed = professionCardEmbed(card, "en", "https://guilded.example");
+    const embed = professionCardEmbed(card, "en");
     expect(embed.title).toBe("🧵 Tailoring · Lebowski Holyroller");
     const lines = (embed.description ?? "").split("\n");
     expect(lines[0]).toContain("150 · 11 known recipe(s)");

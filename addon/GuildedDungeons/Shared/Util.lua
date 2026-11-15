@@ -54,11 +54,14 @@ function util.companionFeatureFresh(name)
   local load = util.companionLoad
   local features = load and load.features or (type(GuildedCompanionFeatures) == "table" and GuildedCompanionFeatures or nil)
   if not features or features[name] ~= true then return false end
-  local at = tonumber(features.at)
+  -- `bt` (the bot's time at the write, in the same clock as the game's server time) wins over `at` (the PC's clock) when present.
+  local at = tonumber(features.bt) or tonumber(features.at)
   if not at then return false end
   local current = load and load.at or serverNow()
-  local window = features.hb == 1 and util.COMPANION_HEARTBEAT_FRESH or util.COMPANION_LEGACY_FRESH
-  return current - at <= window and at <= current + 86400
+  local heartbeat = features.hb == 1
+  local window = heartbeat and util.COMPANION_HEARTBEAT_FRESH or util.COMPANION_LEGACY_FRESH
+  local ahead = heartbeat and 3600 or 86400
+  return current - at <= window and at <= current + ahead
 end
 
 -- The companion (Windows app that sends your data to Discord), in the same three steps everywhere

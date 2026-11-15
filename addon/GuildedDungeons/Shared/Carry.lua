@@ -94,7 +94,7 @@ function carry.noteLoad()
   ns.util.noteCompanionLoad()
   carry.loadedAt = now()
   local features = type(GuildedCompanionFeatures) == "table" and GuildedCompanionFeatures or nil
-  carry.markerAtLoad = features and tonumber(features.at) or nil
+  carry.markerAtLoad = features and (tonumber(features.bt) or tonumber(features.at)) or nil
 end
 -- A record held since before this load that the companion wrote after, and still no receipt: it is not uploading what it was handed.
 function carry.unconfirmed()

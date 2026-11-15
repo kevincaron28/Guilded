@@ -40,7 +40,7 @@ If the build fails with "Production Android builds require the Firebase GOOGLE_S
 | # | Step | Who |
 | --- | --- | --- |
 | 2.1 | https://play.google.com/console → **Create app**. | **Owner** (signed in) |
-| 2.2 | App name `Guild Sync Companion`, default language **English (United States) – en-US**, **App**, **Free**. | Agent may type; **Owner** checks |
+| 2.2 | App name `Guild Sync Companion`, default language as it already is in the existing app, **English (Canada) – en-CA**, **App**, **Free**. | Agent may type; **Owner** checks |
 | 2.3 | Tick the declarations (Developer Program Policies, US export laws) → **Create app**. | **Owner** |
 
 The package name `top.kcaron.guilded` is fixed for ever by the first uploaded bundle. It cannot be changed later.
@@ -52,7 +52,7 @@ Every card needs **Save**; some need **Submit**. The answers are ready:
 | Card | Answer | Who |
 | --- | --- | --- |
 | Privacy policy | `https://guildedwow.com/docs/PRIVACY` | Agent types, **Owner** saves |
-| App access | "All or some functionality is restricted" → instructions from [play-content-rating.md](play-content-rating.md) (sample guild; no test account) | Agent types, **Owner** saves |
+| App access | "All or some functionality is restricted" → the stored test login "Discord Login", kept by the owner's decision; see [play-content-rating.md](play-content-rating.md) | Agent types, **Owner** saves |
 | Ads | No ads | **Owner** |
 | Content ratings | [play-content-rating.md](play-content-rating.md): category **All Other App Types**; the email is `support@guildedwow.com` | Agent types, **Owner** submits |
 | Target audience and content | 13–15, 16–17, 18 and over; no appeal to children | **Owner** |

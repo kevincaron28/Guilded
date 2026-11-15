@@ -26,8 +26,38 @@ declaration.
   `compileSdkVersion` 37 and `minSdkVersion` 24 come from React Native 0.88. Play asks new apps for API level 36 or higher since 31 August 2026
   ([Play Console help](https://support.google.com/googleplay/android-developer/answer/11926878)). Check the number Play
   shows for the uploaded bundle (App bundle explorer → Details).
-- Permissions asked: `INTERNET`, `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED`, `ACCESS_NETWORK_STATE`. No location,
-  camera, microphone, storage or contacts.
+- Permissions: see "Permissions in the bundle" below. No location, camera, microphone, storage, contacts or
+  advertising ID.
+
+## Permissions in the bundle
+
+Read from the merged manifest of the store bundle 0.3.0 (versionCode 7, `production-no-push`, built 15 November 2026).
+The app's own code asks for the first two; the rest are added by the libraries it is built with. Checked against Play's
+own list for the uploaded bundle on 15 November 2026 (Test and release → Latest releases and bundles → View all app
+bundles → version 7 → Permissions): Play shows **28 permissions**, which are the rows below, the badge permissions
+counted one per launcher brand.
+
+| Permission | Why it is there |
+| --- | --- |
+| `INTERNET` | The app talks to the Guilded server. |
+| `POST_NOTIFICATIONS` | Raid reminders. Android 13 and later ask the member before any notification shows. |
+| `RECEIVE_BOOT_COMPLETED` | `expo-notifications`: reminders scheduled on the phone are set again after a restart. |
+| `ACCESS_NETWORK_STATE` | `expo-updates` and React Native: knowing whether the phone is online before a request. |
+| `VIBRATE` | `expo-notifications`: a notification may vibrate. |
+| `WAKE_LOCK` | The notification and background-work libraries keep the phone awake for the moment a notification is delivered. |
+| `USE_BIOMETRIC`, `USE_FINGERPRINT` | `expo-secure-store` declares them for its optional "ask for a fingerprint before reading" mode. The app does not use that mode and never asks for a fingerprint. |
+| `com.google.android.c2dm.permission.RECEIVE` | The Firebase Cloud Messaging library that `expo-notifications` always brings in. In this bundle there is no Firebase configuration, so it never starts, gets no token and receives nothing. |
+| `com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE` | Google's Install Referrer library, brought in by a dependency (which one was not traced). The app does not read the install referrer. |
+| Launcher badge permissions: `android.permission.READ_APP_BADGE` and 15 brand-specific ones (Samsung, Huawei, HTC, Oppo, Sony, Apex, Solid and "everything" launchers: `...READ_SETTINGS`, `...WRITE_SETTINGS`, `...CHANGE_BADGE`, `...UPDATE_COUNT`, `...UPDATE_BADGE`, `...BROADCAST_BADGE`, `...PROVIDER_INSERT_BADGE`, `...BADGE_COUNT_READ` / `WRITE`, `...badge.permission.READ` / `WRITE`, `...UPDATE_SHORTCUT`) | The badge-count library inside `expo-notifications`, for the small number some launchers draw on an app's icon. The app sets no badge count. |
+| `com.android.vending.CHECK_LICENSE` | Google Play's licensing check. It is in Play's list for the bundle; which library or Play step adds it was not traced. The app does not check a licence itself and has nothing to buy. |
+| `top.kcaron.guilded.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` | The app's own private permission, added by the AndroidX library so that other apps cannot send it internal broadcasts. It grants nothing. |
+
+Not present: `com.google.android.gms.permission.AD_ID`, location, camera, microphone, contacts, storage.
+
+**Can the messaging component be dropped from the no-push bundle later?** Yes, with a small Expo config plugin that
+removes the Firebase messaging service and the `c2dm` permission from the merged manifest when the build is
+`production-no-push`. It is not needed for the closed test: without the Firebase file the component does nothing. It
+would have to stay in the `production` (push) bundle.
 
 ## Target audience and content (recommended answers)
 
@@ -40,17 +70,19 @@ declaration.
 Why not 18+ only: nothing here is adult. There is no free-text chat, no comments, no photo upload and no payments. What
 members exchange is game data (characters, ranks, wishlist item names, in-game last-seen positions), inside one guild.
 
-Content rating: use [play-content-rating.md](play-content-rating.md) unchanged. Expected result: Everyone / PEGI 3 with
-"Users Interact".
+Content rating: submitted on 15 November 2026 with the answers in [play-content-rating.md](play-content-rating.md).
+Result: Everyone / PEGI 3 / Google Play 3+, with no interactive element.
 
 ## Release notes (0.3.0)
 
-Release name: `0.3.0 (closed test)`. Console wants each language in a tag, 500 characters at most each.
+Release name: `0.3.0 (closed test)`. Console wants each language in a tag, 500 characters at most each. The tags must
+be the listing's own languages: the app's default language in Play Console is **English (Canada), en-CA** (set when the
+app was created), with French (Canada), fr-CA, beside it. An `<en-US>` tag would not match a listing language.
 
 ```
-<en-US>
+<en-CA>
 First Guilded release for Android. Five tabs: Guild (roster, map, raids), Stats (public leaderboards and this week's summary), Me (characters, badges, wishlist), Alerts (raid reminders on your phone) and News. No account needed to look around: open the Guild tab and tap "Look at a sample guild". Thanks for testing; tell us what breaks.
-</en-US>
+</en-CA>
 <fr-CA>
 Première version de Guilded pour Android. Cinq onglets : Guilde (membres, carte, raids), Stats (classements publics et résumé de la semaine), Moi (personnages, badges, souhaits), Alertes (rappels de raid sur votre téléphone) et Nouvelles. Aucun compte requis pour explorer : ouvrez l'onglet Guilde et touchez « Voir une guilde d'exemple ». Merci de tester, dites-nous ce qui cloche.
 </fr-CA>

@@ -29,10 +29,11 @@ All of it goes to the Guilded server the member signed in to (default `https://g
 
 Not used: device location (the app has no location permission; positions on the guild map come from the Windows
 companion on the member's PC, not the phone), contacts, photos, files, microphone, camera, calendar, analytics, crash
-reporting and advertising. No analytics or ads SDK is in `mobile/package.json`. The permissions are `INTERNET` and
-`POST_NOTIFICATIONS`, plus what the notification and update libraries add themselves: `RECEIVE_BOOT_COMPLETED` (scheduled
-reminders survive a restart) and `ACCESS_NETWORK_STATE`. `app.json` blocks audio, storage, media and overlay
-permissions. Check the list Play shows for the uploaded bundle (App bundle explorer → Permissions) before saving the form.
+reporting and advertising. No analytics or ads SDK is in `mobile/package.json`. The app's own permissions are `INTERNET` and
+`POST_NOTIFICATIONS`; its libraries add more (reminders after a restart, vibration, a messaging component that stays
+idle without Firebase, launcher badges). The full list with the reason for each is in
+[play-closed-test.md](play-closed-test.md), "Permissions in the bundle". None of them gives access to location, contacts,
+photos, the microphone or an advertising ID. `app.json` blocks audio, storage, media and overlay permissions.
 
 ## Form answers
 

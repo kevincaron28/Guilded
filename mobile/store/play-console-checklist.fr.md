@@ -42,7 +42,7 @@ Si la compilation échoue avec « Production Android builds require the Firebase
 | # | Étape | Qui |
 | --- | --- | --- |
 | 2.1 | https://play.google.com/console → **Create app**. | **Propriétaire** (connecté) |
-| 2.2 | Nom de l'appli `Guild Sync Companion`, langue par défaut **English (United States) – en-US**, **App**, **Free**. | L'agent peut taper; le **propriétaire** vérifie |
+| 2.2 | Nom de l'appli `Guild Sync Companion`, langue par défaut telle qu'elle est déjà dans l'appli existante, **English (Canada) – en-CA**, **App**, **Free**. | L'agent peut taper; le **propriétaire** vérifie |
 | 2.3 | Cocher les déclarations (Developer Program Policies, lois américaines sur l'exportation) → **Create app**. | **Propriétaire** |
 
 Le nom de paquet `top.kcaron.guilded` est fixé pour toujours par le premier paquet téléversé. Il ne peut plus changer.
@@ -54,7 +54,7 @@ Chaque carte demande **Save**; certaines demandent **Submit**. Les réponses son
 | Carte | Réponse | Qui |
 | --- | --- | --- |
 | Privacy policy | `https://guildedwow.com/docs/PRIVACY` | L'agent tape, le **propriétaire** enregistre |
-| App access | « All or some functionality is restricted » → consignes de [play-content-rating.fr.md](play-content-rating.fr.md) (guilde d'exemple; aucun compte de test) | L'agent tape, le **propriétaire** enregistre |
+| App access | « All or some functionality is restricted » → le compte de test enregistré « Discord Login », gardé par décision du propriétaire; voir [play-content-rating.fr.md](play-content-rating.fr.md) (la guilde d'exemple fonctionne aussi sans compte de test) | L'agent tape, le **propriétaire** enregistre |
 | Ads | Pas de publicité | **Propriétaire** |
 | Content ratings | [play-content-rating.fr.md](play-content-rating.fr.md) : catégorie **All Other App Types**; courriel `support@guildedwow.com` | L'agent tape, le **propriétaire** soumet |
 | Target audience and content | 13–15, 16–17, 18 ans et plus; n'attire pas les enfants | **Propriétaire** |

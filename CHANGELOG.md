@@ -13,6 +13,8 @@ Addon and companion:
 - Carry lane: opponent realm taken from the unit, a receipt on re-offer, a companion activity line (#939).
 - Dungeon relay and carry: companion heartbeat, freshness judged at load, bounded group re-offers (#941).
 - Companion: Start with Windows shows and changes the real startup entry (#944).
+- The addon and companion can carry a dungeon run for a group that has no companion (the bot side follows later); the companion's update marker clock is corrected; the heartbeat stops on sign-out (#947).
+- Parked guilds: a parked guild's runs are no longer sent twice (two writers of the parked-runs record, present since 9.3.0; the bot already skipped the repeats).
 
 Bot and website (already live):
 

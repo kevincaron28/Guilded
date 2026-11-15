@@ -185,7 +185,7 @@ describe("guild duels", () => {
   // WoW Forever: UnitName gives "Kev" and the surname separately, the duel line says "Kev Caron".
   it("knows my own duels by my full name, and shares and counts them", () => {
     const lua = setup();
-    lua.run(`GUILD_MEMBERS["Kev Caron"] = true; GUILD_MEMBERS["Bob Smith"] = true; NS.util.unitKey = function() return "Kev Caron" end; SENT = {}
+    lua.run(`GUILD_MEMBERS["Kev Caron"] = true; GUILD_MEMBERS["Bob Smith"] = true; NS.util.unitKey = function(unit) if unit ~= nil and unit ~= "player" then return nil end return "Kev Caron" end; SENT = {}
       NS.comm = { register = function() end, send = function(prefix, text) SENT[#SENT + 1] = text; return true end }`);
     lua.run(knock("Kev Caron", "Bob Smith"));
     expect(lua.run(`return table.concat(SENT, ",")`)).toMatch(/^D\|Kev Caron\|Bob Smith\|\d+\|knockout$/);

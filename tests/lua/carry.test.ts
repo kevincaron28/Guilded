@@ -194,12 +194,11 @@ describe("limits on what a carrier takes in and who it offers to", () => {
   it("prefers a carrier in the guild or group over strangers, and records are not computed again on every announcement", () => {
     const player = client("guilded", "Aye");
     duel(player);
-    hear(player, "Stranger", "HI|1", "CHANNEL");
-    flush(player);
-    sent(player);
     hear(player, "Mate", "HI|1", "GUILD");
     const toMate = queued(player, "WHISPER", "Mate");
     expect(toMate.length).toBeGreaterThan(0);
+    hear(player, "Stranger", "HI|1", "CHANNEL");
+    expect(queued(player, "WHISPER", "Stranger")).toEqual([]);
     player.run("NS.carry.carriers.Mate.sent = 0; NS.carry.carriers.Mate.pauseUntil = 0");
     hear(player, "Other", "HI|1", "CHANNEL");
     expect(queued(player, "WHISPER", "Other")).toEqual([]);
@@ -223,9 +222,9 @@ describe("limits on what a carrier takes in and who it offers to", () => {
   it("limits each sender's share of the store so one sender cannot push the others out", () => {
     const carrier = client("guilded", "Bee", { companion: true });
     carrier.run(`local s = NS.getDb().carry
-      for i = 1, 100 do s.records["externalDuel:m" .. i .. "-aaaa"] = { kind = "externalDuel", key = "m" .. i .. "-aaaa", author = "Mallory", from = "Mallory", data = {}, at = CLOCK, got = CLOCK - 1000 + i } end
-      for i = 1, 99 do s.records["externalDuel:z" .. i .. "-aaaa"] = { kind = "externalDuel", key = "z" .. i .. "-aaaa", author = "Zed", from = "Zed", data = {}, at = CLOCK, got = CLOCK - 5000 + i } end
-      s.records["externalDuel:a1-aaaa"] = { kind = "externalDuel", key = "a1-aaaa", author = "Aye", from = "Aye", data = {}, at = CLOCK, got = CLOCK - 9000 }`);
+      for i = 1, 100 do s.records["externalDuel:m" .. i .. "-aaaa"] = { kind = "externalDuel", key = "m" .. i .. "-aaaa", author = "Mallory", from = "Mallory", data = {}, at = CLOCK, got = CLOCK - 600 + i } end
+      for i = 1, 99 do s.records["externalDuel:z" .. i .. "-aaaa"] = { kind = "externalDuel", key = "z" .. i .. "-aaaa", author = "Zed", from = "Zed", data = {}, at = CLOCK, got = CLOCK - 1500 + i } end
+      s.records["externalDuel:a1-aaaa"] = { kind = "externalDuel", key = "a1-aaaa", author = "Aye", from = "Aye", data = {}, at = CLOCK, got = CLOCK - 1700 }`);
     hear(carrier, "Cee", part("1800000001-dddddd", 1, 1), "WHISPER");
     const byAuthor = (name: string) => count(carrier, `(function() local t = {}; for id, r in pairs(NS.getDb().carry.records) do if r.author == "${name}" then t[id] = true end end; return t end)()`);
     expect(byAuthor("Aye")).toBe(1);
@@ -422,5 +421,115 @@ describe("the record text", () => {
       local back = NS.carry.decode(text)
       return back.zone .. ';' .. back.at .. ';' .. tostring(back.flag) .. ';' .. tostring(NS.carry.decode('x=n1y') == nil) .. ';' .. tostring(NS.carry.decode('x=') == nil)`);
     expect(out).toBe("A|B&C=D~E%F;12;true;true;true");
+  });
+});
+
+// Real-client test of 9.3.2: "/guilded carry" said "2 records wait for a companion" although one had already been whispered to a carrier
+// (and applied by the bot): the two counts are told apart now.
+describe("the /guilded carry status line", () => {
+  const ids = (s: LuaSession) => s.run("local t = {}; for _, r in ipairs(NS.carry.collectOwn(true)) do t[#t + 1] = r.kind .. ':' .. r.key end; return table.concat(t, ',')").split(",");
+  const hand = (s: LuaSession, id: string) => s.run(`NS.getDb().carry.sentTo[${JSON.stringify(id)}] = { name = "Bee", at = CLOCK }; NS.carry.ownCache = nil`);
+  const status = (s: LuaSession) => s.run("return NS.carry.statusLine()");
+
+  it("counts the records still waiting apart from those handed over with the receipt pending", () => {
+    const player = client("guilded", "Aye");
+    duel(player, "Aye", "Zed", CLOCK - 300);
+    duel(player, "Aye", "Yan", CLOCK - 200);
+    expect(status(player)).toBe("2 records wait for a companion. No companion heard yet.");
+    const [first = "", second = ""] = ids(player);
+    hand(player, first);
+    expect(status(player)).toBe("1 record waits for a companion, 1 handed over to a companion.");
+    hand(player, second);
+    expect(status(player)).toBe("2 records handed over to a companion, waiting for their receipts.");
+    // The receipt for one comes back: only the other is still handed over.
+    hear(player, "Bee", `K|${first}`, "WHISPER");
+    expect(status(player)).toBe("1 record handed over to a companion, waiting for its receipt.");
+    hear(player, "Bee", `K|${second}`, "WHISPER");
+    expect(status(player)).not.toContain("handed over");
+    expect(status(player)).not.toContain("wait");
+  });
+
+  it("uses the singular for one waiting record, with or without a carrier in range", () => {
+    const player = client("guilded", "Aye");
+    duel(player);
+    expect(status(player)).toBe("1 record waits for a companion. No companion heard yet.");
+    player.run(`NS.carry.carriers.Bee = { name = "Bee", at = CLOCK, fails = 0, sent = 999, pauseUntil = CLOCK + 9999, near = true }`);
+    expect(status(player)).toBe("1 record waits for a companion: one is in range and will take it.");
+  });
+
+  it("on the carrier, says the records wait for its companion's next upload", () => {
+    const carrier = client("guilded", "Bee", { companion: true });
+    expect(status(carrier)).toBe("Your companion carries records for players near you: 0 waiting for its next upload.");
+  });
+});
+
+// Real-client finding on 9.3.2: the second PC's companion was stopped, yet the addon kept carrying, announced itself and kept its own
+// new record instead of handing it to a real carrier nearby. The marker's window is the shared Util helper's job; these are the live checks.
+describe("a companion that stopped is not trusted as a carrier", () => {
+  const here = (s: LuaSession) => s.run("return tostring(NS.carry.companionHere())");
+
+  it("a carrier holds a record for 2 hours in one session and keeps carrying (its receipt can only come at the next load)", () => {
+    const carrier = client("guilded", "Bee", { companion: true });
+    carrier.run("NS.carry.noteLoad()");
+    hear(carrier, "Cee", part("1800000001-dddddd", 1, 1), "WHISPER");
+    expect(records(carrier)).toBe("1");
+    CLOCK_STEP(carrier, 2 * 3600);
+    // The companion keeps writing standings during the session: the global does not change until a load, and nothing stands down.
+    carrier.run(`GuildedCompanionFeatures = { ["carry-records"] = true, at = CLOCK }`);
+    expect(here(carrier)).toBe("true");
+    carrier.run("NS.carry.lastAnnounce = 0; NS.carry.announce(true)");
+    expect(queued(carrier, "GUILD")).toEqual(["HI|1"]);
+    hear(carrier, "Dee", part("1800000002-eeeeee", 1, 1), "WHISPER");
+    expect(records(carrier)).toBe("2");
+  });
+
+  it("a record held across a reload with a live companion and no receipt makes it stand down until a load clears it", () => {
+    const carrier = client("guilded", "Bee", { companion: true });
+    carrier.run("NS.carry.noteLoad()");
+    hear(carrier, "Cee", part("1800000001-dddddd", 1, 1), "WHISPER");
+    expect(here(carrier)).toBe("true");
+    // /reload 10 minutes later: the companion read the saved data and wrote again (marker newer than the record), yet no receipt.
+    CLOCK_STEP(carrier, 600);
+    carrier.run(`GuildedCompanionFeatures = { ["carry-records"] = true, at = CLOCK - 60 }; GuildedCarryReceipts = {}; NS.carry.noteLoad(); NS.carry.applyReceipts()`);
+    expect(here(carrier)).toBe("false");
+    // A reload right after receiving (the companion has not written since): no conclusion yet.
+    const quick = client("guilded", "Dee", { companion: true });
+    quick.run("NS.carry.noteLoad()");
+    hear(quick, "Cee", part("1800000003-ffffff", 1, 1), "WHISPER");
+    CLOCK_STEP(quick, 5);
+    quick.run(`GuildedCompanionFeatures = { ["carry-records"] = true, at = CLOCK - 3600 }; NS.carry.noteLoad()`);
+    expect(here(quick)).toBe("true");
+    carrier.run("NS.carry.lastAnnounce = 0; NS.carry.announce(true)");
+    expect(queued(carrier, "GUILD")).toEqual([]);
+    hear(carrier, "Dee", part("1800000002-eeeeee", 1, 1), "WHISPER");
+    expect(records(carrier)).toBe("1");
+    // What it holds stays (its companion may still upload it); its own new record is handed to a carrier that works.
+    duel(carrier, "Bee", "Zed", CLOCK - 50);
+    hear(carrier, "Eve", "HI|1", "GUILD");
+    expect(queued(carrier, "WHISPER", "Eve").length).toBeGreaterThan(0);
+    // The receipt arrives at the next load: it carries again.
+    carrier.run(`GuildedCarryReceipts = { "externalDuel:1800000001-dddddd" }; NS.carry.noteLoad(); NS.carry.applyReceipts()`);
+    expect(here(carrier)).toBe("true");
+  });
+
+  it("a record handed to one carrier is offered to another only after 24 hours without a receipt", () => {
+    const player = client("guilded", "Aye");
+    duel(player);
+    hear(player, "Bee", "HI|1", "GUILD");
+    expect(queued(player, "WHISPER", "Bee").length).toBeGreaterThan(0);
+    hear(player, "Cee", "HI|1", "GUILD");
+    expect(queued(player, "WHISPER", "Cee")).toEqual([]);
+    CLOCK_STEP(player, 23 * 3600);
+    player.run("NS.carry.carriers.Cee = nil; NS.carry.hiAt.Cee = nil");
+    hear(player, "Cee", "HI|1", "GUILD");
+    expect(queued(player, "WHISPER", "Cee")).toEqual([]);
+    CLOCK_STEP(player, 3601);
+    player.run("NS.carry.carriers.Cee = nil; NS.carry.hiAt.Cee = nil");
+    hear(player, "Cee", "HI|1", "GUILD");
+    expect(queued(player, "WHISPER", "Cee").length).toBeGreaterThan(0);
+    // Now handed to Cee: Bee does not get it again within the per-carrier pause.
+    player.run("NS.carry.carriers.Bee = nil; NS.carry.hiAt.Bee = nil");
+    hear(player, "Bee", "HI|1", "GUILD");
+    expect(queued(player, "WHISPER", "Bee")).toEqual([]);
   });
 });

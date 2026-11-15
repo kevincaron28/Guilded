@@ -108,8 +108,11 @@ function module.linkedAs()
   return state and state.confirmed and state.name or nil
 end
 
+-- (9.3.3) The tick is the game's own ready-check texture: the check-mark character (U+2713) the line used to end with is
+-- not in the game's chat font and showed as an empty box.
+local LINKED_TICK = "|TInterface\\RaidFrame\\ReadyCheck-Ready:0|t"
 function module.linkedLine(name)
-  return string.format(L("Linked to Discord as %s"), name) .. " |cff40ff40\226\156\147|r"
+  return string.format(L("Linked to Discord as %s"), name) .. " " .. LINKED_TICK
 end
 
 function module.reportedLine()

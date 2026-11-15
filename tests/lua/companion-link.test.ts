@@ -85,6 +85,14 @@ describe("linked to Discord line", () => {
     expect(s.run(`return tostring(NS.companionLink.announceLinked())`)).toBe("true");
   });
 
+  it("ends with the game's tick texture, never a character the chat font cannot draw (9.3.3)", () => {
+    const s = withLink(`GuildedLinkedAs = "Kevmister28"`);
+    s.run(`NS.companionLink.announceLinked()`);
+    const line = s.run(`return MSGS[1]`);
+    expect(line).toContain("Linked to Discord as Kevmister28 |TInterface\\RaidFrame\\ReadyCheck-Ready:0|t");
+    expect(s.run(`local t = NS.companionLink.linkedLine("Kevmister28"); return tostring(t:find("[\\128-\\255]") == nil)`)).toBe("true");
+  });
+
   it("says it again at every login, not only the first (9.0.1)", () => {
     // An older version saved "already told" in the database and then never spoke again.
     const s = withLink(`GuildedLinkedAs = "Kev"; DB.linkedAnnouncedAs = "Kev"`);

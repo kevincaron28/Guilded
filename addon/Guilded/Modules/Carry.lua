@@ -25,6 +25,14 @@ local CHUNK, MAX_CHUNKS = 150, 14
 local SESSION_PER_CARRIER, PAUSE_SECONDS, SESSION_CARRIERS = 8, 600, 4
 local STALE_SECONDS, MAX_FAILURES, MAX_CARRIERS = 1200, 2, 40
 local ANNOUNCE_SECONDS, ANNOUNCE_MIN_GAP, FEATURES_FRESH = 600, 300, 7 * 86400
+-- (9.3.3) The marker's `at` moves only when the companion writes new standings, so its age alone cannot tell a stopped companion
+-- (that window moves to the shared Util helper with the companion's heartbeat). A check from what this PC can see instead: the
+-- companion reads the saved data only at a /reload or logout, and its receipts reach the addon only at the next load. So only a record
+-- that was already held when this session loaded, and that the companion has written after (`got` older than the marker's `at` read
+-- at the load), can say the companion is not uploading. A record received during this session never does, however long it is held.
+-- Standing down ends at the next load whose receipts clear those records. A record handed to a carrier is offered to a different
+-- carrier only after REOFFER_SECONDS without a receipt.
+local UNCONFIRMED_GRACE, REOFFER_SECONDS = 60, 86400
 local HI_GAP = 300
 local PER_SENDER_PER_HOUR, SENDER_ASSEMBLIES, MAX_ASSEMBLIES, ASSEMBLY_SECONDS = 20, 3, 30, 120
 local DONE_KEEP, SENT_KEEP, OWN_CACHE_SECONDS = 400, 200, 60
@@ -78,11 +86,34 @@ function carry.enabled()
 end
 
 -- This PC's companion carries records for players near it (it writes GuildedCompanionFeatures with every update; it goes stale when it stops).
-function carry.companionHere()
+-- The marker as before (unchanged window); the shared Util helper replaces this once it is on main.
+function carry.markerFresh()
   local features = type(GuildedCompanionFeatures) == "table" and GuildedCompanionFeatures or nil
   if not features or features["carry-records"] ~= true then return false end
   local at = tonumber(features.at)
   return at ~= nil and now() - at <= FEATURES_FRESH and at <= now() + 86400
+end
+-- What this session saw when it loaded: the load time and the marker's `at` (the game replaces the global only at a load).
+function carry.noteLoad()
+  carry.loadedAt = now()
+  local features = type(GuildedCompanionFeatures) == "table" and GuildedCompanionFeatures or nil
+  carry.markerAtLoad = features and tonumber(features.at) or nil
+end
+-- A record held since before this load that the companion wrote after, and still no receipt: it is not uploading what it was handed.
+function carry.unconfirmed()
+  local loaded, markerAt = carry.loadedAt, carry.markerAtLoad
+  if not loaded or not markerAt then return false end
+  local root = ns.getDb and ns.getDb()
+  local records = root and type(root.carry) == "table" and type(root.carry.records) == "table" and root.carry.records or nil
+  if not records then return false end
+  for _, record in pairs(records) do
+    local got = type(record) == "table" and tonumber(record.got) or nil
+    if got and got < loaded and got + UNCONFIRMED_GRACE < markerAt then return true end
+  end
+  return false
+end
+function carry.companionHere()
+  return carry.markerFresh() and not carry.unconfirmed()
 end
 
 local function inCombat() return InCombatLockdown and InCombatLockdown() end
@@ -182,6 +213,16 @@ local function waitingCount()
   if carry.companionHere() then return 0 end
   return #carry.collectOwn()
 end
+-- My own records not acknowledged yet, split: (waiting for a companion, handed to a carrier with the receipt pending).
+function carry.ownCounts()
+  if carry.companionHere() then return 0, 0 end
+  local s = store()
+  local waiting, handed = 0, 0
+  for _, record in ipairs(carry.collectOwn()) do
+    if s and type(s.sentTo[record.kind .. ":" .. record.key]) == "table" then handed = handed + 1 else waiting = waiting + 1 end
+  end
+  return waiting, handed
+end
 
 -- ---- carriers ---------------------------------------------------------------------------------------------------------------------
 
@@ -252,7 +293,13 @@ function carry.offerTo(entry)
     local id = record.kind .. ":" .. record.key
     -- Already whispered to this carrier lately: not sent again, so the newest few are not resent every time and older records get their turn.
     local before = s and s.sentTo[id]
-    local skip = type(before) == "table" and sameName(before.name, entry.name) and now() - (tonumber(before.at) or 0) < RESEND_SECONDS
+    local skip = false
+    if type(before) == "table" then
+      local age = now() - (tonumber(before.at) or 0)
+      -- (9.3.3) The same carrier: not again for RESEND_SECONDS. Another carrier: only once the first has given no receipt for
+      -- REOFFER_SECONDS, so one record is not sprayed to every carrier in range while the first one is still uploading it.
+      if sameName(before.name, entry.name) then skip = age < RESEND_SECONDS else skip = age < REOFFER_SECONDS end
+    end
     if not skip then
       if entry.sent >= SESSION_PER_CARRIER then entry.pauseUntil = now() + PAUSE_SECONDS; entry.sent = 0; break end
       local body = carry.encode(record.data)
@@ -597,12 +644,25 @@ function carry.statusLine()
   if carry.companionHere() then
     local n = 0
     for _ in pairs(s.records) do n = n + 1 end
-    return string.format(L("Your companion carries records for players near you (%d waiting to be sent)."), n)
+    return string.format(L("Your companion carries records for players near you: %d waiting for its next upload."), n)
   end
-  local waiting = waitingCount()
+  -- (9.3.3) My own records, in two counts: still waiting for a companion, and already handed to a carrier whose receipt (the bot has
+  -- it) has not come back yet. Both used to be counted as waiting.
+  local waiting, handed = carry.ownCounts()
+  if waiting > 0 and handed > 0 then
+    return (waiting == 1 and L("1 record waits for a companion") or string.format(L("%d records wait for a companion"), waiting)) .. ", "
+      .. (handed == 1 and L("1 handed over to a companion") or string.format(L("%d handed over to a companion"), handed)) .. "."
+  end
   if waiting > 0 then
-    if carry.carrierCount() > 0 then return string.format(L("%d records wait for a companion: one is in range and will take them."), waiting) end
-    return string.format(L("%d records wait for a companion. No companion heard yet."), waiting)
+    if carry.carrierCount() > 0 then
+      return waiting == 1 and L("1 record waits for a companion: one is in range and will take it.")
+        or string.format(L("%d records wait for a companion: one is in range and will take them."), waiting)
+    end
+    return waiting == 1 and L("1 record waits for a companion. No companion heard yet.") or string.format(L("%d records wait for a companion. No companion heard yet."), waiting)
+  end
+  if handed > 0 then
+    return handed == 1 and L("1 record handed over to a companion, waiting for its receipt.")
+      or string.format(L("%d records handed over to a companion, waiting for their receipts."), handed)
   end
   if (carry.stats.receipts or 0) > 0 then return L("Your records were uploaded by a companion near you.") end
   return L("Nothing to carry. A player near you with the companion will take your records.")
@@ -695,6 +755,7 @@ local function onEvent(_, event, ...)
     local prefix, text, channel, sender = ...
     onAddonMessage(prefix, text, channel, sender)
   elseif event == "PLAYER_LOGIN" then
+    carry.noteLoad()
     if ns.comm and ns.comm.register then ns.comm.register(PREFIX) end
     startup()
   elseif event == "GROUP_ROSTER_UPDATE" then

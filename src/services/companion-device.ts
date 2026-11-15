@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
 import { characterKey, foreverSameName } from "../../companion/character-identity.mjs";
+import { runCardsOf, type ReceiptCardRow } from "./dungeon-card.js";
 import { firstNameKey, importDungeonRuns, receiptReason, RETRY_OUTCOME, saveRunReceipts, type DungeonImportSummary } from "./dungeon-import.js";
 import { plausibilityFlags, type Anomaly, type NeighbourRun } from "./run-plausibility.js";
 import { challengeSecret, holdsRun, integrityConfig } from "./run-integrity-config.js";
@@ -159,7 +160,7 @@ export interface DeviceStore {
    * What the server holds for these run refs (9.1.3): receipts and stored runs. The companion writes them to the addon
    * (GuildedDungeonAccepted/Notes) so it marks the runs synced, as the standings do for a signed-in companion.
    */
-  receipts?(guildId: string, refs: string[]): Promise<{ runRef: string; reason: string | null }[]>;
+  receipts?(guildId: string, refs: string[]): Promise<{ runRef: string; reason: string | null; card?: unknown }[]>;
   /** Reported characters unclaimed devices hold in this server (T7 cap). */
   guildCharacterCount?(guildId: string): Promise<number>;
   /** Forgets unclaimed devices idle since before `before`, with their characters and waiting runs (T7). */
@@ -182,7 +183,7 @@ export interface DeviceStore {
 export const splitGroupRuns = (raw: unknown[]): { group: unknown[]; rest: unknown[] } => splitGroupCarried(raw);
 
 /** The runs of one unsigned upload the server now holds, in the shape the signed-in standings use. */
-export interface DeviceRunReceipts { acceptedRunRefs: string[]; runNotes: Record<string, string>; /** Received but not counted yet, with the reason. Never "synced". */ pendingRunNotes?: Record<string, string> }
+export interface DeviceRunReceipts { acceptedRunRefs: string[]; runNotes: Record<string, string>; /** Received but not counted yet, with the reason. Never "synced". */ pendingRunNotes?: Record<string, string>; /** (9.3.5) The result card rows of the runs held, by run ref. */ runCards?: Record<string, ReceiptCardRow[]> }
 
 /** What an unsigned companion should tell its member. PvP counters (kills, defends, duels, calls) are applied only for a signed-in member. */
 export interface DeviceNotice { en: string; fr: string }
@@ -364,7 +365,8 @@ async function handleDeviceUploadCore(store: DeviceStore, device: DeviceRow, bod
     const acceptedRunRefs = [...held.map((row) => row.runRef), ...carried];
     const runNotes: Record<string, string> = Object.fromEntries(held.flatMap((row) => row.reason ? [[row.runRef, row.reason] as const] : []));
     const waiting = Object.fromEntries(Object.entries(pending).filter(([ref]) => !acceptedRunRefs.includes(ref)));
-    if (acceptedRunRefs.length || Object.keys(waiting).length) runReceipts = { acceptedRunRefs, runNotes, ...(Object.keys(waiting).length ? { pendingRunNotes: waiting } : {}) };
+    const runCards = runCardsOf(held);
+    if (acceptedRunRefs.length || Object.keys(waiting).length) runReceipts = { acceptedRunRefs, runNotes, ...(Object.keys(waiting).length ? { pendingRunNotes: waiting } : {}), ...(Object.keys(runCards).length ? { runCards } : {}) };
   }
   if (!runReceipts && carriedReceipts) runReceipts = carriedReceipts;
   // (9.1.4) The characters THIS upload reported and the server holds for the device, so the addon can say "Reported, not
@@ -657,17 +659,18 @@ export function prismaInstallStore(database: PrismaClient, serverName: (discordI
     },
     async receipts(guildId, refs) {
       const [receipts, stored, waiting] = await Promise.all([
-        database.dungeonRunReceipt.findMany({ where: { guildId, runRef: { in: refs }, outcome: { not: RETRY_OUTCOME } }, select: { runRef: true, reason: true } }),
+        database.dungeonRunReceipt.findMany({ where: { guildId, runRef: { in: refs }, outcome: { not: RETRY_OUTCOME } }, select: { runRef: true, reason: true, card: true } }),
         database.dungeonRun.findMany({ where: { guildId, runRef: { in: refs } }, select: { runRef: true, state: true, invalidReason: true } }),
         database.dungeonRunReceipt.findMany({ where: { guildId, runRef: { in: refs }, outcome: RETRY_OUTCOME }, select: { runRef: true } })
       ]);
       // A stored run the device sent again has no receipt of its own: its reason is the run's (not scored, not completed).
       const byRef = new Map<string, string | null>(stored.map((row) => [row.runRef, receiptReason(row.invalidReason ?? (row.state === "COMPLETED" ? null : "Not completed"))]));
+      const cards = new Map(receipts.map((row) => [row.runRef, row.card] as const));
       for (const row of receipts) byRef.set(row.runRef, row.reason ?? byRef.get(row.runRef) ?? null);
       // (9.3) A ref whose receipt says "retry" (a stored unfinished run re-sent as completed, still waiting for a guildmate's own copy)
       // is not held, whatever is stored under it: the addon must keep it and send it again.
       for (const row of waiting) byRef.delete(row.runRef);
-      return [...byRef].map(([runRef, reason]) => ({ runRef, reason }));
+      return [...byRef].map(([runRef, reason]) => ({ runRef, reason, card: cards.get(runRef) }));
     },
     importRuns: (guildId, runs, now, source) => database.$transaction((tx) => storeDeviceRuns(tx, guildId, runs, now, source), { timeout: 60_000, maxWait: 15_000 }),
     guildCharacterCount: (guildId) => database.deviceCharacter.count({ where: { device: { guildId, claimedMemberId: null, revokedAt: null } } }),

@@ -52,8 +52,8 @@ export function cachedOfficerCheck(guilds: (discordUserId: string) => Promise<un
 
 const TITLES: Record<MeGroup, { en: string; fr: string; summaryEn: string; summaryFr: string }> = {
   overview: { en: "Overview", fr: "Aperçu", summaryEn: "Who you are on Guilded and your weekly recap.", summaryFr: "Qui vous êtes sur Guilded et votre récapitulatif de la semaine." },
-  play: { en: "Play", fr: "Jouer", summaryEn: "Achievements, availability, calendar, raids and leaderboards.", summaryFr: "Succès, disponibilité, calendrier, raids et classements." },
-  guild: { en: "Guild", fr: "Guilde", summaryEn: "Guild tools, recruitment and your applications; officer tools appear here for officers.", summaryFr: "Outils de guilde, recrutement et candidatures; les outils d'officier apparaissent ici pour les officiers." },
+  play: { en: "Play", fr: "Jouer", summaryEn: "Achievements, raids and leaderboards.", summaryFr: "Succès, raids et classements." },
+  guild: { en: "Guild", fr: "Guilde", summaryEn: "Recruitment and your applications.", summaryFr: "Recrutement et vos candidatures." },
   account: { en: "Account & data", fr: "Compte et données", summaryEn: "Connected devices, your data and privacy.", summaryFr: "Appareils connectés, vos données et confidentialité." }
 };
 

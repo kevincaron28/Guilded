@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
 import { shareImageType } from "../src/services/web-layout.js";
+import { classEmblem, roleEmblem } from "../src/services/class-emblem.js";
 import { emptyBox, emptyPage } from "../src/services/leaderboard-hub.js";
 
 // Painted website pictures live in site/images/web/. The site build copies image folders one by one: a folder it
@@ -12,6 +13,8 @@ const FILES = [
   ...["home", "leaderboards", "dungeons", "duels", "players", "guilds", "community", "guide", "companion", "download"].map((n) => `../social/og-${n}.jpg`),
   ...["404-1200.webp", "404-800.webp"],
   ...["duel", "runs", "notfound", "search"].map((n) => `empty-${n}.webp`),
+  ...["druid", "hunter", "mage", "paladin", "priest", "rogue", "shaman", "warlock", "warrior"].map((n) => `class-${n}-64.webp`),
+  ...["tank", "healer", "damage"].map((n) => `role-${n}-64.webp`),
   ...["gold", "silver", "bronze"].map((n) => `medal-${n}.webp`),
 ];
 describe("website pictures", () => {
@@ -73,5 +76,16 @@ describe("empty-state pictures", () => {
     expect(box).toContain('width="96" height="96" loading="lazy"');
     expect(emptyBox("Plain", [])).not.toContain("<img");
     expect(emptyPage("Nothing", [], "notfound")).toContain("<style>.hub-empty");
+  });
+});
+
+describe("class and role emblems", () => {
+  it("name an existing picture, only for known classes and roles", () => {
+    expect(classEmblem("Mage")).toContain("/images/web/class-mage-64.webp");
+    expect(classEmblem("Death Knight")).toBe("");
+    expect(classEmblem(null)).toBe("");
+    expect(roleEmblem("RANGED")).toContain("role-damage-64.webp");
+    expect(roleEmblem("TANK")).toContain('alt=""');
+    expect(roleEmblem("UNKNOWN")).toBe("");
   });
 });

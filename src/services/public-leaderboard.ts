@@ -17,6 +17,7 @@ import type { BracketedRules } from "./dungeon-november-rules.js";
 import { bossRuleText, bossTally } from "./dungeon-boss-scoring.js";
 import { characterId, characterScores, DEFAULT_OFFICIAL, periodRules, publicRules, publicSeasons, publicWeek, rateRun, rulesAt, type PublicPeriod, type ScoreRow, type ScoreRun } from "./public-score.js";
 import { breadcrumbs } from "./site-header.js";
+import { EMBLEM_CSS, classEmblem, roleEmblem } from "./class-emblem.js";
 import { HUB_CSS, HUB_EMBLEMS, emptyBox, emptyPage, hubTabs, movement, podium, searchForm, sectionArt, strip, trendBars, type PodiumEntry } from "./leaderboard-hub.js";
 import { climbers, rankMovement, recordsBroken } from "./leaderboard-highlights.js";
 import { escapeHtml, link, options } from "./web-layout.js";
@@ -499,7 +500,7 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
   };
 }
 
-const PAGE_CSS = `<style>.advanced-filters>summary{cursor:pointer;min-height:44px;display:flex;align-items:center;color:var(--gold)}.advanced-filters[open]>summary{margin-bottom:8px}details.rules{margin:0 0 20px}details.rules>summary{display:inline-flex;align-items:center;min-height:44px;cursor:pointer;color:var(--gold)}details.rules p{margin-top:4px}.empty-cta{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px 18px}.empty-cta p{margin:0 0 6px}.c-warrior{color:#c69b6d}.c-paladin{color:#f48cba}.c-hunter{color:#aad372}.c-rogue{color:#fff468}.c-priest{color:#fff}.c-shaman{color:#2a8cff}
+const PAGE_CSS = `<style>${EMBLEM_CSS}.advanced-filters>summary{cursor:pointer;min-height:44px;display:flex;align-items:center;color:var(--gold)}.advanced-filters[open]>summary{margin-bottom:8px}details.rules{margin:0 0 20px}details.rules>summary{display:inline-flex;align-items:center;min-height:44px;cursor:pointer;color:var(--gold)}details.rules p{margin-top:4px}.empty-cta{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px 18px}.empty-cta p{margin:0 0 6px}.c-warrior{color:#c69b6d}.c-paladin{color:#f48cba}.c-hunter{color:#aad372}.c-rogue{color:#fff468}.c-priest{color:#fff}.c-shaman{color:#2a8cff}
 .c-mage{color:#3fc7eb}.c-warlock{color:#8788ee}.c-druid{color:#ff7c0a}.c-deathknight{color:#c41e3a}.c-monk{color:#00ff98}.c-demonhunter{color:#a330c9}.c-evoker{color:#33937f}
 a.char{text-decoration:none;font-weight:600}.score{font-weight:700;color:var(--gold);font-variant-numeric:tabular-nums}.badge{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:0 8px;font-size:12px;color:var(--muted)}
 .badge.ok{border-color:#4f7a4a;color:#9fd49a}.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.tabs a{border:1px solid var(--line);border-radius:6px;padding:4px 12px;text-decoration:none}.tabs a.on{background:var(--gold);color:#111;border-color:var(--gold)}
@@ -592,7 +593,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
 
   const time = (seconds: number) => formatDuration(seconds);
   const date = (value: Date) => value.toISOString().slice(0, 10);
-  const who = (ctx: WebContext, player: LeaderPlayer) => `<a class="char c-${classSlug(player.className)}" href="${link(characterPath(player), ctx.lang)}">${escapeHtml(player.displayName || player.character)}</a>`
+  const who = (ctx: WebContext, player: LeaderPlayer) => `${classEmblem(player.className)}<a class="char c-${classSlug(player.className)}" href="${link(characterPath(player), ctx.lang)}">${escapeHtml(player.displayName || player.character)}</a>`
     + (player.realm ? ` <span class="tag">${escapeHtml(player.realm)}</span>` : "");
   const party = (ctx: WebContext, run: LeaderRun) => run.players.map((player) => `<a class="c-${classSlug(player.className)}" href="${link(characterPath(player), ctx.lang)}">${escapeHtml(player.displayName || player.character)}</a>`).join(", ");
   const bracketName = (ctx: WebContext, key: string) => key === "60" ? ctx.t("Level 60", "Niveau 60") : `${ctx.t("Levels", "Niveaux")} ${key.replace("-", "–")}`;
@@ -703,7 +704,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     return `<h2>${t("Score by role", "Score par rôle")} · ${escapeHtml(periodName(ctx, period))}</h2>`
       + `<p class="muted">${t("Each role's score uses only the runs played in that role. They are separate scores, never added together. A role score appears after " + MIN_ROLE_RUNS + " ranked runs in that role.", "Le score de chaque rôle n'utilise que les essais joués dans ce rôle. Ce sont des scores séparés, jamais additionnés. Un score de rôle apparaît après " + MIN_ROLE_RUNS + " essais classés dans ce rôle.")}</p>`
       + table([t("Role", "Rôle"), ...brackets.map((b) => escapeHtml(bracketName(ctx, b)))],
-        scores.roles.map(({ role, rows, runs }) => `<tr><td>${escapeHtml(roleLabel(role, lang))}</td>${brackets.map((b) => { const row = runs >= MIN_ROLE_RUNS ? rows.find((r) => r.bracket === b) : undefined; return `<td class="num${row ? " score" : ""}">${row?.points ?? "–"}</td>`; }).join("")}</tr>`),
+        scores.roles.map(({ role, rows, runs }) => `<tr><td>${roleEmblem(role)}${escapeHtml(roleLabel(role, lang))}</td>${brackets.map((b) => { const row = runs >= MIN_ROLE_RUNS ? rows.find((r) => r.bracket === b) : undefined; return `<td class="num${row ? " score" : ""}">${row?.points ?? "–"}</td>`; }).join("")}</tr>`),
         brackets.map((_, i) => i + 1))
       + (n ? `<p class="muted">${n === 1
         ? t("1 ranked run has no recorded role: it counts in the overall score only.", "1 essai classé n'a pas de rôle enregistré : il compte seulement dans le score global.")

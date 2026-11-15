@@ -154,7 +154,7 @@ describe("character page guidance", () => {
     expect(body).toContain("From level 24: <strong>21:40</strong> → +5");
     expect(body).toContain("<h2>Score by role · Season 1</h2>");
     expect(body).toContain("They are separate scores, never added together.");
-    expect(body).toContain('<tr><td>Tank</td><td class="num score">970</td></tr>');
+    expect(body).toMatch(/<tr><td>(?:<img [^>]*>)?Tank</td><td class="num score">970</td></tr>/);
     expect(body).toContain('<tr><td>Healer</td><td class="num">–</td></tr>'); // one ranked healer run: hidden under 3 runs
     expect(body).toContain("A role score appears after 3 ranked runs in that role.");
     expect(body).toContain('<tr><td>DPS</td><td class="num">–</td></tr>');

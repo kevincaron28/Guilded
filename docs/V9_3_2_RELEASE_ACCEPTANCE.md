@@ -8,8 +8,8 @@ Status: published 14 November 2026. Nothing in 9.3.2 has been confirmed in a rea
 | --- | --- |
 | GitHub | v9.3.2 is the latest release (tag at 9d8b5b1d), six assets. |
 | Installer | `Guilded.Companion.Setup.exe` and `Guilded.Companion.Setup.9.3.2.exe` on the server and the R2 mirror. |
-| CurseForge | upload pending (the website still points at the 9.3.1 files). |
-| Microsoft Store | 9.3.2.0 package built, not submitted (Submission 13 certifying) |
+| CurseForge | files 9620000 (Guilded) and 9620020 (Guilded Dungeons) uploaded, in review; the website points at them. |
+| Microsoft Store | 9.3.2.0 package resubmitted and in certification (the earlier Submission 13 was cancelled on the owner's instruction) |
 | Website | `site/releases.json` and the addon downloads point at 9.3.2. |
 
 ## Published artifact hashes (SHA-256)

@@ -92,7 +92,7 @@ function GuildedApp() {
         {!guild.ready ? <ActivityIndicator color={colors.gold} style={{ marginTop: 32 }} />
           : tab === "guild" ? <GuildTab guild={guild} defaultOrigin={WEB_ORIGIN} />
           : tab === "stats" ? <StatsTab origin={WEB_ORIGIN} lang={lang} />
-          : tab === "me" ? <MeTab guild={guild} webOrigin={WEB_ORIGIN} onSignIn={() => setChosen("guild")} />
+          : tab === "me" ? <MeTab guild={guild} onSignIn={() => setChosen("guild")} />
           : tab === "alerts" ? <AlertsTab guild={guild} onSignIn={() => setChosen("guild")} />
           : <NewsScreen origin={WEB_ORIGIN} lang={lang} />}
       </View>

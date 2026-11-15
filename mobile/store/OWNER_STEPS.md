@@ -14,11 +14,12 @@ new terms or paid plan.
 
 | Option | For | Against |
 | --- | --- | --- |
-| A. `Guilded` | The product's name everywhere (bot, addon, website, the app's own header). Short. Nothing to rename. | Another product called Guilded (a chat app) has had a Play listing. Play can refuse the title as confusing, or act on a complaint later; a forced rename after launch costs a new review. The Microsoft Store already refused "Guilded Companion". |
-| B. `Guilded: guild companion` | Keeps the name members know and says what the app is, which makes it look less like the other product. Search still finds "Guilded". | Still starts with the same word, so the risk is lower, not gone. |
-| C. `Guild Sync Companion` | Already accepted by the Microsoft Store for the Windows companion, so one store name on both. No clash with the other product. | Members search for "Guilded" and would not find it by name; the app header and the website still say Guilded; it describes the Windows uploader better than the phone app. |
+| 1. `Guild Sync Companion` | The name the Microsoft Store already accepted for the Windows companion: one name on both stores, and no clash with the other "Guilded" on Play. | Members who search "Guilded" will not find it by name; the header inside the app and the website still say Guilded. |
+| 2. `Guild Sync` | Same family as the Store name, shorter, and fits a phone app that shows the guild instead of uploading for it. | A new name that is used nowhere else yet; a little generic, so check that Play has no app of that exact name before choosing it. |
+| 3. `Guilded: guild companion` | Keeps the name members know and says what the app is. Search still finds "Guilded". | Still starts with the other product's name, so Play can refuse it or act on a complaint later; a forced rename after launch costs a new review. |
 
-Recommended: **B**, with C as the fallback if Play refuses it. The package id (`top.kcaron.guilded`) and the name
+Recommended: **1**, because it is already accepted elsewhere and cannot be confused with the other app. Plain
+`Guilded` is not proposed: another app of that name is on Play. The package id (`top.kcaron.guilded`) and the name
 under the icon on the phone (`Guilded`) stay the same whichever is chosen.
 
 ### 2. Push alerts in the first bundle, or not
@@ -37,6 +38,7 @@ under the icon on the phone (`Guilded`) stay the same whichever is chosen.
 | 5 | Say yes to the first store build creating the upload key. | The agent runs `npx.cmd eas-cli build --platform android --profile production-no-push` (or `production` with push). It asks **"Generate a new Android Keystore?"**: answer **Yes**. | Nothing. The key stays in the Expo account; no file is created on the PC. About 15 minutes of build time. |
 | 6 | Create the app. | https://play.google.com/console → **Create app** → name from step 1, **English (United States)**, **App**, **Free** → tick both declarations → **Create app**. | The Play Console sign-in. The chosen name. |
 | 7 | Check that the support address works. | Send a message to `support@guildedwow.com` from another account and see it arrive. | Play shows this address publicly; it must not be a personal one. |
+| 7b | Confirm the public deletion address. | Nothing to click: read the account-deletion address in `play-listing.md`. If the website's new public deletion page has its own address by then, that one goes into Play and into the app instead. | The address the website worker reports. Today's answer works: `https://guildedwow.com/docs/PRIVACY#choices-access-and-deletion`. |
 | 8 | Save or submit each **App content** card after the agent has typed the answers. | Play Console → **Policy → App content**: Privacy policy, App access, Ads, Content ratings, Target audience, News apps, Data safety, Government / Financial / Health, Advertising ID. Read each, then **Save** or **Submit**. | The answers are in `play-data-safety.md`, `play-content-rating.md` and `play-closed-test.md`; French copies beside them. These are legal declarations in his name. |
 | 9 | Read the French store text and save the listing. | **Grow users → Store presence → Main store listing** → **Save**; **Store settings** → category **Social**, the support address, `https://guildedwow.com` → **Save**. | Nothing: the agent has pasted the text and uploaded the icon, the feature graphic and the seven screenshots. |
 | 10 | Read the Testers Community instructions and give the group address. | Sign in at https://www.testerscommunity.com → dashboard → guide "How Testers Community works". Copy the exact Google Group address and read anything newer than this file. Read their refund policy. | The Testers Community sign-in. Search results show `testers-community@googlegroups.com`; confirm it there before it is typed into Play. |

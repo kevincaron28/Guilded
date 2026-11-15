@@ -13,17 +13,19 @@ Console steps for the closed test: [play-console-checklist.md](play-console-chec
 
 | Option | For | Against |
 | --- | --- | --- |
-| A. `Guilded` | The product's name everywhere (bot, addon, website, the app's own header). Short. Nothing to rename. | Another product called Guilded (a chat app) has had a Play listing. Play can refuse the title as confusing, or act on a complaint later; a forced rename after launch costs a new review. The Microsoft Store already refused "Guilded Companion". |
-| B. `Guilded: guild companion` (24 characters) | Keeps the name members know and says what the app is, which makes it look less like the other product. Search still finds "Guilded". | Still starts with the same word, so the risk is lower, not gone. |
-| C. `Guild Sync Companion` (20 characters) | Already accepted by the Microsoft Store for the Windows companion, so one store name on both. No clash with the other product. | Members search for "Guilded" and would not find it by name; the app header and the website still say Guilded; it describes the Windows uploader better than the phone app. |
+| 1. `Guild Sync Companion` | The name the Microsoft Store already accepted for the Windows companion: one name on both stores, and no clash with the other "Guilded" on Play. | Members who search "Guilded" will not find it by name; the header inside the app and the website still say Guilded. |
+| 2. `Guild Sync` | Same family as the Store name, shorter, and fits a phone app that shows the guild instead of uploading for it. | A new name that is used nowhere else yet; a little generic, so check that Play has no app of that exact name before choosing it. |
+| 3. `Guilded: guild companion` | Keeps the name members know and says what the app is. Search still finds "Guilded". | Still starts with the other product's name, so Play can refuse it or act on a complaint later; a forced rename after launch costs a new review. |
 
-Recommended: **B**, with C as the fallback if Play refuses it. Whatever is chosen, the package id
+Recommended: **1**, because it is already accepted elsewhere and cannot be confused with the other app. Plain
+`Guilded` is not proposed: another app of that name is on Play. Whatever is chosen, the package id
 (`top.kcaron.guilded`) and the name on the phone's home screen (`Guilded`, from `app.json`) do not change.
 
 Background: The Microsoft Store refused "Guilded Companion" on 3 November 2026
 (naming rule 10.1.1.1), and "Guilded" was also the name of a chat app that had a Play listing. Play can refuse a title it
-reads as another product's name. `Guilded` stays the first choice (it is the product's name everywhere); if Play
-refuses it, use `Guild Sync Companion` (the Store name) or `Guilded: guild companion`. Do not put "World of
+reads as another product's name. The label under the icon comes from `name` in `mobile/app.json` and is `Guilded`
+today; if the owner picks option 1 or 2 and wants the phone label to match, that is a one-line change and a new build.
+Do not put "World of
 Warcraft" or "WoW" in the title or the icon: a game's name is allowed in the description, with the disclaimer that is
 already there, not in the title.
 
@@ -31,7 +33,7 @@ already there, not in the title.
 
 | Field | Value |
 | --- | --- |
-| App name (30 max) | `Guilded` |
+| App name (30 max) | the owner's choice among the three options above (`Guild Sync Companion` recommended) |
 | Default language | English (United States) – en-US |
 | Translation | French (Canada) – fr-CA (text below) |
 | App or game | App |
@@ -43,7 +45,7 @@ already there, not in the title.
 | Contact email | `support@guildedwow.com` (Cloudflare Email Routing to the owner; Play shows it publicly) |
 | Website | https://guildedwow.com |
 | Privacy policy | https://guildedwow.com/docs/PRIVACY (live, HTTP 200 on 8 Nov 2026; `/privacy` is a 404, so do not use it) |
-| Account deletion URL | https://guildedwow.com/docs/PRIVACY#choices-access-and-deletion (public page with the steps; the button itself is at `/me/data` after sign-in, and in the app under Me → Settings) |
+| Account deletion URL | https://guildedwow.com/docs/PRIVACY#choices-access-and-deletion (public page with the steps, readable without signing in; in the app the button is under Me → Settings → Delete my data). The website is retiring its account pages: if its public deletion page gets its own address, use that one. |
 
 ## English (en-US)
 
@@ -81,7 +83,7 @@ NEWS
 
 Want to look around first? Open the sample guild: every screen works with made-up names, without signing in.
 
-Free, no ads, nothing to buy. Positions and calls for help are kept only for your guild, for a limited time, and "Delete my data" on the website removes your data.
+Free, no ads, nothing to buy. Positions and calls for help are kept only for your guild, for a limited time, and "Delete my data" in the app's settings removes your data.
 
 Guilded is a fan-made tool. It is not affiliated with or endorsed by Blizzard Entertainment. World of Warcraft is a trademark of Blizzard Entertainment, Inc.
 ```
@@ -122,7 +124,7 @@ NOUVELLES
 
 Envie de jeter un œil d'abord ? Ouvrez la guilde d'exemple : chaque écran fonctionne avec des noms inventés, sans connexion.
 
-Gratuit, sans publicité, rien à acheter. Les positions et les appels à l'aide sont gardés seulement pour votre guilde, pour une durée limitée, et « Supprimer mes données » sur le site efface vos données.
+Gratuit, sans publicité, rien à acheter. Les positions et les appels à l'aide sont gardés seulement pour votre guilde, pour une durée limitée, et « Supprimer mes données » dans les réglages de l'appli efface vos données.
 
 Guilded est un outil créé par des fans. Il n'est ni affilié à Blizzard Entertainment ni approuvé par elle. World of Warcraft est une marque de commerce de Blizzard Entertainment, Inc.
 ```

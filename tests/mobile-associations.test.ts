@@ -39,6 +39,13 @@ describe("mobile app links on the website", () => {
     }
   });
 
+  it("lets the phone's Delete my data through to the bot, as a POST only", async () => {
+    const source = readFileSync("worker/index.mjs", "utf8");
+    expect(source).toContain('["/api/v1/companion/delete-my-data", ["POST"]]');
+    const env = { ASSETS: { fetch: async () => new Response("unused") } };
+    const response = await worker.fetch(new Request("https://guildedwow.com/api/v1/companion/delete-my-data"), env);
+    expect(response.status).toBe(405);
+  });
   it("offers browser fallbacks without accepting arbitrary redirect URLs", async () => {
     const env = { ASSETS: { fetch: async () => new Response("unused") } };
     const response = await worker.fetch(new Request("https://guilded.kcaron.top/app/raids?lang=fr&return=https://evil.example"), env);

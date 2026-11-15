@@ -29,8 +29,8 @@ rapports de plantage, publicité. Aucun SDK de mesure ou de publicité n'est dan
 | --- | --- | --- |
 | L'appli collecte-t-elle ou partage-t-elle des données d'utilisateur ? | **Oui** | Les trois types ci-dessous. |
 | Toutes les données sont-elles chiffrées en transit ? | **Oui** | L'appli refuse les adresses `http`, sauf sur l'appareil lui-même (`apiOrigin` dans `mobile/src/api.ts`). |
-| Les utilisateurs peuvent-ils demander la suppression de leurs données ? | **Oui** | Dans l'appli : Moi → Réglages → **Supprimer mes données** (ouvre la page du site après la connexion Discord). Sur le web : https://guildedwow.com/docs/PRIVACY#choices-access-and-deletion, lisible sans connexion. |
-| Création de compte | Le compte est créé hors de l'appli (Discord, par le site de Guilded) | Si la Console demande une « Delete account URL », donner l'adresse ci-dessus, pas `/me/data`, qui répond « Sign in » à un visiteur non connecté. |
+| Les utilisateurs peuvent-ils demander la suppression de leurs données ? | **Oui** | Dans l'appli : Moi → Réglages → **Supprimer mes données** → **Tout supprimer**. L'appli efface le compte et ses données sur le serveur et déconnecte le téléphone, sans passer par le site. Sur le web : https://guildedwow.com/docs/PRIVACY#choices-access-and-deletion, lisible sans connexion. Le site retire ses pages de compte; si sa page publique de suppression reçoit sa propre adresse, la mettre ici et dans `DELETE_INFO_URL` (`mobile/src/links.ts`). |
+| Création de compte | Le compte est créé hors de l'appli (Discord, par le site de Guilded) | Si la Console demande une « Delete account URL », donner l'adresse ci-dessus : Google veut une page lisible sans connexion. |
 
 **Types de données.** Cocher seulement ceux-ci :
 

@@ -495,6 +495,18 @@ export class GuildedClient {
     }
   }
 
+  /**
+   * Delete my data: the same erasure as the website's, proven by this device's sign-in. The server asks for the
+   * confirm word; the app sends it only after the member confirmed on the screen. "unavailable" means the server
+   * (or the website in front of it) does not offer the route yet: the caller then points at the public page.
+   */
+  async deleteMyData(): Promise<"deleted" | "unavailable"> {
+    const { status, body } = await this.call("/api/v1/companion/delete-my-data", { method: "POST", body: { confirm: "DELETE" } });
+    if (status === 200) return "deleted";
+    if (status === 404 || status === 405 || (status === 403 && !record(body)?.error)) return "unavailable";
+    throw new ApiError(messageOf(body, "Your data could not be deleted. Try again in a minute."), status);
+  }
+
   async renew(nextCredential: string): Promise<void> {
     const { status } = await this.call("/api/v1/companion/renew", { method: "POST", body: { nextCredential } });
     if (status !== 200) throw new ApiError("The session could not be renewed. Please try again.", status);

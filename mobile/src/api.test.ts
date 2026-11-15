@@ -120,6 +120,24 @@ describe("mobile companion client", () => {
     expect(await client.deviceStatus("123456")).toBe(true);
   });
 
+  it("deletes the member's data with the confirm word, and tells a server without the route apart from a refusal", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true, members: 1, characters: 2, account: true }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new GuildedClient("https://guildedwow.com", "current-credential-0123456789");
+    expect(await client.deleteMyData()).toBe("deleted");
+    const [url, init] = (fetchMock.mock.calls as unknown as [URL, { method: string; body: string; headers: Record<string, string> }][])[0]!;
+    expect(String(url)).toBe("https://guildedwow.com/api/v1/companion/delete-my-data");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body)).toEqual({ confirm: "DELETE" });
+    expect(init.headers["x-companion-credential"]).toBe("current-credential-0123456789");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "Not found" }), { status: 404 })));
+    expect(await client.deleteMyData()).toBe("unavailable");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "This companion link is no longer valid. Sign in with Discord again." }), { status: 401 })));
+    await expect(client.deleteMyData()).rejects.toThrow(/no longer valid/);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 429 })));
+    await expect(client.deleteMyData()).rejects.toThrow(/could not be deleted/);
+  });
+
   it("explains a missing hub instead of showing an empty character list", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "Not found" }), { status: 404 })));
     await expect(new GuildedClient("https://guilded.kcaron.top", "credential-value-0123456789").hub("123")).rejects.toThrow(/guild hub/);

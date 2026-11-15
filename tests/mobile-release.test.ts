@@ -45,6 +45,19 @@ describe("mobile release links", () => {
     expect(JSON.stringify(JSON.parse(readFileSync("mobile/eas.json", "utf8")))).not.toContain("EXPO_PUBLIC_GUILDED_CLASH");
     expect(existsSync("mobile/src/clash/ClashHome.tsx")).toBe(true);
   });
+  it("opens no account page of the website except the sign-in approval page", () => {
+    // The website retired its account pages (/me/...). The app keeps only /me/companion, the page a member approves
+    // a sign-in on, and deletes data through the API. Guilded Clash is out of the build, so its files are not read.
+    const sources = readdirSync("mobile/src", { recursive: true, encoding: "utf8" }).map(file => file.replace(/\\/g, "/"))
+      .filter(file => /\.tsx?$/.test(file) && !file.startsWith("clash/") && !file.endsWith(".test.ts"));
+    for (const file of [...sources.map(file => `mobile/src/${file}`), "mobile/App.tsx"]) {
+      const text = readFileSync(file, "utf8").replaceAll("/me/companion", "");
+      // A web path, not a folder of the app: "/me" that does not follow a letter or a dot (as in "./src/me/MeTab").
+      expect(text, file).not.toMatch(/(?<![\w.])\/me(?:\/|["'`?])|%2Fme|\/auth\/login/);
+    }
+    expect(readFileSync("mobile/src/api.ts", "utf8")).toContain('"/api/v1/companion/delete-my-data"');
+    expect(readFileSync("mobile/src/links.ts", "utf8")).toContain("DELETE_INFO_URL");
+  });
   it("opens app links from the current site and the older address", () => {
     const config = JSON.parse(readFileSync("mobile/app.json", "utf8")).expo;
     expect(config.android.intentFilters[0].data.map((row: { host: string }) => row.host)).toEqual(["guildedwow.com", "guilded.kcaron.top"]);

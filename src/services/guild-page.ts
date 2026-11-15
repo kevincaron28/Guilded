@@ -1,3 +1,4 @@
+import { guildBanner } from "./guild-banner.js";
 import { siteUrl } from "../site-url.js";
 import { guildWhere } from "./guild-scope.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
@@ -158,7 +159,7 @@ export function renderGuildPage(view: GuildPageView): string {
   const on = (name: PageSection) => view.sections.includes(name);
   const name = escapeHtml(view.name);
   const parts: string[] = [];
-  parts.push(`<p class="eyebrow">${t("Guild", "Guilde")}</p><h1>${name}</h1>${view.intro ? paragraphs(view.intro) : ""}`);
+  parts.push(guildBanner(view.guildId ?? view.slug) + `<p class="eyebrow">${t("Guild", "Guilde")}</p><h1>${name}</h1>${view.intro ? paragraphs(view.intro) : ""}`);
   // The guild's own actions first: join, then its dungeon scores and the recruitment board.
   const actions = [
     view.recruitment?.inviteUrl ? `<a class="button" href="${escapeHtml(view.recruitment.inviteUrl)}" rel="nofollow noopener">${t("Join us on Discord", "Rejoignez-nous sur Discord")}</a>` : "",

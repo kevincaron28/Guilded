@@ -1,5 +1,6 @@
 import type { PrismaClient } from "../src/generated/prisma/client.js";
 import { describe, expect, it, vi } from "vitest";
+import { guildBannerTheme } from "../src/services/guild-banner.js";
 import {
   checkInviteUrl, createGuildPageServer, editGuildPage, guildPageJson, isPageSlug, loadGuildPageView, parseSections, renderGuildPage, slugFromName,
   type GuildPageView
@@ -16,6 +17,13 @@ const view = (over: Partial<GuildPageView> = {}): GuildPageView => ({
   }],
   recruitment: { text: "We raid twice a week.", inviteUrl: "https://discord.gg/abc123" },
   ...over
+});
+
+describe("guild page banner", () => {
+  it("is the same picture as the guild's leaderboard page, keyed on the guild id", () => {
+    expect(renderGuildPage(view({ guildId: "g1" }))).toContain(`/images/web/banner-${guildBannerTheme("g1")}-1600.webp`);
+    expect(renderGuildPage(view())).toContain(`banner-${guildBannerTheme("quebec-gold")}-1600.webp`);
+  });
 });
 
 describe("guild page addresses and inputs", () => {

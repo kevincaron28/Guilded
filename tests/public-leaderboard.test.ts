@@ -5,6 +5,7 @@ import { characterKey } from "../companion/character-identity.mjs";
 import { publicRules } from "../src/services/public-score.js";
 import { exchangePersonalCode, isPersonalCode, issuePersonalCode, personalAccess, type PersonalStore } from "../src/services/personal-pairing.js";
 import { createWebApp, type WebRequest, type WebResponse } from "../src/services/web-app.js";
+import { guildBannerTheme } from "../src/services/guild-banner.js";
 import { memoryWebStore } from "./helpers/memory-web-store.js";
 
 const SITE = "https://guilded.kcaron.top";
@@ -428,6 +429,7 @@ describe("leaderboard and personal pages", () => {
     expect(guild.status).toBe(200);
     expect(guild.body).toContain("Quebec Gold");
     expect(guild.body).toContain(">Kev<");
+    expect(guild.body).toContain(`/images/web/banner-${guildBannerTheme("g1")}-1600.webp`);
     expect((await request("GET", "/leaderboards/guild/nope")).status).toBe(404);
   });
 

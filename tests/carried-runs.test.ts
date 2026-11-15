@@ -20,6 +20,7 @@ function fakeDb() {
   const matches = (row: Row, where: any): boolean => Object.entries(where ?? {}).every(([field, wanted]) => {
     if (field === "id" && (wanted as any)?.in) return (wanted as any).in.includes(row.id);
     if (field === "createdAt" && (wanted as any)?.lt) return row.createdAt < (wanted as any).lt;
+    if (field === "carrier" && typeof wanted === "object" && (wanted as any)?.startsWith) return row.carrier.startsWith((wanted as any).startsWith);
     if (field === "status" && (wanted as any)?.not !== undefined) return row.status !== (wanted as any).not;
     if (field === "createdAt" && (wanted as any)?.gte) return row.createdAt >= (wanted as any).gte;
     return (row as any)[field] === wanted;
@@ -163,8 +164,61 @@ describe("carried dungeon runs are held", () => {
     expect(mocks.ingestRelayedRuns).not.toHaveBeenCalled();
     await apply(db, [record("Zed", "QG-3-cccccc", { en: start + 1530 })], "member:m2", { release: { store } });
     expect(mocks.ingestRelayedRuns).toHaveBeenCalledTimes(1);
-    expect(mocks.ingestRelayedRuns.mock.calls[0]![1].runs[0]).toMatchObject({ endedAt: start + 1500, recorder: "Aye" });
+    expect(mocks.ingestRelayedRuns.mock.calls[0]![1].runs[0]).toMatchObject({ startedAt: start, endedAt: start + 1530, recorder: "Aye" });
     expect(rows.every((row) => row.status === "released")).toBe(true);
+  });
+
+  it("publishes only what both statements agree on: an altered field keeps the run held, and measurements take the less favourable value", async () => {
+    const altered = [{ d: 2 }, { cb: "other boss" }, { ev: `2736:${start + 1500}` }, { p1: "Aye;WARRIOR;HEALER;20;1400;0" }, { p1: "Aye;WARRIOR;TANK;21;1400;0" }, { p1: "Aye;ROGUE;TANK;20;1400;0" }];
+    for (const [index, change] of altered.entries()) {
+      const { db, rows } = fakeDb();
+      const store = storeWith(null);
+      await apply(db, [record("Aye")], "member:m1", { release: { store } });
+      await apply(db, [record("Zed", `QG-${index}-zzzzzz`, change)], "member:m2", { release: { store } });
+      expect(rows.every((row) => row.status === "held"), JSON.stringify(change)).toBe(true);
+    }
+    expect(mocks.ingestRelayedRuns).not.toHaveBeenCalled();
+    const { db } = fakeDb();
+    const store = storeWith(null);
+    // One carries a shaved run (shorter, fewer deaths, longer present); the published run is the slower and worse one.
+    await apply(db, [record("Aye", "QG-1-aaaaaa", { st: start + 100, en: start + 1450, p2: "Zed;MAGE;DAMAGER;20;1500;0" })], "member:m1", { release: { store } });
+    await apply(db, [record("Zed", "QG-2-bbbbbb")], "member:m2", { release: { store } });
+    const published = mocks.ingestRelayedRuns.mock.calls[0]![1].runs[0];
+    expect(published.endedAt - published.startedAt).toBe(1500);
+    expect(published.startedAt).toBe(start);
+    expect(published.players.find((player: any) => player.character === "Zed")).toMatchObject({ deaths: 1, presentSec: 1380 });
+  });
+
+  it("the published run does not depend on which statement arrived first", async () => {
+    const publish = async (order: ("Aye" | "Zed")[]) => {
+      mocks.ingestRelayedRuns.mockClear();
+      const { db } = fakeDb();
+      const store = storeWith(null);
+      for (const [index, author] of order.entries()) await apply(db, [record(author, `QG-${index}-aaaaaa`, author === "Aye" ? { en: start + 1530, name: "Ragefire" } : {})], `member:${author}`, { release: { store } });
+      return JSON.stringify(mocks.ingestRelayedRuns.mock.calls[0]![1].runs[0]);
+    };
+    expect(await publish(["Aye", "Zed"])).toBe(await publish(["Zed", "Aye"]));
+  });
+
+  it("25 junk rows before an honest pair do not keep it from being released", async () => {
+    const { db, rows } = fakeDb();
+    const store = storeWith(null);
+    for (let index = 0; index < 25; index += 1) await apply(db, [record("Aye", `QG-j${index}-jjjjjj`)], `device:${index}`, { release: { store } });
+    for (let index = 0; index < 6; index += 1) await apply(db, [record("Aye", `QG-k${index}-kkkkkk`)], "member:spam", { release: { store } });
+    expect(rows.filter((row) => row.carrier === "member:spam")).toHaveLength(3);
+    await apply(db, [record("Aye", "QG-1-aaaaaa")], "member:m1", { release: { store } });
+    await apply(db, [record("Zed", "QG-2-bbbbbb")], "member:m2", { release: { store } });
+    expect(mocks.ingestRelayedRuns).toHaveBeenCalledTimes(1);
+  });
+
+  it("junk runs do not starve the sweep of an older held run", async () => {
+    const { db, rows } = fakeDb();
+    const store = storeWith(null);
+    await apply(db, [record("Aye")], "member:m1", { release: { store } });
+    for (let index = 0; index < 15; index += 1) await apply(db, [record("Aye", `QG-x${index}-xxxxxx`, { id: `QG-junk-${index}-Aye` })], `device:${index}`, { release: { store } });
+    expect(rows[0]!.status).toBe("held");
+    await apply(db, [{ kind: "run", key: "QG-y-yyyyyy", author: "Aye", data: "bad" }], "device:99", { now: new Date(NOW.getTime() + 11 * 60_000), release: { store: storeWith(["account:1"]) } });
+    expect(rows[0]!.status).toBe("released");
   });
 
   it("a forged record squatting a key does not make the genuine record of that key, from another carrier, look known", async () => {

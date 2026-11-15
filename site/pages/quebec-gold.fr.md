@@ -30,7 +30,7 @@ Quebec Gold est une guilde francophone de WoW Forever, côté Horde sur un royau
 <li><span class="step-number" aria-hidden="true">1</span><div><h3>Rejoignez le Discord</h3><p>Utilisez le <a href="https://discord.gg/PCs8BeE8bg">lien d'invitation</a>, dites bonjour et indiquez le jeu qui vous amène. Pour WoW, ajoutez votre classe, votre rôle et vos disponibilités.</p></div></li>
 <li><span class="step-number" aria-hidden="true">2</span><div><h3>Publiez votre personnage dans #invitation-guilde</h3><p>Écrivez le nom complet de votre personnage, prénom et nom ensemble (par exemple <em>Prénom Nom</em>). Le bot réagit avec 👀 pour confirmer que c'est lu.</p></div></li>
 <li><span class="step-number" aria-hidden="true">3</span><div><h3>Un officier vous invite</h3><p>Les officiers voient une file des noms en attente, dans Discord et en jeu, et envoient l'invitation de guilde à la main. Vous recevez un ✅ quand c'est fait.</p></div></li>
-<li><span class="step-number" aria-hidden="true">4</span><div><h3>Liez vos personnages</h3><p>Installez une fois le compagnon Windows gratuit : il lie vos personnages à votre compte Discord, et vos tableaux, succès et classements vous suivent.</p></div></li>
+<li><span class="step-number" aria-hidden="true">4</span><div><h3>Liez vos personnages</h3><p>Installez une fois le compagnon Windows gratuit : il lie vos personnages à votre compte Discord et synchronise tout de suite, et vos tableaux, succès et classements vous suivent.</p></div></li>
 </ol>
 
 <!-- screenshot: the #invitation-guilde channel in Discord with one request showing the 👀 reaction and a finished one showing ✅ (hide Discord usernames). Landscape. -->

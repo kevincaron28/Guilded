@@ -245,6 +245,25 @@ describe("global duels: the page and JSON", () => {
     expect(fr).toContain("Classement des duels");
     expect(fr).not.toMatch(/confirmé par les deux|rapporté par les adversaires/);
   });
+  it("gives a player with duels but no dungeon run a page and a search result, and still says 404 for a stranger", async () => {
+    const at = get("2026-12-10T12:00:00Z");
+    const page = await at("/leaderboards/character/Brenna-Kronos");
+    expect(page.status).toBe(200);
+    expect(page.body).toContain("Brenna");
+    expect(page.body).toContain("Duels");
+    expect(page.body).toContain("No public run for this character yet.");
+    expect((await at("/leaderboards/character/Brenna")).status).toBe(200);
+    expect((await at("/leaderboards/character/Nobody-Kronos")).status).toBe(404);
+    const found = (await at("/leaderboards/?q=brenn")).body;
+    expect(found).toContain('href="/forever/leaderboards/character/Brenna-Kronos');
+    const fr = (await at("/leaderboards/character/Brenna-Kronos?lang=fr")).body;
+    expect(fr).toContain("Duels");
+  });
+  it("tells a player without a companion that other players' companions carry their data", async () => {
+    const hub = (await get("2026-12-10T12:00:00Z")("/leaderboards/")).body;
+    expect(hub).not.toMatch(/sign in and connect the companion/i);
+    expect((await get("2026-12-10T12:00:00Z")("/leaderboards/?lang=fr")).body).not.toMatch(/reliez le compagnon : votre premier/i);
+  });
   it("lists everyone in the JSON and opens one player from a duel history", async () => {
     const json = JSON.parse((await get("2026-12-10T12:00:00Z")("/leaderboards/duels.json")).body) as { rules: { id: string }; season: string; players: { name: string; rank: number | null; realm: string }[]; recent: { winner: string; confirmedByBoth: boolean }[] };
     expect(json.rules.id).toBe("rating-v1");

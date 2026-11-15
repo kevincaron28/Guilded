@@ -647,7 +647,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       && run.players.some((p) => keep(p, run) && (rules.evidencePolicy !== "current-v2" || rateRun(run, rules, p).score)) ? [{ run, s }] : []; })
       .sort((a, b) => b.s.points - a.s.points || a.run.durationSec - b.run.durationSec).slice(0, limit);
     if (!rated.length) return `<div class="empty-cta"><p><strong>${t("No rated standard dungeon run this week yet. Be the first on the board.", "Aucun essai de donjon standard classé cette semaine. Soyez le premier au classement.")}</strong></p>`
-      + `<p class="muted">${t("Install Guilded Dungeons, clear a dungeon with your group, then sync your runs with the companion.", "Installez Guilded Dungeons, terminez un donjon en groupe, puis synchronisez vos essais avec le compagnon.")} `
+      + `<p class="muted">${t("Install Guilded Dungeons and clear a dungeon with your group. Your run reaches this board when your companion, or the companion of anyone in your group, sends it.", "Installez Guilded Dungeons et terminez un donjon en groupe. Votre essai arrive ici quand votre compagnon, ou celui d'un membre de votre groupe, l'envoie.")} `
       + `<a href="${link("/editions/", ctx.lang)}">${t("Download", "Télécharger")}</a> · <a href="/docs/DUNGEONS_GUIDE.html${ctx.lang === "fr" ? "#fr" : ""}">${t("How it works", "Comment ça marche")}</a></p></div>`;
     return table([t("Dungeon", "Donjon"), t("Levels", "Niveaux"), t("Time", "Temps"), t("Score", "Score"), t("Party", "Groupe"), ""],
       rated.map(({ run, s }) => `<tr><td>${escapeHtml(run.dungeonName)}</td><td>${escapeHtml(bracketName(ctx, s.bracket))}</td><td class="num">${time(run.durationSec)}</td>`
@@ -933,6 +933,14 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       const id = characterId(player);
       if (!seen.has(id)) seen.set(id, { player, folded: `${foldText(player.displayName || player.character)} ${foldText(player.character)}`, points: best.get(id) ?? 0 });
     }
+    // Players known only from the duel ladder (addon-only players whose duels another player's companion carried) are found too.
+    if (globalOpen()) for (const d of await cached("duels:global", () => deps.store.globalDuelRows!())) {
+      for (const side of [{ character: d.winner, realm: d.winnerRealm, className: d.winnerClass, level: d.winnerLevel }, { character: d.loser, realm: d.loserRealm, className: d.loserClass, level: d.loserLevel }]) {
+        const player: LeaderPlayer = { character: side.character, realm: side.realm, className: side.className, role: null, level: side.level };
+        const id = characterId(player);
+        if (!seen.has(id)) seen.set(id, { player, folded: foldText(side.character), points: 0 });
+      }
+    }
     return { people: [...seen.values()].sort((a, b) => b.points - a.points || a.player.character.localeCompare(b.player.character)) };
   });
 
@@ -1043,7 +1051,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       results = `<section class="hub-results" aria-live="polite"><h2>${t("Results for", "Résultats pour")} “${escapeHtml(q)}”</h2>${inner}</section>`;
     }
 
-    const empty = (what: string) => emptyBox(what, [t("Install Guilded Dungeons, sign in and connect the companion: your first finished run puts you on the board.", "Installez Guilded Dungeons, connectez-vous et reliez le compagnon : votre premier donjon terminé vous place au classement."), `<a href="/companion/">${t("Get the companion", "Obtenir le compagnon")}</a>`]);
+    const empty = (what: string) => emptyBox(what, [t("Install Guilded Dungeons and finish a dungeon with a group: your first run puts you on the board, sent by your companion or by another player's in your group.", "Installez Guilded Dungeons et terminez un donjon en groupe : votre premier essai vous place au classement, envoyé par votre compagnon ou par celui d'un autre joueur de votre groupe."), `<a href="/companion/">${t("Instant sync: get the companion (optional)", "Synchro instantanée : obtenir le compagnon (facultatif)")}</a>`]);
     const card = (title: string, emblem: string, inner: string, href: string, more: string) => `<section class="hub-card"><h2><img src="${emblem}" alt="" width="28" height="28" loading="lazy">${escapeHtml(title)}</h2>${inner}<a class="more" href="${href}">${escapeHtml(more)} →</a></section>`;
     const bracketName_ = bracket ? bracketName(ctx, bracket.key) : "";
     const kpis = `<div class="kpis"><span><b>${scores.length}</b> ${t("ranked players", "joueurs classés")}</span><span><b>${all.length}</b> ${t("runs this season", "essais cette saison")}</span><span><b>${(await cached("guilds", () => deps.store.guilds())).length}</b> ${t("guilds", "guildes")}</span>${globalOpen() ? `<span><b>${duelCount}</b> ${t("duels on the global ladder", "duels au classement mondial")}</span>` : ""}</div>`;
@@ -1057,7 +1065,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       + `<div class="hub-grid">`
       + card(t("Top players", "Meilleurs joueurs") + (bracketName_ ? ` · ${bracketName_}` : ""), HUB_EMBLEMS.players, charEntries.length ? podium(charEntries) : empty(t("No ranked player yet", "Aucun joueur classé")), link("/leaderboards/characters/", lang), t("Full player ranking", "Classement des joueurs"))
       + card(t("Top guilds", "Meilleures guildes"), HUB_EMBLEMS.guilds, guildEntries3.length ? podium(guildEntries3) : emptyBox(t("No ranked guild yet", "Aucune guilde classée"), [t("Officers publish their guild's runs with /mod leaderboard in Discord.", "Les officiers publient les essais de leur guilde avec /mod leaderboard dans Discord.")]), link("/leaderboards/guilds/", lang), t("All guilds", "Toutes les guildes"))
-      + (globalOpen() ? card(t("Duel ladder", "Classement des duels"), HUB_EMBLEMS.duels, duelEntries.length ? podium(duelEntries) : emptyBox(t("No duel yet", "Aucun duel"), [t("Duel a guildmate with the Guilded addon to get on the ladder.", "Affrontez un membre de la guilde avec l'addon Guilded pour entrer au classement.")]), link("/leaderboards/duels/", lang), t("Full duel ladder", "Classement des duels complet")) : "")
+      + (globalOpen() ? card(t("Duel ladder", "Classement des duels"), HUB_EMBLEMS.duels, duelEntries.length ? podium(duelEntries) : emptyBox(t("No duel yet", "Aucun duel"), [t("Duel someone with the Guilded addon to get on the ladder: your duel arrives when your companion, or another player's, sends it.", "Affrontez quelqu'un avec l'addon Guilded pour entrer au classement : votre duel arrive quand votre compagnon, ou celui d'un autre joueur, l'envoie.")]), link("/leaderboards/duels/", lang), t("Full duel ladder", "Classement des duels complet")) : "")
       + `</div><div class="hub-grid two" style="margin-top:16px">`
       + `<section class="hub-card"><h2>${t("Latest runs", "Derniers essais")}</h2>${latest.length ? latestStrip : empty(t("No run yet", "Aucun essai"))}<a class="more" href="${link("/leaderboards/dungeons/", lang)}">${t("All dungeons", "Tous les donjons")} →</a></section>`
       + (globalOpen() ? `<section class="hub-card"><h2>${t("Latest duels", "Derniers duels")}</h2>${duelStrip || `<p class="muted">${t("No duel yet.", "Aucun duel.")}</p>`}<a class="more" href="${link("/leaderboards/duels/", lang)}">${t("All duels", "Tous les duels")} →</a></section>` : "")
@@ -1122,7 +1130,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
         + weekBlock
         + `<h2>${t("Dungeon records", "Records des donjons")}</h2>` + (dungeons.length
           ? table([t("Dungeon", "Donjon"), t("Record", "Record"), t("Runs", "Essais")], dungeons.map((d) => `<tr><td><a href="${link("/leaderboards/", lang, { dungeon: String(d.instanceId), season: filters.season, period: filters.week ? "week" : null, bracket: filters.bracket })}">${escapeHtml(d.dungeonName)}</a></td><td class="num">${time(d.bestSec)}</td><td class="num">${d.runs}</td></tr>`), [1, 2], "rank-cards")
-          : `<p class="muted">${t("No standard dungeon record in this period yet. Install Guilded Dungeons, sign in and connect the companion from your page.", "Aucun record de donjon standard pour cette période. Installez Guilded Dungeons, connectez-vous et reliez le compagnon depuis votre page.")} <a href="${link("/me/", lang)}">${t("My page", "Ma page")}</a></p>`)
+          : `<p class="muted">${t("No standard dungeon record in this period yet. Install Guilded Dungeons and finish a dungeon with a group: your companion, or a groupmate's, sends it.", "Aucun record de donjon standard pour cette période. Installez Guilded Dungeons et terminez un donjon en groupe : votre compagnon, ou celui d'un coéquipier, l'envoie.")} <a href="${link("/me/", lang)}">${t("My page", "Ma page")}</a></p>`)
         + guildsBlock;
     }
     const scoreExample = `<p class="muted">${t("Standard dungeon score example: two counted routes worth 150 and 200 points give 350. Unranked reports add no points; provisional targets may still change before rules are frozen.", "Exemple de score des donjons standards : deux parcours comptabilisés à 150 et 200 points donnent 350. Les rapports non classés n'ajoutent aucun point ; les cibles provisoires peuvent évoluer avant le gel des règles.")}</p>`;
@@ -1142,7 +1150,13 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const isMe = (player: LeaderPlayer) => [player.character, ...(player.aliases ?? [])].some((n) => n.toLowerCase() === name.toLowerCase())
       && (realm === null || player.realm.toLowerCase() === realm.toLowerCase());
     const me = runs.flatMap((run) => run.players.filter(isMe))[0];
-    const title = `${me?.displayName || me?.character || name}${realm ? `-${realm}` : ""}`;
+    // A player with no public dungeon run but duels on the global ladder (an addon-only player whose duels another player's companion carried) still has a page.
+    const duelsAll = globalOpen() ? await cached("duels:global", () => deps.store.globalDuelRows!()) : [];
+    let duelSide: { key: string; name: string; realm: string; className: string | null; level: number | null } | null = null;
+    if (!runs.length) for (const d of duelsAll) for (const side of [{ key: d.winnerKey, name: d.winner, realm: d.winnerRealm, className: d.winnerClass, level: d.winnerLevel }, { key: d.loserKey, name: d.loser, realm: d.loserRealm, className: d.loserClass, level: d.loserLevel }]) {
+      if (side.name.toLowerCase() === name.toLowerCase() && (realm === null || side.realm.toLowerCase() === realm.toLowerCase())) duelSide = side;
+    }
+    const title = `${me?.displayName || me?.character || duelSide?.name || name}${realm ? `-${realm}` : duelSide?.realm ? `-${duelSide.realm}` : ""}`;
     const face = deps.picture && runs.length ? await cached(`p:${name.toLowerCase()}:${realm?.toLowerCase() ?? ""}`, () => deps.picture!(name, realm).catch(() => null)) : null;
     const seasons = await seasonsNow();
     const inPeriod = (p: PublicPeriod) => runs.filter((run) => (!p.from || run.endedAt >= p.from) && (!p.to || run.endedAt < p.to));
@@ -1192,9 +1206,9 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     // Duel rating of this character on the global ladder (the same key the ladder uses), when the ladder is open.
     let duelPanel = "";
     let duelRank = 0;
-    if (me && globalOpen()) {
-      const key = duelKey(me.character, me.realm ?? realm ?? "");
-      const all = await cached("duels:global", () => deps.store.globalDuelRows!());
+    if ((me || duelSide) && globalOpen()) {
+      const key = me ? duelKey(me.character, me.realm ?? realm ?? "") : duelSide!.key;
+      const all = duelsAll.length ? duelsAll : await cached("duels:global", () => deps.store.globalDuelRows!());
       const seasonId = seasonOf(now(), RATING_START).id;
       const trend = playerDuelTrend(all, seasonId, RATING_START, key);
       if (trend.length) {
@@ -1209,7 +1223,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       }
     }
     const pvpForMe = pvpOpen() ? await pvpDataSafe() : null;
-    // A player with PvP but no public dungeon run still has a page (the PvP boards link to it).
+    // A player with PvP or duels but no public dungeon run still has a page (the PvP boards and the duel ladder link to it).
     const pvpPanel = pvpForMe ? playerPvpPanel(await pvpEnv(ctx), pvpForMe, me?.character ?? name, me?.realm ?? realm ?? null) : "";
     // Badges drawn from what the page already shows: standing among this season's ranked characters, duel standing, dungeons cleared.
     const badgeList: { img: string; text: string }[] = [];
@@ -1226,8 +1240,8 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const badgeShelf = badgeList.length ? `<div class="pbadges" aria-label="${t("Badges", "Badges")}">${badgeList.map((b) => `<span><img src="${b.img}" alt="" width="28" height="28" loading="lazy">${escapeHtml(b.text)}</span>`).join("")}</div>` : "";
     const history = seasons.map((p) => ({ p, rows: mine(characterScores(inPeriod(p), periodRules(p))) })).filter((h) => h.rows.length);
     const top = Math.max(1, ...history.flatMap((h) => h.rows.map((r) => r.points)));
-    const body = PAGE_CSS + HUB_CSS + hubTabs(t, lang, "players") + `<p class="eyebrow">${t("Character", "Personnage")}</p><div class="hero">${face ? `<img src="${escapeHtml(pictureUrl(face.characterId, face.version, "thumb"))}" alt="" width="64" height="64" style="border-radius:50%;align-self:center">` : ""}<h1 class="c-${classSlug(me?.className ?? null)}">${escapeHtml(title)}</h1>`
-      + (me?.className ? `<span>${escapeHtml(classLabel(me.className, lang))}${me.level ? ` · ${t("level", "niveau")} ${me.level}` : ""}</span>` : "") + `</div>`
+    const body = PAGE_CSS + HUB_CSS + hubTabs(t, lang, "players") + `<p class="eyebrow">${t("Character", "Personnage")}</p><div class="hero">${face ? `<img src="${escapeHtml(pictureUrl(face.characterId, face.version, "thumb"))}" alt="" width="64" height="64" style="border-radius:50%;align-self:center">` : ""}<h1 class="c-${classSlug(me?.className ?? duelSide?.className ?? null)}">${escapeHtml(title)}</h1>`
+      + ((me?.className ?? duelSide?.className) ? `<span>${escapeHtml(classLabel((me?.className ?? duelSide?.className)!, lang))}${(me?.level ?? duelSide?.level) ? ` · ${t("level", "niveau")} ${me?.level ?? duelSide?.level}` : ""}</span>` : "") + `</div>`
       + (runs.length ? badgeShelf + `<h2>${t("Score", "Score")} · ${escapeHtml(periodName(ctx, seasons[0]!))}</h2>`
         + (current.length ? `<p>${current.map((row) => `<span class="badge">${escapeHtml(bracketName(ctx, row.bracket))}</span> <span class="score ${scoreTier(row.points)}">${row.points}</span>`).join(" &nbsp; ")}</p>` : `<p class="muted">${t("No rated run this season yet.", "Aucun essai classé cette saison.")}</p>`)
         + roles + guidance
@@ -1242,13 +1256,13 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
         + `<h2>${t("Score history", "Historique du score")}</h2>` + (history.length
           ? table([t("Season", "Saison"), t("Levels", "Niveaux"), t("Score", "Score"), ""], history.flatMap((h) => h.rows.map((row) => `<tr><td>${escapeHtml(periodName(ctx, h.p))}</td><td>${escapeHtml(bracketName(ctx, row.bracket))}</td><td class="num score">${row.points}</td><td class="bar-cell"><div class="meter" style="width:${Math.round(100 * row.points / top)}%"></div></td></tr>`)), [2])
           : `<p class="muted">${t("No rated season yet.", "Aucune saison classée.")}</p>`)
-        : `<p class="muted">${t("No public run for this character yet.", "Aucun essai public pour ce personnage.")}</p>` + pvpPanel);
+        : `<p class="muted">${t("No public run for this character yet.", "Aucun essai public pour ce personnage.")}</p>` + duelPanel + pvpPanel);
     // The link preview leads with this season's score per bracket, so a pasted link shows it.
     const scoreLine = current.map((row) => `${row.points} (${bracketName(ctx, row.bracket)})`).join(", ");
     const description = scoreLine
       ? t(`${title}: dungeon score ${scoreLine} · ${periodName(ctx, seasons[0]!)} · Guilded leaderboards.`, `${title} : score de donjon ${scoreLine} · ${periodName(ctx, seasons[0]!)} · classements Guilded.`)
       : t(`${title}: dungeon score and times on Guilded's public leaderboards.`, `${title} : score et temps de donjon sur les classements publics de Guilded.`);
-    return kit.page(runs.length || pvpPanel ? 200 : 404, title, body + (runs.length ? `<p><a href="${imagePath}">${t("Download score card", "Télécharger la carte de score")}</a></p>` : ""), { description, ...(runs.length ? { shareImage: imagePath } : { noindex: true }) });
+    return kit.page(runs.length || pvpPanel || duelPanel ? 200 : 404, title, body + (runs.length ? `<p><a href="${imagePath}">${t("Download score card", "Télécharger la carte de score")}</a></p>` : ""), { description, ...(runs.length ? { shareImage: imagePath } : { noindex: true }) });
   }
 
   async function runPage(ctx: WebContext, kit: WebKit, id: string, image: boolean): Promise<WebResponse> {
@@ -1738,7 +1752,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const csrf = `<input type="hidden" name="csrf" value="${escapeHtml(ctx.csrf ?? "")}"><input type="hidden" name="lang" value="${lang}">`;
     // Sign in with Discord (7.2) is the way to connect; the code stays for companions older than 7.2.
     return `<h2>${t("Public dungeon leaderboards", "Classements publics des donjons")}</h2>`
-      + `<p class="muted">${t("Connect the Guilded companion to your account (no guild needed) and it sends your finished dungeon runs to the", "Reliez le compagnon Guilded à votre compte (sans guilde) et il envoie vos donjons terminés aux")} <a href="${link("/leaderboards/", lang)}">${t("leaderboards", "classements")}</a>.</p>`
+      + `<p class="muted">${t("The companion is optional: without it, another player's companion can carry your dungeon runs and duels to the leaderboards. Connect your own companion to your account (no guild needed) and it sends your finished dungeon runs at once to the", "Le compagnon est facultatif : sans lui, le compagnon d'un autre joueur peut transporter vos donjons et vos duels aux classements. Reliez votre propre compagnon à votre compte (sans guilde) et il envoie vos donjons terminés tout de suite aux")} <a href="${link("/leaderboards/", lang)}">${t("leaderboards", "classements")}</a>.</p>`
       + (ctx.request.query.get("done") === "companion-off" ? `<p class="notice">${t("Companion disconnected.", "Compagnon déconnecté.")}</p>` : "")
       + (connected ? `<p>✔ ${t("A companion is connected.", "Un compagnon est connecté.")}</p><form method="post" action="/me/pair/revoke">${csrf}<button class="link" type="submit">${t("Disconnect it", "Le déconnecter")}</button></form>` : "")
       + `<ol><li>${t("Install Guilded Dungeons (or Guilded) and log in once, so its saved file exists.", "Installez Guilded Dungeons (ou Guilded) et connectez-vous une fois au jeu, pour que son fichier de sauvegarde existe.")}</li>`

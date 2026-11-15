@@ -95,7 +95,7 @@ describe('website refresh', () => {
     expect(statSync('dist/site/logo-88.webp').size).toBeLessThan(10_000);
     expect(statSync('dist/site/logo.png').size).toBeLessThan(150_000);
     const home = page('index.html');
-    expect(home).toContain('<meta property="og:image" content="https://guildedwow.com/images/social/guilded-card.png">');
+    expect(home).toContain('<meta property="og:image" content="https://guildedwow.com/images/social/og-home.jpg">');
     expect(home).toContain('<meta name="twitter:card" content="summary_large_image">');
     expect([...home.matchAll(/<img src="([^"]+)"/g)].map(match => match[1]).filter(src => src.endsWith('.png'))).toEqual([]);
     expect(page('docs/QUICK_START.html')).toContain('images/social/guilded-card.png');

@@ -6,7 +6,7 @@ import { hostedPilot } from "../hosted-pilot.js";
 import { hasPermission } from "../permissions.js";
 import { classLabel, dayLabel, factionLabel, languageLabel, parseClasses, parseDays, parseRoles, RecruitmentError, roleLabel, shortText, type ListingFields } from "../services/recruitment.js";
 
-// /mod recruit: the structured listing on guilded.kcaron.top/recruitment/ for the guild and
+// /mod recruit: the structured listing on guildedwow.com/recruitment/ for the guild and
 // for each raid core (7.0, roadmap request 5). Officers and Guild Masters only.
 
 export const recruitCommand = new SlashCommandBuilder()
@@ -69,7 +69,7 @@ export function describeListing(listing: ListingFields, lang: "en" | "fr" = "en"
   return parts.filter(Boolean).join(" · ") + (listing.note ? `\n> ${listing.note.replace(/\n/g, " ")}` : "");
 }
 
-const SITE = "https://guilded.kcaron.top/recruitment/";
+const SITE = "https://guildedwow.com/recruitment/";
 
 export async function executeRecruit(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.guildId || !interaction.guild || !hasPermission(interaction.member as GuildMember, "officer")) {

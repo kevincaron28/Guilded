@@ -25,6 +25,14 @@ describe("duel cards", () => {
     expect(cards[2]!.stats[2]!.value).toBe("W3");
   });
 
+  it("hides the streak stat when there is no streak", () => {
+    const [d] = withStandings([duel(1)], new Map());
+    const card = duelResultCard(d!, "en", classes, emptyNameBook);
+    expect(card.stats.map(s => s.label)).toEqual(["Points", "Levels"]);
+    const streaking = withStandings([duel(1), duel(2)], standingsAfterEach(history(2), new Set(["k1", "k2"])));
+    expect(duelResultCard(streaking[1]!, "en", classes, emptyNameBook).stats.map(s => s.label)).toEqual(["Points", "Levels", "Streak"]);
+  });
+
   it("scores by level, speaks French and marks a fled duel", () => {
     const [d] = withStandings([duel(1, { reason: "retreat" })], new Map());
     expect(d).toMatchObject({ points: 14 });

@@ -33,7 +33,7 @@ beforeEach(() => {
 describe("companion links", () => {
   it("opens the official hosted companion with the correct server prefilled and no code in the URL", () => {
     const url = companionWebUrl("123456789012345678");
-    expect(url).toBe("https://guilded.kcaron.top/companion/?guild=123456789012345678");
+    expect(url).toBe("https://guildedwow.com/companion/?guild=123456789012345678");
     expect(url).not.toContain("ABC123DEF456");
   });
 
@@ -64,7 +64,7 @@ describe("private character connection instructions", () => {
     expect(mocks.issueCode).not.toHaveBeenCalled();
     const buttons = reply.components[0]!.toJSON().components;
     // One direct button to the companion page; no extra "Connect optional companion" click first.
-    expect(buttons[0]).toMatchObject({ url: "https://guilded.kcaron.top/companion/?guild=server1" });
+    expect(buttons[0]).toMatchObject({ url: "https://guildedwow.com/companion/?guild=server1" });
     expect(buttons.some((button) => "custom_id" in button && String(button.custom_id).startsWith("onboard:companion"))).toBe(false);
     expect(mocks.db.character.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { memberId: "member1", member: { guildId: "guild1" } } }));
   });

@@ -61,7 +61,8 @@ export function duelResultCard(duel: DuelCardInput, lang: Lang, classes: ClassBo
     stats: [
       { label: t("Points", "Points"), value: `+${duel.points}`, accent: "gold", note: t(`${duel.winnerScore} in total`, `${duel.winnerScore} au total`) },
       { label: t("Levels", "Niveaux"), value: `${level(duel.winnerLevel)} vs ${level(duel.loserLevel)}` },
-      { label: t("Streak", "Série"), value: duel.winnerStreak > 1 ? streakText(duel.winnerStreak) : "—", accent: duel.winnerStreak > 1 ? "green" : undefined, note: t(`Best ${duel.winnerBest}`, `Record ${duel.winnerBest}`) }
+      // No streak yet: no stat at all (an empty "Série" label looked broken on a first duel).
+      ...(duel.winnerStreak > 1 ? [{ label: t("Streak", "Série"), value: streakText(duel.winnerStreak), accent: "green" as const, note: t(`Best ${duel.winnerBest}`, `Record ${duel.winnerBest}`) }] : [])
     ],
     rowsLabel: t("Duellists", "Duellistes"),
     rows: [

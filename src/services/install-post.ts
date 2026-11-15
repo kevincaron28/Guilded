@@ -5,11 +5,11 @@ import { pinnedMessages } from "./pins.js";
 // "Install Guilded in 1 minute": a short pinned post with tappable link buttons, kept in the bot
 // guide channel next to the longer getting-started guide. "Update bot messages" posts it once,
 // pins it and edits the same message afterwards (never a duplicate). The three steps are the ones
-// on https://guilded.kcaron.top/start/. All links are the published ones (site/releases.json).
-export const START_URL = "https://guilded.kcaron.top/start/";
+// on https://guildedwow.com/start/. All links are the published ones (site/releases.json).
+export const START_URL = "https://guildedwow.com/start/";
 const ADDON_URL = "https://www.curseforge.com/wow/addons/guilded";
 const STORE_URL = "https://apps.microsoft.com/detail/9N680XX3QFL9";
-const DIRECT_URL = "https://guilded.kcaron.top/companion/"; // Store or the auto-updating direct download
+const DIRECT_URL = "https://guildedwow.com/companion/"; // Store or the auto-updating direct download
 
 const TITLES = { en: "⚡ Install Guilded in 1 minute", fr: "⚡ Installer Guilded en 1 minute" } as const;
 const OWNED_TITLES = new Set<string>(Object.values(TITLES));

@@ -32,7 +32,7 @@ export function webApplicationEmbed(view: DecisionView, lang: "en" | "fr") {
       { name: "Discord", value: `<@${view.discordUserId}> (${view.username})`.slice(0, 200), inline: true },
       { name: fr ? "Message" : "Message", value: view.message.slice(0, 1024) }
     )
-    .setFooter({ text: fr ? "Envoyée depuis guilded.kcaron.top/recruitment. Le joueur est averti de votre réponse." : "Sent from guilded.kcaron.top/recruitment. The player is told your answer." });
+    .setFooter({ text: fr ? "Envoyée depuis guildedwow.com/recruitment. Le joueur est averti de votre réponse." : "Sent from guildedwow.com/recruitment. The player is told your answer." });
 }
 
 export async function postWebApplication(client: Client | undefined, view: DecisionView): Promise<{ channelId: string; messageId: string } | null> {
@@ -47,8 +47,8 @@ function answerText(view: DecisionView, status: "ACCEPTED" | "DECLINED"): string
     return `🎉 **${where}** accepted your application for ${cleanCharacterName(view.character)}. An officer will contact you.${view.inviteUrl ? ` Their Discord: ${view.inviteUrl}` : ""}\n`
       + `🎉 **${where}** a accepté votre candidature pour ${cleanCharacterName(view.character)}. Un officier vous contactera.${view.inviteUrl ? ` Leur Discord : ${view.inviteUrl}` : ""}`;
   }
-  return `**${where}** declined your application for ${cleanCharacterName(view.character)} this time. Other guilds are recruiting: https://guilded.kcaron.top/recruitment/\n`
-    + `**${where}** a refusé votre candidature pour ${cleanCharacterName(view.character)} cette fois-ci. D'autres guildes recrutent : https://guilded.kcaron.top/recruitment/?lang=fr`;
+  return `**${where}** declined your application for ${cleanCharacterName(view.character)} this time. Other guilds are recruiting: https://guildedwow.com/recruitment/\n`
+    + `**${where}** a refusé votre candidature pour ${cleanCharacterName(view.character)} cette fois-ci. D'autres guildes recrutent : https://guildedwow.com/recruitment/?lang=fr`;
 }
 
 export async function handleWebApplicationButton(interaction: ButtonInteraction, store: WebStore, now = new Date()): Promise<void> {

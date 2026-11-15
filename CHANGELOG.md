@@ -11,7 +11,7 @@ Addon and companion:
 - Scarlet Monastery wings are named on the cards and in game (#990).
 - A "last saved" line in the addon and a quiet one-time /reload reminder (#992).
 - Dungeon runs: guildmates' addons compare a short weekly digest before the login replay, so runs a guildmate already has are not sent again (older addons keep the old replay) (#993).
-- Packed run summaries (Z1): run batches over 255 bytes are compressed and sent as one message, and older addons keep the old way (#994, #997).
+- Packed run summaries (Z1): run batches over 255 bytes are compressed and sent as one message, and older addons keep the old way (#994/#998).
 
 Bot and website (already live or live with the bot deploy):
 

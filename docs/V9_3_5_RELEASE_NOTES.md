@@ -25,4 +25,4 @@ Guilded 9.3.5 : un nouveau logo peint, une carte de résultat de donjon en jeu a
 
 ## Technical
 
-- #985, #986, #987, #988, #989, #990, #991, #992, #993, #994, #997, #995 since 9.3.4 (see CHANGELOG.md). The bot parts are already on main; the bot is deployed after the GitHub release is published.
+- #985, #986, #987, #988, #989, #990, #991, #992, #993, #994/#998, #995 since 9.3.4 (see CHANGELOG.md). The bot parts are already on main; the bot is deployed after the GitHub release is published.

@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { readSavedText } from "./saved-file.mjs";
 import { watch } from "node:fs";
 import { basename, dirname, join } from "node:path";
-import { GROUP_RELAY_FEATURE, refreshMarkers } from "./group-relay.mjs";
+import { GROUP_RELAY_FEATURE, createFileLock, createHeartbeat } from "./group-relay.mjs";
 import { CARRY_FEATURE } from "./carry-content.mjs";
 import { carryReport, readCarryReceipts, writeCarryReceipts } from "./carry.mjs";
 import { readSavedExport, watchedSavedFiles, NO_GUILD_KEY_MESSAGE } from "./addon-files.mjs";
@@ -258,6 +258,9 @@ export function createEngine(initialConfig, hooks = {}) {
   let uploadTimer;
   let standingsTimer;
   let fileCheckTimer;
+  // (9.3.3) The generated files are written one job at a time (a heartbeat read-modify-write must never overwrite a fresher standings write).
+  const fileLock = createFileLock();
+  const heartbeat = createHeartbeat();
   let controller = new AbortController();
   let uploading = false;
   let refreshing = false;
@@ -584,7 +587,7 @@ export function createEngine(initialConfig, hooks = {}) {
       state.device = summary;
       // (9.1.3) The bot's receipts for the runs this upload carried go to the addon, which marks them synced at the next load.
       if ((summary?.status === "synced" || body.runReceipts) && (body.runReceipts || body.reported)) {
-        try { await writeDeviceReceipts(current, { ...(body.runReceipts ?? {}), reported: body.reported }, controller.signal); }
+        try { await fileLock(() => writeDeviceReceipts(current, { ...(body.runReceipts ?? {}), reported: body.reported }, controller.signal)); heartbeat.wrote(); }
         catch (error) { if (epoch !== generation) return; log("warn", `Could not save the run receipts for the addon: ${describeError(error)}`); }
       }
       // Guilded Dungeons alone with no guild saved yet: the bot cannot match a server, so say what to do instead of a vague wait.
@@ -808,7 +811,8 @@ export function createEngine(initialConfig, hooks = {}) {
   // One standings answer: written to the addon folder (unless unchanged), and what it says about
   // the bot (features, stored entries) remembered. `waitSeconds` long-polls.
   async function fetchStandings(epoch, options = {}) {
-    const result = await writeStandings({ ...config }, controller.signal, { etag: options.force ? null : etag, waitSeconds: options.waitSeconds });
+    const result = await writeStandings({ ...config }, controller.signal, { etag: options.force ? null : etag, waitSeconds: options.waitSeconds, lock: fileLock });
+    if (!result.notModified && !result.unchanged) heartbeat.wrote();
     if (epoch !== generation) return result;
     state.standingsError = null;
     if (result.notModified) {
@@ -983,13 +987,13 @@ export function createEngine(initialConfig, hooks = {}) {
     await refreshStandings();
     if (epoch !== generation || !state.running) return false;
     // (9.1.3) An unsigned PC says so in the addon's data: an old signed-in companion's "Linked to Discord as ..." ends.
-    if (isDeviceMode(config)) await writeDeviceReceipts({ ...config }, null, controller.signal).catch(() => undefined);
+    if (isDeviceMode(config)) await fileLock(() => writeDeviceReceipts({ ...config }, null, controller.signal)).catch(() => undefined);
     scheduleUpload(0);
     // Safety net for the folder watch: a save it missed is noticed within 30 seconds.
     fileCheckTimer = setInterval(() => track((async () => {
       retryWatch();
       // (9.3.3) The alive marker is rewritten at least hourly, even when the guild's data did not change (a quiet guild answers 304 for days).
-      if (state.running) await refreshMarkers(markerFiles()).catch(() => undefined);
+      if (state.running && heartbeat.due()) await fileLock(() => state.running ? heartbeat.run(markerFiles()) : []).catch(() => undefined);
       if (!state.running || uploading) return;
       const now = await savedStamp();
       if (now && now !== lastFile) scheduleUpload(0);

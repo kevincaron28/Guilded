@@ -24,7 +24,7 @@ local MAX_RECORDS, MAX_PER_AUTHOR, MAX_RECORD_BYTES, KEEP_DAYS = 200, 40, 2048, 
 local CHUNK, MAX_CHUNKS = 150, 14
 local SESSION_PER_CARRIER, PAUSE_SECONDS, SESSION_CARRIERS = 8, 600, 4
 local STALE_SECONDS, MAX_FAILURES, MAX_CARRIERS = 1200, 2, 40
-local ANNOUNCE_SECONDS, ANNOUNCE_MIN_GAP, FEATURES_FRESH = 600, 300, 7 * 86400
+local ANNOUNCE_SECONDS, ANNOUNCE_MIN_GAP = 600, 300
 -- (9.3.3) The marker's `at` moves only when the companion writes new standings, so its age alone cannot tell a stopped companion
 -- (that window moves to the shared Util helper with the companion's heartbeat). A check from what this PC can see instead: the
 -- companion reads the saved data only at a /reload or logout, and its receipts reach the addon only at the next load. So only a record
@@ -86,15 +86,11 @@ function carry.enabled()
 end
 
 -- This PC's companion carries records for players near it (it writes GuildedCompanionFeatures with every update; it goes stale when it stops).
--- The marker as before (unchanged window); the shared Util helper replaces this once it is on main.
-function carry.markerFresh()
-  local features = type(GuildedCompanionFeatures) == "table" and GuildedCompanionFeatures or nil
-  if not features or features["carry-records"] ~= true then return false end
-  local at = tonumber(features.at)
-  return at ~= nil and now() - at <= FEATURES_FRESH and at <= now() + 86400
-end
+-- Judged at the load by the shared helper (ns.util.companionFeatureFresh): about 3 h for a companion that rewrites the marker hourly.
+function carry.markerFresh() return ns.util.companionFeatureFresh("carry-records") end
 -- What this session saw when it loaded: the load time and the marker's `at` (the game replaces the global only at a load).
 function carry.noteLoad()
+  ns.util.noteCompanionLoad()
   carry.loadedAt = now()
   local features = type(GuildedCompanionFeatures) == "table" and GuildedCompanionFeatures or nil
   carry.markerAtLoad = features and tonumber(features.at) or nil

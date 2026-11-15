@@ -3,7 +3,7 @@ import { deviceUploadBody } from "../companion/device-sync.mjs";
 import { acknowledgements, pruneAcknowledged } from "../companion/delta.mjs";
 import { exportDungeonRuns } from "../companion/lua-export-content.mjs";
 import { minimalParkedExport } from "../companion/parked-runs.mjs";
-import { featuresLua, refreshMarkers, withFreshMarker, withoutFeatureStamp } from "../companion/group-relay.mjs";
+import { createFileLock, createHeartbeat, featuresLua, refreshMarkers, withFreshMarker, withoutFeatureStamp } from "../companion/group-relay.mjs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -102,3 +102,46 @@ ${featuresLua(null, now)}
   });
 });
 
+
+describe("the heartbeat schedule and the file lock (9.3.3)", () => {
+  it("reads the files only when a heartbeat is due, and looks again soon after a pass that wrote nothing", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "hb-"));
+    try {
+      const file = join(dir, "s.lua");
+      const now = 10_000_000_000;
+      await writeFile(file, `X = 1
+${featuresLua(null, now - 3 * 3_600_000)}
+`);
+      const beat = createHeartbeat();
+      expect(beat.due(now)).toBe(true);
+      expect(await beat.run([file], now)).toEqual([file]);
+      expect(beat.due(now + 60_000)).toBe(false);
+      // Not due: not even read (a missing file would be noticed only when due).
+      await rm(file);
+      expect(await beat.run([file], now + 60_000)).toEqual([]);
+      // A standings write counts as a marker write.
+      beat.wrote(now + 3_000_000);
+      expect(beat.due(now + 3_000_000 + 60_000)).toBe(false);
+      // A pass over files that are fresh already writes nothing and looks again in ten minutes.
+      const fresh = createHeartbeat();
+      await writeFile(file, `X = 1
+${featuresLua(null, now)}
+`);
+      expect(await fresh.run([file], now)).toEqual([]);
+      expect(fresh.due(now + 5 * 60_000)).toBe(false);
+      expect(fresh.due(now + 11 * 60_000)).toBe(true);
+    } finally { await rm(dir, { recursive: true, force: true }); }
+  });
+
+  it("runs file jobs one at a time, in order, even when one fails", async () => {
+    const lock = createFileLock();
+    const order: string[] = [];
+    const slow = lock(async () => { order.push("a-start"); await new Promise((r) => setTimeout(r, 20)); order.push("a-end"); });
+    const failing = lock(async () => { order.push("b"); throw new Error("x"); });
+    const last = lock(async () => { order.push("c"); return 7; });
+    await slow;
+    await expect(failing).rejects.toThrow("x");
+    expect(await last).toBe(7);
+    expect(order).toEqual(["a-start", "a-end", "b", "c"]);
+  });
+});

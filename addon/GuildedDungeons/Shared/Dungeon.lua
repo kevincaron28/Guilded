@@ -1016,6 +1016,7 @@ end
 local function onEvent(_, event, ...)
   local d = db()
   if event == "PLAYER_LOGIN" then
+    ns.util.noteCompanionLoad()
     if d and d.current and d.current.integrity and d.current.state == "ACTIVE" then
       -- Keep the original wall clock across reloads. The unobserved interval
       -- cannot earn presence, but a reload alone does not prove a reset.

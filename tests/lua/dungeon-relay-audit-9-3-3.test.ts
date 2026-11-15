@@ -61,6 +61,16 @@ describe.each<Kind>(["guilded", "standalone"])("the relay audit (%s)", (kind) =>
     expect(s.run("return tostring(NS.dungeon.canCarry())")).toBe("false");
   });
 
+  it("is judged at the load: a player who plays hours after a load with a live companion keeps relaying, one whose marker was already old does not", () => {
+    const s = client(kind, "Lebowski", "Walter");
+    s.run('GuildedCompanionFeatures = { ["group-relay"] = true, hb = 1, at = CLOCK - 1800 }; NS.util.noteCompanionLoad()');
+    expect(s.run("return tostring(NS.dungeon.companionRelays())")).toBe("true");
+    s.run("CLOCK = CLOCK + 4 * 3600");
+    expect(s.run("return tostring(NS.dungeon.companionRelays())")).toBe("true");
+    s.run('GuildedCompanionFeatures = { ["group-relay"] = true, hb = 1, at = CLOCK - 4 * 3600 }; NS.util.noteCompanionLoad()');
+    expect(s.run("return tostring(NS.dungeon.companionRelays())")).toBe("false");
+  });
+
   it("offers a run to groups on a widening schedule and stops after seven days", () => {
     const walter = client(kind, "Walter", "Lebowski");
     walter.run(makeRun("walter-rfc"));

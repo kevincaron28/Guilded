@@ -60,3 +60,33 @@ export async function refreshMarkers(paths, { now = Date.now(), maxAgeMs = HEART
   }
   return written;
 }
+
+/** Runs jobs one after another (the heartbeat, the standings write and the receipts write all touch the same generated files). */
+export function createFileLock() {
+  let tail = Promise.resolve();
+  return (job) => {
+    const run = tail.then(job, job);
+    tail = run.then(() => undefined, () => undefined);
+    return run;
+  };
+}
+
+export const HEARTBEAT_RECHECK_MS = 10 * 60 * 1000;
+/**
+ * Keeps the time of the last marker write in memory, so the files are read only when a heartbeat is due (not every check).
+ * Any write of the marker (a standings write, or the heartbeat itself) calls `wrote()`.
+ */
+export function createHeartbeat({ maxAgeMs = HEARTBEAT_MS, recheckMs = HEARTBEAT_RECHECK_MS } = {}) {
+  let dueAt = 0;
+  return {
+    due: (now = Date.now()) => now >= dueAt,
+    wrote(now = Date.now()) { dueAt = now + maxAgeMs; },
+    /** Reads the files only when due; a pass that wrote nothing looks again after `recheckMs`. */
+    async run(paths, now = Date.now()) {
+      if (now < dueAt) return [];
+      const written = await refreshMarkers(paths, { now, maxAgeMs });
+      dueAt = now + (written.length ? maxAgeMs : recheckMs);
+      return written;
+    }
+  };
+}

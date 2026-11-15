@@ -483,6 +483,18 @@ describe("a companion that stopped is not trusted as a carrier", () => {
     expect(records(carrier)).toBe("2");
   });
 
+  it("a companion whose heartbeat marker was already older than the window at the load carries nothing; a live one keeps carrying for hours", () => {
+    const dead = client("guilded", "Bee");
+    dead.run(`GuildedCompanionFeatures = { ["carry-records"] = true, hb = 1, at = CLOCK - 4 * 3600 }; NS.carry.noteLoad()`);
+    expect(here(dead)).toBe("false");
+    hear(dead, "Cee", part("1800000001-dddddd", 1, 1), "WHISPER");
+    expect(records(dead)).toBe("0");
+    const alive = client("guilded", "Dee");
+    alive.run(`GuildedCompanionFeatures = { ["carry-records"] = true, hb = 1, at = CLOCK - 600 }; NS.carry.noteLoad()`);
+    CLOCK_STEP(alive, 5 * 3600);
+    expect(here(alive)).toBe("true");
+  });
+
   it("a record held across a reload with a live companion and no receipt makes it stand down until a load clears it", () => {
     const carrier = client("guilded", "Bee", { companion: true });
     carrier.run("NS.carry.noteLoad()");

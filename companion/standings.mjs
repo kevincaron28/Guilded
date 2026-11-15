@@ -90,6 +90,8 @@ export async function writeStandings(config, signal, options = {}) {
   if (config.writeStandingsEnabled === false) return { notModified: false, etag, body, path, text: null, count: body.standings.length, unchanged: true, downloadedOnly: true, botVersion: body.botVersion };
   // 9.3.0: Guilded Dungeons alone (no Guilded folder): it has no standings, only the run receipts. They go to its own
   // Accepted.lua, so it stops resending runs the bot holds and shows why one earned nothing.
+  // (9.3.3) Reading and replacing the generated files is one job at a time with the companion's heartbeat (options.lock).
+  return (options.lock ?? ((job) => job()))(async () => {
   const guildedFolder = dirname(path);
   if (!config.standingsFile && !existsSync(guildedFolder)) {
     const accepted = join(dirname(guildedFolder), "GuildedDungeons", "Accepted.lua");
@@ -125,6 +127,7 @@ export async function writeStandings(config, signal, options = {}) {
     try { dataPath = await writeDataAddon(path, text, body.updatedAt, signal); } catch { signal?.throwIfAborted(); dataPath = null; }
   }
   return { notModified: false, etag, body, path, dataPath, text, count: body.standings.length, unchanged, refreshOnly, botVersion: body.botVersion };
+  });
 }
 
 // True when the addon's Standings.lua still holds `text` (an addon update replaces it with the

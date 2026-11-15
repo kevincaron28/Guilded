@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("../src/services/duel-global.js", async (original) => ({ ...(await original<typeof import("../src/services/duel-global.js")>()), recordGlobalDuels: mocks.recordGlobalDuels }));
 
-import { applyCarriedRecords, CARRY_RECEIPT_PREFIX, CARRY_RECORD_MAX_JSON } from "../src/services/carried-records.js";
+import { applyCarriedRecords, CARRY_RECEIPT_PREFIX, CARRY_RECORD_MAX_JSON, ownCarrierKeys } from "../src/services/carried-records.js";
 import { deviceFor, handleDeviceUpload, registerDevice, type DeviceRow, type DeviceStore } from "../src/services/companion-device.js";
 
 const NOW = new Date("2026-12-10T12:00:00Z");
@@ -99,6 +99,44 @@ describe("carried records", () => {
     const out = await run(db, [record("x5-aaaa")], "device:1", carrierOf("Aldric Stone"));
     expect(mocks.recordGlobalDuels).not.toHaveBeenCalled();
     expect(out.receipts).toHaveLength(1);
+  });
+
+  it("never answers a receipt without a row: the carrier's own character leaves an 'own' row", async () => {
+    const { db, stored } = fakeDb();
+    const out = await run(db, [record("x5-bbbb")], "device:1", carrierOf("Aldric Stone"));
+    expect(out.receipts).toHaveLength(1);
+    expect(stored).toHaveLength(1);
+    expect(stored[0]).toMatchObject({ authorKey: "aldric stone-kronos", status: "own" });
+  });
+
+  // 14 November 2026: an addon-only guildmate's record (carried by a signed-in officer whose snapshot lists the whole guild in `characters`) was answered and dropped.
+  it("applies a guildmate's carried record: the carrier's own characters are its database characters, never the roster", async () => {
+    const { db, stored } = fakeDb();
+    const members: any = { character: { findMany: async ({ where }: any) => (where.memberId === "m1" ? [{ name: "Lebowski Highspirits" }] : []) } };
+    const snapshot = { character: { name: "Lebowski Highspirits" }, alts: [], characters: [{ name: "Blunt Cruising" }, { name: "Lebowski Highspirits" }, { name: "Somebody Else" }] };
+    const carrierKeys = await ownCarrierKeys(members, { memberId: "m1", character: snapshot.character, alts: snapshot.alts });
+    expect([...carrierKeys].sort()).toEqual(["lebowski highspirits"]);
+    const exact = { kind: "externalDuel", key: "1794698440-472978", author: "Blunt Cruising", data: { side: "winner", winner: "Blunt Cruising", loser: "Lebowski Highspirits", winnerRealm: "CAMWOWUS2Realm8PvP", loserRealm: "CAMWOWUS2Realm8PvP", at: 1794698440, reason: "knockout" } };
+    const out = await applyCarriedRecords(db, { carrier: "member:u1", carrierKeys, records: [exact], now: new Date("2026-11-14T23:40:00Z") });
+    expect(out).toMatchObject({ applied: 1, receipts: [`${CARRY_RECEIPT_PREFIX}externalDuel:1794698440-472978`] });
+    expect(mocks.recordGlobalDuels).toHaveBeenCalledTimes(1);
+    expect(stored).toHaveLength(1);
+    expect(stored[0]).toMatchObject({ status: "applied", authorKey: "blunt cruising-camwowus2realm8pvp" });
+    // ...and the carrier's own character as author is still its own business, with a row.
+    const own = { ...exact, key: "1794698441-111111", author: "Lebowski Highspirits", data: { ...exact.data, side: "loser" } };
+    await applyCarriedRecords(db, { carrier: "member:u1", carrierKeys, records: [own], now: new Date("2026-11-14T23:41:00Z") });
+    expect(mocks.recordGlobalDuels).toHaveBeenCalledTimes(1);
+    expect(stored.at(-1)).toMatchObject({ status: "own" });
+  });
+
+  it("ownCarrierKeys adds the exported character and alts, survives odd entries and a failing read", async () => {
+    const broken: any = { character: { findMany: () => Promise.reject(new Error("db down")) } };
+    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const keys = await ownCarrierKeys(broken, { memberId: "m1", character: { name: " Kev " }, alts: [{ name: "Alt One" }, { name: 5 }, null, undefined] });
+    expect([...keys].sort()).toEqual(["alt one", "kev"]);
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+    expect((await ownCarrierKeys(broken, { memberId: null, character: undefined })).size).toBe(0);
   });
 
   it("counts every record looked at against the carrier's day, refused ones too, and a record over the size limit is refused", async () => {
@@ -218,7 +256,7 @@ describe("more limits and the public reader", () => {
 describe("who the carrier is", () => {
   it("is keyed on the Discord id, so one person in two servers is one carrier", () => {
     const source = readFileSync(new URL("../src/companion-api.ts", import.meta.url), "utf8");
-    expect(source).toContain("await applyCarriedRecords(prisma, { carrier: `member:${access.actorId}`");
+    expect(source).toContain("applyCarriedRecords(prisma, { carrier: `member:${access.actorId}`");
     expect(source).not.toMatch(/applyCarriedRecords\(prisma, \{ carrier: `member:\$\{access\.memberId/);
   });
 });

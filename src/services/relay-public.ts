@@ -50,10 +50,10 @@ export async function ingestRelayedRuns(store: PublicRunStore, input: { carrier:
     if (!run || !id) continue;
     const standing = voucherOf(run, input.carrierKeys);
     // Dealt with, not published: not a run this lane can place (no reporter in the run, or the carrier played it itself).
-    if (standing?.kind !== "relay") { receipts.push(`${GROUP_RECEIPT_PREFIX}${id}`); continue; }
+    if (standing?.kind !== "relay") { receipts.push(`${GROUP_RECEIPT_PREFIX}${id}`); console.info(`Relayed run ${id.slice(0, 40)} via ${input.carrier}: not placed (${standing ? "carrier played it itself" : "no reporter in the run"})`); continue; }
     const players = (Array.isArray(run["players"]) ? run["players"] : []).flatMap((player) => typeof (player as { character?: unknown } | null)?.character === "string" ? [(player as { character: string }).character] : []);
     const reporter = players.find((name) => firstNameKey(name) === standing.voucher) ?? null;
-    if (!reporter) { receipts.push(`${GROUP_RECEIPT_PREFIX}${id}`); continue; }
+    if (!reporter) { receipts.push(`${GROUP_RECEIPT_PREFIX}${id}`); console.info(`Relayed run ${id.slice(0, 40)} via ${input.carrier}: not placed (reporter not in the party)`); continue; }
     candidates.push({ id, run, reporter });
   }
   const carrierKey = `relay:${input.carrier}`;
@@ -61,7 +61,7 @@ export async function ingestRelayedRuns(store: PublicRunStore, input: { carrier:
   const room = Math.max(0, config.relayedRunsPerDay - await store.uploadsSince(carrierKey, dayStart));
   const allowed = candidates.slice(0, room);
   // Over the day's limit: dropped, but told as handled so they are not sent again at every sync.
-  for (const over of candidates.slice(room)) receipts.push(`${GROUP_RECEIPT_PREFIX}${over.id}`);
+  for (const over of candidates.slice(room)) { receipts.push(`${GROUP_RECEIPT_PREFIX}${over.id}`); console.info(`Relayed run ${over.id.slice(0, 40)} via ${input.carrier}: not placed (carrier's daily limit)`); }
   const accepted: unknown[] = [];
   for (const { id, run, reporter } of allowed) {
     const data = run as { instanceId?: unknown; startedAt?: unknown; endedAt?: unknown; players?: { character?: unknown; level?: unknown }[]; encounters?: { id?: unknown; at?: unknown; success?: unknown; kind?: unknown }[] };
@@ -71,7 +71,7 @@ export async function ingestRelayedRuns(store: PublicRunStore, input: { carrier:
       kills: (data.encounters ?? []).flatMap((boss) => boss.success === true && boss.kind !== "npc" && typeof boss.id === "number" ? [{ id: boss.id, at: typeof boss.at === "number" ? boss.at : null }] : [])
     }, { runRef: id, ...(config.limits ? { limits: config.limits } : {}), fastest: { seconds: null, count: 0 } }) : [];
     // A held run is not published; the carrier is told it was dealt with.
-    if (holdsRun(flags.map((flag) => flag.code), config, 0)) { receipts.push(`${GROUP_RECEIPT_PREFIX}${id}`); continue; }
+    if (holdsRun(flags.map((flag) => flag.code), config, 0)) { receipts.push(`${GROUP_RECEIPT_PREFIX}${id}`); console.info(`Relayed run ${id.slice(0, 40)} via ${input.carrier}: held (${flags.map((flag) => flag.code).join(",")})`); continue; }
     // Only the reporter's statement is kept: what the carrier's file says about who reported or recorded it is not used.
     const { recorder: _recorder, reporterNames: _reporters, reporters: _count, viaGroup: _via, ...rest } = run;
     void _recorder; void _reporters; void _count; void _via;
@@ -82,7 +82,7 @@ export async function ingestRelayedRuns(store: PublicRunStore, input: { carrier:
     const batch = accepted.slice(start, start + PUBLIC_LIMITS.runsPerUpload);
     // A hard stop by the public lane's own budget leaves the runs unreceipted: they are sent again later.
     const result = await ingestPublicRuns(store, { uploaderKey: carrierKey, character: null, source: "personal", relayed: true, runs: batch }).catch(() => null);
-    if (!result) continue;
+    if (!result) { console.error(`Relayed runs via ${input.carrier}: public lane refused a batch of ${batch.length}; they are sent again later`); continue; }
     published += result.accepted.length + result.confirmed.length;
     const placed = new Set([...result.accepted, ...result.confirmed]);
     if (placed.size) input.onPlaced?.(batch.filter((entry) => placed.has((entry as { id: string }).id)));
@@ -96,12 +96,13 @@ export async function ingestRelayedRuns(store: PublicRunStore, input: { carrier:
  * on the public boards and records the "group:" receipts. Never throws: the upload's own work goes on whatever happens here.
  */
 export async function carrySignedGroupRuns(snapshot: { dungeonRuns: unknown[]; character?: { name: string } | null | undefined; alts: { name: string }[]; characters: { name: string }[] },
-  options: { carrier: string; store: PublicRunStore; saveReceipts: (refs: string[]) => Promise<void>; onPlaced?: (runs: unknown[]) => void }): Promise<RelayResult | null> {
+  /** `ownKeys`: the uploader's own characters (lower case), see ownCarrierKeys. Without it only the exported character and alts count: never snapshot.characters, which is every guildmate heard (peer digests). */
+  options: { carrier: string; ownKeys?: ReadonlySet<string>; store: PublicRunStore; saveReceipts: (refs: string[]) => Promise<void>; onPlaced?: (runs: unknown[]) => void }): Promise<RelayResult | null> {
   const { group, rest } = splitGroupCarried(snapshot.dungeonRuns ?? []);
   if (!group.length) return null;
   snapshot.dungeonRuns = rest;
-  const carrierKeys = new Set([snapshot.character, ...snapshot.alts, ...snapshot.characters].flatMap((entry) => entry ? [entry.name] : []).map((name) => name.trim().toLowerCase()));
-  const carried = await ingestRelayedRuns(options.store, { carrier: options.carrier, carrierKeys, runs: group.slice(0, RUN_TRUST.relayedPerUpload), ...(options.onPlaced ? { onPlaced: options.onPlaced } : {}) }).catch(() => null);
+  const carrierKeys = new Set([...(options.ownKeys ?? []), ...[snapshot.character, ...snapshot.alts].flatMap((entry) => entry ? [entry.name] : []).map((name) => name.trim().toLowerCase())]);
+  const carried = await ingestRelayedRuns(options.store, { carrier: options.carrier, carrierKeys, runs: group.slice(0, RUN_TRUST.relayedPerUpload), ...(options.onPlaced ? { onPlaced: options.onPlaced } : {}) }).catch((error: unknown) => { console.error(`Relayed runs via ${options.carrier} failed: ${error instanceof Error ? error.message : String(error)}`); return null; });
   if (carried?.receipts.length) await options.saveReceipts(carried.receipts).catch(() => undefined);
   return carried;
 }

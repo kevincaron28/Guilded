@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { agrees, evidenceUpgrade, ingestPublicRuns, type PublicRunStore, type RunSummary, type StoredRun } from "../src/services/public-runs.js";
 import { carrySignedGroupRuns, GROUP_RECEIPT_PREFIX, ingestRelayedRuns } from "../src/services/relay-public.js";
 
@@ -124,6 +124,31 @@ describe("the relay lane", () => {
     const second = { dungeonRuns: [run("QG-S3")] as unknown[], character: { name: "Zed" }, alts: [], characters: [] };
     expect(await carrySignedGroupRuns(second, { carrier: "member:m1", store: failing, saveReceipts: async () => { throw new Error("down"); } })).toBeNull();
     expect(second.dungeonRuns).toEqual([]);
+  });
+
+  // 14 November 2026: snapshot.characters is every guildmate heard (peer digests). Treating them as the carrier's own made a run an addon-only
+  // guildmate's addon relayed look like the carrier's own run: it was receipted as "dealt with" and never reached the public boards.
+  it("a run relayed for an addon-only guildmate is placed, even though the carrier's snapshot lists that guildmate in the roster", async () => {
+    const roster = [{ name: "Amy" }, { name: "Bob" }, { name: "Kev" }];
+    // What the old rule did: the roster counted as the carrier's own characters.
+    const before = memoryStore();
+    const old = await ingestRelayedRuns(before.store, { carrier: "member:m1", carrierKeys: new Set(["zed", ...roster.map((entry) => entry.name.toLowerCase())]), runs: [run("QG-R1")], now: NOW });
+    expect(old.published).toBe(0);
+    expect(before.runs.size).toBe(0);
+    // The rule now: only the exported character, the alts and the uploader's own database characters.
+    const { store, runs } = memoryStore();
+    const saved: string[][] = [];
+    const snapshot = { dungeonRuns: [run("QG-R1")] as unknown[], character: { name: "Zed" }, alts: [], characters: roster };
+    const lines = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const answer = await carrySignedGroupRuns(snapshot, { carrier: "member:m1", ownKeys: new Set(["zed"]), store, saveReceipts: async (refs) => { saved.push(refs); } });
+    expect(answer?.published).toBe(1);
+    expect(runs.size).toBe(1);
+    expect(saved).toEqual([[`${GROUP_RECEIPT_PREFIX}QG-R1`]]);
+    // A run the carrier played itself is still its own, and says so in the log.
+    const own = await carrySignedGroupRuns({ dungeonRuns: [run("QG-R2")] as unknown[], character: { name: "Kev" }, alts: [], characters: roster }, { carrier: "member:m1", ownKeys: new Set(["kev"]), store, saveReceipts: async () => undefined });
+    expect(own?.published).toBe(0);
+    expect(lines.mock.calls.flat().join(" ")).toMatch(/QG-R2 via member:m1: not placed \(carrier played it itself\)/);
+    lines.mockRestore();
   });
 
   it("the guild import paths drop a viaGroup run (backstop), with no receipt that would block the guild lane", async () => {

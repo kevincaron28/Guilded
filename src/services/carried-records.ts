@@ -44,6 +44,23 @@ export interface CarryResult {
 const DUEL_KEEP = ["winner", "loser", "winnerRealm", "loserRealm", "winnerClass", "loserClass", "winnerLevel", "loserLevel", "at", "durationSec", "reason", "side"] as const;
 
 /**
+ * The carrier's OWN characters, lower case: the uploader's linked characters in the database, plus the exported character and the alts that logged in
+ * on its PC. Never the snapshot's `characters` list: that is every guildmate whose addon was heard (peer digests), and treating them as the carrier's
+ * own dropped every guildmate's carried record (14 November 2026).
+ */
+export async function ownCarrierKeys(database: PrismaClient, input: { memberId: string | null | undefined; character?: { name?: unknown } | null | undefined; alts?: readonly ({ name?: unknown } | null | undefined)[] | undefined }): Promise<Set<string>> {
+  const names: unknown[] = [input.character?.name, ...(input.alts ?? []).map((alt) => alt?.name)];
+  if (input.memberId) {
+    const rows = await database.character.findMany({ where: { memberId: input.memberId }, select: { name: true } }).catch((error: unknown) => {
+      console.error(`Carried records: own characters not read: ${error instanceof Error ? error.message : String(error)}`);
+      return [] as { name: string }[];
+    });
+    names.push(...rows.map((row) => row.name));
+  }
+  return new Set(names.flatMap((name) => (typeof name === "string" && name.trim() ? [lower(name)] : [])));
+}
+
+/**
  * Applies the records a carrier brought. Never throws. `carrierKeys` are the carrier's own characters (lower case): a record about the
  * carrier's own character is its own upload's business, not a carried one. Every record looked at counts against the carrier's day, the
  * refused ones too.
@@ -57,31 +74,37 @@ export async function applyCarriedRecords(database: PrismaClient, input: { carri
   const dayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   let room = Math.max(0, config.carriedRecordsPerDay - await database.carriedRecord.count({ where: { carrier: input.carrier, createdAt: { gte: dayStart } } }).catch(() => config.carriedRecordsPerDay));
   /** Notes a refused record against the carrier's day (the same junk sent again is one row, not many). */
-  const refuse = async (kind: string, key: string, authorKey: string, author: string) => {
-    await database.carriedRecord.create({ data: { kind: kind.slice(0, 24), key: key.slice(0, 120), author: author.slice(0, 80), authorKey: authorKey.slice(0, 160), carrier: input.carrier, status: "rejected" } }).catch(() => undefined);
+  const refuse = async (kind: string, key: string, authorKey: string, author: string, reason: string, status = "rejected") => {
+    await database.carriedRecord.create({ data: { kind: kind.slice(0, 24), key: key.slice(0, 120), author: author.slice(0, 80), authorKey: authorKey.slice(0, 160), carrier: input.carrier, status } }).catch((error: unknown) => {
+      // The same refusal again is one row (unique key); anything else is logged, so no outcome is silent.
+      if ((error as { code?: string } | null)?.code !== "P2002") console.error(`Carried record ${kind}:${key.slice(0, 40)} refused (${reason}), row not saved: ${error instanceof Error ? error.message : String(error)}`);
+    });
+    console.info(`Carried record ${kind}:${key.slice(0, 40)} from ${author.slice(0, 40)} via ${input.carrier}: ${status} (${reason})`);
   };
   let unknown = 0;
   for (const raw of input.records) {
     try {
       if (room <= 0) break;
       const text = JSON.stringify(raw) ?? "";
-      if (text.length > CARRY_RECORD_MAX_JSON) { room--; await refuse("invalid", createHash("sha256").update(text).digest("hex").slice(0, 32), "?", ""); continue; }
+      if (text.length > CARRY_RECORD_MAX_JSON) { room--; await refuse("invalid", createHash("sha256").update(text).digest("hex").slice(0, 32), "?", "", "too-large"); continue; }
       const parsed = recordSchema.safeParse(raw);
-      if (!parsed.success) { room--; await refuse("invalid", createHash("sha256").update(text).digest("hex").slice(0, 32), "?", ""); continue; }
+      if (!parsed.success) { room--; await refuse("invalid", createHash("sha256").update(text).digest("hex").slice(0, 32), "?", "", "bad-shape"); continue; }
       const { kind, key, author, data } = parsed.data;
       // A kind this bot does not know stays with the addon (no receipt); a flood of them is counted as work past the first few.
       if (!(CARRY_KINDS as readonly string[]).includes(kind)) { if (++unknown > MAX_UNKNOWN_KINDS) room--; continue; }
       const receipt = `${CARRY_RECEIPT_PREFIX}${kind}:${key}`;
       // An outside duel is the reporting side's own statement: the author must be that side, and the identity includes its realm.
       const row = externalDuelSchema.safeParse(data);
-      if (!row.success) { room--; await refuse(kind, key, characterKey(nameOf(author), ""), author); receipts.push(receipt); continue; }
+      if (!row.success) { room--; await refuse(kind, key, characterKey(nameOf(author), ""), author, "bad-duel-data"); receipts.push(receipt); continue; }
       const side = row.data.side === "winner" ? splitName(row.data.winner, row.data.winnerRealm) : splitName(row.data.loser, row.data.loserRealm);
-      if (nameOf(side.name) !== nameOf(author)) { room--; await refuse(kind, key, characterKey(nameOf(author), ""), author); receipts.push(receipt); continue; }
+      if (nameOf(side.name) !== nameOf(author)) { room--; await refuse(kind, key, characterKey(nameOf(author), ""), author, "author-not-a-side"); receipts.push(receipt); continue; }
       // A side without a realm cannot be told from another player of the same name.
-      if (!side.realm.trim()) { room--; await refuse(kind, key, characterKey(nameOf(author), ""), author); receipts.push(receipt); continue; }
+      if (!side.realm.trim()) { room--; await refuse(kind, key, characterKey(nameOf(author), ""), author, "no-realm"); receipts.push(receipt); continue; }
       const authorKey = characterKey(side.name, side.realm);
       // The carrier's own character, or a record already dealt with (by this author's key only): answered, not applied again.
-      if (input.carrierKeys.has(lower(side.name)) || await database.carriedRecord.findUnique({ where: { kind_authorKey_key: { kind, authorKey, key } }, select: { id: true } })) { receipts.push(receipt); continue; }
+      if (await database.carriedRecord.findUnique({ where: { kind_authorKey_key: { kind, authorKey, key } }, select: { id: true } })) { receipts.push(receipt); continue; }
+      // The carrier's own character: its own upload reports that duel. A row is saved ("own") before the receipt, so the origin never marks done a record nothing stored.
+      if (input.carrierKeys.has(lower(side.name))) { room--; await refuse(kind, key, authorKey, author, "carrier's own character", "own"); receipts.push(receipt); continue; }
       room--;
       const clean: Record<string, unknown> = {};
       for (const field of DUEL_KEEP) if (row.data[field] !== undefined) clean[field] = row.data[field];

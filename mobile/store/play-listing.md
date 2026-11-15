@@ -40,8 +40,8 @@ already there, not in the title.
 | Translation | French (Canada) – fr-CA (text below) |
 | App or game | App |
 | Free or paid | Free |
-| Category | **Social** (alternative: Entertainment) |
-| Tags (pick up to 5 in Console) | Social, Community, Games companion |
+| Category | **Entertainment**. Not Social: on 15 November 2026 choosing Social made Play ask for a "Child safety standards" declaration ("Apps within the dating and social categories must meet these requirements"). The app has no chat, no posting between users and no feed of user content, so that declaration does not describe it; with Entertainment Play does not ask for it. |
+| Tags (pick up to 5 in Console) | none chosen yet; pick only from the tags Console offers for Entertainment that fit a guild companion |
 | Contains ads | No |
 | In-app purchases | None |
 | Contact email | `support@guildedwow.com` (Cloudflare Email Routing to the owner; Play shows it publicly) |

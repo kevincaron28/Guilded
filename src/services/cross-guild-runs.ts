@@ -6,6 +6,7 @@ import { dungeonRunSchema, validateRun, type DungeonRunInput } from "./dungeon-r
 import { firstNameKey, type DungeonImportSummary } from "./dungeon-import.js";
 import { storeDeviceRuns } from "./companion-device.js";
 import { integrityConfig } from "./run-integrity-config.js";
+import { RECENT_MEMBER_MS } from "./guild-participants.js";
 import { voucherOf } from "./run-trust.js";
 
 // Runs made by a party with members of several guilds (9.3.2, docs/plans/CROSS_GUILD_RUN_SHARING_2026-11-14.md). A run that one lane
@@ -35,7 +36,7 @@ const keyOf = (name: string, realm: string | undefined, edition: string) => char
  * where the game uses one), and that player is in the guild's in-game roster as the guild last knows it. What the run says about
  * guilds is never used to choose one. Guilds that switched sharing off or have no Discord server are left out.
  */
-export async function guildsWithMembersIn(database: Pick<PrismaClient, "character" | "guildSettings" | "guildRosterEntry" | "guild">, run: DungeonRunInput, exceptGuildId: string | null): Promise<Map<string, Candidate>> {
+export async function guildsWithMembersIn(database: Pick<PrismaClient, "character" | "guildSettings" | "guildRosterEntry" | "guild">, run: DungeonRunInput, exceptGuildId: string | null, now = new Date()): Promise<Map<string, Candidate>> {
   const edition = gameEditionOf(run);
   const players = run.players.map((player) => ({ name: characterReference(player.character, player.realm, edition).character.trim(), key: keyOf(player.character, player.realm, edition) })).filter((player) => player.name);
   const keys = [...new Set(players.map((player) => player.key))];
@@ -47,11 +48,14 @@ export async function guildsWithMembersIn(database: Pick<PrismaClient, "characte
   });
   const mine = rows.filter((row) => keys.includes(keyOf(row.name, row.realm, edition)));
   // A player who is in a guild's in-game roster but linked to nobody (an addon-only guildmate) is a participant too: the run is that guild's.
-  const rosterOnly = await database.guildRosterEntry.findMany({ where: { gameEdition: edition, inGuild: true, nameKey: { in: keys }, ...(exceptGuildId ? { guildId: { not: exceptGuildId } } : {}) }, select: { guildId: true } });
+  // A roster row not read for 14 days says nothing about who is in the guild now (the same limit as guild-participants.ts). On Forever the
+  // identity is the full name, so the same full name in two guilds' rosters is offered to both: each copy marks only its own roster's players.
+  const freshRoster = { gte: new Date(now.getTime() - RECENT_MEMBER_MS) };
+  const rosterOnly = await database.guildRosterEntry.findMany({ where: { gameEdition: edition, inGuild: true, observedAt: freshRoster, nameKey: { in: keys }, ...(exceptGuildId ? { guildId: { not: exceptGuildId } } : {}) }, select: { guildId: true } });
   const guildIds = [...new Set([...mine.map((row) => row.guildId), ...rosterOnly.map((row) => row.guildId)])].sort();
   if (!guildIds.length) return found;
   const [roster, off, guilds] = await Promise.all([
-    database.guildRosterEntry.findMany({ where: { guildId: { in: guildIds }, gameEdition: edition, inGuild: true, nameKey: { in: keys } }, select: { guildId: true, nameKey: true } }),
+    database.guildRosterEntry.findMany({ where: { guildId: { in: guildIds }, gameEdition: edition, inGuild: true, observedAt: freshRoster, nameKey: { in: keys } }, select: { guildId: true, nameKey: true } }),
     database.guildSettings.findMany({ where: { guildId: { in: guildIds }, crossGuildRuns: false }, select: { guildId: true } }),
     database.guild.findMany({ where: { id: { in: guildIds } }, select: { id: true, name: true, gameEdition: true, discordId: true } })
   ]);
@@ -101,7 +105,7 @@ export async function shareRuns(database: PrismaClient, origin: ShareOrigin, raw
         const voucher = run.players.find((player) => firstNameKey(player.character) === standing.voucher)?.character;
         if (!voucher) continue;
         let taken = 0;
-        for (const [guildId, candidate] of await guildsWithMembersIn(database, run, origin.guildId)) {
+        for (const [guildId, candidate] of await guildsWithMembersIn(database, run, origin.guildId, origin.receivedAt)) {
           if (taken >= config.crossGuildMaxGuilds) break;
           if (options.eligible && !options.eligible(candidate.guild.discordId)) continue;
           if (device?.excludedGuilds?.includes(guildId)) continue;

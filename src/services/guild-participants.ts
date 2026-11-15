@@ -23,8 +23,22 @@ export interface GuildMembership {
 
 type Table = { findMany?: (args: unknown) => Promise<unknown[]> };
 
+/** The lookup reads up to 5,000 roster rows and 20,000 characters and runs on every upload, so a guild's answer is kept for a minute. */
+export const MEMBERSHIP_CACHE_MS = 60_000;
+const cache = new Map<string, { at: number; value: GuildMembership }>();
+/** Forgets one guild's cached answer (the roster or the character links changed), or all of them. */
+export function clearGuildMembershipCache(guildId?: string): void { if (guildId) cache.delete(guildId); else cache.clear(); }
+
 /** Reads who counts as a participant of the guild. Never throws: any doubt leaves the gate off. */
 export async function guildMembership(database: unknown, guildId: string, now: Date, own: Iterable<string> = []): Promise<GuildMembership> {
+  const kept = cache.get(guildId);
+  const base = kept && Math.abs(now.getTime() - kept.at) < MEMBERSHIP_CACHE_MS ? kept.value : await readMembership(database, guildId, now);
+  if (!kept || base !== kept.value) cache.set(guildId, { at: now.getTime(), value: base });
+  // The uploader's own characters differ per upload, so they are added on top of the cached answer.
+  return base.gate ? { ...base, names: [...new Set([...base.names, ...[...own].filter(Boolean).map((name) => name.toLowerCase())])] } : base;
+}
+
+async function readMembership(database: unknown, guildId: string, now: Date): Promise<GuildMembership> {
   try {
     const db = database as { guildRosterEntry?: Table; character?: Table };
     if (typeof db.guildRosterEntry?.findMany !== "function") return { gate: false, names: [], skipped: "no roster table" };
@@ -43,7 +57,6 @@ export async function guildMembership(database: unknown, guildId: string, now: D
       const linked = await db.character.findMany({ where: { member: { guildId, status: { not: "LEFT" } } }, select: { name: true }, take: 20_000 }) as { name: string }[];
       for (const row of linked) names.add(row.name.toLowerCase());
     }
-    for (const name of own) if (name) names.add(name.toLowerCase());
     return { gate: true, names: [...names] };
   } catch (error) {
     console.error(`guild-participants: membership not read, gate off: ${error instanceof Error ? error.message : String(error)}`);

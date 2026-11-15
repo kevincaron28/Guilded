@@ -25,7 +25,7 @@ const run = (id: string, overrides: Record<string, unknown> = {}) => ({
 const origin = (over: Partial<ShareOrigin> = {}): ShareOrigin => ({ guildId: "g-origin", deviceId: null, characterKeys: ["kev alpha"], receivedAt, ...over });
 
 interface Row { guildId: string; name: string; realm: string }
-interface World { characters: Row[]; roster: { guildId: string; nameKey: string }[]; off: string[]; discord: Record<string, string | null>; held: string[]; excludedDevices: Record<string, string[]>; received: number }
+interface World { characters: Row[]; roster: { guildId: string; nameKey: string; observedAt?: Date }[]; off: string[]; discord: Record<string, string | null>; held: string[]; excludedDevices: Record<string, string[]>; received: number }
 const world = (over: Partial<World> = {}): World => ({
   characters: [
     { guildId: "g-origin", name: "Kev Alpha", realm: "Forever" },
@@ -42,7 +42,7 @@ function fakeDatabase(w: World) {
   return {
     character: { findMany: vi.fn(async ({ where }: { where: { guildId?: { not: string }; OR: { name: { equals: string } }[] } }) =>
       w.characters.filter((row) => (!where.guildId || row.guildId !== where.guildId.not) && where.OR.some((clause) => row.name.toLowerCase() === clause.name.equals.toLowerCase()))) },
-    guildRosterEntry: { findMany: vi.fn(async ({ where }: { where: { guildId?: { in?: string[]; not?: string }; nameKey: { in: string[] } } }) => w.roster.filter((row) => (!where.guildId?.in || where.guildId.in.includes(row.guildId)) && (!where.guildId?.not || row.guildId !== where.guildId.not) && where.nameKey.in.includes(row.nameKey))) },
+    guildRosterEntry: { findMany: vi.fn(async ({ where }: { where: { guildId?: { in?: string[]; not?: string }; nameKey: { in: string[] }; observedAt?: { gte: Date } } }) => w.roster.filter((row) => (!where.guildId?.in || where.guildId.in.includes(row.guildId)) && (!where.guildId?.not || row.guildId !== where.guildId.not) && (!where.observedAt || !row.observedAt || row.observedAt >= where.observedAt.gte) && where.nameKey.in.includes(row.nameKey))) },
     guildSettings: { findMany: vi.fn(async ({ where }: { where: { guildId: { in: string[] } } }) => where.guildId.in.filter((id) => w.off.includes(id)).map((guildId) => ({ guildId }))) },
     guild: { findMany: vi.fn(async ({ where }: { where: { id: { in: string[] } } }) => where.id.in.map((id) => ({ id, name: `Guild ${id}`, gameEdition: "forever", discordId: w.discord[id] ?? "" }))) },
     companionDevice: {
@@ -82,6 +82,20 @@ describe("guild-only Discord: who counts as a participant", () => {
     expect([...found.keys()]).toEqual(["g-beta"]);
     const nobody = await guildsWithMembersIn(fakeDatabase(world({ characters: [], roster: [], discord: {} })) as never, dungeonRunSchema.parse(run("QG-N")), null);
     expect(nobody.size).toBe(0);
+  });
+
+  it("the same full name in two guilds' rosters is offered to both (the identity on Forever is the full name); a roster row not read for 14 days is no participant", async () => {
+    const collide = world({ characters: [], roster: [{ guildId: "g-beta", nameKey: "amy jones" }, { guildId: "g-gamma", nameKey: "amy jones" }], off: [], discord: { "g-beta": "d-beta", "g-gamma": "d-gamma" } });
+    expect([...(await guildsWithMembersIn(fakeDatabase(collide) as never, dungeonRunSchema.parse(run("QG-C")), null, receivedAt)).keys()].sort()).toEqual(["g-beta", "g-gamma"]);
+    const old = new Date(receivedAt.getTime() - 20 * 86_400_000);
+    const stale = world({ characters: [], roster: [{ guildId: "g-beta", nameKey: "amy jones", observedAt: old }, { guildId: "g-gamma", nameKey: "amy jones", observedAt: new Date(receivedAt.getTime() - 86_400_000) }], off: [], discord: { "g-beta": "d-beta", "g-gamma": "d-gamma" } });
+    expect([...(await guildsWithMembersIn(fakeDatabase(stale) as never, dungeonRunSchema.parse(run("QG-C2")), null, receivedAt)).keys()]).toEqual(["g-gamma"]);
+  });
+
+  it("the same full name under another realm label is the same character for a participant match", async () => {
+    const w = world({ characters: [], roster: [{ guildId: "g-beta", nameKey: "amy jones" }], off: [], discord: { "g-beta": "d-beta" } });
+    const other = dungeonRunSchema.parse(run("QG-RL", { players: names.map((character) => ({ character, realm: "CAMWOWUS2Realm8PvP", deaths: 0, presentSec: 1500, inGuild: true, level: 20, minLevel: 20 })) }));
+    expect([...(await guildsWithMembersIn(fakeDatabase(w) as never, other, null, receivedAt)).keys()]).toEqual(["g-beta"]);
   });
 
   it("a party of two guilds reaches both guilds, and each copy marks only its own roster members", async () => {

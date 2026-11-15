@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { clearGuildMembershipCache } from "../src/services/guild-participants.js";
 import { importDungeonRuns } from "../src/services/dungeon-import.js";
 import * as ratingService from "../src/services/dungeon-rating.js";
 import { bestEightBetaRules } from "../src/services/dungeon-beta-preset.js";
@@ -489,6 +490,7 @@ describe("sharing a run with other guilds (9.3.2)", () => {
 // 14 November 2026 (guild-only Discord): the guild's own import paths store a run only with a player of that guild in it, and read membership
 // generously (a roster that is empty or old, a rename and a recent leaver never make a guildmate's run a stranger's).
 describe("guild players only", () => {
+  beforeEach(() => clearGuildMembershipCache());
   const strangers = ["Aaa Stranger", "Bbb Stranger", "Ccc Stranger", "Ddd Stranger", "Eee Stranger"].map((character) => ({ character, realm: "Forever", deaths: 0, presentSec: 1500, inGuild: false, level: 20, minLevel: 20 }));
   const options = { guildPlayersOnly: true };
   const hour = 3_600_000;
@@ -520,6 +522,7 @@ describe("guild players only", () => {
     const { tx, runs } = fakeTx();
     rosterOf(tx, [{ nameKey: "aaa stranger" }, { nameKey: "kev" }]);
     await importDungeonRuns(tx, "g1", [run("QG-UNL", { players: strangers })], [], "officer", null, now, options);
+    clearGuildMembershipCache();
     const own = fakeTx();
     rosterOf(own.tx, guildmates);
     await importDungeonRuns(own.tx, "g1", [run("QG-OWN", { players: strangers })], [{ name: "Aaa Stranger", realm: "Forever", memberId: "m-aaa" }], "officer", null, now, options);
@@ -532,10 +535,12 @@ describe("guild players only", () => {
     rosterOf(empty.tx, []);
     await importDungeonRuns(empty.tx, "g1", [run("QG-E", { players: strangers })], [], "officer", null, now, options);
     expect(empty.runs).toHaveLength(1);
+    clearGuildMembershipCache();
     const stale = fakeTx();
     rosterOf(stale.tx, guildmates.map((row) => ({ ...row, observedAt: new Date(now.getTime() - 8 * 24 * hour) })));
     await importDungeonRuns(stale.tx, "g1", [run("QG-S", { players: strangers })], [], "officer", null, now, options);
     expect(stale.runs).toHaveLength(1);
+    clearGuildMembershipCache();
     const unknown = fakeTx();
     await importDungeonRuns(unknown.tx, "g1", [run("QG-U", { players: strangers })], [], "officer", null, now, options);
     expect(unknown.runs).toHaveLength(1);
@@ -546,10 +551,12 @@ describe("guild players only", () => {
     rosterOf(left.tx, [...guildmates, { nameKey: "aaa stranger", inGuild: false, updatedAt: new Date(now.getTime() - 24 * hour), observedAt: new Date(now.getTime() - 24 * hour) }]);
     await importDungeonRuns(left.tx, "g1", [run("QG-L", { players: strangers })], [], "officer", null, now, options);
     expect(left.runs).toHaveLength(1);
+    clearGuildMembershipCache();
     const renamed = fakeTx();
     rosterOf(renamed.tx, [...guildmates, { nameKey: "aaa stranger" }]);
     await importDungeonRuns(renamed.tx, "g1", [run("QG-R", { players: strangers })], [], "officer", null, now, options);
     expect(renamed.runs).toHaveLength(1);
+    clearGuildMembershipCache();
     const gone = fakeTx();
     rosterOf(gone.tx, [...guildmates, { nameKey: "aaa stranger", inGuild: false, updatedAt: new Date(now.getTime() - 30 * 24 * hour), observedAt: new Date(now.getTime() - 30 * 24 * hour) }]);
     await importDungeonRuns(gone.tx, "g1", [run("QG-G", { players: strangers })], [], "officer", null, now, options);

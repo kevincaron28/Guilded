@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { RUN_TRUST } from "../src/services/run-trust.js";
 import { DEVICE_FEATURES, handleDeviceUpload, splitGroupRuns, type DeviceRow, type DeviceStore, type ServerCandidate } from "../src/services/companion-device.js";
 
 // 9.3.1: runs a companion carries for players near it (party or raid, any guild) go to the public boards, whatever the
@@ -99,6 +100,23 @@ describe("runs of strangers reaching a guild's device lane", () => {
     expect((publicRuns.mock.calls[0]![1] as { id: string; viaGroup: boolean }[]).map((entry) => [entry.id, entry.viaGroup])).toEqual([["QG-STRANGERS", true]]);
     expect((importRuns.mock.calls[0]![1] as { id: string }[]).map((entry) => entry.id)).toEqual(["QG-MINE"]);
     expect((answer as { runReceipts?: { acceptedRunRefs: string[] } }).runReceipts?.acceptedRunRefs).toContain("QG-STRANGERS");
+  });
+
+  it("stranger runs beyond the per-upload cap are neither stored nor receipted, so the companion sends them again next upload and none is lost", async () => {
+    const { s, importRuns, publicRuns } = store();
+    s.membership = members(["kev", "bob"]);
+    const many = Array.from({ length: RUN_TRUST.relayedPerUpload + 3 }, (_, index) => strangers(`QG-CAP-${String(index).padStart(2, "0")}`));
+    const first = await handleDeviceUpload(s, device, body(many), { now });
+    const sent = (publicRuns.mock.calls[0]![1] as { id: string }[]).map((entry) => entry.id);
+    expect(sent).toEqual(many.slice(0, RUN_TRUST.relayedPerUpload).map((entry) => entry.id));
+    const receipted = (first as { runReceipts?: { acceptedRunRefs: string[] } }).runReceipts?.acceptedRunRefs ?? [];
+    expect(receipted.sort()).toEqual([...sent].sort());
+    expect(importRuns).not.toHaveBeenCalled();
+    // The addon keeps what was not receipted; the next upload carries just those and they go through.
+    const rest = many.filter((entry) => !receipted.includes(entry.id));
+    expect(rest).toHaveLength(3);
+    await handleDeviceUpload(s, device, body(rest), { now });
+    expect((publicRuns.mock.calls[1]![1] as { id: string }[]).map((entry) => entry.id)).toEqual(rest.map((entry) => entry.id));
   });
 
   it("with no membership known (empty or old roster) the run stays with the guild lane as before", async () => {

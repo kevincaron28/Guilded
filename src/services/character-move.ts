@@ -1,6 +1,7 @@
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { characterKey } from "../../companion/character-identity.mjs";
 import { findCharacter } from "./character-match.js";
+import { clearGuildMembershipCache } from "./guild-participants.js";
 
 // Linking audit T3 (docs/plans/LINKING_AUDIT_2026-11-10.md, owner decisions of 10 November 2026).
 //
@@ -96,6 +97,7 @@ export async function moveCharacter(tx: Tx, characterId: string, toMemberId: str
   const fromMemberId = character.memberId;
   const wasDetached = Boolean(character.detachedAt);
   const guildId = character.guildId;
+  clearGuildMembershipCache(guildId);
   const key = claimKey(character);
   const sameOwner = fromMemberId === toMemberId && !wasDetached;
   const isMain = sameOwner ? character.isMain : (await tx.character.count({ where: { memberId: toMemberId, isMain: true, detachedAt: null } })) === 0;

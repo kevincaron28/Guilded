@@ -47,7 +47,7 @@ export async function executeStatsFeed(interaction: ChatInputCommandInteraction)
     const on = interaction.options.getBoolean("on", true);
     await prisma.guildSettings.update({ where: { guildId }, data: { guildBankWeeklyEnabled: on } });
     await reply(on ? t("The weekly guild bank summary is on: once a week in the log channel, only when the bank moved.", "Le résumé hebdomadaire de la banque de guilde est activé.")
-      : t("The weekly guild bank summary is off. The Guild bank page still works.", "Le résumé hebdomadaire de la banque de guilde est désactivé. La page reste disponible."));
+      : t("The weekly guild bank summary is off.", "Le résumé hebdomadaire de la banque de guilde est désactivé."));
     return;
   }
   if (interaction.options.getSubcommand() === "toggle") {

@@ -50,7 +50,7 @@ describe("mobile app links on the website", () => {
     const env = { ASSETS: { fetch: async () => new Response("unused") } };
     const response = await worker.fetch(new Request("https://guilded.kcaron.top/app/raids?lang=fr&return=https://evil.example"), env);
     expect(response.status).toBe(302);
-    expect(response.headers.get("location")).toBe("/me/calendar?lang=fr");
+    expect(response.headers.get("location")).toBe("/leaderboards/?lang=fr");
     const unknown = await worker.fetch(new Request("https://guilded.kcaron.top/app/https://evil.example"), env);
     expect(unknown.headers.get("location")).toBe("/me/");
   });

@@ -143,14 +143,14 @@ trusted HTTPS endpoint when using a separately hosted server.
 
 ### Choices, access and deletion
 
-**Delete my data.** Sign in on the Guilded website, open My data (`/me/data`) and press
-**Delete my data** (type DELETE to confirm). This removes your website account (profile, recruitment card,
+**Delete my data.** In your guild's Discord server, type `/delete-my-data` and press the confirm button
+(the command shows what will be removed first; see also guildedwow.com/delete-my-data/). This removes your website account (profile, recruitment card,
 Battle.net selection, devices and sign-ins), your guild characters and what hangs off them, and your
 personal records (battleground reports, achievements, milestones, recap schedule, alerts, availability,
 pairing and companion credentials, badge shelves). Your Discord ID and name on guild member rows are replaced
 by "Deleted member"; points, loot and raid attendance stay in each guild's history under that name, because other
 members' records depend on them. Backups and Discord messages already posted are not changed (see Retention).
-You can also ask through the support contact below.
+If you left the server or only use the addon, ask through the support contact below.
 
 Pause tracking, disable an optional game connection, or quit the companion to
 stop its ongoing tracking. Removing locally saved app data leaves your game files
@@ -365,14 +365,14 @@ configurez une adresse HTTPS de confiance.
 
 ### Choix, accès et suppression
 
-**Supprimer mes données.** Connectez-vous au site Guilded, ouvrez Mes données (`/me/data`) et appuyez sur
-**Supprimer mes données** (tapez DELETE pour confirmer). Cela supprime votre compte du site (profil, fiche de
+**Supprimer mes données.** Dans le serveur Discord de votre guilde, tapez `/delete-my-data` et appuyez sur le bouton de
+confirmation (la commande montre d'abord ce qui sera retiré; voir aussi guildedwow.com/delete-my-data/). Cela supprime votre compte du site (profil, fiche de
 recrutement, sélection Battle.net, appareils et connexions), vos personnages de guilde et leurs dépendances, et vos
 données personnelles (rapports JcJ, succès, jalons, bilans, alertes, disponibilité, identifiants d'appairage et du
 compagnon, badges). Votre identifiant et votre nom Discord sur les fiches de membre sont remplacés par « Deleted
 member »; les points, le butin et les présences de raid restent dans l'historique de chaque guilde sous ce nom, car
 les dossiers des autres membres en dépendent. Les sauvegardes et les messages Discord déjà publiés ne sont pas
-modifiés (voir Durées de conservation). Vous pouvez aussi la demander au contact ci-dessous.
+modifiés (voir Durées de conservation). Si vous avez quitté le serveur ou n'utilisez que l'addon, demandez-la au contact ci-dessous.
 
 Suspendez le suivi, désactivez une connexion facultative ou quittez le compagnon
 pour arrêter le suivi actif. Supprimer les données locales ne supprime ni vos

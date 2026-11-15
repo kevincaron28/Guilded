@@ -13,7 +13,7 @@ export function publicSharingNotice(settings: { publicDungeonRuns?: boolean; pub
   return [
     T("**Public dungeon sharing: ON.** Anyone can see eligible runs at https://guilded.kcaron.top/leaderboards/: all recorded party members' character names/realms, class, role, level, times, deaths and scores, including non-guild players."),
     window,
-    T("Members can erase their own data any time with “Delete my data” on the Guilded website.")
+    T("Members can erase their own data any time with the /delete-my-data command.")
   ].join("\n");
 }
 

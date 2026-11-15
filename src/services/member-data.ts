@@ -4,8 +4,6 @@ import type { WebContext, WebRoute } from "./web-app.js";
 import type { GuildDashboardAccess } from "./guild-dashboard-access.js";
 import { prismaDeviceStore } from "./companion-devices.js";
 import { escapeHtml as h, link, SECURITY_HEADERS } from "./web-layout.js";
-import { checkCsrf, sameOrigin } from "./web-auth.js";
-import { DELETE_CONFIRM_WORD, type DeletionSummary } from "./data-deletion.js";
 import { characterTrustMap, trustLabel, type CharacterTrust } from "./character-trust.js";
 
 export function memberDataStore(database: PrismaClient, access: GuildDashboardAccess) {
@@ -40,29 +38,10 @@ export function memberDataStore(database: PrismaClient, access: GuildDashboardAc
 }
 
 type Snapshot = Awaited<ReturnType<ReturnType<typeof memberDataStore>>>;
-export function createMemberData(load: (account: WebAccountView) => Promise<Snapshot>, erase?: (discordUserId: string) => Promise<DeletionSummary>) {
+export function createMemberData(load: (account: WebAccountView) => Promise<Snapshot>) {
   const path = "/me/data";
-  const deletePath = "/me/data/delete";
-  // One block for both /me and /me/data: what is deleted, that it cannot be undone, and a typed confirm word.
-  const deleteForm = (ctx: WebContext) => {
-    const { t, lang } = ctx;
-    return `<h2 id="delete-my-data">${t("Delete my data", "Supprimer mes données")}</h2><p>${t("This removes your website account, your guild characters and your personal records (battleground reports, achievements, recap schedule, devices). Points, loot and raid history stay in each guild as \"Deleted member\". It cannot be undone.", "Cela supprime votre compte du site, vos personnages de guilde et vos données personnelles (rapports JcJ, succès, bilans, appareils). Les points, le butin et l'historique de raid restent dans chaque guilde sous « Deleted member ». Action irréversible.")}</p><form method="post" action="${link(deletePath, lang)}"><input type="hidden" name="csrf" value="${h(ctx.csrf ?? "")}"><label>${t(`Type ${DELETE_CONFIRM_WORD} to confirm`, `Tapez ${DELETE_CONFIRM_WORD} pour confirmer`)} <input name="confirm" autocomplete="off" required></label> <button class="button" type="submit">${t("Delete my data", "Supprimer mes données")}</button></form>`;
-  };
-  const meSection = async (ctx: WebContext) => `<h2>${ctx.t("Your data", "Vos données")}</h2><p><a href="${link(path, ctx.lang)}">${ctx.t("Visibility, devices, history and export", "Visibilité, appareils, historique et exportation")}</a></p>${erase ? deleteForm(ctx) : ""}`;
+  const meSection = async (ctx: WebContext) => `<h2>${ctx.t("Your data", "Vos données")}</h2><p><a href="${link(path, ctx.lang)}">${ctx.t("Visibility, devices, history and export", "Visibilité, appareils, historique et exportation")}</a></p>`;
   const route: WebRoute = async (ctx, kit) => {
-    if (ctx.request.path === deletePath && erase) {
-      if (!ctx.account) return kit.signInPrompt();
-      const { t: tr, lang: language } = ctx, heading = tr("Your data", "Vos données");
-      if (ctx.request.method !== "POST") return { status: 405, headers: { ...SECURITY_HEADERS, allow: "POST" }, body: "" };
-      if (!ctx.auth || !ctx.form || !sameOrigin(ctx.request.headers, ctx.auth.siteUrl) || !checkCsrf(ctx.auth.sessionSecret, ctx.sessionToken, ctx.form.get("csrf") ?? undefined))
-        return kit.page(403, heading, tr("Reload the page and try again.", "Rechargez la page et réessayez."), { noindex: true });
-      if ((ctx.form.get("confirm") ?? "").trim() !== DELETE_CONFIRM_WORD)
-        return kit.page(400, heading, `<p>${tr(`Type ${DELETE_CONFIRM_WORD} in the box to confirm.`, `Tapez ${DELETE_CONFIRM_WORD} dans la case pour confirmer.`)}</p><p><a href="${link(path, language)}">${tr("Back", "Retour")}</a></p>`, { noindex: true });
-      try {
-        const done = await erase(ctx.account.discordUserId);
-        return kit.page(200, heading, `<h1>${tr("Your data was deleted", "Vos données ont été supprimées")}</h1><p>${tr(`Removed your website account, ${done.characters} guild character(s) and your personal records from ${done.members} guild(s). Points, loot and raid history stay in each guild as "Deleted member". Backups and Discord messages already posted are not changed (see the privacy notice).`, `Votre compte du site, ${done.characters} personnage(s) de guilde et vos données personnelles dans ${done.members} guilde(s) ont été supprimés. Les points, le butin et l'historique de raid restent dans chaque guilde sous « Deleted member ». Les sauvegardes et les messages Discord déjà publiés ne sont pas modifiés (voir l'avis de confidentialité).`)}</p>`, { noindex: true });
-      } catch { return kit.page(503, heading, tr("The deletion could not be completed. Try again, or ask for it in the Guilded support community.", "La suppression n'a pas pu être effectuée. Réessayez, ou demandez-la dans la communauté de soutien Guilded."), { noindex: true }); }
-    }
     if (ctx.request.path !== path) return null;
     if (!ctx.account) return kit.signInPrompt();
     if (!["GET", "HEAD"].includes(ctx.request.method)) return { status: 405, headers: { ...SECURITY_HEADERS, allow: "GET, HEAD" }, body: "" };
@@ -90,7 +69,7 @@ export function createMemberData(load: (account: WebAccountView) => Promise<Snap
         + (data.limited ? `<p class="notice">${t("More records exist than this view includes.", "D’autres données existent au-delà de cette vue.")}</p>` : "")
         + `<p><a class="button" href="${link(path, lang, { download: "json" })}">${t("Download visible data", "Télécharger les données visibles")}</a> · <a href="/docs/PRIVACY.html">${t("Retention and deletion policy", "Politique de conservation et de suppression")}</a></p>`
         + `<p>${t("Disconnecting a device does not delete game files or guild history. Follow the privacy policy’s contact process for records outside these controls; retained backups have their own retention.", "Déconnecter un appareil ne supprime ni les fichiers du jeu ni l’historique de guilde. Suivez la procédure de contact de la politique de confidentialité pour les données hors de ces contrôles; les sauvegardes ont leur propre conservation.")}</p>`;
-      const deleteBlock = erase ? deleteForm(ctx) : "";
+      const deleteBlock = `<h2>${t("Delete my data", "Supprimer mes données")}</h2><p>${t("Deleting your data is done in Discord with the command /delete-my-data.", "La suppression de vos données se fait dans Discord avec la commande /delete-my-data.")} <a href="${link("/delete-my-data/", lang)}">${t("How it works", "Comment ça marche")}</a></p>`;
       return kit.page(200, title, body + deleteBlock, { noindex: true });
     } catch { return kit.page(503, title, t("Your data could not be loaded. Retry when the service is available.", "Impossible de charger vos données. Réessayez lorsque le service sera disponible."), { noindex: true }); }
   };

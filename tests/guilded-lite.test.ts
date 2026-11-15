@@ -31,8 +31,8 @@ describe("Lite command set", () => {
   const byName = new Map(lite.map((command) => [command.name, command]));
   const subs = (name: string) => (byName.get(name)?.options ?? []).map((option) => option.name).sort();
 
-  it("registers only setup, help, FAQ, bug reports, dungeon groups and basic signups", () => {
-    expect([...byName.keys()].sort()).toEqual(["dungeon", "help", "lead", "mod", "raid", "report", "setup"]);
+  it("registers only setup, help, FAQ, bug reports, data deletion, dungeon groups and basic signups", () => {
+    expect([...byName.keys()].sort()).toEqual(["delete-my-data", "dungeon", "help", "lead", "mod", "raid", "report", "setup"]);
     expect(subs("setup")).toEqual(["start"]);
     expect(subs("report")).toEqual(["bug", "ping"]);
     expect(subs("mod")).toEqual(["faq"]);

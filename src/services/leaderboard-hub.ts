@@ -29,7 +29,7 @@ export const HUB_CSS = `<style>
 .strip .main{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.strip .side{flex:none;text-align:right;color:var(--muted);font-size:13px}
 .up{color:#7fd48a}.down{color:#ee8a7a}.flat{color:var(--muted)}.arrow{display:inline-block;min-width:3.2em;font-size:12px;font-variant-numeric:tabular-nums}
 .trend{display:inline-block;vertical-align:middle}.trend rect{fill:var(--gold);opacity:.75}.trend rect:last-child{opacity:1}
-.hub-empty{border:1px dashed var(--line);border-radius:12px;padding:16px;background:rgba(255,255,255,.02)}.hub-empty p{margin:0 0 6px}
+.hub-empty{border:1px dashed var(--line);border-radius:12px;padding:16px;background:rgba(255,255,255,.02)}.hub-empty p{margin:0 0 6px}.hub-empty.has-art{display:flex;align-items:center;gap:16px}.hub-empty .empty-art{width:96px;height:96px;flex:none;object-fit:contain}.hub-empty.has-art>div{min-width:0}@media(max-width:480px){.hub-empty .empty-art{width:72px;height:72px}}
 .hub-results h2{margin:18px 0 6px}.kpis{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 18px}.kpis span{border:1px solid var(--line);border-radius:999px;padding:4px 12px;background:var(--panel);font-size:14px}.kpis b{color:var(--gold)}
 .hub-picker{display:flex;gap:8px;align-items:center;margin:0 0 14px;flex-wrap:wrap}.hub-picker label{margin:0;display:inline}.hub-picker select{width:auto;min-width:150px;flex:none;min-height:44px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:inherit;padding:0 10px}
 .pbadges{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}.pbadges span{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:4px 12px 4px 6px;background:var(--panel);font-size:14px}.pbadges img{width:28px;height:28px;object-fit:contain}
@@ -94,7 +94,16 @@ export function trendBars(values: number[], label: string): string {
   return `<svg class="trend" role="img" aria-label="${escapeHtml(label)}" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${rects}</svg>`;
 }
 
-export const emptyBox = (title: string, lines: string[]): string => `<div class="hub-empty"><p><strong>${escapeHtml(title)}</strong></p>${lines.map((line) => `<p class="muted">${line}</p>`).join("")}</div>`;
+/** Painted empty-state pictures (320 px WebP, transparent), decorative: the alt text is empty. */
+export type EmptyArt = "duel" | "runs" | "notfound" | "search";
+export const EMPTY_ART_CSS = ".hub-empty.has-art{display:flex;align-items:center;gap:16px}.hub-empty .empty-art{width:96px;height:96px;flex:none;object-fit:contain}.hub-empty.has-art>div{min-width:0}.hub-empty.has-art p{margin:0 0 6px}@media(max-width:480px){.hub-empty .empty-art{width:72px;height:72px}}";
+export const emptyBox = (title: string, lines: string[], art?: EmptyArt): string => {
+  const text = `<p><strong>${escapeHtml(title)}</strong></p>${lines.map((line) => `<p class="muted">${line}</p>`).join("")}`;
+  return art ? `<div class="hub-empty has-art"><img class="empty-art" src="/images/web/empty-${art}.webp" alt="" width="96" height="96" loading="lazy"><div>${text}</div></div>` : `<div class="hub-empty">${text}</div>`;
+};
+/** A not-found or empty page body with its own style tag, for pages that do not carry the hub styles. */
+export const emptyPage = (title: string, lines: string[], art: EmptyArt): string =>
+  `<style>.hub-empty{border:1px dashed var(--line);border-radius:12px;padding:16px;background:rgba(255,255,255,.02);max-width:560px}${EMPTY_ART_CSS}</style>${emptyBox(title, lines, art)}`;
 
 /** Painted section header (1600 x 360, WebP at 1600 and 800 wide) at the very top of a leaderboard page, so it loads eagerly; decorative, so the alt text is empty. */
 export const sectionArt = (kind: "dungeons" | "players" | "duels" | "guilds"): string =>

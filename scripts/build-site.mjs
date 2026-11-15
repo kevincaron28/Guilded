@@ -158,7 +158,8 @@ const pages = [...JSON.parse(readFileSync("site/pages.json", "utf8")), ...editio
 // The bot-served public pages too, in each edition's section; published guild pages have their
 // own sitemap, served by the bot.
 // Share image per section (scripts/build-og-images.mjs); other pages keep the generic card.
-const ogImage = path => ({ "download/": "og-download.jpg", "community/": "og-community.jpg", "guide/": "og-guide.jpg", "companion/": "og-companion.jpg" })[path] ?? "guilded-card.png";
+const OG_SECTIONS = [["guide/", "og-guide.jpg"], ["companion/", "og-companion.jpg"], ["community/", "og-community.jpg"], ["quebec-gold/", "og-community.jpg"], ["download/", "og-download.jpg"], ["editions/", "og-download.jpg"]];
+const ogImage = path => OG_SECTIONS.find(([prefix]) => path.startsWith(prefix))?.[1] ?? "guilded-card.png";
 const isRedirected = path => Object.hasOwn(GUIDE_REDIRECTS, path) || Object.hasOwn(GUIDE_REDIRECTS, path.replace(/\/$/, ""));
 const publicUrls = ["/", ...guides.map(name => `/docs/${name}`), ...EDITION_SECTIONS.flatMap(({ slug }) => ["leaderboards/", "leaderboards/guilds/", "recruitment/", "recruitment/guilds/", "players/"].map(page => `/${slug}/${page}`))].filter(path => !isRedirected(path));
 for (const page of pages) {

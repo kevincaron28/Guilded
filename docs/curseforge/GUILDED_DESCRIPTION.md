@@ -51,7 +51,7 @@ The free [Microsoft Store companion](https://apps.microsoft.com/detail/9N680XX3Q
 
 Add the hosted bot to your server and run `/setup start`. A new server starts on **Guilded Lite** (setup, help, FAQ, bug reports, dungeon groups, basic raid sign-ups); KCaron's approval unlocks everything else. Independent hosting is also available. Each member signs in with Discord in the companion and picks their server.
 
-Everything Guilded records about your characters is shared with your guild and on the public leaderboards by design; the one control is **Delete my data** on the website.
+Everything Guilded records about your characters is shared with your guild and on the public leaderboards by design; the one control is the **/delete-my-data** command in Discord.
 
 [Request pilot access](https://guilded.kcaron.top/docs/HOSTED_PILOT) · [EPGP guide](https://guilded.kcaron.top/docs/EPGP_GUIDE) · [All guides](https://guilded.kcaron.top/docs/QUICK_START)
 

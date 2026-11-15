@@ -35,8 +35,8 @@ describe("plain words on the member's path", () => {
   it("points officers to Discord for exports, and members to their connected devices", () => {
     const html = read("companion-app/renderer/main.html");
     expect(html).toContain("/officer export");
-    for (const path of ["/me/connections", "/me/data", "/docs/PRIVACY.html", "/companion/"]) expect(html).toContain(`https://guildedwow.com${path}"`);
-    // Delete my data on the website erases server data only: the window says so and points to Reset.
+    for (const path of ["/me/connections", "/delete-my-data/", "/docs/PRIVACY.html", "/companion/"]) expect(html).toContain(`https://guildedwow.com${path}"`);
+    // Delete my data erases server data only: the window says so and points to Reset.
     expect(html).toContain("on the server only. Afterwards press Reset this companion");
     // Local export and GRM import stay reachable from Advanced.
     for (const id of ["btnExport", "btnGRM", "grmGuild", "grmRealm", "grmPrivate"]) expect(html, id).toContain(`id="${id}"`);

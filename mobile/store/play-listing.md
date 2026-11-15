@@ -47,7 +47,7 @@ already there, not in the title.
 | Contact email | `support@guildedwow.com` (Cloudflare Email Routing to the owner; Play shows it publicly) |
 | Website | https://guildedwow.com |
 | Privacy policy | https://guildedwow.com/docs/PRIVACY (live, HTTP 200 on 8 Nov 2026; `/privacy` is a 404, so do not use it) |
-| Account deletion URL | https://guildedwow.com/docs/PRIVACY#choices-access-and-deletion (public page with the steps, readable without signing in; in the app the button is under Me → Settings → Delete my data). The website is retiring its account pages: if its public deletion page gets its own address, use that one. |
+| Account deletion URL | https://guildedwow.com/delete-my-data/ (public page: the Discord command and the support community, readable without signing in; in the app the button is under Me → Settings → Delete my data). The website is retiring its account pages: if its public deletion page gets its own address, use that one. |
 
 ## English (en-US)
 

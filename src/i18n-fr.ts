@@ -31,7 +31,7 @@ export const FR_TEXT: Record<string, string> = {
   "Only runs started since {since}; older imports stay private.": "Seulement les parcours commencés depuis {since} ; les anciens imports restent privés.",
   "Eligible saved runs from the last 30 days are included.": "Les parcours admissibles enregistrés au cours des 30 derniers jours sont inclus.",
   "**Public dungeon sharing: ON.** Anyone can see eligible runs at https://guilded.kcaron.top/leaderboards/: all recorded party members' character names/realms, class, role, level, times, deaths and scores, including non-guild players.": "**Partage public des donjons : ACTIVÉ.** Tout le monde peut voir les parcours admissibles sur https://guilded.kcaron.top/leaderboards/ : noms/royaumes des personnages, classe, rôle, niveau, temps, morts et scores de tous les participants enregistrés, y compris ceux hors guilde.",
-  "Members can erase their own data any time with “Delete my data” on the Guilded website.": "Les membres peuvent effacer leurs données à tout moment avec « Supprimer mes données » sur le site de Guilded.",
+  "Members can erase their own data any time with the /delete-my-data command.": "Les membres peuvent effacer leurs données à tout moment avec la commande /delete-my-data.",
   "WoW weekly report channel": "Salon du bilan hebdo WoW",
   // --- /setup: frame and navigation
   "{name} setup": "Configuration de {name}",

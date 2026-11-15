@@ -8,4 +8,4 @@ export const PRIVACY_URL = `${DEFAULT_WEB_ORIGIN}/docs/PRIVACY`;
  * deletes through the API (GuildedClient.deleteMyData); this page is for someone who is signed out or whose server
  * does not offer the route yet. One constant, so the address can follow the website when its deletion page moves.
  */
-export const DELETE_INFO_URL = `${DEFAULT_WEB_ORIGIN}/docs/PRIVACY#choices-access-and-deletion`;
+export const DELETE_INFO_URL = `${DEFAULT_WEB_ORIGIN}/delete-my-data/`;

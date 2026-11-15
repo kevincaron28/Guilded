@@ -24,5 +24,6 @@ Status: prepared 15 November 2026, not yet published. 9.3.3 is not yet confirmed
 - The Start with Windows box shows and changes the real startup entry.
 - The companion idle self-update, and a waiting addon update installing when WoW is closed.
 - A real dungeon run on this build, and group relay across guilds.
-- The bot migrations `mobile_devices` and `mobile_receipts` applied on production with the bot deploy.
+- Parked guilds: a parked guild's runs are not sent twice after a sync.
+- The two phone-alert migrations (`mobile_devices`, `mobile_receipts`) were already applied on production on 14 November 2026; nothing to apply for 9.3.3.
 - Final-commit CI, packaging hashes, install over 9.3.2.

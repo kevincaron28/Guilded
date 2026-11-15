@@ -71,6 +71,23 @@ describe.each<Kind>(["guilded", "standalone"])("the relay audit (%s)", (kind) =>
     expect(s.run("return tostring(NS.dungeon.companionRelays())")).toBe("false");
   });
 
+  it("a PC clock that is off: the bot's time in the marker decides, and without it the guards stay tight", () => {
+    const s = client(kind, "Lebowski", "Walter");
+    const alive = (marker: string) => { s.run(`GuildedCompanionFeatures = ${marker}; NS.util.noteCompanionLoad()`); return s.run(`return tostring(NS.util.companionFeatureFresh("group-relay"))`); };
+    // PC five hours behind the game's server: its `at` looks old, but `bt` (the bot's time) is current.
+    expect(alive('{ ["group-relay"] = true, hb = 1, at = CLOCK - 5 * 3600, bt = CLOCK - 600 }')).toBe("true");
+    // PC three hours ahead: `at` is in the future, `bt` is current.
+    expect(alive('{ ["group-relay"] = true, hb = 1, at = CLOCK + 3 * 3600, bt = CLOCK - 600 }')).toBe("true");
+    // A dead companion stays dead whatever the PC clock says.
+    expect(alive('{ ["group-relay"] = true, hb = 1, at = CLOCK, bt = CLOCK - 4 * 3600 }')).toBe("false");
+    // Without `bt` (the bot has not answered yet): a PC clock 30 minutes ahead is tolerated, hours ahead is not, hours behind looks old.
+    expect(alive('{ ["group-relay"] = true, hb = 1, at = CLOCK + 1800 }')).toBe("true");
+    expect(alive('{ ["group-relay"] = true, hb = 1, at = CLOCK + 3 * 3600 }')).toBe("false");
+    expect(alive('{ ["group-relay"] = true, hb = 1, at = CLOCK - 5 * 3600 }')).toBe("false");
+    // An older companion's marker keeps its generous guard.
+    expect(alive('{ ["group-relay"] = true, at = CLOCK + 3 * 3600 }')).toBe("true");
+  });
+
   it("offers a run to groups on a widening schedule and stops after seven days", () => {
     const walter = client(kind, "Walter", "Lebowski");
     walter.run(makeRun("walter-rfc"));

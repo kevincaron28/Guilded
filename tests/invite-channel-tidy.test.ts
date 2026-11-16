@@ -44,6 +44,7 @@ function database(over: { sweepEnabled?: boolean; sweptAt?: Date | null; open?: 
     guildSettings: {
       findMany: vi.fn(async ({ where }: { where: { OR: Array<{ inviteSweptAt?: null | { lte: Date } }> } }) =>
         (over.sweepEnabled ?? true) && due(where) ? [{ guildId: "g1", inviteChannelId: state.channelId, inviteGuideMessageId: state.guideId, inviteSweptAt: state.sweptAt, guild: { discordId: "d1" } }] : []),
+      count: vi.fn(async () => 1),
       updateMany: vi.fn(async ({ where, data }: { where: { OR?: Array<{ inviteSweptAt?: null | { lte: Date } }> }; data: { inviteSweptAt: Date | null } }) => {
         if (where.OR && !due(where as never)) return { count: 0 };
         state.sweptAt = data.inviteSweptAt; return { count: 1 };
@@ -166,6 +167,49 @@ describe("the hourly tidy of the invite channel", () => {
       expect(c.ch.deleted, c.name).toEqual([]);
     }
     warn.mockRestore();
+  });
+  it("logs every reason for skipping a server, once", async () => {
+    resetCleanupWarnings();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const logs: string[] = [];
+    const run = async (db: ReturnType<typeof database>, ch: ReturnType<typeof channelWith>) => runInviteChannelSweeps({ guilds: { fetch: async () => ch.guild } } as never, db as never, { now: NOW, log: (l) => logs.push(l) });
+    await run(database({ guideId: null }), channelWith(chat));
+    expect(logs.some((l) => l.includes("skipped") && l.includes("(none was ever posted)") && l.includes("/mod invites questions"))).toBe(true);
+    await run(database({ guideId: null }), channelWith(chat));
+    expect(logs.filter((l) => l.includes("(none was ever posted)"))).toHaveLength(1);
+    const noPerm = channelWith(chat, { manage: false });
+    await run(database(), noPerm);
+    expect(logs.some((l) => l.includes("needs View Channel, Read Message History and Manage Messages"))).toBe(true);
+    const wrong = channelWith(chat); wrong.channel.id = "other";
+    await run(database(), wrong);
+    expect(logs.some((l) => l.includes("not readable as the configured invite text channel"))).toBe(true);
+    await run(database({ sweepEnabled: false }), channelWith(chat));
+    expect(logs.some((l) => l.includes("no server is due (servers with an invite channel: 1;"))).toBe(true);
+    const gone = database();
+    await runInviteChannelSweeps({ guilds: { fetch: async () => { throw new Error("x"); } } } as never, gone as never, { now: NOW, log: (l) => logs.push(l) });
+    expect(logs.some((l) => l.includes("the Discord server could not be fetched"))).toBe(true);
+    warn.mockRestore();
+  });
+  it("posts the bot's own guide once when none is stored, and the next pass is a dry run again", async () => {
+    resetCleanupWarnings();
+    const noGuide = chat.filter((m) => m.id !== "guide");
+    const { guild, channel, deleted } = channelWith(noGuide);
+    const posted = { id: "newguide", pin: vi.fn(async () => undefined) };
+    const send = vi.fn(async () => posted);
+    const guildChannel = Object.assign(channel, { send, client: { user: { id: "bot" } } });
+    const db = database({ guideId: null });
+    const sent: string[] = [];
+    (db.guildSettings as unknown as { findUnique: unknown; update: unknown }).findUnique = vi.fn(async () => ({ inviteChannelId: "chan", inviteGuideMessageId: null, inviteQuestions: [], language: "en" }));
+    (db.guildSettings as unknown as { findUnique: unknown; update: unknown }).update = vi.fn(async ({ data }: { data: { inviteGuideMessageId: string } }) => { db.state.guideId = data.inviteGuideMessageId; return {}; });
+    const logs: string[] = [];
+    const client = { guilds: { fetch: async () => guild }, channels: { fetch: async () => guildChannel } };
+    expect(await runInviteChannelSweeps(client as never, db as never, { now: NOW, log: (l) => { logs.push(l); sent.push(l); } })).toBe(0);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(posted.pin).toHaveBeenCalled();
+    expect(logs.some((l) => l.includes("posted and pinned the guide newguide"))).toBe(true);
+    expect(db.state.guideId).toBe("newguide");
+    expect(db.state.sweptAt).toBeNull();
+    expect(deleted).toEqual([]);
   });
   it("never runs on an empty invite channel id", async () => {
     const { guild, deleted } = channelWith(chat);

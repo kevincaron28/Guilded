@@ -1,5 +1,6 @@
 import type { DiscordJob, PrismaClient } from "../generated/prisma/client.js";
 import { resolve } from "node:path";
+import { ensureInviteGuide } from "./recruiting-kit.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
 
 // Guild-invite channel clean-up (owner request, 12 Nov 2026): about an hour after a request is handled the bot removes
@@ -37,7 +38,8 @@ const warnOnce = (key: string, text: string, error?: unknown) => {
   warned.add(key);
   console.warn(`Invite clean-up: ${text}`, error ?? "");
 };
-export const resetCleanupWarnings = () => warned.clear();
+const said = new Set<string>();
+export const resetCleanupWarnings = () => { warned.clear(); said.clear(); };
 const code = (error: unknown): number | undefined => (error as { code?: number } | null)?.code;
 const refused = (error: unknown) => code(error) === 50001 || code(error) === 50013;
 
@@ -339,7 +341,7 @@ export async function writeBackup(messages: readonly Parameters<typeof backupLin
   return file;
 }
 
-type ChannelSweepClient = { guilds: { fetch: (id: string) => Promise<GuildLike | null> } };
+type ChannelSweepClient = { guilds: { fetch: (id: string) => Promise<GuildLike | null> }; channels?: unknown };
 export interface ChannelSweepOptions { now?: Date; backupDir?: string; sleep?: (ms: number) => Promise<void>; log?: (line: string) => void }
 
 /** One pass over every server with the switch on and no run in the last hour. Returns how many messages were removed. */
@@ -351,9 +353,20 @@ export async function runInviteChannelSweeps(client: ChannelSweepClient, databas
     where: { inviteQueueEnabled: true, inviteCleanupEnabled: true, inviteChannelId: { not: "" }, OR: [{ inviteSweptAt: null }, { inviteSweptAt: { lte: due } }] },
     select: { guildId: true, inviteChannelId: true, inviteGuideMessageId: true, inviteSweptAt: true, guild: { select: { discordId: true } } }
   });
+  // Every reason for not tidying a server is written to the log once (per server and reason), so a silent tidy never happens.
+  const sayOnce = (key: string, line: string) => { if (said.has(key)) return; said.add(key); log(line); };
+  if (!servers.length) {
+    const [withChannel, off, queueOff] = await Promise.all([
+      database.guildSettings.count({ where: { inviteChannelId: { not: null } } }),
+      database.guildSettings.count({ where: { inviteChannelId: { not: null }, inviteCleanupEnabled: false } }),
+      database.guildSettings.count({ where: { inviteChannelId: { not: null }, inviteQueueEnabled: false } })
+    ]).catch(() => [-1, -1, -1]);
+    sayOnce("none-due", `Invite channel tidy: no server is due (servers with an invite channel: ${withChannel}; tidy switched off: ${off}; invite queue off: ${queueOff}; the rest ran within the last hour).`);
+  }
   let removed = 0;
   for (const server of servers) {
     if (!server.inviteChannelId?.trim()) continue;
+    const skip = (reason: string) => sayOnce(`${server.guildId}:${reason}`, `Invite channel tidy ${server.guild.discordId}: skipped, ${reason}.`);
     const firstRun = server.inviteSweptAt === null;
     // Claimed first: a second pass (or a restart) within the hour finds nothing due.
     const claim = await database.guildSettings.updateMany({ where: { guildId: server.guildId, OR: [{ inviteSweptAt: null }, { inviteSweptAt: { lte: due } }] }, data: { inviteSweptAt: now } });
@@ -361,14 +374,20 @@ export async function runInviteChannelSweeps(client: ChannelSweepClient, databas
     // A first run that did not finish its dry run and backup does not count: the next pass is a first run again.
     const unclaim = async () => { if (firstRun) await database.guildSettings.updateMany({ where: { guildId: server.guildId }, data: { inviteSweptAt: null } }); };
     const guild = await Promise.resolve(client.guilds.fetch(server.guild.discordId)).catch(() => null);
-    if (!guild) { await unclaim(); continue; }
+    if (!guild) { skip("the Discord server could not be fetched"); await unclaim(); continue; }
     const botId = (guild as { client?: { user?: { id?: string } | null } }).client?.user?.id;
     const common = { now, onlyOpen: true, requireGuide: true, protect: (message: ScanMessage) => isInvitePanel(message, botId), members: true, botMinAgeMs: CHANNEL_SWEEP_MIN_AGE_MS, memberMinAgeMs: CHANNEL_SWEEP_MIN_AGE_MS,
       pauseMs: CHANNEL_SWEEP_DELETE_PAUSE_MS, ...(options.sleep ? { sleep: options.sleep } : {}) };
     const dry = await sweepInviteChannel(guild, database, server.guildId, server.inviteChannelId, server.inviteGuideMessageId ?? null, { ...common, confirm: false });
-    if (dry.status === "permission") { warnOnce(`sweep-perm:${server.inviteChannelId}`, `the invite channel tidy needs ${MISSING_PERMISSIONS} in <#${server.inviteChannelId}>; skipped`); await unclaim(); continue; }
-    if (dry.status === "panel") { warnOnce(`sweep-panel:${server.inviteChannelId}`, `the invite channel tidy skipped <#${server.inviteChannelId}>: the invite panel message could not be found`); await unclaim(); continue; }
-    if (dry.status !== "ok") { await unclaim(); continue; }
+    if (dry.status === "permission") { skip(`the bot needs ${MISSING_PERMISSIONS} in channel ${server.inviteChannelId}`); await unclaim(); continue; }
+    if (dry.status === "panel") {
+      // No guide stored or found: post the bot's own short guide once and pin it. The next pass is a first run again (dry run only).
+      const posted = client.channels ? await ensureInviteGuide(client as never, database as never, server.guildId, log).catch(() => null) : null;
+      if (!posted) skip(`the pinned invite guide message ${server.inviteGuideMessageId ?? "(none was ever posted)"} was not found in channel ${server.inviteChannelId} and could not be posted (the bot needs View Channel, Send Messages and Manage Messages there); post it with /mod invites questions`);
+      await database.guildSettings.updateMany({ where: { guildId: server.guildId }, data: { inviteSweptAt: null } });
+      continue;
+    }
+    if (dry.status !== "ok") { skip(`channel ${server.inviteChannelId} is not readable as the configured invite text channel (${dry.status})`); await unclaim(); continue; }
     const count = dry.mine + dry.memberOld;
     log(`Invite channel tidy (dry run) ${server.guild.discordId}: ${count} message${count === 1 ? "" : "s"} would be removed, ${dry.protectedCount} kept (pinned, the panel or open requests), ${dry.scanned} read.`);
     if (!count) { await unclaim(); continue; }

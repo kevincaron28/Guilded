@@ -26,6 +26,7 @@ import type { WebContext, WebKit, WebResponse, WebRoute } from "./web-app.js";
 import { classColor, scoreCardResponse, type CardRow, type CardStat } from "./score-card.js";
 import { currentEdition, withEdition } from "./edition-context.js";
 import { gameEditionOf } from "./game-edition.js";
+import { factionOfRace, majorityFaction } from "../../companion/race-faction.mjs";
 import { freeSlug, groupObservedGuilds, guildPageStats, guildSlugs, observedGuildDuels, observedRecord, realmSlugOf, OBSERVED_PREFIX, routeKeyOf, slugBase, unrankedReason, type ObservedGuild } from "./guild-public-stats.js";
 import { duelPoints, percent, ratingStartOf, streakText } from "./duels.js";
 import { ADDON_SHOWS_RATING, DUEL_RULES, duelRuleLines, ratingRuleLines } from "./duel-rules.js";
@@ -364,12 +365,33 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
   const OBSERVED_ROW_CAP = 60_000;
   const observedGuilds = new Map<string, ObservedGuild>();
   const guildsLoading = new Map<string, Promise<PublicGuild[]>>();
+  /** Faction of each character name (lower case) from the races the bot knows: Guilded members' characters and companion devices' characters. */
+  async function raceFactions(names: string[]): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    for (let at = 0; at < names.length; at += 1_000) {
+      const chunk = names.slice(at, at + 1_000), keys = chunk.map((name) => name.toLowerCase());
+      const [members, devices] = await Promise.all([
+        database.character.findMany({ where: { name: { in: chunk }, race: { not: null } }, select: { name: true, race: true }, take: 5_000 }),
+        database.deviceCharacter.findMany({ where: { nameKey: { in: keys }, race: { not: null } }, select: { nameKey: true, race: true }, take: 5_000 })
+      ]);
+      for (const row of members) { const faction = factionOfRace(row.race); if (faction && !out.has(row.name.toLowerCase())) out.set(row.name.toLowerCase(), faction); }
+      for (const row of devices) { const faction = factionOfRace(row.race); if (faction && !out.has(row.nameKey)) out.set(row.nameKey, faction); }
+    }
+    return out;
+  }
   async function loadObservedGuilds(taken: Set<string>, listedBases: Set<string>): Promise<PublicGuild[]> {
     // Newest first, so a cap drops the oldest sightings rather than arbitrary guilds; a warning says when it was hit.
     const rows = await database.publicRunPlayer.findMany({ where: { guild: { not: null }, run: { status: "ACCEPTED", gameEdition: currentEdition() } },
-      select: { guild: true, realm: true, character: true }, distinct: ["guild", "realm", "character"], orderBy: [{ run: { endedAt: "desc" } }, { id: "asc" }], take: OBSERVED_ROW_CAP });
+      select: { guild: true, realm: true, character: true, faction: true }, distinct: ["guild", "realm", "character", "faction"], orderBy: [{ run: { endedAt: "desc" } }, { id: "asc" }], take: OBSERVED_ROW_CAP });
     if (rows.length >= OBSERVED_ROW_CAP) console.warn(`Public guild directory: ${OBSERVED_ROW_CAP} guild sightings read (the cap); the oldest are left out.`);
     const found = groupObservedGuilds(rows, listedBases);
+    // Where no client reported a player's faction, the known race of that character (a Guilded member's or a companion device's) stands in; the guild's
+    // faction is the clear majority only (majorityFaction), else it stays unknown.
+    const needRace = [...new Set(found.flatMap((row) => [...row.characters.keys()].filter((name) => !row.reported.has(name.toLowerCase()))))];
+    if (needRace.length) {
+      const races = await raceFactions(needRace).catch(() => new Map<string, string>());
+      for (const row of found) row.faction = majorityFaction([...row.characters.keys()].map((name) => row.reported.get(name.toLowerCase()) ?? races.get(name.toLowerCase()) ?? null));
+    }
     const out: PublicGuild[] = [];
     for (const row of found) {
       const slug = taken.has(row.slug) ? `${row.slug}-x` : row.slug;
@@ -520,7 +542,7 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
       const guildIds = allIds.filter((id) => !observedGuilds.has(id));
       const seenIds = allIds.filter((id) => observedGuilds.has(id));
       const globalDuels = seenIds.length ? await loadGlobalDuels() : [];
-      const fromRuns = seenIds.map((id) => { const seen = observedGuilds.get(id)!; return { guildId: id, faction: null, realm: seen.realm || null, members: seen.characters.size, linked: 0, levelled: 0, at60: 0, levelSum: 0, duels: observedGuildDuels(seen, globalDuels).length }; });
+      const fromRuns = seenIds.map((id) => { const seen = observedGuilds.get(id)!; return { guildId: id, faction: seen.faction, realm: seen.realm || null, members: seen.characters.size, linked: 0, levelled: 0, at60: 0, levelSum: 0, duels: observedGuildDuels(seen, globalDuels).length }; });
       if (!guildIds.length) return fromRuns;
       const edition = currentEdition();
       const [members, characters, listings, duels] = await Promise.all([

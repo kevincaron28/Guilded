@@ -7,6 +7,7 @@ import type { LeaderPlayer, LeaderRun, PublicGuild } from "./public-leaderboard.
 import type { BracketedRules } from "./dungeon-november-rules.js";
 import { characterKey } from "../../companion/character-identity.mjs";
 import { dungeonRole } from "../../companion/dungeon-role.mjs";
+import { majorityFaction } from "../../companion/race-faction.mjs";
 import type { GlobalDuel } from "./duel-global.js";
 import type { PublicDuel } from "./public-duels.js";
 
@@ -133,7 +134,7 @@ export function unrankedReason(runs: LeaderRun[], stats: GuildPageStats): Unrank
 /** Id prefix of a guild that never installed Guilded and is listed only from public runs ("ig:<slug>"). */
 export const OBSERVED_PREFIX = "ig:";
 /** A guild seen in public runs: the name as clients spelled it, its realm and the characters (name to realm) seen in it. */
-export interface ObservedGuild { key: string; name: string; realm: string; /** Stable address: from the folded name, the realm and a short hash of both; never depends on other guilds. */ slug: string; /** Older addresses that still lead here (the first version's name-realm slug, and the one from before the realm was known). */ aliases: string[]; spellings: string[]; characters: Map<string, string> }
+export interface ObservedGuild { key: string; name: string; realm: string; /** Stable address: from the folded name, the realm and a short hash of both; never depends on other guilds. */ slug: string; /** Older addresses that still lead here (the first version's name-realm slug, and the one from before the realm was known). */ aliases: string[]; spellings: string[]; characters: Map<string, string>; /** The faction each character's uploader reported (lower-case name), newest sighting first. */ reported: Map<string, string>; /** Derived faction: the clear majority of its players' known factions (reported or from their race); null when unknown or mixed. */ faction: string | null }
 /** A guild needs this many different characters before it gets a page: one client typing a name is not a guild. */
 export const MIN_OBSERVED_MEMBERS = 2;
 const foldGuild = (name: string) => name.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
@@ -147,7 +148,7 @@ const shortHash = (text: string) => { let h = 0x811c9dc5; for (let i = 0; i < te
  * in `listedBases`) and guilds with fewer than MIN_OBSERVED_MEMBERS characters are left out. The most used spelling is the display name.
  * Sorted by key. The slug is derived from the key alone, so it never moves when another guild appears.
  */
-export function groupObservedGuilds(rows: { guild: string | null; realm: string; character: string }[], listedBases: ReadonlySet<string>): ObservedGuild[] {
+export function groupObservedGuilds(rows: { guild: string | null; realm: string; character: string; faction?: string | null }[], listedBases: ReadonlySet<string>): ObservedGuild[] {
   const realmOfCharacter = new Map<string, string>();
   const realmsOfGuild = new Map<string, Set<string>>();
   for (const row of rows) {
@@ -156,16 +157,17 @@ export function groupObservedGuilds(rows: { guild: string | null; realm: string;
     const name = foldGuild(row.guild ?? "");
     if (name) realmsOfGuild.set(name, (realmsOfGuild.get(name) ?? new Set()).add(row.realm));
   }
-  const groups = new Map<string, { realm: string; spellings: Map<string, number>; characters: Map<string, string> }>();
+  const groups = new Map<string, { realm: string; spellings: Map<string, number>; characters: Map<string, string>; reported: Map<string, string> }>();
   for (const row of rows) {
     const name = row.guild?.trim();
     if (!name) continue;
     const only = realmsOfGuild.get(foldGuild(name));
     const realm = row.realm || realmOfCharacter.get(row.character.toLowerCase()) || (only?.size === 1 ? [...only][0]! : "");
     const key = `${foldGuild(name)}|${realm.toLowerCase()}`;
-    const group = groups.get(key) ?? { realm, spellings: new Map(), characters: new Map() };
+    const group = groups.get(key) ?? { realm, spellings: new Map(), characters: new Map(), reported: new Map() };
     group.spellings.set(name, (group.spellings.get(name) ?? 0) + 1);
     group.characters.set(row.character, realm);
+    if (row.faction && !group.reported.has(row.character.toLowerCase())) group.reported.set(row.character.toLowerCase(), row.faction);
     groups.set(key, group);
   }
   return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0])).flatMap(([key, group]) => {
@@ -176,7 +178,7 @@ export function groupObservedGuilds(rows: { guild: string | null; realm: string;
     const slug = stable(key, realm);
     // The address from before the realm was known keeps leading here once it is, and so does the first version's plain name-realm slug.
     const aliases = [...new Set([realm ? stable(`${folded}|`, "") : "", slugBase(`${name} ${group.realm}`.trim(), key)].filter((alias) => alias && alias !== slug))];
-    return [{ key, name, realm: group.realm, slug, aliases, spellings: [...group.spellings.keys()], characters: group.characters }];
+    return [{ key, name, realm: group.realm, slug, aliases, spellings: [...group.spellings.keys()], characters: group.characters, reported: group.reported, faction: majorityFaction(group.reported.values()) }];
   });
 }
 

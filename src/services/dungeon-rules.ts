@@ -71,6 +71,8 @@ export const dungeonRunSchema = z.object({
     spec: z.string().max(40).optional().catch(undefined),
     // 9.3: the guild the game reported for this player (GetGuildInfo(unit)); absent when none or unknown. Presentation data only.
     guild: z.string().trim().min(1).max(80).optional().catch(undefined),
+    // 9.3.6: the faction the client reported for this player (UnitFactionGroup or the race); absent when unknown. Presentation data only.
+    faction: z.enum(["ALLIANCE", "HORDE"]).optional().catch(undefined),
     deaths: z.number().int().nonnegative().max(500).nullable().optional(),
     presentSec: z.number().int().nonnegative().default(0),
     inGuild: z.boolean().default(false)

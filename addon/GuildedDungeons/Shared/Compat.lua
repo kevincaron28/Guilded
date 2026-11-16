@@ -100,6 +100,10 @@ function compat.dungeonPresence(unit)
   return nil
 end
 
+-- Race file token (lower case) -> faction. The classic races, plus the later ones so a future client still resolves.
+compat.raceFaction = { human = "ALLIANCE", dwarf = "ALLIANCE", nightelf = "ALLIANCE", gnome = "ALLIANCE", draenei = "ALLIANCE", worgen = "ALLIANCE",
+  orc = "HORDE", scourge = "HORDE", undead = "HORDE", tauren = "HORDE", troll = "HORDE", bloodelf = "HORDE", goblin = "HORDE" }
+
 local function unitInfo(unit)
   if not exists(UnitExists) or not UnitExists(unit) then return nil end
   ns.util.unitDisplayName(unit)
@@ -121,8 +125,20 @@ local function unitInfo(unit)
     local own = try("ownGuild", GetGuildInfo, "player")
     if not secret(own) and type(own) == "string" and own ~= "" and #own <= 80 then guild = own end
   end
+  -- (9.3.6) The player's faction (Alliance or Horde), read out of combat only: UnitFactionGroup, else the race. Nil when unknown (neutral, out of range).
+  local faction = nil
+  if not (InCombatLockdown and InCombatLockdown()) then
+    local group = exists(UnitFactionGroup) and try("unitFaction", UnitFactionGroup, unit) or nil
+    if not secret(group) then
+      if group == "Alliance" then faction = "ALLIANCE" elseif group == "Horde" then faction = "HORDE" end
+    end
+    if not faction and exists(UnitRace) then
+      local _, raceFile = try("unitRace", UnitRace, unit)
+      if not secret(raceFile) and type(raceFile) == "string" then faction = compat.raceFaction[string.lower(raceFile)] end
+    end
+  end
   return {
-    unit = unit, level = level, guild = guild,
+    unit = unit, level = level, guild = guild, faction = faction,
     name = ns.normalizeName(name),
     guid = (not secret(guid)) and guid or nil,
     class = (not secret(classFile)) and classFile or nil,

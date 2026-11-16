@@ -76,7 +76,7 @@ export interface RunSummary {
   deaths: number | null; maxLevel: number | null; bracket: string | null; season: string; routeKey: string | null;
   evidenceVersion: 1 | 2; integrity?: Prisma.InputJsonValue; evidenceReceivedAt?: Date;
   completedBy: string | null; encounters: { id: number; kind?: "npc"; name?: string; success: true; at?: number; startedAt?: number; source?: "native" | "combat-log" | "peer" }[];
-  players: { character: string; displayName?: string | null; realm: string; className: string | null; role: string | null; level: number | null; minLevel: number | null; presentSec: number; deaths: number | null; /** The in-game guild the uploader's client showed for this player (unverified display text, 9.3); null when none. */ guild?: string | null }[];
+  players: { character: string; displayName?: string | null; realm: string; className: string | null; role: string | null; level: number | null; minLevel: number | null; presentSec: number; deaths: number | null; /** The in-game guild the uploader's client showed for this player (unverified display text, 9.3); null when none. */ guild?: string | null; /** The faction the uploader's client reported (9.3.6); absent when unknown. */ faction?: string | null }[];
 }
 
 export function summarize(run: DungeonRunInput, receivedAt = new Date()): RunSummary {
@@ -98,7 +98,7 @@ export function summarize(run: DungeonRunInput, receivedAt = new Date()): RunSum
     players: run.players.map((player) => ({ character: player.character, realm: player.realm === "-" ? "" : player.realm, className: player.class ?? null, role: dungeonRole(player.role),
       ...(player.displayName ? { displayName: player.displayName } : {}),
       level: player.level ?? null, minLevel: player.minLevel ?? null, presentSec: player.presentSec, deaths: player.deaths ?? null,
-      ...(player.guild ? { guild: player.guild } : {}) }))
+      ...(player.guild ? { guild: player.guild } : {}), ...(player.faction ? { faction: player.faction } : {}) }))
   };
 }
 
@@ -457,6 +457,8 @@ export function prismaPublicRunStore(database: PrismaClient, clock:()=>Date=()=>
         } });
         // A later report may name the player's guild where the stored row has none (the guild directory reads it); never overwrites.
         for (const player of summary.players) if (player.guild) await tx.publicRunPlayer.updateMany({ where: { runId, character: player.character, realm: player.realm, guild: null }, data: { guild: player.guild } });
+        // The same for the faction the client reported (9.3.6).
+        for (const player of summary.players) if (player.faction) await tx.publicRunPlayer.updateMany({ where: { runId, character: player.character, realm: player.realm, faction: null }, data: { faction: player.faction } });
         return { agree, duplicate: false };
       }, PUBLIC_RUN_TX);
     },

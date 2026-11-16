@@ -106,7 +106,7 @@ import { loadOfficialWindows } from "./services/official-seasons.js";
 import { companionSignInRoute, createCompanionSignIn } from "./services/companion-signin.js";
 import { guildMembership, splitStrangerRuns } from "./services/guild-participants.js";
 import { recordHealthReport } from "./services/sync-health.js";
-import { carrySignedGroupRuns } from "./services/relay-public.js";
+import { carrySignedGroupRuns, runIds } from "./services/relay-public.js";
 import { applyCarriedRecords, ownCarrierKeys } from "./services/carried-records.js";
 import { storeClientProbes } from "./services/client-probes.js";
 import { ingestPublicRuns, ownPlayersFilter, pickScoreCharacter, PUBLIC_LIMITS, prismaPublicRunStore, PublicUploadError } from "./services/public-runs.js";
@@ -1423,16 +1423,20 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const ownKeys = await ownCarrierKeys(prisma, { memberId: pairedMemberId, character: preview.snapshot.character, alts: preview.snapshot.alts });
       // Guild-only Discord: a run with no player of this guild (and none of the uploader's own characters) is not the guild's. It is handed to the
       // public relay lane below instead, never stored, carded, ranked or paid in this guild.
+      // Those runs sit in the addon's own run list: besides the "group:" receipt they get a plain one (STRANGER_NOTE), or they wait for ever.
+      let strangerIds = new Set<string>();
       {
         const sorted = splitStrangerRuns(preview.snapshot.dungeonRuns ?? [], await guildMembership(prisma, guild.id, new Date(), ownKeys));
         if (sorted.strangers.length) {
           console.info(`dungeon-run no-guild-player guild=${guild.id.slice(-6)} count=${sorted.strangers.length}: sent to the public lane`);
           preview.snapshot.dungeonRuns = [...sorted.guild, ...sorted.strangers];
+          strangerIds = new Set(runIds(sorted.strangers));
         }
       }
-      await carrySignedGroupRuns(preview.snapshot, { carrier: `member:${access.memberId ?? access.actorId}`, ownKeys, store: publicRuns,
+      await carrySignedGroupRuns(preview.snapshot, { carrier: `member:${access.memberId ?? access.actorId}`, ownKeys, strangerIds, store: publicRuns,
         onPlaced: (placed) => { void import("./services/cross-guild-post.js").then((module) => module.shareAndAnnounce(client, { guildId: null, characterKeys: [], receivedAt: new Date() }, placed)).catch(() => undefined); },
-        saveReceipts: (refs) => prisma.$transaction((tx) => saveRunReceipts(tx, guild.id, refs.map((runRef) => ({ runRef, outcome: "stored" as const, reason: null, runId: null })), new Date())).then(() => undefined) });
+        // A "group:" receipt says the relay lane has the run; a stranger's plain receipt says this guild will not take it ("refused", with the note).
+        saveReceipts: (rows) => prisma.$transaction((tx) => saveRunReceipts(tx, guild.id, rows.map(({ runRef, reason }) => ({ runRef, outcome: reason ? "refused" as const : "stored" as const, reason, runId: null })), new Date())).then(() => undefined) });
       // (9.3.2) Records the uploader's addon carried for players near it: applied by each kind's own code, answered by key.
       const carriedRecords = preview.snapshot.carriedRecords ?? [];
       if (preview.snapshot.probes) void storeClientProbes(prisma, preview.snapshot.probes, clientVersion ?? null).catch(() => undefined);

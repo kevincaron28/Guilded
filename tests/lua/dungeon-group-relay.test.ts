@@ -157,6 +157,22 @@ describe.each<Kind>(["guilded", "standalone"])("runs carried through the group (
     expect(mark("synced")).toBe("nil");
   });
 
+  // 16 November 2026: a run in this PC's own list (another recorder's, a space in its id) that the bot sent to the public boards because no
+  // player of the guild was in it. A "group:" receipt alone never marks it (kept apart on purpose); the bot's plain receipt does.
+  it("a run of no guild player in the own run list waits on a group: receipt alone and is synced by the plain one", () => {
+    const lebowski = client(kind, "Lebowski", null);
+    const id = "QG-20261116-032503-Caliban Dawnbreaker";
+    lebowski.run(makeRun(id).replace(/recorder = "Walter"/, 'recorder = "Caliban Dawnbreaker"'));
+    const waiting = () => Number(lebowski.run("return #NS.dungeon.waitingRuns()"));
+    expect(waiting()).toBe(1);
+    lebowski.run(`GuildedDungeonAccepted = { ${JSON.stringify(`group:${id}`)} }; GuildedDungeonNotes = {}; NS.dungeon.markSynced()`);
+    expect(waiting()).toBe(1);
+    lebowski.run(`GuildedDungeonAccepted = { ${JSON.stringify(`group:${id}`)}, ${JSON.stringify(id)} }
+      GuildedDungeonNotes = { [${JSON.stringify(id)}] = "No player of this guild in it: sent to the public boards" }; NS.dungeon.markSynced()`);
+    expect(waiting()).toBe(0);
+    expect(lebowski.run(`return tostring(${runs}[${JSON.stringify(id)}].syncNote)`)).toBe("No player of this guild in it: sent to the public boards");
+  });
+
   it("sends nothing to a group bigger than a party of five", () => {
     const walter = client(kind, "Walter", "Lebowski");
     walter.run("function GetNumGroupMembers() return 6 end");

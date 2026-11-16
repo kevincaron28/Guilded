@@ -16,6 +16,24 @@ export const GROUP_RECEIPT_PREFIX = "group:";
 
 export const isGroupCarried = (run: unknown): boolean => (run as { viaGroup?: unknown } | null)?.viaGroup === true;
 
+/** The note the addon shows next to a guild-lane run the bot sent to the public boards because no player of the guild was in it. */
+export const STRANGER_NOTE = "No player of this guild in it: sent to the public boards";
+
+/**
+ * (16 November 2026) The plain-id receipts for runs the guild lane handed to this lane because no player of the guild was in them
+ * (splitStrangerRuns). Those runs sit in the addon's own run list, not its carried list, and the addon only takes a "group:" receipt
+ * for a carried run: with the "group:" receipt alone such a run stayed "not reached Discord" for ever and was sent at every upload.
+ * Only a run this lane dealt with (its "group:" receipt came back) gets one; one left for later (the public lane's own budget) is
+ * sent again. A plain receipt never blocks the guild lane (only a "copy" receipt does, dungeon-import.ts knownRuns).
+ */
+export function strangerReceipts(strangerIds: Iterable<string>, groupReceipts: readonly string[]): string[] {
+  const dealt = new Set(groupReceipts);
+  return [...new Set(strangerIds)].filter((id) => dealt.has(`${GROUP_RECEIPT_PREFIX}${id}`));
+}
+
+/** The ids of runs (strings only), for strangerReceipts. */
+export const runIds = (runs: readonly unknown[]): string[] => runs.flatMap((run) => { const id = (run as { id?: unknown } | null)?.id; return typeof id === "string" ? [id] : []; });
+
 /** Splits a list of runs: the group-carried ones, and the rest. */
 export function splitGroupCarried(runs: readonly unknown[]): { group: unknown[]; rest: unknown[] } {
   const group: unknown[] = [];
@@ -78,7 +96,8 @@ export async function ingestRelayedRuns(store: PublicRunStore, input: { carrier:
   for (const raw of input.runs) {
     const run = raw && typeof raw === "object" ? raw as Record<string, unknown> : null;
     const id = typeof run?.["id"] === "string" && run["id"].length >= 3 && run["id"].length <= 100 ? run["id"] : null;
-    if (!run || !id) continue;
+    // Nothing to receipt a run by: said in the journal so a run that keeps coming back is never silent.
+    if (!run || !id) { console.info(`Relayed run via ${input.carrier}: skipped (${run ? "no usable id" : "not a run"})`); continue; }
     const standing = voucherOf(run, input.carrierKeys);
     // Dealt with, not published: not a run this lane can place (no reporter in the run, or the carrier played it itself).
     if (standing?.kind !== "relay") { receipts.push(`${GROUP_RECEIPT_PREFIX}${id}`); console.info(`Relayed run ${id.slice(0, 40)} via ${input.carrier}: not placed (${standing ? "carrier played it itself" : "no reporter in the run"})`); continue; }
@@ -127,7 +146,10 @@ export async function ingestRelayedRuns(store: PublicRunStore, input: { carrier:
     if (placed.size) input.onPlaced?.(batch.filter((entry) => placed.has((entry as { id: string }).id)));
     for (const entry of batch) receipts.push(`${GROUP_RECEIPT_PREFIX}${(entry as { id: string }).id}`);
   }
-  return { receipts: [...new Set(receipts)], published, known };
+  const unique = [...new Set(receipts)];
+  // One line per call, whatever happened, so the journal always shows what this lane did with what it was given.
+  if (input.runs.length) console.info(`Relayed runs via ${input.carrier}: received ${input.runs.length}, placed ${published}, copies ${known}, receipted ${unique.length}`);
+  return { receipts: unique, published, known };
 }
 
 /**
@@ -136,12 +158,17 @@ export async function ingestRelayedRuns(store: PublicRunStore, input: { carrier:
  */
 export async function carrySignedGroupRuns(snapshot: { dungeonRuns: unknown[]; character?: { name: string } | null | undefined; alts: { name: string }[]; characters: { name: string }[] },
   /** `ownKeys`: the uploader's own characters (lower case), see ownCarrierKeys. Without it only the exported character and alts count: never snapshot.characters, which is every guildmate heard (peer digests). */
-  options: { carrier: string; ownKeys?: ReadonlySet<string>; store: PublicRunStore; saveReceipts: (refs: string[]) => Promise<void>; onPlaced?: (runs: unknown[]) => void }): Promise<RelayResult | null> {
+  /** `strangerIds`: runs the guild lane handed over (no player of the guild in them): they also get a plain-id receipt, see strangerReceipts. */
+  options: { carrier: string; ownKeys?: ReadonlySet<string>; strangerIds?: ReadonlySet<string>; store: PublicRunStore; saveReceipts: (receipts: { runRef: string; reason: string | null }[]) => Promise<void>; onPlaced?: (runs: unknown[]) => void }): Promise<RelayResult | null> {
   const { group, rest } = splitGroupCarried(snapshot.dungeonRuns ?? []);
   if (!group.length) return null;
   snapshot.dungeonRuns = rest;
   const carrierKeys = new Set([...(options.ownKeys ?? []), ...[snapshot.character, ...snapshot.alts].flatMap((entry) => entry ? [entry.name] : []).map((name) => name.trim().toLowerCase())]);
   const carried = await ingestRelayedRuns(options.store, { carrier: options.carrier, carrierKeys, runs: group.slice(0, RUN_TRUST.relayedPerUpload), ...(options.onPlaced ? { onPlaced: options.onPlaced } : {}) }).catch((error: unknown) => { console.error(`Relayed runs via ${options.carrier} failed: ${error instanceof Error ? error.message : String(error)}`); return null; });
-  if (carried?.receipts.length) await options.saveReceipts(carried.receipts).catch(() => undefined);
+  if (carried?.receipts.length) {
+    const plain = strangerReceipts(options.strangerIds ?? [], carried.receipts);
+    const rows = [...carried.receipts.map((runRef) => ({ runRef, reason: null })), ...plain.map((runRef) => ({ runRef, reason: STRANGER_NOTE }))];
+    await options.saveReceipts(rows).catch((error: unknown) => { console.error(`Relayed runs via ${options.carrier}: receipts not saved (${rows.length}): ${error instanceof Error ? error.message : String(error)}`); });
+  }
   return carried;
 }

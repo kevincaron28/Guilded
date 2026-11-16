@@ -17,7 +17,7 @@ import { looseKey } from "./loose-key.js";
 import { normalizeClassName, normalizeRaceName } from "./character-import.js";
 import { prismaPublicRunStore } from "./public-runs.js";
 import { CARRY_FEATURE } from "./carried-records.js";
-import { GROUP_RELAY_FEATURE, ingestRelayedRuns, splitGroupCarried } from "./relay-public.js";
+import { GROUP_RELAY_FEATURE, ingestRelayedRuns, runIds, splitGroupCarried, STRANGER_NOTE, strangerReceipts } from "./relay-public.js";
 
 // Zero-setup companion (owner decision, 9 November 2026; docs/ZERO_SETUP_COMPANION.md).
 // The Windows companion makes a device key on first start and syncs without Discord sign-in. The
@@ -313,6 +313,7 @@ async function handleDeviceUploadCore(store: DeviceStore, device: DeviceRow, bod
   // (9.3.1) Runs this device carries for players near it go to the public boards, whatever this device's guild is (even none).
   const split = splitGroupRuns(upload.dungeonRuns);
   const carried: string[] = [];
+  const carriedNotes: Record<string, string> = {};
   if (split.group.length && store.publicRuns) {
     // Carried runs have their own caps (per upload here, per day in the relay lane): they never spend the device's shared hourly budget,
     // which is for the guild lane.
@@ -334,10 +335,16 @@ async function handleDeviceUploadCore(store: DeviceStore, device: DeviceRow, bod
     guildRuns = sorted.guild;
     if (sorted.strangers.length) {
       console.info(`dungeon-run no-guild-player guild=${target.guildId.slice(-6)} count=${sorted.strangers.length}: sent to the public lane`);
-      carried.push(...await store.publicRuns(device.id, sorted.strangers.slice(0, RUN_TRUST.relayedPerUpload), now, known, options.afterShare ? (placed) => options.afterShare!({ guildId: null, deviceId: device.id, characterKeys: [...known], receivedAt: now }, placed) : undefined));
+      const sent = sorted.strangers.slice(0, RUN_TRUST.relayedPerUpload);
+      // A failing relay leaves them unreceipted: sent again next upload, and the guild lane still never sees them.
+      const dealt = await store.publicRuns(device.id, sent, now, known, options.afterShare ? (placed) => options.afterShare!({ guildId: null, deviceId: device.id, characterKeys: [...known], receivedAt: now }, placed) : undefined)
+        .catch((error: unknown) => { console.error(`Relayed runs via ${device.id} failed: ${error instanceof Error ? error.message : String(error)}`); return [] as string[]; });
+      carried.push(...dealt);
+      // These runs sit in the addon's own run list, which only a plain receipt marks synced (relay-public.ts strangerReceipts).
+      for (const ref of strangerReceipts(runIds(sent), dealt)) { carried.push(ref); carriedNotes[ref] = STRANGER_NOTE; }
     }
   }
-  carriedReceipts = carried.length ? { acceptedRunRefs: carried, runNotes: {} } : undefined;
+  carriedReceipts = carried.length ? { acceptedRunRefs: carried, runNotes: { ...carriedNotes } } : undefined;
   if (guildRuns.length && store.importRuns && target) {
     const limiter = options.runLimiter ?? ((id: string) => deviceRunHits(id, now.getTime()));
     const allowed: unknown[] = [];
@@ -365,7 +372,7 @@ async function handleDeviceUploadCore(store: DeviceStore, device: DeviceRow, bod
     const refs = [...new Set(guildRuns.flatMap((run) => { const id = (run as { id?: unknown } | null)?.id; return typeof id === "string" && id.length <= 80 ? [id] : []; }))];
     const held = refs.length ? await store.receipts(target.guildId, refs) : [];
     const acceptedRunRefs = [...held.map((row) => row.runRef), ...carried];
-    const runNotes: Record<string, string> = Object.fromEntries(held.flatMap((row) => row.reason ? [[row.runRef, row.reason] as const] : []));
+    const runNotes: Record<string, string> = { ...carriedNotes, ...Object.fromEntries(held.flatMap((row) => row.reason ? [[row.runRef, row.reason] as const] : [])) };
     const waiting = Object.fromEntries(Object.entries(pending).filter(([ref]) => !acceptedRunRefs.includes(ref)));
     const runCards = runCardsOf(held);
     if (acceptedRunRefs.length || Object.keys(waiting).length) runReceipts = { acceptedRunRefs, runNotes, ...(Object.keys(waiting).length ? { pendingRunNotes: waiting } : {}), ...(Object.keys(runCards).length ? { runCards } : {}) };

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { agrees, evidenceUpgrade, ingestPublicRuns, type PublicRunStore, type RunSummary, type StoredRun } from "../src/services/public-runs.js";
-import { carrySignedGroupRuns, GROUP_RECEIPT_PREFIX, ingestRelayedRuns } from "../src/services/relay-public.js";
+import { carrySignedGroupRuns, GROUP_RECEIPT_PREFIX, ingestRelayedRuns, runIds, STRANGER_NOTE, strangerReceipts } from "../src/services/relay-public.js";
 
 // 9.3.1: the public lane for runs a companion carries for other players.
 const NOW = new Date("2026-11-13T20:00:00Z");
@@ -114,7 +114,7 @@ describe("the relay lane", () => {
     const { store, runs } = memoryStore();
     const saved: string[][] = [];
     const snapshot = { dungeonRuns: [run("QG-S1"), run("QG-S2", { viaGroup: undefined })] as unknown[], character: { name: "Zed" }, alts: [], characters: [] };
-    const answer = await carrySignedGroupRuns(snapshot, { carrier: "member:m1", store, saveReceipts: async (refs) => { saved.push(refs); } });
+    const answer = await carrySignedGroupRuns(snapshot, { carrier: "member:m1", store, saveReceipts: async (rows) => { saved.push(rows.map((row) => row.runRef)); } });
     expect(snapshot.dungeonRuns.map((entry) => (entry as { id: string }).id)).toEqual(["QG-S2"]);
     expect(runs.size).toBe(1);
     expect(answer?.published).toBe(1);
@@ -140,7 +140,7 @@ describe("the relay lane", () => {
     const saved: string[][] = [];
     const snapshot = { dungeonRuns: [run("QG-R1")] as unknown[], character: { name: "Zed" }, alts: [], characters: roster };
     const lines = vi.spyOn(console, "info").mockImplementation(() => undefined);
-    const answer = await carrySignedGroupRuns(snapshot, { carrier: "member:m1", ownKeys: new Set(["zed"]), store, saveReceipts: async (refs) => { saved.push(refs); } });
+    const answer = await carrySignedGroupRuns(snapshot, { carrier: "member:m1", ownKeys: new Set(["zed"]), store, saveReceipts: async (rows) => { saved.push(rows.map((row) => row.runRef)); } });
     expect(answer?.published).toBe(1);
     expect(runs.size).toBe(1);
     expect(saved).toEqual([[`${GROUP_RECEIPT_PREFIX}QG-R1`]]);
@@ -159,6 +159,80 @@ describe("the relay lane", () => {
     expect(summary.results).toEqual([]);
     expect(summary.receipts ?? []).toEqual([]);
     expect(calls).toEqual([]);
+  });
+});
+
+// 16 November 2026 (live): four runs another player's addon recorded, carried by the owner's addon in its own run list. No player of the
+// guild in them, so the guild lane handed them to this lane, which answered only "group:<id>". The addon takes a "group:" receipt for its
+// carried list only, so the four stayed "have not reached Discord" after every /reload and were sent again at every upload.
+describe("runs of no guild player handed over by the guild lane", () => {
+  const T = Math.floor(NOW.getTime() / 1000) - 6 * 3600;
+  const party = (names: string[]) => names.map((character, index) => ({ character, realm: "Forever", class: "PALADIN", role: index ? "DAMAGER" : "TANK", level: 23, deaths: 0, presentSec: 1400, inGuild: false }));
+  const carriedRun = (id: string, over: Record<string, unknown> & { state: string }) => ({ id, protocolVersion: 1, difficultyId: 0, gameEdition: "forever", recorder: "Caliban Dawnbreaker",
+    reporters: 1, reporterNames: ["Caliban Dawnbreaker"], ...over });
+  const four = () => [
+    carriedRun("QG-20261116-032503-Caliban Dawnbreaker", { state: "COMPLETED", instanceId: 36, name: "Deadmines", completedBy: "final boss", startedAt: T, endedAt: T + 1479,
+      encounters: [{ id: 2741, success: true, at: T + 160 }, { id: 2747, success: true, at: T + 1479 }], players: party(["Caliban Dawnbreaker", "Hueso Flacido", "Madcat Pierrot", "Mcnasty Hemcore", "Wasoo Pakeado"]) }),
+    carriedRun("QG-20261116-122231-Caliban Dawnbreaker", { state: "ABANDONED", instanceId: 48, name: "Blackfathom Deeps", endReason: "left the dungeon", startedAt: T + 4000, endedAt: T + 4972,
+      encounters: [], players: party(["Caliban Dawnbreaker"]) }),
+    carriedRun("QG-20261116-011224-Caliban Dawnbreaker", { state: "COMPLETED", instanceId: 33, name: "Shadowfang Keep", completedBy: "final boss", startedAt: T - 9000, endedAt: T - 6865,
+      encounters: [{ id: 2748, success: true, at: T - 8800 }, { id: 2755, success: true, at: T - 6865 }], players: party(["Caliban Dawnbreaker", "Dreamcream Allonya", "Dyme Desarian", "Ryouie Holylight", "Slippery Popsicle"]) }),
+    carriedRun("QG-20261116-022440-Caliban Dawnbreaker", { state: "ABANDONED", instanceId: 36, name: "Deadmines", endReason: "group disbanded", startedAt: T - 4000, endedAt: T - 2925,
+      encounters: [{ id: 2741, success: true, at: T - 3800 }], players: party(["Caliban Dawnbreaker", "Feral Depravity", "Nimaa Undertoe", "Shamyfury Shaminator"]) })
+  ];
+
+  it("gives each of them a plain receipt with a note besides the group: one, so the addon marks them synced, and never puts them in the guild", async () => {
+    const { splitStrangerRuns } = await import("../src/services/guild-participants.js");
+    const { store } = memoryStore();
+    const ownRun = { ...run("QG-OWN"), viaGroup: undefined, players: party(["Kev Owner", "Caliban Dawnbreaker"]) };
+    const sorted = splitStrangerRuns([...four(), ownRun], { gate: true, names: ["kev owner", "someone else"] });
+    expect(sorted.strangers).toHaveLength(4);
+    const snapshot = { dungeonRuns: [...sorted.guild, ...sorted.strangers], character: { name: "Kev Owner" }, alts: [], characters: [] };
+    const saved: { runRef: string; reason: string | null }[][] = [];
+    const lines = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const answer = await carrySignedGroupRuns(snapshot, { carrier: "member:m1", ownKeys: new Set(["kev owner"]), strangerIds: new Set(runIds(sorted.strangers)), store,
+      saveReceipts: async (rows) => { saved.push(rows); } });
+    const journal = lines.mock.calls.flat().join("\n");
+    lines.mockRestore();
+    // The guild lane keeps only the guild's own run.
+    expect(snapshot.dungeonRuns.map((entry) => (entry as { id: string }).id)).toEqual(["QG-OWN"]);
+    const ids = four().map((entry) => entry.id);
+    expect(answer?.receipts.sort()).toEqual(ids.map((id) => `${GROUP_RECEIPT_PREFIX}${id}`).sort());
+    expect(saved).toHaveLength(1);
+    const rows = saved[0]!;
+    // Plain ids, spaces kept exactly as the addon names the run, with the note it shows next to them.
+    for (const id of ids) {
+      expect(rows).toContainEqual({ runRef: id, reason: STRANGER_NOTE });
+      expect(rows).toContainEqual({ runRef: `${GROUP_RECEIPT_PREFIX}${id}`, reason: null });
+    }
+    expect(STRANGER_NOTE.length).toBeLessThanOrEqual(80);
+    // The journal always says what the lane did, even when every run went through quietly.
+    expect(journal).toMatch(/Relayed runs via member:m1: received 4, placed \d+, copies \d+, receipted 4/);
+  });
+
+  it("a stranger run the public lane leaves for later gets no plain receipt either (sent again, never lost)", async () => {
+    const failing = { ...memoryStore().store, createRun: async () => { throw new Error("budget"); }, addUpload: async () => { throw new Error("budget"); } } as PublicRunStore;
+    const runs = four().filter((entry) => entry.state === "COMPLETED").map((entry) => ({ ...entry, viaGroup: true }));
+    const saved: { runRef: string; reason: string | null }[][] = [];
+    const errors = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const quiet = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    await carrySignedGroupRuns({ dungeonRuns: runs, character: { name: "Kev Owner" }, alts: [], characters: [] },
+      { carrier: "member:m1", ownKeys: new Set(["kev owner"]), strangerIds: new Set(runIds(runs)), store: failing, saveReceipts: async (rows) => { saved.push(rows); } });
+    errors.mockRestore(); quiet.mockRestore();
+    expect(saved.flat().filter((row) => !row.runRef.startsWith(GROUP_RECEIPT_PREFIX))).toEqual([]);
+  });
+
+  it("strangerReceipts only answers runs the lane dealt with", () => {
+    expect(strangerReceipts(["a b", "c"], [`${GROUP_RECEIPT_PREFIX}a b`, `${GROUP_RECEIPT_PREFIX}x`])).toEqual(["a b"]);
+  });
+
+  it("a run with no usable id is said in the journal, not skipped silently", async () => {
+    const { store } = memoryStore();
+    const lines = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    await ingestRelayedRuns(store, { carrier: "dev1", carrierKeys: carrier("zed"), runs: [run("QG-R9", { id: 42 })], now: NOW });
+    const journal = lines.mock.calls.flat().join("\n");
+    lines.mockRestore();
+    expect(journal).toMatch(/Relayed run via dev1: skipped \(no usable id\)/);
   });
 });
 

@@ -1,0 +1,64 @@
+{
+  "id": "Dreamscythe-Kevin-1762700000-9.1.3",
+  "protocolVersion": 1,
+  "addonVersion": "9.1.3",
+  "state": "COMPLETED",
+  "instanceId": 33,
+  "name": "Shadowfang Keep",
+  "difficultyId": 1,
+  "startedAt": 1762700000,
+  "endedAt": 1762701500,
+  "reporters": 1,
+  "players": [
+    {
+      "character": "Kevin",
+      "realm": "Dreamscythe",
+      "class": "WARRIOR",
+      "role": "TANK",
+      "level": 60,
+      "presentSec": 1500,
+      "inGuild": true,
+      "deaths": 0
+    },
+    {
+      "character": "Ana",
+      "realm": "Dreamscythe",
+      "class": "WARRIOR",
+      "role": "HEALER",
+      "level": 60,
+      "presentSec": 1500,
+      "inGuild": true,
+      "deaths": 0
+    },
+    {
+      "character": "Bob",
+      "realm": "Dreamscythe",
+      "class": "WARRIOR",
+      "role": "DPS",
+      "level": 60,
+      "presentSec": 1500,
+      "inGuild": true,
+      "deaths": 0
+    },
+    {
+      "character": "Cy",
+      "realm": "Dreamscythe",
+      "class": "WARRIOR",
+      "role": "DPS",
+      "level": 60,
+      "presentSec": 1500,
+      "inGuild": true,
+      "deaths": 0
+    },
+    {
+      "character": "Dee",
+      "realm": "Dreamscythe",
+      "class": "WARRIOR",
+      "role": "DPS",
+      "level": 60,
+      "presentSec": 1500,
+      "inGuild": true,
+      "deaths": 0
+    }
+  ]
+}

@@ -1,0 +1,172 @@
+{
+  "guildDiscordId": "123456789012345678",
+  "export": {
+    "source": "Guilded",
+    "exportedAt": "2026-11-09T12:00:00.000Z",
+    "addonVersion": "9.2.0",
+    "interface": 16001,
+    "gameEdition": "forever",
+    "wowGuild": "Quebec Gold",
+    "character": {
+      "name": "Kevin",
+      "realm": "Dreamscythe",
+      "class": "Warrior",
+      "race": "Human",
+      "level": 60,
+      "spec": "Protection",
+      "professions": [
+        {
+          "name": "Mining",
+          "skillLevel": 300
+        }
+      ]
+    },
+    "characters": [
+      {
+        "name": "Ana",
+        "realm": "Dreamscythe",
+        "class": "Priest",
+        "race": "Human",
+        "level": 60,
+        "spec": "Protection",
+        "professions": [
+          {
+            "name": "Mining",
+            "skillLevel": 300
+          }
+        ]
+      }
+    ],
+    "alts": [
+      {
+        "name": "Kevin2",
+        "realm": "Dreamscythe",
+        "class": "Warrior",
+        "race": "Human",
+        "level": 60,
+        "spec": "Protection",
+        "professions": [
+          {
+            "name": "Mining",
+            "skillLevel": 300
+          }
+        ]
+      }
+    ],
+    "transactions": [
+      {
+        "createdAt": "2026-11-09T11:00:00.000Z",
+        "character": "Ana",
+        "realm": "Dreamscythe",
+        "amount": 10,
+        "type": "AWARD",
+        "reason": "Raid attendance",
+        "sourceRef": "tx-9.2.0"
+      }
+    ],
+    "loot": [
+      {
+        "ref": "loot-9.2.0",
+        "character": "Ana",
+        "realm": "Dreamscythe",
+        "item": "Item:1234",
+        "gp": 5
+      }
+    ],
+    "raids": [],
+    "readiness": [],
+    "recipes": [],
+    "dungeonRuns": [
+      {
+        "id": "Dreamscythe-Kevin-1762700000-9.2.0",
+        "protocolVersion": 1,
+        "addonVersion": "9.2.0",
+        "state": "COMPLETED",
+        "instanceId": 33,
+        "name": "Shadowfang Keep",
+        "difficultyId": 1,
+        "startedAt": 1762700000,
+        "endedAt": 1762701500,
+        "reporters": 1,
+        "players": [
+          {
+            "character": "Kevin",
+            "realm": "Dreamscythe",
+            "class": "WARRIOR",
+            "role": "TANK",
+            "level": 60,
+            "presentSec": 1500,
+            "inGuild": true,
+            "deaths": 0
+          },
+          {
+            "character": "Ana",
+            "realm": "Dreamscythe",
+            "class": "WARRIOR",
+            "role": "HEALER",
+            "level": 60,
+            "presentSec": 1500,
+            "inGuild": true,
+            "deaths": 0
+          },
+          {
+            "character": "Bob",
+            "realm": "Dreamscythe",
+            "class": "WARRIOR",
+            "role": "DPS",
+            "level": 60,
+            "presentSec": 1500,
+            "inGuild": true,
+            "deaths": 0
+          },
+          {
+            "character": "Cy",
+            "realm": "Dreamscythe",
+            "class": "WARRIOR",
+            "role": "DPS",
+            "level": 60,
+            "presentSec": 1500,
+            "inGuild": true,
+            "deaths": 0
+          },
+          {
+            "character": "Dee",
+            "realm": "Dreamscythe",
+            "class": "WARRIOR",
+            "role": "DPS",
+            "level": 60,
+            "presentSec": 1500,
+            "inGuild": true,
+            "deaths": 0
+          }
+        ],
+        "mapCells": [
+          {
+            "map": 1000,
+            "cells": [
+              1,
+              2,
+              3
+            ]
+          }
+        ],
+        "deathPoints": [
+          {
+            "x": 0.5,
+            "y": 0.5,
+            "map": 1000
+          }
+        ]
+      }
+    ],
+    "guildRoster": {
+      "at": 1762700000,
+      "complete": true,
+      "members": [
+        {
+          "name": "Ana"
+        }
+      ]
+    }
+  }
+}

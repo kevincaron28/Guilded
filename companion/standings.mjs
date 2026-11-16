@@ -3,7 +3,7 @@ import { standingsToLua, linkedAsLua, linkedMapLua, linkedMapKey } from "./stand
 export { standingsToLua } from "./standings-format.mjs";
 import { readFile, writeFile, rename, rm } from "node:fs/promises";
 import { readSavedText } from "./saved-file.mjs";
-import { credentialHeaders, requestJson } from "./request.mjs";
+import { credentialHeaders, requestJson, protocolSupported, MIN_KNOWN_PROTOCOL } from "./request.mjs";
 import { writeDataAddon } from "./data-addon.mjs";
 import { dirname, join, sep } from "node:path";
 import { withoutFeatureStamp } from "./group-relay.mjs";
@@ -56,7 +56,7 @@ export async function writeStandings(config, signal, options = {}) {
       : "The server did not provide an error message.";
     throw new Error(`Standings request failed (${response.status}): ${detail}`);
   }
-  if (body.protocolVersion !== 2) throw new Error("Update the bot before using this companion (sync protocol 2 required).");
+  if (!protocolSupported(body)) throw new Error(body.protocolVersion < MIN_KNOWN_PROTOCOL ? "Update the bot before using this companion (sync protocol 2 or newer required)." : "Update this companion before using this bot (a newer sync protocol is required).");
   // Check the actual saved file before replacing standings or acknowledging
   // its ledger. Missing legacy saves retain first-run repair behavior.
   let ownNames = [];

@@ -147,12 +147,13 @@ describe("unified website and companion", () => {
     const upstream = vi.fn(async () => Response.json({}));
     vi.stubGlobal("fetch", upstream);
     await worker.fetch(new Request(base + "/api/v1/standings?guild=123", { headers: {
-      "x-guilded-protocol": "2", "x-companion-version": "6.2.0", "x-forwarded-for": "spoofed", "x-real-ip": "spoofed",
+      "x-guilded-protocol": "2", "x-companion-version": "6.2.0", "x-companion-addon-version": "9.3.5", "x-forwarded-for": "spoofed", "x-real-ip": "spoofed",
       "x-guilded-long": "y".repeat(600)
     } }), env);
     const sent = new Headers((upstream.mock.calls[0]! as unknown as [string, RequestInit])[1].headers);
     expect(sent.get("x-guilded-protocol")).toBe("2");
     expect(sent.get("x-companion-version")).toBe("6.2.0");
+    expect(sent.get("x-companion-addon-version")).toBe("9.3.5");
     expect(sent.get("x-forwarded-for")).toBeNull();
     expect(sent.get("x-real-ip")).toBeNull();
     expect(sent.get("x-guilded-long")).toBeNull();

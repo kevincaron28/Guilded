@@ -115,6 +115,8 @@ Two failure modes only the test suite catches, not the type checker:
   `ROADMAP.md` ("Current stage"), `CHANGELOG.md`, both addon `.toc` files and
   `companion-app/package.json` match `package.json`. Guides link "latest release" instead.
 
+Older addons and companions must keep working: wire changes are additive only (optional fields, defaults, new message kinds), the support window is N-2 minor releases, and `tests/compat-guard.test.ts` fails if a `COMPANION_FEATURES` entry or a known wire field is removed or made required. Protocol constants and `MIN_COMPANION` live in `src/compat.ts`; the rules and how to add a fixture are in `docs/COMPAT_POLICY.md`.
+
 Two sync sharp edges (see `docs/SYNC_SPEEDUPS_2026-10-15.md`):
 
 - **The Lua test harness (fengari) has 32-bit integers; WoW's Lua uses doubles.** Arithmetic

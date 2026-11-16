@@ -1,4 +1,4 @@
-import { requestJson } from "./request.mjs";
+import { requestJson, versionHeaders } from "./request.mjs";
 import { foreverSameName } from "./character-identity.mjs";
 import { leaveOut } from "./group-relay.mjs";
 import { carryId } from "./carry-content.mjs";
@@ -10,7 +10,7 @@ import { carryId } from "./carry-content.mjs";
 // device; from then on the normal (signed-in) upload runs and confirms everything.
 
 export const DEVICE_HEADER = "x-companion-device";
-export const deviceHeaders = (config) => ({ [DEVICE_HEADER]: config.deviceSecret ?? "" });
+export const deviceHeaders = (config) => ({ [DEVICE_HEADER]: config.deviceSecret ?? "", ...versionHeaders() });
 export const hasDeviceKey = (config) => typeof config?.deviceSecret === "string" && config.deviceSecret.length >= 32;
 
 /** GuildedDB.guildKey is "<guild name>-<home realm>"; WoW guild names hold no hyphen. */

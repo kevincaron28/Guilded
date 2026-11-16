@@ -884,6 +884,7 @@ app.whenReady().then(async () => {
     storeConfig = require("./store-config.cjs").createStoreConfig(safeStorage, { log: settingsLog });
     setInterval(noteSaveState, 10_000).unref?.();
     engineModules = await loadEngineModules();
+    engineModules.setCompanionVersion(app.getVersion()); // x-companion-version on every API request (docs/COMPAT_POLICY.md)
     await loadConfig();
     // Diagnostics (9.0 release blocker): say if a start-up step left the settings blank.
     const setUp = !configLoadModule().isUnset(config);

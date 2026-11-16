@@ -899,6 +899,8 @@ export function exportDungeonRuns(database, realm, options = {}) {
         ...(player.spec ? { spec: String(player.spec).slice(0, 40) } : {}),
         // (9.3) The guild the game reported for this player (absent when none or unknown); old runs have none.
         ...(typeof player.guild === "string" && player.guild.trim() ? { guild: player.guild.trim().slice(0, 80) } : {}),
+        // (9.3.6) The faction the client reported (Alliance or Horde); absent when unknown, and in runs from older addons.
+        ...(player.faction === "ALLIANCE" || player.faction === "HORDE" ? { faction: player.faction } : {}),
         deaths: typeof player.deaths === "number" ? player.deaths : null,
         ...(Number.isInteger(player.level) && player.level >= 1 && player.level <= 100 ? { level: player.level } : {}),
         ...(Number.isInteger(player.minLevel) && player.minLevel >= 1 && player.minLevel <= 100 ? { minLevel: player.minLevel } : {}),

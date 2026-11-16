@@ -22,7 +22,12 @@ Owner decision (15 November 2026): "we can show everything publicly": every guil
 - **PvP**: battleground and world PvP data only exist for Guilded servers' members (guild-private tables), so there is no public PvP panel for an outside guild; its guild page shows none.
 - **Realm and faction pages**: `/leaderboards/guilds/realms/` (realms with guild counts per faction), `/leaderboards/guilds/realm/<realm slug>/` (the slug gets a short hash of the exact name when the base was cut or altered, so two long realm names never collide) and `/leaderboards/guilds/faction/<alliance|horde|unknown>/` render the guild ranking filtered to that realm or faction (the same table and filters as `/leaderboards/guilds/`); the guild page's realm and faction tiles link to them. The realm comes from a guild's stats (observed guilds: the grouping's realm).
 
+## Faction for outside guilds (PR 3, addon part ships in the next addon release)
+- Race to faction: `companion/race-faction.mjs` (`factionOfRace`: classic races by race token or English name; `majorityFaction`).
+- The addon records each party member's faction (`UnitFactionGroup(unit)`, else the race token) in `compat.groupMembers` (out of combat only, a plain read), keeps it on the run's player (`faction` = ALLIANCE or HORDE), and carries it in the run summary as `;fa=Name:A,Name:H` after the guild data (ASCII, guildmates' copies carry it). The companion exports `faction` per player (only ALLIANCE or HORDE); `dungeonRunSchema` accepts it; `PublicRunPlayer.faction` (migration `20270228000100`) stores it and a later report fills it where empty, never overwrites. Guild-source publishes (read from `DungeonRunPlayer`) do not carry it yet.
+- A guild's faction: the clear majority of its players' known factions (at least 2 known and 75% agreement, `majorityFaction`), where a player's faction is what a client reported, else the known race of that character name (`Character.race`, `DeviceCharacter.race`). Mixed or too few: unknown (the realm and faction pages list it under Unknown). Race lookups match the character name only (not the realm).
+
 ## Open
-- Faction inference for observed guilds (no source yet: they stay "Unknown").
+- Guild-source (DungeonRunPlayer) runs do not store the faction yet.
 
 Matching rule for deletion: names match the full name (the first-name alias only with a tie, see above); with a realm on both sides the realms must be equal; a realm-less row (or a member character without a realm) is taken only when the name is unique in the member's guild. The public pages' caches are cleared after a deletion.

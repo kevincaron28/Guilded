@@ -50,7 +50,7 @@ describe("observed guild address aliases", () => {
 });
 
 describe("duels of an observed guild", () => {
-  const seen = { key: "k", name: "Les Braves", realm: "Doomhowl", slug: "les-braves-doomhowl-abc123", aliases: [], spellings: ["Les Braves"], characters: new Map<string, string>() };
+  const seen = { key: "k", name: "Les Braves", realm: "Doomhowl", slug: "les-braves-doomhowl-abc123", aliases: [], spellings: ["Les Braves"], characters: new Map<string, string>(), reported: new Map<string, string>(), faction: null };
   const duel = (winnerGuild: string | null, loserGuild: string | null, winnerRealm = "Doomhowl", loserRealm = "Doomhowl") => ({
     winnerKey: "a", loserKey: "b", winner: "Ann", loser: "Bob", winnerRealm, loserRealm, winnerClass: "Mage", loserClass: "Rogue", winnerLevel: 60, loserLevel: 60,
     winnerGuild, loserGuild, endedAt: new Date("2026-11-10T12:00:00Z"), reason: "x", zone: null, durationSec: 30, reporters: ["a"], confirmed: false
@@ -69,5 +69,15 @@ describe("duels of an observed guild", () => {
     const a = realmSlugOf(`${long} One`), b = realmSlugOf(`${long} Two`);
     expect(a).not.toBe(b);
     expect(a.length).toBeLessThanOrEqual(36);
+  });
+});
+
+describe("faction of an observed guild", () => {
+  const rows = (factions: (string | null)[]) => factions.map((faction, i) => ({ guild: "Les Braves", realm: "Doomhowl", character: `Player${i}`, faction }));
+  it("is the clear majority of the factions the uploaders' clients reported, else unknown", () => {
+    expect(groupObservedGuilds(rows(["HORDE", "HORDE", "HORDE"]), new Set())[0]?.faction).toBe("HORDE");
+    expect(groupObservedGuilds(rows(["HORDE", "ALLIANCE"]), new Set())[0]?.faction).toBeNull();
+    expect(groupObservedGuilds(rows([null, null, null]), new Set())[0]?.faction).toBeNull();
+    expect(groupObservedGuilds(rows(["HORDE", null, null]), new Set())[0]?.faction).toBeNull(); // one known player is not a majority
   });
 });

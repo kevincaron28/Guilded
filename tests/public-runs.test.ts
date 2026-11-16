@@ -231,3 +231,17 @@ describe("personal uploads with several characters", () => {
     expect(pickScoreCharacter([], own[0]!)).toEqual(own[0]);
   });
 });
+
+describe("player factions in public runs (9.3.6)", () => {
+  it("keeps the faction the client reported, drops anything else, and carries it into the summary", () => {
+    const parsed = parse(run({ players: [
+      { character: "Kev", realm: "Doomhowl", class: "WARRIOR", role: "TANK", level: 16, presentSec: 1, inGuild: false, faction: "ALLIANCE" },
+      { character: "Amy", realm: "Doomhowl", class: "PRIEST", role: "HEALER", level: 15, presentSec: 1, inGuild: false, faction: "Neutral" },
+      { character: "Bob", realm: "Doomhowl", class: "MAGE", role: "DAMAGER", level: 15, presentSec: 1, inGuild: false }
+    ] }));
+    expect(parsed.players.map((player) => player.faction)).toEqual(["ALLIANCE", undefined, undefined]);
+    const summary = summarize(parsed);
+    expect(summary.players[0]).toMatchObject({ character: "Kev", faction: "ALLIANCE" });
+    expect(summary.players[1]).not.toHaveProperty("faction");
+  });
+});

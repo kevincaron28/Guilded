@@ -150,6 +150,8 @@ local function updatePlayers(run)
     player.inGuild = member.inGuild or player.inGuild
     -- (9.3) The guild the game reports for this player; kept when it is unknown for a moment (out of range).
     if member.guild then player.guild = member.guild end
+    -- (9.3.6) The player's faction as the client reported it (kept when unknown for a moment).
+    if member.faction then player.faction = member.faction end
     if member.name == me() then
       local identity = ns.getDb().character
       if identity and type(identity.spec) == "string" and identity.spec ~= "" then player.spec = identity.spec end
@@ -568,6 +570,15 @@ serialize = function(run)
     local guildData = ";gu=" .. table.concat(guilds, ",")
     if #summary + #guildData <= CHUNK_BYTES * 20 then summary = summary .. guildData end
   end
+  -- (9.3.6) Each player's faction (A or H) after the guild data, so it never crowds out anything older.
+  local factions = {}
+  for name, player in pairs(run.players) do
+    if player.faction == "ALLIANCE" or player.faction == "HORDE" then factions[#factions + 1] = clean(name) .. ":" .. string.sub(player.faction, 1, 1) end
+  end
+  if #factions > 0 then
+    local factionData = ";fa=" .. table.concat(factions, ",")
+    if #summary + #factionData <= CHUNK_BYTES * 20 then summary = summary .. factionData end
+  end
   return summary
 end
 
@@ -628,6 +639,11 @@ local function deserialize(id, text)
     local name, guild = string.match(entry, "^([^:]+):([^:]+)$")
     name = name and ns.normalizeName(name)
     if name and run.players[name] then run.players[name].guild = string.sub(guild, 1, 80) end
+  end
+  for entry in string.gmatch(fields.fa or "", "[^,]+") do
+    local name, letter = string.match(entry, "^([^:]+):([AH])$")
+    name = name and ns.normalizeName(name)
+    if name and run.players[name] then run.players[name].faction = letter == "A" and "ALLIANCE" or "HORDE" end
   end
   if fields.iv == "2" and (fields.iw == "unknown" or fields.iw == "native-reset" and tonumber(fields.wa)) and (fields.ic == "1" or fields.ic == "0") then
     run.integrity = { version = 2, startWitness = fields.iw, witnessAt = tonumber(fields.wa), startTrigger = fields.it or "unknown", continuous = fields.ic == "1",

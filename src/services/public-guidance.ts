@@ -158,3 +158,19 @@ export function roleScores(runs: ScoreRun[], rules: BracketedRules, me: ScorePla
   }).length;
   return { roles, unknownRuns };
 }
+
+export interface RoleSummaryRole { role: Role; /** Season score in the bracket from this role's runs only; null below MIN_ROLE_RUNS ranked runs or with no score. */ points: number | null; runs: number;
+  /** The routes counted in that score, best first (at most three). */ best: { key: string; points: number; run: ScoreRun }[] }
+/**
+ * Raider.IO-style role tiles for one bracket: each role's score (separate, never added together), its ranked runs and best routes, and
+ * the main role: the role with the most ranked runs (ties: the higher score, then tank, healer, DPS). null when no role has a run.
+ */
+export function roleSummary(scores: { roles: RoleScores[] }, bracket: string | null): { roles: RoleSummaryRole[]; main: Role | null } {
+  const roles = scores.roles.map(({ role, rows, runs }): RoleSummaryRole => {
+    const row = bracket && runs >= MIN_ROLE_RUNS ? rows.find((r) => r.bracket === bracket) : undefined;
+    const best = row ? row.routes.filter((r) => r.counted).sort((a, b) => b.points - a.points || a.key.localeCompare(b.key)).slice(0, 3).map(({ key, points, run }) => ({ key, points, run })) : [];
+    return { role, points: row?.points ?? null, runs, best };
+  });
+  const main = roles.filter((r) => r.runs > 0).sort((a, b) => b.runs - a.runs || (b.points ?? -1) - (a.points ?? -1) || ROLES.indexOf(a.role) - ROLES.indexOf(b.role))[0]?.role ?? null;
+  return { roles, main };
+}

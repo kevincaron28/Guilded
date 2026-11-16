@@ -340,6 +340,7 @@ describe("leaderboard and personal pages", () => {
     expect(typeof data.season).toBe("string");
     expect(data.brackets.length).toBeGreaterThan(0);
     for (const bracket of data.brackets) {
+      for (const character of bracket.characters as unknown as { roles: Record<string, number | null> }[]) expect(Object.keys(character.roles).sort()).toEqual(["DPS", "HEALER", "TANK"]);
       expect(bracket.characters.length).toBeLessThanOrEqual(10);
       expect(bracket.characters.map((c) => c.rank)).toEqual(bracket.characters.map((_, i) => i + 1));
     }
@@ -363,6 +364,11 @@ describe("leaderboard and personal pages", () => {
     const kev = await request("GET", "/leaderboards/character/Kev-Doomhowl");
     expect(kev.status).toBe(200);
     expect(kev.body).toContain("Best run per dungeon");
+    expect(kev.body).toContain(">Overall</div>");
+    expect(kev.body).toContain(">Healer");
+    const board = await request("GET", "/leaderboards/characters/?lang=fr");
+    expect(board.body).toContain(">Global</a>");
+    expect(board.body).toContain("role=TANK");
     expect((await request("GET", "/leaderboards/character/Nobody")).status).toBe(404);
   });
 

@@ -26,7 +26,7 @@ import type { WebContext, WebKit, WebResponse, WebRoute } from "./web-app.js";
 import { classColor, scoreCardResponse, type CardRow, type CardStat } from "./score-card.js";
 import { currentEdition, withEdition } from "./edition-context.js";
 import { gameEditionOf } from "./game-edition.js";
-import { freeSlug, groupObservedGuilds, guildPageStats, guildSlugs, observedGuildDuels, OBSERVED_PREFIX, routeKeyOf, slugBase, unrankedReason, type ObservedGuild } from "./guild-public-stats.js";
+import { freeSlug, groupObservedGuilds, guildPageStats, guildSlugs, observedGuildDuels, observedRecord, realmSlugOf, OBSERVED_PREFIX, routeKeyOf, slugBase, unrankedReason, type ObservedGuild } from "./guild-public-stats.js";
 import { duelPoints, percent, ratingStartOf, streakText } from "./duels.js";
 import { ADDON_SHOWS_RATING, DUEL_RULES, duelRuleLines, ratingRuleLines } from "./duel-rules.js";
 import { RATING, RATING_START, ratingApplies, ratingSeasonIds, ratingSeasonName, seasonOf, showChange } from "./duel-rating.js";
@@ -412,7 +412,18 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
       const observed = await loadObservedGuilds(taken, bases).catch(() => [] as PublicGuild[]);
       return [...own, ...observed.sort((a, b) => a.name.localeCompare(b.name))];
   }
-  async function loadGlobalDuels(): Promise<GlobalDuel[]> {
+  // One load of the public duel rows shared by the global ladder, the guild duel pages and guild stats (a minute; dropped with the pages' caches).
+  let duelMemo: { at: number; rows: Promise<GlobalDuel[]> } | null = null;
+  registerLeaderboardCache(() => { duelMemo = null; });
+  function loadGlobalDuels(): Promise<GlobalDuel[]> {
+    if (!duelMemo || Date.now() - duelMemo.at > 60_000) {
+      const rows = loadGlobalDuelsUncached();
+      duelMemo = { at: Date.now(), rows };
+      rows.catch(() => { if (duelMemo?.rows === rows) duelMemo = null; });
+    }
+    return duelMemo.rows;
+  }
+  async function loadGlobalDuelsUncached(): Promise<GlobalDuel[]> {
       const edition = currentEdition();
       const [rows, excluded, open, hiddenMembers] = await Promise.all([
         database.publicDuel.findMany({ where: { gameEdition: edition, counted: true, held: false }, orderBy: { endedAt: "desc" }, take: 50_000,
@@ -985,7 +996,8 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     return kit.page(200, scope?.title ?? t("Guild rankings", "Classement des guildes"), body, { shareImage: "/images/social/og-guilds.jpg", description: t("WoW Forever guild rankings by dungeon score: each guild's five best members per level bracket.", "Classement des guildes WoW Forever par score de donjon : les cinq meilleurs membres de chaque guilde par tranche de niveaux.") });
   }
 
-  const realmSlug = (realm: string) => slugBase(realm, "realm");
+  /** The realm's address: its slug base, with a short hash of the exact name when the base had to be cut (two long names could share it). */
+  const realmSlug = (realm: string) => realmSlugOf(realm);
   /** Realm of each guild with its guild count, for the realm index and the realm pages' addresses. */
   async function realmList(ctx: WebContext): Promise<{ realm: string; slug: string; guilds: number; factions: Record<string, number> }[]> {
     await ensureIndex(ctx);
@@ -1491,7 +1503,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const dash = `<span class="muted">–</span>`;
     const tiles = `<div class="tiles">`
       + (info?.faction ? tile(t("Faction", "Faction"), `<a class="fac-${info.faction.toLowerCase()}" href="${link(`/leaderboards/guilds/faction/${info.faction.toLowerCase()}/`, lang)}">${escapeHtml(factionLabel(info.faction, lang))}</a>`) : "")
-      + tile(t("Realm", "Royaume"), info?.realm ? (info.realm ? `<a href="${link(`/leaderboards/guilds/realm/${encodeURIComponent(realmSlug(info.realm))}/`, lang)}">${escapeHtml(info.realm)}</a>` : escapeHtml(info.realm)) : dash)
+      + tile(t("Realm", "Royaume"), info?.realm ? `<a href="${link(`/leaderboards/guilds/realm/${encodeURIComponent(realmSlug(info.realm))}/`, lang)}">${escapeHtml(info.realm)}</a>` : dash)
       + tile(t("Ranked players", "Joueurs classés"), String(stats.ranked))
       + tile(t("Public runs", "Essais publics"), String(stats.runs))
       + tile(t("Dungeon records", "Records de donjon"), String(stats.records))
@@ -1561,6 +1573,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     if (guild && deps.store.guildDuelRows && id !== indexOf(ctx).slugs.get(guild.id)) return kit.redirect(link(`${guildPath(ctx, guild)}/duels`, lang, Object.fromEntries([...ctx.request.query].filter(([k]) => k !== "lang"))));
     if (!guild || !deps.store.guildDuelRows) return kit.page(404, t("Not found", "Introuvable"), PAGE_CSS + `<h1>${t("Guild not found", "Guilde introuvable")}</h1>${emptyPage(t("No page for this guild", "Pas de page pour cette guilde"), [], "notfound")}`, { noindex: true });
     const all = await cached(`duels:${guild.id}`, () => deps.store.guildDuelRows!(guild.id));
+    const record = guild.id.startsWith(OBSERVED_PREFIX) ? observedRecord(all) : null;
     const startsAt = await duelStart(guild.id);
     const f = await duelFilters(ctx, startsAt);
     const board = duelBoardFor(all, f, startsAt);
@@ -1605,13 +1618,13 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const body = PAGE_CSS + HUB_CSS + hubTabs(t, lang, "guilds") + breadcrumbs(lang, [[t("Leaderboards", "Classements"), link("/leaderboards/", lang)], [t("Guilds", "Guildes"), link("/leaderboards/guilds/", lang)], [guild.name, link(base, lang)], [t("Duels", "Duels"), null]], escapeHtml)
       + `<p class="eyebrow">${t("Guild", "Guilde")} · ${t("Duels", "Duels")}${f.rating && f.seasonId ? ` · ${escapeHtml(ratingSeasonName(f.seasonId, lang))}` : ""}</p><h1>${escapeHtml(guild.name)}</h1>`
       + `<nav class="tabs"><a href="${link(base, lang)}">${t("Dungeons", "Donjons")}</a><a class="on" href="${link(here, lang)}">${t("Duels", "Duels")}</a></nav>`
-      + `<div class="tiles"><div class="tile"><div class="k">${t("Counted duels", "Duels comptés")}</div><div class="v">${board.duels}</div></div><div class="tile"><div class="k">${t("Duellists", "Duellistes")}</div><div class="v">${board.rows.length}</div></div>`
+      + `<div class="tiles"><div class="tile"><div class="k">${t("Counted duels", "Duels comptés")}</div><div class="v">${board.duels}</div></div><div class="tile"><div class="k">${t("Duellists", "Duellistes")}</div><div class="v">${board.rows.length}</div></div>${record ? `<div class="tile"><div class="k">${t("Record against anyone", "Bilan contre tous")}</div><div class="v">${record.wins}–${record.losses}</div></div>` : ""}`
       + (f.rating && f.seasonId ? `<div class="tile"><div class="k">${t("Rules", "Règles")}</div><div class="v">${t("Rating", "Cote")}</div></div>` : "") + `</div>`
       + transition + form + `<h2>${t("Ranking", "Classement")}</h2>` + ranking
       + `<details class="rules" open><summary>${t("How scoring works", "Comment fonctionne le score")}</summary><ul>${rules}</ul></details>`
       + (recent ? `<h2>${t("Recent duels", "Duels récents")}</h2>${recent}` : "")
       + `<h2>${t("Head to head", "Face à face")}</h2>` + h2hForm + h2h
-      + `<p class="muted">${t("Duels between members of this guild.", "Duels entre membres de cette guilde.")} <a href="${link(`${here}.json`, lang, f.rating ? { when: f.when } : {})}">JSON</a></p>`;
+      + `<p class="muted">${guild.id.startsWith(OBSERVED_PREFIX) ? t("Duels of this guild's players, against anyone; the ranking lists the guild's own players.", "Duels des joueurs de cette guilde, contre tous ; le classement liste les joueurs de la guilde.") : t("Duels between members of this guild.", "Duels entre membres de cette guilde.")} <a href="${link(`${here}.json`, lang, f.rating ? { when: f.when } : {})}">JSON</a></p>`;
     return kit.page(200, `${guild.name} · ${t("Duels", "Duels")}`, body, { description: t(`${guild.name}: guild duel leaderboard on Guilded.`, `${guild.name} : classement des duels de la guilde sur Guilded.`) });
   }
 

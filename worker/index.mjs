@@ -70,6 +70,8 @@ const apiMethods = new Map([
   ["/api/v1/mobile/device", ["GET", "POST"]],
   // 8.5 Track L: who is signed in and the join invite for the member's in-game guild.
   ["/api/v1/companion/me", ["GET"]],
+  // One-click claim: the characters this PC's zero-setup install reported, offered to the signed-in member (Link / Not now).
+  ["/api/v1/companion/claim-offers", ["GET", "POST"]],
   // Phone badge album: the signed-in member's own achievements (read-only).
   ["/api/v1/companion/achievements", ["GET"]],
   // Guilded Collection (phone card game): read, open the daily pack, craft.

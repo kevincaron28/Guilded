@@ -16,6 +16,8 @@ import { retiredAvailabilityRoute, retiredToolsRoute } from "./services/retired-
 import { autoLinkUnclaimed } from "./services/character-autolink.js";
 import { linkUploaderCharacters, repairMissingLinks } from "./services/upload-linking.js";
 import { linkedCharacterCount, scheduleLinkedCharacters } from "./services/companion-link-dm.js";
+import { hasPermission } from "./permissions.js";
+import { claimOffer, offerByDm, offerByDmToUsers, offersFor, snoozeOffer } from "./services/device-claim-offer.js";
 import { companionMe } from "./services/companion-me.js";
 import { albumFor } from "./services/companion-album.js";
 import { applyWorldPvpUpload, parseWorldPvpUploads } from "./services/world-pvp.js";
@@ -383,6 +385,13 @@ export function createSiteApp(client?: Client) {
       if (!server.wowGuildId) return false;
       const row = await prisma.guild.findUnique({ where: { id: server.wowGuildId }, select: { id: true, name: true } });
       return row ? (await serverKnowsWowGuild(prisma, row, guildKey))?.known === true : false;
+    },
+    // Officers and owners of a server may link to it before it knows their in-game guild (they are the ones who set it up).
+    isOfficer: async (account, server) => {
+      if (!client?.isReady() || !server.wowGuildId) return false;
+      const discordGuild = client.guilds.cache.get(server.discordId);
+      const member = discordGuild ? await discordGuild.members.fetch({ user: account.discordUserId }).catch(() => null) : null;
+      return !!member && (discordGuild!.ownerId === member.id || await withGuildScope(prisma, server.wowGuildId, async () => hasPermission(member, "officer")));
     },
     issuePersonal: async (accountId, deviceName) => (await issuePersonalCredential(personalStore, accountId, deviceName)).companionCredential
   });
@@ -867,11 +876,14 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // The companion's hub: my characters, reserves and (officers) the server page.
       const isHubView = request.method === "GET" && url.pathname === "/api/v1/hub";
       const isHubEdit = request.method === "POST" && url.pathname === "/api/v1/hub";
+      // One-click claim (device-claim-offer.ts): the characters this PC's zero-setup install reported, offered to the signed-in member.
+      const isClaimView = request.method === "GET" && url.pathname === "/api/v1/companion/claim-offers";
+      const isClaimEdit = request.method === "POST" && url.pathname === "/api/v1/companion/claim-offers";
       // Zero-setup companion: register a device key, upload as that device, claim it after a sign-in.
       const isDeviceRegister = request.method === "POST" && url.pathname === "/api/v1/device/register";
       const isDeviceUpload = request.method === "POST" && url.pathname === "/api/v1/device/uploads";
       const isDeviceClaim = request.method === "POST" && url.pathname === "/api/v1/device/claim";
-      if (!isRenew && !isMobileDevice && !isDeviceRegister && !isDeviceUpload && !isDeviceClaim && !isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isPersonalStatus && !isCompanionMe && !isAlbum && !isCards && !isClash && !isStandings && !isPoeUpload && !isPoeLevels && !isPoeStatus && !isPoeRecent && !isLogout && !isDeleteData && !isManageView && !isManageEdit && !isHubView && !isHubEdit && !isMapView && !isMapEdit) {
+      if (!isRenew && !isMobileDevice && !isDeviceRegister && !isDeviceUpload && !isDeviceClaim && !isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isPersonalStatus && !isCompanionMe && !isAlbum && !isCards && !isClash && !isStandings && !isPoeUpload && !isPoeLevels && !isPoeStatus && !isPoeRecent && !isLogout && !isDeleteData && !isManageView && !isManageEdit && !isHubView && !isHubEdit && !isClaimView && !isClaimEdit && !isMapView && !isMapEdit) {
         json(response, 404, { error: "Not found" });
         return;
       }
@@ -1217,10 +1229,10 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         }
         });
       }
-      const payload = isImport || isPoeUpload || (isMobileDevice && request.method === "POST") || isPoeLevels || isManageEdit || isHubEdit || isMapEdit ? await readBody(request) : null;
+      const payload = isImport || isPoeUpload || (isMobileDevice && request.method === "POST") || isPoeLevels || isManageEdit || isHubEdit || isClaimEdit || isMapEdit ? await readBody(request) : null;
       const bodyReadAt = Date.now();
       const requestPayload = payload as { guildDiscordId?: unknown; export?: unknown } | null;
-      const guildDiscordId = isStandings || isPoeStatus || isPoeRecent || isManageView || isHubView || isMapView || (isMobileDevice && request.method === "GET") ? url.searchParams.get("guild") : requestPayload?.guildDiscordId;
+      const guildDiscordId = isStandings || isPoeStatus || isPoeRecent || isManageView || isHubView || isClaimView || isMapView || (isMobileDevice && request.method === "GET") ? url.searchParams.get("guild") : requestPayload?.guildDiscordId;
       if (typeof guildDiscordId !== "string") { json(response, 400, { error: "guildDiscordId is required" }); return; }
       if (!hostedPilot.allows(guildDiscordId)) { json(response, 403, { error: "This server is on Guilded Lite: companion sync unlocks when the Guilded owner approves it." }); return; }
       const header = request.headers["x-companion-credential"] ?? request.headers.authorization?.replace(/^Bearer\s+/i, "");
@@ -1259,6 +1271,24 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           return;
         }
         privateJson(response, await guildMapFor(prisma, guild.id, access.memberId));
+        return;
+      }
+      if (isClaimView || isClaimEdit) {
+        // The member's own offers only (the credential names the member); never lists another member's installs.
+        if (!access.memberId) { json(response, 403, { error: "Sign in as a member of this guild first." }); return; }
+        if (isClaimView) {
+          const offers = await offersFor(prisma, access.memberId);
+          privateJson(response, { offers: offers.map((offer) => ({ deviceId: offer.deviceId, characters: offer.characters, taken: offer.taken })) });
+          return;
+        }
+        const choice = payload as { deviceId?: unknown; action?: unknown } | null;
+        if (typeof choice?.deviceId !== "string" || choice.deviceId.length > 64 || (choice.action !== "link" && choice.action !== "later")) { json(response, 400, { error: "deviceId and action (link or later) are required" }); return; }
+        if (!allowManageWrite(access.memberId)) { json(response, 429, { error: "Too many changes in a short time. Try again in a few minutes." }); return; }
+        if (choice.action === "later") { await snoozeOffer(prisma, access.memberId, choice.deviceId); privateJson(response, { ok: true, snoozed: true }); return; }
+        const result = await claimOffer(prisma, access.memberId, choice.deviceId);
+        if (!result) { json(response, 404, { error: "That offer is not available any more." }); return; }
+        if (result.linked.length) markGuildChanged(guild.id);
+        privateJson(response, { ok: true, linked: result.linked, skipped: result.skipped });
         return;
       }
       if (isHubView) {
@@ -1415,6 +1445,8 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // First link, and later new characters: one batched DM listing the linked characters (owner decision, 8.5 track F).
       if (pairedMemberId && client) {
         scheduleLinkedCharacters(client, prisma, { guildDiscordId: guild.discordId, memberId: pairedMemberId, lang: asLang(settings?.language), before: linkedBefore });
+        // A first link after Discord sign-in: if the install of this PC reported more characters of the account, offer them once (the companion shows it too).
+        if (pairedCharacterStatus === "linked") setTimeout(() => { void offerByDm(client, prisma, pairedMemberId); }, 45_000).unref();
       }
       // Guildmates who pasted their /guilded verify code in game, as this uploader's addon heard them:
       // an officer's upload links and confirms; a member's links provisionally (character-verify.ts).
@@ -1429,7 +1461,12 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       if (access.officer || pairedMemberId) {
         const verified = await timed("verified-links", () => linkVerifiedCharacters(prisma, guild.id, { officer: access.officer, memberId: pairedMemberId }, preview.snapshot.characters))
           .catch((error: unknown) => { console.error("Linking verified characters failed", error); return []; });
-        if (verified.length && client) void tellVerified(client, guild.discordId, asLang(settings?.language), verified).catch(() => undefined);
+        if (verified.length && client) {
+          // Then, for the installs of the same WoW account that are not linked yet, one "Link these characters?" DM (device-claim-offer.ts).
+          const linkedUsers = verified.filter((row) => row.status === "linked" && !row.movedFrom).map((row) => row.discordUserId);
+          void tellVerified(client, guild.discordId, asLang(settings?.language), verified).catch(() => undefined)
+            .then(() => linkedUsers.length ? offerByDmToUsers(client, prisma, guild.id, linkedUsers) : undefined);
+        }
       }
       // Two members and one character (the uploader's own characters above, or a verify code): stronger
       // proof moved it, or it waits for an officer. Both members and the officer log hear it once.

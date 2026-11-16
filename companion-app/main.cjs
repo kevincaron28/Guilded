@@ -1290,6 +1290,9 @@ registerIpc("sign-in-wait", async () => {
 // in-game guild's Discord (from GuildedDB.guildKey in the watched Guilded.lua).
 const DISCORD_INVITE = /^https:\/\/(discord\.gg|(www\.)?discord\.com\/invite)\/[\w-]{2,40}$/;
 registerIpc("companion-me", () => companionMeFetch());
+// One-click claim: the characters an earlier zero-setup install reported, offered once per install (Link / Not now).
+registerIpc("claim-offers", () => engineModules.fetchClaimOffers(config));
+registerIpc("claim-offer-answer", (_event, answer) => engineModules.answerClaimOffer(config, answer?.deviceId, answer?.action));
 async function companionMeFetch() {
   if (!config.companionCredential) return { ok: false, signedOut: true };
   let guild = null;

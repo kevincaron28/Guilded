@@ -144,7 +144,43 @@ async function loadMe() {
   if (!snapshot.config.companionCredential) { render(); return; }
   try { const answer = await api.companionMe(); me = answer?.ok ? answer : null; } catch { me = null; }
   render();
+  void loadClaimOffers();
 }
+
+// One-click claim: characters an earlier zero-setup install of this PC reported, offered once per install (Link them / Not now).
+let claimOffers = [];
+async function loadClaimOffers() {
+  claimOffers = [];
+  if (snapshot.config.companionCredential && !snapshot.config.personal) {
+    try { const answer = await api.claimOffers(); claimOffers = answer?.ok ? answer.offers || [] : []; } catch { claimOffers = []; }
+  }
+  renderClaim();
+}
+function renderClaim() {
+  const offer = claimOffers[0];
+  $('claim').hidden = !offer;
+  if (!offer) return;
+  const name = me?.account?.displayName || me?.account?.username || '';
+  $('claimText').textContent = T('Link these {0} characters to {1}?', offer.characters.length, name || T('your Discord account'));
+  $('claimList').replaceChildren(...offer.characters.map((c) => { const item = document.createElement('li'); item.textContent = c.className ? `${c.name} · ${c.className}${c.level ? ' ' + c.level : ''}` : c.name; return item; }));
+  $('claimTaken').textContent = offer.taken?.length ? T('Already linked to someone else: {0}. Ask an officer, or use "This isn\'t my character" in Discord.', offer.taken.join(', ')) : '';
+}
+async function answerClaim(action) {
+  const offer = claimOffers[0];
+  if (!offer) return;
+  $('btnClaimLink').disabled = $('btnClaimLater').disabled = true;
+  try {
+    const answer = await api.claimOfferAnswer(offer.deviceId, action);
+    if (answer?.ok) say(action === 'link' ? T('Linked to you.') : T('OK. We will not ask again for 7 days.'));
+    else say(answer?.message || T('This action could not be completed.'), false);
+    claimOffers = claimOffers.slice(answer?.ok ? 1 : 0);
+  } catch (error) { say(error?.message || T('This action could not be completed.'), false); }
+  $('btnClaimLink').disabled = $('btnClaimLater').disabled = false;
+  renderClaim();
+}
+$('btnClaimLink').onclick = () => void answerClaim('link');
+$('btnClaimLater').onclick = () => void answerClaim('later');
+setInterval(() => void loadClaimOffers(), 10 * 60_000);
 async function reload() {
   const all = await api.getAll();
   snapshot = { ...snapshot, accountRows: all.accountRows || [], otherAccount: all.otherAccount ?? null, config: all.config, state: all.state, problems: all.problems, savedFile: all.savedFile, addonAction: all.addonAction, update: all.update };

@@ -122,6 +122,13 @@ describe("site menu", () => {
     expect(html.match(/aria-current/g)).toHaveLength(1);
   });
 
+  it("keeps a bilingual account label as markup, with a plain aria-label (no escaped span text)", () => {
+    const html = navLinks({ label: item => `<span data-en="${item.en}" data-fr="${item.fr}">${item.en}</span>` });
+    expect(html).toContain('aria-label="My Guilded"');
+    expect(html).toContain('<span class="nav-account-label"><span data-en="My Guilded"');
+    expect(html).not.toContain("&lt;span");
+  });
+
   it("keeps Help to the one install path", () => {
     const help = FOOTER_NAV.filter((item) => item.column === "help");
     expect(help.map((item) => [item.en, item.href])).toEqual([

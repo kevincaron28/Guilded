@@ -173,7 +173,11 @@ const accountIcon = `<svg class="nav-account-icon" width="20" height="20" viewBo
 export function navLinks({ label, href = (item) => item.href, current = null }) {
   return SITE_NAV.map((item) => {
     const currentAttr = item.key === current ? ' aria-current="page"' : "";
-    if (item.icon) return `<a class="nav-account" href="${escape(href(item))}"${currentAttr} aria-label="${escape(label(item))}">${accountIcon}<span class="nav-account-label">${escape(label(item))}</span></a>`;
+    if (item.icon) {
+      // A bilingual page passes the label as a <span data-en data-fr> pair: keep that markup for the text, plain words for the aria-label.
+      const text = label(item);
+      return `<a class="nav-account" href="${escape(href(item))}"${currentAttr} aria-label="${escape(text.replace(/<[^>]*>/g, ""))}">${accountIcon}<span class="nav-account-label">${text.startsWith("<span") ? text : escape(text)}</span></a>`;
+    }
     return `<a href="${escape(href(item))}"${item.cta ? ' class="nav-cta"' : ""}${currentAttr}>${label(item)}</a>`;
   }).join("");
 }

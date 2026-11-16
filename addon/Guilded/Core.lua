@@ -2490,7 +2490,16 @@ end
 local GUILD_RETRY_SECONDS = { 2, 5, 15, 25 }
 local function resolveGuildSoon()
   local function try()
-    if db and resolveGuildData() then noteMyCharacter(db.character) end
+    if not db then return end
+    local resolved = resolveGuildData()
+    -- (9.3.7) The character block was captured before the guild was known (no rank, old time): take a fresh one now, so
+    -- the saved file shows this character with its new guild, rank and time and the companion exports it on the next upload.
+    local stale = type(db.character) == "table" and db.character.guildRankName == nil and currentGuildKey() ~= nil
+    if resolved or stale then
+      local ok, captured = pcall(collectCharacter)
+      if ok and type(captured) == "table" then db.character = captured end
+      noteMyCharacter(db.character)
+    end
   end
   try()
   if C_Timer and C_Timer.After then

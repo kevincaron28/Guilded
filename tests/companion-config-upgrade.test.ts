@@ -298,6 +298,6 @@ describe("the installer closes the old companion before replacing files", () => 
     const main = readFileSync("companion-app/main.cjs", "utf8");
     expect(main).not.toMatch(/writeFileSync\(path\.join\(app\.getPath\("userData"\), "startup\.log"\), ""\)/);
     expect(main).toMatch(/size > 256 \* 1024\) fs\.renameSync\(log, log \+ "\.1"\)/);
-    expect(main).toMatch(/fs\.appendFileSync\(log, `----- \$\{new Date\(\)\.toISOString\(\)\} start, pid/);
+    expect(main).toMatch(/runLog\(\)\.raw\(`----- \$\{new Date\(\)\.toISOString\(\)\} start, pid/);
   });
 });

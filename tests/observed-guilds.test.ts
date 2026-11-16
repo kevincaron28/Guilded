@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { groupObservedGuilds, MIN_OBSERVED_MEMBERS, slugBase } from "../src/services/guild-public-stats.js";
+import { groupObservedGuilds, observedGuildDuels, observedRecord, realmSlugOf, MIN_OBSERVED_MEMBERS, slugBase } from "../src/services/guild-public-stats.js";
 
 const row = (guild: string | null, character: string, realm = "Doomhowl") => ({ guild, realm, character });
 
@@ -46,5 +46,28 @@ describe("observed guild address aliases", () => {
     expect(known.aliases).toContain("twins-doomhowl"); // #999's slug
     const unknown = groupObservedGuilds([{ guild: "Twins", realm: "", character: "A" }, { guild: "Twins", realm: "", character: "B" }], new Set())[0]!;
     expect(known.aliases).toContain(unknown.slug); // the address it had before its realm resolved
+  });
+});
+
+describe("duels of an observed guild", () => {
+  const seen = { key: "k", name: "Les Braves", realm: "Doomhowl", slug: "les-braves-doomhowl-abc123", aliases: [], spellings: ["Les Braves"], characters: new Map<string, string>() };
+  const duel = (winnerGuild: string | null, loserGuild: string | null, winnerRealm = "Doomhowl", loserRealm = "Doomhowl") => ({
+    winnerKey: "a", loserKey: "b", winner: "Ann", loser: "Bob", winnerRealm, loserRealm, winnerClass: "Mage", loserClass: "Rogue", winnerLevel: 60, loserLevel: 60,
+    winnerGuild, loserGuild, endedAt: new Date("2026-11-10T12:00:00Z"), reason: "x", zone: null, durationSec: 30, reporters: ["a"], confirmed: false
+  });
+  it("counts a duel when either side carries the guild, against anyone, and marks which side is a member", () => {
+    const rows = observedGuildDuels(seen, [duel("Les Braves", "les braves"), duel("Les Braves", "Other Guild"), duel("Other Guild", "Les Braves"), duel("Other", "Other"), duel("Les Braves", null), duel("Les Braves", "Les Braves", "Doomhowl", "Elsewhere"), duel("Les Braves", "Les Braves", "", "")]);
+    expect(rows).toHaveLength(6); // every duel with a member on its realm (a side with no realm stored counts); "Other vs Other" is not theirs
+    expect(rows[0]).toMatchObject({ winnerShown: true, loserShown: true });
+    expect(rows[1]).toMatchObject({ winnerShown: true, loserShown: false });
+    expect(rows[2]).toMatchObject({ winnerShown: false, loserShown: true });
+    expect(observedRecord(rows)).toEqual({ wins: 5, losses: 3 });
+  });
+  it("gives each realm its own address, hashing only when the base was cut or altered", () => {
+    expect(realmSlugOf("Doomhowl")).toBe("doomhowl");
+    const long = "A Very Long Realm Name That Goes On And On Forever";
+    const a = realmSlugOf(`${long} One`), b = realmSlugOf(`${long} Two`);
+    expect(a).not.toBe(b);
+    expect(a.length).toBeLessThanOrEqual(36);
   });
 });

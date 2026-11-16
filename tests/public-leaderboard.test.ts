@@ -150,6 +150,38 @@ describe("leaderboard and personal pages", () => {
     return { request, personal };
   }
 
+  describe("realm and faction pages", () => {
+    it("lists realms with their guild counts and links each realm and faction page", async () => {
+      const { request } = setup();
+      const index = await request("GET", "/leaderboards/guilds/realms/");
+      expect(index.status).toBe(200);
+      expect(index.body).toContain("/leaderboards/guilds/realm/doomhowl/");
+      expect(index.body).toContain("/leaderboards/guilds/faction/alliance/");
+      expect(index.body).toContain("/leaderboards/guilds/faction/unknown/");
+    });
+    it("ranks only the guilds of one realm, or one faction, under their own address", async () => {
+      const { request } = setup();
+      const realm = await request("GET", "/leaderboards/guilds/realm/doomhowl/");
+      expect(realm.status).toBe(200);
+      expect(realm.body).toContain("Guilds on Doomhowl");
+      expect(realm.body).toContain("leaderboards/guild/quebec-gold");
+      expect((await request("GET", "/leaderboards/guilds/realm/nowhere/")).status).toBe(404);
+      const alliance = await request("GET", "/leaderboards/guilds/faction/alliance/");
+      expect(alliance.status).toBe(200);
+      expect(alliance.body).toContain("leaderboards/guild/quebec-gold");
+      const horde = await request("GET", "/leaderboards/guilds/faction/horde/");
+      expect(horde.status).toBe(200);
+      expect(horde.body).toContain("All guilds <span class=\"tag\">(0)</span>");
+      expect(horde.body).toContain("No guild matches");
+    });
+    it("links a guild page's realm and faction tiles to those pages", async () => {
+      const { request } = setup();
+      const page = await request("GET", "/leaderboards/guild/quebec-gold/");
+      expect(page.body).toContain("/leaderboards/guilds/realm/doomhowl/");
+      expect(page.body).toContain("/leaderboards/guilds/faction/alliance/");
+    });
+  });
+
   describe("the landing page", () => {
     const early = () => leaderRun("early", 1400, [player("Amy", "Priest", "HEALER")], { endedAt: new Date("2026-11-05T12:00:00Z") });
     it("shows podiums, latest runs, weekly climbers, records broken, tabs and search in English and French", async () => {

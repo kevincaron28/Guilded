@@ -2,7 +2,7 @@
 
 ## 9.3.7 — 16 November 2026
 
-Fixes after the 9.3.6 two-PC test. Prepared 16 November 2026, not yet published. Not yet confirmed on real clients (see docs/V9_3_7_RELEASE_ACCEPTANCE.md). Details: docs/V9_3_7_RELEASE_NOTES.md.
+Fixes after the 9.3.6 two-PC test. Published 16 November 2026 (GitHub and the website; CurseForge upload in review). Not yet confirmed on real clients (see docs/V9_3_7_RELEASE_ACCEPTANCE.md). Details: docs/V9_3_7_RELEASE_NOTES.md.
 
 Addon and companion:
 

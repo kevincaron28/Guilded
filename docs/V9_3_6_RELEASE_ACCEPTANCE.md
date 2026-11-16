@@ -8,7 +8,7 @@ Status: published 16 November 2026. 9.3.6 is not yet confirmed on real clients.
 | --- | --- |
 | GitHub | v9.3.6 is the latest release (tag at e2997f82), six assets. |
 | Installer | `Guilded.Companion.Setup.exe` and `Guilded.Companion.Setup.9.3.6.exe` on the server and the R2 mirror. |
-| CurseForge | files 9649625 (Guilded) and 9649626 (Guilded Dungeons) uploaded 16 November 2026, in review; the website keeps pointing at 9.3.5 until they are approved. |
+| CurseForge | files 9649625 (Guilded) and 9649626 (Guilded Dungeons) approved 16 November 2026; the website points at them. |
 | Microsoft Store | 9.3.6.0 package built, not yet submitted (9.3.4.0 still certifying as Submission 13) |
 | Bot | deployed 9.3.6 (e2997f82) after a verified backup |
 | Website | `site/releases.json` (GitHub and installer) and the addon downloads point at 9.3.6; CurseForge stays at 9.3.5 |

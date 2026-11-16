@@ -47,6 +47,12 @@ vi.mock("../src/services/housekeeping.js", async (importOriginal) => {
 
 import { executeCharacter } from "../src/commands/character.js";
 
+/** The last officer-log line, resolved in one language (postToLogChannel takes a function of the server language). */
+function logLine(lang: "en" | "fr"): string {
+  const line = mocks.log.mock.calls.at(-1)?.[1] as string | ((l: "en" | "fr") => string);
+  return typeof line === "function" ? line(lang) : line;
+}
+
 const ray = { id: "c1", name: "Ray", realm: "Forever", gameEdition: "forever", memberId: "m1", member: { displayName: "Ray" } };
 const kev = { id: "c2", name: "Kevchar", realm: "Forever", gameEdition: "forever", memberId: "m2", member: { displayName: "Kev" } };
 
@@ -83,7 +89,9 @@ describe("Discord character link commands", () => {
     await executeCharacter(move as never);
     expect(mocks.officerMove).toHaveBeenCalledWith(expect.anything(), "c2", "m2x");
     expect(move.reply.mock.calls[0]?.[0].content).toContain("Moved **Kevchar** from Kev to sam as an alt");
-    expect(mocks.log).toHaveBeenCalledWith(move.guild, "rayuser moved Kevchar from Kev to sam (history kept).");
+    expect(mocks.log).toHaveBeenCalledWith(move.guild, expect.any(Function));
+    expect(logLine("en")).toBe("rayuser moved Kevchar from Kev to sam (history kept).");
+    expect(logLine("fr")).not.toBe(logLine("en"));
 
     const back = interaction("move", { name: "Old Ray", player: { id: "u9", username: "sam" } });
     await executeCharacter(back as never);
@@ -132,7 +140,8 @@ describe("Discord character link commands", () => {
     const unlink = interaction("unlink", { name: "Kevchar" });
     await executeCharacter(unlink as never);
     expect(mocks.block).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ name: "Kevchar", memberId: "m2" }), "g1", true);
-    expect(mocks.log).toHaveBeenCalledWith(unlink.guild, expect.stringContaining("unlinked Kevchar from Kev"));
+    expect(mocks.log).toHaveBeenCalledWith(unlink.guild, expect.any(Function));
+    expect(logLine("en")).toContain("unlinked Kevchar from Kev");
     expect(unlink.reply.mock.calls[0]?.[0].content).toContain("from Kev");
     expect(unlink.reply.mock.calls[0]?.[0].content).toContain("won't relink");
   });

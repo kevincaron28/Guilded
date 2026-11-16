@@ -111,11 +111,13 @@ export async function deleteMyData(database: PrismaClient, discordUserId: string
   // deleted yet and the request can simply be repeated, so the deletion never ends half done.
   const memberIds = (await database.member.findMany({ where: { discordUserId }, select: { id: true } })).map(row => row.id);
   const { characters: named, ties } = await ownCharacters(database, memberIds);
-  await anonymisePublicRuns(database, named, ties);
-  await anonymisePublicDuels(database, named, ties);
-  const summary = await deleteWithinTransaction(database, discordUserId);
-  clearLeaderboardCaches(); // the public pages drop what they cached (rosters, observed guilds) at once
-  return summary;
+  try {
+    await anonymisePublicRuns(database, named, ties);
+    await anonymisePublicDuels(database, named, ties);
+    return await deleteWithinTransaction(database, discordUserId);
+  } finally {
+    clearLeaderboardCaches(); // the public pages drop what they cached (rosters, observed guilds) at once, even if the transaction failed after the public rows changed
+  }
 }
 
 async function deleteWithinTransaction(database: PrismaClient, discordUserId: string): Promise<DeletionSummary> {

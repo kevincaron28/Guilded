@@ -17,6 +17,10 @@ describe("public run guild backfill", () => {
     expect(sql[2]).toContain('guildBackfillAt');
     expect(sql[0]).toContain('"DungeonRunPlayer"');
     expect(sql[1]).toContain('"GuildRosterEntry"');
+    // a server with several WowGuilds is ambiguous: only its single guild, or the one a recording client named
+    expect(sql[1]).toContain('"WowGuild" w2');
+    expect(sql[1]).toContain('= 1');
+    expect(sql[1]).toContain('lower(dq."guild") = lower(w."name")');
   });
   it("reports a failed batch and carries on", async () => {
     const onError = vi.fn();

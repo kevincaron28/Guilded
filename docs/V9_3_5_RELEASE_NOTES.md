@@ -1,6 +1,6 @@
 # Guilded 9.3.5 — release notes (15 November 2026)
 
-**A new logo, a richer dungeon result card and quieter syncing.** Prepared 15 November 2026, not yet published. Protocol 2, WoW Forever only. No bot migration since 9.3.4.
+**A new logo, a richer dungeon result card and quieter syncing.** Published 15 November 2026. Protocol 2, WoW Forever only. No bot migration since 9.3.4.
 
 Real-client checks: docs/V9_3_5_RELEASE_ACCEPTANCE.md. 9.3.5 is not yet confirmed on real clients.
 

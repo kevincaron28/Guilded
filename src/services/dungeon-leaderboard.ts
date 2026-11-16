@@ -90,7 +90,7 @@ export async function updateDungeonLeaderboard(discordGuild: DiscordGuild | null
     // is rebuilt without them by this same edit (components cleared). The rating and best-runs embeds and the ladder picture are unchanged.
     const cardRows = await leaderboard(prisma, guild.id, "season", null, CARD_TOP);
     const best = bestRunsEmbed(await seasonBestRuns(prisma, guild.id, season.id), lang, await guildBossRecords(prisma, guild.id).catch(() => []));
-    const ratingRows = hasDungeonRating(season.ratingRules) ? await dungeonRating(prisma, guild.id, season) : null;
+    const ratingRows = hasDungeonRating(season.ratingRules) ? await dungeonRating(prisma, guild.id, season, null, true) : null;
     const rating = ratingRows ? ratingEmbed(ratingRows, season.name, lang, season.ratingRules) : null;
     // An empty board says why (runs received but none counted, or none received): the reason sits on the best-runs embed.
     const unranked = !(ratingRows ?? cardRows).some(row => row.points > 0);

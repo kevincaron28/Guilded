@@ -6,6 +6,7 @@ import { nameKey } from "./roster-discovery.js";
 import { cacheAllMembers } from "./member-cache.js";
 import { characterKey } from "../../companion/character-identity.mjs";
 import { tellAutoLinked } from "./companion-link-dm.js";
+import { relinkOwnUnlinked } from "./character-move.js";
 
 // Linking discovered characters to Discord members without anyone typing:
 //   1. automatically, when a member's Discord name (nickname, display name or
@@ -162,6 +163,12 @@ export async function claimCharacter(database: Db, guildId: string, memberId: st
   const wanted = nameOrId.trim();
   const row = await database.unclaimedCharacter.findFirst({ where: { guildId, OR: [{ id: wanted }, { nameKey: nameKey(wanted) }] } });
   if (!row) {
+    // A character this member unlinked themselves comes back whenever they ask (no unclaimed row exists for it).
+    const back = await relinkOwnUnlinked(database, { discordUserId: (await database.member.findUnique({ where: { id: memberId }, select: { discordUserId: true } }))?.discordUserId ?? "", wanted, guildId, memberId });
+    if (back.status === "relinked") {
+      await database.characterVerifyClaim.deleteMany({ where: { guildId, memberId, nameKey: characterKey(back.character.name, back.character.realm, "forever"), status: { in: ["BLOCKED"] } } });
+      return { row: back.character, isMain: back.character.isMain };
+    }
     const linked = await database.character.findFirst({ where: { member: { guildId }, name: { equals: wanted, mode: "insensitive" } }, include: { member: true } });
     if (linked) throw new Error(`${linked.name} is already linked${linked.memberId === memberId ? " to you" : ` to ${linked.member.displayName}`}. /character list shows what is linked.`);
   }

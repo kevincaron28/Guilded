@@ -519,10 +519,23 @@ export function ratingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, r
     .setFooter({ text: fr ? "Boss final détecté + présence ≥ 80 %. Points de communauté séparés." : "Detected final boss + ≥80% presence. Community points are separate." });
 }
 
+const ROLE_BADGE: Record<string, string> = { TANK: "🛡️", HEALER: "💚", DAMAGER: "⚔️" };
+/**
+ * A short role line for a rating row that carries role scores (ratingWithRoles): the main role (the highest role score, tank before
+ * healer before damage on a tie) first, then every other role that scored, e.g. "🛡️ 1200 · ⚔️ 800". Empty when no role scored.
+ */
+export function roleBadges(row: Pick<RatingRow, "roles">): string {
+  const scored = (row.roles ?? []).filter(role => role.points > 0 && ROLE_BADGE[role.role]);
+  if (!scored.length) return "";
+  const order = ["TANK", "HEALER", "DAMAGER"];
+  const sorted = [...scored].sort((a, b) => b.points - a.points || order.indexOf(a.role) - order.indexOf(b.role));
+  return sorted.map(role => `${ROLE_BADGE[role.role]} ${role.points}`).join(" · ");
+}
 const rankLine = (rows: RatingRow[], row: RatingRow, fr: boolean) => {
   const rank = rows.findIndex(other => other.points === row.points) + 1;
   const scored = row.details ? row.details.filter(d => d.points > 0).length : row.dungeons;
-  return `${rank === 1 ? "🏅" : `${rank}.`} **${escapeMarkdown(row.name).slice(0, 100)}** · **${row.points}** · ${scored} ${fr ? "parcours classé(s)" : "ranked route(s)"}`;
+  const roles = roleBadges(row);
+  return `${rank === 1 ? "🏅" : `${rank}.`} **${escapeMarkdown(row.name).slice(0, 100)}** · **${row.points}** · ${scored} ${fr ? "parcours classé(s)" : "ranked route(s)"}${roles ? ` · ${roles}` : ""}`;
 };
 /** Shown while a provisional all-level season still has a route on its starting target. */
 /** The first thing a member reads on the dungeon board: how to score, in plain words. The exact formula is in /dungeon rules. */

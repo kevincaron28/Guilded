@@ -6,6 +6,7 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, t, type Lang } from "../i18n.js";
 import { CLASS_NAMES_FR } from "../permissions.js";
 import { displayCharacterName, loadFullNameBook } from "./character-display.js";
+import { RELINK_WINDOW_MS, relinkOwnUnlinked } from "./character-move.js";
 
 // 8.5 track F3 + ROADMAP 5 (owner decisions, 6 November 2026): after a companion link, one Discord DM lists every
 // linked character by full name (class, level, which one is the main), on by default. It is sent on the first link and
@@ -19,6 +20,9 @@ export const LINKED_PREFIX = "linked:";
 const MINE = `${LINKED_PREFIX}mine`;
 const NOT_MINE_BUTTON = `${LINKED_PREFIX}no:`; // + character id
 const NOT_MINE_MENU = `${LINKED_PREFIX}no`;
+const UNLINK_YES = `${LINKED_PREFIX}yes:`; // + character id, on the confirm step
+const UNLINK_KEEP = `${LINKED_PREFIX}keep`;
+const LINK_BACK = `${LINKED_PREFIX}back:`; // + character id
 const WRONG_SERVER = `${LINKED_PREFIX}server`;
 const ADD_MORE = `${LINKED_PREFIX}add`;
 const MAX_NAMES = 25;
@@ -39,7 +43,7 @@ export type UndoCharacter = { id: string; name: string; displayName: string | nu
 type UndoRow = ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>;
 
 /**
- * The undo rows of every automatic-link DM: a "Not mine" button per character (a select menu above five), then the
+ * The undo rows of every automatic-link DM: a grey "This isn't my character" button per character (a select menu above five), then the
  * "My linked characters" and "Wrong server" buttons. Discord allows 5 rows: this uses 2.
  */
 export function linkUndoRows(lang: Lang, characters: readonly UndoCharacter[], book: Parameters<typeof displayCharacterName>[1]): UndoRow[] {
@@ -48,14 +52,14 @@ export function linkUndoRows(lang: Lang, characters: readonly UndoCharacter[], b
   const label = (character: UndoCharacter, max: number) => displayCharacterName(character, book).slice(0, max);
   if (shown.length > 0 && shown.length <= MAX_NOT_MINE_BUTTONS) {
     rows.push(new ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>().addComponents(shown.map((character) =>
-      new ButtonBuilder().setCustomId(`${NOT_MINE_BUTTON}${character.id}`).setLabel(t(lang, "linked.notMine", { name: label(character, 50) })).setStyle(ButtonStyle.Danger))));
+      new ButtonBuilder().setCustomId(`${NOT_MINE_BUTTON}${character.id}`).setLabel(t(lang, "linked.notMine", { name: label(character, 50) })).setStyle(ButtonStyle.Secondary))));
   } else if (shown.length > MAX_NOT_MINE_BUTTONS) {
     rows.push(new ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>().addComponents(
       new StringSelectMenuBuilder().setCustomId(NOT_MINE_MENU).setPlaceholder(t(lang, "linked.notMineMenu"))
         .addOptions(shown.map((character) => ({ label: label(character, 100), value: character.id })))));
   }
   rows.push(new ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(MINE).setLabel(t(lang, "linked.button")).setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(MINE).setLabel(t(lang, "linked.button")).setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId(ADD_MORE).setLabel(t(lang, "linked.add")).setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(WRONG_SERVER).setLabel(t(lang, "linked.wrongServer")).setStyle(ButtonStyle.Secondary)));
   return rows;
@@ -155,31 +159,77 @@ export async function tellAutoLinked(client: Messenger | null | undefined, datab
   } catch { /* a missing DM never fails a link */ }
 }
 
-type UndoDatabase = Pick<PrismaClient, "character" | "member" | "guildSettings" | "characterVerifyClaim">;
+type UndoDatabase = Pick<PrismaClient, "character" | "member" | "guildSettings" | "characterVerifyClaim" | "$transaction">;
+
+/** The "Link it back" row of every unlink message (the DM, the panel, the commands). Never red. */
+export function linkBackRow(lang: Lang, characterId: string): ActionRowBuilder<ButtonBuilder> {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(`${LINK_BACK}${characterId}`).setLabel(t(lang, "linked.back")).setStyle(ButtonStyle.Primary));
+}
+
+/** The confirm step shown to the member only: "Unlink <Name>?" with the gentle choice (Keep it) as the primary button. */
+export function unlinkConfirm(lang: Lang, characterId: string, name: string): { content: string; components: ActionRowBuilder<ButtonBuilder>[] } {
+  return {
+    content: t(lang, "linked.confirm", { name: escapeMarkdown(name) }),
+    components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`${UNLINK_YES}${characterId}`).setLabel(t(lang, "linked.yes")).setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(UNLINK_KEEP).setLabel(t(lang, "linked.keep")).setStyle(ButtonStyle.Primary))]
+  };
+}
+
+/** Checks the character is the presser's own, attached character and returns the confirm step (or the refusal text). */
+export async function askUnlink(database: UndoDatabase, discordUserId: string, characterId: string): Promise<{ content: string; components: ActionRowBuilder<ButtonBuilder>[] }> {
+  const character = await database.character.findUnique({
+    where: { id: characterId },
+    select: { id: true, detachedAt: true, name: true, displayName: true, member: { select: { id: true, guildId: true, discordUserId: true } } }
+  });
+  if (!character || character.detachedAt) return { content: `${t("en", "linked.gone")}\n${t("fr", "linked.gone")}`, components: [] };
+  const settings = await database.guildSettings.findUnique({ where: { guildId: character.member.guildId }, select: { language: true } });
+  const lang = asLang(settings?.language);
+  if (character.member.discordUserId !== discordUserId) return { content: t(lang, "linked.notYours"), components: [] };
+  const book = await loadFullNameBook(database, character.member.guildId);
+  return unlinkConfirm(lang, character.id, displayCharacterName(character, book));
+}
 
 /**
- * "Not mine": unlinks the character as BLOCKED (linkPairedCharacter, the name matcher and the pre-link all respect it, so
- * it is not linked back) and writes one line to the officer log. Only the member the DM went to can press it.
+ * The member's own unlink (the confirm step's "Yes", the panel, /character unlink): the character is detached with its history and the
+ * unlink is recorded as BLOCKED, which only keeps AUTOMATION (name match, uploads, verify codes) from linking it back. The member
+ * can always take it back: "Link it back" (7 days), /character claim, the panel's Link a character, /character pair.
+ * One line goes to the officer log. Only the member the character is linked to can do it.
  */
-export async function unlinkNotMine(database: UndoDatabase, client: Pick<Client, "guilds">, discordUserId: string, characterId: string, source: "button" | "panel" = "button"): Promise<string> {
+export async function unlinkNotMine(database: UndoDatabase, client: Pick<Client, "guilds">, discordUserId: string, characterId: string, source: "button" | "panel" = "button"): Promise<{ text: string; lang: Lang; undoId: string | null }> {
   const character = await database.character.findUnique({
     where: { id: characterId },
     select: { id: true, detachedAt: true, name: true, realm: true, gameEdition: true, displayName: true, member: { select: { id: true, guildId: true, discordUserId: true, guild: { select: { discordId: true, name: true } } } } }
   });
   // Already detached (a stale button): nothing to unlink, so no second block write or log line.
-  if (!character || character.detachedAt) return `${t("en", "linked.gone")}\n${t("fr", "linked.gone")}`;
+  if (!character || character.detachedAt) return { text: `${t("en", "linked.gone")}\n${t("fr", "linked.gone")}`, lang: "en", undoId: null };
   const settings = await database.guildSettings.findUnique({ where: { guildId: character.member.guildId }, select: { language: true } });
   const lang = asLang(settings?.language);
-  if (character.member.discordUserId !== discordUserId) return t(lang, "linked.notYours");
+  if (character.member.discordUserId !== discordUserId) return { text: t(lang, "linked.notYours"), lang, undoId: null };
   // Loaded here, not at the top: housekeeping.ts imports this file (a cycle otherwise), and both are only needed on a click.
   const [{ unlinkCharacter }, { postToLogChannel }] = await Promise.all([import("./character-verify.js"), import("./housekeeping.js")]);
-  // Same sequence as /character unlink: detached with its history, another main promoted, BLOCKED recorded.
   await unlinkCharacter(database as unknown as PrismaClient, { ...character, memberId: character.member.id }, character.member.guildId, false);
   const book = await loadFullNameBook(database, character.member.guildId);
   const name = displayCharacterName(character, book);
   const guild: Guild | null = await client.guilds.fetch(character.member.guild.discordId).catch(() => null);
-  if (guild) await postToLogChannel(guild, t(lang, source === "panel" ? "linked.officerLogPanel" : "linked.officerLog", { user: `<@${discordUserId}>`, name })).catch(() => undefined);
-  return t(lang, "linked.unlinked", { name: escapeMarkdown(name), server: escapeMarkdown(character.member.guild.name) });
+  const logKey = source === "panel" ? "linked.officerLogPanel" : "linked.officerLog";
+  if (guild) await postToLogChannel(guild, t(lang, logKey, { user: `<@${discordUserId}>`, name })).catch(() => undefined);
+  return { text: t(lang, "linked.unlinked", { name: escapeMarkdown(name), server: escapeMarkdown(character.member.guild.name) }), lang, undoId: character.id };
+}
+
+/** "Link it back": the member's own unlink, undone. This button works for 7 days; /character claim and the panel have no limit. */
+export async function linkBack(database: UndoDatabase, discordUserId: string, characterId: string, now = new Date()): Promise<string> {
+  const result = await relinkOwnUnlinked(database as unknown as PrismaClient, { discordUserId, characterId, maxAgeMs: RELINK_WINDOW_MS, now });
+  if (result.status === "relinked") {
+    const row = await database.character.findUnique({ where: { id: characterId }, select: { member: { select: { guildId: true } } } });
+    const settings = row ? await database.guildSettings.findUnique({ where: { guildId: row.member.guildId }, select: { language: true } }) : null;
+    const lang = asLang(settings?.language);
+    const book = row ? await loadFullNameBook(database, row.member.guildId) : null;
+    return t(lang, "linked.relinked", { name: escapeMarkdown(displayCharacterName(result.character, book)) });
+  }
+  const key = result.status === "too-old" ? "linked.backOld" : result.status === "removed" ? "linked.backRemoved" : result.status === "not-yours" ? "linked.notYours" : "linked.backGone";
+  return `${t("en", key)}\n${t("fr", key)}`;
 }
 
 export async function handleLinkedButton(interaction: ButtonInteraction | StringSelectMenuInteraction, database: UndoDatabase): Promise<void> {
@@ -192,8 +242,28 @@ export async function handleLinkedButton(interaction: ButtonInteraction | String
   if ((id === NOT_MINE_MENU && interaction.isStringSelectMenu()) || id.startsWith(NOT_MINE_BUTTON)) {
     const characterId = interaction.isStringSelectMenu() ? interaction.values[0] : id.slice(NOT_MINE_BUTTON.length);
     if (!characterId) return;
+    // Nothing is unlinked yet: a private confirm step first ("Yes, unlink" / "Keep it").
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    await interaction.editReply({ content: await unlinkNotMine(database, interaction.client, interaction.user.id, characterId), allowedMentions: { parse: [] } });
+    await interaction.editReply({ ...await askUnlink(database, interaction.user.id, characterId), allowedMentions: { parse: [] } });
+    return;
+  }
+  if (id === UNLINK_KEEP && interaction.isButton()) {
+    await interaction.deferUpdate();
+    await interaction.editReply({ content: `${t("en", "linked.kept")}\n${t("fr", "linked.kept")}`, components: [] });
+    return;
+  }
+  if (id.startsWith(UNLINK_YES) && interaction.isButton()) {
+    await interaction.deferUpdate();
+    const result = await unlinkNotMine(database, interaction.client, interaction.user.id, id.slice(UNLINK_YES.length), "button");
+    const components = result.undoId ? [linkBackRow(result.lang, result.undoId)] : [];
+    await interaction.editReply({ content: result.text, components, allowedMentions: { parse: [] } });
+    // The private message goes away with the chat: the same line with its button also reaches the DMs, for the whole 7 days.
+    if (result.undoId) await interaction.user.send({ content: result.text, components, allowedMentions: { parse: [] } }).catch(() => undefined);
+    return;
+  }
+  if (id.startsWith(LINK_BACK) && interaction.isButton()) {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    await interaction.editReply({ content: await linkBack(database, interaction.user.id, id.slice(LINK_BACK.length)), allowedMentions: { parse: [] } });
     return;
   }
   if (id !== MINE && id !== ADD_MORE) return;

@@ -72,6 +72,7 @@ function newGuild() {
         }
       })
     },
+    companionCredential: { findFirst: vi.fn(async () => null) }, // nobody paired after the unlink (character-move.ts pairedSince)
     characterLinkConflict: {
       findUnique: vi.fn(async ({ where }: { where: { id?: string; characterId_claimantMemberId?: { characterId: string; claimantMemberId: string } } }) => {
         const row = conflicts.find((item) => where.id ? item.id === where.id

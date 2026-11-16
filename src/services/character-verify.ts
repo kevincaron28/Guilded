@@ -8,7 +8,7 @@ import { linkPairedCharacter } from "./character-pairing.js";
 import { postToLogChannel } from "./housekeeping.js";
 import { characterKey } from "../../companion/character-identity.mjs";
 import { gameEditionOf } from "./game-edition.js";
-import { contestCharacter, detachCharacter, type LinkEvidence } from "./character-move.js";
+import { contestCharacter, detachCharacter, pairedSince, type LinkEvidence } from "./character-move.js";
 
 // Linking without a companion: a member gets one code (/character pair, the welcome button) and
 // pastes `/guilded verify CODE` in WoW chat once. The addon keeps it with the account's saved data,
@@ -103,9 +103,10 @@ export async function linkVerifiedCharacters(database: PrismaClient, guildId: st
   const owners = new Map(codes.map((row) => [row.code, row]));
   const claims = await database.characterVerifyClaim.findMany({
     where: { guildId, nameKey: { in: [...wanted.keys()] } },
-    select: { memberId: true, nameKey: true, status: true }
+    select: { memberId: true, nameKey: true, status: true, updatedAt: true }
   });
   const claimed = new Map(claims.map((claim) => [`${claim.memberId}\n${claim.nameKey}`, claim.status]));
+  const claimedAt = new Map(claims.map((claim) => [`${claim.memberId}\n${claim.nameKey}`, claim.updatedAt]));
   const linked = await database.character.findMany({ where: { member: { guildId } }, select: { id: true, name: true, realm: true, memberId: true, gameEdition: true, member: { select: { discordUserId: true } } } });
   const remember = (memberId: string, key: string, status: "LINKED" | "TAKEN" | "PROVISIONAL" | "REMOVED") => database.characterVerifyClaim.upsert({
     where: { guildId_memberId_nameKey: { guildId, memberId, nameKey: key } },
@@ -119,7 +120,12 @@ export async function linkVerifiedCharacters(database: PrismaClient, guildId: st
   for (const [key, { entry, code }] of wanted) {
     const owner = owners.get(code);
     if (!owner) continue;
-    const before = claimed.get(`${owner.memberId}\n${key}`);
+    let before: string | undefined = claimed.get(`${owner.memberId}\n${key}`);
+    // The member's own unlink yields to a pairing made after it, for the character that pastes their line (never an officer's REMOVED).
+    if (before === "BLOCKED" && await pairedSince(database, owner.memberId, claimedAt.get(`${owner.memberId}\n${key}`) ?? new Date())) {
+      await database.characterVerifyClaim.deleteMany({ where: { guildId, memberId: owner.memberId, nameKey: key, status: "BLOCKED" } });
+      before = undefined;
+    }
     if (before === "BLOCKED" || before === "REMOVED") continue;
     const existing = findCharacter(linked, entry.name, entry.realm, gameEditionOf(entry));
     if (existing?.memberId === owner.memberId) {

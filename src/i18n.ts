@@ -272,15 +272,27 @@ const STRINGS = {
     fr: "✅ Nouveau sur **{server}** : {names} maintenant lié(s) à toi. Tous tes personnages liés :"
   },
   "linked.hint": {
-    en: "Not yours? Press **Not mine** below (or `/character unlink` on the server): it is unlinked and never linked back automatically. `/character list` shows this list any time.",
-    fr: "Pas à toi ? Appuie sur **Pas à moi** ci-dessous (ou `/character unlink` sur le serveur) : il est délié et ne sera plus relié automatiquement. `/character list` affiche cette liste en tout temps."
+    en: "Not yours? Press **This isn't my character** below (or `/character unlink` on the server). You confirm first, and you can always link it back. `/character list` shows this list any time.",
+    fr: "Pas à toi ? Appuie sur **Ce n'est pas mon personnage** ci-dessous (ou `/character unlink` sur le serveur). Tu confirmes d'abord, et tu peux toujours le relier à nouveau. `/character list` affiche cette liste en tout temps."
   },
-  "linked.notMine": { en: "Not mine: {name}", fr: "Pas à moi : {name}" },
-  "linked.notMineMenu": { en: "Not mine… pick a character", fr: "Pas à moi… choisis un personnage" },
+  "linked.notMine": { en: "This isn't my character: {name}", fr: "Ce n'est pas mon personnage : {name}" },
+  "linked.notMineMenu": { en: "This isn't my character… pick one", fr: "Ce n'est pas mon personnage… choisis-en un" },
+  "linked.confirm": { en: "Unlink **{name}**? Its history is kept and you can link it back any time.", fr: "Délier **{name}** ? Son historique est conservé et tu peux le relier à nouveau en tout temps." },
+  "linked.yes": { en: "Yes, unlink", fr: "Oui, délier" },
+  "linked.keep": { en: "Keep it", fr: "Le garder" },
+  "linked.kept": { en: "👍 Kept. Nothing changed.", fr: "👍 Gardé. Rien n'a changé." },
+  "linked.back": { en: "Link it back", fr: "Le relier à nouveau" },
+  "linked.relinked": { en: "✅ **{name}** is linked to you again.", fr: "✅ **{name}** est de nouveau lié à toi." },
+  "linked.backOld": {
+    en: "That button is more than 7 days old. Use `/character list`, then **Link a character**: it is in the list, or type its name.",
+    fr: "Ce bouton a plus de 7 jours. Utilise `/character list`, puis **Lier un personnage** : il est dans la liste, ou écris son nom."
+  },
+  "linked.backRemoved": { en: "An officer removed that character from you, so only an officer can link it again.", fr: "Un officier t'a retiré ce personnage : seul un officier peut le relier." },
+  "linked.backGone": { en: "That character is not waiting to be linked back any more (already linked, or someone else has it). `/character list` shows what is linked.", fr: "Ce personnage n'attend plus d'être relié (déjà lié, ou à quelqu'un d'autre). `/character list` affiche ce qui est lié." },
   "linked.wrongServer": { en: "Wrong server", fr: "Mauvais serveur" },
   "linked.unlinked": {
-    en: "✅ **{name}** is unlinked from you on **{server}** and won't be linked back automatically. An officer can still link it to someone.",
-    fr: "✅ **{name}** n'est plus lié à toi sur **{server}** et ne sera pas relié automatiquement. Un officier peut encore le lier à quelqu'un."
+    en: "✅ **{name}** is unlinked from you on **{server}**. Pressed by mistake? **Link it back** below works for 7 days, and **Link a character** in `/character list` always does.",
+    fr: "✅ **{name}** n'est plus lié à toi sur **{server}**. Appuyé par erreur ? **Le relier à nouveau** ci-dessous marche 7 jours, et **Lier un personnage** dans `/character list` marche toujours."
   },
   "linked.gone": {
     en: "That character is already unlinked. `/character list` shows what is linked.",
@@ -295,8 +307,8 @@ const STRINGS = {
   "panel.mainMenu": { en: "Set as main…", fr: "Définir comme principal…" },
   "panel.unlinkMenu": { en: "Unlink…", fr: "Délier…" },
   "panel.mainDone": { en: "✅ **{name}** is now your main.", fr: "✅ **{name}** est maintenant ton principal." },
-  "panel.unlinkAsk": { en: "Unlink **{name}**? Its history is kept and it is not linked back automatically.", fr: "Délier **{name}** ? Son historique est conservé et il ne sera pas relié automatiquement." },
-  "panel.unlinkYes": { en: "Yes, unlink it", fr: "Oui, le délier" },
+  "panel.unlinkAsk": { en: "Unlink **{name}**? Its history is kept and you can link it back any time.", fr: "Délier **{name}** ? Son historique est conservé et tu peux le relier à nouveau en tout temps." },
+  "panel.unlinkYes": { en: "Yes, unlink", fr: "Oui, délier" },
   "panel.cancel": { en: "Cancel", fr: "Annuler" },
   "panel.pick": { en: "Pick the character to link. Not in the list? Log in with it once and sync, then Refresh.", fr: "Choisis le personnage à lier. Pas dans la liste ? Ouvre le jeu avec lui une fois et synchronise, puis Actualise." },
   "panel.pickNone": { en: "No unlinked character is waiting yet. Log in with it once with the Guilded Companion; it shows up here within a minute. Or type its name.", fr: "Aucun personnage non lié n'attend pour l'instant. Ouvre le jeu avec lui une fois avec le compagnon Guilded : il apparaît ici en une minute. Ou écris son nom." },
@@ -304,7 +316,7 @@ const STRINGS = {
   "panel.typeName": { en: "Type the name", fr: "Écrire le nom" },
   "panel.modalTitle": { en: "Link a character", fr: "Lier un personnage" },
   "panel.modalLabel": { en: "Character name", fr: "Nom du personnage" },
-  "panel.linkedOne": { en: "✅ Linked **{name}** as {kind}. A message with a **Not mine** button follows.", fr: "✅ **{name}** lié comme {kind}. Un message avec un bouton **Pas à moi** suit." },
+  "panel.linkedOne": { en: "✅ Linked **{name}** as {kind}. A message follows with a button in case it is not yours.", fr: "✅ **{name}** lié comme {kind}. Un message suit avec un bouton au cas où il ne serait pas à toi." },
   "panel.kindMain": { en: "your main", fr: "ton principal" },
   "panel.kindAlt": { en: "an alt", fr: "un alt" },
   "panel.claimFailed": { en: "That character is not available to link. If it is yours, ask an officer.", fr: "Ce personnage n'est pas disponible à lier. S'il est à toi, demande à un officier." },
@@ -313,19 +325,19 @@ const STRINGS = {
   "panel.prev": { en: "◀ Previous", fr: "◀ Précédent" },
   "panel.next": { en: "Next ▶", fr: "Suivant ▶" },
   "linked.officerLogPanel": {
-    en: "{user} unlinked {name} from the character panel (it won't be linked back).",
-    fr: "{user} a délié {name} depuis le panneau des personnages (il ne sera pas relié)."
+    en: "{user} unlinked {name} from the character panel (they can link it back).",
+    fr: "{user} a délié {name} depuis le panneau des personnages (il peut le relier à nouveau)."
   },
 
   "panel.hint": { en: "Tip: `/character list` opens your panel: link, set your main and unlink with buttons.", fr: "Astuce : `/character list` ouvre ton panneau : lier, définir ton principal et délier avec des boutons." },
   "panel.noServer": { en: "You are not a member of that server any more.", fr: "Tu n'es plus membre de ce serveur." },
   "linked.wrongServerHelp": {
-    en: "Linked to the wrong server? Open the **Guilded Companion** on your PC, go to Advanced, select that server under *Active connection*, then press **Remove this server**. It only forgets the connection on your PC and stops uploading there; nothing is deleted on the server. For a single character, use **Not mine** instead.",
-    fr: "Lié au mauvais serveur ? Ouvre le **compagnon Guilded** sur ton PC, va dans Avancé, choisis ce serveur sous *Active connection*, puis appuie sur **Remove this server**. Cela oublie seulement la connexion sur ton PC et arrête les envois là-bas ; rien n'est supprimé sur le serveur. Pour un seul personnage, utilise plutôt **Pas à moi**."
+    en: "Linked to the wrong server? Open the **Guilded Companion** on your PC, go to Advanced, select that server under *Active connection*, then press **Remove this server**. It only forgets the connection on your PC and stops uploading there; nothing is deleted on the server. For a single character, use **This isn't my character** instead.",
+    fr: "Lié au mauvais serveur ? Ouvre le **compagnon Guilded** sur ton PC, va dans Avancé, choisis ce serveur sous *Active connection*, puis appuie sur **Remove this server**. Cela oublie seulement la connexion sur ton PC et arrête les envois là-bas ; rien n'est supprimé sur le serveur. Pour un seul personnage, utilise plutôt **Ce n'est pas mon personnage**."
   },
   "linked.officerLog": {
-    en: "{user} unlinked {name} with the \"Not mine\" button (it had been linked automatically; it won't be linked back).",
-    fr: "{user} a délié {name} avec le bouton « Pas à moi » (il avait été lié automatiquement; il ne sera pas relié)."
+    en: "{user} unlinked {name} themselves (confirmed; automation won't link it back, they can).",
+    fr: "{user} a délié {name} lui-même (confirmé; l'automatisme ne le reliera pas, lui oui)."
   },
   "linked.button": { en: "My characters", fr: "Mes personnages" },
   "linked.add": { en: "Add another", fr: "Ajouter un autre" },

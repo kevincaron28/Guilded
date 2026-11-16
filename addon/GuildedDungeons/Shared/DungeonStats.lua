@@ -165,7 +165,7 @@ function stats.compute(me, runs)
     if d.runs > 0 then totals.dungeons = totals.dungeons + 1 end
   end
   local function level(d)
-    local known = ns.scores and ns.scores.dungeonFor and ns.scores.dungeonFor(d.name)
+    local known = ns.scores and ns.scores.dungeonFor and ns.scores.dungeonFor(d.name, d.instanceId)
     return known and known.minLevel or math.huge
   end
   table.sort(list, function(a, b)

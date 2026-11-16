@@ -23,7 +23,7 @@ local dungeonArt = {
 }
 local foreverArt = { [3065] = "hallsofstone", [2999] = "stratholme", [2998] = "uldaman", [2959] = "violethold" }
 local function artwork(row)
-  local dungeon = ns.scores.dungeonFor(row.name)
+  local dungeon = ns.scores.dungeonFor(row.name, row.instanceId)
   local art = foreverArt[tonumber(row.instanceId)] or (dungeon and dungeonArt[dungeon.key]) or "default"
   return "Interface\\EncounterJournal\\UI-EJ-DungeonButton-" .. art
 end
@@ -72,7 +72,7 @@ function view.model(name, seasonIndex, bracketKey, period, role)
         counted = best and best.counted, reason = best and best.unrankedReason, penalty = best and best.penaltyPercent, bosses = best and best.bosses, sec = best and best.durationSec, speedBonus = best and best.speedBonus, targetSec = dungeon.targetSec,
         -- The officer relay (SeasonDetails) carries only the season's flag, not each route's.
         provisional = snapshot.version == 6 and (dungeon.provisional == true or dungeon.provisional == nil and snapshot.provisional == true) }
-      local mapped = score.dungeonFor(dungeon.name)
+      local mapped = score.dungeonFor(dungeon.name, dungeon.instanceId)
       if mapped then known[mapped.key] = true end
     end
   end

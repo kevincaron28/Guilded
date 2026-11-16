@@ -52,7 +52,7 @@ describe("the run card's dungeon score", () => {
     const run = base([d("A")]);
     run.dungeonName = "Scarlet Monastery";
     run.encounters = [{ id: 1, name: "Herod", success: true, at: 1 }];
-    expect(dungeonRunCard(run, "fr").title).toBe("Monastère écarlate : Armurerie");
+    expect(dungeonRunCard(run, "fr").title).toBe("Monastère Écarlate : Armurerie");
     expect(dungeonRunCard(run, "en").title).toBe("Scarlet Monastery: Armory");
   });
   it("renders a rated, an unrated and a first-run card to PNG, with the score area drawn", async () => {

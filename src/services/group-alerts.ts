@@ -31,8 +31,8 @@ export const DUNGEON_LEVELS: { names: string[]; min: number; max: number }[] = [
   { names: ["maraudon", "mara"], min: 46, max: 55 },
   { names: ["sunken temple", "temple of atal'hakkar", "temple d'atal'hakkar", "atal'hakkar", "st"], min: 50, max: 56 },
   { names: ["blackrock depths", "brd", "profondeurs de rochenoire"], min: 52, max: 60 },
-  { names: ["lower blackrock spire", "lbrs", "pic de rochenoire inferieur"], min: 55, max: 60 },
-  { names: ["upper blackrock spire", "ubrs", "pic de rochenoire superieur"], min: 58, max: 60 },
+  { names: ["lower blackrock spire", "lbrs", "pic de rochenoire inferieur", "bas du pic rochenoire"], min: 55, max: 60 },
+  { names: ["upper blackrock spire", "ubrs", "pic de rochenoire superieur", "sommet du pic rochenoire"], min: 58, max: 60 },
   { names: ["dire maul", "dm north", "dm east", "dm west", "hache-tripes", "hache tripes"], min: 56, max: 60 },
   { names: ["scholomance", "scholo"], min: 58, max: 60 },
   { names: ["stratholme", "strat"], min: 58, max: 60 }

@@ -1,5 +1,23 @@
 # Changelog
 
+## 9.3.7 — 16 November 2026
+
+Fixes after the 9.3.6 two-PC test. Prepared 16 November 2026, not yet published. Not yet confirmed on real clients (see docs/V9_3_7_RELEASE_ACCEPTANCE.md). Details: docs/V9_3_7_RELEASE_NOTES.md.
+
+Addon and companion:
+
+- The companion log (startup.log) now covers the whole run, with rotation, instead of stopping after the Ready line (#1043).
+- The Ready line no longer says "restarted by Microsoft Store" on a website install (#1043).
+- Addon auto-update runs one at a time, so "not needed: busy" no longer appears beside an install (#1043).
+- The addon refreshes the character record when a guild is joined mid-session (#1043).
+
+Bot and website (already live):
+
+- Card polish from the French audit: dungeon names by instance id, palmares layout, plurals, name truncation, trend axes (#1042).
+- French versions of the officers, EP/GP, Discord bot, self-host and status guides, and the French link-character guide (#1039, #1038).
+- Cloudflare Web Analytics on the website (#1040).
+- Docs: CurseForge 9.3.6 pointer and two-PC test results (#1041, #1044).
+
 ## 9.3.6 — 16 November 2026
 
 Published 16 November 2026 (GitHub, the website and CurseForge, approved 16 November 2026). Security, Season 2, achievements, linking and promotions work after 9.3.5. Not yet confirmed on real clients.

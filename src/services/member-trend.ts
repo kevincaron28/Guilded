@@ -50,10 +50,14 @@ export function buildTrend(allRows: readonly StatSnapshot[], days: 30 | 90, lang
       return { label: `${back}${t("d", "j")}`, text: d === null ? "—" : signed(d), tone: d === null || d === 0 ? "muted" as const : d > 0 ? "green" as const : "red" as const };
     }) };
   });
+  // One slot per calendar day: a day with no snapshot (a bot outage) stays an empty slot, so the line breaks there instead of squeezing time together.
+  const byDay = new Map(rows.map(row => [row.day, row]));
+  const axis: string[] = [];
+  if (rows.length) for (let day = rows[0]!.day; day <= rows[rows.length - 1]!.day && axis.length <= days; day = shiftDay(day, 1)) axis.push(day);
   const nextDay = shiftDay(last?.day ?? today.toISOString().slice(0, 10), 1);
   return {
-    days: rows.map(r => r.day), tiles,
-    series: picks.map(p => ({ label: p.label, color: p.color, values: rows.map(p.pick) })),
+    days: axis, tiles,
+    series: picks.map(p => ({ label: p.label, color: p.color, values: axis.map(day => { const row = byDay.get(day); return row ? p.pick(row) : null; }) })),
     chartTitle: t(`Last ${days} days`, `${days} derniers jours`),
     ...(rows.length < 2 ? { emptyNote: t(`Trend starts ${nextDay}`, `La tendance commence le ${nextDay}`) } : {})
   };

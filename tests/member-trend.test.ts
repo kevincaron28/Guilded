@@ -133,3 +133,31 @@ describe("/officer stats trend", () => {
     expect(mocks.update).toHaveBeenCalledWith({ where: { guildId: "g1" }, data: { memberTrendPostEnabled: false } });
   });
 });
+
+describe("member trend edge cases (16 Nov 2026 sweep)", () => {
+  it("keeps one slot per calendar day: a gap breaks the line instead of squeezing time, across a month boundary", () => {
+    const rows = [row("2026-11-28", { inGuildMembers: 10 }), row("2026-11-29", { inGuildMembers: 11 }), row("2026-12-03", { inGuildMembers: 15 })];
+    const trend = buildTrend(rows, 30, "en");
+    expect(trend.days).toEqual(["2026-11-28", "2026-11-29", "2026-11-30", "2026-12-01", "2026-12-02", "2026-12-03"]);
+    expect(trend.series[0]!.values).toEqual([10, 11, null, null, null, 15]);
+    expect(trend.emptyNote).toBeUndefined();
+    expect(trend.tiles[0]!.deltas[0]!.text).toBe("—");
+  });
+  it("a 90-day window over a longer, patchy history never draws more than 90 slots", () => {
+    const rows = days(200, i => ({ inGuildMembers: i % 7 === 0 ? null : i })).filter((_, i) => i % 3 !== 1);
+    const trend = buildTrend(rows, 90, "en");
+    expect(trend.days.length).toBeLessThanOrEqual(90);
+    expect(trend.series[0]!.values).toHaveLength(trend.days.length);
+  });
+  it("no snapshot at all, and one snapshot, both say when the trend starts", () => {
+    expect(buildTrend([], 30, "en", new Date("2026-11-16T10:00:00Z"))).toMatchObject({ days: [], emptyNote: "Trend starts 2026-11-17" });
+    expect(buildTrend([row("2026-11-16")], 30, "fr").emptyNote).toBe("La tendance commence le 2026-11-17");
+  });
+  it("a guild without a Discord log channel never posts", async () => {
+    const send = vi.fn(async () => ({}));
+    const db = { guild: { findUnique: async () => ({ id: "g1", settings: { memberTrendPostEnabled: true, statsEnabled: true, logChannelId: null, memberTrendLastPostAt: null, weeklyReportEnabled: false, weeklyReportLastAt: null, language: "en" } }) }, guildSettings: { update: vi.fn() }, guildStatSnapshot: { findMany: async () => [] } } as never;
+    const guild = { id: "d1", name: "QG", channels: { fetch: async () => ({ isTextBased: () => true, send }) } };
+    expect(await postWeeklyMemberTrend(db, guild as never, new Date("2026-11-18T12:00:00Z"))).toBe(false);
+    expect(send).not.toHaveBeenCalled();
+  });
+});

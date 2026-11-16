@@ -4,6 +4,8 @@ import { displayCharacterName, fullNameBook } from "./character-display.js";
 import { cacheAllMembers } from "./member-cache.js";
 import { officerSyncRecent } from "./officer-sync.js";
 import { characterTrustMap } from "./character-trust.js";
+import { loadRosterPresence, withoutDeparted } from "./roster-presence.js";
+import { characterKey } from "../../companion/character-identity.mjs";
 
 // 8.5 track C1: who is in Discord but not in the WoW guild, who has not linked a character, and which guild
 // characters nobody has claimed. Read-only: it never messages or changes anyone (the "ask them to link" button
@@ -79,15 +81,18 @@ type Db = Pick<PrismaClient, "member" | "unclaimedCharacter" | "guild" | "guildS
 /** Loads the three lists for one server. Needs the member list (it pages through REST, see member-cache.ts). */
 export async function loadRosterGaps(db: Db, discordGuild: Pick<DiscordGuild, "members" | "memberCount">, guildId: string, edition: string, now = new Date()): Promise<RosterGaps> {
   await cacheAllMembers(discordGuild).catch(() => undefined);
-  const [people, unclaimed, guild, settings] = await Promise.all([
+  const [people, unclaimedAll, guild, settings, presence] = await Promise.all([
     db.member.findMany({
       where: { guildId, status: "ACTIVE", isTest: false },
       select: { discordUserId: true, displayName: true, characters: { where: { gameEdition: edition }, select: { id: true, memberId: true, realm: true, gameEdition: true, confirmedAt: true, linkEvidence: true, name: true, displayName: true, isMain: true, guildRankAt: true } } }
     }),
     db.unclaimedCharacter.findMany({ where: { guildId, gameEdition: edition }, select: { name: true, displayName: true, className: true, level: true, lastSeenAt: true } }),
     db.guild.findUnique({ where: { id: guildId }, select: { officerSyncAt: true } }),
-    db.guildSettings.findUnique({ where: { guildId }, select: { rosterIgnoredRoleIds: true } })
+    db.guildSettings.findUnique({ where: { guildId }, select: { rosterIgnoredRoleIds: true } }),
+    loadRosterPresence(db, guildId, edition)
   ]);
+  // The in-game roster says who left (16 Nov 2026, same root cause as the race board): a departed player is not "in the guild, nobody claimed".
+  const unclaimed = withoutDeparted(unclaimedAll.map((row) => ({ ...row, key: characterKey(row.name, "", edition) })), presence);
   const book = fullNameBook([...people.flatMap((person) => person.characters), ...unclaimed]);
   const characters = people.flatMap((person) => person.characters.map((c) => ({ discordUserId: person.discordUserId, name: displayCharacterName(c, book), isMain: c.isMain, guildRankAt: c.guildRankAt })));
   const members = [...discordGuild.members.cache.values()].map((m) => ({ discordUserId: m.id, displayName: m.displayName, isBot: m.user.bot, roleIds: [...m.roles.cache.keys()] }));

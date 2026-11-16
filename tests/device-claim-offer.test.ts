@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const linkCalls: { memberId: string; name: string; options: unknown }[] = [];
 interface Row { name: string; realm: string; gameEdition: string; memberId: string; detachedAt: Date | null; confirmedAt: Date | null; linkEvidence: string | null }
 let guildCharacters: Row[] = [];
+let rosterWhere: { observedAt?: { gte: Date }; inGuild?: boolean } = {};
 vi.mock("../src/services/character-pairing.js", () => ({
   linkPairedCharacter: vi.fn(async (_db: unknown, _guildId: string, memberId: string, self: { name: string; realm: string }, options: unknown) => {
     linkCalls.push({ memberId, name: self.name, options });
@@ -11,7 +12,7 @@ vi.mock("../src/services/character-pairing.js", () => ({
   })
 }));
 
-const { offersFor, claimOffer, snoozeOffer, offerByDm, offerByDmToUsers, answerOfferButton, offerMessage, OFFER_SNOOZE_MS, OFFER_DM_GAP_MS } = await import("../src/services/device-claim-offer.js");
+const { sameCharacter, offersFor, claimOffer, snoozeOffer, offerByDm, offerByDmToUsers, answerOfferButton, offerMessage, OFFER_SNOOZE_MS, OFFER_DM_GAP_MS } = await import("../src/services/device-claim-offer.js");
 
 const NOW = new Date("2026-11-16T12:00:00Z");
 const DAY = 86_400_000;
@@ -42,7 +43,7 @@ function world(devices: Device[], options: { declined?: { nameKey: string; statu
         return d ? { claimedMemberId: d.claimedMemberId, guildId: d.guildId, guild: { name: "Quebec Gold", settings: { language: "en" } } } : null;
       }
     },
-    guildRosterEntry: { findMany: async () => roster },
+    guildRosterEntry: { findMany: async (args: { where: unknown }) => { rosterWhere = args.where as typeof rosterWhere; return roster; } },
     character: { findMany: async () => guildCharacters },
     characterVerifyClaim: { findMany: async () => options.declined ?? [] },
     deviceCharacter: { findMany: async ({ where }: { where: { deviceId: string } }) => devices.find((d) => d.id === where.deviceId)?.characters ?? [] },
@@ -241,5 +242,27 @@ describe("the DM fallback", () => {
   it("writes the French DM for a French server", () => {
     const message = offerMessage("fr", "Québec Gold", { deviceId: "d", guildId: "g1", characters: [{ name: "Amy Jones", realm: "Forever", className: "Mage", level: 20 }], taken: [], snoozedUntil: null, dmAt: null });
     expect(message.content).toContain("Les lier à toi ?");
+  });
+});
+
+describe("edge cases (16 Nov 2026 sweep)", () => {
+  it("the roster corroboration only counts rows read in the last 14 days", async () => {
+    guildCharacters = [{ name: "Ray Smith", realm: "r", gameEdition: "forever", memberId: "m1", detachedAt: null, confirmedAt: NOW, linkEvidence: "companion" }];
+    const { db } = world([{ id: "d1", guildId: "g1", claimedMemberId: "m1", revokedAt: null, characters: [{ name: "Amy Jones", realm: "r", className: "Mage", level: 10 }] }]);
+    await offersFor(db as never, "m1", NOW);
+    expect(rosterWhere.inGuild).toBe(true);
+    expect(rosterWhere.observedAt?.gte.getTime()).toBe(NOW.getTime() - 14 * DAY);
+  });
+  it("sameCharacter needs the full name when both sides have a last name", () => {
+    expect(sameCharacter("Bob Smith", "Bob Jones")).toBe(false);
+    expect(sameCharacter("Bob Smith", "bob  smith")).toBe(true);
+    expect(sameCharacter("Bob", "Bob")).toBe(true);
+    expect(sameCharacter("Bob", "Bob Smith")).toBe(true); // an older bare row still vouches for its full name
+    expect(sameCharacter("", "Bob")).toBe(false);
+  });
+  it("an anchor with a last name does not vouch for another player with the same first name", async () => {
+    guildCharacters = [{ name: "Bob Smith", realm: "r", gameEdition: "forever", memberId: "m1", detachedAt: null, confirmedAt: NOW, linkEvidence: "companion" }];
+    const { db } = world([{ id: "d1", guildId: "g1", claimedMemberId: null, revokedAt: null, characters: [{ name: "Bob Jones", realm: "r", className: "Mage", level: 10 }] }], { roster: ["Bob Jones"] });
+    expect(await offersFor(db as never, "m1", NOW)).toEqual([]);
   });
 });

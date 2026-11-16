@@ -124,7 +124,7 @@ export function rateRun(run: ScoreRun, rules: BracketedRules = publicRules(), pl
 export function publicRouteKey(instanceId: number, kills: { name?: string | undefined; success: boolean }[]): string | null {
   const all = ROUTE_WINGS[instanceId];
   if (!all) return String(instanceId);
-  const names = new Set(kills.filter(k => k.success && k.name).map(k => k.name!.toLowerCase()));
+  const names = new Set(kills.filter(k => k.success && k.name).map(k => k.name!.trim().normalize("NFC").toLowerCase()));
   const wings = all.filter(([, bosses]) => bosses.some(b => names.has(b)));
   return wings.length === 1 ? `${instanceId}:${wings[0]![0]}` : null;
 }

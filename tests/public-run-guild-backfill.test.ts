@@ -4,8 +4,8 @@ import { backfillPublicRunGuilds } from "../src/services/public-run-guild-backfi
 describe("public run guild backfill", () => {
   it("reads public runs without a guild in pages and fills only rows that have none", async () => {
     const pages = [Array.from({ length: 500 }, (_, i) => ({ id: `a${i}` })), [{ id: "b1" }]];
-    const findMany = vi.fn(async (_args: unknown) => pages.shift() ?? []);
-    const executeRaw = vi.fn(async (_sql: unknown) => 2);
+    const findMany = vi.fn(async (...args: unknown[]) => { void args; return pages.shift() ?? []; });
+    const executeRaw = vi.fn(async (...args: unknown[]) => { void args; return 2; });
     const result = await backfillPublicRunGuilds({ publicRun: { findMany }, $executeRaw: executeRaw } as never);
     expect(result).toEqual({ runs: 501, fromRuns: 4, fromRosters: 4 });
     expect(findMany.mock.calls[0]![0]).toMatchObject({ where: { players: { some: { guild: null } } }, orderBy: { id: "asc" }, take: 500 });

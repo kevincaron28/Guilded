@@ -15,6 +15,7 @@ import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./disc
 import { classColor, ladderMeta, scoreCardPng, type ScoreCard } from "./score-card.js";
 import { moveColumn, moveFields, trackRanks, type Movements } from "./ladder-snapshots.js";
 import { isOwnBoard } from "./board-identity.js";
+import { RANK_MAX_AGE_MS } from "./rank-roles.js";
 
 // The live "Race to 60" leaderboard and Hall of Fame (8.5, track B1). The channel's FIRST message is the live board: the
 // top N guild characters (default 50, officers pick 10-50) with class, race, level bar, professions, last seen and the
@@ -44,7 +45,9 @@ export interface RaceEntryState { level: number; reachedMaxAt: Date | null; week
   dayStartLevel?: number | null; dayStartedAt?: Date | null; lastDayGain?: number; lastDayStartedAt?: Date | null }
 export interface RaceRow { aliasKeys?: string[]; key: string; name: string; className: string; race: string | null; level: number; reachedMaxAt: Date | null; firstSeenAt: Date; weekGain: number;
   memberId: string | null; discordId: string | null; professions: string[]; lastSeenAt: Date | null }
-export interface RaceBoardData { rows: RaceRow[]; total: number; finished: number; edition: string }
+export interface RaceBoardData { rows: RaceRow[]; total: number; finished: number; edition: string;
+  /** When the newest guild roster reading was taken (null: no roster ever uploaded), and whether it is older than RANK_MAX_AGE_MS. */
+  rosterAt?: Date | null; rosterStale?: boolean }
 
 /** Monday 00:00 UTC of the week containing `now`. */
 export function weekStart(now: Date): Date {
@@ -191,7 +194,8 @@ export function raceBoardEmbed(data: RaceBoardData, lang: Lang, options: { image
     if (!options.image) embed.addFields({ name: t("Level 60", "Niveau 60"), value: String(data.finished), inline: true });
   }
   if (options.image && data.total) embed.setImage(`attachment://${options.image}`);
-  return embed.setFooter({ text: t("/character race near finds partners at your level", "/character race near trouve des partenaires de ton niveau") });
+  const note = data.rosterStale && data.rosterAt ? t(` · roster last updated ${data.rosterAt.toISOString().slice(0, 10)}`, ` · liste de la guilde mise à jour le ${data.rosterAt.toISOString().slice(0, 10)}`) : "";
+  return embed.setFooter({ text: t("/character race near finds partners at your level", "/character race near trouve des partenaires de ton niveau") + note });
 }
 
 export interface HallRecord { order: number; name: string; className: string; race: string | null; reachedAt: Date; firstSeenAt: Date; professions: string | null; memberDiscordId: string | null;
@@ -341,8 +345,29 @@ export function mergeStored<T extends { level: number; reachedMaxAt: Date | null
     firstSeenAt: all.map(entry => entry.firstSeenAt).sort((a, b) => a.getTime() - b.getTime())[0]! };
 }
 
-/** Records every guild character's level, then returns the board's data. */
-export async function loadRaceBoardData(db: Pick<PrismaClient, "character" | "unclaimedCharacter" | "levelRaceEntry">, guildId: string, edition: string, now = new Date(), timezone?: string): Promise<RaceBoardData> {
+export interface RosterLite { name: string; nameKey: string; inGuild: boolean; observedAt: Date }
+
+/**
+ * Pure: drops the characters the in-game roster says left the guild (16 Nov 2026: departed players stayed on the board because it read
+ * linked and unlinked characters without ever asking the roster). A character stays unless a roster row with its name (or the single
+ * matching first-name row, see foreverNameMatches) says inGuild=false and no in-guild row matches it; a character the roster has
+ * never heard of is kept, since the roster may simply not name it yet. A rejoined member's row is inGuild=true again, so they return.
+ */
+export function withoutDeparted<T extends { key: string; name: string }>(chars: readonly T[], roster: readonly RosterLite[]): T[] {
+  const gone = roster.filter(row => !row.inGuild);
+  if (!gone.length) return [...chars];
+  const present = roster.filter(row => row.inGuild);
+  const presentKeys = new Set(present.map(row => row.nameKey)), goneKeys = new Set(gone.map(row => row.nameKey));
+  return chars.filter(char => {
+    if (presentKeys.has(char.key)) return true;
+    if (goneKeys.has(char.key)) return false;
+    if (foreverNameMatches(present, char.name).length) return true;
+    return !foreverNameMatches(gone, char.name).length;
+  });
+}
+
+/** Records every guild character's level, then returns the board's data. Characters the guild roster says left are not on it. */
+export async function loadRaceBoardData(db: Pick<PrismaClient, "character" | "unclaimedCharacter" | "levelRaceEntry"> & Partial<Pick<PrismaClient, "guildRosterEntry">>, guildId: string, edition: string, now = new Date(), timezone?: string): Promise<RaceBoardData> {
   const dayFrom = timezone ? dayStart(participationDay(now, timezone), timezone) : undefined;
   const linked = await db.character.findMany({ where: { guildId, gameEdition: edition, level: { not: null }, member: { guildId, status: "ACTIVE" } },
     select: { name: true, displayName: true, realm: true, className: true, race: true, level: true, memberId: true, lastSeenAt: true, member: { select: { discordUserId: true } },
@@ -359,9 +384,12 @@ export async function loadRaceBoardData(db: Pick<PrismaClient, "character" | "un
     if (row.level) chars.set(key, { key, name: bestName(row.name, row.displayName, unclaimedFull.get(key) ?? null), className: row.className, race: row.race, level: row.level, memberId: row.memberId, discordId: row.member?.discordUserId ?? null,
       professions: mergeProfessionSkills((row.professions ?? []).map(skill => ({ name: skill.profession, skillLevel: skill.skillLevel }))).map(skill => professionText(skill.name, skill.skillLevel)), lastSeenAt: row.lastSeenAt });
   }
+  const roster: RosterLite[] = db.guildRosterEntry ? await db.guildRosterEntry.findMany({ where: { guildId, gameEdition: edition }, select: { name: true, nameKey: true, inGuild: true, observedAt: true }, take: 10_000 }) : [];
+  const rosterAt = roster.reduce<Date | null>((max, row) => !max || row.observedAt > max ? row.observedAt : max, null);
+  const rosterStale = rosterAt !== null && now.getTime() - rosterAt.getTime() > RANK_MAX_AGE_MS;
   const stored = new Map((await db.levelRaceEntry.findMany({ where: { guildId } })).map(entry => [entry.nameKey, entry]));
   const rows: RaceRow[] = [];
-  for (const char of mergeFirstNames([...chars.values()])) {
+  for (const char of withoutDeparted(mergeFirstNames([...chars.values()]), roster)) {
     const legacy = (char.aliasKeys ?? []).flatMap(alias => stored.get(alias) ?? []);
     const own = stored.get(char.key);
     const primary = own ?? legacy[0];
@@ -377,7 +405,7 @@ export async function loadRaceBoardData(db: Pick<PrismaClient, "character" | "un
       weekGain: Math.max(0, next.level - next.weekStartLevel), memberId: char.memberId, discordId: char.discordId, professions: char.professions, lastSeenAt: char.lastSeenAt });
   }
   const ordered = orderRace(rows);
-  return { rows: ordered, total: ordered.length, finished: ordered.filter(row => row.level >= LEVEL_CAP).length, edition };
+  return { rows: ordered, total: ordered.length, finished: ordered.filter(row => row.level >= LEVEL_CAP).length, edition, rosterAt, rosterStale };
 }
 
 type HallDb = Pick<PrismaClient, "raceHallEntry" | "memberMilestone">;

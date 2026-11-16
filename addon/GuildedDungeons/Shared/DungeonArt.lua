@@ -11,7 +11,7 @@ ns.dungeonArt = art
 -- { key (false = deliberately no painting), pattern, pattern... }; patterns match the lower-cased, accent-folded name.
 local MAP = {
   { "alcaz-prison", "alcaz" },
-  { false, "scarlet.*armory", "scarlet.*armurerie", "carlate.*armurerie" },
+  { "scarlet-armory", "scarlet.*armory", "scarlet.*armurerie", "carlate.*armurerie" },
   { "scarlet-library", "scarlet.*library", "scarlet.*biblioth", "carlate.*biblioth" },
   { "scarlet-cathedral", "scarlet.*cathedral", "carlate.*cathedral" },
   { "scarlet-graveyard", "scarlet", "carlate" },

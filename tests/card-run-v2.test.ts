@@ -36,8 +36,8 @@ describe("the run card v2: level, guild, score gained and season total", () => {
     expect(party[2]).toMatchObject({ gain: 0, total: 1210 });
     expect(party[4]!.gain).toBeUndefined(); // no rating known for this player: nothing invented
     expect(party[4]!.total).toBeUndefined();
-    expect(card.dungeon!.columns).toEqual({ level: "Lv", gain: "This run", total: "Season" });
-    expect(dungeonRunCard(run(five), "fr").dungeon!.columns).toEqual({ level: "Niv", gain: "Cette run", total: "Saison" });
+    expect(card.dungeon!.columns).toEqual({ level: "Lv", gain: "This run", total: "Season (role)" });
+    expect(dungeonRunCard(run(five), "fr").dungeon!.columns).toEqual({ level: "Niv", gain: "Cette run", total: "Saison (rôle)" });
   });
   it("has no score columns for a run without ratings", () => {
     const card = dungeonRunCard(base([d("Aldric", { level: 24 })]), "en");

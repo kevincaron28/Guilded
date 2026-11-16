@@ -86,7 +86,7 @@ async function dungeonCard(card: ScoreCard): Promise<Buffer | null> {
   const badge = card.badges?.[0], time = stat(0);
   const roleOf = (role: string | undefined): DungeonPartyRow["role"] => role === "TANK" ? "tank" : role === "HEALER" ? "healer" : role === "DPS" ? "dps" : undefined;
   const members = visual.party, extra = members.length > 5 ? members.length - 4 : 0;
-  const party: DungeonPartyRow[] = (extra ? members.slice(0, 4) : members.slice(0, 5)).map((m) => ({ name: m.name, color: m.color, role: roleOf(m.role), score: m.score, guild: m.guildName, level: m.level, gain: m.gain, total: m.total === undefined ? undefined : String(m.total) }));
+  const party: DungeonPartyRow[] = (extra ? members.slice(0, 4) : members.slice(0, 5)).map((m) => ({ name: m.name, color: m.color, role: roleOf(m.role), score: m.score, guild: m.guildName, level: m.level, gain: m.gain, total: m.total === undefined ? undefined : String(m.total), member: m.guild }));
   if (extra) party.push({ name: `+${extra} ${visual.moreLabel}`, color: "#ddd4c0" });
   let map;
   if (visual.deathPoints?.length) {

@@ -40,6 +40,14 @@ describe("rating guildmates without the addon or a link", () => {
     expect(rows.map((row) => row.name)).not.toContain("Stranger Danger");
   });
 
+  it("rates players outside the guild only in card mode (everyone), never on the boards", () => {
+    const run = party({ "Crashin Holyroller": "m-crash" }, ["Stranger Danger"]);
+    expect(calculateDungeonRating([run], rules, true).map((row) => row.name)).toContain("Stranger Danger");
+    expect(calculateDungeonRating([run], rules).map((row) => row.name)).not.toContain("Stranger Danger");
+    run.players.find((p) => p.character === "Stranger Danger")!.presentSec = 10;
+    expect(calculateDungeonRating([run], rules, true).map((row) => row.name)).not.toContain("Stranger Danger");
+  });
+
   it("keeps the run's gates: a player present under 80% of the run is not rated", () => {
     const run = party();
     run.players[2]!.presentSec = 10;

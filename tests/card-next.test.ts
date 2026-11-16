@@ -73,7 +73,7 @@ describe("dungeon run card (redesign)", () => {
     const hostile = ["\u0000\u0007bad‮", "\u{1F600}\u{1F409}", "", "x".repeat(300), "Z̈algo"];
     const rows = hostile.map((guild, i) => ({ name: `Player ${i}`, color: "#abd473", role: "dps" as const, score: "300", guild }));
     const paintings = readdirSync(new URL("../site/dungeon-art", import.meta.url)).filter((f) => f.endsWith(".jpg"));
-    expect(paintings.length).toBe(34);
+    expect(paintings.length).toBe(35);
     for (const file of paintings) {
       const art = readFileSync(new URL(`../site/dungeon-art/${file}`, import.meta.url));
       const { report, scrim } = await renderDungeonCard({ label: "DUNGEON COMPLETED · HEROIC", title: file.replace(".jpg", ""), hero: "59:59", heroNote: "New guild record", facts: ["Deaths 12", "Dungeon score +123", "Final boss Archmage Arugal"], party: rows, strip: "2026-11-13  ·  Party · 3 from the guild", art });

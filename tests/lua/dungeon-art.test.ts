@@ -77,7 +77,7 @@ describe("dungeon card artwork (addon table)", () => {
 
   it("falls back to the plain card: no painting for the dungeon, or the setting is off", () => {
     artSession();
-    expect(lua('return tostring(NS.dungeonArt.path("Scarlet Monastery: Armory"))')).toBe("nil");
+    expect(lua('return tostring(NS.dungeonArt.path("Scarlet Monastery: Armory"))')).toContain("scarlet-armory");
     expect(lua('return tostring(NS.dungeonArt.path("Somewhere Nobody Charted"))')).toBe("nil");
     expect(lua('return tostring(NS.dungeonArt.path(nil))')).toBe("nil");
     expect(lua('return NS.dungeonArt.path("Wailing Caverns")')).toContain("Media\\Dungeons\\wailing-caverns");
@@ -101,7 +101,7 @@ describe("dungeon card artwork (addon table)", () => {
     s!.load("Modules/RunResults.lua");
     const show = (name: string) => lua(`NS.runResults.show({id="r",name=${JSON.stringify(name)},state="COMPLETED",durationSec=900,players={}}); return tostring(NS.runResults.artPath)`);
     expect(show("Wailing Caverns")).toContain("wailing-caverns");
-    expect(show("Scarlet Monastery: Armory")).toBe("nil");
+    expect(show("Somewhere Nobody Charted")).toBe("nil");
     lua("NS.dungeonArt.setEnabled(false)");
     expect(show("Wailing Caverns")).toBe("nil");
   });

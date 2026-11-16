@@ -129,7 +129,7 @@ describe("painted dungeon artwork files", () => {
     expect(paintedKey("Scarlet Monastery: Graveyard")).toBe("scarlet-graveyard");
     expect(paintedKey("Scarlet Monastery: Library")).toBe("scarlet-library");
     expect(paintedKey("Scarlet Monastery: Cathedral")).toBe("scarlet-cathedral");
-    expect(paintedKey("Scarlet Monastery: Armory")).toBeUndefined();
+    expect(paintedKey("Scarlet Monastery: Armory")).toBe("scarlet-armory");
     expect(paintedKey("Dire Maul: North")).toBe("dire-maul-north");
     expect(paintedKey("Stratholme: Service Gate")).toBe("stratholme-service");
     expect(paintedKey("Upper Blackrock Spire")).toBe("upper-blackrock-spire");

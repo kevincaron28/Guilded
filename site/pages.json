@@ -97,33 +97,45 @@
   },
   {
     "source": "guide-officers.md",
+    "sourceFr": "guide-officers.fr.md",
     "path": "guide/officers/",
     "title": "Guilded for officers",
+    "titleFr": "Guilded pour les officiers",
     "description": "Set up EP/GP, loot and raids for your guild.",
+    "descriptionFr": "Configurez l’EP/GP, le butin et les raids de votre guilde.",
     "lang": "en",
     "draft": false
   },
   {
     "source": "guide-epgp.md",
+    "sourceFr": "guide-epgp.fr.md",
     "path": "guide/epgp/",
     "title": "EP/GP and loot",
+    "titleFr": "EP/GP et butin",
     "description": "How effort points and gear points work in Guilded.",
+    "descriptionFr": "Comment fonctionnent les points d’effort et les points d’équipement dans Guilded.",
     "lang": "en",
     "draft": false
   },
   {
     "source": "guide-discord.md",
+    "sourceFr": "guide-discord.fr.md",
     "path": "guide/discord-bot/",
     "title": "Add the Discord bot",
+    "titleFr": "Ajouter le bot Discord",
     "description": "Add the free hosted Guilded bot to a Discord server.",
+    "descriptionFr": "Ajoutez le bot Guilded hébergé gratuit à un serveur Discord.",
     "lang": "en",
     "draft": false
   },
   {
     "source": "guide-self-host.md",
+    "sourceFr": "guide-self-host.fr.md",
     "path": "guide/self-host/",
     "title": "Host your own Guilded bot",
+    "titleFr": "Héberger votre propre bot Guilded",
     "description": "Public notes for running the Guilded bot yourself. The hosted bot is enough for most guilds.",
+    "descriptionFr": "Notes publiques pour héberger le bot Guilded vous-même. Le bot hébergé suffit à la plupart des guildes.",
     "lang": "en",
     "draft": false
   },
@@ -197,9 +209,12 @@
   },
   {
     "source": "status.md",
+    "sourceFr": "status.fr.md",
     "path": "status/",
     "title": "Guilded status — bot and leaderboards",
+    "titleFr": "Statut de Guilded — bot et classements",
     "description": "Live check of the Guilded Discord bot and leaderboards, with what to do if something is down.",
+    "descriptionFr": "Vérification en direct du bot Discord et des classements de Guilded, et quoi faire si quelque chose est en panne.",
     "lang": "en",
     "draft": false
   },

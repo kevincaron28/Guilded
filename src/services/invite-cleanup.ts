@@ -1,4 +1,5 @@
 import type { DiscordJob, PrismaClient } from "../generated/prisma/client.js";
+import { resolve } from "node:path";
 import { enqueueDiscordJob } from "./discord-jobs.js";
 
 // Guild-invite channel clean-up (owner request, 12 Nov 2026): about an hour after a request is handled the bot removes
@@ -23,11 +24,12 @@ export const MAX_CYCLES = 3;
 export const RETRY_LATER_MS = 24 * 3_600_000;
 /** A request queued this long ago with no result is queued again (a lost job). */
 const STALE_QUEUE_MS = 6 * 3_600_000;
-const HANDLED = ["INVITED", "JOINED", "PROMOTED", "DECLINED"];
+// CLOSED (9.3.5: left Discord, cancelled, expired, removed by an officer) is handled too: its messages go like a joined request's.
+const HANDLED = ["INVITED", "JOINED", "PROMOTED", "DECLINED", "CLOSED"];
 
 type Database = Pick<PrismaClient, "guildSettings" | "inviteRequest" | "discordJob">;
 type Message = { id: string; pinned: boolean; author?: { id: string } | null; delete: () => Promise<unknown> };
-type GuildLike = { channels: { fetch: (id: string) => Promise<unknown> }; client: { user?: { id: string } | null } };
+type GuildLike = { id?: string; channels: { fetch: (id: string) => Promise<unknown> }; client: { user?: { id: string } | null } };
 
 const warned = new Set<string>();
 const warnOnce = (key: string, text: string, error?: unknown) => {
@@ -155,18 +157,33 @@ export const BULK_MAX_AGE_MS = 14 * 86_400_000 - 3_600_000;
 export const SWEEP_BUDGET_MS = 10 * 60_000;
 const SINGLE_DELETE_PAUSE_MS = 400;
 
-type ScanMessage = { id: string; pinned: boolean; createdTimestamp: number; author?: { id: string } | null; delete: () => Promise<unknown> };
+type ScanMessage = { id: string; pinned: boolean; createdTimestamp: number; content?: string; author?: { id: string; username?: string } | null; components?: unknown[]; delete: () => Promise<unknown> };
 type ScanPage = { size: number; values: () => Iterable<ScanMessage>; last: () => ScanMessage | undefined };
 type SweepChannel = {
+  id?: string; guildId?: string;
   isTextBased: () => boolean;
-  messages?: { fetch: (options: { limit: number; before?: string }) => Promise<ScanPage> };
+  messages?: { fetch: (options: { limit: number; before?: string } | string) => Promise<unknown> };
   bulkDelete?: (ids: string[], filterOld?: boolean) => Promise<unknown>;
+  permissionsFor?: (user: unknown) => { has: (permission: string) => boolean } | null;
 };
 
-export interface SweepOptions { members?: boolean; confirm?: boolean; now?: Date; cap?: number; budgetMs?: number; pauseMs?: number; sleep?: (ms: number) => Promise<void> }
+export interface SweepOptions {
+  /** Ages (ms) before the bot's own / members' messages may go. Defaults: 2 hours and 24 hours. */
+  botMinAgeMs?: number; memberMinAgeMs?: number;
+  /** Keep only the messages of requests still waiting (not every request not yet cleaned). */
+  onlyOpen?: boolean;
+  /** Called with the messages about to be deleted; throwing stops the deletion (the copy could not be saved). */
+  backup?: (messages: ScanMessage[]) => Promise<void>;
+  /** Saves the backup of what would go, then stops: nothing is deleted (the first run on a server). */
+  backupOnly?: boolean;
+  /** Extra messages never to delete (the bot's own request panel). */
+  protect?: (message: ScanMessage) => boolean;
+  /** The guide/panel message must exist in this channel, else nothing is attempted (status "panel"). */
+  requireGuide?: boolean;
+  members?: boolean; confirm?: boolean; now?: Date; cap?: number; budgetMs?: number; pauseMs?: number; sleep?: (ms: number) => Promise<void> }
 export interface SweepResult {
   /** "unreadable": the channel could not be read at all; "permission": Discord refused reading or deleting. */
-  status: "ok" | "unreadable" | "permission";
+  status: "ok" | "unreadable" | "permission" | "backup" | "panel";
   scanned: number;
   /** The scan or the deleting stopped at a limit: run it again for the rest. */
   capped: boolean;
@@ -189,13 +206,26 @@ export async function sweepInviteChannel(guild: GuildLike, database: Pick<Prisma
   const result: SweepResult = { status: "ok", scanned: 0, capped: false, protectedCount: 0, mine: 0, memberOld: 0, memberFresh: 0, deleted: 0 };
   const me = guild.client.user?.id;
   let channel: SweepChannel | null;
-  try { channel = await guild.channels.fetch(channelId) as SweepChannel | null; } catch (error) {
-    return { ...result, status: refused(error) ? "permission" : "unreadable" };
+  try {
+    channel = await guild.channels.fetch(channelId) as SweepChannel | null;
+    if (!me || !channel?.isTextBased() || !channel.messages) return { ...result, status: "unreadable" };
+    // Must be exactly the configured invite channel of this server.
+    if (options.requireGuide && (channel.id !== channelId || (channel.guildId && guild.id && channel.guildId !== guild.id))) return { ...result, status: "unreadable" };
+    if (options.requireGuide) {
+      const panel = guideMessageId ? await channel.messages.fetch(guideMessageId) as { id?: string; author?: { id: string } } | null : null;
+      if (!panel || panel.id !== guideMessageId || panel.author?.id !== me) return { ...result, status: "panel" };
+    }
+  } catch (error) {
+    return { ...result, status: refused(error) ? "permission" : (options.requireGuide ? "panel" : "unreadable") };
   }
-  if (!me || !channel?.isTextBased() || !channel.messages) return { ...result, status: "unreadable" };
+  // Without Manage Messages (or View Channel / Read Message History) nothing is attempted: quietly nothing to do.
+  const permissions = channel.permissionsFor?.(guild.client.user);
+  if (permissions && !(permissions.has("ManageMessages") && permissions.has("ReadMessageHistory") && permissions.has("ViewChannel"))) return { ...result, status: "permission" };
+  const botMin = options.botMinAgeMs ?? SWEEP_BOT_MIN_AGE_MS;
+  const memberMin = options.memberMinAgeMs ?? SWEEP_MEMBER_MIN_AGE_MS;
 
   // Messages of requests still waiting, or handled but not cleaned yet (the normal clean-up owns those).
-  const rows = await database.inviteRequest.findMany({ where: { guildId, channelId, OR: [{ status: "PENDING" }, { cleanedAt: null }] }, select: { messageId: true, notifyMessageId: true, doneNoteMessageId: true } });
+  const rows = await database.inviteRequest.findMany({ where: { guildId, channelId, ...(options.onlyOpen ? { status: "PENDING" } : { OR: [{ status: "PENDING" }, { cleanedAt: null }] }) }, select: { messageId: true, notifyMessageId: true, doneNoteMessageId: true } });
   const keep = new Set<string>(guideMessageId ? [guideMessageId] : []);
   for (const row of rows) for (const id of [row.messageId, row.notifyMessageId, row.doneNoteMessageId]) if (id) keep.add(id);
 
@@ -203,7 +233,7 @@ export async function sweepInviteChannel(guild: GuildLike, database: Pick<Prisma
   let before: string | undefined;
   scan: for (;;) {
     let page: ScanPage;
-    try { page = await channel.messages.fetch({ limit: 100, ...(before ? { before } : {}) }); } catch (error) {
+    try { page = await channel.messages.fetch({ limit: 100, ...(before ? { before } : {}) }) as ScanPage; } catch (error) {
       return { ...result, status: refused(error) ? "permission" : "unreadable" };
     }
     if (!page.size) break;
@@ -211,17 +241,22 @@ export async function sweepInviteChannel(guild: GuildLike, database: Pick<Prisma
       if (result.scanned >= cap) { result.capped = true; break scan; }
       result.scanned++;
       const age = now - message.createdTimestamp;
-      if (message.pinned || keep.has(message.id)) { result.protectedCount++; continue; }
+      if (message.pinned || keep.has(message.id) || options.protect?.(message)) { result.protectedCount++; continue; }
       if (message.author?.id === me) {
-        if (age > SWEEP_BOT_MIN_AGE_MS) { result.mine++; targets.push(message); }
+        if (age > botMin) { result.mine++; targets.push(message); }
         continue;
       }
-      if (age > SWEEP_MEMBER_MIN_AGE_MS) { result.memberOld++; if (options.members) targets.push(message); } else result.memberFresh++;
+      if (age > memberMin) { result.memberOld++; if (options.members) targets.push(message); } else result.memberFresh++;
     }
     before = page.last()?.id;
     if (page.size < 100 || !before) break;
   }
+  if (options.backupOnly && options.backup && targets.length) {
+    try { await options.backup(targets); } catch (error) { warnOnce(`backup:${channelId}`, "the copy of the messages could not be saved", error); return { ...result, status: "backup" }; }
+    return result;
+  }
   if (!options.confirm || !targets.length) return result;
+  if (options.backup) { try { await options.backup(targets); } catch (error) { warnOnce(`backup:${channelId}`, "the copy of the messages could not be saved, nothing was deleted", error); return { ...result, status: "backup" }; } }
 
   const sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const deadline = Date.now() + (options.budgetMs ?? SWEEP_BUDGET_MS);
@@ -269,4 +304,86 @@ export function sweepSummary(channelId: string, result: SweepResult, membersOpti
   if (memberLine) lines.push(memberLine);
   if (result.capped) lines.push(confirmed ? "I stopped at my limit for one run: run it again for the rest." : "That is only the newest part of the channel; run it again afterwards for the rest.");
   return lines.join("\n");
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// The hourly tidy of the whole channel (owner, 15 Nov 2026): the invite channel ends up holding only the pinned guide/panel and
+// the messages of requests still waiting. Everything else older than 10 minutes goes: closed requests, chat, old bot notices,
+// members' messages. A plain-text copy of each message (author, time, text; no attachments) is written to backups/ first, and if
+// that cannot be written nothing is deleted. Each run logs a dry-run count before it deletes. At most once an hour per server
+// (the time is stored, so a restart does not run it again). Officer switch: the same tidy switch as the per-request clean-up (/mod invites settings cleanup:false).
+// ---------------------------------------------------------------------------------------------------------------------
+export const CHANNEL_SWEEP_MIN_AGE_MS = 10 * 60_000;
+export const CHANNEL_SWEEP_EVERY_MS = 3_600_000;
+export const CHANNEL_SWEEP_DELETE_PAUSE_MS = 1000;
+/** Absolute, next to the bot's other backups (the bot runs from its install folder, /opt/guilded on Oracle). */
+export const defaultBackupDir = (): string => resolve(process.cwd(), "backups", "invite-channel");
+/** The bot's own request panel (the "Request an invite" button): never deleted. */
+export const isInvitePanel = (message: { author?: { id: string } | null; components?: unknown[] }, botId: string | undefined): boolean =>
+  !!botId && message.author?.id === botId && JSON.stringify(message.components ?? []).includes(`"invite:ask:`);
+
+/** One plain line per message: `[ISO time] author (id): text`. No attachments, no embeds. */
+export function backupLine(message: { createdTimestamp: number; content?: string; author?: { id: string; username?: string } | null }): string {
+  const text = (message.content ?? "").replace(/\r?\n/g, " ⏎ ");
+  return `[${new Date(message.createdTimestamp).toISOString()}] ${message.author?.username ?? "unknown"} (${message.author?.id ?? "?"}): ${text}`;
+}
+
+/** Saves the messages to backups/ (a file per run). Throws when it cannot, which stops the deletion. */
+export async function writeBackup(messages: readonly Parameters<typeof backupLine>[0][], channelId: string, now: Date, dir = defaultBackupDir()): Promise<string> {
+  const { mkdir, writeFile } = await import("node:fs/promises");
+  const { join } = await import("node:path");
+  await mkdir(dir, { recursive: true });
+  const file = join(dir, `${channelId}-${now.toISOString().replace(/[:.]/g, "-")}.txt`);
+  const ordered = [...messages].sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+  await writeFile(file, `${ordered.map(backupLine).join("\n")}\n`, "utf8");
+  return file;
+}
+
+type ChannelSweepClient = { guilds: { fetch: (id: string) => Promise<GuildLike | null> } };
+export interface ChannelSweepOptions { now?: Date; backupDir?: string; sleep?: (ms: number) => Promise<void>; log?: (line: string) => void }
+
+/** One pass over every server with the switch on and no run in the last hour. Returns how many messages were removed. */
+export async function runInviteChannelSweeps(client: ChannelSweepClient, database: Pick<PrismaClient, "guildSettings" | "inviteRequest">, options: ChannelSweepOptions = {}): Promise<number> {
+  const now = options.now ?? new Date();
+  const log = options.log ?? ((line: string) => console.log(line));
+  const due = new Date(now.getTime() - CHANNEL_SWEEP_EVERY_MS);
+  const servers = await database.guildSettings.findMany({
+    where: { inviteQueueEnabled: true, inviteCleanupEnabled: true, inviteChannelId: { not: "" }, OR: [{ inviteSweptAt: null }, { inviteSweptAt: { lte: due } }] },
+    select: { guildId: true, inviteChannelId: true, inviteGuideMessageId: true, inviteSweptAt: true, guild: { select: { discordId: true } } }
+  });
+  let removed = 0;
+  for (const server of servers) {
+    if (!server.inviteChannelId?.trim()) continue;
+    const firstRun = server.inviteSweptAt === null;
+    // Claimed first: a second pass (or a restart) within the hour finds nothing due.
+    const claim = await database.guildSettings.updateMany({ where: { guildId: server.guildId, OR: [{ inviteSweptAt: null }, { inviteSweptAt: { lte: due } }] }, data: { inviteSweptAt: now } });
+    if (!claim.count) continue;
+    // A first run that did not finish its dry run and backup does not count: the next pass is a first run again.
+    const unclaim = async () => { if (firstRun) await database.guildSettings.updateMany({ where: { guildId: server.guildId }, data: { inviteSweptAt: null } }); };
+    const guild = await Promise.resolve(client.guilds.fetch(server.guild.discordId)).catch(() => null);
+    if (!guild) { await unclaim(); continue; }
+    const botId = (guild as { client?: { user?: { id?: string } | null } }).client?.user?.id;
+    const common = { now, onlyOpen: true, requireGuide: true, protect: (message: ScanMessage) => isInvitePanel(message, botId), members: true, botMinAgeMs: CHANNEL_SWEEP_MIN_AGE_MS, memberMinAgeMs: CHANNEL_SWEEP_MIN_AGE_MS,
+      pauseMs: CHANNEL_SWEEP_DELETE_PAUSE_MS, ...(options.sleep ? { sleep: options.sleep } : {}) };
+    const dry = await sweepInviteChannel(guild, database, server.guildId, server.inviteChannelId, server.inviteGuideMessageId ?? null, { ...common, confirm: false });
+    if (dry.status === "permission") { warnOnce(`sweep-perm:${server.inviteChannelId}`, `the invite channel tidy needs ${MISSING_PERMISSIONS} in <#${server.inviteChannelId}>; skipped`); await unclaim(); continue; }
+    if (dry.status === "panel") { warnOnce(`sweep-panel:${server.inviteChannelId}`, `the invite channel tidy skipped <#${server.inviteChannelId}>: the invite panel message could not be found`); await unclaim(); continue; }
+    if (dry.status !== "ok") { await unclaim(); continue; }
+    const count = dry.mine + dry.memberOld;
+    log(`Invite channel tidy (dry run) ${server.guild.discordId}: ${count} message${count === 1 ? "" : "s"} would be removed, ${dry.protectedCount} kept (pinned, the panel or open requests), ${dry.scanned} read.`);
+    if (!count) { await unclaim(); continue; }
+    const saveCopy = async (messages: ScanMessage[]) => { const file = await writeBackup(messages, server.inviteChannelId!, now, options.backupDir); log(`Invite channel tidy: copy of ${messages.length} message${messages.length === 1 ? "" : "s"} saved to ${file}`); };
+    if (firstRun) {
+      // The very first run on a server only counts and saves a copy; real deleting starts with the next hourly run.
+      const saved = await sweepInviteChannel(guild, database, server.guildId, server.inviteChannelId, server.inviteGuideMessageId ?? null, { ...common, confirm: false, backupOnly: true, backup: saveCopy });
+      if (saved.status !== "ok") { await unclaim(); continue; }
+      log(`Invite channel tidy ${server.guild.discordId}: first run, nothing deleted (${count} counted and saved); deleting starts with the next hourly run.`);
+      continue;
+    }
+    const real = await sweepInviteChannel(guild, database, server.guildId, server.inviteChannelId, server.inviteGuideMessageId ?? null,
+      { ...common, confirm: true, backup: saveCopy });
+    removed += real.deleted;
+    log(`Invite channel tidy ${server.guild.discordId}: removed ${real.deleted}${real.status === "ok" ? "" : ` (stopped: ${real.status})`}.`);
+  }
+  return removed;
 }

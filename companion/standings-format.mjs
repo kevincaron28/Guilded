@@ -245,7 +245,7 @@ export function standingsToLua(data) {
     "-- Officers only: names waiting for a guild invite (full Forever names), for the addon's To invite panel.",
     ...(Array.isArray(data.officerInvites) ? [
       `GuildedInvites = { fetchedAt = ${luaString(data.updatedAt ?? "")}, names = {`,
-      ...data.officerInvites.slice(0, 30).map((row) => `  { name = ${luaString(row.name)}, at = ${luaString(row.at ?? "")} },`),
+      ...data.officerInvites.slice(0, 30).map((row) => `  { name = ${luaString(row.name)}, at = ${luaString(row.at ?? "")}${typeof row.id === "string" && /^[A-Za-z0-9_-]{8,40}$/.test(row.id) ? `, id = ${luaString(row.id)}` : ""}${Number.isInteger(row.sent) && row.sent > 0 ? `, sent = ${row.sent}` : ""}${typeof row.state === "string" && /^[a-z]{3,12}$/.test(row.state) ? `, state = ${luaString(row.state)}` : ""} },`),
       "} }"
     ] : ["GuildedInvites = nil"]),
     ""

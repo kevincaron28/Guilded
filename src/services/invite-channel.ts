@@ -1,12 +1,13 @@
-import { MessageFlags, type ButtonInteraction, type Client, type GuildMember, type Message, type MessageReaction, type PartialGuildMember, type PartialMessageReaction, type PartialUser, type User } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags, type ButtonInteraction, type Client, type GuildMember, type Message, type MessageReaction, type PartialGuildMember, type PartialMessageReaction, type PartialUser, type User } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, t, type Lang } from "../i18n.js";
 import { hasPermission } from "../permissions.js";
 import { notifyInviters } from "./invite-notify.js";
-import { DONE_BUTTON, requestInviteRow } from "./invite-request.js";
+import { DONE_BUTTON, requestInviteRow, submitInviteRequest } from "./invite-request.js";
+import { extractInviteName, isFiller } from "./invite-name.js";
 import { INVITE_REQUEST_PREFIX } from "./invite-request.js";
 import { parseInviteAnswers, questionsBlock, storedQuestions } from "./recruiting-kit.js";
-import { foldKey, knownRealms, stripRealm, markInvitedByMessage, markInvitedByName, parseInviteName, recordInviteRequest, SEEN, type InvitedRow } from "./invite-queue.js";
+import { foldKey, knownRealms, stripRealm, markInvitedByMessage, markInvitedByName, parseInviteName, recordInviteRequest, SEEN, type InvitedRow, type ParsedInviteName } from "./invite-queue.js";
 
 // 8.5 batch 3 (#13/#14): the Discord half of the guild-invite channel. On by default; an officer's off switch is
 // `/mod invites settings queue:false` (and `dm:false` for the WoW-role DM). Reading names needs the Message Content
@@ -49,16 +50,47 @@ export async function settleIfAlreadyIn(client: Pick<Client, "channels" | "user"
   } catch { /* the hourly back-check still runs */ }
 }
 
-/** A player's post in the invite channel: record the full name and react 👀, or send a short hint that deletes itself. */
-export async function handleInviteMessage(message: Message, database: Database): Promise<"recorded" | "hinted" | "ignored"> {
+export const CONFIRM_NAME_PREFIX = "invite:ok:";
+export const FIX_NAME_PREFIX = "invite:fix:";
+const QUESTION_LIFETIME_MS = 5 * 60_000;
+const BRIEF_LIFETIME_MS = 60_000;
+interface AskedName { userId: string; discordGuildId: string; channelId: string; typedMessageId: string; parsed: ParsedInviteName; answers: string | null; lang: Lang }
+/** Names found in a sentence, waiting for the member's Yes (by the id of the typed message). Lost on a restart: the member types again. */
+const askedNames = new Map<string, AskedName>();
+const forget = (message: { delete: () => Promise<unknown> } | null | undefined, after: number) => { if (message) setTimeout(() => void message.delete().catch(() => undefined), after).unref?.(); };
+
+/**
+ * A player's post in the invite channel. A bare full name is recorded at once (the post itself is the open request and the
+ * clean-up removes it when the request closes). A sentence is read for a name (invite-name.ts) and the member confirms it with a
+ * button before anything is recorded; a first name alone, or no name, gets a short answer that deletes itself.
+ */
+export async function handleInviteMessage(message: Message, database: Database): Promise<"recorded" | "hinted" | "asked" | "ignored"> {
   if (!message.guildId || message.author.bot || message.webhookId || !message.content?.trim()) return "ignored";
   const settings = await database.guildSettings.findFirst({ where: { inviteChannelId: message.channelId, inviteQueueEnabled: true }, select: { guildId: true, language: true } });
   if (!settings) return "ignored";
-  const parsed = parseInviteName(message.content);
+  const lang = asLang(settings.language);
+  const exact = parseInviteName(message.content);
+  // Two filler words ("thank you", "bonjour guilde") are not a name.
+  const parsed = exact && !exact.displayName.split(" ").some((word) => isFiller(word)) ? exact : null;
   if (!parsed) {
     if (isOfficer(message.member)) return "ignored"; // officers talk in the channel too
-    const hint = await message.reply({ content: t(asLang(settings.language), "invite.hint"), allowedMentions: { parse: [], repliedUser: false } }).catch(() => null);
-    if (hint) setTimeout(() => void hint.delete().catch(() => undefined), HINT_LIFETIME_MS).unref?.();
+    const found = extractInviteName(message.content);
+    const send = (content: string, components?: ActionRowBuilder<ButtonBuilder>[]) => message.reply({ content, ...(components ? { components } : {}), allowedMentions: { parse: [], repliedUser: false } }).catch(() => null);
+    if (found.kind === "name") {
+      const question = await send(t(lang, "invite.confirmName", { name: found.displayName }), [new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(`${CONFIRM_NAME_PREFIX}${message.id}`).setLabel(t(lang, "invite.yesButton")).setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId(`${FIX_NAME_PREFIX}${message.id}`).setLabel(t(lang, "invite.fixButton")).setStyle(ButtonStyle.Secondary))]);
+      if (question) {
+        // The buttons carry the typed message's id; the name waits here.
+        askedNames.set(message.id, { userId: message.author.id, discordGuildId: message.guildId, channelId: message.channelId, typedMessageId: message.id, parsed: { displayName: found.displayName, nameKey: found.nameKey }, answers: parseInviteAnswers(message.content), lang });
+        forget(question, QUESTION_LIFETIME_MS);
+        setTimeout(() => askedNames.delete(message.id), QUESTION_LIFETIME_MS + 5_000).unref?.();
+        return "asked";
+      }
+      return "hinted";
+    }
+    const hint = await send(found.kind === "first" ? t(lang, "invite.needLast", { first: found.first }) : t(lang, "invite.hint"));
+    forget(hint, HINT_LIFETIME_MS);
     return "hinted";
   }
   await recordInviteRequest(database, { guildId: settings.guildId, parsed, discordUserId: message.author.id, channelId: message.channelId, messageId: message.id, answers: parseInviteAnswers(message.content) });
@@ -69,6 +101,32 @@ export async function handleInviteMessage(message: Message, database: Database):
   // The member row lets the character link to them when it joins (invite-prelink.ts). Best effort.
   try { await database.member.upsert({ where: { guildId_discordUserId: { guildId: settings.guildId, discordUserId: message.author.id } }, create: { guildId: settings.guildId, discordUserId: message.author.id, displayName: message.member?.displayName ?? message.author.username }, update: {} }); } catch { /* optional */ }
   return "recorded";
+}
+
+/** The Yes / "No, let me fix it" buttons under the bot's question about a name read from a sentence. */
+export async function handleInviteNameButton(interaction: ButtonInteraction, database: Database): Promise<void> {
+  const yes = interaction.customId.startsWith(CONFIRM_NAME_PREFIX);
+  const typedId = interaction.customId.slice((yes ? CONFIRM_NAME_PREFIX : FIX_NAME_PREFIX).length);
+  const asked = askedNames.get(typedId);
+  if (!asked) { await interaction.update({ content: `${t("en", "invite.questionExpired")} / ${t("fr", "invite.questionExpired")}`, components: [] }).catch(() => undefined); forget(interaction.message, BRIEF_LIFETIME_MS); return; }
+  if (asked.userId !== interaction.user.id) { await interaction.reply({ content: t(asked.lang, "invite.notYours"), flags: MessageFlags.Ephemeral }); return; }
+  askedNames.delete(typedId);
+  const typed = async () => {
+    const channel = await interaction.client.channels.fetch(asked.channelId).catch(() => null);
+    const original = channel?.isTextBased() && "messages" in channel ? await channel.messages.fetch(asked.typedMessageId).catch(() => null) : null;
+    await original?.delete().catch(() => undefined);
+  };
+  if (!yes) {
+    await interaction.update({ content: t(asked.lang, "invite.fixPrompt"), components: [] }).catch(() => undefined);
+    await typed();
+    forget(interaction.message, BRIEF_LIFETIME_MS);
+    return;
+  }
+  const outcome = await submitInviteRequest(interaction.client, database, { discordGuildId: asked.discordGuildId, discordUserId: asked.userId, parsed: asked.parsed, answers: asked.answers });
+  const content = outcome.status === "posted" ? t(asked.lang, "invite.recorded", { name: asked.parsed.displayName }) : outcome.status === "duplicate" ? t(asked.lang, "invite.duplicate") : t(asked.lang, "invite.unavailable");
+  await interaction.update({ content, components: [], allowedMentions: { parse: [] } }).catch(() => undefined);
+  await typed(); // the bot's own request post now stands for it
+  forget(interaction.message, BRIEF_LIFETIME_MS);
 }
 
 /**

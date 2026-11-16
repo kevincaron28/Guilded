@@ -1,4 +1,5 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
+import { GAME_STATE_TEXT } from "./invite-expiry-text.js";
 
 // 8.5 batch 3 (#13/#14): the guild-invite queue. A player writes their full character name (WoW Forever names have a
 // first and a last name) in the invite channel; the bot records it, officers see it in /mod invites and in the
@@ -125,16 +126,21 @@ export async function markInvitedByMessage(database: Database, guildId: string, 
   return markInvitedByName(database, guildId, [row.nameKey], by);
 }
 
-/** What the addon's "To invite" panel receives: names only, never Discord IDs. */
-export function inviteListForAddon(rows: readonly { displayName: string; createdAt: Date }[]): { name: string; at: string }[] {
-  return rows.slice(0, 30).map((row) => ({ name: row.displayName, at: row.createdAt.toISOString() }));
+/** What the addon's "To invite" panel receives: names only, never Discord IDs. `id` lets the addon report back (invites sent, the game's answer). */
+export function inviteListForAddon(rows: readonly { id?: string; displayName: string; createdAt: Date; invitesSent?: number; gameState?: string | null; confirmAskedAt?: Date | null }[]): { name: string; at: string; id?: string; sent?: number; state?: string }[] {
+  return rows.slice(0, 30).map((row) => ({
+    name: row.displayName, at: row.createdAt.toISOString(),
+    ...(row.id ? { id: row.id } : {}), ...(row.invitesSent ? { sent: row.invitesSent } : {}),
+    // "confirm": the requester was asked whether they still want the invite. Otherwise the game's last answer.
+    ...(row.confirmAskedAt ? { state: "confirm" } : row.gameState ? { state: row.gameState } : {})
+  }));
 }
 
-export function formatInviteList(rows: readonly { displayName: string; discordUserId: string; createdAt: Date; channelId: string; messageId: string; source?: string; note?: string | null; answers?: string | null }[], guildDiscordId: string): string {
+export function formatInviteList(rows: readonly { displayName: string; discordUserId: string; createdAt: Date; channelId: string; messageId: string; source?: string; note?: string | null; answers?: string | null; invitesSent?: number; gameState?: string | null; confirmAskedAt?: Date | null }[], guildDiscordId: string): string {
   if (!rows.length) return "Nobody is waiting for an invite.";
   // Officer-only reply: notes and answers are shown here and never leave the officers' view.
-  const extra = (row: { source?: string; note?: string | null; answers?: string | null }) =>
-    `${row.source && row.source !== "discord" ? ` (${row.source})` : ""}${row.note ? `\n  📝 ${row.note.slice(0, 120)}` : ""}${row.answers ? `\n  💬 ${row.answers.replace(/\s+/g, " ").slice(0, 120)}` : ""}`;
+  const extra = (row: { source?: string; note?: string | null; answers?: string | null; invitesSent?: number; gameState?: string | null; confirmAskedAt?: Date | null }) =>
+    `${row.source && row.source !== "discord" ? ` (${row.source})` : ""}${[row.invitesSent ? `${row.invitesSent} invite${row.invitesSent === 1 ? "" : "s"} sent` : "", row.gameState ? GAME_STATE_TEXT[row.gameState] ?? "" : "", row.confirmAskedAt ? "asked to confirm" : ""].filter(Boolean).map((text) => ` · ${text}`).join("")}${row.note ? `\n  📝 ${row.note.slice(0, 120)}` : ""}${row.answers ? `\n  💬 ${row.answers.replace(/\s+/g, " ").slice(0, 120)}` : ""}`;
   const lines = rows.slice(0, 15).map((row) => `• **${row.displayName}** — <@${row.discordUserId}> <t:${Math.floor(row.createdAt.getTime() / 1000)}:R> [post](https://discord.com/channels/${guildDiscordId}/${row.channelId}/${row.messageId})${extra(row)}\n  \`/ginvite ${row.displayName}\``);
   return `${rows.length} waiting for a guild invite:\n${lines.join("\n")}${rows.length > 15 ? `\n…and ${rows.length - 15} more` : ""}`;
 }

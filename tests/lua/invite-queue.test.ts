@@ -637,3 +637,81 @@ describe("InviteQueue.lua: which reply lines are kept (9.3.3)", () => {
     expect(s.run("return tostring(NEXTS[#NEXTS])")).toBe("false");
   });
 });
+
+describe("InviteQueue.lua: reports for the bot's request expiry (9.3.5)", () => {
+  const withIds = (extra = "") => {
+    const s = withQueue();
+    s.run(`GuildedInvites.names = { { name = "Amy Archer", at = "2026-11-10T10:00:00Z", id = "req_amy_0001"${extra} }, { name = "Bob Brewer", at = "2026-11-14T10:00:00Z", id = "req_bob_0001" } }`);
+    return s;
+  };
+  const say = (lua: LuaSession, text: string) => lua.run(`return tostring(NS.inviteQueue.onSystemMessage(${JSON.stringify(text)}))`);
+  const report = (lua: LuaSession, id: string) => lua.run(`local r = DB.inviteReports and DB.inviteReports[${JSON.stringify(id)}] if not r then return "none" end return tostring(r.sent) .. ":" .. tostring(r.state) .. ":" .. tostring(r.removed)`);
+
+  it("counts every invite the game confirms per request and follows the bot's own count", () => {
+    const s = withIds(`, sent = 2`);
+    s.run(`NS.inviteQueue.markInvited("Amy Archer")`);
+    expect(say(s, "You have invited Amy Archer to join your guild.")).toBe("true");
+    expect(report(s, "req_amy_0001")).toBe("3:nil:nil");
+    s.run(`NS.inviteQueue.markInvited("Amy Archer")`);
+    say(s, "You have invited Amy Archer to join your guild.");
+    expect(report(s, "req_amy_0001")).toBe("4:nil:nil");
+  });
+  it("reports declined, already in a guild and not found from the game's own message", () => {
+    const s = withIds();
+    for (const [text, name, state] of [
+      ["Amy Archer declines your guild invitation.", "Amy Archer", "declined"],
+      ["Bob Brewer is already in a guild.", "Bob Brewer", "inguild"],
+      ["Player Amy Archer not found.", "Amy Archer", "notfound"]
+    ] as Array<[string, string, string]>) {
+      s.run(`NS.inviteQueue.markInvited(${JSON.stringify(name)})`);
+      say(s, text);
+      expect(report(s, name === "Amy Archer" ? "req_amy_0001" : "req_bob_0001")).toContain(`:${state}:`);
+    }
+  });
+  it("matches the answers through the client's localized global strings, not English text", () => {
+    const s = withQueue();
+    s.run(`ERR_GUILD_DECLINE_S = "%s refuse votre invitation."; ERR_ALREADY_IN_GUILD_S = "%s est d%s dans une guilde."; ERR_GUILD_INVITE_S = "Vous avez invit\u00e9 %s dans votre guilde."`);
+    s.run(`GuildedInvites.names = { { name = "Amy Archer", at = "2026-11-10T10:00:00Z", id = "req_amy_0001" } }`);
+    s.run(`NS.inviteQueue.markInvited("Amy Archer")`);
+    expect(say(s, "Amy Archer refuse votre invitation.")).toBe("true");
+    expect(report(s, "req_amy_0001")).toContain(":declined:");
+    expect(say(s, "Vous avez invit\u00e9 Amy Archer dans votre guilde.")).toBe("true");
+    expect(report(s, "req_amy_0001")).toBe("1:nil:nil");
+  });
+  it("sends nothing for a row without an id, and ignores names the officer never invited", () => {
+    const s = withQueue();
+    s.run(`NS.inviteQueue.markInvited("Amy Archer")`);
+    say(s, "You have invited Amy Archer to join your guild.");
+    expect(s.run("return tostring(DB.inviteReports)")).toBe("nil");
+    const t = withIds();
+    say(t, "Amy Archer declines your guild invitation."); // never clicked here
+    expect(report(t, "req_amy_0001")).toBe("none");
+  });
+  it("marks a removed row so the bot closes the request", () => {
+    const s = withIds();
+    s.run(`NS.inviteQueue.remove("Amy Archer")`);
+    expect(report(s, "req_amy_0001")).toBe("0:nil:true");
+  });
+  it("keeps at most 60 reports, dropping the oldest", () => {
+    const s = withQueue();
+    s.run(`local t = {} for i = 1, 62 do t[i] = { name = "First" .. i .. " Last" .. i, at = "2026-11-10T10:00:00Z", id = "req_n_" .. string.format("%04d", i) } end GuildedInvites.names = t
+      for i = 1, 62 do CLOCKS = 6000 + i; NS.inviteQueue.reportFor("first" .. i .. " last" .. i, "declined") end`);
+    expect(s.run(`local n = 0 for _ in pairs(DB.inviteReports) do n = n + 1 end return n`)).toBe("60");
+    expect(report(s, "req_n_0001")).toBe("none");
+    expect(report(s, "req_n_0062")).toContain("declined");
+  });
+  it("lists a fresher day first and keeps the bot's order inside one day", () => {
+    const s = withQueue();
+    s.run(`GuildedInvites.names = { { name = "Old One", at = "2026-11-01T10:00:00Z" }, { name = "Mid Day", at = "2026-11-10T09:00:00Z" }, { name = "Mid Later", at = "2026-11-10T18:00:00Z" }, { name = "Fresh One", at = "2026-11-14T10:00:00Z" } }`);
+    expect(s.run(`local t = {} for _, l in ipairs(NS.inviteQueue.list()) do t[#t + 1] = l.name end return table.concat(t, "|")`)).toBe("Fresh One|Mid Day|Mid Later|Old One");
+  });
+  it("shows age, invites sent and the bot's status on the row", () => {
+    const s = withQueue();
+    s.run(`CLOCKS = UTILNS.util.isoEpoch("2026-11-15T10:00:00Z")`);
+    s.run(`GuildedInvites.names = { { name = "Amy Archer", at = "2026-11-10T10:00:00Z", id = "req_amy_0001", sent = 3, state = "confirm" }, { name = "Bob Brewer", at = "2026-11-15T07:00:00Z", id = "req_bob_0001", state = "declined" } }`);
+    s.run("NS.inviteQueue.open()");
+    const texts = s.run(`local t = {} for _, r in ipairs(FS) do local x = rawget(r, "text") if type(x) == "string" and (string.find(x, "Amy Archer") or string.find(x, "Bob Brewer")) then t[#t + 1] = x end end return table.concat(t, "|")`);
+    expect(texts).toContain("5d old, 3 sent, asked to confirm");
+    expect(texts).toContain("3h old, declined in game");
+  });
+});

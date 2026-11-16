@@ -72,8 +72,9 @@ import { handlePanelInteraction, PANEL_PREFIX } from "./services/character-panel
 import { handleLinkMoveButton, LINK_MOVE_PREFIX } from "./services/link-conflict-dm.js";
 import { handleInviteDm, handleInviteRequestInteraction, INVITE_REQUEST_PREFIX } from "./services/invite-request.js";
 import { postAllWeeklyGuildBanks } from "./services/guild-bank.js";
-import { scheduleInviteCleanups } from "./services/invite-cleanup.js";
-import { backCheckAllInvites, handleInviteDoneButton, handleInviteMessage, handleInviteReaction, handleWowRoleGiven } from "./services/invite-channel.js";
+import { runInviteChannelSweeps, scheduleInviteCleanups } from "./services/invite-cleanup.js";
+import { DROP_PREFIX, handleInviteConfirmButton, handleRequesterLeft, KEEP_PREFIX, sweepInviteExpiry } from "./services/invite-expiry.js";
+import { backCheckAllInvites, CONFIRM_NAME_PREFIX, FIX_NAME_PREFIX, handleInviteDoneButton, handleInviteNameButton, handleInviteMessage, handleInviteReaction, handleWowRoleGiven } from "./services/invite-channel.js";
 import { ROSTER_BUTTON_PREFIX, handleRosterButton } from "./commands/roster.js";
 import { RANK_ROLES_BUTTON_PREFIX, handleRankRolesButton } from "./commands/rank-roles.js";
 import { sweepAchievementAnnouncements } from "./services/achievement-announce.js";
@@ -358,6 +359,14 @@ client.once(Events.ClientReady, (readyClient) => {
   setInterval(() => void backCheckAllInvites(readyClient, prisma).catch(reportJobError("Guild invite back-check")), 60 * 60_000);
   // About an hour after a request is handled its messages are removed from the invite channel (the deadline is stored on the row).
   setInterval(() => void scheduleInviteCleanups(prisma).catch(reportJobError("Guild invite clean-up")), 10 * 60_000).unref?.();
+  // 9.3.5: old invite requests are asked once (a DM) and closed when unanswered (invite-expiry.ts); first pass shortly after start-up.
+  const inviteExpiry = () => void sweepInviteExpiry(readyClient, prisma).catch(reportJobError("Guild invite expiry"));
+  setTimeout(inviteExpiry, 5 * 60_000).unref?.();
+  setInterval(inviteExpiry, 30 * 60_000).unref?.();
+  // 9.3.5: the whole invite channel is tidied at most once an hour per server (a dry-run count is logged and a copy saved to backups/ first).
+  const inviteChannelTidy = () => void runInviteChannelSweeps(readyClient, prisma).catch(reportJobError("Guild invite channel tidy"));
+  setTimeout(inviteChannelTidy, 10 * 60_000).unref?.();
+  setInterval(inviteChannelTidy, 60 * 60_000).unref?.();
   setInterval(() => void sendRecruitReminders(readyClient, prisma).catch(reportJobError("Recruiting cooldown reminders")), 60 * 60_000);
   setInterval(() => void postAllWeeklyPromotions(prisma, readyClient.guilds.cache.values(), reportJobError("Weekly promotions")), 60 * 60_000);
   // 9.0, on by default: at most one weekly guild bank summary per server, only when the bank moved.
@@ -617,6 +626,8 @@ client.on(Events.GuildMemberRemove, async member => {
     const record = await prisma.guild.findUnique({ where: guildWhere(member.guild.id), select: { id: true } });
     if (record && member.joinedAt && !member.user.bot) await rememberRookieJoin(prisma, record.id, member.id, member.joinedAt);
   } catch (error) { console.error("Rookie membership history failed", error); }
+  // 9.3.5: someone who leaves the Discord server no longer waits for a guild invite there.
+  if (!member.user.bot) await handleRequesterLeft(prisma, member.guild.id, member.id).catch(reportJobError("Invite request cancel on leave"));
 });
 
 // The officer log's "joined the guild" line: someone got the Member role or a leadership role.
@@ -854,7 +865,9 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
     return;
   }
   if ((interaction.isButton() || interaction.isModalSubmit()) && interaction.customId.startsWith(INVITE_REQUEST_PREFIX)) {
-    const handler = interaction.isButton() && interaction.customId.startsWith(`${INVITE_REQUEST_PREFIX}done:`) ? handleInviteDoneButton(interaction, prisma) : handleInviteRequestInteraction(interaction, prisma);
+    const handler = interaction.isButton() && (interaction.customId.startsWith(KEEP_PREFIX) || interaction.customId.startsWith(DROP_PREFIX)) ? handleInviteConfirmButton(interaction, prisma)
+      : interaction.isButton() && (interaction.customId.startsWith(CONFIRM_NAME_PREFIX) || interaction.customId.startsWith(FIX_NAME_PREFIX)) ? handleInviteNameButton(interaction, prisma)
+      : interaction.isButton() && interaction.customId.startsWith(`${INVITE_REQUEST_PREFIX}done:`) ? handleInviteDoneButton(interaction, prisma) : handleInviteRequestInteraction(interaction, prisma);
     await handler.catch(async (error: unknown) => {
       reportInteractionError("Guild invite request", interaction, error);
       const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demande à un officier.";

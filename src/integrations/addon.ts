@@ -309,6 +309,9 @@ export const addonSnapshotSchema = z.object({
   // on GUILD. Absent from older companions; validated row by row on apply.
   craftOrderRequests: z.array(z.unknown()).max(20).default([]),
   craftOrderRelayRequests: z.array(z.unknown()).max(60).default([]),
+  // 9.3.5 invite requests (Modules/InviteQueue.lua): an officer's invites sent per request, the game's answers and removed rows.
+  // Validated row by row on apply (services/invite-expiry.ts); officers' uploads only.
+  inviteReports: z.array(z.unknown()).max(60).default([]),
   // Track M phone map (services/guild-map.ts): the uploader's own last-seen positions and calls for help.
   // Validated row by row on apply, with their pairing only.
   mapSightings: z.array(z.unknown()).max(100).default([]),

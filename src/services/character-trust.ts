@@ -18,14 +18,8 @@ import { characterKey } from "../../companion/character-identity.mjs";
 // Grandfathered (owner decision, 10 November 2026: "grandfather the old links"): a character whose confirmedAt is
 // before T8_STRICT_FROM, the instant the strict rule went live, stays confirmed exactly as before T8 (the member's own
 // companion or an officer linked it). The strict rule above applies only to links confirmed at or after it.
-// Ownership evidence (security review, 16 November 2026). Naming a character is not owning it: a saved export can list any
-// guildmate's character as an alt, and the roster only proves it exists in the guild. From T8_OWNERSHIP_FROM on, confirmedAt is
-// granted ONLY by ownership evidence: the character is the LOGGED-IN character of a signed upload from the member's own companion
-// (snapshot.character; the alts list never confirms), an officer link, or a heard verify code from that character. A character the
-// export merely lists as an alt is linked with evidence "named" and stays reported until it is the logged-in character of a signed
-// upload (then it upgrades by itself: companion outranks named, character-pairing.ts). Because confirmedAt now means ownership, a
-// link confirmed at or after T8_OWNERSHIP_FROM needs no roster agreement. Links confirmed between T8_STRICT_FROM and
-// T8_OWNERSHIP_FROM keep the roster-or-heard rule, and older ones stay grandfathered: nothing is downgraded or migrated.
+// Granting side (security review, 16 November 2026): only snapshot.character of a signed upload is linked with confirmedAt; alts named in an
+// export and one-click device claims are linked as "named" (no confirmedAt), so they are reported until the character is the logged-in one.
 // Reported otherwise: typed in, matched by name, named in an invite request, heard by a guildmate's
 // addon without the member's own companion, or uploaded by the member's companion alone (a saved file
 // can name any character).
@@ -59,14 +53,11 @@ const keyOf = (character: TrustedCharacter) => `${character.memberId}\n${nameKey
 
 /** When the strict rule (T8, #724) went live on the bot. Older links keep the pre-T8 meaning of confirmedAt. */
 export const T8_STRICT_FROM = new Date("2026-11-10T15:14:00Z");
-/** When confirmedAt started meaning ownership only (16 November 2026): set it to the instant this version goes live on the bot. */
-export const T8_OWNERSHIP_FROM = new Date("2026-11-17T00:00:00Z");
 
 /** Pure: one character's trust from its own fields and what agrees with them. */
 export function characterTrust(character: Pick<TrustedCharacter, "confirmedAt" | "linkEvidence">, proof: TrustProof = {}): CharacterTrust {
   if (character.linkEvidence === "officer" || proof.claim === "LINKED") return "confirmed";
   if (character.confirmedAt && character.confirmedAt < T8_STRICT_FROM) return "confirmed";
-  if (character.confirmedAt && character.confirmedAt >= T8_OWNERSHIP_FROM) return "confirmed";
   const heard = proof.claim === "PROVISIONAL" || character.linkEvidence === "heard";
   return character.confirmedAt && (heard || proof.inRoster) ? "confirmed" : "reported";
 }
@@ -85,8 +76,8 @@ export async function characterTrustMap(database: TrustDatabase, guildId: string
       select: { memberId: true, nameKey: true, status: true }
     });
     for (const claim of claims) claimed.set(`${claim.memberId}\n${claim.nameKey}`, claim.status);
-    // Only a character the member's own companion uploaded, between T8 and the ownership rule, is confirmed by the roster.
-    const own = open.filter((character) => character.confirmedAt && character.confirmedAt >= T8_STRICT_FROM && character.confirmedAt < T8_OWNERSHIP_FROM && claimed.get(keyOf(character)) !== "LINKED");
+    // Only a character the member's own companion uploaded can be confirmed by the roster.
+    const own = open.filter((character) => character.confirmedAt && character.confirmedAt >= T8_STRICT_FROM && claimed.get(keyOf(character)) !== "LINKED");
     if (own.length) {
       const rows = await database.guildRosterEntry.findMany({
         where: { guildId, inGuild: true, nameKey: { in: [...new Set(own.map(nameKeyOf))] } },

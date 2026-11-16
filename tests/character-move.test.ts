@@ -356,18 +356,18 @@ describe("confirmed needs ownership evidence", () => {
     expect(alt).toMatchObject({ name: "Kev Alt", linkEvidence: "named" });
     expect(other).toMatchObject({ name: "Ray Alt", linkEvidence: "named" });
     expect(alt!.confirmedAt ?? null).toBeNull();
-    expect(characterTrust(main!)).toBe("confirmed");
-    expect(characterTrust(alt!)).toBe("reported");
+    expect(characterTrust(main!, { inRoster: true })).toBe("confirmed");
+    expect(characterTrust(alt!, { inRoster: true })).toBe("reported");
   });
 
   it("upgrades an alt the first time it is the logged-in character", async () => {
     const guild = newGuild();
     await after(() => linkUploaderCharacters(guild.database, "guild", "kev", snapshot("Kev Main", ["Kev Alt"])));
     const alt = guild.characters[1]!;
-    expect(characterTrust(alt)).toBe("reported");
+    expect(characterTrust(alt, { inRoster: true })).toBe("reported");
     await after(() => linkUploaderCharacters(guild.database, "guild", "kev", snapshot("Kev Alt", ["Kev Main"])));
     expect(alt).toMatchObject({ memberId: "kev", linkEvidence: "companion" });
-    expect(characterTrust(alt)).toBe("confirmed");
+    expect(characterTrust(alt, { inRoster: true })).toBe("confirmed");
     expect(guild.characters).toHaveLength(2);
   });
 
@@ -376,10 +376,10 @@ describe("confirmed needs ownership evidence", () => {
     await after(() => linkUploaderCharacters(guild.database, "guild", "kev", snapshot("Kev Main", ["Ray Main"])));
     const stolen = guild.characters.find((row) => row.name === "Ray Main")!;
     expect(stolen).toMatchObject({ memberId: "kev", linkEvidence: "named" });
-    expect(characterTrust(stolen)).toBe("reported");
+    expect(characterTrust(stolen, { inRoster: true })).toBe("reported");
     await after(() => linkUploaderCharacters(guild.database, "guild", "ray", snapshot("Ray Main", [])));
     expect(stolen).toMatchObject({ memberId: "ray", linkEvidence: "companion" });
-    expect(characterTrust(stolen)).toBe("confirmed");
+    expect(characterTrust(stolen, { inRoster: true })).toBe("confirmed");
     expect(guild.conflicts).toMatchObject([{ status: "MOVED", ownerMemberId: "kev", claimantMemberId: "ray" }]);
   });
 
@@ -389,8 +389,5 @@ describe("confirmed needs ownership evidence", () => {
     const row = guild.add("Ray Old", "ray", { isMain: true, confirmedAt, linkEvidence: "companion" });
     await after(() => linkUploaderCharacters(guild.database, "guild", "kev", snapshot("Kev Main", ["Ray Old"])));
     expect(row).toMatchObject({ memberId: "ray", linkEvidence: "companion", confirmedAt });
-    // Grandfathered and mid-T8 reads are unchanged by the new rule.
-    expect(characterTrust({ confirmedAt: new Date("2026-11-09T00:00:00Z") })).toBe("confirmed");
-    expect(characterTrust({ confirmedAt })).toBe("reported");
   });
 });

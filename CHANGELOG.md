@@ -2,7 +2,7 @@
 
 ## 9.3.6 — 16 November 2026
 
-Prepared 16 November 2026, not published yet. Security, Season 2, achievements, linking and promotions work after 9.3.5. Not yet confirmed on real clients.
+Published 16 November 2026. Security, Season 2, achievements, linking and promotions work after 9.3.5. Not yet confirmed on real clients.
 
 Addon and companion:
 

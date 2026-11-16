@@ -1181,12 +1181,6 @@ local function buildGearPage(page)
   local hover = CreateFrame("Button", nil, page)
   hover:SetPoint("TOPLEFT", page, "TOPLEFT", x.problems, -34)
   hover:SetSize(w.problems, 200)
-  hover:SetScript("OnEnter", function(self)
-    if not GameTooltip or not ui.gearFull or #ui.gearFull == 0 then return end
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    for _, line in ipairs(ui.gearFull) do GameTooltip:AddLine(line, 1, 1, 1, true) end
-    GameTooltip:Show()
-  end)
   hover:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
   -- One member's problems per hover: the row under the cursor (the tooltip follows the mouse from row to row).
   local function rowUnderCursor(self)

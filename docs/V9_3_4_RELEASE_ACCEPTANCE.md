@@ -8,7 +8,7 @@ Status: published 15 November 2026. 9.3.4 is not yet confirmed on real clients.
 | --- | --- |
 | GitHub | v9.3.4 is the latest release (tag at 6bc7c755), six assets. |
 | Installer | `Guilded.Companion.Setup.exe` and `Guilded.Companion.Setup.9.3.4.exe` on the server and the R2 mirror. |
-| CurseForge | files 9632579 (Guilded) and 9632613 (Guilded Dungeons) uploaded 15 November 2026, in review; the website points at them. |
+| CurseForge | files 9632579 (Guilded) and 9632613 (Guilded Dungeons) uploaded and approved 15 November 2026; the website points at them. |
 | Microsoft Store | 9.3.4.0 submitted 15 November 2026, in certification as Submission 13 ("Guild Sync Companion") |
 | Website | `site/releases.json` and the addon downloads point at 9.3.4 |
 

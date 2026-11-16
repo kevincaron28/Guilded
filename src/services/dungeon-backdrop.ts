@@ -53,5 +53,12 @@ export async function dungeonBackdrop(theme: DungeonArtTheme): Promise<Buffer> {
     const art = await painted(theme.painted);
     if (art) return art;
   }
-  return lifted(await sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">${dungeonArt(theme)}</svg>`)).jpeg({ quality: 90 }).toBuffer());
+  // The procedural scene is brightened and re-encoded once per scene, then cached like the paintings.
+  const key = `proc:${JSON.stringify(theme)}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const art = await lifted(await sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">${dungeonArt(theme)}</svg>`)).jpeg({ quality: 90 }).toBuffer());
+  cache.set(key, art);
+  while (cache.size > BACKDROP_CACHE_LIMIT) cache.delete(cache.keys().next().value as string);
+  return art;
 }

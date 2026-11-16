@@ -4,7 +4,7 @@ import { tallyVotes } from "./poll.js";
 // 9.1 in-game guild board (docs/GUILD_BOARD.md). Officers' news posts and the open Discord polls
 // reach the addon's Board page through the standings feed; members vote in game and their companion
 // uploads the vote, recorded exactly like a Discord button vote (one vote per member, changeable
-// while the poll is open). On by default; officers turn it off with /poll board.
+// while the poll is open). On by default; the guildBoardEnabled setting is the switch (`/poll board` was removed in 9.3.4).
 
 type Db = Pick<PrismaClient, "poll" | "pollVote" | "boardPost" | "guildSettings" | "character">;
 

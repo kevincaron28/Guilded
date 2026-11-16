@@ -13,6 +13,7 @@ import { createGuildService } from "./guild.js";
 import { characterLinkPrompt } from "./character-link-prompt.js";
 import { issueCharacterPairingCode } from "./character-pairing.js";
 import { selfRoleProblem } from "./selfrole.js";
+import { panelArtEmbed, panelArtUrl } from "./panel-art.js";
 import { runAutoGameReminders, stopReminders } from "./game-reminder.js";
 import { asLang, t, type Lang } from "../i18n.js";
 
@@ -91,7 +92,7 @@ export function welcomePanel(settings: StepSettings, discordGuild: Pick<DiscordG
   if (settings.welcomeRoleIds.length > 0) lines.push(t(lang, "onboard.panel.games"));
   lines.push(t(lang, "onboard.panel.pair"), t(lang, "onboard.panel.chat"), t(lang, "onboard.panel.steps"));
   return {
-    embeds: [new EmbedBuilder().setTitle(t(lang, "onboard.panel.title")).setColor(0xd4af37).setDescription(lines.join("\n"))],
+    embeds: [new EmbedBuilder().setTitle(t(lang, "onboard.panel.title")).setColor(0xd4af37).setDescription(lines.join("\n")).setImage(panelArtUrl("invite"))],
     components: [onboardingButtons(settings, discordGuild.id, lang)]
   };
 }
@@ -162,6 +163,7 @@ async function loadProgress(guildId: string, settings: GuildSettings, member: Gu
 export function rulesPrompt(settings: Pick<GuildSettings, "rulesChannelId">, discordGuildId: string, lang: Lang, first = false) {
   return {
     content: `${first ? `${t(lang, "onboard.rules.first")}\n` : ""}${t(lang, "onboard.rules.prompt", { channel: `<#${settings.rulesChannelId}>` })}`,
+    embeds: [panelArtEmbed("rules")],
     components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(customId("accept", discordGuildId)).setLabel(t(lang, "onboard.button.accept")).setStyle(ButtonStyle.Success))]
   };
@@ -260,6 +262,7 @@ export async function handleOnboardingInteraction(interaction: ButtonInteraction
       .addOptions(roles.map((role) => ({ label: role.name.slice(0, 100), value: role.id, default: member.roles.cache.has(role.id) })));
     await interaction.editReply({
       content: settings.welcomeRolePrompt ?? t(lang, "onboard.games.prompt"),
+      embeds: [panelArtEmbed("games")],
       components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)]
     });
     return;

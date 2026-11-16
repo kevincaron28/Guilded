@@ -33,6 +33,12 @@ export const HUB_CSS = `<style>
 .hub-results h2{margin:18px 0 6px}.kpis{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 18px}.kpis span{border:1px solid var(--line);border-radius:999px;padding:4px 12px;background:var(--panel);font-size:14px}.kpis b{color:var(--gold)}
 .hub-picker{display:flex;gap:8px;align-items:center;margin:0 0 14px;flex-wrap:wrap}.hub-picker label{margin:0;display:inline}.hub-picker select{width:auto;min-width:150px;flex:none;min-height:44px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:inherit;padding:0 10px}
 .pbadges{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}.pbadges span{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:4px 12px 4px 6px;background:var(--panel);font-size:14px}.pbadges img{width:28px;height:28px;object-fit:contain}
+.podium-wrap{margin:10px 0 6px;padding:16px 8px 0;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:linear-gradient(180deg,rgba(14,11,8,.3),rgba(14,11,8,.78)),url(/images/web/podium-stage-1600.webp) center bottom/cover #15110d}.podium-wrap .podium{margin:0}.podium-wrap .step{background:rgba(14,11,8,.7);border-bottom:0}.podium .tier{position:relative;display:block;width:48px;height:48px;margin:0 auto 4px}.podium .p1 .tier{width:60px;height:60px}.podium .tier img{display:block;width:100%;height:100%;object-fit:contain}.podium .tier b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:15px;color:#fff;text-shadow:0 1px 3px #000}.podium .p1 .tier b{font-size:19px}
+.dthumb{display:inline-block;width:64px;height:34px;flex:none;border-radius:6px;object-fit:cover;vertical-align:middle;background:#15110d;border:1px solid var(--line);margin-right:8px}.dthumb.ph{background:linear-gradient(135deg,#1c1710,#2a2116)}.dcell{display:inline-flex;align-items:center;min-width:0}.dcell a{min-width:0}
+.dungeon-head{position:relative;margin:0 0 14px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#15110d;aspect-ratio:1200/315;min-height:120px}.dungeon-head img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.dungeon-head .shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(14,11,8,.92) 8%,rgba(14,11,8,.55) 62%,rgba(14,11,8,.2))}.dungeon-head .text{position:relative;padding:18px 20px}.dungeon-head h2{margin:0 0 4px;font-size:clamp(22px,4.5vw,34px)}.dungeon-head p{margin:0;color:var(--muted)}.dungeon-head p b{color:var(--gold)}.dungeon-head.plain{aspect-ratio:auto;min-height:0;padding:14px 18px;background:var(--panel)}.dungeon-head.plain .text{padding:0}
+.hub-banner .season-line{margin:0 0 8px;color:var(--gold);font-size:14px}.hub-banner .season-line b{letter-spacing:.04em}
+tr.rk td:first-child{box-shadow:inset 3px 0 0 transparent}tr.rk-c-warrior td:first-child{box-shadow:inset 3px 0 0 #c69b6d}tr.rk-c-paladin td:first-child{box-shadow:inset 3px 0 0 #f48cba}tr.rk-c-hunter td:first-child{box-shadow:inset 3px 0 0 #aad372}tr.rk-c-rogue td:first-child{box-shadow:inset 3px 0 0 #fff468}tr.rk-c-priest td:first-child{box-shadow:inset 3px 0 0 #fff}tr.rk-c-shaman td:first-child{box-shadow:inset 3px 0 0 #2a8cff}tr.rk-c-mage td:first-child{box-shadow:inset 3px 0 0 #3fc7eb}tr.rk-c-warlock td:first-child{box-shadow:inset 3px 0 0 #8788ee}tr.rk-c-druid td:first-child{box-shadow:inset 3px 0 0 #ff7c0a}
+.strip .dthumb{width:48px;height:25px;margin-right:6px}
 @media(max-width:480px){table.rank-cards td[data-l]:before{content:attr(data-l) ": ";color:var(--muted)}}
 @media(max-width:520px){.podium .pts{font-size:17px}.hub-banner{padding:20px 14px 16px}}
 </style>`;
@@ -62,10 +68,10 @@ export interface PodiumEntry { name: string; href?: string | null; sub?: string;
 export function podium(entries: PodiumEntry[]): string {
   if (!entries.length) return "";
   const order = [entries[1], entries[0], entries[2]].map((entry, i) => entry ? { entry, place: [2, 1, 3][i]! } : null);
-  return `<div class="podium">` + order.map((slot) => slot
-    ? `<div class="step p${slot.place}"><img class="medal" src="/images/web/medal-${["", "gold", "silver", "bronze"][slot.place]}.webp" alt="" width="44" height="44" loading="lazy"><span class="num">#${slot.place}</span>${slot.entry.href ? `<a class="name${slot.entry.className ? ` c-${slot.entry.className}` : ""}" href="${slot.entry.href}">${escapeHtml(slot.entry.name)}</a>` : `<span class="name">${escapeHtml(slot.entry.name)}</span>`}`
+  return `<div class="podium-wrap"><div class="podium">` + order.map((slot) => slot
+    ? `<div class="step p${slot.place}"><span class="tier"><img src="/badge-art/frames/${["", "gold", "silver", "bronze"][slot.place]}-128.webp" alt="" width="60" height="60" loading="lazy" decoding="async"><b>${slot.place}</b></span><span class="num">#${slot.place}</span>${slot.entry.href ? `<a class="name${slot.entry.className ? ` c-${slot.entry.className}` : ""}" href="${slot.entry.href}">${escapeHtml(slot.entry.name)}</a>` : `<span class="name">${escapeHtml(slot.entry.name)}</span>`}`
       + (slot.entry.sub ? `<span class="sub">${escapeHtml(slot.entry.sub)}</span>` : "") + `<span class="pts">${escapeHtml(slot.entry.value)}</span></div>`
-    : `<div></div>`).join("") + `</div>`;
+    : `<div></div>`).join("") + `</div></div>`;
 }
 
 /** A list row for the latest runs and duels strips: main text (HTML, already escaped) and a small right-hand note. */
@@ -95,7 +101,7 @@ export function trendBars(values: number[], label: string): string {
 }
 
 /** Painted empty-state pictures (320 px WebP, transparent), decorative: the alt text is empty. */
-export type EmptyArt = "duel" | "runs" | "notfound" | "search";
+export type EmptyArt = "duel" | "runs" | "notfound" | "search" | "guild" | "pvp" | "season";
 export const EMPTY_ART_CSS = ".hub-empty.has-art{display:flex;align-items:center;gap:16px}.hub-empty .empty-art{width:96px;height:96px;flex:none;object-fit:contain}.hub-empty.has-art>div{min-width:0}.hub-empty.has-art p{margin:0 0 6px}@media(max-width:480px){.hub-empty .empty-art{width:72px;height:72px}}";
 export const emptyBox = (title: string, lines: string[], art?: EmptyArt): string => {
   const text = `<p><strong>${escapeHtml(title)}</strong></p>${lines.map((line) => `<p class="muted">${line}</p>`).join("")}`;
@@ -106,5 +112,12 @@ export const emptyPage = (title: string, lines: string[], art: EmptyArt): string
   `<style>.hub-empty{border:1px dashed var(--line);border-radius:12px;padding:16px;background:rgba(255,255,255,.02);max-width:560px}${EMPTY_ART_CSS}</style>${emptyBox(title, lines, art)}`;
 
 /** Painted section header (1600 x 360, WebP at 1600 and 800 wide) at the very top of a leaderboard page, so it loads eagerly; decorative, so the alt text is empty. */
-export const sectionArt = (kind: "dungeons" | "players" | "duels" | "guilds"): string =>
+export const sectionArt = (kind: "dungeons" | "players" | "duels" | "guilds" | "pvp"): string =>
   `<img class="sec-art" src="/images/web/header-${kind}-1600.webp" srcset="/images/web/header-${kind}-800.webp 800w, /images/web/header-${kind}-1600.webp 1600w" sizes="(max-width:900px) 100vw, 900px" alt="" width="1600" height="360" loading="eager" fetchpriority="high">`;
+
+/** The body of a bot-served "not found" page (never empty): the painted 404 picture, one sentence and a way home. EN/FR through `t`. */
+export const notFoundBody = (t: T, lang: Lang, title?: string, line?: string): string =>
+  `<style>.nf{max-width:560px;margin:8px 0 24px}.nf img{display:block;width:100%;height:auto;aspect-ratio:1200/675;object-fit:cover;border-radius:12px;border:1px solid var(--line);margin:0 0 14px}.nf .nf-code{color:var(--gold);letter-spacing:.2em;font-size:13px}</style>`
+  + `<div class="nf"><img src="/images/web/404-800.webp" srcset="/images/web/404-800.webp 800w, /images/web/404-1200.webp 1200w" sizes="(max-width:600px) 100vw, 560px" alt="" width="1200" height="675" loading="lazy">`
+  + `<span class="nf-code">404</span><h1>${escapeHtml(title ?? t("This page wandered off", "Cette page s'est égarée"))}</h1><p>${escapeHtml(line ?? t("The address may be old or mistyped. Head back to the start and pick up from there.", "L'adresse est peut-être ancienne ou mal écrite. Revenez à l'accueil et reprenez à partir de là."))}</p>`
+  + `<p><a class="button" href="${link("/", lang)}">${t("Go home", "Retour à l'accueil")}</a></p></div>`;

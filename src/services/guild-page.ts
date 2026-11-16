@@ -4,7 +4,7 @@ import { guildWhere } from "./guild-scope.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { priority } from "./epgp.js";
 import { asLootMode, effectiveRules, LOOT_MODE_HELP, LOOT_MODE_HELP_FR, LOOT_MODE_LABEL, LOOT_MODE_LABEL_FR } from "./core-rules.js";
-import { breadcrumbs, shareCard, SITE_HEADER_STYLE, siteFooterNav, siteHeader } from "./site-header.js";
+import { breadcrumbs, SITE_HEADER_STYLE, siteFooterNav, siteHeader } from "./site-header.js";
 import { gameEditionOf } from "./game-edition.js";
 import { editionHref } from "../../site/nav.mjs";
 import type { GuildDungeonSummary } from "./public-leaderboard.js";
@@ -224,7 +224,7 @@ export function renderGuildPage(view: GuildPageView): string {
   return `<!doctype html><html lang="${view.language}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`
     + `<title>${name} · Guilded</title><meta name="description" content="${description}">${view.indexable ? "" : '<meta name="robots" content="noindex">'}`
     + `<meta property="og:title" content="${name}"><meta property="og:description" content="${description}"><meta property="og:type" content="website">`
-    + `<meta property="og:site_name" content="Guilded"><meta property="og:image" content="${shareCard()}"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image"><meta name="theme-color" content="#d4af37"><link rel="icon" href="/favicon.png" type="image/png">`
+    + `<meta property="og:site_name" content="Guilded"><meta property="og:image" content="${siteUrl("/images/social/og-guild.jpg")}"><meta property="og:image:type" content="image/jpeg"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image"><meta name="theme-color" content="#d4af37"><link rel="icon" href="/favicon.png" type="image/png">`
     + `<style>${PAGE_STYLE}
 ${SITE_HEADER_STYLE}</style></head><body>${siteHeader(view.language, `/g/${view.slug}/`, undefined, view.edition)}<main>`
     + breadcrumbs(view.language, [[t("Guilds", "Guildes"), `/recruitment/guilds/?lang=${view.language}`], [view.name, null]], escapeHtml) + parts.join("")

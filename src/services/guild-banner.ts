@@ -1,6 +1,6 @@
 // Painted banner at the top of a public guild page (WebP at 1600 and 800 wide, copied by the site build).
 // Until guilds can pick a theme in their page settings, the theme follows the guild's id, so a guild always gets the same picture.
-export const GUILD_BANNER_THEMES = ["forest", "mountain", "snow", "harbour", "cavern", "desert"] as const;
+export const GUILD_BANNER_THEMES = ["forest", "mountain", "snow", "harbour", "cavern", "desert", "ruins", "volcano", "swamp"] as const;
 export type GuildBannerTheme = (typeof GUILD_BANNER_THEMES)[number];
 
 export function guildBannerTheme(key: string): GuildBannerTheme {

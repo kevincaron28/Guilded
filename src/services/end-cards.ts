@@ -16,6 +16,8 @@ const pick = (lang: Lang) => (en: string, fr: string) => lang === "fr" ? fr : en
 export function raidArtKey(report: Pick<RaidReport, "title" | "killedNames">): string {
   const text = [report.title, ...report.killedNames].join(" ").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   if (/molten core|c(?:oe|œ)ur du magma|\b(?:lucifron|magmadar|gehennas|shazzrah|baron geddon|sulfuron|golemagg|majordomo|ragnaros)\b/.test(text)) return "molten-core";
+  if (/onyxia|repaire d'onyxia/.test(text)) return "onyxias-lair";
+  if (/blackwing|aile noire|\b(?:razorgore|vaelastrasz|lashlayer|firemaw|gueule-de-feu|ebonroc|flamegor|chromaggus|nefarian|tranchetripe)\b/.test(text)) return "blackwing-lair";
   return "default";
 }
 

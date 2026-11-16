@@ -46,7 +46,7 @@ describe("season cards", () => {
   it("draws the podium and says so in words when nobody was ranked", async () => {
     const card = seasonEndCard(info, seasonPodium({ finalStandings: standings }), "en", classes);
     expect(card.title).toBe("Season 1 is over");
-    expect(card.backdrop).toEqual({ kind: "board", key: "season-podium", fallbackKey: "dungeon-season" });
+    expect(card.backdrop).toEqual({ kind: "board", key: "season-end", fallbackKey: "season-podium" });
     expect(card.rows?.[0]).toMatchObject({ name: "Aldric", color: "#c79c6e", right: "300 pts" });
     expect(cardAltText(card)).toContain("Season 1 is over");
     expect((await scoreCardPng(card))?.subarray(1, 4).toString()).toBe("PNG");

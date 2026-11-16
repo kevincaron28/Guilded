@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { classColor, classMix, fetchBoards, fetchPublicGuild, type BoardBracket, type Boards, type PublicGuild } from "./publicApi";
 import type { Lang } from "./i18n";
 
@@ -21,6 +21,16 @@ const words = {
   noPage: { en: "No public page", fr: "Pas de page publique" }
 } as const;
 const w = (key: keyof typeof words, lang: Lang) => words[key][lang];
+
+// Pictures the website serves (site/images/web): the painted header, gold / silver / bronze medals and the class icons.
+const web = (origin: string, file: string) => `${origin}/images/web/${file}`;
+const MEDAL = ["gold", "silver", "bronze"] as const;
+const CLASS_ICONS = new Set(["druid", "hunter", "mage", "paladin", "priest", "rogue", "shaman", "warlock", "warrior"]);
+export const classIconFile = (className: string | null): string | null => { const key = (className ?? "").toLowerCase().replace(/[^a-z]/g, ""); return CLASS_ICONS.has(key) ? `class-${key}-64.webp` : null; };
+/** Places 1-3 show their medal, the others their number. */
+function Place({ origin, rank }: { origin: string; rank: number }) {
+  return rank >= 1 && rank <= 3 ? <Image source={{ uri: web(origin, `medal-${MEDAL[rank - 1]}.webp`) }} style={styles.medal} accessibilityLabel={`#${rank}`} /> : <Text style={styles.rank}>{rank}</Text>;
+}
 
 function Retry({ lang, onPress, message }: { lang: Lang; onPress: () => void; message?: string }) {
   return <View style={styles.card}><Text style={styles.muted}>{message ?? w("failed", lang)}</Text><Pressable onPress={onPress} accessibilityRole="button"><Text style={styles.link}>{w("retry", lang)}</Text></Pressable></View>;
@@ -44,6 +54,7 @@ export function PublicBoards({ origin, lang, header }: { origin: string; lang: L
   const current: BoardBracket | undefined = boards?.brackets[Math.min(bracket, (boards?.brackets.length ?? 1) - 1)];
   return <ScrollView contentContainerStyle={styles.content}>
     {header}
+    <Image source={{ uri: web(origin, "header-players-800.webp") }} style={styles.banner} accessible={false} />
     <Text style={styles.kicker}>{(boards?.season || "GUILDED").toUpperCase()}</Text>
     <Text style={styles.title}>{w("title", lang)}</Text>
     <Text style={styles.intro}>{w("intro", lang)}</Text>
@@ -52,12 +63,13 @@ export function PublicBoards({ origin, lang, header }: { origin: string; lang: L
       {current && <>
         <Text style={styles.label}>{w("characters", lang).toUpperCase()}</Text>
         <View style={styles.card}>{current.characters.length === 0 ? <Text style={styles.muted}>{w("none", lang)}</Text> : current.characters.map((c) => <View key={`${c.rank}-${c.name}`} style={styles.row}>
-          <Text style={styles.rank}>{c.rank}</Text>
+          <Place origin={origin} rank={c.rank} />
+          {classIconFile(c.className) ? <Image source={{ uri: web(origin, classIconFile(c.className)!) }} style={styles.classIcon} accessible={false} /> : null}
           <View style={{ flex: 1 }}><Text style={[styles.name, { color: classColor(c.className) }]}>{c.name}</Text><Text style={styles.sub}>{[c.className, c.role, c.realm].filter(Boolean).join(" · ")}</Text></View>
           <Text style={styles.score}>{c.points}</Text></View>)}</View>
         <Text style={styles.label}>{w("guilds", lang).toUpperCase()}</Text>
         <View style={styles.card}>{current.guilds.length === 0 ? <Text style={styles.muted}>{w("none", lang)}</Text> : current.guilds.map((g) => <Pressable key={g.id} disabled={!g.slug} onPress={() => g.slug && setSlug(g.slug)} style={styles.row} accessibilityRole={g.slug ? "button" : undefined}>
-          <Text style={styles.rank}>{g.rank}</Text>
+          <Place origin={origin} rank={g.rank} />
           <View style={{ flex: 1 }}><Text style={styles.name}>{g.name}</Text><Text style={styles.sub}>{g.slug ? "›" : w("noPage", lang)}</Text></View>
           <Text style={styles.score}>{g.points}</Text></Pressable>)}</View>
       </>}
@@ -101,6 +113,7 @@ function PublicGuildView({ origin, lang, slug, onBack }: { origin: string; lang:
 }
 
 const styles = StyleSheet.create({
+  banner: { width: "100%", aspectRatio: 1600 / 360, borderRadius: 12, borderWidth: 1, borderColor: colors.line, marginTop: 4 }, medal: { width: 26, height: 26, resizeMode: "contain" }, classIcon: { width: 22, height: 22, resizeMode: "contain" },
   content: { padding: 24, paddingBottom: 30 }, kicker: { color: colors.gold, fontSize: 10, letterSpacing: 2, fontWeight: "700", marginTop: 12 },
   title: { color: colors.text, fontSize: 30, fontWeight: "700", marginTop: 10, letterSpacing: -1 }, intro: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 8, marginBottom: 18 },
   label: { color: colors.gold, fontSize: 9, letterSpacing: 1.7, fontWeight: "700", marginTop: 18, marginBottom: 10 },

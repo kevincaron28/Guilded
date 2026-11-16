@@ -9,18 +9,18 @@ import { emptyBox, emptyPage } from "../src/services/leaderboard-hub.js";
 // Painted website pictures live in site/images/web/. The site build copies image folders one by one: a folder it
 // does not copy is a 404 on the live site. Every picture a page names must exist and stay light.
 const FILES = [
-  ...["season-banner", "header-players", "header-guilds", "header-dungeons", "header-duels", "companion-hero"].flatMap((n) => [`${n}-1600.webp`, `${n}-800.webp`]),
+  ...["season-banner", "header-players", "header-guilds", "header-dungeons", "header-duels", "header-pvp", "guide-header", "companion-hero"].flatMap((n) => [`${n}-1600.webp`, `${n}-800.webp`]),
   ...["players", "officers", "guild"].map((n) => `tile-${n}-800.webp`),
-  ...["home", "leaderboards", "dungeons", "duels", "players", "guilds", "community", "guide", "companion", "download"].map((n) => `../social/og-${n}.jpg`),
+  ...["home", "leaderboards", "dungeons", "duels", "players", "guilds", "community", "guide", "companion", "download", "pvp", "forever", "start", "guild"].map((n) => `../social/og-${n}.jpg`),
   ...["404-1200.webp", "404-800.webp"],
-  ...["duel", "runs", "notfound", "search"].map((n) => `empty-${n}.webp`),
+  ...["duel", "runs", "notfound", "search", "guild", "pvp", "season"].map((n) => `empty-${n}.webp`),
   ...["guild", "board", "players", "leaderboards", "quebec"].map((n) => `community-${n}-800.webp`),
   ...["start", "install", "companion", "link", "dungeons", "officers", "epgp", "discord", "selfhost", "troubleshooting"].map((n) => `guide-${n}.webp`),
   ...["addon", "companion", "discord"].map((n) => `step-${n}.webp`),
-  ...["forest", "mountain", "snow", "harbour", "cavern", "desert"].flatMap((n) => [`banner-${n}-1600.webp`, `banner-${n}-800.webp`]),
+  ...["forest", "mountain", "snow", "harbour", "cavern", "desert", "ruins", "volcano", "swamp"].flatMap((n) => [`banner-${n}-1600.webp`, `banner-${n}-800.webp`]),
   ...["druid", "hunter", "mage", "paladin", "priest", "rogue", "shaman", "warlock", "warrior"].map((n) => `class-${n}-64.webp`),
   ...["tank", "healer", "damage"].map((n) => `role-${n}-64.webp`),
-  "divider-800.webp",
+  "divider-800.webp", "podium-stage-1600.webp",
   ...["gold", "silver", "bronze"].map((n) => `medal-${n}.webp`),
 ];
 describe("website pictures", () => {
@@ -41,7 +41,7 @@ describe("website pictures", () => {
     expect(readFileSync("site/style.css", "utf8")).toContain("/images/web/divider-800.webp");
     expect(readFileSync("site/pages/companion.md", "utf8")).toContain("companion-hero");
     const hub = readFileSync("src/services/leaderboard-hub.ts", "utf8");
-    for (const key of ["season-banner-1600", "season-banner-800", "medal-", "header-${kind}"]) expect(hub).toContain(key);
+    for (const key of ["season-banner-1600", "season-banner-800", "badge-art/frames", "header-${kind}"]) expect(hub).toContain(key);
     const home = readFileSync("site/index.html", "utf8");
     for (const tile of ["tile-players", "tile-officers", "tile-guild"]) expect(home).toContain(tile);
   });
@@ -69,7 +69,8 @@ describe("painted pictures land in the built site", () => {
     expect(og("guide/install")).toBe("og-guide.jpg");
     expect(og("download")).toBe("og-download.jpg");
     expect(og("editions/forever")).toBe("og-download.jpg");
-    expect(og("start")).toBe("guilded-card.png");
+    expect(og("start")).toBe("og-start.jpg");
+    expect(og("reference")).toBe("og-start.jpg");
   });
   it("names the share image's type from its extension", () => {
     expect(shareImageType("/images/social/og-duels.jpg")).toBe("image/jpeg");

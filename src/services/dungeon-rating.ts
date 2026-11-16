@@ -498,9 +498,10 @@ export function ratingWithRoles(runs: RatingRun[], rules: BracketedRules, everyo
     }) };
   });
 }
-export function ratingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, rules: unknown = DUNGEON_RATING_RULES, bracket?: string): EmbedBuilder {
+/** `cardDrawn`: the board picture lists the ranked rows, so the text keeps only the rules, never the same rows twice. */
+export function ratingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, rules: unknown = DUNGEON_RATING_RULES, bracket?: string, cardDrawn = false): EmbedBuilder {
   seasonName = seasonLabel(seasonName, lang);
-  if (validBracketedRules(rules)) return bracketRatingEmbed(rows, seasonName, lang, rules, bracket);
+  if (validBracketedRules(rules)) return bracketRatingEmbed(rows, seasonName, lang, rules, bracket, cardDrawn);
   const fr = lang === "fr";
   const speed = hasDungeonRating(rules) && (rules as { version: number }).version === 2;
   const timed = hasDungeonRating(rules) && (rules as { version: number }).version >= 3;
@@ -522,13 +523,13 @@ export function ratingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, r
     : "**Level 60: your best 8 distinct routes count.** All participants must remain level 60. 1,600 at target; maximum 3,200. Required route evidence must be recorded; extra coverage stays visible without inflation.");
   if (speed) lines.push(fr ? "Cibles figées pour la saison. 15 % plus rapide = +10 ; 30 % = +20. Sans cible : 100."
     : "Targets are fixed for the season. 15% faster = +10; 30% = +20. No target: 100.");
-  for (const row of rows.slice(0, 10)) {
+  for (const row of cardDrawn ? [] : rows.slice(0, 10)) {
     const rank = rows.findIndex(other => other.points === row.points) + 1;
     const scoredDungeons = timed && row.details ? row.details.filter(d => d.points > 0).length : row.dungeons;
     const dungeonLabel = timed ? (fr ? "donjon(s) classé(s)" : "ranked dungeon(s)") : (fr ? "donjon(s)" : "dungeon(s)");
     lines.push(`${rank === 1 ? "🏅" : `${rank}.`} **${escapeMarkdown(row.name).slice(0, 100)}** · **${row.points}** · ${scoredDungeons} ${dungeonLabel}`);
   }
-  if (!rows.length) lines.push(timed ? (fr ? "Terminez un donjon calibré pour établir votre score." : "Complete a calibrated dungeon to establish your score.") : fr ? "Le premier nouveau donjon admissible rapporte 100." : "Your first eligible new dungeon earns 100.");
+  if (!rows.length && !cardDrawn) lines.push(timed ? (fr ? "Terminez un donjon calibré pour établir votre score." : "Complete a calibrated dungeon to establish your score.") : fr ? "Le premier nouveau donjon admissible rapporte 100." : "Your first eligible new dungeon earns 100.");
   return new EmbedBuilder().setColor(0x8b5cf6).setTitle(`${fr ? "🏅 Exploration" : "🏅 Exploration rating"} · ${seasonName}`.slice(0, 256))
     .setDescription(lines.join("\n\n"))
     .setFooter({ text: fr ? "Boss final détecté + présence ≥ 80 %. Points de communauté séparés." : "Detected final boss + ≥80% presence. Community points are separate." });
@@ -566,7 +567,7 @@ const footerText = (fr: boolean, rules: BracketedRules) => { const pct = Math.ro
   return fr ? `Boss final détecté + présence ≥ ${pct} %. Points de communauté séparés.` : `Detected final boss + ≥${pct}% presence. Community points are separate.`; };
 const bracketLabel = (b: DungeonBracket, fr: boolean) => b.min === b.max ? `${fr ? "Niveau" : "Level"} ${b.min}` : `${fr ? "Niveaux" : "Levels"} ${b.min}–${b.max}`;
 // One bracket in full, or (no bracket chosen) the top five of every bracket.
-function bracketRatingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, rules: BracketedRules, key?: string): EmbedBuilder {
+function bracketRatingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, rules: BracketedRules, key?: string, cardDrawn = false): EmbedBuilder {
   const fr = lang === "fr";
   const chosen = rules.brackets.find(b => b.key === key);
   const lines = [howToScore(fr),
@@ -578,11 +579,11 @@ function bracketRatingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, r
   if (chosen) {
     const own = rows.filter(row => row.bracket === chosen.key);
     lines.push(fr ? `**${bracketLabel(chosen, true)} : vos ${chosen.bestCount} meilleurs parcours distincts comptent.**` : `**${bracketLabel(chosen, false)}: your best ${chosen.bestCount} distinct routes count.**`);
-    lines.push(...own.slice(0, 10).map(row => rankLine(own, row, fr)));
-    if (!own.length) lines.push(fr ? "Terminez un parcours calibré de cette tranche pour établir votre score." : "Complete a calibrated route in this bracket to establish your score.");
+    if (!cardDrawn) lines.push(...own.slice(0, 10).map(row => rankLine(own, row, fr)));
+    if (!own.length && !cardDrawn) lines.push(fr ? "Terminez un parcours calibré de cette tranche pour établir votre score." : "Complete a calibrated route in this bracket to establish your score.");
     return embed.setTitle(`🏅 ${bracketLabel(chosen, fr)} · ${seasonName}${rules.provisionalTargets ? fr ? " · provisoire" : " · provisional" : ""}`.slice(0, 256)).setDescription(lines.join("\n\n").slice(0, 4096));
   }
-  for (const b of rules.brackets) {
+  for (const b of cardDrawn ? [] : rules.brackets) {
     const own = rows.filter(row => row.bracket === b.key);
     embed.addFields({ name: `${bracketLabel(b, fr)} · ${fr ? `${b.bestCount} meilleurs` : `best ${b.bestCount}`}`,
       value: (own.length ? own.slice(0, 5).map(row => rankLine(own, row, fr)).join("\n") : fr ? "Aucun score." : "No scores yet.").slice(0, 1024) });

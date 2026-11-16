@@ -22,10 +22,8 @@ export function weeklyRookieCard(lang: Lang, input: { name: string; points: numb
     ],
     rowsLabel: t("Welcome!", "Bienvenue !"),
     rows: [
-      { name: t("New and already on the board", "Nouveau et déjà au classement"), sub: t("A new member with points this week", "Nouveau membre avec des points"), right: `${n(input.points)} pts`, rightTone: "gold" },
-      { name: t(`Place ${input.place} this week`, `${input.place}${input.place === 1 ? "er" : "e"} rang cette semaine`),
-        sub: behind > 0 ? t(`Ahead of ${plural(lang, behind, ["member", "members"], ["", ""])}`, `Devant ${plural(lang, behind, ["", ""], ["membre", "membres"])}`)
-          : t("Among everyone who scored", "Parmi tous ceux qui ont marqué") }
+      { name: behind > 0 ? t(`Ahead of ${plural(lang, behind, ["member", "members"], ["", ""])}`, `Devant ${plural(lang, behind, ["", ""], ["membre", "membres"])}`)
+          : t("Among everyone who scored", "Parmi tous ceux qui ont marqué"), sub: t("A new member already on the board", "Nouveau membre déjà au classement") }
     ],
     footer: t("Rookie of the week · New members only · Community points · guildedwow.com", "Recrue de la semaine · Nouveaux membres seulement · Points de communauté · guildedwow.com")
   };

@@ -191,7 +191,11 @@ describe("the community card and podium", () => {
   });
   it("shows each row's split under the podium and the painting beside it", () => {
     const body = communityLeaderboardCard({ lang: "en", discordId: "guild", season: { id: "s", name: "Season 1", status: "ACTIVE" }, board, names: new Map([["a", "Kevin"]]), image: "community-board-abc.png" });
-    expect(body.embeds[0]!.fields![0]!.value).toContain("**303 pts** · 💬 180 · 🏰 68 · ⚔️ 55");
+    // With the painting the text keeps only the gang's total: the card shows the rows and their split.
+    expect(body.embeds[0]!.fields![0]!.value).toBe("**423 pts**");
+    expect(JSON.stringify(body.embeds[0])).not.toContain("Kevin");
+    const plain = communityLeaderboardCard({ lang: "en", discordId: "guild", season: { id: "s", name: "Season 1", status: "ACTIVE" }, board, names: new Map([["a", "Kevin"]]) });
+    expect(plain.embeds[0]!.fields![0]!.value).toContain("**303 pts** · 💬 180 · 🏰 68 · ⚔️ 55");
     expect(body.embeds[0]!.image?.url).toBe("attachment://community-board-abc.png");
     expect(JSON.stringify(body)).not.toMatch(/weekly cap|cap\b/i);
   });
@@ -225,7 +229,7 @@ describe("the live board with in-game points", () => {
     const { database, rest } = fixture(false);
     await updateCommunityLeaderboard(rest as never, database as never, "guild", "bot");
     const [, options] = rest.post.mock.calls[0] as unknown as [string, { body: { embeds: { fields: { value: string }[] }[]; attachments: { filename: string }[] }; files: { name: string; data: Buffer }[] }];
-    expect(options.body.embeds[0]!.fields[0]!.value).toContain("**100 pts** · 💬 50 · 🏰 50 · ⚔️ 0");
+    expect(options.body.embeds[0]!.fields[0]!.value).toBe("**100 pts**");
     expect(options.files).toHaveLength(1);
     expect(options.files[0]!.name).toMatch(/^community-board-[0-9a-f]{12}\.png$/);
     expect(options.body.attachments[0]!.filename).toBe(options.files[0]!.name);
@@ -305,7 +309,7 @@ describe("closed seasons are untouched by the scoring", () => {
     };
     await updateCommunityLeaderboard(rest as never, database as never, "guild", "bot");
     const options = rest.post.mock.calls[0]![1] as unknown as { body: { embeds: { fields: { value: string }[] }[] } };
-    expect(options.body.embeds[0]!.fields[0]!.value).toContain("**133 pts** · 💬 50 · 🏰 83 · ⚔️ 0");
+    expect(options.body.embeds[0]!.fields[0]!.value).toBe("**133 pts**");
     expect(database.dungeonPointTransaction.findMany).not.toHaveBeenCalled();
   }, 60_000);
 });

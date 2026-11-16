@@ -143,13 +143,13 @@ async function ladderCard(card: ScoreCard): Promise<Buffer | null> {
     // A row's second line (the level bracket on the dungeon season board) joins its name: the banner ladder has one line per row.
     return { rank: row.rank, name: row.sub && key === "dungeon-season" ? `${row.name} · ${row.sub}` : row.name, color: row.color, score: score || "—", ...(record ? { record } : {}), ...(row.move !== undefined ? { move: row.move } : {}) };
   });
-  const first = boards[0]!.rows[0]!, firstScore = scoreAndRecord(first.values).score;
   const look = BOARD_LOOK[key] ?? { type: "weekly" as const, emblem: "bars" as const };
   const { png } = await renderBannerCard({
     type: look.type, emblem: look.emblem, label: (tail(card.eyebrow).at(-1) ?? card.title).toUpperCase(), title: card.title,
-    hero: first.name, heroColor: first.color, heroNote: firstScore ? `${cols[primary]?.label ? cols[primary]!.label + " " : ""}${firstScore}` : undefined,
+    // The header says what the board is (title, then subtitle), never who leads it: row 1 of the table already does (16 Nov 2026).
+    hero: card.subtitle,
     ...(boards.length > 1 ? { boards: boards.map((b) => ({ title: b.title, rows: rowsOf(b.rows) })) } : { ladder: rowsOf(boards[0]!.rows) }),
-    strip: [card.subtitle, ...legend, visual.meta].filter(Boolean).join("  ·  "), art
+    strip: [...legend, visual.meta].filter(Boolean).join("  ·  "), art
   });
   return png;
 }

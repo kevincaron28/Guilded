@@ -96,7 +96,7 @@ export async function updateDungeonLeaderboard(discordGuild: DiscordGuild | null
     const cardRows = await leaderboard(prisma, guild.id, "season", null, CARD_TOP);
     const best = bestRunsEmbed(await seasonBestRuns(prisma, guild.id, season.id), lang, await guildBossRecords(prisma, guild.id).catch(() => []));
     const ratingRows = hasDungeonRating(season.ratingRules) ? await dungeonRating(prisma, guild.id, season, null, true) : null;
-    const rating = ratingRows ? ratingEmbed(ratingRows, season.name, lang, season.ratingRules) : null;
+    let rating = ratingRows ?ratingEmbed(ratingRows, season.name, lang, season.ratingRules) : null;
     // An empty board says why (runs received but none counted, or none received): the reason sits on the best-runs embed.
     const unranked = !(ratingRows ?? cardRows).some(row => row.points > 0);
     const emptyNote = unranked ? emptyBoardNote(await diagnoseDungeonBoard(prisma, guild.id).catch(() => ({ season: null, received: 0, counted: 1, reasons: [] })), lang === "fr" ? "fr" : "en") : null;
@@ -110,6 +110,8 @@ ${emptyNote}`.trim().slice(0, 4096));
     // A new season starts a new snapshot board, so arrows never compare two seasons.
     const moves = ladderRows.length ? await trackRanks(prisma, guild.id, `dungeon:${season.id}`, ladderRows.map((row) => row.key)) : null;
     const png = ladderRows.length ? await scoreCardPng(dungeonSeasonCard(ladderRows, season.name, lang === "fr" ? "fr" : "en", Boolean(ratingRows), await loadClassBook(prisma, guild.id).catch(() => new Map<string, string>()), new Date(), moves)).catch(() => null) : null;
+    // The picture lists the ranked rows: with it the rating embed keeps its rules and drops the same rows in text (no picture: unchanged).
+    if (png && ratingRows) rating = ratingEmbed(ratingRows, season.name, lang, season.ratingRules, undefined, true);
     if (png) (rating ?? best).setImage(`attachment://${DUNGEON_BOARD_CARD_FILE}`);
     const payload = { embeds: rating ? [rating, best] : [best], components: [], files: png ? [cardAttachment(png, DUNGEON_BOARD_CARD_FILE)] : [], allowedMentions: { parse: [] as never[] } };
 

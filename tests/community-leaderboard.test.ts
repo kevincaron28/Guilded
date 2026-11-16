@@ -70,10 +70,11 @@ describe("community board maintenance", () => {
       return originalGet(route);
     });
     await updateCommunityLeaderboard(f.rest as never, database as never, "guild", "bot");
-    const body = (f.rest.patch.mock.calls[0]![1] as { body: { embeds: { fields: { value: string }[] }[] } }).body;
-    expect(body.embeds[0]!.fields[0]!.value).toContain("Live nickname");
-    expect(body.embeds[0]!.fields[0]!.value).toContain("Saved \\*name\\*");
-    expect(body.embeds[0]!.fields[0]!.value).not.toContain("<@");
+    // The names are on the card now (its alt text lists the rows); the text keeps only the gang's total.
+    const body = (f.rest.patch.mock.calls[0]![1] as { body: { embeds: { fields: { value: string }[] }[]; attachments: { description?: string }[] } }).body;
+    expect(body.attachments[0]!.description).toContain("Live nickname");
+    expect(body.attachments[0]!.description).toContain("Saved *name*");
+    expect(JSON.stringify(body.embeds)).not.toContain("<@");
     await updateCommunityLeaderboard(f.rest as never, database as never, "guild", "bot");
     expect(database.member.findMany).toHaveBeenCalledTimes(1);
     expect(f.rest.get.mock.calls.filter(([route]) => route.includes("/members/"))).toHaveLength(2);

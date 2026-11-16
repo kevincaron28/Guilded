@@ -46,7 +46,7 @@ describe("PvP group post", () => {
   });
 
   it("lists the roster by role, the queue in order, the leader and the expiry in the embed", () => {
-    const json = pvpGroupEmbed(data(), "en", "pvp-group.png").toJSON();
+    const json = pvpGroupEmbed(data(), "en").toJSON();
     expect(json.description).toContain("**Bracket 20-29** · 4/10 · Open");
     expect(json.description).toContain("<t:1794160800:R>");
     const field = (name: string) => json.fields!.find(f => f.name.startsWith(name))!.value;
@@ -54,7 +54,7 @@ describe("PvP group post", () => {
     expect(field("⚔️ DPS")).toBe("Cleo, Dax");
     expect(field("Queue (2)")).toBe("1. Eli ⚔️\n2. Fay 💚");
     expect(field("Leader")).toBe("<@42>");
-    expect(json.image!.url).toBe("attachment://pvp-group.png");
+    expect(pvpGroupEmbed(data(), "en", "pvp-group.png").toJSON().image!.url).toBe("attachment://pvp-group.png");
   });
 
   it("shows the voice channel once started, and greys out a closed group", () => {

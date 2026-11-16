@@ -96,7 +96,7 @@ describe("rookie of the week card", () => {
     expect(JSON.stringify([card.subtitle, card.rows, card.footer, card.stats.map(s => s.label)])).not.toContain("El Pirata");
     expect(card.stats.map(s => s.label)).toEqual(["Points", "Rang", "Semaine du"]);
     expect(card.stats.every(s => s.label.length <= 12)).toBe(true);
-    expect(card.rows![1]!.sub).toBe("Devant 33 membres");
+    expect(card.rows![0]!.name).toBe("Devant 33 membres");
   });
 });
 

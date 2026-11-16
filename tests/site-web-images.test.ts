@@ -41,7 +41,7 @@ describe("website pictures", () => {
     expect(readFileSync("site/style.css", "utf8")).toContain("/images/web/divider-800.webp");
     expect(readFileSync("site/pages/companion.md", "utf8")).toContain("companion-hero");
     const hub = readFileSync("src/services/leaderboard-hub.ts", "utf8");
-    for (const key of ["season-banner-1600", "season-banner-800", "medal-", "header-${kind}"]) expect(hub).toContain(key);
+    for (const key of ["season-banner-1600", "season-banner-800", "badge-art/frames", "header-${kind}"]) expect(hub).toContain(key);
     const home = readFileSync("site/index.html", "utf8");
     for (const tile of ["tile-players", "tile-officers", "tile-guild"]) expect(home).toContain(tile);
   });

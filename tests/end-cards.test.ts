@@ -64,7 +64,7 @@ describe("card art keys (batch 2)", () => {
     expect(raidArtKey({ title: "Molten Core", killedNames: [] })).toBe("molten-core");
     expect(raidArtKey({ title: "Raid du mardi", killedNames: ["Lucifron", "Magmadar"] })).toBe("molten-core");
     expect(raidArtKey({ title: "Cœur du Magma", killedNames: [] })).toBe("molten-core");
-    expect(raidArtKey({ title: "Onyxia", killedNames: ["Onyxia"] })).toBe("default");
+    expect(raidArtKey({ title: "Onyxia", killedNames: ["Onyxia"] })).toBe("onyxias-lair");
   });
   it("names a battleground picture by map id, so English and French clients share it", () => {
     const row = { reportId: "r", mode: "10v10", mapId: 489, bracket: "60", endedAt: new Date(0), outcome: "win", presence: "complete", status: "PROVISIONAL" };

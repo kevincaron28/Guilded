@@ -392,7 +392,7 @@ describe("leaderboard and personal pages", () => {
     expect(dungeon.body).not.toContain("Confirmé par le groupe");
     const priests = await request("GET", "/leaderboards/?dungeon=389&class=Priest");
     expect(priests.body).toContain(">Amy<");
-    expect(priests.body.match(/<tr><td>\d+<\/td>/g)).toHaveLength(1);
+    expect(priests.body.match(/<tr class="rk[^"]*"><td>\d+<\/td>/g)).toHaveLength(1);
     const kev = await request("GET", "/leaderboards/character/Kev-Doomhowl");
     expect(kev.status).toBe(200);
     expect(kev.body).toContain("Best run per dungeon");

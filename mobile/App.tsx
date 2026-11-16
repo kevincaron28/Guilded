@@ -22,6 +22,7 @@ import { colors } from "./src/ui";
 const WEB_ORIGIN = process.env.EXPO_PUBLIC_GUILDED_WEB_URL ?? DEFAULT_WEB_ORIGIN;
 type Tab = "guild" | "stats" | "me" | "alerts" | "news";
 // Painted tab icons (mobile/assets/tabs, 96 x 96 with transparency); the active one is tinted gold, the others muted.
+/* eslint-disable @typescript-eslint/no-require-imports -- Metro needs literal require() paths */
 export const TAB_ICONS: Record<Tab, ImageSourcePropType> = {
   guild: require("./assets/tabs/tab-guild.png"), stats: require("./assets/tabs/tab-stats.png"), me: require("./assets/tabs/tab-me.png"),
   alerts: require("./assets/tabs/tab-alerts.png"), news: require("./assets/tabs/tab-news.png")

@@ -140,7 +140,8 @@ async function ladderCard(card: ScoreCard): Promise<Buffer | null> {
   if (!["duel", "battlegrounds", "world-pvp"].includes(key) && plain.length > 1) legend.push(plain.slice(0, 3).map(({ c }) => c.label).filter(Boolean).join(" / "));
   const rowsOf = (rows: typeof boards[number]["rows"]): CardSpecLadderRow[] => rows.map((row) => {
     const { score, record } = scoreAndRecord(row.values);
-    return { rank: row.rank, name: row.name, color: row.color, score: score || "—", ...(record ? { record } : {}), ...(row.move !== undefined ? { move: row.move } : {}) };
+    // A row's second line (the level bracket on the dungeon season board) joins its name: the banner ladder has one line per row.
+    return { rank: row.rank, name: row.sub && key === "dungeon-season" ? `${row.name} · ${row.sub}` : row.name, color: row.color, score: score || "—", ...(record ? { record } : {}), ...(row.move !== undefined ? { move: row.move } : {}) };
   });
   const first = boards[0]!.rows[0]!, firstScore = scoreAndRecord(first.values).score;
   const look = BOARD_LOOK[key] ?? { type: "weekly" as const, emblem: "bars" as const };

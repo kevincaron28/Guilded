@@ -1,3 +1,4 @@
+import { plural } from "./card-plural.js";
 import { cardAttachment } from "./card-alt.js";
 import { EmbedBuilder, escapeMarkdown, type Guild as DiscordGuild, type Message } from "discord.js";
 import { isOwnBoard } from "./board-identity.js";
@@ -40,7 +41,7 @@ export function duelBoardCard(data: DuelBoardData, lang: Lang, classes: ClassBoo
   const fr = lang === "fr";
   return {
     eyebrow: `Guilded · ${fr ? "JcJ" : "PvP"}`, title: fr ? "Duels de la guilde" : "Guild duels",
-    subtitle: (data.mode === "rating" && data.seasonId ? `${ratingSeasonName(data.seasonId, lang)}${ratingSeasonRange(data.seasonId, lang) ? ` (${ratingSeasonRange(data.seasonId, lang)})` : ""} · ` : "") + (fr ? `${data.duels} duels comptés · ${data.standings.length} duellistes` : `${data.duels} counted duels · ${data.standings.length} duellists`),
+    subtitle: (data.mode === "rating" && data.seasonId ? `${ratingSeasonName(data.seasonId, lang)}${ratingSeasonRange(data.seasonId, lang) ? ` (${ratingSeasonRange(data.seasonId, lang)})` : ""} · ` : "") + (fr ? `${plural(lang, data.duels, ["", ""], ["duel compté", "duels comptés"])} · ${plural(lang, data.standings.length, ["", ""], ["duelliste", "duellistes"])}` : `${plural(lang, data.duels, ["counted duel", "counted duels"], ["", ""])} · ${plural(lang, data.standings.length, ["duellist", "duellists"], ["", ""])}`),
     backdrop: { kind: "board", key: "duel-ladder", fallbackKey: "duel" },
     stats: [], footer: data.mode === "rating" && data.seasonId ? ratingFooter(lang, ratingSeasonName(data.seasonId, lang), data.startsAt) : fr ? "Score : 10 par victoire, +2 par niveau de l'adversaire au-dessus de vous, -2 par niveau en dessous (0-20) · aucune récompense" : "Score: 10 per win, +2 per level the opponent is above you, -2 per level below (0-20) · no rewards",
     ladder: {
@@ -74,8 +75,8 @@ export function duelBoardEmbed(data: DuelBoardData, lang: Lang, image?: string):
     }
   }
   if (image && data.standings.length) embed.setImage(`attachment://${image}`);
-  if (data.mode === "rating" && data.seasonId) return embed.setFooter({ text: `${data.duels} ${t("counted duels", "duels comptés")} · ${ratingFooter(lang, ratingSeasonName(data.seasonId, lang), data.startsAt)}`.slice(0, 2000) });
-  return embed.setFooter({ text: t(`${data.duels} counted duels · score: 10 per win, +2 per level the opponent is above you, -2 per level below (0-20) · no rewards`, `${data.duels} duels comptés · score : 10 par victoire, +2 par niveau de l'adversaire au-dessus de vous, -2 en dessous (0-20) · aucune récompense`) });
+  if (data.mode === "rating" && data.seasonId) return embed.setFooter({ text: `${plural(lang, data.duels, ["counted duel", "counted duels"], ["duel compté", "duels comptés"])} · ${ratingFooter(lang, ratingSeasonName(data.seasonId, lang), data.startsAt)}`.slice(0, 2000) });
+  return embed.setFooter({ text: t(`${plural(lang, data.duels, ["counted duel", "counted duels"], ["", ""])} · score: 10 per win, +2 per level the opponent is above you, -2 per level below (0-20) · no rewards`, `${plural(lang, data.duels, ["", ""], ["duel compté", "duels comptés"])} · score : 10 par victoire, +2 par niveau de l'adversaire au-dessus de vous, -2 en dessous (0-20) · aucune récompense`) });
 }
 
 export async function loadDuelBoardData(db: Pick<PrismaClient, "duelResult"> & { guildSettings?: Pick<PrismaClient["guildSettings"], "findUnique"> }, guildId: string, edition: string, now = new Date()): Promise<DuelBoardData> {

@@ -16,14 +16,14 @@ describe("rookie of the week card", () => {
     expect(card.stats.map(s => s.value)).toEqual(["40", "2/2", "2026-12-07"]);
     expect(cardAltText(card)).toContain("Rookie of the week");
     expect((await scoreCardPng(card))?.subarray(1, 4).toString()).toBe("PNG");
-    expect(weeklyRookieCard("fr", { name: "B", points: 1, place: 1, ranked: 1, week: "w" }).title).toBe("Recrue de la semaine");
+    expect(weeklyRookieCard("fr", { name: "B", points: 1, place: 1, ranked: 1, week: "w" }).eyebrow).toBe("Guilded · Recrue de la semaine");
   });
 
   it("moves the rookie line from the text to the card, keeps the rest, adds the avatar request", () => {
     const m = message();
     expect(JSON.stringify(m.embeds)).toContain("Rookie of the week");
-    const extra = weeklyRookieCardExtra("en", m, "2026-12-07", board, board[1], names) as { card: { subtitle: string }; cardOnly: { content?: string; embeds: { fields?: { name: string }[]; title?: string }[] }; cardMember: string };
-    expect(extra.card.subtitle).toBe("Brenna");
+    const extra = weeklyRookieCardExtra("en", m, "2026-12-07", board, board[1], names) as { card: { title: string }; cardOnly: { content?: string; embeds: { fields?: { name: string }[]; title?: string }[] }; cardMember: string };
+    expect(extra.card.title).toBe("Brenna");
     expect(extra.cardMember).toBe("22222222222222222");
     const text = JSON.stringify(extra.cardOnly.embeds);
     expect(text).not.toContain("Rookie of the week");

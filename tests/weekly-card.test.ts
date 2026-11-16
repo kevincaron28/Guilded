@@ -18,8 +18,8 @@ describe("weekly report card", () => {
   it("shows the week against the one before and the players of the week", async () => {
     const card = weeklyReportCard(report, "en");
     expect(card.stats.map(s => `${s.value} ${s.note ?? ""}`.trim())).toEqual(["3 +1 vs last week · 18 raiders/raid", "9 same as last week", "10 12 runs"]);
-    expect(card.rows?.map(r => r.sub)).toEqual(["Raider of the week", "Dungeon hero", "Dungeon marathon", "2 raid(s) · 6 boss kill(s)"]);
-    expect(card.badges?.map(b => b.text)).toEqual(["2 dungeon record(s)", "1 first clear(s)"]);
+    expect(card.rows?.map(r => r.sub)).toEqual(["Raider of the week", "Dungeon hero", "Dungeon marathon", "2 raids · 6 boss kills"]);
+    expect(card.badges?.map(b => b.text)).toEqual(["2 dungeon records", "1 first clear"]);
     expect(card.backdrop).toEqual({ kind: "board", key: "weekly", fallbackKey: "activity" });
     expect(cardAltText(card)).toContain("The guild's week");
     expect((await scoreCardPng(card))?.subarray(1, 4).toString()).toBe("PNG");

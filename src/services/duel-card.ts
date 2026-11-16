@@ -1,4 +1,5 @@
 import { EmbedBuilder } from "discord.js";
+import { plural } from "./card-plural.js";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import type { Lang } from "./../i18n.js";
 import { textlessEmbed } from "./card-only.js";
@@ -80,7 +81,7 @@ export function duelSummaryCard(duels: readonly DuelCardInput[], lang: Lang, cla
   const shown = duels.slice(0, SUMMARY_ROWS);
   return {
     eyebrow: `Guilded · ${t("PvP", "JcJ")}`, title: t("More duels", "Autres duels"),
-    subtitle: t(`${duels.length + omitted} more duels counted`, `${duels.length + omitted} autres duels comptés`),
+    subtitle: t(plural(lang, duels.length + omitted, ["more duel counted", "more duels counted"], ["", ""]), plural(lang, duels.length + omitted, ["", ""], ["autre duel compté", "autres duels comptés"])),
     backdrop: { kind: "board", key: "duel" },
     stats: [{ label: t("Duels", "Duels"), value: String(duels.length + omitted), accent: "gold" }, ...(duels.some(duel => duel.rating) ? [] : [{ label: t("Points", "Points"), value: String(omittedPoints + duels.reduce((sum, duel) => sum + duel.points, 0)) }])],
     rowsLabel: t("Results", "Résultats"),
@@ -100,7 +101,7 @@ export function duelFallbackEmbed(duel: DuelCardInput, lang: Lang, names: FullNa
 }
 
 const summaryFallback = (duels: readonly DuelCardInput[], lang: Lang, names: FullNameBook, omitted = 0) => new EmbedBuilder().setColor(DUEL_COLOR).setDescription(
-  `⚔️ ${lang === "fr" ? `${duels.length + omitted} autres duels comptés` : `${duels.length + omitted} more duels counted`}\n${duels.slice(0, SUMMARY_ROWS).map(duel =>
+  `⚔️ ${lang === "fr" ? plural(lang, duels.length + omitted, ["", ""], ["autre duel compté", "autres duels comptés"]) : plural(lang, duels.length + omitted, ["more duel counted", "more duels counted"], ["", ""])}\n${duels.slice(0, SUMMARY_ROWS).map(duel =>
     `${displayCharacterName(duel.winnerCharacter, names)} › ${displayCharacterName(duel.loserCharacter, names)} (${duel.rating ? (duel.rating.rated ? showChange(duel.rating.winnerDelta) : "0") : `+${duel.points}`})`).join("\n")}`.slice(0, 1800));
 
 export interface Standing { score: number; streak: number; bestStreak: number }

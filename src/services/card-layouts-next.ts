@@ -78,7 +78,7 @@ export function renderResultCard(spec: NextCardSpec): Promise<RenderedCard> {
       y += 50;
     }
     for (const row of rows) {
-      const n = await c.text(row.name, x, y, { size: 32, face: "bold", color: row.color ?? INK, maxW: 240 });
+      const n = await c.text(row.name, x, y, { size: 32, face: "bold", color: row.color ?? INK, maxW: 240, ellipsis: true });
       if (row.sub) await c.text(row.sub, x + n.w + 12, y + 3, { size: 28, color: SUB, maxW: 130 });
       if (row.right) await c.text(row.right, x + colW, y, { size: 32, face: "bold", anchor: "r", maxW: 140 });
       y += 44;
@@ -118,7 +118,7 @@ export function renderBannerCard(spec: NextCardSpec): Promise<RenderedCard> {
           await c.text(String(r.rank), x + 30, y + 2, { size: 30, face: "bold", color: r.rank <= 3 ? tint : SUB, anchor: "r" });
           if (r.move === "new") c.raw(`<circle cx="${x + 43}" cy="${y + 19}" r="4.5" fill="${tint}"/>`);
           else if (typeof r.move === "number" && r.move !== 0) c.raw(`<path d="${r.move > 0 ? `M${x + 38} ${y + 24} L${x + 48} ${y + 24} L${x + 43} ${y + 14} Z` : `M${x + 38} ${y + 14} L${x + 48} ${y + 14} L${x + 43} ${y + 24} Z`}" fill="${r.move > 0 ? GOOD : "#ff8a7a"}"/>`);
-          await c.text(r.name, x + 56, y + 2, { size: 32, color: r.color, maxW: colw - 56 - 24 - 110 - (r.record ? recW + 12 : 0) });
+          await c.text(r.name, x + 56, y + 2, { size: 32, color: r.color, ellipsis: true, maxW: colw - 56 - 24 - 110 - (r.record ? recW + 12 : 0) });
           if (r.record) await c.text(r.record, x + colw - 140, y + 6, { size: 26, color: SUB, anchor: "r", maxW: recW });
           await c.text(r.score, x + colw - 24, y + 2, { size: 34, face: "bold", anchor: "r", maxW: 100 });
         }
@@ -134,17 +134,18 @@ export function renderBannerCard(spec: NextCardSpec): Promise<RenderedCard> {
         const maxW = r.right ? 450 : 620, nameSize = compact ? 30 : withSub ? 34 : 38;
         c.rect(48, y - 8, 660, compact ? 58 : withSub ? 76 : 66, "#ffffff", { opacity: 0.05, rx: 10 });
         if (withSub) {
-          await c.text(r.name, 66, y - (compact ? 6 : 2), { size: nameSize, face: "bold", color: r.color ?? INK, maxW });
+          await c.text(r.name, 66, y - (compact ? 6 : 2), { size: nameSize, face: "bold", color: r.color ?? INK, maxW, ellipsis: true });
           if (r.sub) await c.text(r.sub, 66, y + (compact ? 22 : 34), { size: compact ? 24 : 26, color: SUB, maxW });
-        } else await c.text(r.name, 66, y, { size: nameSize, face: "bold", color: r.color ?? INK, maxW });
+        } else await c.text(r.name, 66, y, { size: nameSize, face: "bold", color: r.color ?? INK, maxW, ellipsis: true });
         if (r.right) await c.text(r.right, 690, y + (withSub && !compact ? 8 : 0), { size: compact ? 30 : 38, face: "bold", anchor: "r", maxW: 170 });
         y += compact ? 62 : withSub ? 84 : 80;
       }
-      let sy = bh + 28;
+      // Each figure is a small label over its value, in one column 384 px wide: a long label is cut by measured width, never mixed up with the value.
+      let sy = bh + 20;
       for (const s of (spec.stats ?? []).slice(0, 3)) {
-        const a = await c.text(s.value, 760, sy - 4, { size: 60, face: "bold", maxW: 220 });
-        await c.text(s.label, 760 + a.w + 16, sy + 16, { size: 30, color: SUB, maxW: 1144 - 760 - a.w - 16 });
-        sy += 92;
+        await c.text(s.label, 760, sy, { size: 26, color: SUB, maxW: 384 });
+        await c.text(s.value, 760, sy + 28, { size: 52, face: "bold", maxW: 384 });
+        sy += 88;
       }
       if (spec.strip) await c.text(spec.strip, 56, 580, { size: 26, color: SUB, maxW: CARD_W - 112 });
     }
@@ -240,7 +241,8 @@ export function renderDungeonCard(spec: DungeonCardSpec): Promise<RenderedCard> 
     if (spec.facts.length) { await c.text(spec.facts.join("  ·  "), x, y, { size: 28, color: INK, maxW: colW }); y += 40; }
     // Column edges (right edges for numbers). Emblem 38 px, then name, level, guild, +gain, season total.
     // The Guild column exists only when some player has a guild to show; without it the names get its width.
-    const party = spec.party.slice(0, 5), pitch = 50;
+    // A small party gets taller rows (the text stays centred in its band) so one or two names do not float above an empty panel.
+    const party = spec.party.slice(0, 5), pitch = party.length <= 2 ? 72 : party.length === 3 ? 60 : 50, extra = pitch - 50;
     const hasGuild = party.some((p) => !!guildTag(p.guild));
     const E = x + 38 + 12, gainR = x + colW - 134, totalR = x + colW;
     const levelR = hasGuild ? E + 262 + 44 : gainR - 100, nameW = levelR - 36 - E - 8, guildX = levelR + 12, guildW = gainR - 80 - guildX;
@@ -258,15 +260,16 @@ export function renderDungeonCard(spec: DungeonCardSpec): Promise<RenderedCard> 
     const used = new Set<string>();
     let stripe = false;
     for (const p of party) {
+      const by = y; y += extra / 2;
       // Guildmates get a soft gold band with an accent bar; the grey alternate stripe is used only when the highlight is not telling rows apart.
-      if (p.member) { c.rect(x - 10, y - 8, colW + 20, pitch - 2, "#e0b84a", { opacity: 0.16, rx: 8 }); c.rect(x - 10, y - 8, 5, pitch - 2, "#f2cf63", { opacity: 0.95, rx: 2 }); }
-      else if (stripe && (!anyMember || allMembers)) c.rect(x - 10, y - 8, colW + 20, pitch - 2, "#ffffff", { opacity: 0.05, rx: 8 });
+      if (p.member) { c.rect(x - 10, by - 8, colW + 20, pitch - 2, "#e0b84a", { opacity: 0.16, rx: 8 }); c.rect(x - 10, by - 8, 5, pitch - 2, "#f2cf63", { opacity: 0.95, rx: 2 }); }
+      else if (stripe && (!anyMember || allMembers)) c.rect(x - 10, by - 8, colW + 20, pitch - 2, "#ffffff", { opacity: 0.05, rx: 8 });
       stripe = !stripe;
       if (p.role) c.raw(await roleEmblem(p.role, spec.roleStyle ?? "painted", x, y - 3, 38, used));
       const tag = guildTag(p.guild).replace(/^<|>$/g, ""); // the Guild column header says what it is
       const hasCols = p.level !== undefined || p.gain !== undefined || p.total !== undefined || p.score !== undefined || !!tag;
       const real = !p.name.startsWith("+"); // the "+N more" row has no columns
-      await c.text(p.name, E, y, { size: 30, face: "bold", color: p.color, maxW: hasCols || spec.columns ? nameW : colW - 46 });
+      await c.text(p.name, E, y, { size: 30, face: "bold", color: p.color, ellipsis: true, maxW: hasCols || spec.columns ? nameW : colW - 46 });
       if (p.level !== undefined) await c.text(String(p.level), levelR, y + 1, { size: 28, color: INK, anchor: "r", maxW: 44 });
       if (hasGuild && real && spec.columns && tag) await c.text(tag, guildX, y + 3, { size: 24, color: SUB, maxW: guildW });
       else if (hasGuild && real && spec.columns) await c.text("—", guildX + guildW / 2, y, { size: 30, face: "bold", color: SUB, anchor: "c", maxW: guildW }); // same dash as the score cells, centred in the column
@@ -278,7 +281,7 @@ export function renderDungeonCard(spec: DungeonCardSpec): Promise<RenderedCard> 
       const total = p.total === "0" && unscored ? undefined : p.total ?? p.score;
       if (total) await c.text(total, totalR, y, { size: 30, face: "bold", color: INK, anchor: "r", maxW: 108 });
       else if (spec.columns && real) await c.text("—", totalR, y, { size: 30, face: "bold", color: SUB, anchor: "r", maxW: 108 });
-      y += pitch;
+      y = by + pitch;
     }
     if (spec.map) await drawDeathMap(c, spec.map);
     if (spec.strip) await c.text(spec.strip, x, 575, { size: 26, color: SUB, maxW: CARD_W - 112 });

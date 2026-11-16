@@ -1,11 +1,14 @@
+import { plural } from "./card-plural.js";
 import { textlessEmbed } from "./card-only.js";
 import { EmbedBuilder } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
 import { dateAfter, dayStart, participationDay } from "./participation-rules.js";
 import { dayGain, LEVEL_CAP } from "./race-board.js";
+import { dungeonDisplayName } from "./dungeon-card.js";
 import { highlightText, type HighlightKind } from "./dungeon-records.js";
 import { classColor, type ScoreCard } from "./score-card.js";
+import { localClassName } from "./character-display.js";
 import { displayCharacterName, loadFullNameBook } from "./character-display.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
 import type { DungeonScene } from "./dungeon-art.js";
@@ -15,7 +18,7 @@ import type { DungeonScene } from "./dungeon-art.js";
 // the weekly-report channel, else the notify channel, and never before one exists.
 
 export interface RecapLeveler { name: string; className: string; gain: number; level: number }
-export interface RecapHighlight { kind: HighlightKind; label?: string; valueSec?: number; previousSec?: number; dungeonName: string }
+export interface RecapHighlight { kind: HighlightKind; label?: string; valueSec?: number; previousSec?: number; dungeonName: string; instanceId?: number }
 export interface DailyRecap {
   day: string;
   race: { gained: number; top: RecapLeveler[]; new60: { name: string; className: string }[] } | null;
@@ -42,7 +45,7 @@ export async function dailyRecap(db: RecapDb, guildId: string, day: string, time
     options.race === false ? Promise.resolve([]) : db.raceHallEntry.findMany({ where: { guildId, reachedAt: window, removed: false, backfilled: false }, select: { name: true, className: true }, orderBy: { order: "asc" }, take: 10 }),
     db.dungeonRun.findMany({ where: { guildId, valid: true, state: "COMPLETED", durationSec: { not: null }, endedAt: window, NOT: { runRef: { startsWith: "SIM-" } }, players: { some: GUILD_PLAYER } },
       select: { instanceId: true, players: { where: GUILD_PLAYER, select: { memberId: true, character: true, member: { select: { displayName: true } } } } }, take: 2000 }),
-    db.dungeonHighlight.findMany({ where: { guildId, createdAt: window }, select: { kind: true, label: true, valueSec: true, previousSec: true, dungeonName: true }, orderBy: { createdAt: "asc" }, take: 30 }),
+    db.dungeonHighlight.findMany({ where: { guildId, createdAt: window }, select: { kind: true, label: true, valueSec: true, previousSec: true, dungeonName: true, instanceId: true }, orderBy: { createdAt: "asc" }, take: 30 }),
     db.duelResult.findMany({ where: { guildId, counted: true, archived: false, endedAt: window }, select: { winnerId: true, winnerCharacter: true }, take: 2000 }),
     db.battlegroundReport.findMany({ where: { guildId, endedAt: window, status: { notIn: ["WITHDRAWN", "CONFLICT"] }, member: { status: "ACTIVE", battlegroundConsent: { guildStats: true } } },
       select: { outcome: true }, take: 2000 })
@@ -63,7 +66,7 @@ export async function dailyRecap(db: RecapDb, guildId: string, day: string, time
     }
     const best = [...perMember.values()].sort((a, b) => b.runs - a.runs || a.name.localeCompare(b.name))[0];
     dungeons = { clears: runs.length, dungeons: new Set(runs.map(run => run.instanceId)).size, mostRuns: best && best.runs >= 2 ? best : null,
-      highlights: highlights.map(row => ({ kind: row.kind as HighlightKind, dungeonName: row.dungeonName,
+      highlights: highlights.map(row => ({ kind: row.kind as HighlightKind, dungeonName: row.dungeonName, ...(row.instanceId ? { instanceId: row.instanceId } : {}),
         ...(row.label ? { label: row.label } : {}), ...(row.valueSec !== null ? { valueSec: row.valueSec } : {}), ...(row.previousSec !== null ? { previousSec: row.previousSec } : {}) })) };
   }
 
@@ -95,6 +98,7 @@ const seedOf = (text: string) => { let h = 2166136261; for (const c of text) h =
 /** The recap card: painted fortress scene, a stats strip and one frosted panel per section (recap layout in score-card.ts). */
 export function dailyRecapCard(recap: DailyRecap, lang: Lang, guildName: string): ScoreCard {
   const fr = lang === "fr", t = (en: string, french: string) => fr ? french : en;
+  const dungeonOf = (item: RecapHighlight) => dungeonDisplayName({ dungeonName: item.dungeonName, instanceId: item.instanceId }, lang);
   const stats: ScoreCard["stats"] = [];
   if (recap.race) stats.push({ label: t("Levels gained", "Niveaux gagnés"), value: String(recap.race.gained), accent: "gold" });
   if (recap.race?.new60.length) stats.push({ label: t(`New level ${LEVEL_CAP}s`, `Nouveaux ${LEVEL_CAP}`), value: String(recap.race.new60.length), accent: "gold" });
@@ -105,21 +109,21 @@ export function dailyRecapCard(recap: DailyRecap, lang: Lang, guildName: string)
 
   const sections: NonNullable<ScoreCard["recap"]>["sections"] = [];
   if (recap.race) sections.push({ title: t("Race to 60 · levels", "Course au 60 · niveaux"), rows: [
-    ...recap.race.new60.slice(0, 3).map(row => ({ name: row.name, color: classColor(row.className), sub: row.className, right: `${LEVEL_CAP} ★`, rightTone: "gold" as const })),
-    ...recap.race.top.slice(0, 5 - Math.min(3, recap.race.new60.length)).map(row => ({ name: row.name, color: classColor(row.className), sub: `${row.className} · ${t("level", "niveau")} ${row.level}`, right: `+${row.gain}`, rightTone: "green" as const }))
+    ...recap.race.new60.slice(0, 3).map(row => ({ name: row.name, color: classColor(row.className), sub: localClassName(row.className, lang), right: `${LEVEL_CAP} ★`, rightTone: "gold" as const })),
+    ...recap.race.top.slice(0, 5 - Math.min(3, recap.race.new60.length)).map(row => ({ name: row.name, color: classColor(row.className), sub: `${localClassName(row.className, lang)} · ${t("level", "niveau")} ${row.level}`, right: `+${row.gain}`, rightTone: "green" as const }))
   ] });
   if (recap.dungeons) {
     const order: HighlightKind[] = ["clear", "boss", "first", "deathless", "guild5"];
     const items = [...recap.dungeons.highlights].sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind));
     sections.push({ title: t("Dungeons · records", "Donjons · records"), rows: [
-      ...items.slice(0, recap.dungeons.mostRuns ? 4 : 5).map(item => ({ name: plainHighlight(item, lang), sub: item.kind === "boss" ? t(`Fastest kill · ${item.dungeonName}`, `Kill le plus rapide · ${item.dungeonName}`) : item.dungeonName, right: item.valueSec !== undefined && (item.kind === "clear" || item.kind === "boss") ? clock(item.valueSec) : undefined, rightTone: "gold" as const })),
+      ...items.slice(0, recap.dungeons.mostRuns ? 4 : 5).map(item => ({ name: plainHighlight(item, lang), sub: item.kind === "boss" ? t(`Fastest kill · ${dungeonOf(item)}`, `Kill le plus rapide · ${dungeonOf(item)}`) : dungeonOf(item), right: item.valueSec !== undefined && (item.kind === "clear" || item.kind === "boss") ? clock(item.valueSec) : undefined, rightTone: "gold" as const })),
       ...(recap.dungeons.mostRuns ? [{ name: recap.dungeons.mostRuns.name, sub: t("Most runs today", "Le plus de donjons aujourd'hui"), right: `×${recap.dungeons.mostRuns.runs}`, rightTone: "green" as const }] : []),
-      ...(!items.length && !recap.dungeons.mostRuns ? [{ name: t(`${recap.dungeons.clears} clear(s)`, `${recap.dungeons.clears} parcours`), sub: t(`${recap.dungeons.dungeons} different dungeon(s)`, `${recap.dungeons.dungeons} donjon(s) différent(s)`) }] : [])
+      ...(!items.length && !recap.dungeons.mostRuns ? [{ name: plural(lang, recap.dungeons.clears, ["clear", "clears"], ["parcours", "parcours"]), sub: plural(lang, recap.dungeons.dungeons, ["different dungeon", "different dungeons"], ["donjon différent", "donjons différents"]) }] : [])
     ] });
   }
   if (recap.pvp) sections.push({ title: t("PvP", "JcJ"), rows: [
     ...(recap.pvp.topDueler ? [{ name: recap.pvp.topDueler.name, sub: t("Most duel wins", "Le plus de duels gagnés"), right: `×${recap.pvp.topDueler.wins}`, rightTone: "red" as const }] : []),
-    ...(recap.pvp.duels ? [{ name: t(`${recap.pvp.duels} duel(s)`, `${recap.pvp.duels} duel(s)`), sub: t("Counted in the ladder", "Comptés au classement") }] : []),
+    ...(recap.pvp.duels ? [{ name: plural(lang, recap.pvp.duels, ["duel", "duels"], ["duel", "duels"]), sub: t("Counted in the ladder", "Comptés au classement") }] : []),
     ...(recap.pvp.bgPlayed ? [{ name: t(`${recap.pvp.bgWon}/${recap.pvp.bgPlayed} won`, `${recap.pvp.bgWon}/${recap.pvp.bgPlayed} gagnés`), sub: t("Battlegrounds · shared stats", "Champs de bataille · stats partagées") }] : [])
   ] });
 
@@ -153,17 +157,17 @@ export function dailyRecapEmbed(recap: DailyRecap, lang: Lang): EmbedBuilder {
   const fr = lang === "fr";
   const lines: string[] = [];
   if (recap.race) {
-    lines.push(`📈 **${fr ? "Course au 60" : "Race to 60"}** · ${recap.race.gained} ${fr ? "niveau(x) gagné(s)" : "level(s) gained"}`);
+    lines.push(`📈 **${fr ? "Course au 60" : "Race to 60"}** · ${plural(lang, recap.race.gained, ["level gained", "levels gained"], ["niveau gagné", "niveaux gagnés"])}`);
     if (recap.race.new60.length) lines.push(`⭐ ${fr ? `Nouveaux ${LEVEL_CAP}` : `New level ${LEVEL_CAP}s`}: ${recap.race.new60.map(row => row.name).join(", ")}`);
     if (recap.race.top[0]) lines.push(`🥇 ${fr ? "Le plus de niveaux" : "Most levels"}: ${recap.race.top.slice(0, 3).map(row => `${row.name} (+${row.gain})`).join(", ")}`);
   }
   if (recap.dungeons) {
-    lines.push(`🏰 **${fr ? "Donjons" : "Dungeons"}** · ${recap.dungeons.clears} ${fr ? "parcours" : "clear(s)"}, ${recap.dungeons.dungeons} ${fr ? "donjon(s)" : "dungeon(s)"}`);
+    lines.push(`🏰 **${fr ? "Donjons" : "Dungeons"}** · ${plural(lang, recap.dungeons.clears, ["clear", "clears"], ["parcours", "parcours"])}, ${plural(lang, recap.dungeons.dungeons, ["dungeon", "dungeons"], ["donjon", "donjons"])}`);
     for (const item of recap.dungeons.highlights.slice(0, 8)) lines.push(highlightText(item, lang, true));
     if (recap.dungeons.mostRuns) lines.push(`🔁 ${fr ? "Le plus de donjons" : "Most runs"}: ${recap.dungeons.mostRuns.name} (×${recap.dungeons.mostRuns.runs})`);
   }
   if (recap.pvp) {
-    const parts = [recap.pvp.duels ? `${recap.pvp.duels} duel(s)` : "", recap.pvp.bgPlayed ? `${recap.pvp.bgWon}/${recap.pvp.bgPlayed} ${fr ? "champs de bataille gagnés" : "battlegrounds won"}` : ""].filter(Boolean);
+    const parts = [recap.pvp.duels ? plural(lang, recap.pvp.duels, ["duel", "duels"], ["duel", "duels"]) : "", recap.pvp.bgPlayed ? `${recap.pvp.bgWon}/${recap.pvp.bgPlayed} ${fr ? "champs de bataille gagnés" : "battlegrounds won"}` : ""].filter(Boolean);
     lines.push(`⚔️ **${fr ? "JcJ" : "PvP"}** · ${parts.join(" · ")}`);
     if (recap.pvp.topDueler) lines.push(`🤺 ${fr ? "Le plus de duels gagnés" : "Most duel wins"}: ${recap.pvp.topDueler.name} (×${recap.pvp.topDueler.wins})`);
   }

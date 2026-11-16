@@ -1,6 +1,8 @@
 import { bossTally } from "./dungeon-boss-scoring.js";
 import type { Lang } from "../i18n.js";
 import { SCARLET_WINGS } from "./dungeon-rating.js";
+import { plural } from "./card-plural.js";
+import { frenchDungeon, instanceEnglishName, routeEnglishName } from "./dungeon-name-table.js";
 import { canonicalClass } from "./character-display.js";
 import { CLASS_NAMES_FR } from "../permissions.js";
 import { canonicalSpecialization } from "../wow-specializations.js";
@@ -100,30 +102,47 @@ export function finalBoss(run: Run): string | null {
 
 const WING_NAME: Record<string, [string, string]> = { graveyard: ["Graveyard", "Cimetière"], library: ["Library", "Bibliothèque"], armory: ["Armory", "Armurerie"], cathedral: ["Cathedral", "Cathédrale"] };
 const HAS_WING = /graveyard|library|armory|cathedral|cimeti[èe]re|biblioth|armurerie|cath[ée]drale/i;
+export { frenchDungeon };
+type NamedRun = { dungeonName: string; instanceId?: number | null | undefined; routeKey?: string | null | undefined; encounters?: readonly { name?: string | undefined; success?: boolean | undefined }[] | undefined };
+/** The English wing label told by the name (English or French) of a Scarlet Monastery run, or undefined. */
+function wingInName(name: string): string | undefined {
+  const m = /graveyard|cimeti[èe]re/i.test(name) ? "graveyard" : /library|biblioth/i.test(name) ? "library" : /armory|armurerie/i.test(name) ? "armory" : /cathedral|cath[ée]drale/i.test(name) ? "cathedral" : undefined;
+  return m ? WING_NAME[m]![0] : undefined;
+}
 /**
- * Scarlet Monastery is one map (189) for four wings and the game reports only "Scarlet Monastery". The wing is told apart by the last
- * boss killed, the same rule the rating uses (SCARLET_WINGS). A name that already carries a wing, other dungeons and a run with no
- * wing boss (or bosses of two wings) keep the name as received.
+ * The dungeon's name in the page language. The canonical English name comes from the map or route id, never from the language of the
+ * uploader's client (a French client reports "Mortemines", an English one "The Deadmines"); French pages then translate it. A run with no
+ * known id keeps the uploaded name. Scarlet Monastery is one map (189) for four wings and the game reports only "Scarlet Monastery": the
+ * wing is told apart by the last boss killed, the same rule the rating uses (SCARLET_WINGS), or by a wing the name already carries.
  */
-export function dungeonDisplayName(run: { dungeonName: string; encounters?: readonly { name?: string | undefined; success?: boolean | undefined }[] | undefined }, lang: Lang = "en"): string {
-  if (!/scarlet|[ée]carlate/i.test(run.dungeonName) || HAS_WING.test(run.dungeonName)) return run.dungeonName;
+export function dungeonDisplayName(run: NamedRun, lang: Lang = "en"): string {
+  const routeName = routeEnglishName(run.routeKey);
+  const mapName = routeName ? undefined : instanceEnglishName(run.instanceId);
+  if (!routeName && !mapName) return legacyName(run, lang);
+  let english = routeName ?? mapName!;
+  if (mapName) {
+    if (/scarlet/i.test(mapName)) {
+      const killed = new Set((run.encounters ?? []).filter((e) => e.success === true).map((e) => e.name?.toLowerCase()));
+      const wings = SCARLET_WINGS.filter(([, bosses]) => bosses.some((boss) => killed.has(boss)));
+      const wing = wingInName(run.dungeonName) ?? (wings.length === 1 ? WING_NAME[wings[0]![0]]![0] : undefined);
+      if (wing) english = `${mapName}: ${wing}`;
+    } else {
+      // A stored "Dire Maul: East" style name keeps its wing when it starts with the map's own name.
+      const own = run.dungeonName.trim();
+      if (own.toLowerCase().startsWith(`${mapName.toLowerCase()}: `)) english = `${mapName}${own.slice(mapName.length)}`;
+    }
+  }
+  return frenchDungeon(english, lang);
+}
+function legacyName(run: NamedRun, lang: Lang): string {
+  if (!/scarlet|[ée]carlate/i.test(run.dungeonName) || HAS_WING.test(run.dungeonName)) return frenchDungeon(run.dungeonName, lang);
   const killed = new Set((run.encounters ?? []).filter((e) => e.success === true).map((e) => e.name?.toLowerCase()));
   const wings = SCARLET_WINGS.filter(([, bosses]) => bosses.some((boss) => killed.has(boss)));
-  if (wings.length !== 1) return run.dungeonName;
+  if (wings.length !== 1) return frenchDungeon(run.dungeonName, lang);
   const [en, fr] = WING_NAME[wings[0]![0]]!;
-  return `${run.dungeonName}${lang === "fr" ? " : " : ": "}${lang === "fr" ? fr : en}`;
+  return frenchDungeon(`${run.dungeonName}${lang === "fr" ? " : " : ": "}${lang === "fr" ? fr : en}`, lang);
 }
-/** French card titles: the dungeon part of a "Name: Wing" / "Name : Aile" title in French. Themes and paintings keep matching the English name. */
-const FRENCH_DUNGEONS: [RegExp, string][] = [[/^Scarlet Monastery\b/i, "Monastère Écarlate"], [/^Shadowfang Keep\b/i, "Donjon d'Ombrecroc"], [/^The Deadmines\b/i, "Les Mortemines"],
-  [/^Wailing Caverns\b/i, "Cavernes des lamentations"], [/^Ragefire Chasm\b/i, "Gouffre de Ragefeu"], [/^The Stockade\b/i, "La Prison"], [/^Blackfathom Deeps\b/i, "Profondeurs de Brassenoire"],
-  [/^Razorfen Kraul\b/i, "Kraal de Tranchebauge"], [/^Razorfen Downs\b/i, "Souilles de Tranchebauge"], [/^Sunken Temple\b|^The Temple of Atal'Hakkar\b/i, "Le Temple d'Atal'Hakkar"],
-  [/^Blackrock Depths\b/i, "Profondeurs de Rochenoire"], [/^Dire Maul\b/i, "Hache-tripes"], [/^Lower Blackrock Spire\b/i, "Bas du pic Rochenoire"], [/^Upper Blackrock Spire\b/i, "Sommet du pic Rochenoire"]];
-export function frenchDungeon(title: string, lang: Lang): string {
-  if (lang !== "fr") return title;
-  const found = FRENCH_DUNGEONS.find(([match]) => match.test(title));
-  return found ? title.replace(found[0], found[1]) : title;
-}
-export function runLabel(run: { runRef: string; dungeonName: string; difficultyId: number; encounters?: readonly { name?: string | undefined; success?: boolean | undefined }[] | undefined }, lang: Lang = "en"): string {
+export function runLabel(run: { runRef: string; dungeonName: string; instanceId?: number | null | undefined; routeKey?: string | null | undefined; difficultyId: number; encounters?: readonly { name?: string | undefined; success?: boolean | undefined }[] | undefined }, lang: Lang = "en"): string {
   const difficulty = difficultyName(run.difficultyId);
   const test = run.runRef.startsWith("SIM-") ? "[TEST] " : "";
   const name = dungeonDisplayName(run, lang);
@@ -271,7 +290,7 @@ export function dungeonRunCard(run: Run, lang: Lang, options: DungeonCardOptions
   const roles = partyRoles(party.map((row) => row.detail));
   return {
     eyebrow: t("Guilded · Dungeon completed", "Guilded · Donjon terminé"),
-    title: frenchDungeon(runLabel(run, lang), lang).replace(/ \(.*\)$/, ""),
+    title: runLabel(run, lang).replace(/ \(.*\)$/, ""),
     subtitle: [difficultyName(run.difficultyId), mark, date].filter(Boolean).join(" · "),
     stats: [
       { label: t("Time", "Temps"), value: formatDuration(run.durationSec ?? 0), accent: "gold",
@@ -285,13 +304,13 @@ export function dungeonRunCard(run: Run, lang: Lang, options: DungeonCardOptions
     badges: rankBadges(run, t, lang),
     footer: t("Guilded · Dungeon run as recorded by the party's addons · guildedwow.com", "Guilded · Donjon noté par les addons du groupe · guildedwow.com"),
     dungeon: {
-      theme: dungeonTheme(dungeonDisplayName(run, lang)),
+      theme: dungeonTheme(dungeonDisplayName(run, "en")),
       ...(score ? { scoreLabel: score.label } : {}),
       ...(party.some((row) => typeof row.detail.ratingTotal === "number") ? { columns: { level: t("Lv", "Niv"), gain: t("This run", "Cette run"), total: t("Season (role)", "Saison (rôle)") } } : {}),
       party: party.slice(0, 40).map(({ detail, guild }, index) => {
         const cls = canonicalClass(detail.class);
         const spec = canonicalSpecialization(cls, detail.spec);
-        const deaths = detail.deaths === null || detail.deaths === undefined ? undefined : fr ? `${detail.deaths} mort(s)` : `${detail.deaths} death(s)`;
+        const deaths = detail.deaths === null || detail.deaths === undefined ? undefined : plural(lang, detail.deaths, ["death", "deaths"], ["mort", "morts"]);
         return {
           name: run.fullNames?.[detail.character] ?? detail.character,
           ...(guild ? { character: detail.character } : {}),

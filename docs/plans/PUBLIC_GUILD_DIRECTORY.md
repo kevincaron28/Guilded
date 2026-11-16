@@ -1,0 +1,22 @@
+# Public guild directory (PR #999, follow-ups in 1b)
+
+Owner decision (15 November 2026): "we can show everything publicly": every guild seen in public runs, including guilds that never installed Guilded, with its member roster, scores, recent runs and top players. Only in-game data; never Discord IDs or private notes. `/delete-my-data` and the public deletion page keep working.
+
+## Where guilds come from
+- **Guilded guilds**: `GuildSettings.publicDungeonRuns`, as before (`/leaderboards/guild/<slug>`).
+- **Observed guilds** (no Guilded server): `PublicRunPlayer.guild`, the in-game guild text the uploader's client showed (`GetGuildInfo`, unverified display text, 9.3+). `loadObservedGuilds` in `src/services/public-leaderboard.ts` reads ACCEPTED public run players, newest sightings first (cap 60,000, a warning is logged when hit), and `groupObservedGuilds` (`src/services/guild-public-stats.ts`) groups them.
+- Grouping: folded guild name + realm. A row with no realm takes the realm of the same character elsewhere, else the only realm that guild name was seen on; otherwise it stays in its own bucket. Two characters minimum. A guild whose slug base equals a Guilded guild's is left to that guild's page.
+- Address: `ig:<slug>` internally; the public slug is `<name>-<realm>-<6 hex>` derived from the folded name and realm alone (stable, never depends on other guilds).
+- Faction is unknown for observed guilds (no source): they show under "All" and the new "Unknown" faction filter.
+- Roster, scores and runs of an observed guild are the public run players with that guild text.
+
+## Backfill
+`src/services/public-run-guild-backfill.ts` runs once per bot start (8 minutes in), idempotent, only rows with no guild: first from `DungeonRunPlayer.guild` (same addon run id and character), then from Guilded rosters (`GuildRosterEntry` + `WowGuild`). Runs that no source covers stay blank until a companion re-sends them.
+
+## Deletion
+`deleteMyData` (`src/services/data-deletion.ts`) now anonymises the member's characters in public runs: the player row becomes `deleted-player-<row id>` (no display name, no guild; class, role and level stay so the run is unchanged), and the same names are replaced in the run's saved integrity, upload evidence and reporters. Guild pages are built from those rows and from `Character`, so the member disappears from them. Not covered yet: public duel rows (names, keys) and first-name-only legacy rows.
+
+## Open
+- Public duel and PvP panels for observed guilds (PublicDuel has winnerGuild/loserGuild).
+- Faction inference.
+- Anonymising public duel rows on deletion.

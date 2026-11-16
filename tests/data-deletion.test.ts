@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PrismaClient } from "../src/generated/prisma/client.js";
-import { DELETED_MEMBER_NAME, deleteMyData } from "../src/services/data-deletion.js";
+import { anonymisePublicRuns, DELETED_MEMBER_NAME, DELETED_PLAYER_PREFIX, deleteMyData, scrubNames } from "../src/services/data-deletion.js";
 
 function fixture() {
   const calls: string[] = [];
@@ -13,7 +13,8 @@ function fixture() {
     poeLevelReached: del("poeLevelReached"), poeMapVisit: del("poeMapVisit"), guildMapSighting: del("guildMapSighting"), guildHelpCall: del("guildHelpCall"), worldPvpWeek: del("worldPvpWeek"), worldPvpEvent: del("worldPvpEvent"), characterPairing: del("characterPairing"),
     characterVerifyCode: del("characterVerifyCode"), characterVerifyClaim: del("characterVerifyClaim"), companionCredential: del("companionCredential"),
     mobileDelivery: del("mobileDelivery"), mobileDevice: del("mobileDevice"),
-    character: del("character", 3)
+    character: { ...del("character", 3), findMany: vi.fn(async () => [{ name: "Kev Caron", realm: "Doomhowl" }]) },
+    publicRunPlayer: { findMany: vi.fn(async () => []), update: vi.fn(async () => ({})) }, publicRun: { findUnique: vi.fn(async () => null), update: vi.fn(async () => ({})) }, publicRunUpload: { findMany: vi.fn(async () => []), update: vi.fn(async () => ({})) }
   };
   const db = { $transaction: vi.fn(async (fn: (t: typeof tx) => unknown) => fn(tx)) };
   return { tx, db: db as unknown as PrismaClient, calls };
@@ -44,5 +45,34 @@ describe("Delete my data", () => {
     const f = fixture();
     for (const bad of ["", "abc", "1", "1 OR 1=1"]) await expect(deleteMyData(f.db, bad)).rejects.toThrow("Discord user id");
     expect(f.db.$transaction).not.toHaveBeenCalled();
+  });
+});
+
+describe("Delete my data: public dungeon runs", () => {
+  it("anonymises the member's characters in public run rows, evidence and reporters, keeping the run and party size", async () => {
+    const rows = [{ id: "p1", runId: "r1", character: "Kev Caron", realm: "Doomhowl" }, { id: "p2", runId: "r1", character: "Other Player", realm: "Doomhowl" }, { id: "p3", runId: "r2", character: "kev caron", realm: "" }];
+    const players = { findMany: vi.fn(async () => rows), update: vi.fn(async () => ({})) };
+    const runs = { findUnique: vi.fn(async () => ({ integrity: { players: [{ character: "Kev Caron", realm: "Doomhowl" }, { character: "Other Player" }] } })), update: vi.fn(async () => ({})) };
+    const uploads = { findMany: vi.fn(async () => [{ id: "u1", reporters: ["kev caron", "other player"], evidence: { players: [{ character: "Kev Caron" }] } }]), update: vi.fn(async () => ({})) };
+    const done = await anonymisePublicRuns({ publicRunPlayer: players, publicRun: runs, publicRunUpload: uploads } as never, [{ name: "Kev Caron", realm: "Doomhowl" }]);
+    expect(done).toBe(2);
+    expect(players.update).toHaveBeenCalledWith({ where: { id: "p1" }, data: { character: `${DELETED_PLAYER_PREFIX}p1`, displayName: null, guild: null } });
+    expect(players.update).toHaveBeenCalledWith({ where: { id: "p3" }, data: { character: `${DELETED_PLAYER_PREFIX}p3`, displayName: null, guild: null } });
+    expect(players.update).not.toHaveBeenCalledWith(expect.objectContaining({ where: { id: "p2" } }));
+    const integrity = (runs.update.mock.calls[0] as unknown as [{ data: { integrity: { players: { character: string }[] } } }])[0].data.integrity;
+    expect(integrity.players.map(p => p.character)).toEqual([`${DELETED_PLAYER_PREFIX}p1`, "Other Player"]);
+    const upload = (uploads.update.mock.calls[0] as unknown as [{ data: { reporters: string[]; evidence: { players: { character: string }[] } } }])[0].data;
+    expect(upload.reporters).toEqual([`${DELETED_PLAYER_PREFIX}p1`, "other player"]);
+    expect(upload.evidence.players[0]!.character).toBe(`${DELETED_PLAYER_PREFIX}p1`);
+  });
+  it("does nothing without characters and scrubs names inside nested JSON", async () => {
+    expect(await anonymisePublicRuns({} as never, [])).toBe(0);
+    expect(scrubNames({ a: ["Kev", { b: "KEV" }], c: "Amy" }, ["kev"], "X")).toEqual({ a: ["X", { b: "X" }], c: "Amy" });
+  });
+  it("runs inside Delete my data, before the member's characters are deleted", async () => {
+    const f = fixture();
+    await deleteMyData(f.db, "123456789012345678");
+    expect(f.tx.character.findMany).toHaveBeenCalled();
+    expect(f.tx.publicRunPlayer.findMany).toHaveBeenCalled();
   });
 });

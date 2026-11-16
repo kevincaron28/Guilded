@@ -137,7 +137,7 @@ export function readGuildOverviewFilters(query: URLSearchParams): GuildOverviewF
   const page = Math.trunc(Number(query.get("page")));
   return {
     q: (query.get("q") ?? "").trim().slice(0, 40),
-    faction: faction === "ALLIANCE" || faction === "HORDE" ? faction : null,
+    faction: faction === "ALLIANCE" || faction === "HORDE" || faction === "UNKNOWN" ? faction : null,
     realm: (query.get("realm") ?? "").trim().slice(0, 60) || null,
     sort: (GUILD_SORTS as readonly string[]).includes(sort) ? sort as GuildSort : "score",
     page: Number.isFinite(page) && page > 1 ? Math.min(page, 1_000) : 1
@@ -168,7 +168,7 @@ export function guildOverview(entries: { guild: PublicGuild; runs: LeaderRun[]; 
 export function filterGuildOverview(rows: GuildOverviewRow[], filters: Pick<GuildOverviewFilters, "q" | "faction" | "realm" | "sort">): GuildOverviewRow[] {
   const q = foldText(filters.q);
   const kept = rows.filter((row) => (!q || foldText(row.guild.name).includes(q))
-    && (!filters.faction || row.stats?.faction === filters.faction)
+    && (!filters.faction || (filters.faction === "UNKNOWN" ? !row.stats?.faction : row.stats?.faction === filters.faction))
     && (!filters.realm || (row.stats?.realm ?? "").toLowerCase() === filters.realm.toLowerCase()));
   const value = (row: GuildOverviewRow): number => {
     switch (filters.sort) {
@@ -361,15 +361,18 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
   }
   // In-game guilds seen in public runs whose guild did not install Guilded ("ig:<slug>", docs/plans/PUBLIC_GUILD_DIRECTORY.md): the
   // guild's name as the uploaders' clients showed it, its realm and the characters seen in it. Read-only; rebuilt with the guild list.
+  const OBSERVED_ROW_CAP = 60_000;
   const observedGuilds = new Map<string, ObservedGuild>();
   const guildsLoading = new Map<string, Promise<PublicGuild[]>>();
   async function loadObservedGuilds(taken: Set<string>, listedBases: Set<string>): Promise<PublicGuild[]> {
+    // Newest first, so a cap drops the oldest sightings rather than arbitrary guilds; a warning says when it was hit.
     const rows = await database.publicRunPlayer.findMany({ where: { guild: { not: null }, run: { status: "ACCEPTED", gameEdition: currentEdition() } },
-      select: { guild: true, realm: true, character: true }, distinct: ["guild", "realm", "character"], take: 60_000 });
+      select: { guild: true, realm: true, character: true }, distinct: ["guild", "realm", "character"], orderBy: [{ run: { endedAt: "desc" } }, { id: "asc" }], take: OBSERVED_ROW_CAP });
+    if (rows.length >= OBSERVED_ROW_CAP) console.warn(`Public guild directory: ${OBSERVED_ROW_CAP} guild sightings read (the cap); the oldest are left out.`);
     const found = groupObservedGuilds(rows, listedBases);
     const out: PublicGuild[] = [];
     for (const row of found) {
-      const slug = freeSlug(`${row.name} ${row.realm}`.trim(), row.key, taken);
+      const slug = taken.has(row.slug) ? `${row.slug}-x` : row.slug;
       taken.add(slug);
       const id = `${OBSERVED_PREFIX}${slug}`;
       observedGuilds.set(id, row);
@@ -847,7 +850,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const form = `<form class="filters" method="get" action="/leaderboards/guilds/"><input type="hidden" name="lang" value="${lang}">`
       + (period.week ? `<input type="hidden" name="period" value="week">` : `<input type="hidden" name="season" value="${escapeHtml(period.season)}">`)
       + `<div><label for="gq">${t("Guild name", "Nom de la guilde")}</label><input id="gq" name="q" type="search" maxlength="40" value="${escapeHtml(filters.q)}"></div>`
-      + `<div><label for="gfaction">${t("Faction", "Faction")}</label><select id="gfaction" name="faction">${options([any, ...FACTIONS.map((value) => ({ value, label: factionLabel(value, lang) }))], filters.faction)}</select></div>`
+      + `<div><label for="gfaction">${t("Faction", "Faction")}</label><select id="gfaction" name="faction">${options([any, ...FACTIONS.map((value) => ({ value, label: factionLabel(value, lang) })), { value: "UNKNOWN", label: t("Unknown", "Inconnue") }], filters.faction)}</select></div>`
       + `<div><label for="grealm">${t("Realm", "Royaume")}</label><select id="grealm" name="realm">${options([any, ...realms.map((value) => ({ value, label: value }))], filters.realm)}</select></div>`
       + `<div><label for="gsort">${t("Sort by", "Trier par")}</label><select id="gsort" name="sort">${options(GUILD_SORTS.map((value) => ({ value, label: sortLabels[value] })), filters.sort)}</select></div>`
       + `<div><button class="button" type="submit">${t("Show guilds", "Afficher les guildes")}</button></div></form>`;

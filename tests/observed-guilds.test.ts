@@ -21,3 +21,21 @@ describe("observed guilds (guilds seen only in public runs)", () => {
     expect(out).toEqual([]);
   });
 });
+
+describe("observed guild addresses and unknown realms", () => {
+  const rowOf = (guild: string, character: string, realm = "Doomhowl") => ({ guild, realm, character });
+  it("gives a stable slug that does not depend on other guilds", () => {
+    const alone = groupObservedGuilds([rowOf("Twins", "A"), rowOf("Twins", "B")], new Set())[0]!.slug;
+    const crowded = groupObservedGuilds([rowOf("Twins!", "C"), rowOf("Twins!", "D"), rowOf("Twins", "A"), rowOf("Twins", "B")], new Set()).find((g) => g.name === "Twins")!.slug;
+    expect(crowded).toBe(alone);
+    expect(alone).toMatch(/^twins-doomhowl-[0-9a-f]{6}$/);
+  });
+  it("fills an empty realm from the same character or the guild's only known realm, else keeps it apart", () => {
+    const out = groupObservedGuilds([rowOf("Les Elus", "A"), rowOf("Les Elus", "B"), rowOf("Les Elus", "A", ""), rowOf("Les Elus", "Z", ""), rowOf("Nomad", "P", ""), rowOf("Nomad", "Q", ""), rowOf("Nomad", "R", "One"), rowOf("Nomad", "S", "Two"), rowOf("Nomad", "T", "Two")], new Set());
+    const elus = out.filter((g) => g.name === "Les Elus");
+    expect(elus).toHaveLength(1);
+    expect(elus[0]!.characters.size).toBe(3); // the empty-realm rows joined the one realm the name was seen on
+    const nomadRealms = out.filter((g) => g.name === "Nomad").map((g) => g.realm).sort();
+    expect(nomadRealms).toEqual(["", "Two"]); // two realms known: the unknown one stays its own bucket
+  });
+});

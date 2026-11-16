@@ -119,30 +119,46 @@ export function unrankedReason(runs: LeaderRun[], stats: GuildPageStats): Unrank
 /** Id prefix of a guild that never installed Guilded and is listed only from public runs ("ig:<slug>"). */
 export const OBSERVED_PREFIX = "ig:";
 /** A guild seen in public runs: the name as clients spelled it, its realm and the characters (name to realm) seen in it. */
-export interface ObservedGuild { key: string; name: string; realm: string; spellings: string[]; characters: Map<string, string> }
+export interface ObservedGuild { key: string; name: string; realm: string; /** Stable address: from the folded name, the realm and a short hash of both; never depends on other guilds. */ slug: string; spellings: string[]; characters: Map<string, string> }
 /** A guild needs this many different characters before it gets a page: one client typing a name is not a guild. */
 export const MIN_OBSERVED_MEMBERS = 2;
 const foldGuild = (name: string) => name.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+/** A short stable hash (FNV-1a, 6 hex digits) so two guilds whose names slug alike never share an address. */
+const shortHash = (text: string) => { let h = 0x811c9dc5; for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16).padStart(8, "0").slice(0, 6); };
 
 /**
  * Group public run players by the in-game guild their uploader's client showed (the name text, case and accents folded, and the realm).
- * Guilds that already have a Guilded page (their slug base is in `listedBases`) and guilds with fewer than MIN_OBSERVED_MEMBERS
- * characters are left out. The most used spelling is the display name. Sorted by key so slugs come out the same every time.
+ * A row without a realm takes the realm another row of the same character has, else the only realm the same guild name was seen on;
+ * what is still unknown stays in its own bucket (never merged into a realm). Guilds that already have a Guilded page (their slug base is
+ * in `listedBases`) and guilds with fewer than MIN_OBSERVED_MEMBERS characters are left out. The most used spelling is the display name.
+ * Sorted by key. The slug is derived from the key alone, so it never moves when another guild appears.
  */
 export function groupObservedGuilds(rows: { guild: string | null; realm: string; character: string }[], listedBases: ReadonlySet<string>): ObservedGuild[] {
+  const realmOfCharacter = new Map<string, string>();
+  const realmsOfGuild = new Map<string, Set<string>>();
+  for (const row of rows) {
+    if (!row.realm) continue;
+    realmOfCharacter.set(row.character.toLowerCase(), row.realm);
+    const name = foldGuild(row.guild ?? "");
+    if (name) realmsOfGuild.set(name, (realmsOfGuild.get(name) ?? new Set()).add(row.realm));
+  }
   const groups = new Map<string, { realm: string; spellings: Map<string, number>; characters: Map<string, string> }>();
   for (const row of rows) {
     const name = row.guild?.trim();
     if (!name) continue;
-    const key = `${foldGuild(name)}|${row.realm.toLowerCase()}`;
-    const group = groups.get(key) ?? { realm: row.realm, spellings: new Map(), characters: new Map() };
+    const only = realmsOfGuild.get(foldGuild(name));
+    const realm = row.realm || realmOfCharacter.get(row.character.toLowerCase()) || (only?.size === 1 ? [...only][0]! : "");
+    const key = `${foldGuild(name)}|${realm.toLowerCase()}`;
+    const group = groups.get(key) ?? { realm, spellings: new Map(), characters: new Map() };
     group.spellings.set(name, (group.spellings.get(name) ?? 0) + 1);
-    group.characters.set(row.character, row.realm);
+    group.characters.set(row.character, realm);
     groups.set(key, group);
   }
   return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0])).flatMap(([key, group]) => {
     const name = [...group.spellings.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]![0];
     if (group.characters.size < MIN_OBSERVED_MEMBERS || listedBases.has(slugBase(name, key))) return [];
-    return [{ key, name, realm: group.realm, spellings: [...group.spellings.keys()], characters: group.characters }];
+    const [folded = "", realm = ""] = key.split("|");
+    const slug = `${slugBase(`${folded} ${realm}`.trim(), key).slice(0, 30).replace(/-+$/, "")}-${shortHash(key)}`;
+    return [{ key, name, realm: group.realm, slug, spellings: [...group.spellings.keys()], characters: group.characters }];
   });
 }

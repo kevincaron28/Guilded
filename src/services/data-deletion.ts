@@ -17,6 +17,45 @@ export const DELETE_CONFIRM_WORD = "DELETE";
 
 export interface DeletionSummary { members: number; characters: number; account: boolean }
 
+/** The placeholder a deleted player's name becomes in a public run (unique per row, so the run keeps its party size). */
+export const DELETED_PLAYER_PREFIX = "deleted-player-";
+
+const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+/** Replaces every string equal to one of `names` (any case) inside saved evidence JSON; keys are never touched. */
+export function scrubNames<T>(value: T, names: readonly string[], placeholder: string): T {
+  const walk = (node: unknown): unknown => typeof node === "string" ? (names.some(name => sameName(node, name)) ? placeholder : node)
+    : Array.isArray(node) ? node.map(walk)
+    : node && typeof node === "object" ? Object.fromEntries(Object.entries(node).map(([key, inner]) => [key, walk(inner)])) : node;
+  return walk(value) as T;
+}
+
+type PublicRunTx = Pick<PrismaClient, "publicRunPlayer" | "publicRun" | "publicRunUpload">;
+/**
+ * The member's characters leave the public runs: each public run player row with one of their names (and the realm, or none stored)
+ * becomes "deleted-player-<row id>" with no display name and no guild; the same names are replaced inside that run's saved evidence
+ * and its uploads' reporters. The row, class, role and level stay, so the run itself and its party size are unchanged.
+ * Older uploads that stored only a first name are not matched (they cannot be told apart from another player's).
+ */
+export async function anonymisePublicRuns(tx: PublicRunTx, characters: { name: string; realm: string | null }[]): Promise<number> {
+  const names = [...new Set(characters.map(row => row.name.trim()).filter(Boolean))];
+  if (!names.length) return 0;
+  const rows = await tx.publicRunPlayer.findMany({ where: { OR: names.map(name => ({ character: { equals: name, mode: "insensitive" as const } })) }, select: { id: true, runId: true, character: true, realm: true }, take: 50_000 });
+  const mine = rows.filter(row => characters.some(own => sameName(own.name, row.character) && (!row.realm || !own.realm || sameName(own.realm, row.realm))));
+  for (const row of mine) await tx.publicRunPlayer.update({ where: { id: row.id }, data: { character: `${DELETED_PLAYER_PREFIX}${row.id}`, displayName: null, guild: null } });
+  const placeholder = (character: string) => `${DELETED_PLAYER_PREFIX}${mine.find(row => sameName(row.character, character))?.id ?? "x"}`;
+  for (const runId of new Set(mine.map(row => row.runId))) {
+    const own = mine.filter(row => row.runId === runId);
+    const used = own.map(row => row.character);
+    const run = await tx.publicRun.findUnique({ where: { id: runId }, select: { integrity: true } });
+    const swap = <T>(value: T): T => used.reduce((current, name) => scrubNames(current, [name], placeholder(name)), value);
+    if (run?.integrity) await tx.publicRun.update({ where: { id: runId }, data: { integrity: swap(run.integrity) as never } });
+    for (const upload of await tx.publicRunUpload.findMany({ where: { runId }, select: { id: true, reporters: true, evidence: true } })) {
+      await tx.publicRunUpload.update({ where: { id: upload.id }, data: { reporters: upload.reporters.map(name => used.some(u => sameName(u, name)) ? placeholder(name) : name), ...(upload.evidence ? { evidence: swap(upload.evidence) as never } : {}) } });
+    }
+  }
+  return mine.length;
+}
+
 export async function deleteMyData(database: PrismaClient, discordUserId: string): Promise<DeletionSummary> {
   if (!/^\d{5,25}$/.test(discordUserId)) throw new Error("A Discord user id is required.");
   return database.$transaction(async tx => {
@@ -48,6 +87,9 @@ export async function deleteMyData(database: PrismaClient, discordUserId: string
     await tx.mobileDelivery.deleteMany({ where: { device: { credential: own } } });
     await tx.mobileDevice.deleteMany({ where: { credential: own } });
     await tx.companionCredential.deleteMany({ where: own });
+    // Their characters leave the public dungeon runs (and so the guild pages built from them) before the rows that name them are deleted.
+    const named = await tx.character.findMany({ where: { OR: [own, { detachedFromMemberId: { in: memberIds }, detachedAt: { not: null } }] }, select: { name: true, realm: true } });
+    await anonymisePublicRuns(tx, named);
     const characters = await tx.character.deleteMany({ where: own });
     // Characters this member unlinked are kept under the holding member (character-move.ts): theirs to delete too.
     await tx.character.deleteMany({ where: { detachedFromMemberId: { in: memberIds }, detachedAt: { not: null } } });

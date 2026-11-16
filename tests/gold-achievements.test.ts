@@ -48,6 +48,18 @@ describe("gold achievements", () => {
     expect(milestones[0]).toMatchObject({ kind: "gold", ref: "gold:2", value: 2 });
   });
 
+  it("drops an unknown kind row by row: a future companion's new kind loses only that row", async () => {
+    const milestones: Record<string, unknown>[] = [];
+    const tx = { memberMilestone: { createMany: async ({ data }: { data: Record<string, unknown>[] }) => { milestones.push(...data); return { count: data.length }; } } };
+    const result = await importMilestones(tx as never, "g", "forever", "m1", [{ name: "Kev" }], [{ ...row, kind: "sale", ref: "sale:1", value: 1 }, row, { nonsense: true }], new Date("2028-01-01T00:00:00Z"));
+    expect(result).toEqual({ recorded: 1, rejected: 2 });
+  });
+
+  it("the companion export drops a gold row that is not a tier 1-4 with a matching ref", () => {
+    const log = [{ kind: "gold", ref: "gold:2", value: 2, at: 1800000000 }, { kind: "gold", ref: "gold:50000", value: 50000, at: 1800000000 }, { kind: "gold", ref: "gold:1", value: 3, at: 1800000000 }, { kind: "gold", ref: "gold:0", value: 0, at: 1800000000 }];
+    expect(exportMilestones({ milestones: { chars: { "Kev-R": { name: "Kev", realm: "R", log } } } })).toHaveLength(1);
+  });
+
   it("shows no amount of the member's own on any evaluated row", () => {
     const text = JSON.stringify(evaluateAchievements({ ...emptyFacts(), goldTier: 4 }, now).filter(result => result.def.metric === "goldTier"));
     expect(text).not.toMatch(/copper|amount/i);

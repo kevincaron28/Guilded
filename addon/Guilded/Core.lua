@@ -1781,7 +1781,9 @@ local function runAuctionProbe()
   end
   -- An event the client does not know makes RegisterEvent fail: that is the answer.
   if CreateFrame then
-    local okFrame, frame = pcall(CreateFrame, "Frame")
+    -- One frame, kept: frames cannot be deleted, so a probe run must not make a new one each time.
+    local okFrame, frame = true, ns.auctionProbeFrame
+    if not frame then okFrame, frame = pcall(CreateFrame, "Frame"); if okFrame then ns.auctionProbeFrame = frame end end
     if okFrame and type(frame) == "table" then
       for _, event in ipairs({ "CHAT_MSG_SYSTEM", "AUCTION_OWNED_LIST_UPDATE", "MAIL_INBOX_UPDATE", "PLAYER_MONEY", "AUCTION_HOUSE_SHOW", "AUCTION_HOUSE_AUCTION_CREATED" }) do
         local ok = pcall(frame.RegisterEvent, frame, event)

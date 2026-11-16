@@ -8,6 +8,9 @@
 --   secret  secret achievements (Modules/SecretAchievements.lua; first: killed by the Son of Arugal), announced like the others
 --   gold    gold held on this character, as a TIER (1-4 = 100, 500, 1,000, 5,000 gold); only the tier is recorded, never the amount.
 --           Checked at login and (debounced, never in combat) on PLAYER_MONEY. Announced only when the member turns `gold` on (OFF by default).
+--   auction auction house tiers (9.4): sales sold (1, 100, 1,000; counted from the "A buyer has been found" system line, from install on) and
+--           profit (statistic 919, gold earned from auctions: 100, 1,000, 10,000 gold). Only the tier 1-3 is recorded (ref `auction:sold-<tier>`
+--           / `auction:profit-<tier>`), never a count or an amount. OFF by default like gold (`/guilded announce auction on`).
 --   ach     every WoW Forever in-game achievement (Modules/GameAchievements.lua records them here; the newest is announced)
 --
 -- ON by default for every character (owner decision, 5 Nov 2026): the first time a line is about to go out, a one-time
@@ -30,11 +33,17 @@ local THROTTLE = 30
 local RETRY_COMBAT = 15
 local MAX_TRIES = 4
 local MAX_LOG = 200
-local KINDS = { "level", "dungeon", "hk", "duel", "prof", "ach", "secret", "gold" }
+local KINDS = { "level", "dungeon", "hk", "duel", "prof", "ach", "secret", "gold", "auction" }
 -- Gold held per tier (the bot owns the same list in achievements-catalogue.ts); the value that travels is the tier number 1-4.
 local GOLD_STEPS = { 100, 500, 1000, 5000 }
 local GOLD_NAMES = { "Pocket Change", "Coin Collector", "Thousandaire", "Gold Goblin" }
 local GOLD_DEBOUNCE = 5
+local GOLD_STAT = 334 -- "Most gold ever owned" (WoW Forever statistics), so a character that once held the gold still earns the tier
+local AUCTION_PROFIT_STAT = 919 -- "Gold earned from auctions"
+local SOLD_STEPS = { 1, 100, 1000 }
+local SOLD_NAMES = { "First Sale", "Market Regular", "Auction Baron" }
+local PROFIT_STEPS = { 100, 1000, 10000 } -- gold
+local PROFIT_NAMES = { "Profit Margin I", "Profit Margin II", "Profit Margin III" }
 local HK_STEPS = { 1, 100, 500, 1000 }
 local DUEL_STEPS = { 1, 10, 50, 100 }
 local PROF_STEPS = { 75, 150, 225, 300 }
@@ -80,7 +89,7 @@ local function current()
 end
 -- A type is on unless the member turned it off; gold is the exception: it is OFF until the member turns it on.
 local function kindOn(c, kind)
-  if kind == "gold" then return c.settings.gold == true end
+  if kind == "gold" or kind == "auction" then return c.settings[kind] == true end
   return c.settings[kind] ~= false
 end
 function ms.enabled(kind)
@@ -124,6 +133,8 @@ local function messageFor(item, name)
     return string.format(L("%s reached skill %d in %s!"), name, item.value, item.label or "?")
   elseif item.kind == "gold" then
     return string.format(L("%s reached the gold milestone: %s!"), name, L(item.label or "?"))
+  elseif item.kind == "auction" then
+    return string.format(L("%s reached the auction house milestone: %s!"), name, L(item.label or "?"))
   elseif item.kind == "ach" then
     return string.format(L("%s earned the achievement %s!"), name, item.label or "?")
   elseif item.kind == "secret" then
@@ -233,14 +244,121 @@ function ms.goldTier(copper)
   for i, need in ipairs(GOLD_STEPS) do if gold >= need then tier = i end end
   return tier
 end
+-- A money value from GetStatistic as copper, or nil. The client gives a string such as "12g 34s 56c", "12 <gold icon> 34 <silver icon>",
+-- a localized "12 po 34 pa", a plain number, or "--" when it has nothing; every shape is read the same way, anything else is nil.
+function ms.parseMoney(value)
+  if type(value) == "number" then
+    if value ~= value or value < 0 then return nil end
+    return math.floor(value)
+  end
+  if type(value) ~= "string" then return nil end
+  local text = value:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+  if not text:find("%d") then return nil end
+  local total, pos, any = 0, 1, false
+  while true do
+    local s1, e1, num = text:find("(%d[%d,%.%s\194\160]*)", pos)
+    if not s1 then break end
+    local digits = num:gsub("%D", "")
+    local amount = tonumber(digits)
+    local rest = text:sub(e1 + 1)
+    local unit, used
+    local iconText = rest:match("^|T[^|]*|t")
+    if iconText then
+      local icon = iconText:lower()
+      unit = icon:find("gold", 1, true) and "g" or icon:find("silver", 1, true) and "s" or icon:find("copper", 1, true) and "c" or nil
+      used = #iconText
+    else
+      local word = rest:match("^%s*(%a+)")
+      if word then
+        word = word:lower()
+        unit = (word:sub(1, 1) == "g" or word:sub(1, 2) == "po" or word == "or") and "g"
+          or (word:sub(1, 1) == "s" or word:sub(1, 2) == "pa" or word:sub(1, 2) == "ar") and "s"
+          or (word:sub(1, 1) == "c" or word:sub(1, 2) == "pc" or word:sub(1, 2) == "cu") and "c" or nil
+        used = unit and #rest:match("^%s*%a+") or 0
+      end
+    end
+    if amount then
+      any = true
+      total = total + amount * (unit == "g" and 10000 or unit == "s" and 100 or 1)
+    end
+    pos = e1 + 1 + (used or 0)
+  end
+  return any and total or nil
+end
+
+-- Gold held: what the purse holds now, or the most gold this character ever owned (statistic 334), whichever is more.
+local function heldCopper()
+  local now = tonumber(safe(GetMoney)) or 0
+  local ever = ms.parseMoney(safe(GetStatistic, GOLD_STAT)) or 0
+  return math.max(now, ever)
+end
 -- Records the tiers this character's purse reached. Never in combat (unless `force`, the silent baseline); the amount is not kept.
-function ms.checkGold(force)
+-- `silent` records without ever announcing (the one-time catch-up for characters that predate the statistic).
+function ms.checkGold(force, silent)
   if not force and inCombat() then return false end
-  local tier = ms.goldTier(safe(GetMoney))
+  local tier = ms.goldTier(heldCopper())
   if tier < 1 then return false end
-  reachSteps("gold", { 1, 2, 3, 4 }, tier, function(step) return { kind = "gold", value = step, label = GOLD_NAMES[step] }, "gold:" .. step end)
+  reachSteps("gold", { 1, 2, 3, 4 }, tier, function(step)
+    local item = { kind = "gold", value = step, label = GOLD_NAMES[step] }
+    if silent then item.announce = false end
+    return item, "gold:" .. step
+  end)
   return true
 end
+
+-- ----- auction house (9.4) ---------------------------------------------
+
+-- The pattern for the client's own "sold" system line (ERR_AUCTION_SOLD_S), whatever the game language: magic characters escaped, %s = anything.
+function ms.soldPattern(template)
+  if template == nil then template = ERR_AUCTION_SOLD_S end
+  if type(template) ~= "string" or template == "" then return nil end
+  local escaped = template:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0"):gsub("%%%%1%%%$s", ".+"):gsub("%%%%s", ".+")
+  return "^" .. escaped .. "$"
+end
+function ms.isSoldLine(text)
+  if type(text) ~= "string" or (ns.isSecret and ns.isSecret(text)) then return false end
+  local pattern = ms.soldPattern()
+  return pattern ~= nil and text:find(pattern) ~= nil
+end
+local function tierOf(value, steps)
+  local tier = 0
+  for i, need in ipairs(steps) do if value >= need then tier = i end end
+  return tier
+end
+function ms.soldTier(count) count = tonumber(count); return (count and count == count) and tierOf(count, SOLD_STEPS) or 0 end
+function ms.profitTier(copper) copper = tonumber(copper); return (copper and copper == copper and copper >= 0) and tierOf(math.floor(copper / 10000), PROFIT_STEPS) or 0 end
+
+local function reachAuction(sub, tier, names, silent)
+  local new = {}
+  for step = 1, tier do
+    local c = current()
+    if c and not c.done["auction:" .. sub .. "-" .. step] then new[#new + 1] = step end
+  end
+  for i, step in ipairs(new) do
+    local id = "auction:" .. sub .. "-" .. step
+    ms.reach(id, id, { kind = "auction", value = step, label = names[step] }, silent or i < #new)
+  end
+end
+-- Records the sales and profit tiers. The sale count lives on this character's record and never leaves it; only tiers do.
+function ms.checkAuction(force, silent)
+  if not force and inCombat() then return false end
+  local c = current()
+  if not c then return false end
+  c.auctionSold = tonumber(c.auctionSold) or 0 -- past sales before install cannot be known: the count starts at 0
+  reachAuction("sold", ms.soldTier(c.auctionSold), SOLD_NAMES, silent)
+  reachAuction("profit", ms.profitTier(ms.parseMoney(safe(GetStatistic, AUCTION_PROFIT_STAT))), PROFIT_NAMES, silent)
+  return true
+end
+-- CHAT_MSG_SYSTEM: one more sale when the line is the client's "buyer found" text. Counting is just a number, so it also works mid-fight;
+-- the tier check waits for the fight to end.
+function ms.onSystemMessage(text)
+  local c = current()
+  if not c or not c.baselined or not ms.isSoldLine(text) then return false end
+  c.auctionSold = (tonumber(c.auctionSold) or 0) + 1
+  ms.scheduleGold()
+  return true
+end
+
 -- PLAYER_MONEY fires on every coin: look once, a few seconds after the last change, and wait out a fight.
 local goldTimer = false
 function ms.scheduleGold(delay)
@@ -252,6 +370,7 @@ function ms.scheduleGold(delay)
     if not c or not c.baselined or not active() then return end
     if inCombat() then ms.scheduleGold(RETRY_COMBAT); return end
     pcall(ms.checkGold)
+    pcall(ms.checkAuction)
   end)
 end
 
@@ -314,6 +433,8 @@ local function baseline()
   ms.checkHonorableKills()
   ms.checkProfessions()
   ms.checkGold(true)
+  ms.checkAuction(true, true)
+  c.statsBaselined = true
   local d = ns.getDb and ns.getDb()
   for _, run in pairs(d and d.dungeon and d.dungeon.runs or {}) do
     if type(run) == "table" and run.state == "COMPLETED" and type(run.instanceId) == "number" and type(run.players) == "table" and run.players[c.name] then
@@ -370,6 +491,7 @@ local function status()
     stateWord(c.settings.hk ~= false), stateWord(c.settings.duel ~= false), stateWord(c.settings.prof ~= false)))
   ns.message(string.format(L("Achievements in guild chat: %s."), stateWord(c.settings.ach ~= false)))
   ns.message(string.format(L("Gold milestones in guild chat: %s."), stateWord(c.settings.gold == true)))
+  ns.message(string.format(L("Auction house milestones in guild chat: %s."), stateWord(c.settings.auction == true)))
   if ms.guildOff() then ns.message(L("Milestone announcements are turned off for the whole guild by an officer.")) end
 end
 local function handle(args)
@@ -388,7 +510,7 @@ local function handle(args)
       if a == kind and (b == "on" or b == "off") then ms.setEnabled(b == "on", kind); status(); return end
     end
     status()
-    ns.message("/guilded announce on | off | level|dungeon|hk|duel|prof|ach|secret|gold on|off | guild on|off (officers)")
+    ns.message("/guilded announce on | off | level|dungeon|hk|duel|prof|ach|secret|gold|auction on|off | guild on|off (officers)")
   end
 end
 ns.commandHandlers = ns.commandHandlers or {}
@@ -408,7 +530,7 @@ ns.onDungeonRunFinished = function(run)
 end
 
 local frame = CreateFrame("Frame")
-local events = { "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "PLAYER_LEVEL_UP", "PLAYER_PVP_KILLS_CHANGED", "CHAT_MSG_COMBAT_HONOR_GAIN", "SKILL_LINES_CHANGED", "CHAT_MSG_SKILL", "PLAYER_MONEY", "CHAT_MSG_ADDON" }
+local events = { "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "PLAYER_LEVEL_UP", "PLAYER_PVP_KILLS_CHANGED", "CHAT_MSG_COMBAT_HONOR_GAIN", "SKILL_LINES_CHANGED", "CHAT_MSG_SKILL", "PLAYER_MONEY", "MAIL_INBOX_UPDATE", "CHAT_MSG_SYSTEM", "CHAT_MSG_ADDON" }
 for _, event in ipairs(events) do pcall(frame.RegisterEvent, frame, event) end
 frame:SetScript("OnEvent", function(_, event, a, b, c, d)
   local ok, err = pcall(function()
@@ -417,6 +539,13 @@ frame:SetScript("OnEvent", function(_, event, a, b, c, d)
       ns.comm.register(PREFIX)
     elseif event == "PLAYER_ENTERING_WORLD" then
       baseline()
+      -- A character from before 9.4 gets the new statistics read once, silently, so nothing old is announced.
+      local cur = current()
+      if cur and cur.baselined and not cur.statsBaselined then
+        cur.statsBaselined = true
+        pcall(ms.checkGold, true, true)
+        pcall(ms.checkAuction, true, true)
+      end
       ms.checkHonorableKills()
       ms.scheduleGold()
       -- An officer's guild-wide switch is repeated at login so members who were offline get it too.
@@ -428,8 +557,10 @@ frame:SetScript("OnEvent", function(_, event, a, b, c, d)
       baseline(); ms.checkLevel(a)
     elseif event == "PLAYER_PVP_KILLS_CHANGED" or event == "CHAT_MSG_COMBAT_HONOR_GAIN" then
       ms.checkHonorableKills()
-    elseif event == "PLAYER_MONEY" then
+    elseif event == "PLAYER_MONEY" or event == "MAIL_INBOX_UPDATE" then
       ms.onMoney()
+    elseif event == "CHAT_MSG_SYSTEM" then
+      ms.onSystemMessage(a)
     elseif event == "SKILL_LINES_CHANGED" or event == "CHAT_MSG_SKILL" then
       if current() and current().baselined then ms.checkProfessions() end
     elseif event == "CHAT_MSG_ADDON" and ns.comm.accept(a, b, c, d, PREFIX, function(sender) return ns.isGuildMember and ns.isGuildMember(sender) end) and c == "GUILD" then

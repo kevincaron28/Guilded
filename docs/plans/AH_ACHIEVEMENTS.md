@@ -1,53 +1,50 @@
-# Auction House achievements (planned, waiting for the in-game probe)
+# Auction House achievements (built, 16 November 2026)
 
-Owner decision, 16 November 2026: Auction House achievements are sales and profit, with no "Flipper". They are **not built yet**:
-the catalogue has no rows for them (the catalogue has no inactive or hidden-until-enabled flag, and a row nobody can earn would
-show as locked on every card and web page). Build them only after the probe below confirms the client exposes what they need.
+Owner decision, 16 November 2026: Auction House achievements are **sales and profit, no "Flipper"**. Only a **tier** ever travels to
+the bot, never a count of sales or an amount of gold (same privacy rule as the gold-held achievements, #1027).
 
-## Planned rows (ids stable once added; English / French)
+## What the real client probe found (WoW Forever, build 16001, English client, 16 November 2026)
 
-| Id (proposed)    | Name / Nom                                | Rule                                  | Tier suggestion |
-| ---------------- | ----------------------------------------- | ------------------------------------- | --------------- |
-| `ah-sold-1`      | First Sale / Première vente               | 1 auction sold                        | bronze          |
-| `ah-sold-100`    | Market Regular / Habitué du marché        | 100 auctions sold                     | silver          |
-| `ah-sold-1000`   | Auction Baron / Baron des enchères        | 1,000 auctions sold                   | epic            |
-| `ah-profit-*`    | Profit Margin / Marge bénéficiaire        | profit tiers (thresholds to decide)   | bronze to epic  |
+- `GetStatistic` and `GetStatisticsCategoryList` exist. Money statistics (all "value"): 328 Total gold acquired, 333 Gold looted,
+  326 Gold from quest rewards, **919 Gold earned from auctions**, 329 Auctions posted, 330 Auction purchases, 331 Most expensive bid
+  on auction, 332 Most expensive auction sold, 921 Gold from vendors, **334 Most gold ever owned**.
+- There is **no "auctions sold" statistic**, so sales before install cannot be known: the sold count starts at 0, silently.
+- Events: `CHAT_MSG_SYSTEM`, `MAIL_INBOX_UPDATE`, `AUCTION_HOUSE_SHOW`, `AUCTION_HOUSE_AUCTION_CREATED` and `PLAYER_MONEY` exist;
+  `AUCTION_OWNED_LIST_UPDATE` does not. `GetAuctionItemInfo` / `GetNumAuctionItems` do not exist (the client uses the modern
+  `C_AuctionHouse`), so the old owned-list approach is not available. `GetInboxInvoiceInfo` exists but is not needed.
+- The global `ERR_AUCTION_SOLD_S` ("A buyer has been found for your auction of %s.") exists and is localised per client.
 
-Same privacy rule as the gold achievements: only a **tier or a count of sales** may travel to the bot, never a gold amount. Profit tiers
-would be computed on the client and reported as a tier number (like `gold:<tier>`), never as copper.
+## What shipped
 
-## What `/guilded probe auctions` checks (built in this change)
+Per character, tiers only (`addon/Guilded/Modules/Milestones.lua`, kind `auction`):
 
-Read-only; it prints one chat line and saves `probes.auctions` in the saved variables (dropped at the next login, like `probes.maps`;
-the companion does not upload probes, so read the saved file after `/reload`). It stores shapes and yes/no answers only: no amounts,
-item names or player names.
+| Ladder | Rule | Tiers (names EN / FR) |
+| --- | --- | --- |
+| Auctions sold (`auction:sold-<tier>`) | counted from the system line matching `ERR_AUCTION_SOLD_S`, from install on | 1 First Sale / Première vente (1), 2 Market Regular / Habitué du marché (100), 3 Auction Baron / Baron des enchères (1,000) |
+| Auction profit (`auction:profit-<tier>`) | statistic 919 "Gold earned from auctions" | 1 Profit Margin I (100 g), 2 Profit Margin II (1,000 g), 3 Profit Margin III (10,000 g) / Marge bénéficiaire I-III |
 
-1. **Functions exist:** `GetInboxNumItems`, `GetInboxHeaderInfo`, `GetInboxInvoiceInfo`, `GetNumAuctionItems`, `GetAuctionItemInfo`,
-   `GetStatistic`, `GetStatisticsCategoryList`, `GetMoney`, and whether `C_AuctionHouse` exists (the retail-style API).
-2. **Inbox:** how many values `GetInboxHeaderInfo` and `GetInboxInvoiceInfo` return and their types, which invoice types appear
-   (`seller` / `buyer`), and how many subjects match `AUCTION_SOLD_MAIL_SUBJECT`. Needs at least one auction mail in the box to be conclusive.
-3. **Chat line:** the value of `ERR_AUCTION_SOLD_S` (and the won / expired strings) and whether `CHAT_MSG_SYSTEM` can be registered.
-4. **Owned list:** whether `AUCTION_OWNED_LIST_UPDATE` registers and whether `GetAuctionItemInfo("owner", i)` returns a numeric
-   `saleStatus` (the 16th return of the API). Needs the auction house window
-   open; the command says so when it is closed.
-5. **Statistics:** any statistic whose name mentions gold, auction, coin or sold, with its id and whether the client has a value
-   ("value" or "none"). A "gold gained from auctions" style statistic would give a lifetime total without watching mail.
+- **Sold line:** the pattern is built from the client's own global (magic characters escaped, `%s` and `%1$s` become `.+`), so it works in
+  every client language. The running count lives on the character's record in the saved variables (`auctionSold`) and is never uploaded.
+  Counting starts at the character's first run of the module (silent baseline); a sale mid-fight is still counted, the tier check waits.
+- **Statistic parsing (`ms.parseMoney`):** accepts a number, `12g 34s 56c`, thousands separators (`,` `.` space, no-break space), colour codes,
+  gold/silver/copper icon textures, localised units (`po` / `pa` / `pc`), or a plain digit string (read as copper). `--`, empty, nil, negative or
+  anything unreadable gives nothing.
+- **When it looks:** at login and (debounced 5 s, never in combat) on `PLAYER_MONEY`, `MAIL_INBOX_UPDATE` and each counted sold line.
+- **Gold held (#1027) improved:** the tier now comes from `max(GetMoney(), statistic 334)`, so a character that once held the gold earns the
+  tier. Same kind (`gold`), same ids.
+- **Existing characters:** a character baselined by an older addon gets the new statistics read once, silently (`statsBaselined`), so nothing old is announced.
+- **Announcements:** follow the gold kind: **OFF by default**, `/guilded announce auction on|off` (shown in `/guilded announce`), the member's
+  master switch and an officer's guild-wide switch still win. Only the newest tier of a jump is said, once.
+- **Bot / companion:** milestone kind `auction` is accepted by `milestoneSchema`, `importMilestones` and the companion's `exportMilestones`, row by row
+  (value 1-3 and the ref must be `auction:sold-<value>` or `auction:profit-<value>`; anything else is dropped). The ref uses `-` before the tier
+  (not a second `:`) because the shared ref pattern `^[a-z]{2,10}:[A-Za-z0-9_-]{1,30}$` allows one colon, and that pattern is part of the wire shape.
+  Facts `auctionSoldTier` / `auctionProfitTier` (max tier reported by any character), six catalogue rows (`auction-sold-1..3`, `auction-profit-1..3`,
+  English and French), glyphs `gavel` and `chart`, family `guild` (the painted family emblem is used until dedicated art exists).
+- Tests: `tests/lua/auction-milestones.test.ts`, `tests/auction-achievements.test.ts`.
 
-## What the probe must confirm before building
+## Still owed
 
-- **Sales counting without double counting:** either the sold chat line (`ERR_AUCTION_SOLD_S`) is delivered and unique per sale, or the
-  inbox sold mails (header subject + invoice type `seller`) can be counted once per mail (mails are deleted or expire, so a running total
-  has to be kept in saved variables with a de-duplication key such as the invoice's item and a timestamp bucket).
-- **Profit:** the invoice returns the sale price, deposit and consignment (so profit = sale - deposit - consignment is knowable), or a
-  statistic gives a lifetime figure. If neither exists, profit tiers are dropped.
-- **Lifetime history:** whether a statistic gives a lifetime sold count so a first run can record silently what already happened
-  (like the other milestones); without it, counts start from install.
-- **Classic vs retail API:** if only `C_AuctionHouse` exists (no `GetAuctionItemInfo`), the owned-list approach changes.
-
-## Build plan once confirmed
-
-1. Addon: a `sale` milestone kind in `Modules/Milestones.lua` (value = count or tier), recorded outside combat, silent first run,
-   announcements OFF by default (like `gold`), `/guilded announce sale on|off`.
-2. Bot: add `"sale"` to `milestoneSchema` and the companion export, a metric (`auctionsSold`, max value), rows in
-   `src/services/achievements-catalogue.ts` with the names above, and a badge glyph.
-3. Tests mirroring `tests/lua/gold-milestones.test.ts` and `tests/gold-achievements.test.ts`.
+- A real-client check that a real sale increments the count and that statistic 919 / 334 read as expected in the player's language
+  (the probe only confirmed they exist). Run `/guilded probe auctions` after a sale if a shape differs.
+- Dedicated painted emblems for the two ladders (they use the guild family emblem), and a settings checkbox next to "Gold milestones" if wanted
+  (the command switch exists).

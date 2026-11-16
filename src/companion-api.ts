@@ -112,6 +112,7 @@ import { inviteListForAddon, pendingInvites } from "./services/invite-queue.js";
 import { applyInviteReports, parseInviteReports } from "./services/invite-expiry.js";
 import { backCheckInvites, completeInvitesFromRoster } from "./services/invite-channel.js";
 import { prelinkInvitedCharacters, tellPrelinked } from "./services/invite-prelink.js";
+import { MIN_PROTOCOL, PROTOCOL_VERSION, clientVersionSummary, compatFields, noteClientVersion } from "./compat.js";
 import { COMPANION_FEATURES, markGuildChanged, standingsFeed, type FeedParts } from "./services/standings-feed.js";
 import { commandRegistration } from "./services/command-registration.js";
 import { deriveSealKey } from "./services/run-challenge.js";
@@ -790,13 +791,17 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
   const autoApplyImport = (input: Omit<AutoApplyInput, "client">) => autoApplyImportWith({ ...input, client });
   const retryApplyLater = (input: Omit<Parameters<typeof retryApplyLaterWith>[0], "client">) => retryApplyLaterWith({ ...input, client });
   const site = createSiteApp(client);
+  // One compact line an hour: which companion versions called (in memory, nothing stored).
+  setInterval(() => { const line = clientVersionSummary(true); if (line) console.log(`Companion versions in the last hour: ${line}`); }, 3_600_000).unref();
   const server = createServer(async (request, response) => {
     const requestStartedAt = Date.now();
     try {
       response.setHeader("cache-control", "no-store");
       response.setHeader("x-content-type-options", "nosniff");
+      // Compatibility (docs/COMPAT_POLICY.md): count which companion versions are calling; old companions send none.
+      const clientVersion = noteClientVersion(request.headers["x-companion-version"]);
       if (request.method === "GET" && request.url === "/health") {
-        json(response, client?.isReady() ? 200 : 503, { ok: client?.isReady() ?? false, botVersion: BOT_VERSION, protocolVersion: 2, features: COMPANION_FEATURES, commands: commandRegistration.state() });
+        json(response, client?.isReady() ? 200 : 503, { ok: client?.isReady() ?? false, botVersion: BOT_VERSION, protocolVersion: PROTOCOL_VERSION, ...compatFields(clientVersion), features: COMPANION_FEATURES, commands: commandRegistration.state() });
         return;
       }
       const url = new URL(request.url ?? "/", "http://localhost");
@@ -1353,7 +1358,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const waitMs = Math.max(0, Math.min(15, Number(url.searchParams.get("wait")) || 0)) * 1000;
         const answer = await standingsFeed.get({
           guildId: guild.id, memberKey: `${access.memberId}:${access.actorId}:${access.officer ? 1 : 0}`, ifNoneMatch, waitMs,
-          header: { protocolVersion: 2, botVersion: BOT_VERSION, features: COMPANION_FEATURES, gameEdition: guild.gameEdition, wowGuildId: guild.id, wowGuildName: guild.name },
+          header: { protocolVersion: PROTOCOL_VERSION, ...compatFields(null), botVersion: BOT_VERSION, features: COMPANION_FEATURES, gameEdition: guild.gameEdition, wowGuildId: guild.id, wowGuildName: guild.name },
           compose: () => standingsParts(guild, access, client)
         });
         response.setHeader("etag", answer.etag);
@@ -1399,7 +1404,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // Officers stay exempt (their server may not list every guild an alt is in). The companion shows the warning.
       const guildCheck = await timed("guild-check", () => serverKnowsWowGuild(prisma, guild, preview.snapshot.wowGuild)).catch(() => undefined);
       if (guildCheck?.known === false && !access.officer) {
-        json(response, 200, { skipped: "wrong-server", ...carriedExtra, serverWowGuild: guildCheck, status: "SKIPPED", pairedCharacterStatus: "wrong-server", checksum: preview.checksum, scope: "personal", botVersion: BOT_VERSION, protocolVersion: 2 });
+        json(response, 200, { skipped: "wrong-server", ...carriedExtra, serverWowGuild: guildCheck, status: "SKIPPED", pairedCharacterStatus: "wrong-server", checksum: preview.checksum, scope: "personal", botVersion: BOT_VERSION, protocolVersion: PROTOCOL_VERSION, minProtocol: MIN_PROTOCOL });
         return;
       }
       const uploadStartedAt = new Date();
@@ -1639,7 +1644,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // "Received, being applied": the upload is stored; the companion shows it as sent and does not send the same file again.
       const applyingAnswer = (status: number, importId: string) => json(response, status, {
         applying: true, ...carriedExtra, importId, checksum: preview.checksum, source: preview.snapshot.source, transactionCount: preview.transactionCount, pairedCharacterStatus,
-        ...(guildCheck ? { serverWowGuild: guildCheck } : {}), status: "PREVIEWED", scope: access.officer ? "officer" : "personal", botVersion: BOT_VERSION, protocolVersion: 2
+        ...(guildCheck ? { serverWowGuild: guildCheck } : {}), status: "PREVIEWED", scope: access.officer ? "officer" : "personal", botVersion: BOT_VERSION, protocolVersion: PROTOCOL_VERSION, minProtocol: MIN_PROTOCOL
       });
       if (preview.duplicate) {
         const existing = preview.existingImport;
@@ -1659,20 +1664,20 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           if (!answer.outcome.ok) {
             const applyError = failApply(answer.outcome, job);
             if (applyError) {
-              json(response, 409, { error: "This export was already received", ...carriedExtra, checksum: preview.checksum, pairedCharacterStatus, importId: existing.id, status: "PREVIEWED", applyError, botVersion: BOT_VERSION, protocolVersion: 2 });
+              json(response, 409, { error: "This export was already received", ...carriedExtra, checksum: preview.checksum, pairedCharacterStatus, importId: existing.id, status: "PREVIEWED", applyError, botVersion: BOT_VERSION, protocolVersion: PROTOCOL_VERSION, minProtocol: MIN_PROTOCOL });
               return;
             }
           } else {
             json(response, 200, {
               autoApplied: answer.outcome.result, ...carriedExtra, importId: existing.id, checksum: preview.checksum, pairedCharacterStatus,
-              status: "APPLIED", scope: access.officer ? "officer" : "personal", botVersion: BOT_VERSION, protocolVersion: 2
+              status: "APPLIED", scope: access.officer ? "officer" : "personal", botVersion: BOT_VERSION, protocolVersion: PROTOCOL_VERSION, minProtocol: MIN_PROTOCOL
             });
             return;
           }
-          json(response, 409, { error: "This export was already received", ...carriedExtra, checksum: preview.checksum, pairedCharacterStatus, importId: existing.id, status: "APPLIED", botVersion: BOT_VERSION, protocolVersion: 2 });
+          json(response, 409, { error: "This export was already received", ...carriedExtra, checksum: preview.checksum, pairedCharacterStatus, importId: existing.id, status: "APPLIED", botVersion: BOT_VERSION, protocolVersion: PROTOCOL_VERSION, minProtocol: MIN_PROTOCOL });
           return;
         }
-        json(response, 409, { error: "This export was already received", ...carriedExtra, checksum: preview.checksum, pairedCharacterStatus, importId: existing?.id, status: existing?.status, botVersion: BOT_VERSION, protocolVersion: 2 });
+        json(response, 409, { error: "This export was already received", ...carriedExtra, checksum: preview.checksum, pairedCharacterStatus, importId: existing?.id, status: existing?.status, botVersion: BOT_VERSION, protocolVersion: PROTOCOL_VERSION, minProtocol: MIN_PROTOCOL });
         return;
       }
       mark("duplicate-check");
@@ -1705,7 +1710,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         status: autoApplied ? "APPLIED" : record.status,
         scope: access.officer ? "officer" : "personal",
         botVersion: BOT_VERSION,
-        protocolVersion: 2
+        protocolVersion: PROTOCOL_VERSION, ...compatFields(clientVersion)
       });
       });
     } catch (error) {

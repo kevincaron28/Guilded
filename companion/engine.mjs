@@ -10,7 +10,7 @@ import { carryReport, readCarryReceipts, writeCarryReceipts } from "./carry.mjs"
 import { readSavedExport, watchedSavedFiles, NO_GUILD_KEY_MESSAGE } from "./addon-files.mjs";
 import { dungeonRunReport, runReportMessage, relayedRunReport, deviceRunCounts, signedRunCounts } from "./run-report.mjs";
 import { resolveStandingsPath, standingsFileHolds, writeStandings } from "./standings.mjs";
-import { credentialHeaders, checkUrl, requestJson, jsonBody, MAX_UPLOAD_BYTES } from "./request.mjs";
+import { credentialHeaders, checkUrl, requestJson, jsonBody, setAddonVersion, MAX_UPLOAD_BYTES } from "./request.mjs";
 import { acknowledgements, pruneAcknowledged } from "./delta.mjs";
 import { createPoeEngine, validatePoeConfig } from "./poe-engine.mjs";
 import { personalSavedFiles, resolveAcceptedPath, uploadPersonalRuns } from "./personal-runs.mjs";
@@ -300,6 +300,7 @@ export function createEngine(initialConfig, hooks = {}) {
     parkedRecord: null,   // { moved, stuck }: the parked-runs record was damaged and moved aside or could not be (Problems panel), until a fresh one works
     lastError: null,      // { at, message }
     botVersion: null,
+    minCompanionVersion: null, // the oldest companion the bot still supports (docs/COMPAT_POLICY.md); optional, old bots send none
     addonVersion: null,
     pendingUpload: false,
     retryAt: null,
@@ -369,6 +370,7 @@ export function createEngine(initialConfig, hooks = {}) {
 
   async function send(current, exported, epoch) {
     const gzip = features.has("gzip-upload") && !gzipOff;
+    setAddonVersion(exported?.addonVersion);
     const payload = jsonBody({ guildDiscordId: current.guildDiscordId, export: exported }, { gzip });
     if (payload.bytes > MAX_UPLOAD_BYTES) {
       const error = new Error(`This upload is ${Math.ceil(payload.bytes / 1000)} KB; the bot accepts at most ${MAX_UPLOAD_BYTES / 1000} KB. Update the bot so the companion can send only new entries, or ask an officer to check the saved data.`);
@@ -853,6 +855,7 @@ export function createEngine(initialConfig, hooks = {}) {
     }
     await checkParkedRuns(result);
     state.botVersion = result.botVersion ?? state.botVersion;
+    if (typeof result.body?.minCompanionVersion === "string") state.minCompanionVersion = result.body.minCompanionVersion;
     state.lastStandings = { at: new Date().toISOString(), message: result.acceptedOnly ? "Dungeon run receipts saved for Guilded Dungeons. Use /reload in WoW to load them." : result.downloadedOnly ? "Standings downloaded. Select this connection to write them to the shared addon folder." : result.unchanged || result.refreshOnly ? `Standings already up to date (${result.count} characters).` : `Wrote standings for ${result.count} character(s). Use /reload in WoW to load them.` };
     if (result.acceptedOnly) { if (!result.unchanged) log("ok", state.lastStandings.message); else hooks.onState?.(snapshot()); }
     else if (!result.unchanged && !result.refreshOnly) log("ok", `Updated addon data for ${result.count} character(s) in ${result.path}.`);

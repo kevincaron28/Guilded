@@ -187,6 +187,9 @@ export function companionProblems(input = {}) {
     if (!automatic) add("companion-outdated", { latest: update.version, current: version, store: input.store === true });
   } else if (input.store === true && version && minorNewer(state.botVersion, version)) {
     add("companion-outdated", { latest: state.botVersion, current: version, store: true });
+  } else if (version && state.minCompanionVersion && newerVersion(state.minCompanionVersion, version)) {
+    // The bot says this release left its support window (docs/COMPAT_POLICY.md): offered even with a Store build.
+    add("companion-outdated", { latest: state.botVersion ?? state.minCompanionVersion, current: version, store: input.store === true });
   }
 
   return PROBLEM_IDS.filter((id) => problems.has(id)).map((id) => ({ id, data: problems.get(id) }));

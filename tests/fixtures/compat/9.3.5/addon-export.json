@@ -1,0 +1,167 @@
+{
+  "guildDiscordId": "123456789012345678",
+  "export": {
+    "source": "Guilded",
+    "exportedAt": "2026-11-09T12:00:00.000Z",
+    "addonVersion": "9.3.5",
+    "interface": 16001,
+    "gameEdition": "forever",
+    "wowGuild": "Test Guild",
+    "character": {
+      "name": "Aldric",
+      "realm": "Testrealm",
+      "class": "Warrior",
+      "race": "Human",
+      "level": 60,
+      "spec": "Protection",
+      "professions": [
+        {
+          "name": "Mining",
+          "skillLevel": 300
+        }
+      ]
+    },
+    "characters": [
+      {
+        "name": "Ana",
+        "realm": "Testrealm",
+        "class": "Priest",
+        "race": "Human",
+        "level": 60,
+        "spec": "Protection",
+        "professions": [
+          {
+            "name": "Mining",
+            "skillLevel": 300
+          }
+        ]
+      }
+    ],
+    "alts": [
+      {
+        "name": "Aldric2",
+        "realm": "Testrealm",
+        "class": "Warrior",
+        "race": "Human",
+        "level": 60,
+        "spec": "Protection",
+        "professions": [
+          {
+            "name": "Mining",
+            "skillLevel": 300
+          }
+        ]
+      }
+    ],
+    "transactions": [
+      {
+        "createdAt": "2026-11-09T11:00:00.000Z",
+        "character": "Ana",
+        "realm": "Testrealm",
+        "amount": 10,
+        "type": "AWARD",
+        "reason": "Raid attendance",
+        "sourceRef": "tx-9.3.5"
+      }
+    ],
+    "loot": [
+      {
+        "ref": "loot-9.3.5",
+        "character": "Ana",
+        "realm": "Testrealm",
+        "item": "Item:1234",
+        "gp": 5
+      }
+    ],
+    "raids": [],
+    "readiness": [],
+    "recipes": [],
+    "dungeonRuns": [
+      {
+        "id": "Testrealm-Aldric-1762700000-9.3.5",
+        "protocolVersion": 1,
+        "addonVersion": "9.3.5",
+        "state": "COMPLETED",
+        "instanceId": 33,
+        "name": "Shadowfang Keep",
+        "difficultyId": 1,
+        "startedAt": 1762700000,
+        "endedAt": 1762701500,
+        "reporters": 1,
+        "players": [
+          {
+            "character": "Aldric",
+            "realm": "Testrealm",
+            "class": "WARRIOR",
+            "role": "TANK",
+            "level": 60,
+            "presentSec": 1500,
+            "inGuild": true,
+            "deaths": 0,
+            "faction": "ALLIANCE",
+            "guild": "Test Guild"
+          },
+          {
+            "character": "Ana",
+            "realm": "Testrealm",
+            "class": "WARRIOR",
+            "role": "HEALER",
+            "level": 60,
+            "presentSec": 1500,
+            "inGuild": true,
+            "deaths": 0,
+            "faction": "ALLIANCE",
+            "guild": "Test Guild"
+          },
+          {
+            "character": "Bob",
+            "realm": "Testrealm",
+            "class": "WARRIOR",
+            "role": "DPS",
+            "level": 60,
+            "presentSec": 1500,
+            "inGuild": true,
+            "deaths": 0,
+            "faction": "ALLIANCE",
+            "guild": "Test Guild"
+          },
+          {
+            "character": "Cy",
+            "realm": "Testrealm",
+            "class": "WARRIOR",
+            "role": "DPS",
+            "level": 60,
+            "presentSec": 1500,
+            "inGuild": true,
+            "deaths": 0,
+            "faction": "ALLIANCE",
+            "guild": "Test Guild"
+          },
+          {
+            "character": "Dee",
+            "realm": "Testrealm",
+            "class": "WARRIOR",
+            "role": "DPS",
+            "level": 60,
+            "presentSec": 1500,
+            "inGuild": true,
+            "deaths": 0,
+            "faction": "ALLIANCE",
+            "guild": "Test Guild"
+          }
+        ],
+        "reporterNames": [
+          "Aldric"
+        ],
+        "viaGroup": false,
+        "peerConfirmed": true,
+        "diagnostic": ""
+      }
+    ],
+    "externalDuels": [],
+    "carriedRecords": [],
+    "craftOrderRequests": [],
+    "pvpEvents": [],
+    "inviteReports": []
+  }
+}

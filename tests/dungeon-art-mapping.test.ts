@@ -53,7 +53,7 @@ describe("Scarlet Monastery names its wing", () => {
   it("derives the wing from the last boss killed, in English and French", () => {
     expect(dungeonDisplayName({ dungeonName: "Scarlet Monastery", encounters: killed("Interrogator Vishas", "Bloodmage Thalnos") })).toBe("Scarlet Monastery: Graveyard");
     expect(dungeonDisplayName({ dungeonName: "Scarlet Monastery", encounters: killed("Arcanist Doan") })).toBe("Scarlet Monastery: Library");
-    expect(dungeonDisplayName({ dungeonName: "Scarlet Monastery", encounters: killed("Herod") }, "fr")).toBe("Scarlet Monastery : Armurerie");
+    expect(dungeonDisplayName({ dungeonName: "Scarlet Monastery", encounters: killed("Herod") }, "fr")).toBe("Monastère Écarlate : Armurerie");
     expect(dungeonDisplayName({ dungeonName: "Monastère Écarlate", encounters: killed("Grande Inquisitrice Blanchetête") }, "fr")).toBe("Monastère Écarlate : Cathédrale");
     expect(paintedKey(dungeonDisplayName({ dungeonName: "Scarlet Monastery", encounters: killed("Arcanist Doan") }))).toBe("scarlet-library");
   });

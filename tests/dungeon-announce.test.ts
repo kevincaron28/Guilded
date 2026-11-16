@@ -103,10 +103,10 @@ describe("dungeonPosts", () => {
   it("lists the records a run set and marks test runs", () => {
     const run = result({ runRef: "SIM-1790000000-abcde", guildRecord: true, previousGuildBest: 1500, personalRecords: [{ character: "Kev", previous: 1500, now: 1300 }, { character: "Bob", previous: 1, now: 0 }], unlinked: ["Bob"] });
     const embed = dungeonPosts(summary(run), "fr")[0]!.embed.toJSON();
-    expect(embed.title).toBe("✅ [TEST] Deadmines (Normal)");
-    expect(embed.description).toContain("Nouveau record de guilde dans **[TEST] Deadmines (Normal)** : 25:00 → **21:40**");
-    expect(embed.description).toContain("Record personnel dans [TEST] Deadmines (Normal) : Kev");
-    expect(embed.description).not.toContain("Record personnel dans [TEST] Deadmines (Normal) : Kev, Bob");
+    expect(embed.title).toBe("✅ [TEST] Les Mortemines (Normal)");
+    expect(embed.description).toContain("Nouveau record de guilde dans **[TEST] Les Mortemines (Normal)** : 25:00 → **21:40**");
+    expect(embed.description).toContain("Record personnel dans [TEST] Les Mortemines (Normal) : Kev");
+    expect(embed.description).not.toContain("Record personnel dans [TEST] Les Mortemines (Normal) : Kev, Bob");
   });
 });
 

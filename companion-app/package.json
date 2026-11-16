@@ -69,6 +69,7 @@
           "poe-engine.mjs",
           "poe-log.mjs",
           "lua-export-content.mjs",
+          "probes-content.mjs",
           "game-edition.mjs",
           "character-identity.mjs",
           "dungeon-role.mjs",

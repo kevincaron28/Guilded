@@ -2,7 +2,7 @@
 
 ## 9.3.6 — 16 November 2026
 
-Published 16 November 2026 (GitHub and the website; CurseForge upload in review). Security, Season 2, achievements, linking and promotions work after 9.3.5. Not yet confirmed on real clients.
+Published 16 November 2026 (GitHub, the website and CurseForge, approved 16 November 2026). Security, Season 2, achievements, linking and promotions work after 9.3.5. Not yet confirmed on real clients.
 
 Addon and companion:
 

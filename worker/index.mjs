@@ -301,8 +301,8 @@ export function indexHtmlRedirect(request, url = new URL(request.url)) {
   return new Response(null, { status: 301, headers: { location: `${url.pathname.slice(0, -"index.html".length)}${rest ? `?${rest}` : ""}`, "cache-control": "public, max-age=3600" } });
 }
 
-// Same value as site/_headers (static pages), with includeSubDomains. Added to every Worker response, redirects and errors too.
-const HSTS = "max-age=31536000; includeSubDomains";
+// Same value as site/_headers (static pages). Added to every Worker response, redirects and errors too.
+const HSTS = "max-age=31536000";
 const PERMISSIONS_POLICY = "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()";
 // /health and the JSON API are not pages: keep them out of search results.
 const NOINDEX_PATH = /^\/(?:api\/|health$)/;

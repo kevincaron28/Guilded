@@ -35,7 +35,7 @@ describe("unified website and companion", () => {
   it("adds HSTS everywhere, noindex on /health and /api, and no-framing on bot pages", async () => {
     vi.stubGlobal("fetch", vi.fn(async (url: string) => new Response(url.includes("/health") ? "ok" : "<html></html>", { headers: { "content-type": url.includes("/health") ? "text/plain" : "text/html; charset=utf-8" } })));
     const page = await worker.fetch(new Request("https://guilded.kcaron.top/forever/leaderboards/", { headers: { accept: "text/html" } }), env);
-    expect(page.headers.get("strict-transport-security")).toBe("max-age=31536000; includeSubDomains");
+    expect(page.headers.get("strict-transport-security")).toBe("max-age=31536000");
     expect(page.headers.get("x-frame-options")).toBe("DENY");
     expect(page.headers.get("permissions-policy")).toContain("camera=()");
     expect(page.headers.has("x-robots-tag")).toBe(false);

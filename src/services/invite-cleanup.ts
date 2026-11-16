@@ -291,7 +291,7 @@ export function sweepSummary(channelId: string, result: SweepResult, membersOpti
 // the messages of requests still waiting. Everything else older than 10 minutes goes: closed requests, chat, old bot notices,
 // members' messages. A plain-text copy of each message (author, time, text; no attachments) is written to backups/ first, and if
 // that cannot be written nothing is deleted. Each run logs a dry-run count before it deletes. At most once an hour per server
-// (the time is stored, so a restart does not run it again). Officer switch: /mod invites settings channel:false.
+// (the time is stored, so a restart does not run it again). Officer switch: the same tidy switch as the per-request clean-up (/mod invites settings cleanup:false).
 // ---------------------------------------------------------------------------------------------------------------------
 export const CHANNEL_SWEEP_MIN_AGE_MS = 10 * 60_000;
 export const CHANNEL_SWEEP_EVERY_MS = 3_600_000;
@@ -324,7 +324,7 @@ export async function runInviteChannelSweeps(client: ChannelSweepClient, databas
   const log = options.log ?? ((line: string) => console.log(line));
   const due = new Date(now.getTime() - CHANNEL_SWEEP_EVERY_MS);
   const servers = await database.guildSettings.findMany({
-    where: { inviteQueueEnabled: true, inviteChannelSweepEnabled: true, inviteChannelId: { not: null }, OR: [{ inviteSweptAt: null }, { inviteSweptAt: { lte: due } }] },
+    where: { inviteQueueEnabled: true, inviteCleanupEnabled: true, inviteChannelId: { not: null }, OR: [{ inviteSweptAt: null }, { inviteSweptAt: { lte: due } }] },
     select: { guildId: true, inviteChannelId: true, inviteGuideMessageId: true, guild: { select: { discordId: true } } }
   });
   let removed = 0;

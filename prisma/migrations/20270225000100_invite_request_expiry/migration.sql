@@ -12,5 +12,4 @@ ADD COLUMN "closeReason" TEXT;
 
 ALTER TABLE "GuildSettings" ADD COLUMN "inviteExpiryEnabled" BOOLEAN NOT NULL DEFAULT true,
 ADD COLUMN "inviteExpiryDmEnabled" BOOLEAN NOT NULL DEFAULT true,
-ADD COLUMN "inviteChannelSweepEnabled" BOOLEAN NOT NULL DEFAULT true,
 ADD COLUMN "inviteSweptAt" TIMESTAMP(3);

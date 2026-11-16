@@ -948,7 +948,6 @@ model GuildSettings {
   inviteExpiryEnabled      Boolean   @default(true)
   inviteExpiryDmEnabled    Boolean   @default(true)
   // 9.3.5: the hourly tidy of the invite channel itself (everything older than 10 minutes that is not pinned or an open request, saved to backups/ first).
-  inviteChannelSweepEnabled Boolean  @default(true)
   inviteSweptAt            DateTime?
   inviteDmEnabled          Boolean   @default(true)
   // 9.1: tag up to 3 online officers (else the officer role once) when someone posts their name in the invite channel.

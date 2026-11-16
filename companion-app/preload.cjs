@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld("companion", {
   signInCancel: () => ipcRenderer.invoke("sign-in-cancel"),
   signInSwitch: () => ipcRenderer.invoke("sign-in-switch"),
   companionMe: () => ipcRenderer.invoke("companion-me"),
+  claimOffers: () => ipcRenderer.invoke("claim-offers"),
+  claimOfferAnswer: (deviceId, action) => ipcRenderer.invoke("claim-offer-answer", { deviceId, action }),
   repair: () => ipcRenderer.invoke("repair"),
   onSignInRestarted: (callback) => ipcRenderer.on("sign-in-restarted", (_event, started) => callback(started)),
   switchLiveFolder: () => ipcRenderer.invoke("switch-live-folder"),

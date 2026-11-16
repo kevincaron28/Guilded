@@ -69,6 +69,10 @@ export const characterCommand = new SlashCommandBuilder()
     .setName("autolink")
     .setDescription("Link characters named like a member."))
   .addSubcommand((subcommand) => subcommand
+    .setName("claimdm")
+    .setDescription("Claim DMs on or off")
+    .addBooleanOption((option) => option.setName("on").setDescription("On").setRequired(true)))
+  .addSubcommand((subcommand) => subcommand
     .setName("picture")
     .setDescription("Remove a picture; pictures on/off")
     .addStringOption((option) => option.setName("action").setDescription("Action").setRequired(true)
@@ -163,7 +167,7 @@ ${PANEL_HINT}`,
     });
     return;
   }
-  if (["unclaimed", "link", "move", "autolink", "picture"].includes(subcommand)) {
+  if (["unclaimed", "link", "move", "autolink", "picture", "claimdm"].includes(subcommand)) {
     if (!interaction.member || !hasPermission(interaction.member as Parameters<typeof hasPermission>[0], "officer")) {
       await interaction.reply({ content: "Only Officers and Guild Masters can do that.", flags: MessageFlags.Ephemeral });
       return;
@@ -226,6 +230,12 @@ ${PANEL_HINT}`,
       await interaction.reply({ content: removed
         ? `Removed the picture of **${characterName(character)}**. New cards no longer show it; cards already posted keep it. ${character.member.displayName} can pick another one.`
         : `${characterName(character)} has no picture.`, flags: MessageFlags.Ephemeral });
+      return;
+    }
+    if (subcommand === "claimdm") {
+      const on = interaction.options.getBoolean("on", true);
+      await prisma.guildSettings.upsert({ where: { guildId: context.guildId }, create: { guildId: context.guildId, claimDmEnabled: on }, update: { claimDmEnabled: on } });
+      await interaction.reply({ content: on ? "The \"Link these characters?\" DMs are on (members can also turn them off for themselves)." : "The \"Link these characters?\" DMs are off for this server. Members still see the offer in the companion.", flags: MessageFlags.Ephemeral });
       return;
     }
     if (subcommand === "autolink") {

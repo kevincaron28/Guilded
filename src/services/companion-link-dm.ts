@@ -234,6 +234,16 @@ export async function linkBack(database: UndoDatabase, discordUserId: string, ch
 
 export async function handleLinkedButton(interaction: ButtonInteraction | StringSelectMenuInteraction, database: UndoDatabase): Promise<void> {
   const id = interaction.customId;
+  if (id.startsWith("linked:dclaim:") || id.startsWith("linked:dsnooze:") || id === "linked:dcoff") {
+    // "Link these characters to you?" (device-claim-offer.ts). Loaded here: that file imports the pairing code.
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const { answerOfferButton } = await import("./device-claim-offer.js");
+    const text = await answerOfferButton(database as unknown as PrismaClient, interaction.user.id, id);
+    await interaction.editReply({ content: text ?? `${t("en", "claim.gone")}\n${t("fr", "claim.gone")}`, allowedMentions: { parse: [] } });
+    // The buttons are answered once: they leave the DM so a second press cannot repeat it.
+    if (interaction.isButton()) await interaction.message.edit({ components: [] }).catch(() => undefined);
+    return;
+  }
   if (id === WRONG_SERVER) {
     // The DM has no server context here: answer in both languages.
     await interaction.reply({ content: `${t("en", "linked.wrongServerHelp")}\n\n${t("fr", "linked.wrongServerHelp")}`.slice(0, 1990), flags: MessageFlags.Ephemeral });

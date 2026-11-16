@@ -113,6 +113,40 @@ export async function savedGuildKey(config) {
 }
 
 /**
+ * One-click claim (16 Nov 2026): the characters this PC's earlier zero-setup install reported that are not linked to this
+ * member yet, one offer per install (bot: device-claim-offer.ts). Read-only; never throws. An older bot answers 404: no offers.
+ */
+export async function fetchClaimOffers(config) {
+  if (!config?.companionCredential || !config.guildDiscordId) return { ok: true, offers: [] };
+  try {
+    const url = checkUrl(new URL("/api/v1/companion/claim-offers", config.uploadUrl?.trim() || HOSTED_UPLOAD_URL));
+    url.searchParams.set("guild", config.guildDiscordId);
+    const { response, body } = await requestJson(url, { headers: credentialHeaders(config) }, undefined, 10_000);
+    if (!response.ok) return { ok: false, offers: [], message: response.status === 404 ? undefined : describeApiError(response.status, body.error) };
+    const offers = (Array.isArray(body.offers) ? body.offers : []).slice(0, 5).flatMap((offer) => typeof offer?.deviceId === 'string' && Array.isArray(offer.characters) && offer.characters.length
+      ? [{ deviceId: offer.deviceId.slice(0, 64), characters: offer.characters.slice(0, 12).map((c) => ({ name: String(c?.name ?? '').slice(0, 40), className: typeof c?.className === 'string' ? c.className.slice(0, 30) : '', level: Number(c?.level) || 0 })).filter((c) => c.name),
+        taken: (Array.isArray(offer.taken) ? offer.taken : []).slice(0, 12).map((name) => String(name).slice(0, 40)) }] : []);
+    return { ok: true, offers };
+  } catch (error) {
+    return { ok: false, offers: [], message: describeError(error) };
+  }
+}
+
+/** "Link" or "Not now" for one install's offer. */
+export async function answerClaimOffer(config, deviceId, action) {
+  if (!config?.companionCredential || !config.guildDiscordId || typeof deviceId !== 'string' || !['link', 'later'].includes(action)) return { ok: false, message: 'Sign in with Discord first.' };
+  try {
+    const { response, body } = await requestJson(checkUrl(new URL("/api/v1/companion/claim-offers", config.uploadUrl?.trim() || HOSTED_UPLOAD_URL)), {
+      method: "POST", headers: { ...credentialHeaders(config), "content-type": "application/json" }, body: JSON.stringify({ guildDiscordId: config.guildDiscordId, deviceId, action })
+    }, undefined, 10_000);
+    if (!response.ok) return { ok: false, message: describeApiError(response.status, body.error) };
+    return { ok: true, linked: Array.isArray(body.linked) ? body.linked.length : 0, snoozed: body.snoozed === true };
+  } catch (error) {
+    return { ok: false, message: describeError(error) };
+  }
+}
+
+/**
  * "Remove this server" (T1): the bot revokes this exact credential (POST /api/v1/companion/leave; older bots only know
  * /logout, same effect). Revoke only: the characters and data stay in that server. The caller then drops the saved profile.
  */

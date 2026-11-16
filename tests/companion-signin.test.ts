@@ -53,13 +53,14 @@ describe("companion sign-in requests", () => {
 });
 
 describe("/me/companion", () => {
-  function setup(servers: { discordId: string; name: string; wowGuildId?: string }[] = [{ discordId: "111", name: "Quebec Gold" }], beforeIssue = async () => {}, knowsGuild?: (server: { discordId: string; wowGuildId?: string }, key: string) => Promise<boolean>) {
+  function setup(servers: { discordId: string; name: string; wowGuildId?: string }[] = [{ discordId: "111", name: "Quebec Gold" }], beforeIssue = async () => {}, knowsGuild?: (server: { discordId: string; wowGuildId?: string }, key: string) => Promise<boolean>, isOfficer?: (server: { discordId: string; wowGuildId?: string }) => Promise<boolean>) {
     const signIn = createCompanionSignIn({ now: () => NOW.getTime() });
     const issued: string[] = [];
     const route = companionSignInRoute({
       signIn,
       servers: async () => servers,
       ...(knowsGuild ? { knowsGuild } : {}),
+      ...(isOfficer ? { isOfficer: async (_account: unknown, server: { discordId: string; wowGuildId?: string }) => isOfficer(server) } : {}),
       issueGuild: async (account, guildDiscordId) => { await beforeIssue(); issued.push(`${account.discordUserId}@${guildDiscordId}`); return "g".repeat(43); },
       issuePersonal: async (accountId) => { issued.push(`personal:${accountId}`); return "p".repeat(43); }
     });
@@ -171,6 +172,54 @@ describe("/me/companion", () => {
       `csrf=${encodeURIComponent(csrf)}&request=${encodeURIComponent(started.requestId)}&choice=g1&code=${started.confirm}`);
     expect(done.status).toBe(200);
     expect(issued).toEqual(["222222222222222222@111"]);
+  });
+
+  describe("only servers that know the saved file's guild (16 Nov 2026)", () => {
+    const servers = [{ discordId: "111", wowGuildId: "g1", name: "Wrong Server" }, { discordId: "222", wowGuildId: "g2", name: "Quebec Gold" }];
+    const knows = async (server: { wowGuildId?: string }, key: string) => key === "Quebec Gold" && server.wowGuildId === "g2";
+    async function open(isOfficer: (server: { discordId: string }) => Promise<boolean>, list = servers, knowsFn = knows, key = "Quebec Gold") {
+      const { signIn, request, signedIn, issued } = setup(list, async () => {}, knowsFn, isOfficer);
+      const started = signIn.start({ guildKey: key })!;
+      const target = `/me/companion?request=${started.requestId}`;
+      const { cookie } = await signedIn(target);
+      const page = await request("GET", target, { cookie });
+      const csrf = /name="csrf" value="([^"]+)"/.exec(page.body)![1]!;
+      const choose = (choice: string) => request("POST", "/me/companion", { cookie, origin: SITE, "content-type": "application/x-www-form-urlencoded" },
+        `csrf=${encodeURIComponent(csrf)}&request=${encodeURIComponent(started.requestId)}&choice=${choice}&code=${started.confirm}`);
+      return { page, choose, issued };
+    }
+
+    it("hides a server that does not know the guild from a member who is not its officer, and refuses it with a reason", async () => {
+      const { page, choose, issued } = await open(async () => false);
+      expect(page.body).toContain("Quebec Gold");
+      expect(page.body).not.toContain("Wrong Server");
+      const refused = await choose("g1");
+      expect(refused.status).toBe(403);
+      expect(refused.body).toContain("That server does not know your guild");
+      expect(issued).toEqual([]);
+      expect((await choose("g2")).status).toBe(200);
+      expect(issued).toEqual(["222222222222222222@222"]);
+    });
+
+    it("keeps the server of an officer or owner choosable (they may be setting it up)", async () => {
+      const { page, choose, issued } = await open(async (server) => server.discordId === "111");
+      expect(page.body.slice(page.body.indexOf("<details>"))).toContain("Wrong Server");
+      expect((await choose("g1")).status).toBe(200);
+      expect(issued).toEqual(["222222222222222222@111"]);
+    });
+
+    it("explains why when no server knows the guild, and still lets the member continue", async () => {
+      const { page, choose, issued } = await open(async () => false, servers, async () => false, "Nowhere");
+      expect(page.body).toContain("None of your Discord servers has set up the guild");
+      expect(page.body).toContain("Wrong Server");
+      expect((await choose("g1")).status).toBe(200);
+      expect(issued).toHaveLength(1);
+    });
+
+    it("also filters a member who belongs to a single server that does not match", async () => {
+      const { page } = await open(async () => false, [servers[0]!], knows);
+      expect(page.body).toContain("None of your Discord servers has set up the guild");
+    });
   });
 
   it("keeps every server listed when none knows the guild, or the companion sent none", async () => {

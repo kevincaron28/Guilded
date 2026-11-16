@@ -2,7 +2,7 @@ const { pathToFileURL } = require("node:url");
 const path = require("node:path");
 
 const configFields = new Set(["uploadUrl", "guildDiscordId", "pairingCode", "watchFile", "realm", "wowGuild", "standingsIntervalMinutes", "poeLogFile", "poeCharacter", "poeLeague", "poeMode", "wowEnabled", "poeEnabled", "syncEnabled"]);
-const noArgs = new Set(["account-no", "account-yes", "companion-me", "copy-problem-report", "get-all", "install-addon", "reinstall-addon", "install-update", "open-connections", "open-storage-settings", "open-store-listing", "open-update", "pick-wow-folder", "recover-sync", "remove-data", "repair", "sign-in-cancel", "sign-in-switch", "sign-in-wait", "switch-live-folder", "toggle-tracking", "upload-now"]);
+const noArgs = new Set(["account-no", "account-yes", "claim-offers", "companion-me", "copy-problem-report", "get-all", "install-addon", "reinstall-addon", "install-update", "open-connections", "open-storage-settings", "open-store-listing", "open-update", "pick-wow-folder", "recover-sync", "remove-data", "repair", "sign-in-cancel", "sign-in-switch", "sign-in-wait", "switch-live-folder", "toggle-tracking", "upload-now"]);
 function fail() { throw new Error("Invalid companion request."); }
 function object(value, fields) {
   if (!value || typeof value !== "object" || Array.isArray(value)) fail();
@@ -28,6 +28,7 @@ function validateIpc(channel, args) {
   // Zero-setup companion: "Advanced: choose server", a Discord server ID or "" for automatic.
   else if (channel === "set-account") { object(value, new Set(["file", "on"])); text(value.file, 1024); if (typeof value.on !== "boolean") fail(); }
   else if (channel === "device-choose-server") { if (typeof value !== "string" || !/^(\d{5,25})?$/.test(value)) fail(); }
+  else if (channel === "claim-offer-answer") { object(value, new Set(["deviceId", "action"])); text(value.deviceId, 64); if (!["link", "later"].includes(value.action)) fail(); }
   else if (channel === "export-sheets") { if (value !== undefined && value !== null) text(value, 40); }
   else if (channel === "convert-grm") {
     object(value, new Set(["guild", "realm", "edition", "includePrivate"]));

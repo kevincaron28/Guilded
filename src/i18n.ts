@@ -290,6 +290,16 @@ const STRINGS = {
   "linked.backRemoved": { en: "An officer removed that character from you, so only an officer can link it again.", fr: "Un officier t'a retiré ce personnage : seul un officier peut le relier." },
   "linked.backGone": { en: "That character is not waiting to be linked back any more (already linked, or someone else has it). `/character list` shows what is linked.", fr: "Ce personnage n'attend plus d'être relié (déjà lié, ou à quelqu'un d'autre). `/character list` affiche ce qui est lié." },
   "linked.wrongServer": { en: "Wrong server", fr: "Mauvais serveur" },
+  "claim.ask": { en: "Your Guilded companion on a PC also reported **{count}** other character(s) on **{server}**:\n{list}\n\nLink them to you?", fr: "Ton compagnon Guilded sur un PC a aussi signalé **{count}** autre(s) personnage(s) sur **{server}** :\n{list}\n\nLes lier à toi ?" },
+  "claim.taken": { en: "Already linked to someone else (use **This isn't my character** or ask an officer): {names}", fr: "Déjà lié à quelqu'un d'autre (utilise **Ce n'est pas mon personnage** ou demande à un officier) : {names}" },
+  "claim.link": { en: "Link them", fr: "Les lier" },
+  "claim.later": { en: "Not now", fr: "Pas maintenant" },
+  "claim.off": { en: "Don't send these", fr: "Ne plus m'envoyer ça" },
+  "claim.offDone": { en: "👍 OK, no more of these messages. You can still link characters with /character list.", fr: "👍 D'accord, plus de ces messages. Tu peux toujours lier des personnages avec /character list." },
+  "claim.done": { en: "✅ Linked to you on **{server}**: {names}", fr: "✅ Lié(s) à toi sur **{server}** : {names}" },
+  "claim.nothing": { en: "Nothing left to link: those characters are already linked, or were unlinked on purpose.", fr: "Rien à lier : ces personnages sont déjà liés, ou ont été déliés volontairement." },
+  "claim.snoozed": { en: "👍 OK. I will not ask again for 7 days.", fr: "👍 D'accord. Je ne redemande pas avant 7 jours." },
+  "claim.gone": { en: "That offer is not available any more.", fr: "Cette offre n'est plus disponible." },
   "linked.unlinked": {
     en: "✅ **{name}** is unlinked from you on **{server}**. Pressed by mistake? **Link it back** below works for 7 days, and **Link a character** in `/character list` always does.",
     fr: "✅ **{name}** n'est plus lié à toi sur **{server}**. Appuyé par erreur ? **Le relier à nouveau** ci-dessous marche 7 jours, et **Lier un personnage** dans `/character list` marche toujours."

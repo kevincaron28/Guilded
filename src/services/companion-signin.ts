@@ -173,6 +173,8 @@ export interface SignInPageDeps {
   issueGuild(account: WebAccountView, guildDiscordId: string, wowGuildId?: string, deviceName?: string): Promise<string | null>;
   /** Does this server know the in-game guild of the companion's saved file? Used to list the right servers first. */
   knowsGuild?(server: { discordId: string; wowGuildId?: string }, guildKey: string): Promise<boolean>;
+  /** Is this Discord user an officer (or owner) of this server? Officers stay free to pick a server that does not know the guild yet (they may set it up). */
+  isOfficer?(account: WebAccountView, server: { discordId: string; wowGuildId?: string }): Promise<boolean>;
   issuePersonal(accountId: string, deviceName?: string): Promise<string>;
 }
 
@@ -208,10 +210,20 @@ export function companionSignInRoute(deps: SignInPageDeps): WebRoute {
     const guildKey = deps.signIn.guildKeyFor(requestId);
     let servers = sorted;
     let others: typeof listed = [];
-    if (guildKey && deps.knowsGuild && sorted.length > 1) {
+    // Linking improvement (16 Nov 2026): with a server that knows the guild, only matching servers are offered; a server that does not know it
+    // stays listed (under "Other choices") only for its officers and owner, who may be setting it up. When none matches everything stays, with a note.
+    let refused: typeof listed = [];
+    let noneMatch = false;
+    if (guildKey && deps.knowsGuild && sorted.length > 0) {
       const flags = await Promise.all(sorted.map((server) => deps.knowsGuild!(server, guildKey).catch(() => false)));
       const matching = sorted.filter((_, index) => flags[index]);
-      if (matching.length) { servers = matching; others = sorted.filter((_, index) => !flags[index]); }
+      if (matching.length) {
+        servers = matching;
+        const rest = sorted.filter((_, index) => !flags[index]);
+        const officer = await Promise.all(rest.map((server) => (deps.isOfficer ? deps.isOfficer(ctx.account!, server).catch(() => false) : Promise.resolve(true))));
+        others = rest.filter((_, index) => officer[index]);
+        refused = rest.filter((_, index) => !officer[index]);
+      } else noneMatch = true;
     }
     const selectable = [...servers, ...others];
     const loopback = deps.signIn.loopbackFor(requestId);
@@ -228,6 +240,9 @@ export function companionSignInRoute(deps: SignInPageDeps): WebRoute {
       const selected = selectable.find(server => (server.wowGuildId ?? server.discordId) === choice);
       const notAvailable = () => kit.page(400, title, `<h1>${t("That choice is not available", "Ce choix n'est pas disponible")}</h1><p><a href="${link("/me/companion", lang, { request: requestId })}">${t("Go back and choose again", "Revenir et choisir de nouveau")}</a></p>`, { noindex: true });
       const expired = () => kit.page(410, title, expiredBody(t), { noindex: true });
+      if (choice !== "personal" && !selected && refused.some((server) => (server.wowGuildId ?? server.discordId) === choice)) {
+        return kit.page(403, title, `<h1>${t("That server does not know your guild", "Ce serveur ne connaît pas votre guilde")}</h1><p>${t("The characters in your saved game files belong to a guild this Discord server has not set up. Go back and pick the server of your guild. If your guild has no server yet, ask an officer to run /setup there.", "Les personnages de vos fichiers de jeu appartiennent à une guilde que ce serveur Discord n'a pas configurée. Revenez en arrière et choisissez le serveur de votre guilde. Si votre guilde n'en a pas encore, demandez à un officier de lancer /setup.")}</p><p><a href="${link("/me/companion", lang, { request: requestId })}">${t("Go back and choose again", "Revenir et choisir de nouveau")}</a></p>`, { noindex: true });
+      }
       if (choice !== "personal" && !selected) return notAvailable();
       const issue = async (): Promise<SignInGrant | null> => {
         if (choice === "personal") return { companionCredential: await deps.issuePersonal(account.id, deviceName), personal: true };
@@ -271,7 +286,7 @@ export function companionSignInRoute(deps: SignInPageDeps): WebRoute {
         : `<p class="notice">${t("Only continue if you just chose Sign in with Discord in your own Guilded companion. If someone sent you this link, close the page.", "Continuez seulement si vous venez de choisir Connexion avec Discord dans votre propre compagnon Guilded. Si quelqu'un vous a envoyé ce lien, fermez la page.")}</p>`)
       + `<form method="post" action="/me/companion"><input type="hidden" name="csrf" value="${escapeHtml(ctx.csrf ?? "")}"><input type="hidden" name="lang" value="${lang}"><input type="hidden" name="request" value="${escapeHtml(requestId)}">`
       + (needsCode ? `<p><label>${t("Code from your companion", "Code de votre compagnon")}<br><input name="code" autocomplete="off" required maxlength="7" pattern="[A-Za-z0-9]{3}-?[A-Za-z0-9]{3}" placeholder="ABC-DEF" style="width:9em;font-size:20px;text-transform:uppercase"></label></p>` : "")
-      + `<h2>${t("Link it to", "Le relier à")}</h2>${choices}`
+      + `<h2>${t("Link it to", "Le relier à")}</h2>${noneMatch ? `<p class="notice">${t("None of your Discord servers has set up the guild of your saved game files yet. Pick the one you are sure about, or ask an officer of your guild to run /setup.", "Aucun de vos serveurs Discord n'a encore configuré la guilde de vos fichiers de jeu. Choisissez celui dont vous êtes certain, ou demandez à un officier de votre guilde de lancer /setup.")}</p>` : ""}${choices}`
       + `<details><summary>${t("Other choices", "Autres choix")}</summary>${otherServers}${servers.length === 1 ? `<p class="muted">${t("Pick this instead of your server to send only your own dungeon runs:", "Choisissez ceci au lieu de votre serveur pour n'envoyer que vos propres donjons :")}</p>${personal.replace('type="radio"', 'type="checkbox"').replace('name="choice"', 'name="personalOnly"')}` : ""}`
       + `<p><label>${t("Device name", "Nom de l'appareil")}<input name="deviceName" maxlength="80" value="${escapeHtml(device)}"></label></p></details>`
       + `<p class="muted">${t("Your other devices stay connected. Manage devices in", "Vos autres appareils restent connectés. Gérez les appareils dans")} <a href="/me/connections">${t("Connections", "Connexions")}</a>.</p>`

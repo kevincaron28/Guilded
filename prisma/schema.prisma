@@ -533,6 +533,9 @@ model Member {
   pairedImports       AddonImport[]
   poeMapVisits        PoeMapVisit[]
   linkNotice          MemberLinkNotice?
+  deviceClaimOffers   DeviceClaimOffer[]
+  // The member pressed "Don't send these" on a one-click claim DM (device-claim-offer.ts).
+  claimDmOff          Boolean  @default(false)
 
   @@unique([guildId, discordUserId])
   @@index([guildId, status])
@@ -883,6 +886,8 @@ model WowGuildChannel {
 model GuildSettings {
   // Rank roles (WoW guild rank to Discord role): on unless an officer turns it off; inert until a rank is mapped.
   rankRolesEnabled Boolean @default(true)
+  // One-click claim DMs (device-claim-offer.ts): on unless an officer turns them off (/officer character claimdm).
+  claimDmEnabled Boolean @default(true)
   // Private channel for Discord community officers (not the WoW officers' log): reviews and approvals.
   adminChannelId String?
   // New targeted alerts remain held until audience/channel/cadence approval.
@@ -2380,6 +2385,7 @@ model CompanionDevice {
   guild           Guild?    @relation(fields: [guildId], references: [id], onDelete: SetNull)
   claimedMember   Member?   @relation(fields: [claimedMemberId], references: [id], onDelete: SetNull)
   characters      DeviceCharacter[]
+  claimOffers     DeviceClaimOffer[]
   witnesses       DungeonRunWitness[]
 
   @@index([guildId])
@@ -2447,6 +2453,23 @@ model GuildNameAlias {
   lastSeenAt DateTime @default(now())
 
   @@unique([guildId, nameKey])
+}
+
+// One prompt per (member, install): "Link these characters to <you>?" (device-claim-offer.ts). snoozedUntil is the "Not now" (7 days),
+// dmAt the last DM about it, doneAt when the member linked them. Never grants anything by itself.
+model DeviceClaimOffer {
+  id           String    @id @default(cuid())
+  memberId     String
+  deviceId     String
+  snoozedUntil DateTime?
+  dmAt         DateTime?
+  doneAt       DateTime?
+  createdAt    DateTime  @default(now())
+  member       Member          @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  device       CompanionDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, deviceId])
+  @@index([deviceId])
 }
 
 /// A character an unsigned companion reported (name, class, level): shown as "reported", never linked to a member.

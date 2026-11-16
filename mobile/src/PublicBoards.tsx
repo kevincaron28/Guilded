@@ -2,15 +2,14 @@ import { useEffect, useState, type ReactNode } from "react";
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { classColor, classMix, fetchBoards, fetchPublicGuild, type BoardBracket, type Boards, type PublicGuild } from "./publicApi";
 import type { Lang } from "./i18n";
+import { Card, EmptyState, RankNumber, RetryCard, Row, colors } from "./ui";
 
-const colors = { panel: "#151714", line: "#282b25", text: "#f3f0e7", muted: "#aaa99f", gold: "#d5ad57", green: "#9fbd83" };
 const words = {
   title: { en: "Leaderboards", fr: "Classements" },
   intro: { en: "Public dungeon ratings, the same as the website.", fr: "Les cotes publiques des donjons, comme sur le site." },
   characters: { en: "Top characters", fr: "Meilleurs personnages" },
   guilds: { en: "Top guilds", fr: "Meilleures guildes" },
   none: { en: "Nobody is ranked yet.", fr: "Personne n'est encore classé." },
-  retry: { en: "Try again", fr: "Réessayer" },
   failed: { en: "The boards are unavailable right now.", fr: "Les classements sont indisponibles pour le moment." },
   back: { en: "← Back", fr: "← Retour" },
   mix: { en: "Class mix", fr: "Répartition des classes" },
@@ -29,11 +28,7 @@ const CLASS_ICONS = new Set(["druid", "hunter", "mage", "paladin", "priest", "ro
 export const classIconFile = (className: string | null): string | null => { const key = (className ?? "").toLowerCase().replace(/[^a-z]/g, ""); return CLASS_ICONS.has(key) ? `class-${key}-64.webp` : null; };
 /** Places 1-3 show their medal, the others their number. */
 function Place({ origin, rank }: { origin: string; rank: number }) {
-  return rank >= 1 && rank <= 3 ? <Image source={{ uri: web(origin, `medal-${MEDAL[rank - 1]}.webp`) }} style={styles.medal} accessibilityLabel={`#${rank}`} /> : <Text style={styles.rank}>{rank}</Text>;
-}
-
-function Retry({ lang, onPress, message }: { lang: Lang; onPress: () => void; message?: string }) {
-  return <View style={styles.card}><Text style={styles.muted}>{message ?? w("failed", lang)}</Text><Pressable onPress={onPress} accessibilityRole="button"><Text style={styles.link}>{w("retry", lang)}</Text></Pressable></View>;
+  return rank >= 1 && rank <= 3 ? <Image source={{ uri: web(origin, `medal-${MEDAL[rank - 1]}.webp`) }} style={styles.medal} accessibilityLabel={`#${rank}`} /> : <RankNumber rank={rank} />;
 }
 
 export function PublicBoards({ origin, lang, header }: { origin: string; lang: Lang; header?: ReactNode }) {
@@ -58,20 +53,17 @@ export function PublicBoards({ origin, lang, header }: { origin: string; lang: L
     <Text style={styles.kicker}>{(boards?.season || "GUILDED").toUpperCase()}</Text>
     <Text style={styles.title}>{w("title", lang)}</Text>
     <Text style={styles.intro}>{w("intro", lang)}</Text>
-    {failed ? <Retry lang={lang} onPress={() => setAttempt(attempt + 1)} /> : !boards ? <ActivityIndicator color={colors.gold} /> : <>
+    {failed ? <RetryCard lang={lang} message={w("failed", lang)} onRetry={() => setAttempt(attempt + 1)} style={styles.card} /> : !boards ? <ActivityIndicator color={colors.gold} /> : <>
       {boards.brackets.length > 1 && <View style={styles.tabs}>{boards.brackets.map((b, i) => <Pressable key={b.key} onPress={() => setBracket(i)} style={[styles.chip, i === bracket && styles.chipOn]} accessibilityRole="button"><Text style={[styles.chipText, i === bracket && styles.chipTextOn]}>{b.name}</Text></Pressable>)}</View>}
       {current && <>
         <Text style={styles.label}>{w("characters", lang).toUpperCase()}</Text>
-        <View style={styles.card}>{current.characters.length === 0 ? <Text style={styles.muted}>{w("none", lang)}</Text> : current.characters.map((c) => <View key={`${c.rank}-${c.name}`} style={styles.row}>
-          <Place origin={origin} rank={c.rank} />
-          {classIconFile(c.className) ? <Image source={{ uri: web(origin, classIconFile(c.className)!) }} style={styles.classIcon} accessible={false} /> : null}
-          <View style={{ flex: 1 }}><Text style={[styles.name, { color: classColor(c.className) }]}>{c.name}</Text><Text style={styles.sub}>{[c.className, c.role, c.realm].filter(Boolean).join(" · ")}</Text></View>
-          <Text style={styles.score}>{c.points}</Text></View>)}</View>
+        <Card style={styles.card}>{current.characters.length === 0 ? <EmptyState message={w("none", lang)} /> : current.characters.map((c) => <Row key={`${c.rank}-${c.name}`}
+          leading={<><Place origin={origin} rank={c.rank} />{classIconFile(c.className) ? <Image source={{ uri: web(origin, classIconFile(c.className)!) }} style={styles.classIcon} accessible={false} /> : null}</>}
+          name={c.name} nameColor={classColor(c.className)} sub={[c.className, c.role, c.realm].filter(Boolean).join(" · ")} score={c.points} />)}</Card>
         <Text style={styles.label}>{w("guilds", lang).toUpperCase()}</Text>
-        <View style={styles.card}>{current.guilds.length === 0 ? <Text style={styles.muted}>{w("none", lang)}</Text> : current.guilds.map((g) => <Pressable key={g.id} disabled={!g.slug} onPress={() => g.slug && setSlug(g.slug)} style={styles.row} accessibilityRole={g.slug ? "button" : undefined}>
-          <Place origin={origin} rank={g.rank} />
-          <View style={{ flex: 1 }}><Text style={styles.name}>{g.name}</Text><Text style={styles.sub}>{g.slug ? "›" : w("noPage", lang)}</Text></View>
-          <Text style={styles.score}>{g.points}</Text></Pressable>)}</View>
+        <Card style={styles.card}>{current.guilds.length === 0 ? <EmptyState message={w("none", lang)} /> : current.guilds.map((g) => <Row key={g.id}
+          leading={<Place origin={origin} rank={g.rank} />} name={g.name} sub={g.slug ? "›" : w("noPage", lang)} score={g.points}
+          onPress={() => { if (g.slug) setSlug(g.slug); }} disabled={!g.slug} />)}</Card>
       </>}
     </>}
   </ScrollView>;
@@ -91,22 +83,22 @@ function PublicGuildView({ origin, lang, slug, onBack }: { origin: string; lang:
   const biggest = mix[0]?.count ?? 1;
   return <ScrollView contentContainerStyle={styles.content}>
     <Pressable onPress={onBack} accessibilityRole="button"><Text style={styles.link}>{w("back", lang)}</Text></Pressable>
-    {error ? <Retry lang={lang} onPress={() => setAttempt(attempt + 1)} message={error} /> : !guild ? <ActivityIndicator color={colors.gold} /> : <>
+    {error ? <RetryCard lang={lang} message={error} onRetry={() => setAttempt(attempt + 1)} style={styles.card} /> : !guild ? <ActivityIndicator color={colors.gold} /> : <>
       <Text style={styles.title}>{guild.name}</Text>
       {guild.intro ? <Text style={styles.intro}>{guild.intro}</Text> : null}
       {mix.length > 0 && <><Text style={styles.label}>{w("mix", lang).toUpperCase()}</Text>
-        <View style={styles.card}>{mix.map((m) => <View key={m.className} style={styles.mixRow}>
+        <Card style={styles.card}>{mix.map((m) => <View key={m.className} style={styles.mixRow}>
           <Text style={[styles.mixName, { color: classColor(m.className) }]}>{m.className}</Text>
           <View style={styles.barTrack}><View style={[styles.bar, { width: `${Math.round((m.count / biggest) * 100)}%`, backgroundColor: classColor(m.className) }]} /></View>
-          <Text style={styles.mixCount}>{m.count}</Text></View>)}</View></>}
+          <Text style={styles.mixCount}>{m.count}</Text></View>)}</Card></>}
       <Text style={styles.label}>{w("cores", lang).toUpperCase()}</Text>
-      {guild.cores.length === 0 ? <View style={styles.card}><Text style={styles.muted}>{w("noCores", lang)}</Text></View> : guild.cores.map((core) => <View key={core.name} style={styles.card}>
+      {guild.cores.length === 0 ? <EmptyState boxed message={w("noCores", lang)} style={styles.card} /> : guild.cores.map((core) => <Card key={core.name} style={styles.card}>
         <Text style={styles.coreName}>{core.name}</Text>
         {core.schedule ? <Text style={styles.sub}>{core.schedule}</Text> : null}
         {core.roster.map((m) => <View key={m.name} style={styles.rosterRow}><Text style={[styles.name, { color: classColor(m.className), flex: 1 }]}>{m.name}</Text><Text style={styles.sub}>{[m.className, m.role, m.bench ? "bench" : "", m.trial ? "trial" : ""].filter(Boolean).join(" · ")}</Text></View>)}
         {core.ranking.length > 0 && <><Text style={[styles.label, { marginTop: 14 }]}>{w("standings", lang).toUpperCase()}</Text>
-          {core.ranking.slice(0, 10).map((r, i) => <View key={r.name} style={styles.rosterRow}><Text style={styles.rank}>{i + 1}</Text><Text style={[styles.name, { flex: 1 }]}>{r.name}</Text><Text style={styles.score}>{r.pr.toFixed(2)}</Text></View>)}</>}
-      </View>)}
+          {core.ranking.slice(0, 10).map((r, i) => <View key={r.name} style={styles.rosterRow}><RankNumber rank={i + 1} /><Text style={[styles.name, { flex: 1 }]}>{r.name}</Text><Text style={styles.score}>{r.pr.toFixed(2)}</Text></View>)}</>}
+      </Card>)}
       <Text style={styles.sub}>{w("professionsNote", lang)}</Text>
     </>}
   </ScrollView>;
@@ -117,10 +109,9 @@ const styles = StyleSheet.create({
   content: { padding: 24, paddingBottom: 30 }, kicker: { color: colors.gold, fontSize: 10, letterSpacing: 2, fontWeight: "700", marginTop: 12 },
   title: { color: colors.text, fontSize: 30, fontWeight: "700", marginTop: 10, letterSpacing: -1 }, intro: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 8, marginBottom: 18 },
   label: { color: colors.gold, fontSize: 9, letterSpacing: 1.7, fontWeight: "700", marginTop: 18, marginBottom: 10 },
-  card: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: 14, marginBottom: 6 },
-  row: { flexDirection: "row", alignItems: "center", paddingVertical: 8, gap: 10, minHeight: 44 }, rosterRow: { flexDirection: "row", alignItems: "center", paddingVertical: 6, gap: 10 },
-  rank: { color: colors.gold, width: 22, fontSize: 12 }, name: { color: colors.text, fontSize: 14, fontWeight: "600" }, sub: { color: colors.muted, fontSize: 11, marginTop: 2 }, score: { color: colors.green, fontWeight: "700", fontSize: 14 },
-  muted: { color: colors.muted, fontSize: 13, lineHeight: 20 }, link: { color: colors.gold, fontSize: 14, paddingVertical: 12 },
+  card: { gap: 0, marginBottom: 6 }, rosterRow: { flexDirection: "row", alignItems: "center", paddingVertical: 6, gap: 10 },
+  name: { color: colors.text, fontSize: 14, fontWeight: "600" }, sub: { color: colors.muted, fontSize: 11, marginTop: 2 }, score: { color: colors.green, fontWeight: "700", fontSize: 14 },
+  link: { color: colors.gold, fontSize: 14, paddingVertical: 12 },
   tabs: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 4 }, chip: { borderWidth: 1, borderColor: colors.line, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 }, chipOn: { backgroundColor: colors.gold, borderColor: colors.gold },
   chipText: { color: colors.muted, fontSize: 12 }, chipTextOn: { color: "#111", fontWeight: "700" },
   coreName: { color: colors.text, fontSize: 17, fontWeight: "700" },

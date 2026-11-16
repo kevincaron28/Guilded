@@ -121,7 +121,7 @@ State words: **Released** = in a published client (members have it); **Live** = 
 | 17 | Guild overview panel | Released 9.0.2 | #501 |
 | 20 | Screenshots + guides | Guides live; 14 screenshots owed (owner at the PC) | #506, `docs/SCREENSHOT_SHOTLIST.md` |
 | 21 | Website refresh, Québec Gold pages | Live: QG pages, guild pages, ranking-site boards, reserves/wishlist | #470, #485, #522, #534 |
-| 22 | Phone app + TCG | Bot side live: boards, guild, album, map, News feed; plan + first News slice merged; new APK owed | #489, #496, #507, #519, `docs/plans/APP_REDESIGN.md`, `APP_TCG.md` |
+| 22 | Phone app + TCG | Bot side live: boards, guild, album, map, News feed; redesign slices 1-3 merged (News, UI kit, five-tab shell); slice 4 waits on Clash (on hold) and push (#345 + Firebase); Android closed-test build 0.3.0 | #489, #496, #507, #519, #614, #615, #925, `docs/plans/APP_REDESIGN.md`, `APP_TCG.md` |
 | 23 | Every feature has a home in Discord | Live | #477 |
 | 24 | Discord audit + fresh setup | Done, 4 bugs fixed; Québec Gold tidy-up needs the owner's OK | #504 |
 
@@ -138,7 +138,7 @@ State words: **Released** = in a published client (members have it); **Live** = 
 | P2 | Item links in profession posts; item previews | Live | #516, #497 |
 | P2 | Armory data | **Blocked**: Forever character API closed; re-check script | #524 |
 | P2 | Companion audit + redesign (sync first) | Done 5/5, released 9.0.2 | #512, #525, #529, #530 |
-| P2 | Phone app redesign + Wowhead news | Plan + News tab merged; restructure not started | #519 |
+| P2 | Phone app redesign + Wowhead news | Slices 1-3 merged (News tab, UI kit, five-tab shell); slice 4 waits on Clash and push | #519, #614, #615 |
 | P2 | Profession link shows a recipe card | Live | #521 |
 | P3 | Raid readiness upgrade | Live (raid night check card) | #531 |
 | - | In-game guild board, rankings site, install guides | Live (board addon part released 9.0.2) | #508, #522, #506 |

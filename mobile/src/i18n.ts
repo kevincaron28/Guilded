@@ -10,6 +10,7 @@ const copy = {
   waiting: { en: "Waiting for you to press Connect…", fr: "En attente que vous appuyiez sur Relier…" },
   expired: { en: "This sign-in expired. Start again.", fr: "Cette connexion a expiré. Recommencez." },
   cancel: { en: "Cancel", fr: "Annuler" },
+  retry: { en: "Try again", fr: "Réessayer" },
   pairingLabel: { en: "Or paste a code from /character pair", fr: "Ou collez un code de /character pair" },
   pairingPlaceholder: { en: "Pairing code", fr: "Code de jumelage" },
   serverIdPlaceholder: { en: "Discord server ID, if the code asks for one", fr: "ID du serveur Discord, si le code le demande" },

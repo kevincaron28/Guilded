@@ -4,7 +4,7 @@ import { ApiError, GuildedClient } from "../api";
 import { groupSets, isNew, parseAlbum, type Album, type AlbumCard } from "../album";
 import type { Lang } from "../i18n";
 import { clearSession, type Session } from "../storage";
-import { Medal as MedalRing, ProgressBar, SegmentedTabs, colors } from "../ui";
+import { EmptyState, Medal as MedalRing, ProgressBar, RetryCard, SegmentedTabs, colors } from "../ui";
 
 const words = {
   title: { en: "Badge album", fr: "Album de badges" },
@@ -17,7 +17,6 @@ const words = {
   how: { en: "How to earn", fr: "Comment l'obtenir" },
   unlockedOn: { en: "Unlocked", fr: "Débloquée le" },
   empty: { en: "Nothing unlocked yet. Play, and your first card will appear here.", fr: "Rien de débloqué pour l'instant. Jouez, et votre première carte apparaîtra ici." },
-  retry: { en: "Try again", fr: "Réessayer" },
   failed: { en: "The album is unavailable right now.", fr: "L'album est indisponible pour le moment." },
   sample: { en: "Sample cards. Sign in to see your own.", fr: "Cartes d'exemple. Connectez-vous pour voir les vôtres." }
 } as const;
@@ -64,7 +63,7 @@ export function AlbumScreen({ lang, session }: { lang: Lang; session: Session | 
   const sets = useMemo(() => album ? groupSets(album.cards, onlyMine) : [], [album, onlyMine]);
   const now = Date.now();
 
-  if (error) return <View style={styles.card}><Text style={styles.muted}>{error}</Text><Pressable onPress={() => setAttempt(attempt + 1)} accessibilityRole="button"><Text style={styles.link}>{w("retry", lang)}</Text></Pressable></View>;
+  if (error) return <RetryCard lang={lang} message={error} onRetry={() => setAttempt(attempt + 1)} style={{ marginTop: 14 }} />;
   if (!album) return <ActivityIndicator color={colors.gold} style={{ marginVertical: 24 }} />;
   return <View>
     <Text style={styles.heading}>{w("title", lang)}</Text>
@@ -72,7 +71,7 @@ export function AlbumScreen({ lang, session }: { lang: Lang; session: Session | 
     <Text style={styles.total}>{album.earned} / {album.total} {w("of", lang)}{album.hiddenSecrets ? `  +${album.hiddenSecrets} secret${album.hiddenSecrets === 1 ? "" : "s"}` : ""}</Text>
     <ProgressBar done={album.earned} total={album.total} />
     <View style={styles.chips}><SegmentedTabs options={[{ value: "all", label: w("all", lang) }, { value: "mine", label: w("mine", lang) }]} value={onlyMine ? "mine" : "all"} onChange={(next) => setOnlyMine(next === "mine")} /></View>
-    {onlyMine && album.earned === 0 ? <Text style={styles.muted}>{w("empty", lang)}</Text> : null}
+    {onlyMine && album.earned === 0 ? <EmptyState message={w("empty", lang)} /> : null}
     {sets.map((set) => <View key={set.name}>
       <Text style={styles.label}>{set.name.toUpperCase()}  {set.earned}/{album.cards.filter((card) => card.set === set.name && !(card.secret && !card.earnedAt)).length}</Text>
       <View style={styles.grid}>{set.cards.map((card) => {
@@ -95,9 +94,8 @@ export function AlbumScreen({ lang, session }: { lang: Lang; session: Session | 
 
 const styles = StyleSheet.create({
   heading: { color: colors.text, fontSize: 22, fontWeight: "700", marginTop: 18, marginBottom: 6 },
-  muted: { color: colors.muted, fontSize: 13, lineHeight: 20 }, link: { color: colors.gold, fontSize: 14, paddingVertical: 12 },
+  muted: { color: colors.muted, fontSize: 13, lineHeight: 20 },
   total: { color: colors.gold, fontSize: 13, fontWeight: "700", marginTop: 14, marginBottom: 6 },
-  card: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: 14, marginTop: 14 },
   chips: { marginTop: 14 },
   label: { color: colors.gold, fontSize: 9, letterSpacing: 1.7, fontWeight: "700", marginTop: 20, marginBottom: 10 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },

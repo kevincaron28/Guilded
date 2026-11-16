@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { KeyboardAvoidingView, Linking, Platform, Pressable, Text, View } from "react-native";
 import { t } from "../i18n";
 import type { GuildState } from "../useGuild";
-import { Card, ClassName, Screen, SignInCard, shownName } from "../ui";
+import { Card, ClassName, EmptyState, Screen, SignInCard, shownName } from "../ui";
 import { common } from "../ui/common";
 import { Language } from "../guild/SignIn";
 import { AlbumScreen } from "./AlbumScreen";
@@ -33,7 +33,7 @@ export function MeTab({ guild, onSignIn }: { guild: GuildState; onSignIn: () => 
       {preview ? <Text style={common.banner}>{t(lang, "sampleBanner")}</Text> : null}
       {guild.hasGuild ? <>
         <Text style={common.label}>{t(lang, "profile").toUpperCase()}</Text>
-        {characters.length === 0 ? <Text style={common.muted}>{t(lang, "noCharacters")}</Text> : characters.map((character) =>
+        {characters.length === 0 ? <EmptyState message={t(lang, "noCharacters")} /> : characters.map((character) =>
           <Card key={character.id} edge={null}>
             <View style={common.titleRow}>
               <ClassName name={shownName(character)} className={character.className} style={{ fontSize: 16, flex: 1 }} />

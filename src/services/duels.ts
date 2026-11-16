@@ -31,7 +31,7 @@ export type DuelResultInput = z.infer<typeof duelResultSchema>;
 export const milestoneSchema = z.object({
   character: z.string().trim().min(1).max(80),
   realm: z.string().trim().max(100).default(""),
-  kind: z.enum(["level", "dungeon", "hk", "duel", "prof", "ach", "secret", "gold"]),
+  kind: z.enum(["level", "dungeon", "hk", "duel", "prof", "ach", "secret", "gold", "auction"]),
   ref: z.string().regex(/^[a-z]{2,10}:[A-Za-z0-9_-]{1,30}$/),
   value: z.number().int().min(0).max(1_000_000),
   at: z.number().int().positive().max(4102444800),
@@ -138,6 +138,8 @@ export async function importMilestones(tx: Pick<Tx, "memberMilestone"> & Partial
     }
     // Gold held: only the tier (1-4, ref `gold:<tier>`) is accepted, so no amount can be stored.
     if (m.kind === "gold" && (m.value < 1 || m.value > 4 || m.ref !== `gold:${m.value}`)) { result.rejected++; continue; }
+    // Auction house: only a tier 1-3 (ref `auction:sold-<tier>` or `auction:profit-<tier>`), never a count of sales or an amount of gold.
+    if (m.kind === "auction" && (m.value < 1 || m.value > 3 || (m.ref !== `auction:sold-${m.value}` && m.ref !== `auction:profit-${m.value}`))) { result.rejected++; continue; }
     data.push({ guildId, memberId, gameEdition: edition, kind: m.kind, ref: m.ref, value: m.value, reachedAt: new Date(m.at * 1000) });
   }
   // The generated catalogue: first report of an id wins, a later one never renames it (skipDuplicates).

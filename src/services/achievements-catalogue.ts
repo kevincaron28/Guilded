@@ -42,6 +42,9 @@ export const ACHIEVEMENT_CATALOGUE_VERSION = 9;
  * - honorableKills: the member's lifetime honorable kills, as their own addon reported (milestones the companion uploads).
  * - goldTier: the highest gold-held tier (1-4: 100, 500, 1,000, 5,000 gold) any character of the member reached, as their addon reported it.
  *   Only the tier is ever sent or stored (milestone kind "gold", value = tier), never an amount.
+ * - auctionSoldTier / auctionProfitTier: the highest auction house tier (1-3) any character of the member reached, as their addon reported it
+ *   (milestone kind "auction", ref `auction:sold-<tier>`: 1, 100, 1,000 auctions sold; `auction:profit-<tier>`: 100, 1,000, 10,000 gold earned from auctions).
+ *   Only the tier is ever sent or stored, never a count of sales or an amount of gold.
  * - duelStreak: the longest run of counted duel wins in a row.
  * - beatTopDuelist: 1 once the member has a counted win over the guild's current #1 duelist (who needs 3+ wins).
  * - duelWins: duels the member won against another member of the guild (counted duels only, see services/duels.ts).
@@ -50,7 +53,7 @@ export const ACHIEVEMENT_CATALOGUE_VERSION = 9;
  * - serverAnniversaries: server anniversaries (the Discord server's birthday, from its creation date) that came
  *   while the member was on the server. The member's start is when Guilded first recorded them.
  */
-export type AchievementMetric = "gameAchievement" | "wowLevel" | "wowMaxLevel" | "dungeonRuns" | "dungeonVariety" | "professionSkill" | "raidsAttended" | "raidClears" | "activeDays" | "poeLevel" | "poeMaps" | "wowEditionLevel" | "wowEditionCap" | "wowEditionProfession" | "messagesSent" | "voiceHours" | "reactionsGiven" | "reactionsReceived" | "communityPoints" | "epEarned" | "mvpWeeks" | "serverAnniversaries" | "honorableKills" | "duelWins" | "duelStreak" | "beatTopDuelist" | "professionsMastered" | "professionFirsts" | "rareRecipes" | "craftsDone" | "secretMilestone" | "goldTier";
+export type AchievementMetric = "gameAchievement" | "wowLevel" | "wowMaxLevel" | "dungeonRuns" | "dungeonVariety" | "professionSkill" | "raidsAttended" | "raidClears" | "activeDays" | "poeLevel" | "poeMaps" | "wowEditionLevel" | "wowEditionCap" | "wowEditionProfession" | "messagesSent" | "voiceHours" | "reactionsGiven" | "reactionsReceived" | "communityPoints" | "epEarned" | "mvpWeeks" | "serverAnniversaries" | "honorableKills" | "duelWins" | "duelStreak" | "beatTopDuelist" | "professionsMastered" | "professionFirsts" | "rareRecipes" | "craftsDone" | "secretMilestone" | "goldTier" | "auctionSoldTier" | "auctionProfitTier";
 
 export interface AchievementText { name: string; description: string }
 export interface AchievementDef {
@@ -104,6 +107,9 @@ const def = (id: string, game: AchievementGame, tier: AchievementTier, metric: A
 const grouped = (n: number, fr: boolean) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, fr ? "\u00a0" : ",");
 /** Gold held per tier (milestone value 1-4). The addon owns the same list; only the tier number ever travels. */
 export const GOLD_TIER_GOLD = [100, 500, 1000, 5000] as const;
+/** Auction house tiers (milestone value 1-3): auctions sold and gold earned from auctions. The addon owns the same lists; only the tier number travels. */
+export const AUCTION_SOLD_COUNT = [1, 100, 1000] as const;
+export const AUCTION_PROFIT_GOLD = [100, 1000, 10000] as const;
 type Step = [threshold: number, tier: AchievementTier, en: string, fr: string];
 /** A long progression: one row per step, same metric and glyph, tier rising with the number. Ids are `${prefix}-${threshold}`. */
 function ladder(prefix: string, metric: AchievementMetric, steps: Step[], text: (n: number, fr: boolean) => string): AchievementDef[] {
@@ -159,6 +165,12 @@ const ACTIVITY_LADDERS: AchievementDef[] = [
     [1, "bronze", "Pocket Change", "Menue monnaie"], [2, "silver", "Coin Collector", "Collectionneur de pièces"], [3, "gold", "Thousandaire", "Millénaire"],
     [4, "epic", "Gold Goblin", "Gobelin de l'or"]
   ], (n, fr) => { const gold = GOLD_TIER_GOLD[n - 1] ?? 0; return fr ? `Avoir ${grouped(gold, true)} po sur un même personnage.` : `Hold ${grouped(gold, false)} gold on one character.`; }),
+  ...ladder("auction-sold", "auctionSoldTier", [
+    [1, "bronze", "First Sale", "Première vente"], [2, "silver", "Market Regular", "Habitué du marché"], [3, "epic", "Auction Baron", "Baron des enchères"]
+  ], (n, fr) => { const sold = AUCTION_SOLD_COUNT[n - 1] ?? 0; return fr ? `Vendre ${grouped(sold, true)} ${plural(sold, "objet", "objets")} à l'hôtel des ventes.` : `Sell ${grouped(sold, false)} ${plural(sold, "item", "items")} at the auction house.`; }),
+  ...ladder("auction-profit", "auctionProfitTier", [
+    [1, "bronze", "Profit Margin I", "Marge bénéficiaire I"], [2, "gold", "Profit Margin II", "Marge bénéficiaire II"], [3, "epic", "Profit Margin III", "Marge bénéficiaire III"]
+  ], (n, fr) => { const gold = AUCTION_PROFIT_GOLD[n - 1] ?? 0; return fr ? `Gagner ${grouped(gold, true)} po à l'hôtel des ventes.` : `Earn ${grouped(gold, false)} gold from the auction house.`; }),
   ...ladder("anniversary", "serverAnniversaries", [
     [1, "bronze", "Anniversary Guest", "Invité d'anniversaire"], [2, "silver", "Two Candles", "Deux chandelles"], [3, "gold", "Triple Toast", "Triple toast"],
     [5, "platinum", "High Five", "Haut les cinq"], [10, "legendary", "Decade Strong", "Une décennie ensemble"]

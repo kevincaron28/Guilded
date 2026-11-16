@@ -38,6 +38,9 @@ export interface AchievementFacts {
   honorableKills: number;
   /** The highest gold-held tier (1-4) a character reported; never an amount. */
   goldTier: number;
+  /** The highest auction house tiers (1-3) a character reported; never a count or an amount. */
+  auctionSoldTier: number;
+  auctionProfitTier: number;
   duelWins: number;
   duelStreak: number;
   beatTopDuelist: number;
@@ -51,7 +54,7 @@ export interface AchievementFacts {
 
 export interface AchievementResult { def: AchievementDef; value: number; earned: boolean; earnedAt: Date | null }
 
-export const emptyFacts = (): AchievementFacts => ({ highestWowLevel: 0, charactersAtCap: 0, editions: {}, dungeonRuns: [], dungeonVariety: [], highestProfessionSkill: 0, raidsAttended: [], raidClears: [], secrets: {}, activeDays: [], poeLevels: [], poeMaps: [], mvpWeeks: [], serverAnniversaries: [], messagesSent: 0, reactionsGiven: 0, reactionsReceived: 0, voiceHours: 0, communityPoints: 0, epEarned: 0, honorableKills: 0, goldTier: 0, duelWins: 0, duelStreak: 0, beatTopDuelist: 0, professionFirsts: 0, rareRecipes: 0, craftsDone: [] });
+export const emptyFacts = (): AchievementFacts => ({ highestWowLevel: 0, charactersAtCap: 0, editions: {}, dungeonRuns: [], dungeonVariety: [], highestProfessionSkill: 0, raidsAttended: [], raidClears: [], secrets: {}, activeDays: [], poeLevels: [], poeMaps: [], mvpWeeks: [], serverAnniversaries: [], messagesSent: 0, reactionsGiven: 0, reactionsReceived: 0, voiceHours: 0, communityPoints: 0, epEarned: 0, honorableKills: 0, goldTier: 0, auctionSoldTier: 0, auctionProfitTier: 0, duelWins: 0, duelStreak: 0, beatTopDuelist: 0, professionFirsts: 0, rareRecipes: 0, craftsDone: [] });
 
 function measure(def: AchievementDef, facts: AchievementFacts): { value: number; at: Date | null } {
   const { metric, threshold } = def;
@@ -86,6 +89,8 @@ function measure(def: AchievementDef, facts: AchievementFacts): { value: number;
     case "epEarned": return { value: facts.epEarned, at: null };
     case "honorableKills": return { value: facts.honorableKills, at: null };
     case "goldTier": return { value: facts.goldTier, at: null };
+    case "auctionSoldTier": return { value: facts.auctionSoldTier, at: null };
+    case "auctionProfitTier": return { value: facts.auctionProfitTier, at: null };
     case "duelWins": return { value: facts.duelWins, at: null };
     case "duelStreak": return { value: facts.duelStreak, at: null };
     case "beatTopDuelist": return { value: facts.beatTopDuelist, at: null };
@@ -153,7 +158,7 @@ export async function gatherAchievementFacts(db: Db, guildId: string, memberId: 
   if (!member) return emptyFacts();
   const founded = member.guild?.discordId ? serverCreatedAt(member.guild.discordId) : null;
   const max = (metric: AchievementMetric) => Math.max(...ACHIEVEMENTS.filter(row => row.metric === metric).map(row => row.threshold));
-  const [characters, skills, runs, attendance, days, levels, visits, counter, points, given, ep, mvps, killMilestones, goldMilestones, duels, topDuelist, crafts, profMilestones, secretRows] = await Promise.all([
+  const [characters, skills, runs, attendance, days, levels, visits, counter, points, given, ep, mvps, killMilestones, goldMilestones, auctionMilestones, duels, topDuelist, crafts, profMilestones, secretRows] = await Promise.all([
     db.character.findMany({ where: { memberId, guildId }, select: { name: true, realm: true, level: true, gameEdition: true } }),
     db.professionSkill.findMany({ where: { character: { memberId, guildId } }, select: { skillLevel: true, profession: true, character: { select: { gameEdition: true } } }, take: 500 }),
     db.dungeonRunPlayer.findMany({ where: { memberId, run: { guildId, valid: true, state: "COMPLETED" } }, select: { runId: true, run: { select: { instanceId: true, endedAt: true, startedAt: true, createdAt: true } } }, take: 1000 }),
@@ -173,6 +178,8 @@ export async function gatherAchievementFacts(db: Db, guildId: string, memberId: 
     db.memberMilestone.aggregate({ where: { guildId, memberId, kind: "hk" }, _max: { value: true } }),
     // The highest gold-held tier (1-4) any of the member's characters reported. Only the tier is stored, never the amount.
     db.memberMilestone.aggregate({ where: { guildId, memberId, kind: "gold" }, _max: { value: true } }),
+    // Auction house tiers (kind "auction", value 1-3): sold counts and profit are separate refs. Only tiers are stored.
+    db.memberMilestone.findMany({ where: { guildId, memberId, kind: "auction" }, select: { ref: true, value: true }, take: 50 }),
     db.duelResult.findMany({ where: { guildId, counted: true, archived: false, OR: [{ winnerId: memberId }, { loserId: memberId }] }, orderBy: { endedAt: "asc" }, take: 5000, select: { winnerId: true, loserId: true } }),
     db.duelResult.groupBy({ by: ["winnerId"], where: { guildId, counted: true, archived: false }, _count: { _all: true }, orderBy: { _count: { winnerId: "desc" } }, take: 1 }),
     // Craft-board requests this member finished for someone else.
@@ -233,6 +240,8 @@ export async function gatherAchievementFacts(db: Db, guildId: string, memberId: 
     epEarned: Math.max(0, ep._sum.epAmount ?? 0),
     honorableKills: killMilestones._max.value ?? 0,
     goldTier: Math.min(4, goldMilestones._max.value ?? 0),
+    auctionSoldTier: Math.min(3, Math.max(0, ...auctionMilestones.filter(row => row.ref.startsWith("auction:sold-")).map(row => row.value))),
+    auctionProfitTier: Math.min(3, Math.max(0, ...auctionMilestones.filter(row => row.ref.startsWith("auction:profit-")).map(row => row.value))),
     duelWins: duelStats.wins,
     duelStreak: duelStats.best,
     craftsDone: crafts.map(row => row.doneAt ?? row.updatedAt).sort(byDate),

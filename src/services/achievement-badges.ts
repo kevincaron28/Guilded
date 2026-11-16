@@ -53,14 +53,16 @@ export const GLYPHS = {
   bolt: `<path d="M13 2L5 14h6l-1 8 8-12h-6z"/>`,
   duel: `<path d="M4 4l9 9M20 4l-9 9M11 15l-2 2 1.500 1.500M13 15l2 2-1.500 1.500M12 21v-3"/><path d="M3 20l3-3M21 20l-3-3"/><circle cx="12" cy="10" r="1.200" fill="currentColor"/>`,
   medal: `<circle cx="12" cy="15" r="6"/><path d="M8 3l4 7 4-7M12 12l1 2h2l-1.500 1.300.5 2-2-1.200-2 1.200.5-2L9 14h2z"/>`,
+  gavel: `<path d="M5 21h9M8.500 15.500l7-7M12 5l7 7-3 3-7-7zM6 13l5 5"/>`,
+  chart: `<path d="M4 20h16M6 17l4-5 3 3 5-8M15 7h3v3"/>`,
   cake: `<path d="M4 20h16v-6H4zM4 14c2 2 4 2 4 0 0 2 4 2 4 0 0 2 4 2 4 0 0 2 4 2 4 0M12 11V8M12 3c1 1.500 1 2.500 0 3.500-1-1-1-2 0-3.500z"/>`
 } as const;
 export type GlyphName = keyof typeof GLYPHS;
 
 // Long progressions share one glyph per metric; the tier frame and the rank pips tell the steps apart.
 // Every ladder metric is listed here on purpose: a new ladder without a glyph fails to compile (and the test below).
-type LadderMetric = "messagesSent" | "voiceHours" | "reactionsGiven" | "reactionsReceived" | "communityPoints" | "epEarned" | "mvpWeeks" | "serverAnniversaries" | "honorableKills" | "duelWins" | "craftsDone" | "goldTier";
-const LADDER_GLYPH: Record<LadderMetric, GlyphName> = { messagesSent: "bubble", voiceHours: "mic", reactionsGiven: "smile", reactionsReceived: "sparkle", communityPoints: "coin", epEarned: "bolt", mvpWeeks: "trophy", serverAnniversaries: "cake", honorableKills: "medal", duelWins: "duel", craftsDone: "hammer", goldTier: "purse" };
+type LadderMetric = "messagesSent" | "voiceHours" | "reactionsGiven" | "reactionsReceived" | "communityPoints" | "epEarned" | "mvpWeeks" | "serverAnniversaries" | "honorableKills" | "duelWins" | "craftsDone" | "goldTier" | "auctionSoldTier" | "auctionProfitTier";
+const LADDER_GLYPH: Record<LadderMetric, GlyphName> = { messagesSent: "bubble", voiceHours: "mic", reactionsGiven: "smile", reactionsReceived: "sparkle", communityPoints: "coin", epEarned: "bolt", mvpWeeks: "trophy", serverAnniversaries: "cake", honorableKills: "medal", duelWins: "duel", craftsDone: "hammer", goldTier: "purse", auctionSoldTier: "gavel", auctionProfitTier: "chart" };
 const SINGLE_GLYPH: Record<string, GlyphName> = {
   "dungeon-runs-1": "door", "dungeon-runs-10": "key", "dungeon-runs-25": "torch", "dungeon-runs-50": "swords", "dungeon-runs-100": "crown",
   "dungeon-variety-1": "map", "dungeon-variety-5": "compass", "dungeon-variety-10": "gem", "duel-streak-5": "ascend", "duel-beat-top": "orb", "secret-01": "orb",

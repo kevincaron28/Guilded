@@ -1,5 +1,6 @@
 import type { Lang } from "../i18n.js";
 import { localParts, zonedTime } from "./raid-time.js";
+import { seasonLabel } from "./season-label.js";
 
 export function communityStatusLabel(status: string, lang: Lang): string {
   const labels: Record<string, [string, string]> = {
@@ -18,11 +19,17 @@ export function communityKindLabel(kind: string, lang: Lang): string {
   return labels[kind]?.[lang === "fr" ? 1 : 0] ?? (lang === "fr" ? "Activité" : "Activity");
 }
 
+// Community seasons are the monthly podium seasons (owner-approved, 9 November 2026), a separate thing from the official "Season N" that
+// dungeons, duels, battlegrounds, Clash and raids share (owner decision, 16 November 2026). To keep the two from clashing, a community
+// season is named by its month or theme only ("December 2026" / "Décembre 2026"); its own counter is never shown as "Season N".
+// A season with no theme left (an officer-typed "Season 3") reads "Community season 3" / "Saison communautaire 3".
 export function communitySeasonLabel(season: { name: string; number?: number; game?: string }, lang: Lang): string {
-  const number = season.number ?? 1;
-  const heading = `${lang === "fr" ? "Saison" : "Season"} ${number}`;
   const theme = season.name.replace(/^(?:season|saison)\s+\d+\s*(?:[—–-]\s*)?/i, "").trim();
-  return theme ? `${heading} — ${theme}` : heading;
+  if (theme) {
+    const shown = seasonLabel(theme, lang);
+    return shown.charAt(0).toUpperCase() + shown.slice(1);
+  }
+  return `${lang === "fr" ? "Saison communautaire" : "Community season"} ${season.number ?? 1}`;
 }
 
 export function communityMonthName(now: Date, timezone: string, lang: Lang): string {

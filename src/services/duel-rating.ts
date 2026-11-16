@@ -1,4 +1,5 @@
 import { weekStart } from "./dungeon-rules.js";
+import { getSeasonCalendar, laterSeasonAt, nextSeasonAfter, officialSeasonName } from "./season-calendar.js";
 
 // Duel rating (rule set C of docs/DUEL_SCORING_RESEARCH.md; owner decision 13 November 2026, "rating with caution").
 // An Elo-style rating that starts at 1000 each season, shown shrunk toward 1000 while a record is short. Pure functions over
@@ -7,15 +8,17 @@ import { weekStart } from "./dungeon-rules.js";
 // is simply placed where it belongs. The in-game addon must follow docs/DUEL_RATING_ADDON_SPEC.md and the shared test
 // vectors in tests/fixtures/duel-rating-vectors.json.
 //
-// Time: every boundary is UTC (like the weekly reset in dungeon-rules.ts and the per-day duel cap). Seasons are calendar
-// months; the pair weight window is the existing weekly reset (Tuesday 15:00 UTC).
+// Time: every boundary is UTC (like the weekly reset in dungeon-rules.ts and the per-day duel cap). Seasons follow the owner's
+// official season calendar (season-calendar.ts, owner decision 16 November 2026): the season that began on 13 November is "Season 1"
+// and runs until the official Season 2 starts (9 December 2026, 15:00 Pacific); from then on a duel season IS the official season
+// (id "S2", "S3"... unpadded here; Guilded Clash keys are zero padded "S02" because its code orders keys as strings, see tcg-rating.ts). With no later season scheduled the current one simply continues. Old "YYYY-MM" ids stay readable: the id
+// of the first season is still the "YYYY-MM" of its start ("2026-11"), and any other old month id is shown as a month. The pair
+// weight window is the existing weekly reset (Tuesday 15:00 UTC).
 
 export const RATING = {
   id: "rating-v1",
   /** The ladders start here (13 November 2026 00:00 UTC, owner decision). Duels that ended before it are archived test data and appear nowhere. */
   startsAt: "2026-11-13T00:00:00.000Z",
-  /** The first season runs from `startsAt` to here (1 January 2027 00:00 UTC, exclusive); after it seasons are calendar months. */
-  firstSeasonEndsAt: "2027-01-01T00:00:00.000Z",
   start: 1000,
   /** K by the number of RATED duels the player already has: below `upTo` use `k`. */
   kBands: [{ upTo: 10, k: 40 }, { upTo: 30, k: 24 }, { upTo: 1_000_000, k: 16 }],
@@ -66,19 +69,23 @@ export interface RatingChange {
   rated: boolean;
 }
 
-export interface SeasonInfo { id: string; from: Date; to: Date | null; rated: boolean }
+export interface SeasonInfo { id: string; from: Date; to: Date | null; rated: boolean; /** The official season number (1 for the first season). Absent before the start. */ number?: number }
+
+/** The id of an official season from number 2 on: "S2", "S3"... (the first season keeps its old "YYYY-MM" id). */
+export const officialSeasonId = (number: number) => `S${number}`;
+const monthId = (date: Date) => `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
 
 /**
- * The rating season a time falls in: "s0" before the start (archived: no board shows it), the first season (from the start to
- * `firstSeasonEndsAt`, id "YYYY-MM" of the start month), then calendar months "YYYY-MM" in UTC.
+ * The rating season a time falls in: "s0" before the start (archived: no board shows it); the first season (from the start until the
+ * official Season 2 begins, id "YYYY-MM" of the start month, "2026-11"); then one season per official season ("S2", "S3"...).
  */
-export function seasonOf(at: Date, startsAt: Date = RATING_START): SeasonInfo {
+export function seasonOf(at: Date, startsAt: Date = RATING_START, calendar = getSeasonCalendar()): SeasonInfo {
   if (at < startsAt) return { id: "s0", from: new Date(0), to: startsAt, rated: false };
-  const firstEnd = new Date(RATING.firstSeasonEndsAt);
-  if (startsAt < firstEnd && at < firstEnd) return { id: `${startsAt.getUTCFullYear()}-${String(startsAt.getUTCMonth() + 1).padStart(2, "0")}`, from: startsAt, to: firstEnd, rated: true };
-  const from = new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), 1));
-  const to = new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth() + 1, 1));
-  return { id: `${from.getUTCFullYear()}-${String(from.getUTCMonth() + 1).padStart(2, "0")}`, from: from < startsAt ? startsAt : from, to, rated: true };
+  const later = laterSeasonAt(at, calendar);
+  if (later && later.start > startsAt) {
+    return { id: officialSeasonId(later.number), from: later.start, to: nextSeasonAfter(at, calendar)?.start ?? null, rated: true, number: later.number };
+  }
+  return { id: monthId(startsAt), from: startsAt, to: nextSeasonAfter(at, calendar)?.start ?? null, rated: true, number: 1 };
 }
 
 /** Which rules apply to a duel that ended at `at`. */
@@ -193,14 +200,27 @@ export function ratingSeasonIds(now: Date, startsAt: Date = RATING_START): strin
   return out;
 }
 
-/** A season's name for a board: "November 13 – December 31, 2026" (the first), "January 2027". */
+/** The official number behind a season id: "S3" is 3, the first season's old "YYYY-MM" id is 1; any other old month id has none. */
+export function ratingSeasonNumber(id: string): number | null {
+  const later = /^S(\d+)$/.exec(id);
+  if (later) return Number(later[1]);
+  return id === monthId(RATING_START) ? 1 : null;
+}
+
+/** A season's name for a board: "Season 2" / "Saison 2" (the first season is "Season 1"); an old month id that is not the first season stays a month ("January 2027"). */
 export function ratingSeasonName(id: string, lang: "en" | "fr"): string {
-  const first = seasonOf(RATING_START, RATING_START);
-  if (first.rated && id === first.id) {
-    const last = new Date(first.to!.getTime() - 1);
-    const day = (d: Date) => d.toLocaleDateString(lang === "fr" ? "fr-CA" : "en-CA", { day: "numeric", month: "long", timeZone: "UTC" });
-    const year = last.getUTCFullYear();
-    return lang === "fr" ? `${day(first.from)} – ${day(last)} ${year}` : `${day(first.from)} – ${day(last)}, ${year}`;
-  }
+  const number = ratingSeasonNumber(id);
+  if (number !== null) return officialSeasonName(number, lang);
   return new Date(`${id}-01T00:00:00Z`).toLocaleDateString(lang === "fr" ? "fr-CA" : "en-CA", { month: "long", year: "numeric", timeZone: "UTC" });
+}
+
+/** The dates of a season as a subtitle: "November 13 – December 9" ("From November 13" while it runs), or "" when unknown. */
+export function ratingSeasonRange(id: string, lang: "en" | "fr", calendar = getSeasonCalendar()): string {
+  const number = ratingSeasonNumber(id);
+  if (number === null) return "";
+  const from = number === 1 ? RATING_START : calendar.find(row => row.number === number)?.start;
+  if (!from) return "";
+  const to = nextSeasonAfter(from, calendar)?.start;
+  const day = (d: Date) => d.toLocaleDateString(lang === "fr" ? "fr-CA" : "en-CA", { day: "numeric", month: "long", timeZone: "UTC" });
+  return to ? `${day(from)} – ${day(new Date(to.getTime() - 1))}` : lang === "fr" ? `Dès le ${day(from)}` : `From ${day(from)}`;
 }

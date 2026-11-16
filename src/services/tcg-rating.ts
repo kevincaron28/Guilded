@@ -4,7 +4,11 @@
 // - a hidden Glicko-2 rating (rating, rd, vol) that only drives matchmaking, and
 // - visible stars: win +1, loss -1, a win streak of 3 or more pays +2 a win. Stars make the rank: Initiate, Adept, Veteran, Elite
 //   (four divisions each, 3 / 3 / 4 / 5 stars a division) and Legend, a numbered leaderboard ordered by the hidden rating.
-// Seasons are calendar months in UTC. A new season starts from a partial reset of the last one the member played.
+// Seasons follow the official season calendar (season-calendar.ts, owner decision 16 November 2026): the key of Season 1 is the old
+// month key "2026-11", from Season 2 on the key is "S02", "S03"... (zero padded so keys keep sorting). A new season starts from a
+// partial reset of the last one the member played; old "YYYY-MM" rows stay readable.
+
+import { getSeasonCalendar, laterSeasonAt, nextSeasonAfter, officialSeasonName, type CalendarSeason } from "./season-calendar.js";
 
 export const START_RATING = 1500;
 export const START_RD = 350;
@@ -105,11 +109,32 @@ export function applyStars(stars: number, streak: number, won: boolean): { stars
 
 // ---- seasons ----
 
-/** The ranked season of an instant: its UTC month, as YYYY-MM. */
-export const seasonKey = (now: Date): string => now.toISOString().slice(0, 7);
-export function seasonEndsAt(season: string): Date {
-  const [y, m] = season.split("-").map(Number) as [number, number];
-  return new Date(Date.UTC(y, m, 1));
+/** The key Season 1 keeps: the month the first Clash ranked games were played in (rows written before the official calendar). */
+export const SEASON_ONE_KEY = "2026-11";
+/** The key of an official season: Season 1 is the old month key, Season 2 on is "S02", "S03"... */
+export const officialSeasonKey = (number: number): string => number <= 1 ? SEASON_ONE_KEY : `S${String(number).padStart(2, "0")}`;
+/** The ranked season of an instant: the official season running then (Season 1 until the official Season 2 starts). */
+export const seasonKey = (now: Date, calendar: readonly CalendarSeason[] = getSeasonCalendar()): string => {
+  const later = laterSeasonAt(now, calendar);
+  return later ? officialSeasonKey(later.number) : SEASON_ONE_KEY;
+};
+/** The official number of a season key ("S03" is 3, "2026-11" is 1), or null for any other old month key. */
+export function seasonNumberOfKey(key: string): number | null {
+  const later = /^S(\d{2,})$/.exec(key);
+  if (later) return Number(later[1]);
+  return key === SEASON_ONE_KEY ? 1 : null;
+}
+/** "Season 2" / "Saison 2"; an old month key that is not Season 1 stays as written. */
+export const seasonNameOfKey = (key: string, lang: "en" | "fr" = "en"): string => { const n = seasonNumberOfKey(key); return n === null ? key : officialSeasonName(n, lang); };
+/** When a season ends: the start of the next official season, or null while none is scheduled (the season continues). Old month keys end with their month. */
+export function seasonEndsAt(season: string, calendar: readonly CalendarSeason[] = getSeasonCalendar()): Date | null {
+  const number = seasonNumberOfKey(season);
+  if (number === null) {
+    const [y, m] = season.split("-").map(Number) as [number, number];
+    return new Date(Date.UTC(y, m, 1));
+  }
+  const started = number === 1 ? new Date(0) : calendar.find(row => row.number === number)?.start ?? new Date(0);
+  return nextSeasonAfter(started, calendar)?.start ?? null;
 }
 /** The Monday 00:00 UTC that starts the week of an instant (the friendly leaderboard window). */
 export function weekStart(now: Date): Date {

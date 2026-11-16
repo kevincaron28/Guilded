@@ -42,7 +42,8 @@ describe("community honors rules", () => {
     expect(fr.embeds[0]!.description).toContain("rôle MVP reste libre");
     const month = monthlyHonorsMessage("fr", { name: "Septembre 2026", number: 3 }, [row("a", 90), row("b", 60), row("c", 30)]);
     expect(month.embeds[0]!.description).toContain("🥇 **…a** — **90 pts** · 🥇 Champion du mois");
-    expect(month.embeds[0]!.title).toContain("Saison 3");
+    expect(month.embeds[0]!.title).toContain("Septembre 2026");
+    expect(month.embeds[0]!.title).not.toContain("Saison");
     expect(month.content).not.toContain("<@");
     // Embed and text show names, which every reader can see; no mention anywhere.
     const named = weeklyHonorsMessage("en", { week: "2026-09-28", board: [row("123456789012345678", 70), row("b", 50)], mvps: ["123456789012345678"], recap, names: new Map([["123456789012345678", "Aria Gold"]]) });

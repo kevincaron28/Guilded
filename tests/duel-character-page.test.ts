@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- in-memory stand-ins for the few Prisma calls the store makes */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import { seasonOf, RATING_START } from "../src/services/duel-rating.js";
+import { resetSeasonCalendar, setSeasonCalendar } from "../src/services/season-calendar.js";
 import type { GlobalDuel } from "../src/services/duel-global.js";
 import { createLeaderboardPages, prismaLeaderboardStore, type LeaderboardStore } from "../src/services/public-leaderboard.js";
 import { createWebApp, type WebResponse } from "../src/services/web-app.js";
@@ -47,6 +48,8 @@ describe("duel-only players on the web", () => {
   });
 
   it("lists in search only players whose page exists: a past-season duelist gets neither", async () => {
+    setSeasonCalendar([{ number: 2, startsAt: new Date("2026-12-09T23:00:00Z") }]);
+    onTestFinished(resetSeasonCalendar);
     const lastSeason = "2026-11-20T10:00:00Z", later = "2027-01-20T12:00:00Z";
     expect(seasonOf(new Date(lastSeason), RATING_START).id).not.toBe(seasonOf(new Date(later), RATING_START).id);
     const get = appFor(async () => [duel(brenna, aldric, lastSeason)], later);

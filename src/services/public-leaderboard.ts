@@ -634,7 +634,9 @@ export interface LeaderboardDeps { store: LeaderboardStore; personal: PersonalSt
   /** The owner's season calendar (official-seasons.ts); the seeded Season 1 when left out. */
   calendar?: () => Promise<OfficialWindow[]>;
   /** The character's Public picture (public-pictures.ts), shown on its page and card; none when left out. */
-  picture?: (name: string, realm: string | null) => Promise<PublicPicture | null> }
+  picture?: (name: string, realm: string | null) => Promise<PublicPicture | null>;
+  /** Reloads the in-memory season calendar (season-calendar.ts) before a page is served, so a restart never shows a later season under the first one's name. */
+  refreshSeasons?: () => Promise<void> }
 
 export { clearLeaderboardCaches } from "./leaderboard-cache-hooks.js";
 
@@ -658,6 +660,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
   const coldLoads = new Map<string, Promise<unknown>>();
   const reloadFirst = new Set<string>();
   let lastRequestAt = 0;
+  const refreshSeasons = async () => { try { await deps.refreshSeasons?.(); } catch { /* keep the previous calendar */ } };
   async function cached<T>(id: string, load: () => Promise<T>): Promise<T> {
     id = `${currentEdition()}:${id}`;
     const byName = /^[^:]*:[cp]:/.test(id);
@@ -1984,6 +1987,6 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     let edition;
     try { edition = gameEditionOf({ gameEdition: ctx.request.query.get("edition") ?? "forever" }); }
     catch { return Promise.resolve(kit.page(400, "Unknown WoW edition", "")); }
-    return withEdition(edition, () => route(ctx, kit)).then((response) => response && typeof response.body === "string" ? { ...response, body: showHiddenMarks(response.body, ctx.lang) } : response);
-  }, meSection, warm, clear, recentlyUsed: () => lastRequestAt > 0 && now().getTime() - lastRequestAt < 600_000 };
+    return withEdition(edition, async () => { await refreshSeasons(); return route(ctx, kit); }).then((response) => response && typeof response.body === "string" ? { ...response, body: showHiddenMarks(response.body, ctx.lang) } : response);
+  }, meSection: async (context) => { await refreshSeasons(); return meSection(context); }, warm, clear, recentlyUsed: () => lastRequestAt > 0 && now().getTime() - lastRequestAt < 600_000 };
 }

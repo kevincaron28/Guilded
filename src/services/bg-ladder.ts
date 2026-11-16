@@ -10,6 +10,7 @@ import { percent } from "./duels.js";
 import { displayCharacterName, loadFullNameBook } from "./character-display.js";
 import { classOf, loadClassBook, type ClassBook } from "./ladder-classes.js";
 import { classColor, ladderMeta, scoreCardPng, type ScoreCard } from "./score-card.js";
+import { currentOfficialSeason, officialSeasonName } from "./season-calendar.js";
 import { loadExtrasFields } from "./world-pvp-extras.js";
 import { loadWorldPvpData, worldPvpCard, worldPvpEmbed, WORLD_PVP_CARD_FILE } from "./world-pvp.js";
 import { moveColumn, moveFields, trackRanks, type Movements } from "./ladder-snapshots.js";
@@ -24,13 +25,17 @@ export const bgBoardKey = (ladder: { mode: string; bracket: string }) => `bg:${l
 
 const guildService = createGuildService(prisma);
 export const BG_LADDER_MARKER = "Guilded BG ladder";
-const TOP = 5, CARD_TOP = 10, BRACKETS = 6, DAYS = 30;
+const TOP = 5, CARD_TOP = 10, BRACKETS = 6, DAYS = 30; // DAYS: the fallback window when no official season is running
 export const BG_CARD_FILE = "battlegrounds.png";
 
 export interface BgGroup { memberId: string; mode: string; bracket: string; outcome: string; _count: { _all: number } }
 export interface BgStanding { memberId: string; name: string; games: number; wins: number; losses: number; draws: number; winRate: number }
 export interface BgBracketLadder { mode: string; bracket: string; games: number; standings: BgStanding[] }
-export interface BgLadderData { brackets: BgBracketLadder[]; participations: number; edition: string }
+/** `season` is the official season the ladder counts (owner decision, 16 November 2026: boards roll over with the season calendar); absent only when no season is running, then the last 30 days. */
+export interface BgLadderData { brackets: BgBracketLadder[]; participations: number; edition: string; season?: { number: number; start: Date } }
+
+/** "Season 2" / "Saison 2", or the last-30-days fallback. */
+export const windowText = (data: Pick<BgLadderData, "season">, lang: Lang) => data.season ? officialSeasonName(data.season.number, lang) : lang === "fr" ? `${DAYS} derniers jours` : `last ${DAYS} days`;
 
 /** Pure: one ladder per mode and bracket, players by wins, then win rate, then games, then name. */
 export function bgLadders(groups: readonly BgGroup[], names: ReadonlyMap<string, string>): BgBracketLadder[] {
@@ -61,7 +66,7 @@ export function bgLadderCard(data: BgLadderData, lang: Lang, classes: ClassBook 
   const fr = lang === "fr";
   return {
     eyebrow: `Guilded · ${fr ? "JcJ" : "PvP"}`, title: fr ? "Champs de bataille" : "Battleground ladder",
-    subtitle: fr ? `${data.participations} participations rapportées · ${DAYS} derniers jours` : `${data.participations} reported participations · last ${DAYS} days`,
+    subtitle: fr ? `${data.participations} participations rapportées · ${windowText(data, "fr")}` : `${data.participations} reported participations · ${windowText(data, "en")}`,
     backdrop: { kind: "board", key: "battlegrounds" },
     stats: [], footer: fr ? "Rapports de joueurs, pas des matchs vérifiés · distinct des duels · aucun point ni récompense" : "Player reports, not verified matches · separate from duels · no points or awards",
     ladder: {
@@ -83,7 +88,8 @@ export function bgLadderEmbed(data: BgLadderData, lang: Lang, image?: string): E
   if (!data.brackets.length) {
     embed.setDescription(t("No battleground report yet. Members' postmatch reports fill this ladder.", "Aucun rapport de champ de bataille. Les rapports après match des membres remplissent ce classement."));
   } else {
-    embed.setDescription(t(`${data.participations} reported participations in the last ${DAYS} days, by mode and bracket. Wins, then win rate.`, `${data.participations} participations rapportées sur les ${DAYS} derniers jours, par mode et tranche. Victoires, puis taux de victoire.`));
+    embed.setDescription(data.season ? t(`${data.participations} reported participations in ${officialSeasonName(data.season.number, "en")}, by mode and bracket. Wins, then win rate.`, `${data.participations} participations rapportées en ${officialSeasonName(data.season.number, "fr")}, par mode et tranche. Victoires, puis taux de victoire.`)
+      : t(`${data.participations} reported participations in the last ${DAYS} days, by mode and bracket. Wins, then win rate.`, `${data.participations} participations rapportées sur les ${DAYS} derniers jours, par mode et tranche. Victoires, puis taux de victoire.`));
     for (const ladder of data.brackets.slice(0, image ? 0 : BRACKETS)) {
       const rows = ladder.standings.slice(0, TOP).map((player, index) => `${["🥇", "🥈", "🥉"][index] ?? `**${index + 1}.**`} ${name(player.name)} — ${player.wins}${t("W", "V")} ${player.losses}${t("L", "D")}${player.draws ? ` ${player.draws}${t("D", "N")}` : ""} · ${percent(player.winRate)} · ${player.games} ${t("games", "parties")}`);
       embed.addFields({ name: `${ladder.mode} · ${ladder.bracket}`.slice(0, 256), value: rows.join("\n").slice(0, 1024) });
@@ -93,15 +99,17 @@ export function bgLadderEmbed(data: BgLadderData, lang: Lang, image?: string): E
   return embed.setFooter({ text: t("Members' reports after each match, not verified by Blizzard · separate from the duel ladder · no points or awards", "Rapports des membres après chaque match, non vérifiés par Blizzard · distinct du classement des duels · aucun point ni récompense") });
 }
 
-export async function loadBgLadderData(db: Pick<PrismaClient, "battlegroundReport" | "member"> & Partial<Pick<PrismaClient, "unclaimedCharacter" | "guildRosterEntry" | "character">>, guildId: string, edition: string, now = new Date()): Promise<BgLadderData> {
-  const since = new Date(now.getTime() - DAYS * 86_400_000);
+export async function loadBgLadderData(db: Pick<PrismaClient, "battlegroundReport" | "member"> & Partial<Pick<PrismaClient, "unclaimedCharacter" | "guildRosterEntry" | "character" | "officialSeason">>, guildId: string, edition: string, now = new Date()): Promise<BgLadderData> {
+  // The current official season (same window as /bg stats); the last 30 days only when no season is running.
+  const season = await currentOfficialSeason(db, edition, now);
+  const since = season ? season.start : new Date(now.getTime() - DAYS * 86_400_000);
   const groups = await db.battlegroundReport.groupBy({ by: ["memberId", "mode", "bracket", "outcome"], _count: { _all: true },
     where: { guildId, gameEdition: edition, status: "PROVISIONAL", endedAt: { gte: since, lt: now },
       member: { guildId, status: "ACTIVE" } } });
   const members = await db.member.findMany({ where: { id: { in: [...new Set(groups.map(group => group.memberId))] } }, select: { id: true, displayName: true, characters: { where: { gameEdition: edition }, orderBy: [{ isMain: "desc" }, { name: "asc" }], take: 1, select: { name: true, displayName: true } } } });
   const book = await loadFullNameBook(db as never, guildId);
   const names = new Map(members.map(member => [member.id, member.characters?.[0] ? displayCharacterName(member.characters[0], book) : member.displayName]));
-  return { brackets: bgLadders(groups, names), participations: groups.reduce((sum, group) => sum + group._count._all, 0), edition };
+  return { brackets: bgLadders(groups, names), participations: groups.reduce((sum, group) => sum + group._count._all, 0), edition, ...(season ? { season: { number: season.number, start: season.start } } : {}) };
 }
 
 const isBoard = (message: Message, botId: string) => isOwnBoard(message, botId, BG_LADDER_MARKER, ["🏴 Battleground ladder", "🏴 Classement des champs de bataille"]);

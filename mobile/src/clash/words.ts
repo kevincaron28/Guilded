@@ -126,8 +126,9 @@ const words = {
   friendlyResult: { en: "Friendly match: counts on the weekly guild board.", fr: "Match amical : compte au tableau de la guilde." },
   starsGained: { en: "{n} star", fr: "{n} étoile" },
   rankedTitle: { en: "Ranked ladder", fr: "Classement" },
-  rankedIntro: { en: "Against players from every Guilded server, matched by skill. Monthly seasons.", fr: "Contre des joueurs de tous les serveurs Guilded, selon le niveau. Saisons mensuelles." },
-  seasonEnds: { en: "Season {season} ends in {t}", fr: "La saison {season} se termine dans {t}" },
+  rankedIntro: { en: "Against players from every Guilded server, matched by skill. Seasons follow the official Guilded season.", fr: "Contre des joueurs de tous les serveurs Guilded, selon le niveau. Les saisons suivent la saison officielle de Guilded." },
+  seasonEnds: { en: "{season} ends in {t}", fr: "{season} se termine dans {t}" },
+  seasonOpen: { en: "{season} is running", fr: "{season} est en cours" },
   starsToNext: { en: "{n} more star to the next division", fr: "encore {n} étoile pour la division suivante" },
   legendNote: { en: "Legend: ranked by skill on the leaderboard.", fr: "Légende : classé par niveau au tableau." },
   safeRank: { en: "No star is lost at Initiate and Adept.", fr: "Aucune étoile perdue en Initié et Adepte." },
@@ -150,6 +151,12 @@ const words = {
 } as const;
 
 export type WordKey = keyof typeof words;
+/** A ranked season key as members read it: "S02" and later are "Season 2" / "Saison 2", the key of the first season ("2026-11") is Season 1; any other old month key stays as written. */
+export function seasonLabel(key: string, lang: Lang): string {
+  const later = /^S(\d+)$/.exec(key);
+  const number = later ? Number(later[1]) : key === "2026-11" ? 1 : null;
+  return number === null ? key : `${lang === "fr" ? "Saison" : "Season"} ${number}`;
+}
 export function w(key: WordKey, lang: Lang, vars?: Record<string, string | number>): string {
   const text: string = words[key][lang];
   return vars ? text.replace(/\{(\w+)\}/g, (_m, name: string) => String(vars[name] ?? "")) : text;

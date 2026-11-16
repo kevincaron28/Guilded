@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { foreverNameMatches } from "../../companion/character-identity.mjs";
 import { DUEL_ARCHIVE_BEFORE, DUEL_RULES } from "./duel-rules.js";
+import { refreshSeasonCalendar } from "./season-calendar.js";
 import { RATING_START, placement, rateSeason, ratingApplies, ratingStandings, seasonOf, type RatedDuel, type SeasonInfo } from "./duel-rating.js";
 
 // Guild duels (8.4.5; level-difference score 9.1). The addon records "X has defeated Y in a duel" when both players are in the guild and each
@@ -194,10 +195,11 @@ export async function ratingStartOf(db: { guildSettings?: Pick<PrismaClient["gui
 
 /**
  * The guild's duel ladder under the rules that apply at `now`: the old points before the start date (exactly `duelLeaderboard`), and
- * from the start date the rating of the current monthly season, recomputed from the stored counted duels in date order.
+ * from the start date the rating of the current official season, recomputed from the stored counted duels in date order.
  */
 export async function duelLadder(db: Pick<PrismaClient, "duelResult"> & { guildSettings?: Pick<PrismaClient["guildSettings"], "findUnique"> }, guildId: string, edition = "forever",
   opts: { limit?: number; now?: Date; startsAt?: Date } = {}): Promise<DuelLadder> {
+  await refreshSeasonCalendar(db as never, 60_000);
   const startsAt = opts.startsAt ?? await ratingStartOf(db, guildId), now = opts.now ?? new Date(), limit = opts.limit ?? 50;
   if (!ratingApplies(now, startsAt)) {
     // Before the start nothing changes: the old board, to the point.

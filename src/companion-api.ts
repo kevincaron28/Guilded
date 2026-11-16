@@ -95,6 +95,7 @@ import { announceOrderChanges, postCraftRequest } from "./commands/craft-board.j
 import { webAuthConfig } from "./services/web-auth.js";
 import { prismaWebStore } from "./services/web-store.js";
 import { postWebApplication } from "./services/recruitment-discord.js";
+import { refreshSeasonCalendar } from "./services/season-calendar.js";
 import { createLeaderboardPages, guildDungeonSummary, prismaLeaderboardStore } from "./services/public-leaderboard.js";
 import { exchangePersonalCode, isPersonalCode, issuePersonalCredential, personalAccess, prismaPersonalStore } from "./services/personal-pairing.js";
 import { claimDevice, DEVICE_FEATURES, DEVICE_LIMITS, networkKey, DeviceError, deviceFor, handleDeviceUpload, memberForCredential, pickServer, prismaInstallStore, registerDevice, windowLimiter } from "./services/companion-device.js";
@@ -368,7 +369,7 @@ export function createSiteApp(client?: Client) {
   });
   const profiles = createPlayerProfiles(prismaProfileStore(prisma, hostedPilot.allows), achievementsWeb, pictures, openPictures);
   const directory = createGuildDirectory(prismaGuildDirectoryStore(prisma, (id) => hostedPilot.allows(id)));
-  const leaderboards = createLeaderboardPages({ store: prismaLeaderboardStore(prisma, (id) => hostedPilot.allows(id), { hideProfiles: true }), personal: personalStore, calendar: () => loadOfficialWindows(prisma), picture: (name, realm) => openPictures.byCharacter(name, realm) });
+  const leaderboards = createLeaderboardPages({ store: prismaLeaderboardStore(prisma, (id) => hostedPilot.allows(id), { hideProfiles: true }), personal: personalStore, calendar: () => loadOfficialWindows(prisma), refreshSeasons: () => refreshSeasonCalendar(prisma, 60_000), picture: (name, realm) => openPictures.byCharacter(name, realm) });
   // Warm the leaderboards landing page once, about 20 s after start (so the first visitor does not pay the cold load), then keep it fresh
   // in the background only while somebody asked for a leaderboard page in the last 10 minutes.
   const warmLeaderboards = () => { if (client && !client.isReady()) return; void leaderboards.warm().catch((error) => console.warn("Leaderboard warm-up failed", error instanceof Error ? error.message : error)); };

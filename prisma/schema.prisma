@@ -1397,6 +1397,8 @@ model RaidSeason {
   // The live summary in the officers' attendance channel, edited after each raid report.
   summaryChannelId String?
   summaryMessageId String?
+  // The official season (OfficialSeason.number) this season was started for by the rotation; null when an officer started it by hand.
+  officialSeasonNumber Int?
   createdBy        String
   createdAt        DateTime  @default(now())
   guild            Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)

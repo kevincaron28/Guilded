@@ -50,8 +50,12 @@ after, rounded, written `+12` / `-12` (`0` when the duel was not rated). Same te
 
 ## 4. Seasons and the old points
 
-* The first season runs from `startsAt` (13 November 2026 00:00 UTC) to 31 December 2026 23:59:59 UTC (id `2026-11`); after that a season is a
-  calendar month in UTC (`2027-01`, ...). Everyone starts at 1000 each season. Duels that ended before `startsAt` were test data: they are archived
+* **Changed 16 November 2026 (owner): seasons follow the official season calendar, not calendar months.** On the bot the first season runs
+  from `startsAt` (13 November 2026 00:00 UTC, id `2026-11`, shown as "Season 1") until the official Season 2 starts (9 December 2026, 15:00 Pacific =
+  23:00 UTC); from then on a duel season is the official season (ids `S2`, `S3`...; see `src/services/season-calendar.ts`). With no later season
+  scheduled the current one continues. The addon's own monthly `seasonOf` below is NOT updated yet: the in-game rating stays hidden
+  (`ADDON_SHOWS_RATING` is false), and whoever turns it on must first give the addon the official season start dates (they cannot be hard-coded) and
+  update `tests/fixtures/duel-rating-vectors.json` `seasons`. Everyone starts at 1000 each season. Duels that ended before `startsAt` were test data: they are archived
   on the bot and appear nowhere; the addon ignores them too (no "Season 0" screen). Duels are assigned by their end time only.
 * The in-game board shows the current season by default; a season selector (or `/guilded duels 2027-01`) may show others.
 * Read the start date from a constant (`RATING_START_AT = 1794528000`, 2026-11-13T00:00:00Z) and, when the bot starts to send it, from

@@ -126,3 +126,71 @@ export async function startSeason(
     return tx.raidSeason.create({ data: { guildId: input.guildId, name, startsAt: input.startsAt, createdBy: input.createdBy } });
   });
 }
+
+/** One guild's result. `blockedBy` is set (with `discordId` and `language`) when nothing was created because an officer's open-ended season is still running. */
+export interface OfficialRaidRotation { guildId: string; season: string; ended: string | null; blockedBy?: string; discordId?: string; language?: string }
+
+/**
+ * The official rotation's raid step (owner decision, 16 November 2026: everything seasonal changes season together). For every guild that
+ * already uses raid seasons (it has at least one RaidSeason: the safest signal that its officers track attendance by season; guilds that
+ * never made one get nothing new) it starts an attendance season named after the official season ("Season 2" / "Saison 2" in the guild's
+ * language) from the official start, and closes the previous one only when that was an automatic one too. A season an officer started by hand
+ * is never closed or renamed; if one started after the official start, or one already has the name, nothing is created. There is no raid
+ * scoring here: this only gives the attendance report a date range that matches the rest. Idempotent: one automatic season per official number.
+ * Official season 1 is not created (the seasons officers made before it stay as they are).
+ */
+export async function rotateRaidSeasons(database: Pick<PrismaClient, "raidSeason" | "guildSettings" | "$transaction">, official: { number: number; start: Date }, now: Date,
+  allows: (discordId: string) => boolean, edition: string): Promise<OfficialRaidRotation[]> {
+  if (official.number < 2 || official.start.getTime() > now.getTime()) return [];
+  const users = await database.raidSeason.findMany({ where: { guild: { gameEdition: edition } }, distinct: ["guildId"], select: { guildId: true, guild: { select: { discordId: true } } } });
+  const rotated: OfficialRaidRotation[] = [];
+  for (const row of users) {
+    if (!allows(row.guild.discordId)) continue;
+    const language = (await database.guildSettings.findUnique({ where: { guildId: row.guildId }, select: { language: true } }))?.language;
+    const name = `${language === "fr" ? "Saison" : "Season"} ${official.number}`;
+    try {
+      const result = await database.$transaction(async (tx) => {
+        if (await tx.raidSeason.findFirst({ where: { guildId: row.guildId, officialSeasonNumber: official.number }, select: { id: true } })) return null;
+        if (await findSeason(tx, row.guildId, name)) return null;
+        const latest = await tx.raidSeason.findFirst({ where: { guildId: row.guildId }, orderBy: { startsAt: "desc" } });
+        if (latest && latest.startsAt.getTime() >= official.start.getTime()) return null;
+        // An officer's open-ended season would overlap the automatic one (raids would count in both): leave it alone and tell the officers.
+        if (latest && latest.officialSeasonNumber === null && (!latest.endsAt || latest.endsAt.getTime() > official.start.getTime())) return { blockedBy: latest.name as string | undefined, ended: null as string | null };
+        let ended: string | null = null;
+        if (latest && latest.officialSeasonNumber !== null && (!latest.endsAt || latest.endsAt.getTime() > official.start.getTime())) {
+          await tx.raidSeason.update({ where: { id: latest.id }, data: { endsAt: official.start } });
+          ended = latest.name;
+        }
+        await tx.raidSeason.create({ data: { guildId: row.guildId, name, startsAt: official.start, officialSeasonNumber: official.number, createdBy: "Guilded" } });
+        return { ended, blockedBy: undefined };
+      });
+      if (result?.blockedBy) rotated.push({ guildId: row.guildId, season: name, ended: null, blockedBy: result.blockedBy, discordId: row.guild.discordId, language: language ?? "en" });
+      else if (result) rotated.push({ guildId: row.guildId, season: name, ended: result.ended });
+    } catch (error) { console.error(`Raid season rotation failed for guild ${row.guildId}`, error); }
+  }
+  return rotated;
+}
+
+/** The officer-log notice for an open officer season that blocks the automatic one. */
+export function openOfficerSeasonNotice(lang: string, officerSeason: string, season: string): string {
+  return lang === "fr"
+    ? `La saison de raid « ${officerSeason} » est toujours ouverte, alors la présence de ${season} n'a pas démarré automatiquement. Fermez-la avec la commande /raid season pour démarrer ${season} automatiquement, ou continuez à l'utiliser.`
+    : `The raid season "${officerSeason}" is still open, so ${season} attendance did not start automatically. Close it with the /raid season command to start ${season} attendance automatically, or keep using it.`;
+}
+
+const noticed = new Set<string>();
+export const resetRaidSeasonNotices = () => noticed.clear();
+
+/** Posts the notice once per guild and official season (remembered for the life of the process; the rotation tick calls it every few minutes). */
+export async function announceBlockedRaidSeasons(rows: readonly OfficialRaidRotation[], number: number, post: (discordId: string, text: string) => Promise<void>): Promise<number> {
+  let sent = 0;
+  for (const row of rows) {
+    if (!row.blockedBy || !row.discordId) continue;
+    const key = `${row.guildId}:${number}`;
+    if (noticed.has(key)) continue;
+    noticed.add(key);
+    try { await post(row.discordId, openOfficerSeasonNotice(row.language ?? "en", row.blockedBy, row.season)); sent++; }
+    catch (error) { console.error(`Raid season notice failed for guild ${row.guildId}`, error); }
+  }
+  return sent;
+}

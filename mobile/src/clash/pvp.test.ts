@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ClashClient, duelAsMatch, duelDriver, parseDuelResponse, parseLadder, parseRankedStatus } from "./api";
 import { MockClash, sampleRank } from "./mock";
+import { seasonLabel } from "./words";
 import {
   attentionCount, bucketDuels, busyOpponents, challengeReducer, challengeStart, divisionPips, filterPartners, formatLeft, ladderRows, lossesCostStars, msUntil,
   rankedReducer, rankedStart, urgent
@@ -251,5 +252,15 @@ describe("sample duels", () => {
     const lost = await api.duelConcede(id);
     expect(lost.ranked).toMatchObject({ rated: true, starsDelta: 0 });
     expect((await api.leaderboard("friendly")).weekStart).not.toBeNull();
+  });
+});
+
+describe("ranked season names (official seasons)", () => {
+  it("shows Season N / Saison N, keeps the first season key readable and leaves other old keys as they are", () => {
+    expect(seasonLabel("2026-11", "en")).toBe("Season 1");
+    expect(seasonLabel("S02", "en")).toBe("Season 2");
+    expect(seasonLabel("S02", "fr")).toBe("Saison 2");
+    expect(seasonLabel("S10", "fr")).toBe("Saison 10");
+    expect(seasonLabel("2026-09", "fr")).toBe("2026-09");
   });
 });

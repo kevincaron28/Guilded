@@ -5,6 +5,7 @@ import type { Lang } from "../i18n.js";
 import { displayCharacterName, loadFullNameBook } from "./character-display.js";
 import { classOf, type ClassBook } from "./ladder-classes.js";
 import { classColor, ladderMeta, type ScoreCard } from "./score-card.js";
+import { currentOfficialSeason, officialSeasonName } from "./season-calendar.js";
 
 // World PvP board (9.1, docs/WORLD_PVP.md stages 2 and 3). The addon (Modules/WorldPvP.lua) counts the member's own open-world
 // kills, defends and calls answered per raid week; the companion carries them here. The numbers come from the member's own
@@ -117,7 +118,8 @@ export async function applyWorldPvpUpload(db: ApplyDb, guildId: string, memberId
 }
 
 export interface WorldPvpStanding extends WorldPvpCounts { memberId: string; name: string }
-export interface WorldPvpData { weekKey: number; standings: WorldPvpStanding[] }
+/** `season`: the official season running (owner decision, 16 November 2026) and its totals, the weekly numbers summed from the raid week that holds the season start (a week is one counter, so it cannot be cut mid-week). The weekly board itself is unchanged. */
+export interface WorldPvpData { weekKey: number; standings: WorldPvpStanding[]; season?: { number: number; standings: WorldPvpStanding[] } }
 
 /**
  * Pure: kills, then defends, then calls answered, then fewer deaths, then name. Deaths only break a tie: they never lift a rank, and a member
@@ -128,13 +130,21 @@ export function worldPvpStandings(rows: readonly (WorldPvpCounts & { memberId: s
     .sort((a, b) => b.kills - a.kills || b.defends - a.defends || b.helped - a.helped || (a.deaths ?? 0) - (b.deaths ?? 0) || a.name.localeCompare(b.name));
 }
 
-export async function loadWorldPvpData(db: Pick<PrismaClient, "worldPvpWeek" | "member"> & Partial<Pick<PrismaClient, "unclaimedCharacter" | "guildRosterEntry" | "character">>, guildId: string, edition: string, now = new Date()): Promise<WorldPvpData> {
+export async function loadWorldPvpData(db: Pick<PrismaClient, "worldPvpWeek" | "member"> & Partial<Pick<PrismaClient, "unclaimedCharacter" | "guildRosterEntry" | "character" | "officialSeason">>, guildId: string, edition: string, now = new Date()): Promise<WorldPvpData> {
   const weekKey = weekKeyOf(now);
   const rows = await db.worldPvpWeek.findMany({ where: { guildId, weekKey, member: { guildId, status: "ACTIVE" } }, select: { memberId: true, kills: true, defends: true, helped: true, deaths: true } });
-  const members = await db.member.findMany({ where: { id: { in: rows.map(row => row.memberId) } }, select: { id: true, displayName: true, characters: { where: { gameEdition: edition }, orderBy: [{ isMain: "desc" }, { name: "asc" }], take: 1, select: { name: true, displayName: true } } } });
+  const official = await currentOfficialSeason(db, edition, now);
+  const seasonRows = official ? await db.worldPvpWeek.findMany({ where: { guildId, weekKey: { gte: weekKeyOf(official.start), lte: weekKey }, member: { guildId, status: "ACTIVE" } }, select: { memberId: true, kills: true, defends: true, helped: true, deaths: true } }) : [];
+  const members = await db.member.findMany({ where: { id: { in: [...new Set([...rows, ...seasonRows].map(row => row.memberId))] } }, select: { id: true, displayName: true, characters: { where: { gameEdition: edition }, orderBy: [{ isMain: "desc" }, { name: "asc" }], take: 1, select: { name: true, displayName: true } } } });
   const book = await loadFullNameBook(db as never, guildId);
   const names = new Map(members.map(member => [member.id, member.characters?.[0] ? displayCharacterName(member.characters[0], book) : member.displayName]));
-  return { weekKey, standings: worldPvpStandings(rows, names) };
+  const totals = new Map<string, { memberId: string; kills: number; defends: number; helped: number; deaths: number }>();
+  for (const row of seasonRows) {
+    const sum = totals.get(row.memberId) ?? { memberId: row.memberId, kills: 0, defends: 0, helped: 0, deaths: 0 };
+    sum.kills += row.kills; sum.defends += row.defends; sum.helped += row.helped; sum.deaths += row.deaths ?? 0;
+    totals.set(row.memberId, sum);
+  }
+  return { weekKey, standings: worldPvpStandings(rows, names), ...(official ? { season: { number: official.number, standings: worldPvpStandings([...totals.values()], names) } } : {}) };
 }
 
 /** Pure: the shared ladder layout, one panel with the week's top 10. */
@@ -142,7 +152,7 @@ export function worldPvpCard(data: WorldPvpData, lang: Lang, classes: ClassBook 
   const fr = lang === "fr";
   return {
     eyebrow: `Guilded · ${fr ? "JcJ" : "PvP"}`, title: fr ? "JcJ en monde ouvert" : "World PvP",
-    subtitle: fr ? "Cette semaine (reset du mardi) · victoires, défenses, appels à l'aide, morts et R/M" : "This week (Tuesday reset) · kills, defends, calls answered, deaths and K/D",
+    subtitle: `${data.season ? `${officialSeasonName(data.season.number, lang)} · ` : ""}${fr ? "Cette semaine (reset du mardi) · victoires, défenses, appels à l'aide, morts et R/M" : "This week (Tuesday reset) · kills, defends, calls answered, deaths and K/D"}`,
     backdrop: { kind: "board", key: "world-pvp" },
     stats: [], footer: fr ? "Compteurs des joueurs, plafonnés · distinct des champs de bataille et des duels · aucun point ni récompense" : "Player counters, capped · separate from battlegrounds and duels · no points or awards",
     ladder: {
@@ -168,6 +178,11 @@ export function worldPvpEmbed(data: WorldPvpData, lang: Lang, image?: string): E
       const rows = data.standings.slice(0, TOP).map((p, i) => `${["🥇", "🥈", "🥉"][i] ?? `**${i + 1}.**`} ${name(p.name)} — ${p.kills} ${t("kills", "victoires")} · ${p.defends} ${t("defends", "défenses")} · ${p.helped} ${t("answered", "répondus")} · ${p.deaths ?? 0} ${t("deaths", "morts")} (${t("K/D", "R/M")} ${killDeathRatio(p.kills, p.deaths ?? 0)})`);
       embed.addFields({ name: t("Top this week", "Meilleurs de la semaine"), value: rows.join("\n").slice(0, 1024) });
     }
+  }
+  // The season totals: the top of the whole official season, beside the week.
+  if (data.season?.standings.length) {
+    const top = data.season.standings.slice(0, 3).map((p, i) => `${["🥇", "🥈", "🥉"][i] ?? `**${i + 1}.**`} ${name(p.name)} — ${p.kills} ${t("kills", "victoires")} · ${p.defends} ${t("defends", "défenses")}`);
+    embed.addFields({ name: t(`${officialSeasonName(data.season.number, "en")} totals`, `Total de la ${officialSeasonName(data.season.number, "fr").toLowerCase()}`), value: top.join("\n").slice(0, 1024) });
   }
   if (image && data.standings.length) embed.setImage(`attachment://${image}`);
   return embed.setFooter({ text: t("Counted by members' Guilded addon, capped each week · no points or awards", "Comptés par l'addon Guilded des membres, plafonnés chaque semaine · aucun point ni récompense") });

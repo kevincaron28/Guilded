@@ -20,10 +20,10 @@ beforeEach(() => {
 });
 
 describe("community member navigation", () => {
-  it("uses readable numbered names, without duplicating a legacy Season prefix", () => {
-    expect(communitySeasonLabel(season, "fr")).toBe("Saison 1 — Octobre 2026");
-    expect(communitySeasonLabel({ name: "Season 1", number: 1 }, "fr")).toBe("Saison 1");
-    expect(communitySeasonLabel({ name: "Saison 1 — Automne", number: 1 }, "en")).toBe("Season 1 — Automne");
+  it("names community seasons by month or theme, never as the official Season N", () => {
+    expect(communitySeasonLabel(season, "fr")).toBe("Octobre 2026");
+    expect(communitySeasonLabel({ name: "Season 1", number: 1 }, "fr")).toBe("Saison communautaire 1");
+    expect(communitySeasonLabel({ name: "Saison 1 — Automne", number: 1 }, "en")).toBe("Automne");
   });
   it.each([
     ["2026-03-08T05:01:00Z", "2026-03-09T04:00:00.000Z"],
@@ -78,7 +78,7 @@ describe("community member navigation", () => {
     const dice = await communityChoices(database as never, guild as never, "guild", "actor", "community", "dice", "season", "", "fr");
     expect(dice.map(c => c.value)).toEqual(["current"]);
     const archive = await communityChoices(database as never, guild as never, "guild", "actor", "community", "wallet", "season", "archivée", "fr");
-    expect(archive).toEqual([{ name: "Discord · Saison 1 — Octobre 2026 · Archivée", value: "cmseason" }]);
+    expect(archive).toEqual([{ name: "Discord · Octobre 2026 · Archivée", value: "cmseason" }]);
   });
   it("binds points purchase confirmation to the displayed total and the purchaser", () => {
     const row = { id: "draw", title: "Tirage", rules: { mode: "POINTS", cost: 10, prize: "Lot", currency: "points", realm: "", winners: 1, maxTickets: 5 } };

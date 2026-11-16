@@ -2,6 +2,7 @@ import { updateProfessionDirectory } from "./profession-directory.js";
 import { EmbedBuilder, type Guild as DiscordGuild } from "discord.js";
 import { prisma } from "../database.js";
 import { autoLinkUnclaimed } from "./character-autolink.js";
+import { currentEdition } from "./edition-context.js";
 import { dungeonPosts, postingGuildName } from "./dungeon-announce.js";
 import { applyPublicScores } from "./card-public-scores.js";
 import { recordRunHighlights } from "./dungeon-records.js";
@@ -50,7 +51,7 @@ export async function announceDungeonRuns(discordGuild: DiscordGuild | null, dun
     if (settings && !settings.dungeonHighlightsEnabled) for (const run of dungeons.results) delete run.highlights;
   }
   // The posting guild's in-game name fills the Guild column of guildmates whose game client gave no guild text.
-  const ownGuild = guildId ? postingGuildName(await prisma.wowGuild.findMany({ where: { guildId }, select: { name: true }, orderBy: { createdAt: "asc" } }).catch(() => []), dungeons.results) : null;
+  const ownGuild = guildId ? postingGuildName(await prisma.wowGuild.findMany({ where: { guildId, gameEdition: currentEdition() }, select: { name: true }, orderBy: { createdAt: "asc" } }).catch(() => []), dungeons.results) : null;
   // Players outside the guild whose run is also public get their public season total (best effort, after the guild-run numbers).
   await applyPublicScores(prisma, dungeons.results);
   const runs = dungeonPosts(dungeons, "en", { ownGuild });

@@ -225,13 +225,14 @@ local foreverFinalBossNames = {
   [2959] = { "Shade of the Archmage" },
   -- Level 45-60 dungeons of Season 2 (map ids are the Classic ones). Wing maps list the last boss of each wing: the run ends at
   -- the first of them (the bot tells the wings apart by the same names, dungeon-rating.ts ROUTE_WINGS).
-  [209] = { "Chief Ukorz Sandscalp" },
-  [349] = { "Princess Theradras" },
-  [109] = { "Shade of Eranikus" },
-  [230] = { "Emperor Dagran Thaurissan" },
-  [289] = { "Darkmaster Gandling" },
-  [229] = { "Overlord Wyrmthalak", "General Drakkisath" },
-  [429] = { "Alzzin the Wildshaper", "Prince Tortheldrin", "King Gordok" },
+  -- French names from the Wowhead FR NPC pages (classic/fr/npc=...), accents as \ddd escapes.
+  [209] = { "Chief Ukorz Sandscalp", "Chef Ukorz Scalpessable" },
+  [349] = { "Princess Theradras", "Princesse Theradras" },
+  [109] = { "Shade of Eranikus", "Ombre d'Eranikus" },
+  [230] = { "Emperor Dagran Thaurissan", "Empereur Dagran Thaurissan" },
+  [289] = { "Darkmaster Gandling", "Sombre Ma\195\174tre Gandling" },
+  [229] = { "Overlord Wyrmthalak", "General Drakkisath", "Seigneur Wyrmthalak", "G\195\169n\195\169ral Drakkisath" },
+  [429] = { "Alzzin the Wildshaper", "Prince Tortheldrin", "King Gordok", "Alzzin le Modeleur", "Roi Gordok" },
   [329] = { "Balnazzar", "Baron Rivendare" }
 }
 

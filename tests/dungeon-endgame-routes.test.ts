@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { BRACKET_PLAN, bracketPlanProblems } from "../src/services/dungeon-bracket-plan.js";
 import { SEASON2_ENDGAME_ROUTES, SEASON2_WAITING } from "../src/services/dungeon-endgame-routes.js";
@@ -75,6 +76,22 @@ describe("Blackrock Spire, Dire Maul and Stratholme wings", () => {
     expect(route(429, "King Gordok")).toBe("429:north");
     expect(route(329, "Balnazzar")).toBe("329:main");
     expect(route(329, "Baron Rivendare")).toBe("329:service");
+  });
+  it("resolves the wings from French boss names (Wowhead FR)", () => {
+    expect(route(229, "Seigneur Wyrmthalak")).toBe("229:lower");
+    expect(route(229, "Général Drakkisath")).toBe("229:upper");
+    expect(route(429, "Alzzin le Modeleur")).toBe("429:east");
+    expect(route(429, "Prince Tortheldrin")).toBe("429:west");
+    expect(route(429, "Roi Gordok")).toBe("429:north");
+    expect(route(329, "Balnazzar")).toBe("329:main");
+    expect(route(329, "Baron Rivendare")).toBe("329:service");
+    expect(publicRouteKey(229, [{ name: "Général Drakkisath", success: true }])).toBe("229:upper");
+    expect(ratingDungeonKey({ instanceId: 429, competitionData: { encounters: killed("Roi Gordok") } } as never)).toBe("429:north");
+  });
+  it("keeps the French names in the addon's final-boss table (escaped for the validator)", () => {
+    const lua = readFileSync("addon/Guilded/Compat.lua", "utf8");
+    for (const name of ["Seigneur Wyrmthalak", "G\\195\\169n\\195\\169ral Drakkisath", "Alzzin le Modeleur", "Roi Gordok", "Sombre Ma\\195\\174tre Gandling", "Empereur Dagran Thaurissan", "Chef Ukorz Scalpessable", "Princesse Theradras", "Ombre d'Eranikus"]) expect(lua).toContain(`"${name}"`);
+    expect(readFileSync("addon/GuildedDungeons/Shared/Compat.lua", "utf8")).toContain("Sombre Ma\\195\\174tre Gandling");
   });
   it("resolves single-route maps by the addon's final-boss detection", () => {
     expect(route(230)).toBe("230");

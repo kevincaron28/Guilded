@@ -47,10 +47,10 @@ export const SCARLET_WINGS = [
 // by its last boss (English, French). Blackrock Spire: Lower ends at Overlord Wyrmthalak, Upper at General Drakkisath. Dire Maul: East
 // Alzzin the Wildshaper, West Prince Tortheldrin, North King Gordok. Stratholme: the Main Gate (Living) side ends at Balnazzar, the
 // Service Gate (Undead) side at Baron Rivendare.
-// English names only: no French name is verified yet, so a French client relies on the addon's encounter-id / journal detection.
+// French names from the Wowhead FR NPC pages (classic/fr/npc=9568, 10363, 11492, 11486, 11501, 10813, 10440): Balnazzar, Baron Rivendare and Prince Tortheldrin are the same in French.
 export const ENDGAME_WINGS = {
-  229: [["lower", ["overlord wyrmthalak"]], ["upper", ["general drakkisath"]]],
-  429: [["east", ["alzzin the wildshaper"]], ["west", ["prince tortheldrin"]], ["north", ["king gordok"]]],
+  229: [["lower", ["overlord wyrmthalak", "seigneur wyrmthalak"]], ["upper", ["general drakkisath", "général drakkisath"]]],
+  429: [["east", ["alzzin the wildshaper", "alzzin le modeleur"]], ["west", ["prince tortheldrin"]], ["north", ["king gordok", "roi gordok"]]],
   329: [["main", ["balnazzar"]], ["service", ["baron rivendare"]]]
 } as const;
 /** Every map that holds several routes, with each route's wing key and last-boss names. */

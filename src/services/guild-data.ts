@@ -80,6 +80,7 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
     const rosterTouch = new Map<string, { ids: string[]; lastOnlineAt?: Date; reportedById: string | null }>();
     const characterSeen = new Map<number, string[]>();
     const unclaimedSeen = new Map<number, string[]>();
+    let ranksRenamed = false; // an index now carries another name: the guild reordered or renamed ranks
     const characterRankTouch: string[] = [];
     const unclaimedRankTouch: string[] = [];
     const members = roster.members.flatMap((raw) => { const parsed = memberSchema.safeParse(raw); return parsed.success ? [parsed.data] : []; });
@@ -131,6 +132,7 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
         const seen = movedForward(character.lastSeenAt, lastOnlineOk, minMove);
         let touchRank = false;
         if (officerRanks && member.rankName !== undefined && member.rankIndex !== undefined && rankFresh(character.guildRankAt)) {
+          if (character.guildRankName && character.guildRankIndex === member.rankIndex && character.guildRankName !== member.rankName) ranksRenamed = true;
           if (character.guildRankName !== member.rankName || character.guildRankIndex !== member.rankIndex) {
             // Moved up (a lower index is a higher rank) from a known earlier rank: one officer-log line, sent by the caller.
             if (character.guildRankName && character.guildRankIndex != null && member.rankIndex < character.guildRankIndex && member.rankName !== character.guildRankName && !result.skippedOlder) {
@@ -194,6 +196,8 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
         result.unclaimed++;
       }
     }
+    // A reorder or rename of ranks looks like many promotions: announce nothing then, nor when more than 5 members move up at once.
+    if (ranksRenamed || result.promotions.length > 5) result.promotions = [];
     // The batched statements: one per group, not one per member.
     for (const batch of rosterTouch.values()) {
       await tx.guildRosterEntry.updateMany({ where: { id: { in: batch.ids } }, data: { observedAt, reportedById: batch.reportedById, ...(batch.lastOnlineAt ? { lastOnlineAt: batch.lastOnlineAt } : {}) } });

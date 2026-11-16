@@ -106,7 +106,8 @@ function module.ready()
   if not tools or not tools.authorized() then return nil, L("Current officer access is required.") end
   local snapshot, err = tools.snapshot()
   if not snapshot then return nil, L(err or "Refresh the full guild roster first.") end
-  module.observe()
+  local d0 = db()
+  if d0 and (type(d0.rankSince) ~= "table" or next(d0.rankSince) == nil) then module.observe() end -- afterwards the roster listener keeps it current (60 s throttle)
   local d, rule, f = db() or {}, module.rule(), feed()
   local fromBot = f and keySet(f.ready) or {}
   local out, at = {}, nowSeconds()
@@ -170,12 +171,13 @@ function module.promote(name)
     end
     if target and altInvolved(snapshot, target) then return false, L("Alts are never promoted.") end
   end
-  if target then tried[target.key] = (tried[target.key] or 0) + 1 end
   local plan, err = tools.preview("character\taction\tvalue\n" .. name .. "\tpromote\t")
   if not plan then return false, L(err or "Not applied. Check the preview and confirmation.") end
   if plan.blocked then tools.cancel(); return false, L(plan.rows[1] and plan.rows[1].status or "Permission or rank hierarchy prevents this action.") end
   if not tools.confirm(plan.phrase) then tools.cancel(); return false, L("Not applied. Check the preview and confirmation.") end
   local ok, message = tools.step()
+  -- A try counts only when the call was actually issued (sent, or rejected by the game), not when a check refused it.
+  if target and (ok or message == "The game rejected the request. Preview again.") then tried[target.key] = (tried[target.key] or 0) + 1 end
   if not ok then return false, L(message or "Not applied. Check the preview and confirmation.") end
   return true, L("Promotion requested. Wait for the roster to confirm it before the next one.")
 end

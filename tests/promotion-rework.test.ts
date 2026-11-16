@@ -82,6 +82,27 @@ describe("a roster upload that shows a rank moving up", () => {
   });
 });
 
+describe("rank reorders are not announced as promotions", () => {
+  it("announces nothing when an index now carries another name, or when more than 5 members move up at once", async () => {
+    // Rank 3 was renamed from "Initiate" to "Recruit" and Amy "moved up" from index 4: a layout change, not a promotion.
+    const row = stored("Initiate", 4);
+    const other = { ...stored("Initiate", 3), id: "c2", name: "Bea Jones" };
+    const tx = {
+      ...(fakeTx(row) as object),
+      character: { findMany: async () => [row, other], update: async ({ where, data }: { where: { id: string }; data: Row }) => Object.assign(where.id === "c1" ? row : other, data), updateMany: async () => ({ count: 0 }) }
+    } as never;
+    const snapshot = parseAddonSnapshot({ source: "Guilded", exportedAt: NOW, gameEdition: "forever", guildRoster: { at: T, complete: true, members: [
+      { name: "Amy Smith", level: 30, class: "MAGE", rankName: "Member", rankIndex: 3, online: true }, { name: "Bea Jones", level: 30, class: "MAGE", rankName: "Recruit", rankIndex: 3, online: true }] } });
+    expect((await applyGuildData(tx, "g", { memberId: "m", officer: true }, snapshot, NOW)).promotions).toEqual([]);
+    // Seven members up one rank in one upload.
+    const many = Array.from({ length: 7 }, (_, i) => ({ ...stored("Initiate", 4), id: `m${i}`, name: `Person Number${i}` }));
+    const tx2 = { ...(fakeTx(row) as object), character: { findMany: async () => many, update: async ({ where, data }: { where: { id: string }; data: Row }) => Object.assign(many.find((c) => c.id === where.id)!, data), updateMany: async () => ({ count: 0 }) } } as never;
+    const snap2 = parseAddonSnapshot({ source: "Guilded", exportedAt: NOW, gameEdition: "forever", guildRoster: { at: T, complete: true,
+      members: many.map((c) => ({ name: c.name, level: 30, class: "MAGE", rankName: "Member", rankIndex: 3, online: true })) } });
+    expect((await applyGuildData(tx2, "g", { memberId: "m", officer: true }, snap2, NOW)).promotions).toEqual([]);
+  });
+});
+
 describe("/officer promotion rule refuses an alt starting rank", () => {
   it("answers in the server language and changes nothing", async () => {
     vi.resetModules();

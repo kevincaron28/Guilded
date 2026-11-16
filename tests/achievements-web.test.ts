@@ -69,12 +69,11 @@ describe("achievements on the website", () => {
     const hidden = await render(false);
     expect(hidden).toContain("???");
     expect(hidden).toContain("+1 secret");
-    expect(hidden).not.toContain("Silverpine");
-    expect(hidden).not.toContain("Arugal");
+    expect(hidden).not.toMatch(/silverpine|arugal|worgen/i);
     const shown = await render(true);
     expect(shown).toContain("Silverpine Welcome Committee");
     expect(shown).toContain("Secret ·");
-    expect(await render(false, "fr")).not.toContain("Pins-Argent");
+    expect(await render(false, "fr")).not.toMatch(/Pins-Argent|arugal/i);
   });
   it("is bilingual", async () => {
     const html = await createAchievementsWeb(fakeDb({ publicProfile: true }) as never, allows).publicSection(ctx("/players/x", "fr"), "a".repeat(24));

@@ -73,6 +73,9 @@ function sa.scan()
   end
 end
 
+-- Forgets every sighting (leaving combat).
+function sa.clear() sightings = {} end
+
 -- Records the secret once per character (Milestones.reach is once-only) and tells the player locally; the guild-chat line follows
 -- the normal milestone switches (/guilded announce secret off).
 function sa.reach(key)
@@ -99,6 +102,7 @@ end
 
 local frame = CreateFrame("Frame")
 pcall(frame.RegisterEvent, frame, "PLAYER_DEAD")
+pcall(frame.RegisterEvent, frame, "PLAYER_REGEN_ENABLED")
 local elapsed = 0
 frame:SetScript("OnUpdate", function(_, dt)
   elapsed = elapsed + (tonumber(dt) or 0)
@@ -111,7 +115,8 @@ end)
 frame:SetScript("OnEvent", function(_, event)
   local ok, err = pcall(function()
     if not active() then return end
-    if event == "PLAYER_DEAD" then sa.scan(); sa.onDeath() end
+    if event == "PLAYER_DEAD" then sa.scan(); sa.onDeath()
+    elseif event == "PLAYER_REGEN_ENABLED" then sa.clear() end -- left combat: an elite seen earlier must not count for a later death
   end)
   if not ok and ns.logDiagnostic then ns.logDiagnostic("LUA_ERROR", "secretAchievements: " .. tostring(err)) end
 end)

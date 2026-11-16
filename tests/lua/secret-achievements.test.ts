@@ -86,6 +86,15 @@ describe("secret achievements: killed by", () => {
     expect(s!.run(`return #CHAT_OUT`)).toBe("1");
   });
 
+  it("forgets sightings when combat ends, so an earlier elite does not count for a later death", () => {
+    setup();
+    attack("target", ARUGAL);
+    s!.run(`NS.secretAchievements.scan(); fire_event("PLAYER_REGEN_ENABLED")`);
+    s!.run(`UNIT = {}`);
+    die();
+    expect(log()).toBe("");
+  });
+
   it("records nothing when the milestones module is off", () => {
     setup();
     s!.run(`NS.moduleActive = function() return false end`);

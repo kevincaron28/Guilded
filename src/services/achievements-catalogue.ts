@@ -277,9 +277,9 @@ export const RETIRED_ACHIEVEMENT_IDS: readonly string[] = [
 // The addon records a secret as a milestone (kind "secret", ref `secret:<secretRef>`); the evaluator reads it like any other fact.
 // Before it is earned every surface shows only a mystery entry (maskedText: "???", the optional hint, never the description) and
 // counts it as "+N secret" beside the normal total; once earned it shows normally with a "Secret" tag. Adding one: a row here (id
-// stable forever, secretRef = the addon's ref) and one line in the addon's KILLED_BY table (Modules/SecretAchievements.lua).
+// stable forever AND opaque: `secret-NN`, never a readable name, because the id travels in unearned payloads; secretRef = the addon's ref) and one line in the addon's KILLED_BY table (Modules/SecretAchievements.lua).
 const SECRET_ACHIEVEMENTS: AchievementDef[] = [
-  { id: "secret-killed-by-arugal", game: "wow", tier: "silver", metric: "secretMilestone", threshold: 1, edition: "forever", secret: true, secretRef: "killed-arugal",
+  { id: "secret-01", game: "wow", tier: "silver", metric: "secretMilestone", threshold: 1, edition: "forever", secret: true, secretRef: "killed-arugal",
     hint: { en: "Some forests bite back.", fr: "Certaines forêts mordent." }, en: { name: "Silverpine Welcome Committee", description: "Meet the Son of Arugal the hard way: be killed by him." },
     fr: { name: "Comité d'accueil des Pins-Argentés", description: "Faire connaissance avec le Fils d'Arugal de la manière forte : se faire tuer par lui." } }
 ];

@@ -7,7 +7,7 @@ import { milestoneSchema } from "../src/services/duels.js";
 import { CARDS } from "../src/services/tcg-catalogue.js";
 
 // Secret achievements: hidden until earned, normal (and tagged "Secret") afterwards. First one: killed by the Son of Arugal.
-const ID = "secret-killed-by-arugal";
+const ID = "secret-01";
 const def = achievementById(ID)!;
 const NOW = new Date("2026-11-16T12:00:00Z");
 
@@ -51,8 +51,10 @@ describe("secret achievements", () => {
     const before = albumCards(new Map(), "en");
     const hidden = before.find(card => card.id === ID)!;
     expect(hidden).toMatchObject({ name: "???", tierLabel: "Secret", emblem: null, secret: true, earnedAt: null });
-    expect(JSON.stringify(hidden)).not.toContain("Silverpine");
-    expect(JSON.stringify(hidden)).not.toContain("Arugal");
+    expect(JSON.stringify(hidden)).not.toMatch(/silverpine|arugal|worgen/i);
+    // The whole unearned album (ids, sets, emblems, everything) never mentions the secret.
+    expect(JSON.stringify(before.filter(card => card.secret))).not.toMatch(/silverpine|arugal|worgen/i);
+    expect(ID).toMatch(/^secret-\d+$/);
     const after = albumCards(new Map([[ID, new Date("2026-11-10T00:00:00Z")]]), "fr").find(card => card.id === ID)!;
     expect(after).toMatchObject({ name: "Comité d'accueil des Pins-Argentés", secret: true, earnedAt: "2026-11-10T00:00:00.000Z" });
     expect(after.tierLabel).toContain("Secret");
@@ -61,8 +63,7 @@ describe("secret achievements", () => {
   it("card: unearned secrets are not listed, only counted as +N secret", () => {
     const items = ACTIVE_ACHIEVEMENTS.map(row => ({ id: row.id, earnedAt: null, value: 0 }));
     const card = achievementsCard("Kev", items, "en");
-    expect(JSON.stringify(card)).not.toContain("Silverpine");
-    expect(JSON.stringify(card)).not.toContain("Arugal");
+    expect(JSON.stringify(card)).not.toMatch(/silverpine|arugal|worgen|secret-0/i);
     expect(card.stats[0]!.value).toMatch(/ \+1 secret$/);
     const earned = achievementsCard("Kev", items.map(item => item.id === ID ? { ...item, earnedAt: NOW } : item), "en");
     expect(JSON.stringify(earned)).toContain("Silverpine Welcome Committee");

@@ -87,3 +87,38 @@ publics, ajoutez le **Guilded Companion** gratuit (Windows seulement) :
 
 La connexion avec Discord est **facultative** : elle sert seulement à confirmer vos personnages. En
 jeu, `/gdungeons companion` affiche ces étapes et le lien.
+
+---
+
+## Project descriptions as of 9.3.6 (16 November 2026)
+
+The full project descriptions on both CurseForge pages (Markdown editor, English then French) keep
+the structure "summary, Key features, Commands, Links". What changed for 9.3.6 (links now point to
+https://guildedwow.com/, which replaces the older guilded.kcaron.top links above):
+
+### Guilded (project 1712677)
+
+Added after the opening paragraph: "Available in English and French." and
+
+> Season 2 starts on 9 December with the raid launch: dungeons, duels, battlegrounds and World PvP
+> follow the same season calendar, and the endgame dungeons are ready.
+
+Key features now read:
+
+- One window: Home, Guild, Dungeons, Crafting, Raids
+- Guild board, standings and class overview
+- Dungeon runs, season scores and public leaderboards on guildedwow.com
+- Duel ladder with a result card after each duel, plus battleground and World PvP ladders
+- Achievements, including secret, gold and auction house ones
+- Guild roster sync, promotion help for officers and a recruiting kit
+- Crafting orders and who can craft what
+- Raid sign-up and loot tools for officers
+- Optional Discord bot and Windows companion (the addon works on its own)
+
+The French section mirrors this ("La saison 2 commence le 9 décembre avec le lancement des raids ...").
+
+### Guilded Dungeons (project 1754138)
+
+Added: "Season 2 starts on 9 December with the raid launch, and the endgame dungeons are ready for
+scoring." and the bullet "Public dungeon leaderboards on guildedwow.com with the free Windows
+companion" (replacing "Public leaderboards with the free companion"). The French section mirrors it.

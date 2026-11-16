@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { CHAIN_START, DEFAULT_INTEGRITY, chainHash, checkRecord, issueDuelChallenge, loadIntegrityConfig } from "../src/services/duel-integrity.js";
 import { buildGlobalBoard, characterKey, duelAnomalies, duelSig, externalDuelSchema, implausible, mirrorGuildDuels, recordGlobalDuels, sequenceProblems, splitName, type ExternalDuelInput, type GlobalDuel } from "../src/services/duel-global.js";
 import { RATING_START, ratingSeasonIds, ratingSeasonName, seasonOf } from "../src/services/duel-rating.js";
+import { resetSeasonCalendar, setSeasonCalendar } from "../src/services/season-calendar.js";
 import { createLeaderboardPages, type LeaderboardStore } from "../src/services/public-leaderboard.js";
 import { createWebApp, type WebResponse } from "../src/services/web-app.js";
 import { memoryWebStore } from "./helpers/memory-web-store.js";
@@ -185,11 +186,14 @@ describe("global duels: the board", () => {
     const board = buildGlobalBoard(eight.slice(0, 2), "2026-11", RATING_START, { className: null, levels: null });
     expect(board.rows[0]).toMatchObject({ rank: 1, ranked: true, placement: null });
   });
-  it("only counts the month asked and applies the class filter", () => {
+  it("only counts the season asked and applies the class filter", () => {
+    setSeasonCalendar([{ number: 2, startsAt: new Date("2026-12-09T23:00:00Z") }]);
+    try {
     const mixed = [g("Aldric", "Brenna", "2026-12-05T10:00:00Z", { winnerClass: "Warrior" }), g("Corvin", "Dara", "2026-12-06T10:00:00Z", { winnerClass: "Mage", reporters: ["corvin"] }), g("Aldric", "Brenna", "2027-01-05T10:00:00Z")];
     expect(buildGlobalBoard(mixed, "2026-11", RATING_START, { className: null, levels: null }).duels).toBe(2);
     expect(buildGlobalBoard(mixed, "2026-11", RATING_START, { className: "Mage", levels: null }).rows.map((r) => r.name)).toEqual(["Corvin"]);
-    expect(buildGlobalBoard(mixed, "2027-01", RATING_START, { className: null, levels: null }).duels).toBe(1);
+    expect(buildGlobalBoard(mixed, "S2", RATING_START, { className: null, levels: null }).duels).toBe(1);
+    } finally { resetSeasonCalendar(); }
   });
   it("carries the latest guild text and realm", () => {
     const board = buildGlobalBoard([g("Aldric", "Brenna", "2026-12-05T10:00:00Z", { winnerGuild: "Old Guild" }), g("Aldric", "Corvin", "2026-12-06T10:00:00Z", { winnerGuild: "New Guild" })], "2026-11", RATING_START, { className: null, levels: null });
@@ -232,7 +236,7 @@ describe("global duels: the page and JSON", () => {
   it("shows the ranking, links a listed guild, escapes the rest and says nothing about how duels are checked", async () => {
     const page = (await get("2026-12-10T12:00:00Z")("/leaderboards/duels/")).body;
     expect(page).toContain("Duel ladder");
-    expect(page).toContain("November 13 – December 31, 2026");
+    expect(page).toContain("Season 1");
     expect(page).toContain("Aldric");
     expect(page).toContain('href="/forever/leaderboards/guild/quebec-gold');
     expect(page).not.toContain("<b>Evil</b>");
@@ -360,14 +364,18 @@ describe("global duels: server-side checks", () => {
 });
 
 describe("global duels: seasons from 13 November", () => {
-  it("runs the first season to 31 December, then monthly, and archives earlier duels", () => {
-    expect(seasonOf(new Date("2026-11-12T23:59:59Z")).id).toBe("s0");
-    expect(seasonOf(new Date("2026-11-13T00:00:00Z"))).toMatchObject({ id: "2026-11", rated: true });
-    expect(seasonOf(new Date("2026-12-31T23:59:59Z")).id).toBe("2026-11");
-    expect(seasonOf(new Date("2027-01-01T00:00:00Z")).id).toBe("2027-01");
-    expect(ratingSeasonIds(new Date("2027-02-10T00:00:00Z"))).toEqual(["2027-02", "2027-01", "2026-11"]);
-    expect(ratingSeasonName("2026-11", "en")).toBe("November 13 – December 31, 2026");
-    expect(ratingSeasonName("2027-01", "en")).toBe("January 2027");
+  it("runs the first season to the official Season 2, then follows the calendar, and archives earlier duels", () => {
+    setSeasonCalendar([{ number: 2, startsAt: new Date("2026-12-09T23:00:00Z") }, { number: 3, startsAt: new Date("2027-03-02T00:00:00Z") }]);
+    try {
+      expect(seasonOf(new Date("2026-11-12T23:59:59Z")).id).toBe("s0");
+      expect(seasonOf(new Date("2026-11-13T00:00:00Z"))).toMatchObject({ id: "2026-11", rated: true });
+      expect(seasonOf(new Date("2026-12-09T22:59:59Z")).id).toBe("2026-11");
+      expect(seasonOf(new Date("2026-12-31T23:59:59Z")).id).toBe("S2");
+      expect(seasonOf(new Date("2027-03-02T00:00:00Z")).id).toBe("S3");
+      expect(ratingSeasonIds(new Date("2027-03-10T00:00:00Z"))).toEqual(["S3", "S2", "2026-11"]);
+      expect(ratingSeasonName("2026-11", "en")).toBe("Season 1");
+      expect(ratingSeasonName("S3", "fr")).toBe("Saison 3");
+    } finally { resetSeasonCalendar(); }
   });
 });
 

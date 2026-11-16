@@ -9,7 +9,7 @@ import { ClassPicker } from "./DuelsView";
 import { LadderList } from "./LadderList";
 import { divisionPips, formatLeft, lossesCostStars, msUntil, QUEUE_POLL_MS, rankedReducer, rankedStart } from "./pvp";
 import type { ClassKey, DuelResponse, Ladder } from "./types";
-import { CLASS_LABEL, rankLabel, w } from "./words";
+import { CLASS_LABEL, rankLabel, seasonLabel, w } from "./words";
 
 const RANK_TINT: Record<string, string> = { Initiate: "#9a9a8f", Adept: "#9fbd83", Veteran: "#5aa9ff", Elite: "#c9b3ff", Legend: "#e8b8ff" };
 
@@ -69,7 +69,7 @@ export function RankedView({ api, lang, cls, setCls, onOpen }: { api: ClashApi; 
       <Text style={styles.text}>{w("record", lang)}: {status.standing.wins} / {status.standing.losses}</Text>
       {status.standing.streak >= 2 ? <Text style={[styles.small, { color: "#9fbd83" }]}>🔥 {w("streak", lang, { n: status.standing.streak })}</Text> : null}
       <Text style={styles.small}>{lossesCostStars(rank) ? w("lossRank", lang) : w("safeRank", lang)}</Text>
-      <Text style={styles.small}>{w("seasonEnds", lang, { season: status.season, t: formatLeft(seasonLeft ?? 0, lang) })}</Text>
+      <Text style={styles.small}>{seasonLeft === null ? w("seasonOpen", lang, { season: seasonLabel(status.season, lang) }) : w("seasonEnds", lang, { season: seasonLabel(status.season, lang), t: formatLeft(seasonLeft, lang) })}</Text>
     </View>
 
     <View style={styles.panel}>
@@ -108,7 +108,7 @@ export function RankedView({ api, lang, cls, setCls, onOpen }: { api: ClashApi; 
     </View> : null}
 
     <View style={styles.panel}>
-      <Text style={styles.label}>{w("ladder", lang).toUpperCase()} · {status.season}</Text>
+      <Text style={styles.label}>{w("ladder", lang).toUpperCase()} · {seasonLabel(status.season, lang)}</Text>
       <SegmentedTabs options={[{ value: "global", label: w("global", lang) }, { value: "guild", label: w("myServer", lang) }]} value={scope} onChange={(v) => setScope(v as "global" | "guild")} />
       {ladderError ? <Text style={styles.error}>{ladderError}</Text> : ladder === null ? <ActivityIndicator color={colors.gold} />
         : board ? <LadderList board={board} lang={lang} ranked empty={w("noLadder", lang)} /> : <Text style={styles.muted}>{w("noLadder", lang)}</Text>}

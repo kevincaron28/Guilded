@@ -6,6 +6,7 @@ import { frozenRating, hasDungeonRating } from "./dungeon-rating.js";
 import { classOf, type ClassBook } from "./ladder-classes.js";
 import { classColor, type ScoreCard } from "./score-card.js";
 import { finalRows } from "./season-snapshot.js";
+import { seasonLabel } from "./season-label.js";
 
 // Season cards (9.3): a podium card for a season that ENDED (only once its final results are stored: a season in its upload grace has none yet)
 // and a card for the one that begins (name and dates). Posted in the dungeon leaderboard channel by a MESSAGE job on the
@@ -53,7 +54,7 @@ export function seasonEndCard(season: SeasonInfo, podium: Podium | null, lang: L
   const champions = entries.filter(entry => entry.rank === 1 && !entry.label);
   const place = (entry: PodiumEntry) => entry.label ? `${MEDALS[0]} ${t("Champion", "Champion")} · ${entry.label}` : `${MEDALS[entry.rank - 1]} ${entry.rank === 1 ? t("Champion", "Champion") : t(`Place ${entry.rank}`, `${entry.rank}e place`)}`;
   return {
-    eyebrow: t("Guilded · Dungeons", "Guilded · Donjons"), title: t(`${season.name} is over`, `${season.name} est terminée`),
+    eyebrow: t("Guilded · Dungeons", "Guilded · Donjons"), title: t(`${seasonLabel(season.name, lang)} is over`, `${seasonLabel(season.name, lang)} est terminée`),
     subtitle: `${day(season.startsAt)} → ${season.endsAt ? day(season.endsAt) : "—"}`,
     backdrop: { kind: "board", key: "season-podium", fallbackKey: "dungeon-season" },
     stats: [
@@ -73,7 +74,7 @@ export function seasonEndCard(season: SeasonInfo, podium: Podium | null, lang: L
 export function seasonStartCard(season: SeasonInfo, lang: Lang): ScoreCard {
   const fr = lang === "fr", t = (en: string, french: string) => fr ? french : en;
   return {
-    eyebrow: t("Guilded · Dungeons", "Guilded · Donjons"), title: t(`${season.name} begins`, `${season.name} commence`),
+    eyebrow: t("Guilded · Dungeons", "Guilded · Donjons"), title: t(`${seasonLabel(season.name, lang)} begins`, `${seasonLabel(season.name, lang)} commence`),
     subtitle: season.endsAt ? `${day(season.startsAt)} → ${day(season.endsAt)}` : t(`From ${day(season.startsAt)}`, `Dès le ${day(season.startsAt)}`),
     backdrop: { kind: "board", key: "dungeon-season" },
     stats: [
@@ -91,12 +92,12 @@ export function seasonStartCard(season: SeasonInfo, lang: Lang): ScoreCard {
 
 export function seasonEndFallback(season: SeasonInfo, podium: Podium | null, lang: Lang): EmbedBuilder {
   const fr = lang === "fr", entries = podium?.entries ?? [];
-  return new EmbedBuilder().setColor(COLOR).setTitle(fr ? `🏁 ${season.name} est terminée` : `🏁 ${season.name} is over`)
+  return new EmbedBuilder().setColor(COLOR).setTitle(fr ? `🏁 ${seasonLabel(season.name, lang)} est terminée` : `🏁 ${seasonLabel(season.name, lang)} is over`)
     .setDescription(entries.length ? entries.map(entry => `${MEDALS[entry.rank - 1]} ${entry.name}${entry.label ? ` (${entry.label})` : ""} — ${entry.points} pts`).join("\n") + (podium?.moreChampions ? `\n+${podium.moreChampions}` : "") : fr ? "Aucun joueur classé cette saison." : "No ranked player this season.");
 }
 export function seasonStartFallback(season: SeasonInfo, lang: Lang): EmbedBuilder {
   const fr = lang === "fr";
-  return new EmbedBuilder().setColor(COLOR).setTitle(fr ? `🚀 ${season.name} commence` : `🚀 ${season.name} begins`)
+  return new EmbedBuilder().setColor(COLOR).setTitle(fr ? `🚀 ${seasonLabel(season.name, lang)} commence` : `🚀 ${seasonLabel(season.name, lang)} begins`)
     .setDescription(season.endsAt ? `${day(season.startsAt)} → ${day(season.endsAt)}` : (fr ? `Dès le ${day(season.startsAt)}` : `From ${day(season.startsAt)}`));
 }
 

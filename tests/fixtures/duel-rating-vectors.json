@@ -23,8 +23,7 @@
   "maxLevelGap": 10,
   "shrinkGames": 10,
   "rankedDuels": 1,
-  "rankedOpponents": 1,
-  "firstSeasonEndsAt": "2027-01-01T00:00:00.000Z"
+  "rankedOpponents": 1
  },
  "tolerance": 0.001,
  "cases": [

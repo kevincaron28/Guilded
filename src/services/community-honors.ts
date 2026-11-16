@@ -169,7 +169,7 @@ export function monthlyHonorsMessage(lang: Lang, season: { name: string; number:
   const points = new Map(board.map(row => [row.userId, row.points]));
   const n = (value: number) => value.toLocaleString(lang === "fr" ? "fr-CA" : "en-CA");
   const embed = new EmbedBuilder().setColor(ROLE_COLORS.month[0]!)
-    .setTitle(say(lang, `🏆 Top 3 of ${communitySeasonLabel(season, lang)}`, `🏆 Le top 3 de la ${communitySeasonLabel(season, lang)}`))
+    .setTitle(say(lang, `🏆 Top 3 of ${communitySeasonLabel(season, lang)}`, `🏆 Top 3 · ${communitySeasonLabel(season, lang)}`))
     .setDescription(places.map((winners, i) => winners.length ? `${MEDALS[i]} ${winners.map(id => who(names, id)).join(", ")} — **${n(points.get(winners[0]!) ?? 0)} pts** · ${HONOR_ROLES[lang].month[i]}` : "").filter(Boolean).join("\n") || say(lang, "No podium this month.", "Aucun podium ce mois-ci."))
     .addFields({ name: say(lang, "✨ Well played", "✨ Bien joué"), value: say(lang,
       "They keep their podium role until the end of next month. A new season has started: everyone is back at zero!",

@@ -6,7 +6,8 @@ import type { Action, DeckList, MatchEvent, MatchState } from "./tcg-engine-type
 import { Conflict, countPlay, isClassKey, planReward, playerView, type MatchRewards, type PlayerView, type Settlement } from "./tcg-match.js";
 import { onlineInApp, onlineInGame } from "./tcg-presence.js";
 import { MIN_TURNS_COUNTED } from "./tcg-quests.js";
-import { applyStars, glicko2, PAIR_CAP, queueWindow, rankOf, rolloverRating, seasonEndsAt, seasonKey, START_RATING, START_RD, START_VOL, weekStart, type RankInfo } from "./tcg-rating.js";
+import { refreshSeasonCalendar } from "./season-calendar.js";
+import { applyStars,glicko2, PAIR_CAP, queueWindow, rankOf, rolloverRating, seasonEndsAt, seasonKey, START_RATING, START_RD, START_VOL, weekStart, type RankInfo } from "./tcg-rating.js";
 import { TcgError } from "./tcg-store.js";
 import { sharedGuild } from "./tcg-trade.js";
 
@@ -468,6 +469,7 @@ async function tryMatch(tx: Tx, me: QueueRow, now: Date, seed: number): Promise<
 }
 
 export interface RankedStatus {
+  /** The key ("2026-11" is Season 1, "S02" is Season 2) and when it ends ("" while the official calendar has no next season). */
   season: string; seasonEndsAt: string;
   queue: { cls: string; since: string; expiresAt: string } | null;
   /** A match that was just found for the caller (the response of the call that made the pairing). */
@@ -485,7 +487,7 @@ async function statusFor(tx: Tx, userId: string, now: Date, matched: DuelRespons
   ]);
   const names = await namesOf(tx, rows.flatMap(r => [r.userA, r.userB]));
   return {
-    season, seasonEndsAt: seasonEndsAt(season).toISOString(),
+    season, seasonEndsAt: seasonEndsAt(season)?.toISOString() ?? "",
     queue: queueRow ? { cls: queueRow.cls, since: queueRow.joinedAt.toISOString(), expiresAt: queueRow.expiresAt.toISOString() } : null,
     matched,
     standing: { stars: standing.stars, rank: rankOf(standing.stars), streak: standing.streak, wins: standing.wins, losses: standing.losses, games: standing.games },
@@ -496,6 +498,7 @@ async function statusFor(tx: Tx, userId: string, now: Date, matched: DuelRespons
 /** Joins the ranked waiting room with the class you will play. Returns at once: either a match was found or you are waiting (ask `rankedStatus` again). */
 export async function joinRanked(db: DuelDb, userId: string, cls: unknown, now = new Date(), seed: number = random31()): Promise<RankedStatus> {
   if (!isClassKey(cls)) throw new TcgError("Pick one of the nine classes.", 400);
+  await refreshSeasonCalendar(db as never, 60_000);
   return withRetry(() => db.$transaction(async tx => {
     if (await activeCount(tx, userId) >= MAX_ACTIVE_DUELS) throw new TcgError(`You already have ${MAX_ACTIVE_DUELS} matches in progress. Finish or concede one first.`, 409);
     const rating = await ensureRating(tx, userId, seasonKey(now));
@@ -510,8 +513,9 @@ export async function joinRanked(db: DuelDb, userId: string, cls: unknown, now =
 
 /** Where the member stands: the waiting room (matching is tried again with the wider window), the season standing and the ranked matches in progress. */
 export async function rankedStatus(db: DuelDb, userId: string, now = new Date(), seed: number = random31()): Promise<RankedStatus> {
+  await refreshSeasonCalendar(db as never, 60_000);
   return withRetry(() => db.$transaction(async tx => {
-    const entry = await tx.tcgQueue.findUnique({ where: { discordUserId: userId } }) as QueueRow | null;
+    const entry =await tx.tcgQueue.findUnique({ where: { discordUserId: userId } }) as QueueRow | null;
     let matched: DuelResponse | null = null;
     if (entry && entry.expiresAt.getTime() > now.getTime()) {
       const row = await tryMatch(tx, entry, now, seed);
@@ -560,7 +564,8 @@ async function rankedBoard(tx: Tx, userId: string, season: string, ids: string[]
 
 /** The ranked ladder (the global ladder across every hosted server, or the member's own server) and the weekly friendly-challenge board of their servers. */
 export async function leaderboard(db: DuelDb, userId: string, input: { scope: "global" | "guild" | "friendly"; season?: string }, allows: Allows, now = new Date()): Promise<Ladder> {
-  const season = input.season && /^\d{4}-(0[1-9]|1[0-2])$/.test(input.season) ? input.season : seasonKey(now);
+  await refreshSeasonCalendar(db as never, 60_000);
+  const season = input.season && /^(\d{4}-(0[1-9]|1[0-2])|S\d{2,})$/.test(input.season) ? input.season : seasonKey(now);
   return db.$transaction(async tx => {
     const guilds = input.scope === "global" ? [] : await guildsOf(tx, userId, allows);
     if (input.scope === "global") return { scope: "global" as const, season, weekStart: null, boards: [await rankedBoard(tx, userId, season, null, "global", "Global")] };

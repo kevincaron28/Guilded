@@ -5,8 +5,10 @@ import type { MatchState } from "../src/services/tcg-engine-types.js";
 import { stateHash } from "../src/services/tcg-engine.js";
 import { acceptChallenge, challenge, concedeDuel, declineChallenge, duelPartners, getDuel, joinRanked, leaderboard, leaveRanked, listDuels, pollDuel, rankedStatus, replayDuel, submitDuelIntent, CHALLENGE_TTL_MS, LIVE_CHALLENGE_TTL_MS, LIVE_TURN_SECONDS, MAX_ACTIVE_DUELS, MAX_OPEN_CHALLENGES, QUEUE_TTL_MS, TURN_SECONDS, type DuelDb } from "../src/services/tcg-duel.js";
 import { forgetPresence, markSeenInApp, ONLINE_APP_MS } from "../src/services/tcg-presence.js";
-import { applyStars, glicko2, LEGEND_STARS, queueWindow, rankOf, rolloverRating, seasonKey, startStars, weekStart } from "../src/services/tcg-rating.js";
+import { applyStars, glicko2, LEGEND_STARS, queueWindow, rankOf, rolloverRating, seasonEndsAt, seasonKey, seasonNameOfKey, startStars, weekStart } from "../src/services/tcg-rating.js";
+import { resetSeasonCalendar, setSeasonCalendar } from "../src/services/season-calendar.js";
 
+const SEASON_2 = [{ number: 2, name: "Season 2", start: new Date("2026-12-09T23:00:00Z") }];
 interface Rec { [key: string]: unknown }
 const NOW = new Date(Date.UTC(2026, 10, 20, 12, 0, 0)); // Friday 20 November 2026
 const DAY = 86_400_000;
@@ -201,9 +203,20 @@ describe("stars and ranks", () => {
 });
 
 describe("seasons", () => {
-  it("are calendar months in UTC and the friendly week starts on Monday", () => {
-    expect(seasonKey(new Date("2026-11-30T23:59:59Z"))).toBe("2026-11");
-    expect(seasonKey(new Date("2026-12-01T00:00:00Z"))).toBe("2026-12");
+  it("follow the official season calendar (Season 1 keeps the old month key), and the friendly week starts on Monday", () => {
+    expect(seasonKey(new Date("2026-11-30T23:59:59Z"), SEASON_2)).toBe("2026-11");
+    expect(seasonKey(new Date("2026-12-01T00:00:00Z"), SEASON_2)).toBe("2026-11"); // no month change any more
+    expect(seasonKey(new Date("2026-12-09T22:59:59Z"), SEASON_2)).toBe("2026-11");
+    expect(seasonKey(new Date("2026-12-09T23:00:00Z"), SEASON_2)).toBe("S02");
+    expect(seasonKey(new Date("2027-03-01T00:00:00Z"), SEASON_2)).toBe("S02"); // nothing scheduled after Season 2: it continues
+    expect(seasonKey(new Date("2027-03-01T00:00:00Z"), [])).toBe("2026-11");
+    expect(seasonNameOfKey("2026-11", "en")).toBe("Season 1");
+    expect(seasonNameOfKey("S02", "fr")).toBe("Saison 2");
+    expect(seasonNameOfKey("2026-09", "en")).toBe("2026-09"); // an older month key stays readable as it is
+    expect(seasonEndsAt("2026-11", SEASON_2)?.toISOString()).toBe("2026-12-09T23:00:00.000Z");
+    expect(seasonEndsAt("S02", SEASON_2)).toBeNull();
+    expect(seasonEndsAt("S02", [...SEASON_2, { number: 3, name: "Season 3", start: new Date("2027-03-01T00:00:00Z") }])?.toISOString()).toBe("2027-03-01T00:00:00.000Z");
+    expect(seasonEndsAt("2026-09", SEASON_2)?.toISOString()).toBe("2026-10-01T00:00:00.000Z");
     expect(weekStart(NOW).toISOString()).toBe("2026-11-16T00:00:00.000Z");
     expect(weekStart(new Date("2026-11-22T23:00:00Z")).toISOString()).toBe("2026-11-16T00:00:00.000Z");
     expect(weekStart(new Date("2026-11-23T00:00:00Z")).toISOString()).toBe("2026-11-23T00:00:00.000Z");
@@ -720,23 +733,25 @@ describe("a ranked match", () => {
   it("a match belongs to the season it started in, and a new season starts from the partial reset", async () => {
     const w = world();
     rate(w, "u1", "2026-11", { rating: 1700, rd: 60, stars: 50, games: 40, wins: 30, losses: 10 });
-    const eve = new Date(Date.UTC(2026, 10, 30, 23, 0, 0));
+    setSeasonCalendar(SEASON_2);
+    const eve = new Date(Date.UTC(2026, 11, 9, 22, 0, 0));
     const id = await rankedPair(w, "u1", "u2", eve);
-    await concedeDuel(w.db, "u2", id, new Date(Date.UTC(2026, 11, 1, 0, 30, 0)));
+    await concedeDuel(w.db, "u2", id, new Date(Date.UTC(2026, 11, 9, 23, 30, 0)));
     expect(w.duel(id)["season"]).toBe("2026-11");
-    expect(w.t.tcgRating.rows.filter(r => r["season"] === "2026-12")).toHaveLength(0);
+    expect(w.t.tcgRating.rows.filter(r => r["season"] === "S02")).toHaveLength(0);
     const nov = w.t.tcgRating.rows.find(r => r["discordUserId"] === "u1" && r["season"] === "2026-11")!;
     expect(nov["games"]).toBe(41);
-    // In December the next join starts from last season's final rating, partly reset.
-    const dec = new Date(Date.UTC(2026, 11, 2, 12, 0, 0));
+    // In Season 2 the next join starts from last season's final rating, partly reset.
+    const dec = new Date(Date.UTC(2026, 11, 10, 12, 0, 0));
     const status = await joinRanked(w.db, "u1", "warrior", dec, 1);
-    const row = w.t.tcgRating.rows.find(r => r["discordUserId"] === "u1" && r["season"] === "2026-12")!;
+    const row = w.t.tcgRating.rows.find(r => r["discordUserId"] === "u1" && r["season"] === "S02")!;
     expect(row["rating"] as number).toBeCloseTo(1500 + ((nov["rating"] as number) - 1500) * 0.6, 6);
     expect(row["stars"]).toBe(startStars(row["rating"] as number));
     expect(row["games"]).toBe(0);
-    expect(status.season).toBe("2026-12");
+    expect(status.season).toBe("S02");
     expect(status.standing.stars).toBe(row["stars"]);
-    expect(new Date(status.seasonEndsAt).toISOString()).toBe("2027-01-01T00:00:00.000Z");
+    expect(status.seasonEndsAt).toBe(""); // no Season 3 scheduled: the season simply continues
+    resetSeasonCalendar();
     // A member who never played before starts fresh.
     expect((await joinRanked(w.db, "u3", "rogue", dec, 2)).standing).toMatchObject({ stars: 0, games: 0 });
   });

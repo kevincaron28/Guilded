@@ -1,7 +1,7 @@
 import { emptyNameBook } from "../src/services/character-display.js";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { RATING, RATING_START, loadPairWeights, expectedScore, isRanked, kFor, levelHandicap, pairWeight, rateSeason, ratingApplies, seasonOf, shrunk, showChange, type RatedDuel } from "../src/services/duel-rating.js";
+import { RATING, RATING_START, ratingSeasonName, ratingSeasonRange, loadPairWeights, expectedScore, isRanked, kFor, levelHandicap, pairWeight, rateSeason, ratingApplies, seasonOf, shrunk, showChange, type RatedDuel } from "../src/services/duel-rating.js";
 import { ADDON_SHOWS_RATING, duelRuleLines, ratingFooter, ratingRuleLines } from "../src/services/duel-rules.js";
 import { duelLadder, ratingStartOf } from "../src/services/duels.js";
 import { duelBoardCard, duelBoardEmbed, loadDuelBoardData } from "../src/services/duel-board.js";
@@ -34,12 +34,42 @@ describe("duel rating: shared test vectors", () => {
       v.expect.changes.forEach((want, i) => { near(result.changes[i]!.winnerDelta, want.winnerDelta); near(result.changes[i]!.loserDelta, want.loserDelta); expect(result.changes[i]!.rated).toBe(want.rated); });
     });
   }
-  it("the first season runs from 13 November to 31 December 2026, then seasons are calendar months in UTC", () => {
-    for (const s of vectors.seasons) {
-      const got = seasonOf(new Date(s.at));
-      expect([got.id, got.from.toISOString(), got.to?.toISOString() ?? null, got.rated]).toEqual([s.id, s.from, s.to, s.rated]);
-    }
+  it("the first season runs from 13 November until the official Season 2 starts, then a duel season is the official season", () => {
+    const calendar = [{ number: 2, name: "Season 2", start: new Date("2026-12-09T23:00:00Z") }];
+    const at = (iso: string) => seasonOf(new Date(iso), RATING_START, calendar);
+    expect(at("2026-11-12T23:59:59Z")).toMatchObject({ id: "s0", rated: false });
+    expect(at("2026-11-13T00:00:00Z")).toMatchObject({ id: "2026-11", number: 1, rated: true });
+    expect(at("2026-12-09T22:59:59Z")).toMatchObject({ id: "2026-11", number: 1 });
+    expect(at("2026-12-09T22:59:59Z").to?.toISOString()).toBe("2026-12-09T23:00:00.000Z");
+    // The month change no longer resets anything.
+    expect(at("2026-12-31T23:59:59Z")).toMatchObject({ id: "S2", number: 2, to: null });
+    expect(at("2027-01-01T00:00:00Z").id).toBe("S2");
+    expect(at("2026-12-09T23:00:00Z").from.toISOString()).toBe("2026-12-09T23:00:00.000Z");
+    // With no later season scheduled (or the calendar not loaded) the first season simply continues.
+    expect(seasonOf(new Date("2027-05-01T00:00:00Z"), RATING_START, [])).toMatchObject({ id: "2026-11", to: null });
     expect(RATING_START.toISOString()).toBe("2026-11-13T00:00:00.000Z");
+  });
+  it("names seasons Season N / Saison N, keeps old ids readable and shows the dates as a subtitle", () => {
+    const calendar = [{ number: 2, name: "Season 2", start: new Date("2026-12-09T23:00:00Z") }, { number: 3, name: "Season 3", start: new Date("2027-03-02T00:00:00Z") }];
+    expect(ratingSeasonName("2026-11", "en")).toBe("Season 1");
+    expect(ratingSeasonName("S2", "en")).toBe("Season 2");
+    expect(ratingSeasonName("S2", "fr")).toBe("Saison 2");
+    expect(ratingSeasonName("2026-12", "en")).toBe("December 2026"); // an old month id that is not the first season stays a month
+    expect(ratingSeasonRange("2026-11", "en", calendar)).toBe("November 13 – December 9");
+    expect(ratingSeasonRange("S2", "en", calendar)).toBe("December 9 – March 1");
+    expect(ratingSeasonRange("S3", "en", calendar)).toBe("From March 2");
+    expect(ratingSeasonRange("2026-12", "en", calendar)).toBe("");
+  });
+  it("ratings restart from 1000 at the official season change and the old season keeps its own ladder", () => {
+    const calendar = [{ number: 2, name: "Season 2", start: new Date("2026-12-09T23:00:00Z") }];
+    const day = (iso: string) => ({ winnerKey: "a", loserKey: "b", winnerName: "Aldric", loserName: "Brenna", winnerLevel: 60, loserLevel: 60, endedAt: new Date(iso) });
+    const duels = [day("2026-12-05T10:00:00Z"), day("2026-12-10T10:00:00Z")];
+    const idOf = (d: { endedAt: Date }) => seasonOf(d.endedAt, RATING_START, calendar).id;
+    expect(duels.map(idOf)).toEqual(["2026-11", "S2"]);
+    const seasonTwo = rateSeason(duels.filter(d => idOf(d) === "S2")).players.get("a")!;
+    const seasonOne = rateSeason(duels.filter(d => idOf(d) === "2026-11")).players.get("a")!;
+    expect(seasonTwo.games).toBe(1);
+    expect(seasonTwo.rating).toBeCloseTo(seasonOne.rating, 6); // both started from 1000 with one win
   });
 });
 
@@ -83,7 +113,7 @@ describe("duel rating: late reports and the season boundary", () => {
     expect(seasonOf(new Date("2026-11-13T00:00:00Z")).id).toBe("2026-11");
     expect(ratingApplies(new Date("2026-11-12T23:59:59Z"))).toBe(false);
     expect(ratingApplies(new Date("2026-11-13T00:00:00Z"))).toBe(true);
-    // A server's own marker moves the start and the first season still ends on 31 December.
+    // A server's own marker moves the start; its first season is still the one before the official Season 2.
     expect(seasonOf(new Date("2026-12-15T00:00:00Z"), T0).id).toBe("2026-12");
   });
 });
@@ -133,7 +163,7 @@ describe("duel rating: from the start date", () => {
     expect(ADDON_SHOWS_RATING).toBe(false);
     const data = await loadDuelBoardData(dbWith(NEW), "g1", "forever", now);
     const card = duelBoardCard(data, "en");
-    expect(card.footer).toContain("December 1, 2026");
+    expect(card.footer).toContain("Rating starts at 1000");
     expect(card.footer).toContain("the in-game ladder shows the old score until the next addon update");
     expect(card.ladder!.columns[0]!.label).toBe("Rating");
     expect(card.subtitle).toContain("December 2026");
@@ -172,7 +202,8 @@ describe("duel rating: the member-facing text", () => {
     expect(en).toContain("ranked from their first counted duel");
     expect(en).not.toMatch(/per pair per day|placement/);
     expect(en).toContain("November 13, 2026");
-    expect(en).toContain("December 31, 2026");
+    expect(en).toContain("Season 2");
+    expect(en).not.toContain("calendar month");
     expect(en).not.toMatch(/Season 0/);
     expect(fr).toContain("13 novembre 2026");
     expect(fr).not.toMatch(/Saison 0/);
@@ -222,7 +253,6 @@ describe("duel rating: the public page and JSON", () => {
   });
   it("starts on 13 November by default, and the single switch (DUEL_RATING=off) is read once at load", () => {
     expect(RATING_START.toISOString()).toBe("2026-11-13T00:00:00.000Z");
-    expect(RATING.firstSeasonEndsAt).toBe("2027-01-01T00:00:00.000Z");
   });
   it("buildRatingBoard ranks everyone and hides players who left", () => {
     const eight = Array.from({ length: 8 }, (_, i) => duel("Aldric", ["Brenna", "Corvin", "Dara", "Edda"][i % 4]!, `2026-12-0${2 + Math.floor(i / 2)}T1${i}:00:00Z`));

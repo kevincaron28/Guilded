@@ -120,7 +120,10 @@ import { BACKUP_DIR, runBackup } from "./services/backup.js";
 import { asLang } from "./i18n.js";
 import { queueSeasonEndCards, queueSeasonStartCard } from "./services/season-cards.js";
 import { loadClassBook } from "./services/ladder-classes.js";
-import { freezeSeasonRules, loadOfficialWindows, rotateOfficialSeasons, startOfficialSeason } from "./services/official-seasons.js";
+import { freezeSeasonRules, loadOfficialWindows, officialWindowAt, rotateOfficialSeasons, startOfficialSeason } from "./services/official-seasons.js";
+import { refreshSeasonCalendar, setSeasonCalendar } from "./services/season-calendar.js";
+import { rotateRaidSeasons } from "./services/raid-season.js";
+import { remindSeason2 } from "./services/season2-reminder.js";
 import { finalizeClosingSeasons } from "./services/dungeon-admin.js";
 import { executeOwnerPreviews, handleItemPreviewButton, OWNER_PREVIEWS_COMMAND, ownerPreviewsCommand } from "./commands/owner-previews.js";
 import { ITEM_PREVIEW_PREFIX } from "./services/item-preview-step0.js";
@@ -491,6 +494,18 @@ client.once(Events.ClientReady, (readyClient) => {
       .catch(reportJobError("Public season rules"))
       .then(async () => { openSeasons = await prisma.dungeonSeason.findMany({ where: { status: { in: ["ACTIVE", "CLOSING"] } }, select: { id: true, guildId: true } }); })
       .then(() => loadOfficialWindows(prisma))
+      .then(async (windows) => {
+        // The one master calendar: duels and Guilded Clash read this copy (season-calendar.ts), raid attendance gets its season below,
+        // and the owner is reminded (once a day) while the planned Season 2 is not scheduled yet.
+        setSeasonCalendar(windows);
+        const running = officialWindowAt(windows, new Date());
+        if (running) {
+          const raids = await rotateRaidSeasons(prisma, { number: running.number, start: running.start }, new Date(), (discordId) => hostedPilot.allows(discordId), "forever").catch(reportJobError("Raid seasons"));
+          for (const row of raids ?? []) console.info(`Raid attendance season started: ${row.ended ?? "none"} -> ${row.season} (guild ${row.guildId}).`);
+        }
+        await remindSeason2(readyClient, prisma, botOwnerId).catch(reportJobError("Season 2 reminder"));
+        return windows;
+      })
       .then((windows) => rotateOfficialSeasons(prisma, windows, new Date(), (discordId) => hostedPilot.allows(discordId), () => runBackup(prisma, new Date(), `${BACKUP_DIR}/seasons`, 24), startOfficialSeason(prisma)))
       .then(async (rotated) => {
         const finalized = await finalizeClosingSeasons(prisma, new Date(), id => hostedPilot.allows(id));
@@ -509,6 +524,7 @@ client.once(Events.ClientReady, (readyClient) => {
       })
       .catch(reportJobError("Dungeon seasons"))); })().finally(() => { rotating = false; });
   };
+  void refreshSeasonCalendar(prisma).catch(() => undefined);
   setTimeout(rotateSeasons, 60_000);
   setInterval(rotateSeasons, 5 * 60 * 1000);
   let recurringBusy = false;

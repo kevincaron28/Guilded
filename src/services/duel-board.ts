@@ -7,7 +7,7 @@ import { asLang, type Lang } from "../i18n.js";
 import { createGuildService } from "./guild.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./discord-jobs.js";
 import { duelLadder, percent, streakText, type DuelStanding, type LadderStanding } from "./duels.js";
-import { ratingSeasonName, showRating } from "./duel-rating.js";
+import { ratingSeasonName, ratingSeasonRange, showRating } from "./duel-rating.js";
 import { ratingFooter } from "./duel-rules.js";
 import { displayCharacterName, loadFullNameBook, type FullNameBook } from "./character-display.js";
 import { classOf, loadClassBook, type ClassBook } from "./ladder-classes.js";
@@ -40,7 +40,7 @@ export function duelBoardCard(data: DuelBoardData, lang: Lang, classes: ClassBoo
   const fr = lang === "fr";
   return {
     eyebrow: `Guilded · ${fr ? "JcJ" : "PvP"}`, title: fr ? "Duels de la guilde" : "Guild duels",
-    subtitle: (data.mode === "rating" && data.seasonId ? `${ratingSeasonName(data.seasonId, lang)} · ` : "") + (fr ? `${data.duels} duels comptés · ${data.standings.length} duellistes` : `${data.duels} counted duels · ${data.standings.length} duellists`),
+    subtitle: (data.mode === "rating" && data.seasonId ? `${ratingSeasonName(data.seasonId, lang)}${ratingSeasonRange(data.seasonId, lang) ? ` (${ratingSeasonRange(data.seasonId, lang)})` : ""} · ` : "") + (fr ? `${data.duels} duels comptés · ${data.standings.length} duellistes` : `${data.duels} counted duels · ${data.standings.length} duellists`),
     backdrop: { kind: "board", key: "duel" },
     stats: [], footer: data.mode === "rating" && data.seasonId ? ratingFooter(lang, ratingSeasonName(data.seasonId, lang), data.startsAt) : fr ? "Score : 10 par victoire, +2 par niveau de l'adversaire au-dessus de vous, -2 par niveau en dessous (0-20) · aucune récompense" : "Score: 10 per win, +2 per level the opponent is above you, -2 per level below (0-20) · no rewards",
     ladder: {

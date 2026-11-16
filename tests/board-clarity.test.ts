@@ -53,7 +53,7 @@ describe("French season names", () => {
     expect(ratingEmbed([], "Season 1", "fr", rules).toJSON().title).toBe("🏅 Exploration · Saison 1 · provisoire");
     expect(seasonHeader({ name: "Season 1", startsAt: new Date(0) }, "fr")).toContain("**Saison 1**");
     expect(dungeonSeasonCard([{ name: "Kev Caron", points: 10 }], "Season 1", "fr", true).ladder!.meta).toContain("Saison 1");
-    expect(communityBoardCard({ lang: "fr", season: { name: "Season 1", status: "ACTIVE" }, board: [{ userId: "a", points: 10, balance: 0 }], names: new Map([["a", "Kev Caron"]]) }).subtitle).toContain("Saison 1");
+    expect(communityBoardCard({ lang: "fr", season: { name: "Season 1", status: "ACTIVE" }, board: [{ userId: "a", points: 10, balance: 0 }], names: new Map([["a", "Kev Caron"]]) }).subtitle).toContain("Saison communautaire 1");
   });
 });
 

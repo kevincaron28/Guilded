@@ -20,6 +20,15 @@ function run(over: Partial<DungeonImportResult> = {}): DungeonImportResult {
 }
 const prior = (over: Partial<PriorClear> = {}): PriorClear => ({ difficultyId: 1, endedAt: T0 - 86400, kills: [{ id: 585, name: "Lady Anacondra", sec: 90 }], deathless: true, allGuild: true, ...over });
 
+describe("Scarlet Monastery wing in record texts", () => {
+  it("names the wing in highlights and boss records, from the run's last boss", () => {
+    const scarlet = run({ dungeonName: "Scarlet Monastery", instanceId: 189, encounters: [{ id: 1, name: "Interrogator Vishas", success: true, startedAt: T0 + 10, at: T0 + 100 }, { id: 2, name: "Bloodmage Thalnos", success: true, startedAt: T0 + 400, at: T0 + 500 }] });
+    const items = runHighlights(scarlet, []);
+    expect(items.length).toBeGreaterThan(0);
+    expect(items[0]!.dungeonName).toBe("Scarlet Monastery: Graveyard");
+  });
+});
+
 describe("boss kills", () => {
   it("uses pull → kill seconds, ignores wipes, missing pull times and absurd values", () => {
     expect(bossKills([

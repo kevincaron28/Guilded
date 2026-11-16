@@ -133,6 +133,9 @@ describe("packed run summaries (Z1)", () => {
     expect(holds(lebowski, "walter-rfc")).toBe(false);
     hear(lebowski, "Walter", "WHISPER", "SUMZ|walter-rfc|1|1|BAD00");              // not packed data
     expect(holds(lebowski, "walter-rfc")).toBe(false);
+    // Over the base64 cap (checked before decoding): dropped, never unpacked.
+    hear(lebowski, "Walter", "WHISPER", `SUMZ|walter-rfc|1|1|${"ab".repeat(3001)}`);
+    expect(holds(lebowski, "walter-rfc")).toBe(false);
     // From a guildmate who is not a player of the run: dropped like a plain SUM.
     MEMBERS_ADD(lebowski);
     for (const m of packed) hear(lebowski, "Donny2", "WHISPER", m.text);

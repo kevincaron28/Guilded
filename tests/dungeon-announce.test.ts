@@ -17,7 +17,7 @@ describe("dungeonPosts", () => {
       result({ runRef: "A", dungeonName: "Wailing Caverns" }), result({ runRef: "B", dungeonName: "Wailing Caverns" }),
       result({ runRef: "C", dungeonName: "Ragefire Chasm" }), result({ runRef: "D", state: "ABANDONED" }), result({ runRef: "E", valid: false })), "fr");
     expect(posts.map((post) => post.runRef)).toEqual(["A", "B", "C"]);
-    expect(posts.map((post) => post.card.title)).toEqual(["Wailing Caverns", "Wailing Caverns", "Ragefire Chasm"]);
+    expect(posts.map((post) => post.card.title)).toEqual(["Cavernes des lamentations", "Cavernes des lamentations", "Gouffre de Ragefeu"]); // French cards use the French dungeon name
     for (const post of posts) expect(post.embed.toJSON().description!.length).toBeLessThan(1500);
   });
   it("keeps the embed short: no repeated speed-rating line, no per-player blocks", () => {

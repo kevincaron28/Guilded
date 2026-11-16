@@ -170,6 +170,8 @@ export interface DungeonPartyRow {
   score?: string | undefined; guild?: string | null | undefined;
   /** 9.3.2: level, what this run added to the player's season score (0 draws "+0" in grey; undefined draws nothing) and the season total. */
   level?: number | undefined; gain?: number | undefined; total?: string | undefined;
+  /** A player of the posting guild: the row gets a soft gold highlight (outsiders stay neutral). */
+  member?: boolean | undefined;
 }
 /** Traced floor cells (200 x 200 grid, key = column * 200 + row), death points as 0..1 map fractions, optionally the dungeon's own map image (PNG buffer). */
 export interface DungeonMapSpec { cells: readonly number[]; points: readonly { x: number; y: number }[]; image?: Buffer | undefined }
@@ -237,32 +239,44 @@ export function renderDungeonCard(spec: DungeonCardSpec): Promise<RenderedCard> 
     let y = 114 + hero.h + 8;
     if (spec.facts.length) { await c.text(spec.facts.join("  ·  "), x, y, { size: 28, color: INK, maxW: colW }); y += 40; }
     // Column edges (right edges for numbers). Emblem 38 px, then name, level, guild, +gain, season total.
-    const E = x + 38 + 12, nameW = 214, levelR = E + nameW + 44, guildX = levelR + 14, gainR = x + colW - 104, totalR = x + colW, guildW = gainR - 82 - guildX;
+    // The Guild column exists only when some player has a guild to show; without it the names get its width.
     const party = spec.party.slice(0, 5), pitch = 50;
+    const hasGuild = party.some((p) => !!guildTag(p.guild));
+    const E = x + 38 + 12, gainR = x + colW - 134, totalR = x + colW;
+    const levelR = hasGuild ? E + 262 + 44 : gainR - 100, nameW = levelR - 36 - E - 8, guildX = levelR + 12, guildW = gainR - 80 - guildX;
+    const anyMember = party.some((p) => p.member), allMembers = party.every((p) => p.member || p.name.startsWith("+"));
     if (spec.columns) {
       y += 4;
       const head = { size: 24, color: SUB } as const;
       await c.text(spec.columns.level, levelR, y, { ...head, anchor: "r", maxW: 44 });
-      await c.text(spec.columns.guild, guildX, y, { ...head, maxW: guildW });
+      if (hasGuild) await c.text(spec.columns.guild, guildX, y, { ...head, maxW: guildW });
       await c.text(spec.columns.gain, gainR, y, { ...head, anchor: "r", maxW: 100 });
-      await c.text(spec.columns.total, totalR, y, { ...head, anchor: "r", maxW: 108 });
+      await c.text(spec.columns.total, totalR, y, { ...head, anchor: "r", maxW: 150 });
       c.rect(x, y + 30, colW, 2, "#ffffff", { opacity: 0.22 });
       y += 40;
     } else y += 6;
     const used = new Set<string>();
     let stripe = false;
     for (const p of party) {
-      if (stripe) c.rect(x - 10, y - 8, colW + 20, pitch - 2, "#ffffff", { opacity: 0.05, rx: 8 });
+      // Guildmates get a soft gold band with an accent bar; the grey alternate stripe is used only when the highlight is not telling rows apart.
+      if (p.member) { c.rect(x - 10, y - 8, colW + 20, pitch - 2, "#e0b84a", { opacity: 0.16, rx: 8 }); c.rect(x - 10, y - 8, 5, pitch - 2, "#f2cf63", { opacity: 0.95, rx: 2 }); }
+      else if (stripe && (!anyMember || allMembers)) c.rect(x - 10, y - 8, colW + 20, pitch - 2, "#ffffff", { opacity: 0.05, rx: 8 });
       stripe = !stripe;
       if (p.role) c.raw(await roleEmblem(p.role, spec.roleStyle ?? "painted", x, y - 3, 38, used));
       const tag = guildTag(p.guild).replace(/^<|>$/g, ""); // the Guild column header says what it is
       const hasCols = p.level !== undefined || p.gain !== undefined || p.total !== undefined || p.score !== undefined || !!tag;
-      await c.text(p.name, E, y, { size: 30, face: "bold", color: p.color, maxW: hasCols ? nameW : colW - 46 });
+      const real = !p.name.startsWith("+"); // the "+N more" row has no columns
+      await c.text(p.name, E, y, { size: 30, face: "bold", color: p.color, maxW: hasCols || spec.columns ? nameW : colW - 46 });
       if (p.level !== undefined) await c.text(String(p.level), levelR, y + 1, { size: 28, color: INK, anchor: "r", maxW: 44 });
-      if (tag) await c.text(tag, guildX, y + 3, { size: 24, color: SUB, maxW: guildW });
-      if (p.gain !== undefined) await c.text(`+${p.gain}`, gainR, y, { size: 30, face: "bold", color: p.gain > 0 ? GOOD : SUB, anchor: "r", maxW: 100 });
-      const total = p.total ?? p.score;
+      if (hasGuild && real && spec.columns) await c.text(tag || "—", guildX, y + (tag ? 3 : 4), { size: 24, color: SUB, maxW: guildW });
+      else if (tag) await c.text(tag, guildX, y + 3, { size: 24, color: SUB, maxW: guildW });
+      // A rated player shows what this run added and the season total; "—" when there is no score (calibration, unrated).
+      const unscored = p.gain === 0 && (!p.total || p.total === "0");
+      if (p.gain !== undefined && !unscored) await c.text(`+${p.gain}`, gainR, y, { size: 30, face: "bold", color: p.gain > 0 ? GOOD : SUB, anchor: "r", maxW: 100 });
+      else if (spec.columns && real) await c.text("—", gainR, y, { size: 30, face: "bold", color: SUB, anchor: "r", maxW: 100 });
+      const total = p.total === "0" && unscored ? undefined : p.total ?? p.score;
       if (total) await c.text(total, totalR, y, { size: 30, face: "bold", color: INK, anchor: "r", maxW: 108 });
+      else if (spec.columns && real) await c.text("—", totalR, y, { size: 30, face: "bold", color: SUB, anchor: "r", maxW: 108 });
       y += pitch;
     }
     if (spec.map) await drawDeathMap(c, spec.map);

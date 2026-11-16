@@ -113,6 +113,16 @@ export function dungeonDisplayName(run: { dungeonName: string; encounters?: read
   const [en, fr] = WING_NAME[wings[0]![0]]!;
   return `${run.dungeonName}${lang === "fr" ? " : " : ": "}${lang === "fr" ? fr : en}`;
 }
+/** French card titles: the dungeon part of a "Name: Wing" / "Name : Aile" title in French. Themes and paintings keep matching the English name. */
+const FRENCH_DUNGEONS: [RegExp, string][] = [[/^Scarlet Monastery\b/i, "Monastère Écarlate"], [/^Shadowfang Keep\b/i, "Donjon d'Ombrecrocs"], [/^The Deadmines\b/i, "Les Mortemines"],
+  [/^Wailing Caverns\b/i, "Cavernes des lamentations"], [/^Ragefire Chasm\b/i, "Gouffre de Ragefeu"], [/^The Stockade\b/i, "La Prison"], [/^Blackfathom Deeps\b/i, "Profondeurs de Brassenoire"],
+  [/^Razorfen Kraul\b/i, "Kraal de Tranchebauge"], [/^Razorfen Downs\b/i, "Souilles de Tranchebauge"], [/^Sunken Temple\b|^The Temple of Atal'Hakkar\b/i, "Le Temple d'Atal'Hakkar"],
+  [/^Blackrock Depths\b/i, "Profondeurs de Rochenoire"], [/^Dire Maul\b/i, "Hache-tripes"], [/^Lower Blackrock Spire\b/i, "Pic Rochenoire inférieur"], [/^Upper Blackrock Spire\b/i, "Pic Rochenoire supérieur"]];
+export function frenchDungeon(title: string, lang: Lang): string {
+  if (lang !== "fr") return title;
+  const found = FRENCH_DUNGEONS.find(([match]) => match.test(title));
+  return found ? title.replace(found[0], found[1]) : title;
+}
 export function runLabel(run: { runRef: string; dungeonName: string; difficultyId: number; encounters?: readonly { name?: string | undefined; success?: boolean | undefined }[] | undefined }, lang: Lang = "en"): string {
   const difficulty = difficultyName(run.difficultyId);
   const test = run.runRef.startsWith("SIM-") ? "[TEST] " : "";
@@ -237,6 +247,8 @@ export function scoreStat(run: Run, party: { detail: Detail; guild: boolean }[],
 export interface DungeonCardOptions {
   /** Death positions as 0..1 map coordinates, when the addon recorded them (see docs/DUNGEON_CARDS.md). */
   deathPoints?: { x: number; y: number }[];
+  /** The posting guild's in-game name: shown for guildmates whose game client gave no guild text. */
+  ownGuild?: string | null;
 }
 
 /**
@@ -259,7 +271,7 @@ export function dungeonRunCard(run: Run, lang: Lang, options: DungeonCardOptions
   const roles = partyRoles(party.map((row) => row.detail));
   return {
     eyebrow: t("Guilded · Dungeon completed", "Guilded · Donjon terminé"),
-    title: runLabel(run, lang).replace(/ \(.*\)$/, ""),
+    title: frenchDungeon(runLabel(run, lang), lang).replace(/ \(.*\)$/, ""),
     subtitle: [difficultyName(run.difficultyId), mark, date].filter(Boolean).join(" · "),
     stats: [
       { label: t("Time", "Temps"), value: formatDuration(run.durationSec ?? 0), accent: "gold",
@@ -275,7 +287,7 @@ export function dungeonRunCard(run: Run, lang: Lang, options: DungeonCardOptions
     dungeon: {
       theme: dungeonTheme(dungeonDisplayName(run, lang)),
       ...(score ? { scoreLabel: score.label } : {}),
-      ...(party.some((row) => typeof row.detail.ratingTotal === "number") ? { columns: { level: t("Lv", "Niv"), gain: t("This run", "Cette run"), total: t("Season", "Saison") } } : {}),
+      ...(party.some((row) => typeof row.detail.ratingTotal === "number") ? { columns: { level: t("Lv", "Niv"), gain: t("This run", "Cette run"), total: t("Season (role)", "Saison (rôle)") } } : {}),
       party: party.slice(0, 40).map(({ detail, guild }, index) => {
         const cls = canonicalClass(detail.class);
         const spec = canonicalSpecialization(cls, detail.spec);
@@ -288,7 +300,7 @@ export function dungeonRunCard(run: Run, lang: Lang, options: DungeonCardOptions
           roleLabel: roleName(roles[index], lang),
           sub: [className(detail.class, lang), spec ? (fr ? spec.french : spec.name) : undefined, deaths].filter(Boolean).join(" · "),
           guild,
-          ...(guildDisplayName(detail.guild) ? { guildName: guildDisplayName(detail.guild)! } : {}),
+          ...(guildDisplayName(detail.guild) ?? (guild ? guildDisplayName(options.ownGuild) : undefined) ? { guildName: (guildDisplayName(detail.guild) ?? guildDisplayName(options.ownGuild))! } : {}),
           ...(typeof detail.level === "number" ? { level: detail.level } : {}),
           ...ratingColumns(detail),
           ...(score ? score.of(detail) : {})

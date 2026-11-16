@@ -27,7 +27,7 @@ describe("achievement catalogue", () => {
   it("is version 8: only WoW Forever and guild rows, and every retired id stays out of it for good", () => {
     expect(ACHIEVEMENT_CATALOGUE_VERSION).toBe(9);
     expect(CATALOGUE_EDITIONS).toEqual(["forever"]);
-    for (const row of ACHIEVEMENTS) expect(row.game === "guild" || row.id.startsWith("wow-forever-"), row.id).toBe(true);
+    for (const row of ACHIEVEMENTS) expect(row.game === "guild" || row.secret === true || row.id.startsWith("wow-forever-"), row.id).toBe(true);
     expect(new Set(RETIRED_ACHIEVEMENT_IDS).size).toBe(RETIRED_ACHIEVEMENT_IDS.length);
     for (const id of RETIRED_ACHIEVEMENT_IDS) expect(achievementById(id), id).toBeUndefined();
     // The ids the removed rows had in catalogue 6: Era, TBC, Mists and Retail (a ladder per edition), PoE2, and the edition-less rows.
@@ -64,7 +64,7 @@ describe("evaluateAchievements", () => {
     }
   });
   it("names the edition in English and French and uses an accent per edition", () => {
-    for (const edition of CATALOGUE_EDITIONS) for (const row of ACHIEVEMENTS.filter(def => def.edition === edition)) {
+    for (const edition of CATALOGUE_EDITIONS) for (const row of ACHIEVEMENTS.filter(def => def.edition === edition && !def.secret)) {
       expect(row.en.name.startsWith(`${EDITION_LABEL[edition].short}:`), row.id).toBe(true);
       expect(row.fr.name.startsWith(`${EDITION_LABEL[edition].short} :`), row.id).toBe(true);
       expect(row.game).toBe("wow");
@@ -187,19 +187,21 @@ describe("syncMemberAchievements", () => {
 });
 
 describe("achievement card", () => {
+  // Unearned secrets stay out of the total and show as "+1 secret" instead.
+  const PUBLIC = ACTIVE_ACHIEVEMENTS.filter(def => !def.secret).length;
   const items = (ids: string[]) => ACHIEVEMENTS.map(def => ({ id: def.id, earnedAt: ids.includes(def.id) ? day(2) : null, value: ids.includes(def.id) ? def.threshold : 4 }));
   it("summarises unlocked counts per game and lists the latest in tier colours", () => {
     const card = achievementsCard("Kevin", items(["wow-forever-level-20", "wow-forever-level-60", "dungeon-runs-1"]), "en");
-    expect(card.stats[0]).toMatchObject({ label: "Unlocked", value: `3/${ACTIVE_ACHIEVEMENTS.length}` });
-    expect(card.stats[1]).toMatchObject({ label: "WoW", value: `2/${ACTIVE_ACHIEVEMENTS.filter(def => def.game === "wow").length}` });
+    expect(card.stats[0]).toMatchObject({ label: "Unlocked", value: `3/${PUBLIC} +1 secret` });
+    expect(card.stats[1]).toMatchObject({ label: "WoW", value: `2/${ACTIVE_ACHIEVEMENTS.filter(def => def.game === "wow" && !def.secret).length}` });
     expect(card.rows).toHaveLength(2); // a ladder shows only its top earned step
   });
   it("never lists a retired row, even one a member already earned, and names the edition on Forever rows", () => {
     const earnedRetired = achievementsCard("Kevin", [...items(["wow-forever-level-60"]), { id: "wow-level-60", earnedAt: day(2), value: 60 }, { id: "poe2-level-90", earnedAt: day(2), value: 90 }, { id: "wow-retail-level-90", earnedAt: day(2), value: 90 }], "en");
-    expect(earnedRetired.stats[0]).toMatchObject({ value: `1/${ACTIVE_ACHIEVEMENTS.length}` });
+    expect(earnedRetired.stats[0]).toMatchObject({ value: `1/${PUBLIC} +1 secret` });
     expect(earnedRetired.rows!.some(row => row.sub?.includes("WoW Forever"))).toBe(true);
     expect(JSON.stringify(earnedRetired)).not.toMatch(/Retail|Sixty and Counting|Exile/);
-    expect(achievementsCard("Kevin", items([]), "en").stats[0]).toMatchObject({ value: `0/${ACTIVE_ACHIEVEMENTS.length}` });
+    expect(achievementsCard("Kevin", items([]), "en").stats[0]).toMatchObject({ value: `0/${PUBLIC} +1 secret` });
   });
   it("shows the closest locked ones before anything is earned, in French when asked", () => {
     const card = achievementsCard("Kevin", items([]), "fr");

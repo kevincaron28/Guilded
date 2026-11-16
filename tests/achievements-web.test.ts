@@ -35,7 +35,7 @@ describe("achievements on the website", () => {
     const web = createAchievementsWeb(db as never, allows);
     const html = await web.publicSection(ctx("/players/x"), "a".repeat(24));
     // The stored "wow-level-20" is retired: it stays in the database but is neither listed nor counted.
-    expect(html).toContain(`1 of ${ACTIVE_ACHIEVEMENTS.length} unlocked`);
+    expect(html).toContain(`1 of ${ACTIVE_ACHIEVEMENTS.length - 1} +1 secret unlocked`);
     expect(html).not.toContain("Getting Started");
     expect(db.memberAchievement.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ key: { notIn: [...RETIRED_ACHIEVEMENT_IDS] } }) }));
     expect(html).toContain("Unlocked 2026-10-21");
@@ -54,13 +54,31 @@ describe("achievements on the website", () => {
     const owner = { id: "a".repeat(24) } as WebContext["account"];
     const html = await createAchievementsWeb(db as never, allows).publicSection(ctx("/players/x", "en", owner), "a".repeat(24));
     expect(sync).toHaveBeenCalled();
-    expect(html).toContain(`0 of ${ACTIVE_ACHIEVEMENTS.length} unlocked`);
+    expect(html).toContain(`0 of ${ACTIVE_ACHIEVEMENTS.length - 1} +1 secret unlocked`);
     expect(html).toContain("Locked ·");
     expect(await createAchievementsWeb(db as never, allows).publicSection(ctx("/players/x", "en", { id: "b".repeat(24) } as WebContext["account"]), "a".repeat(24))).toBe("");
   });
+  it("shows an unearned secret only as a mystery tile, and the real one (tagged Secret) once earned", async () => {
+    const owner = { id: "a".repeat(24) } as WebContext["account"];
+    const render = async (earned: boolean, lang: "en" | "fr" = "en") => {
+      sync.mockResolvedValue({ results: ACHIEVEMENTS.map(def => ({ def, earned: earned && def.secret === true, earnedAt: earned && def.secret ? new Date("2026-11-10T00:00:00Z") : null, value: 0 })) });
+      const db = fakeDb({ publicProfile: true });
+      db.memberAchievement.findMany.mockResolvedValue([]);
+      return createAchievementsWeb(db as never, allows).publicSection(ctx("/players/x", lang, owner), "a".repeat(24));
+    };
+    const hidden = await render(false);
+    expect(hidden).toContain("???");
+    expect(hidden).toContain("+1 secret");
+    expect(hidden).not.toContain("Silverpine");
+    expect(hidden).not.toContain("Arugal");
+    const shown = await render(true);
+    expect(shown).toContain("Silverpine Welcome Committee");
+    expect(shown).toContain("Secret ·");
+    expect(await render(false, "fr")).not.toContain("Pins-Argent");
+  });
   it("is bilingual", async () => {
     const html = await createAchievementsWeb(fakeDb({ publicProfile: true }) as never, allows).publicSection(ctx("/players/x", "fr"), "a".repeat(24));
-    expect(html).toContain(`1 sur ${ACTIVE_ACHIEVEMENTS.length} débloqués`);
+    expect(html).toContain(`1 sur ${ACTIVE_ACHIEVEMENTS.length - 1} +1 secret débloqués`);
     expect(html).toContain("Première descente");
   });
   it("serves the card image for every known profile (no hide option)", async () => {
@@ -92,7 +110,7 @@ describe("achievements on the website", () => {
     expect((await web.ownerRoute(ctx("/me/achievements.png"), kit))?.status).toBe(401);
     expect(await web.meSection(ctx("/me/"))).toBe("");
   });
-  it("catalogue is large enough to list by game", () => { expect(ACHIEVEMENTS.length).toBe(105); expect(ACTIVE_ACHIEVEMENTS.length).toBe(105); });
+  it("catalogue is large enough to list by game", () => { expect(ACHIEVEMENTS.length).toBe(106); expect(ACTIVE_ACHIEVEMENTS.length).toBe(106); });
   it("lists WoW Forever and guild achievements only, never a retired or other-edition row", async () => {
     const html = await createAchievementsWeb(fakeDb({ publicProfile: true }) as never, allows).publicSection(ctx("/players/x"), "a".repeat(24));
     const heads = [...html.matchAll(/<h3>([^<]*?) <small>/g)].map(match => match[1]);

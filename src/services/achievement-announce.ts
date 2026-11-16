@@ -1,6 +1,6 @@
 import { textlessEmbed } from "./card-only.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
-import { ACHIEVEMENT_CATALOGUE_VERSION, RETIRED_ACHIEVEMENT_IDS, achievementById, TIER_LABEL } from "./achievements-catalogue.js";
+import { ACHIEVEMENT_CATALOGUE_VERSION, RETIRED_ACHIEVEMENT_IDS, achievementById, TIER_LABEL, SECRET_TAG } from "./achievements-catalogue.js";
 import { syncMemberAchievements } from "./achievements.js";
 import { achievementUnlockedCard } from "./end-cards.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
@@ -40,9 +40,12 @@ export async function announceNewAchievements(db: Db, guildId: string, memberId:
   const defs = waiting.flatMap(row => { const def = achievementById(row.key); return def ? [def] : []; });
   const total = await db.memberAchievement.count({ where: { guildId, memberId, key: { notIn: [...RETIRED_ACHIEVEMENT_IDS] } } });
   const listed = defs.slice(-MAX_LISTED).reverse();
-  const lines = listed.map(def => `**${def[lang].name}** (${TIER_LABEL[def.tier][lang]}): ${def[lang].description}`);
+  const lines = listed.map(def => `**${def[lang].name}** (${def.secret ? `${SECRET_TAG[lang]} · ` : ""}${TIER_LABEL[def.tier][lang]}): ${def[lang].description}`);
   if (defs.length > listed.length) lines.push(lang === "fr" ? `…et ${defs.length - listed.length} autre(s)` : `…and ${defs.length - listed.length} more`);
-  const title = defs.length === 1
+  const secretOnly = defs.length === 1 && defs[0]!.secret === true;
+  const title = secretOnly
+    ? (lang === "fr" ? `🤫 Succès secret débloqué ! ${defs[0]!.fr.name}` : `🤫 Secret achievement unlocked! ${defs[0]!.en.name}`)
+    : defs.length === 1
     ? (lang === "fr" ? `🏅 Succès débloqué : ${defs[0]![lang].name}` : `🏅 Achievement unlocked: ${defs[0]![lang].name}`)
     : (lang === "fr" ? `🏅 ${defs.length} succès débloqués` : `🏅 ${defs.length} achievements unlocked`);
   const content = lang === "fr" ? `🎉 Bravo <@${member.discordUserId}> !` : `🎉 Congratulations <@${member.discordUserId}>!`;

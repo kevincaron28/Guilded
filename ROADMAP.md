@@ -10,6 +10,11 @@ Guilded supports WoW Forever only (the other editions were removed 7 November) a
 Release history: [CHANGELOG.md](CHANGELOG.md). Older roadmap text, including every finished
 request list: [roadmap history](docs/archive/ROADMAP-history.md).
 
+## Owner requests, 16 November 2026
+
+- **(a) Secret achievements** — hidden until earned (mystery entry "???" and "+N secret" in counts on Discord, website, app and addon; normal with a "Secret" tag once earned). First one: killed by the Son of Arugal (NPC 2529), this PR. More secrets later are one line in the addon's `KILLED_BY` table plus one catalogue row. Needs a companion release (new `secret` milestone kind) and the addon.
+- **(b) Guild promotions / auto-promote review and optimisation** — research in progress by the coordinator.
+
 ## Start here — 13 November 2026 (next session)
 
 **Released 13 November (UTC): 9.2.0.** GitHub v9.2.0 (latest, 64d8bf3b), installer on the server and the R2 mirror, CurseForge 9585868/9585869 in review, Store Submission 13 resubmitted with 9.2.0.0 and in certification, website feed at 9.2.0 (#816). Evidence: [docs/V9_2_0_RELEASE_ACCEPTANCE.md](docs/V9_2_0_RELEASE_ACCEPTANCE.md).

@@ -2,6 +2,7 @@ import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, EmbedB
 import { prisma } from "../database.js";
 import { achievementsCard } from "../services/end-cards.js";
 import { scoreCardPng } from "../services/score-card.js";
+import { SECRET_TAG, isHiddenSecret, secretCountLabel } from "../services/achievements-catalogue.js";
 import { syncMemberAchievements } from "../services/achievements.js";
 import { teamLanguage } from "../services/activity-core-discord.js";
 import { requireGuildContext } from "./context.js";
@@ -18,11 +19,12 @@ async function render(guildId: string, memberId: string, name: string, fr: boole
   const items = view.results.map(row => ({ id: row.def.id, earnedAt: row.earned ? row.earnedAt : null, value: row.value }));
   const png = await scoreCardPng(achievementsCard(name, items, fr ? "fr" : "en")).catch(() => null);
   const earned = view.results.filter(row => row.earned);
+  const hiddenSecrets = view.results.filter(row => isHiddenSecret(row.def, row.earned)).length;
   const embed = new EmbedBuilder().setTitle(`⚜️ ${t("Achievements", "Succès")} · ${name}`.slice(0, 256))
     .setDescription((earned.length
-      ? earned.sort((a, b) => b.earnedAt!.getTime() - a.earnedAt!.getTime()).slice(0, 12).map(row => `**${row.def[fr ? "fr" : "en"].name}** — ${row.def[fr ? "fr" : "en"].description} <t:${Math.floor(row.earnedAt!.getTime() / 1000)}:d>${view.newlyEarned.includes(row.def.id) ? ` ✨ ${t("new", "nouveau")}` : ""}`).join("\n")
+      ? earned.sort((a, b) => b.earnedAt!.getTime() - a.earnedAt!.getTime()).slice(0, 12).map(row => `**${row.def[fr ? "fr" : "en"].name}**${row.def.secret ? ` 🤫 *${SECRET_TAG[fr ? "fr" : "en"]}*` : ""} — ${row.def[fr ? "fr" : "en"].description} <t:${Math.floor(row.earnedAt!.getTime() / 1000)}:d>${view.newlyEarned.includes(row.def.id) ? ` ✨ ${t("new", "nouveau")}` : ""}`).join("\n")
       : t(`No achievements yet. They are earned from synced characters, dungeon runs, raid attendance.`, `Aucun succès pour l'instant. Ils s'obtiennent avec les personnages synchronisés, les donjons, les présences aux raids.`)).slice(0, 4000))
-    .setFooter({ text: `${earned.length}/${view.results.length} · ${t("computed from recorded data, no points", "calculé à partir des données enregistrées, sans points")}` });
+    .setFooter({ text: `${earned.length}/${view.results.length - hiddenSecrets}${hiddenSecrets ? ` ${secretCountLabel(hiddenSecrets)}` : ""} · ${t("computed from recorded data, no points", "calculé à partir des données enregistrées, sans points")}` });
   if (png) embed.setImage("attachment://achievements.png");
   return { embed, png, view };
 }

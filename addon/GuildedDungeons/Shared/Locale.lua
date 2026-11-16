@@ -2595,6 +2595,9 @@ local DE = {
   ["does not register"] = "registriert sich nicht",
   ["%s earned the achievement %s!"] = "%s hat den Erfolg %s erreicht!",
   ["Achievements in guild chat: %s."] = "Erfolge im Gildenchat: %s.",
+  ["%s unlocked a secret achievement: %s!"] = "%s hat einen geheimen Erfolg freigeschaltet: %s!",
+  ["Secret achievement unlocked: %s!"] = "Geheimer Erfolg freigeschaltet: %s!",
+  ["Silverpine Welcome Committee"] = "Willkommenskomitee von Silberwald",
   ["Sync with Discord in 3 steps (Windows only):"] = "In 3 Schritten mit Discord synchronisieren (nur Windows):",
   ["1) Download it: copy the link, or search \"Guild Sync Companion\" in the Microsoft Store."] = "1) Herunterladen: Link kopieren oder im Microsoft Store nach \"Guild Sync Companion\" suchen.",
   ["2) Run the installer. It finds WoW and your guild's Discord server by itself."] = "2) Installer ausf\195\188hren. Er findet WoW und den Discord-Server deiner Gilde von selbst.",
@@ -4585,6 +4588,9 @@ local ES = {
   ["does not register"] = "no se registra",
   ["%s earned the achievement %s!"] = "\194\161%s ha conseguido el logro %s!",
   ["Achievements in guild chat: %s."] = "Logros en el chat de hermandad: %s.",
+  ["%s unlocked a secret achievement: %s!"] = "\194\161%s ha desbloqueado un logro secreto: %s!",
+  ["Secret achievement unlocked: %s!"] = "\194\161Logro secreto desbloqueado: %s!",
+  ["Silverpine Welcome Committee"] = "Comit\195\169 de bienvenida de Piel de Plata",
   ["Sync with Discord in 3 steps (Windows only):"] = "Sincroniza con Discord en 3 pasos (solo Windows):",
   ["1) Download it: copy the link, or search \"Guild Sync Companion\" in the Microsoft Store."] = "1) Desc\195\161rgalo: copia el enlace o busca \"Guild Sync Companion\" en la Microsoft Store.",
   ["2) Run the installer. It finds WoW and your guild's Discord server by itself."] = "2) Ejecuta el instalador. Encuentra WoW y el servidor de Discord de tu hermandad por s\195\173 solo.",
@@ -5944,6 +5950,11 @@ FR["does not register"] = "ne s'enregistre pas"
 -- Achievements as milestones (Modules/GameAchievements.lua)
 FR["%s earned the achievement %s!"] = "%s a obtenu le succ\195\168s %s !"
 FR["Achievements in guild chat: %s."] = "Succ\195\168s dans le chat de guilde : %s."
+
+-- Secret achievements (Modules/SecretAchievements.lua)
+FR["%s unlocked a secret achievement: %s!"] = "%s a d\195\169bloqu\195\169 un succ\195\168s secret : %s !"
+FR["Secret achievement unlocked: %s!"] = "Succ\195\168s secret d\195\169bloqu\195\169 : %s !"
+FR["Silverpine Welcome Committee"] = "Comit\195\169 d'accueil des Pins-Argent\195\169s"
 
 -- Companion in three steps (9.1: Util.lua companionSteps, Home page, /guilded companion)
 FR["Sync with Discord in 3 steps (Windows only):"] = "Synchroniser avec Discord en 3 \195\169tapes (Windows seulement) :"

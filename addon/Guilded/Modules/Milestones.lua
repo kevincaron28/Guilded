@@ -5,6 +5,7 @@
 --   hk      lifetime honorable kills: 1, 100, 500, 1000
 --   duel    duels won against guildmates: 1, 10, 50, 100 (Duels.lua)
 --   prof    profession skill steps 75, 150, 225, 300 (150 and 300 are announced; the others are recorded for the bot)
+--   secret  secret achievements (Modules/SecretAchievements.lua; first: killed by the Son of Arugal), announced like the others
 --   ach     every WoW Forever in-game achievement (Modules/GameAchievements.lua records them here; the newest is announced)
 --
 -- ON by default for every character (owner decision, 5 Nov 2026): the first time a line is about to go out, a one-time
@@ -27,7 +28,7 @@ local THROTTLE = 30
 local RETRY_COMBAT = 15
 local MAX_TRIES = 4
 local MAX_LOG = 200
-local KINDS = { "level", "dungeon", "hk", "duel", "prof", "ach" }
+local KINDS = { "level", "dungeon", "hk", "duel", "prof", "ach", "secret" }
 local HK_STEPS = { 1, 100, 500, 1000 }
 local DUEL_STEPS = { 1, 10, 50, 100 }
 local PROF_STEPS = { 75, 150, 225, 300 }
@@ -112,6 +113,8 @@ local function messageFor(item, name)
     return string.format(L("%s reached skill %d in %s!"), name, item.value, item.label or "?")
   elseif item.kind == "ach" then
     return string.format(L("%s earned the achievement %s!"), name, item.label or "?")
+  elseif item.kind == "secret" then
+    return string.format(L("%s unlocked a secret achievement: %s!"), name, item.label or "?")
   elseif item.kind == "duel" then
     if item.value == 1 then return string.format(L("%s won a first duel!"), name) end
     return string.format(L("%s has won %d duels!"), name, item.value)
@@ -334,7 +337,7 @@ local function handle(args)
       if a == kind and (b == "on" or b == "off") then ms.setEnabled(b == "on", kind); status(); return end
     end
     status()
-    ns.message("/guilded announce on | off | level|dungeon|hk|duel|prof|ach on|off | guild on|off (officers)")
+    ns.message("/guilded announce on | off | level|dungeon|hk|duel|prof|ach|secret on|off | guild on|off (officers)")
   end
 end
 ns.commandHandlers = ns.commandHandlers or {}

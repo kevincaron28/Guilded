@@ -1,7 +1,7 @@
 // 9.3: badges are the painted ones (tier frame + emblem) when their assets exist, else the old SVG: badgeIcon decides.
 import { badgeIcon as badgeInner } from "./achievement-badges.js";
 import { POE_TRACKING_ENABLED } from "../../companion/active-games.mjs";
-import { ACTIVE_ACHIEVEMENTS, TIER_COLOR, TIER_LABEL, achievementById, groupLabel, ladderKey, type AchievementDef, type AchievementGame, type AchievementTier } from "./achievements-catalogue.js";
+import { ACTIVE_ACHIEVEMENTS, TIER_COLOR, TIER_LABEL, achievementById, groupLabel, ladderKey, isHiddenSecret, secretCountLabel, SECRET_TAG, SECRET_LABEL, type AchievementDef, type AchievementGame, type AchievementTier } from "./achievements-catalogue.js";
 import type { RaidReport } from "./raid-report.js";
 import { formatDuration } from "./raid-report.js";
 import type { CardRow, ScoreCard } from "./score-card.js";
@@ -82,16 +82,18 @@ export interface AchievementCardItem { id: string; earnedAt: Date | null; value:
 export function achievementsCard(name: string, items: AchievementCardItem[], lang: Lang = "en"): ScoreCard {
   const t = pick(lang);
   // Legacy rows (replaced by the per-edition ones) only appear if already earned.
-  const rows = items.flatMap(item => { const def = achievementById(item.id); return def && (!def.legacy || item.earnedAt) ? [{ def, ...item }] : []; });
+  const rows = items.flatMap(item => { const def = achievementById(item.id); return def && (!def.legacy || item.earnedAt) && !isHiddenSecret(def, Boolean(item.earnedAt)) ? [{ def, ...item }] : []; });
+  // Secrets nobody has earned stay out of every row and count; they only show as "+N secret" beside the total.
+  const hiddenSecrets = items.filter(item => { const def = achievementById(item.id); return def && isHiddenSecret(def, Boolean(item.earnedAt)); }).length;
   const earned = rows.filter(row => row.earnedAt).sort((a, b) => b.earnedAt!.getTime() - a.earnedAt!.getTime());
-  const count = (game: AchievementGame) => `${earned.filter(row => row.def.game === game).length}/${rows.filter(row => row.def.game === game).length + ACTIVE_ACHIEVEMENTS.filter(def => def.game === game && !rows.some(row => row.def.id === def.id)).length}`;
+  const count = (game: AchievementGame) => `${earned.filter(row => row.def.game === game).length}/${rows.filter(row => row.def.game === game).length + ACTIVE_ACHIEVEMENTS.filter(def => def.game === game && !def.secret && !rows.some(row => row.def.id === def.id)).length}`;
   // A long progression shows only its highest earned step, and only its next unearned step as "next", so one ladder cannot crowd the card.
   const topStep = (row: (typeof earned)[number]) => !row.def.rank || !earned.some(other => ladderKey(other.def) === ladderKey(row.def) && other.def.threshold > row.def.threshold);
   const nextStep = (row: (typeof rows)[number]) => !row.def.rank || !rows.some(other => !other.earnedAt && ladderKey(other.def) === ladderKey(row.def) && other.def.threshold < row.def.threshold);
   const next = rows.filter(row => !row.earnedAt && nextStep(row)).map(row => ({ row, ratio: row.value / row.def.threshold })).sort((a, b) => b.ratio - a.ratio)[0]?.row;
   const label = (def: AchievementDef) => def[lang].name;
   const shown: CardRow[] = earned.length
-    ? earned.filter(topStep).slice(0, 5).map(row => ({ name: label(row.def), sub: `${row.earnedAt!.toISOString().slice(0, 10)} · ${groupLabel(row.def, lang)}`, color: TIER_COLOR[row.def.tier], right: TIER_LABEL[row.def.tier][lang], icon: badgeInner(row.def, true) }))
+    ? earned.filter(topStep).slice(0, 5).map(row => ({ name: label(row.def), sub: `${row.earnedAt!.toISOString().slice(0, 10)} · ${groupLabel(row.def, lang)}${row.def.secret ? ` · ${SECRET_TAG[lang]}` : ""}`, color: TIER_COLOR[row.def.tier], right: TIER_LABEL[row.def.tier][lang], icon: badgeInner(row.def, true) }))
     : rows.filter(row => !row.earnedAt && nextStep(row)).sort((a, b) => b.value / b.def.threshold - a.value / a.def.threshold).slice(0, 5)
       .map(row => ({ name: label(row.def), sub: `${Math.min(row.value, row.def.threshold)}/${row.def.threshold}`, color: "#8a7a5a", right: t("Locked", "Verrouillé"), icon: badgeInner(row.def, false) }));
   return {
@@ -99,7 +101,7 @@ export function achievementsCard(name: string, items: AchievementCardItem[], lan
     backdrop: { kind: "board", key: "achievements" },
     subtitle: t("Computed from recorded guild data", "Données enregistrées de la guilde"),
     stats: [
-      { label: t("Unlocked", "Débloqués"), value: `${earned.length}/${rows.length}`, accent: earned.length ? "gold" : "red", note: t(`${Math.round(rows.length ? (earned.length / rows.length) * 100 : 0)}% of the catalogue`, `${Math.round(rows.length ? (earned.length / rows.length) * 100 : 0)} % du catalogue`) },
+      { label: t("Unlocked", "Débloqués"), value: `${earned.length}/${rows.length}${hiddenSecrets ? ` ${secretCountLabel(hiddenSecrets)}` : ""}`, accent: earned.length ? "gold" : "red", note: t(`${Math.round(rows.length ? (earned.length / rows.length) * 100 : 0)}% of the catalogue`, `${Math.round(rows.length ? (earned.length / rows.length) * 100 : 0)} % du catalogue`) },
       { label: "WoW", value: count("wow") }, { label: t("Guild", "Guilde"), value: count("guild") }
     ],
     rowsLabel: earned.length ? t("Latest achievements", "Derniers succès") : t("Closest to unlocking", "Les plus proches"), rows: shown,
@@ -149,20 +151,21 @@ export function achievementUnlockedCard(name: string, ids: string[], totalEarned
   name = cardName(name);
   const defs = ids.flatMap(id => { const def = achievementById(id); return def ? [def] : []; });
   const newest = defs.slice().reverse(), shown = newest.slice(0, UNLOCK_CARD_MAX);
-  const total = Math.max(ACTIVE_ACHIEVEMENTS.length, totalEarned), percent = Math.round((totalEarned / Math.max(1, total)) * 100);
+  const secretNow = defs.some(def => def.secret);
+  const total = Math.max(ACTIVE_ACHIEVEMENTS.filter(def => !def.secret).length + defs.filter(def => def.secret).length, totalEarned), percent = Math.round((totalEarned / Math.max(1, total)) * 100);
   const tierCounts = (Object.keys(TIER_COLOR) as AchievementTier[]).flatMap(tier => { const count = defs.filter(def => def.tier === tier).length; return count ? [{ label: TIER_LABEL[tier][lang], color: TIER_COLOR[tier], count }] : []; });
   return {
-    eyebrow: t("Guilded · Achievement unlocked", "Guilded · Succès débloqué"), title: name,
+    eyebrow: secretNow ? `Guilded · ${t("Secret achievement unlocked!", "Succès secret débloqué !")}` : t("Guilded · Achievement unlocked", "Guilded · Succès débloqué"), title: name,
     backdrop: { kind: "board", key: "achievements" },
     subtitle: t("Computed from recorded guild data", "Données enregistrées de la guilde"),
     stats: [
       { label: t("Unlocked now", "Débloqués"), value: `+${defs.length}`, accent: "gold" },
       { label: t("Total", "Total"), value: `${totalEarned}/${total}` }
     ],
-    rowsLabel: t("New achievements", "Nouveaux succès"),
+    rowsLabel: secretNow ? SECRET_LABEL[lang] : t("New achievements", "Nouveaux succès"),
     // `rows` keeps the older layout drawable; `unlocks` and the fields after it select the richer one.
-    rows: shown.slice(0, 5).map(def => ({ name: def[lang].name, sub: groupLabel(def, lang), color: TIER_COLOR[def.tier], right: TIER_LABEL[def.tier][lang], icon: badgeInner(def, true) })),
-    unlocks: shown.map(def => ({ name: def[lang].name, group: groupLabel(def, lang), detail: def[lang].description, tier: TIER_LABEL[def.tier][lang], color: TIER_COLOR[def.tier], icon: badgeInner(def, true) })),
+    rows: shown.slice(0, 5).map(def => ({ name: def[lang].name, sub: groupLabel(def, lang), color: TIER_COLOR[def.tier], right: def.secret ? SECRET_TAG[lang] : TIER_LABEL[def.tier][lang], icon: badgeInner(def, true) })),
+    unlocks: shown.map(def => ({ name: def[lang].name, group: groupLabel(def, lang), detail: def[lang].description, tier: def.secret ? `${SECRET_TAG[lang]} · ${TIER_LABEL[def.tier][lang]}` : TIER_LABEL[def.tier][lang], color: TIER_COLOR[def.tier], icon: badgeInner(def, true) })),
     unlocksMore: newest.length - shown.length, moreLabel: t("more", "autres"),
     progress: { label: t("Achievements unlocked", "Succès débloqués"), value: totalEarned, max: total, note: lang === "fr" ? `${percent} % du catalogue` : `${percent}% of the catalogue` },
     tierCounts,

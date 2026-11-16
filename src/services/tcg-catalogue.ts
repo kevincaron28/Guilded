@@ -32,7 +32,7 @@ const classCards: CardDef[] = FOREVER_CLASSES.flatMap(name => CLASS_TREATMENTS.m
 
 /** One card per achievement the album shows (Forever and guild sets; retired rows never become cards). */
 const badgeCards: CardDef[] = ACHIEVEMENTS
-  .filter(def => achievementGameVisible(def) && (def.edition ? def.edition === "forever" : def.game === "guild") && !def.legacy)
+  .filter(def => achievementGameVisible(def) && (def.edition ? def.edition === "forever" : def.game === "guild") && !def.legacy && !def.secret)
   .map((def): CardDef => ({
     key: `badge:${def.id}`, family: "badge", rarity: TIER_RARITY[def.tier], set: "badges", achievementId: def.id,
     en: { name: def.en.name, flavour: def.en.description }, fr: { name: def.fr.name, flavour: def.fr.description }

@@ -44,10 +44,11 @@ export const ACHIEVEMENT_CATALOGUE_VERSION = 9;
  * - beatTopDuelist: 1 once the member has a counted win over the guild's current #1 duelist (who needs 3+ wins).
  * - duelWins: duels the member won against another member of the guild (counted duels only, see services/duels.ts).
  * - mvpWeeks: weeks the member was named MVP of the week (the community honors record).
+ * - secretMilestone: a secret the member's addon recorded (milestone kind "secret", ref `secret:<def.secretRef>`), e.g. killed by the Son of Arugal.
  * - serverAnniversaries: server anniversaries (the Discord server's birthday, from its creation date) that came
  *   while the member was on the server. The member's start is when Guilded first recorded them.
  */
-export type AchievementMetric = "gameAchievement" | "wowLevel" | "wowMaxLevel" | "dungeonRuns" | "dungeonVariety" | "professionSkill" | "raidsAttended" | "raidClears" | "activeDays" | "poeLevel" | "poeMaps" | "wowEditionLevel" | "wowEditionCap" | "wowEditionProfession" | "messagesSent" | "voiceHours" | "reactionsGiven" | "reactionsReceived" | "communityPoints" | "epEarned" | "mvpWeeks" | "serverAnniversaries" | "honorableKills" | "duelWins" | "duelStreak" | "beatTopDuelist" | "professionsMastered" | "professionFirsts" | "rareRecipes" | "craftsDone";
+export type AchievementMetric = "gameAchievement" | "wowLevel" | "wowMaxLevel" | "dungeonRuns" | "dungeonVariety" | "professionSkill" | "raidsAttended" | "raidClears" | "activeDays" | "poeLevel" | "poeMaps" | "wowEditionLevel" | "wowEditionCap" | "wowEditionProfession" | "messagesSent" | "voiceHours" | "reactionsGiven" | "reactionsReceived" | "communityPoints" | "epEarned" | "mvpWeeks" | "serverAnniversaries" | "honorableKills" | "duelWins" | "duelStreak" | "beatTopDuelist" | "professionsMastered" | "professionFirsts" | "rareRecipes" | "craftsDone" | "secretMilestone";
 
 export interface AchievementText { name: string; description: string }
 export interface AchievementDef {
@@ -62,6 +63,12 @@ export interface AchievementDef {
   edition?: WowEdition;
   /** Replaced by edition rows: never awarded again, but an already earned row stays earned and is shown. */
   legacy?: boolean;
+  /** Hidden until earned (see SECRET_* below): lists show a mystery entry, counts add "+N secret". */
+  secret?: boolean;
+  /** For secretMilestone rows: the ref the addon records (`secret:<secretRef>`). */
+  secretRef?: string;
+  /** Optional short neutral hint shown while the secret is still hidden. */
+  hint?: { en: string; fr: string };
   en: AchievementText;
   fr: AchievementText;
 }
@@ -266,8 +273,31 @@ export const RETIRED_ACHIEVEMENT_IDS: readonly string[] = [
   "wow-retail-level-10", "wow-retail-level-20", "wow-retail-level-30", "wow-retail-level-40", "wow-retail-level-50", "wow-retail-level-60", "wow-retail-level-70", "wow-retail-level-80", "wow-retail-level-90", "wow-retail-alts-3"
 ];
 
+// ----- Secret achievements: hidden until earned ---------------------------------------------------------------------------
+// The addon records a secret as a milestone (kind "secret", ref `secret:<secretRef>`); the evaluator reads it like any other fact.
+// Before it is earned every surface shows only a mystery entry (maskedText: "???", the optional hint, never the description) and
+// counts it as "+N secret" beside the normal total; once earned it shows normally with a "Secret" tag. Adding one: a row here (id
+// stable forever, secretRef = the addon's ref) and one line in the addon's KILLED_BY table (Modules/SecretAchievements.lua).
+const SECRET_ACHIEVEMENTS: AchievementDef[] = [
+  { id: "secret-killed-by-arugal", game: "wow", tier: "silver", metric: "secretMilestone", threshold: 1, edition: "forever", secret: true, secretRef: "killed-arugal",
+    hint: { en: "Some forests bite back.", fr: "Certaines forêts mordent." }, en: { name: "Silverpine Welcome Committee", description: "Meet the Son of Arugal the hard way: be killed by him." },
+    fr: { name: "Comité d'accueil des Pins-Argentés", description: "Faire connaissance avec le Fils d'Arugal de la manière forte : se faire tuer par lui." } }
+];
+export const SECRET_LABEL = { en: "Secret achievement", fr: "Succès secret" } as const;
+export const SECRET_TAG = { en: "Secret", fr: "Secret" } as const;
+/** True while this row must stay hidden: a secret nobody has earned yet. */
+export const isHiddenSecret = (def: Pick<AchievementDef, "secret">, earned: boolean) => def.secret === true && !earned;
+/** What a hidden secret may show: "???", and the optional neutral hint (never the real name or description). */
+export function maskedText(def: AchievementDef, lang: "en" | "fr"): AchievementText {
+  return { name: "???", description: def.hint?.[lang] ?? "" };
+}
+/** The text a surface shows for a row: masked while a secret is unearned. */
+export const visibleText = (def: AchievementDef, lang: "en" | "fr", earned: boolean): AchievementText => isHiddenSecret(def, earned) ? maskedText(def, lang) : def[lang];
+/** "+1 secret" / "+2 secrets": appended to a count that leaves hidden secrets out (same words in both languages). */
+export const secretCountLabel = (hidden: number) => hidden > 0 ? `+${hidden} secret${hidden === 1 ? "" : "s"}` : "";
+
 /** Every achievement a member can see or earn. Retired ids (above) are not in it, so no surface can show them. */
-export const ACHIEVEMENTS: readonly AchievementDef[] = BASE_ACHIEVEMENTS;
+export const ACHIEVEMENTS: readonly AchievementDef[] = [...BASE_ACHIEVEMENTS, ...SECRET_ACHIEVEMENTS];
 /** What can still be earned (everything in the catalogue; kept as its own name for the surfaces that mean "earnable"). */
 export const ACTIVE_ACHIEVEMENTS: readonly AchievementDef[] = ACHIEVEMENTS;
 

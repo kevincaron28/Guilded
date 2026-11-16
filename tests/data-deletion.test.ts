@@ -139,6 +139,14 @@ describe("Delete my data: public duels and first-name legacy rows", () => {
     expect(isOwnName({ name: "Kev Caron", realm: null, unique: true }, "Kev", "B")).toBe(false); // the first-name alias needs a tie
     expect(isOwnName({ name: "Kev Caron", realm: null, unique: true }, "Kev", "B", true)).toBe(true);
   });
+  it("clears the public pages' caches even when the core transaction throws after the public rows were anonymised", async () => {
+    const f = fixture();
+    (f.db as unknown as { $transaction: unknown }).$transaction = vi.fn(async () => { throw new Error("db down"); });
+    const cleared = vi.fn();
+    registerLeaderboardCache(cleared);
+    await expect(deleteMyData(f.db, "123456789012345678")).rejects.toThrow("db down");
+    expect(cleared).toHaveBeenCalled();
+  });
   it("clears the public pages' caches after deleting", async () => {
     const f = fixture();
     f.top.character.findMany.mockResolvedValueOnce([{ name: "Kev Caron", realm: "Doomhowl", member: { guildId: "g1" } }]).mockResolvedValueOnce([{ name: "Kev Smith" }] as never);

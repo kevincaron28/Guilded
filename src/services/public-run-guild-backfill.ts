@@ -7,7 +7,8 @@ import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
 //      id and the character name, case-insensitive).
 //   2. The in-game guild named by a WowGuild row of the Discord server that holds this very run (DungeonRun.guildId), for a character on
 //      that server's roster (GuildRosterEntry, inGuild). Never a roster from another server; a run without a server of ours gets nothing here.
-//      When the player row has a realm it must equal the WowGuild's.
+//      When the player row has a realm it must equal the WowGuild's. A server with several WowGuilds is ambiguous: a guild is taken only
+//      when it is the server's only one for that edition, or when a recording client of this run named it; otherwise the row is skipped.
 // Public runs are read in pages of BATCH ids; a failed batch is reported and left unmarked (retried next start), never thrown.
 const BATCH = 500;
 
@@ -42,6 +43,10 @@ export async function backfillPublicRunGuilds(database: Pick<PrismaClient, "publ
           JOIN "GuildRosterEntry" e ON e."guildId" = r."guildId" AND e."gameEdition" = pr."gameEdition" AND e."inGuild" = true AND e."nameKey" = lower(p2."character")
           JOIN "WowGuild" w ON w."guildId" = r."guildId" AND w."gameEdition" = pr."gameEdition"
           WHERE p2."runId" = ANY(${ids}::text[]) AND p2."guild" IS NULL AND (p2."realm" = '' OR lower(p2."realm") = lower(w."realm"))
+            AND (
+              (SELECT count(*) FROM "WowGuild" w2 WHERE w2."guildId" = r."guildId" AND w2."gameEdition" = pr."gameEdition") = 1
+              OR EXISTS (SELECT 1 FROM "DungeonRunPlayer" dq WHERE dq."runId" = r."id" AND lower(dq."guild") = lower(w."name"))
+            )
           ORDER BY p2."id", e."observedAt" DESC, w."createdAt"
         ) m
         WHERE p."id" = m."playerId" AND p."guild" IS NULL`));

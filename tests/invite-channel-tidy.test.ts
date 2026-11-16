@@ -190,6 +190,27 @@ describe("the hourly tidy of the invite channel", () => {
     expect(logs.some((l) => l.includes("the Discord server could not be fetched"))).toBe(true);
     warn.mockRestore();
   });
+  it("posts the bot's own guide once when none is stored, and the next pass is a dry run again", async () => {
+    resetCleanupWarnings();
+    const noGuide = chat.filter((m) => m.id !== "guide");
+    const { guild, channel, deleted } = channelWith(noGuide);
+    const posted = { id: "newguide", pin: vi.fn(async () => undefined) };
+    const send = vi.fn(async () => posted);
+    const guildChannel = Object.assign(channel, { send, client: { user: { id: "bot" } } });
+    const db = database({ guideId: null });
+    const sent: string[] = [];
+    (db.guildSettings as unknown as { findUnique: unknown; update: unknown }).findUnique = vi.fn(async () => ({ inviteChannelId: "chan", inviteGuideMessageId: null, inviteQuestions: [], language: "en" }));
+    (db.guildSettings as unknown as { findUnique: unknown; update: unknown }).update = vi.fn(async ({ data }: { data: { inviteGuideMessageId: string } }) => { db.state.guideId = data.inviteGuideMessageId; return {}; });
+    const logs: string[] = [];
+    const client = { guilds: { fetch: async () => guild }, channels: { fetch: async () => guildChannel } };
+    expect(await runInviteChannelSweeps(client as never, db as never, { now: NOW, log: (l) => { logs.push(l); sent.push(l); } })).toBe(0);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(posted.pin).toHaveBeenCalled();
+    expect(logs.some((l) => l.includes("posted and pinned the guide newguide"))).toBe(true);
+    expect(db.state.guideId).toBe("newguide");
+    expect(db.state.sweptAt).toBeNull();
+    expect(deleted).toEqual([]);
+  });
   it("never runs on an empty invite channel id", async () => {
     const { guild, deleted } = channelWith(chat);
     expect(await runInviteChannelSweeps({ guilds: { fetch: async () => guild } } as never, database({ channelId: "" }) as never, { now: NOW, log: () => undefined })).toBe(0);

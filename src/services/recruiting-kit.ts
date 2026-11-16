@@ -2,6 +2,7 @@ import type { Client } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, type Lang } from "../i18n.js";
 import { CLEANUP_DELAY_MS, nameKeyOf } from "./invite-queue.js";
+import { requestInviteRow } from "./invite-request.js";
 
 // 8.5 light recruiting kit, on top of the invite queue: a stage and an officer note on each recruit record, interview
 // questions per server, and a recruiting post template with one shared cooldown. Written from scratch; nothing automatic
@@ -38,24 +39,49 @@ export function questionsBlock(lang: Lang, questions: readonly string[]): string
 
 export function guideText(lang: Lang, questions: readonly string[]): string {
   const how = lang === "fr"
-    ? "**Comment joindre la guilde** : écris ici le nom complet de ton personnage (prénom et nom) sur la première ligne. Un officier t’invitera en jeu et le bot ajoutera un ✅."
-    : "**How to join the guild**: write your full character name (first and last name) on the first line. An officer will invite you in game and the bot adds a ✅.";
+    ? "**Envie de rejoindre la guilde ?** Appuie sur le bouton ou écris ton nom de personnage complet (prénom et nom)."
+    : "**Want to join?** Press the button or type your full character name (first and last).";
   return [how, questionsBlock(lang, questions)].filter(Boolean).join("\n\n");
 }
 
 /** Keeps the pinned guide message in the invite channel current; returns its ID (null when it could not be posted). */
-export async function ensureInviteGuide(client: Pick<Client, "channels">, database: Pick<PrismaClient, "guildSettings">, guildId: string): Promise<string | null> {
+type GuideMessage = { id: string; editable?: boolean; content?: string; components?: unknown[]; author?: { id: string } | null; pin?: () => Promise<unknown>; edit: (options: object) => Promise<unknown> };
+
+export async function ensureInviteGuide(client: Pick<Client, "channels">, database: Pick<PrismaClient, "guildSettings">, guildId: string,
+  log: (line: string) => void = (line) => console.log(line)): Promise<string | null> {
   const settings = await database.guildSettings.findUnique({ where: { guildId }, select: { inviteChannelId: true, inviteGuideMessageId: true, inviteQuestions: true, language: true } });
-  if (!settings?.inviteChannelId) return null;
+  if (!settings?.inviteChannelId?.trim()) return null;
   const channel = await client.channels.fetch(settings.inviteChannelId).catch(() => null);
   if (!channel?.isTextBased() || !("messages" in channel) || !("send" in channel)) return null;
-  const content = guideText(asLang(settings.language), storedQuestions(settings.inviteQuestions));
+  const lang = asLang(settings.language);
+  const content = guideText(lang, storedQuestions(settings.inviteQuestions));
+  const discordGuildId = "guildId" in channel && typeof channel.guildId === "string" ? channel.guildId : "";
+  const components = discordGuildId ? [requestInviteRow(lang, discordGuildId)] : [];
+  const refresh = async (message: GuideMessage): Promise<string> => {
+    if (message.editable && (message.content !== content || (components.length > 0 && !message.components?.length))) await message.edit({ content, components, allowedMentions: { parse: [] } });
+    return message.id;
+  };
   const existing = settings.inviteGuideMessageId ? await channel.messages.fetch(settings.inviteGuideMessageId).catch(() => null) : null;
-  if (existing?.editable) { if (existing.content !== content) await existing.edit({ content, allowedMentions: { parse: [] } }); return existing.id; }
-  const posted = await channel.send({ content, allowedMentions: { parse: [] } }).catch(() => null);
+  if (existing?.editable) return refresh(existing as unknown as GuideMessage);
+  // Only in the configured channel, and only with the rights to post and pin there.
+  const me = (channel as { client?: { user?: { id?: string } | null } }).client?.user ?? null;
+  const permissions = me && "permissionsFor" in channel ? (channel as unknown as { permissionsFor: (user: unknown) => { has: (permission: string) => boolean } | null }).permissionsFor(me) : null;
+  if (permissions && !(permissions.has("ViewChannel") && permissions.has("SendMessages") && permissions.has("ManageMessages"))) return null;
+  // Never a second copy: a bot message in the channel that already carries the request button is the guide (stored again).
+  const recent = me?.id ? await channel.messages.fetch({ limit: 100 }).catch(() => null) : null;
+  const listed = recent && typeof (recent as { values?: unknown }).values === "function" ? [...(recent as unknown as { values: () => Iterable<GuideMessage> }).values()] : [];
+  const copy = listed.find((message) => message.author?.id === me?.id && /"invite:ask:/.test(JSON.stringify(message.components ?? [])));
+  if (copy) {
+    await copy.pin?.().catch(() => undefined);
+    await database.guildSettings.update({ where: { guildId }, data: { inviteGuideMessageId: copy.id } });
+    log(`Invite guide: adopted the existing bot guide ${copy.id} in channel ${settings.inviteChannelId}.`);
+    return refresh(copy);
+  }
+  const posted = await channel.send({ content, components, allowedMentions: { parse: [] } }).catch(() => null);
   if (!posted) return null;
   await posted.pin().catch(() => undefined);
   await database.guildSettings.update({ where: { guildId }, data: { inviteGuideMessageId: posted.id } });
+  log(`Invite guide: posted and pinned the guide ${posted.id} in channel ${settings.inviteChannelId}.`);
   return posted.id;
 }
 

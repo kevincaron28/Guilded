@@ -100,8 +100,38 @@ describe("the pinned guide in the invite channel", () => {
     channel.messages.fetch = vi.fn(async () => ({ id: "p1", editable: true, content: "old", edit }) as never);
     db.guildSettings.findUnique = vi.fn(async () => ({ inviteChannelId: "c", inviteGuideMessageId: "p1", inviteQuestions: [], language: "fr" }));
     expect(await ensureInviteGuide(client as never, db as never, "g")).toBe("p1");
-    expect(edit).toHaveBeenCalledWith(expect.objectContaining({ content: expect.stringContaining("Comment joindre") }));
+    expect(edit).toHaveBeenCalledWith(expect.objectContaining({ content: expect.stringContaining("Envie de rejoindre") }));
     expect(send).toHaveBeenCalledTimes(1);
+  });
+  it("the guide has the one-line invitation, the request button and the questions", async () => {
+    expect(guideText("en", [])).toContain("Press the button or type your full character name (first and last).");
+    const send = vi.fn(async () => ({ id: "p1", pin: vi.fn(async () => undefined) }));
+    const channel = { guildId: "d1", isTextBased: () => true, send, messages: { fetch: vi.fn(async () => null) } };
+    const db = { guildSettings: { findUnique: vi.fn(async () => ({ inviteChannelId: "c", inviteGuideMessageId: null, inviteQuestions: ["Class?"], language: "en" })), update: vi.fn(async () => ({})) } };
+    const logs: string[] = [];
+    await ensureInviteGuide({ channels: { fetch: async () => channel } } as never, db as never, "g", (l) => logs.push(l));
+    const sent = (send.mock.calls[0] as unknown as [{ content: string; components: Array<{ toJSON: () => { components: Array<{ custom_id: string }> } }> }])[0];
+    expect(sent.content).toContain("1. Class?");
+    expect(sent.components[0]!.toJSON().components[0]!.custom_id).toBe("invite:ask:d1");
+    expect(logs[0]).toContain("posted and pinned the guide p1");
+  });
+  it("never posts a second copy: an existing bot guide with the button is adopted, pinned and stored", async () => {
+    const pin = vi.fn(async () => undefined); const edit = vi.fn(async () => undefined); const send = vi.fn();
+    const old = { id: "old1", editable: true, content: "x", components: [{ components: [{ customId: "invite:ask:d1" }] }], author: { id: "bot" }, pin, edit };
+    const channel = { guildId: "d1", client: { user: { id: "bot" } }, isTextBased: () => true, send, messages: { fetch: vi.fn(async () => ({ values: () => [old] })) } };
+    const update = vi.fn(async () => ({}));
+    const db = { guildSettings: { findUnique: vi.fn(async () => ({ inviteChannelId: "c", inviteGuideMessageId: "gone", inviteQuestions: [], language: "en" })), update } };
+    expect(await ensureInviteGuide({ channels: { fetch: async () => channel } } as never, db as never, "g", () => undefined)).toBe("old1");
+    expect(send).not.toHaveBeenCalled();
+    expect(pin).toHaveBeenCalled();
+    expect(update).toHaveBeenCalledWith({ where: { guildId: "g" }, data: { inviteGuideMessageId: "old1" } });
+  });
+  it("posts nothing without Send and Manage Messages in the channel", async () => {
+    const send = vi.fn();
+    const channel = { guildId: "d1", client: { user: { id: "bot" } }, permissionsFor: () => ({ has: (p: string) => p !== "ManageMessages" }), isTextBased: () => true, send, messages: { fetch: vi.fn(async () => null) } };
+    const db = { guildSettings: { findUnique: vi.fn(async () => ({ inviteChannelId: "c", inviteGuideMessageId: null, inviteQuestions: [], language: "en" })), update: vi.fn() } };
+    expect(await ensureInviteGuide({ channels: { fetch: async () => channel } } as never, db as never, "g", () => undefined)).toBeNull();
+    expect(send).not.toHaveBeenCalled();
   });
   it("does nothing without an invite channel", async () => {
     const db = { guildSettings: { findUnique: vi.fn(async () => ({ inviteChannelId: null })) } };

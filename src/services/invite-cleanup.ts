@@ -1,5 +1,6 @@
 import type { DiscordJob, PrismaClient } from "../generated/prisma/client.js";
 import { resolve } from "node:path";
+import { ensureInviteGuide } from "./recruiting-kit.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
 
 // Guild-invite channel clean-up (owner request, 12 Nov 2026): about an hour after a request is handled the bot removes
@@ -340,7 +341,7 @@ export async function writeBackup(messages: readonly Parameters<typeof backupLin
   return file;
 }
 
-type ChannelSweepClient = { guilds: { fetch: (id: string) => Promise<GuildLike | null> } };
+type ChannelSweepClient = { guilds: { fetch: (id: string) => Promise<GuildLike | null> }; channels?: unknown };
 export interface ChannelSweepOptions { now?: Date; backupDir?: string; sleep?: (ms: number) => Promise<void>; log?: (line: string) => void }
 
 /** One pass over every server with the switch on and no run in the last hour. Returns how many messages were removed. */
@@ -379,7 +380,13 @@ export async function runInviteChannelSweeps(client: ChannelSweepClient, databas
       pauseMs: CHANNEL_SWEEP_DELETE_PAUSE_MS, ...(options.sleep ? { sleep: options.sleep } : {}) };
     const dry = await sweepInviteChannel(guild, database, server.guildId, server.inviteChannelId, server.inviteGuideMessageId ?? null, { ...common, confirm: false });
     if (dry.status === "permission") { skip(`the bot needs ${MISSING_PERMISSIONS} in channel ${server.inviteChannelId}`); await unclaim(); continue; }
-    if (dry.status === "panel") { skip(`the pinned invite guide message ${server.inviteGuideMessageId ?? "(none was ever posted)"} was not found in channel ${server.inviteChannelId}; post it again with /mod invites questions`); await unclaim(); continue; }
+    if (dry.status === "panel") {
+      // No guide stored or found: post the bot's own short guide once and pin it. The next pass is a first run again (dry run only).
+      const posted = client.channels ? await ensureInviteGuide(client as never, database as never, server.guildId, log).catch(() => null) : null;
+      if (!posted) skip(`the pinned invite guide message ${server.inviteGuideMessageId ?? "(none was ever posted)"} was not found in channel ${server.inviteChannelId} and could not be posted (the bot needs View Channel, Send Messages and Manage Messages there); post it with /mod invites questions`);
+      await database.guildSettings.updateMany({ where: { guildId: server.guildId }, data: { inviteSweptAt: null } });
+      continue;
+    }
     if (dry.status !== "ok") { skip(`channel ${server.inviteChannelId} is not readable as the configured invite text channel (${dry.status})`); await unclaim(); continue; }
     const count = dry.mine + dry.memberOld;
     log(`Invite channel tidy (dry run) ${server.guild.discordId}: ${count} message${count === 1 ? "" : "s"} would be removed, ${dry.protectedCount} kept (pinned, the panel or open requests), ${dry.scanned} read.`);

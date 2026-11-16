@@ -10,7 +10,7 @@ import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { CLASSES } from "../wow-data.js";
 import { formatDuration } from "./dungeon-rules.js";
 import { issuePersonalCode, type PersonalStore } from "./personal-pairing.js";
-import { GAIN_STEP, MIN_ROLE_RUNS, planImprovements, roleScores, type ImprovementPlan, type RoutePlan } from "./public-guidance.js";
+import { GAIN_STEP, MIN_ROLE_RUNS, planImprovements, roleScores, roleSummary, type ImprovementPlan, type RoutePlan } from "./public-guidance.js";
 import { classLabel as classLabelRaw, className as classFromText, factionLabel, FACTIONS, roleLabel, ROLES } from "./recruitment.js";
 import type { OfficialWindow } from "./official-seasons.js";
 import type { BracketedRules } from "./dungeon-november-rules.js";
@@ -730,6 +730,29 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
           + `<td class="num" data-l="${t("Best", "Meilleur")}">${r.best ? `${time(r.best.durationSec)} · <span class="score">${r.best.points}</span>` : "–"}</td><td data-l="${t(`In best ${n}`, `Dans les ${n} meilleurs`)}">${r.best ? (r.best.counted ? "✔" : t("no", "non")) : "–"}</td><td data-l="${t("Next gain", "Prochain gain")}">${nextGain(r)}</td><td>${status(r)}</td></tr>`), [2, 3], "rank-cards");
   }
 
+  // Overall | Tank | Healer | DPS: the role filter as tabs. A role board scores each character from the runs played in that role only.
+  function roleTabs(ctx: WebContext, path: string, keep: Record<string, string | null | undefined>, active: string | null): string {
+    const { t, lang } = ctx;
+    const to = (role: string | null) => link(path, lang, { ...keep, role, page: null });
+    return `<nav class="tabs views" aria-label="${t("Role", "Rôle")}"><a class="${active ? "" : "on"}" href="${to(null)}">${t("Overall", "Global")}</a>`
+      + ROLES.map((role) => `<a class="${active === role ? "on" : ""}" href="${to(role)}">${roleEmblem(role)}${escapeHtml(roleLabel(role, lang))}</a>`).join("") + `</nav>`;
+  }
+
+  // Raider.IO-style tiles at the top of a character page: the overall score of the top bracket and the tank, healer and DPS scores of
+  // that bracket (each from that role's runs only), the main role highlighted, and each role's best counted routes.
+  function roleTiles(ctx: WebContext, overall: ScoreRow | undefined, summary: ReturnType<typeof roleSummary>): string {
+    const { t, lang } = ctx;
+    if (!overall) return "";
+    const tile = (label: string, icon: string, value: string, main: boolean, extra = "") => `<div class="tile${main ? " main-role" : ""}"${main ? ' style="border-color:var(--gold)"' : ""}><div class="k">${icon}${label}${main ? ` <span class="tag">${t("main", "principal")}</span>` : ""}</div><div class="v${value === "–" ? " muted" : ""}">${value}</div>${extra}</div>`;
+    const tiles = `<div class="tiles">` + tile(t("Overall", "Global"), "", `<span class="score ${scoreTier(overall.points)}">${overall.points}</span>`, false, `<div class="muted">${escapeHtml(bracketName(ctx, overall.bracket))}</div>`)
+      + summary.roles.map((r) => tile(escapeHtml(roleLabel(r.role, lang)), roleEmblem(r.role), r.points === null ? "–" : `<span class="score ${scoreTier(r.points)}">${r.points}</span>`, summary.main === r.role,
+        `<div class="muted">${r.runs === 1 ? t("1 ranked run", "1 essai classé") : t(`${r.runs} ranked runs`, `${r.runs} essais classés`)}</div>`)).join("") + `</div>`;
+    const bests = summary.roles.filter((r) => r.best.length);
+    const routes = bests.length ? `<details><summary>${t("Best runs per role", "Meilleurs essais par rôle")}</summary>` + table([t("Role", "Rôle"), t("Dungeon", "Donjon"), t("Time", "Temps"), t("Score", "Score")],
+      bests.flatMap((r) => r.best.map((b) => `<tr><td>${roleEmblem(r.role)}${escapeHtml(roleLabel(r.role, lang))}</td><td><a href="${link(runPath(b.run.runId), lang)}">${escapeHtml(b.run.dungeonName)}</a></td><td class="num">${time(b.run.durationSec)}</td><td class="num score">${b.points}</td></tr>`)), [2, 3]) + `</details>` : "";
+    return tiles + `<p class="muted">${t("Role scores use only the runs played in that role (shown after " + MIN_ROLE_RUNS + " ranked runs); they are never added together.", "Chaque score de rôle n'utilise que les essais joués dans ce rôle (affiché après " + MIN_ROLE_RUNS + " essais classés) ; ils ne sont jamais additionnés.")}</p>` + routes;
+  }
+
   // Tank, healer and DPS scores, each from that role's runs only: separate, never added together.
   function roleSection(ctx: WebContext, period: PublicPeriod, scores: ReturnType<typeof roleScores>, brackets: string[]): string {
     const { t, lang } = ctx;
@@ -928,7 +951,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const body = PAGE_CSS + breadcrumbs(lang, [[t("Leaderboards", "Classements"), link("/leaderboards/", lang)], [t("Characters", "Personnages"), null]], escapeHtml)
       + `${sectionArt("players")}<p class="eyebrow">Guilded · ${escapeHtml(periodName(ctx, period))}</p><h1>${t("Character rankings", "Classement des personnages")}${bracket ? ` · ${escapeHtml(bracketName(ctx, bracket))}` : ""}</h1>`
       + `<p class="muted">${t("Score adds a character’s best distinct rated routes in the level bracket. Best runs are the counted routes with their points; open one for its party and time.", "Le score additionne les meilleurs parcours classés distincts du personnage dans la tranche. Les meilleurs essais sont les parcours comptés avec leurs points ; ouvrez-en un pour voir le groupe et le temps.")}</p>`
-      + periodDates(ctx, period) + views(ctx, "rankings", { ...filters, bracket }) + form
+      + periodDates(ctx, period) + views(ctx, "rankings", { ...filters, bracket }) + roleTabs(ctx, "/leaderboards/characters/", keep, filters.role) + form
       + `<h2>${t("Ranked characters", "Personnages classés")} <span class="tag">(${rows.length})</span></h2>` + list + pager(ctx, "/leaderboards/characters/", keep, page, pages);
     return kit.page(200, t("Character rankings", "Classement des personnages"), body, { shareImage: "/images/social/og-players.jpg", description: t("WoW Forever dungeon score rankings by season and level bracket, with class, role and realm filters.", "Classement des scores de donjon WoW Forever par saison et tranche de niveaux, avec filtres de classe, rôle et royaume.") });
   }
@@ -1154,7 +1177,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       const bracketHref = (key: string) => link("/leaderboards/", lang, { season: filters.season, period: filters.week ? "week" : null, bracket: key, class: filters.className, role: filters.role, realm: filters.realm });
       const rankedHere = shown ? scores.some((row) => row.bracket === shown.key) : false;
       const characters = !shown ? "" : rankedHere
-        ? `${bracketSwitch(ctx, allBrackets, shown.key, bracketHref)}<section><h2>${escapeHtml(bracketName(ctx, shown.key))} <span class="tag">${t(`best ${shown.bestCount} routes`, `${shown.bestCount} meilleurs parcours`)}</span></h2>${scoreTable(ctx, scores.filter((row) => row.bracket === shown.key), 25)}<p><a href="${link("/leaderboards/characters/", lang, { season: filters.season, period: filters.week ? "week" : null, bracket: shown.key, class: filters.className, role: filters.role, realm: filters.realm })}">${t("Full ranking →", "Classement complet →")}</a></p></section>`
+        ? `${roleTabs(ctx, "/leaderboards/", { season: filters.season, period: filters.week ? "week" : null, bracket: shown.key, class: filters.className, realm: filters.realm }, filters.role)}${bracketSwitch(ctx, allBrackets, shown.key, bracketHref)}<section><h2>${escapeHtml(bracketName(ctx, shown.key))} <span class="tag">${t(`best ${shown.bestCount} routes`, `${shown.bestCount} meilleurs parcours`)}</span></h2>${scoreTable(ctx, scores.filter((row) => row.bracket === shown.key), 25)}<p><a href="${link("/leaderboards/characters/", lang, { season: filters.season, period: filters.week ? "week" : null, bracket: shown.key, class: filters.className, role: filters.role, realm: filters.realm })}">${t("Full ranking →", "Classement complet →")}</a></p></section>`
         : `${bracketSwitch(ctx, allBrackets, shown.key, bracketHref)}<p class="muted">${t("Nobody is ranked yet in this period: your first ranked clear puts you on the board.", "Personne n'est encore classé pour cette période : votre premier essai classé vous place au classement.")}</p>`;
       const guildsBlock = ranks.length && shown && !filters.className && !filters.role && !filters.realm && !filters.confirmed
         ? `<h2>${t("Top guilds", "Meilleures guildes")}</h2>${bracketSwitch(ctx, allBrackets, shown.key, (key) => link("/leaderboards/", lang, { season: filters.season, period: filters.week ? "week" : null, bracket: key }))}<section><h3>${escapeHtml(bracketName(ctx, shown.key))}</h3>${guildTable(ctx, ranks.filter((r) => r.bracket === shown.key), 5)}</section><p><a href="${link("/leaderboards/guilds/", lang, { season: filters.season, period: filters.week ? "week" : null, bracket: shown.key })}">${t("All guild rankings →", "Tout le classement des guildes →")}</a></p>`
@@ -1240,7 +1263,8 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       : me && running && level !== null ? `<h2>${t("Best next improvement", "Meilleure prochaine amélioration")}</h2><p class="muted">${t(`No rated bracket at level ${level} yet (launch data needed).`, `Aucune tranche classée au niveau ${level} pour l'instant (données de lancement requises).`)}</p>` : "";
     const previous = seasons.slice(1).find(p => inPeriod(p).length > 0);
     const previousRows = previous ? mine(characterScores(inPeriod(previous), periodRules(previous))) : [];
-    const roles = (me && current.length ? roleSection(ctx, season, roleScores(seasonRuns, periodRules(season), me), current.map((row) => row.bracket)) : "")
+    const roles = (me && current.length ? roleTiles(ctx, current[0], roleSummary(roleScores(seasonRuns, periodRules(season), me), current[0]!.bracket)) : "")
+      + (me && current.length ? roleSection(ctx, season, roleScores(seasonRuns, periodRules(season), me), current.map((row) => row.bracket)) : "")
       + (me && previous && previousRows.length ? `<details><summary>${t("Previous-season role context", "Rôles de la saison précédente")}</summary>`
         + `<p class="muted">${t("Each season uses its own rules; totals from different brackets or seasons are not directly comparable.", "Chaque saison utilise ses propres règles ; les totaux de tranches ou de saisons différentes ne sont pas directement comparables.")}</p>`
         + roleSection(ctx, previous, roleScores(inPeriod(previous), periodRules(previous), me), previousRows.map(row => row.bracket)) + `</details>` : "");
@@ -1417,6 +1441,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       + tile(t("Ranked players", "Joueurs classés"), String(stats.ranked))
       + tile(t("Public runs", "Essais publics"), String(stats.runs))
       + tile(t("Dungeon records", "Records de donjon"), String(stats.records))
+      + (stats.ranked ? tile(t("Role mix", "Rôles"), (["TANK", "HEALER", "DPS"] as const).map((role) => `<span title="${escapeHtml(roleLabel(role, lang))}">${roleEmblem(role)}${stats.roleMix[role]}</span>`).join(" ")) : "")
       + (info ? tile(t("Members", "Membres"), String(info.members)) + tile(t("At level 60", "Niveau 60"), `${info.at60}<span class="tag">/${info.levelled}</span>`) : "") + `</div>`;
     const dungeonTable = stats.dungeons.length ? table([t("Dungeon", "Donjon"), t("Clears", "Réussites"), t("Best time", "Meilleur temps"), t("Date", "Date"), ""],
       stats.dungeons.map((d) => `<tr><td>${escapeHtml(d.name)}${stats.dungeons.some((o) => o !== d && o.instanceId === d.instanceId) ? ` <span class="tag">${escapeHtml(d.routeKey ?? (d.difficultyId === null ? "" : `${t("difficulty", "difficulté")} ${d.difficultyId}`))}</span>` : ""}</td><td class="num">${d.runs}</td><td class="num"><a href="${link(runPath(d.bestRunId), lang)}">${time(d.bestSec)}</a></td><td>${date(d.bestAt)}</td><td>${d.record ? `<span class="badge ok" title="${t("Fastest public clear of this dungeon this period", "Essai public le plus rapide de ce donjon pour la période")}">${t("Record", "Record")}</span>` : ""}</td></tr>`), [1, 2])
@@ -1719,11 +1744,14 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const all = (await periodRuns(period)).filter((run) => !run.challenge);
     const scores = characterScores(all, rules, keepPlayer(filters, rules));
     const ranks = await guildRanks(period);
+    // Each role's score of the same characters (that role's runs only, never added together): { TANK, HEALER, DPS }, null without a score.
+    const byRole = ROLES.map((role) => ({ role, scores: characterScores(all, rules, (player) => (rules.evidencePolicy === "current-v2" ? integrityRole(player.integrity) : dungeonRole(player.role)) === role) }));
+    const roleScoresOf = (row: ScoreRow) => Object.fromEntries(byRole.map(({ role, scores: list }) => [role, list.find((r) => r.bracket === row.bracket && characterId(r.player) === characterId(row.player))?.points ?? null]));
     const body = JSON.stringify({
       season: periodName(ctx, period),
       brackets: rules.brackets.map((b) => ({
         key: b.key, name: bracketName(ctx, b.key),
-        characters: scores.filter((row) => row.bracket === b.key).slice(0, 10).map((row, i) => ({ rank: i + 1, name: (row.player as LeaderPlayer).displayName || row.player.character, realm: row.player.realm || null, className: row.player.className ?? null, role: row.player.role ?? null, points: row.points })),
+        characters: scores.filter((row) => row.bracket === b.key).slice(0, 10).map((row, i) => ({ rank: i + 1, name: (row.player as LeaderPlayer).displayName || row.player.character, realm: row.player.realm || null, className: row.player.className ?? null, role: row.player.role ?? null, points: row.points, roles: roleScoresOf(row) })),
         guilds: ranks.filter((r) => r.bracket === b.key).slice(0, 10).map((r, i) => ({ rank: i + 1, id: r.guild.id, name: r.guild.name, slug: r.guild.slug ?? null, path: guildPath(ctx, r.guild), points: r.points, rated: r.rated }))
       }))
     });
@@ -1753,6 +1781,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       rankedPlayers: stats.ranked, runs: stats.runs, records: stats.records, unranked: unrankedReason(entry.runs, stats),
       dungeons: stats.dungeons.map((d) => ({ instanceId: d.instanceId, difficultyId: d.difficultyId, routeKey: d.routeKey, name: d.name, clears: d.runs, bestSec: d.bestSec, record: d.record })),
       topByRole: stats.topByRole.map(({ role, row }) => ({ role, name: row.player.displayName || row.player.character, realm: row.player.realm || null, bracket: row.bracket, points: row.points })),
+      roleMix: stats.roleMix,
       activity: stats.activity
     });
   }

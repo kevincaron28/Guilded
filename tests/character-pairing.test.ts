@@ -184,20 +184,39 @@ describe("character pairing", () => {
     await expect(linkPairedCharacter(database as never, "guild", "member", {
       name: "Ray", realm: "Forever", class: "PRIEST", race: "", level: 60, spec: "", professions: []
     })).resolves.toBe("removed-by-officer");
-    expect(tx.characterVerifyClaim.findFirst).toHaveBeenCalledWith({ where: { guildId: "guild", memberId: "member", nameKey: "ray", status: { in: ["REMOVED", "BLOCKED"] } }, select: { status: true } });
+    expect(tx.characterVerifyClaim.findFirst).toHaveBeenCalledWith({ where: { guildId: "guild", memberId: "member", nameKey: "ray", status: { in: ["REMOVED", "BLOCKED"] } }, select: { status: true, updatedAt: true } });
     expect(tx.character.create).not.toHaveBeenCalled();
   });
 
   it("does not relink a character the member unlinked themselves (BLOCKED), so a self-unlink sticks", async () => {
     const tx = {
       character: { findMany: vi.fn(async () => []), count: vi.fn(), create: vi.fn() },
-      characterVerifyClaim: { findFirst: vi.fn(async () => ({ status: "BLOCKED" })) }
+      characterVerifyClaim: { findFirst: vi.fn(async () => ({ status: "BLOCKED", updatedAt: new Date() })) },
+      companionCredential: { findFirst: vi.fn(async () => null) }
     };
     const database = { $transaction: async (callback: (client: typeof tx) => unknown) => callback(tx) };
     await expect(linkPairedCharacter(database as never, "guild", "member", {
       name: "Ray", realm: "Forever", class: "PRIEST", race: "", level: 60, spec: "", professions: []
     })).resolves.toBe("blocked-by-member");
     expect(tx.character.create).not.toHaveBeenCalled();
+  });
+
+  it("links a self-unlinked (BLOCKED) character again when the member paired a companion after the unlink, and says so by clearing only that mark", async () => {
+    const unlinkedAt = new Date("2026-11-15T10:00:00Z");
+    const tx = {
+      character: { findMany: vi.fn(async () => []), count: vi.fn(async () => 1), create: vi.fn(async () => ({ id: "new" })), update: vi.fn() },
+      characterVerifyClaim: { findFirst: vi.fn(async () => ({ status: "BLOCKED", updatedAt: unlinkedAt })), deleteMany: vi.fn() },
+      companionCredential: { findFirst: vi.fn(async () => ({ id: "cred" })) },
+      professionSkill: { upsert: vi.fn() },
+      unclaimedCharacter: { deleteMany: vi.fn() }
+    };
+    const database = { $transaction: async (callback: (client: typeof tx) => unknown) => callback(tx) };
+    await expect(linkPairedCharacter(database as never, "guild", "member", {
+      name: "Ray", realm: "Forever", class: "PRIEST", race: "", level: 60, spec: "", professions: []
+    })).resolves.toBe("linked");
+    expect(tx.companionCredential.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ memberId: "member", revokedAt: null, createdAt: { gt: unlinkedAt } }) }));
+    expect(tx.characterVerifyClaim.deleteMany).toHaveBeenCalledWith({ where: { guildId: "guild", memberId: "member", nameKey: "ray", status: "BLOCKED" } });
+    expect(tx.character.create).toHaveBeenCalled();
   });
 
   it("revokes only the target member's active credentials", async () => {

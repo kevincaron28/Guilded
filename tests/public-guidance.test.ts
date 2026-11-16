@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { penalized, timeRating } from "../src/services/dungeon-rating.js";
-import { GAIN_STEP, planBase, planImprovements, roleScores, scenarioAt, type PlanInput } from "../src/services/public-guidance.js";
+import { GAIN_STEP, planBase, planImprovements, roleScores, roleSummary, scenarioAt, type PlanInput } from "../src/services/public-guidance.js";
 import { createLeaderboardPages, type LeaderboardStore, type LeaderRun } from "../src/services/public-leaderboard.js";
 import { characterScores, publicRules, type ScoreRun } from "../src/services/public-score.js";
 import { createWebApp, type WebResponse } from "../src/services/web-app.js";
@@ -116,6 +116,24 @@ describe("role scores", () => {
     expect(roles.find((r) => r.role === "HEALER")!.runs).toBe(2); // the page shows a role's score only from MIN_ROLE_RUNS (3) ranked runs
     // The overall score picks the best run per route whatever the role: 250 + 200 + 200 + 200 + 180.
     expect(characterScores(runs, rules)[0]!.points).toBe(1030);
+  });
+});
+
+describe("role summary (Raider.IO-style role tiles)", () => {
+  it("shows a role score from 3 ranked runs, names the main role and lists the best counted routes", () => {
+    const runs = [run("3065", 1500), run("43", 2400), run("2999", 2100), run("36", 2400, { role: "HEALER" }), run("33", 2000, { role: "HEALER" })];
+    const summary = roleSummary(roleScores(runs, rules, ME), "15-29");
+    expect(summary.main).toBe("TANK");
+    const tank = summary.roles.find((r) => r.role === "TANK")!;
+    expect(tank.runs).toBe(3);
+    expect(tank.points).not.toBeNull();
+    expect(tank.best.length).toBe(3);
+    expect(tank.best[0]!.points).toBeGreaterThanOrEqual(tank.best[2]!.points);
+    expect(summary.roles.find((r) => r.role === "HEALER")!.points).toBeNull(); // only 2 ranked healer runs
+    expect(summary.roles.find((r) => r.role === "DPS")!.runs).toBe(0);
+  });
+  it("has no main role without a role run", () => {
+    expect(roleSummary(roleScores([run("3065", 1500, { role: null })], rules, ME), "15-29").main).toBeNull();
   });
 });
 

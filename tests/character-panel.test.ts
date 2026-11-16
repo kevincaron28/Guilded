@@ -40,6 +40,8 @@ function matches(row: Row, where: Record<string, unknown> | undefined): boolean 
     if (key === "member") return (MEMBERS[Object.keys(MEMBERS).find((k) => MEMBERS[k]!.id === row["memberId"]) ?? ""]?.guildId ?? "holding") === (want as { guildId: string }).guildId || row["memberId"] === `holding-${(want as { guildId: string }).guildId}`;
     if (key === "OR") return (want as Record<string, unknown>[]).some((sub) => matches(row, sub));
     const have = row[key];
+    if (want && typeof want === "object" && "not" in (want as object)) return have !== (want as { not: unknown }).not;
+    if (want && typeof want === "object" && "in" in (want as object)) return (want as { in: unknown[] }).in.includes(have);
     if (want && typeof want === "object" && "equals" in (want as object)) return String(have).toLowerCase() === String((want as { equals: string }).equals).toLowerCase();
     return have === want;
   });
@@ -56,7 +58,8 @@ function database() {
       findFirst: vi.fn(async ({ where }: { where: { discordUserId: string; guild: { discordId: string } } }) => MEMBERS[`${where.discordUserId}:${where.guild.discordId}`] ?? null),
       findMany: vi.fn(async ({ where, take = 1000 }: { where: { discordUserId: string; guild?: { discordId: string } }; take?: number }) =>
         Object.entries(MEMBERS).filter(([key, m]) => key.startsWith(`${where.discordUserId}:`) && (!where.guild || m.guild.discordId === where.guild.discordId)).map(([, m]) => ({ guild: m.guild })).concat(extraServers.map((guild) => ({ guild }))).slice(0, take)),
-      upsert: vi.fn(async ({ create }: { create: { guildId: string } }) => ({ id: `holding-${create.guildId}` }))
+      upsert: vi.fn(async ({ create }: { create: { guildId: string } }) => ({ id: `holding-${create.guildId}` })),
+      findUnique: vi.fn(async ({ where }: { where: { id: string } }) => { const found = Object.entries(MEMBERS).find(([, m]) => m.id === where.id); return found ? { ...found[1], discordUserId: found[0].split(":")[0], status: "ACTIVE" } : null; })
     },
     guildSettings: { findUnique: vi.fn(async () => ({ language: "fr" })) },
     character: {
@@ -69,13 +72,14 @@ function database() {
       updateMany: vi.fn(async ({ where, data }: { where: Record<string, unknown>; data: object }) => { for (const r of world.characters.filter((x) => matches(x, where))) Object.assign(r, data); })
     },
     unclaimedCharacter: {
+      deleteMany: vi.fn(async () => ({})),
       findMany: vi.fn(async ({ where }: { where: Record<string, unknown> }) => world.unclaimed.filter((r) => matches(r, where))),
       findFirst: vi.fn(async ({ where }: { where: Record<string, unknown> }) => world.unclaimed.find((r) => matches(r, where)) ?? null),
       delete: vi.fn(async ({ where }: { where: { id: string } }) => { world.unclaimed.splice(world.unclaimed.findIndex((r) => r.id === where.id), 1); })
     },
     professionSkill: { upsert: vi.fn(async () => ({})) },
     characterVerifyClaim: {
-      findMany: vi.fn(async () => []),
+      findMany: vi.fn(async ({ where }: { where: Record<string, unknown> }) => world.claims.filter((r) => matches(r, where))),
       upsert: vi.fn(async ({ where, create, update }: { where: { guildId_memberId_nameKey: { memberId: string; nameKey: string } }; create: Row; update: object }) => {
         const key = where.guildId_memberId_nameKey;
         const found = world.claims.find((r) => r["memberId"] === key.memberId && r["nameKey"] === key.nameKey);
@@ -219,6 +223,74 @@ describe("character panel", () => {
     expect(world.claims).toHaveLength(0);
     expect(world.dms).toHaveLength(1);
     expect(shown(done)).toContain("Fresh");
+  });
+
+  describe("unlinked by mistake", () => {
+    const unlinkRay = async (db: ReturnType<typeof database>) => {
+      const ask = click("linked:p:unlink:dg1", "select", { value: "a" });
+      await run(ask, db);
+      const ok = click("linked:p:ok:dg1:a", "button");
+      await run(ok, db);
+      return ok;
+    };
+
+    it("the confirm is not red, and after Yes the panel itself shows Link it back", async () => {
+      world.characters.push(ch("a", "m1", "Ray", true), ch("b", "m1", "Rayne"));
+      const db = database();
+      const ask = click("linked:p:unlink:dg1", "select", { value: "a" });
+      await run(ask, db);
+      const styles = (JSON.parse(shown(ask)) as { components: { components: { style: number; label: string }[] }[] }).components.flatMap((r) => r.components);
+      expect(styles.map((b) => [b.label, b.style])).toEqual([["Oui, délier", 2], ["Le garder", 1]]);
+      const ok = click("linked:p:ok:dg1:a", "button");
+      await run(ok, db);
+      expect(shown(ok)).toContain("linked:back:a");
+    });
+
+    it("the same member links it back by typing its name (BLOCKED cleared, same row and id, history kept)", async () => {
+      world.characters.push(ch("a", "m1", "Ray", true), ch("b", "m1", "Rayne"));
+      const db = database();
+      await unlinkRay(db);
+      expect(world.claims).toHaveLength(1);
+      const typed = click("linked:p:namemodal:dg1", "modal", { text: "ray" });
+      await run(typed, db);
+      expect(world.characters.find((r) => r.id === "a")).toMatchObject({ memberId: "m1", detachedAt: null });
+      expect(world.characters.filter((r) => r["name"] === "Ray")).toHaveLength(1);
+      expect(world.claims).toHaveLength(0);
+      expect(shown(typed)).toContain("Ray");
+      expect(shown(typed)).not.toContain("pas disponible");
+    });
+
+    it("the Link step lists what the member unlinked, first, and picking it links it back", async () => {
+      world.characters.push(ch("a", "m1", "Ray", true), ch("b", "m1", "Rayne"));
+      world.unclaimed.push(fresh("x", "Fresh"));
+      const db = database();
+      await unlinkRay(db);
+      const step = click("linked:p:link:dg1", "button");
+      await run(step, db);
+      const options = (JSON.parse(shown(step)) as { components: { components: { options?: { value: string }[] }[] }[] }).components[0]!.components[0]!.options!;
+      expect(options.map((o) => o.value)).toEqual(["a", "x"]);
+      const pick = click("linked:p:claim:dg1", "select", { value: "a" });
+      await run(pick, db);
+      expect(world.characters.find((r) => r.id === "a")).toMatchObject({ memberId: "m1", detachedAt: null });
+    });
+
+    it("another member's character, an officer's removal and a character someone else unlinked are never taken", async () => {
+      world.characters.push(ch("a", "m1", "Ray", true), ch("h", "m2", "Held", true), ch("o", "holding-g1", "Off", false, new Date()), ch("z", "holding-g1", "Theirs", false, new Date()));
+      Object.assign(world.characters.find((r) => r.id === "o")!, { detachedFromMemberId: "m1" });
+      Object.assign(world.characters.find((r) => r.id === "z")!, { detachedFromMemberId: "m2" });
+      world.claims.push({ id: "k", guildId: "g1", memberId: "m1", nameKey: characterKey("Off", "Forever", "forever"), status: "REMOVED" });
+      const db = database();
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+      for (const name of ["Held", "Off", "Theirs"]) {
+        const attempt = click("linked:p:namemodal:dg1", "modal", { text: name });
+        await run(attempt, db);
+        expect(shown(attempt)).toContain("pas disponible");
+      }
+      warn.mockRestore();
+      expect(world.characters.find((r) => r.id === "h")).toMatchObject({ memberId: "m2" });
+      expect(world.characters.find((r) => r.id === "o")).toMatchObject({ memberId: "holding-g1" });
+      expect(world.characters.find((r) => r.id === "z")).toMatchObject({ memberId: "holding-g1" });
+    });
   });
 
   it("links a typed name from the name box", async () => {

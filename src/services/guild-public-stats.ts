@@ -6,6 +6,7 @@ import { characterScores } from "./public-score.js";
 import type { LeaderPlayer, LeaderRun, PublicGuild } from "./public-leaderboard.js";
 import type { BracketedRules } from "./dungeon-november-rules.js";
 import { characterKey } from "../../companion/character-identity.mjs";
+import { dungeonRole } from "../../companion/dungeon-role.mjs";
 
 const SLUG_MAX = 36;
 
@@ -57,6 +58,8 @@ export interface GuildPageStats {
   /** Runs per week (week starting Monday, UTC, ISO date), oldest first. */
   activity: { week: string; runs: number }[];
   records: number;
+  /** Ranked members by their recorded role (the newest run names it); unknown when no run recorded one. */
+  roleMix: { TANK: number; HEALER: number; DPS: number; unknown: number };
 }
 
 /** Why a guild has no rank in a period, or null when it has one. */
@@ -107,7 +110,16 @@ export function guildPageStats(runs: LeaderRun[], roster: string[], rules: Brack
       activity.push({ week: key, runs: weeks.get(key) ?? 0 });
     }
   }
-  return { ranked: new Set(scores.map((row) => (row.player.character + "|" + row.player.realm).toLowerCase())).size, runs: own.length, dungeons, topByRole, activity, records: dungeons.filter((d) => d.record).length };
+  const mix = { TANK: 0, HEALER: 0, DPS: 0, unknown: 0 };
+  const counted = new Set<string>();
+  for (const row of scores) {
+    const id = (row.player.character + "|" + row.player.realm).toLowerCase();
+    if (counted.has(id)) continue;
+    counted.add(id);
+    const role = dungeonRole(row.player.role);
+    mix[role ?? "unknown"]++;
+  }
+  return { roleMix: mix, ranked: new Set(scores.map((row) => (row.player.character + "|" + row.player.realm).toLowerCase())).size, runs: own.length, dungeons, topByRole, activity, records: dungeons.filter((d) => d.record).length };
 }
 
 export function unrankedReason(runs: LeaderRun[], stats: GuildPageStats): UnrankedReason | null {

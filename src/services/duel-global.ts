@@ -246,6 +246,8 @@ export interface GlobalDuel {
   reporters: string[];
   /** Both players' addons reported it. */
   confirmed: boolean;
+  /** The side hid their profile (profile-privacy.ts): its name is a placeholder and its key is not the character's; it is never a ladder row. */
+  winnerHidden?: boolean; loserHidden?: boolean;
 }
 
 export interface GlobalRow {
@@ -283,7 +285,8 @@ export function buildGlobalBoard(all: readonly GlobalDuel[], seasonId: string, s
       info.set(key, { realm: d[`${side}Realm`], className: d[`${side}Class`] ?? before?.className ?? null, guild: d[`${side}Guild`] ?? before?.guild ?? null });
     }
   }
-  const eligible = (key: string) => GLOBAL_RANK_OUTSIDERS || reporters.has(key);
+  const hiddenKeys = new Set(inSeason.flatMap(d => [...(d.winnerHidden ? [d.winnerKey] : []), ...(d.loserHidden ? [d.loserKey] : [])]));
+  const eligible = (key: string) => !hiddenKeys.has(key) && (GLOBAL_RANK_OUTSIDERS || reporters.has(key));
   const standings = ratingStandings(result.players).filter(row => eligible(row.key) && (!wanted || info.get(row.key)?.className?.toLowerCase() === wanted));
   let next = 0;
   const rows = standings.map((row): GlobalRow => {

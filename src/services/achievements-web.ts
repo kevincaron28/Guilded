@@ -13,7 +13,7 @@ import type { WebContext, WebRoute } from "./web-app.js";
 // public player page. The public page shows what is already stored; only the signed-in owner's /me/
 // view evaluates (and records) newly earned ones. Guilds the site does not serve are never included.
 
-type Db = Pick<PrismaClient, "webAccount" | "guildSettings" | "member" | "memberAchievement" | "character" | "professionSkill" | "dungeonRunPlayer" | "raidAttendance" | "communityParticipationDay" | "poeLevelReached" | "poeMapVisit" | "communityPoint" | "communityHonorAward" | "epgpTransaction" | "memberActivityTotal" | "memberMilestone" | "duelResult" | "craftRequest" | "recipeKnown">;
+type Db = Pick<PrismaClient, "webAccount" | "publicProfileHidden" | "guildSettings" | "member" | "memberAchievement" | "character" | "professionSkill" | "dungeonRunPlayer" | "raidAttendance" | "communityParticipationDay" | "poeLevelReached" | "poeMapVisit" | "communityPoint" | "communityHonorAward" | "epgpTransaction" | "memberActivityTotal" | "memberMilestone" | "duelResult" | "craftRequest" | "recipeKnown">;
 export interface AchievementProgress { earnedAt: Date | null; value: number }
 
 /** The member's character picture for the share image: Public only on the public card, any of theirs on their own /me/ card. */
@@ -128,6 +128,8 @@ export function createAchievementsWeb(db: Db, allows: (discordGuildId: string) =
     if (ctx.request.method !== "GET" && ctx.request.method !== "HEAD") return kit.page(405, "Method not allowed", "");
     const account = await db.webAccount.findUnique({ where: { id: match[1]! }, select: { discordUserId: true, username: true, displayName: true } });
     if (!account) return kit.page(404, ctx.t("Not found", "Introuvable"), "", { noindex: true });
+    // A player who hid their profile (profile-privacy.ts) has no public share card; they still see their own.
+    if (ctx.account?.id !== match[1] && await db.publicProfileHidden.findUnique({ where: { discordUserId: account.discordUserId }, select: { discordUserId: true } })) return kit.page(404, ctx.t("Not found", "Introuvable"), "", { noindex: true });
     const data = await progress(account.discordUserId, false, ctx.now);
     return scoreCardResponse(await withPortrait(achievementsCard(account.displayName ?? account.username, cardItems(data), ctx.lang), account.discordUserId, false), ctx.request.method === "HEAD");
   };

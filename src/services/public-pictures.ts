@@ -7,7 +7,7 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 // checked. A picture shows only while it is "ok", its server's switch is on and the site serves that server.
 // When two different characters answer to one name and realm, none is shown rather than a guess.
 
-type Db = Pick<PrismaClient, "characterPicture" | "webAccount">;
+type Db = Pick<PrismaClient, "characterPicture" | "webAccount" | "publicProfileHidden">;
 export interface PublicPicture { characterId: string; version: number; thumb: Buffer }
 /** One search card's character: the account and the character name/realm the card shows. */
 export interface CardCharacter { id: string; character: string; realm: string }
@@ -18,13 +18,17 @@ const MEMBER = { status: "ACTIVE", isTest: false } as const;
 
 export function publicPictures(db: Db, allows: (discordGuildId: string) => boolean) {
   const shown = (guild: { discordId: string; settings: { characterPicturesEnabled: boolean } | null }) => allows(guild.discordId) && guild.settings?.characterPicturesEnabled !== false;
+  // Players who hid their profile (profile-privacy.ts) have no picture on a public page.
+  const hiddenUsers = async () => (await db.publicProfileHidden.findMany({ select: { discordUserId: true }, take: 50_000 })).map(row => row.discordUserId);
+  const visible = (ids: string[]) => ({ ...MEMBER, ...(ids.length ? { discordUserId: { notIn: ids } } : {}) });
   return {
     /** The public picture of the character a leaderboard page is about, by name (or display name) and realm. */
     async byCharacter(name: string, realm: string | null): Promise<PublicPicture | null> {
       try {
+        const ids = await hiddenUsers();
         const named = { OR: [{ name: { equals: name, mode: "insensitive" as const } }, { displayName: { equals: name, mode: "insensitive" as const } }] };
         const rows = await db.characterPicture.findMany({
-          where: { status: "ok", visibility: "public", character: { ...named, ...(realm ? { realm: { equals: realm, mode: "insensitive" as const } } : {}), member: MEMBER } },
+          where: { status: "ok", visibility: "public", character: { ...named, ...(realm ? { realm: { equals: realm, mode: "insensitive" as const } } : {}), member: visible(ids) } },
           select: { characterId: true, version: true, thumb: true, character: { select: GUILD_SELECT } }, take: 5
         });
         const usable = rows.filter(row => shown(row.character.member.guild) && row.thumb.length);
@@ -34,6 +38,7 @@ export function publicPictures(db: Db, allows: (discordGuildId: string) => boole
     /** A web account's public picture for its share image: the main character's first. */
     async byAccount(discordUserId: string, includeGuildOnly = false): Promise<PublicPicture | null> {
       try {
+        if (!includeGuildOnly && (await hiddenUsers()).includes(discordUserId)) return null;
         const rows = await db.characterPicture.findMany({
           where: { status: "ok", ...(includeGuildOnly ? {} : { visibility: "public" }), character: { member: { ...MEMBER, discordUserId } } },
           orderBy: [{ character: { isMain: "desc" } }, { updatedAt: "desc" }],
@@ -49,7 +54,8 @@ export function publicPictures(db: Db, allows: (discordGuildId: string) => boole
       if (!cards.length) return found;
       try {
         const accounts = await db.webAccount.findMany({ where: { id: { in: [...new Set(cards.map(card => card.id))] } }, select: { id: true, discordUserId: true } });
-        const userOf = new Map(accounts.map(account => [account.id, account.discordUserId]));
+        const hiding = new Set(await hiddenUsers());
+        const userOf = new Map(accounts.filter(account => !hiding.has(account.discordUserId)).map(account => [account.id, account.discordUserId]));
         if (!userOf.size) return found;
         const rows = await db.characterPicture.findMany({
           where: { status: "ok", visibility: "public", character: { member: { ...MEMBER, discordUserId: { in: [...new Set(userOf.values())] } } } },

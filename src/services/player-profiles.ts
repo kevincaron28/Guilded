@@ -1,6 +1,7 @@
 import { armoryAnchor } from "./armory-link.js";
 import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
-import { characterPath, runPath, leaderRun, PUBLIC_RUN_SELECT, type LeaderRun } from "./public-leaderboard.js";
+import { characterPath, runPath, leaderRun, hideRunPlayers, PUBLIC_RUN_SELECT, type LeaderRun } from "./public-leaderboard.js";
+import { loadHiddenIdentity } from "./profile-privacy.js";
 import { scoreRun, publicRules } from "./public-score.js";
 import { gameEditionOf } from "./game-edition.js";
 import { formatDuration } from "./dungeon-rules.js";
@@ -15,7 +16,7 @@ import type { PublicPictureLookup } from "./public-pictures.js";
 /** 9.1: a guild character's picture (character-picture.ts). Shown only to viewers allowed by its visibility. */
 export interface ProfilePicture { characterId: string; guildId: string; version: number; visibility: PictureVisibility }
 export interface ProfileCharacter { name: string; gameEdition?: string; displayName?: string | null; realm: string; source: "guild" | "companion"; isMain?: boolean; picture?: ProfilePicture }
-export interface PlayerProfile { id: string; name: string; public: boolean; characters: ProfileCharacter[]; runs: LeaderRun[] }
+export interface PlayerProfile { id: string; name: string; public: boolean; /** The player hid their profile (profile-privacy.ts): only they can open it. */ hidden?: boolean; characters: ProfileCharacter[]; runs: LeaderRun[] }
 /** One card on /players/: a public profile, shown by its character (never its Discord name). */
 export interface PlayerRow { id: string; character: string; realm: string; className: string | null; role: string | null; level: number | null; guild: string | null; sortKey: string }
 export interface PlayerFilters { q: string; edition: string; realm: string | null; className: string | null; role: string | null; guild: string | null }
@@ -74,10 +75,11 @@ export function prismaProfileStore(database: PrismaClient, allows: (id: string) 
           JOIN "Member" m ON m."discordUserId" = wa."discordUserId" AND m.status = 'ACTIVE' AND m."isTest" = false
           JOIN "Character" c ON c."memberId" = m.id
           JOIN "Guild" g ON g.id = m."guildId"
-          WHERE g."discordId" = ANY(${servers})
+          WHERE g."discordId" = ANY(${servers}) AND NOT EXISTS (SELECT 1 FROM "PublicProfileHidden" h WHERE h."discordUserId" = wa."discordUserId")
           UNION ALL
           SELECT wa.id, COALESCE(wc."displayName", wc.name), wc.realm, NULL, wc."gameEdition", NULL, NULL, false, NULL
           FROM "WebAccount" wa JOIN "WebCharacter" wc ON wc."accountId" = wa.id
+          WHERE NOT EXISTS (SELECT 1 FROM "PublicProfileHidden" h WHERE h."discordUserId" = wa."discordUserId")
         ), best AS (
           SELECT DISTINCT ON (id) id, character, realm, "className", role, level, guild, lower(character) AS "sortKey"
           FROM chars WHERE ${Prisma.join(conditions, " AND ")}
@@ -117,7 +119,10 @@ export function prismaProfileStore(database: PrismaClient, allows: (id: string) 
         } } })) },
         orderBy: [{ endedAt: "desc" }, { id: "asc" }], take: 50, select: PUBLIC_RUN_SELECT
       }) : [];
-      return { id: account.id, name: account.displayName ?? account.username, public: true, characters, runs: runs.map(leaderRun) };
+      const hidden = (await database.publicProfileHidden.findUnique({ where: { discordUserId: account.discordUserId }, select: { discordUserId: true } })) !== null;
+      // Other players who hid their profile are anonymous in this profile's runs too (the owner's own name stays for the owner).
+      const others = await loadHiddenIdentity(database, account.discordUserId);
+      return { id: account.id, name: account.displayName ?? account.username, public: true, ...(hidden ? { hidden: true } : {}), characters, runs: runs.map(leaderRun).map((run) => hideRunPlayers(run, others)) };
     },
   };
 }
@@ -218,7 +223,8 @@ export function createPlayerProfiles(store: ProfileStore, achievements?: Profile
     if (!match) return null;
     if (ctx.request.method === "POST") return kit.page(405, "Method not allowed", "");
     const stored = await store.get(match[1]!);
-    if (!stored?.public) return kit.page(404, t("Not found", "Introuvable"), `<h1>${t("Profile unavailable", "Profil indisponible")}</h1>`, { noindex: true });
+    // A hidden profile (profile-privacy.ts) answers like a missing one to everybody but its owner.
+    if (!stored?.public || (stored.hidden && ctx.account?.id !== stored.id)) return kit.page(404, t("Not found", "Introuvable"), `<h1>${t("Profile unavailable", "Profil indisponible")}</h1>`, { noindex: true });
     const own = ctx.account?.id === stored.id, profile = await visibleTo(ctx, stored, own);
     const badges = achievements ? await achievements.publicSection(ctx, profile.id) : "";
     return kit.page(200, profile.name, `<h1>${escapeHtml(profile.name)}</h1>${hero(ctx, profile, own)}${badges}${details(ctx, profile)}`, { description: profileDescription(profile, ctx.t), ...(badges && achievements ? { shareImage: achievements.imagePath(profile.id) } : {}) });

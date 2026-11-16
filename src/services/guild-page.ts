@@ -8,7 +8,7 @@ import { breadcrumbs, shareCard, SITE_HEADER_STYLE, siteFooterNav, siteHeader } 
 import { gameEditionOf } from "./game-edition.js";
 import { editionHref } from "../../site/nav.mjs";
 import type { GuildDungeonSummary } from "./public-leaderboard.js";
-import { clearLeaderboardCaches } from "./leaderboard-cache-hooks.js";
+import { clearLeaderboardCaches, registerLeaderboardCache } from "./leaderboard-cache-hooks.js";
 
 // A guild's public page at /g/<slug>/ (docs/GUILD_PAGES_DESIGN.md). Read-only, no scripts, and
 // only what officers turned on. Names are character names, never Discord users or IDs.
@@ -80,10 +80,12 @@ export async function loadGuildPageView(database: PrismaClient, slug: string, al
   const timezone = settings?.timezone ?? "America/Toronto";
   const cores: PageCore[] = [];
   if (on("cores") || on("loot") || on("rosters") || on("rankings")) {
+    // Members who hid their profile (profile-privacy.ts) are left out of the public rosters and rankings.
+    const hiddenUsers = (await database.publicProfileHidden.findMany({ select: { discordUserId: true }, take: 50_000 })).map((row) => row.discordUserId);
     const rows = await database.raidCore.findMany({
       where: { guildId: page.guild.id },
       orderBy: { name: "asc" },
-      include: { members: { where: { member: { status: "ACTIVE" } }, include: {
+      include: { members: { where: { member: { status: "ACTIVE", ...(hiddenUsers.length ? { discordUserId: { notIn: hiddenUsers } } : {}) } }, include: {
         character: { select: { name: true, className: true } },
         member: { select: { characters: { where: { isMain: true }, select: { name: true, className: true }, take: 1 } } }
       } } }
@@ -271,6 +273,7 @@ export function createGuildPageServer(load: (slug: string) => Promise<GuildPageV
   const security = { "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'", "referrer-policy": "strict-origin-when-cross-origin", "x-content-type-options": "nosniff" };
   const server = { forget(slug?: string) { if (slug) cache.delete(slug); else cache.clear(); } };
   pageServers.add(server);
+  registerLeaderboardCache(() => server.forget()); // a "hide my profile" toggle (and a data deletion) shows on the guild page without waiting for the memo
   const html = (status: number, body: string, maxAge: number): PageResponse => ({ status, body, headers: { ...security, "content-type": "text/html; charset=utf-8", "cache-control": `public, max-age=${maxAge}` } });
   return {
     async respond(method: string, pathname: string): Promise<PageResponse | null> {

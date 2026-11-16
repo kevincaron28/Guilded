@@ -13,6 +13,8 @@ export interface PublicDuel {
   winnerClass: string | null; loserClass: string | null;
   /** False when the member has left the guild: their results still count for the others but they are not listed. */
   winnerShown: boolean; loserShown: boolean;
+  /** The side hid their profile (profile-privacy.ts): its name is a placeholder; the duel stays in recent lists, the player in no ranking. */
+  winnerHidden?: boolean; loserHidden?: boolean;
   endedAt: Date; reason: string;
 }
 
@@ -58,7 +60,7 @@ export function buildDuelBoard(all: readonly PublicDuel[], filters: DuelFilters,
     .map((row): DuelRow => ({ key: row.key, name: row.name, className: row.className, level: row.level, points: row.points, wins: row.wins, losses: row.losses, games: row.games, bestStreak: row.bestStreak, lastAt: row.lastAt, rank: 0, streak: row.run, winRate: row.games ? row.wins / row.games : 0 }))
     .sort((a, b) => b.points - a.points || b.wins - a.wins || b.winRate - a.winRate || a.losses - b.losses || a.name.localeCompare(b.name));
   rows.forEach((row, index) => { row.rank = index + 1; });
-  const recent = duels.filter(duel => duel.winnerShown && duel.loserShown && (!wanted || duel.winnerClass?.toLowerCase() === wanted || duel.loserClass?.toLowerCase() === wanted)).slice(-recentLimit).reverse();
+  const recent = duels.filter(duel => (duel.winnerShown || duel.winnerHidden) && (duel.loserShown || duel.loserHidden) && (!wanted || duel.winnerClass?.toLowerCase() === wanted || duel.loserClass?.toLowerCase() === wanted)).slice(-recentLimit).reverse();
   return { rows, duels: duels.length, recent };
 }
 
@@ -102,7 +104,7 @@ export function buildRatingBoard(all: readonly PublicDuel[], seasonId: string, s
   const recent: RecentDuel[] = [];
   for (let i = result.ordered.length - 1; i >= 0 && recent.length < recentLimit; i--) {
     const duel = source.get(result.ordered[i]!)!, change = result.changes[i]!;
-    if (!duel.winnerShown || !duel.loserShown || (wanted && duel.winnerClass?.toLowerCase() !== wanted && duel.loserClass?.toLowerCase() !== wanted)) continue;
+    if (!(duel.winnerShown || duel.winnerHidden) || !(duel.loserShown || duel.loserHidden) || (wanted && duel.winnerClass?.toLowerCase() !== wanted && duel.loserClass?.toLowerCase() !== wanted)) continue;
     recent.push({ ...duel, change: { winner: change.winnerDelta, loser: change.loserDelta, rated: change.rated } });
   }
   return { rows, duels: inSeason.length, recent, season: { id: seasonId, rated: true } };

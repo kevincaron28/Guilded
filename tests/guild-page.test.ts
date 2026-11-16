@@ -171,6 +171,7 @@ describe("guild page server", () => {
 // Just enough of Prisma for the page queries.
 function fakeDatabase(page: Record<string, unknown> | null, cores: unknown[] = [], sums: unknown[] = []) {
   return {
+    publicProfileHidden: { findUnique: vi.fn(async () => null), findMany: vi.fn(async () => []) },
     guildPage: { findUnique: vi.fn(async () => page) },
     raidCore: { findMany: vi.fn(async () => cores) },
     epgpTransaction: { groupBy: vi.fn(async () => sums) }

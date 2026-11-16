@@ -61,6 +61,7 @@ describe("player profiles", () => {
       players: [{ character: "Kev", realm: "Forever", className: "Priest", role: "HEALER", level: 20 },
         { character: "PartyMember", realm: "Forever", className: "Warrior", role: "TANK", level: 20 }] };
     const database = {
+      publicProfileHidden: { findUnique: vi.fn(async () => null), findMany: vi.fn(async () => []) },
       webAccount: { findUnique: vi.fn(async () => ({ id: profileId, discordUserId: "discord", username: "me", displayName: null,
         publicProfile: true, characters: [{ name: "Kev", realm: "Forever" }] })) },
       character: { findMany: vi.fn(async () => [{ name: "BlockedCharacter", realm: "Elsewhere", member: { guild: { discordId: "blocked" } } }]) },

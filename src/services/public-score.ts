@@ -22,7 +22,9 @@ import type { ChallengeEvidence } from "./challenge-evidence.js";
 //   change cannot rewrite its scores. It only gains routes and brackets that did not exist yet.
 
 export interface ScorePlayer { character: string; realm: string; className: string | null; role: string | null; level: number | null;
-  minLevel?: number | null; presentSec?: number | null; integrity?: unknown }
+  minLevel?: number | null; presentSec?: number | null; integrity?: unknown;
+  /** A player who hid their profile (profile-privacy.ts): kept in the party as a placeholder, never scored or ranked. */
+  hidden?: boolean }
 export interface RunEvidence { startedAt: Date; completedBy: string | null; encounters: unknown[]; integrity?: unknown; receivedAt?: Date | null }
 export interface ScoreRun {
   gameEdition?: string;
@@ -143,7 +145,7 @@ export function characterScores(runs: ScoreRun[], rules: BracketedRules = public
     const score = scoreRun(run, rules);
     if (!score) continue;
     for (const player of run.players) {
-      if (!keep(player, run) || run.evidence && !presentEnough(player.presentSec ?? 0, run.durationSec, leniencyOf(rules).presence)
+      if (player.hidden || !keep(player, run) || run.evidence && !presentEnough(player.presentSec ?? 0, run.durationSec, leniencyOf(rules).presence)
         || rules.evidencePolicy === "current-v2" && !integrityPresence(player.integrity, run.durationSec, run.evidence?.startedAt ? run.evidence.startedAt.getTime()/1000 : undefined)) continue;
       const id = `${characterId(player)}\0${score.bracket}`;
       const row = rows.get(id) ?? { player, bracket: score.bracket, points: 0, routes: [] };

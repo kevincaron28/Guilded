@@ -67,6 +67,7 @@ import type { Client } from "discord.js";
 import { CompanionUnavailable, companionAccess, personalSnapshot } from "./services/companion-access.js";
 import { createMemberData, memberDataStore } from "./services/member-data.js";
 import { createPicturePages, prismaPictureStore } from "./services/character-picture.js";
+import { createPrivacyWeb } from "./services/profile-privacy-web.js";
 import { deleteMyDataByCredential } from "./services/data-deletion.js";
 import { promotionForAddon } from "./services/promotion-feed.js";
 import { readFileSync } from "node:fs";
@@ -259,7 +260,7 @@ const manage = createCompanionManage(prisma);
 const hub = createCompanionHub(prisma, { baselineAchievements: (guildId) => baselineAchievements(prisma, guildId) });
 // Public guild pages (/g/<slug>/): read-only HTML, no pairing needed.
 // A guild that publishes its runs also shows its members' top scores, recent runs and records there.
-const guildPageRuns = prismaLeaderboardStore(prisma, (id) => hostedPilot.allows(id));
+const guildPageRuns = prismaLeaderboardStore(prisma, (id) => hostedPilot.allows(id), { hideProfiles: true });
 const guildPages = createGuildPageServer(async (slug) => {
   const view = await loadGuildPageView(prisma, slug, (id) => hostedPilot.allows(id));
   if (view?.dungeonPage && view.guildId) {
@@ -367,7 +368,7 @@ export function createSiteApp(client?: Client) {
   });
   const profiles = createPlayerProfiles(prismaProfileStore(prisma, hostedPilot.allows), achievementsWeb, pictures, openPictures);
   const directory = createGuildDirectory(prismaGuildDirectoryStore(prisma, (id) => hostedPilot.allows(id)));
-  const leaderboards = createLeaderboardPages({ store: prismaLeaderboardStore(prisma, (id) => hostedPilot.allows(id)), personal: personalStore, calendar: () => loadOfficialWindows(prisma), picture: (name, realm) => openPictures.byCharacter(name, realm) });
+  const leaderboards = createLeaderboardPages({ store: prismaLeaderboardStore(prisma, (id) => hostedPilot.allows(id), { hideProfiles: true }), personal: personalStore, calendar: () => loadOfficialWindows(prisma), picture: (name, realm) => openPictures.byCharacter(name, realm) });
   // Warm the leaderboards landing page once, about 20 s after start (so the first visitor does not pay the cold load), then keep it fresh
   // in the background only while somebody asked for a leaderboard page in the last 10 minutes.
   const warmLeaderboards = () => { if (client && !client.isReady()) return; void leaderboards.warm().catch((error) => console.warn("Leaderboard warm-up failed", error instanceof Error ? error.message : error)); };
@@ -385,13 +386,15 @@ export function createSiteApp(client?: Client) {
     issuePersonal: async (accountId, deviceName) => (await issuePersonalCredential(personalStore, accountId, deviceName)).companionCredential
   });
   const devices = createDevicePages(prismaDeviceStore(prisma));
+  const privacyWeb = createPrivacyWeb(prisma);
   const memberData = createMemberData(memberDataStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")));
-  const routes: WebRoute[] = [retiredToolsRoute, signInPage, retiredAvailabilityRoute, devices.route, memberData.route, leaderboards.route, liveNewsFeed().route, directory.route, achievementsWeb.route, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route];
+  const routes: WebRoute[] = [retiredToolsRoute, signInPage, retiredAvailabilityRoute, devices.route, memberData.route, leaderboards.route, liveNewsFeed().route, directory.route, privacyWeb.route, achievementsWeb.route, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route];
   // One basic page (owner, 15 Nov 2026): your characters (read-only), connected devices, your data, recruitment card and applications.
   const meSections: MeSectionInput[] = [
     meSection({ id: "characters", group: "overview", render: charactersMeSection(discordUserId => memberLinkStatus(prisma, discordUserId), meCharacterList(prisma)) }),
     meSection({ id: "connections", group: "account", render: devices.meSection }),
-    meSection({ id: "your-data", group: "account", render: memberData.meSection })
+    // The "hide my profile" switch lives with the member's data (one basic /me/ page keeps its three sections).
+    meSection({ id: "your-data", group: "account", render: async ctx => `${await memberData.meSection(ctx)}${await privacyWeb.meSection(ctx)}` })
   ];
   return createWebApp({
     publicRaids: now => publicRaids(prisma, hostedPilot.allows, now),

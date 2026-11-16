@@ -4,7 +4,7 @@ import { guildWhere } from "./guild-scope.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { priority } from "./epgp.js";
 import { asLootMode, effectiveRules, LOOT_MODE_HELP, LOOT_MODE_HELP_FR, LOOT_MODE_LABEL, LOOT_MODE_LABEL_FR } from "./core-rules.js";
-import { breadcrumbs, shareCard, SITE_HEADER_STYLE, siteFooterNav, siteHeader } from "./site-header.js";
+import { breadcrumbs, SITE_HEADER_STYLE, siteFooterNav, siteHeader } from "./site-header.js";
 import { gameEditionOf } from "./game-edition.js";
 import { editionHref } from "../../site/nav.mjs";
 import type { GuildDungeonSummary } from "./public-leaderboard.js";

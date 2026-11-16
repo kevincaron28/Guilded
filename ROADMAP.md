@@ -45,15 +45,16 @@ In progress:
 
 Housekeeping: old PRs #722, #984 and #345 were closed on 16 November (branches kept).
 
-### Follow-ups, not started
+### Follow-ups (updated 16 November 2026)
 
-1. **Stricter "confirmed" evidence** for characters named in uploads (T8). A weakness that was already there.
-2. **Auction House achievements** after the probe results come back.
-3. **Raid scoring**, later, only if the owner wants it.
-4. **Verify in game:** the French boss names and Gandling.
-5. **Companion upload of the probe results** (achievement, map and auction probes).
-6. **Worker W1–W4** (see [AI_HANDOFF](docs/AI_HANDOFF.md)); W1 is needed for S1 to do anything.
-7. **Season 2 maps:** Krol'dok, Alcaz, Blackmaw and Shaper's Terrace need map ids before they get routes.
+Done on 16 November: stricter "confirmed" evidence (T8, #1032), Auction House achievements (#1034), companion upload of the probe results (#1033), Worker W1–W4 (#1031). Raid scoring: declined by the owner (raids count attendance only).
+
+Still open, both need a real client:
+
+1. **Verify in game:** the French boss names and Gandling.
+2. **Season 2 maps:** Krol'dok, Alcaz, Blackmaw and Shaper's Terrace need one run each for their map ids before they get routes (before 9 December).
+
+9.3.7 (16 November) shipped the fixes from the two-PC test (#1043); its real-client checks are in `docs/V9_3_7_RELEASE_ACCEPTANCE.md`.
 
 ### Owner to-dos
 

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { RUN_TRUST } from "../src/services/run-trust.js";
+import { STRANGER_NOTE } from "../src/services/relay-public.js";
 import { DEVICE_FEATURES, handleDeviceUpload, splitGroupRuns, type DeviceRow, type DeviceStore, type ServerCandidate } from "../src/services/companion-device.js";
 
 // 9.3.1: runs a companion carries for players near it (party or raid, any guild) go to the public boards, whatever the
@@ -117,6 +118,35 @@ describe("runs of strangers reaching a guild's device lane", () => {
     expect(rest).toHaveLength(3);
     await handleDeviceUpload(s, device, body(rest), { now });
     expect((publicRuns.mock.calls[1]![1] as { id: string }[]).map((entry) => entry.id)).toEqual(rest.map((entry) => entry.id));
+  });
+
+  // 16 November 2026: the real lane answers "group:<id>", which the addon takes for its carried list only. A stranger's run sits in the
+  // addon's own list, so it also needs its plain id back, or it waits ("not reached Discord") and is sent for ever.
+  it("answers a stranger run with its plain id and a note too, using what the real relay lane returns", async () => {
+    const { s, importRuns } = store();
+    s.membership = members(["kev", "bob"]);
+    s.publicRuns = vi.fn(async (_deviceId: string, runs: unknown[]) => runs.map((entry) => `group:${(entry as { id: string }).id}`));
+    const ids = ["QG-20261116-032503-Caliban Dawnbreaker", "QG-20261116-011224-Caliban Dawnbreaker"];
+    const answer = await handleDeviceUpload(s, device, body(ids.map((id) => strangers(id, { reporterNames: ["Caliban Dawnbreaker"],
+      players: ["Caliban Dawnbreaker", "Hueso Flacido"].map((character) => ({ character, realm: "Forever", deaths: 0, presentSec: 2700 })) }))), { now });
+    expect(importRuns).not.toHaveBeenCalled();
+    const receipts = (answer as { runReceipts?: { acceptedRunRefs: string[]; runNotes: Record<string, string> } }).runReceipts!;
+    for (const id of ids) {
+      expect(receipts.acceptedRunRefs).toContain(id);
+      expect(receipts.acceptedRunRefs).toContain(`group:${id}`);
+      expect(receipts.runNotes[id]).toBe(STRANGER_NOTE);
+    }
+  });
+
+  it("a failing relay leaves stranger runs unreceipted and never breaks the upload", async () => {
+    const { s } = store();
+    s.membership = members(["kev", "bob"]);
+    s.publicRuns = vi.fn(async () => { throw new Error("down"); });
+    const errors = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const answer = await handleDeviceUpload(s, device, body([strangers("QG-DOWN")]), { now });
+    errors.mockRestore();
+    expect(answer.status).toBe("synced");
+    expect((answer as { runReceipts?: { acceptedRunRefs: string[] } }).runReceipts?.acceptedRunRefs ?? []).not.toContain("QG-DOWN");
   });
 
   it("with no membership known (empty or old roster) the run stays with the guild lane as before", async () => {

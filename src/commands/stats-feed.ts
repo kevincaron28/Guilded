@@ -4,16 +4,20 @@ import { config } from "../config.js";
 import { hasPermission } from "../permissions.js";
 import { asLang } from "../i18n.js";
 import { feedUrl, regenerateFeedKey, revokeFeedKey } from "../services/stat-snapshots.js";
+import { memberTrendMessage } from "../services/member-trend.js";
 import { guildService, requireGuildContext } from "./context.js";
 
 // Mounted as /officer stats. Private replies. The feed address contains a secret key: it is shown once, only to the officer
 // who asked, and only a hash is stored (services/stat-snapshots.ts).
 export const statsFeedCommand = new SlashCommandBuilder()
   .setName("stats")
-  .setDescription("Daily statistics and Sheets feed.")
+  .setDescription("Statistics and Sheets feed")
   .addSubcommand((sub) => sub.setName("feed").setDescription("Sheets feed address.")
-    .addStringOption((o) => o.setName("action").setDescription("Default: create the address").addChoices(
-      { name: "Create (or say one exists)", value: "show" }, { name: "New address (the old one stops)", value: "regenerate" }, { name: "Revoke (stop the feed)", value: "revoke" })))
+    .addStringOption((o) => o.setName("action").setDescription("Default: create").addChoices(
+      { name: "Create", value: "show" }, { name: "New address", value: "regenerate" }, { name: "Revoke", value: "revoke" })))
+  .addSubcommand((sub) => sub.setName("trend").setDescription("Member trend")
+    .addIntegerOption((o) => o.setName("days").setDescription("Days").addChoices({ name: "30", value: 30 }, { name: "90", value: 90 }))
+    .addBooleanOption((o) => o.setName("weekly").setDescription("Weekly post")))
   .addSubcommand((sub) => sub.setName("toggle").setDescription("Daily statistics on or off.")
     .addBooleanOption((o) => o.setName("on").setDescription("On/off").setRequired(true)))
   .addSubcommand((sub) => sub.setName("cards").setDescription("Phone cards on or off")
@@ -33,6 +37,20 @@ export async function executeStatsFeed(interaction: ChatInputCommandInteraction)
   const settings = await prisma.guildSettings.findUnique({ where: { guildId }, select: { statsEnabled: true, statsFeedKeyHash: true, statsFeedKeyAt: true } });
   if (!settings) { await reply(t("Run /setup first.", "Lancez d'abord /setup.")); return; }
 
+  if (interaction.options.getSubcommand() === "trend") {
+    const weekly = interaction.options.getBoolean("weekly");
+    if (weekly !== null) {
+      await prisma.guildSettings.update({ where: { guildId }, data: { memberTrendPostEnabled: weekly } });
+      await reply(weekly ? t("The weekly member-trend card is on: once a week in the officer log channel.", "La carte hebdomadaire de tendance des membres est activée : une fois par semaine dans le canal des journaux des officiers.")
+        : t("The weekly member-trend card is off. `/officer stats trend` still works.", "La carte hebdomadaire de tendance des membres est désactivée. `/officer stats trend` fonctionne toujours."));
+      return;
+    }
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const days = interaction.options.getInteger("days") === 90 ? 90 : 30;
+    const message = await memberTrendMessage(prisma, guildId, days, interaction.guild?.name ?? "Guilded", lang);
+    await interaction.editReply(message.payload);
+    return;
+  }
   if (interaction.options.getSubcommand() === "cards") {
     const on = interaction.options.getBoolean("on", true);
     const trade = interaction.options.getBoolean("trade");

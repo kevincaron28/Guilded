@@ -12,13 +12,15 @@ const DAY_MS = 86_400_000;
 export interface StatSnapshot {
   day: string; discordMembers: number; activeMembers: number; linkedMembers: number; rosterSize: number; onlinePeak: number; level60: number;
   messages: number; voiceMinutes: number; raids: number; dungeonRuns: number;
+  /** In-game roster size that day (Forever, still in the guild), and that day's joins and leaves from the game's event log; null before tracking began. */
+  inGuildMembers?: number | null | undefined; joins?: number | null | undefined; leaves?: number | null | undefined;
   levelBands: Record<string, number>; classCounts: Record<string, number>;
 }
 
 export const utcDay = (date: Date) => date.toISOString().slice(0, 10);
 export const levelBand = (level: number): string => level >= 60 ? "60" : level < 10 ? "1-9" : `${Math.floor(level / 10) * 10}-${Math.floor(level / 10) * 10 + 9}`;
 
-type Db = Pick<PrismaClient, "guildStatSnapshot" | "member" | "character" | "memberActivityTotal" | "raid" | "dungeonRun" | "guildSettings" | "guild">;
+type Db = Pick<PrismaClient, "guildStatSnapshot" | "member" | "character" | "memberActivityTotal" | "raid" | "dungeonRun" | "guildSettings" | "guild" | "guildRosterEntry" | "guildEventEntry">;
 
 const counts = (value: unknown): Record<string, number> => {
   const out: Record<string, number> = {};
@@ -33,7 +35,7 @@ export async function takeGuildSnapshot(db: Db, guildId: string, discordMembers:
   const dayEnd = new Date(dayStart.getTime() + DAY_MS);
   const since = new Date(now.getTime() - DAY_MS);
   const members = { status: "ACTIVE" as const, isTest: false };
-  const [linkedMembers, characters, totals, active, raids, dungeonRuns, previous, today] = await Promise.all([
+  const [linkedMembers, characters, totals, active, raids, dungeonRuns, previous, today, inGuildMembers, joins, leaves] = await Promise.all([
     db.member.count({ where: { guildId, ...members, characters: { some: {} } } }),
     db.character.findMany({ where: { guildId, member: members }, select: { level: true, className: true, lastSeenAt: true }, take: 20_000 }),
     db.memberActivityTotal.aggregate({ where: { guildId }, _sum: { messages: true, voiceSeconds: true } }),
@@ -41,7 +43,11 @@ export async function takeGuildSnapshot(db: Db, guildId: string, discordMembers:
     db.raid.count({ where: { guildId, isTest: false, startedAt: { gte: dayStart, lt: dayEnd } } }),
     db.dungeonRun.count({ where: { guildId, valid: true, OR: [{ startedAt: { gte: dayStart, lt: dayEnd } }, { startedAt: null, createdAt: { gte: dayStart, lt: dayEnd } }] } }),
     db.guildStatSnapshot.findFirst({ where: { guildId, day: { lt: day } }, orderBy: { day: "desc" }, select: { totalMessages: true, totalVoiceSeconds: true, discordMembers: true } }),
-    db.guildStatSnapshot.findUnique({ where: { guildId_day: { guildId, day } }, select: { onlinePeak: true, discordMembers: true } })
+    db.guildStatSnapshot.findUnique({ where: { guildId_day: { guildId, day } }, select: { onlinePeak: true, discordMembers: true } }),
+    // Member trend: the in-game roster (Forever only) and the day's joins and leaves from the game's own event log.
+    db.guildRosterEntry.count({ where: { guildId, gameEdition: "forever", inGuild: true } }),
+    db.guildEventEntry.count({ where: { guildId, gameEdition: "forever", kind: "join", at: { gte: dayStart, lt: dayEnd } } }),
+    db.guildEventEntry.count({ where: { guildId, gameEdition: "forever", kind: { in: ["quit", "remove"] }, at: { gte: dayStart, lt: dayEnd } } })
   ]);
   const levelBands: Record<string, number> = Object.fromEntries(LEVEL_BANDS.map(band => [band, 0]));
   const classCounts: Record<string, number> = {};
@@ -55,6 +61,8 @@ export async function takeGuildSnapshot(db: Db, guildId: string, discordMembers:
   const row = {
     discordMembers: discordMembers ?? today?.discordMembers ?? previous?.discordMembers ?? 0,
     activeMembers: active, linkedMembers, rosterSize: characters.length,
+    // Zero rows means no roster was ever uploaded: unknown, not an empty guild.
+    inGuildMembers: inGuildMembers > 0 ? inGuildMembers : null, joins: inGuildMembers > 0 ? joins : null, leaves: inGuildMembers > 0 ? leaves : null,
     onlinePeak: Math.max(seen, today?.onlinePeak ?? 0), level60: levelBands["60"]!,
     // Differences against the last earlier snapshot; the first snapshot has nothing to compare with.
     messages: previous ? Math.max(0, totalMessages - previous.totalMessages) : 0,
@@ -81,6 +89,7 @@ export async function recentSnapshots(db: Pick<PrismaClient, "guildStatSnapshot"
   const rows = await db.guildStatSnapshot.findMany({ where: { guildId }, orderBy: { day: "desc" }, take: Math.min(Math.max(1, days), MAX_FEED_DAYS) });
   return rows.reverse().map(row => ({ day: row.day, discordMembers: row.discordMembers, activeMembers: row.activeMembers, linkedMembers: row.linkedMembers, rosterSize: row.rosterSize,
     onlinePeak: row.onlinePeak, level60: row.level60, messages: row.messages, voiceMinutes: row.voiceMinutes, raids: row.raids, dungeonRuns: row.dungeonRuns,
+    inGuildMembers: row.inGuildMembers, joins: row.joins, leaves: row.leaves,
     levelBands: counts(row.levelBands), classCounts: counts(row.classCounts) }));
 }
 

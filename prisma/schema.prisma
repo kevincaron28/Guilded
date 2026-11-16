@@ -1067,6 +1067,9 @@ model GuildSettings {
   // 9.0 guild bank ledger: weekly summary in the officer log channel (on by default; /officer stats bank).
   guildBankWeeklyEnabled   Boolean @default(true)
   guildBankLastPostAt      DateTime?
+  // Weekly member-trend card in the officer log channel (on by default; /officer stats trend-post).
+  memberTrendPostEnabled   Boolean @default(true)
+  memberTrendLastPostAt    DateTime?
   // 9.1 (docs/plans/GUILD_BANK.md), on by default with officer off switches (/bank settings):
   // members can search the bank contents (never the ledger); bank requests get a card with
   // buttons in the request channel (else the log channel); low-stock alerts in the log channel.
@@ -3452,6 +3455,10 @@ model GuildStatSnapshot {
   // Active members with at least one linked character.
   linkedMembers  Int      @default(0)
   rosterSize     Int      @default(0)
+  // Officer member-trend graph: members in the in-game roster that day (Forever, inGuild) and that day's joins and leaves from the game's event log. Null before tracking began.
+  inGuildMembers Int?
+  joins          Int?
+  leaves         Int?
   // Characters seen online in the 24 hours before the snapshot (highest value of the day).
   onlinePeak     Int      @default(0)
   level60        Int      @default(0)

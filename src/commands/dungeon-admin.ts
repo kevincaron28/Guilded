@@ -14,6 +14,7 @@ import { anomalyReport, describeAnomalies, describeHeld, heldReport, setDeviceEx
 import { releaseHeldRuns, releaseReply } from "../services/run-release.js";
 import { describeSyncIssues, syncHealth } from "../services/sync-health.js";
 import { asLang, tx } from "../i18n.js";
+import { dungeonShare } from "../services/community-ingame.js";
 import { guildService, requireGuildContext } from "./context.js";
 
 const auditService = createAuditService(prisma);
@@ -26,7 +27,7 @@ export const dungeonAdminCommand = new SlashCommandBuilder()
   .addSubcommand((sub) => sub.setName("invalidate").setDescription("Stop a run from counting and take back its points")
     .addStringOption((o) => o.setName("run").setDescription("The run (pick from the list)").setAutocomplete(true).setRequired(true))
     .addStringOption((o) => o.setName("reason").setDescription("Why (shown in the history)").setRequired(true).setMaxLength(200)))
-  .addSubcommand((sub) => sub.setName("award").setDescription("Adjust guild community points")
+  .addSubcommand((sub) => sub.setName("award").setDescription("Adjust dungeon points (count in community points)")
     .addIntegerOption((o) => o.setName("amount").setDescription("e.g. 25, or -25 to remove").setRequired(true).setMinValue(-10000).setMaxValue(10000))
     .addStringOption((o) => o.setName("reason").setDescription("Why (shown in the history)").setRequired(true).setMaxLength(200))
     .addUserOption((o) => o.setName("member").setDescription("Discord member"))
@@ -96,7 +97,8 @@ export async function executeDungeonAdmin(interaction: ChatInputCommandInteracti
     const amount = interaction.options.getInteger("amount", true);
     const reason = interaction.options.getString("reason", true);
     await adjustPoints(prisma, context.guildId, member.id, amount, reason, actor);
-    reply = `${amount > 0 ? "Gave" : "Took"} ${Math.abs(amount)} dungeon point(s) ${amount > 0 ? "to" : "from"} ${member.displayName}: ${reason}`;
+    const share = dungeonShare(Math.abs(amount)) * (amount < 0 ? -1 : 1);
+    reply = `${amount > 0 ? "Gave" : "Took"} ${Math.abs(amount)} dungeon point(s) ${amount > 0 ? "to" : "from"} ${member.displayName}: ${reason}. Counts in community points as ${share > 0 ? "+" : ""}${share} (the dungeon share, bounded per week).`;
     await log(reply, { memberId: member.id, amount, reason });
   } else if (subcommand === "audit") {
     if (interaction.options.getBoolean("why")) {

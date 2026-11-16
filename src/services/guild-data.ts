@@ -42,7 +42,9 @@ const eventSchema = z.object({
   at: z.number().int().positive()
 });
 
-export interface GuildDataResult { roster: number; skippedOlder: boolean; left: number; characters: number; unclaimed: number; events: number; duplicateEvents: number; text: boolean; ranksDated: number }
+export interface GuildDataResult { roster: number; skippedOlder: boolean; left: number; characters: number; unclaimed: number; events: number; duplicateEvents: number; text: boolean; ranksDated: number;
+  /** Linked characters whose rank moved up in this officer roster (lower rank index): announced once in the officer log. */
+  promotions: { name: string; rankName: string }[] }
 
 type Tx = Pick<Prisma.TransactionClient, "guildRosterEntry" | "guildEventEntry" | "guildText" | "character" | "unclaimedCharacter" | "characterRankSeen">;
 
@@ -61,7 +63,7 @@ const titleClass = (value: string) => value.charAt(0) + value.slice(1).toLowerCa
 /** Applies one upload's guild data inside the caller's transaction. */
 export async function applyGuildData(tx: Tx, guildId: string, uploader: { memberId: string | null; officer: boolean },
   snapshot: Pick<AddonSnapshot, "guildRoster" | "guildEvents" | "guildInfo" | "gameEdition" | "interface">, now = new Date()): Promise<GuildDataResult> {
-  const result: GuildDataResult = { roster: 0, skippedOlder: false, left: 0, characters: 0, unclaimed: 0, events: 0, duplicateEvents: 0, text: false, ranksDated: 0 };
+  const result: GuildDataResult = { roster: 0, skippedOlder: false, left: 0, characters: 0, unclaimed: 0, events: 0, duplicateEvents: 0, text: false, ranksDated: 0, promotions: [] };
   const edition = gameEditionOf(snapshot);
   const fresh = (at: Date) => at.getTime() <= now.getTime() + FUTURE_SLACK_MS && now.getTime() - at.getTime() <= MAX_AGE_MS;
   const reportedById = uploader.memberId;
@@ -78,6 +80,7 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
     const rosterTouch = new Map<string, { ids: string[]; lastOnlineAt?: Date; reportedById: string | null }>();
     const characterSeen = new Map<number, string[]>();
     const unclaimedSeen = new Map<number, string[]>();
+    let ranksRenamed = false; // an index now carries another name: the guild reordered or renamed ranks
     const characterRankTouch: string[] = [];
     const unclaimedRankTouch: string[] = [];
     const members = roster.members.flatMap((raw) => { const parsed = memberSchema.safeParse(raw); return parsed.success ? [parsed.data] : []; });
@@ -129,7 +132,12 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
         const seen = movedForward(character.lastSeenAt, lastOnlineOk, minMove);
         let touchRank = false;
         if (officerRanks && member.rankName !== undefined && member.rankIndex !== undefined && rankFresh(character.guildRankAt)) {
+          if (character.guildRankName && character.guildRankIndex === member.rankIndex && character.guildRankName !== member.rankName) ranksRenamed = true;
           if (character.guildRankName !== member.rankName || character.guildRankIndex !== member.rankIndex) {
+            // Moved up (a lower index is a higher rank) from a known earlier rank: one officer-log line, sent by the caller.
+            if (character.guildRankName && character.guildRankIndex != null && member.rankIndex < character.guildRankIndex && member.rankName !== character.guildRankName && !result.skippedOlder) {
+              result.promotions.push({ name: character.displayName?.trim() || character.name, rankName: member.rankName });
+            }
             update.guildRankName = member.rankName; update.guildRankIndex = member.rankIndex; update.guildRankAt = observedAt;
           } else touchRank = true;   // same rank confirmed again (rank roles read its age)
         }
@@ -188,6 +196,8 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
         result.unclaimed++;
       }
     }
+    // A reorder or rename of ranks looks like many promotions: announce nothing then, nor when more than 5 members move up at once.
+    if (ranksRenamed || result.promotions.length > 5) result.promotions = [];
     // The batched statements: one per group, not one per member.
     for (const batch of rosterTouch.values()) {
       await tx.guildRosterEntry.updateMany({ where: { id: { in: batch.ids } }, data: { observedAt, reportedById: batch.reportedById, ...(batch.lastOnlineAt ? { lastOnlineAt: batch.lastOnlineAt } : {}) } });

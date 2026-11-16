@@ -34,7 +34,7 @@ messages and saved keys did not change. No saved key was renamed or dropped.
 | | | Post my calls in guild chat | `settings.helpGuildChat` | what guildmates see from you |
 | | | Mute 10 min / Reset call window | session only / `settings.helpPos` | you |
 | Officers (officers only) | Whole guild | Allow milestone announcements | `GuildedDB.milestones.guild.off`, shared with online guildmates | whole guild |
-| | My officer jobs | Promote linked Initiates to Member | `GuildedDB.officerAuto.off.promote` | this officer's game |
+| | My officer jobs | Show a ready-to-promote alert (one click each) | `GuildedDB.officerAuto.off.promote` | this officer's game |
 | | Parts for the whole guild | one switch per optional part | `settings.guildModules.off.<key>`, shared | whole guild |
 | Advanced | Help and tools | Open the tools window, Guilded setup, Diagnostics, Raid status, All commands, Addon version, Info/data/developer tools | none | you |
 

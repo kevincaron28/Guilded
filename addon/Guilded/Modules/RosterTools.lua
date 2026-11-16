@@ -21,6 +21,26 @@ local function outOfCombat()
   local ok, value = pcall(InCombatLockdown)
   return ok and not secret(value) and (value == false or value == nil)
 end
+-- Owner rule (16 Nov 2026): the Alt rank is never promoted, into or out of. Rank names that mean "alt character" in
+-- English and French, without case: Alt, Alts, Alt (...), Reroll, Re-roll, R\195\169roll, Twink. Kept in step with
+-- ALT_RANK_NAMES in src/services/promotion.ts (tests/lua/promotion-rework.test.ts checks both).
+local ALT_PREFIXES = { "alt", "reroll", "re-roll", "r\195\169roll", "r\195\169-roll", "twink" }
+function tools.isAltRank(rankName)
+  if type(rankName) ~= "string" or secret(rankName) then return false end
+  local plain = rankName:lower():gsub("^%s+", ""):gsub("%s+$", "")
+  plain = plain:gsub("\195\137", "\195\169")
+  for _, prefix in ipairs(ALT_PREFIXES) do
+    if plain:sub(1, #prefix) == prefix then
+      local nextChar = plain:sub(#prefix + 1, #prefix + 1)
+      if nextChar == "s" then nextChar = plain:sub(#prefix + 2, #prefix + 2) end
+      if nextChar == "" or not nextChar:find("^%a") then return true end
+    end
+  end
+  return false
+end
+-- Other modules (the promotion panel) hear every roster event after the engine has processed it, and every
+-- promotion the roster verified; this replaces their own timers.
+tools.onRoster, tools.onVerified = {}, {}
 function tools.context()
   local guild, realm = read(GetGuildInfo, "player"), read(GetRealmName)
   local edition = ns.util and ns.util.gameEdition()
@@ -76,7 +96,7 @@ function tools.snapshot()
     local rankName = read(GuildControlGetRankName, i)
     layout[i] = text(rankName, 120) and rankName or tostring(i)
   end
-  return { rows = rows, actor = me, ranks = ranks, layout = table.concat(layout, "\n"), scope = tools.context(), at = now() }
+  return { rows = rows, actor = me, ranks = ranks, rankNames = layout, layout = table.concat(layout, "\n"), scope = tools.context(), at = now() }
 end
 local function permitted(action, target, snapshot)
   if target.key == snapshot.actor.key or target.rank <= snapshot.actor.rank then return false end
@@ -267,6 +287,7 @@ function tools.verify()
   local changed = item.action == "kick" and not row or row and row.guid == item.guid and beforeValue(row, item.action) == item.after
   if changed then
     pending.record.status = "verified"; item.status = "verified"; p.pending = nil; p.cursor = p.cursor + 1
+    for _, fn in ipairs(tools.onVerified) do pcall(fn, item, pending.record) end
   end
 end
 function tools.cancel()
@@ -309,6 +330,7 @@ local frame = CreateFrame("Frame")
 for _, event in ipairs({ "GUILD_ROSTER_UPDATE", "PLAYER_GUILD_UPDATE", "PLAYER_LOGIN" }) do pcall(frame.RegisterEvent, frame, event) end
 frame:SetScript("OnEvent", function(_, event)
   if event == "GUILD_ROSTER_UPDATE" then tools.generation = tools.generation + 1; tools.refreshedAt = now(); tools.refreshedScope = tools.context(); tools.verify()
+    for _, fn in ipairs(tools.onRoster) do pcall(fn) end
   elseif event == "PLAYER_GUILD_UPDATE" then tools.cancel(); tools.refreshedAt = -1000
   elseif event == "PLAYER_LOGIN" then
     local store = tools.store()

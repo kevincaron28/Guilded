@@ -140,12 +140,13 @@ describe("ready to promote panel", () => {
   });
   it("adds members the bot already lists", () => {
     setup(); s.run(rows);
-    s.run('GuildedPromotion = { ready = { "Bob-Realm" } }');
+    // With the bot's list (rule + ready), ONLY its ready members are offered, whatever the local days say.
+    s.run('GuildedPromotion = { fromRank = "Initiate", minDays = 7, ready = { "Bob-Realm" }, waiting = {} }');
     expect(s.run("local r=NS.promotion.ready(); return #r..':'..r[1].name..':'..tostring(r[1].fromBot)")).toBe("1:Bob-Realm:true");
   });
   it("promotes one member per click through the reviewed engine and waits for verification", () => {
     setup(); s.run(rows);
-    s.run('GuildedPromotion = { ready = { "Amy-Realm", "Bob-Realm" } }');
+    s.run('GuildedPromotion = { fromRank = "Initiate", minDays = 7, ready = { "Amy-Realm", "Bob-Realm" }, waiting = {} }');
     expect(s.run('local ok=NS.promotion.promote("Amy-Realm"); return tostring(ok)')).toBe("true");
     expect(s.run("return #CALLS")).toBe("1");
     expect(s.run('local ok,msg=NS.promotion.promote("Bob-Realm"); return tostring(ok)')).toBe("false");

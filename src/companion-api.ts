@@ -54,6 +54,7 @@ import { linkVerifiedCharacters, tellVerified } from "./services/character-verif
 import { tellLinkConflicts } from "./services/link-conflict-dm.js";
 import { applyGuildmateRelay } from "./services/guildmate-relay.js";
 import { applyGuildData } from "./services/guild-data.js";
+import { announcePromotions } from "./services/promotion.js";
 import { applyGuildBank } from "./services/guild-bank.js";
 import { serverKnowsWowGuild } from "./services/wow-guilds.js";
 import { RETRY_OUTCOME, saveRunReceipts } from "./services/dungeon-import.js";
@@ -1491,8 +1492,11 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       if (preview.snapshot.guildRoster || preview.snapshot.guildEvents.length || preview.snapshot.guildInfo) {
         // 9 Nov 2026: two connections uploading one file at once collided on the same Character rows (P2034). Uploads for one
         // guild now apply one at a time, and a lost write conflict is retried with a short jittered backoff inside an 8 s budget.
-        await timed("guild-data", () => serializeByKey(`guild-data:${guild.id}`, () => retryWriteConflict(() => prisma.$transaction((tx) => applyGuildData(tx, guild.id, { memberId: pairedMemberId ?? null, officer: access.officer }, preview.snapshot),
-          { timeout: 60_000, maxWait: 15_000 })))).catch((error: unknown) => { console.error("Guild data upload failed", error); });
+        const guildData = await timed("guild-data", () => serializeByKey(`guild-data:${guild.id}`, () => retryWriteConflict(() => prisma.$transaction((tx) => applyGuildData(tx, guild.id, { memberId: pairedMemberId ?? null, officer: access.officer }, preview.snapshot),
+          { timeout: 60_000, maxWait: 15_000 })))).catch((error: unknown) => { console.error("Guild data upload failed", error); return null; });
+        // 16 Nov 2026: a rank moved up in the officer's roster: one line in the officer log (the bot is the single source; nothing public).
+        const promotedDiscord = guildData?.promotions.length ? client?.guilds.cache.get(guild.discordId) : undefined;
+        if (promotedDiscord && guildData) void announcePromotions(promotedDiscord, guildData.promotions);
         // The whole guild roster (any member's upload) is now stored: waiting invite requests for those names are done.
         if (client && preview.snapshot.guildRoster) {
           void backCheckInvites(client, prisma, { id: guild.id, discordId: guild.discordId })

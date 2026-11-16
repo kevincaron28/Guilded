@@ -153,18 +153,19 @@ export function linkedMapLua(entries, updatedAt) {
 export function promotionToLua(promotion) {
   const ready = Array.isArray(promotion?.ready) ? promotion.ready.filter(name => typeof name === "string" && name && !/[\t\r\n]/.test(name)).slice(0, 100) : null;
   if (!ready) return ["GuildedPromotion = nil"];
-  const linked = Array.isArray(promotion.linked) ? promotion.linked.filter(name => typeof name === "string" && name && !/[\t\r\n]/.test(name)).slice(0, 200) : [];
+  const waiting = Array.isArray(promotion.waiting) ? promotion.waiting.filter(row => row && typeof row.name === "string" && row.name && !/[\t\r\n]/.test(row.name) && Number.isInteger(row.daysLeft) && row.daysLeft >= 0 && row.daysLeft <= 3650).slice(0, 100) : [];
   const iso = typeof promotion.updatedAt === "string" && !Number.isNaN(Date.parse(promotion.updatedAt)) ? luaString(promotion.updatedAt) : "nil";
   const days = Number.isInteger(promotion.minDays) && promotion.minDays >= 0 && promotion.minDays <= 3650 ? promotion.minDays : "nil";
+  const level = Number.isInteger(promotion.minLevel) && promotion.minLevel >= 0 && promotion.minLevel <= 100 ? promotion.minLevel : 0;
   return [
     "GuildedPromotion = {",
-    `  updatedAt = ${iso}, fromRank = ${typeof promotion.fromRank === "string" ? luaString(promotion.fromRank.slice(0, 40)) : "nil"}, minDays = ${days},`,
+    `  updatedAt = ${iso}, fromRank = ${typeof promotion.fromRank === "string" ? luaString(promotion.fromRank.slice(0, 40)) : "nil"}, minDays = ${days}, minLevel = ${level},`,
+    // Only these members may be offered for promotion in game (Modules/Promotion.lua): never "linked" on its own.
     "  ready = {",
     ...ready.map(name => `    ${luaString(name)},`),
     "  },",
-    // Every linked character at the starting rank: the officer client promotes these (Modules/OfficerNotes.lua).
-    "  linked = {",
-    ...linked.map(name => `    ${luaString(name)},`),
+    "  waiting = {",
+    ...waiting.map(row => `    { name = ${luaString(row.name)}, daysLeft = ${row.daysLeft} },`),
     "  }",
     "}"
   ];

@@ -1,7 +1,7 @@
 import { ChannelType, MessageFlags, SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember } from "discord.js";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
-import { formatPromotionPlan, loadPromotionPlan, ruleFrom } from "../services/promotion.js";
+import { formatPromotionPlan, isAltRank, loadPromotionPlan, ruleFrom } from "../services/promotion.js";
 import { asLang } from "../i18n.js";
 import { guildService, requireGuildContext } from "./context.js";
 
@@ -38,6 +38,10 @@ export async function executePromotion(interaction: ChatInputCommandInteraction)
   }
 
   const o = interaction.options;
+  if (isAltRank(o.getString("rank"))) {
+    await reply(t("Alts are never promoted automatically: choose a rank other than an Alt rank.", "Les alts ne sont jamais promus automatiquement : choisis un rang qui n'est pas un rang d'alt."));
+    return;
+  }
   const data = {
     ...(o.getBoolean("on") !== null ? { promotionEnabled: o.getBoolean("on")! } : {}),
     ...(o.getString("rank") ? { promotionFromRank: o.getString("rank")!.trim() } : {}),

@@ -13,7 +13,7 @@ request list: [roadmap history](docs/archive/ROADMAP-history.md).
 ## Owner requests, 16 November 2026
 
 - **(a) Secret achievements** — hidden until earned (mystery entry "???" and "+N secret" in counts on Discord, website, app and addon; normal with a "Secret" tag once earned). First one: killed by the Son of Arugal (NPC 2529), this PR. More secrets later are one line in the addon's `KILLED_BY` table plus one catalogue row. Needs a companion release (new `secret` milestone kind) and the addon.
-- **(b) Guild promotions / auto-promote review and optimisation** — research in progress by the coordinator.
+- **(b) Guild promotions rework (PR #1024).** Auto-promote follows the bot's rule only (`GuildedPromotion.ready`, matched by rank name); no timer: officers get a small "N ready to promote" alert, a Ready to promote panel and one click per member ("Promote next (N left)"); the Alt rank is never promoted into or out of; the bot announces promotions in the officer log only (when a roster upload shows a rank moving up). Real-client checks owed: one-click promote on Forever, no blocked-action popup, the officer-log line after the next upload.
 
 ## Start here — 13 November 2026 (next session)
 

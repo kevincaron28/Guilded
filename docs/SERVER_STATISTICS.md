@@ -26,7 +26,7 @@ Test members and `/testraid` data are excluded. Rows are kept; there is no reten
 
 Sign in at the website, then **Guild statistics** (`/me/statistics`): members over time, activity, messages and voice,
 raids and dungeon runs, the level distribution and the class mix, for 7, 30, 90 or 365 days. Officers only (the same check as
-`/officer export`). The charts are inline SVG: no script, no outside library. `/stats server:true` in Discord shows the latest
+`/officer export`). The charts are inline SVG: no script, no outside library. `/report stats server:true` in Discord shows the latest
 snapshot with a class chart image.
 
 ## Google Sheets (no Google credentials stored)
@@ -70,4 +70,4 @@ Writing straight into a Sheet with the Google API (needs a Google Cloud service 
 ## Live checks needed
 
 Seven days of real snapshots draw; the CSV loads in Google Sheets through the Worker; revoking the key stops the feed;
-`/officer stats feed` and `/stats server:true` in a real server; `FEATURE_PREVIEW_GUILD_IDS` limits snapshots until it is unset.
+`/officer stats feed` and `/report stats server:true` in a real server; `FEATURE_PREVIEW_GUILD_IDS` limits snapshots until it is unset.

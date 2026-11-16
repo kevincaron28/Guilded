@@ -54,7 +54,7 @@ const STRINGS = {
   "signup.waitlistOrder": { en: "first in line gets the next free spot", fr: "le premier de la file prend la prochaine place" },
   "signup.openSpotsNote": { en: "anyone in the guild can sign up to fill", fr: "tout membre de la guilde peut s'inscrire pour compléter" },
   "signup.more": { en: "+{count} more", fr: "+{count} de plus" },
-  "signup.issuesLegend": { en: "⚠️ N: open warnings from the addon's gear check (last 24 h, /readiness)", fr: "⚠️ N : alertes de la vérification d'équipement de l'addon (dernières 24 h, /readiness)" },
+  "signup.issuesLegend": { en: "⚠️ N: open warnings from the addon's gear check (last 24 h, /lead readiness-raid)", fr: "⚠️ N : alertes de la vérification d'équipement de l'addon (dernières 24 h, /lead readiness-raid)" },
   "signup.fullRoster": { en: "Full roster: /raid roster", fr: "Liste complète : /raid roster" },
   "status.PLANNED": { en: "Planned", fr: "Prévu" },
   "status.ACTIVE": { en: "In progress", fr: "En cours" },

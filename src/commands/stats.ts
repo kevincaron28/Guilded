@@ -79,7 +79,7 @@ export async function executeStats(interaction: ChatInputCommandInteraction): Pr
     await prisma.guildSettings.update({ where: { guildId: context.guildId }, data: { dailyRecapEnabled: recapPosts, ...(recapPosts ? { dailyRecapLastDay: recapDay(new Date(), (await guildService.getSettings(context.guildId))?.timezone ?? "America/Toronto") } : {}) } });
     await interaction.reply({ content: recapPosts
       ? lang === "fr" ? "🗓️ Le bilan quotidien est publié chaque jour où il se passe quelque chose (salon du rapport hebdomadaire, sinon des annonces)." : "🗓️ The daily recap is posted every day something happens (weekly-report channel, else announcements)."
-      : lang === "fr" ? "Le bilan quotidien n'est plus publié. /stats recap:true le montre toujours en privé." : "The daily recap is no longer posted. /stats recap:true still shows it privately.",
+      : lang === "fr" ? "Le bilan quotidien n'est plus publié. /report stats recap:true le montre toujours en privé." : "The daily recap is no longer posted. /report stats recap:true still shows it privately.",
       flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
     return;
   }

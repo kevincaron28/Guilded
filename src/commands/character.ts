@@ -136,9 +136,9 @@ ${PANEL_HINT}`, flags: MessageFlags.Ephemeral });
     // not relink it either. Only this character is affected; their devices stay connected.
     await unlinkCharacter(prisma, character, context.guildId, !isOwn);
     if (interaction.guild) {
-      await postToLogChannel(interaction.guild, isOwn
-        ? `${interaction.user.username} unlinked their character ${characterName(character)}.`
-        : `${interaction.user.username} unlinked ${characterName(character)} from ${character.member.displayName}.`);
+      await postToLogChannel(interaction.guild, lang => isOwn
+        ? lang === "fr" ? `${interaction.user.username} a délié son personnage ${characterName(character)}.` : `${interaction.user.username} unlinked their character ${characterName(character)}.`
+        : lang === "fr" ? `${interaction.user.username} a délié ${characterName(character)} de ${character.member.displayName}.` : `${interaction.user.username} unlinked ${characterName(character)} from ${character.member.displayName}.`);
     }
     await interaction.reply({
       content: `Unlinked **${characterName(character)}**${isOwn ? "" : ` from ${character.member.displayName}. Their uploads won't relink it; an officer can still move it to anyone (\`/officer character move\`)`}. Nothing was deleted: its history comes back when it is linked again. If the addon reports it again, it will show up as unclaimed until then.
@@ -185,7 +185,7 @@ ${PANEL_HINT}`,
       const moved = await officerMoveCharacter(prisma, character.id, target.id);
       if (!moved) throw new Error(`${characterName(character)} is gone. /officer character unclaimed shows what can be linked.`);
       const from = character.detachedAt ? "the unlinked characters" : character.member.displayName;
-      if (interaction.guild) await postToLogChannel(interaction.guild, `${interaction.user.username} moved ${characterName(character)} from ${from} to ${user.username} (history kept).`);
+      if (interaction.guild) await postToLogChannel(interaction.guild, lang => lang === "fr" ? `${interaction.user.username} a déplacé ${characterName(character)} de ${from} vers ${user.username} (historique conservé).` : `${interaction.user.username} moved ${characterName(character)} from ${from} to ${user.username} (history kept).`);
       await interaction.reply({
         content: `Moved **${characterName(character)}** from ${from} to ${user.username} as ${moved.character.isMain ? "their main" : "an alt"}. Its history came with it${character.detachedAt ? "" : `, and ${character.member.displayName}'s uploads and verify code won't take it back`}.`,
         flags: MessageFlags.Ephemeral
@@ -196,7 +196,7 @@ ${PANEL_HINT}`,
       const action = interaction.options.getString("action", true);
       if (action === "on" || action === "off") {
         await prisma.guildSettings.update({ where: { guildId: context.guildId }, data: { characterPicturesEnabled: action === "on" } });
-        if (interaction.guild) await postToLogChannel(interaction.guild, `${interaction.user.username} turned character pictures ${action}.`);
+        if (interaction.guild) await postToLogChannel(interaction.guild, lang => lang === "fr" ? `${interaction.user.username} a modifié les images de personnage : ${action}.` : `${interaction.user.username} turned character pictures ${action}.`);
         await interaction.reply({ content: action === "on"
           ? "Character pictures are on: cards show a character's picture when one is set. Picking pictures is paused for now."
           : "Character pictures are off for this server: cards and pages stop showing them. Stored pictures are kept; turn them on again to show them.", flags: MessageFlags.Ephemeral });
@@ -207,7 +207,7 @@ ${PANEL_HINT}`,
       const character = selectedCharacter(await prisma.character.findMany({ where: { member: { guildId: context.guildId } }, include: { member: true } }), wanted);
       if (!character) throw new Error(`No linked character called "${wanted}".`);
       const removed = await removePictureByOfficer(prisma, context.guildId, character.id, context.memberId);
-      if (removed && interaction.guild) await postToLogChannel(interaction.guild, `${interaction.user.username} removed the picture of ${characterName(character)} (${character.member.displayName}).`);
+      if (removed && interaction.guild) await postToLogChannel(interaction.guild, lang => lang === "fr" ? `${interaction.user.username} a retiré l'image de ${characterName(character)} (${character.member.displayName}).` : `${interaction.user.username} removed the picture of ${characterName(character)} (${character.member.displayName}).`);
       await interaction.reply({ content: removed
         ? `Removed the picture of **${characterName(character)}**. New cards no longer show it; cards already posted keep it. ${character.member.displayName} can pick another one.`
         : `${characterName(character)} has no picture.`, flags: MessageFlags.Ephemeral });

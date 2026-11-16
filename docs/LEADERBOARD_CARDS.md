@@ -16,7 +16,7 @@ Every ranking card is drawn by one layout in `src/services/score-card.ts` (`Scor
 | Dungeon season | `dungeonSeasonCard` (dungeon-leaderboard.ts) | top 25 | score and dungeons when the season is rated, else points |
 | Community leaderboard | `communityBoardCard` (community-leaderboard.ts) | top 25, the community season (last 4 weeks with no season) | Discord, dungeons, PvP, total; replaced the guild activity ladder on 14 November 2026 (docs/plans/COMMUNITY_LEADERBOARD_MERGE_2026-11-14.md) |
 | Top crafters | `craftLadderCard` (craft-ladder.ts) | top 25 in #top-crafters | points (1 per finished craft), crafts in 30 days, main profession |
-| /stats server | `serverStatsCard` (stats-card.ts) | classes by count | bar, characters |
+| /report stats server | `serverStatsCard` (stats-card.ts) | classes by count | bar, characters |
 
 - Class colours for boards that only store a name come from `ladder-classes.ts`: it matches the full name, then the first name. An ambiguous first name gets no colour.
 - With a card attached, the duel embed keeps only the top 3, and the battleground embed keeps only its summary. The dungeon board's embeds are unchanged, with the picture on the first one. When drawing fails or is busy, every board falls back to its old embed.

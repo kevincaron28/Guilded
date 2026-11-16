@@ -1,4 +1,5 @@
 import { escapeMarkdown, type Guild } from 'discord.js';
+import { boardName } from './board-name.js';
 import type { PrismaClient } from '../generated/prisma/client.js';
 import type { Lang } from '../i18n.js';
 import { discordNames } from './community-honors.js';
@@ -28,7 +29,7 @@ export async function communityRankingLines(database: PrismaClient, guild: Guild
   return rows.map(row => {
     const rank = 1 + board.filter(other => other.points > row.points).length;
     const fallback = `${lang === 'fr' ? 'Membre' : 'Member'} …${row.userId.slice(-4)}`;
-    const name = (resolved.get(row.userId) || fallback).replace(/[\r\n]/g, ' ').slice(0, 32)
+    const name = boardName(resolved.get(row.userId) || fallback, 32)
       .replace(/@/g, '@\u200b').replace(/</g, '‹');
     return `${rank}. **${escapeMarkdown(name)}** · ${row.points} pts${splitSuffix(row)}`;
   }).join('\n');

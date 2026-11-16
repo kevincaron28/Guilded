@@ -106,7 +106,6 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/report inactive` · `/report guild` · `/poll create` · `/officer loot award` (loot council)",
       "`/officer export table:` — CSV for Excel or Google Sheets: standings, EPGP ledger, loot, attendance or roster (only you see it)",
       "`/organize start-season` · `/organize lottery create` · `/organize gaming create` · `/organize challenge create` · `/organize quiz` — organize activities",
-      "`/events board` · `/events reminders` · `/events status` — Upcoming Events; Manage Server required, reminders opt-in only",
       "`/organize honors-preview` · `/organize honors-settings` — preview the weekly MVP post; weekly on/off, week start, MVP ping",
       "`/participation settings` · `/participation channels` · `/participation claims` · `/participation review` · `/participation reverse` — earning coverage, controls and helper approvals"
     ],
@@ -122,7 +121,6 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/report inactive` · `/report guild` · `/poll create` · `/officer loot award` (conseil de loot)",
       "`/officer export table:` — CSV pour Excel ou Sheets : classement, registre EPGP, butin, présences ou effectif (vous seul)",
       "`/organize start-season` · `/organize lottery create` · `/organize gaming create` · `/organize challenge create` · `/organize quiz` — organiser les activités",
-      "`/events board` · `/events reminders` · `/events status` — événements à venir; Gérer le serveur requis",
       "`/organize honors-preview` · `/organize honors-settings` — aperçu du MVP de la semaine et réglages",
       "`/participation settings` · `/participation channels` · `/participation claims` · `/participation review` · `/participation reverse` — couverture des gains, réglages, entraide"
     ]

@@ -41,7 +41,7 @@ export function renderTemplate(template: string, vars: TemplateVars): string {
 // Posts a plain-text line to the configured log channel, if any. Never pings
 // anyone and never throws: logging must not be able to break the action that
 // triggered it.
-export async function postToLogChannel(discordGuild: DiscordGuild, content: string, kind: "log" | "craft" = "log"): Promise<void> {
+export async function postToLogChannel(discordGuild: DiscordGuild, content: string | ((lang: "en" | "fr") => string), kind: "log" | "craft" = "log"): Promise<void> {
   try {
     const guild = await guildService.ensureGuild(discordGuild.id, discordGuild.name);
     const settings = await guildService.getSettings(guild.id);
@@ -50,7 +50,7 @@ export async function postToLogChannel(discordGuild: DiscordGuild, content: stri
     if (!channelId) return;
     const channel = await discordGuild.channels.fetch(channelId).catch(() => null);
     if (!channel?.isTextBased()) return;
-    await channel.send({ content, allowedMentions: { parse: [] } });
+    await channel.send({ content: typeof content === "string" ? content : content(asLang(settings?.language)), allowedMentions: { parse: [] } });
   } catch (error) {
     console.error("Failed to post to log channel", error);
   }
@@ -78,8 +78,8 @@ export async function handleMemberRolesChange(discordGuild: DiscordGuild, before
   if (before.partial) return;
   const had = guildRoleOf(rolesOf(before), settings?.memberRoleId);
   const has = guildRoleOf(rolesOf(after), settings?.memberRoleId);
-  if (!had && has) await postToLogChannel(discordGuild, `Joined the guild: ${after.user.tag} (${after.id}) got the ${has} role.`);
-  if (had && !has) await postToLogChannel(discordGuild, `Left the guild roles: ${after.user.tag} (${after.id}) no longer has ${had}.`);
+  if (!had && has) await postToLogChannel(discordGuild, lang => lang === "fr" ? `A rejoint la guilde : ${after.user.tag} (${after.id}) a reçu le rôle ${has}.` : `Joined the guild: ${after.user.tag} (${after.id}) got the ${has} role.`);
+  if (had && !has) await postToLogChannel(discordGuild, lang => lang === "fr" ? `A quitté les rôles de la guilde : ${after.user.tag} (${after.id}) n'a plus le rôle ${had}.` : `Left the guild roles: ${after.user.tag} (${after.id}) no longer has ${had}.`);
 }
 
 export async function handleMemberJoin(discordGuild: DiscordGuild, member: GuildMember): Promise<void> {
@@ -227,7 +227,7 @@ export async function handleMemberLeave(discordGuild: DiscordGuild, member: Guil
     const linked = await prisma.member.findFirst({ where: { guildId: guild.id, discordUserId: member.id, characters: { some: {} } }, select: { id: true } });
     if (linked) guildRole = "a linked character";
   }
-  if (guildRole) await postToLogChannel(discordGuild, `Member left: ${member.user?.tag ?? username} (${member.id}), had ${guildRole}.`);
+  if (guildRole) await postToLogChannel(discordGuild, lang => lang === "fr" ? `Membre parti : ${member.user?.tag ?? username} (${member.id}), avait le rôle ${guildRole}.` : `Member left: ${member.user?.tag ?? username} (${member.id}), had ${guildRole}.`);
   if (!settings?.farewellChannelId) return;
 
   const channel = await discordGuild.channels.fetch(settings.farewellChannelId).catch(() => null);

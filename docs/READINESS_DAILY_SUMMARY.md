@@ -6,7 +6,7 @@ The first readiness or consumable import supplies the day's summary. Later impor
 still save their data without creating extra channel posts.
 
 The summary is one embed, with the most actionable members first. Large reports
-are shortened with a pointer to `/readiness raid`. That command now returns the
+are shortened with a pointer to `/lead readiness-raid`. That command now returns the
 full current report privately to the authorized requester, including optional
 attunement checks, instead of creating additional readiness-channel messages.
 
@@ -17,6 +17,6 @@ daily summaries are discarded when their local date has passed. No new migration
 addon/companion update, version bump or automatic deletion of old posts is needed.
 
 After deployment, verify that two same-day imports produce only one new readiness
-message, and `/readiness raid` gives a private current report. Real Discord
+message, and `/lead readiness-raid` gives a private current report. Real Discord
 acceptance remains pending until observed. Earlier same-day posts from the old
 implementation are preserved; the new policy can create one initial daily summary.

@@ -4,7 +4,7 @@ import { classColor } from "./score-card.js";
 import type { StatSnapshot } from "./stat-snapshots.js";
 import { localClassName } from "./character-display.js";
 
-// /stats server: the latest snapshot as an embed, with the class counts drawn in the shared ladder layout
+// /report stats server: the latest snapshot as an embed, with the class counts drawn in the shared ladder layout
 // (classes ranked by count, class-coloured bars) as the chart image.
 export function serverStatsCard(rows: StatSnapshot[], guildName: string, lang: "en" | "fr"): ScoreCard | null {
   const last = rows[rows.length - 1];

@@ -26,7 +26,7 @@ import type { WebContext, WebKit, WebResponse, WebRoute } from "./web-app.js";
 import { classColor, scoreCardResponse, type CardRow, type CardStat } from "./score-card.js";
 import { currentEdition, withEdition } from "./edition-context.js";
 import { gameEditionOf } from "./game-edition.js";
-import { freeSlug, guildPageStats, guildSlugs, routeKeyOf, unrankedReason } from "./guild-public-stats.js";
+import { freeSlug, groupObservedGuilds, guildPageStats, guildSlugs, OBSERVED_PREFIX, routeKeyOf, slugBase, unrankedReason, type ObservedGuild } from "./guild-public-stats.js";
 import { duelPoints, percent, ratingStartOf, streakText } from "./duels.js";
 import { ADDON_SHOWS_RATING, DUEL_RULES, duelRuleLines, ratingRuleLines } from "./duel-rules.js";
 import { RATING, RATING_START, ratingApplies, ratingSeasonIds, ratingSeasonName, seasonOf, showChange } from "./duel-rating.js";
@@ -321,7 +321,7 @@ const classSlug = (name: string | null) => (name ?? "").toLowerCase().replace(/[
 // What the pages read of a public run, evidence included (player-profiles.ts reads the same).
 export const PUBLIC_RUN_SELECT = { id: true, challenge: true, gameEdition: true, instanceId: true, routeKey: true, difficultyId: true, dungeonName: true, durationSec: true, startedAt: true, endedAt: true, deaths: true, bracket: true, season: true,
   confirmations: true, evidenceVersion: true, completedBy: true, encounters: true, integrity: true, evidenceReceivedAt: true,
-  players: { select: { character: true, displayName: true, realm: true, className: true, role: true, level: true, minLevel: true, presentSec: true } } } as const satisfies Prisma.PublicRunSelect;
+  players: { select: { character: true, displayName: true, realm: true, className: true, role: true, level: true, minLevel: true, presentSec: true, guild: true } } } as const satisfies Prisma.PublicRunSelect;
 type PublicRunRow = Prisma.PublicRunGetPayload<{ select: typeof PUBLIC_RUN_SELECT }>;
 export function leaderRun({ id, startedAt, evidenceVersion, completedBy, encounters, challenge, integrity, evidenceReceivedAt, ...row }: PublicRunRow): LeaderRun {
   const native = readChallenge(challenge);
@@ -359,7 +359,24 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
       cursor = page[page.length - 1]!.id;
     }
   }
+  // In-game guilds seen in public runs whose guild did not install Guilded ("ig:<slug>", docs/plans/PUBLIC_GUILD_DIRECTORY.md): the
+  // guild's name as the uploaders' clients showed it, its realm and the characters seen in it. Read-only; rebuilt with the guild list.
+  const observedGuilds = new Map<string, ObservedGuild>();
   const guildsLoading = new Map<string, Promise<PublicGuild[]>>();
+  async function loadObservedGuilds(taken: Set<string>, listedBases: Set<string>): Promise<PublicGuild[]> {
+    const rows = await database.publicRunPlayer.findMany({ where: { guild: { not: null }, run: { status: "ACCEPTED", gameEdition: currentEdition() } },
+      select: { guild: true, realm: true, character: true }, distinct: ["guild", "realm", "character"], take: 60_000 });
+    const found = groupObservedGuilds(rows, listedBases);
+    const out: PublicGuild[] = [];
+    for (const row of found) {
+      const slug = freeSlug(`${row.name} ${row.realm}`.trim(), row.key, taken);
+      taken.add(slug);
+      const id = `${OBSERVED_PREFIX}${slug}`;
+      observedGuilds.set(id, row);
+      out.push({ id, name: row.name, publicSlug: slug, slug: null });
+    }
+    return out;
+  }
   async function loadGuilds(): Promise<PublicGuild[]> {
       const rows = await database.guildSettings.findMany({ where: { publicDungeonRuns: true, guild: { gameEdition: currentEdition(), isTestServer: false } }, select: { guildId: true, publicSlug: true, guild: { select: { name: true, discordId: true, page: { select: { slug: true, published: true } } } } }, take: 200 });
       const listed = rows.filter((row) => allows(row.guild.discordId));
@@ -384,7 +401,13 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
           }
         }
       }
-      return listed.map((row) => ({ id: row.guildId, name: row.guild.name, publicSlug: row.publicSlug, slug: row.guild.page?.published ? row.guild.page.slug : null })).sort((a, b) => a.name.localeCompare(b.name));
+      const own = listed.map((row) => ({ id: row.guildId, name: row.guild.name, publicSlug: row.publicSlug, slug: row.guild.page?.published ? row.guild.page.slug : null })).sort((a, b) => a.name.localeCompare(b.name));
+      // Guilds that never installed Guilded but appear in public runs. A failure here leaves the Guilded guilds as they were.
+      observedGuilds.clear();
+      const taken = new Set(own.flatMap((guild) => guild.publicSlug ?? []));
+      const bases = new Set(own.flatMap((guild) => [slugBase(guild.name, guild.id), guild.publicSlug ?? ""]).filter(Boolean));
+      const observed = await loadObservedGuilds(taken, bases).catch(() => [] as PublicGuild[]);
+      return [...own, ...observed.sort((a, b) => a.name.localeCompare(b.name))];
   }
   return {
     async run(id) {
@@ -414,10 +437,14 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
       return load;
     },
     async guildRoster(guildId) {
+      const seen = observedGuilds.get(guildId);
+      if (seen) return [...seen.characters].map(([name, realm]) => characterKey(name, realm, currentEdition()));
       const rows = await database.character.findMany({ where: { member: { guildId, status: "ACTIVE" } }, select: { name: true, realm: true, gameEdition: true }, take: 5_000 });
       return rows.map((row) => characterKey(row.name, row.realm, row.gameEdition ?? "forever"));
     },
     async guildRuns(guildId, query) {
+      const seen = observedGuilds.get(guildId);
+      if (seen) return (await every({ ...range(query), players: { some: { guild: { in: seen.spellings }, realm: { equals: seen.realm, mode: "insensitive" } } } })).sort(newestFirst);
       return (await every({ ...range(query), uploads: { some: { uploaderKey: `guild:${guildId}` } } })).sort(newestFirst);
     },
     async guildDuelRatingStart(guildId) { return ratingStartOf(database, guildId); },
@@ -472,8 +499,10 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
       }));
     },
     async pvp(guilds, at) { return loadPvpData(database, guilds.map((guild) => guild.id), currentEdition(), at); },
-    async guildStats(guildIds) {
-      if (!guildIds.length) return [];
+    async guildStats(allIds) {
+      const guildIds = allIds.filter((id) => !observedGuilds.has(id));
+      const fromRuns = allIds.flatMap((id) => { const seen = observedGuilds.get(id); return seen ? [{ guildId: id, faction: null, realm: seen.realm || null, members: seen.characters.size, linked: 0, levelled: 0, at60: 0, levelSum: 0, duels: 0 }] : []; });
+      if (!guildIds.length) return fromRuns;
       const edition = currentEdition();
       const [members, characters, listings, duels] = await Promise.all([
         database.member.groupBy({ by: ["guildId"], where: { guildId: { in: guildIds }, status: "ACTIVE", isTest: false }, _count: { _all: true } }),
@@ -482,7 +511,7 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
         database.recruitmentListing.findMany({ where: { guildId: { in: guildIds }, open: true }, select: { guildId: true, faction: true, realm: true }, take: 2_000 }),
         database.duelResult.groupBy({ by: ["guildId"], where: { guildId: { in: guildIds }, gameEdition: edition, counted: true, archived: false, winner: { isTest: false, raceHidden: false }, loser: { isTest: false, raceHidden: false } }, _count: { _all: true } })
       ]);
-      return guildIds.map((guildId) => {
+      return [...fromRuns, ...guildIds.map((guildId) => {
         const own = characters.filter((row) => row.member.guildId === guildId);
         const levels = own.filter((row) => !row.member.raceHidden && row.level !== null).map((row) => row.level!);
         const listing = listings.find((row) => row.guildId === guildId && (row.faction || row.realm));
@@ -496,7 +525,7 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
           levelled: levels.length, at60: levels.filter((level) => level >= LEVEL_CAP).length, levelSum: levels.reduce((sum, level) => sum + level, 0),
           duels: duels.find((row) => row.guildId === guildId)?._count._all ?? 0
         };
-      });
+      })];
     }
   };
 }
@@ -912,7 +941,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const base = "/leaderboards/guilds/";
     const body = PAGE_CSS + breadcrumbs(lang, [[t("Leaderboards", "Classements"), link("/leaderboards/", lang)], [t("Guilds", "Guildes"), null]], escapeHtml)
       + `${sectionArt("guilds")}<p class="eyebrow">Guilded · ${escapeHtml(periodName(ctx, period))}</p><h1>${t("Guild rankings", "Classement des guildes")}</h1>`
-      + `<p class="muted">${t(`A guild's score in a level bracket is its ${GUILD_COUNT} best members' scores added up. Only characters linked to the guild's members count; guilds choose to publish their runs.`, `Le score d'une guilde dans une tranche de niveaux additionne les scores de ses ${GUILD_COUNT} meilleurs membres. Seuls les personnages liés aux membres de la guilde comptent; les guildes choisissent de publier leurs essais.`)}</p>`
+      + `<p class="muted">${t(`A guild's score in a level bracket is its ${GUILD_COUNT} best members' scores added up. Guilds that use Guilded count their linked characters. Other guilds are listed from public runs, by the in-game guild their players' clients showed (at least two characters), and count those players.`, `Le score d'une guilde dans une tranche de niveaux additionne les scores de ses ${GUILD_COUNT} meilleurs membres. Les guildes qui utilisent Guilded comptent leurs personnages liés. Les autres guildes sont listées à partir des essais publics, selon la guilde en jeu affichée par le client de leurs joueurs (au moins deux personnages), et comptent ces joueurs.`)}</p>`
       + periodDates(ctx, period) + views(ctx, "guilds", filters)
       + `<nav class="tabs"><a class="${filters.week ? "" : "on"}" href="${link(base, lang, { season: filters.season })}">${t("Season", "Saison")}</a><a class="${filters.week ? "on" : ""}" href="${link(base, lang, { period: "week" })}">${t("This week", "Cette semaine")}</a></nav>`
       + guildOverviewSection(ctx, overview, filters, !!deps.store.guildStats)
@@ -1355,7 +1384,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     await ensureIndex(ctx);
     const guild = findGuild(ctx, await cached("guilds", () => deps.store.guilds()), id);
     if (guild && id !== indexOf(ctx).slugs.get(guild.id)) return kit.redirect(link(guildBase(ctx, guild), lang, Object.fromEntries([...ctx.request.query].filter(([k]) => k !== "lang"))));
-    if (!guild) return kit.page(404, t("Not found", "Introuvable"), PAGE_CSS + `<h1>${t("Guild not found", "Guilde introuvable")}</h1>${emptyPage(t("No page for this guild", "Pas de page pour cette guilde"), [], "notfound")}<p class="muted">${t("Only guilds that publish their runs have a page.", "Seules les guildes qui publient leurs essais ont une page.")}</p><p><a href="${link("/leaderboards/guilds/", lang)}">${t("Guild rankings", "Classement des guildes")}</a></p>`, { noindex: true });
+    if (!guild) return kit.page(404, t("Not found", "Introuvable"), PAGE_CSS + `<h1>${t("Guild not found", "Guilde introuvable")}</h1>${emptyPage(t("No page for this guild", "Pas de page pour cette guilde"), [], "notfound")}<p class="muted">${t("Only guilds seen in public runs, or that publish their runs, have a page.", "Seules les guildes vues dans des essais publics, ou qui publient leurs essais, ont une page.")}</p><p><a href="${link("/leaderboards/guilds/", lang)}">${t("Guild rankings", "Classement des guildes")}</a></p>`, { noindex: true });
     const { filters, period } = await pageFilters(ctx);
     const runs = await guildRuns(guild.id, period);
     const rosterKeys = await cached(`roster:${guild.id}`, () => deps.store.guildRoster(guild.id));
@@ -1373,7 +1402,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const info = (await allGuildStats()).find((row) => row.guildId === guild.id) ?? null;
     const reason = unrankedReason(runs, stats);
     const reasonText = {
-      "no-runs": t("This guild publishes its dungeon runs, but none has been received this period yet.", "Cette guilde publie ses donjons, mais aucun n'a encore été reçu pour cette période."),
+      "no-runs": t("No public run with a member of this guild has been received this period yet.", "Aucun essai public avec un membre de cette guilde n'a été reçu pour cette période."),
       "no-member-in-runs": t("Runs were received, but none has a member of this guild linked to a character yet.", "Des donjons ont été reçus, mais aucun n'a de membre de cette guilde lié à un personnage."),
       "no-ranked-member": t("Not ranked yet: no ranked clear by a member of this guild so far.", "Pas encore classée : aucun essai classé d'un membre de cette guilde pour l'instant.")
     };

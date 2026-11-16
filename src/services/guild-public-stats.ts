@@ -115,3 +115,34 @@ export function unrankedReason(runs: LeaderRun[], stats: GuildPageStats): Unrank
   if (!runs.filter((run) => !run.challenge).length) return "no-runs";
   return stats.runs ? "no-ranked-member" : "no-member-in-runs";
 }
+
+/** Id prefix of a guild that never installed Guilded and is listed only from public runs ("ig:<slug>"). */
+export const OBSERVED_PREFIX = "ig:";
+/** A guild seen in public runs: the name as clients spelled it, its realm and the characters (name to realm) seen in it. */
+export interface ObservedGuild { key: string; name: string; realm: string; spellings: string[]; characters: Map<string, string> }
+/** A guild needs this many different characters before it gets a page: one client typing a name is not a guild. */
+export const MIN_OBSERVED_MEMBERS = 2;
+const foldGuild = (name: string) => name.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+
+/**
+ * Group public run players by the in-game guild their uploader's client showed (the name text, case and accents folded, and the realm).
+ * Guilds that already have a Guilded page (their slug base is in `listedBases`) and guilds with fewer than MIN_OBSERVED_MEMBERS
+ * characters are left out. The most used spelling is the display name. Sorted by key so slugs come out the same every time.
+ */
+export function groupObservedGuilds(rows: { guild: string | null; realm: string; character: string }[], listedBases: ReadonlySet<string>): ObservedGuild[] {
+  const groups = new Map<string, { realm: string; spellings: Map<string, number>; characters: Map<string, string> }>();
+  for (const row of rows) {
+    const name = row.guild?.trim();
+    if (!name) continue;
+    const key = `${foldGuild(name)}|${row.realm.toLowerCase()}`;
+    const group = groups.get(key) ?? { realm: row.realm, spellings: new Map(), characters: new Map() };
+    group.spellings.set(name, (group.spellings.get(name) ?? 0) + 1);
+    group.characters.set(row.character, row.realm);
+    groups.set(key, group);
+  }
+  return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0])).flatMap(([key, group]) => {
+    const name = [...group.spellings.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]![0];
+    if (group.characters.size < MIN_OBSERVED_MEMBERS || listedBases.has(slugBase(name, key))) return [];
+    return [{ key, name, realm: group.realm, spellings: [...group.spellings.keys()], characters: group.characters }];
+  });
+}

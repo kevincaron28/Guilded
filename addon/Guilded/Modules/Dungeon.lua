@@ -28,6 +28,12 @@ local SCHEMA_VERSION = 1
 local ABANDON_AFTER_SECONDS = 15 * 60
 local TICK_SECONDS = 30
 local CHUNK_BYTES = 200
+-- (9.3.5) The game's text packing (C_EncodingUtil, as in LedgerSync.lua), or nil where this client has none.
+local function packer()
+  local E = C_EncodingUtil
+  if not (E and E.CompressString and E.DecompressString and E.EncodeBase64 and E.DecodeBase64) then return nil end
+  return E, Enum and Enum.CompressionMethod and Enum.CompressionMethod.Zlib
+end
 local KEEP_SYNCED_DAYS = 30
 
 local compat = ns.compat
@@ -77,13 +83,13 @@ local function flush()
     local channel = message.channel == "GROUP" and groupChannel() or message.channel
     -- (9.0) Guild summaries wait until the player is outside: guild messages from inside an
     -- instance are unreliable, and nobody in the guild needs them before the group leaves.
-    if channel then ns.comm.send(PREFIX, message.text, channel, nil, nil, channel == "GUILD" and "hold-in-instance" or nil, message.onLost) end
+    if channel then ns.comm.send(PREFIX, message.text, channel, message.target, nil, channel == "GUILD" and "hold-in-instance" or nil, message.onLost) end
   end
 end
 
 -- channel "GROUP" = party/raid at send time, or "GUILD".
-local function send(text, channel, onLost)
-  table.insert(dungeon.outbox, { text = text, channel = channel or "GROUP", onLost = onLost })
+local function send(text, channel, onLost, target)
+  table.insert(dungeon.outbox, { text = text, channel = channel or "GROUP", onLost = onLost, target = target })
   flush()
 end
 
@@ -914,6 +920,8 @@ local function onAddonMessage(text, sender, delivery)
     dungeon.replayPending(true)
   elseif kind == "DGS" and delivery == "GUILD" then
     dungeon.onDigest(text, sender)
+  elseif kind == "SUMZ" and delivery == "WHISPER" then
+    dungeon.onPackedSummary(text, sender)
   elseif kind == "ACK" then
     -- (9.0) A guildmate whose companion's bot already stored this run: stop replaying it at
     -- every login. Only our own copy is marked; the bot still dedupes by run id.
@@ -952,23 +960,64 @@ local function onAddonMessage(text, sender, delivery)
     if not pending.parts[index] then pending.parts[index] = payload; pending.count = pending.count + 1 end
     if pending.count >= pending.total then
       dungeon.incoming[key] = nil
-      local peer = deserialize(id, table.concat(pending.parts))
-      -- Only someone who was in the run can report it, and not with times in the future.
-      if peer and peer.players[sender] and not ns.util.tooFarAhead(peer.endedAt or 0)
-        and not ns.util.tooFarAhead(peer.startedAt or 0) then
-        local known = d and d.runs[id]
-        -- (9.0) A replay of a run this PC's bot already stored: say so once, so the sender
-        -- (a Guilded Dungeons-only player, or someone without the companion) stops replaying it.
-        dungeon.markHeard(id, sender)
-        if known and known.synced and not dungeon.ackedRecently(id) then
-          dungeon.acked[id] = now()
-          dungeon.stats.acksSent = dungeon.stats.acksSent + 1
-          if delivery == "GUILD" then dungeon.guild("ack:" .. id, "ACK|" .. id) else dungeon.toGroup("ack:" .. id, "ACK|" .. id) end
-        end
-        storePeerRun(peer, sender, delivery)
-      end
+      dungeon.acceptSummary(id, table.concat(pending.parts), sender, delivery)
     end
   end
+end
+
+-- A complete summary of a guildmate's run (from SUM chunks or one unpacked SUMZ): kept only when the sender was in the run.
+function dungeon.acceptSummary(id, summary, sender, delivery)
+  local d = db()
+  local peer = deserialize(id, summary)
+  -- Only someone who was in the run can report it, and not with times in the future.
+  if not (peer and peer.players[sender] and not ns.util.tooFarAhead(peer.endedAt or 0) and not ns.util.tooFarAhead(peer.startedAt or 0)) then return end
+  local known = d and d.runs[id]
+  -- (9.0) A replay of a run this PC's bot already stored: say so once, so the sender
+  -- (a Guilded Dungeons-only player, or someone without the companion) stops replaying it.
+  dungeon.markHeard(id, sender)
+  if known and known.synced and not dungeon.ackedRecently(id) then
+    dungeon.acked[id] = now()
+    dungeon.stats.acksSent = dungeon.stats.acksSent + 1
+    if delivery == "GUILD" then dungeon.guild("ack:" .. id, "ACK|" .. id) else dungeon.toGroup("ack:" .. id, "ACK|" .. id) end
+  end
+  storePeerRun(peer, sender, delivery)
+end
+
+-- (9.3.5) SUMZ|id|part|total|chunk: a run summary packed with the game's own compression, whispered to the guildmate who asked for it
+-- (WNT) and said Z1. Chunks are put together like SUM chunks (same limits), then unpacked, size-checked and handled as a SUM.
+local SUMZ_MAX_BYTES = 4000
+dungeon.incomingZ = {}
+function dungeon.onPackedSummary(text, sender)
+  local E, method = packer()
+  if not E then return end
+  local id, index, total, payload = string.match(text, "^SUMZ|([^|]+)|(%d+)|(%d+)|([%w+/=]+)$")
+  index, total = tonumber(index), tonumber(total)
+  if not id or not index or not total or total < 1 or total > 20 or index < 1 or index > total or #id > 120 then return end
+  local count, senderCount = 0, 0
+  for bufferKey, buffer in pairs(dungeon.incomingZ) do
+    if not buffer.at or now() - buffer.at > 60 then dungeon.incomingZ[bufferKey] = nil
+    else
+      count = count + 1
+      if buffer.sender == sender then senderCount = senderCount + 1 end
+    end
+  end
+  local key = sender .. "|" .. id
+  local pending = dungeon.incomingZ[key]
+  if pending and pending.total ~= total then dungeon.incomingZ[key] = nil; return end
+  if not pending and (count >= 16 or senderCount >= 2) then return end
+  pending = pending or { parts = {}, count = 0, total = total, at = now(), sender = sender }
+  pending.at = now()
+  dungeon.incomingZ[key] = pending
+  if not pending.parts[index] then pending.parts[index] = payload; pending.count = pending.count + 1 end
+  if pending.count < pending.total then return end
+  dungeon.incomingZ[key] = nil
+  local ok, packed = pcall(E.DecodeBase64, table.concat(pending.parts))
+  if not ok or type(packed) ~= "string" then return end
+  local summary
+  ok, summary = pcall(E.DecompressString, packed, method)
+  if not ok or type(summary) ~= "string" or #summary > SUMZ_MAX_BYTES then return end
+  dungeon.stats.packedHeard = (dungeon.stats.packedHeard or 0) + 1
+  dungeon.acceptSummary(id, summary, sender, "GUILD")
 end
 
 local function recordEncounter(run, encounterId, name, success, kind)
@@ -1146,6 +1195,7 @@ local function onEvent(_, event, ...)
     if not ns.comm.accept(prefix, text, channel, sender, PREFIX, function(author, delivery)
       local kind = string.match(text, "^(%u+)|")
       if kind == "DGS" then return delivery == "GUILD" and ns.comm.authorized(author, "guild") end
+      if kind == "SUMZ" then return delivery == "WHISPER" and ns.comm.authorized(author, "guild") end
       if kind == "SUM" or kind == "ACK" or kind == "ACKS" or kind == "OFR" or kind == "WNT" then
         if delivery == "GUILD" then return ns.comm.authorized(author, "guild") end
         -- (9.3.1) The same run messages also travel in a party or raid, from players of any guild, to a player who carries them.
@@ -1449,7 +1499,9 @@ end
 -- ---------------------------------------------------------------------
 local DIGEST_WEEK, DIGEST_BUCKETS, DIGEST_MOD = 604800, 5, 16777216
 local DIGEST_EVERY, DIGEST_PEER_TTL, DIGEST_PEERS_MAX, DIGEST_REPLY_GAP, DIGEST_MISMATCH_GAP = 600, 1800, 200, 120, 240
-dungeon.CAPS = "D1"
+-- (9.3.5) Z1: this client can unpack a compressed run summary (SUMZ, whispered by an author to a guildmate who asked for the run). The
+-- flag is only said where the game offers C_EncodingUtil (the same packing the ledger sync uses).
+function dungeon.caps() return packer() and "D1,Z1" or "D1" end
 dungeon.peerDigests, dungeon.digestOffered = {}, {}
 dungeon.peerDigestCount = 0
 
@@ -1492,7 +1544,7 @@ function dungeon.sendDigest(force)
   local text = dungeon.digestText(dungeon.digest())
   if text == "" then return false end
   dungeon.lastDigest = now()
-  send("DGS|1|" .. dungeon.CAPS .. "|" .. text, "GUILD")
+  send("DGS|1|" .. dungeon.caps() .. "|" .. text, "GUILD")
   return true
 end
 
@@ -1648,7 +1700,38 @@ function dungeon.sendRun(run, channel)
   return true
 end
 -- A re-send asked for by a guildmate or a group member (sendRun itself waits for the end of an instance).
-function dungeon.resend(run, channel) return dungeon.sendRun(run, channel) end
+-- (9.3.5) A run asked for (WNT) by a guildmate that said Z1 goes to that guildmate alone, compressed (SUMZ), when it is more than one
+-- chunk long and the packed form needs fewer chunks. Everyone else gets the plain SUM on the guild channel as before.
+function dungeon.sendRunPacked(run, asker)
+  local peer = asker and dungeon.peerDigests[asker]
+  local E, method = packer()
+  if not (E and peer and peer.caps.Z1) then return false end
+  local summary = serialize(run)
+  local plain = math.ceil(#summary / CHUNK_BYTES)
+  if plain <= 1 or plain > 20 then return false end
+  local ok, packed = pcall(E.CompressString, summary, method)
+  if not ok or type(packed) ~= "string" then return false end
+  local encoded
+  ok, encoded = pcall(E.EncodeBase64, packed)
+  if not ok or type(encoded) ~= "string" then return false end
+  local chunk = math.min(CHUNK_BYTES, 240 - (#run.id + 16))
+  if chunk < 40 then return false end
+  local total = math.ceil(#encoded / chunk)
+  if total >= plain or total > 20 then return false end
+  if not outside() then dungeon.defer("sendz:" .. asker .. ":" .. tostring(run.id), function() dungeon.sendRunPacked(run, asker) end) return true end
+  run.shareLostAt = nil
+  dungeon.solicited[run.id] = now()
+  local address = ns.util.address and ns.util.address(asker) or asker
+  for part = 1, total do
+    send(string.format("SUMZ|%s|%d|%d|%s", run.id, part, total, string.sub(encoded, (part - 1) * chunk + 1, part * chunk)), "WHISPER", nil, address)
+  end
+  dungeon.stats.packedSent = (dungeon.stats.packedSent or 0) + 1
+  return true
+end
+function dungeon.resend(run, channel, asker)
+  if channel == "GUILD" and asker and dungeon.sendRunPacked(run, asker) then return true end
+  return dungeon.sendRun(run, channel)
+end
 
 -- (9.3.1) Only a party of five or fewer shares runs with the group: in a raid, up to forty players would each send a summary.
 function dungeon.smallGroup()
@@ -1861,7 +1944,7 @@ function dungeon.onWant(text, sender, delivery)
       and (not dungeon.resentAt[id] or now() - dungeon.resentAt[id] >= (dungeon.resendGap[id] or RESEND_COOLDOWN)) then
       dungeon.resentAt[id] = now()
       dungeon.resendGap[id] = math.min((dungeon.resendGap[id] or RESEND_COOLDOWN / 2) * 2, RESEND_GAP_MAX)
-      if dungeon.resend(run, channel) then sent = sent + 1 end
+      if dungeon.resend(run, channel, sender) then sent = sent + 1 end
     end
   end
 end

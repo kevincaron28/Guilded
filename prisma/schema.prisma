@@ -2795,10 +2795,13 @@ model PublicRunPlayer {
   minLevel   Int?
   presentSec Int?
   deaths    Int?
+  // The in-game guild the uploader's client showed for this player (GetGuildInfo, unverified display text). The public guild directory groups by it.
+  guild     String?
   run       PublicRun @relation(fields: [runId], references: [id], onDelete: Cascade)
 
   @@unique([runId, character, realm])
   @@index([character, realm])
+  @@index([guild])
 }
 
 // Who sent a public run: "account:<id>" or "guild:<guildId>". One row per uploader and run.

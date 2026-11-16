@@ -66,6 +66,8 @@ export async function remindSeason2(client: Client | null, db: Pick<PrismaClient
     lastDay = day;
     return true;
   } catch (error) {
+    // A closed DM (or any failure) is not retried every tick all day: one try and one log line per day.
+    lastDay = day;
     console.error("Season 2 reminder failed", error);
     return false;
   }

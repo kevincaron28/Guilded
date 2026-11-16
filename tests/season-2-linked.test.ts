@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { communitySeasonLabel } from "../src/services/community-display.js";
 import { bgLadderCard, bgLadderEmbed, loadBgLadderData } from "../src/services/bg-ladder.js";
 import { loadWorldPvpData, worldPvpCard, worldPvpEmbed, weekKeyOf } from "../src/services/world-pvp.js";
-import { rotateRaidSeasons } from "../src/services/raid-season.js";
+import { announceBlockedRaidSeasons, openOfficerSeasonNotice, resetRaidSeasonNotices, rotateRaidSeasons } from "../src/services/raid-season.js";
 import { plannedSeason2Start, reminderDue, remindSeason2, resetSeason2ReminderDay, REMINDER_PREFIX } from "../src/services/season2-reminder.js";
 import { rateSeason, ratingSeasonName, seasonOf, RATING_START } from "../src/services/duel-rating.js";
 import { resetSeasonCalendar, setSeasonCalendar, refreshSeasonCalendar } from "../src/services/season-calendar.js";
@@ -127,34 +127,34 @@ const NOW = new Date("2026-12-10T00:00:00Z");
 
 describe("raid attendance seasons follow the official rotation", () => {
   it("starts Season 2 / Saison 2 for a guild that already uses raid seasons, and leaves other guilds alone", async () => {
-    const w = raidWorld([manual("g1", "Autumn", "2026-09-01T00:00:00Z"), manual("g2", "Automne", "2026-09-01T00:00:00Z")], { g2: "fr" });
+    const w = raidWorld([manual("g1", "Autumn", "2026-09-01T00:00:00Z", "2026-12-01T00:00:00Z"), manual("g2", "Automne", "2026-09-01T00:00:00Z", "2026-12-01T00:00:00Z")], { g2: "fr" });
     const out = await rotateRaidSeasons(w.db, { number: 2, start: SEASON2 }, NOW, allowAll, "forever");
     expect(out.map(o => [o.guildId, o.season])).toEqual([["g1", "Season 2"], ["g2", "Saison 2"]]);
     const created = w.rows.find(r => r.guildId === "g1" && r.officialSeasonNumber === 2)!;
     expect(created.startsAt).toEqual(SEASON2);
     expect(created.createdBy).toBe("Guilded");
     // An officer's own season is never closed or renamed.
-    expect(w.rows.find(r => r.name === "Autumn")!.endsAt).toBeNull();
+    expect(w.rows.find(r => r.name === "Autumn")!.endsAt).toEqual(new Date("2026-12-01T00:00:00Z"));
   });
   it("does not touch a guild with no raid season, is idempotent and does nothing before the season starts", async () => {
-    const w = raidWorld([manual("g1", "Autumn", "2026-09-01T00:00:00Z")]);
+    const w = raidWorld([manual("g1", "Autumn", "2026-09-01T00:00:00Z", "2026-12-01T00:00:00Z")]);
     await rotateRaidSeasons(w.db, { number: 2, start: SEASON2 }, NOW, allowAll, "forever");
     expect(await rotateRaidSeasons(w.db, { number: 2, start: SEASON2 }, NOW, allowAll, "forever")).toEqual([]);
     expect(w.rows.filter(r => r.officialSeasonNumber === 2)).toHaveLength(1);
-    const early = raidWorld([manual("g1", "Autumn", "2026-09-01T00:00:00Z")]);
+    const early = raidWorld([manual("g1", "Autumn", "2026-09-01T00:00:00Z", "2026-12-01T00:00:00Z")]);
     expect(await rotateRaidSeasons(early.db, { number: 2, start: SEASON2 }, new Date("2026-12-01T00:00:00Z"), allowAll, "forever")).toEqual([]);
     expect(await rotateRaidSeasons(early.db, { number: 1, start: new Date("2026-11-04T23:00:00Z") }, NOW, allowAll, "forever")).toEqual([]);
     const none = raidWorld([]);
     expect(await rotateRaidSeasons(none.db, { number: 2, start: SEASON2 }, NOW, allowAll, "forever")).toEqual([]);
   });
   it("closes the previous automatic season at the next official start, never an officer's, and respects a hosted allow-list", async () => {
-    const w = raidWorld([manual("g1", "Autumn", "2026-09-01T00:00:00Z")]);
+    const w = raidWorld([manual("g1", "Autumn", "2026-09-01T00:00:00Z", "2026-12-01T00:00:00Z")]);
     await rotateRaidSeasons(w.db, { number: 2, start: SEASON2 }, NOW, allowAll, "forever");
     const march = new Date("2027-03-02T00:00:00Z");
     const out = await rotateRaidSeasons(w.db, { number: 3, start: march }, new Date("2027-03-03T00:00:00Z"), allowAll, "forever");
     expect(out).toEqual([{ guildId: "g1", season: "Season 3", ended: "Season 2" }]);
     expect(w.rows.find(r => r.officialSeasonNumber === 2)!.endsAt).toEqual(march);
-    const blocked = raidWorld([manual("g1", "Autumn", "2026-09-01T00:00:00Z")]);
+    const blocked = raidWorld([manual("g1", "Autumn", "2026-09-01T00:00:00Z", "2026-12-01T00:00:00Z")]);
     expect(await rotateRaidSeasons(blocked.db, { number: 2, start: SEASON2 }, NOW, () => false, "forever")).toEqual([]);
   });
   it("skips a guild whose officer already made a season with that name or started one after the official start", async () => {
@@ -162,6 +162,35 @@ describe("raid attendance seasons follow the official rotation", () => {
     expect(await rotateRaidSeasons(named.db, { number: 2, start: SEASON2 }, NOW, allowAll, "forever")).toEqual([]);
     const later = raidWorld([manual("g1", "Naxx", "2026-12-09T23:30:00Z")]);
     expect(await rotateRaidSeasons(later.db, { number: 2, start: SEASON2 }, NOW, allowAll, "forever")).toEqual([]);
+  });
+});
+
+describe("an officer's open-ended raid season", () => {
+  it("is not overlapped: no automatic season, one officer-log notice per guild and official season", async () => {
+    resetRaidSeasonNotices();
+    const w = raidWorld([manual("g1", "Autumn", "2026-09-01T00:00:00Z"), manual("g2", "Automne", "2026-09-01T00:00:00Z"), manual("g3", "Closed", "2026-09-01T00:00:00Z", "2026-12-01T00:00:00Z")], { g2: "fr" });
+    const out = await rotateRaidSeasons(w.db, { number: 2, start: SEASON2 }, NOW, allowAll, "forever");
+    expect(w.rows.filter(r => r.officialSeasonNumber === 2).map(r => r.guildId)).toEqual(["g3"]);
+    expect(out.filter(o => o.blockedBy).map(o => [o.guildId, o.blockedBy])).toEqual([["g1", "Autumn"], ["g2", "Automne"]]);
+    const posted: [string, string][] = [];
+    const post = async (id: string, text: string) => { posted.push([id, text]); };
+    expect(await announceBlockedRaidSeasons(out, 2, post)).toBe(2);
+    expect(posted[0]![1]).toBe(openOfficerSeasonNotice("en", "Autumn", "Season 2"));
+    expect(posted[0]![1]).toContain("/raid season");
+    expect(posted[1]![1]).toContain("Saison 2");
+    // The next ticks: still blocked, no second notice. A new official season gets its own.
+    const again = await rotateRaidSeasons(w.db, { number: 2, start: SEASON2 }, NOW, allowAll, "forever");
+    expect(await announceBlockedRaidSeasons(again, 2, post)).toBe(0);
+    expect(posted).toHaveLength(2);
+    expect(await announceBlockedRaidSeasons(again, 3, post)).toBe(2);
+  });
+  it("once the officer closes it, the next tick starts the automatic season", async () => {
+    const w = raidWorld([manual("g1", "Autumn", "2026-09-01T00:00:00Z")]);
+    await rotateRaidSeasons(w.db, { number: 2, start: SEASON2 }, NOW, allowAll, "forever");
+    expect(w.rows.some(r => r.officialSeasonNumber === 2)).toBe(false);
+    w.rows[0]!.endsAt = new Date("2026-12-09T23:00:00Z");
+    const out = await rotateRaidSeasons(w.db, { number: 2, start: SEASON2 }, NOW, allowAll, "forever");
+    expect(out.map(o => o.season)).toEqual(["Season 2"]);
   });
 });
 
@@ -223,6 +252,19 @@ describe("the Season 2 owner reminder", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     resetSeason2ReminderDay();
     expect(await remindSeason2(broken.client, broken.db, owner, new Date("2026-12-05T10:00:00Z"), quiet)).toBe(false);
+  });
+  it("tries a failing DM once a day, not on every tick", async () => {
+    const w = reminderWorld();
+    const fetch = vi.fn(async () => { throw new Error("Cannot send messages to this user"); });
+    w.client.users.fetch = fetch;
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    resetSeason2ReminderDay();
+    expect(await remindSeason2(w.client, w.db, owner, new Date("2026-12-05T10:00:00Z"), quiet)).toBe(false);
+    expect(await remindSeason2(w.client, w.db, owner, new Date("2026-12-05T10:05:00Z"), quiet)).toBe(false);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(await remindSeason2(w.client, w.db, owner, new Date("2026-12-06T10:00:00Z"), quiet)).toBe(false);
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 });
 

@@ -11,7 +11,7 @@ import { getSeasonCalendar, laterSeasonAt, nextSeasonAfter, officialSeasonName }
 // Time: every boundary is UTC (like the weekly reset in dungeon-rules.ts and the per-day duel cap). Seasons follow the owner's
 // official season calendar (season-calendar.ts, owner decision 16 November 2026): the season that began on 13 November is "Season 1"
 // and runs until the official Season 2 starts (9 December 2026, 15:00 Pacific); from then on a duel season IS the official season
-// (id "S2", "S3"...). With no later season scheduled the current one simply continues. Old "YYYY-MM" ids stay readable: the id
+// (id "S2", "S3"... unpadded here; Guilded Clash keys are zero padded "S02" because its code orders keys as strings, see tcg-rating.ts). With no later season scheduled the current one simply continues. Old "YYYY-MM" ids stay readable: the id
 // of the first season is still the "YYYY-MM" of its start ("2026-11"), and any other old month id is shown as a month. The pair
 // weight window is the existing weekly reset (Tuesday 15:00 UTC).
 

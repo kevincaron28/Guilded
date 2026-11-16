@@ -122,7 +122,8 @@ import { queueSeasonEndCards, queueSeasonStartCard } from "./services/season-car
 import { loadClassBook } from "./services/ladder-classes.js";
 import { freezeSeasonRules, loadOfficialWindows, officialWindowAt, rotateOfficialSeasons, startOfficialSeason } from "./services/official-seasons.js";
 import { refreshSeasonCalendar, setSeasonCalendar } from "./services/season-calendar.js";
-import { rotateRaidSeasons } from "./services/raid-season.js";
+import { announceBlockedRaidSeasons, rotateRaidSeasons } from "./services/raid-season.js";
+import { postToLogChannel } from "./services/housekeeping.js";
 import { remindSeason2 } from "./services/season2-reminder.js";
 import { finalizeClosingSeasons } from "./services/dungeon-admin.js";
 import { executeOwnerPreviews, handleItemPreviewButton, OWNER_PREVIEWS_COMMAND, ownerPreviewsCommand } from "./commands/owner-previews.js";
@@ -501,7 +502,11 @@ client.once(Events.ClientReady, (readyClient) => {
         const running = officialWindowAt(windows, new Date());
         if (running) {
           const raids = await rotateRaidSeasons(prisma, { number: running.number, start: running.start }, new Date(), (discordId) => hostedPilot.allows(discordId), "forever").catch(reportJobError("Raid seasons"));
-          for (const row of raids ?? []) console.info(`Raid attendance season started: ${row.ended ?? "none"} -> ${row.season} (guild ${row.guildId}).`);
+          for (const row of raids ?? []) if (!row.blockedBy) console.info(`Raid attendance season started: ${row.ended ?? "none"} -> ${row.season} (guild ${row.guildId}).`);
+          await announceBlockedRaidSeasons(raids ?? [], running.number, async (discordId, text) => {
+            const guild = await readyClient.guilds.fetch(discordId).catch(() => null);
+            if (guild) await postToLogChannel(guild, text);
+          }).catch(reportJobError("Raid season notice"));
         }
         await remindSeason2(readyClient, prisma, botOwnerId).catch(reportJobError("Season 2 reminder"));
         return windows;

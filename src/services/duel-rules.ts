@@ -1,4 +1,6 @@
 import { RATING } from "./duel-rating.js";
+import { SEASON2_DATE } from "./dungeon-season2.js";
+import { getSeasonCalendar } from "./season-calendar.js";
 
 // The duel scoring rules, in ONE place. duels.ts (the points and the caps), the Discord board footers and the public
 // duel page's "how scoring works" box all read these values, so a rule change shows up everywhere at once. The
@@ -48,19 +50,25 @@ export const DUEL_ARCHIVE_BEFORE = new Date("2026-11-13T00:00:00.000Z");
 
 const dayText = (iso: string, lang: "en" | "fr") => new Date(iso).toLocaleDateString(lang === "fr" ? "fr-CA" : "en-CA", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 
+/** The day Season 2 starts: the scheduled official season when the calendar has one, else the planned date (SEASON2_DATE). */
+function season2Day(lang: "en" | "fr"): string {
+  const scheduled = getSeasonCalendar().find(row => row.number === 2);
+  return dayText(scheduled ? scheduled.start.toISOString() : `${SEASON2_DATE.date}T23:00:00Z`, lang);
+}
+
 /** What the member-facing "how scoring works" says for the rating. Every number comes from `RATING` and `DUEL_RULES`. */
 export function ratingRuleLines(lang: "en" | "fr", startsAt: Date = new Date(RATING.startsAt)): string[] {
   const r = { ...RATING, startsAt: startsAt.toISOString() };
   const [k1, k2, k3] = r.kBands.map(band => band.k);
   return lang === "fr" ? [
-    `Depuis le ${dayText(r.startsAt, "fr")} (UTC), les duels sont classés par cote. La saison 1 dure jusqu'au début de la saison 2 (9 décembre 2026), puis chaque saison suit le calendrier officiel des saisons (comme les donjons). Tout le monde commence à ${r.start} à chaque saison.`,
+    `Depuis le ${dayText(r.startsAt, "fr")} (UTC), les duels sont classés par cote. La saison 1 dure jusqu'au début de la saison 2 (${season2Day("fr")}), puis chaque saison suit le calendrier officiel des saisons (comme les donjons). Tout le monde commence à ${r.start} à chaque saison.`,
     `Battre un joueur plus fort fait gagner plus; perdre contre un joueur plus faible fait perdre plus. Chaque niveau d'écart ajoute ${r.handicapPerLevel} points de cote à l'adversaire de plus haut niveau (jusqu'à ${r.handicapMaxLevels} niveaux). Un duel entre joueurs séparés de plus de ${r.maxLevelGap} niveaux ne change rien.`,
     `Le changement est plus grand au début : facteur ${k1} pour les 10 premiers duels, ${k2} jusqu'à 30, puis ${k3}.`,
     `Le score affiché rapproche la cote de ${r.start} tant que le dossier est court : ${r.start} + (cote − ${r.start}) × duels / (duels + ${r.shrinkGames}).`,
     "Chaque duelliste est classé dès son premier duel compté.",
     `Les duels comptés sont réévalués dans l'ordre des dates : Aucune récompense.`
   ] : [
-    `From ${dayText(r.startsAt, "en")} (UTC), duels are ranked by a rating. Season 1 runs until Season 2 starts (9 December 2026), then each season follows the official season calendar (the same as dungeons). Everyone starts at ${r.start} each season.`,
+    `From ${dayText(r.startsAt, "en")} (UTC), duels are ranked by a rating. Season 1 runs until Season 2 starts (${season2Day("en")}), then each season follows the official season calendar (the same as dungeons). Everyone starts at ${r.start} each season.`,
     `Beating a stronger player earns more; losing to a weaker one costs more. Each level of difference adds ${r.handicapPerLevel} rating points to the higher-level player's side (up to ${r.handicapMaxLevels} levels). A duel between players more than ${r.maxLevelGap} levels apart changes nothing.`,
     `Moves are bigger early on: factor ${k1} for the first 10 duels, ${k2} up to 30, then ${k3}.`,
     `The score shown pulls the rating toward ${r.start} while a record is short: ${r.start} + (rating − ${r.start}) × duels / (duels + ${r.shrinkGames}).`,

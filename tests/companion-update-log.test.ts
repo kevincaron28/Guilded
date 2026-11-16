@@ -50,7 +50,7 @@ describe("update check reports (9.3.2: a check is never invisible)", () => {
 describe("the companion writes every update check to startup.log", () => {
   const main = readFileSync("companion-app/main.cjs", "utf8");
   it("appends update lines for the whole run, not only until the window is ready", () => {
-    expect(main).toMatch(/function updateLine\(text\) \{[\s\S]{0,420}try \{ fs\.appendFileSync\(path\.join\(app\.getPath\("userData"\), "startup\.log"\)/);
+    expect(main).toMatch(/function updateLine\(text\) \{[\s\S]{0,420}try \{ runLog\(\)\.raw\(/);
     // At most 400 lines a run.
     expect(main).toMatch(/if \(updateLines >= 400\) return;/);
     // The ordinary startup lines still stop when the window is ready; update lines do not depend on that.

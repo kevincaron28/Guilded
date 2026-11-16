@@ -18,7 +18,7 @@ const FAST_LOOK_MS = 4_000, SLOW_LOOK_MS = 20_000;
  */
 function createAddonAutoUpdater(deps) {
   const now = deps.now ?? Date.now, log = deps.log ?? (() => {});
-  let addon = null, attempts = 0, nextAt = 0, gaveUp = false, busy = false, note = "";
+  let addon = null, attempts = 0, nextAt = 0, gaveUp = false, busy = false, looking = false, note = "";
   const say = (text) => log(text);
   const change = () => { try { deps.onChange?.(); } catch { /* display only */ } };
   const decide = (wowRunning) => decideAutoAddonUpdate({ addon, companionVersion: deps.companionVersion(), wowRunning, autoUpdate: deps.autoUpdate(), wowEnabled: deps.wowEnabled(), busy });
@@ -52,12 +52,22 @@ function createAddonAutoUpdater(deps) {
     },
     /** One look: installs when it is wanted, WoW is surely closed and no back-off is running. Never throws. */
     async tick() {
-      if (busy) return { action: "none", reason: "busy" };
+      // Single flight (9.3.7): the look is claimed before the first await, so two ticks (start-up, the WoW watcher, the timer)
+      // never run side by side; the second one used to see the first one's install as "busy" and logged "not needed: busy".
+      if (busy || looking) {
+        if (note !== "busy") { note = "busy"; say(`addon update waiting: ${busy ? "an install is running" : "another look is running"}; it looks again soon`); }
+        return { action: "none", reason: "busy" };
+      }
+      looking = true;
+      try { return await this.look(); } finally { looking = false; }
+    },
+    async look() {
       let blocked = true;
       try { blocked = await deps.wowBlocked(); } catch { blocked = true; }
       const decision = decide(blocked);
       if (decision.action === "none") {
         if (attempts > 0 && decision.reason !== "busy") { this.reset(); }
+        if (decision.reason === "busy") return decision;
         if (note !== "none") { if (note) say(`addon update not needed: ${decision.reason}`); note = "none"; }
         return decision;
       }

@@ -184,12 +184,7 @@ function noteSaveState() {
 }
 // Settings diagnostics: appended to startup.log in the data folder for the whole run (kept under 256 KB).
 function settingsLog(line) {
-  try {
-    const target = path.join(app.getPath("userData"), "startup.log");
-    let size = 0; try { size = fs.statSync(target).size; } catch { /* new file */ }
-    if (size < 256 * 1024) fs.appendFileSync(target, `${new Date().toISOString()} settings ${line}
-`);
-  } catch { /* diagnostics only */ }
+  try { runLog().raw(`${new Date().toISOString()} settings ${line}`); } catch { /* diagnostics only */ }
 }
 
 async function loadEngineModules() {
@@ -202,11 +197,14 @@ async function loadEngineModules() {
 // Start-up diagnostics (9.0 release blocker): every line logged before the window is ready also
 // goes to startup.log in the data folder (appended, one header line per start, never holds a credential), so a
 // start that shows the wrong settings can be explained from that one file.
-let startupLogging = true;
+// Since 9.3.7 every Activity line is written for the whole run (run-log.cjs rotates the file by size), not only until start-up ends.
+let runLogInstance = null;
+function runLog() {
+  runLogInstance ??= require("./run-log.cjs").createRunLog(path.join(app.getPath("userData"), "startup.log"));
+  return runLogInstance;
+}
 function startupLog(entry) {
-  if (!startupLogging) return;
-  try { fs.appendFileSync(path.join(app.getPath("userData"), "startup.log"), `${entry.time} ${entry.level} ${entry.message}
-`); } catch { /* diagnostics only */ }
+  try { runLog().line(entry.time, entry.level, entry.message); } catch { /* diagnostics only */ }
 }
 // Update checks (9.3.2): one line each in startup.log for the whole run, not only until the window is ready,
 // so "why is this still the old version" can be read from that file. Diagnostics only; never a secret or a path.
@@ -216,7 +214,7 @@ function updateLine(text) {
   if (updateLines >= 400) return;
   updateLines += 1;
   if (updateLines === 400) text = "update log limit for this run reached; later lines are not written";
-  try { fs.appendFileSync(path.join(app.getPath("userData"), "startup.log"), `${new Date().toISOString()} update ${text}\n`); } catch { /* diagnostics only */ }
+  try { runLog().raw(`${new Date().toISOString()} update ${text}`); } catch { /* diagnostics only */ }
 }
 function pushLog(entry) {
   startupLog(entry);
@@ -838,8 +836,6 @@ function quitForUpdate(source) {
   // before-quit flushes the settings; nothing is written after that.
   const entry = { time: new Date().toISOString(), level: "info", message: E("Closing for an update ({0}).", source) };
   pushLog(entry);
-  // In startup.log too, so an install can be followed from that one file.
-  try { fs.appendFileSync(path.join(app.getPath("userData"), "startup.log"), `${entry.time} ${entry.level} ${entry.message}\n`); } catch { /* diagnostics only */ }
   installerHandedOff = true; // an installer is already running: never start the quit-time one
   quitting = true;
   app.quit();
@@ -871,7 +867,7 @@ app.whenReady().then(async () => {
       const log = path.join(app.getPath("userData"), "startup.log");
       // Kept across starts so the start before this one can still be read; one older file is kept.
       if (fs.existsSync(log) && fs.statSync(log).size > 256 * 1024) fs.renameSync(log, log + ".1");
-      fs.appendFileSync(log, `----- ${new Date().toISOString()} start, pid ${process.pid} -----\n`);
+      runLog().raw(`----- ${new Date().toISOString()} start, pid ${process.pid} -----`);
     } catch { /* diagnostics only */ }
     // A request left by an installer that finished while no companion ran is not for this start.
     try { fs.rmSync(quitRequestPath(), { force: true }); } catch { /* none */ }
@@ -903,8 +899,7 @@ app.whenReady().then(async () => {
     });
     await refreshAutostart();
     restartedQuietly = readRestartMarker();
-    pushLog({ time: new Date().toISOString(), level: "info", message: E("Ready: {0} connection(s), signed in: {1}, restarted by Microsoft Store: {2}.", configLoadModule().configSummary(config).connections, configLoadModule().configSummary(config).signedIn ? "yes" : "no", restartedQuietly ? "yes" : "no") });
-    startupLogging = false;
+    pushLog({ time: new Date().toISOString(), level: "info", message: E("Ready: {0} connection(s), signed in: {1}, restarted after an update: {2}.", configLoadModule().configSummary(config).connections, configLoadModule().configSummary(config).signedIn ? "yes" : "no", require("./run-log.cjs").restartedText(restartedQuietly, STORE_INSTALL)) });
     createWindow();
     createTray();
   } catch (error) {

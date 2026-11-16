@@ -421,6 +421,19 @@ describe("one saved-data set per WoW guild", () => {
     expect(s.run(`return GuildedDB.guildKey`)).toBe("Alpha-TestRealm");
   });
 
+  it("refreshes the character record (rank, time) when a guild is joined mid-session", () => {
+    const s = loggedIn();
+    s.run(`TIMERS = {}; C_Timer.After = function(_, fn) TIMERS[#TIMERS + 1] = fn end; function GetGuildInfo() return nil end; fire_event("PLAYER_ENTERING_WORLD")`);
+    // Pretend the login capture is old and guild-less.
+    s.run(`GuildedDB.character.capturedAt = "2026-01-01T00:00:00Z"; GuildedDB.character.guildRankName = nil; GuildedDB.character.guildRankIndex = nil`);
+    inGuild(s, "Alpha");
+    s.run(`fire_event("PLAYER_GUILD_UPDATE"); for _, fn in ipairs(TIMERS) do fn() end`);
+    expect(s.run(`return GuildedDB.guildKey`)).toBe("Alpha-TestRealm");
+    expect(s.run(`return tostring(GuildedDB.character.guildRankName)`)).toBe("Officer");
+    expect(s.run(`return tostring(GuildedDB.character.capturedAt ~= "2026-01-01T00:00:00Z")`)).toBe("true");
+    expect(s.run(`local c = GuildedDB.myCharacters.Kev or GuildedDB.myCharacters["Kev-TestRealm"]; return tostring(c and c.guildRankName)`)).toBe("Officer");
+  });
+
   it("keeps an open raid that was saved under its id instead of in a list", () => {
     session = newLuaSession();
     session.run(`

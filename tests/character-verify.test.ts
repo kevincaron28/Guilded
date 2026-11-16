@@ -14,7 +14,8 @@ function newGuild() {
   const characters: { id: string; name: string; realm: string; memberId: string; isMain: boolean; member?: unknown; linkEvidence?: string }[] = [];
   const conflicts: { characterId: string; claimantMemberId: string; status: string }[] = [];
   const codes: { guildId: string; memberId: string; code: string }[] = [];
-  const claims: { guildId: string; memberId: string; nameKey: string; status: string }[] = [];
+  const claims: { guildId: string; memberId: string; nameKey: string; status: string; updatedAt?: Date }[] = [];
+  const credentials: { memberId: string; revokedAt: Date | null; createdAt: Date }[] = [];
   const users: Record<string, string> = { ray: "user-ray", kev: "user-kev", sam: "user-sam" };
   const db = {
     character: {
@@ -40,15 +41,16 @@ function newGuild() {
     characterVerifyClaim: {
       findFirst: vi.fn(async ({ where }) => claims.find((row) => row.guildId === where.guildId && row.memberId === where.memberId && row.nameKey === where.nameKey && (typeof where.status === "object" ? where.status.in.includes(row.status) : row.status === where.status)) ?? null),
       findMany: vi.fn(async ({ where }) => claims.filter((row) => row.guildId === where.guildId && where.nameKey.in.includes(row.nameKey))),
-      deleteMany: vi.fn(),
+      deleteMany: vi.fn(async ({ where }) => { for (let i = claims.length - 1; i >= 0; i--) { const row = claims[i]!; if (row.guildId === where.guildId && row.memberId === where.memberId && row.nameKey === where.nameKey && row.status === where.status) claims.splice(i, 1); } }),
       upsert: vi.fn(async ({ where, create, update }) => {
         const key = where.guildId_memberId_nameKey;
         const found = claims.find((row) => row.guildId === key.guildId && row.memberId === key.memberId && row.nameKey === key.nameKey);
-        if (found) return Object.assign(found, update);
-        claims.push(create);
+        if (found) return Object.assign(found, update, { updatedAt: new Date() });
+        claims.push({ ...create, updatedAt: new Date() });
         return create;
       })
     },
+    companionCredential: { findFirst: vi.fn(async ({ where }) => credentials.find((row) => row.memberId === where.memberId && !row.revokedAt && row.createdAt > where.createdAt.gt) ?? null) },
     // The proof-order record of two members claiming one character (character-move.ts).
     characterLinkConflict: {
       findUnique: vi.fn(async ({ where }) => conflicts.find((row) => row.characterId === where.characterId_claimantMemberId.characterId && row.claimantMemberId === where.characterId_claimantMemberId.claimantMemberId) ?? null),
@@ -58,7 +60,7 @@ function newGuild() {
     unclaimedCharacter: { deleteMany: vi.fn() }
   };
   const database = { ...db, $transaction: async (callback: (tx: typeof db) => unknown) => callback(db) };
-  return { db, database: database as never, characters, claims, conflicts };
+  return { db, database: database as never, characters, claims, conflicts, credentials };
 }
 
 const officer = { officer: true };
@@ -144,7 +146,26 @@ describe("linking from an officer's upload", () => {
     await blockVerifiedCharacter(guild.database, "guild", "ray", "Ray");
     expect(await linkVerifiedCharacters(guild.database, "guild", officer, peer("Ray", code))).toEqual([]);
     expect(guild.characters).toEqual([]);
-    expect(guild.claims).toEqual([{ guildId: "guild", memberId: "ray", nameKey: "ray", status: "BLOCKED" }]);
+    expect(guild.claims).toMatchObject([{ guildId: "guild", memberId: "ray", nameKey: "ray", status: "BLOCKED" }]);
+  });
+
+  it("a pairing made after the member's own unlink lets the verify line relink only that character; older pairings, REMOVED and other unlinks stay", async () => {
+    const guild = newGuild();
+    const code = await verifyCodeFor(guild.database, "guild", "ray");
+    await blockVerifiedCharacter(guild.database, "guild", "ray", "Ray");
+    await blockVerifiedCharacter(guild.database, "guild", "ray", "Sold", "Forever", "forever");
+    guild.credentials.push({ memberId: "ray", revokedAt: null, createdAt: new Date(Date.now() - 60_000) }); // paired BEFORE the unlink
+    expect(await linkVerifiedCharacters(guild.database, "guild", officer, peer("Ray", code))).toEqual([]);
+    guild.credentials.push({ memberId: "ray", revokedAt: null, createdAt: new Date(Date.now() + 60_000) }); // paired AFTER it
+    const result = await linkVerifiedCharacters(guild.database, "guild", officer, peer("Ray", code));
+    expect(result).toEqual([expect.objectContaining({ name: "Ray", status: "linked" })]);
+    expect(guild.characters.map((row) => row.name)).toEqual(["Ray"]);
+    expect(guild.claims.map((claim) => [claim.nameKey, claim.status])).toEqual(expect.arrayContaining([["sold", "BLOCKED"]]));
+    expect(guild.claims.find((claim) => claim.nameKey === "ray")?.status).not.toBe("BLOCKED");
+    // An officer's removal is never overridden, however new the pairing.
+    await blockVerifiedCharacter(guild.database, "guild", "ray", "Gone", "Forever", "forever", true);
+    expect(await linkVerifiedCharacters(guild.database, "guild", officer, peer("Gone", code))).toEqual([]);
+    expect(guild.characters.map((row) => row.name)).toEqual(["Ray"]);
   });
 
   it("keeps an officer's unlink for both verify codes and the member's own uploads", async () => {
@@ -153,7 +174,7 @@ describe("linking from an officer's upload", () => {
     await linkVerifiedCharacters(guild.database, "guild", officer, peer("Ray", code));
     guild.characters.length = 0; // an officer's /character unlink
     await blockVerifiedCharacter(guild.database, "guild", "ray", "Ray", "Forever", "forever", true);
-    expect(guild.claims).toEqual([{ guildId: "guild", memberId: "ray", nameKey: "ray", status: "REMOVED" }]);
+    expect(guild.claims).toMatchObject([{ guildId: "guild", memberId: "ray", nameKey: "ray", status: "REMOVED" }]);
     expect(await linkVerifiedCharacters(guild.database, "guild", officer, peer("Ray", code))).toEqual([]);
     await expect(linkPairedCharacter(guild.database, "guild", "ray", peer("Ray")[0]!)).resolves.toBe("removed-by-officer");
     expect(guild.characters).toEqual([]);
@@ -168,7 +189,7 @@ describe("linking from a member's upload", () => {
     const code = await verifyCodeFor(guild.database, "guild", "ray");
     expect(await linkVerifiedCharacters(guild.database, "guild", member, peer("Ray", code)))
       .toEqual([{ discordUserId: "user-ray", name: "Ray", status: "linked", isMain: true, reportedBy: "user-sam" }]);
-    expect(guild.claims).toEqual([{ guildId: "guild", memberId: "ray", nameKey: "ray", status: "PROVISIONAL" }]);
+    expect(guild.claims).toMatchObject([{ guildId: "guild", memberId: "ray", nameKey: "ray", status: "PROVISIONAL" }]);
     // The next officer upload that hears the same code confirms it, without a second DM.
     expect(await linkVerifiedCharacters(guild.database, "guild", officer, peer("Ray", code))).toEqual([]);
     expect(guild.claims[0]!.status).toBe("LINKED");

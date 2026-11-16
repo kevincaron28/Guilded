@@ -7,7 +7,7 @@ import { normalizeClassName, normalizeRaceName } from "./character-import.js";
 import { characterKey, foreverSameName } from "../../companion/character-identity.mjs";
 import { guildRankUpdate } from "./guild-rank.js";
 import { gameEditionOf } from "./game-edition.js";
-import { contestCharacter, evidenceOf, evidenceRank, reattachDetached, type LinkEvidence } from "./character-move.js";
+import { contestCharacter, evidenceOf, evidenceRank, pairedSince, reattachDetached, type LinkEvidence } from "./character-move.js";
 
 const PAIRING_CODE_LIFETIME_MS = 15 * 60_000;
 type Tx = Prisma.TransactionClient;
@@ -130,9 +130,12 @@ async function linkPairedCharacterOnce(database: PrismaClient, guildId: string, 
     // (BLOCKED, /character unlink or the "Not mine" button): their uploads must not link it back.
     const declined = await tx.characterVerifyClaim.findFirst({
       where: { guildId, memberId, nameKey: characterKey(self.name, self.realm, gameEditionOf(self)), status: { in: ["REMOVED", "BLOCKED"] } },
-      select: { status: true }
+      select: { status: true, updatedAt: true }
     });
-    if (declined) return declined.status === "BLOCKED" ? "blocked-by-member" as const : "removed-by-officer" as const;
+    // The member's own unlink yields to a pairing made after it, for the characters that pairing reports (never an officer's REMOVED).
+    if (declined?.status === "BLOCKED" && await pairedSince(tx, memberId, declined.updatedAt)) {
+      await tx.characterVerifyClaim.deleteMany({ where: { guildId, memberId, nameKey: characterKey(self.name, self.realm, gameEditionOf(self)), status: "BLOCKED" } });
+    } else if (declined) return declined.status === "BLOCKED" ? "blocked-by-member" as const : "removed-by-officer" as const;
     await createSelfCharacter(tx, guildId, memberId, self, confirm, evidence);
     return "linked" as const;
   // 9.0.8: its own budget. The 5 s default ran out while a big upload's import held the database (P2028, 9 November).

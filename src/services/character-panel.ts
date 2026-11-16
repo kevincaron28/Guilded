@@ -7,7 +7,8 @@ import { asLang, t, type Lang } from "../i18n.js";
 import { displayCharacterName, loadFullNameBook } from "./character-display.js";
 import { characterTrustMap, trustSuffix } from "./character-trust.js";
 import { claimCharacter } from "./character-autolink.js";
-import { tellAutoLinked, unlinkNotMine } from "./companion-link-dm.js";
+import { DETACHED } from "./character-move.js";
+import { linkBackRow, tellAutoLinked, unlinkNotMine } from "./companion-link-dm.js";
 
 // The /character panel (linking simplification, 13 November 2026; owner: "Approve, build it").
 // One private message with the member's characters and buttons: link one, set the main, unlink, picture, refresh.
@@ -93,7 +94,10 @@ export async function characterPanel(database: Db, discordUserId: string, discor
 /** The "Link a character" step: the characters nobody has linked yet, plus a way to type the name. */
 export async function linkView(database: Db, context: Context): Promise<PanelView> {
   const { member, lang } = context;
-  const rows = await database.unclaimedCharacter.findMany({ where: { guildId: member.guildId }, orderBy: { name: "asc" }, take: MAX_OPTIONS });
+  // The characters this member unlinked themselves come first: always theirs to take back, whatever the automation says.
+  const own = (await database.character.findMany({ where: { guildId: member.guildId, detachedFromMemberId: member.id, ...DETACHED }, orderBy: { name: "asc" }, take: MAX_OPTIONS })).filter((row) => row.detachedAt);
+  const waiting = await database.unclaimedCharacter.findMany({ where: { guildId: member.guildId }, orderBy: { name: "asc" }, take: MAX_OPTIONS });
+  const rows = [...own, ...waiting].slice(0, MAX_OPTIONS);
   const book = await loadFullNameBook(database, member.guildId);
   const guildId = member.guild.discordId;
   const components: PanelView["components"] = [];
@@ -180,16 +184,18 @@ export async function handlePanelInteraction(interaction: PanelInteraction, data
     if (!character) { await show(await panel(t(lang, "linked.notYours"))); return; }
     const book = await loadFullNameBook(database, context.member.guildId);
     await show(view(t(lang, "panel.unlinkAsk", { name: escapeMarkdown(displayCharacterName(character, book)) }), [row(
-      new ButtonBuilder().setCustomId(id("ok", discordGuildId, character.id)).setLabel(t(lang, "panel.unlinkYes")).setStyle(ButtonStyle.Danger),
-      new ButtonBuilder().setCustomId(id("refresh", discordGuildId)).setLabel(t(lang, "panel.cancel")).setStyle(ButtonStyle.Secondary))]));
+      new ButtonBuilder().setCustomId(id("ok", discordGuildId, character.id)).setLabel(t(lang, "panel.unlinkYes")).setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(id("refresh", discordGuildId)).setLabel(t(lang, "linked.keep")).setStyle(ButtonStyle.Primary))]));
     return;
   }
   if (action === "ok" && interaction.isButton() && extra) {
     // A stale confirm (already unlinked, or moved to someone else) does nothing: no second detach, block write or log line.
     if (!await ownCharacter(database, context, extra)) { await show(await panel(t(lang, "linked.gone"))); return; }
     // The same unlink as the DM's "Not mine" button: detached with its history, BLOCKED so nothing links it back, officer log line (worded for the panel).
-    const notice = await unlinkNotMine(database as unknown as Parameters<typeof unlinkNotMine>[0], interaction.client, interaction.user.id, extra, "panel");
-    await show(await panel(notice));
+    const result = await unlinkNotMine(database as unknown as Parameters<typeof unlinkNotMine>[0], interaction.client, interaction.user.id, extra, "panel");
+    const next = await panel(result.text);
+    // The panel shows the unlink with "Link it back" under it, the same button as the DM's (7 days; the Link step has no limit).
+    await show(result.undoId ? { ...next, components: [...next.components, row(...linkBackRow(result.lang, result.undoId).components)] } : next);
   }
 }
 

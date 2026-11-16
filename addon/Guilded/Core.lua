@@ -1757,8 +1757,117 @@ local function runCommProbe()
 end
 ns.runCommProbe = runCommProbe
 
+-- /guilded probe auctions: read-only. Does this client have what the planned Auction House achievements (docs/plans/AH_ACHIEVEMENTS.md) would
+-- read? Reports which functions, globals and events exist, the shape (never the content) of the mail inbox headers and invoices, the owned
+-- auction list's sale status, and any statistic whose name mentions gold or auctions. No amounts, names or item links are stored. The result
+-- goes to chat (one line) and to the saved variables (probes.auctions, dropped at the next login like probes.maps); the companion does not
+-- upload probes, so the owner reads the saved file.
+local unpack = table.unpack or unpack
+local function returnTypes(...)
+  local list = {}
+  for i = 1, select("#", ...) do list[#list + 1] = type((select(i, ...))) end
+  return table.concat(list, ",")
+end
+local function runAuctionProbe()
+  local g = _G
+  local r = { at = now(), build = (GetBuildInfo and select(4, GetBuildInfo())) or 0, fn = {}, globals = {}, events = {}, inbox = {}, owned = {}, stats = {} }
+  for _, name in ipairs({ "GetInboxNumItems", "GetInboxHeaderInfo", "GetInboxInvoiceInfo", "GetNumAuctionItems", "GetAuctionItemInfo", "GetStatistic", "GetStatisticsCategoryList", "GetMoney" }) do
+    r.fn[name] = type(g[name]) == "function"
+  end
+  r.fn.C_AuctionHouse = type(g.C_AuctionHouse) == "table"
+  -- The localized chat/mail format strings (generic text with %s slots, no personal data).
+  for _, name in ipairs({ "ERR_AUCTION_SOLD_S", "ERR_AUCTION_WON_S", "ERR_AUCTION_EXPIRED_S", "AUCTION_SOLD_MAIL_SUBJECT", "AUCTION_EXPIRED_MAIL_SUBJECT" }) do
+    r.globals[name] = type(g[name]) == "string" and g[name] or ""
+  end
+  -- An event the client does not know makes RegisterEvent fail: that is the answer.
+  if CreateFrame then
+    local okFrame, frame = pcall(CreateFrame, "Frame")
+    if okFrame and type(frame) == "table" then
+      for _, event in ipairs({ "CHAT_MSG_SYSTEM", "AUCTION_OWNED_LIST_UPDATE", "MAIL_INBOX_UPDATE", "PLAYER_MONEY", "AUCTION_HOUSE_SHOW", "AUCTION_HOUSE_AUCTION_CREATED" }) do
+        local ok = pcall(frame.RegisterEvent, frame, event)
+        r.events[event] = ok and true or false
+        if ok then pcall(frame.UnregisterEvent, frame, event) end
+      end
+    end
+  end
+  -- Inbox: how many values the header and the invoice return and their types; which invoice types exist; how many subjects match the sold-mail format.
+  if r.fn.GetInboxNumItems then
+    local okCount, count = pcall(g.GetInboxNumItems)
+    count = okCount and tonumber(count) or 0
+    r.inbox.mails = count
+    local soldFormat = r.globals.AUCTION_SOLD_MAIL_SUBJECT
+    local soldPrefix = soldFormat:match("^(.-)%%s") or ""
+    r.inbox.invoiceTypes, r.inbox.soldSubjects = {}, 0
+    for i = 1, math.min(count, 20) do
+      if r.fn.GetInboxHeaderInfo then
+        local packed = { pcall(g.GetInboxHeaderInfo, i) }
+        if packed[1] then
+          r.inbox.headerReturns = r.inbox.headerReturns or returnTypes(unpack(packed, 2))
+          local subject = packed[5]
+          if soldPrefix ~= "" and type(subject) == "string" and subject:sub(1, #soldPrefix) == soldPrefix then r.inbox.soldSubjects = r.inbox.soldSubjects + 1 end
+        end
+      end
+      if r.fn.GetInboxInvoiceInfo then
+        local packed = { pcall(g.GetInboxInvoiceInfo, i) }
+        if packed[1] and packed[2] ~= nil then
+          r.inbox.invoiceReturns = r.inbox.invoiceReturns or returnTypes(unpack(packed, 2))
+          local kind = tostring(packed[2])
+          r.inbox.invoiceTypes[kind] = (r.inbox.invoiceTypes[kind] or 0) + 1
+        end
+      end
+    end
+  end
+  -- Owned auctions (the list is only filled while the auction house is open).
+  r.owned.windowOpen = (g.AuctionFrame and g.AuctionFrame.IsShown and g.AuctionFrame:IsShown()) and true or false
+  if r.fn.GetNumAuctionItems then
+    local okNum, batch, total = pcall(g.GetNumAuctionItems, "owner")
+    r.owned.count = okNum and tonumber(batch) or 0
+    r.owned.total = okNum and tonumber(total) or 0
+    if r.owned.count > 0 and r.fn.GetAuctionItemInfo then
+      local packed = { pcall(g.GetAuctionItemInfo, "owner", 1) }
+      if packed[1] then
+        r.owned.returns = returnTypes(unpack(packed, 2))
+        r.owned.saleStatusType = type(packed[17])
+        r.owned.saleStatus = type(packed[17]) == "number" and packed[17] or nil
+      end
+    end
+  end
+  -- Statistics: id and name of any whose name mentions gold, auctions or sales, and whether the client has a value for it.
+  if r.fn.GetStatisticsCategoryList and g.GetCategoryNumAchievements and g.GetAchievementInfo then
+    local okList, categories = pcall(g.GetStatisticsCategoryList)
+    for _, category in ipairs(okList and type(categories) == "table" and categories or {}) do
+      local okNum, total = pcall(g.GetCategoryNumAchievements, category)
+      for i = 1, okNum and tonumber(total) or 0 do
+        local okInfo, id, name = pcall(g.GetAchievementInfo, category, i)
+        if okInfo and type(name) == "string" and #r.stats < 40 then
+          local lower = name:lower()
+          if lower:find("gold", 1, true) or lower:find("auction", 1, true) or lower:find("coin", 1, true) or lower:find("sold", 1, true) then
+            local okStat, value = pcall(g.GetStatistic, id)
+            local has = okStat and type(value) == "string" and value ~= "" and value ~= "--"
+            r.stats[#r.stats + 1] = tostring(id) .. "|" .. (name:gsub("[|%c]", " ")) .. "|" .. (has and "value" or "none")
+          end
+        end
+      end
+    end
+  end
+  db.probes = type(db.probes) == "table" and db.probes or {}
+  db.probes.auctions = r
+  local function yes(flag) return flag and "yes" or "no" end
+  if ns.logDiagnostic then ns.logDiagnostic("PROBE", "auctions probed", true) end
+  message(string.format(L("Auction probe: inbox %s, invoices %s, sold message %s, owned list %s, %d statistics. Details are in the saved variables (probes.auctions); reload or log out to save the file."),
+    yes(r.fn.GetInboxHeaderInfo), yes(r.fn.GetInboxInvoiceInfo), yes(r.globals.ERR_AUCTION_SOLD_S ~= "" and r.events.CHAT_MSG_SYSTEM),
+    yes(r.events.AUCTION_OWNED_LIST_UPDATE and r.owned.saleStatusType == "number"), #r.stats))
+  if not r.owned.windowOpen then message(L("Open the auction house and run /guilded probe auctions again to read the owned auction list.")) end
+end
+ns.runAuctionProbe = runAuctionProbe
+
 ns.commandHandlers["probe"] = function(args)
   local what = string.lower((args and args[1]) or "")
+  if what == "auctions" then
+    if inCombatNow() then message(L("Not in combat.")); return end
+    runAuctionProbe()
+    return
+  end
   if what == "comm" then
     if string.lower((args and args[2]) or "") == "auto" then
       db.probes = type(db.probes) == "table" and db.probes or {}
@@ -1769,7 +1878,7 @@ ns.commandHandlers["probe"] = function(args)
     end
     return
   end
-  if what ~= "maps" then message(L("Usage: /guilded probe maps | comm | comm auto")); return end
+  if what ~= "maps" then message(L("Usage: /guilded probe maps | comm | comm auto | auctions")); return end
   if inCombatNow() then message(L("Not in combat.")); return end
   if not (C_Map and C_Map.GetMapInfo) then message(L("This client has no map data to read.")); return end
   local rows = {}
@@ -1790,7 +1899,7 @@ ns.commandHandlers["probe"] = function(args)
   if ns.logDiagnostic then ns.logDiagnostic("PROBE", string.format("%d maps read", #rows), true) end
   message(string.format(L("Map probe: %d maps written to the saved variables (probes.maps). Reload or log out to save the file."), #rows))
 end
-table.insert(ns.commandHelp, "/guilded probe maps - write the game's map ids, names and rectangles to the saved variables for diagnostics; /guilded probe comm [auto] - test addon messages on a temporary channel and by whisper")
+table.insert(ns.commandHelp, "/guilded probe maps - write the game's map ids, names and rectangles to the saved variables for diagnostics; /guilded probe comm [auto] - test addon messages on a temporary channel and by whisper; /guilded probe auctions - check read-only what this client offers for auction achievements")
 
 -- /guilded names: saved first-name keys (from before 8.5) that could not move to a full Forever
 -- name on their own. Nothing is changed here; an officer moves or merges them by hand.
@@ -2402,6 +2511,7 @@ local function onEvent(_, event, ...)
     -- A map probe is read once from the saved file: it does not stay in the saved variables after the next login.
     if type(db.probes) == "table" then
       db.probes.maps = nil
+      db.probes.auctions = nil
       if db.probes.commAuto then
         db.probes.commAuto = nil
         if C_Timer and C_Timer.After then C_Timer.After(10, function() pcall(ns.runCommProbe) end) end

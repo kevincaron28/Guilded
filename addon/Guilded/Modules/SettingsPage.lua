@@ -90,6 +90,7 @@ local MILESTONES = {
   { "duel", "Duel wins", "Announces your duel win milestones." },
   { "prof", "Profession skill", "Announces when a profession skill reaches a milestone." },
   { "ach", "Achievements", "Announces the achievements you earn." },
+  { "gold", "Gold milestones", "Announces when you reach a gold milestone (the amount is never shown). Off unless you turn it on." },
 }
 
 local CALL_MODES = { "toast", "chat", "off" }

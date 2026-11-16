@@ -40,6 +40,8 @@ export const ACHIEVEMENT_CATALOGUE_VERSION = 9;
  * - communityPoints: points earned on the guild's community leaderboards (awards minus reversals).
  * - epEarned: effort points (EP) the raid ledger awarded.
  * - honorableKills: the member's lifetime honorable kills, as their own addon reported (milestones the companion uploads).
+ * - goldTier: the highest gold-held tier (1-4: 100, 500, 1,000, 5,000 gold) any character of the member reached, as their addon reported it.
+ *   Only the tier is ever sent or stored (milestone kind "gold", value = tier), never an amount.
  * - duelStreak: the longest run of counted duel wins in a row.
  * - beatTopDuelist: 1 once the member has a counted win over the guild's current #1 duelist (who needs 3+ wins).
  * - duelWins: duels the member won against another member of the guild (counted duels only, see services/duels.ts).
@@ -48,7 +50,7 @@ export const ACHIEVEMENT_CATALOGUE_VERSION = 9;
  * - serverAnniversaries: server anniversaries (the Discord server's birthday, from its creation date) that came
  *   while the member was on the server. The member's start is when Guilded first recorded them.
  */
-export type AchievementMetric = "gameAchievement" | "wowLevel" | "wowMaxLevel" | "dungeonRuns" | "dungeonVariety" | "professionSkill" | "raidsAttended" | "raidClears" | "activeDays" | "poeLevel" | "poeMaps" | "wowEditionLevel" | "wowEditionCap" | "wowEditionProfession" | "messagesSent" | "voiceHours" | "reactionsGiven" | "reactionsReceived" | "communityPoints" | "epEarned" | "mvpWeeks" | "serverAnniversaries" | "honorableKills" | "duelWins" | "duelStreak" | "beatTopDuelist" | "professionsMastered" | "professionFirsts" | "rareRecipes" | "craftsDone" | "secretMilestone";
+export type AchievementMetric = "gameAchievement" | "wowLevel" | "wowMaxLevel" | "dungeonRuns" | "dungeonVariety" | "professionSkill" | "raidsAttended" | "raidClears" | "activeDays" | "poeLevel" | "poeMaps" | "wowEditionLevel" | "wowEditionCap" | "wowEditionProfession" | "messagesSent" | "voiceHours" | "reactionsGiven" | "reactionsReceived" | "communityPoints" | "epEarned" | "mvpWeeks" | "serverAnniversaries" | "honorableKills" | "duelWins" | "duelStreak" | "beatTopDuelist" | "professionsMastered" | "professionFirsts" | "rareRecipes" | "craftsDone" | "secretMilestone" | "goldTier";
 
 export interface AchievementText { name: string; description: string }
 export interface AchievementDef {
@@ -100,6 +102,8 @@ const def = (id: string, game: AchievementGame, tier: AchievementTier, metric: A
   ({ id, game, tier, metric, threshold, en: { name: en[0], description: en[1] }, fr: { name: fr[0], description: fr[1] } });
 
 const grouped = (n: number, fr: boolean) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, fr ? "\u00a0" : ",");
+/** Gold held per tier (milestone value 1-4). The addon owns the same list; only the tier number ever travels. */
+export const GOLD_TIER_GOLD = [100, 500, 1000, 5000] as const;
 type Step = [threshold: number, tier: AchievementTier, en: string, fr: string];
 /** A long progression: one row per step, same metric and glyph, tier rising with the number. Ids are `${prefix}-${threshold}`. */
 function ladder(prefix: string, metric: AchievementMetric, steps: Step[], text: (n: number, fr: boolean) => string): AchievementDef[] {
@@ -151,6 +155,10 @@ const ACTIVITY_LADDERS: AchievementDef[] = [
     [1, "bronze", "First Duel Won", "Premier duel gagné"], [10, "silver", "Duelist", "Duelliste"], [50, "gold", "Blademaster", "Maître d'armes"],
     [100, "epic", "Duel Champion", "Champion des duels"]
   ], (n, fr) => fr ? `Gagner ${grouped(n, true)} ${plural(n, "duel", "duels")} contre des membres de la guilde.` : `Win ${grouped(n, false)} ${plural(n, "duel", "duels")} against guild members.`),
+  ...ladder("gold-held", "goldTier", [
+    [1, "bronze", "Pocket Change", "Menue monnaie"], [2, "silver", "Coin Collector", "Collectionneur de pièces"], [3, "gold", "Thousandaire", "Millénaire"],
+    [4, "epic", "Gold Goblin", "Gobelin de l'or"]
+  ], (n, fr) => { const gold = GOLD_TIER_GOLD[n - 1] ?? 0; return fr ? `Avoir ${grouped(gold, true)} po sur un même personnage.` : `Hold ${grouped(gold, false)} gold on one character.`; }),
   ...ladder("anniversary", "serverAnniversaries", [
     [1, "bronze", "Anniversary Guest", "Invité d'anniversaire"], [2, "silver", "Two Candles", "Deux chandelles"], [3, "gold", "Triple Toast", "Triple toast"],
     [5, "platinum", "High Five", "Haut les cinq"], [10, "legendary", "Decade Strong", "Une décennie ensemble"]

@@ -6,6 +6,8 @@
 --   duel    duels won against guildmates: 1, 10, 50, 100 (Duels.lua)
 --   prof    profession skill steps 75, 150, 225, 300 (150 and 300 are announced; the others are recorded for the bot)
 --   secret  secret achievements (Modules/SecretAchievements.lua; first: killed by the Son of Arugal), announced like the others
+--   gold    gold held on this character, as a TIER (1-4 = 100, 500, 1,000, 5,000 gold); only the tier is recorded, never the amount.
+--           Checked at login and (debounced, never in combat) on PLAYER_MONEY. Announced only when the member turns `gold` on (OFF by default).
 --   ach     every WoW Forever in-game achievement (Modules/GameAchievements.lua records them here; the newest is announced)
 --
 -- ON by default for every character (owner decision, 5 Nov 2026): the first time a line is about to go out, a one-time
@@ -28,7 +30,11 @@ local THROTTLE = 30
 local RETRY_COMBAT = 15
 local MAX_TRIES = 4
 local MAX_LOG = 200
-local KINDS = { "level", "dungeon", "hk", "duel", "prof", "ach", "secret" }
+local KINDS = { "level", "dungeon", "hk", "duel", "prof", "ach", "secret", "gold" }
+-- Gold held per tier (the bot owns the same list in achievements-catalogue.ts); the value that travels is the tier number 1-4.
+local GOLD_STEPS = { 100, 500, 1000, 5000 }
+local GOLD_NAMES = { "Pocket Change", "Coin Collector", "Thousandaire", "Gold Goblin" }
+local GOLD_DEBOUNCE = 5
 local HK_STEPS = { 1, 100, 500, 1000 }
 local DUEL_STEPS = { 1, 10, 50, 100 }
 local PROF_STEPS = { 75, 150, 225, 300 }
@@ -72,10 +78,15 @@ local function current()
   c.settings = type(c.settings) == "table" and c.settings or {}
   return c, r
 end
+-- A type is on unless the member turned it off; gold is the exception: it is OFF until the member turns it on.
+local function kindOn(c, kind)
+  if kind == "gold" then return c.settings.gold == true end
+  return c.settings[kind] ~= false
+end
 function ms.enabled(kind)
   local c = current()
   if not c or c.settings.enabled == false or ms.guildOff() then return false end
-  return kind == nil or c.settings[kind] ~= false
+  return kind == nil or kindOn(c, kind)
 end
 -- True only when this character turned announcements off itself (all of them, or `kind`); the officer's guild-wide switch is not
 -- counted, and an unknown character is not "off". Duels.lua uses it for its local result line.
@@ -111,6 +122,8 @@ local function messageFor(item, name)
     return string.format(L("%s reached %d honorable kills!"), name, item.value)
   elseif item.kind == "prof" then
     return string.format(L("%s reached skill %d in %s!"), name, item.value, item.label or "?")
+  elseif item.kind == "gold" then
+    return string.format(L("%s reached the gold milestone: %s!"), name, L(item.label or "?"))
   elseif item.kind == "ach" then
     return string.format(L("%s earned the achievement %s!"), name, item.label or "?")
   elseif item.kind == "secret" then
@@ -137,7 +150,7 @@ function ms.pump()
   local item = queue[1]
   local c = current()
   -- Turned off (or the module disabled) since it was queued: drop everything waiting.
-  if not c or not active() or c.settings.enabled == false or ms.guildOff() or c.settings[item.kind] == false then queue = {}; return false end
+  if not c or not active() or c.settings.enabled == false or ms.guildOff() or not kindOn(c, item.kind) then queue = {}; return false end
   if not (IsInGuild and IsInGuild()) then queue = {}; return false end
   local wait = lastAt + THROTTLE - epoch()
   if wait > 0 then schedule(wait + 1); return false end
@@ -176,7 +189,7 @@ function ms.reach(id, ref, item, silent)
   c.log[#c.log + 1] = { id = id, kind = item.kind, ref = ref, value = item.value, at = at, label = item.kind == "ach" and item.label or nil,
     desc = item.kind == "ach" and item.desc or nil, category = item.kind == "ach" and item.category or nil, points = item.kind == "ach" and item.points or nil }
   while #c.log > MAX_LOG do table.remove(c.log, 1) end
-  if not silent and c.settings.enabled ~= false and not ms.guildOff() and c.settings[item.kind] ~= false and c.baselined then
+  if not silent and c.settings.enabled ~= false and not ms.guildOff() and kindOn(c, item.kind) and c.baselined then
     queue[#queue + 1] = item
     ms.pump()
   end
@@ -210,6 +223,42 @@ function ms.checkHonorableKills()
   local hk = safe(GetPVPLifetimeStats)
   if type(hk) ~= "number" or hk ~= hk or hk < 0 then return end
   reachSteps("hk", HK_STEPS, math.floor(hk), function(step) return { kind = "hk", value = step }, "hk:" .. step end)
+end
+
+-- Gold held: copper to the highest tier reached (0 = below the first). Only this number leaves this function.
+function ms.goldTier(copper)
+  copper = tonumber(copper)
+  if not copper or copper ~= copper or copper < 0 then return 0 end
+  local gold, tier = math.floor(copper / 10000), 0
+  for i, need in ipairs(GOLD_STEPS) do if gold >= need then tier = i end end
+  return tier
+end
+-- Records the tiers this character's purse reached. Never in combat (unless `force`, the silent baseline); the amount is not kept.
+function ms.checkGold(force)
+  if not force and inCombat() then return false end
+  local tier = ms.goldTier(safe(GetMoney))
+  if tier < 1 then return false end
+  reachSteps("gold", { 1, 2, 3, 4 }, tier, function(step) return { kind = "gold", value = step, label = GOLD_NAMES[step] }, "gold:" .. step end)
+  return true
+end
+-- PLAYER_MONEY fires on every coin: look once, a few seconds after the last change, and wait out a fight.
+local goldTimer = false
+function ms.scheduleGold(delay)
+  if goldTimer or not (C_Timer and C_Timer.After) then return end
+  goldTimer = true
+  C_Timer.After(delay or GOLD_DEBOUNCE, function()
+    goldTimer = false
+    local c = current()
+    if not c or not c.baselined or not active() then return end
+    if inCombat() then ms.scheduleGold(RETRY_COMBAT); return end
+    pcall(ms.checkGold)
+  end)
+end
+
+-- PLAYER_MONEY: only a character that has had its silent first run is watched.
+function ms.onMoney()
+  local c = current()
+  if c and c.baselined then ms.scheduleGold() end
 end
 
 -- A duel win total from Duels.lua.
@@ -264,6 +313,7 @@ local function baseline()
   ms.checkLevel(safe(UnitLevel, "player"))
   ms.checkHonorableKills()
   ms.checkProfessions()
+  ms.checkGold(true)
   local d = ns.getDb and ns.getDb()
   for _, run in pairs(d and d.dungeon and d.dungeon.runs or {}) do
     if type(run) == "table" and run.state == "COMPLETED" and type(run.instanceId) == "number" and type(run.players) == "table" and run.players[c.name] then
@@ -319,6 +369,7 @@ local function status()
     stateWord(c.settings.enabled ~= false), stateWord(c.settings.level ~= false), stateWord(c.settings.dungeon ~= false),
     stateWord(c.settings.hk ~= false), stateWord(c.settings.duel ~= false), stateWord(c.settings.prof ~= false)))
   ns.message(string.format(L("Achievements in guild chat: %s."), stateWord(c.settings.ach ~= false)))
+  ns.message(string.format(L("Gold milestones in guild chat: %s."), stateWord(c.settings.gold == true)))
   if ms.guildOff() then ns.message(L("Milestone announcements are turned off for the whole guild by an officer.")) end
 end
 local function handle(args)
@@ -337,7 +388,7 @@ local function handle(args)
       if a == kind and (b == "on" or b == "off") then ms.setEnabled(b == "on", kind); status(); return end
     end
     status()
-    ns.message("/guilded announce on | off | level|dungeon|hk|duel|prof|ach|secret on|off | guild on|off (officers)")
+    ns.message("/guilded announce on | off | level|dungeon|hk|duel|prof|ach|secret|gold on|off | guild on|off (officers)")
   end
 end
 ns.commandHandlers = ns.commandHandlers or {}
@@ -357,7 +408,7 @@ ns.onDungeonRunFinished = function(run)
 end
 
 local frame = CreateFrame("Frame")
-local events = { "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "PLAYER_LEVEL_UP", "PLAYER_PVP_KILLS_CHANGED", "CHAT_MSG_COMBAT_HONOR_GAIN", "SKILL_LINES_CHANGED", "CHAT_MSG_SKILL", "CHAT_MSG_ADDON" }
+local events = { "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "PLAYER_LEVEL_UP", "PLAYER_PVP_KILLS_CHANGED", "CHAT_MSG_COMBAT_HONOR_GAIN", "SKILL_LINES_CHANGED", "CHAT_MSG_SKILL", "PLAYER_MONEY", "CHAT_MSG_ADDON" }
 for _, event in ipairs(events) do pcall(frame.RegisterEvent, frame, event) end
 frame:SetScript("OnEvent", function(_, event, a, b, c, d)
   local ok, err = pcall(function()
@@ -367,6 +418,7 @@ frame:SetScript("OnEvent", function(_, event, a, b, c, d)
     elseif event == "PLAYER_ENTERING_WORLD" then
       baseline()
       ms.checkHonorableKills()
+      ms.scheduleGold()
       -- An officer's guild-wide switch is repeated at login so members who were offline get it too.
       local r = root()
       if r and r.guild and r.guild.off and ns.isOfficer and ns.isOfficer() and C_Timer and C_Timer.After then
@@ -376,6 +428,8 @@ frame:SetScript("OnEvent", function(_, event, a, b, c, d)
       baseline(); ms.checkLevel(a)
     elseif event == "PLAYER_PVP_KILLS_CHANGED" or event == "CHAT_MSG_COMBAT_HONOR_GAIN" then
       ms.checkHonorableKills()
+    elseif event == "PLAYER_MONEY" then
+      ms.onMoney()
     elseif event == "SKILL_LINES_CHANGED" or event == "CHAT_MSG_SKILL" then
       if current() and current().baselined then ms.checkProfessions() end
     elseif event == "CHAT_MSG_ADDON" and ns.comm.accept(a, b, c, d, PREFIX, function(sender) return ns.isGuildMember and ns.isGuildMember(sender) end) and c == "GUILD" then

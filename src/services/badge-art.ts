@@ -18,7 +18,7 @@ const FAMILY_BY_METRIC: Record<string, BadgeFamily> = {
   dungeonRuns: "dungeons", dungeonVariety: "dungeons", poeMaps: "dungeons",
   raidsAttended: "raids", raidClears: "raids", epEarned: "raids",
   duelWins: "duels", duelStreak: "duels", beatTopDuelist: "duels",
-  honorableKills: "pvp",
+  honorableKills: "pvp", goldTier: "guild",
   wowEditionProfession: "professions", professionsMastered: "professions", professionFirsts: "professions", rareRecipes: "professions", craftsDone: "professions", professionSkill: "professions",
   wowEditionLevel: "levelling", wowEditionCap: "levelling", wowLevel: "levelling", wowMaxLevel: "levelling", poeLevel: "levelling",
   messagesSent: "guild", voiceHours: "guild", reactionsGiven: "guild", reactionsReceived: "guild", communityPoints: "guild", mvpWeeks: "guild", serverAnniversaries: "guild", activeDays: "guild",

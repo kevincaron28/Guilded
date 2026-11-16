@@ -206,6 +206,31 @@ describe("the whole addon, loaded in .toc order", () => {
     expect(s.run(`return tostring(NS.getDb().probes)`)).toBe("nil");
   });
 
+  it("reads what the client offers for auction achievements with /guilded probe auctions: read-only, shapes only, saved for diagnostics, not in combat", () => {
+    const s = fullAddon(1);
+    s.run(`
+      ERR_AUCTION_SOLD_S = "Your auction of %s has sold."; AUCTION_SOLD_MAIL_SUBJECT = "Auction successful: %s"
+      function GetInboxNumItems() return 2, 2 end
+      function GetInboxHeaderInfo(i) return "icon", "stationery", "Auction House", i == 1 and "Auction successful: Linen Cloth" or "Hello", 5000, 0, 20, 0, false, false, false, false, false end
+      function GetInboxInvoiceInfo(i) if i == 1 then return "seller", "Linen Cloth", "Buyer", 100, 200, 10, 5, 1 end end
+      function GetNumAuctionItems() return 1, 1 end
+      function GetAuctionItemInfo() return "Linen Cloth", "icon", 1, 1, true, 1, "", 1, 1, 0, 0, "", "", "Kev", "Kev", 0, 2589, true end
+      function GetStatisticsCategoryList() return { 1 } end
+      function GetCategoryNumAchievements() return 2 end
+      function GetAchievementInfo(cat, i) if i == 1 then return 328, "Total gold acquired" end return 329, "Kills" end
+      function GetStatistic(id) return "12" end
+      function GetMoney() return 0 end
+      SlashCmdList["GUILDED"]("probe auctions")
+    `);
+    expect(s.run(`local a = NS.getDb().probes.auctions; return tostring(a.fn.GetInboxHeaderInfo) .. "|" .. tostring(a.fn.GetInboxInvoiceInfo) .. "|" .. a.inbox.mails .. "|" .. a.inbox.soldSubjects .. "|" .. a.inbox.invoiceTypes.seller .. "|" .. a.inbox.invoiceReturns`)).toBe("true|true|2|1|1|string,string,string,number,number,number,number,number");
+    expect(s.run(`local a = NS.getDb().probes.auctions; return a.globals.ERR_AUCTION_SOLD_S .. "|" .. a.owned.saleStatusType .. "|" .. a.owned.saleStatus .. "|" .. a.owned.returns:gsub("[^,]", ""):len() .. "|" .. a.stats[1]`)).toBe("Your auction of %s has sold.|number|0|17|328|Total gold acquired|value");
+    // Shapes only: no amount, no item or player name is saved.
+    expect(s.run(`local a = NS.getDb().probes.auctions; local function walk(t) for _, v in pairs(t) do if type(v) == "table" then if walk(v) then return true end elseif tostring(v):find("Linen") or tostring(v):find("Buyer") or tostring(v):find("5000") then return true end end end; return walk(a) and "found" or "clean"`)).toBe("clean");
+    expect(s.chat().join(" ")).toContain("Auction probe: inbox yes, invoices yes");
+    s.run(`NS.getDb().probes = nil; INCOMBAT = true; function InCombatLockdown() return INCOMBAT end; SlashCmdList["GUILDED"]("probe auctions")`);
+    expect(s.run(`return tostring(NS.getDb().probes)`)).toBe("nil");
+  });
+
   it("drops probes.maps at the next login, and /guilded probe comm joins a channel, sends on it and by whisper through ns.comm, and leaves", () => {
     const s = fullAddon(1);
     s.run(`

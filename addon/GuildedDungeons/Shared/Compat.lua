@@ -116,6 +116,11 @@ local function unitInfo(unit)
   -- known yet, for example out of range). A plain read, the same kind as the lines above.
   local guild = exists(GetGuildInfo) and try("unitGuild", GetGuildInfo, unit) or nil
   if secret(guild) or type(guild) ~= "string" or guild == "" or #guild > 80 then guild = nil end
+  -- (9.3.6) A guildmate the client cannot read a guild for (out of range) is still in our own guild: use the guild's name as we know it.
+  if not guild and inGuild and exists(GetGuildInfo) then
+    local own = try("ownGuild", GetGuildInfo, "player")
+    if not secret(own) and type(own) == "string" and own ~= "" and #own <= 80 then guild = own end
+  end
   return {
     unit = unit, level = level, guild = guild,
     name = ns.normalizeName(name),

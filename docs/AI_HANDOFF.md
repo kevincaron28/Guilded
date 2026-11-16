@@ -31,12 +31,6 @@ Website redesign (CF1, R0–R2, P1) is being built by Grok Bot — Claude: do no
 
 Priority order. Source: Grok Bot's read-only security review of main@8b073f5d, 10 Nov 2026 (`docs/security/SECURITY_REVIEW_2026-11-10.md` once added; summary below).
 
-### S1. Real client IP for bot rate limits (High)
-- **Problem:** the bot reads the client IP from Caddy's `X-Forwarded-For`, but every request arrives through the Cloudflare Worker, so all users share one IP. About 10 bad credentials lock the whole companion API for everyone for 10 minutes (`src/companion-api.ts` around L154 and L739), and the device registration and upload limits (`companion-device.ts` L27-35) become global caps.
-- **Spec:** `src/companion-api.ts` `clientAddress()`: when the peer is loopback AND header `x-guilded-origin` equals the configured origin token (`timingSafeEqual`), use header `x-guilded-client-ip`; otherwise keep the current logic. Only call `recordFailure` when a secret or code was present and well-formed.
-- **Acceptance:** a test shows two different client IPs don't share `isLockedOut`, `deviceRegistrations` or `deviceUploadsPerIp`.
-- **Order:** ship this bot side first (it falls back safely). Then W1 below (Grok Bot) makes the Worker set the header.
-
 ### S2. Device-only runs off the public boards (High, Kevin approved 10 Nov 2026; partly reverses #726)
 - **Problem:** with no Discord account, anyone can register a device key, claim any guild name (matched only by declared name, `companion-device.ts` L194) and post fake runs to the public Season 1 boards. Two keys make a run "witnessed".
 - **Spec:** `src/services/public-runs.ts`: exclude `trust: "device"` and `trust: "witnessed"` from public leaderboards in every season (keep them on the guild board, badged unverified) unless the run is `anchored`. `src/services/run-trust.ts` `independent()`: a witness counts only if at least one of the two devices is claimed by a member, or the devices differ in registration IP (after S1) and are more than 24 h old. Device-only runs can never hold rank 1 or the top 3.
@@ -45,22 +39,8 @@ Priority order. Source: Grok Bot's read-only security review of main@8b073f5d, 1
 ### S3. Record plausibility (Medium)
 - **Spec:** `public-runs.ts`: per-instance minimum clear time (start from the observed 5th percentile, fall back to 45 s per boss). A run that beats the current #1 by more than 10% stays pending until a second party member uploads it or an officer reviews it.
 
-### S4. Global mention safety (Medium)
-- **Spec:** `src/main.ts`: `new Client({ ..., allowedMentions: { parse: ["users"], repliedUser: false } })`. Call sites that need a role ping pass explicit `roles: [id]`; grep raid call-outs and signups and opt them in.
-- **Acceptance:** a test that the Client option is set.
-
-### S5. Self-roles can't grant Guilded authority (Medium)
-- **Spec:** `src/services/selfrole.ts` `selfRoleProblem`: also return a problem if `isPermissionRole(p, role)` is true for any `Permission` key (EN/FR names, Class Leader variants, scoped role IDs).
-- **Acceptance:** tests with "Raid Leader" and "Chef de classe (Guerrier)" roles that have no Discord permissions.
-
-### S6. Don't show raw errors (Low)
-- **Spec:** `src/commands/context.ts` L63: use `error.message` only when `isMemberAnswer(error)`; otherwise show the generic text.
-
 ### S7. Mobile dependencies (Low)
 - **Spec:** bump the Expo SDK and toolchain in `mobile/` to clear the glob/minimatch advisories (`npm audit` in `mobile/`).
-
-### S8. Caddy log redaction (Low)
-- **Spec:** `deploy/Caddyfile` log filter: also redact the `key` query parameter in `request>uri`.
 
 ### Website / Worker (Owner: Grok Bot)
 - **W1 (after S1 is live):** `worker/index.mjs` `route()`: set `x-guilded-client-ip` from `cf-connecting-ip` for API and web requests, and drop that header from caller pass-through. Test in `tests/worker-routing.test.ts` that a caller-supplied value is overwritten.
@@ -363,4 +343,10 @@ _Empty. Format: item id, PR link, who._
 
 ## Done
 
-_Empty. Format: item id, PR link, release._
+_Format: item id, PR, release._
+
+- **S1** (bot side): `clientAddress()` uses `x-guilded-client-ip` only when the peer is loopback and `x-guilded-origin` equals the `GUILDED_ORIGIN_TOKEN` environment variable (`timingSafeEqual`, length-checked); otherwise it falls back to `x-forwarded-for`. The variable is new on the bot: set it to the same value the Worker sends (`GUILDED_ORIGIN_TOKEN` secret) in the bot's environment, or the header stays ignored. `recordFailure` is called only for a present, well-formed credential. W1 (Worker sets the header) is still open (Grok Bot). PR: branch `claude/security-queue-s1-s8`. Release: not yet.
+- **S4**: the Discord client defaults to `allowedMentions: { parse: ["users"], repliedUser: false }`; the two role-ping sends (LFG group post, invite-notify role ping) already pass explicit `roles`. PR: same branch. Release: not yet.
+- **S5**: `selfRoleProblem` refuses any role that is a Guilded permission role (EN/FR names, Class Leader variants, scoped role ids); callers pass the role name. PR: same branch. Release: not yet.
+- **S6**: `replyWithCommandError` shows `error.message` only for `isMemberAnswer(error)`. PR: same branch. Release: not yet.
+- **S8**: `deploy/Caddyfile` log filter deletes the `key` query parameter from `request>uri`. PR: same branch. Release: not yet (copy the Caddyfile to the server on deploy).

@@ -75,7 +75,7 @@ export async function executeSelfRoles(interaction: ChatInputCommandInteraction)
 
   for (const role of roles) {
     const permissions = typeof role.permissions === "string" ? BigInt(role.permissions) : role.permissions.bitfield;
-    const problem = selfRoleProblem({ id: role.id, managed: role.managed, permissions }, guild.id);
+    const problem = selfRoleProblem({ id: role.id, name: role.name, managed: role.managed, permissions }, guild.id);
     if (problem) throw new Error(`${role.name}: ${copy.unsafe}`);
     if (role.id === required?.id) throw new Error(copy.invalid);
   }
@@ -110,7 +110,7 @@ export async function handleSelfRoleButton(interaction: ButtonInteraction): Prom
     await interaction.editReply({ content: copy.missing });
     return;
   }
-  if (selfRoleProblem({ id: role.id, managed: role.managed, permissions: role.permissions.bitfield }, guild.id)) {
+  if (selfRoleProblem({ id: role.id, name: role.name, managed: role.managed, permissions: role.permissions.bitfield }, guild.id)) {
     await interaction.editReply({ content: copy.unsafe });
     return;
   }

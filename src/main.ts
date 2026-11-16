@@ -178,7 +178,9 @@ const client = new Client({
     GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.DirectMessages,
     ...(config.MESSAGE_CONTENT_INTENT ? [GatewayIntentBits.MessageContent] : [])
   ],
-  partials: [Partials.Message, Partials.Reaction, Partials.User, Partials.Channel]
+  partials: [Partials.Message, Partials.Reaction, Partials.User, Partials.Channel],
+  // Never ping @everyone, @here or a role by default; a send that really means to ping a role passes roles: [id].
+  allowedMentions: { parse: ["users"], repliedUser: false }
 });
 const participationTracker = createParticipationTracker(prisma, config.MESSAGE_CONTENT_INTENT);
 // Numbers-only activity totals for the message, voice and reaction achievements (never message text).

@@ -78,9 +78,12 @@
   },
   {
     "source": "guide-link.md",
+    "sourceFr": "guide-link.fr.md",
     "path": "guide/link-character/",
     "title": "Link your character",
+    "titleFr": "Lier votre personnage",
     "description": "Connect a character to Discord after the addon is installed.",
+    "descriptionFr": "Associez un personnage à Discord une fois l’addon installé.",
     "lang": "en",
     "draft": false
   },

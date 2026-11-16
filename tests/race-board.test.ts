@@ -358,3 +358,57 @@ describe("one character, one row (first-name and full-name copies)", () => {
     expect(entries.map(e => [e.id, e.nameKey])).toEqual([["e1", "chad ho"], ["e3", "solo"]]);
   });
 });
+
+describe("race board and the guild roster", () => {
+  const at = new Date("2026-11-15T10:00:00Z");
+  const build = (roster: { name: string; nameKey: string; inGuild: boolean; observedAt: Date }[] | null) => ({
+    character: { findMany: vi.fn(async () => [{ name: "Aria Stone", realm: "Realm", className: "Mage", race: "Human", level: 60, memberId: "m1", lastSeenAt: null, member: { discordUserId: "42" }, professions: [] }]) },
+    unclaimedCharacter: { findMany: vi.fn(async () => [
+      { nameKey: "bob smith", name: "Bob Smith", className: "Rogue", level: 33 }, { nameKey: "cleo ray", name: "Cleo Ray", className: "Priest", level: 20 }]) },
+    levelRaceEntry: { findMany: vi.fn(async () => []), upsert: vi.fn() },
+    ...(roster ? { guildRosterEntry: { findMany: vi.fn(async () => roster) } } : {})
+  });
+  const entry = (name: string, inGuild: boolean, observedAt = at) => ({ name, nameKey: name.toLowerCase(), inGuild, observedAt });
+  const now = new Date("2026-11-16T12:00:00Z");
+
+  it("drops characters the latest roster says left, linked or not", async () => {
+    const data = await loadRaceBoardData(build([entry("Aria Stone", false), entry("Bob Smith", false), entry("Cleo Ray", true)]) as never, "g1", "forever", now);
+    expect(data.rows.map(row => row.name)).toEqual(["Cleo Ray"]);
+    expect(data.total).toBe(1);
+    expect(data.finished).toBe(0);
+  });
+
+  it("matches a first-name row to the departed full name, but keeps characters the roster never named", async () => {
+    const gone = await loadRaceBoardData(build([entry("Bob", false)]) as never, "g1", "forever", now);
+    expect(gone.rows.map(row => row.name).sort()).toEqual(["Aria Stone", "Cleo Ray"]);
+    const unknown = await loadRaceBoardData(build([entry("Someone Else", false)]) as never, "g1", "forever", now);
+    expect(unknown.total).toBe(3);
+  });
+
+  it("brings a rejoined member back and ignores a board with no roster at all", async () => {
+    expect((await loadRaceBoardData(build([entry("Bob Smith", true)]) as never, "g1", "forever", now)).total).toBe(3);
+    expect((await loadRaceBoardData(build(null) as never, "g1", "forever", now)).total).toBe(3);
+  });
+
+  it("keeps the last known list when the roster is stale and says when it was updated", async () => {
+    const old = new Date("2026-10-20T10:00:00Z");
+    const data = await loadRaceBoardData(build([entry("Bob Smith", false, old), entry("Cleo Ray", true, old)]) as never, "g1", "forever", now);
+    expect(data.rows.map(row => row.name).sort()).toEqual(["Aria Stone", "Cleo Ray"]);
+    expect(data.rosterStale).toBe(true);
+    expect(raceBoardEmbed(data, "en").data.footer?.text).toContain("roster last updated 2026-10-20");
+    expect(raceBoardEmbed(data, "fr").data.footer?.text).toContain("liste de la guilde mise à jour le 2026-10-20");
+    const fresh = await loadRaceBoardData(build([entry("Cleo Ray", true)]) as never, "g1", "forever", now);
+    expect(fresh.rosterStale).toBe(false);
+    expect(raceBoardEmbed(fresh, "en").data.footer?.text).not.toContain("roster last updated");
+  });
+
+  it("never deletes Hall of Fame entries of someone who reached 60 and left", async () => {
+    const data = await loadRaceBoardData(build([entry("Aria Stone", false)]) as never, "g1", "forever", now);
+    const create = vi.fn(), update = vi.fn();
+    const db = { raceHallEntry: { findMany: vi.fn(async () => [{ id: "h1", guildId: "g1", nameKey: "aria stone", order: 1, name: "Aria Stone", className: "Mage", race: null, reachedAt: at, firstSeenAt: at, professions: null, memberDiscordId: null, posted: true, messageId: "m", backfilled: false, removed: false }]), create, update, delete: vi.fn() }, memberMilestone: { findMany: vi.fn(async () => []) } };
+    const channel = { send: vi.fn(async () => ({ id: "x" })) };
+    await syncHallOfFame(db as never, channel as never, "g1", data, "en", at, now).catch(() => null);
+    expect(db.raceHallEntry.delete).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+  });
+});

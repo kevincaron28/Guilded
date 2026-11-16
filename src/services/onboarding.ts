@@ -297,7 +297,7 @@ export async function handleOnboardingInteraction(interaction: ButtonInteraction
 
   if (action === "pair" || action === "companion") {
     const record = await guildService.ensureMember(guild.id, member.id, member.user.username);
-    await interaction.editReply(await characterLinkPrompt(prisma, guild.id, record.id, discordGuild.id, lang, action === "companion" ? "companion" : "addon"));
+    await interaction.editReply(await characterLinkPrompt(prisma, guild.id, record.id, discordGuild.id, lang, action === "companion" ? "companion" : "addon", { relinkOwn: true }));
   }
   if (action === "chat") {
     const text = settings.inviteChannelId && settings.inviteQueueEnabled

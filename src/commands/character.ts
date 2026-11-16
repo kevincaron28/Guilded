@@ -5,7 +5,7 @@ import { prisma } from "../database.js";
 import { importCharacter, parseCharacterString } from "../services/character-import.js";
 import { applySelfExport, parseSelfExport } from "../services/self-export.js";
 import { autoLinkUnclaimed, claimCharacter, linkUnclaimed } from "../services/character-autolink.js";
-import { tellAutoLinked } from "../services/companion-link-dm.js";
+import { askUnlink, tellAutoLinked } from "../services/companion-link-dm.js";
 import { postToLogChannel } from "../services/housekeeping.js";
 import { hasPermission } from "../permissions.js";
 import { guildService, requireGuildContext } from "./context.js";
@@ -94,7 +94,7 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
   if (!context) return;
   if (subcommand === "pair") {
     const settings = await guildService.getSettings(context.guildId);
-    await interaction.editReply(await characterLinkPrompt(prisma, context.guildId, context.memberId, interaction.guildId!, asLang(settings?.language), "companion"));
+    await interaction.editReply(await characterLinkPrompt(prisma, context.guildId, context.memberId, interaction.guildId!, asLang(settings?.language), "companion", { relinkOwn: true }));
     return;
   }
   if (subcommand === "race") { await executeRace(interaction, context); return; }
@@ -123,6 +123,11 @@ ${PANEL_HINT}`, flags: MessageFlags.Ephemeral });
     const isOwn = character.memberId === context.memberId;
     if (!isOwn && !(interaction.member && hasPermission(interaction.member as Parameters<typeof hasPermission>[0], "officer"))) {
       throw new Error(`${characterName(character)} is linked to ${character.member.displayName}. Only Officers and Guild Masters can unlink someone else's character.`);
+    }
+    if (isOwn) {
+      // Same rules as the DM and the panel: a private confirm step first, then "Link it back" under the result (companion-link-dm.ts).
+      await interaction.reply({ ...await askUnlink(prisma, interaction.user.id, character.id), flags: MessageFlags.Ephemeral });
+      return;
     }
     // Detached, not deleted (owner decision, 10 November 2026): pictures, wishlist, professions and the
     // rest of its history stay with the row and come back when it is linked again or an officer moves it.

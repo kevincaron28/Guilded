@@ -152,7 +152,45 @@ export async function reattachDetached(tx: Tx, guildId: string, memberId: string
   return detached ? moveCharacter(tx, detached.id, memberId, { evidence, by: "relink" }) : null;
 }
 
-export type ContestOutcome = "moved" | "queued" | "weaker" | "declined";
+/** How long the "Link it back" button of an unlink message works. The commands and the panel have no limit. */
+export const RELINK_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+export type RelinkOutcome =
+  | { status: "relinked"; character: { id: string; name: string; displayName: string | null; className: string; level: number | null; realm: string; isMain: boolean } }
+  | { status: "gone" | "not-yours" | "removed" | "too-old" };
+
+/**
+ * A member takes back a character THEY unlinked themselves (detachedFromMemberId is theirs). The member's own unlink never
+ * stops this: the BLOCKED mark only keeps automation (name match, uploads, verify codes) from guessing again. An officer's
+ * removal (REMOVED) and a character that meanwhile went to someone else (no longer detached) do stop it, so a stronger proof
+ * of another member or an officer's decision is never overridden. `maxAgeMs` limits the 7-day button, not the commands.
+ */
+export async function relinkOwnUnlinked(database: PrismaClient, input: { discordUserId: string; characterId?: string; wanted?: string; guildId?: string; memberId?: string; maxAgeMs?: number; now?: Date }): Promise<RelinkOutcome> {
+  const now = input.now ?? new Date();
+  return database.$transaction(async (tx) => {
+    let character = input.characterId ? await tx.character.findUnique({ where: { id: input.characterId } }) : null;
+    if (!character && input.wanted) {
+      const wanted = input.wanted.trim().toLowerCase();
+      if (!input.guildId || !input.memberId) return { status: "gone" as const };
+      const rows = (await tx.character.findMany({ where: { guildId: input.guildId, detachedFromMemberId: input.memberId, ...DETACHED } })).filter((row) => row.detachedAt);
+      character = rows.find((row) => row.id === input.wanted)
+        ?? rows.find((row) => row.name.toLowerCase() === wanted || (row.displayName ?? "").toLowerCase() === wanted) ?? null;
+    }
+    if (!character || !character.detachedAt || !character.detachedFromMemberId) return { status: "gone" as const };
+    const owner = await tx.member.findUnique({ where: { id: character.detachedFromMemberId }, select: { id: true, discordUserId: true, status: true } });
+    if (!owner || owner.discordUserId !== input.discordUserId) return { status: "not-yours" as const };
+    if (owner.status === "LEFT") return { status: "gone" as const };
+    if (input.maxAgeMs !== undefined && now.getTime() - character.detachedAt.getTime() > input.maxAgeMs) return { status: "too-old" as const };
+    const claims = await tx.characterVerifyClaim.findMany({ where: { guildId: character.guildId, memberId: owner.id, nameKey: claimKey(character) }, select: { status: true } });
+    if (claims.some((claim) => claim.status === "REMOVED")) return { status: "removed" as const };
+    const moved = await moveCharacter(tx, character.id, owner.id, { evidence: isEvidence(character.linkEvidence) ? character.linkEvidence : "named", by: "relink" });
+    if (!moved) return { status: "gone" as const };
+    const row = await tx.character.findUnique({ where: { id: character.id } });
+    return { status: "relinked" as const, character: { id: character.id, name: character.name, displayName: character.displayName, className: character.className, level: character.level, realm: character.realm, isMain: row?.isMain ?? moved.character.isMain } };
+  });
+}
+
+export type ContestOutcome ="moved" | "queued" | "weaker" | "declined";
 
 /**
  * A member's claim on a character another member holds. Stronger proof moves it (MOVED, undo by DM);

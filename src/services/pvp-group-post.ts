@@ -70,9 +70,10 @@ export function pvpGroupEmbed(data: PvpPostData, lang: Lang, image?: string): Em
   const byRole = (role: RaidRole) => data.members.filter(m => m.role === role).map(m => name(m.name));
   const embed = new EmbedBuilder().setColor(data.status === "CLOSED" ? 0x808080 : 0xb91c1c)
     .setTitle(`⚔️ ${data.title}`.slice(0, 256))
-    .setDescription([`${data.activityEn ? `**${fr ? data.activityFr : data.activityEn}** · ` : ""}**${pvpBracket(data.minLevel, data.maxLevel, lang)}** · ${data.members.length}/${data.size} · ${statusText(data.status, fr)}`,
-      data.status === "OPEN" ? t(`Closes <t:${expires}:R> if it is not started.`, `Se ferme <t:${expires}:R> s'il n'est pas démarré.`) : ""].filter(Boolean).join("\n"));
-  for (const role of ["TANK", "HEALER", "DPS"] as const) {
+    .setDescription([image ? "" : `${data.activityEn ? `**${fr ? data.activityFr : data.activityEn}** · ` : ""}**${pvpBracket(data.minLevel, data.maxLevel, lang)}** · ${data.members.length}/${data.size} · ${statusText(data.status, fr)}`,
+      data.status === "OPEN" ? t(`Closes <t:${expires}:R> if it is not started.`, `Se ferme <t:${expires}:R> s'il n'est pas démarré.`) : ""].filter(Boolean).join("\n") || null);
+  // With the picture, the party, size, bracket and status are drawn on it: the text keeps the live countdown, the leader, the queue and the voice room.
+  for (const role of image ? [] : ["TANK", "HEALER", "DPS"] as const) {
     const names = byRole(role);
     embed.addFields({ name: `${ROLE_ICON[role]} ${roleName(role, fr)} (${names.length})`, value: names.length ? names.join(", ").slice(0, 1000) : "—", inline: true });
   }

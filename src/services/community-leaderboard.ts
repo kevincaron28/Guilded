@@ -49,17 +49,21 @@ export function communityLeaderboardCard(input: {
     .setDescription(say(lang,
       "Every game night, helping hand and challenge makes this community stronger, and so does every dungeon, battleground and duel. **Your next point starts here.**\n💬 Discord · 🏰 Dungeons · ⚔️ PvP (battlegrounds, duels, open world)",
       "Une soirée, un coup de main, un défi, mais aussi chaque donjon, champ de bataille et duel : c’est la gang qui fait vivre la communauté. **Ta prochaine place au classement commence ici !**\n💬 Discord · 🏰 Donjons · ⚔️ JcJ (champs de bataille, duels, monde ouvert)"))
-    .addFields({ name: season ? `${active ? "🟢" : "🏁"} ${escapeMarkdown(communitySeasonLabel(season, lang))}` : say(lang, "✨ The next season is coming", "✨ La prochaine saison s’en vient"),
+    .setFooter({ text: `${boardMarker(lang)} · ${say(lang, "Ties share a rank · Earned points, not wallet balance", "Ex æquo = même rang · Points gagnés, pas le solde")}` });
+  // With the card attached it shows the whole table (names, split, total, rank, season and member count): the text keeps only the gang's
+  // total, which the card does not show. Without a picture (cards off or not drawn) the text carries the full top 10 as before.
+  const drawn = Boolean(input.image && top.length);
+  if (!drawn) podium.addFields({ name: season ? `${active ? "🟢" : "🏁"} ${escapeMarkdown(communitySeasonLabel(season, lang))}` : say(lang, "✨ The next season is coming", "✨ La prochaine saison s’en vient"),
       value: top.map(row => {
         const rank = 1 + ranked.filter(other => other.points > row.points).length;
         const name = input.names?.get(row.userId) || say(lang, `Member …${row.userId.slice(-4)}`, `Membre …${row.userId.slice(-4)}`);
         const split = row.discord === undefined ? "" : ` · 💬 ${points(row.discord)} · 🏰 ${points(row.dungeons ?? 0)} · ⚔️ ${points(row.pvp ?? 0)}`;
         return `${["🥇", "🥈", "🥉"][rank - 1] ?? `**${rank}.**`} **${escapeMarkdown(boardName(name, split ? 24 : 32))}** — **${points(row.points)} pts**${split}`;
-      }).join("\n") || say(lang, "The podium is open. Be the first to earn points!", "Le podium est libre. Qui va ouvrir le bal ?"), inline: false })
-    .addFields({ name: say(lang, "🤝 Together, we’ve earned", "🤝 Les efforts de la gang"),
-      value: `${points(ranked.length)} ${say(lang, "participants", "participants")} · **${points(ranked.reduce((total, row) => total + row.points, 0))} pts**`, inline: false })
-    .setFooter({ text: `${boardMarker(lang)} · ${say(lang, "Ties share a rank · Earned points, not wallet balance", "Ex æquo = même rang · Points gagnés, pas le solde")}` });
-  if (input.image && top.length) podium.setImage(`attachment://${input.image}`);
+      }).join("\n") || say(lang, "The podium is open. Be the first to earn points!", "Le podium est libre. Qui va ouvrir le bal ?"), inline: false });
+  const together = points(ranked.reduce((total, row) => total + row.points, 0));
+  podium.addFields({ name: say(lang, "🤝 Together, we’ve earned", "🤝 Les efforts de la gang"),
+    value: drawn ? `**${together} pts**` : `${points(ranked.length)} ${say(lang, "participants", "participants")} · **${together} pts**`, inline: false });
+  if (drawn) podium.setImage(`attachment://${input.image}`);
 
   const guide = new EmbedBuilder().setColor(0x2b8a78)
     .setTitle(say(lang, "✨ TAKE YOUR PLACE", "✨ À TOI DE JOUER"))

@@ -986,6 +986,7 @@ end
 -- (9.3.5) SUMZ|id|part|total|chunk: a run summary packed with the game's own compression, whispered to the guildmate who asked for it
 -- (WNT) and said Z1. Chunks are put together like SUM chunks (same limits), then unpacked, size-checked and handled as a SUM.
 local SUMZ_MAX_BYTES = 4000
+local SUMZ_MAX_BASE64 = 6000
 dungeon.incomingZ = {}
 function dungeon.onPackedSummary(text, sender)
   local E, method = packer()
@@ -1011,7 +1012,10 @@ function dungeon.onPackedSummary(text, sender)
   if not pending.parts[index] then pending.parts[index] = payload; pending.count = pending.count + 1 end
   if pending.count < pending.total then return end
   dungeon.incomingZ[key] = nil
-  local ok, packed = pcall(E.DecodeBase64, table.concat(pending.parts))
+  local joined = table.concat(pending.parts)
+  -- 4000 bytes of summary pack to well under this; anything larger is refused before it is decoded or unpacked.
+  if #joined > SUMZ_MAX_BASE64 then return end
+  local ok, packed = pcall(E.DecodeBase64, joined)
   if not ok or type(packed) ~= "string" then return end
   local summary
   ok, summary = pcall(E.DecompressString, packed, method)

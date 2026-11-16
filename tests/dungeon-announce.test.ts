@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dungeonPosts, DUNGEON_TIMELINE_PREFIX } from "../src/services/dungeon-announce.js";
+import { dungeonPosts, postingGuildName, DUNGEON_TIMELINE_PREFIX } from "../src/services/dungeon-announce.js";
 import { deathPointsOf, dungeonRunCard, dungeonTheme, finalBoss } from "../src/services/dungeon-card.js";
 import type { DungeonImportResult } from "../src/services/dungeon-import.js";
 import { scoreCardPng } from "../src/services/score-card.js";
@@ -11,13 +11,24 @@ const result = (overrides: Partial<DungeonImportResult>): DungeonImportResult =>
 const summary = (...results: DungeonImportResult[]) => ({ results, duplicates: 0, malformed: 0 });
 const text = (run: DungeonImportResult, lang: "en" | "fr" = "en") => dungeonPosts(summary(run), lang)[0]!.embed.toJSON().description!;
 
+describe("postingGuildName", () => {
+  const run = (guild: string) => ({ players: ["A"], inGuildPlayers: ["A"], playerDetails: [{ character: "A", guild }] }) as never;
+  it("prefers the guild the run's guildmates showed, takes a lone guild, and never guesses between several", () => {
+    const guilds = [{ name: "Québec Gold" }, { name: "Other Crew" }];
+    expect(postingGuildName(guilds, [run("other crew")])).toBe("Other Crew");
+    expect(postingGuildName([{ name: "Solo" }], [run("Whatever")])).toBe("Solo");
+    expect(postingGuildName(guilds, [run("Unknown")])).toBeNull();
+    expect(postingGuildName([], [run("x")])).toBeNull();
+  });
+});
+
 describe("dungeonPosts", () => {
   it("sends one post, with its own card, per completed run", () => {
     const posts = dungeonPosts(summary(
       result({ runRef: "A", dungeonName: "Wailing Caverns" }), result({ runRef: "B", dungeonName: "Wailing Caverns" }),
       result({ runRef: "C", dungeonName: "Ragefire Chasm" }), result({ runRef: "D", state: "ABANDONED" }), result({ runRef: "E", valid: false })), "fr");
     expect(posts.map((post) => post.runRef)).toEqual(["A", "B", "C"]);
-    expect(posts.map((post) => post.card.title)).toEqual(["Wailing Caverns", "Wailing Caverns", "Ragefire Chasm"]);
+    expect(posts.map((post) => post.card.title)).toEqual(["Cavernes des lamentations", "Cavernes des lamentations", "Gouffre de Ragefeu"]); // French cards use the French dungeon name
     for (const post of posts) expect(post.embed.toJSON().description!.length).toBeLessThan(1500);
   });
   it("keeps the embed short: no repeated speed-rating line, no per-player blocks", () => {

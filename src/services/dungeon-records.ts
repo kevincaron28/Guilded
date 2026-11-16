@@ -3,7 +3,7 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
 import type { DungeonImportResult } from "./dungeon-import.js";
 import { formatDuration } from "./dungeon-rules.js";
-import { guildPlayers } from "./dungeon-card.js";
+import { dungeonDisplayName, guildPlayers } from "./dungeon-card.js";
 import { displayCharacterName, loadFullNameBook } from "./character-display.js";
 
 // 9.1 guild records and challenges (docs/plans/RECORDS_AND_RECAPS.md). A run that beats the guild's fastest clear or a boss's
@@ -61,7 +61,7 @@ function runIsAllGuild(run: DungeonImportResult): boolean {
 export function runHighlights(run: DungeonImportResult, prior: readonly PriorClear[]): DungeonHighlightItem[] {
   if (!run.runId || !run.valid || run.state !== "COMPLETED" || run.durationSec === null || run.runRef.startsWith("SIM-")) return [];
   const sameDifficulty = prior.filter(row => row.difficultyId === run.difficultyId);
-  const base = { instanceId: instanceOf(run), difficultyId: run.difficultyId, dungeonName: run.dungeonName,
+  const base = { instanceId: instanceOf(run), difficultyId: run.difficultyId, dungeonName: dungeonDisplayName(run),
     players: [...guildPlayers(run)].map(name => run.fullNames?.[name] ?? name) };
   const route = `${base.instanceId}:${run.difficultyId}`;
   const out: DungeonHighlightItem[] = [];
@@ -197,7 +197,7 @@ export async function guildBossRecords(db: Pick<PrismaClient, "dungeonRun"> & Pa
   const best = new Map<string, BossRecordRow>();
   for (const run of runs) for (const kill of bossKills((run.competitionData as { encounters?: Encounter[] } | null)?.encounters)) {
     const key = `${kill.id}:${run.difficultyId}`, previous = best.get(key);
-    if (!previous || kill.sec < previous.sec) best.set(key, { encounterId: kill.id, boss: kill.name, dungeonName: run.dungeonName, difficultyId: run.difficultyId, sec: kill.sec, endedAt: run.endedAt,
+    if (!previous || kill.sec < previous.sec) best.set(key, { encounterId: kill.id, boss: kill.name, dungeonName: dungeonDisplayName({ dungeonName: run.dungeonName, encounters: (run.competitionData as { encounters?: Encounter[] } | null)?.encounters }), difficultyId: run.difficultyId, sec: kill.sec, endedAt: run.endedAt,
       players: run.players.map(player => player.character) });
   }
   if (!best.size) return [];

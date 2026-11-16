@@ -2,7 +2,9 @@ import { updateProfessionDirectory } from "./profession-directory.js";
 import { EmbedBuilder, type Guild as DiscordGuild } from "discord.js";
 import { prisma } from "../database.js";
 import { autoLinkUnclaimed } from "./character-autolink.js";
-import { dungeonPosts } from "./dungeon-announce.js";
+import { currentEdition } from "./edition-context.js";
+import { dungeonPosts, postingGuildName } from "./dungeon-announce.js";
+import { applyPublicScores } from "./card-public-scores.js";
 import { recordRunHighlights } from "./dungeon-records.js";
 import { recordCard, recordEmbed, recordItems } from "./record-card.js";
 import { updateDungeonLeaderboard } from "./dungeon-leaderboard.js";
@@ -48,10 +50,14 @@ export async function announceDungeonRuns(discordGuild: DiscordGuild | null, dun
     const settings = await prisma.guildSettings.findUnique({ where: { guildId }, select: { dungeonHighlightsEnabled: true } }).catch(() => null);
     if (settings && !settings.dungeonHighlightsEnabled) for (const run of dungeons.results) delete run.highlights;
   }
-  const runs = dungeonPosts(dungeons, "en");
+  // The posting guild's in-game name fills the Guild column of guildmates whose game client gave no guild text.
+  const ownGuild = guildId ? postingGuildName(await prisma.wowGuild.findMany({ where: { guildId, gameEdition: currentEdition() }, select: { name: true }, orderBy: { createdAt: "asc" } }).catch(() => []), dungeons.results) : null;
+  // Players outside the guild whose run is also public get their public season total (best effort, after the guild-run numbers).
+  await applyPublicScores(prisma, dungeons.results);
+  const runs = dungeonPosts(dungeons, "en", { ownGuild });
   for (const index of runs.keys()) {
     await notifyDungeon(discordGuild, (lang) => {
-      const post = dungeonPosts(dungeons, lang)[index] ?? runs[index]!;
+      const post = dungeonPosts(dungeons, lang, { ownGuild })[index] ?? runs[index]!;
       return { embed: post.embed, card: post.card, cardOnly: post.cardOnly, components: post.components, ...(post.content ? { content: post.content } : {}) };
     });
     // A guild record gets its own card right after the run's post, so it is not lost among the run cards. Highlights were

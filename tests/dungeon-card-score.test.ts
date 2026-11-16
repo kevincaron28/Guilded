@@ -41,12 +41,26 @@ describe("the run card's dungeon score", () => {
   it("falls back to participation points in a season without ratings", () => {
     expect(stat(base([d("A", { points: 50 })]), "en")).toMatchObject({ label: "Points earned", value: "+50" });
   });
+  it("fills the Guild column of guildmates from the posting guild and leaves outsiders blank", () => {
+    const run = base([d("A"), d("B", { guild: "Other Guild" }), d("C")]);
+    run.unlinked = ["C"]; run.inGuildPlayers = [];
+    const rows = dungeonRunCard(run, "en", { ownGuild: "Québec Gold" }).dungeon!.party;
+    expect(rows.map((row) => row.guildName)).toEqual(["Québec Gold", "Other Guild", undefined]);
+    expect(dungeonRunCard(run, "en").dungeon!.party[0]!.guildName).toBeUndefined();
+  });
+  it("names the Scarlet wing and the dungeon in French on French cards", () => {
+    const run = base([d("A")]);
+    run.dungeonName = "Scarlet Monastery";
+    run.encounters = [{ id: 1, name: "Herod", success: true, at: 1 }];
+    expect(dungeonRunCard(run, "fr").title).toBe("Monastère écarlate : Armurerie");
+    expect(dungeonRunCard(run, "en").title).toBe("Scarlet Monastery: Armory");
+  });
   it("renders a rated, an unrated and a first-run card to PNG, with the score area drawn", async () => {
     const cards = [base([d("A", { ratingTotal: 142, ratingGain: 18 })], { ratingEnabled: true }), base([d("A", { unrankedReason: "Simulation run" })]), base([d("A", { ratingTotal: 96, ratingGain: 96 })], { ratingEnabled: true })];
     const pngs: (Buffer | null)[] = [];
     for (const c of cards) pngs.push(await scoreCardPng(dungeonRunCard(c, "fr")));
     const lit = async (png: Buffer) => {
-      const { data } = await sharp(png).extract({ left: 56, top: 200, width: 420, height: 50 }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+      const { data } = await sharp(png).extract({ left: 56, top: 200, width: 720, height: 50 }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
       let bright = 0; for (let i = 0; i < data.length; i += 3) if (data[i]! + data[i + 1]! + data[i + 2]! > 450) bright++;
       return bright;
     };

@@ -129,7 +129,7 @@ describe("painted dungeon artwork files", () => {
     expect(paintedKey("Scarlet Monastery: Graveyard")).toBe("scarlet-graveyard");
     expect(paintedKey("Scarlet Monastery: Library")).toBe("scarlet-library");
     expect(paintedKey("Scarlet Monastery: Cathedral")).toBe("scarlet-cathedral");
-    expect(paintedKey("Scarlet Monastery: Armory")).toBeUndefined();
+    expect(paintedKey("Scarlet Monastery: Armory")).toBe("scarlet-armory");
     expect(paintedKey("Dire Maul: North")).toBe("dire-maul-north");
     expect(paintedKey("Stratholme: Service Gate")).toBe("stratholme-service");
     expect(paintedKey("Upper Blackrock Spire")).toBe("upper-blackrock-spire");
@@ -164,6 +164,10 @@ describe("painted dungeon artwork files", () => {
     expect(missing.equals(without)).toBe(true);
     expect(unsafe.equals(without)).toBe(true);
     expect(existsSync(new URL("wailing-caverns.jpg", dir))).toBe(true);
+  });
+  it("draws a procedural fallback once per scene and serves it from the cache after", async () => {
+    const theme = { ...dungeonTheme("Wailing Caverns"), painted: undefined };
+    expect(await dungeonBackdrop(theme)).toBe(await dungeonBackdrop({ ...theme }));
   });
   it("keeps at most a few paintings in memory, whatever number of dungeons are drawn", async () => {
     const files = readdirSync(dir).filter((f) => f.endsWith(".jpg")).map((f) => f.slice(0, -4));

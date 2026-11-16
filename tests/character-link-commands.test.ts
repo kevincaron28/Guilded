@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   hasPermission: vi.fn(() => true),
   context: vi.fn(async () => ({ guildId: "g1", memberId: "m1" })),
   block: vi.fn(),
+  ask: vi.fn(async () => ({ content: "Unlink **Ray**? Its history is kept.", components: [] as unknown[] })),
   log: vi.fn(),
   claim: vi.fn(),
   linkUnclaimed: vi.fn(),
@@ -30,6 +31,7 @@ vi.mock("../src/services/character-verify.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../src/services/character-verify.js")>();
   return { ...actual, unlinkCharacter: mocks.block };
 });
+vi.mock("../src/services/companion-link-dm.js", async (importOriginal) => ({ ...(await importOriginal<typeof import("../src/services/companion-link-dm.js")>()), askUnlink: mocks.ask }));
 vi.mock("../src/services/character-autolink.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../src/services/character-autolink.js")>();
   return { ...actual, claimCharacter: mocks.claim, linkUnclaimed: mocks.linkUnclaimed, autoLinkUnclaimed: mocks.autoLink };
@@ -114,17 +116,15 @@ describe("Discord character link commands", () => {
     expect(content).toContain("**Unlinked, history kept:** Old Ray");
   });
 
-  it("lets a member unlink their own character and blocks the verify code from linking it back", async () => {
+  it("asks a member to confirm unlinking their own character first, and unlinks nothing yet", async () => {
     mocks.prisma.character.findMany.mockResolvedValue([ray]);
     const interactionOwn = interaction("unlink", { name: "Ray" });
     await executeCharacter(interactionOwn as never);
-    // Detached, never deleted: the history stays with the row.
-    expect(mocks.prisma.character.delete).not.toHaveBeenCalled();
-    expect(interactionOwn.reply.mock.calls[0]?.[0].content).toContain("Nothing was deleted");
-    expect(mocks.block).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ id: "c1", name: "Ray" }), "g1", false); // the shared detach + BLOCKED sequence
-    expect(mocks.log).toHaveBeenCalledWith(interactionOwn.guild, expect.stringContaining("unlinked their character"));
-    expect(interactionOwn.reply.mock.calls[0]?.[0].content).toContain("Unlinked **Ray**");
+    expect(mocks.ask).toHaveBeenCalledWith(expect.anything(), expect.anything(), "c1");
+    expect(interactionOwn.reply.mock.calls[0]?.[0].content).toContain("Unlink **Ray**?");
     expect(interactionOwn.reply.mock.calls[0]?.[0].flags).toBe(MessageFlags.Ephemeral);
+    expect(mocks.prisma.character.delete).not.toHaveBeenCalled();
+    expect(mocks.block).not.toHaveBeenCalled(); // the detach + BLOCKED sequence runs on "Yes, unlink" (companion-link-dm.test.ts)
   });
 
   it("lets an officer unlink someone else's character so that member's uploads cannot relink it", async () => {

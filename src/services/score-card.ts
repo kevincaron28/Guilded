@@ -688,7 +688,7 @@ async function renderUnlock(card: ScoreCard): Promise<Buffer> {
   // The trophy-hall painting (board/achievements) behind the card: "wide" for the single hero (text across the card), "full" for the
   // list and grid (the right panel is opaque, so only the left column needs the shade). No file: the flat card as before.
   withArt(shapes, await cardBackdropArt(card.backdrop, all.length === 1 ? "wide" : "full"), 630);
-  const put =async (markup: string, size: number, left: number, top: number, maxWidth = 1080) => {
+  const put = async (markup: string, size: number, left: number, top: number, maxWidth = 1080) => {
     const t = await text(markup, size, maxWidth); layers.push({ input: t.input, left: Math.round(left), top: Math.round(top) }); return t;
   };
   const putRight = async (markup: string, size: number, right: number, top: number) => {
@@ -743,7 +743,7 @@ async function renderUnlock(card: ScoreCard): Promise<Buffer> {
       `<svg x="${cx - 128}" y="${cy - 128}" width="256" height="256" viewBox="0 0 64 64">${hero.icon}</svg>`);
 
     // A shaded panel under the text so it reads over the painting (the same look as the list panel, a little see-through).
-    shapes.push(`<rect x="476" y="196" width="684" height="352" rx="14" fill="${th.panel}" fill-opacity=".86" stroke="${th.edge}" stroke-width="1.5"/>`);
+    shapes.push(`<rect x="476" y="196" width="684" height="366" rx="14" fill="${th.panel}" fill-opacity=".86" stroke="${th.edge}" stroke-width="1.5"/>`);
     const x = 500, ribbon = await pill(x, 212, hero.tier, color, true);
     await pill(x + ribbon + 12, 212, hero.group, th.muted, false);
     const nlen = [...hero.name].length, nsize = nlen <= 14 ? 68 : nlen <= 20 ? 58 : 48;

@@ -29,7 +29,7 @@ export function runFullName(character: string, known: readonly { name: string; d
   return doubled ? doubled.trim().replace(/\s+/g, " ") : cleanCharacterName(displayCharacterName(character, names, party));
 }
 
-import { competitionReason, completionReason, dungeonRating, hasDungeonRating, ratingCharacterKey, type LevelBand } from "./dungeon-rating.js";
+import { competitionReason, completionReason, dungeonRating, hasDungeonRating, ratingCharacterKey, UNLINKED_RATING_PREFIX, type LevelBand } from "./dungeon-rating.js";
 import { participationDungeonKey, participationMode, participationRecordEligible, type ParticipationRun } from "./dungeon-participation.js";
 import {
   computeRunPoints, computeWeeklyVarietyPoints, sharedDungeonConfig, dungeonRunSchema, validateRun, weekStart,
@@ -550,7 +550,7 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
       summary.duplicates++;
       continue;
     }
-    const previousRating = rated ? ratingCache.get(season.id) ?? await dungeonRating(tx, guildId, season) : [];
+    const previousRating = rated ? ratingCache.get(season.id) ?? await dungeonRating(tx, guildId, season, null, true, true) : [];
     const durationSec = run.startedAt && run.endedAt ? run.endedAt - run.startedAt : null;
     const linked = run.players.map((player) => ({
       player,
@@ -732,13 +732,20 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
         achievements=achievements.filter(a=>active.some(row=>row.key===a.key && row.memberId===linked.find(p=>p.player.character===a.character)?.character?.memberId));
       }
     }
-    const currentRating = rated ? await dungeonRating(tx, guildId, season) : [];
+    // Card numbers only (never stored, never a board): every party member is rated, with the score of the role they played.
+    const currentRating = rated ? await dungeonRating(tx, guildId, season, null, true, true) : [];
     if (rated) ratingCache.set(season.id, currentRating);
     // Version 6: the total of the bracket this character played in, by their level in this run.
     const routeBracket = validBracketedRules(season.ratingRules) ? season.ratingRules.routeBracket[dungeonKey] : undefined;
     const runBracket = (name: string) => routeBracket ?? bracketForLevel(brackets ?? [], run.players.find(p => p.character === name)?.level)?.key;
-    const ratingFor = (rows: typeof currentRating, memberId: string, name: string) => rows.find(row => row.character
-      && ratingCharacterKey(row.memberId, row.character) === ratingCharacterKey(memberId, name) && (!brackets || row.bracket === runBracket(name)))?.points ?? 0;
+    const ratingRow = (rows: typeof currentRating, memberId: string, name: string) => rows.find(row => row.character
+      && ratingCharacterKey(row.memberId, row.character) === ratingCharacterKey(memberId, name) && (!brackets || row.bracket === runBracket(name)));
+    // The season score of the role the player played in this run (the overall score when the role is unknown or has no row).
+    const ratingFor = (rows: typeof currentRating, memberId: string, name: string, role?: string | null) => {
+      const row = ratingRow(rows, memberId, name);
+      return (role ? row?.roles?.find(r => dungeonRole(r.role) === role)?.points : undefined) ?? row?.points ?? 0;
+    };
+    const unlinkedKey = (name: string) => UNLINKED_RATING_PREFIX + name.trim().toLowerCase();
     const mapOutline = run.deathPoints?.length ? await outlineFor(tx, deathMapOf(run.deathPoints)).catch(() => null) : null;
     summary.results.push({
       runRef: run.id,
@@ -780,10 +787,10 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
         participationMode: participationMode(evidence, player.character, band, november),
         ...(participationRecipient && participationRecipient !== player.character ? { participationRecipient } : {}),
         ...(unrankedReason ? { unrankedReason } : {}),
-        ...(rated && character ? {
-          ratingTotal: ratingFor(currentRating, character.memberId, player.character),
-          ratingGain: ratingFor(currentRating, character.memberId, player.character)
-            - ratingFor(previousRating, character.memberId, player.character)
+        ...(rated && (character || ratingRow(currentRating, unlinkedKey(player.character), player.character)) ? {
+          ratingTotal: ratingFor(currentRating, character?.memberId ?? unlinkedKey(player.character), player.character, dungeonRole(player.role)),
+          ratingGain: ratingFor(currentRating, character?.memberId ?? unlinkedKey(player.character), player.character, dungeonRole(player.role))
+            - ratingFor(previousRating, character?.memberId ?? unlinkedKey(player.character), player.character, dungeonRole(player.role))
         } : {})
         };
       }),

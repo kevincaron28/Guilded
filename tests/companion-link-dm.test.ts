@@ -146,7 +146,11 @@ describe("undo for every automatic link", () => {
   it("uses one Not mine button per character up to five, a select menu above, and always two rows at most", () => {
     const few = linkUndoRows("en", [aran, bel, cyr], null).map((row) => row.toJSON());
     expect(few).toHaveLength(2);
-    expect(few[0]!.components.map((component) => (component as { label: string }).label)).toEqual(["Not mine: Aran Dawnfield", "Not mine: Bel", "Not mine: Cyr Stonehand"]);
+    expect(few[0]!.components.map((component) => (component as { label: string }).label)).toEqual(["This isn't my character: Aran Dawnfield", "This isn't my character: Bel", "This isn't my character: Cyr Stonehand"]);
+    // Nothing in the DM is red (Discord style 4); the grey unlink buttons are Secondary (2), "My characters" is the primary action (1).
+    expect(few.flatMap((row) => row.components.map((component) => (component as { style: number }).style))).not.toContain(4);
+    expect((few[0]!.components[0] as { style: number }).style).toBe(2);
+    expect((few[1]!.components[0] as { style: number }).style).toBe(1);
     const many = Array.from({ length: 30 }, (_, index) => ({ id: `x${index}`, name: `N${index}`, displayName: null }));
     const menu = linkUndoRows("fr", many, null).map((row) => row.toJSON());
     expect(menu).toHaveLength(2);
@@ -170,31 +174,113 @@ describe("undo for every automatic link", () => {
     return { database, interaction, guild, tx };
   }
 
-  it("Not mine unlinks the character as BLOCKED (not REMOVED) and writes one officer log line", async () => {
+  const yes = (f: ReturnType<typeof undoFakes>) => ({ ...f.interaction, customId: "linked:yes:c1", isButton: () => true, deferUpdate: vi.fn(async () => undefined), user: { id: "111", send: vi.fn(async () => undefined) } });
+
+  it("the unlink button only asks first: a private confirm with Keep it as the primary button, nothing is unlinked", async () => {
     log.mockClear();
     const f = undoFakes();
     await handleLinkedButton(f.interaction as never, f.database as never);
+    expect(f.tx.character.update).not.toHaveBeenCalled();
+    expect(f.database.characterVerifyClaim.upsert).not.toHaveBeenCalled();
+    expect(log).not.toHaveBeenCalled();
+    expect(f.interaction.deferReply).toHaveBeenCalledWith(expect.objectContaining({ flags: expect.anything() }));
+    const reply = (f.interaction.editReply.mock.calls[0] as unknown as [{ content: string; components: { toJSON(): { components: { label: string; style: number; custom_id: string }[] } }[] }])[0];
+    expect(reply.content).toContain("Unlink **Aran Dawnfield**?");
+    const buttons = reply.components[0]!.toJSON().components;
+    expect(buttons.map((button) => [button.label, button.style, button.custom_id])).toEqual([["Yes, unlink", 2, "linked:yes:c1"], ["Keep it", 1, "linked:keep"]]);
+    // Keep it changes nothing.
+    const keep = { ...f.interaction, customId: "linked:keep", isButton: () => true, deferUpdate: vi.fn(async () => undefined) };
+    await handleLinkedButton(keep as never, f.database as never);
+    expect(f.tx.character.update).not.toHaveBeenCalled();
+  });
+
+  it("Yes, unlink detaches the character as BLOCKED (not REMOVED), logs once and shows Link it back, also by DM", async () => {
+    log.mockClear();
+    const f = undoFakes();
+    const press = yes(f);
+    await handleLinkedButton(press as never, f.database as never);
     expect(f.database.character.delete).not.toHaveBeenCalled(); // detached with its history, like /character unlink
     expect(f.tx.character.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "c1" }, data: expect.objectContaining({ detachedFromMemberId: "m1" }) }));
     expect(f.database.characterVerifyClaim.upsert).toHaveBeenCalledWith(expect.objectContaining({ create: expect.objectContaining({ status: "BLOCKED", memberId: "m1", guildId: "g1" }) }));
     expect(log).toHaveBeenCalledTimes(1);
     expect((log.mock.calls[0] as unknown as [unknown, string])[1]).toContain("<@111> unlinked Aran Dawnfield");
-    expect((f.interaction.editReply.mock.calls[0] as unknown as [{ content: string }])[0].content).toContain("unlinked from you");
+    const reply = (f.interaction.editReply.mock.calls[0] as unknown as [{ content: string; components: { toJSON(): { components: { label: string; style: number; custom_id: string }[] } }[] }])[0];
+    expect(reply.content).toContain("unlinked from you");
+    expect(reply.content).toContain("7 days");
+    expect(reply.components[0]!.toJSON().components.map((button) => [button.label, button.style, button.custom_id])).toEqual([["Link it back", 1, "linked:back:c1"]]);
+    expect(press.user.send).toHaveBeenCalledTimes(1); // the same button stays in the DMs after the private message is gone
   });
 
-  it("the select menu path unlinks the chosen character, and only the DM's member can press it", async () => {
+  it("the select menu path asks about the chosen character, and only the DM's member can confirm", async () => {
     log.mockClear();
     const menu = undoFakes();
     await handleLinkedButton({ ...menu.interaction, customId: "linked:no", isStringSelectMenu: () => true, values: ["c1"] } as never, menu.database as never);
-    expect(menu.tx.character.update).toHaveBeenCalledTimes(1);
+    expect((menu.interaction.editReply.mock.calls[0] as unknown as [{ content: string }])[0].content).toContain("Unlink **Aran Dawnfield**?");
     const other = undoFakes("999999");
     await handleLinkedButton(other.interaction as never, other.database as never);
+    expect((other.interaction.editReply.mock.calls[0] as unknown as [{ content: string }])[0].content).toContain("Only the member");
+    await handleLinkedButton({ ...yes(other), user: { id: "111", send: vi.fn() } } as never, other.database as never);
     expect(other.tx.character.update).not.toHaveBeenCalled();
-    expect(log).toHaveBeenCalledTimes(1);
+    expect(log).not.toHaveBeenCalled();
     const gone = undoFakes();
     gone.database.character.findUnique.mockResolvedValueOnce(null as never);
     await handleLinkedButton(gone.interaction as never, gone.database as never);
     expect((gone.interaction.editReply.mock.calls[0] as unknown as [{ content: string }])[0].content).toContain("already unlinked");
+  });
+
+  describe("Link it back (7 days)", () => {
+    const DAY = 24 * 3600 * 1000;
+    function backFakes(over: { detachedAt?: Date; owner?: string; claim?: string | null; detachedFrom?: string } = {}) {
+      const detached = { id: "c1", guildId: "g1", memberId: "holding", name: "Aran", realm: "Forever", gameEdition: "forever", displayName: "Aran Dawnfield", className: "Warrior", level: 60, isMain: false, linkEvidence: "companion", confirmedAt: null, detachedAt: over.detachedAt ?? new Date(), detachedFromMemberId: over.detachedFrom ?? "m1" };
+      let row: Record<string, unknown> = { ...detached };
+      const tx = {
+        character: {
+          findUnique: vi.fn(async () => ({ ...row, member: { guildId: "g1" } })), count: vi.fn(async () => 1),
+          update: vi.fn(async ({ data }: { data: Record<string, unknown> }) => { row = { ...row, ...data }; return row; })
+        },
+        member: { findUnique: vi.fn(async () => ({ id: "m1", discordUserId: over.owner ?? "111", status: "ACTIVE" })), findMany: vi.fn(async () => [{ id: "m1" }]) },
+        characterVerifyClaim: { findMany: vi.fn(async () => over.claim ? [{ status: over.claim, memberId: "m1" }] : []), deleteMany: vi.fn(async () => undefined), upsert: vi.fn(async () => undefined) },
+        unclaimedCharacter: { deleteMany: vi.fn(async () => undefined) }
+      };
+      const database = { ...tx, guildSettings: { findUnique: vi.fn(async () => ({ language: "en" })) }, $transaction: vi.fn(async (callback: (t: unknown) => unknown) => callback(tx)) };
+      const interaction = { customId: "linked:back:c1", user: { id: "111" }, isButton: () => true, isStringSelectMenu: () => false, deferReply: vi.fn(async () => undefined), editReply: vi.fn(async () => undefined) };
+      return { database, tx, interaction, row: () => row };
+    }
+    const said = (f: ReturnType<typeof backFakes>) => (f.interaction.editReply.mock.calls[0] as unknown as [{ content: string }])[0].content;
+
+    it("an unlink, then the same member's button relinks it with its history and clears the BLOCKED mark", async () => {
+      const f = backFakes({ detachedAt: new Date(Date.now() - 6 * DAY) });
+      await handleLinkedButton(f.interaction as never, f.database as never);
+      expect(said(f)).toContain("linked to you again");
+      expect(f.row()).toMatchObject({ memberId: "m1", detachedAt: null, detachedFromMemberId: null });
+      expect(f.tx.characterVerifyClaim.deleteMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ memberId: "m1", status: { in: ["BLOCKED", "REMOVED"] } }) }));
+    });
+
+    it("the button stops working after 7 days and says where to link it instead", async () => {
+      const f = backFakes({ detachedAt: new Date(Date.now() - 8 * DAY) });
+      await handleLinkedButton(f.interaction as never, f.database as never);
+      expect(said(f)).toContain("more than 7 days");
+      expect(said(f)).toContain("plus de 7 jours");
+      expect(f.row()).toMatchObject({ memberId: "holding" });
+    });
+
+    it("another member cannot use it, and an officer's removal is not overridden", async () => {
+      const stranger = backFakes({ owner: "222" });
+      await handleLinkedButton(stranger.interaction as never, stranger.database as never);
+      expect(stranger.row()).toMatchObject({ memberId: "holding" });
+      const removed = backFakes({ claim: "REMOVED" });
+      await handleLinkedButton(removed.interaction as never, removed.database as never);
+      expect(said(removed)).toContain("An officer removed");
+      expect(removed.row()).toMatchObject({ memberId: "holding" });
+    });
+
+    it("a character that meanwhile went to another member (stronger proof) is not taken back", async () => {
+      const f = backFakes();
+      f.tx.character.findUnique.mockResolvedValueOnce({ ...f.row(), memberId: "m2", detachedAt: null, detachedFromMemberId: null, member: { guildId: "g1" } } as never);
+      await handleLinkedButton(f.interaction as never, f.database as never);
+      expect(said(f)).toContain("not waiting");
+      expect(f.tx.character.update).not.toHaveBeenCalled();
+    });
   });
 
   it("Wrong server explains Remove this server in the companion, in both languages", async () => {

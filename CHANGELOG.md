@@ -2,7 +2,7 @@
 
 ## 9.3.5 — 15 November 2026
 
-Not yet published. Polish after 9.3.4: a new logo, a richer in-game dungeon result card, brighter dungeon cards, sync health and a last-saved line. Not yet confirmed on real clients (see docs/V9_3_5_RELEASE_ACCEPTANCE.md). Details: docs/V9_3_5_RELEASE_NOTES.md.
+Published 15 November 2026 (GitHub and the website; CurseForge 9.3.5 approved 15 November 2026). Polish after 9.3.4: a new logo, a richer in-game dungeon result card, brighter dungeon cards, sync health and a last-saved line. Not yet confirmed on real clients (see docs/V9_3_5_RELEASE_ACCEPTANCE.md). Details: docs/V9_3_5_RELEASE_NOTES.md.
 
 Addon and companion:
 
@@ -25,7 +25,7 @@ Bot and website (already live or live with the bot deploy):
 
 ## 9.3.4 — 15 November 2026
 
-Published 15 November 2026 (GitHub and the website; CurseForge 9.3.4 uploaded 15 November 2026). Guild-only Discord, a simpler website, Delete my data, addon polish and companion warnings. Not yet confirmed on real clients (see docs/V9_3_4_RELEASE_ACCEPTANCE.md). Details: docs/V9_3_4_RELEASE_NOTES.md. Guild board votes and news made in game on 9.3.3 no longer reach Discord.
+Published 15 November 2026 (GitHub and the website; CurseForge 9.3.4 approved 15 November 2026). Guild-only Discord, a simpler website, Delete my data, addon polish and companion warnings. Not yet confirmed on real clients (see docs/V9_3_4_RELEASE_ACCEPTANCE.md). Details: docs/V9_3_4_RELEASE_NOTES.md. Guild board votes and news made in game on 9.3.3 no longer reach Discord.
 
 Addon and companion:
 

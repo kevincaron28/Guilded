@@ -94,7 +94,7 @@ export interface RatingRun {
   instanceId: number; durationSec: number | null; dungeonName?: string; runRef?: string;
   /** Levels read from the guild roster for players whose run record has none (lowercase character name). */
   rosterLevels?: Record<string, number>;
-  players: { character?: string; memberId: string | null; role?: string | null; presentSec: number; member: { displayName: string } | null; inGuild?: boolean }[];
+  players: { character?: string; memberId: string | null; role?: string | null; presentSec: number; member: { displayName: string } | null; inGuild?: boolean; /** Everyone mode only: false keeps this player out (a role pass for another role). */ rated?: boolean }[];
 }
 /** Rating rows of a guildmate with no linked member are keyed by character under this prefix. */
 export const UNLINKED_RATING_PREFIX = "char:";
@@ -204,7 +204,8 @@ function bossRecords(run: RatingRun): BossRecord[] {
     return [{ id: e.id!, name: typeof e.name === "string" ? e.name.slice(0, 100) : `#${e.id}`, durationSec: e.at! - e.startedAt!, runRef: run.runRef ?? "" }];
   });
 }
-export function calculateDungeonRating(runs: RatingRun[], rules?: unknown): RatingRow[] {
+/** `everyone` also rates players with no linked member who are outside the guild (keyed by full name), for run cards only: boards and frozen seasons never pass it. */
+export function calculateDungeonRating(runs: RatingRun[], rules?: unknown, everyone = false): RatingRow[] {
   if (rules !== undefined && !hasDungeonRating(rules)) return [];
   const version = (rules as { version?: number } | undefined)?.version;
   const timed = version === 3 || version === 4 || version === 5 || version === 6;
@@ -228,7 +229,7 @@ export function calculateDungeonRating(runs: RatingRun[], rules?: unknown): Rati
       if (!player.character?.trim() || !presentEnough(player.presentSec, run.durationSec, brackets ? leniencyOf(brackets).presence : undefined)) continue;
       // A guildmate the addon flagged but nobody has linked yet (or one without the addon) is rated by
       // character, full Forever name included; linking later re-keys the same stored row to the member.
-      const unlinked = !player.memberId && player.inGuild === true && timed;
+      const unlinked = !player.memberId && timed && (player.inGuild === true || everyone && player.rated !== false);
       if (!unlinked && (!player.memberId || !player.member)) continue;
       const memberId = unlinked ? UNLINKED_RATING_PREFIX + player.character.trim().toLowerCase() : player.memberId!;
       // A player with no recorded level is left out of the rating, not the run. A level read later
@@ -377,7 +378,7 @@ function validFrozenRoles(row: RatingRow): boolean {
       && Array.isArray(r.details) && (r.details.length === 0 ? r.points === 0 : validDetails({ ...row, ...r, dungeons: r.details.length })));
 }
 export async function dungeonRating(database: Pick<PrismaClient, "dungeonRun"> & Partial<Pick<PrismaClient, "character" | "guildRosterEntry">>, guildId: string,
-  season: { id: string; startsAt: Date; endsAt?: Date | null; status: string; ratingRules?: unknown; finalRating?: unknown }, instanceId: number | null = null, includeRoles = false): Promise<RatingRow[]> {
+  season: { id: string; startsAt: Date; endsAt?: Date | null; status: string; ratingRules?: unknown; finalRating?: unknown }, instanceId: number | null = null, includeRoles = false, everyone = false): Promise<RatingRow[]> {
   if (!hasDungeonRating(season.ratingRules)) return [];
   if (season.status === "ENDED") {
     const rows = frozenRating(season.finalRating) ?? [];
@@ -412,7 +413,7 @@ export async function dungeonRating(database: Pick<PrismaClient, "dungeonRun"> &
     return { ...run, rosterLevels, players: run.players.map(p => ({ ...p, member: p.member?.guildId === guildId ? p.member : null })) };
   }) : runs;
   const rules = validBracketedRules(season.ratingRules) ? withIntegrityWindow(season.ratingRules, season.startsAt, season.endsAt) : season.ratingRules;
-  const rows = includeRoles && validBracketedRules(rules) ? ratingWithRoles(eligible, rules) : calculateDungeonRating(eligible, rules);
+  const rows = includeRoles && validBracketedRules(rules) ? ratingWithRoles(eligible, rules, everyone) : calculateDungeonRating(eligible, rules, everyone);
   return timed ? mergeSameNameRows(await withFullNames(database, guildId, rows, roster.map(r => r.name), runs.flatMap(run => run.players.map(p => p.character)))) : rows;
 }
 
@@ -466,11 +467,11 @@ export async function withFullNames<T extends { name: string; character?: string
 }
 
 /** Keep the whole party for eligibility; only award the selected character's recorded role. */
-export function ratingWithRoles(runs: RatingRun[], rules: BracketedRules): RatingRow[] {
+export function ratingWithRoles(runs: RatingRun[], rules: BracketedRules, everyone = false): RatingRow[] {
   const roles = ["TANK", "HEALER", "DAMAGER"].map(role => ({ role, rows: calculateDungeonRating(runs.map(run => ({ ...run,
     players: run.players.map(p => { const match = (rules.evidencePolicy === "current-v2" ? integrityRole(playerIntegrityOf(run, p.character)) : dungeonRole(p.role)) === dungeonRole(role);
-      return { ...p, member: match ? p.member : null, inGuild: match && p.inGuild === true }; }) })), rules) }));
-  return calculateDungeonRating(runs, rules).map(row => {
+      return { ...p, member: match ? p.member : null, inGuild: match && p.inGuild === true, rated: match }; }) })), rules, everyone) }));
+  return calculateDungeonRating(runs, rules, everyone).map(row => {
     const levels = runs.flatMap(run => {
       if (!run.players.some(p => (p.memberId ?? (isUnlinkedRating(row.memberId) ? UNLINKED_RATING_PREFIX + (p.character ?? "").trim().toLowerCase() : null)) === row.memberId && foreverSameName(p.character ?? "", row.character ?? ""))) return [];
       const metadata = run.competitionData as { players?: { name: string; level?: number }[] } | null;
@@ -518,10 +519,24 @@ export function ratingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, r
     .setFooter({ text: fr ? "Boss final détecté + présence ≥ 80 %. Points de communauté séparés." : "Detected final boss + ≥80% presence. Community points are separate." });
 }
 
+const ROLE_BADGE: Record<string, string> = { TANK: "🛡️", HEALER: "💚", DAMAGER: "⚔️" };
+/**
+ * A short role line for a rating row that carries role scores (ratingWithRoles): the main role first, then every other role that scored,
+ * e.g. "🛡️ 1200 · ⚔️ 800". The main role means the same as on the website's character page: the role with the most scored routes
+ * (runs), ties broken by the higher score, then tank, healer, damage. Empty when no role scored.
+ */
+export function roleBadges(row: Pick<RatingRow, "roles">): string {
+  const scored = (row.roles ?? []).filter(role => role.points > 0 && ROLE_BADGE[role.role]).map(role => ({ ...role, runs: role.details.filter(d => d.points > 0).length }));
+  if (!scored.length) return "";
+  const order = ["TANK", "HEALER", "DAMAGER"];
+  const sorted = [...scored].sort((a, b) => b.runs - a.runs || b.points - a.points || order.indexOf(a.role) - order.indexOf(b.role));
+  return sorted.map(role => `${ROLE_BADGE[role.role]} ${role.points}`).join(" · ");
+}
 const rankLine = (rows: RatingRow[], row: RatingRow, fr: boolean) => {
   const rank = rows.findIndex(other => other.points === row.points) + 1;
   const scored = row.details ? row.details.filter(d => d.points > 0).length : row.dungeons;
-  return `${rank === 1 ? "🏅" : `${rank}.`} **${escapeMarkdown(row.name).slice(0, 100)}** · **${row.points}** · ${scored} ${fr ? "parcours classé(s)" : "ranked route(s)"}`;
+  const roles = roleBadges(row);
+  return `${rank === 1 ? "🏅" : `${rank}.`} **${escapeMarkdown(row.name).slice(0, 100)}** · **${row.points}** · ${scored} ${fr ? "parcours classé(s)" : "ranked route(s)"}${roles ? ` · ${roles}` : ""}`;
 };
 /** Shown while a provisional all-level season still has a route on its starting target. */
 /** The first thing a member reads on the dungeon board: how to score, in plain words. The exact formula is in /dungeon rules. */

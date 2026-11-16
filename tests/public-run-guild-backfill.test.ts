@@ -27,9 +27,14 @@ describe("public run guild backfill", () => {
     const executeRaw = vi.fn(async (...args: unknown[]) => { void args; return 0; });
     await backfillPublicRunGuilds({ publicRun: { findMany: vi.fn().mockResolvedValueOnce([{ id: "r1" }]) }, $executeRaw: executeRaw } as never);
     const roster = (executeRaw.mock.calls as unknown as { strings: string[] }[][])[1]![0]!.strings.join("?");
-    expect(roster).toContain('JOIN "Guild" g ON g."id" = r."guildId"'); // the server's own guild name is the fallback
+    // The Discord server's name ("⚜Quebec Gold⚜") is never the guild written on a public run; only what the server's companions reported is.
+    expect(roster).not.toContain('g."name"');
+    expect(roster).toContain('"CompanionDevice" d');
+    expect(roster).toContain('d."wowGuildName"');
+    expect(roster).toContain('count(*) >= 2');
+    expect(roster).toContain('count(DISTINCT lower(d."wowGuildName")) = 1');
     expect(roster).toContain('LEFT JOIN "WowGuild" w'); // never an inner join: no WowGuild must not drop the row
-    expect(roster).toContain('COALESCE(w."name", g."name")');
+    expect(roster).toContain('COALESCE(w."name", dn."name")');
     expect(roster).toContain('w."id" IS NULL'); // no WowGuild: the realm and ambiguity checks do not apply
     expect(roster).not.toMatch(/\n\s+JOIN "WowGuild"/);
     expect(roster).toContain('lower(normalize(p2."character", NFC))'); // the roster key is the NFC lower-case full name

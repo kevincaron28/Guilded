@@ -6,11 +6,12 @@ import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
 //   1. The guild text the recording client saw for the same character in the same run (DungeonRunPlayer.guild, matched by the addon run
 //      id and the character name, case-insensitive).
 //   2. The in-game guild of the Discord server that holds this very run (DungeonRun.guildId), for a character on that server's roster
-//      (GuildRosterEntry, inGuild; the key is the NFC lower-case full name). The guild name is the server's own Guild.name: a WowGuild row
-//      exists only for servers that registered extra in-game guilds (wow-guilds.ts), so it is joined optionally. A scoped Guild (one per
-//      registered in-game guild) uses its WowGuild; a default server with exactly one unscoped WowGuild uses that; with several, a guild is
-//      taken only when a recording client of this run named it, otherwise the row is skipped. With a WowGuild and a realm on the player row
-//      the realms must be equal. Never a roster from another server; a run without a server of ours gets nothing here.
+//      (GuildRosterEntry, inGuild; the key is the NFC lower-case full name). A scoped Guild (one per registered in-game guild) and a default
+//      server with exactly one unscoped WowGuild use that WowGuild; with several, a guild is taken only when a recording client of this run
+//      named it. A server with no WowGuild row (most) uses the in-game guild its own companions reported (CompanionDevice.wowGuildName,
+//      non-revoked devices linked to that server): only when at least 2 devices report it and no other name appears. The Discord server's
+//      name (Guild.name, often decorated: "Quebec Gold" with emojis) is never used: it is not the in-game guild. Otherwise the row is
+//      skipped. With a WowGuild and a realm on the player row the realms must be equal. Never a roster from another server.
 // Public runs are read in pages of BATCH ids; a failed batch is reported and left unmarked (retried next start), never thrown.
 const BATCH = 500;
 
@@ -38,7 +39,7 @@ export async function backfillPublicRunGuilds(database: Pick<PrismaClient, "publ
       result.fromRosters += Number(await database.$executeRaw(Prisma.sql`
         UPDATE "PublicRunPlayer" AS p SET "guild" = m."guildName"
         FROM (
-          SELECT DISTINCT ON (p2."id") p2."id" AS "playerId", COALESCE(w."name", g."name") AS "guildName"
+          SELECT DISTINCT ON (p2."id") p2."id" AS "playerId", COALESCE(w."name", dn."name") AS "guildName"
           FROM "PublicRunPlayer" p2
           JOIN "PublicRun" pr ON pr."id" = p2."runId"
           JOIN "DungeonRun" r ON r."runRef" = pr."runRef"
@@ -46,7 +47,12 @@ export async function backfillPublicRunGuilds(database: Pick<PrismaClient, "publ
           JOIN "GuildRosterEntry" e ON e."guildId" = r."guildId" AND e."gameEdition" = pr."gameEdition" AND e."inGuild" = true AND e."nameKey" = lower(normalize(p2."character", NFC))
           LEFT JOIN "WowGuild" w ON w."gameEdition" = pr."gameEdition"
             AND (CASE WHEN g."scopeKey" <> 'default' THEN w."scopeGuildId" = g."id" ELSE (w."guildId" = g."id" AND w."scopeGuildId" IS NULL) END)
-          WHERE p2."runId" = ANY(${ids}::text[]) AND p2."guild" IS NULL
+          LEFT JOIN LATERAL (
+            SELECT min(d."wowGuildName") AS "name" FROM "CompanionDevice" d
+            WHERE d."guildId" = g."id" AND d."revokedAt" IS NULL AND d."wowGuildName" IS NOT NULL AND d."wowGuildName" <> ''
+            HAVING count(*) >= 2 AND count(DISTINCT lower(d."wowGuildName")) = 1
+          ) dn ON true
+          WHERE p2."runId" = ANY(${ids}::text[]) AND p2."guild" IS NULL AND (w."id" IS NOT NULL OR dn."name" IS NOT NULL)
             AND (w."id" IS NULL OR p2."realm" = '' OR lower(p2."realm") = lower(w."realm"))
             AND (
               w."id" IS NULL OR g."scopeKey" <> 'default'

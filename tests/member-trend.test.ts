@@ -79,6 +79,15 @@ describe("weekly member-trend post", () => {
     expect(isTrendPostDue({ ...base, memberTrendLastPostAt: new Date("2026-11-18T10:00:00Z") }, now)).toBe(false);
     expect(isTrendPostDue({ ...base, memberTrendLastPostAt: new Date("2026-11-01T10:00:00Z") }, now)).toBe(true);
   });
+  it("claims the week before sending, and gives it back when the send fails", async () => {
+    const send = vi.fn(async () => { throw new Error("no access"); });
+    const guild = { id: "d1", name: "QG", channels: { fetch: async () => ({ isTextBased: () => true, send }) } };
+    const order: string[] = [];
+    const update = vi.fn(async ({ data }: { data: { memberTrendLastPostAt: Date | null } }) => { order.push(data.memberTrendLastPostAt ? "claim" : "restore"); return {}; });
+    const db = { guild: { findUnique: async () => ({ id: "g1", settings: { ...base, language: "en" } }) }, guildSettings: { update }, guildStatSnapshot: { findMany: async () => [...days(5, () => ({}))].reverse() } } as never;
+    await expect(postWeeklyMemberTrend(db, guild as never, now)).rejects.toThrow("no access");
+    expect(order).toEqual(["claim", "restore"]);
+  }, 60_000);
   it("posts the card to the log channel, then records the week; stays quiet before two days of data", async () => {
     const send = vi.fn(async () => ({}));
     const guild = { id: "d1", name: "QG", channels: { fetch: async () => ({ isTextBased: () => true, send }) } };

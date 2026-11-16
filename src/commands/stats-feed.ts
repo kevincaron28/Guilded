@@ -11,10 +11,10 @@ import { guildService, requireGuildContext } from "./context.js";
 // who asked, and only a hash is stored (services/stat-snapshots.ts).
 export const statsFeedCommand = new SlashCommandBuilder()
   .setName("stats")
-  .setDescription("Statistics and Sheets feed")
+  .setDescription("Daily statistics and Sheets feed.")
   .addSubcommand((sub) => sub.setName("feed").setDescription("Sheets feed address.")
-    .addStringOption((o) => o.setName("action").setDescription("Default: create").addChoices(
-      { name: "Create", value: "show" }, { name: "New address", value: "regenerate" }, { name: "Revoke", value: "revoke" })))
+    .addStringOption((o) => o.setName("action").setDescription("Default: create the address").addChoices(
+      { name: "Create (or say one exists)", value: "show" }, { name: "New address (the old one stops)", value: "regenerate" }, { name: "Revoke (stop the feed)", value: "revoke" })))
   .addSubcommand((sub) => sub.setName("trend").setDescription("Member trend")
     .addIntegerOption((o) => o.setName("days").setDescription("Days").addChoices({ name: "30", value: 30 }, { name: "90", value: 90 }))
     .addBooleanOption((o) => o.setName("weekly").setDescription("Weekly post")))

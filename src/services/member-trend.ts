@@ -105,8 +105,14 @@ export async function postWeeklyMemberTrend(db: WeeklyDb, discordGuild: DiscordG
   if (!channel?.isTextBased() || !("send" in channel)) return false;
   const message = await memberTrendMessage(db, guild.id, 30, discordGuild.name, s.language === "fr" ? "fr" : "en", now);
   if (message.empty) return false;
-  await channel.send(message.payload);
+  // Claim the week first: if the send succeeds but a later database write failed, the card would be posted again every hour. If the
+  // send itself fails the claim is given back, so the next hourly run retries.
   await db.guildSettings.update({ where: { guildId: guild.id }, data: { memberTrendLastPostAt: now } });
+  try { await channel.send(message.payload); }
+  catch (error) {
+    await db.guildSettings.update({ where: { guildId: guild.id }, data: { memberTrendLastPostAt: s.memberTrendLastPostAt } }).catch(() => undefined);
+    throw error;
+  }
   return true;
 }
 

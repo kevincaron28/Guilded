@@ -8,13 +8,14 @@ const row = (day: string, over: Partial<StatSnapshot> = {}): StatSnapshot => ({ 
 
 function fakeDb() {
   const snapshots = new Map<string, Record<string, unknown>>();
+  const roster = { n: 12 };
   const settings = { statsEnabled: true, statsFeedKeyHash: null as string | null };
   const db = {
     member: { count: async () => 5 },
     character: { findMany: async () => [{ level: 60, className: "Mage", lastSeenAt: new Date("2026-12-25T10:00:00Z") }, { level: 7, className: "Mage", lastSeenAt: null }, { level: 34, className: "Priest", lastSeenAt: new Date("2026-12-01T00:00:00Z") }] },
     memberActivityTotal: { aggregate: async () => ({ _sum: { messages: 1000, voiceSeconds: 7200 } }), count: async () => 2 },
     raid: { count: async () => 1 }, dungeonRun: { count: async () => 4 },
-    guildRosterEntry: { count: async () => 12 },
+    guildRosterEntry: { count: async () => roster.n },
     guildEventEntry: { count: async ({ where }: { where: { kind: unknown } }) => where.kind === "join" ? 3 : 1 },
     guildStatSnapshot: {
       findFirst: async () => ({ totalMessages: 900, totalVoiceSeconds: 3600, discordMembers: 20 }),
@@ -26,7 +27,7 @@ function fakeDb() {
       findUnique: async () => settings
     }
   };
-  return { db: db as never, snapshots, settings };
+  return { db: db as never, snapshots, settings, roster };
 }
 
 describe("statistics snapshots", () => {
@@ -47,6 +48,16 @@ describe("statistics snapshots", () => {
     expect(again.onlinePeak).toBe(9);
     expect(snapshots.size).toBe(1);
     expect(utcDay(now)).toBe("2026-12-25");
+  });
+
+  it("keeps the day's earlier in-game numbers when a later refresh sees no roster", async () => {
+    const { db, snapshots, roster } = fakeDb();
+    const now = new Date("2026-12-25T12:00:00Z");
+    await takeGuildSnapshot(db, "g1", 42, now);
+    roster.n = 0;
+    const again = await takeGuildSnapshot(db, "g1", 42, now);
+    expect(again).toMatchObject({ inGuildMembers: 12, joins: 3, leaves: 1 });
+    expect(snapshots.get("2026-12-25")).toMatchObject({ inGuildMembers: 12 });
   });
 
   it("builds a Sheets-friendly CSV, oldest first, with one column per class", () => {

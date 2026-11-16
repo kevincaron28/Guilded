@@ -43,7 +43,7 @@ export async function takeGuildSnapshot(db: Db, guildId: string, discordMembers:
     db.raid.count({ where: { guildId, isTest: false, startedAt: { gte: dayStart, lt: dayEnd } } }),
     db.dungeonRun.count({ where: { guildId, valid: true, OR: [{ startedAt: { gte: dayStart, lt: dayEnd } }, { startedAt: null, createdAt: { gte: dayStart, lt: dayEnd } }] } }),
     db.guildStatSnapshot.findFirst({ where: { guildId, day: { lt: day } }, orderBy: { day: "desc" }, select: { totalMessages: true, totalVoiceSeconds: true, discordMembers: true } }),
-    db.guildStatSnapshot.findUnique({ where: { guildId_day: { guildId, day } }, select: { onlinePeak: true, discordMembers: true } }),
+    db.guildStatSnapshot.findUnique({ where: { guildId_day: { guildId, day } }, select: { onlinePeak: true, discordMembers: true, inGuildMembers: true, joins: true, leaves: true } }),
     // Member trend: the in-game roster (Forever only) and the day's joins and leaves from the game's own event log.
     db.guildRosterEntry.count({ where: { guildId, gameEdition: "forever", inGuild: true } }),
     db.guildEventEntry.count({ where: { guildId, gameEdition: "forever", kind: "join", at: { gte: dayStart, lt: dayEnd } } }),
@@ -62,7 +62,7 @@ export async function takeGuildSnapshot(db: Db, guildId: string, discordMembers:
     discordMembers: discordMembers ?? today?.discordMembers ?? previous?.discordMembers ?? 0,
     activeMembers: active, linkedMembers, rosterSize: characters.length,
     // Zero rows means no roster was ever uploaded: unknown, not an empty guild.
-    inGuildMembers: inGuildMembers > 0 ? inGuildMembers : null, joins: inGuildMembers > 0 ? joins : null, leaves: inGuildMembers > 0 ? leaves : null,
+    inGuildMembers: inGuildMembers > 0 ? inGuildMembers : today?.inGuildMembers ?? null, joins: inGuildMembers > 0 ? joins : today?.joins ?? null, leaves: inGuildMembers > 0 ? leaves : today?.leaves ?? null,
     onlinePeak: Math.max(seen, today?.onlinePeak ?? 0), level60: levelBands["60"]!,
     // Differences against the last earlier snapshot; the first snapshot has nothing to compare with.
     messages: previous ? Math.max(0, totalMessages - previous.totalMessages) : 0,

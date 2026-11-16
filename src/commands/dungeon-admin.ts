@@ -14,7 +14,7 @@ import { anomalyReport, describeAnomalies, describeHeld, heldReport, setDeviceEx
 import { releaseHeldRuns, releaseReply } from "../services/run-release.js";
 import { describeSyncIssues, syncHealth } from "../services/sync-health.js";
 import { asLang, tx } from "../i18n.js";
-import { dungeonShare } from "../services/community-ingame.js";
+import { awardEffect } from "../services/dungeon-community-points.js";
 import { guildService, requireGuildContext } from "./context.js";
 
 const auditService = createAuditService(prisma);
@@ -24,7 +24,7 @@ const auditService = createAuditService(prisma);
 export const dungeonAdminCommand = new SlashCommandBuilder()
   .setName("dungeon-admin")
   .setDescription("Dungeon corrections and rewards")
-  .addSubcommand((sub) => sub.setName("invalidate").setDescription("Stop a run from counting and take back its points")
+  .addSubcommand((sub) => sub.setName("invalidate").setDescription("Remove a run and its points")
     .addStringOption((o) => o.setName("run").setDescription("The run (pick from the list)").setAutocomplete(true).setRequired(true))
     .addStringOption((o) => o.setName("reason").setDescription("Why (shown in the history)").setRequired(true).setMaxLength(200)))
   .addSubcommand((sub) => sub.setName("award").setDescription("Adjust dungeon points (count in community points)")
@@ -32,11 +32,11 @@ export const dungeonAdminCommand = new SlashCommandBuilder()
     .addStringOption((o) => o.setName("reason").setDescription("Why (shown in the history)").setRequired(true).setMaxLength(200))
     .addUserOption((o) => o.setName("member").setDescription("Discord member"))
     .addStringOption((o) => o.setName("character").setDescription("Or a character name")))
-  .addSubcommand((sub) => sub.setName("audit").setDescription("Point history of a member or a run")
+  .addSubcommand((sub) => sub.setName("audit").setDescription("Point history")
     .addUserOption((o) => o.setName("member").setDescription("Discord member"))
     .addStringOption((o) => o.setName("character").setDescription("Or a character name"))
     .addStringOption((o) => o.setName("run").setDescription("Or one run (pick from the list)").setAutocomplete(true))
-    .addBooleanOption((o) => o.setName("why").setDescription("Explain why runs count or not")))
+    .addBooleanOption((o) => o.setName("why").setDescription("Why runs count")))
   .addSubcommand((sub) => sub.setName("config").setDescription("View the fixed dungeon rules"))
   .addSubcommand((sub) => sub.setName("flagged").setDescription("Unlikely runs; exclude a PC")
     .addStringOption((o) => o.setName("pc").setDescription("PC code").setMaxLength(16))
@@ -44,7 +44,7 @@ export const dungeonAdminCommand = new SlashCommandBuilder()
     .addBooleanOption((o) => o.setName("exclude").setDescription("False restores")))
   .addSubcommand((sub) => sub.setName("sync").setDescription("Stuck syncs"))
   .addSubcommand(sub => sub.setName("bracket-preview").setDescription("Preview shared season targets"))
-  .addSubcommand(sub => sub.setName("recalibrate").setDescription("Timed-run evidence for future rules")
+  .addSubcommand(sub => sub.setName("recalibrate").setDescription("Timed-run evidence")
     .addStringOption(o => o.setName("route").setDescription("Route (pick from the list)").setAutocomplete(true).setRequired(true)));
 
 async function memberFromOptions(interaction: ChatInputCommandInteraction, guildId: string) {
@@ -96,9 +96,9 @@ export async function executeDungeonAdmin(interaction: ChatInputCommandInteracti
     if (!member) throw new Error("Pick a member or type a character name.");
     const amount = interaction.options.getInteger("amount", true);
     const reason = interaction.options.getString("reason", true);
+    const effect = await awardEffect(prisma, context.guildId, member.id, amount);
     await adjustPoints(prisma, context.guildId, member.id, amount, reason, actor);
-    const share = dungeonShare(Math.abs(amount)) * (amount < 0 ? -1 : 1);
-    reply = `${amount > 0 ? "Gave" : "Took"} ${Math.abs(amount)} dungeon point(s) ${amount > 0 ? "to" : "from"} ${member.displayName}: ${reason}. Counts in community points as ${share > 0 ? "+" : ""}${share} (the dungeon share, bounded per week).`;
+    reply = `${amount > 0 ? "Gave" : "Took"} ${Math.abs(amount)} dungeon point(s) ${amount > 0 ? "to" : "from"} ${member.displayName}: ${reason}. This week's dungeon share of their community points: ${effect.before} → ${effect.after} (${effect.delta > 0 ? "+" : ""}${effect.delta}; the weekly bound applies).`;
     await log(reply, { memberId: member.id, amount, reason });
   } else if (subcommand === "audit") {
     if (interaction.options.getBoolean("why")) {

@@ -3,7 +3,7 @@ import { MessageFlags } from "discord.js";
 
 const mocks = vi.hoisted(() => ({
   config: { DISCORD_CLIENT_ID: "1552633893587394590", COMPANION_WEB_URL: undefined as string | undefined },
-  db: { character: { findMany: vi.fn() }, characterVerifyCode: { upsert: vi.fn() }, characterVerifyClaim: { deleteMany: vi.fn() }, guild: { findUnique: vi.fn() } },
+  db: { character: { findMany: vi.fn() }, characterVerifyCode: { upsert: vi.fn() }, guild: { findUnique: vi.fn() } },
   issueCode: vi.fn(),
   context: vi.fn(), settings: vi.fn(), importCharacter: vi.fn()
 }));

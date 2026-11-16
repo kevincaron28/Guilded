@@ -7,10 +7,7 @@ import { officerSyncRecent } from "./officer-sync.js";
 import { linkStatusLines, memberLinkStatus } from "./link-status.js";
 
 // Shared by the welcome button and /character pair so the two entry points never drift.
-export async function characterLinkPrompt(database: PrismaClient, guildId: string, memberId: string, discordGuildId: string, lang: Lang, mode: "addon" | "companion" = "addon", options: { relinkOwn?: boolean } = {}) {
-  // The member asked to link (/character pair, the welcome buttons): what they unlinked themselves stops being held back from
-  // the companion and /guilded verify, so linking works again. An officer's removal (REMOVED) stays.
-  if (options.relinkOwn) await database.characterVerifyClaim.deleteMany({ where: { guildId, memberId, status: "BLOCKED" } });
+export async function characterLinkPrompt(database: PrismaClient, guildId: string, memberId: string, discordGuildId: string, lang: Lang, mode: "addon" | "companion" = "addon") {
   const characters = await database.character.findMany({
     where: { memberId, member: { guildId } },
     select: { name: true, realm: true, isMain: true },

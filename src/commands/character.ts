@@ -94,7 +94,7 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
   if (!context) return;
   if (subcommand === "pair") {
     const settings = await guildService.getSettings(context.guildId);
-    await interaction.editReply(await characterLinkPrompt(prisma, context.guildId, context.memberId, interaction.guildId!, asLang(settings?.language), "companion", { relinkOwn: true }));
+    await interaction.editReply(await characterLinkPrompt(prisma, context.guildId, context.memberId, interaction.guildId!, asLang(settings?.language), "companion"));
     return;
   }
   if (subcommand === "race") { await executeRace(interaction, context); return; }

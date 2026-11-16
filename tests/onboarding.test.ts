@@ -6,7 +6,7 @@ const db = vi.hoisted(() => ({
   character: { count: vi.fn(), findMany: vi.fn() },
   professionSkill: { count: vi.fn() },
   raidSignup: { count: vi.fn() },
-  characterVerifyCode: { upsert: vi.fn() }, characterVerifyClaim: { deleteMany: vi.fn() },
+  characterVerifyCode: { upsert: vi.fn() },
   guild: { findUnique: vi.fn() }
 }));
 vi.mock("../src/database.js", () => ({ prisma: db }));

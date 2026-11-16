@@ -190,7 +190,16 @@ export async function relinkOwnUnlinked(database: PrismaClient, input: { discord
   });
 }
 
-export type ContestOutcome ="moved" | "queued" | "weaker" | "declined";
+/**
+ * Whether the member paired a companion AFTER `since` (their own unlink): a new pairing is the member asking to link, so what that
+ * companion reports (or the verify line it hears) may override their own BLOCKED mark, for those characters only. An officer's
+ * removal (REMOVED) is never overridden, and nothing else in the member's unlinks changes.
+ */
+export async function pairedSince(tx: Pick<Tx, "companionCredential">, memberId: string, since: Date): Promise<boolean> {
+  return Boolean(await tx.companionCredential.findFirst({ where: { memberId, revokedAt: null, createdAt: { gt: since } }, select: { id: true } }));
+}
+
+export type ContestOutcome = "moved" | "queued" | "weaker" | "declined";
 
 /**
  * A member's claim on a character another member holds. Stronger proof moves it (MOVED, undo by DM);

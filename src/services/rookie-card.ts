@@ -13,12 +13,11 @@ export function weeklyRookieCard(lang: Lang, input: { name: string; points: numb
   const n = (value: number) => value.toLocaleString(fr ? "fr-CA" : "en-CA");
   const behind = Math.max(0, input.ranked - input.place);
   return {
-    eyebrow: t("Guilded · Rookie of the week", "Guilded · Recrue de la semaine"), title: input.name, subtitle: t("New members only · Community points", "Nouveaux membres seulement · Points de communauté"),
+    eyebrow: t("Guilded · Rookie of the week", "Guilded · Recrue de la semaine"), title: input.name, subtitle: t("Not the MVP: the best new member", "Pas le MVP : le meilleur nouveau membre"),
     backdrop: { kind: "board", key: "rookie-of-the-week", fallbackKey: "activity" },
     stats: [
       { label: t("Points", "Points"), value: n(input.points), accent: "gold" },
-      { label: t("Place", "Rang"), value: `${input.place}/${input.ranked}` },
-      { label: t("Week of", "Semaine du"), value: input.week }
+      { label: t("Place", "Rang"), value: `${input.place}/${input.ranked}` }
     ],
     rowsLabel: t("Welcome!", "Bienvenue !"),
     rows: [

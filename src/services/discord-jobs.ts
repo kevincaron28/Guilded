@@ -214,18 +214,25 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
     // The card is drawn first: a post may carry a reduced card-only message for when the picture is available.
     // An optional card is drawn here from its stored definition; without an image the post still goes out.
     const { scoreCardPng } = await import("./score-card.js");
-    let cardDefinition = payload["card"] && typeof payload["card"] === "object" ? payload["card"] as import("./score-card.js").ScoreCard : null;
-    // Optional: show the member's server name, avatar and role on the card. Falls back to the plain card on any failure.
-    if (cardDefinition && typeof payload["cardMember"] === "string" && /^\d{17,20}$/.test(payload["cardMember"])) {
-      const { withDiscordMember } = await import("./card-member.js");
-      cardDefinition = await withDiscordMember(guild, cardDefinition, payload["cardMember"]);
-    }
-    // 9.1: members' character pictures (a database read, best effort): the dungeon party's thumbs, or the member's own picture.
-    if (cardDefinition) {
-      const { withCardPictures } = await import("./card-pictures.js");
-      cardDefinition = await withCardPictures(prisma, job.guildId, cardDefinition, typeof payload["cardMember"] === "string" ? payload["cardMember"] : undefined);
-    }
-    const card = cardDefinition ? await scoreCardPng(cardDefinition).catch(() => null) : null;
+    const draw = async (stored: unknown, memberId: unknown) => {
+      let definition = stored && typeof stored === "object" ? stored as import("./score-card.js").ScoreCard : null;
+      // Optional: show the member's server name, avatar and role on the card. Falls back to the plain card on any failure.
+      if (definition && typeof memberId === "string" && /^\d{17,20}$/.test(memberId)) {
+        const { withDiscordMember } = await import("./card-member.js");
+        definition = await withDiscordMember(guild, definition, memberId);
+      }
+      // 9.1: members' character pictures (a database read, best effort): the dungeon party's thumbs, or the member's own picture.
+      if (definition) {
+        const { withCardPictures } = await import("./card-pictures.js");
+        definition = await withCardPictures(prisma, job.guildId, definition, typeof memberId === "string" ? memberId : undefined);
+      }
+      return { definition, png: definition ? await scoreCardPng(definition).catch(() => null) : null };
+    };
+    const { definition: cardDefinition, png: card } = await draw(payload["card"], payload["cardMember"]);
+    // A second card in the same post (the weekly honors' rookie card, 16 Nov 2026): drawn only when the first one was, shown in the second
+    // picture-less embed of the reduced message, and it takes its text line (`dropField`) off the post. Without it the text line stays.
+    const extraStored = payload["extraCard"] && typeof payload["extraCard"] === "object" ? payload["extraCard"] as { card?: unknown; member?: unknown; dropField?: unknown } : null;
+    const extra = card && extraStored ? await draw(extraStored.card, extraStored.member) : { definition: null, png: null };
     // A post that asks for it (the duel cards) tries again later when the picture could not be drawn (the renderer was busy), before settling for the text.
     if (cardDefinition && !card && payload["retryCard"] === true && job.attempts < 3) throw Object.assign(new Error("Card renderer busy"), { code: "card-busy" });
     // Nobody is notified, except the users a job names explicitly (the hall of fame's opt-in MVP ping).
@@ -241,8 +248,17 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
       const carrier = embeds.find(embed => !embed.data.title && !embed.data.url) ?? embeds.find(embed => !embed.data.url) ?? last;
       if (!carrier.data.url) carrier.setURL(link);
       // The picture sits in the first embed that has no text of its own (so a card can head a post with text embeds under it), else the last one.
-      if (withPicture) (embeds.find(embed => !embed.data.title && !embed.data.description && !embed.data.fields?.length) ?? last).setImage("attachment://card.png");
-      return { ...message, embeds, ...(withPicture ? { files: [new AttachmentBuilder(card!, { name: "card.png" }).setDescription(cardAltText(cardDefinition!))] } : {}), allowedMentions: { parse: [], users }, nonce: job.id.slice(-25), enforceNonce: true };
+      const bare = embeds.filter(embed => !embed.data.title && !embed.data.description && !embed.data.fields?.length);
+      if (withPicture) (bare[0] ?? last).setImage("attachment://card.png");
+      const second = withPicture && extra.png && extra.definition ? bare[1] : undefined;
+      if (second) {
+        second.setImage("attachment://card2.png");
+        const drop = typeof extraStored?.dropField === "string" ? extraStored.dropField : "";
+        if (drop) for (const embed of embeds) if (embed.data.fields?.some(field => field.name === drop)) embed.setFields(embed.data.fields.filter(field => field.name !== drop));
+      }
+      // The second picture-less embed exists for the second card only: without that card it would show as an empty box.
+      const shown = withPicture && extraStored && bare[1] && !second ? embeds.filter(embed => embed !== bare[1]) : embeds;
+      return { ...message, embeds: shown, ...(withPicture ? { files: [new AttachmentBuilder(card!, { name: "card.png" }).setDescription(cardAltText(cardDefinition!)), ...(second ? [new AttachmentBuilder(extra.png!, { name: "card2.png" }).setDescription(cardAltText(extra.definition!))] : [])] } : {}), allowedMentions: { parse: [], users }, nonce: job.id.slice(-25), enforceNonce: true };
     };
     await sendWithPictureFallback(options => channel.send(options), compose(Boolean(card)), card ? () => compose(false) : null);
   } else if (job.kind === "INVITE_CLEANUP") {

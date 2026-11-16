@@ -27,13 +27,17 @@ describe("promotionForAddon", () => {
   });
 });
 
-describe("linked characters for the officer client", () => {
-  it("lists every linked character at the starting rank, ready or not, but not people who left Discord", async () => {
-    const feed = await promotionForAddon(db([person("a", [row("Amy Smith", days(8))]), person("c", [row("Cy Fresh", days(1))]), person("gone", [row("Dee Gone", days(40))])]),
+describe("waiting members and the level rule for the panel", () => {
+  it("lists members at the starting rank that are not ready yet, with the days left, and the minimum level", async () => {
+    const feed = await promotionForAddon(db([person("a", [row("Amy Smith", days(8))]), person("c", [row("Cy Fresh", days(1))]), person("gone", [row("Dee Gone", days(40))])], { promotionMinLevel: 20 }),
       discord("d1", ["a", "c"]), "g1", "forever", NOW);
     expect(feed?.ready).toEqual(["Amy Smith"]);
-    expect([...(feed?.linked ?? [])].sort()).toEqual(["Amy Smith", "Cy Fresh"]);
-    expect(promotionToLua(feed).join(" ")).toContain('"Cy Fresh"');
+    expect(feed?.waiting).toEqual([{ name: "Cy Fresh", daysLeft: 6 }]);
+    expect(feed?.minLevel).toBe(20);
+    expect(feed).not.toHaveProperty("linked"); // the officer client never promotes from "linked"
+    const lua = promotionToLua(feed).join(" ");
+    expect(lua).toContain('{ name = "Cy Fresh", daysLeft = 6 }');
+    expect(lua).toContain("minLevel = 20");
   });
 });
 

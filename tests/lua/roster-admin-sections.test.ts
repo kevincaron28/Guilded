@@ -34,7 +34,7 @@ function open(): LuaSession {
       rosterTools = { authorized = function() return true end, context = function() return "a" end,
         invalidatePreview = function() end, requestRoster = function() error("boom") end },
       grmMigration = {},
-      officerNotes = { LABELS = { promote = "Promote linked Initiates to Member" },
+      officerNotes = { LABELS = { promote = "Show a ready-to-promote alert (one click each)" },
         enabled = function(k) return STATE[k] end, set = function(k, on) SETLOG[#SETLOG + 1] = k .. "=" .. tostring(on) end,
         command = function(args) SETLOG[#SETLOG + 1] = table.concat(args, " ") end } }
   `);

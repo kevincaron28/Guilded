@@ -5,6 +5,7 @@ import { cacheAllMembers } from "./member-cache.js";
 import { forEachGuildScope, guildWhere } from "./guild-scope.js";
 import { RANK_MAX_AGE_MS } from "./rank-roles.js";
 import { addonName } from "./addon-name.js";
+import { postToLogChannel } from "./housekeeping.js";
 
 // 8.5 track C5: the promotion panel. Officers set a rule (default: in Discord, a linked character at rank "Initiate"
 // for 7+ days, optional minimum level). The bot computes "Ready to promote" and "Not in Discord yet". Read-only:
@@ -27,6 +28,18 @@ export interface PromotionPlan {
   waiting: { displayName: string; character: string; /** The in-game roster name (addonName). */ addon?: string | undefined; daysLeft: number }[];
 }
 
+/**
+ * Owner rule (16 Nov 2026): the Alt rank is never promoted. Rank names that mean "alt character", English and French,
+ * compared without case or accents: Alt, Alts, Alt (...), Reroll, Rerolls, Re-roll, Twink. The addon keeps a copy
+ * of this list (RosterTools.lua, isAltRank); tests/promotion.test.ts and tests/lua/promotion-rework.test.ts pin both.
+ */
+export const ALT_RANK_NAMES = ["alt", "alts", "reroll", "rerolls", "re-roll", "re-rolls", "twink", "twinks"] as const;
+export function isAltRank(rankName: string | null | undefined): boolean {
+  if (!rankName) return false;
+  const plain = rankName.normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase();
+  return ALT_RANK_NAMES.some((name) => plain === name || (plain.startsWith(name) && !/^[a-z]/.test(plain.slice(name.length))));
+}
+
 const same = (a: string | null, b: string) => a !== null && a.trim().toLowerCase() === b.trim().toLowerCase();
 const DAY = 86_400_000;
 
@@ -34,8 +47,12 @@ export function planPromotions(input: { people: readonly PromotionPerson[]; uncl
   const now = (input.now ?? new Date()).getTime();
   const fresh = (at: Date | null) => at !== null && now - at.getTime() <= RANK_MAX_AGE_MS;
   const plan: PromotionPlan = { ready: [], left: [], unclaimed: [], waiting: [] };
+  // Never promote out of an alt rank, whatever the rule says.
+  if (isAltRank(input.rule.fromRank)) return plan;
   for (const person of input.people) {
-    const atRank = person.characters.filter((c) => same(c.rankName, input.rule.fromRank) && fresh(c.rankAt));
+    // A member with a main: only the main is promoted; their other characters are alts even at the starting rank.
+    const hasMain = person.characters.some((c) => c.isMain);
+    const atRank = person.characters.filter((c) => same(c.rankName, input.rule.fromRank) && fresh(c.rankAt) && !isAltRank(c.rankName) && (!hasMain || c.isMain));
     if (!atRank.length) continue;
     // The character that has been at the rank longest (ties: the main) decides.
     const best = [...atRank].sort((a, b) => (a.since?.getTime() ?? now) - (b.since?.getTime() ?? now) || Number(b.isMain) - Number(a.isMain))[0]!;
@@ -45,7 +62,7 @@ export function planPromotions(input: { people: readonly PromotionPerson[]; uncl
     if (days >= input.rule.minDays && levelOk) plan.ready.push({ discordUserId: person.discordUserId, displayName: person.displayName, character: characterName(best), addon: best.addon, days, level: best.level });
     else plan.waiting.push({ displayName: person.displayName, character: characterName(best), addon: best.addon, daysLeft: Math.max(0, input.rule.minDays - days) });
   }
-  for (const row of input.unclaimed) if (same(row.rankName, input.rule.fromRank) && fresh(row.rankAt)) plan.unclaimed.push({ name: characterName(row as { name: string; displayName?: string | null }), level: row.level });
+  for (const row of input.unclaimed) if (same(row.rankName, input.rule.fromRank) && fresh(row.rankAt) && !isAltRank(row.rankName)) plan.unclaimed.push({ name: characterName(row as { name: string; displayName?: string | null }), level: row.level });
   plan.ready.sort((a, b) => b.days - a.days || a.displayName.localeCompare(b.displayName));
   plan.left.sort((a, b) => a.displayName.localeCompare(b.displayName));
   plan.unclaimed.sort((a, b) => a.name.localeCompare(b.name));
@@ -129,4 +146,14 @@ export async function postWeeklyPromotions(db: Db & Pick<PrismaClient, "guildSet
 
 export async function postAllWeeklyPromotions(db: Db, guilds: Iterable<DiscordGuild>, report: (error: unknown) => void): Promise<void> {
   for (const guild of guilds) await forEachGuildScope(db as PrismaClient, guild.id, () => postWeeklyPromotions(db, guild)).catch(report);
+}
+
+/** The officer-log line for one promotion (server language). */
+export function promotionLogLine(name: string, rankName: string, lang: "en" | "fr"): string {
+  return lang === "fr" ? `⬆️ ${name} a été promu(e) au rang ${rankName}.` : `⬆️ ${name} was promoted to ${rankName}.`;
+}
+
+/** Officer log only (owner decision, 16 Nov 2026): no public message and no guild-chat line. At most 10 lines per upload. */
+export async function announcePromotions(discordGuild: DiscordGuild, promotions: readonly { name: string; rankName: string }[]): Promise<void> {
+  for (const p of promotions.slice(0, 10)) await postToLogChannel(discordGuild, (lang) => promotionLogLine(cleanCharacterName(p.name), p.rankName, lang));
 }

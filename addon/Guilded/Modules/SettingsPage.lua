@@ -230,7 +230,7 @@ function page.allEntries()
     function(on) run("announce guild " .. (on and "on" or "off")) end, { officer = true, wide = true })
   if ns.officerNotes and ns.officerNotes.KEYS then
     for _, key in ipairs(ns.officerNotes.KEYS) do
-      check("officers", "My officer jobs", ns.officerNotes.LABELS[key], "Done by this officer's game on its own, one change at a time; it can be turned off here.", "officer",
+      check("officers", "My officer jobs", ns.officerNotes.LABELS[key], "Shows a small alert when members are ready to promote. You click; nothing is promoted on its own.", "officer",
         "GuildedDB.officerAuto.off." .. key,
         function() return ns.officerNotes.enabled(key) end,
         function(on) ns.officerNotes.set(key, on) end, { officer = true, wide = true })

@@ -184,7 +184,7 @@ describe("toggling a setting changes the value it always changed", () => {
     expect(lua(s, `return tostring(NS.milestones.guildOff())`)).toBe("true");
     lua(s, find("label", "Allow milestone announcements") + `e.set(true)`);
     // The officer's own job.
-    lua(s, find("label", "Promote linked Initiates to Member") + `e.set(false)`);
+    lua(s, find("label", "Show a ready-to-promote alert (one click each)") + `e.set(false)`);
     expect(lua(s, `return tostring(NS.officerNotes.enabled("promote"))`)).toBe("false");
     // Cycles: item tooltips, language, call alerts.
     lua(s, find("label", "Item tooltips: who can craft it") + `e.next()`);

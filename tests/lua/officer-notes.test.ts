@@ -5,7 +5,7 @@ import { rosterPrelude } from "./roster-tools.test.js";
 let s: LuaSession;
 afterEach(() => s?.close());
 
-// RosterTools + OfficerNotes (9.2: only the promotion job is left) on the fake guild: Boss (rank 0, you), Amy and Bob (rank 3 of 0-4).
+// RosterTools + OfficerNotes (16 Nov 2026: only the ready-to-promote switch is left) on the fake guild: Boss (rank 0, you), Amy and Bob (rank 3 of 0-4).
 function setup() {
   s = newLuaSession();
   s.run(rosterPrelude);
@@ -27,40 +27,9 @@ function setup() {
   s.run('NS.util.gameEdition=function() return EDITION end; NS.util.address=function(n) return n end; fire_event("GUILD_ROSTER_UPDATE")');
   return s;
 }
-// One tick at a given time, after a fresh roster event (what the game sends between our writes).
-const tick = (clock: number) => s.run(`CLOCK=${clock}; fire_event("GUILD_ROSTER_UPDATE"); return tostring(NS.officerNotes.tick())`);
 const calls = () => s.run("local out={} for i,c in ipairs(CALLS) do out[i]=tostring(c[1])..'='..tostring(c[2]) end return table.concat(out,'|')");
-const only = (keys: string[]) => s.run(`for _,k in ipairs({"promote"}) do NS.officerNotes.set(k,false) end for _,k in ipairs({${keys.map((k) => `"${k}"`).join(",")}}) do NS.officerNotes.set(k,true) end`);
 
-describe("Initiate to Member", () => {
-  const link = (names: string) => `GuildedPromotion = { linked = { ${names} } }`;
-  it("promotes a linked member at the lowest rank by index, one rank, and logs it", () => {
-    setup(); only(["promote"]);
-    s.run(`ROWS[2].rank=4; ROWS[2].rankName="Whatever"; ROWS[3].rank=4; ${link('"Amy-Realm"')}; fire_event("GUILD_ROSTER_UPDATE")`);
-    expect(tick(100)).toBe("true");
-    expect(calls()).toBe("Amy-Realm=nil"); // GuildPromote("Amy-Realm"): Bob is not linked
-    expect(s.run("return NS.officerNotes and DB.officerAuto.log[1].kind")).toBe("promote");
-    expect(s.run("return MESSAGES[#MESSAGES]")).toContain("Promoted Amy-Realm");
-  });
-  it("never promotes the same player twice, a higher rank, or an unlinked player", () => {
-    setup(); only(["promote"]);
-    s.run(`ROWS[2].rank=3; ${link('"Amy-Realm","Bob-Realm"')}; fire_event("GUILD_ROSTER_UPDATE")`); // rank 3 of 0-4 is not the lowest
-    expect(tick(100)).toBe("false");
-    s.run('ROWS[2].rank=4; fire_event("GUILD_ROSTER_UPDATE")');
-    expect(tick(170)).toBe("true");
-    s.run('ROWS[2].rank=3; fire_event("GUILD_ROSTER_UPDATE")'); // the roster confirms the promotion
-    expect(tick(190)).toBe("false");
-    s.run('ROWS[2].rank=4; fire_event("GUILD_ROSTER_UPDATE")'); // an officer demoted them again: left alone
-    expect(tick(250)).toBe("false");
-    expect(calls()).toBe("Amy-Realm=nil");
-  });
-  it("needs the bot's list and a lowest rank that can still be promoted", () => {
-    setup(); only(["promote"]);
-    s.run("ROWS[2].rank=4; fire_event('GUILD_ROSTER_UPDATE')");
-    expect(tick(100)).toBe("false"); // no GuildedPromotion at all
-    expect(calls()).toBe("");
-  });
-});
+// The promotion job itself (bot rule, one click, alts) is tested in promotion-rework.test.ts.
 
 describe("switches and commands", () => {
   it("the command turns the promotion job off and on and reports the state", () => {
@@ -87,7 +56,6 @@ describe("switches and commands", () => {
     // A joiner is no longer welcomed, and no note is written, whatever the saved switches say.
     s.run('fire_event("CHAT_MSG_SYSTEM", "Zed has joined the guild.")');
     s.run('ROWS[2].public=""; fire_event("GUILD_ROSTER_UPDATE")');
-    expect(tick(100)).toBe("false");
     expect(s.run("return #SAID")).toBe("0");
     expect(calls()).toBe("");
   });

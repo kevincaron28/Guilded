@@ -47,7 +47,7 @@ export type RequestOutcome = { status: "posted"; channelId: string } | { status:
 
 /** Posts the name in the invite channel and queues it. */
 export async function submitInviteRequest(client: Pick<Client, "guilds" | "channels">, database: Database,
-  input: { discordGuildId: string; discordUserId: string; parsed: ParsedInviteName }): Promise<RequestOutcome & { lang: Lang }> {
+  input: { discordGuildId: string; discordUserId: string; parsed: ParsedInviteName; answers?: string | null }): Promise<RequestOutcome & { lang: Lang }> {
   const settings = await database.guildSettings.findFirst({
     where: { guild: { discordId: input.discordGuildId }, inviteChannelId: { not: null }, inviteQueueEnabled: true },
     select: { guildId: true, inviteChannelId: true, language: true }
@@ -63,7 +63,7 @@ export async function submitInviteRequest(client: Pick<Client, "guilds" | "chann
   if (!channel?.isTextBased() || !("send" in channel)) return { status: "unavailable", lang };
   const posted = await channel.send({ content: `<@${input.discordUserId}> → **${input.parsed.displayName}**`, components: [inviteDoneRow(lang, input.discordGuildId)], allowedMentions: { parse: [] } }).catch(() => null);
   if (!posted) return { status: "unavailable", lang };
-  await recordInviteRequest(database, { guildId: settings.guildId, parsed: input.parsed, discordUserId: input.discordUserId, channelId: channel.id, messageId: posted.id });
+  await recordInviteRequest(database, { guildId: settings.guildId, parsed: input.parsed, discordUserId: input.discordUserId, channelId: channel.id, messageId: posted.id, ...(input.answers ? { answers: input.answers } : {}) });
   await posted.react(SEEN).catch(() => undefined);
   await settleIfAlreadyIn(client as never, database, { id: settings.guildId, discordId: input.discordGuildId }, input.parsed.nameKey);
   await notifyInviters(database as never, { guildId: settings.guildId, discordGuild: guild, channel: channel as never, requestMessageId: posted.id, requesterId: input.discordUserId, displayName: input.parsed.displayName });

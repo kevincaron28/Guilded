@@ -107,6 +107,7 @@ import { ingestPublicRuns, ownPlayersFilter, pickScoreCharacter, PUBLIC_LIMITS, 
 import { publicAddonBoard } from "./services/public-addon-board.js";
 import { publicSeasons } from "./services/public-score.js";
 import { inviteListForAddon, pendingInvites } from "./services/invite-queue.js";
+import { applyInviteReports, parseInviteReports } from "./services/invite-expiry.js";
 import { backCheckInvites, completeInvitesFromRoster } from "./services/invite-channel.js";
 import { prelinkInvitedCharacters, tellPrelinked } from "./services/invite-prelink.js";
 import { COMPANION_FEATURES, markGuildChanged, standingsFeed, type FeedParts } from "./services/standings-feed.js";
@@ -1433,6 +1434,10 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           { timeout: 60_000, maxWait: 15_000 })))).catch((error: unknown) => { console.error("Guild bank upload failed", error); return null; });
         // 9.1: one alert in the log channel for items that just went below their minimum (/bank stock).
         if (bankResult?.contents && client) void alertLowStock(client, prisma, guild.id).catch((error: unknown) => console.warn("Bank stock alert failed", error));
+      }
+      // 9.3.5: an officer's addon reports the invites it sent per request, what the game answered and removed rows (invite-expiry.ts).
+      if (access.officer && preview.snapshot.inviteReports?.length) {
+        await timed("invite-reports", () => applyInviteReports(prisma, guild.id, parseInviteReports(preview.snapshot.inviteReports))).catch((error: unknown) => { console.warn("Invite reports from the addon failed", error); });
       }
       // 9.1: guild bank requests made in game, only the uploader's own (their pairing), each once.
       const bankRequests = pairedMemberId ? parseAddonBankRequests(preview.snapshot.bankRequests) : [];

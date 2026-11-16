@@ -2901,6 +2901,11 @@ local DE = {
   ["Hide handled (%d)"] = "Erledigte ausblenden (%d)",
   -- To invite window: copied vs invited, per-officer marks (9.3)
   ["copied %s, waiting"] = "kopiert %s, wartend",
+  ["%dd old"] = "%d T. alt",
+  ["%dh old"] = "%d Std. alt",
+  ["%d sent"] = "%d gesendet",
+  ["asked to confirm"] = "Best\195\164tigung angefragt",
+  ["declined in game"] = "im Spiel abgelehnt",
   ["Marks stay on this computer: another officer may invite the same names."] = "Markierungen bleiben auf diesem Computer: ein anderer Offizier kann dieselben Namen einladen.",
   -- 9.3 world PvP deaths (Modules/WorldPVP.lua)
   ["K/D: %s this week, %s in total."] = "K/D: %s diese Woche, %s insgesamt.",
@@ -4886,6 +4891,11 @@ local ES = {
   ["Hide handled (%d)"] = "Ocultar gestionados (%d)",
   -- To invite window: copied vs invited, per-officer marks (9.3)
   ["copied %s, waiting"] = "copiado %s, en espera",
+  ["%dd old"] = "hace %d d",
+  ["%dh old"] = "hace %d h",
+  ["%d sent"] = "%d enviadas",
+  ["asked to confirm"] = "confirmaci\195\179n pedida",
+  ["declined in game"] = "rechazada en el juego",
   ["Marks stay on this computer: another officer may invite the same names."] = "Las marcas se quedan en este ordenador: otro oficial puede invitar a los mismos nombres.",
   -- 9.3 world PvP deaths (Modules/WorldPVP.lua)
   ["K/D: %s this week, %s in total."] = "K/D: %s esta semana, %s en total.",
@@ -6061,6 +6071,11 @@ FR["Show handled (%d)"] = "Afficher les trait\195\169s (%d)"
 FR["Hide handled (%d)"] = "Masquer les trait\195\169s (%d)"
 -- To invite window: copied vs invited, per-officer marks (9.3)
 FR["copied %s, waiting"] = "copi\195\169 %s, en attente"
+FR["%dd old"] = "il y a %d j"
+FR["%dh old"] = "il y a %d h"
+FR["%d sent"] = "%d envoy\195\169es"
+FR["asked to confirm"] = "confirmation demand\195\169e"
+FR["declined in game"] = "refus\195\169e en jeu"
 FR["Marks stay on this computer: another officer may invite the same names."] = "Les marques restent sur cet ordinateur : un autre officier peut inviter les m\195\170mes noms."
 -- Result card party table (9.3.5)
 FR["Lv"] = "Niv"

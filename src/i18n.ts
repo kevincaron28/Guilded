@@ -389,6 +389,26 @@ const STRINGS = {
     fr: "✅ Ta demande est dans <#{channel}>. Un officier t'invitera en jeu, et un ✅ apparaîtra dessus quand ce sera fait."
   },
   "invite.duplicate": { en: "You already asked for this character, so nothing was added. An officer will get to it.", fr: "Tu as déjà demandé pour ce personnage, rien n'a été ajouté. Un officier s'en occupera." },
+  "invite.stillWant": {
+    en: "Still want to join **{server}**? You asked for a guild invite for **{name}** and we have not seen the character join yet. If we hear nothing in {days} days, the request is closed (you can ask again any time).",
+    fr: "Tu veux toujours rejoindre **{server}** ? Tu as demandé une invitation de guilde pour **{name}** et on n'a pas encore vu le personnage la rejoindre. Sans nouvelles dans {days} jours, la demande sera fermée (tu peux en refaire une quand tu veux)."
+  },
+  "invite.keepButton": { en: "Yes, keep me on the list", fr: "Oui, garde-moi sur la liste" },
+  "invite.dropButton": { en: "No, cancel", fr: "Non, annuler" },
+  "invite.kept": { en: "✅ Thanks, you stay on the list. An officer will try again.", fr: "✅ Merci, tu restes sur la liste. Un officier va réessayer." },
+  "invite.dropped": { en: "Done, your request is cancelled. Ask again whenever you like.", fr: "C'est fait, ta demande est annulée. Redemande quand tu veux." },
+  "invite.alreadyClosed": { en: "This request is already closed or handled.", fr: "Cette demande est déjà fermée ou traitée." },
+  "invite.notYours": { en: "This question is for the member who asked.", fr: "Cette question s'adresse au membre qui a fait la demande." },
+  "invite.confirmName": { en: "I'll invite **{name}**, is that right?", fr: "J'invite **{name}**, c'est bien ça ?" },
+  "invite.yesButton": { en: "Yes", fr: "Oui" },
+  "invite.fixButton": { en: "No, let me fix it", fr: "Non, je corrige" },
+  "invite.fixPrompt": { en: "No problem. Type just your full character name, first and last, for example `Lebowski Holyroller`.", fr: "Pas de souci. Écris seulement le nom complet de ton personnage, prénom et nom, par exemple `Lebowski Holyroller`." },
+  "invite.needLast": {
+    en: "I found the first name **{first}**, but WoW Forever names have a last name too. Type your full character name, first and last.",
+    fr: "J'ai trouvé le prénom **{first}**, mais les noms de WoW Forever ont aussi un nom de famille. Écris le nom complet de ton personnage, prénom et nom."
+  },
+  "invite.recorded": { en: "✅ Got it, **{name}** is on the list. An officer will invite you in game.", fr: "✅ C'est noté, **{name}** est sur la liste. Un officier t'invitera en jeu." },
+  "invite.questionExpired": { en: "That question timed out. Type your full character name again.", fr: "Cette question a expiré. Écris de nouveau le nom complet de ton personnage." },
   "invite.doneButton": { en: "✅ Invited / joined", fr: "✅ Invité / a joint la guilde" },
   "invite.doneOfficers": { en: "Only officers can mark an invite as done.", fr: "Seuls les officiers peuvent marquer une invitation comme faite." },
   "invite.unavailable": { en: "Guild invites are not open on this server right now. Ask an officer.", fr: "Les invitations de guilde ne sont pas ouvertes sur ce serveur pour le moment. Demande à un officier." },

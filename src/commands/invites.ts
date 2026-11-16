@@ -9,6 +9,7 @@ import {
   STAGE_LABEL, STAGES, storedQuestions, updateRecruit, type Stage
 } from "../services/recruiting-kit.js";
 import { countOldHandled, queueOldHandled, sweepInviteChannel, sweepSummary } from "../services/invite-cleanup.js";
+import { EXPIRY, formatClosedInvites } from "../services/invite-expiry.js";
 import { markGuildChanged } from "../services/standings-feed.js";
 import { guildService, requireGuildContext } from "./context.js";
 
@@ -18,7 +19,8 @@ import { guildService, requireGuildContext } from "./context.js";
 export const invitesCommand = new SlashCommandBuilder()
   .setName("invites")
   .setDescription("Invite queue.")
-  .addSubcommand((sub) => sub.setName("list").setDescription("Waiting."))
+  .addSubcommand((sub) => sub.setName("list").setDescription("Waiting.")
+    .addBooleanOption((o) => o.setName("closed").setDescription("Closed")))
   .addSubcommand((sub) => sub.setName("extra").setDescription("Extra."))
   .addSubcommand((sub) => sub.setName("record").setDescription("Stage, note.")
     .addStringOption((o) => o.setName("name").setDescription("First Last").setRequired(true).setMaxLength(60))
@@ -29,6 +31,9 @@ export const invitesCommand = new SlashCommandBuilder()
     .addBooleanOption((o) => o.setName("dm").setDescription("Role DM"))
     .addBooleanOption((o) => o.setName("notify").setDescription("Tag"))
     .addBooleanOption((o) => o.setName("cleanup").setDescription("Tidy"))
+    .addBooleanOption((o) => o.setName("expiry").setDescription("Expire"))
+    .addBooleanOption((o) => o.setName("expirydm").setDescription("Ask"))
+    .addBooleanOption((o) => o.setName("channel").setDescription("Tidy all"))
     .addRoleOption((o) => o.setName("role").setDescription("WoW role")))
   .addSubcommand((sub) => sub.setName("tidy").setDescription("Old.")
     .addBooleanOption((o) => o.setName("confirm").setDescription("Yes"))
@@ -52,6 +57,13 @@ export async function executeInvites(interaction: ChatInputCommandInteraction): 
   const sub = interaction.options.getSubcommand();
   const o = interaction.options;
 
+  if (sub === "list" && o.getBoolean("closed")) {
+    // Closed requests and why (leaving Discord, an answer of No, no answer, an officer's Remove in game).
+    const closed = await prisma.inviteRequest.findMany({ where: { guildId, status: "CLOSED" }, orderBy: { closedAt: "desc" }, take: 15,
+      select: { displayName: true, discordUserId: true, closedAt: true, closeReason: true, invitesSent: true, gameState: true } });
+    await reply(formatClosedInvites(closed));
+    return;
+  }
   if (sub === "list") {
     const rows = await pendingInvites(prisma, guildId);
     const where = settings?.inviteChannelId ? `\nPosts go in <#${settings.inviteChannelId}>. In game: \`/guilded invites\`.` : "\nNo invite channel yet: press Create missing channels in `/setup`.";
@@ -143,10 +155,13 @@ export async function executeInvites(interaction: ChatInputCommandInteraction): 
     ...(o.getBoolean("dm") !== null ? { inviteDmEnabled: o.getBoolean("dm")! } : {}),
     ...(o.getBoolean("notify") !== null ? { inviteNotifyEnabled: o.getBoolean("notify")! } : {}),
     ...(o.getBoolean("cleanup") !== null ? { inviteCleanupEnabled: o.getBoolean("cleanup")! } : {}),
+    ...(o.getBoolean("expiry") !== null ? { inviteExpiryEnabled: o.getBoolean("expiry")! } : {}),
+    ...(o.getBoolean("expirydm") !== null ? { inviteExpiryDmEnabled: o.getBoolean("expirydm")! } : {}),
+    ...(o.getBoolean("channel") !== null ? { inviteChannelSweepEnabled: o.getBoolean("channel")! } : {}),
     ...(o.getRole("role") ? { inviteWowRoleId: o.getRole("role")!.id } : {})
   };
   if (Object.keys(data).length) await prisma.guildSettings.upsert({ where: { guildId }, create: { guildId, ...data }, update: data });
   const merged = { ...settings, ...data };
   const on = (value: boolean | undefined) => value === false ? "**off**" : "**on**";
-  await reply(`Invite queue: ${on(merged.inviteQueueEnabled)}${merged.inviteChannelId ? ` in <#${merged.inviteChannelId}>` : " (no channel yet)"}. WoW-role DM: ${on(merged.inviteDmEnabled)}, tag online officers: ${on(merged.inviteNotifyEnabled)}, tidy the channel an hour after an invite (needs Manage Messages): ${on(merged.inviteCleanupEnabled)}, role: ${merged.inviteWowRoleId ? `<@&${merged.inviteWowRoleId}>` : "the one named like \"World of Warcraft\""}.`);
+  await reply(`Invite queue: ${on(merged.inviteQueueEnabled)}${merged.inviteChannelId ? ` in <#${merged.inviteChannelId}>` : " (no channel yet)"}. WoW-role DM: ${on(merged.inviteDmEnabled)}, tag online officers: ${on(merged.inviteNotifyEnabled)}, tidy the channel an hour after an invite (needs Manage Messages): ${on(merged.inviteCleanupEnabled)}, close old requests (${EXPIRY.maxInvites} invites or ${EXPIRY.maxAgeDays} days with no join, then one question by DM and ${EXPIRY.graceDays} days to answer): ${on(merged.inviteExpiryEnabled)}, that question by DM (off: such requests close at once): ${on(merged.inviteExpiryDmEnabled)}, hourly tidy of the whole channel (everything older than 10 minutes that is not pinned or an open request; a copy goes to backups first): ${on(merged.inviteChannelSweepEnabled)}, role: ${merged.inviteWowRoleId ? `<@&${merged.inviteWowRoleId}>` : "the one named like \"World of Warcraft\""}.`);
 }

@@ -944,6 +944,12 @@ model GuildSettings {
   // 8.5 batch 3 (#13/#14): the guild-invite channel where players post their full character name, the DM prompt for the WoW role, and the queue's off switch.
   inviteChannelId          String?
   inviteQueueEnabled       Boolean   @default(true)
+  // 9.3.5: officers' switches for the expiry of old invite requests and for the confirmation DM (services/invite-expiry.ts).
+  inviteExpiryEnabled      Boolean   @default(true)
+  inviteExpiryDmEnabled    Boolean   @default(true)
+  // 9.3.5: the hourly tidy of the invite channel itself (everything older than 10 minutes that is not pinned or an open request, saved to backups/ first).
+  inviteChannelSweepEnabled Boolean  @default(true)
+  inviteSweptAt            DateTime?
   inviteDmEnabled          Boolean   @default(true)
   // 9.1: tag up to 3 online officers (else the officer role once) when someone posts their name in the invite channel.
   inviteNotifyEnabled      Boolean   @default(true)
@@ -3489,6 +3495,19 @@ model InviteRequest {
   legacyHandled Boolean   @default(false)
   // The bot's "done" thank-you under a member's own post, so the clean-up uses stored ids.
   doneNoteMessageId String?
+  // 9.3.5 expiry (services/invite-expiry.ts): invites sent for this request (reported by officers' addons), what the game
+  // last answered ("declined", "inguild", "notfound"), the confirmation question's DM and why/when a request was closed.
+  invitesSent   Int       @default(0)
+  lastInviteAt  DateTime?
+  gameState     String?
+  gameStateAt   DateTime?
+  // A "Yes, keep me on the list" answer restarts the counters from here.
+  expiryBaseAt  DateTime?
+  expiryBaseSent Int      @default(0)
+  confirmAskedAt DateTime?
+  closedAt      DateTime?
+  // left_discord, member_cancelled, no_answer, expired, officer_removed. Status is CLOSED.
+  closeReason   String?
   guild         Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   @@unique([guildId, messageId])

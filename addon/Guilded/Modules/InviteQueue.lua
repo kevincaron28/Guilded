@@ -137,6 +137,47 @@ local function postTimeOf(k)
   end
 end
 
+-- (9.3.5) What the bot needs to expire old requests: per request id (the bot sends it with each waiting name),
+-- GuildedDB.inviteReports[id] = { sent = invites sent, state = the game's last answer (declined, inguild, notfound), removed, at }.
+-- The companion uploads it; the bot counts invites, shows the answer to every officer and closes a request an officer removed.
+local REPORT_STATES = { declined = true, inguild = true, notfound = true }
+local MAX_REPORTS = 60
+local function rowOf(k)
+  local base, suffix = splitRealm(k)
+  for _, row in ipairs((type(_G.GuildedInvites) == "table" and _G.GuildedInvites.names) or {}) do
+    local rk = type(row) == "table" and type(row.name) == "string" and key(row.name)
+    if rk and (rk == k or (suffix and rk == base) or select(1, splitRealm(rk)) == k) then return row end
+  end
+end
+local function reportFor(k, kind)
+  local row = rowOf(k)
+  local d = db()
+  if not (row and d and type(row.id) == "string" and row.id ~= "") then return end
+  d.inviteReports = type(d.inviteReports) == "table" and d.inviteReports or {}
+  local r = d.inviteReports[row.id] or {}
+  local known = math.max(tonumber(r.sent) or 0, tonumber(row.sent) or 0)
+  if kind == "sent" then
+    -- Follows the bot's own count (another officer may have invited too), then counts this invite.
+    r.sent = known + 1
+    r.state = nil
+  elseif kind == "removed" then
+    r.sent = known; r.removed = true
+  elseif REPORT_STATES[kind] then
+    r.sent = known; r.state = kind
+  else return end
+  r.at = nowSeconds()
+  d.inviteReports[row.id] = r
+  -- Only the newest few are kept (the upload carries at most MAX_REPORTS).
+  local n, oldest, oldestId = 0, nil, nil
+  for id, v in pairs(d.inviteReports) do
+    n = n + 1
+    local at = type(v) == "table" and tonumber(v.at) or 0
+    if not oldest or at < oldest then oldest, oldestId = at, id end
+  end
+  if n > MAX_REPORTS and oldestId then d.inviteReports[oldestId] = nil end
+end
+module.reportFor = reportFor
+
 -- Waiting names in three groups (9.3): `todo` (still to invite, oldest first; a name the game could not find stays here with
 -- its Remove button), `invited` (the line was copied or sent less than PENDING_SECONDS ago and the player has not joined, or
 -- the player declined: the officer may invite again), and `handled` (already in another guild). A name already in OUR guild is
@@ -186,7 +227,7 @@ function module.sections()
         if state == "declined" then
           if (at - answer.at) < DECLINED_KEEP then pending = at - answer.at else state = nil end
         end
-        local item = { name = row.name, at = row.at, sent = pending, state = state }
+        local item = { name = row.name, at = row.at, sent = pending, state = state, id = row.id, botSent = tonumber(row.sent), botState = type(row.state) == "string" and row.state or nil }
         item.copied = pending ~= nil and state == nil
         item.again = pending ~= nil and (state == "declined" or pending >= AGAIN_SECONDS)
         local list = out[classify(item)]
@@ -196,6 +237,19 @@ function module.sections()
   end
   -- The oldest invitation (closest to expiring) first.
   table.sort(out.invited, function(x, y) return x.sent > y.sent end)
+  -- (9.3.5) Fresh requests first: an old one is likely a person who changed their mind. Rows without a readable date keep the bot's order.
+  local iso = ns.util and ns.util.isoEpoch
+  if iso then
+    local order = {}
+    for i, item in ipairs(out.todo) do order[item] = i end
+    table.sort(out.todo, function(x, y)
+      -- By whole day: requests from the same day keep the bot's order (oldest first).
+      local a, b = iso(x.at), iso(y.at)
+      if a and b then a, b = math.floor(a / 86400), math.floor(b / 86400) end
+      if a and b and a ~= b then return a > b end
+      return order[x] < order[y]
+    end)
+  end
   return out
 end
 -- What still needs an invite now.
@@ -310,6 +364,7 @@ function module.onSystemMessage(text)
         k = markKey or k
         d.inviteState[k] = { state = entry[1], at = nowSeconds(), postAt = postTimeOf(k) }
         if entry[1] == "expired" then d.inviteSent[k] = nil end
+        pcall(reportFor, k, entry[1])
         module.refresh()
         return true
       end
@@ -329,6 +384,7 @@ function module.remove(name)
   end
   d.inviteRemoved = type(d.inviteRemoved) == "table" and d.inviteRemoved or {}
   d.inviteRemoved[k] = { at = nowSeconds(), postAt = postAt }
+  pcall(reportFor, k, "removed") -- the bot closes the request, so no other officer is shown it either
   local base, suffix = splitRealm(k)
   for _, mk in ipairs(suffix and { k, base } or { k }) do
     if d.inviteSent then d.inviteSent[mk] = nil end
@@ -344,9 +400,25 @@ local STATE_TEXT = {
 }
 local MAX_TODO, MAX_INVITED, MAX_HANDLED = 10, 8, 8
 local ROW_HEIGHT = 26
+-- (9.3.5) Age, invites sent and status in a dim tail: "4d old, 2 sent, asked to confirm". Empty when nothing is known.
+local function detailText(item)
+  local parts = {}
+  local iso = ns.util and ns.util.isoEpoch
+  local born = iso and type(item.at) == "string" and iso(item.at)
+  if born then
+    local age = math.max(0, nowSeconds() - born)
+    if age >= 86400 then parts[#parts + 1] = string.format(L("%dd old"), math.floor(age / 86400))
+    elseif age >= 3600 then parts[#parts + 1] = string.format(L("%dh old"), math.floor(age / 3600)) end
+  end
+  if (item.botSent or 0) > 0 then parts[#parts + 1] = string.format(L("%d sent"), item.botSent) end
+  if item.botState == "confirm" then parts[#parts + 1] = L("asked to confirm")
+  elseif item.botState == "declined" and item.state ~= "declined" then parts[#parts + 1] = L("declined in game") end
+  if #parts == 0 then return "" end
+  return "  |cff8c96a3" .. table.concat(parts, ", ") .. "|r"
+end
 local function rowText(item)
-  if item.state and STATE_TEXT[item.state] then return item.name .. " (" .. L(STATE_TEXT[item.state]) .. ")" end
-  return item.name
+  if item.state and STATE_TEXT[item.state] then return item.name .. " (" .. L(STATE_TEXT[item.state]) .. ")" .. detailText(item) end
+  return item.name .. detailText(item)
 end
 local function agoText(seconds)
   if seconds < 60 then return L("just now") end
@@ -410,19 +482,21 @@ local function refreshNow()
           if item.state == "declined" then note = L("declined")
           elseif item.copied then note = string.format(L("copied %s, waiting"), agoText(item.sent or 0))
           else note = string.format(L("invited %s"), agoText(item.sent or 0)) end
-          row.label:SetText(item.name .. "  |cff8c96a3" .. note .. "|r")
+          row.label:SetText(item.name .. "  |cff8c96a3" .. note .. "|r" .. detailText(item))
         else
           row.label:SetText(rowText(item))
         end
         if group == "invited" or group == "handled" then row.label:SetTextColor(0.65, 0.7, 0.76) else row.label:SetTextColor(1, 1, 1) end
+        -- (9.3.5) A small Remove sits beside every row that is not handled: the bot closes the request.
         if group == "invited" and not item.again then
-          row.button:Hide(); row.button.setInvite(nil); row.remove:Hide()
+          row.button:Hide(); row.button.setInvite(nil)
+          row.remove:ClearAllPoints(); row.remove:SetPoint("TOPLEFT", 355, y); row.remove:Show()
         elseif group ~= "handled" and item.state ~= "notfound" then
-          row.button:ClearAllPoints(); row.button:SetPoint("TOPLEFT", 310, y); row.button:Show(); row.button.setInvite(item.name)
-          row.remove:Hide()
+          row.button:ClearAllPoints(); row.button:SetPoint("TOPLEFT", 270, y); row.button:Show(); row.button.setInvite(item.name)
+          row.remove:ClearAllPoints(); row.remove:SetPoint("TOPLEFT", 355, y); row.remove:Show()
         elseif group ~= "handled" then
           row.button:Hide(); row.button.setInvite(nil)
-          row.remove:ClearAllPoints(); row.remove:SetPoint("TOPLEFT", 310, y); row.remove:Show()
+          row.remove:ClearAllPoints(); row.remove:SetPoint("TOPLEFT", 355, y); row.remove:Show()
         else
           row.button:Hide(); row.button.setInvite(nil); row.remove:Hide()
         end
@@ -515,18 +589,18 @@ function build()
     if highlight.SetColorTexture then highlight:SetColorTexture(1, 0.82, 0, 0.18) end
     highlight:SetSize(396, 24); highlight:Hide()
     local label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    label:SetPoint("TOPLEFT", 18, -92); label:SetWidth(285); label:SetJustifyH("LEFT")
-    local button = ns.util.inviteButton(f, "guild", buttonText, 100, 22, function(name, shown, line)
+    label:SetPoint("TOPLEFT", 18, -92); label:SetWidth(250); label:SetJustifyH("LEFT")
+    local button = ns.util.inviteButton(f, "guild", buttonText, 82, 22, function(name, shown, line)
       module.hint(shown, line) -- before the mark: the clicked name still counts as waiting
       module.markInvited(name)
       module.refresh()
     end)
     button.quiet = true -- one chat reminder for the whole list (module.hint), not a line per click
     button.copyNext = function(name) return module.nextCallback(name) end
-    button:SetPoint("TOPLEFT", 310, -92)
+    button:SetPoint("TOPLEFT", 270, -92)
     button.copyAnchor = function() return window end -- the copy box opens below this window, not on top of the rows
     local remove = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    remove:SetSize(100, 22); remove:SetText(L("Remove")); remove:SetPoint("TOPLEFT", 310, -92); remove:Hide()
+    remove:SetSize(62, 22); remove:SetText(L("Remove")); remove:SetPoint("TOPLEFT", 355, -92); remove:Hide()
     remove:SetScript("OnClick", function()
       local item = pools[group][index] and pools[group][index].item
       if item then module.remove(item.name) end

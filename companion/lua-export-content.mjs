@@ -274,6 +274,7 @@ export function parseAddonExportDatabase(database, realm) {
   const guildData = exportGuildData(database);
   const guildBank = exportGuildBank(database);
   const craftOrders = exportCraftOrders(database);
+  const inviteReports = exportInviteReports(database);
   const guildMap = exportGuildMap(database);
   const worldPvp = exportWorldPvp(database);
 
@@ -378,6 +379,7 @@ export function parseAddonExportDatabase(database, realm) {
     ...guildData,
     ...guildBank,
     ...craftOrders,
+    ...inviteReports,
     ...guildMap,
     ...worldPvp
   }, edition.gameEdition, realm);
@@ -549,6 +551,19 @@ export function exportCraftOrders(database) {
     ...(own.length ? { craftOrderActions: own } : {}), ...(heard.length ? { craftOrderRelayActions: heard } : {}),
     ...(requests.length ? { craftOrderRequests: requests } : {}), ...(heardRequests.length ? { craftOrderRelayRequests: heardRequests } : {})
   };
+}
+
+// Invite requests (addon Modules/InviteQueue.lua, db.inviteReports, keyed by the bot's request id): how many invites this
+// officer sent, what the game answered last (declined / inguild / notfound) and whether the row was removed. The bot checks
+// every row again and only applies them to this server's own requests.
+export function exportInviteReports(database) {
+  const epoch = (v) => Number.isSafeInteger(v) && v > 1_600_000_000 && v < 4_102_444_800;
+  const reports = Object.entries(database?.inviteReports && typeof database.inviteReports === "object" ? database.inviteReports : {})
+    .filter(([id, v]) => /^[A-Za-z0-9_-]{8,40}$/.test(id) && v && typeof v === "object" && epoch(Math.trunc(Number(v.at))))
+    .map(([id, v]) => ({ id, sent: Math.max(0, Math.min(999, Math.trunc(Number(v.sent)) || 0)), at: Math.trunc(Number(v.at)),
+      ...(v.state === "declined" || v.state === "inguild" || v.state === "notfound" ? { state: v.state } : {}), ...(v.removed === true ? { removed: true } : {}) }))
+    .sort((a, b) => b.at - a.at).slice(0, 60);
+  return reports.length ? { inviteReports: reports } : {};
 }
 
 // Track M phone map (addon Modules/GuildMap.lua and Modules/CallForHelp.lua): this player's own

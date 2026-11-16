@@ -29,6 +29,7 @@ Never overwrite a published download; these are the bytes that went out.
 
 - The merged pull requests (#1015 to #1034) passed CI on main, each after an independent review.
 - 16 November, owner's PC (English client, build 16001), addon from main: two clean reloads with no new blocked-action records; `/guilded probe auctions` works (statistics 919, 329, 330, 332, 334, the auction sold message and invoices exist; the owned list needs the auction house open); the Ready to promote panel opens with the rule line and "Promote next".
+- 16 November, two-PC test (second PC with the website-installed 9.3.6 companion and addon): `/reload`, `/guilded sync` and `/guilded probe auctions` on the second client, no blocked-action popup; a guild invite from the officer's character and the join as Initiate seen on both PCs; a party invite across the two PCs; the second PC's companion uploads reached the bot (12:02 and 12:24 its time). Found and fixed in #1043 (ships with the next companion): startup.log stopped after the "Ready" line, the Ready line said "restarted by Microsoft Store" on a website install, the addon updater logged "not needed: busy" beside an install, and a guild joined mid-session kept the stale character record until a later reload. Not run yet: the leave-guild drop on race to 60 (after the next officer roster upload), a duel and a dungeon run between the two PCs (characters level 30 and 1 in different zones).
 
 ## Checks owed (to be tested on real clients)
 

@@ -56,7 +56,7 @@ export async function writeStandings(config, signal, options = {}) {
       : "The server did not provide an error message.";
     throw new Error(`Standings request failed (${response.status}): ${detail}`);
   }
-  if (!protocolSupported(body)) throw new Error(body.protocolVersion < MIN_KNOWN_PROTOCOL ? "Update the bot before using this companion (sync protocol 2 or newer required)." : "Update this companion before using this bot (a newer sync protocol is required).");
+  if (!protocolSupported(body)) throw new Error(!Number.isInteger(body.protocolVersion) || body.protocolVersion < MIN_KNOWN_PROTOCOL ? "Update the bot before using this companion (sync protocol 2 or newer required)." : "Update this companion before using this bot (a newer sync protocol is required).");
   // Check the actual saved file before replacing standings or acknowledging
   // its ledger. Missing legacy saves retain first-run repair behavior.
   let ownNames = [];

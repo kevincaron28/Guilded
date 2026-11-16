@@ -63,8 +63,12 @@ these rules.
    plus companion of that release uploads), `dungeon-run.json` (one run), `device-upload.json` (the unsigned body).
    Build them from what that release really sent: `git show v<version>:src/integrations/addon.ts` shows which
    fields existed, and a saved file from that release is the best source. Use only invented names and ids.
+   The 9.1.3, 9.2.0 and 9.3.5 fixtures in the repo were **built from the schemas at those tags, not captured from real
+   saved files**. To add a captured one: take the saved file a real client of that release wrote, run it through that
+   release's companion export (or copy the body the companion uploaded), replace every real name, realm, guild and id
+   with invented ones, and drop it in the folder with the same three file names. Prefer captured fixtures when you have them.
 2. The replay test picks the folder up by itself. If the new release adds fields, the old fixtures must still pass unchanged.
-3. When a schema changes on purpose, refresh the baseline with
+3. When a schema changes on purpose, refresh the baseline with (it refuses, and lists them, any removed or newly required field not already in the `allow` lists of that file: add them there first)
    `COMPAT_WRITE=1 npx vitest run tests/compat-guard.test.ts` and review the diff of `wire-shape.json`:
    new optional fields are fine; anything else needs an `allow` entry.
 4. Update the window: when a release leaves it, delete its fixtures only after `MIN_COMPANION` has moved past it.

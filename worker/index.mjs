@@ -124,7 +124,7 @@ function mobileDevCors(request) {
   if (!path.startsWith("/api/") && path !== "/leaderboards/summary.json") return null;
   return {
     "access-control-allow-origin": origin,
-    "access-control-allow-headers": "accept, authorization, content-type, if-none-match, x-companion-credential, x-companion-version, x-companion-addon-version",
+    "access-control-allow-headers": "accept, authorization, content-type, if-none-match, x-companion-credential",
     "access-control-allow-methods": "GET, HEAD, POST, OPTIONS",
     "access-control-max-age": "600",
     vary: "origin"

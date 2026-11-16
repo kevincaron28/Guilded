@@ -1,5 +1,5 @@
 {
-  "id": "Dreamscythe-Kevin-1762700000-9.1.3",
+  "id": "Testrealm-Aldric-1762700000-9.1.3",
   "protocolVersion": 1,
   "addonVersion": "9.1.3",
   "state": "COMPLETED",
@@ -11,8 +11,8 @@
   "reporters": 1,
   "players": [
     {
-      "character": "Kevin",
-      "realm": "Dreamscythe",
+      "character": "Aldric",
+      "realm": "Testrealm",
       "class": "WARRIOR",
       "role": "TANK",
       "level": 60,
@@ -22,7 +22,7 @@
     },
     {
       "character": "Ana",
-      "realm": "Dreamscythe",
+      "realm": "Testrealm",
       "class": "WARRIOR",
       "role": "HEALER",
       "level": 60,
@@ -32,7 +32,7 @@
     },
     {
       "character": "Bob",
-      "realm": "Dreamscythe",
+      "realm": "Testrealm",
       "class": "WARRIOR",
       "role": "DPS",
       "level": 60,
@@ -42,7 +42,7 @@
     },
     {
       "character": "Cy",
-      "realm": "Dreamscythe",
+      "realm": "Testrealm",
       "class": "WARRIOR",
       "role": "DPS",
       "level": 60,
@@ -52,7 +52,7 @@
     },
     {
       "character": "Dee",
-      "realm": "Dreamscythe",
+      "realm": "Testrealm",
       "class": "WARRIOR",
       "role": "DPS",
       "level": 60,

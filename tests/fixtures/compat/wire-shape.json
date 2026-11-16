@@ -58,6 +58,202 @@
       "worldPvp": true,
       "wowGuild": true
     },
+    "addonSnapshot.character": {
+      "class": true,
+      "displayName": true,
+      "gameEdition": true,
+      "guildRankIndex": true,
+      "guildRankName": true,
+      "interface": true,
+      "level": true,
+      "name": false,
+      "observedAt": true,
+      "professions": true,
+      "professionsAt": true,
+      "professionsComplete": true,
+      "race": true,
+      "realm": false,
+      "spec": true,
+      "verify": true
+    },
+    "addonSnapshot.characters[]": {
+      "class": true,
+      "displayName": true,
+      "gameEdition": true,
+      "guildRankIndex": true,
+      "guildRankName": true,
+      "interface": true,
+      "level": true,
+      "name": false,
+      "observedAt": true,
+      "professions": true,
+      "professionsAt": true,
+      "professionsComplete": true,
+      "race": true,
+      "realm": false,
+      "spec": true,
+      "verify": true
+    },
+    "addonSnapshot.alts[]": {
+      "class": true,
+      "displayName": true,
+      "gameEdition": true,
+      "guildRankIndex": true,
+      "guildRankName": true,
+      "interface": true,
+      "level": true,
+      "name": false,
+      "observedAt": true,
+      "professions": true,
+      "professionsAt": true,
+      "professionsComplete": true,
+      "race": true,
+      "realm": false,
+      "spec": true,
+      "verify": true
+    },
+    "addonSnapshot.itemPrices[]": {
+      "at": false,
+      "coreId": true,
+      "gp": false,
+      "id": true,
+      "name": false
+    },
+    "addonSnapshot.consumeScan": {
+      "at": false,
+      "by": true,
+      "players": true
+    },
+    "addonSnapshot.reserves": {
+      "active": true,
+      "at": false,
+      "by": true,
+      "entries": true,
+      "limit": true,
+      "open": true,
+      "title": true
+    },
+    "addonSnapshot.calendarEvents[]": {
+      "botRaidId": true,
+      "invites": true,
+      "ref": false,
+      "startsAt": false,
+      "title": false
+    },
+    "addonSnapshot.signupAnswers[]": {
+      "at": false,
+      "character": false,
+      "raidId": false,
+      "realm": false,
+      "role": true,
+      "status": false
+    },
+    "addonSnapshot.recipes[]": {
+      "at": false,
+      "character": false,
+      "keys": false,
+      "profession": false,
+      "realm": false
+    },
+    "addonSnapshot.cooldowns[]": {
+      "at": false,
+      "character": false,
+      "entries": false,
+      "realm": false
+    },
+    "addonSnapshot.transactions[]": {
+      "amount": false,
+      "character": false,
+      "createdAt": true,
+      "realm": false,
+      "reason": false,
+      "sourceRef": true,
+      "type": false
+    },
+    "addonSnapshot.epgpTransactions[]": {
+      "character": false,
+      "coreId": true,
+      "createdAt": true,
+      "epAmount": true,
+      "gpAmount": true,
+      "realm": false,
+      "reason": false,
+      "sourceRef": true,
+      "type": false,
+      "voided": true
+    },
+    "addonSnapshot.readiness[]": {
+      "character": false,
+      "consumables": true,
+      "findings": true,
+      "inspectedAt": true,
+      "itemLevel": true,
+      "items": true,
+      "professions": true,
+      "professionsAt": true,
+      "professionsComplete": true,
+      "realm": false
+    },
+    "addonSnapshot.attunements[]": {
+      "character": false,
+      "completed": true,
+      "name": false,
+      "realm": false
+    },
+    "addonSnapshot.raids[]": {
+      "coreId": true,
+      "endedAt": true,
+      "players": true,
+      "ref": false,
+      "startedAt": false,
+      "title": false
+    },
+    "addonSnapshot.loot[]": {
+      "awardedAt": true,
+      "boss": true,
+      "character": false,
+      "gp": true,
+      "item": false,
+      "pricing": true,
+      "raidRef": true,
+      "realm": false,
+      "ref": false
+    },
+    "addonSnapshot.battlegroundReports[]": {
+      "adapter": false,
+      "bracket": false,
+      "character": false,
+      "consent": false,
+      "durationSeconds": false,
+      "edition": false,
+      "endedAt": false,
+      "mapId": false,
+      "mode": false,
+      "outcome": false,
+      "postmatch": false,
+      "premadeNonce": true,
+      "presence": false,
+      "realm": false,
+      "realmType": false,
+      "reloaded": false,
+      "reportId": false,
+      "version": false
+    },
+    "addonSnapshot.guildRoster": {
+      "at": false,
+      "complete": true,
+      "members": true
+    },
+    "addonSnapshot.guildInfo": {
+      "at": false,
+      "info": true,
+      "motd": true
+    },
+    "addonSnapshot.rejected[]": {
+      "label": false,
+      "reason": false,
+      "section": false
+    },
     "addonCharacter": {
       "class": true,
       "displayName": true,
@@ -75,6 +271,10 @@
       "realm": false,
       "spec": true,
       "verify": true
+    },
+    "addonCharacter.professions[]": {
+      "name": false,
+      "skillLevel": false
     },
     "dungeonRun": {
       "addonVersion": true,
@@ -106,6 +306,61 @@
       "state": false,
       "viaGroup": true
     },
+    "dungeonRun.challenge": {
+      "affixIds": false,
+      "durationMs": false,
+      "eligibleForScore": false,
+      "level": false,
+      "mapId": false,
+      "onTime": false,
+      "practiceRun": false,
+      "timeLimitSec": false
+    },
+    "dungeonRun.integrity": {
+      "combatAt": true,
+      "continuous": false,
+      "detectedAt": true,
+      "observer": true,
+      "startTrigger": false,
+      "startWitness": false,
+      "version": false,
+      "witnessAt": true
+    },
+    "dungeonRun.encounters[]": {
+      "at": true,
+      "id": false,
+      "kind": true,
+      "name": true,
+      "source": true,
+      "startedAt": true,
+      "success": false
+    },
+    "dungeonRun.deathPoints[]": {
+      "character": true,
+      "map": false,
+      "x": false,
+      "y": false
+    },
+    "dungeonRun.mapCells[]": {
+      "cells": false,
+      "map": false
+    },
+    "dungeonRun.players[]": {
+      "character": false,
+      "class": true,
+      "deaths": true,
+      "displayName": true,
+      "faction": true,
+      "guild": true,
+      "inGuild": true,
+      "integrity": true,
+      "level": true,
+      "minLevel": true,
+      "presentSec": true,
+      "realm": false,
+      "role": true,
+      "spec": true
+    },
     "deviceUpload": {
       "carriedRecords": true,
       "characters": true,
@@ -114,6 +369,19 @@
       "guild": true,
       "runsOnly": true,
       "server": true
+    },
+    "deviceUpload.guild": {
+      "name": false,
+      "realm": false
+    },
+    "deviceUpload.characters[]": {
+      "class": true,
+      "displayName": true,
+      "gameEdition": true,
+      "level": true,
+      "name": false,
+      "race": true,
+      "realm": true
     }
   },
   "allow": {

@@ -6,10 +6,10 @@
     "addonVersion": "9.1.3",
     "interface": 16001,
     "gameEdition": "forever",
-    "wowGuild": "Quebec Gold",
+    "wowGuild": "Test Guild",
     "character": {
-      "name": "Kevin",
-      "realm": "Dreamscythe",
+      "name": "Aldric",
+      "realm": "Testrealm",
       "class": "Warrior",
       "race": "Human",
       "level": 60,
@@ -24,7 +24,7 @@
     "characters": [
       {
         "name": "Ana",
-        "realm": "Dreamscythe",
+        "realm": "Testrealm",
         "class": "Priest",
         "race": "Human",
         "level": 60,
@@ -39,8 +39,8 @@
     ],
     "alts": [
       {
-        "name": "Kevin2",
-        "realm": "Dreamscythe",
+        "name": "Aldric2",
+        "realm": "Testrealm",
         "class": "Warrior",
         "race": "Human",
         "level": 60,
@@ -57,7 +57,7 @@
       {
         "createdAt": "2026-11-09T11:00:00.000Z",
         "character": "Ana",
-        "realm": "Dreamscythe",
+        "realm": "Testrealm",
         "amount": 10,
         "type": "AWARD",
         "reason": "Raid attendance",
@@ -68,7 +68,7 @@
       {
         "ref": "loot-9.1.3",
         "character": "Ana",
-        "realm": "Dreamscythe",
+        "realm": "Testrealm",
         "item": "Item:1234",
         "gp": 5
       }
@@ -78,7 +78,7 @@
     "recipes": [],
     "dungeonRuns": [
       {
-        "id": "Dreamscythe-Kevin-1762700000-9.1.3",
+        "id": "Testrealm-Aldric-1762700000-9.1.3",
         "protocolVersion": 1,
         "addonVersion": "9.1.3",
         "state": "COMPLETED",
@@ -90,8 +90,8 @@
         "reporters": 1,
         "players": [
           {
-            "character": "Kevin",
-            "realm": "Dreamscythe",
+            "character": "Aldric",
+            "realm": "Testrealm",
             "class": "WARRIOR",
             "role": "TANK",
             "level": 60,
@@ -101,7 +101,7 @@
           },
           {
             "character": "Ana",
-            "realm": "Dreamscythe",
+            "realm": "Testrealm",
             "class": "WARRIOR",
             "role": "HEALER",
             "level": 60,
@@ -111,7 +111,7 @@
           },
           {
             "character": "Bob",
-            "realm": "Dreamscythe",
+            "realm": "Testrealm",
             "class": "WARRIOR",
             "role": "DPS",
             "level": 60,
@@ -121,7 +121,7 @@
           },
           {
             "character": "Cy",
-            "realm": "Dreamscythe",
+            "realm": "Testrealm",
             "class": "WARRIOR",
             "role": "DPS",
             "level": 60,
@@ -131,7 +131,7 @@
           },
           {
             "character": "Dee",
-            "realm": "Dreamscythe",
+            "realm": "Testrealm",
             "class": "WARRIOR",
             "role": "DPS",
             "level": 60,

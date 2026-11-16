@@ -27,6 +27,7 @@ function fakeDb(rows: Row[], accounts: Array<{ id: string; discordUserId: string
     return true;
   };
   return {
+    publicProfileHidden: { findUnique: vi.fn(async () => null), findMany: vi.fn(async () => []) },
     characterPicture: { findMany: vi.fn(async ({ where }: { where: Where }) => rows.filter(row => matches(row, where)).sort((a, b) => Number(b.character.isMain) - Number(a.character.isMain))) },
     webAccount: { findMany: vi.fn(async ({ where }: { where: { id: { in: string[] } } }) => accounts.filter(a => where.id.in.includes(a.id))) }
   };

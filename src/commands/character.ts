@@ -76,9 +76,8 @@ export const characterCommand = new SlashCommandBuilder()
     .addStringOption((option) => option.setName("name").setDescription("Character").setAutocomplete(true)))
   .addSubcommand((subcommand) => subcommand
     .setName("privacy")
-    .setDescription("Hide or show your characters on the public website pages (default: shown).")
-    .setDescriptionLocalizations({ fr: "Masquer ou afficher vos personnages sur les pages publiques du site (par défaut : affichés)." })
-    .addStringOption((option) => option.setName("action").setDescription("hide, show or status").setRequired(true)
+    .setDescription("Hide or show you on the public website pages.")
+    .addStringOption((option) => option.setName("action").setDescription("Action").setRequired(true)
       .addChoices({ name: "hide", value: "hide" }, { name: "show", value: "show" }, { name: "status", value: "status" })))
   .addSubcommand((subcommand) => subcommand
     .setName("list")

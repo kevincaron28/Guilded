@@ -368,8 +368,8 @@ export function createSiteApp(client?: Client) {
   const meSections: MeSectionInput[] = [
     meSection({ id: "characters", group: "overview", render: charactersMeSection(discordUserId => memberLinkStatus(prisma, discordUserId), meCharacterList(prisma)) }),
     meSection({ id: "connections", group: "account", render: devices.meSection }),
-    meSection({ id: "your-data", group: "account", render: memberData.meSection }),
-    meSection({ id: "public-pages", group: "account", render: privacyWeb.meSection })
+    // The "hide my profile" switch lives with the member's data (one basic /me/ page keeps its three sections).
+    meSection({ id: "your-data", group: "account", render: async ctx => `${await memberData.meSection(ctx)}${await privacyWeb.meSection(ctx)}` })
   ];
   return createWebApp({
     publicRaids: now => publicRaids(prisma, hostedPilot.allows, now),

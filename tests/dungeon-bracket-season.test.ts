@@ -43,7 +43,7 @@ describe("provisional all-level season: preview", () => {
     expect(waiting.get("drowned-city")).toMatch(/No map ID/);
     expect(waiting.get("kroldok-stronghold")).toMatch(/No map ID/);
     expect(waiting.get("blackrock-depths")).toMatch(/No map ID/);
-    expect(waiting.size).toBe(16);
+    expect(waiting.size).toBe(17);
     expect(rules.catalog.find(d => d.dungeonKey === "36")).toMatchObject({ minLevel: 17, maxLevel: 26, targetSec: 2400 });
   });
   it("previews every bracket's routes, levels, targets and best-N, labelled provisional", () => {
@@ -119,7 +119,7 @@ describe("provisional labels", () => {
     expect(one.title).toContain("provisoire");
     expect(one.description).toContain("Cibles provisoires");
     const guide = dungeonScoringGuide(dungeonConfig(undefined), "en", rules).toJSON();
-    expect(guide.fields!.find(f => f.name === "Provisional targets (*)")!.value).toContain("16 planned dungeon(s) wait for launch data");
+    expect(guide.fields!.find(f => f.name === "Provisional targets (*)")!.value).toContain("17 planned dungeon(s) wait for launch data");
     expect(guide.fields!.find(f => f.name === "Routes 15-29")!.value).toContain("The Deadmines · 17–26 · 40 min*");
     expect(JSON.stringify(guide).length).toBeLessThan(6000);
     expect(seasonDungeonCatalog(rules, []).every(d => d.provisional)).toBe(true);

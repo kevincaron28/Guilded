@@ -29,7 +29,7 @@ export function runFullName(character: string, known: readonly { name: string; d
   return doubled ? doubled.trim().replace(/\s+/g, " ") : cleanCharacterName(displayCharacterName(character, names, party));
 }
 
-import { competitionReason, completionReason, dungeonRating, hasDungeonRating, ratingCharacterKey, UNLINKED_RATING_PREFIX, type LevelBand } from "./dungeon-rating.js";
+import { competitionReason, completionReason, dungeonRating, hasDungeonRating, ratingCharacterKey, ROUTE_WINGS, UNLINKED_RATING_PREFIX, type LevelBand } from "./dungeon-rating.js";
 import { participationDungeonKey, participationMode, participationRecordEligible, type ParticipationRun } from "./dungeon-participation.js";
 import {
   computeRunPoints, computeWeeklyVarietyPoints, sharedDungeonConfig, dungeonRunSchema, validateRun, weekStart,
@@ -774,7 +774,7 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
           : completionReason(evidence.completedBy) !== undefined ? completionReason(evidence.completedBy)
           : novemberReason ? novemberReason
           : november && !ratingRules.targets[dungeonKey] ? "Participation-only route"
-          : !november && dungeonKey === "189" ? "Dungeon route unknown"
+          : !november && ROUTE_WINGS[Number(dungeonKey)] ? "Dungeon route unknown"
           : competitionReason({ ...evidence, players: evidence.players.map(p => ({ ...p, member: null })) }, ratingRules.levelBands[dungeonKey], overlevelAllowance, belowAllowance)
             ?? (!ratingRules.targets[dungeonKey] ? "Target not calibrated"
               : player.presentSec < (durationSec ?? 0) * 0.8 ? `Presence ${Math.floor(100 * player.presentSec / (durationSec || 1))}% / 80% required` : undefined) : undefined;

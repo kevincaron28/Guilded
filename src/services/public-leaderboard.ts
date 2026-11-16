@@ -16,6 +16,7 @@ import { classLabel as classLabelRaw, className as classFromText, factionLabel, 
 import type { OfficialWindow } from "./official-seasons.js";
 import type { BracketedRules } from "./dungeon-november-rules.js";
 import { bossRuleText, bossTally } from "./dungeon-boss-scoring.js";
+import { localDungeonName } from "./dungeon-names.js";
 import { characterId, characterScores, DEFAULT_OFFICIAL, periodRules, publicRules, publicSeasons, publicWeek, rateRun, rulesAt, type PublicPeriod, type ScoreRow, type ScoreRun } from "./public-score.js";
 import { breadcrumbs } from "./site-header.js";
 import { EMBLEM_CSS, classEmblem, roleEmblem } from "./class-emblem.js";
@@ -743,7 +744,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       + `<div><label for="bracket">${t("Levels", "Niveaux")}</label><select id="bracket" name="bracket">${options([any, ...[...new Set([...brackets(), ...periods.flatMap(period => periodRules(period).brackets.map(b => b.key))])].map((value) => ({ value, label: bracketName(ctx, value) }))], filters.bracket)}</select></div>`
       + `<div><button class="button" type="submit">${t("Show rankings", "Afficher le classement")}</button></div>`
       + `<details class="advanced-filters" style="grid-column:1/-1"${advanced ? " open" : ""}><summary>${t("More filters", "Plus de filtres")}${advanced ? ` · ${t("active", "actifs")}` : ""}</summary><div class="filters">`
-      + `<div><label for="dungeon">${t("Dungeon", "Donjon")}</label><select id="dungeon" name="dungeon">${options([{ value: "", label: t("All dungeons", "Tous les donjons") }, ...dungeons.map((d) => ({ value: String(d.instanceId), label: d.dungeonName }))], filters.instanceId ? String(filters.instanceId) : "")}</select></div>`
+      + `<div><label for="dungeon">${t("Dungeon", "Donjon")}</label><select id="dungeon" name="dungeon">${options([{ value: "", label: t("All dungeons", "Tous les donjons") }, ...dungeons.map((d) => ({ value: String(d.instanceId), label: localDungeonName(d, lang) }))], filters.instanceId ? String(filters.instanceId) : "")}</select></div>`
       + `<div><label for="class">${t("Class", "Classe")}</label><select id="class" name="class">${options([any, ...classes.map((name) => ({ value: name, label: classLabel(name, lang) }))], filters.className)}</select></div>`
       + `<div><label for="role">${t("Role", "Rôle")}</label><select id="role" name="role">${options([any, ...ROLES.map((role) => ({ value: role, label: roleLabel(role, lang) }))], filters.role)}</select></div>`
       + `<div><label for="realm">${t("Realm", "Royaume")}</label><input id="realm" name="realm" maxlength="60" value="${escapeHtml(filters.realm ?? "")}"></div>`
@@ -768,7 +769,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       + `<p class="muted">${t("Install Guilded Dungeons and clear a dungeon with your group. Your run reaches this board when your companion, or the companion of anyone in your group, sends it.", "Installez Guilded Dungeons et terminez un donjon en groupe. Votre essai arrive ici quand votre compagnon, ou celui d'un membre de votre groupe, l'envoie.")} `
       + `<a href="${link("/editions/", ctx.lang)}">${t("Download", "Télécharger")}</a> · <a href="/docs/DUNGEONS_GUIDE.html${ctx.lang === "fr" ? "#fr" : ""}">${t("How it works", "Comment ça marche")}</a></p></div>`;
     return table([t("Dungeon", "Donjon"), t("Levels", "Niveaux"), t("Time", "Temps"), t("Score", "Score"), t("Party", "Groupe"), ""],
-      rated.map(({ run, s }) => `<tr><td>${escapeHtml(run.dungeonName)}</td><td>${escapeHtml(bracketName(ctx, s.bracket))}</td><td class="num">${time(run.durationSec)}</td>`
+      rated.map(({ run, s }) => `<tr><td>${escapeHtml(localDungeonName(run, ctx.lang))}</td><td>${escapeHtml(bracketName(ctx, s.bracket))}</td><td class="num">${time(run.durationSec)}</td>`
         + `<td class="num score">${s.points}${s.penaltyPercent ? ` <span class="tag">−${s.penaltyPercent}%</span>` : ""}</td><td>${party(ctx, run)}</td><td></td></tr>`), [2, 3]);
   }
 
@@ -833,7 +834,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
         `<div class="muted">${r.runs === 1 ? t("1 ranked run", "1 essai classé") : t(`${r.runs} ranked runs`, `${r.runs} essais classés`)}</div>`)).join("") + `</div>`;
     const bests = summary.roles.filter((r) => r.best.length);
     const routes = bests.length ? `<details><summary>${t("Best runs per role", "Meilleurs essais par rôle")}</summary>` + table([t("Role", "Rôle"), t("Dungeon", "Donjon"), t("Time", "Temps"), t("Score", "Score")],
-      bests.flatMap((r) => r.best.map((b) => `<tr><td>${roleEmblem(r.role)}${escapeHtml(roleLabel(r.role, lang))}</td><td><a href="${link(runPath(b.run.runId), lang)}">${escapeHtml(b.run.dungeonName)}</a></td><td class="num">${time(b.run.durationSec)}</td><td class="num score">${b.points}</td></tr>`)), [2, 3]) + `</details>` : "";
+      bests.flatMap((r) => r.best.map((b) => `<tr><td>${roleEmblem(r.role)}${escapeHtml(roleLabel(r.role, lang))}</td><td><a href="${link(runPath(b.run.runId), lang)}">${escapeHtml(localDungeonName(b.run, lang))}</a></td><td class="num">${time(b.run.durationSec)}</td><td class="num score">${b.points}</td></tr>`)), [2, 3]) + `</details>` : "";
     return tiles + `<p class="muted">${t("Role scores use only the runs played in that role (shown after " + MIN_ROLE_RUNS + " ranked runs); they are never added together.", "Chaque score de rôle n'utilise que les essais joués dans ce rôle (affiché après " + MIN_ROLE_RUNS + " essais classés) ; ils ne sont jamais additionnés.")}</p>` + routes;
   }
 
@@ -1025,7 +1026,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const running = filters.season !== "all" && (!period.to || period.to > now());
     const moves = running && bracket && all.some((run) => run.endedAt < weekFrom) ? rankMovement(all, weekFrom, rules, bracket, keepPlayer(filters, rules)) : null;
     const bestRuns = (row: ScoreRow) => row.routes.filter((r) => r.counted).sort((a, b) => b.points - a.points).slice(0, 3)
-      .map((r) => `<a href="${link(runPath(r.run.runId), lang)}">${escapeHtml(r.run.dungeonName)}</a> <span class="tag">${r.points}</span>`).join(" ");
+      .map((r) => `<a href="${link(runPath(r.run.runId), lang)}">${escapeHtml(localDungeonName(r.run, lang))}</a> <span class="tag">${r.points}</span>`).join(" ");
     const list = rows.length ? `<div class="table-wrap"><table class="dense rank-cards${page === 1 ? " ranked" : ""}"><thead><tr><th>#</th><th>${t("Character", "Personnage")}</th><th>${t("Role", "Rôle")}</th><th class="num">${t("Score", "Score")}</th><th class="num">${t("Routes", "Parcours")}</th><th>${t("Best runs", "Meilleurs essais")}</th></tr></thead><tbody>`
       + rows.slice((page - 1) * CHARACTERS_PER_PAGE, page * CHARACTERS_PER_PAGE).map((row, i) => `<tr><td>${rankCell((page - 1) * CHARACTERS_PER_PAGE + i + 1)}${moves ? ` ${movement(t, moves.get(characterId(row.player)) ?? null)}` : ""}</td><td>${identity(ctx, row.player)}</td>`
         + `<td>${row.player.role ? escapeHtml(roleLabel(row.player.role, lang)) : ""}</td>`
@@ -1209,7 +1210,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     // Latest runs, climbers and records broken this week.
     const latest = panels.latest;
     const latestStrip = strip(latest.map((run) => ({
-      main: `<a href="${link(runPath(run.runId), lang)}">${escapeHtml(run.dungeonName)}</a> <span class="muted">${run.players.slice(0, 3).map((p) => escapeHtml(nameOf(p))).join(", ")}${run.players.length > 3 ? "…" : ""}</span>`,
+      main: `<a href="${link(runPath(run.runId), lang)}">${escapeHtml(localDungeonName(run, lang))}</a> <span class="muted">${run.players.slice(0, 3).map((p) => escapeHtml(nameOf(p))).join(", ")}${run.players.length > 3 ? "…" : ""}</span>`,
       side: time(run.durationSec)
     })));
     const risers = panels.risers;
@@ -1219,7 +1220,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     })));
     const broken = panels.broken;
     const recordStrip = strip(broken.map(({ run, previousSec }) => ({
-      main: `<a href="${link(runPath(run.runId), lang)}">${escapeHtml(run.dungeonName)}</a> <span class="muted">${run.players.slice(0, 3).map((p) => escapeHtml(nameOf(p))).join(", ")}</span>`,
+      main: `<a href="${link(runPath(run.runId), lang)}">${escapeHtml(localDungeonName(run, lang))}</a> <span class="muted">${run.players.slice(0, 3).map((p) => escapeHtml(nameOf(p))).join(", ")}</span>`,
       side: `${time(run.durationSec)}${previousSec !== null ? ` <span class="muted">(${t("was", "avant")} ${time(previousSec)})</span>` : ` <span class="muted">${t("first", "premier")}</span>`}`
     })));
 
@@ -1279,7 +1280,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const periodResults = await periodRuns(period);
     const all = periodResults.filter(run => !run.challenge);
     const activeRules = periodRules(period);
-    const dungeons = dungeonSummaries(activeRules.evidencePolicy ? all.filter(run => rateRun(run, activeRules).score) : all);
+    const dungeons = dungeonSummaries(activeRules.evidencePolicy ? all.filter(run => rateRun(run, activeRules).score) : all).sort((a, b) => localDungeonName(a, lang).localeCompare(localDungeonName(b, lang)));
     const filterDungeons = [...dungeons];
     for (const run of periodResults) if (!filterDungeons.some(d => d.instanceId === run.instanceId)) {
       filterDungeons.push({ instanceId: run.instanceId, dungeonName: run.dungeonName, bestSec: run.durationSec, runs: 1 });
@@ -1288,7 +1289,8 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     if (filters.instanceId) {
       const runs = all.filter((run) => run.instanceId === filters.instanceId && (!filters.bracket || run.bracket === filters.bracket));
       const ranked = rankCharacters(runs, filters, 100, activeRules);
-      const name = dungeons.find((d) => d.instanceId === filters.instanceId)?.dungeonName ?? t("Dungeon", "Donjon");
+      const found = dungeons.find((d) => d.instanceId === filters.instanceId);
+      const name = found ? localDungeonName(found, lang) : t("Dungeon", "Donjon");
       body = `<h2>${escapeHtml(name)}</h2>` + (ranked.length
         ? table(["#", t("Character", "Personnage"), t("Role", "Rôle"), t("Time", "Temps"), t("Score", "Score"), t("Deaths", "Morts"), t("Party", "Groupe"), t("Date", "Date"), ""],
           ranked.map((entry, index) => `<tr><td>${index + 1}</td><td>${identity(ctx, entry.player)}</td>`
@@ -1319,7 +1321,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
         + (filters.bracket && !allBrackets.some((b) => b.key === filters.bracket) ? `<p class="muted">${t("This bracket is not rated yet (launch data needed).", "Cette tranche n'est pas encore classée (données de lancement requises).")}</p>` : "")
         + weekBlock
         + `<h2>${t("Dungeon records", "Records des donjons")}</h2>` + (dungeons.length
-          ? table([t("Dungeon", "Donjon"), t("Record", "Record"), t("Runs", "Essais")], dungeons.map((d) => `<tr><td><a href="${link("/leaderboards/", lang, { dungeon: String(d.instanceId), season: filters.season, period: filters.week ? "week" : null, bracket: filters.bracket })}">${escapeHtml(d.dungeonName)}</a></td><td class="num">${time(d.bestSec)}</td><td class="num">${d.runs}</td></tr>`), [1, 2], "rank-cards")
+          ? table([t("Dungeon", "Donjon"), t("Record", "Record"), t("Runs", "Essais")], dungeons.map((d) => `<tr><td><a href="${link("/leaderboards/", lang, { dungeon: String(d.instanceId), season: filters.season, period: filters.week ? "week" : null, bracket: filters.bracket })}">${escapeHtml(localDungeonName(d, lang))}</a></td><td class="num">${time(d.bestSec)}</td><td class="num">${d.runs}</td></tr>`), [1, 2], "rank-cards")
           : `<p class="muted">${t("No standard dungeon record in this period yet. Install Guilded Dungeons and finish a dungeon with a group: your companion, or a groupmate's, sends it.", "Aucun record de donjon standard pour cette période. Installez Guilded Dungeons et terminez un donjon en groupe : votre compagnon, ou celui d'un coéquipier, l'envoie.")} <a href="${link("/me/", lang)}">${t("My page", "Ma page")}</a></p>`)
         + guildsBlock;
     }
@@ -1373,10 +1375,10 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
         : [{ label: t("Season score", "Score de saison"), value: "—", note: t("Not rated yet", "Pas encore classé"), accent: "red" as const }];
       const runPoints = (r: LeaderRun) => rateRun(r, rulesAt(seasons, r.endedAt), r.players.find(isMe)).score?.points;
       const bestRun = runs.flatMap((r) => { const points = runPoints(r); return points === undefined ? [] : [{ r, points }]; }).sort((a, b) => b.points - a.points)[0];
-      const stats: CardStat[] = [scoreStats[0]!, ...(bestRun ? [{ label: t("Best dungeon", "Meilleur donjon"), value: bestRun.r.dungeonName, note: `${time(bestRun.r.durationSec)} · ${bestRun.points}` }] : []), ...scoreStats.slice(1)];
+      const stats: CardStat[] = [scoreStats[0]!, ...(bestRun ? [{ label: t("Best dungeon", "Meilleur donjon"), value: localDungeonName(bestRun.r, lang), note: `${time(bestRun.r.durationSec)} · ${bestRun.points}` }] : []), ...scoreStats.slice(1)];
       const rows: CardRow[] = runs.slice(0, 5).map((r) => {
         const points = runPoints(r);
-        return { name: r.dungeonName, color: r.challenge ? (r.challenge.onTime ? "#8fd19e" : "#ee8a7a") : undefined, sub: `${date(r.endedAt)} · ${r.challenge ? challengeClock(r.challenge.durationMs) : time(r.durationSec)}`,
+        return { name: localDungeonName(r, lang), color: r.challenge ? (r.challenge.onTime ? "#8fd19e" : "#ee8a7a") : undefined, sub: `${date(r.endedAt)} · ${r.challenge ? challengeClock(r.challenge.durationMs) : time(r.durationSec)}`,
           right: r.challenge ? `+${r.challenge.level}` : points === undefined ? "—" : String(points), rightTone: r.challenge ? (r.challenge.onTime ? "green" as const : "red" as const) : undefined };
       });
       return scoreCardResponse({ eyebrow: t("Guilded · Dungeons · Character", "Guilded · Donjons · Personnage"), title, ...(face ? { portrait: face.thumb.toString("base64") } : {}),
@@ -1454,11 +1456,11 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
         + `<h2>${t("Routes", "Parcours")}</h2><p class="muted">${t(`${best.size} ${best.size === 1 ? "dungeon" : "dungeons"} with a public best time.`, `${best.size} ${best.size === 1 ? "donjon" : "donjons"} avec un meilleur temps public.`)}</p>`
         + `<h2>${t("Best run per dungeon", "Meilleur essai par donjon")}</h2>`
         + table([t("Dungeon", "Donjon"), t("Time", "Temps"), t("Score", "Score"), t("Party", "Groupe"), t("Date", "Date"), ""],
-          [...best.values()].sort((a, b) => a.dungeonName.localeCompare(b.dungeonName)).map((run) => `<tr><td><a href="${link("/leaderboards/", lang, { dungeon: String(run.instanceId), season: "all" })}">${escapeHtml(run.dungeonName)}</a></td><td class="num">${time(run.durationSec)}</td><td class="num score">${cell(run)}</td><td>${party(ctx, run)}</td><td>${date(run.endedAt)}</td><td></td></tr>`), [1, 2])
+          [...best.values()].sort((a, b) => localDungeonName(a, lang).localeCompare(localDungeonName(b, lang))).map((run) => `<tr><td><a href="${link("/leaderboards/", lang, { dungeon: String(run.instanceId), season: "all" })}">${escapeHtml(localDungeonName(run, lang))}</a></td><td class="num">${time(run.durationSec)}</td><td class="num score">${cell(run)}</td><td>${party(ctx, run)}</td><td>${date(run.endedAt)}</td><td></td></tr>`), [1, 2])
         + duelPanel + pvpPanel
         + `<h2>${t("Recent runs", "Essais récents")}</h2>`
         + table([t("Date", "Date"), t("Dungeon", "Donjon"), t("Time", "Temps"), t("Score", "Score"), t("Deaths", "Morts"), t("Levels", "Niveaux"), ""],
-          runs.slice(0, 30).map((run) => `<tr><td>${date(run.endedAt)}</td><td><a href="${link(runPath(run.runId), lang)}">${escapeHtml(run.dungeonName)}</a></td><td class="num">${time(run.durationSec)}</td><td class="num score">${cell(run)}</td><td class="num">${run.deaths ?? "?"}</td><td>${escapeHtml(run.bracket ?? "?")}</td><td></td></tr>`), [2, 3, 4])
+          runs.slice(0, 30).map((run) => `<tr><td>${date(run.endedAt)}</td><td><a href="${link(runPath(run.runId), lang)}">${escapeHtml(localDungeonName(run, lang))}</a></td><td class="num">${time(run.durationSec)}</td><td class="num score">${cell(run)}</td><td class="num">${run.deaths ?? "?"}</td><td>${escapeHtml(run.bracket ?? "?")}</td><td></td></tr>`), [2, 3, 4])
         + `<h2>${t("Score history", "Historique du score")}</h2>` + (history.length
           ? table([t("Season", "Saison"), t("Levels", "Niveaux"), t("Score", "Score"), ""], history.flatMap((h) => h.rows.map((row) => `<tr><td>${escapeHtml(periodName(ctx, h.p))}</td><td>${escapeHtml(bracketName(ctx, row.bracket))}</td><td class="num score">${row.points}</td><td class="bar-cell"><div class="meter" style="width:${Math.round(100 * row.points / top)}%"></div></td></tr>`)), [2])
           : `<p class="muted">${t("No rated season yet.", "Aucune saison classée.")}</p>`)
@@ -1483,7 +1485,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const score = run.challenge ? `+${run.challenge.level} · ${run.challenge.onTime ? t("In time", "À temps") : t("Overtime", "Hors délai")}`
       : verdict.score ? `${verdict.score.points} · ${verdict.score.bracket}` : t("Unrated", "Non classé");
     const displayedTime = run.challenge ? challengeClock(run.challenge.durationMs) : time(run.durationSec);
-    const title = run.dungeonName;
+    const title = localDungeonName(run, lang);
     const subtitle = `${period ? periodName(ctx, period) : t("Past run", "Ancien donjon")} · ${date(run.endedAt)} UTC`;
     const imagePath = link(`${runPath(id)}/card.png`, lang);
     if (image) {
@@ -1600,7 +1602,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       + (activity ? `<h2>${t("Activity", "Activité")}</h2>${activity}` : "")
       + rules.brackets.map((b) => `<h2>${escapeHtml(bracketName(ctx, b.key))}</h2>${scoreTable(ctx, scores.filter((row) => row.bracket === b.key), 100)}`).join("")
       + `<h2>${t("Recent runs", "Essais récents")}</h2>` + (runs.length
-        ? table([t("Date", "Date"), t("Dungeon", "Donjon"), t("Time", "Temps"), t("Score", "Score"), t("Party", "Groupe"), ""], runs.slice(0, 20).map((run) => `<tr><td>${date(run.endedAt)}</td><td><a href="${link(runPath(run.runId), lang)}">${escapeHtml(run.dungeonName)}</a></td><td class="num">${time(run.durationSec)}</td><td class="num score">${scoreCell(ctx, run, periodRules(period))}</td><td>${party(ctx, run)}</td><td></td></tr>`), [2, 3])
+        ? table([t("Date", "Date"), t("Dungeon", "Donjon"), t("Time", "Temps"), t("Score", "Score"), t("Party", "Groupe"), ""], runs.slice(0, 20).map((run) => `<tr><td>${date(run.endedAt)}</td><td><a href="${link(runPath(run.runId), lang)}">${escapeHtml(localDungeonName(run, lang))}</a></td><td class="num">${time(run.durationSec)}</td><td class="num score">${scoreCell(ctx, run, periodRules(period))}</td><td>${party(ctx, run)}</td><td></td></tr>`), [2, 3])
         : `<p class="muted">${t("No public run in this period yet.", "Aucun essai public pour cette période.")}</p>`);
     return kit.page(200, guild.name, body, { description: t(`${guild.name}: members' dungeon scores and guild ranking on Guilded.`, `${guild.name} : scores de donjon des membres et classement de la guilde sur Guilded.`) });
   }
@@ -1866,7 +1868,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const guilds = await cached("guilds", () => deps.store.guilds());
     const body = JSON.stringify({
       season: periodName(ctx, period), ratedRunsThisWeek: rated.length, guilds: guilds.length,
-      topRuns: rated.slice(0, 3).map(({ run, s }) => ({ dungeon: run.dungeonName, levels: bracketName(ctx, s.bracket), time: time(run.durationSec), score: s.points }))
+      topRuns: rated.slice(0, 3).map(({ run, s }) => ({ dungeon: localDungeonName(run, ctx.lang), levels: bracketName(ctx, s.bracket), time: time(run.durationSec), score: s.points }))
     });
     return { status: 200, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "public, max-age=120", "x-content-type-options": "nosniff" }, body: ctx.request.method === "HEAD" ? "" : body };
   }

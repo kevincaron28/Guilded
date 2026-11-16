@@ -120,7 +120,7 @@ describe("Claude blocker 4: complete public pages",()=>{
     expect(page!.status).toBe(200);
     expect(page!.body).not.toMatch(/evidence|presence|présence|preuves|Freshness/i);
     const records=page!.body.split(lang==="en"?"<h2>Dungeon records</h2>":"<h2>Records des donjons</h2>")[1]!.split("</table>")[0]!;
-    expect(records).toContain("Deadmines"); expect(records).not.toContain("RejectedCheckpoint");
+    expect(records).toContain(lang==="en"?"The Deadmines":"Les Mortemines"); expect(records).not.toContain("RejectedCheckpoint");
     expect(records).not.toContain("NoEligibleParticipant");
     expect(records).toContain('<td class="num">1</td>');
     const filtered=await app.respond({method:"GET",path:"/leaderboards/",query:new URLSearchParams({lang,dungeon:"389"}),headers:{}});

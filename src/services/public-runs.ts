@@ -157,6 +157,8 @@ function savedSummary(value: unknown): RunSummary | null {
   return Number.isFinite(result.startedAt.getTime()) && Number.isFinite(result.endedAt.getTime()) && observationOf(result,result.gameEdition) ? result : null;
 }
 
+/** A bare map key ("229", stored before wings existed or while the wing was unknown) fits any wing key of the same map ("229:lower"). */
+const sameMapRoute = (a: string, b: string) => a.split(":")[0] === b.split(":")[0] && (!a.includes(":") || !b.includes(":"));
 // Incomplete observations can agree; conflicting known scoring facts cannot.
 export function agrees(stored: RunEvidence, incoming: RunSummary): boolean {
   // Integrity is local observation, not a shared scoring fact. A distant party
@@ -166,7 +168,7 @@ export function agrees(stored: RunEvidence, incoming: RunSummary): boolean {
   const oldObservation = observationOf(stored,incoming.gameEdition), newObservation = observationOf(incoming,incoming.gameEdition);
   const observed = !!oldObservation && !!newObservation;
   if (stored.instanceId !== incoming.instanceId || stored.difficultyId !== incoming.difficultyId) return false;
-  if (stored.routeKey && incoming.routeKey && stored.routeKey !== incoming.routeKey) return false;
+  if (stored.routeKey && incoming.routeKey && stored.routeKey !== incoming.routeKey && !sameMapRoute(stored.routeKey, incoming.routeKey)) return false;
   if (Math.abs(stored.durationSec - incoming.durationSec) > PUBLIC_LIMITS.agreeDurationSec) return false;
   if (Math.abs(stored.endedAt.getTime() - incoming.endedAt.getTime()) > PUBLIC_LIMITS.agreeEndSec * 1000) return false;
   const mine = new Set(stored.players.map(playerKey));

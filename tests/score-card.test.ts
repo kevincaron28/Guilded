@@ -6,7 +6,7 @@ import { createWebApp } from "../src/services/web-app.js";
 import { memoryWebStore } from "./helpers/memory-web-store.js";
 
 const NOW = new Date("2026-11-10T20:00:00Z");
-const run: LeaderRun = { runId: "r1", instanceId: 389, dungeonName: "Ragefire <Chasm>", durationSec: 1200, endedAt: NOW, deaths: 0,
+const run: LeaderRun = { runId: "r1", instanceId: 999001, dungeonName: "Ragefire <Chasm>", durationSec: 1200, endedAt: NOW, deaths: 0,
   bracket: "15-29", season: "s1", confirmations: 2, routeKey: null, difficultyId: 0,
   players: [{ character: "Kévin", realm: "Forever", className: "Warrior", role: "TANK", level: 16 }] };
 

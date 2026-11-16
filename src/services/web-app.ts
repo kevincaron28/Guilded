@@ -12,6 +12,7 @@ import {
 import { escapeHtml, langFrom, layout, link, options, SECURITY_HEADERS, tr, type Lang } from "./web-layout.js";
 import type { CardFields, DecisionView, WebAccountView, WebStore } from "./web-store.js";
 import { publicRaidMatches, type PublicRaid } from "./public-raids.js";
+import { notFoundBody } from "./leaderboard-hub.js";
 import { normalizeSections, renderGroups, renderSpec, type MeSectionInput } from "./me-layout.js";
 
 // The bot-served half of guilded.kcaron.top (7.0): Discord sign-in, /recruitment/ and /me/.
@@ -170,7 +171,7 @@ export function createWebApp(deps: WebAppDeps) {
       const answer = await route(ctx, kit);
       if (answer) return answer;
     }
-    return kit.page(404, t("Not found", "Introuvable"), `<h1>${t("Page not found", "Page introuvable")}</h1>`, { noindex: true });
+    return kit.page(404, t("Not found", "Introuvable"), notFoundBody(t, ctx.lang), { noindex: true });
   }
 
   // --- /recruitment/ ---------------------------------------------------------------------------

@@ -3,6 +3,7 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, type Lang } from "../i18n.js";
 import { CLEANUP_DELAY_MS, nameKeyOf } from "./invite-queue.js";
 import { requestInviteRow } from "./invite-request.js";
+import { panelArtEmbed } from "./panel-art.js";
 
 // 8.5 light recruiting kit, on top of the invite queue: a stage and an officer note on each recruit record, interview
 // questions per server, and a recruiting post template with one shared cooldown. Written from scratch; nothing automatic
@@ -77,7 +78,7 @@ export async function ensureInviteGuide(client: Pick<Client, "channels">, databa
     log(`Invite guide: adopted the existing bot guide ${copy.id} in channel ${settings.inviteChannelId}.`);
     return refresh(copy);
   }
-  const posted = await channel.send({ content, components, allowedMentions: { parse: [] } }).catch(() => null);
+  const posted = await channel.send({ content, embeds: [panelArtEmbed("invite")], components, allowedMentions: { parse: [] } }).catch(() => null);
   if (!posted) return null;
   await posted.pin().catch(() => undefined);
   await database.guildSettings.update({ where: { guildId }, data: { inviteGuideMessageId: posted.id } });

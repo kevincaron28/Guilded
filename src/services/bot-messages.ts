@@ -6,6 +6,7 @@ import { dungeonGuideState, ensureDungeonSignupGuide } from "./dungeon-guide.js"
 import { ensureWelcomePanel, welcomePanelState } from "./onboarding.js";
 import { ensureInstallPost, installPinHint, installPostState } from "./install-post.js";
 import { CURRENT_VERSION } from "./version-announce.js";
+import { panelArtUrl } from "./panel-art.js";
 
 // The messages the bot keeps in its channels, for the /setup checklist: is each one there, and is
 // it the current text? "Update bot messages" puts every one back or brings it up to date.
@@ -27,6 +28,7 @@ export function gettingStartedPost(lang: Lang): EmbedBuilder {
     .setTitle(t(lang, "guide.title"))
     .setColor(0xd4af37)
     .setDescription(t(lang, "guide.body", { url: ADDON_URL }))
+    .setImage(panelArtUrl("guide"))
     .setFooter({ text: `Guilded ${CURRENT_VERSION}` });
 }
 

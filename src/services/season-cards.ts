@@ -1,4 +1,5 @@
 import { EmbedBuilder } from "discord.js";
+import { siteUrl } from "../site-url.js";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
 import { textlessEmbed } from "./card-only.js";
@@ -56,7 +57,7 @@ export function seasonEndCard(season: SeasonInfo, podium: Podium | null, lang: L
   return {
     eyebrow: t("Guilded · Dungeons", "Guilded · Donjons"), title: t(`${seasonLabel(season.name, lang)} is over`, `${seasonLabel(season.name, lang)} est terminée`),
     subtitle: `${day(season.startsAt)} → ${season.endsAt ? day(season.endsAt) : "—"}`,
-    backdrop: { kind: "board", key: "season-podium", fallbackKey: "dungeon-season" },
+    backdrop: { kind: "board", key: "season-end", fallbackKey: "season-podium" },
     stats: [
       { label: champions.length > 1 ? t("Champions", "Champions") : t("Champion", "Champion"), value: entries.length ? (champions.length > 1 ? String(champions.length + (podium?.moreChampions ?? 0)) : (champions[0] ?? entries[0]!).name) : "—", accent: "gold" },
       { label: t("Ranked players", "Joueurs classés"), value: String(podium?.ranked ?? 0) },
@@ -76,7 +77,7 @@ export function seasonStartCard(season: SeasonInfo, lang: Lang): ScoreCard {
   return {
     eyebrow: t("Guilded · Dungeons", "Guilded · Donjons"), title: t(`${seasonLabel(season.name, lang)} begins`, `${seasonLabel(season.name, lang)} commence`),
     subtitle: season.endsAt ? `${day(season.startsAt)} → ${day(season.endsAt)}` : t(`From ${day(season.startsAt)}`, `Dès le ${day(season.startsAt)}`),
-    backdrop: { kind: "board", key: "dungeon-season" },
+    backdrop: { kind: "board", key: "season-start", fallbackKey: "dungeon-season" },
     stats: [
       { label: t("Starts", "Début"), value: day(season.startsAt), accent: "gold" },
       { label: t("Ends", "Fin"), value: season.endsAt ? day(season.endsAt) : t("Open", "Ouverte") }
@@ -93,12 +94,12 @@ export function seasonStartCard(season: SeasonInfo, lang: Lang): ScoreCard {
 export function seasonEndFallback(season: SeasonInfo, podium: Podium | null, lang: Lang): EmbedBuilder {
   const fr = lang === "fr", entries = podium?.entries ?? [];
   return new EmbedBuilder().setColor(COLOR).setTitle(fr ? `🏁 ${seasonLabel(season.name, lang)} est terminée` : `🏁 ${seasonLabel(season.name, lang)} is over`)
-    .setDescription(entries.length ? entries.map(entry => `${MEDALS[entry.rank - 1]} ${entry.name}${entry.label ? ` (${entry.label})` : ""} — ${entry.points} pts`).join("\n") + (podium?.moreChampions ? `\n+${podium.moreChampions}` : "") : fr ? "Aucun joueur classé cette saison." : "No ranked player this season.");
+    .setDescription(entries.length ? entries.map(entry => `${MEDALS[entry.rank - 1]} ${entry.name}${entry.label ? ` (${entry.label})` : ""} — ${entry.points} pts`).join("\n") + (podium?.moreChampions ? `\n+${podium.moreChampions}` : "") : fr ? "Aucun joueur classé cette saison." : "No ranked player this season.").setImage(siteUrl("/card-art/board/season-end.jpg"));
 }
 export function seasonStartFallback(season: SeasonInfo, lang: Lang): EmbedBuilder {
   const fr = lang === "fr";
   return new EmbedBuilder().setColor(COLOR).setTitle(fr ? `🚀 ${seasonLabel(season.name, lang)} commence` : `🚀 ${seasonLabel(season.name, lang)} begins`)
-    .setDescription(season.endsAt ? `${day(season.startsAt)} → ${day(season.endsAt)}` : (fr ? `Dès le ${day(season.startsAt)}` : `From ${day(season.startsAt)}`));
+    .setDescription(season.endsAt ? `${day(season.startsAt)} → ${day(season.endsAt)}` : (fr ? `Dès le ${day(season.startsAt)}` : `From ${day(season.startsAt)}`)).setImage(siteUrl("/card-art/board/season-start.jpg"));
 }
 
 type Database = Pick<PrismaClient, "discordJob" | "dungeonSeason" | "guildSettings">;

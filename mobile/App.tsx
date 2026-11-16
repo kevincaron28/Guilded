@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Image, Linking, Platform, Pressable, StyleSheet, Text, View, type ImageSourcePropType } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import Constants from "expo-constants";
 import * as Updates from "expo-updates";
@@ -21,6 +21,11 @@ import { colors } from "./src/ui";
 // Guild is the sign-in when signed out, and Me and Alerts show a sign-in card. The sample guild covers every tab.
 const WEB_ORIGIN = process.env.EXPO_PUBLIC_GUILDED_WEB_URL ?? DEFAULT_WEB_ORIGIN;
 type Tab = "guild" | "stats" | "me" | "alerts" | "news";
+// Painted tab icons (mobile/assets/tabs, 96 x 96 with transparency); the active one is tinted gold, the others muted.
+export const TAB_ICONS: Record<Tab, ImageSourcePropType> = {
+  guild: require("./assets/tabs/tab-guild.png"), stats: require("./assets/tabs/tab-stats.png"), me: require("./assets/tabs/tab-me.png"),
+  alerts: require("./assets/tabs/tab-alerts.png"), news: require("./assets/tabs/tab-news.png")
+};
 const TABS: { tab: Tab; label: CopyKey; glyph: string }[] = [
   { tab: "guild", label: "tabGuild", glyph: "⚑" },
   { tab: "stats", label: "tabStats", glyph: "▤" },
@@ -100,7 +105,7 @@ function GuildedApp() {
         {TABS.map((item) => {
           const on = tab === item.tab;
           return <Pressable key={item.tab} onPress={() => setChosen(item.tab)} accessibilityRole="tab" accessibilityState={{ selected: on }} style={styles.navItem}>
-            <Text style={[styles.glyph, on && styles.navActive]}>{item.glyph}</Text>
+            <Image source={TAB_ICONS[item.tab]} style={[styles.icon, { tintColor: on ? colors.gold : colors.muted }]} accessible={false} />
             <Text style={[styles.navText, on && styles.navActive]}>{t(lang, item.label)}</Text>
           </Pressable>;
         })}
@@ -122,7 +127,7 @@ const styles = StyleSheet.create({
   updateText: { color: colors.gold, fontSize: 12, fontWeight: "700" },
   nav: { borderTopWidth: 1, borderColor: colors.line, backgroundColor: colors.bg, flexDirection: "row", paddingBottom: 20, paddingTop: 6 },
   navItem: { flex: 1, alignItems: "center", justifyContent: "center", minHeight: 48 },
-  glyph: { color: colors.muted, fontSize: 16 },
+  icon: { width: 26, height: 26, resizeMode: "contain" },
   navText: { color: colors.muted, fontSize: 11, marginTop: 2 },
   navActive: { color: colors.gold, fontWeight: "700" }
 });

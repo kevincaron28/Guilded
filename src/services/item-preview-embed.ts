@@ -10,8 +10,8 @@ export interface WebhookPayload { embeds: WebhookEmbed[]; allowed_mentions: { pa
 
 /** The sender's name on every item preview (a webhook name, set per post). */
 export const PREVIEW_NAME = { en: "Guilded Items", fr: "Objets Guilded" } as const;
-/** The Guilded logo as the website serves it (site/brand/logo-400.png). */
-export const PREVIEW_AVATAR_PATH = "/brand/logo-400.png";
+/** The Guilded logo as the website serves it (site/brand/logo-400.png, published as /logo.png). */
+export const PREVIEW_AVATAR_PATH = "/logo.png";
 
 const QUALITY_COLOR = [0x9d9d9d, 0xffffff, 0x1eff00, 0x0070dd, 0xa335ee, 0xff8000];
 const QUALITY_NAME = ["Poor", "Common", "Uncommon", "Rare", "Epic", "Legendary"];

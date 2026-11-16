@@ -540,3 +540,5 @@ form { margin: 22px 0 0; }
 .guide h2.step { border-top: 0; padding-top: 0; margin-top: 34px; }
 .guide h2.step::after { content: ""; display: block; width: min(100%, 420px); height: 35px; margin: 2px 0 -6px; background: url(/images/web/divider-800.webp) left center/contain no-repeat; }
 @media (max-width: 600px) { .guide h2.step::after { height: 28px; width: min(100%, 320px); } }
+
+.guide-header{display:block;width:100%;max-width:960px;height:auto;aspect-ratio:1600/360;object-fit:cover;border-radius:12px;border:1px solid var(--line,#3a3128);margin:0 auto 18px}

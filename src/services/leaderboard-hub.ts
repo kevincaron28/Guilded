@@ -95,7 +95,7 @@ export function trendBars(values: number[], label: string): string {
 }
 
 /** Painted empty-state pictures (320 px WebP, transparent), decorative: the alt text is empty. */
-export type EmptyArt = "duel" | "runs" | "notfound" | "search";
+export type EmptyArt = "duel" | "runs" | "notfound" | "search" | "guild" | "pvp" | "season";
 export const EMPTY_ART_CSS = ".hub-empty.has-art{display:flex;align-items:center;gap:16px}.hub-empty .empty-art{width:96px;height:96px;flex:none;object-fit:contain}.hub-empty.has-art>div{min-width:0}.hub-empty.has-art p{margin:0 0 6px}@media(max-width:480px){.hub-empty .empty-art{width:72px;height:72px}}";
 export const emptyBox = (title: string, lines: string[], art?: EmptyArt): string => {
   const text = `<p><strong>${escapeHtml(title)}</strong></p>${lines.map((line) => `<p class="muted">${line}</p>`).join("")}`;
@@ -106,5 +106,12 @@ export const emptyPage = (title: string, lines: string[], art: EmptyArt): string
   `<style>.hub-empty{border:1px dashed var(--line);border-radius:12px;padding:16px;background:rgba(255,255,255,.02);max-width:560px}${EMPTY_ART_CSS}</style>${emptyBox(title, lines, art)}`;
 
 /** Painted section header (1600 x 360, WebP at 1600 and 800 wide) at the very top of a leaderboard page, so it loads eagerly; decorative, so the alt text is empty. */
-export const sectionArt = (kind: "dungeons" | "players" | "duels" | "guilds"): string =>
+export const sectionArt = (kind: "dungeons" | "players" | "duels" | "guilds" | "pvp"): string =>
   `<img class="sec-art" src="/images/web/header-${kind}-1600.webp" srcset="/images/web/header-${kind}-800.webp 800w, /images/web/header-${kind}-1600.webp 1600w" sizes="(max-width:900px) 100vw, 900px" alt="" width="1600" height="360" loading="eager" fetchpriority="high">`;
+
+/** The body of a bot-served "not found" page (never empty): the painted 404 picture, one sentence and a way home. EN/FR through `t`. */
+export const notFoundBody = (t: T, lang: Lang, title?: string, line?: string): string =>
+  `<style>.nf{max-width:560px;margin:8px 0 24px}.nf img{display:block;width:100%;height:auto;aspect-ratio:1200/675;object-fit:cover;border-radius:12px;border:1px solid var(--line);margin:0 0 14px}.nf .nf-code{color:var(--gold);letter-spacing:.2em;font-size:13px}</style>`
+  + `<div class="nf"><img src="/images/web/404-800.webp" srcset="/images/web/404-800.webp 800w, /images/web/404-1200.webp 1200w" sizes="(max-width:600px) 100vw, 560px" alt="" width="1200" height="675" loading="lazy">`
+  + `<span class="nf-code">404</span><h1>${escapeHtml(title ?? t("This page wandered off", "Cette page s'est égarée"))}</h1><p>${escapeHtml(line ?? t("The address may be old or mistyped. Head back to the start and pick up from there.", "L'adresse est peut-être ancienne ou mal écrite. Revenez à l'accueil et reprenez à partir de là."))}</p>`
+  + `<p><a class="button" href="${link("/", lang)}">${t("Go home", "Retour à l'accueil")}</a></p></div>`;

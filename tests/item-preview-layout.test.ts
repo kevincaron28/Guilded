@@ -44,7 +44,7 @@ describe("item preview layout", () => {
     expect(e.fields).toBeUndefined();
   });
   it("sets the sender name and the logo avatar, https only", () => {
-    expect(buildPayload([], { lang: "fr", siteUrl: "https://example.org/some/page" })).toMatchObject({ username: PREVIEW_NAME.fr, avatar_url: "https://example.org/brand/logo-400.png" });
+    expect(buildPayload([], { lang: "fr", siteUrl: "https://example.org/some/page" })).toMatchObject({ username: PREVIEW_NAME.fr, avatar_url: "https://example.org/logo.png" });
     const bare = buildPayload([]);
     expect(bare.username).toBe("Guilded Items");
     expect(bare.avatar_url).toBeUndefined();

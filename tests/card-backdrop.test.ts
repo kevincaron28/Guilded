@@ -46,7 +46,7 @@ describe("card backdrops", () => {
     const queued: ScoreCard = { ...raid };
     delete queued.backdrop;
     expect(hash((await scoreCardPng(raid))!)).toBe(hash((await scoreCardPng(queued))!));
-    expect(duelBoardCard({ standings: [], duels: 0, recent: [], edition: "forever" }, "en").backdrop).toEqual({ kind: "board", key: "duel" });
+    expect(duelBoardCard({ standings: [], duels: 0, recent: [], edition: "forever" }, "en").backdrop).toEqual({ kind: "board", key: "duel-ladder", fallbackKey: "duel" });
   });
 
   it("draws a card with a fixture picture, keeps muted text readable, and fits the size", async () => {

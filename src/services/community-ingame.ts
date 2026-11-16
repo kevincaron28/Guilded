@@ -71,6 +71,8 @@ export type MergedStanding = Standing & { discord: number; dungeons: number; pvp
 const weekKey = (at: Date) => weekStart(at).toISOString();
 const dayKey = (at: Date) => at.toISOString().slice(0, 10);
 const share = (oldUnits: number, divisor: number) => Math.round(oldUnits / divisor);
+/** Community points a number of raw dungeon points is worth in one reset week (the weekly bound applies): the dungeon share shown to members and officers. */
+export const dungeonShare = (rawPoints: number, config = scoring()) => share(Math.min(config.dungeons.weekCap, Math.max(0, rawPoints)), config.dungeons.divisor);
 
 /**
  * Pure: old-unit points per member from one kind of event. Per member and day the first events count in full, the next ones half,

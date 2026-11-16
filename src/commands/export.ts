@@ -7,7 +7,7 @@ import { requireGuildContext } from "./context.js";
 // /officer export table:<...>: this server's data as a CSV file only the officer sees.
 export const exportCommand = new SlashCommandBuilder()
   .setName("export")
-  .setDescription("Officers: download standings, the EPGP ledger, loot, attendance or the roster as a CSV file.")
+  .setDescription("Officers: CSV export of standings, EPGP, loot, attendance or roster.")
   .addStringOption((o) => o.setName("table").setDescription("What to export").setRequired(true).addChoices(
     { name: "Standings (EP, GP, PR)", value: "standings" },
     { name: "EPGP ledger", value: "ledger" },

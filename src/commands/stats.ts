@@ -18,6 +18,7 @@ import { textlessEmbed } from "../services/card-only.js";
 import { personalWeeklyRecap, personalWeeklyRecapEmbed } from "../services/personal-weekly-recap.js";
 import { dailyRecap, dailyRecapCard, dailyRecapEmbed, queueDailyRecaps, recapDay, recapIsEmpty } from "../services/daily-recap.js";
 import { hasPermission } from "../permissions.js";
+import { dungeonShare } from "../services/community-ingame.js";
 
 export const statsCommand = new SlashCommandBuilder()
   .setName("stats")
@@ -131,7 +132,7 @@ export function weeklyReportEmbeds(report: WeeklyReport, lang: Lang = "en", lead
   if (!report.guild.coreId) main.spliceFields(4, 2);
   const players = [
     report.raiderOfWeek ? t(lang, "weekly.raider", { name: report.raiderOfWeek.name, ep: report.raiderOfWeek.ep, raids: report.raiderOfWeek.raids }) : "",
-    report.dungeonHero ? t(lang, "weekly.hero", { name: report.dungeonHero.name, points: report.dungeonHero.points }) : ""
+    report.dungeonHero ? t(lang, "weekly.hero", { name: report.dungeonHero.name, points: dungeonShare(report.dungeonHero.points) }) : ""
   ].filter(Boolean);
   if (players.length) main.addFields({ name: t(lang, "weekly.players"), value: players.join("\n") });
   const embeds = [main];
@@ -153,7 +154,7 @@ export function weeklyReportEmbeds(report: WeeklyReport, lang: Lang = "en", lead
     const dungeons = new EmbedBuilder().setTitle(t(lang, "weekly.dungeons")).setColor(0x5865f2)
       .setDescription(t(lang, "weekly.dungeonRuns", { completed: d.completed, runs: d.runs }));
     if (d.fastest.length) dungeons.addFields({ name: t(lang, "weekly.fastest"), value: d.fastest.slice(0, 10).map((row) => `${row.dungeon}: ${formatDuration(row.durationSec)} (${row.players.join(", ")})`).join("\n").slice(0, 1024) });
-    if (d.topPoints.length) dungeons.addFields({ name: t(lang, "weekly.topPoints"), value: d.topPoints.map((row, i) => `${["🥇", "🥈", "🥉"][i]} ${row.name}: ${row.points}`).join("\n") });
+    if (d.topPoints.length) dungeons.addFields({ name: t(lang, "weekly.topPoints"), value: d.topPoints.map((row, i) => `${["🥇", "🥈", "🥉"][i]} ${row.name}: ${dungeonShare(row.points)}`).join("\n") });
     if (d.marathon) dungeons.addFields({ name: lang === "fr" ? "🔁 Marathon de donjons" : "🔁 Dungeon marathon", value: lang === "fr" ? `${d.marathon.name} : ${d.marathon.runs} donjons terminés` : `${d.marathon.name}: ${d.marathon.runs} completed runs` });
     if (d.records.length) dungeons.addFields({ name: t(lang, "weekly.records"), value: d.records.slice(0, 15).join("\n").slice(0, 1024) });
     if (d.firsts.length) dungeons.addFields({ name: t(lang, "weekly.firsts"), value: d.firsts.slice(0, 15).join("\n").slice(0, 1024) });

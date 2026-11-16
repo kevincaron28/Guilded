@@ -1,6 +1,7 @@
 import type { Lang } from "../i18n.js";
 import type { ScoreCard } from "./score-card.js";
 import type { WeeklyReport } from "./weekly-report.js";
+import { dungeonShare } from "./community-ingame.js";
 
 // The weekly report card (9.3): the headline of the guild's week (raids, boss kills, dungeon clears against the week before) and
 // the players of the week. It replaces the report's first embed; the cores and dungeon embeds stay as text under it, and the
@@ -14,7 +15,7 @@ export function weeklyReportCard(report: WeeklyReport, lang: Lang): ScoreCard {
   const d = report.dungeons;
   const rows: NonNullable<ScoreCard["rows"]> = [];
   if (report.raiderOfWeek) rows.push({ name: report.raiderOfWeek.name, sub: t("Raider of the week", "Raider de la semaine"), right: `${report.raiderOfWeek.ep} EP`, rightTone: "gold" });
-  if (report.dungeonHero) rows.push({ name: report.dungeonHero.name, sub: t("Dungeon hero", "Héros des donjons"), right: `${report.dungeonHero.points} pts`, rightTone: "green" });
+  if (report.dungeonHero) rows.push({ name: report.dungeonHero.name, sub: t("Dungeon hero", "Héros des donjons"), right: `${dungeonShare(report.dungeonHero.points)} pts`, rightTone: "green" });
   if (d.marathon) rows.push({ name: d.marathon.name, sub: t("Dungeon marathon", "Marathon de donjons"), right: `×${d.marathon.runs}`, rightTone: "green" });
   for (const core of report.cores.slice(0, Math.max(0, 5 - rows.length)))
     rows.push({ name: core.name, sub: t(`${core.raids} raid(s) · ${core.bossKills} boss kill(s)`, `${core.raids} raid(s) · ${core.bossKills} victoire(s)`), right: core.attendancePct === null ? undefined : `${core.attendancePct}%` });

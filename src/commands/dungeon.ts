@@ -27,6 +27,7 @@ import { executeCooperativeGoal } from "./cooperative-goal.js";
 import { executeGroupWatch, groupWatchSubcommand } from "./group-watch.js";
 import { bossRecordLines, guildBossRecords } from "../services/dungeon-records.js";
 import { seasonLabel } from "../services/season-label.js";
+import { communityPointsLine } from "../services/dungeon-community-points.js";
 
 // Dungeon challenge views (roadmap D5). Points come from runs the addon
 // recorded and an officer imported (/import apply).
@@ -44,8 +45,8 @@ export const dungeonCommand = new SlashCommandBuilder()
     .setDescriptionLocalizations({ fr: "Catalogue prévu pour novembre; distinct des règles actives" }))
   .addSubcommand(sub => sub.setName("rules").setDescription("How dungeon rating and community points are calculated")
     .setDescriptionLocalizations({ fr: "Comment la cote et les points de communauté sont calculés" }))
-  .addSubcommand((sub) => sub.setName("leaderboard").setDescription("Season rating or community points")
-    .addStringOption(o => o.setName("metric").setDescription("Default: season rating; other periods use community points").addChoices({name:"Rating",value:"rating"},{name:"Community points",value:"participation"}))
+  .addSubcommand((sub) => sub.setName("leaderboard").setDescription("Season rating and dungeon points")
+    .addStringOption(o => o.setName("metric").setDescription("Season rating. Community points: /community leaderboard").addChoices({name:"Rating",value:"rating"}))
     .addStringOption((o) => o.setName("period").setDescription("Default: this season").addChoices(
       { name: "This week", value: "week" }, { name: "This month", value: "month" }, { name: "This season", value: "season" }, { name: "All time", value: "all" }))
     .addStringOption((o) => o.setName("season").setDescription("Browse a past season (overrides period)").setAutocomplete(true))
@@ -185,9 +186,11 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
     const season = seasonId ? await prisma.dungeonSeason.findFirst({ where: { guildId: context.guildId, id: seasonId } }) : period !== "all" ? await activeSeasonOrNull(prisma, context.guildId) : null;
     if (seasonId && !season) throw new Error("That season does not belong to this guild.");
     const metric = interaction.options.getString("metric");
+    // Retired choice (old clients may still send it): community points are the merged board.
+    if (metric === "participation") { await interaction.reply({ content: lang === "fr" ? "Les points de communauté (Discord, donjons et JcJ ensemble) sont dans `/community leaderboard`." : "Community points (Discord, dungeons and PvP together) are on `/community leaderboard`.", flags: MessageFlags.Ephemeral }); return; }
     if (metric === "rating" && period === "all") throw new Error(lang === "fr" ? "La cote se consulte par semaine ou par saison." : "Rating is weekly or per season; choose another period.");
     // Weekly rating: the active season's runs since the weekly reset, with the season's rules.
-    if (period === "week" && season && hasDungeonRating(season.ratingRules) && metric !== "participation") {
+    if (period === "week" && season && hasDungeonRating(season.ratingRules)) {
       const week = weekSeason(season);
       const rows = week ? await dungeonRating(prisma, context.guildId, week, instanceId) : [];
       const since = `<t:${Math.floor(weekWindow(new Date()).start.getTime() / 1000)}:f>`;
@@ -196,7 +199,7 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
       return;
     }
     if (metric === "rating" && !hasDungeonRating(season?.ratingRules)) throw new Error(lang === "fr" ? "Cette saison utilise les anciens points de communauté." : "This season uses legacy community points.");
-    if (period === "season" && season && hasDungeonRating(season.ratingRules) && metric !== "participation") {
+    if (period === "season" && season && hasDungeonRating(season.ratingRules)) {
       const rows = await dungeonRating(prisma, context.guildId, season, instanceId);
       await interaction.reply(v2Reply(ratingEmbed(rows, season.name, lang, season.ratingRules, bracketChoice(interaction, rows, context.memberId)), { link: await publicBoardLink(context.guildId, lang) }));
       return;
@@ -210,7 +213,6 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
       embed.setFooter({ text: t(lang, "dungeon.board.dungeon", { dungeon: run?.dungeonName ?? String(instanceId) }) });
     }
     embed.setDescription(rows.length ? formatLeaderboard(rows) : t(lang, "dungeon.board.empty"));
-    if (season && hasDungeonRating(season.ratingRules)) embed.setTitle(lang === "fr" ? "Points de communauté" : "Community points");
   } else if (subcommand === "records") {
     const announce = interaction.options.getBoolean("announce");
     const otherGuilds = interaction.options.getBoolean("other-guilds");
@@ -247,7 +249,7 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
       embed.setDescription(t(lang, "dungeon.player.none", { name: member.displayName }));
     } else {
       embed.addFields(
-        { name: t(lang, "dungeon.player.points"), value: t(lang, "dungeon.player.pointsValue", { week: summary.weekPoints, season: summary.seasonPoints, all: summary.allTimePoints }) },
+        { name: t(lang, "dungeon.player.points"), value: await communityPointsLine(prisma, context.guildId, member, lang) },
         { name: t(lang, "dungeon.player.runs"), value: t(lang, "dungeon.player.runsValue", { count: summary.completed, deathless: summary.deathlessRuns }) }
       );
       const currentSeason = await activeSeasonOrNull(prisma, context.guildId);

@@ -9,6 +9,7 @@ import { cardAltText } from "./card-alt.js";
 import { cardBackdropArt, BANNER_HEIGHT, type CardBackdrop } from "./card-backdrop.js";
 import { withBadgeImages } from "./badge-art.js";
 import type { RecordVisual } from "./record-card.js";
+import type { TrendVisual } from "./member-trend.js";
 
 /**
  * A 1200x630 share card, two columns. Left: what it is (eyebrow, title, subtitle), one big headline
@@ -55,6 +56,8 @@ export interface ScoreCard { eyebrow?: string; title: string; subtitle: string; 
   recap?: RecapVisual;
   /** 9.1: the new guild record card, drawn by record-card.ts. */
   record?: RecordVisual;
+  /** Officer member-trend card (member-trend.ts), drawn by member-trend-card.ts. */
+  trend?: TrendVisual;
   /** 9.2: an approved painting for this card (card-backdrop.ts, site/card-art/<kind>/<key>.jpg). Cards without it, or without a file, draw as before. */
   backdrop?: CardBackdrop }
 
@@ -304,6 +307,7 @@ async function render(card: ScoreCard): Promise<Buffer> {
   if (card.dungeon) return renderDungeon(card);
   if (card.recap) return renderRecap(card);
   if (card.record) return (await import("./record-card.js")).renderRecordCard(card);
+  if (card.trend) return (await import("./member-trend-card.js")).renderTrendCard(card);
   if (card.roster) return renderRoster(card);
   if (card.unlocks?.length) return renderUnlock(card);
   if (card.ladder) return renderLadder(card);

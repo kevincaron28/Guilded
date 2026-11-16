@@ -2,6 +2,7 @@ import { EmbedBuilder, escapeMarkdown } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
 import { reportWeek } from "./weekly-report.js";
+import { dungeonShare } from "./community-ingame.js";
 
 type Db = Pick<PrismaClient, "member" | "dungeonPointTransaction" | "dungeonAchievement" | "communityBadge" | "raidSignup">;
 
@@ -36,7 +37,7 @@ export function personalWeeklyRecapEmbed(recap: Awaited<ReturnType<typeof person
     .setDescription(`<t:${Math.floor(recap.start.getTime() / 1000)}:d> – <t:${Math.floor(recap.end.getTime() / 1000)}:d>\n`
       + (fr ? "Dernière semaine complète, selon les données enregistrées." : "Last complete week, based on recorded data."))
     .addFields(
-      { name: fr ? "Participation aux donjons" : "Dungeon participation", value: `${recap.netParticipationPoints} ${fr ? "points nets" : "net points"} · ${recap.pointEntries} ${fr ? "écritures" : "entries"}` },
+      { name: fr ? "Points de communauté (donjons)" : "Community points from dungeons", value: `${dungeonShare(recap.netParticipationPoints)} ${fr ? "points de communauté" : "community point(s)"} · ${recap.pointEntries} ${fr ? "écritures" : "entries"}` },
       { name: fr ? "Badges gagnés" : "Earned badges", value: (badgeText || (fr ? "Aucun enregistré cette semaine." : "None recorded this week.")) + (recap.moreBadges ? " …" : "") },
       { name: fr ? "Mes inscriptions · 7 prochains jours" : "My signups · next 7 days", value: recap.signups.map(row =>
         `${escapeMarkdown(row.raid.title).slice(0, 100)} · <t:${Math.floor(row.raid.scheduledAt.getTime() / 1000)}:f> · ${signupStatus[row.status as keyof typeof signupStatus] ?? row.status}`).join("\n").slice(0, 950)

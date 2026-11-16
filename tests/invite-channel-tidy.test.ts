@@ -44,6 +44,7 @@ function database(over: { sweepEnabled?: boolean; sweptAt?: Date | null; open?: 
     guildSettings: {
       findMany: vi.fn(async ({ where }: { where: { OR: Array<{ inviteSweptAt?: null | { lte: Date } }> } }) =>
         (over.sweepEnabled ?? true) && due(where) ? [{ guildId: "g1", inviteChannelId: state.channelId, inviteGuideMessageId: state.guideId, inviteSweptAt: state.sweptAt, guild: { discordId: "d1" } }] : []),
+      count: vi.fn(async () => 1),
       updateMany: vi.fn(async ({ where, data }: { where: { OR?: Array<{ inviteSweptAt?: null | { lte: Date } }> }; data: { inviteSweptAt: Date | null } }) => {
         if (where.OR && !due(where as never)) return { count: 0 };
         state.sweptAt = data.inviteSweptAt; return { count: 1 };
@@ -165,6 +166,28 @@ describe("the hourly tidy of the invite channel", () => {
       expect(c.db.state.sweptAt, c.name).toBeNull();
       expect(c.ch.deleted, c.name).toEqual([]);
     }
+    warn.mockRestore();
+  });
+  it("logs every reason for skipping a server, once", async () => {
+    resetCleanupWarnings();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const logs: string[] = [];
+    const run = async (db: ReturnType<typeof database>, ch: ReturnType<typeof channelWith>) => runInviteChannelSweeps({ guilds: { fetch: async () => ch.guild } } as never, db as never, { now: NOW, log: (l) => logs.push(l) });
+    await run(database({ guideId: null }), channelWith(chat));
+    expect(logs.some((l) => l.includes("skipped") && l.includes("(none was ever posted)") && l.includes("/mod invites questions"))).toBe(true);
+    await run(database({ guideId: null }), channelWith(chat));
+    expect(logs.filter((l) => l.includes("(none was ever posted)"))).toHaveLength(1);
+    const noPerm = channelWith(chat, { manage: false });
+    await run(database(), noPerm);
+    expect(logs.some((l) => l.includes("needs View Channel, Read Message History and Manage Messages"))).toBe(true);
+    const wrong = channelWith(chat); wrong.channel.id = "other";
+    await run(database(), wrong);
+    expect(logs.some((l) => l.includes("not readable as the configured invite text channel"))).toBe(true);
+    await run(database({ sweepEnabled: false }), channelWith(chat));
+    expect(logs.some((l) => l.includes("no server is due (servers with an invite channel: 1;"))).toBe(true);
+    const gone = database();
+    await runInviteChannelSweeps({ guilds: { fetch: async () => { throw new Error("x"); } } } as never, gone as never, { now: NOW, log: (l) => logs.push(l) });
+    expect(logs.some((l) => l.includes("the Discord server could not be fetched"))).toBe(true);
     warn.mockRestore();
   });
   it("never runs on an empty invite channel id", async () => {

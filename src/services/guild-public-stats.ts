@@ -7,6 +7,8 @@ import type { LeaderPlayer, LeaderRun, PublicGuild } from "./public-leaderboard.
 import type { BracketedRules } from "./dungeon-november-rules.js";
 import { characterKey } from "../../companion/character-identity.mjs";
 import { dungeonRole } from "../../companion/dungeon-role.mjs";
+import type { GlobalDuel } from "./duel-global.js";
+import type { PublicDuel } from "./public-duels.js";
 
 const SLUG_MAX = 36;
 
@@ -177,3 +179,26 @@ export function groupObservedGuilds(rows: { guild: string | null; realm: string;
     return [{ key, name, realm: group.realm, slug, aliases, spellings: [...group.spellings.keys()], characters: group.characters }];
   });
 }
+
+/** The realm's address: its slug base, plus a short hash of the exact name when the base was cut or altered (two long names could share it). */
+export function realmSlugOf(realm: string): string {
+  const base = slugBase(realm, "realm");
+  const full = realm.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return full === base ? base : `${base.slice(0, 29).replace(/-+$/, "")}-${shortHash(realm.trim().toLowerCase())}`;
+}
+
+/**
+ * Counted public duels where either side carries this observed guild's in-game guild text on its realm (a side with no realm stored counts):
+ * against anyone, the common case being another guild. `winnerShown`/`loserShown` say which side is a member, so the ladder lists the
+ * guild's own players while the other side's result still counts for them.
+ */
+export function observedGuildDuels(seen: ObservedGuild, all: readonly GlobalDuel[]): PublicDuel[] {
+  const names = new Set(seen.spellings.map((name) => name.toLowerCase()));
+  const inGuild = (guild: string | null, realm: string) => !!guild && names.has(guild.toLowerCase()) && (!realm || realm.toLowerCase() === seen.realm.toLowerCase());
+  return all.flatMap((d): PublicDuel[] => {
+    const winnerShown = inGuild(d.winnerGuild, d.winnerRealm), loserShown = inGuild(d.loserGuild, d.loserRealm);
+    return winnerShown || loserShown ? [{ winnerKey: d.winnerKey, loserKey: d.loserKey, winner: d.winner, loser: d.loser, winnerLevel: d.winnerLevel, loserLevel: d.loserLevel, winnerClass: d.winnerClass, loserClass: d.loserClass, winnerShown, loserShown, endedAt: d.endedAt, reason: d.reason }] : [];
+  });
+}
+/** The guild's record against anyone: wins and losses of its players in those duels (a duel between two members counts once each way). */
+export const observedRecord = (rows: readonly PublicDuel[]) => ({ wins: rows.filter((d) => d.winnerShown).length, losses: rows.filter((d) => d.loserShown).length });

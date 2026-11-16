@@ -126,6 +126,7 @@ async function deleteWithinTransaction(database: PrismaClient, discordUserId: st
     const memberIds = members.map(row => row.id);
     const account = await tx.webAccount.deleteMany({ where: { discordUserId } });
     await tx.communityBadgeSharing.deleteMany({ where: { userId: discordUserId } });
+    await tx.publicProfileHidden.deleteMany({ where: { discordUserId } }); // the choice goes with the data (nothing of this person is left to hide)
     const own = { memberId: { in: memberIds } };
     await tx.battlegroundReport.deleteMany({ where: own });
     await tx.battlegroundConsent.deleteMany({ where: own });

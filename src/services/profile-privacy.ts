@@ -12,8 +12,12 @@ import { clearLeaderboardCaches, registerLeaderboardCache } from "./leaderboard-
 // The first-name-only spelling older uploads used ("Kev" for "Kev Caron") is hidden too, so a bare first name on a hidden character's realm
 // is taken for it; a stranger with the same first name on that realm can be hidden by mistake (privacy errs on the hiding side).
 
-/** The page cache window in minutes after a toggle (bot memo 60 s, JSON max-age 120 s): said in the confirmation. */
-export const HIDE_DELAY_MINUTES = 3;
+/**
+ * The longest a toggle takes to show, in minutes, said in the confirmation. The bot drops its memos at once (leaderboards 60 s, hidden set 30 s,
+ * guild pages 5 min); what is left is the guild pages' public cache (/g/<slug>: 300 s at Cloudflare and in the browser, worker/index.mjs) plus a margin.
+ * /leaderboards and /players pages are no-store at the Worker.
+ */
+export const HIDE_DELAY_MINUTES = 6;
 
 /** Text standing in for a hidden player's name inside stored rows; the public page replaces it by the word of the viewer's language. */
 export const HIDDEN_MARK = "⁣hidden⁣";
@@ -59,8 +63,9 @@ export function isHiddenPlayer(hidden: HiddenIdentity, name: string, realm: stri
   return !n.includes(" ") && (hidden.firsts.has(`${n}|${r}`) || (r === "" && hidden.names.has(`${n}|`)) || hidden.blankRealm.has(`${n}|`));
 }
 
-export async function loadHiddenIdentity(db: Pick<PrismaClient, "publicProfileHidden" | "character" | "webCharacter" | "deviceCharacter">): Promise<HiddenIdentity> {
-  const rows = await db.publicProfileHidden.findMany({ select: { discordUserId: true }, take: 50_000 });
+/** `except`: one Discord user left out of the set (a person looking at their own page still sees their own name). */
+export async function loadHiddenIdentity(db: Pick<PrismaClient, "publicProfileHidden" | "character" | "webCharacter" | "deviceCharacter">, except?: string): Promise<HiddenIdentity> {
+  const rows = (await db.publicProfileHidden.findMany({ select: { discordUserId: true }, take: 50_000 })).filter((row) => row.discordUserId !== except);
   if (!rows.length) return NOBODY_HIDDEN;
   const ids = rows.map((row) => row.discordUserId);
   const [guild, web, device] = await Promise.all([

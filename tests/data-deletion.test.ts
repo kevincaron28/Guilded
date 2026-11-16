@@ -8,7 +8,7 @@ function fixture() {
   const del = (name: string, count = 0) => ({ deleteMany: vi.fn(async (arg: unknown) => { calls.push(name); void arg; return { count }; }) });
   const tx = {
     member: { findMany: vi.fn(async () => [{ id: "m1" }, { id: "m2" }]), update: vi.fn(async () => ({})) },
-    webAccount: del("webAccount", 1), communityBadgeSharing: del("communityBadgeSharing"),
+    webAccount: del("webAccount", 1), communityBadgeSharing: del("communityBadgeSharing"), publicProfileHidden: del("publicProfileHidden"),
     battlegroundReport: del("battlegroundReport"), battlegroundConsent: del("battlegroundConsent"), memberAchievement: del("memberAchievement"), tcgAccount: del("tcgAccount"), tcgCard: del("tcgCard"), tcgLog: del("tcgLog"),
     memberMilestone: del("memberMilestone"), recurringRecap: del("recurringRecap"), groupAlert: del("groupAlert"), webAvailability: del("webAvailability"),
     poeLevelReached: del("poeLevelReached"), poeMapVisit: del("poeMapVisit"), guildMapSighting: del("guildMapSighting"), guildHelpCall: del("guildHelpCall"), worldPvpWeek: del("worldPvpWeek"), worldPvpEvent: del("worldPvpEvent"), characterPairing: del("characterPairing"),
@@ -42,7 +42,8 @@ describe("Delete my data", () => {
     const f = fixture();
     const summary = await deleteMyData(f.db, "123456789012345678");
     expect(summary).toEqual({ members: 2, characters: 3, account: true });
-    expect(f.calls).toEqual(expect.arrayContaining(["webAccount", "battlegroundReport", "memberAchievement", "tcgAccount", "tcgCard", "tcgLog", "companionCredential", "character", "communityBadgeSharing", "guildMapSighting", "guildHelpCall"]));
+    expect(f.calls).toEqual(expect.arrayContaining(["webAccount", "battlegroundReport", "memberAchievement", "tcgAccount", "tcgCard", "tcgLog", "companionCredential", "character", "communityBadgeSharing", "publicProfileHidden", "guildMapSighting", "guildHelpCall"]));
+    expect(f.tx.publicProfileHidden.deleteMany).toHaveBeenCalledWith({ where: { discordUserId: "123456789012345678" } });
     expect(f.tx.webAccount.deleteMany).toHaveBeenCalledWith({ where: { discordUserId: "123456789012345678" } });
     expect(f.tx.battlegroundReport.deleteMany).toHaveBeenCalledWith({ where: { memberId: { in: ["m1", "m2"] } } });
     expect(f.tx.member.update).toHaveBeenCalledWith({ where: { id: "m1" }, data: { discordUserId: "deleted-m1", displayName: DELETED_MEMBER_NAME, status: "LEFT" } });

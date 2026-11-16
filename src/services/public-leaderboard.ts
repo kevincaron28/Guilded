@@ -339,7 +339,7 @@ export function hideRunPlayers(run: LeaderRun, hidden: HiddenIdentity): LeaderRu
   if (!run.players.some((p) => isHiddenPlayer(hidden, p.character, p.realm) || (p.aliases ?? []).some((alias) => isHiddenPlayer(hidden, alias, p.realm)))) return run;
   return { ...run, players: run.players.map((p, i): LeaderPlayer => {
     if (!isHiddenPlayer(hidden, p.character, p.realm) && !(p.aliases ?? []).some((alias) => isHiddenPlayer(hidden, alias, p.realm))) return p;
-    const placeholder: LeaderPlayer = { ...p, character: `~hidden-${i}`, displayName: HIDDEN_MARK, realm: "", guild: null, hidden: true };
+    const placeholder: LeaderPlayer = { ...p, character: `~hidden-${run.runId}-${i}`, displayName: HIDDEN_MARK, realm: "", guild: null, hidden: true };
     delete placeholder.aliases;
     return placeholder;
   }) };
@@ -578,7 +578,7 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
         };
       });
     },
-    async pvp(guilds, at) { return loadPvpData(database, guilds.map((guild) => guild.id), currentEdition(), at); },
+    async pvp(guilds, at) { return loadPvpData(database, guilds.map((guild) => guild.id), currentEdition(), at, await hiddenNow()); },
     async guildStats(allIds) {
       const guildIds = allIds.filter((id) => !observedGuilds.has(id));
       const seenIds = allIds.filter((id) => observedGuilds.has(id));

@@ -98,7 +98,9 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
   if (["pair", "import"].includes(subcommand) && interaction.guild && interaction.guildId && interaction.member) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   // "Hide my profile": per Discord user, so it needs no server context (profile-privacy.ts).
   if (subcommand === "privacy") {
-    const action = interaction.options.getString("action", true) as "hide" | "show" | "status";
+    const asked = interaction.options.getString("action", true);
+    if (asked !== "hide" && asked !== "show" && asked !== "status") { await interaction.reply({ content: "Choose hide, show or status.", flags: MessageFlags.Ephemeral }); return; }
+    const action = asked;
     if (action !== "status") await setProfileHidden(prisma, interaction.user.id, action === "hide");
     await interaction.reply({ content: privacyReply(interaction.locale.startsWith("fr") ? "fr" : "en", action, action === "status" ? await isProfileHidden(prisma, interaction.user.id) : action === "hide"), flags: MessageFlags.Ephemeral });
     return;

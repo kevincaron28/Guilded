@@ -1,4 +1,5 @@
 import { characterKey } from "../../companion/character-identity.mjs";
+import { isHiddenPlayer, NOBODY_HIDDEN, type HiddenIdentity } from "./profile-privacy.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { className as classFromText } from "./recruitment.js";
 import { killDeathRatio, weekKeyOf, weekRange } from "./world-pvp.js";
@@ -43,21 +44,23 @@ const VISIBLE = { status: { in: ["ACTIVE" as const, "TRIAL" as const] }, isTest:
 export const matchKeyOf = (guildId: string, mapId: number, mode: string, endedAt: Date, nonce: string | null) => `${guildId}|${mapId}|${mode}|${nonce || Math.round(endedAt.getTime() / 600_000)}`;
 
 /** The public PvP data of this edition for the guilds given (already the ones that publish). Bounded: at most a few thousand rows per table. */
-export async function loadPvpData(database: PrismaClient, guildIds: readonly string[], edition: string, now: Date): Promise<PvpData> {
+export async function loadPvpData(database: PrismaClient, guildIds: readonly string[], edition: string, now: Date, hidden: HiddenIdentity = NOBODY_HIDDEN): Promise<PvpData> {
   const weekKey = weekKeyOf(now);
   const data = emptyPvp(weekKey);
   if (!guildIds.length) return data;
   const ids = [...guildIds];
+  // Members who hid their profile (profile-privacy.ts) leave every public PvP list; rows with no member match by character name below.
+  const visible = hidden.users.size ? { ...VISIBLE, discordUserId: { notIn: [...hidden.users] } } : VISIBLE;
   const since = new Date(now.getTime() - BG_DAYS * 86_400_000);
   const callsSince = new Date(now.getTime() - CALL_DAYS * 86_400_000);
   const [weekRows, totalRows, reports, calls, eventGroups, eventRows] = await Promise.all([
-    database.worldPvpWeek.findMany({ where: { guildId: { in: ids }, weekKey, member: VISIBLE }, select: { memberId: true, guildId: true, kills: true, deaths: true, defends: true, helped: true }, orderBy: { kills: "desc" }, take: WORLD_ROWS }),
-    database.worldPvpWeek.groupBy({ by: ["memberId", "guildId"], where: { guildId: { in: ids }, member: VISIBLE }, _sum: { kills: true, deaths: true, defends: true, helped: true }, orderBy: { _sum: { kills: "desc" } }, take: WORLD_ROWS }),
-    database.battlegroundReport.findMany({ where: { guildId: { in: ids }, gameEdition: edition, status: "PROVISIONAL", endedAt: { gte: since, lt: now }, member: VISIBLE }, orderBy: { endedAt: "desc" }, take: GAME_ROWS,
+    database.worldPvpWeek.findMany({ where: { guildId: { in: ids }, weekKey, member: visible }, select: { memberId: true, guildId: true, kills: true, deaths: true, defends: true, helped: true }, orderBy: { kills: "desc" }, take: WORLD_ROWS }),
+    database.worldPvpWeek.groupBy({ by: ["memberId", "guildId"], where: { guildId: { in: ids }, member: visible }, _sum: { kills: true, deaths: true, defends: true, helped: true }, orderBy: { _sum: { kills: "desc" } }, take: WORLD_ROWS }),
+    database.battlegroundReport.findMany({ where: { guildId: { in: ids }, gameEdition: edition, status: "PROVISIONAL", endedAt: { gte: since, lt: now }, member: visible }, orderBy: { endedAt: "desc" }, take: GAME_ROWS,
       select: { guildId: true, mode: true, bracket: true, mapId: true, outcome: true, endedAt: true, premadeNonce: true, character: { select: { name: true, displayName: true, realm: true, className: true, level: true } } } }),
-    database.guildHelpCall.findMany({ where: { guildId: { in: ids }, calledAt: { gte: callsSince, lt: now }, member: VISIBLE }, select: { guildId: true, zone: true, mapId: true, calledAt: true }, orderBy: { calledAt: "desc" }, take: CALL_ROWS }),
-    database.worldPvpEvent.groupBy({ by: ["memberId", "guildId", "mapId", "kind", "weekKey"], where: { guildId: { in: ids }, at: { gte: callsSince, lt: new Date(now.getTime() - EVENT_DELAY_MS) }, member: VISIBLE }, _count: { _all: true }, orderBy: { _count: { id: "desc" } }, take: EVENT_GROUPS }),
-    database.worldPvpEvent.findMany({ where: { guildId: { in: ids }, at: { gte: callsSince, lt: new Date(now.getTime() - EVENT_DELAY_MS) }, x: { not: null }, y: { not: null }, member: VISIBLE }, select: { memberId: true, guildId: true, kind: true, weekKey: true, at: true, mapId: true, x: true, y: true, approx: true }, orderBy: { at: "desc" }, take: EVENT_ROWS })
+    database.guildHelpCall.findMany({ where: { guildId: { in: ids }, calledAt: { gte: callsSince, lt: now }, member: visible }, select: { guildId: true, zone: true, mapId: true, calledAt: true }, orderBy: { calledAt: "desc" }, take: CALL_ROWS }),
+    database.worldPvpEvent.groupBy({ by: ["memberId", "guildId", "mapId", "kind", "weekKey"], where: { guildId: { in: ids }, at: { gte: callsSince, lt: new Date(now.getTime() - EVENT_DELAY_MS) }, member: visible }, _count: { _all: true }, orderBy: { _count: { id: "desc" } }, take: EVENT_GROUPS }),
+    database.worldPvpEvent.findMany({ where: { guildId: { in: ids }, at: { gte: callsSince, lt: new Date(now.getTime() - EVENT_DELAY_MS) }, x: { not: null }, y: { not: null }, member: visible }, select: { memberId: true, guildId: true, kind: true, weekKey: true, at: true, mapId: true, x: true, y: true, approx: true }, orderBy: { at: "desc" }, take: EVENT_ROWS })
   ]);
   const worldWeek = weekRows.map((row) => ({ memberId: row.memberId, guildId: row.guildId, kills: row.kills, deaths: row.deaths, defends: row.defends, helped: row.helped }));
   const worldTotal = totalRows.map((row) => ({ memberId: row.memberId, guildId: row.guildId, kills: row._sum.kills ?? 0, deaths: row._sum.deaths ?? 0, defends: row._sum.defends ?? 0, helped: row._sum.helped ?? 0 }));
@@ -70,11 +73,13 @@ export async function loadPvpData(database: PrismaClient, guildIds: readonly str
   for (const character of characters) if (!mainOf.has(character.memberId)) mainOf.set(character.memberId, character);
   const player = (c: { name: string; displayName: string | null; realm: string | null; className: string | null; level: number | null }, guildId: string): PvpPlayer =>
     ({ key: characterKey(c.name, c.realm ?? "", edition), name: c.displayName?.trim() || c.name, short: c.name, realm: c.realm ?? "", className: c.className, level: c.level, guildId });
+  const hideNames = hidden.users.size > 0;
   const world = (rows: typeof worldWeek): PvpWorldRow[] => {
     const merged = new Map<string, PvpWorldRow>();
     for (const row of rows) {
       const c = mainOf.get(row.memberId);
       if (!c) continue;
+      if (hideNames && isHiddenPlayer(hidden, c.name, c.realm)) continue;
       const one = { ...player(c, row.guildId), kills: row.kills, deaths: row.deaths, defends: row.defends, helped: row.helped };
       const seen = merged.get(one.key);
       if (!seen) merged.set(one.key, one);
@@ -95,7 +100,7 @@ export async function loadPvpData(database: PrismaClient, guildIds: readonly str
   if (eventRows.length) data.events = eventRows.map((row) => ({ memberId: row.memberId, guildId: row.guildId, kind: row.kind === "death" ? "death" as const : "kill" as const, weekKey: row.weekKey, at: row.at, mapId: row.mapId, x: row.x, y: row.y, approx: row.approx, ...classOf(row.memberId) }));
   data.week = world(shown.week);
   data.total = world(shown.total);
-  data.games = reports.map((row) => ({ ...player(row.character, row.guildId), mode: row.mode, bracket: row.bracket, mapId: row.mapId, outcome: row.outcome, endedAt: row.endedAt, matchKey: matchKeyOf(row.guildId, row.mapId, row.mode, row.endedAt, row.premadeNonce) }));
+  data.games = reports.filter((row) => !(hideNames && isHiddenPlayer(hidden, row.character.name, row.character.realm))).map((row) => ({ ...player(row.character, row.guildId), mode: row.mode, bracket: row.bracket, mapId: row.mapId, outcome: row.outcome, endedAt: row.endedAt, matchKey: matchKeyOf(row.guildId, row.mapId, row.mode, row.endedAt, row.premadeNonce) }));
   data.calls = calls.map((row) => ({ guildId: row.guildId, zone: row.zone.trim().slice(0, 60), mapId: row.mapId, calledAt: row.calledAt })).filter((row) => row.zone && row.zone !== "?");
   for (const call of data.calls) if (call.mapId && !zoneById(call.mapId) && !loggedMaps.has(call.mapId) && loggedMaps.size < 200) { loggedMaps.add(call.mapId); console.warn(`PvP map: unknown zone map id ${call.mapId} ("${call.zone.slice(0, 40)}"): shown in the table only`); }
   return data;

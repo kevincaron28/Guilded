@@ -8,6 +8,8 @@ import { buildDuelBoard } from "../src/services/public-duels.js";
 import { createWebApp, type WebResponse } from "../src/services/web-app.js";
 import { createPrivacyWeb } from "../src/services/profile-privacy-web.js";
 import { memoryWebStore } from "./helpers/memory-web-store.js";
+import { loadPvpData } from "../src/services/leaderboard-pvp.js";
+import { deleteMyData } from "../src/services/data-deletion.js";
 
 const NOW = new Date("2026-11-10T20:00:00Z");
 const P = (character: string, role = "DPS", extra: Record<string, unknown> = {}) => ({ character, realm: "Doomhowl", className: "Warrior", role, level: 16, minLevel: 16, presentSec: 1400, ...extra });
@@ -215,8 +217,8 @@ describe("hide my profile: toggling", () => {
   });
 
   it("answers in English and French and says how long the pages take", () => {
-    expect(privacyReply("en", "hide", true)).toMatch(/Hidden player.*within about 3 minutes/s);
-    expect(privacyReply("fr", "show", false)).toMatch(/de nouveau public.*3 minutes/s);
+    expect(privacyReply("en", "hide", true)).toMatch(/Hidden player.*within about 6 minutes/s);
+    expect(privacyReply("fr", "show", false)).toMatch(/de nouveau public.*6 minutes/s);
     expect(privacyReply("en", "status", true)).toContain("hidden");
     expect(privacyReply("fr", "status", false)).toContain("public");
   });
@@ -239,5 +241,105 @@ describe("hide my profile: toggling", () => {
     expect(await web.meSection(ctx(null, "done=privacy") as never)).toContain("Show my profile again");
     await web.route(ctx("0") as never, kit as never);
     expect(rows.size).toBe(0);
+  });
+});
+
+describe("hide my profile: PvP", () => {
+  const PVP_NOW = new Date("2026-12-10T20:00:00Z");
+  // Two members: m1 (Brenna, Discord user u1) and m2 (Aldric). Their world PvP and battleground results.
+  const pvpDatabase = (hidden: Set<string>, seen: { table: string; where: Record<string, unknown> }[] = []) => {
+    const record = (table: string, rows: unknown[]) => async (args: { where: Record<string, unknown> }) => { seen.push({ table, where: args.where }); return rows; };
+    const mine = (name: string, memberId: string) => ({ memberId, name, displayName: null, realm: "Doomhowl", className: "Rogue", level: 60 });
+    const base = fakeDatabase(hidden) as unknown as { character: { findMany: (args: unknown) => Promise<unknown[]> } };
+    return fakeDatabase(hidden, [], {
+      worldPvpWeek: {
+        findMany: record("week", [{ memberId: "m1", guildId: "g1", kills: 30, deaths: 4, defends: 0, helped: 0 }, { memberId: "m2", guildId: "g1", kills: 10, deaths: 2, defends: 0, helped: 0 }]),
+        groupBy: record("total", [{ memberId: "m1", guildId: "g1", _sum: { kills: 90, deaths: 9, defends: 0, helped: 0 } }, { memberId: "m2", guildId: "g1", _sum: { kills: 40, deaths: 8, defends: 0, helped: 0 } }])
+      },
+      battlegroundReport: { findMany: record("games", ["Brenna", "Aldric"].map((name) => ({ guildId: "g1", mode: "casual", bracket: "60", mapId: 489, outcome: "win", endedAt: new Date(PVP_NOW.getTime() - 3_600_000), premadeNonce: null, character: { name, displayName: null, realm: "Doomhowl", className: "Rogue", level: 60 } }))) },
+      guildHelpCall: { findMany: record("calls", []) },
+      worldPvpEvent: { findMany: record("events", []), groupBy: record("eventGroups", []) },
+      character: { findMany: async (args: { where: { memberId?: { in: string[] } } }) => args.where.memberId
+        ? [mine("Brenna", "m1"), mine("Aldric", "m2")].filter((c) => args.where.memberId!.in.includes(c.memberId)) : base.character.findMany(args) }
+    });
+  };
+  const namesOf = (rows: { name: string }[]) => rows.map((row) => row.name);
+
+  it("leaves a hidden member out of the world boards and the battleground results, and filters the queries by member too", async () => {
+    const seen: { table: string; where: Record<string, unknown> }[] = [];
+    const hiding = await loadHiddenIdentity(pvpDatabase(new Set(["u1"])) as never);
+    const data = await loadPvpData(pvpDatabase(new Set(["u1"]), seen) as never, ["g1"], "forever", PVP_NOW, hiding);
+    expect(namesOf(data.week)).toEqual(["Aldric"]);
+    expect(namesOf(data.total)).toEqual(["Aldric"]);
+    expect(namesOf(data.games)).toEqual(["Aldric"]);
+    expect(JSON.stringify(data)).not.toContain("Brenna");
+    expect(seen.length).toBeGreaterThan(0);
+    for (const call of seen) expect(call.where["member"]).toMatchObject({ discordUserId: { notIn: ["u1"] } });
+  });
+
+  it("shows everyone to internal readers and again after unhiding", async () => {
+    const all = await loadPvpData(pvpDatabase(new Set(["u1"])) as never, ["g1"], "forever", PVP_NOW);
+    expect(namesOf(all.week).sort()).toEqual(["Aldric", "Brenna"]);
+    expect(namesOf(all.games).sort()).toEqual(["Aldric", "Brenna"]);
+    const unhidden = await loadHiddenIdentity(pvpDatabase(new Set()) as never);
+    expect(namesOf((await loadPvpData(pvpDatabase(new Set()) as never, ["g1"], "forever", PVP_NOW, unhidden)).week).sort()).toEqual(["Aldric", "Brenna"]);
+  });
+
+  it("the public store hands the PvP pages the filtered data, the internal store does not", async () => {
+    const hidden = new Set(["u1"]);
+    const guilds = [{ id: "g1", name: "Moonwell Vanguard" }];
+    const publicStore = prismaLeaderboardStore(pvpDatabase(hidden) as never, () => true, { hideProfiles: true });
+    expect(namesOf((await publicStore.pvp!(guilds, PVP_NOW)).week)).toEqual(["Aldric"]);
+    clearLeaderboardCaches();
+    expect(namesOf((await prismaLeaderboardStore(pvpDatabase(hidden) as never).pvp!(guilds, PVP_NOW)).week).sort()).toEqual(["Aldric", "Brenna"]);
+    hidden.clear();
+    clearLeaderboardCaches();
+    expect(namesOf((await publicStore.pvp!(guilds, PVP_NOW)).week).sort()).toEqual(["Aldric", "Brenna"]);
+  });
+});
+
+describe("hide my profile: the other readers and the rest of the account", () => {
+  it("gives a hidden player a placeholder that is unique per run, so two runs never share an id", async () => {
+    const h = await loadHiddenIdentity(fakeDatabase(new Set(["u1"])) as never);
+    const a = hideRunPlayers(run("ra", 1400, [P("Aldric"), P("Brenna")]), h).players[1]!;
+    const b = hideRunPlayers(run("rb", 1300, [P("Aldric"), P("Brenna")]), h).players[1]!;
+    expect(a.character).not.toBe(b.character);
+    expect(a.hidden && b.hidden).toBe(true);
+  });
+
+  it("scores only the players who show, across several runs with a hidden player", async () => {
+    const h = await loadHiddenIdentity(fakeDatabase(new Set(["u1"])) as never);
+    const runs = [run("ra", 1400, [P("Aldric"), P("Brenna")]), run("rb", 1300, [P("Aldric"), P("Brenna")])].map((r) => hideRunPlayers(r, h));
+    expect(characterScores(runs, publicRules()).map((row) => row.player.character)).toEqual(["Aldric"]);
+  });
+
+  it("Delete my data also removes the hide choice", async () => {
+    const deleted: string[] = [];
+    const del = (name: string) => ({ deleteMany: async () => { deleted.push(name); return { count: 0 }; } });
+    const tx = new Proxy({ member: { findMany: async () => [], update: async () => ({}) } } as Record<string, unknown>, { get: (target, prop: string) => prop in target ? target[prop] : del(prop) });
+    const top = { member: { findMany: async () => [] }, character: { findMany: async () => [] }, publicRunPlayer: { findMany: async () => [] }, publicRun: { findUnique: async () => null, update: async () => ({}) },
+      publicRunUpload: { findMany: async () => [], update: async () => ({}) }, publicDuel: { findMany: async () => [], update: async () => ({}) }, publicDuelReport: { findMany: async () => [], update: async () => ({}) }, $executeRaw: async () => 0,
+      $transaction: async (fn: (t: unknown) => unknown) => fn(tx) };
+    await deleteMyData(top as never, "123456789012345678");
+    expect(deleted).toContain("publicProfileHidden");
+  });
+
+  it("POST /me/privacy needs a signed-in account and only ever acts on that account", async () => {
+    const rows = new Set<string>();
+    const db = { publicProfileHidden: {
+      findUnique: async ({ where }: { where: { discordUserId: string } }) => rows.has(where.discordUserId) ? { discordUserId: where.discordUserId } : null,
+      upsert: async ({ create }: { create: { discordUserId: string } }) => { rows.add(create.discordUserId); return create; },
+      deleteMany: async ({ where }: { where: { discordUserId: string } }) => ({ count: rows.delete(where.discordUserId) ? 1 : 0 })
+    } };
+    const web = createPrivacyWeb(db as never);
+    const kit = { redirect: (location: string) => ({ status: 302, headers: { location }, body: "" }) };
+    const request = (method: string, path: string) => ({ method, path, query: new URLSearchParams(), headers: {} });
+    const form = new URLSearchParams({ hidden: "1", discordUserId: "999999999999999999" });
+    expect(await web.route({ request: request("POST", "/me/privacy"), lang: "en", form } as never, kit as never)).toBeNull();
+    expect(rows.size).toBe(0);
+    expect(await web.route({ request: request("GET", "/me/privacy"), lang: "en", account: { id: "a", discordUserId: "123456789012345678" } } as never, kit as never)).toBeNull();
+    expect(rows.size).toBe(0);
+    await web.route({ request: request("POST", "/me/privacy"), lang: "en", form, account: { id: "a", discordUserId: "123456789012345678" } } as never, kit as never);
+    expect([...rows]).toEqual(["123456789012345678"]);
   });
 });

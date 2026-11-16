@@ -1,6 +1,7 @@
 import { armoryAnchor } from "./armory-link.js";
 import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
-import { characterPath, runPath, leaderRun, PUBLIC_RUN_SELECT, type LeaderRun } from "./public-leaderboard.js";
+import { characterPath, runPath, leaderRun, hideRunPlayers, PUBLIC_RUN_SELECT, type LeaderRun } from "./public-leaderboard.js";
+import { loadHiddenIdentity } from "./profile-privacy.js";
 import { scoreRun, publicRules } from "./public-score.js";
 import { gameEditionOf } from "./game-edition.js";
 import { formatDuration } from "./dungeon-rules.js";
@@ -119,7 +120,9 @@ export function prismaProfileStore(database: PrismaClient, allows: (id: string) 
         orderBy: [{ endedAt: "desc" }, { id: "asc" }], take: 50, select: PUBLIC_RUN_SELECT
       }) : [];
       const hidden = (await database.publicProfileHidden.findUnique({ where: { discordUserId: account.discordUserId }, select: { discordUserId: true } })) !== null;
-      return { id: account.id, name: account.displayName ?? account.username, public: true, ...(hidden ? { hidden: true } : {}), characters, runs: runs.map(leaderRun) };
+      // Other players who hid their profile are anonymous in this profile's runs too (the owner's own name stays for the owner).
+      const others = await loadHiddenIdentity(database, account.discordUserId);
+      return { id: account.id, name: account.displayName ?? account.username, public: true, ...(hidden ? { hidden: true } : {}), characters, runs: runs.map(leaderRun).map((run) => hideRunPlayers(run, others)) };
     },
   };
 }

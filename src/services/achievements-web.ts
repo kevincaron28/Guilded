@@ -1,6 +1,6 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { loadGeneratedAchievements } from "./game-achievements.js";
-import { ACHIEVEMENTS, ACTIVE_ACHIEVEMENTS, achievementById, generatedAchievements, achievementGameVisible, EDITION_LABEL, GAME_LABEL, TIER_COLOR, TIER_LABEL, WOW_EDITIONS, ladderKey } from "./achievements-catalogue.js";
+import { ACHIEVEMENTS, ACTIVE_ACHIEVEMENTS, achievementById, generatedAchievements, achievementGameVisible, EDITION_LABEL, GAME_LABEL, TIER_COLOR, TIER_LABEL, WOW_EDITIONS, ladderKey, isHiddenSecret, maskedText, secretCountLabel, SECRET_TAG } from "./achievements-catalogue.js";
 import { BADGE_IMG_STYLE, badgeImg, badgeLabel } from "./achievement-badges.js";
 import { storedAchievements, syncMemberAchievements } from "./achievements.js";
 import { achievementsCard } from "./end-cards.js";
@@ -85,8 +85,13 @@ export function createAchievementsWeb(db: Db, allows: (discordGuildId: string) =
     const inGame = generatedAchievements().filter(def => row(def.id).earnedAt);
     const listed = [...ACHIEVEMENTS, ...inGame].filter(def => !def.legacy || row(def.id).earnedAt);
     const earned = listed.filter(def => row(def.id).earnedAt).length;
+    // Secrets nobody has earned: shown as mystery tiles ("???", no description), left out of the totals, counted as "+N secret".
+    const hid = (def: (typeof ACHIEVEMENTS)[number]) => isHiddenSecret(def, Boolean(row(def.id).earnedAt));
+    const hiddenTotal = listed.filter(def => hid(def) && achievementGameVisible(def)).length;
+    const view = (def: (typeof ACHIEVEMENTS)[number]) => hid(def) ? { ...def, en: maskedText(def, "en"), fr: maskedText(def, "fr") } : def;
+    const tierOf = (def: (typeof ACHIEVEMENTS)[number]) => !def.secret ? TIER_LABEL[def.tier][lang] : hid(def) ? SECRET_TAG[lang] : `${SECRET_TAG[lang]} · ${TIER_LABEL[def.tier][lang]}`;
     const track = "height:6px;border-radius:3px;background:rgba(128,128,128,.28);overflow:hidden";
-    const bar = (def: (typeof ACHIEVEMENTS)[number], value: number) => `<div style="${track}" role="progressbar" aria-valuemin="0" aria-valuemax="${def.threshold}" aria-valuenow="${Math.min(value, def.threshold)}"><div style="height:100%;width:${Math.round(Math.min(value / def.threshold, 1) * 100)}%;background:${TIER_COLOR[def.tier]}"></div></div>`;
+    const bar = (def: (typeof ACHIEVEMENTS)[number], value: number) => hid(def) ? "" : `<div style="${track}" role="progressbar" aria-valuemin="0" aria-valuemax="${def.threshold}" aria-valuenow="${Math.min(value, def.threshold)}"><div style="height:100%;width:${Math.round(Math.min(value / def.threshold, 1) * 100)}%;background:${TIER_COLOR[def.tier]}"></div></div>`;
     const statusOf = (def: (typeof ACHIEVEMENTS)[number]) => {
       const r = row(def.id);
       return r.earnedAt ? `${t("Unlocked", "Débloqué")} ${r.earnedAt.toISOString().slice(0, 10)}`
@@ -102,21 +107,23 @@ export function createAchievementsWeb(db: Db, allows: (discordGuildId: string) =
       const edition = def.edition ? `<p><strong>${t("Edition", "Édition")}:</strong> ${escapeHtml(EDITION_LABEL[def.edition][lang])} · ${t("only characters of this edition count", "seuls les personnages de cette édition comptent")}</p>` : "";
       const state = r.earnedAt ? `<p><strong>${escapeHtml(statusOf(def))}</strong></p>${showProgress ? `<p>${t("Share it in Discord: run /achievements, then press “Share to channel”.", "Partagez-le sur Discord : lancez /achievements, puis « Partager dans le salon ».")}</p>` : ""}`
         : showProgress ? `<p>${t("Progress", "Progression")}: ${Math.min(r.value, def.threshold)}/${def.threshold}</p>${bar(def, r.value)}` : `<p>${t("Locked", "Verrouillé")}</p>`;
-      return `<h4 style="margin:0 0 4px">${escapeHtml(def[lang].name)}</h4><p><strong>${t("How to earn", "Comment l'obtenir")}:</strong> ${escapeHtml(def[lang].description)}</p><p><strong>${t("Tier", "Niveau")}:</strong> ${TIER_LABEL[def.tier][lang]}</p>${edition}${state}`;
+      if (hid(def)) return `<h4 style="margin:0 0 4px">${escapeHtml(t("Secret achievement", "Succès secret"))}</h4>${def[lang].description ? `<p>${escapeHtml(def[lang].description)}</p>` : ""}<p>${t("Hidden until earned.", "Caché jusqu'à ce qu'il soit obtenu.")}</p>`;
+      return `<h4 style="margin:0 0 4px">${escapeHtml(def[lang].name)}</h4><p><strong>${t("How to earn", "Comment l'obtenir")}:</strong> ${escapeHtml(def[lang].description)}</p><p><strong>${t("Tier", "Niveau")}:</strong> ${tierOf(def)}</p>${edition}${state}`;
     };
     const section = (title: string, defs: readonly (typeof ACHIEVEMENTS)[number][]) => {
       const visible = defs.filter(def => listed.includes(def) && achievementGameVisible(def));
       if (!visible.length) return "";
       const done = visible.filter(def => row(def.id).earnedAt).length;
-      const ordered = [...visible.filter(def => row(def.id).earnedAt), ...visible.filter(def => !row(def.id).earnedAt)];
+      const ordered = [...visible.filter(def => row(def.id).earnedAt), ...visible.filter(def => !row(def.id).earnedAt)].map(view);
+      const secretsHere = visible.filter(hid).length;
       const tiles = ordered.map(def => {
         const r = row(def.id), id = `ach-${def.id}`;
-        return `<div class="ach"><input type="checkbox" class="ach-t" id="${id}" aria-controls="${id}-more" aria-label="${escapeHtml(`${def[lang].name}: ${TIER_LABEL[def.tier][lang]}, ${statusOf(def)}`)}"><label class="ach-tile${r.earnedAt ? "" : " ach-locked"}" for="${id}" title="${escapeHtml(def[lang].description)}" style="border-top-color:${TIER_COLOR[def.tier]}">${badge(def, 56)}<span style="font-size:.8em;font-weight:600;line-height:1.2;overflow-wrap:anywhere">${escapeHtml(def[lang].name)}</span>${!r.earnedAt && showProgress ? `<div style="width:80%">${bar(def, r.value)}</div>` : ""}<span class="tag" style="font-size:.7em">${TIER_LABEL[def.tier][lang]} · ${escapeHtml(statusOf(def))}</span></label><div class="ach-more" id="${id}-more">${details(def)}</div></div>`;
+        return `<div class="ach"><input type="checkbox" class="ach-t" id="${id}" aria-controls="${id}-more" aria-label="${escapeHtml(`${def[lang].name}: ${tierOf(def)}, ${statusOf(def)}`)}"><label class="ach-tile${r.earnedAt ? "" : " ach-locked"}" for="${id}" title="${escapeHtml(def[lang].description)}" style="border-top-color:${TIER_COLOR[def.tier]}">${badge(def, 56)}<span style="font-size:.8em;font-weight:600;line-height:1.2;overflow-wrap:anywhere">${escapeHtml(def[lang].name)}</span>${!r.earnedAt && showProgress ? `<div style="width:80%">${bar(def, r.value)}</div>` : ""}<span class="tag" style="font-size:.7em">${tierOf(def)} · ${escapeHtml(statusOf(def))}</span></label><div class="ach-more" id="${id}-more">${details(def)}</div></div>`;
       }).join("");
-      return `<h3>${escapeHtml(title)} <small>(${done}/${visible.length})</small></h3><div class="ach-grid">${tiles}</div>`;
+      return `<h3>${escapeHtml(title)} <small>(${done}/${visible.length - secretsHere}${secretsHere ? ` ${secretCountLabel(secretsHere)}` : ""})</small></h3><div class="ach-grid">${tiles}</div>`;
     };
     const wow = (GAME_LABEL.wow)[lang];
-    return TILE_STYLE + `<p>${t(`${earned} of ${listed.length} unlocked. Achievements are worked out from data Guilded already recorded (synced characters, dungeon runs, raid attendance, Discord activity totals), never self-reported, and they give no points. Tap or hover a badge for details.`, `${earned} sur ${listed.length} débloqués. Les succès sont calculés à partir de données déjà enregistrées par Guilded (personnages synchronisés, donjons, présences aux raids, totaux d'activité Discord), jamais déclarés, et ne donnent aucun point. Touchez ou survolez un badge pour les détails.`)}</p>${nextUp}`
+    return TILE_STYLE + `<p>${t(`${earned} of ${listed.length - hiddenTotal}${hiddenTotal ? ` ${secretCountLabel(hiddenTotal)}` : ""} unlocked. Achievements are worked out from data Guilded already recorded (synced characters, dungeon runs, raid attendance, Discord activity totals), never self-reported, and they give no points. Tap or hover a badge for details.`, `${earned} sur ${listed.length - hiddenTotal}${hiddenTotal ? ` ${secretCountLabel(hiddenTotal)}` : ""} débloqués. Les succès sont calculés à partir de données déjà enregistrées par Guilded (personnages synchronisés, donjons, présences aux raids, totaux d'activité Discord), jamais déclarés, et ne donnent aucun point. Touchez ou survolez un badge pour les détails.`)}</p>${nextUp}`
       + WOW_EDITIONS.map(edition => section(`${wow} · ${EDITION_LABEL[edition][lang]}`, ACHIEVEMENTS.filter(def => def.edition === edition))).join("")
       + section(`${wow} · ${EDITION_LABEL.forever[lang]} · ${t("in-game achievements", "succès du jeu")}`, inGame)
       + section(GAME_LABEL.guild[lang], ACHIEVEMENTS.filter(def => def.game === "guild"));

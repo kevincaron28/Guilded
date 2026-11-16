@@ -80,6 +80,7 @@ privacy boundaries and the two-client acceptance test.
 | LootImports.lua | `imports` | (none) | 7.5.0: softres.it lists into Reserve.lua (`ns.reserve.importEntries`) and That's My BiS priorities onto tooltips |
 | Perf.lua | always loaded; personal opt-in | (none) | 7.5.0: `/guilded perf`, timings of Guilded events and commands plus message-queue depth while on |
 | GameAchievements.lua | `milestones` | (none) | 9.1: records every WoW Forever in-game achievement (category 15425 skipped) as an `ach` milestone with its name and date, silently at the first scan, the newest announced; uploaded with the milestones |
+| SecretAchievements.lua | `milestones` | (none) | 16 Nov 2026: secret achievements recorded as `secret` milestones (first: killed by the Son of Arugal); no combat log: a read-only poll of units attacking the player, matched at PLAYER_DEAD; one line per new "killed by" secret |
 | Minimap.lua | always on | (none) | Minimap button and tools window |
 
 ## Local guild and loot rolls

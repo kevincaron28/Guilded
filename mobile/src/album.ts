@@ -7,8 +7,10 @@ export interface AlbumCard {
   set: string; rank: number | null; threshold: number; earnedAt: string | null;
   /** The painted emblem's file name on the site (/badge-art/emblems/<emblem>-128.webp), or null for the plain medal. */
   emblem: string | null;
+  /** A secret achievement: while unearned it arrives masked ("???"), and the album counts it as "+N secret". */
+  secret?: boolean;
 }
-export interface Album { cards: AlbumCard[]; earned: number; total: number }
+export interface Album { cards: AlbumCard[]; earned: number; total: number; hiddenSecrets: number }
 export interface AlbumSet { name: string; cards: AlbumCard[]; earned: number }
 
 const TIERS: CardTier[] = ["bronze", "silver", "gold", "platinum", "epic", "legendary"];
@@ -30,10 +32,12 @@ export function parseAlbum(body: unknown): Album {
       id, name, description: text(c.description) ?? "", tier, tierLabel: text(c.tierLabel) ?? tier,
       tierColor: color && /^#[0-9a-f]{6}$/i.test(color) ? color : "#8a8a80",
       set: text(c.set) ?? "Guilded", rank: typeof c.rank === "number" ? c.rank : null, threshold: count(c.threshold), earnedAt: text(c.earnedAt),
-      emblem: /^[a-z0-9-]{1,40}$/.test(text(c.emblem) ?? "") ? text(c.emblem) : null
+      emblem: /^[a-z0-9-]{1,40}$/.test(text(c.emblem) ?? "") ? text(c.emblem) : null,
+      ...(c.secret === true ? { secret: true } : {})
     }];
   });
-  return { cards, earned: cards.filter((card) => card.earnedAt).length, total: cards.length };
+  const hiddenSecrets = cards.filter((card) => card.secret && !card.earnedAt).length;
+  return { cards, earned: cards.filter((card) => card.earnedAt).length, total: cards.length - hiddenSecrets, hiddenSecrets };
 }
 
 /** Cards grouped by set in catalogue order, earned first inside each set. */

@@ -43,11 +43,13 @@ export interface AchievementFacts {
   professionFirsts: number;
   rareRecipes: number;
   craftsDone: Date[];
+  /** Secrets the member's addon recorded (milestone ref `secret:<key>`), by key, with the date. */
+  secrets: Record<string, Date>;
 }
 
 export interface AchievementResult { def: AchievementDef; value: number; earned: boolean; earnedAt: Date | null }
 
-export const emptyFacts = (): AchievementFacts => ({ highestWowLevel: 0, charactersAtCap: 0, editions: {}, dungeonRuns: [], dungeonVariety: [], highestProfessionSkill: 0, raidsAttended: [], raidClears: [], activeDays: [], poeLevels: [], poeMaps: [], mvpWeeks: [], serverAnniversaries: [], messagesSent: 0, reactionsGiven: 0, reactionsReceived: 0, voiceHours: 0, communityPoints: 0, epEarned: 0, honorableKills: 0, duelWins: 0, duelStreak: 0, beatTopDuelist: 0, professionFirsts: 0, rareRecipes: 0, craftsDone: [] });
+export const emptyFacts = (): AchievementFacts => ({ highestWowLevel: 0, charactersAtCap: 0, editions: {}, dungeonRuns: [], dungeonVariety: [], highestProfessionSkill: 0, raidsAttended: [], raidClears: [], secrets: {}, activeDays: [], poeLevels: [], poeMaps: [], mvpWeeks: [], serverAnniversaries: [], messagesSent: 0, reactionsGiven: 0, reactionsReceived: 0, voiceHours: 0, communityPoints: 0, epEarned: 0, honorableKills: 0, duelWins: 0, duelStreak: 0, beatTopDuelist: 0, professionFirsts: 0, rareRecipes: 0, craftsDone: [] });
 
 function measure(def: AchievementDef, facts: AchievementFacts): { value: number; at: Date | null } {
   const { metric, threshold } = def;
@@ -84,6 +86,7 @@ function measure(def: AchievementDef, facts: AchievementFacts): { value: number;
     case "duelWins": return { value: facts.duelWins, at: null };
     case "duelStreak": return { value: facts.duelStreak, at: null };
     case "beatTopDuelist": return { value: facts.beatTopDuelist, at: null };
+    case "secretMilestone": { const at = def.secretRef ? facts.secrets[def.secretRef] : undefined; return { value: at ? 1 : 0, at: at ?? null }; }
     case "gameAchievement": return { value: 0, at: null }; // generated rows are stored from the addon's record, never evaluated
     case "poeLevel": {
       const reached = facts.poeLevels.filter(row => row.level >= threshold).sort((a, b) => a.reachedAt.getTime() - b.reachedAt.getTime())[0];
@@ -122,6 +125,13 @@ export function guildFirsts(rows: readonly { memberId: string; ref: string; reac
   return mine.size;
 }
 
+/** Secret milestones (`secret:<key>`) to key -> earliest date. */
+export function secretsOf(rows: readonly { ref: string; reachedAt: Date }[]): Record<string, Date> {
+  const out: Record<string, Date> = {};
+  for (const row of rows) { const key = /^secret:([A-Za-z0-9_-]{1,30})$/.exec(row.ref)?.[1]; if (key && (!out[key] || row.reachedAt < out[key]!)) out[key] = row.reachedAt; }
+  return out;
+}
+
 /** Recipes only this member's characters have learned in the guild. Needs recipe data from at least two other crafters, or "rare" means nothing. */
 async function countRareRecipes(db: Pick<PrismaClient, "recipeKnown">, guildId: string, names: string[]): Promise<number> {
   if (!names.length) return 0;
@@ -140,7 +150,7 @@ export async function gatherAchievementFacts(db: Db, guildId: string, memberId: 
   if (!member) return emptyFacts();
   const founded = member.guild?.discordId ? serverCreatedAt(member.guild.discordId) : null;
   const max = (metric: AchievementMetric) => Math.max(...ACHIEVEMENTS.filter(row => row.metric === metric).map(row => row.threshold));
-  const [characters, skills, runs, attendance, days, levels, visits, counter, points, given, ep, mvps, killMilestones, duels, topDuelist, crafts, profMilestones] = await Promise.all([
+  const [characters, skills, runs, attendance, days, levels, visits, counter, points, given, ep, mvps, killMilestones, duels, topDuelist, crafts, profMilestones, secretRows] = await Promise.all([
     db.character.findMany({ where: { memberId, guildId }, select: { name: true, realm: true, level: true, gameEdition: true } }),
     db.professionSkill.findMany({ where: { character: { memberId, guildId } }, select: { skillLevel: true, profession: true, character: { select: { gameEdition: true } } }, take: 500 }),
     db.dungeonRunPlayer.findMany({ where: { memberId, run: { guildId, valid: true, state: "COMPLETED" } }, select: { runId: true, run: { select: { instanceId: true, endedAt: true, startedAt: true, createdAt: true } } }, take: 1000 }),
@@ -163,7 +173,9 @@ export async function gatherAchievementFacts(db: Db, guildId: string, memberId: 
     // Craft-board requests this member finished for someone else.
     db.craftRequest.findMany({ where: { guildId, crafterId: memberId, status: "DONE", requesterId: { not: memberId } }, select: { doneAt: true, updatedAt: true }, orderBy: { updatedAt: "asc" }, take: Math.max(1000, max("craftsDone") * 4) }),
     // Guild-wide: who reached skill 300 and when (live reaches are `profnew:<key>`, steps `prof:<key>-300`).
-    db.memberMilestone.findMany({ where: { guildId, kind: "prof", OR: [{ ref: { startsWith: "profnew:" } }, { ref: { endsWith: "-300" } }] }, select: { memberId: true, ref: true, reachedAt: true }, take: 2000 })
+    db.memberMilestone.findMany({ where: { guildId, kind: "prof", OR: [{ ref: { startsWith: "profnew:" } }, { ref: { endsWith: "-300" } }] }, select: { memberId: true, ref: true, reachedAt: true }, take: 2000 }),
+    // Secrets the member's addon recorded (kind "secret"): earliest date per key.
+    db.memberMilestone.findMany({ where: { guildId, memberId, kind: "secret" }, select: { ref: true, reachedAt: true }, orderBy: { reachedAt: "asc" }, take: 200 })
   ]);
   const rareRecipes = await countRareRecipes(db, guildId, characters.map(row => row.name));
   // Season participation is a lower bound (capped, only in tracked channels); the counter is the full total from
@@ -220,6 +232,7 @@ export async function gatherAchievementFacts(db: Db, guildId: string, memberId: 
     craftsDone: crafts.map(row => row.doneAt ?? row.updatedAt).sort(byDate),
     professionFirsts: guildFirsts(profMilestones, memberId),
     rareRecipes,
+    secrets: secretsOf(secretRows),
     beatTopDuelist: topDuelist[0] && topDuelist[0]._count._all >= 3 && topDuelist[0].winnerId !== memberId && duelStats.beaten.has(topDuelist[0].winnerId) ? 1 : 0
   };
 }

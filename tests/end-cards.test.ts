@@ -43,7 +43,7 @@ describe("achievement unlocked card", () => {
     expect(card.unlocks![0]!.name).toBe(ACTIVE_ACHIEVEMENTS[11]!.fr.name);
     expect(card.unlocks![0]!.detail).toBe(ACTIVE_ACHIEVEMENTS[11]!.fr.description);
     expect(card.unlocksMore).toBe(4);
-    expect(card.progress).toMatchObject({ value: 20, max: ACTIVE_ACHIEVEMENTS.length });
+    expect(card.progress).toMatchObject({ value: 20, max: ACTIVE_ACHIEVEMENTS.filter((a) => !a.secret).length });
     expect(card.tierCounts!.reduce((sum, tier) => sum + tier.count, 0)).toBe(12);
     expect(JSON.stringify(card)).not.toMatch(/points?":|\+\d+ (GP|EP)/);
   });

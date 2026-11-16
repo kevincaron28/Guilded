@@ -78,6 +78,7 @@ Modules\InviteQueue.lua
 Modules\Scores.lua
 Modules\Milestones.lua
 Modules\GameAchievements.lua
+Modules\SecretAchievements.lua
 Modules\Duels.lua
 Modules\SeasonDetails.lua
 Modules\DungeonStats.lua

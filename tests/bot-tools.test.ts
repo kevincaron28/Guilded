@@ -149,4 +149,11 @@ describe("self-assign role safety", () => {
       expect(selfRoleProblem({ ...safe, permissions: permission | PermissionFlagsBits.SendMessages }, "guild1")).toContain("cannot be self-assigned");
     }
   });
+
+  it("rejects Guilded permission roles even when they have no Discord permissions", () => {
+    for (const name of ["Raid Leader", "Chef de raid", "Officer", "Maître de guilde", "Class Leader", "Chef de classe (Guerrier)", "Class Leader (Warrior)"]) {
+      expect(selfRoleProblem({ ...safe, name }, "guild1"), name).toContain("Guilded authority");
+    }
+    expect(selfRoleProblem({ ...safe, name: "Errant" }, "guild1")).toBeNull();
+  });
 });

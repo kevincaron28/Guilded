@@ -41,4 +41,8 @@ describe("deploy/Caddyfile", () => {
       expect(handled, path).toBe(true);
     }
   });
+
+  it("redacts the feed key query parameter from request logs", () => {
+    expect(caddyfile).toMatch(/request>uri query \{\n\t+delete key\n\t+\}/);
+  });
 });

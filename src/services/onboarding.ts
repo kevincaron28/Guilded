@@ -130,7 +130,7 @@ export async function ensureWelcomePanel(channel: GuildTextBasedChannel, setting
 function offeredRoles(settings: Pick<GuildSettings, "welcomeRoleIds">, discordGuild: DiscordGuild): Role[] {
   return settings.welcomeRoleIds
     .map((id) => discordGuild.roles.cache.get(id))
-    .filter((role): role is Role => !!role && !selfRoleProblem({ id: role.id, managed: role.managed, permissions: role.permissions.bitfield }, discordGuild.id))
+    .filter((role): role is Role => !!role && !selfRoleProblem({ id: role.id, name: role.name, managed: role.managed, permissions: role.permissions.bitfield }, discordGuild.id))
     .slice(0, MAX_ONBOARDING_ROLES);
 }
 

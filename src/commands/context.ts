@@ -60,8 +60,8 @@ export async function replyWithCommandError(
       userId: interaction.user.id
     });
   }
-  const content = error instanceof Error && error.message.length < 200
-    ? error.message
+  const content = isMemberAnswer(error)
+    ? (error as Error).message
     : "The command could not be completed. Please try again or contact an officer.";
   if (interaction.deferred && !interaction.replied) {
     await interaction.editReply({ content });

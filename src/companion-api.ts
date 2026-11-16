@@ -25,7 +25,7 @@ import { applyGuildMapUpload, guildMapFor, parseGuildMapUpload, setMapSharing } 
 import { liveNewsFeed } from "./services/news-feed.js";
 import { updateProfessionDirectory } from "./services/profession-directory.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { createHash } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { gunzipSync } from "node:zlib";
 import { config } from "./config.js";
 import { createDevicePages, prismaDeviceStore } from "./services/companion-devices.js";
@@ -169,9 +169,34 @@ function isTrustedProxyPeer(remoteAddress: string | undefined): boolean {
   return address === "127.0.0.1" || address === "::1";
 }
 
+// Every request reaches the bot through the Cloudflare Worker and Caddy, so the peer is always
+// loopback. The Worker puts the real caller in `x-guilded-client-ip` and proves it is the Worker
+// with `x-guilded-origin` (the shared origin token). Both must be present and the token must match
+// GUILDED_ORIGIN_TOKEN; otherwise the header is ignored and `x-forwarded-for` is used as before.
+function originTokenMatches(supplied: string | undefined): boolean {
+  const configured = process.env["GUILDED_ORIGIN_TOKEN"];
+  if (!configured || !supplied) return false;
+  const a = Buffer.from(supplied);
+  const b = Buffer.from(configured);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+function singleHeader(value: string | string[] | undefined): string | undefined {
+  return (Array.isArray(value) ? value[0] : value)?.trim() || undefined;
+}
+
+// A credential worth counting a failure against: a plausible length and character set. An empty or
+// absent credential is not a guess, so it never feeds the lockout.
+export function wellFormedCredential(value: unknown): boolean {
+  const text = Array.isArray(value) ? value[0] : value;
+  return typeof text === "string" && text.length >= 8 && text.length <= 512 && /^[!-~]+$/.test(text);
+}
+
 export function clientAddress(request: IncomingMessage): string {
   const peer = request.socket.remoteAddress;
   if (isTrustedProxyPeer(peer)) {
+    const workerIp = singleHeader(request.headers["x-guilded-client-ip"]);
+    if (workerIp && /^[0-9a-fA-F:.]{2,45}$/.test(workerIp) && originTokenMatches(singleHeader(request.headers["x-guilded-origin"]))) return workerIp;
     const forwarded = request.headers["x-forwarded-for"];
     const first = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(",")[0]?.trim();
     if (first) return first;
@@ -796,7 +821,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const address = clientAddress(request);
         if (isLockedOut(address)) { json(response, 429, { error: "Too many failed attempts. Try again in a few minutes." }); return; }
         const guildId = url.searchParams.get("guild") ?? "";
-        if (!await feedAccess(prisma, guildId, url.searchParams.get("key") ?? "")) { recordFailure(address); json(response, 404, { error: "Not found" }); return; }
+        if (!await feedAccess(prisma, guildId, url.searchParams.get("key") ?? "")) { if (wellFormedCredential(url.searchParams.get("key"))) recordFailure(address); json(response, 404, { error: "Not found" }); return; }
         const csv = statsCsv(await recentSnapshots(prisma, guildId, Number(url.searchParams.get("days")) || MAX_FEED_DAYS));
         response.writeHead(200, { "content-type": "text/csv; charset=utf-8", "cache-control": "no-store", "referrer-policy": "no-referrer", "x-robots-tag": "noindex" });
         response.end(csv);
@@ -854,7 +879,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       if (isRenew) {
         const payload = await readBody(request) as { nextCredential?: unknown } | null;
         const ok = await renewCompanionCredential(prisma, request.headers["x-companion-credential"], payload?.nextCredential);
-        if (!ok) recordFailure(address);
+        if (!ok && wellFormedCredential(request.headers["x-companion-credential"])) recordFailure(address);
         json(response, ok ? 200 : 401, ok ? { ok: true, companionCredential: payload?.nextCredential } : { error: "This device connection is no longer valid. Sign in again." });
         return;
       }
@@ -866,7 +891,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           return;
         }
         const device = await deviceFor(devices, deviceHeader(request));
-        if (!device) { recordFailure(address); json(response, 401, { error: "This companion's device key is not known. Restart the companion to get a new one." }); return; }
+        if (!device) { if (wellFormedCredential(deviceHeader(request))) recordFailure(address); json(response, 401, { error: "This companion's device key is not known. Restart the companion to get a new one." }); return; }
         if (isDeviceClaim) {
           // Both the device key and the member's own credential from a Discord sign-in in the same app.
           if (!allowCompanionRevocation(`device-claim:${address}`)) { json(response, 429, { error: "Too many requests. Try again in a minute." }); return; }
@@ -905,7 +930,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const secret = request.headers["x-companion-credential"] ?? request.headers.authorization?.replace(/^Bearer\s+/i, "");
         const ok = await revokeCompanionCredential(prisma, secret);
         if (ok && typeof secret === "string") await retireMobileDevice(prisma, secret);
-        if (!ok) recordFailure(address);
+        if (!ok && wellFormedCredential(secret)) recordFailure(address);
         json(response, ok ? 200 : 400, ok ? { ok: true } : { error: "A valid companion credential is required." });
         return;
       }
@@ -913,7 +938,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         // "Delete my data" from the companion: same erasure as the website, confirmed with the word DELETE.
         if (!allowCompanionRevocation(address)) { json(response, 429, { error: "Too many requests. Try again in a minute." }); return; }
         const secret = request.headers["x-companion-credential"] ?? request.headers.authorization?.replace(/^Bearer\s+/i, "");
-        if (typeof secret !== "string" || secret.length < 32 || secret.length > 256) { recordFailure(address); json(response, 401, { error: "Sign in with Discord in the companion first." }); return; }
+        if (typeof secret !== "string" || secret.length < 32 || secret.length > 256) { json(response, 401, { error: "Sign in with Discord in the companion first." }); return; }
         const payload = await readBody(request).catch(() => null) as { confirm?: unknown } | null;
         const done = await deleteMyDataByCredential(prisma, hashCompanionSecret(secret), payload?.confirm);
         if (done === null) { recordFailure(address); json(response, 401, { error: "This companion link is no longer valid. Sign in with Discord again." }); return; }
@@ -988,7 +1013,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       }
       if (isCompanionMe) {
         const secret = request.headers["x-companion-credential"] ?? request.headers.authorization?.replace(/^Bearer\s+/i, "");
-        if (typeof secret !== "string" || secret.length < 32 || secret.length > 256) { recordFailure(address); json(response, 401, { error: "Sign in with Discord in the companion first." }); return; }
+        if (typeof secret !== "string" || secret.length < 32 || secret.length > 256) { json(response, 401, { error: "Sign in with Discord in the companion first." }); return; }
         const answer = await companionMe({
           async accountFor(tokenHash) {
             const member = await prisma.companionCredential.findFirst({ where: { tokenHash, revokedAt: null, member: { status: "ACTIVE" } }, select: { member: { select: { discordUserId: true, displayName: true } } } });
@@ -1016,7 +1041,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       }
       if (isCards) {
         const secret = request.headers["x-companion-credential"] ?? request.headers.authorization?.replace(/^Bearer\s+/i, "");
-        if (typeof secret !== "string" || secret.length < 32 || secret.length > 256) { recordFailure(address); json(response, 401, { error: "Sign in with Discord in the companion first." }); return; }
+        if (typeof secret !== "string" || secret.length < 32 || secret.length > 256) { json(response, 401, { error: "Sign in with Discord in the companion first." }); return; }
         const tokenHash = hashCompanionSecret(secret);
         const owner = await prisma.companionCredential.findFirst({ where: { tokenHash, revokedAt: null, member: { status: "ACTIVE" } }, select: { member: { select: { discordUserId: true } } } })
           ?? await prisma.webCompanionCredential.findFirst({ where: { tokenHash, revokedAt: null }, select: { account: { select: { discordUserId: true } } } });
@@ -1041,7 +1066,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       }
       if (isClash) {
         const secret = request.headers["x-companion-credential"] ?? request.headers.authorization?.replace(/^Bearer\s+/i, "");
-        if (typeof secret !== "string" || secret.length < 32 || secret.length > 256) { recordFailure(address); json(response, 401, { error: "Sign in with Discord in the companion first." }); return; }
+        if (typeof secret !== "string" || secret.length < 32 || secret.length > 256) { json(response, 401, { error: "Sign in with Discord in the companion first." }); return; }
         const tokenHash = hashCompanionSecret(secret);
         const owner = await prisma.companionCredential.findFirst({ where: { tokenHash, revokedAt: null, member: { status: "ACTIVE" } }, select: { member: { select: { discordUserId: true } } } })
           ?? await prisma.webCompanionCredential.findFirst({ where: { tokenHash, revokedAt: null }, select: { account: { select: { discordUserId: true } } } });
@@ -1112,7 +1137,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       if (isAlbum) {
         // Phone badge album: the signed-in member's own stored achievements (companion-album.ts). Read-only.
         const secret = request.headers["x-companion-credential"] ?? request.headers.authorization?.replace(/^Bearer\s+/i, "");
-        if (typeof secret !== "string" || secret.length < 32 || secret.length > 256) { recordFailure(address); json(response, 401, { error: "Sign in with Discord in the companion first." }); return; }
+        if (typeof secret !== "string" || secret.length < 32 || secret.length > 256) { json(response, 401, { error: "Sign in with Discord in the companion first." }); return; }
         const tokenHash = hashCompanionSecret(secret);
         const owner = await prisma.companionCredential.findFirst({ where: { tokenHash, revokedAt: null, member: { status: "ACTIVE" } }, select: { member: { select: { discordUserId: true } } } })
           ?? await prisma.webCompanionCredential.findFirst({ where: { tokenHash, revokedAt: null }, select: { account: { select: { discordUserId: true } } } });
@@ -1208,7 +1233,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const access = typeof header === "string" ? await companionAccess(prisma, client, guild.id, guild.discordId, header, isMobileDevice) : null;
       const accessAt = Date.now();
       if (!access) {
-        recordFailure(address);
+        if (wellFormedCredential(header)) recordFailure(address);
         json(response, 401, { error: "Pair this companion with /character pair. The shared upload token no longer grants access." }); return;
       }
       if (isImport && headerOf(request, "x-companion-health")) void recordHealthReport(prisma, { guildId: guild.id, ownerKey: `member:${access.memberId ?? access.actorId}`, memberId: access.memberId ?? null, header: headerOf(request, "x-companion-health") });

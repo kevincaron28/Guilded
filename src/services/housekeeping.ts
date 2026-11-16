@@ -211,7 +211,7 @@ export function welcomeRoleOffered(
   discordGuild: Pick<DiscordGuild, "id"> & { roles: { cache: { values(): Iterable<{ id: string; name: string }> } } },
   role: { id: string; name: string; managed: boolean; permissions: { bitfield: bigint } }
 ): boolean {
-  if (selfRoleProblem({ id: role.id, managed: role.managed, permissions: role.permissions.bitfield }, discordGuild.id)) return false;
+  if (selfRoleProblem({ id: role.id, name: role.name, managed: role.managed, permissions: role.permissions.bitfield }, discordGuild.id)) return false;
   if (settings?.welcomeRoleIds.includes(role.id)) return true;
   return findWowRoleId(discordGuild.roles.cache.values(), settings?.inviteWowRoleId) === role.id;
 }

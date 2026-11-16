@@ -19,6 +19,9 @@
 				request>headers>Authorization delete
 				request>headers>Cookie delete
 				request>headers>X-Guilded-Origin delete
+				request>uri query {
+					delete key
+				}
 			}
 		}
 	}

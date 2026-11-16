@@ -12,16 +12,19 @@ const NOW = new Date("2026-11-20T12:00:00Z");
 const ago = (ms: number) => NOW.getTime() - ms;
 const MIN = 60_000, DAY = 86_400_000;
 
-interface Msg { id: string; createdTimestamp: number; author: { id: string; username: string }; content: string; pinned?: boolean }
+interface Msg { id: string; createdTimestamp: number; author: { id: string; username: string }; content: string; pinned?: boolean; components?: unknown[] }
 function channelWith(list: Msg[], opts: { manage?: boolean } = {}) {
   const deleted: string[] = [];
   const bulk: string[][] = [];
   const live = new Map(list.map((m) => [m.id, m]));
   const message = (m: Msg) => ({ ...m, pinned: Boolean(m.pinned), delete: vi.fn(async () => { deleted.push(m.id); live.delete(m.id); }) });
   const channel = {
+    id: "chan", guildId: "d1",
     isTextBased: () => true,
     permissionsFor: () => ({ has: () => opts.manage !== false }),
-    messages: { fetch: vi.fn(async ({ before }: { limit: number; before?: string }) => {
+    messages: { fetch: vi.fn(async (arg: { limit: number; before?: string } | string) => {
+      if (typeof arg === "string") { const found = live.get(arg); if (!found) throw new Error("Unknown Message"); return message(found); }
+      const { before } = arg;
       const sorted = [...live.values()].sort((a, b) => b.createdTimestamp - a.createdTimestamp);
       const from = before ? sorted.findIndex((m) => m.id === before) + 1 : 0;
       const page = sorted.slice(from, from + 100).map(message);
@@ -29,18 +32,18 @@ function channelWith(list: Msg[], opts: { manage?: boolean } = {}) {
     }) },
     bulkDelete: vi.fn(async (ids: string[]) => { bulk.push(ids); ids.forEach((id) => { deleted.push(id); live.delete(id); }); return { size: ids.length }; })
   };
-  const guild = { client: { user: { id: "bot" } }, channels: { fetch: vi.fn(async () => channel) } };
+  const guild = { id: "d1", client: { user: { id: "bot" } }, channels: { fetch: vi.fn(async () => channel) } };
   return { guild, channel, deleted, bulk };
 }
 
-function database(over: { sweepEnabled?: boolean; sweptAt?: Date | null; open?: string[] } = {}) {
-  const state = { sweptAt: over.sweptAt ?? null };
+function database(over: { sweepEnabled?: boolean; sweptAt?: Date | null; open?: string[]; channelId?: string; guideId?: string | null } = {}) {
+  const state = { sweptAt: over.sweptAt === undefined ? new Date(NOW.getTime() - 2 * DAY) : over.sweptAt, channelId: over.channelId ?? "chan", guideId: over.guideId === undefined ? "guide" : over.guideId };
   const due = (w: { OR?: Array<{ inviteSweptAt?: null | { lte: Date } }> }) => !state.sweptAt || (w.OR ?? []).some((c) => c.inviteSweptAt && typeof c.inviteSweptAt === "object" && "lte" in c.inviteSweptAt && state.sweptAt! <= c.inviteSweptAt.lte);
   return {
     state,
     guildSettings: {
       findMany: vi.fn(async ({ where }: { where: { OR: Array<{ inviteSweptAt?: null | { lte: Date } }> } }) =>
-        (over.sweepEnabled ?? true) && due(where) ? [{ guildId: "g1", inviteChannelId: "chan", inviteGuideMessageId: "guide", guild: { discordId: "d1" } }] : []),
+        (over.sweepEnabled ?? true) && due(where) ? [{ guildId: "g1", inviteChannelId: state.channelId, inviteGuideMessageId: state.guideId, inviteSweptAt: state.sweptAt, guild: { discordId: "d1" } }] : []),
       updateMany: vi.fn(async ({ where, data }: { where: { OR: Array<{ inviteSweptAt?: null | { lte: Date } }> }; data: { inviteSweptAt: Date } }) => {
         if (!due(where)) return { count: 0 };
         state.sweptAt = data.inviteSweptAt; return { count: 1 };
@@ -129,6 +132,49 @@ describe("the hourly tidy of the invite channel", () => {
     const { guild, deleted } = channelWith(chat.filter((m) => ["guide", "pin", "open1", "open1-tag", "fresh"].includes(m.id)));
     expect(await runInviteChannelSweeps({ guilds: { fetch: async () => guild } } as never, database() as never, { now: NOW, log: () => undefined })).toBe(0);
     expect(deleted).toEqual([]);
+  });
+  it("the very first run on a server only counts and saves a copy: nothing is deleted until the next hourly run", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "invite-backup-"));
+    const db = database({ sweptAt: null });
+    const first = channelWith(chat);
+    const logs: string[] = [];
+    expect(await runInviteChannelSweeps({ guilds: { fetch: async () => first.guild } } as never, db as never, { now: NOW, backupDir: dir, log: (l) => logs.push(l), sleep: async () => undefined })).toBe(0);
+    expect(first.deleted).toEqual([]);
+    expect(first.bulk).toEqual([]);
+    expect(await readdir(dir)).toHaveLength(1);
+    expect(logs.some((l) => l.includes("first run, nothing deleted (4 counted and saved)"))).toBe(true);
+    expect(logs.some((l) => l.includes(dir))).toBe(true);
+    const second = channelWith(chat);
+    expect(await runInviteChannelSweeps({ guilds: { fetch: async () => second.guild } } as never, db as never, { now: new Date(NOW.getTime() + 61 * MIN), backupDir: dir, log: () => undefined, sleep: async () => undefined })).toBe(5);
+  });
+  it("never runs on an empty invite channel id", async () => {
+    const { guild, deleted } = channelWith(chat);
+    expect(await runInviteChannelSweeps({ guilds: { fetch: async () => guild } } as never, database({ channelId: "" }) as never, { now: NOW, log: () => undefined })).toBe(0);
+    expect(guild.channels.fetch).not.toHaveBeenCalled();
+    expect(deleted).toEqual([]);
+  });
+  it("skips the whole run when the panel message cannot be found", async () => {
+    resetCleanupWarnings();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    for (const guideId of [null, "gone"] as const) {
+      const { guild, deleted } = channelWith(chat);
+      expect(await runInviteChannelSweeps({ guilds: { fetch: async () => guild } } as never, database({ guideId }) as never, { now: NOW, log: () => undefined })).toBe(0);
+      expect(deleted).toEqual([]);
+    }
+    warn.mockRestore();
+  });
+  it("skips a channel that is not the configured one", async () => {
+    const { guild, channel, deleted } = channelWith(chat);
+    channel.id = "other";
+    expect(await runInviteChannelSweeps({ guilds: { fetch: async () => guild } } as never, database() as never, { now: NOW, log: () => undefined })).toBe(0);
+    expect(deleted).toEqual([]);
+  });
+  it("never deletes the bot's own request panel (a bot message with the Request an invite button)", async () => {
+    const withPanel: Msg[] = [...chat, { id: "panel2", createdTimestamp: ago(5 * DAY), author: { id: "bot", username: "Guilded" }, content: "Request an invite", components: [{ components: [{ customId: "invite:ask:d1" }] }] }];
+    const { guild, deleted } = channelWith(withPanel);
+    await runInviteChannelSweeps({ guilds: { fetch: async () => guild } } as never, database() as never, { now: NOW, backupDir: await mkdtemp(join(tmpdir(), "invite-backup-")), log: () => undefined, sleep: async () => undefined });
+    expect(deleted).not.toContain("panel2");
+    expect(deleted).toContain("notice");
   });
   it("writes author, time and text only (no attachments)", () => {
     expect(backupLine({ createdTimestamp: Date.UTC(2026, 10, 1, 8, 0, 0), content: "hi", author: { id: "7", username: "Zed" }, ...{ attachments: ["x.png"] } } as never)).toBe("[2026-11-01T08:00:00.000Z] Zed (7): hi");

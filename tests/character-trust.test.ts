@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { characterTrust, characterTrustMap, T8_STRICT_FROM, trustLabel, trustSuffix } from "../src/services/character-trust.js";
+import { characterTrust, characterTrustMap, T8_OWNERSHIP_FROM, T8_STRICT_FROM, trustLabel, trustSuffix } from "../src/services/character-trust.js";
 import { charactersMeSection, meCharacterList } from "../src/services/me-characters.js";
 import { formatRosterGaps, planRosterGaps } from "../src/services/roster-gaps.js";
 import { rosterFreshness } from "../src/services/guild-data.js";
@@ -28,6 +28,12 @@ describe("reported, not verified", () => {
     expect(characterTrust({ confirmedAt: null, linkEvidence: "officer" })).toBe("confirmed");
     expect(characterTrust({ confirmedAt: null }, { claim: "LINKED" })).toBe("confirmed");
     expect(characterTrust({ confirmedAt: null })).toBe("reported");
+  });
+
+  it("from the ownership rule on, confirmedAt alone is confirmed (it is only granted for the logged-in character)", () => {
+    expect(characterTrust({ confirmedAt: T8_OWNERSHIP_FROM })).toBe("confirmed");
+    expect(characterTrust({ confirmedAt: new Date(T8_OWNERSHIP_FROM.getTime() - 1) })).toBe("reported");
+    expect(characterTrust({ confirmedAt: null, linkEvidence: "named" })).toBe("reported");
   });
 
   it("grandfathers links confirmed before the strict rule went live", async () => {

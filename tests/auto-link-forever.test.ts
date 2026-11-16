@@ -16,6 +16,8 @@ describe("a signed-in companion links every character its PC reports", () => {
     expect(status).toBe("linked");
     expect(mocks.pair.mock.calls.map((call) => (call[3] as { name: string }).name)).toEqual(["Lebowski", "Walter", "Donny"]);
     expect(mocks.pair.mock.calls.every((call) => call[2] === "officer-member")).toBe(true);
+    // Only the logged-in character is confirmed; alts are named (reported).
+    expect(mocks.pair.mock.calls.map((call) => call[4])).toEqual([{ confirm: true }, { confirm: false, evidence: "named" }, { confirm: false, evidence: "named" }]);
   });
 
   it("keeps going when an alt fails, and reports a missing main character", async () => {

@@ -144,31 +144,39 @@ if (live) {
 
 // Status page: probe the public health and leaderboard routes from the visitor's browser.
 {
-  const board = document.querySelector('[data-status-board]');
-  if (board) {
-    const show = (key, ok, text) => {
-      const row = board.querySelector(`[data-status="${key}"]`);
-      row.dataset.state = ok ? 'up' : 'down';
-      row.querySelector('[data-status-text]').textContent = text;
+  // A bilingual page holds one board per language; each is filled in its own language.
+  const boards = [...document.querySelectorAll('[data-status-board]')];
+  if (boards.length) {
+    const texts = {
+      en: { site: 'You are reading this page, so it is up.', up: 'Up', version: 'version', down: 'Not answering right now. See the steps below.', checked: 'Checked' },
+      fr: { site: 'Vous lisez cette page, donc il est en ligne.', up: 'En ligne', version: 'version', down: 'Ne répond pas en ce moment. Voyez les étapes ci-dessous.', checked: 'Vérifié à' }
+    };
+    const copy = (board) => (board.closest('[lang="fr"]') ? texts.fr : texts.en);
+    const show = (key, ok, pick) => {
+      for (const board of boards) {
+        const row = board.querySelector(`[data-status="${key}"]`);
+        row.dataset.state = ok ? 'up' : 'down';
+        row.querySelector('[data-status-text]').textContent = pick(copy(board));
+      }
     };
     const probe = async (url) => {
       const started = Date.now();
       const response = await fetch(url, { headers: { accept: 'application/json' }, cache: 'no-store' });
       return { response, ms: Math.round(Date.now() - started) };
     };
-    show('site', true, 'You are reading this page, so it is up.');
+    show('site', true, t => t.site);
     Promise.all([
       probe('/health').then(async ({ response, ms }) => {
         if (!response.ok) throw new Error(String(response.status));
         const data = await response.json().catch(() => ({}));
-        show('bot', true, `Up${data.version ? ` · version ${data.version}` : ''} · ${ms} ms`);
-      }).catch(() => show('bot', false, 'Not answering right now. See the steps below.')),
+        show('bot', true, t => `${t.up}${data.version ? ` · ${t.version} ${data.version}` : ''} · ${ms} ms`);
+      }).catch(() => show('bot', false, t => t.down)),
       probe('/leaderboards/summary.json').then(({ response, ms }) => {
         if (!response.ok) throw new Error(String(response.status));
-        show('boards', true, `Up · ${ms} ms`);
-      }).catch(() => show('boards', false, 'Not answering right now. See the steps below.'))
+        show('boards', true, t => `${t.up} · ${ms} ms`);
+      }).catch(() => show('boards', false, t => t.down))
     ]).then(() => {
-      board.parentElement.querySelector('[data-status-meta]').textContent = `Checked ${new Date().toLocaleTimeString()}.`;
+      for (const board of boards) board.parentElement.querySelector('[data-status-meta]').textContent = `${copy(board).checked} ${new Date().toLocaleTimeString()}.`;
     });
   }
 }

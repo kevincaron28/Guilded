@@ -1,5 +1,30 @@
 # Changelog
 
+## 9.3.6 — 16 November 2026
+
+Published 16 November 2026. Security, Season 2, achievements, linking and promotions work after 9.3.5. Not yet confirmed on real clients.
+
+Addon and companion:
+
+- French dungeon names from the Forever client; addon scores match by instance id (#1016).
+- Secret achievements stay hidden until earned; the first one is Son of Arugal (#1022).
+- Gold held and auction house achievements, and `/guilded probe auctions` (#1027, #1034).
+- The companion uploads client probes, and the addon keeps them one more login (#1033).
+- Confirmed links need ownership; alts named in an export or a device claim are shown as reported (#1032).
+
+Bot and website (already live or live with the bot deploy):
+
+- Security fixes S1, S4, S5, S6 and S8 (#1015), and Worker hardening: client IP header, HSTS, no framing, noindex API, pinned Actions, robots and sitemap (#1031).
+- Discord text fixes: real commands, French officer log and footers, community points wording (#1017).
+- Hide my profile: opt out of the public directory with `/character privacy hide` (#1018).
+- Race to 60 lists only current guild members (#1020).
+- Season 2 starts 9 December: duels, battlegrounds, world PvP, Clash and raid attendance follow the season calendar, and every known 45-60 dungeon is a provisional route (#1019, #1021).
+- Officer member-trend graph and community points wording on dungeon surfaces (#1023).
+- Promotions: the bot rule only, a one-click alert, Alts are never promoted, an officer-log line (#1024).
+- Compatibility policy: a two-version support window, a version header and protocol range (#1025).
+- Linking: only matching servers at sign-in and a one-click claim of reported characters (#1026).
+- Art and leaderboard polish (#1028) and an edge-case sweep: departed players leave roster surfaces, safer claim offers (#1029).
+
 ## 9.3.5 — 15 November 2026
 
 Published 15 November 2026 (GitHub and the website; CurseForge 9.3.5 approved 15 November 2026). Polish after 9.3.4: a new logo, a richer in-game dungeon result card, brighter dungeon cards, sync health and a last-saved line. Not yet confirmed on real clients (see docs/V9_3_5_RELEASE_ACCEPTANCE.md). Details: docs/V9_3_5_RELEASE_NOTES.md.

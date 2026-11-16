@@ -1,6 +1,6 @@
 # Phone app redesign plan (Track M, 7 November 2026)
 
-Status: **plan plus a first slice (the News tab and its server feed).** PR #507 (guildmate map) has merged; the tab restructure is slice 2 and is its own PR, because it relocates the screens #489, #496 and #507 built.
+Status: **slices 1-3 merged** (News tab and feed #519; UI kit and the Album/Map/Wishlist moves #614; five-tab shell #615). The kit gained `EmptyState`, `RetryCard` and `Row` on 16 November, so every component listed below now exists. Slice 4 is left: the TCG inside Me waits for Guilded Clash (on hold since 14 November), and the dungeon-ready and help-call rows wait for push (#345 + Firebase). The tab bar now uses painted icons (#1028) instead of line glyphs.
 
 ## Owner goals (7 November)
 

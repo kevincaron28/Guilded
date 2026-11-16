@@ -7,7 +7,7 @@ import {
 } from "../guildMap";
 import type { Lang } from "../i18n";
 import { clearSession, type Session } from "../storage";
-import { SegmentedTabs, colors as theme } from "../ui";
+import { Card, EmptyState, RetryCard, Row, SegmentedTabs, colors as theme } from "../ui";
 
 // Track M items 3 and 4: guildmate dots, the last-seen heat map and help pins on one plain grid.
 // The map art is our own: a grid with zone names placed where the guild has been. No game map images.
@@ -36,7 +36,6 @@ const words = {
   cancel: { en: "Cancel", fr: "Annuler" },
   noPlace: { en: "not on a map", fr: "hors carte" },
   failed: { en: "The guild map is unavailable right now.", fr: "La carte de la guilde est indisponible pour le moment." },
-  retry: { en: "Try again", fr: "Réessayer" },
   sample: { en: "Sample map with made-up zones. Sign in to see your guild.", fr: "Carte d'exemple aux zones inventées. Connectez-vous pour voir votre guilde." }
 } as const;
 const w = (key: keyof typeof words, lang: Lang) => words[key][lang];
@@ -89,23 +88,20 @@ export function MapScreen({ lang, session }: { lang: Lang; session: Session | nu
     ]);
   };
 
-  if (error && !map) return <View style={styles.panel}>
-    <Text style={styles.muted}>{error}</Text>
-    <Pressable onPress={() => setAttempt((n) => n + 1)} style={styles.chip}><Text style={styles.chipText}>{w("retry", lang)}</Text></Pressable>
-  </View>;
+  if (error && !map) return <RetryCard lang={lang} message={error} onRetry={() => setAttempt((n) => n + 1)} />;
   if (!map) return <ActivityIndicator color={colors.gold} style={{ marginTop: 24 }} />;
 
   const pickedMate = map.mates.find((m) => key(m) === picked);
   const pickedPin = map.calls.find((c) => pinKey(c) === picked);
 
   return <View style={{ gap: 12 }}>
-    <View style={styles.panel}>
+    <Card>
       <Text style={styles.heading}>{w("title", lang)}</Text>
       <Text style={styles.muted}>{session ? w("intro", lang) : w("sample", lang)}</Text>
-    </View>
-    {!map.enabled ? <View style={styles.panel}><Text style={styles.muted}>{w("off", lang)}</Text></View> : <>
+    </Card>
+    {!map.enabled ? <EmptyState boxed message={w("off", lang)} /> : <>
       {tabs.length > 1 && shown !== null ? <SegmentedTabs options={tabs.map((tab) => ({ value: tab.id, label: tab.name }))} value={shown} onChange={(id) => { setContinent(id); setPicked(null); }} /> : null}
-      {shown === null ? <View style={styles.panel}><Text style={styles.muted}>{w("empty", lang)}</Text></View> : <View style={styles.panel}>
+      {shown === null ? <EmptyState boxed message={w("empty", lang)} /> : <Card>
         {tabs.length === 1 ? <Text style={styles.subheading}>{tabs[0]!.name}</Text> : null}
         <View onLayout={(e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width)} style={[styles.canvas, { height: height || 200 }]}
           accessibilityLabel={`${heat?.name ?? ""}: ${dots.length} ${w("mates", lang)}, ${pins.length} ${w("calls", lang)}`}>
@@ -130,40 +126,36 @@ export function MapScreen({ lang, session }: { lang: Lang; session: Session | nu
         {pickedMate ? <Text style={styles.picked}>{mateLine(pickedMate, lang, now)}</Text> : null}
         {pickedPin ? <Text style={styles.picked}>{pinLine(pickedPin, lang, now)}</Text> : null}
         <Text style={styles.small}>{w("heat", lang)} {map.days} {w("days", lang)}.</Text>
-      </View>}
+      </Card>}
 
-      <View style={styles.panel}>
+      <Card>
         <Text style={styles.subheading}>{w("calls", lang)}</Text>
-        {map.calls.length ? map.calls.map((pin) => <View key={pinKey(pin)} style={styles.row}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.text}>{pin.name}{pin.mine ? ` (${w("you", lang)})` : ""} · {[pin.zone, pin.subzone].filter(Boolean).join(", ")}</Text>
-            {pin.attackers.length ? <Text style={styles.muted}>{w("attackers", lang)}: {attackersLine(pin)}</Text> : null}
-          </View>
-          <Text style={pin.active ? styles.badge : styles.muted}>{pin.active ? w("active", lang) : `${timeAgo(pin.calledAt, now, lang)}${pin.cleared ? ` · ${w("cleared", lang)}` : ""}`}</Text>
-        </View>) : <Text style={styles.muted}>{w("noCalls", lang)}</Text>}
-      </View>
+        {map.calls.length ? map.calls.map((pin) => <Row key={pinKey(pin)}
+          name={`${pin.name}${pin.mine ? ` (${w("you", lang)})` : ""} · ${[pin.zone, pin.subzone].filter(Boolean).join(", ")}`}
+          sub={pin.attackers.length ? `${w("attackers", lang)}: ${attackersLine(pin)}` : null}
+          trailing={<Text style={pin.active ? styles.badge : styles.muted}>{pin.active ? w("active", lang) : `${timeAgo(pin.calledAt, now, lang)}${pin.cleared ? ` · ${w("cleared", lang)}` : ""}`}</Text>} />)
+          : <EmptyState message={w("noCalls", lang)} />}
+      </Card>
 
-      <View style={styles.panel}>
+      <Card>
         <Text style={styles.subheading}>{w("mates", lang)}</Text>
-        {map.mates.length ? map.mates.slice(0, 60).map((mate) => <Pressable key={key(mate)} onPress={() => { if (mate.continentId !== null) { setContinent(mate.continentId); setPicked(key(mate)); } }} style={styles.row}>
-          <View style={[styles.swatch, { backgroundColor: classColor(mate.className) }]} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.text}>{mate.name}{mate.mine ? ` (${w("you", lang)})` : ""}{mate.level ? ` · ${mate.level}` : ""}{mate.className ? ` ${mate.className}` : ""}</Text>
-            <Text style={styles.muted}>{mate.zone}{mate.continentId === null ? ` · ${w("noPlace", lang)}` : ""}</Text>
-          </View>
-          <Text style={styles.muted}>{timeAgo(mate.seenAt, now, lang)}</Text>
-        </Pressable>) : <Text style={styles.muted}>{w("empty", lang)}</Text>}
-      </View>
+        {map.mates.length ? map.mates.slice(0, 60).map((mate) => <Row key={key(mate)} onPress={() => { if (mate.continentId !== null) { setContinent(mate.continentId); setPicked(key(mate)); } }}
+          leading={<View style={[styles.swatch, { backgroundColor: classColor(mate.className) }]} />}
+          name={`${mate.name}${mate.mine ? ` (${w("you", lang)})` : ""}${mate.level ? ` · ${mate.level}` : ""}${mate.className ? ` ${mate.className}` : ""}`}
+          sub={`${mate.zone}${mate.continentId === null ? ` · ${w("noPlace", lang)}` : ""}`}
+          trailing={<Text style={styles.muted}>{timeAgo(mate.seenAt, now, lang)}</Text>} />)
+          : <EmptyState message={w("empty", lang)} />}
+      </Card>
     </>}
 
-    <View style={styles.panel}>
+    <Card>
       <View style={styles.row}>
         <Text style={[styles.text, { flex: 1 }]}>{w("share", lang)}</Text>
         <Switch value={map.sharing} disabled={saving} onValueChange={changeSharing} trackColor={{ true: colors.green, false: colors.line }} thumbColor={colors.text} />
       </View>
       <Text style={styles.muted}>{map.sharing ? w("shareOn", lang) : w("shareOff", lang)}</Text>
       {error ? <Text style={[styles.muted, { color: colors.red }]}>{error}</Text> : null}
-    </View>
+    </Card>
   </View>;
 }
 
@@ -178,14 +170,11 @@ function pinLine(pin: HelpPin, lang: Lang, now: number): string {
 }
 
 const styles = StyleSheet.create({
-  panel: { backgroundColor: colors.panel, borderColor: colors.line, borderWidth: 1, borderRadius: 8, padding: 12, gap: 8 },
   heading: { color: colors.text, fontSize: 18, fontWeight: "700" },
   subheading: { color: colors.gold, fontSize: 14, fontWeight: "700" },
   text: { color: colors.text, fontSize: 14 },
   muted: { color: colors.muted, fontSize: 13 },
   small: { color: colors.muted, fontSize: 12 },
-  chip: { borderColor: colors.line, borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, alignSelf: "flex-start" },
-  chipText: { color: colors.text, fontSize: 13 },
   canvas: { width: "100%", backgroundColor: "#0f110e", borderColor: colors.line, borderWidth: 1, borderRadius: 6, overflow: "hidden" },
   gridLine: { position: "absolute", backgroundColor: colors.grid },
   zoneLabel: { position: "absolute", width: 96, textAlign: "center", color: colors.muted, fontSize: 10 },

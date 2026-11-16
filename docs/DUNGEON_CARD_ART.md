@@ -1,7 +1,7 @@
 # Dungeon card artwork in the addon (13 November 2026)
 
 The result card (`Modules/RunResults.lua`) and the Run tab's "Current run" band (`Modules/DungeonScorePanel.lua`) show the
-bot's painted dungeon backgrounds. Textures: `addon/Guilded/Media/Dungeons/<key>.blp` (34 files, 256x128, BLP2 DXT1 with
+bot's painted dungeon backgrounds. Textures: `addon/Guilded/Media/Dungeons/<key>.blp` (35 files, 256x128, BLP2 DXT1 with
 mips, ~22 KB each, 0.75 MB total), copied byte for byte to `addon/GuildedDungeons/Media/Dungeons/` by `npm run dungeons:sync`.
 
 Regenerate: `node scripts/build-dungeon-textures.mjs --size 256x128` (then `npm run dungeons:sync`); `--report` prints the size
@@ -17,7 +17,7 @@ of every option; `--format tga` and `--size 512x256` also work. The mapping name
 - Only a real client can confirm that our own BLP2 files render (the header matches the client's own DXT1 files: encoding 2,
   alpha 0, DXT1, mips, 148-byte header plus 1 KB palette block).
 
-## Sizes (34 paintings; zipped = fflate level 9)
+## Sizes (35 paintings; Scarlet Armory added 15 November 2026; zipped = fflate level 9)
 | Option | per file | raw | zipped |
 |---|---|---|---|
 | BLP DXT1 512x256 | 86 KB | 2.87 MB | 2.23 MB |

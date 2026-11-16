@@ -8,7 +8,7 @@ import sharp from "sharp";
 
 const art = (key: string) => fileURLToPath(new URL(`../site/dungeon-art/${key}.jpg`, import.meta.url));
 // Dungeons without a painting on purpose (they keep the procedural scene).
-const NO_PAINTING = [/armory/i];
+const NO_PAINTING: RegExp[] = [];
 const EXTRA = ["Zul'Farrak", "Maraudon", "Blackrock Depths", "Stratholme: Main Gate", "Stratholme: Service Entrance", "Scholomance", "Dire Maul: East", "Dire Maul: North", "Dire Maul: West",
   "The Drowned City", "Blackmaw Hold", "Krol'dok Stronghold", "Sunken Temple", "Temple of Atal'Hakkar", "Alcaz Prison", "Lower Blackrock Spire", "Upper Blackrock Spire", "Shaper's Terrace",
   "Scarlet Monastery: Armory", "Scarlet Monastery: Cathedral", "Scarlet Monastery: Library", "Scarlet Monastery: Graveyard", "Profondeurs de Brassenoire", "Cavernes des Lamentations"];

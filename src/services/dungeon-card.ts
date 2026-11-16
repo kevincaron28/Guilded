@@ -163,7 +163,7 @@ const THEMES: { match: RegExp; scene: DungeonScene; a: string; b: string; motif:
  */
 const PAINTED: [RegExp, string | null][] = [
   [/alcaz/i, "alcaz-prison"],
-  [/scarlet.*(armory|armurerie)|[ée]carlate.*armurerie/i, null],
+  [/scarlet.*(armory|armurerie)|[ée]carlate.*armurerie/i, "scarlet-armory"],
   [/scarlet.*(library|biblioth)|[ée]carlate.*biblioth/i, "scarlet-library"],
   [/scarlet.*(cathedral|cath[ée]drale)|[ée]carlate.*cath[ée]drale/i, "scarlet-cathedral"],
   [/scarlet|[ée]carlate/i, "scarlet-graveyard"],

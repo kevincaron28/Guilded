@@ -35,6 +35,6 @@ export function serverStatsEmbed(rows: StatSnapshot[], guildName: string, lang: 
     .addFields(
       { name: t("Members", "Membres"), value: `${last.discordMembers} Discord · ${last.linkedMembers} ${t("linked", "liés")} · ${last.activeMembers} ${t("active", "actifs")}`, inline: true },
       { name: t("Roster", "Effectif"), value: `${last.rosterSize} ${t("characters", "personnages")} · ${last.level60} ${t("at level 60", "au niveau 60")}`, inline: true },
-      { name: t(`Last ${week.length} day(s)`, `${week.length} derniers jours`), value: `${sum(r => r.messages)} ${t("messages", "messages")} · ${Math.round(sum(r => r.voiceMinutes) / 60)} ${t("voice hours", "heures vocales")} · ${sum(r => r.raids)} raids · ${sum(r => r.dungeonRuns)} ${t("dungeon runs", "donjons")}` }
+      { name: t(week.length === 1 ? "Last day" : `Last ${week.length} days`, week.length === 1 ? "Dernier jour" : `${week.length} derniers jours`), value: `${sum(r => r.messages)} ${t("messages", "messages")} · ${Math.round(sum(r => r.voiceMinutes) / 60)} ${t("voice hours", "heures vocales")} · ${sum(r => r.raids)} raids · ${sum(r => r.dungeonRuns)} ${t("dungeon runs", "donjons")}` }
     );
 }

@@ -103,7 +103,9 @@ export const drawable = (text: string) => {
   // Latin text and ordinary punctuation (U+0020-024F, U+2010-2027) stay as written (NFKC would turn "…" into "...").
   text = text.replace(/[^\u0020-\u024F\u2010-\u2027]/gu, c => c.normalize("NFKC"));
   const kept = text.replace(/[\p{So}\p{Sk}\p{Cf}\p{Co}\p{Cn}\uFE00-\uFE0F]/gu, c => (c.codePointAt(0)! <= 0xff ? c : ""));
-  return kept === text ? text : kept.replace(/\s{2,}/g, " ").trim();
+  // "Name(Character)" reads as "Name (Character)": a space before an opening bracket glued to a word ("(s)" plural marks excepted).
+  const spaced = (value: string) => value.replace(/([^\s(])\((?!e?s?\)|x\))/gu, "$1 (");
+  return spaced(kept === text ? text : kept.replace(/\s{2,}/g, " ").trim());
 };
 const escapeText = (text: string) => drawable(text).replace(/\p{Cc}/gu, " ").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[c]!);
 const clip = (text: string, max: number) => { text = drawable(text); const chars = [...text]; return chars.length > max ? `${chars.slice(0, max - 1).join("")}…` : text; };
@@ -141,9 +143,9 @@ async function drawText(markup: string, size: number, maxWidth: number) {
 /**
  * Rendered text sized to its own content, so pills can be fitted around it, and never wider than `maxWidth`: sharp does not
  * enforce the width on unwrapped text, so a long name used to run into the next panel. Too wide, it is drawn smaller (down to
- * MIN_FIT of its size, on the same baseline), then cut with an ellipsis.
+ * MIN_FIT of its size, on the same baseline), then cut with an ellipsis. `fixed` (names in a column) skips the shrinking: one size, cut by measured width.
  */
-async function text(markup: string, size: number, maxWidth: number) {
+async function text(markup: string, size: number, maxWidth: number, fixed = false) {
   // sharp refuses a text with nothing visible (an empty value, or an emoji the card font drops): draw nothing rather than fail the card.
   if (!markup.replace(/<[^>]*>/g, "").replace(/&#160;|&nbsp;/g, " ").trim()) {
     const blank = await sharp({ create: { width: 1, height: Math.round(size * 1.3), channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).png().toBuffer();
@@ -151,7 +153,7 @@ async function text(markup: string, size: number, maxWidth: number) {
   }
   const full = await drawText(markup, size, maxWidth);
   if (full.width <= maxWidth) return full;
-  const smaller = Math.max(Math.ceil(size * MIN_FIT), Math.floor((size * maxWidth) / full.width));
+  const smaller = fixed ? size : Math.max(Math.ceil(size * MIN_FIT), Math.floor((size * maxWidth) / full.width));
   let fitted = await drawText(markup, smaller, maxWidth);
   const parts = /^(<span[^>]*>)([\s\S]*)(<\/span>)$/.exec(markup);
   if (fitted.width > maxWidth && parts) {
@@ -197,8 +199,8 @@ export function ladderMeta(lang: "en" | "fr", updatedAt: Date, season?: string |
 const MEDAL = ["#ffd100", "#c9d1d9", "#d08a4a"] as const;
 async function renderLadder(card: ScoreCard): Promise<Buffer> {
   const visual = card.ladder!, layers: Layer[] = [], body: string[] = [];
-  const put = async (markup: string, size: number, left: number, y: number, maxWidth = 1080) => {
-    const t = await text(markup, size, maxWidth); layers.push({ input: t.input, left: Math.round(left), top: Math.round(y) }); return t;
+  const put = async (markup: string, size: number, left: number, y: number, maxWidth = 1080, fixed = false) => {
+    const t = await text(markup, size, maxWidth, fixed); layers.push({ input: t.input, left: Math.round(left), top: Math.round(y) }); return t;
   };
   const putRight = async (markup: string, size: number, right: number, y: number, maxWidth = 400) => {
     const t = await text(markup, size, maxWidth); layers.push({ input: t.input, left: Math.round(right - t.width), top: Math.round(y) }); return t;
@@ -231,13 +233,17 @@ async function renderLadder(card: ScoreCard): Promise<Buffer> {
     pair.forEach((panel, k) => placed.push({ panel, x: 60 + k * (pw + 20), y }));
     y += Math.max(...pair.map(panelH)) + 18;
   }
-  const height = Math.max(630, y + (panels.length ? 52 : 120));
+  const height = Math.max(630, y + (panels.length ? 60 : 120));
   const shapes = chrome(height);
   withArt(shapes, await cardBackdropArt(card.backdrop, "banner"), BANNER_HEIGHT);
   await put(caps(th.gold, clip(card.eyebrow ?? "Guilded", 44)), 20, 60, 36, 700);
   await put(span(th.ink, clip(card.title, 34)), 52, 58, 62, 760);
   await put(span(th.muted, clip(card.subtitle, 70)), 22, 60, 130, 760);
-  if (visual.meta) await putRight(span(th.muted, clip(visual.meta, 46)), 17, 1140, 44, 420);
+  if (visual.meta) {
+    // The "updated" stamp sits on the painting: a dark pill behind it keeps it readable on a bright banner.
+    const meta = await putRight(span(th.ink, clip(visual.meta, 46)), 17, 1140, 44, 420);
+    shapes.push(`<rect x="${1140 - meta.width - 12}" y="38" width="${meta.width + 24}" height="${meta.height + 12}" rx="10" fill="#000" fill-opacity=".55"/>`);
+  }
   if (!panels.length) await put(span(th.muted, clip(visual.empty ?? "—", 90)), 24, 60, top + 20);
 
   for (const { panel, x, y: py } of placed) {
@@ -267,8 +273,7 @@ async function renderLadder(card: ScoreCard): Promise<Buffer> {
         await putCentre(span("#1a1206", String(row.rank)), 15, x + 32, mid);
       } else await putCentre(span(th.muted, (row.rank > 0 ? String(row.rank) : "·")), 17, x + 32, mid);
       // Name in the class colour, the second line muted.
-      const chars = Math.max(8, Math.floor(nameW / 9.6));
-      await put(span(row.color, clip(row.name, chars)), 20, nameX, row.sub ? ry + 4 : mid - 13, nameW);
+      await put(span(row.color, clip(row.name, 80)), 20, nameX, row.sub ? ry + 4 : mid - 13, nameW, true);
       if (row.sub) await put(span(th.muted, clip(row.sub, Math.floor(nameW / 7.2))), 13, nameX, ry + 28, nameW);
       // Value columns.
       for (const [c, column] of visual.columns.entries()) {
@@ -315,8 +320,8 @@ async function render(card: ScoreCard): Promise<Buffer> {
   const shapes = chrome();
   withArt(shapes, await cardBackdropArt(card.backdrop, card.rows?.length ? "full" : "wide"), 630);
   const layers: Layer[] = [];
-  const put = async (markup: string, size: number, left: number, top: number, maxWidth = 1080) => {
-    const t = await text(markup, size, maxWidth); layers.push({ input: t.input, left: Math.round(left), top: Math.round(top) }); return t;
+  const put = async (markup: string, size: number, left: number, top: number, maxWidth = 1080, fixed = false) => {
+    const t = await text(markup, size, maxWidth, fixed); layers.push({ input: t.input, left: Math.round(left), top: Math.round(top) }); return t;
   };
   const hasRows = Boolean(card.rows?.length);
   const leftW = hasRows ? 500 : 1080;
@@ -360,7 +365,7 @@ async function render(card: ScoreCard): Promise<Buffer> {
       // An icon (badge artwork, 64x64 grid) replaces the colour bar and pushes the text right.
       const tx = row.icon ? px + 100 : px + 48;
       shapes.push(row.icon ? `<svg x="${px + 28}" y="${ry + 1}" width="60" height="60" viewBox="0 0 64 64">${row.icon}</svg>` : `<rect x="${px + 28}" y="${ry + 4}" width="5" height="54" rx="2.5" fill="${color}"/>`);
-      await put(span(color, clip(row.name, row.icon ? 22 : 26)), row.icon ? 24 : 27, tx, ry + (row.icon ? 2 : 0), 330);
+      await put(span(color, clip(row.name, 80)), row.icon ? 24 : 27, tx, ry + (row.icon ? 2 : 0), 330, true);
       if (row.sub) await put(span(th.muted, clip(row.sub, row.icon ? 30 : 34)), 17, tx, ry + 36, 330);
       if (row.right) {
         const t = await text(span(row.rightTone ? accent[row.rightTone] : th.ink, clip(row.right, 14)), 23, 200);
@@ -468,8 +473,8 @@ async function renderDungeon(card: ScoreCard): Promise<Buffer> {
       .linear([0, 0, 0, 0.85], [0, 0, 0, 0]).blur(3.5).png().toBuffer();
     layers.push({ input: shadow, left: Math.round(left) - pad + 1, top: Math.round(y) - pad + 2 }, { input: t.input, left: Math.round(left), top: Math.round(y) });
   };
-  const put = async (markup: string, size: number, left: number, y: number, maxWidth = 1080, shade = false) => {
-    const t = await text(markup, size, maxWidth);
+  const put = async (markup: string, size: number, left: number, y: number, maxWidth = 1080, shade = false, fixed = false) => {
+    const t = await text(markup, size, maxWidth, fixed);
     if (shade) await shadowed(t, left, y); else layers.push({ input: t.input, left: Math.round(left), top: Math.round(y) });
     return t;
   };
@@ -527,7 +532,7 @@ async function renderDungeon(card: ScoreCard): Promise<Buffer> {
       layers.push({ input: face, left: px + 44 - radius - 2, top: cy - radius - 2 });
       if (member.role) layers.push({ input: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${badge * 2 + 4}" height="${badge * 2 + 4}"><circle cx="${badge + 2}" cy="${badge + 2}" r="${badge + 1.5}" fill="#120d08"/>${roleGlyph(member.role, badge + 2, badge + 2, badge)}</svg>`), left: bx - badge - 2, top: by - badge - 2 });
     } else shapes.push(roleGlyph(member.role, px + 44, cy, radius));
-    await put(span(member.color, clip(member.name, hasScore ? 21 : 24)), Math.round(24 * z), px + 72, ry, nameW);
+    await put(span(member.color, clip(member.name, 80)), Math.round(24 * z), px + 72, ry, nameW, false, true);
     if (member.sub) await put(span(th.muted, clip(member.sub, hasScore ? 36 : 38)), Math.round(16 * z), px + 72, ry + Math.round(29 * z), hasScore ? nameW + 46 : 330);
     if (hasScore && member.score) {
       await putRight(span(th.gold, clip(member.score, 8)), Math.round(22 * z), scoreX, ry + 1);
@@ -608,8 +613,8 @@ async function renderRecap(card: ScoreCard): Promise<Buffer> {
       .linear([0, 0, 0, 0.85], [0, 0, 0, 0]).blur(3.5).png().toBuffer();
     layers.push({ input: shadow, left: Math.round(left) - pad + 1, top: Math.round(y) - pad + 2 }, { input: t.input, left: Math.round(left), top: Math.round(y) });
   };
-  const put = async (markup: string, size: number, left: number, y: number, maxWidth = 1080, shade = false) => {
-    const t = await text(markup, size, maxWidth);
+  const put = async (markup: string, size: number, left: number, y: number, maxWidth = 1080, shade = false, fixed = false) => {
+    const t = await text(markup, size, maxWidth, fixed);
     if (shade) await shadowed(t, left, y); else layers.push({ input: t.input, left: Math.round(left), top: Math.round(y) });
     return t;
   };
@@ -641,12 +646,12 @@ async function renderRecap(card: ScoreCard): Promise<Buffer> {
     shapes.push(`<image x="${px}" y="${top}" width="${pw}" height="${ph}" href="data:image/png;base64,${frost.toString("base64")}"/>`,
       `<rect x="${px}" y="${top}" width="${pw}" height="${ph}" rx="14" fill="${th.bg}" fill-opacity=".35" stroke="${th.edge}" stroke-width="1.5"/>`,
       `<rect x="${px + 20}" y="${top + 44}" width="${pw - 40}" height="1" fill="${th.edge}"/>`);
-    const chars = Math.max(12, Math.floor(pw / 12.5)), subChars = Math.max(16, Math.floor((pw - 40) / 7.5));
+    const subChars = Math.max(16, Math.floor((pw - 40) / 7.5));
     await put(caps(th.gold, clip(section.title, Math.floor(pw / 12))), 15, px + 20, top + 16, pw - 40);
     const hasRight = section.rows.some(row => row.right);
     for (const [r, row] of section.rows.slice(0, 5).entries()) {
       const ry = top + 56 + r * 44;
-      await put(span(row.color ?? th.ink, clip(row.name, hasRight ? chars - 6 : chars)), 20, px + 20, ry, pw - (hasRight ? 110 : 40));
+      await put(span(row.color ?? th.ink, clip(row.name, 80)), 20, px + 20, ry, pw - (hasRight ? 110 : 40), false, true);
       if (row.sub) await put(span(th.muted, clip(row.sub, subChars)), 14, px + 20, ry + 24, pw - 40);
       if (row.right) await putRight(span(accent[row.rightTone ?? "gold"], clip(row.right, 8)), 22, px + pw - 20, ry + 2);
     }
@@ -692,8 +697,8 @@ async function renderUnlock(card: ScoreCard): Promise<Buffer> {
   // The trophy-hall painting (board/achievements) behind the card: "wide" for the single hero (text across the card), "full" for the
   // list and grid (the right panel is opaque, so only the left column needs the shade). No file: the flat card as before.
   withArt(shapes, await cardBackdropArt(card.backdrop, all.length === 1 ? "wide" : "full"), 630);
-  const put = async (markup: string, size: number, left: number, top: number, maxWidth = 1080) => {
-    const t = await text(markup, size, maxWidth); layers.push({ input: t.input, left: Math.round(left), top: Math.round(top) }); return t;
+  const put = async (markup: string, size: number, left: number, top: number, maxWidth = 1080, fixed = false) => {
+    const t = await text(markup, size, maxWidth, fixed); layers.push({ input: t.input, left: Math.round(left), top: Math.round(top) }); return t;
   };
   const putRight = async (markup: string, size: number, right: number, top: number) => {
     const t = await text(markup, size, 400); layers.push({ input: t.input, left: Math.round(right - t.width), top: Math.round(top) }); return t;
@@ -796,7 +801,7 @@ async function renderUnlock(card: ScoreCard): Promise<Buffer> {
         if (i) shapes.push(`<rect x="${px + 28}" y="${ry - 6}" width="${pw - 56}" height="1" fill="${th.edge}" fill-opacity=".6"/>`);
         shapes.push(`<svg x="${px + 28}" y="${ry + Math.round((rowH - 6 - bs) / 2)}" width="${bs}" height="${bs}" viewBox="0 0 64 64">${row.icon}</svg>`);
         const tier = await putRight(span(row.color, clip(row.tier, 12)), big ? 24 : 22, px + pw - 28, ry + (big ? 18 : 4));
-        const nameT = await put(span(row.color, clip(row.name, 24)), big ? 29 : 27, tx, ry + (big ? 16 : 2), tw - tier.width - 10);
+        const nameT = await put(span(row.color, clip(row.name, 80)), big ? 29 : 27, tx, ry + (big ? 16 : 2), tw - tier.width - 10, true);
         let ty = ry + (big ? 16 : 2) + nameT.height + 6;
         for (const line of wrap(row.detail, 44, 2)) { const t = await put(span(th.muted, line), big ? 20 : 17, tx, ty, tw); ty += t.height + 1; }
       }
@@ -833,8 +838,8 @@ async function renderUnlock(card: ScoreCard): Promise<Buffer> {
 async function renderRoster(card: ScoreCard): Promise<Buffer> {
   const data = card.roster!, shapes = chrome(), layers: Layer[] = [];
   withArt(shapes, await cardBackdropArt(card.backdrop, "banner"), BANNER_HEIGHT);
-  const put = async (markup: string, size: number, left: number, top: number, maxWidth = 1080) => {
-    const t = await text(markup, size, maxWidth); layers.push({ input: t.input, left: Math.round(left), top: Math.round(top) }); return t;
+  const put = async (markup: string, size: number, left: number, top: number, maxWidth = 1080, fixed = false) => {
+    const t = await text(markup, size, maxWidth, fixed); layers.push({ input: t.input, left: Math.round(left), top: Math.round(top) }); return t;
   };
   const putRight = async (markup: string, size: number, right: number, top: number) => {
     const t = await text(markup, size, 300); layers.push({ input: t.input, left: Math.round(right - t.width), top: Math.round(top) }); return t;
@@ -873,7 +878,7 @@ async function renderRoster(card: ScoreCard): Promise<Buffer> {
   for (const [i, p] of tiles.entries()) {
     const x = rx + 24 + (i % 3) * (tw + 8), y = ly + 52 + Math.floor(i / 3) * (th2 + 8), gap = p.crafters === 0;
     shapes.push(`<rect x="${x}" y="${y}" width="${tw}" height="${th2}" rx="8" fill="${gap ? th.warn.fill : th.ok.fill}" stroke="${gap ? th.red : th.ok.edge}" stroke-width="1.5"/>`);
-    await put(span(th.ink, clip(p.name, 24)), 16, x + 8, y + 6, tw - 10);
+    await put(span(th.ink, clip(p.name, 80)), 16, x + 8, y + 6, tw - 10, true);
     await put(span(gap ? th.red : th.green, gap ? "0" : String(p.crafters)), 24, x + 10, y + 28, 60);
     if (!gap) await putRight(span(th.muted, String(p.maxSkill)), 17, x + tw - 10, y + 36);
   }

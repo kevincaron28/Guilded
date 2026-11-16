@@ -55,7 +55,7 @@ const EMBLEMS = {
 } as const;
 export type EmblemKind = keyof typeof EMBLEMS;
 
-export interface TextOptions { size: number; color?: string; face?: Face; maxW?: number; anchor?: "l" | "r" | "c"; spacing?: number }
+export interface TextOptions { size: number; color?: string; face?: Face; maxW?: number; anchor?: "l" | "r" | "c"; spacing?: number; /** Cut a too-long string with an ellipsis by measured width instead of shrinking the font (names in a column keep one size). */ ellipsis?: boolean }
 export interface DrawnText { data: Buffer; left: number; top: number; w: number; h: number; color: string; size: number; str: string }
 export interface TextReport { text: string; size: number; ratio: number }
 
@@ -109,7 +109,7 @@ export class CardCanvas {
     if (!s) return { w: 0, h: 0, right: x, bottom: y };
     let size = o.size;
     let r = await drawRaw(s, color, size, face, spacing);
-    if (o.maxW && r.w > o.maxW && size > MIN_TEXT_PX) {
+    if (o.maxW && r.w > o.maxW && size > MIN_TEXT_PX && !o.ellipsis) {
       size = Math.max(MIN_TEXT_PX, Math.floor((size * o.maxW) / r.w));
       r = await drawRaw(s, color, size, face, spacing);
       while (r.w > o.maxW && size > MIN_TEXT_PX) { size -= 1; r = await drawRaw(s, color, size, face, spacing); }

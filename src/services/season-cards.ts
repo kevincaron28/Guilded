@@ -2,6 +2,7 @@ import { EmbedBuilder } from "discord.js";
 import { siteUrl } from "../site-url.js";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
+import { plural } from "./card-plural.js";
 import { textlessEmbed } from "./card-only.js";
 import { frozenRating, hasDungeonRating } from "./dungeon-rating.js";
 import { classOf, type ClassBook } from "./ladder-classes.js";
@@ -66,7 +67,7 @@ export function seasonEndCard(season: SeasonInfo, podium: Podium | null, lang: L
     rowsLabel: t("Podium", "Podium"),
     rows: entries.length ? entries.map(entry => ({ name: entry.name, color: classColor(classOf(classes, entry.name)), sub: place(entry), right: `${entry.points} pts`, rightTone: entry.rank === 1 ? "gold" as const : undefined }))
       : [{ name: t("No ranked player this season", "Aucun joueur classé cette saison"), sub: t("No dungeon points were recorded", "Aucun point de donjon enregistré") }],
-    ...(podium?.moreChampions ? { badges: [{ text: t(`and ${podium.moreChampions} more champion(s)`, `et ${podium.moreChampions} autre(s) champion(s)`), tone: "muted" as const }] } : {}),
+    ...(podium?.moreChampions ? { badges: [{ text: t(`and ${plural(lang, podium.moreChampions, ["more champion", "more champions"], ["", ""])}`, `et ${plural(lang, podium.moreChampions, ["", ""], ["autre champion", "autres champions"])}`), tone: "muted" as const }] } : {}),
     footer: t("Season results · Final standings as published · No rewards · guildedwow.com", "Résultats de saison · Classement final publié · Aucune récompense · guildedwow.com")
   };
 }

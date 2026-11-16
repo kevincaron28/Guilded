@@ -1,4 +1,5 @@
 import type { Lang } from "../i18n.js";
+import { plural } from "./card-plural.js";
 import type { ScoreCard } from "./score-card.js";
 import type { WeekRecap } from "./world-pvp-extras.js";
 import { killDeathRatio } from "./world-pvp.js";
@@ -21,7 +22,7 @@ export function worldPvpRecapCard(recap: WeekRecap, lang: Lang): ScoreCard {
   if (recap.quickest) rows.push({ name: labelled(t("Quickest all clear", "Alerte levée la plus rapide"), recap.quickest.character), sub: plain(recap.quickest.zone), right: duration(recap.quickest.seconds), rightTone: "gold" });
   return {
     eyebrow: `Guilded · ${t("World PvP", "JcJ en monde ouvert")}`, title: t("World PvP, last week", "JcJ en monde ouvert, semaine dernière"),
-    subtitle: t(`${recap.calls} call(s) for help this week`, `${recap.calls} appel(s) à l'aide cette semaine`),
+    subtitle: `${plural(lang, recap.calls, ["call for help", "calls for help"], ["appel à l'aide", "appels à l'aide"])} ${t("this week", "cette semaine")}`,
     backdrop: { kind: "board", key: "world-pvp-recap", fallbackKey: "world-pvp" },
     stats: [
       ...(recap.killer ? [{ label: t("Top kills", "Meilleur total"), value: String(recap.killer.kills), accent: "red" as const }] : []),

@@ -147,10 +147,10 @@ export async function recordRunHighlights(db: RecordsDb, guildId: string, result
 }
 
 /** One line per highlight, for the run post's embed and the recap. */
-export function highlightText(item: Pick<DungeonHighlightItem, "kind" | "label" | "valueSec" | "previousSec" | "dungeonName">, lang: Lang, withDungeon = false): string {
+export function highlightText(item: Pick<DungeonHighlightItem, "kind" | "label" | "valueSec" | "previousSec" | "dungeonName"> & { instanceId?: number | null | undefined }, lang: Lang, withDungeon = false): string {
   const fr = lang === "fr", time = item.valueSec !== undefined ? formatDuration(item.valueSec) : "";
   const before = item.previousSec !== undefined ? ` (${fr ? "avant" : "was"} ${formatDuration(item.previousSec)})` : "";
-  const where = withDungeon ? ` · ${escapeMarkdown(item.dungeonName)}` : "";
+  const where = withDungeon ? ` · ${escapeMarkdown(dungeonDisplayName({ dungeonName: item.dungeonName, instanceId: item.instanceId }, lang))}` : "";
   const boss = escapeMarkdown(item.label ?? "");
   switch (item.kind) {
     case "clear": return `🏆 ${fr ? "Record de guilde" : "Guild record"}${where}: **${time}**${before}`;

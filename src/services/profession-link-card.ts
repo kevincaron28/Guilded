@@ -1,6 +1,7 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { professionSpellings } from "./profession-names.js";
 import type { Lang } from "../i18n.js";
+import { plural } from "./card-plural.js";
 import { displayCharacterName, fullNameBook } from "./character-display.js";
 import type { ItemDataProvider } from "./item-preview-data.js";
 import { sanitizeName, type WebhookEmbed } from "./item-preview-embed.js";
@@ -132,7 +133,7 @@ export function professionCardEmbed(card: ProfessionCardData, lang: Lang = "en")
     return recipe.itemKey > 0 ? `${mark} [${name}](https://www.wowhead.com/classic/item=${recipe.itemKey})` : `• ${name}`;
   });
   const head = card.skill !== null ? `${skillBar(card.skill, 8)} ${card.skill}` : fr ? "Compétence inconnue" : "Skill unknown";
-  const count = fr ? `${card.recipes.length} recette(s) connue(s)` : `${card.recipes.length} known recipe(s)`;
+  const count = fr ? plural("fr", card.recipes.length, ["", ""], ["recette connue", "recettes connues"]) : plural("en", card.recipes.length, ["known recipe", "known recipes"], ["", ""]);
   const more = card.recipes.length > CARD_RECIPES ? (fr ? `\n+${card.recipes.length - CARD_RECIPES} autres` : `\n+${card.recipes.length - CARD_RECIPES} more`) : "";
   const gallery: string | undefined = undefined;
   const best = sorted[0]?.quality;

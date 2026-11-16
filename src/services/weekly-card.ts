@@ -1,4 +1,5 @@
 import type { Lang } from "../i18n.js";
+import { plural } from "./card-plural.js";
 import type { ScoreCard } from "./score-card.js";
 import type { WeeklyReport } from "./weekly-report.js";
 import { dungeonShare } from "./community-ingame.js";
@@ -18,10 +19,10 @@ export function weeklyReportCard(report: WeeklyReport, lang: Lang): ScoreCard {
   if (report.dungeonHero) rows.push({ name: report.dungeonHero.name, sub: t("Dungeon hero", "Héros des donjons"), right: `${dungeonShare(report.dungeonHero.points)} pts`, rightTone: "green" });
   if (d.marathon) rows.push({ name: d.marathon.name, sub: t("Dungeon marathon", "Marathon de donjons"), right: `×${d.marathon.runs}`, rightTone: "green" });
   for (const core of report.cores.slice(0, Math.max(0, 5 - rows.length)))
-    rows.push({ name: core.name, sub: t(`${core.raids} raid(s) · ${core.bossKills} boss kill(s)`, `${core.raids} raid(s) · ${core.bossKills} victoire(s)`), right: core.attendancePct === null ? undefined : `${core.attendancePct}%` });
+    rows.push({ name: core.name, sub: `${plural(lang, core.raids, ["raid", "raids"], ["raid", "raids"])} · ${plural(lang, core.bossKills, ["boss kill", "boss kills"], ["victoire", "victoires"])}`, right: core.attendancePct === null ? undefined : `${core.attendancePct}%` });
   const badges: NonNullable<ScoreCard["badges"]> = [];
-  if (d.records.length) badges.push({ text: t(`${d.records.length} dungeon record(s)`, `${d.records.length} record(s) de donjon`), tone: "ok" });
-  if (d.firsts.length) badges.push({ text: t(`${d.firsts.length} first clear(s)`, `${d.firsts.length} première(s) complétion(s)`), tone: "ok" });
+  if (d.records.length) badges.push({ text: plural(lang, d.records.length, ["dungeon record", "dungeon records"], ["record de donjon", "records de donjon"]), tone: "ok" });
+  if (d.firsts.length) badges.push({ text: plural(lang, d.firsts.length, ["first clear", "first clears"], ["première complétion", "premières complétions"]), tone: "ok" });
   return {
     eyebrow: t("Guilded · Weekly report", "Guilded · Bilan hebdo"), title: t("The guild's week", "La semaine de la guilde"),
     subtitle: `${day(report.weekStart)} → ${day(report.weekEnd)}`,

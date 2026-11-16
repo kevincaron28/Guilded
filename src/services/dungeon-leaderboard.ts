@@ -22,11 +22,16 @@ const CARD_TOP = 25;
  * Pure: the season ladder picture (shared ladder layout): top 25 by points, medals for the top 3, class colours where the guild
  * knows the character, and the number of dungeons counted when the season is rated.
  */
-export function dungeonSeasonCard(rows: readonly { name: string; points: number; dungeons?: number | undefined; key?: string | undefined }[], season: string, lang: "en" | "fr", rated: boolean,
+export function dungeonSeasonCard(rows: readonly { name: string; points: number; dungeons?: number | undefined; key?: string | undefined; bracket?: string | undefined }[], season: string, lang: "en" | "fr", rated: boolean,
   classes: ClassBook = new Map(), updatedAt = new Date(), moves: Movements | null = null): ScoreCard {
   const fr = lang === "fr";
   season = seasonLabel(season, lang);
   const ranked = [...rows].sort((a, b) => b.points - a.points || a.name.localeCompare(b.name)).slice(0, CARD_TOP);
+  // A character has one row per level bracket (30-44, 45-59, 60 are separate competitions). When a bracket tells rows apart, the card says which
+  // one each row is, so the same player twice reads as two brackets, not a duplicate.
+  const bracketLabel = (bracket: string | undefined) => bracket ? (fr ? `Niv. ${bracket}` : `Lv ${bracket}`) : undefined;
+  const brackets = new Set(ranked.map((row) => row.bracket ?? ""));
+  const showBracket = brackets.size > 1 || ranked.some((row, i) => ranked.findIndex((other) => other.name === row.name) !== i);
   return {
     eyebrow: fr ? "Guilded · Donjons" : "Guilded · Dungeons", title: rated ? (fr ? "Score de donjon" : "Dungeon score") : (fr ? "Points de donjon" : "Dungeon points"),
     subtitle: fr ? `${rows.length} joueurs classés cette saison` : `${rows.length} ranked players this season`,
@@ -36,7 +41,7 @@ export function dungeonSeasonCard(rows: readonly { name: string; points: number;
       meta: ladderMeta(lang, updatedAt, season), empty: fr ? "Aucun parcours classé cette saison." : "No ranked run this season.",
       columns: [...(rated ? [{ label: fr ? "Donjons" : "Dungeons", width: 70 }, { label: "Score", width: 70, primary: true }] : [{ label: "Points", width: 70, primary: true }]),
         ...(moves ? [moveColumn(lang)] : [])],
-      boards: [{ rows: ranked.map((row, index) => ({ rank: index + 1, name: row.name, color: classColor(classOf(classes, row.name)),
+      boards: [{ rows: ranked.map((row, index) => ({ rank: index + 1, name: row.name, color: classColor(classOf(classes, row.name)), ...(showBracket && bracketLabel(row.bracket) ? { sub: bracketLabel(row.bracket)! } : {}),
         values: [...(rated ? [String(row.dungeons ?? 0), String(Math.round(row.points))] : [String(row.points)]), ""], ...moveFields(moves, row.key ?? row.name, lang) })) }]
     }
   };
@@ -99,7 +104,7 @@ export async function updateDungeonLeaderboard(discordGuild: DiscordGuild | null
 
 ${emptyNote}`.trim().slice(0, 4096));
     // The ladder picture rides on the rating embed (on the best-runs embed for a season without rating rules); without it (drawing busy or failed) the embeds are unchanged.
-    const ladderRows = (ratingRows ? ratingRows.map((row) => ({ name: row.name, points: row.points, dungeons: row.dungeons, key: `${row.memberId}:${row.character ?? ""}` }))
+    const ladderRows = (ratingRows ? ratingRows.map((row) => ({ name: row.name, points: row.points, dungeons: row.dungeons, ...(row.bracket ? { bracket: row.bracket } : {}), key: `${row.memberId}:${row.character ?? ""}:${row.bracket ?? ""}` }))
       : cardRows.map((row) => ({ name: row.name, points: row.points, key: row.memberId })))
       .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
     // A new season starts a new snapshot board, so arrows never compare two seasons.

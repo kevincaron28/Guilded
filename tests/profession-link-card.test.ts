@@ -64,7 +64,7 @@ describe("profession card", () => {
     const embed = professionCardEmbed(card, "en");
     expect(embed.title).toBe("🧵 Tailoring · Lebowski Holyroller");
     const lines = (embed.description ?? "").split("\n");
-    expect(lines[0]).toContain("150 · 11 known recipe(s)");
+    expect(lines[0]).toContain("150 · 11 known recipes");
     expect(lines[1]).toBe("🟩 [Small Silk Pack](https://www.wowhead.com/classic/item=4245)");
     expect(embed.description).toContain("+3 more");
     expect(embed.url).toBeUndefined();

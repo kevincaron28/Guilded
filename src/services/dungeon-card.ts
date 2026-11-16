@@ -114,10 +114,10 @@ export function dungeonDisplayName(run: { dungeonName: string; encounters?: read
   return `${run.dungeonName}${lang === "fr" ? " : " : ": "}${lang === "fr" ? fr : en}`;
 }
 /** French card titles: the dungeon part of a "Name: Wing" / "Name : Aile" title in French. Themes and paintings keep matching the English name. */
-const FRENCH_DUNGEONS: [RegExp, string][] = [[/^Scarlet Monastery\b/i, "Monastère Écarlate"], [/^Shadowfang Keep\b/i, "Donjon d'Ombrecrocs"], [/^The Deadmines\b/i, "Les Mortemines"],
+const FRENCH_DUNGEONS: [RegExp, string][] = [[/^Scarlet Monastery\b/i, "Monastère écarlate"], [/^Shadowfang Keep\b/i, "Donjon d'Ombrecrocs"], [/^The Deadmines\b/i, "Les Mortemines"],
   [/^Wailing Caverns\b/i, "Cavernes des lamentations"], [/^Ragefire Chasm\b/i, "Gouffre de Ragefeu"], [/^The Stockade\b/i, "La Prison"], [/^Blackfathom Deeps\b/i, "Profondeurs de Brassenoire"],
   [/^Razorfen Kraul\b/i, "Kraal de Tranchebauge"], [/^Razorfen Downs\b/i, "Souilles de Tranchebauge"], [/^Sunken Temple\b|^The Temple of Atal'Hakkar\b/i, "Le Temple d'Atal'Hakkar"],
-  [/^Blackrock Depths\b/i, "Profondeurs de Rochenoire"], [/^Dire Maul\b/i, "Hache-tripes"], [/^Lower Blackrock Spire\b/i, "Pic Rochenoire inférieur"], [/^Upper Blackrock Spire\b/i, "Pic Rochenoire supérieur"]];
+  [/^Blackrock Depths\b/i, "Profondeurs de Rochenoire"], [/^Dire Maul\b/i, "Hache-tripes"], [/^Lower Blackrock Spire\b/i, "Pic de Rochenoire inférieur"], [/^Upper Blackrock Spire\b/i, "Pic de Rochenoire supérieur"]];
 export function frenchDungeon(title: string, lang: Lang): string {
   if (lang !== "fr") return title;
   const found = FRENCH_DUNGEONS.find(([match]) => match.test(title));

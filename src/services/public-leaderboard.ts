@@ -90,7 +90,7 @@ export interface LeaderboardStore {
   /** Counts for the guild leaderboard (GuildStats), for guilds already returned by guilds(). */
   guildStats?(guildIds: string[]): Promise<GuildStats[]>;
 }
-export interface PublicGuild { id: string; name: string; slug?: string | null; /** Stored address of the guild's leaderboard page, assigned once. */ publicSlug?: string | null }
+export interface PublicGuild { id: string; name: string; slug?: string | null; /** Older addresses that redirect to the guild's current one (observed guilds). */ aliases?: string[]; /** Stored address of the guild's leaderboard page, assigned once. */ publicSlug?: string | null }
 
 // A guild's score in a bracket: its GUILD_COUNT best members' scores added up (Raider.IO-style
 // team ranking), so one strong player cannot carry a guild alone.
@@ -137,7 +137,7 @@ export function readGuildOverviewFilters(query: URLSearchParams): GuildOverviewF
   const page = Math.trunc(Number(query.get("page")));
   return {
     q: (query.get("q") ?? "").trim().slice(0, 40),
-    faction: faction === "ALLIANCE" || faction === "HORDE" ? faction : null,
+    faction: faction === "ALLIANCE" || faction === "HORDE" || faction === "UNKNOWN" ? faction : null,
     realm: (query.get("realm") ?? "").trim().slice(0, 60) || null,
     sort: (GUILD_SORTS as readonly string[]).includes(sort) ? sort as GuildSort : "score",
     page: Number.isFinite(page) && page > 1 ? Math.min(page, 1_000) : 1
@@ -168,7 +168,7 @@ export function guildOverview(entries: { guild: PublicGuild; runs: LeaderRun[]; 
 export function filterGuildOverview(rows: GuildOverviewRow[], filters: Pick<GuildOverviewFilters, "q" | "faction" | "realm" | "sort">): GuildOverviewRow[] {
   const q = foldText(filters.q);
   const kept = rows.filter((row) => (!q || foldText(row.guild.name).includes(q))
-    && (!filters.faction || row.stats?.faction === filters.faction)
+    && (!filters.faction || (filters.faction === "UNKNOWN" ? !row.stats?.faction : row.stats?.faction === filters.faction))
     && (!filters.realm || (row.stats?.realm ?? "").toLowerCase() === filters.realm.toLowerCase()));
   const value = (row: GuildOverviewRow): number => {
     switch (filters.sort) {
@@ -361,19 +361,22 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
   }
   // In-game guilds seen in public runs whose guild did not install Guilded ("ig:<slug>", docs/plans/PUBLIC_GUILD_DIRECTORY.md): the
   // guild's name as the uploaders' clients showed it, its realm and the characters seen in it. Read-only; rebuilt with the guild list.
+  const OBSERVED_ROW_CAP = 60_000;
   const observedGuilds = new Map<string, ObservedGuild>();
   const guildsLoading = new Map<string, Promise<PublicGuild[]>>();
   async function loadObservedGuilds(taken: Set<string>, listedBases: Set<string>): Promise<PublicGuild[]> {
+    // Newest first, so a cap drops the oldest sightings rather than arbitrary guilds; a warning says when it was hit.
     const rows = await database.publicRunPlayer.findMany({ where: { guild: { not: null }, run: { status: "ACCEPTED", gameEdition: currentEdition() } },
-      select: { guild: true, realm: true, character: true }, distinct: ["guild", "realm", "character"], take: 60_000 });
+      select: { guild: true, realm: true, character: true }, distinct: ["guild", "realm", "character"], orderBy: [{ run: { endedAt: "desc" } }, { id: "asc" }], take: OBSERVED_ROW_CAP });
+    if (rows.length >= OBSERVED_ROW_CAP) console.warn(`Public guild directory: ${OBSERVED_ROW_CAP} guild sightings read (the cap); the oldest are left out.`);
     const found = groupObservedGuilds(rows, listedBases);
     const out: PublicGuild[] = [];
     for (const row of found) {
-      const slug = freeSlug(`${row.name} ${row.realm}`.trim(), row.key, taken);
+      const slug = taken.has(row.slug) ? `${row.slug}-x` : row.slug;
       taken.add(slug);
       const id = `${OBSERVED_PREFIX}${slug}`;
       observedGuilds.set(id, row);
-      out.push({ id, name: row.name, publicSlug: slug, slug: null });
+      out.push({ id, name: row.name, publicSlug: slug, slug: null, aliases: row.aliases });
     }
     return out;
   }
@@ -870,7 +873,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const form = `<form class="filters" method="get" action="/leaderboards/guilds/"><input type="hidden" name="lang" value="${lang}">`
       + (period.week ? `<input type="hidden" name="period" value="week">` : `<input type="hidden" name="season" value="${escapeHtml(period.season)}">`)
       + `<div><label for="gq">${t("Guild name", "Nom de la guilde")}</label><input id="gq" name="q" type="search" maxlength="40" value="${escapeHtml(filters.q)}"></div>`
-      + `<div><label for="gfaction">${t("Faction", "Faction")}</label><select id="gfaction" name="faction">${options([any, ...FACTIONS.map((value) => ({ value, label: factionLabel(value, lang) }))], filters.faction)}</select></div>`
+      + `<div><label for="gfaction">${t("Faction", "Faction")}</label><select id="gfaction" name="faction">${options([any, ...FACTIONS.map((value) => ({ value, label: factionLabel(value, lang) })), { value: "UNKNOWN", label: t("Unknown", "Inconnue") }], filters.faction)}</select></div>`
       + `<div><label for="grealm">${t("Realm", "Royaume")}</label><select id="grealm" name="realm">${options([any, ...realms.map((value) => ({ value, label: value }))], filters.realm)}</select></div>`
       + `<div><label for="gsort">${t("Sort by", "Trier par")}</label><select id="gsort" name="sort">${options(GUILD_SORTS.map((value) => ({ value, label: sortLabels[value] })), filters.sort)}</select></div>`
       + `<div><button class="button" type="submit">${t("Show guilds", "Afficher les guildes")}</button></div></form>`;
@@ -1260,11 +1263,14 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       : me && running && level !== null ? `<h2>${t("Best next improvement", "Meilleure prochaine amélioration")}</h2><p class="muted">${t(`No rated bracket at level ${level} yet (launch data needed).`, `Aucune tranche classée au niveau ${level} pour l'instant (données de lancement requises).`)}</p>` : "";
     const previous = seasons.slice(1).find(p => inPeriod(p).length > 0);
     const previousRows = previous ? mine(characterScores(inPeriod(previous), periodRules(previous))) : [];
-    const roles = (me && current.length ? roleTiles(ctx, current[0], roleSummary(roleScores(seasonRuns, periodRules(season), me), current[0]!.bracket)) : "")
-      + (me && current.length ? roleSection(ctx, season, roleScores(seasonRuns, periodRules(season), me), current.map((row) => row.bracket)) : "")
+    // Role scores are computed once per request and cached for a minute per character and season (each is a full re-scoring of the season's runs).
+    const seasonRoles = me && current.length ? await cached(`roles:${characterId(me)}:${season.id}:${season.from?.getTime() ?? ""}`, async () => roleScores(seasonRuns, periodRules(season), me)) : null;
+    const previousRoles = me && previous && previousRows.length ? await cached(`roles:${characterId(me)}:${previous.id}:${previous.from?.getTime() ?? ""}`, async () => roleScores(inPeriod(previous), periodRules(previous), me)) : null;
+    const roles = (me && current.length && seasonRoles ? roleTiles(ctx, current[0], roleSummary(seasonRoles, current[0]!.bracket)) : "")
+      + (me && current.length && seasonRoles ? roleSection(ctx, season, seasonRoles, current.map((row) => row.bracket)) : "")
       + (me && previous && previousRows.length ? `<details><summary>${t("Previous-season role context", "Rôles de la saison précédente")}</summary>`
         + `<p class="muted">${t("Each season uses its own rules; totals from different brackets or seasons are not directly comparable.", "Chaque saison utilise ses propres règles ; les totaux de tranches ou de saisons différentes ne sont pas directement comparables.")}</p>`
-        + roleSection(ctx, previous, roleScores(inPeriod(previous), periodRules(previous), me), previousRows.map(row => row.bracket)) + `</details>` : "");
+        + roleSection(ctx, previous, previousRoles!, previousRows.map(row => row.bracket)) + `</details>` : "");
     const cell = (run: LeaderRun) => scoreCell(ctx, run, rulesAt(seasons, run.endedAt), run.players.find(isMe));
     const best = new Map<number, LeaderRun>();
     for (const run of runs) {
@@ -1402,7 +1408,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       + `<p class="muted">${t("Scores use this run's season rules. Targets are provisional. Not Blizzard verified.", "Les scores suivent les règles de la saison du donjon. Les cibles sont provisoires. Non vérifié par Blizzard.")}</p>`, { description, shareImage: imagePath });
   }
 
-  const findGuild = (ctx: WebContext, guilds: PublicGuild[], key: string) => guilds.find((g) => indexOf(ctx).slugs.get(g.id) === key.toLowerCase()) ?? guilds.find((g) => g.id === key);
+  const findGuild = (ctx: WebContext, guilds: PublicGuild[], key: string) => guilds.find((g) => indexOf(ctx).slugs.get(g.id) === key.toLowerCase()) ?? guilds.find((g) => g.id === key) ?? guilds.find((g) => g.aliases?.includes(key.toLowerCase()));
   async function guildPage(ctx: WebContext, kit: WebKit, id: string): Promise<WebResponse> {
     const { t, lang } = ctx;
     await ensureIndex(ctx);
@@ -1742,8 +1748,9 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const scores = characterScores(all, rules, keepPlayer(filters, rules));
     const ranks = await guildRanks(period);
     // Each role's score of the same characters (that role's runs only, never added together): { TANK, HEALER, DPS }, null without a score.
-    const byRole = ROLES.map((role) => ({ role, scores: characterScores(all, rules, (player) => (rules.evidencePolicy === "current-v2" ? integrityRole(player.integrity) : dungeonRole(player.role)) === role) }));
-    const roleScoresOf = (row: ScoreRow) => Object.fromEntries(byRole.map(({ role, scores: list }) => [role, list.find((r) => r.bracket === row.bracket && characterId(r.player) === characterId(row.player))?.points ?? null]));
+    // Cached a minute per period: three extra full scorings of the period's runs, independent of the request's filters.
+    const byRole = await cached(`board-roles:${period.id}:${period.from?.getTime() ?? ""}`, async () => ROLES.map((role) => ({ role, scores: new Map(characterScores(all, rules, (player) => (rules.evidencePolicy === "current-v2" ? integrityRole(player.integrity) : dungeonRole(player.role)) === role).map((r) => [`${r.bracket} ${characterId(r.player)}`, r.points] as const)) })));
+    const roleScoresOf = (row: ScoreRow) => Object.fromEntries(byRole.map(({ role, scores: list }) => [role, list.get(`${row.bracket} ${characterId(row.player)}`) ?? null]));
     const body = JSON.stringify({
       season: periodName(ctx, period),
       brackets: rules.brackets.map((b) => ({

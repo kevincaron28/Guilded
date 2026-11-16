@@ -146,6 +146,7 @@ import { PUG_PREFIX } from "./services/pug-discord.js";
 import { sweepPugRequests } from "./services/pug-requests.js";
 import { prismaWebStore } from "./services/web-store.js";
 import { publishGuildRuns } from "./services/public-runs.js";
+import { backfillPublicRunGuilds } from "./services/public-run-guild-backfill.js";
 import { keepStampsOnDisk, standingsFeed } from "./services/standings-feed.js";
 import { executePoe } from "./commands/poe.js";
 import { POE_TRACKING_ENABLED } from "../companion/active-games.mjs";
@@ -459,6 +460,8 @@ client.once(Events.ClientReady, (readyClient) => {
   setInterval(() => void trials(), 60 * 60 * 1000);
   // Opted-in guilds' dungeon runs go to the public leaderboards (/mod leaderboard, 7.0).
   setInterval(() => void publishGuildRuns(prisma).catch(reportJobError("Public dungeon runs")), 15 * 60 * 1000);
+  // Once per start, 8 minutes in: fills the in-game guild of public runs stored before the column existed (idempotent, only rows without one).
+  setTimeout(() => void backfillPublicRunGuilds(prisma, reportJobError("Public run guild backfill")).then((done) => console.info(`Public run guild backfill: ${done.runs} runs read, ${done.fromRuns} from run players, ${done.fromRosters} from rosters.`)).catch(reportJobError("Public run guild backfill")), 8 * 60 * 1000).unref?.();
   // Dungeon seasons follow the owner's calendar (/guilded-season, official-seasons.ts): every guild
   // rotates at a season's start, after a backup to backups/seasons. Idempotent across restarts.
   let rotating = false;

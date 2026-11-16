@@ -9,208 +9,85 @@ WoW Forever (level cap 60) launched 4 November 2026; its first raids open 9 Dece
 Guilded supports WoW Forever only (the other editions were removed 7 November) and PoE2 is hidden ([WoW Forever only](docs/FOREVER_ONLY_FOCUS.md)).
 Release history: [CHANGELOG.md](CHANGELOG.md). Older roadmap text, including every finished
 request list: [roadmap history](docs/archive/ROADMAP-history.md).
+Latest (16 November 2026): 9.3.5 is released; 9.3.6 is being prepared from the work merged on 16 November (see "Start here — 16 November 2026").
 
 ## Owner requests, 16 November 2026
+
+Every request of 16 November, with its PR and status, is in "Start here — 16 November 2026" below. These two keep their real-client checks:
 
 - **(a) Secret achievements** — hidden until earned (mystery entry "???" and "+N secret" in counts on Discord, website, app and addon; normal with a "Secret" tag once earned). First one: killed by the Son of Arugal (NPC 2529), this PR. More secrets later are one line in the addon's `KILLED_BY` table plus one catalogue row. Needs a companion release (new `secret` milestone kind) and the addon.
 - **(b) Guild promotions rework (PR #1024).** Auto-promote follows the bot's rule only (`GuildedPromotion.ready`, matched by rank name); no timer: officers get a small "N ready to promote" alert, a Ready to promote panel and one click per member ("Promote next (N left)"); the Alt rank is never promoted into or out of; the bot announces promotions in the officer log only (when a roster upload shows a rank moving up). Real-client checks owed: one-click promote on Forever, no blocked-action popup, the officer-log line after the next upload.
 
-## Start here — 13 November 2026 (next session)
+## Start here — 16 November 2026
 
-**Released 13 November (UTC): 9.2.0.** GitHub v9.2.0 (latest, 64d8bf3b), installer on the server and the R2 mirror, CurseForge 9585868/9585869 in review, Store Submission 13 resubmitted with 9.2.0.0 and in certification, website feed at 9.2.0 (#816). Evidence: [docs/V9_2_0_RELEASE_ACCEPTANCE.md](docs/V9_2_0_RELEASE_ACCEPTANCE.md).
-**Bot fixes live from 12-13 November** (#811, #813, #814, #815, #817): see the CHANGELOG 9.2.0 entry. An officer upload now answers within 10 s and the apply finishes in the background (`import-apply-finished ... late=1`); an unchanged file dedupes.
+**State:** 9.3.5 is released (GitHub, website, CurseForge). Everything below marked "merged" is on `main` and ships as **9.3.6**. Only the coordinator bumps the version. Check each provider live before claiming status.
 
-Next, in this order:
-1. **Companion (next companion PR, do not forget):** in the single window the line "Syncing now." stays under the status lines after the sync has finished. It must clear when the sync ends. A companion change means a new companion release and a Store submission.
-2. **Watch the apply lines** in the journal: `upload ... phases=` (gap-free, `other:` is the tail), `import-apply-sections` (which loop is slow after #817: reserves and item prices were not batched, nothing measured them), `import-apply-finished`.
-3. **When CurseForge approves 9.2.0:** point `site/releases.json` at the new file ids (the upload script prints the snippet) and verify the public download hashes.
-4. **Real-client checks still owed (need a second player):** Layer invite accept, a crafter claiming a request, the craft relay for a member without the companion, a real call for help, combat behaviour, the first minute after login for the chat-limit message, and the Store build.
-5. Then the roadmap items below.
+### Owner requests, 16 November 2026, and where each one is
 
-## Start here — 10 November 2026
+Merged (on main, ships in 9.3.6):
+- **French dungeon names** from the Forever client, and the addon matches dungeons by instance id (#1016).
+- **Discord audit of Québec Gold.** Done live: `#guilded-annonces` is read-only except for Maître de guilde and Officier; craft channels follow the WoW category; the rules panel role names are fixed; 82 stale bot messages were removed (a copy is saved); the raid pin's automatic-dates line is gone; a `#choix-de-jeu` reminder is posted. Code text fixes: #1017. Owner decisions: keep unused channels; FlaviBot, Chaman and Grand Templier admin is intended; members without a game role are those who have not picked one.
+- **Security queue S1, S4, S5, S6, S8** (#1015). S1 only takes effect once `GUILDED_ORIGIN_TOKEN` is set on the bot and Worker W1 is deployed. The Caddyfile must be copied to the server on deploy.
+- **Hide my profile** opt-out: `/character privacy` and a switch on `/me` (#1018).
+- **Race to 60** shows only current guild members (#1020).
+- **Season 2 starts 9 December 2026, 15:00 Pacific**, with the raid launch. Every season system follows it: duels, battleground ladder, world PvP totals, Clash, raid attendance (auto-season). Community podiums stay monthly and are labelled by month. The owner gets a reminder DM from 2 December (#1021). Raids: attendance only for now; raid scoring is declined for now.
+- **Season 2 dungeon routes 45–60** with generous provisional targets (BRD 70, LBRS 70, UBRS 75, Scholo 60, Strat 50/45). LBRS/UBRS, Dire Maul and Stratholme wings are by last boss, with verified French boss names. Drowned City is added. Krol'dok, Alcaz, Blackmaw and Shaper's Terrace wait for map ids (#1019). Research: no Forever clear-time data exists; measured runs take over through the existing formula.
+- **Secret achievements**: hidden until earned ("???" and "+N secret" in counts; a "Secret" tag once earned). First one: killed by the Son of Arugal (#1022). More secrets are one line in the addon's `KILLED_BY` table plus one catalogue row. Needs the companion release (new `secret` milestone kind) and the addon.
+- **Promotions rework**: the bot's rule only (days and level, matched by rank name); officers get an "N ready to promote" alert and one click per member ("Promote next"); the Alt rank is never promoted; promotions are announced in the officer log only (#1024).
+- **Officer member-trend graph** (`/officer stats trend`, a weekly officer-log post) and "community points" wording on dungeon surfaces (#1023).
+- **Compatibility policy**: N-2 support window, version header, protocol range, replay fixtures and guard tests (#1025).
+- **Linking**: sign-in shows only matching servers; one click claims the characters the companion reported (officer and member off switches) (#1026). Discord to Battle.net auto-link was investigated and declined: Discord only gives a self-declared BattleTag, and Blizzard's API does not expose Forever characters. A BattleTag addon probe was not chosen.
 
-**Released 9 November (evening):** 9.1.1, 9.1.2 and 9.1.3. All three are on GitHub (9.1.3 is the latest release), on CurseForge (in review) and on the website through the R2 mirror. The bot runs 9.1.3 (e888d38b) after a backup (`guilded-recovery/2026-11-09T21-35-22-052Z`, offsite copy made).
-- **9.1.1:** the zero-setup companion finds the guild's Discord by name, and unsigned companions upload dungeon runs (#694, #695).
-- **9.1.2:** clear companion download steps in the addon, `/guilded companion`, the website and `/help` (#699, #701). Professions are stored under one English name, so Cooking and Cuisine are one profession; the migration is applied (#702).
-- **9.1.3:** fixes from a fresh-install test on two PCs (#705-#708).
-  - The addons, Guilded Dungeons included, update by themselves when WoW is closed.
-  - The home and Repair screens treat Discord sign-in as optional.
-  - French texts are fixed.
-  - `/guilded dungeon` is never silent, and the sent and received times show.
-  - Unsigned devices get run receipts back.
-  - The stale "Linked to Discord as" line is gone.
-  - The Officer tools drag error is fixed.
-  - The uninstaller keeps your data and removes the startup entry.
-  - Store-era settings are imported when switching to the website installer.
-  - The Start page wording is fixed.
+In progress:
+- **Gold achievements** (100 / 500 / 1k / 5k "Gold Goblin", gold held, tier only, announcement off by default) and `/guilded probe auctions`: PR #1027, merging. Auction House achievements (sales and profit, no Flipper) wait for the in-game probe (plan: `docs/plans/AH_ACHIEVEMENTS.md`, arrives with #1027).
+- **Art**: 25+ new painted images generated (`Desktop\Guilded-Art\2026-11-16`) and leaderboard polish with dungeon art: a worker is on it.
+- **Edge-case sweep**: a worker is on it.
 
-**Merged, not released:** #712 (`/gdungeons` and `/gdg` work with Guilded alone, answers for guildmates' runs in unsigned uploads, an end-to-end receipts test). It includes bot changes, so it ships as **9.1.4** with a bot deploy.
+Housekeeping: old PRs #722, #984 and #345 were closed on 16 November (branches kept).
 
-**Tomorrow, in order:**
-1. **Second-PC retest of 9.1.3. Owner: test only on the second PC.** The owner reopens the "In-game test sync messaging" Remote Control session there; it went offline. Check:
-   - self-update to 9.1.3 and the automatic addon update
-   - French screens, and Repair showing sign-in as an info line
-   - sync: sent and received times appear, and the 10 unsynced runs (baseline) drop to 0; no "Meo Gratton" line
-   - Officer tools drag
-   - uninstall keeps `%APPDATA%\Guilded Companion` and removes the Run entry; then reinstall
-2. **Release 9.1.4:** #712 plus any fixes from step 1.
-3. **Store:** the 9.1.2.0 package is built; build 9.1.3.0 or 9.1.4.0 and submit the newest after Submission 13 passes.
-4. **CurseForge description:** paste `docs/marketing/curseforge-description.md` into both projects by hand once 9.1.3 is approved.
-5. **Backup size:** check the 10 Nov 07:10 daily backup (15 MB on 9 Nov, before #679).
+### Follow-ups, not started
 
-**Waiting for the owner:**
-- **Google Play:** the drafts are saved (listings EN/FR, privacy policy, no ads, data safety, an empty Alpha track). The owner ticks Sign in details, Target audience and Content ratings, and still owns Firebase, `EXPO_TOKEN`, the 12 testers, and a phone test of the preview APK before #345 merges. Notes: `android-ON-HOLD-9-nov.md` in the shared notes folder.
-- **Season 2:** around 18 November.
-- **Card art (Guilded Clash): on hold** (owner, 9 Nov). R27 is complete and in the app (#692, #697). U32 has 12 of 32 painted; resume at 060 Spirit Link, then the 60 commons (C60).
+1. **Stricter "confirmed" evidence** for characters named in uploads (T8). A weakness that was already there.
+2. **Auction House achievements** after the probe results come back.
+3. **Raid scoring**, later, only if the owner wants it.
+4. **Verify in game:** the French boss names and Gandling.
+5. **Companion upload of the probe results** (achievement, map and auction probes).
+6. **Worker W1–W4** (see [AI_HANDOFF](docs/AI_HANDOFF.md)); W1 is needed for S1 to do anything.
+7. **Season 2 maps:** Krol'dok, Alcaz, Blackmaw and Shaper's Terrace need map ids before they get routes.
 
-## Start here — morning of 9 November 2026 (after the overnight run)
+### Owner to-dos
 
-**Released overnight (owner: "Deploy + release 9.0.8"):** 9.0.8 on GitHub (510ed412), CurseForge 9522291/9522292 in review,
-installer on the bot server (sha bdc35611…), site #671, bot deployed after a backup (`guilded-recovery/2026-11-09T06-01-42-885Z`,
-offsite copy verified; migrations `character_confirmed_at` and `dungeon_run_receipts` applied). The owner's PC has the 9.0.8 addons.
+- **Season 2 activation, around 5–7 December:** run `/guilded-season season2-review`, then `season2-activate`. Season 2 begins 9 December 15:00 Pacific.
+- **Two-PC test** and the in-game checks for the 9.3.6 work (one-click promote, officer-log line, French dungeon names, secret achievement, claim button).
+- **Second-PC companion restart** confirmation.
+- **Google Play:** app name, Play Console steps, Testers Community order (12 testers for 14 days). Firebase and `EXPO_TOKEN` are still the owner's.
+- **Store:** submit 9.3.5 and 9.3.6 after 9.3.4 certifies (check the live status first).
+- **Set `GUILDED_ORIGIN_TOKEN`** on the bot and the Worker, and copy the Caddyfile to the server, when deploying #1015.
+- **Cloudflare Web Analytics token** in `site/analytics.json` (R1.7). The build supports it; the token is empty.
+- **CurseForge description:** paste `docs/marketing/curseforge-description.md` into both projects by hand if not done.
 
-**Merged overnight:** #662 map taint, #663 champions + leather card back (CB2, owner pick), #664 French raid card + roadmap
-cleanup, #665 Clash writing pass + French for all 150 cards, #666 announcements wording, #667 Jeeves ideas (confirmed vs reported
-characters, rank roles preview, roster freshness), #668 login popup (chat tab no longer opens chat windows; auto-invite hands out a
-`/ginvite` line), #669 runs no longer wait forever (receipts), faster uploads, Store companion can start with Windows.
+### Audit of older open items (16 November 2026, checked against main)
 
-**Incident overnight (fixed, 06:11-06:45 UTC):** after the 9.0.8 deploy the bot crash-looped ("JavaScript heap out of memory"
-about 4.5 minutes after each start). Cause: the in-process daily backup (3 min after start) built the whole database as one JSON
-string in memory, and each crash restarted it before the backup finished. Fixed by #673 (560 MB heap), #674 (backup streamed
-table by table) and #675 (5-minute backup budget). Verified: no restarts, today's backup saved 07:10 (12,955 rows). **Follow-up:**
-the backup grew from 2.3 MB (8 Nov) to 15 MB (9 Nov): find which table holds the large data (likely stored upload payloads) and
-trim or prune it; also send the Discord member owner a note that the bot was down in short bursts for ~35 minutes.
+Done or obsolete:
+- 13 Nov "Syncing now." line staying on screen: done (#819).
+- Season 2 start "~18 November": replaced by 9 December (#1021). Season 2 current-v2 rules decision: done (#1019, #1021).
+- Dungeon unknown final bosses: done (#491 and the wing work in #1019).
+- Download mirror (R2): done (#658, #680, #688).
+- Website redesign R0.1–R0.7, P1, R1.1–R1.6, R2.1–R2.5: all merged (#737–#759); CF1 pointer kept current (#1007).
+- Security S2 and S3: superseded by the owner decisions of 14 November (single-report runs are ranked; one witness is enough; #872, `docs/plans/SINGLE_WITNESS_2026-11-13.md`). Plausibility checks exist in `src/services/run-plausibility.ts`.
+- SEO2 (kcaron.top as primary host): superseded by guildedwow.com as the main site (#776, `canonicalRedirect` in `worker/index.mjs`). SEO1 (French `?lang=fr`): superseded by R1.6 (French pages at `/fr/`, #756).
+- Android PR #345: closed 16 November (branch kept).
+- 8.4.7 distribution: obsolete (noted under "Carried over").
 
-**Owner's first checks this morning:**
-1. **Review page** (claude.ai/artifact/PaemMo6CFGqRmAcuFvEZ58): section **E22**, the 22 new Legendary/Epic paintings, waiting for
-   approval (PNGs in `Desktop\guilded-clash-art\batch2-legendary-epic`, mirrored on `D:\GuildedBackups\clash-art`). After approval:
-   add them to the app like #659. 110 set cards still need art (next batches: rares, uncommons, commons).
-2. **In game:** the chat tab is no longer created by Guilded; make a chat window named Guilded once (right-click a tab, New Window).
-   Check that `/guilded dungeon` shows 0 waiting after the companion uploads, and that no "blocked" popup appears after a duel.
-3. **Store:** Submission 13 (9.0.4.0) still certifying; owner said wait. The 9.0.8.0 package build failed on GitHub download 504s
-   (`npm run store:package` in a 510ed412 worktree; identity in `backups/store-identity.json`): rebuild, then submit after 13 passes.
-4. **Owner only:** enable Cloudflare R2 + `GUILDED_DOWNLOAD_MIRROR_URL` (docs/DOWNLOADS_RELIABILITY.md); delete the test server's
-   empty `pvp-groups` channel by hand (the bot has no access to it); Google Play verifications; Season 2 (~18 Nov).
+Still open (the coordinator keeps the sized list):
+- Worker W1–W4, SEO3 (bot pages still use `?lang=fr` canonicals), SEO4 (`robots.txt` has no `Disallow` lines), R1.7 (token), R2.6 (mobile app page), R2.7 (visual regression in CI), S7 (mobile dependency advisories, not re-checked).
+- Item previews and crafter offers: built, off by default, never accepted on a real server.
+- Real-client checks: member ledger sync, duels and announcements with several clients, the 5 November UI batch, the G6–G10 dungeon and French client checks, Layer invite accept, crafter claim, call for help, combat behaviour.
+- Monetization groundwork (see "Later: monetization"). Store status. Backup size check (15 MB on 9 November, before #679).
 
-**Overnight PC test results:** 17 screenshots of every Guilded window page in `Desktop\guilded-screenshots-9nov` (for the website
-refresh; not yet on the site). Guild map dots work on the new layer. Relink test not finished: WoW stopped taking mouse clicks
-mid-session (keys still worked); Lebowski Highspirits was entered and uploaded, link not checked. Two-PC checks still need a second
-player.
+## Status records of 7–8 November 2026 (reference)
 
-## Done 9 November 2026 (coordinator, ~02:30 UTC)
-
-- **9.0.7 published:** GitHub v9.0.7 (30261689), bot deployed after a backup (`guilded-recovery/2026-11-09T02-01-09-371Z`,
-  offsite copy verified), CurseForge 9520274/9520275 in review, installer on the bot server (sha ce255ccc…), site #660.
-  Contents: `/ginvite` taint fix (#655), achievement badges (#649), and the duel tooltip fix (#657, owner report: Lua error
-  in SharedTooltipTemplates "tainted by Guilded" after a duel; Shift refreshed a player tooltip from Guilded code in combat).
-- **Store:** 9.0.7.0 built (`Desktop\guilded-store-9.0.7`). Owner: wait for Submission 13 (9.0.4.0) to pass, then submit it.
-- **Downloads (item 6, owner "always work and free"):** #658 merged: `docs/DOWNLOADS_RELIABILITY.md`; optional R2 mirror
-  (`GUILDED_DOWNLOAD_MIRROR_URL`) first, the server second, GitHub last. **Owner:** enable R2 and set the variable (steps in
-  the doc); nothing changes until then.
-- **Card art:** owner picked the L9-WoW Legendary set, now in the app (#659). Owner, 9 Nov: repaint the 9 class champions in
-  the same style, and that style is the game's look from now on, card backs and theme included. In progress (ChatGPT, review
-  page for his OK).
-- **Duels:** recorded in game (owner's board showed 2 duels); they reach Discord only when the companion runs and uploads.
-- **Open:** `ADDON_ACTION_BLOCKED Button:SetPassThroughButtons()` after duels on the owner's 9.0.5 client (map pins blocked in
-  combat under Guilded taint). Worker session map-taint is auditing GuildMap.lua; then 9.0.8.
-- **Owner, 9 Nov: in-game screenshots and real-client checks "later tonight"** (Claude drives WoW when he steps away).
-
-## Start here — 9 November 2026 (next session)
-
-**How to start tomorrow (owner, 8 Nov, late):** open a fresh session and say "continue work". That session is the master
-(coordinator): read this section, CLAUDE.md and memory, then dispatch one worker session per track on the cheapest model that
-fits. Workers report back; the coordinator merges, backs up, deploys and publishes, and updates the owner's Control Board
-(claude.ai/artifact/XWXbyp3yjpoWEjJt9Ch33N, list "Everything you asked for": the 4 gaps are at the top) at every check-in.
-
-**Closed at the end of 8 November (coordinator, ~23:30 UTC):**
-- Every PR from 6-8 Nov is merged (branch-by-branch check: each has a merged PR or was replaced on purpose). Only #345
-  (Android) is open, waiting on Google Play. The 40 worker sessions are archived and their worktrees cleaned.
-- Bot live at 16ca9b6e (#653).
-- Québec Gold: 15 owner-approved character links applied (list on the board, row e01). The owner said NOT to link the
-  test-server candidates (Holy Pl, Mister Haragot, Mister Cleanshot, Hôly Tabernak). The rest link as companions upload or
-  with `/character claim`.
-- **Installer (item 6 below):** #653 merged and deployed. Caddy serves `/var/lib/guilded/downloads/` (9.0.6 installer
-  there, sha256 0a6797a8…, same bytes as GitHub), the Worker passes it through, GitHub stays the fallback. The Cloudflare
-  Workers build for 16ca9b6e failed (the usual random failure; the dashboard needs the owner's sign-in), so this roadmap
-  PR re-triggers it. **Check first:** `curl -sI https://guilded.kcaron.top/downloads/Guilded.Companion.Setup.exe` must
-  answer 200 with content-length 123298159, not a 302. Release recipe: copy each new installer to the server
-  (`docs/COMPANION_AUTO_UPDATE.md`), never to KV.
-- **Owner, 8 Nov late: "find a better solution for downloads so they always work and free."** Confirm the server path
-  holds under real downloads; compare Cloudflare R2's free tier (10 GB, no download fees) as a second source; keep GitHub
-  as the last fallback.
-- **Card art:** the 9 Legendary cards are painted twice on the review page (claude.ai/artifact/PaemMo6CFGqRmAcuFvEZ58):
-  section L9 (painted high fantasy) and L9-WoW (classic online-RPG look: chunky shoulder armour, orc, troll, dwarf and
-  undead heroes, classic zone moods). The owner asked why there are no Blizzard names: Guilded Clash ships through
-  Google Play, the Store and CurseForge and may be monetized, so Blizzard's character, place and boss names, logos and
-  art stay out; generic race and class words and the overall feel are fine. When he picks, the chosen nine go into the
-  app the way the champions did (#652, `docs/plans/app-tcg-art/make-champions.mjs`). The PNGs are in the coordinator's
-  scratchpad (`tcg-art-gen/legendary`, `tcg-art-gen/legendary-wow`); copy them into the repo once approved.
-
-**State at the end of 8 November (coordinator):** 9.0.6 published (GitHub v9.0.6 at aea56c26; CurseForge 9518058/9518060
-in review; website downloads and the companion installer in KV verified; bot deployed). Store 9.0.6.0: the package is
-built in `..\qgb-rel902`; submit it in Partner Center if not done (the companion changed: website-first updates #633).
-Guilded Clash is complete on the server and in the phone app code (#626-#647); the owner approved all 9 class
-champion paintings (8 Nov; files in the coordinator scratchpad `tcg-art-gen/`, review page claude.ai/artifact/PaemMo6CFGqRmAcuFvEZ58,
-section C9) and wants to approve every later card art. Achievements: the in-game probe ran on the owner's client
-(29 categories, 111 achievements, all achievement APIs and events available); #649 records every Forever
-achievement as a badge (merging). Google Play: identity documents uploaded (Google reviewing), non-trader status
-declared (owner OK, legal name + email shown publicly as Play requires); still owed by the owner: verify an Android
-device (Play Console app on his phone) and the contact phone number.
-
-**Owner-message cross-check, 8 Nov (all 93 messages since 6 Nov, the five big lists read in full):** everything is done,
-live or tracked, except these, which are first for tomorrow:
-1. **Feature screenshots for the website, CurseForge and social media** (7 Nov list, item 20). Only install-guide
-   screenshots exist. Claude takes them in WoW on the owner's PC (relaunch from the Battle.net app: it logs in with the
-   saved session; never type a password): Guilded window pages, overview panel, crafting orders, dungeon window,
-   minimap menu, chat tab, call for help; plus Discord boards and cards; plus the Guilded Clash phone screens.
-2. **Unlink and relink a second character on the owner's PC** (6 Nov, owner allowed it): run the full link flow again
-   after 9.0.6 and record the friction.
-3. **Store companion updating itself on Windows 10/11** (6 Nov): needs a Store install of 9.0.5.0 or 9.0.6.0 updating.
-4. Live checks still owed: "last seen" in the Crafted by tooltip; two-PC tests (duel, Defender banner, call for help,
-   guild board votes) when the owner's second PC is on.
-5. Guilded Clash: put the 9 approved paintings into the app (Champion cards), then generate and submit the next card
-   art for approval; the next phone build ships everything once Google Play is ready.
-6. **Fix the website installer download (found 8 Nov, late).** The Worker streamed the 123 MB installer from KV in 20 MiB pieces; on the free plan the Worker is cut off (CPU limit), so downloads stopped at random sizes (0.3-106 MB). Mitigation in place: the KV manifests were deleted, so `/downloads/Guilded.Companion.Setup.exe` redirects to GitHub `releases/latest` (v9.0.6, verified complete). Durable fix: serve the installer from the Oracle server through Caddy `file_server` (behind the origin gate) and have the Worker return `fetch(origin)` unchanged (native streaming, no JS per chunk), or move to R2 if the owner enables it. Until then the release recipe must NOT upload installer pieces to KV. The addon zips (site/downloads, static assets) are not affected.
-**Done 8 Nov, late:** artisan channels created in Québec Gold on the owner's yes: #commandes-artisanat (open requests) and #archive-artisanat (finished/cancelled), read-only for members, saved in GuildSettings (#548 had never been applied there). The 9 approved Champion paintings are in the app (#652).
-Not forgotten but impossible: professions and EP/GP in guild notes (WoW Forever refuses addon note edits, #618).
-
-## Start here — 7 November 2026 (next session)
-
-**If the owner says "continue work":** you are the coordinator. Read this section, CLAUDE.md and the
-"Owner requests, 7 November 2026" list below. Group the work into tracks that don't touch the same files.
-Start one worker session per track with the cheapest model that fits (Haiku: checks and docs; Sonnet: most
-features; Opus: design-heavy or risky changes). Workers open PRs into `main` and report back to you. You review,
-merge, back up, deploy (`deploy/update.sh`), then publish. Real-client testing uses the owner's two PCs by
-desktop control and is coordinated by you. Keep testing in the kevmister28 test server, never spam Québec Gold.
-
-**8 November, morning (coordinator; bot live, every deploy backed up first):**
-- Merged: dungeon score on run cards (#611, live), Forever-only listing texts (#612), card art proposal (#613), phone app redesign (#614, #615), Google Play listing kit (#616), monetization "later" plan and Play trader status (#617).
-- Owner's login popup ("Guilded has been blocked"): WoW Forever refuses addon guild-note edits, even on a click (checked in game). Auto professions notes retried every ~16 s. Fixed in #618 (no note writes on Forever; any other refused guild action is remembered per client build). Installed by hand on the owner's PC (backup `Desktopddon-backup-pre618`); members get it with **9.0.5 (owner's yes needed)**.
-- Owner idea: one group finder for dungeons and PvP, live (#619; officer switch `/bg group-finder`). The old PvP groups channel still works and can be archived.
-- Card art: five styles for the owner to pick at claude.ai/artifact/PaemMo6CFGqRmAcuFvEZ58 (the page stores the pick).
-- Bug sweep 09:30 UTC: no member reports and no new saved bot errors since 7 Nov 16:09. The journal's only noise was hashed `[diagnostic:...]` lines: `aa56b5beb2ee` (64 in 30 days, after addon uploads: the hourly standings fallback, rebuild over 10 s or still changing) and four per restart ("Setup not finished" for servers mid-setup). These are routine; #620 logs them as info so the text is readable. Watch: standings rebuilds take 9-20 s under upload bursts on the 1 GB server.
-
-**Overnight progress, 7 Nov (coordinator; bot live at 8cde683, every deploy backed up first):**
-- Done and deployed: dungeon cards, one per run (#461); observer copies of one run merged, so no more triple
-  posts (#469); profession Details no longer hangs, the 50035 error (#466); invite ✅ when the player joins,
-  plus an officer button (#463); nickname sync summed over scopes, with a per-server log, Manage Nicknames in the
-  invite and a `/setup` hierarchy warning (#468); race to 60 card, reach-60 card and officer Hall of Fame edits
-  (#471); linked-characters DM and button (#473, item 5); officer tools: professions in public notes, EPGP in
-  officer notes, Initiate → Member and guild greeting (#474, items 3/4/7/9); Delete my data in the companion and
-  on /me, plus PoE2 follows its switch (#472); website and Québec Gold pages (#470, item 21); plans for
-  monetization, guild bank, overview panel and app TCG (#462, items 6/10/17/22); deploy prunes old copies and
-  checks disk (#467); quick wins (#456).
-- Addon-only, merged and waiting for the **9.0.1 addon release (owner's yes needed)**: guild snapshot Lua error
-  fix (#460), companion link in game, map pins hidden in instances and the Battle.net check (#464, items 1/2/18),
-  chat-tab regression tests (#465), and the officer tools' addon side (#474).
-- The owner's own nickname can't be set by the bot (his Chaman role is above the bot's); everyone below is renamed.
-- Bug sweep 05:45 UTC: 3 Profession details error refs resolved (fixed by #466). One P2028 transaction timeout in the standings feed (epgp lookup inside its transaction) during the 02:43 deploy; the feed is otherwise healthy (1,211 polls in 2 h, median 12.6 s, p95 14.5 s). Watch it; if P2028 repeats, move the EPGP standings reads out of the interactive transaction. The other inbox errors are from 8.x versions and have not recurred in 9.0.
-- Bug sweep 07:15 UTC: no member reports. The standings P2028 repeated 4 times (05:33-05:42), always in the loot-rules export inside the transaction; fixed by reading loot rules outside it (#487). Two voice-checkpoint P2028s (02:43, 05:18) and one pg error in High Guard's scheduled-events reconcile (05:32) came from the deploy restarts; each costs at most a minute of voice credit or one retry, so they are only being watched.
-- Check-in 07:45 UTC: merged and deployed #486 (dropped `/raid signup` and `/craft claim`) and #485 (per-guild public page: boards and how to join); bot live at 293a1f1, disk 38%. Each restart still logs one P2028 from the startup burst (this time `public-runs.ts:275`); watched. Track M phone app (leaderboards, guild view) handed to the research-plans session.
-- Bug sweep 09:45 UTC: no member reports; quiet since 07:46. The only errors were 4 P2028 timeouts (pairing, upload linking, public runs) between 07:41 and 07:44, while `deploy/update.sh` was building on the live server and the old process still served. Pattern: every deploy costs a few timeouts. The build already runs in a stage folder before the restart, so the likely cause is CPU contention from `npm ci` and the compile; running the build with `nice` is the next thing to try. Final bosses for the three new Forever dungeons merged (#491, addon-only, ships with 9.0.1). Owner status page: the Control Board artifact.
-- Merged (addon, ship with 9.0.1): roster admin window and native look (#478), in-game "Info and data" tab (#480). In the merge queue: full names everywhere (#476), invite channel to the WoW category + availability switch + feature homes (#477), addon relay for sync gaps (#479).
-
-- Bug sweep 11:30 UTC: no member reports. The fresh /setup test (item 24) found 4 bugs, fixed in #504 (uninstall leftovers, stale FAQ line, dangling channel ids, expired-wizard reply). New error C5K975QR: community honors cannot give its podium role in the reinstalled test server (50013) because the Guilded role sits at the bottom there; by design it retries every 15 min, and moving the role up fixes it (owner, test server only). Other errors were P2028 timeouts during deploys (calendar sync, public raids, game events, dungeon rating, invite queue).
+The lists below are history: each item is done, declined or tracked in the section above, unless it says otherwise. They stay here because the cross-checks name PR numbers.
 
 ### Status of every owner request (completeness audit, 7 Nov 2026, ~18:30 UTC)
 
@@ -351,8 +228,9 @@ as a plan until Discord pays Canadian teams or costs grow).
 
 ### Waiting for owner
 
-- **Season 2 activation** (~18 Nov, re-run the analysis first) before `/guilded-season season2-activate`.
-- **Card game:** pick the card art style (#613). The phone app five-tab redesign is approved and being built (#614, #615).
+- *(16 Nov: the current owner to-do list is in "Start here — 16 November 2026". Season 2 now starts 9 December; the card art style was decided and the phone app redesign shipped, #614, #615.)*
+- **Season 2 activation** (~18 Nov, re-run the analysis first) before `/guilded-season season2-activate`. Obsolete: now 5–7 December.
+- **Card game:** pick the card art style (#613). Done.
 - **Android / Google Play:** developer account paid (8 Nov). The owner finishes Play Console's 3 verifications (identity, trader status,
   Android device). Trader status: **"not a trader" for now** (owner, 8 Nov); switch to "trader" before the first monetized release.
   The listing kit is in #616; then Firebase, `EXPO_TOKEN`, #345 and 12 testers for 14 days.
@@ -1389,8 +1267,7 @@ Québec Gold server and checks each one live. Opt-in switches stay off for every
   - Existing direct-download companions need one manual update to reach the self-updating 8.4.7.
 - **Dungeons:** the unknown final bosses are done (#491). Old note: unknown Forever final bosses log `DUNGEON_FINAL_UNMATCHED`. Add their ids as they
   appear. For 8.5 the owner leans toward **dungeon Season 2 on current-v2 rules** (Season 1 stays
-  current-v1; the level-60 Best 8 is implemented but inactive). This needs a decision on the start
-  date before it is built.
+  current-v1; the level-60 Best 8 is implemented but inactive). DONE 16 Nov: Season 2 starts 9 December 2026 15:00 Pacific (#1019, #1021).
 
 - **WoW-linked Discord item previews** in the Blizzard-linked guild chat channel: built off by
   default (`docs/ITEM_PREVIEWS.md`, `src/services/item-preview.ts`); webhook posting and non-echo
@@ -1408,7 +1285,7 @@ Québec Gold server and checks each one live. Opt-in switches stay off for every
 - **Public page per guild** ([design](docs/GUILD_PAGES_DESIGN.md)): DONE (#485, #522); officers choose what is public.
 - **Android app** (`mobile/`): the Expo/EAS project is linked (`ddda073f-f6bb-4e04-8a78-7ac343e03864`,
   account kevincaron28) and preview APK 0.2.0 is published (GitHub pre-release `mobile-v0.2.0-preview`,
-  linked on /companion/), with OTA updates on channel `preview`. Still open: merge PR #345 (server
+  linked on /companion/), with OTA updates on channel `preview`. (16 Nov: PR #345 was closed, branch kept.) Still open: merge PR #345 (server
   parts for mobile alerts and token renewal); add an `EXPO_TOKEN` repo secret so merges publish OTA
   updates; add `--environment preview` to the `update:preview` script; push notifications need a
   Firebase project (`google-services.json`); then Google Play (12 testers for 14 days). On this PC

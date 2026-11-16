@@ -268,7 +268,8 @@ export function renderDungeonCard(spec: DungeonCardSpec): Promise<RenderedCard> 
       const real = !p.name.startsWith("+"); // the "+N more" row has no columns
       await c.text(p.name, E, y, { size: 30, face: "bold", color: p.color, maxW: hasCols || spec.columns ? nameW : colW - 46 });
       if (p.level !== undefined) await c.text(String(p.level), levelR, y + 1, { size: 28, color: INK, anchor: "r", maxW: 44 });
-      if (hasGuild && real && spec.columns) await c.text(tag || "—", guildX, y + (tag ? 3 : 4), { size: 24, color: SUB, maxW: guildW });
+      if (hasGuild && real && spec.columns && tag) await c.text(tag, guildX, y + 3, { size: 24, color: SUB, maxW: guildW });
+      else if (hasGuild && real && spec.columns) await c.text("—", guildX + guildW / 2, y, { size: 30, face: "bold", color: SUB, anchor: "c", maxW: guildW }); // same dash as the score cells, centred in the column
       else if (tag) await c.text(tag, guildX, y + 3, { size: 24, color: SUB, maxW: guildW });
       // A rated player shows what this run added and the season total; "—" when there is no score (calibration, unrated).
       const unscored = p.gain === 0 && (!p.total || p.total === "0");

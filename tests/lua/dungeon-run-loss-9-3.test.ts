@@ -216,6 +216,22 @@ describe("each player's guild", () => {
   });
 });
 
+describe("a guildmate whose guild the client cannot read", () => {
+  it("is recorded in our own guild when the game says they are a guildmate", () => {
+    const s = start();
+    s.run(`MOCK_UNITS = { player = { name = "Tester" }, party1 = { name = "Mate" }, party2 = { name = "Stranger" } }
+      MOCK_GROUP_SIZE = 3
+      GUILDS = { player = "Qu\\195\\169bec Gold" }
+      function GetGuildInfo(unit) return GUILDS[unit] end
+      function UnitIsInMyGuild(unit) return unit == "player" or unit == "party1" end
+      function IsInGroup() return true end
+      fire_event("GROUP_ROSTER_UPDATE")`);
+    const players = "GuildedDB.dungeon.current.players";
+    expect(s.run(`return ${players}.Mate.guild`)).toBe("Québec Gold");
+    expect(s.run(`return tostring(${players}.Stranger.guild)`)).toBe("nil");
+  });
+});
+
 describe("export", () => {
   const run = (over: Record<string, unknown> = {}) => ({
     id: "R1", state: "COMPLETED", completedBy: "final boss", instanceId: 389, name: "Ragefire Chasm", difficultyId: 0,

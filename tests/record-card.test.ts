@@ -53,7 +53,7 @@ describe("record card", () => {
 
 describe("record post", () => {
   it("puts the dungeon, time and difference in the embed title, in both languages", () => {
-    expect(recordEmbed(run(), clear, "fr").toJSON().title).toBe("🏆 Nouveau record de guilde : Wailing Caverns 61:12 (−4:03)");
+    expect(recordEmbed(run(), clear, "fr").toJSON().title).toBe("🏆 Nouveau record de guilde : Cavernes des lamentations 61:12 (−4:03)");
     expect(recordEmbed(run(), clear, "en").toJSON().title).toBe("🏆 New guild record: Wailing Caverns 61:12 (−4:03)");
     expect(recordEmbed(run(), first, "en").toJSON().title).toBe("🚩 First guild record: Wailing Caverns 61:12");
     const text = recordEmbed(run(), clear, "en").toJSON().description!;

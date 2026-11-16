@@ -1,16 +1,27 @@
 # 9.3.7 release acceptance
 
-Status: prepared 16 November 2026, not yet published. 9.3.7 is not yet confirmed on real clients.
+Status: published 16 November 2026. 9.3.7 is not yet confirmed on real clients.
 
 ## Where it stands
 
 | Provider | State |
 | --- | --- |
-| GitHub | not yet published. |
-| Installer | not yet built or published. |
-| CurseForge | not yet uploaded. |
-| Microsoft Store | 9.3.7.0 package to be built; submit after 9.3.4.0 (Submission 13) finishes certification. |
-| Bot | no deploy needed (card polish #1042 already live). |
+| GitHub | v9.3.7 is the latest release (tag at 690040bd). |
+| Installer | `Guilded.Companion.Setup.exe` and `Guilded.Companion.Setup.9.3.7.exe` on the server and the R2 mirror. |
+| CurseForge | files 9654361 (Guilded) and 9654362 (Guilded Dungeons) uploaded 16 November 2026, in review; the website keeps pointing at 9.3.6 until they are approved. |
+| Microsoft Store | 9.3.7.0 package built; submitted after 9.3.4.0 (Submission 13) finishes certification. |
+| Bot | deployed (card polish #1042 already live). |
+| Website | `site/releases.json` (GitHub and installer) and the addon downloads point at 9.3.7; CurseForge stays at 9.3.6. |
+
+## Published artifact hashes (SHA-256)
+
+| File | SHA-256 |
+| --- | --- |
+| `Guilded.Companion.Setup.exe` and `Guilded.Companion.Setup.9.3.7.exe` (122688406 bytes) | `f5d0cfd5bf2dcf74613bcb4a06e2c4b27ac6c46ef4185b8947f2ba0c00f3d5ae` |
+| `Guilded-v9.3.7-forever.zip` | `fce3cf3758d76c068620c149e917eac969f55d20d3fa67afbad8ac7547d09d91` |
+| `GuildedDungeons-v9.3.7-forever.zip` | `80827e055d7664039e7b089b3fade61a7af6a9bfccdaff6750dea20295881b20` |
+
+Never overwrite a published download; these are the bytes that went out.
 
 ## Checks owed (to be tested on real clients)
 

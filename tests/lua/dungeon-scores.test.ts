@@ -23,6 +23,14 @@ function setup() {
 }
 
 describe("guild-only dungeon scores", () => {
+  it("matches a run by instance id in any client language, and by name for older runs", () => {
+    const s = setup();
+    expect(s.run('return NS.scores.dungeonFor("Bas du pic Rochenoire", 229).key')).toBe("brs");
+    expect(s.run(`return NS.scores.dungeonFor("Donjon d'Ombrecroc", 33).key`)).toBe("sfk");
+    expect(s.run('return NS.scores.dungeonFor("Some renamed dungeon", 189).key')).toBe("sm");
+    expect(s.run('return NS.scores.dungeonFor("Sommet du pic Rochenoire").key')).toBe("brs");
+    expect(s.run('return NS.scores.dungeonFor("The Drowned City", 9999).key')).toBe("x:the drowned city");
+  });
   it("lists Forever's known dungeons without a season catalog", () => {
     const s = setup();
     s.run('NS.util.gameEdition=function() return "forever" end; DB.dungeonBoard=nil');

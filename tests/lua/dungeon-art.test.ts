@@ -24,7 +24,7 @@ const NAMES = [
   "The Deadmines", "Les Mortemines", "Shadowfang Keep", "Donjon d'Ombrecroc", "Blackfathom Deeps", "Profondeurs de Brassenoire", "Gnomeregan",
   "Razorfen Kraul", "Souilles de Tranchebauge", "Razorfen Downs", "Ragefire Chasm", "Gouffre de Ragefeu", "Uldaman", "Zul'Farrak", "Maraudon",
   "Temple of Atal'Hakkar (Sunken Temple)", "Le Temple d'Atal'Hakkar", "Blackrock Depths", "Profondeurs de Rochenoire", "Lower Blackrock Spire",
-  "Upper Blackrock Spire", "Pic Rochenoire inférieur", "Pic Rochenoire supérieur", "Blackrock Spire", "Dire Maul: East", "Dire Maul: West", "Dire Maul: North",
+  "Upper Blackrock Spire", "Pic Rochenoire inférieur", "Pic Rochenoire supérieur", "Bas du pic Rochenoire", "Sommet du pic Rochenoire", "Pic Rochenoire", "Blackrock Spire", "Dire Maul: East", "Dire Maul: West", "Dire Maul: North",
   "Hache-Tripes : Nord", "Hache-Tripes : Ouest", "Hache-Tripes", "Scholomance", "Stratholme: Main Gate", "Stratholme: Service Gate", "Stratholme",
   "Scarlet Monastery: Graveyard", "Scarlet Monastery: Library", "Scarlet Monastery: Cathedral", "Scarlet Monastery: Armory", "Scarlet Monastery",
   "Monastère écarlate : Bibliothèque", "Monastère écarlate : Cathédrale", "Monastère écarlate : Armurerie", "Monastère Écarlate",

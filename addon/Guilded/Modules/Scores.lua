@@ -24,28 +24,29 @@ local LOGIN_DELAY_SECONDS = 30
 local scores = {}
 ns.scores = scores
 
--- Dungeon level ranges by name (English and French fragments, lower case, no accents needed:
+-- Dungeon level ranges. A run is matched by its instance id (the same in every client language) and,
+-- for older saved runs without one, by name (English and French fragments, lower case, no accents needed:
 -- the fragments avoid accented letters). The highest level of the range sets the points.
 local DUNGEONS = {
-  { key = "rfc", name = "Ragefire Chasm", max = 18, match = { "ragefire", "ragefeu" } },
-  { key = "wc", name = "Wailing Caverns", max = 24, match = { "wailing", "lamentations" } },
-  { key = "dm", name = "Deadmines", max = 26, match = { "deadmines", "mortemines" } },
-  { key = "sfk", name = "Shadowfang Keep", max = 30, match = { "shadowfang", "ombrecroc" } },
-  { key = "bfd", name = "Blackfathom Deeps", max = 32, match = { "blackfathom", "brassenoire" } },
-  { key = "stocks", name = "The Stockade", max = 32, match = { "stockade", "prison" } },
-  { key = "gnomer", name = "Gnomeregan", max = 38, match = { "gnomeregan" } },
-  { key = "rfk", name = "Razorfen Kraul", max = 38, match = { "razorfen kraul", "kraal de tranchebauge" } },
-  { key = "sm", name = "Scarlet Monastery", max = 45, match = { "scarlet", "carlate" } },
-  { key = "rfd", name = "Razorfen Downs", max = 46, match = { "razorfen downs", "souilles de tranchebauge" } },
-  { key = "ulda", name = "Uldaman", max = 51, match = { "uldaman" } },
-  { key = "zf", name = "Zul'Farrak", max = 54, match = { "zul'farrak", "zulfarrak" } },
-  { key = "mara", name = "Maraudon", max = 55, match = { "maraudon" } },
-  { key = "st", name = "Sunken Temple", max = 56, match = { "sunken temple", "atal'hakkar" } },
-  { key = "brd", name = "Blackrock Depths", max = 60, match = { "blackrock depths", "profondeurs de rochenoire" } },
-  { key = "brs", name = "Blackrock Spire", max = 60, match = { "blackrock spire", "pic de rochenoire" } },
-  { key = "dmaul", name = "Dire Maul", max = 60, match = { "dire maul", "tripes" } },
-  { key = "scholo", name = "Scholomance", max = 60, match = { "scholomance" } },
-  { key = "strat", name = "Stratholme", max = 60, match = { "stratholme" } }
+  { key = "rfc", name = "Ragefire Chasm", max = 18, id = 389, match = { "ragefire", "ragefeu" } },
+  { key = "wc", name = "Wailing Caverns", max = 24, id = 43, match = { "wailing", "lamentations" } },
+  { key = "dm", name = "Deadmines", max = 26, id = 36, match = { "deadmines", "mortemines" } },
+  { key = "sfk", name = "Shadowfang Keep", max = 30, id = 33, match = { "shadowfang", "ombrecroc" } },
+  { key = "bfd", name = "Blackfathom Deeps", max = 32, id = 48, match = { "blackfathom", "brassenoire" } },
+  { key = "stocks", name = "The Stockade", max = 32, id = 34, match = { "stockade", "prison" } },
+  { key = "gnomer", name = "Gnomeregan", max = 38, id = 90, match = { "gnomeregan" } },
+  { key = "rfk", name = "Razorfen Kraul", max = 38, id = 47, match = { "razorfen kraul", "kraal de tranchebauge" } },
+  { key = "sm", name = "Scarlet Monastery", max = 45, id = 189, match = { "scarlet", "carlate" } },
+  { key = "rfd", name = "Razorfen Downs", max = 46, id = 129, match = { "razorfen downs", "souilles de tranchebauge" } },
+  { key = "ulda", name = "Uldaman", max = 51, id = 70, match = { "uldaman" } },
+  { key = "zf", name = "Zul'Farrak", max = 54, id = 209, match = { "zul'farrak", "zulfarrak" } },
+  { key = "mara", name = "Maraudon", max = 55, id = 349, match = { "maraudon" } },
+  { key = "st", name = "Sunken Temple", max = 56, id = 109, match = { "sunken temple", "atal'hakkar" } },
+  { key = "brd", name = "Blackrock Depths", max = 60, id = 230, match = { "blackrock depths", "profondeurs de rochenoire" } },
+  { key = "brs", name = "Blackrock Spire", max = 60, id = 229, match = { "blackrock spire", "pic de rochenoire", "pic rochenoire" } },
+  { key = "dmaul", name = "Dire Maul", max = 60, id = 429, match = { "dire maul", "tripes" } },
+  { key = "scholo", name = "Scholomance", max = 60, id = 289, match = { "scholomance" } },
+  { key = "strat", name = "Stratholme", max = 60, id = 329, match = { "stratholme" } }
 }
 local UNKNOWN_LEVEL = 40
 scores.DUNGEONS = DUNGEONS
@@ -75,8 +76,14 @@ local function store()
   return s
 end
 
--- The dungeon a run was in: its entry above, or a made-up one keyed by the run's own name.
-function scores.dungeonFor(name)
+-- The dungeon a run was in: its entry above (by instance id, then by name), or a made-up one keyed by the run's own name.
+function scores.dungeonFor(name, instanceId)
+  local id = tonumber(instanceId)
+  if id then
+    for _, dungeon in ipairs(DUNGEONS) do
+      if dungeon.id == id then return dungeon end
+    end
+  end
   local text = string.lower(tostring(name or ""))
   for _, dungeon in ipairs(DUNGEONS) do
     for _, fragment in ipairs(dungeon.match) do
@@ -97,7 +104,7 @@ function scores.learn(run)
   local s = store()
   if not s or type(run) ~= "table" or run.state ~= "COMPLETED" then return false end
   local sec = tonumber(run.durationSec)
-  local dungeon = scores.dungeonFor(run.name)
+  local dungeon = scores.dungeonFor(run.name, run.instanceId)
   if not sec or sec <= 0 or not dungeon then return false end
   local changed = false
   for name, player in pairs(run.players or {}) do

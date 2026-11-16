@@ -1,4 +1,5 @@
 import { exportCarriedRecords } from "./carry-content.mjs";
+import { exportProbes } from "./probes-content.mjs";
 import { dungeonRole } from "./dungeon-role.mjs";
 import luaparse from "luaparse";
 import { editionMetadata, gameEditionOf, GAME_EDITIONS } from "./game-edition.mjs";
@@ -270,6 +271,7 @@ export function parseAddonExportDatabase(database, realm) {
   const duelResults = exportDuelResults(database);
   const externalDuels = exportExternalDuels(database);
   const carriedRecords = exportCarriedRecords(database);
+  const probes = exportProbes(database);
   const milestones = exportMilestones(database);
   const guildData = exportGuildData(database);
   const guildBank = exportGuildBank(database);
@@ -375,6 +377,7 @@ export function parseAddonExportDatabase(database, realm) {
     ...(duelResults.length ? { duelResults } : {}),
     ...(externalDuels.length ? { externalDuels } : {}),
     ...(carriedRecords.length ? { carriedRecords } : {}),
+    ...(probes ? { probes } : {}),
     ...(milestones.length ? { milestones } : {}),
     ...guildData,
     ...guildBank,

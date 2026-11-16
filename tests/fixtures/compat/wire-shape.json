@@ -45,6 +45,7 @@
       "loot": true,
       "mapSightings": true,
       "milestones": true,
+      "probes": true,
       "pvpEvents": true,
       "raids": true,
       "readiness": true,
@@ -367,6 +368,7 @@
       "deviceName": true,
       "dungeonRuns": true,
       "guild": true,
+      "probes": true,
       "runsOnly": true,
       "server": true
     },

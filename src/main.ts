@@ -127,6 +127,7 @@ import { announceBlockedRaidSeasons, rotateRaidSeasons } from "./services/raid-s
 import { postToLogChannel } from "./services/housekeeping.js";
 import { remindSeason2 } from "./services/season2-reminder.js";
 import { finalizeClosingSeasons } from "./services/dungeon-admin.js";
+import { executeOwnerProbes, OWNER_PROBES_COMMAND, ownerProbesCommand } from "./commands/owner-probes.js";
 import { executeOwnerPreviews, handleItemPreviewButton, OWNER_PREVIEWS_COMMAND, ownerPreviewsCommand } from "./commands/owner-previews.js";
 import { ITEM_PREVIEW_PREFIX } from "./services/item-preview-step0.js";
 import { handlePreviewMessage } from "./services/item-preview.js";
@@ -742,7 +743,7 @@ if (config.MESSAGE_CONTENT_INTENT) {
 
 client.on(Events.InteractionCreate, async interaction => {
   try {
-    const serverCommands = ["wow", "community", "organize", "poe", "participation", "guilded-season", OWNER_PREVIEWS_COMMAND, OWNER_CONSOLE_COMMAND];
+    const serverCommands = ["wow", "community", "organize", "poe", "participation", "guilded-season", OWNER_PREVIEWS_COMMAND, OWNER_PROBES_COMMAND, OWNER_CONSOLE_COMMAND];
     const globalButton = "customId" in interaction && [PILOT_REQUEST_PREFIX, COMMUNITY_PREFIX, WELCOME_ROLE_PREFIX, SELF_ROLE_PREFIX, ONBOARD_PREFIX, GAME_REMINDER_PREFIX, INVITE_REQUEST_PREFIX, LINKED_PREFIX, PUG_PREFIX, CONSOLE_PREFIX, ITEM_PREVIEW_PREFIX].some(prefix => interaction.customId.startsWith(prefix));
 
     const wowOrganize = interaction.isChatInputCommand() && interaction.commandName === "organize" && interaction.options.getSubcommandGroup(false) === "dungeon-seasons";
@@ -1122,6 +1123,10 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
     await executeOwnerPreviews(interaction).catch((error: unknown) => replyWithCommandError(interaction, error));
     return;
   }
+  if (interaction.commandName === OWNER_PROBES_COMMAND) {
+    await executeOwnerProbes(interaction).catch((error: unknown) => replyWithCommandError(interaction, error));
+    return;
+  }
   if (interaction.commandName === OWNER_SEASON_COMMAND) {
     await executeOwnerSeason(interaction).catch((error: unknown) => replyWithCommandError(interaction, error));
     return;
@@ -1143,7 +1148,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
 // The bot owner's /guilded-season exists only in the home server (DISCORD_GUILD_ID).
 async function registerCommands(guildId: string, body: unknown[] = commands.map((command) => command.toJSON())): Promise<void> {
   const rest = new REST({ version: "10" }).setToken(config.DISCORD_TOKEN);
-  const full = [...body, ...(guildId === config.DISCORD_GUILD_ID ? [ownerSeasonCommand.toJSON(), ownerPreviewsCommand.toJSON()] : []), ...(guildId === config.OWNER_CONSOLE_GUILD_ID ? [ownerConsoleCommand.toJSON()] : [])];
+  const full = [...body, ...(guildId === config.DISCORD_GUILD_ID ? [ownerSeasonCommand.toJSON(), ownerPreviewsCommand.toJSON(), ownerProbesCommand.toJSON()] : []), ...(guildId === config.OWNER_CONSOLE_GUILD_ID ? [ownerConsoleCommand.toJSON()] : [])];
   await rest.put(Routes.applicationGuildCommands(config.DISCORD_CLIENT_ID, guildId), { body: full });
 }
 

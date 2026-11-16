@@ -19,6 +19,36 @@ describe("unified website and companion", () => {
     headers = upstream.mock.calls.at(-1)![1].headers as Headers;
     expect(headers.has("x-guilded-origin")).toBe(false);
   });
+  it("sets x-guilded-client-ip from cf-connecting-ip and drops a caller-supplied value", async () => {
+    const upstream = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(async () => Response.json({ ok: true }));
+    vi.stubGlobal("fetch", upstream);
+    const sent = () => upstream.mock.calls.at(-1)![1].headers as Headers;
+    for (const [path, init] of [["/api/v1/companion/sign-in", { method: "POST" }], ["/api/v1/standings", {}], ["/leaderboards/", {}], ["/health", {}]] as const) {
+      await worker.fetch(new Request(`https://guilded.kcaron.top${path}`, { ...init, headers: { "x-guilded-client-ip": "6.6.6.6", "cf-connecting-ip": "203.0.113.9", accept: "text/html" } }), env);
+      expect(sent().get("x-guilded-client-ip")).toBe("203.0.113.9");
+    }
+    await worker.fetch(new Request("https://guilded.kcaron.top/api/v1/standings", { headers: { "x-guilded-client-ip": "6.6.6.6" } }), env);
+    expect(sent().has("x-guilded-client-ip")).toBe(false);
+    await worker.fetch(new Request("https://guilded.kcaron.top/leaderboards/", { headers: { "x-guilded-client-ip": "6.6.6.6" } }), env);
+    expect(sent().has("x-guilded-client-ip")).toBe(false);
+  });
+  it("adds HSTS everywhere, noindex on /health and /api, and no-framing on bot pages", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => new Response(url.includes("/health") ? "ok" : "<html></html>", { headers: { "content-type": url.includes("/health") ? "text/plain" : "text/html; charset=utf-8" } })));
+    const page = await worker.fetch(new Request("https://guilded.kcaron.top/forever/leaderboards/", { headers: { accept: "text/html" } }), env);
+    expect(page.headers.get("strict-transport-security")).toBe("max-age=31536000; includeSubDomains");
+    expect(page.headers.get("x-frame-options")).toBe("DENY");
+    expect(page.headers.get("permissions-policy")).toContain("camera=()");
+    expect(page.headers.has("x-robots-tag")).toBe(false);
+    const health = await worker.fetch(new Request("https://guilded.kcaron.top/health"), env);
+    expect(health.headers.get("x-robots-tag")).toBe("noindex");
+    expect(health.headers.get("strict-transport-security")).toBeTruthy();
+    const api = await worker.fetch(new Request("https://guilded.kcaron.top/api/v1/nope"), env);
+    expect(api.status).toBe(404);
+    expect(api.headers.get("x-robots-tag")).toBe("noindex");
+    const redirect = await worker.fetch(new Request("https://guilded.kcaron.top/companion/old"), env);
+    expect(redirect.status).toBe(301);
+    expect(redirect.headers.get("strict-transport-security")).toBeTruthy();
+  });
   it("proxies score-card PNG bytes and headers without the HTML rewrite", async () => {
     const bytes = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 0, 255, 128]);
     const upstream = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async () => new Response(bytes, { headers: { "content-type": "image/png", "cache-control": "no-store" } }));

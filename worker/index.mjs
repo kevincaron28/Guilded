@@ -301,10 +301,22 @@ export function indexHtmlRedirect(request, url = new URL(request.url)) {
   return new Response(null, { status: 301, headers: { location: `${url.pathname.slice(0, -"index.html".length)}${rest ? `?${rest}` : ""}`, "cache-control": "public, max-age=3600" } });
 }
 
+// Same value as site/_headers (static pages), with includeSubDomains. Added to every Worker response, redirects and errors too.
+const HSTS = "max-age=31536000; includeSubDomains";
+const PERMISSIONS_POLICY = "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()";
+// /health and the JSON API are not pages: keep them out of search results.
+const NOINDEX_PATH = /^\/(?:api\/|health$)/;
+export function withSecurityHeaders(request, response) {
+  const headers = new Headers(response.headers);
+  headers.set("strict-transport-security", HSTS);
+  if (NOINDEX_PATH.test(new URL(request.url).pathname)) headers.set("x-robots-tag", "noindex");
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
 export default {
   async fetch(request, env, ctx) {
     if (request.method === "OPTIONS" && mobileDevCors(request)) {
-      return new Response(null, { status: 204, headers: { ...mobileDevCors(request), "cache-control": "no-store" } });
+      return withSecurityHeaders(request, new Response(null, { status: 204, headers: { ...mobileDevCors(request), "cache-control": "no-store" } }));
     }
     let response = await route(request, env, ctx);
     // A page inside an edition's section remembers that edition for the next visit.
@@ -315,7 +327,7 @@ export default {
       remembered.headers.append("set-cookie", editionCookie(section.slug));
       response = remembered;
     }
-    return withMobileDevCors(request, await withAds(request, env, response, url));
+    return withSecurityHeaders(request, withMobileDevCors(request, await withAds(request, env, response, url)));
   }
 };
 
@@ -474,6 +486,11 @@ async function route(request, env, ctx) {
     }
     // This credential belongs to the proxy, never the caller.
     if (env.GUILDED_ORIGIN_TOKEN) headers.set('x-guilded-origin', env.GUILDED_ORIGIN_TOKEN);
+    // The caller's address as Cloudflare saw it. A caller-supplied value never survives (dropped here, whatever the
+    // pass-through above let in); the bot trusts it only with a valid x-guilded-origin from its own reverse proxy.
+    headers.delete("x-guilded-client-ip");
+    const clientIp = request.headers.get("cf-connecting-ip");
+    if (clientIp) headers.set("x-guilded-client-ip", clientIp);
     if (web && url.search.length > 2_000) return failure(414, "Address is too long");
     const origins = botOrigins(env);
     // A visitor's page view (not an API call or an image) gets the branded page when the bot is unreachable.
@@ -539,6 +556,11 @@ async function route(request, env, ctx) {
       const responseHeaders = new Headers(upstream.headers);
       if (!guildPage) responseHeaders.set("cache-control", "no-store");
       responseHeaders.delete("set-cookie");
+      // Bot-rendered pages are never embedded (nothing of ours iframes them): no framing, no powerful browser features.
+      if ((responseHeaders.get("content-type") ?? "").toLowerCase().startsWith("text/html")) {
+        responseHeaders.set("x-frame-options", "DENY");
+        responseHeaders.set("permissions-policy", PERMISSIONS_POLICY);
+      }
       if (web) for (const cookie of hostCookies(upstream)) responseHeaders.append("set-cookie", cookie);
       return new Response(upstream.body, { status: upstream.status, headers: responseHeaders });
     } catch (error) {

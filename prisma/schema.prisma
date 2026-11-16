@@ -2799,6 +2799,8 @@ model PublicRunPlayer {
   deaths    Int?
   // The in-game guild the uploader's client showed for this player (GetGuildInfo, unverified display text). The public guild directory groups by it.
   guild     String?
+  // The faction the uploader's client reported for this player (ALLIANCE or HORDE; UnitFactionGroup or the race, 9.3.6). Guild factions are derived from it.
+  faction   String?
   run       PublicRun @relation(fields: [runId], references: [id], onDelete: Cascade)
 
   @@unique([runId, character, realm])

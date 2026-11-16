@@ -14,9 +14,8 @@ Owner decision (15 November 2026): "we can show everything publicly": every guil
 `src/services/public-run-guild-backfill.ts` runs once per bot start (8 minutes in), idempotent, only rows with no guild: first from `DungeonRunPlayer.guild` (same addon run id and character), then from Guilded rosters (`GuildRosterEntry` + `WowGuild`). Runs that no source covers stay blank until a companion re-sends them.
 
 ## Deletion
-`deleteMyData` (`src/services/data-deletion.ts`) now anonymises the member's characters in public runs: the player row becomes `deleted-player-<row id>` (no display name, no guild; class, role and level stay so the run is unchanged), and the same names are replaced in the run's saved integrity, upload evidence and reporters. Guild pages are built from those rows and from `Character`, so the member disappears from them. Not covered yet: public duel rows (names, keys) and first-name-only legacy rows.
+`deleteMyData` (`src/services/data-deletion.ts`) now anonymises the member's characters in public runs: the player row becomes `deleted-player-<row id>` (no display name, no guild; class, role and level stay so the run is unchanged), and the same names are replaced in the run's saved integrity, upload evidence and reporters. Guild pages are built from those rows and from `Character`, so the member disappears from them. Public duel rows (names, keys, guild text, member ids, and the reports' keys and evidence) are anonymised the same way (`deleted-player-<duel id>-w|l`). First-name-only legacy rows ("Kev" for "Kev Caron") on the same realm are matched too, so a same-first-name player on that realm is anonymised with them.
 
 ## Open
 - Public duel and PvP panels for observed guilds (PublicDuel has winnerGuild/loserGuild).
 - Faction inference.
-- Anonymising public duel rows on deletion.

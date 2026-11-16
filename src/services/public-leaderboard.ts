@@ -26,7 +26,7 @@ import type { WebContext, WebKit, WebResponse, WebRoute } from "./web-app.js";
 import { classColor, scoreCardResponse, type CardRow, type CardStat } from "./score-card.js";
 import { currentEdition, withEdition } from "./edition-context.js";
 import { gameEditionOf } from "./game-edition.js";
-import { freeSlug, groupObservedGuilds, guildPageStats, guildSlugs, OBSERVED_PREFIX, routeKeyOf, slugBase, unrankedReason, type ObservedGuild } from "./guild-public-stats.js";
+import { freeSlug, groupObservedGuilds, guildPageStats, guildSlugs, observedGuildDuels, OBSERVED_PREFIX, routeKeyOf, slugBase, unrankedReason, type ObservedGuild } from "./guild-public-stats.js";
 import { duelPoints, percent, ratingStartOf, streakText } from "./duels.js";
 import { ADDON_SHOWS_RATING, DUEL_RULES, duelRuleLines, ratingRuleLines } from "./duel-rules.js";
 import { RATING, RATING_START, ratingApplies, ratingSeasonIds, ratingSeasonName, seasonOf, showChange } from "./duel-rating.js";
@@ -412,6 +412,28 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
       const observed = await loadObservedGuilds(taken, bases).catch(() => [] as PublicGuild[]);
       return [...own, ...observed.sort((a, b) => a.name.localeCompare(b.name))];
   }
+  async function loadGlobalDuels(): Promise<GlobalDuel[]> {
+      const edition = currentEdition();
+      const [rows, excluded, open, hiddenMembers] = await Promise.all([
+        database.publicDuel.findMany({ where: { gameEdition: edition, counted: true, held: false }, orderBy: { endedAt: "desc" }, take: 50_000,
+          select: { winnerKey: true, loserKey: true, winnerName: true, loserName: true, winnerRealm: true, loserRealm: true, winnerClass: true, loserClass: true, winnerLevel: true, loserLevel: true, winnerGuild: true, loserGuild: true,
+            winnerMemberId: true, loserMemberId: true, endedAt: true, reason: true, zone: true, durationSec: true, reports: { select: { reporterCharacterKey: true, deviceId: true, guildId: true } } } }),
+        database.publicDuelExclusion.findMany({ select: { deviceId: true }, take: 5_000 }),
+        database.guildSettings.findMany({ where: { publicDungeonRuns: true, guild: { isTestServer: false } }, select: { guildId: true }, take: 5_000 }),
+        database.member.findMany({ where: { OR: [{ raceHidden: true }, { isTest: true }] }, select: { id: true }, take: 20_000 })
+      ]);
+      const out = new Set(excluded.map((row) => row.deviceId)), allowed = new Set(open.map((row) => row.guildId)), hidden = new Set(hiddenMembers.map((row) => row.id));
+      return rows.reverse().flatMap((row): GlobalDuel[] => {
+        if ((row.winnerMemberId && hidden.has(row.winnerMemberId)) || (row.loserMemberId && hidden.has(row.loserMemberId))) return [];
+        // A report counts when its device is not excluded and, for a guild server, that server shows public pages (a standalone addon has no server).
+        const valid = row.reports.filter((report) => !(report.deviceId && out.has(report.deviceId)) && (!report.guildId || allowed.has(report.guildId)));
+        if (!valid.length) return [];
+        const reporters = [...new Set(valid.map((report) => report.reporterCharacterKey))];
+        return [{ winnerKey: row.winnerKey, loserKey: row.loserKey, winner: row.winnerName, loser: row.loserName, winnerRealm: row.winnerRealm, loserRealm: row.loserRealm, winnerClass: row.winnerClass, loserClass: row.loserClass,
+          winnerLevel: row.winnerLevel, loserLevel: row.loserLevel, winnerGuild: row.winnerGuild, loserGuild: row.loserGuild, endedAt: row.endedAt, reason: row.reason, zone: row.zone, durationSec: row.durationSec,
+          reporters, confirmed: reporters.includes(row.winnerKey) && reporters.includes(row.loserKey) }];
+      });
+      }
   return {
     async run(id) {
       const row = await database.publicRun.findFirst({ where: { id, status: "ACCEPTED", gameEdition: currentEdition() }, select: PUBLIC_RUN_SELECT });
@@ -451,29 +473,10 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
       return (await every({ ...range(query), uploads: { some: { uploaderKey: `guild:${guildId}` } } })).sort(newestFirst);
     },
     async guildDuelRatingStart(guildId) { return ratingStartOf(database, guildId); },
-    async globalDuelRows() {
-      const edition = currentEdition();
-      const [rows, excluded, open, hiddenMembers] = await Promise.all([
-        database.publicDuel.findMany({ where: { gameEdition: edition, counted: true, held: false }, orderBy: { endedAt: "desc" }, take: 50_000,
-          select: { winnerKey: true, loserKey: true, winnerName: true, loserName: true, winnerRealm: true, loserRealm: true, winnerClass: true, loserClass: true, winnerLevel: true, loserLevel: true, winnerGuild: true, loserGuild: true,
-            winnerMemberId: true, loserMemberId: true, endedAt: true, reason: true, zone: true, durationSec: true, reports: { select: { reporterCharacterKey: true, deviceId: true, guildId: true } } } }),
-        database.publicDuelExclusion.findMany({ select: { deviceId: true }, take: 5_000 }),
-        database.guildSettings.findMany({ where: { publicDungeonRuns: true, guild: { isTestServer: false } }, select: { guildId: true }, take: 5_000 }),
-        database.member.findMany({ where: { OR: [{ raceHidden: true }, { isTest: true }] }, select: { id: true }, take: 20_000 })
-      ]);
-      const out = new Set(excluded.map((row) => row.deviceId)), allowed = new Set(open.map((row) => row.guildId)), hidden = new Set(hiddenMembers.map((row) => row.id));
-      return rows.reverse().flatMap((row): GlobalDuel[] => {
-        if ((row.winnerMemberId && hidden.has(row.winnerMemberId)) || (row.loserMemberId && hidden.has(row.loserMemberId))) return [];
-        // A report counts when its device is not excluded and, for a guild server, that server shows public pages (a standalone addon has no server).
-        const valid = row.reports.filter((report) => !(report.deviceId && out.has(report.deviceId)) && (!report.guildId || allowed.has(report.guildId)));
-        if (!valid.length) return [];
-        const reporters = [...new Set(valid.map((report) => report.reporterCharacterKey))];
-        return [{ winnerKey: row.winnerKey, loserKey: row.loserKey, winner: row.winnerName, loser: row.loserName, winnerRealm: row.winnerRealm, loserRealm: row.loserRealm, winnerClass: row.winnerClass, loserClass: row.loserClass,
-          winnerLevel: row.winnerLevel, loserLevel: row.loserLevel, winnerGuild: row.winnerGuild, loserGuild: row.loserGuild, endedAt: row.endedAt, reason: row.reason, zone: row.zone, durationSec: row.durationSec,
-          reporters, confirmed: reporters.includes(row.winnerKey) && reporters.includes(row.loserKey) }];
-      });
-    },
+    globalDuelRows: loadGlobalDuels,
     async guildDuelRows(guildId) {
+      const seen = observedGuilds.get(guildId);
+      if (seen) return observedGuildDuels(seen, await loadGlobalDuels());
       const edition = currentEdition();
       // Test members and members hidden from public boards never appear (the 8.5 "everything is shared" rule leaves raceHidden as the only per-member hide).
       const visible = { isTest: false, raceHidden: false };
@@ -504,7 +507,9 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
     async pvp(guilds, at) { return loadPvpData(database, guilds.map((guild) => guild.id), currentEdition(), at); },
     async guildStats(allIds) {
       const guildIds = allIds.filter((id) => !observedGuilds.has(id));
-      const fromRuns = allIds.flatMap((id) => { const seen = observedGuilds.get(id); return seen ? [{ guildId: id, faction: null, realm: seen.realm || null, members: seen.characters.size, linked: 0, levelled: 0, at60: 0, levelSum: 0, duels: 0 }] : []; });
+      const seenIds = allIds.filter((id) => observedGuilds.has(id));
+      const globalDuels = seenIds.length ? await loadGlobalDuels() : [];
+      const fromRuns = seenIds.map((id) => { const seen = observedGuilds.get(id)!; return { guildId: id, faction: null, realm: seen.realm || null, members: seen.characters.size, linked: 0, levelled: 0, at60: 0, levelSum: 0, duels: observedGuildDuels(seen, globalDuels).length }; });
       if (!guildIds.length) return fromRuns;
       const edition = currentEdition();
       const [members, characters, listings, duels] = await Promise.all([
@@ -956,7 +961,9 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     return kit.page(200, t("Character rankings", "Classement des personnages"), body, { shareImage: "/images/social/og-players.jpg", description: t("WoW Forever dungeon score rankings by season and level bracket, with class, role and realm filters.", "Classement des scores de donjon WoW Forever par saison et tranche de niveaux, avec filtres de classe, rôle et royaume.") });
   }
 
-  async function guildsBoard(ctx: WebContext, kit: WebKit): Promise<WebResponse> {
+  /** The guild rankings, optionally scoped to one realm or faction (their own addresses; the filter form still works from there). */
+  async function guildsBoard(request: WebContext, kit: WebKit, scope?: { realm?: string; faction?: string; title: string }): Promise<WebResponse> {
+    const ctx: WebContext = scope ? { ...request, request: { ...request.request, query: new URLSearchParams([...[...request.request.query].filter(([key]) => key !== "realm" && key !== "faction"), ...(scope.realm ? [["realm", scope.realm]] : []), ...(scope.faction ? [["faction", scope.faction]] : [])] as [string, string][]) } } : request;
     const { t, lang } = ctx;
     const { filters, period } = await pageFilters(ctx);
     await ensureIndex(ctx, period);
@@ -965,8 +972,8 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const stats = await allGuildStats();
     const overview = guildOverview(entries, ranks, stats, await periodRuns(period), currentEdition());
     const base = "/leaderboards/guilds/";
-    const body = PAGE_CSS + breadcrumbs(lang, [[t("Leaderboards", "Classements"), link("/leaderboards/", lang)], [t("Guilds", "Guildes"), null]], escapeHtml)
-      + `${sectionArt("guilds")}<p class="eyebrow">Guilded · ${escapeHtml(periodName(ctx, period))}</p><h1>${t("Guild rankings", "Classement des guildes")}</h1>`
+    const body = PAGE_CSS + breadcrumbs(lang, [[t("Leaderboards", "Classements"), link("/leaderboards/", lang)], [t("Guilds", "Guildes"), scope ? link("/leaderboards/guilds/", lang) : null], ...(scope ? [[scope.title, null] as [string, null]] : [])], escapeHtml)
+      + `${sectionArt("guilds")}<p class="eyebrow">Guilded · ${escapeHtml(periodName(ctx, period))}</p><h1>${scope?.title ?? t("Guild rankings", "Classement des guildes")}</h1>`
       + `<p class="muted">${t(`A guild's score in a level bracket is its ${GUILD_COUNT} best members' scores added up. Guilds that use Guilded count their linked characters. Other guilds are listed from public runs, by the in-game guild their players' clients showed (at least two characters), and count those players.`, `Le score d'une guilde dans une tranche de niveaux additionne les scores de ses ${GUILD_COUNT} meilleurs membres. Les guildes qui utilisent Guilded comptent leurs personnages liés. Les autres guildes sont listées à partir des essais publics, selon la guilde en jeu affichée par le client de leurs joueurs (au moins deux personnages), et comptent ces joueurs.`)}</p>`
       + periodDates(ctx, period) + views(ctx, "guilds", filters)
       + `<nav class="tabs"><a class="${filters.week ? "" : "on"}" href="${link(base, lang, { season: filters.season })}">${t("Season", "Saison")}</a><a class="${filters.week ? "on" : ""}" href="${link(base, lang, { period: "week" })}">${t("This week", "Cette semaine")}</a></nav>`
@@ -975,7 +982,51 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       + bracketSwitch(ctx, periodRules(period).brackets, (chosenBracket(periodRules(period).brackets, filters.bracket))?.key ?? null, (key) => link(base, lang, { season: filters.season, period: filters.week ? "week" : null, bracket: key }))
       + periodRules(period).brackets.filter((b) => b.key === (chosenBracket(periodRules(period).brackets, filters.bracket)?.key ?? b.key)).slice(0, 1).map((b) => `<section><h3>${escapeHtml(bracketName(ctx, b.key))}</h3>${guildTable(ctx, ranks.filter((r) => r.bracket === b.key), 50)}</section>`).join("")
       + `<p class="muted">${t("Officers publish their guild's runs with /mod leaderboard in Discord.", "Les officiers publient les essais de leur guilde avec /mod leaderboard dans Discord.")}</p>`;
-    return kit.page(200, t("Guild rankings", "Classement des guildes"), body, { shareImage: "/images/social/og-guilds.jpg", description: t("WoW Forever guild rankings by dungeon score: each guild's five best members per level bracket.", "Classement des guildes WoW Forever par score de donjon : les cinq meilleurs membres de chaque guilde par tranche de niveaux.") });
+    return kit.page(200, scope?.title ?? t("Guild rankings", "Classement des guildes"), body, { shareImage: "/images/social/og-guilds.jpg", description: t("WoW Forever guild rankings by dungeon score: each guild's five best members per level bracket.", "Classement des guildes WoW Forever par score de donjon : les cinq meilleurs membres de chaque guilde par tranche de niveaux.") });
+  }
+
+  const realmSlug = (realm: string) => slugBase(realm, "realm");
+  /** Realm of each guild with its guild count, for the realm index and the realm pages' addresses. */
+  async function realmList(ctx: WebContext): Promise<{ realm: string; slug: string; guilds: number; factions: Record<string, number> }[]> {
+    await ensureIndex(ctx);
+    const stats = await allGuildStats();
+    const byRealm = new Map<string, { realm: string; slug: string; guilds: number; factions: Record<string, number> }>();
+    for (const row of stats) {
+      if (!row.realm) continue;
+      const slug = realmSlug(row.realm);
+      const entry = byRealm.get(slug) ?? { realm: row.realm, slug, guilds: 0, factions: {} };
+      entry.guilds++;
+      const key = row.faction ?? "UNKNOWN";
+      entry.factions[key] = (entry.factions[key] ?? 0) + 1;
+      byRealm.set(slug, entry);
+    }
+    return [...byRealm.values()].sort((a, b) => b.guilds - a.guilds || a.realm.localeCompare(b.realm));
+  }
+  async function realmsIndex(ctx: WebContext, kit: WebKit): Promise<WebResponse> {
+    const { t, lang } = ctx;
+    const realms = await realmList(ctx);
+    const factionLinks = ["ALLIANCE", "HORDE", "UNKNOWN"].map((value) => `<a class="button" href="${link(`/leaderboards/guilds/faction/${value.toLowerCase()}/`, lang)}">${escapeHtml(value === "UNKNOWN" ? t("Unknown", "Inconnue") : factionLabel(value, lang))}</a>`).join(" ");
+    const rows = realms.map((row) => `<tr><td><a href="${link(`/leaderboards/guilds/realm/${encodeURIComponent(row.slug)}/`, lang)}">${escapeHtml(row.realm)}</a></td><td class="num">${row.guilds}</td>`
+      + `<td class="num">${row.factions["ALLIANCE"] ?? 0}</td><td class="num">${row.factions["HORDE"] ?? 0}</td><td class="num">${row.factions["UNKNOWN"] ?? 0}</td></tr>`).join("");
+    const body = PAGE_CSS + breadcrumbs(lang, [[t("Leaderboards", "Classements"), link("/leaderboards/", lang)], [t("Guilds", "Guildes"), link("/leaderboards/guilds/", lang)], [t("Realms", "Royaumes"), null]], escapeHtml)
+      + `<h1>${t("Guilds by realm and faction", "Guildes par royaume et faction")}</h1><p>${factionLinks}</p>`
+      + (realms.length ? `<div class="table-wrap"><table class="dense"><thead><tr><th>${t("Realm", "Royaume")}</th><th class="num">${t("Guilds", "Guildes")}</th><th class="num">${factionLabel("ALLIANCE", lang)}</th><th class="num">${factionLabel("HORDE", lang)}</th><th class="num">${t("Unknown", "Inconnue")}</th></tr></thead><tbody>${rows}</tbody></table></div>`
+        : `<p class="muted">${t("No realm known yet.", "Aucun royaume connu pour l'instant.")}</p>`)
+      + `<p class="muted">${t("A guild's faction is known only when it uses Guilded or posted a recruitment listing.", "La faction d'une guilde n'est connue que si elle utilise Guilded ou a publié une annonce de recrutement.")}</p>`;
+    return kit.page(200, t("Guilds by realm and faction", "Guildes par royaume et faction"), body, { description: t("WoW Forever guilds grouped by realm and faction.", "Guildes WoW Forever regroupées par royaume et faction.") });
+  }
+  async function realmBoard(ctx: WebContext, kit: WebKit, slug: string): Promise<WebResponse> {
+    const { t } = ctx;
+    const found = (await realmList(ctx)).find((row) => row.slug === slug.toLowerCase());
+    if (!found) return kit.page(404, t("Not found", "Introuvable"), PAGE_CSS + `<h1>${t("Realm not found", "Royaume introuvable")}</h1><p><a href="${link("/leaderboards/guilds/realms/", ctx.lang)}">${t("All realms", "Tous les royaumes")}</a></p>`, { noindex: true });
+    return guildsBoard(ctx, kit, { realm: found.realm, title: `${t("Guilds on", "Guildes sur")} ${found.realm}` });
+  }
+  async function factionBoard(ctx: WebContext, kit: WebKit, key: string): Promise<WebResponse> {
+    const { t, lang } = ctx;
+    const value = key.toUpperCase();
+    if (!["ALLIANCE", "HORDE", "UNKNOWN"].includes(value)) return kit.page(404, t("Not found", "Introuvable"), PAGE_CSS + `<h1>${t("Faction not found", "Faction introuvable")}</h1>`, { noindex: true });
+    const label = value === "UNKNOWN" ? t("Unknown faction", "Faction inconnue") : factionLabel(value, lang);
+    return guildsBoard(ctx, kit, { faction: value, title: `${t("Guilds:", "Guildes :")} ${label}` });
   }
 
   // Every character that appears in a public run of any season, folded for matching and ordered by best score; built once a minute.
@@ -1439,8 +1490,8 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const tile = (k: string, v: string) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div></div>`;
     const dash = `<span class="muted">–</span>`;
     const tiles = `<div class="tiles">`
-      + (info?.faction ? tile(t("Faction", "Faction"), `<span class="fac-${info.faction.toLowerCase()}">${escapeHtml(factionLabel(info.faction, lang))}</span>`) : "")
-      + tile(t("Realm", "Royaume"), info?.realm ? escapeHtml(info.realm) : dash)
+      + (info?.faction ? tile(t("Faction", "Faction"), `<a class="fac-${info.faction.toLowerCase()}" href="${link(`/leaderboards/guilds/faction/${info.faction.toLowerCase()}/`, lang)}">${escapeHtml(factionLabel(info.faction, lang))}</a>`) : "")
+      + tile(t("Realm", "Royaume"), info?.realm ? (info.realm ? `<a href="${link(`/leaderboards/guilds/realm/${encodeURIComponent(realmSlug(info.realm))}/`, lang)}">${escapeHtml(info.realm)}</a>` : escapeHtml(info.realm)) : dash)
       + tile(t("Ranked players", "Joueurs classés"), String(stats.ranked))
       + tile(t("Public runs", "Essais publics"), String(stats.runs))
       + tile(t("Dungeon records", "Records de donjon"), String(stats.records))
@@ -1807,6 +1858,11 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const match = /^\/leaderboards\/character\/([^/]{1,200})$/.exec(path);
     if (match && ctx.request.method !== "POST") return character(ctx, kit, match[1]!);
     if ((path === "/leaderboards/guilds/" || path === "/leaderboards/guilds") && ctx.request.method !== "POST") return guildsBoard(ctx, kit);
+    if ((path === "/leaderboards/guilds/realms/" || path === "/leaderboards/guilds/realms") && ctx.request.method !== "POST") return realmsIndex(ctx, kit);
+    const realmRoute = /^\/leaderboards\/guilds\/realm\/([a-z0-9-]{1,60})\/?$/.exec(path);
+    if (realmRoute && ctx.request.method !== "POST") return realmBoard(ctx, kit, realmRoute[1]!);
+    const factionRoute = /^\/leaderboards\/guilds\/faction\/(alliance|horde|unknown)\/?$/.exec(path);
+    if (factionRoute && ctx.request.method !== "POST") return factionBoard(ctx, kit, factionRoute[1]!);
     if ((path === "/leaderboards/characters/" || path === "/leaderboards/characters") && ctx.request.method !== "POST") return charactersBoard(ctx, kit);
     const guild = /^\/leaderboards\/guild\/([A-Za-z0-9_-]{1,40})\/?$/.exec(path);
     if (guild && ctx.request.method !== "POST") return guildPage(ctx, kit, guild[1]!);

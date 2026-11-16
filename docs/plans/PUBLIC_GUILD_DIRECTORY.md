@@ -17,8 +17,12 @@ Owner decision (15 November 2026): "we can show everything publicly": every guil
 ## Deletion
 `deleteMyData` (`src/services/data-deletion.ts`) first anonymises (before the main transaction, outside it, set-based and batched, safe to repeat: a failure aborts before anything else is deleted) the member's characters in public runs: the player row becomes `deleted-player-<row id>` (no display name, no guild; class, role and level stay so the run is unchanged), and the same names are replaced in the run's saved integrity, upload evidence and reporters. Guild pages are built from those rows and from `Character`, so the member disappears from them. Public duel rows (names, keys, guild text, member ids, and the reports' keys and evidence) are anonymised the same way (`deleted-player-<duel id>-w|l`). First-name-only legacy rows ("Kev" for "Kev Caron") are touched only when tied to the member another way (a run that also holds their full-name character or was uploaded by their Discord server; a duel side with their member id, or a report from their server or their character); another player who only shares a first name is left alone.
 
+## Duels, realms and factions (PR 2)
+- **Duels of observed guilds**: the guild's Duels tab (`/leaderboards/guild/<slug>/duels`, and `.json`) shows counted public duels (`PublicDuel`, the global ladder's rows) where both sides carried the guild's in-game guild text on its realm (`observedGuildDuels`, `guild-public-stats.ts`); a side with no realm stored counts. The guild list's Duels column counts them too. Duels against players of other guilds stay on the global duel ladder.
+- **PvP**: battleground and world PvP data only exist for Guilded servers' members (guild-private tables), so there is no public PvP panel for an outside guild; its guild page shows none.
+- **Realm and faction pages**: `/leaderboards/guilds/realms/` (realms with guild counts per faction), `/leaderboards/guilds/realm/<realm slug>/` and `/leaderboards/guilds/faction/<alliance|horde|unknown>/` render the guild ranking filtered to that realm or faction (the same table and filters as `/leaderboards/guilds/`); the guild page's realm and faction tiles link to them. The realm comes from a guild's stats (observed guilds: the grouping's realm).
+
 ## Open
-- Public duel and PvP panels for observed guilds (PublicDuel has winnerGuild/loserGuild).
-- Faction inference.
+- Faction inference for observed guilds (no source yet: they stay "Unknown").
 
 Matching rule for deletion: names match the full name (the first-name alias only with a tie, see above); with a realm on both sides the realms must be equal; a realm-less row (or a member character without a realm) is taken only when the name is unique in the member's guild. The public pages' caches are cleared after a deletion.

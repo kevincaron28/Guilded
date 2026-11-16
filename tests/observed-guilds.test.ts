@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { groupObservedGuilds, MIN_OBSERVED_MEMBERS, slugBase } from "../src/services/guild-public-stats.js";
+import { groupObservedGuilds, observedGuildDuels, MIN_OBSERVED_MEMBERS, slugBase } from "../src/services/guild-public-stats.js";
 
 const row = (guild: string | null, character: string, realm = "Doomhowl") => ({ guild, realm, character });
 
@@ -46,5 +46,18 @@ describe("observed guild address aliases", () => {
     expect(known.aliases).toContain("twins-doomhowl"); // #999's slug
     const unknown = groupObservedGuilds([{ guild: "Twins", realm: "", character: "A" }, { guild: "Twins", realm: "", character: "B" }], new Set())[0]!;
     expect(known.aliases).toContain(unknown.slug); // the address it had before its realm resolved
+  });
+});
+
+describe("duels of an observed guild", () => {
+  const seen = { key: "k", name: "Les Braves", realm: "Doomhowl", slug: "les-braves-doomhowl-abc123", aliases: [], spellings: ["Les Braves"], characters: new Map<string, string>() };
+  const duel = (winnerGuild: string | null, loserGuild: string | null, winnerRealm = "Doomhowl", loserRealm = "Doomhowl") => ({
+    winnerKey: "a", loserKey: "b", winner: "Ann", loser: "Bob", winnerRealm, loserRealm, winnerClass: "Mage", loserClass: "Rogue", winnerLevel: 60, loserLevel: 60,
+    winnerGuild, loserGuild, endedAt: new Date("2026-11-10T12:00:00Z"), reason: "x", zone: null, durationSec: 30, reporters: ["a"], confirmed: false
+  });
+  it("keeps only duels between two members of that guild on its realm", () => {
+    const rows = observedGuildDuels(seen, [duel("Les Braves", "les braves"), duel("Les Braves", "Other Guild"), duel("Les Braves", null), duel("Les Braves", "Les Braves", "Doomhowl", "Elsewhere"), duel("Les Braves", "Les Braves", "", "")]);
+    expect(rows).toHaveLength(2); // same text on the same realm, and a row with no realm stored
+    expect(rows[0]).toMatchObject({ winner: "Ann", loser: "Bob", winnerShown: true, loserShown: true });
   });
 });

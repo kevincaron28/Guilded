@@ -7,6 +7,8 @@ import type { LeaderPlayer, LeaderRun, PublicGuild } from "./public-leaderboard.
 import type { BracketedRules } from "./dungeon-november-rules.js";
 import { characterKey } from "../../companion/character-identity.mjs";
 import { dungeonRole } from "../../companion/dungeon-role.mjs";
+import type { GlobalDuel } from "./duel-global.js";
+import type { PublicDuel } from "./public-duels.js";
 
 const SLUG_MAX = 36;
 
@@ -176,4 +178,12 @@ export function groupObservedGuilds(rows: { guild: string | null; realm: string;
     const aliases = [...new Set([realm ? stable(`${folded}|`, "") : "", slugBase(`${name} ${group.realm}`.trim(), key)].filter((alias) => alias && alias !== slug))];
     return [{ key, name, realm: group.realm, slug, aliases, spellings: [...group.spellings.keys()], characters: group.characters }];
   });
+}
+
+/** Counted public duels where both sides carried this observed guild's in-game guild text (and its realm, when a side has one): duels between its members. */
+export function observedGuildDuels(seen: ObservedGuild, all: readonly GlobalDuel[]): PublicDuel[] {
+  const names = new Set(seen.spellings.map((name) => name.toLowerCase()));
+  const inGuild = (guild: string | null, realm: string) => !!guild && names.has(guild.toLowerCase()) && (!realm || realm.toLowerCase() === seen.realm.toLowerCase());
+  return all.filter((d) => inGuild(d.winnerGuild, d.winnerRealm) && inGuild(d.loserGuild, d.loserRealm))
+    .map((d) => ({ winnerKey: d.winnerKey, loserKey: d.loserKey, winner: d.winner, loser: d.loser, winnerLevel: d.winnerLevel, loserLevel: d.loserLevel, winnerClass: d.winnerClass, loserClass: d.loserClass, winnerShown: true, loserShown: true, endedAt: d.endedAt, reason: d.reason }));
 }

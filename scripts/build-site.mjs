@@ -2,6 +2,7 @@
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync, cpSync, existsSync, readdirSync } from "node:fs";
 import { dirname, posix } from "node:path";
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { marked } from "marked";
 import { EDITION_SECTIONS, editionHref, editionMenu, editionSection, editionSwitchHref, FOOTER_COLUMNS, footerLinks, localizedHref, navLinks } from "../site/nav.mjs";
 import { WOW_EDITIONS, editionCards, editionHubs, editionPages } from "../site/editions.mjs";
@@ -194,7 +195,7 @@ for (const page of pages) {
   writeFileSync(`${out}/404.html`, `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#111312"><meta name="robots" content="noindex"><title data-en="Page not found · Guilded" data-fr="Page introuvable · Guilded">Page not found · Guilded</title><link rel="icon" href="/favicon.png" type="image/png"><link rel="stylesheet" href="/design-tokens.css"><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/atelier.css"><script src="/site.js" defer></script><script src="/language.js" type="module"></script></head><body class="site-page features-page"><a class="skip" href="#main">${b('Skip to content', 'Aller au contenu')}</a>${siteHeader('/', false, null, true)}<main class="guide not-found" id="main" tabindex="-1"><img class="nf-art" src="/images/web/404-1200.webp" srcset="/images/web/404-800.webp 800w, /images/web/404-1200.webp 1200w" sizes="(max-width:1000px) 100vw, 1000px" alt="" width="1200" height="675" fetchpriority="high"><div class="nf-text"><span class="nf-code">404</span><h1>${b('This page wandered off', 'Cette page s’est égarée')}</h1><p>${b('The address may be old or mistyped. Head back to the start and pick up from there.', 'L’adresse est peut-être ancienne ou mal écrite. Revenez à l’accueil et reprenez à partir de là.')}</p><p><a class="button" href="/">${b('Go home', 'Retour à l’accueil')}</a></p></div></main></body></html>`);
 }
 writeFileSync(`${out}/sitemap.xml`, `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${publicUrls.map(path => `<url><loc>${origin}${path}</loc></url>`).join('')}</urlset>\n`);
-writeFileSync(`${out}/robots.txt`, `User-agent: *\nAllow: /\nSitemap: ${origin}/sitemap.xml\nSitemap: ${origin}/recruitment/guilds/sitemap.xml\n`);
+writeFileSync(`${out}/robots.txt`, `User-agent: *\nAllow: /\nDisallow: /me\nDisallow: /auth/\nDisallow: /api/\nDisallow: /health\nSitemap: ${origin}/sitemap.xml\nSitemap: ${origin}/recruitment/guilds/sitemap.xml\n`);
 // Each bilingual public page has crawlable EN/FR alternatives. The Worker
 // renders ?lang=fr on the server, including for clients without JavaScript.
 function languageAlternates(directory) {
@@ -221,5 +222,8 @@ function languageAlternates(directory) {
 }
 languageAlternates(out);
 writeFileSync(`${out}/creator/sitemap.xml`, `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://kcaron.top/</loc></url><url><loc>https://kcaron.top/?lang=fr</loc></url></urlset>\n`);
-writeFileSync(`${out}/sitemap.xml`, `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${publicUrls.map(path => `<url><loc>${escape(origin + path)}</loc></url>`).join('')}</urlset>\n`);
+// lastmod: the date of the commit being built (stable across rebuilds of one commit); the build date outside a git checkout.
+let lastmod = new Date().toISOString().slice(0, 10);
+try { const day = execFileSync("git", ["log", "-1", "--format=%cs"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); if (/^\d{4}-\d{2}-\d{2}$/.test(day)) lastmod = day; } catch { /* no git: build date */ }
+writeFileSync(`${out}/sitemap.xml`, `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${publicUrls.map(path => `<url><loc>${escape(origin + path)}</loc><lastmod>${lastmod}</lastmod></url>`).join('')}</urlset>\n`);
 console.log(`Built ${out}: landing page, ${pages.length} feature/community pages and ${sources.size} guides. No deployment performed.`);

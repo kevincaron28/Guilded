@@ -131,13 +131,13 @@ describe("one-click claim offers", () => {
     });
   });
 
-  it("links with the existing link path: confirmed only for the member's own claimed install AND a roster-backed name, otherwise reported", async () => {
+  it("links with the existing link path as reported only: a device does not say which character is logged in", async () => {
     const { db } = world([dev("dev1", [char("Ray Smith"), char("Amy Jones")]), dev("dev2", [char("Cora Vale"), char("Stray Name")], "m1")], { roster: ["Amy Jones", "Cora Vale"] });
     expect(await claimOffer(db, "m1", "dev1", NOW)).toEqual({ linked: ["Amy Jones"], skipped: [] });
     expect(await claimOffer(db, "m1", "dev2", NOW)).toEqual({ linked: ["Cora Vale", "Stray Name"], skipped: [] });
     expect(linkCalls.map((c) => [c.name, c.options])).toEqual([
       ["Amy Jones", { confirm: false, evidence: "named" }],
-      ["Cora Vale", { confirm: true, evidence: "companion" }],
+      ["Cora Vale", { confirm: false, evidence: "named" }],
       ["Stray Name", { confirm: false, evidence: "named" }]
     ]);
   });

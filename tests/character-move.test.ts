@@ -10,6 +10,8 @@ import {
   officerMoveCharacter, undoMove, WITH_DETACHED
 } from "../src/services/character-move.js";
 import { linkPairedCharacter } from "../src/services/character-pairing.js";
+import { linkUploaderCharacters } from "../src/services/upload-linking.js";
+import { characterTrust } from "../src/services/character-trust.js";
 import { unlinkCharacter } from "../src/services/character-verify.js";
 import { handleLinkMoveButton, tellLinkConflicts } from "../src/services/link-conflict-dm.js";
 import { t } from "../src/i18n.js";
@@ -337,5 +339,55 @@ describe("hideDetached (database.ts)", () => {
 
   it("leaves a query that names detachedAt alone", () => {
     for (const where of [DETACHED, { guildId: "g", ...WITH_DETACHED }, { AND: [{ detachedAt: null }] }]) expect(hideDetached({ where })).toEqual({ where });
+  });
+});
+
+// Ownership evidence (security review, 16 November 2026): naming a character in the alts list never confirms it.
+describe("confirmed needs ownership evidence", () => {
+  const snapshot = (current: string, alts: string[]) => ({ character: upload(current), alts: alts.map(upload) });
+  const after = <T>(run: () => Promise<T>) => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-11-20T12:00:00Z")); return run().finally(() => vi.useRealTimers()); };
+
+  it("confirms the logged-in character and only reports the alts", async () => {
+    const guild = newGuild();
+    await after(() => linkUploaderCharacters(guild.database, "guild", "kev", snapshot("Kev Main", ["Kev Alt", "Ray Alt"])));
+    const [main, alt, other] = guild.characters;
+    expect(main).toMatchObject({ name: "Kev Main", linkEvidence: "companion" });
+    expect(main!.confirmedAt).toBeInstanceOf(Date);
+    expect(alt).toMatchObject({ name: "Kev Alt", linkEvidence: "named" });
+    expect(other).toMatchObject({ name: "Ray Alt", linkEvidence: "named" });
+    expect(alt!.confirmedAt ?? null).toBeNull();
+    expect(characterTrust(main!, { inRoster: true })).toBe("confirmed");
+    expect(characterTrust(alt!, { inRoster: true })).toBe("reported");
+  });
+
+  it("upgrades an alt the first time it is the logged-in character", async () => {
+    const guild = newGuild();
+    await after(() => linkUploaderCharacters(guild.database, "guild", "kev", snapshot("Kev Main", ["Kev Alt"])));
+    const alt = guild.characters[1]!;
+    expect(characterTrust(alt, { inRoster: true })).toBe("reported");
+    await after(() => linkUploaderCharacters(guild.database, "guild", "kev", snapshot("Kev Alt", ["Kev Main"])));
+    expect(alt).toMatchObject({ memberId: "kev", linkEvidence: "companion" });
+    expect(characterTrust(alt, { inRoster: true })).toBe("confirmed");
+    expect(guild.characters).toHaveLength(2);
+  });
+
+  it("an edited file naming a guildmate's character only reports it, and the real owner's logged-in upload takes it", async () => {
+    const guild = newGuild();
+    await after(() => linkUploaderCharacters(guild.database, "guild", "kev", snapshot("Kev Main", ["Ray Main"])));
+    const stolen = guild.characters.find((row) => row.name === "Ray Main")!;
+    expect(stolen).toMatchObject({ memberId: "kev", linkEvidence: "named" });
+    expect(characterTrust(stolen, { inRoster: true })).toBe("reported");
+    await after(() => linkUploaderCharacters(guild.database, "guild", "ray", snapshot("Ray Main", [])));
+    expect(stolen).toMatchObject({ memberId: "ray", linkEvidence: "companion" });
+    expect(characterTrust(stolen, { inRoster: true })).toBe("confirmed");
+    expect(guild.conflicts).toMatchObject([{ status: "MOVED", ownerMemberId: "kev", claimantMemberId: "ray" }]);
+  });
+
+  it("leaves existing confirmed rows untouched and never takes a stronger link by naming it", async () => {
+    const guild = newGuild();
+    const confirmedAt = new Date("2026-11-12T10:00:00Z");
+    const row = guild.add("Ray Old", "ray", { isMain: true, confirmedAt, linkEvidence: "companion" });
+    await after(() => linkUploaderCharacters(guild.database, "guild", "kev", snapshot("Kev Main", ["Ray Old"])));
+    expect(row).toMatchObject({ memberId: "ray", linkEvidence: "companion", confirmedAt });
   });
 });

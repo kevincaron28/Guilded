@@ -9,20 +9,21 @@ import { gameEditionOf } from "./game-edition.js";
 type Snapshot = { character?: AddonCharacter | null | undefined; alts: readonly AddonCharacter[] };
 
 /**
- * A signed-in companion proves a Discord member; every character that PC reports (the one logged in
- * and the alts) becomes theirs, an officer's included. No code, no name match. A name another member
+ * A signed-in companion proves a Discord member; every character that PC reports (the one logged in,
+ * confirmed, and the alts, reported) becomes theirs, an officer's included. No code, no name match. A name another member
  * owns, or one an officer removed from this member, is left alone (linkPairedCharacter refuses both).
  */
 export async function linkUploaderCharacters(database: PrismaClient, guildId: string, memberId: string, snapshot: Snapshot) {
   const own = snapshot.character ? characterKey(snapshot.character.name, snapshot.character.realm, gameEditionOf(snapshot.character)) : null;
   // 9.0.8: a failed link (a timeout under load) never fails the upload: the next upload links again.
-  // The signed-in companion is this member's own: confirmedAt records that. Since the linking audit (T8) that alone is
-  // not "confirmed": the guild roster or a guildmate's addon must agree (character-trust.ts decides when trust is read).
+  // Ownership evidence (security review, 16 November 2026): only the LOGGED-IN character of this signed upload is proven theirs
+  // (confirmedAt, evidence "companion"). The alts list is a saved file that can name any guildmate's character, so alts are linked
+  // as "named" (reported); one upgrades the first time it is the logged-in character of a signed upload (character-trust.ts).
   const status = snapshot.character ? await linkPairedCharacter(database, guildId, memberId, snapshot.character, { confirm: true })
     .catch((error: unknown) => { console.error("Linking the uploader's character failed", error); return "link-retry" as const; }) : "missing-character" as const;
   for (const alt of snapshot.alts) {
     if (own && characterKey(alt.name, alt.realm, gameEditionOf(alt)) === own) continue;
-    await linkPairedCharacter(database, guildId, memberId, alt, { confirm: true }).catch((error: unknown) => console.error("Linking an alt failed", error));
+    await linkPairedCharacter(database, guildId, memberId, alt, { confirm: false, evidence: "named" }).catch((error: unknown) => console.error("Linking an alt failed", error));
   }
   return status;
 }

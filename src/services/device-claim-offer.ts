@@ -13,7 +13,7 @@ import { RECENT_MEMBER_MS } from "./guild-participants.js";
 // Rules: a character another member owns is never offered (it is listed as taken); a member's own unlink (BLOCKED) and an
 // officer's removal (REMOVED) are respected; "Not now" snoozes that install for 7 days; the DM is sent at most once per
 // install per 7 days; linking twice does nothing. The evidence stays what it is today: the member's own signed-in companion
-// (the install they claimed) is a confirmed link, anything else is only "reported" (named).
+// is not enough for "confirmed" either (a device does not say which character is logged in): a claim only reports (named), and a signed upload of the played character confirms it.
 // The same offer is answered in the companion window (hub-style API in companion-api.ts) and in a Discord DM.
 
 export const OFFER_SNOOZE_MS = 7 * 86_400_000;
@@ -120,10 +120,9 @@ export async function snoozeOffer(db: Db, memberId: string, deviceId: string, no
 export async function claimOffer(db: Db, memberId: string, deviceId: string, now = new Date()): Promise<{ linked: string[]; skipped: string[] } | null> {
   const [offer] = await offersFor(db, memberId, now, { includeSnoozed: true, deviceId });
   if (!offer) return null;
-  const device = await db.companionDevice.findUnique({ where: { id: deviceId }, select: { claimedMemberId: true } });
-  // The member's own signed-in companion is the proof "confirmed" has always meant, and only for names the synced guild roster also lists;
-  // an install nobody claimed, or a name the roster does not back, only reports.
-  const own = device?.claimedMemberId === memberId;
+  // A device reports a WoW account's characters, not which one is logged in, and the roster only proves a name exists in the guild:
+  // neither is ownership evidence (security review, 16 November 2026), so a claim only reports. A character becomes confirmed when it
+  // is the logged-in character of a signed upload from the member's own companion, a heard verify code, or an officer link.
   const linked: string[] = [];
   const skipped: string[] = [];
   const rows = await db.deviceCharacter.findMany({ where: { deviceId }, select: { name: true, realm: true, displayName: true, className: true, race: true, level: true } });
@@ -133,7 +132,7 @@ export async function claimOffer(db: Db, memberId: string, deviceId: string, now
     const status = await linkPairedCharacter(db, offer.guildId, memberId, {
       name: row.name, realm: row.realm, class: row.className, race: row.race ?? "", level: row.level ?? 0, spec: "", professions: [],
       ...(row.displayName ? { displayName: row.displayName } : {}), gameEdition: "forever"
-    }, own && wanted.corroborated ? { confirm: true, evidence: "companion" } : { confirm: false, evidence: "named" }).catch(() => "link-retry" as const);
+    }, { confirm: false, evidence: "named" }).catch(() => "link-retry" as const);
     (status === "linked" || status === "already-linked" ? linked : skipped).push(row.name);
   }
   await db.deviceClaimOffer.upsert({ where: { memberId_deviceId: { memberId, deviceId } }, create: { memberId, deviceId, doneAt: now }, update: { doneAt: now } });

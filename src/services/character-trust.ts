@@ -18,6 +18,8 @@ import { characterKey } from "../../companion/character-identity.mjs";
 // Grandfathered (owner decision, 10 November 2026: "grandfather the old links"): a character whose confirmedAt is
 // before T8_STRICT_FROM, the instant the strict rule went live, stays confirmed exactly as before T8 (the member's own
 // companion or an officer linked it). The strict rule above applies only to links confirmed at or after it.
+// Granting side (security review, 16 November 2026): only snapshot.character of a signed upload is linked with confirmedAt; alts named in an
+// export and one-click device claims are linked as "named" (no confirmedAt), so they are reported until the character is the logged-in one.
 // Reported otherwise: typed in, matched by name, named in an invite request, heard by a guildmate's
 // addon without the member's own companion, or uploaded by the member's companion alone (a saved file
 // can name any character).

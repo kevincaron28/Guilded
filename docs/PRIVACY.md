@@ -8,8 +8,9 @@ Last updated / Dernière mise à jour : 12 November / novembre 2026.
 connect your characters, everything it records about them is shared by design: your stats, levels, gear and
 professions, achievements and badges, dungeon runs and scores, battleground results, duel results, map position
 in the addon, the race to 60 and the leaderboards, in your guild and on the public leaderboards and player
-profiles of guilded.kcaron.top. Do not install or connect Guilded if you do not want that. The one control left is
-**Delete my data** (below).
+profiles of guilded.kcaron.top. Do not install or connect Guilded if you do not want that. The controls left are
+**Delete my data** (below) and **hide my profile** (`/character privacy hide`): hidden, your characters leave the public
+pages and public runs and duels show you as "Hidden player" (your own server's boards do not change).
 
 One exception is the **guild map in the phone app** (owner decision, 6 November 2026): your companion uploads where
 your own characters were last seen outdoors (zone, map point and time, kept 28 days) and your own calls for help (kept
@@ -217,7 +218,9 @@ installez Guilded et reliez vos personnages, tout ce qu'il enregistre à leur su
 statistiques, niveaux, équipement et métiers, succès et badges, donjons et scores, résultats de champs de bataille,
 résultats de duels, position sur la carte dans l'addon, la course au 60 et les classements, dans votre guilde et
 sur les classements et profils publics de guilded.kcaron.top. N'installez pas et ne reliez pas Guilded si vous ne
-le souhaitez pas. Le seul contrôle restant est **Supprimer mes données** (ci-dessous).
+le souhaitez pas. Les contrôles restants sont **Supprimer mes données** (ci-dessous) et **masquer mon profil**
+(`/character privacy hide`) : masqués, vos personnages quittent les pages publiques et les donjons et duels publics vous
+montrent comme « Joueur masqué » (les tableaux de votre propre serveur ne changent pas).
 
 Une exception : la **carte de la guilde dans l'appli mobile** (décision du propriétaire, 6 novembre 2026). Votre
 compagnon envoie où vos propres personnages ont été vus dehors pour la dernière fois (zone, point sur la carte et heure,

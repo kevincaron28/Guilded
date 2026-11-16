@@ -80,10 +80,12 @@ export async function loadGuildPageView(database: PrismaClient, slug: string, al
   const timezone = settings?.timezone ?? "America/Toronto";
   const cores: PageCore[] = [];
   if (on("cores") || on("loot") || on("rosters") || on("rankings")) {
+    // Members who hid their profile (profile-privacy.ts) are left out of the public rosters and rankings.
+    const hiddenUsers = (await database.publicProfileHidden.findMany({ select: { discordUserId: true }, take: 50_000 })).map((row) => row.discordUserId);
     const rows = await database.raidCore.findMany({
       where: { guildId: page.guild.id },
       orderBy: { name: "asc" },
-      include: { members: { where: { member: { status: "ACTIVE" } }, include: {
+      include: { members: { where: { member: { status: "ACTIVE", ...(hiddenUsers.length ? { discordUserId: { notIn: hiddenUsers } } : {}) } }, include: {
         character: { select: { name: true, className: true } },
         member: { select: { characters: { where: { isMain: true }, select: { name: true, className: true }, take: 1 } } }
       } } }

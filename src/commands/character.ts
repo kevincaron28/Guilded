@@ -16,6 +16,7 @@ import { asLang, t } from "../i18n.js";
 import { removePictureByOfficer } from "../services/character-picture.js";
 import { addRaceSubcommand, executeRace } from "./race.js";
 import { characterPanel } from "../services/character-panel.js";
+import { isProfileHidden, privacyReply, setProfileHidden } from "../services/profile-privacy.js";
 import { isHoldingMember, officerMoveCharacter, WITH_DETACHED, DETACHED } from "../services/character-move.js";
 
 // One line for the claim and unlink replies so members find the panel (both languages: the replies themselves are English).
@@ -74,6 +75,12 @@ export const characterCommand = new SlashCommandBuilder()
       .addChoices({ name: "remove", value: "remove" }, { name: "off", value: "off" }, { name: "on", value: "on" }))
     .addStringOption((option) => option.setName("name").setDescription("Character").setAutocomplete(true)))
   .addSubcommand((subcommand) => subcommand
+    .setName("privacy")
+    .setDescription("Hide or show your characters on the public website pages (default: shown).")
+    .setDescriptionLocalizations({ fr: "Masquer ou afficher vos personnages sur les pages publiques du site (par défaut : affichés)." })
+    .addStringOption((option) => option.setName("action").setDescription("hide, show or status").setRequired(true)
+      .addChoices({ name: "hide", value: "hide" }, { name: "show", value: "show" }, { name: "status", value: "status" })))
+  .addSubcommand((subcommand) => subcommand
     .setName("list")
     .setDescription("Your characters: link, set main, unlink."))
   .addSubcommand((subcommand) => addRaceSubcommand(subcommand));
@@ -90,6 +97,13 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
   const subcommand = interaction.options.getSubcommand();
   // Acknowledge before database lookups, especially when the hosted database is waking up.
   if (["pair", "import"].includes(subcommand) && interaction.guild && interaction.guildId && interaction.member) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  // "Hide my profile": per Discord user, so it needs no server context (profile-privacy.ts).
+  if (subcommand === "privacy") {
+    const action = interaction.options.getString("action", true) as "hide" | "show" | "status";
+    if (action !== "status") await setProfileHidden(prisma, interaction.user.id, action === "hide");
+    await interaction.reply({ content: privacyReply(interaction.locale.startsWith("fr") ? "fr" : "en", action, action === "status" ? await isProfileHidden(prisma, interaction.user.id) : action === "hide"), flags: MessageFlags.Ephemeral });
+    return;
+  }
   const context = await requireGuildContext(interaction);
   if (!context) return;
   if (subcommand === "pair") {

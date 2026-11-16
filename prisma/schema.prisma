@@ -2420,6 +2420,13 @@ model DungeonRunWitness {
   @@index([deviceId, status])
 }
 
+/// "Hide my profile" (9.3.7): a Discord user who asked to leave the PUBLIC pages (directory member lists, player and character pages, public
+/// leaderboards, run and duel listings, public JSON). One row per user, so it covers every linked character, also ones linked later. Default is public.
+model PublicProfileHidden {
+  discordUserId String   @id
+  hiddenAt      DateTime @default(now())
+}
+
 /// An in-game guild name no /setup registered that unsigned companions of this server's roster reported
 /// (a guild renamed in game). Recorded for officers; the roster match itself routes those companions.
 model GuildNameAlias {

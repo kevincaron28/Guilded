@@ -1,4 +1,5 @@
 import { registerLeaderboardCache } from "./leaderboard-cache-hooks.js";
+import { HIDDEN_MARK, NOBODY_HIDDEN, hiddenKey, hiddenLookup, isHiddenKey, isHiddenPlayer, showHiddenMarks, type HiddenIdentity } from "./profile-privacy.js";
 import { dungeonRole } from "../../companion/dungeon-role.mjs";
 import { integrityRole, readDungeonIntegrity, readPlayerIntegrity } from "./dungeon-integrity.js";
 import { characterKey } from "../../companion/character-identity.mjs";
@@ -57,6 +58,8 @@ const FOREVER_CLASSES = CLASSES.filter(name => !["Death Knight", "Monk", "Demon 
 export interface LeaderPlayer { character: string; displayName?: string | null; realm: string; className: string | null; role: string | null; level: number | null; minLevel?: number | null; presentSec?: number | null; integrity?: unknown;
   /** Other stored names of this same character (lowercase), e.g. the first name an older upload used. */
   aliases?: string[];
+  /** The player hid their profile (profile-privacy.ts): an anonymous placeholder that is never ranked, searched or linked. */
+  hidden?: boolean;
   /** In-game guild name the uploader saw for this player (optional, arrives with addon 9.3.0): only enriches pages. */
   guild?: string | null }
 export interface LeaderRun extends ScoreRun {
@@ -295,7 +298,7 @@ export function rankCharacters(runs: LeaderRun[], filters: PlayerFilters, limit 
   for (const run of runs) {
     if (run.challenge) continue;
     for (const player of run.players) {
-      if (!keep(player, run) || rules?.evidencePolicy && !rateRun(run, rules, player).score) continue;
+      if (player.hidden || !keep(player, run) || rules?.evidencePolicy && !rateRun(run, rules, player).score) continue;
       const id = characterId(player);
       const current = best.get(id);
       if (!current || run.durationSec < current.run.durationSec || (run.durationSec === current.run.durationSec && run.endedAt < current.run.endedAt)) best.set(id, { player, run });
@@ -331,6 +334,16 @@ export function leaderRun({ id, startedAt, evidenceVersion, completedBy, encount
   const players = row.players.map(p => ({ ...p, ...(observation ? { integrity: readPlayerIntegrity(data?.players?.find(q => characterId(q) === characterId(p))?.observation) } : {}) }));
   return { runId: id, ...row, players, ...(native ? { challenge: native } : {}), evidence: evidenceVersion >= 1 ? { startedAt, completedBy, encounters: Array.isArray(encounters) ? encounters : [], ...(observation ? { integrity: observation, receivedAt: evidenceReceivedAt } : {}) } : null };
 }
+/** The run with every player who hid their profile replaced by an anonymous placeholder: class, role, level and presence stay, so the party and the run read the same. */
+export function hideRunPlayers(run: LeaderRun, hidden: HiddenIdentity): LeaderRun {
+  if (!run.players.some((p) => isHiddenPlayer(hidden, p.character, p.realm) || (p.aliases ?? []).some((alias) => isHiddenPlayer(hidden, alias, p.realm)))) return run;
+  return { ...run, players: run.players.map((p, i): LeaderPlayer => {
+    if (!isHiddenPlayer(hidden, p.character, p.realm) && !(p.aliases ?? []).some((alias) => isHiddenPlayer(hidden, alias, p.realm))) return p;
+    const placeholder: LeaderPlayer = { ...p, character: `~hidden-${i}`, displayName: HIDDEN_MARK, realm: "", guild: null, hidden: true };
+    delete placeholder.aliases;
+    return placeholder;
+  }) };
+}
 /**
  * Older uploads name a Forever character by its first name only ("El"). Where the same set of
  * runs also shows that character's full name ("El Pirata"), the bare one is displayed in full (the
@@ -347,7 +360,14 @@ export function withFullDisplayNames(runs: LeaderRun[]): LeaderRun[] {
 }
 const newestFirst = (a: LeaderRun, b: LeaderRun) => b.endedAt.getTime() - a.endedAt.getTime();
 
-export function prismaLeaderboardStore(database: PrismaClient, allows: (discordId: string) => boolean = () => true): LeaderboardStore {
+/**
+ * `hideProfiles`: the PUBLIC pages' store. Players who hid their profile (profile-privacy.ts) are replaced by anonymous placeholders in runs and
+ * duels and leave rosters, member lists and rankings. Internal readers (Discord cards, the owner's tools) leave it off and see everyone.
+ */
+export function prismaLeaderboardStore(database: PrismaClient, allows: (discordId: string) => boolean = () => true, options: { hideProfiles?: boolean } = {}): LeaderboardStore {
+  const hiddenSet = options.hideProfiles ? hiddenLookup(database) : null;
+  const hiddenNow = (): Promise<HiddenIdentity> => hiddenSet ? hiddenSet.get() : Promise.resolve(NOBODY_HIDDEN);
+  const hideRuns = async (list: LeaderRun[]): Promise<LeaderRun[]> => { const hidden = await hiddenNow(); return hidden.users.size ? list.map((run) => hideRunPlayers(run, hidden)) : list; };
   const range = (query: RunQuery) => ({ status: "ACCEPTED", ...(query.from || query.to ? { endedAt: { ...(query.from ? { gte: query.from } : {}), ...(query.to ? { lt: query.to } : {}) } } : {}),
     ...(query.instanceId ? { instanceId: query.instanceId } : {}) });
   // Every matching run, a page at a time: scores need each character's whole history.
@@ -356,7 +376,7 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
     for (let cursor: string | null = null; ;) {
       const page: PublicRunRow[] = await database.publicRun.findMany({ where: { ...where, gameEdition: currentEdition() }, orderBy: { id: "asc" }, take: 5_000, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}), select: PUBLIC_RUN_SELECT });
       runs.push(...page.map(leaderRun));
-      if (page.length < 5_000) return normalizeLeaderRuns(runs);
+      if (page.length < 5_000) return hideRuns(normalizeLeaderRuns(runs));
       cursor = page[page.length - 1]!.id;
     }
   }
@@ -383,6 +403,9 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
     // Newest first, so a cap drops the oldest sightings rather than arbitrary guilds; a warning says when it was hit.
     const rows = await database.publicRunPlayer.findMany({ where: { guild: { not: null }, run: { status: "ACCEPTED", gameEdition: currentEdition() } },
       select: { guild: true, realm: true, character: true, faction: true }, distinct: ["guild", "realm", "character", "faction"], orderBy: [{ run: { endedAt: "desc" } }, { id: "asc" }], take: OBSERVED_ROW_CAP });
+    // Players who hid their profile are not members of the guild on the public pages.
+    const hiding = await hiddenNow();
+    if (hiding.users.size) rows.splice(0, rows.length, ...rows.filter((row) => !isHiddenPlayer(hiding, row.character, row.realm)));
     if (rows.length >= OBSERVED_ROW_CAP) console.warn(`Public guild directory: ${OBSERVED_ROW_CAP} guild sightings read (the cap); the oldest are left out.`);
     const found = groupObservedGuilds(rows, listedBases);
     // Where no client reported a player's faction, the known race of that character (a Guilded member's or a companion device's) stands in; the guild's
@@ -447,14 +470,17 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
   }
   async function loadGlobalDuelsUncached(): Promise<GlobalDuel[]> {
       const edition = currentEdition();
-      const [rows, excluded, open, hiddenMembers] = await Promise.all([
+      const hiding = await hiddenNow();
+      const [rows, excluded, open, hiddenMembers, optedOut] = await Promise.all([
         database.publicDuel.findMany({ where: { gameEdition: edition, counted: true, held: false }, orderBy: { endedAt: "desc" }, take: 50_000,
           select: { winnerKey: true, loserKey: true, winnerName: true, loserName: true, winnerRealm: true, loserRealm: true, winnerClass: true, loserClass: true, winnerLevel: true, loserLevel: true, winnerGuild: true, loserGuild: true,
             winnerMemberId: true, loserMemberId: true, endedAt: true, reason: true, zone: true, durationSec: true, reports: { select: { reporterCharacterKey: true, deviceId: true, guildId: true } } } }),
         database.publicDuelExclusion.findMany({ select: { deviceId: true }, take: 5_000 }),
         database.guildSettings.findMany({ where: { publicDungeonRuns: true, guild: { isTestServer: false } }, select: { guildId: true }, take: 5_000 }),
-        database.member.findMany({ where: { OR: [{ raceHidden: true }, { isTest: true }] }, select: { id: true }, take: 20_000 })
+        database.member.findMany({ where: { OR: [{ raceHidden: true }, { isTest: true }] }, select: { id: true }, take: 20_000 }),
+        hiding.users.size ? database.member.findMany({ where: { discordUserId: { in: [...hiding.users] } }, select: { id: true }, take: 50_000 }) : Promise.resolve([] as { id: string }[])
       ]);
+      const optedOutIds = new Set(optedOut.map((row) => row.id));
       const out = new Set(excluded.map((row) => row.deviceId)), allowed = new Set(open.map((row) => row.guildId)), hidden = new Set(hiddenMembers.map((row) => row.id));
       return rows.reverse().flatMap((row): GlobalDuel[] => {
         if ((row.winnerMemberId && hidden.has(row.winnerMemberId)) || (row.loserMemberId && hidden.has(row.loserMemberId))) return [];
@@ -462,9 +488,16 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
         const valid = row.reports.filter((report) => !(report.deviceId && out.has(report.deviceId)) && (!report.guildId || allowed.has(report.guildId)));
         if (!valid.length) return [];
         const reporters = [...new Set(valid.map((report) => report.reporterCharacterKey))];
-        return [{ winnerKey: row.winnerKey, loserKey: row.loserKey, winner: row.winnerName, loser: row.loserName, winnerRealm: row.winnerRealm, loserRealm: row.loserRealm, winnerClass: row.winnerClass, loserClass: row.loserClass,
-          winnerLevel: row.winnerLevel, loserLevel: row.loserLevel, winnerGuild: row.winnerGuild, loserGuild: row.loserGuild, endedAt: row.endedAt, reason: row.reason, zone: row.zone, durationSec: row.durationSec,
-          reporters, confirmed: reporters.includes(row.winnerKey) && reporters.includes(row.loserKey) }];
+        const confirmed = reporters.includes(row.winnerKey) && reporters.includes(row.loserKey);
+        // A player who hid their profile stays in the duel as an anonymous side (the other player's record is unchanged) and never as a ladder row or link.
+        const wHidden = (!!row.winnerMemberId && optedOutIds.has(row.winnerMemberId)) || isHiddenPlayer(hiding, row.winnerName, row.winnerRealm);
+        const lHidden = (!!row.loserMemberId && optedOutIds.has(row.loserMemberId)) || isHiddenPlayer(hiding, row.loserName, row.loserRealm);
+        const shownReporters = reporters.map((key) => wHidden && key === row.winnerKey || lHidden && key === row.loserKey ? hiddenKey(key) : key);
+        return [{ winnerKey: wHidden ? hiddenKey(row.winnerKey) : row.winnerKey, loserKey: lHidden ? hiddenKey(row.loserKey) : row.loserKey,
+          winner: wHidden ? HIDDEN_MARK : row.winnerName, loser: lHidden ? HIDDEN_MARK : row.loserName,
+          winnerRealm: wHidden ? "" : row.winnerRealm, loserRealm: lHidden ? "" : row.loserRealm, winnerClass: row.winnerClass, loserClass: row.loserClass,
+          winnerLevel: row.winnerLevel, loserLevel: row.loserLevel, winnerGuild: wHidden ? null : row.winnerGuild, loserGuild: lHidden ? null : row.loserGuild, endedAt: row.endedAt, reason: row.reason, zone: row.zone, durationSec: row.durationSec,
+          reporters: shownReporters, confirmed, ...(wHidden ? { winnerHidden: true } : {}), ...(lHidden ? { loserHidden: true } : {}) }];
       });
       }
   return {
@@ -475,12 +508,14 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
       const near = 600_000;
       const around = await every({ status: "ACCEPTED", instanceId: row.instanceId, difficultyId: row.difficultyId,
         endedAt: { gte: new Date(row.endedAt.getTime() - near), lte: new Date(row.endedAt.getTime() + near) } });
-      return around.find((run) => run.runId === id || run.mergedIds?.includes(id)) ?? leaderRun(row);
+      return around.find((run) => run.runId === id || run.mergedIds?.includes(id)) ?? (await hideRuns([leaderRun(row)]))[0]!;
     },
     async runs(query) {
       return (await every(range(query))).sort((a, b) => a.durationSec - b.durationSec || a.endedAt.getTime() - b.endedAt.getTime());
     },
     async characterRuns(character, realm) {
+      // A character who hid their profile has no page: no runs are looked up for the name.
+      if (isHiddenPlayer(await hiddenNow(), character, realm)) return [];
       // Older uploads store the first name only: "Hulke Hogan" is also found under "Hulke", and "Hulke" under "Hulke Hogan".
       const first = character.split(" ")[0]!;
       const names: Prisma.PublicRunPlayerWhereInput[] = [{ character: { equals: character, mode: "insensitive" } }, { character: { equals: first, mode: "insensitive" } },
@@ -496,8 +531,9 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
     },
     async guildRoster(guildId) {
       const seen = observedGuilds.get(guildId);
-      if (seen) return [...seen.characters].map(([name, realm]) => characterKey(name, realm, currentEdition()));
-      const rows = await database.character.findMany({ where: { member: { guildId, status: "ACTIVE" } }, select: { name: true, realm: true, gameEdition: true }, take: 5_000 });
+      const hiding = await hiddenNow();
+      if (seen) return [...seen.characters].filter(([name, realm]) => !isHiddenPlayer(hiding, name, realm)).map(([name, realm]) => characterKey(name, realm, currentEdition()));
+      const rows = await database.character.findMany({ where: { member: { guildId, status: "ACTIVE", ...(hiding.users.size ? { discordUserId: { notIn: [...hiding.users] } } : {}) } }, select: { name: true, realm: true, gameEdition: true }, take: 5_000 });
       return rows.map((row) => characterKey(row.name, row.realm, row.gameEdition ?? "forever"));
     },
     async guildRuns(guildId, query) {
@@ -515,7 +551,7 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
       const visible = { isTest: false, raceHidden: false };
       const [rows, characters, book] = await Promise.all([
         database.duelResult.findMany({ where: { guildId, gameEdition: edition, counted: true, archived: false, winner: visible, loser: visible }, orderBy: { endedAt: "desc" }, take: 20_000,
-          select: { winnerId: true, loserId: true, winnerCharacter: true, loserCharacter: true, winnerLevel: true, loserLevel: true, endedAt: true, reason: true, winner: { select: { status: true } }, loser: { select: { status: true } } } }),
+          select: { winnerId: true, loserId: true, winnerCharacter: true, loserCharacter: true, winnerLevel: true, loserLevel: true, endedAt: true, reason: true, winner: { select: { status: true, discordUserId: true } }, loser: { select: { status: true, discordUserId: true } } } }),
         database.character.findMany({ where: { gameEdition: edition, member: { guildId } }, select: { memberId: true, name: true, className: true }, take: 10_000 }),
         loadFullNameBook(database, guildId)
       ]);
@@ -529,13 +565,18 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
         return (own.find((c) => c.name.toLowerCase() === name.toLowerCase()) ?? own.find((c) => c.name.split(" ")[0]!.toLowerCase() === first) ?? (own.length === 1 ? own[0] : undefined))?.className ?? null;
       };
       const listed = (status: string) => status === "ACTIVE" || status === "TRIAL";
-      return rows.map((row) => ({
-        winnerKey: row.winnerId, loserKey: row.loserId,
-        winner: displayCharacterName(row.winnerCharacter, book), loser: displayCharacterName(row.loserCharacter, book),
-        winnerLevel: row.winnerLevel, loserLevel: row.loserLevel,
-        winnerClass: classOf(row.winnerId, row.winnerCharacter), loserClass: classOf(row.loserId, row.loserCharacter),
-        winnerShown: listed(row.winner.status), loserShown: listed(row.loser.status), endedAt: row.endedAt, reason: row.reason
-      }));
+      const hiding = await hiddenNow();
+      return rows.map((row) => {
+        const wHidden = hiding.users.has(row.winner.discordUserId), lHidden = hiding.users.has(row.loser.discordUserId);
+        return {
+          winnerKey: row.winnerId, loserKey: row.loserId,
+          winner: wHidden ? HIDDEN_MARK : displayCharacterName(row.winnerCharacter, book), loser: lHidden ? HIDDEN_MARK : displayCharacterName(row.loserCharacter, book),
+          winnerLevel: row.winnerLevel, loserLevel: row.loserLevel,
+          winnerClass: classOf(row.winnerId, row.winnerCharacter), loserClass: classOf(row.loserId, row.loserCharacter),
+          winnerShown: listed(row.winner.status) && !wHidden, loserShown: listed(row.loser.status) && !lHidden, endedAt: row.endedAt, reason: row.reason,
+          ...(wHidden ? { winnerHidden: true } : {}), ...(lHidden ? { loserHidden: true } : {})
+        };
+      });
     },
     async pvp(guilds, at) { return loadPvpData(database, guilds.map((guild) => guild.id), currentEdition(), at); },
     async guildStats(allIds) {
@@ -545,9 +586,11 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
       const fromRuns = seenIds.map((id) => { const seen = observedGuilds.get(id)!; return { guildId: id, faction: seen.faction, realm: seen.realm || null, members: seen.characters.size, linked: 0, levelled: 0, at60: 0, levelSum: 0, duels: observedGuildDuels(seen, globalDuels).length }; });
       if (!guildIds.length) return fromRuns;
       const edition = currentEdition();
+      const hiding = await hiddenNow();
+      const notHidden = hiding.users.size ? { discordUserId: { notIn: [...hiding.users] } } : {};
       const [members, characters, listings, duels] = await Promise.all([
-        database.member.groupBy({ by: ["guildId"], where: { guildId: { in: guildIds }, status: "ACTIVE", isTest: false }, _count: { _all: true } }),
-        database.character.findMany({ where: { gameEdition: edition, member: { guildId: { in: guildIds }, status: "ACTIVE", isTest: false } },
+        database.member.groupBy({ by: ["guildId"], where: { guildId: { in: guildIds }, status: "ACTIVE", isTest: false, ...notHidden }, _count: { _all: true } }),
+        database.character.findMany({ where: { gameEdition: edition, member: { guildId: { in: guildIds }, status: "ACTIVE", isTest: false, ...notHidden } },
           select: { memberId: true, level: true, realm: true, member: { select: { guildId: true, raceHidden: true } } }, take: 50_000 }),
         database.recruitmentListing.findMany({ where: { guildId: { in: guildIds }, open: true }, select: { guildId: true, faction: true, realm: true }, take: 2_000 }),
         database.duelResult.groupBy({ by: ["guildId"], where: { guildId: { in: guildIds }, gameEdition: edition, counted: true, archived: false, winner: { isTest: false, raceHidden: false }, loser: { isTest: false, raceHidden: false } }, _count: { _all: true } })
@@ -664,9 +707,9 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
 
   const time = (seconds: number) => formatDuration(seconds);
   const date = (value: Date) => value.toISOString().slice(0, 10);
-  const who = (ctx: WebContext, player: LeaderPlayer) => `<a class="char c-${classSlug(player.className)}" href="${link(characterPath(player), ctx.lang)}">${classEmblem(player.className)}${escapeHtml(player.displayName || player.character)}</a>`
+  const who = (ctx: WebContext, player: LeaderPlayer) => player.hidden ? `<span class="char c-${classSlug(player.className)}">${classEmblem(player.className)}${escapeHtml(player.displayName || player.character)}</span>` : `<a class="char c-${classSlug(player.className)}" href="${link(characterPath(player), ctx.lang)}">${classEmblem(player.className)}${escapeHtml(player.displayName || player.character)}</a>`
     + (player.realm ? ` <span class="tag">${escapeHtml(player.realm)}</span>` : "");
-  const party = (ctx: WebContext, run: LeaderRun) => run.players.map((player) => `<a class="c-${classSlug(player.className)}" href="${link(characterPath(player), ctx.lang)}">${escapeHtml(player.displayName || player.character)}</a>`).join(", ");
+  const party = (ctx: WebContext, run: LeaderRun) => run.players.map((player) => player.hidden ? `<span class="c-${classSlug(player.className)}">${escapeHtml(player.displayName || player.character)}</span>` : `<a class="c-${classSlug(player.className)}" href="${link(characterPath(player), ctx.lang)}">${escapeHtml(player.displayName || player.character)}</a>`).join(", ");
   const bracketName = (ctx: WebContext, key: string) => key === "60" ? ctx.t("Level 60", "Niveau 60") : `${ctx.t("Levels", "Niveaux")} ${key.replace("-", "–")}`;
   const periodName = (ctx: WebContext, period: PublicPeriod) => ctx.t(period.label, period.labelFr);
   // A run's score cell: its points, or a dash that says why it is unranked.
@@ -1072,6 +1115,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     for (const row of characterScores(everything, rules)) best.set(characterId(row.player), Math.max(best.get(characterId(row.player)) ?? 0, row.points));
     const seen = new Map<string, { player: LeaderPlayer; folded: string; points: number }>();
     for (const run of [...everything].sort(newestFirst)) for (const player of run.players as LeaderPlayer[]) {
+      if (player.hidden) continue;
       const id = characterId(player);
       if (!seen.has(id)) seen.set(id, { player, folded: `${foldText(player.displayName || player.character)} ${foldText(player.character)}`, points: best.get(id) ?? 0 });
     }
@@ -1735,7 +1779,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       + `<div><button class="button" type="submit">${t("Show", "Afficher")}</button></div></form>`;
     const person = (name: string, className: string | null, realm: string, key?: string) => {
       const label = `<span class="c-${classSlug(className)}">${escapeHtml(name)}</span>`;
-      return `${key ? `<a class="char" href="${link(here, lang, { when: seasonId, p: key })}">${label}</a>` : label}${realm ? ` <span class="muted">${escapeHtml(realm)}</span>` : ""}`;
+      return `${key && !isHiddenKey(key) ? `<a class="char" href="${link(here, lang, { when: seasonId, p: key })}">${label}</a>` : label}${realm ? ` <span class="muted">${escapeHtml(realm)}</span>` : ""}`;
     };
     const guildCells = new Map<string, string>();
     for (const row of board.rows.slice(0, 100)) guildCells.set(row.key, await guildLinkFor(ctx, row.guild));
@@ -1746,7 +1790,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const recent = board.recent.length ? table([t("Date", "Date"), t("Winner", "Gagnant"), t("Loser", "Perdant"), t("Rating", "Cote"), ""],
       board.recent.map((d) => `<tr><td>${date(d.endedAt)}</td><td>${person(d.winner, d.winnerClass, d.winnerRealm, d.winnerKey)}</td><td>${person(d.loser, d.loserClass, d.loserRealm, d.loserKey)}</td><td class="num">${change(d.change.winner, d.change.rated)} / ${change(d.change.loser, d.change.rated)}</td><td>${d.reason === "retreat" ? ` <span class="tag">${t("opponent fled", "adversaire en fuite")}</span>` : ""}</td></tr>`), [3], "dense")
       : "";
-    const names = [...new Set(scoped.flatMap((d) => [d.winner, d.loser]))].sort((x, y) => x.localeCompare(y));
+    const names = [...new Set(scoped.filter((d) => !d.winnerHidden && !d.loserHidden).flatMap((d) => [d.winner, d.loser]))].sort((x, y) => x.localeCompare(y));
     const meeting = f.a && f.b ? globalHeadToHead(scoped, f.a, f.b) : null;
     const h2hForm = `<form class="filters" method="get" action="${escapeHtml(here)}"><input type="hidden" name="lang" value="${lang}"><input type="hidden" name="when" value="${escapeHtml(seasonId)}">`
       + `<div><label for="a">${t("Player", "Joueur")} 1</label><input id="a" name="a" list="duel-names" maxlength="60" value="${escapeHtml(f.a)}"></div>`
@@ -1761,7 +1805,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     // One player: the row, then their latest duels (a link from any duel history lands here).
     const pKey = (ctx.request.query.get("p") ?? "").trim().toLowerCase().slice(0, 100);
     const mine = pKey ? board.rows.find((row) => row.key === pKey) : undefined;
-    const theirs = pKey ? scoped.filter((d) => d.winnerKey === pKey || d.loserKey === pKey).sort((x, y) => y.endedAt.getTime() - x.endedAt.getTime()).slice(0, 20) : [];
+    const theirs = pKey && !isHiddenKey(pKey) ? scoped.filter((d) => d.winnerKey === pKey || d.loserKey === pKey).sort((x, y) => y.endedAt.getTime() - x.endedAt.getTime()).slice(0, 20) : [];
     const playerSection = !pKey ? "" : mine || theirs.length
       ? `<h2>${escapeHtml(mine?.name ?? (theirs[0]!.winnerKey === pKey ? theirs[0]!.winner : theirs[0]!.loser))}</h2>`
         + (mine ? `<p>${mine.rank ? `#${mine.rank} · ` : ""}${mine.placement ? `${t("placement", "placement")} ${mine.placement.duels}/${mine.placement.needDuels}` : `${t("Rating", "Cote")} ${Math.round(mine.score)}`} · ${mine.wins}–${mine.losses}</p>` : "")
@@ -1940,6 +1984,6 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     let edition;
     try { edition = gameEditionOf({ gameEdition: ctx.request.query.get("edition") ?? "forever" }); }
     catch { return Promise.resolve(kit.page(400, "Unknown WoW edition", "")); }
-    return withEdition(edition, () => route(ctx, kit));
+    return withEdition(edition, () => route(ctx, kit)).then((response) => response && typeof response.body === "string" ? { ...response, body: showHiddenMarks(response.body, ctx.lang) } : response);
   }, meSection, warm, clear, recentlyUsed: () => lastRequestAt > 0 && now().getTime() - lastRequestAt < 600_000 };
 }

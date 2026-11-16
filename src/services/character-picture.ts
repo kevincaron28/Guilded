@@ -124,10 +124,12 @@ export function prismaPictureStore(database: PrismaClient): PictureStore {
       const row = await database.characterPicture.findUnique({
         where: { characterId },
         select: { guildId: true, version: true, visibility: true, status: true, large: true, thumb: true,
-          character: { select: { member: { select: { guild: { select: { settings: { select: { characterPicturesEnabled: true } } } } } } } } }
+          character: { select: { member: { select: { discordUserId: true, guild: { select: { settings: { select: { characterPicturesEnabled: true } } } } } } } } }
       });
       if (!row) return null;
-      return { guildId: row.guildId, version: row.version, visibility: visibilityOf(row.visibility), status: row.status,
+      // A player who hid their profile (profile-privacy.ts): their Public picture is served as Guild only.
+      const hidden = row.visibility === "public" && await database.publicProfileHidden.findUnique({ where: { discordUserId: row.character.member.discordUserId }, select: { discordUserId: true } }) !== null;
+      return { guildId: row.guildId, version: row.version, visibility: hidden ? "guild" : visibilityOf(row.visibility), status: row.status,
         enabled: row.character.member.guild.settings?.characterPicturesEnabled !== false, large: Buffer.from(row.large), thumb: Buffer.from(row.thumb) };
     }
   };

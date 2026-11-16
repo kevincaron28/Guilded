@@ -199,7 +199,7 @@ export function observedGuildDuels(seen: ObservedGuild, all: readonly GlobalDuel
   const inGuild = (guild: string | null, realm: string) => !!guild && names.has(guild.toLowerCase()) && (!realm || realm.toLowerCase() === seen.realm.toLowerCase());
   return all.flatMap((d): PublicDuel[] => {
     const winnerShown = inGuild(d.winnerGuild, d.winnerRealm), loserShown = inGuild(d.loserGuild, d.loserRealm);
-    return winnerShown || loserShown ? [{ winnerKey: d.winnerKey, loserKey: d.loserKey, winner: d.winner, loser: d.loser, winnerLevel: d.winnerLevel, loserLevel: d.loserLevel, winnerClass: d.winnerClass, loserClass: d.loserClass, winnerShown, loserShown, endedAt: d.endedAt, reason: d.reason }] : [];
+    return winnerShown || loserShown ? [{ winnerKey: d.winnerKey, loserKey: d.loserKey, winner: d.winner, loser: d.loser, winnerLevel: d.winnerLevel, loserLevel: d.loserLevel, winnerClass: d.winnerClass, loserClass: d.loserClass, winnerShown: winnerShown && !d.winnerHidden, loserShown: loserShown && !d.loserHidden, endedAt: d.endedAt, reason: d.reason, ...(d.winnerHidden ? { winnerHidden: true } : {}), ...(d.loserHidden ? { loserHidden: true } : {}) }] : [];
   });
 }
 /** The guild's record against anyone: wins and losses of its players in those duels (a duel between two members counts once each way). */

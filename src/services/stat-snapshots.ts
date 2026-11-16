@@ -2,7 +2,7 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import type { PrismaClient } from "../generated/prisma/client.js";
 
 // 8.5 track G: one statistics row per guild per UTC day, the CSV feed built from those rows, and the
-// revocable feed key. Charts (the Statistics page, /stats server) and Google Sheets read the same rows.
+// revocable feed key. Charts (the Statistics page, /report stats server) and Google Sheets read the same rows.
 // Only a SHA-256 hash of the feed key is stored, and the key is never logged.
 
 export const LEVEL_BANDS = ["1-9", "10-19", "20-29", "30-39", "40-49", "50-59", "60"] as const;

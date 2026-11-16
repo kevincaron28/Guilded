@@ -128,7 +128,7 @@ export function dailyRecapCard(recap: DailyRecap, lang: Lang, guildName: string)
     title: guildName,
     subtitle: dayLabel(recap.day, lang),
     stats: stats.slice(0, 4),
-    footer: t("Guilded · from the guild's addon uploads · /stats recap:true", "Guilded · d'après les envois de l'addon de la guilde · /stats recap:true"),
+    footer: t("Guilded · from the guild's addon uploads · /report stats recap:true", "Guilded · d'après les envois de l'addon de la guilde · /report stats recap:true"),
     // 9.3: one of three approved paintings (recap/dawn, day, night), chosen by the day's seed like the scenes below; without a file the painted scene is drawn.
     backdrop: { kind: "recap", key: RECAP_TIMES[seedOf(recap.day) % RECAP_TIMES.length]! },
     recap: { theme: { a: "#1e1236", b: "#6a4aa8", motif: "keep", seed: seedOf(recap.day), scene: RECAP_SCENES[seedOf(recap.day) % RECAP_SCENES.length]! }, sections: sections.slice(0, 3) }
@@ -168,7 +168,7 @@ export function dailyRecapEmbed(recap: DailyRecap, lang: Lang): EmbedBuilder {
     if (recap.pvp.topDueler) lines.push(`🤺 ${fr ? "Le plus de duels gagnés" : "Most duel wins"}: ${recap.pvp.topDueler.name} (×${recap.pvp.topDueler.wins})`);
   }
   return new EmbedBuilder().setColor(0xd4a017).setTitle(`${fr ? "🗓️ Bilan du" : "🗓️ Recap for"} ${dayLabel(recap.day, lang)}`.slice(0, 256))
-    .setDescription(lines.join("\n").slice(0, 3800)).setFooter({ text: fr ? "Un bilan par jour, seulement s'il s'est passé quelque chose · officiers : /stats recap-posts:false" : "One recap per day, only when something happened · officers: /stats recap-posts:false" });
+    .setDescription(lines.join("\n").slice(0, 3800)).setFooter({ text: fr ? "Un bilan par jour, seulement s'il s'est passé quelque chose · officiers : /report stats recap-posts:false" : "One recap per day, only when something happened · officers: /report stats recap-posts:false" });
 }
 
 type DeliveryDb = RecapDb & Pick<PrismaClient, "guildSettings" | "$transaction">;

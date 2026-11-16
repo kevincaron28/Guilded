@@ -575,7 +575,7 @@ client.once(Events.ClientReady, (readyClient) => {
       }
     })().catch(reportJobError("Character display refresh"));
     runWeeklyReports(readyClient).catch(reportJobError("Weekly report check"));
-    // 9.1: the daily recap card, once per server day (on by default, officers switch it off with /stats recap-posts:false).
+    // 9.1: the daily recap card, once per server day (on by default, officers switch it off with /report stats recap-posts:false).
     runDailyRecaps(readyClient).catch(reportJobError("Daily recap check"));
     // 9.1: the raid night check card, once per planned raid about four hours before it starts (officers switch it off).
     runRaidNightChecks(readyClient, prisma, pilotGuildScope).catch(reportJobError("Raid night check"));
@@ -718,7 +718,7 @@ if (config.MESSAGE_CONTENT_INTENT) {
 
 client.on(Events.InteractionCreate, async interaction => {
   try {
-    const serverCommands = ["wow", "community", "organize", "poe", "participation", "events", "guilded-season", "guilded-events", OWNER_PREVIEWS_COMMAND, OWNER_CONSOLE_COMMAND];
+    const serverCommands = ["wow", "community", "organize", "poe", "participation", "guilded-season", OWNER_PREVIEWS_COMMAND, OWNER_CONSOLE_COMMAND];
     const globalButton = "customId" in interaction && [PILOT_REQUEST_PREFIX, COMMUNITY_PREFIX, WELCOME_ROLE_PREFIX, SELF_ROLE_PREFIX, ONBOARD_PREFIX, GAME_REMINDER_PREFIX, INVITE_REQUEST_PREFIX, LINKED_PREFIX, PUG_PREFIX, CONSOLE_PREFIX, ITEM_PREVIEW_PREFIX].some(prefix => interaction.customId.startsWith(prefix));
 
     const wowOrganize = interaction.isChatInputCommand() && interaction.commandName === "organize" && interaction.options.getSubcommandGroup(false) === "dungeon-seasons";

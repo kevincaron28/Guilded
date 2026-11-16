@@ -10,10 +10,15 @@ import { communitySeasonLabel } from "./community-display.js";
 import { boardWindow, breakdownOf, loadInGamePoints, mergeStandings, type MergedStanding } from "./community-ingame.js";
 import { moveColumn, moveFields, trackRanks, type Movements } from "./ladder-snapshots.js";
 import { altTextOf, ladderMeta, scoreCardPng, type ScoreCard } from "./score-card.js";
-import { communityHubButton, communityHubCard, COMMUNITY_HUB_MARKER } from "./community-panels.js";
+import { boardName } from "./board-name.js";
+import { communityHubButton, communityHubCard, isHubFooter } from "./community-panels.js";
 import { POE_TRACKING_ENABLED } from "../../companion/active-games.mjs";
 
 export const COMMUNITY_BOARD_MARKER = "Guilded · Community podium";
+const COMMUNITY_BOARD_MARKER_FR = "Guilded · Podium de la communauté";
+const boardMarker = (lang: Lang) => lang === "fr" ? COMMUNITY_BOARD_MARKER_FR : COMMUNITY_BOARD_MARKER;
+// Posts made before the footer followed the server language carry the English text: both count as the live board.
+const isBoardFooter = (text: string | undefined) => !!text && (text.startsWith(COMMUNITY_BOARD_MARKER) || text.startsWith(COMMUNITY_BOARD_MARKER_FR));
 export const COMMUNITY_CARD_PREFIX = "community-board-";
 const CARD_TOP = 25, TEXT_TOP = 10;
 /** A standing as the board holds it: the ledger's, plus the split between Discord, dungeons and PvP once in-game points are merged in. */
@@ -49,11 +54,11 @@ export function communityLeaderboardCard(input: {
         const rank = 1 + ranked.filter(other => other.points > row.points).length;
         const name = input.names?.get(row.userId) || say(lang, `Member …${row.userId.slice(-4)}`, `Membre …${row.userId.slice(-4)}`);
         const split = row.discord === undefined ? "" : ` · 💬 ${points(row.discord)} · 🏰 ${points(row.dungeons ?? 0)} · ⚔️ ${points(row.pvp ?? 0)}`;
-        return `${["🥇", "🥈", "🥉"][rank - 1] ?? `**${rank}.**`} **${escapeMarkdown(name.replace(/[\r\n]/g, " ").slice(0, split ? 24 : 32))}** — **${points(row.points)} pts**${split}`;
+        return `${["🥇", "🥈", "🥉"][rank - 1] ?? `**${rank}.**`} **${escapeMarkdown(boardName(name, split ? 24 : 32))}** — **${points(row.points)} pts**${split}`;
       }).join("\n") || say(lang, "The podium is open. Be the first to earn points!", "Le podium est libre. Qui va ouvrir le bal ?"), inline: false })
     .addFields({ name: say(lang, "🤝 Together, we’ve earned", "🤝 Les efforts de la gang"),
       value: `${points(ranked.length)} ${say(lang, "participants", "participants")} · **${points(ranked.reduce((total, row) => total + row.points, 0))} pts**`, inline: false })
-    .setFooter({ text: `${COMMUNITY_BOARD_MARKER} · ${say(lang, "Ties share a rank · Earned points, not wallet balance", "Ex æquo = même rang · Points gagnés, pas le solde")}` });
+    .setFooter({ text: `${boardMarker(lang)} · ${say(lang, "Ties share a rank · Earned points, not wallet balance", "Ex æquo = même rang · Points gagnés, pas le solde")}` });
   if (input.image && top.length) podium.setImage(`attachment://${input.image}`);
 
   const guide = new EmbedBuilder().setColor(0x2b8a78)
@@ -115,7 +120,7 @@ export function communityAudience(channel: { permission_overwrites?: { id: strin
 
 async function updateHubMessage(rest: REST, channelId: string, botId: string, body: ReturnType<typeof communityHubCard>) {
   const pins = await rest.get(Routes.channelMessagesPins(channelId)) as { items: { message: APIMessage }[] };
-  const matches = (m: APIMessage) => m.author.id === botId && m.embeds.some(e => e.footer?.text === COMMUNITY_HUB_MARKER || e.footer?.text === "Guilded 5.0 setup activities");
+  const matches = (m: APIMessage) => m.author.id === botId && m.embeds.some(e => isHubFooter(e.footer?.text) || e.footer?.text === "Guilded 5.0 setup activities");
   let message = pins.items.map(i => i.message).find(matches);
   if (!message) {
     const recent = await rest.get(Routes.channelMessages(channelId), { query: new URLSearchParams({ limit: "100" }) }) as APIMessage[];
@@ -208,10 +213,10 @@ export async function updateCommunityLeaderboard(rest: REST, database: PrismaCli
   const body = communityLeaderboardCard({ lang, discordId, season, board, names, activitiesId: sibling("activities"), chatId: sibling("chat"), image: file });
   const plain = (embeds: { image?: unknown }[]) => embeds.map(embed => { const copy = { ...embed }; delete copy.image; return copy; });
   const pins = await rest.get(Routes.channelMessagesPins(channel.id)) as { items: { message: APIMessage }[] };
-  let message = pins.items.map(item => item.message).find(m => m.author.id === botId && m.embeds.some(e => e.footer?.text.startsWith(COMMUNITY_BOARD_MARKER)));
+  let message = pins.items.map(item => item.message).find(m => m.author.id === botId && m.embeds.some(e => isBoardFooter(e.footer?.text)));
   if (!message) {
     const recent = await rest.get(Routes.channelMessages(channel.id), { query: new URLSearchParams({ limit: "100" }) }) as APIMessage[];
-    message = recent.find(m => m.author.id === botId && m.embeds.some(e => e.footer?.text.startsWith(COMMUNITY_BOARD_MARKER)));
+    message = recent.find(m => m.author.id === botId && m.embeds.some(e => isBoardFooter(e.footer?.text)));
   }
   const attachments = file && png ? [{ id: 0, filename: file, description: altTextOf(png) }] : [];
   const upload = file && png ? { files: [{ name: file, data: png }] } : {};

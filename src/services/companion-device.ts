@@ -112,7 +112,9 @@ export const deviceUploadSchema = z.object({
   /** Finished dungeon runs from the saved file, in the bot's dungeonRunSchema shape (validated when imported). */
   dungeonRuns: z.array(z.unknown()).max(DEVICE_LIMITS.runsPerUpload).default([]),
   /** (9.3.2) Records the addon carries for players near it (see carried-records.ts); each is validated when applied. */
-  carriedRecords: z.array(z.unknown()).max(200).default([])
+  carriedRecords: z.array(z.unknown()).max(200).default([]),
+  /** Client probes (/guilded probe ...), stored by services/client-probes.ts. Optional: older companions send none. */
+  probes: z.record(z.string(), z.unknown()).optional()
 });
 export type DeviceUpload = z.infer<typeof deviceUploadSchema>;
 

@@ -251,9 +251,12 @@ describe("the whole addon, loaded in .toc order", () => {
     expect(out).toContain("probe-channel");
     expect(out).toContain("probe-whisper");
     expect(out).toContain("left the channel");
-    // the saved map list does not survive the next login, and an armed probe runs on its own
+    // the saved map list survives one login, and an armed probe runs on its own
     s.run(`NS.getDb().probes = { maps = { rows = { "x" } }, commAuto = true }; TIMERS = {}; JOINED = {}; fire_event("PLAYER_LOGIN"); for i = 1, #TIMERS do TIMERS[i]() end`);
-    expect(s.run(`return tostring(NS.getDb().probes.maps) .. tostring(NS.getDb().probes.commAuto) .. #JOINED`)).toMatch(/^nilnil[12]$/);
+    expect(s.run(`return type(NS.getDb().probes.maps) .. tostring(NS.getDb().probes.commAuto) .. #JOINED`)).toMatch(/^tablenil[12]$/);
+    // ...the map probe waits one more login for the companion to upload it, then goes
+    s.run(`fire_event("PLAYER_LOGIN")`);
+    expect(s.run(`return tostring(NS.getDb().probes.maps)`)).toBe("nil");
   });
 
   it("answers /guilded free with a removal line, never sends availability traffic, and ignores older addons' GuildedFree messages", () => {

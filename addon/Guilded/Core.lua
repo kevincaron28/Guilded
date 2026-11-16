@@ -1760,8 +1760,7 @@ ns.runCommProbe = runCommProbe
 -- /guilded probe auctions: read-only. Does this client have what the planned Auction House achievements (docs/plans/AH_ACHIEVEMENTS.md) would
 -- read? Reports which functions, globals and events exist, the shape (never the content) of the mail inbox headers and invoices, the owned
 -- auction list's sale status, and any statistic whose name mentions gold or auctions. No amounts, names or item links are stored. The result
--- goes to chat (one line) and to the saved variables (probes.auctions, dropped at the next login like probes.maps); the companion does not
--- upload probes, so the owner reads the saved file.
+-- goes to chat (one line) and to the saved variables (probes.auctions, kept for one more login like probes.maps); the companion uploads probes to the bot (the owner reads them with /guilded-probes).
 local unpack = table.unpack or unpack
 local function returnTypes(...)
   local list = {}
@@ -2510,10 +2509,18 @@ local function onEvent(_, event, ...)
     end
     snapshotModules()
     registerPrefix()
-    -- A map probe is read once from the saved file: it does not stay in the saved variables after the next login.
+    -- A map or auction probe stays for one more login so the companion can upload it, then goes.
     if type(db.probes) == "table" then
-      db.probes.maps = nil
-      db.probes.auctions = nil
+      -- Kept through one more login (the companion exports the saved file in between), then dropped: the file does not grow.
+      for _, kind in ipairs({ "maps", "auctions" }) do
+        local probe = db.probes[kind]
+        if type(probe) == "table" then
+          probe.logins = (tonumber(probe.logins) or 0) + 1
+          if probe.logins >= 2 then db.probes[kind] = nil end
+        else
+          db.probes[kind] = nil
+        end
+      end
       if db.probes.commAuto then
         db.probes.commAuto = nil
         if C_Timer and C_Timer.After then C_Timer.After(10, function() pcall(ns.runCommProbe) end) end

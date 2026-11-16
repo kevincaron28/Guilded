@@ -108,6 +108,7 @@ import { guildMembership, splitStrangerRuns } from "./services/guild-participant
 import { recordHealthReport } from "./services/sync-health.js";
 import { carrySignedGroupRuns } from "./services/relay-public.js";
 import { applyCarriedRecords, ownCarrierKeys } from "./services/carried-records.js";
+import { storeClientProbes } from "./services/client-probes.js";
 import { ingestPublicRuns, ownPlayersFilter, pickScoreCharacter, PUBLIC_LIMITS, prismaPublicRunStore, PublicUploadError } from "./services/public-runs.js";
 import { publicAddonBoard } from "./services/public-addon-board.js";
 import { publicSeasons } from "./services/public-score.js";
@@ -933,6 +934,8 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const runsOnly = (deviceBody as { runsOnly?: unknown } | null)?.runsOnly === true;
         // A runs-only body without the header spends the runs-only budget as well.
         if (runsOnly && !runsOnlyHeader && !deviceRunsOnlyPerDevice(device.id)) { json(response, 429, { error: "Too many uploads in the last hour. Try again later." }); return; }
+        const deviceProbes = (deviceBody as { probes?: unknown } | null)?.probes;
+        if (deviceProbes && typeof deviceProbes === "object") void storeClientProbes(prisma, deviceProbes, clientVersion ?? null).catch(() => undefined);
         try {
           const answered = await handleDeviceUpload(devices, device, deviceBody, { allows: (id) => hostedPilot.allows(id), sealKey: deviceHeader(request) ? deriveSealKey(deviceHeader(request)!) : null,
             applyCarried: async (records, carrier) => (await applyCarriedRecords(prisma, { carrier: `device:${carrier.deviceId}`, carrierKeys: new Set(carrier.names), records, relay: { store: publicRuns, onPlaced: (placed) => { void import("./services/cross-guild-post.js").then((module) => module.shareAndAnnounce(client, { guildId: null, deviceId: carrier.deviceId, characterKeys: [...carrier.names], receivedAt: new Date() }, placed)).catch(() => undefined); } } })).receipts,
@@ -1432,6 +1435,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         saveReceipts: (refs) => prisma.$transaction((tx) => saveRunReceipts(tx, guild.id, refs.map((runRef) => ({ runRef, outcome: "stored" as const, reason: null, runId: null })), new Date())).then(() => undefined) });
       // (9.3.2) Records the uploader's addon carried for players near it: applied by each kind's own code, answered by key.
       const carriedRecords = preview.snapshot.carriedRecords ?? [];
+      if (preview.snapshot.probes) void storeClientProbes(prisma, preview.snapshot.probes, clientVersion ?? null).catch(() => undefined);
       const carriedAnswer = carriedRecords.length
         ? await applyCarriedRecords(prisma, { carrier: `member:${access.actorId}`, carrierKeys: ownKeys, records: carriedRecords, relay: { store: publicRuns, onPlaced: (placed) => { void import("./services/cross-guild-post.js").then((module) => module.shareAndAnnounce(client, { guildId: null, characterKeys: [], receivedAt: new Date() }, placed)).catch(() => undefined); } } })
           .catch((error: unknown) => { console.error(`Carried records failed for member:${access.actorId}: ${error instanceof Error ? error.message : String(error)}`); return { receipts: [] as string[], applied: 0 }; })

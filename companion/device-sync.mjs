@@ -64,7 +64,9 @@ export function deviceUploadBody(full, options = {}) {
   }
   // (9.3.2) Records the addon carried for players near this PC, only to a bot that announced the feature.
   const carriedRecords = options.carry === true && Array.isArray(full?.carriedRecords) ? full.carriedRecords.filter((record) => !(options.carryAcknowledged instanceof Set && options.carryAcknowledged.has(carryId(record)))).slice(0, 200) : [];
-  return { guild: splitGuildKey(full?.wowGuild), characters, ...(dungeonRuns.length ? { dungeonRuns } : {}), ...(carriedRecords.length ? { carriedRecords } : {}), ...(options.server ? { server: String(options.server) } : {}) };
+  // Client probes (sanitized by the export); an older bot ignores the unknown field.
+  const probes = full?.probes && typeof full.probes === "object" && Object.keys(full.probes).length ? full.probes : null;
+  return { guild: splitGuildKey(full?.wowGuild), characters, ...(dungeonRuns.length ? { dungeonRuns } : {}), ...(carriedRecords.length ? { carriedRecords } : {}), ...(probes ? { probes } : {}), ...(options.server ? { server: String(options.server) } : {}) };
 }
 
 const base = (config) => config.uploadUrl;

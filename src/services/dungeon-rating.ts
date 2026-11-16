@@ -32,7 +32,7 @@ export function ratingDungeonKey(run: RatingRun): string {
   const wings = ROUTE_WINGS[run.instanceId];
   if (!wings) return String(run.instanceId);
   const encounters = (run.competitionData as { encounters?: { name?: string; success?: boolean }[] } | null)?.encounters;
-  const names = new Set((Array.isArray(encounters) ? encounters : []).filter(e => e?.success === true).map(e => e.name?.toLowerCase()));
+  const names = new Set((Array.isArray(encounters) ? encounters : []).filter(e => e?.success === true).map(e => e.name?.trim().normalize("NFC").toLowerCase()));
   const matches = wings.filter(([, bosses]) => bosses.some(name => names.has(name)));
   return matches.length === 1 ? `${run.instanceId}:${matches[0]![0]}` : String(run.instanceId);
 }

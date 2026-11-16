@@ -2,6 +2,8 @@ import { cardAttachment } from "./card-alt.js";
 import { armoryUrl } from "./armory-link.js";
 import { AttachmentBuilder, ChannelType, EmbedBuilder, escapeMarkdown, PermissionFlagsBits, type Guild as DiscordGuild, type Message } from "discord.js";
 import { characterKey, foreverNameMatches } from "../../companion/character-identity.mjs";
+import { withoutDeparted, type RosterLite } from "./roster-presence.js";
+export { withoutDeparted, type RosterLite } from "./roster-presence.js";
 import { prisma } from "../database.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, type Lang } from "../i18n.js";
@@ -343,27 +345,6 @@ export function mergeStored<T extends { level: number; reachedMaxAt: Date | null
   const finished = all.flatMap(entry => entry.reachedMaxAt ? [entry.reachedMaxAt] : []).sort((a, b) => a.getTime() - b.getTime());
   return { ...primary, level: Math.max(...all.map(entry => entry.level)), reachedMaxAt: finished[0] ?? null,
     firstSeenAt: all.map(entry => entry.firstSeenAt).sort((a, b) => a.getTime() - b.getTime())[0]! };
-}
-
-export interface RosterLite { name: string; nameKey: string; inGuild: boolean; observedAt: Date }
-
-/**
- * Pure: drops the characters the in-game roster says left the guild (16 Nov 2026: departed players stayed on the board because it read
- * linked and unlinked characters without ever asking the roster). A character stays unless a roster row with its name (or the single
- * matching first-name row, see foreverNameMatches) says inGuild=false and no in-guild row matches it; a character the roster has
- * never heard of is kept, since the roster may simply not name it yet. A rejoined member's row is inGuild=true again, so they return.
- */
-export function withoutDeparted<T extends { key: string; name: string }>(chars: readonly T[], roster: readonly RosterLite[]): T[] {
-  const gone = roster.filter(row => !row.inGuild);
-  if (!gone.length) return [...chars];
-  const present = roster.filter(row => row.inGuild);
-  const presentKeys = new Set(present.map(row => row.nameKey)), goneKeys = new Set(gone.map(row => row.nameKey));
-  return chars.filter(char => {
-    if (presentKeys.has(char.key)) return true;
-    if (goneKeys.has(char.key)) return false;
-    if (foreverNameMatches(present, char.name).length) return true;
-    return !foreverNameMatches(gone, char.name).length;
-  });
 }
 
 /** Records every guild character's level, then returns the board's data. Characters the guild roster says left are not on it. */

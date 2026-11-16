@@ -6,6 +6,7 @@ import { addedRules, publicRules, readRuleSnapshot, snapshotRules, type PublicRu
 import { currentEdition } from "./edition-context.js";
 import { currentIntegrityPolicy } from "./dungeon-integrity.js";
 import { lockDungeonCalendar } from "./dungeon-calendar-lock.js";
+import { refreshSeasonCalendar } from "./season-calendar.js";
 
 // The bot-wide dungeon season calendar (7.3, owner 20 October 2026: "only I control when a season
 // starts and ends ... the first real season starting November 4th, then we change season when a
@@ -123,6 +124,12 @@ export async function configureNextSeasonRules(database: Db, input: unknown, now
  * has not started yet; never edits a season that already started.
  */
 export async function scheduleNextSeason(database: Db, input: { name?: string | null; startsAt: Date; actorId: string }, now = new Date()): Promise<OfficialWindow> {
+  const scheduled = await scheduleNextSeasonLocked(database, input, now);
+  await refreshSeasonCalendar(database); // the duel and Clash clocks follow the new calendar at once, not at the next tick
+  return scheduled;
+}
+
+async function scheduleNextSeasonLocked(database: Db, input: { name?: string | null; startsAt: Date; actorId: string }, now: Date): Promise<OfficialWindow> {
   if (!Number.isFinite(input.startsAt.getTime())) throw new SeasonCalendarError("Give the start as YYYY-MM-DD HH:MM.");
   if (input.startsAt <= now) throw new SeasonCalendarError("The new season must start in the future.");
   return mutateCalendar(database,now,async (database,now)=>{
@@ -142,6 +149,12 @@ export async function scheduleNextSeason(database: Db, input: { name?: string | 
 
 /** Removes the season waiting to start; the current season then keeps running with no end. */
 export async function cancelNextSeason(database: Db, now = new Date()): Promise<OfficialWindow | null> {
+  const cancelled = await cancelNextSeasonLocked(database, now);
+  if (cancelled) await refreshSeasonCalendar(database);
+  return cancelled;
+}
+
+async function cancelNextSeasonLocked(database: Db, now: Date): Promise<OfficialWindow | null> {
   return mutateCalendar(database,now,async (database,now)=>{
   const pending = scheduledNext(await loadOfficialWindows(database), now);
   if (!pending) return null;

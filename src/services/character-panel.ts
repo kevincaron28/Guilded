@@ -6,6 +6,8 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, t, type Lang } from "../i18n.js";
 import { displayCharacterName, loadFullNameBook } from "./character-display.js";
 import { characterTrustMap, trustSuffix } from "./character-trust.js";
+import { loadRosterPresence, withoutDeparted } from "./roster-presence.js";
+import { characterKey } from "../../companion/character-identity.mjs";
 import { claimCharacter } from "./character-autolink.js";
 import { DETACHED } from "./character-move.js";
 import { linkBackRow, tellAutoLinked, unlinkNotMine } from "./companion-link-dm.js";
@@ -96,7 +98,10 @@ export async function linkView(database: Db, context: Context): Promise<PanelVie
   const { member, lang } = context;
   // The characters this member unlinked themselves come first: always theirs to take back, whatever the automation says.
   const own = (await database.character.findMany({ where: { guildId: member.guildId, detachedFromMemberId: member.id, ...DETACHED }, orderBy: { name: "asc" }, take: MAX_OPTIONS })).filter((row) => row.detachedAt);
-  const waiting = await database.unclaimedCharacter.findMany({ where: { guildId: member.guildId }, orderBy: { name: "asc" }, take: MAX_OPTIONS });
+  // Departed players (the in-game roster says inGuild=false) are not offered; the roster is read before the cut so the menu stays full.
+  const waitingAll = await database.unclaimedCharacter.findMany({ where: { guildId: member.guildId }, orderBy: { name: "asc" }, take: MAX_OPTIONS * 2 });
+  const presence = await loadRosterPresence(database, member.guildId, waitingAll[0]?.gameEdition ?? "forever").catch(() => []);
+  const waiting = withoutDeparted(waitingAll.map((row) => ({ ...row, key: row.nameKey ?? characterKey(row.name, row.realm, row.gameEdition) })), presence).slice(0, MAX_OPTIONS);
   const rows = [...own, ...waiting].slice(0, MAX_OPTIONS);
   const book = await loadFullNameBook(database, member.guildId);
   const guildId = member.guild.discordId;

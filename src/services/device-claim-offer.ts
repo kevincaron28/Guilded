@@ -4,6 +4,7 @@ import { asLang, t, type Lang } from "../i18n.js";
 import { characterKey, foreverSameName, realmKey } from "../../companion/character-identity.mjs";
 import { findCharacter } from "./character-match.js";
 import { linkPairedCharacter } from "./character-pairing.js";
+import { RECENT_MEMBER_MS } from "./guild-participants.js";
 
 // One-click claim (owner decision, 16 November 2026): a zero-setup install reports the characters of one WoW account
 // (DeviceCharacter, owned by nobody). Once the member is known (a Discord sign-in claimed the install, or /guilded verify
@@ -40,6 +41,14 @@ export interface DeviceOffer {
 
 type Db = PrismaClient;
 
+/** Anchor matching: when both names carry a last name the FULL name must match ("Bob Smith" is not "Bob Jones"); only when one side is a
+ * bare first name (older rows) does the loose first-name rule of foreverSameName apply. */
+export function sameCharacter(anchor: string, reported: string): boolean {
+  const a = anchor.trim().replace(/\s+/g, " "), b = reported.trim().replace(/\s+/g, " ");
+  if (a.includes(" ") && b.includes(" ")) return a.toLowerCase() === b.toLowerCase();
+  return foreverSameName(a, b);
+}
+
 /** Offers for one member, one per install with at least one character to link. Snoozed installs are left out unless asked for. */
 export async function offersFor(db: Db, memberId: string, now = new Date(), options: { includeSnoozed?: boolean; deviceId?: string } = {}): Promise<DeviceOffer[]> {
   const member = await db.member.findUnique({
@@ -63,7 +72,7 @@ export async function offersFor(db: Db, memberId: string, now = new Date(), opti
   });
   if (!devices.length) return [];
   const [roster, guildCharacters, declined] = await Promise.all([
-    db.guildRosterEntry.findMany({ where: { guildId: member.guildId, gameEdition: "forever", inGuild: true }, select: { nameKey: true } }),
+    db.guildRosterEntry.findMany({ where: { guildId: member.guildId, gameEdition: "forever", inGuild: true, observedAt: { gte: new Date(now.getTime() - RECENT_MEMBER_MS) } }, select: { nameKey: true } }),
     db.character.findMany({ where: { member: { guildId: member.guildId } }, select: { name: true, realm: true, gameEdition: true, memberId: true, detachedAt: true } }),
     db.characterVerifyClaim.findMany({ where: { guildId: member.guildId, memberId, status: { in: ["BLOCKED", "REMOVED"] } }, select: { nameKey: true } })
   ]);
@@ -73,7 +82,7 @@ export async function offersFor(db: Db, memberId: string, now = new Date(), opti
   for (const device of devices) {
     // An unclaimed install is only this member's when it reported one of their characters; their own claimed install always is.
     const claimed = device.claimedMemberId === memberId;
-    const theirs = claimed || device.characters.some((character) => anchors.some((anchor) => foreverSameName(anchor.name, character.name) && realmKey(anchor.realm) === realmKey(character.realm)));
+    const theirs = claimed || device.characters.some((character) => anchors.some((anchor) => sameCharacter(anchor.name, character.name) && realmKey(anchor.realm) === realmKey(character.realm)));
     if (!theirs) continue;
     const row = device.claimOffers[0];
     if (!options.includeSnoozed && row?.snoozedUntil && row.snoozedUntil > now) continue;

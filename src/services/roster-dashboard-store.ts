@@ -6,6 +6,7 @@ import { gameEditionOf } from "./game-edition.js";
 import { characterName } from "./character-display.js";
 import { attachRosterActivity } from "./roster-activity.js";
 import { loadRosterGaps, type RosterGaps } from "./roster-gaps.js";
+import { loadRosterPresence, withoutDeparted } from "./roster-presence.js";
 import { loadRosterVisual, type RosterVisual } from "./roster-visual.js";
 
 export const ROSTER_LIMIT = 1_000;
@@ -73,7 +74,7 @@ export function prismaRosterDashboardStore(database: PrismaClient, client: Clien
 }
 
 // Transaction-safe snapshot read; does not call Discord.
-export async function loadRosterSnapshot(database: Pick<Prisma.TransactionClient, "character" | "unclaimedCharacter">, guild: RosterGuild): Promise<RosterSnapshot> {
+export async function loadRosterSnapshot(database: Pick<Prisma.TransactionClient, "character" | "unclaimedCharacter"> & Partial<Pick<Prisma.TransactionClient, "guildRosterEntry">>, guild: RosterGuild): Promise<RosterSnapshot> {
       const guildId = guild.id;
       const where = { guildId, gameEdition: guild.edition };
       // Bounded, explicit field selections: never include notes, credentials or Discord IDs.
@@ -86,8 +87,11 @@ export async function loadRosterSnapshot(database: Pick<Prisma.TransactionClient
         where, select: { name: true, displayName: true, realm: true, className: true, race: true, level: true, professions: true, lastSeenAt: true },
         orderBy: [{ name: "asc" }, { realm: "asc" }, { id: "asc" }], take: ROSTER_LIMIT + 1
       });
+      // The in-game roster says who left: departed unclaimed characters are not listed (same fix as the race board, 16 Nov 2026).
+      const presence = database.guildRosterEntry ? await loadRosterPresence({ guildRosterEntry: database.guildRosterEntry }, guildId, guild.edition) : [];
+      const stillHere = withoutDeparted(unclaimed.map((row) => ({ ...row, key: characterKey(row.name, row.realm, gameEditionOf({ gameEdition: guild.edition })) })), presence);
       const characters = new Map<string, RosterCharacter>();
-      for (const row of [...linked, ...unclaimed]) {
+      for (const row of [...linked, ...stillHere]) {
         const key = characterKey(row.name, row.realm, gameEditionOf({ gameEdition: guild.edition }));
         if (characters.has(key)) continue; // A linked record wins over stale discovery data.
         characters.set(key, { key, name: characterName(row), realm: row.realm, className: row.className, race: row.race,

@@ -13,7 +13,7 @@ describe("rookie of the week card", () => {
   it("draws the card with the member's place and points", async () => {
     const card = weeklyRookieCard("en", { name: "Brenna", points: 40, place: 2, ranked: 2, week: "2026-12-07" });
     expect(card.backdrop).toEqual({ kind: "board", key: "rookie-of-the-week", fallbackKey: "activity" });
-    expect(card.stats.map(s => s.value)).toEqual(["40", "2/2", "2026-12-07"]);
+    expect(card.stats.map(s => s.value)).toEqual(["40", "2/2"]);
     expect(cardAltText(card)).toContain("Rookie of the week");
     expect((await scoreCardPng(card))?.subarray(1, 4).toString()).toBe("PNG");
     expect(weeklyRookieCard("fr", { name: "B", points: 1, place: 1, ranked: 1, week: "w" }).eyebrow).toBe("Guilded · Recrue de la semaine");

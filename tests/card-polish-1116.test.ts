@@ -94,7 +94,7 @@ describe("rookie of the week card", () => {
     const card = weeklyRookieCard("fr", { name: "El Pirata Qc (El Pirata)", points: 211, place: 4, ranked: 37, week: "2026-11-09" });
     expect(card.title).toBe("El Pirata Qc (El Pirata)");
     expect(JSON.stringify([card.subtitle, card.rows, card.footer, card.stats.map(s => s.label)])).not.toContain("El Pirata");
-    expect(card.stats.map(s => s.label)).toEqual(["Points", "Rang", "Semaine du"]);
+    expect(card.stats.map(s => s.label)).toEqual(["Points", "Rang"]);
     expect(card.stats.every(s => s.label.length <= 12)).toBe(true);
     expect(card.rows![0]!.name).toBe("Devant 33 membres");
   });

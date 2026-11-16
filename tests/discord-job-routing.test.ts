@@ -93,3 +93,26 @@ it("keeps the delivery id out of the footer members read, and still skips a post
     expect(again.send).not.toHaveBeenCalled();
   }
 });
+
+it("delivers a second card in the same post and takes its text line off only when that card drew", async () => {
+  mocks.address.mockResolvedValue({ guildId: "guild", channelId: "fame" });
+  const card = (title: string) => ({ title, subtitle: "s", stats: [{ label: "Points", value: "1" }], footer: "f" });
+  const rookieField = { name: "Rookie", value: "Newbie" };
+  const payload = (extraCard: unknown) => job({ channelId: "fame", message: { embeds: [{ description: "full", fields: [rookieField] }] }, card: card("MVP"),
+    cardOnly: { embeds: [{ description: "reduced", fields: [rookieField] }, { color: 1 }, { color: 2 }] }, ...(extraCard ? { extraCard } : {}) }) as never;
+  const d = discord();
+  await dispatchDiscordJob(d.guild as never, payload({ card: card("Newbie"), dropField: rookieField.name }));
+  const sent = d.send.mock.calls[0]![0];
+  expect(sent.files.map((file: { name: string }) => file.name)).toEqual(["card.png", "card2.png"]);
+  expect(sent.embeds).toHaveLength(3);
+  expect(sent.embeds[0].data.fields ?? []).toHaveLength(0);
+  expect(sent.embeds[1].data.image.url).toBe("attachment://card.png");
+  expect(sent.embeds[2].data.image.url).toBe("attachment://card2.png");
+  // The second card cannot be drawn: one picture, the rookie line stays, no empty embed.
+  const lone = discord();
+  await dispatchDiscordJob(lone.guild as never, payload({ card: null, dropField: rookieField.name }));
+  const one = lone.send.mock.calls[0]![0];
+  expect(one.files).toHaveLength(1);
+  expect(one.embeds).toHaveLength(2);
+  expect(one.embeds[0].data.fields).toHaveLength(1);
+});

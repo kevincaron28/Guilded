@@ -2956,7 +2956,7 @@ local DE = {
   -- 9.3.1 UI polish
   ["Preview: sample numbers, nothing is saved."] = "Vorschau: Beispielwerte, nichts wird gespeichert.",
   ["Kills and deaths are shown by zone and position on the public pages of guilds that publish."] = "Kills und Tode werden nach Zone und Position auf den \195\182ffentlichen Seiten von Gilden angezeigt, die ver\195\182ffentlichen.",
-  ["Usage: /guilded probe maps | comm | comm auto"] = "Verwendung: /guilded probe maps",
+  ["Usage: /guilded probe maps | comm | comm auto | auctions"] = "Verwendung: /guilded probe maps",
   ["This client has no map data to read."] = "Dieser Client hat keine Kartendaten zum Lesen.",
   ["Map probe: %d maps written to the saved variables (probes.maps). Reload or log out to save the file."] = "Kartenpr\195\188fung: %d Karten in die gespeicherten Variablen geschrieben (probes.maps). Lade neu oder melde dich ab, um die Datei zu speichern.",
   ["Comm probe finished: the results are in the diagnostics (PROBE) and the saved variables (probes.comm)."] = "Kommunikationspr\195\188fung beendet: Die Ergebnisse stehen in der Diagnose (PROBE) und in den gespeicherten Variablen (probes.comm).",
@@ -2990,6 +2990,16 @@ local DE = {
   -- 9.3.4 window polish
   ["No open orders for you."] = "Keine offenen Auftr\195\164ge f\195\188r dich.",
   ["A Save button and reminder so the companion uploads sooner."] = "Eine Speichern-Schaltfl\195\164che und eine Erinnerung, damit der Companion fr\195\188her hochl\195\164dt.",
+  ["%s reached the gold milestone: %s!"] = "%s hat den Goldmeilenstein erreicht: %s!",
+  ["Pocket Change"] = "Kleingeld",
+  ["Coin Collector"] = "M\195\188nzsammler",
+  ["Thousandaire"] = "Tausendgoldener",
+  ["Gold Goblin"] = "Goldgoblin",
+  ["Gold milestones in guild chat: %s."] = "Goldmeilensteine im Gildenchat: %s.",
+  ["Gold milestones"] = "Goldmeilensteine",
+  ["Announces when you reach a gold milestone (the amount is never shown). Off unless you turn it on."] = "K\195\188ndigt an, wenn du einen Goldmeilenstein erreichst (der Betrag wird nie gezeigt). Aus, bis du es einschaltest.",
+  ["Auction probe: inbox %s, invoices %s, sold message %s, owned list %s, %d statistics. Details are in the saved variables (probes.auctions); reload or log out to save the file."] = "Auktionspr\195\188fung: Postfach %s, Rechnungen %s, Verkaufsmeldung %s, eigene Liste %s, %d Statistiken. Details stehen in den gespeicherten Variablen (probes.auctions); lade neu oder melde dich ab, um die Datei zu speichern.",
+  ["Open the auction house and run /guilded probe auctions again to read the owned auction list."] = "\195\150ffne das Auktionshaus und starte /guilded probe auctions erneut, um die eigene Auktionsliste zu lesen.",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -4957,7 +4967,7 @@ local ES = {
   -- 9.3.1 UI polish
   ["Preview: sample numbers, nothing is saved."] = "Vista previa: n\195\186meros de ejemplo, no se guarda nada.",
   ["Kills and deaths are shown by zone and position on the public pages of guilds that publish."] = "Las eliminaciones y las muertes se muestran por zona y posici\195\179n en las p\195\161ginas p\195\186blicas de las hermandades que publican.",
-  ["Usage: /guilded probe maps | comm | comm auto"] = "Uso: /guilded probe maps",
+  ["Usage: /guilded probe maps | comm | comm auto | auctions"] = "Uso: /guilded probe maps",
   ["This client has no map data to read."] = "Este cliente no tiene datos de mapa que leer.",
   ["Map probe: %d maps written to the saved variables (probes.maps). Reload or log out to save the file."] = "Sondeo de mapas: %d mapas escritos en las variables guardadas (probes.maps). Recarga o cierra sesi\195\179n para guardar el archivo.",
   ["Comm probe finished: the results are in the diagnostics (PROBE) and the saved variables (probes.comm)."] = "Sondeo de comunicaci\195\179n terminado: los resultados est\195\161n en el diagn\195\179stico (PROBE) y en las variables guardadas (probes.comm).",
@@ -4991,6 +5001,16 @@ local ES = {
   -- 9.3.4 window polish
   ["No open orders for you."] = "No hay pedidos abiertos para ti.",
   ["A Save button and reminder so the companion uploads sooner."] = "Un bot\195\179n Guardar y un recordatorio para que el acompa\195\177ante suba los datos antes.",
+  ["%s reached the gold milestone: %s!"] = "\194\161%s ha alcanzado el hito de oro: %s!",
+  ["Pocket Change"] = "Calderilla",
+  ["Coin Collector"] = "Coleccionista de monedas",
+  ["Thousandaire"] = "Milenario",
+  ["Gold Goblin"] = "Goblin del oro",
+  ["Gold milestones in guild chat: %s."] = "Hitos de oro en el chat de hermandad: %s.",
+  ["Gold milestones"] = "Hitos de oro",
+  ["Announces when you reach a gold milestone (the amount is never shown). Off unless you turn it on."] = "Anuncia cuando alcanzas un hito de oro (nunca se muestra la cantidad). Desactivado hasta que lo actives.",
+  ["Auction probe: inbox %s, invoices %s, sold message %s, owned list %s, %d statistics. Details are in the saved variables (probes.auctions); reload or log out to save the file."] = "Sonda de subastas: buz\195\179n %s, facturas %s, mensaje de venta %s, lista propia %s, %d estad\195\173sticas. Los detalles est\195\161n en las variables guardadas (probes.auctions); recarga o cierra sesi\195\179n para guardar el archivo.",
+  ["Open the auction house and run /guilded probe auctions again to read the owned auction list."] = "Abre la casa de subastas y vuelve a ejecutar /guilded probe auctions para leer la lista de tus subastas.",
 }
 -- END ES
 
@@ -6125,9 +6145,19 @@ FR["Your record: %d wins, %d losses (%d%%), streak %s, rating %d. Click a player
 FR["You have not duelled %s in this season."] = "Vous n'avez pas affront\195\169 %s cette saison."
 -- World PvP places and the map probe
 FR["Kills and deaths are shown by zone and position on the public pages of guilds that publish."] = "Les \195\169liminations et les morts sont affich\195\169es par zone et par position sur les pages publiques des guildes qui publient."
-FR["Usage: /guilded probe maps | comm | comm auto"] = "Utilisation : /guilded probe maps"
+FR["Usage: /guilded probe maps | comm | comm auto | auctions"] = "Utilisation : /guilded probe maps"
 FR["This client has no map data to read."] = "Ce client n'a pas de donn\195\169es de carte \195\160 lire."
 FR["Map probe: %d maps written to the saved variables (probes.maps). Reload or log out to save the file."] = "Sonde des cartes : %d cartes \195\169crites dans les variables enregistr\195\169es (probes.maps). Rechargez ou d\195\169connectez-vous pour enregistrer le fichier."
 FR["Comm probe finished: the results are in the diagnostics (PROBE) and the saved variables (probes.comm)."] = "Sonde de communication termin\195\169e : les r\195\169sultats sont dans le diagnostic (PROBE) et les variables enregistr\195\169es (probes.comm)."
 FR["Comm probe started: results in about 6 seconds."] = "Sonde de communication lanc\195\169e : r\195\169sultats dans environ 6 secondes."
 FR["Comm probe armed: it runs by itself 10 seconds after the next login or /reload."] = "Sonde de communication arm\195\169e : elle se lance seule 10 secondes apr\195\168s la prochaine connexion ou le prochain /reload."
+FR["%s reached the gold milestone: %s!"] = "%s a atteint le palier d'or : %s !"
+FR["Pocket Change"] = "Menue monnaie"
+FR["Coin Collector"] = "Collectionneur de pi\195\168ces"
+FR["Thousandaire"] = "Mill\195\169naire"
+FR["Gold Goblin"] = "Gobelin de l'or"
+FR["Gold milestones in guild chat: %s."] = "Paliers d'or dans le chat de guilde : %s."
+FR["Gold milestones"] = "Paliers d'or"
+FR["Announces when you reach a gold milestone (the amount is never shown). Off unless you turn it on."] = "Annonce quand vous atteignez un palier d'or (le montant n'est jamais affich\195\169). D\195\169sactiv\195\169 tant que vous ne l'activez pas."
+FR["Auction probe: inbox %s, invoices %s, sold message %s, owned list %s, %d statistics. Details are in the saved variables (probes.auctions); reload or log out to save the file."] = "Sonde des ench\195\168res : bo\195\174te aux lettres %s, factures %s, message de vente %s, liste des ventes %s, %d statistiques. Les d\195\169tails sont dans les variables sauvegard\195\169es (probes.auctions) ; rechargez ou d\195\169connectez-vous pour enregistrer le fichier."
+FR["Open the auction house and run /guilded probe auctions again to read the owned auction list."] = "Ouvrez l'h\195\180tel des ventes et relancez /guilded probe auctions pour lire la liste de vos ventes."

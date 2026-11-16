@@ -49,6 +49,7 @@ export const GLYPHS = {
   smile: `<circle cx="12" cy="12" r="9"/><path d="M8 14a5 5 0 0 0 8 0"/><circle cx="9" cy="9.500" r="1" fill="currentColor"/><circle cx="15" cy="9.500" r="1" fill="currentColor"/>`,
   sparkle: `<path d="M12 2c1 5 3 8 8 10-5 2-7 5-8 10-1-5-3-8-8-10 5-2 7-5 8-10z"/>`,
   coin: `<circle cx="12" cy="12" r="9"/><path d="M12 6.500v11M9.500 9.500c0-2 5-2 5 0s-5 2-5 4.500 5 2.500 5 .5"/>`,
+  purse: `<path d="M9 3h6l-1.500 3h-3zM10 6C5.500 8.500 4 13 6 18c1.200 2.200 3.200 3 6 3s4.800-.8 6-3c2-5 .5-9.500-4-12M12 10v8M10 11.500c0-1.500 4-1.500 4 0s-4 1.500-4 3 4 1.500 4 0"/>`,
   bolt: `<path d="M13 2L5 14h6l-1 8 8-12h-6z"/>`,
   duel: `<path d="M4 4l9 9M20 4l-9 9M11 15l-2 2 1.500 1.500M13 15l2 2-1.500 1.500M12 21v-3"/><path d="M3 20l3-3M21 20l-3-3"/><circle cx="12" cy="10" r="1.200" fill="currentColor"/>`,
   medal: `<circle cx="12" cy="15" r="6"/><path d="M8 3l4 7 4-7M12 12l1 2h2l-1.500 1.300.5 2-2-1.200-2 1.200.5-2L9 14h2z"/>`,
@@ -58,8 +59,8 @@ export type GlyphName = keyof typeof GLYPHS;
 
 // Long progressions share one glyph per metric; the tier frame and the rank pips tell the steps apart.
 // Every ladder metric is listed here on purpose: a new ladder without a glyph fails to compile (and the test below).
-type LadderMetric = "messagesSent" | "voiceHours" | "reactionsGiven" | "reactionsReceived" | "communityPoints" | "epEarned" | "mvpWeeks" | "serverAnniversaries" | "honorableKills" | "duelWins" | "craftsDone";
-const LADDER_GLYPH: Record<LadderMetric, GlyphName> = { messagesSent: "bubble", voiceHours: "mic", reactionsGiven: "smile", reactionsReceived: "sparkle", communityPoints: "coin", epEarned: "bolt", mvpWeeks: "trophy", serverAnniversaries: "cake", honorableKills: "medal", duelWins: "duel", craftsDone: "hammer" };
+type LadderMetric = "messagesSent" | "voiceHours" | "reactionsGiven" | "reactionsReceived" | "communityPoints" | "epEarned" | "mvpWeeks" | "serverAnniversaries" | "honorableKills" | "duelWins" | "craftsDone" | "goldTier";
+const LADDER_GLYPH: Record<LadderMetric, GlyphName> = { messagesSent: "bubble", voiceHours: "mic", reactionsGiven: "smile", reactionsReceived: "sparkle", communityPoints: "coin", epEarned: "bolt", mvpWeeks: "trophy", serverAnniversaries: "cake", honorableKills: "medal", duelWins: "duel", craftsDone: "hammer", goldTier: "purse" };
 const SINGLE_GLYPH: Record<string, GlyphName> = {
   "dungeon-runs-1": "door", "dungeon-runs-10": "key", "dungeon-runs-25": "torch", "dungeon-runs-50": "swords", "dungeon-runs-100": "crown",
   "dungeon-variety-1": "map", "dungeon-variety-5": "compass", "dungeon-variety-10": "gem", "duel-streak-5": "ascend", "duel-beat-top": "orb", "secret-01": "orb",

@@ -1,12 +1,14 @@
 import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
 
 // One-off, idempotent fill of PublicRunPlayer.guild for public runs stored before the column existed (docs/plans/PUBLIC_GUILD_DIRECTORY.md).
-// Only rows with no guild are touched, so it can run on every start and stops changing anything once everything reachable is filled.
-//   1. The guild text the recorder's client saw for the same character in the same run (DungeonRunPlayer.guild, matched by the addon run id
-//      and the character name, case-insensitive).
-//   2. The in-game guild a Guilded server's roster puts the character in (GuildRosterEntry, inGuild) named by that server's WowGuild row;
-//      when the player row has a realm it must equal the WowGuild's.
-// Public runs are read in pages of BATCH ids; a failed batch is skipped and reported, never thrown.
+// Only rows with no guild are touched. Each run is looked at once: after a batch its runs get PublicRun.guildBackfillAt (covered or not),
+// so runs no source covers are not rescanned on every start. Sources, in order:
+//   1. The guild text the recording client saw for the same character in the same run (DungeonRunPlayer.guild, matched by the addon run
+//      id and the character name, case-insensitive).
+//   2. The in-game guild named by a WowGuild row of the Discord server that holds this very run (DungeonRun.guildId), for a character on
+//      that server's roster (GuildRosterEntry, inGuild). Never a roster from another server; a run without a server of ours gets nothing here.
+//      When the player row has a realm it must equal the WowGuild's.
+// Public runs are read in pages of BATCH ids; a failed batch is reported and left unmarked (retried next start), never thrown.
 const BATCH = 500;
 
 export interface BackfillResult { runs: number; fromRuns: number; fromRosters: number }
@@ -14,7 +16,7 @@ export interface BackfillResult { runs: number; fromRuns: number; fromRosters: n
 export async function backfillPublicRunGuilds(database: Pick<PrismaClient, "publicRun" | "$executeRaw">, onError: (error: unknown) => void = () => {}): Promise<BackfillResult> {
   const result: BackfillResult = { runs: 0, fromRuns: 0, fromRosters: 0 };
   for (let cursor: string | null = null; ;) {
-    const page: { id: string }[] = await database.publicRun.findMany({ where: { players: { some: { guild: null } } }, select: { id: true }, orderBy: { id: "asc" }, take: BATCH, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}) });
+    const page: { id: string }[] = await database.publicRun.findMany({ where: { guildBackfillAt: null, players: { some: { guild: null } } }, select: { id: true }, orderBy: { id: "asc" }, take: BATCH, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}) });
     if (!page.length) return result;
     const ids = page.map((row) => row.id);
     result.runs += ids.length;
@@ -33,14 +35,18 @@ export async function backfillPublicRunGuilds(database: Pick<PrismaClient, "publ
       result.fromRosters += Number(await database.$executeRaw(Prisma.sql`
         UPDATE "PublicRunPlayer" AS p SET "guild" = m."guildName"
         FROM (
-          SELECT DISTINCT ON (pr."id", e."nameKey") pr."id" AS "runId", e."nameKey" AS "chr", w."name" AS "guildName", w."realm" AS "realm"
-          FROM "PublicRun" pr
-          JOIN "GuildRosterEntry" e ON e."gameEdition" = pr."gameEdition" AND e."inGuild" = true
-          JOIN "WowGuild" w ON w."guildId" = e."guildId" AND w."gameEdition" = e."gameEdition"
-          WHERE pr."id" = ANY(${ids}::text[])
-          ORDER BY pr."id", e."nameKey", e."observedAt" DESC
+          SELECT DISTINCT ON (p2."id") p2."id" AS "playerId", w."name" AS "guildName"
+          FROM "PublicRunPlayer" p2
+          JOIN "PublicRun" pr ON pr."id" = p2."runId"
+          JOIN "DungeonRun" r ON r."runRef" = pr."runRef"
+          JOIN "GuildRosterEntry" e ON e."guildId" = r."guildId" AND e."gameEdition" = pr."gameEdition" AND e."inGuild" = true AND e."nameKey" = lower(p2."character")
+          JOIN "WowGuild" w ON w."guildId" = r."guildId" AND w."gameEdition" = pr."gameEdition"
+          WHERE p2."runId" = ANY(${ids}::text[]) AND p2."guild" IS NULL AND (p2."realm" = '' OR lower(p2."realm") = lower(w."realm"))
+          ORDER BY p2."id", e."observedAt" DESC, w."createdAt"
         ) m
-        WHERE p."runId" = m."runId" AND p."guild" IS NULL AND lower(p."character") = m."chr" AND (p."realm" = '' OR lower(p."realm") = lower(m."realm"))`));
+        WHERE p."id" = m."playerId" AND p."guild" IS NULL`));
+      // Covered or not, these runs have been looked at.
+      await database.$executeRaw(Prisma.sql`UPDATE "PublicRun" SET "guildBackfillAt" = now() WHERE "id" = ANY(${ids}::text[])`);
     } catch (error) { onError(error); }
     cursor = page[page.length - 1]!.id;
     if (page.length < BATCH) return result;

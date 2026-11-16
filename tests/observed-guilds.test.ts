@@ -39,3 +39,12 @@ describe("observed guild addresses and unknown realms", () => {
     expect(nomadRealms).toEqual(["", "Two"]); // two realms known: the unknown one stays its own bucket
   });
 });
+
+describe("observed guild address aliases", () => {
+  it("keeps the first version's slug and the unknown-realm slug as aliases of the stable one", () => {
+    const known = groupObservedGuilds([{ guild: "Twins", realm: "Doomhowl", character: "A" }, { guild: "Twins", realm: "Doomhowl", character: "B" }], new Set())[0]!;
+    expect(known.aliases).toContain("twins-doomhowl"); // #999's slug
+    const unknown = groupObservedGuilds([{ guild: "Twins", realm: "", character: "A" }, { guild: "Twins", realm: "", character: "B" }], new Set())[0]!;
+    expect(known.aliases).toContain(unknown.slug); // the address it had before its realm resolved
+  });
+});

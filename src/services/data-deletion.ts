@@ -1,5 +1,5 @@
 import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
-import { characterKey } from "../../companion/character-identity.mjs";
+import { clearLeaderboardCaches } from "./leaderboard-cache-hooks.js";
 
 // "Delete my data" (8.5). Everything about a member is shared, so the only privacy control left is this one request,
 // which the Microsoft Store privacy policy and Discord's developer terms require. It removes what identifies the
@@ -24,8 +24,18 @@ export const DELETED_PLAYER_PREFIX = "deleted-player-";
 const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 /** Older uploads stored only the first name of a two-name character ("Kev" for "Kev Caron"): theirs too, on the same realm (or none stored). */
 const firstNameOf = (name: string) => name.trim().includes(" ") ? name.trim().split(/\s+/)[0]! : null;
-const isOwnName = (own: { name: string; realm: string | null }, stored: string, realm: string | null) =>
-  (sameName(own.name, stored) || (!!firstNameOf(own.name) && sameName(firstNameOf(own.name)!, stored))) && (!realm || !own.realm || sameName(own.realm, realm));
+
+/** One of the member's characters. `unique`: no other member of their guild has the same name (or, for the first-name alias, the same first name). */
+export interface OwnCharacter { name: string; realm: string | null; unique: boolean }
+/**
+ * Whether a stored name (and realm, "" or null when none is stored) is this character. The name is the full name or its first-name alias.
+ * With a realm on both sides the realms must be equal; when either side has none the row counts only if the name is unique in the
+ * member's guild, so a realm-less row is never taken from another player on another realm.
+ */
+export const isOwnName = (own: OwnCharacter, stored: string, realm: string | null) =>
+  (sameName(own.name, stored) || (!!firstNameOf(own.name) && sameName(firstNameOf(own.name)!, stored)))
+  && (realm && own.realm ? sameName(own.realm, realm) : own.unique);
+
 /** Replaces every string equal to one of `names` (any case) inside saved evidence JSON; keys are never touched. */
 export function scrubNames<T>(value: T, names: readonly string[], placeholder: string): T {
   const walk = (node: unknown): unknown => typeof node === "string" ? (names.some(name => sameName(node, name)) ? placeholder : node)
@@ -34,7 +44,7 @@ export function scrubNames<T>(value: T, names: readonly string[], placeholder: s
   return walk(value) as T;
 }
 
-type PublicRunTx = Pick<PrismaClient, "publicRunPlayer" | "publicRun" | "publicRunUpload">;
+type PublicRunTx = Pick<PrismaClient, "publicRunPlayer" | "publicRun" | "publicRunUpload" | "$executeRaw">;
 /**
  * The member's characters leave the public runs: each public run player row with one of their names (and the realm, or none stored)
  * becomes "deleted-player-<row id>" with no display name and no guild; the same names are replaced inside that run's saved evidence
@@ -42,12 +52,16 @@ type PublicRunTx = Pick<PrismaClient, "publicRunPlayer" | "publicRun" | "publicR
  * Rows that stored only the first name of a two-name character are matched too (a same-first-name player on the same realm is anonymised
  * with them: the cost of keeping the deletion promise).
  */
-export async function anonymisePublicRuns(tx: PublicRunTx, characters: { name: string; realm: string | null }[]): Promise<number> {
+export async function anonymisePublicRuns(tx: PublicRunTx, characters: OwnCharacter[]): Promise<number> {
   const names = [...new Set(characters.flatMap(row => [row.name.trim(), firstNameOf(row.name) ?? ""]).filter(Boolean))];
   if (!names.length) return 0;
   const rows = await tx.publicRunPlayer.findMany({ where: { OR: names.map(name => ({ character: { equals: name, mode: "insensitive" as const } })) }, select: { id: true, runId: true, character: true, realm: true }, take: 50_000 });
   const mine = rows.filter(row => characters.some(own => isOwnName(own, row.character, row.realm)));
-  for (const row of mine) await tx.publicRunPlayer.update({ where: { id: row.id }, data: { character: `${DELETED_PLAYER_PREFIX}${row.id}`, displayName: null, guild: null } });
+  // Set-based and batched: one statement per 1,000 rows, each row's own unique placeholder (the run keeps its party size).
+  for (let at = 0; at < mine.length; at += 1_000) {
+    const ids = mine.slice(at, at + 1_000).map(row => row.id);
+    await tx.$executeRaw(Prisma.sql`UPDATE "PublicRunPlayer" SET "character" = ${DELETED_PLAYER_PREFIX}::text || "id", "displayName" = NULL, "guild" = NULL WHERE "id" = ANY(${ids}::text[])`);
+  }
   const placeholder = (character: string) => `${DELETED_PLAYER_PREFIX}${mine.find(row => sameName(row.character, character))?.id ?? "x"}`;
   for (const runId of new Set(mine.map(row => row.runId))) {
     const own = mine.filter(row => row.runId === runId);
@@ -62,8 +76,32 @@ export async function anonymisePublicRuns(tx: PublicRunTx, characters: { name: s
   return mine.length;
 }
 
+/** The member's characters (also the ones they unlinked) with whether each name is theirs alone in their guild. */
+async function ownCharacters(db: Pick<PrismaClient, "character">, memberIds: string[]): Promise<OwnCharacter[]> {
+  const rows = await db.character.findMany({ where: { OR: [{ memberId: { in: memberIds } }, { detachedFromMemberId: { in: memberIds }, detachedAt: { not: null } }] }, select: { name: true, realm: true, member: { select: { guildId: true } } } });
+  const guildIds = [...new Set(rows.flatMap(row => row.member?.guildId ?? []))];
+  const others = guildIds.length ? await db.character.findMany({ where: { member: { guildId: { in: guildIds } }, memberId: { notIn: memberIds } }, select: { name: true }, take: 50_000 }) : [];
+  const taken = others.map(row => row.name.trim().toLowerCase());
+  return rows.map(row => {
+    const full = row.name.trim().toLowerCase(), first = firstNameOf(row.name)?.toLowerCase() ?? null;
+    return { name: row.name, realm: row.realm, unique: !taken.some(other => other === full || (first !== null && (other === first || other.startsWith(`${first} `)))) };
+  });
+}
+
 export async function deleteMyData(database: PrismaClient, discordUserId: string): Promise<DeletionSummary> {
   if (!/^\d{5,25}$/.test(discordUserId)) throw new Error("A Discord user id is required.");
+  // The public run and duel rows go first, outside the transaction (set-based, batched, safe to repeat): if this fails nothing else has been
+  // deleted yet and the request can simply be repeated, so the deletion never ends half done.
+  const memberIds = (await database.member.findMany({ where: { discordUserId }, select: { id: true } })).map(row => row.id);
+  const named = await ownCharacters(database, memberIds);
+  await anonymisePublicRuns(database, named);
+  await anonymisePublicDuels(database, named);
+  const summary = await deleteWithinTransaction(database, discordUserId);
+  clearLeaderboardCaches(); // the public pages drop what they cached (rosters, observed guilds) at once
+  return summary;
+}
+
+async function deleteWithinTransaction(database: PrismaClient, discordUserId: string): Promise<DeletionSummary> {
   return database.$transaction(async tx => {
     const members = await tx.member.findMany({ where: { discordUserId }, select: { id: true } });
     const memberIds = members.map(row => row.id);
@@ -93,10 +131,6 @@ export async function deleteMyData(database: PrismaClient, discordUserId: string
     await tx.mobileDelivery.deleteMany({ where: { device: { credential: own } } });
     await tx.mobileDevice.deleteMany({ where: { credential: own } });
     await tx.companionCredential.deleteMany({ where: own });
-    // Their characters leave the public dungeon runs (and so the guild pages built from them) before the rows that name them are deleted.
-    const named = await tx.character.findMany({ where: { OR: [own, { detachedFromMemberId: { in: memberIds }, detachedAt: { not: null } }] }, select: { name: true, realm: true } });
-    await anonymisePublicRuns(tx, named);
-    await anonymisePublicDuels(tx, named, (name, realm) => [characterKey(name, realm ?? "", "forever")]);
     const characters = await tx.character.deleteMany({ where: own });
     // Characters this member unlinked are kept under the holding member (character-move.ts): theirs to delete too.
     await tx.character.deleteMany({ where: { detachedFromMemberId: { in: memberIds }, detachedAt: { not: null } } });
@@ -114,12 +148,11 @@ type PublicDuelTx = Pick<PrismaClient, "publicDuel" | "publicDuelReport">;
  * "deleted-player-<duel id>-w|l", and the reports they made lose their reporter keys and evidence. The opponent's record, the duel itself and
  * its day and result stay. First-name-only legacy rows are matched like in public runs.
  */
-export async function anonymisePublicDuels(tx: PublicDuelTx, characters: { name: string; realm: string | null }[], keysOf: (name: string, realm: string | null) => string[] = () => []): Promise<number> {
+export async function anonymisePublicDuels(tx: PublicDuelTx, characters: OwnCharacter[]): Promise<number> {
   const names = [...new Set(characters.flatMap(row => [row.name.trim(), firstNameOf(row.name) ?? ""]).filter(Boolean))];
-  const keys = [...new Set(characters.flatMap(row => keysOf(row.name, row.realm)))];
   if (!names.length) return 0;
   const sides = ["winner", "loser"] as const;
-  const where = { OR: [...names.flatMap(name => sides.map(side => ({ [`${side}Name`]: { equals: name, mode: "insensitive" as const } }))), ...(keys.length ? [{ winnerKey: { in: keys } }, { loserKey: { in: keys } }] : [])] };
+  const where = { OR: [...names.flatMap(name => sides.map(side => ({ [`${side}Name`]: { equals: name, mode: "insensitive" as const } })))] };
   const rows = await tx.publicDuel.findMany({ where, select: { id: true, winnerKey: true, loserKey: true, winnerName: true, loserName: true, winnerRealm: true, loserRealm: true }, take: 50_000 });
   let changed = 0;
   for (const row of rows) {
@@ -127,7 +160,7 @@ export async function anonymisePublicDuels(tx: PublicDuelTx, characters: { name:
     const mineKeys: string[] = [];
     for (const side of sides) {
       const name = row[`${side}Name`], realm = row[`${side}Realm`], key = row[`${side}Key`];
-      if (!characters.some(own => isOwnName(own, name, realm)) && !keys.includes(key)) continue;
+      if (!characters.some(own => isOwnName(own, name, realm))) continue;
       mineKeys.push(key);
       Object.assign(data, { [`${side}Name`]: `${DELETED_PLAYER_PREFIX}${row.id}-${side[0]}`, [`${side}Key`]: `${DELETED_PLAYER_PREFIX}${row.id}-${side[0]}`, [`${side}Guild`]: null, [`${side}MemberId`]: null });
     }

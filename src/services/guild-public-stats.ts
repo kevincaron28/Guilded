@@ -131,7 +131,7 @@ export function unrankedReason(runs: LeaderRun[], stats: GuildPageStats): Unrank
 /** Id prefix of a guild that never installed Guilded and is listed only from public runs ("ig:<slug>"). */
 export const OBSERVED_PREFIX = "ig:";
 /** A guild seen in public runs: the name as clients spelled it, its realm and the characters (name to realm) seen in it. */
-export interface ObservedGuild { key: string; name: string; realm: string; /** Stable address: from the folded name, the realm and a short hash of both; never depends on other guilds. */ slug: string; spellings: string[]; characters: Map<string, string> }
+export interface ObservedGuild { key: string; name: string; realm: string; /** Stable address: from the folded name, the realm and a short hash of both; never depends on other guilds. */ slug: string; /** Older addresses that still lead here (the first version's name-realm slug, and the one from before the realm was known). */ aliases: string[]; spellings: string[]; characters: Map<string, string> }
 /** A guild needs this many different characters before it gets a page: one client typing a name is not a guild. */
 export const MIN_OBSERVED_MEMBERS = 2;
 const foldGuild = (name: string) => name.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
@@ -170,7 +170,10 @@ export function groupObservedGuilds(rows: { guild: string | null; realm: string;
     const name = [...group.spellings.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]![0];
     if (group.characters.size < MIN_OBSERVED_MEMBERS || listedBases.has(slugBase(name, key))) return [];
     const [folded = "", realm = ""] = key.split("|");
-    const slug = `${slugBase(`${folded} ${realm}`.trim(), key).slice(0, 30).replace(/-+$/, "")}-${shortHash(key)}`;
-    return [{ key, name, realm: group.realm, slug, spellings: [...group.spellings.keys()], characters: group.characters }];
+    const stable = (guildKey: string, guildRealm: string) => `${slugBase(`${folded} ${guildRealm}`.trim(), guildKey).slice(0, 30).replace(/-+$/, "")}-${shortHash(guildKey)}`;
+    const slug = stable(key, realm);
+    // The address from before the realm was known keeps leading here once it is, and so does the first version's plain name-realm slug.
+    const aliases = [...new Set([realm ? stable(`${folded}|`, "") : "", slugBase(`${name} ${group.realm}`.trim(), key)].filter((alias) => alias && alias !== slug))];
+    return [{ key, name, realm: group.realm, slug, aliases, spellings: [...group.spellings.keys()], characters: group.characters }];
   });
 }

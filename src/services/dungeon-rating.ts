@@ -520,14 +520,15 @@ export function ratingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, r
 
 const ROLE_BADGE: Record<string, string> = { TANK: "🛡️", HEALER: "💚", DAMAGER: "⚔️" };
 /**
- * A short role line for a rating row that carries role scores (ratingWithRoles): the main role (the highest role score, tank before
- * healer before damage on a tie) first, then every other role that scored, e.g. "🛡️ 1200 · ⚔️ 800". Empty when no role scored.
+ * A short role line for a rating row that carries role scores (ratingWithRoles): the main role first, then every other role that scored,
+ * e.g. "🛡️ 1200 · ⚔️ 800". The main role means the same as on the website's character page: the role with the most scored routes
+ * (runs), ties broken by the higher score, then tank, healer, damage. Empty when no role scored.
  */
 export function roleBadges(row: Pick<RatingRow, "roles">): string {
-  const scored = (row.roles ?? []).filter(role => role.points > 0 && ROLE_BADGE[role.role]);
+  const scored = (row.roles ?? []).filter(role => role.points > 0 && ROLE_BADGE[role.role]).map(role => ({ ...role, runs: role.details.filter(d => d.points > 0).length }));
   if (!scored.length) return "";
   const order = ["TANK", "HEALER", "DAMAGER"];
-  const sorted = [...scored].sort((a, b) => b.points - a.points || order.indexOf(a.role) - order.indexOf(b.role));
+  const sorted = [...scored].sort((a, b) => b.runs - a.runs || b.points - a.points || order.indexOf(a.role) - order.indexOf(b.role));
   return sorted.map(role => `${ROLE_BADGE[role.role]} ${role.points}`).join(" · ");
 }
 const rankLine = (rows: RatingRow[], row: RatingRow, fr: boolean) => {

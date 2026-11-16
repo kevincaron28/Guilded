@@ -15,6 +15,7 @@ describe("Delete my data: companion credential flow", () => {
     for (const name of ["webAccount", "communityBadgeSharing", "battlegroundReport", "battlegroundConsent", "memberAchievement", "tcgAccount", "tcgCard", "tcgLog", "memberMilestone", "recurringRecap", "groupAlert", "webAvailability", "poeLevelReached", "poeMapVisit", "guildMapSighting", "guildHelpCall", "worldPvpWeek", "worldPvpEvent", "characterPairing", "characterVerifyCode", "characterVerifyClaim", "mobileDelivery", "mobileDevice", "companionCredential", "character"]) tx[name] = { deleteMany: vi.fn(async () => ({ count: 1 })) };
     tx["character"] = { ...(tx["character"] as object), findMany: vi.fn(async () => []) };
     const client = {
+      member: { findMany: vi.fn(async () => [{ id: "m1" }]) }, character: { findMany: vi.fn(async () => []) },
       companionCredential: { findFirst: vi.fn(async () => found === "guild" ? { member: { discordUserId: "111111111111111111" } } : null) },
       webCompanionCredential: { findFirst: vi.fn(async () => found === "personal" ? { account: { discordUserId: "222222222222222222" } } : null) },
       $transaction: vi.fn(async (fn: (t: unknown) => unknown) => fn(tx))

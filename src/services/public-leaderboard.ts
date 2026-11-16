@@ -90,7 +90,7 @@ export interface LeaderboardStore {
   /** Counts for the guild leaderboard (GuildStats), for guilds already returned by guilds(). */
   guildStats?(guildIds: string[]): Promise<GuildStats[]>;
 }
-export interface PublicGuild { id: string; name: string; slug?: string | null; /** Stored address of the guild's leaderboard page, assigned once. */ publicSlug?: string | null }
+export interface PublicGuild { id: string; name: string; slug?: string | null; /** Older addresses that redirect to the guild's current one (observed guilds). */ aliases?: string[]; /** Stored address of the guild's leaderboard page, assigned once. */ publicSlug?: string | null }
 
 // A guild's score in a bracket: its GUILD_COUNT best members' scores added up (Raider.IO-style
 // team ranking), so one strong player cannot carry a guild alone.
@@ -376,7 +376,7 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
       taken.add(slug);
       const id = `${OBSERVED_PREFIX}${slug}`;
       observedGuilds.set(id, row);
-      out.push({ id, name: row.name, publicSlug: slug, slug: null });
+      out.push({ id, name: row.name, publicSlug: slug, slug: null, aliases: row.aliases });
     }
     return out;
   }
@@ -1263,11 +1263,14 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       : me && running && level !== null ? `<h2>${t("Best next improvement", "Meilleure prochaine amélioration")}</h2><p class="muted">${t(`No rated bracket at level ${level} yet (launch data needed).`, `Aucune tranche classée au niveau ${level} pour l'instant (données de lancement requises).`)}</p>` : "";
     const previous = seasons.slice(1).find(p => inPeriod(p).length > 0);
     const previousRows = previous ? mine(characterScores(inPeriod(previous), periodRules(previous))) : [];
-    const roles = (me && current.length ? roleTiles(ctx, current[0], roleSummary(roleScores(seasonRuns, periodRules(season), me), current[0]!.bracket)) : "")
-      + (me && current.length ? roleSection(ctx, season, roleScores(seasonRuns, periodRules(season), me), current.map((row) => row.bracket)) : "")
+    // Role scores are computed once per request and cached for a minute per character and season (each is a full re-scoring of the season's runs).
+    const seasonRoles = me && current.length ? await cached(`roles:${characterId(me)}:${season.id}:${season.from?.getTime() ?? ""}`, async () => roleScores(seasonRuns, periodRules(season), me)) : null;
+    const previousRoles = me && previous && previousRows.length ? await cached(`roles:${characterId(me)}:${previous.id}:${previous.from?.getTime() ?? ""}`, async () => roleScores(inPeriod(previous), periodRules(previous), me)) : null;
+    const roles = (me && current.length && seasonRoles ? roleTiles(ctx, current[0], roleSummary(seasonRoles, current[0]!.bracket)) : "")
+      + (me && current.length && seasonRoles ? roleSection(ctx, season, seasonRoles, current.map((row) => row.bracket)) : "")
       + (me && previous && previousRows.length ? `<details><summary>${t("Previous-season role context", "Rôles de la saison précédente")}</summary>`
         + `<p class="muted">${t("Each season uses its own rules; totals from different brackets or seasons are not directly comparable.", "Chaque saison utilise ses propres règles ; les totaux de tranches ou de saisons différentes ne sont pas directement comparables.")}</p>`
-        + roleSection(ctx, previous, roleScores(inPeriod(previous), periodRules(previous), me), previousRows.map(row => row.bracket)) + `</details>` : "");
+        + roleSection(ctx, previous, previousRoles!, previousRows.map(row => row.bracket)) + `</details>` : "");
     const cell = (run: LeaderRun) => scoreCell(ctx, run, rulesAt(seasons, run.endedAt), run.players.find(isMe));
     const best = new Map<number, LeaderRun>();
     for (const run of runs) {
@@ -1405,7 +1408,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       + `<p class="muted">${t("Scores use this run's season rules. Targets are provisional. Not Blizzard verified.", "Les scores suivent les règles de la saison du donjon. Les cibles sont provisoires. Non vérifié par Blizzard.")}</p>`, { description, shareImage: imagePath });
   }
 
-  const findGuild = (ctx: WebContext, guilds: PublicGuild[], key: string) => guilds.find((g) => indexOf(ctx).slugs.get(g.id) === key.toLowerCase()) ?? guilds.find((g) => g.id === key);
+  const findGuild = (ctx: WebContext, guilds: PublicGuild[], key: string) => guilds.find((g) => indexOf(ctx).slugs.get(g.id) === key.toLowerCase()) ?? guilds.find((g) => g.id === key) ?? guilds.find((g) => g.aliases?.includes(key.toLowerCase()));
   async function guildPage(ctx: WebContext, kit: WebKit, id: string): Promise<WebResponse> {
     const { t, lang } = ctx;
     await ensureIndex(ctx);
@@ -1745,8 +1748,9 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const scores = characterScores(all, rules, keepPlayer(filters, rules));
     const ranks = await guildRanks(period);
     // Each role's score of the same characters (that role's runs only, never added together): { TANK, HEALER, DPS }, null without a score.
-    const byRole = ROLES.map((role) => ({ role, scores: characterScores(all, rules, (player) => (rules.evidencePolicy === "current-v2" ? integrityRole(player.integrity) : dungeonRole(player.role)) === role) }));
-    const roleScoresOf = (row: ScoreRow) => Object.fromEntries(byRole.map(({ role, scores: list }) => [role, list.find((r) => r.bracket === row.bracket && characterId(r.player) === characterId(row.player))?.points ?? null]));
+    // Cached a minute per period: three extra full scorings of the period's runs, independent of the request's filters.
+    const byRole = await cached(`board-roles:${period.id}:${period.from?.getTime() ?? ""}`, async () => ROLES.map((role) => ({ role, scores: new Map(characterScores(all, rules, (player) => (rules.evidencePolicy === "current-v2" ? integrityRole(player.integrity) : dungeonRole(player.role)) === role).map((r) => [`${r.bracket} ${characterId(r.player)}`, r.points] as const)) })));
+    const roleScoresOf = (row: ScoreRow) => Object.fromEntries(byRole.map(({ role, scores: list }) => [role, list.get(`${row.bracket} ${characterId(row.player)}`) ?? null]));
     const body = JSON.stringify({
       season: periodName(ctx, period),
       brackets: rules.brackets.map((b) => ({

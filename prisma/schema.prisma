@@ -2768,6 +2768,8 @@ model PublicRun {
   encounters    Json?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  // When the guild backfill last looked at this run (public-run-guild-backfill.ts): runs no source covers are not rescanned on every start.
+  guildBackfillAt DateTime?
   players       PublicRunPlayer[]
   uploads       PublicRunUpload[]
 

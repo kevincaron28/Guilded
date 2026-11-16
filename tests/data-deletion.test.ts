@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import { registerLeaderboardCache } from "../src/services/leaderboard-cache-hooks.js";
 import type { PrismaClient } from "../src/generated/prisma/client.js";
-import { anonymisePublicDuels, anonymisePublicRuns, DELETED_MEMBER_NAME, DELETED_PLAYER_PREFIX, deleteMyData, scrubNames } from "../src/services/data-deletion.js";
+import { anonymisePublicDuels, anonymisePublicRuns, DELETED_MEMBER_NAME, DELETED_PLAYER_PREFIX, deleteMyData, isOwnName, scrubNames } from "../src/services/data-deletion.js";
 
 function fixture() {
   const calls: string[] = [];
@@ -13,12 +14,17 @@ function fixture() {
     poeLevelReached: del("poeLevelReached"), poeMapVisit: del("poeMapVisit"), guildMapSighting: del("guildMapSighting"), guildHelpCall: del("guildHelpCall"), worldPvpWeek: del("worldPvpWeek"), worldPvpEvent: del("worldPvpEvent"), characterPairing: del("characterPairing"),
     characterVerifyCode: del("characterVerifyCode"), characterVerifyClaim: del("characterVerifyClaim"), companionCredential: del("companionCredential"),
     mobileDelivery: del("mobileDelivery"), mobileDevice: del("mobileDevice"),
-    character: { ...del("character", 3), findMany: vi.fn(async () => [{ name: "Kev Caron", realm: "Doomhowl" }]) },
-    publicRunPlayer: { findMany: vi.fn(async () => []), update: vi.fn(async () => ({})) }, publicRun: { findUnique: vi.fn(async () => null), update: vi.fn(async () => ({})) }, publicRunUpload: { findMany: vi.fn(async () => []), update: vi.fn(async () => ({})) },
-    publicDuel: { findMany: vi.fn(async () => []), update: vi.fn(async () => ({})) }, publicDuelReport: { findMany: vi.fn(async () => []), update: vi.fn(async () => ({})) }
+    character: del("character", 3)
   };
-  const db = { $transaction: vi.fn(async (fn: (t: typeof tx) => unknown) => fn(tx)) };
-  return { tx, db: db as unknown as PrismaClient, calls };
+  const top = {
+    member: { findMany: vi.fn(async () => [{ id: "m1" }, { id: "m2" }]) },
+    character: { findMany: vi.fn(async () => [{ name: "Kev Caron", realm: "Doomhowl", member: { guildId: "g1" } }]) },
+    publicRunPlayer: { findMany: vi.fn(async () => []) }, publicRun: { findUnique: vi.fn(async () => null), update: vi.fn(async () => ({})) }, publicRunUpload: { findMany: vi.fn(async () => []), update: vi.fn(async () => ({})) },
+    publicDuel: { findMany: vi.fn(async () => []), update: vi.fn(async () => ({})) }, publicDuelReport: { findMany: vi.fn(async () => []), update: vi.fn(async () => ({})) },
+    $executeRaw: vi.fn(async (...args: unknown[]) => { void args; return 0; })
+  };
+  const db = { ...top, $transaction: vi.fn(async (fn: (t: typeof tx) => unknown) => fn(tx)) };
+  return { tx, top, db: db as unknown as PrismaClient, calls };
 }
 
 describe("Delete my data", () => {
@@ -52,14 +58,17 @@ describe("Delete my data", () => {
 describe("Delete my data: public dungeon runs", () => {
   it("anonymises the member's characters in public run rows, evidence and reporters, keeping the run and party size", async () => {
     const rows = [{ id: "p1", runId: "r1", character: "Kev Caron", realm: "Doomhowl" }, { id: "p2", runId: "r1", character: "Other Player", realm: "Doomhowl" }, { id: "p3", runId: "r2", character: "kev caron", realm: "" }];
-    const players = { findMany: vi.fn(async () => rows), update: vi.fn(async () => ({})) };
+    const players = { findMany: vi.fn(async () => rows) };
+    const raw = vi.fn(async (...args: unknown[]) => { void args; return 2; });
     const runs = { findUnique: vi.fn(async () => ({ integrity: { players: [{ character: "Kev Caron", realm: "Doomhowl" }, { character: "Other Player" }] } })), update: vi.fn(async () => ({})) };
     const uploads = { findMany: vi.fn(async () => [{ id: "u1", reporters: ["kev caron", "other player"], evidence: { players: [{ character: "Kev Caron" }] } }]), update: vi.fn(async () => ({})) };
-    const done = await anonymisePublicRuns({ publicRunPlayer: players, publicRun: runs, publicRunUpload: uploads } as never, [{ name: "Kev Caron", realm: "Doomhowl" }]);
+    const done = await anonymisePublicRuns({ publicRunPlayer: players, publicRun: runs, publicRunUpload: uploads, $executeRaw: raw } as never, [{ name: "Kev Caron", realm: "Doomhowl", unique: true }]);
     expect(done).toBe(2);
-    expect(players.update).toHaveBeenCalledWith({ where: { id: "p1" }, data: { character: `${DELETED_PLAYER_PREFIX}p1`, displayName: null, guild: null } });
-    expect(players.update).toHaveBeenCalledWith({ where: { id: "p3" }, data: { character: `${DELETED_PLAYER_PREFIX}p3`, displayName: null, guild: null } });
-    expect(players.update).not.toHaveBeenCalledWith(expect.objectContaining({ where: { id: "p2" } }));
+    // one set-based statement for both rows, each row's own placeholder built from its id in SQL
+    expect(raw).toHaveBeenCalledTimes(1);
+    const call = raw.mock.calls[0]![0] as unknown as { strings: string[]; values: unknown[] };
+    expect(call.strings.join("?")).toContain('"character" = ');
+    expect(call.values).toEqual([DELETED_PLAYER_PREFIX, ["p1", "p3"]]);
     const integrity = (runs.update.mock.calls[0] as unknown as [{ data: { integrity: { players: { character: string }[] } } }])[0].data.integrity;
     expect(integrity.players.map(p => p.character)).toEqual([`${DELETED_PLAYER_PREFIX}p1`, "Other Player"]);
     const upload = (uploads.update.mock.calls[0] as unknown as [{ data: { reporters: string[]; evidence: { players: { character: string }[] } } }])[0].data;
@@ -73,8 +82,8 @@ describe("Delete my data: public dungeon runs", () => {
   it("runs inside Delete my data, before the member's characters are deleted", async () => {
     const f = fixture();
     await deleteMyData(f.db, "123456789012345678");
-    expect(f.tx.character.findMany).toHaveBeenCalled();
-    expect(f.tx.publicRunPlayer.findMany).toHaveBeenCalled();
+    expect(f.top.character.findMany).toHaveBeenCalled();
+    expect(f.top.publicRunPlayer.findMany).toHaveBeenCalled();
   });
 });
 
@@ -83,7 +92,7 @@ describe("Delete my data: public duels and first-name legacy rows", () => {
     const duels = { findMany: vi.fn(async () => [{ id: "d1", winnerKey: "kev caron", loserKey: "amy", winnerName: "Kev Caron", loserName: "Amy", winnerRealm: "Doomhowl", loserRealm: "Doomhowl" },
       { id: "d2", winnerKey: "bob", loserKey: "kev", winnerName: "Bob", loserName: "Kev", winnerRealm: "Doomhowl", loserRealm: "" }]), update: vi.fn(async () => ({})) };
     const reports = { findMany: vi.fn(async () => [{ id: "rep1" }]), update: vi.fn(async () => ({})) };
-    const done = await anonymisePublicDuels({ publicDuel: duels, publicDuelReport: reports } as never, [{ name: "Kev Caron", realm: "Doomhowl" }], (name) => [name.toLowerCase()]);
+    const done = await anonymisePublicDuels({ publicDuel: duels, publicDuelReport: reports } as never, [{ name: "Kev Caron", realm: "Doomhowl", unique: true }]);
     expect(done).toBe(2);
     const first = (duels.update.mock.calls[0] as unknown as [{ where: { id: string }; data: Record<string, unknown> }])[0];
     expect(first.data).toMatchObject({ winnerName: `${DELETED_PLAYER_PREFIX}d1-w`, winnerKey: `${DELETED_PLAYER_PREFIX}d1-w`, winnerGuild: null, winnerMemberId: null, pairKey: `${DELETED_PLAYER_PREFIX}d1` });
@@ -93,11 +102,29 @@ describe("Delete my data: public duels and first-name legacy rows", () => {
     expect(second.data).toMatchObject({ loserName: `${DELETED_PLAYER_PREFIX}d2-l` });
     expect(reports.update).toHaveBeenCalledWith({ where: { id: "rep1" }, data: expect.objectContaining({ reporterKey: `${DELETED_PLAYER_PREFIX}rep1`, deviceId: null, nonce: null, chain: null }) });
   });
-  it("matches a first-name-only legacy public run row on the same realm", async () => {
-    const players = { findMany: vi.fn(async () => [{ id: "p1", runId: "r1", character: "Kev", realm: "Doomhowl" }, { id: "p2", runId: "r1", character: "Kev", realm: "Other" }]), update: vi.fn(async () => ({})) };
-    const done = await anonymisePublicRuns({ publicRunPlayer: players, publicRun: { findUnique: vi.fn(async () => null), update: vi.fn() }, publicRunUpload: { findMany: vi.fn(async () => []), update: vi.fn() } } as never, [{ name: "Kev Caron", realm: "Doomhowl" }]);
-    expect(done).toBe(1);
-    expect(players.update).toHaveBeenCalledWith({ where: { id: "p1" }, data: expect.objectContaining({ character: `${DELETED_PLAYER_PREFIX}p1` }) });
-    expect((players.findMany.mock.calls as unknown as unknown[][])[0]![0]).toMatchObject({ where: { OR: [{ character: { equals: "Kev Caron" } }, { character: { equals: "Kev" } }] } });
+  it("matches a first-name-only legacy public run row only on the member's realm, and a realm-less row only when the name is unique in their guild", async () => {
+    const rowsOf = () => [{ id: "p1", runId: "r1", character: "Kev", realm: "Doomhowl" }, { id: "p2", runId: "r1", character: "Kev", realm: "Other" }, { id: "p4", runId: "r2", character: "Kev", realm: "" }];
+    const run = (unique: boolean) => {
+      const raw = vi.fn(async (...args: unknown[]) => { void args; return 1; });
+      const db = { publicRunPlayer: { findMany: vi.fn(async () => rowsOf()) }, publicRun: { findUnique: vi.fn(async () => null), update: vi.fn() }, publicRunUpload: { findMany: vi.fn(async () => []), update: vi.fn() }, $executeRaw: raw };
+      return anonymisePublicRuns(db as never, [{ name: "Kev Caron", realm: "Doomhowl", unique }]).then((done) => ({ done, ids: (raw.mock.calls[0]?.[0] as unknown as { values: unknown[] } | undefined)?.values[1] }));
+    };
+    expect(await run(true)).toEqual({ done: 2, ids: ["p1", "p4"] }); // the other realm is never taken
+    expect(await run(false)).toEqual({ done: 1, ids: ["p1"] }); // a guildmate shares the name: the realm-less row stays
+  });
+  it("isOwnName compares realms when both sides have one", () => {
+    expect(isOwnName({ name: "Kev Caron", realm: "A", unique: false }, "Kev Caron", "A")).toBe(true);
+    expect(isOwnName({ name: "Kev Caron", realm: "A", unique: true }, "Kev Caron", "B")).toBe(false);
+    expect(isOwnName({ name: "Kev Caron", realm: null, unique: true }, "Kev", "B")).toBe(true);
+  });
+  it("marks a guildmate's same first name as not unique and clears the public pages' caches after deleting", async () => {
+    const f = fixture();
+    f.top.character.findMany.mockResolvedValueOnce([{ name: "Kev Caron", realm: "Doomhowl", member: { guildId: "g1" } }]).mockResolvedValueOnce([{ name: "Kev Smith" }] as never);
+    f.top.publicRunPlayer.findMany.mockResolvedValueOnce([{ id: "p9", runId: "r1", character: "Kev", realm: "" }] as never);
+    const cleared = vi.fn();
+    registerLeaderboardCache(cleared);
+    await deleteMyData(f.db, "123456789012345678");
+    expect(cleared).toHaveBeenCalled();
+    expect(f.top.$executeRaw).not.toHaveBeenCalled(); // "Kev" with no realm is not unique in the guild, so it stays
   });
 });

@@ -102,10 +102,13 @@ describe('website refresh', () => {
     expect(page('editions/forever/index.html')).toContain('href="../../favicon.png"');
   });
 
-  it('adds no analytics script or policy change until a beacon token is configured', () => {
-    expect(JSON.parse(readFileSync('site/analytics.json', 'utf8')).cloudflareBeaconToken).toBe('');
-    expect(page('index.html')).not.toContain('cloudflareinsights');
-    expect(page('_headers')).not.toContain('cloudflareinsights');
+  it('adds the Cloudflare beacon and its policy only when a beacon token is configured', () => {
+    const token = JSON.parse(readFileSync('site/analytics.json', 'utf8')).cloudflareBeaconToken;
+    expect(token === '' || /^[0-9a-f]{32}$/.test(token)).toBe(true);
+    const configured = token !== '';
+    expect(page('index.html').includes('cloudflareinsights')).toBe(configured);
+    expect(page('_headers').includes('cloudflareinsights')).toBe(configured);
+    if (configured) expect(page('index.html')).toContain(`"token":"${token}"`);
   });
 
   it('keeps release-process wording off the public download pages', () => {

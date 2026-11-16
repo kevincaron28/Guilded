@@ -534,6 +534,8 @@ model Member {
   poeMapVisits        PoeMapVisit[]
   linkNotice          MemberLinkNotice?
   deviceClaimOffers   DeviceClaimOffer[]
+  // The member pressed "Don't send these" on a one-click claim DM (device-claim-offer.ts).
+  claimDmOff          Boolean  @default(false)
 
   @@unique([guildId, discordUserId])
   @@index([guildId, status])
@@ -884,6 +886,8 @@ model WowGuildChannel {
 model GuildSettings {
   // Rank roles (WoW guild rank to Discord role): on unless an officer turns it off; inert until a rank is mapped.
   rankRolesEnabled Boolean @default(true)
+  // One-click claim DMs (device-claim-offer.ts): on unless an officer turns them off (/officer character claimdm).
+  claimDmEnabled Boolean @default(true)
   // Private channel for Discord community officers (not the WoW officers' log): reviews and approvals.
   adminChannelId String?
   // New targeted alerts remain held until audience/channel/cadence approval.
@@ -2451,7 +2455,6 @@ model GuildNameAlias {
   @@unique([guildId, nameKey])
 }
 
-/// A character an unsigned companion reported (name, class, level): shown as "reported", never linked to a member.
 // One prompt per (member, install): "Link these characters to <you>?" (device-claim-offer.ts). snoozedUntil is the "Not now" (7 days),
 // dmAt the last DM about it, doneAt when the member linked them. Never grants anything by itself.
 model DeviceClaimOffer {
@@ -2469,6 +2472,7 @@ model DeviceClaimOffer {
   @@index([deviceId])
 }
 
+/// A character an unsigned companion reported (name, class, level): shown as "reported", never linked to a member.
 model DeviceCharacter {
   id          String   @id @default(cuid())
   deviceId    String

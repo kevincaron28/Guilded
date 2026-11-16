@@ -1089,6 +1089,7 @@
   "Not now": "Pas maintenant",
   "Already linked to someone else: {0}. Ask an officer, or use \"This isn't my character\" in Discord.": "Déjà liés à quelqu'un d'autre : {0}. Demandez à un officier, ou utilisez « Ce n'est pas mon personnage » dans Discord.",
   "Linked to you.": "Liés à vous.",
+  "Nothing left to link: those characters are already linked, or were unlinked on purpose.": "Rien à lier : ces personnages sont déjà liés, ou ont été déliés volontairement.",
   "OK. We will not ask again for 7 days.": "D'accord. Nous ne redemanderons pas avant 7 jours.",
   "Could not copy. Ask an officer of your guild to run /setup on its Discord server.": "Copie impossible. Demandez à un officier de votre guilde de lancer /setup sur son serveur Discord.",
   "The Microsoft Store sign-in could not be imported: {0}": "La connexion de la version Microsoft Store n’a pas pu être reprise : {0}",

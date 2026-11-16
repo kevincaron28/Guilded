@@ -388,7 +388,9 @@ export function createSiteApp(client?: Client) {
     },
     // Officers and owners of a server may link to it before it knows their in-game guild (they are the ones who set it up).
     isOfficer: async (account, server) => {
-      if (!client?.isReady() || !server.wowGuildId) return false;
+      // Not ready (just started): fail open rather than refuse an officer; the signed upload still skips a wrong server's import.
+      if (!client?.isReady()) return true;
+      if (!server.wowGuildId) return false;
       const discordGuild = client.guilds.cache.get(server.discordId);
       const member = discordGuild ? await discordGuild.members.fetch({ user: account.discordUserId }).catch(() => null) : null;
       return !!member && (discordGuild!.ownerId === member.id || await withGuildScope(prisma, server.wowGuildId, async () => hasPermission(member, "officer")));
@@ -1284,7 +1286,11 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const choice = payload as { deviceId?: unknown; action?: unknown } | null;
         if (typeof choice?.deviceId !== "string" || choice.deviceId.length > 64 || (choice.action !== "link" && choice.action !== "later")) { json(response, 400, { error: "deviceId and action (link or later) are required" }); return; }
         if (!allowManageWrite(access.memberId)) { json(response, 429, { error: "Too many changes in a short time. Try again in a few minutes." }); return; }
-        if (choice.action === "later") { await snoozeOffer(prisma, access.memberId, choice.deviceId); privateJson(response, { ok: true, snoozed: true }); return; }
+        if (choice.action === "later") {
+          if (!(await snoozeOffer(prisma, access.memberId, choice.deviceId))) { json(response, 404, { error: "That offer is not available any more." }); return; }
+          privateJson(response, { ok: true, snoozed: true });
+          return;
+        }
         const result = await claimOffer(prisma, access.memberId, choice.deviceId);
         if (!result) { json(response, 404, { error: "That offer is not available any more." }); return; }
         if (result.linked.length) markGuildChanged(guild.id);

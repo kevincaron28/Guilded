@@ -294,6 +294,8 @@ const STRINGS = {
   "claim.taken": { en: "Already linked to someone else (use **This isn't my character** or ask an officer): {names}", fr: "Déjà lié à quelqu'un d'autre (utilise **Ce n'est pas mon personnage** ou demande à un officier) : {names}" },
   "claim.link": { en: "Link them", fr: "Les lier" },
   "claim.later": { en: "Not now", fr: "Pas maintenant" },
+  "claim.off": { en: "Don't send these", fr: "Ne plus m'envoyer ça" },
+  "claim.offDone": { en: "👍 OK, no more of these messages. You can still link characters with /character list.", fr: "👍 D'accord, plus de ces messages. Tu peux toujours lier des personnages avec /character list." },
   "claim.done": { en: "✅ Linked to you on **{server}**: {names}", fr: "✅ Lié(s) à toi sur **{server}** : {names}" },
   "claim.nothing": { en: "Nothing left to link: those characters are already linked, or were unlinked on purpose.", fr: "Rien à lier : ces personnages sont déjà liés, ou ont été déliés volontairement." },
   "claim.snoozed": { en: "👍 OK. I will not ask again for 7 days.", fr: "👍 D'accord. Je ne redemande pas avant 7 jours." },

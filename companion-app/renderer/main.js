@@ -171,7 +171,7 @@ async function answerClaim(action) {
   $('btnClaimLink').disabled = $('btnClaimLater').disabled = true;
   try {
     const answer = await api.claimOfferAnswer(offer.deviceId, action);
-    if (answer?.ok) say(action === 'link' ? T('Linked to you.') : T('OK. We will not ask again for 7 days.'));
+    if (answer?.ok) say(action === 'link' ? (answer.linked > 0 ? T('Linked to you.') : T('Nothing left to link: those characters are already linked, or were unlinked on purpose.')) : T('OK. We will not ask again for 7 days.'));
     else say(answer?.message || T('This action could not be completed.'), false);
     claimOffers = claimOffers.slice(answer?.ok ? 1 : 0);
   } catch (error) { say(error?.message || T('This action could not be completed.'), false); }

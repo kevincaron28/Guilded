@@ -16,3 +16,6 @@ CREATE INDEX "DeviceClaimOffer_deviceId_idx" ON "DeviceClaimOffer"("deviceId");
 
 ALTER TABLE "DeviceClaimOffer" ADD CONSTRAINT "DeviceClaimOffer_memberId_fkey" FOREIGN KEY ("memberId") REFERENCES "Member"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "DeviceClaimOffer" ADD CONSTRAINT "DeviceClaimOffer_deviceId_fkey" FOREIGN KEY ("deviceId") REFERENCES "CompanionDevice"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE "Member" ADD COLUMN "claimDmOff" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "GuildSettings" ADD COLUMN "claimDmEnabled" BOOLEAN NOT NULL DEFAULT true;

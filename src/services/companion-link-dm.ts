@@ -234,7 +234,7 @@ export async function linkBack(database: UndoDatabase, discordUserId: string, ch
 
 export async function handleLinkedButton(interaction: ButtonInteraction | StringSelectMenuInteraction, database: UndoDatabase): Promise<void> {
   const id = interaction.customId;
-  if (id.startsWith("linked:dclaim:") || id.startsWith("linked:dsnooze:")) {
+  if (id.startsWith("linked:dclaim:") || id.startsWith("linked:dsnooze:") || id === "linked:dcoff") {
     // "Link these characters to you?" (device-claim-offer.ts). Loaded here: that file imports the pairing code.
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const { answerOfferButton } = await import("./device-claim-offer.js");

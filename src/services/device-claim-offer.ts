@@ -1,7 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, escapeMarkdown, type Client } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, t, type Lang } from "../i18n.js";
-import { characterKey, foreverSameName } from "../../companion/character-identity.mjs";
+import { characterKey, foreverSameName, realmKey } from "../../companion/character-identity.mjs";
 import { findCharacter } from "./character-match.js";
 import { linkPairedCharacter } from "./character-pairing.js";
 
@@ -23,8 +23,9 @@ const MAX_DMS = 3;
 
 export const CLAIM_PREFIX = "linked:dclaim:"; // + device id
 export const SNOOZE_PREFIX = "linked:dsnooze:"; // + device id
+export const DM_OFF_ID = "linked:dcoff"; // "Don't send these": the member's own off switch (Member.claimDmOff)
 
-export interface OfferedCharacter { name: string; realm: string; className: string | null; level: number | null }
+export interface OfferedCharacter { name: string; realm: string; className: string | null; level: number | null; /** The guild roster synced from the game lists it. */ corroborated?: boolean }
 export interface DeviceOffer {
   deviceId: string;
   /** The Guild row the install syncs to (this member's server). */
@@ -42,10 +43,13 @@ type Db = PrismaClient;
 /** Offers for one member, one per install with at least one character to link. Snoozed installs are left out unless asked for. */
 export async function offersFor(db: Db, memberId: string, now = new Date(), options: { includeSnoozed?: boolean; deviceId?: string } = {}): Promise<DeviceOffer[]> {
   const member = await db.member.findUnique({
-    where: { id: memberId }, select: { id: true, guildId: true, status: true, characters: { where: { detachedAt: null }, select: { name: true } } }
+    where: { id: memberId }, select: { id: true, guildId: true, status: true, characters: { where: { detachedAt: null }, select: { name: true, realm: true, confirmedAt: true, linkEvidence: true } } }
   });
   if (!member || member.status !== "ACTIVE") return [];
   const own = member.characters.map((character) => character.name);
+  // An install's list is client-controlled (registration is open, uploads are unsigned), so an unclaimed install only counts as this
+  // member's through one of their CONFIRMED characters, matched on name and realm.
+  const anchors = member.characters.filter((character) => character.confirmedAt || character.linkEvidence === "heard" || character.linkEvidence === "officer");
   const devices = await db.companionDevice.findMany({
     where: {
       guildId: member.guildId, revokedAt: null, ...(options.deviceId ? { id: options.deviceId } : {}),
@@ -58,15 +62,18 @@ export async function offersFor(db: Db, memberId: string, now = new Date(), opti
     }
   });
   if (!devices.length) return [];
-  const [guildCharacters, declined] = await Promise.all([
+  const [roster, guildCharacters, declined] = await Promise.all([
+    db.guildRosterEntry.findMany({ where: { guildId: member.guildId, gameEdition: "forever", inGuild: true }, select: { nameKey: true } }),
     db.character.findMany({ where: { member: { guildId: member.guildId } }, select: { name: true, realm: true, gameEdition: true, memberId: true, detachedAt: true } }),
     db.characterVerifyClaim.findMany({ where: { guildId: member.guildId, memberId, status: { in: ["BLOCKED", "REMOVED"] } }, select: { nameKey: true } })
   ]);
   const declinedKeys = new Set(declined.map((row) => row.nameKey));
+  const inRoster = new Set(roster.map((row) => row.nameKey));
   const offers: DeviceOffer[] = [];
   for (const device of devices) {
     // An unclaimed install is only this member's when it reported one of their characters; their own claimed install always is.
-    const theirs = device.claimedMemberId === memberId || device.characters.some((character) => own.some((name) => foreverSameName(name, character.name)));
+    const claimed = device.claimedMemberId === memberId;
+    const theirs = claimed || device.characters.some((character) => anchors.some((anchor) => foreverSameName(anchor.name, character.name) && realmKey(anchor.realm) === realmKey(character.realm)));
     if (!theirs) continue;
     const row = device.claimOffers[0];
     if (!options.includeSnoozed && row?.snoozedUntil && row.snoozedUntil > now) continue;
@@ -80,7 +87,11 @@ export async function offersFor(db: Db, memberId: string, now = new Date(), opti
         if (existing.memberId !== memberId && !existing.detachedAt) taken.push(character.name);
         continue;
       }
-      characters.push({ name: character.name, realm: character.realm, className: character.className, level: character.level });
+      // The guild roster (synced from the game itself) is the outside witness. An unclaimed install never offers a name it does not back;
+      // the member's own claimed install may offer it, but only as "reported".
+      const corroborated = inRoster.has(characterKey(character.name, character.realm, "forever"));
+      if (!corroborated && !claimed) continue;
+      characters.push({ name: character.name, realm: character.realm, className: character.className, level: character.level, corroborated });
     }
     if (characters.length) offers.push({ deviceId: device.id, guildId: member.guildId, characters, taken, snoozedUntil: row?.snoozedUntil ?? null, dmAt: row?.dmAt ?? null });
   }
@@ -88,7 +99,9 @@ export async function offersFor(db: Db, memberId: string, now = new Date(), opti
 }
 
 /** "Not now": the install is not offered to this member again for 7 days. */
-export async function snoozeOffer(db: Db, memberId: string, deviceId: string, now = new Date()): Promise<Date> {
+export async function snoozeOffer(db: Db, memberId: string, deviceId: string, now = new Date()): Promise<Date | null> {
+  // Only an install that really offers this member something can be snoozed (an unknown id would otherwise be a foreign-key error).
+  if (!(await offersFor(db, memberId, now, { includeSnoozed: true, deviceId })).length) return null;
   const snoozedUntil = new Date(now.getTime() + OFFER_SNOOZE_MS);
   await db.deviceClaimOffer.upsert({ where: { memberId_deviceId: { memberId, deviceId } }, create: { memberId, deviceId, snoozedUntil }, update: { snoozedUntil } });
   return snoozedUntil;
@@ -99,7 +112,8 @@ export async function claimOffer(db: Db, memberId: string, deviceId: string, now
   const [offer] = await offersFor(db, memberId, now, { includeSnoozed: true, deviceId });
   if (!offer) return null;
   const device = await db.companionDevice.findUnique({ where: { id: deviceId }, select: { claimedMemberId: true } });
-  // The member's own signed-in companion is the proof "confirmed" has always meant; an install nobody claimed only reports.
+  // The member's own signed-in companion is the proof "confirmed" has always meant, and only for names the synced guild roster also lists;
+  // an install nobody claimed, or a name the roster does not back, only reports.
   const own = device?.claimedMemberId === memberId;
   const linked: string[] = [];
   const skipped: string[] = [];
@@ -110,7 +124,7 @@ export async function claimOffer(db: Db, memberId: string, deviceId: string, now
     const status = await linkPairedCharacter(db, offer.guildId, memberId, {
       name: row.name, realm: row.realm, class: row.className, race: row.race ?? "", level: row.level ?? 0, spec: "", professions: [],
       ...(row.displayName ? { displayName: row.displayName } : {}), gameEdition: "forever"
-    }, own ? { confirm: true, evidence: "companion" } : { confirm: false, evidence: "named" }).catch(() => "link-retry" as const);
+    }, own && wanted.corroborated ? { confirm: true, evidence: "companion" } : { confirm: false, evidence: "named" }).catch(() => "link-retry" as const);
     (status === "linked" || status === "already-linked" ? linked : skipped).push(row.name);
   }
   await db.deviceClaimOffer.upsert({ where: { memberId_deviceId: { memberId, deviceId } }, create: { memberId, deviceId, doneAt: now }, update: { doneAt: now } });
@@ -127,7 +141,8 @@ export function offerMessage(lang: Lang, server: string, offer: DeviceOffer): { 
     content: `${t(lang, "claim.ask", { count: offer.characters.length, server: escapeMarkdown(server), list })}${taken}`.slice(0, 1900),
     components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(`${CLAIM_PREFIX}${offer.deviceId}`).setLabel(t(lang, "claim.link")).setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(`${SNOOZE_PREFIX}${offer.deviceId}`).setLabel(t(lang, "claim.later")).setStyle(ButtonStyle.Secondary))]
+      new ButtonBuilder().setCustomId(`${SNOOZE_PREFIX}${offer.deviceId}`).setLabel(t(lang, "claim.later")).setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(DM_OFF_ID).setLabel(t(lang, "claim.off")).setStyle(ButtonStyle.Secondary))]
   };
 }
 
@@ -138,16 +153,23 @@ export function offerMessage(lang: Lang, server: string, offer: DeviceOffer): { 
 export async function offerByDm(client: Pick<Client, "users" | "guilds"> | null | undefined, db: Db, memberId: string, now = new Date()): Promise<number> {
   if (!client) return 0;
   try {
-    const member = await db.member.findUnique({ where: { id: memberId }, select: { discordUserId: true, guild: { select: { discordId: true } } } });
-    if (!member) return 0;
+    const member = await db.member.findUnique({ where: { id: memberId }, select: { discordUserId: true, claimDmOff: true, guildId: true, guild: { select: { discordId: true } } } });
+    // The member's "Don't send these" and the officers' guild-wide switch both win.
+    if (!member || member.claimDmOff) return 0;
+    const settings = await db.guildSettings.findUnique({ where: { guildId: member.guildId }, select: { language: true, claimDmEnabled: true } });
+    if (settings?.claimDmEnabled === false) return 0;
     const offers = (await offersFor(db, memberId, now)).filter((offer) => !offer.dmAt || now.getTime() - offer.dmAt.getTime() >= OFFER_DM_GAP_MS).slice(0, MAX_DMS);
     if (!offers.length) return 0;
-    const settings = await db.guildSettings.findUnique({ where: { guildId: offers[0]!.guildId }, select: { language: true } });
     const lang = asLang(settings?.language);
     const server = (await client.guilds.fetch(member.guild.discordId).catch(() => null))?.name ?? "Discord";
     let sent = 0;
     for (const offer of offers) {
-      await db.deviceClaimOffer.upsert({ where: { memberId_deviceId: { memberId, deviceId: offer.deviceId } }, create: { memberId, deviceId: offer.deviceId, dmAt: now }, update: { dmAt: now } });
+      // Claimed by one writer: two uploads racing for the same offer send one DM (the loser's update matches no row).
+      await db.deviceClaimOffer.createMany({ data: [{ memberId, deviceId: offer.deviceId }], skipDuplicates: true });
+      const claimed = await db.deviceClaimOffer.updateMany({
+        where: { memberId, deviceId: offer.deviceId, OR: [{ dmAt: null }, { dmAt: { lte: new Date(now.getTime() - OFFER_DM_GAP_MS) } }] }, data: { dmAt: now }
+      });
+      if (!claimed.count) continue;
       await client.users.send(member.discordUserId, { ...offerMessage(lang, server, offer), allowedMentions: { parse: [] } });
       sent += 1;
     }
@@ -168,6 +190,10 @@ export async function offerByDmToUsers(client: Pick<Client, "users" | "guilds"> 
 
 /** A Link / Not now press from the DM: the member is the presser, resolved through the install's server. */
 export async function answerOfferButton(db: Db, discordUserId: string, customId: string, now = new Date()): Promise<string | null> {
+  if (customId === DM_OFF_ID) {
+    await db.member.updateMany({ where: { discordUserId }, data: { claimDmOff: true } });
+    return `${t("en", "claim.offDone")}\n${t("fr", "claim.offDone")}`;
+  }
   const claim = customId.startsWith(CLAIM_PREFIX);
   if (!claim && !customId.startsWith(SNOOZE_PREFIX)) return null;
   const deviceId = customId.slice((claim ? CLAIM_PREFIX : SNOOZE_PREFIX).length);
@@ -175,7 +201,7 @@ export async function answerOfferButton(db: Db, discordUserId: string, customId:
   const lang = asLang(device?.guild?.settings?.language);
   const member = device?.guildId ? await db.member.findUnique({ where: { guildId_discordUserId: { guildId: device.guildId, discordUserId } }, select: { id: true } }) : null;
   if (!device || !member) return `${t("en", "claim.gone")}\n${t("fr", "claim.gone")}`;
-  if (!claim) { await snoozeOffer(db, member.id, deviceId, now); return t(lang, "claim.snoozed"); }
+  if (!claim) return (await snoozeOffer(db, member.id, deviceId, now)) ? t(lang, "claim.snoozed") : t(lang, "claim.nothing");
   const result = await claimOffer(db, member.id, deviceId, now);
   if (!result) return t(lang, "claim.nothing");
   if (!result.linked.length) return t(lang, "claim.nothing");

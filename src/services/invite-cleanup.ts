@@ -358,22 +358,25 @@ export async function runInviteChannelSweeps(client: ChannelSweepClient, databas
     // Claimed first: a second pass (or a restart) within the hour finds nothing due.
     const claim = await database.guildSettings.updateMany({ where: { guildId: server.guildId, OR: [{ inviteSweptAt: null }, { inviteSweptAt: { lte: due } }] }, data: { inviteSweptAt: now } });
     if (!claim.count) continue;
+    // A first run that did not finish its dry run and backup does not count: the next pass is a first run again.
+    const unclaim = async () => { if (firstRun) await database.guildSettings.updateMany({ where: { guildId: server.guildId }, data: { inviteSweptAt: null } }); };
     const guild = await Promise.resolve(client.guilds.fetch(server.guild.discordId)).catch(() => null);
-    if (!guild) continue;
+    if (!guild) { await unclaim(); continue; }
     const botId = (guild as { client?: { user?: { id?: string } | null } }).client?.user?.id;
     const common = { now, onlyOpen: true, requireGuide: true, protect: (message: ScanMessage) => isInvitePanel(message, botId), members: true, botMinAgeMs: CHANNEL_SWEEP_MIN_AGE_MS, memberMinAgeMs: CHANNEL_SWEEP_MIN_AGE_MS,
       pauseMs: CHANNEL_SWEEP_DELETE_PAUSE_MS, ...(options.sleep ? { sleep: options.sleep } : {}) };
     const dry = await sweepInviteChannel(guild, database, server.guildId, server.inviteChannelId, server.inviteGuideMessageId ?? null, { ...common, confirm: false });
-    if (dry.status === "permission") { warnOnce(`sweep-perm:${server.inviteChannelId}`, `the invite channel tidy needs ${MISSING_PERMISSIONS} in <#${server.inviteChannelId}>; skipped`); continue; }
-    if (dry.status === "panel") { warnOnce(`sweep-panel:${server.inviteChannelId}`, `the invite channel tidy skipped <#${server.inviteChannelId}>: the invite panel message could not be found`); continue; }
-    if (dry.status !== "ok") continue;
+    if (dry.status === "permission") { warnOnce(`sweep-perm:${server.inviteChannelId}`, `the invite channel tidy needs ${MISSING_PERMISSIONS} in <#${server.inviteChannelId}>; skipped`); await unclaim(); continue; }
+    if (dry.status === "panel") { warnOnce(`sweep-panel:${server.inviteChannelId}`, `the invite channel tidy skipped <#${server.inviteChannelId}>: the invite panel message could not be found`); await unclaim(); continue; }
+    if (dry.status !== "ok") { await unclaim(); continue; }
     const count = dry.mine + dry.memberOld;
     log(`Invite channel tidy (dry run) ${server.guild.discordId}: ${count} message${count === 1 ? "" : "s"} would be removed, ${dry.protectedCount} kept (pinned, the panel or open requests), ${dry.scanned} read.`);
-    if (!count) continue;
+    if (!count) { await unclaim(); continue; }
     const saveCopy = async (messages: ScanMessage[]) => { const file = await writeBackup(messages, server.inviteChannelId!, now, options.backupDir); log(`Invite channel tidy: copy of ${messages.length} message${messages.length === 1 ? "" : "s"} saved to ${file}`); };
     if (firstRun) {
       // The very first run on a server only counts and saves a copy; real deleting starts with the next hourly run.
-      await sweepInviteChannel(guild, database, server.guildId, server.inviteChannelId, server.inviteGuideMessageId ?? null, { ...common, confirm: false, backupOnly: true, backup: saveCopy });
+      const saved = await sweepInviteChannel(guild, database, server.guildId, server.inviteChannelId, server.inviteGuideMessageId ?? null, { ...common, confirm: false, backupOnly: true, backup: saveCopy });
+      if (saved.status !== "ok") { await unclaim(); continue; }
       log(`Invite channel tidy ${server.guild.discordId}: first run, nothing deleted (${count} counted and saved); deleting starts with the next hourly run.`);
       continue;
     }

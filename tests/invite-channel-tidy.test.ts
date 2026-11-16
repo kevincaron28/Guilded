@@ -44,8 +44,8 @@ function database(over: { sweepEnabled?: boolean; sweptAt?: Date | null; open?: 
     guildSettings: {
       findMany: vi.fn(async ({ where }: { where: { OR: Array<{ inviteSweptAt?: null | { lte: Date } }> } }) =>
         (over.sweepEnabled ?? true) && due(where) ? [{ guildId: "g1", inviteChannelId: state.channelId, inviteGuideMessageId: state.guideId, inviteSweptAt: state.sweptAt, guild: { discordId: "d1" } }] : []),
-      updateMany: vi.fn(async ({ where, data }: { where: { OR: Array<{ inviteSweptAt?: null | { lte: Date } }> }; data: { inviteSweptAt: Date } }) => {
-        if (!due(where)) return { count: 0 };
+      updateMany: vi.fn(async ({ where, data }: { where: { OR?: Array<{ inviteSweptAt?: null | { lte: Date } }> }; data: { inviteSweptAt: Date | null } }) => {
+        if (where.OR && !due(where as never)) return { count: 0 };
         state.sweptAt = data.inviteSweptAt; return { count: 1 };
       })
     },
@@ -146,6 +146,26 @@ describe("the hourly tidy of the invite channel", () => {
     expect(logs.some((l) => l.includes(dir))).toBe(true);
     const second = channelWith(chat);
     expect(await runInviteChannelSweeps({ guilds: { fetch: async () => second.guild } } as never, db as never, { now: new Date(NOW.getTime() + 61 * MIN), backupDir: dir, log: () => undefined, sleep: async () => undefined })).toBe(5);
+  });
+  it("a first run that stops early or counts nothing stays a first run (the claim is reset)", async () => {
+    resetCleanupWarnings();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    // Panel missing, no permission, nothing to remove, copy cannot be saved: each leaves inviteSweptAt empty.
+    const cases: Array<{ name: string; db: ReturnType<typeof database>; ch: ReturnType<typeof channelWith>; dir?: string }> = [
+      { name: "panel", db: database({ sweptAt: null, guideId: "gone" }), ch: channelWith(chat) },
+      { name: "permission", db: database({ sweptAt: null }), ch: channelWith(chat, { manage: false }) },
+      { name: "nothing", db: database({ sweptAt: null }), ch: channelWith(chat.filter((m) => ["guide", "pin", "open1", "open1-tag", "fresh"].includes(m.id))) }
+    ];
+    const dir = await mkdtemp(join(tmpdir(), "invite-backup-"));
+    const blocker = join(dir, "not-a-folder");
+    await writeFile(blocker, "x");
+    cases.push({ name: "backup", db: database({ sweptAt: null }), ch: channelWith(chat), dir: blocker });
+    for (const c of cases) {
+      await runInviteChannelSweeps({ guilds: { fetch: async () => c.ch.guild } } as never, c.db as never, { now: NOW, backupDir: c.dir ?? dir, log: () => undefined });
+      expect(c.db.state.sweptAt, c.name).toBeNull();
+      expect(c.ch.deleted, c.name).toEqual([]);
+    }
+    warn.mockRestore();
   });
   it("never runs on an empty invite channel id", async () => {
     const { guild, deleted } = channelWith(chat);

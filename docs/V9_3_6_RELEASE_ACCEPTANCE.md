@@ -6,11 +6,24 @@ Status: published 16 November 2026. 9.3.6 is not yet confirmed on real clients.
 
 | Provider | State |
 | --- | --- |
-| GitHub | v9.3.6 (filled in after publishing). |
-| Installer | `Guilded.Companion.Setup.exe` and `Guilded.Companion.Setup.9.3.6.exe` on the server and the R2 mirror (after publishing). |
-| CurseForge | uploaded after publishing; in review. |
-| Microsoft Store | 9.3.6.0 package built; submitted after 9.3.4.0 (Submission 13) finishes certification. |
-| Website | `site/releases.json` and the addon downloads point at 9.3.6 after publishing. |
+| GitHub | v9.3.6 is the latest release (tag at e2997f82), six assets. |
+| Installer | `Guilded.Companion.Setup.exe` and `Guilded.Companion.Setup.9.3.6.exe` on the server and the R2 mirror. |
+| CurseForge | files 9649625 (Guilded) and 9649626 (Guilded Dungeons) uploaded 16 November 2026, in review; the website keeps pointing at 9.3.5 until they are approved. |
+| Microsoft Store | 9.3.6.0 package built, not yet submitted (9.3.4.0 still certifying as Submission 13) |
+| Bot | deployed 9.3.6 (e2997f82) after a verified backup |
+| Website | `site/releases.json` (GitHub and installer) and the addon downloads point at 9.3.6; CurseForge stays at 9.3.5 |
+
+## Published artifact hashes (SHA-256)
+
+| File | Bytes | SHA-256 |
+| --- | --- | --- |
+| `Guilded.Companion.Setup.exe` and `Guilded.Companion.Setup.9.3.6.exe` | 122688214 | `4ffaca9f5dfdfff51c2a52f36b5ac522cfea4530b26fb97ed1a7e77bd341bdae` |
+| `Guilded-v9.3.6-forever.zip` | 1627532 | `b39257f24ddecbc59b01471aa0c776bc34261a55ca1457eae4920fe4740e42ac` |
+| `GuildedDungeons-v9.3.6-forever.zip` | 953374 | `5816ae971c919b0bf3ebad44bb776c911f073025b2662c139561520ec87965b2` |
+| `Guilded.Companion.9.3.6.x64.STORE-SUBMISSION.msix` | 165426822 | `ef29611e5524326d885febb0a824d525b862962ab6c2c44307dffb63f5dc9382` |
+| `Guilded-v9.3.6-Release-Notes.md` | 2804 | `eb2e407c1888579832c1bb0ff18a588ccea1754bc9d900af982ced994752c00a` |
+
+Never overwrite a published download; these are the bytes that went out.
 
 ## Tested so far
 

@@ -28,13 +28,21 @@ const firstNameOf = (name: string) => name.trim().includes(" ") ? name.trim().sp
 /** One of the member's characters. `unique`: no other member of their guild has the same name (or, for the first-name alias, the same first name). */
 export interface OwnCharacter { name: string; realm: string | null; unique: boolean }
 /**
- * Whether a stored name (and realm, "" or null when none is stored) is this character. The name is the full name or its first-name alias.
+ * Whether a stored name (and realm, "" or null when none is stored) is this character. The name is the full name, or (with `alias`, only
+ * for a row tied to the member another way) its first-name alias.
  * With a realm on both sides the realms must be equal; when either side has none the row counts only if the name is unique in the
  * member's guild, so a realm-less row is never taken from another player on another realm.
  */
-export const isOwnName = (own: OwnCharacter, stored: string, realm: string | null) =>
-  (sameName(own.name, stored) || (!!firstNameOf(own.name) && sameName(firstNameOf(own.name)!, stored)))
+export const isOwnName = (own: OwnCharacter, stored: string, realm: string | null, alias = false) =>
+  (sameName(own.name, stored) || (alias && !!firstNameOf(own.name) && sameName(firstNameOf(own.name)!, stored)))
   && (realm && own.realm ? sameName(own.realm, realm) : own.unique);
+
+/**
+ * What can tie a first-name-only legacy row to this member besides the name: their Discord server(s), their member ids and the keys of
+ * their full-name characters. A stray first name alone identifies nobody, so without a tie the row is left alone.
+ */
+export interface DeletionTies { guildIds: string[]; memberIds: string[]; fullKeys: string[] }
+const NO_TIES: DeletionTies = { guildIds: [], memberIds: [], fullKeys: [] };
 
 /** Replaces every string equal to one of `names` (any case) inside saved evidence JSON; keys are never touched. */
 export function scrubNames<T>(value: T, names: readonly string[], placeholder: string): T {
@@ -49,14 +57,22 @@ type PublicRunTx = Pick<PrismaClient, "publicRunPlayer" | "publicRun" | "publicR
  * The member's characters leave the public runs: each public run player row with one of their names (and the realm, or none stored)
  * becomes "deleted-player-<row id>" with no display name and no guild; the same names are replaced inside that run's saved evidence
  * and its uploads' reporters. The row, class, role and level stay, so the run itself and its party size are unchanged.
- * Rows that stored only the first name of a two-name character are matched too (a same-first-name player on the same realm is anonymised
- * with them: the cost of keeping the deletion promise).
+ * Rows that stored only the first name of a two-name character ("Kev") are matched only when tied to the member another way: the same run
+ * also holds their full-name character, or one of the run's uploads came from their Discord server. Another player who merely shares the
+ * first name is left alone.
  */
-export async function anonymisePublicRuns(tx: PublicRunTx, characters: OwnCharacter[]): Promise<number> {
+export async function anonymisePublicRuns(tx: PublicRunTx, characters: OwnCharacter[], ties: DeletionTies = NO_TIES): Promise<number> {
   const names = [...new Set(characters.flatMap(row => [row.name.trim(), firstNameOf(row.name) ?? ""]).filter(Boolean))];
   if (!names.length) return 0;
   const rows = await tx.publicRunPlayer.findMany({ where: { OR: names.map(name => ({ character: { equals: name, mode: "insensitive" as const } })) }, select: { id: true, runId: true, character: true, realm: true }, take: 50_000 });
-  const mine = rows.filter(row => characters.some(own => isOwnName(own, row.character, row.realm)));
+  const full = rows.filter(row => characters.some(own => isOwnName(own, row.character, row.realm)));
+  const aliasOnly = rows.filter(row => !full.includes(row) && characters.some(own => isOwnName(own, row.character, row.realm, true)));
+  const fullRuns = new Set(full.map(row => row.runId));
+  const aliasRuns = [...new Set(aliasOnly.map(row => row.runId).filter(id => !fullRuns.has(id)))];
+  const viaGuild = aliasRuns.length && ties.guildIds.length
+    ? new Set((await tx.publicRunUpload.findMany({ where: { runId: { in: aliasRuns }, uploaderKey: { in: ties.guildIds.map(id => `guild:${id}`) } }, select: { runId: true } })).map(row => row.runId))
+    : new Set<string>();
+  const mine = [...full, ...aliasOnly.filter(row => fullRuns.has(row.runId) || viaGuild.has(row.runId))];
   // Set-based and batched: one statement per 1,000 rows, each row's own unique placeholder (the run keeps its party size).
   for (let at = 0; at < mine.length; at += 1_000) {
     const ids = mine.slice(at, at + 1_000).map(row => row.id);
@@ -77,15 +93,16 @@ export async function anonymisePublicRuns(tx: PublicRunTx, characters: OwnCharac
 }
 
 /** The member's characters (also the ones they unlinked) with whether each name is theirs alone in their guild. */
-async function ownCharacters(db: Pick<PrismaClient, "character">, memberIds: string[]): Promise<OwnCharacter[]> {
+async function ownCharacters(db: Pick<PrismaClient, "character">, memberIds: string[]): Promise<{ characters: OwnCharacter[]; ties: DeletionTies }> {
   const rows = await db.character.findMany({ where: { OR: [{ memberId: { in: memberIds } }, { detachedFromMemberId: { in: memberIds }, detachedAt: { not: null } }] }, select: { name: true, realm: true, member: { select: { guildId: true } } } });
   const guildIds = [...new Set(rows.flatMap(row => row.member?.guildId ?? []))];
   const others = guildIds.length ? await db.character.findMany({ where: { member: { guildId: { in: guildIds } }, memberId: { notIn: memberIds } }, select: { name: true }, take: 50_000 }) : [];
   const taken = others.map(row => row.name.trim().toLowerCase());
-  return rows.map(row => {
+  const characters = rows.map(row => {
     const full = row.name.trim().toLowerCase(), first = firstNameOf(row.name)?.toLowerCase() ?? null;
     return { name: row.name, realm: row.realm, unique: !taken.some(other => other === full || (first !== null && (other === first || other.startsWith(`${first} `)))) };
   });
+  return { characters, ties: { guildIds, memberIds, fullKeys: rows.map(row => row.name.trim().toLowerCase()) } };
 }
 
 export async function deleteMyData(database: PrismaClient, discordUserId: string): Promise<DeletionSummary> {
@@ -93,9 +110,9 @@ export async function deleteMyData(database: PrismaClient, discordUserId: string
   // The public run and duel rows go first, outside the transaction (set-based, batched, safe to repeat): if this fails nothing else has been
   // deleted yet and the request can simply be repeated, so the deletion never ends half done.
   const memberIds = (await database.member.findMany({ where: { discordUserId }, select: { id: true } })).map(row => row.id);
-  const named = await ownCharacters(database, memberIds);
-  await anonymisePublicRuns(database, named);
-  await anonymisePublicDuels(database, named);
+  const { characters: named, ties } = await ownCharacters(database, memberIds);
+  await anonymisePublicRuns(database, named, ties);
+  await anonymisePublicDuels(database, named, ties);
   const summary = await deleteWithinTransaction(database, discordUserId);
   clearLeaderboardCaches(); // the public pages drop what they cached (rosters, observed guilds) at once
   return summary;
@@ -146,21 +163,29 @@ type PublicDuelTx = Pick<PrismaClient, "publicDuel" | "publicDuelReport">;
 /**
  * The member's characters leave the public duel ladder rows: a side of a duel (name, realm key, guild text, member id) becomes
  * "deleted-player-<duel id>-w|l", and the reports they made lose their reporter keys and evidence. The opponent's record, the duel itself and
- * its day and result stay. First-name-only legacy rows are matched like in public runs.
+ * its day and result stay. A first-name-only legacy side ("Kev") is matched only when tied to the member another way: its member id is
+ * theirs, or a report of the duel came from their Discord server or from one of their full-name characters. Otherwise it is left alone.
  */
-export async function anonymisePublicDuels(tx: PublicDuelTx, characters: OwnCharacter[]): Promise<number> {
+export async function anonymisePublicDuels(tx: PublicDuelTx, characters: OwnCharacter[], ties: DeletionTies = NO_TIES): Promise<number> {
   const names = [...new Set(characters.flatMap(row => [row.name.trim(), firstNameOf(row.name) ?? ""]).filter(Boolean))];
   if (!names.length) return 0;
   const sides = ["winner", "loser"] as const;
   const where = { OR: [...names.flatMap(name => sides.map(side => ({ [`${side}Name`]: { equals: name, mode: "insensitive" as const } })))] };
-  const rows = await tx.publicDuel.findMany({ where, select: { id: true, winnerKey: true, loserKey: true, winnerName: true, loserName: true, winnerRealm: true, loserRealm: true }, take: 50_000 });
+  const rows = await tx.publicDuel.findMany({ where, select: { id: true, winnerKey: true, loserKey: true, winnerName: true, loserName: true, winnerRealm: true, loserRealm: true, winnerMemberId: true, loserMemberId: true }, take: 50_000 });
   let changed = 0;
   for (const row of rows) {
     const data: Record<string, unknown> = {};
     const mineKeys: string[] = [];
+    let tiedByReport: boolean | null = null; // looked up once per duel, only when a first-name-only side needs it
     for (const side of sides) {
-      const name = row[`${side}Name`], realm = row[`${side}Realm`], key = row[`${side}Key`];
-      if (!characters.some(own => isOwnName(own, name, realm))) continue;
+      const name = row[`${side}Name`], realm = row[`${side}Realm`], key = row[`${side}Key`], memberId = row[`${side}MemberId`];
+      if (!characters.some(own => isOwnName(own, name, realm))) {
+        if (!characters.some(own => isOwnName(own, name, realm, true))) continue;
+        if (!(memberId && ties.memberIds.includes(memberId))) {
+          tiedByReport ??= !!(ties.guildIds.length || ties.fullKeys.length) && (await tx.publicDuelReport.findMany({ where: { duelId: row.id, OR: [...(ties.guildIds.length ? [{ guildId: { in: ties.guildIds } }] : []), ...(ties.fullKeys.length ? [{ reporterCharacterKey: { in: ties.fullKeys } }] : [])] }, select: { id: true }, take: 1 })).length > 0;
+          if (!tiedByReport) continue;
+        }
+      }
       mineKeys.push(key);
       Object.assign(data, { [`${side}Name`]: `${DELETED_PLAYER_PREFIX}${row.id}-${side[0]}`, [`${side}Key`]: `${DELETED_PLAYER_PREFIX}${row.id}-${side[0]}`, [`${side}Guild`]: null, [`${side}MemberId`]: null });
     }

@@ -93,31 +93,53 @@ describe("Delete my data: public duels and first-name legacy rows", () => {
       { id: "d2", winnerKey: "bob", loserKey: "kev", winnerName: "Bob", loserName: "Kev", winnerRealm: "Doomhowl", loserRealm: "" }]), update: vi.fn(async () => ({})) };
     const reports = { findMany: vi.fn(async () => [{ id: "rep1" }]), update: vi.fn(async () => ({})) };
     const done = await anonymisePublicDuels({ publicDuel: duels, publicDuelReport: reports } as never, [{ name: "Kev Caron", realm: "Doomhowl", unique: true }]);
-    expect(done).toBe(2);
+    expect(done).toBe(1);
     const first = (duels.update.mock.calls[0] as unknown as [{ where: { id: string }; data: Record<string, unknown> }])[0];
     expect(first.data).toMatchObject({ winnerName: `${DELETED_PLAYER_PREFIX}d1-w`, winnerKey: `${DELETED_PLAYER_PREFIX}d1-w`, winnerGuild: null, winnerMemberId: null, pairKey: `${DELETED_PLAYER_PREFIX}d1` });
     expect(first.data).not.toHaveProperty("loserName"); // Amy stays
-    // the legacy first-name-only row ("Kev", no realm stored) is theirs too
-    const second = (duels.update.mock.calls[1] as unknown as [{ data: Record<string, unknown> }])[0];
-    expect(second.data).toMatchObject({ loserName: `${DELETED_PLAYER_PREFIX}d2-l` });
+    expect(duels.update).toHaveBeenCalledTimes(1); // the lone first-name row ("Kev", nothing ties it to them) is left alone
     expect(reports.update).toHaveBeenCalledWith({ where: { id: "rep1" }, data: expect.objectContaining({ reporterKey: `${DELETED_PLAYER_PREFIX}rep1`, deviceId: null, nonce: null, chain: null }) });
   });
-  it("matches a first-name-only legacy public run row only on the member's realm, and a realm-less row only when the name is unique in their guild", async () => {
-    const rowsOf = () => [{ id: "p1", runId: "r1", character: "Kev", realm: "Doomhowl" }, { id: "p2", runId: "r1", character: "Kev", realm: "Other" }, { id: "p4", runId: "r2", character: "Kev", realm: "" }];
-    const run = (unique: boolean) => {
-      const raw = vi.fn(async (...args: unknown[]) => { void args; return 1; });
-      const db = { publicRunPlayer: { findMany: vi.fn(async () => rowsOf()) }, publicRun: { findUnique: vi.fn(async () => null), update: vi.fn() }, publicRunUpload: { findMany: vi.fn(async () => []), update: vi.fn() }, $executeRaw: raw };
-      return anonymisePublicRuns(db as never, [{ name: "Kev Caron", realm: "Doomhowl", unique }]).then((done) => ({ done, ids: (raw.mock.calls[0]?.[0] as unknown as { values: unknown[] } | undefined)?.values[1] }));
+  it("takes a first-name-only legacy run row only when tied to the member (same run as their full name, or their server's upload), never a stray same first name", async () => {
+    const rowsOf = () => [
+      { id: "p1", runId: "r1", character: "Kev Caron", realm: "Doomhowl" }, { id: "p2", runId: "r1", character: "Kev", realm: "Doomhowl" }, // same run as the full name: tied
+      { id: "p3", runId: "r2", character: "Kev", realm: "Doomhowl" }, // uploaded by their server: tied
+      { id: "p4", runId: "r3", character: "Kev", realm: "Doomhowl" }, // nothing ties it: another Kev
+      { id: "p5", runId: "r1", character: "Kev", realm: "Other" }];
+    const raw = vi.fn(async (...args: unknown[]) => { void args; return 1; });
+    const uploads = { findMany: vi.fn(async (arg: { where: { runId: { in: string[] }; uploaderKey: { in: string[] } } }) => { void arg; return [{ runId: "r2", id: "u", reporters: [], evidence: null }]; }), update: vi.fn() };
+    const db = { publicRunPlayer: { findMany: vi.fn(async () => rowsOf()) }, publicRun: { findUnique: vi.fn(async () => null), update: vi.fn() }, publicRunUpload: uploads, $executeRaw: raw };
+    const done = await anonymisePublicRuns(db as never, [{ name: "Kev Caron", realm: "Doomhowl", unique: true }], { guildIds: ["g1"], memberIds: ["m1"], fullKeys: ["kev caron"] });
+    expect((raw.mock.calls[0]![0] as unknown as { values: unknown[] }).values[1]).toEqual(["p1", "p2", "p3"]);
+    expect(done).toBe(3);
+    expect(uploads.findMany.mock.calls[0]![0].where).toMatchObject({ runId: { in: ["r2", "r3"] }, uploaderKey: { in: ["guild:g1"] } });
+    // with no ties at all the lone first-name rows stay
+    const none = vi.fn(async (...args: unknown[]) => { void args; return 1; });
+    expect(await anonymisePublicRuns({ ...db, publicRunPlayer: { findMany: vi.fn(async () => [{ id: "p4", runId: "r3", character: "Kev", realm: "Doomhowl" }]) }, $executeRaw: none } as never, [{ name: "Kev Caron", realm: "Doomhowl", unique: true }])).toBe(0);
+    expect(none).not.toHaveBeenCalled();
+  });
+  it("takes a first-name-only duel side only with a tie (member id, their server's report or their character's report)", async () => {
+    const row = (id: string, memberId: string | null) => ({ id, winnerKey: "kev", loserKey: "amy", winnerName: "Kev", loserName: "Amy", winnerRealm: "Doomhowl", loserRealm: "Doomhowl", winnerMemberId: memberId, loserMemberId: null });
+    const run = async (duel: ReturnType<typeof row>, reports: { id: string }[], ties = { guildIds: ["g1"], memberIds: ["m1"], fullKeys: ["kev caron"] }) => {
+      const duels = { findMany: vi.fn(async () => [duel]), update: vi.fn(async () => ({})) };
+      const rep = { findMany: vi.fn(async () => reports), update: vi.fn(async () => ({})) };
+      const done = await anonymisePublicDuels({ publicDuel: duels, publicDuelReport: rep } as never, [{ name: "Kev Caron", realm: "Doomhowl", unique: true }], ties);
+      return { done, rep, duels };
     };
-    expect(await run(true)).toEqual({ done: 2, ids: ["p1", "p4"] }); // the other realm is never taken
-    expect(await run(false)).toEqual({ done: 1, ids: ["p1"] }); // a guildmate shares the name: the realm-less row stays
+    expect((await run(row("d1", "m1"), [])).done).toBe(1); // their member id
+    const byReport = await run(row("d2", null), [{ id: "r1" }]);
+    expect(byReport.done).toBe(1); // their server or character reported it
+    expect((byReport.rep.findMany.mock.calls[0] as unknown as [{ where: { OR: unknown[] } }])[0].where.OR).toEqual([{ guildId: { in: ["g1"] } }, { reporterCharacterKey: { in: ["kev caron"] } }]);
+    expect((await run(row("d3", "someone-else"), [])).done).toBe(0); // a stray Kev nothing ties to them stays
+    expect((await run(row("d4", null), [], { guildIds: [], memberIds: [], fullKeys: [] })).done).toBe(0);
   });
   it("isOwnName compares realms when both sides have one", () => {
     expect(isOwnName({ name: "Kev Caron", realm: "A", unique: false }, "Kev Caron", "A")).toBe(true);
     expect(isOwnName({ name: "Kev Caron", realm: "A", unique: true }, "Kev Caron", "B")).toBe(false);
-    expect(isOwnName({ name: "Kev Caron", realm: null, unique: true }, "Kev", "B")).toBe(true);
+    expect(isOwnName({ name: "Kev Caron", realm: null, unique: true }, "Kev", "B")).toBe(false); // the first-name alias needs a tie
+    expect(isOwnName({ name: "Kev Caron", realm: null, unique: true }, "Kev", "B", true)).toBe(true);
   });
-  it("marks a guildmate's same first name as not unique and clears the public pages' caches after deleting", async () => {
+  it("clears the public pages' caches after deleting", async () => {
     const f = fixture();
     f.top.character.findMany.mockResolvedValueOnce([{ name: "Kev Caron", realm: "Doomhowl", member: { guildId: "g1" } }]).mockResolvedValueOnce([{ name: "Kev Smith" }] as never);
     f.top.publicRunPlayer.findMany.mockResolvedValueOnce([{ id: "p9", runId: "r1", character: "Kev", realm: "" }] as never);

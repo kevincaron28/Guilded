@@ -22,6 +22,19 @@ describe("public run guild backfill", () => {
     expect(sql[1]).toContain('= 1');
     expect(sql[1]).toContain('lower(dq."guild") = lower(w."name")');
   });
+  it("matches rosters on a server that has no WowGuild row (the live case: the 0-from-rosters bug)", async () => {
+    // Production shape: Québec Gold is a default-scope Guild with a roster ("el pirata", inGuild) and no WowGuild rows at all.
+    const executeRaw = vi.fn(async (...args: unknown[]) => { void args; return 0; });
+    await backfillPublicRunGuilds({ publicRun: { findMany: vi.fn().mockResolvedValueOnce([{ id: "r1" }]) }, $executeRaw: executeRaw } as never);
+    const roster = (executeRaw.mock.calls as unknown as { strings: string[] }[][])[1]![0]!.strings.join("?");
+    expect(roster).toContain('JOIN "Guild" g ON g."id" = r."guildId"'); // the server's own guild name is the fallback
+    expect(roster).toContain('LEFT JOIN "WowGuild" w'); // never an inner join: no WowGuild must not drop the row
+    expect(roster).toContain('COALESCE(w."name", g."name")');
+    expect(roster).toContain('w."id" IS NULL'); // no WowGuild: the realm and ambiguity checks do not apply
+    expect(roster).not.toMatch(/\n\s+JOIN "WowGuild"/);
+    expect(roster).toContain('lower(normalize(p2."character", NFC))'); // the roster key is the NFC lower-case full name
+    expect(roster).toContain(`g."scopeKey" <> 'default'`); // scoped guilds use their own WowGuild
+  });
   it("reports a failed batch and carries on", async () => {
     const onError = vi.fn();
     const findMany = vi.fn().mockResolvedValueOnce([{ id: "x" }]);

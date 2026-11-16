@@ -5,10 +5,12 @@ import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
 // so runs no source covers are not rescanned on every start. Sources, in order:
 //   1. The guild text the recording client saw for the same character in the same run (DungeonRunPlayer.guild, matched by the addon run
 //      id and the character name, case-insensitive).
-//   2. The in-game guild named by a WowGuild row of the Discord server that holds this very run (DungeonRun.guildId), for a character on
-//      that server's roster (GuildRosterEntry, inGuild). Never a roster from another server; a run without a server of ours gets nothing here.
-//      When the player row has a realm it must equal the WowGuild's. A server with several WowGuilds is ambiguous: a guild is taken only
-//      when it is the server's only one for that edition, or when a recording client of this run named it; otherwise the row is skipped.
+//   2. The in-game guild of the Discord server that holds this very run (DungeonRun.guildId), for a character on that server's roster
+//      (GuildRosterEntry, inGuild; the key is the NFC lower-case full name). The guild name is the server's own Guild.name: a WowGuild row
+//      exists only for servers that registered extra in-game guilds (wow-guilds.ts), so it is joined optionally. A scoped Guild (one per
+//      registered in-game guild) uses its WowGuild; a default server with exactly one unscoped WowGuild uses that; with several, a guild is
+//      taken only when a recording client of this run named it, otherwise the row is skipped. With a WowGuild and a realm on the player row
+//      the realms must be equal. Never a roster from another server; a run without a server of ours gets nothing here.
 // Public runs are read in pages of BATCH ids; a failed batch is reported and left unmarked (retried next start), never thrown.
 const BATCH = 500;
 
@@ -36,18 +38,22 @@ export async function backfillPublicRunGuilds(database: Pick<PrismaClient, "publ
       result.fromRosters += Number(await database.$executeRaw(Prisma.sql`
         UPDATE "PublicRunPlayer" AS p SET "guild" = m."guildName"
         FROM (
-          SELECT DISTINCT ON (p2."id") p2."id" AS "playerId", w."name" AS "guildName"
+          SELECT DISTINCT ON (p2."id") p2."id" AS "playerId", COALESCE(w."name", g."name") AS "guildName"
           FROM "PublicRunPlayer" p2
           JOIN "PublicRun" pr ON pr."id" = p2."runId"
           JOIN "DungeonRun" r ON r."runRef" = pr."runRef"
-          JOIN "GuildRosterEntry" e ON e."guildId" = r."guildId" AND e."gameEdition" = pr."gameEdition" AND e."inGuild" = true AND e."nameKey" = lower(p2."character")
-          JOIN "WowGuild" w ON w."guildId" = r."guildId" AND w."gameEdition" = pr."gameEdition"
-          WHERE p2."runId" = ANY(${ids}::text[]) AND p2."guild" IS NULL AND (p2."realm" = '' OR lower(p2."realm") = lower(w."realm"))
+          JOIN "Guild" g ON g."id" = r."guildId"
+          JOIN "GuildRosterEntry" e ON e."guildId" = r."guildId" AND e."gameEdition" = pr."gameEdition" AND e."inGuild" = true AND e."nameKey" = lower(normalize(p2."character", NFC))
+          LEFT JOIN "WowGuild" w ON w."gameEdition" = pr."gameEdition"
+            AND (CASE WHEN g."scopeKey" <> 'default' THEN w."scopeGuildId" = g."id" ELSE (w."guildId" = g."id" AND w."scopeGuildId" IS NULL) END)
+          WHERE p2."runId" = ANY(${ids}::text[]) AND p2."guild" IS NULL
+            AND (w."id" IS NULL OR p2."realm" = '' OR lower(p2."realm") = lower(w."realm"))
             AND (
-              (SELECT count(*) FROM "WowGuild" w2 WHERE w2."guildId" = r."guildId" AND w2."gameEdition" = pr."gameEdition") = 1
+              w."id" IS NULL OR g."scopeKey" <> 'default'
+              OR (SELECT count(*) FROM "WowGuild" w2 WHERE w2."guildId" = g."id" AND w2."scopeGuildId" IS NULL AND w2."gameEdition" = pr."gameEdition") = 1
               OR EXISTS (SELECT 1 FROM "DungeonRunPlayer" dq WHERE dq."runId" = r."id" AND lower(dq."guild") = lower(w."name"))
             )
-          ORDER BY p2."id", e."observedAt" DESC, w."createdAt"
+          ORDER BY p2."id", e."observedAt" DESC, w."createdAt" NULLS LAST
         ) m
         WHERE p."id" = m."playerId" AND p."guild" IS NULL`));
       // Covered or not, these runs have been looked at.

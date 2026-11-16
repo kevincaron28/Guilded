@@ -1,6 +1,6 @@
 import { provisionalSeasonRules } from "./dungeon-bracket-season.js";
 import { createBracketedDungeonRules, leniencyOf, routeTargetAt, validBracketedRules, type BracketedRules } from "./dungeon-november-rules.js";
-import { SCARLET_WINGS, bracketedVerdict, completionReason, penalized, presentEnough, timeRating, verdictPoints, type RatingRun } from "./dungeon-rating.js";
+import { ROUTE_WINGS, bracketedVerdict, completionReason, penalized, presentEnough, timeRating, verdictPoints, type RatingRun } from "./dungeon-rating.js";
 import type { OfficialWindow } from "./official-seasons.js";
 import { weekWindow } from "./dungeon-periods.js";
 import { integrityPresence, withIntegrityWindow } from "./dungeon-integrity.js";
@@ -105,7 +105,7 @@ export function rateRun(run: ScoreRun, rules: BracketedRules = publicRules(), pl
     return { score: { key: verdict.key, bracket: rules.routeBracket[verdict.key]!, points: verdictPoints(run.durationSec, verdict), penaltyPercent: verdict.penaltyPercent, ...(verdict.bosses ? { bosses: verdict.bosses } : {}) } };
   }
   // Uploaded before 7.4: route, difficulty and party levels only.
-  const key = run.routeKey ?? (run.instanceId === 189 ? null : String(run.instanceId));
+  const key = run.routeKey ?? (ROUTE_WINGS[run.instanceId] ? null : String(run.instanceId));
   const band = key ? rules.levelBands[key] : undefined;
   const target = key ? routeTargetAt(rules, key, run.endedAt) : undefined;
   if (!key) return { score: null, reason: "Dungeon route unknown" };
@@ -122,10 +122,11 @@ export function rateRun(run: ScoreRun, rules: BracketedRules = publicRules(), pl
 
 /** Scarlet Monastery wing from the boss kills' names; the map id for every other dungeon. */
 export function publicRouteKey(instanceId: number, kills: { name?: string | undefined; success: boolean }[]): string | null {
-  if (instanceId !== 189) return String(instanceId);
+  const all = ROUTE_WINGS[instanceId];
+  if (!all) return String(instanceId);
   const names = new Set(kills.filter(k => k.success && k.name).map(k => k.name!.toLowerCase()));
-  const wings = SCARLET_WINGS.filter(([, bosses]) => bosses.some(b => names.has(b)));
-  return wings.length === 1 ? `189:${wings[0]![0]}` : null;
+  const wings = all.filter(([, bosses]) => bosses.some(b => names.has(b)));
+  return wings.length === 1 ? `${instanceId}:${wings[0]![0]}` : null;
 }
 
 /** A run's rated score, or null when it is unrated (rateRun says why). */

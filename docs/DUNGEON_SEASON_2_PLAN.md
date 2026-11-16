@@ -80,7 +80,14 @@ The exact hour of the raid opening is the owner's to confirm; pass `date` or res
    three maps stay ABANDONED; the more runs, the better the targets.
 2. **~28 November:** `/guilded-season season2-review`. Read the table and the readiness line (runs passing
    current-v2). The command attaches `season2-rules.json`.
-   - Add 45-59 / 60 routes (and Drowned City / Kroldok) to that JSON using the map ids from "Cleared but not rated",
+   - **Endgame routes are already in the proposal** (owner, 16 November 2026; `dungeon-endgame-routes.ts`): Drowned City (2970), Zul'Farrak 209
+     (40 min), Maraudon 349 (50), Sunken Temple 109 (45), Blackrock Depths 230 (70, ends at Emperor Dagran Thaurissan: a full clear),
+     Lower/Upper Blackrock Spire 229:lower/229:upper (70/75, told apart by Overlord Wyrmthalak / General Drakkisath), Dire Maul 429:east/west/north
+     (25/35/30, by Alzzin / Tortheldrin / Gordok), Scholomance 289 (60), Stratholme 329:main/service (50/45, by Balnazzar / Baron Rivendare).
+     They have zero observations, so they show as "provisional, no data" and the usual formula moves them once runs exist. Level 45-59 starts with
+     best 3 (only three known routes), level 60 best 8. Still missing because no map id is known: Krol'dok Stronghold, Alcaz Prison,
+     Blackmaw Hold, Shaper's Terrace (listed under "Waiting for a map id"); add them here once a run reports their map.
+   - Add any other route to that JSON using the map ids from "Cleared but not rated",
      then upload it with `/guilded-season rules` **after** step 3 has scheduled the season (it replaces the stored
      rules). v2 seasons cannot gain routes later, so do this before 9 December.
    - If the v2 readiness is poor, use `evidence: current-v1` for Season 2.

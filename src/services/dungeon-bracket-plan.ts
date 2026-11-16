@@ -46,16 +46,17 @@ export const BRACKET_PLAN: PlannedRoute[] = [
   guess("maraudon", "45-59", 46, 55, 50),
   guess("alcaz-prison", "45-59", 48, 56, 35),
   guess("sunken-temple", "45-59", 50, 59, 45),
-  guess("blackrock-depths", "60", 60, 60, 50),
+  guess("blackrock-depths", "60", 60, 60, 70),
   guess("dire-maul-east", "60", 60, 60, 25),
   guess("blackmaw-hold", "60", 60, 60, 35),
-  guess("lower-blackrock-spire", "60", 60, 60, 45),
+  guess("lower-blackrock-spire", "60", 60, 60, 70),
+  guess("upper-blackrock-spire", "60", 60, 60, 75),
   guess("dire-maul-north", "60", 60, 60, 30),
   guess("dire-maul-west", "60", 60, 60, 35),
-  guess("scholomance", "60", 60, 60, 45),
+  guess("scholomance", "60", 60, 60, 60),
   guess("shapers-terrace", "60", 60, 60, 35),
-  guess("stratholme-main", "60", 60, 60, 40),
-  guess("stratholme-service", "60", 60, 60, 35)
+  guess("stratholme-main", "60", 60, 60, 50),
+  guess("stratholme-service", "60", 60, 60, 45)
 ];
 
 /** Problems with the plan against the default brackets; empty when it could fill a version 6 season. */

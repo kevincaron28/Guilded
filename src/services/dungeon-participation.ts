@@ -1,4 +1,4 @@
-import { competitionReason, ratingDungeonKey, type LevelBand } from "./dungeon-rating.js";
+import { competitionReason, ratingDungeonKey, ROUTE_WINGS, type LevelBand } from "./dungeon-rating.js";
 import { nativeCompletionReason, resolveNovemberRoute, type NovemberRoute } from "./dungeon-november-rules.js";
 import { currentIntegrityPolicy, integrityPresence, integrityRuleWindowReason, integrityStartReason } from "./dungeon-integrity.js";
 
@@ -27,7 +27,7 @@ export function participationRecordEligible(run: ParticipationRun, band: LevelBa
   if (rules && resolveNovemberRoute(run, rules).reason) return false;
   return run.completedBy === "final boss" && !!run.durationSec && run.durationSec > 0
     && run.players.some(p => p.memberId && p.presentSec >= run.durationSec! * 0.5)
-    && (rules !== undefined || participationDungeonKey(run) !== "189")
+    && (rules !== undefined || !ROUTE_WINGS[Number(participationDungeonKey(run))])
     && competitionReason({ ...run, players: run.players.map(p => ({ ...p, member: null })) }, band) === undefined;
 }
 

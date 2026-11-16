@@ -63,17 +63,21 @@ export function season2Embed(review: Season2Review): EmbedBuilder {
   const embed = new EmbedBuilder().setColor(0x22c55e).setTitle(`${SEASON2_NAME} · proposed targets (not active)`)
     .setDescription([
       `Computed from ${loaded.window.name}'s observed times. Starts **<t:${Math.floor(startsAt.getTime() / 1000)}:f>**; evidence policy **${review.proposal.rules.evidencePolicy}**; levels, brackets, best-N and over-level penalty unchanged.`,
-      `${c.measured} measured · ${c.blended} blended · ${c.carried} carried (kept at their ${loaded.window.name} estimate). Each target is within ${TARGET_POLICY.floor}x–${TARGET_POLICY.ceiling}x of the old one and rounded to a minute.`,
+      `${c.measured} measured · ${c.blended} blended · ${c.carried - proposal.added} carried (kept at their ${loaded.window.name} estimate) · ${proposal.added} new endgame routes (provisional, no data yet: levels 45-60, from their design targets until runs move them). Each target is within ${TARGET_POLICY.floor}x–${TARGET_POLICY.ceiling}x of the old one and rounded to a minute.`,
       `Readiness for current-v2: **${loaded.observations.v2Runs} of ${loaded.observations.ratedRuns}** ranked runs so far also carry the stricter evidence (observed first-combat start, native boss checkpoint, known presence). If that share is low, hold Season 2 on current-v1 or wait for more addon updates.`,
       "Nothing is scheduled yet. `/guilded-season season2-activate` schedules the season and stores these targets; run it only after reviewing the attached rules."
     ].join("\n\n"));
   for (const bracket of [...new Set(proposal.rows.map(r => r.bracket))]) {
     const rows = proposal.rows.filter(r => r.bracket === bracket);
     embed.addFields({ name: `${bracketLabel(bracket)}`, value: rows.map(r =>
-      `${r.name} · ${minutes(r.previousSec)} → **${minutes(r.targetSec)}** · ${r.basis}${r.basis === "carried" ? "" : ` (${r.samples})`}`).join("\n").slice(0, 1024) });
+      r.added ? `${r.name} · **${minutes(r.targetSec)}** · provisional, no data`
+        : `${r.name} · ${minutes(r.previousSec)} → **${minutes(r.targetSec)}** · ${r.basis}${r.basis === "carried" ? "" : ` (${r.samples})`}`).join("\n").slice(0, 1024) });
   }
   const o = loaded.observations;
-  if (o.unrated.length) embed.addFields({ name: "Not in Season 2 yet (no route)", value: `${o.unrated.slice(0, 8).map(u => `${u.name} (map ${u.instanceId}) ×${u.count}`).join("\n")}\nAdd them with a reviewed rules file before activating: current-v2 seasons cannot gain routes later.`.slice(0, 1024) });
+  const routed = new Set(proposal.rules.routes.map(r => r.instanceId));
+  const unrated = o.unrated.filter(u => !routed.has(u.instanceId));
+  if (unrated.length) embed.addFields({ name: "Not in Season 2 yet (no route)", value: `${unrated.slice(0, 8).map(u => `${u.name} (map ${u.instanceId}) ×${u.count}`).join("\n")}\nAdd them with a reviewed rules file before activating: current-v2 seasons cannot gain routes later.`.slice(0, 1024) });
+  if (proposal.waiting.length) embed.addFields({ name: "Waiting for a map id (not in Season 2)", value: `${proposal.waiting.map(w => w.id).join(", ")}\nNo run has reported their map id yet; none is invented. Add each to the reviewed rules once a run shows it.`.slice(0, 1024) });
   return embed;
 }
 

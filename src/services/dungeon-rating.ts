@@ -22,16 +22,19 @@ export function validLevelBand(value: unknown): value is LevelBand {
     && Number.isInteger(b.difficultyId) && b.difficultyId >= 0;
 }
 export function validDungeonKey(key: string): boolean {
-  return /^[1-9]\d*$/.test(key) || /^189:(graveyard|library|armory|cathedral)$/.test(key);
+  if (/^[1-9]\d*$/.test(key)) return true;
+  const [map, wing] = key.split(":");
+  return !!wing && (ROUTE_WINGS[Number(map)] ?? []).some(([w]) => w === wing);
 }
 // Match successful boss evidence, never a player's freely entered dungeon label.
 // Unsupported locales/ambiguous mixed-wing runs remain unranked.
 export function ratingDungeonKey(run: RatingRun): string {
-  if (run.instanceId !== 189) return String(run.instanceId);
+  const wings = ROUTE_WINGS[run.instanceId];
+  if (!wings) return String(run.instanceId);
   const encounters = (run.competitionData as { encounters?: { name?: string; success?: boolean }[] } | null)?.encounters;
   const names = new Set((Array.isArray(encounters) ? encounters : []).filter(e => e?.success === true).map(e => e.name?.toLowerCase()));
-  const matches = SCARLET_WINGS.filter(([, bosses]) => bosses.some(name => names.has(name)));
-  return matches.length === 1 ? `189:${matches[0]![0]}` : "189";
+  const matches = wings.filter(([, bosses]) => bosses.some(name => names.has(name)));
+  return matches.length === 1 ? `${run.instanceId}:${matches[0]![0]}` : String(run.instanceId);
 }
 // Scarlet Monastery shares map 189; each wing is told apart by its last boss (English, French).
 export const SCARLET_WINGS = [
@@ -40,6 +43,18 @@ export const SCARLET_WINGS = [
   ["armory", ["herod", "hérode"]],
   ["cathedral", ["high inquisitor whitemane", "grande inquisitrice blanchetête"]]
 ] as const;
+// Other maps that hold several routes (Season 2 endgame, dungeon-endgame-routes.ts). Like the Scarlet wings, each route is told apart
+// by its last boss (English, French). Blackrock Spire: Lower ends at Overlord Wyrmthalak, Upper at General Drakkisath. Dire Maul: East
+// Alzzin the Wildshaper, West Prince Tortheldrin, North King Gordok. Stratholme: the Main Gate (Living) side ends at Balnazzar, the
+// Service Gate (Undead) side at Baron Rivendare.
+// English names only: no French name is verified yet, so a French client relies on the addon's encounter-id / journal detection.
+export const ENDGAME_WINGS = {
+  229: [["lower", ["overlord wyrmthalak"]], ["upper", ["general drakkisath"]]],
+  429: [["east", ["alzzin the wildshaper"]], ["west", ["prince tortheldrin"]], ["north", ["king gordok"]]],
+  329: [["main", ["balnazzar"]], ["service", ["baron rivendare"]]]
+} as const;
+/** Every map that holds several routes, with each route's wing key and last-boss names. */
+export const ROUTE_WINGS: Record<number, readonly (readonly [string, readonly string[]])[]> = { 189: SCARLET_WINGS, ...ENDGAME_WINGS };
 export function createDungeonRatingRules(targets: Record<string, number> = {}, version: 2 | 3 = 3, bands: Record<string, LevelBand> = {}) {
   const frozen: Record<string, number> = {};
   for (const [id, seconds] of Object.entries(targets)) {
@@ -221,7 +236,7 @@ export function calculateDungeonRating(runs: RatingRun[], rules?: unknown, every
     const verdict = brackets ? bracketedVerdict(run, brackets) : undefined;
     const route = verdict ?? (version === 5 ? resolveNovemberRoute(run, rules as NovemberRules) : undefined);
     const key = route?.key ?? (timed ? ratingDungeonKey(run) : String(run.instanceId));
-    const reason = verdict ? verdict.reason : route?.reason ?? (route && !targets[key] ? "Participation-only route" : !route && timed && key === "189" ? "Dungeon route unknown"
+    const reason = verdict ? verdict.reason : route?.reason ?? (route && !targets[key] ? "Participation-only route" : !route && timed && ROUTE_WINGS[Number(key)] ? "Dungeon route unknown"
       : timed ? competitionReason(run, (rules as { levelBands?: Record<string, LevelBand> } | undefined)?.levelBands?.[key]) : undefined);
     const penaltyPercent = verdict?.penaltyPercent ?? 0;
     const bosses = timed && !reason && targets[key] ? bossRecords(run) : [];

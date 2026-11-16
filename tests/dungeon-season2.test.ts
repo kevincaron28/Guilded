@@ -80,8 +80,8 @@ describe("Season 2 proposal", () => {
     expect(s2.targets["389"]).toBe(1500);
     expect(counts.measured).toBe(1);
     expect(counts.carried).toBe(rows.length - 1);
-    expect(s2.brackets).toEqual(rules.brackets);
-    expect(s2.levelBands).toEqual(rules.levelBands);
+    expect(s2.brackets.slice(0, rules.brackets.length)).toEqual(rules.brackets);
+    expect(s2.levelBands).toMatchObject(rules.levelBands);
     expect(s2.overlevelPenalty).toEqual(rules.overlevelPenalty);
     expect(s2.catalog.find(d => d.dungeonKey === "389")).toMatchObject({ targetSec: 1500, provisional: false });
     expect(s2.catalog.find(d => d.dungeonKey === "36")).toMatchObject({ provisional: true });

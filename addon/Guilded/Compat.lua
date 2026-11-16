@@ -222,7 +222,17 @@ local foreverFinalBossNames = {
   -- the Vile and Dalaran's Lyn the Ignored are optional, so they do not end the run.
   [2999] = { "Rath'mael" },
   [2998] = { "Relic Guardian" },
-  [2959] = { "Shade of the Archmage" }
+  [2959] = { "Shade of the Archmage" },
+  -- Level 45-60 dungeons of Season 2 (map ids are the Classic ones). Wing maps list the last boss of each wing: the run ends at
+  -- the first of them (the bot tells the wings apart by the same names, dungeon-rating.ts ROUTE_WINGS).
+  [209] = { "Chief Ukorz Sandscalp" },
+  [349] = { "Princess Theradras" },
+  [109] = { "Shade of Eranikus" },
+  [230] = { "Emperor Dagran Thaurissan" },
+  [289] = { "Darkmaster Gandling" },
+  [229] = { "Overlord Wyrmthalak", "General Drakkisath" },
+  [429] = { "Alzzin the Wildshaper", "Prince Tortheldrin", "King Gordok" },
+  [329] = { "Balnazzar", "Baron Rivendare" }
 }
 
 local function lowerName(value)

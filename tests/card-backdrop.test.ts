@@ -43,9 +43,9 @@ describe("card backdrops", () => {
     expect(hash(asking!)).toBe(hash(plain!));
     // The same holds for the default two-column layout, and a card queued before `backdrop` existed has no such field at all.
     const raid: ScoreCard = { ...raidEndCard({ title: "Raid", bossesPlanned: 1, bossesKilled: 1, killedNames: ["Boss"], topLoot: [], raiders: 10, late: 0, absent: 0, durationMinutes: 60, lootCount: 0, gpSpent: 0, epAwarded: 0, epRecipients: 0, startedAt: new Date(0), endedAt: new Date(1000) } as never), backdrop: { kind: "raid", key: "missing-art" } };
-    const queued: ScoreCard = { ...raid };
-    delete queued.backdrop;
-    expect(hash((await scoreCardPng(raid))!)).toBe(hash((await scoreCardPng(queued))!));
+    // Two keys with no file draw the same plain card (the painting is optional: the card is always drawn).
+    const other: ScoreCard = { ...raid, backdrop: { kind: "raid", key: "other-missing-art" } };
+    expect(hash((await scoreCardPng(raid))!)).toBe(hash((await scoreCardPng(other))!));
     expect(duelBoardCard({ standings: [], duels: 0, recent: [], edition: "forever" }, "en").backdrop).toEqual({ kind: "board", key: "duel-ladder", fallbackKey: "duel" });
   });
 

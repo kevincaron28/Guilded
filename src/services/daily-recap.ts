@@ -103,9 +103,10 @@ export function dailyRecapCard(recap: DailyRecap, lang: Lang, guildName: string)
   if (recap.race) stats.push({ label: t("Levels gained", "Niveaux gagnés"), value: String(recap.race.gained), accent: "gold" });
   if (recap.race?.new60.length) stats.push({ label: t(`New level ${LEVEL_CAP}s`, `Nouveaux ${LEVEL_CAP}`), value: String(recap.race.new60.length), accent: "gold" });
   if (recap.dungeons) stats.push({ label: t("Dungeon clears", "Donjons terminés"), value: String(recap.dungeons.clears), accent: "green" });
-  if (recap.dungeons?.highlights.length) stats.push({ label: t("Records & challenges", "Records et défis"), value: String(recap.dungeons.highlights.length), accent: "gold" });
   if (recap.pvp?.duels) stats.push({ label: t("Duels", "Duels"), value: String(recap.pvp.duels), accent: "red" });
-  if (recap.pvp?.bgPlayed && stats.length < 4) stats.push({ label: t("Battlegrounds won", "Champs de bataille gagnés"), value: `${recap.pvp.bgWon}/${recap.pvp.bgPlayed}`, accent: "red" });
+  // A figure on the strip is not repeated in a panel: the duel count and the battleground score each appear once.
+  const bgInStrip = Boolean(recap.pvp?.bgPlayed) && stats.length < 4;
+  if (recap.pvp?.bgPlayed && bgInStrip) stats.push({ label: t("Battlegrounds won", "Champs de bataille gagnés"), value: `${recap.pvp.bgWon}/${recap.pvp.bgPlayed}`, accent: "red" });
 
   const sections: NonNullable<ScoreCard["recap"]>["sections"] = [];
   if (recap.race) sections.push({ title: t("Race to 60 · levels", "Course au 60 · niveaux"), rows: [
@@ -116,23 +117,23 @@ export function dailyRecapCard(recap: DailyRecap, lang: Lang, guildName: string)
     const order: HighlightKind[] = ["clear", "boss", "first", "deathless", "guild5"];
     const items = [...recap.dungeons.highlights].sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind));
     sections.push({ title: t("Dungeons · records", "Donjons · records"), rows: [
-      ...items.slice(0, recap.dungeons.mostRuns ? 4 : 5).map(item => ({ name: plainHighlight(item, lang), sub: item.kind === "boss" ? t(`Fastest kill · ${dungeonOf(item)}`, `Boss le plus rapide · ${dungeonOf(item)}`) : dungeonOf(item), right: item.valueSec !== undefined && (item.kind === "clear" || item.kind === "boss") ? clock(item.valueSec) : undefined, rightTone: "gold" as const })),
+      ...items.slice(0, recap.dungeons.mostRuns ? 4 : 5).map(item => ({ name: plainHighlight(item, lang), sub: dungeonOf(item), right: item.valueSec !== undefined && (item.kind === "clear" || item.kind === "boss") ? clock(item.valueSec) : undefined, rightTone: "gold" as const })),
       ...(recap.dungeons.mostRuns ? [{ name: recap.dungeons.mostRuns.name, sub: t("Most runs today", "Le plus de donjons aujourd'hui"), right: `×${recap.dungeons.mostRuns.runs}`, rightTone: "green" as const }] : []),
-      ...(!items.length && !recap.dungeons.mostRuns ? [{ name: plural(lang, recap.dungeons.clears, ["clear", "clears"], ["parcours", "parcours"]), sub: plural(lang, recap.dungeons.dungeons, ["different dungeon", "different dungeons"], ["donjon différent", "donjons différents"]) }] : [])
+      ...(!items.length && !recap.dungeons.mostRuns ? [{ name: plural(lang, recap.dungeons.dungeons, ["different dungeon", "different dungeons"], ["donjon différent", "donjons différents"]) }] : [])
     ] });
   }
-  if (recap.pvp) sections.push({ title: t("PvP", "JcJ"), rows: [
-    ...(recap.pvp.topDueler ? [{ name: recap.pvp.topDueler.name, sub: t("Most duel wins", "Le plus de duels gagnés"), right: `×${recap.pvp.topDueler.wins}`, rightTone: "red" as const }] : []),
-    ...(recap.pvp.duels ? [{ name: plural(lang, recap.pvp.duels, ["duel", "duels"], ["duel", "duels"]), sub: t("Counted in the ladder", "Comptés au classement") }] : []),
-    ...(recap.pvp.bgPlayed ? [{ name: t(`${recap.pvp.bgWon}/${recap.pvp.bgPlayed} won`, `${recap.pvp.bgWon}/${recap.pvp.bgPlayed} gagnés`), sub: t("Battlegrounds · shared stats", "Champs de bataille · stats partagées") }] : [])
-  ] });
+  const pvpRows = [
+    ...(recap.pvp?.topDueler ? [{ name: recap.pvp.topDueler.name, sub: t("Most duel wins", "Le plus de duels gagnés"), right: `×${recap.pvp.topDueler.wins}`, rightTone: "red" as const }] : []),
+    ...(recap.pvp?.bgPlayed && !bgInStrip ? [{ name: t(`${recap.pvp.bgWon}/${recap.pvp.bgPlayed} won`, `${recap.pvp.bgWon}/${recap.pvp.bgPlayed} gagnés`), sub: t("Battlegrounds", "Champs de bataille") }] : [])
+  ];
+  if (pvpRows.length) sections.push({ title: t("PvP", "JcJ"), rows: pvpRows });
 
   return {
     eyebrow: t("Guilded · Daily recap", "Guilded · Bilan du jour"),
     title: guildName,
     subtitle: dayLabel(recap.day, lang),
     stats: stats.slice(0, 4),
-    footer: t("From the guild's addon uploads", "D'après les envois de l'addon de la guilde"),
+    footer: "", moreLabel: t("more", "autres"),
     // 9.3: one of three approved paintings (recap/dawn, day, night), chosen by the day's seed like the scenes below; without a file the painted scene is drawn.
     backdrop: { kind: "recap", key: RECAP_TIMES[seedOf(recap.day) % RECAP_TIMES.length]! },
     recap: { theme: { a: "#1e1236", b: "#6a4aa8", motif: "keep", seed: seedOf(recap.day), scene: RECAP_SCENES[seedOf(recap.day) % RECAP_SCENES.length]! }, sections: sections.slice(0, 3) }

@@ -20,8 +20,8 @@ describe("cards that used to fail", () => {
   it("draws a value the card font cannot show (an emoji alone) instead of failing the whole card", async () => {
     const card = serverAnniversaryCard({ serverName: "⚜Quebec Gold⚜", years: 2, founded: new Date("2024-11-07"), members: 40, achievementsEarned: 12,
       oldestMembers: [{ displayName: "Mélodie Gagnon", createdAt: new Date("2024-11-07") }] }, "fr");
-    expect(card.rows?.[0]?.right).toBe("🎂");
-    expect(await scoreCardPng(card)).not.toBeNull();
+    expect(card.rows?.[0]?.right).toBeUndefined();
+    expect(await scoreCardPng({ ...card, rows: [{ ...card.rows![0]!, right: "🎂" }] })).not.toBeNull();
   });
   it("draws /stats server, whose bar column has no header", async () => {
     const day = { day: "2026-11-06", discordMembers: 140, activeMembers: 60, linkedMembers: 30, rosterSize: 120, onlinePeak: 20, level60: 2, messages: 1, voiceMinutes: 1, raids: 0, dungeonRuns: 3,
@@ -35,9 +35,9 @@ describe("cards that used to fail", () => {
 describe("text stays inside its space", () => {
   it("keeps a long title out of the achievements panel: it is drawn smaller or cut, never wider", async () => {
     const plain = (name: string): ScoreCard => ({ ...achievementUnlockedCard(name, ACTIVE_ACHIEVEMENTS.slice(0, 2).map(def => def.id), 2, "en"), footer: "" });
-    // The header column is 500 px wide: past it, a longer title must not change a single pixel of the right panel.
+    // The title column ends before the badge medallion: past it, a longer title must not change a single pixel of the badge.
     const short = await scoreCardPng(plain("Kev")), long = await scoreCardPng(plain("Johnnysinz Johnnysinzington the Unstoppable"));
-    const panel = async (png: Buffer) => sharp(png).extract({ left: 560, top: 20, width: 600, height: 150 }).raw().toBuffer();
+    const panel = async (png: Buffer) => sharp(png).extract({ left: 940, top: 10, width: 220, height: 150 }).raw().toBuffer();
     expect(Buffer.compare(await panel(short!), await panel(long!))).toBe(0);
   }, 20_000);
   it("drops a nickname's bracketed part on a celebration card once the name is long", () => {

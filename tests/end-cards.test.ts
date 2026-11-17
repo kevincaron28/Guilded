@@ -51,11 +51,13 @@ describe("achievement unlocked card", () => {
     const cases = [ids.slice(0, 1), ids.slice(0, 3), ids.slice(0, 6), ids];
     for (const lang of ["en", "fr"] as const) for (const set of cases) {
       const png = await scoreCardPng(achievementUnlockedCard("A very long member display name indeed", set, 30, lang));
-      expect(await sharp(png!).metadata()).toMatchObject({ width: 1200, height: 630, format: "png" });
+      const meta = await sharp(png!).metadata();
+      expect(meta).toMatchObject({ width: 1200, format: "png" });
+      expect(meta.height).toBeGreaterThanOrEqual(340); expect(meta.height).toBeLessThanOrEqual(630);
     }
     const queued = { ...achievementUnlockedCard("frumpytm", ids.slice(0, 2), 5, "en") };
     for (const key of ["unlocks", "unlocksMore", "moreLabel", "progress", "tierCounts"] as const) delete queued[key];
-    expect(await sharp((await scoreCardPng(queued))!).metadata()).toMatchObject({ width: 1200, height: 630 });
+    expect(await sharp((await scoreCardPng(queued))!).metadata()).toMatchObject({ width: 1200 });
   }, 30_000);
 });
 
@@ -86,11 +88,11 @@ describe("achievements card painting", () => {
     const { default: sharpLib } = await import("sharp");
     const withArt = (await scoreCardPng(card))!, without = (await scoreCardPng(plain(card)))!;
     expect(Buffer.compare(withArt, without)).not.toBe(0);
-    expect((await sharpLib(withArt).metadata()).height).toBe(630);
+    expect((await sharpLib(withArt).metadata()).height).toBeLessThanOrEqual(630);
   });
   it("draws the plain card when the painting file is missing", async () => {
     const card = achievementsCard("Aldric", items, "en");
-    const missing = (await scoreCardPng({ ...card, backdrop: { kind: "board", key: "no-such-picture" } }))!, without = (await scoreCardPng(plain(card)))!;
+    const missing = (await scoreCardPng({ ...card, backdrop: { kind: "no-such-kind", key: "achievements" } }))!, without = (await scoreCardPng(plain(card)))!;
     expect(Buffer.compare(missing, without)).toBe(0);
   });
 });

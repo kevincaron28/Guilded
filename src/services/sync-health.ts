@@ -7,7 +7,7 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 type Db = Pick<PrismaClient, "companionCredential" | "companionDevice" | "dungeonRunPlayer" | "duelResult" | "carriedRecord" | "dungeonRun" | "dungeonRunReceipt" | "dungeonRunWitness" | "syncHealthReport" | "guildRosterEntry" | "character">;
 
 export type SyncSignal = "silent" | "carried-only" | "refused" | "retrying" | "parked" | "broken-version";
-export interface SyncIssue { signal: SyncSignal; /** A member's name, a PC code, or null for a server-wide line. */ who: string | null; detail: string; /** French wording of the detail, when it has one. */ detailFr?: string; fix: { en: string; fr: string } }
+export interface SyncIssue { signal: SyncSignal; /** A member's name, a PC code, or null for a server-wide line. */ who: string | null; detail: string; /** French wording of the detail, when it has one. */ detailFr?: string; fix: { en: string; fr: string }; /** Set on the silent and broken-version lines: who it is, when they last made contact and the version they last reported (companion-937-notice.ts). */ memberId?: string; lastContact?: Date; version?: string }
 
 export const SYNC_HEALTH = {
   /** A companion that has not synced for this long while its member keeps playing counts as stopped (17 Nov 2026: a broken update went unnoticed for 10 h). */
@@ -42,7 +42,7 @@ const FIX_UPDATE = { en: "Ask them to update the addon and the companion, then /
 const FIX_DEV = { en: "Developer attention: see the bot's receipts for this reason.", fr: "À voir par le développeur : reçus du bot pour cette raison." };
 
 /** The raw findings for one server. Five signals, one bounded query each (the carried-run signal needs two). */
-export async function collectSyncIssues(db: Db, guildId: string, now = new Date()): Promise<SyncIssue[]> {
+export async function collectSyncIssues(db: Db, guildId: string, now = new Date(), limit: number = SYNC_HEALTH.maxIssues): Promise<SyncIssue[]> {
   const issues: SyncIssue[] = [];
   const since = (hours: number) => new Date(now.getTime() - hours * HOUR);
 
@@ -99,13 +99,13 @@ export async function collectSyncIssues(db: Db, guildId: string, now = new Date(
     const broken = brokenVersionNote(version);
     const frHow = seen.how === "online in the guild roster" ? "en ligne dans la liste de la guilde" : "vu dans les donjons ou duels d'autres joueurs";
     issues.push({ signal: "silent", who: sync.name, detail: `companion silent for ${ago(now, sync.at)}, but played ${ago(now, seen.at)} ago (${seen.how})${version ? `; last companion version ${version}${broken ? ` (known broken: ${broken})` : ""}` : ""}`,
-      detailFr: `companion muet depuis ${ago(now, sync.at)}, mais a joué il y a ${ago(now, seen.at)} (${frHow})${version ? ` ; dernière version du companion ${version}${broken ? " (version défectueuse connue)" : ""}` : ""}`, fix: broken ? FIX_BROKEN : FIX_OPEN });
+      detailFr: `companion muet depuis ${ago(now, sync.at)}, mais a joué il y a ${ago(now, seen.at)} (${frHow})${version ? ` ; dernière version du companion ${version}${broken ? " (version défectueuse connue)" : ""}` : ""}`, fix: broken ? FIX_BROKEN : FIX_OPEN, memberId, lastContact: sync.at, ...(version ? { version } : {}) });
   }
   // A known-broken version that is still the latest a member reported is worth a line even before the silence hours pass.
   for (const [memberId, { version }] of lastVersion) {
     const broken = brokenVersionNote(version);
     const name = lastSync.get(memberId)?.name;
-    if (broken && name && !issues.some((issue) => issue.who === name && issue.signal === "silent")) issues.push({ signal: "broken-version", who: name, detail: `companion ${version} is a known broken version (${broken})`, detailFr: `le companion ${version} est une version défectueuse connue`, fix: FIX_BROKEN });
+    if (broken && name && !issues.some((issue) => issue.who === name && issue.signal === "silent")) issues.push({ signal: "broken-version", who: name, detail: `companion ${version} is a known broken version (${broken})`, detailFr: `le companion ${version} est une version défectueuse connue`, fix: FIX_BROKEN, memberId, lastContact: lastSync.get(memberId)!.at, version });
   }
 
   // 2. A guildmate's carried run whose own recorder's upload never arrived.
@@ -149,7 +149,7 @@ export async function collectSyncIssues(db: Db, guildId: string, now = new Date(
       issues.push({ signal: "parked", who: row.memberId ? (lastSync.get(row.memberId)?.name ?? "a member") : `PC ${row.ownerKey.slice(-8)}`, detail: parts.join(", "), fix: row.damaged ? { en: "Ask them to open the companion and press Repair.", fr: "Demandez-leur d'ouvrir le companion et d'utiliser Réparer." } : FIX_OPEN });
     }
   }
-  return issues.slice(0, SYNC_HEALTH.maxIssues);
+  return issues.slice(0, limit);
 }
 
 const cache = new Map<string, { at: number; issues: SyncIssue[] }>();

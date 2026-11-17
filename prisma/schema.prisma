@@ -2355,9 +2355,6 @@ model CompanionCredential {
   revokedAt DateTime?
   /// When this device last synced (at most every few minutes); shown as "Last synced" on /me/.
   lastUsedAt DateTime?
-  /// (9.3.8) The companion release that last called with this credential, and when (companion-937-notice.ts).
-  companionVersion   String?
-  companionVersionAt DateTime?
   member    Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@index([memberId, revokedAt])
@@ -2385,9 +2382,6 @@ model CompanionDevice {
   /// (13 November 2026) Discord servers (Guild ids) whose officers excluded this install; its runs there are held.
   excludedGuilds  String[]  @default([])
   uploads         Int       @default(0)
-  /// (9.3.8) The companion release that last called with this device key, and when.
-  companionVersion   String?
-  companionVersionAt DateTime?
   guild           Guild?    @relation(fields: [guildId], references: [id], onDelete: SetNull)
   claimedMember   Member?   @relation(fields: [claimedMemberId], references: [id], onDelete: SetNull)
   characters      DeviceCharacter[]

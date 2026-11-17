@@ -1,5 +1,6 @@
 import { EmbedBuilder, type Guild as DiscordGuild } from "discord.js";
 import { prisma } from "../database.js";
+import { loadCardTimeZone } from "../services/card-format.js";
 import { t, type Lang } from "../i18n.js";
 import { notifyEmbed } from "../services/notify.js";
 import { buildRaidAttendance, buildRaidReport, formatDuration, type RaidAttendanceList, type RaidReport } from "../services/raid-report.js";
@@ -67,9 +68,10 @@ export async function postRaidReport(discordGuild: DiscordGuild | null, guildId:
   const attendance = await buildRaidAttendance(prisma, guildId, raidId).catch(() => null);
   if (attendance) await notifyEmbed(discordGuild, (lang) => raidAttendanceEmbed(attendance, lang), "attendance", raid?.coreId ?? null);
   if (raid) await refreshSeasonSummary(discordGuild, guildId, raid.scheduledAt);
+  const timeZone = await loadCardTimeZone(prisma, guildId);
   return notifyEmbed(discordGuild, (lang) => {
     const embed = raidReportEmbed(report, lang);
     if (wcl) embed.addFields({ name: "Warcraft Logs", value: `[${wcl.title}](${wcl.url})` });
     return embed;
-  }, "raidLog", raid?.coreId ?? null, undefined, (lang) => raidEndCard(report, lang));
+  }, "raidLog", raid?.coreId ?? null, undefined, (lang) => raidEndCard(report, lang, timeZone));
 }

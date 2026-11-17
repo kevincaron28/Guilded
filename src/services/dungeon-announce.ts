@@ -48,13 +48,13 @@ export function postingGuildName(guilds: readonly { name: string }[], results: r
   return guilds.find((guild) => seen.has(guild.name.trim().toLowerCase()))?.name ?? (guilds.length === 1 ? guilds[0]!.name : null);
 }
 
-export function dungeonPosts(summary: DungeonImportSummary, lang: Lang, options: { deathPoints?: Record<string, { x: number; y: number }[]>; ownGuild?: string | null } = {}): DungeonPost[] {
+export function dungeonPosts(summary: DungeonImportSummary, lang: Lang, options: { deathPoints?: Record<string, { x: number; y: number }[]>; ownGuild?: string | null; timeZone?: string } = {}): DungeonPost[] {
   return announced(summary).slice(0, MAX_POSTS).map((run) => ({
     runRef: run.runRef,
     ...(run.highlights?.length ? { content: highlightHeadline(run.highlights, runLabel(run, lang), lang) } : {}),
     embed: dungeonEmbed(run, lang),
     cardOnly: dungeonCardOnly(run, lang),
-    card: dungeonRunCard(run, lang, { ...(options.deathPoints?.[run.runRef] ? { deathPoints: options.deathPoints[run.runRef]! } : {}), ...(options.ownGuild ? { ownGuild: options.ownGuild } : {}) }),
+    card: dungeonRunCard(run, lang, { ...(options.deathPoints?.[run.runRef] ? { deathPoints: options.deathPoints[run.runRef]! } : {}), ...(options.ownGuild ? { ownGuild: options.ownGuild } : {}), ...(options.timeZone ? { timeZone: options.timeZone } : {}) }),
     components: timelineRow(run, lang)
   }));
 }

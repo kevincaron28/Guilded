@@ -1,4 +1,5 @@
 import { textlessEmbed } from "./card-only.js";
+import { loadCardTimeZone } from "./card-format.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { serverAnniversaryCard } from "./end-cards.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
@@ -70,7 +71,7 @@ export async function celebrateServerAnniversary(db: Db, guildId: string, now = 
     db.member.findMany({ where: { guildId, status: "ACTIVE", isTest: false }, select: { displayName: true, createdAt: true }, orderBy: { createdAt: "asc" }, take: 5 }),
     db.memberAchievement.count({ where: { guildId, key: { notIn: [...RETIRED_ACHIEVEMENT_IDS] } } })
   ]);
-  const card = serverAnniversaryCard({ serverName: guild.name, years: due.year, founded, members, achievementsEarned: earned, oldestMembers: oldest }, lang);
+  const card = serverAnniversaryCard({ serverName: guild.name, years: due.year, founded, members, achievementsEarned: earned, oldestMembers: oldest }, lang, await loadCardTimeZone(db, guildId));
   const content = lang === "fr" ? `🎂 **${guild.name}** fête ses ${due.year} ${due.year === 1 ? "an" : "ans"} !` : `🎂 **${guild.name}** turns ${due.year}!`;
   await enqueueDiscordJob(db, guildId, key, "MESSAGE", {
     route: "achievements", channelId: settings.achievementChannelId,

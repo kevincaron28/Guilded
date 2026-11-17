@@ -4,6 +4,7 @@ import { cardBackdropArt } from "./card-backdrop.js";
 import { renderBannerCard, renderDungeonCard, renderResultCard, type CardSpecLadderRow, type DungeonPartyRow, type NextCardSpec } from "./card-layouts-next.js";
 import { GOOD } from "./card-kit.js";
 import { dungeonBackdrop } from "./dungeon-backdrop.js";
+import { BG_PARTY_LABEL } from "./end-cards.js";
 import { type ScoreCard } from "./score-card.js";
 
 /**
@@ -20,7 +21,7 @@ export async function renderNextCard(card: ScoreCard): Promise<Buffer | null> {
   if (card.ladder && !card.recap && !card.record && !card.roster && !card.unlocks?.length) return ladderCard(card);
   if (card.ladder || card.recap || card.record || card.roster || card.unlocks?.length) return null;
   const kind = card.backdrop?.kind;
-  if (kind === "board" && card.backdrop?.key === "duel" && card.rows?.length === 2 && card.stats.length === 3) return duelCard(card);
+  if (kind === "board" && card.backdrop?.key === "duel" && card.rows?.length === 2 && card.stats.length >= 1 && card.stats.length <= 3) return duelCard(card);
   if (kind === "battleground" && card.stats.length === 3) return battlegroundCard(card);
   return dataCard(card);
 }
@@ -28,14 +29,15 @@ export async function renderNextCard(card: ScoreCard): Promise<Buffer | null> {
 async function duelCard(card: ScoreCard): Promise<Buffer | null> {
   const art = await cardBackdropArt(card.backdrop, "wide");
   if (!art) return null;
-  const [points, levels, streak] = card.stats as [ScoreCard["stats"][number], ScoreCard["stats"][number], ScoreCard["stats"][number]];
+  // A duel without a known level ("— vs —") or without a streak draws the same layout, just with fewer figures.
+  const [points, ...others] = card.stats as [ScoreCard["stats"][number], ...ScoreCard["stats"]];
   const [winner, loser] = card.rows as [NonNullable<ScoreCard["rows"]>[number], NonNullable<ScoreCard["rows"]>[number]];
   const line = (row: typeof winner) => ({ text: row.sub ? `${row.name} · ${row.sub}` : row.name, color: row.color });
   const { png } = await renderResultCard({
     type: "duel", emblem: "duel", label: card.title.toUpperCase(), title: card.subtitle,
     hero: points.value, heroNote: points.note,
     names: [line(winner), line(loser)],
-    stats: [levels, streak].filter((s) => s.value && s.value !== "—").map((s) => ({ value: s.value, label: s.note ? `${s.label} · ${s.note}` : s.label })),
+    stats: others.filter((s) => s.value && !/^[—\-\s]*(vs)?[—\-\s]*$/i.test(s.value)).map((s) => ({ value: s.value, label: s.note ? `${s.label} · ${s.note}` : s.label })),
     strip: tail(card.footer)[0] ?? "", art
   });
   return png;
@@ -49,6 +51,7 @@ async function battlegroundCard(card: ScoreCard): Promise<Buffer | null> {
     type: "battleground", emblem: "flag", label: (tail(card.eyebrow).slice(-2)[0] ?? card.title).toUpperCase(), title: card.title,
     hero: result.value, heroColor: ACCENT[result.accent ?? "gold"] ?? GOOD,
     stats: [{ value: time.value, label: time.label }, { value: format.value, label: format.note ?? format.label }].filter((s) => s.value && s.value !== "—"),
+    rows: Object.values(BG_PARTY_LABEL).includes(card.rowsLabel ?? "") ? (card.rows ?? []).slice(0, 4).map((r) => ({ name: r.name, color: r.color })) : [],
     strip: [card.subtitle, card.badges?.[0]?.text].filter(Boolean).join("  ·  "), art
   });
   return png;
@@ -115,7 +118,7 @@ const BOARD_LOOK: Record<string, Kind & { focus?: number }> = {
 };
 
 async function ladderCard(card: ScoreCard): Promise<Buffer | null> {
-  const visual = card.ladder!, key = card.backdrop?.key ?? "";
+  const visual = card.ladder!, key = card.backdrop?.key === "duel-ladder" ? "duel" : card.backdrop?.key ?? "";
   const boards = visual.boards.filter((board) => board.rows.length);
   // A board longer than 25 rows (a race board set to its top 50) keeps the old long card: the banner layout shows twelve.
   if (!boards.length || !card.backdrop || boards.some((board) => board.rows.length > 25)) return null;
@@ -125,23 +128,31 @@ async function ladderCard(card: ScoreCard): Promise<Buffer | null> {
   const primary = Math.max(0, cols.findIndex((c) => c.primary));
   const plain = cols.map((c, i) => ({ c, i })).filter(({ c, i }) => i !== primary && c.kind !== "move" && c.kind !== "bar");
   const bar = cols.findIndex((c) => c.kind === "bar");
-  const legend: string[] = [];
   const cell = (values: string[], i: number) => (values[i] ?? "").trim();
-  // How a row's score and small second figure are chosen (by board; others: the primary column, then up to three more joined with "/" and named in the strip).
+  const label = (i: number) => (cols[i]?.label ?? "").trim();
+  const join = (items: string[], by: string) => items.filter(Boolean).join(by);
+  // How a row's score and small second figure are chosen (by board; others: the primary column, then up to three more joined with "/").
+  // `heads` names those two columns in a header row, so the footer carries no legend any more (16 Nov 2026).
+  const rest = plain.slice(0, 3);
+  let heads: { score: string; record?: string } = { score: label(primary), ...(rest.length ? { record: join(rest.map(({ c }) => c.label), " / ") } : {}) };
   const scoreAndRecord = (values: string[]): { score: string; record?: string | undefined } => {
-    if (key === "duel") return { score: cell(values, 0), record: [cell(values, 1), cell(values, 2)].every(Boolean) ? `${cell(values, 1)}-${cell(values, 2)}` : undefined };
+    if (key === "duel") return { score: cell(values, 0), record: [cell(values, 1), cell(values, 2)].every(Boolean) ? `${cell(values, 1)}-${cell(values, 2)} · ${cell(values, 3)}` : undefined };
     if (key === "battlegrounds") return { score: cell(values, 2) || cell(values, 0), record: [cell(values, 0), cell(values, 1)].every(Boolean) ? `${cell(values, 0)}-${cell(values, 1)}` : undefined };
     // Community: Discord / dungeons / PvP packed tight so three-digit figures still fit beside a long name.
     if (key === "community") return { score: cell(values, 3), record: [0, 1, 2].map(i => cell(values, i)).join("/") };
-    if (key === "world-pvp") return { score: cell(values, 0), record: cell(values, 4) ? `${cell(values, 4)} ${cols[4]?.label ?? ""}`.trim() : undefined };
-    const rest = plain.map(({ i }) => cell(values, i)).filter(Boolean).slice(0, 3);
-    return { score: cell(values, primary) || (bar >= 0 ? cell(values, primary) : ""), record: rest.length ? rest.join(" / ") : undefined };
+    if (key === "world-pvp") return { score: cell(values, 0), record: cell(values, 4) || undefined };
+    const more = plain.slice(0, 3).map(({ i }) => cell(values, i)).filter(Boolean);
+    return { score: cell(values, primary) || (bar >= 0 ? cell(values, primary) : ""), record: more.length ? more.join(" / ") : undefined };
   };
-  if (!["duel", "battlegrounds", "world-pvp"].includes(key) && plain.length > 1) legend.push(plain.slice(0, 3).map(({ c }) => c.label).filter(Boolean).join(" / "));
+  if (key === "duel") heads = { score: label(0), record: `${label(1)}-${label(2)} · ${label(3)}` };
+  else if (key === "battlegrounds") heads = { score: label(2), record: `${label(0)}-${label(1)}` };
+  else if (key === "community") heads = { score: label(3), record: join([0, 1, 2].map(label), " / ") };
+  else if (key === "world-pvp") heads = { score: label(0), record: label(4) };
+  const fr = /Mis à jour/.test(visual.meta ?? ""); // ladderMeta writes the language of the card
   const rowsOf = (rows: typeof boards[number]["rows"]): CardSpecLadderRow[] => rows.map((row) => {
     const { score, record } = scoreAndRecord(row.values);
-    // A row's second line (the level bracket on the dungeon season board) joins its name: the banner ladder has one line per row.
-    return { rank: row.rank, name: row.sub && key === "dungeon-season" ? `${row.name} · ${row.sub}` : row.name, color: row.color, score: score || "—", ...(record ? { record } : {}), ...(row.move !== undefined ? { move: row.move } : {}) };
+    // A row's second line (the level bracket on the dungeon season board) is an extra beside the name: dropped before the name is cut.
+    return { rank: row.rank, name: row.name, ...(row.sub && key === "dungeon-season" ? { extra: row.sub } : {}), color: row.color, score: score || "—", ...(record ? { record } : {}), ...(row.move !== undefined ? { move: row.move } : {}) };
   });
   const look = BOARD_LOOK[key] ?? { type: "weekly" as const, emblem: "bars" as const };
   const { png } = await renderBannerCard({
@@ -149,7 +160,8 @@ async function ladderCard(card: ScoreCard): Promise<Buffer | null> {
     // The header says what the board is (title, then subtitle), never who leads it: row 1 of the table already does (16 Nov 2026).
     hero: card.subtitle,
     ...(boards.length > 1 ? { boards: boards.map((b) => ({ title: b.title, rows: rowsOf(b.rows) })) } : { ladder: rowsOf(boards[0]!.rows) }),
-    strip: [...legend, visual.meta].filter(Boolean).join("  ·  "), art
+    heads, moreWord: fr ? "autres" : "more",
+    strip: visual.meta ?? "", art
   });
   return png;
 }

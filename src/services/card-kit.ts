@@ -12,8 +12,8 @@ import { drawable } from "./score-card.js";
  *    floor, then end with an ellipsis;
  *  - at least MIN_CONTRAST:1 against the brightest 5 % of the pixels behind the string (painting, overlays and panels, measured
  *    before the text is drawn).
- * Upright Carlito (SIL OFL, site/fonts/CARLITO-LICENSE.txt) is the face for hero lines, names and numbers; the shipped Source Serif
- * italic stays for card titles only.
+ * Upright Carlito (SIL OFL, site/fonts/CARLITO-LICENSE.txt) is the face for hero lines, names and numbers; Pirata One (SIL OFL, site/fonts/pirata-one-OFL.txt)
+ * draws the card title and the small eyebrow label of the banner layouts. Source Serif italic stays for the old framed layout.
  */
 export const CARD_W = 1200, CARD_H = 630;
 export const MIN_TEXT_PX = 24;
@@ -23,6 +23,7 @@ export const INK = "#f8f1e1", SUB = "#ddd4c0", GOOD = "#86e66a";
 const font = (file: string) => fileURLToPath(new URL(`../../site/fonts/${file}`, import.meta.url));
 const FACES = {
   serif: { family: "Source Serif 4", file: font("source-serif-latin.ttf") },
+  title: { family: "Pirata One", file: font("pirata-one.ttf") },
   sans: { family: "Carlito", file: font("Carlito-Regular.ttf") },
   bold: { family: "Carlito Bold", file: font("Carlito-Bold.ttf") }
 } as const;
@@ -96,6 +97,11 @@ export class CardCanvas {
   }
   emblem(kind: EmblemKind, x: number, y: number, size: number, color: string) {
     this.svg += `<g transform="translate(${x} ${y}) scale(${size / 64})" fill="none" stroke="${safeColor(color, INK)}" stroke-width="5" stroke-linejoin="round" stroke-linecap="round">${EMBLEMS[kind]}</g>`;
+  }
+  /** The drawn width of a string at one size (same cleaning as text(), no shrinking or cutting): lets a layout give the rest of a row to a name. */
+  async width(str: string, size: number, face: Face = "sans", spacing?: number): Promise<number> {
+    const s = cleanText(str);
+    return s ? (await drawRaw(s, INK, size, face, spacing)).w : 0;
   }
   /**
    * Draws a string at (x, y = top of its box). Below MIN_TEXT_PX is a programming error; too wide shrinks to the floor, then

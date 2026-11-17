@@ -14,7 +14,7 @@ import { professionName } from "./profession-style.js";
 import { canonicalProfessionText, mergeProfessionSkills } from "./profession-names.js";
 import { dayStart, participationDay } from "./participation-rules.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./discord-jobs.js";
-import { cardDate } from "./card-format.js";
+import { cardDate, loadCardTimeZone } from "./card-format.js";
 import { classColor, ladderMeta, scoreCardPng, type ScoreCard } from "./score-card.js";
 import { moveColumn, moveFields, trackRanks, type Movements } from "./ladder-snapshots.js";
 import { isOwnBoard } from "./board-identity.js";
@@ -269,7 +269,7 @@ export function hallEmbed(entry: HallRecord, lang: Lang, guildId = "", nameKey =
 
 /** The message payload of one Hall of Fame post: the embed and its card (no card when drawing is busy or fails). */
 export async function hallPayload(entry: HallRecord, lang: Lang, guildId: string, nameKey: string, memberName: string | null = null, timeZone?: string): Promise<HallPayload> {
-  const png = await scoreCardPng(hallCard(entry, lang, memberName, timeZone)).catch(() => null);
+  const png = await scoreCardPng(hallCard(entry, lang, memberName, timeZone ?? await loadCardTimeZone(prisma, guildId))).catch(() => null);
   return { embeds: [hallEmbed(entry, lang, guildId, nameKey, png ? HALL_CARD_FILE : undefined)], files: png ? [cardAttachment(png, HALL_CARD_FILE)] : [], allowedMentions: { parse: [] as never[] } };
 }
 

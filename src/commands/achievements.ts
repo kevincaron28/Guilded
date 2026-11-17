@@ -1,5 +1,6 @@
 import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder, type ButtonInteraction, type ChatInputCommandInteraction } from "discord.js";
 import { prisma } from "../database.js";
+import { loadCardTimeZone } from "../services/card-format.js";
 import { achievementsCard } from "../services/end-cards.js";
 import { scoreCardPng } from "../services/score-card.js";
 import { SECRET_TAG, isHiddenSecret, secretCountLabel } from "../services/achievements-catalogue.js";
@@ -17,7 +18,7 @@ async function render(guildId: string, memberId: string, name: string, fr: boole
   const t = (en: string, french: string) => fr ? french : en;
   const view = await syncMemberAchievements(prisma, guildId, memberId);
   const items = view.results.map(row => ({ id: row.def.id, earnedAt: row.earned ? row.earnedAt : null, value: row.value }));
-  const png = await scoreCardPng(achievementsCard(name, items, fr ? "fr" : "en")).catch(() => null);
+  const png = await scoreCardPng(achievementsCard(name, items, fr ? "fr" : "en", await loadCardTimeZone(prisma, guildId))).catch(() => null);
   const earned = view.results.filter(row => row.earned);
   const hiddenSecrets = view.results.filter(row => isHiddenSecret(row.def, row.earned)).length;
   const embed = new EmbedBuilder().setTitle(`⚜️ ${t("Achievements", "Succès")} · ${name}`.slice(0, 256))

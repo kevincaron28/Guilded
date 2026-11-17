@@ -34,8 +34,8 @@ export function recordItems(highlights: readonly DungeonHighlightItem[] | undefi
 }
 
 /** Pure: the record card for one run and its record item. */
-export function recordCard(run: DungeonImportResult, item: DungeonHighlightItem, lang: Lang): ScoreCard {
-  const fr = lang === "fr", runCard = dungeonRunCard(run, lang);
+export function recordCard(run: DungeonImportResult, item: DungeonHighlightItem, lang: Lang, timeZone?: string): ScoreCard {
+  const fr = lang === "fr", runCard = dungeonRunCard(run, lang, timeZone ? { timeZone } : {});
   const newSec = item.valueSec ?? run.durationSec ?? 0, previousSec = item.kind === "clear" ? item.previousSec : undefined;
   const tie = previousSec !== undefined && previousSec === newSec;
   const ribbon = item.kind === "first" ? (fr ? "Premier record de la guilde" : "First guild record")

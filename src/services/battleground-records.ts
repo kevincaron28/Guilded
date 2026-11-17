@@ -91,6 +91,25 @@ export async function battlegroundHistory(db: PrismaClient, guildId: string, mem
       durationSeconds: true, endedAt: true, outcome: true, presence: true, reloaded: true, status: true, corroborated: true, conflictSummary: true, correctionReason: true } });
 }
 
+/**
+ * The guild players who reported the same match as `row` (same map and mode, ended within ten minutes, the same premade when
+ * the report has one), without the member who asked. Only members who allow guild stats (BattlegroundConsent.guildStats) are listed.
+ */
+export async function battlegroundParty(db: Pick<PrismaClient, "battlegroundReport" | "character">, guildId: string, memberId: string,
+  row: { mapId: number; mode: string; endedAt: Date }) {
+  const span = 10 * 60_000;
+  const others = await db.battlegroundReport.findMany({ where: { guildId, memberId: { not: memberId }, mapId: row.mapId, mode: row.mode, status: { not: "WITHDRAWN" },
+    endedAt: { gte: new Date(row.endedAt.getTime() - span), lte: new Date(row.endedAt.getTime() + span) }, member: { battlegroundConsent: { is: { guildStats: true } } } },
+    take: 20, select: { character: { select: { name: true, displayName: true, className: true } } } });
+  const seen = new Set<string>();
+  return others.flatMap(({ character }) => {
+    const name = (character.displayName || character.name).trim();
+    if (!name || seen.has(name.toLowerCase())) return [];
+    seen.add(name.toLowerCase());
+    return [{ name, ...(character.className ? { className: character.className } : {}) }];
+  });
+}
+
 export async function correctBattlegroundReport(db: PrismaClient, guildId: string, memberId: string, reportId: string, reason: string) {
   const note = reason.trim();
   if (note.length < 3 || note.length > 200) throw new Error("Correction reason: 3–200 characters / Motif : 3–200 caractères.");

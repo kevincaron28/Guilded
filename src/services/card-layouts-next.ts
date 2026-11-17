@@ -14,7 +14,7 @@ import { ACCENTS, CARD_H, CARD_W, CardCanvas, GOOD, INK, SUB, type AccentKey, ty
  */
 export interface CardLine { text: string; color?: string | undefined }
 export interface CardSpecRow { name: string; color?: string | undefined; sub?: string | undefined; right?: string | undefined }
-export interface CardSpecLadderRow { rank: number; name: string; color: string; score: string; record?: string | undefined; /** Rank movement: positive up, negative down, "new" a new entry (drawn as a small triangle or dot, not text). */ move?: number | "new" | undefined }
+export interface CardSpecLadderRow { rank: number; name: string; color: string; score: string; /** Dropped before the name is cut (the bracket of a dungeon-season player). */ extra?: string | undefined; record?: string | undefined; /** Rank movement: positive up, negative down, "new" a new entry (drawn as a small triangle or dot, not text). */ move?: number | "new" | undefined }
 export interface CardSpecBoard { title?: string | undefined; rows: CardSpecLadderRow[] }
 export interface CardSpecStat { value: string; label: string }
 export interface NextCardSpec {
@@ -28,6 +28,10 @@ export interface NextCardSpec {
   stats?: CardSpecStat[] | undefined;
   rows?: CardSpecRow[] | undefined;
   ladder?: CardSpecLadderRow[] | undefined;
+  /** Names of the ladder's two figure columns, drawn as a header row (the old footer legend). */
+  heads?: { record?: string | undefined; score?: string | undefined } | undefined;
+  /** The word after "+N" on the line that says rows exist beyond the ones drawn ("autres", "more"). */
+  moreWord?: string | undefined;
   /** Several boards side by side (at most two, six rows each, each under its own title). Wins over `ladder`. */
   boards?: CardSpecBoard[] | undefined;
   /** Small print along the bottom (date, context). Messages carry the legal wording, not the image. */
@@ -57,8 +61,8 @@ export function renderResultCard(spec: NextCardSpec): Promise<RenderedCard> {
     c.rect(0, 548, CARD_W, 82, "#060504", { opacity: 0.66 });
     c.rect(0, 546, CARD_W, 3, accent, { opacity: 0.9 });
     c.emblem(spec.emblem, x, 36, 44, tint);
-    await c.text(spec.label, x + 58, 42, { size: 26, face: "bold", color: tint, spacing: 1500, maxW: colW - 58 });
-    await c.text(spec.title, x, 96, { size: 44, face: "serif", maxW: colW });
+    await c.text(spec.label, x + 58, 42, { size: 30, face: "title", color: tint, spacing: 800, maxW: colW - 58 });
+    await c.text(spec.title, x, 96, { size: 51, face: "title", maxW: colW });
     let y = 154;
     const hero = await c.text(spec.hero, x, y, { size: 84, face: "bold", color: spec.heroColor ?? GOOD, maxW: colW });
     y += hero.h + 10;
@@ -77,8 +81,9 @@ export function renderResultCard(spec: NextCardSpec): Promise<RenderedCard> {
       await c.text(stat.label, x + a.w + 14, y + 9, { size: 26, color: SUB, maxW: colW - a.w - 14 });
       y += 50;
     }
+    if (rows.length) y += 8;
     for (const row of rows) {
-      const n = await c.text(row.name, x, y, { size: 32, face: "bold", color: row.color ?? INK, maxW: 240, ellipsis: true });
+      const n = await c.text(row.name, x, y, { size: 32, face: "bold", color: row.color ?? INK, maxW: row.sub || row.right ? 240 : colW, ellipsis: true });
       if (row.sub) await c.text(row.sub, x + n.w + 12, y + 3, { size: 28, color: SUB, maxW: 130 });
       if (row.right) await c.text(row.right, x + colW, y, { size: 32, face: "bold", anchor: "r", maxW: 140 });
       y += 44;
@@ -97,35 +102,48 @@ export function renderBannerCard(spec: NextCardSpec): Promise<RenderedCard> {
     const columns: CardSpecBoard[] | null = boards.length > 1 ? boards.map((x) => ({ ...x, rows: x.rows.slice(0, 6) }))
       : boards.length === 1 ? splitRows(boards[0]!.rows.slice(0, 12), boards[0]!.title) : flat ? splitRows(flat) : null;
     const ladder = columns !== null;
-    const bh = ladder ? 190 : 285;
+    const bh = ladder ? 180 : 285;
     c.gradient(0, 0, 760, bh, "h", [[0, "#000", 0.82], [0.7, "#000", 0.4], [1, "#000", 0]]);
     c.rect(0, bh, CARD_W, CARD_H - bh, "#15110d");
     c.rect(0, bh, CARD_W, 5, accent);
-    c.emblem(spec.emblem, 56, 28, 44, tint);
-    await c.text(spec.label, 116, 34, { size: 26, face: "bold", color: tint, spacing: 1500, maxW: 420 });
+    c.emblem(spec.emblem, 56, 24, 44, tint);
+    await c.text(spec.label, 116, 28, { size: 30, face: "title", color: tint, spacing: 800, maxW: 420 });
     if (columns) {
-      await c.text(spec.title, 56, 84, { size: 46, face: "serif", maxW: 420 });
-      const hero = await c.text(spec.hero, 56, 130, { size: 40, face: "bold", color: spec.heroColor ?? INK, maxW: 420 });
+      await c.text(spec.title, 56, 68, { size: 53, face: "title", maxW: 420 });
+      const hero = await c.text(spec.hero, 56, 134, { size: 34, face: "bold", color: spec.heroColor ?? INK, maxW: 420 });
       if (spec.heroNote) await c.text(spec.heroNote, 56 + hero.w + 16, 140, { size: 28, color: SUB, maxW: 330 });
-      const colw = columns.length > 1 ? 560 : 1120, titled = columns.some((col) => col.title), rowh = titled ? 52 : 56, top = bh + 18 + (titled ? 34 : 0);
+      const colw = columns.length > 1 ? 560 : 1120, rowh = 50, headY = bh + 10, top = bh + 44, heads = spec.heads, headed = Boolean(heads?.record || heads?.score);
+      let drawn = 0;
       for (const [ci, col] of columns.entries()) {
-        const x = 56 + ci * (colw + 24);
-        if (col.title) await c.text(col.title, x, bh + 14, { size: 26, face: "bold", color: tint, maxW: colw - 10 });
-        const recW = colw > 600 ? 300 : 130;
+        const x = 56 + ci * (colw + 24), edge = x + colw - 24;
+        // The widest score and record of the column decide how much of the row is left for the name.
+        const scoreW = Math.max(0, ...await Promise.all(col.rows.map((r) => c.width(r.score, 34, "bold"))));
+        const recW = Math.max(0, ...await Promise.all(col.rows.map((r) => (r.record ? c.width(r.record, 26) : Promise.resolve(0)))));
+        const recR = edge - Math.min(scoreW, 100) - 22, nameX = x + 56, nameR = recW ? recR - recW - 16 : recR;
+        if (col.title) await c.text(col.title, x, headY, { size: 26, face: "bold", color: tint, maxW: colw / 2 });
+        if (headed || col.title) {
+          if (heads?.score) await c.text(heads.score, edge, headY + 2, { size: 24, color: SUB, anchor: "r", maxW: 120 });
+          if (heads?.record && recW) await c.text(heads.record, recR, headY + 2, { size: 24, color: SUB, anchor: "r", maxW: Math.max(recW, 130) + 80 });
+        }
         for (const [row, r] of col.rows.entries()) {
           const y = top + row * rowh;
-          c.rect(x - 8, y - 4, colw, rowh - 6, "#ffffff", { opacity: row % 2 ? 0 : 0.05, rx: 8 });
+          c.rect(x - 8, y - 4, colw, rowh - 4, "#ffffff", { opacity: row % 2 ? 0 : 0.05, rx: 8 });
           await c.text(String(r.rank), x + 30, y + 2, { size: 30, face: "bold", color: r.rank <= 3 ? tint : SUB, anchor: "r" });
           if (r.move === "new") c.raw(`<circle cx="${x + 43}" cy="${y + 19}" r="4.5" fill="${tint}"/>`);
           else if (typeof r.move === "number" && r.move !== 0) c.raw(`<path d="${r.move > 0 ? `M${x + 38} ${y + 24} L${x + 48} ${y + 24} L${x + 43} ${y + 14} Z` : `M${x + 38} ${y + 14} L${x + 48} ${y + 14} L${x + 43} ${y + 24} Z`}" fill="${r.move > 0 ? GOOD : "#ff8a7a"}"/>`);
-          await c.text(r.name, x + 56, y + 2, { size: 32, color: r.color, ellipsis: true, maxW: colw - 56 - 24 - 110 - (r.record ? recW + 12 : 0) });
-          if (r.record) await c.text(r.record, x + colw - 140, y + 6, { size: 26, color: SUB, anchor: "r", maxW: recW });
-          await c.text(r.score, x + colw - 24, y + 2, { size: 34, face: "bold", anchor: "r", maxW: 100 });
+          // Full name first; the extra (bracket, Discord part) is shown only when it fits beside it, never instead of a letter of the name.
+          const nameW = await c.text(r.name, nameX, y + 2, { size: 32, color: r.color, ellipsis: true, maxW: nameR - nameX });
+          if (r.extra && nameW.right + 14 + 100 < nameR) await c.text(r.extra, nameW.right + 14, y + 6, { size: 24, color: SUB, ellipsis: true, maxW: nameR - nameW.right - 14 });
+          if (r.record) await c.text(r.record, recR, y + 6, { size: 26, color: SUB, anchor: "r", maxW: recW + 4 });
+          await c.text(r.score, edge, y + 2, { size: 34, face: "bold", anchor: "r", maxW: 120 });
+          drawn++;
         }
       }
+      const total = boards.length > 1 ? boards.reduce((n, b) => n + b.rows.length, 0) : boards.length === 1 ? boards[0]!.rows.length : (spec.ladder?.length ?? 0);
+      if (total - drawn > 0) await c.text(`+${total - drawn} ${spec.moreWord ?? "more"}`, CARD_W - 56, top + 6 * rowh + 2, { size: 24, color: SUB, anchor: "r" });
       if (spec.strip) await c.text(spec.strip, 56, 586, { size: 24, color: SUB, maxW: CARD_W - 112 });
     } else {
-      await c.text(spec.title, 56, 84, { size: 54, face: "serif", maxW: 560 });
+      await c.text(spec.title, 56, 84, { size: 62, face: "title", maxW: 560 });
       const hero = await c.text(spec.hero, 56, 154, { size: 76, face: "bold", color: spec.heroColor ?? INK, maxW: 560 });
       if (spec.heroNote) await c.text(spec.heroNote, 56 + hero.w + 18, 190, { size: 30, color: SUB, maxW: Math.max(120, 740 - (56 + hero.w + 18)) });
       let y = bh + 28;
@@ -233,11 +251,11 @@ export function renderDungeonCard(spec: DungeonCardSpec): Promise<RenderedCard> 
     c.rect(0, 548, CARD_W, 82, "#060504", { opacity: 0.66 });
     c.rect(0, 546, CARD_W, 3, accent, { opacity: 0.9 });
     c.emblem("gate", x, 26, 36, tint);
-    await c.text(spec.label, x + 50, 28, { size: 26, face: "bold", color: tint, spacing: 1500, maxW: colW - 50 });
-    await c.text(spec.title, x, 66, { size: 42, face: "serif", maxW: colW });
-    const hero = await c.text(spec.hero, x, 114, { size: 68, face: "bold", color: spec.heroColor ?? GOOD, maxW: 280 });
-    if (spec.heroNote) await c.text(spec.heroNote, x + hero.w + 18, 140, { size: 28, color: SUB, maxW: colW - hero.w - 18 });
-    let y = 114 + hero.h + 8;
+    await c.text(spec.label, x + 50, 28, { size: 30, face: "title", color: tint, spacing: 800, maxW: colW - 50 });
+    await c.text(spec.title, x, 62, { size: 48, face: "title", maxW: colW });
+    const hero = await c.text(spec.hero, x, 126, { size: 68, face: "bold", color: spec.heroColor ?? GOOD, maxW: 280 });
+    if (spec.heroNote) await c.text(spec.heroNote, x + hero.w + 18, 152, { size: 28, color: SUB, maxW: colW - hero.w - 18 });
+    let y = 126 + hero.h + 6;
     if (spec.facts.length) { await c.text(spec.facts.join("  ·  "), x, y, { size: 28, color: INK, maxW: colW }); y += 40; }
     // Column edges (right edges for numbers). Emblem 38 px, then name, level, guild, +gain, season total.
     // The Guild column exists only when some player has a guild to show; without it the names get its width.

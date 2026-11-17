@@ -9,7 +9,7 @@ vi.mock("../src/database.js", () => ({ prisma: { officialSeason: { findFirst: mo
 vi.mock("../src/commands/context.js", () => ({ requireGuildContext: mocks.context }));
 vi.mock("../src/permissions.js", () => ({ hasPermission: mocks.officer }));
 vi.mock("../src/services/activity-core-discord.js", () => ({ teamLanguage: mocks.language, requireTeamChannel: vi.fn(), teamSessionEmbed: vi.fn() }));
-vi.mock("../src/services/battleground-records.js", () => ({ battlegroundHistory: mocks.history, correctBattlegroundReport: mocks.correct, battlegroundStats: mocks.stats }));
+vi.mock("../src/services/battleground-records.js", () => ({ battlegroundHistory: mocks.history, correctBattlegroundReport: mocks.correct, battlegroundStats: mocks.stats, battlegroundParty: vi.fn(async () => []) }));
 import { battlegroundCommand, executeBattleground, handleBattlegroundComponent } from "../src/commands/battleground.js";
 import { runInGuildScope } from "../src/services/guild-scope.js";
 

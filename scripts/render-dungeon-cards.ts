@@ -36,7 +36,7 @@ function sample(dungeonName: string, i: number): DungeonImportResult {
 
 mkdirSync(outDir, { recursive: true });
 for (const [i, name] of (names.length ? names : all).entries()) {
-  const lang = i % 2 ? "fr" : "en", t0 = Date.now();
+  const lang = process.env.CARD_LANG === "en" ? "en" : "fr", t0 = Date.now();
   const png = await scoreCardPng(dungeonRunCard(sample(name, i), lang));
   const file = join(outDir, `dungeon-card-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}.png`);
   writeFileSync(file, png!);

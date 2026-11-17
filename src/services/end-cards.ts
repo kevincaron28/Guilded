@@ -5,7 +5,7 @@ import { ACTIVE_ACHIEVEMENTS, TIER_COLOR, TIER_LABEL, achievementById, groupLabe
 import type { RaidReport } from "./raid-report.js";
 import { formatDuration } from "./raid-report.js";
 import { cardDate } from "./card-format.js";
-import type { CardRow, ScoreCard } from "./score-card.js";
+import { classColor, type CardRow, type ScoreCard } from "./score-card.js";
 
 type Lang = "en" | "fr";
 const pick = (lang: Lang) => (en: string, fr: string) => lang === "fr" ? fr : en;
@@ -55,7 +55,12 @@ const mapName = (id: number, lang: Lang = "en") => (lang === "fr" ? MAPS_FR[id] 
 /** The painting is chosen by the English name, whatever the language. */
 const mapArtKey = (id: number) => (MAPS[id] ?? "default").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-export interface BgCardRow { reportId: string; mode: string; mapId: number; bracket: string; endedAt: Date; durationSeconds?: number | undefined; outcome: string; presence: string; status: string; corroborated?: boolean | undefined; reloaded?: boolean | undefined }
+export interface BgCardRow { reportId: string; mode: string; mapId: number; bracket: string; endedAt: Date; durationSeconds?: number | undefined; outcome: string; presence: string; status: string; corroborated?: boolean | undefined; reloaded?: boolean | undefined;
+  /** The guild players who reported the same match (consented, see battlegroundParty), with their class when known. */
+  party?: { name: string; className?: string | undefined }[] | undefined }
+
+/** The label of the player list on a battleground card (the banner layout shows the list only under this label). */
+export const BG_PARTY_LABEL: Record<Lang, string> = { en: "Guild players", fr: "Joueurs de la guilde" };
 
 /** End of a match, from the player's own consented postmatch report. Self-only: no roster, damage or honor exists. */
 export function battlegroundEndCard(row: BgCardRow, recent: BgCardRow[] = [], lang: Lang = "en", timeZone?: string): ScoreCard {
@@ -73,10 +78,10 @@ export function battlegroundEndCard(row: BgCardRow, recent: BgCardRow[] = [], la
       { label: t("Format", "Format"), value: row.mode, note: t(`Bracket ${row.bracket}`, `Tranche ${row.bracket}`) }
     ],
     backdrop: { kind: "battleground", key: mapArtKey(row.mapId), fallbackKey: "default" },
-    rowsLabel: t("Your recent matches", "Vos matchs récents"),
-    rows: recent.slice(0, 5).map(r => ({ name: mapName(r.mapId, lang), sub: `${cardDate(r.endedAt, lang, timeZone)} · ${r.mode}`, right: word(r.outcome), rightTone: tone(r.outcome), color: r.reportId === row.reportId ? "#ffd100" : undefined })),
+    rowsLabel: row.party?.length ? BG_PARTY_LABEL[lang] : t("Your recent matches", "Vos matchs récents"),
+    rows: row.party?.length ? row.party.slice(0, 6).map(p => ({ name: p.name, color: classColor(p.className) })) : recent.slice(0, 5).map(r => ({ name: mapName(r.mapId, lang), sub: `${cardDate(r.endedAt, lang, timeZone)} · ${r.mode}`, right: word(r.outcome), rightTone: tone(r.outcome), color: r.reportId === row.reportId ? "#ffd100" : undefined })),
     badges: [
-      { text: row.corroborated ? t("Matches a party member's report", "Concorde avec un autre rapport") : t("Provisional · not yet corroborated", "Provisoire · non corroboré"), tone: row.corroborated ? "ok" : "warn" },
+      { text: row.corroborated ? t("Matches a party member's report", "Concorde avec un autre rapport") : t("Provisional result", "Résultat provisoire"), tone: row.corroborated ? "ok" : "warn" },
       ...(row.status !== "PROVISIONAL" ? [{ text: row.status.toLowerCase(), tone: "muted" as const }] : [])
     ],
     footer: t("Private to you · Your own post-match report · Not Blizzard verified · no honor or ranking implied", "Privé · Votre propre rapport d'après-match · Non vérifié par Blizzard · aucun honneur ni classement")

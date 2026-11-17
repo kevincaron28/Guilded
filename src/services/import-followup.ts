@@ -1,6 +1,7 @@
 import { updateProfessionDirectory } from "./profession-directory.js";
 import { EmbedBuilder, type Guild as DiscordGuild } from "discord.js";
 import { prisma } from "../database.js";
+import { loadCardTimeZone } from "./card-format.js";
 import { autoLinkUnclaimed } from "./character-autolink.js";
 import { currentEdition } from "./edition-context.js";
 import { dungeonPosts, postingGuildName } from "./dungeon-announce.js";
@@ -54,17 +55,18 @@ export async function announceDungeonRuns(discordGuild: DiscordGuild | null, dun
   const ownGuild = guildId ? postingGuildName(await prisma.wowGuild.findMany({ where: { guildId, gameEdition: currentEdition() }, select: { name: true }, orderBy: { createdAt: "asc" } }).catch(() => []), dungeons.results) : null;
   // Players outside the guild whose run is also public get their public season total (best effort, after the guild-run numbers).
   await applyPublicScores(prisma, dungeons.results);
-  const runs = dungeonPosts(dungeons, "en", { ownGuild });
+  const timeZone = guildId ? await loadCardTimeZone(prisma, guildId) : undefined;
+  const runs = dungeonPosts(dungeons, "en", { ownGuild, ...(timeZone ? { timeZone } : {}) });
   for (const index of runs.keys()) {
     await notifyDungeon(discordGuild, (lang) => {
-      const post = dungeonPosts(dungeons, lang, { ownGuild })[index] ?? runs[index]!;
+      const post = dungeonPosts(dungeons, lang, { ownGuild, ...(timeZone ? { timeZone } : {}) })[index] ?? runs[index]!;
       return { embed: post.embed, card: post.card, cardOnly: post.cardOnly, components: post.components, ...(post.content ? { content: post.content } : {}) };
     });
     // A guild record gets its own card right after the run's post, so it is not lost among the run cards. Highlights were
     // removed above when an officer switched records off, so this follows the same switch. No mentions.
     const run = dungeons.results.find(result => result.runRef === runs[index]!.runRef);
     for (const item of run ? recordItems(run.highlights) : []) {
-      await notifyDungeon(discordGuild, (lang) => ({ embed: recordEmbed(run!, item, lang), card: recordCard(run!, item, lang), cardOnly: { embed: new EmbedBuilder().setColor(0xffd100) } }));
+      await notifyDungeon(discordGuild, (lang) => ({ embed: recordEmbed(run!, item, lang), card: recordCard(run!, item, lang, timeZone), cardOnly: { embed: new EmbedBuilder().setColor(0xffd100) } }));
     }
   }
   return runs.length > 0;

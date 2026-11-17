@@ -7,6 +7,7 @@ import {
 } from "discord.js";
 import { RaidAttendanceStatus, RaidBossStatus, RaidRole } from "../generated/prisma/client.js";
 import { prisma } from "../database.js";
+import { loadCardTimeZone } from "../services/card-format.js";
 import { notifications, notify } from "../services/notify.js";
 import { showEpProposal } from "./ep-award.js";
 import { postRaidReport, raidReportEmbed } from "./raid-report.js";
@@ -391,7 +392,7 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
       const posted = await postRaidReport(interaction.guild, context.guildId, raidId);
       await interaction.editReply({ content: posted ? "Posted in this core's raid reports channel." : "No report channel is configured for this core." });
     } else {
-      const png = await scoreCardPng(raidEndCard(report, lang)).catch(() => null);
+      const png = await scoreCardPng(raidEndCard(report, lang, await loadCardTimeZone(prisma, context.guildId))).catch(() => null);
       const embed = raidReportEmbed(report, lang);
       if (png) embed.setImage("attachment://raid.png");
       await interaction.reply({ embeds: [embed], ...(png ? { files: [new AttachmentBuilder(png, { name: "raid.png" })] } : {}), allowedMentions: { parse: [] } });

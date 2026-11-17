@@ -5,27 +5,27 @@ import { describe, expect, it } from "vitest";
 describe("CurseForge pointer", () => {
   const releases = JSON.parse(readFileSync("site/releases.json", "utf8"));
 
-  it("points at the 9.3.7 Forever files and GitHub at 9.3.7", () => {
+  it("points at the 9.3.8 Forever files and GitHub at 9.3.8", () => {
     expect(releases.verifiedAt).toBe("2026-11-17");
     expect(releases.guilded.github.version).toBe("9.3.8");
-    expect(releases.guilded.curseforge.version).toBe("9.3.7");
+    expect(releases.guilded.curseforge.version).toBe("9.3.8");
     expect(releases.guilded.curseforge.url).toBe("https://www.curseforge.com/wow/addons/guilded");
     expect(releases.guilded.curseforge.editions.forever).toEqual({
-      guilded: "https://www.curseforge.com/wow/addons/guilded/files/9654361",
-      dungeons: "https://www.curseforge.com/wow/addons/guilded-dungeons/files/9654362"
+      guilded: "https://www.curseforge.com/wow/addons/guilded/files/9665832",
+      dungeons: "https://www.curseforge.com/wow/addons/guilded-dungeons/files/9665833"
     });
     expect(releases.guilded.companionDirect.version).toBe("9.3.8");
   });
 
-  it("shows CurseForge 9.3.7 on the creator page and links the files from the edition page", () => {
+  it("shows CurseForge 9.3.8 on the creator page and links the files from the edition page", () => {
     const creator = readFileSync("dist/site/creator/index.html", "utf8");
     expect(creator).toContain("CurseForge");
-    expect(creator).toContain(">9.3.7<");
+    expect(creator).toContain(">9.3.8<");
     const forever = readFileSync("dist/site/editions/forever/index.html", "utf8");
     // The edition page links the CurseForge files only while CurseForge carries the same version as the release.
     const linked = releases.guilded.curseforge.version === releases.guilded.github.version;
-    expect(forever.includes("9654361")).toBe(linked);
-    expect(forever.includes("9654362")).toBe(linked);
+    expect(forever.includes("9665832")).toBe(linked);
+    expect(forever.includes("9665833")).toBe(linked);
     expect(readFileSync("docs/RELEASE_CURSEFORGE.md", "utf8")).toContain("https://api.cfwidget.com/1712677");
     expect(readFileSync("scripts/curseforge-upload.mjs", "utf8")).toContain("api.cfwidget.com/1754138");
     expect(readFileSync("scripts/curseforge-upload.mjs", "utf8")).toContain('game-version", "1.60.1"');

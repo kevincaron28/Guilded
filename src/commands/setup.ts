@@ -1260,7 +1260,14 @@ export async function greetNewGuild(guild: DiscordGuild, lite = false): Promise<
 
 // Printed in the bot's console window at startup, so whoever runs the bot
 // sees right away if setup isn't finished.
+/** One line for every server whose setup is unfinished (it was one line per server at every start). */
+export function unfinishedSetupLine(unfinished: readonly { name: string; missing: readonly string[] }[]): string | null {
+  if (!unfinished.length) return null;
+  return `Setup not finished for ${unfinished.length} server${unfinished.length === 1 ? "" : "s"}: ${unfinished.map((entry) => `"${entry.name}" (${entry.missing.join("; ")})`).join(", ")}. Run /setup start in Discord.`;
+}
+
 export async function logSetupStatus(guilds: Iterable<DiscordGuild>): Promise<void> {
+  const unfinished: { name: string; missing: string[] }[] = [];
   for (const guild of guilds) {
     try {
       const record = await guildService.ensureGuild(guild.id, guild.name);
@@ -1269,9 +1276,11 @@ export async function logSetupStatus(guilds: Iterable<DiscordGuild>): Promise<vo
       const checks = setupChecks(await gatherFacts(guild, record.id, settings));
       const missing = checks.filter((check) => !check.ok && !check.optional);
       if (missing.length === 0) console.info(`Setup complete for "${guild.name}".`);
-      else console.info(`Setup not finished for "${guild.name}" (${missing.map((check) => check.label).join("; ")}). Run /setup start in Discord.`);
+      else unfinished.push({ name: guild.name, missing: missing.map((check) => check.label) });
     } catch (error) {
       console.warn(`Could not check setup for "${guild.name}": ${error instanceof Error ? error.message : String(error)}`);
     }
   }
+  const line = unfinishedSetupLine(unfinished);
+  if (line) console.info(line);
 }

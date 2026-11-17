@@ -104,7 +104,7 @@ import { exchangePersonalCode, isPersonalCode, issuePersonalCredential, personal
 import { claimDevice, DEVICE_FEATURES, DEVICE_LIMITS, networkKey, DeviceError, deviceFor, handleDeviceUpload, memberForCredential, pickServer, prismaInstallStore, registerDevice, windowLimiter } from "./services/companion-device.js";
 import { loadOfficialWindows } from "./services/official-seasons.js";
 import { companionSignInRoute, createCompanionSignIn } from "./services/companion-signin.js";
-import { guildMembership, splitStrangerRuns } from "./services/guild-participants.js";
+import { guildMembership, splitStrangerRuns, withOwnNames } from "./services/guild-participants.js";
 import { recordHealthReport } from "./services/sync-health.js";
 import { carrySignedGroupRuns, runIds } from "./services/relay-public.js";
 import { applyCarriedRecords, ownCarrierKeys } from "./services/carried-records.js";
@@ -531,6 +531,23 @@ export function standingsTimingLine(input: { guild: string | null; status: numbe
   const guild = input.guild ? createHash("sha256").update(input.guild).digest("hex").slice(0, 8) : "none";
   return `standings guild=${guild} status=${input.status} ms=${Math.round(input.ms)} bytes=${input.bytes} wait=${input.wait ?? 0} conditional=${input.conditional ? 1 : 0}`;
 }
+/**
+ * The long-poll answers were 95% of the journal (one line every ~3 s). Kept: every error, every client hang-up, a slow answer (a normal
+ * answer over 2 s, a long poll more than 3 s past its wait) and one healthy line per guild every ten minutes as a heartbeat.
+ */
+export const STANDINGS_HEARTBEAT_MS = 10 * 60_000;
+const standingsHeartbeat = new Map<string, number>();
+export function shouldLogStandings(input: { guild: string | null; status: number | "closed"; ms: number; wait: string | null }, now = Date.now()): boolean {
+  if (input.status === "closed" || input.status >= 400) return true;
+  const waitMs = Math.max(0, Math.min(15, Number(input.wait) || 0)) * 1000;
+  if (input.ms > waitMs + (waitMs ? 3_000 : 2_000)) return true;
+  const key = input.guild ?? "none";
+  const last = standingsHeartbeat.get(key);
+  if (last !== undefined && now - last < STANDINGS_HEARTBEAT_MS) return false;
+  standingsHeartbeat.set(key, now);
+  return true;
+}
+export function resetStandingsHeartbeat(): void { standingsHeartbeat.clear(); }
 function logStandingsTiming(request: IncomingMessage, response: ServerResponse, url: URL, startedAt: number): void {
   let bytes = 0;
   const end = response.end.bind(response) as (...args: unknown[]) => ServerResponse;
@@ -544,7 +561,9 @@ function logStandingsTiming(request: IncomingMessage, response: ServerResponse, 
   const log = (status: number | "closed") => {
     if (logged) return;
     logged = true;
-    console.info(standingsTimingLine({ guild: url.searchParams.get("guild"), status, ms: Date.now() - startedAt, bytes, wait: url.searchParams.get("wait"),
+    const ms = Date.now() - startedAt;
+    if (!shouldLogStandings({ guild: url.searchParams.get("guild"), status, ms, wait: url.searchParams.get("wait") })) return;
+    console.info(standingsTimingLine({ guild: url.searchParams.get("guild"), status, ms, bytes, wait: url.searchParams.get("wait"),
       conditional: typeof request.headers["if-none-match"] === "string" || url.searchParams.has("since") }));
   };
   response.on("finish", () => log(response.statusCode));
@@ -740,6 +759,15 @@ export function startApplyLane<J, O>(key: string, job: J, run: (job: J) => Promi
     } finally { applyLanes.delete(key); }
   });
   return first;
+}
+
+/**
+ * The journal line of a finished apply. `late=1` means it ended after the upload's answer went out (past the deadline, or it waited in the
+ * lane behind another apply); `late=0` means the answer carried its result. The line used to be written for late applies only, with a
+ * constant late=1, so it said nothing.
+ */
+export function applyFinishedLine(input: { guildHash: string; ms: number; late: boolean; ok: boolean }): string {
+  return `import-apply-finished guild=${input.guildHash} ms=${input.ms} late=${input.late ? 1 : 0} ok=${input.ok ? 1 : 0}`;
 }
 
 /** The outcome of `first`, or null when it has not finished `waitMs` from now (it keeps running either way). */
@@ -1420,13 +1448,18 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // (9.3.1) Runs that only reached the uploader's addon through a party or raid never enter a guild lane, signed in or not: they go
       // to the public boards' relay lane (relay-public.ts), with "group:" receipts so a later guildmate copy still reaches the guild.
       // The uploader's OWN characters only (database + exported character + alts), never the roster in snapshot.characters.
+      // The three lookups below do not depend on each other, so they start together (they ran one after the other: the "before:guild-check" phase).
+      const guildCheckRead = serverKnowsWowGuild(prisma, guild, preview.snapshot.wowGuild);
+      guildCheckRead.catch(() => undefined);
+      const membershipRead = guildMembership(prisma, guild.id, new Date());
+      membershipRead.catch(() => undefined);
       const ownKeys = await ownCarrierKeys(prisma, { memberId: pairedMemberId, character: preview.snapshot.character, alts: preview.snapshot.alts });
       // Guild-only Discord: a run with no player of this guild (and none of the uploader's own characters) is not the guild's. It is handed to the
       // public relay lane below instead, never stored, carded, ranked or paid in this guild.
       // Those runs sit in the addon's own run list: besides the "group:" receipt they get a plain one (STRANGER_NOTE), or they wait for ever.
       let strangerIds = new Set<string>();
       {
-        const sorted = splitStrangerRuns(preview.snapshot.dungeonRuns ?? [], await guildMembership(prisma, guild.id, new Date(), ownKeys));
+        const sorted = splitStrangerRuns(preview.snapshot.dungeonRuns ?? [], withOwnNames(await membershipRead, ownKeys));
         if (sorted.strangers.length) {
           console.info(`dungeon-run no-guild-player guild=${guild.id.slice(-6)} count=${sorted.strangers.length}: sent to the public lane`);
           preview.snapshot.dungeonRuns = [...sorted.guild, ...sorted.strangers];
@@ -1447,7 +1480,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const carriedExtra = carriedAnswer.receipts.length ? { carriedReceipts: carriedAnswer.receipts } : {};
       // T1 (10 Nov 2026): a signed upload only links and imports in a server that knows the saved file's in-game guild.
       // Officers stay exempt (their server may not list every guild an alt is in). The companion shows the warning.
-      const guildCheck = await timed("guild-check", () => serverKnowsWowGuild(prisma, guild, preview.snapshot.wowGuild)).catch(() => undefined);
+      const guildCheck = await timed("guild-check", () => guildCheckRead).catch(() => undefined);
       if (guildCheck?.known === false && !access.officer) {
         json(response, 200, { skipped: "wrong-server", ...carriedExtra, serverWowGuild: guildCheck, status: "SKIPPED", pairedCharacterStatus: "wrong-server", checksum: preview.checksum, scope: "personal", botVersion: BOT_VERSION, protocolVersion: PROTOCOL_VERSION, minProtocol: MIN_PROTOCOL });
         return;
@@ -1681,7 +1714,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       };
       // What happens to an apply that ends after the response went out (or that waited in the lane).
       const settleLate = (outcome: ApplyOutcome, job: ApplyJob) => {
-        console.info(`import-apply-finished guild=${guildHash} ms=${outcome.ms} late=1 ok=${outcome.ok ? 1 : 0}`);
+        console.info(applyFinishedLine({ guildHash, ms: outcome.ms, late: true, ok: outcome.ok }));
         if (!outcome.ok) failApply(outcome, job, true);
       };
       // Runs the apply (or queues it behind the one running) and waits for it only until the deadline.
@@ -1694,6 +1727,8 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const wait = Math.min(APPLY_DEADLINE_MS, APPLY_DEADLINE_MAX_MS) - (Date.now() - requestStartedAt);
         const outcome = await raceDeadline(first, Math.max(1_000, wait));
         if (!outcome) { void first.then((late) => settleLate(late, job)); return { state: "applying" }; }
+        // Finished inside the deadline: the answer carries the result. Logged with late=0 so the two kinds can be told apart.
+        console.info(applyFinishedLine({ guildHash, ms: outcome.ms, late: false, ok: outcome.ok }));
         return { state: "done", outcome };
       };
       // "Received, being applied": the upload is stored; the companion shows it as sent and does not send the same file again.

@@ -5,6 +5,7 @@ import type { AddonCharacter } from "../integrations/addon.js";
 import { findCharacter } from "./character-match.js";
 import { normalizeClassName, normalizeRaceName } from "./character-import.js";
 import { characterKey, foreverSameName } from "../../companion/character-identity.mjs";
+import { clearGuildMembershipCache } from "./guild-participants.js";
 import { guildRankUpdate } from "./guild-rank.js";
 import { gameEditionOf } from "./game-edition.js";
 import { contestCharacter, evidenceOf, evidenceRank, pairedSince, reattachDetached, type LinkEvidence } from "./character-move.js";
@@ -82,12 +83,21 @@ export async function linkPairedCharacter(database: PrismaClient, guildId: strin
   }
 }
 
+/**
+ * The characters of the server that findCharacter can return for `self`: same edition and, for WoW Forever (full "First Last" names and older
+ * bare first names), a name that starts with the same first word. Other editions keep the whole edition's rows (their names carry a realm).
+ */
+export function pairingCandidatesWhere(guildId: string, self: { name: string; gameEdition?: string | null | undefined }) {
+  const edition = gameEditionOf(self);
+  const first = self.name.split("-")[0]?.trim().split(/\s+/)[0] ?? "";
+  return { guildId, gameEdition: edition, ...(edition === "forever" && first ? { name: { startsWith: first, mode: "insensitive" as const } } : {}) };
+}
+
 async function linkPairedCharacterOnce(database: PrismaClient, guildId: string, memberId: string, self: AddonCharacter, confirm: boolean, evidence: LinkEvidence) {
   return database.$transaction(async (tx) => {
-    const characters = await tx.character.findMany({
-      where: { member: { guildId } },
-      include: { member: true }
-    });
+    // Only the rows that could match this name (it ran over the whole server's characters, joined to their members, for the
+    // uploader and again for each alt: 3.6-4.7 s of an upload on 16 November). findCharacter's candidates all share the first name.
+    const characters = await tx.character.findMany({ where: pairingCandidatesWhere(guildId, self) });
     const existing = findCharacter(characters, self.name, self.realm, gameEditionOf(self));
     if (existing && existing.memberId !== memberId) {
       // Another member has it: stronger proof moves it (history kept, both told, undo), equal proof goes
@@ -137,6 +147,8 @@ async function linkPairedCharacterOnce(database: PrismaClient, guildId: string, 
       await tx.characterVerifyClaim.deleteMany({ where: { guildId, memberId, nameKey: characterKey(self.name, self.realm, gameEditionOf(self)), status: "BLOCKED" } });
     } else if (declined) return declined.status === "BLOCKED" ? "blocked-by-member" as const : "removed-by-officer" as const;
     await createSelfCharacter(tx, guildId, memberId, self, confirm, evidence);
+    // A new participant of the server: the cached membership answer of the dungeon-run gate must see it.
+    clearGuildMembershipCache(guildId);
     return "linked" as const;
   // 9.0.8: its own budget. The 5 s default ran out while a big upload's import held the database (P2028, 9 November).
   }, { timeout: 20_000, maxWait: 10_000 });

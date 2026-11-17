@@ -23,25 +23,51 @@ export interface GuildMembership {
 
 type Table = { findMany?: (args: unknown) => Promise<unknown[]> };
 
-/** The lookup reads up to 5,000 roster rows and 20,000 characters and runs on every upload, so a guild's answer is kept for a minute. */
-export const MEMBERSHIP_CACHE_MS = 60_000;
+/**
+ * The lookup reads up to 5,000 roster rows and 20,000 characters and runs on every upload, so a guild's answer is kept for five minutes
+ * (it was one: uploads of a busy server kept paying for the full read, 4 s of the 11 s median on 16 November). The roster sync, a character
+ * move and a new link forget it at once (clearGuildMembershipCache), so only an unobserved change waits for the timeout.
+ */
+export const MEMBERSHIP_CACHE_MS = 300_000;
 const cache = new Map<string, { at: number; value: GuildMembership }>();
+// Uploads that arrive while one read is running share it instead of each reading the same 25,000 rows.
+const reading = new Map<string, Promise<GuildMembership>>();
 /** Forgets one guild's cached answer (the roster or the character links changed), or all of them. */
-export function clearGuildMembershipCache(guildId?: string): void { if (guildId) cache.delete(guildId); else cache.clear(); }
+export function clearGuildMembershipCache(guildId?: string): void { if (guildId) { cache.delete(guildId); reading.delete(guildId); } else { cache.clear(); reading.clear(); } }
+
+/** The cached answer with the uploader's own characters added on top (they differ per upload). */
+export function withOwnNames(base: GuildMembership, own: Iterable<string>): GuildMembership {
+  return base.gate ? { ...base, names: [...new Set([...base.names, ...[...own].filter(Boolean).map((name) => name.toLowerCase())])] } : base;
+}
 
 /** Reads who counts as a participant of the guild. Never throws: any doubt leaves the gate off. */
 export async function guildMembership(database: unknown, guildId: string, now: Date, own: Iterable<string> = []): Promise<GuildMembership> {
   const kept = cache.get(guildId);
-  const base = kept && Math.abs(now.getTime() - kept.at) < MEMBERSHIP_CACHE_MS ? kept.value : await readMembership(database, guildId, now);
-  if (!kept || base !== kept.value) cache.set(guildId, { at: now.getTime(), value: base });
+  let base: GuildMembership;
+  if (kept && Math.abs(now.getTime() - kept.at) < MEMBERSHIP_CACHE_MS) base = kept.value;
+  else {
+    let pending = reading.get(guildId);
+    if (!pending) {
+      const started = readMembership(database, guildId, now);
+      pending = started;
+      reading.set(guildId, started);
+      void started.then((value) => { if (reading.get(guildId) === started) { cache.set(guildId, { at: now.getTime(), value }); reading.delete(guildId); } }, () => { if (reading.get(guildId) === started) reading.delete(guildId); });
+    }
+    base = await pending;
+  }
   // The uploader's own characters differ per upload, so they are added on top of the cached answer.
-  return base.gate ? { ...base, names: [...new Set([...base.names, ...[...own].filter(Boolean).map((name) => name.toLowerCase())])] } : base;
+  return withOwnNames(base, own);
 }
 
 async function readMembership(database: unknown, guildId: string, now: Date): Promise<GuildMembership> {
   try {
     const db = database as { guildRosterEntry?: Table; character?: Table };
     if (typeof db.guildRosterEntry?.findMany !== "function") return { gate: false, names: [], skipped: "no roster table" };
+    // The two reads are independent: started together (they ran one after the other).
+    const linkedRead = typeof db.character?.findMany === "function"
+      ? db.character.findMany({ where: { member: { guildId, status: { not: "LEFT" } } }, select: { name: true }, take: 20_000 }) as Promise<{ name: string }[]>
+      : null;
+    linkedRead?.catch(() => undefined);
     const roster = await db.guildRosterEntry.findMany({ where: { guildId, gameEdition: "forever" }, select: { nameKey: true, inGuild: true, observedAt: true, updatedAt: true }, take: 5000 }) as
       { nameKey: string; inGuild?: boolean; observedAt?: Date | null; updatedAt?: Date | null }[];
     const current = roster.filter((row) => row.inGuild !== false);
@@ -53,10 +79,7 @@ async function readMembership(database: unknown, guildId: string, now: Date): Pr
       const touched = (row.updatedAt ?? row.observedAt)?.getTime() ?? now.getTime();
       if (row.inGuild !== false || now.getTime() - touched <= RECENT_MEMBER_MS) names.add(row.nameKey.toLowerCase());
     }
-    if (typeof db.character?.findMany === "function") {
-      const linked = await db.character.findMany({ where: { member: { guildId, status: { not: "LEFT" } } }, select: { name: true }, take: 20_000 }) as { name: string }[];
-      for (const row of linked) names.add(row.name.toLowerCase());
-    }
+    if (linkedRead) for (const row of await linkedRead) names.add(row.name.toLowerCase());
     return { gate: true, names: [...names] };
   } catch (error) {
     console.error(`guild-participants: membership not read, gate off: ${error instanceof Error ? error.message : String(error)}`);

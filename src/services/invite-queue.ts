@@ -42,7 +42,8 @@ export interface NewInvite { guildId: string; parsed: ParsedInviteName; discordU
 
 /**
  * Records a post once per message; a repeat of a name already waiting is kept as its own row (the extra message gets its own check mark).
- * A different name from the same member supersedes their earlier waiting requests (a corrected spelling): those close as "superseded"
+ * A close spelling of a name from the same member supersedes their earlier waiting request (a corrected typo; a clearly different name,
+ * such as an alt, stays its own request): those close as "superseded"
  * and their posts are tidied by the clean-up, so only the newest stays pending. Names compare without case, accents or a realm suffix.
  */
 export async function recordInviteRequest(database: Database, input: NewInvite) {
@@ -54,7 +55,7 @@ export async function recordInviteRequest(database: Database, input: NewInvite) 
   try {
     const earlier = await database.inviteRequest.findMany({ where: { guildId: input.guildId, discordUserId: input.discordUserId, status: "PENDING" }, select: { id: true, nameKey: true } });
     const keep = foldKey(input.parsed.nameKey);
-    const old = earlier.filter((other) => other.id !== row.id && foldKey(other.nameKey) !== keep).map((other) => other.id);
+    const old = earlier.filter((other) => other.id !== row.id && foldKey(other.nameKey) !== keep && looksLikeCorrection(foldKey(other.nameKey), keep)).map((other) => other.id);
     if (old.length) {
       const now = new Date();
       await database.inviteRequest.updateMany({ where: { id: { in: old } }, data: { status: "CLOSED", closedAt: now, closeReason: "superseded", cleanupAt: now, cleanedAt: null } });
@@ -79,6 +80,21 @@ export interface InvitedRow { id: string; channelId: string; messageId: string; 
 
 /** Case, accents and surrounding spaces ignored: "Drakka  Whitefang" and "drakka whitefang" are the same character. */
 // The addon folds the same letters (Modules/InviteQueue.lua, generated from this rule; tests/lua/invite-queue.test.ts compares them).
+/** Edit distance between two short strings (character names are under 30 letters). */
+export function editDistance(a: string, b: string): number {
+  const x = [...a], y = [...b], row = Array.from({ length: y.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= x.length; i++) {
+    let prev = row[0]!; row[0] = i;
+    for (let j = 1; j <= y.length; j++) { const cur = row[j]!; row[j] = Math.min(row[j]! + 1, row[j - 1]! + 1, prev + (x[i - 1] === y[j - 1] ? 0 : 1)); prev = cur; }
+  }
+  return row[y.length]!;
+}
+/** A typo fix rather than another character: same first or last name, or at most 3 letters apart over the whole name. */
+export function looksLikeCorrection(oldKey: string, newKey: string): boolean {
+  const [a1, a2] = oldKey.split(" "), [b1, b2] = newKey.split(" ");
+  return (Boolean(a1) && a1 === b1) || (Boolean(a2) && a2 === b2) || editDistance(oldKey, newKey) <= 3;
+}
+
 export const foldKey = (name: string): string => nameKeyOf(name).normalize("NFD").replace(/\p{M}/gu, "")
   .replace(/[øØ]/gu, "o").replace(/[đĐ]/gu, "d").replace(/[łŁ]/gu, "l").replace(/[ıİ]/gu, "i");
 

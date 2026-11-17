@@ -134,4 +134,16 @@ describe("a corrected request supersedes the earlier one", () => {
     await recordInviteRequest(db as never, post("Other Person", "m3", "u2"));
     expect(db.rows.map((row) => row.status)).toEqual(["PENDING", "PENDING", "PENDING"]);
   });
+  it("keeps a clearly different character (an alt) as its own request", async () => {
+    const db = fakeDatabase();
+    await recordInviteRequest(db as never, post("Lebelhomme Klodeau", "m1"));
+    await recordInviteRequest(db as never, post("Tuko Xen", "m2"));
+    expect(db.rows.map((row) => row.status)).toEqual(["PENDING", "PENDING"]);
+  });
+  it("treats a same first or last name, or a few letters apart, as a correction", async () => {
+    const { looksLikeCorrection } = await import("../src/services/invite-queue.js");
+    expect(looksLikeCorrection("lebelhome klodeau", "lebelhomme klodeau")).toBe(true);
+    expect(looksLikeCorrection("lebelhomme klodo", "lebelhomme klodeau")).toBe(true);
+    expect(looksLikeCorrection("tuko xen", "lebelhomme klodeau")).toBe(false);
+  });
 });

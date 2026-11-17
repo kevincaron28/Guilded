@@ -1,9 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { UPLOAD_LANE_CONCURRENCY, forgetAppliedUploads, isRepeatUpload, REPEAT_MEMORY_MS, rememberAppliedUpload, runUploadLanes, uploadRepeatKey, type UploadStep } from "../src/services/upload-repeat.js";
+import { UPLOAD_LANE_CONCURRENCY, forgetAppliedUploads, guildDataDigest, isRepeatGuildData, isRepeatUpload, rememberGuildData, REPEAT_MEMORY_MS, rememberAppliedUpload, runUploadLanes, uploadRepeatKey, type UploadStep } from "../src/services/upload-repeat.js";
 
 // 17 Nov 2026: 61% of uploads repeated the previous file and still ran every side-effect phase (p50 12 s of a 20 s companion limit).
 
 beforeEach(() => forgetAppliedUploads());
+
+describe("the repeated guild-data memory", () => {
+  const roster = { at: 100, complete: true, members: [{ name: "Dude", level: 20 }] };
+  it("skips only identical roster, events and MOTD from the same key, for ten minutes", () => {
+    const digest = guildDataDigest({ guildRoster: roster, guildEvents: [], guildInfo: undefined });
+    expect(isRepeatGuildData("k", digest, 1)).toBe(false);
+    rememberGuildData("k", digest, 1);
+    expect(isRepeatGuildData("k", digest, 2)).toBe(true);
+    expect(isRepeatGuildData("k", guildDataDigest({ guildRoster: { ...roster, members: [{ name: "Dude", level: 21 }] }, guildEvents: [] }), 2)).toBe(false);
+    expect(isRepeatGuildData("k", guildDataDigest({ guildRoster: roster, guildEvents: [{ type: "join" }] }), 2)).toBe(false);
+    expect(isRepeatGuildData("other", digest, 2)).toBe(false);
+    expect(isRepeatGuildData("k", digest, 1 + REPEAT_MEMORY_MS)).toBe(false);
+  });
+});
 
 describe("the repeated-upload memory", () => {
   const key = uploadRepeatKey("g", "u", false);

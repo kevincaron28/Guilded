@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyGuildData } from "../src/services/guild-data.js";
+import { clearGuildMembershipCache, guildMembership } from "../src/services/guild-participants.js";
 import { parseAddonSnapshot } from "../src/integrations/addon.js";
 import { exportGuildData } from "../companion/lua-export-content.mjs";
 
@@ -332,5 +333,34 @@ describe("offline members do not cause a write each (the addon sends lastOnline 
     expect((entry("Person001").lastOnlineAt as Date).getTime()).toBe(T * 1000);
     expect((entry("Person002").lastOnlineAt as Date).getTime()).toBe((T - 3600) * 1000);
     expect(entry("Person003").reportedById).toBe("m-third");
+  });
+});
+
+describe("the participant list is forgotten only when roster membership changes (17 Nov 2026)", () => {
+  const officer = { memberId: "m-officer", officer: true };
+  const member = (name: string, level: number) => ({ name, level, class: "WARRIOR", rankName: "Raider", rankIndex: 4, online: false, lastOnline: T - 86400 });
+  // Counts the reads the membership lookup makes: a kept answer makes none.
+  const reads = (db: ReturnType<typeof fakeDb>) => {
+    let n = 0;
+    const database = { guildRosterEntry: { findMany: async (args: unknown) => { n++; return ((db.tx as { guildRosterEntry: { findMany: unknown } }).guildRosterEntry.findMany as (a: unknown) => Promise<unknown[]>)(args); } } };
+    return { database, count: () => n };
+  };
+
+  it("a level change keeps the cached list; a new member or a leaver forgets it", async () => {
+    clearGuildMembershipCache();
+    const db = fakeDb();
+    await applyGuildData(db.tx, "g", officer, upload([member("Dude", 20), member("Walter", 20)], {}, T - 7200), NOW);
+    const probe = reads(db);
+    await guildMembership(probe.database, "g", NOW);
+    expect(probe.count()).toBe(1);
+    await applyGuildData(db.tx, "g", officer, upload([member("Dude", 25), member("Walter", 20)], {}, T), NOW);
+    await guildMembership(probe.database, "g", NOW);
+    expect(probe.count()).toBe(1);   // unchanged membership: still cached
+    await applyGuildData(db.tx, "g", officer, upload([member("Dude", 25), member("Walter", 20), member("Donny", 5)], {}, T + 60), new Date(NOW.getTime() + 120_000));
+    await guildMembership(probe.database, "g", NOW);
+    expect(probe.count()).toBe(2);   // a new name: forgotten, read again
+    await applyGuildData(db.tx, "g", officer, upload([member("Dude", 25), member("Donny", 5)], {}, T + 120), new Date(NOW.getTime() + 240_000));
+    await guildMembership(probe.database, "g", NOW);
+    expect(probe.count()).toBe(3);   // someone left: forgotten
   });
 });

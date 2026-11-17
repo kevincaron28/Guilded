@@ -80,6 +80,7 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
     const rosterTouch = new Map<string, { ids: string[]; lastOnlineAt?: Date; reportedById: string | null }>();
     const characterSeen = new Map<number, string[]>();
     const unclaimedSeen = new Map<number, string[]>();
+    let membershipChanged = false; // a name entered or re-entered the guild roster (or one left): the cached participant list is out of date
     let ranksRenamed = false; // an index now carries another name: the guild reordered or renamed ranks
     const characterRankTouch: string[] = [];
     const unclaimedRankTouch: string[] = [];
@@ -104,6 +105,7 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
       const lastOnlineOk = lastOnline && lastOnline.getTime() <= now.getTime() + FUTURE_SLACK_MS ? lastOnline : undefined;
       const previous = byKey.get(key);
       const minMove = member.online ? ONLINE_MIN_MOVE_MS : OFFLINE_MIN_MOVE_MS;
+      if (!previous || !previous.inGuild) membershipChanged = true;
       if (!previous || previous.observedAt < observedAt) {
         const data = { name: member.name, level: member.level ?? previous?.level ?? null, className: member.class ?? previous?.className ?? null,
           rankName: member.rankName ?? null, rankIndex: member.rankIndex ?? null,
@@ -218,7 +220,9 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
       const gone = stored.filter((row) => row.inGuild && !seenKeys.has(row.nameKey)).map((row) => row.id);
       if (gone.length) result.left = (await tx.guildRosterEntry.updateMany({ where: { id: { in: gone } }, data: { inGuild: false, observedAt } })).count;
     }
-    clearGuildMembershipCache(guildId);
+    // (17 Nov 2026) The participant list (guild-participants.ts) depends on WHO is on the roster, not on levels or last seen, so only a
+    // real membership change forgets it. It was forgotten by every roster upload, and the next upload then re-read ~25,000 rows (2-3 s).
+    if (membershipChanged || result.left > 0) clearGuildMembershipCache(guildId);
     // One journal line per roster (counts only, no names) so the next slowdown is visible.
     console.info(`Guild roster applied: ${members.length} members, ${result.roster} roster rows changed, ${result.characters} characters, ${result.unclaimed} unlinked, `
       + `${stats.rowUpdates} single-row writes, ${stats.batches} batched writes, ${result.skippedOlder ? "older than stored, " : ""}${Date.now() - started} ms.`);

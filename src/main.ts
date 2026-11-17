@@ -74,7 +74,7 @@ import { handleInviteDm, handleInviteRequestInteraction, INVITE_REQUEST_PREFIX }
 import { postAllWeeklyGuildBanks } from "./services/guild-bank.js";
 import { postAllWeeklyMemberTrends } from "./services/member-trend.js";
 import { runInviteChannelSweeps, scheduleInviteCleanups } from "./services/invite-cleanup.js";
-import { DROP_PREFIX, handleInviteConfirmButton, handleRequesterLeft, KEEP_PREFIX, sweepInviteExpiry } from "./services/invite-expiry.js";
+import { DROP_PREFIX, handleInviteConfirmButton, handleRequesterLeft, KEEP_PREFIX, sweepDepartedRequesters, sweepInviteExpiry } from "./services/invite-expiry.js";
 import { backCheckAllInvites, CONFIRM_NAME_PREFIX, FIX_NAME_PREFIX, handleInviteDoneButton, handleInviteNameButton, handleInviteMessage, handleInviteReaction, handleWowRoleGiven } from "./services/invite-channel.js";
 import { ROSTER_BUTTON_PREFIX, handleRosterButton } from "./commands/roster.js";
 import { RANK_ROLES_BUTTON_PREFIX, handleRankRolesButton } from "./commands/rank-roles.js";
@@ -368,7 +368,10 @@ client.once(Events.ClientReady, (readyClient) => {
   // About an hour after a request is handled its messages are removed from the invite channel (the deadline is stored on the row).
   setInterval(() => void scheduleInviteCleanups(prisma).catch(reportJobError("Guild invite clean-up")), 10 * 60_000).unref?.();
   // 9.3.5: old invite requests are asked once (a DM) and closed when unanswered (invite-expiry.ts); first pass shortly after start-up.
-  const inviteExpiry = () => void sweepInviteExpiry(readyClient, prisma).catch(reportJobError("Guild invite expiry"));
+  const inviteExpiry = () => {
+    void sweepDepartedRequesters(readyClient, prisma).catch(reportJobError("Guild invite departed requesters"));
+    void sweepInviteExpiry(readyClient, prisma).catch(reportJobError("Guild invite expiry"));
+  };
   setTimeout(inviteExpiry, 5 * 60_000).unref?.();
   setInterval(inviteExpiry, 30 * 60_000).unref?.();
   // 9.3.5: the whole invite channel is tidied at most once an hour per server (a dry-run count is logged and a copy saved to backups/ first).

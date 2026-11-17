@@ -40,13 +40,27 @@ export const nameKeyOf = (name: string): string => name.trim().replace(/\s+/g, "
 
 export interface NewInvite { guildId: string; parsed: ParsedInviteName; discordUserId: string; channelId: string; messageId: string; answers?: string | null; source?: string }
 
-/** Records a post once per message; a repeat of a name already waiting is kept as its own row (the extra message gets its own check mark). */
+/**
+ * Records a post once per message; a repeat of a name already waiting is kept as its own row (the extra message gets its own check mark).
+ * A different name from the same member supersedes their earlier waiting requests (a corrected spelling): those close as "superseded"
+ * and their posts are tidied by the clean-up, so only the newest stays pending. Names compare without case, accents or a realm suffix.
+ */
 export async function recordInviteRequest(database: Database, input: NewInvite) {
-  return database.inviteRequest.upsert({
+  const row = await database.inviteRequest.upsert({
     where: { guildId_messageId: { guildId: input.guildId, messageId: input.messageId } },
     create: { guildId: input.guildId, nameKey: input.parsed.nameKey, displayName: input.parsed.displayName, discordUserId: input.discordUserId, channelId: input.channelId, messageId: input.messageId, answers: input.answers ?? null, source: input.source ?? "discord" },
     update: { nameKey: input.parsed.nameKey, displayName: input.parsed.displayName, ...(input.answers ? { answers: input.answers } : {}) }
   });
+  try {
+    const earlier = await database.inviteRequest.findMany({ where: { guildId: input.guildId, discordUserId: input.discordUserId, status: "PENDING" }, select: { id: true, nameKey: true } });
+    const keep = foldKey(input.parsed.nameKey);
+    const old = earlier.filter((other) => other.id !== row.id && foldKey(other.nameKey) !== keep).map((other) => other.id);
+    if (old.length) {
+      const now = new Date();
+      await database.inviteRequest.updateMany({ where: { id: { in: old } }, data: { status: "CLOSED", closedAt: now, closeReason: "superseded", cleanupAt: now, cleanedAt: null } });
+    }
+  } catch { /* the newest request is recorded either way; the list already shows one row per member */ }
+  return row;
 }
 
 /** Waiting names, oldest first, one row per name (the oldest post wins). */

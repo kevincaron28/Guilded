@@ -47,6 +47,31 @@ export async function handleRequesterLeft(database: Pick<PrismaClient, "inviteRe
   return closed;
 }
 
+/**
+ * Safety net for a missed GuildMemberRemove (the bot was down, or the request is older than 9.3.5): every waiting requester
+ * who is no longer in the Discord server has their requests closed as "left_discord". Checks a bounded number of members per
+ * server per pass; only Discord's "Unknown Member" answer closes, any other error leaves the request alone.
+ */
+export async function sweepDepartedRequesters(client: Pick<Client, "guilds">, database: Pick<PrismaClient, "inviteRequest" | "guildSettings">, now = new Date(), limit = 100): Promise<number> {
+  const servers = await database.guildSettings.findMany({ where: { inviteQueueEnabled: true }, select: { guildId: true, guild: { select: { id: true, discordId: true } } } });
+  let closed = 0;
+  for (const server of servers) {
+    if (!hostedPilot.allows(server.guild.discordId)) continue;
+    const waiting = await database.inviteRequest.findMany({ where: { guildId: server.guildId, status: "PENDING" }, select: { discordUserId: true }, take: 1000 });
+    const users = [...new Set(waiting.map((row) => row.discordUserId))].slice(0, limit);
+    if (!users.length) continue;
+    const discordGuild = await client.guilds.fetch(server.guild.discordId).catch(() => null);
+    if (!discordGuild) continue;
+    let touched = 0;
+    for (const userId of users) {
+      const gone = await discordGuild.members.fetch(userId).then(() => false, (error: unknown) => (error as { code?: number } | null)?.code === 10007);
+      if (gone) touched += await closeRequestsOf(database, { guildId: server.guildId, discordUserId: userId }, "left_discord", now);
+    }
+    if (touched) { closed += touched; markGuildChanged(server.guildId); }
+  }
+  return closed;
+}
+
 // What an officer's addon says about the invites it sent (companion export "inviteReports"): per request id, how many
 // invites were sent in game, what the game last answered, and whether the officer removed the row.
 const reportSchema = z.object({

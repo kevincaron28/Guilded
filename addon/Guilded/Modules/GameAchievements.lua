@@ -7,7 +7,7 @@
 --
 --   * First run on a character: everything already earned is recorded silently (and dated by the game), never announced.
 --   * After that: a scan at login catches what was earned while Guilded was not loaded, and ACHIEVEMENT_EARNED records a new one at once.
---     The newest is announced in guild chat under the same rules as every milestone (ON by default; /guilded announce ach off;
+--     The newest is offered for guild chat (Share bar, sent from the click) under the same rules as every milestone (ON by default; /guilded announce ach off;
 --     an officer's guild-wide switch wins). Older ones found in the same scan are recorded silently.
 --
 -- Read-only and pcall-wrapped: nothing protected is called, a hidden value is ignored, and a client without the API simply records nothing.

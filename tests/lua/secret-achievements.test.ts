@@ -60,6 +60,7 @@ describe("secret achievements: killed by", () => {
     expect(s!.run(`return DB.milestones.chars["Kev-Realm"].log[1].value`)).toBe("1");
     // The local notice, and the guild-chat line under the normal milestone rules.
     expect(s!.run(`return MSG[#MSG]`)).toBe("Secret achievement unlocked: Silverpine Welcome Committee!");
+    s!.run(`NS.milestones.share()`);
     expect(s!.run(`return table.concat(CHAT_OUT, "|")`)).toBe("GUILD:Kev unlocked a secret achievement: Silverpine Welcome Committee!");
   });
 
@@ -82,6 +83,7 @@ describe("secret achievements: killed by", () => {
     setup();
     attack("target", ARUGAL); die();
     attack("target", ARUGAL); s!.run(`NOW = 200`); die();
+    s!.run(`NS.milestones.share(); NS.milestones.share()`);
     expect(log()).toBe("secret:secret:killed-arugal");
     expect(s!.run(`return #CHAT_OUT`)).toBe("1");
   });

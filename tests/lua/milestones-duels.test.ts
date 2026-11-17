@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { newLuaSession, type LuaSession } from "./harness.js";
 
 // Milestone announcements (Modules/Milestones.lua) and guild duels (Modules/Duels.lua), run against the real
-// Lua files on the mocked client: detection, opt-in, once-only, throttle, dedupe and the daily pair allowance.
+// Lua files on the mocked client: detection, opt-in, once-only, the Share click, dedupe and the daily pair allowance.
 let s: LuaSession | undefined;
 afterEach(() => s?.close());
 
@@ -35,13 +35,20 @@ function setup(locale = "enUS") {
 const out = () => s!.run(`return table.concat(CHAT_OUT, "\\n")`);
 const outCount = () => Number(s!.run(`return tostring(#CHAT_OUT)`));
 const on = () => s!.run(`NS.commandHandlers.announce({ "on" })`);
+// (9.3.8) The player's click on the Share bar's button: the only place a milestone line is sent from.
+const share = () => s!.run(`NS.milestones.bar().share.scripts.OnClick()`);
+const offered = () => s!.run(`return tostring(rawget(NS.milestones.bar(), "text"))`);
 const off = () => s!.run(`NS.commandHandlers.announce({ "off" })`);
 
 describe("milestone announcements", () => {
-  it("is on by default: a one-time local notice first, then the line", () => {
+  it("is on by default: a one-time local notice first, then the line is offered and goes out from the Share click", () => {
     const lua = setup();
     lua.run(`fire_event("PLAYER_LEVEL_UP", 10)`);
+    expect(outCount()).toBe(0); // never sent from the game event itself
+    expect(offered()).toBe("Kev reached level 10!");
+    share();
     expect(out()).toBe("GUILD:Kev reached level 10!");
+    expect(offered()).toBe("nil");
     expect(lua.chat().filter(line => line.includes("Guilded will announce your milestones"))).toHaveLength(0); // NS.message is stubbed in this harness
     expect(lua.run(`return tostring(DB.milestones.chars["Kev-Realm"].settings.noticed)`)).toBe("true");
     expect(lua.run(`return DB.milestones.chars["Kev-Realm"].log[1].ref`)).toBe("level:10");
@@ -56,9 +63,9 @@ describe("milestone announcements", () => {
 
   it("announces a level step once, in GUILD chat only", () => {
     const lua = setup();
-    lua.run(`fire_event("PLAYER_LEVEL_UP", 10)`);
+    lua.run(`fire_event("PLAYER_LEVEL_UP", 10)`); share();
     expect(out()).toBe("GUILD:Kev reached level 10!");
-    lua.run(`CLOCK = CLOCK + 100; fire_event("PLAYER_LEVEL_UP", 10); NS.milestones.pump()`);
+    lua.run(`CLOCK = CLOCK + 100; fire_event("PLAYER_LEVEL_UP", 10)`); share();
     expect(outCount()).toBe(1);
   });
 
@@ -68,45 +75,65 @@ describe("milestone announcements", () => {
     on();
     lua.run(`CLOCK = CLOCK + 100; fire_event("PLAYER_LEVEL_UP", 20); fire_event("PLAYER_LEVEL_UP", 21)`);
     expect(outCount()).toBe(0);
-    lua.run(`fire_event("PLAYER_LEVEL_UP", 30)`);
+    expect(offered()).toBe("nil");
+    lua.run(`fire_event("PLAYER_LEVEL_UP", 30)`); share();
     expect(out()).toBe("GUILD:Kev reached level 30!");
   });
 
   it("announces only the highest step of a jump and the maximum level by name", () => {
     const lua = setup(); on();
-    lua.run(`fire_event("PLAYER_LEVEL_UP", 35)`);
+    lua.run(`fire_event("PLAYER_LEVEL_UP", 35)`); share();
     expect(out()).toBe("GUILD:Kev reached level 30!");
-    lua.run(`CLOCK = CLOCK + 31; fire_event("PLAYER_LEVEL_UP", 60); NS.milestones.pump()`);
+    lua.run(`CLOCK = CLOCK + 31; fire_event("PLAYER_LEVEL_UP", 60)`); share();
     expect(out()).toContain("GUILD:Kev reached the maximum level (60)!");
     expect(lua.run(`return tostring(DB.milestones.chars["Kev-Realm"].done["level:40"] ~= nil)`)).toBe("true");
     expect(lua.run(`return tostring(#CHAT_OUT)`)).toBe("2");
   });
 
-  it("sends at most one line per 30 seconds, the rest waits", () => {
+  it("sends one line per click, the next one waits in the Share bar", () => {
     const lua = setup(); on();
     lua.run(`fire_event("PLAYER_LEVEL_UP", 10)`);
     lua.run(`GetPVPLifetimeStats = function() return 150 end; fire_event("PLAYER_PVP_KILLS_CHANGED")`);
-    expect(outCount()).toBe(1); // the HK lines wait for the throttle
-    lua.run(`CLOCK = CLOCK + 29; NS.milestones.pump()`);
-    expect(outCount()).toBe(1);
-    lua.run(`CLOCK = CLOCK + 2; NS.milestones.pump()`);
+    expect(outCount()).toBe(0);
+    expect(lua.run(`return tostring(NS.milestones.waiting())`)).toBe("2");
+    share();
+    expect(out()).toBe("GUILD:Kev reached level 10!");
+    expect(offered()).toBe("Kev reached 100 honorable kills!");
+    share();
     expect(out()).toContain("GUILD:Kev reached 100 honorable kills!");
     expect(outCount()).toBe(2);
+  });
+
+  it("Not now skips a line (it stays recorded) and the close button drops every waiting line", () => {
+    const lua = setup(); on();
+    lua.run(`fire_event("PLAYER_LEVEL_UP", 10)`);
+    lua.run(`GetPVPLifetimeStats = function() return 150 end; fire_event("PLAYER_PVP_KILLS_CHANGED")`);
+    lua.run(`NS.milestones.bar().later.scripts.OnClick()`);
+    expect(offered()).toBe("Kev reached 100 honorable kills!");
+    lua.run(`NS.milestones.bar().close.scripts.OnClick()`);
+    expect(offered()).toBe("nil");
+    share();
+    expect(outCount()).toBe(0);
+    expect(lua.run(`return tostring(DB.milestones.chars["Kev-Realm"].done["level:10"] ~= nil)`)).toBe("true");
   });
 
   it("holds a line during combat and sends it afterwards", () => {
     const lua = setup(); on();
     lua.run(`COMBAT = true; fire_event("PLAYER_LEVEL_UP", 10)`);
     expect(outCount()).toBe(0);
-    lua.run(`COMBAT = false; NS.milestones.pump()`);
+    expect(offered()).toBe("nil"); // the bar is not shown in combat
+    lua.run(`COMBAT = false; NS.milestones.offer()`);
+    expect(offered()).toBe("Kev reached level 10!");
+    share();
     expect(outCount()).toBe(1);
   });
 
   it("keeps the line when the client refuses the message, and gives up after a few tries", () => {
     const lua = setup(); on();
-    lua.run(`CHAT_FAIL = true; fire_event("PLAYER_LEVEL_UP", 10)`);
+    lua.run(`CHAT_FAIL = true; fire_event("PLAYER_LEVEL_UP", 10)`); share();
     expect(outCount()).toBe(0);
-    lua.run(`CHAT_FAIL = false; NS.milestones.pump()`);
+    expect(offered()).toBe("Kev reached level 10!"); // still offered
+    lua.run(`CHAT_FAIL = false`); share();
     expect(out()).toBe("GUILD:Kev reached level 10!");
   });
 
@@ -114,7 +141,7 @@ describe("milestone announcements", () => {
     const lua = setup(); on();
     lua.run(`fire_event("PLAYER_PVP_KILLS_CHANGED")`); // no API on this client
     expect(outCount()).toBe(0);
-    lua.run(`GetPVPLifetimeStats = function() return 1 end; fire_event("PLAYER_PVP_KILLS_CHANGED")`);
+    lua.run(`GetPVPLifetimeStats = function() return 1 end; fire_event("PLAYER_PVP_KILLS_CHANGED")`); share();
     expect(out()).toBe("GUILD:Kev scored a first honorable kill!");
     lua.run(`GetPVPLifetimeStats = function() return nil end; fire_event("PLAYER_PVP_KILLS_CHANGED")`);
     expect(outCount()).toBe(1);
@@ -122,11 +149,11 @@ describe("milestone announcements", () => {
 
   it("announces the first clear of each dungeon, for a run the character took part in, once", () => {
     const lua = setup(); on();
-    lua.run(`NS.onDungeonRunFinished({ state = "COMPLETED", instanceId = 329, name = "Stratholme", players = { Kev = {}, Bob = {} } })`);
+    lua.run(`NS.onDungeonRunFinished({ state = "COMPLETED", instanceId = 329, name = "Stratholme", players = { Kev = {}, Bob = {} } })`); share();
     expect(out()).toBe("GUILD:Kev cleared Stratholme for the first time!");
     lua.run(`CLOCK = CLOCK + 100; NS.onDungeonRunFinished({ state = "COMPLETED", instanceId = 329, name = "Stratholme", players = { Kev = {} } })`);
     lua.run(`NS.onDungeonRunFinished({ state = "COMPLETED", instanceId = 70, name = "Uldaman", players = { Bob = {} } })`);
-    lua.run(`NS.onDungeonRunFinished({ state = "ABANDONED", instanceId = 71, name = "Zul'Farrak", players = { Kev = {} } })`);
+    lua.run(`NS.onDungeonRunFinished({ state = "ABANDONED", instanceId = 71, name = "Zul'Farrak", players = { Kev = {} } })`); share();
     expect(outCount()).toBe(1);
   });
 
@@ -137,14 +164,14 @@ describe("milestone announcements", () => {
       NS = { getDb = function() return DB end, util = {}, commandHandlers = {}, commandHelp = {}, message = function() end, onDungeonRunFinished = function() HOOKED = HOOKED + 1 end }`);
     s.load("Modules/Milestones.lua");
     s.run(`NS.milestones.baseline(); NS.commandHandlers.milestones({ "on" }); NS.commandHandlers.milestones({ "level", "off" })`);
-    s.run(`NS.onDungeonRunFinished({ state = "COMPLETED", instanceId = 1, name = "A", players = { Kev = {} } }); NS.milestones.checkLevel(10)`);
+    s.run(`NS.onDungeonRunFinished({ state = "COMPLETED", instanceId = 1, name = "A", players = { Kev = {} } }); NS.milestones.checkLevel(10); NS.milestones.share()`);
     expect(s.run(`return tostring(HOOKED)`)).toBe("1");
     expect(s.run(`return tostring(CHAT_OUT)`)).toBe("GUILD:Kev cleared A for the first time!");
   });
 
   it("speaks French on a French client", () => {
     const lua = setup("frFR"); on();
-    lua.run(`fire_event("PLAYER_LEVEL_UP", 10)`);
+    lua.run(`fire_event("PLAYER_LEVEL_UP", 10)`); share();
     expect(out()).toBe("GUILD:Kev a atteint le niveau 10 !");
   });
 
@@ -157,7 +184,7 @@ describe("milestone announcements", () => {
     lua.run(`fire_event("PLAYER_LEVEL_UP", 10)`);
     expect(outCount()).toBe(0);
     lua.run(`NS.milestones.onAddonMessage("GOFF|0|1800000100", "Bob-Realm")`);
-    lua.run(`CLOCK = CLOCK + 100; fire_event("PLAYER_LEVEL_UP", 20)`);
+    lua.run(`CLOCK = CLOCK + 100; fire_event("PLAYER_LEVEL_UP", 20)`); share();
     expect(out()).toBe("GUILD:Kev reached level 20!");
   });
 
@@ -190,6 +217,7 @@ describe("guild duels", () => {
     lua.run(knock("Kev Caron", "Bob Smith"));
     expect(lua.run(`return table.concat(SENT, ",")`)).toMatch(/^D\|Kev Caron\|Bob Smith\|\d+\|knockout$/);
     expect(lua.run(`return tostring(NS.duels.myWins())`)).toBe("1");
+    share();
     expect(out()).toBe("GUILD:Kev won a first duel!");
   });
   it("still knows my duels when only the first name is known, but keeps two surnames apart", () => {
@@ -254,9 +282,9 @@ describe("guild duels", () => {
 
   it("a first duel win announces once as a milestone when announcements are on", () => {
     const lua = setup(); on();
-    lua.run(knock("Kev", "Bob"));
+    lua.run(knock("Kev", "Bob")); share();
     expect(out()).toBe("GUILD:Kev won a first duel!");
-    lua.run(`CLOCK = CLOCK + 200; ${knock("Kev", "Bob")}`);
+    lua.run(`CLOCK = CLOCK + 200; ${knock("Kev", "Bob")}`); share();
     expect(outCount()).toBe(1);
   });
 
@@ -277,6 +305,8 @@ describe("profession milestones", () => {
     skills(lua, 80); lua.run(`fire_event("SKILL_LINES_CHANGED")`);
     expect(outCount()).toBe(0);
     lua.run(`CLOCK = CLOCK + 100`); skills(lua, 150); lua.run(`fire_event("SKILL_LINES_CHANGED")`);
+    expect(outCount()).toBe(0); // offered, not sent by the event (WoW Forever refused it: ADDON_ACTION_BLOCKED, 16-17 Nov 2026)
+    share();
     expect(out()).toBe("GUILD:Kev reached skill 150 in Alchimie!");
     lua.run(`CLOCK = CLOCK + 100`); skills(lua, 300); lua.run(`fire_event("SKILL_LINES_CHANGED")`);
     expect(lua.run(`return DB.milestones.chars["Kev-Realm"].log[#DB.milestones.chars["Kev-Realm"].log].ref`)).toMatch(/^(prof:alchemy-300|profnew:alchemy)$/);

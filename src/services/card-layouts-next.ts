@@ -237,7 +237,7 @@ export interface DungeonCardSpec {
 export function renderDungeonCard(spec: DungeonCardSpec): Promise<RenderedCard> {
   return serial(async () => {
     const c = new CardCanvas(), { accent, tint } = ACCENTS[spec.pvp ? "battleground" : "dungeon"], x = 56, colW = 1000, headW = 722;
-    c.gradient(0, 0, 1000, CARD_H, "h", [[0, "#000", 0.66], [0.8, "#000", 0.5], [1, "#000", 0.2]]);
+    c.gradient(0, 0, 900, CARD_H, "h", [[0, "#000", 0.82], [0.45, "#000", 0.45], [1, "#000", 0]]);
     c.rect(0, 548, CARD_W, 82, "#060504", { opacity: 0.66 });
     c.rect(0, 546, CARD_W, 3, accent, { opacity: 0.9 });
     c.emblem(spec.pvp ? "duel" : "gate", x, 26, 36, tint);
@@ -268,7 +268,7 @@ async function drawDungeonParty(c: CardCanvas, spec: DungeonCardSpec, top: numbe
   const bodyTop = y + (headed ? 40 : 0), pitch = Math.min(base, Math.max(42, Math.floor((TABLE_END - bodyTop) / Math.max(1, party.length)))), extra = pitch - 50;
   const E = x + 50, totalR = x + colW, gainR = totalR - 140, nameW = 290;
   const levelR = showLevel ? E + nameW + 44 : E + nameW - 40, guildX = levelR + (showLevel ? 20 : 52), guildW = (showScore ? gainR - 100 : totalR) - guildX;
-  c.rect(x - 14, y - 8, colW + 28, (bodyTop - y) + party.length * pitch + 6, "#000", { opacity: 0.4, rx: 12 });
+  c.rect(x - 14, y - 8, colW + 28, (bodyTop - y) + party.length * pitch + 6, "#000", { opacity: 0.66, rx: 12 });
   if (spec.columns) {
     const head = { size: 24, color: SUB } as const;
     if (showLevel) await c.text(spec.columns.level, levelR, y, { ...head, anchor: "r", maxW: 52 });

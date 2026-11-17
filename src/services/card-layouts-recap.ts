@@ -264,3 +264,70 @@ function legibleColor(hex: string): string {
   const luma = (0.299 * ch[0]! + 0.587 * ch[1]! + 0.114 * ch[2]!) / 255, mix = luma < 0.45 ? (0.45 - luma) * 1.6 : 0;
   return `#${ch.map((v) => Math.round(v + (255 - v) * mix).toString(16).padStart(2, "0")).join("")}`;
 }
+
+export interface UnlockHeroBadge { name: string; color: string; /** Inner markup of a 64 x 64 badge. */ icon: string; tier?: string | undefined; group?: string | undefined; detail?: string | undefined }
+export interface UnlockHeroSpec {
+  label: string; player: string; unlocks: UnlockHeroBadge[];
+  progress?: { text: string; ratio: number } | undefined;
+  portrait?: Buffer | undefined; chip?: { text: string; color: string } | undefined; art: Buffer;
+}
+
+/** One medallion: a glow in the tier colour, a dark disc with a ring, and the badge picture inside. */
+function medallion(id: string, cx: number, cy: number, ring: number, color: string, icon: string): string {
+  const size = Math.round(ring * 1.84), glow = Math.round(ring * 1.45);
+  return `<defs><radialGradient id="${id}" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="${color}" stop-opacity=".65"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></radialGradient></defs>`
+    + `<circle cx="${cx}" cy="${cy}" r="${glow}" fill="url(#${id})"/><circle cx="${cx}" cy="${cy}" r="${ring}" fill="#15110d" fill-opacity=".72" stroke="${color}" stroke-opacity=".8" stroke-width="3"/>`
+    + `<svg x="${cx - size / 2}" y="${cy - size / 2}" width="${size}" height="${size}" viewBox="0 0 64 64">${icon}</svg>`;
+}
+
+/**
+ * The achievement-unlocked card with the badge as the hero (owner, 17 Nov 2026): the painting full bleed, the badge large in the
+ * middle, the achievement's name in its tier colour under it, then who earned it, the tier and the description, and the catalogue
+ * progress as a thin bar along the bottom. Two or three unlocks stand side by side; more use the list layout (renderBodyCard).
+ */
+export async function renderUnlockHero(spec: UnlockHeroSpec): Promise<RenderedCard> {
+  const c = new CardCanvas(), { tint } = ACCENTS.achievement, mid = CARD_W / 2, shown = spec.unlocks.slice(0, 3);
+  // Shade only where text sits, so the painting stays bright: a soft edge round the card, a pill behind the label, and a band under the badge.
+  c.raw(`<defs><radialGradient id="vig" cx="50%" cy="42%" r="78%"><stop offset=".6" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".45"/></radialGradient></defs><rect width="${CARD_W}" height="${CARD_H}" fill="url(#vig)"/>`);
+  c.rect(mid - 230, 16, 460, 50, "#000", { opacity: 0.78, rx: 25 });
+  c.gradient(0, 236, CARD_W, CARD_H - 236, "v", [[0, "#000", 0], [0.16, "#000", 0.84], [1, "#000", 0.88]]);
+  await c.text(spec.label, mid, 26, { size: 28, face: "title", color: tint, spacing: 800, anchor: "c", maxW: 700 });
+  if (shown.length === 1) {
+    const u = shown[0]!;
+    c.raw(medallion("hero0", mid, 192, 112, u.color, u.icon));
+    await c.text(u.name, mid, 326, { size: 60, face: "title", color: u.color, anchor: "c", maxW: 1060 });
+    await c.text([spec.player, u.tier, u.group].filter(Boolean).join("  ·  "), mid, 404, { size: 32, face: "bold", anchor: "c", maxW: 1060 });
+    if (u.detail) {
+      const lines = wrapLines(u.detail, 70, 2);
+      for (const [i, line] of lines.entries()) await c.text(line, mid, 450 + i * 36, { size: 28, color: SUB, anchor: "c", maxW: 1080 });
+    }
+  } else {
+    const step = shown.length === 2 ? 420 : 370;
+    for (const [i, u] of shown.entries()) {
+      const cx = Math.round(mid + (i - (shown.length - 1) / 2) * step);
+      c.raw(medallion(`hero${i}`, cx, 186, 92, u.color, u.icon));
+      await c.text(u.name, cx, 300, { size: 32, face: "bold", color: u.color, anchor: "c", maxW: step - 30 });
+      const meta = [u.tier, u.group].filter(Boolean).join(" · ");
+      if (meta) await c.text(meta, cx, 342, { size: 24, color: SUB, anchor: "c", maxW: step - 30 });
+    }
+    await c.text(spec.player, mid, 410, { size: 38, face: "title", anchor: "c", maxW: 1000 });
+  }
+  if (spec.progress) {
+    await c.text(spec.progress.text, mid, 520, { size: 26, color: SUB, anchor: "c", maxW: 1000 });
+    const w = 520, x = mid - w / 2, fill = Math.max(6, Math.round(w * Math.min(1, Math.max(0, spec.progress.ratio))));
+    c.rect(x, 566, w, 10, "#ffffff", { opacity: 0.16, rx: 5 });
+    c.rect(x, 566, fill, 10, "#ffd100", { rx: 5 });
+  }
+  const layers: OverlayLayer[] = [];
+  if (spec.portrait) {
+    const size = 104, left = PAD - 16, top = 24;
+    try {
+      const face = await sharp(spec.portrait).resize(size, size, { fit: "cover" }).composite([{ input: Buffer.from(`<svg width="${size}" height="${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${size / 2}"/></svg>`), blend: "dest-in" }]).png().toBuffer();
+      c.raw(`<circle cx="${left + size / 2}" cy="${top + size / 2}" r="${size / 2 + 3}" fill="none" stroke="${tint}" stroke-width="3"/>`);
+      layers.push({ input: face, left, top });
+    } catch { /* an unreadable picture is skipped */ }
+    if (spec.chip) await c.text(spec.chip.text, left + size / 2, top + size + 6, { size: 24, color: spec.chip.color, anchor: "c", maxW: 240 });
+  }
+  const art = await sharp(spec.art).resize(CARD_W, CARD_H, { fit: "cover" }).removeAlpha().toBuffer();
+  return c.finish([{ input: art, left: 0, top: 0 }, ...layers]);
+}

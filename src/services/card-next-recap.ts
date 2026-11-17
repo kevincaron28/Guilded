@@ -1,9 +1,9 @@
 import sharp from "sharp";
-import { cardBackdropArt, type CardBackdrop } from "./card-backdrop.js";
+import { cardArtPlain, cardBackdropArt, type CardBackdrop } from "./card-backdrop.js";
 import { dungeonArt, type DungeonArtTheme } from "./dungeon-art.js";
 import { dungeonBackdrop } from "./dungeon-backdrop.js";
 import { formatDuration } from "./dungeon-rules.js";
-import { renderBarsCard, renderBodyCard, plainArt, type BodyCardSpec, type BodyRow } from "./card-layouts-recap.js";
+import { renderBarsCard, renderBodyCard, renderUnlockHero, plainArt, type BodyCardSpec, type BodyRow, type UnlockHeroSpec } from "./card-layouts-recap.js";
 import { GOOD } from "./card-kit.js";
 import type { ScoreCard } from "./score-card.js";
 
@@ -26,6 +26,7 @@ export async function renderRecapKind(card: ScoreCard, fit = false): Promise<Buf
   if (card.recap) return (await renderBodyCard({ ...(await recapSpec(card)), fit })).png;
   if (card.record) return (await renderBodyCard({ ...(await recordSpec(card)), fit })).png;
   if (card.roster) return (await renderBarsCard(await rosterSpec(card))).png;
+  if (card.unlocks?.length && card.unlocks.length <= 3) return (await renderUnlockHero(await unlockHeroSpec(card))).png;
   if (card.unlocks?.length) return (await renderBodyCard({ ...(await unlockSpec(card)), fit })).png;
   if (card.ladder && card.backdrop?.key === "server-stats" && card.ladder.boards.some((b) => b.rows.length)) return (await renderBarsCard(await statsSpec(card))).png;
   if (card.ladder && !card.ladder.boards.some((b) => b.rows.length)) return (await renderBodyCard({ ...(await emptySpec(card)), fit })).png;
@@ -78,6 +79,18 @@ async function statsSpec(card: ScoreCard): Promise<Parameters<typeof renderBarsC
     tiles: card.stats.map((s) => ({ name: s.label, value: s.value, ...(s.note ? { side: s.note } : {}) })),
     ...(card.footer ? { strip: card.footer } : {}),
     art: await painting(card.backdrop)
+  };
+}
+
+/** One to three unlocks: the badge-as-hero layout. */
+async function unlockHeroSpec(card: ScoreCard): Promise<UnlockHeroSpec> {
+  const p = card.progress;
+  return {
+    label: labelOf(card), player: card.title,
+    unlocks: card.unlocks!.map((u) => ({ name: u.name, color: u.color, icon: u.icon, tier: u.tier, group: u.group, detail: u.detail })),
+    ...(p && p.max > 0 ? { progress: { text: [`${p.value}/${p.max}`, p.label, p.note].filter(Boolean).join("  ·  "), ratio: p.value / p.max } } : {}),
+    ...(card.portrait ? { portrait: Buffer.from(card.portrait, "base64") } : {}), ...(card.rank ? { chip: { text: card.rank.label, color: card.rank.color } } : {}),
+    art: (await cardArtPlain(card.backdrop)) ?? await painting(card.backdrop)
   };
 }
 

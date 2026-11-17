@@ -93,6 +93,21 @@ async function prepare(file: string, variant: BackdropVariant): Promise<Buffer> 
   return sharp(image).jpeg({ quality: 86 }).toBuffer();
 }
 
+/**
+ * The approved picture at 1200x630 with no shade: for a layout that shades only behind its own text (the achievement card with
+ * the badge in the middle). Null when there is no file.
+ */
+export async function cardArtPlain(backdrop: { kind: string; key: string } | undefined): Promise<Buffer | null> {
+  if (!backdrop || !KIND.test(backdrop.kind) || !KEY.test(backdrop.key)) return null;
+  for (const extension of ["jpg", "png"]) {
+    try {
+      const source = await readFile(fileURLToPath(new URL(`../../site/card-art/${backdrop.kind}/${backdrop.key}.${extension}`, import.meta.url)));
+      return await sharp(source, { limitInputPixels: 2500 * 1500 }).flatten({ background: BG }).resize(1200, 630, { fit: "cover" }).jpeg({ quality: 88 }).toBuffer();
+    } catch { /* try the next extension */ }
+  }
+  return null;
+}
+
 async function find(kind: string, key: string, variant: BackdropVariant): Promise<Buffer | null> {
   for (const extension of ["jpg", "png"]) {
     try { return await prepare(fileURLToPath(new URL(`../../site/card-art/${kind}/${key}.${extension}`, import.meta.url)), variant); }

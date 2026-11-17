@@ -85,6 +85,7 @@ What changed and why: `docs/archive/V5_0_HANDOFF.md`. Two players unless it says
 
 **Companion (solo)**
 - [ ] Rebuild the installer (`cd companion-app`, `npm install`, `npm run dist`). Quit any old Guilded Companion (Task Manager) first. Install `dist\companion\Guilded Companion Setup 5.0.0.exe`: the window opens and the tray icon appears; `Start Quebec Gold Bot` (start-companion-app.bat) also opens it.
+- [ ] **Smoke-test the build:** `npm run companion:selftest` launches the built `distcompanionwin-unpackedGuilded Companion.exe` (and the Store package under `distmsix-store`, if built) with `--self-test` and must print `{"selfTest":"ok",...}`. It catches a module missing from the package (9.3.7: `run-log.cjs`). CI runs it in `windows-package`.
 
 **Discord**
 - [ ] **Core channels with the core.** `/core create Test Core`: the reply says its channels are ready; the category, `#test-core-roster` (with the roster), `-signups`, `-butin`, `-rapports`, `-chat` and voice exist. Add another channel to its category and move one linked channel outside it. `/core delete core:Test Core`: all its channels, category and role are gone; other cores stay intact. Deny Manage Channels or place the core role above the bot: deletion reports the failure and keeps the core record; restore access and retry successfully. Existing raid records/signups remain, and cores with their own point history still refuse deletion. A core made before 5.0: **Update bot messages** creates its channels (its checklist row was ⚠️).

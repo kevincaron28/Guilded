@@ -50,7 +50,8 @@
       "store-migrate.cjs",
       "store-decrypt.cjs",
       "store-startup.cjs",
-      "run-log.cjs"
+      "run-log.cjs",
+      "selftest.cjs"
     ],
     "extraResources": [
       {

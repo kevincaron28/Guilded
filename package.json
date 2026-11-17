@@ -46,6 +46,7 @@
     "cleanup:prelaunch": "node scripts/with-env.mjs tsx scripts/prelaunch-cleanup.ts",
     "release:prepare": "node scripts/release-prepare.mjs",
     "companion:build": "node companion-app/make-icon.mjs && node scripts/build-companion-renderer.mjs",
+    "companion:selftest": "node scripts/companion-selftest.mjs",
     "worker:build": "npm run site:build && wrangler deploy --dry-run",
     "worker:deploy": "npm run site:build && wrangler deploy",
     "ledger:compact": "node companion/ledger-compact.mjs",

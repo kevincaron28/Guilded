@@ -3,6 +3,9 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawn, execFile } = require("node:child_process");
 const { pathToFileURL } = require("node:url");
+// `--self-test`: load every module of this built app, print one JSON line and exit (companion-app/selftest.cjs).
+// Nothing below runs: no window, tray, single-instance lock, update, autostart or network.
+if (process.argv.includes("--self-test")) { require("./selftest.cjs").run(app); return; }
 const { detectSavedVariables, pickSavedVariables, pickPrimaryAccount, pickerStart, accountsUnder, searchWow } = require("./detect-wow.cjs");
 const updates = require("./update-check.cjs");
 const idleUpdate = require("./idle-update.cjs");

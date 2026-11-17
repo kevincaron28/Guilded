@@ -199,7 +199,7 @@ export function achievementUnlockedCard(name: string, ids: string[], totalEarned
   const tierCounts = (Object.keys(TIER_COLOR) as AchievementTier[]).flatMap(tier => { const count = defs.filter(def => def.tier === tier).length; return count ? [{ label: TIER_LABEL[tier][lang], color: TIER_COLOR[tier], count }] : []; });
   return {
     eyebrow: secretNow ? `Guilded · ${t("Secret achievement unlocked!", "Succès secret débloqué !")}` : t("Guilded · Achievement unlocked", "Guilded · Succès débloqué"), title: name,
-    backdrop: { kind: "board", key: "achievements" },
+    backdrop: { kind: "board", key: "achievement-unlocked" },
     subtitle: "",
     stats: [
       { label: t("Unlocked now", "Débloqués"), value: `+${defs.length}`, accent: "gold" },

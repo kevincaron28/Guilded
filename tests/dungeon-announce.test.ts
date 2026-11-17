@@ -43,10 +43,10 @@ describe("dungeonPosts", () => {
     }
     expect(en.split("\n").length).toBeLessThanOrEqual(3);
   });
-  it("shows the points line only above zero", () => {
-    expect(text(result({ ratingEnabled: true, points: 75 }))).toContain("75 community points");
-    expect(text(result({ ratingEnabled: true, points: 75 }), "fr")).toContain("75 points de communauté");
-    expect(text(result({ points: 58 }))).toContain("58 total points awarded");
+  it("never prints community points on the run post (owner, 17 Nov 2026)", () => {
+    expect(text(result({ ratingEnabled: true, points: 75 }))).not.toContain("community points");
+    expect(text(result({ ratingEnabled: true, points: 75 }), "fr")).not.toContain("points de communauté");
+    expect(text(result({ points: 58 }))).not.toContain("total points awarded");
   });
   it("sums unranked members into ONE line with the distinct reasons", () => {
     const player = (character: string, unrankedReason: string) => ({ character, deaths: 0, presentSec: 1000, points: 0, unrankedReason });
@@ -148,12 +148,12 @@ describe("dungeonRunCard", () => {
 
 describe("death positions on the card", () => {
   const base = result({ dungeonName: "Wailing Caverns" });
-  it("draws the map with the most deaths, and none when the run recorded none", () => {
+  it("keeps death positions off the card (owner, 17 Nov 2026) and still picks the floor with the most deaths", () => {
     expect(dungeonRunCard(base, "en").dungeon!.deathPoints).toBeUndefined();
     const run = { ...base, deathPoints: [{ x: 0.1, y: 0.2, map: 1 }, { x: 0.3, y: 0.4, map: 2 }, { x: 0.5, y: 0.6, map: 2 }] };
     expect(deathPointsOf(run)).toEqual([{ x: 0.3, y: 0.4 }, { x: 0.5, y: 0.6 }]);
-    expect(dungeonRunCard(run, "fr").dungeon!.deathPoints).toEqual([{ x: 0.3, y: 0.4 }, { x: 0.5, y: 0.6 }]);
-    expect(dungeonRunCard(run, "fr").dungeon!.deathMapLabel).toBe("Où le groupe est tombé");
+    expect(dungeonRunCard(run, "fr").dungeon!.deathPoints).toBeUndefined();
+    expect(dungeonRunCard(run, "fr").dungeon!.deathMapLabel).toBeUndefined();
   });
   it("renders a PNG with recorded positions", async () => {
     const png = await scoreCardPng(dungeonRunCard({ ...base, deathPoints: Array.from({ length: 12 }, (_, i) => ({ x: (i % 6) / 6 + 0.05, y: 0.2 + (i % 3) * 0.25, map: 9 })) }, "en"));

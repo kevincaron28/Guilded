@@ -12,7 +12,6 @@ import { formatDuration } from "./dungeon-rules.js";
 import { difficultyName } from "./dungeon-stats.js";
 import { highlightBadge } from "./dungeon-records.js";
 import type { DungeonScene } from "./dungeon-art.js";
-import { deathMapOf } from "./dungeon-map-grid.js";
 import { classColor, drawable, type DungeonMotif, type DungeonVisual, type ScoreCard } from "./score-card.js";
 
 type Run = DungeonImportResult;
@@ -281,7 +280,6 @@ export function dungeonRunCard(run: Run, lang: Lang, options: DungeonCardOptions
   const fr = lang === "fr";
   const t = (en: string, french: string) => fr ? french : en;
   const party = partyOf(run);
-  const deathPoints = options.deathPoints?.length ? options.deathPoints : deathPointsOf(run);
   const tracked = party.filter((row) => row.detail.deaths !== null && row.detail.deaths !== undefined).length;
   const totalDeaths = party.reduce((sum, row) => sum + (row.detail.deaths ?? 0), 0);
   const boss = finalBoss(run);
@@ -330,10 +328,7 @@ export function dungeonRunCard(run: Run, lang: Lang, options: DungeonCardOptions
         };
       }),
       mapKey: run.dungeonName.toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""),
-      guildLabel: t("Guild", "Guilde"), outsiderLabel: t("Outside guild", "Hors guilde"), moreLabel: t("more", "autres"),
-      ...(deathPoints.length ? { deathPoints: deathPoints.slice(0, 200), deathMapLabel: t("Where the party fell", "Où le groupe est tombé") } : {}),
-      // The traced outline, only for the floor the deaths are drawn on and only with the run's own recorded positions.
-      ...(deathPoints.length && !options.deathPoints?.length && run.mapOutline && run.mapOutline.map === deathMapOf(run.deathPoints) ? { mapOutline: run.mapOutline } : {})
+      guildLabel: t("Guild", "Guilde"), outsiderLabel: t("Outside guild", "Hors guilde"), moreLabel: t("more", "autres")
     }
   };
 }

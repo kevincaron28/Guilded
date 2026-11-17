@@ -121,9 +121,10 @@ interface Theme { bg: string; bar: string; panel: string; edge: string; ink: str
 // WoW Classic's tooltip look: dark brown stone, parchment text, bright gold, bronze trim.
 const th: Theme = { bg: "#120d08", bar: "#ffd100", panel: "#21180f", edge: "#6b5322", ink: "#f5e6c0", muted: "#b9a77f", gold: "#ffd100", green: "#6fdc4f", red: "#ff6a52", frame: "#8a6a2b",
   ok: { fill: "#1b2b14", edge: "#4c8a35" }, warn: { fill: "#3a2a0d", edge: "#a67c1a" }, quiet: { fill: "#21180f", edge: "#5a4721" } };
-// Blizzard's class colours, keyed by the lowercase letters of the class name.
-const CLASS_COLOR: Record<string, string> = { warrior: "#c79c6e", paladin: "#f58cba", hunter: "#abd473", rogue: "#fff569", priest: "#ffffff", deathknight: "#c41f3b",
-  shaman: "#0070de", mage: "#69ccf0", warlock: "#9482c9", monk: "#00ff96", druid: "#ff7d0a", demonhunter: "#a330c9", evoker: "#33937f" };
+// Blizzard's class colours, keyed by the lowercase letters of the class name. Shaman, death knight, demon hunter and evoker use lighter
+// shades: Blizzard's own are too dark to read on a dark card, and one such name made the contrast guard darken the whole painting by 80%.
+const CLASS_COLOR: Record<string, string> = { warrior: "#c79c6e", paladin: "#f58cba", hunter: "#abd473", rogue: "#fff569", priest: "#ffffff", deathknight: "#ff4d6a",
+  shaman: "#5cb0ff", mage: "#69ccf0", warlock: "#9482c9", monk: "#00ff96", druid: "#ff7d0a", demonhunter: "#c26bff", evoker: "#3fc7a8" };
 export const classColor = (name: string | null | undefined) => CLASS_COLOR[(name ?? "").toLowerCase().replace(/[^a-z]/g, "")] ?? "#bfc9bd";
 
 interface Layer { input: Buffer; left: number; top: number }

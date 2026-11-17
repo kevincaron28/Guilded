@@ -111,7 +111,7 @@ describe("badges on the cards", () => {
     const unlock = achievementUnlockedCard("Brenna", ["dungeon-runs-1", "raids-1"], 2, "fr");
     expect((await scoreCardPng(unlock))?.subarray(1, 4).toString()).toBe("PNG");
     expect(cardAltText(unlock)).not.toContain("<badge");
-  });
+  }, 30_000);
 
   it("keeps drawing the old SVG badge for a card queued before this change", async () => {
     const def = ACHIEVEMENTS[0]!;

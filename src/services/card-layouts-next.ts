@@ -1,6 +1,5 @@
 import sharp from "sharp";
 import { roleEmblem, type RoleStyle } from "./card-roles.js";
-import { MAP_GRID, mapView } from "./score-card.js";
 import { ACCENTS, CARD_H, CARD_W, CardCanvas, GOOD, INK, SUB, type AccentKey, type EmblemKind, type TextReport } from "./card-kit.js";
 
 /**
@@ -234,40 +233,11 @@ export interface DungeonCardSpec {
 }
 
 /** Top right, beside the title: the party table below runs the full width of the card. */
-const MAP_BOX = { left: 846, top: 26, width: 304, height: 172 };
-const num = (v: number, lo: number, hi: number) => (Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : lo);
-async function drawDeathMap(c: CardCanvas, map: DungeonMapSpec): Promise<void> {
-  const { left, top, width, height } = MAP_BOX;
-  const cells = map.cells.filter((k) => Number.isInteger(k) && k >= 0 && k < MAP_GRID * MAP_GRID).slice(0, 12_000);
-  const points = map.points.slice(0, 200).map((p) => ({ x: num(p.x, 0, 1), y: num(p.y, 0, 1) }));
-  if (!cells.length && !points.length) return;
-  // A dark framed panel, so the traced floor reads as a small map and not as a shape painted over the art.
-  c.rect(left - 14, top - 12, width + 28, height + 24, "#0b0907", { rx: 14, opacity: 0.72, stroke: "#efe1b8", strokeWidth: 1.5 });
-  let svg = `<defs><radialGradient id="heat"><stop offset="0" stop-color="#ff3b1f" stop-opacity=".8"/><stop offset="1" stop-color="#ff3b1f" stop-opacity="0"/></radialGradient></defs>`;
-  if (cells.length) {
-    const view = mapView(cells, points, left, top, width, height), halo: string[] = [], floor: string[] = [];
-    for (const key of cells) {
-      const { x, y } = view.at((Math.floor(key / MAP_GRID) + 0.5) / MAP_GRID, ((key % MAP_GRID) + 0.5) / MAP_GRID);
-      halo.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(view.radius + 2.4).toFixed(2)}"/>`);
-      floor.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${view.radius.toFixed(2)}"/>`);
-    }
-    svg += `<g fill="#000" fill-opacity=".55">${halo.join("")}</g><g fill="#efe1b8" fill-opacity=".92">${floor.join("")}</g>`;
-    for (const p of points) { const { x, y } = view.at(p.x, p.y); svg += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="18" fill="url(#heat)"/><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.4" fill="#ffd0c8"/>`; }
-  } else {
-    if (map.image) {
-      const img = await sharp(map.image).resize(width, height, { fit: "contain", background: "#00000000" }).png().toBuffer();
-      svg += `<image x="${left}" y="${top}" width="${width}" height="${height}" opacity=".7" href="data:image/png;base64,${img.toString("base64")}"/>`;
-    }
-    for (const p of points) { const x = left + p.x * width, y = top + p.y * height; svg += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="22" fill="url(#heat)"/><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.4" fill="#ffd0c8"/>`; }
-  }
-  c.raw(svg);
-}
-
 /** Result card for a dungeon run: the painting full bleed, time, record, facts and the party table (role, name, level, guild, +gained, season total) across the card, the death map in the top right corner. */
 export function renderDungeonCard(spec: DungeonCardSpec): Promise<RenderedCard> {
   return serial(async () => {
     const c = new CardCanvas(), { accent, tint } = ACCENTS[spec.pvp ? "battleground" : "dungeon"], x = 56, colW = 1000, headW = 722;
-    c.gradient(0, 0, 1000, CARD_H, "h", [[0, "#000", 0.66], [0.8, "#000", 0.5], [1, "#000", 0.2]]);
+    c.gradient(0, 0, 900, CARD_H, "h", [[0, "#000", 0.82], [0.45, "#000", 0.45], [1, "#000", 0]]);
     c.rect(0, 548, CARD_W, 82, "#060504", { opacity: 0.66 });
     c.rect(0, 546, CARD_W, 3, accent, { opacity: 0.9 });
     c.emblem(spec.pvp ? "duel" : "gate", x, 26, 36, tint);
@@ -278,7 +248,6 @@ export function renderDungeonCard(spec: DungeonCardSpec): Promise<RenderedCard> 
     let y = 126 + hero.h + 6;
     if (spec.facts.length) { await c.text(spec.facts.join("  ·  "), x, y, { size: 28, color: INK, maxW: colW }); y += 38; }
     if (spec.reason) { await c.text(spec.reason, x, y, { size: 26, color: SUB, maxW: colW }); y += 32; }
-    if (spec.map) await drawDeathMap(c, spec.map);
     if (spec.pvp) await drawPvpParty(c, spec, y, x, colW);
     else await drawDungeonParty(c, spec, y, x, colW);
     if (spec.strip) await c.text(spec.strip, x, 575, { size: 26, color: SUB, maxW: CARD_W - 112 });
@@ -299,7 +268,7 @@ async function drawDungeonParty(c: CardCanvas, spec: DungeonCardSpec, top: numbe
   const bodyTop = y + (headed ? 40 : 0), pitch = Math.min(base, Math.max(42, Math.floor((TABLE_END - bodyTop) / Math.max(1, party.length)))), extra = pitch - 50;
   const E = x + 50, totalR = x + colW, gainR = totalR - 140, nameW = 290;
   const levelR = showLevel ? E + nameW + 44 : E + nameW - 40, guildX = levelR + (showLevel ? 20 : 52), guildW = (showScore ? gainR - 100 : totalR) - guildX;
-  c.rect(x - 14, y - 8, colW + 28, (bodyTop - y) + party.length * pitch + 6, "#000", { opacity: 0.4, rx: 12 });
+  c.rect(x - 14, y - 8, colW + 28, (bodyTop - y) + party.length * pitch + 6, "#000", { opacity: 0.66, rx: 12 });
   if (spec.columns) {
     const head = { size: 24, color: SUB } as const;
     if (showLevel) await c.text(spec.columns.level, levelR, y, { ...head, anchor: "r", maxW: 52 });

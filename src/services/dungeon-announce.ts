@@ -63,14 +63,13 @@ export function dungeonPosts(summary: DungeonImportSummary, lang: Lang, options:
  * The run post when its card is drawn: the card already shows the time, final boss, deaths, score, party, roles and who is in
  * the guild (outsiders as dashed rows), and a guild record has its own card right after. What stays is what the card has no room
  * for: the "Unranked" line (the card names only the first reason, cut to 28 characters, and not how many members), the outsiders
- * when the party is too long for the card's rows, the points line, boss records and challenges, personal records and
+ * when the party is too long for the card's rows, boss records and challenges, personal records and
  * achievements (and a guild record line when records are switched off, so no record card follows). Member tags are not
  * kept: they never pinged. Pure.
  */
 export function dungeonCardOnly(run: DungeonImportResult, lang: Lang): { content?: string | undefined; embed: EmbedBuilder } {
   const fr = lang === "fr", members = guildPlayers(run), lines: string[] = [];
   const recordCardFollows = recordItems(run.highlights).length > 0;
-  if (run.points > 0) lines.push(`${run.points} ${run.ratingEnabled ? (fr ? "points de communauté" : "community points") : (fr ? "points attribués au total" : "total points awarded")}`);
   // Why a run is unranked: the card shows one reason, truncated; the post keeps every distinct reason and the count.
   const unranked = (run.playerDetails ?? []).filter((player) => members.has(player.character) && player.unrankedReason);
   if (unranked.length) {
@@ -134,7 +133,6 @@ function dungeonEmbed(run: DungeonImportResult, lang: Lang): EmbedBuilder {
   const linkedNote = linked > 0 && linked < members.size ? ` (${linked} ${fr ? (linked > 1 ? "liés" : "lié") : "linked"})` : "";
   const memberWord = fr ? (members.size > 1 ? "membres de la guilde" : "membre de la guilde") : (members.size > 1 ? "guild members" : "guild member");
   lines.push(`🏰 ${members.size} ${memberWord}${linkedNote}${fr ? " :" : ":"} ${tagged.join(", ")}`);
-  if (run.points > 0) lines.push(`${run.points} ${run.ratingEnabled ? (fr ? "points de communauté" : "community points") : (fr ? "points attribués au total" : "total points awarded")}`);
 
   // One "Non classé ×N" for the whole run, with the distinct reasons: never one line per member.
   const unranked = (run.playerDetails ?? []).filter((player) => members.has(player.character) && player.unrankedReason);

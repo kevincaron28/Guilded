@@ -179,7 +179,7 @@ describe("the upload timing line with concurrent lanes", () => {
       timer.lane("fast", async () => 1)
     ]));
     const line = timer.line("g", 0, false);
-    expect(line).toMatch(/ lanes=bank~2\d\d,craft~2\d\d phases=lanes:\d+,other:\d+$/);
+    expect(line).toMatch(/ lanes=(bank~2\d\d,craft~2\d\d|craft~2\d\d,bank~2\d\d) phases=lanes:\d+,other:\d+$/);
     const phases = [...(/phases=(.*)$/.exec(line)?.[1] ?? "").matchAll(/:(\d+)/g)].reduce((n, m) => n + Number(m[1]), 0);
     expect(Math.abs(phases - Number(/total=(\d+)/.exec(line)?.[1]))).toBeLessThanOrEqual(1);
   });

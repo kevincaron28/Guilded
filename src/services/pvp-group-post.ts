@@ -47,13 +47,17 @@ function expiryText(date: Date, lang: Lang, timeZone: string | undefined): strin
   } catch { return zone; }
 }
 
+// A group titled with an English battleground name reads in French on a French card; any other title is the officer's own words.
+const BG_FR: Record<string, string> = { "warsong gulch": "Goulet des Chanteguerres", "arathi basin": "Bassin d'Arathi", "alterac valley": "Vallée d'Alterac", "eye of the storm": "Œil du cyclone", "strand of the ancients": "Rivage des Anciens", "isle of conquest": "Île des Conquérants" };
+export const pvpTitle = (title: string, fr: boolean) => fr ? BG_FR[title.trim().toLowerCase()] ?? title : title;
+
 /** Pure: the picture. */
 export function pvpGroupCard(data: PvpPostData, lang: Lang): ScoreCard {
   const fr = lang === "fr", t = (en: string, french: string) => fr ? french : en;
   const seed = [...data.id].reduce((sum, ch) => (sum * 31 + ch.charCodeAt(0)) | 0, 7);
   return {
     eyebrow: `${fr ? (data.activityFr ?? "Groupe JcJ") : (data.activityEn ?? "PvP group")}`,
-    title: data.title,
+    title: pvpTitle(data.title, fr),
     subtitle: `${pvpBracket(data.minLevel, data.maxLevel, lang)} · ${statusText(data.status, fr)}`,
     stats: [
       { label: t("Players", "Joueurs"), value: `${data.members.length}/${data.size}`, accent: data.members.length >= data.size ? "green" : "gold",

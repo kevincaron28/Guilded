@@ -234,13 +234,15 @@ export interface DungeonCardSpec {
 }
 
 /** Top right, beside the title: the party table below runs the full width of the card. */
-const MAP_BOX = { left: 800, top: 18, width: 350, height: 196 };
+const MAP_BOX = { left: 846, top: 26, width: 304, height: 172 };
 const num = (v: number, lo: number, hi: number) => (Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : lo);
 async function drawDeathMap(c: CardCanvas, map: DungeonMapSpec): Promise<void> {
   const { left, top, width, height } = MAP_BOX;
   const cells = map.cells.filter((k) => Number.isInteger(k) && k >= 0 && k < MAP_GRID * MAP_GRID).slice(0, 12_000);
   const points = map.points.slice(0, 200).map((p) => ({ x: num(p.x, 0, 1), y: num(p.y, 0, 1) }));
   if (!cells.length && !points.length) return;
+  // A dark framed panel, so the traced floor reads as a small map and not as a shape painted over the art.
+  c.rect(left - 14, top - 12, width + 28, height + 24, "#0b0907", { rx: 14, opacity: 0.72, stroke: "#efe1b8", strokeWidth: 1.5 });
   let svg = `<defs><radialGradient id="heat"><stop offset="0" stop-color="#ff3b1f" stop-opacity=".8"/><stop offset="1" stop-color="#ff3b1f" stop-opacity="0"/></radialGradient></defs>`;
   if (cells.length) {
     const view = mapView(cells, points, left, top, width, height), halo: string[] = [], floor: string[] = [];

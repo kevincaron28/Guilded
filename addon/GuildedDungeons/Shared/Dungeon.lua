@@ -1105,7 +1105,6 @@ local function onEvent(_, event, ...)
       -- After markSynced: a recovered run is changed, so it must upload again.
       pcall(dungeon.recoverRuns)
       pcall(dungeon.remindWaiting)
-      pcall(dungeon.remindGuildmateRuns)
       pcall(dungeon.noteOtherAddonVersion)
       dungeon.replayPending()
       if ns.isOfficer and ns.isOfficer() then dungeon.guild("request", "REQUEST|1") end
@@ -1386,15 +1385,21 @@ function dungeon.noteOtherAddonVersion(force)
   return true
 end
 
--- Once per session, after login or /reload: runs are waiting and the companion did not deliver them.
+-- (9.3.9) At most ONE short chat line per session, and only for runs that have waited more than a day. No companion guide is
+-- printed by itself any more (it is /guilded companion, /gdungeons companion, the settings and info pages); the count also
+-- shows in the minimap tooltip and in the dungeon status. Quiet login (ns.infoMessage) silences the line too.
+local WAITING_LINE_AGE = 24 * 3600
 function dungeon.remindWaiting()
   if dungeon.waitingReminded then return false end
   if compat.inCombat() then dungeon.remindAfterCombat = true return false end
-  local overdue = #dungeon.overdueRuns()
-  if overdue == 0 then return false end
+  local count, cutoff = 0, now() - WAITING_LINE_AGE
+  for _, run in ipairs(dungeon.waitingRuns()) do
+    if (run.endedAt or 0) > 0 and run.endedAt < cutoff then count = count + 1 end
+  end
+  if count == 0 then return false end
   dungeon.waitingReminded = true
-  ns.message(string.format(L("%d dungeon run(s) have not reached Discord yet. Is the Guilded Companion app running on this PC? Start it from the Windows Start menu: it sends your runs when you /reload or log out."), overdue))
-  sayCompanionSteps()
+  local help = ns.standalone and "/gdungeons companion" or "/guilded companion"
+  ns.infoMessage(string.format(L("%d dungeon run(s) waiting for the companion (%s for help)."), count, help))
   return true
 end
 
@@ -2028,23 +2033,10 @@ function dungeon.flushAckNotices()
   if dungeon.remindAfterCombat then
     dungeon.remindAfterCombat = nil
     pcall(dungeon.remindWaiting)
-    pcall(dungeon.remindGuildmateRuns)
   end
 end
 
--- Once per session: guildmates' runs wait for THIS PC's companion (only for a player who has a companion).
-function dungeon.remindGuildmateRuns()
-  if dungeon.guildmateReminded or not dungeon.hasCompanion() then return false end
-  if compat.inCombat() then dungeon.remindAfterCombat = true return false end
-  local count = 0
-  for _, run in ipairs(dungeon.waitingRuns()) do
-    if not (run.players and run.players[me()]) then count = count + 1 end
-  end
-  if count == 0 then return false end
-  dungeon.guildmateReminded = true
-  ns.message(string.format(L("%d guildmate run(s) are waiting: /reload sends them to your companion."), count))
-  return true
-end
+-- (9.3.9) The separate "guildmate runs are waiting" chat line is gone: dungeon.remindWaiting counts every waiting run in its one line.
 
 -- Guild messages that arrived before the guild roster did (right after login) wait here and are handled once it is there.
 function dungeon.holdEarly(prefix, text, channel, sender)

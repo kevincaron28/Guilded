@@ -51,9 +51,17 @@ describe("companion link and weekly reminder", () => {
     expect(s.run(`return tostring(NS.companionLink.remind())`)).toBe("true");
   });
 
-  it("says the three steps in the reminder and the command, with the install facts", () => {
+  it("prints no companion guide at login by itself, but the command still does", () => {
     const s = withLink();
-    s.run(`NS.companionLink.remind()`);
+    s.run(`C_Timer = { After = function(_, fn) fn() end }; fire_event("PLAYER_ENTERING_WORLD")`);
+    const out = s.run(`return table.concat(MSGS, "|")`);
+    expect(out).not.toContain("Sync with Discord");
+    expect(out).not.toContain("1) Download it");
+  });
+
+  it("says the three steps in the forced reminder and the command, with the install facts", () => {
+    const s = withLink();
+    s.run(`NS.companionLink.remind(true)`);
     let out = s.run(`return table.concat(MSGS, "|")`);
     expect(out).toContain("1) Download it");
     expect(out).toContain("2) Run the installer");

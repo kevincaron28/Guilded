@@ -121,7 +121,7 @@ describe("a guildmate's run an unsigned companion cannot upload", () => {
     s.run(`GuildedCompanion = { mode = "device" }`);
     expect(s.run(`return #NS.dungeon.waitingRuns()`)).toBe("1");
     s.run(`GuildedDB.dungeon.lastSaveAt = CLOCK - 3600; NS.dungeon.remindWaiting()`);
-    expect(chat()).toContain("1 dungeon run(s) have not reached Discord yet");
+    expect(chat()).toBe(""); // waiting less than a day: no chat line
     // A run of another character of this PC still waits here.
     s.run(`GuildedDB.myCharacters = { donny = { name = "Donny" } }`);
     expect(s.run(`return #NS.dungeon.waitingRuns()`)).toBe("2");
@@ -151,22 +151,38 @@ describe("the waiting-runs reminder", () => {
 
   it("speaks once per session when runs saved before the last logout never reached Discord", () => {
     start();
-    seed("old", 7200);
+    seed("old", 2 * 86400); seed("fresh", 7200);
     s.run(`GuildedDB.dungeon.lastSaveAt = CLOCK - 3600`);
     expect(s.run(`return tostring(NS.dungeon.remindWaiting())`)).toBe("true");
     const said = chat();
-    expect(said).toContain("1 dungeon run(s) have not reached Discord yet. Is the Guilded Companion app running on this PC?");
-    expect(said).toContain("3) Keep it open");
-    expect(said).toContain("guildedwow.com/companion/");
+    expect(said).toContain("1 dungeon run(s) waiting for the companion (/guilded companion for help).");
+    // One short line: no guide steps, no link, no old long wording.
+    expect(said).not.toContain("Keep it open");
+    expect(said).not.toContain("Sync with Discord");
+    expect(said).not.toContain("guildedwow.com");
+    expect(said).not.toContain("have not reached Discord");
     expect(s.run(`return tostring(NS.dungeon.remindWaiting())`)).toBe("false");
+    expect(chat()).toBe("");
+  });
+
+  it("is silent for runs waiting less than a day, and under the quiet-login switch", () => {
+    start();
+    seed("today", 7200);
+    s.run(`GuildedDB.dungeon.lastSaveAt = CLOCK - 3600`);
+    expect(s.run(`return tostring(NS.dungeon.remindWaiting())`)).toBe("false");
+    expect(chat()).toBe("");
+    seed("old", 2 * 86400);
+    s.run(`GuildedDB.settings = GuildedDB.settings or {}; GuildedDB.settings.quietLogin = true; NS.loginAt = GetTime()`);
+    s.run(`NS.dungeon.remindWaiting()`);
     expect(chat()).toBe("");
   });
 
   it("runs after the login checks, from the same timer", () => {
     start();
-    seed("old", 7200);
+    seed("old", 2 * 86400);
     s.run(`GuildedDB.dungeon.lastSaveAt = CLOCK - 3600; NS.dungeon.waitingReminded = nil; fire_event("PLAYER_LOGIN"); NS.dungeon.loadedAt = CLOCK; run_timers()`);
-    expect(chat()).toContain("have not reached Discord yet");
+    expect(chat()).toContain("waiting for the companion (/guilded companion for help)");
+    expect(chat()).not.toContain("Keep it open");
   });
 
   it("stays quiet when the companion had no time yet, when everything arrived, and with old saved data", () => {

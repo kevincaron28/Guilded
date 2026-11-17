@@ -2904,6 +2904,11 @@ local function fillTooltip(tip)
   if ns.callForHelp and ns.callForHelp.open then tip:AddLine(L("Shift-right-click: call for help"), 1, 0.5, 0.4) end
   local waiting = ns.syncNow and ns.syncNow.isDirty and ns.syncNow.isDirty()
   if waiting then tip:AddLine(L("Saved when you log out. To save now, type /reload."), 1, 0.82, 0.2) end
+  -- (9.3.9) Runs waiting for the companion are shown here instead of in chat.
+  local runs = ns.dungeon and ns.dungeon.waitingRuns and ns.dungeon.waitingRuns()
+  if runs and #runs > 0 then
+    tip:AddLine(string.format(L("%d dungeon run(s) waiting for the companion (%s for help)."), #runs, "/guilded companion"), 1, 0.82, 0.2)
+  end
 end
 
 -- ---------------------------------------------------------------------

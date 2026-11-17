@@ -4225,6 +4225,8 @@ model SyncHealthReport {
   memberId   String?
   parked     Int      @default(0)
   damaged    Boolean  @default(false)
+  /// (9.3.x) The companion version it reported (x-companion-version), for the stalled-companion and known-broken-version lines.
+  companionVersion String?
   reportedAt DateTime @default(now())
 
   @@unique([guildId, ownerKey])

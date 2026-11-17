@@ -4,14 +4,14 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 // says about itself (SyncHealthReport, header x-companion-health). Nothing is sent to members. The result for a server is cached for an
 // hour, so the officer command and the daily alert together cost one set of queries per server per hour.
 
-type Db = Pick<PrismaClient, "companionCredential" | "companionDevice" | "dungeonRunPlayer" | "duelResult" | "carriedRecord" | "dungeonRun" | "dungeonRunReceipt" | "dungeonRunWitness" | "syncHealthReport">;
+type Db = Pick<PrismaClient, "companionCredential" | "companionDevice" | "dungeonRunPlayer" | "duelResult" | "carriedRecord" | "dungeonRun" | "dungeonRunReceipt" | "dungeonRunWitness" | "syncHealthReport" | "guildRosterEntry" | "character">;
 
-export type SyncSignal = "silent" | "carried-only" | "refused" | "retrying" | "parked";
-export interface SyncIssue { signal: SyncSignal; /** A member's name, a PC code, or null for a server-wide line. */ who: string | null; detail: string; fix: { en: string; fr: string } }
+export type SyncSignal = "silent" | "carried-only" | "refused" | "retrying" | "parked" | "broken-version";
+export interface SyncIssue { signal: SyncSignal; /** A member's name, a PC code, or null for a server-wide line. */ who: string | null; detail: string; /** French wording of the detail, when it has one. */ detailFr?: string; fix: { en: string; fr: string } }
 
 export const SYNC_HEALTH = {
-  /** A companion that has not synced for this long while its member keeps playing counts as stopped. */
-  silentHours: 24,
+  /** A companion that has not synced for this long while its member keeps playing counts as stopped (17 Nov 2026: a broken update went unnoticed for 10 h). */
+  silentHours: 12,
   /** How far back to look for play seen by other players' data. */
   playWindowHours: 48,
   /** A carried run whose own recorder has not uploaded it after this long. */
@@ -23,6 +23,13 @@ export const SYNC_HEALTH = {
   cacheMs: 3_600_000,
   maxIssues: 25
 } as const;
+
+/** Companion versions known to break uploads; the value is the note officers read. Add a version here when a release is found broken. */
+export const KNOWN_BROKEN_VERSIONS: Readonly<Record<string, string>> = {
+  "9.3.7": "stops syncing after the website auto-update"
+};
+export function brokenVersionNote(version: string | null | undefined): string | null { return version ? (KNOWN_BROKEN_VERSIONS[version] ?? null) : null; }
+const FIX_BROKEN = { en: "Ask them to run the latest Guilded Companion installer from the website (it replaces the broken version).", fr: "Demandez-leur de lancer le dernier installateur du Guilded Companion depuis le site (il remplace la version défectueuse)." };
 
 export const SUMMARY_PREFIX = "🩺 **Sync health";
 const HOUR = 3_600_000;
@@ -42,7 +49,7 @@ export async function collectSyncIssues(db: Db, guildId: string, now = new Date(
   // 1. A companion that stopped syncing while its member keeps playing (seen through other players' runs and duels).
   const [credentials, devices, playedRuns, playedDuels] = await Promise.all([
     db.companionCredential.findMany({ where: { revokedAt: null, member: { guildId, status: "ACTIVE", isTest: false } }, select: { memberId: true, createdAt: true, lastUsedAt: true, member: { select: { displayName: true } } }, take: 2_000 }),
-    db.companionDevice.findMany({ where: { guildId, claimedMemberId: { not: null }, revokedAt: null }, select: { claimedMemberId: true, lastSeenAt: true }, take: 2_000 }),
+    db.companionDevice.findMany({ where: { guildId, claimedMemberId: { not: null }, revokedAt: null }, select: { id: true, claimedMemberId: true, lastSeenAt: true }, take: 2_000 }),
     db.dungeonRunPlayer.findMany({ where: { memberId: { not: null }, run: { guildId, endedAt: { gte: since(SYNC_HEALTH.playWindowHours) } } }, select: { memberId: true, run: { select: { endedAt: true } } }, take: 5_000 }),
     db.duelResult.findMany({ where: { guildId, endedAt: { gte: since(SYNC_HEALTH.playWindowHours) } }, select: { winnerId: true, loserId: true, endedAt: true }, take: 5_000 })
   ]);
@@ -60,10 +67,45 @@ export async function collectSyncIssues(db: Db, guildId: string, now = new Date(
     const known = row.claimedMemberId ? lastSync.get(row.claimedMemberId) : null;
     if (known && known.at < row.lastSeenAt) known.at = row.lastSeenAt;
   }
-  for (const [memberId, sync] of lastSync) {
+  // The companion version each member last reported (SyncHealthReport, kept a week).
+  const versionReports = await db.syncHealthReport.findMany({ where: { guildId, companionVersion: { not: null }, reportedAt: { gte: since(7 * 24) } }, select: { ownerKey: true, memberId: true, companionVersion: true, reportedAt: true }, take: 500 });
+  const ownerMember = new Map<string, string>(devices.flatMap((row) => row.claimedMemberId ? [[`device:${row.id}`, row.claimedMemberId] as [string, string]] : []));
+  const lastVersion = new Map<string, { version: string; at: Date }>();
+  for (const row of versionReports) {
+    const memberId = row.memberId ?? ownerMember.get(row.ownerKey) ?? (row.ownerKey.startsWith("member:") ? row.ownerKey.slice(7) : null);
+    if (!memberId || !row.companionVersion) continue;
+    const known = lastVersion.get(memberId);
+    if (!known || known.at < row.reportedAt) lastVersion.set(memberId, { version: row.companionVersion, at: row.reportedAt });
+  }
+  // Silence only counts when the member was seen playing after the last contact: in others' runs or duels, or online in the in-game guild roster (covers solo play).
+  const candidates = [...lastSync].filter(([, sync]) => now.getTime() - sync.at.getTime() >= SYNC_HEALTH.silentHours * HOUR);
+  const online = new Map<string, Date>();
+  if (candidates.length) {
+    const names = await db.character.findMany({ where: { guildId, memberId: { in: candidates.map(([memberId]) => memberId) } }, select: { memberId: true, name: true }, take: 3_000 });
+    const owner = new Map<string, string>(names.map((row) => [lower(row.name), row.memberId]));
+    const roster = await db.guildRosterEntry.findMany({ where: { guildId, inGuild: true, lastOnlineAt: { gte: since(SYNC_HEALTH.playWindowHours) } }, select: { nameKey: true, name: true, lastOnlineAt: true }, take: 3_000 });
+    for (const row of roster) {
+      const memberId = owner.get(lower(row.name)) ?? owner.get(row.nameKey);
+      if (memberId && row.lastOnlineAt && (online.get(memberId)?.getTime() ?? 0) < row.lastOnlineAt.getTime()) online.set(memberId, row.lastOnlineAt);
+    }
+  }
+  for (const [memberId, sync] of candidates) {
     const played = lastPlay.get(memberId);
-    if (!played || now.getTime() - sync.at.getTime() < SYNC_HEALTH.silentHours * HOUR || played.getTime() <= sync.at.getTime()) continue;
-    issues.push({ signal: "silent", who: sync.name, detail: `companion silent for ${ago(now, sync.at)}, but played ${ago(now, played)} ago (seen in others' runs or duels)`, fix: FIX_OPEN });
+    const onlineAt = online.get(memberId);
+    // The roster only knows hours, so being online counts when it is more than an hour after the last contact.
+    const seen = played && played.getTime() > sync.at.getTime() ? { at: played, how: "seen in others' runs or duels" } : onlineAt && onlineAt.getTime() > sync.at.getTime() + HOUR ? { at: onlineAt, how: "online in the guild roster" } : null;
+    if (!seen) continue;
+    const version = lastVersion.get(memberId)?.version;
+    const broken = brokenVersionNote(version);
+    const frHow = seen.how === "online in the guild roster" ? "en ligne dans la liste de la guilde" : "vu dans les donjons ou duels d'autres joueurs";
+    issues.push({ signal: "silent", who: sync.name, detail: `companion silent for ${ago(now, sync.at)}, but played ${ago(now, seen.at)} ago (${seen.how})${version ? `; last companion version ${version}${broken ? ` (known broken: ${broken})` : ""}` : ""}`,
+      detailFr: `companion muet depuis ${ago(now, sync.at)}, mais a joué il y a ${ago(now, seen.at)} (${frHow})${version ? ` ; dernière version du companion ${version}${broken ? " (version défectueuse connue)" : ""}` : ""}`, fix: broken ? FIX_BROKEN : FIX_OPEN });
+  }
+  // A known-broken version that is still the latest a member reported is worth a line even before the silence hours pass.
+  for (const [memberId, { version }] of lastVersion) {
+    const broken = brokenVersionNote(version);
+    const name = lastSync.get(memberId)?.name;
+    if (broken && name && !issues.some((issue) => issue.who === name && issue.signal === "silent")) issues.push({ signal: "broken-version", who: name, detail: `companion ${version} is a known broken version (${broken})`, detailFr: `le companion ${version} est une version défectueuse connue`, fix: FIX_BROKEN });
   }
 
   // 2. A guildmate's carried run whose own recorder's upload never arrived.
@@ -127,7 +169,7 @@ export async function syncHealth(db: Db, guildId: string, now = new Date()): Pro
 export function describeSyncIssues(issues: readonly SyncIssue[], lang: "en" | "fr"): string {
   if (!issues.length) return lang === "fr" ? "Aucun problème de synchronisation détecté pour l'instant (vérifié toutes les heures)." : "No sync problem seen right now (checked once an hour).";
   const head = lang === "fr" ? "**Synchronisation à vérifier**" : "**Sync that looks stuck**";
-  const lines = issues.map((issue) => `• ${issue.who ? `**${issue.who}**: ` : ""}${issue.detail}\n  → ${issue.fix[lang]}`);
+  const lines = issues.map((issue) => `• ${issue.who ? `**${issue.who}**: ` : ""}${lang === "fr" && issue.detailFr ? issue.detailFr : issue.detail}\n  → ${issue.fix[lang]}`);
   return [head, ...lines].join("\n").slice(0, 1_900);
 }
 
@@ -153,13 +195,14 @@ export function parseHealthHeader(value: unknown): { parked: number; damaged: bo
 }
 
 /** Stores what a companion said about itself. Never throws; one small write per upload at most (skipped when nothing changed in the last hour). */
-export async function recordHealthReport(db: Pick<PrismaClient, "syncHealthReport">, input: { guildId: string; ownerKey: string; memberId: string | null; header: unknown; now?: Date }): Promise<void> {
+export async function recordHealthReport(db: Pick<PrismaClient, "syncHealthReport">, input: { guildId: string; ownerKey: string; memberId: string | null; header: unknown; version?: string | null; now?: Date }): Promise<void> {
   const report = parseHealthHeader(input.header);
   if (!report) return;
   const now = input.now ?? new Date();
   try {
-    const known = await db.syncHealthReport.findUnique({ where: { guildId_ownerKey: { guildId: input.guildId, ownerKey: input.ownerKey } }, select: { parked: true, damaged: true, reportedAt: true } });
-    if (known && known.parked === report.parked && known.damaged === report.damaged && now.getTime() - known.reportedAt.getTime() < HOUR) return;
-    await db.syncHealthReport.upsert({ where: { guildId_ownerKey: { guildId: input.guildId, ownerKey: input.ownerKey } }, create: { guildId: input.guildId, ownerKey: input.ownerKey, memberId: input.memberId, parked: report.parked, damaged: report.damaged, reportedAt: now }, update: { memberId: input.memberId, parked: report.parked, damaged: report.damaged, reportedAt: now } });
+    const known = await db.syncHealthReport.findUnique({ where: { guildId_ownerKey: { guildId: input.guildId, ownerKey: input.ownerKey } }, select: { parked: true, damaged: true, reportedAt: true, companionVersion: true } });
+    const version = input.version ?? null;
+    if (known && known.parked === report.parked && known.damaged === report.damaged && (!version || known.companionVersion === version) && now.getTime() - known.reportedAt.getTime() < HOUR) return;
+    await db.syncHealthReport.upsert({ where: { guildId_ownerKey: { guildId: input.guildId, ownerKey: input.ownerKey } }, create: { guildId: input.guildId, ownerKey: input.ownerKey, memberId: input.memberId, parked: report.parked, damaged: report.damaged, reportedAt: now, companionVersion: version }, update: { memberId: input.memberId, parked: report.parked, damaged: report.damaged, reportedAt: now, ...(version ? { companionVersion: version } : {}) } });
   } catch { /* health notes must never break an upload */ }
 }

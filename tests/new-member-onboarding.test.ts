@@ -13,7 +13,11 @@ function newMember() {
   const db = {
     member: { findUnique: vi.fn(async () => ({ guildId: "guild", guild: { gameEdition: "forever" } })), findUniqueOrThrow: vi.fn(async () => ({ guildId: "guild", guild: { gameEdition: "forever" } })) },
     character: {
-      findMany: vi.fn(async ({ where }) => rows.filter(row => !where.name || row.name.toLowerCase() === where.name.equals.toLowerCase())),
+      findMany: vi.fn(async ({ where }) => rows.filter(row => {
+        if (!where.name) return true;
+        const { equals, startsWith } = where.name as { equals?: string; startsWith?: string };
+        return startsWith !== undefined ? row.name.toLowerCase().startsWith(startsWith.toLowerCase()) : row.name.toLowerCase() === String(equals).toLowerCase();
+      })),
       count: vi.fn(async ({ where }) => rows.filter(row => row.memberId === where.memberId && (!where.isMain || row.isMain)).length),
       create: vi.fn(async ({ data }) => { const row = { id: `character-${rows.length}`, ...data }; rows.push(row); return row; }),
       findUnique: vi.fn(async ({ where }) => rows.find(row => row.id === where.id)),

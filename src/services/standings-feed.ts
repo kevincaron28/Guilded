@@ -194,7 +194,7 @@ export function createStandingsFeed(options: StandingsFeedOptions = {}) {
     const stripped: Record<string, unknown> = { ...parts.personal };
     for (const k of keys) {
       const value = stripped[k];
-      if (value && typeof value === "object") { const rest = { ...(value as Record<string, unknown>) }; delete rest.fetchedAt; stripped[k] = rest; }
+      if (value && typeof value === "object") { const rest = { ...(value as Record<string, unknown>) }; delete rest["fetchedAt"]; stripped[k] = rest; }
     }
     const stable = serializeObject({ ...header, updatedAt, ...parts.shared, ...stripped });
     const stableHash = contentHash(stable);

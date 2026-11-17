@@ -117,7 +117,7 @@ describe("finishing a name from the guild roster", () => {
     expect(await completeInvitesFromRoster(client().c as never, accents as never, { id: "g1", discordId: "guild" }, ["eloise brule"])).toBe(1);
   });
   it("leaves a different character, or an ambiguous first name, waiting", async () => {
-    const db = database(); await handleInviteMessage(post("Drakka Whitefang") as never, db as never); await handleInviteMessage(post("Drakka Blackmane", { id: "m2", author: { id: "u2", bot: false } }) as never, db as never);
+    const db = database(); await handleInviteMessage(post("Drakka Whitefang") as never, db as never); await handleInviteMessage(post("Drakka Blackmane", { id: "m2", author: { id: "u2", bot: false } }) as never, db as never); db.inviteRequest.updateMany.mockClear();
     expect(await completeInvitesFromRoster(client().c as never, db as never, { id: "g1", discordId: "guild" }, ["Drakka", "Other Person"])).toBe(0);
     expect(db.inviteRequest.updateMany).not.toHaveBeenCalled();
   });

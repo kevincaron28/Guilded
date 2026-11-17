@@ -2,7 +2,11 @@
 
 ## 9.3.8 — 17 November 2026
 
-Addon fixes, plus the card redesign already live on the bot. Prepared 17 November 2026, not yet published. Not yet confirmed on real clients (see docs/V9_3_8_RELEASE_ACCEPTANCE.md). Details: docs/V9_3_8_RELEASE_NOTES.md.
+Addon fixes, the companion start-up fix, plus the card redesign already live on the bot. Published 17 November 2026 (GitHub, the website download and the bot; CurseForge files 9665832 and 9665833 in review). Not yet confirmed on real clients (see docs/V9_3_8_RELEASE_ACCEPTANCE.md). Details: docs/V9_3_8_RELEASE_NOTES.md.
+
+Companion:
+
+- The 9.3.7 companion could not start ("Cannot find module ./run-log.cjs"): the file was left out of the package, so after its self-update it stayed closed and runs stopped uploading. 9.3.8 packages it, and a test now checks every packaged module (#1064). If your companion did not come back after updating to 9.3.7, run the 9.3.8 installer once.
 
 Addon:
 

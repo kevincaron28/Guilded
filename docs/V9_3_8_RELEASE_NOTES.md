@@ -1,10 +1,12 @@
 # Guilded 9.3.8 — release notes (17 November 2026)
 
-**Addon fixes and the card redesign.** Prepared 17 November 2026, not yet published. Protocol 2, WoW Forever only. No new bot migrations.
+**Addon fixes and the card redesign.** Published 17 November 2026. Protocol 2, WoW Forever only. No new bot migrations.
 
 Real-client checks: docs/V9_3_8_RELEASE_ACCEPTANCE.md. 9.3.8 is not yet confirmed on real clients.
 
 ## What changes for members
+
+- **Companion fix (important):** the 9.3.7 companion could not start ("Cannot find module ./run-log.cjs"), so after updating it stayed closed and runs stopped uploading. If your companion did not come back after updating to 9.3.7, download and run the 9.3.8 installer once.
 
 - **Guilded setup window:** it opens on top of the main window and you can drag it.
 - **Quiet login:** turn on "Quiet login" in Settings (or type `/guilded quiet on`) to hide Guilded's chat lines after you log in. Errors and command answers still show.

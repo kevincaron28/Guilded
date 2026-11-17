@@ -15,6 +15,7 @@ import { relayProfessions } from "./services/profession-relay.js";
 import { retiredAvailabilityRoute, retiredToolsRoute } from "./services/retired-pages.js";
 import { autoLinkUnclaimed } from "./services/character-autolink.js";
 import { linkUploaderCharacters, repairMissingLinks } from "./services/upload-linking.js";
+import { isRepeatUpload, rememberAppliedUpload, runUploadLanes, uploadRepeatKey, type UploadStep } from "./services/upload-repeat.js";
 import { linkedCharacterCount, scheduleLinkedCharacters } from "./services/companion-link-dm.js";
 import { hasPermission } from "./permissions.js";
 import { claimOffer, offerByDm, offerByDmToUsers, offersFor, snoozeOffer } from "./services/device-claim-offer.js";
@@ -792,8 +793,20 @@ export function createUploadTimer(startedAt = Date.now()) {
   const phases: Array<[string, number]> = [];
   let last = startedAt;
   const mark = (name: string, at = Date.now()) => { phases.push([name, at - last]); last = at; };
+  // Lanes that run at the same time: each one's own time, printed apart (they overlap, so they are not part of the gap-free sum).
+  const lanes: Array<[string, number]> = [];
+  const lane = async <T>(name: string, task: () => Promise<T>): Promise<T> => {
+    const began = Date.now();
+    try { return await task(); } finally { lanes.push([name, Date.now() - began]); }
+  };
   return {
     mark,
+    lane,
+    /** Marks the wait before a block of concurrent lanes as `before:<name>` and the whole block (its slowest lane) as `<name>`. */
+    async parallel<T>(name: string, task: () => Promise<T>): Promise<T> {
+      mark(`before:${name}`);
+      try { return await task(); } finally { mark(name); }
+    },
     async time<T>(name: string, task: () => Promise<T>): Promise<T> {
       mark(`before:${name}`);
       try { return await task(); } finally { mark(name); }
@@ -803,7 +816,8 @@ export function createUploadTimer(startedAt = Date.now()) {
       const spent = phases.reduce((sum, [, ms]) => sum + ms, 0);
       const slow = phases.filter(([, ms]) => ms > 200).map(([name, ms]) => `${name}:${ms}`);
       slow.push(`other:${Math.max(0, total - spent)}`);
-      return `upload guild=${createHash("sha256").update(guildId).digest("hex").slice(0, 8)} total=${total} bytes=${bytes} officer=${officer ? 1 : 0} phases=${slow.join(",")}`;
+      const overlapped = lanes.filter(([, ms]) => ms > 200).map(([name, ms]) => `${name}~${ms}`);
+      return `upload guild=${createHash("sha256").update(guildId).digest("hex").slice(0, 8)} total=${total} bytes=${bytes} officer=${officer ? 1 : 0}${overlapped.length ? ` lanes=${overlapped.join(",")}` : ""} phases=${slow.join(",")}`;
     }
   };
 }
@@ -1543,126 +1557,146 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         void tellLinkConflicts(client, prisma, { id: guild.id, discordId: guild.discordId }, asLang(settings?.language));
         mark("link-conflicts-start");
       }
+      // 17 Nov 2026: the phases below ran one after the other and again for every repeated file (61% of uploads in the 15-16 Nov audit were
+      // byte-identical to the uploader's last one: ~12 s each, nothing new stored). They are now independent lanes that run together
+      // (lane A is the only one that writes Character rows, so guild data and the guildmate relay stay in order), and a payload the bot
+      // applied without a failure in the last ten minutes skips the lanes' payload steps (upload-repeat.ts). What stays on every upload:
+      // linking, the guild roster/events/MOTD (outside the checksum, so a repeated file still carries news), the answer to unposted craft requests.
+      const repeatKey = uploadRepeatKey(guild.id, pairedMemberId ?? createdBy, !!access.officer);
+      const fullChecksum = preview.checksum;
+      const repeat = isRepeatUpload(repeatKey, fullChecksum);
+      const uploadSnapshot = preview.snapshot;
+      const bankRequests = pairedMemberId ? parseAddonBankRequests(uploadSnapshot.bankRequests) : [];
+      const laneGuildData: UploadStep[] = [];
       // 8.5: the game's guild roster, event log and MOTD from any member's upload (guild-data.ts):
       // members without the addon reach the race board, last seen and roster gaps. Rank only from
       // officers. No markGuildChanged: none of it is in the standings feed. Never fails the upload.
-      if (preview.snapshot.guildRoster || preview.snapshot.guildEvents.length || preview.snapshot.guildInfo) {
-        // 9 Nov 2026: two connections uploading one file at once collided on the same Character rows (P2034). Uploads for one
-        // guild now apply one at a time, and a lost write conflict is retried with a short jittered backoff inside an 8 s budget.
-        const guildData = await timed("guild-data", () => serializeByKey(`guild-data:${guild.id}`, () => retryWriteConflict(() => prisma.$transaction((tx) => applyGuildData(tx, guild.id, { memberId: pairedMemberId ?? null, officer: access.officer }, preview.snapshot),
-          { timeout: 60_000, maxWait: 15_000 })))).catch((error: unknown) => { console.error("Guild data upload failed", error); return null; });
-        // 16 Nov 2026: a rank moved up in the officer's roster: one line in the officer log (the bot is the single source; nothing public).
-        const promotedDiscord = guildData?.promotions.length ? client?.guilds.cache.get(guild.discordId) : undefined;
-        if (promotedDiscord && guildData) void announcePromotions(promotedDiscord, guildData.promotions);
-        // The whole guild roster (any member's upload) is now stored: waiting invite requests for those names are done.
-        if (client && preview.snapshot.guildRoster) {
-          void backCheckInvites(client, prisma, { id: guild.id, discordId: guild.discordId })
-            .then((done) => { if (done) markGuildChanged(guild.id); }).catch((error: unknown) => console.warn("Invite back-check failed", error));
-        }
+      if (uploadSnapshot.guildRoster || uploadSnapshot.guildEvents.length || uploadSnapshot.guildInfo) {
+        laneGuildData.push({ name: "guild-data", onError: (error) => console.error("Guild data upload failed", error), run: async () => {
+          // 9 Nov 2026: two connections uploading one file at once collided on the same Character rows (P2034). Uploads for one
+          // guild now apply one at a time, and a lost write conflict is retried with a short jittered backoff inside an 8 s budget.
+          const guildData = await serializeByKey(`guild-data:${guild.id}`, () => retryWriteConflict(() => prisma.$transaction((tx) => applyGuildData(tx, guild.id, { memberId: pairedMemberId ?? null, officer: access.officer }, uploadSnapshot),
+            { timeout: 60_000, maxWait: 15_000 })));
+          // 16 Nov 2026: a rank moved up in the officer's roster: one line in the officer log (the bot is the single source; nothing public).
+          const promotedDiscord = guildData?.promotions.length ? client?.guilds.cache.get(guild.discordId) : undefined;
+          if (promotedDiscord && guildData) void announcePromotions(promotedDiscord, guildData.promotions);
+          // The whole guild roster (any member's upload) is now stored: waiting invite requests for those names are done.
+          if (client && uploadSnapshot.guildRoster) {
+            void backCheckInvites(client, prisma, { id: guild.id, discordId: guild.discordId })
+              .then((done) => { if (done) markGuildChanged(guild.id); }).catch((error: unknown) => console.warn("Invite back-check failed", error));
+          }
+        } });
       }
       // 9.1: a member who asked for a guild invite naming a character gets it linked (provisionally) once it is seen in the guild.
       if (client) {
-        const seen = [preview.snapshot.character, ...preview.snapshot.characters].filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
-        void prelinkAfterUpload(client, prisma, guild, seen);
-        mark("prelink-start");
+        laneGuildData.push({ name: "prelink", run: async () => {
+          const seen = [uploadSnapshot.character, ...uploadSnapshot.characters].filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+          void prelinkAfterUpload(client, prisma, guild, seen);
+        } });
       }
+      // Guildmates heard in game (level, class, race, professions): applied to already-linked
+      // characters only, never over newer first-hand data (guildmate-relay.ts). Never fails the upload.
+      if (!access.officer && pairedMemberId) {
+        // No markGuildChanged: levels and professions are not in the standings feed, and a
+        // generation bump per member upload kept the feed from ever finishing (8.5 hotfix).
+        laneGuildData.push({ name: "guildmate-relay", payload: true, onError: (error) => console.error("Guildmate relay failed", error), run: () => applyGuildmateRelay(prisma, guild.id, pairedMemberId, uploadSnapshot) });
+      }
+      const laneBank: UploadStep[] = [];
       // 9.0 guild bank ledger (guild-bank.ts): contents, gold history and the game's logs, deduped across uploaders.
-      if (preview.snapshot.guildBank !== undefined) {
-        const bankResult = await timed("guild-bank", () => serializeByKey(`guild-bank:${guild.id}`, () => retryWriteConflict(() => prisma.$transaction((tx) => applyGuildBank(tx, guild.id, pairedMemberId ?? null, preview.snapshot.guildBank),
-          { timeout: 60_000, maxWait: 15_000 })))).catch((error: unknown) => { console.error("Guild bank upload failed", error); return null; });
-        // 9.1: one alert in the log channel for items that just went below their minimum (/bank stock).
-        if (bankResult?.contents && client) void alertLowStock(client, prisma, guild.id).catch((error: unknown) => console.warn("Bank stock alert failed", error));
+      if (uploadSnapshot.guildBank !== undefined) {
+        laneBank.push({ name: "guild-bank", payload: true, onError: (error) => console.error("Guild bank upload failed", error), run: async () => {
+          const bankResult = await serializeByKey(`guild-bank:${guild.id}`, () => retryWriteConflict(() => prisma.$transaction((tx) => applyGuildBank(tx, guild.id, pairedMemberId ?? null, uploadSnapshot.guildBank),
+            { timeout: 60_000, maxWait: 15_000 })));
+          // 9.1: one alert in the log channel for items that just went below their minimum (/bank stock).
+          if (bankResult?.contents && client) void alertLowStock(client, prisma, guild.id).catch((error: unknown) => console.warn("Bank stock alert failed", error));
+        } });
       }
       // 9.3.5: an officer's addon reports the invites it sent per request, what the game answered and removed rows (invite-expiry.ts).
-      if (access.officer && preview.snapshot.inviteReports?.length) {
-        await timed("invite-reports", () => applyInviteReports(prisma, guild.id, parseInviteReports(preview.snapshot.inviteReports))).catch((error: unknown) => { console.warn("Invite reports from the addon failed", error); });
+      if (access.officer && uploadSnapshot.inviteReports?.length) {
+        laneBank.push({ name: "invite-reports", payload: true, onError: (error) => console.warn("Invite reports from the addon failed", error), run: () => applyInviteReports(prisma, guild.id, parseInviteReports(uploadSnapshot.inviteReports)) });
       }
       // 9.1: guild bank requests made in game, only the uploader's own (their pairing), each once.
-      const bankRequests = pairedMemberId ? parseAddonBankRequests(preview.snapshot.bankRequests) : [];
       if (bankRequests.length && pairedMemberId) {
-        const created = await timed("bank-requests", () => createBankService(prisma).fromAddon(guild.id, pairedMemberId, bankRequests)).catch((error: unknown) => { console.warn("Bank requests from the addon failed", error); return []; });
-        if (client && created.length) inBackground("Bank request cards", async () => { for (const request of created) await postRequestCard(client, prisma, request).catch((error: unknown) => console.warn("Bank request card failed", error)); });
+        laneBank.push({ name: "bank-requests", payload: true, onError: (error) => console.warn("Bank requests from the addon failed", error), run: async () => {
+          const created = await createBankService(prisma).fromAddon(guild.id, pairedMemberId, bankRequests);
+          if (client && created.length) inBackground("Bank request cards", async () => { for (const request of created) await postRequestCard(client, prisma, request).catch((error: unknown) => console.warn("Bank request card failed", error)); });
+        } });
       }
-      // Crafting orders in game (craft-orders.ts): claims, finishes and give-backs made on the addon's Orders page, the
-      // uploader's own and guildmates' heard in game. Already-reflected actions change nothing, so a resent upload is harmless.
+      const laneCraft: UploadStep[] = [];
       if (pairedMemberId) {
-        const own = parseAddonOrderActions(preview.snapshot.craftOrderActions);
-        const relayed = parseAddonOrderActions(preview.snapshot.craftOrderRelayActions, true);
-        const orderChanges = own.length || relayed.length
-          ? await timed("craft-actions", () => applyOrderActions(prisma, guild.id, pairedMemberId, own, relayed)).catch((error: unknown) => { console.warn("Craft order actions from the addon failed", error); return []; })
-          : [];
-        if (orderChanges.length) {
-          markGuildChanged(guild.id);
-          if (client) {
-            void announceOrderChanges(client, guild.discordId, orderChanges).catch((error: unknown) => console.warn("Craft order Discord update failed", error));
+        // Crafting orders in game (craft-orders.ts): claims, finishes and give-backs made on the addon's Orders page, the
+        // uploader's own and guildmates' heard in game. Already-reflected actions change nothing, so a resent upload is harmless.
+        laneCraft.push({ name: "craft-actions", payload: true, onError: (error) => console.warn("Craft order actions from the addon failed", error), run: async () => {
+          const own = parseAddonOrderActions(uploadSnapshot.craftOrderActions);
+          const relayed = parseAddonOrderActions(uploadSnapshot.craftOrderRelayActions, true);
+          if (!own.length && !relayed.length) return;
+          const orderChanges = await applyOrderActions(prisma, guild.id, pairedMemberId, own, relayed);
+          if (orderChanges.length) {
+            markGuildChanged(guild.id);
+            if (client) {
+              void announceOrderChanges(client, guild.discordId, orderChanges).catch((error: unknown) => console.warn("Craft order Discord update failed", error));
+            }
           }
+        } });
+        // Craft requests made in game (craft-orders.ts): the uploader's own and ones a guildmate's addon heard. Each is
+        // created once (its gameRef), only for a confirmed character of an active member, and posted like a Discord request.
+        // Not a payload step: the retry of a request whose Discord post failed earlier belongs to every upload (a few per upload).
+        laneCraft.push({ name: "craft-requests", run: async () => {
+          const ownRequests = repeat ? [] : parseAddonOrderRequests(uploadSnapshot.craftOrderRequests);
+          const relayedRequests = repeat ? [] : parseAddonOrderRequests(uploadSnapshot.craftOrderRelayRequests, true);
+          const created = ownRequests.length || relayedRequests.length
+            ? await applyOrderRequests(prisma, guild.id, pairedMemberId, ownRequests, relayedRequests).catch((error: unknown) => { console.warn("Craft requests from the addon failed", error); return []; })
+            : [];
+          const retry = await unpostedGameRequests(prisma, guild.id).catch(() => [] as string[]);
+          const toPost = [...new Set([...created.map((request) => request.id), ...retry])];
+          if (created.length) markGuildChanged(guild.id);
+          const postNow = toPost.filter((id) => !postingCraftRequests.has(id));
+          if (postNow.length && client) {
+            for (const id of postNow) postingCraftRequests.add(id);
+            inGuildBackground(guild.id, "Craft request posts", async () => {
+              try {
+                const discordGuild = await client.guilds.fetch(guild.discordId).catch(() => null);
+                for (const id of postNow) {
+                  if (!discordGuild) break;
+                  // Another upload's task may have posted it while this one waited its turn: only a request with no forum post
+                  // and no orders line yet (the same rule that picks the retries) is posted.
+                  if (!await craftRequestNeedsPost(id)) continue;
+                  const result = await withGuildScope(prisma, guild.id, () => postCraftRequest(discordGuild, id)).catch((error: unknown) => { console.warn("Craft request post failed", error); return null; });
+                  if (!result?.posted && !retry.includes(id)) console.warn(`Craft request ${id} made in game was not posted to Discord yet; the next upload retries`);
+                }
+              } finally { for (const id of postNow) postingCraftRequests.delete(id); }
+            });
+          }
+        } });
+      }
+      const laneBoard: UploadStep[] = [];
+      if (pairedMemberId) {
+        // 9.1 guild board (guild-board.ts): votes made in game, the uploader's own and guildmates' heard in
+        // game; officers' news written in game. Each is idempotent, so a resent upload changes nothing.
+        laneBoard.push({ name: "board", payload: true, onError: (error) => console.warn("Guild board upload failed", error), run: async () => {
+          if (await applyGuildBoardUpload(guild.id, pairedMemberId, !!access.officer, uploadSnapshot, client)) markGuildChanged(guild.id);
+        } });
+        // Track M: the uploader's own last-seen positions and calls for help, for the phone map (guild-map.ts).
+        if (uploadSnapshot.mapSightings.length || uploadSnapshot.helpCalls.length) {
+          laneBoard.push({ name: "map", payload: true, onError: (error) => console.warn("Guild map upload failed", error), run: () => applyGuildMapUpload(prisma, guild.id, pairedMemberId, parseGuildMapUpload(uploadSnapshot.mapSightings, uploadSnapshot.helpCalls)) });
+        }
+        // World PvP: this week's counters, capped and checked against the guild's real calls (world-pvp.ts).
+        if (uploadSnapshot.worldPvp.length) {
+          laneBoard.push({ name: "world-pvp", payload: true, onError: (error) => console.warn("World PvP upload failed", error), run: async () => {
+            if (await applyWorldPvpUpload(prisma, guild.id, pairedMemberId, parseWorldPvpUploads(uploadSnapshot.worldPvp))) { markGuildChanged(guild.id); void scheduleBgLadderRefresh(prisma, guild.id); }
+          } });
+        }
+        // Kills and deaths with their place: stored per event (no enemy name), shown by zone on the public PvP map of guilds that publish.
+        if (uploadSnapshot.pvpEvents.length) {
+          laneBoard.push({ name: "pvp-events", payload: true, onError: (error) => console.warn("PvP events upload failed", error), run: () => applyPvpEvents(prisma, guild.id, pairedMemberId, parsePvpEvents(uploadSnapshot.pvpEvents)) });
         }
       }
-      // Craft requests made in game (craft-orders.ts): the uploader's own and ones a guildmate's addon heard. Each is
-      // created once (its gameRef), only for a confirmed character of an active member, and posted like a Discord request.
-      if (pairedMemberId) {
-        const ownRequests = parseAddonOrderRequests(preview.snapshot.craftOrderRequests);
-        const relayedRequests = parseAddonOrderRequests(preview.snapshot.craftOrderRelayRequests, true);
-        const created = ownRequests.length || relayedRequests.length
-          ? await timed("craft-requests", () => applyOrderRequests(prisma, guild.id, pairedMemberId, ownRequests, relayedRequests))
-            .catch((error: unknown) => { console.warn("Craft requests from the addon failed", error); return []; })
-          : [];
-        // A request whose Discord post failed earlier (no thread, no orders line) is posted again, a few per upload.
-        mark("before:unposted");
-        const retry = await unpostedGameRequests(prisma, guild.id).catch(() => [] as string[]);
-        mark("unposted");
-        const toPost = [...new Set([...created.map((request) => request.id), ...retry])];
-        if (created.length) markGuildChanged(guild.id);
-        const postNow = toPost.filter((id) => !postingCraftRequests.has(id));
-        if (postNow.length && client) {
-          for (const id of postNow) postingCraftRequests.add(id);
-          inGuildBackground(guild.id, "Craft request posts", async () => {
-            try {
-              const discordGuild = await client.guilds.fetch(guild.discordId).catch(() => null);
-              for (const id of postNow) {
-                if (!discordGuild) break;
-                // Another upload's task may have posted it while this one waited its turn: only a request with no forum post
-                // and no orders line yet (the same rule that picks the retries) is posted.
-                if (!await craftRequestNeedsPost(id)) continue;
-                const result = await withGuildScope(prisma, guild.id, () => postCraftRequest(discordGuild, id)).catch((error: unknown) => { console.warn("Craft request post failed", error); return null; });
-                if (!result?.posted && !retry.includes(id)) console.warn(`Craft request ${id} made in game was not posted to Discord yet; the next upload retries`);
-              }
-            } finally { for (const id of postNow) postingCraftRequests.delete(id); }
-          });
-        }
-      }
-      // 9.1 guild board (guild-board.ts): votes made in game, the uploader's own and guildmates' heard in
-      // game; officers' news written in game. Each is idempotent, so a resent upload changes nothing.
-      if (pairedMemberId) {
-        const boardChanged = await timed("board", () => applyGuildBoardUpload(guild.id, pairedMemberId, !!access.officer, preview.snapshot, client))
-          .catch((error: unknown) => { console.warn("Guild board upload failed", error); return false; });
-        if (boardChanged) markGuildChanged(guild.id);
-      }
-      // Track M: the uploader's own last-seen positions and calls for help, for the phone map (guild-map.ts).
-      if (pairedMemberId && (preview.snapshot.mapSightings.length || preview.snapshot.helpCalls.length)) {
-        await timed("map", () => applyGuildMapUpload(prisma, guild.id, pairedMemberId, parseGuildMapUpload(preview.snapshot.mapSightings, preview.snapshot.helpCalls)))
-          .catch((error: unknown) => { console.warn("Guild map upload failed", error); });
-      }
-      // World PvP: this week's counters, capped and checked against the guild's real calls (world-pvp.ts).
-      if (pairedMemberId && preview.snapshot.worldPvp.length) {
-        const worldChanged = await timed("world-pvp", () => applyWorldPvpUpload(prisma, guild.id, pairedMemberId, parseWorldPvpUploads(preview.snapshot.worldPvp)))
-          .catch((error: unknown) => { console.warn("World PvP upload failed", error); return false; });
-        if (worldChanged) { markGuildChanged(guild.id); void scheduleBgLadderRefresh(prisma, guild.id); }
-      }
-      // Kills and deaths with their place: stored per event (no enemy name), shown by zone on the public PvP map of guilds that publish.
-      if (pairedMemberId && preview.snapshot.pvpEvents.length) {
-        await timed("pvp-events", () => applyPvpEvents(prisma, guild.id, pairedMemberId, parsePvpEvents(preview.snapshot.pvpEvents)))
-          .catch((error: unknown) => { console.warn("PvP events upload failed", error); });
-      }
+      const lanes = [{ name: "guild", steps: laneGuildData }, { name: "bank", steps: laneBank }, { name: "craft", steps: laneCraft }, { name: "board", steps: laneBoard }].filter((lane) => lane.steps.length);
+      const laneRun = await uploadTimer.parallel("lanes", () => runUploadLanes(lanes, { repeat, track: uploadTimer.lane }));
+      if (repeat) console.info(`upload-repeat guild=${guild.id.slice(-6)} skipped=${laneRun.skipped.join(",") || "-"}`);
+      // Only an upload whose payload steps all ran without a failure is remembered: a failed step is tried again by the next one.
+      else if (!laneRun.failed) rememberAppliedUpload(repeatKey, fullChecksum);
       if (!access.officer) {
-        // Guildmates heard in game (level, class, race, professions): applied to already-linked
-        // characters only, never over newer first-hand data (guildmate-relay.ts). Never fails the upload.
-        if (pairedMemberId) {
-          // No markGuildChanged: levels and professions are not in the standings feed, and a
-          // generation bump per member upload kept the feed from ever finishing (8.5 hotfix).
-          await timed("guildmate-relay", () => applyGuildmateRelay(prisma, guild.id, pairedMemberId, preview.snapshot))
-            .catch((error: unknown) => { console.error("Guildmate relay failed", error); return null; });
-        }
         // 9.1: guildmates' recipes, cooldowns and attunements, for characters already linked in this guild.
         const [owned, linkedInGuild] = await Promise.all([
           prisma.character.findMany({ where: { memberId: pairedMemberId }, select: { name: true, realm: true } }),
@@ -1671,16 +1705,6 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         mark("personal-reads");
         preview = await importService.previewSnapshot(guild.id, personalSnapshot(preview.snapshot, owned, pairedMemberId ? { uploaderMemberId: pairedMemberId, linked: linkedInGuild } : undefined), createdBy);
         mark("personal-preview");
-      }
-      const professionRelay = access.officer && !settings?.autoApplyImports
-        ? await timed("profession-relay", () => relayProfessions(prisma, guild.id, preview.snapshot)) : null;
-      if (professionRelay) {
-        // Discord work (linking by name, the directory post): in order, after the response is decided.
-        inGuildBackground(guild.id, "Profession directory", async (overCap) => {
-          const discordGuild = client ? await client.guilds.fetch(guild.discordId).catch(() => null) : null;
-          if (discordGuild && professionRelay.discovered) await autoLinkUnclaimed(discordGuild, prisma, guild.id, { since: uploadStartedAt }).catch((error: unknown) => console.warn("Profession character linking failed", error));
-          if (!overCap) await updateProfessionDirectory(discordGuild);
-        });
       }
       // The apply of an upload runs in a lane per guild and uploader, and the response waits for it only until the deadline.
       const laneKey = `${guild.id}:${pairedMemberId ?? createdBy}`;
@@ -1787,6 +1811,16 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         return;
       }
       mark("duplicate-check");
+      const professionRelay = access.officer && !settings?.autoApplyImports
+        ? await timed("profession-relay", () => relayProfessions(prisma, guild.id, preview.snapshot)) : null;
+      if (professionRelay) {
+        // Discord work (linking by name, the directory post): in order, after the response is decided.
+        inGuildBackground(guild.id, "Profession directory", async (overCap) => {
+          const discordGuild = client ? await client.guilds.fetch(guild.discordId).catch(() => null) : null;
+          if (discordGuild && professionRelay.discovered) await autoLinkUnclaimed(discordGuild, prisma, guild.id, { since: uploadStartedAt }).catch((error: unknown) => console.warn("Profession character linking failed", error));
+          if (!overCap) await updateProfessionDirectory(discordGuild);
+        });
+      }
       const record = await timed("record", () => importService.record(guild.id, preview.snapshot, preview.checksum, createdBy, pairedMemberId));
       // Auto-apply (a guild opt-in: /config auto-import): apply now and follow up, no /import apply.
       let autoApplied: AutoApplied | null = null;

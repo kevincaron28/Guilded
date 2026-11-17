@@ -1,5 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { gzip } from "node:zlib";
+import { promisify } from "node:util";
 import { dirname } from "node:path";
 
 // What the companion's GET /api/v1/standings answers, without rebuilding it every time.
@@ -20,11 +22,33 @@ export interface FeedParts {
   personal: Record<string, unknown>;
   // Shared data that counts for the stamp without being sent on its own.
   stampOnly?: Record<string, unknown>;
+  /**
+   * Keys of `personal` whose object carries a `fetchedAt` (a per-build "as of" time). It is left out of the ETag and the stamp, so a
+   * rebuild that read the same content gives the same ETag (304 for the companion instead of a 1 MB download every rebuild); the
+   * feed fills it in: the previous value while the content is unchanged and younger than `fetchedAtMaxAgeMs`, otherwise now.
+   */
+  volatileFetchedAt?: string[];
 }
 
-export interface FeedAnswer { status: 200 | 304; etag: string; body?: string }
+export interface FeedAnswer { status: 200 | 304; etag: string; body?: string; gzip?: () => Promise<Buffer> }
 
-interface Cached { at: number; generation: number; etag: string; body: string }
+const gzipAsync = promisify(gzip);
+/** Whether an Accept-Encoding header allows gzip (a `gzip;q=0` or `*;q=0` refusal does not). */
+export function acceptsGzip(header: string | string[] | undefined | null): boolean {
+  const text = Array.isArray(header) ? header.join(",") : header;
+  if (!text) return false;
+  let star: number | undefined;
+  for (const part of text.split(",")) {
+    const [name, ...params] = part.trim().toLowerCase().split(";");
+    const q = params.map((p) => /^\s*q\s*=\s*([0-9.]+)\s*$/.exec(p)).find(Boolean);
+    const weight = q ? Number(q[1]) : 1;
+    if (name === "gzip" || name === "x-gzip") return weight > 0;
+    if (name === "*") star = weight;
+  }
+  return star !== undefined && star > 0;
+}
+
+interface Cached { at: number; generation: number; etag: string; body: string; stableHash?: string; fetchedAtMs?: number; gz?: Promise<Buffer>; gzBytes?: number }
 export interface Stamp { hash: string; at: number }
 
 export interface StandingsFeedOptions {
@@ -41,6 +65,8 @@ export interface StandingsFeedOptions {
   sharedTimeoutMs?: number;
   // A rebuild slower than this answers with the member's previous answer, if any (default 10 s).
   composeBudgetMs?: number;
+  /** A rebuild with unchanged content keeps its previous `fetchedAt` for this long (default 5 min; the addon expires public vacancies at 10 min). */
+  fetchedAtMaxAgeMs?: number;
   /** Every answer leaves within this time of the request (the website Worker and companions give up at 20 s). */
   answerWithinMs?: number;
   now?: () => number;
@@ -77,7 +103,8 @@ export function createStandingsFeed(options: StandingsFeedOptions = {}) {
   const maxBytes = options.maxBytes ?? 150 * 1024 * 1024;
   const sharedTtlMs = options.sharedTtlMs ?? 3_000;
   let cachedBytes = 0;
-  const sizeOf = (entry: Cached) => Buffer.byteLength(entry.body);
+  const fetchedAtMaxAgeMs = options.fetchedAtMaxAgeMs ?? 300_000;
+  const sizeOf = (entry: Cached) => Buffer.byteLength(entry.body) + (entry.gzBytes ?? 0);
   const sharedTimeoutMs = options.sharedTimeoutMs ?? 25_000;
   const composeBudgetMs = options.composeBudgetMs ?? 10_000;
   const answerWithinMs = options.answerWithinMs ?? 17_000;
@@ -160,6 +187,30 @@ export function createStandingsFeed(options: StandingsFeedOptions = {}) {
     return previous;
   }
 
+  // The body for these parts: the ETag covers everything but the volatile `fetchedAt` values. While the content is the same as this
+  // member's previous answer (cache entry, even an expired one) and that answer's fetchedAt is recent, that very answer is reused.
+  function assemble(key: string, header: Record<string, unknown>, updatedAt: string, parts: FeedParts): Cached {
+    const keys = parts.volatileFetchedAt ?? [];
+    const stripped: Record<string, unknown> = { ...parts.personal };
+    for (const k of keys) {
+      const value = stripped[k];
+      if (value && typeof value === "object") { const rest = { ...(value as Record<string, unknown>) }; delete rest.fetchedAt; stripped[k] = rest; }
+    }
+    const stable = serializeObject({ ...header, updatedAt, ...parts.shared, ...stripped });
+    const stableHash = contentHash(stable);
+    const previous = cache.get(key);
+    const t = now();
+    if (previous && previous.stableHash === stableHash && previous.fetchedAtMs !== undefined && t - previous.fetchedAtMs < fetchedAtMaxAgeMs && t >= previous.fetchedAtMs) return { ...previous, at: t };
+    const fetchedAt = new Date(t).toISOString();
+    const personal: Record<string, unknown> = { ...parts.personal };
+    for (const k of keys) {
+      const value = personal[k];
+      if (value && typeof value === "object") personal[k] = { ...(value as Record<string, unknown>), fetchedAt };
+    }
+    const body = serializeObject({ ...header, updatedAt, ...parts.shared, ...personal });
+    return { at: t, generation: -1, etag: `"${(keys.length ? contentHash(`${stableHash}${fetchedAt}`) : stableHash).slice(0, 32)}"`, body, stableHash, ...(keys.length ? { fetchedAtMs: t } : {}) };
+  }
+
   async function composeOnce(key: string, guildId: string, compose: () => Promise<FeedParts>, header: Record<string, unknown>): Promise<Cached> {
     {
       let latest: FeedParts | undefined;
@@ -174,8 +225,7 @@ export function createStandingsFeed(options: StandingsFeedOptions = {}) {
         // than another member's response; the addon trusts that timestamp when syncing.
         if (started !== generation(guildId)) continue;
         const updatedAt = sharedStamp(guildId, contentHash(`{"shared":${serializeObject(parts.shared)},"stampOnly":${parts.stampOnly ? serializeObject(parts.stampOnly) : "null"}}`));
-        const body = serializeObject({ ...header, updatedAt, ...parts.shared, ...parts.personal });
-        const entry = { at: now(), generation: started, etag: `"${contentHash(body).slice(0, 32)}"`, body };
+        const entry = { ...assemble(key, header, updatedAt, parts), generation: started };
         remember(key, entry);
         return entry;
       }
@@ -187,9 +237,20 @@ export function createStandingsFeed(options: StandingsFeedOptions = {}) {
       unstable(guildId);
       const parts = latest!;
       const updatedAt = new Date(stamps.get(guildId)?.at ?? 0).toISOString();
-      const body = serializeObject({ ...header, updatedAt, ...parts.shared, ...parts.personal });
-      return { at: now(), generation: -1, etag: `"${contentHash(body).slice(0, 32)}"`, body };
+      return { ...assemble(key, header, updatedAt, parts), generation: -1 };
     }
+  }
+
+  // Compressed once per build, on first request, and kept with the cached answer.
+  function compressed(key: string, entry: Cached): Promise<Buffer> {
+    if (!entry.gz) {
+      entry.gz = gzipAsync(entry.body, { level: 6 });
+      entry.gz.then((buffer) => {
+        entry.gzBytes = buffer.length;
+        if (cache.get(key) === entry) cachedBytes += buffer.length;
+      }, () => { delete entry.gz; });
+    }
+    return entry.gz;
   }
 
   function wait(guildId: string, ms: number): Promise<void> {
@@ -219,7 +280,7 @@ export function createStandingsFeed(options: StandingsFeedOptions = {}) {
         const budget = composeBudgetMs <= 0 ? 0 : Math.min(composeBudgetMs, Math.max(1_000, startedAt + answerWithinMs - now()));
         if (fresh) { cache.delete(key); cache.set(key, cached); }
         const entry = fresh ? cached : await build(key, input.guildId, input.compose, input.header, cached, budget);
-        if (!input.ifNoneMatch || input.ifNoneMatch !== entry.etag) return { status: 200, etag: entry.etag, body: entry.body };
+        if (!input.ifNoneMatch || input.ifNoneMatch !== entry.etag) return { status: 200, etag: entry.etag, body: entry.body, gzip: () => compressed(key, entry) };
         const left = deadline - now();
         if (left <= 0) return { status: 304, etag: entry.etag };
         // Nothing new yet: sleep until the guild changes, the wait ends, or the cache expires.

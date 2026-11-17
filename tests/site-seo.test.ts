@@ -57,7 +57,8 @@ describe("built site", () => {
       expect(staticRedirect(new URL(url)), url).toBeNull();
       const response = await get(url);
       expect(response.status, `${url} -> ${response.headers.get("location")}`).toBeLessThan(300);
-      expect(search).toBe("");
+      // The bot pages' French alternates are the only sitemap entries with a query (self-canonical, hreflang pair).
+      expect(search === "" || (search === "?lang=fr" && /^\/forever\/(?:leaderboards|recruitment|players)/.test(pathname)), url).toBe(true);
     }
     vi.unstubAllGlobals();
   });

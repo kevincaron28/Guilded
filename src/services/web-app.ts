@@ -65,7 +65,7 @@ export function createWebApp(deps: WebAppDeps) {
   const cardSaves = new Map<string, number[]>();
 
   async function context(request: WebRequest): Promise<WebContext> {
-    const lang = langFrom(request.query, request.headers["accept-language"]);
+    const lang = langFrom(request.query, request.headers["accept-language"], request.path);
     const auth = deps.auth;
     let sessionToken: string | null = null;
     let account: WebAccountView | null = null;

@@ -157,8 +157,11 @@ export function localizedHref(href, lang) {
     const dest = lang === "fr" ? (folder === "/" ? "/fr/" : `/fr${folder}`) : folder;
     return `${dest}${rest ? `?${rest}` : ""}${hash ? `#${hash}` : ""}`;
   }
-  query.set("lang", lang);
-  return `${path}?${query}${hash ? `#${hash}` : ""}`;
+  // English is the default of the public data pages: their English address has no ?lang (one clean URL per page).
+  if (lang === "en" && /^\/(?:(?:forever|classic-era|tbc|mists|retail)\/)?(?:leaderboards|recruitment|players)(?:\/|$)/.test(path)) query.delete("lang");
+  else query.set("lang", lang);
+  const rest = query.toString();
+  return `${path}${rest ? `?${rest}` : ""}${hash ? `#${hash}` : ""}`;
 }
 
 const accountIcon = `<svg class="nav-account-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8" r="3.2"/><path d="M5 19c1.4-3 3.8-4.5 7-4.5S17.6 16 19 19"/></svg>`;

@@ -453,7 +453,7 @@ describe("leaderboard and personal pages", () => {
     expect(kev.body).toContain('class="meter"');
     // A pasted link previews the season score and the logo (Discord reads Open Graph tags).
     expect(kev.body).toMatch(/<meta property="og:description" content="Kev-Doomhowl: dungeon score \d+ \([^"]+\) · Season 1 · Guilded leaderboards\.">/);
-    expect(kev.body).toContain('<meta property="og:image" content="https://guilded.kcaron.top/forever/leaderboards/character/Kev-Doomhowl/card.png?lang=en">');
+    expect(kev.body).toContain('<meta property="og:image" content="https://guilded.kcaron.top/forever/leaderboards/character/Kev-Doomhowl/card.png">');
     expect(home.body).toContain('<meta property="og:title" content="');
     expect(home.body).toContain("Top guilds");
     expect(home.body).toContain('class="bracket-switch"');
@@ -467,8 +467,8 @@ describe("leaderboard and personal pages", () => {
     expect(scoreAt).toBeGreaterThan(0);
     expect(home.body.indexOf('id="season"')).toBeGreaterThan(scoreAt);
     expect(home.body).toContain("table.rank-cards");
-    expect(home.body).toContain('rel="canonical" href="https://guilded.kcaron.top/leaderboards/dungeons/"');
-    expect(home.body).toContain('hreflang="fr" href="https://guilded.kcaron.top/leaderboards/dungeons/?lang=fr"');
+    expect(home.body).toContain('rel="canonical" href="https://guilded.kcaron.top/forever/leaderboards/dungeons/"');
+    expect(home.body).toContain('hreflang="fr" href="https://guilded.kcaron.top/forever/leaderboards/dungeons/?lang=fr"');
     expect(home.body).toContain(">This week</a>");
     expect(home.body).toContain("position:sticky");
     expect(home.body).toContain("overflow-x:visible");

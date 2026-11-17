@@ -39,10 +39,10 @@ describe("dungeon run post, card only", () => {
     // The full post is still built for the text fallback.
     expect(dungeonPosts(summary(run()), "en")[0]!.embed.toJSON().description).toContain("Kev");
   });
-  it("keeps what the card cannot show: achievements, personal records and points", () => {
+  it("keeps what the card cannot show: achievements and personal records, never the points line", () => {
     const only = dungeonCardOnly(run({ points: 12, personalRecords: [{ character: "Kev" } as never], achievements: [{ key: "first-dungeon", character: "Kev" } as never] }), "en");
     const text = only.embed.toJSON().description ?? "";
-    expect(text).toContain("12");
+    expect(text).not.toContain("community points");
     expect(text).toContain("Kev");
     expect(text).not.toContain("Deadmines ·"); // no title/time line
   });

@@ -76,10 +76,10 @@ async function drawBanner(c: CardCanvas, spec: Pick<BodyCardSpec, "type" | "embl
 const RIGHT_X = CARD_W - PAD;
 async function drawAside(c: CardCanvas, spec: Pick<BodyCardSpec, "badge" | "portrait" | "chip" | "type">): Promise<OverlayLayer[]> {
   const layers: OverlayLayer[] = [];
-  const portraitRight = spec.badge ? RIGHT_X - 176 : RIGHT_X;
+  const portraitRight = spec.badge ? RIGHT_X - 196 : RIGHT_X;
   if (spec.badge) {
-    const cx = RIGHT_X - 72, cy = BANNER / 2 + 2, { color, icon } = spec.badge;
-    c.raw(`<defs><radialGradient id="bglow" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="${color}" stop-opacity=".6"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></radialGradient></defs><circle cx="${cx}" cy="${cy}" r="92" fill="url(#bglow)"/><circle cx="${cx}" cy="${cy}" r="64" fill="#15110d" fill-opacity=".7" stroke="${color}" stroke-opacity=".7" stroke-width="3"/><svg x="${cx - 52}" y="${cy - 52}" width="104" height="104" viewBox="0 0 64 64">${icon}</svg>`);
+    const cx = RIGHT_X - 88, cy = BANNER / 2 + 2, { color, icon } = spec.badge;
+    c.raw(`<defs><radialGradient id="bglow" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="${color}" stop-opacity=".6"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></radialGradient></defs><circle cx="${cx}" cy="${cy}" r="118" fill="url(#bglow)"/><circle cx="${cx}" cy="${cy}" r="82" fill="#15110d" fill-opacity=".7" stroke="${color}" stroke-opacity=".7" stroke-width="3"/><svg x="${cx - 76}" y="${cy - 76}" width="152" height="152" viewBox="0 0 64 64">${icon}</svg>`);
   }
   if (spec.portrait) {
     const size = spec.badge ? 96 : spec.chip ? 112 : 124, left = portraitRight - size, top = spec.badge ? 38 : spec.chip ? 14 : 24;
@@ -171,7 +171,7 @@ async function drawRow(c: CardCanvas, r: BodyRow, x: number, y: number, w: numbe
   if (zebra) c.rect(x + 6, y, w - 12, pitch - 2, "#ffffff", { opacity: 0.05, rx: 8 });
   const nameH = Math.round(nameSize * 1.15), subH = Math.round(subSize * 1.15), content = r.sub ? nameH + subH : nameH;
   const top = y + Math.max(0, Math.round((pitch - content) / 2)) - 1;
-  const iconSize = r.icon ? Math.min(56, pitch - 10) : 0, tx = x + 18 + (iconSize ? iconSize + 12 : 0), room = x + w - 16 - tx;
+  const iconSize = r.icon ? Math.min(64, pitch - 10) : 0, tx = x + 18 + (iconSize ? iconSize + 12 : 0), room = x + w - 16 - tx;
   if (r.icon) c.raw(`<svg x="${x + 14}" y="${y + Math.round((pitch - iconSize) / 2)}" width="${iconSize}" height="${iconSize}" viewBox="0 0 64 64">${r.icon}</svg>`);
   let rightW = 0;
   if (r.right) { const t = await c.text(r.right, x + w - 16, top, { size: rightSize, face: "bold", color: r.rightColor ?? INK, anchor: "r", maxW: Math.min(170, Math.floor(room * 0.45)) }); rightW = t.w + 14; }

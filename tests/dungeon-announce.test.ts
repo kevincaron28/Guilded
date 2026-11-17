@@ -43,10 +43,10 @@ describe("dungeonPosts", () => {
     }
     expect(en.split("\n").length).toBeLessThanOrEqual(3);
   });
-  it("shows the points line only above zero", () => {
-    expect(text(result({ ratingEnabled: true, points: 75 }))).toContain("75 community points");
-    expect(text(result({ ratingEnabled: true, points: 75 }), "fr")).toContain("75 points de communauté");
-    expect(text(result({ points: 58 }))).toContain("58 total points awarded");
+  it("never prints community points on the run post (owner, 17 Nov 2026)", () => {
+    expect(text(result({ ratingEnabled: true, points: 75 }))).not.toContain("community points");
+    expect(text(result({ ratingEnabled: true, points: 75 }), "fr")).not.toContain("points de communauté");
+    expect(text(result({ points: 58 }))).not.toContain("total points awarded");
   });
   it("sums unranked members into ONE line with the distinct reasons", () => {
     const player = (character: string, unrankedReason: string) => ({ character, deaths: 0, presentSec: 1000, points: 0, unrankedReason });

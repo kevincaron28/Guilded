@@ -1,5 +1,3 @@
-import { readFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
 import { cardBackdropArt as paintedArt, type BackdropVariant, type CardBackdrop } from "./card-backdrop.js";
 import { plainArt } from "./card-layouts-recap.js";
 import { renderGenericCard, renderRecapKind } from "./card-next-recap.js";
@@ -83,7 +81,6 @@ async function dataCard(card: ScoreCard): Promise<Buffer | null> {
   return png;
 }
 
-const MAP_FILE = /^[a-z0-9-]{1,60}$/;
 
 async function dungeonCard(card: ScoreCard): Promise<Buffer | null> {
   const visual = card.dungeon!;
@@ -97,18 +94,11 @@ async function dungeonCard(card: ScoreCard): Promise<Buffer | null> {
   const members = visual.party, extra = !visual.pvp && members.length > 5 ? members.length - 4 : 0;
   const party: DungeonPartyRow[] = (extra ? members.slice(0, 4) : members.slice(0, visual.pvp ? 40 : 5)).map((m) => ({ name: m.name, color: m.color, role: roleOf(m.role), score: m.score, guild: m.guildName, level: m.level, gain: m.gain, total: m.total === undefined ? undefined : String(m.total), member: m.guild }));
   if (extra || visual.pvp) party.push({ name: `+${extra} ${visual.moreLabel}`, color: "#ddd4c0" }); // a PvP card's renderer reads the "more" word from this row and counts the rest itself
-  let map;
-  if (visual.deathPoints?.length) {
-    let image: Buffer | undefined;
-    if (!visual.mapOutline?.cells.length && visual.mapKey && MAP_FILE.test(visual.mapKey)) {
-      image = await readFile(fileURLToPath(new URL(`../../site/dungeon-maps/${visual.mapKey}.png`, import.meta.url))).catch(() => undefined);
-    }
-    map = { cells: visual.mapOutline?.cells ?? [], points: visual.deathPoints, image };
-  }
+  // No death map (owner, 17 Nov 2026): too small to read and it darkened the painting.
   const { png } = await renderDungeonCard({
     label: [(tail(card.eyebrow).at(-1) ?? "").toUpperCase(), difficulty.toUpperCase()].filter(Boolean).join(" · "), title: card.title,
     hero: time?.value ?? "—", heroNote: badge ? badge.text : time?.note,
-    facts: [deaths, score, boss].filter(Boolean), party, map,
+    facts: [deaths, score, boss].filter(Boolean), party,
     // An unranked run says why in one line (the score stat's note: the reason, or "Already counted").
     ...(rated && rated.value === "—" && rated.note ? { reason: `${rated.label} — ${rated.note}` } : {}),
     // The Guild column is always drawn: a card queued before it was always there gets the level, run and season headers from its guild label's language.

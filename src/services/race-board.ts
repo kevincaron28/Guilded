@@ -131,7 +131,7 @@ export function raceCard(data: RaceBoardData, lang: Lang, top = DEFAULT_TOP, mem
   const ranked = leaderboardOrder(data.rows).slice(0, Math.min(clampTop(top), CARD_ROWS));
   return {
     eyebrow: "Guilded · WoW Forever", title: fr ? "Course au niveau 60" : "Race to 60",
-    subtitle: fr ? `${data.finished} sur ${data.total} personnages au niveau ${LEVEL_CAP}` : `${data.finished} of ${data.total} characters at level ${LEVEL_CAP}`,
+    subtitle: data.total === 0 ? (fr ? "En attente du premier personnage" : "Waiting for the first character") : fr ? `${data.finished} sur ${data.total} personnages au niveau ${LEVEL_CAP}` : `${data.finished} of ${data.total} characters at level ${LEVEL_CAP}`,
     backdrop: { kind: "board", key: "race-to-60" },
     stats: [], footer: fr ? `Top ${ranked.length} sur ${data.total} · mis à jour à chaque synchronisation · /character race near trouve des partenaires` : `Top ${ranked.length} of ${data.total} · updated after every sync · /character race near finds partners`,
     ladder: {

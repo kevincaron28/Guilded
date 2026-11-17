@@ -65,8 +65,8 @@ async function drawBanner(c: CardCanvas, spec: Pick<BodyCardSpec, "type" | "embl
   c.rect(0, BANNER, CARD_W, CARD_H - BANNER, "#15110d");
   c.rect(0, BANNER, CARD_W, 5, accent);
   c.emblem(spec.emblem, PAD, 26, 44, tint);
-  await c.text(spec.label, PAD + 60, 32, { size: 26, face: "bold", color: tint, spacing: 1500, maxW: maxW - 60 });
-  await c.text(spec.title, PAD, 70, { size: 46, face: "serif", maxW: Math.min(maxW, 760) });
+  await c.text(spec.label, PAD + 60, 32, { size: 30, face: "title", color: tint, spacing: 800, maxW: maxW - 60 });
+  await c.text(spec.title, PAD, 70, { size: 52, face: "title", maxW: Math.min(maxW, 760) });
   if (spec.hero) {
     const hero = await c.text(spec.hero, PAD, 120, { size: 38, face: "bold", color: spec.heroColor ?? INK, maxW: spec.heroNote ? 460 : maxW });
     if (spec.heroNote) await c.text(spec.heroNote, PAD + hero.w + 18, 128, { size: 28, color: SUB, maxW: Math.max(160, maxW - hero.w - 18) });

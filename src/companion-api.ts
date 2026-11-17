@@ -116,6 +116,7 @@ import { inviteListForAddon, pendingInvites } from "./services/invite-queue.js";
 import { applyInviteReports, parseInviteReports } from "./services/invite-expiry.js";
 import { backCheckInvites, completeInvitesFromRoster } from "./services/invite-channel.js";
 import { prelinkInvitedCharacters, tellPrelinked } from "./services/invite-prelink.js";
+import { noteCompanionVersion } from "./services/companion-937-notice.js";
 import { MIN_PROTOCOL, PROTOCOL_VERSION, clientVersionSummary, compatFields, noteClientVersion } from "./compat.js";
 import { COMPANION_FEATURES, markGuildChanged, standingsFeed, type FeedParts } from "./services/standings-feed.js";
 import { commandRegistration } from "./services/command-registration.js";
@@ -841,6 +842,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       response.setHeader("x-content-type-options", "nosniff");
       // Compatibility (docs/COMPAT_POLICY.md): count which companion versions are calling; old companions send none.
       const clientVersion = noteClientVersion(request.headers["x-companion-version"]);
+      if (clientVersion) noteCompanionVersion(prisma, { credential: headerOf(request, "x-companion-credential"), device: deviceHeader(request) }, clientVersion);
       if (request.method === "GET" && request.url === "/health") {
         json(response, client?.isReady() ? 200 : 503, { ok: client?.isReady() ?? false, botVersion: BOT_VERSION, protocolVersion: PROTOCOL_VERSION, ...compatFields(clientVersion), features: COMPANION_FEATURES, commands: commandRegistration.state() });
         return;

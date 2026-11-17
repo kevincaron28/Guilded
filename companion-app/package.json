@@ -3,7 +3,7 @@
   "productName": "Guilded Companion",
   "version": "9.3.8",
   "description": "Your guild, connected. World of Warcraft sync and Path of Exile 2 mapping.",
-  "main": "main.cjs",
+  "main": "entry.cjs",
   "private": true,
   "author": "Guilded",
   "scripts": {
@@ -25,6 +25,7 @@
       "output": "../dist/companion"
     },
     "files": [
+      "entry.cjs",
       "main.cjs",
       "store-config.cjs",
       "preload.cjs",

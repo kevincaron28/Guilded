@@ -21,10 +21,15 @@ describe("companion --self-test", () => {
 
   it("real main.cjs: self-test is wired, packaged, and every local module is found", () => {
     const main = readFileSync(new URL("main.cjs", dir), "utf8");
-    expect(main.indexOf('"--self-test"')).toBeGreaterThan(-1);
-    expect(main.indexOf('"--self-test"')).toBeLessThan(main.indexOf("requestSingleInstanceLock"));
+    // The guard lives in the entry point, before main.cjs (and its single-instance lock) is even loaded.
+    const entry = readFileSync(new URL("entry.cjs", dir), "utf8");
+    expect(entry.indexOf('"--self-test"')).toBeGreaterThan(-1);
+    expect(entry.indexOf('"--self-test"')).toBeLessThan(entry.indexOf('require("./main.cjs")'));
+    expect(JSON.parse(readFileSync(new URL("package.json", dir), "utf8")).main).toBe("entry.cjs");
+    expect(main).not.toContain('"--self-test"');
     const files: string[] = JSON.parse(readFileSync(new URL("package.json", dir), "utf8")).build.files;
     expect(files).toContain("selftest.cjs");
+    expect(files).toContain("entry.cjs");
     const found: string[] = collectLocalModules("main.cjs", (f: string) => readFileSync(new URL(f, dir), "utf8"));
     expect(found).toContain("run-log.cjs");
     expect(collectEngineModules(main)).toContain("engine.mjs");

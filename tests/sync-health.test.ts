@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { collectSyncIssues, describeSyncIssues, developerSummary, parseHealthHeader, recordHealthReport, resetSyncHealthCache, syncHealth } from "../src/services/sync-health.js";
+import { KNOWN_BROKEN_VERSIONS, brokenVersionNote, collectSyncIssues, describeSyncIssues, developerSummary, parseHealthHeader, recordHealthReport, resetSyncHealthCache, syncHealth } from "../src/services/sync-health.js";
 
 const now = new Date("2026-11-15T12:00:00Z");
 const hoursAgo = (hours: number) => new Date(now.getTime() - hours * 3_600_000);
@@ -7,7 +7,7 @@ const hoursAgo = (hours: number) => new Date(now.getTime() - hours * 3_600_000);
 function fakeDb(over: Record<string, unknown[]> = {}) {
   const table = (name: string) => ({ findMany: vi.fn(async () => over[name] ?? []) });
   return { companionCredential: table("credentials"), companionDevice: table("devices"), dungeonRunPlayer: table("runPlayers"), duelResult: table("duels"),
-    carriedRecord: table("carried"), dungeonRun: table("runs"), dungeonRunReceipt: table("receipts"), dungeonRunWitness: table("witnesses"), syncHealthReport: table("reports") } as never;
+    carriedRecord: table("carried"), dungeonRun: table("runs"), dungeonRunReceipt: table("receipts"), dungeonRunWitness: table("witnesses"), syncHealthReport: { findMany: vi.fn(async (args: { where: { OR?: unknown } }) => ((over["reports"] ?? []) as { parked: number; damaged: boolean }[]).filter((row) => args.where.OR ? row.parked > 0 || row.damaged : true)) }, character: table("characters"), guildRosterEntry: table("roster") } as never;
 }
 
 describe("sync health signals", () => {
@@ -25,6 +25,31 @@ describe("sync health signals", () => {
     expect(await collectSyncIssues(quiet, "g", now)).toEqual([]);
     const fresh = fakeDb({ credentials: [{ memberId: "m1", createdAt: hoursAgo(500), lastUsedAt: hoursAgo(1), member: { displayName: "Ana" } }], duels: [{ winnerId: "m1", loserId: "x", endedAt: hoursAgo(0.5) }] });
     expect(await collectSyncIssues(fresh, "g", now)).toEqual([]);
+  });
+  it("flags a stalled companion seen online in the guild roster (solo play), with its last version", async () => {
+    const db = fakeDb({ credentials: [{ memberId: "m1", createdAt: hoursAgo(500), lastUsedAt: hoursAgo(14), member: { displayName: "Ana" } }], characters: [{ memberId: "m1", name: "Ana Smith" }],
+      roster: [{ nameKey: "ana smith", name: "Ana Smith", lastOnlineAt: hoursAgo(1) }], reports: [{ ownerKey: "member:m1", memberId: "m1", companionVersion: "9.3.7", reportedAt: hoursAgo(14), parked: 0, damaged: false }] });
+    const issues = await collectSyncIssues(db, "g", now);
+    expect(issues[0]).toMatchObject({ signal: "silent", who: "Ana" });
+    expect(issues[0]!.detail).toContain("online in the guild roster");
+    expect(issues[0]!.detail).toContain("9.3.7 (known broken");
+    expect(issues[0]!.fix.en).toMatch(/latest Guilded Companion installer/);
+    expect(describeSyncIssues(issues, "fr")).toContain("version défectueuse connue");
+  });
+  it("does not flag a silent member whose characters were last online before the last contact, or under the threshold", async () => {
+    const old = fakeDb({ credentials: [{ memberId: "m1", createdAt: hoursAgo(500), lastUsedAt: hoursAgo(14), member: { displayName: "Ana" } }], characters: [{ memberId: "m1", name: "Ana Smith" }], roster: [{ nameKey: "ana smith", name: "Ana Smith", lastOnlineAt: hoursAgo(14.5) }] });
+    expect(await collectSyncIssues(old, "g", now)).toEqual([]);
+    const recent = fakeDb({ credentials: [{ memberId: "m1", createdAt: hoursAgo(500), lastUsedAt: hoursAgo(5), member: { displayName: "Ana" } }], characters: [{ memberId: "m1", name: "Ana Smith" }], roster: [{ nameKey: "ana smith", name: "Ana Smith", lastOnlineAt: hoursAgo(1) }] });
+    expect(await collectSyncIssues(recent, "g", now)).toEqual([]);
+  });
+  it("flags a known broken companion version even before it goes silent", async () => {
+    expect(brokenVersionNote("9.3.7")).toBe(KNOWN_BROKEN_VERSIONS["9.3.7"]);
+    expect(brokenVersionNote("9.3.8")).toBeNull();
+    const db = fakeDb({ credentials: [{ memberId: "m1", createdAt: hoursAgo(500), lastUsedAt: hoursAgo(1), member: { displayName: "Ana" } }], reports: [{ ownerKey: "member:m1", memberId: "m1", companionVersion: "9.3.7", reportedAt: hoursAgo(1), parked: 0, damaged: false }] });
+    const issues = await collectSyncIssues(db, "g", now);
+    expect(issues).toMatchObject([{ signal: "broken-version", who: "Ana" }]);
+    expect(describeSyncIssues(issues, "en")).toContain("known broken version");
+    expect(describeSyncIssues(issues, "fr")).toContain("version défectueuse connue");
   });
   it("flags a carried run whose own recorder never uploaded it", async () => {
     const db = fakeDb({ carried: [{ authorKey: "bob|realm", key: "1:QG-1-Bob@device:d", runKey: "1:QG-1-Bob" }],
@@ -89,5 +114,9 @@ describe("sync health cost and wording", () => {
     findUnique.mockResolvedValueOnce({ parked: 2, damaged: false, reportedAt: hoursAgo(0.2) } as never);
     await recordHealthReport(db, { guildId: "g", ownerKey: "device:d", memberId: null, header: "parked=2", now });
     expect(upsert).toHaveBeenCalledTimes(1);
+    // A new version is stored even when nothing else changed.
+    findUnique.mockResolvedValueOnce({ parked: 2, damaged: false, reportedAt: hoursAgo(0.2), companionVersion: "9.3.6" } as never);
+    await recordHealthReport(db, { guildId: "g", ownerKey: "device:d", memberId: null, header: "parked=2", version: "9.3.8", now });
+    expect(upsert).toHaveBeenCalledTimes(2);
   });
 });

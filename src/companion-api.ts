@@ -958,7 +958,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const runsOnlyHeader = headerOf(request, "x-guilded-runs-only") === "1";
         if (!(runsOnlyHeader ? deviceRunsOnlyPerDevice(device.id) : deviceUploadsPerDevice(device.id)) || !deviceUploadsPerIp(address)) { json(response, 429, { error: "Too many uploads in the last hour. Try again later." }); return; }
         const deviceBody = await readBody(request);
-        if (device.guildId && headerOf(request, "x-companion-health")) void recordHealthReport(prisma, { guildId: device.guildId, ownerKey: `device:${device.id}`, memberId: null, header: headerOf(request, "x-companion-health") });
+        if (device.guildId && headerOf(request, "x-companion-health")) void recordHealthReport(prisma, { guildId: device.guildId, ownerKey: `device:${device.id}`, memberId: null, header: headerOf(request, "x-companion-health"), version: clientVersion });
         const runsOnly = (deviceBody as { runsOnly?: unknown } | null)?.runsOnly === true;
         // A runs-only body without the header spends the runs-only budget as well.
         if (runsOnly && !runsOnlyHeader && !deviceRunsOnlyPerDevice(device.id)) { json(response, 429, { error: "Too many uploads in the last hour. Try again later." }); return; }
@@ -1291,7 +1291,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         if (wellFormedCredential(header)) recordFailure(address);
         json(response, 401, { error: "Pair this companion with /character pair. The shared upload token no longer grants access." }); return;
       }
-      if (isImport && headerOf(request, "x-companion-health")) void recordHealthReport(prisma, { guildId: guild.id, ownerKey: `member:${access.memberId ?? access.actorId}`, memberId: access.memberId ?? null, header: headerOf(request, "x-companion-health") });
+      if (isImport && headerOf(request, "x-companion-health")) void recordHealthReport(prisma, { guildId: guild.id, ownerKey: `member:${access.memberId ?? access.actorId}`, memberId: access.memberId ?? null, header: headerOf(request, "x-companion-health"), version: clientVersion });
       if (isMobileDevice) {
         const enabled = request.method === "GET"
           ? await mobileDeviceEnabled(prisma, header as string)

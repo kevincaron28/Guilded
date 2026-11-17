@@ -71,7 +71,7 @@ export function AlbumScreen({ lang, session }: { lang: Lang; session: Session | 
     <Text style={styles.total}>{album.earned} / {album.total} {w("of", lang)}{album.hiddenSecrets ? `  +${album.hiddenSecrets} secret${album.hiddenSecrets === 1 ? "" : "s"}` : ""}</Text>
     <ProgressBar done={album.earned} total={album.total} />
     <View style={styles.chips}><SegmentedTabs options={[{ value: "all", label: w("all", lang) }, { value: "mine", label: w("mine", lang) }]} value={onlyMine ? "mine" : "all"} onChange={(next) => setOnlyMine(next === "mine")} /></View>
-    {onlyMine && album.earned === 0 ? <EmptyState message={w("empty", lang)} /> : null}
+    {onlyMine && album.earned === 0 ? <EmptyState art="season" message={w("empty", lang)} /> : null}
     {sets.map((set) => <View key={set.name}>
       <Text style={styles.label}>{set.name.toUpperCase()}  {set.earned}/{album.cards.filter((card) => card.set === set.name && !(card.secret && !card.earnedAt)).length}</Text>
       <View style={styles.grid}>{set.cards.map((card) => {

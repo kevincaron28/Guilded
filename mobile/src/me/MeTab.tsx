@@ -33,7 +33,7 @@ export function MeTab({ guild, onSignIn }: { guild: GuildState; onSignIn: () => 
       {preview ? <Text style={common.banner}>{t(lang, "sampleBanner")}</Text> : null}
       {guild.hasGuild ? <>
         <Text style={common.label}>{t(lang, "profile").toUpperCase()}</Text>
-        {characters.length === 0 ? <EmptyState message={t(lang, "noCharacters")} /> : characters.map((character) =>
+        {characters.length === 0 ? <EmptyState art="guild" message={t(lang, "noCharacters")} /> : characters.map((character) =>
           <Card key={character.id} edge={null}>
             <View style={common.titleRow}>
               <ClassName name={shownName(character)} className={character.className} style={{ fontSize: 16, flex: 1 }} />

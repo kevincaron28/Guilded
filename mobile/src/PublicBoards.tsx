@@ -57,11 +57,11 @@ export function PublicBoards({ origin, lang, header }: { origin: string; lang: L
       {boards.brackets.length > 1 && <View style={styles.tabs}>{boards.brackets.map((b, i) => <Pressable key={b.key} onPress={() => setBracket(i)} style={[styles.chip, i === bracket && styles.chipOn]} accessibilityRole="button"><Text style={[styles.chipText, i === bracket && styles.chipTextOn]}>{b.name}</Text></Pressable>)}</View>}
       {current && <>
         <Text style={styles.label}>{w("characters", lang).toUpperCase()}</Text>
-        <Card style={styles.card}>{current.characters.length === 0 ? <EmptyState message={w("none", lang)} /> : current.characters.map((c) => <Row key={`${c.rank}-${c.name}`}
+        <Card style={styles.card}>{current.characters.length === 0 ? <EmptyState art="pvp" message={w("none", lang)} /> : current.characters.map((c) => <Row key={`${c.rank}-${c.name}`}
           leading={<><Place origin={origin} rank={c.rank} />{classIconFile(c.className) ? <Image source={{ uri: web(origin, classIconFile(c.className)!) }} style={styles.classIcon} accessible={false} /> : null}</>}
           name={c.name} nameColor={classColor(c.className)} sub={[c.className, c.role, c.realm].filter(Boolean).join(" · ")} score={c.points} />)}</Card>
         <Text style={styles.label}>{w("guilds", lang).toUpperCase()}</Text>
-        <Card style={styles.card}>{current.guilds.length === 0 ? <EmptyState message={w("none", lang)} /> : current.guilds.map((g) => <Row key={g.id}
+        <Card style={styles.card}>{current.guilds.length === 0 ? <EmptyState art="pvp" message={w("none", lang)} /> : current.guilds.map((g) => <Row key={g.id}
           leading={<Place origin={origin} rank={g.rank} />} name={g.name} sub={g.slug ? "›" : w("noPage", lang)} score={g.points}
           onPress={() => { if (g.slug) setSlug(g.slug); }} disabled={!g.slug} />)}</Card>
       </>}
@@ -92,7 +92,7 @@ function PublicGuildView({ origin, lang, slug, onBack }: { origin: string; lang:
           <View style={styles.barTrack}><View style={[styles.bar, { width: `${Math.round((m.count / biggest) * 100)}%`, backgroundColor: classColor(m.className) }]} /></View>
           <Text style={styles.mixCount}>{m.count}</Text></View>)}</Card></>}
       <Text style={styles.label}>{w("cores", lang).toUpperCase()}</Text>
-      {guild.cores.length === 0 ? <EmptyState boxed message={w("noCores", lang)} style={styles.card} /> : guild.cores.map((core) => <Card key={core.name} style={styles.card}>
+      {guild.cores.length === 0 ? <EmptyState art="guild" boxed message={w("noCores", lang)} style={styles.card} /> : guild.cores.map((core) => <Card key={core.name} style={styles.card}>
         <Text style={styles.coreName}>{core.name}</Text>
         {core.schedule ? <Text style={styles.sub}>{core.schedule}</Text> : null}
         {core.roster.map((m) => <View key={m.name} style={styles.rosterRow}><Text style={[styles.name, { color: classColor(m.className), flex: 1 }]}>{m.name}</Text><Text style={styles.sub}>{[m.className, m.role, m.bench ? "bench" : "", m.trial ? "trial" : ""].filter(Boolean).join(" · ")}</Text></View>)}

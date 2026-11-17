@@ -49,7 +49,8 @@
       "config-load.cjs",
       "store-migrate.cjs",
       "store-decrypt.cjs",
-      "store-startup.cjs"
+      "store-startup.cjs",
+      "run-log.cjs"
     ],
     "extraResources": [
       {

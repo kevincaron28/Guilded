@@ -38,11 +38,11 @@ describe("dungeon run card (redesign)", () => {
     const [a, b, c, , e] = card.dungeon!.party;
     expect(a!.guildName).toBeUndefined();
     expect(b!.guildName).toBe("Our Own Guild"); // 9.3.2: shown for everyone the recorder saw a guild for
-    expect(c!.guildName).toBe("Moonwell Vanguard of th…");
-    expect(c!.guildName!.length).toBeLessThanOrEqual(24);
+    expect(c!.guildName).toBe("Moonwell Vanguard of the No…");
+    expect(c!.guildName!.length).toBeLessThanOrEqual(28);
     expect(e!.guildName).toBe("Evil & \"Co\"");
     expect(cardAltText(card)).toContain("Thessaly Moonbright");
-    expect(cardAltText(card)).toContain("<Moonwell Vanguard of th…>");
+    expect(cardAltText(card)).toContain("<Moonwell Vanguard of the No…>");
     expect(guildDisplayName("\u0000\u0007  ")).toBeUndefined();
     expect(guildDisplayName(null)).toBeUndefined();
   });

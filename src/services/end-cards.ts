@@ -22,26 +22,56 @@ export function raidArtKey(report: Pick<RaidReport, "title" | "killedNames">): s
   return "default";
 }
 
-/** A finished raid: bosses down, time, attendance, and the loot that went out. No per-player performance. */
+/** "2 h 10" / "2h 10m" for the raid's length; "—" when the raid has no recorded start or end. */
+const raidLength = (minutes: number | null, lang: Lang) => {
+  if (minutes === null) return "—";
+  const hours = Math.floor(minutes / 60), rest = minutes % 60;
+  return lang === "fr" ? (hours > 0 ? `${hours} h ${String(rest).padStart(2, "0")}` : `${minutes} min`) : formatDuration(minutes);
+};
+
+/**
+ * A finished raid: bosses down, time, attendance, and the loot that went out. No per-player performance. Every figure has its own label
+ * and value (no "Duration · 1 absent"); the bosses that died are ticked rows. A raid with no named kill shows its attendance as rows
+ * instead, so the card is never mostly empty. Members never see EP/GP: they are "raid points".
+ */
 export function raidEndCard(report: RaidReport, lang: Lang = "en", timeZone?: string): ScoreCard {
   const t = pick(lang);
   const cleared = report.bossesPlanned > 0 && report.bossesKilled >= report.bossesPlanned;
   const when = report.endedAt ?? report.startedAt, date = when ? cardDate(when, lang, timeZone) : undefined;
   const lootRows: CardRow[] = report.topLoot.slice(0, 5).map(loot => ({ name: loot.item, sub: `→ ${loot.winner}`, right: `${loot.gp} pts`, rightTone: "gold" }));
   const bossRows: CardRow[] = report.killedNames.slice(0, 5).map(name => ({ name, sub: t("Defeated", "Vaincu"), color: "#6fdc4f", right: t("Down", "Mort"), rightTone: "green" }));
+  const named = report.killedNames.length > 0;
+  const lateAbsent = { label: t("Late / absent", "En retard / absents"), value: `${report.late} / ${report.absent}` };
+  const attendanceRows: CardRow[] = [
+    { name: t("Raiders present", "Raiders présents"), right: String(report.raiders), rightTone: "gold" },
+    { name: t("Late", "En retard"), right: String(report.late) },
+    { name: t("Absent", "Absents"), right: String(report.absent) },
+    ...(report.epRecipients ? [{ name: t("Raid points awarded", "Points de raid remis"), right: String(report.epAwarded), rightTone: "green" as const }] : [])
+  ];
   return {
     eyebrow: t("Guilded · Raids · Report", "Guilded · Raids · Rapport"), title: report.title,
     subtitle: [report.endedAt ? t("Completed", "Terminé") : t("In progress", "En cours"), date].filter(Boolean).join(" · "),
     stats: [
       { label: t("Bosses defeated", "Boss vaincus"), value: report.bossesPlanned > 0 ? `${report.bossesKilled}/${report.bossesPlanned}` : String(report.bossesKilled), accent: cleared ? "green" : "gold", note: cleared ? t("Full clear", "Raid complété") : report.bossesKilled ? t("Partial clear", "Complété en partie") : t("No kills recorded", "Aucune victoire notée") },
-      { label: t("Raiders", "Raiders"), value: String(report.raiders), note: report.late ? t(`${report.late} late`, `${report.late} en retard`) : t("All on time", "Tous à l'heure") },
-      { label: t("Duration", "Durée"), value: formatDuration(report.durationMinutes), note: report.absent ? t(`${report.absent} absent`, report.absent === 1 ? "1 absent" : `${report.absent} absents`) : undefined }
+      // With the bosses ticked on the left the right column carries attendance and time; without them the left carries attendance, so the right shows the raid's other facts.
+      ...(named ? [
+        { label: t("Raiders", "Raiders"), value: String(report.raiders) },
+        lateAbsent,
+        { label: t("Duration", "Durée"), value: raidLength(report.durationMinutes, lang) }
+      ] : [
+        { label: t("Duration", "Durée"), value: raidLength(report.durationMinutes, lang) },
+        { label: t("Raid points awarded", "Points de raid remis"), value: String(report.epRecipients ? report.epAwarded : 0) },
+        { label: t("Items handed out", "Objets distribués"), value: String(report.lootCount) }
+      ])
     ],
     backdrop: { kind: "raid", key: raidArtKey(report), fallbackKey: "default" },
-    rowsLabel: lootRows.length ? t("Top loot", "Meilleur butin") : t("Bosses defeated", "Boss vaincus"), rows: lootRows.length ? lootRows : bossRows,
+    // `checks` feeds the banner layout; `rows` is what the older layout (and a card queued before this) draws.
+    ...(named ? { checks: report.killedNames.slice(0, 12) } : {}),
+    moreLabel: t("more", "autres"),
+    rowsLabel: named ? t("Bosses defeated", "Boss vaincus") : t("Attendance", "Présences"), rows: named ? (lootRows.length ? lootRows : bossRows) : attendanceRows,
     badges: [
       ...(report.epRecipients ? [{ text: t(`${report.epAwarded} raid points to ${report.epRecipients} raiders`, `${report.epAwarded} points de raid à ${report.epRecipients} raiders`), tone: "ok" as const }] : [{ text: t("Raid points pending", "Points de raid en attente"), tone: "muted" as const }]),
-      ...(report.lootCount ? [{ text: t(`${report.lootCount} items · ${report.gpSpent} pts`, `${report.lootCount} objets · ${report.gpSpent} pts`), tone: "muted" as const }] : [])
+      ...(report.lootCount ? [{ text: t(`${report.lootCount} items handed out`, `${report.lootCount} objets distribués`), tone: "muted" as const }] : [])
     ],
     footer: t("Guild raid report · Attendance and loot as recorded by officers · guildedwow.com", "Rapport de raid de guilde · Présences et butin notés par les officiers · guildedwow.com")
   };

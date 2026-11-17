@@ -29,7 +29,9 @@ describe("weekly report card", () => {
     const quiet = { ...report, raiderOfWeek: null, dungeonHero: null, cores: [], guild: { ...report.guild, newMembers: 0 }, dungeons: { ...report.dungeons, marathon: null, records: [], firsts: [] } } as unknown as WeeklyReport;
     const card = weeklyReportCard(quiet, "fr");
     expect(card.title).toBe("La semaine de la guilde");
-    expect(card.rows).toEqual([]);
+    // A quiet week shows the week before as its next useful fact; with nothing before it either, nothing is added.
+    expect(card.rows).toEqual([{ name: "Semaine passée", sub: "2 raids · 9 victoires" }]);
+    expect(weeklyReportCard({ ...quiet, previous: stats(0, 0) }, "fr").rows).toEqual([]);
     expect(card.badges).toBeUndefined();
     expect(card.footer).toContain("guildedwow.com");
   });

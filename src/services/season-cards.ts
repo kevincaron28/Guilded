@@ -55,6 +55,7 @@ export function seasonEndCard(season: SeasonInfo, podium: Podium | null, lang: L
   const fr = lang === "fr", t = (en: string, french: string) => fr ? french : en, day = dayIn(lang, timeZone);
   const entries = podium?.entries ?? [];
   const champions = entries.filter(entry => entry.rank === 1 && !entry.label);
+  const loneChampion = champions.length === 1 && entries.length === 1;
   const place = (entry: PodiumEntry) => entry.label ? `${MEDALS[0]} ${t("Champion", "Champion")} · ${entry.label}` : `${MEDALS[entry.rank - 1]} ${entry.rank === 1 ? t("Champion", "Champion") : t(`Place ${entry.rank}`, `${entry.rank}e place`)}`;
   return {
     eyebrow: t("Guilded · Dungeons", "Guilded · Donjons"), title: t(`${seasonLabel(season.name, lang)} is over`, `${seasonLabel(season.name, lang)} est terminée`),
@@ -63,11 +64,15 @@ export function seasonEndCard(season: SeasonInfo, podium: Podium | null, lang: L
     stats: [
       { label: champions.length > 1 ? t("Champions", "Champions") : t("Champion", "Champion"), value: entries.length ? (champions.length > 1 ? String(champions.length + (podium?.moreChampions ?? 0)) : (champions[0] ?? entries[0]!).name) : "—", accent: "gold" },
       { label: t("Ranked players", "Joueurs classés"), value: String(podium?.ranked ?? 0) },
-      ...(entries.length ? [{ label: t("Top score", "Meilleur score"), value: String(Math.max(...entries.map(entry => entry.points))), accent: "green" as const }] : [])
+      ...(entries.length && !loneChampion ? [{ label: t("Top score", "Meilleur score"), value: String(Math.max(...entries.map(entry => entry.points))), accent: "green" as const }] : [])
     ],
     rowsLabel: t("Podium", "Podium"),
-    // A lone champion is already the hero figure: the rows start at second place so nobody is named three times.
-    rows: entries.length ? (champions.length === 1 ? entries.filter(entry => entry !== champions[0]) : entries).map(entry => ({ name: entry.name, color: classColor(classOf(classes, entry.name)), sub: place(entry), right: `${entry.points} pts`, rightTone: entry.rank === 1 ? "gold" as const : undefined }))
+    // A lone champion is already the hero figure: the rows start at second place so nobody is named three times. When nobody else is on the podium the rows
+    // carry the season's own facts (its length, the champion's score) instead of leaving the card half empty.
+    rows: loneChampion ? [
+      { name: t("Season length", "Durée de la saison"), right: season.endsAt ? plural(lang, Math.max(1, Math.round((season.endsAt.getTime() - season.startsAt.getTime()) / 86_400_000)), ["day", "days"], ["jour", "jours"]) : t("Open", "Ouverte") },
+      { name: t("Champion's score", "Score du champion"), right: `${champions[0]!.points} pts`, rightTone: "gold" as const }
+    ] : entries.length ? (champions.length === 1 ? entries.filter(entry => entry !== champions[0]) : entries).map(entry => ({ name: entry.name, color: classColor(classOf(classes, entry.name)), sub: place(entry), right: `${entry.points} pts`, rightTone: entry.rank === 1 ? "gold" as const : undefined }))
       : [{ name: t("No ranked player this season", "Aucun joueur classé cette saison"), sub: t("No dungeon points were recorded", "Aucun point de donjon enregistré") }],
     ...(podium?.moreChampions ? { badges: [{ text: t(`and ${plural(lang, podium.moreChampions, ["more champion", "more champions"], ["", ""])}`, `et ${plural(lang, podium.moreChampions, ["", ""], ["autre champion", "autres champions"])}`), tone: "muted" as const }] } : {}),
     footer: t("Season results · Final standings as published · No rewards · guildedwow.com", "Résultats de saison · Classement final publié · Aucune récompense · guildedwow.com")
@@ -100,6 +105,11 @@ export function seasonEndFallback(season: SeasonInfo, podium: Podium | null, lan
   return new EmbedBuilder().setColor(COLOR).setTitle(fr ? `🏁 ${seasonLabel(season.name, lang)} est terminée` : `🏁 ${seasonLabel(season.name, lang)} is over`)
     .setDescription(entries.length ? entries.map(entry => `${MEDALS[entry.rank - 1]} ${entry.name}${entry.label ? ` (${entry.label})` : ""} — ${entry.points} pts`).join("\n") + (podium?.moreChampions ? `\n+${podium.moreChampions}` : "") : fr ? "Aucun joueur classé cette saison." : "No ranked player this season.").setImage(siteUrl("/card-art/board/season-end.jpg"));
 }
+/** The season-end text when nobody was ranked: the same words, no picture. */
+function seasonEndEmpty(season: SeasonInfo, lang: Lang): EmbedBuilder {
+  const fr = lang === "fr";
+  return new EmbedBuilder().setColor(COLOR).setTitle(fr ? `🏁 ${seasonLabel(season.name, lang)} est terminée` : `🏁 ${seasonLabel(season.name, lang)} is over`).setDescription(fr ? "Aucun joueur classé cette saison." : "No ranked player this season.");
+}
 export function seasonStartFallback(season: SeasonInfo, lang: Lang, timeZone?: string): EmbedBuilder {
   const fr = lang === "fr", day = dayIn(lang, timeZone);
   return new EmbedBuilder().setColor(COLOR).setTitle(fr ? `🚀 ${seasonLabel(season.name, lang)} commence` : `🚀 ${seasonLabel(season.name, lang)} begins`)
@@ -113,9 +123,11 @@ async function enabledChannel(database: Database, guildId: string): Promise<bool
   const settings = await database.guildSettings.findUnique({ where: { guildId }, select: { seasonCardsEnabled: true, dungeonLeaderboardChannelId: true } });
   return Boolean(settings?.seasonCardsEnabled && settings.dungeonLeaderboardChannelId);
 }
-async function put(database: Database, guildId: string, key: string, card: ScoreCard, fallback: EmbedBuilder): Promise<number> {
+async function put(database: Database, guildId: string, key: string, card: ScoreCard | null, fallback: EmbedBuilder): Promise<number> {
   if (await database.discordJob.findUnique({ where: { guildId_key: { guildId, key } } })) return 0;
-  await database.discordJob.create({ data: { guildId, key, kind: "MESSAGE", payload: json({ route: "seasonCard", retryCard: true, message: { embeds: [fallback.toJSON()] }, card, cardOnly: { embeds: [textlessEmbed(COLOR)] } }) } });
+  // Without a card the text embed is the whole message.
+  const body = card ? { route: "seasonCard", retryCard: true, message: { embeds: [fallback.toJSON()] }, card, cardOnly: { embeds: [textlessEmbed(COLOR)] } } : { route: "seasonCard", message: { embeds: [fallback.toJSON()] } };
+  await database.discordJob.create({ data: { guildId, key, kind: "MESSAGE", payload: json(body) } });
   return 1;
 }
 
@@ -134,7 +146,8 @@ export async function queueSeasonEndCards(database: Database, guildId: string, l
     // No stored results at all (neither rating nor standings): not final yet, so no card and no job.
     if (!podium) continue;
     const info = { name: season.name, startsAt: season.startsAt, endsAt: season.endsAt };
-    queued += await put(database, guildId, `season-card:end:${season.id}`, seasonEndCard(info, podium, lang, classes, timeZone), seasonEndFallback(info, podium, lang));
+    // A season nobody was ranked in is one line of text, not a picture of an empty podium.
+    queued += await put(database, guildId, `season-card:end:${season.id}`, podium.entries.length ? seasonEndCard(info, podium, lang, classes, timeZone) : null, podium.entries.length ? seasonEndFallback(info, podium, lang) : seasonEndEmpty(info, lang));
   }
   return queued;
 }

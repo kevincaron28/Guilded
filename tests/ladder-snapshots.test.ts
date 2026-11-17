@@ -68,7 +68,7 @@ describe("arrows on the ladder card", () => {
     expect(card.ladder!.columns.at(-1)).toMatchObject({ label: "24h", kind: "move" });
     expect(card.ladder!.boards[0]!.rows.map(row => row.move)).toEqual([2, -3, 0, "new"]);
     const png = (await scoreCardPng(card))!;
-    // The redesigned banner card draws the arrow as a small triangle between the rank and the name (x 94..110); rows are 50 px from y=224.
+    // The redesigned banner card draws the arrow as a small triangle between the rank and the name (x 94..110); row height depends on how many rows there are.
     const strip = async (top: number) => {
       const { data, info } = await sharp(png).extract({ left: 90, top, width: 24, height: 26 }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
       let green = 0, red = 0;
@@ -79,7 +79,12 @@ describe("arrows on the ladder card", () => {
       }
       return { green, red };
     };
-    const up = await strip(230), down = await strip(280);
+    // Rows grow taller on short boards, so find the first row band (26 px, stepping 2 px) that holds each arrow.
+    const bands = await Promise.all(Array.from({ length: 160 }, (_, i) => strip(180 + i * 2)));
+    const upAt = bands.findIndex(b => b.green > 10), downAt = bands.findIndex((b, i) => i > upAt + 6 && b.red > 10);
+    expect(upAt).toBeGreaterThanOrEqual(0);
+    expect(downAt).toBeGreaterThan(upAt);
+    const up = bands[upAt]!, down = bands[downAt]!;
     expect(up.green).toBeGreaterThan(10);
     expect(down.red).toBeGreaterThan(10);
     expect(up.red).toBe(0);

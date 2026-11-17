@@ -137,20 +137,27 @@ export class CardCanvas {
 
   /**
    * Composites `layers` (the painting first), then the shapes, then the text; returns the PNG and the contrast report of every
-   * string. When a painting leaves a string under MIN_CONTRAST the whole picture is darkened under the shapes in steps (the same
-   * idea as card-backdrop.ts's guard) until every string passes, rather than shipping a low-contrast card.
+   * string. When a painting leaves a string under MIN_CONTRAST, a soft dark patch is laid behind that string in steps (the
+   * painting keeps its own lighting) until every string passes, rather than shipping a low-contrast card.
    */
   async finish(layers: OverlayOptions[]): Promise<{ png: Buffer; report: TextReport[]; scrim: number }> {
     const svg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${CARD_H}">${this.svg}</svg>`);
-    let scrim = 0, base: Buffer, report: TextReport[];
-    for (;;) {
-      const dark = scrim > 0 ? [{ input: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${CARD_H}"><rect width="100%" height="100%" fill="#000" fill-opacity="${scrim}"/></svg>`), left: 0, top: 0 }] : [];
-      base = await sharp({ create: { width: CARD_W, height: CARD_H, channels: 3, background: "#0b0907" } }).composite([...layers, ...dark, { input: svg, left: 0, top: 0 }]).png().toBuffer();
+    // Owner, 17 Nov 2026: keep the painting's own lighting. A string that would be hard to read gets a soft dark patch behind it
+    // (stronger in steps), instead of the whole picture being darkened for one word. `scrim` reports the strongest patch used.
+    const shade = this.texts.map(() => 0);
+    let base: Buffer, report: TextReport[];
+    for (let round = 0; ; round++) {
+      const patches = this.texts.map((t, i) => shade[i]! > 0
+        ? `<rect x="${t.left - 14}" y="${t.top - 6}" width="${t.w + 28}" height="${t.h + 12}" rx="12" fill="#000" fill-opacity="${shade[i]}" filter="url(#soft)"/>` : "").join("");
+      const dark = patches ? [{ input: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${CARD_H}"><defs><filter id="soft" x="-20%" y="-50%" width="140%" height="200%"><feGaussianBlur stdDeviation="5"/></filter></defs>${patches}</svg>`), left: 0, top: 0 }] : [];
+      base = await sharp({ create: { width: CARD_W, height: CARD_H, channels: 3, background: "#0b0907" } }).composite([...layers, { input: svg, left: 0, top: 0 }, ...dark]).png().toBuffer();
       const px = await sharp(base).removeAlpha().raw().toBuffer();
       report = this.texts.map((t) => ({ text: t.str, size: t.size, ratio: contrastRatio(hexLum(t.color), backdropLuminance(px, t)) }));
-      if (report.every((r) => r.ratio >= MIN_CONTRAST) || scrim >= 0.8) break;
-      scrim = Math.round((scrim + 0.2) * 100) / 100;
+      const failing = report.map((r, i) => (r.ratio < MIN_CONTRAST && shade[i]! < 0.9 ? i : -1)).filter((i) => i >= 0);
+      if (!failing.length || round >= 6) break;
+      for (const i of failing) shade[i] = Math.min(0.9, Math.round((shade[i]! + 0.25) * 100) / 100);
     }
+    const scrim = Math.max(0, ...shade);
     const png = await sharp(base).composite(this.texts.map((t) => ({ input: t.data, left: t.left, top: t.top }))).png().toBuffer();
     return { png, report, scrim };
   }

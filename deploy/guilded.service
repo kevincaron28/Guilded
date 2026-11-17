@@ -15,6 +15,8 @@ ExecStart=/usr/bin/npm run start:local
 # Always come back after a crash, an OOM kill or a clean exit.
 Restart=always
 RestartSec=10
+# glibc keeps one malloc arena per thread; with libvips worker threads that fragments the heap and inflates RSS. Two arenas is plenty here.
+Environment=MALLOC_ARENA_MAX=2
 # Keep memory bounded on a 1 GB machine.
 MemoryMax=700M
 # Under memory pressure the kernel reclaims the bot's memory last (the bot keeps this much even when the box is short).

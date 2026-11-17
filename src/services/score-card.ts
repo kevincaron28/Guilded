@@ -97,7 +97,9 @@ export interface DungeonVisual { theme: DungeonArtTheme; party: DungeonCardMembe
   pvp?: { waiting?: string; levelLabel: string } }
 
 const fontfile = fileURLToPath(new URL("../../site/fonts/source-serif-latin.ttf", import.meta.url));
+export const CARD_CACHE_BYTES = 8 * 1024 * 1024;
 const images = new Map<string, Buffer>();
+let imageBytes = 0;
 const pending = new Map<string, Promise<Buffer>>();
 /**
  * The bundled card font is a Latin subset, so decorative symbols (a fleur-de-lis around a guild name, say),
@@ -387,9 +389,12 @@ export async function scoreCardPng(source: ScoreCard, options: { branded?: boole
   }
   try {
     const binaryBody = await work;
+    const prior = images.get(key); if (prior) imageBytes -= prior.length;
     images.set(key, binaryBody);
     altTexts.set(binaryBody, cardAltText(card));
-    while (images.size > 32) images.delete(images.keys().next().value!);
+    // At most 32 finished cards AND at most CARD_CACHE_BYTES (a card PNG is 0.2-1 MB): 32 large ones was 30 MB resident for nothing.
+    imageBytes += binaryBody.length;
+    while (images.size > 1 && (images.size > 32 || imageBytes > CARD_CACHE_BYTES)) { const oldest = images.keys().next().value!; imageBytes -= images.get(oldest)!.length; images.delete(oldest); }
     return binaryBody;
   } finally { if (pending.get(key) === work) pending.delete(key); }
 }

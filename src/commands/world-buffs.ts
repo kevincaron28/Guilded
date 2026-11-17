@@ -14,7 +14,7 @@ const buffChoices = Object.entries(WORLD_BUFFS).map(([value, label]) => ({ name:
 // Mounted flat under /raid: /raid worldbuff, /raid worldbuffs, /raid worldbuff-remove.
 export const worldBuffCommand = new SlashCommandBuilder()
   .setName("worldbuff")
-  .setDescription("World-buff drops announced by the guild (Classic Era, Forever).")
+  .setDescription("World-buff drops announced by the guild.")
   .addSubcommand((sub) => sub.setName("add").setDescription("Announce a world-buff drop: which buff, when and where.")
     .addStringOption((o) => o.setName("buff").setDescription("The buff").setRequired(true).addChoices(...buffChoices))
     .addStringOption((o) => o.setName("time").setDescription("When it drops, e.g. 20:15 or friday 8pm").setAutocomplete(true).setRequired(true))

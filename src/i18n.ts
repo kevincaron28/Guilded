@@ -88,7 +88,7 @@ const STRINGS = {
   "reply.lateNeedsSignup": { en: "Pick a role first, then click Late.", fr: "Choisissez d'abord un rôle, puis cliquez En retard." },
   "reply.signupsClosed": { en: "Signups closed {when}. Ask a raid leader if you still need a spot; Can't come and Late still work.", fr: "Inscriptions fermées {when}. Demandez à un chef de raid s'il vous faut une place; Absent et En retard fonctionnent encore." },
   "dm.outbid": { en: "You were outbid on **{item}**: the top bid is now {amount} GP. Bid again with `/loot bid` before it closes {when}.", fr: "Votre offre sur **{item}** a été dépassée : la meilleure offre est maintenant de {amount} GP. Enchérissez de nouveau avec `/loot bid` avant la fermeture {when}." },
-  "worldbuff.unsupported": { en: "World-buff drops are for Classic Era and Forever guilds.", fr: "Les buffs mondiaux concernent les guildes Classic Era et Forever." },
+  "worldbuff.unsupported": { en: "World-buff drops are for WoW Forever guilds.", fr: "Les buffs mondiaux concernent les guildes WoW Forever." },
   "worldbuff.announced": { en: "World-buff drop announced:", fr: "Buff mondial annoncé :" },
   "worldbuff.title": { en: "Upcoming world-buff drops (shown in your time zone)", fr: "Prochains buffs mondiaux (dans votre fuseau horaire)" },
   "worldbuff.none": { en: "No drops announced. Add one with /raid worldbuff.", fr: "Aucune annonce. Ajoutez-en une avec /raid worldbuff." },

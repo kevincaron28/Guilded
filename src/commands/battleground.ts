@@ -121,7 +121,7 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
   const fr = await teamLanguage(prisma, ctx.guildId);
   const t = (en: string, french: string) => fr ? french : en;
   const sub = command?.options.getSubcommand() ?? input?.action ?? "";
-  if (["create", "manage"].includes(sub) && !hasPermission(actor, "raidLeader")) throw new Error("Raid Leader required / Responsable de raid requis.");
+  if (["create", "manage"].includes(sub) && !hasPermission(actor, "raidLeader")) throw new Error(t("Raid Leader required.", "Responsable de raid requis."));
   if ((sub === "setup" || sub === "duel-board" || sub === "duel-cards" || sub === "season-cards" || sub === "pvp-module" || sub === "group-finder" || sub === "bg-ladder" || sub === "world-pvp") && !hasPermission(actor, "officer")) throw new Error("Officer required / Officier requis.");
   if (sub === "bg-ladder") {
     const enabled = command?.options.getBoolean("enabled", true) ?? false;
@@ -258,9 +258,9 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
   }
   if (sub === "create") {
     const channel = await requireTeamChannel(i.guild, command?.options.getChannel("channel", true).id ?? input?.channelId ?? i.channelId ?? "", actor);
-    if (!normalRealm()) throw new Error("Hardcore BG disabled / JcJ Hardcore désactivé.");
+    if (!normalRealm()) throw new Error(t("Battleground groups are off on Hardcore realms.", "Les groupes de champs de bataille sont désactivés sur les royaumes Hardcore."));
     const start = text("start", true);
-    if (!/T.*(?:Z|[+-]\d{2}:\d{2})$/.test(start)) throw new Error("Include timezone offset / Incluez le décalage horaire.");
+    if (!/T.*(?:Z|[+-]\d{2}:\d{2})$/.test(start)) throw new Error(t("Include the time zone offset (for example 2026-11-20T20:00-05:00).", "Incluez le décalage horaire (par exemple 2026-11-20T20:00-05:00)."));
     const guild = await prisma.guild.findUniqueOrThrow({ where: { id: ctx.guildId }, select: { gameEdition: true } });
     const mode = text("mode", true);
     const session = await createBattleground(prisma, ctx.guildId, {

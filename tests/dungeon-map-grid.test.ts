@@ -85,18 +85,18 @@ describe("traced map on the dungeon card", () => {
     expect(b.x - a.x).toBeCloseTo(10 / 200 * 1.5 * view.scale);
     expect(a.y).toBeCloseTo(b.y);
   });
-  it("draws the traced floor and the heat on the painting, no box; without an outline only the painting shows", async () => {
+  it("draws the traced floor and the heat in the corner panel; without an outline only the painting shows", async () => {
     const traced = (await scoreCardPng(dungeonRunCard(base(), "en")))!;
     const plain = (await scoreCardPng(dungeonRunCard(withoutOutline(), "en")))!;
-    // The redesigned card floats the map on the painting (x 790..1130, y 300..526): count light floor pixels and hot death pixels there.
+    // The redesigned card floats the map on the painting in a small framed panel top right (x 846..1150, y 26..198): count light floor pixels and hot death pixels there.
     const count = async (png: Buffer, test: (r: number, g: number, b: number) => boolean) => {
-      const { data, info } = await sharp(png).extract({ left: 790, top: 300, width: 340, height: 226 }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+      const { data, info } = await sharp(png).extract({ left: 846, top: 26, width: 304, height: 172 }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
       let n = 0;
       for (let i = 0; i < data.length; i += info.channels) if (test(data[i]!, data[i + 1]!, data[i + 2]!)) n++;
       return n;
     };
     // Without an outline only the painting and the death dots show: with one, many more pixels in the box differ from the painting alone.
-    const region = (png: Buffer) => sharp(png).extract({ left: 790, top: 300, width: 340, height: 226 }).removeAlpha().raw().toBuffer();
+    const region = (png: Buffer) => sharp(png).extract({ left: 846, top: 26, width: 304, height: 172 }).removeAlpha().raw().toBuffer();
     const [t, p] = [await region(traced), await region(plain)];
     let differ = 0;
     for (let i = 0; i < t.length; i += 3) if (Math.abs(t[i]! - p[i]!) + Math.abs(t[i + 1]! - p[i + 1]!) + Math.abs(t[i + 2]! - p[i + 2]!) > 90) differ++;

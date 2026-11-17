@@ -32,6 +32,9 @@ export function rememberAppliedUpload(key: string, checksum: string, now = Date.
 
 export function forgetAppliedUploads(): void { applied.clear(); }
 
+/** Production's pool is 5 connections shared by every job: at most this many lanes of one upload hold the database at once (UPLOAD_LANE_CONCURRENCY overrides). */
+export const UPLOAD_LANE_CONCURRENCY = Math.max(1, Math.floor(Number(process.env["UPLOAD_LANE_CONCURRENCY"])) || 2);
+
 export interface UploadStep {
   name: string;
   /** Does the work; may throw (the runner reports it through `onError` and the upload carries on). */
@@ -48,15 +51,20 @@ export interface UploadRun { ran: string[]; skipped: string[]; failed: boolean }
  * Runs the lanes at the same time, the steps of one lane one after the other. A failed step never stops its lane or the upload.
  * `track` wraps each lane (the phase timer records its time without disturbing the gap-free main timeline).
  */
-export async function runUploadLanes(lanes: Array<{ name: string; steps: UploadStep[] }>, options: { repeat: boolean; track?: <T>(lane: string, task: () => Promise<T>) => Promise<T> }): Promise<UploadRun> {
+export async function runUploadLanes(lanes: Array<{ name: string; steps: UploadStep[] }>, options: { repeat: boolean; concurrency?: number; track?: <T>(lane: string, task: () => Promise<T>) => Promise<T> }): Promise<UploadRun> {
   const result: UploadRun = { ran: [], skipped: [], failed: false };
   const track = options.track ?? (<T>(_lane: string, task: () => Promise<T>) => task());
-  await Promise.all(lanes.map((lane) => track(lane.name, async () => {
+  // Lanes start in the order given (the guild lane first); a lane that finishes lets the next queued one start.
+  const queue = [...lanes];
+  const runLane = (lane: { name: string; steps: UploadStep[] }) => track(lane.name, async () => {
     for (const step of lane.steps) {
       if (options.repeat && step.payload) { result.skipped.push(step.name); continue; }
       result.ran.push(step.name);
       try { await step.run(); } catch (error) { result.failed = true; step.onError?.(error); }
     }
-  })));
+  });
+  const worker = async () => { for (let lane = queue.shift(); lane; lane = queue.shift()) await runLane(lane); };
+  const width = Math.max(1, Math.min(lanes.length, Math.floor(options.concurrency ?? UPLOAD_LANE_CONCURRENCY)));
+  await Promise.all(Array.from({ length: width }, worker));
   return result;
 }

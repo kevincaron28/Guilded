@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { forgetAppliedUploads, isRepeatUpload, REPEAT_MEMORY_MS, rememberAppliedUpload, runUploadLanes, uploadRepeatKey, type UploadStep } from "../src/services/upload-repeat.js";
+import { UPLOAD_LANE_CONCURRENCY, forgetAppliedUploads, isRepeatUpload, REPEAT_MEMORY_MS, rememberAppliedUpload, runUploadLanes, uploadRepeatKey, type UploadStep } from "../src/services/upload-repeat.js";
 
 // 17 Nov 2026: 61% of uploads repeated the previous file and still ran every side-effect phase (p50 12 s of a 20 s companion limit).
 
@@ -57,6 +57,15 @@ describe("the upload lanes", () => {
     expect(order.indexOf("a1 end")).toBeLessThan(order.indexOf("a2"));
     expect(order.indexOf("b1 start")).toBeLessThan(order.indexOf("a1 end"));
     expect(result.ran.sort()).toEqual(["a1", "a2", "b1"]);
+  });
+
+  it("never runs more lanes at once than the cap, and starts queued lanes in order", async () => {
+    expect(UPLOAD_LANE_CONCURRENCY).toBe(2);
+    let active = 0; let peak = 0; const started: string[] = [];
+    const lane = (name: string) => ({ name, steps: [{ name, run: async () => { started.push(name); active++; peak = Math.max(peak, active); await new Promise((r) => setTimeout(r, 20)); active--; } }] });
+    await runUploadLanes(["guild", "bank", "craft", "board"].map(lane), { repeat: false });
+    expect(peak).toBe(2);
+    expect(started).toEqual(["guild", "bank", "craft", "board"]);
   });
 
   it("a failing step is reported through its own handler, does not stop its lane or the others, and marks the run failed (so it is not remembered)", async () => {

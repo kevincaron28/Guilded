@@ -1,6 +1,6 @@
 # Guilded 9.3.9 — release notes (17 November 2026)
 
-**Addon-only players, quieter logins and lighter sync.** Prepared 17 November 2026, not yet published. Protocol 2, WoW Forever only. No new bot migrations in this release (the bot changes are already live).
+**Addon-only players, quieter logins and lighter sync.** Published 17 November 2026. Protocol 2, WoW Forever only. No new bot migrations in this release (the bot changes are already live).
 
 Real-client checks: docs/V9_3_9_RELEASE_ACCEPTANCE.md. 9.3.9 is not yet confirmed on real clients.
 

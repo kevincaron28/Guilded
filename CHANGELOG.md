@@ -2,7 +2,7 @@
 
 ## 9.3.9 — 17 November 2026
 
-Addon-only players, quieter logins and lighter sync. Prepared 17 November 2026, not yet published. Not yet confirmed on real clients (see docs/V9_3_9_RELEASE_ACCEPTANCE.md). Details: docs/V9_3_9_RELEASE_NOTES.md.
+Addon-only players, quieter logins and lighter sync. Published 17 November 2026 (GitHub, the website download and the bot; CurseForge in review). Not yet confirmed on real clients (see docs/V9_3_9_RELEASE_ACCEPTANCE.md). Details: docs/V9_3_9_RELEASE_NOTES.md.
 
 Addon:
 

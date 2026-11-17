@@ -49,7 +49,7 @@ feature's design notes, as an example of this file's format for a specific
 feature).
 
 **Current status (17 November 2026): version 9.3.9, protocol 2.**
-9.3.9 is prepared (17 November 2026): addon-only carried runs rank (presence proof, faster handover), fewer login lines, smaller uploads, companion self-test and one startup entry. 9.3.8 is the latest published release; the Store serves 9.3.4.0 with 9.3.8.0 certifying.
+9.3.9 is published (GitHub release v9.3.9 is the latest, tag at 9aa469fd, the website download and the bot, 17 November 2026); CurseForge in review. The Store serves 9.3.4.0, 9.3.8.0 is certifying (Submission 14) and the 9.3.9.0 package is built.
 9.3.8 is published (GitHub release v9.3.8 is the latest, tag at 095452ef, the website download and the bot, 17 November 2026); CurseForge files 9665832 and 9665833 in review. It fixes the 9.3.7 companion that could not start (run-log.cjs missing from the package, #1064). The Store serves 9.3.4.0.
 9.3.7 is published (GitHub release v9.3.7 is the latest, tag at 690040bd, the website download and the R2 mirror, 16 November 2026): companion and addon fixes from the two-PC test; the bot already runs the card polish. CurseForge 9.3.7 approved (Guilded file 9654361, Guilded Dungeons file 9654362; the website points at them); the Store 9.3.7.0 package is built and is submitted after 9.3.4.0 (Submission 13) certifies.
 9.3.6 is published (GitHub release v9.3.6 is the latest, tag at e2997f82, the website download and the bot, 16 November 2026); CurseForge approved 16 November 2026 (Guilded file 9649625, Guilded Dungeons file 9649626; the website points at them); the Store package waits for the 9.3.4 certification. 

@@ -169,7 +169,10 @@ const pages = [...JSON.parse(readFileSync("site/pages.json", "utf8")), ...editio
 const OG_SECTIONS = [["guide/", "og-guide.jpg"], ["forever/", "og-forever.jpg"], ["start/", "og-start.jpg"], ["reference/", "og-start.jpg"], ["g/", "og-guild.jpg"], ["companion/", "og-companion.jpg"], ["community/", "og-community.jpg"], ["quebec-gold/", "og-community.jpg"], ["download/", "og-download.jpg"], ["editions/", "og-download.jpg"]];
 const ogImage = path => OG_SECTIONS.find(([prefix]) => path.startsWith(prefix))?.[1] ?? "guilded-card.png";
 const isRedirected = path => Object.hasOwn(GUIDE_REDIRECTS, path) || Object.hasOwn(GUIDE_REDIRECTS, path.replace(/\/$/, ""));
-const publicUrls = ["/", ...guides.map(name => `/docs/${name}`), ...EDITION_SECTIONS.flatMap(({ slug }) => ["leaderboards/", "leaderboards/guilds/", "recruitment/", "recruitment/guilds/", "players/"].map(page => `/${slug}/${page}`))].filter(path => !isRedirected(path));
+// The bot-served public pages: each one canonicalizes to itself in English (clean URL) and in French (?lang=fr), with
+// hreflang pointing at the pair (src/services/web-layout.ts), so both are valid sitemap entries.
+const BOT_SECTION_PAGES = ["leaderboards/", "leaderboards/guilds/", "recruitment/", "recruitment/guilds/", "players/"];
+const publicUrls = ["/", ...guides.map(name => `/docs/${name}`), ...EDITION_SECTIONS.flatMap(({ slug }) => BOT_SECTION_PAGES.flatMap(page => [`/${slug}/${page}`, `/${slug}/${page}?lang=fr`]))].filter(path => !isRedirected(path));
 for (const page of pages) {
   const prefix = "../".repeat(page.path.split("/").filter(Boolean).length);
   const french = page.lang === "fr";

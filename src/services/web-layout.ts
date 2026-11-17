@@ -13,9 +13,15 @@ export const escapeHtml = (text: string) => text.replace(/[&<>"']/g, (c) => ({ "
 /** MIME type of a share image from its extension: the website cards are JPEG, score cards and the default card are PNG. */
 export const shareImageType = (path?: string): string => /\.jpe?g(?:\?|$)/i.test(path ?? "") ? "image/jpeg" : "image/png";
 
-export function langFrom(query: URLSearchParams, acceptLanguage: string | undefined): Lang {
+// The public, indexable website pages (an edition section prefix is allowed). Their HTML depends only on
+// the address (?lang=fr), never on the visitor's Accept-Language, so a crawler and a browser see one page.
+const PUBLIC_PAGE = /^(?:\/forever)?\/(?:leaderboards|recruitment|players)(?:\/|$)/;
+export const isPublicPage = (path: string | undefined): boolean => PUBLIC_PAGE.test(path ?? "");
+
+export function langFrom(query: URLSearchParams, acceptLanguage: string | undefined, path?: string): Lang {
   const chosen = query.get("lang");
   if (chosen === "fr" || chosen === "en") return chosen;
+  if (isPublicPage(path)) return "en";
   return /^\s*fr\b/i.test(acceptLanguage ?? "") ? "fr" : "en";
 }
 
@@ -27,10 +33,12 @@ export function link(path: string, lang: Lang, params: Record<string, string | n
   const [pathname, search = ""] = base!.split("?");
   const query = new URLSearchParams(search);
   for (const [key, value] of Object.entries(params)) if (value) query.set(key, value);
-  query.set("lang", lang);
-  return `${pathname}?${query.toString()}${hash ? `#${hash}` : ""}`;
+  // English is the default of the public pages: no ?lang=en there (one clean address per page). Other pages
+  // (/me/, which follows Accept-Language) keep it so choosing English still sticks.
+  if (lang !== "en" || !isPublicPage(pathname)) query.set("lang", lang);
+  const search2 = query.toString();
+  return `${pathname}${search2 ? `?${search2}` : ""}${hash ? `#${hash}` : ""}`;
 }
-
 
 export const SECURITY_HEADERS = {
   // data: is the inline header logo (site-logo.ts); font-src is the website's own Inter font.
@@ -72,10 +80,15 @@ export function layout(input: LayoutInput): string {
   const here = link(input.path, input.lang, input.languageParams);
   const languages = input.lang === "fr" ? { en: link(input.path, other, input.languageParams), fr: here } : { en: here, fr: link(input.path, other, input.languageParams) };
   const description = escapeHtml((input.description ?? input.title).slice(0, 160));
+  // The canonical address is the clean, English, unfiltered page as the website serves it (inside the edition's section).
+  // Every filter and page number points back at it; ?lang=fr is the French alternate of the same page.
   const bare = (input.path.split("?")[0] || "/");
-  const canonicalPath = bare.endsWith("/") ? bare : `${bare}/`;
+  const bareNoSlash = bare.replace(/\/+$/, "");
+  const leaf = /^\/(?:leaderboards\/(?:character|run|guild)\/[^/]+|g\/[^/]+)$/.test(bareNoSlash);
+  const canonicalPath = editionHref(leaf ? bareNoSlash : `${bareNoSlash}/`, currentEdition()).split("?")[0]!;
   const canonical = siteUrl(canonicalPath);
-  const alternates = input.noindex ? "" : `<link rel="canonical" href="${input.lang === "fr" ? `${canonical}?lang=fr` : canonical}"><link rel="alternate" hreflang="en" href="${canonical}"><link rel="alternate" hreflang="fr" href="${canonical}?lang=fr"><link rel="alternate" hreflang="x-default" href="${canonical}"><meta property="og:url" content="${input.lang === "fr" ? `${canonical}?lang=fr` : canonical}">`;
+  const here2 = input.lang === "fr" ? `${canonical}?lang=fr` : canonical;
+  const alternates = input.noindex ? "" : `<link rel="canonical" href="${here2}"><link rel="alternate" hreflang="en" href="${canonical}"><link rel="alternate" hreflang="fr" href="${canonical}?lang=fr"><link rel="alternate" hreflang="x-default" href="${canonical}"><meta property="og:url" content="${here2}">`;
   return `<!doctype html><html lang="${input.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`
     + `<title>${escapeHtml(input.title)} · Guilded</title><meta name="description" content="${description}">${input.noindex ? '<meta name="robots" content="noindex">' : alternates}`
     // Link previews (Discord, social sites): a pasted page shows its title, summary and the logo.

@@ -14,12 +14,12 @@ describe("site menu", () => {
   it("keeps the WoW Forever section through navigation, player links and sign-in in both languages", () => {
     for (const lang of ["en", "fr"] as const) withEdition("forever", () => {
       const html = page("/players/", lang);
-      for (const item of SITE_NAV.filter(item => item.bot && item.key !== "my-guilded")) expect(html).toContain(`href="/forever${item.href}?lang=${lang}"`);
-      expect(link("/players/", lang)).toBe(`/forever/players/?lang=${lang}`);
+      for (const item of SITE_NAV.filter(item => item.bot && item.key !== "my-guilded")) expect(html).toContain(`href="/forever${item.href}${lang === "fr" ? "?lang=fr" : ""}"`);
+      expect(link("/players/", lang)).toBe(lang === "fr" ? "/forever/players/?lang=fr" : "/forever/players/");
       const login = /href="(\/auth\/login[^"]+)"/.exec(html)![1]!.replaceAll("&amp;", "&");
       const returned = new URL(new URL(login, "https://guilded.test").searchParams.get("return")!, "https://guilded.test");
       expect(returned.pathname).toBe("/forever/players/");
-      expect(returned.searchParams.get("lang")).toBe(lang);
+      expect(returned.searchParams.get("lang")).toBe(lang === "fr" ? "fr" : null);
       expect(safeReturnPath(returned.pathname + returned.search)).toBe(returned.pathname + returned.search);
       expect(link("/me/", lang)).toBe(`/me/?lang=${lang}`);
     });
@@ -161,7 +161,7 @@ describe("site menu", () => {
     expect(html).toContain("VOTRE GUILDE, CONNECTÉE.");
     expect(html).toContain('<input type="checkbox" id="site-menu" class="menu-check"><label for="site-menu" class="menu-label">');
     expect(html).toContain('<p class="footer-title">Communauté</p>');
-    expect(html).toContain('<a href="/forever/players/?lang=en" hreflang="en" lang="en">EN</a><a href="/forever/players/?lang=fr" hreflang="fr" lang="fr" aria-current="true">FR</a>');
+    expect(html).toContain('<a href="/forever/players/" hreflang="en" lang="en">EN</a><a href="/forever/players/?lang=fr" hreflang="fr" lang="fr" aria-current="true">FR</a>');
     expect(html.indexOf('<header class="site-top">')).toBeLessThan(html.indexOf("<main>"));
     expect(html).not.toContain(">Français</a>");
   });

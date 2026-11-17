@@ -414,6 +414,13 @@ async function route(request, env, ctx) {
     // A page view that still names its edition in the address (?edition=retail: older links and
     // the filter forms) moves into that edition's section; one without a section goes to the
     // visitor's remembered edition, Forever by default. Files (.json, .xml, .png) are never moved.
+    // ?lang=en is the default of these public pages: one clean address per page, so it moves permanently to the
+    // address without it (only lang=en is dropped; ?lang=fr and filters stay). Inside the section this is the only hop.
+    const dropLangEn = (search) => { const query = new URLSearchParams(search); if (query.get("lang") === "en") query.delete("lang"); return query.toString(); };
+    if (!creator && dataPage && section && ["GET", "HEAD"].includes(request.method) && !/\.[a-z]{2,4}$/.test(pagePath) && url.searchParams.get("lang") === "en" && !url.searchParams.has("edition")) {
+      const rest = dropLangEn(url.search);
+      return new Response(null, { status: 301, headers: { location: `${url.pathname}${rest ? `?${rest}` : ""}`, "cache-control": "public, max-age=86400" } });
+    }
     if (!creator && dataPage && ["GET", "HEAD"].includes(request.method) && !/\.[a-z]{2,4}$/.test(pagePath)) {
       // Any ?edition= (older links named other editions) means the WoW Forever section.
       const asked = url.searchParams.has("edition") ? editionSection("forever") : null;
@@ -421,6 +428,7 @@ async function route(request, env, ctx) {
       if (destination && (!section || url.searchParams.has("edition"))) {
         const query = new URLSearchParams(url.search);
         query.delete("edition");
+        if (query.get("lang") === "en") query.delete("lang");
         const rest = query.toString();
         return new Response(null, { status: 302, headers: { location: `/${destination.slug}${pagePath}${rest ? `?${rest}` : ""}`, "cache-control": "no-store" } });
       }

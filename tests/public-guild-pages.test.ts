@@ -72,7 +72,7 @@ describe("public guild pages", () => {
       expect(page.body).toContain('hreflang="fr"');
       expect(page.body).toContain('hreflang="x-default"');
     }
-    expect((await get("/leaderboards/guild/quebec-gold")).body).toMatch(/rel="canonical" href="[^"]*\/leaderboards\/guild\/quebec-gold\//);
+    expect((await get("/leaderboards/guild/quebec-gold")).body).toMatch(/rel="canonical" href="[^"]*\/leaderboards\/guild\/quebec-gold"/);
   });
 
   it("tags only characters with a public run in their guild and never prints uploader guild text", async () => {

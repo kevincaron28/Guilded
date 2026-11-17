@@ -44,6 +44,12 @@ local RESEND_SECONDS, EXPIRE_TICK, HI_MAX = 1800, 25, 100
 -- ANSWER_GAP seconds and ANSWER_CAP answers a minute for the whole PC. The ask is only ever sent when quiet (not in combat, not in an instance).
 local ASK_BACKOFF = { 60, 180, 600, 1800 }
 local ANSWER_GAP, ANSWER_CAP, ANSWER_WINDOW, ANSWER_ACCEPT, ASKER_MAX = 300, 6, 60, 60, 100
+-- (9.3.7) Handing over sooner: one offer round and at most one ask shortly after leaving an instance and after login (never closer than
+-- HANDOVER_GAP seconds to the last one), instead of waiting for the next announcement or the ask backoff. A carrier tells the author
+-- "done" (K) for a record received up to RECEIPT_TELL_SECONDS ago (it used to be 2 hours: a carrier that reloaded later stayed silent).
+-- A carrier over its limits answers "B|<id>" (busy) at most once per sender and record every BUSY_GAP seconds.
+local HANDOVER_DELAY, LOGIN_HANDOVER, HANDOVER_GAP = 10, 45, 300
+local RECEIPT_TELL_SECONDS, BUSY_GAP = 7 * 86400, 600
 
 local carry = { carriers = {}, assemblies = {}, received = {}, hiAt = {}, channelId = 0, channelName = nil, whispered = {}, offered = {}, joinTries = 0,
   lastAnnounce = 0, stats = { stored = 0, offered = 0, receipts = 0, asked = 0, answered = 0 }, askTries = 0, askSentAt = nil, answers = {}, askers = {} }
@@ -428,6 +434,17 @@ local function assemblyCounts(sender)
 end
 
 -- One chunk of a record whispered to this PC. Only a carrier keeps it; the author is the sender (never a name the message claims).
+local function sayBusy(sender, id)
+  carry.busyAnswered = carry.busyAnswered or {}
+  local slotKey = sender .. "|" .. id
+  local last = carry.busyAnswered[slotKey]
+  if last and now() - last < BUSY_GAP then return end
+  local n = 0
+  for _ in pairs(carry.busyAnswered) do n = n + 1 end
+  if n >= 100 then for k, at in pairs(carry.busyAnswered) do if now() - at >= BUSY_GAP then carry.busyAnswered[k] = nil end end end
+  if quiet() and send("B|" .. id, "WHISPER", sender, true) then carry.busyAnswered[slotKey] = now() end
+end
+
 local function onRecordPart(sender, kind, key, index, total, part)
   if not carry.enabled() or not carry.companionHere() then return end
   if not validKind(kind) or not validKey(key) or index < 1 or total < 1 or total > MAX_CHUNKS or index > total or #part > CHUNK + 20 then return end
@@ -452,11 +469,11 @@ local function onRecordPart(sender, kind, key, index, total, part)
     -- A sender has a few records in flight at once and the whole PC a few more, so one sender cannot fill every slot.
     if total > 1 then
       local all, mine = assemblyCounts(sender)
-      if mine >= SENDER_ASSEMBLIES or all >= MAX_ASSEMBLIES then return end
+      if mine >= SENDER_ASSEMBLIES or all >= MAX_ASSEMBLIES then sayBusy(sender, id); return end
     end
     local hour = carry.received[sender]
     if not hour or now() - hour.at > 3600 then hour = { at = now(), n = 0 }; carry.received[sender] = hour end
-    if hour.n >= PER_SENDER_PER_HOUR then return end
+    if hour.n >= PER_SENDER_PER_HOUR then sayBusy(sender, id); return end
     hour.n = hour.n + 1
     assembly = { parts = {}, total = total, at = now(), sender = sender }
     carry.assemblies[slot] = assembly
@@ -476,6 +493,20 @@ local function onRecordPart(sender, kind, key, index, total, part)
 end
 
 -- A carrier's word that a record reached the bot: only from a name this PC handed the record to (remembered across a /reload).
+-- A carrier that could not take a record right now ("B|id", only from the name it was handed to): it is not waiting for a receipt
+-- from that carrier any more, so the next announcement or ask hands it to another one; that carrier gets a pause.
+local function onBusyFrom(sender, id)
+  local s = store()
+  if not s or type(id) ~= "string" or #id > 150 then return end
+  local expected = s.sentTo[id]
+  if type(expected) ~= "table" or not sameName(expected.name, sender) then return end
+  s.sentTo[id] = nil
+  carry.ownCache = nil
+  local entry = carry.carriers[bare(sender)]
+  if entry then entry.pauseUntil = now() + PAUSE_SECONDS end
+  carry.stats.busy = (carry.stats.busy or 0) + 1
+end
+
 local function onReceiptFrom(sender, id)
   local s = store()
   if not s or type(id) ~= "string" or #id > 150 then return end
@@ -542,7 +573,9 @@ local function onAddonMessage(prefix, text, channel, sender)
     local kind, key, index, total, part = string.match(text, "^R|(%a+)|([^|]+)|(%d+)/(%d+)|(.*)$")
     if kind then onRecordPart(who, kind, key, tonumber(index), tonumber(total), part); return end
     local id = string.match(text, "^K|([^|]+)$")
-    if id then onReceiptFrom(who, id) end
+    if id then onReceiptFrom(who, id); return end
+    local busyId = string.match(text, "^B|([^|]+)$")
+    if busyId then onBusyFrom(who, busyId) end
   end
 end
 
@@ -568,7 +601,7 @@ function carry.applyReceipts()
         s.records[id] = nil
         n = n + 1
         -- Tell the player it came from, if this PC heard from them lately (they may be offline: the next carrier answers them too).
-        if record.from and now() - (tonumber(record.got) or 0) <= 7200 and quiet() then
+        if record.from and now() - (tonumber(record.got) or 0) <= RECEIPT_TELL_SECONDS and quiet() then
           carry.whispered[record.from] = now()
           send("K|" .. id, "WHISPER", record.from)
         end
@@ -652,6 +685,21 @@ function carry.scheduleAsk(wait)
     if carry.ask() then carry.askTries = carry.askTries + 1 end
     carry.scheduleAsk(ASK_BACKOFF[math.min(carry.askTries + 1, #ASK_BACKOFF)])
   end)
+end
+
+-- (9.3.7) Offers waiting records to the carriers heard and, when none is, asks once on the shared channel. Called a few seconds after the
+-- player leaves an instance and after login. Bounded: not closer than HANDOVER_GAP to the previous call; the ask is the normal one (the
+-- scheduled backoff is not touched).
+function carry.handover()
+  local t = now()
+  if carry.lastHandover and t - carry.lastHandover < HANDOVER_GAP then return false end
+  if not carry.enabled() or carry.companionHere() or not quiet() then return false end
+  local info = carry.pending()
+  if not info or info.count - info.handed <= 0 then return false end
+  carry.lastHandover = t
+  carry.offerAll()
+  carry.ask()
+  return true
 end
 
 function carry.announce(force)
@@ -896,6 +944,7 @@ local function startup()
   -- The channel is joined last, well after the player's own channels, so nothing the player set up moves.
   after(25, function() if carry.enabled() then carry.joinChannel() end end)
   after(40, function() carry.announce(true) end)
+  after(LOGIN_HANDOVER, function() pcall(carry.handover) end)
   -- An officer's guild-wide switch is repeated at login so members who were offline get it too.
   after(45, function()
     local s = store()
@@ -914,6 +963,11 @@ local function onEvent(_, event, ...)
     carry.noteLoad()
     if ns.comm and ns.comm.register then ns.comm.register(PREFIX) end
     startup()
+  elseif event == "PLAYER_ENTERING_WORLD" then
+    -- Out of an instance: the dungeon run just finished is waiting and nothing else will offer it for minutes.
+    local inside = inInstance()
+    if carry.wasInside and not inside then after(HANDOVER_DELAY, function() pcall(carry.handover) end) end
+    carry.wasInside = inside
   elseif event == "GROUP_ROSTER_UPDATE" then
     if not pendingAnnounce then
       pendingAnnounce = true
@@ -924,7 +978,7 @@ end
 
 if CreateFrame then
   local frame = CreateFrame("Frame")
-  for _, event in ipairs({ "PLAYER_LOGIN", "GROUP_ROSTER_UPDATE", "CHAT_MSG_ADDON" }) do
+  for _, event in ipairs({ "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "GROUP_ROSTER_UPDATE", "CHAT_MSG_ADDON" }) do
     if compat and compat.registerEvent then compat.registerEvent(frame, event) else frame:RegisterEvent(event) end
   end
   frame:SetScript("OnEvent", function(...)

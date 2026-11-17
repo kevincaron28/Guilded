@@ -820,3 +820,77 @@ describe("finding a carrier on the shared channel", () => {
     expect(carrier.run("return tostring(FILTERS.CHAT_MSG_SYSTEM(nil, nil, \"No player named 'Zed' is currently playing.\"))")).toBe("false");
   });
 });
+
+// 9.3.7: records reach a carrier sooner after a dungeon, a carrier's "done" stays good for a week, and a busy carrier says so.
+describe("faster handover, longer receipts and a busy carrier", () => {
+  const joined = (s: LuaSession) => s.run(`CH = 9; function GetChannelName() return CH end; NS.carry.channelName = "GuildedCarryN"; SENT = {}`);
+
+  it("after leaving an instance it offers to the carriers heard, or asks once when none is, and never closer than five minutes apart", () => {
+    const player = client("guilded", "Aye");
+    joined(player);
+    duel(player);
+    player.run("IsInInstance = function() return true end; fire_event('PLAYER_ENTERING_WORLD'); run_timers()");
+    expect(queued(player, "CHANNEL", "9")).toEqual([]);
+    player.run("IsInInstance = function() return false end; fire_event('PLAYER_ENTERING_WORLD')");
+    expect(queued(player, "CHANNEL", "9")).toEqual(["Q|1"]);
+    // Another exit right away does nothing more.
+    player.run("IsInInstance = function() return true end; fire_event('PLAYER_ENTERING_WORLD'); IsInInstance = function() return false end; fire_event('PLAYER_ENTERING_WORLD')");
+    expect(queued(player, "CHANNEL", "9")).toEqual([]);
+    // Later, with a carrier known (heard while inside, so nothing was offered), the records are offered.
+    CLOCK_STEP(player, 400);
+    player.run("NS.carry.carriers.Bee = { name = 'Bee', at = CLOCK, fails = 0, sent = 0, pauseUntil = 0, near = true }");
+    player.run("IsInInstance = function() return true end; fire_event('PLAYER_ENTERING_WORLD'); IsInInstance = function() return false end; fire_event('PLAYER_ENTERING_WORLD')");
+    expect(queued(player, "WHISPER", "Bee").length).toBeGreaterThan(0);
+  });
+
+  it("asks nothing after an instance when no record waits, and once shortly after login", () => {
+    const quietOne = client("guilded", "Dee");
+    joined(quietOne);
+    quietOne.run("IsInInstance = function() return true end; fire_event('PLAYER_ENTERING_WORLD'); IsInInstance = function() return false end; fire_event('PLAYER_ENTERING_WORLD')");
+    expect(queued(quietOne, "CHANNEL", "9")).toEqual([]);
+    const player = client("guilded", "Aye");
+    duel(player);
+    player.run("CH = 9; function GetChannelName() return CH end; NS.carry.channelName = 'GuildedCarryN'; SENT = {}; fire_event('PLAYER_LOGIN'); run_timers()");
+    expect(queued(player, "CHANNEL", "9")).toContain("Q|1");
+  });
+
+  it("a carrier tells the author done for a record received up to a week ago, and not for an older one", () => {
+    const carrier = client("guilded", "Bee", { companion: true });
+    for (const [key, age] of [["1800000001-aaaaaa", 3 * 86400], ["1800000002-bbbbbb", 8 * 86400]] as const) {
+      carrier.run(`local s = NS.getDb().carry; s.records["externalDuel:${key}"] = { kind = "externalDuel", key = "${key}", author = "Aye", from = "Aye", data = { at = 1 }, got = CLOCK - ${age} }`);
+      carrier.run(`GuildedCarryReceipts = { "externalDuel:${key}" }; NS.carry.receiptsSeen = {}; NS.carry.applyReceipts()`);
+    }
+    expect(queued(carrier, "WHISPER", "Aye")).toEqual(["K|externalDuel:1800000001-aaaaaa"]);
+  });
+
+  it("a carrier over its limits answers busy once, and the sender hands the record to another carrier without waiting", () => {
+    const carrier = client("guilded", "Bee", { companion: true });
+    for (let i = 0; i < 20; i++) hear(carrier, "Mallory", part(`17${String(i).padStart(8, "0")}-eeeeee`, 1, 1, "winner=sAye&loser=sZed&at=n1799999000"), "WHISPER");
+    queued(carrier, "WHISPER");
+    hear(carrier, "Mallory", part("1700000099-eeeeee", 1, 1), "WHISPER");
+    hear(carrier, "Mallory", part("1700000099-eeeeee", 1, 1), "WHISPER");
+    expect(queued(carrier, "WHISPER", "Mallory")).toEqual(["B|externalDuel:1700000099-eeeeee"]);
+    expect(count(carrier, "NS.getDb().carry.records")).toBe(20);
+
+    const player = client("guilded", "Aye");
+    duel(player);
+    hear(player, "Bee", "HI|1", "GUILD");
+    expect(queued(player, "WHISPER", "Bee").length).toBeGreaterThan(0);
+    const id = player.run("for k in pairs(NS.getDb().carry.sentTo) do return k end");
+    // A busy answer from a name the record was not handed to changes nothing.
+    hear(player, "Cee", `B|${id}`, "WHISPER");
+    expect(count(player, "NS.getDb().carry.sentTo")).toBe(1);
+    hear(player, "Bee", `B|${id}`, "WHISPER");
+    expect(count(player, "NS.getDb().carry.sentTo")).toBe(0);
+    expect(player.run("return tostring(NS.carry.carriers.Bee.pauseUntil > CLOCK)")).toBe("true");
+    hear(player, "Dee", "HI|1", "GUILD");
+    expect(queued(player, "WHISPER", "Dee").length).toBeGreaterThan(0);
+  });
+
+  it("an older addon that does not know the busy answer ignores it (only R, K, HI, Q and GOFF are acted on)", () => {
+    const carrier = client("guilded", "Bee", { companion: true });
+    hear(carrier, "Aye", "B|externalDuel:1700000099-eeeeee", "WHISPER");
+    expect(records(carrier)).toBe("0");
+    expect(queued(carrier, "WHISPER")).toEqual([]);
+  });
+});

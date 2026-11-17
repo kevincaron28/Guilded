@@ -83,7 +83,8 @@ function defaultRun(file, args) {
 async function readState({ run = defaultRun, platform = process.platform, exePath = process.execPath, env = process.env } = {}) {
   if (platform !== "win32") return { entries: [], on: false };
   const reg = regExe(env);
-  const runKey = await run(reg, ["query", RUN_KEY]);
+  let runKey = await run(reg, ["query", RUN_KEY]);
+  if (!runKey.ok) runKey = await run(reg, ["query", RUN_KEY]); // one retry: a first reg.exe call can fail right after start
   if (!runKey.ok) return null;
   // The approval key is often absent for an entry the member never touched: no answer means enabled.
   const approved = await run(reg, ["query", APPROVED_KEY]);
@@ -126,4 +127,30 @@ async function apply(on, { run = defaultRun, platform = process.platform, exePat
   return after ? after.on : null;
 }
 
-module.exports = { RUN_KEY, APPROVED_KEY, CANONICAL_NAME, KNOWN_NAMES, ARGS, regExe, parseReg, launches, ownEntries, disabledByUser, readState, apply };
+/**
+ * Keeps exactly one Run entry (the canonical one). A leftover such as `electron.app.Electron` (written by an
+ * unpackaged/dev Electron run, pointing at this exe) is deleted with its Task Manager mirror. When only a stray
+ * entry exists and Windows would start it, the canonical one is written first so start-up is never lost.
+ * Returns { removed: [names], on } or null when the Run key could not be read (nothing is changed then).
+ */
+async function tidy({ run = defaultRun, platform = process.platform, exePath = process.execPath, env = process.env, electronSet } = {}) {
+  if (platform !== "win32") return { removed: [], on: false };
+  const reg = regExe(env);
+  const state = await readState({ run, platform, exePath, env });
+  if (!state) return null;
+  const strays = state.entries.filter((entry) => entry.name !== CANONICAL_NAME);
+  if (!strays.length) return { removed: [], on: state.on };
+  const hasCanonical = state.entries.some((entry) => entry.name === CANONICAL_NAME);
+  if (!hasCanonical && strays.some((entry) => !entry.disabled)) {
+    electronSet?.(true);
+    await deleteValue(run, reg, APPROVED_KEY, CANONICAL_NAME);
+  }
+  for (const entry of strays) {
+    await deleteValue(run, reg, RUN_KEY, entry.name);
+    await deleteValue(run, reg, APPROVED_KEY, entry.name);
+  }
+  const after = await readState({ run, platform, exePath, env });
+  return { removed: strays.map((entry) => entry.name), on: after ? after.on : state.on };
+}
+
+module.exports = { tidy, RUN_KEY, APPROVED_KEY, CANONICAL_NAME, KNOWN_NAMES, ARGS, regExe, parseReg, launches, ownEntries, disabledByUser, readState, apply };

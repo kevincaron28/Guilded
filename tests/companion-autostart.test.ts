@@ -111,7 +111,7 @@ describe("a failed reg query is unknown, never off", () => {
 
   it("main.cjs keeps the last known state when the key cannot be read, and logs it once", () => {
     const main = readFileSync("companion-app/main.cjs", "utf8");
-    expect(main).toMatch(/if \(state\) \{ directStartupOn = state\.on; autostartReadWarned = false; return; \}/);
+    expect(main).toMatch(/if \(state\) \{\s+directStartupOn = state\.on; autostartReadWarned = false;/);
     expect(main).toMatch(/if \(!autostartReadWarned\) \{\s+autostartReadWarned = true;\s+updateLine\(/);
     expect(main).toMatch(/if \(result !== null\) directStartupOn = result;/);
     expect(main).not.toMatch(/directStartupOn = await autostart/);
@@ -186,5 +186,36 @@ describe("wiring", () => {
       expect(un).toContain(`CurrentVersion\\Run" "${name}"`);
       expect(un).toContain(`StartupApproved\\Run" "${name}"`);
     }
+  });
+});
+
+describe("autostart.tidy (keep exactly one Run entry)", () => {
+  it("removes a stale electron.app.Electron entry pointing at this exe and keeps the canonical one", async () => {
+    const reg = fakeRegistry([["electron.app.Electron", OWN_CMD], [autostart.CANONICAL_NAME, OWN_CMD]], [["electron.app.Electron", "02000000"]]);
+    const result = await autostart.tidy({ ...base, run: reg.exec, electronSet: () => { throw new Error("must not rewrite"); } });
+    expect(result).toEqual({ removed: ["electron.app.Electron"], on: true });
+    expect([...reg.run.keys()]).toEqual([autostart.CANONICAL_NAME]);
+    expect(reg.approved.size).toBe(0);
+  });
+  it("never touches a copy in another folder and does nothing when only the canonical entry exists", async () => {
+    const reg = fakeRegistry([["electron.app.Electron", OTHER_FOLDER], [autostart.CANONICAL_NAME, OWN_CMD]]);
+    expect(await autostart.tidy({ ...base, run: reg.exec })).toEqual({ removed: [], on: true });
+    expect(reg.run.size).toBe(2);
+    expect(reg.calls.some((call) => call.args[0] === "delete")).toBe(false);
+  });
+  it("writes the canonical entry first when only an enabled stray exists", async () => {
+    const reg = fakeRegistry([["electron.app.Electron", OWN_CMD]]);
+    const result = await autostart.tidy({ ...base, run: reg.exec, electronSet: (on: boolean) => { if (on) reg.run.set(autostart.CANONICAL_NAME, OWN_CMD); } });
+    expect(result.removed).toEqual(["electron.app.Electron"]);
+    expect([...reg.run.keys()]).toEqual([autostart.CANONICAL_NAME]);
+  });
+  it("changes nothing when the Run key cannot be read, and retries the read once", async () => {
+    const reg = fakeRegistry([["electron.app.Electron", OWN_CMD]], [], { fail: true });
+    expect(await autostart.tidy({ ...base, run: reg.exec })).toBeNull();
+    expect(reg.calls.filter((c) => c.args[0] === "query")).toHaveLength(2);
+    expect(reg.calls.some((c) => c.args[0] === "delete")).toBe(false);
+  });
+  it("main.cjs runs the tidy from refreshAutostart", () => {
+    expect(readFileSync("companion-app/main.cjs", "utf8")).toContain("autostart.tidy(");
   });
 });

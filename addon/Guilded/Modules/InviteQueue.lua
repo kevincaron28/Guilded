@@ -673,7 +673,7 @@ function module.notify()
   local list = module.list()
   if not list or #list == 0 or notified == #list then return end
   notified = #list
-  if ns.message then ns.message(string.format(L("%d waiting for a guild invite. Open them with /guilded invites."), #list)) end
+  if ns.message then ns.infoMessage(string.format(L("%d waiting for a guild invite. Open them with /guilded invites."), #list)) end
 end
 
 local frame = CreateFrame("Frame")

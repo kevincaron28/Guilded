@@ -618,10 +618,10 @@ local function receiveModules(text, sender)
     table.insert(names, ns.moduleName and ns.moduleName(key) or key)
   end
   if not ns.applyGuildModules(off, updatedAt, by ~= "" and by or sender) then return end
-  ns.message("Guild module settings from " .. (by ~= "" and by or sender) .. ": " .. (#names > 0 and ("off: " .. table.concat(names, ", ")) or "everything on") .. ". /guilded modules for details.")
+  ns.helloMessage("Guild module settings from " .. (by ~= "" and by or sender) .. ": " .. (#names > 0 and ("off: " .. table.concat(names, ", ")) or "everything on") .. ". /guilded modules for details.")
   for _, module in ipairs(ns.MODULES or {}) do
     if ns.moduleEnabled(module.key) and not ns.moduleActive(module.key) then
-      ns.message(module.name .. " was turned back on - /reload to start it.")
+      ns.helloMessage(module.name .. " was turned back on - /reload to start it.")
     end
   end
   if ns.onModulesChange then pcall(ns.onModulesChange) end
@@ -672,7 +672,7 @@ local function onEvent(_, event, ...)
       if theirs then peerVersions[sender] = theirs end
       if versionNewer(theirs, myVersion) and not warnedNewer then
         warnedNewer = true
-        ns.message("A newer Guilded (" .. theirs .. ") is out - you have " .. myVersion .. ". Grab it from the guild's download link.")
+        ns.helloMessage("A newer Guilded (" .. theirs .. ") is out - you have " .. myVersion .. ". Grab it from the guild's download link.")
       elseif versionNewer(myVersion, theirs) and channel == "GUILD" and not repliedTo[sender] then
         -- Tell the outdated player directly, once per session.
         repliedTo[sender] = true

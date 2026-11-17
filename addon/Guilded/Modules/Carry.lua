@@ -794,7 +794,7 @@ function carry.loginLine()
   local line = carry.windowLine()
   if line == "" then return end
   carry.loginSaid = true
-  if ns.message then ns.message(line) end
+  if ns.message then ns.infoMessage(line) end
 end
 
 function carry.statusLine()

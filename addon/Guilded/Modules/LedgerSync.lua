@@ -327,7 +327,7 @@ local function noticeLater()
     local names = {}
     for name in pairs(receivedFrom) do names[#names + 1] = name end
     table.sort(names)
-    ns.message(string.format(L("Ledger sync: %d EP/GP entries received from %s."), received, table.concat(names, ", ")))
+    ns.helloMessage(string.format(L("Ledger sync: %d EP/GP entries received from %s."), received, table.concat(names, ", ")))
     received, receivedFrom = 0, {}
     if ns.onLootChange then pcall(ns.onLootChange) end
   end

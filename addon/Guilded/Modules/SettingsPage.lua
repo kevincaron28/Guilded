@@ -137,6 +137,10 @@ function page.allEntries()
     "Shows one short summary of what changed in the guild since you last logged in.", "me", "GuildedDB.digest.enabled",
     function() local d = db(); return not (d and d.digest and d.digest.enabled == false) end,
     function(on) run(on and "digest on" or "digest off") end, { wide = true })
+  check("general", "Login and tooltips", "Quiet login: no Guilded messages in chat at login",
+    "Hides Guilded's informational chat lines for the first minute after you log in or reload (loaded, login summary, reminders), and the notices caused by guildmates' Guilded messages (newer version, guild settings, ledger received). Errors and answers to your own commands always show. Same as /guilded quiet on | off.", "me", "settings.quietLogin",
+    function() return ns.quietLoginOn and ns.quietLoginOn() or false end,
+    function(on) run(on and "quiet on" or "quiet off") end, { wide = true })
   add({ tab = "general", group = "Login and tooltips", kind = "cycle", label = "Item tooltips: who can craft it", who = "me", saved = "settings.tooltipCrafters",
     desc = "Adds the guildmates who can craft an item to its tooltip: off, one short line, or the full list.",
     text = function()

@@ -2535,7 +2535,8 @@ local function onEvent(_, event, ...)
         if C_Timer and C_Timer.After then C_Timer.After(10, function() pcall(ns.runCommProbe) end) end
       end
     end
-    message(activeRaid
+    ns.loginAt = GetTime and GetTime() or 0
+    ns.infoMessage(activeRaid
       and string.format(L("Loaded. /guilded help for commands - raid '%s' is still active."), activeRaid.title)
       or L("Loaded. /guilded help for commands."))
     for _, pending in ipairs(pendingDiagnostics) do
@@ -2612,7 +2613,7 @@ local function onEvent(_, event, ...)
     if count > 0 and ns.util.migrateForeverNames then
       local okMigrate, result = pcall(ns.util.migrateForeverNames, db)
       if okMigrate and result.flagged > 0 and isOfficer() then
-        message(string.format(L("%d saved entries use a first name shared by several characters. /guilded names lists them."), result.flagged))
+        ns.infoMessage(string.format(L("%d saved entries use a first name shared by several characters. /guilded names lists them."), result.flagged))
       end
     end
     -- A full roster that no longer lists someone means they left. Nothing is concluded from
@@ -2782,6 +2783,31 @@ ns.parseRoll = parseRoll
 ns.isSecret = isSecret
 ns.now = now
 ns.message = message
+-- Quiet login (9.3.6): one switch (/guilded quiet on|off, Settings > General) for Guilded's informational
+-- lines. infoMessage is for lines Guilded prints by itself around login (loaded, digest, reminders, hints):
+-- dropped during the first 60 seconds after login. helloMessage is for notices that other Guilded users'
+-- hello and sync messages cause (newer version, guild module list, ledger received): dropped at any time.
+-- Errors, warnings the member must act on and the answers to commands never use these.
+local QUIET_LOGIN_SECONDS = 60
+function ns.quietLoginOn()
+  local s = db and db.settings
+  return s ~= nil and s.quietLogin == true
+end
+function ns.quietLoginActive()
+  if not ns.quietLoginOn() then return false end
+  local at, clock = ns.loginAt, GetTime and GetTime() or 0
+  return at ~= nil and clock - at < QUIET_LOGIN_SECONDS
+end
+function ns.infoMessage(text)
+  if ns.quietLoginActive() then return false end
+  ns.message(text)
+  return true
+end
+function ns.helloMessage(text)
+  if ns.quietLoginOn() then return false end
+  ns.message(text)
+  return true
+end
 ns.send = send
 ns.inspectReadiness = inspectReadiness
 ns.isOfficer = isOfficer

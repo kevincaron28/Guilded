@@ -31,6 +31,12 @@ end
 local util = ns.util or {}
 ns.util = util
 
+-- Quiet login (9.3.6): Core.lua replaces these with the real filters. Until then (and in the standalone
+-- Guilded Dungeons addon, which has no Core) they simply print.
+local function plainMessage(text) if ns.message then return ns.message(text) end end
+ns.infoMessage = ns.infoMessage or plainMessage
+ns.helloMessage = ns.helloMessage or plainMessage
+
 -- Whether this PC's companion is alive and has the named feature (GuildedCompanionFeatures, written into the generated files).
 -- (9.3.3) A marker with hb = 1 is rewritten by the companion at least hourly, so one a few hours old means the companion stopped;
 -- an older companion wrote it only when the guild's data changed, so such a marker keeps the long window.

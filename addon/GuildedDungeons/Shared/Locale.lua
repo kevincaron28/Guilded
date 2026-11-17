@@ -9,6 +9,11 @@ local addonName, ns = ...
 ns = ns or {}
 
 local FR = {
+  -- 9.3.6 quiet login.
+  ["Quiet login: no Guilded messages in chat at login"] = "Connexion discr\195\168te : aucun message de Guilded dans le chat \195\160 la connexion",
+  ["Hides Guilded's informational chat lines for the first minute after you log in or reload (loaded, login summary, reminders), and the notices caused by guildmates' Guilded messages (newer version, guild settings, ledger received). Errors and answers to your own commands always show. Same as /guilded quiet on | off."] = "Masque les lignes d'information de Guilded dans le chat pendant la premi\195\168re minute apr\195\168s la connexion ou le rechargement (chargement, r\195\169sum\195\169 de connexion, rappels), ainsi que les avis caus\195\169s par les messages Guilded des membres (nouvelle version, r\195\169glages de guilde, registre re\195\167u). Les erreurs et les r\195\169ponses \195\160 vos commandes s'affichent toujours. Identique \195\160 /guilded quiet on | off.",
+  ["Quiet login is on: Guilded keeps its informational lines out of chat at login. Errors and your own commands still show."] = "La connexion discr\195\168te est activ\195\169e : Guilded n'affiche plus ses lignes d'information dans le chat \195\160 la connexion. Les erreurs et vos commandes s'affichent toujours.",
+  ["Quiet login is off."] = "La connexion discr\195\168te est d\195\169sactiv\195\169e.",
   -- 9.3.2 records carried for players near you.
   ["Carrying records is turned off for the whole guild by an officer."] = "Le relais est d\195\169sactiv\195\169 pour toute la guilde par un officier.",
   ["Carrying records is allowed for the guild again."] = "Le relais est de nouveau permis pour la guilde.",
@@ -993,6 +998,11 @@ local FR = {
 -- scripts/addon-locale.mjs), then npm run dungeons:sync.
 -- BEGIN DE (written by npm run locale -- import; edit the CSV, not these lines)
 local DE = {
+  -- 9.3.6 quiet login.
+  ["Quiet login is on: Guilded keeps its informational lines out of chat at login. Errors and your own commands still show."] = "Ruhige Anmeldung ist an: Guilded h\195\164lt seine Infozeilen beim Anmelden aus dem Chat heraus. Fehler und deine eigenen Befehle werden weiterhin angezeigt.",
+  ["Quiet login is off."] = "Ruhige Anmeldung ist aus.",
+  ["Quiet login: no Guilded messages in chat at login"] = "Ruhige Anmeldung: keine Guilded-Meldungen im Chat beim Anmelden",
+  ["Hides Guilded's informational chat lines for the first minute after you log in or reload (loaded, login summary, reminders), and the notices caused by guildmates' Guilded messages (newer version, guild settings, ledger received). Errors and answers to your own commands always show. Same as /guilded quiet on | off."] = "Blendet Guildeds Infozeilen im Chat in der ersten Minute nach Anmeldung oder Neuladen aus (geladen, Anmelde-Zusammenfassung, Erinnerungen) sowie Hinweise, die durch Guilded-Nachrichten von Gildenmitgliedern entstehen (neuere Version, Gildeneinstellungen, Ledger empfangen). Fehler und Antworten auf deine eigenen Befehle werden immer angezeigt. Wie /guilded quiet on | off.",
   -- Result card party table (9.3.5)
   ["Lv"] = "Stufe",
   ["This run"] = "Dieser Lauf",
@@ -3012,6 +3022,11 @@ local DE = {
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
 local ES = {
+  -- 9.3.6 quiet login.
+  ["Quiet login is on: Guilded keeps its informational lines out of chat at login. Errors and your own commands still show."] = "El inicio de sesi\195\179n tranquilo est\195\161 activado: Guilded no muestra sus l\195\173neas informativas en el chat al entrar. Los errores y tus propios comandos se siguen mostrando.",
+  ["Quiet login is off."] = "El inicio de sesi\195\179n tranquilo est\195\161 desactivado.",
+  ["Quiet login: no Guilded messages in chat at login"] = "Inicio de sesi\195\179n tranquilo: sin mensajes de Guilded en el chat al entrar",
+  ["Hides Guilded's informational chat lines for the first minute after you log in or reload (loaded, login summary, reminders), and the notices caused by guildmates' Guilded messages (newer version, guild settings, ledger received). Errors and answers to your own commands always show. Same as /guilded quiet on | off."] = "Oculta las l\195\173neas informativas de Guilded en el chat durante el primer minuto tras entrar o recargar (cargado, resumen de inicio, recordatorios) y los avisos causados por los mensajes de Guilded de otros miembros (versi\195\179n nueva, ajustes de la hermandad, registro recibido). Los errores y las respuestas a tus propios comandos siempre se muestran. Igual que /guilded quiet on | off.",
   -- Result card party table (9.3.5)
   ["Lv"] = "Nv",
   ["This run"] = "Esta partida",

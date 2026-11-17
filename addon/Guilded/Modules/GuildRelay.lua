@@ -125,7 +125,7 @@ function relay.handle(text, sender)
   relay.protocols[sender] = { protocol = protocol, version = string.sub(version or "", 1, 20) }
   if protocol > PROTOCOL and not relay.warned then
     relay.warned = true
-    ns.message(string.format(L("%s runs a newer Guilded sync (%s). Please update Guilded so your data keeps reaching Discord."),
+    ns.helloMessage(string.format(L("%s runs a newer Guilded sync (%s). Please update Guilded so your data keeps reaching Discord."),
       ns.displayName and ns.displayName(sender) or sender, version ~= "" and version or ("protocol " .. protocol)))
   end
   local saved = state()

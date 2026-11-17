@@ -10,8 +10,9 @@ import { findSameRun, sameDetails, summarize, type PublicRunStore } from "./publ
 // carrier met later (Carry.lua, kind "run"). Owner decision (14 November 2026): one report is enough evidence, so a single carried statement is
 // ranked like the statement of any single unsigned reporter. It goes through the relay lane (ingestRelayedRuns) with its checks and limits:
 //   - the author must be a player of the run, and the carrier must not have played in it (own runs are the carrier's own upload's business);
-//   - a statement claims a run id only for its own recorder: the id (QG-date-time-name) must carry the author's name and a time close to the run's
-//     start, so an outsider cannot occupy the id of someone else's run; a statement that fails is refused and receipted (never retried);
+//   - a statement's run id (QG-date-time-name) must name a player of the run (its author, or another player in the same party: a relayed copy when
+//     the id's owner never uploads) and carry a time close to the run's start, so an outsider cannot occupy the id of a run he was not in; a
+//     statement that fails is refused and receipted (never retried);
 //   - the first statement that passes places the run and a placed run is never changed by a later statement (a repeat is a receipted duplicate, a
 //     different result is logged for review). The one exception: a run placed only by other players' relayed copies gives way, once, to its own
 //     recorder's statement when that disagrees (logged);
@@ -28,6 +29,8 @@ const HELD_RETRY_DAYS = 2;
 const KEEP_DAYS = 30;
 /** The cleanup runs at most this often. */
 const CLEANUP_EVERY_MS = 10 * 60_000;
+/** Rows of copies one carrier may file per day (more are still receipted, just not stored). */
+const COPY_ROWS_PER_DAY = 60;
 const lastCleanup = new WeakMap<object, number>();
 
 const lower = (text: string) => text.trim().normalize("NFC").toLowerCase();
@@ -102,8 +105,11 @@ export async function placeCarriedRun(database: PrismaClient, input: { carrier: 
   const authorName = lower(input.author.split("-")[0] ?? input.author);
   if (!unpacked.players.some((name) => lower(name) === authorName)) { await refuse("author-not-in-run"); return true; }
   // The run id belongs to the player who recorded it: its name is the author's and its time is the run's start.
+  // A statement may also carry the id of another player of the same run (the id's owner may never upload): it is then a relayed copy of that
+  // run under every check below. An id naming someone who is not in the party stays refused for good.
   const claimed = parseRunId(String(unpacked.run["id"]));
-  if (!claimed || claimed.recorder !== authorName) { await refuse("run-id-not-the-authors"); return true; }
+  if (!claimed) { await refuse("run-id-not-the-authors"); return true; }
+  if (claimed.recorder !== authorName && !unpacked.players.some((name) => lower(name.split("-")[0] ?? name) === claimed.recorder)) { await refuse("run-id-not-in-the-party"); return true; }
   if (Math.abs(claimed.at - Number(unpacked.run["startedAt"])) > ID_TIME_WINDOW) { await refuse("run-id-time-mismatch"); return true; }
   // The carrier played in it: its own upload reports that run, a carried copy of it is not a second voice.
   if (unpacked.players.some((name) => input.carrierKeys.has(lower(name)))) { await refuse("carrier played in it", "own"); return true; }
@@ -112,7 +118,7 @@ export async function placeCarriedRun(database: PrismaClient, input: { carrier: 
   // Filed per run and carrier: the same run sent again under another record key is the same row, and another carrier's copy cannot hide this one.
   const storedKey = `${unpacked.runKey}@${input.carrier}`.slice(0, 200);
   const existing = await database.carriedRecord.findUnique({ where: { kind_authorKey_key: { kind: "run", authorKey, key: storedKey } }, select: { status: true, createdAt: true } });
-  if (existing && (existing.status === "applied" || existing.status === "own" || existing.status === "differs" || existing.status === "refused")) return true;
+  if (existing && (existing.status === "applied" || existing.status === "copy" || existing.status === "own" || existing.status === "differs" || existing.status === "refused")) return true;
   // A statement held by a check is sent again for a while; then it is closed for good (receipted as permanently refused, logged).
   // (A refusal is filed under the record's own key.)
   const filed = (await database.carriedRecord.findMany({ where: { kind: "run", key: input.key, carrier: input.carrier }, select: { status: true, createdAt: true }, take: 5 }));
@@ -129,7 +135,6 @@ export async function placeCarriedRun(database: PrismaClient, input: { carrier: 
   // The limits (server configuration), checked before anything is stored. A statement over a limit is not placed, and a repeat of a placed run is
   // answered without a row of its own.
   const { runKey } = unpacked;
-  const capReason = await limitReached(database, input.carrier, runKey, input.now);
   const summary = summarize(dungeonRunSchema.parse(unpacked.run) as DungeonRunInput, input.now);
   // Files this statement's row (one per run and carrier): what became of it, visible to the owner.
   const file = async (status: string) => {
@@ -146,11 +151,16 @@ export async function placeCarriedRun(database: PrismaClient, input: { carrier: 
   if (near) target = await findSameRun(store, summary).catch(() => null);
   let backup: unknown = null;
   let replaced: { key: string; text: string } | null = null;
+  const differs = target ? !sameDetails(target, summary) : false;
+  // A statement that says the same as a run already placed (every recorder's copy of one real run) costs the carrier nothing against its day:
+  // it is filed as a "copy", which the daily count of distinct runs leaves out (a party of five is one run, not five).
+  const copy = !!target && !differs;
+  const capReason = await limitReached(database, input.carrier, runKey, input.now, copy);
   if (target) {
-    const differs = !sameDetails(target, summary);
-    if (!differs) {
-      // The same thing said again: a confirmation (receipted, no second run).
-      if (!capReason) await file("applied");
+    if (copy) {
+      // The same thing said again: a confirmation (receipted, no second run). Rows of copies are bounded per carrier and day.
+      const copiesToday = await database.carriedRecord.count({ where: { kind: "run", carrier: input.carrier, status: "copy", createdAt: { gte: dayStartOf(input.now) } } });
+      if (!capReason && copiesToday < COPY_ROWS_PER_DAY) await file("copy");
       if (near) console.info(`Carried run ${runKey.slice(0, 50)} via ${input.carrier}: a copy of a run already placed`);
       return true;
     }
@@ -196,7 +206,7 @@ export async function placeCarriedRun(database: PrismaClient, input: { carrier: 
   if (result.published < 1 && result.known < 1) {
     // Held by a plausibility check or over the day's limit: the original run (if one was removed) is put back. Sent again for a while, then closed.
     await putBack();
-    await refuse("not-placed (held by a check or over a limit)", "held");
+    await refuse(`not-placed (${result.rejected[0]?.reason ?? "held by a check or over a limit"})`, "held");
     return false;
   }
   await file("applied");
@@ -206,16 +216,31 @@ export async function placeCarriedRun(database: PrismaClient, input: { carrier: 
   return true;
 }
 
-/** The name of the limit this carrier has reached for this run, or null. Signed and unsigned carriers are counted apart. */
-async function limitReached(database: PrismaClient, carrier: string, runKey: string, now: Date): Promise<string | null> {
+const dayStartOf = (now: Date) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+/** Carriers whose day cap was already logged today ("carrier|day"), so the journal says it once. */
+const capLogged = new Set<string>();
+
+/** The name of the limit this carrier has reached for this run, or null. Signed and unsigned carriers are counted apart. A copy of a run already placed is held to the row limits only: it never counts as a run of the day. */
+async function limitReached(database: PrismaClient, carrier: string, runKey: string, now: Date, copy = false): Promise<string | null> {
   const config = integrityConfig();
   const signed = carrier.startsWith("member:");
-  const dayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const dayStart = dayStartOf(now);
   if (await database.carriedRecord.count({ where: { kind: "run", runKey, carrier } }) >= config.carriedRunRowsPerCarrierRun) return "carrier-run-cap";
   const rowsForRun = await database.carriedRecord.count({ where: { kind: "run", runKey, carrier: { startsWith: signed ? "member:" : "device:" } } });
   if (rowsForRun >= (signed ? config.carriedRunRowsPerRun : config.carriedRunRowsPerRunDevice)) return "run-cap";
-  const keysToday = await database.carriedRecord.findMany({ where: { kind: "run", carrier, createdAt: { gte: dayStart } }, distinct: ["runKey"], select: { runKey: true }, take: 1000 });
-  if (keysToday.length >= (signed ? config.carriedRunKeysPerDay : config.carriedRunKeysPerDayDevice) && !keysToday.some((row) => row.runKey === runKey)) return "carrier-day-cap";
+  if (copy) return null;
+  const rowsToday = await database.carriedRecord.findMany({ where: { kind: "run", carrier, createdAt: { gte: dayStart } }, select: { runKey: true, status: true }, take: 1000 });
+  const keysToday = new Set(rowsToday.filter((row) => row.status !== "copy").map((row) => row.runKey));
+  const limit = signed ? config.carriedRunKeysPerDay : config.carriedRunKeysPerDayDevice;
+  if (keysToday.size >= limit && !keysToday.has(runKey)) {
+    const logged = `${carrier}|${dayStart.getTime()}`;
+    if (!capLogged.has(logged)) {
+      for (const old of capLogged) if (!old.endsWith(`|${dayStart.getTime()}`)) capLogged.delete(old);
+      capLogged.add(logged);
+      console.info(`Carried runs: ${carrier} reached its limit of ${limit} distinct runs today; further runs wait until tomorrow (copies of a placed run are free)`);
+    }
+    return "carrier-day-cap";
+  }
   return null;
 }
 

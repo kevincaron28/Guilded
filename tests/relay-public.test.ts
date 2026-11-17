@@ -110,6 +110,28 @@ describe("the relay lane", () => {
     expect(row.status).toBe("ACCEPTED");
   });
 
+  it("(L4) a run the public lane refuses is receipted with its reason as a note (never as done), and the journal says why", async () => {
+    const { store, runs } = memoryStore();
+    const lines: string[] = [];
+    const spy = vi.spyOn(console, "info").mockImplementation((line: unknown) => { lines.push(String(line)); });
+    try {
+      const old = run("QG-OLD", { startedAt: END - 40 * 86400 - 1500, endedAt: END - 40 * 86400, encounters: [{ id: 1, success: true, at: END - 40 * 86400 - 900 }, { id: 2, success: true, at: END - 40 * 86400 - 10 }] });
+      const answer = await ingestRelayedRuns(store, { carrier: "dev1", carrierKeys: carrier("zed"), runs: [old, run("QG-FINE")], now: NOW });
+      expect(runs.size).toBe(1);
+      expect(answer.receipts.sort()).toEqual([`${GROUP_RECEIPT_PREFIX}QG-FINE`, `${GROUP_RECEIPT_PREFIX}QG-OLD`]);
+      expect(answer.rejected).toHaveLength(1);
+      expect(answer.rejected[0]).toMatchObject({ id: "QG-OLD" });
+      expect(answer.notes).toEqual({ [`${GROUP_RECEIPT_PREFIX}QG-OLD`]: answer.rejected[0]!.reason.slice(0, 80) });
+      expect(lines.some((line) => /QG-OLD.*refused/.test(line))).toBe(true);
+      expect(lines.some((line) => /received 2, placed 1, copies 0, receipted 2, duplicates 0, rejected 1, held 0/.test(line))).toBe(true);
+      // The signed upload saves the reason with the receipt (a refused outcome with a note), so the addon can show it.
+      const saved: { runRef: string; reason: string | null }[] = [];
+      const snapshot = { dungeonRuns: [old] as unknown[], character: { name: "Zed" }, alts: [], characters: [] };
+      await carrySignedGroupRuns(snapshot, { carrier: "member:m1", store: memoryStore().store, saveReceipts: async (rows) => { saved.push(...rows); } });
+      expect(saved).toEqual([{ runRef: `${GROUP_RECEIPT_PREFIX}QG-OLD`, reason: expect.stringMatching(/./) }]);
+    } finally { spy.mockRestore(); }
+  });
+
   it("the signed upload's split takes viaGroup runs out of the snapshot, relays them and writes group: receipts", async () => {
     const { store, runs } = memoryStore();
     const saved: string[][] = [];

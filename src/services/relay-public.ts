@@ -49,6 +49,10 @@ export interface RelayResult {
   published: number;
   /** Runs dealt with as another recorder's copy of a run already on the boards (a confirmation: no second row). */
   known: number;
+  /** Runs the public lane refused (too old, impossible time, other edition, a different result...) or this lane held: receipted, with the reason. */
+  rejected: { id: string; reason: string }[];
+  /** Receipt ref -> a short reason, for the receipts that are a refusal (the addon shows it as the run's note). Duplicates and copies have none. */
+  notes: Record<string, string>;
 }
 
 /** The plausibility flags of a relayed run (what decides whether it is held). */
@@ -92,6 +96,10 @@ export async function ingestRelayedRuns(store: PublicRunStore, input: { carrier:
   const now = input.now ?? new Date();
   const config = integrityConfig();
   const receipts: string[] = [];
+  const rejected: { id: string; reason: string }[] = [];
+  const notes: Record<string, string> = {};
+  const refuseNote = (id: string, reason: string) => { rejected.push({ id, reason }); notes[`${GROUP_RECEIPT_PREFIX}${id}`] = reason.slice(0, 80); };
+  let duplicates = 0, held = 0;
   const candidates: { id: string; run: Record<string, unknown>; reporter: string }[] = [];
   for (const raw of input.runs) {
     const run = raw && typeof raw === "object" ? raw as Record<string, unknown> : null;
@@ -111,13 +119,13 @@ export async function ingestRelayedRuns(store: PublicRunStore, input: { carrier:
   const room = Math.max(0, config.relayedRunsPerDay - await store.uploadsSince(carrierKey, dayStart));
   const allowed = candidates.slice(0, room);
   // Over the day's limit: dropped, but told as handled so they are not sent again at every sync.
-  for (const over of candidates.slice(room)) { receipts.push(`${GROUP_RECEIPT_PREFIX}${over.id}`); console.info(`Relayed run ${over.id.slice(0, 40)} via ${input.carrier}: not placed (carrier's daily limit)`); }
+  for (const over of candidates.slice(room)) { receipts.push(`${GROUP_RECEIPT_PREFIX}${over.id}`); refuseNote(over.id, "Over the sender's daily limit"); console.info(`Relayed run ${over.id.slice(0, 40)} via ${input.carrier}: not placed (carrier's daily limit)`); }
   const accepted: unknown[] = [];
   let known = 0;
   for (const { id, run, reporter } of allowed) {
     const flags = relayFlags(run, id, config);
     // A held run is not published; the carrier is told it was dealt with.
-    if (holdsRun(flags.map((flag) => flag.code), config, 0)) { receipts.push(`${GROUP_RECEIPT_PREFIX}${id}`); console.info(`Relayed run ${id.slice(0, 40)} via ${input.carrier}: held (${flags.map((flag) => flag.code).join(",")})`); continue; }
+    if (holdsRun(flags.map((flag) => flag.code), config, 0)) { receipts.push(`${GROUP_RECEIPT_PREFIX}${id}`); held++; refuseNote(id, `Held by a check: ${flags.map((flag) => flag.code).join(", ")}`); console.info(`Relayed run ${id.slice(0, 40)} via ${input.carrier}: held (${flags.map((flag) => flag.code).join(",")})`); continue; }
     // Another recorder's copy of a run already on the boards (two addons in one party name the run after themselves): a confirmation, no second row.
     const parsed = dungeonRunSchema.safeParse(run);
     if (parsed.success && !input.skipNearMatch) {
@@ -144,12 +152,20 @@ export async function ingestRelayedRuns(store: PublicRunStore, input: { carrier:
     published += result.accepted.length + result.confirmed.length;
     const placed = new Set([...result.accepted, ...result.confirmed]);
     if (placed.size) input.onPlaced?.(batch.filter((entry) => placed.has((entry as { id: string }).id)));
-    for (const entry of batch) receipts.push(`${GROUP_RECEIPT_PREFIX}${(entry as { id: string }).id}`);
+    const refused = new Map(result.rejected.map((row) => [row.id, row.reason] as const));
+    const dup = new Set(result.duplicates);
+    for (const entry of batch) {
+      const id = (entry as { id: string }).id;
+      receipts.push(`${GROUP_RECEIPT_PREFIX}${id}`);
+      const why = refused.get(id);
+      if (why) { refuseNote(id, why); if (/held for review/.test(why)) held++; console.info(`Relayed run ${id.slice(0, 40)} via ${input.carrier}: refused (${why})`); }
+      else if (dup.has(id)) duplicates++;
+    }
   }
   const unique = [...new Set(receipts)];
   // One line per call, whatever happened, so the journal always shows what this lane did with what it was given.
-  if (input.runs.length) console.info(`Relayed runs via ${input.carrier}: received ${input.runs.length}, placed ${published}, copies ${known}, receipted ${unique.length}`);
-  return { receipts: unique, published, known };
+  if (input.runs.length) console.info(`Relayed runs via ${input.carrier}: received ${input.runs.length}, placed ${published}, copies ${known}, receipted ${unique.length}, duplicates ${duplicates}, rejected ${rejected.length}, held ${held}`);
+  return { receipts: unique, published, known, rejected, notes };
 }
 
 /**
@@ -167,7 +183,8 @@ export async function carrySignedGroupRuns(snapshot: { dungeonRuns: unknown[]; c
   const carried = await ingestRelayedRuns(options.store, { carrier: options.carrier, carrierKeys, runs: group.slice(0, RUN_TRUST.relayedPerUpload), ...(options.onPlaced ? { onPlaced: options.onPlaced } : {}) }).catch((error: unknown) => { console.error(`Relayed runs via ${options.carrier} failed: ${error instanceof Error ? error.message : String(error)}`); return null; });
   if (carried?.receipts.length) {
     const plain = strangerReceipts(options.strangerIds ?? [], carried.receipts);
-    const rows = [...carried.receipts.map((runRef) => ({ runRef, reason: null })), ...plain.map((runRef) => ({ runRef, reason: STRANGER_NOTE }))];
+    // A refused run is receipted (so it is not sent again for ever) with its reason, which the addon shows as the run's note.
+    const rows = [...carried.receipts.map((runRef) => ({ runRef, reason: carried.notes[runRef] ?? null })), ...plain.map((runRef) => ({ runRef, reason: STRANGER_NOTE }))];
     await options.saveReceipts(rows).catch((error: unknown) => { console.error(`Relayed runs via ${options.carrier}: receipts not saved (${rows.length}): ${error instanceof Error ? error.message : String(error)}`); });
   }
   return carried;

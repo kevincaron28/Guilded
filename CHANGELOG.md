@@ -1,5 +1,23 @@
 # Changelog
 
+## 9.3.8 — 17 November 2026
+
+Addon fixes, plus the card redesign already live on the bot. Prepared 17 November 2026, not yet published. Not yet confirmed on real clients (see docs/V9_3_8_RELEASE_ACCEPTANCE.md). Details: docs/V9_3_8_RELEASE_NOTES.md.
+
+Addon:
+
+- The Guilded setup window opens on top of the main window and can be dragged (#1053).
+- Quiet login: a Settings switch (or `/guilded quiet on`) hides Guilded's chat lines for the first minute after login and notices caused by other members' Guilded (#1053).
+- Milestone and achievement lines wait in a small Share bar and go to guild chat on one click. WoW Forever refused the automatic line ("ADDON_ACTION_BLOCKED: Guilded tried to call UNKNOWN()") (#1061).
+
+Bot and website (already live):
+
+- Cards: Pirata One titles, French and local-date fixes, full names on ladders, the old framed layout retired, raid boss list, two-column PvP group card, wider dungeon table with the guild always shown (#1054-#1057).
+- Achievement unlocked card redesigned with the badge large on the trophy hall painting; dungeon cards brighter and without the death map; no community points line on run posts (#1059).
+- Invite requests from members who left Discord are closed, and a corrected name replaces the typo (#1060).
+- Reactions count for participation at once (#1052), weekly honors cards (#1050), plain receipts for runs with no guild player (#1048).
+- Audit polish: Store version on the site, /privacy /help /guides redirects, translated battleground errors (#1062).
+
 ## 9.3.7 — 16 November 2026
 
 Fixes after the 9.3.6 two-PC test. Published 16 November 2026 (GitHub, the website and CurseForge, approved 17 November 2026). Not yet confirmed on real clients (see docs/V9_3_7_RELEASE_ACCEPTANCE.md). Details: docs/V9_3_7_RELEASE_NOTES.md.

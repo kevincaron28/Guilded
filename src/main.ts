@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { applySharpLimits, discordCacheOptions } from "./memory-limits.js";
 import { executeAutomation } from "./commands/automation.js";
 import { runRecurringDeliveries } from "./services/recurring-discord.js";
 import { dispatchGroupWatches } from "./services/group-watch-discord.js";
@@ -178,7 +179,10 @@ import { logMessageDelete, logMessageEdit } from "./services/message-log.js";
 // or login will fail with "Used disallowed intents". The same goes for
 // MessageContent ("Message Content Intent"), asked for only when
 // MESSAGE_CONTENT_INTENT=true (5.0 answer channel, /mod faq).
+// libvips cache and thread limits for the 1 GB VM (src/memory-limits.ts).
+applySharpLimits();
 const client = new Client({
+  ...discordCacheOptions(),
   intents: [
     GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages,
     GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.DirectMessages,

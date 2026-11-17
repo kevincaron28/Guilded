@@ -29,6 +29,7 @@
     "postinstall": "prisma generate",
     "prisma:generate": "node scripts/with-env.mjs prisma generate",
     "prisma:migrate": "node scripts/with-env.mjs prisma migrate dev",
+    "db:start": "node scripts/db-update-start.mjs",
     "db:update": "node scripts/with-env.mjs prisma migrate deploy && node scripts/with-env.mjs prisma generate",
     "companion:setup": "node scripts/setup-companion.mjs",
     "setup:check": "tsx scripts/check-setup.ts",

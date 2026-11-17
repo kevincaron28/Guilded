@@ -3,7 +3,11 @@
 #   cd ~/guilded && sudo bash deploy/update.sh
 # What it does: pull the new code (with YOUR git login, so a private repository just works), copy it to
 # /opt/guilded after a separate install/build succeeds, restart it, and check that it came back.
-# Database changes apply by themselves when the bot starts (the service runs npm run db:update first).
+# Database changes apply by themselves when the bot starts (the service runs npm run db:start first: it runs
+# prisma migrate deploy only when the migration files changed, and generates the Prisma client only when the
+# prepared application does not already carry it).
+# Order: prepare everything (copy, dependencies, client, bundle) while the old bot keeps running; then stop,
+# swap directories, start. The downtime is the swap plus the start step plus the bot's own boot.
 # Safe to run again. If the new version does not start it tells you how to go back.
 set -euo pipefail
 
@@ -80,11 +84,13 @@ if ! prepare_application "$SRC" "$APP" guilded; then
   exit 1
 fi
 say "Stopping the bot and activating the prepared application"
+STOPPED_AT="$(date +%s)"
 systemctl stop guilded
 if ! activate_application "$APP" "$STAGED_APP"; then
   echo "Activation failed; service remains stopped. Inspect $APP and ${PREVIOUS_APP:-the staging directory}."
   exit 1
 fi
+if migrations_changed "$PREVIOUS_APP" "$APP"; then echo "Database migrations changed: the start step applies them."; else echo "Database migrations unchanged: the start step skips them."; fi
 chmod 700 "$PREVIOUS_APP"
 cp -p /etc/systemd/system/guilded.service "$PREVIOUS_APP/.recovery-service"
 echo "Saved application for code recovery: $PREVIOUS_APP"
@@ -166,6 +172,7 @@ for i in $(seq 1 40); do
   if curl -fsS "http://127.0.0.1:$PORT/health" >/dev/null 2>&1; then
     VERSION="$(node -p "require('$APP/package.json').version" 2>/dev/null || echo '?')"
     say "The bot is back (version $VERSION, $AFTER)"
+    echo "Downtime: about $(( $(date +%s) - STOPPED_AT )) s from the stop until the bot answered."
     # Discord refuses a server's whole command list when one entry is invalid, and the bot keeps
     # running with the old commands. It says so on /health ("commands"); wait for its answer.
     COMMANDS=pending

@@ -91,6 +91,23 @@ const receipt = (key: string) => `${CARRY_RECEIPT_PREFIX}run:${key}`;
 const placed = (runs: Map<string, StoredRun & { summary: RunSummary }>, key = RUNKEY) => runs.get(key)!;
 
 describe("unpacking a carried run and its id", () => {
+  it("reads the presence proof when it is there, leaves out a malformed piece, and ignores it for an older record", () => {
+    const proof = { ig: "Aye;f;-2;3;1;u", ns: `2735:${start + 1500}`, q1: "1400;0;T;0;5.1400", q2: "700;700;D;1;5.350/10.350" };
+    const run = unpackCarriedRun(data(proof))!.run as any;
+    expect(run.integrity).toEqual({ version: 2, startWitness: "unknown", observer: "Aye", detectedAt: start - 2, combatAt: start + 3, startTrigger: "first combat", continuous: true });
+    expect(run.players[0].integrity).toMatchObject({ knownSec: 1400, unknownSec: 0, lockedRole: "TANK", mixedRole: false, knownIntervals: [[start + 5, start + 1405]] });
+    expect(run.players[1].integrity).toMatchObject({ knownSec: 700, mixedRole: true, lockedRole: "DPS", knownIntervals: [[start + 5, start + 355], [start + 365, start + 715]] });
+    expect(run.encounters[0].source).toBe("native");
+    // A malformed player piece costs that player the proof, not the run; a malformed run piece drops the whole proof.
+    expect((unpackCarriedRun(data({ ...proof, q2: "x;y" }))!.run as any).players[1].integrity).toBeUndefined();
+    const broken = unpackCarriedRun(data({ ...proof, ig: "garbage" }))!.run as any;
+    expect(broken.integrity).toBeUndefined();
+    expect(broken.players[0].integrity).toBeUndefined();
+    expect(broken.encounters[0].source).toBeUndefined();
+    // An older addon sends none of it.
+    expect((unpackCarriedRun(data())!.run as any).integrity).toBeUndefined();
+  });
+
   it("names the bosses from their ids (the record has none), so a multi-route map resolves", () => {
     expect((unpackCarriedRun(data({ i: 189, ev: `448:${start + 1500}` }))!.run as any).encounters).toEqual([{ id: 448, success: true, at: start + 1500, name: "Herod" }]);
     expect((unpackCarriedRun(data({ ev: `99999:${start + 1500}` }))!.run as any).encounters[0]).not.toHaveProperty("name");

@@ -17,8 +17,30 @@ export function acknowledgements(body) {
     ledger: new Set(Array.isArray(body?.acceptedLedgerRefs) ? body.acceptedLedgerRefs : []),
     loot: new Set(Array.isArray(body?.acceptedLootRefs) ? body.acceptedLootRefs : []),
     // The runs the bot already holds (only the "group:" receipts matter here: runs carried for other players are sent once).
-    runs: new Set(Array.isArray(body?.personal?.acceptedRunRefs) ? body.personal.acceptedRunRefs : [])
+    runs: new Set(Array.isArray(body?.personal?.acceptedRunRefs) ? body.personal.acceptedRunRefs : []),
+    // Runs the bot received but gave a note (refused or earned nothing): they are kept in uploads, so a changed verdict is still looked at.
+    runNotes: new Set(body?.personal?.runNotes && typeof body.personal.runNotes === "object" ? Object.keys(body.personal.runNotes) : [])
   };
+}
+
+// A full resend of the dungeon runs (nothing held back) at least this often, and always when the bot's list was never read.
+export const RUN_FULL_RESEND_DAYS = 7;
+export const runResendDue = (lastFullAt, now = Date.now()) => !Number.isFinite(lastFullAt) || now - lastFullAt >= RUN_FULL_RESEND_DAYS * 86_400_000;
+
+// (9.3.8) A finished run the bot already holds (it is in the answer's acceptedRunRefs, so the addon shows it as synced) and gave no note is
+// not sent again: 263 of a PC's 291 runs were 79% of its upload. Unfinished runs, runs with a note and runs the bot does not list go every time.
+// An older bot that lists nothing leaves every run in, exactly as before.
+function pruneKnownRuns(runs, ack, features, resend) {
+  let omitted = 0;
+  const kept = runs.filter((run) => {
+    if (!run) return true;
+    if (isGroupRun(run)) return !leaveOut(run, { enabled: features.has(GROUP_RELAY_FEATURE), acknowledged: ack?.runs ?? new Set() });
+    if (resend || !ack?.runs?.size || run.state !== "COMPLETED" || typeof run.id !== "string") return true;
+    if (!ack.runs.has(run.id) || ack.runNotes?.has(run.id)) return true;
+    omitted++;
+    return false;
+  });
+  return { kept, omitted };
 }
 
 // Finished raids older than this are not sent again: the bot matched them to Discord raids long
@@ -41,7 +63,7 @@ export function pruneOldRaids(exported, now = Date.now()) {
   return omitted ? { exported: { ...exported, raids }, omitted } : { exported, omitted };
 }
 
-export function pruneAcknowledged(full, ack, features = new Set(["ledger-delta", "loot-delta"]), now = Date.now()) {
+export function pruneAcknowledged(full, ack, features = new Set(["ledger-delta", "loot-delta"]), now = Date.now(), options = {}) {
   // Kills and deaths with their place go only to a bot that announced the feature; an older bot gets exactly what it always did.
   if (full && full.pvpEvents !== undefined && !features.has("pvp-events")) { full = { ...full }; delete full.pvpEvents; }
   // (9.3.2) Records carried for nearby players go only to a bot that announced the feature.
@@ -55,10 +77,14 @@ export function pruneAcknowledged(full, ack, features = new Set(["ledger-delta",
   const pruned = pruneOldRaids(full, now);
   const raidsOmitted = pruned.omitted;
   // (9.3.1) Runs carried for players near this PC go only to a bot that announced the feature, and only once.
-  const exported = pruned.exported && Array.isArray(pruned.exported.dungeonRuns) && pruned.exported.dungeonRuns.some(isGroupRun)
-    ? { ...pruned.exported, dungeonRuns: pruned.exported.dungeonRuns.filter((run) => !isGroupRun(run) || !leaveOut(run, { enabled: features.has(GROUP_RELAY_FEATURE), acknowledged: ack?.runs ?? new Set() })) }
-    : pruned.exported;
-  if (!ack || !exported) return { exported, omitted: { ledger: 0, loot: 0, raids: raidsOmitted } };
+  let runsOmitted = 0;
+  let exported = pruned.exported;
+  if (exported && Array.isArray(exported.dungeonRuns) && exported.dungeonRuns.length) {
+    const { kept, omitted } = pruneKnownRuns(exported.dungeonRuns, ack, features, options.resendRuns === true);
+    runsOmitted = omitted;
+    if (kept.length !== exported.dungeonRuns.length) exported = { ...exported, dungeonRuns: kept };
+  }
+  if (!ack || !exported) return { exported, omitted: { ledger: 0, loot: 0, raids: raidsOmitted, ...(runsOmitted ? { runs: runsOmitted } : {}) } };
   const ledger = features.has("ledger-delta") ? ack.ledger ?? new Set() : new Set();
   const loot = features.has("loot-delta") ? ack.loot ?? new Set() : new Set();
   let ledgerOmitted = 0;
@@ -79,6 +105,6 @@ export function pruneAcknowledged(full, ack, features = new Set(["ledger-delta",
   });
   return {
     exported: { ...exported, epgpTransactions, loot: lootRows },
-    omitted: { ledger: ledgerOmitted, loot: lootOmitted, raids: raidsOmitted }
+    omitted: { ledger: ledgerOmitted, loot: lootOmitted, raids: raidsOmitted, ...(runsOmitted ? { runs: runsOmitted } : {}) }
   };
 }

@@ -11,7 +11,7 @@ import { readSavedExport, watchedSavedFiles, NO_GUILD_KEY_MESSAGE } from "./addo
 import { dungeonRunReport, runReportMessage, relayedRunReport, deviceRunCounts, signedRunCounts } from "./run-report.mjs";
 import { resolveStandingsPath, standingsFileHolds, writeStandings } from "./standings.mjs";
 import { credentialHeaders, checkUrl, requestJson, jsonBody, setAddonVersion, MAX_UPLOAD_BYTES } from "./request.mjs";
-import { acknowledgements, pruneAcknowledged } from "./delta.mjs";
+import { acknowledgements, pruneAcknowledged, runResendDue } from "./delta.mjs";
 import { createPoeEngine, validatePoeConfig } from "./poe-engine.mjs";
 import { personalSavedFiles, resolveAcceptedPath, uploadPersonalRuns } from "./personal-runs.mjs";
 import { GAME_EDITIONS } from "./game-edition.mjs";
@@ -311,6 +311,8 @@ export function createEngine(initialConfig, hooks = {}) {
   /** What the bot's device endpoint said it can do (the last answer): group-carried runs go only to a bot that handles them. */
   let deviceFeatureSet = new Set();
   let ack = null;
+  // (9.3.8) When every dungeon run last went up in full; runs the bot holds are otherwise left out (delta.mjs). Unknown after a restart: the first upload is full.
+  let runsFullAt = null;
   let etag = null;
   let gzipOff = false;
   let lastFile = null;
@@ -734,7 +736,8 @@ export function createEngine(initialConfig, hooks = {}) {
     }
     // Leave out what the bot already stored (it said so in the last standings answer).
     const carry = await readCarryReceipts(current).catch(() => new Set());
-    const { exported, omitted } = pruneAcknowledged(full, { ...(ack ?? {}), carry }, features);
+    const resendRuns = runResendDue(runsFullAt);
+    const { exported, omitted } = pruneAcknowledged(full, { ...(ack ?? {}), carry }, features, Date.now(), { resendRuns });
     const uploadedAt = new Date().toISOString();
     const { response, body } = await withUploadGate(current.watchFile, () => send(current, exported, epoch));
     if (epoch !== generation) return;
@@ -768,8 +771,9 @@ export function createEngine(initialConfig, hooks = {}) {
     }
     state.botVersion = body.botVersion ?? state.botVersion;
     state.addonVersion = exported.addonVersion ?? state.addonVersion;
-    const left = omitted.ledger + omitted.loot + (omitted.raids ?? 0);
+    const left = omitted.ledger + omitted.loot + (omitted.raids ?? 0) + (omitted.runs ?? 0);
     const leftNote = left > 0 ? ` ${left} entries the bot already has were not sent again.` : "";
+    if (response.ok && resendRuns) runsFullAt = Date.now();
     if (response.ok) {
       // 9.2.1: a big guild upload is still being applied when the bot answers; it finishes on its own, nothing to resend.
       const message = body.applyError
@@ -1083,7 +1087,7 @@ export function createEngine(initialConfig, hooks = {}) {
     // Track L: the signed-in Discord name for the in-game "Linked to Discord as" line; the next
     // standings fetch writes it (no restart).
     setLinkedAccount(account) { config = { ...config, discordAccount: account }; etag = null; },
-    async configure(next) { await this.stop(); state.device = null; state.syncEvidence = {}; state.syncPhase = "waiting-save"; state.lastUpload = null; state.lastStandings = null; state.lastUploadBytes = null; state.error = null; state.standingsError = null; config = accountLevel(next); etag = null; ack = null; features = new Set(); gzipOff = false; lastFile = null; lastText = null; return this.start(); },
+    async configure(next) { await this.stop(); state.device = null; state.syncEvidence = {}; state.syncPhase = "waiting-save"; state.lastUpload = null; state.lastStandings = null; state.lastUploadBytes = null; state.error = null; state.standingsError = null; config = accountLevel(next); etag = null; ack = null; runsFullAt = null; features = new Set(); gzipOff = false; lastFile = null; lastText = null; return this.start(); },
     uploadNow() { if (config.wowEnabled !== false) scheduleUpload(0); if (poe) track(poe.pollNow()); },
     // The tray's "Refresh in-game standings now" always fetches and writes the full answer.
     refreshStandings: () => { const pending = config.personal ? personalUpload() : refreshStandings({ force: true }); track(pending); return pending; }

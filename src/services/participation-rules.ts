@@ -11,7 +11,8 @@ export const participationRules = z.object({
   // exact channel IDs, without implicitly opting in a parent's future threads.
   allText: z.boolean().default(true),
   allVoice: z.boolean().default(true),
-  emojis: z.array(z.string().min(1).max(80)).max(10).default(["👍", "❤️", "🎉"]),
+  // Empty = every emoji counts (owner decision, 16 Nov 2026). Officers can still limit it to a list.
+  emojis: z.array(z.string().min(1).max(80)).max(10).default([]),
   messageDailyCap: z.number().int().min(0).max(50).default(10),
   reactionDailyCap: z.number().int().min(0).max(20).default(6),
   voiceDailyMinutes: z.number().int().min(0).max(240).default(240),
@@ -28,6 +29,14 @@ export const HELPER_POINTS = 15;
 export const HELPER_WEEKLY_APPROVALS = 3;
 export const HELPER_WEEKLY_POINTS = HELPER_POINTS * HELPER_WEEKLY_APPROVALS;
 export const normalizeEmoji = (value: string) => value.replace(/\uFE0F/g, "");
+// The list every season saved before 16 Nov 2026 by default: it now means "every emoji", like an empty list.
+const LEGACY_DEFAULT_EMOJIS = ["\uD83D\uDC4D", "\u2764", "\uD83C\uDF89"];
+/** Does this reaction's emoji earn? Every emoji, unless officers chose their own list. */
+export function reactionEmojiCounts(rules: Pick<ParticipationRules, "emojis">, emoji: string): boolean {
+  const list = rules.emojis.map(normalizeEmoji);
+  if (!list.length || (list.length === LEGACY_DEFAULT_EMOJIS.length && LEGACY_DEFAULT_EMOJIS.every((value) => list.includes(value)))) return true;
+  return list.includes(normalizeEmoji(emoji));
+}
 
 export function participationDay(now: Date, timezone: string): string {
   const p = localParts(now, timezone);

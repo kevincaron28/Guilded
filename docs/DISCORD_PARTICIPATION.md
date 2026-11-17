@@ -78,7 +78,7 @@ La rotation mensuelle reprend ces réglages. Le rééquilibrage associé est dé
 | --- | --- | --- |
 | Messages | 1 toutes les 5 minutes, maximum 10/jour | Délai partagé entre salons et au changement de jour; bots, webhooks et messages système exclus. |
 | Vocal | 2 par tranche de 15 minutes, maximum **240 minutes/jour = 32 points** | Deux humains admissibles dans le même vocal; aucun temps AFK, assourdi, seul ou hors des salons choisis. Les personnes muettes peuvent écouter et comptent. |
-| Réactions reçues | 1 par personne distincte, maximum 3/message et 6/jour | 👍 ❤️ 🎉 par défaut; aucun bot ou auto-réaction. Maximum 2 points du même donneur au même destinataire/jour. Plusieurs emojis ou retraits/ajouts ne récompensent pas à nouveau. |
+| Réactions reçues | 1 par personne distincte, maximum 3/message et 6/jour | Tous les emojis par défaut (les officiers peuvent choisir une liste); aucun bot ou auto-réaction. Maximum 2 points du même donneur au même destinataire/jour. Plusieurs emojis ou retraits/ajouts ne récompensent pas à nouveau. |
 | Entraide validée | 15 par contribution, maximum 45/semaine | Nomination expliquée, validation par un officier qui n'est ni auteur ni bénéficiaire de la nomination. |
 | Soirées et défis | 25 par soirée et 30 par défi par défaut; montant ajustable par l'organisateur | Réutilise la présence confirmée et la revue de preuves `/community`; une inscription seule ne donne aucun point. |
 
@@ -90,8 +90,8 @@ requis. Les officiers peuvent changer `member-days`, les plafonds `messages` et
 par virgules et `weekly-goal`. Mettre un plafond à zéro désactive cette source.
 Les nouvelles règles ne réinitialisent pas les compteurs déjà consommés.
 
-Une réaction compte uniquement sur un message datant de 2 minutes à 48 heures,
-lorsqu'elle est ajoutée. Les réactions trop précoces ou aux anciens messages ne
+Une réaction compte sur un message datant de moins de 48 heures (dès la publication, depuis le 16 novembre 2026),
+lorsqu'elle est ajoutée. Les réactions aux anciens messages ne
 sont pas rattrapées plus tard. Une récompense acquise reste acquise si la réaction
 est ensuite retirée; la réajouter ne donne rien. Les échanges suspects restent
 révisables par les officiers. Les comptes alternatifs anciens et la présence réelle

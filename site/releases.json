@@ -41,10 +41,10 @@
       "GuildedDungeons-v9.3.7-forever.zip": "80827e055d7664039e7b089b3fade61a7af6a9bfccdaff6750dea20295881b20"
     },
     "microsoftStore": {
-      "version": "8.3.0",
-      "packageVersion": "8.3.0.0",
+      "version": "9.3.4",
+      "packageVersion": "9.3.4.0",
       "url": "https://apps.microsoft.com/detail/9N680XX3QFL9",
-      "submission": "1152921505702277828"
+      "verifiedAt": "2026-11-17"
     }
   }
 }

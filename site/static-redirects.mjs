@@ -1,5 +1,11 @@
 // Static pages whose address answers with a 301 (worker/localized-assets.mjs). The sitemap lists none of them.
 export const GUIDE_REDIRECTS = {
+  "/privacy": "/docs/PRIVACY",
+  "/privacy/": "/docs/PRIVACY",
+  "/help": "/guide/",
+  "/help/": "/guide/",
+  "/guides": "/guide/",
+  "/guides/": "/guide/",
   "/editions": "/download/",
   "/editions/": "/download/",
   "/start": "/guide/start/",

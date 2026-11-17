@@ -1,6 +1,6 @@
 # 9.3.9 release acceptance
 
-Status: prepared 17 November 2026, not yet published. 9.3.9 is not yet confirmed on real clients.
+Status: published 17 November 2026 (GitHub v9.3.9, the website download, the bot); CurseForge in review. 9.3.9 is not yet confirmed on real clients.
 
 ## Where it stands
 

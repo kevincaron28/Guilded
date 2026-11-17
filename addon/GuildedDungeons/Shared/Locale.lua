@@ -1062,6 +1062,7 @@ local DE = {
   ["Put the call window back at its default place. Drag its title to move it."] = "Setzt das Ruf-Fenster an den Standardplatz zur\195\188ck. Titel ziehen zum Verschieben.",
   -- 9.0.8 waiting dungeon runs and run receipts.
   ["%d dungeon run(s) have not reached Discord yet. Is the Guilded Companion app running on this PC? Start it from the Windows Start menu: it sends your runs when you /reload or log out."] = "%d Dungeonlauf/-l\195\164ufe sind noch nicht bei Discord angekommen. L\195\164uft die App Guilded Companion auf diesem PC? Starte sie \195\188ber das Windows-Startmen\195\188: Sie sendet deine L\195\164ufe bei /reload oder beim Ausloggen.",
+  ["%d dungeon run(s) waiting for the companion (%s for help)."] = "%d Dungeonlauf/-l\195\164ufe warten auf den Begleiter (%s f\195\188r Hilfe).",
   ["Is the Guilded Companion app running on this PC? Start it from the Windows Start menu: it sends your runs when you /reload or log out."] = "L\195\164uft die App Guilded Companion auf diesem PC? Starte sie \195\188ber das Windows-Startmen\195\188: Sie sendet deine L\195\164ufe bei /reload oder beim Ausloggen.",
   ["They go to Discord when you /reload or log out while the Guilded Companion app is running."] = "Sie gehen bei /reload oder beim Ausloggen an Discord, wenn die App Guilded Companion l\195\164uft.",
   ["Received by Discord. Not scored: %s"] = "Von Discord empfangen. Keine Punkte: %s",
@@ -3087,6 +3088,7 @@ local ES = {
   ["Put the call window back at its default place. Drag its title to move it."] = "Devuelve la ventana de llamada a su lugar por defecto. Arrastra su t\195\173tulo para moverla.",
   -- 9.0.8 waiting dungeon runs and run receipts.
   ["%d dungeon run(s) have not reached Discord yet. Is the Guilded Companion app running on this PC? Start it from the Windows Start menu: it sends your runs when you /reload or log out."] = "%d recorrido(s) de mazmorra a\195\186n no han llegado a Discord. \194\191Est\195\161 abierta la aplicaci\195\179n Guilded Companion en este PC? In\195\173ciala desde el men\195\186 Inicio de Windows: env\195\173a tus recorridos cuando usas /reload o cierras sesi\195\179n.",
+  ["%d dungeon run(s) waiting for the companion (%s for help)."] = "%d recorrido(s) de mazmorra esperan al acompa\195\177ante (%s para ayuda).",
   ["Is the Guilded Companion app running on this PC? Start it from the Windows Start menu: it sends your runs when you /reload or log out."] = "\194\191Est\195\161 abierta la aplicaci\195\179n Guilded Companion en este PC? In\195\173ciala desde el men\195\186 Inicio de Windows: env\195\173a tus recorridos cuando usas /reload o cierras sesi\195\179n.",
   ["They go to Discord when you /reload or log out while the Guilded Companion app is running."] = "Se env\195\173an a Discord cuando usas /reload o cierras sesi\195\179n con la aplicaci\195\179n Guilded Companion abierta.",
   ["Received by Discord. Not scored: %s"] = "Recibido por Discord. Sin puntos: %s",
@@ -6203,6 +6205,4 @@ FR["Profit Margin III"] = "Marge b\195\169n\195\169ficiaire III"
 FR["Announces when you reach a gold milestone (the amount is never shown). Off unless you turn it on."] = "Annonce quand vous atteignez un palier d'or (le montant n'est jamais affich\195\169). D\195\169sactiv\195\169 tant que vous ne l'activez pas."
 FR["Auction probe: inbox %s, invoices %s, sold message %s, owned list %s, %d statistics. Details are in the saved variables (probes.auctions); reload or log out to save the file."] = "Sonde des ench\195\168res : bo\195\174te aux lettres %s, factures %s, message de vente %s, liste des ventes %s, %d statistiques. Les d\195\169tails sont dans les variables sauvegard\195\169es (probes.auctions) ; rechargez ou d\195\169connectez-vous pour enregistrer le fichier."
 FR["Open the auction house and run /guilded probe auctions again to read the owned auction list."] = "Ouvrez l'h\195\180tel des ventes et relancez /guilded probe auctions pour lire la liste de vos ventes."
-FR["%d dungeon run(s) waiting for the companion (%s for help)."] = "%d donjon(s) en attente du companion (%s pour de l'aide)."
-DE["%d dungeon run(s) waiting for the companion (%s for help)."] = "%d Dungeonlauf/-l\195\164ufe warten auf den Companion (%s f\195\188r Hilfe)."
-ES["%d dungeon run(s) waiting for the companion (%s for help)."] = "%d recorrido(s) de mazmorra esperan al companion (%s para ayuda)."
+FR["%d dungeon run(s) waiting for the companion (%s for help)."] = "%d donjon(s) en attente du compagnon (%s pour de l'aide)."

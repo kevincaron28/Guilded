@@ -410,27 +410,26 @@ async function route(request, env, ctx) {
       return new Response(null, { status: 301, headers: { location: `/${section.slug}/${url.search}`, "cache-control": "public, max-age=86400" } });
     }
     const pagePath = section ? section.rest : url.pathname;
+    // Pages that exist only with a trailing slash (the bot would redirect the other form, through ?edition=).
+    const DATA_DIRECTORY = /^\/(?:leaderboards(?:\/(?:dungeons|guilds|characters|duels|pvp|guilds\/realms))?|recruitment(?:\/guilds)?|players)$/;
     const dataPage = /^\/(?:leaderboards|recruitment|players)(?:\/|$)/.test(pagePath);
     // A page view that still names its edition in the address (?edition=retail: older links and
     // the filter forms) moves into that edition's section; one without a section goes to the
     // visitor's remembered edition, Forever by default. Files (.json, .xml, .png) are never moved.
-    // ?lang=en is the default of these public pages: one clean address per page, so it moves permanently to the
-    // address without it (only lang=en is dropped; ?lang=fr and filters stay). Inside the section this is the only hop.
-    const dropLangEn = (search) => { const query = new URLSearchParams(search); if (query.get("lang") === "en") query.delete("lang"); return query.toString(); };
-    if (!creator && dataPage && section && ["GET", "HEAD"].includes(request.method) && !/\.[a-z]{2,4}$/.test(pagePath) && url.searchParams.get("lang") === "en" && !url.searchParams.has("edition")) {
-      const rest = dropLangEn(url.search);
-      return new Response(null, { status: 301, headers: { location: `${url.pathname}${rest ? `?${rest}` : ""}`, "cache-control": "public, max-age=86400" } });
-    }
+    // One permanent hop to the canonical address of a public data page (docs/AI_HANDOFF.md SEO3/SEO4): into the
+    // edition's section (/leaderboards/ -> /forever/leaderboards/), to the trailing-slash form of a directory page,
+    // and without ?edition= and ?lang=en (English is the default; ?lang=fr and filters stay). All at once, never a chain.
+    // Long cache: Forever is the only edition, so the answer no longer depends on the visitor.
     if (!creator && dataPage && ["GET", "HEAD"].includes(request.method) && !/\.[a-z]{2,4}$/.test(pagePath)) {
-      // Any ?edition= (older links named other editions) means the WoW Forever section.
-      const asked = url.searchParams.has("edition") ? editionSection("forever") : null;
-      const destination = asked ?? (section ? null : rememberedEdition(request) ?? editionSection("forever"));
-      if (destination && (!section || url.searchParams.has("edition"))) {
-        const query = new URLSearchParams(url.search);
-        query.delete("edition");
-        if (query.get("lang") === "en") query.delete("lang");
+      const slug = section ? section.slug : (rememberedEdition(request) ?? editionSection("forever")).slug;
+      const directory = DATA_DIRECTORY.test(pagePath) ? `${pagePath}/` : pagePath;
+      const query = new URLSearchParams(url.search);
+      const changed = !section || query.has("edition") || query.get("lang") === "en" || directory !== pagePath;
+      query.delete("edition");
+      if (query.get("lang") === "en") query.delete("lang");
+      if (changed) {
         const rest = query.toString();
-        return new Response(null, { status: 302, headers: { location: `/${destination.slug}${pagePath}${rest ? `?${rest}` : ""}`, "cache-control": "no-store" } });
+        return new Response(null, { status: 301, headers: { location: `/${slug}${directory}${rest ? `?${rest}` : ""}`, "cache-control": "public, max-age=86400" } });
       }
     }
     if (section && !dataPage) {

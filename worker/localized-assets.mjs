@@ -108,6 +108,12 @@ export async function localizedAsset(request, env) {
     language = language || "fr";
   }
   const response = await env.ASSETS.fetch(assetRequest);
+  // The asset store's own clean-URL moves (html_handling "auto-trailing-slash": /guide/start -> /guide/start/,
+  // /docs/PRIVACY.html -> /docs/PRIVACY) are temporary 307s and cannot be configured: answer them permanently instead.
+  // (Addresses the Worker does not run first, wrangler.jsonc run_worker_first, never get here and keep the 307.)
+  if (response.status === 307 && response.headers.get("location") && (request.method === "GET" || request.method === "HEAD")) {
+    return new Response(null, { status: 301, headers: { location: response.headers.get("location"), "cache-control": "public, max-age=86400" } });
+  }
   if (response.status === 404) return notFoundPage(request, env, response);
   if (!['en', 'fr'].includes(language) || !response.headers.get('content-type')?.startsWith('text/html')) return response;
   const rewrite = new HTMLRewriter()

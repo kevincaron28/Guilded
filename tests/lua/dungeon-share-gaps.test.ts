@@ -186,11 +186,11 @@ describe.each<Kind>(["guilded", "standalone"])("the runs-only catch-up (%s)", (k
   it("tells a player with a companion once per session that guildmate runs are waiting", () => {
     const lebowski = client(kind, "Lebowski");
     lebowski.run(makeRun("walter-rfc"));
-    expect(lebowski.run("return tostring(NS.dungeon.remindGuildmateRuns())")).toBe("false"); // no companion ever
     companion(lebowski);
-    expect(lebowski.run("return tostring(NS.dungeon.remindGuildmateRuns())")).toBe("true");
-    expect(lebowski.run("return tostring(NS.dungeon.remindGuildmateRuns())")).toBe("false");
-    expect(lebowski.chat().filter((line) => /guildmate run\(s\) are waiting: \/reload/.test(line)).length).toBe(1);
+    // (9.3.9) The separate guildmate-runs chat line is gone; the one waiting line only speaks for runs older than a day.
+    expect(lebowski.run("return tostring(NS.dungeon.remindGuildmateRuns)")).toBe("nil");
+    lebowski.run("NS.dungeon.remindWaiting()");
+    expect(lebowski.chat().filter((line) => /guildmate run\(s\)|have not reached Discord|Sync with Discord/.test(line)).length).toBe(0);
   });
 });
 
@@ -406,15 +406,13 @@ describe.each<Kind>(["guilded", "standalone"])("review fixes (%s)", (kind) => {
     expect(walter.run("return #NS.dungeon.ownUnconfirmed()")).toBe("0");
   });
 
-  it("holds the guildmate-runs reminder back in combat and prints it after", () => {
+  it("prints no guildmate-runs line in combat or after it", () => {
     const lebowski = client(kind, "Lebowski");
     lebowski.run(makeRun("walter-rfc"));
     companion(lebowski);
     lebowski.run("COMBAT = true");
-    expect(lebowski.run("return tostring(NS.dungeon.remindGuildmateRuns())")).toBe("false");
-    expect(lebowski.chat().filter((l) => /guildmate run\(s\)/.test(l)).length).toBe(0);
     lebowski.run('COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")');
-    expect(lebowski.chat().filter((l) => /guildmate run\(s\) are waiting/.test(l)).length).toBe(1);
+    expect(lebowski.chat().filter((l) => /guildmate run\(s\)/.test(l)).length).toBe(0);
   });
 });
 

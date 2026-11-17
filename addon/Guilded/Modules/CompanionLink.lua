@@ -238,6 +238,6 @@ frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 frame:SetScript("OnEvent", function()
   -- Let the login chatter and the digest settle first.
   if C_Timer and C_Timer.After then
-    C_Timer.After(20, function() pcall(module.announceLinked); pcall(module.remind) end)
+    C_Timer.After(20, function() pcall(module.announceLinked) end)  -- (9.3.9) the companion guide is never printed by itself: /guilded companion only
   end
 end)

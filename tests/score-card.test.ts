@@ -43,7 +43,8 @@ describe("shareable dungeon cards", () => {
     expect(detail?.body).toContain("Ragefire &lt;Chasm&gt;");
     expect(detail?.body).toContain("20:00");
     expect(detail?.body).not.toContain("older check");
-    expect(detail?.body).toContain("/leaderboards/run/r1/card.png?lang=en");
+    expect(detail?.body).toContain("/leaderboards/run/r1/card.png");
+    expect(detail?.body).not.toContain("card.png?lang=en"); // English is the public pages' default (SEO3)
     for (const path of ["/leaderboards/run/r1/card.png", "/leaderboards/character/K%C3%A9vin-Forever/card.png?lang=fr"]) {
       const png = await f.request(path);
       expect(png?.headers["content-type"]).toBe("image/png");

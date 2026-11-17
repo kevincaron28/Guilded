@@ -1,5 +1,30 @@
 # Changelog
 
+## 9.3.9 — 17 November 2026
+
+Addon-only players, quieter logins and lighter sync. Prepared 17 November 2026, not yet published. Not yet confirmed on real clients (see docs/V9_3_9_RELEASE_ACCEPTANCE.md). Details: docs/V9_3_9_RELEASE_NOTES.md.
+
+Addon:
+
+- Addon-only players hand their runs and duels to a carrier right after leaving a dungeon and 45 s after login, a full carrier answers "busy" so another is tried, and "done" confirmations arrive for up to 7 days (#1083).
+- Carried runs include a compact presence proof (the addon's own observation and each player's known time), so they rank under Season 2's stricter rules like any companion upload (#1089).
+- No companion guide in chat at login; at most one short line when runs have waited more than a day (#1065).
+- Old event, guild log and parked-guild data age out, so the saved file stays smaller (#1081).
+- Two craft requests made in the same second no longer overwrite each other (#1088).
+
+Companion:
+
+- Runs the bot already holds are not uploaded again (a full resend at start and weekly), so uploads are about three times smaller (#1081).
+- One Windows startup entry (a stale duplicate is removed) and a retried startup-key read (#1068).
+- Every build is launched once in CI with `--self-test`, so a missing file can never ship again (#1075).
+
+Bot and website (already live):
+
+- Carried runs: refusals logged and shown with a reason, party copies cost no daily key, another party member's run id accepted, Scarlet Monastery wings named from boss ids so carried runs rank in Season 1 (#1085, #1089).
+- Sync: standings answer 304 when nothing changed and are gzip-compressed, repeat uploads skip unchanged work, faster guild step, shorter deploys (#1070, #1078, #1079, #1080, #1082).
+- Officers see when a member's companion has stopped (#1074); a one-time DM reached members whose companion stopped after 9.3.7 (#1077).
+- Memory limits (#1076), SEO canonical and redirects (#1071, #1072, #1073), Horde achievement art (#1086), site and app polish (#1087), Goldline download link on kcaron.top (#1084).
+
 ## 9.3.8 — 17 November 2026
 
 Addon fixes, the companion start-up fix, plus the card redesign already live on the bot. Published 17 November 2026 (GitHub, the website download and the bot; CurseForge files 9665832 and 9665833 in review). Not yet confirmed on real clients (see docs/V9_3_8_RELEASE_ACCEPTANCE.md). Details: docs/V9_3_8_RELEASE_NOTES.md.

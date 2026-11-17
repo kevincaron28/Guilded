@@ -53,14 +53,14 @@ const queued = (s: LuaSession, channel: string, target?: string) => { flush(s); 
 const hear = (to: LuaSession, from: string, text: string, channel: string) => to.run(`fire_event("CHAT_MSG_ADDON", "GuildedCry", ${JSON.stringify(text)}, ${JSON.stringify(channel)}, "${from}-Realm")`);
 const waiting = (s: LuaSession) => Number(s.run("return tostring(#NS.carry.collectOwn(true))"));
 
-/** A finished run in the player's own addon: "Alice Guildless" (tank) and Bob (mage), no guild anywhere. `idTime` is the time in the run id (each recorder names it after itself). */
-function finishRun(s: LuaSession, recorder: string, idTime: number) {
+/** A finished run in the player's own addon (difficulty 0 is what the Forever client reports for Normal in real exported runs, docs/DUNGEON_BETA_PRESET_2026-10.md): "Alice Guildless" (tank) and Bob (mage), no guild anywhere. `idTime` is the time in the run id (each recorder names it after itself). */
+function finishRun(s: LuaSession, recorder: string, idTime: number, dungeon: { instanceId: number; name: string; bossId: number; level?: number } = { instanceId: 389, name: "Ragefire Chasm", bossId: 2735 }) {
   const id = `QG-${stamp(idTime)}-${recorder}`;
   s.run(`local root = NS.getDb(); root.dungeon = root.dungeon or {}; root.dungeon.runs = root.dungeon.runs or {}
-    root.dungeon.runs[${JSON.stringify(id)}] = { id = ${JSON.stringify(id)}, state = "COMPLETED", instanceId = 389, name = "Ragefire Chasm", difficultyId = 0,
+    root.dungeon.runs[${JSON.stringify(id)}] = { id = ${JSON.stringify(id)}, state = "COMPLETED", instanceId = ${dungeon.instanceId}, name = ${JSON.stringify(dungeon.name)}, difficultyId = 0,
       startedAt = ${START}, endedAt = ${START + 1500}, completedBy = "final boss", recorder = ${JSON.stringify(recorder)}, reporters = { ${recorder} = true },
-      encounters = { { id = 2735, success = true, at = ${START + 1500} } },
-      players = { Alice = { class = "WARRIOR", role = "TANK", level = 20, deaths = 0, presentSec = 1450 }, Bob = { class = "MAGE", role = "DAMAGER", level = 20, deaths = 1, presentSec = 1400 } } }`);
+      encounters = { { id = ${dungeon.bossId}, success = true, at = ${START + 1500} } },
+      players = { Alice = { class = "WARRIOR", role = "TANK", level = ${dungeon.level ?? 20}, deaths = 0, presentSec = 1450 }, Bob = { class = "MAGE", role = "DAMAGER", level = ${dungeon.level ?? 20}, deaths = 1, presentSec = 1400 } } }`);
   return id;
 }
 
@@ -188,6 +188,18 @@ describe.each([
     expect(waiting(alice)).toBe(0);
 
     // And the player ranks on the public leaderboard under the season's current rules.
+    expect(ranked(runs, "current-v1")).toContain("Alice");
+  });
+
+  it("a Scarlet Monastery wing is told apart from boss ids alone (the carried record has no boss names), so the run ranks like an uploaded one", async () => {
+    const alice = client("Alice");
+    const bee = client("Bee", { companion: true });
+    finishRun(alice, "Alice", START, { instanceId: 189, name: "Scarlet Monastery", bossId: 448, level: 36 });
+    hand(alice, "Alice", bee, "Bee");
+    const { db } = fakeDb();
+    const { store, runs } = memoryStore();
+    await applyCarriedRecords(db, { carrier, carrierKeys: new Set(["bee"]), now: NOW, records: savedRecords(bee), relay: { store } });
+    expect([...runs.values()][0]?.routeKey).toBe("189:armory");
     expect(ranked(runs, "current-v1")).toContain("Alice");
   });
 

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { characterKey } from "../../companion/character-identity.mjs";
 import { dungeonRunSchema, type DungeonRunInput } from "./dungeon-rules.js";
 import { ingestRelayedRuns, relayWouldPlace } from "./relay-public.js";
+import { routesOfInstance } from "./dungeon-bosses.js";
 import { integrityConfig } from "./run-integrity-config.js";
 import { findSameRun, sameDetails, summarize, type PublicRunStore } from "./public-runs.js";
 
@@ -62,11 +63,15 @@ export function unpackCarriedRun(data: unknown): UnpackedRun | null {
       ...(levelNumber >= 1 && levelNumber <= 100 ? { level: levelNumber } : {}), presentSec: Math.min(presentNumber, 86_400), deaths: Math.min(deathNumber, 500) });
   }
   if (!players.length) return null;
-  const encounters: { id: number; success: true; at: number }[] = [];
+  // The wire record carries boss ids and times, no names. A dungeon with several routes on one map (Scarlet Monastery's four wings) is told apart
+  // by the names of its bosses, exactly as for a companion-uploaded run, so each kill gets the name the bot knows for that id on this map.
+  const knownBosses = routesOfInstance(record.i).flatMap((route) => route.bosses);
+  const encounters: { id: number; success: true; at: number; name?: string }[] = [];
   for (const piece of (record.ev ?? "").split(",").filter(Boolean).slice(0, 12)) {
     const [id, at] = piece.split(":").map(Number);
     if (!Number.isInteger(id) || !Number.isInteger(at) || id! <= 0 || at! <= 0) return null;
-    encounters.push({ id: id!, success: true, at: at! });
+    const name = knownBosses.find((boss) => boss.ids.includes(id!))?.name;
+    encounters.push({ id: id!, success: true, at: at!, ...(name ? { name } : {}) });
   }
   const run = {
     gameEdition: "forever", id: record.id, protocolVersion: 1, state: "COMPLETED", instanceId: record.i, name: record.nm?.trim() || `Instance ${record.i}`,

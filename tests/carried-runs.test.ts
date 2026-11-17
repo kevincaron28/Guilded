@@ -91,6 +91,10 @@ const receipt = (key: string) => `${CARRY_RECEIPT_PREFIX}run:${key}`;
 const placed = (runs: Map<string, StoredRun & { summary: RunSummary }>, key = RUNKEY) => runs.get(key)!;
 
 describe("unpacking a carried run and its id", () => {
+  it("names the bosses from their ids (the record has none), so a multi-route map resolves", () => {
+    expect((unpackCarriedRun(data({ i: 189, ev: `448:${start + 1500}` }))!.run as any).encounters).toEqual([{ id: 448, success: true, at: start + 1500, name: "Herod" }]);
+    expect((unpackCarriedRun(data({ ev: `99999:${start + 1500}` }))!.run as any).encounters[0]).not.toHaveProperty("name");
+  });
   it("rebuilds a finished Forever run from the flat record, and refuses what is not one", () => {
     const unpacked = unpackCarriedRun(data())!;
     expect(unpacked.runKey).toBe(RUNKEY);

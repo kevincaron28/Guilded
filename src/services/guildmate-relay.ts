@@ -137,6 +137,23 @@ export async function applyGuildmateRelay(database: RelayDatabase, guildId: stri
       where: { member: { guildId }, gameEdition: edition },
       select: { id: true, name: true, realm: true, memberId: true, gameEdition: true, level: true, className: true, race: true }
     });
+    // (17 Nov 2026) The stored skills of every character that may need a profession comparison, in ONE read (it was one read per
+    // heard guildmate: up to 300 sequential round trips, 2.5-3.5 s of the relay on the live database). A character whose
+    // professions this upload already replaced is dropped from the map and read live if a second entry names it.
+    const skillsById = new Map<string, { profession: string; skillLevel: number }[]>();
+    {
+      const wanted = new Set<string>();
+      for (const entry of entries) {
+        if (entry.professionsComplete !== true || !entry.professionsAt) continue;
+        const character = findCharacter(linked, entry.name, entry.realm, edition);
+        if (character && character.memberId !== uploaderMemberId) wanted.add(character.id);
+      }
+      if (wanted.size) {
+        for (const id of wanted) skillsById.set(id, []);
+        const rows = await tx.professionSkill.findMany({ where: { characterId: { in: [...wanted] } }, select: { characterId: true, profession: true, skillLevel: true } });
+        for (const row of rows) skillsById.get(row.characterId)?.push({ profession: row.profession, skillLevel: row.skillLevel });
+      }
+    }
     for (const entry of entries) {
       const observed = entry.observedAt!.getTime();
       if (observed > now.getTime() + FUTURE_SLACK_MS || now.getTime() - observed > RELAY_MAX_AGE_MS) { result.ignored++; continue; }
@@ -160,8 +177,9 @@ export async function applyGuildmateRelay(database: RelayDatabase, guildId: stri
       // (8.5 hotfix: counting it made every member upload a "change" and starved the standings feed).
       const at = entry.professionsAt;
       if (entry.professionsComplete === true && at && at.getTime() <= now.getTime() + FUTURE_SLACK_MS
-        && !sameProfessions(await tx.professionSkill.findMany({ where: { characterId: character.id }, select: { profession: true, skillLevel: true } }), entry.professions)
+        && !sameProfessions(skillsById.get(character.id) ?? await tx.professionSkill.findMany({ where: { characterId: character.id }, select: { profession: true, skillLevel: true } }), entry.professions)
         && await syncProfessionSnapshot(tx, guildId, character, entry.professions, true, at)) {
+        skillsById.delete(character.id);
         result.professions++;
         changed = true;
       }

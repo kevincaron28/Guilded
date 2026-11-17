@@ -15,6 +15,7 @@ interface Row { id: string; name: string; realm: string; memberId: string; gameE
 function fakeDatabase(rows: Row[]) {
   const skills: { characterId: string; profession: string; skillLevel: number }[] = [];
   const updates: { id: string; data: Record<string, unknown> }[] = [];
+  const reads: unknown[] = [];
   const tx = {
     character: {
       findMany: async () => rows.map((row) => ({ ...row })),
@@ -27,7 +28,11 @@ function fakeDatabase(rows: Row[]) {
       create: async () => { throw new Error("the relay must never create a character"); }
     },
     professionSkill: {
-      findMany: async ({ where }: { where: { characterId: string } }) => skills.filter((skill) => skill.characterId === where.characterId).map(({ profession, skillLevel }) => ({ profession, skillLevel })),
+      findMany: async ({ where }: { where: { characterId: string | { in: string[] } } }) => {
+        reads.push(where.characterId);
+        const match = (id: string) => typeof where.characterId === "string" ? id === where.characterId : where.characterId.in.includes(id);
+        return skills.filter((skill) => match(skill.characterId)).map(({ characterId, profession, skillLevel }) => ({ characterId, profession, skillLevel }));
+      },
       deleteMany: async ({ where }: { where: { characterId: string; profession: { notIn: string[] } } }) => {
         for (let i = skills.length - 1; i >= 0; i--) if (skills[i]!.characterId === where.characterId && !where.profession.notIn.includes(skills[i]!.profession)) skills.splice(i, 1);
       },
@@ -40,7 +45,7 @@ function fakeDatabase(rows: Row[]) {
     professionCooldown: { deleteMany: async () => ({ count: 0 }) }
   };
   const database = { $transaction: async (fn: (client: typeof tx) => Promise<unknown>) => fn(tx) };
-  return { database: database as never, rows, skills, updates };
+  return { database: database as never, rows, skills, updates, reads };
 }
 
 const linked = (overrides: Partial<Row> = {}): Row => ({ id: "c1", name: "Lebowski", realm: "Realm", memberId: "m-dude", gameEdition: "forever",
@@ -60,6 +65,18 @@ describe("guildmate relay: characters", () => {
     expect(result).toEqual({ updated: 1, professions: 1, unlinked: 0, ignored: 0 });
     expect(db.rows[0]).toMatchObject({ level: 24, relayedAt: NOW, relayedById: "m-walter", professionsUpdatedAt: new Date("2026-12-19T00:00:00Z") });
     expect(db.skills).toEqual([{ characterId: "c1", profession: "Mining", skillLevel: 120 }]);
+  });
+
+  it("reads the stored professions of all heard guildmates in one query, not one per guildmate", async () => {
+    const db = fakeDatabase([linked(), linked({ id: "c2", name: "Donny" }), linked({ id: "c3", name: "Maude" })]);
+    db.skills.push({ characterId: "c2", profession: "Mining", skillLevel: 120 });
+    const result = await applyGuildmateRelay(db.database, "g", "m-walter", snapshot([heard(), heard({ name: "Donny" }), heard({ name: "Maude", professions: [{ name: "Herbalism", skillLevel: 50 }] })]), NOW);
+    expect(db.reads).toHaveLength(1);
+    expect(db.reads[0]).toEqual({ in: ["c1", "c2", "c3"] });
+    // Donny's stored skills already match what was heard: unchanged; the other two are replaced.
+    expect(result.professions).toBe(2);
+    expect(db.skills.filter((skill) => skill.characterId === "c1")).toEqual([{ characterId: "c1", profession: "Mining", skillLevel: 120 }]);
+    expect(db.skills.filter((skill) => skill.characterId === "c3")).toEqual([{ characterId: "c3", profession: "Herbalism", skillLevel: 50 }]);
   });
 
   it("never lowers a level and never replaces newer first-hand professions", async () => {

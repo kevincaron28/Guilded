@@ -15,7 +15,7 @@ import { relayProfessions } from "./services/profession-relay.js";
 import { retiredAvailabilityRoute, retiredToolsRoute } from "./services/retired-pages.js";
 import { autoLinkUnclaimed } from "./services/character-autolink.js";
 import { linkUploaderCharacters, repairMissingLinks } from "./services/upload-linking.js";
-import { isRepeatUpload, rememberAppliedUpload, runUploadLanes, uploadRepeatKey, type UploadStep } from "./services/upload-repeat.js";
+import { guildDataDigest, isRepeatGuildData, isRepeatUpload, rememberAppliedUpload, rememberGuildData, runUploadLanes, uploadRepeatKey, type UploadStep } from "./services/upload-repeat.js";
 import { linkedCharacterCount, scheduleLinkedCharacters } from "./services/companion-link-dm.js";
 import { hasPermission } from "./permissions.js";
 import { claimOffer, offerByDm, offerByDmToUsers, offersFor, snoozeOffer } from "./services/device-claim-offer.js";
@@ -1575,8 +1575,12 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         laneGuildData.push({ name: "guild-data", onError: (error) => console.error("Guild data upload failed", error), run: async () => {
           // 9 Nov 2026: two connections uploading one file at once collided on the same Character rows (P2034). Uploads for one
           // guild now apply one at a time, and a lost write conflict is retried with a short jittered backoff inside an 8 s budget.
-          const guildData = await serializeByKey(`guild-data:${guild.id}`, () => retryWriteConflict(() => prisma.$transaction((tx) => applyGuildData(tx, guild.id, { memberId: pairedMemberId ?? null, officer: access.officer }, uploadSnapshot),
+          // 17 Nov 2026: the same roster/events/MOTD this uploader sent in the last ten minutes is already stored: no transaction.
+          const dataKey = `${repeatKey}:guild-data`;
+          const digest = guildDataDigest(uploadSnapshot);
+          const guildData = isRepeatGuildData(dataKey, digest) ? undefined : await serializeByKey(`guild-data:${guild.id}`, () => retryWriteConflict(() => prisma.$transaction((tx) => applyGuildData(tx, guild.id, { memberId: pairedMemberId ?? null, officer: access.officer }, uploadSnapshot),
             { timeout: 60_000, maxWait: 15_000 })));
+          if (guildData) rememberGuildData(dataKey, digest);
           // 16 Nov 2026: a rank moved up in the officer's roster: one line in the officer log (the bot is the single source; nothing public).
           const promotedDiscord = guildData?.promotions.length ? client?.guilds.cache.get(guild.discordId) : undefined;
           if (promotedDiscord && guildData) void announcePromotions(promotedDiscord, guildData.promotions);

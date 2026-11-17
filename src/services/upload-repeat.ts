@@ -9,6 +9,8 @@
  * - A runner that executes the remaining phases as independent lanes (in parallel), each lane's steps in order.
  */
 
+import { createHash } from "node:crypto";
+
 export const REPEAT_MEMORY_MS = 10 * 60_000;
 const MAX_REMEMBERED = 2_000;
 const applied = new Map<string, { checksum: string; at: number }>();
@@ -30,7 +32,26 @@ export function rememberAppliedUpload(key: string, checksum: string, now = Date.
   while (applied.size > MAX_REMEMBERED) { const oldest = applied.keys().next().value; if (oldest === undefined) break; applied.delete(oldest); }
 }
 
-export function forgetAppliedUploads(): void { applied.clear(); }
+export function forgetAppliedUploads(): void { applied.clear(); guildDataApplied.clear(); }
+
+// The same idea for the guild roster / events / MOTD (guild-data), which are outside the payload checksum: an upload whose guild data is
+// identical (digest of exactly those blocks) to the last one applied for this guild, uploader kind and uploader, within the memory window,
+// has nothing new to store, so its transaction (about a second of round trips on an unchanged roster) is skipped.
+const guildDataApplied = new Map<string, { digest: string; at: number }>();
+export function guildDataDigest(data: { guildRoster?: unknown; guildEvents?: unknown; guildInfo?: unknown }): string {
+  return createHash("sha256").update(JSON.stringify([data.guildRoster ?? null, data.guildEvents ?? null, data.guildInfo ?? null])).digest("hex");
+}
+export function isRepeatGuildData(key: string, digest: string, now = Date.now()): boolean {
+  const last = guildDataApplied.get(key);
+  return !!last && last.digest === digest && now - last.at < REPEAT_MEMORY_MS;
+}
+export function rememberGuildData(key: string, digest: string, now = Date.now()): void {
+  guildDataApplied.delete(key);
+  guildDataApplied.set(key, { digest, at: now });
+  while (guildDataApplied.size > MAX_REMEMBERED) { const oldest = guildDataApplied.keys().next().value; if (oldest === undefined) break; guildDataApplied.delete(oldest); }
+}
+/** Forgets a guild's remembered guild data (something outside the upload changed what a re-application would store). */
+export function forgetGuildData(): void { guildDataApplied.clear(); }
 
 /** Production's pool is 5 connections shared by every job: at most this many lanes of one upload hold the database at once (UPLOAD_LANE_CONCURRENCY overrides). */
 export const UPLOAD_LANE_CONCURRENCY = Math.max(1, Math.floor(Number(process.env["UPLOAD_LANE_CONCURRENCY"])) || 2);

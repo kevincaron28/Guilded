@@ -9,6 +9,7 @@ import { WOW_EDITIONS, editionCards, editionHubs, editionPages } from "../site/e
 import { GUIDE_REDIRECTS } from "../site/static-redirects.mjs";
 import { keepPage, stripPoe, withoutPoe } from "../site/focus.mjs";
 import { writeMobileAssociations } from "./mobile-associations.mjs";
+import { deepenShallowClone } from "./git-history.mjs";
 import { buildDungeonThumbs } from "./dungeon-thumbs.mjs";
 
 const guides = ["PRIVACY", "HOSTED_PILOT", "SUPPORT_GUILDED", "OWNER_WALKTHROUGH", "QUICK_START", "MEMBER_INSTALL", "DUNGEONS_GUIDE", "EPGP_GUIDE", "GUILD_OWNER_SETUP", "DEPLOY_ORACLE", "AI_SETUP_HELP", "AUTOMATION_QUICK_START"];
@@ -233,6 +234,9 @@ languageAlternates(out);
 // have no source file: they take the build commit's date.
 const today = new Date().toISOString().slice(0, 10);
 const gitDay = (...args) => { try { const day = execFileSync("git", ["log", "-1", "--format=%cs", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); return /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : null; } catch { return null; } };
+// Cloudflare clones shallowly, so without file history every page would take the build date. Best effort: never fails the build.
+const history = deepenShallowClone();
+if (history !== "not-shallow") console.log(`git history: ${history}`);
 const buildDay = gitDay() ?? today;
 const lastmodOf = (sourceFile) => { const day = (sourceFile && existsSync(sourceFile) ? gitDay("--", sourceFile) : null) ?? buildDay; return day > today ? today : day; };
 const sourceOfUrl = (path) => path === "/" ? "site/index.html" : pageSources.get(path.split("?")[0].replace(/^\/fr(?=\/)/, "")) ?? (/^\/docs\/[A-Za-z0-9_-]+$/.test(path) ? `docs/${path.slice(6)}.md` : null);

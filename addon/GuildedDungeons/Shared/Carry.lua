@@ -187,6 +187,94 @@ local DUEL_FIELDS = { "winner", "loser", "winnerRealm", "loserRealm", "winnerCla
 -- needs to hold it, flat (the whisper format has no nesting): the run's id, place, times, how it ended, up to five players
 -- ("name;class;role;level;seconds present;deaths") and the bosses killed ("id:time,..."). It is a statement of this player only.
 local RUN_KEEP_SECONDS, RUN_MAX_PLAYERS, RUN_MAX_BOSSES = 14 * 86400, 5, 12
+
+-- (9.3.8) A compact copy of what this addon observed about its own run (the same integrity data a companion upload of the run carries), so a run
+-- carried for a player with no companion can rank under the evidence policy "current-v2": `ig` is the run's observation ("observer;trigger;detected;
+-- combat;continuous;witness", times as seconds from the run's start), `qN` the observation of player N ("known;unknown;role;mixed;spans": spans are
+-- "gap.length" pairs from the previous span's end, the first from the run's start), `ns` the boss kills the game itself reported ("id:time,...").
+-- Older bots ignore these fields; an older addon never sends them. When the record would be too big the shortest spans are dropped (the player
+-- only loses presence it could not carry, never gains any); if it still does not fit, no proof is sent.
+-- The companion keeps a record only when its JSON text (key and author included) is within MAX_RECORD_BYTES, which is longer than the whisper
+-- format: the proof is held to a tighter budget so the whole record always survives the companion.
+local PROOF_BUDGET = 1750
+local ROLE_LETTER = { TANK = "T", HEALER = "H", DPS = "D" }
+local function proofSpans(p, startedAt)
+  local list = type(p.knownIntervals) == "table" and p.knownIntervals or nil
+  if not list or #list == 0 or #list > 64 then return nil end
+  local spans, cursor = {}, nil
+  for _, span in ipairs(list) do
+    local a, b = tonumber(type(span) == "table" and span[1]), tonumber(type(span) == "table" and span[2])
+    if not a or not b or b <= a or (cursor and a < cursor) then return nil end
+    spans[#spans + 1] = { math.floor(a), math.floor(b) }
+    cursor = b
+  end
+  return spans
+end
+local function spanText(spans, startedAt)
+  local out, cursor = {}, startedAt
+  for _, span in ipairs(spans) do
+    out[#out + 1] = string.format("%d.%d", span[1] - cursor, span[2] - span[1])
+    cursor = span[2]
+  end
+  return table.concat(out, "/")
+end
+function carry.addProof(data, run, names, startedAt, endedAt)
+  local integrity = run.integrity
+  if type(integrity) ~= "table" or type(integrity.observer) ~= "string" or string.find(integrity.observer, "[;%c]") then return end
+  local trigger = integrity.startTrigger == "first combat" and "f" or integrity.startTrigger == "peer" and "p" or nil
+  local detected, combat, duration = tonumber(integrity.detectedAt), tonumber(integrity.combatAt), endedAt - startedAt
+  if not trigger or not detected or not combat or duration <= 0 or not run.players[integrity.observer] then return end
+  local per = {}
+  for index, name in ipairs(names) do
+    local p = run.players[name] and run.players[name].integrity
+    local spans = type(p) == "table" and proofSpans(p, startedAt)
+    if spans then
+      local known = 0
+      for _, span in ipairs(spans) do known = known + (span[2] - span[1]) end
+      local unknown = math.floor(tonumber(p.unknownSec) or 0)
+      if unknown >= 0 and known + unknown <= duration then
+        per[index] = { spans = spans, known = known, unknown = unknown, role = ROLE_LETTER[p.lockedRole] or "", mixed = p.mixedRole and 1 or 0 }
+      end
+    end
+  end
+  if next(per) == nil then return end
+  local native = {}
+  for _, boss in ipairs(type(run.encounters) == "table" and run.encounters or {}) do
+    if type(boss) == "table" and boss.source == "native" and boss.success == true and tonumber(boss.id) and tonumber(boss.at) and #native < RUN_MAX_BOSSES then native[#native + 1] = string.format("%d:%d", boss.id, boss.at) end
+  end
+  local function assemble()
+    local out = { ig = string.format("%s;%s;%d;%d;%d;%s", integrity.observer, trigger, math.floor(detected) - startedAt, math.floor(combat) - startedAt,
+      integrity.continuous and 1 or 0, integrity.startWitness == "native-reset" and "n" or "u") }
+    if #native > 0 then out.ns = table.concat(native, ",") end
+    for index, q in pairs(per) do out["q" .. index] = string.format("%d;%d;%s;%d;%s", q.known, q.unknown, q.role, q.mixed, spanText(q.spans, startedAt)) end
+    return out
+  end
+  for _ = 1, 400 do
+    local proof = assemble()
+    local merged = {}
+    for k, v in pairs(data) do merged[k] = v end
+    for k, v in pairs(proof) do merged[k] = v end
+    if #carry.encode(merged) <= PROOF_BUDGET then
+      for k, v in pairs(proof) do data[k] = v end
+      return
+    end
+    -- Too big: the player with the most spans loses their shortest one (spread over the party), and its seconds are no longer known.
+    local owner
+    for index, q in pairs(per) do
+      if not owner or #q.spans > #per[owner].spans or (#q.spans == #per[owner].spans and index < owner) then owner = index end
+    end
+    if not owner then return end
+    local at, shortest = 1, nil
+    for i, span in ipairs(per[owner].spans) do
+      if not shortest or span[2] - span[1] < shortest then shortest, at = span[2] - span[1], i end
+    end
+    local q = per[owner]
+    table.remove(q.spans, at)
+    q.known, q.unknown = q.known - shortest, q.unknown + shortest
+    if #q.spans == 0 then per[owner] = nil end
+    if next(per) == nil then return end
+  end
+end
 local function runRecord(run, player)
   if type(run) ~= "table" or run.state ~= "COMPLETED" or run.synced or run.syncedVia or run.viaGroup then return nil end
   local instanceId, startedAt, endedAt = tonumber(run.instanceId), tonumber(run.startedAt), tonumber(run.endedAt)
@@ -213,6 +301,8 @@ local function runRecord(run, player)
   end
   if #bosses > 0 then data.ev = table.concat(bosses, ",") end
   if #carry.encode(data) > MAX_RECORD_BYTES then return nil end
+  -- (9.3.8) Presence proof for the next season's rules: added only when it fits, so a run that cannot carry it stays exactly as before.
+  carry.addProof(data, run, names, startedAt, endedAt)
   local key = string.format("%s-%s", string.gsub(string.sub(run.id, 1, 60), "[^%w%-_:%.]", "_"), hash(run.id))
   return { kind = "run", key = key, author = player, data = data, at = endedAt }
 end

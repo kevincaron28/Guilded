@@ -894,3 +894,77 @@ describe("faster handover, longer receipts and a busy carrier", () => {
     expect(queued(carrier, "WHISPER")).toEqual([]);
   });
 });
+
+// 9.3.8: the run's presence proof (the same integrity data a companion upload carries) rides along when it fits.
+describe.each<Kind>(["guilded", "standalone"])("own dungeon runs carry a presence proof (%s)", (kind) => {
+  const runs = "NS.getDb().dungeon.runs";
+  /** A five-player run of `seconds` with `spans` known spans per player (each `spanLen` long, 3 s apart). */
+  const proofRun = (id: string, opts: { spans?: number; spanLen?: number; gap?: number; names?: string[]; withIntegrity?: boolean } = {}) => {
+    const names = opts.names ?? ["Aye", "Bee", "Cee", "Dee", "Eve"];
+    const spans = opts.spans ?? 1, spanLen = opts.spanLen ?? 1400, gap = opts.gap ?? 3;
+    return `local start = CLOCK - 2000
+      local run = { id = ${JSON.stringify(id)}, state = "COMPLETED", instanceId = 389, name = "Ragefire Chasm", difficultyId = 0,
+        startedAt = start, endedAt = start + 1500, completedBy = "final boss", recorder = "Aye", reporters = { Aye = true },
+        encounters = { { id = 2735, success = true, at = start + 1500, source = "native" }, { id = 2732, success = true, at = start + 700 } }, players = {} }
+      ${opts.withIntegrity === false ? "" : `run.integrity = { version = 2, startWitness = "unknown", startTrigger = "first combat", continuous = true, observer = "Aye", detectedAt = start - 2, combatAt = start + 3 }`}
+      local roles = { "TANK", "HEALER", "DPS", "DPS", "DPS" }
+      for i, name in ipairs({ ${names.map((n) => JSON.stringify(n)).join(", ")} }) do
+        local spans, at, known = {}, start + 5, 0
+        for _ = 1, ${spans} do spans[#spans + 1] = { at, at + ${spanLen} }; known = known + ${spanLen}; at = at + ${spanLen} + ${gap} end
+        run.players[name] = { class = "WARRIOR", role = roles[i], level = 20, deaths = 0, presentSec = 1400,
+          ${opts.withIntegrity === false ? "" : `integrity = { knownSec = known, unknownSec = 0, lockedRole = roles[i], mixedRole = false, knownIntervals = spans }`} }
+      end
+      ${runs}[${JSON.stringify(id)}] = run`;
+  };
+  const record = (s: LuaSession) => JSON.parse(s.run(`local r; for _, x in ipairs(NS.carry.collectOwn(true)) do if x.kind == "run" then r = x end end
+      local function js(v) local t = type(v); if t == "string" then return string.format("%q", v) elseif t == "number" or t == "boolean" then return tostring(v) elseif t == "table" then local p = {}; for k, x in pairs(v) do p[#p + 1] = js(tostring(k)) .. ":" .. js(x) end; return "{" .. table.concat(p, ",") .. "}" end; return "null" end
+      return r and js(r.data) or "null"`)) as Record<string, string> | null;
+  /** The size the companion measures: the JSON text of the whole record (key, author and time included), which must stay within 2048. */
+  const jsonSize = (s: LuaSession) => JSON.stringify(JSON.parse(s.run(`local r; for _, x in ipairs(NS.carry.collectOwn(true)) do if x.kind == "run" then r = x end end
+      local function js(v) local t = type(v); if t == "string" then return string.format("%q", v) elseif t == "number" or t == "boolean" then return tostring(v) elseif t == "table" then local p = {}; for k, x in pairs(v) do p[#p + 1] = js(tostring(k)) .. ":" .. js(x) end; return "{" .. table.concat(p, ",") .. "}" end; return "null" end
+      return js({ kind = r.kind, key = r.key, author = r.author, data = r.data, at = r.at })`))).length;
+  const encodedSize = (s: LuaSession) => Number(s.run(`local r; for _, x in ipairs(NS.carry.collectOwn(true)) do if x.kind == "run" then r = x end end; return tostring(#NS.carry.encode(r.data))`));
+
+  it("adds the run's observation, each player's known spans and the native kills", () => {
+    const player = client(kind, "Aye");
+    player.run(proofRun("QG-20261114-153000-Aye"));
+    const data = record(player)!;
+    expect(data["ig"]).toBe("Aye;f;-2;3;1;u");
+    expect(data["ns"]).toBe(`2735:${Number(data["st"]) + 1500}`);
+    // Names are sorted (Aye, Bee, ...): player 1 is Aye, a tank with one span of 1400 s that starts 5 s after the run's start.
+    expect(data["q1"]).toBe("1400;0;T;0;5.1400");
+    expect(data["q2"]).toBe("1400;0;H;0;5.1400");
+    expect(data["p1"]).toBe("Aye;WARRIOR;TANK;20;1400;0");
+  });
+
+  it("sends nothing extra without integrity (an older record, a peer-merged copy, an observer outside the run)", () => {
+    const player = client(kind, "Aye");
+    player.run(proofRun("QG-20261114-153000-Aye", { withIntegrity: false }));
+    const plain = record(player)!;
+    expect(plain["ig"]).toBeUndefined();
+    expect(Object.keys(plain).some((key) => /^q\d$/.test(key))).toBe(false);
+    player.run(proofRun("QG-20261114-154000-Aye", {}) + `; ${runs}["QG-20261114-154000-Aye"].integrity.observer = "Nobody"; ${runs}["QG-20261114-153000-Aye"] = nil`);
+    expect(record(player)!["ig"]).toBeUndefined();
+  });
+
+  it("worst case: five players with 64 spans each still fits 2 KB by dropping the shortest spans; the run keeps its base data", () => {
+    const player = client(kind, "Aye");
+    player.run(proofRun("QG-20261114-153000-Aye", { spans: 64, spanLen: 10, gap: 10, names: ["Aaaaaaaaaaaa", "Bbbbbbbbbbbb", "Cccccccccccc", "Dddddddddddd", "Aye"] }));
+    const data = record(player)!;
+    expect(data["p2"]).toContain("Aye;");
+    expect(encodedSize(player)).toBeLessThanOrEqual(1750);
+    expect(jsonSize(player)).toBeLessThanOrEqual(2048);
+    // 64 spans of five players cannot fit: spans were dropped (known time shrank), never extended.
+    const known = Object.entries(data).filter(([key]) => /^q\d$/.test(key)).reduce((sum, [, value]) => sum + Number(value.split(";")[0]), 0);
+    expect(known).toBeLessThan(5 * 64 * 10);
+    expect(known).toBeGreaterThan(0);
+  });
+
+  it("a realistic five-player run with proof is far below the limit", () => {
+    const player = client(kind, "Aye");
+    player.run(proofRun("QG-20261114-153000-Aye", { spans: 3, spanLen: 400, names: ["Aaaaaaaaaaaa", "Bbbbbbbbbbbb", "Cccccccccccc", "Dddddddddddd", "Aye"] }));
+    expect(encodedSize(player)).toBeLessThan(1200);
+    expect(jsonSize(player)).toBeLessThan(1400);
+    expect(record(player)!["q1"]).toBeDefined();
+  });
+});

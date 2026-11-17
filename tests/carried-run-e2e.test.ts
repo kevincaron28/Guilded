@@ -9,6 +9,7 @@ import { parseCarryReceipts, receiptIdsOf, writeCarryReceipts } from "../compani
 import { applyCarriedRecords } from "../src/services/carried-records.js";
 import { agrees, type PublicRunStore, type RunSummary, type StoredRun } from "../src/services/public-runs.js";
 import { rankCharacters, type LeaderRun } from "../src/services/public-leaderboard.js";
+import { withIntegrityWindow } from "../src/services/dungeon-integrity.js";
 import { publicRules } from "../src/services/public-score.js";
 
 // Offline end to end (9.3.x): an addon-only player (no companion, no guild) finishes a dungeon; the real Carry.lua hands the run to whoever is online
@@ -53,14 +54,16 @@ const queued = (s: LuaSession, channel: string, target?: string) => { flush(s); 
 const hear = (to: LuaSession, from: string, text: string, channel: string) => to.run(`fire_event("CHAT_MSG_ADDON", "GuildedCry", ${JSON.stringify(text)}, ${JSON.stringify(channel)}, "${from}-Realm")`);
 const waiting = (s: LuaSession) => Number(s.run("return tostring(#NS.carry.collectOwn(true))"));
 
-/** A finished run in the player's own addon: "Alice Guildless" (tank) and Bob (mage), no guild anywhere. `idTime` is the time in the run id (each recorder names it after itself). */
-function finishRun(s: LuaSession, recorder: string, idTime: number) {
+/** A finished run in the player's own addon (difficulty 0 is what the Forever client reports for Normal in real exported runs, docs/DUNGEON_BETA_PRESET_2026-10.md): "Alice Guildless" (tank) and Bob (mage), no guild anywhere. `idTime` is the time in the run id (each recorder names it after itself). */
+function finishRun(s: LuaSession, recorder: string, idTime: number, dungeon: { instanceId: number; name: string; bossId: number; level?: number; proof?: boolean } = { instanceId: 389, name: "Ragefire Chasm", bossId: 2735 }) {
   const id = `QG-${stamp(idTime)}-${recorder}`;
   s.run(`local root = NS.getDb(); root.dungeon = root.dungeon or {}; root.dungeon.runs = root.dungeon.runs or {}
-    root.dungeon.runs[${JSON.stringify(id)}] = { id = ${JSON.stringify(id)}, state = "COMPLETED", instanceId = 389, name = "Ragefire Chasm", difficultyId = 0,
+    root.dungeon.runs[${JSON.stringify(id)}] = { id = ${JSON.stringify(id)}, state = "COMPLETED", instanceId = ${dungeon.instanceId}, name = ${JSON.stringify(dungeon.name)}, difficultyId = 0,
       startedAt = ${START}, endedAt = ${START + 1500}, completedBy = "final boss", recorder = ${JSON.stringify(recorder)}, reporters = { ${recorder} = true },
-      encounters = { { id = 2735, success = true, at = ${START + 1500} } },
-      players = { Alice = { class = "WARRIOR", role = "TANK", level = 20, deaths = 0, presentSec = 1450 }, Bob = { class = "MAGE", role = "DAMAGER", level = 20, deaths = 1, presentSec = 1400 } } }`);
+      encounters = { { id = ${dungeon.bossId}, success = true, at = ${START + 1500}${dungeon.proof ? `, source = "native"` : ""} } },
+      players = { Alice = { class = "WARRIOR", role = "TANK", level = ${dungeon.level ?? 20}, deaths = 0, presentSec = 1450${dungeon.proof ? `, integrity = { knownSec = 1450, unknownSec = 0, lockedRole = "TANK", mixedRole = false, knownIntervals = { { ${START + 5}, ${START + 1455} } } }` : ""} },
+        Bob = { class = "MAGE", role = "DAMAGER", level = ${dungeon.level ?? 20}, deaths = 1, presentSec = 1400${dungeon.proof ? `, integrity = { knownSec = 700, unknownSec = 750, lockedRole = "DPS", mixedRole = false, knownIntervals = { { ${START + 5}, ${START + 705} } } }` : ""} } } }
+    ${dungeon.proof ? `root.dungeon.runs[${JSON.stringify(id)}].integrity = { version = 2, startWitness = "unknown", startTrigger = "first combat", continuous = true, observer = ${JSON.stringify(recorder)}, detectedAt = ${START - 2}, combatAt = ${START + 3} }` : ""}`);
   return id;
 }
 
@@ -131,11 +134,14 @@ function memoryStore() {
 const leaderRun = (row: StoredRun & { summary: RunSummary }): LeaderRun => ({
   runId: row.id, instanceId: row.summary.instanceId, dungeonName: row.summary.dungeonName, durationSec: row.summary.durationSec, endedAt: row.summary.endedAt, deaths: row.summary.deaths, bracket: row.summary.bracket,
   season: "s1", confirmations: 1, routeKey: row.summary.routeKey, difficultyId: row.summary.difficultyId,
-  evidence: { startedAt: row.summary.startedAt, completedBy: row.summary.completedBy, encounters: row.summary.encounters },
-  players: row.summary.players.map((player) => ({ ...player, minLevel: player.level, presentSec: player.presentSec }))
+  evidence: { startedAt: row.summary.startedAt, completedBy: row.summary.completedBy, encounters: row.summary.encounters,
+    ...(row.summary.integrity ? { integrity: (row.summary.integrity as { run: unknown }).run, receivedAt: NOW } : {}) },
+  players: row.summary.players.map((player) => ({ ...player, minLevel: player.level, presentSec: player.presentSec,
+    ...(row.summary.integrity ? { integrity: (row.summary.integrity as { players: { character: string; observation: unknown }[] }).players.find((seen) => seen.character === player.character)?.observation } : {}) }))
 }) as never;
 const ranked = (runs: Map<string, StoredRun & { summary: RunSummary }>, policy: "current-v1" | "current-v2") =>
-  rankCharacters([...runs.values()].map(leaderRun), { className: null, role: null, confirmed: false }, 100, { ...publicRules(), evidencePolicy: policy }).map((entry) => entry.player.character);
+  rankCharacters([...runs.values()].map(leaderRun), { className: null, role: null, confirmed: false }, 100,
+    withIntegrityWindow({ ...publicRules(), evidencePolicy: policy }, new Date((CLOCK - 86_400 * 30) * 1000), null)).map((entry) => entry.player.character);
 
 /** The companion writes the bot's receipts for the carrier's addon; returns what its Carry.lua says. */
 async function companionWrites(receipts: string[]) {
@@ -191,6 +197,18 @@ describe.each([
     expect(ranked(runs, "current-v1")).toContain("Alice");
   });
 
+  it("a Scarlet Monastery wing is told apart from boss ids alone (the carried record has no boss names), so the run ranks like an uploaded one", async () => {
+    const alice = client("Alice");
+    const bee = client("Bee", { companion: true });
+    finishRun(alice, "Alice", START, { instanceId: 189, name: "Scarlet Monastery", bossId: 448, level: 36 });
+    hand(alice, "Alice", bee, "Bee");
+    const { db } = fakeDb();
+    const { store, runs } = memoryStore();
+    await applyCarriedRecords(db, { carrier, carrierKeys: new Set(["bee"]), now: NOW, records: savedRecords(bee), relay: { store } });
+    expect([...runs.values()][0]?.routeKey).toBe("189:armory");
+    expect(ranked(runs, "current-v1")).toContain("Alice");
+  });
+
   it("a second party member's copy of the same run is a receipted confirmation: one run, no extra daily key", async () => {
     const alice = client("Alice");
     const bob = client("Bob");
@@ -213,7 +231,23 @@ describe.each([
     expect(ranked(runs, "current-v1").sort()).toEqual(["Alice", "Bob"]);
   });
 
-  it("(G1, Season 2 integrity gap) under current-v2 rules an unsigned carried run has no sealed presence evidence, so it is not ranked", async () => {
+  it("under current-v2 rules a carried run WITH the addon's presence proof ranks the players it proves present, and not the others", async () => {
+    const alice = client("Alice");
+    const bee = client("Bee", { companion: true });
+    finishRun(alice, "Alice", START, { instanceId: 389, name: "Ragefire Chasm", bossId: 2735, proof: true });
+    hand(alice, "Alice", bee, "Bee");
+    const records = savedRecords(bee);
+    expect(JSON.stringify(records[0]).length).toBeLessThan(2048);
+    const { db } = fakeDb();
+    const { store, runs } = memoryStore();
+    await applyCarriedRecords(db, { carrier, carrierKeys: new Set(["bee"]), now: NOW, records, relay: { store } });
+    expect(runs.size).toBe(1);
+    // Alice was seen for 1450 of 1500 s; Bob for 700 s only (under 80%): the proof ranks Alice alone. Season 1 rules still rank both.
+    expect(ranked(runs, "current-v2")).toEqual(["Alice"]);
+    expect(ranked(runs, "current-v1").sort()).toEqual(["Alice", "Bob"]);
+  });
+
+  it("(G1) under current-v2 rules a carried run WITHOUT the proof (an older addon) is not ranked, as before", async () => {
     const alice = client("Alice");
     const bee = client("Bee", { companion: true });
     finishRun(alice, "Alice", START);

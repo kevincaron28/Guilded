@@ -3,6 +3,7 @@ import { z } from "zod";
 import { characterKey } from "../../companion/character-identity.mjs";
 import { dungeonRunSchema, type DungeonRunInput } from "./dungeon-rules.js";
 import { ingestRelayedRuns, relayWouldPlace } from "./relay-public.js";
+import { routesOfInstance } from "./dungeon-bosses.js";
 import { integrityConfig } from "./run-integrity-config.js";
 import { findSameRun, sameDetails, summarize, type PublicRunStore } from "./public-runs.js";
 
@@ -40,8 +41,44 @@ const text = (max: number) => z.string().max(max);
 const carriedRunSchema = z.object({
   id: text(100).min(3), i: z.number().int().positive(), d: z.number().int().nonnegative().max(50), st: z.number().int().positive(), en: z.number().int().positive(),
   cb: text(40).optional(), nm: text(100).optional(), ev: text(400).optional(),
+  // (9.3.8) The recorder's presence proof, all optional: the run's observation, the native boss kills, and one observation per player (see Carry.lua).
+  ig: text(160).optional(), ns: text(200).optional(),
+  q1: text(900).optional(), q2: text(900).optional(), q3: text(900).optional(), q4: text(900).optional(), q5: text(900).optional(),
   p1: text(160).optional(), p2: text(160).optional(), p3: text(160).optional(), p4: text(160).optional(), p5: text(160).optional()
 });
+
+const ROLES: Record<string, "TANK" | "HEALER" | "DPS"> = { T: "TANK", H: "HEALER", D: "DPS" };
+/** One player's observation ("known;unknown;role;mixed;gap.length/gap.length"), or undefined when it is not a consistent one (the run is then just not proven for that player). */
+function unpackObservation(packed: string | undefined, startedAt: number): Record<string, unknown> | undefined {
+  if (!packed) return undefined;
+  const parts = packed.split(";");
+  if (parts.length !== 5) return undefined;
+  const [known, unknown, role, mixed, spans] = parts as [string, string, string, string, string];
+  const knownIntervals: [number, number][] = [];
+  let cursor = startedAt;
+  for (const token of spans.split("/").filter(Boolean)) {
+    const match = /^(-?\d{1,6})\.(\d{1,6})$/.exec(token);
+    if (!match || knownIntervals.length >= 64) return undefined;
+    const from = cursor + Number(match[1]), to = from + Number(match[2]);
+    if (!(from > 0) || to <= from) return undefined;
+    knownIntervals.push([from, to]);
+    cursor = to;
+  }
+  const knownSec = Number(known), unknownSec = Number(unknown);
+  if (!knownIntervals.length || !Number.isInteger(knownSec) || !Number.isInteger(unknownSec) || knownSec < 0 || unknownSec < 0 || (mixed !== "0" && mixed !== "1")) return undefined;
+  return { knownSec, unknownSec, ...(ROLES[role] ? { lockedRole: ROLES[role] } : {}), mixedRole: mixed === "1", knownIntervals, basis: "self" };
+}
+
+/** The run's observation ("observer;trigger;detected;combat;continuous;witness", times from the run's start), or undefined. */
+function unpackRunObservation(packed: string | undefined, startedAt: number): Record<string, unknown> | undefined {
+  if (!packed) return undefined;
+  const parts = packed.split(";");
+  if (parts.length !== 6) return undefined;
+  const [observer, trigger, detected, combat, continuous, witness] = parts as [string, string, string, string, string, string];
+  const detectedAt = startedAt + Number(detected), combatAt = startedAt + Number(combat);
+  if (!observer.trim() || (trigger !== "f" && trigger !== "p") || !Number.isInteger(detectedAt) || !Number.isInteger(combatAt) || detectedAt <= 0 || combatAt <= 0) return undefined;
+  return { version: 2, startWitness: witness === "n" ? "native-reset" : "unknown", observer: observer.trim().slice(0, 100), detectedAt, combatAt, startTrigger: trigger === "p" ? "peer" : "first combat", continuous: continuous === "1" };
+}
 
 export interface UnpackedRun { run: Record<string, unknown>; runKey: string; players: string[] }
 
@@ -62,15 +99,25 @@ export function unpackCarriedRun(data: unknown): UnpackedRun | null {
       ...(levelNumber >= 1 && levelNumber <= 100 ? { level: levelNumber } : {}), presentSec: Math.min(presentNumber, 86_400), deaths: Math.min(deathNumber, 500) });
   }
   if (!players.length) return null;
-  const encounters: { id: number; success: true; at: number }[] = [];
+  // The presence proof, when the addon sent one: the recorder's observation of the run and of each player. A malformed piece is left out, never refused.
+  const observations = [record.q1, record.q2, record.q3, record.q4, record.q5];
+  const integrity = unpackRunObservation(record.ig, record.st);
+  if (integrity) players.forEach((player, index) => { const seen = unpackObservation(observations[index], record.st); if (seen) player["integrity"] = seen; });
+  // The wire record carries boss ids and times, no names. A dungeon with several routes on one map (Scarlet Monastery's four wings) is told apart
+  // by the names of its bosses, exactly as for a companion-uploaded run, so each kill gets the name the bot knows for that id on this map.
+  const knownBosses = routesOfInstance(record.i).flatMap((route) => route.bosses);
+  const native = new Set((record.ns ?? "").split(",").filter(Boolean).slice(0, 12));
+  const encounters: { id: number; success: true; at: number; name?: string; source?: "native" }[] = [];
   for (const piece of (record.ev ?? "").split(",").filter(Boolean).slice(0, 12)) {
     const [id, at] = piece.split(":").map(Number);
     if (!Number.isInteger(id) || !Number.isInteger(at) || id! <= 0 || at! <= 0) return null;
-    encounters.push({ id: id!, success: true, at: at! });
+    const name = knownBosses.find((boss) => boss.ids.includes(id!))?.name;
+    encounters.push({ id: id!, success: true, at: at!, ...(name ? { name } : {}), ...(integrity && native.has(piece) ? { source: "native" as const } : {}) });
   }
   const run = {
     gameEdition: "forever", id: record.id, protocolVersion: 1, state: "COMPLETED", instanceId: record.i, name: record.nm?.trim() || `Instance ${record.i}`,
-    difficultyId: record.d, startedAt: record.st, endedAt: record.en, ...(record.cb ? { completedBy: record.cb } : {}), reporters: 1, encounters, players
+    difficultyId: record.d, startedAt: record.st, endedAt: record.en, ...(record.cb ? { completedBy: record.cb } : {}), reporters: 1, encounters, players,
+    ...(integrity ? { integrity } : {})
   };
   const checked = dungeonRunSchema.safeParse(run);
   if (!checked.success) return null;

@@ -11,7 +11,7 @@ Status: published 16 November 2026. 9.3.7 is not yet confirmed on real clients.
 | CurseForge | files 9654361 (Guilded) and 9654362 (Guilded Dungeons) uploaded 16 November 2026, in review; the website keeps pointing at 9.3.6 until they are approved. |
 | Microsoft Store | 9.3.7.0 package built; submitted after 9.3.4.0 (Submission 13) finishes certification. |
 | Bot | deployed (card polish #1042 already live). |
-| Website | `site/releases.json` (GitHub and installer) and the addon downloads point at 9.3.7; CurseForge stays at 9.3.6. |
+| Website | `site/releases.json` (GitHub and installer) and the addon downloads point at 9.3.7; CurseForge 9.3.7 approved 17 November 2026 and linked (files 9654361, 9654362). |
 
 ## Published artifact hashes (SHA-256)
 

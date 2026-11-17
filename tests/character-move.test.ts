@@ -31,6 +31,11 @@ function newGuild() {
     if (key === "OR") return (value as Record<string, unknown>[]).some((part) => matches(row, part));
     if (key === "AND") return (value as Record<string, unknown>[]).every((part) => matches(row, part));
     if (key === "detachedAt") return value === null ? !row.detachedAt : Boolean(row.detachedAt);
+    if (key === "gameEdition") return (row.gameEdition ?? "forever") === value;
+    if (value && typeof value === "object" && "startsWith" in value) {
+      const { startsWith, mode } = value as { startsWith: string; mode?: string };
+      return mode === "insensitive" ? String(row[key]).toLowerCase().startsWith(startsWith.toLowerCase()) : String(row[key]).startsWith(startsWith);
+    }
     if (value && typeof value === "object" && "in" in value) return (value.in as unknown[]).includes(row[key]);
     return row[key] === value;
   });

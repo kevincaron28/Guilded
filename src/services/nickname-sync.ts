@@ -227,6 +227,18 @@ export async function restoreAllNicknames(prisma: PrismaClient, guild: Guild, gu
   return restored;
 }
 
+/** The quiet outcomes (nothing changed) repeat every cycle: one line per server when it differs from the last one, or after a day. */
+export const NICKNAME_LOG_REPEAT_MS = 24 * 60 * 60 * 1000;
+const lastNicknameLines = new Map<string, { line: string; at: number }>();
+export function shouldLogNicknameSync(guildId: string, line: string, result: NicknameSyncResult | undefined, now = Date.now()): boolean {
+  const busy = !result || result.applied > 0 || result.failed > 0 || result.changes.length > 0;
+  const last = lastNicknameLines.get(guildId);
+  if (!busy && last && last.line === line && now - last.at < NICKNAME_LOG_REPEAT_MS) return false;
+  lastNicknameLines.set(guildId, { line, at: now });
+  return true;
+}
+export function resetNicknameLogThrottle(): void { lastNicknameLines.clear(); }
+
 // The scheduled run, next to the hourly rank roles. A server with several in-game guilds is synced once per guild; the log line
 // adds them up (the last guild alone used to be reported, so an empty one hid the rest).
 export async function syncAllNicknames(prisma: PrismaClient, guilds: Iterable<Guild>, report: (error: unknown) => void, log: (line: string) => void = console.log): Promise<void> {
@@ -240,6 +252,8 @@ export async function syncAllNicknames(prisma: PrismaClient, guilds: Iterable<Gu
       for (const key of Object.keys(total.stats) as (keyof NicknameSyncStats)[]) total.stats[key] += result.stats[key];
     }).catch(report);
     // One line per server, always, so a quiet sync is explained in the logs.
-    log(describeNicknameSync(guild.id, ran ? total : undefined));
+    // (Repeats of an unchanged quiet outcome are held back: two small servers wrote the same line every cycle, 122 times in 48 h.)
+    const line = describeNicknameSync(guild.id, ran ? total : undefined);
+    if (shouldLogNicknameSync(guild.id, line, ran ? total : undefined)) log(line);
   }
 }

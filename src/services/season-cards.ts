@@ -2,7 +2,7 @@ import { EmbedBuilder } from "discord.js";
 import { siteUrl } from "../site-url.js";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
-import { cardDate, cardDateTime, loadCardTimeZone } from "./card-format.js";
+import { cardDate, cardTime, loadCardTimeZone } from "./card-format.js";
 import { plural } from "./card-plural.js";
 import { textlessEmbed } from "./card-only.js";
 import { frozenRating, hasDungeonRating } from "./dungeon-rating.js";
@@ -83,7 +83,7 @@ export function seasonStartCard(season: SeasonInfo, lang: Lang, timeZone?: strin
     subtitle: season.endsAt ? plural(lang, days, ["day", "days"], ["jour", "jours"]) : t("Open-ended season", "Saison sans date de fin"),
     backdrop: { kind: "board", key: "season-start", fallbackKey: "dungeon-season" },
     stats: [
-      { label: t("Starts", "Début"), value: seasonLabel(season.name, lang), note: cardDateTime(season.startsAt, lang, timeZone), accent: "gold" },
+      { label: t("Starts", "Début"), value: day(season.startsAt), note: cardTime(season.startsAt, lang, timeZone), accent: "gold" },
       { label: t("Ends", "Fin"), value: season.endsAt ? day(season.endsAt) : t("Open", "Ouverte") }
     ],
     rowsLabel: t("How it works", "Comment ça marche"),

@@ -77,11 +77,12 @@ export function rosterVisualCard(visual: RosterVisual, lang: "en" | "fr", title:
   const fr = lang === "fr";
   return {
     eyebrow: fr ? "Effectif" : "Roster", title, subtitle: `${plural(lang, visual.characters, ["character", "characters"], ["personnage", "personnages"])} · ${plural(lang, visual.members, ["member", "members"], ["membre", "membres"])}`,
-    stats: [{ label: fr ? "Personnages" : "Characters", value: String(visual.characters) }], footer: fr ? "Personnages liés des membres actifs · mêmes chiffres que /report guild" : "Linked characters of active members · same numbers as /report guild",
+    stats: [{ label: fr ? "Personnages" : "Characters", value: String(visual.characters) }], footer: fr ? "Personnages liés des membres actifs" : "Linked characters of active members",
     // Class and profession names in the guild's language (the data keeps the English names).
     roster: { ...visual, classes: visual.classes.map(c => ({ ...c, name: localClassName(c.name, lang) })), professions: visual.professions.map(p => ({ ...p, name: professionName(p.name, lang) })) },
     backdrop: { kind: "roster", key: "default" },
-    rosterProfessionsLabel: fr ? "Métiers · artisans et compétence max" : "Professions · crafters and top skill"
+    rosterProfessionsLabel: fr ? "Métiers · artisans, niveau max" : "Professions · crafters, top skill",
+    rosterLabels: fr ? { crafter: "artisan", crafters: "artisans", none: "Sans artisan :", other: "Autres" } : { crafter: "crafter", crafters: "crafters", none: "No crafter:", other: "Others" }
   };
 }
 

@@ -27,7 +27,11 @@ describe("Discord member on a card", () => {
     expect(rich).toMatchObject({ title: "🔥 Frumpy", rank: { label: "Officier", color: "#1abc9c" } });
     expect(rich.portrait).toBe(png.toString("base64"));
     expect(card.portrait).toBeUndefined();
-    expect(await sharp((await scoreCardPng(rich))!).metadata()).toMatchObject({ width: 1200, height: 630 });
+    // Cards posted in Discord are cut to their content (at most 630 px tall).
+    const meta = await sharp((await scoreCardPng(rich))!).metadata();
+    expect(meta.width).toBe(1200);
+    expect(meta.height).toBeGreaterThanOrEqual(340);
+    expect(meta.height).toBeLessThanOrEqual(630);
   });
   it("ignores @everyone, survives a broken image, and returns the plain card when the member is gone", async () => {
     const plain = await withDiscordMember(guildWith({ ...member, roles: { highest: { id: "g1", name: "@everyone", color: 0, hexColor: "#000000" } } }), card, "1", async () => null);

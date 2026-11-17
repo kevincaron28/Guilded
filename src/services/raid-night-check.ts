@@ -129,10 +129,10 @@ export function raidNightCard(check: RaidNightCheck, lang: Lang, timezone: strin
   const total = check.slots.filter(slot => slot.role === "TANK" || slot.role === "HEALER" || slot.role === "DPS").reduce((sum, slot) => sum + (slot.limit ?? 0), 0);
   const roleRows: CardRow[] = check.slots.map(slot => ({
     name: fr ? ROLE_NAME[slot.role].fr : ROLE_NAME[slot.role].en,
-    sub: slot.limit === null ? t("No limit set", "Sans limite") : short(slot) ? t(`${short(slot)} short`, `${short(slot)} manquant(s)`) : t("Full", "Complet"),
+    sub: slot.limit === null ? t("No limit set", "Sans limite") : short(slot) ? t(`${short(slot)} short`, `${short(slot)} manquant${short(slot) > 1 ? "s" : ""}`) : t("Full", "Complet"),
     right: slot.limit === null ? String(slot.signed) : `${slot.signed}/${slot.limit}`, rightTone: slot.limit !== null && short(slot) ? "red" : "green"
   }));
-  if (check.maybe || check.waitlisted) roleRows.push({ name: t(`${check.maybe} maybe · ${check.waitlisted} waitlist`, `${check.maybe} peut-être · ${check.waitlisted} en attente`) });
+  if (check.maybe || check.waitlisted) roleRows.push({ name: t(`${check.maybe} maybe`, `${check.maybe} peut-être`), sub: t(`${check.waitlisted} on the waitlist`, `${check.waitlisted} en attente`) });
   const issueRow = (row: CheckRow): CardRow => ({ name: row.name, color: classColor(row.className),
     sub: [row.late ? t("Late", "En retard") : "", ...row.issues.map(code => issueLabel(code, lang))].filter(Boolean).join(" · ") || t("Needs a look", "À vérifier") });
   const flagged = check.rows.filter(row => needsAttention(row) && !notSeen(row));
@@ -155,7 +155,9 @@ export function raidNightCard(check: RaidNightCheck, lang: Lang, timezone: strin
       { label: t("Need attention", "À corriger"), value: String(attention), accent: attention ? "red" : "green" },
       { label: t("Roles short", "Places manquantes"), value: String(missing), accent: missing ? "red" : "green" }
     ],
-    footer: t("Gear checks from the addon, valid for 24 h", "Vérifications de l'addon, valides 24 h"),
+    footer: "", moreLabel: t("more", "autres"),
+    // The raid hall painting; without a file the blackrock scene below is drawn.
+    backdrop: { kind: "raid", key: "night-check", fallbackKey: "default" },
     recap: { theme: { a: "#2a1210", b: "#ff7a2a", motif: "keep", seed: hash(check.raidId), scene: "blackrock" }, sections }
   };
 }

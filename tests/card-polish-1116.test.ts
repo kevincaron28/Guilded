@@ -62,9 +62,11 @@ describe("daily recap card text", () => {
     expect(text).toContain("Démoniste");
     expect(text).not.toMatch(/Druid[^e]|Warlock/);
     expect(text).toContain("Souilles de Tranchebauge");
-    expect(text).toContain("1 duel");
+    // The duel count is on the strip once; no panel row repeats it.
+    expect(dailyRecapCard(recap, "fr", "QG").stats.find(stat => stat.label === "Duels")?.value).toBe("1");
+    expect(text).not.toMatch(/\d+ duels?"/);
     expect(text).not.toContain("(s)");
-    expect(JSON.stringify(dailyRecapCard(recap, "en", "QG"))).toContain("1 duel");
+    expect(JSON.stringify(dailyRecapCard(recap, "en", "QG")).match(/duel/gi)!.length).toBeLessThanOrEqual(2);
     expect(dailyRecapEmbed(recap, "fr").data.description).toContain("1 niveau gagné");
     expect(dailyRecapEmbed(recap, "fr").data.description).not.toContain("(s)");
   });

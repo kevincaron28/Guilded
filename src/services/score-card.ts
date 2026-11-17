@@ -3,8 +3,7 @@ import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import type { WebResponse } from "./web-app.js";
 import type { RosterVisual } from "./roster-visual.js";
-import { dungeonArt, type DungeonArtTheme } from "./dungeon-art.js";
-import { dungeonBackdrop } from "./dungeon-backdrop.js";
+import type { DungeonArtTheme } from "./dungeon-art.js";
 import { cardAltText } from "./card-alt.js";
 import { cardBackdropArt, BANNER_HEIGHT, type CardBackdrop } from "./card-backdrop.js";
 import { withBadgeImages } from "./badge-art.js";
@@ -49,13 +48,15 @@ export interface ScoreCard { eyebrow?: string; title: string; subtitle: string; 
   unlocks?: CardUnlock[]; unlocksMore?: number; moreLabel?: string; progress?: CardProgress; tierCounts?: CardTierCount[];
   /** 8.5: the roster picture (class counts by level band + profession grid, roster-visual.ts); switches to its own layout. */
   roster?: RosterVisual; rosterProfessionsLabel?: string;
+  /** The roster card's words: one and several crafters, the "no crafter" lead-in, and the name of the merged last class row. */
+  rosterLabels?: { crafter: string; crafters: string; none: string; other?: string };
   /** Leaderboard layout (every ranking card): medals, class colours, aligned columns; the image grows with the row count. */
   ladder?: LadderVisual;
   /** 9.1: the dungeon completion layout (themed art, party with role icons, optional death map). */
   dungeon?: DungeonVisual;
   /** 9.1: the daily recap layout (painted scene, a stats strip, up to three section panels of rows). */
   recap?: RecapVisual;
-  /** 9.1: the new guild record card, drawn by record-card.ts. */
+  /** 9.1: the new guild record card, drawn by card-next-recap.ts. */
   record?: RecordVisual;
   /** Officer member-trend card (member-trend.ts), drawn by member-trend-card.ts. */
   trend?: TrendVisual;
@@ -122,17 +123,6 @@ const CLASS_COLOR: Record<string, string> = { warrior: "#c79c6e", paladin: "#f58
 export const classColor = (name: string | null | undefined) => CLASS_COLOR[(name ?? "").toLowerCase().replace(/[^a-z]/g, "")] ?? "#bfc9bd";
 
 interface Layer { input: Buffer; left: number; top: number }
-
-/** A portrait (Discord avatar or character picture, base64) in a gold ring at the card's top left; false when the image is unreadable. */
-async function ringPortrait(portrait: string, shapes: string[], layers: Layer[]): Promise<boolean> {
-  try {
-    const avatar = await sharp(Buffer.from(portrait, "base64")).resize(80, 80, { fit: "cover" })
-      .composite([{ input: Buffer.from(`<svg width="80" height="80"><circle cx="40" cy="40" r="40"/></svg>`), blend: "dest-in" }]).png().toBuffer();
-    shapes.push(`<circle cx="100" cy="104" r="44" fill="${th.panel}" stroke="${th.gold}" stroke-width="2.5"/>`);
-    layers.push({ input: avatar, left: 60, top: 64 });
-    return true;
-  } catch { return false; }
-}
 const rect = (x: number, y: number, w: number, h: number, fill: string, edge?: string, r = 12) =>
   `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" fill="${fill}"${edge ? ` stroke="${edge}" stroke-width="1.5"` : ""}/>`;
 
@@ -305,98 +295,16 @@ async function renderLadder(card: ScoreCard): Promise<Buffer> {
   return sharp(base).composite(layers).png().toBuffer();
 }
 
-async function render(card: ScoreCard): Promise<Buffer> {
-  // 13 Nov 2026 redesign (card-next.ts): the result cards and the dungeon run card. Anything it does not recognise or cannot draw
-  // (null, or an error) is drawn exactly as before from the unchanged definition.
-  const next = await import("./card-next.js").then((m) => m.renderNextCard(card)).catch((error: unknown) => { console.warn(`card-next fell back: ${error instanceof Error ? error.message : String(error)}`); return null; });
-  if (next) return next;
-  if (card.dungeon) return renderDungeon(card);
-  if (card.recap) return renderRecap(card);
-  if (card.record) return (await import("./record-card.js")).renderRecordCard(card);
+/**
+ * Draws a card. Every card has a banner layout (card-next.ts); the officer trend chart (member-trend-card.ts) draws its own picture,
+ * and a ladder of more than 25 rows (the race board's top 50) keeps the long ladder above.
+ */
+async function render(card: ScoreCard, branded: boolean): Promise<Buffer> {
   if (card.trend) return (await import("./member-trend-card.js")).renderTrendCard(card);
-  if (card.roster) return renderRoster(card);
-  if (card.unlocks?.length) return renderUnlock(card);
-  if (card.ladder) return renderLadder(card);
-  const accent = { gold: th.gold, green: th.green, red: th.red } as const;
-  const shapes = chrome();
-  withArt(shapes, await cardBackdropArt(card.backdrop, card.rows?.length ? "full" : "wide"), 630);
-  const layers: Layer[] = [];
-  const put = async (markup: string, size: number, left: number, top: number, maxWidth = 1080, fixed = false) => {
-    const t = await text(markup, size, maxWidth, fixed); layers.push({ input: t.input, left: Math.round(left), top: Math.round(top) }); return t;
-  };
-  const hasRows = Boolean(card.rows?.length);
-  const leftW = hasRows ? 500 : 1080;
-
-  // The title shrinks to fit the narrower left column rather than being cut short.
-  // A character picture (share images) sits left of the title and pushes it right.
-  const titleX = card.portrait && await ringPortrait(card.portrait, shapes, layers) ? 162 : 58;
-  const titleLen = [...drawable(card.title)].length, titleSize = Math.min(titleX > 58 ? 50 : 62, !hasRows || titleLen <= 12 ? 62 : titleLen <= 17 ? 50 : 40);
-  await put(caps(th.gold, clip(card.eyebrow ?? "Guilded · Dungeons", 44)), 20, 60, 40, leftW);
-  await put(span(th.ink, clip(card.title, titleX > 58 ? (hasRows ? 18 : 30) : (hasRows ? 26 : 38))), titleSize, titleX, 68 + (62 - titleSize) / 2, leftW - (titleX - 58));
-  await put(span(th.muted, clip(card.subtitle, hasRows ? 38 : 90)), 25, 60, titleX > 58 ? 160 : 146, leftW);
-
-  // Headline: the first stat is large, the next two sit side by side underneath.
-  const [big, ...small] = card.stats.slice(0, 3);
-  let y = 214;
-  if (big) {
-    shapes.push(`<rect x="60" y="${y + 4}" width="4" height="24" rx="2" fill="${accent[big.accent ?? "gold"]}"/>`);
-    await put(caps(th.muted, clip(big.label, 30)), 17, 76, y + 6, leftW);
-    await put(span(accent[big.accent ?? "gold"], clip(big.value, hasRows ? 10 : 20)), hasRows ? 100 : 120, 56, y + 34, leftW);
-    if (big.note) await put(span(th.ink, clip(big.note, 90)), 21, 60, y + 146, leftW);
-    y += 200;
-  }
-  const smallW = hasRows ? Math.floor((leftW - 20) / Math.max(1, small.length)) : 340;
-  for (const [i, stat] of small.entries()) {
-    const x = 60 + i * (smallW + 20);
-    shapes.push(`<rect x="${x}" y="${y + 4}" width="4" height="20" rx="2" fill="${accent[stat.accent ?? "gold"]}"/>`);
-    await put(caps(th.muted, clip(stat.label, 32)), 15, x + 14, y + 4, smallW - 14);
-    const len = [...stat.value].length;
-    await put(span(accent[stat.accent ?? "gold"], clip(stat.value, 30)), len > 11 ? 26 : len > 6 ? 34 : 54, x - 1, y + 26, smallW);
-    if (stat.note) await put(span(th.ink, clip(stat.note, 70)), 17, x + 1, y + 78, smallW);
-  }
-
-  // Right panel: one row per party member or run.
-  if (hasRows) {
-    const rows = card.rows!.slice(0, 5), px = 600, pw = 540, top = 60;
-    shapes.push(rect(px, top, pw, 450, th.panel, th.edge, 14));
-    await put(caps(th.muted, clip(card.rowsLabel ?? "", 40)), 17, px + 28, top + 22, pw - 56);
-    shapes.push(`<rect x="${px + 28}" y="${top + 54}" width="${pw - 56}" height="1" fill="${th.edge}"/>`);
-    for (const [i, row] of rows.entries()) {
-      const ry = top + 70 + i * 74, color = row.color ?? th.gold;
-      // An icon (badge artwork, 64x64 grid) replaces the colour bar and pushes the text right.
-      const tx = row.icon ? px + 100 : px + 48;
-      shapes.push(row.icon ? `<svg x="${px + 28}" y="${ry + 1}" width="60" height="60" viewBox="0 0 64 64">${row.icon}</svg>` : `<rect x="${px + 28}" y="${ry + 4}" width="5" height="54" rx="2.5" fill="${color}"/>`);
-      await put(span(color, clip(row.name, 80)), row.icon ? 24 : 27, tx, ry + (row.icon ? 2 : 0), 330, true);
-      if (row.sub) await put(span(th.muted, clip(row.sub, row.icon ? 30 : 34)), 17, tx, ry + 36, 330);
-      if (row.right) {
-        const t = await text(span(row.rightTone ? accent[row.rightTone] : th.ink, clip(row.right, 14)), 23, 200);
-        layers.push({ input: t.input, left: px + pw - 28 - t.width, top: ry + 14 });
-      }
-    }
-  }
-
-  // Trust badges: pills sized to their text, along the bottom of the left column or the full width.
-  let bx = 60;
-  const badgeY = 526;
-  for (const badge of card.badges ?? []) {
-    const tone = badge.tone === "ok" ? th.ok : badge.tone === "warn" ? th.warn : th.quiet;
-    const ink = badge.tone === "ok" ? th.green : badge.tone === "warn" ? th.gold : th.muted;
-    const t = await text(span(ink, clip(badge.text, 44)), 19, 600);
-    const w = t.width + 42;
-    if (bx + w > 1140) break;
-    shapes.push(rect(bx, badgeY, w, 36, tone.fill, tone.edge, 18), `<circle cx="${bx + 19}" cy="${badgeY + 18}" r="5" fill="${ink}"/>`);
-    layers.push({ input: t.input, left: bx + 32, top: badgeY + 18 - Math.round(t.height / 2) });
-    bx += w + 12;
-  }
-
-  shapes.push(`<rect x="60" y="578" width="1080" height="1" fill="${th.edge}"/>`);
-  await put(span(th.muted, clip(card.footer, 260)), 17, 60, 590);
-
-  const base = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">${shapes.join("")}</svg>`);
-  return sharp(base).composite(layers).png().toBuffer();
+  const next = await import("./card-next.js").then((m) => m.renderNextCard(card, { branded }));
+  return next ?? renderLadder(card);
 }
 
-/** Role colours on the dark card: steel blue, leaf green and ember red, all at about the same brightness. */
 export const ROLE_COLOR = { TANK: "#6aa8ff", HEALER: "#58d68d", DPS: "#ff7a5c" } as const;
 const r2 = (v: number) => Math.round(v * 100) / 100;
 /**
@@ -445,451 +353,6 @@ export function mapView(cells: readonly number[], points: readonly { x: number; 
   };
 }
 
-/**
- * The dungeon completion card: a painted backdrop for the dungeon (dungeon-art.ts) behind a left column (time, final boss,
- * deaths, record or guild rank) and a frosted party panel: role mark, full name in class colour, class/spec/deaths, the
- * member's score when the run carries one, the role and a Guild / Outside guild tag. With death positions a small map
- * under the party shows where the group fell; without them the card is the same, minus the map.
- */
-async function renderDungeon(card: ScoreCard): Promise<Buffer> {
-  const visual = card.dungeon!, accent = { gold: th.gold, green: th.green, red: th.red } as const, layers: Layer[] = [];
-  const px = 600, pw = 540, top = 60, ph = 450;
-  const art = await dungeonBackdrop(visual.theme);
-  // Frosted glass: the art behind the panel, blurred and darkened, so the panel carries the dungeon's colours without noise.
-  const frost = await sharp(art).extract({ left: px, top, width: pw, height: ph }).blur(14).modulate({ brightness: 0.5, saturation: 0.95 })
-    .composite([{ input: Buffer.from(`<svg width="${pw}" height="${ph}"><rect width="${pw}" height="${ph}" rx="14"/></svg>`), blend: "dest-in" }]).png().toBuffer();
-  const shapes: string[] = [`<defs><linearGradient id="shade" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#000" stop-opacity=".62"/><stop offset=".3" stop-color="#000" stop-opacity=".46"/><stop offset=".48" stop-color="#000" stop-opacity=".2"/><stop offset=".56" stop-color="#000" stop-opacity=".08"/><stop offset="1" stop-color="#000" stop-opacity=".2"/></linearGradient>`
-    + `<linearGradient id="foot" x1="0" y1="0" x2="0" y2="1"><stop offset=".88" stop-color="#000" stop-opacity="0"/><stop offset=".95" stop-color="#000" stop-opacity=".4"/><stop offset="1" stop-color="#000" stop-opacity=".55"/></linearGradient></defs>`,
-    `<rect width="1200" height="630" fill="url(#shade)"/>`, `<rect width="1200" height="630" fill="url(#foot)"/>`,
-    // Painted art can be bright where the text sits (a sunlit desert, a lit hall): a second shade keeps the left column readable.
-    ...(visual.theme.painted ? [`<defs><linearGradient id="shade2" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#000" stop-opacity=".38"/><stop offset=".42" stop-color="#000" stop-opacity=".36"/><stop offset=".54" stop-color="#000" stop-opacity=".12"/><stop offset=".62" stop-color="#000" stop-opacity="0"/></linearGradient></defs>`, `<rect width="1200" height="630" fill="url(#shade2)"/>`, `<rect width="1200" height="630" fill="#000" fill-opacity=".1"/>`] : []),
-    `<rect width="12" height="630" fill="${th.bar}"/>`,
-    `<rect x="26" y="14" width="1160" height="602" rx="6" fill="none" stroke="${th.frame}" stroke-width="2"/>`,
-    `<image x="${px}" y="${top}" width="${pw}" height="${ph}" href="data:image/png;base64,${frost.toString("base64")}"/>`,
-    `<rect x="${px}" y="${top}" width="${pw}" height="${ph}" rx="14" fill="${th.bg}" fill-opacity=".3" stroke="${th.edge}" stroke-width="1.5"/>`,
-    `<rect x="${px + 14}" y="${top + 1.5}" width="${pw - 28}" height="1" fill="${th.gold}" fill-opacity=".25"/>`];
-  // Text over the painted art (the left column and footer) gets a soft dark shadow, so it stays readable on any scene.
-  const shadowed = async (t: { input: Buffer; width: number; height: number }, left: number, y: number) => {
-    const pad = 8, shadow = await sharp(t.input).extend({ top: pad, bottom: pad, left: pad, right: pad, background: { r: 0, g: 0, b: 0, alpha: 0 } })
-      .linear([0, 0, 0, 0.85], [0, 0, 0, 0]).blur(3.5).png().toBuffer();
-    layers.push({ input: shadow, left: Math.round(left) - pad + 1, top: Math.round(y) - pad + 2 }, { input: t.input, left: Math.round(left), top: Math.round(y) });
-  };
-  const put = async (markup: string, size: number, left: number, y: number, maxWidth = 1080, shade = false, fixed = false) => {
-    const t = await text(markup, size, maxWidth, fixed);
-    if (shade) await shadowed(t, left, y); else layers.push({ input: t.input, left: Math.round(left), top: Math.round(y) });
-    return t;
-  };
-  const putRight = async (markup: string, size: number, right: number, y: number) => {
-    const t = await text(markup, size, 300); layers.push({ input: t.input, left: Math.round(right - t.width), top: Math.round(y) }); return t;
-  };
-  const leftW = 500, titleLen = [...drawable(card.title)].length, titleSize = titleLen <= 12 ? 62 : titleLen <= 17 ? 50 : 40;
-  await put(caps(th.gold, clip(card.eyebrow ?? "Guilded", 44)), 20, 60, 40, leftW, true);
-  await put(span(th.ink, clip(card.title, 26)), titleSize, 58, 68 + (62 - titleSize) / 2, leftW, true);
-  await put(span(th.muted, clip(card.subtitle, 40)), 25, 60, 146, leftW, true);
-
-  const [time, boss, deaths, score] = card.stats;
-  if (time) {
-    shapes.push(`<rect x="60" y="218" width="4" height="24" rx="2" fill="${accent[time.accent ?? "gold"]}"/>`);
-    await put(caps(th.muted, clip(time.label, 30)), 17, 76, 220, leftW, true);
-    await put(span(accent[time.accent ?? "gold"], clip(time.value, 8)), 104, 56, 244, leftW, true);
-    if (time.note) await put(span(th.ink, clip(time.note, 38)), 20, 60, 366, leftW, true);
-  }
-  // The run's dungeon score sits to the right of the time: a prominent "+18" with the best season score under it, or a short reason.
-  if (score) {
-    const rated = score.value !== "—", scoreRight = 540;
-    shapes.push(`<rect x="372" y="218" width="4" height="24" rx="2" fill="${accent[score.accent ?? "gold"]}"/>`);
-    await put(caps(th.muted, clip(score.label, 22)), 17, 388, 220, 160, true);
-    if (rated) await putRight(span(accent[score.accent ?? "gold"], clip(score.value, 6)), 64, scoreRight, 252);
-    if (score.note) await put(span(rated ? th.ink : th.muted, clip(score.note, rated ? 26 : 28)), rated ? 16 : 19, 388, rated ? 330 : 252, 160, true);
-  }
-  const small = async (stat: CardStat | undefined, x: number, w: number, chars: number) => {
-    if (!stat) return;
-    shapes.push(`<rect x="${x}" y="420" width="4" height="20" rx="2" fill="${accent[stat.accent ?? "gold"]}"/>`);
-    await put(caps(th.muted, clip(stat.label, 32)), 15, x + 14, 420, w, true);
-    await put(span(accent[stat.accent ?? "gold"], clip(stat.value, chars)), stat.value.length > 16 ? 24 : 32, x - 1, 444, w, true);
-    if (stat.note) await put(span(th.ink, clip(stat.note, 60)), 16, x + 1, 488, w, true);
-  };
-  await small(boss, 60, 310, 28);
-  await small(deaths, 390, 150, 6);
-
-  // Party panel. The score column appears only when the card carries scores.
-  // A traced map gets a taller box: the party rows are set tighter (z scales the row text).
-  const hasMap = Boolean(visual.deathPoints?.length), traced = hasMap && Boolean(visual.mapOutline?.cells.length);
-  const maxRows = hasMap ? 5 : 6, rowH = traced ? 44 : hasMap ? 52 : 60, z = traced ? 0.86 : 1;
-  const hasScore = Boolean(visual.scoreLabel), scoreX = px + pw - 128, nameW = hasScore ? scoreX - 84 - (px + 72) : 300;
-  await put(caps(th.muted, clip(card.rowsLabel ?? "", hasScore ? 28 : 40)), 17, px + 28, top + 22, hasScore ? 330 : pw - 56);
-  if (hasScore) await putRight(caps(th.muted, clip(visual.scoreLabel!, 16)), 13, scoreX, top + 26);
-  shapes.push(`<rect x="${px + 28}" y="${top + 54}" width="${pw - 56}" height="1" fill="${th.edge}"/>`);
-  const shown = visual.party.slice(0, visual.party.length > maxRows ? maxRows - 1 : maxRows);
-  for (const [i, member] of shown.entries()) {
-    const ry = top + 64 + i * rowH;
-    if (!member.guild) shapes.push(`<rect x="${px + 16}" y="${ry - 2}" width="${pw - 32}" height="${rowH - 6}" rx="8" fill="none" stroke="${th.edge}" stroke-dasharray="5 4"/>`);
-    // A character picture takes the role disc's place, ringed in the role colour, with a small role badge on its corner.
-    const cy = ry + Math.round(23 * z), radius = traced ? 14 : hasMap ? 16 : 17;
-    const face = member.portrait ? await circleImage(member.portrait, radius * 2 + 4) : null;
-    if (face) {
-      const ring = member.role ? ROLE_COLOR[member.role] : th.gold, badge = Math.round(radius * 0.55), bx = px + 44 + radius - 2, by = cy + radius - 3;
-      shapes.push(`<circle cx="${px + 44}" cy="${cy}" r="${radius + 3}" fill="${th.panel}" stroke="${ring}" stroke-width="2"/>`);
-      layers.push({ input: face, left: px + 44 - radius - 2, top: cy - radius - 2 });
-      if (member.role) layers.push({ input: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${badge * 2 + 4}" height="${badge * 2 + 4}"><circle cx="${badge + 2}" cy="${badge + 2}" r="${badge + 1.5}" fill="#120d08"/>${roleGlyph(member.role, badge + 2, badge + 2, badge)}</svg>`), left: bx - badge - 2, top: by - badge - 2 });
-    } else shapes.push(roleGlyph(member.role, px + 44, cy, radius));
-    await put(span(member.color, clip(member.name, 80)), Math.round(24 * z), px + 72, ry, nameW, false, true);
-    if (member.sub) await put(span(th.muted, clip(member.sub, hasScore ? 36 : 38)), Math.round(16 * z), px + 72, ry + Math.round(29 * z), hasScore ? nameW + 46 : 330);
-    if (hasScore && member.score) {
-      await putRight(span(th.gold, clip(member.score, 8)), Math.round(22 * z), scoreX, ry + 1);
-      if (member.scoreNote) await putRight(span(th.green, clip(member.scoreNote, 10)), Math.round(14 * z), scoreX, ry + Math.round(30 * z));
-    }
-    if (member.roleLabel) await putRight(span(member.role ? ROLE_COLOR[member.role] : th.ink, clip(member.roleLabel, 12)), Math.round(19 * z), px + pw - 30, ry + 2);
-    await putRight(member.guild ? span(th.gold, visual.guildLabel) : span(th.muted, visual.outsiderLabel), Math.round(14 * z), px + pw - 30, ry + Math.round(30 * z));
-  }
-  const hidden = visual.party.length - shown.length;
-  if (hidden > 0) await put(span(th.muted, `+${hidden} ${visual.moreLabel}`), 18, px + 72, top + 64 + shown.length * rowH + 4, 300);
-
-  if (hasMap) {
-    const mx = px + 28, my = top + 64 + maxRows * rowH + 6, mw = pw - 56, mh = ph - (my - top) - 14;
-    shapes.push(`<rect x="${mx}" y="${my}" width="${mw}" height="${mh}" rx="8" fill="#140e08" fill-opacity="${visual.mapOutline?.cells.length ? 0.85 : 0.45}" stroke="${th.edge}"/>`);
-    const outline = visual.mapOutline?.cells.length ? visual.mapOutline : null;
-    shapes.push(`<defs><radialGradient id="heat"><stop offset="0" stop-color="#ff3b1f" stop-opacity=".75"/><stop offset="1" stop-color="#ff3b1f" stop-opacity="0"/></radialGradient></defs>`);
-    if (outline) {
-      // The traced map: the floor's walked cells, framed on what was walked (and where the deaths are), at the map's 3:2 shape.
-      const view = mapView(outline.cells, visual.deathPoints!, mx + 6, my + 18, mw - 12, mh - 24);
-      const ink: string[] = [], floor: string[] = [];
-      for (const key of outline.cells) {
-        const { x, y } = view.at((Math.floor(key / MAP_GRID) + 0.5) / MAP_GRID, (key % MAP_GRID + 0.5) / MAP_GRID);
-        ink.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(view.radius + 1.4).toFixed(2)}"/>`);
-        floor.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${view.radius.toFixed(2)}"/>`);
-      }
-      shapes.push(`<g fill="${th.gold}" fill-opacity=".55">${ink.join("")}</g>`, `<g fill="#2b2115">${floor.join("")}</g>`);
-      for (const point of visual.deathPoints!.slice(0, 200)) {
-        const { x, y } = view.at(point.x, point.y);
-        shapes.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="16" fill="url(#heat)"/>`, `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.6" fill="#ffd0c8"/>`);
-      }
-    } else {
-      // No traced outline yet: the dungeon's own map file when one was added to site/dungeon-maps/, else the painted scene
-      // shows through a light grid.
-      const mapFile = visual.mapKey && /^[a-z0-9-]{1,60}$/.test(visual.mapKey) ? fileURLToPath(new URL(`../../site/dungeon-maps/${visual.mapKey}.png`, import.meta.url)) : null;
-      if (mapFile) {
-        try {
-          const map = await sharp(mapFile).resize(mw - 2, mh - 2, { fit: "contain", background: "#140e08" }).png().toBuffer();
-          shapes.push(`<image x="${mx + 1}" y="${my + 1}" width="${mw - 2}" height="${mh - 2}" opacity=".85" href="data:image/png;base64,${map.toString("base64")}"/>`);
-        } catch { /* no map file: grid only */ }
-      }
-      for (let g = 1; g < 8; g++) shapes.push(`<line x1="${mx + (mw * g) / 8}" y1="${my}" x2="${mx + (mw * g) / 8}" y2="${my + mh}" stroke="${th.edge}" stroke-opacity=".35"/>`);
-      for (let g = 1; g < 3; g++) shapes.push(`<line x1="${mx}" y1="${my + (mh * g) / 3}" x2="${mx + mw}" y2="${my + (mh * g) / 3}" stroke="${th.edge}" stroke-opacity=".35"/>`);
-      for (const point of visual.deathPoints!.slice(0, 200)) {
-        const x = mx + Math.min(1, Math.max(0, point.x)) * mw, y = my + Math.min(1, Math.max(0, point.y)) * mh;
-        shapes.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="22" fill="url(#heat)"/>`, `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="#ffd0c8"/>`);
-      }
-    }
-    await put(caps(th.muted, clip(visual.deathMapLabel ?? "", 34)), 13, mx + 8, my + 4, mw - 16);
-  }
-
-  let bx = 60;
-  for (const badge of card.badges ?? []) {
-    const tone = badge.tone === "ok" ? th.ok : badge.tone === "warn" ? th.warn : th.quiet, ink = badge.tone === "ok" ? th.green : badge.tone === "warn" ? th.gold : th.muted;
-    const t = await text(span(ink, clip(badge.text, 44)), 19, 600), w = t.width + 42;
-    if (bx + w > 580) break;
-    shapes.push(rect(bx, 526, w, 36, tone.fill, tone.edge, 18), `<circle cx="${bx + 19}" cy="544" r="5" fill="${ink}"/>`);
-    layers.push({ input: t.input, left: bx + 32, top: 544 - Math.round(t.height / 2) });
-    bx += w + 12;
-  }
-  shapes.push(`<rect x="60" y="578" width="1080" height="1" fill="${th.edge}"/>`);
-  await put(span(th.muted, clip(card.footer, 260)), 17, 60, 590, 1080, true);
-  const overlay = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">${shapes.join("")}</svg>`);
-  return sharp(art).composite([{ input: overlay, left: 0, top: 0 }, ...layers]).png().toBuffer();
-}
-
-// The daily recap: the painted scene behind everything, the header top left, a strip of up to four stats, then one frosted
-// panel per section side by side (one to three), each with up to five rows.
-async function renderRecap(card: ScoreCard): Promise<Buffer> {
-  const visual = card.recap!, accent = { gold: th.gold, green: th.green, red: th.red } as const, layers: Layer[] = [];
-  // An approved painting (card.backdrop, "wide": text reaches the right edge) replaces the painted scene; without a file the scene is drawn as before.
-  const painting = await cardBackdropArt(card.backdrop, "wide");
-  const art = painting ? await sharp(painting).png().toBuffer() : await sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">${dungeonArt(visual.theme)}</svg>`)).png().toBuffer();
-  const shapes: string[] = [`<defs><linearGradient id="rshade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity=".55"/><stop offset=".45" stop-color="#000" stop-opacity=".35"/><stop offset="1" stop-color="#000" stop-opacity=".6"/></linearGradient></defs>`,
-    `<rect width="1200" height="630" fill="url(#rshade)"/>`, `<rect width="12" height="630" fill="${th.bar}"/>`,
-    `<rect x="26" y="14" width="1160" height="602" rx="6" fill="none" stroke="${th.frame}" stroke-width="2"/>`];
-  const shadowed = async (t: { input: Buffer; width: number; height: number }, left: number, y: number) => {
-    const pad = 8, shadow = await sharp(t.input).extend({ top: pad, bottom: pad, left: pad, right: pad, background: { r: 0, g: 0, b: 0, alpha: 0 } })
-      .linear([0, 0, 0, 0.85], [0, 0, 0, 0]).blur(3.5).png().toBuffer();
-    layers.push({ input: shadow, left: Math.round(left) - pad + 1, top: Math.round(y) - pad + 2 }, { input: t.input, left: Math.round(left), top: Math.round(y) });
-  };
-  const put = async (markup: string, size: number, left: number, y: number, maxWidth = 1080, shade = false, fixed = false) => {
-    const t = await text(markup, size, maxWidth, fixed);
-    if (shade) await shadowed(t, left, y); else layers.push({ input: t.input, left: Math.round(left), top: Math.round(y) });
-    return t;
-  };
-  const putRight = async (markup: string, size: number, right: number, y: number) => {
-    const t = await text(markup, size, 200); layers.push({ input: t.input, left: Math.round(right - t.width), top: Math.round(y) }); return t;
-  };
-  await put(caps(th.gold, clip(card.eyebrow ?? "Guilded", 44)), 20, 60, 38, 700, true);
-  const titleLen = [...drawable(card.title)].length;
-  await put(span(th.ink, clip(card.title, 34)), titleLen <= 20 ? 52 : 40, 58, 64, 1080, true);
-  await put(span(th.muted, clip(card.subtitle, 60)), 24, 60, 132, 1080, true);
-
-  // Stats strip.
-  const stats = card.stats.slice(0, 4);
-  const sw = stats.length ? Math.floor((1080 - (stats.length - 1) * 16) / stats.length) : 0;
-  for (const [i, stat] of stats.entries()) {
-    const x = 60 + i * (sw + 16), color = accent[stat.accent ?? "gold"];
-    shapes.push(rect(x, 178, sw, 92, th.bg, th.edge, 12).replace("/>", ' fill-opacity=".62"/>'), `<rect x="${x + 16}" y="196" width="4" height="20" rx="2" fill="${color}"/>`);
-    await put(caps(th.muted, clip(stat.label, 26)), 14, x + 28, 196, sw - 40);
-    await put(span(color, clip(stat.value, 10)), 38, x + 16, 218, sw - 32);
-  }
-
-  // Section panels: frosted art behind each.
-  const sections = visual.sections.slice(0, 3), top = 290, ph = 276;
-  const pw = sections.length ? Math.floor((1080 - (sections.length - 1) * 20) / sections.length) : 0;
-  for (const [i, section] of sections.entries()) {
-    const px = 60 + i * (pw + 20);
-    const frost = await sharp(art).extract({ left: px, top, width: pw, height: ph }).blur(14).modulate({ brightness: 0.5, saturation: 0.95 })
-      .composite([{ input: Buffer.from(`<svg width="${pw}" height="${ph}"><rect width="${pw}" height="${ph}" rx="14"/></svg>`), blend: "dest-in" }]).png().toBuffer();
-    shapes.push(`<image x="${px}" y="${top}" width="${pw}" height="${ph}" href="data:image/png;base64,${frost.toString("base64")}"/>`,
-      `<rect x="${px}" y="${top}" width="${pw}" height="${ph}" rx="14" fill="${th.bg}" fill-opacity=".35" stroke="${th.edge}" stroke-width="1.5"/>`,
-      `<rect x="${px + 20}" y="${top + 44}" width="${pw - 40}" height="1" fill="${th.edge}"/>`);
-    const subChars = Math.max(16, Math.floor((pw - 40) / 7.5));
-    await put(caps(th.gold, clip(section.title, Math.floor(pw / 12))), 15, px + 20, top + 16, pw - 40);
-    const hasRight = section.rows.some(row => row.right);
-    for (const [r, row] of section.rows.slice(0, 5).entries()) {
-      const ry = top + 56 + r * 44;
-      await put(span(row.color ?? th.ink, clip(row.name, 80)), 20, px + 20, ry, pw - (hasRight ? 110 : 40), false, true);
-      if (row.sub) await put(span(th.muted, clip(row.sub, subChars)), 14, px + 20, ry + 24, pw - 40);
-      if (row.right) await putRight(span(accent[row.rightTone ?? "gold"], clip(row.right, 8)), 22, px + pw - 20, ry + 2);
-    }
-  }
-  shapes.push(`<rect x="60" y="578" width="1080" height="1" fill="${th.edge}"/>`);
-  await put(span(th.muted, clip(card.footer, 260)), 17, 60, 590, 1080, true);
-  const overlay = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">${shapes.join("")}</svg>`);
-  return sharp(art).composite([{ input: overlay, left: 0, top: 0 }, ...layers]).png().toBuffer();
-}
-
-/** Words wrapped to at most `maxLines` lines of about `chars` characters; the last line ends in an ellipsis if text is left over. */
-function wrap(body: string, chars: number, maxLines: number): string[] {
-  const lines: string[] = [];
-  let line = "";
-  for (const word of body.split(/\s+/).filter(Boolean)) {
-    if (line && [...line].length + 1 + [...word].length > chars) { lines.push(line); line = word; } else line = line ? `${line} ${word}` : word;
-  }
-  if (line) lines.push(line);
-  if (lines.length <= maxLines) return lines;
-  const kept = lines.slice(0, maxLines);
-  kept[maxLines - 1] = clip(`${kept[maxLines - 1]} ${lines[maxLines]}`, chars);
-  return kept;
-}
-/** Role colours can be near-black on this dark card: mix dark ones toward white so the pill stays readable. */
-function legible(hex: string): string {
-  const m = /^#([0-9a-f]{6})$/i.exec(hex);
-  if (!m) return th.muted;
-  const channels = [0, 2, 4].map(i => parseInt(m[1]!.slice(i, i + 2), 16));
-  const luma = (0.299 * channels[0]! + 0.587 * channels[1]! + 0.114 * channels[2]!) / 255;
-  const mix = luma < 0.45 ? (0.45 - luma) * 1.6 : 0;
-  return `#${channels.map(c => Math.round(c + (255 - c) * mix).toString(16).padStart(2, "0")).join("")}`;
-}
-const sparkle = (cx: number, cy: number, r: number, color: string, opacity: number) =>
-  `<path d="M${cx} ${cy - r}Q${cx} ${cy} ${cx + r} ${cy}Q${cx} ${cy} ${cx} ${cy + r}Q${cx} ${cy} ${cx - r} ${cy}Q${cx} ${cy} ${cx} ${cy - r}Z" fill="${color}" fill-opacity="${opacity}"/>`;
-
-/**
- * The achievement-unlocked card. One unlock: the badge is the hero, in a tier-coloured glow, with the name,
- * description and tier ribbon beside it. Several: a "+N" headline, progress and tier counts on the left, and
- * a list (up to 4) or a grid (up to 8, then "+N more") of the new achievements on the right.
- */
-async function renderUnlock(card: ScoreCard): Promise<Buffer> {
-  const all = card.unlocks!, shapes = chrome(), layers: Layer[] = [];
-  // The trophy-hall painting (board/achievements) behind the card: "wide" for the single hero (text across the card), "full" for the
-  // list and grid (the right panel is opaque, so only the left column needs the shade). No file: the flat card as before.
-  withArt(shapes, await cardBackdropArt(card.backdrop, all.length === 1 ? "wide" : "full"), 630);
-  const put = async (markup: string, size: number, left: number, top: number, maxWidth = 1080, fixed = false) => {
-    const t = await text(markup, size, maxWidth, fixed); layers.push({ input: t.input, left: Math.round(left), top: Math.round(top) }); return t;
-  };
-  const putRight = async (markup: string, size: number, right: number, top: number) => {
-    const t = await text(markup, size, 400); layers.push({ input: t.input, left: Math.round(right - t.width), top: Math.round(top) }); return t;
-  };
-  const putCentre = async (markup: string, size: number, centre: number, top: number) => {
-    const t = await text(markup, size, 300); layers.push({ input: t.input, left: Math.round(centre - t.width / 2), top: Math.round(top) });
-  };
-  /** A pill sized to its text: tinted with a diamond for a tier, quiet with a dot otherwise. Returns its width. */
-  const pill = async (x: number, y: number, label: string, color: string, tinted: boolean) => {
-    const t = await text(tinted ? caps(color, clip(label, 28)) : span(color, clip(label, 28)), tinted ? 17 : 19, 400);
-    const w = t.width + 52;
-    shapes.push(`<rect x="${x}" y="${y}" width="${w}" height="38" rx="19" fill="${tinted ? color : th.quiet.fill}" fill-opacity="${tinted ? 0.16 : 1}" stroke="${tinted ? color : th.quiet.edge}" stroke-width="1.5"/>`,
-      tinted ? `<path d="M${x + 22} ${y + 12}l7 7-7 7-7-7z" fill="${color}"/>` : `<circle cx="${x + 22}" cy="${y + 19}" r="4.5" fill="${th.muted}"/>`);
-    layers.push({ input: t.input, left: x + 38, top: y + 19 - Math.round(t.height / 2) });
-    return w;
-  };
-  const progressBar = (x: number, y: number, w: number, h: number, ratio: number) => {
-    const fill = Math.max(h, Math.round(w * Math.min(1, Math.max(0, ratio))));
-    shapes.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${h / 2}" fill="#1a120a" stroke="${th.edge}" stroke-width="1.5"/>`,
-      `<rect x="${x + 2}" y="${y + 2}" width="${fill - 4}" height="${h - 4}" rx="${(h - 4) / 2}" fill="url(#bar)"/>`);
-  };
-  shapes.push(`<defs><linearGradient id="bar" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#a87a14"/><stop offset="1" stop-color="${th.gold}"/></linearGradient></defs>`);
-
-  // Header: eyebrow, member name (shrinks with its length), subtitle.
-  const single = all.length === 1, lead = single ? 1080 : 500, len = [...card.title].length;
-  const size = len <= 14 ? 62 : len <= 22 ? 54 : len <= 30 ? 46 : 40;
-  // A Discord avatar (added at delivery) sits left of the name in a gold ring; an unreadable image is skipped.
-  const nameX = card.portrait && await ringPortrait(card.portrait, shapes, layers) ? 162 : 58;
-  await put(caps(th.gold, clip(card.eyebrow ?? "Guilded", 44)), 20, 60, 40, lead);
-  await put(span(th.ink, clip(card.title, 48)), nameX > 100 ? Math.min(size, 50) : size, nameX, 68 + (62 - (nameX > 100 ? Math.min(size, 50) : size)) / 2 + (nameX > 100 ? 10 : 0), lead - nameX);
-  // Discord role as a pill at the right of the header (single-unlock layout; the batch layouts have no room).
-  if (single && card.rank) {
-    const color = legible(card.rank.color), t = await text(span(color, clip(card.rank.label, 24)), 21, 400), w = t.width + 52, x = 1140 - w;
-    shapes.push(`<rect x="${x}" y="76" width="${w}" height="40" rx="20" fill="${color}" fill-opacity=".14" stroke="${color}" stroke-width="1.5"/>`, `<circle cx="${x + 22}" cy="96" r="6" fill="${color}"/>`);
-    layers.push({ input: t.input, left: x + 38, top: 96 - Math.round(t.height / 2) });
-  }
-  await put(span(th.muted, clip(card.subtitle, single ? 90 : 38)), 25, 60, nameX > 100 ? 156 : 146, lead);
-
-  const progress = card.progress;
-  if (single) {
-    const hero = all[0]!, cx = 255, cy = 392, color = hero.color;
-    // Glow, a ring with tick marks, a few sparkles, then the badge itself.
-    shapes.push(`<defs><radialGradient id="glow" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="${color}" stop-opacity=".55"/><stop offset=".55" stop-color="${color}" stop-opacity=".16"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></radialGradient></defs>`,
-      `<circle cx="${cx}" cy="${cy}" r="215" fill="url(#glow)"/>`,
-      `<circle cx="${cx}" cy="${cy}" r="158" fill="${th.panel}" fill-opacity=".65" stroke="${color}" stroke-opacity=".55" stroke-width="2"/>`,
-      ...Array.from({ length: 36 }, (_, i) => {
-        const a = (i * Math.PI) / 18, outer = i % 3 === 0 ? 182 : 174;
-        return `<line x1="${(cx + 166 * Math.cos(a)).toFixed(1)}" y1="${(cy + 166 * Math.sin(a)).toFixed(1)}" x2="${(cx + outer * Math.cos(a)).toFixed(1)}" y2="${(cy + outer * Math.sin(a)).toFixed(1)}" stroke="${color}" stroke-opacity="${i % 3 === 0 ? 0.55 : 0.3}" stroke-width="2"/>`;
-      }),
-      sparkle(cx + 150, cy - 140, 13, color, 0.9), sparkle(cx - 160, cy - 100, 8, th.ink, 0.7), sparkle(cx + 170, cy + 92, 9, th.ink, 0.6), sparkle(cx - 124, cy + 136, 11, color, 0.8),
-      `<svg x="${cx - 128}" y="${cy - 128}" width="256" height="256" viewBox="0 0 64 64">${hero.icon}</svg>`);
-
-    // A shaded panel under the text so it reads over the painting (the same look as the list panel, a little see-through).
-    shapes.push(`<rect x="476" y="196" width="684" height="366" rx="14" fill="${th.panel}" fill-opacity=".86" stroke="${th.edge}" stroke-width="1.5"/>`);
-    const x = 500, ribbon = await pill(x, 212, hero.tier, color, true);
-    await pill(x + ribbon + 12, 212, hero.group, th.muted, false);
-    const nlen = [...hero.name].length, nsize = nlen <= 14 ? 68 : nlen <= 20 ? 58 : 48;
-    const name = await put(span(color, clip(hero.name, 30)), nsize, x - 2, 262, 650);
-    let y = 262 + name.height + 6;
-    for (const line of wrap(hero.detail, 44, 2)) { const t = await put(span(th.ink, line), 27, x, y, 650); y += t.height + 2; }
-    if (progress) {
-      shapes.push(`<rect x="${x}" y="444" width="4" height="22" rx="2" fill="${th.gold}"/>`);
-      await put(caps(th.muted, clip(progress.label, 36)), 17, x + 16, 446, 640);
-      const value = await put(span(th.gold, `${progress.value}/${progress.max}`), 58, x - 2, 470, 300);
-      const bx = x + Math.max(150, value.width + 28);
-      progressBar(bx, 494, 1140 - bx, 20, progress.value / Math.max(1, progress.max));
-      if (progress.note) await putRight(span(th.muted, progress.note), 19, 1140, 522);
-    }
-  } else {
-    // Left column: the "+N" headline, overall progress, tier counts.
-    const [big] = card.stats;
-    shapes.push(`<rect x="60" y="218" width="4" height="24" rx="2" fill="${th.gold}"/>`);
-    await put(caps(th.muted, clip(big?.label ?? "", 30)), 17, 76, 220, lead);
-    await put(span(th.gold, clip(big?.value ?? `+${all.length}`, 6)), 124, 54, 240, lead);
-    if (progress) {
-      shapes.push(`<rect x="60" y="404" width="4" height="20" rx="2" fill="${th.gold}"/>`);
-      await put(caps(th.muted, clip(progress.label, 30)), 15, 76, 406, lead);
-      await put(span(th.gold, `${progress.value}/${progress.max}`), 44, 58, 426, 300);
-      if (progress.note) await putRight(span(th.muted, progress.note), 19, 500, 440);
-      progressBar(60, 494, 440, 16, progress.value / Math.max(1, progress.max));
-    }
-    let bx = 60;
-    for (const tier of card.tierCounts ?? []) {
-      const w = await pill(bx, 526, `${tier.count} ${tier.label}`, tier.color, true);
-      bx += w + 10;
-      if (bx > 440) break;
-    }
-
-    // Right panel: a list of up to four large rows, or a grid of up to eight tiles ("+N more" takes the last one).
-    const px = 560, pw = 580, top = 60, grid = all.length > 4, area = top + 70;
-    const limit = grid ? ((card.unlocksMore ?? 0) > 0 || all.length > 8 ? 7 : 8) : 4, shown = all.slice(0, limit);
-    const more = (card.unlocksMore ?? 0) + (grid ? all.length - shown.length : 0);
-    shapes.push(rect(px, top, pw, 450, th.panel, th.edge, 14));
-    await put(caps(th.muted, clip(card.rowsLabel ?? "", 40)), 17, px + 28, top + 22, pw - 56);
-    shapes.push(`<rect x="${px + 28}" y="${top + 54}" width="${pw - 56}" height="1" fill="${th.edge}"/>`);
-    if (!grid) {
-      const rowH = Math.min(170, Math.floor(372 / shown.length)), big = rowH >= 120;
-      for (const [i, row] of shown.entries()) {
-        const ry = area + i * rowH, bs = Math.min(112, rowH - 16), tx = px + 28 + bs + 18, tw = pw - 56 - bs - 18;
-        if (i) shapes.push(`<rect x="${px + 28}" y="${ry - 6}" width="${pw - 56}" height="1" fill="${th.edge}" fill-opacity=".6"/>`);
-        shapes.push(`<svg x="${px + 28}" y="${ry + Math.round((rowH - 6 - bs) / 2)}" width="${bs}" height="${bs}" viewBox="0 0 64 64">${row.icon}</svg>`);
-        const tier = await putRight(span(row.color, clip(row.tier, 12)), big ? 24 : 22, px + pw - 28, ry + (big ? 18 : 4));
-        const nameT = await put(span(row.color, clip(row.name, 80)), big ? 29 : 27, tx, ry + (big ? 16 : 2), tw - tier.width - 10, true);
-        let ty = ry + (big ? 16 : 2) + nameT.height + 6;
-        for (const line of wrap(row.detail, 44, 2)) { const t = await put(span(th.muted, line), big ? 20 : 17, tx, ty, tw); ty += t.height + 1; }
-      }
-    } else {
-      const tw = (pw - 56 - 16) / 2, tileH = 88, at = (i: number) => ({ x: px + 28 + (i % 2) * (tw + 16), y: area + Math.floor(i / 2) * (tileH + 6) });
-      for (const [i, row] of shown.entries()) {
-        const { x, y } = at(i);
-        shapes.push(`<rect x="${x}" y="${y}" width="${tw}" height="${tileH}" rx="10" fill="#1a120a" stroke="${row.color}" stroke-opacity=".5" stroke-width="1.5"/>`,
-          `<svg x="${x + 10}" y="${y + 14}" width="60" height="60" viewBox="0 0 64 64">${row.icon}</svg>`);
-        let ty = y + 7;
-        for (const line of wrap(row.name, 17, 2)) { await put(span(th.ink, line), 18, x + 80, ty, tw - 88); ty += 23; }
-        await put(span(row.color, clip(row.tier, 12)), 16, x + 80, y + tileH - 28, tw - 88);
-      }
-      if (more > 0) {
-        const { x, y } = at(shown.length);
-        shapes.push(`<rect x="${x}" y="${y}" width="${tw}" height="${tileH}" rx="10" fill="none" stroke="${th.edge}" stroke-width="1.5" stroke-dasharray="6 5"/>`);
-        await putCentre(span(th.gold, `+${more}`), 40, x + tw / 2, y + 6);
-        await putCentre(caps(th.muted, card.moreLabel ?? "more"), 15, x + tw / 2, y + 58);
-      }
-    }
-  }
-
-  shapes.push(`<rect x="60" y="578" width="1080" height="1" fill="${th.edge}"/>`);
-  await put(span(th.muted, clip(card.footer, 260)), 17, 60, 590);
-  const base = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">${shapes.join("")}</svg>`);
-  return sharp(base).composite(layers).png().toBuffer();
-}
-
-/**
- * The roster card: class rows with one bar segment per level band (class colour, darker = higher band) on the left,
- * the profession grid on the right (a profession nobody has is drawn red). Bounded: at most 13 class rows and 12
- * profession tiles, so 0, 1 or 150 members never overlap.
- */
-async function renderRoster(card: ScoreCard): Promise<Buffer> {
-  const data = card.roster!, shapes = chrome(), layers: Layer[] = [];
-  withArt(shapes, await cardBackdropArt(card.backdrop, "banner"), BANNER_HEIGHT);
-  const put = async (markup: string, size: number, left: number, top: number, maxWidth = 1080, fixed = false) => {
-    const t = await text(markup, size, maxWidth, fixed); layers.push({ input: t.input, left: Math.round(left), top: Math.round(top) }); return t;
-  };
-  const putRight = async (markup: string, size: number, right: number, top: number) => {
-    const t = await text(markup, size, 300); layers.push({ input: t.input, left: Math.round(right - t.width), top: Math.round(top) }); return t;
-  };
-  await put(caps(th.gold, clip(card.eyebrow ?? "Guilded", 44)), 20, 60, 40);
-  await put(span(th.ink, clip(card.title, 40)), 56, 58, 66, 1080);
-  await put(span(th.muted, clip(card.subtitle, 90)), 24, 60, 142);
-
-  // Left panel: classes by level band.
-  const lx = 60, ly = 188, lw = 590, lh = 372, opacity = [0.35, 0.55, 0.78, 1];
-  shapes.push(rect(lx, ly, lw, lh, th.panel, th.edge, 14));
-  data.bands.slice(0, 4).forEach((band, i) => shapes.push(`<rect x="${lx + 24 + i * 112}" y="${ly + 18}" width="14" height="14" rx="3" fill="${th.gold}" fill-opacity="${opacity[i] ?? 1}"/>`));
-  for (const [i, band] of data.bands.slice(0, 4).entries()) await put(span(th.muted, clip(band, 8)), 16, lx + 44 + i * 112, ly + 14, 90);
-  const classes = data.classes.slice(0, 13);
-  if (!classes.length) {
-    await put(span(th.muted, "—"), 30, lx + 24, ly + 120, lw - 48);
-  } else {
-    const rowH = Math.min(28, Math.floor((lh - 70) / classes.length)), barX = lx + 170, barW = lw - 170 - 70, max = Math.max(1, ...classes.map((c) => c.total));
-    for (const [i, c] of classes.entries()) {
-      const y = ly + 54 + i * rowH, color = legible(c.color);
-      await putRight(span(color, clip(c.name, 24)), Math.min(20, rowH - 4), barX - 12, y);
-      let x = barX;
-      for (const [band, count] of c.byBand.entries()) {
-        const w = count ? Math.max(2, Math.round((count / max) * barW)) : 0;
-        if (w) shapes.push(`<rect x="${x}" y="${y + 2}" width="${w}" height="${Math.max(8, rowH - 8)}" fill="${c.color}" fill-opacity="${opacity[band] ?? 1}"/>`);
-        x += w;
-      }
-      await put(span(th.ink, String(c.total)), Math.min(19, rowH - 5), x + 8, y, 60);
-    }
-  }
-
-  // Right panel: profession grid, 3 columns.
-  const rx = 674, rw = 466, tiles = data.professions.slice(0, 12), tw = Math.floor((rw - 48 - 16) / 3), th2 = 66;
-  shapes.push(rect(rx, ly, rw, lh, th.panel, th.edge, 14));
-  await put(caps(th.muted, card.rosterProfessionsLabel ?? "Professions"), 16, rx + 24, ly + 14, rw - 48);
-  for (const [i, p] of tiles.entries()) {
-    const x = rx + 24 + (i % 3) * (tw + 8), y = ly + 52 + Math.floor(i / 3) * (th2 + 8), gap = p.crafters === 0;
-    shapes.push(`<rect x="${x}" y="${y}" width="${tw}" height="${th2}" rx="8" fill="${gap ? th.warn.fill : th.ok.fill}" stroke="${gap ? th.red : th.ok.edge}" stroke-width="1.5"/>`);
-    await put(span(th.ink, clip(p.name, 80)), 16, x + 8, y + 6, tw - 10, true);
-    await put(span(gap ? th.red : th.green, gap ? "0" : String(p.crafters)), 24, x + 10, y + 28, 60);
-    if (!gap) await putRight(span(th.muted, String(p.maxSkill)), 17, x + tw - 10, y + 36);
-  }
-
-  shapes.push(`<rect x="60" y="578" width="1080" height="1" fill="${th.edge}"/>`);
-  await put(span(th.muted, clip(card.footer, 260)), 17, 60, 590);
-  const base = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">${shapes.join("")}</svg>`);
-  return sharp(base).composite(layers).png().toBuffer();
-}
-
 /** Alt text of each drawn picture, kept by the buffer itself so the image goes out with its description (card-alt.ts). */
 const altTexts = new WeakMap<Buffer, string>();
 export const altTextOf = (png: Buffer): string | undefined => altTexts.get(png);
@@ -914,7 +377,7 @@ export async function scoreCardPng(source: ScoreCard, options: { branded?: boole
   let work = pending.get(key);
   if (!work) {
     if (pending.size >= 2) return null;
-    work = withBadgeImages(card).then(render);
+    work = withBadgeImages(card).then(prepared => render(prepared, Boolean(options.branded)));
     pending.set(key, work);
   }
   try {

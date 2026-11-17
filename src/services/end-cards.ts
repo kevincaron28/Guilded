@@ -111,7 +111,7 @@ export function achievementsCard(name: string, items: AchievementCardItem[], lan
   return {
     eyebrow: t("Guilded · Achievements", "Guilded · Succès"), title: name,
     backdrop: { kind: "board", key: "achievements" },
-    subtitle: t("Computed from recorded guild data", "Données enregistrées de la guilde"),
+    subtitle: "",
     stats: [
       { label: t("Unlocked", "Débloqués"), value: `${earned.length}/${rows.length}${hiddenSecrets ? ` ${secretCountLabel(hiddenSecrets)}` : ""}`, accent: earned.length ? "gold" : "red", note: t(`${Math.round(rows.length ? (earned.length / rows.length) * 100 : 0)}% of the catalogue`, `${Math.round(rows.length ? (earned.length / rows.length) * 100 : 0)} % du catalogue`) },
       { label: "WoW", value: count("wow") }, { label: t("Guild", "Guilde"), value: count("guild") }
@@ -140,7 +140,8 @@ export function serverAnniversaryCard(input: ServerAnniversaryCardInput, lang: L
       { label: t("Achievements earned", "Succès obtenus"), value: String(input.achievementsEarned) }
     ],
     rowsLabel: t("Longest-standing members", "Membres de longue date"),
-    rows: input.oldestMembers.slice(0, 5).map(member => ({ name: member.displayName, sub: t(`Member since ${day(member.createdAt)}`, `Membre depuis le ${day(member.createdAt)}`), color: "#ffd100", right: "🎂" })),
+    rows: input.oldestMembers.slice(0, 5).map(member => ({ name: member.displayName, sub: t(`Member since ${day(member.createdAt)}`, `Membre depuis le ${day(member.createdAt)}`), color: "#ffd100" })),
+    backdrop: { kind: "board", key: "anniversary", fallbackKey: "community" },
     badges: [{ text: t("Members earn Anniversary achievements", "Les membres obtiennent des succès d'anniversaire"), tone: "ok" }],
     footer: t("Celebrating together · Member dates are when each member was first recorded · No points · guildedwow.com", "On fête ensemble · Dates de membre : première inscription de chaque membre · Aucun point · guildedwow.com")
   };
@@ -169,7 +170,7 @@ export function achievementUnlockedCard(name: string, ids: string[], totalEarned
   return {
     eyebrow: secretNow ? `Guilded · ${t("Secret achievement unlocked!", "Succès secret débloqué !")}` : t("Guilded · Achievement unlocked", "Guilded · Succès débloqué"), title: name,
     backdrop: { kind: "board", key: "achievements" },
-    subtitle: t("Computed from recorded guild data", "Données enregistrées de la guilde"),
+    subtitle: "",
     stats: [
       { label: t("Unlocked now", "Débloqués"), value: `+${defs.length}`, accent: "gold" },
       { label: t("Total", "Total"), value: `${totalEarned}/${total}` }

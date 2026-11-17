@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { cardBackdropArt } from "./card-backdrop.js";
+import { cardBackdropArt as paintedArt, type BackdropVariant, type CardBackdrop } from "./card-backdrop.js";
+import { plainArt } from "./card-layouts-recap.js";
+import { renderGenericCard, renderRecapKind } from "./card-next-recap.js";
 import { renderBannerCard, renderDungeonCard, renderResultCard, type CardSpecLadderRow, type DungeonPartyRow, type NextCardSpec } from "./card-layouts-next.js";
 import { GOOD } from "./card-kit.js";
 import { dungeonBackdrop } from "./dungeon-backdrop.js";
@@ -12,18 +14,22 @@ import { type ScoreCard } from "./score-card.js";
  * untouched, so a message queued before this existed still draws; a card this file does not recognise (or cannot draw) returns
  * null and score-card.ts draws it as before. Renders run inside scoreCardPng's bound and cache, never a queue of their own.
  */
+/** The painting a card asks for, or a plain glow when it has none (an unapproved key, an old definition): a card is always drawn. */
+const cardBackdropArt = async (request: CardBackdrop | undefined, variant: BackdropVariant): Promise<Buffer> => (await paintedArt(request, variant)) ?? plainArt();
 const ACCENT = { green: GOOD, red: "#ff8a7a", gold: "#ffd100" } as const;
 const tail = (text: string | undefined) => (text ?? "").split("·").map((part) => part.trim()).filter(Boolean);
 const isDate = (part: string) => /^\d{4}-\d{2}-\d{2}/.test(part) || /^\d{1,2} \S+ \d{4}$/.test(part) || /^[A-Z][a-z]{2} \d{1,2}, \d{4}$/.test(part);
 
-export async function renderNextCard(card: ScoreCard): Promise<Buffer | null> {
+export async function renderNextCard(card: ScoreCard, options: { branded?: boolean } = {}): Promise<Buffer | null> {
+  const fit = !options.branded; // Discord posts are cut to their content; the website's share images keep 1200 x 630
   if (card.dungeon) return dungeonCard(card);
-  if (card.ladder && !card.recap && !card.record && !card.roster && !card.unlocks?.length) return ladderCard(card);
-  if (card.ladder || card.recap || card.record || card.roster || card.unlocks?.length) return null;
+  const recapped = await renderRecapKind(card, fit);
+  if (recapped) return recapped;
+  if (card.ladder) return ladderCard(card);
   const kind = card.backdrop?.kind;
   if (kind === "board" && card.backdrop?.key === "duel" && card.rows?.length === 2 && card.stats.length >= 1 && card.stats.length <= 3) return duelCard(card);
   if (kind === "battleground" && card.stats.length === 3) return battlegroundCard(card);
-  return dataCard(card);
+  return (await dataCard(card)) ?? renderGenericCard(card, fit);
 }
 
 async function duelCard(card: ScoreCard): Promise<Buffer | null> {
@@ -60,9 +66,8 @@ async function battlegroundCard(card: ScoreCard): Promise<Buffer | null> {
 /** Data cards (weekly report, raid report, rookie, season, welcome, PvP recap, achievements...): the painting as a banner, the first figure as the hero, the other figures on the right, up to three rows. */
 const DATA_LOOK: Record<string, Kind> = { raid: { type: "raid", emblem: "flame" }, weekly: { type: "weekly", emblem: "cup" }, "world-pvp": { type: "battleground", emblem: "duel" } };
 async function dataCard(card: ScoreCard): Promise<Buffer | null> {
-  // The achievements card keeps the row layout (medallion badges, "Latest achievements" label, all rows, footer, the member's picture on share images)
-  // with the painting behind it: the banner layout has room for none of those.
-  if (!card.backdrop || card.stats.length === 0 || card.backdrop.key === "achievements") return null;
+  // The achievements and anniversary cards (medallion badges, a picture, a list of members) use the body layout of card-layouts-recap.ts.
+  if (!card.backdrop || card.stats.length === 0 || card.backdrop.key === "achievements" || card.backdrop.key === "anniversary") return null;
   const art = await cardBackdropArt(card.backdrop, "wide");
   if (!art) return null;
   const [lead, ...rest] = card.stats as [ScoreCard["stats"][number], ...ScoreCard["stats"]];
@@ -120,8 +125,8 @@ const BOARD_LOOK: Record<string, Kind & { focus?: number }> = {
 async function ladderCard(card: ScoreCard): Promise<Buffer | null> {
   const visual = card.ladder!, key = card.backdrop?.key === "duel-ladder" ? "duel" : card.backdrop?.key ?? "";
   const boards = visual.boards.filter((board) => board.rows.length);
-  // A board longer than 25 rows (a race board set to its top 50) keeps the old long card: the banner layout shows twelve.
-  if (!boards.length || !card.backdrop || boards.some((board) => board.rows.length > 25)) return null;
+  // A board longer than 25 rows (a race board set to its top 50) keeps the long ladder of score-card.ts: the banner layout shows twelve.
+  if (boards.some((board) => board.rows.length > 25)) return null;
   const art = await cardBackdropArt(card.backdrop, "wide");
   if (!art) return null;
   const cols = visual.columns;

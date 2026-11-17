@@ -3,6 +3,7 @@ import { Card } from "./Card";
 import { colors } from "./theme";
 
 // The same painted empty-state pictures the website uses (site/images/web/empty-*.webp), 360 px square.
+/* eslint-disable @typescript-eslint/no-require-imports -- Metro needs literal require() paths for bundled images */
 const ART = {
   guild: require("../../assets/empty/empty-guild.webp"),
   runs: require("../../assets/empty/empty-runs.webp"),
@@ -11,6 +12,7 @@ const ART = {
   duel: require("../../assets/empty/empty-duel.webp"),
   season: require("../../assets/empty/empty-season.webp")
 } as const;
+/* eslint-enable @typescript-eslint/no-require-imports */
 export type EmptyArt = keyof typeof ART;
 
 /** One muted line for "nothing here yet" or "switched off". `boxed` puts it on its own panel; `art` adds a painted picture above the line. */

@@ -44,8 +44,8 @@ export function eligibleMembers(rows: readonly SeenRow[], now: Date): string[] {
 
 export function noticeText(language: string | null | undefined, url = siteUrl("/companion/")): string {
   return language === "fr"
-    ? `Ton compagnon Guilded semble avoir cessé de se synchroniser depuis le 16 novembre. S'il s'est fermé après sa mise à jour (une erreur d'emballage de la version 9.3.7 de notre part, désolé), télécharge et lance l'installateur une seule fois : ${url}
-Tes réglages et tes liens sont conservés. Si tu l'as fermé volontairement, tu peux ignorer ce message.`
+    ? `Votre compagnon Guilded semble avoir cessé de se synchroniser depuis le 16 novembre. S'il s'est fermé après sa mise à jour (une erreur dans la version 9.3.7, désolés), téléchargez et lancez l'installateur une seule fois : ${url}
+Vos réglages et vos liens sont conservés. Si vous l'avez fermé volontairement, vous pouvez ignorer ce message.`
     : `Your Guilded Companion seems to have stopped syncing since 16 November. If it closed after updating (a 9.3.7 packaging mistake on our side, sorry), download and run the installer once: ${url}
 Your settings and links are kept. If you closed it on purpose, you can ignore this.`;
 }

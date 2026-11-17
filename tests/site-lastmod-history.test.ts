@@ -3,12 +3,13 @@ import { deepenShallowClone, isShallowClone } from "../scripts/git-history.mjs";
 
 // SEO4 follow-up: Cloudflare clones shallowly, so the build must deepen history before it reads commit dates.
 type Exec = (file: string, args: string[], options?: object) => string;
+// Cast to the helper's parameter type: the mock answers only the (file, args, options) form the helper uses.
 const fakeGit = (answers: Record<string, string | Error>) => vi.fn<Exec>((_file, args) => {
   const answer = answers[args.join(" ")];
   if (answer === undefined) throw new Error(`unexpected git ${args.join(" ")}`);
   if (answer instanceof Error) throw answer;
   return answer;
-});
+}) as unknown as Parameters<typeof isShallowClone>[0] & ReturnType<typeof vi.fn<Exec>>;
 
 describe("site build git history", () => {
   it("detects a shallow clone from rev-parse and treats a failed probe as not shallow", () => {

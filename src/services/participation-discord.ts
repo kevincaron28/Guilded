@@ -3,7 +3,7 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import { hasPermission } from "../permissions.js";
 import { createParticipationService } from "./participation.js";
 import { canViewParticipationChannel, participationChannelEnabled } from "./participation-channels.js";
-import { MAX_VOICE_GAP_MS, memberEligible, messageFingerprint, normalizeEmoji, participationRules, type ParticipationRules } from "./participation-rules.js";
+import { MAX_VOICE_GAP_MS, memberEligible, messageFingerprint, participationRules, reactionEmojiCounts, type ParticipationRules } from "./participation-rules.js";
 
 export function eligibleParticipationMember(member: GuildMember, season: { audienceRoleId: string | null; channelId: string }, rules: ParticipationRules, now: Date): boolean {
   return memberEligible({ bot: member.user.bot, createdAt: member.user.createdTimestamp, joinedAt: member.joinedTimestamp,
@@ -65,11 +65,11 @@ export function createParticipationTracker(database: PrismaClient, contentAvaila
       const cfg = await load(guild);
       if (!cfg) return;
       const rules = participationRules.parse(cfg.rules);
-      if (!participationChannelEnabled(reaction.message.channel, rules) || rules.reactionDailyCap === 0 || !rules.emojis.some(emoji => normalizeEmoji(emoji) === normalizeEmoji(reaction.emoji.id ?? reaction.emoji.name ?? ""))) return;
+      if (!participationChannelEnabled(reaction.message.channel, rules) || rules.reactionDailyCap === 0 || !reactionEmojiCounts(rules, reaction.emoji.id ?? reaction.emoji.name ?? "")) return;
       const message = reaction.message.partial ? await reaction.message.fetch() : reaction.message;
       if (!message.inGuild()) return;
       const now = new Date(), age = now.getTime() - message.createdTimestamp;
-      if (message.author.bot || message.webhookId || message.author.id === user.id || ![MessageType.Default, MessageType.Reply].includes(message.type) || age < 120_000 || age > 48 * 60 * 60_000) return;
+      if (message.author.bot || message.webhookId || message.author.id === user.id || ![MessageType.Default, MessageType.Reply].includes(message.type) || age < 0 || age > 48 * 60 * 60_000) return;
       const author = await guildMember(guild, message.author.id, message.member);
       const reactor = await guildMember(guild, user.id);
       if (!author || !reactor) return;

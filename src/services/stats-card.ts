@@ -1,4 +1,5 @@
 import { EmbedBuilder } from "discord.js";
+import { cardDate } from "./card-format.js";
 import type { ScoreCard } from "./score-card.js";
 import { classColor } from "./score-card.js";
 import type { StatSnapshot } from "./stat-snapshots.js";
@@ -20,7 +21,7 @@ export function serverStatsCard(rows: StatSnapshot[], guildName: string, lang: "
     stats: [],
     ladder: { columns: [{ label: "", width: 420, kind: "bar" }, { label: t("Characters", "Personnages"), width: 90, primary: true }],
       boards: [{ rows: classes.map(([name, n], index) => ({ rank: index + 1, name: localClassName(name, lang), color: classColor(name), values: ["", String(n)], bar: { value: n, max } })) }] },
-    footer: `${last.day} UTC · ${rows.length > 1 ? `${delta >= 0 ? "+" : ""}${delta} ${t("members over", "membres sur")} ${rows.length} ${t("days", "jours")}` : t("first snapshot", "premier relevé")}`
+    footer: `${cardDate(new Date(`${last.day}T12:00:00Z`), lang, "UTC")} · ${rows.length > 1 ? `${delta >= 0 ? "+" : ""}${delta} ${t("members over", "membres sur")} ${rows.length} ${t("days", "jours")}` : t("first snapshot", "premier relevé")}`
   };
 }
 
@@ -31,7 +32,7 @@ export function serverStatsEmbed(rows: StatSnapshot[], guildName: string, lang: 
   const week = rows.slice(-7);
   const sum = (pick: (row: StatSnapshot) => number) => week.reduce((total, row) => total + pick(row), 0);
   return new EmbedBuilder().setTitle(`${guildName} · ${t("server statistics", "statistiques du serveur")}`)
-    .setDescription(t(`Snapshot of ${last.day} (UTC).`, `Relevé du ${last.day} (UTC).`) + (webUrl ? `\n${webUrl}` : ""))
+    .setDescription(t(`Snapshot of ${cardDate(new Date(`${last.day}T12:00:00Z`), lang, "UTC")}.`, `Relevé du ${cardDate(new Date(`${last.day}T12:00:00Z`), lang, "UTC")}.`) + (webUrl ? `\n${webUrl}` : ""))
     .addFields(
       { name: t("Members", "Membres"), value: `${last.discordMembers} Discord · ${last.linkedMembers} ${t("linked", "liés")} · ${last.activeMembers} ${t("active", "actifs")}`, inline: true },
       { name: t("Roster", "Effectif"), value: `${last.rosterSize} ${t("characters", "personnages")} · ${last.level60} ${t("at level 60", "au niveau 60")}`, inline: true },

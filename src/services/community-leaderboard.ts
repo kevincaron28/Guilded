@@ -1,3 +1,4 @@
+import { loadCardTimeZone } from "./card-format.js";
 import { createHash } from "node:crypto";
 import { guildWhere } from "./guild-scope.js";
 import { REST, Routes, ChannelType, PermissionFlagsBits, EmbedBuilder, escapeMarkdown, ButtonBuilder, ButtonStyle, ActionRowBuilder, type APIChannel, type APIGuildCategoryChannel, type APIGuildTextChannel, type APIMessage, type APIGuildMember, type APIUser } from "discord.js";
@@ -94,7 +95,7 @@ export function communityLeaderboardCard(input: {
  * top 3, the member, the Discord / dungeons / PvP split in small figures, the total in gold and the "since yesterday" arrows.
  */
 export function communityBoardCard(input: { lang: Lang; season: { name: string; number?: number; status: string } | null; board: BoardRow[]; names: ReadonlyMap<string, string>;
-  moves?: Movements | null; updatedAt?: Date }): ScoreCard {
+  moves?: Movements | null; updatedAt?: Date; timeZone?: string }): ScoreCard {
   const { lang, season } = input, fr = lang === "fr";
   const ranked = input.board.filter(row => row.points > 0);
   const label = season ? communitySeasonLabel({ name: season.name, ...(season.number === undefined ? {} : { number: season.number }) }, lang) : fr ? "4 dernières semaines" : "Last 4 weeks";
@@ -105,7 +106,7 @@ export function communityBoardCard(input: { lang: Lang; season: { name: string; 
     backdrop: { kind: "board", key: "community", fallbackKey: "season-podium" }, stats: [],
     footer: fr ? "Discord, donjons, duels, champs de bataille et JcJ en monde ouvert : tout compte au même classement." : "Discord, dungeons, duels, battlegrounds and open-world PvP all count on the same board.",
     ladder: {
-      meta: ladderMeta(lang, input.updatedAt ?? new Date(), null),
+      meta: ladderMeta(lang, input.updatedAt ?? new Date(), null, input.timeZone),
       empty: fr ? "Aucun point pour le moment." : "No points yet.",
       columns: [{ label: "Discord", width: 64 }, { label: fr ? "Donjons" : "Dungeons", width: 70 }, { label: fr ? "JcJ" : "PvP", width: 56 },
         { label: "Total", width: 70, primary: true }, ...(input.moves ? [moveColumn(lang)] : [])],
@@ -209,7 +210,7 @@ export async function updateCommunityLeaderboard(rest: REST, database: PrismaCli
   const sibling = (key: "activities" | "chat") => channels.find(c => c.type === ChannelType.GuildText && c.parent_id === category.id && communityChannelNames(key).includes(c.name ?? ""))?.id;
   const ranked = board.filter(row => row.points > 0);
   const moves = ranked.length ? await trackRanks(database, record.id, `community:${season?.id ?? "recent"}`.slice(0, 120), ranked.map(row => row.userId)) : null;
-  const cardInput = { lang, season, board, names, moves };
+  const cardInput = { lang, season, board, names, moves, timeZone: await loadCardTimeZone(database, record.id) };
   const png = ranked.length ? await scoreCardPng(communityBoardCard(cardInput)).catch(() => null) : null;
   // The file name carries a hash of what the card shows, so a changed card is a new file and an unchanged one is never re-sent.
   const shown = JSON.stringify(ranked.slice(0, CARD_TOP).map(row => [row.userId, names.get(row.userId) ?? "", row.points, breakdownOf(row), moves?.get(row.userId) ?? null]));

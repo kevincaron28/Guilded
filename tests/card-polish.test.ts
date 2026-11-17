@@ -63,7 +63,7 @@ describe("French cards speak French", () => {
     expect(card.ladder!.boards[0]!.rows[0]!.sub).toBe("Druide · Tauren");
     expect(raceCard({ rows: [], total: 0, finished: 0, edition: "forever" }, "fr", 50, new Map(), at).ladder!.empty).toContain("Aucun personnage");
     const hall = hallCard({ order: 1, name: "Grok Solidtusk", className: "Warrior", race: "Orc", reachedAt: at, firstSeenAt: at, professions: "Mining 300, Blacksmithing 285", memberDiscordId: null }, "fr");
-    expect(hall.subtitle).toBe("Guerrier Orc · niveau 60");
+    expect(hall.subtitle).toBe("Guerrier Orc");
     expect(hall.rows!.map(r => r.name)).toEqual(["Guerrier", "Minage", "Forge"]);
   });
   it("names classes and professions in French on the roster card", () => {

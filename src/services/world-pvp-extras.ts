@@ -139,7 +139,7 @@ export function recapText(recap: WeekRecap, lang: Lang): string {
   if (recap.helper) lines.push(`📣 ${t("Most calls answered", "Le plus d'appels répondus")}: **${clean(recap.helper.name)}** (${recap.helper.helped})`);
   if (recap.quickest) lines.push(`⏱️ ${t("Quickest all clear", "Alerte levée la plus rapide")}: **${clean(recap.quickest.character)}** — ${clean(recap.quickest.zone)}, ${duration(recap.quickest.seconds)}`);
   // The guild total, only once a member's addon sent deaths: the board ranks on kills, so this is context, not a contest.
-  if (recap.totals.deaths > 0) lines.push(`☠️ ${t("The guild's open-world deaths", "Morts de la guilde en monde ouvert")}: **${recap.totals.deaths}** (${t("K/D", "R/M")} ${killDeathRatio(recap.totals.kills, recap.totals.deaths)})`);
+  if (recap.totals.deaths > 0) lines.push(`☠️ ${t("The guild's open-world deaths", "Morts de la guilde en monde ouvert")}: **${recap.totals.deaths}** (${t("K/D", "V/M")} ${killDeathRatio(recap.totals.kills, recap.totals.deaths)})`);
   lines.push(`-# ${t("Counted by members' Guilded addon, capped each week · no points or awards", "Comptés par l'addon Guilded des membres, plafonnés chaque semaine · aucun point ni récompense")}`);
   return lines.join("\n");
 }

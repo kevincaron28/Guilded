@@ -1,4 +1,5 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
+import { plural } from "./card-plural.js";
 import { escapeHtml as h } from "./web-layout.js";
 import { healthCharacters, LEVEL_BANDS } from "./guild-health.js";
 import { classColor, type ScoreCard } from "./score-card.js";
@@ -75,7 +76,7 @@ const BAND_OPACITY = [0.35, 0.55, 0.78, 1];
 export function rosterVisualCard(visual: RosterVisual, lang: "en" | "fr", title: string): ScoreCard {
   const fr = lang === "fr";
   return {
-    eyebrow: "Guilded", title, subtitle: fr ? `${visual.characters} personnages · ${visual.members} membres` : `${visual.characters} characters · ${visual.members} members`,
+    eyebrow: fr ? "Effectif" : "Roster", title, subtitle: `${plural(lang, visual.characters, ["character", "characters"], ["personnage", "personnages"])} · ${plural(lang, visual.members, ["member", "members"], ["membre", "membres"])}`,
     stats: [{ label: fr ? "Personnages" : "Characters", value: String(visual.characters) }], footer: fr ? "Personnages liés des membres actifs · mêmes chiffres que /report guild" : "Linked characters of active members · same numbers as /report guild",
     // Class and profession names in the guild's language (the data keeps the English names).
     roster: { ...visual, classes: visual.classes.map(c => ({ ...c, name: localClassName(c.name, lang) })), professions: visual.professions.map(p => ({ ...p, name: professionName(p.name, lang) })) },

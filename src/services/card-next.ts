@@ -13,7 +13,7 @@ import { type ScoreCard } from "./score-card.js";
  */
 const ACCENT = { green: GOOD, red: "#ff8a7a", gold: "#ffd100" } as const;
 const tail = (text: string | undefined) => (text ?? "").split("·").map((part) => part.trim()).filter(Boolean);
-const isDate = (part: string) => /^\d{4}-\d{2}-\d{2}/.test(part);
+const isDate = (part: string) => /^\d{4}-\d{2}-\d{2}/.test(part) || /^\d{1,2} \S+ \d{4}$/.test(part) || /^[A-Z][a-z]{2} \d{1,2}, \d{4}$/.test(part);
 
 export async function renderNextCard(card: ScoreCard): Promise<Buffer | null> {
   if (card.dungeon) return dungeonCard(card);
@@ -46,7 +46,7 @@ async function battlegroundCard(card: ScoreCard): Promise<Buffer | null> {
   if (!art) return null;
   const [result, time, format] = card.stats as [ScoreCard["stats"][number], ScoreCard["stats"][number], ScoreCard["stats"][number]];
   const { png } = await renderResultCard({
-    type: "battleground", emblem: "flag", label: (tail(card.eyebrow)[1] ?? card.title).toUpperCase(), title: card.title,
+    type: "battleground", emblem: "flag", label: (tail(card.eyebrow).slice(-2)[0] ?? card.title).toUpperCase(), title: card.title,
     hero: result.value, heroColor: ACCENT[result.accent ?? "gold"] ?? GOOD,
     stats: [{ value: time.value, label: time.label }, { value: format.value, label: format.note ?? format.label }].filter((s) => s.value && s.value !== "—"),
     strip: [card.subtitle, card.badges?.[0]?.text].filter(Boolean).join("  ·  "), art

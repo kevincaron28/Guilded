@@ -29,6 +29,8 @@ describe("world PvP recap card", () => {
     const card = worldPvpRecapCard({ ...recap, defender: null, helper: null, quickest: null }, "fr");
     expect(card.rows).toHaveLength(1);
     expect(card.title).toBe("JcJ en monde ouvert, semaine dernière");
-    expect(card.footer).toContain("guildedwow.com");
+    expect(card.footer).toContain("Aucun point");
+    expect(card.footer).not.toContain("guildedwow.com");
+    expect(card.rows![0]!.name).toBe("Meilleur tueur : Aldric");
   });
 });

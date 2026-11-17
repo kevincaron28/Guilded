@@ -9,6 +9,7 @@ import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./disc
 import { percent } from "./duels.js";
 import { displayCharacterName, loadFullNameBook } from "./character-display.js";
 import { classOf, loadClassBook, type ClassBook } from "./ladder-classes.js";
+import { loadCardTimeZone } from "./card-format.js";
 import { classColor, ladderMeta, scoreCardPng, type ScoreCard } from "./score-card.js";
 import { currentOfficialSeason, officialSeasonName } from "./season-calendar.js";
 import { loadExtrasFields } from "./world-pvp-extras.js";
@@ -62,7 +63,7 @@ export function bgLadders(groups: readonly BgGroup[], names: ReadonlyMap<string,
  * Pure: the battleground ladder picture (shared ladder layout): one panel per mode and bracket (up to 6, busiest first), top 10
  * each by wins then win rate, with class colours where the guild knows the character.
  */
-export function bgLadderCard(data: BgLadderData, lang: Lang, classes: ClassBook = new Map(), updatedAt = new Date(), moves: ReadonlyMap<string, Movements> = new Map()): ScoreCard {
+export function bgLadderCard(data: BgLadderData, lang: Lang, classes: ClassBook = new Map(), updatedAt = new Date(), moves: ReadonlyMap<string, Movements> = new Map(), timeZone?: string): ScoreCard {
   const fr = lang === "fr";
   return {
     eyebrow: `Guilded · ${fr ? "JcJ" : "PvP"}`, title: fr ? "Champs de bataille" : "Battleground ladder",
@@ -70,7 +71,7 @@ export function bgLadderCard(data: BgLadderData, lang: Lang, classes: ClassBook 
     backdrop: { kind: "board", key: "battlegrounds" },
     stats: [], footer: fr ? "Rapports de joueurs, pas des matchs vérifiés · distinct des duels · aucun point ni récompense" : "Player reports, not verified matches · separate from duels · no points or awards",
     ladder: {
-      meta: ladderMeta(lang, updatedAt), empty: fr ? "Aucun rapport de champ de bataille." : "No battleground report yet.",
+      meta: ladderMeta(lang, updatedAt, null, timeZone), empty: fr ? "Aucun rapport de champ de bataille." : "No battleground report yet.",
       columns: [{ label: fr ? "V" : "W", width: 40, primary: true }, { label: fr ? "D" : "L", width: 40 }, { label: "%", width: 52 }, { label: fr ? "Parties" : "Games", width: 56 },
         ...(moves.size ? [moveColumn(lang)] : [])],
       boards: data.brackets.slice(0, BRACKETS).map(ladder => ({ title: `${ladder.mode} · ${ladder.bracket}`, rows: ladder.standings.slice(0, CARD_TOP).map((player, index) => ({
@@ -140,14 +141,14 @@ export async function updateBgLadder(discordGuild: DiscordGuild | null, delivery
       const tracked = await trackRanks(prisma, guild.id, bgBoardKey(ladder), ladder.standings.map(player => player.memberId));
       if (tracked) moves.set(bgBoardKey(ladder), tracked);
     }
-    const png = data.brackets.length ? await scoreCardPng(bgLadderCard(data, lang, await loadClassBook(prisma, guild.id).catch(() => new Map<string, string>()), new Date(), moves)).catch(() => null) : null;
+    const png = data.brackets.length ? await scoreCardPng(bgLadderCard(data, lang, await loadClassBook(prisma, guild.id).catch(() => new Map<string, string>()), new Date(), moves, await loadCardTimeZone(prisma, guild.id))).catch(() => null) : null;
     const embed = bgLadderEmbed(data, lang, png ? BG_CARD_FILE : undefined).setTimestamp(new Date());
     const embeds = [embed], files = png ? [cardAttachment(png, BG_CARD_FILE)] : [];
     // World PvP (9.1): a second panel on the same message; officers turn it off with /battleground world-pvp.
     if (settings.worldPvpEnabled !== false) {
       const world = await loadWorldPvpData(prisma, guild.id, guild.gameEdition ?? "forever").catch(() => null);
       if (world) {
-        const worldPng = world.standings.length ? await scoreCardPng(worldPvpCard(world, lang, await loadClassBook(prisma, guild.id).catch(() => new Map<string, string>()))).catch(() => null) : null;
+        const worldPng = world.standings.length ? await scoreCardPng(worldPvpCard(world, lang, await loadClassBook(prisma, guild.id).catch(() => new Map<string, string>()), new Date(), await loadCardTimeZone(prisma, guild.id))).catch(() => null) : null;
         const worldEmbed = worldPvpEmbed(world, lang, worldPng ? WORLD_PVP_CARD_FILE : undefined);
         // Officer opt-ins (world-pvp-extras.ts): defender of the week, hot zones, most wanted. Nothing is added while they are off.
         const extras = await loadExtrasFields(prisma, guild.id, settings, world.standings, lang);

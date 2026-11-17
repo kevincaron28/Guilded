@@ -14,6 +14,7 @@ import { professionName } from "./profession-style.js";
 import { canonicalProfessionText, mergeProfessionSkills } from "./profession-names.js";
 import { dayStart, participationDay } from "./participation-rules.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./discord-jobs.js";
+import { cardDate } from "./card-format.js";
 import { classColor, ladderMeta, scoreCardPng, type ScoreCard } from "./score-card.js";
 import { moveColumn, moveFields, trackRanks, type Movements } from "./ladder-snapshots.js";
 import { isOwnBoard } from "./board-identity.js";
@@ -125,7 +126,7 @@ const shortProfessions = (professions: string[], limit = 2) => professions.slice
  * the level, the levels gained this week, and (with `moves`) the rank change since yesterday as an arrow. `memberNames` maps Discord
  * ids to display names; `moves` is keyed by the row key (see ladder-snapshots.ts).
  */
-export function raceCard(data: RaceBoardData, lang: Lang, top = DEFAULT_TOP, memberNames: ReadonlyMap<string, string> = new Map(), updatedAt = new Date(), moves: Movements | null = null): ScoreCard {
+export function raceCard(data: RaceBoardData, lang: Lang, top = DEFAULT_TOP, memberNames: ReadonlyMap<string, string> = new Map(), updatedAt = new Date(), moves: Movements | null = null, timeZone?: string): ScoreCard {
   const fr = lang === "fr";
   const ranked = leaderboardOrder(data.rows).slice(0, Math.min(clampTop(top), CARD_ROWS));
   return {
@@ -134,7 +135,7 @@ export function raceCard(data: RaceBoardData, lang: Lang, top = DEFAULT_TOP, mem
     backdrop: { kind: "board", key: "race-to-60" },
     stats: [], footer: fr ? `Top ${ranked.length} sur ${data.total} · mis à jour à chaque synchronisation · /character race near trouve des partenaires` : `Top ${ranked.length} of ${data.total} · updated after every sync · /character race near finds partners`,
     ladder: {
-      meta: ladderMeta(lang, updatedAt), empty: fr ? "Aucun personnage avec niveau rapporté pour l'instant." : "No levelled character reported yet.",
+      meta: ladderMeta(lang, updatedAt, null, timeZone), empty: fr ? "Aucun personnage avec niveau rapporté pour l'instant." : "No levelled character reported yet.",
       columns: [{ label: fr ? "Progression" : "Progress", width: 84, kind: "bar" }, { label: fr ? "Niv." : "Lvl", width: 40, primary: true },
         { label: fr ? "Sem." : "Week", width: 40 }, ...(moves ? [moveColumn(lang)] : [])],
       boards: [{ rows: ranked.map((row, index) => {
@@ -223,11 +224,9 @@ export function formatDuration(ms: number, lang: Lang): string {
   return hours ? (fr ? `${hours} h ${rest} min` : `${hours}h ${rest}m`) : (fr ? `${rest} min` : `${rest}m`);
 }
 
-const MONTHS = { en: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"], fr: ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."] } as const;
-const dayText = (date: Date, lang: Lang) => `${date.getUTCDate()} ${MONTHS[lang === "fr" ? "fr" : "en"][date.getUTCMonth()]} ${date.getUTCFullYear()}`;
 
 /** Pure: the celebratory card for a new level 60: rank, time to 60 since launch (when known), date, class, member and professions. */
-export function hallCard(entry: HallRecord, lang: Lang, memberName: string | null = null): ScoreCard {
+export function hallCard(entry: HallRecord, lang: Lang, memberName: string | null = null, timeZone?: string): ScoreCard {
   const fr = lang === "fr";
   const took = timeToSixty(entry);
   const color = classColor(entry.className);
@@ -237,18 +236,17 @@ export function hallCard(entry: HallRecord, lang: Lang, memberName: string | nul
   });
   const kind = [localClassName(entry.className, lang), localRaceName(entry.race, lang)].filter(Boolean).join(" ");
   return {
-    eyebrow: fr ? "Guilded · Temple de la renommée" : "Guilded · Hall of Fame", title: entry.name, subtitle: fr ? `${kind} · niveau ${LEVEL_CAP}` : `${kind} · level ${LEVEL_CAP}`,
+    eyebrow: fr ? "Guilded · Temple de la renommée" : "Guilded · Hall of Fame", title: entry.name, subtitle: kind,
     stats: [
-      { label: fr ? `Arrivé au niveau ${LEVEL_CAP}` : `Reached level ${LEVEL_CAP}`, value: ordinal(entry.order, lang), note: fr ? `${ordinal(entry.order, lang)} à atteindre le niveau ${LEVEL_CAP}` : `${ordinal(entry.order, lang)} to reach level ${LEVEL_CAP}`, accent: "gold" },
-      ...(took !== null ? [{ label: fr ? "Temps pour le 60" : "Time to 60", value: formatDuration(took, lang), note: fr ? "depuis le lancement, 4 nov. 2026" : "since launch, 4 Nov 2026", accent: "green" as const }] : []),
-      { label: "Date", value: dayText(entry.reachedAt, lang), accent: "gold" }
+      { label: fr ? `Arrivé au niveau ${LEVEL_CAP}` : `Reached level ${LEVEL_CAP}`, value: ordinal(entry.order, lang), accent: "gold" },
+      ...(took !== null ? [{ label: fr ? "Temps pour le 60" : "Time to 60", value: formatDuration(took, lang), note: fr ? "depuis le lancement" : "since launch", accent: "green" as const }] : []),
+      { label: "Date", value: cardDate(entry.reachedAt, lang, timeZone), accent: "gold" }
     ],
     backdrop: { kind: "board", key: "hall-of-fame" },
     rowsLabel: fr ? "Personnage" : "Character",
-    rows: [{ name: localClassName(entry.className, lang), color, sub: localRaceName(entry.race, lang), right: String(LEVEL_CAP), rightTone: "gold" },
+    rows: [{ name: localClassName(entry.className, lang), color, sub: localRaceName(entry.race, lang) },
       ...(memberName ? [{ name: `@${memberName}`, color: "#f5e6c0", sub: "Discord" }] : []), ...professions],
-    badges: [{ text: fr ? "Temple de la renommée" : "Hall of Fame", tone: "ok" }],
-    footer: fr ? "Guilded · WoW Forever · course au niveau 60" : "Guilded · WoW Forever · race to level 60"
+    footer: fr ? "WoW Forever · course au niveau 60" : "WoW Forever · race to level 60"
   };
 }
 
@@ -270,8 +268,8 @@ export function hallEmbed(entry: HallRecord, lang: Lang, guildId = "", nameKey =
 }
 
 /** The message payload of one Hall of Fame post: the embed and its card (no card when drawing is busy or fails). */
-export async function hallPayload(entry: HallRecord, lang: Lang, guildId: string, nameKey: string, memberName: string | null = null): Promise<HallPayload> {
-  const png = await scoreCardPng(hallCard(entry, lang, memberName)).catch(() => null);
+export async function hallPayload(entry: HallRecord, lang: Lang, guildId: string, nameKey: string, memberName: string | null = null, timeZone?: string): Promise<HallPayload> {
+  const png = await scoreCardPng(hallCard(entry, lang, memberName, timeZone)).catch(() => null);
   return { embeds: [hallEmbed(entry, lang, guildId, nameKey, png ? HALL_CARD_FILE : undefined)], files: png ? [cardAttachment(png, HALL_CARD_FILE)] : [], allowedMentions: { parse: [] as never[] } };
 }
 
@@ -738,7 +736,7 @@ export async function updateRaceBoard(discordGuild: DiscordGuild | null, deliver
     const names = await memberNames(discordGuild, [...new Set(data.rows.flatMap(row => row.discordId ? [row.discordId] : []))]);
     // Today's ranks are stored on every refresh; the card shows the change since the latest earlier day.
     const moves = data.total && !hall ? await trackRanks(prisma, guild.id, "race", leaderboardOrder(data.rows).map(row => row.key)) : null;
-    const png = data.total && !hall ? await scoreCardPng(raceCard(data, lang, top, names, new Date(), moves)).catch(() => null) : null;
+    const png = data.total && !hall ? await scoreCardPng(raceCard(data, lang, top, names, new Date(), moves, settings.timezone)).catch(() => null) : null;
     const embed = raceBoardEmbed(data, lang, { image: png ? RACE_CARD_FILE : undefined, top, hall }).setTimestamp(new Date());
     const payload = { embeds: [embed], files: png ? [cardAttachment(png, RACE_CARD_FILE)] : [], allowedMentions: { parse: [] as never[] } };
     const botId = discordGuild.client.user?.id ?? "";

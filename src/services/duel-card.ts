@@ -63,7 +63,7 @@ export function duelResultCard(duel: DuelCardInput, lang: Lang, classes: ClassBo
       { label: t("Points", "Points"), value: `+${duel.points}`, accent: "gold", note: t(`${duel.winnerScore} in total`, `${duel.winnerScore} au total`) },
       { label: t("Levels", "Niveaux"), value: `${level(duel.winnerLevel)} vs ${level(duel.loserLevel)}` },
       // No streak yet: no stat at all (an empty "Série" label looked broken on a first duel).
-      ...(duel.winnerStreak > 1 ? [{ label: t("Streak", "Série"), value: streakText(duel.winnerStreak), accent: "green" as const, note: t(`Best ${duel.winnerBest}`, `Record ${duel.winnerBest}`) }] : [])
+      ...(duel.winnerStreak > 1 ? [{ label: t("Streak", "Série"), value: streakText(duel.winnerStreak, lang), accent: "green" as const, note: t(`Best ${duel.winnerBest}`, `Record ${duel.winnerBest}`) }] : [])
     ],
     rowsLabel: t("Duellists", "Duellistes"),
     rows: [
@@ -97,7 +97,7 @@ export function duelFallbackEmbed(duel: DuelCardInput, lang: Lang, names: FullNa
   const fr = lang === "fr", t = (en: string, french: string) => fr ? french : en;
   const winner = displayCharacterName(duel.winnerCharacter, names), loser = displayCharacterName(duel.loserCharacter, names);
   const verb = duel.reason === "retreat" ? t("won (opponent fled) against", "gagne (adversaire en fuite) contre") : t("beat", "bat");
-  return new EmbedBuilder().setColor(DUEL_COLOR).setDescription(`⚔️ **${winner}** ${verb} ${loser} — ${duel.rating ? `${duel.rating.rated ? showChange(duel.rating.winnerDelta) : "0"} ${t("rating", "cote")}` : `+${duel.points} pts`}${duel.winnerStreak > 1 ? ` · ${streakText(duel.winnerStreak)}` : ""}`.slice(0, 400));
+  return new EmbedBuilder().setColor(DUEL_COLOR).setDescription(`⚔️ **${winner}** ${verb} ${loser} — ${duel.rating ? `${duel.rating.rated ? showChange(duel.rating.winnerDelta) : "0"} ${t("rating", "cote")}` : `+${duel.points} pts`}${duel.winnerStreak > 1 ? ` · ${streakText(duel.winnerStreak, lang)}` : ""}`.slice(0, 400));
 }
 
 const summaryFallback = (duels: readonly DuelCardInput[], lang: Lang, names: FullNameBook, omitted = 0) => new EmbedBuilder().setColor(DUEL_COLOR).setDescription(

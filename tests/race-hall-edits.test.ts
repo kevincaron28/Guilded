@@ -45,12 +45,12 @@ describe("reach-60 card data", () => {
     expect(timeToSixty({ ...base, sinceLaunchKnown: true })).toBe(base.reachedAt.getTime() - LAUNCH_AT.getTime());
     const known = hallCard({ ...base, sinceLaunchKnown: true }, "en", "Kev");
     expect(known.title).toBe("Aria Stone");
-    expect(known.stats[0]).toMatchObject({ value: "3rd", note: "3rd to reach level 60" });
+    expect(known.stats[0]).toMatchObject({ value: "3rd" });
     expect(known.stats[1]).toMatchObject({ label: "Time to 60", value: "5d 4h" });
     expect(known.rows?.map(r => r.name)).toEqual(["Mage", "@Kev", "Mining", "Herbalism"]);
     const unknown = hallCard(base, "fr");
     expect(unknown.stats.map(s => s.label)).toEqual(["Arrivé au niveau 60", "Date"]);
-    expect(unknown.stats[0]?.note).toBe("3e à atteindre le niveau 60");
+    expect(unknown.stats[0]?.value).toBe("3e");
   });
   it("shows the time to 60 and the rank in the embed, and the card as its image", () => {
     const entry = { order: 3, name: "Aria Stone", className: "Mage", race: "Human", reachedAt: new Date("2026-11-10T03:00:00Z"), firstSeenAt: LAUNCH_AT, professions: null, memberDiscordId: "42", sinceLaunchKnown: true };

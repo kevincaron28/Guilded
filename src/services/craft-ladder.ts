@@ -5,6 +5,8 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
 import { professionName as shownProfession } from "./profession-style.js";
 import { normalizeProfessionName } from "./profession-names.js";
+import { plural } from "./card-plural.js";
+import { loadCardTimeZone } from "./card-format.js";
 import { classColor, ladderMeta, scoreCardPng, type ScoreCard } from "./score-card.js";
 import { moveColumn, moveFields, trackRanks, type Movements } from "./ladder-snapshots.js";
 import { guildWhere } from "./guild-scope.js";
@@ -59,15 +61,15 @@ export function crafterStandings(rows: readonly { crafterId: string; points: num
 const professionName = (lang: Lang, profession: string | null) => !profession ? "—" : shownProfession(profession, lang);
 
 /** Pure: the ladder card. */
-export function craftLadderCard(standings: readonly CrafterStanding[], totalCrafts: number, lang: Lang, updatedAt = new Date(), moves: Movements | null = null): ScoreCard {
+export function craftLadderCard(standings: readonly CrafterStanding[], totalCrafts: number, lang: Lang, updatedAt = new Date(), moves: Movements | null = null, timeZone?: string): ScoreCard {
   const fr = lang === "fr";
   return {
     eyebrow: `Guilded · ${fr ? "Artisanat" : "Crafting"}`, title: fr ? "Meilleurs artisans" : "Top crafters",
-    subtitle: fr ? `${totalCrafts} commandes terminées · ${standings.length} artisans` : `${totalCrafts} finished crafts · ${standings.length} crafters`,
+    subtitle: `${plural(lang, totalCrafts, ["finished craft", "finished crafts"], ["commande terminée", "commandes terminées"])} · ${plural(lang, standings.length, ["crafter", "crafters"], ["artisan", "artisans"])}`,
     backdrop: { kind: "board", key: "crafters" },
-    stats: [], footer: fr ? "1 point par commande terminée sur le tableau d'artisanat · aucun EP/GP" : "1 point per craft finished on the craft board · no EP/GP",
+    stats: [], footer: fr ? "1 point par commande terminée sur le tableau d'artisanat" : "1 point per craft finished on the craft board",
     ladder: {
-      meta: ladderMeta(lang, updatedAt), empty: fr ? "Aucune commande terminée pour l'instant." : "No finished crafts yet.",
+      meta: ladderMeta(lang, updatedAt, null, timeZone), empty: fr ? "Aucune commande terminée pour l'instant." : "No finished crafts yet.",
       columns: [{ label: fr ? "Points" : "Points", width: 64, primary: true }, { label: fr ? "30 j" : "30d", width: 48 }, { label: fr ? "Métier" : "Profession", width: 130 }, ...(moves ? [moveColumn(lang)] : [])],
       boards: [{ rows: standings.slice(0, LADDER_TOP).map((row, index) => ({ rank: index + 1, name: row.name, color: classColor(row.className),
         values: [String(row.points), String(row.month), professionName(lang, row.topProfession), ""], ...moveFields(moves, row.memberId, lang) })) }]
@@ -84,7 +86,7 @@ export function craftLadderEmbed(standings: readonly CrafterStanding[], lang: La
     `${["🥇", "🥈", "🥉"][index] ?? `**${index + 1}.**`} ${escapeMarkdown(row.name).slice(0, 40)} — ${row.points} ${t("pt", "pt")} · ${row.month} ${t("in 30 days", "en 30 jours")}`).join("\n")
     : t("No finished crafts yet. Ask on the craft board!", "Aucune commande terminée. Demandez sur le tableau d'artisanat!"));
   if (image && standings.length) embed.setImage(`attachment://${image}`);
-  return embed.setFooter({ text: t("1 point per finished order on the crafting board · no EP/GP", "1 point par commande terminée sur le tableau d'artisanat · aucun EP/GP") });
+  return embed.setFooter({ text: t("1 point per finished order on the crafting board", "1 point par commande terminée sur le tableau d'artisanat") });
 }
 
 type LoadDb = HistoryDb & Pick<PrismaClient, "member" | "character">;
@@ -126,7 +128,7 @@ export async function updateCraftLadder(db: BoardDb, discordGuild: DiscordGuild 
     const lang: Lang = settings.language === "fr" ? "fr" : "en";
     const { standings, total } = await loadCrafterStandings(db, guild.id);
     const moves = standings.length ? await trackRanks(db, guild.id, "crafters", standings.slice(0, LADDER_TOP).map((row) => row.memberId)) : null;
-    const png = standings.length ? await scoreCardPng(craftLadderCard(standings, total, lang, new Date(), moves)).catch(() => null) : null;
+    const png = standings.length ? await scoreCardPng(craftLadderCard(standings, total, lang, new Date(), moves, await loadCardTimeZone(db, guild.id))).catch(() => null) : null;
     const payload = { embeds: [craftLadderEmbed(standings, lang, guild.id, png ? CRAFT_CARD_FILE : undefined).setTimestamp(new Date())],
       files: png ? [cardAttachment(png, CRAFT_CARD_FILE)] : [], allowedMentions: { parse: [] as never[] } };
     const botId = discordGuild.client.user?.id ?? "";

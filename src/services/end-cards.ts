@@ -4,6 +4,7 @@ import { POE_TRACKING_ENABLED } from "../../companion/active-games.mjs";
 import { ACTIVE_ACHIEVEMENTS, TIER_COLOR, TIER_LABEL, achievementById, groupLabel, ladderKey, isHiddenSecret, secretCountLabel, SECRET_TAG, SECRET_LABEL, type AchievementDef, type AchievementGame, type AchievementTier } from "./achievements-catalogue.js";
 import type { RaidReport } from "./raid-report.js";
 import { formatDuration } from "./raid-report.js";
+import { cardDate } from "./card-format.js";
 import type { CardRow, ScoreCard } from "./score-card.js";
 
 type Lang = "en" | "fr";
@@ -22,11 +23,11 @@ export function raidArtKey(report: Pick<RaidReport, "title" | "killedNames">): s
 }
 
 /** A finished raid: bosses down, time, attendance, and the loot that went out. No per-player performance. */
-export function raidEndCard(report: RaidReport, lang: Lang = "en"): ScoreCard {
+export function raidEndCard(report: RaidReport, lang: Lang = "en", timeZone?: string): ScoreCard {
   const t = pick(lang);
   const cleared = report.bossesPlanned > 0 && report.bossesKilled >= report.bossesPlanned;
-  const date = (report.endedAt ?? report.startedAt)?.toISOString().slice(0, 10);
-  const lootRows: CardRow[] = report.topLoot.slice(0, 5).map(loot => ({ name: loot.item, sub: `→ ${loot.winner}`, right: `${loot.gp} GP`, rightTone: "gold" }));
+  const when = report.endedAt ?? report.startedAt, date = when ? cardDate(when, lang, timeZone) : undefined;
+  const lootRows: CardRow[] = report.topLoot.slice(0, 5).map(loot => ({ name: loot.item, sub: `→ ${loot.winner}`, right: `${loot.gp} pts`, rightTone: "gold" }));
   const bossRows: CardRow[] = report.killedNames.slice(0, 5).map(name => ({ name, sub: t("Defeated", "Vaincu"), color: "#6fdc4f", right: t("Down", "Mort"), rightTone: "green" }));
   return {
     eyebrow: t("Guilded · Raids · Report", "Guilded · Raids · Rapport"), title: report.title,
@@ -39,8 +40,8 @@ export function raidEndCard(report: RaidReport, lang: Lang = "en"): ScoreCard {
     backdrop: { kind: "raid", key: raidArtKey(report), fallbackKey: "default" },
     rowsLabel: lootRows.length ? t("Top loot", "Meilleur butin") : t("Bosses defeated", "Boss vaincus"), rows: lootRows.length ? lootRows : bossRows,
     badges: [
-      ...(report.epRecipients ? [{ text: t(`${report.epAwarded} EP to ${report.epRecipients} raiders`, `${report.epAwarded} EP à ${report.epRecipients} raiders`), tone: "ok" as const }] : [{ text: t("EP pending", "EP en attente"), tone: "muted" as const }]),
-      ...(report.lootCount ? [{ text: t(`${report.lootCount} items · ${report.gpSpent} GP`, `${report.lootCount} objets · ${report.gpSpent} GP`), tone: "muted" as const }] : [])
+      ...(report.epRecipients ? [{ text: t(`${report.epAwarded} raid points to ${report.epRecipients} raiders`, `${report.epAwarded} points de raid à ${report.epRecipients} raiders`), tone: "ok" as const }] : [{ text: t("Raid points pending", "Points de raid en attente"), tone: "muted" as const }]),
+      ...(report.lootCount ? [{ text: t(`${report.lootCount} items · ${report.gpSpent} pts`, `${report.lootCount} objets · ${report.gpSpent} pts`), tone: "muted" as const }] : [])
     ],
     footer: t("Guild raid report · Attendance and loot as recorded by officers · guildedwow.com", "Rapport de raid de guilde · Présences et butin notés par les officiers · guildedwow.com")
   };
@@ -48,28 +49,32 @@ export function raidEndCard(report: RaidReport, lang: Lang = "en"): ScoreCard {
 
 // Classic battleground map ids; anything else shows its number rather than a guess.
 const MAPS: Record<number, string> = { 30: "Alterac Valley", 489: "Warsong Gulch", 529: "Arathi Basin", 566: "Eye of the Storm", 607: "Strand of the Ancients", 628: "Isle of Conquest" };
-const mapName = (id: number) => MAPS[id] ?? `Map ${id}`;
+const MAPS_FR: Record<number, string> = { 30: "Vallée d'Alterac", 489: "Goulet des Chanteguerres", 529: "Bassin d'Arathi", 566: "Œil du cyclone", 607: "Rivage des Anciens", 628: "Île des Conquérants" };
+/** The map's name in the guild's language; an id nobody knows reads as a plain "Battleground", never as a number. */
+const mapName = (id: number, lang: Lang = "en") => (lang === "fr" ? MAPS_FR[id] : MAPS[id]) ?? (lang === "fr" ? "Champ de bataille" : "Battleground");
+/** The painting is chosen by the English name, whatever the language. */
+const mapArtKey = (id: number) => (MAPS[id] ?? "default").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
 export interface BgCardRow { reportId: string; mode: string; mapId: number; bracket: string; endedAt: Date; durationSeconds?: number | undefined; outcome: string; presence: string; status: string; corroborated?: boolean | undefined; reloaded?: boolean | undefined }
 
 /** End of a match, from the player's own consented postmatch report. Self-only: no roster, damage or honor exists. */
-export function battlegroundEndCard(row: BgCardRow, recent: BgCardRow[] = [], lang: Lang = "en"): ScoreCard {
+export function battlegroundEndCard(row: BgCardRow, recent: BgCardRow[] = [], lang: Lang = "en", timeZone?: string): ScoreCard {
   const t = pick(lang);
   const outcome = { win: [t("Victory", "Victoire"), "green"], loss: [t("Defeat", "Défaite"), "red"], draw: [t("Draw", "Égalité"), "gold"] }[row.outcome] ?? [t("Unknown", "Inconnu"), "gold"];
   const word = (o: string) => o === "win" ? t("Win", "Victoire") : o === "loss" ? t("Loss", "Défaite") : o === "draw" ? t("Draw", "Égalité") : "—";
   const tone = (o: string) => o === "win" ? "green" as const : o === "loss" ? "red" as const : undefined;
   const minutes = row.durationSeconds === undefined ? "—" : `${Math.floor(row.durationSeconds / 60)}:${String(row.durationSeconds % 60).padStart(2, "0")}`;
   return {
-    eyebrow: t("Guilded · Battlegrounds · Result", "Guilded · Champs de bataille · Résultat"), title: mapName(row.mapId),
-    subtitle: `${row.mode} · ${row.endedAt.toISOString().slice(0, 10)} UTC`,
+    eyebrow: t("Guilded · Battlegrounds · Result", "Guilded · Champs de bataille · Résultat"), title: mapName(row.mapId, lang),
+    subtitle: cardDate(row.endedAt, lang, timeZone),
     stats: [
       { label: t("Result", "Résultat"), value: outcome[0]!, accent: outcome[1] as "green" | "red" | "gold", note: t("As reported after the match", "Selon le rapport après le match") },
       { label: t("Match time", "Durée"), value: minutes, note: row.presence === "complete" ? t("Whole match", "Tout le match") : row.presence === "backfill" ? t("Joined late", "Arrivé en cours") : row.presence === "early-exit" ? t("Left early", "Parti tôt") : undefined },
-      { label: t("Format", "Format"), value: row.mode, note: t(`Bracket ${row.bracket}`, `Bracket ${row.bracket}`) }
+      { label: t("Format", "Format"), value: row.mode, note: t(`Bracket ${row.bracket}`, `Tranche ${row.bracket}`) }
     ],
-    backdrop: { kind: "battleground", key: mapName(row.mapId).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""), fallbackKey: "default" },
+    backdrop: { kind: "battleground", key: mapArtKey(row.mapId), fallbackKey: "default" },
     rowsLabel: t("Your recent matches", "Vos matchs récents"),
-    rows: recent.slice(0, 5).map(r => ({ name: mapName(r.mapId), sub: `${r.endedAt.toISOString().slice(0, 10)} · ${r.mode}`, right: word(r.outcome), rightTone: tone(r.outcome), color: r.reportId === row.reportId ? "#ffd100" : undefined })),
+    rows: recent.slice(0, 5).map(r => ({ name: mapName(r.mapId, lang), sub: `${cardDate(r.endedAt, lang, timeZone)} · ${r.mode}`, right: word(r.outcome), rightTone: tone(r.outcome), color: r.reportId === row.reportId ? "#ffd100" : undefined })),
     badges: [
       { text: row.corroborated ? t("Matches a party member's report", "Concorde avec un autre rapport") : t("Provisional · not yet corroborated", "Provisoire · non corroboré"), tone: row.corroborated ? "ok" : "warn" },
       ...(row.status !== "PROVISIONAL" ? [{ text: row.status.toLowerCase(), tone: "muted" as const }] : [])
@@ -81,7 +86,7 @@ export function battlegroundEndCard(row: BgCardRow, recent: BgCardRow[] = [], la
 export interface AchievementCardItem { id: string; earnedAt: Date | null; value: number }
 
 /** A member's achievements: how many are unlocked, the latest ones, and what is closest. Computed from recorded data only. */
-export function achievementsCard(name: string, items: AchievementCardItem[], lang: Lang = "en"): ScoreCard {
+export function achievementsCard(name: string, items: AchievementCardItem[], lang: Lang = "en", timeZone?: string): ScoreCard {
   const t = pick(lang);
   // Legacy rows (replaced by the per-edition ones) only appear if already earned.
   const rows = items.flatMap(item => { const def = achievementById(item.id); return def && (!def.legacy || item.earnedAt) && !isHiddenSecret(def, Boolean(item.earnedAt)) ? [{ def, ...item }] : []; });
@@ -95,7 +100,7 @@ export function achievementsCard(name: string, items: AchievementCardItem[], lan
   const next = rows.filter(row => !row.earnedAt && nextStep(row)).map(row => ({ row, ratio: row.value / row.def.threshold })).sort((a, b) => b.ratio - a.ratio)[0]?.row;
   const label = (def: AchievementDef) => def[lang].name;
   const shown: CardRow[] = earned.length
-    ? earned.filter(topStep).slice(0, 5).map(row => ({ name: label(row.def), sub: `${row.earnedAt!.toISOString().slice(0, 10)} · ${groupLabel(row.def, lang)}${row.def.secret ? ` · ${SECRET_TAG[lang]}` : ""}`, color: TIER_COLOR[row.def.tier], right: TIER_LABEL[row.def.tier][lang], icon: badgeInner(row.def, true) }))
+    ? earned.filter(topStep).slice(0, 5).map(row => ({ name: label(row.def), sub: `${cardDate(row.earnedAt!, lang, timeZone)} · ${groupLabel(row.def, lang)}${row.def.secret ? ` · ${SECRET_TAG[lang]}` : ""}`, color: TIER_COLOR[row.def.tier], right: TIER_LABEL[row.def.tier][lang], icon: badgeInner(row.def, true) }))
     : rows.filter(row => !row.earnedAt && nextStep(row)).sort((a, b) => b.value / b.def.threshold - a.value / a.def.threshold).slice(0, 5)
       .map(row => ({ name: label(row.def), sub: `${Math.min(row.value, row.def.threshold)}/${row.def.threshold}`, color: "#8a7a5a", right: t("Locked", "Verrouillé"), icon: badgeInner(row.def, false) }));
   return {
@@ -118,9 +123,9 @@ export function achievementsCard(name: string, items: AchievementCardItem[], lan
 export interface ServerAnniversaryCardInput { serverName: string; years: number; founded: Date; members: number; achievementsEarned: number; oldestMembers: { displayName: string; createdAt: Date }[] }
 
 /** The server's birthday: years, members, achievements earned, and the longest-standing members. No points involved. */
-export function serverAnniversaryCard(input: ServerAnniversaryCardInput, lang: Lang = "en"): ScoreCard {
+export function serverAnniversaryCard(input: ServerAnniversaryCardInput, lang: Lang = "en", timeZone?: string): ScoreCard {
   const t = pick(lang), { years } = input;
-  const day = (date: Date) => date.toISOString().slice(0, 10);
+  const day = (date: Date) => cardDate(date, lang, timeZone);
   return {
     eyebrow: t("Guilded · Server anniversary", "Guilded · Anniversaire du serveur"), title: input.serverName,
     subtitle: t(`Founded ${day(input.founded)}`, `Fondé le ${day(input.founded)}`),
@@ -132,7 +137,7 @@ export function serverAnniversaryCard(input: ServerAnniversaryCardInput, lang: L
     rowsLabel: t("Longest-standing members", "Membres de longue date"),
     rows: input.oldestMembers.slice(0, 5).map(member => ({ name: member.displayName, sub: t(`Member since ${day(member.createdAt)}`, `Membre depuis le ${day(member.createdAt)}`), color: "#ffd100", right: "🎂" })),
     badges: [{ text: t("Members earn Anniversary achievements", "Les membres obtiennent des succès d'anniversaire"), tone: "ok" }],
-    footer: t("Celebrating together · Member dates are when Guilded first recorded each member · No points · guildedwow.com", "On fête ensemble · Dates de membre : première inscription dans Guilded · Aucun point · guildedwow.com")
+    footer: t("Celebrating together · Member dates are when each member was first recorded · No points · guildedwow.com", "On fête ensemble · Dates de membre : première inscription de chaque membre · Aucun point · guildedwow.com")
   };
 }
 

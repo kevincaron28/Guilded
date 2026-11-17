@@ -40,7 +40,7 @@ export function NewsScreen({ origin, lang }: { origin: string; lang: Lang }) {
     {failed ? <RetryCard lang={lang} message={w("failed", lang)} onRetry={() => setAttempt(attempt + 1)} />
       : !news ? <ActivityIndicator color={colors.gold} />
       : !news.enabled ? <EmptyState message={w("off", lang)} />
-      : news.items.length === 0 ? <EmptyState message={w("empty", lang)} />
+      : news.items.length === 0 ? <EmptyState art="search" message={w("empty", lang)} />
       : <Card style={styles.card}>
         <Text style={styles.label}>{w("via", lang).toUpperCase()}</Text>
         {news.items.map((item) => <Pressable key={item.url} onPress={() => void Linking.openURL(item.url)} accessibilityRole="link" style={styles.row}>

@@ -101,7 +101,7 @@ export function MapScreen({ lang, session }: { lang: Lang; session: Session | nu
     </Card>
     {!map.enabled ? <EmptyState boxed message={w("off", lang)} /> : <>
       {tabs.length > 1 && shown !== null ? <SegmentedTabs options={tabs.map((tab) => ({ value: tab.id, label: tab.name }))} value={shown} onChange={(id) => { setContinent(id); setPicked(null); }} /> : null}
-      {shown === null ? <EmptyState boxed message={w("empty", lang)} /> : <Card>
+      {shown === null ? <EmptyState art="runs" boxed message={w("empty", lang)} /> : <Card>
         {tabs.length === 1 ? <Text style={styles.subheading}>{tabs[0]!.name}</Text> : null}
         <View onLayout={(e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width)} style={[styles.canvas, { height: height || 200 }]}
           accessibilityLabel={`${heat?.name ?? ""}: ${dots.length} ${w("mates", lang)}, ${pins.length} ${w("calls", lang)}`}>

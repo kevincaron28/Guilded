@@ -180,6 +180,8 @@ describe("auction announcements", () => {
     expect(s!.run(`return tostring(NS.milestones.enabled("auction"))`)).toBe("true");
     sell(99);
     s!.run(`RUN_TIMERS()`);
+    expect(out()).toBe(""); // a timer never sends: the line waits for the Share click
+    s!.run(`NS.milestones.share()`);
     expect(out()).toBe("GUILD:Kev reached the auction house milestone: Market Regular!");
     s!.run(`NS.commandHandlers.announce({ "auction", "off" })`);
     expect(s!.run(`return tostring(NS.milestones.enabled("auction"))`)).toBe("false");

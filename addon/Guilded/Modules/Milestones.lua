@@ -13,11 +13,12 @@
 --           / `auction:profit-<tier>`), never a count or an amount. OFF by default like gold (`/guilded announce auction on`).
 --   ach     every WoW Forever in-game achievement (Modules/GameAchievements.lua records them here; the newest is announced)
 --
--- ON by default for every character (owner decision, 5 Nov 2026): the first time a line is about to go out, a one-time
--- local notice (chat frame only) says so and how to stop. Each player can turn it off, or turn single types off
--- (/guilded announce, Settings); officers can switch it off for the whole guild, which wins over member choices.
--- Every milestone is announced once per character, ever (persisted), at most one line per 30 seconds, to the
--- GUILD channel only, and never in combat. What a character already had when this module first ran, or reached
+-- ON by default for every character (owner decision, 5 Nov 2026): the first time a line is offered, a one-time
+-- local notice (chat frame only) says so and how to stop. (9.3.8) WoW Forever refuses guild chat an addon sends by itself, so
+-- each line waits in a small Share bar and goes out from the player's click (see ms.offer / ms.share below).
+-- Each player can turn it off, or turn single types off (/guilded announce, Settings); officers can switch it off for
+-- the whole guild, which wins over member choices. Every milestone is offered once per character, ever (persisted), to
+-- the GUILD channel only, and never in combat. What a character already had when this module first ran, or reached
 -- while announcements were off, is recorded silently (and uploaded with the companion), never announced later.
 --
 --   /guilded announce                         status (also /guilded milestones)
@@ -29,7 +30,6 @@ local ms = {}
 ns.milestones = ms
 
 local PREFIX = "GuildedMile"
-local THROTTLE = 30
 local RETRY_COMBAT = 15
 local MAX_TRIES = 4
 local MAX_LOG = 200
@@ -108,7 +108,8 @@ function ms.setEnabled(on, kind)
   local c = current()
   if not c then return false end
   if kind then c.settings[kind] = on and true or false else c.settings.enabled = on and true or false end
-    return true
+  if ms.offer then ms.offer() end
+  return true
 end
 
 local function maxLevel()
@@ -119,7 +120,7 @@ end
 
 -- ----- announcing ------------------------------------------------------
 
-local queue, lastAt, timerSet = {}, 0, false
+local queue = {}
 local function messageFor(item, name)
   if item.kind == "level" then
     if item.cap then return string.format(L("%s reached the maximum level (%d)!"), name, item.value) end
@@ -149,43 +150,120 @@ ms.message = messageFor
 local function inCombat()
   return (InCombatLockdown and InCombatLockdown() == true) or (UnitAffectingCombat and UnitAffectingCombat("player") == true)
 end
-local function schedule(delay)
-  if timerSet or not (C_Timer and C_Timer.After) then return end
-  timerSet = true
-  C_Timer.After(delay, function() timerSet = false; ms.pump() end)
+
+-- (9.3.8) A milestone line goes to guild chat only from the player's click on Share.
+-- WoW Forever refuses a guild-chat line an addon sends on its own (from a game event or a timer): every milestone line sent that
+-- way raised "ADDON_ACTION_BLOCKED: Guilded tried to call UNKNOWN()" within a second (owner's saved diagnostics, 13-17 Nov 2026:
+-- level 30, fishing 150, cooking 150 and first aid 150, each at the second the milestone was recorded; then an achievement toast
+-- while mining). The automatic guild welcome was removed in 9.2 for the same refusal. So a reached milestone waits in a small
+-- Share bar (never shown in combat), and the line is sent inside the click, the one moment the game accepts it.
+local MAX_WAITING = 5
+local bar
+local function nextText()
+  local c = current()
+  while queue[1] do
+    local text = c and messageFor(queue[1], c.name)
+    if text then return text end
+    table.remove(queue, 1)
+  end
+  return nil
+end
+-- True when nothing should be offered any more (turned off since, no guild): the waiting lines are dropped.
+local function stale(item)
+  local c = current()
+  return not c or not active() or c.settings.enabled == false or ms.guildOff() or not kindOn(c, item.kind) or not (IsInGuild and IsInGuild())
 end
 
--- Sends at most one queued line per THROTTLE seconds. Returns true when a line went out.
-function ms.pump()
-  if #queue == 0 then return false end
-  local item = queue[1]
-  local c = current()
-  -- Turned off (or the module disabled) since it was queued: drop everything waiting.
-  if not c or not active() or c.settings.enabled == false or ms.guildOff() or not kindOn(c, item.kind) then queue = {}; return false end
-  if not (IsInGuild and IsInGuild()) then queue = {}; return false end
-  local wait = lastAt + THROTTLE - epoch()
-  if wait > 0 then schedule(wait + 1); return false end
-  if inCombat() then schedule(RETRY_COMBAT); return false end
-  local text = messageFor(item, c.name)
-  -- One local notice (chat frame only, never sent) before the first announcement from this character.
-  if text and not c.settings.noticed then
-    c.settings.noticed = true
-    ns.message(L("Guilded will announce your milestones (levels, first dungeon clears, PvP and duel milestones) in guild chat. Type /guilded announce off to stop, or turn types off in Settings."))
+local function ensureBar()
+  if bar then return bar end
+  bar = CreateFrame("Frame", "GuildedMilestoneShare", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+  bar:SetWidth(330); bar:SetHeight(70)
+  bar:SetPoint("TOP", UIParent, "TOP", 0, -150)
+  if bar.SetFrameStrata then bar:SetFrameStrata("MEDIUM") end
+  if bar.SetClampedToScreen then bar:SetClampedToScreen(true) end
+  if bar.SetBackdrop then
+    pcall(bar.SetBackdrop, bar, { bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+      tile = true, tileSize = 16, edgeSize = 12, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
+    if bar.SetBackdropColor then pcall(bar.SetBackdropColor, bar, 0.05, 0.05, 0.07, 0.95) end
   end
-  if not text then table.remove(queue, 1); return false end
-  local send = (C_ChatInfo and C_ChatInfo.SendChatMessage) or SendChatMessage
-  -- GUILD only. A refusal (restricted chat, no hardware event) keeps the line for a later try, a few times.
-  local ok, err = pcall(send, text, "GUILD")
-  if ok and err ~= false then
-    table.remove(queue, 1); lastAt = epoch()
-    if #queue > 0 then schedule(THROTTLE + 1) end
-    return true
+  bar.label = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  bar.label:SetPoint("TOPLEFT", bar, "TOPLEFT", 10, -10)
+  bar.label:SetWidth(290)
+  local function button(label, width, onClick)
+    local b = CreateFrame("Button", nil, bar, "UIPanelButtonTemplate")
+    b:SetWidth(width); b:SetHeight(22)
+    if b.SetText then b:SetText(label) end
+    b:SetScript("OnClick", onClick)
+    return b
   end
-  item.tries = (item.tries or 0) + 1
-  if item.tries >= MAX_TRIES then table.remove(queue, 1) end
-  if #queue > 0 then schedule(RETRY_COMBAT) end
-  return false
+  bar.share = button(L("Share in guild chat"), 150, function() ms.share() end)
+  bar.share:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", 10, 8)
+  bar.later = button(L("Not now"), 90, function() table.remove(queue, 1); ms.offer() end)
+  bar.later:SetPoint("LEFT", bar.share, "RIGHT", 4, 0)
+  local x = CreateFrame("Button", nil, bar, "UIPanelCloseButton")
+  x:SetPoint("TOPRIGHT", bar, "TOPRIGHT", 2, 2)
+  x:SetScript("OnClick", function() queue = {}; ms.offer() end)
+  bar.close = x
+  bar:Hide()
+  return bar
 end
+ms.bar = function() return ensureBar() end
+
+-- Shows the Share bar with the first waiting line, or hides it when nothing waits. Never sends anything.
+local offerTimer = false
+function ms.offer()
+  if queue[1] and stale(queue[1]) then queue = {} end
+  local text = nextText()
+  if not text then
+    if bar then bar.text = nil; bar:Hide() end
+    return false
+  end
+  if inCombat() then
+    if bar then bar:Hide() end
+    if not offerTimer and C_Timer and C_Timer.After then
+      offerTimer = true
+      C_Timer.After(RETRY_COMBAT, function() offerTimer = false; ms.offer() end)
+    end
+    return false
+  end
+  local c = current()
+  -- One local notice (chat frame only, never sent) before the first line is offered on this character.
+  if c and not c.settings.noticed then
+    c.settings.noticed = true
+    if ns.message then ns.message(L("Guilded offers to share your milestones (levels, first dungeon clears, PvP and duel milestones) in guild chat: click Share to post one. Type /guilded announce off to stop, or turn types off in Settings.")) end
+  end
+  ensureBar()
+  bar.text = text
+  bar.label:SetText(text)
+  bar:Show()
+  return true
+end
+
+-- The Share button: sends the first waiting line, from inside the click. Returns true when it went out.
+function ms.share()
+  local item = queue[1]
+  if not item then ms.offer(); return false end
+  if stale(item) then queue = {}; ms.offer(); return false end
+  local text = nextText()
+  if not text then ms.offer(); return false end
+  item = queue[1]
+  local send = (C_ChatInfo and C_ChatInfo.SendChatMessage) or SendChatMessage
+  -- Marked while it runs: a refusal raised inside is named in the diagnostic (Core.lua), not "UNKNOWN()".
+  ns.guardedCall = { name = "SendChatMessage (milestone Share)" }
+  local ok, err = pcall(send, text, "GUILD")
+  ns.guardedCall = nil
+  if ok and err ~= false then
+    table.remove(queue, 1)
+  else
+    -- Refused (restricted chat): the line stays for another click, a few times.
+    item.tries = (item.tries or 0) + 1
+    if item.tries >= MAX_TRIES then table.remove(queue, 1) end
+  end
+  ms.offer()
+  return ok and err ~= false
+end
+-- Lines waiting for a Share click (tests, status).
+function ms.waiting() return #queue end
 
 -- ----- recording -------------------------------------------------------
 
@@ -202,7 +280,9 @@ function ms.reach(id, ref, item, silent)
   while #c.log > MAX_LOG do table.remove(c.log, 1) end
   if not silent and c.settings.enabled ~= false and not ms.guildOff() and kindOn(c, item.kind) and c.baselined then
     queue[#queue + 1] = item
-    ms.pump()
+    -- Only the newest few wait; an older one that was never shared is dropped (it stays recorded).
+    while #queue > MAX_WAITING do table.remove(queue, 1) end
+    ms.offer()
   end
   if ns.syncNow and ns.syncNow.mark then pcall(ns.syncNow.mark) end
   return true
@@ -462,7 +542,7 @@ function ms.setGuildOff(off)
   local r = root()
   if not r or not (ns.isOfficer and ns.isOfficer()) then return false end
   r.guild = { off = off and true or false, at = epoch(), by = safe(UnitName, "player") }
-  if off then queue = {} end
+  if off then queue = {}; ms.offer() end
   send(string.format("GOFF|%d|%d", off and 1 or 0, r.guild.at))
   return true
 end
@@ -477,7 +557,7 @@ function ms.onAddonMessage(text, sender)
   local r = root()
   if not r or (r.guild and (r.guild.at or 0) >= at) then return end
   r.guild = { off = off == "1", at = at, by = tostring(sender):match("^[^-]+") }
-  if off == "1" then queue = {} end
+  if off == "1" then queue = {}; ms.offer() end
 end
 
 -- ----- commands --------------------------------------------------------

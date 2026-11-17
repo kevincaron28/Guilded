@@ -71,6 +71,8 @@ describe("Forever achievements as milestones", () => {
     s!.run(`NS.gameAchievements.scan()`);
     s!.run(`ACH[15577][2] = { 102, "Cat Form", 5, true, 11, 7, 26, "Now earned." }; ACH[15587][2] = { 202, "Journeyman Alchemist", 5, true, 11, 8, 26, "Reach 150." }`);
     expect(s!.run(`return tostring(NS.gameAchievements.scan())`)).toBe("2");
+    expect(out()).toBe(""); // offered in the Share bar; only the player's click sends it
+    s!.run(`NS.milestones.share(); NS.milestones.share()`);
     expect(out()).toBe("GUILD:Kev earned the achievement Journeyman Alchemist!");
     expect(s!.run(`return tostring(DB.milestones.chars["Kev-Realm"].done["ach:102"] ~= nil)`)).toBe("true");
   });
@@ -79,8 +81,10 @@ describe("Forever achievements as milestones", () => {
     setup();
     s!.run(`NS.gameAchievements.scan()`);
     s!.run(`ACH[15577][2] = { 102, "Cat Form", 5, true, 11, 9, 26, "Now earned." }; fire_event("ACHIEVEMENT_EARNED", 102, false)`);
+    expect(out()).toBe("");
+    s!.run(`NS.milestones.share()`);
     expect(out()).toBe("GUILD:Kev earned the achievement Cat Form!");
-    s!.run(`fire_event("ACHIEVEMENT_EARNED", 102, false)`);
+    s!.run(`fire_event("ACHIEVEMENT_EARNED", 102, false); NS.milestones.share()`);
     expect(out().split("\n")).toHaveLength(1);
     s!.run(`fire_event("ACHIEVEMENT_EARNED", 9001, false)`);
     expect(s!.run(`return tostring(DB.milestones.chars["Kev-Realm"].done["ach:9001"])`)).toBe("nil");
@@ -89,7 +93,7 @@ describe("Forever achievements as milestones", () => {
   it("respects the switches: per-kind off records but never says anything, and the officer switch wins", () => {
     setup();
     s!.run(`NS.gameAchievements.scan(); NS.commandHandlers.announce({ "ach", "off" })`);
-    s!.run(`ACH[15577][2] = { 102, "Cat Form", 5, true, 11, 9, 26, "Now earned." }; fire_event("ACHIEVEMENT_EARNED", 102, false)`);
+    s!.run(`ACH[15577][2] = { 102, "Cat Form", 5, true, 11, 9, 26, "Now earned." }; fire_event("ACHIEVEMENT_EARNED", 102, false); NS.milestones.share()`);
     expect(out()).toBe("");
     expect(log()).toContain("ach:102");
     setup();

@@ -73,7 +73,7 @@ describe("gold milestones", () => {
     expect(s!.run(`return tostring(NS.milestones.enabled("level"))`)).toBe("true");
     s!.run(`NS.commandHandlers.announce({ "gold", "on" })`);
     expect(s!.run(`return tostring(NS.milestones.enabled("gold"))`)).toBe("true");
-    s!.run(`MONEY = 1500 * 10000; NS.milestones.checkGold()`);
+    s!.run(`MONEY = 1500 * 10000; NS.milestones.checkGold(); NS.milestones.share()`);
     expect(out()).toContain("GUILD:Kev reached the gold milestone: Thousandaire!");
     expect(out()).not.toMatch(/\d{4,}/); // no amount anywhere
     s!.run(`NS.commandHandlers.announce({ "gold", "off" })`);
@@ -92,7 +92,7 @@ describe("gold milestones", () => {
   it("announces only the newest tier of a jump, and each tier once", () => {
     setup(0);
     s!.run(`NS.milestones.baseline(); NS.commandHandlers.announce({ "gold", "on" })`);
-    s!.run(`MONEY = 6000 * 10000; NS.milestones.checkGold(); NS.milestones.checkGold()`);
+    s!.run(`MONEY = 6000 * 10000; NS.milestones.checkGold(); NS.milestones.checkGold(); NS.milestones.share(); NS.milestones.share()`);
     expect(done()).toBe("gold:1,gold:2,gold:3,gold:4");
     expect(out().split("\n").filter(line => line.startsWith("GUILD:"))).toEqual(["GUILD:Kev reached the gold milestone: Gold Goblin!"]);
   });

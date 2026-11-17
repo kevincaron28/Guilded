@@ -486,7 +486,7 @@ describe("WoW Forever section", () => {
   it("moves older ?edition= links (any edition) and the filter forms into the WoW Forever section", async () => {
     const upstream = vi.fn(); vi.stubGlobal("fetch", upstream);
     const old = await page("/leaderboards/?edition=classic-tbc&season=s1&lang=fr");
-    expect(old.status).toBe(302);
+    expect(old.status).toBe(301);
     expect(old.headers.get("location")).toBe("/forever/leaderboards/?season=s1&lang=fr");
     const form = await page("/forever/recruitment/guilds/?q=gold&edition=retail");
     expect(form.headers.get("location")).toBe("/forever/recruitment/guilds/?q=gold");

@@ -214,6 +214,7 @@
     "source": "status.md",
     "sourceFr": "status.fr.md",
     "path": "status/",
+    "noindex": true,
     "title": "Guilded status — bot and leaderboards",
     "titleFr": "Statut de Guilded — bot et classements",
     "description": "Live check of the Guilded Discord bot and leaderboards, with what to do if something is down.",

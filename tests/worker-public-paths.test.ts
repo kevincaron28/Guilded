@@ -19,7 +19,7 @@ describe("public addresses keep answering", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("bot", { headers: { "content-type": "text/html" } })));
     const expected: [string, number, string | null][] = [
       ["/", 200, null], ["/forever/", 200, null], ["/forever/leaderboards/", 200, null],
-      ["/leaderboards/", 302, "/forever/leaderboards/"], ["/players/", 302, "/forever/players/"],
+      ["/leaderboards/", 301, "/forever/leaderboards/"], ["/players/", 301, "/forever/players/"],
       ["/g/quebec-gold/", 200, null], ["/editions/", 301, "/download/"], ["/editions/?lang=fr", 301, "/fr/download/"],
       ["/start/", 301, "/guide/start/"], ["/guides/install/", 301, "/guide/install/"], ["/officers/", 301, "/guide/officers/"],
       ["/docs/QUICK_START.html", 301, "/guide/start/"], ["/features/", 301, "/"],

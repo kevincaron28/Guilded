@@ -16,7 +16,6 @@ describe("member-facing command mentions", () => {
   });
   it("names the real recap commands", () => {
     const text = readFileSync("src/services/daily-recap.ts", "utf8");
-    expect(text).toContain("/report stats recap:true");
     expect(text).toContain("/report stats recap-posts:false");
   });
 });

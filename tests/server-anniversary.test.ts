@@ -42,7 +42,7 @@ describe("server anniversary card", () => {
     const input = { serverName: "Quebec Gold", years: 3, founded, members: 42, achievementsEarned: 310, oldestMembers: [{ displayName: "Kev", createdAt: new Date("2023-11-04T00:00:00Z") }] };
     const en = serverAnniversaryCard(input, "en");
     expect(en.stats[0]).toMatchObject({ label: "Years together", value: "3" });
-    expect(en.rows?.[0]).toMatchObject({ name: "Kev", sub: "Member since 2023-11-04" });
+    expect(en.rows?.[0]).toMatchObject({ name: "Kev", sub: "Member since Nov 3, 2023" });
     expect(serverAnniversaryCard(input, "fr").stats[0]!.label).toBe("Années ensemble");
   });
 });

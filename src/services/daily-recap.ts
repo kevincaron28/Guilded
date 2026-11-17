@@ -116,7 +116,7 @@ export function dailyRecapCard(recap: DailyRecap, lang: Lang, guildName: string)
     const order: HighlightKind[] = ["clear", "boss", "first", "deathless", "guild5"];
     const items = [...recap.dungeons.highlights].sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind));
     sections.push({ title: t("Dungeons · records", "Donjons · records"), rows: [
-      ...items.slice(0, recap.dungeons.mostRuns ? 4 : 5).map(item => ({ name: plainHighlight(item, lang), sub: item.kind === "boss" ? t(`Fastest kill · ${dungeonOf(item)}`, `Kill le plus rapide · ${dungeonOf(item)}`) : dungeonOf(item), right: item.valueSec !== undefined && (item.kind === "clear" || item.kind === "boss") ? clock(item.valueSec) : undefined, rightTone: "gold" as const })),
+      ...items.slice(0, recap.dungeons.mostRuns ? 4 : 5).map(item => ({ name: plainHighlight(item, lang), sub: item.kind === "boss" ? t(`Fastest kill · ${dungeonOf(item)}`, `Boss le plus rapide · ${dungeonOf(item)}`) : dungeonOf(item), right: item.valueSec !== undefined && (item.kind === "clear" || item.kind === "boss") ? clock(item.valueSec) : undefined, rightTone: "gold" as const })),
       ...(recap.dungeons.mostRuns ? [{ name: recap.dungeons.mostRuns.name, sub: t("Most runs today", "Le plus de donjons aujourd'hui"), right: `×${recap.dungeons.mostRuns.runs}`, rightTone: "green" as const }] : []),
       ...(!items.length && !recap.dungeons.mostRuns ? [{ name: plural(lang, recap.dungeons.clears, ["clear", "clears"], ["parcours", "parcours"]), sub: plural(lang, recap.dungeons.dungeons, ["different dungeon", "different dungeons"], ["donjon différent", "donjons différents"]) }] : [])
     ] });
@@ -132,7 +132,7 @@ export function dailyRecapCard(recap: DailyRecap, lang: Lang, guildName: string)
     title: guildName,
     subtitle: dayLabel(recap.day, lang),
     stats: stats.slice(0, 4),
-    footer: t("Guilded · from the guild's addon uploads · /report stats recap:true", "Guilded · d'après les envois de l'addon de la guilde · /report stats recap:true"),
+    footer: t("From the guild's addon uploads", "D'après les envois de l'addon de la guilde"),
     // 9.3: one of three approved paintings (recap/dawn, day, night), chosen by the day's seed like the scenes below; without a file the painted scene is drawn.
     backdrop: { kind: "recap", key: RECAP_TIMES[seedOf(recap.day) % RECAP_TIMES.length]! },
     recap: { theme: { a: "#1e1236", b: "#6a4aa8", motif: "keep", seed: seedOf(recap.day), scene: RECAP_SCENES[seedOf(recap.day) % RECAP_SCENES.length]! }, sections: sections.slice(0, 3) }

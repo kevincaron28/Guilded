@@ -104,7 +104,7 @@ describe("race board embed and card", () => {
     const moved = raceCard(data(rows), "fr", 25, new Map(), new Date("2026-11-07T14:05:00Z"), moves);
     expect(moved.ladder!.columns.map(column => column.label)).toEqual(["Progression", "Niv.", "Sem.", "24 h"]);
     expect(moved.ladder!.boards[0]!.rows.slice(0, 4).map(r => [r.move, r.moveLabel])).toEqual([[2, "2"], [-1, "1"], [0, "0"], ["new", "nouv."]]);
-    expect(card.ladder!.meta).toBe("Mis à jour 2026-11-07 14:05 UTC");
+    expect(card.ladder!.meta).toBe("Mis à jour 7 nov. 2026, 9 h 05");
     expect(raceCard(data(rows), "en", 12).ladder!.boards[0]!.rows).toHaveLength(12);
     expect(raceCard(data(rows), "en").ladder!.boards[0]!.rows).toHaveLength(50);
     expect(raceCard(data(rows), "en", 99).ladder!.boards[0]!.rows).toHaveLength(50);

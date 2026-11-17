@@ -175,7 +175,7 @@ describe("board", () => {
     const card = worldPvpCard(data, "en", new Map(), NOW);
     expect(card.ladder?.columns.map(c => c.label)).toEqual(["Kills", "Def.", "Helped", "Deaths", "K/D"]);
     expect(card.ladder?.boards[0]?.rows[0]).toMatchObject({ rank: 1, name: "Walter Sobchak", values: ["5", "3", "0", "0", "5.0"] });
-    expect(worldPvpCard(data, "fr", new Map(), NOW).ladder?.columns.map(c => c.label)).toEqual(["Vict.", "Déf.", "Aide", "Morts", "R/M"]);
+    expect(worldPvpCard(data, "fr", new Map(), NOW).ladder?.columns.map(c => c.label)).toEqual(["Vict.", "Déf.", "Aide", "Morts", "V/M"]);
     expect(worldPvpCard(data, "fr", new Map(), NOW).title).toBe("JcJ en monde ouvert");
   });
   it("breaks a tie on kills, defends and calls answered with fewer deaths, then the name; deaths alone never rank", () => {
@@ -191,7 +191,7 @@ describe("board", () => {
   it("shows deaths and K/D in the embed text, in English and French", () => {
     const withDeaths = { weekKey: KEY, standings: worldPvpStandings([{ memberId: "a", kills: 6, defends: 0, helped: 0, deaths: 4 }], new Map([["a", "Dude"]])) };
     expect(worldPvpEmbed(withDeaths, "en").toJSON().fields?.[0]?.value).toContain("4 deaths (K/D 1.5)");
-    expect(worldPvpEmbed(withDeaths, "fr").toJSON().fields?.[0]?.value).toContain("4 morts (R/M 1.5)");
+    expect(worldPvpEmbed(withDeaths, "fr").toJSON().fields?.[0]?.value).toContain("4 morts (V/M 1.5)");
   });
   it("has an embed with a text table, or with the card image, or an empty note", () => {
     const text = worldPvpEmbed(data, "en").toJSON();

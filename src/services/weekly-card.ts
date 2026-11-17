@@ -1,4 +1,5 @@
 import type { Lang } from "../i18n.js";
+import { cardDate } from "./card-format.js";
 import { plural } from "./card-plural.js";
 import type { ScoreCard } from "./score-card.js";
 import type { WeeklyReport } from "./weekly-report.js";
@@ -8,10 +9,10 @@ import { dungeonShare } from "./community-ingame.js";
 // the players of the week. It replaces the report's first embed; the cores and dungeon embeds stay as text under it, and the
 // whole text report is the fallback when the picture cannot be drawn. Follows the existing weekly report switch.
 
-const day = (date: Date) => date.toISOString().slice(0, 10);
 const delta = (now: number, before: number, fr: boolean) => before === now ? (fr ? "comme la semaine passée" : "same as last week") : `${now > before ? "+" : "−"}${Math.abs(now - before)} ${fr ? "vs semaine passée" : "vs last week"}`;
 
-export function weeklyReportCard(report: WeeklyReport, lang: Lang): ScoreCard {
+export function weeklyReportCard(report: WeeklyReport, lang: Lang, timeZone?: string): ScoreCard {
+  const day = (date: Date) => cardDate(date, lang, timeZone);
   const fr = lang === "fr", t = (en: string, french: string) => fr ? french : en;
   const d = report.dungeons;
   const rows: NonNullable<ScoreCard["rows"]> = [];

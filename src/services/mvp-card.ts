@@ -19,16 +19,16 @@ export function weeklyMvpCard(lang: Lang, input: MvpCardInput): ScoreCard {
   const n = (value: number) => value.toLocaleString(fr ? "fr-CA" : "en-CA");
   const place = (value: number) => fr ? `${value}e` : `${value}${[11, 12, 13].includes(value % 100) ? "th" : ["th", "st", "nd", "rd"][value % 10] ?? "th"}`;
   return {
-    eyebrow: t("Guilded · MVP of the week", "Guilded · MVP de la semaine"), title: input.name, subtitle: t("Community points", "Points de communauté"),
+    eyebrow: t("Guilded · MVP of the week", "Guilded · MVP de la semaine"), title: input.name, subtitle: t("The week's best member", "Le meilleur membre de la semaine"),
     backdrop: { kind: "board", key: "hall-of-fame", fallbackKey: "activity" },
     stats: [
-      { label: t("Points", "Points"), value: n(input.points), accent: "gold" },
+      { label: t("Community points", "Points de communauté"), value: n(input.points), accent: "gold" },
       ...(input.lead !== undefined && input.lead > 0 ? [{ label: t("Lead", "Avance"), value: `+${n(input.lead)}` }] : [])
     ],
     ...(input.others.length ? {
       rowsLabel: t("Next on the board", "Ensuite au classement"),
       rows: input.others.map(other => ({ name: other.name, sub: t(`${place(other.place)} place`, `${place(other.place)} place`), right: `${n(other.points)} pts`, rightTone: "gold" as const }))
     } : {}),
-    footer: t("MVP of the week · Community points · guildedwow.com", "MVP de la semaine · Points de communauté · guildedwow.com")
+    footer: t("Weekly honors · No rewards", "Honneurs de la semaine · Aucune récompense")
   };
 }

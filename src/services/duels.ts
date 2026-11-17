@@ -222,4 +222,4 @@ export async function duelLadder(db: Pick<PrismaClient, "duelResult"> & { guildS
 }
 
 export const percent = (rate: number) => `${Math.round(rate * 100)}%`;
-export const streakText = (streak: number) => streak > 1 ? `W${streak}` : streak < -1 ? `L${-streak}` : "·";
+export const streakText = (streak: number, lang: "en" | "fr" = "en") => streak > 1 ? `${lang === "fr" ? "V" : "W"}${streak}` : streak < -1 ? `${lang === "fr" ? "D" : "L"}${-streak}` : "·";

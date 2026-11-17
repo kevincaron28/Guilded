@@ -1,5 +1,4 @@
 import type { Lang } from "../i18n.js";
-import { plural } from "./card-plural.js";
 import type { ScoreCard } from "./score-card.js";
 import type { WeekRecap } from "./world-pvp-extras.js";
 import { killDeathRatio } from "./world-pvp.js";
@@ -10,27 +9,27 @@ import { killDeathRatio } from "./world-pvp.js";
 
 const plain = (value: string) => value.replace(/\s+/g, " ").trim().slice(0, 40);
 // The category is part of the row's name ("Top killer: Aldric"), so the picture's alt text, which reads names and right-hand values, keeps it.
-const labelled = (label: string, name: string) => `${label}: ${plain(name)}`;
+const labelled = (label: string, name: string, lang: Lang) => `${label}${lang === "fr" ? " :" : ":"} ${plain(name)}`;
 const duration = (seconds: number) => seconds < 90 ? `${seconds} s` : `${Math.round(seconds / 60)} min`;
 
 export function worldPvpRecapCard(recap: WeekRecap, lang: Lang): ScoreCard {
   const fr = lang === "fr", t = (en: string, french: string) => fr ? french : en;
   const rows: NonNullable<ScoreCard["rows"]> = [];
-  if (recap.killer) rows.push({ name: labelled(t("Top killer", "Meilleur tueur"), recap.killer.name), right: `${recap.killer.kills}`, rightTone: "red" });
-  if (recap.defender) rows.push({ name: labelled(t("Defender", "Défenseur"), recap.defender.name), right: `${recap.defender.defends} ${t("defends", "défenses")}`, rightTone: "green" });
-  if (recap.helper) rows.push({ name: labelled(t("Most calls answered", "Plus d'appels répondus"), recap.helper.name), right: `${recap.helper.helped}`, rightTone: "gold" });
-  if (recap.quickest) rows.push({ name: labelled(t("Quickest all clear", "Alerte levée la plus rapide"), recap.quickest.character), sub: plain(recap.quickest.zone), right: duration(recap.quickest.seconds), rightTone: "gold" });
+  if (recap.killer) rows.push({ name: labelled(t("Top killer", "Meilleur tueur"), recap.killer.name, lang), right: `${recap.killer.kills}`, rightTone: "red" });
+  if (recap.defender) rows.push({ name: labelled(t("Defender", "Défenseur"), recap.defender.name, lang), right: `${recap.defender.defends} ${t("defends", "défenses")}`, rightTone: "green" });
+  if (recap.helper) rows.push({ name: labelled(t("Most calls answered", "Plus d'appels répondus"), recap.helper.name, lang), right: `${recap.helper.helped}`, rightTone: "gold" });
+  if (recap.quickest) rows.push({ name: labelled(t("Quickest all clear", "Alerte levée la plus rapide"), recap.quickest.character, lang), sub: plain(recap.quickest.zone), right: duration(recap.quickest.seconds), rightTone: "gold" });
   return {
-    eyebrow: `Guilded · ${t("World PvP", "JcJ en monde ouvert")}`, title: t("World PvP, last week", "JcJ en monde ouvert, semaine dernière"),
-    subtitle: `${plural(lang, recap.calls, ["call for help", "calls for help"], ["appel à l'aide", "appels à l'aide"])} ${t("this week", "cette semaine")}`,
+    eyebrow: `${t("World PvP", "JcJ en monde ouvert")}`, title: t("World PvP, last week", "JcJ en monde ouvert, semaine dernière"),
+    subtitle: t("Week summary", "Bilan de la semaine"),
     backdrop: { kind: "board", key: "world-pvp-recap", fallbackKey: "world-pvp" },
     stats: [
       ...(recap.killer ? [{ label: t("Top kills", "Meilleur total"), value: String(recap.killer.kills), accent: "red" as const }] : []),
       { label: t("Calls for help", "Appels à l'aide"), value: String(recap.calls), accent: "gold" as const },
       // The text recap's guild-total deaths line: kept here (and so in the alt text) because the card goes out without text.
-      ...(recap.totals.deaths > 0 ? [{ label: t("Guild deaths", "Morts de la guilde"), value: String(recap.totals.deaths), note: `${t("K/D", "R/M")} ${killDeathRatio(recap.totals.kills, recap.totals.deaths)}`, accent: "red" as const }] : [])
+      ...(recap.totals.deaths > 0 ? [{ label: t("Guild deaths", "Morts de la guilde"), value: String(recap.totals.deaths), note: `${t("K/D", "victoires/morts")} ${killDeathRatio(recap.totals.kills, recap.totals.deaths)}`, accent: "red" as const }] : [])
     ],
     rowsLabel: t("Players of the week", "Joueurs de la semaine"), rows,
-    footer: t("Counted by members' Guilded addon, capped each week · No points or awards · guildedwow.com", "Comptés par l'addon Guilded des membres, plafonnés chaque semaine · Aucun point ni récompense · guildedwow.com")
+    footer: t("Counted by members' Guilded addon, capped each week · No points or awards", "Comptés par l'addon Guilded des membres, plafonnés chaque semaine · Aucun point ni récompense")
   };
 }

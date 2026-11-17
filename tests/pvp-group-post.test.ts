@@ -35,7 +35,9 @@ describe("PvP group post", () => {
     const card = pvpGroupCard(data(), "en");
     expect(card.title).toBe("Warsong Gulch push");
     expect(card.subtitle).toBe("Bracket 20-29 · Open");
-    expect(card.stats.map(stat => [stat.label, stat.value])).toEqual([["Players", "4/10"], ["Roles", "T1  H1  D2"], ["Open until", "18:00 UTC"]]);
+    expect(card.stats.map(stat => [stat.label, stat.value]).slice(0, 2)).toEqual([["Players", "4/10"], ["Roles", "T1  H1  D2"]]);
+    // Read in the guild time zone (Toronto by default), never as UTC.
+    expect(card.stats[2]).toMatchObject({ label: "Open until", value: expect.stringMatching(/^1:00\sPM$/) });
     expect(card.stats[0]!.note).toBe("2 in the queue");
     expect(card.dungeon!.party.map(p => [p.name, p.role])).toEqual([["Aria", "TANK"], ["Brom", "HEALER"], ["Cleo", "DPS"], ["Dax", "DPS"]]);
     expect(card.dungeon!.party[0]!.color).toBe("#c79c6e");
@@ -70,7 +72,7 @@ describe("PvP group post", () => {
     const json = pvpGroupEmbed(data(), "fr").toJSON();
     expect(json.fields!.map(f => f.name)).toEqual(["🛡️ Tank (1)", "💚 Soigneur (1)", "⚔️ DPS (2)", "Responsable", "File d'attente (2)"]);
     const card = pvpGroupCard(data(), "fr");
-    expect(card.eyebrow).toBe("Guilded · Groupe JcJ");
+    expect(card.eyebrow).toBe("Groupe JcJ");
     expect(card.stats[0]!.label).toBe("Joueurs");
   });
 
@@ -95,10 +97,10 @@ describe("PvP group post", () => {
 describe("activity label on the post (one group finder)", () => {
   it("names battleground, arena or world PvP on the card and the embed, in both languages", () => {
     const arena = data({ activityEn: "Arena", activityFr: "Arène" });
-    expect(pvpGroupCard(arena, "en").eyebrow).toBe("Guilded · Arena");
-    expect(pvpGroupCard(arena, "fr").eyebrow).toBe("Guilded · Arène");
+    expect(pvpGroupCard(arena, "en").eyebrow).toBe("Arena");
+    expect(pvpGroupCard(arena, "fr").eyebrow).toBe("Arène");
     expect(pvpGroupEmbed(arena, "en").toJSON().description).toContain("**Arena** · **Bracket 20-29**");
     expect(pvpGroupEmbed(arena, "fr").toJSON().description).toContain("**Arène** ·");
-    expect(pvpGroupCard(data(), "en").eyebrow).toBe("Guilded · PvP group");
+    expect(pvpGroupCard(data(), "en").eyebrow).toBe("PvP group");
   });
 });

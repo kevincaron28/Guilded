@@ -1,4 +1,5 @@
 import { bossTally } from "./dungeon-boss-scoring.js";
+import { cardDate } from "./card-format.js";
 import type { Lang } from "../i18n.js";
 import { SCARLET_WINGS } from "./dungeon-rating.js";
 import { plural } from "./card-plural.js";
@@ -268,6 +269,8 @@ export interface DungeonCardOptions {
   deathPoints?: { x: number; y: number }[];
   /** The posting guild's in-game name: shown for guildmates whose game client gave no guild text. */
   ownGuild?: string | null;
+  /** The guild time zone the date in the subtitle is read in. */
+  timeZone?: string;
 }
 
 /**
@@ -283,7 +286,7 @@ export function dungeonRunCard(run: Run, lang: Lang, options: DungeonCardOptions
   const totalDeaths = party.reduce((sum, row) => sum + (row.detail.deaths ?? 0), 0);
   const boss = finalBoss(run);
   const tally = run.challenge || run.instanceId === undefined ? null : bossTally(run.instanceId, run.encounters);
-  const date = run.endedAt ? new Date(run.endedAt * 1000).toISOString().slice(0, 10) : undefined;
+  const date = run.endedAt ? cardDate(new Date(run.endedAt * 1000), lang, options.timeZone) : undefined;
   const members = party.filter((row) => row.guild).length;
   const mark = run.challenge ? `Mythic+ +${run.challenge.level}` : undefined;
   const score = scoreColumn(party.map((row) => row.detail), t);

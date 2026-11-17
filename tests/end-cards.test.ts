@@ -14,7 +14,7 @@ describe("raid and battleground end cards", () => {
   it("summarises a raid without per-player performance and falls back to bosses without loot", () => {
     const card = raidEndCard(raid);
     expect(card.stats[0]).toMatchObject({ value: "7/10", accent: "gold", note: "Partial clear" });
-    expect(card.rows?.[0]).toMatchObject({ name: "Sulfuras <Hand>", right: "90 GP" });
+    expect(card.rows?.[0]).toMatchObject({ name: "Sulfuras <Hand>", right: "90 pts" });
     expect(raidEndCard({ ...raid, topLoot: [], lootCount: 0 }).rows).toHaveLength(5);
     expect(raidEndCard({ ...raid, bossesKilled: 10 }).stats[0]).toMatchObject({ accent: "green", note: "Full clear" });
     expect(raidEndCard(raid, "fr").stats[0]!.note).toBe("Complété en partie");
@@ -25,7 +25,7 @@ describe("raid and battleground end cards", () => {
     expect(card.stats[0]).toMatchObject({ value: "Victory", accent: "green" });
     expect(card.stats[1]!.value).toBe("12:34");
     expect(card.badges?.[0]).toMatchObject({ tone: "warn" });
-    expect(card.rows?.map(r => r.name)).toEqual(["Warsong Gulch", "Map 9999"]);
+    expect(card.rows?.map(r => r.name)).toEqual(["Warsong Gulch", "Battleground"]);
     expect(JSON.stringify(card)).not.toMatch(/honor|damage|kills/i.test("") ? "" : /\bdamage dealt\b/);
   });
   it("renders both as 1200x630 PNGs", async () => {

@@ -155,7 +155,7 @@ export function raidNightCard(check: RaidNightCheck, lang: Lang, timezone: strin
       { label: t("Need attention", "À corriger"), value: String(attention), accent: attention ? "red" : "green" },
       { label: t("Roles short", "Places manquantes"), value: String(missing), accent: missing ? "red" : "green" }
     ],
-    footer: t("Guilded · gear checks from the addon (valid 24 h) · /lead readiness-raid", "Guilded · vérifications de l'addon (valides 24 h) · /lead readiness-raid"),
+    footer: t("Gear checks from the addon, valid for 24 h", "Vérifications de l'addon, valides 24 h"),
     recap: { theme: { a: "#2a1210", b: "#ff7a2a", motif: "keep", seed: hash(check.raidId), scene: "blackrock" }, sections }
   };
 }

@@ -1,3 +1,4 @@
+import { loadCardTimeZone } from "./card-format.js";
 import { cardAttachment } from "./card-alt.js";
 import type { Guild as DiscordGuild, Message } from "discord.js";
 import { prisma } from "../database.js";
@@ -23,7 +24,7 @@ const CARD_TOP = 25;
  * knows the character, and the number of dungeons counted when the season is rated.
  */
 export function dungeonSeasonCard(rows: readonly { name: string; points: number; dungeons?: number | undefined; key?: string | undefined; bracket?: string | undefined }[], season: string, lang: "en" | "fr", rated: boolean,
-  classes: ClassBook = new Map(), updatedAt = new Date(), moves: Movements | null = null): ScoreCard {
+  classes: ClassBook = new Map(), updatedAt = new Date(), moves: Movements | null = null, timeZone?: string): ScoreCard {
   const fr = lang === "fr";
   season = seasonLabel(season, lang);
   const ranked = [...rows].sort((a, b) => b.points - a.points || a.name.localeCompare(b.name)).slice(0, CARD_TOP);
@@ -38,7 +39,7 @@ export function dungeonSeasonCard(rows: readonly { name: string; points: number;
     backdrop: { kind: "board", key: "dungeon-season" },
     stats: [], footer: fr ? "Toutes les saisons : /dungeon archive · Champions : /dungeon hall-of-fame" : "All seasons: /dungeon archive · Champions: /dungeon hall-of-fame",
     ladder: {
-      meta: ladderMeta(lang, updatedAt, season), empty: fr ? "Aucun parcours classé cette saison." : "No ranked run this season.",
+      meta: ladderMeta(lang, updatedAt, season, timeZone), empty: fr ? "Aucun parcours classé cette saison." : "No ranked run this season.",
       columns: [...(rated ? [{ label: fr ? "Donjons" : "Dungeons", width: 70 }, { label: "Score", width: 70, primary: true }] : [{ label: "Points", width: 70, primary: true }]),
         ...(moves ? [moveColumn(lang)] : [])],
       boards: [{ rows: ranked.map((row, index) => ({ rank: index + 1, name: row.name, color: classColor(classOf(classes, row.name)), ...(showBracket && bracketLabel(row.bracket) ? { sub: bracketLabel(row.bracket)! } : {}),
@@ -109,7 +110,7 @@ ${emptyNote}`.trim().slice(0, 4096));
       .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
     // A new season starts a new snapshot board, so arrows never compare two seasons.
     const moves = ladderRows.length ? await trackRanks(prisma, guild.id, `dungeon:${season.id}`, ladderRows.map((row) => row.key)) : null;
-    const png = ladderRows.length ? await scoreCardPng(dungeonSeasonCard(ladderRows, season.name, lang === "fr" ? "fr" : "en", Boolean(ratingRows), await loadClassBook(prisma, guild.id).catch(() => new Map<string, string>()), new Date(), moves)).catch(() => null) : null;
+    const png = ladderRows.length ? await scoreCardPng(dungeonSeasonCard(ladderRows, season.name, lang === "fr" ? "fr" : "en", Boolean(ratingRows), await loadClassBook(prisma, guild.id).catch(() => new Map<string, string>()), new Date(), moves, await loadCardTimeZone(prisma, guild.id))).catch(() => null) : null;
     // The picture lists the ranked rows: with it the rating embed keeps its rules and drops the same rows in text (no picture: unchanged).
     if (png && ratingRows) rating = ratingEmbed(ratingRows, season.name, lang, season.ratingRules, undefined, true);
     if (png) (rating ?? best).setImage(`attachment://${DUNGEON_BOARD_CARD_FILE}`);

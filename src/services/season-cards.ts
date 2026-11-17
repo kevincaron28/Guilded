@@ -2,6 +2,7 @@ import { EmbedBuilder } from "discord.js";
 import { siteUrl } from "../site-url.js";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
+import { cardDate, cardTime, loadCardTimeZone } from "./card-format.js";
 import { plural } from "./card-plural.js";
 import { textlessEmbed } from "./card-only.js";
 import { frozenRating, hasDungeonRating } from "./dungeon-rating.js";
@@ -18,7 +19,7 @@ import { seasonLabel } from "./season-label.js";
 
 const COLOR = 0xd4a017;
 export interface SeasonInfo { name: string; startsAt: Date; endsAt: Date | null }
-const day = (date: Date) => date.toISOString().slice(0, 10);
+const dayIn = (lang: Lang, timeZone?: string) => (date: Date) => cardDate(date, lang, timeZone);
 const MEDALS = ["🥇", "🥈", "🥉"];
 
 /** One podium entry: competition rank (equal scores share a place), the player, the score, and a bracket label when the season has brackets. */
@@ -50,8 +51,8 @@ export function seasonPodium(season: { ratingRules?: unknown; finalRating?: unkn
 }
 
 /** Pure: the podium card of a season that ended. Without a podium it says so in words. */
-export function seasonEndCard(season: SeasonInfo, podium: Podium | null, lang: Lang, classes: ClassBook): ScoreCard {
-  const fr = lang === "fr", t = (en: string, french: string) => fr ? french : en;
+export function seasonEndCard(season: SeasonInfo, podium: Podium | null, lang: Lang, classes: ClassBook, timeZone?: string): ScoreCard {
+  const fr = lang === "fr", t = (en: string, french: string) => fr ? french : en, day = dayIn(lang, timeZone);
   const entries = podium?.entries ?? [];
   const champions = entries.filter(entry => entry.rank === 1 && !entry.label);
   const place = (entry: PodiumEntry) => entry.label ? `${MEDALS[0]} ${t("Champion", "Champion")} · ${entry.label}` : `${MEDALS[entry.rank - 1]} ${entry.rank === 1 ? t("Champion", "Champion") : t(`Place ${entry.rank}`, `${entry.rank}e place`)}`;
@@ -65,7 +66,8 @@ export function seasonEndCard(season: SeasonInfo, podium: Podium | null, lang: L
       ...(entries.length ? [{ label: t("Top score", "Meilleur score"), value: String(Math.max(...entries.map(entry => entry.points))), accent: "green" as const }] : [])
     ],
     rowsLabel: t("Podium", "Podium"),
-    rows: entries.length ? entries.map(entry => ({ name: entry.name, color: classColor(classOf(classes, entry.name)), sub: place(entry), right: `${entry.points} pts`, rightTone: entry.rank === 1 ? "gold" as const : undefined }))
+    // A lone champion is already the hero figure: the rows start at second place so nobody is named three times.
+    rows: entries.length ? (champions.length === 1 ? entries.filter(entry => entry !== champions[0]) : entries).map(entry => ({ name: entry.name, color: classColor(classOf(classes, entry.name)), sub: place(entry), right: `${entry.points} pts`, rightTone: entry.rank === 1 ? "gold" as const : undefined }))
       : [{ name: t("No ranked player this season", "Aucun joueur classé cette saison"), sub: t("No dungeon points were recorded", "Aucun point de donjon enregistré") }],
     ...(podium?.moreChampions ? { badges: [{ text: t(`and ${plural(lang, podium.moreChampions, ["more champion", "more champions"], ["", ""])}`, `et ${plural(lang, podium.moreChampions, ["", ""], ["autre champion", "autres champions"])}`), tone: "muted" as const }] } : {}),
     footer: t("Season results · Final standings as published · No rewards · guildedwow.com", "Résultats de saison · Classement final publié · Aucune récompense · guildedwow.com")
@@ -73,14 +75,15 @@ export function seasonEndCard(season: SeasonInfo, podium: Podium | null, lang: L
 }
 
 /** Pure: the card of the season that begins. */
-export function seasonStartCard(season: SeasonInfo, lang: Lang): ScoreCard {
-  const fr = lang === "fr", t = (en: string, french: string) => fr ? french : en;
+export function seasonStartCard(season: SeasonInfo, lang: Lang, timeZone?: string): ScoreCard {
+  const fr = lang === "fr", t = (en: string, french: string) => fr ? french : en, day = dayIn(lang, timeZone);
+  const days = season.endsAt ? Math.max(1, Math.round((season.endsAt.getTime() - season.startsAt.getTime()) / 86_400_000)) : 0;
   return {
     eyebrow: t("Guilded · Dungeons", "Guilded · Donjons"), title: t(`${seasonLabel(season.name, lang)} begins`, `${seasonLabel(season.name, lang)} commence`),
-    subtitle: season.endsAt ? `${day(season.startsAt)} → ${day(season.endsAt)}` : t(`From ${day(season.startsAt)}`, `Dès le ${day(season.startsAt)}`),
+    subtitle: season.endsAt ? plural(lang, days, ["day", "days"], ["jour", "jours"]) : t("Open-ended season", "Saison sans date de fin"),
     backdrop: { kind: "board", key: "season-start", fallbackKey: "dungeon-season" },
     stats: [
-      { label: t("Starts", "Début"), value: day(season.startsAt), accent: "gold" },
+      { label: t("Starts", "Début"), value: day(season.startsAt), note: cardTime(season.startsAt, lang, timeZone), accent: "gold" },
       { label: t("Ends", "Fin"), value: season.endsAt ? day(season.endsAt) : t("Open", "Ouverte") }
     ],
     rowsLabel: t("How it works", "Comment ça marche"),
@@ -97,8 +100,8 @@ export function seasonEndFallback(season: SeasonInfo, podium: Podium | null, lan
   return new EmbedBuilder().setColor(COLOR).setTitle(fr ? `🏁 ${seasonLabel(season.name, lang)} est terminée` : `🏁 ${seasonLabel(season.name, lang)} is over`)
     .setDescription(entries.length ? entries.map(entry => `${MEDALS[entry.rank - 1]} ${entry.name}${entry.label ? ` (${entry.label})` : ""} — ${entry.points} pts`).join("\n") + (podium?.moreChampions ? `\n+${podium.moreChampions}` : "") : fr ? "Aucun joueur classé cette saison." : "No ranked player this season.").setImage(siteUrl("/card-art/board/season-end.jpg"));
 }
-export function seasonStartFallback(season: SeasonInfo, lang: Lang): EmbedBuilder {
-  const fr = lang === "fr";
+export function seasonStartFallback(season: SeasonInfo, lang: Lang, timeZone?: string): EmbedBuilder {
+  const fr = lang === "fr", day = dayIn(lang, timeZone);
   return new EmbedBuilder().setColor(COLOR).setTitle(fr ? `🚀 ${seasonLabel(season.name, lang)} commence` : `🚀 ${seasonLabel(season.name, lang)} begins`)
     .setDescription(season.endsAt ? `${day(season.startsAt)} → ${day(season.endsAt)}` : (fr ? `Dès le ${day(season.startsAt)}` : `From ${day(season.startsAt)}`)).setImage(siteUrl("/card-art/board/season-start.jpg"));
 }
@@ -125,12 +128,13 @@ export async function queueSeasonEndCards(database: Database, guildId: string, l
   if (!seasonIds.length || !await enabledChannel(database, guildId)) return 0;
   const seasons = await database.dungeonSeason.findMany({ where: { guildId, status: "ENDED", id: { in: seasonIds } }, orderBy: { endsAt: "desc" }, take: 3 });
   let queued = 0;
+  const timeZone = await loadCardTimeZone(database, guildId);
   for (const season of seasons) {
     const podium = seasonPodium(season);
     // No stored results at all (neither rating nor standings): not final yet, so no card and no job.
     if (!podium) continue;
     const info = { name: season.name, startsAt: season.startsAt, endsAt: season.endsAt };
-    queued += await put(database, guildId, `season-card:end:${season.id}`, seasonEndCard(info, podium, lang, classes), seasonEndFallback(info, podium, lang));
+    queued += await put(database, guildId, `season-card:end:${season.id}`, seasonEndCard(info, podium, lang, classes, timeZone), seasonEndFallback(info, podium, lang));
   }
   return queued;
 }
@@ -140,8 +144,8 @@ export async function queueSeasonStartCard(database: Database, guildId: string, 
   if (!await enabledChannel(database, guildId)) return 0;
   const active = await database.dungeonSeason.findFirst({ where: { guildId, status: "ACTIVE" }, orderBy: { startsAt: "desc" } });
   if (!active) return 0;
-  const info = { name: active.name, startsAt: active.startsAt, endsAt: active.endsAt };
-  return put(database, guildId, `season-card:start:${active.id}`, seasonStartCard(info, lang), seasonStartFallback(info, lang));
+  const info = { name: active.name, startsAt: active.startsAt, endsAt: active.endsAt }, timeZone = await loadCardTimeZone(database, guildId);
+  return put(database, guildId, `season-card:start:${active.id}`, seasonStartCard(info, lang, timeZone), seasonStartFallback(info, lang, timeZone));
 }
 
 /** Delivery re-check for a season card job: switch and channel now (never for another job on any route). */

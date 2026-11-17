@@ -8,6 +8,7 @@ import { dungeonBackdrop } from "./dungeon-backdrop.js";
 import { cardAltText } from "./card-alt.js";
 import { cardBackdropArt, BANNER_HEIGHT, type CardBackdrop } from "./card-backdrop.js";
 import { withBadgeImages } from "./badge-art.js";
+import { cardDateTime } from "./card-format.js";
 import type { RecordVisual } from "./record-card.js";
 import type { TrendVisual } from "./member-trend.js";
 
@@ -191,10 +192,10 @@ const withArt = (shapes: string[], art: Buffer | null, height: number) => { if (
 // bar and movement arrow, zebra rows and a highlighted first place. One board longer than LADDER_SPLIT rows is split into two
 // side-by-side panels when the names still fit (ranks continue); several boards sit two per row. The image is as tall as its rows need (at least 630).
 export const LADDER_SPLIT = 14, LADDER_MAX_ROWS = 50;
-/** The ladder's top-right line: the season (when there is one) and when the board was drawn, in UTC. */
-export function ladderMeta(lang: "en" | "fr", updatedAt: Date, season?: string | null): string {
-  const when = updatedAt.toISOString().slice(0, 16).replace("T", " ");
-  return [season, lang === "fr" ? `Mis à jour ${when} UTC` : `Updated ${when} UTC`].filter(Boolean).join(" · ");
+/** The ladder's top-right line: the season (when there is one) and when the board was drawn, in the guild's time zone. */
+export function ladderMeta(lang: "en" | "fr", updatedAt: Date, season?: string | null, timeZone?: string): string {
+  const when = cardDateTime(updatedAt, lang, timeZone);
+  return [season, lang === "fr" ? `Mis à jour ${when}` : `Updated ${when}`].filter(Boolean).join(" · ");
 }
 const MEDAL = ["#ffd100", "#c9d1d9", "#d08a4a"] as const;
 async function renderLadder(card: ScoreCard): Promise<Buffer> {
@@ -895,8 +896,19 @@ export const altTextOf = (png: Buffer): string | undefined => altTexts.get(png);
 
 // Cache by the complete facts, not a player id, so changed scores immediately get a different image.
 // Bound both memory (32 images) and concurrent render work (2 distinct images); null means busy.
-export async function scoreCardPng(card: ScoreCard): Promise<Buffer | null> {
-  const key = createHash("sha256").update(JSON.stringify(card)).digest("hex");
+/**
+ * Cards posted in a Discord server carry no product branding ("Guilded ·" before the eyebrow, "guildedwow.com" in the footer): the
+ * server's own members are reading them. The website's own share images keep it (`branded`).
+ */
+export function unbrandCard(card: ScoreCard): ScoreCard {
+  const eyebrow = card.eyebrow?.replace(/^Guilded\s*·\s*/i, "");
+  const footer = card.footer.replace(/\s*·\s*guildedwow\.com\s*$/i, "").replace(/^Guilded\s*·\s*/i, "");
+  return { ...card, ...(eyebrow && eyebrow !== "Guilded" ? { eyebrow } : { eyebrow: card.title }), footer };
+}
+
+export async function scoreCardPng(source: ScoreCard, options: { branded?: boolean } = {}): Promise<Buffer | null> {
+  const card = options.branded ? source : unbrandCard(source);
+  const key = createHash("sha256").update(JSON.stringify(card)).digest("hex") + (options.branded ? "b" : "");
   const cached = images.get(key);
   if (cached) return cached;
   let work = pending.get(key);
@@ -918,6 +930,6 @@ export async function scoreCardPng(card: ScoreCard): Promise<Buffer | null> {
 export async function scoreCardResponse(card: ScoreCard, head = false): Promise<WebResponse> {
   const headers = { "content-type": "image/png", "cache-control": "no-store", "x-content-type-options": "nosniff" };
   if (head) return { status: 200, headers, body: "" };
-  const binaryBody = await scoreCardPng(card);
+  const binaryBody = await scoreCardPng(card, { branded: true });
   return binaryBody ? { status: 200, headers, body: "", binaryBody } : { status: 503, headers: { ...headers, "retry-after": "2" }, body: "" };
 }

@@ -40,7 +40,7 @@ describe("crafter standings", () => {
     const embed = craftLadderEmbed(crafterStandings(rows, names, NOW), "en", "g1", "top-crafters.png").toJSON();
     expect(embed.description).toBeUndefined();
     expect(craftLadderEmbed(crafterStandings(rows, names, NOW), "en", "g1").toJSON().description).toContain("🥇 Walter Sobchak — 3 pt · 2 in 30 days");
-    expect(embed.footer?.text).toBe("1 point per finished order on the crafting board · no EP/GP");
+    expect(embed.footer?.text).toBe("1 point per finished order on the crafting board");
     expect(craftLadderEmbed([], "en", "g1").toJSON().description).toContain("No finished crafts yet");
   });
 });

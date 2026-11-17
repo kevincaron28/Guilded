@@ -148,17 +148,17 @@ export async function loadWorldPvpData(db: Pick<PrismaClient, "worldPvpWeek" | "
 }
 
 /** Pure: the shared ladder layout, one panel with the week's top 10. */
-export function worldPvpCard(data: WorldPvpData, lang: Lang, classes: ClassBook = new Map(), updatedAt = new Date()): ScoreCard {
+export function worldPvpCard(data: WorldPvpData, lang: Lang, classes: ClassBook = new Map(), updatedAt = new Date(), timeZone?: string): ScoreCard {
   const fr = lang === "fr";
   return {
     eyebrow: `Guilded · ${fr ? "JcJ" : "PvP"}`, title: fr ? "JcJ en monde ouvert" : "World PvP",
-    subtitle: `${data.season ? `${officialSeasonName(data.season.number, lang)} · ` : ""}${fr ? "Cette semaine (reset du mardi) · victoires, défenses, appels à l'aide, morts et R/M" : "This week (Tuesday reset) · kills, defends, calls answered, deaths and K/D"}`,
+    subtitle: `${data.season ? `${officialSeasonName(data.season.number, lang)} · ` : ""}${fr ? "Cette semaine (reset du mardi) · victoires, défenses, appels à l'aide, morts et V/M (victoires par mort)" : "This week (Tuesday reset) · kills, defends, calls answered, deaths and K/D"}`,
     backdrop: { kind: "board", key: "world-pvp" },
     stats: [], footer: fr ? "Compteurs des joueurs, plafonnés · distinct des champs de bataille et des duels · aucun point ni récompense" : "Player counters, capped · separate from battlegrounds and duels · no points or awards",
     ladder: {
-      meta: ladderMeta(lang, updatedAt), empty: fr ? "Aucune activité JcJ en monde ouvert cette semaine." : "No open-world PvP this week yet.",
+      meta: ladderMeta(lang, updatedAt, null, timeZone), empty: fr ? "Aucune activité JcJ en monde ouvert cette semaine." : "No open-world PvP this week yet.",
       columns: [{ label: fr ? "Vict." : "Kills", width: 52, primary: true }, { label: fr ? "Déf." : "Def.", width: 46 }, { label: fr ? "Aide" : "Helped", width: 52 },
-        { label: fr ? "Morts" : "Deaths", width: 56 }, { label: fr ? "R/M" : "K/D", width: 44 }],
+        { label: fr ? "Morts" : "Deaths", width: 56 }, { label: fr ? "V/M" : "K/D", width: 44 }],
       boards: [{ rows: data.standings.slice(0, CARD_TOP).map((player, index) => ({ rank: index + 1, name: player.name, color: classColor(classOf(classes, player.name)),
         values: [String(player.kills), String(player.defends), String(player.helped), String(player.deaths ?? 0), killDeathRatio(player.kills, player.deaths ?? 0)] })) }]
     }
@@ -173,9 +173,9 @@ export function worldPvpEmbed(data: WorldPvpData, lang: Lang, image?: string): E
   if (!data.standings.length) {
     embed.setDescription(t("No open-world PvP yet this week. Kills, defends and calls answered come from members' Guilded addon.", "Aucune activité JcJ en monde ouvert cette semaine. Les victoires, défenses et appels viennent de l'addon Guilded des membres."));
   } else {
-    embed.setDescription(t("Open-world kills, then defends (kills after answering a guildmate's call for help), then calls answered; deaths and K/D are shown but never lift a rank (ties go to fewer deaths). Resets with the raid week.", "Victoires en monde ouvert, puis défenses (victoires après avoir répondu à un appel à l'aide), puis appels répondus ; les morts et le R/M sont affichés mais ne font jamais monter un rang (à égalité, moins de morts passe devant). Remise à zéro avec la semaine de raid."));
+    embed.setDescription(t("Open-world kills, then defends (kills after answering a guildmate's call for help), then calls answered; deaths and K/D are shown but never lift a rank (ties go to fewer deaths). Resets with the raid week.", "Victoires en monde ouvert, puis défenses (victoires après avoir répondu à un appel à l'aide), puis appels répondus ; les morts et le V/M sont affichés mais ne font jamais monter un rang (à égalité, moins de morts passe devant). Remise à zéro avec la semaine de raid."));
     if (!image) {
-      const rows = data.standings.slice(0, TOP).map((p, i) => `${["🥇", "🥈", "🥉"][i] ?? `**${i + 1}.**`} ${name(p.name)} — ${p.kills} ${t("kills", "victoires")} · ${p.defends} ${t("defends", "défenses")} · ${p.helped} ${t("answered", "répondus")} · ${p.deaths ?? 0} ${t("deaths", "morts")} (${t("K/D", "R/M")} ${killDeathRatio(p.kills, p.deaths ?? 0)})`);
+      const rows = data.standings.slice(0, TOP).map((p, i) => `${["🥇", "🥈", "🥉"][i] ?? `**${i + 1}.**`} ${name(p.name)} — ${p.kills} ${t("kills", "victoires")} · ${p.defends} ${t("defends", "défenses")} · ${p.helped} ${t("answered", "répondus")} · ${p.deaths ?? 0} ${t("deaths", "morts")} (${t("K/D", "V/M")} ${killDeathRatio(p.kills, p.deaths ?? 0)})`);
       embed.addFields({ name: t("Top this week", "Meilleurs de la semaine"), value: rows.join("\n").slice(0, 1024) });
     }
   }

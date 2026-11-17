@@ -5,7 +5,7 @@ import { duelBoardEmbed } from "../src/services/duel-board.js";
 import { dungeonCardOnly, dungeonPosts } from "../src/services/dungeon-announce.js";
 import type { DungeonImportResult } from "../src/services/dungeon-import.js";
 import { dungeonRunCard } from "../src/services/dungeon-card.js";
-import { scoreCardPng } from "../src/services/score-card.js";
+import { scoreCardPng, unbrandCard } from "../src/services/score-card.js";
 
 const run = (overrides: Partial<DungeonImportResult> = {}): DungeonImportResult => ({
   runRef: "QG-1", dungeonName: "Deadmines", difficultyId: 1, state: "COMPLETED", valid: true, durationSec: 1300, points: 0,
@@ -68,7 +68,7 @@ describe("attachments", () => {
   it("carry the alt text of the card they were drawn from", async () => {
     const card = dungeonRunCard(run(), "en");
     const png = (await scoreCardPng(card))!;
-    expect(cardAttachment(png, "card.png").description).toBe(cardAltText(card));
+    expect(cardAttachment(png, "card.png").description).toBe(cardAltText(unbrandCard(card)));
     expect(cardAttachment(Buffer.from("not drawn here"), "x.png").description).toBeNull();
   });
 });

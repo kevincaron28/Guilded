@@ -7,6 +7,7 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, type Lang } from "../i18n.js";
 import { createGuildService } from "./guild.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./discord-jobs.js";
+import { loadCardTimeZone } from "./card-format.js";
 import { duelLadder, percent, streakText, type DuelStanding, type LadderStanding } from "./duels.js";
 import { ratingSeasonName, ratingSeasonRange, showRating } from "./duel-rating.js";
 import { ratingFooter } from "./duel-rules.js";
@@ -37,7 +38,7 @@ const scoreText = (row: DuelBoardData["standings"][number]) => row.placement ? `
  * Pure: the duel ladder picture (shared ladder layout): top 25 by the duel ranking, medals for the top 3, class colours where the
  * guild knows the character, wins, losses, win rate, best streak and the current streak.
  */
-export function duelBoardCard(data: DuelBoardData, lang: Lang, classes: ClassBook = new Map(), updatedAt = new Date(), moves: Movements | null = null): ScoreCard {
+export function duelBoardCard(data: DuelBoardData, lang: Lang, classes: ClassBook = new Map(), updatedAt = new Date(), moves: Movements | null = null, timeZone?: string): ScoreCard {
   const fr = lang === "fr";
   return {
     eyebrow: `Guilded · ${fr ? "JcJ" : "PvP"}`, title: fr ? "Duels de la guilde" : "Guild duels",
@@ -45,11 +46,11 @@ export function duelBoardCard(data: DuelBoardData, lang: Lang, classes: ClassBoo
     backdrop: { kind: "board", key: "duel-ladder", fallbackKey: "duel" },
     stats: [], footer: data.mode === "rating" && data.seasonId ? ratingFooter(lang, ratingSeasonName(data.seasonId, lang), data.startsAt) : fr ? "Score : 10 par victoire, +2 par niveau de l'adversaire au-dessus de vous, -2 par niveau en dessous (0-20) · aucune récompense" : "Score: 10 per win, +2 per level the opponent is above you, -2 per level below (0-20) · no rewards",
     ladder: {
-      meta: ladderMeta(lang, updatedAt), empty: fr ? "Aucun duel enregistré." : "No duel recorded yet.",
+      meta: ladderMeta(lang, updatedAt, null, timeZone), empty: fr ? "Aucun duel enregistré." : "No duel recorded yet.",
       columns: [{ label: data.mode === "rating" ? (fr ? "Cote" : "Rating") : "Score", width: 52, primary: true }, { label: fr ? "V" : "W", width: 44 }, { label: fr ? "D" : "L", width: 44 }, { label: fr ? "% vict." : "Win %", width: 64 },
         { label: fr ? "Record" : "Best", width: 56 }, { label: fr ? "Série" : "Streak", width: 56 }, ...(moves ? [moveColumn(lang)] : [])],
       boards: [{ rows: data.standings.slice(0, CARD_TOP).map((row, index) => ({ rank: row.rank === undefined ? index + 1 : row.rank ?? 0, name: row.name, color: classColor(classOf(classes, row.name)),
-        values: [scoreText(row), String(row.wins), String(row.losses), percent(row.winRate), String(row.bestStreak), streakText(row.streak), ""], ...moveFields(moves, row.memberId, lang) })) }]
+        values: [scoreText(row), String(row.wins), String(row.losses), percent(row.winRate), String(row.bestStreak), streakText(row.streak, lang), ""], ...moveFields(moves, row.memberId, lang) })) }]
     }
   };
 }
@@ -65,7 +66,7 @@ export function duelBoardEmbed(data: DuelBoardData, lang: Lang, image?: string):
   } else {
     const rows = data.standings.slice(0, image ? 3 : TOP).map((row, index) => {
       const medal = ["🥇", "🥈", "🥉"][index] ?? `**${index + 1}.**`;
-      return `${medal} ${name(row.name)} — ${data.mode === "rating" ? (row.placement ? t(`placement ${scoreText(row)}`, `placement ${scoreText(row)}`) : `${scoreText(row)}`) : `${row.score} pts`} · ${row.wins}${t("W", "V")} ${row.losses}${t("L", "D")} · ${percent(row.winRate)} · ${t("best streak", "meilleure série")} ${row.bestStreak} · ${streakText(row.streak)}`;
+      return `${medal} ${name(row.name)} — ${data.mode === "rating" ? (row.placement ? t(`placement ${scoreText(row)}`, `placement ${scoreText(row)}`) : `${scoreText(row)}`) : `${row.score} pts`} · ${row.wins}${t("W", "V")} ${row.losses}${t("L", "D")} · ${percent(row.winRate)} · ${t("best streak", "meilleure série")} ${row.bestStreak} · ${streakText(row.streak, lang)}`;
     });
     // With the picture, its top 3 repeat the card: the embed keeps only the title and the latest duels (9.3).
     if (!image) embed.setDescription(rows.join("\n"));
@@ -120,7 +121,7 @@ export async function updateDuelBoard(discordGuild: DiscordGuild | null, deliver
     const edition = guild.gameEdition ?? "forever";
     const data = withFullNames(await loadDuelBoardData(prisma, guild.id, edition), await loadFullNameBook(prisma, guild.id));
     const moves = data.standings.length ? await trackRanks(prisma, guild.id, "duel", data.standings.map(row => row.memberId)) : null;
-    const png = data.standings.length ? await scoreCardPng(duelBoardCard(data, lang, await loadClassBook(prisma, guild.id).catch(() => new Map<string, string>()), new Date(), moves)).catch(() => null) : null;
+    const png = data.standings.length ? await scoreCardPng(duelBoardCard(data, lang, await loadClassBook(prisma, guild.id).catch(() => new Map<string, string>()), new Date(), moves, await loadCardTimeZone(prisma, guild.id))).catch(() => null) : null;
     const embed = duelBoardEmbed(data, lang, png ? DUEL_CARD_FILE : undefined).setTimestamp(new Date());
     const payload = { embeds: [embed], files: png ? [cardAttachment(png, DUEL_CARD_FILE)] : [], allowedMentions: { parse: [] as never[] } };
     const botId = discordGuild.client.user?.id ?? "";

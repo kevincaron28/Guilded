@@ -44,7 +44,7 @@ describe("leaderboard cards share the ladder layout", () => {
     const card = duelBoardCard(duelData(30), "fr", buildClassBook([{ name: "Kev Caron", className: "Mage" }]), at);
     const rows = card.ladder!.boards[0]!.rows;
     expect(rows).toHaveLength(25);
-    expect(rows[0]).toMatchObject({ rank: 1, name: "Kev Caron", color: "#69ccf0", values: ["200", "20", "0", "100%", "5", "W4", ""] });
+    expect(rows[0]).toMatchObject({ rank: 1, name: "Kev Caron", color: "#69ccf0", values: ["200", "20", "0", "100%", "5", "V4", ""] });
     expect(rows[0]).not.toHaveProperty("move");
     expect(card.ladder!.columns.map(column => column.label)).toEqual(["Score", "V", "D", "% vict.", "Record", "Série"]);
     expect(card.ladder!.meta).toBe(ladderMeta("fr", at));
@@ -68,7 +68,7 @@ describe("leaderboard cards share the ladder layout", () => {
   it("dungeon season: ranked by points with the season and updated time; dungeons counted when rated", () => {
     const rated = dungeonSeasonCard([{ name: "B", points: 900, dungeons: 5 }, { name: "A", points: 1200.4, dungeons: 7 }], "Season 1", "en", true, new Map(), at);
     expect(rated.ladder!.boards[0]!.rows.map(row => [row.rank, row.name, row.values])).toEqual([[1, "A", ["7", "1200", ""]], [2, "B", ["5", "900", ""]]]);
-    expect(rated.ladder!.meta).toBe("Season 1 · Updated 2026-11-07 14:05 UTC");
+    expect(rated.ladder!.meta).toBe(ladderMeta("en", at, "Season 1"));
     const points = dungeonSeasonCard([{ name: "A", points: 75 }], "Saison 1", "fr", false, new Map(), at);
     expect(points.ladder!.columns.map(column => column.label)).toEqual(["Points"]);
     expect(points.title).toBe("Points de donjon");

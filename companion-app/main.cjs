@@ -729,7 +729,15 @@ let directStartupOn = null, autostartReadWarned = false;
 async function refreshAutostart() {
   if (STORE_PACKAGE) return;
   const state = await autostart.readState({ exePath: process.execPath });
-  if (state) { directStartupOn = state.on; autostartReadWarned = false; return; }
+  if (state) {
+    directStartupOn = state.on; autostartReadWarned = false;
+    // Keep exactly one Run entry: a stale `electron.app.Electron` pointing at this exe is removed.
+    if (state.entries.some((entry) => entry.name !== autostart.CANONICAL_NAME)) {
+      const tidied = await autostart.tidy({ exePath: process.execPath, electronSet: (value) => app.setLoginItemSettings({ openAtLogin: value, args: autostart.ARGS }) }).catch(() => null);
+      if (tidied?.removed.length) { directStartupOn = tidied.on; updateLine(`autostart: removed stale Windows startup entries (${tidied.removed.join(", ")}); one entry kept`); }
+    }
+    return;
+  }
   if (!autostartReadWarned) {
     autostartReadWarned = true;
     updateLine("autostart: the Windows Run key could not be read; the Start with Windows box keeps its last known state");

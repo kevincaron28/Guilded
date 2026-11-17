@@ -978,7 +978,7 @@ function recipes.remindUnread()
   if #names > 0 then
     local shown = {}
     for index, name in ipairs(names) do shown[index] = label(name) end -- shown in the player's language, stored in English
-    ns.message(string.format(L("Open your %s window once so your guild can see what you craft (Guilded reads it by itself)."), table.concat(shown, ", ")))
+    ns.infoMessage(string.format(L("Open your %s window once so your guild can see what you craft (Guilded reads it by itself)."), table.concat(shown, ", ")))
   end
   return names
 end

@@ -492,7 +492,7 @@ function orders.loginAlert()
   if count == 0 or newest <= (tonumber(s.seenAt) or 0) then return false end
   s.seenAt = newest
   if not orders.alertsOn() or not ns.message then return false end
-  ns.message(string.format(L("%d craft order(s) from Discord you can make: the Crafting page of the Guilded window (/guilded orders)."), count))
+  ns.infoMessage(string.format(L("%d craft order(s) from Discord you can make: the Crafting page of the Guilded window (/guilded orders)."), count))
   return true
 end
 

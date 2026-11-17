@@ -133,7 +133,7 @@ function module.announceLinked()
   local line = stateLine(state)
   if not line or announced == line then return false end
   announced = line
-  ns.message(line)
+  ns.infoMessage(line)
   return true
 end
 
@@ -209,9 +209,10 @@ function module.remind(force)
     if clock() - (tonumber(d.companionRemindedAt) or 0) < WEEK then return false end
   end
   d.companionRemindedAt = clock()
-  ns.message(module.text() .. " " .. module.SHORT)
-  for _, line in ipairs(module.steps()) do ns.message(line) end
-  ns.message(L("Open Guilded > Home to copy the link. Turn this reminder off: /guilded companion off"))
+  local say = force and ns.message or ns.infoMessage
+  say(module.text() .. " " .. module.SHORT)
+  for _, line in ipairs(module.steps()) do say(line) end
+  say(L("Open Guilded > Home to copy the link. Turn this reminder off: /guilded companion off"))
   return true
 end
 

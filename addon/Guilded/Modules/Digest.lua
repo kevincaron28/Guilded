@@ -64,9 +64,9 @@ end
 
 -- "Synced via Lebowski, 2 h ago." when a guildmate's companion carries this member's data
 -- (Modules/GuildRelay.lua); nothing when this PC runs the companion or none was heard.
-local function showVia()
+local function showVia(force)
   local ok, text = pcall(function() return ns.relay and ns.relay.viaText and ns.relay.viaText() end)
-  if ok and type(text) == "string" then ns.message(text) end
+  if ok and type(text) == "string" then if force then ns.message(text) else ns.infoMessage(text) end end
 end
 
 local function show(force)
@@ -75,16 +75,17 @@ local function show(force)
   if not digest.lastSeen then
     if not force then return end
     ns.message(L("No earlier login recorded yet; the digest starts from now."))
-    showVia()
+    showVia(force)
     return
   end
   local lines = build(db, digest.lastSeen)
   if #lines == 0 then
-    if force then ns.message(string.format(L("Nothing new since %s."), whenText(digest.lastSeen))); showVia() end
+    if force then ns.message(string.format(L("Nothing new since %s."), whenText(digest.lastSeen))); showVia(force) end
     return
   end
-  ns.message(string.format(L("Since your last login (%s): %s."), whenText(digest.lastSeen), table.concat(lines, ", ")))
-  showVia()
+  local text = string.format(L("Since your last login (%s): %s."), whenText(digest.lastSeen), table.concat(lines, ", "))
+  if force then ns.message(text) else ns.infoMessage(text) end
+  showVia(force)
 end
 module.show = show
 

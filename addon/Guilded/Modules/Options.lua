@@ -58,8 +58,19 @@ function module.openSetup()
     setupPanel = CreateFrame("Frame", "GuildedSetupPanel", UIParent, "BasicFrameTemplateWithInset")
     setupPanel:SetSize(520, 330)
     setupPanel:SetPoint("CENTER")
-    setupPanel:SetFrameStrata("DIALOG")
-    local background = setupPanel:CreateTexture(nil, "BACKGROUND")
+    -- Above the Guilded window (DIALOG strata, children raised inside it), so it never draws tangled with it.
+    setupPanel:SetFrameStrata("FULLSCREEN_DIALOG")
+    if setupPanel.SetToplevel then setupPanel:SetToplevel(true) end
+    -- Drag it by its body or title; it stays on screen.
+    setupPanel:SetMovable(true)
+    setupPanel:EnableMouse(true)
+    setupPanel:SetClampedToScreen(true)
+    setupPanel:RegisterForDrag("LeftButton")
+    setupPanel:SetScript("OnDragStart", function(self) self:StartMoving() end)
+    setupPanel:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
+    setupPanel:SetScript("OnShow", function(self) if self.Raise then self:Raise() end end)
+    -- Fully opaque, drawn over the template's own (partly see-through) inset.
+    local background = setupPanel:CreateTexture(nil, "BACKGROUND", nil, 7)
     background:SetAllPoints()
     background:SetTexture("Interface\\Buttons\\WHITE8X8")
     background:SetVertexColor(0.04, 0.04, 0.05, 1)
@@ -68,9 +79,16 @@ function module.openSetup()
     local text = setupPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     text:SetPoint("TOPLEFT", 20, -42); text:SetWidth(480); text:SetJustifyH("LEFT")
     text:SetText(L("In-game only: gear checks, dungeon recording, raid attendance and loot tools work without Discord or signups. Officers can share local standings with online guildmates.\n\nConnected: optional companion sync adds Discord rosters, signups and verified season scores.\n\nData stays in SavedVariables. Keep backups. This choice preserves existing rosters and points; it does not stop a running companion. Change it any time with /guilded setup."))
+    -- The panel is as tall as its text needs (translations run longer), with the buttons always below it.
+    local textHeight = 190
+    if text.GetStringHeight then
+      local okHeight, measured = pcall(text.GetStringHeight, text)
+      if okHeight and type(measured) == "number" and measured > 0 then textHeight = math.ceil(measured) end
+    end
+    setupPanel:SetSize(520, 42 + textHeight + 24 + 28 + 10 + 28 + 22)
     for i, choice in ipairs({ { "local", "In-game only (default)" }, { "connected", "Optional Discord connection" } }) do
       local b = CreateFrame("Button", nil, setupPanel, "UIPanelButtonTemplate")
-      b:SetSize(230, 28); b:SetPoint("BOTTOMLEFT", 20 + (i - 1) * 245, 58)
+      b:SetSize(230, 28); b:SetPoint("BOTTOMLEFT", 20 + (i - 1) * 245, 60)
       b:SetText(L(choice[2])); local mode = choice[1]
       b:SetScript("OnClick", function() module.chooseSetup(mode) end)
     end
@@ -162,7 +180,19 @@ ns.commandHandlers["setup"] = function(args)
   if choice == "guild" then module.guildSetup() return end
   if not module.chooseSetup(choice) then module.openSetup() end
 end
+-- /guilded quiet [on|off]: keep Guilded's informational chat lines out of chat at login (Core.lua, ns.infoMessage).
+ns.commandHandlers["quiet"] = function(args)
+  local s = settings()
+  if not s then return end
+  local choice = string.lower(args[1] or "")
+  if choice == "on" then s.quietLogin = true
+  elseif choice == "off" then s.quietLogin = nil end
+  ns.message(L(s.quietLogin == true
+    and "Quiet login is on: Guilded keeps its informational lines out of chat at login. Errors and your own commands still show."
+    or "Quiet login is off."))
+end
 ns.commandHelp = ns.commandHelp or {}
+table.insert(ns.commandHelp, "/guilded quiet on | off - no informational Guilded lines in chat at login (errors and your commands still show)")
 table.insert(ns.commandHelp, "/guilded options - Guilded's page in the game's options: tabs for general, chat, announcements, dungeons and PvP, raids and loot, officers, advanced")
 table.insert(ns.commandHelp, "/guilded setup - choose in-game only or optional Discord connection; /guilded setup guild - set up raid cores step by step (officers)")
 
@@ -191,11 +221,11 @@ function module.checkFirstRun()
       -- In-game only was the automatic default, not the player's choice: the companion they
       -- connected since then switches it, with no /guilded setup step (8.1).
       module.chooseSetup("connected", true)
-      ns.message(L("Your companion is connected, so Guilded now uses your Discord standings. /guilded setup local switches back."))
+      ns.infoMessage(L("Your companion is connected, so Guilded now uses your Discord standings. /guilded setup local switches back."))
     elseif not s.connectedHintShown then
       -- Installed before 8.1, when the default and a real choice looked the same: say it once.
       s.connectedHintShown = true
-      ns.message(L("Your companion is sending Discord standings. To use them in game: /guilded setup connected"))
+      ns.infoMessage(L("Your companion is sending Discord standings. To use them in game: /guilded setup connected"))
     end
     return
   end
@@ -207,9 +237,9 @@ function module.checkFirstRun()
   -- Assign directly so existing local core selections and saved records remain intact.
   s.setupMode = "local"
   s.setupModeAuto = true
-  ns.message(L("Addon-only is ready. Discord linking and companion sync are optional; use /guilded setup later."))
+  ns.infoMessage(L("Addon-only is ready. Discord linking and companion sync are optional; use /guilded setup later."))
   if ns.isOfficer and ns.isOfficer() then
-    ns.message(L("Officers: /guilded setup guild walks you through creating your raid team, loot rules and roster."))
+    ns.infoMessage(L("Officers: /guilded setup guild walks you through creating your raid team, loot rules and roster."))
   end
 end
 local firstRun = CreateFrame("Frame")

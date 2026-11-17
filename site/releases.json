@@ -1,5 +1,5 @@
 {
-  "verifiedAt": "2026-11-16",
+  "verifiedAt": "2026-11-17",
   "mobile": {
     "android": {
       "version": "0.2.0",
@@ -19,13 +19,13 @@
       "url": "https://github.com/kevincaron28/Guilded/releases/tag/v9.3.7"
     },
     "curseforge": {
-      "version": "9.3.6",
+      "version": "9.3.7",
       "stage": "release",
       "url": "https://www.curseforge.com/wow/addons/guilded",
       "editions": {
         "forever": {
-          "guilded": "https://www.curseforge.com/wow/addons/guilded/files/9649625",
-          "dungeons": "https://www.curseforge.com/wow/addons/guilded-dungeons/files/9649626"
+          "guilded": "https://www.curseforge.com/wow/addons/guilded/files/9654361",
+          "dungeons": "https://www.curseforge.com/wow/addons/guilded-dungeons/files/9654362"
         }
       }
     },

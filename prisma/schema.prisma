@@ -4248,3 +4248,14 @@ model ClientProbe {
 
   @@unique([kind, build, edition])
 }
+
+/// (9.3.8) One direct message per Discord user and kind that must never repeat (companion-937-notice.ts). outcome: sent, closed (DMs closed), sending.
+model CompanionNotice {
+  id            String   @id @default(cuid())
+  discordUserId String
+  kind          String
+  outcome       String   @default("sending")
+  createdAt     DateTime @default(now())
+
+  @@unique([discordUserId, kind])
+}

@@ -165,6 +165,7 @@ import { handleGameReminderButton, GAME_REMINDER_PREFIX } from "./commands/game-
 import { handleOnboardingInteraction, ONBOARD_PREFIX, runOnboardingNudges, runGameReminders } from "./services/onboarding.js";
 import { handleMemberJoin, handleMemberRolesChange, handleMemberLeave, handleWelcomeRoleButton, WELCOME_ROLE_PREFIX } from "./services/housekeeping.js";
 import { createErrorReportService, isMemberAnswer } from "./services/error-report.js";
+import { startCompanionNotice } from "./services/companion-937-notice.js";
 import { sendSyncHealthAlert } from "./services/sync-health-alert.js";
 import { buildGuildedReference } from "./services/guilded-reference.js";
 import { runRetention } from "./services/retention.js";
@@ -457,6 +458,8 @@ client.once(Events.ClientReady, (readyClient) => {
   announceVersionUpdates(readyClient).catch(reportJobError("Version announcement"));
   // Sync health: a once-a-day developer summary in the error-log channel (hourly tick, one post a day).
   setInterval(() => void sendSyncHealthAlert(readyClient, prisma).catch(reportJobError("Sync health alert")), 60 * 60 * 1000);
+  // One DM to members whose website companion stopped on 9.3.7 (owner decision, 17 Nov 2026); COMPANION_937_NOTICE=dry logs only, =off disables.
+  startCompanionNotice(readyClient, prisma, process.env["COMPANION_937_NOTICE"], reportJobError("Companion 9.3.7 notice"));
   // A self-hosted bot learns about newer releases here (start, then daily).
   const updateCheck = () => announceAvailableUpdate(readyClient).catch(reportJobError("Update check"));
   void updateCheck();

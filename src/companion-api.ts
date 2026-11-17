@@ -117,7 +117,9 @@ import { applyInviteReports, parseInviteReports } from "./services/invite-expiry
 import { backCheckInvites, completeInvitesFromRoster } from "./services/invite-channel.js";
 import { prelinkInvitedCharacters, tellPrelinked } from "./services/invite-prelink.js";
 import { MIN_PROTOCOL, PROTOCOL_VERSION, clientVersionSummary, compatFields, noteClientVersion } from "./compat.js";
-import { COMPANION_FEATURES, markGuildChanged, standingsFeed, type FeedParts } from "./services/standings-feed.js";
+import { COMPANION_FEATURES, acceptsGzip, markGuildChanged, standingsFeed, type FeedParts } from "./services/standings-feed.js";
+import type { Guild as PrismaGuild } from "./generated/prisma/client.js";
+import { createStandingsAuthCache } from "./services/standings-auth-cache.js";
 import { commandRegistration } from "./services/command-registration.js";
 import { deriveSealKey } from "./services/run-challenge.js";
 const BOT_VERSION = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version as string;
@@ -159,6 +161,7 @@ const MAX_TRACKED_ADDRESSES = 5_000;
 const failures = new Map<string, number[]>();
 const revocationRequests = new Map<string, { startedAt: number; count: number }>();
 
+const standingsAuth = createStandingsAuthCache<{ guild: PrismaGuild; access: NonNullable<Awaited<ReturnType<typeof companionAccess>>> }>();
 export function allowCompanionRevocation(address: string, now = Date.now()): boolean {
   let bucket = revocationRequests.get(address);
   if (!bucket || now - bucket.startedAt >= 60_000) {
@@ -636,9 +639,11 @@ export async function standingsParts(guild: { id: string; discordId: string }, a
     personal: { acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, runNotes, ...(Object.keys(pendingRunNotes).length ? { pendingRunNotes } : {}), ...(Object.keys(runCards).length ? { runCards } : {}), raids, ...(promotion ? { promotion } : {}),
       ...(officerInvites ? { officerInvites } : {}),
       bank,
-      publicRaids: { fetchedAt: new Date().toISOString(), raids: pilotRaids } },
+      publicRaids: { raids: pilotRaids } },
     // (9.3.5) A new or changed result card changes the stamp too, so a card that arrives after its run was acknowledged is fetched and written.
-    stampOnly: { botRaids, runCards }
+    stampOnly: { botRaids, runCards },
+    // publicRaids.fetchedAt is filled in by the feed and is not part of the ETag (the addon expires vacancies after 10 minutes; the feed refreshes it at least every 5).
+    volatileFetchedAt: ["publicRaids"]
   };
 }
 
@@ -984,7 +989,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         if (!allowCompanionRevocation(address)) { json(response, 429, { error: "Too many disconnect requests. Try again in a minute." }); return; }
         const secret = request.headers["x-companion-credential"] ?? request.headers.authorization?.replace(/^Bearer\s+/i, "");
         const ok = await revokeCompanionCredential(prisma, secret);
-        if (ok && typeof secret === "string") await retireMobileDevice(prisma, secret);
+        if (ok && typeof secret === "string") { standingsAuth.forget(secret); await retireMobileDevice(prisma, secret); }
         if (!ok && wellFormedCredential(secret)) recordFailure(address);
         json(response, ok ? 200 : 400, ok ? { ok: true } : { error: "A valid companion credential is required." });
         return;
@@ -1277,7 +1282,9 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const header = request.headers["x-companion-credential"] ?? request.headers.authorization?.replace(/^Bearer\s+/i, "");
       // The credential binds the in-game guild. A caller cannot change scope by
       // substituting another guild ID in a request or selecting another file.
-      const credential = typeof header === "string" ? await prisma.companionCredential.findFirst({
+      // GET standings polls reuse who-is-this for 30 s (standings-auth-cache.ts); every other route checks in full.
+      const cachedAuth = isStandings && typeof header === "string" ? standingsAuth.get(header, guildDiscordId) : undefined;
+      const credential = cachedAuth ? { member: { guild: cachedAuth.guild } } : typeof header === "string" ? await prisma.companionCredential.findFirst({
         where: { ...(isMobileDevice ? credentialBySecret(header) : { tokenHash: hashCompanionSecret(header) }), revokedAt: null, member: { guild: { discordId: guildDiscordId }, status: "ACTIVE" } },
         select: { member: { select: { guild: true } } }
       }) : null;
@@ -1285,8 +1292,9 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       if (!guild) { json(response, 401, { error: "Pair this companion with /character pair in the selected in-game guild." }); return; }
       return await runInGuildScope(await loadGuildScope(prisma, guild.id, guildDiscordId), async () => {
       const scopeLoadedAt = Date.now();
-      const access = typeof header === "string" ? await companionAccess(prisma, client, guild.id, guild.discordId, header, isMobileDevice) : null;
+      const access = cachedAuth ? cachedAuth.access : typeof header === "string" ? await companionAccess(prisma, client, guild.id, guild.discordId, header, isMobileDevice) : null;
       const accessAt = Date.now();
+      if (isStandings && access && !cachedAuth && typeof header === "string") standingsAuth.set(header, guildDiscordId, { guild, access });
       if (!access) {
         if (wellFormedCredential(header)) recordFailure(address);
         json(response, 401, { error: "Pair this companion with /character pair. The shared upload token no longer grants access." }); return;
@@ -1430,7 +1438,15 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           compose: () => standingsParts(guild, access, client)
         });
         response.setHeader("etag", answer.etag);
+        response.setHeader("vary", "Accept-Encoding");
         if (answer.status === 304) { response.writeHead(304); response.end(); return; }
+        // Caddy here does not compress, so the bot does (once per build, cached): the body is ~1 MB of JSON.
+        if (answer.gzip && acceptsGzip(request.headers["accept-encoding"])) {
+          const packed = await answer.gzip();
+          response.writeHead(200, { "content-type": "application/json; charset=utf-8", "content-encoding": "gzip", "content-length": packed.length });
+          response.end(packed);
+          return;
+        }
         response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
         response.end(answer.body);
         return;

@@ -16,11 +16,14 @@ export function weeklyReportCard(report: WeeklyReport, lang: Lang, timeZone?: st
   const fr = lang === "fr", t = (en: string, french: string) => fr ? french : en;
   const d = report.dungeons;
   const rows: NonNullable<ScoreCard["rows"]> = [];
-  if (report.raiderOfWeek) rows.push({ name: report.raiderOfWeek.name, sub: t("Raider of the week", "Raider de la semaine"), right: `${report.raiderOfWeek.ep} EP`, rightTone: "gold" });
+  if (report.raiderOfWeek) rows.push({ name: report.raiderOfWeek.name, sub: t("Raider of the week", "Raider de la semaine"), right: `${report.raiderOfWeek.ep} ${t("raid pts", "pts de raid")}`, rightTone: "gold" });
   if (report.dungeonHero) rows.push({ name: report.dungeonHero.name, sub: t("Dungeon hero", "Héros des donjons"), right: `${dungeonShare(report.dungeonHero.points)} pts`, rightTone: "green" });
   if (d.marathon) rows.push({ name: d.marathon.name, sub: t("Dungeon marathon", "Marathon de donjons"), right: `×${d.marathon.runs}`, rightTone: "green" });
   for (const core of report.cores.slice(0, Math.max(0, 5 - rows.length)))
     rows.push({ name: core.name, sub: `${plural(lang, core.raids, ["raid", "raids"], ["raid", "raids"])} · ${plural(lang, core.bossKills, ["boss kill", "boss kills"], ["victoire", "victoires"])}`, right: core.attendancePct === null ? undefined : `${core.attendancePct}%` });
+  // A quiet week (no raid, few names) would leave most of the card empty: the week before is the next useful fact.
+  if (rows.length < 2 && (report.previous.raids > 0 || report.previous.bossKills > 0))
+    rows.push({ name: t("Last week", "Semaine passée"), sub: `${plural(lang, report.previous.raids, ["raid", "raids"], ["raid", "raids"])} · ${plural(lang, report.previous.bossKills, ["boss kill", "boss kills"], ["victoire", "victoires"])}` });
   const badges: NonNullable<ScoreCard["badges"]> = [];
   if (d.records.length) badges.push({ text: plural(lang, d.records.length, ["dungeon record", "dungeon records"], ["record de donjon", "records de donjon"]), tone: "ok" });
   if (d.firsts.length) badges.push({ text: plural(lang, d.firsts.length, ["first clear", "first clears"], ["première complétion", "premières complétions"]), tone: "ok" });

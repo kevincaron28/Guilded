@@ -73,8 +73,11 @@ describe("French cards speak French", () => {
   });
   it("writes one absent, not 'absents'", () => {
     const report = { title: "Raid", startedAt: at, endedAt: at, durationMinutes: 60, raiders: 10, late: 0, absent: 1, bossesKilled: 1, bossesPlanned: 1, killedNames: [], epAwarded: 0, epRecipients: 0, lootCount: 0, gpSpent: 0, topLoot: [] };
-    expect(raidEndCard(report, "fr").stats[2]!.note).toBe("1 absent");
-    expect(raidEndCard({ ...report, absent: 3 }, "fr").stats[2]!.note).toBe("3 absents");
+    // 16 Nov 2026: the counts have their own label and value instead of a note glued to "Durée".
+    const named = { ...report, killedNames: ["Lucifron"] };
+    expect(raidEndCard(named, "fr").stats.map(s => [s.label, s.value])).toContainEqual(["En retard / absents", "0 / 1"]);
+    expect(raidEndCard({ ...named, absent: 3 }, "fr").stats.map(s => s.value)).toContain("0 / 3");
+    expect(raidEndCard(report, "fr").rows?.find(r => r.name === "Absents")?.right).toBe("1");
   });
   it("posts the daily raid readiness board in French for a French guild", async () => {
     const checks = [{ status: "READY", character: { name: "Espionne", level: 30, className: "Warlock" }, inspectedAt: at, findings: [] }];

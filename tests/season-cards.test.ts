@@ -80,6 +80,15 @@ describe("season cards", () => {
     expect(await queueSeasonEndCards(fakeDb([{ id: "s1", ...info, status: "ENDED", finalStandings: standings }], true).database, "g", "en", classes, ["s1"])).toBe(0);
   });
 
+  it("a season nobody was ranked in is queued as text only, with no card", async () => {
+    const empty = fakeDb([{ id: "s1", ...info, status: "ENDED", finalStandings: [], finalRating: null }]);
+    expect(await queueSeasonEndCards(empty.database, "g", "en", classes, ["s1"])).toBe(1);
+    const payload = (empty.created[0] as unknown as { payload: { card?: unknown; message: { embeds: { description?: string; image?: unknown }[] } } }).payload;
+    expect(payload.card).toBeUndefined();
+    expect(payload.message.embeds[0]!.description).toBe("No ranked player this season.");
+    expect(payload.message.embeds[0]!.image).toBeUndefined();
+  });
+
   it("queues the start card once, only with the switch on", async () => {
     expect(await queueSeasonStartCard(fakeDb([]).database, "g", "en")).toBe(1);
     expect(await queueSeasonStartCard(fakeDb([], true).database, "g", "en")).toBe(0);

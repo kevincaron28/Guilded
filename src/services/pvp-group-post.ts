@@ -1,5 +1,5 @@
 import { cardAttachment } from "./card-alt.js";
-import { cardTime, loadCardTimeZone } from "./card-format.js";
+import { cardDateTime, DEFAULT_CARD_TIME_ZONE, loadCardTimeZone } from "./card-format.js";
 import { EmbedBuilder, escapeMarkdown, type AttachmentBuilder } from "discord.js";
 import type { PrismaClient, RaidRole } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
@@ -14,7 +14,7 @@ import { classColor, scoreCardPng, type ScoreCard } from "./score-card.js";
 export const PVP_CARD_FILE = "pvp-group.png";
 const ROLE_ICON: Record<RaidRole, string> = { TANK: "🛡️", HEALER: "💚", DPS: "⚔️" };
 
-export interface PvpPostPlayer { name: string; role: RaidRole; color?: string | undefined }
+export interface PvpPostPlayer { name: string; role: RaidRole; color?: string | undefined; level?: number | undefined }
 export interface PvpPostData {
   /** "Battleground", "Arena" or "World PvP": the activity named on the card. */ activityEn?: string | undefined; activityFr?: string | undefined;
   id: string; title: string; size: number; status: "OPEN" | "STARTED" | "CLOSED"; createdAt: Date; minLevel: number | null; maxLevel: number | null;
@@ -38,6 +38,15 @@ export const pvpExpiresAt = (createdAt: Date) => new Date(createdAt.getTime() + 
 const statusText = (status: PvpPostData["status"], fr: boolean) => status === "OPEN" ? (fr ? "Ouvert" : "Open") : status === "STARTED" ? (fr ? "Démarré" : "Started") : (fr ? "Fermé" : "Closed");
 const roleName = (role: RaidRole, fr: boolean) => role === "TANK" ? "Tank" : role === "HEALER" ? (fr ? "Soigneur" : "Healer") : "DPS";
 
+/** "Nov 17, 2026, 10:05 AM EST": the expiry in the guild's own time zone, with the zone named so nobody reads it as UTC. */
+function expiryText(date: Date, lang: Lang, timeZone: string | undefined): string {
+  const zone = cardDateTime(date, lang, timeZone);
+  try {
+    const name = new Intl.DateTimeFormat(lang === "fr" ? "fr-CA" : "en-US", { timeZone: timeZone || DEFAULT_CARD_TIME_ZONE, timeZoneName: "short" }).formatToParts(date).find(part => part.type === "timeZoneName")?.value;
+    return name ? `${zone} ${name}` : zone;
+  } catch { return zone; }
+}
+
 /** Pure: the picture. */
 export function pvpGroupCard(data: PvpPostData, lang: Lang): ScoreCard {
   const fr = lang === "fr", t = (en: string, french: string) => fr ? french : en;
@@ -51,14 +60,16 @@ export function pvpGroupCard(data: PvpPostData, lang: Lang): ScoreCard {
         note: data.waiting.length ? t(`${data.waiting.length} in the queue`, `${data.waiting.length} en attente`) : undefined },
       { label: t("Roles", "Rôles"), value: (["TANK", "HEALER", "DPS"] as const).map(role => `${role === "TANK" ? "T" : role === "HEALER" ? "H" : "D"}${data.members.filter(m => m.role === role).length}`).join("  "),
         note: t("Tank / Healer / DPS", "Tank / Soigneur / DPS") },
-      { label: t("Open until", "Ouvert jusqu'à"), value: cardTime(pvpExpiresAt(data.createdAt), lang, data.timeZone), note: t("24 h after posting", "24 h après la publication") }
+      { label: t("Open until", "Ouvert jusqu'à"), value: expiryText(pvpExpiresAt(data.createdAt), lang, data.timeZone), note: t("24 h after posting", "24 h après la publication") }
     ],
     rowsLabel: t(`In the group · ${data.members.length}/${data.size}`, `Dans le groupe · ${data.members.length}/${data.size}`),
     footer: t("Press a role button on the post to join", "Appuyez sur un rôle sur le message pour rejoindre"),
     dungeon: {
       theme: { a: "#7f1d1d", b: "#d4a017", motif: "fire", seed },
-      party: data.members.slice(0, 40).map(player => ({ name: player.name, color: player.color ?? "#cbd5e1", role: player.role, roleLabel: roleName(player.role, fr), guild: true })),
-      guildLabel: t("Guild", "Guilde"), outsiderLabel: t("Outside guild", "Hors guilde"), moreLabel: t("more", "autres")
+      party: data.members.slice(0, 40).map(player => ({ name: player.name, color: player.color ?? "#cbd5e1", role: player.role, roleLabel: roleName(player.role, fr), guild: true, ...(player.level !== undefined ? { level: player.level } : {}) })),
+      guildLabel: t("Guild", "Guilde"), outsiderLabel: t("Outside guild", "Hors guilde"), moreLabel: t("more", "autres"),
+      // The PvP layout: the PvP icon, two columns so a group of ten shows every name, and the queue as one line under them.
+      pvp: { levelLabel: t("Lv", "Niv"), ...(data.waiting.length ? { waiting: `${t("Waiting", "En attente")} (${data.waiting.length}) : ${data.waiting.map(p => p.name).join(", ")}` } : {}) }
     }
   };
 }
@@ -92,10 +103,13 @@ export async function loadPvpPostData(db: Pick<PrismaClient, "dungeonGroup" | "d
   const signups = await db.dungeonGroupSignup.findMany({ where: { groupId }, include: { member: true }, orderBy: { joinedAt: "asc" } });
   const timeZone = await loadCardTimeZone(db, group.guildId);
   const leader = await db.member.findUnique({ where: { id: group.leaderId }, select: { discordUserId: true } });
-  const characters = await db.character.findMany({ where: { memberId: { in: signups.map(s => s.memberId) } }, orderBy: [{ isMain: "desc" }, { level: "desc" }], select: { memberId: true, className: true } });
-  const color = new Map<string, string>();
-  for (const character of characters) if (!color.has(character.memberId)) color.set(character.memberId, classColor(canonicalClass(character.className) ?? character.className));
-  const player = (s: (typeof signups)[number]): PvpPostPlayer => ({ name: s.member.displayName, role: s.role, color: color.get(s.memberId) });
+  const characters = await db.character.findMany({ where: { memberId: { in: signups.map(s => s.memberId) } }, orderBy: [{ isMain: "desc" }, { level: "desc" }], select: { memberId: true, className: true, level: true } });
+  const color = new Map<string, string>(), level = new Map<string, number>();
+  for (const character of characters) if (!color.has(character.memberId)) {
+    color.set(character.memberId, classColor(canonicalClass(character.className) ?? character.className));
+    if (typeof character.level === "number") level.set(character.memberId, character.level);
+  }
+  const player = (s: (typeof signups)[number]): PvpPostPlayer => ({ name: s.member.displayName, role: s.role, color: color.get(s.memberId), level: level.get(s.memberId) });
   const id = activityOfGroup(group.kind, group.activity);
   return { activityEn: id ? activityLabel(id, "en") : undefined, activityFr: id ? activityLabel(id, "fr") : undefined, id: group.id, title: group.title, size: group.maxSize, status: group.status as PvpPostData["status"], timeZone, createdAt: group.createdAt, minLevel: group.minLevel, maxLevel: group.maxLevel,
     leaderDiscordId: leader?.discordUserId ?? "0", voiceChannelId: group.voiceChannelId, members: signups.filter(s => s.status === "SIGNED_UP").map(player), waiting: signups.filter(s => s.status === "WAITLISTED").map(player) };

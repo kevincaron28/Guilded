@@ -72,6 +72,14 @@ describe("MVP of the week card", () => {
     expect(extra.extraCard).toBeUndefined();
   });
 
+  it("an MVP with nobody beneath gets no card of their own (the text says it); the rookie still does", () => {
+    const solo = weeklyPostCardExtra("en", post("en", { board: [board[0]!] }), "2026-11-09", [board[0]!], [A], null, names);
+    expect(solo).toEqual({});
+    const pair = weeklyPostCardExtra("en", post("en", { board: [board[0]!, board[3]!] }), "2026-11-09", [board[0]!, board[3]!], [A], board[3]!, names) as unknown as Extra;
+    expect(pair.card.title).toBe("Newbie");
+    expect(pair.extraCard).toBeUndefined();
+  });
+
   it("neither: no card; the text post is unchanged", () => {
     expect(run("en", { mvps: [], rookie: null }, [], null)).toEqual({});
   });

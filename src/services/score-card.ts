@@ -61,7 +61,9 @@ export interface ScoreCard { eyebrow?: string; title: string; subtitle: string; 
   /** Officer member-trend card (member-trend.ts), drawn by member-trend-card.ts. */
   trend?: TrendVisual;
   /** 9.2: an approved painting for this card (card-backdrop.ts, site/card-art/<kind>/<key>.jpg). Cards without it, or without a file, draw as before. */
-  backdrop?: CardBackdrop }
+  backdrop?: CardBackdrop;
+  /** Ticked rows (the bosses a raid killed): the banner layout draws them in one or two columns; the older layout ignores them. */
+  checks?: string[] }
 
 /** A recap: up to three panels, each a title and up to five rows (name in its colour, a line under it, a value on the right). */
 export interface RecapVisual { theme: DungeonArtTheme; sections: { title: string; rows: CardRow[] }[] }
@@ -90,7 +92,9 @@ export interface DungeonVisual { theme: DungeonArtTheme; party: DungeonCardMembe
   /** 9.3.2: column headers of the party rows (level, score added this run, season total). */ columns?: { level: string; gain: string; total: string } | undefined;
   guildLabel: string; outsiderLabel: string; moreLabel: string; /** Slug of the dungeon; `site/dungeon-maps/<mapKey>.png` is the map the deaths are drawn on, when that file exists. */ mapKey?: string; deathPoints?: { x: number; y: number }[]; deathMapLabel?: string;
   /** The traced outline of the death map's floor: walked cells of a 200 x 200 grid (key = column * 200 + row), see dungeon-map-grid.ts. */
-  mapOutline?: { map: number; cells: number[] } }
+  mapOutline?: { map: number; cells: number[] };
+  /** A PvP group (pvp-group-post.ts): the PvP icon and a two-column party; `waiting` is the ready-made waiting-list line, `levelLabel` the word before a level. */
+  pvp?: { waiting?: string; levelLabel: string } }
 
 const fontfile = fileURLToPath(new URL("../../site/fonts/source-serif-latin.ttf", import.meta.url));
 const images = new Map<string, Buffer>();

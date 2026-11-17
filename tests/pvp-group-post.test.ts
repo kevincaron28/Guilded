@@ -37,7 +37,7 @@ describe("PvP group post", () => {
     expect(card.subtitle).toBe("Bracket 20-29 · Open");
     expect(card.stats.map(stat => [stat.label, stat.value]).slice(0, 2)).toEqual([["Players", "4/10"], ["Roles", "T1  H1  D2"]]);
     // Read in the guild time zone (Toronto by default), never as UTC.
-    expect(card.stats[2]).toMatchObject({ label: "Open until", value: expect.stringMatching(/^1:00\sPM$/) });
+    expect(card.stats[2]).toMatchObject({ label: "Open until", value: expect.stringMatching(/1:00\sPM\sE[SD]T$/) });
     expect(card.stats[0]!.note).toBe("2 in the queue");
     expect(card.dungeon!.party.map(p => [p.name, p.role])).toEqual([["Aria", "TANK"], ["Brom", "HEALER"], ["Cleo", "DPS"], ["Dax", "DPS"]]);
     expect(card.dungeon!.party[0]!.color).toBe("#c79c6e");

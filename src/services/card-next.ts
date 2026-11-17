@@ -77,6 +77,7 @@ async function dataCard(card: ScoreCard): Promise<Buffer | null> {
     hero: lead.value, heroColor: ACCENT[lead.accent ?? "gold"] ?? GOOD, heroNote: lead.note ? `${lead.label} · ${lead.note}` : lead.label,
     stats: rest.slice(0, 3).map((s) => ({ value: s.value, label: s.note ? `${s.label} · ${s.note}` : s.label })),
     rows: (card.rows ?? []).slice(0, 4).map((r) => ({ name: r.name, color: r.color, sub: r.sub, right: r.right })),
+    ...(card.checks?.length ? { checks: card.checks, moreWord: card.moreLabel ?? "more" } : {}),
     strip: [card.subtitle, ...(card.badges ?? []).map((b) => b.text)].filter(Boolean).join("  ·  "), art
   });
   return png;
@@ -86,16 +87,16 @@ const MAP_FILE = /^[a-z0-9-]{1,60}$/;
 
 async function dungeonCard(card: ScoreCard): Promise<Buffer | null> {
   const visual = card.dungeon!;
-  const art = await dungeonBackdrop(visual.theme);
+  const art = visual.pvp ? (await cardBackdropArt({ kind: "battleground", key: "default" }, "wide")) ?? await dungeonBackdrop(visual.theme) : await dungeonBackdrop(visual.theme);
   const parts = tail(card.subtitle), date = parts.find(isDate), difficulty = parts.filter((p) => !isDate(p)).join(" · ");
   const stat = (i: number) => card.stats[i];
   const fact = (i: number) => { const s = stat(i); return s && s.value && s.value !== "—" ? `${s.label} ${s.value}` : ""; };
   const deaths = fact(2), score = fact(3), boss = fact(1);
-  const badge = card.badges?.[0], time = stat(0);
+  const badge = card.badges?.[0], time = stat(0), rated = visual.pvp ? undefined : stat(3);
   const roleOf = (role: string | undefined): DungeonPartyRow["role"] => role === "TANK" ? "tank" : role === "HEALER" ? "healer" : role === "DPS" ? "dps" : undefined;
-  const members = visual.party, extra = members.length > 5 ? members.length - 4 : 0;
-  const party: DungeonPartyRow[] = (extra ? members.slice(0, 4) : members.slice(0, 5)).map((m) => ({ name: m.name, color: m.color, role: roleOf(m.role), score: m.score, guild: m.guildName, level: m.level, gain: m.gain, total: m.total === undefined ? undefined : String(m.total), member: m.guild }));
-  if (extra) party.push({ name: `+${extra} ${visual.moreLabel}`, color: "#ddd4c0" });
+  const members = visual.party, extra = !visual.pvp && members.length > 5 ? members.length - 4 : 0;
+  const party: DungeonPartyRow[] = (extra ? members.slice(0, 4) : members.slice(0, visual.pvp ? 40 : 5)).map((m) => ({ name: m.name, color: m.color, role: roleOf(m.role), score: m.score, guild: m.guildName, level: m.level, gain: m.gain, total: m.total === undefined ? undefined : String(m.total), member: m.guild }));
+  if (extra || visual.pvp) party.push({ name: `+${extra} ${visual.moreLabel}`, color: "#ddd4c0" }); // a PvP card's renderer reads the "more" word from this row and counts the rest itself
   let map;
   if (visual.deathPoints?.length) {
     let image: Buffer | undefined;
@@ -108,8 +109,12 @@ async function dungeonCard(card: ScoreCard): Promise<Buffer | null> {
     label: [(tail(card.eyebrow).at(-1) ?? "").toUpperCase(), difficulty.toUpperCase()].filter(Boolean).join(" · "), title: card.title,
     hero: time?.value ?? "—", heroNote: badge ? badge.text : time?.note,
     facts: [deaths, score, boss].filter(Boolean), party, map,
-    ...(visual.columns ? { columns: { ...visual.columns, guild: visual.guildLabel } } : {}),
-    strip: [date, card.rowsLabel].filter(Boolean).join("  ·  "), art
+    // An unranked run says why in one line (the score stat's note: the reason, or "Already counted").
+    ...(rated && rated.value === "—" && rated.note ? { reason: `${rated.label} — ${rated.note}` } : {}),
+    // The Guild column is always drawn: a card queued before it was always there gets the level, run and season headers from its guild label's language.
+    ...(visual.pvp ? { pvp: { levelLabel: visual.pvp.levelLabel, waiting: visual.pvp.waiting } }
+      : { columns: { ...(visual.columns ?? (visual.guildLabel === "Guilde" ? { level: "Niv", gain: "Cette run", total: "Saison (rôle)" } : { level: "Lv", gain: "This run", total: "Season (role)" })), guild: visual.guildLabel } }),
+    strip: visual.pvp ? card.footer : [date, card.rowsLabel].filter(Boolean).join("  ·  "), art
   });
   return png;
 }

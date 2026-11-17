@@ -162,6 +162,8 @@ export function weeklyPostCardExtra(lang: Lang, message: ReturnType<typeof weekl
   if (!mvp) return weeklyRookieCardExtra(lang, message, week, board, rookie, names);
   const nameOf = (id: string) => (names.get(id) || `…${id.slice(-4)}`).replace(/[\r\n]/g, " ").slice(0, 32);
   const others = ranked.filter(row => row.userId !== mvp.userId && row.userId !== rookie?.userId).slice(0, 4).map(row => ({ name: nameOf(row.userId), points: row.points, place: ranked.indexOf(row) + 1 }));
+  // An MVP with nobody to show beneath would be a card of one name on a black body: the text post says it all, and the rookie (if any) keeps the card.
+  if (!others.length) return weeklyRookieCardExtra(lang, message, week, board, rookie, names);
   const label = say(lang, "🏆 Top of the week", "🏆 Le top de la semaine");
   const embeds = message.embeds.map(embed => ({ ...embed, fields: (embed.fields ?? []).filter(field => field.name !== label) }));
   const next = ranked.find(row => row.userId !== mvp.userId);

@@ -19,11 +19,11 @@ type Run = DungeonImportResult;
 type Detail = NonNullable<Run["playerDetails"]>[number];
 
 /** A guild name from a recorder's game client made ready to print: glyphs the font lacks dropped, angle brackets and control characters removed, clipped to 24 characters. Undefined when nothing is left. Display only. */
-export function guildDisplayName(guild: string | null | undefined): string | undefined {
+export function guildDisplayName(guild: string | null | undefined, max = 24): string | undefined {
   const clean = drawable(String(guild ?? "")).replace(/[<>\p{Cc}]/gu, " ").replace(/\s+/g, " ").trim();
   if (!clean) return undefined;
   const chars = [...clean];
-  return chars.length > 24 ? `${chars.slice(0, 23).join("").trimEnd()}…` : clean;
+  return chars.length > max ? `${chars.slice(0, max - 1).join("").trimEnd()}…` : clean;
 }
 
 /** The party's guild members: flagged by the addon, or matched to a linked character. A member may legitimately earn zero points. */
@@ -291,6 +291,7 @@ export function dungeonRunCard(run: Run, lang: Lang, options: DungeonCardOptions
   const mark = run.challenge ? `Mythic+ +${run.challenge.level}` : undefined;
   const score = scoreColumn(party.map((row) => row.detail), t);
   const roles = partyRoles(party.map((row) => row.detail));
+  const guildOf = (value: string | null | undefined) => guildDisplayName(value, 28); // the card table is 1000 px wide: room for 28 characters
   return {
     eyebrow: t("Guilded · Dungeon completed", "Guilded · Donjon terminé"),
     title: runLabel(run, lang).replace(/ \(.*\)$/, ""),
@@ -322,7 +323,7 @@ export function dungeonRunCard(run: Run, lang: Lang, options: DungeonCardOptions
           roleLabel: roleName(roles[index], lang),
           sub: [className(detail.class, lang), spec ? (fr ? spec.french : spec.name) : undefined, deaths].filter(Boolean).join(" · "),
           guild,
-          ...(guildDisplayName(detail.guild) ?? (guild ? guildDisplayName(options.ownGuild) : undefined) ? { guildName: (guildDisplayName(detail.guild) ?? guildDisplayName(options.ownGuild))! } : {}),
+          ...(guildOf(detail.guild) ?? (guild ? guildOf(options.ownGuild) : undefined) ? { guildName: (guildOf(detail.guild) ?? guildOf(options.ownGuild))! } : {}),
           ...(typeof detail.level === "number" ? { level: detail.level } : {}),
           ...ratingColumns(detail),
           ...(score ? score.of(detail) : {})

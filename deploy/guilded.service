@@ -9,8 +9,8 @@ Type=simple
 User=guilded
 WorkingDirectory=/opt/guilded
 EnvironmentFile=/opt/guilded/.env.local
-# Apply database migrations and regenerate the client before every start.
-ExecStartPre=/usr/bin/npm run db:update
+# Apply database migrations (only when they changed) and generate the client (only when update.sh did not) before every start.
+ExecStartPre=/usr/bin/npm run db:start
 ExecStart=/usr/bin/npm run start:local
 # Always come back after a crash, an OOM kill or a clean exit.
 Restart=always

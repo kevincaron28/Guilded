@@ -146,7 +146,8 @@ import { cleanupPastRaidPosts } from "./services/raid-post-cleanup.js";
 import { cleanupRaidAlerts } from "./services/raid-alert-cleanup.js";
 import { runWclDiscovery } from "./services/wcl-check.js";
 import { config } from "./config.js";
-import { startCompanionApi } from "./companion-api.js";
+import { standingsParts, startCompanionApi } from "./companion-api.js";
+import { warmStandings } from "./services/standings-warmup.js";
 import { handleWebApplicationButton, WEB_APPLY_PREFIX } from "./services/recruitment-discord.js";
 import { refreshPugBoard } from "./services/pug-board.js";
 import { handlePugComponent } from "./commands/pug-requests.js";
@@ -318,6 +319,13 @@ client.once(Events.ClientReady, (readyClient) => {
   const sweepPugs = () => void sweepPugRequests(prisma, hostedPilot.allows).catch(reportJobError("PUG board sweep"));
   sweepPugs();
   setInterval(sweepPugs, 60_000);
+  // After a restart the caches are cold: build the standings once, in the background, for the few guilds whose companions were
+  // active in the last hours (one at a time, a pause between), after the startup work above has had its turn.
+  setTimeout(() => {
+    void warmStandings(prisma, {
+      build: async (target) => { await standingsParts({ id: target.guildId, discordId: target.guildDiscordId }, { memberId: target.memberId, actorId: target.actorId }, readyClient); }
+    }).catch(reportJobError("Standings warm-up"));
+  }, 25_000).unref();
   // Lite list first, then servers that joined while offline, then commands (full or Lite per server).
   void (async () => {
     await pilotRequests.restore();

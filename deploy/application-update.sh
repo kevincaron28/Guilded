@@ -154,6 +154,7 @@ prepare_application() {
     timed_step "npm ci" run_heavy sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && NODE_OPTIONS=--max-old-space-size=512 npm ci --prefer-offline --no-audit --no-fund' _ "$STAGED_APP" || return 1
   fi
   prepare_companion_bundle "$source" "$app" "$owner" || return 1
+  record_prisma_stamp "$source" "$owner"
   echo "[prepare] total: $(( $(date +%s) - total_started ))s"
 }
 
@@ -172,6 +173,24 @@ prepare_prisma_client() {
     rm -rf -- "$STAGED_APP/src/generated" || return 1
   fi
   timed_step "prisma generate" run_heavy sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && NODE_OPTIONS=--max-old-space-size=512 ./node_modules/.bin/prisma generate' _ "$STAGED_APP"
+}
+
+# Records what the staged Prisma client was generated from, so the service's start step (scripts/db-update-start.mjs,
+# ExecStartPre) does not generate it again after the stop (18-35 s of the downtime). Best effort: without the stamp
+# the start step simply generates, as before. Runs the source's copy of the script (the staged tree has it too).
+record_prisma_stamp() {
+  local source="$1" owner="$2"
+  if [ -f "$STAGED_APP/scripts/db-update-start.mjs" ] && (cd "$STAGED_APP" && sudo -u "$owner" node scripts/db-update-start.mjs --stamp-client); then return 0; fi
+  echo "Could not record the Prisma client stamp; the start step will generate the client."
+  return 0
+}
+
+# True when the migration files differ between two application trees (or either cannot be read): the start step then
+# runs prisma migrate deploy; otherwise it skips it. Used for the deploy's output only; the start step decides by itself.
+migrations_changed() {
+  local old="$1" new="$2"
+  [ -d "$old/prisma/migrations" ] && [ -d "$new/prisma/migrations" ] || return 0
+  ! diff -rq "$old/prisma/migrations" "$new/prisma/migrations" >/dev/null 2>&1
 }
 
 # Prints a hash of everything the companion interface bundle is built from: the dependency content (esbuild and

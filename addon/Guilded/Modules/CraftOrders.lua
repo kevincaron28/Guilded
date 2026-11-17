@@ -646,7 +646,9 @@ function orders.submit(opts)
     end
   end
   local qty = math.max(1, math.min(200, math.floor(tonumber(opts.qty) or 1)))
-  local ref = string.format("g%x%03x", now, math.random(0, 4095))
+  -- Two requests in the same second could draw the same random part and one would replace the other: draw again.
+  local ref
+  repeat ref = string.format("g%x%03x", now, math.random(0, 4095)) until s.requests[ref] == nil
   local row = { ref = ref, item = item, key = tonumber(opts.key), prof = opts.prof and canonProfession(cleanText(opts.prof, 40)) or nil, qty = qty,
     note = opts.note and cleanText(opts.note, 80) or nil, mats = false,
     asked = opts.asked and cleanText(opts.asked, 60) or nil, character = me, at = now }

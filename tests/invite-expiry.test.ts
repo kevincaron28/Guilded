@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   applyInviteReports, closeRequestsOf, EXPIRY, formatClosedInvites, handleInviteConfirmButton, handleRequesterLeft, KEEP_PREFIX, DROP_PREFIX,
-  limitReached, parseInviteReports, sweepInviteExpiry
+  limitReached, parseInviteReports, sweepDepartedRequesters, sweepInviteExpiry
 } from "../src/services/invite-expiry.js";
 import { inviteListForAddon, formatInviteList } from "../src/services/invite-queue.js";
 import { exportInviteReports } from "../companion/lua-export-content.mjs";
@@ -270,3 +270,21 @@ describe("the companion export", () => {
 });
 
 vi.setConfig({ testTimeout: 15_000 });
+
+describe("sweepDepartedRequesters", () => {
+  const settings = [{ guildId: "g1", discordId: "d1" }];
+  const clientWith = (present: Set<string>, failure?: number) => ({
+    guilds: { fetch: async () => ({ members: { fetch: async (id: string) => { if (present.has(id)) return {}; throw Object.assign(new Error("x"), { code: failure ?? 10007 }); } } }) }
+  });
+  it("closes the requests of a member who is no longer in the Discord server (a missed leave)", async () => {
+    const db = fake([row({ id: "req_000001", discordUserId: "gone" }), row({ id: "req_000002", discordUserId: "here", displayName: "Bob Baker" })], settings);
+    expect(await sweepDepartedRequesters(clientWith(new Set(["here"])) as never, db as never, NOW)).toBe(1);
+    expect(db.rows[0]).toMatchObject({ status: "CLOSED", closeReason: "left_discord" });
+    expect(db.rows[1]!.status).toBe("PENDING");
+  });
+  it("leaves a request alone on any other Discord error", async () => {
+    const db = fake([row()], settings);
+    expect(await sweepDepartedRequesters(clientWith(new Set(), 50013) as never, db as never, NOW)).toBe(0);
+    expect(db.rows[0]!.status).toBe("PENDING");
+  });
+});

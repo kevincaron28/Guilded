@@ -3,7 +3,7 @@ import { inviteListForAddon, markInvitedByMessage, markInvitedByName, nameKeyOf,
 import { channelNames, channelSpec } from "../src/setup-names.js";
 import { standingsToLua } from "../companion/standings-format.mjs";
 
-interface Row { id: string; guildId: string; nameKey: string; displayName: string; discordUserId: string; channelId: string; messageId: string; status: string; invitedBy: string | null; createdAt: Date; invitedAt: Date | null }
+interface Row { cleanupAt?: Date; closeReason?: string; id: string; guildId: string; nameKey: string; displayName: string; discordUserId: string; channelId: string; messageId: string; status: string; invitedBy: string | null; createdAt: Date; invitedAt: Date | null }
 function fakeDatabase() {
   const rows: Row[] = [];
   let n = 0;
@@ -113,5 +113,37 @@ describe("what the companion writes for officers", () => {
     expect(lua).toContain("GuildedInvites = { fetchedAt =");
     expect(lua).toContain('{ name = "Amy \\"Archer\\"", at = "2026-11-06T11:00:00Z" },');
     expect(standingsToLua(base as never)).toContain("GuildedInvites = nil");
+  });
+});
+
+describe("a corrected request supersedes the earlier one", () => {
+  const post = (name: string, messageId: string, user = "u1") => ({ guildId: "g1", parsed: parseInviteName(name)!, discordUserId: user, channelId: "c1", messageId });
+  it("closes the member's earlier different name and keeps only the newest pending", async () => {
+    const db = fakeDatabase();
+    await recordInviteRequest(db as never, post("Aslash Labash", "m1"));
+    await recordInviteRequest(db as never, post("Ashlash Labash", "m2"));
+    const [first, second] = db.rows;
+    expect(first).toMatchObject({ status: "CLOSED", closeReason: "superseded" });
+    expect(first!.cleanupAt).toBeInstanceOf(Date);
+    expect(second!.status).toBe("PENDING");
+  });
+  it("leaves other members and the same name (any case or accents) alone", async () => {
+    const db = fakeDatabase();
+    await recordInviteRequest(db as never, post("Éloïse Brûlé", "m1"));
+    await recordInviteRequest(db as never, post("eloise brule", "m2"));
+    await recordInviteRequest(db as never, post("Other Person", "m3", "u2"));
+    expect(db.rows.map((row) => row.status)).toEqual(["PENDING", "PENDING", "PENDING"]);
+  });
+  it("keeps a clearly different character (an alt) as its own request", async () => {
+    const db = fakeDatabase();
+    await recordInviteRequest(db as never, post("Lebelhomme Klodeau", "m1"));
+    await recordInviteRequest(db as never, post("Tuko Xen", "m2"));
+    expect(db.rows.map((row) => row.status)).toEqual(["PENDING", "PENDING"]);
+  });
+  it("treats a same first or last name, or a few letters apart, as a correction", async () => {
+    const { looksLikeCorrection } = await import("../src/services/invite-queue.js");
+    expect(looksLikeCorrection("lebelhome klodeau", "lebelhomme klodeau")).toBe(true);
+    expect(looksLikeCorrection("lebelhomme klodo", "lebelhomme klodeau")).toBe(true);
+    expect(looksLikeCorrection("tuko xen", "lebelhomme klodeau")).toBe(false);
   });
 });

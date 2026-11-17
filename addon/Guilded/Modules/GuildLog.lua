@@ -12,7 +12,9 @@
 local addonName, ns = ...
 ns = ns or {}
 
-local MAX_EVENTS = 2000
+-- (9.3.8) 1000 newest events, none older than half a year: the bot keeps what it was sent; this only stops the saved file growing.
+local MAX_EVENTS = 1000
+local KEEP_SECONDS = 180 * 86400
 local SAME_EVENT_SECONDS = 3 * 3600
 local QUERY_EVERY = 30 * 60
 
@@ -69,13 +71,14 @@ function guildLog.read()
       for j = #s.events, math.max(1, #s.events - 300), -1 do
         if same(s.events[j], event) then known = true; break end
       end
-      if not known then table.insert(s.events, event); added = added + 1 end
+      if not known and age <= KEEP_SECONDS then table.insert(s.events, event); added = added + 1 end
     end
   end
   if added > 0 then
     table.sort(s.events, function(a, b) return a.at < b.at end)
-    while #s.events > MAX_EVENTS do table.remove(s.events, 1) end
   end
+  -- Also on a read that found nothing new, so a file saved by an older version is trimmed once.
+  while #s.events > MAX_EVENTS or (s.events[1] and type(s.events[1].at) == "number" and s.events[1].at < now - KEEP_SECONDS) do table.remove(s.events, 1) end
   s.readAt = now
   return added
 end

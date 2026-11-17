@@ -10,6 +10,14 @@ local DB_VERSION = 4
 -- informational logs are capped. The EPGP ledger is NOT capped: the
 -- companion identifies entries by id/position and it is the audit trail.
 local MAX_EVENTS = 1000
+-- (9.3.8) The SavedVariables file grew past 3 MB; these logs are only history, so they age out too.
+-- The audit log (GuildedDB.events) is read by nothing; parked guilds keep a short tail of both logs.
+local EVENT_KEEP_DAYS = 30
+local PARKED_EVENT_KEEP = 100
+local PARKED_LOG_KEEP = 300
+local PARKED_LOG_DAYS = 90
+-- A parked guild nobody played in for this long, with no points and no unsent dungeon run, is forgotten.
+local PARKED_GUILD_DAYS = 180
 local MAX_EXPORT_MARKERS = 10
 local MAX_EPGP_AMOUNT = 100000
 -- Addon messages longer than 255 bytes are rejected by the client.
@@ -98,6 +106,60 @@ local function asRaidList(value)
   return list
 end
 
+local function isoDaysAgo(days)
+  return date("!%Y-%m-%dT%H:%M:%SZ", time() - days * 86400)
+end
+
+-- Drops the oldest entries of a list written oldest-first: too many, or older than `isOld` says.
+local function trimOldest(list, keep, isOld)
+  if type(list) ~= "table" then return end
+  while #list > keep or (list[1] ~= nil and isOld and isOld(list[1])) do table.remove(list, 1) end
+end
+
+local function hasUnsyncedRun(parked)
+  local runs = type(parked.dungeon) == "table" and parked.dungeon.runs
+  for _, run in pairs(type(runs) == "table" and runs or {}) do
+    if type(run) == "table" and not run.synced then return true end
+  end
+  return false
+end
+
+local function hasPoints(parked)
+  for field, value in pairs(parked) do
+    if (field == "epgp" or field == "dkp" or string.find(string.lower(tostring(field)), "ledger", 1, true)) and type(value) == "table" and next(value) ~= nil then return true end
+  end
+  return false
+end
+
+-- (9.3.8) Keeps GuildedDB from growing for ever: the audit log by age, the data parked for other guilds by a short tail of their logs,
+-- and a parked guild nobody has played in for half a year (when it holds no points and no run the bot has not confirmed). The loaded
+-- guild's own data (roster, ledger, raids, runs) is never touched here.
+local function trimBulk(root)
+  if type(root) ~= "table" then return end
+  local oldIso = isoDaysAgo(EVENT_KEEP_DAYS)
+  trimOldest(root.events, MAX_EVENTS, function(event) return type(event) == "table" and type(event.at) == "string" and event.at < oldIso end)
+  if type(root.otherGuilds) ~= "table" then return end
+  local oldAt = time() - PARKED_LOG_DAYS * 86400
+  local forget = time() - PARKED_GUILD_DAYS * 86400
+  for key, parked in pairs(root.otherGuilds) do
+    if type(parked) ~= "table" then
+      root.otherGuilds[key] = nil
+    else
+      -- Parked data written before this stamp existed starts its half year now.
+      if type(parked.parkedAt) ~= "number" then parked.parkedAt = time() end
+      if parked.parkedAt < forget and not hasUnsyncedRun(parked) and not hasPoints(parked) then
+        root.otherGuilds[key] = nil
+      else
+        trimOldest(parked.events, PARKED_EVENT_KEEP)
+        if type(parked.guildLog) == "table" then
+          trimOldest(parked.guildLog.events, PARKED_LOG_KEEP, function(event) return type(event) == "table" and type(event.at) == "number" and event.at < oldAt end)
+        end
+      end
+    end
+  end
+end
+ns.trimBulk = trimBulk
+
 local function ensureDb()
   -- Early builds saved under the old name; adopt that data once. A non-table
   -- value (a damaged SavedVariables file) is not usable and must not be indexed.
@@ -160,7 +222,7 @@ local function ensureDb()
   -- { firstSeen, lastSeen }. Filled automatically while a raid is active.
   db.presence = asTable(db.presence)
   db.events = asTable(db.events)
-  while #db.events > MAX_EVENTS do table.remove(db.events, 1) end
+  trimBulk(db)
   -- Older versions stored a full copy of the database per export, which
   -- the SavedVariables writer duplicates on disk every time. Keep markers only.
   db.exports = asTable(db.exports)
@@ -197,7 +259,7 @@ local function logEvent(kind, payload)
   table.insert(db.events, {
     at = now(), kind = kind, player = playerName(), data = payload
   })
-  while #db.events > MAX_EVENTS do table.remove(db.events, 1) end
+  if #db.events > MAX_EVENTS then table.remove(db.events, 1) end
   -- Something worth saving happened: tell the sync module (Modules/SyncNow.lua).
   if ns.syncNow and ns.syncNow.mark then ns.syncNow.mark() end
 end
@@ -2427,6 +2489,7 @@ local function resolveGuildData()
     if not KEEP_AT_ROOT[field] then parked[field] = value end
   end
   for field in pairs(parked) do db[field] = nil end
+  parked.parkedAt = homeNow()
   db.otherGuilds[storageKey(old, oldEdition)] = parked
   local incoming = db.otherGuilds[storageKey(key, edition)]
   db.otherGuilds[storageKey(key, edition)] = nil
@@ -2440,7 +2503,7 @@ local function resolveGuildData()
     for field, value in pairs(parked) do
       local have = incoming[field]
       local empty = have == nil or (type(have) == "table" and next(have) == nil)
-      if field ~= "settings" and field ~= "mergedIntoHome" and not isLedgerField(field) and empty
+      if field ~= "settings" and field ~= "mergedIntoHome" and field ~= "parkedAt" and not isLedgerField(field) and empty
         and not (type(value) == "table" and next(value) == nil) then
         incoming[field] = value
         mergedFields = mergedFields + 1
@@ -2451,6 +2514,7 @@ local function resolveGuildData()
   local restored = false
   if incoming then
     for field, value in pairs(incoming) do db[field] = value end
+    db.parkedAt = nil
     restored = true
   end
   db.guildKey = key

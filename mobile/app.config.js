@@ -23,6 +23,7 @@ module.exports = ({ config }) => {
     ...config,
     ...(process.env.EAS_OWNER ? { owner: process.env.EAS_OWNER } : {}),
     android: { ...config.android, ...(googleServicesFile ? { googleServicesFile } : {}) },
+    plugins: [...(config.plugins || []), './plugins/with-optional-portrait'],
     extra: { ...config.extra, ...(projectId ? { eas: { projectId } } : {}) },
     updates: {
       ...config.updates,

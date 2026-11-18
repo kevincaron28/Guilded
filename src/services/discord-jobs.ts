@@ -153,8 +153,9 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
       if (!current) throw new Error("Configure dungeon announcements first");
       channelId = current;
     } else if (route === "wowWeekly") {
-      const settings = await prisma.guildSettings.findUnique({ where: { guildId: job.guildId }, select: { weeklyReportChannelId: true, notifyChannelId: true, weeklyReportEnabled: true } });
+      const settings = await prisma.guildSettings.findUnique({ where: { guildId: job.guildId }, select: { weeklyReportChannelId: true, notifyChannelId: true, weeklyReportEnabled: true, weeklyRecordsEnabled: true } });
       if (!wowWeeklyStillWanted(job.key, settings)) return; // the weekly report was switched off since it was queued
+      if (job.key.startsWith("weekly-records:") && settings && !settings.weeklyRecordsEnabled) return; // the records post was switched off since it was queued
       const current = settings?.weeklyReportChannelId ?? settings?.notifyChannelId;
       if (!current) throw new Error("Configure WoW weekly reports first");
       channelId = current;

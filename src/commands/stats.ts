@@ -17,6 +17,7 @@ import { queueWeeklyWowReport } from "../services/weekly-report-delivery.js";
 import { weeklyReportCard } from "../services/weekly-card.js";
 import { textlessEmbed } from "../services/card-only.js";
 import { personalWeeklyRecap, personalWeeklyRecapEmbed } from "../services/personal-weekly-recap.js";
+import { queueWeeklyRecords } from "../services/weekly-records.js";
 import { dailyRecap, dailyRecapCard, dailyRecapEmbed, queueDailyRecaps, recapDay, recapIsEmpty } from "../services/daily-recap.js";
 import { hasPermission } from "../permissions.js";
 import { dungeonShare } from "../services/community-ingame.js";
@@ -29,6 +30,7 @@ export const statsCommand = new SlashCommandBuilder()
   .addBooleanOption(o => o.setName("server").setDescription("Server statistics: members, activity and a class chart").setDescriptionLocalizations({ fr: "Statistiques du serveur : membres, activité, graphique des classes" }))
   .addBooleanOption(o => o.setName("recap").setDescription("Yesterday's daily recap card, privately").setDescriptionLocalizations({ fr: "Le bilan d'hier, en privé" }))
   .addBooleanOption(o => o.setName("recap-posts").setDescription("Officers: post the daily recap (default on)").setDescriptionLocalizations({ fr: "Officiers : publier le bilan quotidien (actif par défaut)" }))
+  .addBooleanOption(o => o.setName("records-posts").setDescription("Officers: post records broken each week (default off)").setDescriptionLocalizations({ fr: "Officiers : publier les records de la semaine (désactivé par défaut)" }))
   .addIntegerOption((o) => o.setName("days").setDescription("How far back (default 7)").setMinValue(1).setMaxValue(365))
   .addStringOption(o => o.setName("core").setDescription("Raid core (defaults to this channel)").setAutocomplete(true));
 
@@ -82,6 +84,18 @@ export async function executeStats(interaction: ChatInputCommandInteraction): Pr
     await interaction.reply({ content: recapPosts
       ? lang === "fr" ? "🗓️ Le bilan quotidien est publié chaque jour où il se passe quelque chose (salon du rapport hebdomadaire, sinon des annonces)." : "🗓️ The daily recap is posted every day something happens (weekly-report channel, else announcements)."
       : lang === "fr" ? "Le bilan quotidien n'est plus publié. /report stats recap:true le montre toujours en privé." : "The daily recap is no longer posted. /report stats recap:true still shows it privately.",
+      flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+    return;
+  }
+  const recordsPosts = interaction.options.getBoolean("records-posts");
+  if (recordsPosts !== null) {
+    const lang = asLang((await guildService.getSettings(context.guildId))?.language);
+    if (!interaction.member || !hasPermission(interaction.member as Parameters<typeof hasPermission>[0], "officer")) throw new Error(lang === "fr" ? "Réservé aux officiers." : "Officers only.");
+    // Turning it on starts with the next weekly reset: the week in progress is not posted late.
+    await prisma.guildSettings.update({ where: { guildId: context.guildId }, data: { weeklyRecordsEnabled: recordsPosts, ...(recordsPosts ? { weeklyRecordsLastAt: new Date() } : {}) } });
+    await interaction.reply({ content: recordsPosts
+      ? lang === "fr" ? "🏆 Les records de la semaine seront publiés après chaque réinitialisation hebdomadaire, s'il y a du nouveau (salon du rapport hebdomadaire, sinon des annonces)." : "🏆 Records broken this week will be posted after each weekly reset when there is something new (weekly-report channel, else announcements)."
+      : lang === "fr" ? "Les records de la semaine ne sont plus publiés." : "Weekly records are no longer posted.",
       flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
     return;
   }
@@ -178,6 +192,13 @@ export function weeklyCardExtra(report: WeeklyReport, lang: Lang, embeds: EmbedB
 // Called hourly: the daily recap of every server whose day rolled over (one post per day, quiet days post nothing).
 export async function runDailyRecaps(client: Client, now = new Date()): Promise<number> {
   const queued = await queueDailyRecaps(prisma, now, { scope: pilotGuildScope, onError: error => console.error("Daily recap failed", error) });
+  if (queued) await runDiscordJobs(client);
+  return queued;
+}
+
+// Called hourly: the opt-in "records broken this week" card, once per weekly reset (quiet weeks post nothing).
+export async function runWeeklyRecords(client: Client, now = new Date()): Promise<number> {
+  const queued = await queueWeeklyRecords(prisma, now, { scope: pilotGuildScope, onError: error => console.error("Weekly records failed", error) });
   if (queued) await runDiscordJobs(client);
   return queued;
 }

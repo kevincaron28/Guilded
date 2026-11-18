@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- minimal in-memory database fakes */
 import { describe, expect, it } from "vitest";
 import { applyRaidKills, buildRaidBoard, checkRaidKill, parseRaidKills, raidBoardBody, raidBoardJson, RAIDS_OPEN_AT, type BoardGuild, type BoardKill, type RaidKillUpload } from "../src/services/raid-progress.js";
 import { exportRaidKills } from "../companion/lua-export-content.mjs";
@@ -53,7 +54,7 @@ describe("raid board", () => {
 
 describe("applying kills", () => {
   function fakeDb() {
-    const rows: Array<Record<string, any>> = [];
+    const rows: any[] = [];
     const db = { raidKill: {
       count: async () => rows.length,
       findFirst: async ({ where }: any) => rows.find((r) => r.guildId === where.guildId && r.encounterId === where.encounterId && r.killedAt >= where.killedAt.gte && r.killedAt <= where.killedAt.lte) ?? null,

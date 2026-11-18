@@ -95,7 +95,7 @@ import {
 import { DUNGEON_GUIDE_PREFIX } from "./services/dungeon-guide.js";
 import { answerMessage, FAQ_MODAL_PREFIX, handleFaqModal } from "./commands/faq.js";
 import { GROUP_ALERT_OPEN_ID, GROUP_ALERT_PREFIX, handleGroupAlertComponent, openGroupAlerts } from "./commands/group-alerts.js";
-import { runDailyRecaps, runWeeklyReports } from "./commands/stats.js";
+import { runDailyRecaps, runWeeklyRecords, runWeeklyReports } from "./commands/stats.js";
 import { runAutoDecay } from "./services/auto-decay.js";
 import { executeBank, handleBankRequestButton } from "./commands/bank.js";
 import { executeDeleteMyData } from "./commands/delete-my-data.js";
@@ -623,6 +623,8 @@ client.once(Events.ClientReady, (readyClient) => {
     runWeeklyReports(readyClient).catch(reportJobError("Weekly report check"));
     // 9.1: the daily recap card, once per server day (on by default, officers switch it off with /report stats recap-posts:false).
     runDailyRecaps(readyClient).catch(reportJobError("Daily recap check"));
+    // The weekly records card: opt-in per server (officers: /report stats records-posts:true).
+    runWeeklyRecords(readyClient).catch(reportJobError("Weekly records check"));
     // 9.1: the raid night check card, once per planned raid about four hours before it starts (officers switch it off).
     runRaidNightChecks(readyClient, prisma, pilotGuildScope).catch(reportJobError("Raid night check"));
     // Automatic EPGP decay after each weekly reset (guilds that turned it on).

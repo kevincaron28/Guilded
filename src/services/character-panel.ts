@@ -2,6 +2,7 @@ import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, escapeMarkdown, MessageFlags, ModalBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle,
   type ButtonInteraction, type ModalSubmitInteraction, type StringSelectMenuInteraction
 } from "discord.js";
+import { markMemberChanged } from "./member-sync-events.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, t, type Lang } from "../i18n.js";
 import { displayCharacterName, loadFullNameBook } from "./character-display.js";
@@ -180,6 +181,7 @@ export async function handlePanelInteraction(interaction: PanelInteraction, data
       (database as unknown as PrismaClient).character.updateMany({ where: { memberId: context.member.id, isMain: true }, data: { isMain: false } }),
       (database as unknown as PrismaClient).character.update({ where: { id: character.id }, data: { isMain: true } })
     ]);
+    markMemberChanged({ guildId: context.member.guildId, memberId: context.member.id });
     const book = await loadFullNameBook(database, context.member.guildId);
     await show(await panel(t(lang, "panel.mainDone", { name: escapeMarkdown(displayCharacterName(character, book)) })));
     return;

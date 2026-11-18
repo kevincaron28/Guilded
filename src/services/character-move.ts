@@ -2,6 +2,7 @@ import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { characterKey } from "../../companion/character-identity.mjs";
 import { findCharacter } from "./character-match.js";
 import { clearGuildMembershipCache } from "./guild-participants.js";
+import { markMemberChanged } from "./member-sync-events.js";
 
 // Linking audit T3 (docs/plans/LINKING_AUDIT_2026-11-10.md, owner decisions of 10 November 2026).
 //
@@ -109,6 +110,9 @@ export async function moveCharacter(tx: Tx, characterId: string, toMemberId: str
       detachedAt: null, detachedFromMemberId: null
     }
   });
+  // The nickname and rank role of both members follow (event-driven refresh, member-sync.ts).
+  markMemberChanged({ guildId, memberId: toMemberId });
+  if (fromMemberId !== toMemberId) markMemberChanged({ guildId, memberId: fromMemberId });
   if (sameOwner) return { character: updated, fromMemberId, wasDetached };
   if (!wasDetached) {
     if (character.isMain) await promoteMain(tx, fromMemberId);
@@ -136,6 +140,7 @@ export async function detachCharacter(tx: Tx, characterId: string, now = new Dat
   const holding = await holdingMember(tx, character.member.guildId);
   await tx.character.update({ where: { id: characterId }, data: { memberId: holding.id, isMain: false, detachedAt: now, detachedFromMemberId: character.memberId } });
   if (character.isMain) await promoteMain(tx, character.memberId);
+  markMemberChanged({ guildId: character.member.guildId, memberId: character.memberId });
   await tx.characterLinkConflict.updateMany({ where: { characterId, status: { in: ["OPEN", "MOVED", "WEAKER"] } }, data: { status: "RESOLVED" } });
   return { fromMemberId: character.memberId };
 }

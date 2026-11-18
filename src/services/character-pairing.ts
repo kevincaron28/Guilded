@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import { markMemberChanged } from "./member-sync-events.js";
 import { mergeProfessionSkills } from "./profession-names.js";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import type { AddonCharacter } from "../integrations/addon.js";
@@ -68,6 +69,7 @@ export async function createSelfCharacter(tx: Tx, guildId: string, memberId: str
     });
   }
   await tx.unclaimedCharacter.deleteMany({ where: { guildId, nameKey: characterKey(self.name, self.realm, gameEditionOf(self)) } });
+  markMemberChanged({ guildId, memberId });
   return created;
 }
 

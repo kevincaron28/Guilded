@@ -1,4 +1,5 @@
 import { syncProfessionSnapshot } from "./profession-snapshot.js";
+import { markMemberChanged } from "./member-sync-events.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { findCharacter } from "./character-match.js";
 import { createGuildService } from "./guild.js";
@@ -122,6 +123,7 @@ export async function importCharacter(
     if (mainChoice === true && !existing.isMain) {
       await database.character.updateMany({ where: { memberId }, data: { isMain: false } });
       await database.character.update({ where: { id: existing.id }, data: { isMain: true } });
+      markMemberChanged({ guildId: owner.guildId, memberId });
     }
     characterId = updated.id;
     isMain = mainChoice === true || existing.isMain;

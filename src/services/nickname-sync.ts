@@ -150,7 +150,23 @@ export function describeNicknameSync(guildId: string, result: NicknameSyncResult
   return `Nickname sync ${guildId}: eligible ${stats.eligible}, planned ${result.changes.length}, renamed ${result.applied}, failed ${result.failed}, skipped (not manageable) ${stats.notManageable}, not in server ${stats.notInServer}, opted out/no fit ${stats.optedOutOrNoFit}, up to date ${stats.upToDate}; ${reason}`;
 }
 
-export async function syncNicknames(prisma: PrismaClient, guild: Guild, options: { dryRun?: boolean } = {}): Promise<NicknameSyncResult> {
+/** Which one member a sync is limited to (event-driven refresh): by Discord user id or by our member row id. */
+export type OnlyMember = { discordUserId: string } | { memberId: string };
+const onlyWhere = (only: OnlyMember | undefined) => !only ? {} : "memberId" in only ? { id: only.memberId } : { discordUserId: only.discordUserId };
+
+// Nicknames the bot just wrote, so the GuildMemberUpdate our own rename causes does not start another refresh.
+const ownNicknames = new Map<string, { nickname: string | null; at: number }>();
+const OWN_NICKNAME_MS = 60_000;
+export function noteOwnNickname(guildDiscordId: string, discordUserId: string, nickname: string | null, now = Date.now()): void {
+  ownNicknames.set(`${guildDiscordId}:${discordUserId}`, { nickname, at: now });
+  if (ownNicknames.size > 2000) for (const [key, value] of ownNicknames) if (now - value.at > OWN_NICKNAME_MS) ownNicknames.delete(key);
+}
+export function isOwnNickname(guildDiscordId: string, discordUserId: string, nickname: string | null, now = Date.now()): boolean {
+  const seen = ownNicknames.get(`${guildDiscordId}:${discordUserId}`);
+  return Boolean(seen && now - seen.at <= OWN_NICKNAME_MS && seen.nickname === nickname);
+}
+
+export async function syncNicknames(prisma: PrismaClient, guild: Guild, options: { dryRun?: boolean; only?: OnlyMember } = {}): Promise<NicknameSyncResult> {
   const none = (skipped: string | null): NicknameSyncResult => ({ changes: [], applied: 0, failed: 0, skipped, stats: emptyStats() });
   const row = await prisma.guild.findUnique({ where: guildWhere(guild.id), select: { id: true, gameEdition: true, settings: { select: { nicknameSyncEnabled: true, nicknameFormat: true } } } });
   if (!row) return none("This server is not set up yet.");
@@ -159,11 +175,11 @@ export async function syncNicknames(prisma: PrismaClient, guild: Guild, options:
   const format = row.settings?.nicknameFormat && validNicknameFormat(row.settings?.nicknameFormat) ? row.settings?.nicknameFormat : DEFAULT_NICKNAME_FORMAT;
   const [members, records] = await Promise.all([
     prisma.member.findMany({
-      where: { guildId: row.id, status: "ACTIVE", isTest: false, characters: { some: { gameEdition: row.gameEdition ?? "forever" } } },
+      where: { guildId: row.id, ...onlyWhere(options.only), status: "ACTIVE", isTest: false, characters: { some: { gameEdition: row.gameEdition ?? "forever" } } },
       select: { discordUserId: true, characters: { where: { gameEdition: row.gameEdition ?? "forever" },
         select: { id: true, memberId: true, name: true, displayName: true, realm: true, gameEdition: true, isMain: true, confirmedAt: true, linkEvidence: true } } }
     }),
-    prisma.memberNickname.findMany({ where: { guildId: row.id } })
+    prisma.memberNickname.findMany({ where: { guildId: row.id, ...(options.only && "discordUserId" in options.only ? { discordUserId: options.only.discordUserId } : {}) } })
   ]);
   const byUser = new Map(records.map((record) => [record.discordUserId, record]));
   const people: NicknamePerson[] = [];
@@ -188,7 +204,7 @@ export async function syncNicknames(prisma: PrismaClient, guild: Guild, options:
     const member = guild.members.cache.get(change.discordUserId);
     if (!member) { failed++; continue; }
     try {
-      if (member.nickname !== change.nickname) await member.setNickname(change.nickname, "Guilded nickname sync");
+      if (member.nickname !== change.nickname) { noteOwnNickname(guild.id, change.discordUserId, change.nickname); await member.setNickname(change.nickname, "Guilded nickname sync"); }
       await prisma.memberNickname.upsert({
         where: { guildId_discordUserId: { guildId: row.id, discordUserId: change.discordUserId } },
         create: { guildId: row.id, discordUserId: change.discordUserId, originalNickname: change.originalNickname, appliedNickname: change.nickname },
@@ -198,6 +214,15 @@ export async function syncNicknames(prisma: PrismaClient, guild: Guild, options:
     } catch { failed++; }
   }
   return { changes, applied, failed, skipped: null, stats };
+}
+
+/**
+ * One member's nickname, right now (event-driven refresh): the same plan as the full pass, limited to this member, so it costs a
+ * few small reads and at most one setNickname. Silent when the sync is off, the bot lacks Manage Nicknames, or the member is
+ * the owner / a bot / above the bot's role (the hourly pass reports those). Never fetches the whole server.
+ */
+export function syncMemberNickname(prisma: PrismaClient, guild: Guild, who: string | { memberId: string }): Promise<NicknameSyncResult> {
+  return syncNicknames(prisma, guild, { only: typeof who === "string" ? { discordUserId: who } : who });
 }
 
 /** Puts one member's nickname back (only if it is still the one we set) and records the choice. Returns whether it was restored. */

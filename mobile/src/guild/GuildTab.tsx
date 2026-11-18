@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 import { t } from "../i18n";
 import type { GuildState } from "../useGuild";
-import { LastUpdated, Screen, SegmentedTabs, colors } from "../ui";
+import type { GuildPart } from "../routes";
+import { useBack } from "../useBack";
+import { LastUpdated, RetryCard, Screen, SegmentedTabs, colors } from "../ui";
 import { common } from "../ui/common";
 import { Characters, Raids, Reserves } from "./GuildParts";
 import { MapScreen } from "./MapScreen";
@@ -11,8 +13,12 @@ import { SignIn } from "./SignIn";
 type Section = "roster" | "map" | "raids";
 
 /** Guild tab: Roster (characters, reserves) | Map | Raids. Signed out, it is the sign-in screen. */
-export function GuildTab({ guild, defaultOrigin }: { guild: GuildState; defaultOrigin: string }) {
-  const [section, setSection] = useState<Section>("roster");
+export function GuildTab({ guild, defaultOrigin, focus }: { guild: GuildState; defaultOrigin: string; focus?: { part: GuildPart; n: number } | null }) {
+  const [section, setSection] = useState<Section>(focus?.part ?? "roster");
+  // An app link or a tapped reminder opens a given part (Raids for a raid reminder).
+  useEffect(() => { if (focus) setSection(focus.part); }, [focus]);
+  // Android Back from Map or Raids returns to the Roster before it leaves the tab.
+  useBack(section !== "roster", () => setSection("roster"));
   const { lang, session, preview, snapshot } = guild;
 
   if (!session && !preview) {
@@ -40,12 +46,15 @@ export function GuildTab({ guild, defaultOrigin }: { guild: GuildState; defaultO
     <SegmentedTabs options={(["roster", "map", "raids"] as const).map((value) => ({ value, label: t(lang, value) }))} value={section} onChange={setSection} />
     {guild.loading && !snapshot ? <ActivityIndicator color={colors.gold} style={{ marginVertical: 24 }} /> : null}
     {section === "roster" ? <>
-      <Characters lang={lang} hub={hub} {...(snapshot?.errors.hub ? { error: snapshot.errors.hub } : {})} />
-      <Text style={common.label}>{t(lang, "reserves").toUpperCase()}</Text>
-      <Reserves lang={lang} hub={hub} {...(snapshot?.errors.hub ? { error: snapshot.errors.hub } : {})} />
+      {snapshot?.errors.hub && !hub ? <RetryCard lang={lang} message={snapshot.errors.hub} onRetry={() => void guild.refresh()} /> : <>
+        <Characters lang={lang} hub={hub} />
+        <Text style={common.label}>{t(lang, "reserves").toUpperCase()}</Text>
+        <Reserves lang={lang} hub={hub} />
+      </>}
     </> : null}
     {section === "map" ? <MapScreen lang={lang} session={preview ? null : session} /> : null}
-    {section === "raids" ? <Raids lang={lang} hub={hub} manage={manage} standings={standings} {...(snapshot?.errors.standings ? { error: snapshot.errors.standings } : {})} /> : null}
+    {section === "raids" ? (snapshot?.errors.standings && !standings ? <RetryCard lang={lang} message={snapshot.errors.standings} onRetry={() => void guild.refresh()} />
+      : <Raids lang={lang} hub={hub} manage={manage} standings={standings} />) : null}
     {(manage?.raidLeader || hub?.raidLeader) ? <Text style={common.note}>{t(lang, "leaderNote")}</Text> : null}
   </Screen>;
 }

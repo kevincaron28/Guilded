@@ -5,7 +5,9 @@ import Constants from "expo-constants";
 import * as Updates from "expo-updates";
 import { checkForNewApk, type ApkRelease } from "./src/apkUpdate";
 import { DEFAULT_WEB_ORIGIN } from "./src/links";
-import { mobileRoute, notificationRoute, type MobileRoute } from "./src/routes";
+import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
+import { backTarget, mobileRoute, notificationRoute, routeTarget, type GuildPart, type MobileRoute } from "./src/routes";
+import { useBack } from "./src/useBack";
 import { ErrorBoundary } from "./src/ErrorBoundary";
 import { setReportScreen } from "./src/crashReport";
 import { Intro } from "./src/Intro";
@@ -43,7 +45,7 @@ export default function App() {
     void prepareLaunchUpdate().catch(() => "unavailable").finally(() => { if (active) setLaunched(true); });
     return () => { active = false; };
   }, []);
-  return <ErrorBoundary origin={WEB_ORIGIN}>{launched ? <GuildedApp /> : <View style={styles.frame}><ActivityIndicator color={colors.gold} style={{ marginTop: 96 }} /></View>}</ErrorBoundary>;
+  return <SafeAreaProvider><ErrorBoundary origin={WEB_ORIGIN}>{launched ? <GuildedApp /> : <View style={styles.frame}><ActivityIndicator color={colors.gold} style={{ marginTop: 96 }} /></View>}</ErrorBoundary></SafeAreaProvider>;
 }
 
 function GuildedApp() {
@@ -51,8 +53,14 @@ function GuildedApp() {
   const [newApk, setNewApk] = useState<ApkRelease | null>(null);
   const [chosen, setChosen] = useState<Tab | null>(null);
   // Opens on Guild when signed in (or in the sample), on Stats otherwise.
-  const tab: Tab = chosen ?? (guild.signedIn ? "guild" : "stats");
+  const home: Tab = guild.signedIn ? "guild" : "stats";
+  const tab: Tab = chosen ?? home;
   const { lang } = guild;
+  const insets = useSafeAreaInsets();
+  // Which part of the Guild tab a link asked for; `n` makes the same link work twice.
+  const [guildPart, setGuildPart] = useState<{ part: GuildPart; n: number } | null>(null);
+  // Android Back: from any other tab it goes to the home tab, and only from there leaves the app.
+  useBack(backTarget(tab, home) !== null, () => setChosen(null));
   useEffect(() => { setReportScreen(tab); }, [tab]);
 
   // First launch: three short intro screens, once (signed-in phones and a skipped intro never see them again).
@@ -69,7 +77,12 @@ function GuildedApp() {
   // App links and tapped push notifications open the Alerts tab (raid reminders) or the Guild tab.
   useEffect(() => {
     let active = true;
-    const accept = (route: MobileRoute | null) => { if (active && route) setChosen(route.section === "alerts" ? "alerts" : "guild"); };
+    const accept = (route: MobileRoute | null) => {
+      if (!active || !route) return;
+      const target = routeTarget(route);
+      setChosen(target.tab);
+      if (target.part) setGuildPart((current) => ({ part: target.part!, n: (current?.n ?? 0) + 1 }));
+    };
     void Linking.getInitialURL().then((url) => { if (url) accept(mobileRoute(url)); }).catch(() => {});
     const links = Linking.addEventListener("url", ({ url }) => accept(mobileRoute(url)));
     let removeNotifications: (() => void) | undefined;
@@ -100,11 +113,13 @@ function GuildedApp() {
   return <View style={styles.frame}>
     <View style={styles.root}>
       <StatusBar style="light" />
-      <View style={styles.header}>
-        <Text style={styles.brand}>GUILDED</Text>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+        <Pressable onPress={() => setChosen(null)} accessibilityRole="button" accessibilityLabel={`Guilded, ${t(lang, "goHome")}`} hitSlop={{ top: 8, bottom: 8, left: 8, right: 16 }} style={styles.brandButton}>
+          <Text style={styles.brand} maxFontSizeMultiplier={1.3}>GUILDED</Text>
+        </Pressable>
         <View style={styles.status}>
           <View style={[styles.dot, { backgroundColor: guild.loading ? colors.gold : guild.signedIn ? colors.green : colors.line }]} />
-          <Text style={styles.statusText} numberOfLines={1}>{guild.preview ? t(lang, "sampleBanner").split(".")[0] : guild.guildName ?? "World of Warcraft"}</Text>
+          <Text style={styles.statusText} numberOfLines={1} maxFontSizeMultiplier={1.3}>{guild.preview ? t(lang, "sampleBanner").split(".")[0] : guild.guildName ?? "World of Warcraft"}</Text>
         </View>
       </View>
       {newApk ? <Pressable accessibilityRole="link" accessibilityLabel={lang === "fr" ? `Nouvelle version ${newApk.version} disponible. Télécharger` : `New version ${newApk.version} available. Download`}
@@ -113,18 +128,18 @@ function GuildedApp() {
       </Pressable> : null}
       <View style={styles.body}>
         {!guild.ready ? <ActivityIndicator color={colors.gold} style={{ marginTop: 32 }} />
-          : tab === "guild" ? <GuildTab guild={guild} defaultOrigin={WEB_ORIGIN} />
+          : tab === "guild" ? <GuildTab guild={guild} defaultOrigin={WEB_ORIGIN} focus={guildPart} />
           : tab === "stats" ? <StatsTab origin={WEB_ORIGIN} lang={lang} />
           : tab === "me" ? <MeTab guild={guild} onSignIn={() => setChosen("guild")} />
           : tab === "alerts" ? <AlertsTab guild={guild} onSignIn={() => setChosen("guild")} />
           : <NewsScreen origin={WEB_ORIGIN} lang={lang} />}
       </View>
-      <View style={styles.nav} accessibilityRole="tablist">
+      <View style={[styles.nav, { paddingBottom: Math.max(insets.bottom, 10) }]} accessibilityRole="tablist">
         {TABS.map((item) => {
           const on = tab === item.tab;
           return <Pressable key={item.tab} onPress={() => setChosen(item.tab)} accessibilityRole="tab" accessibilityLabel={t(lang, item.label)} accessibilityState={{ selected: on }} style={styles.navItem}>
             <Image source={TAB_ICONS[item.tab]} style={[styles.icon, { tintColor: on ? colors.gold : colors.muted }]} accessible={false} />
-            <Text style={[styles.navText, on && styles.navActive]}>{t(lang, item.label)}</Text>
+            <Text style={[styles.navText, on && styles.navActive]} numberOfLines={1} maxFontSizeMultiplier={1.2}>{t(lang, item.label)}</Text>
           </Pressable>;
         })}
       </View>
@@ -135,7 +150,8 @@ function GuildedApp() {
 const styles = StyleSheet.create({
   frame: { flex: 1, backgroundColor: colors.bg, alignItems: "center" },
   root: { flex: 1, backgroundColor: colors.bg, width: "100%", maxWidth: 480 },
-  header: { paddingTop: 52, paddingHorizontal: 24, paddingBottom: 14, borderBottomWidth: 1, borderColor: colors.line, flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 16 },
+  header: { paddingHorizontal: 24, paddingBottom: 12, borderBottomWidth: 1, borderColor: colors.line, flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 16 },
+  brandButton: { minHeight: 44, justifyContent: "center" },
   brand: { color: colors.gold, fontSize: 15, fontWeight: "900", letterSpacing: 3 },
   status: { flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 },
   dot: { width: 6, height: 6, borderRadius: 4 },
@@ -143,7 +159,7 @@ const styles = StyleSheet.create({
   body: { flex: 1 },
   update: { backgroundColor: colors.panel, borderBottomWidth: 1, borderColor: colors.gold, paddingVertical: 10, paddingHorizontal: 24 },
   updateText: { color: colors.gold, fontSize: 12, fontWeight: "700" },
-  nav: { borderTopWidth: 1, borderColor: colors.line, backgroundColor: colors.bg, flexDirection: "row", paddingBottom: 20, paddingTop: 6 },
+  nav: { borderTopWidth: 1, borderColor: colors.line, backgroundColor: colors.bg, flexDirection: "row", paddingTop: 6 },
   navItem: { flex: 1, alignItems: "center", justifyContent: "center", minHeight: 48 },
   icon: { width: 26, height: 26, resizeMode: "contain" },
   navText: { color: colors.muted, fontSize: 12, marginTop: 2 },

@@ -25,3 +25,20 @@ export function notificationRoute(data: unknown): MobileRoute | null {
   if (row.type !== "raid" || typeof row.guildDiscordId !== "string" || !/^\d{5,30}$/.test(row.guildDiscordId)) return null;
   return { section: "raids", guildDiscordId: row.guildDiscordId, ...(typeof row.raidId === "string" && row.raidId.length <= 200 ? { raidId: row.raidId } : {}) };
 }
+
+export type TabName = "guild" | "stats" | "me" | "alerts" | "news";
+export type GuildPart = "roster" | "map" | "raids";
+/** Where a destination lands: the tab, and for the Guild tab which part. Wishlist lives in Me; raids open on the Raids part. */
+export function routeTarget(route: MobileRoute): { tab: TabName; part?: GuildPart } {
+  switch (route.section) {
+    case "alerts": return { tab: "alerts" };
+    case "wishlist": return { tab: "me" };
+    case "raids": return { tab: "guild", part: "raids" };
+    default: return { tab: "guild", part: "roster" };
+  }
+}
+
+/** What Android Back does: from a tab other than the home tab it goes home; on the home tab it leaves the app (null = let the system handle it). */
+export function backTarget(current: TabName, home: TabName): TabName | null {
+  return current === home ? null : home;
+}

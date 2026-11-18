@@ -275,6 +275,13 @@ const STRINGS = {
     en: "Not yours? Press **This isn't my character** below (or `/character unlink` on the server). You confirm first, and you can always link it back. `/character list` shows this list any time.",
     fr: "Pas à toi ? Appuie sur **Ce n'est pas mon personnage** ci-dessous (ou `/character unlink` sur le serveur). Tu confirmes d'abord, et tu peux toujours le relier à nouveau. `/character list` affiche cette liste en tout temps."
   },
+  "dmlink.linked": { en: "✅ Linked **{name}** to you on **{server}**.", fr: "✅ **{name}** est maintenant lié à toi sur **{server}**." },
+  "dmlink.mine": { en: "**{name}** is already linked to you on **{server}**.", fr: "**{name}** est déjà lié à toi sur **{server}**." },
+  "dmlink.other": { en: "**{name}** on **{server}** is already linked to another member, so I did not move it.", fr: "**{name}** sur **{server}** est déjà lié à un autre membre, je ne l'ai donc pas déplacé." },
+  "dmlink.otherHow": { en: "If it is really yours, install the Guilded companion and sign in with Discord: that proves it and takes it over.", fr: "Si c'est vraiment le tien, installe le compagnon Guilded et connecte-toi avec Discord : cela le prouve et le reprend." },
+  "dmlink.none": { en: "I don't know **{name}** yet. Check the spelling (first AND last name), or install the Guilded companion so your characters link by themselves, or use `/character claim` on the server.", fr: "Je ne connais pas encore **{name}**. Vérifie l'orthographe (prénom ET nom), installe le compagnon Guilded pour lier tes personnages automatiquement, ou utilise `/character claim` sur le serveur." },
+  "dmlink.hint": { en: "Not yours? Press **This isn't my character** below. You confirm first, and you can always link it back.", fr: "Pas à toi ? Appuie sur **Ce n'est pas mon personnage** ci-dessous. Tu confirmes d'abord, et tu peux toujours le relier à nouveau." },
+  "dmlink.offer": { en: "**{name}** is also known on **{server}**: to link it to you, use `/character claim` there.", fr: "**{name}** est aussi connu sur **{server}** : pour le lier à toi, utilise `/character claim` là-bas." },
   "linked.notMine": { en: "This isn't my character: {name}", fr: "Ce n'est pas mon personnage : {name}" },
   "linked.notMineMenu": { en: "This isn't my character… pick one", fr: "Ce n'est pas mon personnage… choisis-en un" },
   "linked.confirm": { en: "Unlink **{name}**? Its history is kept and you can link it back any time.", fr: "Délier **{name}** ? Son historique est conservé et tu peux le relier à nouveau en tout temps." },

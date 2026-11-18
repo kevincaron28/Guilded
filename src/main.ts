@@ -71,6 +71,7 @@ import { sendRecruitReminders } from "./services/recruiting-kit.js";
 import { handleLinkedButton, LINKED_PREFIX } from "./services/companion-link-dm.js";
 import { handlePanelInteraction, PANEL_PREFIX } from "./services/character-panel.js";
 import { handleLinkMoveButton, LINK_MOVE_PREFIX } from "./services/link-conflict-dm.js";
+import { handleCharacterDm } from "./services/dm-character-link.js";
 import { handleInviteDm, handleInviteRequestInteraction, INVITE_REQUEST_PREFIX } from "./services/invite-request.js";
 import { postAllWeeklyGuildBanks } from "./services/guild-bank.js";
 import { postAllWeeklyMemberTrends } from "./services/member-trend.js";
@@ -699,8 +700,8 @@ client.on(Events.GuildMemberRemove, async (member) => {
 // The guild-invite channel (8.5 batch 3): reactions and the World of Warcraft role DM do not need message text.
 client.on(Events.MessageReactionAdd, (reaction, user) => { if (reaction.message.guildId && hostedPilot.allows(reaction.message.guildId)) void handleInviteReaction(client, prisma, reaction, user).catch(reportJobError("Guild invite reaction", { guildId: reaction.message.guildId, channelId: reaction.message.channelId })); });
 client.on(Events.GuildMemberUpdate, (before, after) => { if (hostedPilot.allows(after.guild.id)) void handleWowRoleGiven(before, after, prisma).catch(reportJobError("Guild invite DM", { guildId: after.guild.id })); });
-// A plain DM that looks like a full name, from a member the role DM asked (DirectMessages is not a privileged intent).
-client.on(Events.MessageCreate, message => { if (!message.guildId && !message.author.bot) void handleInviteDm(message, prisma).catch(reportJobError("Guild invite DM reply")); });
+// A plain DM that looks like a full name: a guild invite request when the role DM asked for one, else it links that character (dm-character-link.ts) (DirectMessages is not a privileged intent).
+client.on(Events.MessageCreate, message => { if (!message.guildId && !message.author.bot) void (async () => { const invited = await handleInviteDm(message, prisma); await handleCharacterDm(message, prisma, { afterInvite: invited }); })().catch(reportJobError("Guild invite DM reply")); });
 client.on(Events.MessageCreate, message => { if (message.guildId && hostedPilot.allows(message.guildId)) void activityTotals.message(message).catch(reportJobError("Activity totals messages", { guildId: message.guildId, channelId: message.channelId })); });
 client.on(Events.MessageReactionAdd, (reaction, user) => { if (reaction.message.guildId && hostedPilot.allows(reaction.message.guildId)) void activityTotals.reaction(reaction, user).catch(reportJobError("Activity totals reactions", { guildId: reaction.message.guildId, channelId: reaction.message.channelId })); });
 client.on(Events.MessageCreate, message => { if (message.guildId && hostedPilot.allows(message.guildId)) void participationTracker.message(message).catch(reportJobError("Participation messages", { guildId: message.guildId, channelId: message.channelId, messageId: message.id })); });

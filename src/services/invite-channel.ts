@@ -3,7 +3,7 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, t, type Lang } from "../i18n.js";
 import { hasPermission } from "../permissions.js";
 import { notifyInviters } from "./invite-notify.js";
-import { DONE_BUTTON, requestInviteRow, submitInviteRequest } from "./invite-request.js";
+import { DONE_BUTTON, requestInviteRow, submitInviteRequest, withWhoTip } from "./invite-request.js";
 import { extractInviteName, isFiller } from "./invite-name.js";
 import { INVITE_REQUEST_PREFIX } from "./invite-request.js";
 import { parseInviteAnswers, questionsBlock, storedQuestions } from "./recruiting-kit.js";
@@ -123,7 +123,7 @@ export async function handleInviteNameButton(interaction: ButtonInteraction, dat
     return;
   }
   const outcome = await submitInviteRequest(interaction.client, database, { discordGuildId: asked.discordGuildId, discordUserId: asked.userId, parsed: asked.parsed, answers: asked.answers });
-  const content = outcome.status === "posted" ? t(asked.lang, "invite.recorded", { name: asked.parsed.displayName }) : outcome.status === "duplicate" ? t(asked.lang, "invite.duplicate") : t(asked.lang, "invite.unavailable");
+  const content = outcome.status === "posted" ? withWhoTip(asked.lang, t(asked.lang, "invite.recorded", { name: asked.parsed.displayName }), outcome.guildName) : outcome.status === "duplicate" ? t(asked.lang, "invite.duplicate") : t(asked.lang, "invite.unavailable");
   await interaction.update({ content, components: [], allowedMentions: { parse: [] } }).catch(() => undefined);
   await typed(); // the bot's own request post now stands for it
   forget(interaction.message, BRIEF_LIFETIME_MS);

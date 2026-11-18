@@ -437,6 +437,11 @@ const STRINGS = {
     fr: "J'ai trouvé le prénom **{first}**, mais les noms de WoW Forever ont aussi un nom de famille. Écris le nom complet de ton personnage, prénom et nom."
   },
   "invite.recorded": { en: "✅ Got it, **{name}** is on the list. An officer will invite you in game.", fr: "✅ C'est noté, **{name}** est sur la liste. Un officier t'invitera en jeu." },
+  // Owner, 18 Nov 2026: tell requesters they can find a member online themselves and whisper them.
+  "invite.whoTip": {
+    en: "Faster: in game, type `/who g-\"{guild}\"` to see who is online in **{guild}**, then whisper one of them, for example `/w First Last Can I have a guild invite?`",
+    fr: "Plus rapide : en jeu, tape `/who g-\"{guild}\"` pour voir qui est en ligne dans **{guild}**, puis chuchote à l'un d'eux, par exemple `/w Prénom Nom Je peux avoir une invitation de guilde ?`"
+  },
   "invite.questionExpired": { en: "That question timed out. Type your full character name again.", fr: "Cette question a expiré. Écris de nouveau le nom complet de ton personnage." },
   "invite.doneButton": { en: "✅ Invited / joined", fr: "✅ Invité / a joint la guilde" },
   "invite.doneOfficers": { en: "Only officers can mark an invite as done.", fr: "Seuls les officiers peuvent marquer une invitation comme faite." },

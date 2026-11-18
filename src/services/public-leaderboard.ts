@@ -25,6 +25,9 @@ import { classBorder, dungeonHeader, dungeonThumb } from "./dungeon-thumb.js";
 import { HUB_CSS, HUB_EMBLEMS, emptyBox, emptyPage, hubTabs, notFoundBody, movement, podium, searchForm, sectionArt, strip, trendBars, type PodiumEntry } from "./leaderboard-hub.js";
 import { climbers, newcomers, rankMovement, recordsBroken } from "./leaderboard-highlights.js";
 import { escapeHtml, link, options } from "./web-layout.js";
+import { SITEMAP_PAGE_SIZE, parseSitemapPath, sitemapFiles, sitemapIndex, sitemapUrlset, type SitemapEntry, type SitemapKind } from "./leaderboard-sitemap.js";
+import { siteUrl } from "../site-url.js";
+import { editionHref } from "../../site/nav.mjs";
 import type { WebContext, WebKit, WebResponse, WebRoute } from "./web-app.js";
 import { classColor, scoreCardResponse, type CardRow, type CardStat } from "./score-card.js";
 import { currentEdition, withEdition } from "./edition-context.js";
@@ -96,7 +99,9 @@ export interface LeaderboardStore {
   /** Counts for the guild leaderboard (GuildStats), for guilds already returned by guilds(). */
   guildStats?(guildIds: string[]): Promise<GuildStats[]>;
 }
-export interface PublicGuild { id: string; name: string; slug?: string | null; /** Older addresses that redirect to the guild's current one (observed guilds). */ aliases?: string[]; /** Stored address of the guild's leaderboard page, assigned once. */ publicSlug?: string | null }
+export interface PublicGuild { id: string; name: string; slug?: string | null; /** Older addresses that redirect to the guild's current one (observed guilds). */ aliases?: string[]; /** Stored address of the guild's leaderboard page, assigned once. */ publicSlug?: string | null;
+  /** Search engines may list this guild's pages: true for a guild that publishes its runs and did not turn indexing off (/guildpage); absent for guilds only seen in public runs. */
+  indexable?: boolean }
 
 // A guild's score in a bracket: its GUILD_COUNT best members' scores added up (Raider.IO-style
 // team ranking), so one strong player cannot carry a guild alone.
@@ -428,7 +433,7 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
     return out;
   }
   async function loadGuilds(): Promise<PublicGuild[]> {
-      const rows = await database.guildSettings.findMany({ where: { publicDungeonRuns: true, guild: { gameEdition: currentEdition(), isTestServer: false } }, select: { guildId: true, publicSlug: true, guild: { select: { name: true, discordId: true, page: { select: { slug: true, published: true } } } } }, take: 200 });
+      const rows = await database.guildSettings.findMany({ where: { publicDungeonRuns: true, guild: { gameEdition: currentEdition(), isTestServer: false } }, select: { guildId: true, publicSlug: true, guild: { select: { name: true, discordId: true, page: { select: { slug: true, published: true, indexable: true } } } } }, take: 200 });
       const listed = rows.filter((row) => allows(row.guild.discordId));
       // A guild's address is stored the first time it is listed and never changes (a rename keeps it, old links keep working).
       if (listed.some((row) => !row.publicSlug)) {
@@ -451,7 +456,7 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
           }
         }
       }
-      const own = listed.map((row) => ({ id: row.guildId, name: row.guild.name, publicSlug: row.publicSlug, slug: row.guild.page?.published ? row.guild.page.slug : null })).sort((a, b) => a.name.localeCompare(b.name));
+      const own = listed.map((row) => ({ id: row.guildId, name: row.guild.name, publicSlug: row.publicSlug, slug: row.guild.page?.published ? row.guild.page.slug : null, indexable: !(row.guild.page?.published && row.guild.page.indexable === false) })).sort((a, b) => a.name.localeCompare(b.name));
       // Guilds that never installed Guilded but appear in public runs. A failure here leaves the Guilded guilds as they were.
       observedGuilds.clear();
       const taken = new Set(own.flatMap((guild) => guild.publicSlug ?? []));
@@ -1112,11 +1117,14 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     return guildsBoard(ctx, kit, { faction: value, title: `${t("Guilds:", "Guildes :")} ${label}` });
   }
 
+  // Every public run of every season, shared by the search index and the sitemaps (a minute).
+  const allRuns = () => cached("runs:all", () => deps.store.runs({ from: null, to: null }));
+
   // Every character that appears in a public run of any season, folded for matching and ordered by best score; built once a minute.
   const searchIndex = () => cached("search:index", async () => {
     const periods = await seasonsNow();
     const rules = periodRules(periods[0]!);
-    const everything = (await deps.store.runs({ from: null, to: null })).filter((run) => !run.challenge);
+    const everything = (await allRuns()).filter((run) => !run.challenge);
     const best = new Map<string, number>();
     for (const row of characterScores(everything, rules)) best.set(characterId(row.player), Math.max(best.get(characterId(row.player)) ?? 0, row.points));
     const seen = new Map<string, { player: LeaderPlayer; folded: string; points: number }>();
@@ -1938,8 +1946,46 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     });
   }
 
+  // Sitemaps of every public player, guild and run page (robots.txt names /leaderboards/sitemap.xml). Hidden profiles and
+  // guilds that turned indexing off never appear: runs come from the store with hidden players already marked, and a guild
+  // needs indexable === true. Built once a minute from data other pages already load, split into files of SITEMAP_PAGE_SIZE.
+  const sitemapPlan = () => cached("sitemap:plan", async () => {
+    const runs = await allRuns();
+    const players = new Map<string, SitemapEntry>();
+    const runEntries: SitemapEntry[] = [];
+    for (const run of runs) {
+      const visible = run.players.filter((player) => !player.hidden);
+      if (!visible.length) continue;
+      runEntries.push({ path: runPath(run.runId), lastmod: run.endedAt });
+      if (run.challenge) continue;
+      for (const player of visible) {
+        const id = characterId(player);
+        const known = players.get(id);
+        if (!known || (known.lastmod && run.endedAt > known.lastmod)) players.set(id, { path: characterPath(player), lastmod: run.endedAt });
+      }
+    }
+    const byPath = (a: SitemapEntry, b: SitemapEntry) => a.path.localeCompare(b.path);
+    return { players: [...players.values()].sort(byPath), runs: runEntries.sort(byPath) };
+  });
+  async function sitemap(ctx: WebContext, file: string): Promise<WebResponse> {
+    const absolute = (path: string) => siteUrl(editionHref(path, currentEdition()));
+    const plan = await sitemapPlan();
+    await ensureIndex(ctx);
+    const guilds: SitemapEntry[] = (await cached("guilds", () => deps.store.guilds())).filter((guild) => guild.indexable === true).flatMap((guild) => {
+      const path = guildPath(ctx, guild);
+      return path ? [{ path }] : [];
+    }).sort((a, b) => a.path.localeCompare(b.path));
+    const lists: Record<SitemapKind, SitemapEntry[]> = { players: plan.players, guilds, runs: plan.runs };
+    const send = (status: number, body: string): WebResponse => ({ status, headers: { "content-type": "application/xml; charset=utf-8", "cache-control": status === 200 ? "public, max-age=3600" : "no-store", "x-content-type-options": "nosniff" }, body: ctx.request.method === "HEAD" ? "" : body });
+    if (file === "index") return send(200, sitemapIndex(sitemapFiles({ players: lists.players.length, guilds: lists.guilds.length, runs: lists.runs.length }), absolute));
+    const part = parseSitemapPath(file);
+    const slice = part ? lists[part.kind].slice((part.page - 1) * SITEMAP_PAGE_SIZE, part.page * SITEMAP_PAGE_SIZE) : [];
+    return slice.length ? send(200, sitemapUrlset(slice, absolute)) : send(404, "");
+  }
+
   const route: WebRoute = async (ctx, kit) => {
     const path = ctx.request.path;
+    if ((path === "/leaderboards/sitemap.xml" || parseSitemapPath(path)) && ["GET", "HEAD"].includes(ctx.request.method)) return sitemap(ctx, path === "/leaderboards/sitemap.xml" ? "index" : path);
     if (path === "/leaderboards/guilds.json" && ["GET", "HEAD"].includes(ctx.request.method)) return guildsJson(ctx, null);
     const guildJson = /^\/leaderboards\/guild\/([A-Za-z0-9_-]{1,40})\.json$/.exec(path);
     if (guildJson && ["GET", "HEAD"].includes(ctx.request.method)) return guildsJson(ctx, guildJson[1]!);

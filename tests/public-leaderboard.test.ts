@@ -122,7 +122,7 @@ describe("guild leaderboard table", () => {
 });
 
 describe("leaderboard and personal pages", () => {
-  function setup(extra: LeaderRun[] = []) {
+  function setup(extra: LeaderRun[] = [], withPrivate = false) {
     const runs = [leaderRun("a", 1500), leaderRun("b", 1300, [player("Kev", "Warrior", "TANK"), player("<b>Bad</b>", "Mage", "DPS")], { confirmations: 2 })];
     const beta = leaderRun("old", 1000, [player("Kev", "Warrior", "TANK")], { endedAt: new Date("2026-10-30T00:00:00Z") });
     const all = [...runs, beta, ...extra];
@@ -130,7 +130,7 @@ describe("leaderboard and personal pages", () => {
       async run(id) { return all.find(run => run.runId === id) ?? null; },
       async runs(query) { return all.filter((run) => (!query.from || run.endedAt >= query.from) && (!query.to || run.endedAt < query.to)); },
       async characterRuns(character) { return all.filter((run) => run.players.some((p) => p.character.toLowerCase() === character.toLowerCase())); },
-      async guilds() { return [{ id: "g1", name: "Quebec Gold", slug: "quebec-gold" }]; },
+      async guilds() { return [{ id: "g1", name: "Quebec Gold", slug: "quebec-gold", indexable: true }, ...(withPrivate ? [{ id: "g2", name: "Private Guild", slug: "private-guild", indexable: false }] : [])]; },
       async guildRuns(guildId) { return guildId === "g1" ? runs : []; },
       async guildRoster(guildId) { return guildId === "g1" ? ["kev", "amy"] : []; },
       async guildStats(ids) { return ids.map((guildId) => ({ guildId, faction: "ALLIANCE", realm: "Doomhowl", members: 12, linked: 9, levelled: 8, at60: 3, levelSum: 400, duels: 7 })); }
@@ -179,6 +179,29 @@ describe("leaderboard and personal pages", () => {
       const page = await request("GET", "/leaderboards/guild/quebec-gold/");
       expect(page.body).toContain("/leaderboards/guilds/realm/doomhowl/");
       expect(page.body).toContain("/leaderboards/guilds/faction/alliance/");
+    });
+  });
+
+  describe("sitemaps", () => {
+    it("lists every public player, guild and run page, never a hidden player or a guild that turned indexing off", async () => {
+      const hiddenRun = leaderRun("hid", 1700, [{ ...player("Ghost", "Rogue", "DPS"), hidden: true }]);
+      const { request } = setup([hiddenRun], true);
+      const index = await request("GET", "/leaderboards/sitemap.xml");
+      expect(index.status).toBe(200);
+      expect(index.headers["content-type"]).toContain("xml");
+      for (const kind of ["players", "guilds", "runs"]) expect(index.body).toContain(`${SITE}/forever/leaderboards/sitemap-${kind}-1.xml`);
+      const players = (await request("GET", "/leaderboards/sitemap-players-1.xml")).body;
+      expect(players).toContain(`${SITE}/forever/leaderboards/character/Kev-Doomhowl</loc>`);
+      expect(players).toContain(`hreflang="fr" href="${SITE}/forever/leaderboards/character/Kev-Doomhowl?lang=fr"`);
+      expect(players).not.toContain("Ghost");
+      const guilds = (await request("GET", "/leaderboards/sitemap-guilds-1.xml")).body;
+      expect(guilds).toContain("/leaderboards/guild/quebec-gold<");
+      expect(guilds).not.toContain("private-guild");
+      const runs = (await request("GET", "/leaderboards/sitemap-runs-1.xml")).body;
+      expect(runs).toContain("/leaderboards/run/a<");
+      expect(runs).toContain("<lastmod>2026-11-10</lastmod>");
+      expect(runs).not.toContain("/run/hid<");
+      expect((await request("GET", "/leaderboards/sitemap-runs-2.xml")).status).toBe(404);
     });
   });
 

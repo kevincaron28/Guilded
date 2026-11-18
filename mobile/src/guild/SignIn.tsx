@@ -96,6 +96,10 @@ export function SignIn({ lang, setLang, originDraft, setOriginDraft, defaultOrig
     <Text style={common.title}>{t(lang, "signInTitle")}</Text>
     <Text style={common.intro}>{t(lang, "signInIntro")}</Text>
     {error ? <Text style={common.error}>{error}</Text> : null}
+    {pending ? null : <View style={common.hero} accessible accessibilityLabel={`${t(lang, "signInSteps")}. 1. ${t(lang, "signInStep1")} 2. ${t(lang, "signInStep2")} 3. ${t(lang, "signInStep3")}`}>
+      <Text style={common.heroTitle}>{t(lang, "signInSteps")}</Text>
+      {(["signInStep1", "signInStep2", "signInStep3"] as const).map((key, i) => <Text key={key} style={common.body}>{`${i + 1}. ${t(lang, key)}`}</Text>)}
+    </View>}
     {pending ? <View style={common.hero}>
       <Text style={common.code}>{pending.confirm}</Text>
       <Text style={common.muted}>{t(lang, "codeHelp")}</Text>

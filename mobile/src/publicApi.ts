@@ -1,9 +1,15 @@
+import { ApiError, getJsonBounded } from "./api";
+
 // Public, read-only data: the same ratings and guild pages the website shows. No credential is sent.
 
 export interface BoardCharacter { rank: number; name: string; realm: string | null; className: string | null; role: string | null; points: number }
 export interface BoardGuild { rank: number; id: string; name: string; slug: string | null; points: number; rated: number }
 export interface BoardBracket { key: string; name: string; characters: BoardCharacter[]; guilds: BoardGuild[] }
-export interface Boards { season: string; brackets: BoardBracket[] }
+export interface SeasonChoice { id: string; label: string }
+export interface Boards { season: string; seasonId: string; seasons: SeasonChoice[]; brackets: BoardBracket[] }
+
+export interface DuelPlayer { rank: number | null; name: string; realm: string | null; className: string | null; level: number | null; guild: string | null; rating: number; ranked: boolean; wins: number; losses: number; winRate: number; streak: number }
+export interface Duels { season: string; seasons: SeasonChoice[]; duels: number; players: DuelPlayer[] }
 
 export interface PublicRosterRow { name: string; className: string; role: "TANK" | "HEALER" | "DPS"; bench: boolean; trial: boolean }
 export interface PublicRankingRow { name: string; ep: number; gp: number; pr: number; belowMin: boolean }
@@ -18,11 +24,15 @@ const arr = (v: unknown): unknown[] => Array.isArray(v) ? v : [];
 const str = (v: unknown): string | null => typeof v === "string" && v ? v : null;
 const num = (v: unknown): number => typeof v === "number" && Number.isFinite(v) ? v : 0;
 
+export function parseSeasons(value: unknown): SeasonChoice[] {
+  return arr(value).flatMap((raw) => { const s = obj(raw); return s && str(s.id) ? [{ id: str(s.id)!, label: str(s.label) ?? str(s.id)! }] : []; });
+}
+
 export function parseBoards(body: unknown): Boards {
   const data = obj(body);
   if (!data) throw new Error("The boards answer was not understood.");
   return {
-    season: str(data.season) ?? "",
+    season: str(data.season) ?? "", seasonId: str(data.seasonId) ?? "", seasons: parseSeasons(data.seasons),
     brackets: arr(data.brackets).flatMap((raw) => {
       const b = obj(raw);
       if (!b || !str(b.key)) return [];
@@ -31,6 +41,21 @@ export function parseBoards(body: unknown): Boards {
         characters: arr(b.characters).flatMap((r) => { const c = obj(r); return c && str(c.name) ? [{ rank: num(c.rank), name: str(c.name)!, realm: str(c.realm), className: str(c.className), role: str(c.role), points: num(c.points) }] : []; }),
         guilds: arr(b.guilds).flatMap((r) => { const g = obj(r); return g && str(g.id) && str(g.name) ? [{ rank: num(g.rank), id: str(g.id)!, name: str(g.name)!, slug: str(g.slug), points: num(g.points), rated: num(g.rated) }] : []; })
       }];
+    })
+  };
+}
+
+/** The duel ladder (GET /leaderboards/duels.json). The server answers 404 until the ladder opens (1 December 2026). */
+export function parseDuels(body: unknown): Duels {
+  const data = obj(body);
+  if (!data) throw new Error("The duels answer was not understood.");
+  return {
+    season: str(data.season) ?? "", seasons: parseSeasons(data.seasons), duels: num(data.duels),
+    players: arr(data.players).flatMap((raw) => {
+      const p = obj(raw);
+      if (!p || !str(p.name)) return [];
+      return [{ rank: typeof p.rank === "number" ? p.rank : null, name: str(p.name)!, realm: str(p.realm), className: str(p.className), level: typeof p.level === "number" ? p.level : null, guild: str(p.guild),
+        rating: num(p.rating), ranked: p.ranked === true, wins: num(p.wins), losses: num(p.losses), winRate: num(p.winRate), streak: num(p.streak) }];
     })
   };
 }
@@ -53,13 +78,15 @@ export function parsePublicGuild(body: unknown): PublicGuild {
   };
 }
 
-async function getJson(url: string): Promise<unknown> {
-  const response = await fetch(url, { headers: { accept: "application/json" } });
-  if (!response.ok) throw new Error(response.status === 404 ? "Not found." : `The server answered ${response.status}.`);
-  return response.json();
-}
+const getJson = getJsonBounded;
 
-export const fetchBoards = async (origin: string, lang: "en" | "fr"): Promise<Boards> => parseBoards(await getJson(`${origin}/leaderboards/boards.json?lang=${lang}`));
+export const fetchBoards = async (origin: string, lang: "en" | "fr", season?: string): Promise<Boards> =>
+  parseBoards(await getJson(`${origin}/leaderboards/boards.json?lang=${lang}${season ? `&season=${encodeURIComponent(season)}` : ""}`));
+/** Null while the duel ladder is not open yet (the server answers 404). */
+export const fetchDuels = async (origin: string, lang: "en" | "fr", season?: string): Promise<Duels | null> => {
+  try { return parseDuels(await getJson(`${origin}/leaderboards/duels.json?lang=${lang}${season ? `&when=${encodeURIComponent(season)}` : ""}`)); }
+  catch (error) { if (error instanceof ApiError && error.status === 404) return null; throw error; }
+};
 export const fetchPublicGuild = async (origin: string, slug: string): Promise<PublicGuild> => parsePublicGuild(await getJson(`${origin}/g/${encodeURIComponent(slug)}/guild.json`));
 
 /** WoW class colours, so names read like the game. */

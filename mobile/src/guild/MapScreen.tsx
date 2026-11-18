@@ -177,7 +177,7 @@ const styles = StyleSheet.create({
   small: { color: colors.muted, fontSize: 12 },
   canvas: { width: "100%", backgroundColor: "#0f110e", borderColor: colors.line, borderWidth: 1, borderRadius: 6, overflow: "hidden" },
   gridLine: { position: "absolute", backgroundColor: colors.grid },
-  zoneLabel: { position: "absolute", width: 96, textAlign: "center", color: colors.muted, fontSize: 10 },
+  zoneLabel: { position: "absolute", width: 96, textAlign: "center", color: colors.muted, fontSize: 12 },
   dot: { position: "absolute", width: 12, height: 12, borderRadius: 6, borderWidth: 1, borderColor: "#000" },
   dotMine: { borderColor: colors.text, borderWidth: 2 },
   dotPicked: { transform: [{ scale: 1.5 }] },
@@ -187,5 +187,5 @@ const styles = StyleSheet.create({
   picked: { color: colors.text, fontSize: 13 },
   row: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 4 },
   swatch: { width: 10, height: 10, borderRadius: 5 },
-  badge: { color: colors.ink, backgroundColor: colors.red, fontWeight: "800", fontSize: 11, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: "hidden" }
+  badge: { color: colors.ink, backgroundColor: colors.red, fontWeight: "800", fontSize: 12, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: "hidden" }
 });

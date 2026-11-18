@@ -2,6 +2,7 @@ import type {
   ChallengeInput, ClassKey, Collection, CollectionCard, DuelInfo, DuelResponse, DuelStatus, Intent, Ladder, LadderBoard, LadderEntry, LadderScope, MatchInfo,
   MatchResponse, OpenedPack, Partner, PlayerView, PulledCard, PveProgress, RankInfo, RankName, RankedChange, RankedStatus, Rarity, StartInput
 } from "./types";
+import { fetchBounded, readTextBounded } from "../api";
 import { CLASS_KEYS, RARITIES } from "./types";
 
 // Typed client for the Guilded Clash routes: /api/v1/companion/cards (#626), /api/v1/companion/clash/* (#638) and the
@@ -282,11 +283,11 @@ export class ClashClient implements ClashApi {
     if (body !== undefined) headers["content-type"] = "application/json";
     let response: Response;
     try {
-      response = await fetch(url, { method: body === undefined ? "GET" : "POST", headers, body: body === undefined ? undefined : JSON.stringify(body) });
+      response = await fetchBounded(url, { method: body === undefined ? "GET" : "POST", headers, body: body === undefined ? undefined : JSON.stringify(body) });
     } catch {
       throw new ClashError("Guilded could not be reached. Check the connection.", 0);
     }
-    const text = await response.text();
+    const text = await readTextBounded(response).catch(() => "");
     let parsed: unknown;
     try { parsed = text ? JSON.parse(text) as unknown : null; } catch { parsed = null; }
     if (!response.ok) {

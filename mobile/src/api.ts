@@ -51,6 +51,15 @@ export async function readTextBounded(response: Response): Promise<string> {
   } finally { clearTimeout(timer); }
 }
 
+/** GET a public JSON answer with the 15 s bounds on both the request and the body, so no screen spins forever. */
+export async function getJsonBounded(url: string | URL, init: RequestInit = {}): Promise<unknown> {
+  const response = await fetchBounded(url, { ...init, headers: { accept: "application/json", ...(init.headers as Record<string, string> | undefined) } });
+  if (!response.ok) throw new ApiError(response.status === 404 ? "Not found." : `The server answered ${response.status}.`, response.status);
+  const text = await readTextBounded(response);
+  try { return JSON.parse(text) as unknown; }
+  catch { throw new ApiError("The server answer was not understood.", 502); }
+}
+
 export function apiOrigin(value: string): string {
   const trimmed = value.trim();
   if (!trimmed) throw new ApiError("Enter the Guilded server address.", 400);

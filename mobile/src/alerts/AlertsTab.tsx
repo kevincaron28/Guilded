@@ -1,4 +1,4 @@
-import { Switch, Text, View } from "react-native";
+import { Linking, Pressable, Switch, Text, View } from "react-native";
 import { t, type CopyKey } from "../i18n";
 import type { GuildState } from "../useGuild";
 import { Card, Screen, SignInCard, colors } from "../ui";
@@ -25,6 +25,9 @@ export function AlertsTab({ guild, onSignIn }: { guild: GuildState; onSignIn: ()
           trackColor={{ true: colors.green, false: colors.line }} accessibilityLabel={t(lang, "pushRemote")} />
       </View>
       {guild.pushNotice ? <Text accessibilityRole="alert" style={common.muted}>{guild.pushNotice}</Text> : null}
+      {guild.pushNeedsSettings ? <Pressable onPress={() => void Linking.openSettings().catch(() => {})} accessibilityRole="button" accessibilityLabel={t(lang, "openSettings")} style={common.secondary}>
+        <Text style={common.secondaryText}>{t(lang, "openSettings")}</Text>
+      </Pressable> : null}
       {PUSH_ROWS.map((key) => <View key={key} style={common.row}>
         <Text style={[common.body, { flex: 1 }]}>{t(lang, key)}</Text>
         <Switch value={false} disabled trackColor={{ true: colors.green, false: colors.line }} accessibilityLabel={t(lang, key)} />

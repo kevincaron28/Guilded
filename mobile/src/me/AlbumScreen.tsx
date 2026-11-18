@@ -97,10 +97,10 @@ const styles = StyleSheet.create({
   muted: { color: colors.muted, fontSize: 13, lineHeight: 20 },
   total: { color: colors.gold, fontSize: 13, fontWeight: "700", marginTop: 14, marginBottom: 6 },
   chips: { marginTop: 14 },
-  label: { color: colors.gold, fontSize: 9, letterSpacing: 1.7, fontWeight: "700", marginTop: 20, marginBottom: 10 },
+  label: { color: colors.gold, fontSize: 12, letterSpacing: 1.7, fontWeight: "700", marginTop: 20, marginBottom: 10 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   tile: { width: "48%", flexGrow: 1, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.line, borderTopWidth: 3, borderRadius: 10, padding: 10, alignItems: "center", minHeight: 44 },
   tileLocked: { opacity: 0.7 }, tileOpen: { width: "100%" },
-  cardName: { color: colors.text, fontSize: 13, fontWeight: "600", textAlign: "center" }, sub: { color: colors.muted, fontSize: 11, marginTop: 3, textAlign: "center" },
+  cardName: { color: colors.text, fontSize: 13, fontWeight: "600", textAlign: "center" }, sub: { color: colors.muted, fontSize: 12, marginTop: 3, textAlign: "center" },
   more: { marginTop: 8, borderTopWidth: 1, borderColor: colors.line, paddingTop: 8, alignSelf: "stretch" }
 });

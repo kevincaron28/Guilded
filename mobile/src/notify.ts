@@ -54,15 +54,25 @@ export function syncRaidReminders(enabled: boolean, reminders: PlannedReminder[]
   return result;
 }
 
+/** Why push could not be set up. `needsSettings` means Android will not ask again: the member must allow notifications in phone settings. */
+export class PushSetupError extends Error {
+  constructor(message: string, readonly needsSettings = false) { super(message); this.name = "PushSetupError"; }
+}
+
+/**
+ * The Expo push token for this phone, asking for notification permission first (Android 13+ shows the POST_NOTIFICATIONS
+ * prompt once the "raids" channel exists, so the channel is created before asking). Throws PushSetupError with a sentence
+ * the Alerts tab shows as it is.
+ */
 export async function pushToken(): Promise<string> {
-  if (Platform.OS === "web") throw new Error("Push alerts need an installed iPhone or Android app.");
+  if (Platform.OS === "web") throw new PushSetupError("Push alerts need an installed iPhone or Android app.");
   const projectId = Constants.easConfig?.projectId ?? Constants.expoConfig?.extra?.eas?.projectId;
-  if (typeof projectId !== "string" || !projectId) throw new Error("Push alerts will be available when this app is linked to its Expo project. Device reminders work now.");
+  if (typeof projectId !== "string" || !projectId) throw new PushSetupError("Push alerts will be available when this app is linked to its Expo project. Device reminders work now.");
   const Notifications = await import("expo-notifications");
   if (Platform.OS === "android") await Notifications.setNotificationChannelAsync("raids", { name: "Raid alerts", importance: Notifications.AndroidImportance.DEFAULT });
-  let granted = (await Notifications.getPermissionsAsync()).granted;
-  if (!granted) granted = (await Notifications.requestPermissionsAsync()).granted;
-  if (!granted) throw new Error("Notifications are off for Guilded in phone settings.");
+  let permission = await Notifications.getPermissionsAsync();
+  if (!permission.granted && permission.canAskAgain !== false) permission = await Notifications.requestPermissionsAsync();
+  if (!permission.granted) throw new PushSetupError("Notifications are off for Guilded in phone settings. Open settings and allow them, then switch alerts on again.", permission.canAskAgain === false);
   try { return (await Notifications.getExpoPushTokenAsync({ projectId })).data; }
-  catch { throw new Error("Push alerts are not set up in this build. Device reminders still work."); }
+  catch { throw new PushSetupError("Push alerts are not set up in this build. Device reminders still work."); }
 }

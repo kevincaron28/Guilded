@@ -51,7 +51,7 @@ feature's design notes, as an example of this file's format for a specific
 feature).
 
 **Current status (18 November 2026): version 9.3.11, protocol 2.**
-9.3.11 is published (GitHub release v9.3.11 is the latest, tag at cb0ac57a, the website download and the bot, 18 November 2026); CurseForge files 9691780/9691782 in review. The Store serves 9.3.10.0; 9.3.11.0 is being submitted.
+9.3.11 is published (GitHub release v9.3.11 is the latest, tag at cb0ac57a, the website download and the bot, 18 November 2026); CurseForge 9.3.11 approved (files 9691780/9691782, the website points at them). The Store serves 9.3.11.0 (Submission 16 live).
 9.3.10 is published (GitHub release v9.3.10 is the latest, tag at c7905226, the website download and the bot, 18 November 2026); CurseForge 9.3.10 approved (files 9677628/9677629, the website points at them); the Store serves 9.3.10.0 (Submission 15 passed).
 9.3.9 is published (GitHub release v9.3.9 is the latest, tag at 9aa469fd, the website download and the bot, 17 November 2026); CurseForge in review. The Store serves 9.3.4.0, 9.3.8.0 is certifying (Submission 14) and the 9.3.9.0 package is built.
 9.3.8 is published (GitHub release v9.3.8 is the latest, tag at 095452ef, the website download and the bot, 17 November 2026); CurseForge files 9665832 and 9665833 in review. It fixes the 9.3.7 companion that could not start (run-log.cjs missing from the package, #1064). The Store serves 9.3.4.0.

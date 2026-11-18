@@ -38,3 +38,20 @@ export function armoryAnchor(character: ArmoryCharacter, t: (en: string, fr: str
   const url = armoryUrl(character, regionCode);
   return url ? ` <a class="muted" href="${escapeAttribute(url)}" target="_blank" rel="noopener noreferrer">${t("Armory", "Armurerie")}</a>` : "";
 }
+
+// Profile pages by language (the leaderboard player and guild pages): https://worldofwarcraft.blizzard.com/{locale}/forever/us/armory/{character|guild}/{slug}.
+// The slug is the lowercase name with spaces turned into hyphens and accents percent-encoded. Links only.
+const armorySlug = (name: string) => encodeURIComponent(name.trim().replace(/\s+/g, " ").toLowerCase().replace(/ /g, "-")).replace(/'/g, "%27");
+const armoryLocale = (lang: "en" | "fr") => (lang === "fr" ? "fr-fr" : "en-us");
+
+/** The armory page of a character by its full name ("First Last"), or null for an empty name. */
+export function armoryCharacterUrl(name: string, lang: "en" | "fr" = "en"): string | null {
+  const slug = armorySlug(name);
+  return slug ? `https://worldofwarcraft.blizzard.com/${armoryLocale(lang)}/forever/us/armory/character/${slug}` : null;
+}
+
+/** The armory page of a guild by its name, or null for an empty name. */
+export function armoryGuildUrl(guildName: string, lang: "en" | "fr" = "en"): string | null {
+  const slug = armorySlug(guildName);
+  return slug ? `https://worldofwarcraft.blizzard.com/${armoryLocale(lang)}/forever/us/armory/guild/${slug}` : null;
+}

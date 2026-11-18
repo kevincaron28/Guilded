@@ -64,6 +64,10 @@ textarea{min-height:120px}button,.button{cursor:pointer;border:0;font:inherit}bu
 export interface LayoutInput {
   shareImage?: string;
   languageParams?: Record<string, string | null | undefined>;
+  /** Full <title> text when the page needs its own search-result title (replaces "title · Guilded"). */
+  documentTitle?: string;
+  /** Structured data (schema.org) written as one JSON-LD block. */
+  jsonLd?: unknown;
   lang: Lang; title: string; description?: string; path: string; body: string; noindex?: boolean;
   account: { username: string; displayName: string | null } | null; csrf: string | null; signInOn: boolean;
 }
@@ -90,14 +94,14 @@ export function layout(input: LayoutInput): string {
   const here2 = input.lang === "fr" ? `${canonical}?lang=fr` : canonical;
   const alternates = input.noindex ? "" : `<link rel="canonical" href="${here2}"><link rel="alternate" hreflang="en" href="${canonical}"><link rel="alternate" hreflang="fr" href="${canonical}?lang=fr"><link rel="alternate" hreflang="x-default" href="${canonical}"><meta property="og:url" content="${here2}">`;
   return `<!doctype html><html lang="${input.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`
-    + `<title>${escapeHtml(input.title)} · Guilded</title><meta name="description" content="${description}">${input.noindex ? '<meta name="robots" content="noindex">' : alternates}`
+    + `<title>${escapeHtml(input.documentTitle ?? `${input.title} · Guilded`)}</title><meta name="description" content="${description}">${input.noindex ? '<meta name="robots" content="noindex">' : alternates}`
     // Link previews (Discord, social sites): a pasted page shows its title, summary and the logo.
-    + `<meta property="og:site_name" content="Guilded"><meta property="og:type" content="website"><meta property="og:title" content="${escapeHtml(input.title)}">`
+    + `<meta property="og:site_name" content="Guilded"><meta property="og:type" content="website"><meta property="og:title" content="${escapeHtml(input.documentTitle ?? input.title)}">`
     // Score cards and the website's own card (the default) are both 1200 × 630 PNGs.
     + `<meta property="og:description" content="${description}"><meta property="og:image" content="${escapeHtml(input.shareImage ?? shareCard())}"><meta property="og:locale" content="${input.lang === "fr" ? "fr_CA" : "en_CA"}">`
     + `<meta property="og:image:type" content="${shareImageType(input.shareImage)}"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">`
     + `<meta name="twitter:card" content="summary_large_image"><meta name="theme-color" content="#d4af37">`
-    + `<link rel="icon" href="/favicon.png" type="image/png"><style>${PAGE_STYLE}\n${FORM_STYLE}</style></head><body><a class="skip" href="#content">${t("Skip to content", "Aller au contenu")}</a>${siteHeader(input.lang, input.path, languages)}<main><div id="content" tabindex="-1">${input.body}</div>${who.length ? `<div class="who">${who.join("")}</div>` : ""}`
+    + `<link rel="icon" href="/favicon.png" type="image/png"><style>${PAGE_STYLE}\n${FORM_STYLE}</style>${input.jsonLd && !input.noindex ? `<script type="application/ld+json">${JSON.stringify(input.jsonLd).replace(/</g, "\u003c")}</script>` : ""}</head><body><a class="skip" href="#content">${t("Skip to content", "Aller au contenu")}</a>${siteHeader(input.lang, input.path, languages)}<main><div id="content" tabindex="-1">${input.body}</div>${who.length ? `<div class="who">${who.join("")}</div>` : ""}`
     + `<footer class="site-foot">${siteFooterNav(input.lang)}<p class="foot-note">${t("Made with", "Créé avec")} <a href="${siteUrl("/")}">Guilded</a>. ${t("Not affiliated with Blizzard Entertainment.", "Sans affiliation avec Blizzard Entertainment.")}</p></footer></main></body></html>`;
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { climbers, rankMovement, recordsBroken } from "../src/services/leaderboard-highlights.js";
+import { climbers, newcomers, rankMovement, recordsBroken } from "../src/services/leaderboard-highlights.js";
 import { emptyBox, hubTabs, movement, podium, trendBars } from "../src/services/leaderboard-hub.js";
 import { publicRules, type ScoreRun } from "../src/services/public-score.js";
 
@@ -41,12 +41,19 @@ describe("leaderboard hub pieces", () => {
 describe("what changed this week", () => {
   const since = new Date("2026-11-10T15:00:00Z");
   const runs = [run("o1", "Amy", 1500, "2026-11-06T10:00:00Z"), run("o2", "Bob", 1400, "2026-11-07T10:00:00Z"), run("n1", "Amy", 1200, "2026-11-10T16:00:00Z"), run("n2", "Cleo", 1300, "2026-11-11T16:00:00Z")];
-  it("lists the biggest gains since the reset, and a character with no earlier score as new", () => {
+  it("lists only characters that already had a score, with their real gain; a first score is a newcomer, not a climb", () => {
     const list = climbers(runs, since, rules, bracket);
-    expect(list.map((entry) => entry.row.player.character)).toContain("Cleo");
-    const cleo = list.find((entry) => entry.row.player.character === "Cleo")!;
-    expect(cleo.before).toBeNull();
-    expect(list.every((entry) => entry.gain > 0)).toBe(true);
+    expect(list.map((entry) => entry.row.player.character)).toEqual(["Amy"]);
+    expect(list[0]!.before).not.toBeNull();
+    expect(list.every((entry) => entry.gain > 0 && entry.gain < entry.row.points)).toBe(true);
+    expect(newcomers(runs, since, rules, bracket).map((row) => row.player.character)).toEqual(["Cleo"]);
+  });
+  it("does not show a whole party as climbers with one identical gain in a season's first week", () => {
+    // Regression: five members of one run all had gain = their full score (identical for a shared run), e.g. five rows of the same arrow.
+    const party = ["A", "B", "C", "D", "E"].map((name) => ({ ...run("p-" + name, name, 1300, "2026-11-11T16:00:00Z") }));
+    const shared: ScoreRun = { ...party[0]!, runId: "party", players: party.flatMap((r) => r.players) };
+    expect(climbers([shared], since, rules, bracket)).toEqual([]);
+    expect(newcomers([shared], since, rules, bracket)).toHaveLength(5);
   });
   it("reports a record set this week with the time it beat", () => {
     const [record] = recordsBroken(runs, since, rules);

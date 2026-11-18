@@ -23,7 +23,7 @@ import { EMBLEM_CSS, classEmblem, roleEmblem } from "./class-emblem.js";
 import { guildBanner } from "./guild-banner.js";
 import { classBorder, dungeonHeader, dungeonThumb } from "./dungeon-thumb.js";
 import { HUB_CSS, HUB_EMBLEMS, emptyBox, emptyPage, hubTabs, notFoundBody, movement, podium, searchForm, sectionArt, strip, trendBars, type PodiumEntry } from "./leaderboard-hub.js";
-import { climbers, rankMovement, recordsBroken } from "./leaderboard-highlights.js";
+import { climbers, newcomers, rankMovement, recordsBroken } from "./leaderboard-highlights.js";
 import { escapeHtml, link, options } from "./web-layout.js";
 import type { WebContext, WebKit, WebResponse, WebRoute } from "./web-app.js";
 import { classColor, scoreCardResponse, type CardRow, type CardStat } from "./score-card.js";
@@ -1145,6 +1145,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     return {
       scores: bracketKey ? characterScores(all, rules).filter((row) => row.bracket === bracketKey) : [],
       risers: bracketKey ? climbers(all, weekStart, rules, bracketKey, 5) : [],
+      newcomers: bracketKey ? newcomers(all, weekStart, rules, bracketKey, 5) : [],
       broken: recordsBroken(all, weekStart, rules, 5),
       latest: [...all].sort(newestFirst).slice(0, 6)
     };
@@ -1220,6 +1221,10 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       main: `<a class="c-${classSlug(entry.row.player.className)}" href="${link(characterPath(entry.row.player), lang)}">${escapeHtml(nameOf(entry.row.player as LeaderPlayer))}</a>`,
       side: `<span class="up">▲ ${entry.gain}</span> <span class="muted">${entry.row.points}</span>`
     })));
+    const newStrip = strip(panels.newcomers.map((row) => ({
+      main: `<a class="c-${classSlug(row.player.className)}" href="${link(characterPath(row.player), lang)}">${escapeHtml(nameOf(row.player as LeaderPlayer))}</a>`,
+      side: `<span class="muted">${t("new", "nouveau")}</span> ${row.points}`
+    })));
     const broken = panels.broken;
     const recordStrip = strip(broken.map(({ run, previousSec }) => ({
       main: `${dungeonThumb(run.dungeonName, localDungeonName(run, lang))}<a href="${link(runPath(run.runId), lang)}">${escapeHtml(localDungeonName(run, lang))}</a> <span class="muted">${run.players.slice(0, 3).map((p) => escapeHtml(nameOf(p))).join(", ")}</span>`,
@@ -1265,7 +1270,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       + (globalOpen() ? `<section class="hub-card"><h2>${t("Latest duels", "Derniers duels")}</h2>${duelStrip || `<p class="muted">${t("No duel yet.", "Aucun duel.")}</p>`}<a class="more" href="${link("/leaderboards/duels/", lang)}">${t("All duels", "Tous les duels")} →</a></section>` : "")
       + (pvpHub ? card(t("PvP this week", "PvP cette semaine"), HUB_EMBLEMS.pvp, pvpHub.podium.length ? podium(pvpHub.podium) : emptyBox(t("No PvP yet", "Aucun PvP"), [t("Open-world kills and battleground results from the Guilded addon show up here.", "Les éliminations en monde ouvert et les résultats de champs de bataille de l'addon Guilded apparaissent ici.")], "pvp"), link("/leaderboards/pvp/", lang), t("PvP leaderboards", "Classements PvP"))
         + `<section class="hub-card"><h2>${t("Latest PvP", "Derniers événements PvP")}</h2>${pvpHub.latest || `<p class="muted">${t("No battleground yet.", "Aucun champ de bataille.")}</p>`}<a class="more" href="${link("/leaderboards/pvp/", lang)}">${t("All PvP", "Tout le PvP")} →</a></section>` : "")
-      + `<section class="hub-card"><h2>▲ ${t("Biggest climbers this week", "Plus fortes hausses cette semaine")}</h2>${risers.length ? riserStrip : `<p class="muted">${t("Nobody has gained points since the weekly reset yet.", "Personne n'a gagné de points depuis la réinitialisation hebdomadaire.")}</p>`}</section>`
+      + `<section class="hub-card"><h2>▲ ${t("Biggest climbers this week", "Plus fortes hausses cette semaine")}</h2>${risers.length ? riserStrip : `<p class="muted">${t("Nobody who already had a score has gained points since the weekly reset yet.", "Personne ayant déjà un score n'a gagné de points depuis la réinitialisation hebdomadaire.")}</p>`}${panels.newcomers.length ? `<h3>${t("New on the board", "Nouveaux au classement")}</h3>${newStrip}` : ""}</section>`
       + `<section class="hub-card"><h2>🏆 ${t("Records broken this week", "Records battus cette semaine")}</h2>${broken.length ? recordStrip : `<p class="muted">${t("No dungeon record has fallen this week.", "Aucun record de donjon battu cette semaine.")}</p>`}<a class="more" href="${link("/leaderboards/dungeons/", lang)}">${t("Dungeon records", "Records des donjons")} →</a></section>`
       + `</div>`
       + (guildOfWeek ? `<section class="hub-card" style="margin-top:16px"><h2><img src="${HUB_EMBLEMS.guilds}" alt="" width="28" height="28" loading="lazy">${t("Guild of the week", "Guilde de la semaine")}</h2><p>${guildLink(ctx, guildOfWeek.guild)} · <strong>${guildOfWeek.points}</strong> ${t("points", "points")} · ${t(`${guildOfWeek.rated} rated members`, `${guildOfWeek.rated} membres classés`)}</p></section>` : "")

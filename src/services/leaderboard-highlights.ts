@@ -5,14 +5,24 @@ import type { BracketedRules } from "./dungeon-november-rules.js";
 
 export interface Climber { row: ScoreRow; before: number | null; gain: number }
 
-/** The characters whose score in a bracket grew most since `since` (a character with no earlier score counts as new). */
+/**
+ * The characters whose score in a bracket grew most since `since`. Only characters that already had a score before
+ * `since` count: a character's first rated run is "new on the board" (see newcomers), not a climb. Counting it as one
+ * made every member of a party show the same gain (their whole score, identical for a shared run) in a season's first week.
+ */
 export function climbers(runs: ScoreRun[], since: Date, rules: BracketedRules, bracket: string, limit = 5): Climber[] {
   const now = characterScores(runs, rules).filter((row) => row.bracket === bracket);
   const earlier = new Map(characterScores(runs.filter((run) => run.endedAt < since), rules).filter((row) => row.bracket === bracket).map((row) => [characterId(row.player), row.points]));
-  return now.map((row): Climber => {
-    const before = earlier.get(characterId(row.player)) ?? null;
-    return { row, before, gain: row.points - (before ?? 0) };
+  return now.flatMap((row): Climber[] => {
+    const before = earlier.get(characterId(row.player));
+    return before === undefined ? [] : [{ row, before, gain: row.points - before }];
   }).filter((entry) => entry.gain > 0).sort((a, b) => b.gain - a.gain || b.row.points - a.row.points).slice(0, limit);
+}
+
+/** Characters whose first rated score in a bracket came since `since`, best score first. */
+export function newcomers(runs: ScoreRun[], since: Date, rules: BracketedRules, bracket: string, limit = 5): ScoreRow[] {
+  const earlier = new Set(characterScores(runs.filter((run) => run.endedAt < since), rules).filter((row) => row.bracket === bracket).map((row) => characterId(row.player)));
+  return characterScores(runs, rules).filter((row) => row.bracket === bracket && !earlier.has(characterId(row.player))).slice(0, limit);
 }
 
 /** Rank by character id in one bracket, before and now: for the little movement arrows (positive = moved up). */

@@ -30,7 +30,7 @@ export interface WebContext {
 // Extra pages (the leaderboards, personal pairing) plug in here and share the session.
 export type WebRoute = (context: WebContext, kit: WebKit) => Promise<WebResponse | null>;
 export interface WebKit {
-  page(status: number, title: string, body: string, options?: { description?: string; noindex?: boolean; cookies?: string[]; shareImage?: string; languageParams?: Record<string, string | null | undefined> }): WebResponse;
+  page(status: number, title: string, body: string, options?: { description?: string; noindex?: boolean; cookies?: string[]; shareImage?: string; documentTitle?: string; jsonLd?: unknown; languageParams?: Record<string, string | null | undefined> }): WebResponse;
   redirect(location: string, cookies?: string[]): WebResponse;
   signInPrompt(): WebResponse;
 }
@@ -83,7 +83,7 @@ export function createWebApp(deps: WebAppDeps) {
 
   function kitFor(context: WebContext): WebKit {
     const page: WebKit["page"] = (status, title, body, extra = {}) => ({
-      status, body: layout({ lang: context.lang, title, path: context.request.path, body, account: context.account, csrf: context.csrf, signInOn: Boolean(deps.auth), ...(extra.description ? { description: extra.description } : {}), ...(extra.noindex ? { noindex: true } : {}), ...(extra.languageParams ? { languageParams: extra.languageParams } : {}), ...(extra.shareImage ? { shareImage: new URL(extra.shareImage, deps.auth?.siteUrl ?? "https://guilded.kcaron.top").href } : {}) }),
+      status, body: layout({ lang: context.lang, title, path: context.request.path, body, account: context.account, csrf: context.csrf, signInOn: Boolean(deps.auth), ...(extra.description ? { description: extra.description } : {}), ...(extra.noindex ? { noindex: true } : {}), ...(extra.documentTitle ? { documentTitle: extra.documentTitle } : {}), ...(extra.jsonLd ? { jsonLd: extra.jsonLd } : {}), ...(extra.languageParams ? { languageParams: extra.languageParams } : {}), ...(extra.shareImage ? { shareImage: new URL(extra.shareImage, deps.auth?.siteUrl ?? "https://guilded.kcaron.top").href } : {}) }),
       headers: { ...SECURITY_HEADERS, "content-type": "text/html; charset=utf-8", ...(extra.cookies ? { "set-cookie": extra.cookies } : {}) }
     });
     return {

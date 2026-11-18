@@ -107,3 +107,17 @@ describe("a plain DM reply", () => {
     expect(deps.send).not.toHaveBeenCalled();
   });
 });
+
+describe("invite request /who tip (owner, 18 Nov 2026)", () => {
+  it("adds the /who line with the exact in-game guild name, accents kept", async () => {
+    const { withWhoTip } = await import("../src/services/invite-request.js");
+    const en = withWhoTip("en", "Done.", "Québec Gold");
+    expect(en).toContain('/who g-"Québec Gold"');
+    expect(en).toContain("/w First Last");
+    expect(withWhoTip("fr", "Fait.", "Québec Gold")).toContain("chuchote");
+  });
+  it("adds nothing when the guild's in-game name is unknown", async () => {
+    const { withWhoTip } = await import("../src/services/invite-request.js");
+    expect(withWhoTip("en", "Done.", null)).toBe("Done.");
+  });
+});

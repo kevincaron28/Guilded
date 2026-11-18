@@ -177,7 +177,8 @@ describe("character page guidance", () => {
     expect(body).toContain("A role score appears after 3 ranked runs in that role.");
     expect(body).toMatch(/<tr><td>(?:<img [^>]*>)?DPS<\/td><td class="num">–<\/td><\/tr>/);
     expect(body).toContain("1 ranked run has no recorded role: it counts in the overall score only.");
-    expect(body).not.toContain("<script");
+    // Structured data (JSON-LD) is not executable; any other script is still refused.
+    expect(body.replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>/g, "")).not.toContain("<script");
 
     const fr = await page(runs, "fr");
     expect(fr).toContain("<h2>Meilleure prochaine amélioration · Niveaux 15–29</h2>");

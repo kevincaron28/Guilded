@@ -413,7 +413,7 @@ async function route(request, env, ctx) {
     }
     const pagePath = section ? section.rest : url.pathname;
     // Pages that exist only with a trailing slash (the bot would redirect the other form, through ?edition=).
-    const DATA_DIRECTORY = /^\/(?:leaderboards(?:\/(?:dungeons|guilds|characters|duels|pvp|guilds\/realms))?|recruitment(?:\/guilds)?|players)$/;
+    const DATA_DIRECTORY = /^\/(?:leaderboards(?:\/(?:dungeons|guilds|characters|duels|pvp|scoring|guilds\/realms))?|recruitment(?:\/guilds)?|players)$/;
     const dataPage = /^\/(?:leaderboards|recruitment|players)(?:\/|$)/.test(pagePath);
     // A page view that still names its edition in the address (?edition=retail: older links and
     // the filter forms) moves into that edition's section; one without a section goes to the

@@ -174,7 +174,7 @@ const isRedirected = path => Object.hasOwn(GUIDE_REDIRECTS, path) || Object.hasO
 // hreflang pointing at the pair (src/services/web-layout.ts), so both are valid sitemap entries.
 // Source file of each static sitemap URL, for its lastmod (a page's markdown).
 const pageSources = new Map();
-const BOT_SECTION_PAGES = ["leaderboards/", "leaderboards/guilds/", "recruitment/", "recruitment/guilds/", "players/"];
+const BOT_SECTION_PAGES = ["leaderboards/", "leaderboards/guilds/", "leaderboards/scoring/", "recruitment/", "recruitment/guilds/", "players/"];
 const publicUrls = ["/", ...guides.map(name => `/docs/${name}`), ...EDITION_SECTIONS.flatMap(({ slug }) => BOT_SECTION_PAGES.flatMap(page => [`/${slug}/${page}`, `/${slug}/${page}?lang=fr`]))].filter(path => !isRedirected(path));
 for (const page of pages) {
   const prefix = "../".repeat(page.path.split("/").filter(Boolean).length);
@@ -202,7 +202,7 @@ for (const page of pages) {
   writeFileSync(`${out}/404.html`, `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#111312"><meta name="robots" content="noindex"><title data-en="Page not found · Guilded" data-fr="Page introuvable · Guilded">Page not found · Guilded</title><link rel="icon" href="/favicon.png" type="image/png"><link rel="stylesheet" href="/design-tokens.css"><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/atelier.css"><script src="/site.js" defer></script><script src="/language.js" type="module"></script></head><body class="site-page features-page"><a class="skip" href="#main">${b('Skip to content', 'Aller au contenu')}</a>${siteHeader('/', false, null, true)}<main class="guide not-found" id="main" tabindex="-1"><img class="nf-art" src="/images/web/404-1200.webp" srcset="/images/web/404-800.webp 800w, /images/web/404-1200.webp 1200w" sizes="(max-width:1000px) 100vw, 1000px" alt="" width="1200" height="675" fetchpriority="high"><div class="nf-text"><span class="nf-code">404</span><h1>${b('This page wandered off', 'Cette page s’est égarée')}</h1><p>${b('The address may be old or mistyped. Head back to the start and pick up from there.', 'L’adresse est peut-être ancienne ou mal écrite. Revenez à l’accueil et reprenez à partir de là.')}</p><p><a class="button" href="/">${b('Go home', 'Retour à l’accueil')}</a></p></div></main><footer class="site-footer">${siteFooterCols('/', { bilingual: true })}</footer></body></html>`);
 }
 writeFileSync(`${out}/sitemap.xml`, `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${publicUrls.map(path => `<url><loc>${origin}${path}</loc></url>`).join('')}</urlset>\n`);
-writeFileSync(`${out}/robots.txt`, `User-agent: *\nAllow: /\nDisallow: /me\nDisallow: /me/\nDisallow: /auth/\nDisallow: /api/\nDisallow: /health\nDisallow: /owner\nDisallow: /owner/\nSitemap: ${origin}/sitemap.xml\nSitemap: ${origin}/recruitment/guilds/sitemap.xml\n`);
+writeFileSync(`${out}/robots.txt`, `User-agent: *\nAllow: /\nDisallow: /me\nDisallow: /me/\nDisallow: /auth/\nDisallow: /api/\nDisallow: /health\nDisallow: /owner\nDisallow: /owner/\nSitemap: ${origin}/sitemap.xml\nSitemap: ${origin}/recruitment/guilds/sitemap.xml\nSitemap: ${origin}/leaderboards/sitemap.xml\n`);
 // Each bilingual public page has crawlable EN/FR alternatives. The Worker
 // renders ?lang=fr on the server, including for clients without JavaScript.
 function languageAlternates(directory) {

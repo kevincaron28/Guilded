@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { markMemberChanged } from "./member-sync-events.js";
 import type { Prisma } from "../generated/prisma/client.js";
 import type { AddonSnapshot } from "../integrations/addon.js";
 import { characterKey, foreverNameMatches } from "../../companion/character-identity.mjs";
@@ -90,7 +91,7 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
     if (newest && observedAt <= newest) result.skippedOlder = true;
     const byKey = new Map(stored.map((row) => [row.nameKey, row]));
     const characters = await tx.character.findMany({ where: { member: { guildId }, gameEdition: edition },
-      select: { id: true, name: true, realm: true, gameEdition: true, displayName: true, level: true, className: true, lastSeenAt: true, guildRankName: true, guildRankIndex: true, guildRankAt: true } });
+      select: { id: true, memberId: true, name: true, realm: true, gameEdition: true, displayName: true, level: true, className: true, lastSeenAt: true, guildRankName: true, guildRankIndex: true, guildRankAt: true } });
     const unclaimed = await tx.unclaimedCharacter.findMany({ where: { guildId, gameEdition: edition }, select: { id: true, nameKey: true, level: true, lastSeenAt: true, guildRankName: true, guildRankAt: true } });
     const unclaimedByKey = new Map(unclaimed.map((row) => [row.nameKey, row]));
     const seenKeys = new Set<string>();
@@ -141,6 +142,7 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
               result.promotions.push({ name: character.displayName?.trim() || character.name, rankName: member.rankName });
             }
             update.guildRankName = member.rankName; update.guildRankIndex = member.rankIndex; update.guildRankAt = observedAt;
+            markMemberChanged({ guildId, memberId: character.memberId, what: "rank" });
           } else touchRank = true;   // same rank confirmed again (rank roles read its age)
         }
         if (Object.keys(update).length) {

@@ -3,6 +3,7 @@ import { guildWhere, currentGuildScope } from "./guild-scope.js";
 import { normalizeProfessionName } from "./profession-names.js";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { reattachDetached, type LinkEvidence } from "./character-move.js";
+import { markMemberChanged } from "./member-sync-events.js";
 import { hostedPilot } from "../hosted-pilot.js";
 import { PILOT_DENIED } from "./pilot-policy.js";
 
@@ -68,6 +69,7 @@ export function createGuildService(database: PrismaClient) {
       }
       // A character that was unlinked before comes back as the same row, with its history.
       const back = await reattachDetached(database as unknown as Prisma.TransactionClient, owner.guildId, input.memberId, { name: input.name, realm: input.realm, gameEdition }, input.linkEvidence ?? "named");
+      markMemberChanged({ guildId: owner.guildId, memberId: input.memberId });
       if (back) {
         return database.character.update({
           where: { id: back.character.id },

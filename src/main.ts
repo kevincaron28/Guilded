@@ -66,6 +66,8 @@ import { handleDungeonTimeline } from "./commands/dungeon-post.js";
 import { DUNGEON_TIMELINE_PREFIX } from "./services/dungeon-announce.js";
 import { syncAllRankRoles } from "./services/rank-roles.js";
 import { syncAllNicknames } from "./services/nickname-sync.js";
+import { createMemberSync, handleMemberJoined, handleMemberUpdated } from "./services/member-sync.js";
+import { onMemberChanged } from "./services/member-sync-events.js";
 import { postAllWeeklyPromotions } from "./services/promotion.js";
 import { sendRecruitReminders } from "./services/recruiting-kit.js";
 import { handleLinkedButton, LINKED_PREFIX } from "./services/companion-link-dm.js";
@@ -696,6 +698,12 @@ client.on(Events.GuildMemberRemove, async (member) => {
     void errorReportService.report(client, error, { source: "GuildMemberRemove", guildId: member.guild.id, guildName: member.guild.name, userId: member.id });
   }
 });
+
+// 17 Nov: one member's nickname and rank role follow right away (debounced, rate limited per server); the hourly passes stay as the safety net.
+const memberSync = createMemberSync({ prisma, getGuild: (id) => client.guilds.cache.get(id), allows: (id) => hostedPilot.allows(id), report: reportJobError("Member sync") });
+onMemberChanged((change) => memberSync.mark(change));
+client.on(Events.GuildMemberAdd, (member) => { if (hostedPilot.allows(member.guild.id)) handleMemberJoined(memberSync, member); });
+client.on(Events.GuildMemberUpdate, (before, after) => { if (hostedPilot.allows(after.guild.id)) handleMemberUpdated(memberSync, before, after); });
 
 // The guild-invite channel (8.5 batch 3): reactions and the World of Warcraft role DM do not need message text.
 client.on(Events.MessageReactionAdd, (reaction, user) => { if (reaction.message.guildId && hostedPilot.allows(reaction.message.guildId)) void handleInviteReaction(client, prisma, reaction, user).catch(reportJobError("Guild invite reaction", { guildId: reaction.message.guildId, channelId: reaction.message.channelId })); });

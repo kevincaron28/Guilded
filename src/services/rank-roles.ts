@@ -1,6 +1,7 @@
 import type { Guild } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { forEachGuildScope, guildWhere } from "./guild-scope.js";
+import type { OnlyMember } from "./nickname-sync.js";
 
 // WoW guild rank to Discord role. Officers map a rank (0 = guild master) to a role with /mod rankroles;
 // the sync then gives each member the role of their main character's rank. On by default, but it does
@@ -38,7 +39,7 @@ export function planRankRoles(links: readonly RankRoleLink[], members: readonly 
 
 export interface RankRoleResult { changes: RankRoleChange[]; applied: number; failed: number; skipped: string | null }
 
-interface PlanOptions { now?: Date; links?: readonly RankRoleLink[]; ignoreEnabled?: boolean }
+interface PlanOptions { now?: Date; links?: readonly RankRoleLink[]; ignoreEnabled?: boolean; only?: OnlyMember }
 
 // What the sync would change for one Discord server. links/ignoreEnabled: a preview of a mapping or a
 // switch the officer has not confirmed yet (previewRankRoles).
@@ -55,7 +56,7 @@ async function planGuildRankRoles(prisma: PrismaClient, guild: Guild, options: P
   if (blocked) return none(`I cannot manage the role ${blocked.name}: move my role above it.`);
 
   const people = await prisma.member.findMany({
-    where: { guildId: row.id, status: "ACTIVE", isTest: false, characters: { some: { guildRankIndex: { not: null } } } },
+    where: { guildId: row.id, ...(!options.only ? {} : "memberId" in options.only ? { id: options.only.memberId } : { discordUserId: options.only.discordUserId }), status: "ACTIVE", isTest: false, characters: { some: { guildRankIndex: { not: null } } } },
     select: { discordUserId: true, characters: { select: { isMain: true, guildRankIndex: true, guildRankAt: true } } }
   });
   const members = [];
@@ -69,8 +70,8 @@ async function planGuildRankRoles(prisma: PrismaClient, guild: Guild, options: P
 }
 
 // Plans (and, unless dryRun, applies) the role changes for one Discord server.
-export async function syncRankRoles(prisma: PrismaClient, guild: Guild, options: { dryRun?: boolean; now?: Date } = {}): Promise<RankRoleResult> {
-  const { changes, skipped } = await planGuildRankRoles(prisma, guild, options.now ? { now: options.now } : {});
+export async function syncRankRoles(prisma: PrismaClient, guild: Guild, options: { dryRun?: boolean; now?: Date; only?: OnlyMember } = {}): Promise<RankRoleResult> {
+  const { changes, skipped } = await planGuildRankRoles(prisma, guild, { ...(options.now ? { now: options.now } : {}), ...(options.only ? { only: options.only } : {}) });
   if (skipped) return { changes: [], applied: 0, failed: 0, skipped };
   if (options.dryRun) return { changes, applied: 0, failed: 0, skipped: null };
   let applied = 0, failed = 0;
@@ -84,6 +85,11 @@ export async function syncRankRoles(prisma: PrismaClient, guild: Guild, options:
     } catch { failed++; }
   }
   return { changes, applied, failed, skipped: null };
+}
+
+/** One member's rank role, right now (event-driven refresh): the same plan as the full pass, limited to this member. */
+export function syncMemberRankRole(prisma: PrismaClient, guild: Guild, who: string | { memberId: string }): Promise<RankRoleResult> {
+  return syncRankRoles(prisma, guild, { only: typeof who === "string" ? { discordUserId: who } : who });
 }
 
 export interface RankRolePreviewRole { discordRoleId: string; rankIndex: number; gain: string[] }

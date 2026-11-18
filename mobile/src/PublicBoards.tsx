@@ -1,8 +1,10 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { cacheKey } from "./cache";
 import { classColor, classMix, fetchBoards, fetchPublicGuild, type BoardBracket, type Boards, type PublicGuild } from "./publicApi";
+import { useCachedResource } from "./useCachedResource";
 import type { Lang } from "./i18n";
-import { Card, EmptyState, RankNumber, RetryCard, Row, colors } from "./ui";
+import { Card, EmptyState, Glyph, LastUpdated, RankNumber, RetryCard, Row, colors } from "./ui";
 
 const words = {
   title: { en: "Leaderboards", fr: "Classements" },
@@ -11,7 +13,8 @@ const words = {
   guilds: { en: "Top guilds", fr: "Meilleures guildes" },
   none: { en: "Nobody is ranked yet.", fr: "Personne n'est encore classé." },
   failed: { en: "The boards are unavailable right now.", fr: "Les classements sont indisponibles pour le moment." },
-  back: { en: "← Back", fr: "← Retour" },
+  back: { en: "Back", fr: "Retour" },
+  season: { en: "Season", fr: "Saison" },
   mix: { en: "Class mix", fr: "Répartition des classes" },
   cores: { en: "Raid cores", fr: "Cores de raid" },
   noCores: { en: "This guild has not published its cores.", fr: "Cette guilde n'a pas publié ses cores." },
@@ -31,19 +34,29 @@ function Place({ origin, rank }: { origin: string; rank: number }) {
   return rank >= 1 && rank <= 3 ? <Image source={{ uri: web(origin, `medal-${MEDAL[rank - 1]}.webp`) }} style={styles.medal} accessibilityLabel={`#${rank}`} /> : <RankNumber rank={rank} />;
 }
 
+const isBoards = (data: unknown): data is Boards => typeof data === "object" && data !== null && Array.isArray((data as Boards).brackets);
+const isGuild = (data: unknown): data is PublicGuild => typeof data === "object" && data !== null && Array.isArray((data as PublicGuild).cores);
+
+/** Season chips (newest first) shared by the dungeon and duel boards; hidden when the server offers only one. */
+export function SeasonPicker({ lang, seasons, value, onChange }: { lang: Lang; seasons: { id: string; label: string }[]; value: string; onChange: (id: string) => void }) {
+  if (seasons.length < 2) return null;
+  return <View accessibilityRole="tablist" accessibilityLabel={w("season", lang)} style={styles.tabs}>
+    {seasons.map((season) => {
+      const on = season.id === value;
+      return <Pressable key={season.id} onPress={() => onChange(season.id)} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={`${w("season", lang)} ${season.label}`} style={[styles.chip, on && styles.chipOn]}>
+        <Text style={[styles.chipText, on && styles.chipTextOn]}>{season.label}</Text>
+      </Pressable>;
+    })}
+  </View>;
+}
+
 export function PublicBoards({ origin, lang, header }: { origin: string; lang: Lang; header?: ReactNode }) {
-  const [boards, setBoards] = useState<Boards | null>(null);
-  const [failed, setFailed] = useState(false);
   const [bracket, setBracket] = useState(0);
   const [slug, setSlug] = useState<string | null>(null);
-  const [attempt, setAttempt] = useState(0);
-
-  useEffect(() => {
-    let active = true;
-    setFailed(false);
-    fetchBoards(origin, lang).then((data) => { if (active) setBoards(data); }).catch(() => { if (active) setFailed(true); });
-    return () => { active = false; };
-  }, [origin, lang, attempt]);
+  const [season, setSeason] = useState<string | undefined>(undefined);
+  // The server answers the current season for no (or an unknown) id; the last good board of each season is kept for offline.
+  const feed = useCachedResource<Boards>(cacheKey("boards", origin, lang, season ?? "current"), () => fetchBoards(origin, lang, season), isBoards);
+  const boards = feed.data;
 
   if (slug) return <PublicGuildView origin={origin} lang={lang} slug={slug} onBack={() => setSlug(null)} />;
   const current: BoardBracket | undefined = boards?.brackets[Math.min(bracket, (boards?.brackets.length ?? 1) - 1)];
@@ -53,8 +66,10 @@ export function PublicBoards({ origin, lang, header }: { origin: string; lang: L
     <Text style={styles.kicker}>{(boards?.season || "GUILDED").toUpperCase()}</Text>
     <Text style={styles.title}>{w("title", lang)}</Text>
     <Text style={styles.intro}>{w("intro", lang)}</Text>
-    {failed ? <RetryCard lang={lang} message={w("failed", lang)} onRetry={() => setAttempt(attempt + 1)} style={styles.card} /> : !boards ? <ActivityIndicator color={colors.gold} /> : <>
-      {boards.brackets.length > 1 && <View style={styles.tabs}>{boards.brackets.map((b, i) => <Pressable key={b.key} onPress={() => setBracket(i)} style={[styles.chip, i === bracket && styles.chipOn]} accessibilityRole="button"><Text style={[styles.chipText, i === bracket && styles.chipTextOn]}>{b.name}</Text></Pressable>)}</View>}
+    {boards ? <SeasonPicker lang={lang} seasons={boards.seasons} value={season ?? boards.seasonId} onChange={(id) => { setSeason(id === boards.seasons[0]?.id ? undefined : id); setBracket(0); }} /> : null}
+    <LastUpdated lang={lang} savedAt={feed.savedAt} stale={feed.stale && feed.failed} />
+    {!boards && feed.failed ? <RetryCard lang={lang} message={w("failed", lang)} onRetry={feed.retry} style={styles.card} /> : !boards ? <ActivityIndicator color={colors.gold} /> : <>
+      {boards.brackets.length > 1 && <View style={styles.tabs}>{boards.brackets.map((b, i) => <Pressable key={b.key} onPress={() => setBracket(i)} style={[styles.chip, i === bracket && styles.chipOn]} accessibilityRole="button" accessibilityState={{ selected: i === bracket }}><Text style={[styles.chipText, i === bracket && styles.chipTextOn]}>{b.name}</Text></Pressable>)}</View>}
       {current && <>
         <Text style={styles.label}>{w("characters", lang).toUpperCase()}</Text>
         <Card style={styles.card}>{current.characters.length === 0 ? <EmptyState art="pvp" message={w("none", lang)} /> : current.characters.map((c) => <Row key={`${c.rank}-${c.name}`}
@@ -62,7 +77,7 @@ export function PublicBoards({ origin, lang, header }: { origin: string; lang: L
           name={c.name} nameColor={classColor(c.className)} sub={[c.className, c.role, c.realm].filter(Boolean).join(" · ")} score={c.points} />)}</Card>
         <Text style={styles.label}>{w("guilds", lang).toUpperCase()}</Text>
         <Card style={styles.card}>{current.guilds.length === 0 ? <EmptyState art="pvp" message={w("none", lang)} /> : current.guilds.map((g) => <Row key={g.id}
-          leading={<Place origin={origin} rank={g.rank} />} name={g.name} sub={g.slug ? "›" : w("noPage", lang)} score={g.points}
+          leading={<Place origin={origin} rank={g.rank} />} name={g.name} sub={g.slug ? null : w("noPage", lang)} score={g.points} trailing={g.slug ? <Glyph name="next" /> : undefined}
           onPress={() => { if (g.slug) setSlug(g.slug); }} disabled={!g.slug} />)}</Card>
       </>}
     </>}
@@ -70,20 +85,14 @@ export function PublicBoards({ origin, lang, header }: { origin: string; lang: L
 }
 
 function PublicGuildView({ origin, lang, slug, onBack }: { origin: string; lang: Lang; slug: string; onBack: () => void }) {
-  const [guild, setGuild] = useState<PublicGuild | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [attempt, setAttempt] = useState(0);
-  useEffect(() => {
-    let active = true;
-    setError(null);
-    fetchPublicGuild(origin, slug).then((data) => { if (active) setGuild(data); }).catch((e: unknown) => { if (active) setError(e instanceof Error ? e.message : w("failed", lang)); });
-    return () => { active = false; };
-  }, [origin, slug, lang, attempt]);
+  const feed = useCachedResource<PublicGuild>(cacheKey("guildpage", origin, slug), () => fetchPublicGuild(origin, slug), isGuild);
+  const guild = feed.data;
   const mix = guild ? classMix(guild) : [];
   const biggest = mix[0]?.count ?? 1;
   return <ScrollView contentContainerStyle={styles.content}>
-    <Pressable onPress={onBack} accessibilityRole="button"><Text style={styles.link}>{w("back", lang)}</Text></Pressable>
-    {error ? <RetryCard lang={lang} message={error} onRetry={() => setAttempt(attempt + 1)} style={styles.card} /> : !guild ? <ActivityIndicator color={colors.gold} /> : <>
+    <Pressable onPress={onBack} accessibilityRole="button" accessibilityLabel={w("back", lang)} style={styles.back}><Glyph name="back" /><Text style={styles.link}>{w("back", lang)}</Text></Pressable>
+    <LastUpdated lang={lang} savedAt={feed.savedAt} stale={feed.stale && feed.failed} />
+    {!guild && feed.failed ? <RetryCard lang={lang} message={w("failed", lang)} onRetry={feed.retry} style={styles.card} /> : !guild ? <ActivityIndicator color={colors.gold} /> : <>
       <Text style={styles.title}>{guild.name}</Text>
       {guild.intro ? <Text style={styles.intro}>{guild.intro}</Text> : null}
       {mix.length > 0 && <><Text style={styles.label}>{w("mix", lang).toUpperCase()}</Text>
@@ -106,12 +115,12 @@ function PublicGuildView({ origin, lang, slug, onBack }: { origin: string; lang:
 
 const styles = StyleSheet.create({
   banner: { width: "100%", aspectRatio: 1600 / 360, borderRadius: 12, borderWidth: 1, borderColor: colors.line, marginTop: 4 }, medal: { width: 26, height: 26, resizeMode: "contain" }, classIcon: { width: 22, height: 22, resizeMode: "contain" },
-  content: { padding: 24, paddingBottom: 30 }, kicker: { color: colors.gold, fontSize: 10, letterSpacing: 2, fontWeight: "700", marginTop: 12 },
+  content: { padding: 24, paddingBottom: 30 }, kicker: { color: colors.gold, fontSize: 12, letterSpacing: 2, fontWeight: "700", marginTop: 12 },
   title: { color: colors.text, fontSize: 30, fontWeight: "700", marginTop: 10, letterSpacing: -1 }, intro: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 8, marginBottom: 18 },
-  label: { color: colors.gold, fontSize: 9, letterSpacing: 1.7, fontWeight: "700", marginTop: 18, marginBottom: 10 },
+  label: { color: colors.gold, fontSize: 12, letterSpacing: 1.7, fontWeight: "700", marginTop: 18, marginBottom: 10 },
   card: { gap: 0, marginBottom: 6 }, rosterRow: { flexDirection: "row", alignItems: "center", paddingVertical: 6, gap: 10 },
-  name: { color: colors.text, fontSize: 14, fontWeight: "600" }, sub: { color: colors.muted, fontSize: 11, marginTop: 2 }, score: { color: colors.green, fontWeight: "700", fontSize: 14 },
-  link: { color: colors.gold, fontSize: 14, paddingVertical: 12 },
+  name: { color: colors.text, fontSize: 14, fontWeight: "600" }, sub: { color: colors.muted, fontSize: 12, marginTop: 2 }, score: { color: colors.green, fontWeight: "700", fontSize: 14 },
+  link: { color: colors.gold, fontSize: 14, paddingVertical: 12 }, back: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 44 },
   tabs: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 4 }, chip: { borderWidth: 1, borderColor: colors.line, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 }, chipOn: { backgroundColor: colors.gold, borderColor: colors.gold },
   chipText: { color: colors.muted, fontSize: 12 }, chipTextOn: { color: "#111", fontWeight: "700" },
   coreName: { color: colors.text, fontSize: 17, fontWeight: "700" },

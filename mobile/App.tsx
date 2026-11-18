@@ -6,6 +6,10 @@ import * as Updates from "expo-updates";
 import { checkForNewApk, type ApkRelease } from "./src/apkUpdate";
 import { DEFAULT_WEB_ORIGIN } from "./src/links";
 import { mobileRoute, notificationRoute, type MobileRoute } from "./src/routes";
+import { ErrorBoundary } from "./src/ErrorBoundary";
+import { setReportScreen } from "./src/crashReport";
+import { Intro } from "./src/Intro";
+import { markIntroSeen, readIntroSeen } from "./src/introSeen";
 import { readApkCache, writeApkCache } from "./src/storage";
 import { prepareLaunchUpdate } from "./src/updates";
 import { AlertsTab } from "./src/alerts/AlertsTab";
@@ -27,12 +31,8 @@ export const TAB_ICONS: Record<Tab, ImageSourcePropType> = {
   guild: require("./assets/tabs/tab-guild.png"), stats: require("./assets/tabs/tab-stats.png"), me: require("./assets/tabs/tab-me.png"),
   alerts: require("./assets/tabs/tab-alerts.png"), news: require("./assets/tabs/tab-news.png")
 };
-const TABS: { tab: Tab; label: CopyKey; glyph: string }[] = [
-  { tab: "guild", label: "tabGuild", glyph: "⚑" },
-  { tab: "stats", label: "tabStats", glyph: "▤" },
-  { tab: "me", label: "tabMe", glyph: "◉" },
-  { tab: "alerts", label: "alerts", glyph: "◔" },
-  { tab: "news", label: "tabNews", glyph: "☰" }
+const TABS: { tab: Tab; label: CopyKey }[] = [
+  { tab: "guild", label: "tabGuild" }, { tab: "stats", label: "tabStats" }, { tab: "me", label: "tabMe" }, { tab: "alerts", label: "alerts" }, { tab: "news", label: "tabNews" }
 ];
 
 export default function App() {
@@ -43,7 +43,7 @@ export default function App() {
     void prepareLaunchUpdate().catch(() => "unavailable").finally(() => { if (active) setLaunched(true); });
     return () => { active = false; };
   }, []);
-  return launched ? <GuildedApp /> : <View style={styles.frame}><ActivityIndicator color={colors.gold} style={{ marginTop: 96 }} /></View>;
+  return <ErrorBoundary origin={WEB_ORIGIN}>{launched ? <GuildedApp /> : <View style={styles.frame}><ActivityIndicator color={colors.gold} style={{ marginTop: 96 }} /></View>}</ErrorBoundary>;
 }
 
 function GuildedApp() {
@@ -53,6 +53,18 @@ function GuildedApp() {
   // Opens on Guild when signed in (or in the sample), on Stats otherwise.
   const tab: Tab = chosen ?? (guild.signedIn ? "guild" : "stats");
   const { lang } = guild;
+  useEffect(() => { setReportScreen(tab); }, [tab]);
+
+  // First launch: three short intro screens, once (signed-in phones and a skipped intro never see them again).
+  const [intro, setIntro] = useState<"unknown" | "show" | "done">("unknown");
+  useEffect(() => {
+    if (!guild.ready) return;
+    let active = true;
+    if (guild.signedIn) { setIntro("done"); return; }
+    void readIntroSeen().then((seen) => { if (active) setIntro(seen ? "done" : "show"); });
+    return () => { active = false; };
+  }, [guild.ready, guild.signedIn]);
+  const finishIntro = () => { setIntro("done"); void markIntroSeen(); };
 
   // App links and tapped push notifications open the Alerts tab (raid reminders) or the Guild tab.
   useEffect(() => {
@@ -80,6 +92,11 @@ function GuildedApp() {
     return () => { active = false; };
   }, []);
 
+  if (guild.ready && intro === "show") {
+    return <View style={styles.frame}><View style={styles.root}><StatusBar style="light" />
+      <Intro lang={lang} setLang={guild.setLang} onDone={finishIntro} onSample={() => { guild.startPreview(); finishIntro(); }} />
+    </View></View>;
+  }
   return <View style={styles.frame}>
     <View style={styles.root}>
       <StatusBar style="light" />
@@ -105,7 +122,7 @@ function GuildedApp() {
       <View style={styles.nav} accessibilityRole="tablist">
         {TABS.map((item) => {
           const on = tab === item.tab;
-          return <Pressable key={item.tab} onPress={() => setChosen(item.tab)} accessibilityRole="tab" accessibilityState={{ selected: on }} style={styles.navItem}>
+          return <Pressable key={item.tab} onPress={() => setChosen(item.tab)} accessibilityRole="tab" accessibilityLabel={t(lang, item.label)} accessibilityState={{ selected: on }} style={styles.navItem}>
             <Image source={TAB_ICONS[item.tab]} style={[styles.icon, { tintColor: on ? colors.gold : colors.muted }]} accessible={false} />
             <Text style={[styles.navText, on && styles.navActive]}>{t(lang, item.label)}</Text>
           </Pressable>;
@@ -122,13 +139,13 @@ const styles = StyleSheet.create({
   brand: { color: colors.gold, fontSize: 15, fontWeight: "900", letterSpacing: 3 },
   status: { flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 },
   dot: { width: 6, height: 6, borderRadius: 4 },
-  statusText: { color: colors.muted, fontSize: 11, flexShrink: 1 },
+  statusText: { color: colors.muted, fontSize: 12, flexShrink: 1 },
   body: { flex: 1 },
   update: { backgroundColor: colors.panel, borderBottomWidth: 1, borderColor: colors.gold, paddingVertical: 10, paddingHorizontal: 24 },
   updateText: { color: colors.gold, fontSize: 12, fontWeight: "700" },
   nav: { borderTopWidth: 1, borderColor: colors.line, backgroundColor: colors.bg, flexDirection: "row", paddingBottom: 20, paddingTop: 6 },
   navItem: { flex: 1, alignItems: "center", justifyContent: "center", minHeight: 48 },
   icon: { width: 26, height: 26, resizeMode: "contain" },
-  navText: { color: colors.muted, fontSize: 11, marginTop: 2 },
+  navText: { color: colors.muted, fontSize: 12, marginTop: 2 },
   navActive: { color: colors.gold, fontWeight: "700" }
 });

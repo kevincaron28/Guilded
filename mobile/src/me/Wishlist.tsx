@@ -85,7 +85,7 @@ const styles = StyleSheet.create({
   muted: { color: colors.muted, fontSize: 13, lineHeight: 20, marginTop: 4 },
   body: { color: colors.text, fontSize: 14, lineHeight: 20, marginTop: 4 },
   error: { color: colors.error, fontSize: 14, lineHeight: 20, marginTop: 12 },
-  label: { color: colors.gold, fontSize: 10, letterSpacing: 1.4, fontWeight: "700", marginTop: 18 },
+  label: { color: colors.gold, fontSize: 12, letterSpacing: 1.4, fontWeight: "700", marginTop: 18 },
   chips: { paddingVertical: 12 },
   form: { marginTop: 16 },
   row: { flexDirection: "row", alignItems: "center", gap: 12, borderTopWidth: 1, borderColor: colors.line, paddingVertical: 12 },

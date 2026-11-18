@@ -19,9 +19,11 @@ export function Row({ leading, name, nameColor, sub, score, trailing, onPress, d
     {score !== undefined && score !== null ? <Text style={styles.score}>{score}</Text> : null}
     {trailing}
   </>;
+  // One spoken line per row (name, details, score) unless the caller words it.
+  const spoken = accessibilityLabel ?? [name, sub, score !== undefined && score !== null ? String(score) : null].filter(Boolean).join(", ");
   return onPress
-    ? <Pressable onPress={onPress} disabled={disabled} accessibilityRole={disabled ? undefined : "button"} accessibilityLabel={accessibilityLabel} style={styles.row}>{content}</Pressable>
-    : <View style={styles.row} accessibilityLabel={accessibilityLabel}>{content}</View>;
+    ? <Pressable onPress={onPress} disabled={disabled} accessibilityRole={disabled ? undefined : "button"} accessibilityLabel={spoken} style={styles.row}>{content}</Pressable>
+    : <View style={styles.row} accessible accessibilityLabel={spoken}>{content}</View>;
 }
 
 /** The rank number column used before a name (places without a medal). */
@@ -34,6 +36,6 @@ const styles = StyleSheet.create({
   middle: { flex: 1 },
   rank: { color: colors.gold, width: 22, fontSize: 12 },
   name: { color: colors.text, fontSize: 14, fontWeight: "600" },
-  sub: { color: colors.muted, fontSize: 11, marginTop: 2 },
+  sub: { color: colors.muted, fontSize: 12, marginTop: 2 },
   score: { color: colors.green, fontWeight: "700", fontSize: 14 }
 });

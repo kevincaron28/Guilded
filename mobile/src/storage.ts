@@ -13,7 +13,6 @@ const SESSION = "guilded.mobile.session";
 const ORIGIN = "guilded.mobile.origin";
 const LANG = "guilded.mobile.lang";
 const REMINDERS = "guilded.mobile.reminders";
-const EDITION = "guilded.mobile.edition";
 const APK_CACHE = "guilded.mobile.apkupdate";
 let sessionEpoch = 0;
 let sessionWrites: Promise<unknown> = Promise.resolve();
@@ -159,15 +158,6 @@ export async function readReminders(): Promise<boolean> {
 
 export async function saveReminders(on: boolean): Promise<void> {
   try { await writeKey(REMINDERS, on ? "1" : "0"); } catch { /* the switch still applies for this visit */ }
-}
-
-export const editions = ["forever", "classic-era", "classic-tbc", "classic-mists", "retail"] as const;
-export type Edition = typeof editions[number];
-export async function readEdition(): Promise<Edition> {
-  try { const value = await readKey(EDITION); return editions.includes(value as Edition) ? value as Edition : "forever"; } catch { return "forever"; }
-}
-export async function saveEdition(edition: Edition): Promise<void> {
-  try { await writeKey(EDITION, edition); } catch { /* the current visit keeps the selection */ }
 }
 
 export async function readApkCache(): Promise<string | null> {

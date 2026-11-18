@@ -3,6 +3,8 @@ export { colors, type } from "./theme";
 export { Card } from "./Card";
 export { ClassName, shownName } from "./ClassName";
 export { EmptyState } from "./EmptyState";
+export { Glyph, type GlyphName } from "./Glyph";
+export { LastUpdated } from "./LastUpdated";
 export { Medal } from "./Medal";
 export { RetryCard } from "./RetryCard";
 export { RankNumber, Row } from "./Row";

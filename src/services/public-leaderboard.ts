@@ -1839,6 +1839,8 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const { board, seasonId } = await globalBoard(ctx);
     return send(200, {
       rules: { id: RATING.id, since: RATING_START.toISOString(), text: ratingRuleLines(ctx.lang, RATING_START) }, season: seasonId, duels: board.duels,
+      // ?when=<id> picks a season; `seasons` lists the ids the phone app may ask for, newest first.
+      seasons: ratingSeasonIds(now(), RATING_START).map((id) => ({ id, label: ratingSeasonName(id, ctx.lang) })),
       players: board.rows.slice(0, 100).map((row) => ({ rank: row.rank || null, name: row.name, realm: row.realm, className: row.className, level: row.level, guild: row.guild, rating: Math.round(row.score), ranked: row.ranked, placement: row.placement,
         wins: row.wins, losses: row.losses, winRate: Math.round(row.winRate * 1000) / 1000, streak: row.streak, bestStreak: row.bestStreak, lastDuelAt: row.lastAt.toISOString() })),
       recent: board.recent.map((d) => ({ at: d.endedAt.toISOString(), winner: d.winner, winnerRealm: d.winnerRealm, loser: d.loser, loserRealm: d.loserRealm, winnerChange: Math.round(d.change.winner), loserChange: Math.round(d.change.loser), rated: d.change.rated, fled: d.reason === "retreat" }))
@@ -1881,7 +1883,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
   // The phone app's boards: the same public ratings as the website's top tables, as JSON (10 characters per level
   // bracket, 10 guilds per bracket). Names are the public display names already on the page; nothing private.
   async function boardsJson(ctx: WebContext): Promise<WebResponse> {
-    const { filters, period } = await pageFilters(ctx);
+    const { periods, filters, period } = await pageFilters(ctx);
     await ensureIndex(ctx, period);
     const rules = periodRules(period);
     const all = (await periodRuns(period)).filter((run) => !run.challenge);
@@ -1891,8 +1893,9 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     // Cached a minute per period: three extra full scorings of the period's runs, independent of the request's filters.
     const byRole = await cached(`board-roles:${period.id}:${period.from?.getTime() ?? ""}`, async () => ROLES.map((role) => ({ role, scores: new Map(characterScores(all, rules, (player) => (rules.evidencePolicy === "current-v2" ? integrityRole(player.integrity) : dungeonRole(player.role)) === role).map((r) => [`${r.bracket} ${characterId(r.player)}`, r.points] as const)) })));
     const roleScoresOf = (row: ScoreRow) => Object.fromEntries(byRole.map(({ role, scores: list }) => [role, list.get(`${row.bracket} ${characterId(row.player)}`) ?? null]));
+    // ?season=<id> picks a season; an unknown id falls back to the current one. `seasons` lists the ids the app may ask for.
     const body = JSON.stringify({
-      season: periodName(ctx, period),
+      season: periodName(ctx, period), seasonId: period.id, seasons: periods.map((p) => ({ id: p.id, label: periodName(ctx, p) })),
       brackets: rules.brackets.map((b) => ({
         key: b.key, name: bracketName(ctx, b.key),
         characters: scores.filter((row) => row.bracket === b.key).slice(0, 10).map((row, i) => ({ rank: i + 1, name: (row.player as LeaderPlayer).displayName || row.player.character, realm: row.player.realm || null, className: row.player.className ?? null, role: row.player.role ?? null, points: row.points, roles: roleScoresOf(row) })),

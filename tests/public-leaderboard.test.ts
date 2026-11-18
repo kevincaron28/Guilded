@@ -379,6 +379,21 @@ describe("leaderboard and personal pages", () => {
     expect((await request("POST", "/leaderboards/boards.json")).status).not.toBe(200);
   });
 
+  // 0.4.0 season selector: the JSON lists the seasons it can serve and ?season= picks one (an unknown id means the current one).
+  it("lists the seasons the phone boards can show and accepts ?season=", async () => {
+    const { request } = setup();
+    const first = JSON.parse((await request("GET", "/leaderboards/boards.json?lang=en")).body) as { season: string; seasonId: string; seasons: { id: string; label: string }[] };
+    expect(first.seasons.length).toBeGreaterThan(0);
+    expect(first.seasons.map((s) => s.id)).toContain(first.seasonId);
+    expect(first.seasons.find((s) => s.id === first.seasonId)?.label).toBe(first.season);
+    for (const id of first.seasons.map((s) => s.id)) {
+      const picked = JSON.parse((await request("GET", `/leaderboards/boards.json?season=${encodeURIComponent(id)}`)).body) as { seasonId: string };
+      expect(picked.seasonId).toBe(id);
+    }
+    const unknown = JSON.parse((await request("GET", "/leaderboards/boards.json?season=nope")).body) as { seasonId: string };
+    expect(unknown.seasonId).toBe(first.seasonId);
+  });
+
   it("lists dungeons, ranks a dungeon and shows a character page", async () => {
     const { request } = setup();
     const home = await request("GET", "/leaderboards/dungeons/");

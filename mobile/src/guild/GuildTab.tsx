@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 import { t } from "../i18n";
 import type { GuildState } from "../useGuild";
-import { Screen, SegmentedTabs, colors } from "../ui";
+import { LastUpdated, Screen, SegmentedTabs, colors } from "../ui";
 import { common } from "../ui/common";
 import { Characters, Raids, Reserves } from "./GuildParts";
 import { MapScreen } from "./MapScreen";
@@ -36,6 +36,7 @@ export function GuildTab({ guild, defaultOrigin }: { guild: GuildState; defaultO
       <Text style={common.title}>{guild.guildName || "Guild"}</Text>
       <Text style={common.muted}>{[hub?.edition || standings?.edition, hub?.battleTag].filter(Boolean).join(" · ")}</Text>
     </View>
+    {!preview ? <LastUpdated lang={lang} savedAt={snapshot?.savedAt ?? null} stale={Boolean(snapshot?.stale)} /> : null}
     <SegmentedTabs options={(["roster", "map", "raids"] as const).map((value) => ({ value, label: t(lang, value) }))} value={section} onChange={setSection} />
     {guild.loading && !snapshot ? <ActivityIndicator color={colors.gold} style={{ marginVertical: 24 }} /> : null}
     {section === "roster" ? <>

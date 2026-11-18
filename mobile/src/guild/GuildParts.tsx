@@ -1,17 +1,31 @@
+import { useState } from "react";
 import { Linking, Pressable, Text, View } from "react-native";
 import { discordEventLink, withMine, type CoreBoard, type HubView, type ManageView, type StandingsView } from "../api";
 import { formatPr, formatWhen, lootModeLabel, roleLabel, t, type Lang } from "../i18n";
+import { classesOf, filterCharacters, filterStandings, filtersActive, noFilters, type CharacterSort, type RosterFilters, type StandingSort } from "../rosterFilter";
 import { shownName } from "../ui";
 import { common } from "../ui/common";
+import { RosterControls } from "./RosterControls";
+
+const CHARACTER_SORTS = [{ value: "name", label: "sortName" }, { value: "level", label: "sortLevel" }] as const;
+const STANDING_SORTS = [{ value: "pr", label: "sortPr" }, { value: "ep", label: "sortEp" }, { value: "name", label: "sortName" }] as const;
+/** Search and filters appear once a list is long enough to need them. */
+const CONTROLS_FROM = 4;
 
 // The roster (characters and reserves) and raids sections of the Guild tab. Moved from GuildScreen unchanged.
 
 export function Characters({ lang, hub, error }: { lang: Lang; hub: HubView | null; error?: string }) {
+  const [filters, setFilters] = useState<RosterFilters>(noFilters);
+  const [sort, setSort] = useState<CharacterSort>("name");
   if (error) return <Text style={common.error}>{error}</Text>;
   if (!hub) return null;
+  const shown = hub.characters.length >= CONTROLS_FROM ? filterCharacters(hub.characters, filters, sort) : hub.characters;
   return <>
     {hub.battleNet !== null ? <Text style={common.muted}>{t(lang, "battleNet")}: {hub.battleNet ? t(lang, "linked") : t(lang, "notLinked")}{hub.battleTag ? ` · ${hub.battleTag}` : ""}</Text> : null}
-    {hub.characters.length === 0 ? <Text style={common.intro}>{t(lang, "noCharacters")}</Text> : hub.characters.map((character) => <View key={character.id} style={common.hero}>
+    {hub.characters.length >= CONTROLS_FROM ? <RosterControls lang={lang} search={filters.search} onSearch={(search) => setFilters({ ...filters, search })}
+      classes={classesOf(hub.characters)} className={filters.className} onClass={(className) => setFilters({ ...filters, className })}
+      role={filters.role} onRole={(role) => setFilters({ ...filters, role })} sorts={CHARACTER_SORTS} sort={sort} onSort={setSort} /> : null}
+    {hub.characters.length === 0 ? <Text style={common.intro}>{t(lang, "noCharacters")}</Text> : shown.length === 0 && filtersActive(filters) ? <Text style={common.muted}>{t(lang, "noMatches")}</Text> : shown.map((character) => <View key={character.id} style={common.hero} accessible accessibilityLabel={[shownName(character), character.className, character.level ? `${t(lang, "level")} ${character.level}` : null, character.realm].filter(Boolean).join(", ")}>
       <View style={common.titleRow}>
         <Text style={common.heroTitle}>{shownName(character)}</Text>
         <Text style={common.pill}>{character.isMain ? t(lang, "main") : character.className}</Text>
@@ -51,10 +65,14 @@ export function Reserves({ lang, hub, error }: { lang: Lang; hub: HubView | null
 }
 
 export function Raids({ lang, hub, manage, standings, error }: { lang: Lang; hub: HubView | null; manage: ManageView | null; standings: StandingsView | null; error?: string }) {
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<StandingSort>("pr");
   if (error && !standings) return <Text style={common.error}>{error}</Text>;
   if (!standings) return error ? <Text style={common.error}>{error}</Text> : null;
   const mine = withMine(standings.standings, (hub?.characters ?? []).filter((character) => character.current));
-  const rows = [...mine.filter((row) => row.mine), ...mine.filter((row) => !row.mine)].slice(0, 20);
+  const searching = mine.length >= CONTROLS_FROM;
+  // Your own characters come first when nobody is searching or sorting; a search shows every match.
+  const rows = searching && (search.trim() || sort !== "pr") ? filterStandings(mine, search, sort).slice(0, 50) : [...mine.filter((row) => row.mine), ...mine.filter((row) => !row.mine)].slice(0, 20);
   const next = standings.nextRaid;
   return <>
     <Text style={common.intro}>{t(lang, "raidIntro")}</Text>
@@ -80,7 +98,8 @@ export function Raids({ lang, hub, manage, standings, error }: { lang: Lang; hub
       </View>;
     })}
     <Text style={common.label}>{t(lang, "standings")}</Text>
-    {rows.length === 0 ? <Text style={common.muted}>{t(lang, "noStandings")}</Text> : rows.map((row) => <View key={row.character} style={common.row}>
+    {searching ? <RosterControls lang={lang} search={search} onSearch={setSearch} sorts={STANDING_SORTS} sort={sort} onSort={setSort} /> : null}
+    {rows.length === 0 ? <Text style={common.muted}>{t(lang, search.trim() ? "noMatches" : "noStandings")}</Text> : rows.map((row) => <View key={row.character} style={common.row} accessible accessibilityLabel={`${row.mine ? `${t(lang, "you")}, ` : ""}${row.character}, EP ${row.ep}, GP ${row.gp}, ${formatPr(row.pr)}`}>
       <Text style={[common.body, { flex: 1 }]}>{row.mine ? `${t(lang, "you")} · ` : ""}{row.character}</Text>
       <Text style={common.muted}>{row.ep} / {row.gp} · {formatPr(row.pr)}</Text>
     </View>)}

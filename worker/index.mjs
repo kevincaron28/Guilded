@@ -68,6 +68,8 @@ const apiMethods = new Map([
   ["/api/v1/companion/sign-in/poll", ["POST"]],
   ["/api/v1/companion/renew", ["POST"]],
   ["/api/v1/mobile/device", ["GET", "POST"]],
+  // Phone app 0.4.0: "Send error report" on its friendly error screen (a person taps it; nothing is sent automatically).
+  ["/api/v1/mobile/report", ["POST"]],
   // 8.5 Track L: who is signed in and the join invite for the member's in-game guild.
   ["/api/v1/companion/me", ["GET"]],
   // One-click claim: the characters this PC's zero-setup install reported, offered to the signed-in member (Link / Not now).

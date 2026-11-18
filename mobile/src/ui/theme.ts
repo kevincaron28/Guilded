@@ -5,4 +5,4 @@ export const colors = {
   gold: "#d5ad57", green: "#9fbd83", red: "#e0624f", ink: "#1b160c", error: "#e7b4a8"
 } as const;
 
-export const type = { body: 13, small: 11, title: 20 } as const;
+export const type = { body: 13, small: 12, title: 20 } as const;

@@ -2,8 +2,10 @@ import { useRef, useState } from "react";
 import { KeyboardAvoidingView, Linking, Platform, Pressable, Text, View } from "react-native";
 import { t } from "../i18n";
 import type { GuildState } from "../useGuild";
-import { Card, ClassName, EmptyState, Screen, SignInCard, shownName } from "../ui";
+import { Card, ClassName, EmptyState, Glyph, Screen, SignInCard, shownName } from "../ui";
 import { common } from "../ui/common";
+
+const linkRow = { flexDirection: "row", alignItems: "center", gap: 8 } as const;
 import { Language } from "../guild/SignIn";
 import { AlbumScreen } from "./AlbumScreen";
 import { Wishlist } from "./Wishlist";
@@ -63,8 +65,8 @@ function Settings({ guild }: { guild: GuildState }) {
     <Text style={common.label}>{t(guild.lang, "settings").toUpperCase()}</Text>
     <Text style={common.muted}>{t(guild.lang, "language")}</Text>
     <Language lang={guild.lang} setLang={guild.setLang} />
-    <Pressable onPress={() => void Linking.openURL(PRIVACY_URL).catch(() => {})} accessibilityRole="link" style={common.textButton}>
-      <Text style={common.textButtonLabel}>{t(guild.lang, "privacyPolicy")} ↗</Text>
+    <Pressable onPress={() => void Linking.openURL(PRIVACY_URL).catch(() => {})} accessibilityRole="link" accessibilityLabel={t(guild.lang, "privacyPolicy")} style={[common.textButton, linkRow]}>
+      <Text style={common.textButtonLabel}>{t(guild.lang, "privacyPolicy")}</Text><Glyph name="external" />
     </Pressable>
     <DeleteMyData guild={guild} />
   </>;
@@ -81,8 +83,8 @@ function DeleteMyData({ guild }: { guild: GuildState }) {
   const [problem, setProblem] = useState<string | null>(null);
   // A second tap can land before the disabled state is drawn; a ref closes that gap, so only one request leaves.
   const sending = useRef(false);
-  const info = <Pressable onPress={() => void Linking.openURL(DELETE_INFO_URL).catch(() => {})} accessibilityRole="link" style={common.textButton}>
-    <Text style={common.textButtonLabel}>{t(lang, "deleteMyDataHow")} ↗</Text>
+  const info = <Pressable onPress={() => void Linking.openURL(DELETE_INFO_URL).catch(() => {})} accessibilityRole="link" accessibilityLabel={t(lang, "deleteMyDataHow")} style={[common.textButton, linkRow]}>
+    <Text style={common.textButtonLabel}>{t(lang, "deleteMyDataHow")}</Text><Glyph name="external" />
   </Pressable>;
   if (!guild.session || guild.preview) return <>
     <Text style={common.muted}>{t(lang, "deleteMyDataSignedOut")}</Text>

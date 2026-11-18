@@ -4,6 +4,8 @@ import { charactersMeSection, meCharacterList } from "./services/me-characters.j
 import { meSection, type MeSectionInput } from "./services/me-layout.js";
 import { revokeCompanionCredential } from "./services/companion-revoke.js";
 import { credentialBySecret, renewCompanionCredential } from "./services/companion-renew.js";
+import { allowMobileReport, mobileReportText } from "./services/mobile-app-report.js";
+import { createErrorReportService } from "./services/error-report.js";
 import { MobileCredentialUnknown, configureMobileDevice, mobileDeviceEnabled, retireMobileDevice } from "./services/mobile-alerts.js";
 import { guildWhere, loadGuildScope, runInGuildScope, withGuildScope } from "./services/guild-scope.js";
 import { hostedPilot } from "./hosted-pilot.js";
@@ -308,6 +310,7 @@ export function allowPublicUpload(accountId: string, now = Date.now()): boolean 
 
 // Zero-setup companion (docs/ZERO_SETUP_COMPANION.md): device keys without Discord sign-in, rate-limited
 // per IP and per device. Their uploads only ever store reported characters (companion-device.ts).
+const mobileReports = createErrorReportService(prisma);
 const deviceRegistrations = windowLimiter(DEVICE_LIMITS.registrationsPerIpPerHour, 3_600_000);
 const deviceUploadsPerDevice = windowLimiter(DEVICE_LIMITS.uploadsPerDevicePerHour, 3_600_000);
 const deviceUploadsPerIp = windowLimiter(DEVICE_LIMITS.uploadsPerIpPerHour, 3_600_000);
@@ -925,6 +928,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const isSignInStart = request.method === "POST" && url.pathname === "/api/v1/companion/sign-in";
       const isSignInPoll = request.method === "POST" && url.pathname === "/api/v1/companion/sign-in/poll";
       const isRenew = request.method === "POST" && url.pathname === "/api/v1/companion/renew";
+      const isMobileReport = request.method === "POST" && url.pathname === "/api/v1/mobile/report";
       const isMobileDevice = ["GET", "POST"].includes(request.method ?? "") && url.pathname === "/api/v1/mobile/device";
       // The companion's own pages: wishlists for members; prices, core rules and rosters for Raid Leaders.
       const isManageView = request.method === "GET" && url.pathname === "/api/v1/manage";
@@ -939,13 +943,22 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const isDeviceRegister = request.method === "POST" && url.pathname === "/api/v1/device/register";
       const isDeviceUpload = request.method === "POST" && url.pathname === "/api/v1/device/uploads";
       const isDeviceClaim = request.method === "POST" && url.pathname === "/api/v1/device/claim";
-      if (!isRenew && !isMobileDevice && !isDeviceRegister && !isDeviceUpload && !isDeviceClaim && !isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isPersonalStatus && !isCompanionMe && !isAlbum && !isCards && !isClash && !isStandings && !isPoeUpload && !isPoeLevels && !isPoeStatus && !isPoeRecent && !isLogout && !isDeleteData && !isManageView && !isManageEdit && !isHubView && !isHubEdit && !isClaimView && !isClaimEdit && !isMapView && !isMapEdit) {
+      if (!isRenew && !isMobileReport && !isMobileDevice && !isDeviceRegister && !isDeviceUpload && !isDeviceClaim && !isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isPersonalStatus && !isCompanionMe && !isAlbum && !isCards && !isClash && !isStandings && !isPoeUpload && !isPoeLevels && !isPoeStatus && !isPoeRecent && !isLogout && !isDeleteData && !isManageView && !isManageEdit && !isHubView && !isHubEdit && !isClaimView && !isClaimEdit && !isMapView && !isMapEdit) {
         json(response, 404, { error: "Not found" });
         return;
       }
       const address = clientAddress(request);
       if (isLockedOut(address)) {
         json(response, 429, { error: "Too many failed attempts. Try again in a few minutes." });
+        return;
+      }
+      if (isMobileReport) {
+        // The phone's friendly error screen: one consented bug report, no sign-in, five per network per hour.
+        if (!allowMobileReport(networkKey(address))) { json(response, 429, { error: "Too many reports from this network. Try again later." }); return; }
+        const text = mobileReportText(await readBody(request));
+        if (!text) { json(response, 400, { error: "That error report is not valid." }); return; }
+        const ref = await mobileReports.report(client ?? null, text, { source: "bug-report", consented: true, operation: "Phone app error report", notificationChannelId: config.ERROR_LOG_CHANNEL_ID ?? null });
+        json(response, ref ? 200 : 503, ref ? { ok: true, ref } : { error: "The report could not be saved. Try again later." });
         return;
       }
       if (isRenew) {

@@ -54,3 +54,16 @@ export function recordsBroken(runs: ScoreRun[], since: Date, rules: BracketedRul
   }
   return out.sort((a, b) => b.run.endedAt.getTime() - a.run.endedAt.getTime()).slice(0, limit);
 }
+
+export interface DungeonMilestones<R extends ScoreRun> { fastest: R | null; first: R | null }
+
+/**
+ * A dungeon's fastest clear and first clear among its runs. Only runs that score under `rules` count (a manual stop or an
+ * unrecognised route is activity, not a record); a tie in time goes to the earlier finish.
+ */
+export function dungeonMilestones<R extends ScoreRun>(runs: R[], rules: BracketedRules): DungeonMilestones<R> {
+  const counted = runs.filter((run) => !run.challenge && (!rules.evidencePolicy || scoreRun(run, rules)));
+  const fastest = counted.reduce<R | null>((best, run) => !best || run.durationSec < best.durationSec || run.durationSec === best.durationSec && run.endedAt < best.endedAt ? run : best, null);
+  const first = counted.reduce<R | null>((best, run) => !best || run.endedAt < best.endedAt ? run : best, null);
+  return { fastest, first };
+}

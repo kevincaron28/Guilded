@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { climbers, newcomers, rankMovement, recordsBroken } from "../src/services/leaderboard-highlights.js";
+import { climbers, dungeonMilestones, newcomers, rankMovement, recordsBroken } from "../src/services/leaderboard-highlights.js";
 import { emptyBox, hubTabs, movement, podium, trendBars } from "../src/services/leaderboard-hub.js";
 import { publicRules, type ScoreRun } from "../src/services/public-score.js";
 
@@ -75,5 +75,15 @@ describe("what changed this week", () => {
     const moves = rankMovement(runs, since, rules, bracket);
     expect(moves.size).toBeGreaterThan(0);
     expect(moves.get("cleo\0doomhowl")).toBeNull();
+  });
+});
+
+describe("dungeon milestones", () => {
+  it("finds the fastest and the first clear, a time tie going to the earlier finish", () => {
+    const list = [run("m1", "Amy", 1500, "2026-11-06T10:00:00Z"), run("m2", "Bob", 1300, "2026-11-08T10:00:00Z"), run("m3", "Cleo", 1300, "2026-11-07T10:00:00Z")];
+    const { fastest, first } = dungeonMilestones(list, rules);
+    expect(fastest?.runId).toBe("m3");
+    expect(first?.runId).toBe("m1");
+    expect(dungeonMilestones([], rules)).toEqual({ fastest: null, first: null });
   });
 });

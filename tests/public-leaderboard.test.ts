@@ -235,6 +235,30 @@ describe("leaderboard and personal pages", () => {
     });
   });
 
+  describe("complete dungeon boards and the scoring page", () => {
+    it("shows the fastest and first clear and role and class filters on a dungeon board", async () => {
+      const { request } = setup();
+      const page = await request("GET", "/leaderboards/dungeons/?dungeon=389&season=all");
+      expect(page.body).toContain("Fastest clear");
+      expect(page.body).toContain("First clear");
+      expect(page.body).toContain("All classes");
+      expect(page.body).toContain("class=Warrior");
+      expect(page.body).toContain("role=TANK");
+      expect((await request("GET", "/leaderboards/dungeons/?dungeon=389&season=all&class=Warrior")).body).toContain("Kev");
+      expect((await request("GET", "/leaderboards/dungeons/?dungeon=389&season=all&lang=fr")).body).toContain("Première réussite");
+    });
+    it("explains the scoring from the season's own rules, in English and French", async () => {
+      const { request } = setup();
+      const en = await request("GET", "/leaderboards/scoring/");
+      expect(en.status).toBe(200);
+      for (const text of ["How dungeon scores work", "200 × target time", "never goes below 50 or above 400", "per level", "best 5 routes"]) expect(en.body).toContain(text);
+      expect(en.body).toContain("How WoW Forever dungeon scores work: target time, best routes and guild score | Guilded</title>");
+      const fr = await request("GET", "/leaderboards/scoring/?lang=fr");
+      expect(fr.body).toContain("Comment les scores de donjon sont calculés");
+      expect(fr.body).toContain("200 × temps cible");
+    });
+  });
+
   describe("the landing page", () => {
     const early = () => leaderRun("early", 1400, [player("Amy", "Priest", "HEALER")], { endedAt: new Date("2026-11-05T12:00:00Z") });
     it("shows podiums, latest runs, weekly climbers, records broken, tabs and search in English and French", async () => {

@@ -14,7 +14,7 @@ import { issuePersonalCode, type PersonalStore } from "./personal-pairing.js";
 import { GAIN_STEP, MIN_ROLE_RUNS, planImprovements, roleScores, roleSummary, type ImprovementPlan, type RoutePlan } from "./public-guidance.js";
 import { classLabel as classLabelRaw, className as classFromText, factionLabel, FACTIONS, roleLabel, ROLES } from "./recruitment.js";
 import type { OfficialWindow } from "./official-seasons.js";
-import type { BracketedRules } from "./dungeon-november-rules.js";
+import { leniencyOf, type BracketedRules } from "./dungeon-november-rules.js";
 import { bossRuleText, bossTally } from "./dungeon-boss-scoring.js";
 import { localDungeonName } from "./dungeon-names.js";
 import { characterId, characterScores, DEFAULT_OFFICIAL, periodRules, publicRules, publicSeasons, publicWeek, rateRun, rulesAt, type PublicPeriod, type ScoreRow, type ScoreRun } from "./public-score.js";
@@ -23,7 +23,7 @@ import { EMBLEM_CSS, classEmblem, roleEmblem } from "./class-emblem.js";
 import { guildBanner } from "./guild-banner.js";
 import { classBorder, dungeonHeader, dungeonThumb } from "./dungeon-thumb.js";
 import { HUB_CSS, HUB_EMBLEMS, emptyBox, emptyPage, hubTabs, notFoundBody, movement, podium, searchForm, sectionArt, strip, trendBars, type PodiumEntry } from "./leaderboard-hub.js";
-import { climbers, newcomers, rankMovement, recordsBroken } from "./leaderboard-highlights.js";
+import { climbers, dungeonMilestones, newcomers, rankMovement, recordsBroken } from "./leaderboard-highlights.js";
 import { escapeHtml, link, options } from "./web-layout.js";
 import { SITEMAP_PAGE_SIZE, parseSitemapPath, sitemapFiles, sitemapIndex, sitemapUrlset, type SitemapEntry, type SitemapKind } from "./leaderboard-sitemap.js";
 import { siteUrl } from "../site-url.js";
@@ -868,7 +868,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     : `${sectionArt("dungeons")}<p class="eyebrow">Guilded · ${escapeHtml(periodName(ctx, period))}</p><h1>${ctx.t("Dungeon leaderboards", "Classements des donjons")}</h1>`
     // One plain sentence first; the full scoring and evidence rules stay one click away.
     + `<p>${ctx.t("The fastest dungeon clears by players and guilds using Guilded. Beat the final boss with your group, sync your runs and climb the board.", "Les donjons les plus rapides des joueurs et des guildes qui utilisent Guilded. Battez le boss final en groupe, synchronisez vos essais et montez au classement.")}</p>`
-    + `<details class="rules"><summary>${ctx.t("How scores work", "Comment les scores sont calculés")}</summary><p class="muted">${ctx.t("Team-clear scores and times from Guilded and Guilded Dungeons. Your score compares your time with each route's target; your best routes count, and targets remain provisional.",
+    + `<details class="rules"><summary>${ctx.t("How scores work", "Comment les scores sont calculés")}</summary><p><a href="${link("/leaderboards/scoring/", ctx.lang)}">${ctx.t("Read the full explanation →", "Lire l'explication complète →")}</a></p><p class="muted">${ctx.t("Team-clear scores and times from Guilded and Guilded Dungeons. Your score compares your time with each route's target; your best routes count, and targets remain provisional.",
       "Scores et temps d'équipe de Guilded et Guilded Dungeons. Votre score compare votre temps à la cible de chaque parcours ; vos meilleurs parcours comptent, et les cibles restent provisoires.")}`
     + (periodRules(period).bossScoring ? ` ${ctx.t(bossRuleText("en", periodRules(period).bossScoring), bossRuleText("fr", periodRules(period).bossScoring))}` : "")
     + (period.changedAt ? ` ${ctx.t(`Rules last changed on ${date(period.changedAt)}.`, `Règles modifiées pour la dernière fois le ${date(period.changedAt)}.`)}` : period.frozenAt ? ` ${ctx.t(`This season's rules were frozen on ${date(period.frozenAt)}.`, `Les règles de cette saison sont figées depuis le ${date(period.frozenAt)}.`)}` : "") + `</p></details>`;
@@ -1311,7 +1311,15 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       const name = found ? localDungeonName(found, lang) : t("Dungeon", "Donjon");
       const levels = [...new Set(runs.map((run) => run.bracket).filter((key): key is string => !!key))].sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
       const facts = [...(levels.length ? [escapeHtml(levels.map((key) => bracketName(ctx, key)).join(", "))] : []), ...(found ? [`${t("Record", "Record")} <b>${time(found.bestSec)}</b>`, `${found.runs} ${t("runs", "essais")}`] : [])];
-      body = dungeonHeader(escapeHtml(name), facts, found?.dungeonName, name) + (ranked.length
+      const marks = dungeonMilestones(runs, activeRules);
+      const markTile = (label: string, run: LeaderRun | null) => run ? `<div class="tile"><div class="k">${label}</div><div class="v"><a href="${link(runPath(run.runId), lang)}">${time(run.durationSec)}</a></div><div class="tag">${date(run.endedAt)} · ${party(ctx, run)}</div></div>` : "";
+      const milestones = marks.fastest ? `<div class="tiles">${markTile(t("Fastest clear", "Essai le plus rapide"), marks.fastest)}${markTile(t("First clear", "Première réussite"), marks.first)}</div>` : "";
+      const keep = { dungeon: String(filters.instanceId), season: filters.season, period: filters.week ? "week" : null, bracket: filters.bracket };
+      const presentClasses = FOREVER_CLASSES.filter((cls) => runs.some((run) => run.players.some((p) => p.className?.toLowerCase() === cls.toLowerCase())));
+      const classChips = presentClasses.length > 1 ? `<nav class="tabs views" aria-label="${t("Class", "Classe")}"><a class="${filters.className ? "" : "on"}" href="${link("/leaderboards/dungeons/", lang, { ...keep, role: filters.role })}">${t("All classes", "Toutes les classes")}</a>`
+        + presentClasses.map((cls) => `<a class="${filters.className?.toLowerCase() === cls.toLowerCase() ? "on" : ""}" href="${link("/leaderboards/dungeons/", lang, { ...keep, role: filters.role, class: cls })}">${escapeHtml(classLabel(cls, lang))}</a>`).join("") + `</nav>` : "";
+      const chips = roleTabs(ctx, "/leaderboards/dungeons/", { ...keep, class: filters.className }, filters.role) + classChips;
+      body = dungeonHeader(escapeHtml(name), facts, found?.dungeonName, name) + milestones + chips + (ranked.length
         ? table(["#", t("Character", "Personnage"), t("Role", "Rôle"), t("Time", "Temps"), t("Score", "Score"), t("Deaths", "Morts"), t("Party", "Groupe"), t("Date", "Date"), ""],
           ranked.map((entry, index) => `<tr class="rk${classBorder(classSlug(entry.player.className))}"><td>${index + 1}</td><td>${identity(ctx, entry.player)}</td>`
             + `<td>${roleEmblem(entry.player.role)}${entry.player.role ? escapeHtml(roleLabel(entry.player.role, lang)) : ""}</td>`
@@ -1521,8 +1529,6 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const rules = rulesAt(seasons, run.endedAt);
     const verdict = rateRun(run, rules);
     const period = seasons.find(p => (!p.from || run.endedAt >= p.from) && (!p.to || run.endedAt < p.to));
-    const score = run.challenge ? `+${run.challenge.level} · ${run.challenge.onTime ? t("In time", "À temps") : t("Overtime", "Hors délai")}`
-      : verdict.score ? `${verdict.score.points} · ${verdict.score.bracket}` : t("Unrated", "Non classé");
     const displayedTime = run.challenge ? challengeClock(run.challenge.durationMs) : time(run.durationSec);
     const title = localDungeonName(run, lang);
     const subtitle = `${period ? periodName(ctx, period) : t("Past run", "Ancien donjon")} · ${date(run.endedAt)} UTC`;
@@ -2019,8 +2025,45 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     return slice.length ? send(200, sitemapUrlset(slice, absolute)) : send(404, "");
   }
 
+  // "How scores work": written from the running season's own rules (the same numbers rateRun and characterScores use).
+  async function scoringPage(ctx: WebContext, kit: WebKit): Promise<WebResponse> {
+    const { t, lang } = ctx;
+    const season = (await seasonsNow())[0]!;
+    const rules = periodRules(season);
+    const len = leniencyOf(rules);
+    const penalty = rules.overlevelPenalty;
+    const presence = Math.round(len.presence * 100);
+    const bracketLines = rules.brackets.map((b) => `<li><strong>${escapeHtml(bracketName(ctx, b.key as string))}</strong>: ${t(`your best ${b.bestCount} routes count`, `vos ${b.bestCount} meilleurs parcours comptent`)}</li>`).join("");
+    const body = PAGE_CSS + HUB_CSS + hubTabs(t, lang, "dungeons") + breadcrumbs(lang, [[t("Leaderboards", "Classements"), link("/leaderboards/", lang)], [t("How scores work", "Comment les scores sont calculés"), null]], escapeHtml)
+      + `<p class="eyebrow">Guilded · ${escapeHtml(periodName(ctx, season))}</p><h1>${t("How dungeon scores work", "Comment les scores de donjon sont calculés")}</h1>`
+      + `<p>${t("A score compares your clear time with a target time for each dungeon. Faster than the target is worth more; slower is worth less. Your season score adds up your best dungeons.", "Un score compare votre temps de complétion à un temps cible pour chaque donjon. Plus rapide que la cible vaut plus de points ; plus lent, moins. Votre score de saison additionne vos meilleurs donjons.")}</p>`
+      + `<h2>${t("1. The score of one run", "1. Le score d'un essai")}</h2><ul>`
+      + `<li>${t("Score = 200 × target time ÷ your time, rounded. Matching the target gives 200. It never goes below 50 or above 400.", "Score = 200 × temps cible ÷ votre temps, arrondi. Atteindre la cible donne 200. Il ne descend jamais sous 50 ni ne dépasse 400.")}</li>`
+      + `<li>${t("Each dungeon route has its own target. Targets are provisional until enough launch data exists, and each season freezes the targets it started with.", "Chaque parcours de donjon a sa propre cible. Les cibles sont provisoires tant que les données du lancement manquent, et chaque saison fige les cibles de son départ.")}</li>`
+      + `<li>${t(`Playing above the levels of a route costs ${penalty.percentPerLevel}% of the score per level, up to ${penalty.maxLevels} levels above. Further above, the run is not ranked.`, `Jouer au-dessus des niveaux d'un parcours retire ${penalty.percentPerLevel} % du score par niveau, jusqu'à ${penalty.maxLevels} niveaux au-dessus. Plus haut, l'essai n'est pas classé.`)}</li>`
+      + (rules.bossScoring ? `<li>${escapeHtml(bossRuleText(lang, rules.bossScoring))}</li>` : "") + `</ul>`
+      + `<h2>${t("2. Which runs are ranked", "2. Quels essais sont classés")}</h2><ul>`
+      + `<li>${t("The run ends when the addon sees the final boss die. A manual stop does not count.", "L'essai se termine quand l'addon voit mourir le boss final. Un arrêt manuel ne compte pas.")}</li>`
+      + `<li>${t("The dungeon route and difficulty must be recognised, and the party's levels must fit the route.", "Le parcours et la difficulté doivent être reconnus, et les niveaux du groupe doivent convenir au parcours.")}</li>`
+      + `<li>${t(`A player earns the run only if they were inside for at least ${presence}% of it.`, `Un joueur obtient l'essai seulement s'il y est resté au moins ${presence} % du temps.`)}</li>`
+      + `<li>${t("A run that is not ranked still shows on the page as activity, with its time. Hover the dash in the score column to see why.", "Un essai non classé apparaît quand même sur la page comme activité, avec son temps. Survolez le tiret de la colonne du score pour voir pourquoi.")}</li></ul>`
+      + `<h2>${t("3. Your season score", "3. Votre score de saison")}</h2><ul>`
+      + `<li>${t("For each dungeon route, only your best run counts. Your score in a level bracket is the sum of your best routes there:", "Pour chaque parcours, seul votre meilleur essai compte. Votre score dans une tranche de niveaux est la somme de vos meilleurs parcours :")}<ul>${bracketLines}</ul></li>`
+      + `<li>${t("Example: two counted routes worth 150 and 200 points give 350.", "Exemple : deux parcours comptabilisés à 150 et 200 points donnent 350.")}</li>`
+      + `<li>${t("Tank, healer and DPS scores are computed from the runs played in that role only and are never added together.", "Les scores de tank, de soigneur et de DPS viennent uniquement des essais joués dans ce rôle et ne s'additionnent jamais.")}</li></ul>`
+      + `<h2>${t("4. Guild score", "4. Score de guilde")}</h2><p>${t(`A guild's score in a bracket is the sum of its ${GUILD_COUNT} best members' scores, so one strong player cannot carry a guild alone. Only members of the guild count.`, `Le score d'une guilde dans une tranche est la somme des scores de ses ${GUILD_COUNT} meilleurs membres : un seul joueur fort ne peut pas porter une guilde. Seuls les membres de la guilde comptent.`)}</p>`
+      + `<h2>${t("5. Records and first clears", "5. Records et premières réussites")}</h2><p>${t("Each dungeon page shows the fastest ranked clear and the first ranked clear of the season, and a time record only counts for runs that score.", "Chaque page de donjon montre l'essai classé le plus rapide et la première réussite classée de la saison ; un record de temps ne compte que pour les essais qui obtiennent un score.")}</p>`
+      + `<p class="muted">${t("Community reports from the Guilded addon. Provisional targets. Not verified by Blizzard.", "Rapports communautaires de l'addon Guilded. Cibles provisoires. Non vérifié par Blizzard.")}</p>`
+      + `<p><a href="${link("/leaderboards/dungeons/", lang)}">${t("Dungeon leaderboards →", "Classements des donjons →")}</a></p>`;
+    return kit.page(200, t("How dungeon scores work", "Comment les scores de donjon sont calculés"), body, {
+      documentTitle: seoTitle(t("How WoW Forever dungeon scores work", "Comment les scores de donjon WoW Forever sont calculés"), t("target time, best routes and guild score", "temps cible, meilleurs parcours et score de guilde")),
+      description: t("How Guilded scores WoW Forever dungeon runs: target times, the level penalty, which runs are ranked and how season and guild scores add up.", "Comment Guilded calcule le score des donjons WoW Forever : temps cibles, pénalité de niveau, essais classés et addition des scores de saison et de guilde.")
+    });
+  }
+
   const route: WebRoute = async (ctx, kit) => {
     const path = ctx.request.path;
+    if ((path === "/leaderboards/scoring/" || path === "/leaderboards/scoring") && ctx.request.method !== "POST") return scoringPage(ctx, kit);
     if ((path === "/leaderboards/sitemap.xml" || parseSitemapPath(path)) && ["GET", "HEAD"].includes(ctx.request.method)) return sitemap(ctx, path === "/leaderboards/sitemap.xml" ? "index" : path);
     if (path === "/leaderboards/guilds.json" && ["GET", "HEAD"].includes(ctx.request.method)) return guildsJson(ctx, null);
     const guildJson = /^\/leaderboards\/guild\/([A-Za-z0-9_-]{1,40})\.json$/.exec(path);

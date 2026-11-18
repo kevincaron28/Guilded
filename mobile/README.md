@@ -1,6 +1,6 @@
 # Guilded Mobile
 
-Android and iOS share this Expo SDK 58 project. Mobile version **0.4.0**
+Android and iOS share this Expo SDK 58 project. Mobile version **0.4.1**
 (the Android versionCode is kept and raised by EAS on each store build) is separate from the bot,
 addon and Windows companion version. Both store identifiers are
 `top.kcaron.guilded`; the Expo slug is `guilded-mobile`.
@@ -23,6 +23,8 @@ bot, addon and Windows companion version). Store identifiers are
 - **Alerts**: raid reminders on this phone, plus help-call, dungeon and raid
   vacancy alerts listed as switched off until push lands (PR #345).
 - **News**: Wowhead headlines and the Blizzard news link. Public.
+**0.4.1** (18 November 2026, owner decision "Yes, build it"; uploaded to testers only after 0.4.0 passes review): the polish round (#1104: safe areas, Android Back on every layer, retry cards and pull to refresh, 44 dp touch targets, empty-state art, simpler sign-in) and the portrait screen made optional for Play device reach (#1103).
+
 **0.4.0** (18 November 2026, owner decision "build 0.4.0"; a new runtime version, so it ships as a store build):
 
 - **Push alerts on** in store builds: the production profile needs the Firebase `GOOGLE_SERVICES_JSON` EAS file variable

@@ -5,7 +5,8 @@ import { cacheKey } from "../cache";
 import { t, type Lang } from "../i18n";
 import { PublicBoards, SeasonPicker } from "../PublicBoards";
 import { classColor, fetchDuels, type Duels } from "../publicApi";
-import { Card, EmptyState, Glyph, LastUpdated, RankNumber, RetryCard, Row, SegmentedTabs, StatTile, colors } from "../ui";
+import { Card, EmptyState, Glyph, LastUpdated, RankNumber, RetryCard, Row, SegmentedTabs, StatTile, colors, usePullToRefresh } from "../ui";
+import { useBack } from "../useBack";
 import { useCachedResource } from "../useCachedResource";
 
 // Stats tab: the weekly summary card, then Dungeons (the public leaderboards, by season) or Duels (the public duel ladder).
@@ -27,8 +28,11 @@ const w = (key: keyof typeof words, lang: Lang) => words[key][lang];
 
 const isSummary = (data: unknown): data is Summary => typeof data === "object" && data !== null && Array.isArray((data as Summary).topRuns);
 
-function SummaryCard({ origin, lang }: { origin: string; lang: Lang }) {
-  const feed = useCachedResource<Summary>(cacheKey("summary", origin), async () => parseSummary(await getJsonBounded(`${origin}/leaderboards/summary.json`)), isSummary);
+function useSummary(origin: string) {
+  return useCachedResource<Summary>(cacheKey("summary", origin), async () => parseSummary(await getJsonBounded(`${origin}/leaderboards/summary.json`)), isSummary);
+}
+
+function SummaryCard({ origin, lang, feed }: { origin: string; lang: Lang; feed: ReturnType<typeof useSummary> }) {
   const summary = feed.data;
   return <Card edge={colors.gold} style={styles.card}>
     <Text style={styles.label}>{(summary?.season ?? "Guilded").toUpperCase()}</Text>
@@ -38,7 +42,7 @@ function SummaryCard({ origin, lang }: { origin: string; lang: Lang }) {
       {summary.topRuns.map((run, i) => <View key={`${run.dungeon}-${i}`} style={styles.run} accessible accessibilityLabel={`${i + 1}, ${run.dungeon}, ${run.score}`}><Text style={styles.rank}>0{i + 1}</Text><Text style={styles.runName}>{run.dungeon}</Text><Text style={styles.score}>{run.score}</Text></View>)}
     </>}
     <LastUpdated lang={lang} savedAt={feed.savedAt} stale={feed.stale && feed.failed} />
-    <Pressable onPress={() => void Linking.openURL(`${origin}/players/`)} accessibilityRole="link" accessibilityLabel={t(lang, "players")} style={styles.link}><Text style={styles.linkText}>{t(lang, "players")}</Text><Glyph name="external" /></Pressable>
+    <Pressable onPress={() => void Linking.openURL(`${origin}/players/`).catch(() => {})} accessibilityRole="link" accessibilityLabel={t(lang, "players")} style={styles.link}><Text style={styles.linkText}>{t(lang, "players")}</Text><Glyph name="external" /></Pressable>
   </Card>;
 }
 
@@ -50,7 +54,8 @@ function DuelsBoard({ origin, lang }: { origin: string; lang: Lang }) {
   const [season, setSeason] = useState<string | undefined>(undefined);
   const feed = useCachedResource<DuelsState>(cacheKey("duels", origin, lang, season ?? "current"), async () => ({ duels: await fetchDuels(origin, lang, season) }), isDuelsState);
   const duels = feed.data?.duels ?? null;
-  return <ScrollView contentContainerStyle={styles.content}>
+  const refreshControl = usePullToRefresh(feed.reload);
+  return <ScrollView contentContainerStyle={styles.content} refreshControl={refreshControl}>
     <Text style={styles.kicker}>{(duels?.seasons.find((s) => s.id === duels.season)?.label ?? "GUILDED").toUpperCase()}</Text>
     <Text style={styles.bigTitle}>{w("duelTitle", lang)}</Text>
     <Text style={styles.intro}>{w("duelIntro", lang)}</Text>
@@ -71,9 +76,12 @@ function DuelsBoard({ origin, lang }: { origin: string; lang: Lang }) {
 
 export function StatsTab({ origin, lang }: { origin: string; lang: Lang }) {
   const [section, setSection] = useState<Section>("dungeons");
+  const summary = useSummary(origin);
+  // Android Back from Duels returns to Dungeons.
+  useBack(section === "duels", () => setSection("dungeons"));
   const picker = <View style={styles.sections}><SegmentedTabs options={(["dungeons", "duels"] as const).map((value) => ({ value, label: w(value, lang) }))} value={section} onChange={setSection} /></View>;
   if (section === "duels") return <View style={styles.fill}><View style={styles.pickerBar}>{picker}</View><DuelsBoard origin={origin} lang={lang} /></View>;
-  return <PublicBoards origin={origin} lang={lang} header={<><SummaryCard origin={origin} lang={lang} />{picker}</>} />;
+  return <PublicBoards origin={origin} lang={lang} header={<><SummaryCard origin={origin} lang={lang} feed={summary} />{picker}</>} onPull={summary.reload} />;
 }
 
 const styles = StyleSheet.create({

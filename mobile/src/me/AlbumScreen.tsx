@@ -13,6 +13,8 @@ const words = {
   mine: { en: "Unlocked", fr: "Débloquées" },
   of: { en: "unlocked", fr: "débloquées" },
   fresh: { en: "NEW", fr: "NOUVEAU" },
+  secret: { en: "secret", fr: "secret" },
+  secrets: { en: "secrets", fr: "secrets" },
   locked: { en: "Locked", fr: "Verrouillée" },
   how: { en: "How to earn", fr: "Comment l'obtenir" },
   unlockedOn: { en: "Unlocked", fr: "Débloquée le" },
@@ -68,7 +70,7 @@ export function AlbumScreen({ lang, session }: { lang: Lang; session: Session | 
   return <View>
     <Text style={styles.heading}>{w("title", lang)}</Text>
     <Text style={styles.muted}>{session ? w("intro", lang) : w("sample", lang)}</Text>
-    <Text style={styles.total}>{album.earned} / {album.total} {w("of", lang)}{album.hiddenSecrets ? `  +${album.hiddenSecrets} secret${album.hiddenSecrets === 1 ? "" : "s"}` : ""}</Text>
+    <Text style={styles.total}>{album.earned} / {album.total} {w("of", lang)}{album.hiddenSecrets ? `  +${album.hiddenSecrets} ${w(album.hiddenSecrets === 1 ? "secret" : "secrets", lang)}` : ""}</Text>
     <ProgressBar done={album.earned} total={album.total} />
     <View style={styles.chips}><SegmentedTabs options={[{ value: "all", label: w("all", lang) }, { value: "mine", label: w("mine", lang) }]} value={onlyMine ? "mine" : "all"} onChange={(next) => setOnlyMine(next === "mine")} /></View>
     {onlyMine && album.earned === 0 ? <EmptyState art="season" message={w("empty", lang)} /> : null}

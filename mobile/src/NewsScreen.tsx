@@ -4,7 +4,7 @@ import { cacheKey } from "./cache";
 import { BLIZZARD_NEWS_URL, ago, parseNews, type News } from "./news";
 import { useCachedResource } from "./useCachedResource";
 import type { Lang } from "./i18n";
-import { Card, EmptyState, Glyph, LastUpdated, RetryCard, colors } from "./ui";
+import { Card, EmptyState, Glyph, LastUpdated, RetryCard, colors, usePullToRefresh } from "./ui";
 
 const words = {
   kicker: { en: "WOW NEWS", fr: "NOUVELLES WOW" },
@@ -25,7 +25,8 @@ export function NewsScreen({ origin, lang }: { origin: string; lang: Lang }) {
   const feed = useCachedResource<News>(cacheKey("news", origin), async () => parseNews(await getJsonBounded(`${origin}/news/headlines.json`)), isNews);
   const news = feed.data;
   const now = Date.now();
-  return <ScrollView contentContainerStyle={styles.content}>
+  const refreshControl = usePullToRefresh(feed.reload);
+  return <ScrollView contentContainerStyle={styles.content} refreshControl={refreshControl}>
     <Text style={styles.kicker}>{w("kicker", lang)}</Text>
     <Text style={styles.title}>{w("title", lang)}</Text>
     <Text style={styles.intro}>{w("intro", lang)}</Text>
@@ -36,12 +37,12 @@ export function NewsScreen({ origin, lang }: { origin: string; lang: Lang }) {
       : news.items.length === 0 ? <EmptyState art="search" message={w("empty", lang)} />
       : <Card style={styles.card}>
         <Text style={styles.label}>{w("via", lang).toUpperCase()}</Text>
-        {news.items.map((item) => <Pressable key={item.url} onPress={() => void Linking.openURL(item.url)} accessibilityRole="link" accessibilityLabel={item.title} style={styles.row}>
+        {news.items.map((item) => <Pressable key={item.url} onPress={() => void Linking.openURL(item.url).catch(() => {})} accessibilityRole="link" accessibilityLabel={item.title} style={styles.row}>
           <Text style={styles.headline}>{item.title}</Text>
           <Text style={styles.sub}>{ago(item.publishedAt, now, lang)}</Text>
         </Pressable>)}
       </Card>}
-    <Pressable onPress={() => void Linking.openURL(BLIZZARD_NEWS_URL)} accessibilityRole="link" accessibilityLabel={w("blizzard", lang)} style={styles.action}><Text style={styles.actionText}>{w("blizzard", lang)}</Text><Glyph name="external" /></Pressable>
+    <Pressable onPress={() => void Linking.openURL(BLIZZARD_NEWS_URL).catch(() => {})} accessibilityRole="link" accessibilityLabel={w("blizzard", lang)} style={styles.action}><Text style={styles.actionText}>{w("blizzard", lang)}</Text><Glyph name="external" /></Pressable>
   </ScrollView>;
 }
 

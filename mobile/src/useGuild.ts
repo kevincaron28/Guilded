@@ -124,7 +124,7 @@ export function useGuild(defaultOrigin: string) {
       stale: fellBack
     });
     setLoading(false);
-    } finally { inFlight.current = false; }
+    } finally { inFlight.current = false; setLoading(false); }
   }, [lang]);
 
   // Back in the app: refresh the guild (also renews the credential and re-checks push).

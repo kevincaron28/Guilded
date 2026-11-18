@@ -2,15 +2,16 @@ import { useRef, useState } from "react";
 import { KeyboardAvoidingView, Linking, Platform, Pressable, Text, View } from "react-native";
 import { t } from "../i18n";
 import type { GuildState } from "../useGuild";
-import { Card, ClassName, EmptyState, Glyph, Screen, SignInCard, shownName } from "../ui";
+import { Card, ClassName, EmptyState, Glyph, Screen, SignInCard, colors, shownName } from "../ui";
 import { common } from "../ui/common";
 
-const linkRow = { flexDirection: "row", alignItems: "center", gap: 8 } as const;
 import { Language } from "../guild/SignIn";
 import { AlbumScreen } from "./AlbumScreen";
 import { Wishlist } from "./Wishlist";
 import { DELETE_INFO_URL, PRIVACY_URL } from "../links";
 import * as clashEntry from "../clash/entry";
+
+const linkRow = { flexDirection: "row", alignItems: "center", gap: 8 } as const;
 
 // Guilded Clash is on hold (owner, 14 November 2026): hidden, not deleted. metro.config.js resolves this module
 // to an empty one unless the build sets EXPO_PUBLIC_GUILDED_CLASH=1, so a store bundle carries neither the game
@@ -55,7 +56,7 @@ export function MeTab({ guild, onSignIn }: { guild: GuildState; onSignIn: () => 
         <Text style={common.muted}>{t(lang, "mapShareHere")}</Text>
       </> : null}
       <Settings guild={guild} />
-      <Pressable onPress={() => void guild.leave()} style={common.secondary}><Text style={common.secondaryText}>{preview ? t(lang, "closeSample") : t(lang, "signOut")}</Text></Pressable>
+      <Pressable onPress={() => void guild.leave()} accessibilityRole="button" style={common.secondary}><Text style={common.secondaryText}>{preview ? t(lang, "closeSample") : t(lang, "signOut")}</Text></Pressable>
     </Screen>
   </KeyboardAvoidingView>;
 }
@@ -63,7 +64,7 @@ export function MeTab({ guild, onSignIn }: { guild: GuildState; onSignIn: () => 
 function Settings({ guild }: { guild: GuildState }) {
   return <>
     <Text style={common.label}>{t(guild.lang, "settings").toUpperCase()}</Text>
-    <Text style={common.muted}>{t(guild.lang, "language")}</Text>
+    <Text style={common.muted} accessibilityRole="header">{t(guild.lang, "language")}</Text>
     <Language lang={guild.lang} setLang={guild.setLang} />
     <Pressable onPress={() => void Linking.openURL(PRIVACY_URL).catch(() => {})} accessibilityRole="link" accessibilityLabel={t(guild.lang, "privacyPolicy")} style={[common.textButton, linkRow]}>
       <Text style={common.textButtonLabel}>{t(guild.lang, "privacyPolicy")}</Text><Glyph name="external" />
@@ -113,10 +114,10 @@ function DeleteMyData({ guild }: { guild: GuildState }) {
     </> : <Card edge={null}>
       <Text style={common.heroTitle}>{t(lang, "deleteConfirmTitle")}</Text>
       <Text style={common.muted}>{t(lang, "deleteConfirmBody")}</Text>
-      <Pressable onPress={() => void run()} disabled={step === "working"} accessibilityRole="button" style={common.secondary}>
-        <Text style={[common.secondaryText, { color: "#e7b4a8" }]}>{step === "working" ? t(lang, "deleteWorking") : t(lang, "deleteConfirmYes")}</Text>
+      <Pressable onPress={() => void run()} disabled={step === "working"} accessibilityRole="button" accessibilityState={{ disabled: step === "working" }} style={[common.secondary, step === "working" && common.disabled]}>
+        <Text style={[common.secondaryText, { color: colors.error }]}>{step === "working" ? t(lang, "deleteWorking") : t(lang, "deleteConfirmYes")}</Text>
       </Pressable>
-      <Pressable onPress={() => setStep("idle")} disabled={step === "working"} accessibilityRole="button" style={common.secondary}>
+      <Pressable onPress={() => setStep("idle")} disabled={step === "working"} accessibilityRole="button" style={[common.secondary, step === "working" && common.disabled]}>
         <Text style={common.secondaryText}>{t(lang, "deleteConfirmNo")}</Text>
       </Pressable>
     </Card>}

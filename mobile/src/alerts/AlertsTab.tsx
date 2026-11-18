@@ -11,8 +11,13 @@ const PUSH_ROWS: CopyKey[] = ["pushHelp", "pushDungeon", "pushRaid"];
 
 export function AlertsTab({ guild, onSignIn }: { guild: GuildState; onSignIn: () => void }) {
   const { lang } = guild;
+  // A personal sign-in (public leaderboards and badges only) has no guild, so no raids to remind about.
+  if (guild.session?.personal && !guild.preview) return <Screen>
+    <Text style={common.title}>{t(lang, "personalTitle")}</Text>
+    <Text style={common.intro}>{t(lang, "personalBody")}</Text>
+  </Screen>;
   if (!guild.hasGuild) return <Screen><SignInCard lang={lang} onSignIn={onSignIn} /></Screen>;
-  return <Screen>
+  return <Screen onRefresh={guild.refresh}>
     {guild.preview ? <Text style={common.banner}>{t(lang, "sampleBanner")}</Text> : null}
     <Alerts lang={lang} preview={guild.preview} remindersOn={guild.remindersOn} setRemindersOn={guild.setRemindersOn}
       planned={guild.planned} imminent={guild.imminent} sync={guild.reminderSync} />

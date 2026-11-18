@@ -12,6 +12,8 @@ export interface CachedResource<T> {
   /** A fresh copy is being fetched. */
   refreshing: boolean;
   retry: () => void;
+  /** Pull to refresh: fetch again without clearing what is on screen (no layout jump); the promise settles when done. */
+  reload: () => Promise<void>;
 }
 
 /**
@@ -50,5 +52,13 @@ export function useCachedResource<T>(key: string, load: () => Promise<T>, accept
   }, [key, attempt]);
 
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
-  return { data, savedAt, failed, stale, refreshing, retry };
+  const reload = useCallback(async () => {
+    try {
+      const fresh = await loadRef.current();
+      const now = Date.now();
+      setData(fresh); setSavedAt(now); setStale(false); setFailed(false);
+      void writeCache(key, fresh, now);
+    } catch { setFailed(true); }
+  }, [key]);
+  return { data, savedAt, failed, stale, refreshing, retry, reload };
 }

@@ -3,7 +3,7 @@ import { Linking, Pressable, Text, View } from "react-native";
 import { discordEventLink, withMine, type CoreBoard, type HubView, type ManageView, type StandingsView } from "../api";
 import { formatPr, formatWhen, lootModeLabel, roleLabel, t, type Lang } from "../i18n";
 import { classesOf, filterCharacters, filterStandings, filtersActive, noFilters, type CharacterSort, type RosterFilters, type StandingSort } from "../rosterFilter";
-import { shownName } from "../ui";
+import { EmptyState, shownName } from "../ui";
 import { common } from "../ui/common";
 import { RosterControls } from "./RosterControls";
 
@@ -25,9 +25,9 @@ export function Characters({ lang, hub, error }: { lang: Lang; hub: HubView | nu
     {hub.characters.length >= CONTROLS_FROM ? <RosterControls lang={lang} search={filters.search} onSearch={(search) => setFilters({ ...filters, search })}
       classes={classesOf(hub.characters)} className={filters.className} onClass={(className) => setFilters({ ...filters, className })}
       role={filters.role} onRole={(role) => setFilters({ ...filters, role })} sorts={CHARACTER_SORTS} sort={sort} onSort={setSort} /> : null}
-    {hub.characters.length === 0 ? <Text style={common.intro}>{t(lang, "noCharacters")}</Text> : shown.length === 0 && filtersActive(filters) ? <Text style={common.muted}>{t(lang, "noMatches")}</Text> : shown.map((character) => <View key={character.id} style={common.hero} accessible accessibilityLabel={[shownName(character), character.className, character.level ? `${t(lang, "level")} ${character.level}` : null, character.realm].filter(Boolean).join(", ")}>
+    {hub.characters.length === 0 ? <EmptyState art="guild" message={t(lang, "noCharacters")} /> : shown.length === 0 && filtersActive(filters) ? <Text style={common.muted}>{t(lang, "noMatches")}</Text> : shown.map((character) => <View key={character.id} style={common.hero} accessible accessibilityLabel={[shownName(character), character.className, character.level ? `${t(lang, "level")} ${character.level}` : null, character.realm].filter(Boolean).join(", ")}>
       <View style={common.titleRow}>
-        <Text style={common.heroTitle}>{shownName(character)}</Text>
+        <Text style={[common.heroTitle, { flexShrink: 1 }]}>{shownName(character)}</Text>
         <Text style={common.pill}>{character.isMain ? t(lang, "main") : character.className}</Text>
       </View>
       <Text style={common.muted}>{[character.spec, character.className].filter(Boolean).join(" ")}{character.level ? ` · ${t(lang, "level")} ${character.level}` : ""}</Text>
@@ -50,9 +50,9 @@ export function Reserves({ lang, hub, error }: { lang: Lang; hub: HubView | null
       <Text style={common.muted}>{t(lang, "reservesIntro")}</Text>
       {soft.length ? <Text style={common.body}>{t(lang, "coresUsing")}: {soft.map((core) => `${core.name} (${t(lang, "perPlayer", { count: core.reservesPerPlayer ?? 0 })})`).join(", ")}</Text> : <Text style={common.muted}>{t(lang, "noSoftReserveCores")}</Text>}
     </View>
-    {!reserves.list?.active ? <Text style={common.intro}>{t(lang, "noReserveList")}</Text> : <View style={common.hero}>
+    {!reserves.list?.active ? <EmptyState art="runs" boxed message={t(lang, "noReserveList")} /> : <View style={common.hero}>
       <View style={common.titleRow}>
-        <Text style={common.heroTitle}>{reserves.list.title || t(lang, "reserves")}</Text>
+        <Text style={[common.heroTitle, { flexShrink: 1 }]}>{reserves.list.title || t(lang, "reserves")}</Text>
         <Text style={common.pill}>{reserves.list.open ? t(lang, "reserveOpen") : t(lang, "reserveLocked")}</Text>
       </View>
       <Text style={common.body}>{t(lang, "yourReserves")}: {reserves.mineCount}</Text>
@@ -94,12 +94,12 @@ export function Raids({ lang, hub, manage, standings, error }: { lang: Lang; hub
           <Text style={common.body}>{raid.title}</Text>
           <Text style={common.muted}>{formatWhen(raid.at, lang)}{raid.core ? ` · ${raid.core}` : ""}</Text>
         </View>
-        {link ? <Pressable onPress={() => void Linking.openURL(link)}><Text style={common.textButtonLabel}>{t(lang, "openDiscord")}</Text></Pressable> : null}
+        {link ? <Pressable onPress={() => void Linking.openURL(link).catch(() => {})} accessibilityRole="link" style={common.textButton}><Text style={common.textButtonLabel}>{t(lang, "openDiscord")}</Text></Pressable> : null}
       </View>;
     })}
     <Text style={common.label}>{t(lang, "standings")}</Text>
     {searching ? <RosterControls lang={lang} search={search} onSearch={setSearch} sorts={STANDING_SORTS} sort={sort} onSort={setSort} /> : null}
-    {rows.length === 0 ? <Text style={common.muted}>{t(lang, search.trim() ? "noMatches" : "noStandings")}</Text> : rows.map((row) => <View key={row.character} style={common.row} accessible accessibilityLabel={`${row.mine ? `${t(lang, "you")}, ` : ""}${row.character}, EP ${row.ep}, GP ${row.gp}, ${formatPr(row.pr)}`}>
+    {rows.length === 0 ? (search.trim() ? <Text style={common.muted}>{t(lang, "noMatches")}</Text> : <EmptyState art="runs" boxed message={t(lang, "noStandings")} />) : rows.map((row) => <View key={row.character} style={common.row} accessible accessibilityLabel={`${row.mine ? `${t(lang, "you")}, ` : ""}${row.character}, EP ${row.ep}, GP ${row.gp}, ${formatPr(row.pr)}`}>
       <Text style={[common.body, { flex: 1 }]}>{row.mine ? `${t(lang, "you")} · ` : ""}{row.character}</Text>
       <Text style={common.muted}>{row.ep} / {row.gp} · {formatPr(row.pr)}</Text>
     </View>)}

@@ -11,7 +11,7 @@ export const common = StyleSheet.create({
   intro: { color: colors.muted, fontSize: 15, lineHeight: 22, marginTop: 10, marginBottom: 8 },
   muted: { color: colors.muted, fontSize: 13, lineHeight: 20, marginTop: 4 },
   body: { color: colors.text, fontSize: 14, lineHeight: 20, marginTop: 4 },
-  error: { color: "#e7b4a8", fontSize: 14, lineHeight: 20, marginTop: 12 },
+  error: { color: colors.error, fontSize: 14, lineHeight: 20, marginTop: 12 },
   hero: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: 16, marginTop: 16 },
   heroTitle: { color: colors.text, fontSize: 18, fontWeight: "700" },
   label: { color: colors.gold, fontSize: 12, letterSpacing: 1.4, fontWeight: "700", marginTop: 18 },
@@ -24,8 +24,8 @@ export const common = StyleSheet.create({
   textButton: { minHeight: 44, justifyContent: "center" },
   textButtonLabel: { color: colors.gold, fontSize: 13, fontWeight: "700" },
   input: { borderWidth: 1, borderColor: colors.line, backgroundColor: colors.bg, color: colors.text, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 12, fontSize: 16, marginTop: 8 },
-  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingVertical: 12 },
-  chip: { borderWidth: 1, borderColor: colors.line, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8 },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingVertical: 8 },
+  chip: { borderWidth: 1, borderColor: colors.line, borderRadius: 22, paddingHorizontal: 14, minHeight: 44, justifyContent: "center" },
   chipOn: { borderColor: colors.gold, backgroundColor: "#2a2416" },
   chipText: { color: colors.muted, fontSize: 13 },
   chipTextOn: { color: colors.gold, fontWeight: "700" },
@@ -33,8 +33,9 @@ export const common = StyleSheet.create({
   pill: { color: colors.gold, borderWidth: 1, borderColor: "#3a3424", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, fontSize: 12, overflow: "hidden" },
   note: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 18 },
   langRow: { flexDirection: "row", gap: 8, marginTop: 8 },
-  lang: { minWidth: 44, minHeight: 36, borderRadius: 8, borderWidth: 1, borderColor: colors.line, alignItems: "center", justifyContent: "center" },
+  lang: { minWidth: 48, minHeight: 44, borderRadius: 8, borderWidth: 1, borderColor: colors.line, alignItems: "center", justifyContent: "center" },
   langOn: { borderColor: colors.gold },
   langText: { color: colors.muted, fontSize: 12, fontWeight: "700" },
-  langTextOn: { color: colors.gold }
+  langTextOn: { color: colors.gold },
+  disabled: { opacity: 0.5 }
 });

@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { GuildedClient, type ManageView, type WishCharacter } from "../api";
 import { t, type Lang } from "../i18n";
 import type { Session } from "../storage";
-import { Card, SegmentedTabs, colors, shownName } from "../ui";
+import { Card, EmptyState, SegmentedTabs, colors, shownName } from "../ui";
 
 // The wishlist (per character). Moved out of GuildScreen for the redesign (docs/plans/APP_REDESIGN.md):
 // it belongs to Me, next to the badges. Same endpoint (/api/v1/manage) and the same behaviour.
@@ -65,17 +65,18 @@ export function Wishlist({ lang, preview, session, manage, error, onChange }: {
   if (!manage) return null;
   return <>
     <Text style={styles.intro}>{t(lang, "wishlistIntro")}</Text>
+    {!selected ? <EmptyState art="guild" message={t(lang, "noCharacters")} /> : null}
     {selected ? <View style={styles.chips}><SegmentedTabs options={manage.characters.map((character) => ({ value: character.id, label: shownName(character) }))} value={selected.id} onChange={setCharacterId} /></View> : null}
     {notice ? <Text style={styles.muted}>{notice}</Text> : null}
-    {selected && selected.wishlist.length === 0 ? <Text style={styles.muted}>{t(lang, "noWishes")}</Text> : selected?.wishlist.map((wish) => <View key={wish.itemName} style={styles.row}>
+    {selected && selected.wishlist.length === 0 ? <EmptyState art="search" message={t(lang, "noWishes")} /> : selected?.wishlist.map((wish) => <View key={wish.itemName} style={styles.row}>
       <Text style={[styles.body, { flex: 1 }]}>{wish.priority}. {wish.itemName}</Text>
-      <Pressable onPress={() => void remove(wish.itemName)}><Text style={styles.textButtonLabel}>{t(lang, "remove")}</Text></Pressable>
+      <Pressable onPress={() => void remove(wish.itemName)} accessibilityRole="button" accessibilityLabel={`${t(lang, "remove")}: ${wish.itemName}`} style={styles.removeButton}><Text style={styles.textButtonLabel}>{t(lang, "remove")}</Text></Pressable>
     </View>)}
     {selected ? <Card style={styles.form}>
-      <TextInput value={item} onChangeText={setItem} placeholder={t(lang, "itemPlaceholder")} placeholderTextColor={colors.muted} style={styles.input} />
+      <TextInput value={item} onChangeText={setItem} onSubmitEditing={() => void add()} returnKeyType="done" accessibilityLabel={t(lang, "itemPlaceholder")} placeholder={t(lang, "itemPlaceholder")} placeholderTextColor={colors.muted} style={styles.input} />
       <Text style={styles.label}>{t(lang, "priority")}</Text>
       <SegmentedTabs options={[1, 2, 3].map((value) => ({ value, label: String(value) }))} value={priority} onChange={setPriority} />
-      <Pressable onPress={() => void add()} disabled={busy || !item.trim()} style={styles.primary}><Text style={styles.primaryText}>{t(lang, "add")}</Text></Pressable>
+      <Pressable onPress={() => void add()} disabled={busy || !item.trim()} accessibilityRole="button" accessibilityState={{ disabled: busy || !item.trim() }} style={[styles.primary, (busy || !item.trim()) && styles.disabled]}><Text style={styles.primaryText}>{t(lang, "add")}</Text></Pressable>
     </Card> : null}
   </>;
 }
@@ -89,6 +90,8 @@ const styles = StyleSheet.create({
   chips: { paddingVertical: 12 },
   form: { marginTop: 16 },
   row: { flexDirection: "row", alignItems: "center", gap: 12, borderTopWidth: 1, borderColor: colors.line, paddingVertical: 12 },
+  removeButton: { minHeight: 44, minWidth: 44, justifyContent: "center", alignItems: "flex-end" },
+  disabled: { opacity: 0.5 },
   textButtonLabel: { color: colors.gold, fontSize: 13, fontWeight: "700" },
   input: { borderWidth: 1, borderColor: colors.line, backgroundColor: colors.bg, color: colors.text, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 12, fontSize: 16, marginTop: 8 },
   primary: { backgroundColor: colors.gold, borderRadius: 8, minHeight: 48, alignItems: "center", justifyContent: "center", marginTop: 16, paddingHorizontal: 16 },

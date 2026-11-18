@@ -1,5 +1,20 @@
 # Changelog
 
+## 9.3.11 — 18 November 2026
+
+Raid progress. Prepared 18 November 2026, not yet published. Not yet confirmed on real clients (see docs/V9_3_11_RELEASE_ACCEPTANCE.md). Details: docs/V9_3_11_RELEASE_NOTES.md.
+
+Addon and companion:
+
+- The addon records raid boss kills (boss, time, difficulty, how many guild members were there) for the public raid progress board; `/guilded raidprogress` lists them. The companion uploads them with your other data (#1108).
+
+Bot and website (already live):
+
+- Raid progress board at /leaderboards/raids/ with world firsts per boss, open from the 9 December raid launch (#1108).
+- Opt-in weekly "Records broken this week" card (`/report stats records-posts:true`) (#1108).
+- Search-friendly player, guild and run pages with sitemaps, WoW armory links, fastest and first clear per dungeon, class and role filters, a "How scores work" page, and the climbers list fixed (#1107).
+- Guild-invite requests suggest `/who` and a whisper in game (#1106).
+
 ## 9.3.10 — 18 November 2026
 
 Direct party invites and layer auto-invite. Published 18 November 2026 (GitHub, the website download and the bot; CurseForge files 9677628 and 9677629 in review; Store 9.3.10.0 submitted). Not yet confirmed on real clients (see docs/V9_3_10_RELEASE_ACCEPTANCE.md). Details: docs/V9_3_10_RELEASE_NOTES.md.

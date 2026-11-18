@@ -219,6 +219,13 @@ function page.allEntries()
     function(on) run("sos chat " .. (on and "on" or "off")) end)
   add({ tab = "dungeons", group = "Call for help", kind = "action", label = "Mute 10 min", who = "me", saved = "(this session only)",
     desc = "No call for help windows for 10 minutes (until you log out or reload).", run = function() run("sos mute") end })
+  -- (9.4) Layer invite: the same switches as /guilded layer helper on|off and /guilded layer auto on|off.
+  check("dungeons", "Layer invite", "Show guildmates' layer requests", "A small window when a guildmate on your continent asks to be invited onto another layer.", "me", "GuildedDB.layer.helper",
+    function() return ns.layerInvite and ns.layerInvite.helper and ns.layerInvite.helper() or false end,
+    function(on) run("layer helper " .. (on and "on" or "off")) end, { wide = true })
+  check("dungeons", "Layer invite", "Auto-invite layer requests on my continent", "Off by default. A guildmate's layer request on your continent pops up at once, top centre, with a sound and an Invite button. The game still needs your click: Invite shows the /invite line to paste (WoW does not let addons invite by themselves).", "me", "GuildedDB.layer.auto",
+    function() return ns.layerInvite and ns.layerInvite.autoInvite and ns.layerInvite.autoInvite() or false end,
+    function(on) run("layer auto " .. (on and "on" or "off")) end, { wide = true })
   add({ tab = "dungeons", group = "Call for help", kind = "action", label = "Reset call window", who = "me", saved = "settings.helpPos",
     desc = "Puts the call for help window back at its default place. Drag its title to move it.", run = function() run("sos reset") end })
   check("dungeons", "Duels", "Show a card after each of my duels", "Shows a small card with the result, the record and the rank change after each of your guild duels. Type /guilded duels card test to preview it.", "me", "settings.duelCard",

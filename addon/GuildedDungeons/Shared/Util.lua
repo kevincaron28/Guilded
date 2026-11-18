@@ -578,9 +578,73 @@ function util.inviteMacro(kind, name)
   return (kind == "party" and "/invite " or "/ginvite ") .. name
 end
 
+-- (9.4) A direct party invite, only as a test the player switched on (/guilded layer direct on): the evidence says
+-- the game refuses it (#731: "Guilded tried to call Invite()" when /guilded invite raid called C_PartyInfo.InviteUnit
+-- from a typed command, a hardware event like a click), but a later client build may allow it. It runs only inside a
+-- party Invite click, out of combat, and never from an event. A refusal (the game raises ADDON_ACTION_BLOCKED or
+-- ADDON_ACTION_FORBIDDEN inside the call; Core.lua hands it to util.noteInviteBlocked) is remembered for this client
+-- build: the test switch turns itself off and every Invite button shows the copy box again, with no second popup.
+-- Saved: GuildedDB.inviteDirect = { try = true|nil, refused = "<build>"|nil }.
+local function clientBuild()
+  if type(GetBuildInfo) ~= "function" then return "?" end
+  local ok, _, build = pcall(GetBuildInfo)
+  return ok and not isSecret(build) and tostring(build or "?") or "?"
+end
+util.clientBuild = clientBuild
+local function directState()
+  local db = ns.getDb and ns.getDb()
+  if type(db) ~= "table" then return nil end
+  db.inviteDirect = type(db.inviteDirect) == "table" and db.inviteDirect or {}
+  return db.inviteDirect
+end
+function util.directInviteRefused()
+  local state = directState()
+  return state ~= nil and state.refused ~= nil and state.refused == clientBuild()
+end
+function util.directInviteTesting()
+  local state = directState()
+  return state ~= nil and state.try == true and not util.directInviteRefused()
+end
+function util.setDirectInviteTest(on)
+  local state = directState()
+  if not state then return false end
+  state.try = on and true or nil
+  return true
+end
+local directAttempt   -- { at = GetTime(), refused = bool } while (and just after) a direct invite runs
+local function recordRefusal()
+  local state = directState()
+  if state then state.refused = clientBuild(); state.try = nil end
+  if directAttempt then directAttempt.refused = true end
+end
+-- Core.lua calls this on every ADDON_ACTION_BLOCKED/FORBIDDEN naming Guilded. True when it was the direct invite.
+function util.noteInviteBlocked(named)
+  local attempt = directAttempt
+  if not attempt then return false end
+  local now = GetTime and GetTime() or 0
+  if now < attempt.at or now - attempt.at > 2 then directAttempt = nil; return false end
+  if type(named) == "string" and named ~= "" and named ~= "UNKNOWN" and not named:find("Invite") then return false end
+  recordRefusal()
+  return true
+end
+-- Only from a party Invite click. Returns true when the game took the invite without refusing it.
+function util.tryDirectInvite(name)
+  if type(name) ~= "string" or name == "" or util.inCombat() or not util.directInviteTesting() then return false end
+  local invite = (C_PartyInfo and C_PartyInfo.InviteUnit) or InviteUnit
+  if type(invite) ~= "function" then return false end
+  directAttempt = { at = GetTime and GetTime() or 0, refused = false }
+  ns.guardedCall = { name = "C_PartyInfo.InviteUnit (Invite button, direct invite test)" }
+  local ok = pcall(invite, name)
+  ns.guardedCall = nil
+  if not ok then recordRefusal() end
+  return not directAttempt.refused
+end
+
 -- kind: "guild" or "party". The returned button has button.setInvite(name), button.inviteName() (the name it
 -- invites right now) and button.inviteLine() (the chat line). A click shows the line in the copy box and says to
 -- copy and paste it (or, without a copy box, which line to type), then runs onClick(name, shown).
+-- A party button tries the direct invite first while the player's test switch is on (util.tryDirectInvite); when the
+-- game takes it, onClick(name, false, line, true) runs and no copy box is shown.
 function util.inviteButton(parent, kind, text, width, height, onClick)
   local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
   if width and button.SetWidth then button:SetWidth(width) end
@@ -598,6 +662,11 @@ function util.inviteButton(parent, kind, text, width, height, onClick)
   local function tr(textKey) return ns.L and ns.L(textKey) or textKey end
   button:SetScript("OnClick", function()
     if not line then return end
+    if kind == "party" and util.tryDirectInvite(target) then
+      if ns.message and button.quiet ~= true then ns.message(string.format(tr("Direct invite test: invite sent to %s."), target)) end
+      if onClick then onClick(target, false, line, true) end
+      return
+    end
     local anchor = type(button.copyAnchor) == "function" and button.copyAnchor() or button.copyAnchor
     local nextFn = type(button.copyNext) == "function" and button.copyNext(target) or nil
     local shown = type(ns.showCopyText) == "function" and (pcall(ns.showCopyText, line, tr("Copy with Ctrl+C, then paste in chat"), anchor, nextFn)) or false

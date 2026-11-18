@@ -100,8 +100,10 @@ describe("protected calls only where the player's click runs them (taint)", () =
 
   const allowed: Array<[string, RegExp, string[]]> = [
     // Party invites: the Invite buttons (call for help, layer invite) show the /invite line in the copy box (ns.util.inviteButton).
-    // No file calls InviteUnit any more: /guilded invite raid lists /invite lines too (Invite() is FORBIDDEN to addons on Forever).
-    ["party invites", /\bInviteUnit\b/, []],
+    // /guilded invite raid lists /invite lines too (Invite() is FORBIDDEN to addons on Forever). The one call left is the
+    // player's own direct invite test (util.tryDirectInvite, 9.4): inside a party Invite click only, off unless the player
+    // turns it on, and switched off for the client build after the game refuses it once.
+    ["party invites", /\bInviteUnit\b/, ["addon/Guilded/Util.lua", "addon/GuildedDungeons/Shared/Util.lua"]],
     ["guild rank, kick and note changes", /\b(?:GuildPromote|GuildDemote|GuildUninvite|GuildRosterSetPublicNote|GuildRosterSetOfficerNote|SetGuildMemberRank|SetGuildRankOrder|RemoveFromGuild)\b/, [
       "addon/Guilded/Modules/RosterTools.lua"   // roster admin, confirmed per click; refusals remembered per build
     ]],

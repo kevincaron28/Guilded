@@ -325,3 +325,115 @@ describe("layer invite: the old levelling partners module", () => {
     expect(s!.run(`return type(NS.layerInvite.ask)`)).toBe("function");
   });
 });
+
+// 17 November 2026 (owner): "auto invite instead of a Ctrl+C Ctrl+V", and an opt-in so a layer request on my continent
+// invites them. WoW Forever refuses Invite() to addon code (an addon call, a secure macro button, an addon-written chat
+// line), so the opt-in makes the request pop up at once, and a direct invite is only tried from a click while the player's
+// own test switch is on; a refusal is remembered for the client build and the copy box comes back.
+describe("layer invite: auto-invite opt-in and the direct invite test", () => {
+  const withDirect = () => {
+    setup(12); login();
+    s!.run(`UTILNS.getDb = function() return DB end
+      BUILD = "70001"
+      function GetBuildInfo() return "1.15.8", BUILD, "Nov 1 2026", 11508 end
+      PLAYED = 0; function PlaySound() PLAYED = PLAYED + 1 end
+      INV = {}; REFUSE = false
+      C_PartyInfo = { InviteUnit = function(name)
+        INV[#INV + 1] = name
+        -- The game raises the refusal inside the call; Core.lua's handler passes it on.
+        if REFUSE then NS.util.noteInviteBlocked("UNKNOWN") end
+      end }`);
+  };
+  const clickInvite = () => s!.run(`FR.GuildedLayerToast.invite:GetScript("OnClick")(FR.GuildedLayerToast.invite)`);
+  const invites = () => s!.run(`return table.concat(INV, ",")`);
+  const copied = () => s!.run(`return table.concat(COPIED, ",")`);
+
+  it("is off by default: a first request still asks whether to help, no sound, the usual place", () => {
+    withDirect();
+    expect(s!.run(`return tostring(NS.layerInvite.autoInvite())`)).toBe("false");
+    heard("Ann", "REQ|5|12|Elwynn Forest");
+    expect(s!.run(`return FR.GuildedLayerToast.mode`)).toBe("ask");
+    expect(s!.run(`return tostring(PLAYED)`)).toBe("0");
+  });
+
+  it("on: a request on my continent pops up at once, top centre, with a sound and Invite; another continent shows nothing", () => {
+    withDirect();
+    s!.run(`NS.commandHandlers.layer({ "layer", "auto", "on" })`);
+    expect(s!.run(`return tostring(DB.layer.auto) .. ":" .. tostring(DB.layer.helper)`)).toBe("true:true");
+    heard("Ann", "REQ|6|13|Stormwind");
+    expect(toastShown()).toBe("false");
+    heard("Bo", "REQ|7|12|Duskwood");
+    expect(toastShown()).toBe("true");
+    expect(s!.run(`return FR.GuildedLayerToast.mode`)).toBe("request");
+    expect(s!.run(`local p = FR.GuildedLayerToast.pts[#FR.GuildedLayerToast.pts]; return p[1] .. ":" .. tostring(p[2] == UIParent) .. ":" .. p[3]`)).toBe("TOP:true:TOP");
+    expect(s!.run(`return tostring(PLAYED)`)).toBe("1");
+    // Arriving from an event never invites by itself, even with the direct test on.
+    expect(invites()).toBe("");
+    // One click: the /invite line in the copy box (the test switch is off), the request is claimed.
+    clickInvite();
+    expect(invites()).toBe("");
+    expect(copied()).toBe("/invite Bo");
+    expect(sent()).toContain("CLAIM|Bo|7|12");
+    // Off again: the next request asks nothing new and is placed normally (helper stays on).
+    s!.run(`NS.commandHandlers.layer({ "layer", "auto", "off" })`);
+    expect(s!.run(`return tostring(DB.layer.auto)`)).toBe("nil");
+  });
+
+  it("is never shown in combat (one chat line) and stays rate-limited per sender", () => {
+    withDirect();
+    s!.run(`NS.layerInvite.setAutoInvite(true); IN_COMBAT = true`);
+    heard("Bo", "REQ|8|12|Duskwood");
+    expect(toastShown()).toBe("false");
+    expect(s!.run(`return tostring(PLAYED)`)).toBe("0");
+    s!.run(`IN_COMBAT = false`);
+    heard("Bo", "REQ|9|12|Duskwood");      // a second id from the same sender within the pause
+    expect(s!.run(`return tostring(#NS.layerInvite.openRequests())`)).toBe("1");
+  });
+
+  it("direct invite test: invites on the click, with no copy box, while the game takes it", () => {
+    withDirect();
+    s!.run(`NS.layerInvite.setAutoInvite(true); NS.commandHandlers.layer({ "layer", "direct", "on" })`);
+    heard("Bo", "REQ|10|12|Duskwood");
+    expect(invites()).toBe("");
+    clickInvite();
+    expect(invites()).toBe("Bo");
+    expect(copied()).toBe("");
+    expect(msgs()).toContain("invite sent to Bo");
+    expect(sent()).toContain("CLAIM|Bo|10|12");
+  });
+
+  it("direct invite test: a refusal shows the copy box on the same click, is remembered for this build, and is not tried again", () => {
+    withDirect();
+    s!.run(`NS.layerInvite.setAutoInvite(true); NS.commandHandlers.layer({ "layer", "direct", "on" }); REFUSE = true`);
+    heard("Bo", "REQ|11|12|Duskwood");
+    clickInvite();
+    expect(invites()).toBe("Bo");
+    expect(copied()).toBe("/invite Bo");
+    expect(s!.run(`return tostring(DB.inviteDirect.refused) .. ":" .. tostring(DB.inviteDirect.try)`)).toBe("70001:nil");
+    // Next request, same build: straight to the copy box, no second call (no second blocked popup).
+    heard("Cy", "REQ|12|12|Duskwood");
+    clickInvite();
+    expect(invites()).toBe("Bo");
+    expect(copied()).toBe("/invite Bo,/invite Cy");
+    // Turning the test on again on this build is refused with a reason.
+    s!.run(`NS.commandHandlers.layer({ "layer", "direct", "on" })`);
+    expect(msgs()).toContain("refused a direct invite");
+    expect(s!.run(`return tostring(DB.inviteDirect.try)`)).toBe("nil");
+    // A new client build may allow it: the player can test again.
+    s!.run(`BUILD = "70002"; NS.commandHandlers.layer({ "layer", "direct", "on" })`);
+    expect(s!.run(`return tostring(DB.inviteDirect.try)`)).toBe("true");
+  });
+
+  it("direct invite test: never in combat, never for a guild invite, and a refusal named after another function is not blamed on it", () => {
+    withDirect();
+    s!.run(`NS.util.setDirectInviteTest(true); IN_COMBAT = true`);
+    expect(s!.run(`return tostring(NS.util.tryDirectInvite("Bo"))`)).toBe("false");
+    s!.run(`IN_COMBAT = false`);
+    s!.run(`G = NS.util.inviteButton(UIParent, "guild", "Invite", 80, 22); G.setInvite("Bo"); G:GetScript("OnClick")(G)`);
+    expect(invites()).toBe("");
+    expect(copied()).toBe("/ginvite Bo");
+    s!.run(`C_PartyInfo.InviteUnit = function(name) INV[#INV + 1] = name; NS.util.noteInviteBlocked("SetMOTD") end`);
+    expect(s!.run(`return tostring(NS.util.tryDirectInvite("Bo"))`)).toBe("true");
+    expect(s!.run(`return tostring(DB.inviteDirect.refused)`)).toBe("nil");
+  });
+});

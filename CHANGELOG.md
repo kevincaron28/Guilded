@@ -2,7 +2,7 @@
 
 ## 9.3.10 — 18 November 2026
 
-Direct party invites and layer auto-invite. Prepared 18 November 2026, not yet published. Not yet confirmed on real clients (see docs/V9_3_10_RELEASE_ACCEPTANCE.md). Details: docs/V9_3_10_RELEASE_NOTES.md.
+Direct party invites and layer auto-invite. Published 18 November 2026 (GitHub, the website download and the bot; CurseForge files 9677628 and 9677629 in review; Store 9.3.10.0 submitted). Not yet confirmed on real clients (see docs/V9_3_10_RELEASE_ACCEPTANCE.md). Details: docs/V9_3_10_RELEASE_NOTES.md.
 
 Addon:
 

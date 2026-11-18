@@ -1,6 +1,6 @@
 # Guilded 9.3.10 — release notes (18 November 2026)
 
-**Direct party invites and layer auto-invite.** Prepared 18 November 2026, not yet published. Protocol 2, WoW Forever only. No new bot migrations in this release (the bot changes are already live).
+**Direct party invites and layer auto-invite.** Published 18 November 2026. Protocol 2, WoW Forever only. No new bot migrations in this release (the bot changes are already live).
 
 Real-client checks: docs/V9_3_10_RELEASE_ACCEPTANCE.md. 9.3.10 is not yet confirmed on real clients.
 

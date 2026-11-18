@@ -268,6 +268,13 @@ describe("global duels: the page and JSON", () => {
     expect(hub).not.toMatch(/sign in and connect the companion/i);
     expect((await get("2026-12-10T12:00:00Z")("/leaderboards/?lang=fr")).body).not.toMatch(/reliez le compagnon : votre premier/i);
   });
+  it("lists the seasons the phone app can ask for with ?when=", async () => {
+    const json = JSON.parse((await get("2026-12-10T12:00:00Z")("/leaderboards/duels.json")).body) as { season: string; seasons: { id: string; label: string }[] };
+    expect(json.seasons.map((s) => s.id)).toContain(json.season);
+    expect(json.seasons.every((s) => s.label.length > 0)).toBe(true);
+    const asked = JSON.parse((await get("2026-12-10T12:00:00Z")(`/leaderboards/duels.json?when=${json.season}`)).body) as { season: string };
+    expect(asked.season).toBe(json.season);
+  });
   it("lists everyone in the JSON and opens one player from a duel history", async () => {
     const json = JSON.parse((await get("2026-12-10T12:00:00Z")("/leaderboards/duels.json")).body) as { rules: { id: string }; season: string; players: { name: string; rank: number | null; realm: string }[]; recent: { winner: string; confirmedByBoth: boolean }[] };
     expect(json.rules.id).toBe("rating-v1");

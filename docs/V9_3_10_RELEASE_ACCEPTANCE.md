@@ -1,6 +1,6 @@
 # 9.3.10 release acceptance
 
-Status: published 18 November 2026 (GitHub v9.3.10, the website download, the bot); CurseForge 9677628/9677629 in review; the Store serves 9.3.8.0 and 9.3.10.0 is being submitted. 9.3.10 is not yet confirmed on real clients.
+Status: published 18 November 2026 everywhere: GitHub v9.3.10, the website download, the bot, CurseForge (approved, files 9677628/9677629) and the Microsoft Store (9.3.10.0, Submission 15).
 
 ## Where it stands
 

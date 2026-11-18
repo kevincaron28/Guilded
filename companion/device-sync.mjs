@@ -66,7 +66,9 @@ export function deviceUploadBody(full, options = {}) {
   const carriedRecords = options.carry === true && Array.isArray(full?.carriedRecords) ? full.carriedRecords.filter((record) => !(options.carryAcknowledged instanceof Set && options.carryAcknowledged.has(carryId(record)))).slice(0, 200) : [];
   // Client probes (sanitized by the export); an older bot ignores the unknown field.
   const probes = full?.probes && typeof full.probes === "object" && Object.keys(full.probes).length ? full.probes : null;
-  return { guild: splitGuildKey(full?.wowGuild), characters, ...(dungeonRuns.length ? { dungeonRuns } : {}), ...(carriedRecords.length ? { carriedRecords } : {}), ...(probes ? { probes } : {}), ...(options.server ? { server: String(options.server) } : {}) };
+  // (Raid progress) Boss kills the addon recorded, already whitelisted by the export; an older bot ignores the field.
+  const raidKills = Array.isArray(full?.raidKills) ? full.raidKills.slice(0, 60) : [];
+  return { guild: splitGuildKey(full?.wowGuild), characters, ...(dungeonRuns.length ? { dungeonRuns } : {}), ...(raidKills.length ? { raidKills } : {}), ...(carriedRecords.length ? { carriedRecords } : {}), ...(probes ? { probes } : {}), ...(options.server ? { server: String(options.server) } : {}) };
 }
 
 const base = (config) => config.uploadUrl;

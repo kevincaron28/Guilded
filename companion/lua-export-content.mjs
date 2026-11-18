@@ -279,6 +279,7 @@ export function parseAddonExportDatabase(database, realm) {
   const inviteReports = exportInviteReports(database);
   const guildMap = exportGuildMap(database);
   const worldPvp = exportWorldPvp(database);
+  const raidKills = exportRaidKills(database);
 
   // Soft reserves (addon Modules/Reserve.lua): the whole list, replaced in Discord when newer.
   const reserves = buildReserves(database.reserves, realm);
@@ -384,7 +385,8 @@ export function parseAddonExportDatabase(database, realm) {
     ...craftOrders,
     ...inviteReports,
     ...guildMap,
-    ...worldPvp
+    ...worldPvp,
+    ...(raidKills.length ? { raidKills } : {})
   }, edition.gameEdition, realm);
   return syncStats ? { ...identities, syncStats } : identities;
 }
@@ -638,6 +640,31 @@ export function exportWorldPvp(database) {
   // (companion/delta.mjs removes them otherwise, so an older bot gets exactly what it always did).
   const pvpEvents = exportPvpEvents(state.events);
   return { ...(blocks.length ? { worldPvp: blocks } : {}), ...(pvpEvents.length ? { pvpEvents } : {}) };
+}
+
+// Raid boss kills (addon Modules/RaidProgress.lua, db.raidProgress.kills): the newest 60, field by field. The bot checks them again
+// (src/services/raid-progress.ts); an older bot ignores the unknown field.
+export const RAID_KILLS_MAX = 60;
+export function exportRaidKills(database) {
+  const kills = database?.raidProgress?.kills;
+  if (!kills || typeof kills !== "object") return [];
+  const text = (v, max) => typeof v === "string" ? v.replace(/[|\p{Cc}]/gu, " ").trim().slice(0, max) : "";
+  const int = (v, min, max) => Number.isSafeInteger(v) && v >= min && v <= max ? v : null;
+  const out = [];
+  for (const row of Object.values(kills)) {
+    if (!row || typeof row !== "object") continue;
+    const at = int(row.at, 1_600_000_000, 4_000_000_000), instanceId = int(row.instanceId, 1, 1_000_000), encounterId = int(row.encounterId, 1, 10_000_000);
+    const ref = text(row.ref, 80), instance = text(row.instance, 60);
+    const groupSize = int(row.groupSize, 1, 40), guildCount = int(row.guildCount, 0, 40);
+    if (!at || !instanceId || !encounterId || !ref || !instance || !groupSize || guildCount === null) continue;
+    const names = Array.isArray(row.guildNames) ? row.guildNames.map((n) => text(n, 40)).filter(Boolean).slice(0, 40) : [];
+    out.push({
+      ref, instanceId, instance, encounterId, boss: text(row.boss, 60), difficultyId: int(row.difficultyId, 0, 1000) ?? 0,
+      ...(text(row.difficulty, 30) ? { difficulty: text(row.difficulty, 30) } : {}), groupSize, guildCount, guildNames: names, at,
+      ...(int(row.durationSec, 1, 21_600) ? { durationSec: row.durationSec } : {}), ...(text(row.reporter, 40) ? { reporter: text(row.reporter, 40) } : {})
+    });
+  }
+  return out.sort((a, b) => b.at - a.at).slice(0, RAID_KILLS_MAX);
 }
 
 export const PVP_EVENTS_FEATURE = "pvp-events";

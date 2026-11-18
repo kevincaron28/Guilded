@@ -25,6 +25,7 @@ import { companionMe } from "./services/companion-me.js";
 import { albumFor } from "./services/companion-album.js";
 import { applyWorldPvpUpload, parseWorldPvpUploads } from "./services/world-pvp.js";
 import { applyPvpEvents, parsePvpEvents } from "./services/world-pvp-events.js";
+import { applyRaidKills, createRaidProgressWeb, parseRaidKills } from "./services/raid-progress.js";
 import { scheduleBgLadderRefresh } from "./services/pvp-board-refresh.js";
 import { applyGuildMapUpload, guildMapFor, parseGuildMapUpload, setMapSharing } from "./services/guild-map.js";
 import { liveNewsFeed } from "./services/news-feed.js";
@@ -410,7 +411,7 @@ export function createSiteApp(client?: Client) {
   const devices = createDevicePages(prismaDeviceStore(prisma));
   const privacyWeb = createPrivacyWeb(prisma);
   const memberData = createMemberData(memberDataStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")));
-  const routes: WebRoute[] = [retiredToolsRoute, signInPage, retiredAvailabilityRoute, devices.route, memberData.route, leaderboards.route, liveNewsFeed().route, directory.route, privacyWeb.route, achievementsWeb.route, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route];
+  const routes: WebRoute[] = [retiredToolsRoute, signInPage, retiredAvailabilityRoute, devices.route, memberData.route, createRaidProgressWeb(prisma).route, leaderboards.route, liveNewsFeed().route, directory.route, privacyWeb.route, achievementsWeb.route, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route];
   // One basic page (owner, 15 Nov 2026): your characters (read-only), connected devices, your data, recruitment card and applications.
   const meSections: MeSectionInput[] = [
     meSection({ id: "characters", group: "overview", render: charactersMeSection(discordUserId => memberLinkStatus(prisma, discordUserId), meCharacterList(prisma)) }),
@@ -997,7 +998,12 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const deviceProbes = (deviceBody as { probes?: unknown } | null)?.probes;
         if (deviceProbes && typeof deviceProbes === "object") void storeClientProbes(prisma, deviceProbes, clientVersion ?? null).catch(() => undefined);
         try {
-          const answered = await handleDeviceUpload(devices, device, deviceBody, { allows: (id) => hostedPilot.allows(id), sealKey: deviceHeader(request) ? deriveSealKey(deviceHeader(request)!) : null,
+          const answered = await handleDeviceUpload(devices, device, deviceBody, { allows: (id) => hostedPilot.allows(id),
+            applyRaidKills: async (kills, source) => {
+              const target = await prisma.guild.findFirst({ where: { discordId: source.discordId, scopeKey: "default" }, select: { id: true } });
+              if (target) await applyRaidKills(prisma, { guildId: target.id, trust: "device", reporterKeys: new Set(source.names), kills: parseRaidKills(kills) });
+            },
+            sealKey: deviceHeader(request) ? deriveSealKey(deviceHeader(request)!) : null,
             applyCarried: async (records, carrier) => (await applyCarriedRecords(prisma, { carrier: `device:${carrier.deviceId}`, carrierKeys: new Set(carrier.names), records, relay: { store: publicRuns, onPlaced: (placed) => { void import("./services/cross-guild-post.js").then((module) => module.shareAndAnnounce(client, { guildId: null, deviceId: carrier.deviceId, characterKeys: [...carrier.names], receivedAt: new Date() }, placed)).catch(() => undefined); } } })).receipts,
             afterShare: (origin, placed) => { void import("./services/cross-guild-post.js").then((module) => module.shareAndAnnounce(client, origin, placed)).catch(() => undefined); } });
           // A fresh challenge for the duel records the addon makes next (the companion writes it where the addon reads it).
@@ -1701,6 +1707,13 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         if (uploadSnapshot.worldPvp.length) {
           laneBoard.push({ name: "world-pvp", payload: true, onError: (error) => console.warn("World PvP upload failed", error), run: async () => {
             if (await applyWorldPvpUpload(prisma, guild.id, pairedMemberId, parseWorldPvpUploads(uploadSnapshot.worldPvp))) { markGuildChanged(guild.id); void scheduleBgLadderRefresh(prisma, guild.id); }
+          } });
+        }
+        // Raid progress: the boss kills this member's addon recorded (raid-progress.ts checks each one again).
+        if (uploadSnapshot.raidKills.length) {
+          laneBoard.push({ name: "raid-kills", payload: true, onError: (error) => console.warn("Raid kills upload failed", error), run: async () => {
+            const stored = await applyRaidKills(prisma, { guildId: guild.id, trust: "member", kills: parseRaidKills(uploadSnapshot.raidKills) });
+            if (stored.stored) markGuildChanged(guild.id);
           } });
         }
         // Kills and deaths with their place: stored per event (no enemy name), shown by zone on the public PvP map of guilds that publish.

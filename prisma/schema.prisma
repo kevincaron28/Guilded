@@ -142,6 +142,7 @@ model Guild {
   battlegroundConsents BattlegroundConsent[]
   worldPvpWeeks WorldPvpWeek[]
   worldPvpEvents WorldPvpEvent[]
+  raidKills RaidKill[]
   duelResults DuelResult[]
   memberMilestones MemberMilestone[]
   recurringRecaps RecurringRecap[]
@@ -4258,4 +4259,35 @@ model CompanionNotice {
   createdAt     DateTime @default(now())
 
   @@unique([discordUserId, kind])
+}
+
+// Raid progress (services/raid-progress.ts): one boss kill by one guild, as its members' addons recorded it. Companions upload the
+// kills; several members report the same kill, so a report within 15 minutes of a stored one (same boss, difficulty and guild)
+// only raises `reporters`. The public board counts distinct bosses per guild, so a rare duplicate row changes nothing.
+model RaidKill {
+  id             String   @id @default(cuid())
+  guildId        String
+  instanceId     Int
+  instanceName   String
+  encounterId    Int
+  bossName       String
+  difficultyId   Int      @default(0)
+  difficultyName String?
+  killedAt       DateTime
+  durationSec    Int?
+  groupSize      Int
+  guildCount     Int
+  // Guild members in the raid group, as the first reporter's addon saw them (lowercase, at most 40).
+  members        String[] @default([])
+  // "member" (a signed-in member's upload) or "device" (an unsigned companion whose own character was in the kill).
+  trust          String   @default("member")
+  reporters      Int      @default(1)
+  // false when an officer or a check refused it (kept for the audit).
+  valid          Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  guild          Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, instanceId, encounterId, difficultyId, killedAt])
+  @@index([guildId, killedAt])
+  @@index([instanceId, encounterId, difficultyId, killedAt])
 }

@@ -442,6 +442,7 @@ local FR = {
   ["No bidding: give it to the selected Player for Min GP"] = "Sans ench\195\168re : le donner au joueur choisi pour les GP min.",
   ["No gear check yet. Press Check my gear."] = "Pas encore de v\195\169rification. Appuyez sur V\195\169rifier mon \195\169quipement.",
   ["No raid is running."] = "Aucun raid en cours.",
+  ["No raid boss kills recorded yet. Guilded records them when a boss dies in a raid."] = "Aucune mort de boss de raid enregistr\195\169e. Guilded les enregistre quand un boss meurt en raid.",
   ["No standing yet."] = "Pas encore de classement.",
   ["Normal size, back in the middle of the screen"] = "Taille normale, au milieu de l'\195\169cran",
   ["Nothing yet: epic items that drop while you are in a raid show here."] = "Rien pour l'instant : les objets \195\169piques qui tombent pendant un raid s'affichent ici.",

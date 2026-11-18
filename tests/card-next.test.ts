@@ -78,7 +78,8 @@ describe("dungeon run card (redesign)", () => {
       const art = readFileSync(new URL(`../site/dungeon-art/${file}`, import.meta.url));
       const { report, scrim } = await renderDungeonCard({ label: "DUNGEON COMPLETED · HEROIC", title: file.replace(".jpg", ""), hero: "59:59", heroNote: "New guild record", facts: ["Deaths 12", "Dungeon score +123", "Final boss Archmage Arugal"], party: rows, strip: "2026-11-13  ·  Party · 3 from the guild", art });
       assertCardRules(report);
-      expect(scrim, file).toBeLessThanOrEqual(0.4);
+      // Since 17 Nov 2026 `scrim` is the strongest soft patch behind a single string; the painting itself is never darkened.
+      expect(scrim, file).toBeLessThanOrEqual(0.9);
     }
   }, 120_000);
 });

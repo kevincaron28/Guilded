@@ -88,8 +88,17 @@ async function drawAside(c: CardCanvas, spec: Pick<BodyCardSpec, "badge" | "port
       c.raw(`<circle cx="${left + size / 2}" cy="${top + size / 2}" r="${size / 2 + 3}" fill="none" stroke="${ACCENTS[spec.type].tint}" stroke-width="3"/>`);
       layers.push({ input: face, left, top });
     } catch { /* an unreadable picture is skipped */ }
-    if (spec.chip) await c.text(spec.chip.text, left + size / 2, top + size + 6, { size: 24, color: spec.chip.color, anchor: "c", maxW: 260 });
-  } else if (spec.chip) await c.text(spec.chip.text, portraitRight, 40, { size: 26, color: spec.chip.color, anchor: "r", maxW: 300 });
+    if (spec.chip) {
+      // A pill behind the rank, so this one word on the painting never makes the contrast guard darken the whole card.
+      const w = Math.min(260, await c.width(spec.chip.text, 24)) + 24;
+      c.rect(left + size / 2 - w / 2, top + size + 2, w, 36, "#000", { opacity: 0.72, rx: 18 });
+      await c.text(spec.chip.text, left + size / 2, top + size + 6, { size: 24, color: spec.chip.color, anchor: "c", maxW: 260 });
+    }
+  } else if (spec.chip) {
+    const w = Math.min(300, await c.width(spec.chip.text, 26)) + 24;
+    c.rect(portraitRight - w + 12, 34, w, 40, "#000", { opacity: 0.72, rx: 20 });
+    await c.text(spec.chip.text, portraitRight, 40, { size: 26, color: spec.chip.color, anchor: "r", maxW: 300 });
+  }
   return layers;
 }
 type OverlayLayer = { input: Buffer; left: number; top: number };
@@ -326,7 +335,12 @@ export async function renderUnlockHero(spec: UnlockHeroSpec): Promise<RenderedCa
       c.raw(`<circle cx="${left + size / 2}" cy="${top + size / 2}" r="${size / 2 + 3}" fill="none" stroke="${tint}" stroke-width="3"/>`);
       layers.push({ input: face, left, top });
     } catch { /* an unreadable picture is skipped */ }
-    if (spec.chip) await c.text(spec.chip.text, left + size / 2, top + size + 6, { size: 24, color: spec.chip.color, anchor: "c", maxW: 240 });
+    if (spec.chip) {
+      // The rank sits on the painting: a pill of its own behind it, or the contrast guard darkens the whole card for this one word.
+      const w = Math.min(240, await c.width(spec.chip.text, 24)) + 24;
+      c.rect(left + size / 2 - w / 2, top + size + 2, w, 36, "#000", { opacity: 0.72, rx: 18 });
+      await c.text(spec.chip.text, left + size / 2, top + size + 6, { size: 24, color: spec.chip.color, anchor: "c", maxW: 240 });
+    }
   }
   const art = await sharp(spec.art).resize(CARD_W, CARD_H, { fit: "cover" }).removeAlpha().toBuffer();
   return c.finish([{ input: art, left: 0, top: 0 }, ...layers]);

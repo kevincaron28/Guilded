@@ -73,5 +73,6 @@ describe("built site", () => {
   });
   it("references the guild sitemap from robots.txt", () => {
     expect(readFileSync(`${out}/robots.txt`, "utf8")).toContain("Sitemap: https://guildedwow.com/recruitment/guilds/sitemap.xml");
+    expect(readFileSync(`${out}/robots.txt`, "utf8")).toContain("Sitemap: https://guildedwow.com/leaderboards/sitemap.xml");
   });
 });

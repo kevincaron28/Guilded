@@ -122,7 +122,7 @@ describe("guild leaderboard table", () => {
 });
 
 describe("leaderboard and personal pages", () => {
-  function setup(extra: LeaderRun[] = []) {
+  function setup(extra: LeaderRun[] = [], withPrivate = false) {
     const runs = [leaderRun("a", 1500), leaderRun("b", 1300, [player("Kev", "Warrior", "TANK"), player("<b>Bad</b>", "Mage", "DPS")], { confirmations: 2 })];
     const beta = leaderRun("old", 1000, [player("Kev", "Warrior", "TANK")], { endedAt: new Date("2026-10-30T00:00:00Z") });
     const all = [...runs, beta, ...extra];
@@ -130,7 +130,7 @@ describe("leaderboard and personal pages", () => {
       async run(id) { return all.find(run => run.runId === id) ?? null; },
       async runs(query) { return all.filter((run) => (!query.from || run.endedAt >= query.from) && (!query.to || run.endedAt < query.to)); },
       async characterRuns(character) { return all.filter((run) => run.players.some((p) => p.character.toLowerCase() === character.toLowerCase())); },
-      async guilds() { return [{ id: "g1", name: "Quebec Gold", slug: "quebec-gold" }]; },
+      async guilds() { return [{ id: "g1", name: "Quebec Gold", slug: "quebec-gold", indexable: true }, ...(withPrivate ? [{ id: "g2", name: "Private Guild", slug: "private-guild", indexable: false }] : [])]; },
       async guildRuns(guildId) { return guildId === "g1" ? runs : []; },
       async guildRoster(guildId) { return guildId === "g1" ? ["kev", "amy"] : []; },
       async guildStats(ids) { return ids.map((guildId) => ({ guildId, faction: "ALLIANCE", realm: "Doomhowl", members: 12, linked: 9, levelled: 8, at60: 3, levelSum: 400, duels: 7 })); }
@@ -179,6 +179,83 @@ describe("leaderboard and personal pages", () => {
       const page = await request("GET", "/leaderboards/guild/quebec-gold/");
       expect(page.body).toContain("/leaderboards/guilds/realm/doomhowl/");
       expect(page.body).toContain("/leaderboards/guilds/faction/alliance/");
+    });
+  });
+
+  describe("sitemaps", () => {
+    it("lists every public player, guild and run page, never a hidden player or a guild that turned indexing off", async () => {
+      const hiddenRun = leaderRun("hid", 1700, [{ ...player("Ghost", "Rogue", "DPS"), hidden: true }]);
+      const { request } = setup([hiddenRun], true);
+      const index = await request("GET", "/leaderboards/sitemap.xml");
+      expect(index.status).toBe(200);
+      expect(index.headers["content-type"]).toContain("xml");
+      for (const kind of ["players", "guilds", "runs"]) expect(index.body).toContain(`${SITE}/forever/leaderboards/sitemap-${kind}-1.xml`);
+      const players = (await request("GET", "/leaderboards/sitemap-players-1.xml")).body;
+      expect(players).toContain(`${SITE}/forever/leaderboards/character/Kev-Doomhowl</loc>`);
+      expect(players).toContain(`hreflang="fr" href="${SITE}/forever/leaderboards/character/Kev-Doomhowl?lang=fr"`);
+      expect(players).not.toContain("Ghost");
+      const guilds = (await request("GET", "/leaderboards/sitemap-guilds-1.xml")).body;
+      expect(guilds).toContain("/leaderboards/guild/quebec-gold<");
+      expect(guilds).not.toContain("private-guild");
+      const runs = (await request("GET", "/leaderboards/sitemap-runs-1.xml")).body;
+      expect(runs).toContain("/leaderboards/run/a<");
+      expect(runs).toContain("<lastmod>2026-11-10</lastmod>");
+      expect(runs).not.toContain("/run/hid<");
+      expect((await request("GET", "/leaderboards/sitemap-runs-2.xml")).status).toBe(404);
+    });
+  });
+
+  describe("search metadata and armory links", () => {
+    it("gives a player page its own title, description, canonical, JSON-LD, armory links and guild link", async () => {
+      const { request } = setup();
+      const page = await request("GET", "/leaderboards/character/Kev-Doomhowl");
+      expect(page.status).toBe(200);
+      expect(page.body).toMatch(/<title>Kev: Warrior tank, WoW Forever dungeon score \| Guilded<\/title>/);
+      expect(page.body).toContain(`<link rel="canonical" href="${SITE}/forever/leaderboards/character/Kev-Doomhowl">`);
+      expect(page.body).toContain('hreflang="fr"');
+      expect(page.body).toContain('<meta property="og:title" content="Kev: Warrior tank, WoW Forever dungeon score | Guilded">');
+      const ld = JSON.parse(/<script type="application\/ld\+json">(.*?)<\/script>/s.exec(page.body)![1]!);
+      expect(ld["@graph"].map((node: { "@type": string }) => node["@type"])).toEqual(["ProfilePage", "BreadcrumbList"]);
+      expect(page.body).toContain('href="https://worldofwarcraft.blizzard.com/en-us/forever/us/armory/guild/quebec-gold"');
+      expect(page.body).toContain("/leaderboards/guild/quebec-gold");
+      const fr = await request("GET", "/leaderboards/character/Kev-Doomhowl?lang=fr");
+      expect(fr.body).toContain("score de donjon WoW Forever | Guilded</title>");
+      expect(fr.body).toContain("https://worldofwarcraft.blizzard.com/fr-fr/forever/us/armory/guild/quebec-gold");
+    });
+    it("titles a run page and a guild page, and keeps a guild that turned indexing off out of search", async () => {
+      const { request } = setup([], true);
+      const run = await request("GET", "/leaderboards/run/a");
+      expect(run.body).toMatch(/<title>Ragefire Chasm: 25:00 clear, score \d+, WoW Forever dungeon run \| Guilded<\/title>/);
+      expect(run.body).toContain("application/ld+json");
+      const guild = await request("GET", "/leaderboards/guild/quebec-gold/");
+      expect(guild.body).toContain("WoW Forever guild dungeon score and ranking | Guilded</title>");
+      expect(guild.body).toContain("/armory/guild/quebec-gold");
+      expect(guild.body).not.toContain('content="noindex"');
+      expect((await request("GET", "/leaderboards/guild/private-guild/")).body).toContain('content="noindex"');
+    });
+  });
+
+  describe("complete dungeon boards and the scoring page", () => {
+    it("shows the fastest and first clear and role and class filters on a dungeon board", async () => {
+      const { request } = setup();
+      const page = await request("GET", "/leaderboards/dungeons/?dungeon=389&season=all");
+      expect(page.body).toContain("Fastest clear");
+      expect(page.body).toContain("First clear");
+      expect(page.body).toContain("All classes");
+      expect(page.body).toContain("class=Warrior");
+      expect(page.body).toContain("role=TANK");
+      expect((await request("GET", "/leaderboards/dungeons/?dungeon=389&season=all&class=Warrior")).body).toContain("Kev");
+      expect((await request("GET", "/leaderboards/dungeons/?dungeon=389&season=all&lang=fr")).body).toContain("Première réussite");
+    });
+    it("explains the scoring from the season's own rules, in English and French", async () => {
+      const { request } = setup();
+      const en = await request("GET", "/leaderboards/scoring/");
+      expect(en.status).toBe(200);
+      for (const text of ["How dungeon scores work", "200 × target time", "never goes below 50 or above 400", "per level", "best 5 routes"]) expect(en.body).toContain(text);
+      expect(en.body).toContain("How WoW Forever dungeon scores work: target time, best routes and guild score | Guilded</title>");
+      const fr = await request("GET", "/leaderboards/scoring/?lang=fr");
+      expect(fr.body).toContain("Comment les scores de donjon sont calculés");
+      expect(fr.body).toContain("200 × temps cible");
     });
   });
 
@@ -467,7 +544,7 @@ describe("leaderboard and personal pages", () => {
     expect(kev.body).toContain("Beta (before Season 1)");
     expect(kev.body).toContain('class="meter"');
     // A pasted link previews the season score and the logo (Discord reads Open Graph tags).
-    expect(kev.body).toMatch(/<meta property="og:description" content="Kev-Doomhowl: dungeon score \d+ \([^"]+\) · Season 1 · Guilded leaderboards\.">/);
+    expect(kev.body).toMatch(/<meta property="og:description" content="Kev, Warrior tank: dungeon score \d+ \([^"]+\), best clear [^"]+\. WoW Forever leaderboards on Guilded\.">/);
     expect(kev.body).toContain('<meta property="og:image" content="https://guilded.kcaron.top/forever/leaderboards/character/Kev-Doomhowl/card.png">');
     expect(home.body).toContain('<meta property="og:title" content="');
     expect(home.body).toContain("Top guilds");

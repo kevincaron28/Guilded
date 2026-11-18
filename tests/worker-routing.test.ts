@@ -502,10 +502,11 @@ describe("WoW Forever section", () => {
     const upstream = vi.fn<(url: string) => Promise<Response>>(async () => new Response("ok")); vi.stubGlobal("fetch", upstream);
     await worker.fetch(new Request(site + "/leaderboards/summary.json?edition=forever"), env);
     await worker.fetch(new Request(site + "/recruitment/guilds/sitemap.xml"), env);
+    await worker.fetch(new Request(site + "/leaderboards/sitemap-runs-1.xml"), env);
     const post = await worker.fetch(new Request(site + "/recruitment/", { method: "POST", headers: { origin: site, "content-type": "application/x-www-form-urlencoded" }, body: "edition=forever" }), env);
     expect(post.status).toBe(200);
     await worker.fetch(new Request(site + "/retail/recruitment/", { method: "POST", headers: { origin: site }, body: "" }), env);
-    expect(upstream.mock.calls.map(call => call[0])).toEqual(["https://guildedqc.duckdns.org/leaderboards/summary.json?edition=forever", "https://guildedqc.duckdns.org/recruitment/guilds/sitemap.xml", "https://guildedqc.duckdns.org/recruitment/", "https://guildedqc.duckdns.org/recruitment/?edition=forever"]);
+    expect(upstream.mock.calls.map(call => call[0])).toEqual(["https://guildedqc.duckdns.org/leaderboards/summary.json?edition=forever", "https://guildedqc.duckdns.org/recruitment/guilds/sitemap.xml", "https://guildedqc.duckdns.org/leaderboards/sitemap-runs-1.xml", "https://guildedqc.duckdns.org/recruitment/", "https://guildedqc.duckdns.org/recruitment/?edition=forever"]);
     vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 303, headers: { location: "/forever/recruitment/?saved=1" } })));
     const saved = await worker.fetch(new Request(site + "/forever/recruitment/", { method: "POST", headers: { origin: site }, body: "" }), env);
     expect(saved.status).toBe(303);

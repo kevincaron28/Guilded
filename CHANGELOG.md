@@ -2,7 +2,7 @@
 
 ## 9.3.11 — 18 November 2026
 
-Raid progress. Prepared 18 November 2026, not yet published. Not yet confirmed on real clients (see docs/V9_3_11_RELEASE_ACCEPTANCE.md). Details: docs/V9_3_11_RELEASE_NOTES.md.
+Raid progress. Published 18 November 2026. Not yet confirmed on real clients (see docs/V9_3_11_RELEASE_ACCEPTANCE.md). Details: docs/V9_3_11_RELEASE_NOTES.md.
 
 Addon and companion:
 

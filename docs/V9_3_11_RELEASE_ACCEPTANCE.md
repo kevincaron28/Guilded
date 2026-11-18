@@ -1,6 +1,6 @@
 # 9.3.11 release acceptance
 
-Status: prepared 18 November 2026, not yet published. 9.3.11 is not yet confirmed on real clients.
+Status: published 18 November 2026 (GitHub v9.3.11, the website download, the bot); CurseForge 9691780/9691782 in review; the Store serves 9.3.10.0 and 9.3.11.0 is being submitted. 9.3.11 is not yet confirmed on real clients.
 
 ## Where it stands
 

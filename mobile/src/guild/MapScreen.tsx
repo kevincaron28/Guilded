@@ -115,9 +115,9 @@ export function MapScreen({ lang, session }: { lang: Lang; session: Session | nu
             {heat?.zones.slice(0, 14).map((zone) => <Text key={zone.zone} pointerEvents="none" numberOfLines={1} style={[styles.zoneLabel, {
               left: Math.max(0, Math.min(width - 96, zone.cx * width - 48)), top: Math.max(0, Math.min(height - 16, zone.cy * height + 6))
             }]}>{zone.zone}</Text>)}
-            {dots.map((mate) => <Pressable key={key(mate)} onPress={() => setPicked(key(mate))} hitSlop={10} accessibilityLabel={`${mate.name}, ${mate.zone}`}
+            {dots.map((mate) => <Pressable key={key(mate)} onPress={() => setPicked(key(mate))} hitSlop={16} accessibilityLabel={`${mate.name}, ${mate.zone}`}
               style={[styles.dot, { left: mate.cx! * width - 6, top: mate.cy! * height - 6, backgroundColor: classColor(mate.className) }, mate.mine && styles.dotMine, picked === key(mate) && styles.dotPicked]} />)}
-            {pins.map((pin) => <Pressable key={pinKey(pin)} onPress={() => setPicked(pinKey(pin))} hitSlop={10} accessibilityLabel={`${w("calls", lang)}: ${pin.name}, ${pin.zone}`}
+            {pins.map((pin) => <Pressable key={pinKey(pin)} onPress={() => setPicked(pinKey(pin))} hitSlop={16} accessibilityLabel={`${w("calls", lang)}: ${pin.name}, ${pin.zone}`}
               style={[styles.pin, { left: pin.cx! * width - 9, top: pin.cy! * height - 9 }, !pin.active && styles.pinOld]}>
               <Text style={styles.pinText}>!</Text>
             </Pressable>)}

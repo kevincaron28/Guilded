@@ -16,3 +16,18 @@ describe("mobile destinations", () => {
     expect(notificationRoute({ url: "guilded://raids" })).toBeNull();
   });
 });
+
+describe("where a destination lands", () => {
+  it("opens raids on the Raids part, wishlist in Me and alerts in Alerts", async () => {
+    const { routeTarget } = await import("./routes");
+    expect(routeTarget({ section: "raids" })).toEqual({ tab: "guild", part: "raids" });
+    expect(routeTarget({ section: "wishlist" })).toEqual({ tab: "me" });
+    expect(routeTarget({ section: "alerts" })).toEqual({ tab: "alerts" });
+    expect(routeTarget({ section: "reserves" })).toEqual({ tab: "guild", part: "roster" });
+  });
+  it("sends Android Back to the home tab, and leaves the app from there", async () => {
+    const { backTarget } = await import("./routes");
+    expect(backTarget("news", "stats")).toBe("stats");
+    expect(backTarget("stats", "stats")).toBeNull();
+  });
+});

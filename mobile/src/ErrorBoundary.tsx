@@ -1,6 +1,7 @@
 import { Component, type ReactNode } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Constants from "expo-constants";
+import { SafeAreaInsetsContext } from "react-native-safe-area-context";
 import { buildReport, currentReportScreen, sendErrorReport } from "./crashReport";
 import { t, type Lang } from "./i18n";
 import { readLang } from "./storage";
@@ -35,7 +36,7 @@ export class ErrorBoundary extends Component<{ origin: string; children: ReactNo
   render() {
     const { error, lang, sending, ref, sendFailed } = this.state;
     if (!error) return this.props.children;
-    return <View style={styles.frame}>
+    return <SafeAreaInsetsContext.Consumer>{(insets) => <View style={[styles.frame, { paddingTop: (insets?.top ?? 40) + 12 }]}>
       <ScrollView contentContainerStyle={common.content}>
         <Text style={common.kicker}>GUILDED</Text>
         <Text style={common.title} accessibilityRole="header">{t(lang, "errorTitle")}</Text>
@@ -46,8 +47,8 @@ export class ErrorBoundary extends Component<{ origin: string; children: ReactNo
         {sendFailed ? <Text style={common.error} accessibilityRole="alert">{t(lang, "errorSendFailed")}</Text> : null}
         <Text style={common.note}>{t(lang, "errorPrivacy")}</Text>
       </ScrollView>
-    </View>;
+    </View>}</SafeAreaInsetsContext.Consumer>;
   }
 }
 
-const styles = StyleSheet.create({ frame: { flex: 1, backgroundColor: colors.bg, paddingTop: 52 } });
+const styles = StyleSheet.create({ frame: { flex: 1, backgroundColor: colors.bg } });

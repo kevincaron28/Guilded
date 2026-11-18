@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useBack } from "./useBack";
 import { t, type CopyKey, type Lang } from "./i18n";
 import { colors } from "./ui";
 import { common } from "./ui/common";
@@ -12,22 +14,29 @@ const PAGES: { title: CopyKey; body: CopyKey }[] = [
   { title: "intro3Title", body: "intro3Body" }
 ];
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs a literal require() path
+const HERO = require("../assets/signin-hero.webp") as number;
+
 export function Intro({ lang, setLang, onDone, onSample }: { lang: Lang; setLang: (lang: Lang) => void; onDone: () => void; onSample: () => void }) {
   const [page, setPage] = useState(0);
   const last = page === PAGES.length - 1;
   const current = PAGES[page]!;
+  const insets = useSafeAreaInsets();
+  // Android Back steps to the previous screen before it leaves the app.
+  useBack(page > 0, () => setPage(page - 1));
   return <View style={styles.frame}>
-    <ScrollView contentContainerStyle={styles.content}>
+    <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]}>
       <View style={styles.top}>
         <Language lang={lang} setLang={setLang} />
-        <Pressable onPress={onDone} accessibilityRole="button" accessibilityLabel={t(lang, "introSkip")} style={styles.skip}><Text style={styles.skipText}>{t(lang, "introSkip")}</Text></Pressable>
+        <Pressable onPress={onDone} accessibilityRole="button" accessibilityLabel={t(lang, "introSkip")} hitSlop={{ left: 12 }} style={styles.skip}><Text style={styles.skipText}>{t(lang, "introSkip")}</Text></Pressable>
       </View>
+      <Image source={HERO} style={styles.hero} accessible={false} />
       <Text style={common.kicker} accessibilityLabel={t(lang, "introPage", { n: page + 1, total: PAGES.length })}>{`${page + 1} / ${PAGES.length}`}</Text>
       <Text style={common.title} accessibilityRole="header">{t(lang, current.title)}</Text>
       <Text style={common.intro}>{t(lang, current.body)}</Text>
       <View style={styles.dots} accessible={false}>{PAGES.map((_, i) => <View key={i} style={[styles.dot, i === page && styles.dotOn]} />)}</View>
     </ScrollView>
-    <View style={styles.bar}>
+    <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 16) + 8 }]}>
       {last ? <>
         <Pressable onPress={onSample} accessibilityRole="button" style={common.secondary}><Text style={common.secondaryText}>{t(lang, "introSample")}</Text></Pressable>
         <Pressable onPress={onDone} accessibilityRole="button" style={common.primary}><Text style={common.primaryText}>{t(lang, "introStart")}</Text></Pressable>
@@ -48,7 +57,8 @@ const styles = StyleSheet.create({
   dots: { flexDirection: "row", gap: 8, marginTop: 24 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.line },
   dotOn: { backgroundColor: colors.gold },
-  bar: { paddingHorizontal: 24, paddingBottom: 28 },
+  bar: { paddingHorizontal: 24 },
+  hero: { width: "100%", aspectRatio: 2, borderRadius: 12, marginTop: 12, borderWidth: 1, borderColor: colors.line },
   row: { flexDirection: "row", gap: 12 },
   half: { flex: 1 }
 });

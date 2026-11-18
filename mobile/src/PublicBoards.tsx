@@ -3,8 +3,9 @@ import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View
 import { cacheKey } from "./cache";
 import { classColor, classMix, fetchBoards, fetchPublicGuild, type BoardBracket, type Boards, type PublicGuild } from "./publicApi";
 import { useCachedResource } from "./useCachedResource";
+import { useBack } from "./useBack";
 import type { Lang } from "./i18n";
-import { Card, EmptyState, Glyph, LastUpdated, RankNumber, RetryCard, Row, colors } from "./ui";
+import { Card, EmptyState, Glyph, LastUpdated, RankNumber, RetryCard, Row, colors, usePullToRefresh } from "./ui";
 
 const words = {
   title: { en: "Leaderboards", fr: "Classements" },
@@ -20,7 +21,9 @@ const words = {
   noCores: { en: "This guild has not published its cores.", fr: "Cette guilde n'a pas publié ses cores." },
   standings: { en: "EP/GP standings", fr: "Classement EP/GP" },
   professionsNote: { en: "Professions are not part of a guild's public page, so they stay in the Guild tab after sign-in.", fr: "Les métiers ne font pas partie de la page publique d'une guilde; ils restent dans l'onglet Guilde après connexion." },
-  noPage: { en: "No public page", fr: "Pas de page publique" }
+  noPage: { en: "No public page", fr: "Pas de page publique" },
+  bench: { en: "bench", fr: "banc" },
+  trial: { en: "trial", fr: "essai" }
 } as const;
 const w = (key: keyof typeof words, lang: Lang) => words[key][lang];
 
@@ -50,7 +53,7 @@ export function SeasonPicker({ lang, seasons, value, onChange }: { lang: Lang; s
   </View>;
 }
 
-export function PublicBoards({ origin, lang, header }: { origin: string; lang: Lang; header?: ReactNode }) {
+export function PublicBoards({ origin, lang, header, onPull }: { origin: string; lang: Lang; header?: ReactNode; onPull?: () => Promise<unknown> }) {
   const [bracket, setBracket] = useState(0);
   const [slug, setSlug] = useState<string | null>(null);
   const [season, setSeason] = useState<string | undefined>(undefined);
@@ -58,9 +61,12 @@ export function PublicBoards({ origin, lang, header }: { origin: string; lang: L
   const feed = useCachedResource<Boards>(cacheKey("boards", origin, lang, season ?? "current"), () => fetchBoards(origin, lang, season), isBoards);
   const boards = feed.data;
 
+  const refreshControl = usePullToRefresh(async () => { await Promise.all([feed.reload(), onPull?.()]); });
+  // Android Back from a guild page returns to the boards.
+  useBack(slug !== null, () => setSlug(null));
   if (slug) return <PublicGuildView origin={origin} lang={lang} slug={slug} onBack={() => setSlug(null)} />;
   const current: BoardBracket | undefined = boards?.brackets[Math.min(bracket, (boards?.brackets.length ?? 1) - 1)];
-  return <ScrollView contentContainerStyle={styles.content}>
+  return <ScrollView contentContainerStyle={styles.content} refreshControl={refreshControl}>
     {header}
     <Image source={{ uri: web(origin, "header-players-800.webp") }} style={styles.banner} accessible={false} />
     <Text style={styles.kicker}>{(boards?.season || "GUILDED").toUpperCase()}</Text>
@@ -89,7 +95,8 @@ function PublicGuildView({ origin, lang, slug, onBack }: { origin: string; lang:
   const guild = feed.data;
   const mix = guild ? classMix(guild) : [];
   const biggest = mix[0]?.count ?? 1;
-  return <ScrollView contentContainerStyle={styles.content}>
+  const refreshControl = usePullToRefresh(feed.reload);
+  return <ScrollView contentContainerStyle={styles.content} refreshControl={refreshControl}>
     <Pressable onPress={onBack} accessibilityRole="button" accessibilityLabel={w("back", lang)} style={styles.back}><Glyph name="back" /><Text style={styles.link}>{w("back", lang)}</Text></Pressable>
     <LastUpdated lang={lang} savedAt={feed.savedAt} stale={feed.stale && feed.failed} />
     {!guild && feed.failed ? <RetryCard lang={lang} message={w("failed", lang)} onRetry={feed.retry} style={styles.card} /> : !guild ? <ActivityIndicator color={colors.gold} /> : <>
@@ -104,7 +111,7 @@ function PublicGuildView({ origin, lang, slug, onBack }: { origin: string; lang:
       {guild.cores.length === 0 ? <EmptyState art="guild" boxed message={w("noCores", lang)} style={styles.card} /> : guild.cores.map((core) => <Card key={core.name} style={styles.card}>
         <Text style={styles.coreName}>{core.name}</Text>
         {core.schedule ? <Text style={styles.sub}>{core.schedule}</Text> : null}
-        {core.roster.map((m) => <View key={m.name} style={styles.rosterRow}><Text style={[styles.name, { color: classColor(m.className), flex: 1 }]}>{m.name}</Text><Text style={styles.sub}>{[m.className, m.role, m.bench ? "bench" : "", m.trial ? "trial" : ""].filter(Boolean).join(" · ")}</Text></View>)}
+        {core.roster.map((m) => <View key={m.name} style={styles.rosterRow}><Text style={[styles.name, { color: classColor(m.className), flex: 1 }]}>{m.name}</Text><Text style={styles.sub}>{[m.className, m.role, m.bench ? w("bench", lang) : "", m.trial ? w("trial", lang) : ""].filter(Boolean).join(" · ")}</Text></View>)}
         {core.ranking.length > 0 && <><Text style={[styles.label, { marginTop: 14 }]}>{w("standings", lang).toUpperCase()}</Text>
           {core.ranking.slice(0, 10).map((r, i) => <View key={r.name} style={styles.rosterRow}><RankNumber rank={i + 1} /><Text style={[styles.name, { flex: 1 }]}>{r.name}</Text><Text style={styles.score}>{r.pr.toFixed(2)}</Text></View>)}</>}
       </Card>)}
@@ -121,8 +128,8 @@ const styles = StyleSheet.create({
   card: { gap: 0, marginBottom: 6 }, rosterRow: { flexDirection: "row", alignItems: "center", paddingVertical: 6, gap: 10 },
   name: { color: colors.text, fontSize: 14, fontWeight: "600" }, sub: { color: colors.muted, fontSize: 12, marginTop: 2 }, score: { color: colors.green, fontWeight: "700", fontSize: 14 },
   link: { color: colors.gold, fontSize: 14, paddingVertical: 12 }, back: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 44 },
-  tabs: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 4 }, chip: { borderWidth: 1, borderColor: colors.line, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 }, chipOn: { backgroundColor: colors.gold, borderColor: colors.gold },
-  chipText: { color: colors.muted, fontSize: 12 }, chipTextOn: { color: "#111", fontWeight: "700" },
+  tabs: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 4 }, chip: { borderWidth: 1, borderColor: colors.line, borderRadius: 999, paddingHorizontal: 14, minHeight: 44, justifyContent: "center" }, chipOn: { backgroundColor: colors.gold, borderColor: colors.gold },
+  chipText: { color: colors.muted, fontSize: 12 }, chipTextOn: { color: colors.ink, fontWeight: "700" },
   coreName: { color: colors.text, fontSize: 17, fontWeight: "700" },
   mixRow: { flexDirection: "row", alignItems: "center", paddingVertical: 5, gap: 10 }, mixName: { width: 90, fontSize: 12 }, barTrack: { flex: 1, height: 8, backgroundColor: colors.line, borderRadius: 4 }, bar: { height: 8, borderRadius: 4 }, mixCount: { color: colors.muted, width: 24, textAlign: "right", fontSize: 12 }
 });

@@ -1,6 +1,6 @@
 # Guilded 9.3.11 — release notes (18 November 2026)
 
-**Raid progress.** Prepared 18 November 2026, not yet published. Protocol 2, WoW Forever only. Bot migrations `20270304090000_raid_kills` and `20270304093000_weekly_records_post` are already applied on the live bot.
+**Raid progress.** Published 18 November 2026. Protocol 2, WoW Forever only. Bot migrations `20270304090000_raid_kills` and `20270304093000_weekly_records_post` are already applied on the live bot.
 
 Real-client checks: docs/V9_3_11_RELEASE_ACCEPTANCE.md. 9.3.11 is not yet confirmed on real clients.
 

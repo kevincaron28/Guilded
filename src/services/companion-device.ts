@@ -113,6 +113,8 @@ export const deviceUploadSchema = z.object({
   dungeonRuns: z.array(z.unknown()).max(DEVICE_LIMITS.runsPerUpload).default([]),
   /** (9.3.2) Records the addon carries for players near it (see carried-records.ts); each is validated when applied. */
   carriedRecords: z.array(z.unknown()).max(200).default([]),
+  /** Raid boss kills the addon recorded (services/raid-progress.ts); validated row by row when applied. Absent from older companions. */
+  raidKills: z.array(z.unknown()).max(60).default([]),
   /** Client probes (/guilded probe ...), stored by services/client-probes.ts. Optional: older companions send none. */
   probes: z.record(z.string(), z.unknown()).optional()
 });
@@ -252,11 +254,17 @@ export function runsOfDevice(raw: unknown[], deviceKeys: ReadonlySet<string>): u
 
 export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, body: unknown, options: Parameters<typeof handleDeviceUploadCore>[3] & {
   /** (9.3.2) Applies the records this upload carries; answers their receipts (keys the lane has dealt with). */
-  applyCarried?: (records: unknown[], carrier: { deviceId: string; names: string[] }) => Promise<string[]> } = {}): Promise<DeviceUploadAnswer & { carriedReceipts?: string[] }> {
-  const { applyCarried, ...rest } = options;
+  applyCarried?: (records: unknown[], carrier: { deviceId: string; names: string[] }) => Promise<string[]>;
+  /** Raid progress: stores the boss kills of a synced upload for the server the device is on (the server's Discord id). */
+  applyRaidKills?: (kills: unknown[], source: { deviceId: string; discordId: string; names: string[] }) => Promise<void> } = {}): Promise<DeviceUploadAnswer & { carriedReceipts?: string[] }> {
+  const { applyCarried, applyRaidKills, ...rest } = options;
   const answer = await handleDeviceUploadCore(store, device, body, rest);
-  if (!applyCarried || answer.status === "claimed") return answer;
+  if (answer.status === "claimed") return answer;
   const parsed = deviceUploadSchema.safeParse(body);
+  if (parsed.success && applyRaidKills && answer.status === "synced" && parsed.data.raidKills.length && parsed.data.runsOnly !== true) {
+    await applyRaidKills(parsed.data.raidKills, { deviceId: device.id, discordId: answer.server.discordId, names: parsed.data.characters.map((character) => key(character.name)) }).catch((error: unknown) => console.warn("Raid kills upload failed", error));
+  }
+  if (!applyCarried) return answer;
   if (!parsed.success || !parsed.data.carriedRecords.length) return answer;
   const carriedReceipts = await applyCarried(parsed.data.carriedRecords, { deviceId: device.id, names: parsed.data.characters.map((character) => key(character.name)) }).catch(() => []);
   return carriedReceipts.length ? { ...answer, carriedReceipts } : answer;

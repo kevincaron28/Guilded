@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { registerLeaderboardCache } from "../src/services/leaderboard-cache-hooks.js";
 import type { PrismaClient } from "../src/generated/prisma/client.js";
-import { anonymisePublicDuels, anonymisePublicRuns, DELETED_MEMBER_NAME, DELETED_PLAYER_PREFIX, deleteMyData, isOwnName, scrubNames } from "../src/services/data-deletion.js";
+import { anonymiseRaidKills, anonymisePublicDuels, anonymisePublicRuns, DELETED_MEMBER_NAME, DELETED_PLAYER_PREFIX, deleteMyData, isOwnName, scrubNames } from "../src/services/data-deletion.js";
 
 function fixture() {
   const calls: string[] = [];
@@ -20,6 +20,7 @@ function fixture() {
     member: { findMany: vi.fn(async () => [{ id: "m1" }, { id: "m2" }]) },
     character: { findMany: vi.fn(async () => [{ name: "Kev Caron", realm: "Doomhowl", member: { guildId: "g1" } }]) },
     publicRunPlayer: { findMany: vi.fn(async () => []) }, publicRun: { findUnique: vi.fn(async () => null), update: vi.fn(async () => ({})) }, publicRunUpload: { findMany: vi.fn(async () => []), update: vi.fn(async () => ({})) },
+    raidKill: { findMany: vi.fn(async () => []), update: vi.fn(async () => ({})) },
     publicDuel: { findMany: vi.fn(async () => []), update: vi.fn(async () => ({})) }, publicDuelReport: { findMany: vi.fn(async () => []), update: vi.fn(async () => ({})) },
     $executeRaw: vi.fn(async (...args: unknown[]) => { void args; return 0; })
   };
@@ -53,6 +54,23 @@ describe("Delete my data", () => {
     const f = fixture();
     for (const bad of ["", "abc", "1", "1 OR 1=1"]) await expect(deleteMyData(f.db, bad)).rejects.toThrow("Discord user id");
     expect(f.db.$transaction).not.toHaveBeenCalled();
+  });
+});
+
+describe("Delete my data: raid kills", () => {
+  it("takes the member's characters out of the raid group list and keeps the kill and its count", async () => {
+    const rows = [{ id: "k1", members: ["kev caron", "alice", "bea"] }];
+    const findMany = vi.fn(async () => rows.splice(0));
+    const update = vi.fn(async () => ({}));
+    const changed = await anonymiseRaidKills({ raidKill: { findMany, update } } as never, [{ name: "Kev Caron", realm: "", unique: true }]);
+    expect(changed).toBe(1);
+    expect(update).toHaveBeenCalledWith({ where: { id: "k1" }, data: { members: ["alice", "bea"] } });
+    expect(JSON.stringify(update.mock.calls)).not.toContain("guildCount");
+  });
+  it("runs as part of Delete my data", async () => {
+    const f = fixture();
+    await deleteMyData(f.db, "123456789012345678");
+    expect(f.top.raidKill.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { members: { hasSome: ["kev caron"] } } }));
   });
 });
 

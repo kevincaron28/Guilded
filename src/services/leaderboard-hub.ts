@@ -4,10 +4,10 @@ import { escapeHtml, link, type Lang } from "./web-layout.js";
 // Only public, already-listed data goes in (names, guilds, levels, classes, scores); nothing here explains limits or checks.
 
 type T = (en: string, fr: string) => string;
-export type HubTab = "overview" | "dungeons" | "players" | "guilds" | "duels" | "pvp";
+export type HubTab = "overview" | "dungeons" | "players" | "guilds" | "duels" | "pvp" | "raids";
 
 const EMBLEM = (name: string) => `/badge-art/emblems/${name}-128.webp`;
-export const HUB_EMBLEMS: Record<Exclude<HubTab, "overview">, string> = {
+export const HUB_EMBLEMS: Record<Exclude<HubTab, "overview" | "raids">, string> = {
   dungeons: EMBLEM("dungeons-gate"), players: EMBLEM("professions-first-laurel"), guilds: EMBLEM("guild-trophy"), duels: EMBLEM("duels-throne"), pvp: EMBLEM("pvp-helm")
 };
 
@@ -50,6 +50,7 @@ export function hubTabs(t: T, lang: Lang, active: HubTab, extra: Record<string, 
     ["dungeons", "/leaderboards/dungeons/", t("Dungeons", "Donjons"), HUB_EMBLEMS.dungeons],
     ["duels", "/leaderboards/duels/", t("Duels", "Duels"), HUB_EMBLEMS.duels],
     ["pvp", "/leaderboards/pvp/", t("PvP", "PvP"), HUB_EMBLEMS.pvp],
+    ["raids", "/leaderboards/raids/", t("Raids", "Raids"), null],
     ["players", "/leaderboards/characters/", t("Players", "Joueurs"), HUB_EMBLEMS.players],
     ["guilds", "/leaderboards/guilds/", t("Guilds", "Guildes"), HUB_EMBLEMS.guilds]
   ];

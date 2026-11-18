@@ -51,6 +51,7 @@ Modules\History.lua
 Modules\SyncNow.lua
 Modules\AutoInvite.lua
 Modules\Dungeon.lua
+Modules\RaidProgress.lua
 Modules\Carry.lua
 Modules\CatchUp.lua
 Modules\Battleground.lua

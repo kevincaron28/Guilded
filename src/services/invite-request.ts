@@ -21,7 +21,20 @@ const MODAL = "name";
 const INPUT = "name";
 export const DONE_BUTTON = "done";
 
-type Database = Pick<PrismaClient, "guildSettings" | "inviteRequest" | "inviteDm" | "member">;
+type Database = Pick<PrismaClient, "guildSettings" | "inviteRequest" | "inviteDm" | "member"> & Partial<Pick<PrismaClient, "wowGuild">>;
+
+/** The in-game guild name as the addon or companion reported it (exact spelling, accents included), if known. */
+async function inGameGuildName(database: Database, guildId: string): Promise<string | null> {
+  try {
+    const row = await database.wowGuild?.findFirst({ where: { OR: [{ scopeGuildId: guildId }, { guildId }] }, orderBy: { updatedAt: "desc" }, select: { name: true } });
+    return row?.name?.trim() || null;
+  } catch { return null; }
+}
+
+/** "/who g-"Guild" then whisper someone": added under a posted request when the guild's in-game name is known. */
+export function withWhoTip(lang: Lang, text: string, guildName?: string | null): string {
+  return guildName ? `${text}\n${t(lang, "invite.whoTip", { guild: guildName })}` : text;
+}
 
 const customId = (action: string, discordGuildId: string) => `${INVITE_REQUEST_PREFIX}${action}:${discordGuildId}`;
 
@@ -43,7 +56,7 @@ export function requestInviteModal(lang: Lang, discordGuildId: string): ModalBui
       .setPlaceholder("Lebowski Holyroller").setStyle(TextInputStyle.Short).setMinLength(5).setMaxLength(60).setRequired(true)));
 }
 
-export type RequestOutcome = { status: "posted"; channelId: string } | { status: "duplicate" } | { status: "unavailable" };
+export type RequestOutcome = { status: "posted"; channelId: string; guildName?: string | null } | { status: "duplicate" } | { status: "unavailable" };
 
 /** Posts the name in the invite channel and queues it. */
 export async function submitInviteRequest(client: Pick<Client, "guilds" | "channels">, database: Database,
@@ -69,11 +82,11 @@ export async function submitInviteRequest(client: Pick<Client, "guilds" | "chann
   await notifyInviters(database as never, { guildId: settings.guildId, discordGuild: guild, channel: channel as never, requestMessageId: posted.id, requesterId: input.discordUserId, displayName: input.parsed.displayName });
   // The member row lets the character link to them when it joins (invite-prelink.ts). Best effort.
   try { await database.member.upsert({ where: { guildId_discordUserId: { guildId: settings.guildId, discordUserId: input.discordUserId } }, create: { guildId: settings.guildId, discordUserId: input.discordUserId, displayName: member.displayName }, update: {} }); } catch { /* optional */ }
-  return { status: "posted", channelId: channel.id, lang };
+  return { status: "posted", channelId: channel.id, guildName: await inGameGuildName(database, settings.guildId), lang };
 }
 
 const say = (lang: Lang, outcome: RequestOutcome): string =>
-  outcome.status === "posted" ? t(lang, "invite.confirmed", { channel: outcome.channelId })
+  outcome.status === "posted" ? withWhoTip(lang, t(lang, "invite.confirmed", { channel: outcome.channelId }), outcome.guildName)
     : outcome.status === "duplicate" ? t(lang, "invite.duplicate") : t(lang, "invite.unavailable");
 
 /** The button opens the form; the form submits the request. */

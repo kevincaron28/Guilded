@@ -4,16 +4,21 @@
 --   /guilded layer list            open requests from guildmates, with the line to invite them
 --   /guilded layer cancel          close my own request
 --   /guilded layer helper on|off   whether guildmates' requests show a small window to me
+--   /guilded layer auto on|off     (9.4, opt-in, off by default) a request on my continent is invited at once, with no
+--                                  click (alone or as party leader, out of combat and instances); a short notice says so
+--   /guilded layer direct on|off   (9.4) party Invite buttons invite directly (on by default); off shows the line to paste
 --
 -- The addon cannot read which layer anyone is on. A request goes out ONCE on the guild addon channel (prefix
 -- GuildedLayer) with the asker's continent; only guildmates who run the addon AND are on the same continent are
 -- candidates, and each of them is shown a request only once (a repeat of the same request is ignored).
--- A helper's small window (a plain frame: no secure template, never takes the keyboard) offers Invite: the invite
--- API is refused to addon code on WoW Forever, so Invite shows "/invite First Last" in the copy box
--- (ns.util.inviteButton) and the helper pastes it. The first helper who accepts sends CLAIM, which closes the
--- request for everyone else; the asker sends DONE once they joined the group. Nothing is shown in combat beyond one
--- chat line, and every addon message goes through ns.comm (the global budget; GuildedLayer is a low-value lane).
--- Saved data: db.layer = { helper = true|false|nil, lastAskAt = seconds }. Levelling partners kept no data.
+-- A helper's small window (a plain frame: no secure template, never takes the keyboard) offers Invite, which sends the
+-- party invite directly (ns.util.partyInvite: a party invite is not a protected call; see Util.lua for the evidence).
+-- If the game refuses it, the refusal is remembered for the client build and Invite shows "/invite First Last" in the
+-- copy box instead. With auto-invite on, the request is invited when it arrives and a short notice replaces the window.
+-- The first helper who invites sends CLAIM, which closes the request for everyone else; the asker sends DONE once they
+-- joined the group. Nothing is shown in combat beyond one chat line, and every addon message goes through ns.comm (the
+-- global budget; GuildedLayer is a low-value lane).
+-- Saved data: db.layer = { helper = true|false|nil, auto = true|nil, lastAskAt = seconds }. Levelling partners kept no data.
 local addonName, ns = ...
 ns = ns or {}
 
@@ -22,6 +27,7 @@ local REQUEST_SECONDS = 300      -- a request is open this long
 local CLAIM_SECONDS = 60         -- a helper has this long to get the asker into the group
 local ASK_EVERY_SECONDS = 120    -- one request per asker per two minutes
 local TOAST_SECONDS = 30
+local NOTICE_SECONDS = 8        -- the "Invited X to your layer" notice
 local MAX_ROWS = 5
 local MAX_SEEN = 100         -- request keys remembered (oldest out)
 local MAX_WAITING = 5        -- requests queued behind the open window (oldest out)
@@ -46,6 +52,14 @@ local function data()
   db.layer = type(db.layer) == "table" and db.layer or {}
   return db.layer
 end
+
+-- The opt-in: requests from my continent pop up at once (off by default).
+function module.autoInvite() return data().auto == true end
+function module.setAutoInvite(on)
+  data().auto = on and true or nil
+  if on then data().helper = true end      -- auto-invite means "show me the requests"
+end
+function module.helper() return data().helper ~= false end
 
 -- The continent id of the map the player stands in (nil when the client cannot say).
 function module.continent()
@@ -94,6 +108,7 @@ local lastFrom = {}          -- sender -> time of their last accepted request (r
 local order = {}          -- keys in arrival order
 local counter = 0
 local toast, current, waiting = nil, nil, {}
+local autoBusyUntil = 0     -- one automatic invite at a time: the next waits until the first had time to join and leave
 local rows = {}
 
 local function send(text)
@@ -127,6 +142,8 @@ local presentNext
 function module.placeToast()
   if not toast then return end
   toast:ClearAllPoints()
+  -- Opted in to auto-invite: top centre, where it cannot be missed (call for help keeps the right side).
+  if module.autoInvite() then toast:SetPoint("TOP", UIParent, "TOP", 0, -160) return end
   local cfh = ns.callForHelp
   local anchor = cfh and cfh.footprint and cfh.footprint()
   if anchor then toast:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -4)
@@ -171,7 +188,7 @@ local function ensureToast()
     if r then module.show(r) end
   end)
   toast.yes:SetPoint("BOTTOMLEFT", toast, "BOTTOMLEFT", 10, 8)
-  toast.no = button(L("No"), 60, function() data().helper = false; closeToast(); waiting = {} end)
+  toast.no = button(L("No"), 60, function() data().helper = false; data().auto = nil; closeToast(); waiting = {} end)
   toast.no:SetPoint("LEFT", toast.yes, "RIGHT", 4, 0)
   local x = CreateFrame("Button", nil, toast, "UIPanelCloseButton")
   x:SetPoint("TOPRIGHT", toast, "TOPRIGHT", 2, 2)
@@ -186,8 +203,10 @@ function module.show(request)
   module.placeToast()
   current = request
   toast.shownAt = nowSeconds()
+  toast.lifetime = nil
   toast.isOpen = true
   local helper = data().helper
+  if module.autoInvite() then helper = true end
   toast.mode = helper == nil and "ask" or "request"
   if helper == nil then
     toast.title:SetText(L("Help guildmates change layer?"))
@@ -200,6 +219,38 @@ function module.show(request)
     toast.invite:Show(); toast.later:Show(); toast.yes:Hide(); toast.no:Hide()
   end
   toast:Show()
+  if module.autoInvite() and toast.mode == "request" and PlaySound then
+    pcall(PlaySound, (SOUNDKIT and SOUNDKIT.READY_CHECK) or 8960, "Master")
+  end
+end
+
+-- After an automatic invite: a short notice in the same window (no chat line), closed by itself.
+function module.showInvited(request)
+  ensureToast()
+  module.placeToast()
+  current = request
+  toast.shownAt = nowSeconds()
+  toast.lifetime = NOTICE_SECONDS
+  toast.isOpen = true
+  toast.mode = "invited"
+  toast.title:SetText(string.format(L("Invited %s to your layer."), display(request.name)))
+  toast.detail:SetText(request.zone ~= "" and request.zone or " ")
+  toast.invite:Hide(); toast.later:Hide(); toast.yes:Hide(); toast.no:Hide()
+  toast:Show()
+end
+
+-- The opt-in's automatic invite, from the request's own event: only alone or as party leader, out of combat and
+-- instances (canHelp), one at a time. Returns true when the game took the invite.
+local function autoInvite(request)
+  local u = ns.util
+  if not (module.autoInvite() and u and u.partyInvite and u.canPartyInvite) then return false end
+  if combat() or current or nowSeconds() < autoBusyUntil or not u.canPartyInvite() then return false end
+  if not u.partyInvite(request.name, "layer auto-invite") then return false end
+  autoBusyUntil = nowSeconds() + CLAIM_SECONDS
+  send(string.format("CLAIM|%s|%s|%d", bare(request.name), request.id, request.continent or 0))
+  request.state = "claimed"
+  module.showInvited(request)
+  return true
 end
 
 presentNext = function()
@@ -291,6 +342,7 @@ local function receiveRequest(sender, parts)
   while #order > 20 do requests[table.remove(order, 1)] = nil end
   if data().helper == false or not canHelp() then return end
   if combat() then chatLine(request); return end
+  if autoInvite(request) then return end
   if current then
     waiting[#waiting + 1] = request
     while #waiting > MAX_WAITING do table.remove(waiting, 1) end
@@ -359,7 +411,7 @@ local function tick()
       if current == r then closeToast(); presentNext() end
     end
   end
-  if toast and toast.isOpen and toast.shownAt and t - toast.shownAt > TOAST_SECONDS then closeToast(); presentNext() end
+  if toast and toast.isOpen and toast.shownAt and t - toast.shownAt > (toast.lifetime or TOAST_SECONDS) then closeToast(); presentNext() end
 end
 module.tick = tick
 
@@ -432,10 +484,33 @@ ns.commandHandlers["layer"] = function(args)
     for _, request in ipairs(list) do say(string.format("%s (%s): /invite %s", display(request.name), request.zone, request.name)) end
   elseif what == "cancel" then
     if not module.cancel() then say(L("You have no open layer request.")) end
+  elseif what == "auto" then
+    local value = string.lower(args[3] or "")
+    if value == "on" or value == "off" then
+      module.setAutoInvite(value == "on")
+      say(value == "on" and L("Guildmates who ask for a layer on your continent are invited at once (when you are alone or lead your party, out of combat).")
+        or L("Layer requests are no longer invited by themselves."))
+    else
+      say(L("/guilded layer auto on|off"))
+    end
+  elseif what == "direct" then
+    local value = string.lower(args[3] or "")
+    local u = ns.util
+    if value == "on" or value == "off" then
+      if value == "on" and u and u.directInviteRefused and u.directInviteRefused() then
+        say(L("This game build refused a direct invite: Invite buttons show the line to paste."))
+      elseif u and u.setDirectInvite then
+        u.setDirectInvite(value == "on")
+        say(value == "on" and L("Party Invite buttons invite directly.") or L("Party Invite buttons show the /invite line to paste."))
+      end
+    else
+      say(L("/guilded layer direct on|off"))
+    end
   elseif what == "helper" then
     local value = string.lower(args[3] or "")
     if value == "on" or value == "off" then
       data().helper = value == "on"
+      if value == "off" then data().auto = nil end
       say(value == "on" and L("You will see guildmates' layer requests.") or L("You will not see guildmates' layer requests."))
     else
       say(L("/guilded layer helper on|off"))
@@ -445,7 +520,7 @@ ns.commandHandlers["layer"] = function(args)
   end
 end
 ns.commandHelp = ns.commandHelp or {}
-table.insert(ns.commandHelp, "/guilded layer [list | cancel | helper on|off] - ask guildmates on your continent for a layer invite")
+table.insert(ns.commandHelp, "/guilded layer [list | cancel | helper on|off | auto on|off | direct on|off] - ask guildmates on your continent for a layer invite")
 
 -- ---------------------------------------------------------------------
 -- Events

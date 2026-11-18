@@ -2709,7 +2709,7 @@ local DE = {
   ["ask guildmates on your continent to invite you onto their layer"] = "Gildenmitglieder auf deinem Kontinent bitten, dich auf ihren Layer einzuladen",
   ["Ask guildmates on your continent to invite you, so you land on their layer."] = "Bitte Gildenmitglieder auf deinem Kontinent um eine Einladung, damit du auf ihrem Layer landest.",
   ["levelling partners were replaced by Layer invite (/guilded layer)."] = "Levelpartner wurden durch die Layer-Einladung ersetzt (/guilded layer).",
-  ["/guilded layer [list | cancel | helper on|off] - ask guildmates on your continent for a layer invite"] = "/guilded layer [list | cancel | helper on|off] - Gildenmitglieder auf deinem Kontinent um eine Layer-Einladung bitten",
+  ["/guilded layer [list | cancel | helper on|off | auto on|off | direct on|off] - ask guildmates on your continent for a layer invite"] = "/guilded layer [list | cancel | helper on|off | auto on|off | direct on|off] - Gildenmitglieder auf deinem Kontinent um eine Layer-Einladung bitten",
   ["Only the member who asked can cancel a request."] = "Nur wer die Anfrage gestellt hat, kann sie abbrechen.",
   ["%d craft order(s) from Discord you can make: the Crafting page of the Guilded window (/guilded orders)."] = "%d Handwerksauftr\195\164ge aus Discord, die du herstellen kannst: Seite Herstellung im Guilded-Fenster (/guilded orders).",
   ["Join a guild to request a craft."] = "Tritt einer Gilde bei, um etwas anzufragen.",
@@ -3020,6 +3020,21 @@ local DE = {
   ["Announces when you reach a gold milestone (the amount is never shown). Off unless you turn it on."] = "K\195\188ndigt an, wenn du einen Goldmeilenstein erreichst (der Betrag wird nie gezeigt). Aus, bis du es einschaltest.",
   ["Auction probe: inbox %s, invoices %s, sold message %s, owned list %s, %d statistics. Details are in the saved variables (probes.auctions); reload or log out to save the file."] = "Auktionspr\195\188fung: Postfach %s, Rechnungen %s, Verkaufsmeldung %s, eigene Liste %s, %d Statistiken. Details stehen in den gespeicherten Variablen (probes.auctions); lade neu oder melde dich ab, um die Datei zu speichern.",
   ["Open the auction house and run /guilded probe auctions again to read the owned auction list."] = "\195\150ffne das Auktionshaus und starte /guilded probe auctions erneut, um die eigene Auktionsliste zu lesen.",
+  -- 9.4 layer auto-invite, direct invite test, Guild invites menu entry (Modules/LayerInvite.lua, Util.lua, Minimap.lua).
+  ["Invited %s."] = "%s eingeladen.",
+  ["Invited %s to your layer."] = "%s auf deinen Layer eingeladen.",
+  ["Guildmates who ask for a layer on your continent are invited at once (when you are alone or lead your party, out of combat)."] = "Gildenmitglieder, die auf deinem Kontinent um einen Layer bitten, werden sofort eingeladen (wenn du allein oder Gruppenanf\195\188hrer bist, au\195\159erhalb des Kampfes).",
+  ["Layer requests are no longer invited by themselves."] = "Layer-Anfragen werden nicht mehr automatisch eingeladen.",
+  ["Party Invite buttons invite directly."] = "Gruppen-Einladen-Schaltfl\195\164chen laden direkt ein.",
+  ["Party Invite buttons show the /invite line to paste."] = "Gruppen-Einladen-Schaltfl\195\164chen zeigen die /invite-Zeile zum Einf\195\188gen.",
+  ["Off by default. When a guildmate on your continent asks for a layer, Guilded invites them at once (only when you are alone or lead your party, out of combat and outside instances) and shows a short notice. If the game refuses, you get the Invite window instead."] = "Standardm\195\164\195\159ig aus. Wenn ein Gildenmitglied auf deinem Kontinent um einen Layer bittet, l\195\164dt Guilded es sofort ein (nur wenn du allein oder Gruppenanf\195\188hrer bist, au\195\159erhalb von Kampf und Instanzen) und zeigt einen kurzen Hinweis. Lehnt das Spiel ab, bekommst du stattdessen das Einladen-Fenster.",
+  ["Guild invites"] = "Gildeneinladungen",
+  ["/guilded layer auto on|off"] = "/guilded layer auto on|off",
+  ["/guilded layer direct on|off"] = "/guilded layer direct on|off",
+  ["This game build refused a direct invite: Invite buttons show the line to paste."] = "Diese Spielversion hat eine direkte Einladung abgelehnt: Einladen-Schaltfl\195\164chen zeigen die Zeile zum Einf\195\188gen.",
+  ["Show guildmates' layer requests"] = "Layer-Anfragen der Gilde anzeigen",
+  ["A small window when a guildmate on your continent asks to be invited onto another layer."] = "Ein kleines Fenster, wenn ein Gildenmitglied auf deinem Kontinent um eine Einladung auf einen anderen Layer bittet.",
+  ["Auto-invite layer requests on my continent"] = "Layer-Anfragen auf meinem Kontinent automatisch einladen",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -4735,7 +4750,7 @@ local ES = {
   ["ask guildmates on your continent to invite you onto their layer"] = "pedir a la hermandad de tu continente que te invite a su capa",
   ["Ask guildmates on your continent to invite you, so you land on their layer."] = "Pide a la hermandad de tu continente que te invite para acabar en su capa.",
   ["levelling partners were replaced by Layer invite (/guilded layer)."] = "los compa\195\177eros de nivel se sustituyeron por la invitaci\195\179n de capa (/guilded layer).",
-  ["/guilded layer [list | cancel | helper on|off] - ask guildmates on your continent for a layer invite"] = "/guilded layer [list | cancel | helper on|off] - pedir una invitaci\195\179n de capa a la hermandad de tu continente",
+  ["/guilded layer [list | cancel | helper on|off | auto on|off | direct on|off] - ask guildmates on your continent for a layer invite"] = "/guilded layer [list | cancel | helper on|off | auto on|off | direct on|off] - pedir una invitaci\195\179n de capa a la hermandad de tu continente",
   ["Only the member who asked can cancel a request."] = "Solo quien hizo la petici\195\179n puede cancelarla.",
   ["%d craft order(s) from Discord you can make: the Crafting page of the Guilded window (/guilded orders)."] = "%d pedido(s) de artesan\195\173a de Discord que puedes fabricar: p\195\161gina Fabricaci\195\179n de la ventana de Guilded (/guilded orders).",
   ["Join a guild to request a craft."] = "\195\154nete a una hermandad para pedir un objeto.",
@@ -5046,6 +5061,21 @@ local ES = {
   ["Announces when you reach a gold milestone (the amount is never shown). Off unless you turn it on."] = "Anuncia cuando alcanzas un hito de oro (nunca se muestra la cantidad). Desactivado hasta que lo actives.",
   ["Auction probe: inbox %s, invoices %s, sold message %s, owned list %s, %d statistics. Details are in the saved variables (probes.auctions); reload or log out to save the file."] = "Sonda de subastas: buz\195\179n %s, facturas %s, mensaje de venta %s, lista propia %s, %d estad\195\173sticas. Los detalles est\195\161n en las variables guardadas (probes.auctions); recarga o cierra sesi\195\179n para guardar el archivo.",
   ["Open the auction house and run /guilded probe auctions again to read the owned auction list."] = "Abre la casa de subastas y vuelve a ejecutar /guilded probe auctions para leer la lista de tus subastas.",
+  -- 9.4 layer auto-invite, direct invite test, Guild invites menu entry (Modules/LayerInvite.lua, Util.lua, Minimap.lua).
+  ["Invited %s."] = "%s invitado.",
+  ["Invited %s to your layer."] = "%s invitado a tu capa.",
+  ["Guildmates who ask for a layer on your continent are invited at once (when you are alone or lead your party, out of combat)."] = "Los miembros de la hermandad que piden una capa en tu continente se invitan al instante (si est\195\161s solo o eres l\195\173der del grupo, fuera de combate).",
+  ["Layer requests are no longer invited by themselves."] = "Las solicitudes de capa ya no se invitan solas.",
+  ["Party Invite buttons invite directly."] = "Los botones Invitar del grupo invitan directamente.",
+  ["Party Invite buttons show the /invite line to paste."] = "Los botones Invitar del grupo muestran la l\195\173nea /invite para pegar.",
+  ["Off by default. When a guildmate on your continent asks for a layer, Guilded invites them at once (only when you are alone or lead your party, out of combat and outside instances) and shows a short notice. If the game refuses, you get the Invite window instead."] = "Desactivado por defecto. Cuando un miembro de la hermandad de tu continente pide una capa, Guilded lo invita al instante (solo si est\195\161s solo o eres l\195\173der del grupo, fuera de combate y de instancias) y muestra un aviso breve. Si el juego lo rechaza, recibes la ventana Invitar en su lugar.",
+  ["Guild invites"] = "Invitaciones de hermandad",
+  ["/guilded layer auto on|off"] = "/guilded layer auto on|off",
+  ["/guilded layer direct on|off"] = "/guilded layer direct on|off",
+  ["This game build refused a direct invite: Invite buttons show the line to paste."] = "Esta versi\195\179n del juego rechaz\195\179 una invitaci\195\179n directa: los botones Invitar muestran la l\195\173nea para pegar.",
+  ["Show guildmates' layer requests"] = "Mostrar las solicitudes de capa de la hermandad",
+  ["A small window when a guildmate on your continent asks to be invited onto another layer."] = "Una peque\195\177a ventana cuando un miembro de la hermandad de tu continente pide una invitaci\195\179n a otra capa.",
+  ["Auto-invite layer requests on my continent"] = "Invitar autom\195\161ticamente las solicitudes de capa de mi continente",
 }
 -- END ES
 
@@ -5330,7 +5360,7 @@ FR["/guilded layer helper on|off"] = "/guilded layer helper on|off"
 FR["ask guildmates on your continent to invite you onto their layer"] = "demander aux guildmates de votre continent de vous inviter sur leur couche"
 FR["Ask guildmates on your continent to invite you, so you land on their layer."] = "Demandez aux guildmates de votre continent de vous inviter pour arriver sur leur couche."
 FR["levelling partners were replaced by Layer invite (/guilded layer)."] = "les partenaires de mont\195\169e ont \195\169t\195\169 remplac\195\169s par l'invitation de couche (/guilded layer)."
-FR["/guilded layer [list | cancel | helper on|off] - ask guildmates on your continent for a layer invite"] = "/guilded layer [list | cancel | helper on|off] - demander une invitation de couche aux guildmates de votre continent"
+FR["/guilded layer [list | cancel | helper on|off | auto on|off | direct on|off] - ask guildmates on your continent for a layer invite"] = "/guilded layer [list | cancel | helper on|off | auto on|off | direct on|off] - demander une invitation de couche aux guildmates de votre continent"
 FR["Only the member who asked can cancel a request."] = "Seul le membre qui a fait la demande peut l'annuler."
 FR["%d craft order(s) from Discord you can make: the Crafting page of the Guilded window (/guilded orders)."] = "%d commande(s) d'artisanat de Discord que vous pouvez fabriquer : page Artisanat de la fen\195\170tre Guilded (/guilded orders)."
 FR["Join a guild to request a craft."] = "Rejoignez une guilde pour demander un objet."
@@ -6206,3 +6236,18 @@ FR["Announces when you reach a gold milestone (the amount is never shown). Off u
 FR["Auction probe: inbox %s, invoices %s, sold message %s, owned list %s, %d statistics. Details are in the saved variables (probes.auctions); reload or log out to save the file."] = "Sonde des ench\195\168res : bo\195\174te aux lettres %s, factures %s, message de vente %s, liste des ventes %s, %d statistiques. Les d\195\169tails sont dans les variables sauvegard\195\169es (probes.auctions) ; rechargez ou d\195\169connectez-vous pour enregistrer le fichier."
 FR["Open the auction house and run /guilded probe auctions again to read the owned auction list."] = "Ouvrez l'h\195\180tel des ventes et relancez /guilded probe auctions pour lire la liste de vos ventes."
 FR["%d dungeon run(s) waiting for the companion (%s for help)."] = "%d donjon(s) en attente du compagnon (%s pour de l'aide)."
+-- 9.4 layer auto-invite, direct invite test, Guild invites menu entry (Modules/LayerInvite.lua, Util.lua, Minimap.lua).
+FR["Guild invites"] = "Invitations de guilde"
+FR["/guilded layer auto on|off"] = "/guilded layer auto on|off"
+FR["/guilded layer direct on|off"] = "/guilded layer direct on|off"
+FR["This game build refused a direct invite: Invite buttons show the line to paste."] = "Cette version du jeu a refus\195\169 une invitation directe : les boutons Inviter affichent la ligne \195\160 coller."
+FR["Show guildmates' layer requests"] = "Afficher les demandes de couche de la guilde"
+FR["A small window when a guildmate on your continent asks to be invited onto another layer."] = "Une petite fen\195\170tre quand un membre de la guilde sur votre continent demande une invitation vers une autre couche."
+FR["Auto-invite layer requests on my continent"] = "Invitation auto. des demandes de couche sur mon continent"
+FR["Invited %s."] = "%s invit\195\169."
+FR["Invited %s to your layer."] = "%s invit\195\169 sur votre couche."
+FR["Guildmates who ask for a layer on your continent are invited at once (when you are alone or lead your party, out of combat)."] = "Les membres de la guilde qui demandent une couche sur votre continent sont invit\195\169s tout de suite (si vous \195\170tes seul ou chef de groupe, hors combat)."
+FR["Layer requests are no longer invited by themselves."] = "Les demandes de couche ne sont plus invit\195\169es automatiquement."
+FR["Party Invite buttons invite directly."] = "Les boutons Inviter du groupe invitent directement."
+FR["Party Invite buttons show the /invite line to paste."] = "Les boutons Inviter du groupe affichent la ligne /invite \195\160 coller."
+FR["Off by default. When a guildmate on your continent asks for a layer, Guilded invites them at once (only when you are alone or lead your party, out of combat and outside instances) and shows a short notice. If the game refuses, you get the Invite window instead."] = "D\195\169sactiv\195\169 par d\195\169faut. Quand un membre de la guilde sur votre continent demande une couche, Guilded l'invite tout de suite (seulement si vous \195\170tes seul ou chef de groupe, hors combat et hors instance) et affiche un court avis. Si le jeu refuse, vous avez la fen\195\170tre Inviter \195\160 la place."

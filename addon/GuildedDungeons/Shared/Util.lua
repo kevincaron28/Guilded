@@ -578,9 +578,87 @@ function util.inviteMacro(kind, name)
   return (kind == "party" and "/invite " or "/ginvite ") .. name
 end
 
+-- (9.4) Party invites go straight to the game: C_PartyInfo.InviteUnit (or InviteUnit) is not a protected call for a
+-- PARTY invite. Popular layer addons call it from chat and addon-message events with no click (AutoLayer on Classic,
+-- ForeverLayers' "Auto-help" on WoW Forever 1.60.1, 16 Nov 2026). Guilded's earlier refusals were other calls: the
+-- guild invite (GuildInvite / C_GuildInfo.Invite, #681: "Guilded tried to call UNKNOWN()"), a secure macro button
+-- running /ginvite or /invite, and a line the addon wrote in the chat box ("blocked because of taint from Guilded -
+-- Invite()", taint.log 9 Nov: the chat box path). Guild invites stay a copy-box line.
+-- Never in combat; only alone or as the group's leader. A refusal anyway (the game raises ADDON_ACTION_BLOCKED or
+-- ADDON_ACTION_FORBIDDEN inside the call; Core.lua hands it to util.noteInviteBlocked) is remembered for this client
+-- build: from then on every party Invite shows the copy box, with no second popup.
+-- Saved: GuildedDB.inviteDirect = { off = true|nil (the player's off switch), refused = "<build>"|nil }.
+local function clientBuild()
+  if type(GetBuildInfo) ~= "function" then return "?" end
+  local ok, _, build = pcall(GetBuildInfo)
+  return ok and not isSecret(build) and tostring(build or "?") or "?"
+end
+util.clientBuild = clientBuild
+local function directState()
+  local db = ns.getDb and ns.getDb()
+  if type(db) ~= "table" then return nil end
+  db.inviteDirect = type(db.inviteDirect) == "table" and db.inviteDirect or {}
+  return db.inviteDirect
+end
+function util.directInviteRefused()
+  local state = directState()
+  return state ~= nil and state.refused ~= nil and state.refused == clientBuild()
+end
+-- On unless the player switched it off or the game refused it on this build.
+function util.directInviteOn()
+  local state = directState()
+  if state and state.off == true then return false end
+  return not util.directInviteRefused()
+end
+function util.setDirectInvite(on)
+  local state = directState()
+  if not state then return false end
+  state.off = (not on) and true or nil
+  return true
+end
+-- Alone, or the leader of my party (a member's invite only asks the leader).
+function util.canPartyInvite()
+  if not (IsInGroup and IsInGroup()) then return true end
+  if IsInRaid and IsInRaid() then return false end
+  local ok, leader = pcall(function() return UnitIsGroupLeader and UnitIsGroupLeader("player") end)
+  return ok and leader and true or false
+end
+local directAttempt   -- { at = GetTime(), refused = bool } while (and just after) a direct invite runs
+local function recordRefusal()
+  local state = directState()
+  if state then state.refused = clientBuild() end
+  if directAttempt then directAttempt.refused = true end
+end
+-- Core.lua calls this on every ADDON_ACTION_BLOCKED/FORBIDDEN naming Guilded. True when it was the party invite.
+function util.noteInviteBlocked(named)
+  local attempt = directAttempt
+  if not attempt then return false end
+  local now = GetTime and GetTime() or 0
+  if now < attempt.at or now - attempt.at > 2 then directAttempt = nil; return false end
+  if type(named) == "string" and named ~= "" and named ~= "UNKNOWN" and not named:find("Invite") then return false end
+  recordRefusal()
+  return true
+end
+-- A party invite now. Returns true when the game took it without refusing; false (nothing sent) in combat, in a
+-- group I do not lead, after a refusal on this build, or when the player switched direct invites off.
+function util.partyInvite(name, why)
+  if type(name) ~= "string" or name == "" or isSecret(name) or name:find("[|%c]") then return false end
+  if util.inCombat() or not util.directInviteOn() or not util.canPartyInvite() then return false end
+  local invite = (C_PartyInfo and C_PartyInfo.InviteUnit) or InviteUnit
+  if type(invite) ~= "function" then return false end
+  directAttempt = { at = GetTime and GetTime() or 0, refused = false }
+  ns.guardedCall = { name = "C_PartyInfo.InviteUnit (" .. tostring(why or "party invite") .. ")" }
+  local ok = pcall(invite, name)
+  ns.guardedCall = nil
+  if not ok then recordRefusal() end
+  return not directAttempt.refused
+end
+
 -- kind: "guild" or "party". The returned button has button.setInvite(name), button.inviteName() (the name it
 -- invites right now) and button.inviteLine() (the chat line). A click shows the line in the copy box and says to
 -- copy and paste it (or, without a copy box, which line to type), then runs onClick(name, shown).
+-- A party button invites directly (util.partyInvite); when the game takes it, onClick(name, false, line, true) runs
+-- and no copy box is shown. A guild button always shows the /ginvite line.
 function util.inviteButton(parent, kind, text, width, height, onClick)
   local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
   if width and button.SetWidth then button:SetWidth(width) end
@@ -598,6 +676,11 @@ function util.inviteButton(parent, kind, text, width, height, onClick)
   local function tr(textKey) return ns.L and ns.L(textKey) or textKey end
   button:SetScript("OnClick", function()
     if not line then return end
+    if kind == "party" and util.partyInvite(target, "Invite button") then
+      if ns.message and button.quiet ~= true then ns.message(string.format(tr("Invited %s."), target)) end
+      if onClick then onClick(target, false, line, true) end
+      return
+    end
     local anchor = type(button.copyAnchor) == "function" and button.copyAnchor() or button.copyAnchor
     local nextFn = type(button.copyNext) == "function" and button.copyNext(target) or nil
     local shown = type(ns.showCopyText) == "function" and (pcall(ns.showCopyText, line, tr("Copy with Ctrl+C, then paste in chat"), anchor, nextFn)) or false

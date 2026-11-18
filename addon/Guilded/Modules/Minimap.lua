@@ -2445,9 +2445,13 @@ local function buildPanel()
   panel:SetClampedToScreen(true)
   panel:EnableMouse(true)
   panel:RegisterForDrag("LeftButton")
-  panel:SetScript("OnDragStart", function(self) if self:IsMovable() then self:StartMoving() end end)
+  -- While the window is dragged, the save button (a secure frame outside the window, see ui.updateSendButton) is placed
+  -- again on every frame, so it moves with the window instead of catching up a moment later.
+  panel:SetScript("OnDragStart", function(self) if self:IsMovable() then self:StartMoving(); ui.sendDragging = true end end)
   panel:SetScript("OnDragStop", function(self)
     self:StopMovingOrSizing()
+    ui.sendDragging = false
+    if ui.updateSendButton then ui.updateSendButton() end
     -- Where you left it is where it opens next time.
     local s = settings()
     local point, _, relativePoint, x, y = self:GetPoint()
@@ -2625,9 +2629,12 @@ local function buildPanel()
         ui.updateSendButton()
       end
     end)
+    -- Every frame while the window is dragged (no catching up), otherwise a cheap check a few times a second for
+    -- other moves (a scale change, another addon). Never in combat: the button is hidden for the fight.
     follow:SetScript("OnUpdate", function(_, elapsed)
       since = since + (elapsed or 0)
-      if since < 0.15 or not panel:IsShown() or (InCombatLockdown and InCombatLockdown()) then return end
+      if not panel:IsShown() or (InCombatLockdown and InCombatLockdown()) then return end
+      if not ui.sendDragging and since < 0.15 then return end
       since = 0
       local placed = ui.sendPlaced
       local left, bottom = panel:GetLeft(), panel:GetBottom()
@@ -2812,6 +2819,9 @@ local function quickMenuItems()
   -- (9.3.4) Same as the Change layer button on the Layer invite tab: asks guildmates on your continent for an invite
   -- (module.ask prints its own confirmation or the reason it cannot ask). A plain click on a normal button: nothing protected.
   if ns.layerInvite and ns.layerInvite.ask then table.insert(items, { "Layer invite", function() ns.layerInvite.ask() end }) end
+  -- (9.4) The To invite window (/guilded invites), only for a player whose rank can invite to the guild.
+  local queue = ns.inviteQueue
+  if queue and queue.open and queue.canInvite and queue.canInvite() then table.insert(items, { "Guild invites", function() queue.open() end }) end
   table.insert(items, { "Settings", function() openPage("Tools") end })
   return items
 end

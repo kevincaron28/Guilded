@@ -171,13 +171,16 @@ describe("layer invite: a helper", () => {
     expect(openList()).toBe("Ann");
   });
 
-  it("Invite shows the /invite line in the copy box and never calls the invite API or the chat box", () => {
+  it("Invite sends the party invite directly (9.4) and never touches the chat box; without the API it shows the copy box", () => {
     setup(12); login();
     s!.run(`DB.layer = { helper = true }`);
     heard("Ann", "REQ|5|12|Elwynn Forest");
     s!.run(`FR.GuildedLayerToast.invite:GetScript("OnClick")(FR.GuildedLayerToast.invite)`);
-    expect(s!.run(`return COPIED[1]`)).toBe("/invite Ann");
-    expect(s!.run(`return #INV .. "," .. #OPENED`)).toBe("0,0");
+    expect(s!.run(`return table.concat(INV, ",") .. ":" .. #COPIED .. ":" .. #OPENED`)).toBe("Ann:0:0");
+    s!.run(`InviteUnit = nil`);
+    heard("Bo", "REQ|6|12|Elwynn Forest");
+    s!.run(`FR.GuildedLayerToast.invite:GetScript("OnClick")(FR.GuildedLayerToast.invite)`);
+    expect(s!.run(`return COPIED[1]`)).toBe("/invite Bo");
   });
 });
 
@@ -323,5 +326,133 @@ describe("layer invite: the old levelling partners module", () => {
     setup();
     expect(s!.run(`return type(NS.levelPartners)`)).toBe("nil");
     expect(s!.run(`return type(NS.layerInvite.ask)`)).toBe("function");
+  });
+});
+
+// 17 November 2026 (owner): "auto invite instead of a Ctrl+C Ctrl+V", and an opt-in so a layer request on my continent
+// invites them. A PARTY invite is not protected (AutoLayer calls InviteUnit from chat events; ForeverLayers' Auto-help
+// invites from its addon message on WoW Forever), so Invite clicks invite directly and the opt-in invites from the
+// request itself. Never in combat, in an instance or in a group I do not lead; a refusal is remembered for the client
+// build and everything falls back to the window and the copy box. Guild invites stay a copy-box line.
+describe("layer invite: auto-invite opt-in and direct party invites", () => {
+  const withDirect = () => {
+    setup(12); login();
+    s!.run(`UTILNS.getDb = function() return DB end
+      BUILD = "70001"
+      function GetBuildInfo() return "1.15.8", BUILD, "Nov 1 2026", 11508 end
+      PLAYED = 0; function PlaySound() PLAYED = PLAYED + 1 end
+      LEADER = true; function UnitIsGroupLeader() return LEADER end
+      INV = {}; REFUSE = false
+      C_PartyInfo = { InviteUnit = function(name)
+        INV[#INV + 1] = name
+        -- The game raises the refusal inside the call; Core.lua's handler passes it on.
+        if REFUSE then NS.util.noteInviteBlocked("UNKNOWN") end
+      end }`);
+  };
+  const clickInvite = () => s!.run(`FR.GuildedLayerToast.invite:GetScript("OnClick")(FR.GuildedLayerToast.invite)`);
+  const invites = () => s!.run(`return table.concat(INV, ",")`);
+  const copied = () => s!.run(`return table.concat(COPIED, ",")`);
+  const mode = () => s!.run(`return tostring(FR.GuildedLayerToast and FR.GuildedLayerToast.mode)`);
+
+  it("is off by default: a request is never invited by itself, and a first one still asks whether to help", () => {
+    withDirect();
+    expect(s!.run(`return tostring(NS.layerInvite.autoInvite())`)).toBe("false");
+    heard("Ann", "REQ|5|12|Elwynn Forest");
+    expect(invites()).toBe("");
+    expect(mode()).toBe("ask");
+  });
+
+  it("on: invites a same-continent request when it arrives, claims it, and shows a short notice (no chat line)", () => {
+    withDirect();
+    s!.run(`NS.commandHandlers.layer({ "layer", "auto", "on" })`);
+    expect(s!.run(`return tostring(DB.layer.auto) .. ":" .. tostring(DB.layer.helper)`)).toBe("true:true");
+    s!.run(`MSGS = {}`);
+    heard("Ann", "REQ|6|13|Stormwind");
+    expect(invites()).toBe("");
+    heard("Bo", "REQ|7|12|Duskwood");
+    expect(invites()).toBe("Bo");
+    expect(sent()).toContain("CLAIM|Bo|7|12");
+    expect(mode()).toBe("invited");
+    expect(s!.run(`return tostring(FR.GuildedLayerToast.invite.shown)`)).not.toBe("true");   // no button on the notice
+    expect(msgs()).toBe("");
+    expect(copied()).toBe("");
+    // The notice closes by itself after a few seconds.
+    s!.run(`CLOCK = CLOCK + 9; NS.layerInvite.tick()`);
+    expect(toastShown()).toBe("false");
+  });
+
+  it("one at a time: a second request soon after waits in the window with an Invite button", () => {
+    withDirect();
+    s!.run(`NS.layerInvite.setAutoInvite(true)`);
+    heard("Bo", "REQ|7|12|Duskwood");
+    s!.run(`CLOCK = CLOCK + 9; NS.layerInvite.tick()`);
+    heard("Cy", "REQ|8|12|Duskwood");
+    expect(invites()).toBe("Bo");
+    expect(mode()).toBe("request");
+    clickInvite();
+    expect(invites()).toBe("Bo,Cy");
+  });
+
+  it("never invites by itself in combat, in an instance, in a raid or in a party I do not lead", () => {
+    withDirect();
+    s!.run(`NS.layerInvite.setAutoInvite(true); IN_COMBAT = true`);
+    heard("Bo", "REQ|9|12|Duskwood");
+    s!.run(`IN_COMBAT = false; INST = true`);
+    heard("Cy", "REQ|10|12|Duskwood");
+    s!.run(`INST = false; GROUP = 2; LEADER = false`);
+    heard("Di", "REQ|11|12|Duskwood");
+    expect(invites()).toBe("");
+    // Not the leader: the window offers Invite, and the click shows the line (a member cannot invite).
+    expect(mode()).toBe("request");
+    clickInvite();
+    expect(invites()).toBe("");
+    expect(copied()).toBe("/invite Di");
+    // As the leader of a small party it invites.
+    s!.run(`LEADER = true; CLOCK = CLOCK + 61`);
+    heard("Ed", "REQ|12|12|Duskwood");
+    expect(invites()).toBe("Ed");
+  });
+
+  it("a refusal falls back to the window and copy box, is remembered for this build, and is not tried again", () => {
+    withDirect();
+    s!.run(`NS.layerInvite.setAutoInvite(true); REFUSE = true`);
+    heard("Bo", "REQ|13|12|Duskwood");
+    expect(invites()).toBe("Bo");
+    expect(s!.run(`return tostring(DB.inviteDirect.refused)`)).toBe("70001");
+    expect(mode()).toBe("request");           // not claimed: the window with Invite
+    expect(sent()).not.toContain("CLAIM");
+    clickInvite();
+    expect(invites()).toBe("Bo");             // no second call on this build
+    expect(copied()).toBe("/invite Bo");
+    heard("Cy", "REQ|14|12|Duskwood");
+    expect(invites()).toBe("Bo");
+    s!.run(`NS.commandHandlers.layer({ "layer", "direct", "on" })`);
+    expect(msgs()).toContain("refused a direct invite");
+    // A new client build tries again.
+    s!.run(`BUILD = "70002"`);
+    expect(s!.run(`return tostring(NS.util.directInviteOn())`)).toBe("true");
+  });
+
+  it("the off switch: /guilded layer direct off makes party Invite buttons show the line again", () => {
+    withDirect();
+    s!.run(`NS.layerInvite.setAutoInvite(true); NS.commandHandlers.layer({ "layer", "direct", "off" })`);
+    heard("Bo", "REQ|15|12|Duskwood");
+    expect(invites()).toBe("");
+    clickInvite();
+    expect(copied()).toBe("/invite Bo");
+    s!.run(`NS.commandHandlers.layer({ "layer", "direct", "on" })`);
+    expect(s!.run(`return tostring(NS.util.directInviteOn())`)).toBe("true");
+  });
+
+  it("guild Invite buttons never call an invite API (the guild invite is protected), and other refusals are not blamed", () => {
+    withDirect();
+    s!.run(`G = NS.util.inviteButton(UIParent, "guild", "Invite", 80, 22); G.setInvite("Bo"); G:GetScript("OnClick")(G)`);
+    expect(invites()).toBe("");
+    expect(copied()).toBe("/ginvite Bo");
+    s!.run(`C_PartyInfo.InviteUnit = function(name) INV[#INV + 1] = name; NS.util.noteInviteBlocked("SetMOTD") end`);
+    expect(s!.run(`return tostring(NS.util.partyInvite("Bo"))`)).toBe("true");
+    expect(s!.run(`return tostring(DB.inviteDirect.refused)`)).toBe("nil");
+    s!.run(`IN_COMBAT = true`);
+    expect(s!.run(`return tostring(NS.util.partyInvite("Cy"))`)).toBe("false");
   });
 });

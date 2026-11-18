@@ -100,8 +100,10 @@ describe("protected calls only where the player's click runs them (taint)", () =
 
   const allowed: Array<[string, RegExp, string[]]> = [
     // Party invites: the Invite buttons (call for help, layer invite) show the /invite line in the copy box (ns.util.inviteButton).
-    // No file calls InviteUnit any more: /guilded invite raid lists /invite lines too (Invite() is FORBIDDEN to addons on Forever).
-    ["party invites", /\bInviteUnit\b/, []],
+    // (9.4) A PARTY invite is not protected (AutoLayer and ForeverLayers call it from events; Guilded's refusals were the
+    // guild invite, macro buttons and addon-written chat lines). Only util.partyInvite calls it: out of combat, alone or as
+    // leader, inside ns.guardedCall, and never again on a client build that refused it once. Guild invites stay copy-box.
+    ["party invites", /\bInviteUnit\b/, ["addon/Guilded/Util.lua", "addon/GuildedDungeons/Shared/Util.lua"]],
     ["guild rank, kick and note changes", /\b(?:GuildPromote|GuildDemote|GuildUninvite|GuildRosterSetPublicNote|GuildRosterSetOfficerNote|SetGuildMemberRank|SetGuildRankOrder|RemoveFromGuild)\b/, [
       "addon/Guilded/Modules/RosterTools.lua"   // roster admin, confirmed per click; refusals remembered per build
     ]],

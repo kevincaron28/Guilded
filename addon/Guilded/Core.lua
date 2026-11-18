@@ -2769,6 +2769,8 @@ local function onEvent(_, event, ...)
       if #context > 0 then detail = detail .. " {" .. table.concat(context, ", ") .. "}" end
       local named = type(blockedFunction) == "string" and string.gsub(blockedFunction, "%(%)$", "") or nil
       if named and ns.guildSnapshot and ns.guildSnapshot.onBlocked then pcall(ns.guildSnapshot.onBlocked, named) end
+      -- (9.4) A direct invite test that the game refused is remembered for this client build (Util.lua).
+      if ns.util and ns.util.noteInviteBlocked then pcall(ns.util.noteInviteBlocked, named) end
     end
     logDiagnostic(event, detail, blockedAddon ~= addonName)
     -- A refused guild action is never retried on this client build (see RosterTools).

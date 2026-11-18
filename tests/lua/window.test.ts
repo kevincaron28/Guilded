@@ -888,6 +888,26 @@ describe("minimap button shortcuts (Track E2)", () => {
     s.run(`for i = 1, #MENU.buttons do if MENU.buttons[i].text.text == "Layer invite" then MENU.buttons[i].scripts.OnClick(MENU.buttons[i]) end end`);
     expect(s.run(`return tostring(DONE[#DONE])`)).toBe("layer");
   });
+
+  it("the quick menu has Guild invites (the To invite window) only for a player whose rank can invite to the guild", () => {
+    const s = setup();
+    s.run(`CAN = false
+      NS.layerInvite = { ask = function() DONE[#DONE + 1] = "layer" end }
+      NS.inviteQueue = { canInvite = function() return CAN end, open = function() DONE[#DONE + 1] = "invites" end }`);
+    const names = () => {
+      click(s, "RightButton");
+      s.run(`for _, f in ipairs(FRAMES) do if f.frameName == "GuildedQuickMenu" then MENU = f end end`);
+      return s.run(`local t = {}; for i = 1, #MENU.buttons do if MENU.buttons[i].shown then t[#t + 1] = MENU.buttons[i].text.text end end; return table.concat(t, ",")`);
+    };
+    expect(names()).toBe("Dungeons,Layer invite,Settings");
+    s.run(`CAN = true`);
+    expect(names()).toBe("Dungeons,Layer invite,Guild invites,Settings");
+    s.run(`for i = 1, #MENU.buttons do if MENU.buttons[i].shown and MENU.buttons[i].text.text == "Guild invites" then MENU.buttons[i].scripts.OnClick(MENU.buttons[i]) end end`);
+    expect(s.run(`return tostring(DONE[#DONE])`)).toBe("invites");
+    // Rank lost the right: the entry goes away again.
+    s.run(`CAN = false`);
+    expect(names()).toBe("Dungeons,Layer invite,Settings");
+  });
 });
 
 // 8.5 in-game test (French Forever): the minimap button was missing and /guilded minimap show was silent.
@@ -1080,6 +1100,29 @@ describe("taint guard: the window holds no secure frame", () => {
     expect(s.run(`return tostring(SECURE[1].shown)`)).toBe("false");
     s.run(`PANEL:Show(); PANEL.scripts.OnShow(PANEL)`);
     expect(s.run(`local p = SECURE[1].points[#SECURE[1].points]; return tostring(p[2] == UIParent) .. ":" .. p[1]`)).toBe("true:BOTTOMLEFT");
+  });
+  it("moves the send button with the window on every frame of a drag (17 Nov: it lagged behind), still never anchored to the window", () => {
+    const s = openWindow(5, SECURE_SETUP);
+    panelOf(s);
+    s.run(`NS.windowState().selectTabByName("Home"); LEFT = 0; PANEL.GetLeft = function() return LEFT end
+      for _, f in ipairs(FRAMES) do if f.frameName == "GuildedSendButtonFollower" then FOLLOW = f end end
+      NS.windowState().updateSendButton()`);
+    const x = () => s.run(`local p = SECURE[1].points[#SECURE[1].points]; return tostring(p[2] == UIParent) .. ":" .. tostring(p[4])`);
+    expect(x()).toBe("true:22");
+    // Not dragging: one short frame does not re-place it (the slow check runs a few times a second).
+    s.run(`LEFT = 50; FOLLOW.scripts.OnUpdate(FOLLOW, 0.016)`);
+    expect(x()).toBe("true:22");
+    // Dragging: every frame places it from the window's new rectangle.
+    s.run(`PANEL.scripts.OnDragStart(PANEL); LEFT = 100; FOLLOW.scripts.OnUpdate(FOLLOW, 0.016)`);
+    expect(x()).toBe("true:122");
+    s.run(`LEFT = 130; FOLLOW.scripts.OnUpdate(FOLLOW, 0.016)`);
+    expect(x()).toBe("true:152");
+    // Dropped: placed at once where the window stopped.
+    s.run(`LEFT = 140; PANEL.scripts.OnDragStop(PANEL)`);
+    expect(x()).toBe("true:162");
+    expect(s.run("return tostring(NS.windowState().sendDragging)")).toBe("false");
+    expect(s.run(`local n = 0; for _, p in ipairs(SECURE[1].points) do if p[2] == PANEL then n = n + 1 end end; return n`)).toBe("0");
+    expect(s.run("return tostring(SECURE[1].parentRef == UIParent)")).toBe("true");
   });
   it("hides the send button when combat starts and keeps it hidden until combat ends: nothing invisible stays clickable", () => {
     const s = openWindow(5, SECURE_SETUP);

@@ -326,8 +326,8 @@ function module.zoneMates()
   return list
 end
 
--- Invite buttons show "/invite First Last" in the copy box (util.inviteButton, which also says to copy and paste it):
--- the party invite API is refused to addon code on WoW Forever. This runs after the click.
+-- Invite buttons send the party invite directly (util.inviteButton -> util.partyInvite); in combat, in a group you do
+-- not lead, or after the game refused it on this build, they show "/invite First Last" in the copy box. Runs after the click.
 function module.invited(name)
   if not name or name == "" then return false end
   return true

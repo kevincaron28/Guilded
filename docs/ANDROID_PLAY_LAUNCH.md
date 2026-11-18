@@ -13,7 +13,7 @@ Agents must not create accounts, sign in for the owner, or change store ids (`to
 **Closed test with Testers Community (14 November 2026):** the short path, with who does each step, is
 [mobile/store/play-console-checklist.md](../mobile/store/play-console-checklist.md) (French:
 [play-console-checklist.fr.md](../mobile/store/play-console-checklist.fr.md)). This file keeps the longer notes.
-The Play build is version 0.4.0 without Guilded Clash (0.4.0 adds a native storage module, so it ships as a store build, never as an over-the-air update). Firebase (steps 1 and 2) is needed only for push: the
+The Play build is version 0.4.1 without Guilded Clash (0.4.0 adds a native storage module, so it ships as a store build, never as an over-the-air update). Firebase (steps 1 and 2) is needed only for push: the
 `production-no-push` profile builds a bundle without it (raid reminders stay on the phone).
 
 **Before anything is uploaded:** merge the app pull request (icons, build profiles, the app without Guilded Clash; it

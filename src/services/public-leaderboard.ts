@@ -1512,7 +1512,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       ? t(`${shownName}${classWords ? `, ${classWords}` : ""}: dungeon score ${scoreLine}${topRun ? `, best clear ${localDungeonName(topRun, lang)} in ${time(topRun.durationSec)}` : ""}. WoW Forever leaderboards on Guilded.`,
         `${shownName}${classWords ? `, ${classWords}` : ""} : score de donjon ${scoreLine}${topRun ? `, meilleur essai ${localDungeonName(topRun, lang)} en ${time(topRun.durationSec)}` : ""}. Classements WoW Forever sur Guilded.`)
       : t(`${shownName}${classWords ? `, ${classWords}` : ""}: dungeon score and times on Guilded's public WoW Forever leaderboards.`, `${shownName}${classWords ? `, ${classWords}` : ""} : score et temps de donjon sur les classements publics WoW Forever de Guilded.`);
-    const characterUrl = publicUrl(`/leaderboards/character/${encodeURIComponent(me ? `${me.character}-${me.realm}` : title)}`, currentEdition());
+    const characterUrl = publicUrl(`/leaderboards/character/${encodeURIComponent(me ? [me.character, me.realm].join("-") : title)}`, currentEdition());
     const documentTitle = seoTitle(shownName, classWords ? t(`${classWords}, WoW Forever dungeon score`, `${classWords}, score de donjon WoW Forever`) : t("WoW Forever dungeon score", "score de donjon WoW Forever"));
     const jsonLd = runs.length ? ldGraph({ "@type": "ProfilePage", url: characterUrl, name: documentTitle, ...(runs[0] ? { dateModified: runs[0].endedAt.toISOString() } : {}),
       mainEntity: { "@type": "Person", name: shownName, description, url: characterUrl, ...(classWords ? { jobTitle: classWords } : {}) } },
@@ -1565,8 +1565,8 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     }
     const bosses = run.challenge ? null : bossTally(run.instanceId, run.evidence?.encounters);
     const names = run.players.filter((p) => !p.hidden).map((p) => p.displayName || p.character);
-    const description = t(`${title}: ${run.challenge ? "keystone" : "dungeon"} run cleared in ${displayedTime}${verdict.score ? `, score ${verdict.score.points}` : ""}, ${date(run.endedAt)}${names.length ? `, party of ${run.players.length}: ${names.slice(0, 3).join(", ")}${names.length > 3 ? "…" : ""}` : ""}. WoW Forever on Guilded.`,
-      `${title} : donjon terminé en ${displayedTime}${verdict.score ? `, score ${verdict.score.points}` : ""}, ${date(run.endedAt)}${names.length ? `, groupe de ${run.players.length} : ${names.slice(0, 3).join(", ")}${names.length > 3 ? "…" : ""}` : ""}. WoW Forever sur Guilded.`);
+    const description = t(`${title}: ${run.challenge ? "keystone" : "dungeon"} run cleared in ${displayedTime}${verdict.score ? `, score ${verdict.score.points}` : ", Unrated"}, ${date(run.endedAt)}${names.length ? `, party of ${run.players.length}: ${names.slice(0, 3).join(", ")}${names.length > 3 ? "…" : ""}` : ""}. WoW Forever on Guilded.`,
+      `${title} : donjon terminé en ${displayedTime}${verdict.score ? `, score ${verdict.score.points}` : ", non classé"}, ${date(run.endedAt)}${names.length ? `, groupe de ${run.players.length} : ${names.slice(0, 3).join(", ")}${names.length > 3 ? "…" : ""}` : ""}. WoW Forever sur Guilded.`);
     const runUrl = publicUrl(runPath(id), currentEdition());
     const documentTitle = seoTitle(title, t(`${displayedTime} clear${verdict.score ? `, score ${verdict.score.points}` : ""}, WoW Forever dungeon run`, `essai en ${displayedTime}${verdict.score ? `, score ${verdict.score.points}` : ""}, donjon WoW Forever`));
     const jsonLd = ldGraph({ "@type": "WebPage", url: runUrl, name: documentTitle, description, datePublished: run.endedAt.toISOString() },

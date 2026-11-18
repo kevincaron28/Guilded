@@ -174,7 +174,7 @@ const isRedirected = path => Object.hasOwn(GUIDE_REDIRECTS, path) || Object.hasO
 // hreflang pointing at the pair (src/services/web-layout.ts), so both are valid sitemap entries.
 // Source file of each static sitemap URL, for its lastmod (a page's markdown).
 const pageSources = new Map();
-const BOT_SECTION_PAGES = ["leaderboards/", "leaderboards/guilds/", "leaderboards/scoring/", "recruitment/", "recruitment/guilds/", "players/"];
+const BOT_SECTION_PAGES = ["leaderboards/", "leaderboards/guilds/", "leaderboards/scoring/", "leaderboards/raids/", "recruitment/", "recruitment/guilds/", "players/"];
 const publicUrls = ["/", ...guides.map(name => `/docs/${name}`), ...EDITION_SECTIONS.flatMap(({ slug }) => BOT_SECTION_PAGES.flatMap(page => [`/${slug}/${page}`, `/${slug}/${page}?lang=fr`]))].filter(path => !isRedirected(path));
 for (const page of pages) {
   const prefix = "../".repeat(page.path.split("/").filter(Boolean).length);

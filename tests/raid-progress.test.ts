@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- minimal in-memory database fakes */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { applyRaidKills, buildRaidBoard, checkRaidKill, parseRaidKills, raidBoardBody, raidBoardJson, RAIDS_OPEN_AT, type BoardGuild, type BoardKill, type RaidKillUpload } from "../src/services/raid-progress.js";
 import { exportRaidKills } from "../companion/lua-export-content.mjs";
 
@@ -86,5 +86,24 @@ describe("companion export", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]).not.toHaveProperty("extra");
     expect(rows[0]!.boss).toBe("B oss");
+  });
+});
+
+describe("raid board wiring", () => {
+  it("is in the hub tabs and the Worker forwards its page and JSON to the bot", async () => {
+    const { hubTabs } = await import("../src/services/leaderboard-hub.js");
+    expect(hubTabs((e: string) => e, "en", "raids")).toContain("/leaderboards/raids/");
+    const worker = (await import("../worker/index.mjs")).default;
+    const upstream = vi.fn(async () => new Response("ok", { headers: { "content-type": "text/html" } }));
+    vi.stubGlobal("fetch", upstream);
+    for (const path of ["/forever/leaderboards/raids/", "/forever/leaderboards/raids.json"]) {
+      await worker.fetch(new Request(`https://guilded.kcaron.top${path}`, { headers: { accept: "text/html" } }), { ASSETS: { fetch: vi.fn(async () => new Response("website")) } });
+      expect(String((upstream.mock.calls.at(-1) as unknown[])[0])).toContain(path.replace("/forever", ""));
+    }
+    vi.unstubAllGlobals();
+  });
+  it("is a static sitemap page", async () => {
+    const { readFileSync } = await import("node:fs");
+    expect(readFileSync("scripts/build-site.mjs", "utf8")).toContain('"leaderboards/raids/"');
   });
 });

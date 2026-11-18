@@ -105,6 +105,24 @@ async function ownCharacters(db: Pick<PrismaClient, "character">, memberIds: str
   return { characters, ties: { guildIds, memberIds, fullKeys: rows.map(row => row.name.trim().toLowerCase()) } };
 }
 
+/**
+ * Raid progress rows (services/raid-progress.ts) list the guild members who were in the raid group by name. The member's own characters are
+ * taken out of that list; the kill, its time and its guild member count stay, so the guild's progress does not change.
+ */
+export async function anonymiseRaidKills(database: Pick<PrismaClient, "raidKill">, characters: OwnCharacter[]): Promise<number> {
+  const names = [...new Set(characters.map(row => row.name.normalize("NFC").trim().toLowerCase()).filter(Boolean))];
+  if (!names.length) return 0;
+  let changed = 0;
+  for (;;) {
+    const rows = await database.raidKill.findMany({ where: { members: { hasSome: names } }, select: { id: true, members: true }, take: 200 });
+    if (!rows.length) return changed;
+    for (const row of rows) {
+      await database.raidKill.update({ where: { id: row.id }, data: { members: row.members.filter(member => !names.includes(member)) } });
+      changed++;
+    }
+  }
+}
+
 export async function deleteMyData(database: PrismaClient, discordUserId: string): Promise<DeletionSummary> {
   if (!/^\d{5,25}$/.test(discordUserId)) throw new Error("A Discord user id is required.");
   // The public run and duel rows go first, outside the transaction (set-based, batched, safe to repeat): if this fails nothing else has been
@@ -114,6 +132,7 @@ export async function deleteMyData(database: PrismaClient, discordUserId: string
   try {
     await anonymisePublicRuns(database, named, ties);
     await anonymisePublicDuels(database, named, ties);
+    await anonymiseRaidKills(database, named);
     return await deleteWithinTransaction(database, discordUserId);
   } finally {
     clearLeaderboardCaches(); // the public pages drop what they cached (rosters, observed guilds) at once, even if the transaction failed after the public rows changed

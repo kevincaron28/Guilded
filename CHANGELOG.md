@@ -1,5 +1,23 @@
 # Changelog
 
+## 9.3.10 — 18 November 2026
+
+Direct party invites and layer auto-invite. Prepared 18 November 2026, not yet published. Not yet confirmed on real clients (see docs/V9_3_10_RELEASE_ACCEPTANCE.md). Details: docs/V9_3_10_RELEASE_NOTES.md.
+
+Addon:
+
+- Party Invite buttons (layer requests, call for help) invite directly, with no copy and paste. If the game ever refuses, Guilded remembers it for that client build and goes back to the copy box; `/guilded layer direct off` turns direct invites off. Guild invites stay copy and paste (#1097).
+- Opt-in "Auto-invite layer requests on my continent" (Options > Dungeons, or `/guilded layer auto on`): a guildmate's layer request on your continent is invited automatically, out of combat and instances, when you are alone or the party leader, with a short notice and no chat line (#1097).
+- "Guild invites" in the minimap right-click menu opens the invite panel, for ranks that can invite (#1097).
+- The Send to Discord button follows the window while it is dragged (#1097).
+
+Bot and website (already live):
+
+- Cards keep their painting's own lighting: only a hard-to-read line gets a soft shade (#1093).
+- Season 1 ranks every Season 2 dungeon route too (Drowned City, Zul'Farrak, Maraudon, Sunken Temple and the level 60 dungeons) (#1094).
+- DM the bot your full character name to link it (#1095).
+- Nicknames and rank roles update within seconds of a link or main change (#1096).
+
 ## 9.3.9 — 17 November 2026
 
 Addon-only players, quieter logins and lighter sync. Published 17 November 2026 (GitHub, the website download and the bot; CurseForge in review). Not yet confirmed on real clients (see docs/V9_3_9_RELEASE_ACCEPTANCE.md). Details: docs/V9_3_9_RELEASE_NOTES.md.

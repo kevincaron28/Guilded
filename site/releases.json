@@ -19,13 +19,13 @@
       "url": "https://github.com/kevincaron28/Guilded/releases/tag/v9.3.9"
     },
     "curseforge": {
-      "version": "9.3.8",
+      "version": "9.3.9",
       "stage": "release",
       "url": "https://www.curseforge.com/wow/addons/guilded",
       "editions": {
         "forever": {
-          "guilded": "https://www.curseforge.com/wow/addons/guilded/files/9665832",
-          "dungeons": "https://www.curseforge.com/wow/addons/guilded-dungeons/files/9665833"
+          "guilded": "https://www.curseforge.com/wow/addons/guilded/files/9671468",
+          "dungeons": "https://www.curseforge.com/wow/addons/guilded-dungeons/files/9671469"
         }
       }
     },

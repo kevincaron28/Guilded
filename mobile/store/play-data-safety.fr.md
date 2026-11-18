@@ -2,7 +2,7 @@
 
 Version française de [play-data-safety.md](play-data-safety.md), qui fait foi et donne le détail requête par requête.
 Où les saisir : Play Console → **Policy → App content → Data safety**. Les réponses viennent de ce que le code de
-l'appli envoie vraiment, vérifié le 14 novembre 2026 sur `mobile/src` (version 0.3.0, sans Guilded Clash). Pour Play,
+l'appli envoie vraiment, vérifié le 18 novembre 2026 sur `mobile/src` (version 0.4.0, sans Guilded Clash). Pour Play,
 une donnée est **collectée** quand l'appli l'envoie hors de l'appareil. Ce que l'appli reçoit et affiche seulement
 (noms des membres, listes, positions) n'est pas collecté par l'appli.
 
@@ -27,7 +27,7 @@ rapports de plantage, publicité. Aucun SDK de mesure ou de publicité n'est dan
 
 | Question | Réponse | Raison |
 | --- | --- | --- |
-| L'appli collecte-t-elle ou partage-t-elle des données d'utilisateur ? | **Oui** | Les trois types ci-dessous. |
+| L'appli collecte-t-elle ou partage-t-elle des données d'utilisateur ? | **Oui** | Les quatre types ci-dessous. |
 | Toutes les données sont-elles chiffrées en transit ? | **Oui** | L'appli refuse les adresses `http`, sauf sur l'appareil lui-même (`apiOrigin` dans `mobile/src/api.ts`). |
 | Les utilisateurs peuvent-ils demander la suppression de leurs données ? | **Oui** | Dans l'appli : Moi → Réglages → **Supprimer mes données** → **Tout supprimer**. L'appli efface le compte et ses données sur le serveur et déconnecte le téléphone, sans passer par le site. Sur le web : https://guildedwow.com/delete-my-data/, lisible sans connexion. Le site retire ses pages de compte; si sa page publique de suppression reçoit sa propre adresse, la mettre ici et dans `DELETE_INFO_URL` (`mobile/src/links.ts`). |
 | Création de compte | Le compte est créé hors de l'appli (Discord, par le site de Guilded) | Si la Console demande une « Delete account URL », donner l'adresse ci-dessus : Google veut une page lisible sans connexion. |
@@ -38,11 +38,14 @@ rapports de plantage, publicité. Aucun SDK de mesure ou de publicité n'est dan
 | --- | --- | --- | --- | --- | --- | --- |
 | Personal info → **User IDs** | Oui | Non | Non | Facultatif | App functionality, Account management | L'identifiant de connexion; Stats, Nouvelles et la guilde d'exemple fonctionnent sans connexion. |
 | App activity → **Other user-generated content** | Oui | Non | Non | Facultatif | App functionality | La liste de souhaits. |
+| App info and performance → **Crash logs** (seulement le rapport d'erreur qu'une personne envoie depuis l'écran d'erreur) | Oui | Non | Non | Facultatif (un bouton que la personne touche; rien n'est envoyé automatiquement) | App functionality | Depuis 0.4.0, « Envoyer le rapport d'erreur » (`POST /api/v1/mobile/report`) envoie le texte de l'erreur, une courte pile sans liens ni chemins, la version, la plateforme et l'écran; aucun nom, jeton ou donnée de guilde. |
 | Device or other IDs → **Device or other IDs** | Oui | Non | Non | Facultatif pour le jeton de notification; l'identifiant d'installation part de chaque copie installée, donc si la Console force un seul choix, répondre **Required** | App functionality | Alertes et mises à jour de l'appli. |
 
 Tout le reste est **non collecté** : localisation, nom, courriel, adresse, téléphone, données financières, santé,
 messages, photos, vidéos, audio, fichiers, calendrier, contacts, navigation web, interactions dans l'appli,
-historique de recherche, applis installées, journaux de plantage, diagnostics.
+historique de recherche, applis installées, diagnostics.
+
+Gardé sur le téléphone seulement (jamais envoyé) : depuis 0.4.0, l'appli enregistre les derniers classements, nouvelles, résumé de la semaine et vues de guilde (personnages, réserves, raids, classement) dans son stockage privé (`@react-native-async-storage/async-storage`) pour les montrer hors ligne. Le jeton de connexion n'y est pas (il reste dans le trousseau). La déconnexion et **Supprimer mes données** effacent les vues de guilde.
 
 **Partagé : Non** pour chaque type. Les fournisseurs d'hébergement et de notification de Guilded (Cloudflare, Oracle
 Cloud, Aiven, Expo, Firebase Cloud Messaging) traitent les données pour le compte de Guilded; Play ne compte pas les
@@ -54,6 +57,6 @@ quand les alertes poussées seront activées.
 
 ## Mettre ce formulaire à jour quand
 
-- des rapports de plantage ou une mesure d'audience sont ajoutés (Crash logs, Diagnostics);
+- des rapports de plantage automatiques ou une mesure d'audience sont ajoutés (le rapport d'erreur de 0.4.0 est manuel et déjà déclaré comme Crash logs);
 - l'appli lit un jour la localisation de l'appareil (elle ne doit pas le faire pour la carte de guilde : les positions
   viennent du jeu).

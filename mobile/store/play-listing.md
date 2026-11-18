@@ -6,7 +6,7 @@ Character counts were checked against Play's limits (see the table at the end). 
 [play-data-safety.md](play-data-safety.md), and the content-rating answers are in [play-content-rating.md](play-content-rating.md).
 
 This listing describes the five-tab app without Guilded Clash (the card game is on hold and is not in the Play build),
-version 0.3.0. Screenshot sizes and what each one must show: [play-screenshots.md](play-screenshots.md). The Play
+version 0.4.0. Screenshot sizes and what each one must show: [play-screenshots.md](play-screenshots.md). The Play
 Console steps for the closed test: [play-console-checklist.md](play-console-checklist.md).
 
 **Decided by the owner on 15 November 2026:** the Play name is **`Guild Sync Companion`**, the label under the

@@ -1,6 +1,6 @@
 # Guilded Mobile
 
-Android and iOS share this Expo SDK 58 project. Mobile version **0.3.0**
+Android and iOS share this Expo SDK 58 project. Mobile version **0.4.0**
 (the Android versionCode is kept and raised by EAS on each store build) is separate from the bot,
 addon and Windows companion version. Both store identifiers are
 `top.kcaron.guilded`; the Expo slug is `guilded-mobile`.
@@ -23,6 +23,25 @@ bot, addon and Windows companion version). Store identifiers are
 - **Alerts**: raid reminders on this phone, plus help-call, dungeon and raid
   vacancy alerts listed as switched off until push lands (PR #345).
 - **News**: Wowhead headlines and the Blizzard news link. Public.
+**0.4.0** (18 November 2026, owner decision "build 0.4.0"; a new runtime version, so it ships as a store build):
+
+- **Push alerts on** in store builds: the production profile needs the Firebase `GOOGLE_SERVICES_JSON` EAS file variable
+  (`app.config.js` refuses a production Android build without it; `production-no-push` is the opt-out). The Alerts switch asks
+  for the Android 13+ notification permission (after creating the `raids` channel), registers the Expo token with
+  `POST /api/v1/mobile/device` and unregisters it when switched off; when Android will not ask again it offers "Open phone settings".
+  The bot schedules the reminders (`runMobileAlerts`, every 60 s from `src/main.ts`).
+- **Timeouts**: every request goes through `fetchBounded` (15 s, `getJsonBounded` for public JSON).
+- **Offline snapshots** (`src/cache.ts`, `@react-native-async-storage/async-storage`): the last good boards, news, summary,
+  duels and the signed-in guild views show at once with "Last updated", then refresh. Guild snapshots are erased on sign-out and
+  on Delete my data. The sign-in credential stays in SecureStore.
+- **Stats**: Dungeons | Duels sections and a season picker. `GET /leaderboards/boards.json?season=<id>` lists `seasons` and
+  `seasonId`; `GET /leaderboards/duels.json?when=<id>` lists `seasons` (404 until the ladder opens on 1 December 2026).
+  There is no world PvP JSON yet.
+- **First-launch intro** (3 screens, Skip) and visible sign-in steps; **roster** search, class and role filters and sorting
+  (name, level; EP/GP lists by priority, EP, name; the server sends no "last seen").
+- **Error boundary** with Try again and a manual "Send error report" (`POST /api/v1/mobile/report`, no sign-in, five per
+  network per hour, filed like `/report bug`).
+
 - **Guilded Clash is hidden** (on hold since 14 November 2026, not deleted). It appears only in a build made with
   `EXPO_PUBLIC_GUILDED_CLASH=1`: without it `metro.config.js` swaps `src/clash/entry` for an empty module, so the
   bundle carries neither the game nor its card art, and the Me tab shows no teaser. What follows describes the game

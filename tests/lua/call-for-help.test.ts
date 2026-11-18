@@ -259,7 +259,7 @@ describe("call for help: guildmates in the zone and party invites", () => {
       function InviteUnit(name) INVITES[#INVITES + 1] = name end
       IN_COMBAT = false
       function InCombatLockdown() return IN_COMBAT end
-      -- Spy: an Invite click must never touch the game chat box (nor call InviteUnit).
+      -- Spy: an Invite click must never touch the game chat box (9.4: it calls the party invite directly).
       function ChatFrame_OpenChat(line) OPENED[#OPENED + 1] = line end
       local make = CreateFrame
       CreateFrame = function(kind, name, parent, template)
@@ -281,19 +281,30 @@ describe("call for help: guildmates in the zone and party invites", () => {
     expect(lua.run(`local t = {} for _, m in ipairs(NS.callForHelp.zoneMates()) do t[#t + 1] = m.name end return table.concat(t, ",")`)).toBe("Ann-Realm,Dee-Realm");
   });
 
-  it("shows them under the caller's call as plain /invite buttons that show the line in the copy box on a click", () => {
+  it("shows them under the caller's call as plain Invite buttons that invite directly on a click (9.4)", () => {
+    const lua = withRoster();
+    lua.run(`NS.callForHelp.open()`);
+    expect(lua.run(`return tostring(NS.callForHelp.refreshMates())`)).toBe("2");
+    clickLine("/invite Ann");
+    expect(invites()).toBe("Ann");
+    expect(lua.run(`return #COPIED .. ":" .. #OPENED`)).toBe("0:0");
+    expect(msgs()).toContain("Invited Ann.");
+  });
+
+  it("shows the line in the copy box when the party invite cannot be sent directly", () => {
     const lua = withRoster();
     lua.run(`NS.callForHelp.open()`);
     expect(lua.run(`return tostring(NS.callForHelp.refreshMates())`)).toBe("2");
     expect(lines()).toBe("/invite Ann|/invite Dee");
     expect(lua.run(buttons + `local n, bad = 0, 0 for _, f in ipairs(buttons()) do if f.inviteLine() then n = n + 1 if f.template ~= "UIPanelButtonTemplate" then bad = bad + 1 end end end return n .. ":" .. bad`)).toBe("2:0");
     expect(lua.run(`return #COPIED`)).toBe("0");   // nothing before the click
+    lua.run(`InviteUnit = nil`);   // no direct invite on this client: the copy box
     clickLine("/invite Ann");
     expect(lua.run(`return #COPIED .. COPIED[1]`)).toBe("1/invite Ann");
     expect(lua.run(`return TITLES[1]`)).toBe("Copy with Ctrl+C, then paste in chat");
     expect(lua.run(`return #OPENED`)).toBe("0");
     expect(msgs()).toContain("Copy /invite Ann (Ctrl+C), paste it in your chat box (Ctrl+V) and press Enter.");
-    expect(invites()).toBe("");   // the invite API is never called from addon code
+    expect(invites()).toBe("");
     expect(lua.run(`return tostring(NS.callForHelp.invited("Ann"))`)).toBe("true");
     expect(lua.run(`return #COPIED`)).toBe("1");   // invited() prints and shows nothing itself
     expect(lua.run(`local n = 0 for _, m in ipairs(MSGS) do if m:find("Ctrl+C", 1, true) then n = n + 1 end end return n`)).toBe("1");
@@ -301,7 +312,7 @@ describe("call for help: guildmates in the zone and party invites", () => {
 
   it("tells the player which line to type when there is no copy box", () => {
     const lua = withRoster();
-    lua.run(`UTILNS.showCopyText = nil; NS.callForHelp.open(); NS.callForHelp.refreshMates()`);
+    lua.run(`UTILNS.showCopyText = nil; InviteUnit = nil; NS.callForHelp.open(); NS.callForHelp.refreshMates()`);
     clickLine("/invite Dee");
     expect(msgs()).toContain("Type /invite Dee to invite them.");
     expect(msgs()).not.toContain("Ctrl+C");
@@ -335,9 +346,8 @@ describe("call for help: guildmates in the zone and party invites", () => {
     expect(lua.run(`return table.concat(WHISPERS, ",")`)).toBe("Bob-Realm:inv");
     expect(lines()).toContain("/invite Bob");
     clickLine("/invite Bob");
-    expect(lua.run(`return COPIED[#COPIED]`)).toBe("/invite Bob");
+    expect(invites()).toBe("Bob");
     expect(lua.run(`return #OPENED`)).toBe("0");
-    expect(invites()).toBe("");
   });
 
   it("does nothing without a banner", () => {

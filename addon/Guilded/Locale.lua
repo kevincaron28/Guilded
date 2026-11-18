@@ -3020,19 +3020,20 @@ local DE = {
   ["Auction probe: inbox %s, invoices %s, sold message %s, owned list %s, %d statistics. Details are in the saved variables (probes.auctions); reload or log out to save the file."] = "Auktionspr\195\188fung: Postfach %s, Rechnungen %s, Verkaufsmeldung %s, eigene Liste %s, %d Statistiken. Details stehen in den gespeicherten Variablen (probes.auctions); lade neu oder melde dich ab, um die Datei zu speichern.",
   ["Open the auction house and run /guilded probe auctions again to read the owned auction list."] = "\195\150ffne das Auktionshaus und starte /guilded probe auctions erneut, um die eigene Auktionsliste zu lesen.",
   -- 9.4 layer auto-invite, direct invite test, Guild invites menu entry (Modules/LayerInvite.lua, Util.lua, Minimap.lua).
+  ["Invited %s."] = "%s eingeladen.",
+  ["Invited %s to your layer."] = "%s auf deinen Layer eingeladen.",
+  ["Guildmates who ask for a layer on your continent are invited at once (when you are alone or lead your party, out of combat)."] = "Gildenmitglieder, die auf deinem Kontinent um einen Layer bitten, werden sofort eingeladen (wenn du allein oder Gruppenanf\195\188hrer bist, au\195\159erhalb des Kampfes).",
+  ["Layer requests are no longer invited by themselves."] = "Layer-Anfragen werden nicht mehr automatisch eingeladen.",
+  ["Party Invite buttons invite directly."] = "Gruppen-Einladen-Schaltfl\195\164chen laden direkt ein.",
+  ["Party Invite buttons show the /invite line to paste."] = "Gruppen-Einladen-Schaltfl\195\164chen zeigen die /invite-Zeile zum Einf\195\188gen.",
+  ["Off by default. When a guildmate on your continent asks for a layer, Guilded invites them at once (only when you are alone or lead your party, out of combat and outside instances) and shows a short notice. If the game refuses, you get the Invite window instead."] = "Standardm\195\164\195\159ig aus. Wenn ein Gildenmitglied auf deinem Kontinent um einen Layer bittet, l\195\164dt Guilded es sofort ein (nur wenn du allein oder Gruppenanf\195\188hrer bist, au\195\159erhalb von Kampf und Instanzen) und zeigt einen kurzen Hinweis. Lehnt das Spiel ab, bekommst du stattdessen das Einladen-Fenster.",
   ["Guild invites"] = "Gildeneinladungen",
-  ["Direct invite test: invite sent to %s."] = "Test direkte Einladung: Einladung an %s gesendet.",
-  ["Layer requests on your continent now pop up at once with an Invite button. The game still needs your click to invite."] = "Layer-Anfragen auf deinem Kontinent erscheinen jetzt sofort mit einer Einladen-Schaltfl\195\164che. Das Spiel braucht weiterhin deinen Klick zum Einladen.",
-  ["Layer requests no longer pop up at once."] = "Layer-Anfragen erscheinen nicht mehr sofort.",
   ["/guilded layer auto on|off"] = "/guilded layer auto on|off",
   ["/guilded layer direct on|off"] = "/guilded layer direct on|off",
   ["This game build refused a direct invite: Invite buttons show the line to paste."] = "Diese Spielversion hat eine direkte Einladung abgelehnt: Einladen-Schaltfl\195\164chen zeigen die Zeile zum Einf\195\188gen.",
-  ["Direct invite test on: the next Invite click asks the game to invite directly. If the game refuses, Guilded remembers it for this game build and shows the line to paste."] = "Test direkte Einladung an: Der n\195\164chste Klick auf Einladen bittet das Spiel, direkt einzuladen. Lehnt das Spiel ab, merkt sich Guilded das f\195\188r diese Spielversion und zeigt die Zeile zum Einf\195\188gen.",
-  ["Direct invite test off."] = "Test direkte Einladung aus.",
   ["Show guildmates' layer requests"] = "Layer-Anfragen der Gilde anzeigen",
   ["A small window when a guildmate on your continent asks to be invited onto another layer."] = "Ein kleines Fenster, wenn ein Gildenmitglied auf deinem Kontinent um eine Einladung auf einen anderen Layer bittet.",
   ["Auto-invite layer requests on my continent"] = "Layer-Anfragen auf meinem Kontinent automatisch einladen",
-  ["Off by default. A guildmate's layer request on your continent pops up at once, top centre, with a sound and an Invite button. The game still needs your click: Invite shows the /invite line to paste (WoW does not let addons invite by themselves)."] = "Standardm\195\164\195\159ig aus. Die Layer-Anfrage eines Gildenmitglieds auf deinem Kontinent erscheint sofort oben in der Mitte, mit einem Ton und einer Einladen-Schaltfl\195\164che. Das Spiel braucht weiterhin deinen Klick: Einladen zeigt die /invite-Zeile zum Einf\195\188gen (WoW l\195\164sst Addons nicht selbst einladen).",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -5060,19 +5061,20 @@ local ES = {
   ["Auction probe: inbox %s, invoices %s, sold message %s, owned list %s, %d statistics. Details are in the saved variables (probes.auctions); reload or log out to save the file."] = "Sonda de subastas: buz\195\179n %s, facturas %s, mensaje de venta %s, lista propia %s, %d estad\195\173sticas. Los detalles est\195\161n en las variables guardadas (probes.auctions); recarga o cierra sesi\195\179n para guardar el archivo.",
   ["Open the auction house and run /guilded probe auctions again to read the owned auction list."] = "Abre la casa de subastas y vuelve a ejecutar /guilded probe auctions para leer la lista de tus subastas.",
   -- 9.4 layer auto-invite, direct invite test, Guild invites menu entry (Modules/LayerInvite.lua, Util.lua, Minimap.lua).
+  ["Invited %s."] = "%s invitado.",
+  ["Invited %s to your layer."] = "%s invitado a tu capa.",
+  ["Guildmates who ask for a layer on your continent are invited at once (when you are alone or lead your party, out of combat)."] = "Los miembros de la hermandad que piden una capa en tu continente se invitan al instante (si est\195\161s solo o eres l\195\173der del grupo, fuera de combate).",
+  ["Layer requests are no longer invited by themselves."] = "Las solicitudes de capa ya no se invitan solas.",
+  ["Party Invite buttons invite directly."] = "Los botones Invitar del grupo invitan directamente.",
+  ["Party Invite buttons show the /invite line to paste."] = "Los botones Invitar del grupo muestran la l\195\173nea /invite para pegar.",
+  ["Off by default. When a guildmate on your continent asks for a layer, Guilded invites them at once (only when you are alone or lead your party, out of combat and outside instances) and shows a short notice. If the game refuses, you get the Invite window instead."] = "Desactivado por defecto. Cuando un miembro de la hermandad de tu continente pide una capa, Guilded lo invita al instante (solo si est\195\161s solo o eres l\195\173der del grupo, fuera de combate y de instancias) y muestra un aviso breve. Si el juego lo rechaza, recibes la ventana Invitar en su lugar.",
   ["Guild invites"] = "Invitaciones de hermandad",
-  ["Direct invite test: invite sent to %s."] = "Prueba de invitaci\195\179n directa: invitaci\195\179n enviada a %s.",
-  ["Layer requests on your continent now pop up at once with an Invite button. The game still needs your click to invite."] = "Las solicitudes de capa de tu continente aparecen ahora al instante con un bot\195\179n Invitar. El juego sigue necesitando tu clic para invitar.",
-  ["Layer requests no longer pop up at once."] = "Las solicitudes de capa ya no aparecen al instante.",
   ["/guilded layer auto on|off"] = "/guilded layer auto on|off",
   ["/guilded layer direct on|off"] = "/guilded layer direct on|off",
   ["This game build refused a direct invite: Invite buttons show the line to paste."] = "Esta versi\195\179n del juego rechaz\195\179 una invitaci\195\179n directa: los botones Invitar muestran la l\195\173nea para pegar.",
-  ["Direct invite test on: the next Invite click asks the game to invite directly. If the game refuses, Guilded remembers it for this game build and shows the line to paste."] = "Prueba de invitaci\195\179n directa activada: el pr\195\179ximo clic en Invitar pide al juego invitar directamente. Si el juego se niega, Guilded lo recuerda para esta versi\195\179n del juego y muestra la l\195\173nea para pegar.",
-  ["Direct invite test off."] = "Prueba de invitaci\195\179n directa desactivada.",
   ["Show guildmates' layer requests"] = "Mostrar las solicitudes de capa de la hermandad",
   ["A small window when a guildmate on your continent asks to be invited onto another layer."] = "Una peque\195\177a ventana cuando un miembro de la hermandad de tu continente pide una invitaci\195\179n a otra capa.",
   ["Auto-invite layer requests on my continent"] = "Invitar autom\195\161ticamente las solicitudes de capa de mi continente",
-  ["Off by default. A guildmate's layer request on your continent pops up at once, top centre, with a sound and an Invite button. The game still needs your click: Invite shows the /invite line to paste (WoW does not let addons invite by themselves)."] = "Desactivado por defecto. La solicitud de capa de un miembro de la hermandad de tu continente aparece al instante, arriba en el centro, con un sonido y un bot\195\179n Invitar. El juego sigue necesitando tu clic: Invitar muestra la l\195\173nea /invite para pegar (WoW no deja que los addons inviten solos).",
 }
 -- END ES
 
@@ -6235,15 +6237,16 @@ FR["Open the auction house and run /guilded probe auctions again to read the own
 FR["%d dungeon run(s) waiting for the companion (%s for help)."] = "%d donjon(s) en attente du compagnon (%s pour de l'aide)."
 -- 9.4 layer auto-invite, direct invite test, Guild invites menu entry (Modules/LayerInvite.lua, Util.lua, Minimap.lua).
 FR["Guild invites"] = "Invitations de guilde"
-FR["Direct invite test: invite sent to %s."] = "Test d'invitation directe : invitation envoy\195\169e \195\160 %s."
-FR["Layer requests on your continent now pop up at once with an Invite button. The game still needs your click to invite."] = "Les demandes de couche de votre continent s'affichent maintenant tout de suite avec un bouton Inviter. Le jeu a toujours besoin de votre clic pour inviter."
-FR["Layer requests no longer pop up at once."] = "Les demandes de couche ne s'affichent plus tout de suite."
 FR["/guilded layer auto on|off"] = "/guilded layer auto on|off"
 FR["/guilded layer direct on|off"] = "/guilded layer direct on|off"
 FR["This game build refused a direct invite: Invite buttons show the line to paste."] = "Cette version du jeu a refus\195\169 une invitation directe : les boutons Inviter affichent la ligne \195\160 coller."
-FR["Direct invite test on: the next Invite click asks the game to invite directly. If the game refuses, Guilded remembers it for this game build and shows the line to paste."] = "Test d'invitation directe activ\195\169 : le prochain clic sur Inviter demande au jeu d'inviter directement. Si le jeu refuse, Guilded s'en souvient pour cette version du jeu et affiche la ligne \195\160 coller."
-FR["Direct invite test off."] = "Test d'invitation directe d\195\169sactiv\195\169."
 FR["Show guildmates' layer requests"] = "Afficher les demandes de couche de la guilde"
 FR["A small window when a guildmate on your continent asks to be invited onto another layer."] = "Une petite fen\195\170tre quand un membre de la guilde sur votre continent demande une invitation vers une autre couche."
 FR["Auto-invite layer requests on my continent"] = "Invitation auto. des demandes de couche sur mon continent"
-FR["Off by default. A guildmate's layer request on your continent pops up at once, top centre, with a sound and an Invite button. The game still needs your click: Invite shows the /invite line to paste (WoW does not let addons invite by themselves)."] = "D\195\169sactiv\195\169 par d\195\169faut. La demande de couche d'un membre de la guilde sur votre continent s'affiche tout de suite, en haut au centre, avec un son et un bouton Inviter. Le jeu a toujours besoin de votre clic : Inviter affiche la ligne /invite \195\160 coller (WoW ne laisse pas les addons inviter seuls)."
+FR["Invited %s."] = "%s invit\195\169."
+FR["Invited %s to your layer."] = "%s invit\195\169 sur votre couche."
+FR["Guildmates who ask for a layer on your continent are invited at once (when you are alone or lead your party, out of combat)."] = "Les membres de la guilde qui demandent une couche sur votre continent sont invit\195\169s tout de suite (si vous \195\170tes seul ou chef de groupe, hors combat)."
+FR["Layer requests are no longer invited by themselves."] = "Les demandes de couche ne sont plus invit\195\169es automatiquement."
+FR["Party Invite buttons invite directly."] = "Les boutons Inviter du groupe invitent directement."
+FR["Party Invite buttons show the /invite line to paste."] = "Les boutons Inviter du groupe affichent la ligne /invite \195\160 coller."
+FR["Off by default. When a guildmate on your continent asks for a layer, Guilded invites them at once (only when you are alone or lead your party, out of combat and outside instances) and shows a short notice. If the game refuses, you get the Invite window instead."] = "D\195\169sactiv\195\169 par d\195\169faut. Quand un membre de la guilde sur votre continent demande une couche, Guilded l'invite tout de suite (seulement si vous \195\170tes seul ou chef de groupe, hors combat et hors instance) et affiche un court avis. Si le jeu refuse, vous avez la fen\195\170tre Inviter \195\160 la place."

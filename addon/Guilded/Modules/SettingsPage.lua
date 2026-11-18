@@ -223,7 +223,7 @@ function page.allEntries()
   check("dungeons", "Layer invite", "Show guildmates' layer requests", "A small window when a guildmate on your continent asks to be invited onto another layer.", "me", "GuildedDB.layer.helper",
     function() return ns.layerInvite and ns.layerInvite.helper and ns.layerInvite.helper() or false end,
     function(on) run("layer helper " .. (on and "on" or "off")) end, { wide = true })
-  check("dungeons", "Layer invite", "Auto-invite layer requests on my continent", "Off by default. A guildmate's layer request on your continent pops up at once, top centre, with a sound and an Invite button. The game still needs your click: Invite shows the /invite line to paste (WoW does not let addons invite by themselves).", "me", "GuildedDB.layer.auto",
+  check("dungeons", "Layer invite", "Auto-invite layer requests on my continent", "Off by default. When a guildmate on your continent asks for a layer, Guilded invites them at once (only when you are alone or lead your party, out of combat and outside instances) and shows a short notice. If the game refuses, you get the Invite window instead.", "me", "GuildedDB.layer.auto",
     function() return ns.layerInvite and ns.layerInvite.autoInvite and ns.layerInvite.autoInvite() or false end,
     function(on) run("layer auto " .. (on and "on" or "off")) end, { wide = true })
   add({ tab = "dungeons", group = "Call for help", kind = "action", label = "Reset call window", who = "me", saved = "settings.helpPos",

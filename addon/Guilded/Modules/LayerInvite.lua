@@ -4,27 +4,21 @@
 --   /guilded layer list            open requests from guildmates, with the line to invite them
 --   /guilded layer cancel          close my own request
 --   /guilded layer helper on|off   whether guildmates' requests show a small window to me
---   /guilded layer auto on|off     (9.4, opt-in, off by default) every request on my continent pops up at once, top centre,
---                                  with a sound and an Invite button (no "Help guildmates?" question first)
---   /guilded layer direct on|off   (9.4) test whether this client build lets an Invite click invite directly
+--   /guilded layer auto on|off     (9.4, opt-in, off by default) a request on my continent is invited at once, with no
+--                                  click (alone or as party leader, out of combat and instances); a short notice says so
+--   /guilded layer direct on|off   (9.4) party Invite buttons invite directly (on by default); off shows the line to paste
 --
 -- The addon cannot read which layer anyone is on. A request goes out ONCE on the guild addon channel (prefix
 -- GuildedLayer) with the asker's continent; only guildmates who run the addon AND are on the same continent are
 -- candidates, and each of them is shown a request only once (a repeat of the same request is ignored).
--- A helper's small window (a plain frame: no secure template, never takes the keyboard) offers Invite: the invite
--- API is refused to addon code on WoW Forever, so Invite shows "/invite First Last" in the copy box
--- (ns.util.inviteButton) and the helper pastes it. The first helper who accepts sends CLAIM, which closes the
--- request for everyone else; the asker sends DONE once they joined the group. Nothing is shown in combat beyond one
--- chat line, and every addon message goes through ns.comm (the global budget; GuildedLayer is a low-value lane).
+-- A helper's small window (a plain frame: no secure template, never takes the keyboard) offers Invite, which sends the
+-- party invite directly (ns.util.partyInvite: a party invite is not a protected call; see Util.lua for the evidence).
+-- If the game refuses it, the refusal is remembered for the client build and Invite shows "/invite First Last" in the
+-- copy box instead. With auto-invite on, the request is invited when it arrives and a short notice replaces the window.
+-- The first helper who invites sends CLAIM, which closes the request for everyone else; the asker sends DONE once they
+-- joined the group. Nothing is shown in combat beyond one chat line, and every addon message goes through ns.comm (the
+-- global budget; GuildedLayer is a low-value lane).
 -- Saved data: db.layer = { helper = true|false|nil, auto = true|nil, lastAskAt = seconds }. Levelling partners kept no data.
---
--- Why "auto-invite" still needs the Invite click (evidence, 9-10 November 2026, owner's taint log and saved diagnostics):
--- WoW Forever refuses the party invite (Invite()) to everything but a line the player typed or pasted in chat: an addon
--- call (C_PartyInfo.InviteUnit from /guilded invite raid: "Guilded tried to call Invite()"), a secure macro button
--- ("blocked because of taint from (null) - Invite()" through RunMacroText) and a line the addon wrote in the chat box
--- ("blocked because of taint from Guilded - Invite()"). An invite from an event, with no click at all, is a protected
--- call in every WoW client. So the opt-in makes the request impossible to miss and one click away; the click shows the
--- /invite line in the copy box, or invites directly where the player's direct invite test found the game allows it.
 local addonName, ns = ...
 ns = ns or {}
 
@@ -33,6 +27,7 @@ local REQUEST_SECONDS = 300      -- a request is open this long
 local CLAIM_SECONDS = 60         -- a helper has this long to get the asker into the group
 local ASK_EVERY_SECONDS = 120    -- one request per asker per two minutes
 local TOAST_SECONDS = 30
+local NOTICE_SECONDS = 8        -- the "Invited X to your layer" notice
 local MAX_ROWS = 5
 local MAX_SEEN = 100         -- request keys remembered (oldest out)
 local MAX_WAITING = 5        -- requests queued behind the open window (oldest out)
@@ -113,6 +108,7 @@ local lastFrom = {}          -- sender -> time of their last accepted request (r
 local order = {}          -- keys in arrival order
 local counter = 0
 local toast, current, waiting = nil, nil, {}
+local autoBusyUntil = 0     -- one automatic invite at a time: the next waits until the first had time to join and leave
 local rows = {}
 
 local function send(text)
@@ -207,6 +203,7 @@ function module.show(request)
   module.placeToast()
   current = request
   toast.shownAt = nowSeconds()
+  toast.lifetime = nil
   toast.isOpen = true
   local helper = data().helper
   if module.autoInvite() then helper = true end
@@ -225,6 +222,35 @@ function module.show(request)
   if module.autoInvite() and toast.mode == "request" and PlaySound then
     pcall(PlaySound, (SOUNDKIT and SOUNDKIT.READY_CHECK) or 8960, "Master")
   end
+end
+
+-- After an automatic invite: a short notice in the same window (no chat line), closed by itself.
+function module.showInvited(request)
+  ensureToast()
+  module.placeToast()
+  current = request
+  toast.shownAt = nowSeconds()
+  toast.lifetime = NOTICE_SECONDS
+  toast.isOpen = true
+  toast.mode = "invited"
+  toast.title:SetText(string.format(L("Invited %s to your layer."), display(request.name)))
+  toast.detail:SetText(request.zone ~= "" and request.zone or " ")
+  toast.invite:Hide(); toast.later:Hide(); toast.yes:Hide(); toast.no:Hide()
+  toast:Show()
+end
+
+-- The opt-in's automatic invite, from the request's own event: only alone or as party leader, out of combat and
+-- instances (canHelp), one at a time. Returns true when the game took the invite.
+local function autoInvite(request)
+  local u = ns.util
+  if not (module.autoInvite() and u and u.partyInvite and u.canPartyInvite) then return false end
+  if combat() or current or nowSeconds() < autoBusyUntil or not u.canPartyInvite() then return false end
+  if not u.partyInvite(request.name, "layer auto-invite") then return false end
+  autoBusyUntil = nowSeconds() + CLAIM_SECONDS
+  send(string.format("CLAIM|%s|%s|%d", bare(request.name), request.id, request.continent or 0))
+  request.state = "claimed"
+  module.showInvited(request)
+  return true
 end
 
 presentNext = function()
@@ -316,6 +342,7 @@ local function receiveRequest(sender, parts)
   while #order > 20 do requests[table.remove(order, 1)] = nil end
   if data().helper == false or not canHelp() then return end
   if combat() then chatLine(request); return end
+  if autoInvite(request) then return end
   if current then
     waiting[#waiting + 1] = request
     while #waiting > MAX_WAITING do table.remove(waiting, 1) end
@@ -384,7 +411,7 @@ local function tick()
       if current == r then closeToast(); presentNext() end
     end
   end
-  if toast and toast.isOpen and toast.shownAt and t - toast.shownAt > TOAST_SECONDS then closeToast(); presentNext() end
+  if toast and toast.isOpen and toast.shownAt and t - toast.shownAt > (toast.lifetime or TOAST_SECONDS) then closeToast(); presentNext() end
 end
 module.tick = tick
 
@@ -461,8 +488,8 @@ ns.commandHandlers["layer"] = function(args)
     local value = string.lower(args[3] or "")
     if value == "on" or value == "off" then
       module.setAutoInvite(value == "on")
-      say(value == "on" and L("Layer requests on your continent now pop up at once with an Invite button. The game still needs your click to invite.")
-        or L("Layer requests no longer pop up at once."))
+      say(value == "on" and L("Guildmates who ask for a layer on your continent are invited at once (when you are alone or lead your party, out of combat).")
+        or L("Layer requests are no longer invited by themselves."))
     else
       say(L("/guilded layer auto on|off"))
     end
@@ -472,10 +499,9 @@ ns.commandHandlers["layer"] = function(args)
     if value == "on" or value == "off" then
       if value == "on" and u and u.directInviteRefused and u.directInviteRefused() then
         say(L("This game build refused a direct invite: Invite buttons show the line to paste."))
-      elseif u and u.setDirectInviteTest then
-        u.setDirectInviteTest(value == "on")
-        say(value == "on" and L("Direct invite test on: the next Invite click asks the game to invite directly. If the game refuses, Guilded remembers it for this game build and shows the line to paste.")
-          or L("Direct invite test off."))
+      elseif u and u.setDirectInvite then
+        u.setDirectInvite(value == "on")
+        say(value == "on" and L("Party Invite buttons invite directly.") or L("Party Invite buttons show the /invite line to paste."))
       end
     else
       say(L("/guilded layer direct on|off"))

@@ -205,6 +205,36 @@ describe("leaderboard and personal pages", () => {
     });
   });
 
+  describe("search metadata and armory links", () => {
+    it("gives a player page its own title, description, canonical, JSON-LD, armory links and guild link", async () => {
+      const { request } = setup();
+      const page = await request("GET", "/leaderboards/character/Kev-Doomhowl");
+      expect(page.status).toBe(200);
+      expect(page.body).toMatch(/<title>Kev: Warrior tank, WoW Forever dungeon score \| Guilded<\/title>/);
+      expect(page.body).toContain(`<link rel="canonical" href="${SITE}/forever/leaderboards/character/Kev-Doomhowl">`);
+      expect(page.body).toContain('hreflang="fr"');
+      expect(page.body).toContain('<meta property="og:title" content="Kev: Warrior tank, WoW Forever dungeon score | Guilded">');
+      const ld = JSON.parse(/<script type="application\/ld\+json">(.*?)<\/script>/s.exec(page.body)![1]!);
+      expect(ld["@graph"].map((node: { "@type": string }) => node["@type"])).toEqual(["ProfilePage", "BreadcrumbList"]);
+      expect(page.body).toContain('href="https://worldofwarcraft.blizzard.com/en-us/forever/us/armory/guild/quebec-gold"');
+      expect(page.body).toContain("/leaderboards/guild/quebec-gold");
+      const fr = await request("GET", "/leaderboards/character/Kev-Doomhowl?lang=fr");
+      expect(fr.body).toContain("score de donjon WoW Forever | Guilded</title>");
+      expect(fr.body).toContain("https://worldofwarcraft.blizzard.com/fr-fr/forever/us/armory/guild/quebec-gold");
+    });
+    it("titles a run page and a guild page, and keeps a guild that turned indexing off out of search", async () => {
+      const { request } = setup([], true);
+      const run = await request("GET", "/leaderboards/run/a");
+      expect(run.body).toMatch(/<title>Ragefire Chasm: 25:00 clear, score \d+, WoW Forever dungeon run \| Guilded<\/title>/);
+      expect(run.body).toContain("application/ld+json");
+      const guild = await request("GET", "/leaderboards/guild/quebec-gold/");
+      expect(guild.body).toContain("WoW Forever guild dungeon score and ranking | Guilded</title>");
+      expect(guild.body).toContain("/armory/guild/quebec-gold");
+      expect(guild.body).not.toContain('content="noindex"');
+      expect((await request("GET", "/leaderboards/guild/private-guild/")).body).toContain('content="noindex"');
+    });
+  });
+
   describe("the landing page", () => {
     const early = () => leaderRun("early", 1400, [player("Amy", "Priest", "HEALER")], { endedAt: new Date("2026-11-05T12:00:00Z") });
     it("shows podiums, latest runs, weekly climbers, records broken, tabs and search in English and French", async () => {
@@ -490,7 +520,7 @@ describe("leaderboard and personal pages", () => {
     expect(kev.body).toContain("Beta (before Season 1)");
     expect(kev.body).toContain('class="meter"');
     // A pasted link previews the season score and the logo (Discord reads Open Graph tags).
-    expect(kev.body).toMatch(/<meta property="og:description" content="Kev-Doomhowl: dungeon score \d+ \([^"]+\) · Season 1 · Guilded leaderboards\.">/);
+    expect(kev.body).toMatch(/<meta property="og:description" content="Kev, Warrior tank: dungeon score \d+ \([^"]+\), best clear [^"]+\. WoW Forever leaderboards on Guilded\.">/);
     expect(kev.body).toContain('<meta property="og:image" content="https://guilded.kcaron.top/forever/leaderboards/character/Kev-Doomhowl/card.png">');
     expect(home.body).toContain('<meta property="og:title" content="');
     expect(home.body).toContain("Top guilds");

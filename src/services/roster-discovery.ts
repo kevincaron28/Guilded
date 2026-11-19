@@ -60,36 +60,46 @@ export async function applyDiscoveredCharacters(tx: Tx, guildId: string, entries
     const level = entry.level >= 1 ? entry.level : null;
     const spec = entry.spec || null;
     const existing = findCharacter(linked, entry.name, entry.realm, gameEdition);
+    // A relayed digest can be days old: its own time (observedAt) is the last seen, never "now", and neither last seen nor level moves backwards.
+    const seenAt = entry.observedAt && entry.observedAt.getTime() < Date.now() ? entry.observedAt : new Date();
     if (existing) {
-      const data = { ...(entry.displayName ? { displayName: entry.displayName } : {}), ...(className ? { className } : {}), ...(race ? { race } : {}), ...(level ? { level } : {}), ...(spec ? { spec } : {}), ...guildRankUpdate(entry), lastSeenAt: new Date() };
-      if (!sameStored(existing, data)) await tx.character.update({ where: { id: existing.id }, data });
+      const forward = !(existing.lastSeenAt instanceof Date) || seenAt > existing.lastSeenAt;
+      const data = { ...(entry.displayName ? { displayName: entry.displayName } : {}), ...(className ? { className } : {}), ...(race ? { race } : {}),
+        ...(level && level > (existing.level ?? 0) ? { level } : {}), ...(spec ? { spec } : {}), ...guildRankUpdate(entry), ...(forward ? { lastSeenAt: seenAt } : {}) };
+      if (Object.keys(data).length && !sameStored(existing, data)) await tx.character.update({ where: { id: existing.id }, data });
       await syncProfessionSnapshot(tx, guildId, existing, professions, entry.professionsComplete === true, entry.professionsAt ?? new Date(),
         "professionsUpdatedAt" in existing ? { professionsUpdatedAt: existing.professionsUpdatedAt ?? null } : undefined);
       result.refreshed++;
       continue;
     }
     if (!className) continue;
-    const before = preloaded ? preloaded.get(key) ?? null : await tx.unclaimedCharacter.findUnique({ where: { guildId_nameKey: { guildId, nameKey: key } }, select: { id: true, professionsUpdatedAt: true } });
+    const before = preloaded ? preloaded.get(key) ?? null : await tx.unclaimedCharacter.findUnique({ where: { guildId_nameKey: { guildId, nameKey: key } }, select: { id: true, professionsUpdatedAt: true, lastSeenAt: true, className: true, race: true, level: true, spec: true } });
     const at = entry.professionsAt ?? new Date();
-    const acceptProfessions = !before?.professionsUpdatedAt || (entry.professionsComplete === true && at > before.professionsUpdatedAt);
+    const knownAt = before?.professionsUpdatedAt ?? null;
+    // Nothing complete stored yet: take a list only when it has something (an empty relay never replaces a partial one); a complete newer one always.
+    const acceptProfessions = knownAt ? entry.professionsComplete === true && at > knownAt : !before || professions.length > 0;
     // Nothing new about someone already remembered, seen within the hour: no field write. Their last seen is still refreshed for the
     // whole upload below (one updateMany): the sole-newcomer auto-link counts the characters an upload brought by last seen.
     const stored = before as { lastSeenAt?: Date | null; className?: string; race?: string | null; level?: number | null; spec?: string | null; displayName?: string | null; guildRankName?: string | null } | null;
     if (preloaded && stored && !acceptProfessions && stored.lastSeenAt instanceof Date && Date.now() - stored.lastSeenAt.getTime() < SEEN_REFRESH_MS
       && stored.className === className && (stored.race ?? null) === race && (stored.level ?? null) === level && (stored.spec ?? null) === spec
-      && (!entry.displayName || stored.displayName === entry.displayName) && (entry.guildRankName === undefined || stored.guildRankName === entry.guildRankName)) { touched.push((before as { id: string }).id); continue; }
-    const data = {
-      name: entry.name, realm: entry.realm, className, race, level, spec,
-      gameEdition,
+      && (!entry.displayName || stored.displayName === entry.displayName) && (entry.guildRankName === undefined || stored.guildRankName === entry.guildRankName)) { if (!entry.observedAt) touched.push((before as { id: string }).id); continue; }
+    const extras = {
       ...(entry.displayName ? { displayName: entry.displayName } : {}),
-      ...(acceptProfessions ? { professions: professions as unknown as Prisma.InputJsonValue, ...(entry.professionsComplete === true ? { professionsUpdatedAt: at } : {}) } : {}), lastSeenAt: new Date(),
+      ...(acceptProfessions ? { professions: professions as unknown as Prisma.InputJsonValue, ...(entry.professionsComplete === true ? { professionsUpdatedAt: at } : {}) } : {}),
       // 8.5 C5: the rank the officer's upload reported (omitted by older uploads, which keep the last one).
       ...(entry.guildRankName !== undefined ? { guildRankName: entry.guildRankName, guildRankAt: new Date() } : {})
     };
+    const lastSeen = stored?.lastSeenAt instanceof Date && stored.lastSeenAt >= seenAt ? {} : { lastSeenAt: seenAt };
+    // A poorer or older digest never erases what is stored: only what it carries is written, the level only upward.
+    const update = {
+      name: entry.name, realm: entry.realm, className, gameEdition,
+      ...(race ? { race } : {}), ...(level && level > (stored?.level ?? 0) ? { level } : {}), ...(spec ? { spec } : {}), ...extras, ...lastSeen
+    };
     await tx.unclaimedCharacter.upsert({
       where: { guildId_nameKey: { guildId, nameKey: key } },
-      create: { guildId, nameKey: key, professions: professions as unknown as Prisma.InputJsonValue, ...data },
-      update: data
+      create: { guildId, nameKey: key, professions: professions as unknown as Prisma.InputJsonValue, name: entry.name, realm: entry.realm, className, race, level, spec, gameEdition, ...extras, lastSeenAt: seenAt },
+      update
     });
     if (acceptProfessions && entry.professionsComplete === true) {
       const where = { guildId, character: entry.name, realm: entry.realm, profession: { notIn: professions.map((profession) => profession.name) } };

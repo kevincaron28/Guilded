@@ -314,7 +314,7 @@ function module.testLines(name)
   if tools.altInWay(snapshot, target) then lines[#lines + 1] = "An alt rank is directly above this member." end
   if tools.isBlocked("promote") then lines[#lines + 1] = "This client build refused rank changes before: manual mode."
   elseif dest <= snapshot.actor.rank then lines[#lines + 1] = "No rank below yours to promote into."
-  elseif tools.canSetRank() then lines[#lines + 1] = string.format("Would call: %s(%d, %d)  [rank number = rank index + 1]", tools.RANK_SETTER, target.index or -1, tools.rankNumber(dest))
+  elseif tools.canSetRank() then lines[#lines + 1] = string.format("Would call: %s(%d, %d)  [rank number = rank index + %d; base %s]", tools.RANK_SETTER, target.index or -1, tools.rankNumber(dest), (tools.rankBase()), select(2, tools.rankBase()) and "confirmed" or "not confirmed yet")
   elseif dest == target.rank - 1 then lines[#lines + 1] = string.format("Would call: %s(%q)", tools.LEGACY_PROMOTE, tostring(target.name))
   else lines[#lines + 1] = "Would call nothing: the rank setter is missing and an alt rank is in the way (manual mode)." end
   return lines

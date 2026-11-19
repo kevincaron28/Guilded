@@ -129,7 +129,22 @@ end
 -- C_GuildInfo.SetGuildRankOrder is never called (19 Nov 2026, owner decision).
 tools.RANK_SETTER = "SetGuildMemberRank"
 tools.LEGACY_PROMOTE = "GuildPromote"
-function tools.rankNumber(rankIndex) return rankIndex + 1 end
+local clientBuild
+-- Self-calibrating base (per client build): the number passed is rankIndex + base. Default base 0 (the roster's own
+-- index); if the first promotion lands one rank lower than asked, the base becomes 1, and the officer clicks again.
+local function calibration()
+  local db = ns.getDb and ns.getDb()
+  if type(db) ~= "table" then return { base = 0, confirmed = false } end
+  local c = db.rosterRankBase
+  if type(c) == "table" and c.build == clientBuild() and (c.base == 0 or c.base == 1) then return c end
+  return { base = 0, confirmed = false }
+end
+local function saveCalibration(base, confirmed)
+  local db = ns.getDb and ns.getDb()
+  if type(db) == "table" then db.rosterRankBase = { build = clientBuild(), base = base, confirmed = confirmed } end
+end
+function tools.rankBase() local c = calibration(); return c.base, c.confirmed == true end
+function tools.rankNumber(rankIndex) return rankIndex + calibration().base end
 function tools.canSetRank() return type(SetGuildMemberRank) == "function" end
 local function permitted(action, target, snapshot)
   if target.key == snapshot.actor.key or target.rank <= snapshot.actor.rank then return false end
@@ -177,7 +192,7 @@ local function actionClass(action)
   if action == "kick" then return "kick" end
   return "rank"
 end
-local function clientBuild()
+function clientBuild()
   if type(GetBuildInfo) ~= "function" then return "?" end
   local ok, _, build = pcall(GetBuildInfo)
   return ok and not secret(build) and tostring(build or "?") or "?"
@@ -319,7 +334,25 @@ function tools.verify()
   local snapshot = tools.snapshot(); if not snapshot then return end
   local row, item = snapshot.rows[pending.item.key], pending.item
   local changed = item.action == "kick" and not row or row and row.guid == item.guid and beforeValue(row, item.action) == item.after
-  -- The member moved, but not to the rank asked for (the rank number convention is off on this client): stop asking.
+  -- Calibrate the rank number base from the first promotion: on target = confirmed; one rank lower = base 1; one higher =
+  -- base 0 (the officer clicks again, nothing is retried here); anything else = stop, manual mode.
+  if row and row.guid == item.guid and item.action == "promote" and tools.canSetRank() and row.rank ~= item.beforeRank then
+    local base, confirmed = tools.rankBase()
+    if row.rank == item.after then
+      if not confirmed then saveCalibration(base, true) end
+    elseif row.rank == item.after + 1 and base == 0 then
+      saveCalibration(1, false)
+      pending.record.status = "landed one rank low"; item.status = "landed one rank low"; p.pending = nil; p.confirmed = false
+      if ns.message then ns.message(L("That promotion landed one rank low. Guilded adjusted the rank numbering for this game build: click Promote again.")) end
+      return
+    elseif row.rank == item.after - 1 and base == 1 then
+      saveCalibration(0, false)
+      pending.record.status = "landed one rank high"; item.status = "landed one rank high"; p.pending = nil; p.confirmed = false
+      if ns.message then ns.message(L("That promotion landed one rank high. Guilded adjusted the rank numbering for this game build: click Promote again.")) end
+      return
+    end
+  end
+  -- The member moved, but not to the rank asked for (and not the one-off a base switch explains): stop asking.
   if not changed and row and row.guid == item.guid and (item.action == "promote" or item.action == "demote") and row.rank ~= item.beforeRank then
     pending.record.status = "landed at the wrong rank"; item.status = "landed at the wrong rank"; p.pending = nil; p.confirmed = false
     local blocked = blockedTable(); if blocked then blocked.rank = clientBuild() end

@@ -210,7 +210,7 @@ describe("the Alt rank is never promoted", () => {
     expect(ready()).toBe("Amy-Realm|Bob-Realm");
     s.run('C_GuildInfo={SetGuildRankOrder=function() RANKORDER = true end}; SetGuildMemberRank=function(i,r) CALLS[#CALLS+1]={i,r} end');
     expect(s.run('local ok = NS.promotion.promote("Amy-Realm"); return tostring(ok)')).toBe("true");
-    expect(s.run('return CALLS[1][1]..":"..CALLS[1][2]')).toBe("2:5"); // roster index 2; rank number 5 = index 4, the Member rank above Alt
+    expect(s.run('return CALLS[1][1]..":"..CALLS[1][2]')).toBe("2:4"); // roster index 2; default base 0: rank number = rank index 4, the Member rank above Alt
     expect(s.run("return tostring(RANKORDER)")).toBe("nil"); // SetGuildRankOrder is never called
   });
   it("offers nothing it cannot do: a client that can only promote one step refuses to skip the alt rank", () => {
@@ -293,20 +293,47 @@ describe("manual helper and the alt rank in the way (19 Nov 2026)", () => {
     s.run("SetGuildMemberRank=function(i,r) CALLS[#CALLS+1]={i,r} end; NS.isOfficer=function() return true end");
     expect(s.run("return tostring(NS.promotion.manual(NS.promotion.ready()))")).toBe("false");
     expect(s.run("return tostring((NS.promotion.promote('Amy-Realm')))")).toBe("true");
-    expect(s.run("return CALLS[1][1]..':'..CALLS[1][2]")).toBe("2:4"); // Member (index 3) sits above Alt (index 4): rank number 4
+    expect(s.run("return CALLS[1][1]..':'..CALLS[1][2]")).toBe("2:3"); // Member (index 3) sits above Alt (index 4): rank number 3 with base 0
   });
   it("a landing at the wrong rank stops further promotions and falls back to manual mode", () => {
     setup(FEED(), ALT_ABOVE); s.run(rows); roster();
     s.run("SetGuildMemberRank=function(i,r) CALLS[#CALLS+1]={i,r} end; NS.isOfficer=function() return true end");
-    s.run("assert(NS.promotion.promote('Amy-Realm')); ROWS[2].rank = 4; CLOCK=101; fire_event('GUILD_ROSTER_UPDATE')");
+    s.run("assert(NS.promotion.promote('Amy-Realm')); ROWS[2].rank = 1; CLOCK=101; fire_event('GUILD_ROSTER_UPDATE')");
     expect(s.run("return tostring(NS.promotion.manual())")).toBe("true");
     expect(s.run("return tostring((NS.promotion.promote('Bob-Realm')))")).toBe("false");
+  });
+  const calibrate = () => {
+    setup(FEED(), ALT_ABOVE); s.run(rows); roster();
+    s.run("SetGuildMemberRank=function(i,r) CALLS[#CALLS+1]={i,r} end; NS.isOfficer=function() return true end; MESSAGES={}");
+  };
+  it("base 0 by default; a promotion that lands on target confirms the base", () => {
+    calibrate();
+    expect(s.run("local b, c = NS.rosterTools.rankBase(); return b .. ':' .. tostring(c)")).toBe("0:false");
+    s.run("assert(NS.promotion.promote('Amy-Realm')); ROWS[2].rank = 3; CLOCK=101; fire_event('GUILD_ROSTER_UPDATE')");
+    expect(s.run("local b, c = NS.rosterTools.rankBase(); return b .. ':' .. tostring(c)")).toBe("0:true");
+  });
+  it("one rank low switches to base 1, prints one line and waits for another click (no retry)", () => {
+    calibrate();
+    s.run("assert(NS.promotion.promote('Amy-Realm')); assert(CALLS[1][2] == 3); ROWS[2].rank = 4; CLOCK=101; fire_event('GUILD_ROSTER_UPDATE')");
+    expect(s.run("local b, c = NS.rosterTools.rankBase(); return b .. ':' .. tostring(c)")).toBe("1:false");
+    expect(s.run("return #CALLS")).toBe("1");
+    expect(s.run("return MESSAGES[#MESSAGES]")).toContain("landed one rank low");
+    expect(s.run("return tostring(NS.promotion.manual())")).toBe("false");
+    s.run("CLOCK=102; fire_event('GUILD_ROSTER_UPDATE'); assert(NS.promotion.promote('Bob-Realm'))");
+    expect(s.run("return CALLS[2][1]..':'..CALLS[2][2]")).toBe("3:4"); // base 1: rank index 3 + 1
+  });
+  it("one rank high with base 1 switches back to base 0", () => {
+    calibrate();
+    s.run("DB.rosterRankBase = { build = tostring(select(2, GetBuildInfo()) or '?'), base = 1, confirmed = false }");
+    s.run("assert(NS.promotion.promote('Amy-Realm')); assert(CALLS[1][2] == 4); ROWS[2].rank = 2; CLOCK=101; fire_event('GUILD_ROSTER_UPDATE')");
+    expect(s.run("return tostring((NS.rosterTools.rankBase()))")).toBe("0");
+    expect(s.run("return MESSAGES[#MESSAGES]")).toContain("landed one rank high");
   });
   it("/guilded promote test prints the call and makes none", () => {
     setup(FEED(), ALT_ABOVE); s.run(rows); roster();
     s.run("SetGuildMemberRank=function(i,r) CALLS[#CALLS+1]={i,r} end; NS.isOfficer=function() return true end; MESSAGES={}");
     s.run("NS.commandHandlers.promote({ 'promote', 'test', 'Amy-Realm' })");
-    expect(s.run("return table.concat(MESSAGES, '|')")).toContain("Would call: SetGuildMemberRank(2, 4)");
+    expect(s.run("return table.concat(MESSAGES, '|')")).toContain("Would call: SetGuildMemberRank(2, 3)");
     expect(calls()).toBe("");
   });
   it("shows a manual panel when this client refused rank changes: no promote buttons, copy name and open roster", () => {

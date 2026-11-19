@@ -138,11 +138,11 @@ describe("recipes and attunements in catch-up", () => {
     expect(lines.some((l) => /^GuildedCatch>HAVE\|[CA]\|/.test(l))).toBe(false);
   });
 
-  it("sends at most two recipe lists per request and skips lists over 400 recipes", () => {
+  it("sends at most two recipe lists per request and skips lists over 800 recipes", () => {
     const walter = client("Walter");
     walter.run(`local b = NS.recipes.book()
       for i, prof in ipairs({ "Alchemy", "Mining", "Tailoring", "Cooking" }) do b.people.Donny = b.people.Donny or {}; b.people.Donny[prof] = { v = CLOCK - i * 60, keys = { i, i + 10 } } end
-      local big = {}; for i = 1, 401 do big[i] = 1000 + i end
+      local big = {}; for i = 1, 801 do big[i] = 1000 + i end
       b.people.Maude = { Engineering = { v = CLOCK - 5, keys = big } }`);
     expect(walter.run(`return NS.catchUp.digestOf("C")`)).toMatch(/^4:/);
     const keys = walter.run(`local out = {}; for k in pairs(NS.catchUp.collect("C")) do out[#out + 1] = k end table.sort(out) return table.concat(out, ",")`);

@@ -40,10 +40,10 @@ local DIGEST_EVERY_SECONDS = 5 * 60
 local ANSWER_EVERY_SECONDS = 10 * 60
 local MAX_PARTS, MAX_WANT, MAX_SEND, MAX_PUSH = 8, 40, 8, 8
 -- (9.1) Recipes and attunements keep for 45 days (they change slowly); a recipe list is big, so
--- only a few travel per round, and none with more than 400 recipes.
+-- only a few travel per round, and none with more than 800 recipes (the same limit as own capture).
 local LONG_WINDOW_SECONDS = 45 * 86400
 local KIND_SEND = { R = 8, P = 8, C = 2, A = 8 }
-local MAX_RECIPE_KEYS, MAX_RECIPE_PARTS = 400, 20
+local MAX_RECIPE_KEYS, MAX_RECIPE_PARTS = 800, 32
 local KINDS = { "R", "P", "C", "A" }
 local ISO_PATTERN = "^%d%d%d%d%-%d%d%-%d%dT%d%d:%d%d:%d%dZ$"
 local function isoAt(epoch) return date("!%Y-%m-%dT%H:%M:%SZ", epoch) end

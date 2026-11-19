@@ -1427,8 +1427,10 @@ inspectReadiness = function(silent, target, tries)
   -- Item level for the officers' Gear page ("IL:58"). Older clients and companions skip flags
   -- they do not know, so this needs no protocol change.
   if snapshot.itemLevel then table.insert(flags, 1, "IL:" .. math.floor(snapshot.itemLevel + 0.5)) end
-  local digest = string.format("READINESS|%s|%s|%d|%d|%s", playerName(), snapshot.status, missing, minDurability, table.concat(profParts, ","))
-  if complete and #digest + 16 <= MAX_ADDON_MESSAGE then digest = digest .. "|P:" .. tostring((GetServerTime and GetServerTime()) or time()) end
+  -- The short, fixed-size optional fields go first (identity, verify code, flags) so a long profession list can
+  -- never push them out: it is the profession list that is cut to what is left. The receiver tells every part
+  -- apart by its prefix, so the order does not matter to it.
+  local digest = string.format("READINESS|%s|%s|%d|%d", playerName(), snapshot.status, missing, minDurability)
   -- Who this is (class, race, level, spec) so officers' exports can discover
   -- every guildmate running the addon: "I:<CLASS>,<Race>,<level>,<spec>".
   local identityOk, identity = pcall(collectCharacter)
@@ -1437,13 +1439,24 @@ inspectReadiness = function(silent, target, tries)
       (string.gsub(identity.spec or "", "[|,;]", "")) }, ",")
     if #digest + 1 + #field <= MAX_ADDON_MESSAGE then digest = digest .. "|" .. field end
   end
-  -- The /guilded verify code, before the flags so it is the last thing left out of a long digest.
+  -- The /guilded verify code.
   local verify = validVerifyCode(db.verifyCode)
   if verify and #digest + 3 + #verify <= MAX_ADDON_MESSAGE then digest = digest .. "|V:" .. verify end
   local flagText = table.concat(flags, ",")
   if #flags > 0 and #digest + 3 + #flagText <= MAX_ADDON_MESSAGE then
     digest = digest .. "|F:" .. flagText
   end
+  -- Professions get the room that is left (whole entries only); the "P:" mark of a complete list follows only when all fit.
+  local room = MAX_ADDON_MESSAGE - #digest - 1 - 16
+  local kept, used = {}, 0
+  for _, part in ipairs(profParts) do
+    local need = #part + (#kept > 0 and 1 or 0)
+    if used + need > room then break end
+    kept[#kept + 1] = part; used = used + need
+  end
+  if #kept > 0 then digest = digest .. "|" .. table.concat(kept, ",") end
+  if #kept < #profParts then complete = false end
+  if complete and #digest + 16 <= MAX_ADDON_MESSAGE then digest = digest .. "|P:" .. tostring((GetServerTime and GetServerTime()) or time()) end
   -- Automatic checks run on every bag or gear change (looting!) and every skill-up. Tell the guild
   -- only when something changed, plus a heartbeat every 10 minutes; requests always get an answer.
   local sameAs = (string.gsub(digest, "|P:%d+", ""))
@@ -2320,6 +2333,11 @@ local function handlePeerReadiness(text, sender, channel)
   local previous = db.peerRoster[name]
   if previous and previous.professionsAt and (not professionsAt or previous.professionsAt > professionsAt) then
     professions, professionsAt = previous.professions, previous.professionsAt
+  end
+  -- A digest that lacks the identity or verify code (an older client, or one whose message ran long) keeps what is known.
+  if previous then
+    identity = identity or previous.identity
+    verify = verify or previous.verify
   end
   db.peerRoster[name] = {
     status = STATUSES[parts[3] or ""] and parts[3] or "UNKNOWN",

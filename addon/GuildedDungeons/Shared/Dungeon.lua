@@ -834,6 +834,13 @@ local function storePeerRun(run, sender, delivery)
     if mine and player.level then mine.level = math.max(mine.level or player.level, player.level) end
     if mine and player.minLevel then mine.minLevel = math.min(mine.minLevel or player.minLevel, player.minLevel) end
     if mine and not mine.spec and player.spec then mine.spec = player.spec end
+    -- Heal copies stored before the serializer fix: fill whatever this copy lacks, never overwrite a known value with nil.
+    if mine then
+      for _, field in ipairs({ "guild", "faction", "class", "role", "inGuild" }) do
+        if mine[field] == nil and player[field] ~= nil then mine[field] = player[field] end
+      end
+      if player.presentSec and (not mine.presentSec or player.presentSec > mine.presentSec) then mine.presentSec = player.presentSec end
+    end
     if not mine then
       local copied = {}
       for field, value in pairs(player) do if field ~= "integrity" then copied[field] = value end end

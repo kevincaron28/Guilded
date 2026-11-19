@@ -32,7 +32,8 @@ ns.milestones = ms
 local PREFIX = "GuildedMile"
 local RETRY_COMBAT = 15
 local MAX_TRIES = 4
-local MAX_LOG = 200
+local MAX_LOG = 500 -- non-achievement rows (level, dungeon, ...)
+local MAX_ACH_LOG = 2500 -- achievement rows keep their own, larger room so they never push real milestones out
 local KINDS = { "level", "dungeon", "hk", "duel", "prof", "ach", "secret", "gold", "auction" }
 -- Gold held per tier (the bot owns the same list in achievements-catalogue.ts); the value that travels is the tier number 1-4.
 local GOLD_STEPS = { 100, 500, 1000, 5000 }
@@ -277,7 +278,15 @@ function ms.reach(id, ref, item, silent)
   c.done[id] = at
   c.log[#c.log + 1] = { id = id, kind = item.kind, ref = ref, value = item.value, at = at, label = item.kind == "ach" and item.label or nil,
     desc = item.kind == "ach" and item.desc or nil, category = item.kind == "ach" and item.category or nil, points = item.kind == "ach" and item.points or nil }
-  while #c.log > MAX_LOG do table.remove(c.log, 1) end
+  -- Oldest first, but each group only evicts itself: achievements never evict a level or dungeon milestone.
+  local achCount, otherCount = 0, 0
+  for _, row in ipairs(c.log) do if row.kind == "ach" then achCount = achCount + 1 else otherCount = otherCount + 1 end end
+  local over = item.kind == "ach" and achCount - MAX_ACH_LOG or otherCount - MAX_LOG
+  local isAch = item.kind == "ach"
+  local i = 1
+  while over > 0 and i <= #c.log do
+    if (c.log[i].kind == "ach") == isAch then table.remove(c.log, i); over = over - 1 else i = i + 1 end
+  end
   if not silent and c.settings.enabled ~= false and not ms.guildOff() and kindOn(c, item.kind) and c.baselined then
     queue[#queue + 1] = item
     -- Only the newest few wait; an older one that was never shared is dropped (it stays recorded).

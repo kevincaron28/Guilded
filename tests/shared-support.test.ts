@@ -76,7 +76,7 @@ describe("shared Guilded support", () => {
       expect(gettingStartedPost(lang).data.description!.length).toBeLessThanOrEqual(4096);
       const answer = installationAnswer(lang);
       expect(answer.length).toBeLessThan(1500);
-      expect(answer).toContain("/character pair");
+      expect(answer).toContain("/character link");
       expect(answer).toContain("/reload");
       expect(looksLikeInstallationQuestion(lang === "fr" ? "Comment connecter le compagnon ?" : "How do I install the addon?")).toBe(true);
     }

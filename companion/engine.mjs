@@ -59,7 +59,7 @@ export async function testConnection(config) {
       ? { ok: true, message: "Leaderboards account connected. Your personal companion link is valid." }
       : { ok: false, message: "The server did not confirm this personal companion link." };
     if (response.ok) return { ok: true, message: config.wowEnabled === false ? `Connected. PoE2 tracking is ${body.enabled ? "enabled" : "paused; an officer can enable /poe setup"}.` : `Connected. The bot knows ${body.standings?.length ?? 0} character(s).` };
-    if (response.status === 401 || response.status === 403) return { ok: false, message: "The bot refused this companion link. Choose Sign in with Discord again (or use a fresh /character pair code)." };
+    if (response.status === 401 || response.status === 403) return { ok: false, message: "The bot refused this companion link. Choose Sign in with Discord again (or use a fresh /character link code)." };
     return { ok: false, message: `The bot answered ${response.status}: ${describeApiError(response.status, body.error)}` };
   } catch (error) {
     return { ok: false, message: describeError(error) };
@@ -68,7 +68,7 @@ export async function testConnection(config) {
 
 export async function pairAccount(config) {
   if (!config.uploadUrl || typeof config.pairingCode !== "string" || !config.pairingCode.trim()) {
-    return { ok: false, message: "Enter the bot address and the code from /character pair first." };
+    return { ok: false, message: "Enter the bot address and the code from /character link first." };
   }
   try {
     const url = new URL("/api/v1/addon-pairings", config.uploadUrl);
@@ -787,7 +787,7 @@ export function createEngine(initialConfig, hooks = {}) {
         ? `Uploaded and applied automatically (${body.autoApplied.epgp} ledger entries, ${body.autoApplied.discovered} new characters).${heldNote(body.autoApplied)}${pairingNote(body.pairedCharacterStatus)}`
         : body.professionRelay
           ? `Professions and recipes synced. Guild ledger imports still await officer review.${pairingNote(body.pairedCharacterStatus)}`
-          : `Uploaded ${body.transactionCount} ledger entries. Apply on Discord with: /import apply id:${body.importId}.${pairingNote(body.pairedCharacterStatus)}`;
+          : `Uploaded ${body.transactionCount} ledger entries. Apply on Discord with: /setup import apply id:${body.importId}.${pairingNote(body.pairedCharacterStatus)}`;
       pendingRunCheck = { ids: (exported.dungeonRuns ?? []).map(run => ({ id: run.id, viaGroup: run.viaGroup === true })), source, tries: 0, last: null };
       const sentLine = runReportMessage({ ...signedRunCounts(pendingRunCheck.ids, {}), unconfirmed: 0 });
       state.lastUpload = { at: new Date().toISOString(), message };
@@ -803,7 +803,7 @@ export function createEngine(initialConfig, hooks = {}) {
       const message = failed
         ? `Uploaded, but the bot could not apply it: ${body.applyError}`
         : body.status === "PREVIEWED"
-          ? `Upload is waiting for officer review: /import apply id:${body.importId}.`
+          ? `Upload is waiting for officer review: /setup import apply id:${body.importId}.`
           : `Nothing new since the last upload.${pairingNote(body.pairedCharacterStatus)}`;
       state.lastUpload = { at: new Date().toISOString(), message };
       state.syncPhase = failed ? "apply-error" : body.status === "PREVIEWED" ? "officer-review" : "synced";
@@ -839,7 +839,7 @@ export function createEngine(initialConfig, hooks = {}) {
   // Entries the bot kept back (unlinked character, no raid core...): the rest went through.
   function heldNote(applied) {
     const parts = [];
-    if (applied?.held) parts.push(`${applied.held} on hold: an officer can see why with /import held`);
+    if (applied?.held) parts.push(`${applied.held} on hold: an officer can see why with /setup import held`);
     if (applied?.voided) parts.push(`${applied.voided} voided in game and taken back`);
     if (applied?.rejected) parts.push(`${applied.rejected} unreadable row(s) left out`);
     return parts.length ? ` ${parts.join("; ")}.` : "";
@@ -849,7 +849,7 @@ export function createEngine(initialConfig, hooks = {}) {
     if (status === "linked") return " Your character was linked to your Discord account.";
     if (status === "already-linked") return " Your character is linked to your Discord account.";
     if (status === "owned-by-another") return " This character is linked to another member; ask an officer to resolve it.";
-    if (status === "missing-class" || status === "missing-character") return " The export did not include character details; use /guilded character and /character import.";
+    if (status === "missing-class" || status === "missing-character") return " The export did not include character details; use /guilded character and /character link.";
     return "";
   }
 

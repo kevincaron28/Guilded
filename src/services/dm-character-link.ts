@@ -8,7 +8,7 @@ import { linkUndoRows } from "./companion-link-dm.js";
 import { foldKey, parseInviteName, type ParsedInviteName } from "./invite-queue.js";
 
 // Owner request (17 November 2026): "why when I message the bot my character name it doesn't link it". A DM that is a full
-// character name ("First Last") links that character to the member, the same as /character claim with a typed name: the weakest
+// character name ("First Last") links that character to the member, the same as /character link with a typed name: the weakest
 // proof ("named"), so a character another member holds is never moved (the companion sign-in proves ownership). Replies are
 // in each server's language, name no other member, and carry the "This isn't my character" undo of every automatic link.
 
@@ -37,7 +37,7 @@ export async function linkNamedCharacter(database: Database, place: Pick<Place, 
   if (unclaimed.length > 1) return { kind: "none" }; // two reported characters spell the same: not guessing
   if (!apply) return unclaimed.length ? { kind: "linked", character: unclaimed[0]! } : { kind: "none" };
   try {
-    // /character claim: an unclaimed row, else one this member unlinked themselves (it comes back). Throws when there is nothing.
+    // /character link: an unclaimed row, else one this member unlinked themselves (it comes back). Throws when there is nothing.
     const result = await claimCharacter(database as never, place.guildId, place.memberId, unclaimed[0]?.id ?? parsed.displayName);
     const row = result.row as { name: string; displayName?: string | null };
     const created = await database.character.findFirst({ where: { memberId: place.memberId, name: row.name }, select: { id: true, name: true, displayName: true } });

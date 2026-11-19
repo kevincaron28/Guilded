@@ -31,7 +31,7 @@ import { seasonLabel } from "../services/season-label.js";
 import { communityPointsLine } from "../services/dungeon-community-points.js";
 
 // Dungeon challenge views (roadmap D5). Points come from runs the addon
-// recorded and an officer imported (/import apply).
+// recorded and an officer imported (/setup import apply).
 export const dungeonCommand = new SlashCommandBuilder()
   .setName("dungeon")
   .setDescription("Dungeon challenge: points leaderboard, records, player stats, recent runs.")

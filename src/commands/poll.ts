@@ -167,7 +167,7 @@ export async function executePoll(interaction: ChatInputCommandInteraction): Pro
   const message = await channel.send({ embeds: [await pollEmbed(poll.id)], components: pollButtons(poll.id, poll.options, false) });
   await service.setMessage(poll.id, channel.id, message.id);
   markGuildChanged(context.guildId);
-  await interaction.reply({ content: `Poll posted. Close it with \`/poll close poll:${poll.id}\`.`, flags: MessageFlags.Ephemeral });
+  await interaction.reply({ content: `Poll posted. Close it with \`/organize poll close poll:${poll.id}\`.`, flags: MessageFlags.Ephemeral });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -257,12 +257,12 @@ export async function handleWeeklyQuestionButton(interaction: ButtonInteraction)
     });
     const messages: Record<string, [string, string]> = {
       sent: ["Posted. Recurring status: /automation question.", "Publié. État récurrent : /automation question."],
-      skipped: ["Skipped this week.", "Cette semaine est passée."], paused: ["Paused. Use /poll weekly to resume manual review.", "En pause. /poll weekly permet de reprendre la validation manuelle."],
+      skipped: ["Skipped this week.", "Cette semaine est passée."], paused: ["Paused. Use /organize poll weekly to resume manual review.", "En pause. /organize poll weekly permet de reprendre la validation manuelle."],
       uncertain: ["Delivery outcome uncertain. Do not retry; check the target channel.", "Résultat incertain. Ne réessayez pas; vérifiez le canal."],
       cancelled: ["Cancelled because access or configuration changed.", "Annulé : accès ou configuration modifiés."],
       "not-authorized": ["Officer permission or channel access is no longer available.", "Autorisation d’officier ou accès au canal indisponible."]
     };
-    const text = messages[result] ?? ["This preview expired or the week was already handled. Open /poll weekly again.", "Aperçu expiré ou semaine déjà traitée. Rouvrez /poll weekly."];
+    const text = messages[result] ?? ["This preview expired or the week was already handled. Open /organize poll weekly again.", "Aperçu expiré ou semaine déjà traitée. Rouvrez /organize poll weekly."];
     await interaction.editReply({ content: text[fr ? 1 : 0], embeds: [], components: [], allowedMentions: { parse: [] } });
   });
 }

@@ -1,6 +1,6 @@
 import { selectedCharacter } from "./character-match.js";
 
-/** The one next step for a member with no linked character (never /character claim). */
+/** The one next step for a member with no linked character (never a pick-list of unclaimed characters). */
 export const LINK_NEXT_STEP = "DM your character's full name (First Last) to the bot, or type it in the guild-invite channel.";
 
 /**

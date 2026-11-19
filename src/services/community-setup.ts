@@ -129,13 +129,13 @@ export async function ensureCommunitySetup(guild: DiscordGuild, database: Prisma
     lines.push(say(lang, `Started the first season: ${started.name}.`, `Première saison lancée : ${started.name}.`));
   }
   if (season.participation) {
-    lines.push(say(lang, "Participation rewards were already configured; I kept those settings (`/participation settings`).", "Les récompenses de participation étaient déjà configurées; j'ai gardé ces réglages (`/participation settings`)."));
+    lines.push(say(lang, "Participation rewards were already configured; I kept those settings (`/setup participation settings`).", "Les récompenses de participation étaient déjà configurées; j'ai gardé ces réglages (`/setup participation settings`)."));
   } else {
     const rules = participationRules.parse({});
     await createParticipationService(database).configure(guildId, season.id, true, rules);
     lines.push(say(lang,
-      "Participation rewards are on with the default rules: messages and reactions in every text channel, and shared time in every voice channel (2 points per 15 minutes, two members together). Change them with `/participation settings`.",
-      "Les récompenses de participation sont activées avec les règles par défaut : messages et réactions dans tous les salons textuels, et temps partagé dans tous les salons vocaux (2 points par 15 minutes, deux membres ensemble). Modifiez-les avec `/participation settings`."));
+      "Participation rewards are on with the default rules: messages and reactions in every text channel, and shared time in every voice channel (2 points per 15 minutes, two members together). Change them with `/setup participation settings`.",
+      "Les récompenses de participation sont activées avec les règles par défaut : messages et réactions dans tous les salons textuels, et temps partagé dans tous les salons vocaux (2 points par 15 minutes, deux membres ensemble). Modifiez-les avec `/setup participation settings`."));
   }
   // The podium and the hub now show the season and whether participation earns points.
   await refresh(rest, database, guild.id, me.id);

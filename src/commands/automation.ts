@@ -55,7 +55,7 @@ export async function executeAutomation(i: ChatInputCommandInteraction) {
     content += "\n" + t("One private DM per week, only to you. Pause: /automation recap action:off. Uncertain deliveries are held, never blindly resent.", "Un MP par semaine, seulement pour vous. Pause : /automation recap action:off. Un envoi incertain n'est jamais renvoyé automatiquement.");
   } else if (sub === "question") {
     let plan = await prisma.weeklyQuestionPlan.findUnique({ where: { guildId: ctx.guildId } });
-    if (!plan) throw new Error("Save /poll weekly-preview first / Enregistrez d'abord /poll weekly-preview.");
+    if (!plan) throw new Error("Save /organize poll weekly-preview first / Enregistrez d'abord /organize poll weekly-preview.");
     if (action === "off") {
       await configureQuestionAutomation(prisma, ctx.guildId, i.user.id, false, { start: 1320, end: 480 });
       await i.editReply({ content: t("Weekly question automation paused.", "Publication automatique de la question suspendue.") });

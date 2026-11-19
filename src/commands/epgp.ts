@@ -106,7 +106,7 @@ export async function executeEpgp(interaction: ChatInputCommandInteraction): Pro
       shown = await epgpService.getStanding(memberId, baseGp, pool.id);
     }
     const history = await epgpService.getHistory(memberId, 10, pool.id);
-    // Entry IDs are shown so officers can pass one to /officer epgp reverse.
+    // Entry IDs are shown so officers can pass one to /lead epgp reverse.
     await interaction.reply({
       content: [`${other ? `**${other.username}** - ` : ""}EP: **${shown.ep}** | GP: **${shown.gp}** | PR: **${shown.pr.toFixed(3)}**`,
         ...history.map((row) => `EP ${row.epAmount >= 0 ? "+" : ""}${row.epAmount}, GP ${row.gpAmount >= 0 ? "+" : ""}${row.gpAmount} — ${row.reason} \`${row.id}\``)].join("\n"),

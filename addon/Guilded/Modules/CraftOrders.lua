@@ -16,7 +16,7 @@
 --
 -- The page shows the orders whose recipe this character knows (from the profession scan, Recipes.lua),
 -- with the reagents and what is in your bags; "Show all" lists the rest. On by default: officers turn
--- it off with /craft orders-setting in Discord; each member turns off the login line with the Order
+-- it off with /config craft orders in Discord; each member turns off the login line with the Order
 -- alerts button or /guilded orders alerts off. Plain Guilded frames only: safe in combat.
 local addonName, ns = ...
 ns = ns or {}
@@ -502,7 +502,7 @@ end
 
 function orders.sourceText(current)
   if not current then return L("No orders from Discord yet. They arrive after your companion syncs, or when a guildmate who has it shares them.") end
-  if current.off then return L("Your officers turned crafting orders off (in Discord: /craft orders-setting).") end
+  if current.off then return L("Your officers turned crafting orders off (in Discord: /config craft orders).") end
   if current.source == "guild" then return string.format(L("Shared by %s (from Discord)."), ns.displayName and ns.displayName(current.from) or tostring(current.from)) end
   return L("From Discord, through your companion.")
 end
@@ -1308,7 +1308,7 @@ end
 local function renderDetail(view, page, x, y, off)
   local sel = view.sel
   if not sel then
-    view.note:SetText(off and L("Your officers turned crafting orders off (in Discord: /craft orders-setting).") or L("Pick a recipe on the left, or type what you need above. The star keeps it in Favourites."))
+    view.note:SetText(off and L("Your officers turned crafting orders off (in Discord: /config craft orders).") or L("Pick a recipe on the left, or type what you need above. The star keeps it in Favourites."))
     place(view.note, page, x, y - 4); view.note:Show()
     return y - math.max(18, textHeight(view.note) + 6)
   end

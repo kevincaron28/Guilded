@@ -6,7 +6,7 @@ import { newLuaSession, type LuaSession } from "./harness.js";
 let session: LuaSession | undefined;
 afterEach(() => { session?.close(); session = undefined; });
 
-describe("/guilded share -> /character import", () => {
+describe("/guilded share -> /character link", () => {
   it("round-trips character, gear check, consumables and attunements", () => {
     session = newLuaSession();
     session.run(`
@@ -45,9 +45,9 @@ describe("/guilded share -> /character import", () => {
     expect(() => parseSelfExport(`QGEXP1:${Buffer.from("not a character line").toString("base64")}`)).toThrow(/Guilded character line/);
   });
 
-  it("points a /guilded character line (pasted into the wrong command) at /character import instead", () => {
+  it("points a /guilded character line (pasted into the wrong command) at /character link instead", () => {
     expect(() => parseSelfExport("QG2;Ray;Classic Beta PvP;PRIEST;Scourge;11;;Skinning:15,First Aid:54,Cooking:20"))
-      .toThrow(/character import/);
-    expect(() => parseSelfExport("QG1|Ray|Classic Beta PvP|PRIEST|Scourge|11||Skinning:15")).toThrow(/character import/);
+      .toThrow(/character link/);
+    expect(() => parseSelfExport("QG1|Ray|Classic Beta PvP|PRIEST|Scourge|11||Skinning:15")).toThrow(/character link/);
   });
 });

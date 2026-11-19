@@ -102,7 +102,7 @@ describe("/character link", () => {
   it("without a value explains the simple ways and shows the member's own characters (no pick-list)", async () => {
     const { value, replies } = slash("character", "link");
     await executeCharacterLink(value);
-    expect(mocks.help).toHaveBeenCalledWith({}, "g1", "m1", "en");
+    expect(mocks.help).toHaveBeenCalledWith({}, "g1", "m1", "123", "en");
     expect(replies.at(-1)).toEqual({ embeds: ["how to link"] });
     expect(mocks.importCharacter).not.toHaveBeenCalled();
     // The link subcommand has no option that lists unclaimed or reported characters.

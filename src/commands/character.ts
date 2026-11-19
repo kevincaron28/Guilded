@@ -113,7 +113,7 @@ export async function executeCharacterLink(interaction: ChatInputCommandInteract
   const settings = await guildService.getSettings(context.guildId);
   const lang = asLang(settings?.language);
   if (!pasted) {
-    await interaction.editReply(await characterLinkHelp(prisma, context.guildId, context.memberId, lang));
+    await interaction.editReply(await characterLinkHelp(prisma, context.guildId, context.memberId, interaction.guildId!, lang));
     return;
   }
   await linkPastedLine(interaction, context.memberId, lang, pasted);

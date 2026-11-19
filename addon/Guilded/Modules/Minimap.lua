@@ -1434,12 +1434,12 @@ local function buildHomePage(page)
   local HOME_WIDTH = PAGE_WIDTH - 16
   ui.linkStatus:SetWidth(HOME_WIDTH)
   local howTo = linkWidget(newLabel(page,
-    "Easiest: install the Guilded Windows app (steps below). It syncs by itself, no sign-in needed. No app? In Discord use /character pair, then paste the code below.",
+    "Easiest: install the Guilded Windows app (steps below). It syncs by itself, no sign-in needed. No app? In Discord use /character link, then paste the code below.",
     "GameFontDisableSmall"))
   -- Under the status line, wherever its (translated, possibly two-line) text ends, never at a fixed height.
   howTo:SetPoint("TOPLEFT", ui.linkStatus, "BOTTOMLEFT", 0, -6)
   howTo:SetWidth(HOME_WIDTH)
-  ui.linkBox = linkWidget(placeholder(below(newEdit(page, 170), 6, -242), "Code from /character pair"))
+  ui.linkBox = linkWidget(placeholder(below(newEdit(page, 170), 6, -242), "Code from /character link"))
   ui.linkBox:SetMaxLetters(24)
   ui.linkBox:SetScript("OnEnterPressed", function(self)
     self:ClearFocus()
@@ -1447,7 +1447,7 @@ local function buildHomePage(page)
   end)
   local saveCode = linkWidget(tip(below(newButton(page, "Save code", 100, function()
     local text = ui.linkBox:GetText() or ""
-    if text == "" then ns.message(L("Paste the code from Discord (/character pair) first.")); return end
+    if text == "" then ns.message(L("Paste the code from Discord (/character link) first.")); return end
     run("verify " .. text)
     ui.linkBox:SetText("")
   end), 182, -238), "Links all your characters on this WoW account. A guildmate's Guilded companion passes the code on when it next syncs."))

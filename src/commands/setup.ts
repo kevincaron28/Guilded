@@ -1203,7 +1203,7 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
           const current = await guildService.getSettings(guildId);
           await guildService.updateSettings(guildId, { autoApplyImports: !current?.autoApplyImports });
           note = current?.autoApplyImports
-            ? T("Auto-apply is off: officers apply uploads with /import apply.")
+            ? T("Auto-apply is off: officers apply uploads with /setup import apply.")
             : T("Auto-apply is on: what the companion uploads is applied and announced right away.");
         } else if (action === "weekly") {
           const settings = await guildService.getSettings(guildId);

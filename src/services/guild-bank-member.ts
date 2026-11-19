@@ -9,7 +9,7 @@ import { guildWhere } from "./guild-scope.js";
 //   5. Item links: every item name links to its Wowhead page; the addon sends the item's quality.
 //   2. Requests: a card with Approve / Fulfilled / Deny buttons for officers, a DM to the member.
 //   3. Minimum stock: officers set a target per item; one alert when an upload shows less.
-// Everything is on by default with an officer off switch (/bank settings, ROADMAP rule 5).
+// Everything is on by default with an officer off switch (/officer bank settings, ROADMAP rule 5).
 
 export type Lang = "en" | "fr";
 const say = (lang: Lang) => (en: string, fr: string) => lang === "fr" ? fr : en;
@@ -122,7 +122,7 @@ export async function updateStockState(db: StockDb, guildId: string, now = new D
 
 type AlertDb = StockDb & Pick<PrismaClient, "guild">;
 
-/** One post in the officer log channel for items that just went below their target. Officer off switch: /bank settings stock_alerts:False. */
+/** One post in the officer log channel for items that just went below their target. Officer off switch: /officer bank settings stock_alerts:False. */
 export async function alertLowStock(client: Client, db: AlertDb, guildId: string, now = new Date()): Promise<boolean> {
   const guild = await db.guild.findUnique({ where: { id: guildId }, select: { discordId: true, settings: { select: { guildBankStockAlerts: true, logChannelId: true, language: true } } } });
   const settings = guild?.settings;
@@ -134,8 +134,8 @@ export async function alertLowStock(client: Client, db: AlertDb, guildId: string
   const channel = await client.channels.fetch(settings.logChannelId).catch(() => null);
   if (!channel?.isTextBased() || !("send" in channel)) return false;
   await channel.send({ embeds: [new EmbedBuilder().setColor(0xc9a227).setTitle(t("🏦 Guild bank: running low", "🏦 Banque de guilde : stock bas"))
-    .setDescription([...lowStockLines(fresh, lang), "", t("Have / target. Change targets with `/bank stock`; turn these off with `/bank settings stock_alerts:False`.",
-      "Disponible / cible. Modifiez les cibles avec `/bank stock`; désactivez avec `/bank settings stock_alerts:False`.")].join("\n").slice(0, 3900))],
+    .setDescription([...lowStockLines(fresh, lang), "", t("Have / target. Change targets with `/officer bank stock`; turn these off with `/officer bank settings stock_alerts:False`.",
+      "Disponible / cible. Modifiez les cibles avec `/officer bank stock`; désactivez avec `/officer bank settings stock_alerts:False`.")].join("\n").slice(0, 3900))],
     allowedMentions: { parse: [] } });
   return true;
 }
@@ -189,7 +189,7 @@ async function haveCount(db: CardDb, guildId: string, itemId: number | null): Pr
   return contents ? bankItems(contents.tabs).find((item) => item.id === itemId)?.count ?? 0 : undefined;
 }
 
-/** Posts the officer card for a new request (request channel, else the log channel). Off switch: /bank settings request_posts:False. */
+/** Posts the officer card for a new request (request channel, else the log channel). Off switch: /officer bank settings request_posts:False. */
 export async function postRequestCard(client: Client, db: CardDb, request: RequestWithMember): Promise<boolean> {
   const { guild, lang } = await cardContext(db, request.guildId);
   const settings = guild?.settings;

@@ -199,7 +199,7 @@ describe("community section of /setup", () => {
       epgpConfigured: true, remindersOn: true, weeklyReportOn: true, companionPaired: true, linkedCharacters: 1, community: { season: true, participation: false } };
     const check = setupChecks(facts, "en").find(row => row.label.startsWith("Community season"))!;
     expect(check).toMatchObject({ ok: false, optional: true });
-    expect(check.fix).toContain("/participation settings");
+    expect(check.fix).toContain("/setup participation settings");
     expect(setupChecks({ ...facts, community: { season: true, participation: true } }, "en").find(row => row.label.startsWith("Community season"))!.ok).toBe(true);
     // The hall-of-fame line appears once the state is known, optional like the rest of the section.
     expect(setupChecks(facts, "en").some(row => row.label.startsWith("Hall of fame"))).toBe(false);

@@ -36,9 +36,9 @@ describe('companion French presentation', () => {
     expect(message('fr', 'Unknown diagnostic: member Save')).toBe('Unknown diagnostic: member Save');
   });
   it('translates composed sync diagnostics without hiding held or disputed records', () => {
-    const result = message('fr', 'Uploaded and applied automatically (3 ledger entries, 1 new characters). 2 on hold: an officer can see why with /import held. This character is linked to another member; ask an officer to resolve it.');
+    const result = message('fr', 'Uploaded and applied automatically (3 ledger entries, 1 new characters). 2 on hold: an officer can see why with /setup import held. This character is linked to another member; ask an officer to resolve it.');
     expect(result).toContain('2 en attente');
-    expect(result).toContain('/import held');
+    expect(result).toContain('/setup import held');
     expect(result).toContain('autre membre');
     expect(result).not.toContain('This character');
     expect(message('fr', 'Connected. PoE2 tracking is paused; an officer can enable /poe setup.')).toContain('en pause');

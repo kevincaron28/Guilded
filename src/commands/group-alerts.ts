@@ -38,7 +38,7 @@ export function alertPanel(lang: Lang, alert: (Pick<GroupAlert, "kinds" | "roles
   const summary = describeAlert(kinds, roles, (kind) => T(GROUP_KINDS[kind].label), (role) => T(ROLE_NAMES[role]), T("Off"), T("any role"));
   const characters = levels.length
     ? levels.map((character) => `${displayCharacterName(character)}${character.level ? ` ${character.level}` : ""}`).join(", ")
-    : T("none linked yet (link one with /character pair so the levels can match; until then every group of your kinds pings you)");
+    : T("none linked yet (link one with /character link so the levels can match; until then every group of your kinds pings you)");
   const content = [
     T("**My group alerts**: {summary}", { summary }),
     T("You are pinged in the group finder when a group of these kinds is posted, your characters' level fits it and it still needs one of your roles."),

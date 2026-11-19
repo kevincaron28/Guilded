@@ -190,7 +190,7 @@ export function createCompanionHub(database: PrismaClient, hooks: HubHooks = {})
           return { message: "The guild activity ladder now lives in the community leaderboard; nothing to change here.", audit: { setting: "activityBoardEnabled", value: action.on } };
         case "server.autoImport":
           await update({ autoApplyImports: action.on });
-          return { message: action.on ? "Uploads are applied automatically." : "Officers apply uploads themselves with /import apply.", audit: { setting: "autoApplyImports", value: action.on } };
+          return { message: action.on ? "Uploads are applied automatically." : "Officers apply uploads themselves with /setup import apply.", audit: { setting: "autoApplyImports", value: action.on } };
       }
     }
   };

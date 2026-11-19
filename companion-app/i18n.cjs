@@ -66,7 +66,7 @@ function message(language, value) {
       args[3] = translateNotes(language, `${match[3]}${match[4]}`);
     } else if (key === 'Nothing new since the last upload.{0}' || key.startsWith('Professions and recipes synced.')) {
       args[0] = translateNotes(language, args[0]);
-    } else if (key === 'Uploaded {0} ledger entries. Apply on Discord with: /import apply id:{1}.{2}') {
+    } else if (key === 'Uploaded {0} ledger entries. Apply on Discord with: /setup import apply id:{1}.{2}') {
       args[2] = translateNotes(language, args[2]);
     }
     return translate(language, key, ...args);

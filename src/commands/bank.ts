@@ -131,7 +131,7 @@ export async function executeBank(interaction: ChatInputCommandInteraction): Pro
     }
     if (!memberSearch) { await reply(t("Officers turned off member bank search here.", "Les officiers ont désactivé la recherche dans la banque ici.")); return; }
     const targets = await prisma.guildBankTarget.findMany({ where: { guildId: context.guildId }, orderBy: { itemName: "asc" } });
-    if (!targets.length) { await reply(t("No bank minimums yet. Officers: `/bank stock item:<item> min:<count>`.", "Aucun minimum. Officiers : `/bank stock item:<objet> min:<nombre>`.")); return; }
+    if (!targets.length) { await reply(t("No bank minimums yet. Officers: `/officer bank stock item:<item> min:<count>`.", "Aucun minimum. Officiers : `/officer bank stock item:<objet> min:<nombre>`.")); return; }
     const low = lowStock((await loadItems(context.guildId)).items, targets);
     await reply([low.length ? t("**Below target** (have / target):", "**Sous la cible** (disponible / cible) :") : t("Everything is at or above its target.", "Tout est à la cible ou au-dessus."),
       ...lowStockLines(low, lang), "", t(`${targets.length} item(s) have a minimum.`, `${targets.length} objet(s) ont un minimum.`)].join("\n"));

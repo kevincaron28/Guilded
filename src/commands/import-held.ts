@@ -43,7 +43,7 @@ export async function executeImportHeld(interaction: ChatInputCommandInteraction
   if (dismiss || restore) {
     const wanted = dismiss ?? restore;
     const matches = all.filter((row) => codeOf(row.id) === wanted && (dismiss ? !row.dismissedAt : !!row.dismissedAt));
-    if (matches.length !== 1) throw new Error(fr ? `Aucune entrée avec le code ${wanted}. Vérifie la liste : /import held.` : `No entry with code ${wanted}. Check the list: /import held.`);
+    if (matches.length !== 1) throw new Error(fr ? `Aucune entrée avec le code ${wanted}. Vérifie la liste : /setup import held.` : `No entry with code ${wanted}. Check the list: /setup import held.`);
     const row = matches[0]!;
     await prisma.addonHeldEntry.update({
       where: { id: row.id },
@@ -55,8 +55,8 @@ export async function executeImportHeld(interaction: ChatInputCommandInteraction
     });
     await interaction.reply({
       content: dismiss
-        ? (fr ? `Entrée retirée : **${cleanCharacterName(row.character)}** ${row.detail}. Elle ne sera jamais importée (\`/import held restore:${wanted}\` pour revenir en arrière).`
-          : `Dismissed: **${cleanCharacterName(row.character)}** ${row.detail}. It will never be imported (\`/import held restore:${wanted}\` to undo).`)
+        ? (fr ? `Entrée retirée : **${cleanCharacterName(row.character)}** ${row.detail}. Elle ne sera jamais importée (\`/setup import held restore:${wanted}\` pour revenir en arrière).`
+          : `Dismissed: **${cleanCharacterName(row.character)}** ${row.detail}. It will never be imported (\`/setup import held restore:${wanted}\` to undo).`)
         : (fr ? `Entrée rétablie : **${cleanCharacterName(row.character)}** ${row.detail}. La prochaine synchronisation la réessaie.`
           : `Restored: **${cleanCharacterName(row.character)}** ${row.detail}. The next sync tries it again.`),
       flags: MessageFlags.Ephemeral
@@ -77,8 +77,8 @@ export async function executeImportHeld(interaction: ChatInputCommandInteraction
   const lines = waiting.slice(0, MAX_SHOWN).map((row) =>
     `\`${codeOf(row.id)}\` **${cleanCharacterName(row.character)}** ${row.detail.slice(0, 80)} — ${(WHY[row.reason] ?? { en: row.reason, fr: row.reason })[fr ? "fr" : "en"]}`);
   const head = fr
-    ? `**${waiting.length} entrée(s) de l'addon en attente.** Elles s'importent seules dès que la cause est réglée; \`/import held dismiss:<code>\` en retire une pour de bon.`
-    : `**${waiting.length} addon entr${waiting.length === 1 ? "y is" : "ies are"} on hold.** Each imports by itself once its cause is fixed; \`/import held dismiss:<code>\` drops one for good.`;
+    ? `**${waiting.length} entrée(s) de l'addon en attente.** Elles s'importent seules dès que la cause est réglée; \`/setup import held dismiss:<code>\` en retire une pour de bon.`
+    : `**${waiting.length} addon entr${waiting.length === 1 ? "y is" : "ies are"} on hold.** Each imports by itself once its cause is fixed; \`/setup import held dismiss:<code>\` drops one for good.`;
   const more = waiting.length > MAX_SHOWN ? (fr ? `\n…et ${waiting.length - MAX_SHOWN} de plus.` : `\n…and ${waiting.length - MAX_SHOWN} more.`) : "";
   await interaction.reply({ content: `${head}\n${lines.join("\n")}${more}`.slice(0, 1950), flags: MessageFlags.Ephemeral });
 }

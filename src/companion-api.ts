@@ -1113,7 +1113,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         if (!serverId) {
           const found = await findPairingServer(prisma, pairingPayload.code);
           if (found === "ambiguous") { json(response, 409, { error: "This code matches more than one server. Enter your Discord server ID too." }); return; }
-          if (!found) { recordFailure(address); json(response, 401, { error: "Pairing code is invalid, expired, or already used. Run /character pair again." }); return; }
+          if (!found) { recordFailure(address); json(response, 401, { error: "Pairing code is invalid, expired, or already used. Run /character link again." }); return; }
           serverId = found;
         }
         if (!hostedPilot.allows(serverId)) { json(response, 403, { error: "This server is on Guilded Lite: companion sync unlocks when the Guilded owner approves it." }); return; }
@@ -1126,7 +1126,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         try { result = await exchangeCharacterPairingCode(prisma, serverId, pairingPayload.code); }
         catch (error) {
           if (!(error instanceof Error) || !error.message.startsWith("Pairing code is invalid")) throw error;
-          recordFailure(address); json(response, 401, { error: "Pairing code is invalid, expired, or already used. Run /character pair again." }); return;
+          recordFailure(address); json(response, 401, { error: "Pairing code is invalid, expired, or already used. Run /character link again." }); return;
         }
         json(response, 200, { ...result, guildDiscordId: serverId });
         return;
@@ -1349,7 +1349,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         select: { member: { select: { guild: true } } }
       }) : null;
       const guild = credential?.member.guild;
-      if (!guild) { json(response, 401, { error: "Pair this companion with /character pair in the selected in-game guild." }); return; }
+      if (!guild) { json(response, 401, { error: "Pair this companion with /character link in the selected in-game guild." }); return; }
       return await runInGuildScope(await loadGuildScope(prisma, guild.id, guildDiscordId), async () => {
       const scopeLoadedAt = Date.now();
       const access = cachedAuth ? cachedAuth.access : typeof header === "string" ? await companionAccess(prisma, client, guild.id, guild.discordId, header, isMobileDevice) : null;
@@ -1357,7 +1357,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       if (isStandings && access && !cachedAuth && typeof header === "string") standingsAuth.set(header, guildDiscordId, { guild, access });
       if (!access) {
         if (wellFormedCredential(header)) recordFailure(address);
-        json(response, 401, { error: "Pair this companion with /character pair. The shared upload token no longer grants access." }); return;
+        json(response, 401, { error: "Pair this companion with /character link. The shared upload token no longer grants access." }); return;
       }
       if (isImport && headerOf(request, "x-companion-health")) void recordHealthReport(prisma, { guildId: guild.id, ownerKey: `member:${access.memberId ?? access.actorId}`, memberId: access.memberId ?? null, header: headerOf(request, "x-companion-health"), version: clientVersion });
       if (isMobileDevice) {
@@ -1662,7 +1662,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         laneBank.push({ name: "guild-bank", payload: true, onError: (error) => console.error("Guild bank upload failed", error), run: async () => {
           const bankResult = await serializeByKey(`guild-bank:${guild.id}`, () => retryWriteConflict(() => prisma.$transaction((tx) => applyGuildBank(tx, guild.id, pairedMemberId ?? null, uploadSnapshot.guildBank),
             { timeout: 60_000, maxWait: 15_000 })));
-          // 9.1: one alert in the log channel for items that just went below their minimum (/bank stock).
+          // 9.1: one alert in the log channel for items that just went below their minimum (/officer bank stock).
           if (bankResult?.contents && client) void alertLowStock(client, prisma, guild.id).catch((error: unknown) => console.warn("Bank stock alert failed", error));
         } });
       }
@@ -1807,8 +1807,8 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           const discordGuild = client ? await client.guilds.fetch(guild.discordId).catch(() => null) : null;
           // The reason stays as the classifier wrote it (it matches the server log); the frame is in the guild's language.
           await notify(discordGuild, settings?.language === "fr"
-            ? `⚠️ **Import de l'addon non appliqué** (envoi de <@${createdBy}>) : ${told.message}${attempts > 1 ? ` (${attempts} essais)` : ""} [${told.reason}]\nRien n'a été importé. Corrigez la cause, ou appliquez-le à la main : \`/import apply id:${job.importId}\`.`
-            : `⚠️ **Addon import not applied** (upload by <@${createdBy}>): ${told.message}${attempts > 1 ? ` (${attempts} tries)` : ""} [${told.reason}]\nNothing from it was imported. Fix the cause, or apply it by hand: \`/import apply id:${job.importId}\`.`, "officer");
+            ? `⚠️ **Import de l'addon non appliqué** (envoi de <@${createdBy}>) : ${told.message}${attempts > 1 ? ` (${attempts} essais)` : ""} [${told.reason}]\nRien n'a été importé. Corrigez la cause, ou appliquez-le à la main : \`/setup import apply id:${job.importId}\`.`
+            : `⚠️ **Addon import not applied** (upload by <@${createdBy}>): ${told.message}${attempts > 1 ? ` (${attempts} tries)` : ""} [${told.reason}]\nNothing from it was imported. Fix the cause, or apply it by hand: \`/setup import apply id:${job.importId}\`.`, "officer");
         };
         if (failure.transient) retryApplyLater({ guildId: guild.id, discordId: guild.discordId, importId: job.importId, createdBy, since: uploadStartedAt, officer: !!access.officer, tellOfficers });
         else inBackground("Officer notice for a failed import", () => tellOfficers(failure, 1));
@@ -1821,7 +1821,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       };
       // Runs the apply (or queues it behind the one running) and waits for it only until the deadline.
       const applyWithDeadline = async (job: ApplyJob): Promise<{ state: "done"; outcome: ApplyOutcome } | { state: "applying" }> => {
-        // A waiting import that a newer one replaces will never be applied: it stops listing as waiting (/import, handover, status).
+        // A waiting import that a newer one replaces will never be applied: it stops listing as waiting (/setup import, handover, status).
         const first = startApplyLane(laneKey, job, runApply, settleLate, (replaced) => inBackground("Superseded import", async () => {
           await prisma.addonImport.updateMany({ where: { id: replaced.importId, guildId: guild.id, status: "PREVIEWED" }, data: { status: "SUPERSEDED" } });
         }));
@@ -1884,7 +1884,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         });
       }
       const record = await timed("record", () => importService.record(guild.id, preview.snapshot, preview.checksum, createdBy, pairedMemberId));
-      // Auto-apply (a guild opt-in: /config auto-import): apply now and follow up, no /import apply.
+      // Auto-apply (a guild opt-in: /config auto-import): apply now and follow up, no /setup import apply.
       let autoApplied: AutoApplied | null = null;
       let applyError: string | null = null;
       if (!access.officer || settings?.autoApplyImports) {

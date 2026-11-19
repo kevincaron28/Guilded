@@ -19,7 +19,7 @@ import { findWowRoleId } from "./invite-channel.js";
 //   Automatic (GuildSettings.onboardingNudge, off by default): the first reminder 24 hours after joining
 //   (never to someone who joined more than 72 hours before the first check, so turning the switch on does
 //   not message the whole server), and one more a week after the first at most. Never a third.
-//   Manual (an officer from /report games): one member or everyone listed, at most one per member per 24 hours.
+//   Manual (an officer from /officer reports games): one member or everyone listed, at most one per member per 24 hours.
 //   Never: bots, members with a game role, members who pressed Stop, members whose DMs are closed.
 
 type Db = Pick<PrismaClient, "memberOnboarding" | "discordJob">;

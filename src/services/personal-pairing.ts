@@ -5,7 +5,7 @@ import { noteCredentialUse } from "./credential-use.js";
 
 // Personal companion codes (7.0): a signed-in website account pairs the Guilded companion
 // without a guild, to send its own dungeon runs to the public leaderboards. Same rules as
-// /character pair: 15 minutes, one use, independent credentials per device. Codes start with
+// /character link: 15 minutes, one use, independent credentials per device. Codes start with
 // "P", which a guild code (hexadecimal) never does, so one pairing endpoint serves both.
 
 const LIFETIME_MS = 15 * 60_000;

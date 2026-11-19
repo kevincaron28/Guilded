@@ -631,9 +631,9 @@ client.once(Events.ClientReady, (readyClient) => {
       }
     })().catch(reportJobError("Character display refresh"));
     runWeeklyReports(readyClient).catch(reportJobError("Weekly report check"));
-    // 9.1: the daily recap card, once per server day (on by default, officers switch it off with /report stats recap-posts:false).
+    // 9.1: the daily recap card, once per server day (on by default, officers switch it off with /officer reports posts recap-posts:false).
     runDailyRecaps(readyClient).catch(reportJobError("Daily recap check"));
-    // The weekly records card: opt-in per server (officers: /report stats records-posts:true).
+    // The weekly records card: opt-in per server (officers: /officer reports posts records-posts:true).
     runWeeklyRecords(readyClient).catch(reportJobError("Weekly records check"));
     // 9.1: the raid night check card, once per planned raid about four hours before it starts (officers switch it off).
     runRaidNightChecks(readyClient, prisma, pilotGuildScope).catch(reportJobError("Raid night check"));
@@ -851,7 +851,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   const tier = interaction.guildId ? hostedPilot.tier(interaction.guildId) : "approved";
   // Lite: only the Lite slash commands (stale registrations included); its own buttons and modals pass.
   const denial = gateOutcome(tier, interaction, interaction.isChatInputCommand() || interaction.isAutocomplete());
-  // /delete-my-data buttons belong to the command's own collector, in every tier: no reply here.
+  // The delete-my-data buttons (/character privacy action:delete) belong to the command's own collector, in every tier: no reply here.
   if (denial === "collector") return;
   if (tier === "lite") void pilotRequests.touch(interaction.guildId!).catch(reportJobError("Lite activity", { guildId: interaction.guildId, channelId: interaction.channelId }));
   if (denial !== null) {

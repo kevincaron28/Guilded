@@ -285,7 +285,7 @@ export function createAddonImportService(database: PrismaClient) {
         const validPools = poolIds.length ? await tx.raidCore.findMany({ where: { guildId, id: { in: poolIds }, separatePool: true }, select: { id: true } }) : [];
         const validPoolIds = new Set(validPools.map((pool) => pool.id));
         // Entries voided in game (/guilded void): one not imported yet never is; one already in
-        // the ledger gets a reversal, once (the same guard /officer epgp reverse uses).
+        // the ledger gets a reversal, once (the same guard /lead epgp reverse uses).
         const voidedRefs = snapshot.epgpTransactions.filter((item) => item.voided && item.sourceRef).map(ledgerRef);
         let voided = 0;
         if (voidedRefs.length) {
@@ -480,7 +480,7 @@ export function createAddonImportService(database: PrismaClient) {
         for (const row of loot.held) held.push({ kind: "LOOT", sourceRef: row.ref, character: row.character, reason: "NO_CORE_RAID", detail: `${row.item}${row.gp ? ` (${row.gp} GP)` : ""}`.slice(0, 200) });
 
         sec("calendar-raids-loot");
-        // What is waiting is remembered (and shown with /import held); what went through, or was
+        // What is waiting is remembered (and shown with /setup import held); what went through, or was
         // voided, leaves the list.
         const known = new Set(knownHeld.map((row) => `${row.kind}:${row.sourceRef}`));
         const newlyHeld = held.filter((row) => !known.has(`${row.kind}:${row.sourceRef}`));

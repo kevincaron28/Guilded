@@ -13,7 +13,7 @@ export function publicSharingNotice(settings: { publicDungeonRuns?: boolean; pub
   return [
     T("**Public dungeon sharing: ON.** Anyone can see eligible runs at https://guildedwow.com/leaderboards/: all recorded party members' character names/realms, class, role, level, times, deaths and scores, including non-guild players."),
     window,
-    T("Members can erase their own data any time with the /delete-my-data command.")
+    T("Members can erase their own data any time with the /character privacy action:delete command.")
   ].join("\n");
 }
 
@@ -169,13 +169,13 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en", now = new Date
       label: T("At least one companion account connected"),
       ok: facts.companionPaired,
       optional: true,
-      fix: T("Optional for WoW sync: in the companion choose Sign in with Discord, then this server (/character pair has the link). Members without a companion link with the /guilded verify line from /character pair.")
+      fix: T("Optional for WoW sync: in the companion choose Sign in with Discord, then this server (/character link has the link). Members without a companion link with the /guilded verify line from /character link.")
     },
     {
       label: T("At least one WoW character linked"),
       ok: facts.linkedCharacters > 0,
       optional: true,
-      fix: T("WoW players only: /character pair shows existing characters and how to link them. Already connected? Sync alts with the same companion.")
+      fix: T("WoW players only: /character link shows existing characters and how to link them. Already connected? Sync alts with the same companion.")
     }
   ];
   // Addon-only members (and their /guilded verify links) depend on an officer's companion. Only for
@@ -188,7 +188,7 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en", now = new Date
     checks.push({
       label: T("An officer's companion synced in the last 2 weeks"), ok: recent, optional: true,
       ...(recent ? {} : { warn: true }),
-      fix: `${last} ${T("Members who only use the addon (their /guilded verify links, gear, dungeon runs) reach Discord through an officer's companion. An officer: run /character pair, connect the companion with Sign in with Discord, then /reload in WoW and press Sync now.")}`
+      fix: `${last} ${T("Members who only use the addon (their /guilded verify links, gear, dungeon runs) reach Discord through an officer's companion. An officer: run /character link, connect the companion with Sign in with Discord, then /reload in WoW and press Sync now.")}`
     });
   }
   // 9.1 (docs/JEEVES_COMPARISON.md idea 3): how fresh the guild roster is and whose upload last
@@ -231,7 +231,7 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en", now = new Date
     checks.push({
       label: T("Community season and participation rewards"), ok: facts.community.season && facts.community.participation, optional: true,
       fix: facts.community.season
-        ? T("The season is active but participation rewards are off: press \"Set up community\", or run /participation settings.")
+        ? T("The season is active but participation rewards are off: press \"Set up community\", or run /setup participation settings.")
         : T("Optional: press \"Set up community\" on this checklist.")
     });
     if (facts.community.honors !== undefined) checks.push({

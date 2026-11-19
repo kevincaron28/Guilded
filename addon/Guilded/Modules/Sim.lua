@@ -123,7 +123,7 @@ local function simDungeon(minutesArg)
     encounters = {}, players = players
   }
   if ns.runResults and ns.runResults.simCard then ns.runResults.simCard(id) end -- sample party table for /gdg results (9.3.5)
-  ns.message(string.format(L("Test dungeon run saved (%d:%02d, you + %s). /reload so the companion sends it; an officer runs /import apply. /guilded sim clear removes it here, /setup testraid cleanup in Discord."),
+  ns.message(string.format(L("Test dungeon run saved (%d:%02d, you + %s). /reload so the companion sends it; an officer runs /setup import apply. /guilded sim clear removes it here, /setup testraid cleanup in Discord."),
     math.floor(duration / 60), duration % 60, table.concat({ SIM_NAMES[1], SIM_NAMES[2], SIM_NAMES[3], SIM_NAMES[4] }, ", ")))
 end
 

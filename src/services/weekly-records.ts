@@ -14,7 +14,7 @@ import { reportWeek } from "./weekly-report.js";
 // "Records broken this week": one card after each weekly reset (Tuesday 15:00 UTC, the week that just ended) with the guild's new
 // dungeon records, the members who climbed the most on the dungeon score and the new raid boss kills. Posts only when something
 // happened. OPT-IN per server (owner rule 5 of 6 November covers the 8.5 features only, and CLAUDE.md forbids automatic posts without a
-// configured opt-in): officers turn it on with /report stats records-posts:true; it posts to the weekly-report channel, else the notify channel.
+// configured opt-in): officers turn it on with /officer reports posts records-posts:true; it posts to the weekly-report channel, else the notify channel.
 
 export interface WeeklyRecordsItem { kind: HighlightKind; label?: string; valueSec?: number; previousSec?: number; dungeonName: string; instanceId?: number }
 export interface WeeklyRecords {

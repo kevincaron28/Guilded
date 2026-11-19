@@ -150,7 +150,7 @@ export function weeklyBankText(rows: Parameters<typeof summarizeLedger>[0], gold
   const extraLines = [
     ...(givers.length ? [`${t("Top depositors", "Meilleurs donateurs")}: ${givers.map((p) => `**${p.actor}**`).join(", ")}`] : []),
     ...(extra.low?.length ? [`${t("Below minimum", "Sous le minimum")}:`, ...lowStockLines(extra.low, lang, 8)] : []),
-    ...(extra.openRequests ? [`${t("Open bank requests", "Demandes ouvertes")}: **${extra.openRequests}** (\`/bank list\`)`] : [])
+    ...(extra.openRequests ? [`${t("Open bank requests", "Demandes ouvertes")}: **${extra.openRequests}** (\`/officer bank list\`)`] : [])
   ];
   return [goldLine, `${rows.length} ${t("log line(s) this week", "ligne(s) de journal cette semaine")}`, ...(extraLines.length ? ["", ...extraLines] : []), "", ...people].filter((line, i) => line || i > 0).join("\n").slice(0, 3900);
 }

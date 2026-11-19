@@ -11,7 +11,7 @@ import { relinkOwnUnlinked } from "./character-move.js";
 // Linking discovered characters to Discord members without anyone typing:
 //   1. automatically, when a member's Discord name (nickname, display name or
 //      username) is the character's name, e.g. "Ray", "[GOLD] Ray", "Ray | Priest";
-//   2. otherwise the owner runs /character claim (a pick from a list, no code);
+//   2. otherwise the owner runs /character link (a pick from a list, no code);
 //   3. or an officer links it with /officer character link.
 
 const strip = (text: string) => text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -35,7 +35,7 @@ const fullNameKey = (displayName: string | null | undefined) => {
 
 // Character -> the one Discord member whose name matches. The full name (first and last) is the
 // stronger match and decides alone; otherwise the first name must fit exactly one member. A name
-// that fits nobody, or more than one member, is left for /character claim.
+// that fits nobody, or more than one member, is left for /character link.
 export function matchUnclaimed(unclaimed: { id: string; name: string; displayName?: string | null }[], people: DiscordPerson[]): { characterId: string; discordId: string }[] {
   const matches: { characterId: string; discordId: string }[] = [];
   for (const character of unclaimed) {
@@ -108,7 +108,7 @@ async function linkIfFree(database: Db, guildId: string, memberId: string, row: 
 /**
  * Elimination for one upload: when exactly one character arrived from it and exactly one active
  * member who has a companion credential has no character yet, those two belong together. Anything
- * less clear (two newcomers, two candidates, a declined link) is left for /character claim.
+ * less clear (two newcomers, two candidates, a declined link) is left for /character link.
  */
 export async function linkSoleNewcomer(database: Db, guildId: string, since: Date): Promise<{ character: string; member: string; memberId: string } | null> {
   const arrived = await database.unclaimedCharacter.findMany({ where: { guildId, lastSeenAt: { gte: since }, gameEdition: "forever" } });
@@ -158,7 +158,7 @@ export async function autoLinkUnclaimed(discordGuild: DiscordGuild, database: Db
   return linked;
 }
 
-// /character claim: the caller links one discovered character to themselves.
+// /character link: the caller links one discovered character to themselves.
 export async function claimCharacter(database: Db, guildId: string, memberId: string, nameOrId: string) {
   const wanted = nameOrId.trim();
   const row = await database.unclaimedCharacter.findFirst({ where: { guildId, OR: [{ id: wanted }, { nameKey: nameKey(wanted) }] } });
@@ -172,7 +172,7 @@ export async function claimCharacter(database: Db, guildId: string, memberId: st
     const linked = await database.character.findFirst({ where: { member: { guildId }, name: { equals: wanted, mode: "insensitive" } }, include: { member: true } });
     if (linked) throw new Error(`${linked.name} is already linked${linked.memberId === memberId ? " to you" : ` to ${linked.member.displayName}`}. /character list shows what is linked.`);
   }
-  if (!row) throw new Error(`No unclaimed character called "${wanted}" yet. Log in with it once and sync; it then shows up in the /character claim list. /character list shows what is linked.`);
+  if (!row) throw new Error(`No unclaimed character called "${wanted}" yet. Log in with it once and sync; then DM me its full name (First Last). /character list shows what is linked.`);
   const taken = await database.character.findFirst({ where: { member: { guildId }, name: { equals: row.name, mode: "insensitive" }, ...((row.gameEdition ?? "forever") !== "forever" ? { realm: { equals: row.realm, mode: "insensitive" }, gameEdition: row.gameEdition } : {}) } });
   if (taken) throw new Error(`${row.name} is already linked to someone.`);
   const outcome = await linkUnclaimed(database, memberId, row);

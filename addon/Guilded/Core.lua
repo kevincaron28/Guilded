@@ -888,7 +888,7 @@ local function collectProfessions()
 end
 ns.collectProfessions = collectProfessions
 
--- Who this character is, for the Discord bot's /character import. Class and
+-- Who this character is, for the Discord bot's /character link. Class and
 -- race use the English file tokens (WARRIOR, NightElf) so the bot reads them
 -- the same on any client language.
 local function collectCharacter()
@@ -950,7 +950,7 @@ local function collectCharacter()
   }
 end
 
--- /guilded verify: the member's code from Discord (/character pair), kept with this guild's saved
+-- /guilded verify: the member's code from Discord (/character link), kept with this guild's saved
 -- data so every character of this WoW account repeats it in its digest ("V:"). An officer's upload
 -- then links each of them to that member. Eight letters, no I or O (the bot's alphabet).
 local function validVerifyCode(code)
@@ -962,7 +962,7 @@ local function verifyCodeFrom(text)
   return validVerifyCode(string.upper((string.gsub(text or "", "[^%a]", ""))))
 end
 
--- One line the player pastes into Discord: /character import code:<line>
+-- One line the player pastes into Discord: /character link line_or_code:<line>
 local function characterString(info)
   local professions = {}
   for _, profession in ipairs(info.professions or {}) do
@@ -980,7 +980,7 @@ end
 
 local base64Encode = util.base64Encode
 
--- One paste for Discord's /character import: who you are (the QG1 line), your
+-- One paste for Discord's /character link: who you are (the QG1 line), your
 -- last gear check, active consumables and attunements. It is only ever YOUR
 -- data, so there is no ledger and no officer review step.
 local function selfExportString(info, snapshot, attunements)
@@ -1004,7 +1004,7 @@ local function selfExportString(info, snapshot, attunements)
 end
 
 local exportFrame
-local exportTitle = "Guilded - copy this line (Ctrl+C), then in Discord: /character import"
+local exportTitle = "Guilded - copy this line (Ctrl+C), then in Discord: /character link"
 local function showCharacterExport(text, title, anchor, onNext)
   exportTitle = title or exportTitle
   if exportFrame and exportFrame.titleText then exportFrame.titleText:SetText(exportTitle) end
@@ -1700,9 +1700,9 @@ local function showFullHelp()
   message("/guilded snapshot [label] | list - record who is in the group right now (officers)")
   message("/guilded enchants - show or change the missing-enchant check (on/off, starting level)")
   message("/guilded slots level <n> - from which level empty gear slots count as not ready (default 60)")
-  message("/guilded share - one paste with your character, gear check, consumables and attunements (Discord: /character import)")
-  message(L("/guilded verify <code> - link all your characters to Discord at once (Discord: /character pair gives the line)"))
-  message("/guilded character - copy a line to link this character in Discord (/character import)")
+  message("/guilded share - one paste with your character, gear check, consumables and attunements (Discord: /character link)")
+  message(L("/guilded verify <code> - link all your characters to Discord at once (Discord: /character link gives the line)"))
+  message("/guilded character - copy a line to link this character in Discord (/character link)")
   message("/guilded sheet standings|loot|attendance|raids|dungeons - copy a table to paste into Excel or Google Sheets")
   if officer then
     message("|cffffd100Officer|r")
@@ -1729,7 +1729,7 @@ end
 local function showHelp()
   message("|cffffd100Guilded|r")
   message(L("/guilded - open the Guilded window"))
-  message(L("/guilded verify <code> - link all your characters to Discord at once (Discord: /character pair gives the line)"))
+  message(L("/guilded verify <code> - link all your characters to Discord at once (Discord: /character link gives the line)"))
   message(L("/guilded companion - the three steps to set up the companion"))
   message(L("/guilded sync - save your addon data so the companion can send it"))
   message(L("/guilded announce off - stop your guild-chat milestone announcements"))
@@ -2174,8 +2174,8 @@ local function command(text)
     local info = collectCharacter()
     db.character = info
     local code = selfExportString(info, db.readiness[playerName()], db.attunements[playerName()])
-    message("Your share code is " .. #code .. " characters (also shown in a box to copy). In Discord: /character import")
-    showCharacterExport(code, "Guilded - copy this (Ctrl+C), then in Discord: /character import")
+    message("Your share code is " .. #code .. " characters (also shown in a box to copy). In Discord: /character link")
+    showCharacterExport(code, "Guilded - copy this (Ctrl+C), then in Discord: /character link")
     ns.lastShareCode = code
   elseif action == "character" then
     local info = collectCharacter()
@@ -2201,12 +2201,12 @@ local function command(text)
         message(L("Saved. All your characters on this WoW account will link to your Discord by themselves the next time a guildmate's Guilded companion syncs, and Discord will message you. Nothing else to do, also for your alts."))
         inspectReadiness(true, "GUILD")
       else
-        message(L("That code does not look right. In Discord, use /character pair and copy the whole /guilded verify line."))
+        message(L("That code does not look right. In Discord, use /character link and copy the whole /guilded verify line."))
       end
     elseif validVerifyCode(db.verifyCode) then
       message(L("Your Discord link code is saved: your characters link by themselves. /guilded verify off removes it."))
     else
-      message(L("In Discord, use /character pair, copy the /guilded verify line it shows and paste it here."))
+      message(L("In Discord, use /character link, copy the /guilded verify line it shows and paste it here."))
     end
   elseif action == "start" then if requireOfficer() then raidStart(table.concat(args, " ", 2)) end
   elseif action == "end" then if requireOfficer() then raidEnd() end
@@ -2530,7 +2530,7 @@ local function resolveGuildData()
 end
 
 -- Every character that logs in on this PC, per guild: a paired companion links them all to the
--- same Discord member, so alts need no /character claim. Written only once the character's
+-- same Discord member, so alts need no /character link. Written only once the character's
 -- guild is known and is the guild the loaded data belongs to: at login the data of the guild
 -- played last is still loaded, and a character of another guild must not land in its list.
 local function noteMyCharacter(info)

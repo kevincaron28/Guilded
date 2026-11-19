@@ -10,7 +10,7 @@ export const RETENTION = {
   // An applied export was already turned into ledger rows and keeps only a small summary (its raw
   // payload is dropped when it is applied); the row stays for duplicate detection by checksum.
   appliedImportDays: 14,
-  // Never applied (waiting for /import apply): kept with its full payload, then dropped.
+  // Never applied (waiting for /setup import apply): kept with its full payload, then dropped.
   pendingImportDays: 30,
   // ...and at most this many per guild, once older than pendingOverflowDays.
   pendingImportsPerGuild: 25,
@@ -30,7 +30,7 @@ export async function runRetention(database: Db, now = new Date()): Promise<{ im
       { status: { not: "APPLIED" }, createdAt: { lt: before(RETENTION.pendingImportDays) } }
     ] }
   });
-  // Not yet applied: only the newest pendingImportsPerGuild per guild are kept (the /import apply
+  // Not yet applied: only the newest pendingImportsPerGuild per guild are kept (the /setup import apply
   // autocomplete lists 25 anyway), and only once they are a couple of days old.
   const overflow = await database.$executeRaw`
     DELETE FROM "AddonImport" WHERE "id" IN (

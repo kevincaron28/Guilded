@@ -19,7 +19,7 @@ import { guildWhere } from "./guild-scope.js";
 //     there is no weighting; `points` is kept per row so a later weighting never rewrites history.
 //   * The "Top crafters" card (shared ladder layout, docs/LEADERBOARD_CARDS.md) in #top-crafters,
 //     edited in place after each finished craft. On by default; officer off switch
-//     /craft notify-setting ladder:False. Nothing here awards EP/GP or community points.
+//     /config craft notify ladder:False. Nothing here awards EP/GP or community points.
 
 export const LADDER_TOP = 25;
 export const CRAFT_LADDER_MARKER = "Guilded craft ladder";

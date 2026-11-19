@@ -40,7 +40,7 @@ export function heldNotice(rows: HeldRow[], lang: Lang): string {
   if (count("NO_CORE_RAID")) lines.push(fr
     ? `• ${count("NO_CORE_RAID")} butin(s) sans raid de core : ils s'importent après \`/guilded end\` si le raid correspond à un raid Discord.`
     : `• ${count("NO_CORE_RAID")} loot row(s) with no core raid yet: they import after \`/guilded end\` when the raid matches a Discord raid.`);
-  return `${fr ? "⚠️ **Entrées de l'addon en attente**" : "⚠️ **Addon entries on hold**"} (${rows.length})\n${lines.join("\n")}\n${fr ? "Le reste a été importé. Liste et retrait : `/import held`." : "Everything else was imported. List or dismiss them: `/import held`."}`;
+  return `${fr ? "⚠️ **Entrées de l'addon en attente**" : "⚠️ **Addon entries on hold**"} (${rows.length})\n${lines.join("\n")}\n${fr ? "Le reste a été importé. Liste et retrait : `/setup import held`." : "Everything else was imported. List or dismiss them: `/setup import held`."}`;
 }
 
 // One post (card + short embed) per completed run, oldest first. True when there was at least one run to announce.
@@ -73,7 +73,7 @@ export async function announceDungeonRuns(discordGuild: DiscordGuild | null, dun
 }
 
 // Everything that follows an applied import, whoever applied it (an officer
-// with /import apply, or the bot itself when auto-apply is on): link newly
+// with /setup import apply, or the bot itself when auto-apply is on): link newly
 // discovered characters by Discord name, announce the import, dungeon runs
 // and the leaderboard, and refresh the readiness board.
 export async function followUpImport(discordGuild: DiscordGuild | null, guildId: string, result: ImportResult, options: { since?: Date; refresh?: boolean } = {}): Promise<{ autoLinked: { character: string; member: string }[]; calendar: CalendarSummary | null }> {

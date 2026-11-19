@@ -72,7 +72,7 @@ interface Impact {
 
 export async function gatherImpact(guild: DiscordGuild, guildId: string, settings: GuildSettings): Promise<Impact> {
   const scoped = currentGuildScope()?.permissionRoles !== undefined;
-  if (!scoped && await prisma.wowGuild?.count({where:{guildId,scopeGuildId:{not:guildId}}}) > 0) throw new Error("Remove the additional in-game guilds first: select each with /wow use and run its uninstall. This keeps another guild's channels and records safe.");
+  if (!scoped && await prisma.wowGuild?.count({where:{guildId,scopeGuildId:{not:guildId}}}) > 0) throw new Error("Remove the additional in-game guilds first: select each with /character guild and run its uninstall. This keeps another guild's channels and records safe.");
   const removableChannels: RemovableChannel[] = [];
   const keptChannels: string[] = [];
   for (const field of [...ALL_CHANNELS, ...RETIRED_CHANNELS, ...OPTIONAL_CHANNELS]) {
@@ -300,7 +300,7 @@ export async function performUninstall(guild: DiscordGuild, guildId: string, imp
     "All data for this selected guild — raids, EPGP, loot log, imports, characters, recipes and pairings — is gone. Its linked Discord events were removed.",
     impact.keptChannels.length ? `Left alone: ${impact.keptChannels.join(", ")}.` : "",
     impact.roleNames.length ? `Roles left alone: ${impact.roleNames.join(", ")}.` : "",
-    reset ? "Select this guild with `/wow use`, run `/setup start`, then pair companions again." : scoped ? "Other in-game guilds remain connected." : "Leaving the server now."
+    reset ? "Select this guild with `/character guild`, run `/setup start`, then pair companions again." : scoped ? "Other in-game guilds remain connected." : "Leaving the server now."
   ].filter((line) => line !== "").join("\n");
 }
 

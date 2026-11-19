@@ -10,7 +10,7 @@ const context = new AsyncLocalStorage<GuildScope>();
 export const currentGuildScope = () => context.getStore();
 export const runInGuildScope = <T>(scope: GuildScope, work: () => T): T => context.run(scope, work);
 // Discord collectors emit later from a different request. Capture the originating
-// guild now so changing /wow use cannot redirect an open setup/reset/core wizard.
+// guild now so changing /character guild cannot redirect an open setup/reset/core wizard.
 export const bindGuildScope = AsyncLocalStorage.bind;
 
 /** A Discord lookup follows the current request/job; an unscoped lookup is legacy/default. */
@@ -38,7 +38,7 @@ export async function forEachGuildScope(database: Pick<PrismaClient, "guild">, d
   for (const scope of scopes) await withGuildScope(database, scope.id, work);
 }
 
-/** Existing message buttons keep their owning guild even after /wow use changes. */
+/** Existing message buttons keep their owning guild even after /character guild changes. */
 export async function entityGuildScope(database: PrismaClient, discordId: string, customId: string): Promise<GuildScope | null> {
   const [prefix, first, second, third] = customId.split(":");
   let row: { guildId: string } | null = null;
@@ -78,7 +78,7 @@ export async function interactionGuildScope(database: PrismaClient, input: { dis
       database.activityCore.findMany({ where: { guild: { discordId: input.discordId }, channelId: { in: channelIds } }, select: { guildId: true } })
     ]);
     const owners = [...new Set([...settings, ...cores, ...teams].map(row => row.guildId))];
-    if (owners.length > 1) throw new Error("Several guilds use this channel. An officer must bind it with /wow channel.");
+    if (owners.length > 1) throw new Error("Several guilds use this channel. An officer must bind it with /setup guild channel.");
     if (owners[0]) return loadGuildScope(database, owners[0], input.discordId);
   }
   const choice = await database.wowGuildSelection.findUnique({ where: { discordId_userId: { discordId: input.discordId, userId: input.userId } } });

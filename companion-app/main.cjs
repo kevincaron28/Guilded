@@ -817,7 +817,7 @@ async function removeAllDataAndQuit(skipPrompt = false) {
     dialog.showMessageBoxSync(win ?? undefined, {
       type: "warning", buttons: [T("OK")],
       message: T("Some online connections could not be revoked."),
-      detail: T("Local data will still be removed. Revoke those connections from your Guilded account or /character pair when the server is reachable.")
+      detail: T("Local data will still be removed. Revoke those connections from your Guilded account or /character link when the server is reachable.")
     });
   }
   await setAutostart(false);

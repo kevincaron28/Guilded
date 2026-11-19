@@ -49,7 +49,7 @@ function looseForeverMatch<T extends { name: string; realm: string; gameEdition?
  * EP/GP and DKP belong to a member, not a character. The member a ledger row's name belongs to:
  * the matching character's; for a pre-8.5 WoW Forever first name ("Lebowski") matching several
  * full-name characters, their member when they all belong to one member, or "shared" when they
- * belong to several (the row is held for an officer: SHARED_FIRST_NAME, /import held).
+ * belong to several (the row is held for an officer: SHARED_FIRST_NAME, /setup import held).
  */
 export function ledgerOwner<T extends { name: string; realm: string; gameEdition?: string; memberId: string }>(characters: readonly T[], name: string, realm: string, gameEdition?: string): T | "shared" | undefined {
   const found = findCharacter(characters, name, realm, gameEdition);

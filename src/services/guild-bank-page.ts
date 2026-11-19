@@ -10,7 +10,7 @@ import { bankItems, itemUrl, lowStock, qualityColor, searchBankItems } from "./g
 // when someone last opened it, the gold over time, and the ledger (who deposited or withdrew what,
 // when). Officers only, with the same check as the Statistics page. No script, inline SVG chart.
 // 9.1 (docs/plans/GUILD_BANK.md): members see the contents too, with a search, unless officers
-// turned member search off (/bank settings); the gold chart, the ledger and who moved what stay
+// turned member search off (/officer bank settings); the gold chart, the ledger and who moved what stay
 // officers only. Item names link to Wowhead in their quality colour.
 
 type T = (en: string, fr: string) => string;

@@ -221,7 +221,7 @@ describe("game menu and pairing", () => {
     useSettings({ ...baseSettings, inviteChannelId: null });
     const without = click("onboard:chat:g1", fakeGuild(fakeMember()));
     await handleOnboardingInteraction(without as never);
-    expect(without.editReply.mock.calls[0]![0].content).toContain("/character pair");
+    expect(without.editReply.mock.calls[0]![0].content).toContain("/character link");
     expect(without.editReply.mock.calls[0]![0].content).not.toContain("<#");
   });
 

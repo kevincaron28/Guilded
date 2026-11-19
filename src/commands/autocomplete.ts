@@ -14,6 +14,7 @@ import {
   raidTitleSuggestions, reasonSuggestions, specSuggestions, tagSuggestions, timeSuggestions
 } from "../services/option-suggestions.js";
 import { dungeonChoices } from "../services/dungeon-stats.js";
+import { Prisma } from "../generated/prisma/client.js";
 import { validBracketedRules } from "../services/dungeon-november-rules.js";
 import { recipeNameSuggestions } from "../services/recipes.js";
 import { createCraftOfferService, offerChoices } from "../services/craft-offers.js";
@@ -101,6 +102,21 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
       choices = raidPresetChoices(query);
     } else if ((command === "raid" || command === "worldbuff") && focused.name === "time") {
       choices = timeSuggestions(query, timeZone, language);
+    } else if (command === "bg" && focused.name === "session") {
+      // Upcoming battleground sessions the member can see (one bounded query; private channels are skipped).
+      const sessions = await prisma.activitySession.findMany({ where: {
+        core: { guildId: guild.id, archived: false, battlegroundPlan: { not: Prisma.DbNull } },
+        status: { in: ["PLANNED", "ACTIVE"] }, endsAt: { gt: new Date() }
+      }, select: { id: true, scheduledAt: true, core: { select: { name: true, channelId: true } } }, orderBy: { scheduledAt: "asc" }, take: 50 });
+      choices = sessions
+        .filter((session) => interaction.guild!.channels.cache.get(session.core.channelId)?.permissionsFor(interaction.user.id)?.has("ViewChannel"))
+        .map((session) => ({ name: `${session.core.name} · ${session.scheduledAt.toISOString().slice(0, 16).replace("T", " ")} UTC`.slice(0, 100), value: session.id }))
+        .filter((choice) => !query || choice.name.toLowerCase().includes(query.toLowerCase()) || choice.value.startsWith(query))
+        .slice(0, 25);
+    } else if (command === "dungeon" && focused.name === "character") {
+      // The guild's linked characters (bounded; the name is what /dungeon player looks up).
+      const rows = await prisma.character.findMany({ where: { member: { guildId: guild.id }, name: { contains: query.trim(), mode: "insensitive" } }, orderBy: [{ isMain: "desc" }, { name: "asc" }], take: 25 });
+      choices = rows.map((row) => ({ name: `${characterName(row)}${row.isMain ? " (main)" : ""}`.slice(0, 100), value: characterName(row).slice(0, 100) }));
     } else if (command === "dni" && focused.name === "entry") {
       // Officer-only data: never list it for anyone else.
       choices = interaction.member && hasPermission(interaction.member as GuildMember, "officer") ? await dniChoices(guild.id, query) : [];

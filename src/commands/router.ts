@@ -63,6 +63,7 @@ export class MergedCommand {
   private readonly base: Base | null;
   private defaultMemberPermissions: bigint | null = null;
   private descriptionLocalizations: Record<string, string> | null = null;
+  private nameLocalizations: Record<string, string> | null = null;
   constructor(
     readonly name: string,
     private readonly description: string,
@@ -97,6 +98,12 @@ export class MergedCommand {
     return this;
   }
 
+  /** The parent's name in other languages (lowercase, no spaces: Discord's command-name rules). */
+  setNameLocalizations(localizations: Record<string, string>): this {
+    this.nameLocalizations = localizations;
+    return this;
+  }
+
   toJSON(): Json {
     const options: Json[] = [];
     if (this.base) options.push(...keep(jsonOf(this.base.command).options ?? [], this.base));
@@ -111,7 +118,8 @@ export class MergedCommand {
     }
     const permissions = this.defaultMemberPermissions === null ? {} : { default_member_permissions: this.defaultMemberPermissions.toString() };
     const localized = this.descriptionLocalizations ? { description_localizations: this.descriptionLocalizations } : {};
-    return { name: this.name, description: this.description, ...localized, options, type: 1, ...permissions } as Json;
+    const named = this.nameLocalizations ? { name_localizations: this.nameLocalizations } : {};
+    return { name: this.name, ...named, description: this.description, ...localized, options, type: 1, ...permissions } as Json;
   }
 
   /** Which old command and subcommand an interaction on this parent means. */

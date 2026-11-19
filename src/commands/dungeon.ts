@@ -60,7 +60,7 @@ export const dungeonCommand = new SlashCommandBuilder()
       .setDescriptionLocalizations({ fr: "Officiers : recevoir les parcours de vos membres faits avec d'autres guildes (actif par défaut)" })))
   .addSubcommand((sub) => sub.setName("player").setDescription("A player's points, best times and recent runs (default: you)")
     .addUserOption((o) => o.setName("member").setDescription("Discord member"))
-    .addStringOption((o) => o.setName("character").setDescription("Or a character name")))
+    .addStringOption((o) => o.setName("character").setDescription("Or a character name").setAutocomplete(true)))
   .addSubcommand((sub) => sub.setName("history").setDescription("The most recent dungeon runs")
     .addUserOption((o) => o.setName("member").setDescription("Only runs with this member")))
   .addSubcommand((sub) => sub.setName("season").setDescription("The current season and its leaders")
@@ -293,7 +293,9 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
   // Leaderboards use the V2 layout with a link to the public page; other replies stay embeds.
   await interaction.reply(subcommand === "leaderboard"
     ? v2Reply(embed, { link: await publicBoardLink(context.guildId, lang) })
-    : { embeds: [embed], allowedMentions: { parse: [] } });
+    : { embeds: [embed], allowedMentions: { parse: [] },
+      // Your own stats (no member or character picked) are private; looking someone up stays shareable.
+      ...(subcommand === "player" && !interaction.options.getUser("member") && !interaction.options.getString("character") ? { flags: MessageFlags.Ephemeral } : {}) });
 }
 
 // The guild's public leaderboard page, when it shares its runs and this bot has a website.

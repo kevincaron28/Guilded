@@ -64,6 +64,7 @@ local function state()
   s.heard = type(s.heard) == "table" and s.heard or {}
   s.requests = type(s.requests) == "table" and s.requests or {}
   s.heardRequests = type(s.heardRequests) == "table" and s.heardRequests or {}
+  s.received = type(s.received) == "table" and s.received or {}   -- [order id] = when the requester pressed Mark received
   return s
 end
 
@@ -169,6 +170,7 @@ function orders.prune()
     elseif request.seenFeed and current and current.at >= request.seenFeed and (ownFeed or feedHasRefs) then s.requests[ref] = nil
     elseif ownFeed and feedAt and feedAt > (tonumber(request.at) or 0) + SETTLE_AFTER then s.requests[ref] = nil end
   end
+  for id, at in pairs(s.received) do if type(at) ~= "number" or now - at > KEEP then s.received[id] = nil end end
   local heardCount = 0
   for key, request in pairs(s.heardRequests) do
     if type(request) ~= "table" or now - (tonumber(request.at) or 0) > KEEP then s.heardRequests[key] = nil else heardCount = heardCount + 1 end
@@ -556,6 +558,8 @@ end
 local RES_ROWS = 4       -- recipes shown under the search box
 local LIST_ROWS = 5      -- rows in each of the two lists
 local ROW_H = 28
+local MINE_ROW_H = 42   -- My requests rows carry a second line with the status chips
+local MINE_ROWS = 8
 local MAX_PENDING = 5    -- requests of mine waiting for Discord or open there (the bot allows five)
 local NEW_COOLDOWN = 20  -- seconds between two requests for the same item
 
@@ -583,7 +587,7 @@ function orders.myRequests()
   for _, order in ipairs(current and not current.off and current.orders or {}) do
     if orders.isMyRequest(order) then
       local view = orders.view(order)
-      if view.status == "OPEN" or view.status == "CLAIMED" or view.status == "DONE" then
+      if (view.status == "OPEN" or view.status == "CLAIMED" or view.status == "DONE") and not s.received[order.id] then
         rows[#rows + 1] = { order = order, view = view, at = tonumber(order.at) or 0 }
       end
     end
@@ -760,6 +764,53 @@ table.insert(ns.commandHelp, "/guilded orders [all | alerts on|off] - craft requ
 -- ---------------------------------------------------------------------
 local function setShown(widget, shown) if shown then widget:Show() else widget:Hide() end end
 
+-- Where a request of mine stands, from what this addon knows (no more): 1 sent (not on Discord yet), 2 on Discord,
+-- 3 claimed (and by whom), 4 done. Returns the stage and the crafter's name.
+function orders.stage(row)
+  if row.pending then return 1 end
+  local view, order = row.view, row.order
+  local who = tostring(order.character ~= "" and order.character or order.crafter ~= "" and order.crafter or "?")
+  if view.status == "DONE" then return 4, who end
+  if view.status == "CLAIMED" then return 3, who end
+  return 2
+end
+
+-- How many known guildmates can make the item (the recipes shared with this addon): the honest "seen by" figure.
+function orders.crafterCount(key)
+  key = tonumber(key)
+  if not (key and key ~= 0 and ns.recipes and ns.recipes.crafters) then return 0 end
+  return #ns.recipes.crafters(key)
+end
+
+-- "[Sent] > [On Discord, 3 can craft] > [Claimed by Eve] > [Done]": passed stages green, the current one gold, the rest grey.
+function orders.chipText(row)
+  local stage, who = orders.stage(row)
+  local key = row.pending and row.pending.key or row.order and row.order.key
+  local count = orders.crafterCount(key)
+  local labels = {
+    L("Sent"),
+    count > 0 and string.format(L("On Discord, %d can craft"), count) or L("On Discord"),
+    stage >= 3 and string.format(L("Claimed by %s"), who) or L("Claimed"),
+    stage >= 4 and string.format(L("Done by %s"), who) or L("Done"),
+  }
+  local parts = {}
+  for i, label in ipairs(labels) do
+    local colour = i < stage and "|cff20c020" or i == stage and "|cffffd100" or "|cff707070"
+    parts[#parts + 1] = colour .. "[" .. label .. "]|r"
+  end
+  return table.concat(parts, " |cff707070>|r ")
+end
+
+-- The requester got the item: the request leaves My requests here. Nothing goes to Discord for it (the crafter's Done
+-- already did, or Cancel is the way to withdraw one nobody made).
+function orders.markReceived(id)
+  local s = state()
+  if not (s and type(id) == "string") then return false end
+  s.received[id] = clock()
+  if ns.onOrdersChange then pcall(ns.onOrdersChange) end
+  return true
+end
+
 orders.SUBTABS = {
   { id = "request", label = "Request" },
   { id = "mine", label = "My requests" },
@@ -872,15 +923,21 @@ function orders.buildCraftingPage(page, helpers)
   end
 
   -- The two lists.
-  local function listRow(parent, withTooltip)
+  local function listRow(parent, withTooltip, tall)
     local frame = CreateFrame("Frame", nil, parent)
     frame:SetWidth(width)
-    frame:SetHeight(ROW_H - 2)
+    frame:SetHeight(tall and MINE_ROW_H - 2 or ROW_H - 2)
     local row = { frame = frame }
     row.text = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row.text:SetPoint("LEFT", frame, "LEFT", 4, 0)
+    row.text:SetPoint(tall and "TOPLEFT" or "LEFT", frame, tall and "TOPLEFT" or "LEFT", 4, tall and -5 or 0)
     row.text:SetWidth(width - 190)
     row.text:SetJustifyH("LEFT")
+    if tall then
+      row.chips = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+      row.chips:SetPoint("TOPLEFT", frame, "TOPLEFT", 4, -21)
+      row.chips:SetWidth(width - 8)
+      row.chips:SetJustifyH("LEFT")
+    end
     row.second = newButton(frame, "Done", 80, nil, 22)
     row.second:SetPoint("RIGHT", frame, "RIGHT", -2, 0)
     row.first = newButton(frame, "Claim", 80, nil, 22)
@@ -904,6 +961,11 @@ function orders.buildCraftingPage(page, helpers)
     return row
   end
   local function act(self)
+    if self.action == "received" then
+      if orders.markReceived(self.orderId) and ns.message then ns.message(L("Marked as received. It leaves My requests.")) end
+      orders.refresh(true)
+      return
+    end
     if type(self.ref) == "string" then   -- a request that has not reached Discord: taken back
       if orders.cancelPending(self.ref) and ns.message then ns.message(L("Request withdrawn. If Discord already has it, it shows up again here to cancel.")) end
       orders.refresh()
@@ -923,8 +985,8 @@ function orders.buildCraftingPage(page, helpers)
   view.mineEmpty = newLabel(page, "", "GameFontDisableSmall")
   view.mineEmpty:SetWidth(width)
   view.mineRows = {}
-  for i = 1, LIST_ROWS do
-    local row = listRow(page, false)
+  for i = 1, MINE_ROWS do
+    local row = listRow(page, false, true)
     row.first:SetScript("OnClick", act); row.second:SetScript("OnClick", act)
     view.mineRows[i] = row
   end
@@ -1036,21 +1098,25 @@ local function renderMine(view, page, y, off)
       local qty = entry.pending and entry.pending.qty or entry.order.qty
       local item = entry.pending and entry.pending.item or entry.order.item
       row.order = entry.order
-      row.text:SetText(string.format("%dx |cffffd100%s|r  |cffaaaaaa%s|r", tonumber(qty) or 1, tostring(item or "?"), orders.requestStatusText(entry)))
+      row.text:SetText(string.format("%dx |cffffd100%s|r", tonumber(qty) or 1, tostring(item or "?")))
+      row.chips:SetText(orders.chipText(entry))
       local cancellable = entry.pending or (entry.order and (entry.view.status == "OPEN" or entry.view.status == "CLAIMED") and not entry.view.waiting)
-      row.first:Hide()
+      local received = entry.order and not entry.view.waiting and (entry.view.status == "DONE" or entry.view.status == "CLAIMED")
+      row.first.orderId, row.first.action = entry.order and entry.order.id or nil, "received"
+      row.first:SetText(L("Mark received")); row.first:SetWidth(110)
+      setShown(row.first, received)
       row.second.orderId, row.second.action = entry.order and entry.order.id or nil, "cancel"
       row.second.ref = entry.pending and entry.pending.ref or nil
       row.second:SetText(L("Cancel"))
       setShown(row.second, cancellable)
       place(row.frame, page, 0, y)
       row.frame:Show()
-      y = y - ROW_H
+      y = y - MINE_ROW_H
     else
       row.frame:Hide()
     end
   end
-  if #mine > LIST_ROWS then view.mineEmpty:SetText(string.format(L("... and %d more."), #mine - LIST_ROWS)) elseif #mine == 0 then view.mineEmpty:SetText(L("No requests of yours.")) else view.mineEmpty:SetText("") end
+  if #mine > MINE_ROWS then view.mineEmpty:SetText(string.format(L("... and %d more."), #mine - MINE_ROWS)) elseif #mine == 0 then view.mineEmpty:SetText(L("No requests of yours.")) else view.mineEmpty:SetText("") end
   -- (9.3.4) An empty list says so on the header's own line (no second line of empty space under it).
   if #mine == 0 then
     place(view.mineEmpty, page, 150, y + 20); view.mineEmpty:SetWidth((view.width or 580) - 160); view.mineEmpty:Show()

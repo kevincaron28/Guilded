@@ -69,7 +69,7 @@ function buildPage() {
 }
 const tab = (id: string) => s!.run(`VIEW.sub = "${id}"; NS.craftOrders.refresh()`);
 const forMe = () => (tab("craft"), s!.run(`local t = {} for _, row in ipairs(VIEW.forMeRows) do if row.frame.shown then t[#t + 1] = row.text.text end end return table.concat(t, "\\n")`));
-const mine = () => (tab("mine"), s!.run(`local t = {} for _, row in ipairs(VIEW.mineRows) do if row.frame.shown then t[#t + 1] = row.text.text end end return table.concat(t, "\\n")`));
+const mine = () => (tab("mine"), s!.run(`local t = {} for _, row in ipairs(VIEW.mineRows) do if row.frame.shown then t[#t + 1] = row.text.text .. " " .. row.chips.text end end return table.concat(t, "\\n")`));
 const found = () => (tab("request"), s!.run(`local t = {} for _, row in ipairs(VIEW.resultRows) do if row.frame.shown then t[#t + 1] = row.text.text end end return table.concat(t, "\\n")`));
 const search = (text: string) => s!.run(`VIEW.box:SetText(${JSON.stringify(text)}); VIEW.box.scripts.OnEnterPressed(VIEW.box)`);
 const sent = (kind: string) => s!.run(`local t = {} for _, m in ipairs(SENT) do if m.prefix == "GuildedOrd" and string.find(m.text, "^${kind}|") then t[#t + 1] = m.text end end return table.concat(t, "\\n")`);
@@ -186,6 +186,52 @@ describe("the Crafting page: sub-tabs", () => {
   });
 });
 
+describe("the Crafting page: My requests status chips", () => {
+  const mineOrder = (status: string, extra = "") => String.raw`GuildedOrders = { at = "2026-11-07T12:00:00.000Z", orders = {
+    { id = "req_mine0001", ref = "g6a0b1c2d3", key = 2580, item = "Brown Linen Shirt", qty = 1, status = "${status}", by = NS.craftOrders.myName(), crafter = "Eve", character = "${extra}", asked = "", mats = false, note = "", at = 1799990000 } } }`;
+  function withOrder(status: string, character = "") {
+    setup({ file: false });
+    s!.run(`local book = NS.recipes.book()
+      book.names[2580] = "Brown Linen Shirt"
+      book.people["Ann Walker"] = { Tailoring = { v = 1, keys = { 2580 } } }`);
+    s!.run(mineOrder(status, character));
+    buildPage();
+  }
+  const chips = () => (tab("mine"), s!.run("return VIEW.mineRows[1].chips.text"));
+
+  it("walks Sent, On Discord, Claimed by X, Done and marks the current stage", () => {
+    withOrder("OPEN");
+    expect(chips()).toContain("|cff20c020[Sent]|r");
+    expect(chips()).toContain("|cffffd100[On Discord, 2 can craft]|r");
+    expect(chips()).toContain("|cff707070[Claimed]|r");
+    s!.run(`GuildedOrders.orders[1].status = "CLAIMED"; GuildedOrders.orders[1].character = "Eve Stone"; NS.craftOrders.refresh()`);
+    expect(chips()).toContain("|cffffd100[Claimed by Eve Stone]|r");
+    s!.run(`GuildedOrders.orders[1].status = "DONE"; NS.craftOrders.refresh()`);
+    expect(chips()).toContain("|cffffd100[Done by Eve Stone]|r");
+  });
+
+  it("shows only Sent for a request not on Discord yet", () => {
+    setup();
+    buildPage();
+    s!.run(`NS.craftOrders.submit({ item = "Brown Linen Shirt", key = 2580 })`);
+    expect(chips()).toContain("|cffffd100[Sent]|r");
+    expect(chips()).toContain("|cff707070[Done]|r");
+  });
+
+  it("Mark received closes a done request here, sends nothing, and keeps Cancel for open ones", () => {
+    withOrder("OPEN");
+    tab("mine");
+    expect(s!.run("return tostring(VIEW.mineRows[1].first.shown) .. tostring(VIEW.mineRows[1].second.shown)")).toBe("falsetrue");
+    s!.run(`GuildedOrders.orders[1].status = "DONE"; GuildedOrders.orders[1].character = "Eve Stone"; NS.craftOrders.refresh()`);
+    expect(s!.run("return tostring(VIEW.mineRows[1].first.shown) .. VIEW.mineRows[1].first.text .. tostring(VIEW.mineRows[1].second.shown)")).toBe("trueMark receivedfalse");
+    s!.run("SENT = {}; VIEW.mineRows[1].first.scripts.OnClick(VIEW.mineRows[1].first)");
+    expect(mine()).toBe("");
+    expect(s!.run("return #SENT")).toBe("0");
+    expect(s!.run("return tostring(NS.getDb().craftOrders.received.req_mine0001 ~= nil)")).toBe("true");
+    expect(s!.run("return MESSAGES[#MESSAGES]")).toContain("Marked as received");
+  });
+});
+
 describe("the Crafting page: search and Request", () => {
   function withCrafters() {
     setup();
@@ -223,7 +269,7 @@ describe("the Crafting page: search and Request", () => {
     expect(sent("NEW")).toBe(`NEW|${ref}|2580|1|0|1800000000|Tailoring||Brown Linen Shirt|`);
     expect(s!.run("return MESSAGES[#MESSAGES]")).toContain("Asked the guild for 1x Brown Linen Shirt");
     expect(mine()).toContain("Brown Linen Shirt");
-    expect(mine()).toContain("Sent. Discord gets it with the next sync.");
+    expect(mine()).toContain("[Sent]");
     expect(s!.run("return VIEW.mineHeader.text")).toBe("My requests (1)");
     // The same item again right away is refused, and nothing more is sent.
     s!.run("VIEW.resultRows[1].button.scripts.OnClick(VIEW.resultRows[1].button)");
@@ -414,8 +460,8 @@ describe("the Crafting page: review fixes", () => {
         GuildedOrders.orders[#GuildedOrders.orders + 1] = { id = "req_own000" .. n, ref = ref, item = r.item, qty = 1, status = "OPEN", by = NS.craftOrders.myName(), at = 1799999999 }
       end
       NS.craftOrders.refresh()`);
-    expect(s!.run("return #VIEW.mineRows")).toBe("5");
-    expect(mine()).not.toContain("Sent.");
+    expect(s!.run("return #VIEW.mineRows")).toBe("8");
+    expect(mine()).not.toContain("|cffffd100[Sent]");   // on Discord now: Sent is passed, not current
     // ... then they are done or cancelled there and leave the feed.
     s!.run(`GuildedOrders.at = "2026-11-09T00:00:00.000Z"
       for i = #GuildedOrders.orders, 6, -1 do table.remove(GuildedOrders.orders, i) end
@@ -479,7 +525,7 @@ describe("the Crafting page: review fixes", () => {
       fire_event("CHAT_MSG_ADDON", "GuildedOrd", "NEW|g6a0b1c2d3|2580|1|0|1799999900|||Brown Linen Shirt|", "GUILD", "Ann Walker")
       GuildedOrders.orders[#GuildedOrders.orders + 1] = { id = "req_copy0011", ref = "g6a0b1c2d3", key = 2580, item = "Brown Linen Shirt", qty = 1, status = "OPEN", by = "Mallory Evil", at = 1799999999 }
       NS.craftOrders.refresh()`);
-    expect(mine()).toContain("Sent.");                       // still my own pending row
+    expect(mine()).toContain("[Sent]");                     // still my own pending row
     expect(s!.run("return #NS.craftOrders.heardForMe()")).toBe("1");   // Ann's request is still listed
     expect(s!.run(`return tostring(NS.craftOrders.isMyRequest({ ref = REF, by = "Mallory Evil" }))`)).toBe("false");
   });

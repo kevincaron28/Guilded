@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { normalizeLeaderRuns, sameRun } from "../src/services/public-run-merge.js";
+import { characterId } from "../src/services/public-score.js";
 import { onRoster, rankCharacters, type LeaderPlayer, type LeaderRun } from "../src/services/public-leaderboard.js";
 
 const END = new Date("2026-11-05T02:00:00Z");
@@ -84,5 +85,39 @@ describe("one row per real player on the character board", () => {
     expect(onRoster(new Set(["hulke"]), hulke, "forever")).toBe(true);
     expect(onRoster(new Set(["hulke hogan"]), hulke, "forever")).toBe(true);
     expect(onRoster(new Set(["someone else"]), hulke, "forever")).toBe(false);
+  });
+});
+
+describe("a doubled in-game name is one character", () => {
+  const roster = new Set(["xaldin xaldin", "hulke hogan"]);
+  it("a run name \"Xaldin\" is the roster character \"Xaldin Xaldin\"", () => {
+    expect(onRoster(roster, player("Xaldin"), "forever")).toBe(true);
+    expect(onRoster(roster, player("Xaldin Xaldin"), "forever")).toBe(true);
+  });
+  it("\"Hulke\" is not \"Hulke Hogan\", and other editions are untouched", () => {
+    expect(onRoster(new Set(["hulke hogan"]), player("Hulke"), "forever")).toBe(false);
+    expect(onRoster(roster, player("Xaldin"), "classic")).toBe(false);
+  });
+  it("still displays as \"Xaldin\" and combines both spellings into one row", () => {
+    const merged = normalizeLeaderRuns([run("a", [player("Xaldin"), player("Crashing Pally")]), run("b", [player("Xaldin Xaldin"), player("El Pirata")], { endedAt: new Date(END.getTime() + 7_200_000) })]);
+    expect(merged.flatMap(names)).toContain("Xaldin");
+    expect(merged.flatMap(names)).not.toContain("Xaldin Xaldin");
+    expect(new Set(merged.flatMap((r) => r.players).filter((p) => p.character.startsWith("Xaldin")).map((p) => p.character)).size).toBe(1);
+  });
+});
+
+describe("7 runs as \"Xaldin\" and 3 as \"Xaldin Xaldin\"", () => {
+  it("give one leaderboard row, one score and ten runs", () => {
+    const at = (i: number) => new Date(END.getTime() + i * 3_600_000);
+    const runs = Array.from({ length: 10 }, (_, i) => run(`r${i}`, [player(i < 7 ? "Xaldin" : "Xaldin Xaldin"), player("Hulke"), player("Hulke Hogan", { className: "Mage" })], { endedAt: at(i), durationSec: 1600 + i }));
+    const filters = { className: null, role: null, confirmed: false };
+    for (const input of [runs, normalizeLeaderRuns(runs)]) {
+      expect(rankCharacters(input, filters).filter((e) => e.player.character.startsWith("Xaldin"))).toHaveLength(1);
+      expect(new Set(input.flatMap((r) => r.players).filter((p) => p.character.startsWith("Xaldin")).map(characterId)).size).toBe(1);
+    }
+    expect(normalizeLeaderRuns(runs).filter((r) => r.players.some((p) => p.character === "Xaldin"))).toHaveLength(10);
+    const board = rankCharacters(runs, filters);
+    expect(board.some((e) => e.player.character === "Hulke")).toBe(true);
+    expect(board.some((e) => e.player.character === "Hulke Hogan")).toBe(true);
   });
 });

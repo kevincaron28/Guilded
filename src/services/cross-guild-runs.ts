@@ -75,7 +75,7 @@ export function localiseRun(raw: unknown, roster: ReadonlySet<string>, edition: 
   const run = raw as { players?: { character?: unknown; realm?: unknown; inGuild?: unknown }[] };
   if (!Array.isArray(run.players)) return raw;
   return { ...run, ...(reporter ? { reporterNames: [reporter] } : {}), players: run.players.map((player) => ({ ...player,
-    inGuild: typeof player.character === "string" && roster.has(keyOf(player.character, typeof player.realm === "string" ? player.realm : "", edition)) })) };
+    inGuild: typeof player.character === "string" && (edition === "forever" ? [keyOf(player.character, typeof player.realm === "string" ? player.realm : "", edition)].flatMap((key) => key && !/\s/.test(key) ? [key, `${key} ${key}`] : [key]) : [keyOf(player.character, typeof player.realm === "string" ? player.realm : "", edition)]).some((key) => roster.has(key)) })) };
 }
 
 /** Each guild's copies of other guilds' runs are kept under one hidden inbox device whose token hash starts with this. */

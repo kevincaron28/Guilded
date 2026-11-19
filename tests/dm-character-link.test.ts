@@ -46,6 +46,22 @@ describe("DM a character name to link it", () => {
     expect(JSON.stringify(sent.components.map((row) => row.toJSON()))).toContain("linked:no:c1");
     expect(sent.allowedMentions).toEqual({ parse: [] });
   });
+  it("prefers the full-name row over an old first-name-only row with the same display name", async () => {
+    const database = db({ members: [member], unclaimed: [
+      { id: "old", name: "Chad", displayName: "Chad Ho", guildId: "g1" },
+      { id: "full", name: "Chad Ho", displayName: "Chad Ho", guildId: "g1" }] });
+    claimCharacter.mockResolvedValue({ row: { name: "Chad Ho" }, isMain: true });
+    const answer = await answerCharacterDm(database as never, "u1", parsed("Chad Ho"));
+    expect(claimCharacter).toHaveBeenCalledWith(database, "g1", "m1", "full");
+    expect(answer?.content).toContain("Linked");
+  });
+  it("still refuses two different full-name rows that read the same", async () => {
+    const database = db({ members: [member], unclaimed: [
+      { id: "a", name: "Chad Ho", guildId: "g1" }, { id: "b", name: "Chad Hô", guildId: "g1" }] });
+    const answer = await answerCharacterDm(database as never, "u1", parsed("Chad Ho"));
+    expect(claimCharacter).not.toHaveBeenCalled();
+    expect(answer?.content).toContain("don't know");
+  });
   it("matches accents and case", async () => {
     const database = db({ members: [member], unclaimed: [{ id: "un1", name: "Élodie Brûlé", guildId: "g1" }] });
     claimCharacter.mockResolvedValue({ row: { name: "Élodie Brûlé" }, isMain: false });

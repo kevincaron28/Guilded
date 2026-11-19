@@ -260,6 +260,10 @@ const STRINGS = {
     en: "{mentions} — **{name}** is asking for a guild invite and you look online in game (any guild member can invite).",
     fr: "{mentions} — **{name}** demande une invitation de guilde et tu sembles en ligne dans le jeu (tout membre de la guilde peut inviter)."
   },
+  "invite.notify.wrongFaction": {
+    en: "**{name}** seems to be on the other faction: this guild is **{faction}**, and a guild can only invite characters of its own faction. Please ask again with a **{faction}** character.",
+    fr: "**{name}** semble être de l'autre faction : cette guilde est **{faction}**, et une guilde ne peut inviter que des personnages de sa propre faction. Redemande avec un personnage **{faction}**."
+  },
   "invite.done.note": {
     en: "✅ **{name}** joined the guild. Welcome!",
     fr: "✅ **{name}** a rejoint la guilde. Bienvenue!"

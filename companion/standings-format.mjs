@@ -157,9 +157,11 @@ export function promotionToLua(promotion) {
   const iso = typeof promotion.updatedAt === "string" && !Number.isNaN(Date.parse(promotion.updatedAt)) ? luaString(promotion.updatedAt) : "nil";
   const days = Number.isInteger(promotion.minDays) && promotion.minDays >= 0 && promotion.minDays <= 3650 ? promotion.minDays : "nil";
   const level = Number.isInteger(promotion.minLevel) && promotion.minLevel >= 0 && promotion.minLevel <= 100 ? promotion.minLevel : 0;
+  const voice = Number.isInteger(promotion.minVoiceMinutes) && promotion.minVoiceMinutes >= 0 && promotion.minVoiceMinutes <= 10080 ? promotion.minVoiceMinutes : "nil";
+  const link = typeof promotion.requireLink === "boolean" ? String(promotion.requireLink) : "nil";
   return [
     "GuildedPromotion = {",
-    `  updatedAt = ${iso}, fromRank = ${typeof promotion.fromRank === "string" ? luaString(promotion.fromRank.slice(0, 40)) : "nil"}, minDays = ${days}, minLevel = ${level},`,
+    `  updatedAt = ${iso}, fromRank = ${typeof promotion.fromRank === "string" ? luaString(promotion.fromRank.slice(0, 40)) : "nil"}, minDays = ${days}, minLevel = ${level}, minVoice = ${voice}, requireLink = ${link},`,
     // Only these members may be offered for promotion in game (Modules/Promotion.lua): never "linked" on its own.
     "  ready = {",
     ...ready.map(name => `    ${luaString(name)},`),

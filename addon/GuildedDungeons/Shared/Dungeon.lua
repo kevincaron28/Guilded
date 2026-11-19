@@ -531,13 +531,23 @@ serialize = function(run)
   if #summary + #levelData <= CHUNK_BYTES * 20 then summary = summary .. levelData end
   local extra = ";sp=" .. table.concat(specs, ",")
   if #summary + #extra <= CHUNK_BYTES * 20 then summary = summary .. extra end
+  -- (9.4.1) Each player's guild and faction are built first and their room is kept free: a long dungeon's timeline (up to 100
+  -- kills and bosses) used to fill the 20 chunks, so a guildmate's copy of the run arrived without them and the run card showed no guild.
+  local guilds, factions = {}, {}
+  for name, player in pairs(run.players) do
+    if player.guild and player.guild ~= "" then guilds[#guilds + 1] = clean(name) .. ":" .. clean(string.sub(player.guild, 1, 40)) end
+    if player.faction == "ALLIANCE" or player.faction == "HORDE" then factions[#factions + 1] = clean(name) .. ":" .. string.sub(player.faction, 1, 1) end
+  end
+  local guildData = #guilds > 0 and (";gu=" .. table.concat(guilds, ",")) or ""
+  local factionData = #factions > 0 and (";fa=" .. table.concat(factions, ",")) or ""
+  local reserved = #guildData + #factionData
   for _, encounter in ipairs(run.encounters or {}) do
     if encounter.id and encounter.at then
       local row = table.concat({ encounter.id, clean(string.sub(encounter.name or "", 1, 100)), encounter.success and "1" or "0",
         encounter.at, encounter.startedAt or "" }, ":")
       if encounter.kind == "npc" then row = row .. ":npc" end
       local candidate = table.concat(timeline, ",") .. (#timeline > 0 and "," or "") .. row
-      if #summary + #candidate + 4 > CHUNK_BYTES * 20 then break end
+      if #summary + #candidate + 4 + reserved > CHUNK_BYTES * 20 then break end
       timeline[#timeline + 1] = row
     end
   end
@@ -560,25 +570,9 @@ serialize = function(run)
       .. ";ix=" .. table.concat(intervals, ",") .. ";ns=" .. table.concat(native, ",") .. ";wa=" .. (run.integrity.witnessAt or "")
     if #summary + #extra <= CHUNK_BYTES * 20 then summary = summary .. extra end
   end
-  -- (9.3) Last, so it never crowds out the timeline or the integrity data: each player's guild as the game reported
-  -- it, so a guildmate's copy of the run carries it too.
-  local guilds = {}
-  for name, player in pairs(run.players) do
-    if player.guild and player.guild ~= "" then guilds[#guilds + 1] = clean(name) .. ":" .. clean(string.sub(player.guild, 1, 40)) end
-  end
-  if #guilds > 0 then
-    local guildData = ";gu=" .. table.concat(guilds, ",")
-    if #summary + #guildData <= CHUNK_BYTES * 20 then summary = summary .. guildData end
-  end
-  -- (9.3.6) Each player's faction (A or H) after the guild data, so it never crowds out anything older.
-  local factions = {}
-  for name, player in pairs(run.players) do
-    if player.faction == "ALLIANCE" or player.faction == "HORDE" then factions[#factions + 1] = clean(name) .. ":" .. string.sub(player.faction, 1, 1) end
-  end
-  if #factions > 0 then
-    local factionData = ";fa=" .. table.concat(factions, ",")
-    if #summary + #factionData <= CHUNK_BYTES * 20 then summary = summary .. factionData end
-  end
+  -- (9.3) Guild and faction after everything else; their room was reserved above, so they fit even with a long timeline.
+  if guildData ~= "" and #summary + #guildData <= CHUNK_BYTES * 20 then summary = summary .. guildData end
+  if factionData ~= "" and #summary + #factionData <= CHUNK_BYTES * 20 then summary = summary .. factionData end
   return summary
 end
 

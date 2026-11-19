@@ -1612,7 +1612,6 @@ local function buildInfoPage(page)
   place(INFO_OFFICER_TOOLS, true)
   place({
     { "Speed report", "perf", { "copy" }, "How much traffic and time the addon uses." },
-    { "GRM archive import", "rosteradmin", {}, "Opens Roster admin, where a GRM archive is previewed and imported." },
   }, true)
 
   -- Developer tools (/guilded sim): a pretend raid with fake players, to learn the tools alone.

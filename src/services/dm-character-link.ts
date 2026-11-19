@@ -33,7 +33,11 @@ export async function linkNamedCharacter(database: Database, place: Pick<Place, 
     const mine = held.find((row) => row.memberId === place.memberId);
     return mine ? { kind: "mine", character: mine } : { kind: "other" };
   }
-  const unclaimed = (await database.unclaimedCharacter.findMany({ where: { guildId: place.guildId }, select: { id: true, name: true, displayName: true }, take: 5_000 })).filter(same);
+  const matching = (await database.unclaimedCharacter.findMany({ where: { guildId: place.guildId }, select: { id: true, name: true, displayName: true }, take: 5_000 })).filter(same);
+  // An old first-name-only row ("Chad", shown as "Chad Ho") beside the full-name row ("Chad Ho") is the same character, not
+  // two: the row whose own name matches wins (19 Nov 2026, a member got "I don't know Chad Ho" because of it).
+  const exact = matching.filter((row) => foldKey(row.name) === wanted);
+  const unclaimed = exact.length ? exact : matching;
   if (unclaimed.length > 1) return { kind: "none" }; // two reported characters spell the same: not guessing
   if (!apply) return unclaimed.length ? { kind: "linked", character: unclaimed[0]! } : { kind: "none" };
   try {

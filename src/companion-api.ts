@@ -1,6 +1,7 @@
 import { createPugWeb } from "./services/pug-web.js";
 import { issueDuelChallenge } from "./services/duel-integrity.js";
 import { charactersMeSection, meCharacterList } from "./services/me-characters.js";
+import { createMeCharacterActions } from "./services/me-character-actions.js";
 import { meSection, type MeSectionInput } from "./services/me-layout.js";
 import { revokeCompanionCredential } from "./services/companion-revoke.js";
 import { credentialBySecret, renewCompanionCredential } from "./services/companion-renew.js";
@@ -411,7 +412,7 @@ export function createSiteApp(client?: Client) {
   const devices = createDevicePages(prismaDeviceStore(prisma));
   const privacyWeb = createPrivacyWeb(prisma);
   const memberData = createMemberData(memberDataStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")));
-  const routes: WebRoute[] = [retiredToolsRoute, signInPage, retiredAvailabilityRoute, devices.route, memberData.route, createRaidProgressWeb(prisma).route, leaderboards.route, liveNewsFeed().route, directory.route, privacyWeb.route, achievementsWeb.route, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route];
+  const routes: WebRoute[] = [retiredToolsRoute, signInPage, retiredAvailabilityRoute, devices.route, memberData.route, createRaidProgressWeb(prisma).route, leaderboards.route, liveNewsFeed().route, directory.route, privacyWeb.route, achievementsWeb.route, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route, createMeCharacterActions(prisma, { client }).route];
   // One basic page (owner, 15 Nov 2026): your characters (read-only), connected devices, your data, recruitment card and applications.
   const meSections: MeSectionInput[] = [
     meSection({ id: "characters", group: "overview", render: charactersMeSection(discordUserId => memberLinkStatus(prisma, discordUserId), meCharacterList(prisma)) }),

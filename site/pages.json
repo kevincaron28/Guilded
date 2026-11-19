@@ -1,5 +1,16 @@
 [
   {
+    "source": "mobile.md",
+    "sourceFr": "mobile.fr.md",
+    "path": "mobile/",
+    "title": "Guilded on your phone",
+    "titleFr": "Guilded sur votre téléphone",
+    "description": "The free Guilded phone app: your guild, the public leaderboards and raid reminders. Coming soon on Google Play.",
+    "descriptionFr": "L’application mobile gratuite de Guilded : votre guilde, les classements publics et les rappels de raid. Bientôt sur Google Play.",
+    "lang": "en",
+    "draft": false
+  },
+  {
     "source": "delete-my-data.md",
     "sourceFr": "delete-my-data.fr.md",
     "path": "delete-my-data/",

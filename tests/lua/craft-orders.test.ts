@@ -67,9 +67,13 @@ function buildPage() {
     VIEW = NS.craftOrders.buildCraftingPage(PAGE, HELPERS)
     PAGE.scripts.OnShow(PAGE)`);
 }
-const forMe = () => s!.run(`local t = {} for _, row in ipairs(VIEW.forMeRows) do if row.frame.shown then t[#t + 1] = row.text.text end end return table.concat(t, "\\n")`);
-const mine = () => s!.run(`local t = {} for _, row in ipairs(VIEW.mineRows) do if row.frame.shown then t[#t + 1] = row.text.text end end return table.concat(t, "\\n")`);
-const found = () => s!.run(`local t = {} for _, row in ipairs(VIEW.resultRows) do if row.frame.shown then t[#t + 1] = row.text.text end end return table.concat(t, "\\n")`);
+const REQ = "VIEW.requestButton.scripts.OnClick(VIEW.requestButton)";
+const tab = (id: string) => s!.run(`VIEW.sub = "${id}"; NS.craftOrders.refresh()`);
+const forMe = () => (tab("craft"), s!.run(`local t = {} for _, row in ipairs(VIEW.forMeRows) do if row.frame.shown then t[#t + 1] = row.text.text end end return table.concat(t, "\\n")`));
+const mine = () => (tab("mine"), s!.run(`local t = {} for _, row in ipairs(VIEW.mineRows) do if row.frame.shown then t[#t + 1] = row.text.text .. " " .. row.chips.text end end return table.concat(t, "\\n")`));
+const found = () => (tab("request"), s!.run(`local t = {} for _, row in ipairs(VIEW.resultRows) do if row.frame.shown then t[#t + 1] = row.text.text end end return table.concat(t, "\\n")`));
+const crafters = () => s!.run(`local t = {} for _, l in ipairs(VIEW.dCrafters) do if l.shown then t[#t + 1] = l.text end end return table.concat(t, "\\n")`);
+const pick = (n: number) => s!.run(`VIEW.sub = "request"; NS.craftOrders.refresh(); local f = VIEW.resultRows[${n}].frame; f.scripts.OnClick(f)`);
 const search = (text: string) => s!.run(`VIEW.box:SetText(${JSON.stringify(text)}); VIEW.box.scripts.OnEnterPressed(VIEW.box)`);
 const sent = (kind: string) => s!.run(`local t = {} for _, m in ipairs(SENT) do if m.prefix == "GuildedOrd" and string.find(m.text, "^${kind}|") then t[#t + 1] = m.text end end return table.concat(t, "\\n")`);
 
@@ -100,6 +104,7 @@ describe("the Crafting page: requests for me", () => {
   it("claims in game, says it on GUILD, and shows Done / Give back until Discord has it", () => {
     setup();
     buildPage();
+    tab("craft");
     s!.run("VIEW.forMeRows[2].first.scripts.OnClick(VIEW.forMeRows[2].first)");
     expect(s!.run("return NS.getDb().craftOrders.actions.req_shirt01.action")).toBe("claim");
     expect(sent("ACT")).toBe(`ACT|req_shirt01|claim|1800000000|${s!.run("return NS.craftOrders.myName()")}`);
@@ -154,12 +159,250 @@ describe("the Crafting page: requests for me", () => {
       expect(s!.run("return VIEW.forMeRows[2].first.text")).not.toBe("Claim");
       expect(s!.run("return VIEW.allButton.text")).not.toBe("Show all open orders");
       expect(s!.run("return VIEW.sourceLabel.text")).not.toBe("From Discord, through your companion.");
-      expect(s!.run("return VIEW.optionsButton.text")).not.toBe("More options");
+      expect(s!.run("return VIEW.onlineButton.text")).not.toBe("Crafter online now");
       expect(s!.run("return VIEW.searchButton.text")).not.toBe("Search");
       expect(s!.run("return VIEW.shareButton.text")).not.toBe("Share my recipes");
       expect(s!.run("return VIEW.mineHeader.text")).not.toContain("My requests");
       s!.close(); s = undefined;
     }
+  });
+});
+
+describe("the Crafting page: sub-tabs", () => {
+  it("has Request, My requests and Craft for the guild, one shown at a time", () => {
+    setup();
+    buildPage();
+    expect(s!.run("local t = {} for _, b in ipairs(VIEW.tabs) do t[#t + 1] = b.subId end return table.concat(t, ',')")).toBe("request,mine,craft");
+    expect(s!.run("return VIEW.sub .. tostring(VIEW.box.shown) .. tostring(VIEW.mineHeader.shown) .. tostring(VIEW.forMeHeader.shown)")).toBe("requesttruefalsefalse");
+    s!.run("VIEW.tabs[2].scripts.OnClick(VIEW.tabs[2])");
+    expect(s!.run("return VIEW.sub .. tostring(VIEW.box.shown) .. tostring(VIEW.mineHeader.shown) .. tostring(VIEW.forMeHeader.shown)")).toBe("minefalsetruefalse");
+    s!.run("VIEW.tabs[3].scripts.OnClick(VIEW.tabs[3])");
+    expect(s!.run("return VIEW.sub .. tostring(VIEW.box.shown) .. tostring(VIEW.mineHeader.shown) .. tostring(VIEW.forMeHeader.shown)")).toBe("craftfalsefalsetrue");
+    expect(s!.run("return VIEW.tabs[3].text")).toContain("Craft for the guild");
+  });
+
+  it("is translated", () => {
+    setup({ lang: "fr" });
+    buildPage();
+    expect(s!.run("return VIEW.tabs[3].text")).not.toContain("Craft for the guild");
+    expect(s!.run("return VIEW.tabs[1].text")).not.toContain("Request");
+  });
+});
+
+describe("the Crafting page: My requests status chips", () => {
+  const mineOrder = (status: string, extra = "") => String.raw`GuildedOrders = { at = "2026-11-07T12:00:00.000Z", orders = {
+    { id = "req_mine0001", ref = "g6a0b1c2d3", key = 2580, item = "Brown Linen Shirt", qty = 1, status = "${status}", by = NS.craftOrders.myName(), crafter = "Eve", character = "${extra}", asked = "", mats = false, note = "", at = 1799990000 } } }`;
+  function withOrder(status: string, character = "") {
+    setup({ file: false });
+    s!.run(`local book = NS.recipes.book()
+      book.names[2580] = "Brown Linen Shirt"
+      book.people["Ann Walker"] = { Tailoring = { v = 1, keys = { 2580 } } }`);
+    s!.run(mineOrder(status, character));
+    buildPage();
+  }
+  const chips = () => (tab("mine"), s!.run("return VIEW.mineRows[1].chips.text"));
+
+  it("walks Sent, On Discord, Claimed by X, Done and marks the current stage", () => {
+    withOrder("OPEN");
+    expect(chips()).toContain("|cff20c020[Sent]|r");
+    expect(chips()).toContain("|cffffd100[On Discord, 2 can craft]|r");
+    expect(chips()).toContain("|cff707070[Claimed]|r");
+    s!.run(`GuildedOrders.orders[1].status = "CLAIMED"; GuildedOrders.orders[1].character = "Eve Stone"; NS.craftOrders.refresh()`);
+    expect(chips()).toContain("|cffffd100[Claimed by Eve Stone]|r");
+    s!.run(`GuildedOrders.orders[1].status = "DONE"; NS.craftOrders.refresh()`);
+    expect(chips()).toContain("|cffffd100[Done by Eve Stone]|r");
+  });
+
+  it("shows only Sent for a request not on Discord yet", () => {
+    setup();
+    buildPage();
+    s!.run(`NS.craftOrders.submit({ item = "Brown Linen Shirt", key = 2580 })`);
+    expect(chips()).toContain("|cffffd100[Sent]|r");
+    expect(chips()).toContain("|cff707070[Done]|r");
+  });
+
+  it("Mark received closes a done request here, sends nothing, and keeps Cancel for open ones", () => {
+    withOrder("OPEN");
+    tab("mine");
+    expect(s!.run("return tostring(VIEW.mineRows[1].first.shown) .. tostring(VIEW.mineRows[1].second.shown)")).toBe("falsetrue");
+    s!.run(`GuildedOrders.orders[1].status = "DONE"; GuildedOrders.orders[1].character = "Eve Stone"; NS.craftOrders.refresh()`);
+    expect(s!.run("return tostring(VIEW.mineRows[1].first.shown) .. VIEW.mineRows[1].first.text .. tostring(VIEW.mineRows[1].second.shown)")).toBe("trueMark receivedfalse");
+    s!.run("SENT = {}; VIEW.mineRows[1].first.scripts.OnClick(VIEW.mineRows[1].first)");
+    expect(mine()).toBe("");
+    expect(s!.run("return #SENT")).toBe("0");
+    expect(s!.run("return tostring(NS.getDb().craftOrders.received.req_mine0001 ~= nil)")).toBe("true");
+    expect(s!.run("return MESSAGES[#MESSAGES]")).toContain("Marked as received");
+  });
+});
+
+describe("the Crafting page: Request tab (favourites, recent, tree, filter, detail)", () => {
+  function withBook() {
+    setup();
+    s!.run(`local book = NS.recipes.book()
+      book.names[2580], book.names[7026], book.names[2584], book.names[13510] = "Brown Linen Shirt", "Linen Belt", "Woolen Cape", "Flask of the Titans"
+      book.people["Ann Walker"] = { Tailoring = { v = 1799990000, keys = { 2580 } } }
+      book.people["Cy Ra"] = { Alchemy = { v = 1799990000, keys = { 13510 } } }
+      ONLINE = {}; CLOCK = 0
+      GetTime = function() CLOCK = CLOCK + 1; return CLOCK end   -- the roster cache is per GetTime stamp
+      GetNumGuildMembers = function() return 2 end
+      GetGuildRosterInfo = function(i) if i == 1 then return "Ann Walker", nil, nil, nil, nil, nil, nil, nil, ONLINE.ann end return "Cy Ra", nil, nil, nil, nil, nil, nil, nil, ONLINE.cy end`);
+    buildPage();
+  }
+  const rowsText = () => found().split("\n");
+  const reagents = () => s!.run("local t = {} for _, r in ipairs(VIEW.dReagents) do if r.frame.shown then t[#t + 1] = r.text.text end end return table.concat(t, ',')");
+
+  it("groups the known recipes by profession; a click opens a group and a recipe fills the detail pane", () => {
+    withBook();
+    expect(rowsText()).toEqual(["|cffffd100+ Alchemy (1)|r", "|cffffd100+ Tailoring (3)|r"]);
+    s!.run(`local f = VIEW.resultRows[2].frame; f.scripts.OnClick(f)`);
+    expect(rowsText()).toHaveLength(5);
+    expect(rowsText()[0]).toContain("+ Alchemy");
+    expect(rowsText()[1]).toContain("- Tailoring");
+    expect(rowsText()[2]).toContain("Brown Linen Shirt");
+    s!.run(`local f = VIEW.resultRows[3].frame; f.scripts.OnClick(f)`);
+    expect(s!.run("return VIEW.dTitle.text")).toContain("Brown Linen Shirt");
+    expect(s!.run("return VIEW.dProf.text")).toBe("Tailoring");
+    // The reagents of a recipe you know: have/need, times the quantity.
+    expect(reagents()).toBe("|cff20ff205/3|r Linen Cloth,|cff20ff201/1|r Coarse Thread");
+    s!.run(`VIEW.qtyBox:SetText("2"); NS.craftOrders.refresh()`);
+    expect(reagents()).toContain("|cffff40405/6|r Linen Cloth");
+  });
+
+  it("keeps favourites and the last 10 recipes locally, shown first when nothing is typed", () => {
+    withBook();
+    search("shirt");
+    s!.run("VIEW.dStar.scripts.OnClick(VIEW.dStar)");
+    expect(s!.run("return #NS.craftOrders.favourites()")).toBe("1");
+    expect(s!.run("return NS.craftOrders.favourites()[1].name .. NS.craftOrders.favourites()[1].key")).toBe("Brown Linen Shirt2580");
+    s!.run(`VIEW.box:SetText(""); VIEW.query = ""; VIEW.results = {}; NS.craftOrders.refresh()`);
+    expect(rowsText()[0]).toContain("Favourites (1)");
+    expect(rowsText()[1]).toContain("Brown Linen Shirt");
+    // Only the newest ten recipes stay as recent, without duplicates.
+    for (let i = 1; i <= 12; i++) s!.run(`NS.craftOrders.addRecent({ name = "Recipe ${i}", key = ${1000 + i} })`);
+    s!.run(`NS.craftOrders.addRecent({ name = "Recipe 12", key = 1012 })`);
+    expect(s!.run("return #NS.craftOrders.recents()")).toBe("10");
+    expect(s!.run("return NS.craftOrders.recents()[1].name")).toBe("Recipe 12");
+    // Un-starring from the list's own star.
+    s!.run(`NS.craftOrders.refresh(); local r = VIEW.resultRows[2]; r.star.scripts.OnClick(r.star)`);
+    expect(s!.run("return #NS.craftOrders.favourites()")).toBe("0");
+    // The saved lists are still there after the page is rebuilt (SavedVariables).
+    buildPage();
+    expect(rowsText().some((r) => r.includes("Recent (10)"))).toBe(true);
+  });
+
+  it("records a recipe as recent when it is requested", () => {
+    withBook();
+    search("belt");
+    s!.run(REQ);
+    expect(s!.run("return NS.craftOrders.recents()[1].name")).toBe("Linen Belt");
+  });
+
+  it("Crafter online now keeps recipes a guildmate who can make them has online", () => {
+    withBook();
+    s!.run(`ONLINE.ann = true`);
+    s!.run("VIEW.onlineButton.scripts.OnClick(VIEW.onlineButton)");
+    expect(rowsText()).toEqual(["|cffffd100+ Tailoring (1)|r"]);   // Ann is online; Cy and the recipes only you know are not
+    expect(s!.run("return VIEW.onlineButton.text")).toContain("|cffffd100");
+    s!.run(`ONLINE.ann = false; VIEW.browse = nil; NS.craftOrders.refresh()`);
+    expect(rowsText()).toEqual([""]);
+    expect(s!.run("return VIEW.leftNote.text")).toBe("Nobody who can craft these is online right now.");
+    s!.run("VIEW.onlineButton.scripts.OnClick(VIEW.onlineButton)");
+    expect(rowsText()).toHaveLength(2);
+  });
+
+  it("lists crafters in the detail pane with online state and last seen", () => {
+    withBook();
+    s!.run(`ONLINE.ann = true`);
+    search("shirt");
+    expect(crafters().split("\n")[1]).toMatch(/^Ann Walker {2}\|cff20ff20online\|r {2}\|cffaaaaaaTailoring\|r$/);
+    s!.run(`ONLINE.ann = false; NS.getDb().crafterSeen = nil; NS.craftOrders.refresh()`);
+    expect(crafters().split("\n")[1]).toContain("last seen unknown");
+  });
+});
+
+describe("the Crafting page: materials toggle and the NEW line", () => {
+  function withShirt() {
+    setup();
+    s!.run(`NS.recipes.book().names[2580] = "Brown Linen Shirt"`);
+    buildPage();
+    search("shirt");
+  }
+  it("says who brings the materials in the NEW line's existing materials field, which older addons already read", () => {
+    withShirt();
+    expect(s!.run("return VIEW.matsButton.text")).toBe("Materials: crafter provides");
+    s!.run("VIEW.matsButton.scripts.OnClick(VIEW.matsButton)");
+    expect(s!.run("return VIEW.matsButton.text")).toBe("Materials: I bring them");
+    s!.run(REQ);
+    const line = sent("NEW");
+    expect(line).toMatch(/^NEW\|g[0-9a-f]+\|2580\|1\|1\|1800000000\|Tailoring\|\|Brown Linen Shirt\|$/);
+    expect(s!.run("local r = NS.craftOrders.decodeRequest('" + line + "'); return tostring(r.mats) .. r.item")).toBe("trueBrown Linen Shirt");
+    // The same number of bar-separated fields as before the toggle existed: an older addon parses it unchanged.
+    expect(line.split("|")).toHaveLength(10);
+    // Back to "crafter provides" for the next one.
+    expect(s!.run("return VIEW.matsButton.text")).toBe("Materials: crafter provides");
+  });
+
+  it("sends 0 when the crafter provides them", () => {
+    withShirt();
+    s!.run(REQ);
+    const line = sent("NEW");
+    expect(line).toMatch(/\|2580\|1\|0\|1800000000\|/);
+    expect(s!.run("return tostring(NS.craftOrders.decodeRequest('" + line + "').mats)")).toBe("false");
+  });
+
+  it("stores the choice in the saved request for the companion", () => {
+    withShirt();
+    s!.run("VIEW.matsButton.scripts.OnClick(VIEW.matsButton)");
+    s!.run(REQ);
+    expect(s!.run("local t = {} for _, v in pairs(NS.getDb().craftOrders.requests) do t[#t + 1] = tostring(v.mats) end return t[1]")).toBe("true");
+  });
+});
+
+describe("the Crafting page: Craft for the guild shopping list", () => {
+  const shop = () => s!.run("local t = {} for _, r in ipairs(VIEW.shopRows) do if r.frame.shown then t[#t + 1] = r.text.text end end return table.concat(t, '|')");
+  function withClaims() {
+    setup();
+    s!.run(`GuildedOrders.orders[#GuildedOrders.orders + 1] = { id = "req_shirt02", key = 2580, item = "Brown Linen Shirt", qty = 1, prof = "Tailoring", status = "OPEN", by = "Gil Ho", crafter = "", character = "", asked = "", mats = false, note = "", at = 1799990500 }`);
+    buildPage();
+    tab("craft");
+  }
+
+  it("sums the reagents of the orders you claimed, with have/need from your bags", () => {
+    withClaims();
+    expect(s!.run("return VIEW.shopHeader.text")).toBe("Shopping list (0)");
+    expect(s!.run("return VIEW.shopNote.text")).toBe("Claim an order and its reagents add up here.");
+    s!.run(`NS.craftOrders.act("req_shirt01", "claim"); NS.craftOrders.act("req_shirt02", "claim")`);
+    // 2 + 1 shirts: 3 Linen Cloth and 1 Coarse Thread each. Bags: 5 cloth, 1 thread.
+    expect(s!.run("return VIEW.shopHeader.text")).toBe("Shopping list (2)");
+    expect(shop()).toBe("|cffff40401/3|r Coarse Thread  |cffff40402 to get|r||cffff40405/9|r Linen Cloth  |cffff40404 to get|r");   // what is missing first, then by name
+  });
+
+  it("leaves out orders whose requester brings the materials, and finished or unclaimed ones", () => {
+    withClaims();
+    s!.run(`NS.craftOrders.act("req_belt002", "claim")`);   // the belt order says the requester brings the materials
+    expect(s!.run("return VIEW.shopHeader.text")).toBe("Shopping list (0)");
+    s!.run(`NS.craftOrders.act("req_shirt01", "claim"); BAGS[2589] = 9; BAGS[2320] = 3; NS.craftOrders.refresh()`);
+    expect(shop()).toContain("|cff20ff209/6|r Linen Cloth");
+    s!.run(`NS.craftOrders.act("req_shirt01", "done"); NS.craftOrders.refresh()`);
+    expect(s!.run("return VIEW.shopHeader.text")).toBe("Shopping list (0)");
+  });
+
+  it("says when a claimed order's reagents are not known yet, and sums nothing for it", () => {
+    withClaims();
+    s!.run(`NS.craftOrders.act("req_flask03", "claim")`);   // an alchemy order: this character has not read the recipe
+    expect(s!.run("return VIEW.shopHeader.text")).toBe("Shopping list (0)");
+    expect(s!.run("return VIEW.shopNote.text")).toContain("1 claimed order(s) have no reagents yet");
+    const list = JSON.parse(s!.run(`local l = NS.craftOrders.shoppingList(); return '{"orders":' .. l.orders .. ',"unknown":' .. l.unknown .. ',"rows":' .. #l.rows .. '}'`));
+    expect(list).toEqual({ orders: 1, unknown: 1, rows: 0 });
+  });
+
+  it("puts the number of requests you can craft on the Craft for the guild sub-tab", () => {
+    setup();
+    buildPage();
+    // Open orders this character can make (shirt, belt) plus the one asked of them (odd hat).
+    expect(s!.run("return VIEW.tabs[3].text")).toContain("(3)");
+    s!.run(`NS.craftOrders.act("req_shirt01", "claim"); NS.craftOrders.refresh()`);
+    expect(s!.run("return VIEW.tabs[3].text")).toContain("(2)");
   });
 });
 
@@ -174,10 +417,10 @@ describe("the Crafting page: search and Request", () => {
 
   it("shows who can craft the item you typed, you first", () => {
     withCrafters();
-    expect(found()).toBe("");
+    expect(found()).toContain("Tailoring (3)");   // nothing typed: the professions, closed
     search("shirt");
     expect(found()).toContain("|cffffd100Brown Linen Shirt|r");
-    expect(found()).toMatch(/you, Ann Walker/);
+    expect(crafters()).toMatch(/you {2}\|cff20ff20online[^\n]*\nAnn Walker/);
     search("linen");
     expect(found().split("\n")).toHaveLength(2);
     // A shift-clicked link finds the item by its id.
@@ -187,42 +430,45 @@ describe("the Crafting page: search and Request", () => {
     // Nobody known: still requestable by name.
     search("Mooncloth Bag");
     expect(found()).toContain("Mooncloth Bag");
-    expect(found()).toContain("nobody known");
+    expect(crafters()).toContain("nobody known");
   });
 
   it("sends one request on GUILD, keeps it, and lists it under My requests", () => {
     withCrafters();
     search("shirt");
-    s!.run("VIEW.resultRows[1].button.scripts.OnClick(VIEW.resultRows[1].button)");
+    s!.run("VIEW.requestButton.scripts.OnClick(VIEW.requestButton)");
     const request = s!.run(`local t = {} for _, v in pairs(NS.getDb().craftOrders.requests) do t[#t + 1] = v.ref .. "|" .. v.item .. "|" .. v.key .. "|" .. v.qty .. "|" .. v.character end return t[1]`);
     expect(request).toMatch(/^g[0-9a-f]+\|Brown Linen Shirt\|2580\|1\|/);
     const ref = request.split("|")[0];
     expect(sent("NEW")).toBe(`NEW|${ref}|2580|1|0|1800000000|Tailoring||Brown Linen Shirt|`);
     expect(s!.run("return MESSAGES[#MESSAGES]")).toContain("Asked the guild for 1x Brown Linen Shirt");
     expect(mine()).toContain("Brown Linen Shirt");
-    expect(mine()).toContain("Sent. Discord gets it with the next sync.");
+    expect(mine()).toContain("[Sent]");
     expect(s!.run("return VIEW.mineHeader.text")).toBe("My requests (1)");
     // The same item again right away is refused, and nothing more is sent.
-    s!.run("VIEW.resultRows[1].button.scripts.OnClick(VIEW.resultRows[1].button)");
+    search("shirt");
+    s!.run("VIEW.requestButton.scripts.OnClick(VIEW.requestButton)");
     expect(s!.run("return MESSAGES[#MESSAGES]")).toBe("You just asked for that.");
     expect(sent("NEW").split("\n")).toHaveLength(1);
   });
 
-  it("takes quantity, a note and one asked crafter from More options, and drops an asked name that cannot craft it", () => {
+  it("takes quantity, a note and one asked crafter from the detail pane, and drops an asked name that cannot craft it", () => {
     withCrafters();
-    s!.run("VIEW.optionsButton.scripts.OnClick(VIEW.optionsButton)");
-    expect(s!.run("return tostring(VIEW.qtyBox.shown) .. tostring(VIEW.askButton.shown)")).toBe("truetrue");
     search("linen");   // Brown Linen Shirt (Ann can make it) and Linen Belt (only you)
+    expect(s!.run("return tostring(VIEW.qtyBox.shown) .. tostring(VIEW.askButton.shown)")).toBe("falsefalse");   // nothing picked yet
+    pick(1);
+    expect(s!.run("return tostring(VIEW.qtyBox.shown) .. tostring(VIEW.askButton.shown)")).toBe("truetrue");
     s!.run(`VIEW.qtyBox:SetText("3"); VIEW.noteBox:SetText("Tip | 5g")
       VIEW.askButton.scripts.OnClick(VIEW.askButton)`);
     expect(s!.run("return VIEW.askButton.text")).toBe("Ask: Ann Walker");
     // Asking Ann for an item she cannot make leaves it open to anyone.
-    s!.run("VIEW.resultRows[2].button.scripts.OnClick(VIEW.resultRows[2].button)");
+    s!.run(`VIEW.sel = { key = 7026, name = "Linen Belt", prof = "Tailoring" }; ${REQ}`);
     expect(sent("NEW")).toMatch(/\|7026\|3\|0\|1800000000\|Tailoring\|\|Linen Belt\|Tip {3}5g$/);
     // The options are for that one request: quantity, note and the asked crafter start over.
     expect(s!.run("return VIEW.qtyBox.text .. '|' .. VIEW.noteBox.text .. '|' .. VIEW.askButton.text")).toBe("1||Ask: anyone");
+    pick(1);
     s!.run(`VIEW.askButton.scripts.OnClick(VIEW.askButton)
-      VIEW.resultRows[1].button.scripts.OnClick(VIEW.resultRows[1].button)`);
+      ${REQ}`);
     expect(sent("NEW").split("\n")[1]).toMatch(/\|2580\|1\|0\|1800000000\|Tailoring\|Ann Walker\|Brown Linen Shirt\|$/);
   });
 
@@ -271,12 +517,10 @@ describe("the Crafting page: search and Request", () => {
   it("sizes the page for its blocks and keeps Advanced and the share button working", () => {
     withCrafters();
     const base = Number(s!.run("return VIEW.height()"));
-    expect(base).toBeGreaterThan(200);
-    s!.run("VIEW.optionsButton.scripts.OnClick(VIEW.optionsButton)");
-    const withOptions = Number(s!.run("return VIEW.height()"));
-    expect(withOptions).toBeGreaterThan(base);
+    expect(base).toBeGreaterThan(150);
     search("linen");
-    expect(Number(s!.run("return VIEW.height()"))).toBeGreaterThan(withOptions);
+    pick(1);
+    expect(Number(s!.run("return VIEW.height()"))).toBeGreaterThan(150);
     expect(Number(s!.run("return RELAYOUTS"))).toBeGreaterThan(0);
     expect(s!.run("return tostring(VIEW.professions.shown)")).toBe("false");
     s!.run("VIEW.advancedButton.scripts.OnClick(VIEW.advancedButton)");
@@ -391,8 +635,8 @@ describe("the Crafting page: review fixes", () => {
         GuildedOrders.orders[#GuildedOrders.orders + 1] = { id = "req_own000" .. n, ref = ref, item = r.item, qty = 1, status = "OPEN", by = NS.craftOrders.myName(), at = 1799999999 }
       end
       NS.craftOrders.refresh()`);
-    expect(s!.run("return #VIEW.mineRows")).toBe("5");
-    expect(mine()).not.toContain("Sent.");
+    expect(s!.run("return #VIEW.mineRows")).toBe("8");
+    expect(mine()).not.toContain("|cffffd100[Sent]");   // on Discord now: Sent is passed, not current
     // ... then they are done or cancelled there and leave the feed.
     s!.run(`GuildedOrders.at = "2026-11-09T00:00:00.000Z"
       for i = #GuildedOrders.orders, 6, -1 do table.remove(GuildedOrders.orders, i) end
@@ -436,7 +680,8 @@ describe("the Crafting page: review fixes", () => {
   it("gives a request that is not on Discord yet a Cancel button that takes it back", () => {
     withMe();
     search("shirt");
-    s!.run("VIEW.resultRows[1].button.scripts.OnClick(VIEW.resultRows[1].button)");
+    s!.run("VIEW.requestButton.scripts.OnClick(VIEW.requestButton)");
+    tab("mine");
     expect(s!.run("return tostring(VIEW.mineRows[1].second.shown) .. VIEW.mineRows[1].second.text")).toBe("trueCancel");
     s!.run("VIEW.mineRows[1].second.scripts.OnClick(VIEW.mineRows[1].second)");
     expect(requests()).toBe(0);
@@ -455,7 +700,7 @@ describe("the Crafting page: review fixes", () => {
       fire_event("CHAT_MSG_ADDON", "GuildedOrd", "NEW|g6a0b1c2d3|2580|1|0|1799999900|||Brown Linen Shirt|", "GUILD", "Ann Walker")
       GuildedOrders.orders[#GuildedOrders.orders + 1] = { id = "req_copy0011", ref = "g6a0b1c2d3", key = 2580, item = "Brown Linen Shirt", qty = 1, status = "OPEN", by = "Mallory Evil", at = 1799999999 }
       NS.craftOrders.refresh()`);
-    expect(mine()).toContain("Sent.");                       // still my own pending row
+    expect(mine()).toContain("[Sent]");                     // still my own pending row
     expect(s!.run("return #NS.craftOrders.heardForMe()")).toBe("1");   // Ann's request is still listed
     expect(s!.run(`return tostring(NS.craftOrders.isMyRequest({ ref = REF, by = "Mallory Evil" }))`)).toBe("false");
   });
@@ -466,8 +711,8 @@ describe("the Crafting page: review fixes", () => {
     const row = s!.run(`local r = NS.craftOrders.submit({ item = "${accented}" }); return r.item .. "|" .. #r.item`);
     expect(row.endsWith("|59")).toBe(true);                  // cut before the half character, not in it
     search("shirt");
-    s!.run("VIEW.optionsButton.scripts.OnClick(VIEW.optionsButton); VIEW.askButton.scripts.OnClick(VIEW.askButton)");
-    s!.run("VIEW.resultRows[1].button.scripts.OnClick(VIEW.resultRows[1].button)");
+    s!.run("VIEW.askButton.scripts.OnClick(VIEW.askButton)");
+    s!.run("VIEW.requestButton.scripts.OnClick(VIEW.requestButton)");
     expect(sent("NEW").split("\n").pop()).toContain("|Ann Walker|Brown Linen Shirt|");
   });
 

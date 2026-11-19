@@ -3048,6 +3048,39 @@ local DE = {
   ["Show guildmates' layer requests"] = "Layer-Anfragen der Gilde anzeigen",
   ["A small window when a guildmate on your continent asks to be invited onto another layer."] = "Ein kleines Fenster, wenn ein Gildenmitglied auf deinem Kontinent um eine Einladung auf einen anderen Layer bittet.",
   ["Auto-invite layer requests on my continent"] = "Layer-Anfragen auf meinem Kontinent automatisch einladen",
+  -- 9.4 Crafting window.
+  ["Craft for the guild"] = "F\195\188r die Gilde herstellen",
+  ["Sent"] = "Gesendet",
+  ["On Discord"] = "Auf Discord",
+  ["On Discord, %d can craft"] = "Auf Discord, %d k\195\182nnen herstellen",
+  ["Claimed"] = "Angenommen",
+  ["Claimed by %s"] = "Angenommen von %s",
+  ["Done by %s"] = "Erledigt von %s",
+  ["Mark received"] = "Als erhalten markieren",
+  ["Marked as received. It leaves My requests."] = "Als erhalten markiert. Sie verschwindet aus Meine Anfragen.",
+  ["Crafter online now"] = "Hersteller online",
+  ["Reagents you bring (have/need)"] = "Reagenzien, die du mitbringst (da/n\195\182tig)",
+  ["Reagents (have/need)"] = "Reagenzien (da/n\195\182tig)",
+  ["Reagents are shown for recipes you can make. Open your profession window once so Guilded can read them."] = "Reagenzien werden f\195\188r Rezepte angezeigt, die du herstellen kannst. \195\150ffne einmal dein Berufsfenster, damit Guilded sie lesen kann.",
+  ["Crafters"] = "Hersteller",
+  ["seen %s ago"] = "vor %s gesehen",
+  ["last seen unknown"] = "zuletzt gesehen unbekannt",
+  ["%d more crafters"] = "%d weitere Hersteller",
+  ["Materials: I bring them"] = "Materialien: ich bringe sie mit",
+  ["Materials: crafter provides"] = "Materialien: der Hersteller liefert",
+  ["Pick a recipe on the left, or type what you need above. The star keeps it in Favourites."] = "W\195\164hle links ein Rezept oder tippe oben, was du brauchst. Der Stern merkt es in den Favoriten.",
+  ["Nobody who can craft these is online right now."] = "Niemand, der diese herstellen kann, ist gerade online.",
+  ["Nothing matches. Type at least 2 letters."] = "Keine Treffer. Tippe mindestens 2 Buchstaben.",
+  ["No recipes shared yet. Open a profession window, then Share my recipes."] = "Noch keine Rezepte geteilt. \195\150ffne ein Berufsfenster und dann Meine Rezepte teilen.",
+  ["... and %d more. Type a name to narrow."] = "... und %d weitere. Tippe einen Namen zum Eingrenzen.",
+  ["Favourites"] = "Favoriten",
+  ["Recent"] = "Zuletzt",
+  ["Shopping list"] = "Einkaufsliste",
+  ["%d to get"] = "%d fehlen",
+  ["... and %d more reagents."] = "... und %d weitere Reagenzien.",
+  ["Claim an order and its reagents add up here."] = "Nimm einen Auftrag an: Seine Reagenzien werden hier addiert.",
+  ["%d claimed order(s) have no reagents yet: open that profession window once."] = "%d angenommene(r) Auftrag/Auftr\195\164ge ohne bekannte Reagenzien: \195\150ffne einmal dieses Berufsfenster.",
+  ["*"] = "*",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -5102,6 +5135,39 @@ local ES = {
   ["Show guildmates' layer requests"] = "Mostrar las solicitudes de capa de la hermandad",
   ["A small window when a guildmate on your continent asks to be invited onto another layer."] = "Una peque\195\177a ventana cuando un miembro de la hermandad de tu continente pide una invitaci\195\179n a otra capa.",
   ["Auto-invite layer requests on my continent"] = "Invitar autom\195\161ticamente las solicitudes de capa de mi continente",
+  -- 9.4 Crafting window.
+  ["Craft for the guild"] = "Fabricar para la hermandad",
+  ["Sent"] = "Enviada",
+  ["On Discord"] = "En Discord",
+  ["On Discord, %d can craft"] = "En Discord, %d pueden fabricar",
+  ["Claimed"] = "Aceptada",
+  ["Claimed by %s"] = "Aceptada por %s",
+  ["Done by %s"] = "Hecha por %s",
+  ["Mark received"] = "Marcar recibida",
+  ["Marked as received. It leaves My requests."] = "Marcada como recibida. Sale de Mis peticiones.",
+  ["Crafter online now"] = "Artesano conectado",
+  ["Reagents you bring (have/need)"] = "Componentes que traes (tienes/necesitas)",
+  ["Reagents (have/need)"] = "Componentes (tienes/necesitas)",
+  ["Reagents are shown for recipes you can make. Open your profession window once so Guilded can read them."] = "Los componentes se muestran para las recetas que puedes hacer. Abre una vez la ventana de tu profesi\195\179n para que Guilded los lea.",
+  ["Crafters"] = "Artesanos",
+  ["seen %s ago"] = "visto hace %s",
+  ["last seen unknown"] = "visto por \195\186ltima vez: desconocido",
+  ["%d more crafters"] = "%d artesanos m\195\161s",
+  ["Materials: I bring them"] = "Materiales: los traigo yo",
+  ["Materials: crafter provides"] = "Materiales: los pone el artesano",
+  ["Pick a recipe on the left, or type what you need above. The star keeps it in Favourites."] = "Elige una receta a la izquierda o escribe arriba lo que necesitas. La estrella la guarda en favoritos.",
+  ["Nobody who can craft these is online right now."] = "Ning\195\186n artesano de estas recetas est\195\161 conectado.",
+  ["Nothing matches. Type at least 2 letters."] = "Sin resultados. Escribe al menos 2 letras.",
+  ["No recipes shared yet. Open a profession window, then Share my recipes."] = "A\195\186n no hay recetas compartidas. Abre una ventana de profesi\195\179n y pulsa Compartir mis recetas.",
+  ["... and %d more. Type a name to narrow."] = "... y %d m\195\161s. Escribe un nombre para acotar.",
+  ["Favourites"] = "Favoritos",
+  ["Recent"] = "Recientes",
+  ["Shopping list"] = "Lista de compras",
+  ["%d to get"] = "faltan %d",
+  ["... and %d more reagents."] = "... y %d componentes m\195\161s.",
+  ["Claim an order and its reagents add up here."] = "Acepta un encargo y sus componentes se suman aqu\195\173.",
+  ["%d claimed order(s) have no reagents yet: open that profession window once."] = "%d encargo(s) aceptado(s) sin componentes conocidos: abre una vez esa ventana de profesi\195\179n.",
+  ["*"] = "*",
 }
 -- END ES
 
@@ -6282,6 +6348,45 @@ FR["Layer requests are no longer invited by themselves."] = "Les demandes de cou
 FR["Party Invite buttons invite directly."] = "Les boutons Inviter du groupe invitent directement."
 FR["Party Invite buttons show the /invite line to paste."] = "Les boutons Inviter du groupe affichent la ligne /invite \195\160 coller."
 FR["Off by default. When a guildmate on your continent asks for a layer, Guilded invites them at once (only when you are alone or lead your party, out of combat and outside instances) and shows a short notice. If the game refuses, you get the Invite window instead."] = "D\195\169sactiv\195\169 par d\195\169faut. Quand un membre de la guilde sur votre continent demande une couche, Guilded l'invite tout de suite (seulement si vous \195\170tes seul ou chef de groupe, hors combat et hors instance) et affiche un court avis. Si le jeu refuse, vous avez la fen\195\170tre Inviter \195\160 la place."
+
+-- 9.4 Crafting window: sub-tabs.
+FR["Craft for the guild"] = "Fabriquer pour la guilde"
+
+-- 9.4 Crafting window: My requests chips.
+FR["Sent"] = "Envoy\195\169e"
+FR["On Discord"] = "Sur Discord"
+FR["On Discord, %d can craft"] = "Sur Discord, %d peuvent fabriquer"
+FR["Claimed"] = "Prise en charge"
+FR["Claimed by %s"] = "Prise par %s"
+FR["Done by %s"] = "Termin\195\169e par %s"
+FR["Mark received"] = "Marquer re\195\167u"
+FR["Marked as received. It leaves My requests."] = "Marqu\195\169e comme re\195\167ue. Elle quitte Mes demandes."
+
+-- 9.4 Crafting window: Request tab (list, filter, detail pane).
+FR["Crafter online now"] = "Artisan en ligne"
+FR["Reagents you bring (have/need)"] = "Composants que vous apportez (poss\195\169d\195\169s/requis)"
+FR["Reagents (have/need)"] = "Composants (poss\195\169d\195\169s/requis)"
+FR["Reagents are shown for recipes you can make. Open your profession window once so Guilded can read them."] = "Les composants s'affichent pour les recettes que vous connaissez. Ouvrez une fois votre fen\195\170tre de m\195\169tier pour que Guilded les lise."
+FR["Crafters"] = "Artisans"
+FR["seen %s ago"] = "vu il y a %s"
+FR["last seen unknown"] = "derni\195\168re connexion inconnue"
+FR["%d more crafters"] = "%d artisans de plus"
+FR["Materials: I bring them"] = "Mat\195\169riaux : je les apporte"
+FR["Materials: crafter provides"] = "Mat\195\169riaux : l'artisan les fournit"
+FR["Pick a recipe on the left, or type what you need above. The star keeps it in Favourites."] = "Choisissez une recette \195\160 gauche, ou tapez ce qu'il vous faut ci-dessus. L'\195\169toile la garde dans les favoris."
+FR["Nobody who can craft these is online right now."] = "Aucun artisan de ces recettes n'est en ligne."
+FR["Nothing matches. Type at least 2 letters."] = "Aucun r\195\169sultat. Tapez au moins 2 lettres."
+FR["No recipes shared yet. Open a profession window, then Share my recipes."] = "Aucune recette partag\195\169e. Ouvrez une fen\195\170tre de m\195\169tier, puis Partager mes recettes."
+FR["... and %d more. Type a name to narrow."] = "... et %d de plus. Tapez un nom pour affiner."
+FR["Favourites"] = "Favoris"
+FR["Recent"] = "R\195\169cents"
+
+-- 9.4 Crafting window: shopping list.
+FR["Shopping list"] = "Liste de courses"
+FR["%d to get"] = "%d \195\160 obtenir"
+FR["... and %d more reagents."] = "... et %d composants de plus."
+FR["Claim an order and its reagents add up here."] = "Prenez une commande : ses composants s'additionnent ici."
+FR["%d claimed order(s) have no reagents yet: open that profession window once."] = "%d commande(s) prise(s) sans composants connus : ouvrez une fois cette fen\195\170tre de m\195\169tier."
 FR["Promote next ready member"] = "Promouvoir le prochain membre pr\195\170t"
 FR["Tip: bind a key in Key Bindings > Guilded"] = "Astuce : assignez une touche dans Raccourcis > Guilded"
 FR["Promote next: not while in combat."] = "Promouvoir le suivant : pas en combat."
@@ -6289,3 +6394,4 @@ FR["Promotion requested: %s. Wait for the roster to confirm it before the next o
 FR["Promote check, rank %s: %d roster rows, %d at another rank, %d you, %d alt rank, %d with no rank to move up to."] = "V\195\169rification, rang %s : %d lignes, %d \195\160 un autre rang, %d vous, %d rang d'alt, %d sans rang sup\195\169rieur o\195\185 monter."
 FR["Discord list: %d names, %d not found in the roster. Of %d at the rank: %d not on the list, %d ready."] = "Liste Discord : %d noms, %d introuvables dans la liste. Sur %d au rang : %d hors liste, %d pr\195\170ts."
 FR["No Discord list from the companion: the local rule applies. %d ready."] = "Pas de liste Discord du compagnon : la r\195\168gle locale s'applique. %d pr\195\170ts."
+FR["*"] = "*"

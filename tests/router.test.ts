@@ -55,6 +55,20 @@ describe("partial and lifted mounts", () => {
     expect(parent.resolve(opts("grp", "b"))).toMatchObject({ legacy: "src", sub: "b" });
     expect(parent.resolve(opts(null, "c"))).toMatchObject({ legacy: "src", sub: "c" });
   });
+  it("builds a new group from picked subcommands and whole commands, routed under their old names", () => {
+    const whole = fakeCommand("whole", [{ type: 3, name: "x", description: "x" }]);
+    const parent = new MergedCommand("p", "P", [
+      { group: "mix", description: "Mixed", picks: [{ command: source, handler, sub: "b", as: "bee", description: "Short" }, { command: whole, handler, as: "w" }] }
+    ]);
+    const group = parent.toJSON().options?.[0];
+    expect(group).toMatchObject({ name: "mix", type: 2 });
+    expect(group?.options?.map((option) => [option.name, option.description, option.type])).toEqual([["bee", "Short", 1], ["w", "whole command", 1]]);
+    expect(group?.options?.[1]?.options?.map((option) => option.name)).toEqual(["x"]);
+    expect(parent.resolve(opts("mix", "bee"))).toMatchObject({ legacy: "src", sub: "b" });
+    expect(parent.resolve(opts("mix", "w"))).toMatchObject({ legacy: "whole", sub: null });
+    expect(parent.resolve(opts("mix", "nope"))).toBeNull();
+    expect(() => new MergedCommand("p", "P", [{ group: "g", description: "G", picks: [{ command: source, handler, sub: "z" }] }])).toThrow(/no subcommand "z"/);
+  });
   it("refuses a missing or doubled subcommand", () => {
     expect(() => new MergedCommand("p", "P", [{ command: source, handler, flat: { z: "z" } }])).toThrow(/no subcommand "z"/);
     expect(() => new MergedCommand("p", "P", [{ command: source, handler, flat: { a: "x" } }, { command: source, handler, flat: { b: "x" } }])).toThrow(/twice/);
@@ -64,21 +78,35 @@ describe("partial and lifted mounts", () => {
 describe("the real command list", () => {
   it("sends the moved commands to their old handlers", () => {
     const find = (command: string, group: string | null, sub: string | null) => resolveCommand(commands, { commandName: command, options: opts(group, sub).options });
-    expect(find("config", null, "view")).toMatchObject({ legacy: "config", sub: "view", merged: false });
+    expect(find("config", null, "view")).toMatchObject({ legacy: "config", sub: "view", merged: true });
+    expect(find("config", "craft", "offers")).toMatchObject({ legacy: "craft", sub: "offer-setting" });
     expect(find("setup", null, "start")).toMatchObject({ legacy: "setup", sub: null });
     expect(find("character", "profession", "set")).toMatchObject({ legacy: "profession", sub: "set" });
     expect(find("character", null, "who")).toMatchObject({ legacy: "who", sub: null });
     expect(find("character", null, "add")).toMatchObject({ legacy: "character", sub: "add" });
     expect(find("raid", "wcl", "check")).toMatchObject({ legacy: "wcl", sub: "check" });
-    expect(find("import", null, "apply")).toMatchObject({ legacy: "import-apply", sub: null });
+    expect(find("setup", "import", "apply")).toMatchObject({ legacy: "import-apply", sub: null });
+    expect(find("setup", "guild", "add")).toMatchObject({ legacy: "wow", sub: "add" });
+    expect(find("setup", "participation", "review")).toMatchObject({ legacy: "participation", sub: "review" });
+    expect(find("setup", "tags", "set")).toMatchObject({ legacy: "tag", sub: "set" });
+    expect(find("character", null, "link")).toMatchObject({ legacy: "character", sub: "link" });
+    expect(find("character", null, "guild")).toMatchObject({ legacy: "character", sub: "guild" });
+    expect(find("officer", "bank", "handle")).toMatchObject({ legacy: "bank", sub: "handle" });
+    expect(find("officer", "reports", "inactive")).toMatchObject({ legacy: "inactive", sub: null });
+    expect(find("officer", "reports", "auto-remind")).toMatchObject({ legacy: "games", sub: "auto" });
+    expect(find("officer", "reports", "posts")).toMatchObject({ legacy: "stats", sub: null });
+    expect(find("officer", "dungeon", "goal")).toMatchObject({ legacy: "dungeon", sub: "goal" });
+    expect(find("organize", "poll", "create")).toMatchObject({ legacy: "poll", sub: "create" });
+    expect(find("bank", null, "search")).toMatchObject({ legacy: "bank", sub: "search" });
     expect(find("report", null, "ping")).toMatchObject({ legacy: "health", sub: null });
     expect(find("mod", "application", "list")).toMatchObject({ legacy: "application", sub: "list" });
     expect(find("officer", "dungeon", "audit")).toMatchObject({ legacy: "dungeon-admin", sub: "audit" });
     expect(find("lead", null, "create")).toMatchObject({ legacy: "raid", sub: "create" });
     expect(find("lead", null, "wcl-report")).toMatchObject({ legacy: "wcl", sub: "report" });
     expect(find("lead", null, "readiness-raid")).toMatchObject({ legacy: "readiness", sub: "raid" });
-    expect(find("officer", "epgp", "decay")).toMatchObject({ legacy: "epgp", sub: "decay" });
-    expect(find("officer", "loot", "auction")).toMatchObject({ legacy: "loot", sub: "auction" });
+    expect(find("lead", "epgp", "decay")).toMatchObject({ legacy: "epgp", sub: "decay" });
+    expect(find("lead", "loot", "auction")).toMatchObject({ legacy: "loot", sub: "auction" });
+    expect(find("officer", null, "epgp")).toMatchObject({ legacy: "moved", sub: "epgp" });
     expect(find("officer", "character", "link")).toMatchObject({ legacy: "character", sub: "link" });
     expect(find("organize", null, "start-season")).toMatchObject({ legacy: "community", sub: "start-season" });
     expect(find("organize", "lottery", "create")).toMatchObject({ legacy: "lottery", sub: "create" });

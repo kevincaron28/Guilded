@@ -91,7 +91,8 @@ describe("a later report enriches a stored run", () => {
     const stored = { id: "r1", competitionData: { players: [{ name: "Kev Caron", level: null, minLevel: 58, integrity: 1 }], encounters: [] },
       players: [{ id: "p1", character: "Kev Caron", class: null, role: "DPS", deaths: 1, inGuild: false, guild: null }] };
     const run = { deathPoints: [{ map: 1, x: 0.5, y: 0.5 }], challenge: { level: 3 }, players: [{ character: "Kev Caron", realm: "R", level: 60, minLevel: null, spec: "Fire", faction: "ALLIANCE", class: "MAGE", role: undefined, deaths: 4, inGuild: true, guild: "Gold" }] };
-    const changed = await enrichStoredRun({ dungeonRun: { update } } as never, stored, run as never);
+    const findUnique = vi.fn(async () => ({ competitionData: stored.competitionData, players: stored.players }));
+    const changed = await enrichStoredRun({ dungeonRun: { update, findUnique } } as never, stored, run as never);
     expect(changed).toBe(true);
     const cd = update.mock.calls[0]![0].data.competitionData;
     expect(cd.deathPoints).toHaveLength(1);
@@ -110,5 +111,21 @@ describe("device upload carries more", () => {
     expect(out.characters[0]).toMatchObject({ spec: "Fire" });
     expect(out.characters[0]).not.toHaveProperty("guildRankName");
     expect(out.externalDuels).toHaveLength(1);
+  });
+});
+
+describe("enrichment keeps every competitionData key", () => {
+  it("re-reads the row, keeps lateObserverReports and observerReports, and survives a failing read", async () => {
+    const update = vi.fn();
+    const fresh = { observerReports: [{ a: 1 }], lateObserverReports: [{ late: 1 }], players: [{ name: "Kev Caron", level: null }] };
+    const findUnique = vi.fn(async () => ({ competitionData: fresh, players: [] }));
+    const staleCopy = { id: "r1", competitionData: { players: [{ name: "Kev Caron", level: null }] } };
+    await enrichStoredRun({ dungeonRun: { update, findUnique } } as never, staleCopy, { players: [{ character: "Kev Caron", realm: "R", level: 60 }] } as never);
+    const written = update.mock.calls[0]![0].data.competitionData;
+    expect(written.lateObserverReports).toEqual([{ late: 1 }]);
+    expect(written.observerReports).toEqual([{ a: 1 }]);
+    expect(written.players[0].level).toBe(60);
+    const broken = { dungeonRun: { update: vi.fn(), findUnique: vi.fn(async () => { throw new TypeError("x"); }) } };
+    expect(await enrichStoredRun(broken as never, staleCopy, { players: [] } as never)).toBe(false);
   });
 });

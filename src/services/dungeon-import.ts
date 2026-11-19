@@ -306,11 +306,13 @@ export async function enrichStoredRun(tx: Pick<Tx, "dungeonRun">,
   stored: { id: string; competitionData?: unknown; players?: { id: string; character: string; class: string | null; role: string | null; deaths: number | null; inGuild: boolean; guild: string | null }[] },
   run: DungeonRunInput): Promise<boolean> {
   let changed = false;
-  if (stored.competitionData === undefined) {
+  // Always the row as it is now: an earlier step of this import (a late observer report, a reconciliation) may have just rewritten
+  // competitionData, and writing back an older copy would drop it. Only the keys enrichment owns are touched below.
+  try {
     const read = await tx.dungeonRun.findUnique({ where: { id: stored.id }, select: { competitionData: true, players: true } });
     if (!read) return false;
     stored = { id: stored.id, competitionData: read.competitionData, players: read.players };
-  }
+  } catch { return false; }
   const before = (stored.competitionData ?? {}) as Record<string, unknown>;
   const data: Record<string, unknown> = { ...before };
   if (!(Array.isArray(data["deathPoints"]) && data["deathPoints"].length) && run.deathPoints?.length) data["deathPoints"] = run.deathPoints;
@@ -579,7 +581,7 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
       // Routine: the companion sends every saved run on each upload. Not logged any more (it filled
       // the journal); the receipt is what tells the addon to stop waiting for it.
       receipts.push({ runRef: run.id, outcome: "stored", reason: receiptReason(existing.invalidReason ?? (existing.state === "COMPLETED" ? null : "Not completed")), runId: existing.id });
-      await enrichStoredRun(tx, existing as Parameters<typeof enrichStoredRun>[1], run).catch((error: unknown) => console.error("Dungeon run enrich failed", error));
+      if (season.status !== "ENDED") await enrichStoredRun(tx, existing as Parameters<typeof enrichStoredRun>[1], run).catch((error: unknown) => console.error("Dungeon run enrich failed", error));
       summary.duplicates++;
       continue;
     }
@@ -596,7 +598,7 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
           memberId: findCharacter(characters, player.character, player.realm, gameEditionOf(run))?.memberId ?? null,
           class: player.class ?? null, role: dungeonRole(player.role), deaths: player.deaths ?? null, presentSec: player.presentSec, inGuild: player.inGuild, guild: player.guild ?? null })) } } : {})
       } });
-      await enrichStoredRun(tx, sameRun as Parameters<typeof enrichStoredRun>[1], run).catch((error: unknown) => console.error("Dungeon run enrich failed", error));
+      if (season.status !== "ENDED") await enrichStoredRun(tx, sameRun as Parameters<typeof enrichStoredRun>[1], run).catch((error: unknown) => console.error("Dungeon run enrich failed", error));
       receipts.push({ runRef: run.id, outcome: "copy", state: run.state, reason: "Counted with a guildmate's copy of this run", runId: sameRun.id });
       summary.duplicates++;
       continue;

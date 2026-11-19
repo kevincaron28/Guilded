@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { newLuaSession, type LuaSession } from "./harness.js";
 import { readFileSync } from "node:fs";
+import { tocFiles } from "../../scripts/build-dungeons-addon.mjs";
 
 // Data-loss audit (19 Nov 2026), addon side: #1 milestone log, #4 peer-copy merge, #11 recipe relay limit, #12 READINESS digest.
 let sessions: LuaSession[] = [];
@@ -29,11 +30,6 @@ describe("#1 achievements never evict real milestones", () => {
 });
 
 describe("#4/#12/#11 source guards", () => {
-  it("storePeerRun fills guild, faction, class, role, inGuild and presentSec of an existing player", () => {
-    const text = source("Modules/Dungeon.lua");
-    expect(text).toMatch(/for _, field in ipairs\(\{ "guild", "faction", "class", "role", "inGuild" \}\)/);
-    expect(text).toMatch(/player\.presentSec > mine\.presentSec/);
-  });
   it("catch-up relays recipe lists up to 800", () => {
     expect(source("Modules/CatchUp.lua")).toMatch(/MAX_RECIPE_KEYS, MAX_RECIPE_PARTS = 800, \d+/);
   });
@@ -52,5 +48,46 @@ describe("#12 READINESS peers", () => {
     s.run(`fire_event("CHAT_MSG_ADDON", "Guilded", "READINESS|Amy|READY|0|100|I:MAGE,Human,60,Fire|Alchemy:300", "GUILD", "Amy-Realm")`);
     s.run(`fire_event("CHAT_MSG_ADDON", "Guilded", "READINESS|Amy|READY|0|100|Alchemy:300", "GUILD", "Amy-Realm")`);
     expect(s.run(`local p = GuildedDB.peerRoster["Amy"] or GuildedDB.peerRoster["Amy-Realm"]; return tostring(p and p.identity and p.identity.class)`)).toBe("MAGE");
+  });
+});
+
+describe.each(["guilded", "standalone"] as const)("#4 peer copy merge (%s)", (kind) => {
+  const CLOCK = 1_800_000_000;
+  function client(name: string): LuaSession {
+    const s = newLuaSession(); sessions.push(s);
+    s.run(`NS = {}; GuildedDB = nil; GuildedDungeonsDB = nil; CLOCK = ${CLOCK}; GT = 0
+      C_AddOns = { IsAddOnLoaded = function() return false end }
+      function GetServerTime() return CLOCK end
+      function GetTime() GT = GT + 1; return GT end
+      function InCombatLockdown() return false end
+      TIMERS = {}
+      C_Timer = { After = function(_, fn) TIMERS[#TIMERS + 1] = fn end, NewTicker = function() return {} end }
+      function run_timers() for _ = 1, 20 do local list = TIMERS; TIMERS = {}; if #list == 0 then return end; for _, fn in ipairs(list) do fn() end end end
+      UnitName = function() return "${name}" end`);
+    if (kind === "guilded") for (const f of ["Core.lua", "DungeonRoutes.lua", "Compat.lua", "Modules/Dungeon.lua"]) s.load(f);
+    else for (const f of tocFiles()) s.run(`loadaddon("GuildedDungeons", [=====[${readFileSync(new URL(`../../addon/GuildedDungeons/${f}`, import.meta.url), "utf8")}]=====], NS)`);
+    s.run(`fire_event("PLAYER_LOGIN"); NS.compat.serverTime = function() return CLOCK end; NS.playerName = function() return "${name}" end
+      NS.isGuildMember = function() return true end; NS.isOfficerName = function() return false end
+      fire_event("PLAYER_ENTERING_WORLD"); run_timers(); SENT = {}`);
+    return s;
+  }
+  const run = (players: string) => `NS.getDb().dungeon.runs["r1"] = { id = "r1", state = "COMPLETED", instanceId = 389, name = "Ragefire Chasm", difficultyId = 1,
+    startedAt = CLOCK - 2000, endedAt = CLOCK - 1100, completedBy = "final boss", recorder = "Walter", encounters = {}, reporters = { Walter = true }, players = { ${players} } }`;
+  it("fills missing fields from a second copy, keeps known values, takes the larger presentSec", () => {
+    const walter = client("Walter"), leb = client("Lebowski");
+    walter.run(run(`Walter = { class = "WARRIOR", role = "TANK", level = 20, deaths = 0, presentSec = 900, inGuild = true, guild = "Bowlers", faction = "ALLIANCE" },
+      Donny = { class = "MAGE", role = "DAMAGER", level = 20, deaths = 0, presentSec = 900, inGuild = true, guild = "Bowlers", faction = "ALLIANCE" }`));
+    leb.run(run(`Walter = { level = 20, deaths = 0, presentSec = 500 }, Donny = { level = 20, deaths = 0, presentSec = 1200, guild = "Old", faction = "HORDE" }`));
+    walter.run("NS.dungeon.offerRuns(true); run_timers(); SENT = {}");
+    walter.run(`fire_event("CHAT_MSG_ADDON", "GuildedDgn", "WNT|r1", "GUILD", "Lebowski-Realm")`);
+    walter.run("run_timers()");
+    const sent = walter.run(`local o = {}; for _, m in ipairs(SENT) do o[#o + 1] = m.prefix .. ">" .. m.text end; return table.concat(o, "~")`).split("~").filter((l) => l.startsWith("GuildedDgn>SUM"));
+    expect(sent.length).toBeGreaterThan(0);
+    for (const l of sent) leb.run(`fire_event("CHAT_MSG_ADDON", "GuildedDgn", ${JSON.stringify(l.slice("GuildedDgn>".length))}, "GUILD", "Walter-Realm")`);
+    const f = (n: string, k: string) => leb.run(`return tostring(NS.getDb().dungeon.runs["r1"].players.${n}.${k})`);
+    expect([f("Walter", "guild"), f("Walter", "faction"), f("Walter", "class"), f("Walter", "role"), f("Walter", "inGuild")]).toEqual(["Bowlers", "ALLIANCE", "WARRIOR", "TANK", "true"]);
+    expect(f("Walter", "presentSec")).toBe("900");
+    expect([f("Donny", "guild"), f("Donny", "faction")]).toEqual(["Old", "HORDE"]);
+    expect(f("Donny", "presentSec")).toBe("1200");
   });
 });

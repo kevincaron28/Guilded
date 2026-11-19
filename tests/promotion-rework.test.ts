@@ -3,11 +3,13 @@ import { ALT_RANK_NAMES, DEFAULT_PROMOTION_RULE, isAltRank, planPromotions, prom
 import { applyGuildData } from "../src/services/guild-data.js";
 import { parseAddonSnapshot } from "../src/integrations/addon.js";
 
+// These tests are about days and ranks; the voice condition has its own tests.
+const NO_VOICE = { ...DEFAULT_PROMOTION_RULE, minVoiceMinutes: 0 };
 const NOW = new Date("2026-11-20T12:00:00Z");
 const days = (n: number) => new Date(NOW.getTime() - n * 86_400_000);
 const char = (over: Partial<PromotionCharacter> = {}): PromotionCharacter => ({ name: "Halidor Galemorne", level: 20, rankName: "Initiate", rankAt: days(1), since: days(9), isMain: true, ...over });
 const person = (id: string, characters: PromotionCharacter[]): PromotionPerson => ({ discordUserId: id, displayName: id.toUpperCase(), inDiscord: true, characters });
-const plan = (people: PromotionPerson[], rule = DEFAULT_PROMOTION_RULE) => planPromotions({ now: NOW, rule, unclaimed: [], people });
+const plan = (people: PromotionPerson[], rule = NO_VOICE) => planPromotions({ now: NOW, rule, unclaimed: [], people });
 
 describe("alt ranks are never promoted (16 Nov 2026)", () => {
   it("recognises alt rank names in English and French, without case or accents", () => {

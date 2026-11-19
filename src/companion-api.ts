@@ -116,6 +116,7 @@ import { guildMembership, splitStrangerRuns, withOwnNames } from "./services/gui
 import { recordHealthReport } from "./services/sync-health.js";
 import { carrySignedGroupRuns, runIds } from "./services/relay-public.js";
 import { applyCarriedRecords, ownCarrierKeys } from "./services/carried-records.js";
+import { recordGlobalDuels } from "./services/duel-global.js";
 import { storeClientProbes } from "./services/client-probes.js";
 import { ingestPublicRuns, ownPlayersFilter, pickScoreCharacter, PUBLIC_LIMITS, prismaPublicRunStore, PublicUploadError } from "./services/public-runs.js";
 import { publicAddonBoard } from "./services/public-addon-board.js";
@@ -1036,6 +1037,9 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
             applyRaidKills: async (kills, source) => {
               const target = await prisma.guild.findFirst({ where: { discordId: source.discordId, scopeKey: "default" }, select: { id: true } });
               if (target) await applyRaidKills(prisma, { guildId: target.id, trust: "device", reporterKeys: new Set(source.names), kills: parseRaidKills(kills) });
+            },
+            applyExternalDuels: async (duels, source) => {
+              await prisma.$transaction((tx) => recordGlobalDuels(tx, { reporterKey: `install:device:${source.deviceId}`, deviceId: source.deviceId }, duels));
             },
             sealKey: deviceHeader(request) ? deriveSealKey(deviceHeader(request)!) : null,
             applyCarried: async (records, carrier) => (await applyCarriedRecords(prisma, { carrier: `device:${carrier.deviceId}`, carrierKeys: new Set(carrier.names), records, relay: { store: publicRuns, onPlaced: (placed) => { void import("./services/cross-guild-post.js").then((module) => module.shareAndAnnounce(client, { guildId: null, deviceId: carrier.deviceId, characterKeys: [...carrier.names], receivedAt: new Date() }, placed)).catch(() => undefined); } } })).receipts,

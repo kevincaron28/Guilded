@@ -1,9 +1,11 @@
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
+import { dungeonRunSchema } from "./dungeon-rules.js";
+import { mergeProfessionSkills } from "./profession-names.js";
 import { characterKey, foreverSameName } from "../../companion/character-identity.mjs";
 import { runCardsOf, type ReceiptCardRow } from "./dungeon-card.js";
-import { firstNameKey, importDungeonRuns, receiptReason, RETRY_OUTCOME, saveRunReceipts, type DungeonImportSummary } from "./dungeon-import.js";
+import { enrichStoredRun, firstNameKey, importDungeonRuns, receiptReason, RETRY_OUTCOME, saveRunReceipts, type DungeonImportSummary } from "./dungeon-import.js";
 import { plausibilityFlags, type Anomaly, type NeighbourRun } from "./run-plausibility.js";
 import { challengeSecret, holdsRun, integrityConfig } from "./run-integrity-config.js";
 import { contradicts, issueChallenge, verifyBatch } from "./run-challenge.js";
@@ -94,6 +96,9 @@ const deviceCharacterSchema = z.object({
   class: z.string().trim().max(30).optional(),
   race: z.string().trim().max(30).optional(),
   level: z.number().int().min(1).max(100).optional(),
+  /** (9.4.2) Reported spec and professions of the character (never confirmed: a sign-in or officer sync confirms). Rank is not accepted: it is the guild's own fact. */
+  spec: z.string().trim().max(40).optional(),
+  professions: z.array(z.object({ name: z.string().trim().min(1).max(40), skillLevel: z.number().int().min(0).max(1000) })).max(12).optional(),
   gameEdition: z.literal("forever").optional().default("forever")
 });
 export const deviceUploadSchema = z.object({
@@ -115,6 +120,13 @@ export const deviceUploadSchema = z.object({
   carriedRecords: z.array(z.unknown()).max(200).default([]),
   /** Raid boss kills the addon recorded (services/raid-progress.ts); validated row by row when applied. Absent from older companions. */
   raidKills: z.array(z.unknown()).max(60).default([]),
+  /**
+   * (9.4.2) Duels against players outside the guild, for the global ladder: the same schema and ingest path as the signed-in upload
+   * (recordGlobalDuels, which verifies and holds suspect records). Only a duel one of this device's own characters took part in is applied.
+   * Not accepted from a device, and why: guild duels, milestones and world PvP belong to a linked member (no member yet); battleground
+   * reports are consent-bound to a paired member; recipes and craft orders would let an unsigned install write any guildmate's data.
+   */
+  externalDuels: z.array(z.unknown()).max(5000).default([]),
   /** Client probes (/guilded probe ...), stored by services/client-probes.ts. Optional: older companions send none. */
   probes: z.record(z.string(), z.unknown()).optional()
 });
@@ -156,7 +168,7 @@ export interface DeviceStore {
   candidates(nameKey: string, realmKey: string, characterKeys?: string[]): Promise<ServerCandidate[]>;
   characterKeys(deviceId: string): Promise<string[]>;
   saveUpload(deviceId: string, data: { guildId: string | null; chosenGuildId: string | null; wowGuild: { key: string; name: string; realm: string } | null; now: Date },
-    characters: { nameKey: string; name: string; realm: string; displayName?: string; className?: string; race?: string; level?: number; gameEdition: string }[]): Promise<void>;
+    characters: { nameKey: string; name: string; realm: string; displayName?: string; className?: string; race?: string; level?: number; spec?: string; professions?: Prisma.InputJsonValue; gameEdition: string }[]): Promise<void>;
   /** Marks the device claimed by this member; false when it is unknown, revoked or claimed by someone else. */
   claim(deviceId: string, memberId: string, now: Date): Promise<boolean>;
   /** Stores runs for this Discord server like any import; refs the server already holds are left untouched. */
@@ -257,13 +269,20 @@ export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, 
   /** (9.3.2) Applies the records this upload carries; answers their receipts (keys the lane has dealt with). */
   applyCarried?: (records: unknown[], carrier: { deviceId: string; names: string[] }) => Promise<string[]>;
   /** Raid progress: stores the boss kills of a synced upload for the server the device is on (the server's Discord id). */
-  applyRaidKills?: (kills: unknown[], source: { deviceId: string; discordId: string; names: string[] }) => Promise<void> } = {}): Promise<DeviceUploadAnswer & { carriedReceipts?: string[] }> {
-  const { applyCarried, applyRaidKills, ...rest } = options;
+  applyRaidKills?: (kills: unknown[], source: { deviceId: string; discordId: string; names: string[] }) => Promise<void>;
+  /** (9.4.2) Duels against outsiders, for the global ladder (already filtered to the device's own characters). */
+  applyExternalDuels?: (duels: unknown[], source: { deviceId: string; discordId: string | null; names: string[] }) => Promise<void> } = {}): Promise<DeviceUploadAnswer & { carriedReceipts?: string[] }> {
+  const { applyCarried, applyRaidKills, applyExternalDuels, ...rest } = options;
   const answer = await handleDeviceUploadCore(store, device, body, rest);
   if (answer.status === "claimed") return answer;
   const parsed = deviceUploadSchema.safeParse(body);
   if (parsed.success && applyRaidKills && answer.status === "synced" && parsed.data.raidKills.length && parsed.data.runsOnly !== true) {
     await applyRaidKills(parsed.data.raidKills, { deviceId: device.id, discordId: answer.server.discordId, names: parsed.data.characters.map((character) => key(character.name)) }).catch((error: unknown) => console.warn("Raid kills upload failed", error));
+  }
+  if (parsed.success && applyExternalDuels && parsed.data.externalDuels.length && parsed.data.runsOnly !== true) {
+    const names = parsed.data.characters.map((character) => key(character.name));
+    const own = parsed.data.externalDuels.filter((row) => { const r = row as { winner?: unknown; loser?: unknown; side?: unknown } | null; const n = r?.side === "winner" ? r.winner : r?.side === "loser" ? r.loser : null; return typeof n === "string" && names.includes(key(n.split("-")[0]!)); });
+    if (own.length) await applyExternalDuels(own, { deviceId: device.id, discordId: answer.status === "synced" ? answer.server.discordId : null, names }).catch((error: unknown) => console.warn("Device duels upload failed", error));
   }
   if (!applyCarried) return answer;
   if (!parsed.success || !parsed.data.carriedRecords.length) return answer;
@@ -315,7 +334,9 @@ async function handleDeviceUploadCore(store: DeviceStore, device: DeviceRow, bod
       ...(character.displayName ? { displayName: character.displayName } : {}),
       ...(character.class ? { className: normalizeClassName(character.class) } : {}),
       ...(character.race ? { race: normalizeRaceName(character.race) } : {}),
-      ...(character.level ? { level: character.level } : {})
+      ...(character.level ? { level: character.level } : {}),
+      ...(character.spec ? { spec: character.spec } : {}),
+      ...(character.professions?.length ? { professions: mergeProfessionSkills(character.professions) as unknown as Prisma.InputJsonValue } : {})
     });
   }
   if (!runsOnly) await store.saveUpload(device.id, { guildId: target?.guildId ?? null, chosenGuildId, wowGuild, now }, rows);
@@ -536,7 +557,11 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
     const sameId = held.get(ref);
     const existing = sameId ?? await storedCopy(print);
     if (existing) {
-      // Never touched. A run one device vouched for alone becomes witnessed when an independent device agrees.
+      // A later report fills what the stored run lacks (death map, challenge, per-player guild/faction/spec/deaths); nothing known is overwritten.
+      // The receipt below still lists the run as received, so the companion prunes it only after the bot holds the rich copy.
+      const richer = dungeonRunSchema.safeParse(raw);
+      if (richer.success) await enrichStoredRun(tx, { id: existing.id }, richer.data).catch((error: unknown) => console.error("Device run enrich failed", error));
+      // A run one device vouched for alone becomes witnessed when an independent device agrees.
       if (!sameId) await saveRunReceipts(tx, guildId, [{ runRef: ref, outcome: "copy", state: "COMPLETED", reason: COPY_REASON, runId: existing.id }], now);
       if (earlier?.status !== "stored") {
         const others = await othersNear(print);

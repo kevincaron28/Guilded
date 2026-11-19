@@ -1,6 +1,6 @@
 # 9.4.0 release acceptance
 
-Status: prepared 19 November 2026, not yet published. 9.4.0 is not yet confirmed on real clients.
+Status: published 19 November 2026 (GitHub v9.4.0, the website download, the bot); CurseForge 9702092/9702094; superseded the same day by 9.4.1. 9.4.0 is not yet confirmed on real clients.
 
 ## Where it stands
 

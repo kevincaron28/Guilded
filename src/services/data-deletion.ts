@@ -152,6 +152,7 @@ async function deleteWithinTransaction(database: PrismaClient, discordUserId: st
     await tx.worldPvpWeek.deleteMany({ where: own });
     await tx.worldPvpEvent.deleteMany({ where: own });
     await tx.memberAchievement.deleteMany({ where: own });
+    await tx.doNotInvite.deleteMany({ where: { discordUserId } }); // officer-list entries about this Discord account (and its alts, which carry the id)
     await tx.tcgAccount.deleteMany({ where: { discordUserId } });
     await tx.tcgCard.deleteMany({ where: { discordUserId } });
     await tx.tcgLog.deleteMany({ where: { discordUserId } });

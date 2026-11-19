@@ -249,6 +249,13 @@ export function standingsToLua(data) {
       ...data.officerInvites.slice(0, 30).map((row) => `  { name = ${luaString(row.name)}, at = ${luaString(row.at ?? "")}${typeof row.id === "string" && /^[A-Za-z0-9_-]{8,40}$/.test(row.id) ? `, id = ${luaString(row.id)}` : ""}${Number.isInteger(row.sent) && row.sent > 0 ? `, sent = ${row.sent}` : ""}${typeof row.state === "string" && /^[a-z]{3,12}$/.test(row.state) ? `, state = ${luaString(row.state)}` : ""} },`),
       "} }"
     ] : ["GuildedInvites = nil"]),
+    "",
+    "-- Officers only: names on the do-not-invite list (names only, no reason), so the invite panels can flag them.",
+    ...(Array.isArray(data.officerDni) && data.officerDni.length ? [
+      "GuildedDni = { names = {",
+      ...data.officerDni.slice(0, 300).filter((name) => typeof name === "string" && name.length > 1 && name.length < 80).map((name) => `  ${luaString(name)},`),
+      "} }"
+    ] : ["GuildedDni = nil"]),
     ""
   ].join("\n");
 }

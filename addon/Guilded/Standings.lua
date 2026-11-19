@@ -6,6 +6,9 @@ GuildedStandings = {
   players = {}
 }
 
+-- Officers only (9.4): names on the do-not-invite list, for the invite panels. Nil in a member's file.
+GuildedDni = nil
+
 GuildedPromotion = nil
 
 GuildedItems = nil

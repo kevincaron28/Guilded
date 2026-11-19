@@ -20,7 +20,7 @@ export const RETENTION = {
   errorReportDays: 90
 };
 
-type Db = Pick<PrismaClient, "addonImport" | "errorReport" | "$executeRaw">;
+type Db = Pick<PrismaClient, "addonImport" | "errorReport" | "doNotInvite" | "$executeRaw">;
 
 export async function runRetention(database: Db, now = new Date()): Promise<{ imports: number; snapshots: number; errors: number }> {
   const before = (days: number) => new Date(now.getTime() - days * DAY_MS);
@@ -49,6 +49,8 @@ export async function runRetention(database: Db, now = new Date()): Promise<{ im
     WHERE old."inspectedAt" < ${before(RETENTION.snapshotDays)}
       AND EXISTS (SELECT 1 FROM "InspectedCharacterSnapshot" newer
                   WHERE newer."characterId" = old."characterId" AND newer."inspectedAt" > old."inspectedAt")`;
+  // 9.4 T10: do-not-invite entries expired (or cleared) more than 30 days ago are deleted for good.
+  await database.doNotInvite.deleteMany({ where: { OR: [{ expiresAt: { lt: before(30) } }, { status: "CLEARED", clearedAt: { lt: before(30) } }] } });
   const errors = await database.errorReport.deleteMany({ where: { createdAt: { lt: before(RETENTION.errorReportDays) } } });
   await database.$executeRaw`DELETE FROM "AiDailyUsage" WHERE "day" < ${before(90).toISOString().slice(0, 10)}`;
   // Completed deliveries need cleanup every few hours, not a DELETE every minute.

@@ -189,12 +189,27 @@ local function classify(item)
   if item.sent then return "invited" end
   return "todo"
 end
+-- 9.4: names on the officers' do-not-invite list (GuildedDni, written only into an officer's feed: names, no reason).
+-- A name matches with or without its realm. Plain frames only; nothing here is a protected call.
+local function dniSet()
+  local set, data = {}, _G.GuildedDni
+  if type(data) ~= "table" or type(data.names) ~= "table" then return set end
+  for _, name in ipairs(data.names) do
+    if type(name) == "string" and name ~= "" then
+      local k = key(name)
+      local base = splitRealm(k)
+      set[k] = true; set[base] = true
+    end
+  end
+  return set
+end
 function module.sections()
   if not officer() then return nil, L("Current officer access is required.") end
   local out = { todo = {}, invited = {}, handled = {} }
   local data = _G.GuildedInvites
   if type(data) ~= "table" or type(data.names) ~= "table" then return out end
   local inGuild, realms = guildKeys()
+  local dni = dniSet()
   local d, at, seen = db() or {}, nowSeconds(), {}
   d.inviteSent = type(d.inviteSent) == "table" and d.inviteSent or {}
   d.inviteState = type(d.inviteState) == "table" and d.inviteState or {}
@@ -228,6 +243,7 @@ function module.sections()
           if (at - answer.at) < DECLINED_KEEP then pending = at - answer.at else state = nil end
         end
         local item = { name = row.name, at = row.at, sent = pending, state = state, id = row.id, botSent = tonumber(row.sent), botState = type(row.state) == "string" and row.state or nil }
+        item.dni = dni[k] or dni[base] or nil
         item.copied = pending ~= nil and state == nil
         item.again = pending ~= nil and (state == "declined" or pending >= AGAIN_SECONDS)
         local list = out[classify(item)]
@@ -413,8 +429,9 @@ local function detailText(item)
   if (item.botSent or 0) > 0 then parts[#parts + 1] = string.format(L("%d sent"), item.botSent) end
   if item.botState == "confirm" then parts[#parts + 1] = L("asked to confirm")
   elseif item.botState == "declined" and item.state ~= "declined" then parts[#parts + 1] = L("declined in game") end
-  if #parts == 0 then return "" end
-  return "  |cff8c96a3" .. table.concat(parts, ", ") .. "|r"
+  local tag = item.dni and ("  |cffff4040" .. L("Do not invite") .. "|r") or ""
+  if #parts == 0 then return tag end
+  return tag .. "  |cff8c96a3" .. table.concat(parts, ", ") .. "|r"
 end
 local function rowText(item)
   if item.state and STATE_TEXT[item.state] then return item.name .. " (" .. L(STATE_TEXT[item.state]) .. ")" .. detailText(item) end
@@ -460,7 +477,12 @@ local function refreshNow()
     local when = type(fetched) == "string" and fetched ~= "" and whenText and whenText(fetched) or nil
     window.listAge:SetText(type(when) == "string" and string.format(L("List from %s. Reload after the companion syncs."), when) or "")
   end
-  window.status:SetText(first and L("Click Invite on a row, then Ctrl+C, paste it in your chat box (Ctrl+V) and press Enter.") or "")
+  local flagged = {}
+  for _, item in ipairs(todo) do if item.dni then flagged[#flagged + 1] = item.name end end
+  local hintText = first and L("Click Invite on a row, then Ctrl+C, paste it in your chat box (Ctrl+V) and press Enter.") or ""
+  -- (9.4) Officers only: a waiting name on the do-not-invite list is named in red above the rows.
+  if #flagged > 0 then hintText = "|cffff4040" .. L("On the do-not-invite list") .. ": " .. table.concat(flagged, ", ", 1, math.min(#flagged, 3)) .. "|r" .. string.char(10) .. hintText end
+  window.status:SetText(hintText)
   local y = -70
   -- The window never grows past the screen: the rows that fit are shared out todo first, then invited, then handled.
   local screen = UIParent and UIParent.GetHeight and UIParent:GetHeight()

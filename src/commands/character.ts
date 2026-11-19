@@ -182,7 +182,7 @@ ${PANEL_HINT}`,
       const detached = await prisma.character.findMany({ where: { member: { guildId: context.guildId }, ...DETACHED }, select: { name: true, displayName: true }, orderBy: { name: "asc" }, take: 30 });
       const parts = [
         rows.length
-          ? `**${rows.length} unclaimed:** ${rows.map((row) => `${displayCharacterName(row, book)} — ${row.realm} (${row.className}${row.level ? ` ${row.level}` : ""})`).join(", ")}\nOwners: \`/character claim\`. Officers: \`/officer character link\` or \`/officer character autolink\`.`.slice(0, 1200)
+          ? `**${rows.length} unclaimed:** ${rows.map((row) => `${displayCharacterName(row, book)} — ${row.realm} (${row.className}${row.level ? ` ${row.level}` : ""})`).join(", ")}\nOwners: DM the bot your character's full name (First Last), or type it in the guild-invite channel. Officers: \`/officer character link\` or \`/officer character autolink\`.`.slice(0, 1200)
           : "Every character the addons reported is linked.",
         ...(queue.length ? [`**Waiting for you (two members, same proof):** ${queue.map((row) => `${characterName(row.character)}: linked to ${mention(row.ownerMemberId)}, claimed by ${mention(row.claimantMemberId)}`).join("; ")}\nDecide with \`/officer character move\`.`.slice(0, 450)] : []),
         ...(detached.length ? [`**Unlinked, history kept:** ${detached.map((row) => characterName(row)).join(", ")}`.slice(0, 280)] : [])
@@ -241,7 +241,7 @@ ${PANEL_HINT}`,
     if (subcommand === "autolink") {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const linked = await autoLinkUnclaimed(interaction.guild!, prisma, context.guildId);
-      await interaction.editReply({ content: linked.length ? `Linked ${linked.map((row) => `${cleanCharacterName(row.character)} to ${row.member}`).join(", ")}.` : "Nothing matched by name (a Discord nickname must be the character's name, e.g. \"Ray\" or \"[GOLD] Ray\"). Each owner can pick theirs with /character claim; /officer character link does it for them." });
+      await interaction.editReply({ content: linked.length ? `Linked ${linked.map((row) => `${cleanCharacterName(row.character)} to ${row.member}`).join(", ")}.` : "Nothing matched by name (a Discord nickname must be the character's name, e.g. \"Ray\" or \"[GOLD] Ray\"). Each owner can DM the bot their character's full name (First Last), or type it in the guild-invite channel; /officer character link does it for them." });
       return;
     }
     const wanted = interaction.options.getString("name", true).trim();

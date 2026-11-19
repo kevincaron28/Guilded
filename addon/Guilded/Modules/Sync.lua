@@ -438,8 +438,8 @@ ns.standingProblem = standingProblem
 
 local PROBLEM_TEXT = {
   none = "Discord standings have not arrived yet. The companion on an officer's PC sends them within a couple of minutes; /reload loads the newest.",
-  empty = "The bot has no linked characters yet. In Discord, everyone links theirs once: /character claim (or /config auto-import does it for you).",
-  missing = "%s is not linked to a Discord member yet. In Discord run /character claim and pick it (or ask an officer to run /officer character link)."
+  empty = "The bot has no linked characters yet. In Discord, everyone links theirs once: DM the bot the full name (First Last) (or /config auto-import does it for you).",
+  missing = "%s is not linked to a Discord member yet. DM the bot its full name (First Last) in Discord (or ask an officer to run /officer character link)."
 }
 function ns.standingProblemText(name)
   local problem = standingProblem(name)

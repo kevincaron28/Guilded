@@ -84,6 +84,8 @@ export class CardCanvas {
   private svg = "";
   private n = 0;
   readonly texts: DrawnText[] = [];
+  /** Cards are 630 px tall unless a layout (the podium and the weekly recap) asks for a taller picture. */
+  constructor(readonly height: number = CARD_H) {}
 
   private id(prefix: string) { return `${prefix}${this.n++}`; }
   raw(markup: string) { this.svg += markup; }
@@ -141,7 +143,7 @@ export class CardCanvas {
    * painting keeps its own lighting) until every string passes, rather than shipping a low-contrast card.
    */
   async finish(layers: OverlayOptions[]): Promise<{ png: Buffer; report: TextReport[]; scrim: number }> {
-    const svg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${CARD_H}">${this.svg}</svg>`);
+    const svg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${this.height}">${this.svg}</svg>`);
     // Owner, 17 Nov 2026: keep the painting's own lighting. A string that would be hard to read gets a soft dark patch behind it
     // (stronger in steps), instead of the whole picture being darkened for one word. `scrim` reports the strongest patch used.
     const shade = this.texts.map(() => 0);
@@ -149,10 +151,10 @@ export class CardCanvas {
     for (let round = 0; ; round++) {
       const patches = this.texts.map((t, i) => shade[i]! > 0
         ? `<rect x="${t.left - 14}" y="${t.top - 6}" width="${t.w + 28}" height="${t.h + 12}" rx="12" fill="#000" fill-opacity="${shade[i]}" filter="url(#soft)"/>` : "").join("");
-      const dark = patches ? [{ input: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${CARD_H}"><defs><filter id="soft" x="-20%" y="-50%" width="140%" height="200%"><feGaussianBlur stdDeviation="5"/></filter></defs>${patches}</svg>`), left: 0, top: 0 }] : [];
-      base = await sharp({ create: { width: CARD_W, height: CARD_H, channels: 3, background: "#0b0907" } }).composite([...layers, { input: svg, left: 0, top: 0 }, ...dark]).png().toBuffer();
+      const dark = patches ? [{ input: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${this.height}"><defs><filter id="soft" x="-20%" y="-50%" width="140%" height="200%"><feGaussianBlur stdDeviation="5"/></filter></defs>${patches}</svg>`), left: 0, top: 0 }] : [];
+      base = await sharp({ create: { width: CARD_W, height: this.height, channels: 3, background: "#0b0907" } }).composite([...layers, { input: svg, left: 0, top: 0 }, ...dark]).png().toBuffer();
       const px = await sharp(base).removeAlpha().raw().toBuffer();
-      report = this.texts.map((t) => ({ text: t.str, size: t.size, ratio: contrastRatio(hexLum(t.color), backdropLuminance(px, t)) }));
+      report = this.texts.map((t) => ({ text: t.str, size: t.size, ratio: contrastRatio(hexLum(t.color), backdropLuminance(px, t, this.height)) }));
       const failing = report.map((r, i) => (r.ratio < MIN_CONTRAST && shade[i]! < 0.9 ? i : -1)).filter((i) => i >= 0);
       if (!failing.length || round >= 6) break;
       for (const i of failing) shade[i] = Math.min(0.9, Math.round((shade[i]! + 0.25) * 100) / 100);
@@ -164,9 +166,9 @@ export class CardCanvas {
 }
 
 /** The 95th-percentile luminance of the pixels under a string's box (sampled every second pixel). */
-function backdropLuminance(px: Buffer, t: { left: number; top: number; w: number; h: number }): number {
+function backdropLuminance(px: Buffer, t: { left: number; top: number; w: number; h: number }, height: number = CARD_H): number {
   const values: number[] = [];
-  for (let y = Math.max(0, t.top); y < Math.min(CARD_H, t.top + t.h); y += 2) for (let x = Math.max(0, t.left); x < Math.min(CARD_W, t.left + t.w); x += 2) {
+  for (let y = Math.max(0, t.top); y < Math.min(height, t.top + t.h); y += 2) for (let x = Math.max(0, t.left); x < Math.min(CARD_W, t.left + t.w); x += 2) {
     const i = (y * CARD_W + x) * 3;
     values.push(luminance(px[i] ?? 0, px[i + 1] ?? 0, px[i + 2] ?? 0));
   }

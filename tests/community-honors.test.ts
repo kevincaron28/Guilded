@@ -315,7 +315,7 @@ describe("hall of fame extras", () => {
     expect(tx.communityPoint.findMany).not.toHaveBeenCalled();
   });
 
-  it("notifies the MVP only when the option is on", async () => {
+  it("notifies the MVP in the weekly post (owner, 19 Nov 2026: the post tags the MVP whatever the option says)", async () => {
     const mvp = "337035968668499981";
     const honors: Row = { guildId: "guild", channelId: "fame", week: "2026-09-21", weeklyEnabled: true, weekStart: "MONDAY", pingMvp: true, monthSeasonId: "sept" };
     const { database, jobs } = fakeDatabase(honors, { points: [{ userId: mvp, kind: "AWARD", amount: 40 }], ended: { id: "sept" } });
@@ -327,7 +327,7 @@ describe("hall of fame extras", () => {
     const quiet: Row = { ...honors, week: "2026-09-21", pingMvp: false };
     const off = fakeDatabase(quiet, { points: [{ userId: mvp, kind: "AWARD", amount: 40 }], ended: { id: "sept" } });
     await advanceCommunityHonors(off.database, "guild", now);
-    expect((off.jobs[0]!["create"] as { payload: Row }).payload).not.toHaveProperty("mentionUsers");
+    expect((off.jobs[0]!["create"] as { payload: { mentionUsers: string[] } }).payload.mentionUsers).toEqual([mvp]);
   });
 
   it("can follow the WoW weekly reset instead of Monday", async () => {

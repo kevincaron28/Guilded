@@ -36,7 +36,9 @@ export interface LadderRow { rank: number; name: string; color: string; sub?: st
 export interface LadderBoard { title?: string | undefined; rows: LadderRow[] }
 export interface LadderVisual { columns: LadderColumn[]; boards: LadderBoard[];
   /** Under the title, right-aligned: the season and the updated-at time (already formatted). */
-  meta?: string | undefined; empty?: string | undefined }
+  meta?: string | undefined; empty?: string | undefined;
+  /** Community podium: the ready-made "+26 more" line for members beyond the rows drawn. */
+  more?: string | undefined }
 /**
  * The optional `unlocks` list switches a card to the achievement-unlocked layout (a hero badge for one,
  * a list or grid for several). Every field after `footer` is optional so card definitions queued before
@@ -56,6 +58,8 @@ export interface ScoreCard { eyebrow?: string; title: string; subtitle: string; 
   dungeon?: DungeonVisual;
   /** 9.1: the daily recap layout (painted scene, a stats strip, up to three section panels of rows). */
   recap?: RecapVisual;
+  /** The weekly honors card (see WeeklyVisual). */
+  weekly?: WeeklyVisual;
   /** 9.1: the new guild record card, drawn by card-next-recap.ts. */
   record?: RecordVisual;
   /** Officer member-trend card (member-trend.ts), drawn by member-trend-card.ts. */
@@ -64,6 +68,17 @@ export interface ScoreCard { eyebrow?: string; title: string; subtitle: string; 
   backdrop?: CardBackdrop;
   /** Ticked rows (the bosses a raid killed): the banner layout draws them in one or two columns; the older layout ignores them. */
   checks?: string[] }
+
+/**
+ * The weekly honors card (one picture for the whole weekly post): the MVP, the top of the week with medals, the rookie and the guild's
+ * week as icons with figures. Drawn by card-podium.ts; the member's avatar (`card.portrait`) is the MVP's when delivery added it.
+ */
+export type WeeklyIcon = "points" | "members" | "messages" | "voice" | "dungeons" | "newcomers" | "raids" | "activities" | "reactions";
+export interface WeeklyVisual {
+  mvp: { label: string; name: string; points: string; note?: string | undefined; times?: string | undefined };
+  topLabel: string; top: { rank: number; name: string; points: string }[];
+  rookie?: { label: string; name: string; points: string; place: string; placeLabel: string; note: string } | undefined;
+  statsLabel: string; stats: { icon: WeeklyIcon; value: string; label: string }[]; ptsWord: string }
 
 /** A recap: up to three panels, each a title and up to five rows (name in its colour, a line under it, a value on the right). */
 export interface RecapVisual { theme: DungeonArtTheme; sections: { title: string; rows: CardRow[] }[] }

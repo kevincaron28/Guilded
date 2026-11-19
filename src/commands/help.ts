@@ -18,7 +18,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
   everyone: {
     en: [
       "**New here? https://guildedwow.com/start/** — 1) install the addon for your WoW version (required) · 2) sync with Discord: [download the Windows companion](https://guildedwow.com/companion/) (or search \"Guild Sync Companion\" in the Microsoft Store) and run the installer · 3) keep it open, it starts with Windows. Discord sign-in is optional, and so is the companion for the leaderboards",
-      "The addon works alone. The companion syncs by itself; **Sign in with Discord** is optional and confirms your characters (no code). A character missing? `/character claim` and pick it; `/character list` checks them",
+      "The addon works alone. The companion syncs by itself; **Sign in with Discord** is optional and confirms your characters (no code). A character missing? Type its full name in the guild-invite channel; `/character list` checks them",
       "`/wow list` · `/wow use` — choose your guild; channel bindings take priority. Keep Forever first/last names and Blizzard realms from the addon",
       "`/character add` — link a character by hand, or `/character import` — paste the line `/guilded character` shows, or the code from `/guilded share`",
       "`/character privacy hide` — leave the public website pages (shown by default; `show` brings you back)",
@@ -30,6 +30,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/bank search` · `/bank request` — search and ask the guild bank · `/craft request` — ask a crafter",
       "`/dungeon leaderboard` · `/dungeon records` · `/dungeon player` — dungeon challenge · `/dungeon group` — form a group with its own voice channel · `/dungeon alerts` — get pinged for groups you fit",
       "`/bg history` · `/bg duels` — your battleground records (paired companion; nothing is awarded automatically), duels and ladder",
+      "PvP ranks: world PvP goes by kills, then defends (kills after answering a call for help), then calls answered; deaths and K/D never lift a rank (ties: fewer deaths). Battlegrounds: wins, then win rate",
       "Guild chat milestones are on by default; turn them off with `/guilded announce off`",
       "In game: call for help (Shift+right-click the minimap button), layer invite and raid sign-up",
       "`/character readiness me` — your latest gear check from the addon",
@@ -44,7 +45,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
     ],
     fr: [
       "**Nouveau ? https://guildedwow.com/start/?lang=fr** — 1) installez l'addon de votre version de WoW (obligatoire) · 2) [téléchargez le compagnon Windows](https://guildedwow.com/companion/?lang=fr) (ou « Guild Sync Companion » dans le Microsoft Store) et lancez-le · 3) laissez-le ouvert. Connexion Discord facultative",
-      "L'addon fonctionne seul. Le compagnon synchronise tout seul; **Sign in with Discord** est facultatif et confirme tes personnages (aucun code). Il en manque un ? `/character claim` et choisis-le; `/character list` les affiche",
+      "L'addon fonctionne seul. Le compagnon synchronise tout seul; **Sign in with Discord** est facultatif et confirme tes personnages (aucun code). Il en manque un ? Écris son nom complet dans le salon d'invitation de guilde; `/character list` les affiche",
       "`/wow list` · `/wow use` — choisir sa guilde; les salons associés ont priorité. Gardez les prénoms/noms Forever et les royaumes Blizzard de l'addon",
       "`/character add` — liez un personnage manuellement, ou `/character import` — collez la ligne de `/guilded character`, ou le code de `/guilded share`",
       "`/character privacy hide` — quittez les pages publiques du site (affiché par défaut; `show` vous ramène)",
@@ -56,6 +57,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/bank search` · `/bank request` — chercher et demander à la banque de guilde · `/craft request` — demander à un artisan",
       "`/dungeon leaderboard` · `/dungeon records` · `/dungeon player` — défi des donjons · `/dungeon group` — former un groupe avec son salon vocal · `/dungeon alerts` — être mentionné pour les groupes qui vous conviennent",
       "`/bg history` · `/bg duels` — champs de bataille (compagnon lié; rien n'est attribué), duels et classement",
+      "Rangs JcJ : le monde ouvert suit les victoires, puis les défenses (victoires après un appel à l'aide), puis les appels répondus; les morts et le V/M ne font jamais monter un rang (à égalité : moins de morts). Champs de bataille : victoires, puis taux de victoire",
       "Jalons de guilde en clavardage activés; coupez-les avec `/guilded announce off`",
       "En jeu : appel à l'aide (Maj + clic droit sur la minicarte), invitation de couche, inscription aux raids",
       "`/character readiness me` — votre dernière vérification d'équipement (addon)",

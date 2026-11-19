@@ -141,7 +141,7 @@ export function professionCardEmbed(card: ProfessionCardData, lang: Lang = "en")
     title: `${professionTitle(card.profession, lang)} · ${sanitizeName(card.character, 60)}`.slice(0, 256),
     description: `${head} · ${count}\n${lines.join("\n")}${more}${gallery ? `\n[${fr ? "Liste complète (Galerie des artisans)" : "Full list (Artisans' Gallery)"}](${gallery})` : ""}`.slice(0, 2000),
     color: best !== undefined && QUALITY_COLOR[best] !== undefined && best >= 2 ? QUALITY_COLOR[best]! : 0xd4af37,
-    footer: { text: fr ? "Recettes tirées des relevés de métiers Guilded" : "Recipes from Guilded's profession scans" }
+    footer: { text: fr ? "Tiré des relevés de métiers des membres" : "From members' profession scans" }
   };
   if (gallery) embed.url = gallery;
   return embed;

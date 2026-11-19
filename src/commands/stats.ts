@@ -14,9 +14,9 @@ import { asLang, t, type Lang } from "../i18n.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { runDiscordJobs } from "../services/discord-jobs.js";
 import { queueWeeklyWowReport } from "../services/weekly-report-delivery.js";
-import { weeklyReportCard } from "../services/weekly-card.js";
+import { coreLine, weeklyDungeonCard, weeklyReportCard } from "../services/weekly-card.js";
 import { textlessEmbed } from "../services/card-only.js";
-import { personalWeeklyRecap, personalWeeklyRecapEmbed } from "../services/personal-weekly-recap.js";
+import { personalWeeklyRecap, personalWeeklyRecapMessage } from "../services/personal-weekly-recap.js";
 import { queueWeeklyRecords } from "../services/weekly-records.js";
 import { dailyRecap, dailyRecapCard, dailyRecapEmbed, queueDailyRecaps, recapDay, recapIsEmpty } from "../services/daily-recap.js";
 import { hasPermission } from "../permissions.js";
@@ -72,7 +72,7 @@ export async function executeStats(interaction: ChatInputCommandInteraction): Pr
       await interaction.editReply({ content: lang === "fr" ? "Le bilan personnel utilise la dernière semaine complète. Retirez les filtres days/core." : "Personal recap uses the last complete week. Remove the days/core filters.", allowedMentions: { parse: [] } });
       return;
     }
-    await interaction.editReply({ embeds: [personalWeeklyRecapEmbed(await personalWeeklyRecap(prisma, context.guildId, interaction.user.id), lang)], allowedMentions: { parse: [] } });
+    await interaction.editReply({ ...await personalWeeklyRecapMessage(await personalWeeklyRecap(prisma, context.guildId, interaction.user.id), lang, undefined, await loadCardTimeZone(prisma, context.guildId)), allowedMentions: { parse: [] } });
     return;
   }
   const recapPosts = interaction.options.getBoolean("recap-posts");
@@ -156,9 +156,7 @@ export function weeklyReportEmbeds(report: WeeklyReport, lang: Lang = "en", lead
   if (report.cores.length) {
     const cores = new EmbedBuilder().setTitle(t(lang, "weekly.cores")).setColor(0xd4af37);
     for (const core of report.cores.slice(0, 25)) {
-      const lines = [t(lang, "weekly.coreLine", {
-        raids: core.raids, kills: core.bossKills, attendance: core.attendancePct === null ? "—" : `${core.attendancePct}%`, loot: core.loot, gp: core.gp
-      })];
+      const lines = [coreLine(core, lang)];
       if (core.perfect.length) lines.push(t(lang, "weekly.perfect", { names: core.perfect.join(", ") }));
       cores.addFields({ name: core.name, value: lines.join("\n").slice(0, 1024) });
     }
@@ -172,8 +170,6 @@ export function weeklyReportEmbeds(report: WeeklyReport, lang: Lang = "en", lead
     if (d.fastest.length) dungeons.addFields({ name: t(lang, "weekly.fastest"), value: d.fastest.slice(0, 10).map((row) => `${row.dungeon}: ${formatDuration(row.durationSec)} (${row.players.join(", ")})`).join("\n").slice(0, 1024) });
     if (d.topPoints.length) dungeons.addFields({ name: t(lang, "weekly.topPoints"), value: d.topPoints.map((row, i) => `${["🥇", "🥈", "🥉"][i]} ${row.name}: ${dungeonShare(row.points)}`).join("\n") });
     if (d.marathon) dungeons.addFields({ name: lang === "fr" ? "🔁 Marathon de donjons" : "🔁 Dungeon marathon", value: lang === "fr" ? `${d.marathon.name} : ${d.marathon.runs} donjons terminés` : `${d.marathon.name}: ${d.marathon.runs} completed runs` });
-    if (d.records.length) dungeons.addFields({ name: t(lang, "weekly.records"), value: d.records.slice(0, 15).join("\n").slice(0, 1024) });
-    if (d.firsts.length) dungeons.addFields({ name: t(lang, "weekly.firsts"), value: d.firsts.slice(0, 15).join("\n").slice(0, 1024) });
     if (leaderboardUrl) dungeons.setURL(leaderboardUrl).addFields({ name: "​", value: t(lang, "weekly.leaderboard", { url: leaderboardUrl }) });
     embeds.push(dungeons);
   }
@@ -181,13 +177,21 @@ export function weeklyReportEmbeds(report: WeeklyReport, lang: Lang = "en", lead
   return embeds;
 }
 
-// 9.3: the card carries the week's headline and players; what it cannot carry (EP, loot and GP, most raids, most loot) stays as text.
-// A week with nothing in it has no card: the text says so.
-export function weeklyCardExtra(report: WeeklyReport, lang: Lang, embeds: EmbedBuilder[], timeZone?: string): Record<string, unknown> {
+// 9.3: the card carries the week's headline, the players and each raid core; 9.4 adds a second card for the dungeon week (fastest clears, runners-up).
+// What the cards cannot carry (EP, loot and GP, most raids, most loot, the leaderboard link) stays as text. Records and first clears live in the weekly
+// records post only. A week with nothing in it has no card: the text says so.
+export function weeklyCardExtra(report: WeeklyReport, lang: Lang, embeds: EmbedBuilder[], timeZone?: string, guildName = "Guilded"): Record<string, unknown> {
   if (report.guild.raids === 0 && report.dungeons.runs === 0 && report.guild.lootCount === 0) return {};
   const details = EmbedBuilder.from(embeds[0]!.toJSON()).setTitle(null).setDescription(null).setFields(
     (embeds[0]!.data.fields ?? []).filter((field, index) => index > 1 && field.name !== t(lang, "weekly.players")));
-  return { card: weeklyReportCard(report, lang, timeZone), cardOnly: { embeds: [textlessEmbed(0xd4af37), ...(details.data.fields?.length ? [details.toJSON()] : []), ...embeds.slice(1).map(embed => embed.toJSON())] } };
+  const dungeonCard = weeklyDungeonCard(report, lang, guildName, timeZone);
+  const dungeonsEmbed = embeds.find(embed => embed.data.title === t(lang, "weekly.dungeons"));
+  const coresEmbed = embeds.find(embed => embed.data.title === t(lang, "weekly.cores"));
+  // The cores are rows of the first card, and the dungeon week is the second card; both texts stay in the full message (the fallback).
+  const kept = embeds.slice(1).filter(embed => embed !== coresEmbed && (!dungeonCard || embed !== dungeonsEmbed));
+  const link = dungeonCard && dungeonsEmbed?.data.url ? [new EmbedBuilder().setColor(0x5865f2).setDescription(t(lang, "weekly.leaderboard", { url: dungeonsEmbed.data.url })).toJSON()] : [];
+  return { card: weeklyReportCard(report, lang, timeZone), ...(dungeonCard ? { extraCard: { card: dungeonCard } } : {}),
+    cardOnly: { embeds: [textlessEmbed(0xd4af37), ...(dungeonCard ? [textlessEmbed(0x5865f2)] : []), ...(details.data.fields?.length ? [details.toJSON()] : []), ...kept.map(embed => embed.toJSON()), ...link] } };
 }
 
 // Called hourly: the daily recap of every server whose day rolled over (one post per day, quiet days post nothing).
@@ -222,8 +226,8 @@ export async function runWeeklyReports(client: Client, now = new Date()): Promis
       const embeds = weeklyReportEmbeds(report, lang, leaderboardUrl);
       const queued = await queueWeeklyWowReport(prisma, settings.guildId, report.weekEnd, now,
         JSON.parse(JSON.stringify({ embeds: embeds.map(embed => embed.toJSON()) })),
-        // 9.3: the card replaces the first embed (the headline); the cores and dungeon embeds stay as text under it.
-        JSON.parse(JSON.stringify(weeklyCardExtra(report, lang, embeds, await loadCardTimeZone(prisma, settings.guildId)))));
+        // 9.3/9.4: the cards replace the headline, the cores and the dungeon week; the full text is the fallback.
+        JSON.parse(JSON.stringify(weeklyCardExtra(report, lang, embeds, await loadCardTimeZone(prisma, settings.guildId), settings.guild.name))));
       if (queued) posted += 1;
     } catch (error) {
       console.error(`Weekly report failed for guild ${settings.guild.discordId}`, error);

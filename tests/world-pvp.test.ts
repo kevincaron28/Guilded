@@ -200,6 +200,7 @@ describe("board", () => {
     expect(withImage.image?.url).toBe("attachment://world-pvp.png");
     expect(withImage.fields).toBeUndefined();
     expect(worldPvpEmbed({ weekKey: KEY, standings: [] }, "fr").toJSON().description).toContain("Aucune activité");
-    expect(text.footer?.text).toBe("Counted by members' Guilded addon, capped each week · no points or awards");
+    expect(text.footer?.text).toBe("Reported by members' addons · no points");
+    expect(text.description).toBe("Open-world kills, defends and calls answered this week. Resets Tuesday.");
   });
 });

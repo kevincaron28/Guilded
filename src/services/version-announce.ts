@@ -7,9 +7,11 @@ import { asLang } from "../i18n.js";
 const pkg = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")) as { version: string };
 export const CURRENT_VERSION = pkg.version;
 
-const NOTICE = {
-  en: (v: string) => `🔔 Guilded was updated to **${v}**. Ask an officer what's new, or check CHANGELOG.md.`,
-  fr: (v: string) => `🔔 Guilded a été mis à jour vers la version **${v}**. Demandez à un officier ce qui a changé, ou consultez CHANGELOG.md.`
+// The website has no changelog page of its own: the release notes live on the releases page the website menu links to.
+export const releaseNotesUrl = (version: string) => `https://github.com/kevincaron28/Guilded/releases/tag/v${version}`;
+export const NOTICE = {
+  en: (v: string) => `🔔 Guilded **${v}** is live. What's new: <${releaseNotesUrl(v)}>.`,
+  fr: (v: string) => `🔔 Guilded **${v}** est en ligne. Nouveautés : <${releaseNotesUrl(v)}>.`
 };
 
 // Called once per ClientReady from main.ts: posts a short notice to any

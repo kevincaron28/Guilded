@@ -1,6 +1,7 @@
 import { EmbedBuilder } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
+import { reportedFooter } from "./card-format.js";
 import { plural } from "./card-plural.js";
 import { textlessEmbed } from "./card-only.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
@@ -73,7 +74,7 @@ export function weeklyRecordsEmbed(week: WeeklyRecords, lang: Lang): EmbedBuilde
   }
   return new EmbedBuilder().setColor(0xd4a017).setTitle(`${fr ? "🏆 Records de la semaine" : "🏆 Records broken this week"} · ${range(week, lang)}`.slice(0, 256))
     .setDescription(lines.join("\n").slice(0, 3800))
-    .setFooter({ text: fr ? "Une fois par semaine, seulement s'il y a du nouveau · officiers : /report stats records-posts:false" : "Once a week, only when there is something new · officers: /report stats records-posts:false" });
+    .setFooter({ text: reportedFooter(lang) });
 }
 
 const SCENES: DungeonScene[] = ["stratholme", "scarlet", "blackrock", "forest", "dalaran", "wailing", "sunken", "shadowfang", "uldaman", "zulfarrak"];
@@ -99,7 +100,7 @@ export function weeklyRecordsCard(week: WeeklyRecords, lang: Lang, guildName: st
     ...(week.raidKills.latest ? [{ name: week.raidKills.latest.boss, sub: week.raidKills.latest.instance, right: t("latest", "dernier"), rightTone: "red" as const }] : [])
   ] });
   return {
-    eyebrow: t("Guilded · Records broken this week", "Guilded · Records de la semaine"), title: guildName, subtitle: range(week, lang), stats: stats.slice(0, 4), footer: "", moreLabel: t("more", "autres"),
+    eyebrow: t("Guilded · Records broken this week", "Guilded · Records de la semaine"), title: guildName, subtitle: range(week, lang), stats: stats.slice(0, 4), footer: reportedFooter(lang), moreLabel: t("more", "autres"),
     backdrop: { kind: "recap", key: TIMES[seed % TIMES.length]! },
     recap: { theme: { a: "#1e1236", b: "#6a4aa8", motif: "keep", seed, scene: SCENES[seed % SCENES.length]! }, sections: sections.slice(0, 3) }
   };

@@ -179,7 +179,7 @@ export function dailyRecapEmbed(recap: DailyRecap, lang: Lang): EmbedBuilder {
   }
   if (recap.worldPvp) lines.push(`🗡️ **${fr ? "JcJ en monde ouvert cette semaine" : "World PvP this week"}** · ${recap.worldPvp.kills} ${fr ? "victoires" : "kills"} · ${recap.worldPvp.defends} ${fr ? "défenses" : "defends"} · ${recap.worldPvp.helped} ${fr ? "appels répondus" : "calls answered"}`);
   return new EmbedBuilder().setColor(0xd4a017).setTitle(`${fr ? "🗓️ Bilan du" : "🗓️ Recap for"} ${dayLabel(recap.day, lang)}`.slice(0, 256))
-    .setDescription(lines.join("\n").slice(0, 3800)).setFooter({ text: fr ? "Un bilan par jour, seulement s'il s'est passé quelque chose · officiers : /report stats recap-posts:false" : "One recap per day, only when something happened · officers: /report stats recap-posts:false" });
+    .setDescription(lines.join("\n").slice(0, 3800));
 }
 
 type DeliveryDb = RecapDb & Pick<PrismaClient, "guildSettings" | "$transaction">;

@@ -5,7 +5,8 @@ import { hasPermission } from "../permissions.js";
 import { currentGuildScope, withGuildScope } from "./guild-scope.js";
 import { recurringDue, recurringScheduleSchema, deliverRecurringRecap } from "./recurring-delivery.js";
 import { actOnWeeklyQuestion, reviewWeeklyQuestion } from "./weekly-question-store.js";
-import { personalWeeklyRecap, personalWeeklyRecapEmbed } from "./personal-weekly-recap.js";
+import { personalWeeklyRecap, personalWeeklyRecapMessage } from "./personal-weekly-recap.js";
+import { loadCardTimeZone } from "./card-format.js";
 
 export async function automationChannelAccess(guild: Guild, userId: string, channelId: string) {
   const [actor, bot, channel] = await Promise.all([guild.members.fetch({ user: userId, force: true }).catch(() => null), guild.members.fetchMe({ force: true }).catch(() => null), guild.channels.fetch(channelId).catch(() => null)]);
@@ -64,12 +65,12 @@ export async function runRecurringDeliveries(client: Client, db: PrismaClient, n
               return !!channel && "permissionsFor" in channel && !!channel.permissionsFor(member)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory]);
             });
             const fr = setting.language === "fr";
-            const embed = personalWeeklyRecapEmbed(result, fr ? "fr" : "en").setFooter({ text: fr ? "Votre bilan privé · Pause : /automation recap action:off" : "Your private recap · Pause: /automation recap action:off" });
+            const message = await personalWeeklyRecapMessage(result, fr ? "fr" : "en", fr ? "Votre bilan privé · Pause : /automation recap action:off" : "Your private recap · Pause: /automation recap action:off", await loadCardTimeZone(db, setting.guildId));
             // Recheck after loading private data, immediately before transmission.
             const authorized = await authorize();
             const current = await db.recurringRecap.findUnique({ where: { memberId: recap.memberId } });
             if (!current?.enabled || current.revision !== recap.revision || !authorized || !recurringDue(parsed.data, deliveryTime())) throw new Error("Recipient consent changed");
-            return (await member.send({ embeds: [embed], allowedMentions: { parse: [] } })).id;
+            return (await member.send({ ...message, allowedMentions: { parse: [] } })).id;
           },
         }, now);
       }

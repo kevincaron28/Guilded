@@ -1,4 +1,5 @@
 import { cardAttachment } from "./card-alt.js";
+import { reportedFooter } from "./card-format.js";
 import { scoreCardPng } from "./score-card.js";
 import { worldPvpRecapCard } from "./world-pvp-card.js";
 import { EmbedBuilder, escapeMarkdown, type Guild as DiscordGuild } from "discord.js";
@@ -244,5 +245,5 @@ export async function loadWorldPvpExtras(db: Pick<PrismaClient, "guild" | "guild
   const fields = await loadExtrasFields(db, guildId, settings, data.standings, lang, now);
   if (!fields.length) return [];
   return [new EmbedBuilder().setColor(0xb91c1c).setTitle(lang === "fr" ? "⚔️ JcJ en monde ouvert cette semaine" : "⚔️ World PvP this week").addFields(fields)
-    .setFooter({ text: lang === "fr" ? "Compteurs des joueurs, plafonnés · aucun point ni récompense" : "Player counters, capped · no points or awards" })];
+    .setFooter({ text: reportedFooter(lang) })];
 }

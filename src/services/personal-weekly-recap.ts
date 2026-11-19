@@ -1,7 +1,10 @@
-import { EmbedBuilder, escapeMarkdown } from "discord.js";
+import { AttachmentBuilder, EmbedBuilder, escapeMarkdown } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
 import { reportWeek } from "./weekly-report.js";
+import { cardDate, cardDateTime } from "./card-format.js";
+import { cardAttachment } from "./card-alt.js";
+import { scoreCardPng, type ScoreCard } from "./score-card.js";
 import { dungeonShare } from "./community-ingame.js";
 
 type Db = Pick<PrismaClient, "member" | "dungeonPointTransaction" | "dungeonAchievement" | "communityBadge" | "raidSignup">;
@@ -43,4 +46,40 @@ export function personalWeeklyRecapEmbed(recap: Awaited<ReturnType<typeof person
         `${escapeMarkdown(row.raid.title).slice(0, 100)} · <t:${Math.floor(row.raid.scheduledAt.getTime() / 1000)}:f> · ${signupStatus[row.status as keyof typeof signupStatus] ?? row.status}`).join("\n").slice(0, 950)
         + (recap.moreSignups ? "\n…" : "") || (fr ? "Aucune inscription enregistrée." : "No signups recorded.") })
     .setFooter({ text: fr ? "Aperçu privé · Horaire et pause : /automation recap" : "Private preview · Schedule and pause: /automation recap" });
+}
+
+/** The recap as a card (9.4, owner: "My weekly recap" gets one): the week's points, badges and the next signups, in the shared stats-and-rows layout. */
+export function personalWeeklyRecapCard(recap: Awaited<ReturnType<typeof personalWeeklyRecap>>, lang: Lang, footer: string, timeZone?: string): ScoreCard {
+  const fr = lang === "fr", t = (en: string, french: string) => fr ? french : en;
+  const status = { SIGNED_UP: t("Signed up", "Inscrit"), MAYBE: t("Maybe", "Peut-être"), WAITLISTED: t("Waitlisted", "Liste d'attente") };
+  const rows: NonNullable<ScoreCard["rows"]> = recap.signups.slice(0, 3).map(row => ({ name: row.raid.title.slice(0, 60),
+    sub: `${status[row.status as keyof typeof status] ?? row.status} · ${cardDateTime(row.raid.scheduledAt, lang, timeZone)}`, rightTone: "gold" as const }));
+  const badges = [...recap.dungeonBadges.map(row => row.key), ...recap.communityBadges.map(row => row.code)];
+  for (const code of badges.slice(0, Math.max(0, 6 - rows.length))) rows.push({ name: code.slice(0, 60), sub: t("Badge earned", "Badge gagné"), rightTone: "green" as const });
+  const badgeCount = badges.length;
+  return {
+    eyebrow: t("Guilded · My weekly recap", "Guilded · Mon bilan hebdomadaire"), title: t("My weekly recap", "Mon bilan hebdomadaire"),
+    subtitle: `${t("Week", "Semaine")} ${cardDate(recap.start, lang, timeZone)} → ${cardDate(recap.end, lang, timeZone)}`,
+    backdrop: { kind: "board", key: "weekly", fallbackKey: "activity" },
+    stats: [
+      { label: t("Community points", "Points de communauté"), value: String(dungeonShare(recap.netParticipationPoints)), accent: "gold", note: `${recap.pointEntries} ${t("entries", "écritures")}` },
+      { label: t("Badges earned", "Badges gagnés"), value: `${badgeCount}${recap.moreBadges ? "+" : ""}`, accent: "green" },
+      { label: t("Signups, next 7 days", "Inscriptions, 7 jours"), value: `${recap.signups.length}${recap.moreSignups ? "+" : ""}` }
+    ],
+    ...(rows.length ? { rowsLabel: t("Signups and badges", "Inscriptions et badges"), rows } : {}),
+    footer
+  };
+}
+
+/**
+ * The private recap message: the card as the picture (the text lives in its alt text) with only the control hint as text, or the full text embed
+ * when the picture cannot be drawn. `footer` replaces the embed footer (the delivery job words it differently).
+ */
+export async function personalWeeklyRecapMessage(recap: Awaited<ReturnType<typeof personalWeeklyRecap>>, lang: Lang, footer?: string, timeZone?: string): Promise<{ embeds: EmbedBuilder[]; files: AttachmentBuilder[] }> {
+  const text = personalWeeklyRecapEmbed(recap, lang);
+  if (footer) text.setFooter({ text: footer });
+  const png = await scoreCardPng(personalWeeklyRecapCard(recap, lang, footer ?? text.data.footer?.text ?? "", timeZone)).catch(() => null);
+  if (!png) return { embeds: [text], files: [] };
+  const embed = new EmbedBuilder().setColor(0x57a773).setImage("attachment://recap.png");
+  return { embeds: [embed], files: [cardAttachment(png, "recap.png")] };
 }

@@ -240,7 +240,7 @@ describe("game menu and pairing", () => {
     expect(description).toContain("Alt : **Other**");
     const instructions = interaction.editReply.mock.calls[0]![0].embeds[0].data.fields[1].value;
     expect(instructions).toContain("/guilded verify ABCD-EFGH");
-    expect(instructions).toContain("Une fois suffit, aussi pour les alts");
+    expect(instructions).toContain("Tes personnages se lient");
   });
 
   it("shows the companion steps without making a code, which only its own button issues", async () => {

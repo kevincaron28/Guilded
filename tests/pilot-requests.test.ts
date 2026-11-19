@@ -84,7 +84,7 @@ describe("private hosted pilot decisions", () => {
   it("builds a bilingual owner welcome that points at /setup start", async () => {
     const { approvalWelcome, welcomeApprovedOwner } = await import("../src/services/pilot-welcome.js");
     const text = approvalWelcome("My *Guild*").toJSON().description ?? "";
-    expect(text).toContain("/setup start"); expect(text).toContain("approuvé"); expect(text).toContain("My \\*Guild\\*");
+    expect(text).toContain("/setup start"); expect(text).toContain("approved"); expect(text).not.toContain("approuvé"); expect(approvalWelcome("G", "fr").toJSON().description).toContain("approuvé"); expect(text).toContain("My \\*Guild\\*");
     const dm = vi.fn(async () => undefined);
     const client = { users: { fetch: vi.fn(async () => ({ bot: false, send: dm })) } };
     expect(await welcomeApprovedOwner(client as unknown as Client, { ownerId: guest, name: "G" } as unknown as Guild)).toBe(true);

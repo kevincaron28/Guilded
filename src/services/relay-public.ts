@@ -77,7 +77,7 @@ export async function relayWouldPlace(store: PublicRunStore, input: { carrier: s
   if (Math.max(0, config.relayedRunsPerDay - await store.uploadsSince(`relay:${input.carrier}`, dayStart)) < 1) return "carrier's daily limit";
   if (holdsRun(relayFlags(input.run, id, config).map((flag) => flag.code), config, 0)) return "held by a plausibility check";
   const parsed = dungeonRunSchema.safeParse(input.run);
-  if (!parsed.success) return "not a valid run";
+  if (!parsed.success) return `not a valid run (${parsed.error.issues[0]?.path.join(".") || "-"}: ${parsed.error.issues[0]?.code ?? "unreadable"})`;
   const check = checkPublicRun(parsed.data, null, now);
   return check.ok ? null : check.reason ?? "refused by the public lane";
 }
@@ -153,12 +153,13 @@ export async function ingestRelayedRuns(store: PublicRunStore, input: { carrier:
     const placed = new Set([...result.accepted, ...result.confirmed]);
     if (placed.size) input.onPlaced?.(batch.filter((entry) => placed.has((entry as { id: string }).id)));
     const refused = new Map(result.rejected.map((row) => [row.id, row.reason] as const));
+    const failedCheck = new Map(result.rejected.flatMap((row) => row.check ? [[row.id, row.check] as const] : []));
     const dup = new Set(result.duplicates);
     for (const entry of batch) {
       const id = (entry as { id: string }).id;
       receipts.push(`${GROUP_RECEIPT_PREFIX}${id}`);
       const why = refused.get(id);
-      if (why) { refuseNote(id, why); if (/held for review/.test(why)) held++; console.info(`Relayed run ${id.slice(0, 40)} via ${input.carrier}: refused (${why})`); }
+      if (why) { refuseNote(id, why); if (/held for review/.test(why)) held++; console.info(`Relayed run ${id.slice(0, 40)} via ${input.carrier}: refused (${why}${failedCheck.has(id) ? `; check ${failedCheck.get(id)}` : ""})`); }
       else if (dup.has(id)) duplicates++;
     }
   }

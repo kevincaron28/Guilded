@@ -145,3 +145,11 @@ ${featuresLua(null, now)}
     expect(order).toEqual(["a-start", "a-end", "b", "c"]);
   });
 });
+
+describe("exported player realm (9.4)", () => {
+  it("never exports an empty realm for a run player (Forever has no realms)", () => {
+    const database = { character: { name: "Kev", realm: "", gameEdition: "forever" }, dungeon: { runs: { a: { id: "QG-E", state: "COMPLETED", instanceId: 36, startedAt: 1000, endedAt: 2800, players: { Kev: { presentSec: 1700, inGuild: true } } } } } };
+    const exported = exportDungeonRuns(database as never, "") as { players: { realm: string }[] }[];
+    expect(exported[0]?.players.map((player) => player.realm)).toEqual(["-"]);
+  });
+});

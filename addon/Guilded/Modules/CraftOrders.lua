@@ -563,6 +563,7 @@ local LEFT_W = 250
 local DETAIL_W = 320
 local MAX_REAGENT_ROWS = 8
 local MAX_CRAFTER_ROWS = 5
+local SHOP_ROWS = 10      -- reagent rows of the shopping list
 local LIST_ROWS = 5      -- rows in each of the two lists
 local ROW_H = 28
 local MINE_ROW_H = 42   -- My requests rows carry a second line with the status chips
@@ -933,6 +934,42 @@ function orders.requestItems(view)
   return items, "browse"
 end
 
+-- Shopping list: the reagents of every order you claimed (and have not finished), summed, with what is in your bags.
+-- Orders whose requester brings the materials add nothing. Returns { rows = { { id, name, need, have } }, orders = n, unknown = n }
+-- (`unknown` counts claimed orders whose recipe reagents this addon has not read: open the profession window once).
+function orders.shoppingList()
+  local sums, order, result = {}, {}, { rows = {}, orders = 0, unknown = 0 }
+  for _, row in ipairs(orders.list(true)) do
+    if row.view.status == "CLAIMED" and row.view.mine and not row.order.mats then
+      result.orders = result.orders + 1
+      local reagents = orders.reagents(row.order)
+      if not reagents then result.unknown = result.unknown + 1 end
+      for _, mat in ipairs(reagents or {}) do
+        local sum = sums[mat.id]
+        if not sum then sum = { id = mat.id, name = mat.name, need = 0, have = mat.have }; sums[mat.id] = sum; order[#order + 1] = sum end
+        sum.need = sum.need + mat.need
+      end
+    end
+  end
+  table.sort(order, function(a, b)
+    local aMissing, bMissing = (a.have or 0) < a.need, (b.have or 0) < b.need
+    if aMissing ~= bMissing then return aMissing end
+    return tostring(a.name) < tostring(b.name)
+  end)
+  result.rows = order
+  return result
+end
+
+-- New open requests you can make, for the number on the Craft for the guild sub-tab.
+function orders.craftBadge()
+  local n = 0
+  for _, row in ipairs(orders.list(false)) do
+    if row.view.status == "OPEN" and (row.canCraft or row.forMe) and not orders.isMyRequest(row.order) then n = n + 1 end
+  end
+  for _ in ipairs(orders.heardForMe()) do n = n + 1 end
+  return n
+end
+
 orders.SUBTABS = {
   { id = "request", label = "Request" },
   { id = "mine", label = "My requests" },
@@ -1189,6 +1226,25 @@ function orders.buildCraftingPage(page, helpers)
     local row = listRow(page, true)
     row.first:SetScript("OnClick", act); row.second:SetScript("OnClick", act)
     view.forMeRows[i] = row
+  end
+  view.shopHeader = newLabel(page, "Shopping list", "GameFontNormal")
+  view.shopNote = newLabel(page, "", "GameFontDisableSmall")
+  view.shopNote:SetWidth(width)
+  view.shopRows = {}
+  for i = 1, SHOP_ROWS do
+    local frame = CreateFrame("Frame", nil, page)
+    frame:SetWidth(width)
+    frame:SetHeight(18)
+    local row = { frame = frame }
+    row.icon = frame:CreateTexture(nil, "ARTWORK")
+    row.icon:SetWidth(16); row.icon:SetHeight(16)
+    row.icon:SetPoint("LEFT", frame, "LEFT", 4, 0)
+    row.text = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    row.text:SetPoint("LEFT", frame, "LEFT", 26, 0)
+    row.text:SetWidth(width - 30)
+    row.text:SetJustifyH("LEFT")
+    frame:Hide()
+    view.shopRows[i] = row
   end
   view.hint = newLabel(page, "Claim an order, craft it, then press Done. Trade or mail the item to the requester; gold never goes through Guilded.", "GameFontDisableSmall")
   view.hint:SetWidth(width - 12) -- inside the visible page, wrapping
@@ -1491,6 +1547,31 @@ local function renderCraft(view, page, y, off, mine)
     place(view.forMeEmpty, page, 190, y + 22); view.forMeEmpty:SetWidth(math.max(60, (view.width or 580) - allWidth - 206)); view.forMeEmpty:Show()
   elseif view.forMeEmpty:GetText() ~= "" then view.forMeEmpty:SetWidth(view.width or 580); place(view.forMeEmpty, page, 4, y); view.forMeEmpty:Show(); y = y - 18
   else view.forMeEmpty:Hide() end
+  -- Shopping list across the orders you claimed.
+  local shop = orders.shoppingList()
+  view.shopHeader:SetText(string.format("%s (%d)", L("Shopping list"), #shop.rows))
+  view.shopHeader:Show(); place(view.shopHeader, page, 0, y); y = y - 20
+  for i, row in ipairs(view.shopRows) do
+    local mat = shop.rows[i]
+    if mat then
+      local enough = mat.have and mat.have >= mat.need
+      local colour = mat.have == nil and "|cffffffff" or enough and "|cff20ff20" or "|cffff4040"
+      local lack = (mat.have and mat.have < mat.need) and ("  |cffff4040" .. string.format(L("%d to get"), mat.need - mat.have) .. "|r") or ""
+      row.text:SetText(string.format("%s%s/%d|r %s%s", colour, mat.have and tostring(mat.have) or "?", mat.need, clip(mat.name, 40), lack))
+      local icon = iconFor(mat.id)
+      if row.icon.SetTexture then row.icon:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark") end
+      place(row.frame, page, 0, y); row.frame:Show()
+      y = y - 19
+    else
+      row.frame:Hide()
+    end
+  end
+  local note
+  if shop.orders == 0 then note = L("Claim an order and its reagents add up here.")
+  elseif #shop.rows > SHOP_ROWS then note = string.format(L("... and %d more reagents."), #shop.rows - SHOP_ROWS)
+  elseif shop.unknown > 0 then note = string.format(L("%d claimed order(s) have no reagents yet: open that profession window once."), shop.unknown) end
+  if note then view.shopNote:SetText(note); place(view.shopNote, page, 4, y); view.shopNote:Show(); y = y - 18 else view.shopNote:Hide() end
+  y = y - 6
   view.hint:Show(); place(view.hint, page, 4, y); y = y - math.max(16, textHeight(view.hint) + 4)
   y = y - 8
   return y
@@ -1508,14 +1589,18 @@ function orders.render(view)
   for _, button in ipairs(view.tabs) do
     local label = L(button.subId == "request" and "Request" or button.subId == "mine" and "My requests" or "Craft for the guild")
     if button.subId == "mine" and #mine > 0 then label = label .. " (" .. #mine .. ")" end
+    if button.subId == "craft" and not off then
+      local badge = orders.craftBadge()
+      if badge > 0 then label = label .. " |cff40c0ff(" .. badge .. ")|r" end
+    end
     button:SetText(button.subId == sub and ("|cffffd100" .. label .. "|r") or label)
   end
   -- Everything of the other sub-tabs is hidden first.
   for _, widget in ipairs(view.requestWidgets) do widget:Hide() end
   for _, row in ipairs(view.dReagents) do row.frame:Hide() end
   for _, widget in ipairs({ view.box, view.searchButton,
-    view.mineHeader, view.mineEmpty, view.forMeHeader, view.forMeEmpty, view.allButton, view.hint }) do widget:Hide() end
-  for _, list in ipairs({ view.resultRows, view.mineRows, view.forMeRows }) do for _, row in ipairs(list) do row.frame:Hide() end end
+    view.mineHeader, view.mineEmpty, view.forMeHeader, view.forMeEmpty, view.allButton, view.hint, view.shopHeader, view.shopNote }) do widget:Hide() end
+  for _, list in ipairs({ view.resultRows, view.mineRows, view.forMeRows, view.shopRows }) do for _, row in ipairs(list) do row.frame:Hide() end end
   if sub == "mine" then y = renderMine(view, page, y, off)
   elseif sub == "craft" then y = renderCraft(view, page, y, off, mine)
   else y = renderRequest(view, page, y, off) end

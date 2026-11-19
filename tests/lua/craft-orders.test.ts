@@ -358,6 +358,54 @@ describe("the Crafting page: materials toggle and the NEW line", () => {
   });
 });
 
+describe("the Crafting page: Craft for the guild shopping list", () => {
+  const shop = () => s!.run("local t = {} for _, r in ipairs(VIEW.shopRows) do if r.frame.shown then t[#t + 1] = r.text.text end end return table.concat(t, '|')");
+  function withClaims() {
+    setup();
+    s!.run(`GuildedOrders.orders[#GuildedOrders.orders + 1] = { id = "req_shirt02", key = 2580, item = "Brown Linen Shirt", qty = 1, prof = "Tailoring", status = "OPEN", by = "Gil Ho", crafter = "", character = "", asked = "", mats = false, note = "", at = 1799990500 }`);
+    buildPage();
+    tab("craft");
+  }
+
+  it("sums the reagents of the orders you claimed, with have/need from your bags", () => {
+    withClaims();
+    expect(s!.run("return VIEW.shopHeader.text")).toBe("Shopping list (0)");
+    expect(s!.run("return VIEW.shopNote.text")).toBe("Claim an order and its reagents add up here.");
+    s!.run(`NS.craftOrders.act("req_shirt01", "claim"); NS.craftOrders.act("req_shirt02", "claim")`);
+    // 2 + 1 shirts: 3 Linen Cloth and 1 Coarse Thread each. Bags: 5 cloth, 1 thread.
+    expect(s!.run("return VIEW.shopHeader.text")).toBe("Shopping list (2)");
+    expect(shop()).toBe("|cffff40401/3|r Coarse Thread  |cffff40402 to get|r||cffff40405/9|r Linen Cloth  |cffff40404 to get|r");   // what is missing first, then by name
+  });
+
+  it("leaves out orders whose requester brings the materials, and finished or unclaimed ones", () => {
+    withClaims();
+    s!.run(`NS.craftOrders.act("req_belt002", "claim")`);   // the belt order says the requester brings the materials
+    expect(s!.run("return VIEW.shopHeader.text")).toBe("Shopping list (0)");
+    s!.run(`NS.craftOrders.act("req_shirt01", "claim"); BAGS[2589] = 9; BAGS[2320] = 3; NS.craftOrders.refresh()`);
+    expect(shop()).toContain("|cff20ff209/6|r Linen Cloth");
+    s!.run(`NS.craftOrders.act("req_shirt01", "done"); NS.craftOrders.refresh()`);
+    expect(s!.run("return VIEW.shopHeader.text")).toBe("Shopping list (0)");
+  });
+
+  it("says when a claimed order's reagents are not known yet, and sums nothing for it", () => {
+    withClaims();
+    s!.run(`NS.craftOrders.act("req_flask03", "claim")`);   // an alchemy order: this character has not read the recipe
+    expect(s!.run("return VIEW.shopHeader.text")).toBe("Shopping list (0)");
+    expect(s!.run("return VIEW.shopNote.text")).toContain("1 claimed order(s) have no reagents yet");
+    const list = JSON.parse(s!.run(`local l = NS.craftOrders.shoppingList(); return '{"orders":' .. l.orders .. ',"unknown":' .. l.unknown .. ',"rows":' .. #l.rows .. '}'`));
+    expect(list).toEqual({ orders: 1, unknown: 1, rows: 0 });
+  });
+
+  it("puts the number of requests you can craft on the Craft for the guild sub-tab", () => {
+    setup();
+    buildPage();
+    // Open orders this character can make (shirt, belt) plus the one asked of them (odd hat).
+    expect(s!.run("return VIEW.tabs[3].text")).toContain("(3)");
+    s!.run(`NS.craftOrders.act("req_shirt01", "claim"); NS.craftOrders.refresh()`);
+    expect(s!.run("return VIEW.tabs[3].text")).toContain("(2)");
+  });
+});
+
 describe("the Crafting page: search and Request", () => {
   function withCrafters() {
     setup();

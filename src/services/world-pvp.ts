@@ -187,3 +187,19 @@ export function worldPvpEmbed(data: WorldPvpData, lang: Lang, image?: string): E
   if (image && data.standings.length) embed.setImage(`attachment://${image}`);
   return embed.setFooter({ text: t("Counted by members' Guilded addon, capped each week · no points or awards", "Comptés par l'addon Guilded des membres, plafonnés chaque semaine · aucun point ni récompense") });
 }
+
+export interface WorldPvpWeekLine { kills: number; defends: number; helped: number }
+
+/**
+ * The guild's world PvP for the raid week holding `at`, summed over its members (the line on the daily recap and the weekly report),
+ * or null when the switch is off, the tables are unavailable or nothing was counted. Never throws: the cards must not fail over it.
+ */
+export async function worldPvpWeekLine(db: Pick<PrismaClient, "worldPvpWeek" | "member"> & Partial<Pick<PrismaClient, "guildSettings" | "unclaimedCharacter" | "guildRosterEntry" | "character" | "officialSeason">>, guildId: string, edition: string, at: Date): Promise<WorldPvpWeekLine | null> {
+  try {
+    if (!db.worldPvpWeek || !db.member) return null;
+    if (db.guildSettings && (await db.guildSettings.findUnique({ where: { guildId }, select: { worldPvpEnabled: true } }))?.worldPvpEnabled === false) return null;
+    const { standings } = await loadWorldPvpData(db, guildId, edition, at);
+    const line = standings.reduce((sum, row) => ({ kills: sum.kills + row.kills, defends: sum.defends + row.defends, helped: sum.helped + row.helped }), { kills: 0, defends: 0, helped: 0 });
+    return line.kills || line.defends || line.helped ? line : null;
+  } catch { return null; }
+}

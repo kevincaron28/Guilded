@@ -157,7 +157,8 @@ export async function findCrafters(database: Db, guildId: string, query: string)
 
 export function describeCrafters(query: string, matches: CrafterMatch[], lang: Lang = "en", now: Date = new Date()): string {
   if (matches.length === 0) {
-    return `Nobody is known to craft "${query.trim()}". Only players with the addon who opened their profession window show up, and it reaches Discord when the companion uploads.`;
+    return lang === "fr" ? `Personne n'est connu pour « ${query.trim()} » pour l'instant. Les recettes apparaissent dès qu'un membre ouvre ce métier en jeu.`
+      : `Nobody known for "${query.trim()}" yet. Recipes appear once a member opens that profession in game.`;
   }
   const lines = matches.slice(0, 8).map((match) => {
     const who = match.crafters.map((crafter) => `${cleanCharacterName(crafter.character)}${crafter.member && crafter.member.toLowerCase() !== crafter.character.toLowerCase() ? ` (${crafter.member})` : ""} · ${crafter.profession} · ${lang === "fr" ? "vu" : "seen"} ${lastSeenText(crafter.lastSeen, lang, now)}`);

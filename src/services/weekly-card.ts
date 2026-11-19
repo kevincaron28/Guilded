@@ -24,6 +24,7 @@ export function weeklyReportCard(report: WeeklyReport, lang: Lang, timeZone?: st
   // A quiet week (no raid, few names) would leave most of the card empty: the week before is the next useful fact.
   if (rows.length < 2 && (report.previous.raids > 0 || report.previous.bossKills > 0))
     rows.push({ name: t("Last week", "Semaine passée"), sub: `${plural(lang, report.previous.raids, ["raid", "raids"], ["raid", "raids"])} · ${plural(lang, report.previous.bossKills, ["boss kill", "boss kills"], ["victoire", "victoires"])}` });
+  if (report.worldPvp) rows.push({ name: t("World PvP", "JcJ en monde ouvert"), sub: t(`${report.worldPvp.kills} kills · ${report.worldPvp.defends} defends · ${report.worldPvp.helped} calls answered`, `${report.worldPvp.kills} victoires · ${report.worldPvp.defends} défenses · ${report.worldPvp.helped} appels répondus`), right: String(report.worldPvp.kills), rightTone: "red" });
   const badges: NonNullable<ScoreCard["badges"]> = [];
   if (d.records.length) badges.push({ text: plural(lang, d.records.length, ["dungeon record", "dungeon records"], ["record de donjon", "records de donjon"]), tone: "ok" });
   if (d.firsts.length) badges.push({ text: plural(lang, d.firsts.length, ["first clear", "first clears"], ["première complétion", "premières complétions"]), tone: "ok" });

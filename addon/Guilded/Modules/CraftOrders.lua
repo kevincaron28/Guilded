@@ -64,6 +64,8 @@ local function state()
   s.heard = type(s.heard) == "table" and s.heard or {}
   s.requests = type(s.requests) == "table" and s.requests or {}
   s.heardRequests = type(s.heardRequests) == "table" and s.heardRequests or {}
+  s.favourites = type(s.favourites) == "table" and s.favourites or {}   -- starred recipes, kept on this PC: { { id, key, name, prof } }
+  s.recent = type(s.recent) == "table" and s.recent or {}               -- the last 10 searched or requested, newest first
   s.received = type(s.received) == "table" and s.received or {}   -- [order id] = when the requester pressed Mark received
   return s
 end
@@ -555,7 +557,12 @@ end
 -- ---------------------------------------------------------------------
 -- Requests made in game (9.2): "item -> who can craft it", a Request button, and the two lists.
 -- ---------------------------------------------------------------------
-local RES_ROWS = 4       -- recipes shown under the search box
+local LEFT_ROWS = 14     -- rows of the recipe list (matches, or Favourites, Recent and the professions)
+local LEFT_ROW_H = 22
+local LEFT_W = 250
+local DETAIL_W = 320
+local MAX_REAGENT_ROWS = 8
+local MAX_CRAFTER_ROWS = 5
 local LIST_ROWS = 5      -- rows in each of the two lists
 local ROW_H = 28
 local MINE_ROW_H = 42   -- My requests rows carry a second line with the status chips
@@ -626,7 +633,7 @@ function orders.heardForMe()
   return rows
 end
 
--- Sends a request. Returns the saved row, or nil and why. `opts`: item, key, prof, qty, note, asked.
+-- Sends a request. Returns the saved row, or nil and why. `opts`: item, key, prof, qty, note, asked, mats (the requester brings the materials).
 function orders.submit(opts)
   local s, me = state(), orders.myName()
   if not (s and me) then return nil, L("Guilded is not ready yet.") end
@@ -654,7 +661,7 @@ function orders.submit(opts)
   local ref
   repeat ref = string.format("g%x%03x", now, math.random(0, 4095)) until s.requests[ref] == nil
   local row = { ref = ref, item = item, key = tonumber(opts.key), prof = opts.prof and canonProfession(cleanText(opts.prof, 40)) or nil, qty = qty,
-    note = opts.note and cleanText(opts.note, 80) or nil, mats = false,
+    note = opts.note and cleanText(opts.note, 80) or nil, mats = opts.mats == true,
     asked = opts.asked and cleanText(opts.asked, 60) or nil, character = me, at = now }
   for _, field in ipairs({ "prof", "note", "asked" }) do if row[field] == "" then row[field] = nil end end
   s.requests[ref] = row
@@ -811,6 +818,121 @@ function orders.markReceived(id)
   return true
 end
 
+-- Favourites (star) and Recent: stored locally in SavedVariables, never sent anywhere.
+local MAX_FAVOURITES, MAX_RECENT = 30, 10
+local function entryId(entry)
+  if entry.key then return tostring(entry.key) end
+  return "n:" .. fold(entry.name)
+end
+local function plainEntry(entry)
+  local prof = entry.prof or entry.profession or (entry.crafters and entry.crafters[1] and entry.crafters[1].profession)
+  return { id = entryId(entry), key = tonumber(entry.key), name = cut(entry.name, 60), prof = prof and canonProfession(prof) or nil }
+end
+
+function orders.isFavourite(entry)
+  local s = state()
+  if not (s and entry) then return false end
+  local id = entryId(entry)
+  for _, fav in ipairs(s.favourites) do if fav.id == id then return true end end
+  return false
+end
+
+function orders.toggleFavourite(entry)
+  local s = state()
+  if not (s and entry and entry.name) then return false end
+  local id = entryId(entry)
+  for i, fav in ipairs(s.favourites) do
+    if fav.id == id then table.remove(s.favourites, i); return false end
+  end
+  if #s.favourites >= MAX_FAVOURITES then table.remove(s.favourites, 1) end
+  s.favourites[#s.favourites + 1] = plainEntry(entry)
+  return true
+end
+
+function orders.favourites()
+  local s = state()
+  local list = {}
+  for _, fav in ipairs(s and s.favourites or {}) do if type(fav) == "table" and type(fav.name) == "string" then list[#list + 1] = fav end end
+  return list
+end
+
+function orders.addRecent(entry)
+  local s = state()
+  if not (s and entry and entry.name) then return end
+  local id = entryId(entry)
+  for i = #s.recent, 1, -1 do if type(s.recent[i]) ~= "table" or s.recent[i].id == id then table.remove(s.recent, i) end end
+  table.insert(s.recent, 1, plainEntry(entry))
+  while #s.recent > MAX_RECENT do table.remove(s.recent) end
+end
+
+function orders.recents()
+  local s = state()
+  local list = {}
+  for _, entry in ipairs(s and s.recent or {}) do if type(entry) == "table" and type(entry.name) == "string" then list[#list + 1] = entry end end
+  return list
+end
+
+-- The recipe the detail pane shows: every crafter of a known recipe, or just the name (the bot looks the item up).
+function orders.detail(sel)
+  if not sel then return nil end
+  local entry = sel.key and ns.recipes and ns.recipes.entry and ns.recipes.entry(sel.key) or nil
+  if entry then
+    if entry.name == nil or entry.name == "" then entry.name = sel.name end
+    entry.prof = sel.prof
+    return entry
+  end
+  return { key = sel.key, name = sel.name, prof = sel.prof, crafters = {} }
+end
+
+local function onlineElsewhere(entry)
+  for _, crafter in ipairs(entry.crafters or {}) do if crafter.online and not crafter.me then return true end end
+  return false
+end
+
+-- Rows of the left list. Searching shows the matches. Otherwise Favourites, Recent, then the professions (a click opens one).
+-- `onlineOnly` keeps recipes that a guildmate (not you) who can craft them has online right now.
+function orders.requestItems(view)
+  local items = {}
+  local function recipeItem(entry, known) items[#items + 1] = { kind = "recipe", entry = entry } end
+  local filter = view.onlineOnly
+  if view.query and #view.query >= 2 then
+    for _, entry in ipairs(view.results or {}) do
+      if not filter or onlineElsewhere(entry) then recipeItem(entry) end
+    end
+    return items, "search"
+  end
+  local function section(label, list)
+    local kept = {}
+    for _, saved in ipairs(list) do
+      local keep = true
+      if filter then
+        local detail = orders.detail(saved)
+        keep = detail and onlineElsewhere(detail)
+      end
+      if keep then kept[#kept + 1] = saved end
+    end
+    if #kept == 0 then return end
+    items[#items + 1] = { kind = "header", id = label, label = string.format("%s (%d)", L(label), #kept), open = true }
+    for _, saved in ipairs(kept) do recipeItem(saved) end
+  end
+  section("Favourites", orders.favourites())
+  section("Recent", orders.recents())
+  if not view.browse and ns.recipes and ns.recipes.browse then view.browse = ns.recipes.browse() end
+  for _, group in ipairs(view.browse or {}) do
+    local entries = {}
+    for _, entry in ipairs(group.entries) do
+      if not filter or entry.online > 0 then entries[#entries + 1] = entry end
+    end
+    if #entries > 0 then
+      local label = ns.util and ns.util.professionLabel and ns.util.professionLabel(group.profession) or group.profession
+      local open = view.expanded[group.profession] == true
+      items[#items + 1] = { kind = "header", id = group.profession, label = string.format("%s (%d)", label, #entries), open = open, group = true }
+      if open then for _, entry in ipairs(entries) do recipeItem({ key = entry.key, name = entry.name, prof = entry.profession, online = entry.online, crafterCount = entry.crafters }) end end
+    end
+  end
+  return items, "browse"
+end
+
 orders.SUBTABS = {
   { id = "request", label = "Request" },
   { id = "mine", label = "My requests" },
@@ -829,14 +951,14 @@ end
 function orders.buildCraftingPage(page, helpers)
   local width = helpers.width or 580
   local newLabel, newButton, newEdit, at = helpers.newLabel, helpers.newButton, helpers.newEdit, helpers.at
-  local view = { page = page, width = width, results = {}, all = false, options = false, advanced = false, sub = "request" }
+  local view = { page = page, width = width, results = {}, all = false, advanced = false, sub = "request", onlineOnly = false, expanded = {}, mats = false }
   orders.ui = view
   view.relayout = helpers.relayout
 
   -- Three sub-tabs (9.4): Request, My requests, Craft for the guild. One shows at a time.
   view.tabs = {}
   for i, key in ipairs(orders.SUBTABS) do
-    view.tabs[i] = newButton(page, key.label, 140, function() view.sub = key.id; orders.refresh(true) end, 24)
+    view.tabs[i] = newButton(page, key.label, 140, function() view.sub = key.id; view.browse = nil; orders.refresh(true) end, 24)
     view.tabs[i].subId = key.id
     view.tabs[i]:SetPoint("TOPLEFT", page, "TOPLEFT", (i - 1) * 144, 0)
   end
@@ -849,9 +971,15 @@ function orders.buildCraftingPage(page, helpers)
     local text = view.box:GetText() or ""
     view.query = text
     view.results, view.total = {}, 0
-    if text ~= "" and ns.recipes and ns.recipes.search then view.results, view.total = ns.recipes.search(text, RES_ROWS) end
+    if text ~= "" and ns.recipes and ns.recipes.search then view.results, view.total = ns.recipes.search(text, LEFT_ROWS) end
     -- Nobody known for that name yet: it can still be requested by name (the bot looks the item up).
     if #view.results == 0 and #text >= 2 then view.results, view.total = { { name = string.sub(text, 1, 60), crafters = {} } }, 1 end
+    -- One match (a shift-clicked item, or a name nobody knows yet): it is already the one picked.
+    if #view.results == 1 and #text >= 2 then
+      local only = view.results[1]
+      view.sel = { key = tonumber(only.key), name = only.name, prof = only.crafters and only.crafters[1] and only.crafters[1].profession }
+      view.asked, view.askedShown = nil, nil
+    end
     orders.refresh(true)
   end
   view.box:SetScript("OnEnterPressed", function(self) self:ClearFocus(); search() end)
@@ -863,19 +991,82 @@ function orders.buildCraftingPage(page, helpers)
   end)
   view.searchButton = newButton(page, "Search", 90, search)
   view.searchButton:SetPoint("TOPLEFT", page, "TOPLEFT", 344, -31)
-  view.note = newLabel(page, "", "GameFontHighlightSmall")
-  view.note:SetWidth(width)
+  view.onlineButton = newButton(page, "Crafter online now", 138, function() view.onlineOnly = not view.onlineOnly; view.browse = nil; orders.refresh(true) end, 22)
+  view.note = newLabel(page, "", "GameFontHighlightSmall")           -- the detail pane's hint when no recipe is picked
+  view.note:SetWidth(width - LEFT_W - 16)
+  view.leftNote = newLabel(page, "", "GameFontDisableSmall")         -- the list's own message when it is empty
+  view.leftNote:SetWidth(LEFT_W - 8)
   view.more = newLabel(page, "", "GameFontDisableSmall")
-  view.more:SetWidth(width)
+  view.more:SetWidth(LEFT_W)
 
-  -- Request options (collapsed): ask one crafter, quantity, a note.
-  view.optionsButton = newButton(page, "More options", 120, function() view.options = not view.options; orders.refresh(true) end, 22)
-  view.askButton = newButton(page, "Ask: anyone", 190, function()
-    local names, seen = {}, {}
-    for _, entry in ipairs(view.results) do
-      for _, crafter in ipairs(entry.crafters or {}) do
-        if not crafter.me and not seen[crafter.name] then seen[crafter.name] = true; names[#names + 1] = crafter end
+  -- The left list: matches, or Favourites, Recent and the professions. A row picks the recipe; its star favourites it.
+  view.resultRows = {}
+  for i = 1, LEFT_ROWS do
+    local frame = CreateFrame("Button", nil, page)
+    frame:SetWidth(LEFT_W)
+    frame:SetHeight(LEFT_ROW_H - 2)
+    local row = { frame = frame }
+    row.back = frame:CreateTexture(nil, "BACKGROUND")
+    row.back:SetAllPoints(frame)
+    row.text = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    row.text:SetPoint("LEFT", frame, "LEFT", 6, 0)
+    row.text:SetWidth(LEFT_W - 36)
+    row.text:SetJustifyH("LEFT")
+    row.star = newButton(frame, "*", 22, function()
+      if row.item and row.item.entry then orders.toggleFavourite(row.item.entry); orders.refresh(true) end
+    end, 18)
+    row.star:SetPoint("RIGHT", frame, "RIGHT", -2, 0)
+    frame:SetScript("OnClick", function()
+      local item = row.item
+      if not item then return end
+      if item.kind == "header" then
+        if item.group then view.expanded[item.id] = not view.expanded[item.id]; orders.refresh(true) end
+      elseif item.entry then
+        view.select(item.entry)
       end
+    end)
+    frame:Hide()
+    view.resultRows[i] = row
+  end
+
+  -- The detail pane: reagents, crafters, quantity, note, who brings the materials, Request.
+  view.dTitle = newLabel(page, "", "GameFontNormalLarge")
+  view.dTitle:SetWidth(DETAIL_W - 34)
+  view.dStar = newButton(page, "*", 24, function()
+    if view.sel then orders.toggleFavourite(view.sel); orders.refresh(true) end
+  end, 22)
+  view.dProf = newLabel(page, "", "GameFontDisableSmall")
+  view.dProf:SetWidth(DETAIL_W)
+  view.dReagentHeader = newLabel(page, "Reagents (have/need)", "GameFontNormalSmall")
+  view.dReagents = {}
+  for i = 1, MAX_REAGENT_ROWS do
+    local frame = CreateFrame("Frame", nil, page)
+    frame:SetWidth(DETAIL_W)
+    frame:SetHeight(18)
+    local row = { frame = frame }
+    row.icon = frame:CreateTexture(nil, "ARTWORK")
+    row.icon:SetWidth(16); row.icon:SetHeight(16)
+    row.icon:SetPoint("LEFT", frame, "LEFT", 0, 0)
+    row.text = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    row.text:SetPoint("LEFT", frame, "LEFT", 22, 0)
+    row.text:SetWidth(DETAIL_W - 24)
+    row.text:SetJustifyH("LEFT")
+    frame:Hide()
+    view.dReagents[i] = row
+  end
+  view.dReagentNote = newLabel(page, "", "GameFontDisableSmall")
+  view.dReagentNote:SetWidth(DETAIL_W)
+  view.dCraftersHeader = newLabel(page, "Crafters", "GameFontNormalSmall")
+  view.dCrafters = {}
+  for i = 1, MAX_CRAFTER_ROWS do
+    local label = newLabel(page, "", "GameFontHighlightSmall")
+    label:SetWidth(DETAIL_W)
+    view.dCrafters[i] = label
+  end
+  view.askButton = newButton(page, "Ask: anyone", 190, function()
+    local names = {}
+    for _, crafter in ipairs(orders.detail(view.sel) and orders.detail(view.sel).crafters or {}) do
+      if not crafter.me then names[#names + 1] = crafter end
     end
     local nextIndex = 1
     for i, crafter in ipairs(names) do if view.asked == crafter.name then nextIndex = i + 1 end end
@@ -887,39 +1078,38 @@ function orders.buildCraftingPage(page, helpers)
   view.qtyBox = newEdit(page, 40, true)
   view.qtyBox:SetText("1")
   view.noteLabel = newLabel(page, "Note", "GameFontNormalSmall")
-  view.noteBox = newEdit(page, 200)
+  view.noteBox = newEdit(page, DETAIL_W - 50)
   view.noteBox:SetMaxLetters(60)
+  view.matsButton = newButton(page, "Materials: crafter provides", DETAIL_W, function() view.mats = not view.mats; orders.refresh(true) end, 22)
+  view.requestButton = newButton(page, "Request", 120, function() view.request() end, 24)
+  view.requestWidgets = { view.onlineButton, view.note, view.leftNote, view.more, view.dTitle, view.dStar, view.dProf, view.dReagentHeader, view.dReagentNote,
+    view.dCraftersHeader, view.askButton, view.qtyLabel, view.qtyBox, view.noteLabel, view.noteBox, view.matsButton, view.requestButton }
+  for _, label in ipairs(view.dCrafters) do view.requestWidgets[#view.requestWidgets + 1] = label end
 
-  local function request(row)
-    if not row then return end
-    local asked = nil   -- the asked crafter, by full "First Last" name, only when that one can make this item
-    for _, crafter in ipairs(row.entry.crafters or {}) do
-      if view.asked and crafter.name == view.asked then asked = crafter.shown or crafter.name end
-    end
-    local saved, why = orders.submit({ item = row.entry.name, key = row.entry.key, prof = row.entry.crafters and row.entry.crafters[1] and row.entry.crafters[1].profession,
-      qty = tonumber(view.qtyBox:GetText()) or 1, note = view.noteBox:GetText(), asked = asked })
-    if not saved then if ns.message then ns.message(why) end return end
-    view.noteBox:SetText("")
-    view.qtyBox:SetText("1")
-    view.asked, view.askedShown = nil, nil   -- the options are for that one request
-    orders.refresh()
-    if ns.message then ns.message(string.format(L("Asked the guild for %dx %s. It is posted on Discord with your next sync."), saved.qty, saved.item)) end
+  function view.select(entry)
+    view.sel = entry and { key = tonumber(entry.key), name = entry.name, prof = entry.prof or entry.profession or (entry.crafters and entry.crafters[1] and entry.crafters[1].profession) } or nil
+    view.asked, view.askedShown = nil, nil
+    if entry then orders.addRecent(entry) end
+    orders.refresh(true)
   end
 
-  view.resultRows = {}
-  for i = 1, RES_ROWS do
-    local frame = CreateFrame("Frame", nil, page)
-    frame:SetWidth(width)
-    frame:SetHeight(ROW_H - 2)
-    local row = { frame = frame }
-    row.text = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    row.text:SetPoint("LEFT", frame, "LEFT", 4, 0)
-    row.text:SetWidth(width - 110)
-    row.text:SetJustifyH("LEFT")
-    row.button = newButton(frame, "Request", 90, function() request(row) end, 22)
-    row.button:SetPoint("RIGHT", frame, "RIGHT", 0, 0)
-    frame:Hide()
-    view.resultRows[i] = row
+  function view.request()
+    local sel = view.sel
+    if not sel then return end
+    local detail = orders.detail(sel)
+    local asked = nil   -- the asked crafter, by full "First Last" name, only when that one can make this item
+    for _, crafter in ipairs(detail.crafters or {}) do
+      if view.asked and crafter.name == view.asked then asked = crafter.shown or crafter.name end
+    end
+    local saved, why = orders.submit({ item = detail.name, key = detail.key, prof = detail.crafters[1] and detail.crafters[1].profession or sel.prof,
+      qty = tonumber(view.qtyBox:GetText()) or 1, note = view.noteBox:GetText(), asked = asked, mats = view.mats })
+    if not saved then if ns.message then ns.message(why) end return end
+    orders.addRecent(sel)
+    view.noteBox:SetText("")
+    view.qtyBox:SetText("1")
+    view.asked, view.askedShown, view.mats = nil, nil, false   -- the options are for that one request
+    orders.refresh()
+    if ns.message then ns.message(string.format(L("Asked the guild for %dx %s. It is posted on Discord with your next sync."), saved.qty, saved.item)) end
   end
 
   -- The two lists.
@@ -1022,7 +1212,7 @@ function orders.buildCraftingPage(page, helpers)
     return view.contentHeight or 600
   end
 
-  page:HookScript("OnShow", function() orders.refresh(true) end)
+  page:HookScript("OnShow", function() view.browse = nil; orders.refresh(true) end)
   return view
 end
 
@@ -1037,54 +1227,174 @@ local function place(widget, page, x, y)
 end
 
 -- Request sub-tab: search, results, options.
-local function renderRequest(view, page, y, off)
-  setShown(view.box, true); setShown(view.searchButton, true)
-  place(view.box, page, 6, y); place(view.searchButton, page, 344, y + 3)
-  y = y - 34
-  -- Search results.
-  local n = math.min(RES_ROWS, #view.results)
-  for i, row in ipairs(view.resultRows) do
-    local entry = view.results[i]
-    row.entry = entry
-    if entry then
-      row.text:SetText(string.format("|cffffd100%s|r  |cffaaaaaa->|r  %s", entry.name, orders.crafterText(entry)))
-      setShown(row.button, not off)
-      place(row.frame, page, 0, y)
-      row.frame:Show()
-      y = y - ROW_H
+-- The item's icon, when the game knows it (never an error).
+local function iconFor(id)
+  if not id then return nil end
+  local ok, icon = pcall(function()
+    if C_Item and C_Item.GetItemIconByID then return C_Item.GetItemIconByID(id) end
+    if GetItemIcon then return GetItemIcon(id) end
+  end)
+  return ok and icon or nil
+end
+
+local function crafterLine(crafter)
+  local who = crafter.me and L("you") or crafter.shown
+  local state
+  if crafter.online then state = "|cff20ff20" .. L("online") .. "|r"
+  else
+    local ago = ns.recipes and ns.recipes.lastSeenText and ns.recipes.lastSeenText(crafter.name, false, crafter.seenAt)
+    state = "|cff909090" .. (ago and string.format(L("seen %s ago"), ago) or L("last seen unknown")) .. "|r"
+  end
+  local prof = crafter.profession and (ns.util and ns.util.professionLabel and ns.util.professionLabel(crafter.profession) or crafter.profession) or nil
+  return string.format("%s  %s%s", who, state, prof and ("  |cffaaaaaa" .. prof .. "|r") or "")
+end
+
+local function renderDetail(view, page, x, y, off)
+  local sel = view.sel
+  if not sel then
+    view.note:SetText(off and L("Your officers turned crafting orders off (in Discord: /craft orders-setting).") or L("Pick a recipe on the left, or type what you need above. The star keeps it in Favourites."))
+    place(view.note, page, x, y - 4); view.note:Show()
+    return y - math.max(18, textHeight(view.note) + 6)
+  end
+  local detail = orders.detail(sel)
+  local qty = math.max(1, math.min(200, math.floor(tonumber(view.qtyBox:GetText()) or 1)))
+  view.dTitle:SetText("|cffffd100" .. tostring(detail.name or "?") .. "|r")
+  place(view.dTitle, page, x, y); view.dTitle:Show()
+  view.dStar:SetText(orders.isFavourite(sel) and "|cffffd100*|r" or "|cff808080*|r")
+  place(view.dStar, page, x + DETAIL_W - 26, y + 3); view.dStar:Show()
+  y = y - 24
+  local prof = sel.prof and (ns.util and ns.util.professionLabel and ns.util.professionLabel(sel.prof) or sel.prof)
+  view.dProf:SetText(prof or "")
+  place(view.dProf, page, x, y); view.dProf:Show()
+  y = y - 18
+  -- Reagents with what is in your bags.
+  view.dReagentHeader:SetText(view.mats and L("Reagents you bring (have/need)") or L("Reagents (have/need)"))
+  place(view.dReagentHeader, page, x, y); view.dReagentHeader:Show()
+  y = y - 18
+  local reagents = orders.reagents({ key = detail.key, qty = qty }) or {}
+  for i, row in ipairs(view.dReagents) do
+    local mat = reagents[i]
+    if mat then
+      local enough = mat.have and mat.have >= mat.need
+      local colour = mat.have == nil and "|cffffffff" or enough and "|cff20ff20" or "|cffff4040"
+      row.text:SetText(string.format("%s%s/%d|r %s", colour, mat.have and tostring(mat.have) or "?", mat.need, clip(mat.name, 34)))
+      local icon = iconFor(mat.id)
+      if row.icon.SetTexture then row.icon:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark") end
+      place(row.frame, page, x, y); row.frame:Show()
+      y = y - 19
     else
       row.frame:Hide()
     end
   end
-  if n == 0 then
-    view.note:SetText(off and L("Your officers turned crafting orders off (in Discord: /craft orders-setting).") or L("Type what you need above. Results show who can craft it; Request asks the guild."))
-    place(view.note, page, 4, y)
-    view.note:Show()
-    y = y - math.max(18, textHeight(view.note) + 6)
+  if #reagents == 0 then
+    view.dReagentNote:SetText(L("Reagents are shown for recipes you can make. Open your profession window once so Guilded can read them."))
+    place(view.dReagentNote, page, x, y); view.dReagentNote:Show()
+    y = y - textHeight(view.dReagentNote) - 4
+  else view.dReagentNote:Hide() end
+  y = y - 4
+  -- Crafters: online state, last seen and profession.
+  local crafters = detail.crafters or {}
+  view.dCraftersHeader:SetText(string.format("%s (%d)", L("Crafters"), #crafters))
+  place(view.dCraftersHeader, page, x, y); view.dCraftersHeader:Show()
+  y = y - 18
+  if #crafters == 0 then
+    view.dCrafters[1]:SetText("|cff909090" .. L("nobody known") .. "|r")
+    place(view.dCrafters[1], page, x, y); view.dCrafters[1]:Show()
+    y = y - 16
   else
-    view.note:Hide()
-  end
-  local extra = (view.total or n) - n
-  if extra > 0 then
-    view.more:SetText(string.format(L("... and %d more matches. Be more specific."), extra))
-    place(view.more, page, 4, y); view.more:Show(); y = y - 16
-  else view.more:Hide() end
-  -- Options (collapsed).
-  place(view.optionsButton, page, 0, y)
-  view.optionsButton:SetText(view.options and L("Fewer options") or L("More options"))
-  y = y - 26
-  for _, widget in ipairs({ view.askButton, view.qtyLabel, view.qtyBox, view.noteLabel, view.noteBox }) do setShown(widget, view.options) end
-  if view.options then
-    view.askButton:SetText(view.askedShown and string.format(L("Ask: %s"), view.askedShown) or L("Ask: anyone"))
-    place(view.askButton, page, 0, y)
-    place(view.qtyLabel, page, 200, y - 5)
-    place(view.qtyBox, page, 262, y - 1)
-    place(view.noteLabel, page, 314, y - 5)
-    place(view.noteBox, page, 352, y - 1)
-    y = y - 30
+    for i, label in ipairs(view.dCrafters) do
+      local crafter = crafters[i]
+      if crafter then
+        label:SetText(crafterLine(crafter))
+        place(label, page, x, y); label:Show()
+        y = y - 16
+      end
+    end
+    if #crafters > #view.dCrafters then
+      -- The last label doubles as the "+N more" line when the list is longer than the pane.
+      local label = view.dCrafters[#view.dCrafters]
+      label:SetText(string.format(L("%d more crafters"), #crafters - #view.dCrafters + 1))
+    end
   end
   y = y - 6
+  -- Quantity, note, who brings the materials, ask one crafter, Request.
+  place(view.qtyLabel, page, x, y - 5); view.qtyLabel:Show()
+  place(view.qtyBox, page, x + 62, y - 1); view.qtyBox:Show()
+  place(view.noteLabel, page, x + 112, y - 5); view.noteLabel:Show()
+  view.noteBox:SetWidth(DETAIL_W - 152)
+  place(view.noteBox, page, x + 150, y - 1); view.noteBox:Show()
+  y = y - 30
+  view.matsButton:SetText(view.mats and L("Materials: I bring them") or L("Materials: crafter provides"))
+  place(view.matsButton, page, x, y); view.matsButton:Show()
+  y = y - 28
+  view.askButton:SetText(view.askedShown and string.format(L("Ask: %s"), view.askedShown) or L("Ask: anyone"))
+  place(view.askButton, page, x, y); view.askButton:Show()
+  setShown(view.requestButton, not off)
+  place(view.requestButton, page, x + DETAIL_W - 120, y - 2)
+  y = y - 34
   return y
+end
+
+-- Request sub-tab: search, the filter, the recipe list on the left and the detail pane on the right.
+local function renderRequest(view, page, y, off)
+  setShown(view.box, true); setShown(view.searchButton, true)
+  place(view.box, page, 6, y); place(view.searchButton, page, 344, y + 3)
+  place(view.onlineButton, page, 440, y + 3)
+  view.onlineButton:SetText(view.onlineOnly and ("|cffffd100" .. L("Crafter online now") .. "|r") or L("Crafter online now")); view.onlineButton:Show()
+  y = y - 34
+  local top = y
+  -- Left list.
+  local items, mode = orders.requestItems(view)
+  local shown = math.min(#items, LEFT_ROWS)
+  for i, row in ipairs(view.resultRows) do
+    local item = items[i]
+    row.item = item
+    if item then
+      local selected = view.sel and item.entry and ((view.sel.key and view.sel.key == tonumber(item.entry.key)) or (not view.sel.key and fold(view.sel.name) == fold(item.entry.name)))
+      if item.kind == "header" then
+        row.text:SetText("|cffffd100" .. (item.group and (item.open and "- " or "+ ") or "") .. item.label .. "|r")
+        row.star:Hide()
+        if row.back.SetColorTexture then row.back:SetColorTexture(1, 1, 1, 0.12) end
+      else
+        local entry = item.entry
+        local online = entry.online
+        if online == nil then
+          online = 0
+          for _, crafter in ipairs(entry.crafters or {}) do if crafter.online and not crafter.me then online = online + 1 end end
+        end
+        local count = entry.crafterCount or entry.crafters and #entry.crafters
+        local tail = count and (" |cff" .. (online > 0 and "20ff20" or "808080") .. "(" .. online .. ")|r") or ""
+        row.text:SetText((selected and "|cffffd100" or "|cffffffff") .. clip(tostring(entry.name or "?"), 30) .. "|r" .. tail)
+        row.star:SetText(orders.isFavourite(entry) and "|cffffd100*|r" or "|cff606060*|r")
+        row.star:Show()
+        if row.back.SetColorTexture then row.back:SetColorTexture(1, 1, 1, selected and 0.18 or 0.04) end
+      end
+      place(row.frame, page, 0, y)
+      row.frame:Show()
+      y = y - LEFT_ROW_H
+    else
+      row.frame:Hide()
+    end
+  end
+  if #items == 0 then
+    local message
+    if view.onlineOnly then message = L("Nobody who can craft these is online right now.")
+    elseif mode == "search" then message = L("Nothing matches. Type at least 2 letters.")
+    else message = L("No recipes shared yet. Open a profession window, then Share my recipes.") end
+    view.leftNote:SetText(message)
+    place(view.leftNote, page, 4, y); view.leftNote:Show()
+    y = y - math.max(18, textHeight(view.leftNote) + 6)
+  else view.leftNote:Hide() end
+  local extra = #items - shown
+  if mode == "search" then extra = math.max(extra, (view.total or 0) - shown) end
+  if extra > 0 then
+    view.more:SetText(string.format(L("... and %d more. Type a name to narrow."), extra))
+    place(view.more, page, 4, y); view.more:Show(); y = y - 16
+  else view.more:Hide() end
+  local leftBottom = y
+  -- Detail pane.
+  local detailBottom = renderDetail(view, page, LEFT_W + 10, top, off)
+  return math.min(leftBottom, detailBottom) - 6
 end
 
 -- My requests sub-tab.
@@ -1201,7 +1511,9 @@ function orders.render(view)
     button:SetText(button.subId == sub and ("|cffffd100" .. label .. "|r") or label)
   end
   -- Everything of the other sub-tabs is hidden first.
-  for _, widget in ipairs({ view.box, view.searchButton, view.note, view.more, view.optionsButton, view.askButton, view.qtyLabel, view.qtyBox, view.noteLabel, view.noteBox,
+  for _, widget in ipairs(view.requestWidgets) do widget:Hide() end
+  for _, row in ipairs(view.dReagents) do row.frame:Hide() end
+  for _, widget in ipairs({ view.box, view.searchButton,
     view.mineHeader, view.mineEmpty, view.forMeHeader, view.forMeEmpty, view.allButton, view.hint }) do widget:Hide() end
   for _, list in ipairs({ view.resultRows, view.mineRows, view.forMeRows }) do for _, row in ipairs(list) do row.frame:Hide() end end
   if sub == "mine" then y = renderMine(view, page, y, off)

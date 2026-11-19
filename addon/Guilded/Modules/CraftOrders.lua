@@ -23,7 +23,8 @@ ns = ns or {}
 
 local PREFIX = "GuildedOrd"
 local PART = 190
-local MAX_PARTS = 40
+local MAX_PARTS = 80
+local MAX_ORDERS = 500
 local COOLDOWN = 60
 local KEEP = 3 * 86400
 local MAX_HEARD = 200
@@ -325,32 +326,49 @@ local STATUS_BACK = { O = "OPEN", C = "CLAIMED", D = "DONE" }
 -- One line per order: id;key;qty;status;at;mats;item;by;crafter;character;asked;prof;note (notes cut to 80).
 function orders.encode(current)
   if current.off then return "X" end
-  local lines, size = {}, 0
-  for _, o in ipairs(current.orders or {}) do
-    local line = table.concat({ encode(o.id), tonumber(o.key) or 0, tonumber(o.qty) or 1, STATUS[o.status] or "O", tonumber(o.at) or 0, o.mats and 1 or 0,
+  -- At most MAX_ORDERS and at most MAX_PARTS of text: the newest orders are chosen, and they keep their own order.
+  local function lineOf(o)
+    return table.concat({ encode(o.id), tonumber(o.key) or 0, tonumber(o.qty) or 1, STATUS[o.status] or "O", tonumber(o.at) or 0, o.mats and 1 or 0,
       encode(o.item), encode(o.by), encode(o.crafter), encode(o.character), encode(o.asked), encode(o.prof), encode(string.sub(tostring(o.note or ""), 1, 80)) }, ";")
-    if size + #line + 1 > PART * MAX_PARTS then break end
-    lines[#lines + 1] = line
-    size = size + #line + 1
   end
+  local list = current.orders or {}
+  local all, byAge = {}, {}
+  for index, o in ipairs(list) do all[index] = lineOf(o); byAge[index] = index end
+  table.sort(byAge, function(x, y)
+    local ax, ay = tonumber(list[x].at) or 0, tonumber(list[y].at) or 0
+    if ax ~= ay then return ax > ay end
+    return x < y
+  end)
+  local chosen, size, count = {}, 0, 0
+  for _, index in ipairs(byAge) do
+    if count >= MAX_ORDERS or size + #all[index] + 1 > PART * MAX_PARTS then break end
+    chosen[index] = true; size = size + #all[index] + 1; count = count + 1
+  end
+  local lines = {}
+  for index = 1, #all do if chosen[index] then lines[#lines + 1] = all[index] end end
   return #lines > 0 and table.concat(lines, "\n") or "E"
 end
 
 function orders.decode(text)
   if text == "X" then return { off = true, orders = {} } end
   local result = { orders = {} }
+  local bad = 0
   if text == "E" then return result end
   for line in string.gmatch(text .. "\n", "([^\n]*)\n") do
     local id, key, qty, status, at, mats, rest = string.match(line, "^([%w_%-]+);(%-?%d+);(%d+);([OCD]);(%d+);([01]);(.*)$")
-    if not id or #id > 40 or #result.orders >= 50 then return nil end
+    -- A bad line is skipped, never the whole list; the list is capped at MAX_ORDERS.
+    if #result.orders >= MAX_ORDERS then break end
     local fields = {}
-    for field in string.gmatch(rest .. ";", "([^;]*);") do fields[#fields + 1] = decode(field) end
-    if #fields ~= 7 then return nil end
+    if id and #id <= 40 then for field in string.gmatch(rest .. ";", "([^;]*);") do fields[#fields + 1] = decode(field) end end
+    if id and #id <= 40 and #fields == 7 then
     key = tonumber(key)
     result.orders[#result.orders + 1] = { id = id, key = key ~= 0 and key or nil, qty = math.max(1, tonumber(qty) or 1), status = STATUS_BACK[status], at = tonumber(at), mats = mats == "1",
       item = string.sub(fields[1], 1, 100), by = string.sub(fields[2], 1, 60), crafter = string.sub(fields[3], 1, 60), character = string.sub(fields[4], 1, 60),
       asked = string.sub(fields[5], 1, 60), prof = canonProfession(string.sub(fields[6], 1, 40)), note = string.sub(fields[7], 1, 80) }
+    else bad = bad + 1 end
   end
+  -- Text with nothing readable in it is not a list.
+  if #result.orders == 0 and bad > 0 then return nil end
   return result
 end
 

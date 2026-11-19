@@ -605,7 +605,7 @@ describe("the relay for crafters without the companion", () => {
 
   it("round-trips its own line format and refuses malformed text", () => {
     setup();
-    expect(s!.run(`local c = NS.craftOrders.decode(NS.craftOrders.encode(NS.craftOrders.current())); return c.orders[2].item .. "|" .. tostring(c.orders[2].mats) .. "|" .. c.orders[4].status`))
+    expect(s!.run(`local c = NS.craftOrders.decode(NS.craftOrders.encode(NS.craftOrders.current())); local by = {}; for _, o in ipairs(c.orders) do by[o.id] = o end; return by.req_belt002.item .. "|" .. tostring(by.req_belt002.mats) .. "|" .. by.req_cloak04.status`))
       .toBe("Linen Belt|true|CLAIMED");
     expect(s!.run(`return tostring(NS.craftOrders.decode("bad line"))`)).toBe("nil");
     expect(s!.run(`return NS.craftOrders.decode("X").off and "off" or "on"`)).toBe("off");
@@ -768,5 +768,16 @@ describe("the orders relay carries the request refs", () => {
       for (const text of feed) s!.run(`fire_event("CHAT_MSG_ADDON", "GuildedOrd", ${JSON.stringify(text)}, "GUILD", "Kev Caron")`);
       expect(s!.run(`for _, o in ipairs(NS.craftOrders.current().orders) do if o.id == "req_ref00012" then return o.ref end end`), order).toBe("g6a0b1c2d3");
     }
+  });
+
+  it("keeps 119 of a 120-order list with one bad line, and caps the list at 500 newest first", () => {
+    setup();
+    const lines = Array.from({ length: 120 }, (_, i) => `req_n${i};2580;1;O;${1799990000 + i};0;Item${i};By;;;;Tailoring;`);
+    lines[50] = "garbage line";
+    expect(s!.run(`return #NS.craftOrders.decode(${JSON.stringify(lines.join(String.fromCharCode(10)))}).orders`)).toBe("119");
+    s!.run(`local rows = {}; for i = 1, 700 do rows[i] = { id = "req_m" .. i, key = 2580, qty = 1, status = "OPEN", at = 1799000000 + i, item = "I", by = "B", prof = "Tailoring" } end
+      BIG = NS.craftOrders.encode({ orders = rows })`);
+    // Newest first: whatever fits the parts is the newest, and the decoder takes at most 500.
+    expect(s!.run(`local c = NS.craftOrders.decode(BIG); return tostring(#c.orders <= 500) .. "," .. c.orders[#c.orders].id`)).toBe("true,req_m700");
   });
 });

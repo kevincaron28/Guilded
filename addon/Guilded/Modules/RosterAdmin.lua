@@ -1,6 +1,7 @@
 -- Local officer workspace. Every native mutation has its own hardware click.
--- Layout (9.1): one scrolling page of sections, each a header and a row of buttons:
---   Members, Ranks and promotion (bulk plan), Invites, Sync, GRM archive. (9.2: the Notes section and the
+-- Layout: one scrolling page of sections, each a header and a row of buttons: Members, Ranks and promotion, Invites,
+-- Sync. (19 Nov 2026: the bulk plan, paste box, confirmation field, local audit and GRM archive buttons were removed:
+-- WoW Forever refuses addon guild edits, so they could not do anything.) (9.2: the Notes section and the
 --   greeting switches were removed with the guild-note writers and the automatic welcome.)
 -- "Buff coverage" was removed from this window: it is a raid-readiness tool and lives on the Ready
 -- page. The officer-client switch (promote) that used to be slash-only is a check box here.
@@ -10,7 +11,7 @@ local window
 local CONTENT_WIDTH = 650
 
 function ns.openRosterAdmin()
-  if not ns.rosterTools.authorized() then ns.message(L("Current officer access is required.")); return end
+  if not ns.rosterTools.authorized() then ns.message(ns.rosterTools.accessMessage()); return end
   if window then window:Show(); return end
   local f = CreateFrame("Frame", "GuildedRosterAdmin", UIParent, "BasicFrameTemplateWithInset")
   window = f; f:SetSize(720, 580); f:SetPoint("CENTER"); f:SetMovable(true); f:EnableMouse(true)
@@ -28,9 +29,9 @@ function ns.openRosterAdmin()
 
   local status = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   status:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 18, 18); status:SetWidth(680); status:SetJustifyH("LEFT")
-  status:SetText(L("Nothing runs automatically. Refresh the roster before a bulk preview."))
+  status:SetText(L("Nothing runs automatically. Refresh the roster to see who is ready."))
 
-  local tools, grm = ns.rosterTools, ns.grmMigration
+  local tools = ns.rosterTools
   local y, x = -4, 0
   local function text(str, font, width)
     local t = content:CreateFontString(nil, "OVERLAY", font or "GameFontHighlightSmall")
@@ -94,36 +95,13 @@ function ns.openRosterAdmin()
 
   -- ---- Members --------------------------------------------------------------
   header("Members")
-  button("Refresh roster", function() return tools.requestRoster() end, "Asks the game for a fresh guild roster. Do this before a bulk preview.")
-  button("Local audit", function() show(tools.auditText()); return true end, "What this officer client changed, with the result of each change.")
+  button("Refresh roster", function() return tools.requestRoster() end, "Asks the game for a fresh guild roster.")
   endRow()
 
   -- ---- Ranks and promotion ---------------------------------------------------
   header("Ranks and promotion")
-  button("Ready to promote", function() if ns.promotion then ns.promotion.open() end; return true end, "Members who meet the promotion rules.")
+  button("Ready to promote", function() if ns.promotion then ns.promotion.open() end; return true end, "Who is ready to promote (the list and the guild roster steps).")
   officerSwitch("promote")
-  note("Bulk changes: paste tab-separated actions or a converted GGRM1 archive. Preview before confirming.")
-  local pasteScroll = CreateFrame("ScrollFrame", nil, content, "UIPanelScrollFrameTemplate")
-  pasteScroll:SetPoint("TOPLEFT", content, "TOPLEFT", 4, y); pasteScroll:SetSize(CONTENT_WIDTH - 40, 110)
-  local input = CreateFrame("EditBox", nil, pasteScroll)
-  input:SetMultiLine(true); input:SetAutoFocus(false); input:SetFontObject(GameFontHighlightSmall)
-  input:SetWidth(CONTENT_WIDTH - 50); input:SetHeight(110); input:SetMaxLetters(2700000); pasteScroll:SetScrollChild(input)
-  input:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-  y = y - 118
-  note("Bulk format: character [TAB] action [TAB] value. Actions: public, officer, promote, demote, kick.")
-  note("Exact character names; one row per character. Notes: 31 bytes. Empty value for rank/removal.")
-  text("Confirmation phrase / history search", "GameFontNormalSmall"); y = y - 16
-  local confirmation = CreateFrame("EditBox", nil, content, "InputBoxTemplate")
-  confirmation:SetPoint("TOPLEFT", content, "TOPLEFT", 10, y); confirmation:SetSize(230, 24); confirmation:SetAutoFocus(false); confirmation:SetMaxLetters(160)
-  confirmation:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-  y = y - 32
-  button("Preview actions", function() grm.pending = nil; local p, err = tools.preview(input:GetText()); if p then show(tools.describe()) end; return p, err end)
-  button("Confirm plan", function() return tools.confirm(confirmation:GetText()) end)
-  button("Apply next action", function() return tools.step() end)
-  endRow()
-  button("View plan / status", function() show(tools.describe()); return true end)
-  button("Cancel plan", function() tools.cancel(); return true end)
-  button("Recovery preview", function() grm.pending = nil; local p, err = tools.undoPreview(); if p then show(tools.describe()) end; return p, err end)
   endRow()
 
   -- ---- Invites -----------------------------------------------------------------
@@ -137,42 +115,23 @@ function ns.openRosterAdmin()
   button("Sync report", function() local h = ns.commandHandlers and ns.commandHandlers.sync; if h then h({ "stats" }) end; return true end)
   endRow()
 
-  -- ---- GRM archive -------------------------------------------------------------
-  header("GRM archive")
-  note("These use the paste box and confirmation phrase above. Confirm with IMPORT; recover with UNDO IMPORT. Archives stay on this character; no guild notes are changed.", 2)
-  button("Preview GRM", function() tools.invalidatePreview(); local p, err = grm.preview(input:GetText()); if p then show(grm.summary(p)) end; return p, err end)
-  button("Import GRM", function() return grm.import(confirmation:GetText()) end)
-  button("Undo GRM import", function() return grm.undo(confirmation:GetText()) end)
-  endRow()
-  button("Export GRM archive", function() local code = grm.export(); if code then show(code) end; return code end)
-  button("Search GRM history", function() show(grm.history(confirmation:GetText())); return true end)
-  endRow()
   content:SetHeight(-y + 20)
 
   local windowScope = tools.context()
   f:SetScript("OnShow", function()
-    if windowScope ~= tools.context() then
-      tools.invalidatePreview(); grm.pending = nil; input:SetText(""); confirmation:SetText("")
-    end
     windowScope = tools.context()
     refreshChecks()
   end)
   refreshChecks()
-  input:SetScript("OnTextChanged", function()
-    tools.invalidatePreview(); grm.pending = nil; confirmation:SetText("")
-  end)
   local elapsedSinceAccessCheck = 0
   f:SetScript("OnUpdate", function(self, elapsed)
     elapsedSinceAccessCheck = elapsedSinceAccessCheck + (elapsed or 0.5)
     if elapsedSinceAccessCheck < 0.5 then return end
     elapsedSinceAccessCheck = 0
-    if not tools.authorized() or windowScope ~= tools.context() then
-      tools.invalidatePreview(); grm.pending = nil
-      input:SetText(""); confirmation:SetText(""); self:Hide()
-    end
+    if not tools.authorized() or windowScope ~= tools.context() then self:Hide() end
   end)
 end
 ns.commandHandlers = ns.commandHandlers or {}
 ns.commandHelp = ns.commandHelp or {}
 ns.commandHandlers.rosteradmin = function() ns.openRosterAdmin() end
-table.insert(ns.commandHelp, { officer = true, text = "/guilded rosteradmin - local bulk actions and GRM archive" })
+table.insert(ns.commandHelp, { officer = true, text = "/guilded rosteradmin - officer tools: roster refresh, who is ready to promote, invite queue, sync" })

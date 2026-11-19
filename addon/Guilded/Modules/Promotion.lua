@@ -7,6 +7,9 @@
 -- protected guild action, and RosterTools refuses to stack requests until the roster verified the last one, so
 -- the batch is a step-through: one member per click. Each promotion goes through the reviewed RosterTools engine
 -- (fresh roster, permission check, audit, verification on the next roster event). The Alt rank is never promoted.
+-- Manual helper (19 Nov 2026): WoW Forever refuses addon guild actions, and an alt rank directly above a member
+-- would catch the one-step promote. Then the panel only lists who is ready, opens the guild roster and copies names:
+-- the officer promotes by hand. The addon never calls a promotion in that mode.
 local _, ns = ...
 ns = ns or {}
 local module = {}
@@ -38,8 +41,10 @@ function module.rule()
   local f = feed()
   if f then
     local days, level = tonumber(f.minDays), tonumber(f.minLevel)
+    local voice = tonumber(f.minVoice)
     return { fromRank = f.fromRank, minDays = days and math.max(0, math.min(365, math.floor(days))) or 7,
-      minLevel = level and math.max(0, math.min(100, math.floor(level))) or 0, fromBot = true }
+      minLevel = level and math.max(0, math.min(100, math.floor(level))) or 0, fromBot = true,
+      minVoice = voice and math.max(0, math.min(10080, math.floor(voice))) or nil, requireLink = f.requireLink }
   end
   local d = db() or {}
   local rule = type(d.promotionRule) == "table" and d.promotionRule or {}
@@ -61,6 +66,21 @@ local function ruleLine(rule)
   if rule.minLevel and rule.minLevel > 0 then return string.format(L("Rule: rank %s for %d+ days, level %d+."), rule.fromRank, rule.minDays, rule.minLevel) end
   return string.format(L("Rule: rank %s for %d+ days."), rule.fromRank, rule.minDays)
 end
+
+-- The rule in one line, from the feed's values (nothing hardcoded): "Promotions need a linked character, 7 days at
+-- Initiate and 3 h of voice a week." Only the parts the feed carries are named.
+local function requirementLine(rule)
+  if not rule.fromBot then return "" end
+  local parts = {}
+  if rule.requireLink == true then parts[#parts + 1] = L("a linked character") end
+  parts[#parts + 1] = string.format(L("%d days at %s"), rule.minDays, rule.fromRank)
+  if rule.minVoice and rule.minVoice > 0 then
+    local m = rule.minVoice
+    parts[#parts + 1] = (m % 60 == 0) and string.format(L("%d h of voice a week"), m / 60) or string.format(L("%d min of voice a week"), m)
+  end
+  return string.format(L("Promotions need %s."), table.concat(parts, ", "))
+end
+module.requirementLine = function() return requirementLine(module.rule()) end
 
 -- Remember when each member's current rank was first seen on this roster. A changed rank starts over.
 function module.observe()
@@ -92,6 +112,27 @@ local function altInvolved(snapshot, row)
   local tools = ns.rosterTools
   if not tools or not tools.isAltRank then return false end
   return tools.isAltRank(row.rankName)
+end
+
+-- Manual mode: this client refuses addon rank changes (remembered per client build), or an alt rank sits directly
+-- above a ready member. `ready` is the list module.ready() returned (optional).
+function module.manual(ready)
+  local tools = ns.rosterTools
+  if tools and tools.isBlocked and tools.isBlocked("promote") then return true end
+  if ready then for _, item in ipairs(ready) do if item.altInWay then return true end end end
+  return false
+end
+local MANUAL_LINE = "Promote from the guild roster: right-click the name, then Promote (or set the rank to Member)."
+function module.openGuildRoster()
+  if not outOfCombat() then return false, L("Promote next: not while in combat.") end
+  for _, name in ipairs({ "ToggleGuildFrame", "ToggleCommunitiesFrame" }) do
+    local fn = _G[name]
+    if type(fn) == "function" and pcall(fn) then return true end
+  end
+  local host = _G.CommunitiesFrame or _G.GuildFrame
+  if host and type(_G.ShowUIPanel) == "function" and pcall(_G.ShowUIPanel, host) then return true end
+  if host and host.Show and pcall(host.Show, host) then return true end
+  return false, L("Open the guild roster with the J key.")
 end
 
 local function levelOf(row)
@@ -136,7 +177,8 @@ function module.ready()
         if f and not listed then stats.notListed = stats.notListed + 1 else stats.tooLow = stats.tooLow + 1 end
       else
         stats.listed = stats.listed + 1
-        out[#out + 1] = { key = key, name = row.name, display = row.display, days = days, level = level, rank = row.rankName, fromBot = listed, exhausted = (tried[key] or 0) >= module.MAX_TRIES }
+        out[#out + 1] = { key = key, name = row.name, display = row.display, days = days, level = level, rank = row.rankName, fromBot = listed, exhausted = (tried[key] or 0) >= module.MAX_TRIES,
+          altInWay = tools.altInWay and not tools.canSetRank() and tools.altInWay(snapshot, row) or false }
       end
     end
   end
@@ -161,7 +203,10 @@ local function reasonText(code)
 end
 local function waitingText(row)
   local why = reasonText(row.reason)
-  if why == "" then return string.format(L("%s - waiting (%d days left)"), row.display, row.daysLeft) end
+  if why == "" then
+    if (row.daysLeft or 0) <= 0 then return string.format(L("%s - waiting for the Discord rule"), row.display) end
+    return string.format(L("%s - waiting (%d days left)"), row.display, row.daysLeft)
+  end
   if (row.daysLeft or 0) > 0 then return string.format(L("%s - waiting (%d days left)"), row.display, row.daysLeft) .. ", " .. why end
   return string.format(L("%s - waiting (%s)"), row.display, why)
 end
@@ -199,6 +244,7 @@ function module.promote(name)
   local tools = ns.rosterTools
   if not tools or not tools.authorized() then return false, L("Current officer access is required.") end
   if type(name) ~= "string" or name == "" or name:find("[\t\r\n]") then return false, L("Unknown or ambiguous character.") end
+  if tools.isBlocked and tools.isBlocked("promote") then return false, L(tools.blockedMessage("promote")) end
   if tools.plan and tools.plan.pending then return false, L("Wait for the roster to confirm the previous promotion.") end
   local snapshot = tools.snapshot()
   local target
@@ -207,6 +253,7 @@ function module.promote(name)
       if row.name:lower() == name:lower() or row.display:lower() == name:lower() then target = row; break end
     end
     if target and altInvolved(snapshot, target) then return false, L("Alts are never promoted.") end
+    if target and tools.altInWay and not tools.canSetRank() and tools.altInWay(snapshot, target) then return false, L(MANUAL_LINE) end
   end
   local plan, err = tools.preview("character\taction\tvalue\n" .. name .. "\tpromote\t")
   if not plan then return false, L(err or "Not applied. Check the preview and confirmation.") end
@@ -223,8 +270,9 @@ end
 function module.promoteNext()
   local _, ready = module.actionable()
   if not ready then return false, L("Refresh the full guild roster first.") end
+  if module.manual(ready) then return false, L(MANUAL_LINE) end
   for _, item in ipairs(ready) do
-    if not item.exhausted then
+    if not item.exhausted and not item.altInWay then
       local ok, message = module.promote(item.name)
       return ok, message, item.display
     end
@@ -239,11 +287,37 @@ function module.onKey()
   if not (ns.isOfficer and ns.isOfficer()) then say(L("Officers only.")); return false end
   if not outOfCombat() then say(L("Promote next: not while in combat.")); return false end
   local tools = ns.rosterTools
+  if tools and tools.isBlocked and tools.isBlocked("promote") then say(L(MANUAL_LINE)); return false end
   if tools and tools.requestRoster then tools.requestRoster() end
   local ok, message, display = module.promoteNext()
   if ok then say(string.format(L("Promotion requested: %s. Wait for the roster to confirm it before the next one."), display or "?"))
   else say(message or L("Nobody is ready to promote yet.")) end
   return ok
+end
+
+-- "/guilded promote test <name>": prints the call a promotion would make (function, roster index, rank number) and
+-- calls nothing, so the officer can check it on the real client before clicking. Diagnostic text, English only.
+function module.testLines(name)
+  local tools = ns.rosterTools
+  if not tools or not tools.authorized() then return { "Officer access is required." } end
+  if type(name) ~= "string" or name == "" then return { "Usage: /guilded promote test <name>" } end
+  local snapshot, err = tools.snapshot()
+  if not snapshot then return { tostring(err or "Refresh the full guild roster first.") } end
+  local target
+  for _, row in pairs(snapshot.rows) do
+    if row.name:lower() == name:lower() or row.display:lower() == name:lower() then target = row; break end
+  end
+  if not target then return { "Not found in the roster: " .. name } end
+  local dest = tools.promoteTarget(snapshot, target)
+  local function rn(i) return tostring(snapshot.rankNames and snapshot.rankNames[i + 1] or "?") end
+  local lines = { string.format("%s: roster index %d, rank index %d (%s), promotion target rank index %d (%s). Calls nothing.", target.display, target.index or -1, target.rank, rn(target.rank), dest, rn(dest)) }
+  if tools.altInWay(snapshot, target) then lines[#lines + 1] = "An alt rank is directly above this member." end
+  if tools.isBlocked("promote") then lines[#lines + 1] = "This client build refused rank changes before: manual mode."
+  elseif dest <= snapshot.actor.rank then lines[#lines + 1] = "No rank below yours to promote into."
+  elseif tools.canSetRank() then lines[#lines + 1] = string.format("Would call: %s(%d, %d)  [rank number = rank index + %d; base %s]", tools.RANK_SETTER, target.index or -1, tools.rankNumber(dest), (tools.rankBase()), select(2, tools.rankBase()) and "confirmed" or "not confirmed yet")
+  elseif dest == target.rank - 1 then lines[#lines + 1] = string.format("Would call: %s(%q)", tools.LEGACY_PROMOTE, tostring(target.name))
+  else lines[#lines + 1] = "Would call nothing: the rank setter is missing and an alt rank is in the way (manual mode)." end
+  return lines
 end
 
 -- "/guilded promote why": for each filter, how many roster rows it dropped.
@@ -266,6 +340,7 @@ function module.text()
   local ready, rule = module.ready()
   if not ready then return rule end
   local lines = { ruleLine(module.rule()) }
+  if requirementLine(module.rule()) ~= "" then lines[#lines + 1] = requirementLine(module.rule()) end
   if #ready == 0 then lines[#lines + 1] = L("Nobody is ready to promote yet.") end
   for _, row in ipairs(ready) do
     lines[#lines + 1] = string.format("%s%s - %d %s", row.display, row.level and (" " .. row.level) or "", row.days, L("days"))
@@ -314,11 +389,15 @@ function module.refresh()
   if not window then return end
   local ready, rule = module.ready()
   window.status:SetText(ready and ruleLine(module.rule()) or tostring(rule))
+  window.req:SetText(requirementLine(module.rule()))
   local waiting = ready and module.waiting() or {}
   local shown = 0
+  local manual = module.manual(ready)
+  window.manual = manual
   for i = 1, MAX_ROWS do
     local row, item = rows[i], ready and ready[i]
     if item then
+      row.button:SetText(manual and L("Copy name") or L("Promote"))
       row.label:SetText(string.format("%s%s - %d %s%s%s", item.display, item.level and (" " .. item.level) or "", item.days, L("days"), item.fromBot and " (Discord)" or "",
         item.exhausted and (" - " .. L("Tried several times; promote from the guild roster.")) or ""))
       row.item = item; row.label:Show(); row.button:Show(); shown = i
@@ -331,19 +410,29 @@ function module.refresh()
   end
   local actionable = 0
   if ready then for _, item in ipairs(ready) do if not item.exhausted then actionable = actionable + 1 end end end
-  window.all:SetText(string.format(L("Promote next (%d left)"), actionable))
-  if window.all.SetEnabled then window.all:SetEnabled(actionable > 0) end
+  if manual then
+    window.all:SetText(L("Open guild roster"))
+    if window.all.SetEnabled then window.all:SetEnabled(true) end
+    window.tip:SetText(L(MANUAL_LINE))
+  else
+    window.all:SetText(string.format(L("Promote next (%d left)"), actionable))
+    if window.all.SetEnabled then window.all:SetEnabled(actionable > 0) end
+    window.tip:SetText(L("Tip: bind a key in Key Bindings > Guilded"))
+  end
   window.empty:SetText(ready and #ready == 0 and L("Nobody is ready to promote yet.") or "")
   window.more:SetText(ready and #ready > MAX_ROWS and string.format(L("+%d more"), #ready - MAX_ROWS) or "")
 end
 
 function module.open()
   local tools = ns.rosterTools
-  if not tools or not tools.authorized() then if ns.message then ns.message(L("Current officer access is required.")) end; return end
+  if not tools or not tools.authorized() then if ns.message then ns.message(tools and tools.accessMessage and tools.accessMessage() or L("Current officer access is required.")) end; return end
   tools.requestRoster()
-  if window then window:Show(); module.refresh(); return end
+  if window then window:Show(); if window.Raise then window:Raise() end; module.refresh(); return end
   local f = CreateFrame("Frame", "GuildedPromotionPanel", UIParent, "BasicFrameTemplateWithInset")
-  window = f; f:SetSize(420, 150 + MAX_ROWS * 26); f:SetPoint("CENTER"); f:SetMovable(true); f:EnableMouse(true); f:SetClampedToScreen(true)
+  window = f; f:SetSize(420, 210 + MAX_ROWS * 26); f:SetPoint("CENTER");
+  -- Above the Roster admin window (DIALOG), which opens this panel: at the default strata it opened behind it.
+  if f.SetFrameStrata then f:SetFrameStrata("DIALOG") end
+ f:SetMovable(true); f:EnableMouse(true); f:SetClampedToScreen(true)
   f:RegisterForDrag("LeftButton"); f:SetScript("OnDragStart", f.StartMoving); f:SetScript("OnDragStop", f.StopMovingOrSizing)
   if f.TitleText then f.TitleText:SetText(L("Ready to promote")) end
   if UISpecialFrames then table.insert(UISpecialFrames, "GuildedPromotionPanel") end
@@ -352,21 +441,29 @@ function module.open()
     t:SetPoint("TOPLEFT", 18, y); t:SetWidth(380); t:SetJustifyH("LEFT"); return t
   end
   f.status = text(-34)
-  f.empty = text(-90)
+  f.req = text(-50)
+  f.req:SetHeight(28)
+  f.empty = text(-110)
   f.tip = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
   f.tip:SetPoint("BOTTOMLEFT", 18, 12); f.tip:SetWidth(380); f.tip:SetJustifyH("LEFT")
   f.tip:SetText(L("Tip: bind a key in Key Bindings > Guilded"))
-  f.more = text(-120 - MAX_ROWS * 26)
+  f.tip:SetHeight(30)
+  f.more = text(-134 - MAX_ROWS * 26)
   local all = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-  all:SetPoint("TOPLEFT", 18, -52); all:SetSize(230, 24); all:SetText(string.format(L("Promote next (%d left)"), 0))
+  all:SetPoint("TOPLEFT", 18, -82); all:SetSize(230, 24); all:SetText(string.format(L("Promote next (%d left)"), 0))
   all:SetScript("OnClick", function()
+    if f.manual then
+      local opened, why = module.openGuildRoster()
+      f.status:SetText(opened and L(MANUAL_LINE) or why or "")
+      return
+    end
     local ok, message = module.promoteNext()
     f.status:SetText(message or "")
     if ok then module.refresh() end
   end)
   f.all = all
   for i = 1, MAX_ROWS do
-    local y = -86 - (i - 1) * 26
+    local y = -126 - (i - 1) * 26
     local label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     label:SetPoint("TOPLEFT", 18, y - 4); label:SetWidth(280); label:SetJustifyH("LEFT")
     local button = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
@@ -374,13 +471,18 @@ function module.open()
     local row = { label = label, button = button }
     button:SetScript("OnClick", function()
       if not row.item then return end
+      if f.manual then
+        if ns.showCopyText then ns.showCopyText(row.item.display, L("Copy name")) end
+        f.status:SetText(L(MANUAL_LINE))
+        return
+      end
       local ok, message = module.promote(row.item.name)
       f.status:SetText(message or "")
       if ok then button:Hide() end
     end)
     rows[i] = row
   end
-  f:SetScript("OnShow", function() module.refresh() end)
+  f:SetScript("OnShow", function(self) if self.Raise then self:Raise() end; module.refresh() end)
   module.refresh()
 end
 
@@ -435,6 +537,9 @@ ns.commandHandlers.promote = function(args)
     if ns.message then ns.message(ruleLine(module.rule())) end
   elseif sub == "why" then
     if ns.message then for _, line in ipairs(module.why()) do ns.message(line) end end
+  elseif sub == "test" then
+    local name = table.concat(args, " ", 3)
+    if ns.message then for _, line in ipairs(module.testLines(name)) do ns.message(line) end end
   elseif sub == "list" then
     if ns.showCopyText then ns.showCopyText(module.text(), L("Ready to promote")) end
   else module.open() end

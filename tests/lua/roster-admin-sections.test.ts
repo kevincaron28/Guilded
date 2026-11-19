@@ -50,7 +50,7 @@ describe("roster admin window", () => {
       local out = {}
       for _, t in ipairs(TEXTS) do out[#out + 1] = string.format("%q", t) end
       return "[" .. table.concat(out, ",") .. "]"`));
-    const order = ["Members", "Ranks and promotion", "Invites", "Sync", "GRM archive"].map((h) => texts.indexOf(h));
+    const order = ["Members", "Ranks and promotion", "Invites", "Sync"].map((h) => texts.indexOf(h));
     expect(order.every((i) => i >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     for (const label of ["Invite queue", "Sync with guildmates"]) {
@@ -99,7 +99,7 @@ describe("copy windows", () => {
 describe("new roster admin strings are translated", () => {
   const source = readFileSync("addon/Guilded/Locale.lua", "utf8");
   const tables = (["FR", "DE", "ES"] as const).map((l) => [l, readTable(source, l)] as const);
-  it.each(["Members", "Ranks and promotion", "Invites", "Sync", "GRM archive", "Invite queue", "Sync with guildmates", "Sync report"])("%s", (key) => {
+  it.each(["Members", "Ranks and promotion", "Invites", "Sync", "Invite queue", "Sync with guildmates", "Sync report"])("%s", (key) => {
     for (const [lang, entries] of tables) expect(entries.get(key), `${lang}: ${key}`).toBeTypeOf("string");
   });
 });

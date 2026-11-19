@@ -1,5 +1,24 @@
 # Changelog
 
+## 9.4.2 — 19 November 2026
+
+The data-loss audit fixes (docs/plans/DATA_LOSS_AUDIT_2026-11-19.md). Prepared 19 November 2026, not yet published. Not yet confirmed on real clients (see docs/V9_4_2_RELEASE_ACCEPTANCE.md).
+
+Addon:
+
+- Achievements are kept apart from other milestones, so a big achievement scan no longer pushes out level-ups and first clears (#1148).
+- A stored copy of a dungeon run fills in a missing guild, faction, class or role when another copy arrives (#1148).
+- Officer sync fields always fit in their message; recipe lists up to 800 relay in full (#1148).
+- Crafting-order lists keep the good lines when one is bad, and carry more orders (#1151).
+
+Companion:
+
+- Big uploads are split into parts so one large list never blocks the rest; every milestone, duel of the season and recipe is sent; a run is marked done only after its full copy is sent (#1147).
+
+Bot (already live):
+
+- A later, richer report of a run fills in what the first lacked; guild info, ranks, levels and race are never blanked or lowered by stale data; up to 5000 milestones and duels per upload; sign-in-free companions can send spec, professions and their own duels (#1149).
+
 ## 9.4.1 — 19 November 2026
 
 Fixes from the owner's day of testing 9.4.0. Published 19 November 2026. Not yet confirmed on real clients (see docs/V9_4_1_RELEASE_ACCEPTANCE.md).

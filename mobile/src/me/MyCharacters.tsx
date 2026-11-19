@@ -23,7 +23,7 @@ const words = {
   level: { en: "Level", fr: "Niveau" },
   confirmed: { en: "Confirmed", fr: "Confirmé" },
   reported: { en: "Reported", fr: "Rapporté" },
-  empty: { en: "No linked character yet. Link one in game with /guilded verify, or sign the Windows companion in.", fr: "Aucun personnage lié. Liez-en un en jeu avec /guilded verify, ou connectez le compagnon Windows." },
+  empty: { en: "No linked character yet. Send the Guilded bot your character's full name in a Discord message, or sign the Windows companion in.", fr: "Aucun personnage lié. Envoyez au bot Guilded le nom complet du personnage en message privé Discord, ou connectez le compagnon Windows." },
   failed: { en: "Your characters are unavailable right now.", fr: "Vos personnages sont indisponibles pour le moment." },
   unlinkTitle: { en: "Unlink this character?", fr: "Délier ce personnage ?" },
   unlinkBody: { en: "{name} leaves your list on this Discord server. Its history is kept and the officers see a line in the log. You can link it back later with /character list in Discord.", fr: "{name} quitte votre liste sur ce serveur Discord. Son historique est conservé et les officiers voient une ligne dans le journal. Vous pourrez le relier plus tard avec /character list dans Discord." },

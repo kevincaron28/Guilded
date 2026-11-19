@@ -35,7 +35,7 @@ const copy = {
   loading: { en: "Loading your guild…", fr: "Chargement de votre guilde…" },
   personalTitle: { en: "Public leaderboards only", fr: "Classements publics seulement" },
   personalBody: { en: "This sign-in is for the public dungeon leaderboards, not a guild. Sign in again and choose your Discord server to see characters, reserves and raids.", fr: "Cette connexion sert aux classements publics de donjons, pas à une guilde. Reconnectez-vous et choisissez votre serveur Discord pour voir les personnages, les réserves et les raids." },
-  noCharacters: { en: "No linked character yet. Link one in game with /guilded verify, or sign the Windows companion in so an upload can attach your characters.", fr: "Aucun personnage lié. Liez-en un en jeu avec /guilded verify, ou connectez le compagnon Windows pour qu'un envoi attache vos personnages." },
+  noCharacters: { en: "No linked character yet. Send the Guilded bot your character's full name in a Discord message, or sign the Windows companion in so an upload can attach your characters.", fr: "Aucun personnage lié. Envoyez au bot Guilded le nom complet du personnage en message privé Discord, ou connectez le compagnon Windows pour qu'un envoi attache vos personnages." },
   main: { en: "Main", fr: "Principal" },
   rank: { en: "Guild rank", fr: "Rang de guilde" },
   noRank: { en: "No guild rank recorded yet", fr: "Aucun rang de guilde enregistré" },

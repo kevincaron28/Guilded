@@ -205,7 +205,8 @@ describe("game menu and pairing", () => {
     const payload = interaction.editReply.mock.calls[0]![0];
     // The Windows app steps come first; the line to paste in game is the fallback second field.
     expect(payload.embeds[0].data.fields[0].value).toContain("**Sign in with Discord**");
-    expect(payload.embeds[0].data.fields[1].value).toContain("```\n/guilded verify ABCD-EFGH\n```");
+    expect(payload.embeds[0].data.fields[1].value).not.toContain("/guilded verify");
+    expect(payload.embeds[0].data.fields[1].value).toContain("DM me your character's full name");
     expect(issueCharacterPairingCode).not.toHaveBeenCalled();
     expect(interaction.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
     expect(interaction.deferReply.mock.invocationCallOrder[0]).toBeLessThan(interaction.guild.members.fetch.mock.invocationCallOrder[0]!);
@@ -239,8 +240,8 @@ describe("game menu and pairing", () => {
     expect(description).toContain("Personnage principal : **Ray**");
     expect(description).toContain("Alt : **Other**");
     const instructions = interaction.editReply.mock.calls[0]![0].embeds[0].data.fields[1].value;
-    expect(instructions).toContain("/guilded verify ABCD-EFGH");
-    expect(instructions).toContain("Tes personnages se lient");
+    expect(instructions).not.toContain("/guilded verify");
+    expect(instructions).toContain("confirmé à la prochaine synchronisation");
   });
 
   it("shows the companion steps without making a code, which only its own button issues", async () => {
@@ -250,7 +251,7 @@ describe("game menu and pairing", () => {
     const interaction = click("onboard:companion:g1", fakeGuild(member));
     await handleOnboardingInteraction(interaction as never);
     const payload = interaction.editReply.mock.calls[0]![0];
-    expect(payload.embeds[0].data.fields[1].value).toContain("/guilded verify ABCD-EFGH");
+    expect(payload.embeds[0].data.fields[1].value).not.toContain("/guilded verify");
     expect(payload.embeds[0].data.fields[0].value).toContain("**Sign in with Discord**");
     expect(issueCharacterPairingCode).not.toHaveBeenCalled();
     expect(payload.components[0].toJSON().components.at(-1)).toMatchObject({ custom_id: "onboard:paircode:g1" });

@@ -70,7 +70,7 @@ describe("describeRunCredit", () => {
   it("says who earned points and why the others did not", () => {
     const text = describeRunCredit(run, [{ memberId: "m-crashin", amount: 12 }]);
     expect(text).toContain("Crashin (Crash): +12 point(s)");
-    expect(text).toMatch(/Xaldin: guildmate, not linked.*\/guilded verify/);
+    expect(text).toMatch(/Xaldin: guildmate, not linked.*DM the bot/);
     expect(text).toMatch(/El Pirata: guildmate, not linked/);
     expect(text).toMatch(/Randomguy: not linked and not flagged/);
   });

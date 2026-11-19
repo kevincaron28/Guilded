@@ -12,10 +12,10 @@ import { postToLogChannel } from "./housekeeping.js";
 // character to the bot ("First Last", button or typed). That request is the provisional claim. When
 // the character shows up in the guild (any member's upload brings the roster or guildmates'
 // digests), it is linked to the member who asked, provisionally (a PROVISIONAL claim, so the next
-// officer upload or /guilded verify can still confirm or move it), and they get one DM.
+// officer upload can still confirm or move it), and they get one DM.
 //
 // Never links a name that is already linked to anyone, one that two different people asked for
-// (ambiguous: those wait for /guilded verify), one the member unlinked, or a first name only.
+// (ambiguous: those wait for an officer), one the member unlinked, or a first name only.
 
 type Database = Pick<PrismaClient, "inviteRequest" | "member" | "character" | "characterVerifyClaim" | "guildRosterEntry" | "$transaction">;
 
@@ -80,7 +80,7 @@ export async function tellPrelinked(client: Client, discordGuildId: string, lang
   }
   if (guild) {
     await postToLogChannel(guild, results.map((result) => language === "fr"
-      ? `🔗 ${result.name} a été lié à <@${result.discordUserId}>, qui a demandé ce nom dans le salon d'invitation (la prochaine synchronisation d'un officier ou son code /guilded verify le confirme).`
-      : `🔗 ${result.name} was linked to <@${result.discordUserId}> because they asked for that name in the invite channel (the next officer sync or their /guilded verify code confirms it).`).join("\n")).catch(() => undefined);
+      ? `🔗 ${result.name} a été lié à <@${result.discordUserId}>, qui a demandé ce nom dans le salon d'invitation. Le lien sera confirmé à la prochaine synchronisation.`
+      : `🔗 ${result.name} was linked to <@${result.discordUserId}> because they asked for that name in the invite channel. It is confirmed at the next sync.`).join("\n")).catch(() => undefined);
   }
 }

@@ -85,23 +85,14 @@ you can stop here. Discord sync needs the steps below.
 ## Optional: link your main and alts to Discord without a companion
 
 1. In Discord, press **Link my WoW character / Lier mon personnage WoW** in the
-   welcome panel, or run `/character link`. The private reply starts with one
-   line in a box, such as `/guilded verify ABCD-EFGH`.
-2. Copy that line, paste it into WoW chat on any of your characters and press
-   Enter. That's all, also for your alts.
+   welcome panel, or run `/character link`.
+2. Send the bot your character's full name (First Last) in a private message, or
+   type it in the guild-invite channel. That's all.
 
-Characters you play in this guild on that WoW account can then link, the first one as
-your main, after an online officer's addon receives their guild data and that officer
-saves and syncs it. Both players need matching addons. You
-get a Discord DM for each one; `/character list` shows the result. Not your
-character? `/character unlink` removes it, and the code will not link it again.
-The line is the same every time you run `/character link`.
-
-If no officer's companion has synced for two weeks, the reply also shows the
-manual way: in WoW type `/guilded character`, copy the line, then in Discord use
-`/character link` and paste it into **code** with **main** unset (once per
-character). Without a guild, `/guilded verify` has nothing to link: the addon
-works on its own. If you do not want Discord character linking, skip this.
+The link is confirmed at the next sync: an officer's or your companion's upload that
+shows the character in the guild. You get a Discord DM; `/character list` shows the
+result. Not your character? `/character unlink` removes it, and it will not be linked
+again by itself. If you do not want Discord character linking, skip this.
 
 ## Optional: install and connect the Windows companion
 
@@ -172,7 +163,7 @@ not finish, the next start offers **Run the installer**.
 | Guilded missing from the AddOns list | Check the actual client folder and the exact Guilded.toc path above; restart WoW. |
 | Find it finds no Guilded.lua | Log in with Guilded enabled and `/reload`, then Browse to your account's SavedVariables. |
 | Sign in with Discord fails | Check full Guilded approval and, for a guild with its own bot, its address; then choose **Sign in with Discord** again. Companions older than 7.2: use a new `/character link` code (one use, 15 minutes) and keep it private. |
-| `/guilded verify` did not link yet | Linking happens on the next upload from an **officer's** companion: ask an officer to `/reload` and **Sync now**. `/guilded verify` in game says whether your code is saved. |
+| A link made from a name is still "reported" | It is confirmed at the next sync that shows the character in the guild: ask an officer to `/reload` and **Sync now**. |
 | Link revoked or unauthorized | This device was removed under Connections, or your server access changed. Ask an officer about membership/access, then sign this device in again. |
 | Cannot reach bot | Press **Sync now** and read the **Last sync** line; **Advanced > Activity** shows the reason. Ask the owner whether the bot is online. |
 | Guild is not initialized / 404 | Confirm this bot is approved and set up in your server. The owner runs `/setup start`. Check the server ID only if an older companion or Advanced preferences asks for it. |
@@ -240,27 +231,10 @@ soutien financier est facultatif et ne donne aucune priorité.
 3. Ouvrez Guilded avec la pièce sur la minicarte. `/reload` enregistre les données.
 4. **L'addon seul est le choix par défaut. Vous pouvez arrêter ici.** Pour lier
    vos personnages à Discord sans compagnon : appuyez sur **Lier mon personnage WoW**
-   ou lancez `/character link`, copiez la ligne affichée (par exemple
-   `/guilded verify ABCD-EFGH`) et collez-la une seule fois dans le chat de WoW.
-   Vos personnages de cette guilde peuvent ensuite se lier, le premier comme
-   principal, après qu'un officier en ligne a reçu, enregistré et synchronisé leurs
-   données. Les deux joueurs doivent avoir les addons correspondants. Vous recevez
-   un message privé Discord. Vérifiez `/character list`.
-   Si aucun compagnon d'officier n'a synchronisé depuis 2 semaines, la réponse
-   montre aussi la méthode manuelle : `/guilded character` en jeu, puis
-   `/character link` → **code** sur Discord avec **main** vide.
-5. **Compagnon facultatif :** dans **Lier mon personnage WoW**, choisissez
-   **Connecter le compagnon (facultatif)**, ou utilisez `/character link`.
-   Installez le compagnon Windows avec **Obtenir le compagnon Windows** (Microsoft Store d'abord).
-6. Dans la fenêtre du compagnon, appuyez sur **Se connecter avec Discord** (facultatif) : le navigateur
-   s'ouvre, choisissez votre serveur et appuyez sur **Connecter**. Rien à taper.
-   Les compagnons plus anciens que 7.2 doivent être mis à jour.
-   Sélectionnez le dossier `SavedVariables` de votre compte et, avec
-   **Save standings to addon**, le dossier `Interface/AddOns/Guilded`.
-7. Après `/reload`, cliquez sur **Sync now**. Synchronisez votre principal d'abord
-   si aucun personnage n'est encore lié. Vérifiez l'envoi et le classement,
-   puis faites `/reload` : l'addon charge et utilise le classement Discord tout seul. Le navigateur garde
-   la connexion et les dossiers si le stockage est disponible.
+   ou lancez `/character link`, puis envoyez au bot le nom complet du personnage
+   en message privé (ou écrivez-le dans le salon d'invitation). Le lien est
+   confirmé à la prochaine synchronisation. Vous recevez un message privé Discord.
+   Vérifiez `/character list`.
 
 Le compagnon Windows reste facultatif pour la synchronisation automatique en
 arrière-plan et le suivi PoE2, particulièrement utile aux chefs et officiers.

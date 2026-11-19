@@ -37,7 +37,7 @@ indiquent en privé leur nouvel emplacement pendant une version.
 | Commande | Ce qu’elle fait | Qui |
 | --- | --- | --- |
 | `/help` | Liste les commandes que vous pouvez utiliser | Tout le monde |
-| `/character link` | Lier vos personnages : envoyez au bot le nom complet du personnage, écrivez-le dans le salon d’invitation, ou collez `/guilded verify` en jeu. On peut aussi y coller une ligne `/guilded character` ou un code `/guilded share` | Tout le monde |
+| `/character link` | Lier vos personnages : envoyez au bot le nom complet du personnage, ou écrivez-le dans le salon d’invitation (confirmé à la prochaine synchronisation). On peut aussi y coller une ligne `/guilded character` ou un code `/guilded share` | Tout le monde |
 | `/character` `add` `unlink` `list` `guild` | Ajouter un personnage à la main ; en délier un ; vos personnages ; choisir votre guilde en jeu | Tout le monde |
 | `/character privacy` | Vous cacher ou vous montrer sur le site ; `action:delete` supprime vos données | Tout le monde |
 | `/character` `profile` `achievements` `who` | Votre profil et vos succès ; chercher n’importe quel joueur | Tout le monde |
@@ -147,7 +147,6 @@ Les lignes « Officiers » demandent le rang d’officier dans votre guilde WoW.
 | `/guilded history [joueur]` | Votre historique d’EP/GP et de butin | Tout le monde |
 | `/guilded share` | Un seul collage avec votre personnage, équipement et accès (Discord : `/character link`) | Tout le monde |
 | `/guilded character` | Une ligne pour lier ce personnage dans Discord | Tout le monde |
-| `/guilded verify <code>` | Lier tous vos personnages à Discord d’un coup (Discord : `/character link`) | Tout le monde |
 | `/guilded sync` | Comment envoyer vos données à Discord maintenant | Tout le monde |
 | `/guilded attune <clé>` | Noter votre propre accès à un raid | Tout le monde |
 | `/guilded inspect` · `enchants` · `slots` | Vérification d’équipement ; règles d’enchantements et d’emplacements vides | Tout le monde |

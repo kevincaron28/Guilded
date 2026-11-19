@@ -55,9 +55,10 @@ describe("private character connection instructions", () => {
     expect(embed.fields![0]!.value).toContain("**Sign in with Discord**");
     expect(embed.fields![0]!.value).toContain("finds your WoW folder by itself");
     expect(embed.fields![1]!.name).toContain("No Windows PC");
-    // The command alone on its line in a box, so the whole line is copied.
-    expect(embed.fields![1]!.value).toContain("```\n/guilded verify ABCD-EFGH\n```");
-    expect(embed.fields![1]!.value).toContain("link themselves at the next companion sync");
+    // No verify code any more (November 2026): the name is sent to the bot and confirmed by sync.
+    expect(embed.fields![1]!.value).not.toContain("/guilded verify");
+    expect(embed.fields![1]!.value).toContain("DM me your character's full name");
+    expect(embed.fields![1]!.value).toContain("confirmed at the next sync");
     expect(embed.fields![1]!.value).not.toContain("/character import");
     expect(embed.fields!.some((field) => /optional/i.test(field.name))).toBe(false);
     expect(mocks.db.characterVerifyCode.upsert).toHaveBeenCalledWith(expect.objectContaining({ where: { guildId_memberId: { guildId: "guild1", memberId: "member1" } }, update: {} }));
@@ -97,7 +98,8 @@ describe("private character connection instructions", () => {
     const fields = reply.embeds[0]!.data.fields!;
     // Sign in with Discord first (2 steps), then the in-game line.
     expect(fields[1]!.name).toContain("No companion?");
-    expect(fields[1]!.value).toContain("/guilded verify ABCD-EFGH");
+    expect(fields[1]!.value).not.toContain("/guilded verify");
+    expect(fields[1]!.value).toContain("DM me your character's full name");
     expect(fields[0]!.value).toContain("**Sign in with Discord**");
     expect(fields[0]!.value).toContain("Nothing to type");
     expect(fields[0]!.value).not.toContain("server ID");
@@ -147,7 +149,9 @@ describe("private character connection instructions", () => {
     await executeCharacterLink(interaction as never);
     const reply = interaction.editReply.mock.calls[0]![0];
     expect(reply.embeds[0].data.title).toBe("🔗 Lier tes personnages WoW");
-    expect(reply.embeds[0].data.fields[0].value).toContain("/guilded verify ABCD-EFGH");
+    expect(reply.embeds[0].data.fields[0].value).not.toContain("/guilded verify");
+    expect(reply.embeds[0].data.fields[0].value).toContain("Envoie-moi en MP");
+    expect(reply.embeds[0].data.fields).toHaveLength(1);
     expect(reply.components[0].toJSON().components.at(-1)).toMatchObject({ custom_id: "onboard:paircode:server1" });
     expect(mocks.issueCode).not.toHaveBeenCalled();
   });

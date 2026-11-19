@@ -111,7 +111,7 @@ After login, an officer (guild rank 0 or 1 by default) can use:
 /guilded deduct Player 5 Mistake
 /guilded loot Player [Tier Item] 25
 /guilded inspect
-/guilded verify ABCD-EFGH
+/guilded verify   (retired: prints "No longer needed"; links are confirmed by sync)
 /guilded character
 /guilded share
 /guilded consumes
@@ -203,14 +203,12 @@ Broadcasts use the `GUILD` channel (not `RAID`) so they reach everyone online,
 not just your current raid group. `/guilded inspect` run manually broadcasts the
 same way.
 
-**Linking to Discord without a companion.** `/character link` in Discord shows a
-line such as `/guilded verify ABCD-EFGH`. Pasted once, the code is saved with the
-WoW account's data (for that guild), and every digest of every character on the
-account carries it as `V:ABCDEFGH`. A receiving client stores it in `peerRoster`
-only under the name the game gave for the sender, so the next upload from an
-officer's companion links each of those characters to that Discord member. The
-code is not a password (guildmates' addons see it), and backups never copy it to
-another PC.
+**Linking to Discord without a companion.** Send the Guilded bot your character's
+full name in a Discord message (or type it in the guild-invite channel); the link is
+confirmed at the next sync. `/guilded verify` was retired in November 2026 and only
+prints "No longer needed: links are confirmed by sync." A code saved on the account
+before is still carried as `V:ABCDEFGH` in the digest for one more release (the bot
+accepts already-issued codes during that time), and `/guilded verify off` removes it.
 
 Exports are the SavedVariables file itself. The companion
 (`companion/lua-export.mjs` in the bot repository) reads it and sends the

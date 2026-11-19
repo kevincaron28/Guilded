@@ -251,8 +251,8 @@
     "path": "guides/link/",
     "title": "Link your character — step-by-step guide",
     "titleFr": "Lier votre personnage — guide pas à pas",
-    "description": "Step-by-step: sign in with Discord in the companion, type /reload, see that you are linked, use /guilded verify without the companion, and link a second character.",
-    "descriptionFr": "Pas à pas : connectez-vous avec Discord dans le compagnon, tapez /reload, vérifiez le lien, utilisez /guilded verify sans compagnon et liez un deuxième personnage.",
+    "description": "Step-by-step: sign in with Discord in the companion, type /reload, see that you are linked, link without the companion by sending the bot your character's name, and link a second character.",
+    "descriptionFr": "Pas à pas : connectez-vous avec Discord dans le compagnon, tapez /reload, vérifiez le lien, liez sans compagnon en envoyant le nom de votre personnage au bot et liez un deuxième personnage.",
     "lang": "en",
     "draft": false
   }

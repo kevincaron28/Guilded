@@ -49,7 +49,7 @@ export function whyNotOnBoard(run: DiagnosedRun, season: SeasonRow, guildId: str
   const present = run.players.filter(p => presentEnough(p.presentSec, run.durationSec!, presence));
   if (!present.length) return `nobody was in the run for ${Math.round(presence * 100)}% of its time`;
   const rated = present.filter(p => (p.memberId && p.member?.guildId === guildId) || (!p.memberId && p.inGuild));
-  if (!rated.length) return "no player is linked to a member of this server (link characters with the companion or /guilded verify)";
+  if (!rated.length) return "no player is linked to a member of this server (link characters with the companion, or DM the bot the character's full name)";
   if (rules && !rated.some(p => levelRecorded(evidence as never, p.character))) return "no player's level was recorded in the run";
   return null;
 }

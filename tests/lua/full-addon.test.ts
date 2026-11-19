@@ -325,7 +325,7 @@ describe("the whole addon, loaded in .toc order", () => {
     expect(diagnostics(s)).toBe("0");
     expect(s.chat().join("\n")).toContain("Readiness captured");
     // /guilded verify says it is not needed instead of saving a code nobody would hear.
-    expect(s.chat().join("\n")).toContain("You are not in a guild, so there is nothing to link");
+    expect(s.chat().join("\n")).toContain("No longer needed: links are confirmed by sync.");
     expect(s.run(`return tostring(NS.getDb().verifyCode)`)).toBe("nil");
   });
 

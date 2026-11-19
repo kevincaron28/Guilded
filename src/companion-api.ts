@@ -141,8 +141,16 @@ async function prelinkAfterUpload(client: Client, database: typeof prisma, guild
   } catch (error) { console.warn("Invite pre-link failed", error); }
 }
 
+/**
+ * (9.4 T1.3) How long a companion should wait after a 503: 15 to 45 seconds, different for every answer. After a restart every
+ * companion failed at once and came back on the same schedule; the spread, with the companion's own jitter, breaks that herd.
+ */
+export function retryAfterSeconds(random: () => number = Math.random): number {
+  return 15 + Math.min(30, Math.floor(Math.max(0, random()) * 31));
+}
+
 function json(response: ServerResponse, status: number, body: unknown): void {
-  response.writeHead(status, { "content-type": "application/json; charset=utf-8" });
+  response.writeHead(status, { "content-type": "application/json; charset=utf-8", ...(status === 503 ? { "retry-after": String(retryAfterSeconds()) } : {}) });
   response.end(JSON.stringify(body));
 }
 

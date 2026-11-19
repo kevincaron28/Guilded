@@ -98,9 +98,16 @@ function tools.snapshot()
   end
   return { rows = rows, actor = me, ranks = ranks, rankNames = layout, layout = table.concat(layout, "\n"), scope = tools.context(), at = now() }
 end
+-- Where a promotion lands: the next rank up, skipping alt ranks (the Alt rank is never promoted into, and a
+-- guild may keep it between Member and Initiate: 17 Nov 2026 root cause of an empty "Ready to promote" list).
+function tools.promoteTarget(snapshot, row)
+  local dest = row.rank - 1
+  while dest >= 0 and tools.isAltRank(snapshot.rankNames and snapshot.rankNames[dest + 1]) do dest = dest - 1 end
+  return dest
+end
 local function permitted(action, target, snapshot)
   if target.key == snapshot.actor.key or target.rank <= snapshot.actor.rank then return false end
-  if action == "promote" then return target.rank - 1 > snapshot.actor.rank and read(CanGuildPromote) == true end
+  if action == "promote" then return tools.promoteTarget(snapshot, target) > snapshot.actor.rank and read(CanGuildPromote) == true end
   if action == "demote" then return target.rank + 1 < snapshot.ranks and read(CanGuildDemote) == true end
   if action == "kick" then return read(CanGuildRemove) == true end
   if action == "public" then return target.public ~= nil and read(CanEditPublicNote) == true end
@@ -111,7 +118,7 @@ local function beforeValue(row, action)
   if action == "public" or action == "officer" then return row[action] end
   return row.rank
 end
-local function operation(row, action, value)
+local function operation(row, action, value, dest)
   local api = C_GuildInfo or {}
   if action == "public" or action == "officer" then
     if api.SetNote and row.guid then return api.SetNote, { row.guid, value, action == "public" } end
@@ -120,10 +127,11 @@ local function operation(row, action, value)
   end
   if action == "kick" and api.RemoveFromGuild and row.guid then return api.RemoveFromGuild, { row.guid } end
   if (action == "promote" or action == "demote") and api.SetGuildRankOrder and row.guid then
-    local rankOrder = row.rank + (action == "promote" and -1 or 1) + 1
+    local rankOrder = (action == "promote" and (dest or row.rank - 1) or row.rank + 1) + 1
     if api.IsGuildRankAssignmentAllowed and read(api.IsGuildRankAssignmentAllowed, row.guid, rankOrder) ~= true then return nil end
     return api.SetGuildRankOrder, { row.guid, rankOrder }
   end
+  if action == "promote" and dest and dest ~= row.rank - 1 then return nil end -- the one-step legacy call cannot skip an alt rank
   local name = ns.util and ns.util.address(row.name) or row.name
   if ns.util.gameEdition() == "forever" and not name:find(" ", 1, true) then
     -- Only a known full display name may substitute for the raw roster spelling.
@@ -194,8 +202,8 @@ local function makePlan(entries)
     else
       seen[row.key] = true
       item.key, item.guid, item.before, item.beforeRank = row.key, row.guid, beforeValue(row, input.action), row.rank
-      item.after = input.action == "promote" and row.rank - 1 or input.action == "demote" and row.rank + 1 or input.action == "kick" and "removed" or input.value
-      local fn = operation(row, input.action, input.value)
+      item.after = input.action == "promote" and tools.promoteTarget(snapshot, row) or input.action == "demote" and row.rank + 1 or input.action == "kick" and "removed" or input.value
+      local fn = operation(row, input.action, input.value, input.action == "promote" and item.after or nil)
       if type(fn) ~= "function" then item.status = "This action is unavailable on this client."
       elseif item.before == item.after then item.status = "unchanged" end
     end
@@ -260,7 +268,7 @@ function tools.step()
   if not current or current.guid ~= item.guid or current.rank ~= item.beforeRank or beforeValue(current, item.action) ~= item.before or not permitted(item.action, current, snapshot) then
     item.status = "Roster changed; preview again."; p.confirmed = false; return false, item.status
   end
-  local fn, args = operation(current, item.action, item.value)
+  local fn, args = operation(current, item.action, item.value, item.action == "promote" and item.after or nil)
   if type(fn) ~= "function" then p.confirmed = false; return false, "This action is unavailable on this client." end
   local store = tools.store(); if not store then return false, "Local audit storage is unavailable." end
   store.serial = (store.serial or 0) + 1
@@ -312,6 +320,7 @@ function tools.undoPreview()
     if record.status == "verified" and record.action ~= "kick" then
       local row = snapshot.rows[record.key]
       if not row or row.guid ~= record.guid or beforeValue(row, record.action) ~= record.after then return nil, "Roster changed; recovery would overwrite newer data." end
+      if record.action == "promote" and type(record.before) == "number" and type(record.after) == "number" and record.before - record.after > 1 then return nil, "No reversible verified action is available." end -- a promotion that skipped an alt rank cannot be undone one step at a time
       local action = record.action == "promote" and "demote" or record.action == "demote" and "promote" or record.action
       return makePlan({ { name = row.name, action = action, value = (action == "public" or action == "officer") and record.before or "" } })
     end

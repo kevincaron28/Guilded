@@ -85,11 +85,13 @@ local function keySet(list)
   return out
 end
 
--- An alt rank on either side of the move: never promote.
+-- A member whose own rank is an alt rank: never promote. (Until 17 Nov 2026 this also refused when the rank one
+-- step up was an alt rank, which dropped every Initiate in a guild that keeps Alt between Member and Initiate;
+-- RosterTools now skips the alt rank and lands the promotion on the next real rank.)
 local function altInvolved(snapshot, row)
   local tools = ns.rosterTools
   if not tools or not tools.isAltRank then return false end
-  return tools.isAltRank(row.rankName) or tools.isAltRank(snapshot.rankNames and snapshot.rankNames[row.rank])
+  return tools.isAltRank(row.rankName)
 end
 
 local function levelOf(row)
@@ -111,8 +113,18 @@ function module.ready()
   local d, rule, f = db() or {}, module.rule(), feed()
   local fromBot = f and keySet(f.ready) or {}
   local out, at = {}, nowSeconds()
+  local stats = { rows = 0, atRank = 0, wrongRank = 0, self = 0, alt = 0, notListed = 0, tooLow = 0, listed = 0, fromRank = rule.fromRank, bot = f ~= nil, botNames = 0, botMissing = 0, noTarget = 0 }
+  module.lastStats = stats
+  if f then for _ in pairs(fromBot) do stats.botNames = stats.botNames + 1 end
+    for k in pairs(fromBot) do if not snapshot.rows[k] then stats.botMissing = stats.botMissing + 1 end end end
   for key, row in pairs(snapshot.rows) do
-    if row.rankName:lower() == rule.fromRank:lower() and row.key ~= snapshot.actor.key and not altInvolved(snapshot, row) then
+    stats.rows = stats.rows + 1
+    if row.rankName:lower() ~= rule.fromRank:lower() then stats.wrongRank = stats.wrongRank + 1
+    elseif row.key == snapshot.actor.key then stats.self = stats.self + 1
+    elseif altInvolved(snapshot, row) then stats.alt = stats.alt + 1
+    elseif tools.promoteTarget and tools.promoteTarget(snapshot, row) <= snapshot.actor.rank then stats.noTarget = stats.noTarget + 1
+    else
+      stats.atRank = stats.atRank + 1
       local seen = d.rankSince and d.rankSince[key]
       local days = seen and seen.rank == row.rankName and math.floor((at - seen.since) / DAY) or 0
       local level = levelOf(row)
@@ -120,7 +132,10 @@ function module.ready()
       local take
       if f then take = listed and (rule.minLevel == 0 or not level or level >= rule.minLevel)
       else take = days >= rule.minDays end
-      if take then
+      if not take then
+        if f and not listed then stats.notListed = stats.notListed + 1 else stats.tooLow = stats.tooLow + 1 end
+      else
+        stats.listed = stats.listed + 1
         out[#out + 1] = { key = key, name = row.name, display = row.display, days = days, level = level, rank = row.rankName, fromBot = listed, exhausted = (tried[key] or 0) >= module.MAX_TRIES }
       end
     end
@@ -209,9 +224,42 @@ function module.promoteNext()
   local _, ready = module.actionable()
   if not ready then return false, L("Refresh the full guild roster first.") end
   for _, item in ipairs(ready) do
-    if not item.exhausted then return module.promote(item.name) end
+    if not item.exhausted then
+      local ok, message = module.promote(item.name)
+      return ok, message, item.display
+    end
   end
   return false, L("Nobody is ready to promote yet.")
+end
+
+-- The key binding (Bindings.xml): one press, one reviewed promotion, out of combat. A key press counts as the
+-- hardware event the protected guild call needs; the result is always printed.
+function module.onKey()
+  local function say(text) if ns.message then ns.message(text) end end
+  if not (ns.isOfficer and ns.isOfficer()) then say(L("Officers only.")); return false end
+  if not outOfCombat() then say(L("Promote next: not while in combat.")); return false end
+  local tools = ns.rosterTools
+  if tools and tools.requestRoster then tools.requestRoster() end
+  local ok, message, display = module.promoteNext()
+  if ok then say(string.format(L("Promotion requested: %s. Wait for the roster to confirm it before the next one."), display or "?"))
+  else say(message or L("Nobody is ready to promote yet.")) end
+  return ok
+end
+
+-- "/guilded promote why": for each filter, how many roster rows it dropped.
+function module.why()
+  local ready, rule = module.ready()
+  if not ready then return { tostring(rule) } end
+  local st = module.lastStats or {}
+  local lines = { string.format(L("Promote check, rank %s: %d roster rows, %d at another rank, %d you, %d alt rank, %d with no rank to move up to."),
+    tostring(st.fromRank), st.rows or 0, st.wrongRank or 0, st.self or 0, st.alt or 0, st.noTarget or 0) }
+  if st.bot then
+    lines[#lines + 1] = string.format(L("Discord list: %d names, %d not found in the roster. Of %d at the rank: %d not on the list, %d ready."),
+      st.botNames or 0, st.botMissing or 0, (st.atRank or 0), st.notListed or 0, st.listed or 0)
+  else
+    lines[#lines + 1] = string.format(L("No Discord list from the companion: the local rule applies. %d ready."), st.listed or 0)
+  end
+  return lines
 end
 
 function module.text()
@@ -305,6 +353,9 @@ function module.open()
   end
   f.status = text(-34)
   f.empty = text(-90)
+  f.tip = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+  f.tip:SetPoint("BOTTOMLEFT", 18, 12); f.tip:SetWidth(380); f.tip:SetJustifyH("LEFT")
+  f.tip:SetText(L("Tip: bind a key in Key Bindings > Guilded"))
   f.more = text(-120 - MAX_ROWS * 26)
   local all = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
   all:SetPoint("TOPLEFT", 18, -52); all:SetSize(230, 24); all:SetText(string.format(L("Promote next (%d left)"), 0))
@@ -332,6 +383,10 @@ function module.open()
   f:SetScript("OnShow", function() module.refresh() end)
   module.refresh()
 end
+
+-- The key binding (Bindings.xml: Options > Keybindings > Guilded).
+BINDING_NAME_GUILDED_PROMOTE_NEXT = L("Promote next ready member")
+function GuildedPromoteNext_OnKey() return module.onKey() end
 
 -- Event driven, no timers: every roster event (throttled) keeps the "since" dates, the alert and an open panel
 -- current; a verified promotion refreshes at once.
@@ -378,8 +433,10 @@ ns.commandHandlers.promote = function(args)
   if sub == "rule" then
     if not module.setRule(args[3], args[4]) and ns.message then ns.message(L("Alts are never promoted.")) end
     if ns.message then ns.message(ruleLine(module.rule())) end
+  elseif sub == "why" then
+    if ns.message then for _, line in ipairs(module.why()) do ns.message(line) end end
   elseif sub == "list" then
     if ns.showCopyText then ns.showCopyText(module.text(), L("Ready to promote")) end
   else module.open() end
 end
-table.insert(ns.commandHelp, { officer = true, text = "/guilded promote - officers: who is ready to promote, one click each (rule: /guilded promote rule <rank> <days>)" })
+table.insert(ns.commandHelp, { officer = true, text = "/guilded promote - officers: who is ready to promote, one click each (rule: /guilded promote rule <rank> <days>; why: /guilded promote why; a key can promote the next one: Keybindings > Guilded)" })

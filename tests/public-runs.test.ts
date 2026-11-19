@@ -181,6 +181,9 @@ describe("public run uploads", () => {
     const memory = memoryRunStore();
     const bad = await ingestPublicRuns(memory.store, { uploaderKey: "account:kev", character: "Kev", source: "personal", runs: [{ id: "x", players: "nope" }, run({ startedAt: END - 60 })] }, NOW);
     expect(bad.rejected.map((row) => row.reason)).toEqual(["not a valid run", "too short (60s)"]);
+    expect(bad.rejected[0]?.check).toMatch(/^[\w.[\]-]+: \w+/);
+    const emptyRealm = await ingestPublicRuns(memory.store, { uploaderKey: "account:kev", character: "Kev", source: "personal", runs: [{ ...run({ id: "QG-R" }), players: [{ character: "Kev", realm: "", deaths: 0, presentSec: 1500, inGuild: true }] }] }, NOW);
+    expect(emptyRealm.rejected.filter((row) => row.reason === "not a valid run")).toEqual([]);
     await expect(ingestPublicRuns(memory.store, { uploaderKey: "account:kev", character: "Kev", source: "personal", runs: Array.from({ length: 51 }, () => run()) }, NOW)).rejects.toBeInstanceOf(PublicUploadError);
     await expect(ingestPublicRuns(memory.store, { uploaderKey: "account:kev", character: "Kev", source: "personal", runs: "x" }, NOW)).rejects.toThrow("list");
     for (let index = 0; index < 200; index++) memory.uploads.push({ uploaderKey: "account:kev", runRef: `r${index}`, at: NOW });

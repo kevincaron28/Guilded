@@ -245,3 +245,14 @@ describe("player factions in public runs (9.3.6)", () => {
     expect(summary.players[1]).not.toHaveProperty("faction");
   });
 });
+
+describe("9.4 delta uploads: knownRunRefs", () => {
+  it("lists the runs of this upload the bot already held, never the new ones", async () => {
+    const memory = memoryRunStore();
+    const first = await ingestPublicRuns(memory.store, { uploaderKey: "a", character: "Kev", source: "personal", runs: [run()] }, NOW);
+    expect(first.accepted).toHaveLength(1);
+    expect(first.knownRunRefs).toEqual([]);
+    const second = await ingestPublicRuns(memory.store, { uploaderKey: "b", character: "Amy", source: "personal", runs: [run()] }, NOW);
+    expect(second.knownRunRefs).toEqual(["QG-20261110-190000-Kev"]);
+  });
+});

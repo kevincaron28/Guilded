@@ -244,7 +244,7 @@ export interface PublicRunStore {
   restoreRelayRun?(backup: unknown): Promise<void>;
 }
 
-export interface IngestResult { accepted: string[]; confirmed: string[]; duplicates: string[]; historyOnly: string[]; rejected: { id: string; reason: string }[]; acceptedRunRefs: string[] }
+export interface IngestResult { accepted: string[]; confirmed: string[]; duplicates: string[]; historyOnly: string[]; rejected: { id: string; reason: string }[]; acceptedRunRefs: string[]; /** (9.4) Refs of THIS upload the bot already held (repeats, confirmations, history only): the companion never sends them again. */ knownRunRefs: string[] }
 export class PublicUploadError extends Error { constructor(message: string, readonly status: number) { super(message); } }
 
 export async function ingestPublicRuns(store: PublicRunStore, input: { uploaderKey: string; character: string | null; /** The account's other saved characters (9.3.0). */ characters?: string[]; gameEdition?: string; source: "personal" | "guild"; /** Runs a companion carried for other players (9.3.1): they never dispute a first-hand run. */ relayed?: boolean; runs: unknown }, now = new Date()): Promise<IngestResult> {
@@ -254,7 +254,7 @@ export async function ingestPublicRuns(store: PublicRunStore, input: { uploaderK
   if (input.source === "personal" && await store.uploadsSince(input.uploaderKey, new Date(now.getTime() - 3_600_000)) >= PUBLIC_LIMITS.runsPerHour) {
     throw new PublicUploadError("Too many runs sent in the last hour. Try again later.", 429);
   }
-  const result: IngestResult = { accepted: [], confirmed: [], duplicates: [], historyOnly: [], rejected: [], acceptedRunRefs: [] };
+  const result: IngestResult = { accepted: [], confirmed: [], duplicates: [], historyOnly: [], rejected: [], acceptedRunRefs: [], knownRunRefs: [] };
   const seen = new Set<string>();
   for (const raw of input.runs) {
     const parsed = dungeonRunSchema.safeParse(raw);
@@ -311,6 +311,7 @@ export async function ingestPublicRuns(store: PublicRunStore, input: { uploaderK
     else if (agree) result.confirmed.push(run.id);
     else result.rejected.push({ id: run.id, reason: "other party members sent a different result; the run is held for review" });
   }
+  result.knownRunRefs = [...new Set([...result.duplicates, ...result.confirmed, ...result.historyOnly])].slice(0, PUBLIC_LIMITS.runsPerUpload);
   result.acceptedRunRefs = (await store.storedRefs(input.uploaderKey, input.gameEdition ?? "forever")).slice(0, 500);
   return result;
 }

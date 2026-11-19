@@ -776,8 +776,18 @@ export function startApplyLane<J, O>(key: string, job: J, run: (job: J) => Promi
  * lane behind another apply); `late=0` means the answer carried its result. The line used to be written for late applies only, with a
  * constant late=1, so it said nothing.
  */
-export function applyFinishedLine(input: { guildHash: string; ms: number; late: boolean; ok: boolean }): string {
-  return `import-apply-finished guild=${input.guildHash} ms=${input.ms} late=${input.late ? 1 : 0} ok=${input.ok ? 1 : 0}`;
+export function applyFinishedLine(input: { guildHash: string; ms: number; late: boolean; ok: boolean; error?: unknown }): string {
+  const base = `import-apply-finished guild=${input.guildHash} ms=${input.ms} late=${input.late ? 1 : 0} ok=${input.ok ? 1 : 0}`;
+  if (input.ok || input.error === undefined) return base;
+  // (9.4) Why it failed: the classifier's reason and code, and for unreadable data the count of each failing check (paths and codes only, no values).
+  const failure = classifyApplyFailure(input.error);
+  const checks = new Map<string, number>();
+  if (input.error instanceof ZodError) for (const issue of input.error.issues) {
+    const key = `${issue.path.map((part) => typeof part === "number" ? "[]" : String(part)).join(".").replace(/\.\[\]/g, "[]") || "-"}:${issue.code}`;
+    checks.set(key, (checks.get(key) ?? 0) + 1);
+  }
+  const why = [...checks].slice(0, 5).map(([key, count]) => `${key}x${count}`).join(",");
+  return `${base} reason=${failure.reason} code=${failure.code ?? "-"} transient=${failure.transient ? 1 : 0}${why ? ` checks=${why}` : ""}`;
 }
 
 /** The outcome of `first`, or null when it has not finished `waitMs` from now (it keeps running either way). */
@@ -1784,7 +1794,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       };
       // What happens to an apply that ends after the response went out (or that waited in the lane).
       const settleLate = (outcome: ApplyOutcome, job: ApplyJob) => {
-        console.info(applyFinishedLine({ guildHash, ms: outcome.ms, late: true, ok: outcome.ok }));
+        console.info(applyFinishedLine({ guildHash, ms: outcome.ms, late: true, ok: outcome.ok, ...(outcome.ok ? {} : { error: outcome.error }) }));
         if (!outcome.ok) failApply(outcome, job, true);
       };
       // Runs the apply (or queues it behind the one running) and waits for it only until the deadline.
@@ -1798,7 +1808,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const outcome = await raceDeadline(first, Math.max(1_000, wait));
         if (!outcome) { void first.then((late) => settleLate(late, job)); return { state: "applying" }; }
         // Finished inside the deadline: the answer carries the result. Logged with late=0 so the two kinds can be told apart.
-        console.info(applyFinishedLine({ guildHash, ms: outcome.ms, late: false, ok: outcome.ok }));
+        console.info(applyFinishedLine({ guildHash, ms: outcome.ms, late: false, ok: outcome.ok, ...(outcome.ok ? {} : { error: outcome.error }) }));
         return { state: "done", outcome };
       };
       // "Received, being applied": the upload is stored; the companion shows it as sent and does not send the same file again.

@@ -11,6 +11,10 @@ Release history: [CHANGELOG.md](CHANGELOG.md). Older roadmap text, including eve
 request list: [roadmap history](docs/archive/ROADMAP-history.md).
 Latest (16 November 2026): 9.3.5 is released; 9.3.6 is being prepared from the work merged on 16 November (see "Start here — 16 November 2026").
 
+## 9.4 — owner list of 19 November 2026
+
+Plan, analysis and build order: [docs/plans/V9_4_PLAN.md](docs/plans/V9_4_PLAN.md). Twelve tracks: timeouts and sync health (T1), companion auto-update upgrades (T2), clear and short Discord messages (T3), the recap card and repeated information (T4), world PvP in Discord and on the website (T5), recipes by category (T6), the in-game crafting window (T7), character management on My Guilded (T8), an armory character card (T9), the do-not-invite blacklist (T10), ads (T11), and the Guilded and Guilded Dungeons sync review (T12). Owner decisions are listed in each track.
+
 ## Owner requests, 16 November 2026
 
 Every request of 16 November, with its PR and status, is in "Start here — 16 November 2026" below. These two keep their real-client checks:

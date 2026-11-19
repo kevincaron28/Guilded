@@ -341,6 +341,10 @@ const STRINGS = {
   "panel.page": { en: "Page {page} of {pages} ({hidden} more character(s) on the other pages)", fr: "Page {page} sur {pages} ({hidden} autre(s) personnage(s) sur les autres pages)" },
   "panel.prev": { en: "◀ Previous", fr: "◀ Précédent" },
   "panel.next": { en: "Next ▶", fr: "Suivant ▶" },
+  "linked.officerLogWeb": {
+    en: "{user} unlinked {name} from the website (they can link it back).",
+    fr: "{user} a délié {name} depuis le site (il peut le relier à nouveau)."
+  },
   "linked.officerLogPanel": {
     en: "{user} unlinked {name} from the character panel (they can link it back).",
     fr: "{user} a délié {name} depuis le panneau des personnages (il peut le relier à nouveau)."

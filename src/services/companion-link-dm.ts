@@ -197,7 +197,7 @@ export async function askUnlink(database: UndoDatabase, discordUserId: string, c
  * can always take it back: "Link it back" (7 days), /character claim, the panel's Link a character, /character pair.
  * One line goes to the officer log. Only the member the character is linked to can do it.
  */
-export async function unlinkNotMine(database: UndoDatabase, client: Pick<Client, "guilds">, discordUserId: string, characterId: string, source: "button" | "panel" = "button"): Promise<{ text: string; lang: Lang; undoId: string | null }> {
+export async function unlinkNotMine(database: UndoDatabase, client: Pick<Client, "guilds">, discordUserId: string, characterId: string, source: "button" | "panel" | "web" = "button"): Promise<{ text: string; lang: Lang; undoId: string | null }> {
   const character = await database.character.findUnique({
     where: { id: characterId },
     select: { id: true, detachedAt: true, name: true, realm: true, gameEdition: true, displayName: true, member: { select: { id: true, guildId: true, discordUserId: true, guild: { select: { discordId: true, name: true } } } } }
@@ -213,7 +213,7 @@ export async function unlinkNotMine(database: UndoDatabase, client: Pick<Client,
   const book = await loadFullNameBook(database, character.member.guildId);
   const name = displayCharacterName(character, book);
   const guild: Guild | null = await client.guilds.fetch(character.member.guild.discordId).catch(() => null);
-  const logKey = source === "panel" ? "linked.officerLogPanel" : "linked.officerLog";
+  const logKey = source === "panel" ? "linked.officerLogPanel" : source === "web" ? "linked.officerLogWeb" : "linked.officerLog";
   if (guild) await postToLogChannel(guild, t(lang, logKey, { user: `<@${discordUserId}>`, name })).catch(() => undefined);
   return { text: t(lang, "linked.unlinked", { name: escapeMarkdown(name), server: escapeMarkdown(character.member.guild.name) }), lang, undoId: character.id };
 }

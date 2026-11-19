@@ -20,7 +20,7 @@ async function get(target: string, signedIn: boolean, lang = "en"): Promise<WebR
   const app = createWebApp({ store: memory, auth: { clientId: "1", clientSecret: "x", siteUrl: "https://guildedwow.com", sessionSecret: secret }, allows: () => true, postApplication: async () => null, now: () => NOW,
     routes: [devices.route, memberData.route],
     meSections: [
-      meSection({ id: "characters", group: "overview", render: charactersMeSection(async () => ({ battleNet: false, companion: true, characters: 1, lastSynced: NOW }), async () => [{ name: "Aria", isMain: true, trust: "confirmed" }]) }),
+      meSection({ id: "characters", group: "overview", render: charactersMeSection(async () => ({ battleNet: false, companion: true, characters: 1, lastSynced: NOW }), async () => [{ id: "c1", name: "Aria", isMain: true, trust: "confirmed" as const, level: 12, className: "Mage", race: null, serverName: "Test Guild", inGuild: true, guildRank: "Officer", armoryName: "Aria" }]) }),
       meSection({ id: "connections", group: "account", render: devices.meSection }),
       meSection({ id: "your-data", group: "account", render: memberData.meSection })
     ] });

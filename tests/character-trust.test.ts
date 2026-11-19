@@ -79,18 +79,30 @@ describe("reported, not verified", () => {
   it("lists the member's characters with their label on the website, and explains reported ones", async () => {
     const database = {
       character: { findMany: vi.fn(async () => [
-        { ...character("a", "Ann Lee", { confirmedAt: NEW }), displayName: null, isMain: true, member: { guildId: "g1" } },
-        { ...character("b", "Bo <Script>"), displayName: null, isMain: false, member: { guildId: "g1" } }
+        { ...character("a", "Ann Lee", { confirmedAt: NEW }), displayName: null, isMain: true, level: 31, className: "Mage", race: "Human", guildRankName: null, member: { guildId: "g1", guild: { name: "Quebec Gold" } } },
+        { ...character("b", "Bo <Script>"), displayName: null, isMain: false, level: null, className: "Rogue", race: null, guildRankName: "Recruit", member: { guildId: "g1", guild: { name: "Quebec Gold" } } }
       ]) },
       characterVerifyClaim: { findMany: vi.fn(async () => []) },
-      guildRosterEntry: { findMany: vi.fn(async () => [{ nameKey: "ann lee", gameEdition: "forever" }]) }
+      guildRosterEntry: { findMany: vi.fn(async () => [{ nameKey: "ann lee", gameEdition: "forever", rankName: "Officer" }]) }
     };
     const list = await meCharacterList(database as never)("user");
-    expect(list).toEqual([{ name: "Ann Lee", isMain: true, trust: "confirmed" }, { name: "Bo <Script>", isMain: false, trust: "reported" }]);
+    expect(list).toEqual([
+      { id: "a", name: "Ann Lee", isMain: true, trust: "confirmed", level: 31, className: "Mage", race: "Human", serverName: "Quebec Gold", inGuild: true, guildRank: "Officer", armoryName: "Ann Lee" },
+      { id: "b", name: "Bo <Script>", isMain: false, trust: "reported", level: null, className: "Rogue", race: null, serverName: "Quebec Gold", inGuild: false, guildRank: "Recruit", armoryName: "Bo <Script>" }
+    ]);
     const status = async () => ({ battleNet: false, companion: true, characters: 2, lastSynced: null });
     const html = await charactersMeSection(status, async () => list)({ account: { discordUserId: "user" }, lang: "fr", now: new Date(), t: (_en: string, fr: string) => fr } as never);
-    expect(html).toContain("⭐ Ann Lee · <span class=\"trust-confirmed\">confirmé</span>");
-    expect(html).toContain("Bo &lt;Script&gt; · <span class=\"trust-reported\">signalé, non vérifié</span>");
+    expect(html).toContain("<td>Ann Lee</td>");
+    expect(html).toContain("<span class=\"trust-confirmed\">confirmé</span>");
+    expect(html).toContain("<td>Bo &lt;Script&gt;</td>");
+    expect(html).toContain("<span class=\"trust-reported\">signalé, non vérifié</span>");
+    // The read-only table: server, guild rank, main, armory link (new tab, no referrer); the card carries the same armory button.
+    expect(html).toContain("<td>Officer</td>");
+    expect(html).toContain("Voir sur l'armurerie Blizzard");
+    expect(html).toContain("/fr-fr/forever/us/armory/character/ann-lee");
+    expect(html).toContain("/images/web/class-card-mage.webp");
+    expect(html).toContain("rel=\"noopener noreferrer\"");
+    expect(html).not.toMatch(/<(form|script|iframe)/);
     expect(html).toContain("quand votre propre application Guilded l'a synchronisé et que la liste de la guilde le confirme");
     // A failing list never hides the status lines.
     const safe = await charactersMeSection(status, async () => { throw new Error("db"); })({ account: { discordUserId: "user" }, lang: "en", now: new Date(), t: (en: string) => en } as never);

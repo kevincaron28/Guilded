@@ -86,3 +86,21 @@ describe("one row per real player on the character board", () => {
     expect(onRoster(new Set(["someone else"]), hulke, "forever")).toBe(false);
   });
 });
+
+describe("a doubled in-game name is one character", () => {
+  const roster = new Set(["xaldin xaldin", "hulke hogan"]);
+  it("a run name \"Xaldin\" is the roster character \"Xaldin Xaldin\"", () => {
+    expect(onRoster(roster, player("Xaldin"), "forever")).toBe(true);
+    expect(onRoster(roster, player("Xaldin Xaldin"), "forever")).toBe(true);
+  });
+  it("\"Hulke\" is not \"Hulke Hogan\", and other editions are untouched", () => {
+    expect(onRoster(new Set(["hulke hogan"]), player("Hulke"), "forever")).toBe(false);
+    expect(onRoster(roster, player("Xaldin"), "classic")).toBe(false);
+  });
+  it("still displays as \"Xaldin\" and combines both spellings into one row", () => {
+    const merged = normalizeLeaderRuns([run("a", [player("Xaldin"), player("Crashing Pally")]), run("b", [player("Xaldin Xaldin"), player("El Pirata")], { endedAt: new Date(END.getTime() + 7_200_000) })]);
+    expect(merged.flatMap(names)).toContain("Xaldin");
+    expect(merged.flatMap(names)).not.toContain("Xaldin Xaldin");
+    expect(new Set(merged.flatMap((r) => r.players).filter((p) => p.character.startsWith("Xaldin")).map((p) => p.character)).size).toBe(1);
+  });
+});

@@ -51,6 +51,7 @@ import { communityCommand, lotteryCommand, gamingCommand, challengeCommand, exec
 
 import { PermissionFlagsBits } from "discord.js";
 import { MergedCommand, type AnyCommand } from "./router.js";
+import { applyFrenchNames } from "./french-names.js";
 import { BRAND } from "../brand.js";
 import { poeCommand } from "./poe.js";
 import { POE_TRACKING_ENABLED } from "../../companion/active-games.mjs";
@@ -63,6 +64,8 @@ import { executePromotion, promotionCommand, promotionStatusCommand } from "./pr
 import { executeInvites, invitesCommand } from "./invites.js";
 import { executePug, pugCommand } from "./pug.js";
 import { executePugs, pugsCommand } from "./pug-requests.js";
+
+applyFrenchNames();
 
 // One parent per area, with the smaller commands mounted under it (see router.ts).
 // /config stays its own command: under /setup it came close to Discord's 4000-character limit
@@ -96,7 +99,9 @@ const character = new MergedCommand("character", "Your profile, characters, prof
   { command: attunementCommand, handler: executeAttunement, as: "attunement" },
   { command: wishlistCommand, handler: executeWishlist, as: "wishlist" },
   { command: readinessCommand, handler: executeReadiness, as: "readiness", only: ["me"] }
-], { command: characterCommand, handler: executeCharacter, except: CHARACTER_OFFICER });
+], { command: characterCommand, handler: executeCharacter, except: CHARACTER_OFFICER })
+  .setNameLocalizations({ fr: "personnage" })
+  .setDescriptionLocalizations({ fr: "Votre profil, personnages, métiers, harmonisations, souhaits et préparation." });
 
 const raid = new MergedCommand("raid", "Raids: signups, progress, reports and Warcraft Logs.", [
   { command: pugCommand, handler: executePug, as: "pug" },
@@ -155,7 +160,8 @@ const report = new MergedCommand("report", "Guild reports: activity, inactive me
   { command: guildHealthCommand, handler: executeGuildHealth, as: "guild" },
   { command: healthCommand, handler: executeHealth, as: "ping" },
   { command: bugCommand, handler: executeBug, as: "bug" }
-]);
+]).setNameLocalizations({ fr: "rapport" })
+  .setDescriptionLocalizations({ fr: "Rapports de guilde : activité, inactifs, santé, état du bot et signalements de bogues." });
 
 const community = new MergedCommand("community", "Gaming nights, lotteries, challenges, seasons and Discord games.", [
   { command: lotteryCommand, handler: executeCommunity, as: "lottery", except: LOTTERY_ORGANIZER },

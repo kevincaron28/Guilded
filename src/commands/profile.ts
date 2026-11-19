@@ -1,10 +1,11 @@
 import { armoryMarkdown } from "../services/armory-link.js";
 import { characterName } from "../services/character-display.js";
-import { EmbedBuilder, SlashCommandBuilder, type ChatInputCommandInteraction } from "discord.js";
+import { EmbedBuilder, SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { createEpgpService } from "../services/epgp.js";
 import { prisma } from "../database.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { BRAND } from "../brand.js";
+import { LINK_NEXT_STEP } from "../services/own-character.js";
 
 const epgpService = createEpgpService(prisma);
 
@@ -23,7 +24,7 @@ export async function executeProfile(interaction: ChatInputCommandInteraction): 
   if (!member) throw new Error("Your guild profile could not be found.");
 
   const characterLines = characters.length === 0
-    ? ["No characters linked yet."]
+    ? [`No characters linked yet. ${LINK_NEXT_STEP}`]
     : characters.map((character) => {
       const professions = character.professions
         .map((skill) => `${skill.profession} ${skill.skillLevel}`)
@@ -31,7 +32,9 @@ export async function executeProfile(interaction: ChatInputCommandInteraction): 
       const seen = character.lastSeenAt ? ` · seen <t:${Math.floor(character.lastSeenAt.getTime() / 1000)}:R>` : "";
       return `${character.isMain ? "**Main**" : "Alt"}: ${characterName(character)} (${character.race ? `${character.race} ` : ""}${character.className}${character.spec ? `, ${character.spec}` : ""})${professions ? ` — ${professions}` : ""}${seen}${armoryMarkdown(character) ? ` · ${armoryMarkdown(character)}` : ""}`;
     });
+  // Your own profile is private (owner decision, 19 November 2026: personal views are ephemeral).
   await interaction.reply({
+    flags: MessageFlags.Ephemeral,
     embeds: [new EmbedBuilder()
       .setTitle(`⚜️ ${member.displayName}`)
       .setDescription(characterLines.join("\n"))

@@ -7,7 +7,7 @@ import { asLang } from "../i18n.js";
 import { describeCooldowns } from "../services/recipes.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { PROFESSIONS } from "../wow-data.js";
-import { selectedCharacter } from "../services/character-match.js";
+import { LINK_NEXT_STEP, pickOwnCharacter } from "../services/own-character.js";
 
 export const professionCommand = new SlashCommandBuilder()
   .setName("profession")
@@ -15,10 +15,10 @@ export const professionCommand = new SlashCommandBuilder()
   .addSubcommand((subcommand) => subcommand
     .setName("set")
     .setDescription("Set a profession and skill level.")
-    .addStringOption((option) => option.setName("character").setDescription("Your character (pick from the list)").setAutocomplete(true).setRequired(true))
     .addStringOption((option) => option.setName("profession").setDescription("Profession (pick from the list)").setRequired(true)
       .addChoices(...PROFESSIONS.map((name) => ({ name, value: name }))))
-    .addIntegerOption((option) => option.setName("skill").setDescription("Skill level").setMinValue(1).setMaxValue(1000).setRequired(true)))
+    .addIntegerOption((option) => option.setName("skill").setDescription("Skill level").setMinValue(1).setMaxValue(1000).setRequired(true))
+    .addStringOption((option) => option.setName("character").setDescription("Your character (default: your main)").setAutocomplete(true)))
   .addSubcommand((subcommand) => subcommand
     .setName("list")
     .setDescription("List your recorded professions."))
@@ -98,13 +98,11 @@ export async function executeProfession(interaction: ChatInputCommandInteraction
     const lines = characters.flatMap((character) =>
       character.professions.map((skill) => `${displayCharacterName(character)}: ${skill.profession} ${skill.skillLevel}`)
     );
-    await interaction.reply({ content: lines.length ? lines.join("\n") : "No professions recorded.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: lines.length ? lines.join("\n") : `No professions recorded. ${characters.length ? "Add one with /character profession set, or let the addon scan them." : LINK_NEXT_STEP}`, flags: MessageFlags.Ephemeral });
     return;
   }
 
-  const characterName = interaction.options.getString("character", true);
-  const character = selectedCharacter(characters, characterName);
-  if (!character) throw new Error("That character is not linked to your profile.");
+  const character = pickOwnCharacter(characters, interaction.options.getString("character"));
   const profession = interaction.options.getString("profession", true).trim();
   const skill = interaction.options.getInteger("skill", true);
   await guildService.setProfession(character.id, profession, skill);

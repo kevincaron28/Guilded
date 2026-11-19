@@ -23,7 +23,7 @@ export async function executeWho(interaction: ChatInputCommandInteraction): Prom
   const query = interaction.options.getString("character", true);
   const found = await findPlayer(prisma, context.guildId, query);
   if (!found) {
-    await interaction.reply({ content: `No linked character matches "${query}".`, flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: `No linked character matches "${query}". Check the spelling (First Last works). The owner can link it: DM the bot the character's full name (First Last), or type it in the guild-invite channel.`, flags: MessageFlags.Ephemeral });
     return;
   }
   const settings = await guildService.getSettings(context.guildId);

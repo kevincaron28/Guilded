@@ -23,7 +23,9 @@ d’officier aux membres. Nouveau ? [Commencer ici](/start/).
 ## Bot Discord
 
 Tapez `/` dans Discord et choisissez la commande. Chaque ligne est une commande ; les mots qui
-suivent sont ses sous-commandes.
+suivent sont ses sous-commandes. Vos propres vues (profil, statistiques, statut, souhaits) restent privées.
+Dans un Discord en français, les commandes des membres ont aussi un nom français : `/personnage` `profil` `metier` `souhaits` `delier`,
+`/artisanat` `demander` `liste` `qui` `mes-demandes` `proposer`, `/aide`, `/rapport` et `/promotion` `statut`.
 
 ### Membres
 
@@ -32,7 +34,7 @@ suivent sont ses sous-commandes.
 | `/help` | Liste les commandes que vous pouvez utiliser | Tout le monde |
 | `/character` `pair` `add` `import` `claim` `unlink` `list` | Lier votre personnage principal et vos rerolls à votre compte Discord | Tout le monde |
 | `/character` `profile` `achievements` `who` | Votre profil et vos succès ; chercher n’importe quel joueur | Tout le monde |
-| `/character` `profession` `attunement` `wishlist` `readiness` | Métiers, accès aux raids, liste de souhaits et préparation au raid | Tout le monde |
+| `/character` `profession` `attunement` `wishlist` `readiness` | Métiers, accès aux raids, liste de souhaits et préparation au raid. L’option du personnage est facultative : votre principal est utilisé | Tout le monde |
 | `/epgp` `balance` `history` `leaderboard` | Vos EP, GP et priorité ; le classement de la guilde | Tout le monde |
 | `/loot` `bid` `history` `reserves` | Miser aux enchères ; historique du butin ; réserves | Tout le monde |
 | `/craft` `request` `list` `who` `mine` `claim` `done` `release` `cancel` | Demander un objet aux artisans, ou prendre des demandes | Tout le monde |

@@ -3,7 +3,7 @@ import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } f
 import { prisma } from "../database.js";
 import { createWishlistService, PRIORITY_LABELS } from "../services/wishlist.js";
 import { guildService, requireGuildContext } from "./context.js";
-import { selectedCharacter } from "../services/character-match.js";
+import { pickOwnCharacter } from "../services/own-character.js";
 
 const wishlistService = createWishlistService(prisma);
 
@@ -11,14 +11,14 @@ export const wishlistCommand = new SlashCommandBuilder()
   .setName("wishlist")
   .setDescription("Track the items your characters are hoping to get.")
   .addSubcommand((sub) => sub.setName("add").setDescription("Add or update an item on a character's wishlist.")
-    .addStringOption((o) => o.setName("character").setDescription("Your character (pick from the list)").setAutocomplete(true).setRequired(true))
     .addStringOption((o) => o.setName("item").setDescription("Item (pick a known one, or type)").setAutocomplete(true).setRequired(true).setMaxLength(100))
-    .addIntegerOption((o) => o.setName("priority").setDescription("1 = high, 2 = medium (default), 3 = low").setMinValue(1).setMaxValue(3)))
+    .addIntegerOption((o) => o.setName("priority").setDescription("1 = high, 2 = medium (default), 3 = low").setMinValue(1).setMaxValue(3))
+    .addStringOption((o) => o.setName("character").setDescription("Your character (default: your main)").setAutocomplete(true)))
   .addSubcommand((sub) => sub.setName("remove").setDescription("Remove an item from a character's wishlist.")
-    .addStringOption((o) => o.setName("character").setDescription("Your character (pick from the list)").setAutocomplete(true).setRequired(true))
-    .addStringOption((o) => o.setName("item").setDescription("Item (pick a known one, or type)").setAutocomplete(true).setRequired(true).setMaxLength(100)))
+    .addStringOption((o) => o.setName("item").setDescription("Item (pick a known one, or type)").setAutocomplete(true).setRequired(true).setMaxLength(100))
+    .addStringOption((o) => o.setName("character").setDescription("Your character (default: your main)").setAutocomplete(true)))
   .addSubcommand((sub) => sub.setName("list").setDescription("Show one of your characters' wishlist.")
-    .addStringOption((o) => o.setName("character").setDescription("Your character (pick from the list)").setAutocomplete(true).setRequired(true)))
+    .addStringOption((o) => o.setName("character").setDescription("Your character (default: your main)").setAutocomplete(true)))
   .addSubcommand((sub) => sub.setName("item").setDescription("See who in the guild wants an item.")
     .addStringOption((o) => o.setName("item").setDescription("Item (pick a known one, or type)").setAutocomplete(true).setRequired(true).setMaxLength(100)));
 
@@ -39,10 +39,8 @@ export async function executeWishlist(interaction: ChatInputCommandInteraction):
     return;
   }
 
-  const characterName = interaction.options.getString("character", true);
   const characters = await guildService.listCharacters(context.memberId);
-  const character = selectedCharacter(characters, characterName);
-  if (!character) throw new Error("That character is not linked to your profile.");
+  const character = pickOwnCharacter(characters, interaction.options.getString("character"));
 
   if (subcommand === "list") {
     const entries = await wishlistService.list(character.id);

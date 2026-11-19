@@ -22,7 +22,9 @@ admin. Discord hides officer commands from members. New here? [Start here](/star
 ## Discord bot
 
 Type `/` in Discord and pick the command. Each row is one command; the words after it are its
-sub-commands.
+sub-commands. Your own views (profile, stats, status, wishlist) are private to you.
+In a French Discord the member commands also have French names, for example `/personnage` `profil` `metier` `souhaits` `delier`,
+`/artisanat` `demander` `liste` `qui` `mes-demandes` `proposer`, `/aide`, `/rapport` and `/promotion` `statut`.
 
 ### Members
 
@@ -31,7 +33,7 @@ sub-commands.
 | `/help` | Lists the commands you can use | Everyone |
 | `/character` `pair` `add` `import` `claim` `unlink` `list` | Link your main and alts to your Discord account | Everyone |
 | `/character` `profile` `achievements` `who` | Your profile and achievements card; look up any player | Everyone |
-| `/character` `profession` `attunement` `wishlist` `readiness` | Professions, attunements, item wishlist and your raid readiness | Everyone |
+| `/character` `profession` `attunement` `wishlist` `readiness` | Professions, attunements, item wishlist and your raid readiness. The character option is optional: your main is used | Everyone |
 | `/epgp` `balance` `history` `leaderboard` | Your EP, GP and priority; the guild board | Everyone |
 | `/loot` `bid` `history` `reserves` | Bid on an auction; loot history; soft reserves | Everyone |
 | `/craft` `request` `list` `who` `mine` `claim` `done` `release` `cancel` | Ask crafters for an item, or pick up requests | Everyone |
@@ -78,7 +80,7 @@ sub-commands.
 
 | Command | What it does | Who |
 | --- | --- | --- |
-| `/dungeon` `leaderboard` `season` `records` `player` `history` | Season rating, fastest clears, a player's runs | Everyone |
+| `/dungeon` `leaderboard` `season` `records` `player` `history` | Season rating, fastest clears, a player's runs (`player` offers your guild's characters as you type; your own stats are private) | Everyone |
 | `/dungeon` `archive` `hall-of-fame` `rules` `catalog` `keystones` `together` | Past seasons, scoring rules, dungeon list, this week's team goal | Everyone |
 | `/dungeon` `group` `alerts` `watch` | Form a group with a voice channel; get pinged for groups that fit you | Everyone |
 | `/officer dungeon` `invalidate` `award` `audit` `config` | Correct a run, adjust guild points, read the point history | Officers |

@@ -3,7 +3,7 @@ import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } f
 import { prisma } from "../database.js";
 import { createAttunementService } from "../services/attunement.js";
 import { guildService, requireGuildContext } from "./context.js";
-import { selectedCharacter } from "../services/character-match.js";
+import { pickOwnCharacter } from "../services/own-character.js";
 
 const attunementService = createAttunementService(prisma);
 
@@ -13,22 +13,20 @@ export const attunementCommand = new SlashCommandBuilder()
   .addSubcommand((subcommand) => subcommand
     .setName("set")
     .setDescription("Record an attunement for one of your characters.")
-    .addStringOption((option) => option.setName("character").setDescription("Your character (pick from the list)").setAutocomplete(true).setRequired(true))
     .addStringOption((option) => option.setName("name").setDescription("Attunement (pick one already used, or type)").setAutocomplete(true).setRequired(true))
-    .addBooleanOption((option) => option.setName("completed").setDescription("Completed? Defaults to true")))
+    .addBooleanOption((option) => option.setName("completed").setDescription("Completed? Defaults to true"))
+    .addStringOption((option) => option.setName("character").setDescription("Your character (default: your main)").setAutocomplete(true)))
   .addSubcommand((subcommand) => subcommand
     .setName("list")
     .setDescription("List attunements for one of your characters.")
-    .addStringOption((option) => option.setName("character").setDescription("Your character (pick from the list)").setAutocomplete(true).setRequired(true)));
+    .addStringOption((option) => option.setName("character").setDescription("Your character (default: your main)").setAutocomplete(true)));
 
 export async function executeAttunement(interaction: ChatInputCommandInteraction): Promise<void> {
   const context = await requireGuildContext(interaction);
   if (!context) return;
   const subcommand = interaction.options.getSubcommand();
-  const characterName = interaction.options.getString("character", true);
   const characters = await guildService.listCharacters(context.memberId);
-  const character = selectedCharacter(characters, characterName);
-  if (!character) throw new Error("That character is not linked to your profile.");
+  const character = pickOwnCharacter(characters, interaction.options.getString("character"));
 
   if (subcommand === "list") {
     const attunements = await attunementService.list(character.id);

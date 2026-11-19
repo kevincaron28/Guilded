@@ -2334,10 +2334,9 @@ local function handlePeerReadiness(text, sender, channel)
   if previous and previous.professionsAt and (not professionsAt or previous.professionsAt > professionsAt) then
     professions, professionsAt = previous.professions, previous.professionsAt
   end
-  -- A digest that lacks the identity or verify code (an older client, or one whose message ran long) keeps what is known.
+  -- A digest that lacks the identity (an older client, or one whose message ran long) keeps the identity (the verify code is not kept: a digest without it means the player turned it off).
   if previous then
     identity = identity or previous.identity
-    verify = verify or previous.verify
   end
   db.peerRoster[name] = {
     status = STATUSES[parts[3] or ""] and parts[3] or "UNKNOWN",

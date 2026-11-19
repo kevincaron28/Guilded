@@ -2,8 +2,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const COMMANDS = [
-  "setup", "character", "raid", "epgp", "loot", "dungeon", "craft", "bank",
-  "apply", "poll", "report", "mod", "core", "import", "community", "poe", "participation",
+  "setup", "config", "help", "character", "raid", "epgp", "loot", "dungeon", "craft", "leaderboard", "bank",
+  "apply", "report", "mod", "core", "tag", "community", "poe", "participation", "promotion", "team", "bg",
   "lead", "officer", "organize",
 ];
 // Intentionally undocumented in the member-facing help.

@@ -43,6 +43,18 @@ export function heldNotice(rows: HeldRow[], lang: Lang): string {
   return `${fr ? "⚠️ **Entrées de l'addon en attente**" : "⚠️ **Addon entries on hold**"} (${rows.length})\n${lines.join("\n")}\n${fr ? "Le reste a été importé. Liste et retrait : `/setup import held`." : "Everything else was imported. List or dismiss them: `/setup import held`."}`;
 }
 
+/**
+ * The in-game guild names this Discord server speaks for. Registered guilds (WowGuild rows, made by /wow) come first; most servers never
+ * register one (Quebec Gold has none), so the guild names the server's own companions reported fill in. Display text only, no migration.
+ */
+export async function ownGuildNames(database: Pick<typeof prisma, "wowGuild" | "companionDevice">, guildId: string): Promise<{ name: string }[]> {
+  const registered = await database.wowGuild.findMany({ where: { guildId, gameEdition: currentEdition() }, select: { name: true }, orderBy: { createdAt: "asc" } }).catch(() => []);
+  if (registered.length) return registered;
+  const devices = await database.companionDevice.groupBy({ by: ["wowGuildName"], where: { guildId, revokedAt: null, wowGuildName: { not: null } }, _count: { _all: true }, orderBy: { _count: { id: "desc" } }, take: 1 }).catch(() => []);
+  const seen = new Set<string>();
+  return devices.flatMap((row) => { const name = row.wowGuildName?.trim(); const key = name?.normalize("NFC").toLowerCase(); if (!name || !key || seen.has(key)) return []; seen.add(key); return [{ name }]; });
+}
+
 // One post (card + short embed) per completed run, oldest first. True when there was at least one run to announce.
 // 9.1: records and challenges are stored first (always), and called out on the run's post unless an officer switched that off.
 export async function announceDungeonRuns(discordGuild: DiscordGuild | null, dungeons: ImportResult["dungeons"], guildId?: string): Promise<boolean> {
@@ -52,7 +64,7 @@ export async function announceDungeonRuns(discordGuild: DiscordGuild | null, dun
     if (settings && !settings.dungeonHighlightsEnabled) for (const run of dungeons.results) delete run.highlights;
   }
   // The posting guild's in-game name fills the Guild column of guildmates whose game client gave no guild text.
-  const ownGuild = guildId ? postingGuildName(await prisma.wowGuild.findMany({ where: { guildId, gameEdition: currentEdition() }, select: { name: true }, orderBy: { createdAt: "asc" } }).catch(() => []), dungeons.results) : null;
+  const ownGuild = guildId ? postingGuildName(await ownGuildNames(prisma, guildId), dungeons.results) : null;
   // Players outside the guild whose run is also public get their public season total (best effort, after the guild-run numbers).
   await applyPublicScores(prisma, dungeons.results);
   const timeZone = guildId ? await loadCardTimeZone(prisma, guildId) : undefined;

@@ -7,13 +7,15 @@ import { PublicBoards, SeasonPicker } from "../PublicBoards";
 import { classColor, fetchDuels, type Duels } from "../publicApi";
 import { Card, EmptyState, Glyph, LastUpdated, RankNumber, RetryCard, Row, SegmentedTabs, StatTile, colors, usePullToRefresh } from "../ui";
 import { useBack } from "../useBack";
+import { RaidsBoard } from "./RaidsBoard";
 import { useCachedResource } from "../useCachedResource";
 
 // Stats tab: the weekly summary card, then Dungeons (the public leaderboards, by season) or Duels (the public duel ladder).
-type Section = "dungeons" | "duels";
+type Section = "dungeons" | "duels" | "raids";
 
 const words = {
   dungeons: { en: "Dungeons", fr: "Donjons" },
+  raids: { en: "Raids", fr: "Raids" },
   duels: { en: "Duels", fr: "Duels" },
   duelTitle: { en: "Duel ladder", fr: "Classement des duels" },
   duelIntro: { en: "Rated duels between players, the same as the website.", fr: "Les duels cotés entre joueurs, comme sur le site." },
@@ -78,9 +80,10 @@ export function StatsTab({ origin, lang }: { origin: string; lang: Lang }) {
   const [section, setSection] = useState<Section>("dungeons");
   const summary = useSummary(origin);
   // Android Back from Duels returns to Dungeons.
-  useBack(section === "duels", () => setSection("dungeons"));
-  const picker = <View style={styles.sections}><SegmentedTabs options={(["dungeons", "duels"] as const).map((value) => ({ value, label: w(value, lang) }))} value={section} onChange={setSection} /></View>;
+  useBack(section !== "dungeons", () => setSection("dungeons"));
+  const picker = <View style={styles.sections}><SegmentedTabs options={(["dungeons", "duels", "raids"] as const).map((value) => ({ value, label: w(value, lang) }))} value={section} onChange={setSection} /></View>;
   if (section === "duels") return <View style={styles.fill}><View style={styles.pickerBar}>{picker}</View><DuelsBoard origin={origin} lang={lang} /></View>;
+  if (section === "raids") return <View style={styles.fill}><View style={styles.pickerBar}>{picker}</View><RaidsBoard origin={origin} lang={lang} /></View>;
   return <PublicBoards origin={origin} lang={lang} header={<><SummaryCard origin={origin} lang={lang} feed={summary} />{picker}</>} onPull={summary.reload} />;
 }
 

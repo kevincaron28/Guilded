@@ -1,6 +1,6 @@
 # Guilded Mobile
 
-Android and iOS share this Expo SDK 58 project. Mobile version **0.4.1**
+Android and iOS share this Expo SDK 58 project. Mobile version **0.5.0**
 (the Android versionCode is kept and raised by EAS on each store build) is separate from the bot,
 addon and Windows companion version. Both store identifiers are
 `top.kcaron.guilded`; the Expo slug is `guilded-mobile`.
@@ -18,11 +18,27 @@ bot, addon and Windows companion version). Store identifiers are
 - **Guild**: sign-in when signed out; then Roster (characters, reserves), Map
   and Raids. The app opens here when signed in.
 - **Stats**: this week's summary (`GET /leaderboards/summary.json`) and the
-  public leaderboards. Public; the app opens here when signed out.
-- **Me**: my characters, badges (album), wishlist, language and sign-out.
+  public leaderboards (Dungeons, Duels, Raids). Public; the app opens here when signed out.
+- **Me**: my characters (with Make main and Unlink), what I still need to be promoted, badges (album), wishlist, language and sign-out.
 - **Alerts**: raid reminders on this phone, plus help-call, dungeon and raid
   vacancy alerts listed as switched off until push lands (PR #345).
 - **News**: Wowhead headlines and the Blizzard news link. Public.
+**0.5.0** (19 November 2026, owner: "finish the applications and website"; a new runtime version, so it ships as a store build, not an update): the app catches up with the 9.4 website and bot.
+
+- **My characters** (Me tab, signed in): every character linked to you with its Discord server, in-game guild rank, level, main or alt and
+  confirmed or reported, plus **Make main** and **Unlink** (Unlink asks first: the character leaves your list, its history stays, a
+  BLOCKED claim stops it linking back and the officers see a log line; link it back with `/character list` in Discord). Routes, under the
+  companion sign-in: `GET /api/v1/me/characters`, `POST /api/v1/me/characters/main` and `/unlink` (body `{ character }`; the server re-reads
+  the id and refuses another member's or an unknown one with the same 403 and no name), served by `src/services/me-api.ts` and allow-listed in
+  `worker/index.mjs`. The sample guild keeps the older hub list.
+- **What I still need to be promoted** (Me tab): `GET /api/v1/me/promotion`, one card per server: linked, days at the starting rank, level
+  and voice minutes over 7 days against the server's rule (the numbers `/promotion status` uses), or "already <rank>" / "switched off".
+- **Raids** (Stats tab, third section): the public `GET /leaderboards/raids.json` (guilds by bosses killed, world firsts), with the
+  "Raids open 9 December" note until the first kill. Boss and raid names are English: the JSON carries no French names.
+- **World PvP is not in the app yet**: the website's PvP leaderboard has no public JSON, so there is nothing to read (a `pvp.json` is the missing piece).
+- Everything new is in French as well, and the new lists keep the offline snapshot (`useCachedResource`; the member's own two are
+  erased on sign-out with the other guild snapshots). `versionCode` is untouched: EAS raises it.
+
 **0.4.1** (18 November 2026, owner decision "Yes, build it"; uploaded to testers only after 0.4.0 passes review): the polish round (#1104: safe areas, Android Back on every layer, retry cards and pull to refresh, 44 dp touch targets, empty-state art, simpler sign-in) and the portrait screen made optional for Play device reach (#1103).
 
 **0.4.0** (18 November 2026, owner decision "build 0.4.0"; a new runtime version, so it ships as a store build):

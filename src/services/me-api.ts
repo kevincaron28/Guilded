@@ -22,7 +22,7 @@ export type MeActionResult = { status: "ok" } | { status: "forbidden" } | { stat
 export async function meCharactersFor(database: Pick<PrismaClient, "character" | "characterVerifyClaim" | "guildRosterEntry">, discordUserId: string): Promise<{ characters: MeCharacter[] }> {
   const characters = await meCharacterList(database)(discordUserId);
   // The armory name is a website link helper; the phone does not need it.
-  return { characters: characters.map(({ armoryName: _armoryName, ...rest }) => rest as MeCharacter) };
+  return { characters: characters.map((character) => { const copy: Partial<MeCharacter> = { ...character }; delete copy.armoryName; return copy as MeCharacter; }) };
 }
 
 async function own(database: CharacterDb, discordUserId: string, id: unknown) {

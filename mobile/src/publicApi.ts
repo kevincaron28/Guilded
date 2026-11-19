@@ -60,6 +60,22 @@ export function parseDuels(body: unknown): Duels {
   };
 }
 
+export interface RaidGuildRow { rank: number; name: string; slug: string | null; bosses: number; worldFirsts: number; lastKillAt: string | null }
+export interface RaidFirst { instance: string; boss: string; difficulty: string | null; guild: string; killedAt: string | null }
+export interface RaidBoard { opensAt: string | null; open: boolean; totalKills: number; guilds: RaidGuildRow[]; firsts: RaidFirst[] }
+
+/** Raid progress (GET /leaderboards/raids.json): guilds by bosses killed, and the world first on each boss. Boss names are English. */
+export function parseRaids(body: unknown): RaidBoard {
+  const data = obj(body);
+  if (!data) throw new Error("The raid progress answer was not understood.");
+  return {
+    opensAt: str(data.opensAt), open: data.open === true, totalKills: num(data.totalKills),
+    guilds: arr(data.guilds).flatMap((raw) => { const g = obj(raw); return g && str(g.name) ? [{ rank: num(g.rank), name: str(g.name)!, slug: str(g.slug), bosses: num(g.bosses), worldFirsts: num(g.worldFirsts), lastKillAt: str(g.lastKillAt) }] : []; }),
+    firsts: arr(data.firsts).flatMap((raw) => { const f = obj(raw); return f && str(f.boss) && str(f.guild) ? [{ instance: str(f.instance) ?? "", boss: str(f.boss)!, difficulty: str(f.difficulty), guild: str(f.guild)!, killedAt: str(f.killedAt) }] : []; })
+  };
+}
+export const fetchRaids = async (origin: string): Promise<RaidBoard> => parseRaids(await getJson(`${origin}/leaderboards/raids.json`));
+
 const ROLES = new Set(["TANK", "HEALER", "DPS"]);
 export function parsePublicGuild(body: unknown): PublicGuild {
   const data = obj(body);

@@ -562,6 +562,29 @@ export class GuildedClient {
     return parseAlbum(body);
   }
 
+  /** My characters across my servers (0.5.0). 404/405: this server does not offer the route yet. */
+  async meCharacters(): Promise<unknown> {
+    const { status, body } = await this.call("/api/v1/me/characters");
+    if (status === 404 || status === 405) throw new ApiError("This Guilded address does not publish your characters list yet.", status);
+    if (status !== 200) throw new ApiError(messageOf(body, "Your characters could not be loaded."), status);
+    return body;
+  }
+
+  /** Make main / Unlink: the server re-checks that the character is the signed-in member's own. Answers the refreshed list. */
+  async changeCharacter(action: "main" | "unlink", characterId: string): Promise<unknown> {
+    const { status, body } = await this.call(`/api/v1/me/characters/${action}`, { method: "POST", body: { character: characterId } });
+    if (status !== 200) throw new ApiError(messageOf(body, "That change was not saved."), status);
+    return body;
+  }
+
+  /** What I still need to be promoted, per server. */
+  async mePromotion(): Promise<unknown> {
+    const { status, body } = await this.call("/api/v1/me/promotion");
+    if (status === 404 || status === 405) throw new ApiError("This Guilded address does not publish promotion status yet.", status);
+    if (status !== 200) throw new ApiError(messageOf(body, "Promotion status could not be loaded."), status);
+    return body;
+  }
+
   /** The guildmate map: signed-in members of this guild only (Track M). */
   async guildMap(guildDiscordId: string): Promise<GuildMap> {
     const { status, body } = await this.call(`/api/v1/companion/guild-map?guild=${encodeURIComponent(guildDiscordId)}`);

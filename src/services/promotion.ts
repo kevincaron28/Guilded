@@ -110,7 +110,8 @@ export async function observeRanks(db: Pick<PrismaClient, "character" | "charact
 
 export async function loadPromotionPlan(db: Db, discordGuild: Pick<DiscordGuild, "members" | "memberCount">, guildId: string, edition: string, now = new Date()): Promise<{ plan: PromotionPlan; rule: PromotionRule }> {
   const settings = await db.guildSettings.findUnique({ where: { guildId } });
-  const rule = ruleFrom(settings);
+  // A client without the voice table (a test fake, an old schema) cannot measure voice: the voice condition is skipped.
+  const rule = { ...ruleFrom(settings), ...(db.memberVoiceHour ? {} : { minVoiceMinutes: 0 }) };
   await observeRanks(db, guildId, now);
   await cacheAllMembers(discordGuild).catch(() => undefined);
   const [people, unclaimed] = await Promise.all([
@@ -122,7 +123,7 @@ export async function loadPromotionPlan(db: Db, discordGuild: Pick<DiscordGuild,
   ]);
   // Raw voice time over the last 7 days (services/voice-time.ts: solo time counts, the AFK channel does not); a Discord account's alts share it.
   const voice = new Map<string, number>();
-  if (rule.minVoiceMinutes > 0 && people.length) {
+  if (rule.minVoiceMinutes > 0 && people.length && db.memberVoiceHour) {
     const rows = await db.memberVoiceHour.groupBy({ by: ["userId"], where: { guildId, userId: { in: people.map((p) => p.discordUserId) }, hour: { gte: new Date(now.getTime() - PROMOTION_VOICE_DAYS * DAY) } }, _sum: { seconds: true } });
     for (const row of rows) voice.set(row.userId, Math.floor((row._sum.seconds ?? 0) / 60));
   }

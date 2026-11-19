@@ -61,8 +61,9 @@ export function formatProgress(p: PromotionProgress, lang: Lang, inviteChannelId
   if (p.state === "above") return t(`You're already ${p.rank}. Nothing left to do.`, `Tu es déjà ${p.rank}. Il ne reste rien à faire.`);
   const { rule } = p;
   const lines: string[] = [];
+  const who = cleanCharacterName(p.character ?? "");
   if (rule.requireLink) {
-    lines.push(p.linked ? `✅ ${t("Character linked", "Personnage lié")}: **${p.character}**`
+    lines.push(p.linked ? `✅ ${t("Character linked", "Personnage lié")}: **${who}**`
       : `❌ ${t("No character linked.", "Aucun personnage lié.")} ${linkHow(lang, inviteChannelId)}`);
   }
   if (p.days === null) lines.push(`❌ ${t(`Days as ${rule.fromRank}: not in the guild roster yet (the bot sees you after an officer's roster upload).`, `Jours comme ${rule.fromRank} : pas encore dans le roster de la guilde (le bot te voit après le téléversement d'un officier).`)}`);

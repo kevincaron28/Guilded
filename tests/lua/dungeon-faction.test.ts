@@ -67,6 +67,10 @@ describe("player factions in a dungeon run", () => {
     const s = start();
     s.run(`local run = GuildedDB.dungeon.current
       run.players.Tester.guild = "Quebec Gold"; run.players.Friend.guild = "Quebec Gold"
+      run.players.Tester.level = 60; run.players.Tester.minLevel = 58; run.players.Friend.level = 60; run.players.Friend.minLevel = 59
+      run.players.Tester.spec = "Fury"
+      run.integrity = { version = 2, startWitness = "unknown", continuous = true, observer = "Tester", startTrigger = "x" }
+      run.players.Tester.integrity = { knownSec = 100, unknownSec = 0, mixedRole = false, knownIntervals = { { 0, 100 } } }
       run.encounters = {}
       for i = 1, 100 do run.encounters[#run.encounters + 1] = { id = 1000 + i, kind = "npc", name = "A long creature name " .. i, success = true, at = 1800000000 + i, startedAt = 1800000000 + i - 5 } end
       LONG = NS.dungeon.serialize(run)`);
@@ -74,6 +78,10 @@ describe("player factions in a dungeon run", () => {
     expect(String(s.run("return tostring(LONG:find(';tl=', 1, true) ~= nil)"))).toBe("true");
     s.run(`PEER = NS.dungeon.deserialize("X", LONG)`);
     expect(s.run("return PEER.players.Friend.guild")).toBe("Quebec Gold");
+    expect(s.run("return PEER.players.Friend.minLevel")).toBe("59");
+    expect(s.run("return PEER.players.Tester.level")).toBe("60");
+    expect(s.run("return PEER.players.Tester.spec")).toBe("Fury");
+    expect(s.run("return PEER.players.Tester.integrity.knownSec")).toBe("100");
     expect(s.run("return PEER.players.Friend.faction")).toBe("HORDE");
     expect(s.run("return PEER.players.Tester.faction")).toBe("ALLIANCE");
   });

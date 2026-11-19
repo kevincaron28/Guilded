@@ -303,7 +303,7 @@ describe("importDungeonRuns", () => {
   it("reads an empty or missing player realm as the unknown-realm marker instead of refusing the run (9.4)", async () => {
     const { tx, runs } = fakeTx();
     const base = run("empty-realm") as { players: Record<string, unknown>[] };
-    const players = base.players.map((player, index) => index === 0 ? { ...player, realm: "" } : index === 1 ? (({ realm: _drop, ...rest }) => rest)(player as { realm: unknown }) : player);
+    const players = base.players.map((player, index) => index === 0 ? { ...player, realm: "" } : index === 1 ? Object.fromEntries(Object.entries(player).filter(([key]) => key !== "realm")) : player);
     const summary = await importDungeonRuns(tx, "g1", [{ ...base, players }], characters, "officer", "imp1", now);
     expect(summary.malformed).toBe(0);
     expect(runs).toHaveLength(1);

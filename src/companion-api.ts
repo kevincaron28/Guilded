@@ -588,14 +588,15 @@ async function officerPromotionFeed(client: Client, guild: { id: string; discord
 // Read-only EP/GP/PR per linked character and what goes with it. The companion writes it
 // into the addon folder so /guilded standings shows the bot's numbers.
 export async function standingsParts(guild: { id: string; discordId: string }, access: { memberId: string; actorId: string; officer?: boolean }, client?: Client): Promise<FeedParts> {
-  // Officers only: who the promotion rule says is ready (never in the shared part, never for members).
-  const promotion = access.officer && client ? await officerPromotionFeed(client, guild).catch(() => null) : null;
-  // At most 4 s (hotfix 2): otherwise the member's last known events (discord-calendar.ts).
-  const scheduledEvents = await calendarEventsWithin(() => discordCalendarEvents(client, guild.discordId, access.actorId),
+  // At most 4 s (hotfix 2): otherwise the member's last known events (discord-calendar.ts). 9.4: it is a Discord call, not a database
+  // read, so it runs while the reads below do (it used to finish before they started, adding up to 4 s to every rebuild).
+  const calendarRead = calendarEventsWithin(() => discordCalendarEvents(client, guild.discordId, access.actorId),
     `${guild.discordId}:${access.actorId}`).catch(() => {
     console.warn("Discord calendar events could not be fetched; exporting bot raids only.");
     return [];
   });
+  // Officers only: who the promotion rule says is ready (never in the shared part, never for members).
+  const promotion = access.officer && client ? await officerPromotionFeed(client, guild).catch(() => null) : null;
   // Reads that need no snapshot consistency with the standings and ledger: plain client, in
   // parallel, before the transaction. Inside it they ran the 15 s budget out under load (P2028,
   // 7 Nov, the same fix as #487 for loot rules). A failing one fails the answer as before
@@ -620,14 +621,15 @@ export async function standingsParts(guild: { id: string; discordId: string }, a
     ]);
     return { loot, dungeonBoard, nextRaid, items, botRaids, craftOrders };
   });
-  const [{ loot, dungeonBoard, nextRaid, items, botRaids, craftOrders }, bank, officerInvites, pilotRaids] = await Promise.all([
+  const [{ loot, dungeonBoard, nextRaid, items, botRaids, craftOrders }, bank, officerInvites, pilotRaids, scheduledEvents] = await Promise.all([
     guildReads,
     // 9.1 guild bank (guild-bank-member.ts): contents to search in game, the low list, this member's requests.
     bankForAddon(prisma, guild.id, access.memberId, !!access.officer),
     // Officers only (8.5 batch 3): the names waiting for a guild invite, for the addon's "To invite" panel. The bot does not
     // know which guild ranks hold the invite right, so members' files never carry applicants' names.
     access.officer ? pendingInvites(prisma, guild.id).then(inviteListForAddon) : Promise.resolve(null),
-    publicRaids(prisma, hostedPilot.allows)
+    publicRaids(prisma, hostedPilot.allows),
+    calendarRead
   ]);
   const raids = mergeCalendarEvents(botRaids, scheduledEvents);
   // One snapshot per guild, shared like the reads above; only this member's ledger refs are read for them (they only grow, so reading
@@ -1546,14 +1548,17 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       }
       const uploadStartedAt = new Date();
       // One read of the guild's settings for the whole upload (it was read up to four times), next to the character count.
-      const [linkedBefore, settings] = await Promise.all([
-        pairedMemberId ? linkedCharacterCount(prisma, pairedMemberId) : 0,
-        prisma.guildSettings.findUnique({ where: { guildId: guild.id } })
-      ]);
-      mark("settings");
+      // 9.4: the settings read and the officer's "synced at" stamp touch nothing the linking reads or writes, so they run beside it (3 queries
+      // at most at once). The character count must stay before the linking: it is the "before" of the first-link message.
+      const settingsRead = prisma.guildSettings.findUnique({ where: { guildId: guild.id } });
+      settingsRead.catch(() => undefined);
+      const officerSyncWrite = access.officer ? prisma.guild.update({ where: { id: guild.id }, data: { officerSyncAt: new Date() } }).catch(() => undefined) : null;
+      const linkedBefore = pairedMemberId ? await linkedCharacterCount(prisma, pairedMemberId) : 0;
       const pairedCharacterStatus = pairedMemberId
         ? await timed("link-uploader", () => linkUploaderCharacters(prisma, guild.id, pairedMemberId, preview.snapshot))
         : "unpaired";
+      const settings = await settingsRead;
+      mark("settings");
       // First link, and later new characters: one batched DM listing the linked characters (owner decision, 8.5 track F).
       if (pairedMemberId && client) {
         scheduleLinkedCharacters(client, prisma, { guildDiscordId: guild.discordId, memberId: pairedMemberId, lang: asLang(settings?.language), before: linkedBefore });
@@ -1562,7 +1567,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       }
       // Guildmates who pasted their /guilded verify code in game, as this uploader's addon heard them:
       // an officer's upload links and confirms; a member's links provisionally (character-verify.ts).
-      if (access.officer) { await prisma.guild.update({ where: { id: guild.id }, data: { officerSyncAt: new Date() } }).catch(() => undefined); mark("officer-sync"); }
+      if (officerSyncWrite) { await officerSyncWrite; mark("officer-sync"); }
       // Characters in an officer's roster upload are in the guild: their waiting invite posts get a check mark.
       if (access.officer && client) {
         const rosterNames = [preview.snapshot.character, ...preview.snapshot.characters].flatMap((entry) => entry ? [entry.name, ...(entry.displayName ? [entry.displayName] : [])] : []);

@@ -714,6 +714,66 @@ function recipes.lastSeenText(name, online, seenAt)
   return string.format(L("%dy"), math.floor(days / 365))
 end
 
+-- One recipe as the Crafting page shows it: { key, name, crafters = { { name, shown, online, me, seenAt, seen, profession } } },
+-- the crafters you first, then online, then the most recently seen.
+local function buildEntry(key, me, online, seen)
+  local entry, byName = { key = key, name = nameFor(key), crafters = {} }, {}
+  for _, found in ipairs(recipes.crafters(key)) do
+    if not byName[found.name] then
+      byName[found.name] = true
+      local mine = found.name == me
+      table.insert(entry.crafters, { name = found.name, shown = displayName(found.name), me = mine, online = mine or online[found.name] == true,
+        seenAt = seen[found.name], seen = found.seen, profession = found.profession })
+    end
+  end
+  table.sort(entry.crafters, function(x, y)
+    if x.me ~= y.me then return x.me end
+    if x.online ~= y.online then return x.online end
+    if (x.seen or 0) ~= (y.seen or 0) then return (x.seen or 0) > (y.seen or 0) end
+    return x.name < y.name
+  end)
+  return entry
+end
+
+function recipes.entry(key)
+  if not key then return nil end
+  local online, seen = onlineSet()
+  return buildEntry(key, ns.playerName and ns.playerName(), online, seen)
+end
+
+-- Every recipe anyone shared, grouped by profession (the Crafting page's tree):
+-- { { profession = "Tailoring", entries = { { key, name, crafters = n, online = n } } } }, professions and recipes by name.
+function recipes.browse()
+  local b = book()
+  local groups, byProfession = {}, {}
+  if not b then return groups end
+  local me = ns.playerName and ns.playerName()
+  local online = onlineSet()
+  for player, professions in pairs(b.people) do
+    local here = player ~= me and online[player] == true   -- a guildmate online now (you do not count)
+    for profession, entry in pairs(professions) do
+      local group = byProfession[profession]
+      if not group then group = { profession = profession, entries = {}, index = {} }; byProfession[profession] = group; groups[#groups + 1] = group end
+      for _, key in ipairs(entry.keys) do
+        local item = group.index[key]
+        if not item then
+          item = { key = key, name = b.names[key] or nameFor(key), crafters = 0, online = 0, profession = profession }
+          group.index[key] = item
+          group.entries[#group.entries + 1] = item
+        end
+        item.crafters = item.crafters + 1
+        if here then item.online = item.online + 1 end
+      end
+    end
+  end
+  for _, group in ipairs(groups) do
+    group.index = nil
+    table.sort(group.entries, function(x, y) if x.name ~= y.name then return x.name < y.name end return x.key < y.key end)
+  end
+  table.sort(groups, function(x, y) return x.profession < y.profession end)
+  return groups
+end
+
 -- Search for the Crafting page: a name (or part of one), a shift-clicked item link or an item id.
 -- Returns { { key, name, crafters = { { name, shown, online, me, seenAt, profession } } } }, matches
 -- (at most `limit` entries; crafters: you first, then online, then the most recently seen).
@@ -728,23 +788,7 @@ function recipes.search(query, limit)
   local me = ns.playerName and ns.playerName()
   local online, seen = onlineSet()
   for i = 1, math.min(#keys, limit or 4) do
-    local key = keys[i]
-    local entry, byName = { key = key, name = nameFor(key), crafters = {} }, {}
-    for _, found in ipairs(recipes.crafters(key)) do
-      if not byName[found.name] then
-        byName[found.name] = true
-        local mine = found.name == me
-        table.insert(entry.crafters, { name = found.name, shown = displayName(found.name), me = mine, online = mine or online[found.name] == true,
-          seenAt = seen[found.name], seen = found.seen, profession = found.profession })
-      end
-    end
-    table.sort(entry.crafters, function(x, y)
-      if x.me ~= y.me then return x.me end
-      if x.online ~= y.online then return x.online end
-      if (x.seen or 0) ~= (y.seen or 0) then return (x.seen or 0) > (y.seen or 0) end
-      return x.name < y.name
-    end)
-    table.insert(results, entry)
+    table.insert(results, buildEntry(keys[i], me, online, seen))
   end
   return results, matches
 end

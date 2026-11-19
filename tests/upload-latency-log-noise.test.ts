@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../src/database.js", () => ({ prisma: {} }));
 vi.mock("../src/config.js", () => ({ config: { COMPANION_API_PORT: 0, COMPANION_API_HOST: "127.0.0.1" } }));
 
+import { z } from "zod";
 import { applyFinishedLine, shouldLogStandings, resetStandingsHeartbeat, STANDINGS_HEARTBEAT_MS } from "../src/companion-api.js";
 import { clearGuildMembershipCache, guildMembership, withOwnNames } from "../src/services/guild-participants.js";
 import { pairingCandidatesWhere } from "../src/services/character-pairing.js";
@@ -12,6 +13,13 @@ describe("import-apply-finished", () => {
   it("says late=1 only for an apply that ended after the answer went out", () => {
     expect(applyFinishedLine({ guildHash: "ab12cd34", ms: 36000, late: true, ok: true })).toBe("import-apply-finished guild=ab12cd34 ms=36000 late=1 ok=1");
     expect(applyFinishedLine({ guildHash: "ab12cd34", ms: 800, late: false, ok: false })).toBe("import-apply-finished guild=ab12cd34 ms=800 late=0 ok=0");
+    // (9.4) A failed apply says why: reason, code, and the count of each failing check for unreadable data (no values).
+    const zod = z.object({ players: z.array(z.object({ realm: z.string().min(1) })) }).safeParse({ players: [{ realm: "" }, { realm: "" }] });
+    expect(zod.success).toBe(false);
+    expect(applyFinishedLine({ guildHash: "ab12cd34", ms: 800, late: false, ok: false, error: zod.success ? null : zod.error }))
+      .toBe("import-apply-finished guild=ab12cd34 ms=800 late=0 ok=0 reason=invalid-payload code=- transient=0 checks=players[].realm:too_smallx2");
+    expect(applyFinishedLine({ guildHash: "ab12cd34", ms: 800, late: false, ok: false, error: Object.assign(new Error("x"), { code: "P2028" }) }))
+      .toBe("import-apply-finished guild=ab12cd34 ms=800 late=0 ok=0 reason=transaction-timeout code=P2028 transient=1");
   });
 });
 

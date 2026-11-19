@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { addItemQuality, loadProfessionPosts, professionPostEmbed, QUALITY_SQUARES, recipeCrafters, updateProfessionPosts } from "../src/services/profession-board.js";
+import { addItemQuality, loadProfessionPosts, professionPostEmbed, professionPostEmbeds, QUALITY_SQUARES, recipeCrafters, updateProfessionPosts } from "../src/services/profession-board.js";
 import { professionDetailsRow } from "../src/services/profession-details.js";
 import { professionDirectoryText, professionNavRows } from "../src/services/profession-directory.js";
 import { findProfessionHolders } from "../src/services/profession-search.js";
@@ -43,9 +43,13 @@ describe("profession posts and last seen", () => {
   });
   it("cuts a very long recipe list with a pointer to the search instead of overflowing Discord", () => {
     const recipes = Array.from({ length: 400 }, (_, index) => ({ itemKey: index, itemName: `Recipe number ${index}`, crafters: [{ character: "Ann", lastSeen: NOW }] }));
-    const embed = professionPostEmbed({ profession: "Cooking", skilled: [], recipes }, "en", "g1", NOW).toJSON();
-    expect((embed.description ?? "").length).toBeLessThanOrEqual(4096);
-    expect(embed.description).toMatch(/…and \d+ more recipes/);
+    const embeds = professionPostEmbeds({ profession: "Cooking", skilled: [], recipes }, "en", "g1", NOW).map(embed => embed.toJSON());
+    expect(embeds.length).toBeLessThanOrEqual(10);
+    for (const embed of embeds) expect((embed.description ?? "").length).toBeLessThanOrEqual(4096);
+    const all = embeds.reduce((sum, embed) => sum + (embed.title ?? "").length + (embed.description ?? "").length + (embed.footer?.text ?? "").length, 0);
+    expect(all).toBeLessThanOrEqual(6000);
+    expect(embeds.at(-1)?.description).toMatch(/…and \d+ more recipes not shown/);
+    expect(embeds.at(-1)?.description).toContain("Details menu");
   });
   it("adds last seen to holders and to the directory index, and links the profession post", async () => {
     const holders = await findProfessionHolders(db as never, "g1", "mining");
@@ -77,7 +81,8 @@ describe("profession posts and last seen", () => {
     expect((row.components[0] as { custom_id: string }).custom_id).toBe("pdet:alchemy");
     expect((row.components[0] as { options: { value: string }[] }).options.map(option => option.value)).toEqual(["1"]);
     const many = { profession: "Cooking", skilled: [], recipes: Array.from({ length: 60 }, (_, index) => ({ itemKey: index, itemName: `Dish ${index}`, crafters: [{ character: "Ann", lastSeen: NOW }] })) };
-    expect((professionDetailsRow(many, "en")!.toJSON().components[0] as { options: unknown[] }).options).toHaveLength(25);
+    // One category of 60: step 1 shows the category with its count (the recipes are paged in step 2).
+    expect((professionDetailsRow(many, "en")!.toJSON().components[0] as { options: { label: string }[] }).options.map(option => option.label)).toEqual(["Other (60)"]);
     expect(professionDetailsRow({ profession: "Mining", skilled: [], recipes: [] }, "en")).toBeNull();
     const rows = professionNavRows(["Alchemy", "Mining", "Fishing"], new Map([["alchemy", "999"], ["mining", "1000"]]), "d1");
     expect(rows).toHaveLength(1);

@@ -178,6 +178,15 @@ local function send(text, channel, target)
 end
 local relay
 
+-- ns.comm.send drops a message when this prefix's queue is full (1024). A day sent in parts that lost its tail would never
+-- complete on the receiver, and the same first parts would go out again on every comparison. So a day goes only when the
+-- queue has room for all of it; otherwise nothing is sent and the next comparison asks again.
+local QUEUE_ROOM = 900
+local function roomFor(messages)
+  if not (ns.comm and ns.comm.pending) then return true end
+  return ns.comm.pending(PREFIX) + messages <= QUEUE_ROOM
+end
+
 -- Sends "<key>=<count>.<hash>" items in as few messages as fit, each "<head><part>|<parts>|<items>".
 local function sendList(head, items, target)
   local chunks, current = {}, ""
@@ -281,6 +290,7 @@ local function sendBatch(author, day, ids, target)
   local parts = math.ceil(#encoded / BATCH_CHUNK)
   local head = "Z|1|" .. author .. "|" .. day .. "|"
   if parts < 1 or parts > BATCH_PARTS or #head + 6 + BATCH_CHUNK > 255 then return false end
+  if not roomFor(parts) then return true end -- busy: handled by waiting, not by sending the day entry by entry
   if relay then relay.remember("Z|" .. encoded, ns.playerName(), true) end
   for part = 1, parts do
     send(head .. part .. "|" .. parts .. "|" .. string.sub(encoded, (part - 1) * BATCH_CHUNK + 1, part * BATCH_CHUNK), "WHISPER", target)
@@ -307,7 +317,10 @@ local function sendDay(author, day, target)
     recent.days[key] = bucket.hash
   end
   if #ids > 1 and sendBatch(author, day, ids, target) then return end
-  for _, id in ipairs(ids) do sendEntry(id, target, #ids == 1) end
+  for _, id in ipairs(ids) do
+    if not roomFor(1) then return end -- the rest follows on the next comparison
+    sendEntry(id, target, #ids == 1)
+  end
 end
 
 local function sendDays(author, target)

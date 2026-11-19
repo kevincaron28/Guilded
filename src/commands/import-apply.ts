@@ -79,7 +79,7 @@ export async function executeImportApply(interaction: ChatInputCommandInteractio
       + (result.consumables ? `${result.consumables} consumable check(s), ` : "")
       + (result.crafting.recipeSets || result.crafting.cooldownSets ? `${result.crafting.recipes} recipe(s) from ${result.crafting.recipeSets} profession list(s) and ${result.crafting.cooldownSets} cooldown list(s), ` : "")
       + (result.reserves.applied ? `soft-reserve list updated (${result.reserves.entries} reserve(s)), ` : "")
-      + (result.discovery.discovered ? `${result.discovery.discovered} new character(s) discovered${autoLinked.length ? ` (linked automatically: ${autoLinked.map((row) => `${cleanCharacterName(row.character)} to ${row.member}`).join(", ")})` : ""}${result.discovery.discovered > autoLinked.length ? `, ${result.discovery.discovered - autoLinked.length} waiting for /character claim` : ""}, ` : "")
+      + (result.discovery.discovered ? `${result.discovery.discovered} new character(s) discovered${autoLinked.length ? ` (linked automatically: ${autoLinked.map((row) => `${cleanCharacterName(row.character)} to ${row.member}`).join(", ")})` : ""}${result.discovery.discovered > autoLinked.length ? `, ${result.discovery.discovered - autoLinked.length} waiting for their owner to DM the bot the full name` : ""}, ` : "")
       + `${result.epgpTransactions.length} EPGP transaction(s), ${result.readinessSnapshots.length} `
       + `readiness snapshot(s), and ${result.attunements.length} attunement update(s) recorded. `
       + `${result.skipped} ledger entr${result.skipped === 1 ? "y was" : "ies were"} already imported and skipped.`

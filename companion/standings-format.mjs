@@ -165,7 +165,7 @@ export function promotionToLua(promotion) {
     ...ready.map(name => `    ${luaString(name)},`),
     "  },",
     "  waiting = {",
-    ...waiting.map(row => `    { name = ${luaString(row.name)}, daysLeft = ${row.daysLeft} },`),
+    ...waiting.map(row => `    { name = ${luaString(row.name)}, daysLeft = ${row.daysLeft}${typeof row.reason === "string" && /^[a-z0-9:,]{1,60}$/.test(row.reason) ? `, reason = ${luaString(row.reason)}` : ""} },`),
     "  }",
     "}"
   ];

@@ -87,8 +87,8 @@ import { purgeOldPvpEvents } from "./services/world-pvp-events.js";
 import { sweepServerAnniversaries } from "./services/server-anniversary.js";
 import { executePoll, handlePollButton, handleWeeklyQuestionButton, POLL_PREFIX, WEEKLY_QUESTION_PREFIX } from "./commands/poll.js";
 import { CRAFT_PREFIX, handleCraftButton, handleCraftModal, handleCraftSelect } from "./commands/craft-board.js";
-import { handleProfessionDetails } from "./commands/profession-details.js";
-import { PROFESSION_DETAILS_PREFIX } from "./services/profession-details.js";
+import { handleProfessionDetails, handleProfessionPage } from "./commands/profession-details.js";
+import { PROFESSION_DETAILS_PREFIX, PROFESSION_PAGE_PREFIX } from "./services/profession-details.js";
 import {
   cleanupDungeonGroups, DUNGEON_GROUP_PREFIX, handleDungeonGroupButton, handleDungeonGuideButton, handleDungeonGuideModal, handleDungeonGuideSelect
 } from "./commands/dungeon-group.js";
@@ -163,8 +163,11 @@ import { keepStampsOnDisk, standingsFeed } from "./services/standings-feed.js";
 import { executePoe } from "./commands/poe.js";
 import { POE_TRACKING_ENABLED } from "../companion/active-games.mjs";
 import { executeParticipation } from "./commands/participation.js";
+import { executePromotionStatus, handlePromotionButton } from "./commands/promotion.js";
+import { PROMOTION_STATUS_BUTTON } from "./services/promotion-status.js";
 import { createParticipationTracker } from "./services/participation-discord.js";
 import { createActivityTracker, VOICE_TICK_MS } from "./services/activity-totals.js";
+import { createVoiceTimeTracker } from "./services/voice-time.js";
 import { handleGameReminderButton, GAME_REMINDER_PREFIX } from "./commands/game-reminders.js";
 import { handleOnboardingInteraction, ONBOARD_PREFIX, runOnboardingNudges, runGameReminders } from "./services/onboarding.js";
 import { handleMemberJoin, handleMemberRolesChange, handleMemberLeave, handleWelcomeRoleButton, WELCOME_ROLE_PREFIX } from "./services/housekeeping.js";
@@ -201,6 +204,8 @@ const client = new Client({
 const participationTracker = createParticipationTracker(prisma, config.MESSAGE_CONTENT_INTENT);
 // Numbers-only activity totals for the message, voice and reaction achievements (never message text).
 const activityTotals = createActivityTracker(prisma);
+// Raw voice time (solo counts, AFK does not) for the promotion rule.
+const voiceTime = createVoiceTimeTracker(prisma);
 const answerCommandList = buildGuildedReference(commands);
 const errorReportService = createErrorReportService(prisma);
 // Before the companion API answers: unchanged standings keep their stamp across restarts.
@@ -273,6 +278,7 @@ handlers.set("system", executeSystem);
 handlers.set("community", executeCommunity);
 if (POE_TRACKING_ENABLED) handlers.set("poe", executePoe); // Forever-only focus: companion/active-games.mjs
 handlers.set("participation", executeParticipation);
+handlers.set("promotion", executePromotionStatus);
 
 async function repairCoreRaids(guild: import("discord.js").Guild, provision = false): Promise<void> {
   const record = await guildService.ensureGuild(guild.id, guild.name);
@@ -344,7 +350,9 @@ client.once(Events.ClientReady, (readyClient) => {
   setInterval(() => void voice().catch(reportJobError("Participation voice checkpoint")), 30_000);
   setInterval(() => void (async () => {
     for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) await activityTotals.voice(guild);
+    for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) await voiceTime.tick(guild);
     await activityTotals.flush();
+    await voiceTime.flush();
   })().catch(reportJobError("Activity totals")), VOICE_TICK_MS);
   const communityActivities = () => runCommunityActivities(readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values(), reportJobError("Community honors"), reportJobError("Community activities"));
   void (async () => {
@@ -820,6 +828,15 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
     await handleItemPreviewButton(interaction).catch((error: unknown) => reportInteractionError("Item preview step 0", interaction, error));
     return;
   }
+  if (interaction.isButton() && interaction.customId === PROMOTION_STATUS_BUTTON) {
+    await handlePromotionButton(interaction).catch(async (error: unknown) => {
+      reportInteractionError("Promotion status", interaction, error);
+      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demande à un officier.";
+      if (interaction.deferred && !interaction.replied) await interaction.editReply({ content }).catch(() => undefined);
+      else if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
+    });
+    return;
+  }
   if (interaction.isButton() && interaction.customId.startsWith(PILOT_REQUEST_PREFIX)) {
     try { await pilotRequests.handle(interaction); }
     catch (error) {
@@ -996,6 +1013,10 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   }
   if (interaction.isStringSelectMenu() && interaction.customId.startsWith(PROFESSION_DETAILS_PREFIX)) {
     await handleProfessionDetails(interaction).catch((error: unknown) => reportInteractionError("Profession details", interaction, error));
+    return;
+  }
+  if (interaction.isButton() && interaction.customId.startsWith(PROFESSION_PAGE_PREFIX)) {
+    await handleProfessionPage(interaction).catch((error: unknown) => reportInteractionError("Profession details page", interaction, error));
     return;
   }
   if (interaction.isButton() && interaction.customId.startsWith(CRAFT_PREFIX)) {

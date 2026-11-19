@@ -62,7 +62,8 @@ export const dungeonRunSchema = z.object({
   players: z.array(z.object({
     character: z.string().min(1).max(40),
     displayName: z.string().trim().min(1).max(80).optional().catch(undefined),
-    realm: z.string().min(1).max(60),
+    // 9.4: Forever has no realms, so a player may arrive with an empty or missing realm: it becomes the unknown-realm marker "-", never a refusal.
+    realm: z.string().optional().transform((value) => value?.trim() || "-").pipe(z.string().max(60)),
     class: z.string().max(20).optional(),
     role: z.string().max(10).optional(),
     integrity: playerIntegritySchema.optional().catch(undefined),

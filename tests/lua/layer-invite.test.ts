@@ -101,6 +101,28 @@ describe("layer invite: asking", () => {
     s!.run(`NS.commandHandlers.layer({ "layer", "cancel" })`);
     expect(msgs()).toContain("no open layer request");
   });
+
+  it("the settings switches work through the real slash dispatch, with or without a guild; only asking needs a guild", () => {
+    setup(); login();
+    // Core hands the module the tokens after the action: { "auto", "on" }.
+    s!.run(`NS.commandHandlers.layer({ "auto", "on" })`);
+    expect(sentCount()).toBe(0);
+    expect(s!.run(`return tostring(DB.layer.auto)`)).toBe("true");
+    expect(msgs()).not.toContain("takes effect once");
+    s!.run(`IsInGuild = function() return false end; MSGS = {}`);
+    s!.run(`NS.commandHandlers.layer({ "auto", "off" })`);
+    expect(s!.run(`return tostring(DB.layer.auto)`)).toBe("nil");
+    expect(msgs()).toContain("(takes effect once you are in a guild)");
+    expect(msgs()).not.toContain("Join a guild");
+    s!.run(`MSGS = {}; NS.commandHandlers.layer({ "helper", "off" })`);
+    expect(s!.run(`return tostring(DB.layer.helper)`)).toBe("false");
+    expect(msgs()).toContain("takes effect once");
+    s!.run(`MSGS = {}; NS.commandHandlers.layer({ "layer", "helper", "on" })`);
+    expect(s!.run(`return tostring(DB.layer.helper)`)).toBe("true");
+    s!.run(`MSGS = {}`);
+    expect(s!.run(`return tostring(NS.layerInvite.ask())`)).toBe("false");
+    expect(msgs()).toContain("Join a guild to ask");
+  });
 });
 
 describe("layer invite: a helper", () => {

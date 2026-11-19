@@ -12,6 +12,7 @@ import { localClassName } from "./character-display.js";
 import { displayCharacterName, loadFullNameBook } from "./character-display.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
 import type { DungeonScene } from "./dungeon-art.js";
+import { worldPvpWeekLine, type WorldPvpWeekLine } from "./world-pvp.js";
 
 // 9.1 daily recap (docs/plans/RECORDS_AND_RECAPS.md): one card per server day, posted after midnight in the server's
 // timezone for the day that ended, only when something happened. On by default (rule 5), officers switch it off; it posts to
@@ -24,10 +25,12 @@ export interface DailyRecap {
   race: { gained: number; top: RecapLeveler[]; new60: { name: string; className: string }[] } | null;
   dungeons: { clears: number; dungeons: number; mostRuns: { name: string; runs: number } | null; highlights: RecapHighlight[] } | null;
   pvp: { duels: number; topDueler: { name: string; wins: number } | null; bgPlayed: number; bgWon: number } | null;
+  // 9.4: the guild's open-world PvP this raid week so far. A line on a recap that has other content; it never makes a quiet day worth a post.
+  worldPvp?: WorldPvpWeekLine | null;
 }
 
 type RecapDb = Pick<PrismaClient, "levelRaceEntry" | "raceHallEntry" | "dungeonRun" | "dungeonHighlight" | "duelResult" | "battlegroundReport">
-  & Partial<Pick<PrismaClient, "character" | "unclaimedCharacter" | "guildRosterEntry">>;
+  & Partial<Pick<PrismaClient, "character" | "unclaimedCharacter" | "guildRosterEntry" | "worldPvpWeek" | "guildSettings" | "officialSeason">>;
 
 /** The server day that ended most recently before `now` (yesterday, in the server's timezone). */
 export function recapDay(now: Date, timezone: string): string { return dateAfter(participationDay(now, timezone), -1); }
@@ -83,7 +86,8 @@ export async function dailyRecap(db: RecapDb, guildId: string, day: string, time
     const book = await loadFullNameBook(db, guildId, dungeons?.mostRuns ? [dungeons.mostRuns.name] : []).catch(() => null);
     if (book) for (const row of [...(race?.top ?? []), ...(race?.new60 ?? []), ...(dungeons?.mostRuns ? [dungeons.mostRuns] : [])]) row.name = displayCharacterName(row.name, book);
   }
-  return { day, race, dungeons, pvp };
+  const worldPvp = db.worldPvpWeek && (race || dungeons || pvp) ? await worldPvpWeekLine(db as never, guildId, "forever", new Date(to.getTime() - 1)) : null;
+  return { day, race, dungeons, pvp, ...(worldPvp ? { worldPvp } : {}) };
 }
 
 function dayLabel(day: string, lang: Lang): string {
@@ -126,6 +130,7 @@ export function dailyRecapCard(recap: DailyRecap, lang: Lang, guildName: string)
     ...(recap.pvp?.topDueler ? [{ name: recap.pvp.topDueler.name, sub: t("Most duel wins", "Le plus de duels gagnés"), right: `×${recap.pvp.topDueler.wins}`, rightTone: "red" as const }] : []),
     ...(recap.pvp?.bgPlayed && !bgInStrip ? [{ name: t(`${recap.pvp.bgWon}/${recap.pvp.bgPlayed} won`, `${recap.pvp.bgWon}/${recap.pvp.bgPlayed} gagnés`), sub: t("Battlegrounds", "Champs de bataille") }] : [])
   ];
+  if (recap.worldPvp) pvpRows.push({ name: t("World PvP this week", "JcJ en monde ouvert cette semaine"), sub: t(`${recap.worldPvp.kills} kills · ${recap.worldPvp.defends} defends · ${recap.worldPvp.helped} calls answered`, `${recap.worldPvp.kills} victoires · ${recap.worldPvp.defends} défenses · ${recap.worldPvp.helped} appels répondus`), right: String(recap.worldPvp.kills), rightTone: "red" as const } as never);
   if (pvpRows.length) sections.push({ title: t("PvP", "JcJ"), rows: pvpRows });
 
   return {
@@ -172,6 +177,7 @@ export function dailyRecapEmbed(recap: DailyRecap, lang: Lang): EmbedBuilder {
     lines.push(`⚔️ **${fr ? "JcJ" : "PvP"}** · ${parts.join(" · ")}`);
     if (recap.pvp.topDueler) lines.push(`🤺 ${fr ? "Le plus de duels gagnés" : "Most duel wins"}: ${recap.pvp.topDueler.name} (×${recap.pvp.topDueler.wins})`);
   }
+  if (recap.worldPvp) lines.push(`🗡️ **${fr ? "JcJ en monde ouvert cette semaine" : "World PvP this week"}** · ${recap.worldPvp.kills} ${fr ? "victoires" : "kills"} · ${recap.worldPvp.defends} ${fr ? "défenses" : "defends"} · ${recap.worldPvp.helped} ${fr ? "appels répondus" : "calls answered"}`);
   return new EmbedBuilder().setColor(0xd4a017).setTitle(`${fr ? "🗓️ Bilan du" : "🗓️ Recap for"} ${dayLabel(recap.day, lang)}`.slice(0, 256))
     .setDescription(lines.join("\n").slice(0, 3800)).setFooter({ text: fr ? "Un bilan par jour, seulement s'il s'est passé quelque chose · officiers : /report stats recap-posts:false" : "One recap per day, only when something happened · officers: /report stats recap-posts:false" });
 }

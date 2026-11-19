@@ -60,7 +60,7 @@ import { executeRecruit, recruitCommand } from "./recruit.js";
 import { executePublicLeaderboard, publicLeaderboardCommand } from "./public-leaderboard.js";
 import { executeRankRoles, rankRolesCommand } from "./rank-roles.js";
 import { executeRoster, rosterCommand } from "./roster.js";
-import { executePromotion, promotionCommand } from "./promotion.js";
+import { executePromotion, promotionCommand, promotionStatusCommand } from "./promotion.js";
 import { executeInvites, invitesCommand } from "./invites.js";
 import { executePug, pugCommand } from "./pug.js";
 import { executePugs, pugsCommand } from "./pug-requests.js";
@@ -177,7 +177,7 @@ export const commands: AnyCommand[] = [
   wowCommand,
   setup, configCommand, helpCommand, character, raid, epgp, loot, dungeon, craftCommand,
   bankCommand, applyCommand, pollCommand, report, mod, coreCommand, tagCommand, importer,
-  community, deleteMyDataCommand, ...(POE_TRACKING_ENABLED ? [poeCommand] : []), participationCommand, teamCommand, battlegroundCommand, automationCommand, lead, officer, organize, appealCommand
+  community, deleteMyDataCommand, ...(POE_TRACKING_ENABLED ? [poeCommand] : []), participationCommand, promotionStatusCommand, teamCommand, battlegroundCommand, automationCommand, lead, officer, organize, appealCommand
 ];
 
 // Commands whose every subcommand checks a leader role (Raid Leader for /lead, Officer or Guild

@@ -67,9 +67,10 @@ function buildPage() {
     VIEW = NS.craftOrders.buildCraftingPage(PAGE, HELPERS)
     PAGE.scripts.OnShow(PAGE)`);
 }
-const forMe = () => s!.run(`local t = {} for _, row in ipairs(VIEW.forMeRows) do if row.frame.shown then t[#t + 1] = row.text.text end end return table.concat(t, "\\n")`);
-const mine = () => s!.run(`local t = {} for _, row in ipairs(VIEW.mineRows) do if row.frame.shown then t[#t + 1] = row.text.text end end return table.concat(t, "\\n")`);
-const found = () => s!.run(`local t = {} for _, row in ipairs(VIEW.resultRows) do if row.frame.shown then t[#t + 1] = row.text.text end end return table.concat(t, "\\n")`);
+const tab = (id: string) => s!.run(`VIEW.sub = "${id}"; NS.craftOrders.refresh()`);
+const forMe = () => (tab("craft"), s!.run(`local t = {} for _, row in ipairs(VIEW.forMeRows) do if row.frame.shown then t[#t + 1] = row.text.text end end return table.concat(t, "\\n")`));
+const mine = () => (tab("mine"), s!.run(`local t = {} for _, row in ipairs(VIEW.mineRows) do if row.frame.shown then t[#t + 1] = row.text.text end end return table.concat(t, "\\n")`));
+const found = () => (tab("request"), s!.run(`local t = {} for _, row in ipairs(VIEW.resultRows) do if row.frame.shown then t[#t + 1] = row.text.text end end return table.concat(t, "\\n")`));
 const search = (text: string) => s!.run(`VIEW.box:SetText(${JSON.stringify(text)}); VIEW.box.scripts.OnEnterPressed(VIEW.box)`);
 const sent = (kind: string) => s!.run(`local t = {} for _, m in ipairs(SENT) do if m.prefix == "GuildedOrd" and string.find(m.text, "^${kind}|") then t[#t + 1] = m.text end end return table.concat(t, "\\n")`);
 
@@ -100,6 +101,7 @@ describe("the Crafting page: requests for me", () => {
   it("claims in game, says it on GUILD, and shows Done / Give back until Discord has it", () => {
     setup();
     buildPage();
+    tab("craft");
     s!.run("VIEW.forMeRows[2].first.scripts.OnClick(VIEW.forMeRows[2].first)");
     expect(s!.run("return NS.getDb().craftOrders.actions.req_shirt01.action")).toBe("claim");
     expect(sent("ACT")).toBe(`ACT|req_shirt01|claim|1800000000|${s!.run("return NS.craftOrders.myName()")}`);
@@ -160,6 +162,27 @@ describe("the Crafting page: requests for me", () => {
       expect(s!.run("return VIEW.mineHeader.text")).not.toContain("My requests");
       s!.close(); s = undefined;
     }
+  });
+});
+
+describe("the Crafting page: sub-tabs", () => {
+  it("has Request, My requests and Craft for the guild, one shown at a time", () => {
+    setup();
+    buildPage();
+    expect(s!.run("local t = {} for _, b in ipairs(VIEW.tabs) do t[#t + 1] = b.subId end return table.concat(t, ',')")).toBe("request,mine,craft");
+    expect(s!.run("return VIEW.sub .. tostring(VIEW.box.shown) .. tostring(VIEW.mineHeader.shown) .. tostring(VIEW.forMeHeader.shown)")).toBe("requesttruefalsefalse");
+    s!.run("VIEW.tabs[2].scripts.OnClick(VIEW.tabs[2])");
+    expect(s!.run("return VIEW.sub .. tostring(VIEW.box.shown) .. tostring(VIEW.mineHeader.shown) .. tostring(VIEW.forMeHeader.shown)")).toBe("minefalsetruefalse");
+    s!.run("VIEW.tabs[3].scripts.OnClick(VIEW.tabs[3])");
+    expect(s!.run("return VIEW.sub .. tostring(VIEW.box.shown) .. tostring(VIEW.mineHeader.shown) .. tostring(VIEW.forMeHeader.shown)")).toBe("craftfalsefalsetrue");
+    expect(s!.run("return VIEW.tabs[3].text")).toContain("Craft for the guild");
+  });
+
+  it("is translated", () => {
+    setup({ lang: "fr" });
+    buildPage();
+    expect(s!.run("return VIEW.tabs[3].text")).not.toContain("Craft for the guild");
+    expect(s!.run("return VIEW.tabs[1].text")).not.toContain("Request");
   });
 });
 
@@ -271,7 +294,7 @@ describe("the Crafting page: search and Request", () => {
   it("sizes the page for its blocks and keeps Advanced and the share button working", () => {
     withCrafters();
     const base = Number(s!.run("return VIEW.height()"));
-    expect(base).toBeGreaterThan(200);
+    expect(base).toBeGreaterThan(150);
     s!.run("VIEW.optionsButton.scripts.OnClick(VIEW.optionsButton)");
     const withOptions = Number(s!.run("return VIEW.height()"));
     expect(withOptions).toBeGreaterThan(base);
@@ -437,6 +460,7 @@ describe("the Crafting page: review fixes", () => {
     withMe();
     search("shirt");
     s!.run("VIEW.resultRows[1].button.scripts.OnClick(VIEW.resultRows[1].button)");
+    tab("mine");
     expect(s!.run("return tostring(VIEW.mineRows[1].second.shown) .. VIEW.mineRows[1].second.text")).toBe("trueCancel");
     s!.run("VIEW.mineRows[1].second.scripts.OnClick(VIEW.mineRows[1].second)");
     expect(requests()).toBe(0);

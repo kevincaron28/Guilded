@@ -6259,3 +6259,8 @@ FR["Layer requests are no longer invited by themselves."] = "Les demandes de cou
 FR["Party Invite buttons invite directly."] = "Les boutons Inviter du groupe invitent directement."
 FR["Party Invite buttons show the /invite line to paste."] = "Les boutons Inviter du groupe affichent la ligne /invite \195\160 coller."
 FR["Off by default. When a guildmate on your continent asks for a layer, Guilded invites them at once (only when you are alone or lead your party, out of combat and outside instances) and shows a short notice. If the game refuses, you get the Invite window instead."] = "D\195\169sactiv\195\169 par d\195\169faut. Quand un membre de la guilde sur votre continent demande une couche, Guilded l'invite tout de suite (seulement si vous \195\170tes seul ou chef de groupe, hors combat et hors instance) et affiche un court avis. Si le jeu refuse, vous avez la fen\195\170tre Inviter \195\160 la place."
+
+-- 9.4 Crafting window: sub-tabs.
+FR["Craft for the guild"] = "Fabriquer pour la guilde"
+DE["Craft for the guild"] = "F\195\188r die Gilde herstellen"
+ES["Craft for the guild"] = "Fabricar para la hermandad"

@@ -760,6 +760,12 @@ table.insert(ns.commandHelp, "/guilded orders [all | alerts on|off] - craft requ
 -- ---------------------------------------------------------------------
 local function setShown(widget, shown) if shown then widget:Show() else widget:Hide() end end
 
+orders.SUBTABS = {
+  { id = "request", label = "Request" },
+  { id = "mine", label = "My requests" },
+  { id = "craft", label = "Craft for the guild" },
+}
+
 function orders.requestStatusText(row)
   if row.pending then return L("Sent. Discord gets it with the next sync.") end
   local view, order = row.view, row.order
@@ -772,12 +778,20 @@ end
 function orders.buildCraftingPage(page, helpers)
   local width = helpers.width or 580
   local newLabel, newButton, newEdit, at = helpers.newLabel, helpers.newButton, helpers.newEdit, helpers.at
-  local view = { page = page, width = width, results = {}, all = false, options = false, advanced = false }
+  local view = { page = page, width = width, results = {}, all = false, options = false, advanced = false, sub = "request" }
   orders.ui = view
   view.relayout = helpers.relayout
 
+  -- Three sub-tabs (9.4): Request, My requests, Craft for the guild. One shows at a time.
+  view.tabs = {}
+  for i, key in ipairs(orders.SUBTABS) do
+    view.tabs[i] = newButton(page, key.label, 140, function() view.sub = key.id; orders.refresh(true) end, 24)
+    view.tabs[i].subId = key.id
+    view.tabs[i]:SetPoint("TOPLEFT", page, "TOPLEFT", (i - 1) * 144, 0)
+  end
+
   -- Search: one box (type a name, or shift-click an item), results under it.
-  view.box = at(newEdit(page, 330), page, 6, 0)
+  view.box = at(newEdit(page, 330), page, 6, -34)
   if helpers.itemBox then helpers.itemBox(view.box) end
   if helpers.placeholder then helpers.placeholder(view.box, "Item or recipe: type a name, or shift-click an item") end
   local function search()
@@ -797,7 +811,7 @@ function orders.buildCraftingPage(page, helpers)
     if (self:GetText() or "") ~= (view.query or "") then search() end
   end)
   view.searchButton = newButton(page, "Search", 90, search)
-  view.searchButton:SetPoint("TOPLEFT", page, "TOPLEFT", 344, 3)
+  view.searchButton:SetPoint("TOPLEFT", page, "TOPLEFT", 344, -31)
   view.note = newLabel(page, "", "GameFontHighlightSmall")
   view.note:SetWidth(width)
   view.more = newLabel(page, "", "GameFontDisableSmall")
@@ -960,12 +974,11 @@ local function place(widget, page, x, y)
   widget:SetPoint("TOPLEFT", page, "TOPLEFT", x, y)
 end
 
-function orders.render(view)
-  if not view then return end
-  orders.prune()
-  local page, y = view.page, -34
-  local current = orders.current()
-  local off = current and current.off
+-- Request sub-tab: search, results, options.
+local function renderRequest(view, page, y, off)
+  setShown(view.box, true); setShown(view.searchButton, true)
+  place(view.box, page, 6, y); place(view.searchButton, page, 344, y + 3)
+  y = y - 34
   -- Search results.
   local n = math.min(RES_ROWS, #view.results)
   for i, row in ipairs(view.resultRows) do
@@ -1009,10 +1022,14 @@ function orders.render(view)
     y = y - 30
   end
   y = y - 6
-  -- My requests.
+  return y
+end
+
+-- My requests sub-tab.
+local function renderMine(view, page, y, off)
   local mine = orders.myRequests()
   view.mineHeader:SetText(string.format("%s (%d)", L("My requests"), #mine))
-  place(view.mineHeader, page, 0, y); y = y - 20
+  view.mineHeader:Show(); place(view.mineHeader, page, 0, y); y = y - 20
   for i, row in ipairs(view.mineRows) do
     local entry = mine[i]
     if entry then
@@ -1040,7 +1057,11 @@ function orders.render(view)
   elseif view.mineEmpty:GetText() ~= "" then view.mineEmpty:SetWidth(view.width or 580); place(view.mineEmpty, page, 4, y); view.mineEmpty:Show(); y = y - 18
   else view.mineEmpty:Hide() end
   y = y - 6
-  -- Requests for me (orders for my recipes, asked of me, mine in progress), then guildmates' not on Discord yet.
+  return y
+end
+
+-- Craft for the guild sub-tab: orders for my recipes, asked of me, mine in progress, then guildmates' not on Discord yet.
+local function renderCraft(view, page, y, off, mine)
   local forMe = off and {} or orders.list(view.all)
   local mineIds = {}
   for _, entry in ipairs(mine) do if entry.order then mineIds[entry.order.id] = true end end
@@ -1048,7 +1069,7 @@ function orders.render(view)
   for _, row in ipairs(forMe) do if not mineIds[row.order.id] and not orders.isMyRequest(row.order) then rows[#rows + 1] = row end end
   for _, heard in ipairs(off and {} or orders.heardForMe()) do rows[#rows + 1] = heard end
   view.forMeHeader:SetText(string.format("%s (%d)", L("Requests for me"), #rows))
-  place(view.forMeHeader, page, 0, y)
+  view.forMeHeader:Show(); view.allButton:Show(); place(view.forMeHeader, page, 0, y)
   view.allButton:SetText(view.all and L("Show my recipes") or L("Show all open orders"))
   -- Wide enough for the translated text (French "Toutes les commandes ouvertes" was cut off), kept inside the page.
   local allWidth = 170
@@ -1094,8 +1115,32 @@ function orders.render(view)
     place(view.forMeEmpty, page, 190, y + 22); view.forMeEmpty:SetWidth(math.max(60, (view.width or 580) - allWidth - 206)); view.forMeEmpty:Show()
   elseif view.forMeEmpty:GetText() ~= "" then view.forMeEmpty:SetWidth(view.width or 580); place(view.forMeEmpty, page, 4, y); view.forMeEmpty:Show(); y = y - 18
   else view.forMeEmpty:Hide() end
-  place(view.hint, page, 4, y); y = y - math.max(16, textHeight(view.hint) + 4)
+  view.hint:Show(); place(view.hint, page, 4, y); y = y - math.max(16, textHeight(view.hint) + 4)
   y = y - 8
+  return y
+end
+
+function orders.render(view)
+  if not view then return end
+  orders.prune()
+  local page, y = view.page, -34
+  local current = orders.current()
+  local off = current and current.off
+  local sub = view.sub
+  local mine = orders.myRequests()
+  -- Sub-tab bar (the active one in gold, with counts).
+  for _, button in ipairs(view.tabs) do
+    local label = L(button.subId == "request" and "Request" or button.subId == "mine" and "My requests" or "Craft for the guild")
+    if button.subId == "mine" and #mine > 0 then label = label .. " (" .. #mine .. ")" end
+    button:SetText(button.subId == sub and ("|cffffd100" .. label .. "|r") or label)
+  end
+  -- Everything of the other sub-tabs is hidden first.
+  for _, widget in ipairs({ view.box, view.searchButton, view.note, view.more, view.optionsButton, view.askButton, view.qtyLabel, view.qtyBox, view.noteLabel, view.noteBox,
+    view.mineHeader, view.mineEmpty, view.forMeHeader, view.forMeEmpty, view.allButton, view.hint }) do widget:Hide() end
+  for _, list in ipairs({ view.resultRows, view.mineRows, view.forMeRows }) do for _, row in ipairs(list) do row.frame:Hide() end end
+  if sub == "mine" then y = renderMine(view, page, y, off)
+  elseif sub == "craft" then y = renderCraft(view, page, y, off, mine)
+  else y = renderRequest(view, page, y, off) end
   -- Share, source, Advanced.
   place(view.shareButton, page, 0, y)
   view.sourceLabel:SetText(orders.sourceText(current))

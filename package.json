@@ -1,6 +1,6 @@
 {
   "name": "guilded-bot",
-  "version": "9.4.0",
+  "version": "9.4.1",
   "private": true,
   "packageManager": "npm@11.13.0",
   "description": "Guild management and addon integration bot for Guilded",
@@ -81,6 +81,7 @@
   },
   "overrides": {
     "deepmerge-ts": "^8.0.0",
+    "effect": "^3.22.5",
     "sharp": "^0.35.5",
     "miniflare": {
       "undici": "7.30.1"

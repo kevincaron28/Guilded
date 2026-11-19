@@ -1,6 +1,8 @@
 // Sitemaps of the public leaderboard pages (players, guilds, runs): a sitemap index plus paginated files, so crawlers find
 // every public page. Pure string builders; the data (already filtered for hidden, deleted and opted-out players) comes from
-// public-leaderboard.ts. Each page is listed with its English address and the French alternate (?lang=fr), like the pages' own hreflang.
+// public-leaderboard.ts. Each page is listed with its English address and the French alternate (/fr/ path), like the pages' own hreflang.
+
+import { frenchUrl } from "./web-layout.js";
 
 /** Entries per sitemap file (the protocol allows 50,000; smaller files stay quick to build and fetch). */
 export const SITEMAP_PAGE_SIZE = 5000;
@@ -16,7 +18,7 @@ export function sitemapUrlset(entries: SitemapEntry[], absolute: (path: string) 
   const body = entries.map(({ path, lastmod }) => {
     const en = absolute(path);
     return `<url><loc>${xml(en)}</loc>${lastmod ? `<lastmod>${day(lastmod)}</lastmod>` : ""}`
-      + `<xhtml:link rel="alternate" hreflang="en" href="${xml(en)}"/><xhtml:link rel="alternate" hreflang="fr" href="${xml(`${en}?lang=fr`)}"/></url>`;
+      + `<xhtml:link rel="alternate" hreflang="en" href="${xml(en)}"/><xhtml:link rel="alternate" hreflang="fr" href="${xml(frenchUrl(en))}"/></url>`;
   }).join("");
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">${body}</urlset>\n`;
 }

@@ -348,6 +348,15 @@ async function route(request, env, ctx) {
     if (url.pathname === "/consent.js" && adsOn(env) && ["GET", "HEAD"].includes(request.method)) return consentScriptResponse(request);
     const moved = canonicalRedirect(request, env, url);
     if (moved) return moved;
+    // The French address of a bot-served public page (/fr/forever/leaderboards/...: the canonical and hreflang the bot
+    // writes, like the static site's /fr/ pages) is that page with ?lang=fr. Files (.json, .xml, .png) stay English.
+    if (["GET", "HEAD"].includes(request.method) && /^\/fr\/(?:forever\/)?(?:leaderboards|recruitment|players)(?:\/|$)/.test(url.pathname)
+      && !/\.[a-z]{2,4}$/.test(url.pathname) && !["kcaron.top", "www.kcaron.top"].includes(url.hostname)) {
+      const inner = new URL(url);
+      inner.pathname = url.pathname.slice(3);
+      inner.searchParams.set("lang", "fr");
+      return route(new Request(inner, request), env, ctx);
+    }
     const directory = indexHtmlRedirect(request, url);
     if (directory) return directory;
     const download = await hostedDownload(request, env, ctx, url);

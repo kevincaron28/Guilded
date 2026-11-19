@@ -7,14 +7,14 @@ describe("CurseForge pointer", () => {
 
   it("points at the 9.3.11 Forever files and GitHub at 9.3.11", () => {
     expect(releases.verifiedAt).toBe("2026-11-17");
-    expect(releases.guilded.github.version).toBe("9.3.11");
+    expect(releases.guilded.github.version).toBe("9.4.0");
     expect(releases.guilded.curseforge.version).toBe("9.3.11");
     expect(releases.guilded.curseforge.url).toBe("https://www.curseforge.com/wow/addons/guilded");
     expect(releases.guilded.curseforge.editions.forever).toEqual({
       guilded: "https://www.curseforge.com/wow/addons/guilded/files/9691780",
       dungeons: "https://www.curseforge.com/wow/addons/guilded-dungeons/files/9691782"
     });
-    expect(releases.guilded.companionDirect.version).toBe("9.3.11");
+    expect(releases.guilded.companionDirect.version).toBe("9.4.0");
   });
 
   it("shows CurseForge 9.3.11 on the creator page and links the files from the edition page", () => {

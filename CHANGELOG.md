@@ -2,7 +2,7 @@
 
 ## 9.4.0 — 19 November 2026
 
-The owner's 9.4 list. Prepared 19 November 2026, not yet published. Not yet confirmed on real clients (see docs/V9_4_0_RELEASE_ACCEPTANCE.md). Details: docs/V9_4_0_RELEASE_NOTES.md.
+The owner's 9.4 list. Published 19 November 2026. Not yet confirmed on real clients (see docs/V9_4_0_RELEASE_ACCEPTANCE.md). Details: docs/V9_4_0_RELEASE_NOTES.md.
 
 Addon:
 

@@ -1473,7 +1473,7 @@ end
 -- Sidebar order: pages are grouped under these headings.
 -- The five member tabs of 9.2 (and Settings). The active one expands to its pages in the sidebar. Pages of the
 -- guild window show here as link buttons; the officer pages stay in the guild window until the Officer tab.
-local GROUPS = { "Home", "Guild", "Dungeons", "Crafting", "Raids", "Officer", "Settings" }
+local GROUPS = { "Home", "Guild", "Layer", "Dungeons", "Crafting", "Raids", "Officer", "Settings" }
 -- Guild is one page: its sections are a row of buttons at the top of the content (the pages keep their own
 -- frames), not entries in the sidebar. Crafting is a single page of its own (9.2).
 -- 9.3: every group with more than one page does this (Home, Guild, Raids, Officer), so the sidebar never changes under the
@@ -1775,7 +1775,7 @@ local TAB_DEFS = {
   { name = "Crafting", label = "Crafting", hint = "find a crafter and request an item, crafting requests, your professions", group = "Crafting", module = "recipes", build = buildCraftingPage },
   { name = "Me", label = "My character", hint = "your gear check and attunements", group = "Home", usesPlayer = true, build = buildMePage },
   { name = "Open raids", hint = "find a raid with room for you", group = "Raids", build = buildPublicRaidsPage },
-  { name = "Layer invite", hint = "ask guildmates on your continent to invite you onto their layer", group = "Guild", build = function(page) if ns.layerInvite and ns.layerInvite.buildPage then ns.layerInvite.buildPage(page, { newLabel = newLabel, newButton = newButton, at = at, width = PAGE_WIDTH }) end end },
+  { name = "Layer invite", hint = "ask guildmates on your continent to invite you onto their layer", group = "Layer", build = function(page) if ns.layerInvite and ns.layerInvite.buildPage then ns.layerInvite.buildPage(page, { newLabel = newLabel, newButton = newButton, newCheck = newCheck, tip = tip, at = at, width = PAGE_WIDTH }) end end },
   { name = "Standings", group = "Guild", usesPlayer = true, build = buildStandingsPage },
   { name = "Gear", hint = "item level and missing enchants per member", group = "Officer", officer = true, build = buildGearPage },
   { name = "Ready", hint = "who is ready for the raid", group = "Raids", leader = true, build = buildReadyPage },
@@ -2299,7 +2299,7 @@ updateGuildScroll = function()
     -- Greeting and "Right now" (54), the gear check, then the Discord block ending with the companion steps
     -- (the last label hangs 312 below the gear text): the whole page scrolls instead of being cut at the bottom.
     height = 54 + textHeight(ui.homeNow) + 16 + 16 + 6 + textHeight(ui.homeGear) + 312 + (ui.homeSteps and textHeight(ui.homeSteps) or 0) + 12
-  elseif tab.name == "Layer invite" then height = 264 -- the last of five request rows ends near y=-250
+  elseif tab.name == "Layer invite" then height = 330 -- the last of five request rows ends near y=-316
   elseif tab.name == "EPGP" then height = 252 -- the lowest widget ends near y=-218, a 22 px button
   elseif tab.name == "Roster admin" then height = 36 + 30 + 40
   elseif tab.name == "Officer tools" then height = 12 + math.ceil(#OFFICER_TOOLS / 2) * 38 + 12

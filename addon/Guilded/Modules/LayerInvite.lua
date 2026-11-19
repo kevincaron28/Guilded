@@ -1,6 +1,6 @@
 -- Layer invite (9.2): helps a member who wants to get onto a guildmate's layer. It replaces levelling partners.
 --
---   /guilded layer                 ask for a layer invite (also the Layer invite page in the Guild tab)
+--   /guilded layer                 ask for a layer invite (also the Layer page in the sidebar)
 --   /guilded layer list            open requests from guildmates, with the line to invite them
 --   /guilded layer cancel          close my own request
 --   /guilded layer helper on|off   whether guildmates' requests show a small window to me
@@ -308,7 +308,7 @@ function module.claim(request)
 end
 
 local function chatLine(request)
-  say(string.format(L("%s wants another layer (%s). Open Guilded, Guild, Layer invite after combat."), display(request.name), request.zone))
+  say(string.format(L("%s wants another layer (%s). Open Guilded, Layer after combat."), display(request.name), request.zone))
 end
 
 local function remember(key)
@@ -425,26 +425,46 @@ function module.myRequest() return mine end
 
 function module.buildPage(page, helpers)
   local newLabel, newButton, at = helpers.newLabel, helpers.newButton, helpers.at
+  local newCheck, tip = helpers.newCheck, helpers.tip
   local width = helpers.width or 560
   local intro = at(newLabel(page, "Ask guildmates on your continent to invite you into their group. Accepting a party invite from someone on another layer moves you to that layer; then leave the group.", "GameFontHighlightSmall"), page, 0, 0)
   intro:SetWidth(width - 8)
   at(newButton(page, "Change layer", 150, function() module.ask(); module.refreshPage() end), page, 0, -50)
   local status = at(newLabel(page, "", "GameFontHighlightSmall"), page, 160, -54)
   status:SetWidth(width - 168)
-  at(newLabel(page, "Open requests", "GameFontNormal"), page, 0, -80)
-  local empty = at(newLabel(page, "No open requests.", "GameFontHighlightSmall"), page, 0, -104)
+  -- (9.4) The same two switches as Settings (/guilded layer helper|auto on|off), here where the requests are. They only change a
+  -- saved setting (no protected call, no secure frame), so they also work in combat.
+  local function switch(text, tooltip, y, command, get)
+    local box = at(newCheck(page, text), page, 0, y)
+    box:SetScript("OnClick", function(self)
+      local handler = ns.commandHandlers and ns.commandHandlers["layer"]
+      if handler then handler({ "layer", command, self:GetChecked() and "on" or "off" }) end
+      module.refreshPage()
+    end)
+    if tip then tip(box, tooltip) end
+    box.get = get
+    return box
+  end
+  local helperBox = switch("Show guildmates' layer requests", "A small window when a guildmate on your continent asks to be invited onto another layer.", -78, "helper", module.helper)
+  local autoBox = switch("Auto-invite layer requests on my continent", "Off by default. When a guildmate on your continent asks for a layer, Guilded invites them at once (only when you are alone or lead your party, out of combat and outside instances) and shows a short notice. If the game refuses, you get the Invite window instead.", -102, "auto", module.autoInvite)
+  module.pageBoxes = { helper = helperBox, auto = autoBox }
+  local autoHelp = at(newLabel(page, "Alone or party leader, out of combat and instances.", "GameFontDisableSmall"), page, 28, -124)
+  at(newLabel(page, "Open requests", "GameFontNormal"), page, 0, -146)
+  local empty = at(newLabel(page, "No open requests.", "GameFontHighlightSmall"), page, 0, -170)
   -- What the empty list means and what to do next, under the line above.
-  local emptyHelp = at(newLabel(page, "When a guildmate on another layer asks to be invited, they appear here with an Invite button. Press Change layer to ask for an invite yourself.", "GameFontDisableSmall"), page, 0, -124)
+  local emptyHelp = at(newLabel(page, "When a guildmate on another layer asks to be invited, they appear here with an Invite button. Press Change layer to ask for an invite yourself.", "GameFontDisableSmall"), page, 0, -190)
   emptyHelp:SetWidth(width - 8)
   for i = 1, MAX_ROWS do
     local row = {}
-    row.label = at(newLabel(page, "", "GameFontHighlight"), page, 0, -104 - (i - 1) * 28)
+    row.label = at(newLabel(page, "", "GameFontHighlight"), page, 0, -170 - (i - 1) * 28)
     row.label:SetWidth(width - 110)
     row.invite = ns.util.inviteButton(page, "party", L("Invite"), 80, 22, function() if row.request then module.claim(row.request); module.refreshPage() end end)
-    row.invite:SetPoint("TOPLEFT", page, "TOPLEFT", width - 96, -100 - (i - 1) * 28)
+    row.invite:SetPoint("TOPLEFT", page, "TOPLEFT", width - 96, -166 - (i - 1) * 28)
     rows[i] = row
   end
   function module.refreshPage()
+    helperBox:SetChecked(module.helper())
+    autoBox:SetChecked(module.autoInvite())
     if mine then
       status:SetText(mine.claimedBy and string.format(L("%s will invite you."), display(mine.claimedBy)) or L("Waiting for a guildmate to offer..."))
     else

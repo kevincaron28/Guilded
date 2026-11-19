@@ -76,6 +76,11 @@ const apiMethods = new Map([
   ["/api/v1/companion/claim-offers", ["GET", "POST"]],
   // Phone badge album: the signed-in member's own achievements (read-only).
   ["/api/v1/companion/achievements", ["GET"]],
+  // Phone app 0.5.0: my characters (Make main, Unlink) and my promotion progress, the member's own data under the companion sign-in.
+  ["/api/v1/me/characters", ["GET"]],
+  ["/api/v1/me/characters/main", ["POST"]],
+  ["/api/v1/me/characters/unlink", ["POST"]],
+  ["/api/v1/me/promotion", ["GET"]],
   // Guilded Collection (phone card game): read, open the daily pack, craft.
   ["/api/v1/companion/cards", ["GET"]],
   ["/api/v1/companion/cards/open", ["POST"]],

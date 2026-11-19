@@ -7,6 +7,8 @@ import { common } from "../ui/common";
 
 import { Language } from "../guild/SignIn";
 import { AlbumScreen } from "./AlbumScreen";
+import { MyCharacters } from "./MyCharacters";
+import { PromotionCard } from "./PromotionCard";
 import { Wishlist } from "./Wishlist";
 import { DELETE_INFO_URL, PRIVACY_URL } from "../links";
 import * as clashEntry from "../clash/entry";
@@ -34,7 +36,10 @@ export function MeTab({ guild, onSignIn }: { guild: GuildState; onSignIn: () => 
   return <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
     <Screen onRefresh={guild.refresh}>
       {preview ? <Text style={common.banner}>{t(lang, "sampleBanner")}</Text> : null}
-      {guild.hasGuild ? <>
+      {session && !preview ? <>
+        <MyCharacters lang={lang} session={session} />
+        <PromotionCard lang={lang} session={session} />
+      </> : guild.hasGuild ? <>
         <Text style={common.label}>{t(lang, "profile").toUpperCase()}</Text>
         {characters.length === 0 ? <EmptyState art="guild" message={t(lang, "noCharacters")} /> : characters.map((character) =>
           <Card key={character.id} edge={null}>

@@ -81,6 +81,7 @@
   },
   "overrides": {
     "deepmerge-ts": "^8.0.0",
+    "effect": "^3.22.5",
     "sharp": "^0.35.5",
     "miniflare": {
       "undici": "7.30.1"

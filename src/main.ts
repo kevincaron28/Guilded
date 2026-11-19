@@ -88,8 +88,9 @@ import { purgeOldPvpEvents } from "./services/world-pvp-events.js";
 import { sweepServerAnniversaries } from "./services/server-anniversary.js";
 import { handlePollButton, handleWeeklyQuestionButton, POLL_PREFIX, WEEKLY_QUESTION_PREFIX } from "./commands/poll.js";
 import { CRAFT_PREFIX, handleCraftButton, handleCraftModal, handleCraftSelect } from "./commands/craft-board.js";
-import { handleProfessionDetails, handleProfessionPage } from "./commands/profession-details.js";
+import { handleProfessionCategoryButton, handleProfessionDetails, handleProfessionPage } from "./commands/profession-details.js";
 import { PROFESSION_DETAILS_PREFIX, PROFESSION_PAGE_PREFIX } from "./services/profession-details.js";
+import { PROFESSION_CATEGORY_PREFIX } from "./services/profession-messages.js";
 import {
   cleanupDungeonGroups, DUNGEON_GROUP_PREFIX, handleDungeonGroupButton, handleDungeonGuideButton, handleDungeonGuideModal, handleDungeonGuideSelect
 } from "./commands/dungeon-group.js";
@@ -1014,6 +1015,10 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   }
   if (interaction.isStringSelectMenu() && interaction.customId.startsWith(PROFESSION_DETAILS_PREFIX)) {
     await handleProfessionDetails(interaction).catch((error: unknown) => reportInteractionError("Profession details", interaction, error));
+    return;
+  }
+  if (interaction.isButton() && interaction.customId.startsWith(PROFESSION_CATEGORY_PREFIX)) {
+    await handleProfessionCategoryButton(interaction).catch((error: unknown) => reportInteractionError("Profession category details", interaction, error));
     return;
   }
   if (interaction.isButton() && interaction.customId.startsWith(PROFESSION_PAGE_PREFIX)) {

@@ -4,6 +4,7 @@ import { loadFullNameBook } from "../services/character-display.js";
 import { loadProfessionPosts } from "../services/profession-board.js";
 import { findProfessionCategory, findProfessionRecipe, parseCategoryPage, professionCategoryView, professionKey } from "../services/profession-details.js";
 import { professionDetailsEmbed } from "../services/profession-details.js";
+import { PROFESSION_CATEGORY_PREFIX } from "../services/profession-messages.js";
 import { boardLang, requestRows } from "./craft-board.js";
 import { guildService } from "./context.js";
 import { itemData } from "../item-data.js";
@@ -42,4 +43,16 @@ export async function handleProfessionPage(interaction: ButtonInteraction): Prom
   const post = wanted ? (await loadProfessionPosts(prisma, guild.id, await loadFullNameBook(prisma, guild.id))).find(candidate => professionKey(candidate.profession) === wanted.profession) : undefined;
   const view = wanted && post ? professionCategoryView(post, wanted.category, wanted.page, lang) : null;
   await interaction.editReply(view ? { content: view.content, components: view.components } : { content: lang === "fr" ? "Cette catégorie n'est plus listée." : "That category is no longer listed.", components: [] });
+}
+
+/** The "Details" button under a category message in the profession thread: a private paged menu of that category's recipes (picking one shows the item card and the Request button). */
+export async function handleProfessionCategoryButton(interaction: ButtonInteraction): Promise<void> {
+  if (!interaction.guild) return;
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const guild = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
+  const lang = await boardLang(guild.id);
+  const [profession, category] = interaction.customId.slice(PROFESSION_CATEGORY_PREFIX.length).split(":");
+  const post = (await loadProfessionPosts(prisma, guild.id, await loadFullNameBook(prisma, guild.id))).find(candidate => professionKey(candidate.profession) === profession);
+  const view = post && category ? professionCategoryView(post, category, 0, lang) : null;
+  await interaction.editReply(view ? { content: view.content, components: view.components } : { content: lang === "fr" ? "Cette catégorie n'est plus listée." : "That category is no longer listed." });
 }

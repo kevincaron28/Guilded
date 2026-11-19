@@ -1,13 +1,15 @@
-import { EmbedBuilder, escapeMarkdown, type ForumChannel, type Guild as DiscordGuild, type ThreadChannel } from "discord.js";
+import { type ForumChannel, type Guild as DiscordGuild, type ThreadChannel } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
-import { byLastSeen, lastSeenOf, lastSeenText } from "./last-seen.js";
-import { crafterLine, professionLegend, professionName, professionTitle, seenDot } from "./profession-style.js";
+import { byLastSeen, lastSeenOf } from "./last-seen.js";
+import { professionName } from "./profession-style.js";
 import { professionDetailsRow } from "./profession-details.js";
 import { normalizeProfessionName, professionSlug } from "./profession-names.js";
 import { displayCharacterName, emptyNameBook, loadFullNameBook, type FullNameBook } from "./character-display.js";
 import { nullItemDataProvider, type ItemDataProvider } from "./item-preview-data.js";
-import { categoryLabel, categoryOf, groupByCategory } from "./recipe-categories.js";
+import { categoryOf } from "./recipe-categories.js";
+import { createHash } from "node:crypto";
+import { professionCategoryMessages, professionSummaryEmbed, type CategoryMessage } from "./profession-messages.js";
 
 // 8.5 track D2: ONE post per profession in the craft forum, edited in place (the duel-board pattern), listing every
 // recipe and the crafters who know it with their last seen. It replaces the old "top 3 per profession" directory
@@ -16,7 +18,6 @@ import { categoryLabel, categoryOf, groupByCategory } from "./recipe-categories.
 
 export const PROFESSION_POST_MARKER = "Guilded profession board";
 const THREAD_PREFIX = "📚 ";
-const MAX_CRAFTERS_SHOWN = 3, MAX_CRAFTER_LINES = 8;
 
 export interface ProfessionRecipe {
   itemKey: number; itemName: string; crafters: { character: string; lastSeen: Date | null }[];
@@ -123,81 +124,6 @@ export async function loadProfessionPosts(db: Db, guildId: string, names: FullNa
   return sorted;
 }
 
-const CHUNK_LIMIT = 3900;       // per embed description (Discord: 4096)
-const MESSAGE_LIMIT = 5700;     // title + descriptions + footer over the whole message (Discord: 6000)
-const MAX_EMBEDS = 10;
-
-/** Pure: one profession's embeds (the first carries the title and footer), recipes under a heading per category. Same input and clock, same output. */
-export function professionPostEmbeds(post: ProfessionPost, lang: Lang, guildId = "", now = new Date()): EmbedBuilder[] {
-  const fr = lang === "fr";
-  const t = (en: string, french: string) => fr ? french : en;
-  const name = (value: string) => escapeMarkdown(value).slice(0, 40);
-  const seen = (date: Date | null) => lastSeenText(date, lang, now);
-  const head = [professionLegend(lang), "", `**${t("Crafters", "Artisans")}** (${post.skilled.length})`];
-  if (!post.skilled.length) head.push(t("none recorded", "aucun enregistré"));
-  for (const row of post.skilled.slice(0, MAX_CRAFTER_LINES)) head.push(crafterLine({ character: row.character, skill: row.skillLevel, lastSeen: row.lastSeen }, seen(row.lastSeen), now, name));
-  if (post.skilled.length > MAX_CRAFTER_LINES) head.push(t(`…and ${post.skilled.length - MAX_CRAFTER_LINES} more`, `…et ${post.skilled.length - MAX_CRAFTER_LINES} autres`));
-  const title = professionTitle(post.profession, lang).slice(0, 256);
-  const footer = `${PROFESSION_POST_MARKER} • ${guildId} • ${t("From members' profession scans", "Tiré des relevés de métiers des membres")}`.slice(0, 2048);
-  const recipesTitle = post.recipes.length ? `\n\n**${t("Recipes", "Recettes")}** (${post.recipes.length}) — ${t("grouped by category; pick one in the menu below to request it or see its details", "groupées par catégorie; choisissez-en une dans le menu ci-dessous pour la demander ou voir ses détails")}\n` : "";
-  const empty = post.recipes.length ? "" : `\n\n${t("No recipe recorded yet. Open this profession's window in game with Guilded to add yours.", "Aucune recette enregistrée. Ouvrez la fenêtre de ce métier en jeu avec Guilded pour ajouter les vôtres.")}`;
-
-  const lineOf = (recipe: ProfessionRecipe, compact: boolean): string => {
-    const shown = compact ? 1 : MAX_CRAFTERS_SHOWN;
-    const who = recipe.crafters.slice(0, shown).map(crafter => `${seenDot(crafter.lastSeen, now)} ${name(crafter.character)}`).join(", ")
-      + (recipe.crafters.length > shown ? ` +${recipe.crafters.length - shown}` : "");
-    // A crafted item links to its Wowhead classic page (name only, so the line stays short); enchants have no item page.
-    const label = escapeMarkdown(recipe.itemName.replace(/[[\]]/g, "")).slice(0, 80);
-    const mark = recipe.quality !== undefined ? QUALITY_SQUARES[recipe.quality] ?? "•" : "•";
-    return recipe.itemKey > 0 ? `${mark} **[${label}](${wowheadItemUrl(recipe.itemKey)})** — ${who}` : `• **${label}** — ${who}`;
-  };
-  const groups = groupByCategory(post.recipes);
-  const headed = groups.length > 1 || (groups[0] !== undefined && groups[0].key !== "all");
-  const headingOf = (key: string, count: number, cont = false) => `### ${categoryLabel(key, lang)}${cont ? ` ${t("(continued)", "(suite)")}` : ` (${count})`}`;
-  // Full lines first; when the whole message would not fit, the compact form (one crafter) keeps more recipes visible.
-  const fullSize = groups.reduce((sum, group) => sum + (headed ? 40 : 0) + group.recipes.reduce((inner, recipe) => inner + lineOf(recipe, false).length + 1, 0), 0);
-  const headLength = head.join("\n").length + recipesTitle.length + empty.length;
-  const fixed = title.length + footer.length + headLength;
-  const compact = fixed + fullSize > MESSAGE_LIMIT - 330;
-
-  const chunks: string[][] = [[]];
-  let chunkLen = headLength, total = fixed;
-  const omitted = new Map<string, number>();
-  const NOTE_RESERVE = 330;
-  for (const group of groups) {
-    let headingShown = false;
-    for (const recipe of group.recipes) {
-      const line = lineOf(recipe, compact);
-      const heading = headed ? headingOf(group.key, group.recipes.length) : "";
-      const need = line.length + 1 + (headed && !headingShown ? heading.length + 1 : 0);
-      const lastChunk = () => chunks[chunks.length - 1]!;
-      if (total + need > MESSAGE_LIMIT - NOTE_RESERVE) { omitted.set(group.key, (omitted.get(group.key) ?? 0) + 1); continue; }
-      if (chunkLen + need > CHUNK_LIMIT) {
-        if (chunks.length >= MAX_EMBEDS) { omitted.set(group.key, (omitted.get(group.key) ?? 0) + 1); continue; }
-        chunks.push([]); chunkLen = 0;
-        if (headed && headingShown) { const cont = headingOf(group.key, group.recipes.length, true); lastChunk().push(cont); chunkLen += cont.length + 1; total += cont.length + 1; }
-      }
-      if (headed && !headingShown) { lastChunk().push(heading); headingShown = true; chunkLen += heading.length + 1; total += heading.length + 1; }
-      lastChunk().push(line); chunkLen += line.length + 1; total += line.length + 1;
-    }
-  }
-  if (omitted.size) {
-    const where = [...omitted].map(([key, count]) => headed ? `${categoryLabel(key, lang)} ${count}` : String(count)).join(", ");
-    const count = [...omitted.values()].reduce((sum, value) => sum + value, 0);
-    chunks[chunks.length - 1]!.push(t(`…and ${count} more recipes not shown (${where}). Pick a category in the Details menu below to see them all, or search with /craft who.`,
-      `…et ${count} autres recettes non affichées (${where}). Choisissez une catégorie dans le menu Détails ci-dessous pour toutes les voir, ou cherchez avec /craft who.`));
-  }
-  return chunks.map((lines, index) => {
-    const text = index === 0 ? `${head.join("\n")}${recipesTitle}${lines.join("\n")}${empty}` : lines.join("\n");
-    const embed = new EmbedBuilder().setColor(0xd4af37).setDescription((text || "​").slice(0, 4096));
-    if (index === 0) embed.setTitle(title).setFooter({ text: footer });
-    return embed;
-  });
-}
-
-/** The first embed of the profession post (title, crafters and the first recipes); see professionPostEmbeds for the whole post. */
-export const professionPostEmbed = (post: ProfessionPost, lang: Lang, guildId = "", now = new Date()): EmbedBuilder => professionPostEmbeds(post, lang, guildId, now)[0]!;
-
 /** Who knows one recipe, with skill and last seen, for the picker's reply. */
 export async function recipeCrafters(db: Db, guildId: string, itemKey: number): Promise<{ itemName: string; profession: string; crafters: { character: string; skill: number | null; lastSeen: Date | null }[] } | null> {
   for (const post of await loadProfessionPosts(db, guildId)) {
@@ -274,6 +200,54 @@ export async function professionPostLinks(forum: ForumChannel, lang: Lang = "en"
   return new Map([...(await existingPosts(forum, lang))].map(([profession, thread]) => [profession, thread.id]));
 }
 
+const MAX_WRITES_PER_THREAD = 40;
+const hashOf = (message: CategoryMessage): string => createHash("sha1").update(JSON.stringify({ e: message.embeds.map(embed => embed.toJSON()), c: message.components.map(row => row.toJSON()) })).digest("hex");
+
+/**
+ * Keeps one bot message per recipe category part in the profession's thread: creates the missing ones, edits only those whose
+ * content changed (hash compare), deletes the ones whose category emptied. Returns each category's first message id (for the
+ * starter's jump list), or null when the message store is unavailable. Never throws.
+ */
+export async function syncCategoryMessages(thread: ThreadChannel, db: PrismaClient, guildId: string, post: ProfessionPost, lang: Lang, now: Date): Promise<Map<string, string> | null> {
+  const store = (db as Partial<PrismaClient>).professionPostMessage;
+  if (!store) return null;
+  const profession = pkey(post.profession);
+  const firstMessage = new Map<string, string>();
+  try {
+    const rows = new Map((await store.findMany({ where: { guildId, profession } })).map(row => [row.slot, row]));
+    const desired = professionCategoryMessages(post, lang, now);
+    let writes = 0;
+    for (const message of desired) {
+      const row = rows.get(message.slot);
+      const hash = hashOf(message);
+      const payload = { embeds: message.embeds, components: message.components, allowedMentions: { parse: [] as never[] } };
+      const own = row && row.threadId === thread.id ? row : null;
+      if (own?.contentHash === hash) { if (!firstMessage.has(message.category)) firstMessage.set(message.category, own.messageId); continue; }
+      if (writes >= MAX_WRITES_PER_THREAD) { if (own && !firstMessage.has(message.category)) firstMessage.set(message.category, own.messageId); continue; } // the rest follows on the next refresh
+      writes++;
+      let messageId: string | null = own?.messageId ?? null;
+      if (messageId) {
+        // 10008 = the message was deleted by hand: post it again. Any other failure keeps the old message for the next refresh.
+        const edited = await thread.messages.edit(messageId, payload).then(() => true, (error: unknown) => (error as { code?: number })?.code === 10008 ? false : (console.warn("Profession category edit failed", error), null));
+        if (edited === null) { if (!firstMessage.has(message.category)) firstMessage.set(message.category, messageId); continue; }
+        if (!edited) messageId = null;
+      }
+      if (!messageId) {
+        const sent = await thread.send(payload).catch((error: unknown) => { console.warn("Profession category post failed", error); return null; });
+        if (!sent) continue;
+        messageId = sent.id;
+      }
+      await store.upsert({ where: { guildId_profession_slot: { guildId, profession, slot: message.slot } }, create: { guildId, profession, slot: message.slot, threadId: thread.id, messageId, contentHash: hash }, update: { threadId: thread.id, messageId, contentHash: hash } });
+      if (!firstMessage.has(message.category)) firstMessage.set(message.category, messageId);
+    }
+    const keep = new Set(desired.map(message => message.slot));
+    const stale = [...rows.values()].filter(row => !keep.has(row.slot));
+    for (const row of stale) if (row.threadId === thread.id) await thread.messages.delete(row.messageId).catch(() => undefined);
+    if (stale.length) await store.deleteMany({ where: { guildId, profession, slot: { in: stale.map(row => row.slot) } } });
+  } catch (error) { console.warn("Profession category messages failed", error); }
+  return firstMessage;
+}
+
 /**
  * Edits each profession's post in place; creates a missing one only when the profession has people and (during the
  * 8.5 preview) the server is allowed. Never throws. Returns how many posts were written.
@@ -297,7 +271,8 @@ export async function updateProfessionPosts(discordGuild: DiscordGuild, forum: F
     for (const post of posts) {
       if (!post.skilled.length && !post.recipes.length) continue;
       const details = professionDetailsRow(post, lang);
-      const payload = { embeds: professionPostEmbeds(post, lang, guildId, now), components: details ? [details] : [], allowedMentions: { parse: [] as never[] } };
+      const components = details ? [details] : [];
+      const starterPayload = (jump: Parameters<typeof professionSummaryEmbed>[4] = null) => ({ embeds: [professionSummaryEmbed(post, lang, guildId, now, jump)], components, allowedMentions: { parse: [] as never[] } });
       const thread = existing.get(pkey(post.profession));
       if (thread) {
         const starter = await thread.fetchStarterMessage().catch(() => null);
@@ -305,11 +280,17 @@ export async function updateProfessionPosts(discordGuild: DiscordGuild, forum: F
         if (thread.archived) await thread.setArchived(false).catch(() => undefined);
         const title = threadTitle(post.profession, lang);
         if (thread.name !== title && renamed < 1 && typeof thread.setName === "function" && await thread.setName(title).then(() => true, () => false)) renamed++;
-        await starter.edit(payload);
+        const firstMessage = await syncCategoryMessages(thread, db, guildId, post, lang, now);
+        await starter.edit(starterPayload(firstMessage ? { discordGuildId: discordGuild.id, threadId: thread.id, firstMessage } : null));
         written++;
       } else {
-        await forum.threads.create({ name: threadTitle(post.profession, lang), message: payload });
+        const created = await forum.threads.create({ name: threadTitle(post.profession, lang), message: starterPayload() });
         written++;
+        const firstMessage = await syncCategoryMessages(created, db, guildId, post, lang, now);
+        if (firstMessage?.size) {
+          const starter = await created.fetchStarterMessage().catch(() => null);
+          await starter?.edit(starterPayload({ discordGuildId: discordGuild.id, threadId: created.id, firstMessage })).catch(() => undefined);
+        }
       }
     }
   } catch (error) { console.warn("Profession posts refresh failed", error); }

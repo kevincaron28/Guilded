@@ -78,7 +78,16 @@ export interface LeaderRun extends ScoreRun {
 }
 /** Whether the guild roster (lowercase character keys) lists this player under its name or an older name of it. */
 export const onRoster = (roster: ReadonlySet<string>, player: LeaderPlayer, edition: string) =>
-  [player.character, ...(player.aliases ?? [])].some((name) => roster.has(characterKey(name, player.realm, edition)));
+  [player.character, ...(player.aliases ?? [])].some((name) => rosterKeysOf(name, player.realm, edition).some((key) => roster.has(key)));
+/**
+ * The roster keys one reported name can stand for. In WoW Forever the in-game roster repeats the first name for some characters
+ * ("Xaldin Xaldin") while runs and boards show them as "Xaldin": a one-word name also matches its doubled form. Never any other
+ * first-name sharing ("Hulke" is not "Hulke Hogan": that has its own rules).
+ */
+export function rosterKeysOf(name: string, realm: string, edition: string): string[] {
+  const key = characterKey(name, realm, edition);
+  return edition === "forever" && key && !/\s/.test(key) ? [key, `${key} ${key}`] : [key];
+}
 export interface DungeonSummary { instanceId: number; dungeonName: string; bestSec: number; runs: number }
 export interface RunQuery { from: Date | null; to: Date | null; instanceId?: number | null }
 

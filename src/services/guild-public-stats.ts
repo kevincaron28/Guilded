@@ -3,9 +3,8 @@
 // by name: a French client uploads "Profondeurs de Brassenoire" and an English one "Blackfathom Deeps" for instance 48.
 
 import { characterScores } from "./public-score.js";
-import type { LeaderPlayer, LeaderRun, PublicGuild } from "./public-leaderboard.js";
+import { rosterKeysOf, type LeaderPlayer, type LeaderRun, type PublicGuild } from "./public-leaderboard.js";
 import type { BracketedRules } from "./dungeon-november-rules.js";
-import { characterKey } from "../../companion/character-identity.mjs";
 import { dungeonRole } from "../../companion/dungeon-role.mjs";
 import { majorityFaction } from "../../companion/race-faction.mjs";
 import type { GlobalDuel } from "./duel-global.js";
@@ -44,7 +43,7 @@ export function guildSlugs(guilds: (PublicGuild & { publicSlug?: string | null }
 }
 
 const rosterHas = (roster: ReadonlySet<string>, player: LeaderPlayer, edition: string) =>
-  [player.character, ...(player.aliases ?? [])].some((name) => roster.has(characterKey(name, player.realm, edition)));
+  [player.character, ...(player.aliases ?? [])].some((name) => rosterKeysOf(name, player.realm, edition).some((key) => roster.has(key)));
 
 /** One dungeon in one difficulty / route: records and best times never mix them. */
 export const routeKeyOf = (run: Pick<LeaderRun, "instanceId" | "difficultyId" | "routeKey">) => `${run.instanceId}:${run.difficultyId ?? ""}:${run.routeKey ?? ""}`;

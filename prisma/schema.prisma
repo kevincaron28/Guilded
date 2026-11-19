@@ -139,6 +139,7 @@ model Guild {
   pugRequests PugRequest[]
   memberAchievements MemberAchievement[]
   memberActivityTotals MemberActivityTotal[]
+  memberVoiceHours MemberVoiceHour[]
   poeLevelsReached PoeLevelReached[]
   battlegroundReports BattlegroundReport[]
   battlegroundConsents BattlegroundConsent[]
@@ -1072,6 +1073,9 @@ model GuildSettings {
   promotionFromRank        String  @default("Initiate")
   promotionMinDays         Int     @default(7)
   promotionMinLevel        Int?
+  // 19 Nov 2026: ready also needs a linked character and this much voice over the last 7 days (0 = no voice condition).
+  promotionRequireLink     Boolean @default(true)
+  promotionMinVoiceMinutes Int     @default(180)
   promotionWeeklyEnabled   Boolean @default(true)
   promotionChannelId       String?
   promotionLastPostAt      DateTime?
@@ -3472,6 +3476,19 @@ model CharacterRankSeen {
   since       DateTime
   updatedAt   DateTime  @updatedAt
   character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+}
+
+// Raw voice time per member and hour (services/voice-time.ts): solo time counts, the AFK channel does not. Feeds the promotion
+// rule's "voice over the last 7 days". Rows older than 10 days are deleted.
+model MemberVoiceHour {
+  guildId String
+  userId  String
+  hour    DateTime
+  seconds Int      @default(0)
+  guild   Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@id([guildId, userId, hour])
+  @@index([hour])
 }
 
 // 8.5 track G: one row per guild per UTC day (services/stat-snapshots.ts). Charts and the CSV feed read these.

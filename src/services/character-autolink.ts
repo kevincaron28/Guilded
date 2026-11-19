@@ -95,6 +95,12 @@ async function declined(database: Db, guildId: string, memberId: string, row: Un
   return Boolean(claim);
 }
 
+/** Whether this member's own "not mine" or an officer's removal stands for any of these character keys (characterKey). */
+export async function declinedKeys(database: Pick<Db, "characterVerifyClaim">, guildId: string, memberId: string, keys: string[]): Promise<boolean> {
+  const claim = await database.characterVerifyClaim.findFirst({ where: { guildId, memberId, nameKey: { in: keys }, status: { in: ["BLOCKED", "REMOVED"] } }, select: { id: true } });
+  return Boolean(claim);
+}
+
 // Links one unclaimed row to a member unless a linked character already owns the name.
 async function linkIfFree(database: Db, guildId: string, memberId: string, row: UnclaimedCharacter): Promise<boolean> {
   // A linked character with that name already exists (linked by hand meanwhile): drop the stale row.

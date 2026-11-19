@@ -20,6 +20,8 @@ const environmentSchema = z.object({
   OWNER_CONSOLE_GUILD_ID: z.string().min(1).default("1560962282178093169"),
   HOSTED_PILOT: z.enum(["true", "false", "1", "0"]).default("false").transform(value => value === "true" || value === "1"),
   HOSTED_GUILD_IDS: z.string().default(""),
+  // Discord application ids whose relayed guild chat proves a character (game-bridge-link.ts). Comma separated; default: WoW's own app.
+  GAME_BRIDGE_APP_IDS: z.string().default("1384671873593512078"),
   HOSTED_GUILD_LIMIT: z.coerce.number().int().min(1).max(100).default(5),
   // Servers waiting for approval get Guilded Lite until this many are waiting (0: no access until approved).
   HOSTED_LITE_LIMIT: z.coerce.number().int().min(0).max(100).default(50),

@@ -58,7 +58,7 @@ export async function offersFor(db: Db, memberId: string, now = new Date(), opti
   const own = member.characters.map((character) => character.name);
   // An install's list is client-controlled (registration is open, uploads are unsigned), so an unclaimed install only counts as this
   // member's through one of their CONFIRMED characters, matched on name and realm.
-  const anchors = member.characters.filter((character) => character.confirmedAt || character.linkEvidence === "heard" || character.linkEvidence === "officer");
+  const anchors = member.characters.filter((character) => character.confirmedAt || character.linkEvidence === "heard" || character.linkEvidence === "game" || character.linkEvidence === "officer");
   const devices = await db.companionDevice.findMany({
     where: {
       guildId: member.guildId, revokedAt: null, ...(options.deviceId ? { id: options.deviceId } : {}),

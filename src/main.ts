@@ -10,6 +10,7 @@ import { guildWhere, interactionGuildScope, entityGuildScope, runInGuildScope, w
 import { RETIRED_COMMANDS, retiredHandler } from "./commands/moved.js";
 import { executeLeaderboard } from "./commands/leaderboard.js";
 import type { Interaction } from "discord.js";
+import { allowedBridgeApps, handleRawBridgePacket } from "./services/game-bridge-link.js";
 import { hostedPilot, pilotGuildScope, replacePilotApprovals, replacePilotLite } from "./hosted-pilot.js";
 import { runRaidNightChecks } from "./services/raid-night-check.js";
 import { createPilotRequests, PILOT_REQUEST_PREFIX } from "./services/pilot-requests.js";
@@ -723,6 +724,9 @@ client.on(Events.MessageReactionAdd, (reaction, user) => { if (reaction.message.
 client.on(Events.GuildMemberUpdate, (before, after) => { if (hostedPilot.allows(after.guild.id)) void handleWowRoleGiven(before, after, prisma).catch(reportJobError("Guild invite DM", { guildId: after.guild.id })); });
 // A plain DM that looks like a full name: a guild invite request when the role DM asked for one, else it links that character (dm-character-link.ts) (DirectMessages is not a privileged intent).
 client.on(Events.MessageCreate, message => { if (!message.guildId && !message.author.bot) void (async () => { const invited = await handleInviteDm(message, prisma); await handleCharacterDm(message, prisma, { afterInvite: invited }); })().catch(reportJobError("Guild invite DM reply")); });
+// 19 Nov: WoW's Discord link relays guild chat as the real Discord user plus their character name; that links the character (game-bridge-link.ts). Read from the raw packet (discord.js drops lobby_member); needs no Message Content intent.
+const bridgeApps = allowedBridgeApps(config.GAME_BRIDGE_APP_IDS);
+client.on(Events.Raw, (packet) => { void handleRawBridgePacket(client, prisma, packet, bridgeApps, (id) => hostedPilot.allows(id)).catch(reportJobError("Game bridge link")); });
 client.on(Events.MessageCreate, message => { if (message.guildId && hostedPilot.allows(message.guildId)) void activityTotals.message(message).catch(reportJobError("Activity totals messages", { guildId: message.guildId, channelId: message.channelId })); });
 client.on(Events.MessageReactionAdd, (reaction, user) => { if (reaction.message.guildId && hostedPilot.allows(reaction.message.guildId)) void activityTotals.reaction(reaction, user).catch(reportJobError("Activity totals reactions", { guildId: reaction.message.guildId, channelId: reaction.message.channelId })); });
 client.on(Events.MessageCreate, message => { if (message.guildId && hostedPilot.allows(message.guildId)) void participationTracker.message(message).catch(reportJobError("Participation messages", { guildId: message.guildId, channelId: message.channelId, messageId: message.id })); });

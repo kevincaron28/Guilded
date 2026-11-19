@@ -61,7 +61,7 @@ export const T8_STRICT_FROM = new Date("2026-11-10T15:14:00Z");
 
 /** Pure: one character's trust from its own fields and what agrees with them. */
 export function characterTrust(character: Pick<TrustedCharacter, "confirmedAt" | "linkEvidence">, proof: TrustProof = {}): CharacterTrust {
-  if (character.linkEvidence === "officer" || proof.claim === "LINKED") return "confirmed";
+  if (character.linkEvidence === "officer" || character.linkEvidence === "game" || proof.claim === "LINKED") return "confirmed";
   if (character.confirmedAt && character.confirmedAt < T8_STRICT_FROM) return "confirmed";
   if (proof.inRoster && proof.claim === "PROVISIONAL") return "confirmed";
   const heard = proof.claim === "PROVISIONAL" || character.linkEvidence === "heard";
@@ -73,7 +73,7 @@ type TrustDatabase = Pick<PrismaClient, "characterVerifyClaim" | "guildRosterEnt
 /** Each character's trust (by id): one query for the verify claims of their members, one for the roster. */
 export async function characterTrustMap(database: TrustDatabase, guildId: string, characters: readonly TrustedCharacter[]): Promise<Map<string, CharacterTrust>> {
   const result = new Map<string, CharacterTrust>();
-  const open = characters.filter((character) => character.linkEvidence !== "officer");
+  const open = characters.filter((character) => character.linkEvidence !== "officer" && character.linkEvidence !== "game");
   const claimed = new Map<string, string>();
   const roster = new Set<string>();
   if (open.length) {

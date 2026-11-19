@@ -19,9 +19,13 @@ describe("promotion status", () => {
   });
   it("tells an unlinked member how to link, and counts days as 'not in the roster yet' without a roster rank", () => {
     const text = formatProgress(progress([], 200), "fr");
-    expect(text).toContain("/character claim");
+    expect(text).toContain("Prénom Nom");
+    expect(text).not.toContain("/character claim");
     expect(text).toContain("pas encore dans le roster");
     expect(progress([], 500).ready).toBe(false);
+    expect(text).not.toContain("<#");
+    expect(formatProgress(progress([], 200), "fr", "123")).toContain("ou écris-le dans <#123>");
+    expect(formatProgress(progress([], 200), "en", "123")).toContain("or type it in <#123>");
   });
   it("shows days left and respects the switches", () => {
     expect(formatProgress(progress([char({ since: days(3) })], 300), "en")).toContain("3 / 7");
@@ -48,6 +52,7 @@ describe("promotion status", () => {
     expect(embed.description).toContain("Bubble etait seul.");
     expect(embed.description).toContain("3 h");
     expect(promotionAnnouncement(DEFAULT_PROMOTION_RULE, "en").toJSON().description).not.toContain("Bubble");
+    expect(promotionAnnouncement(DEFAULT_PROMOTION_RULE, "en", { inviteChannelId: "77" }).toJSON().description).toContain("or type it in <#77>");
     expect(PROMOTION_STATUS_BUTTON).toBe("promotion:status");
     expect(commands.map((c) => c.name)).toContain("promotion");
   });

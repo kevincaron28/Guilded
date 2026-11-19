@@ -48,7 +48,14 @@ export function evaluateProgress(input: { rule: PromotionRule; characters: reado
   return { ...base, state: "progress", ...(best ? { character: cleanCharacterName(characterName(best)) } : {}), days, level: best?.level ?? null, ready: linkOk && days !== null && days >= rule.minDays && levelOk && voiceOk };
 }
 
-export function formatProgress(p: PromotionProgress, lang: Lang): string {
+/** How to link: the bot DM, plus the server's invite channel when one is set (a full name typed there pre-links, invite-prelink.ts). */
+function linkHow(lang: Lang, inviteChannelId?: string | null): string {
+  const ch = inviteChannelId ? `<#${inviteChannelId}>` : "";
+  return lang === "fr" ? `Envoie le nom complet de ton perso (Prénom Nom) en message privé au bot${ch ? `, ou écris-le dans ${ch}` : ""}.`
+    : `DM your character's full name (First Last) to the bot${ch ? `, or type it in ${ch}` : ""}.`;
+}
+
+export function formatProgress(p: PromotionProgress, lang: Lang, inviteChannelId?: string | null): string {
   const t = (en: string, fr: string) => lang === "fr" ? fr : en;
   if (p.state === "off") return t("The promotion rule is switched off on this server.", "La règle de promotion est désactivée sur ce serveur.");
   if (p.state === "above") return t(`You're already ${p.rank}. Nothing left to do.`, `Tu es déjà ${p.rank}. Il ne reste rien à faire.`);
@@ -56,7 +63,7 @@ export function formatProgress(p: PromotionProgress, lang: Lang): string {
   const lines: string[] = [];
   if (rule.requireLink) {
     lines.push(p.linked ? `✅ ${t("Character linked", "Personnage lié")}: **${p.character}**`
-      : `❌ ${t("No character linked. DM your full character name to the bot, or run `/character claim`.", "Aucun personnage lié. Envoie ton nom complet en MP au bot, ou fais `/character claim`.")}`);
+      : `❌ ${t("No character linked.", "Aucun personnage lié.")} ${linkHow(lang, inviteChannelId)}`);
   }
   if (p.days === null) lines.push(`❌ ${t(`Days as ${rule.fromRank}: not in the guild roster yet (the bot sees you after an officer's roster upload).`, `Jours comme ${rule.fromRank} : pas encore dans le roster de la guilde (le bot te voit après le téléversement d'un officier).`)}`);
   else lines.push(`${p.days >= rule.minDays ? "✅" : "❌"} ${t(`Days as ${rule.fromRank}`, `Jours comme ${rule.fromRank}`)}: ${p.days} / ${rule.minDays}`);
@@ -83,17 +90,17 @@ export async function promotionProgressFor(db: Db, guildId: string, discordUserI
   }
   const characters = (member?.characters ?? []).map((c) => ({ name: c.name, displayName: c.displayName, level: c.level, guildRankName: c.guildRankName, guildRankAt: c.guildRankAt, since: c.rankSeen?.since ?? null, isMain: c.isMain }));
   const progress = evaluateProgress({ rule, characters, voiceMinutes, now });
-  return { text: formatProgress(progress, lang), progress, lang };
+  return { text: formatProgress(progress, lang, settings?.inviteChannelId), progress, lang };
 }
 
 /** The announcement embed. title, intro (opening) and note (closing line) are the officer's own optional wording; the defaults are neutral. */
-export function promotionAnnouncement(rule: PromotionRule, lang: Lang, custom: { title?: string | null; intro?: string | null; note?: string | null } = {}): EmbedBuilder {
+export function promotionAnnouncement(rule: PromotionRule, lang: Lang, custom: { title?: string | null; intro?: string | null; note?: string | null; inviteChannelId?: string | null } = {}): EmbedBuilder {
   const { intro, note, title } = custom;
   const t = (en: string, fr: string) => lang === "fr" ? fr : en;
   const steps: string[] = [];
   const marks = ["1️⃣", "2️⃣", "3️⃣", "4️⃣"];
   const num = () => marks[steps.length]!;
-  if (rule.requireLink) steps.push(`${num()} ${t("Link your character to your Discord (DM your full character name to the bot, or `/character claim`).", "Lie ton perso à ton Discord (envoie ton nom complet en MP au bot, ou `/character claim`).")}`);
+  if (rule.requireLink) steps.push(`${num()} ${t("Link your character: ", "Lie ton perso : ")}${linkHow(lang, custom.inviteChannelId)}`);
   steps.push(`${num()} ${t(`Stay ${rule.fromRank}${rule.requireLink ? " and linked" : ""} for ${rule.minDays} days.`, `Reste ${rule.fromRank}${rule.requireLink ? " lié" : ""} pendant ${rule.minDays} jours.`)}`);
   if (rule.minVoiceMinutes > 0) steps.push(`${num()} ${t(`Spend at least ${formatVoiceDuration(rule.minVoiceMinutes)} in voice every week (even alone in a channel, it counts).`, `Passe au moins ${formatVoiceDuration(rule.minVoiceMinutes)} dans le vocal par semaine (même seul dans un channel, ça compte).`)}`);
   const opening = intro?.trim() || t("We want an active guild, not just a list of names.", "On veut une guilde vivante, pas juste une liste de noms.");

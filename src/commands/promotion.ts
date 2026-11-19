@@ -94,7 +94,7 @@ export async function executePromotionStatus(interaction: ChatInputCommandIntera
   const channel = interaction.options.getChannel("channel", true);
   const target = await interaction.guild.channels.fetch(channel.id).catch(() => null);
   if (!target?.isTextBased() || !("send" in target)) { await interaction.editReply(t("I can't post in that channel.", "Je ne peux pas écrire dans ce salon.")); return; }
-  const embed = promotionAnnouncement(ruleFrom(settings), lang, { title: interaction.options.getString("title"), intro: interaction.options.getString("intro"), note: interaction.options.getString("note") });
+  const embed = promotionAnnouncement(ruleFrom(settings), lang, { title: interaction.options.getString("title"), intro: interaction.options.getString("intro"), note: interaction.options.getString("note"), inviteChannelId: settings?.inviteChannelId });
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(PROMOTION_STATUS_BUTTON).setStyle(ButtonStyle.Primary).setLabel(t("Where am I?", "Où j'en suis ?")));
   await target.send({ embeds: [embed], components: [row], allowedMentions: { parse: [] } });
   await interaction.editReply(t(`Posted in <#${channel.id}>.`, `Publié dans <#${channel.id}>.`));

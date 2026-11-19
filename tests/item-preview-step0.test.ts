@@ -3,7 +3,7 @@ import { enableAfterStepZero, parseStepZeroButton, runStepZero, stepZeroButtons,
 import { openSecret } from "../src/services/secret-box.js";
 import { postWebhook, type FetchLike } from "../src/services/item-preview-webhook.js";
 import { buildPayload } from "../src/services/item-preview-embed.js";
-import { professionDetailsEmbed, professionDetailsRow, findProfessionRecipe } from "../src/services/profession-details.js";
+import { professionDetailsEmbed, professionDetailsRow, findProfessionRecipe, professionCategoryView, parseCategoryPage } from "../src/services/profession-details.js";
 import type { ProfessionPost } from "../src/services/profession-board.js";
 
 const URL = "https://discord.com/api/webhooks/123456789012345678/abcdefghijklmnopqrstuvwxyz0123456789";
@@ -85,10 +85,21 @@ const post: ProfessionPost = { profession: "Alchemy", skilled: [], recipes: [
 describe("profession post Details menu", () => {
   it("offers at most 25 recipes by name and keeps ids within Discord's limits", () => {
     const many: ProfessionPost = { ...post, recipes: Array.from({ length: 40 }, (_, i) => ({ itemKey: i + 1, itemName: `Recipe ${i}`.repeat(30), crafters: [] })) };
-    const json = professionDetailsRow(many, "en")!.toJSON().components[0] as { custom_id: string; options: { label: string; value: string }[] };
+    // One category with more than 25 recipes: step 1 lists the category, step 2 pages through its recipes.
+    const step1 = professionDetailsRow(many, "en")!.toJSON().components[0] as { custom_id: string; options: { label: string; value: string }[] };
+    expect(step1.custom_id).toBe("pdet:alchemy");
+    expect(step1.options.map(o => o.label)).toEqual(["Other (40)"]);
+    const view = professionCategoryView(many, "other", 0, "en")!;
+    const json = view.components[0]!.toJSON().components[0] as { custom_id: string; options: { label: string; value: string }[] };
     expect(json.options).toHaveLength(25);
     expect(json.options.every(o => o.label.length <= 100)).toBe(true);
     expect(json.custom_id).toBe("pdet:alchemy");
+    expect((professionCategoryView(many, "other", 1, "en")!.components[0]!.toJSON().components[0] as { options: unknown[] }).options).toHaveLength(15);
+    const next = view.components[1]!.toJSON().components[1] as { custom_id: string };
+    expect(next.custom_id).toBe("pdpg:alchemy:other:1");
+    expect(parseCategoryPage(next.custom_id)).toEqual({ profession: "alchemy", category: "other", page: 1 });
+    expect(parseCategoryPage("pdpg:alchemy:nope:1")).toBeNull();
+    expect(professionCategoryView(many, "alch:potion", 0, "en")).toBeNull();
     expect(professionDetailsRow({ ...post, recipes: [] }, "en")).toBeNull();
   });
   it("answers with the full preview: link for an item id, none for an enchant, and every crafter's last seen", () => {

@@ -7,6 +7,7 @@ import { professionDetailsRow } from "./profession-details.js";
 import { normalizeProfessionName, professionSlug } from "./profession-names.js";
 import { displayCharacterName, emptyNameBook, loadFullNameBook, type FullNameBook } from "./character-display.js";
 import { nullItemDataProvider, type ItemDataProvider } from "./item-preview-data.js";
+import { categoryLabel, categoryOf, groupByCategory } from "./recipe-categories.js";
 
 // 8.5 track D2: ONE post per profession in the craft forum, edited in place (the duel-board pattern), listing every
 // recipe and the crafters who know it with their last seen. It replaces the old "top 3 per profession" directory
@@ -15,26 +16,51 @@ import { nullItemDataProvider, type ItemDataProvider } from "./item-preview-data
 
 export const PROFESSION_POST_MARKER = "Guilded profession board";
 const THREAD_PREFIX = "📚 ";
-const DESCRIPTION_LIMIT = 3900, MAX_CRAFTERS_SHOWN = 3, MAX_CRAFTER_LINES = 8;
+const MAX_CRAFTERS_SHOWN = 3, MAX_CRAFTER_LINES = 8;
 
 export interface ProfessionRecipe {
   itemKey: number; itemName: string; crafters: { character: string; lastSeen: Date | null }[];
   /** Quality 0-5 of the crafted item, from the item data source (docs/plans/ITEM_LINKS.md); absent when unknown. */
   quality?: number;
+  /** 9.4 T6: equip slot and item subclass from the item data source (cached), and the category key derived from them (recipe-categories.ts). */
+  slot?: string; type?: string; category?: string;
 }
 /** One square per item quality, so a long list stays one line per recipe (Poor … Legendary). */
 export const QUALITY_SQUARES = ["⬛", "⬜", "🟩", "🟦", "🟪", "🟧"];
 export const wowheadItemUrl = (itemId: number) => `https://www.wowhead.com/classic/item=${itemId}`;
 
-/** Fills each crafted item's quality from the item data source, one lookup per item (cached and rate-limited there). */
+// Item slot/type per item id, kept for the life of the process so the Details menu (which does not look items up) groups
+// recipes like the post does. Bounded; an item the source never answered is grouped by its name alone.
+const FACTS = new Map<number, { slot?: string; type?: string }>();
+const MAX_FACTS = 5000;
+
+/** Sets each recipe's category from its name and, when known, its cached item slot and type. */
+export function assignCategories(posts: ProfessionPost[]): void {
+  for (const post of posts) for (const recipe of post.recipes) {
+    const facts = FACTS.get(recipe.itemKey);
+    if (facts?.slot && !recipe.slot) recipe.slot = facts.slot;
+    if (facts?.type && !recipe.type) recipe.type = facts.type;
+    recipe.category = categoryOf(post.profession, recipe);
+  }
+}
+
+/** Fills each crafted item's quality (and slot/type for its category) from the item data source, one lookup per item (cached and rate-limited there). */
 export async function addItemQuality(posts: ProfessionPost[], items: ItemDataProvider): Promise<void> {
   const seen = new Map<number, number | undefined>();
   for (const recipe of posts.flatMap(post => post.recipes)) {
     if (recipe.itemKey <= 0) continue; // enchants are spells, not items
-    if (!seen.has(recipe.itemKey)) seen.set(recipe.itemKey, (await items.lookup({ itemId: recipe.itemKey, name: recipe.itemName, verified: true }).catch(() => null))?.quality);
+    if (!seen.has(recipe.itemKey)) {
+      const details = await items.lookup({ itemId: recipe.itemKey, name: recipe.itemName, verified: true }).catch(() => null);
+      seen.set(recipe.itemKey, details?.quality);
+      if (details?.facts && (details.facts.slot || details.facts.type)) {
+        if (FACTS.size >= MAX_FACTS) FACTS.delete(FACTS.keys().next().value!);
+        FACTS.set(recipe.itemKey, { ...(details.facts.slot ? { slot: details.facts.slot } : {}), ...(details.facts.type ? { type: details.facts.type } : {}) });
+      }
+    }
     const quality = seen.get(recipe.itemKey);
     if (quality !== undefined) recipe.quality = quality;
   }
+  assignCategories(posts);
 }
 export interface ProfessionPost {
   profession: string;
@@ -92,11 +118,17 @@ export async function loadProfessionPosts(db: Db, guildId: string, names: FullNa
     entry.skilled.sort((a, b) => byLastSeen(a.lastSeen, b.lastSeen) || b.skillLevel - a.skillLevel || a.character.localeCompare(b.character));
     for (const recipe of entry.recipes) recipe.crafters.sort((a, b) => byLastSeen(a.lastSeen, b.lastSeen) || a.character.localeCompare(b.character));
   }
-  return [...posts.values()].sort((a, b) => a.profession.localeCompare(b.profession));
+  const sorted = [...posts.values()].sort((a, b) => a.profession.localeCompare(b.profession));
+  assignCategories(sorted);
+  return sorted;
 }
 
-/** Pure: one profession's embed. Same input and clock, same output. */
-export function professionPostEmbed(post: ProfessionPost, lang: Lang, guildId = "", now = new Date()): EmbedBuilder {
+const CHUNK_LIMIT = 3900;       // per embed description (Discord: 4096)
+const MESSAGE_LIMIT = 5700;     // title + descriptions + footer over the whole message (Discord: 6000)
+const MAX_EMBEDS = 10;
+
+/** Pure: one profession's embeds (the first carries the title and footer), recipes under a heading per category. Same input and clock, same output. */
+export function professionPostEmbeds(post: ProfessionPost, lang: Lang, guildId = "", now = new Date()): EmbedBuilder[] {
   const fr = lang === "fr";
   const t = (en: string, french: string) => fr ? french : en;
   const name = (value: string) => escapeMarkdown(value).slice(0, 40);
@@ -105,34 +137,66 @@ export function professionPostEmbed(post: ProfessionPost, lang: Lang, guildId = 
   if (!post.skilled.length) head.push(t("none recorded", "aucun enregistré"));
   for (const row of post.skilled.slice(0, MAX_CRAFTER_LINES)) head.push(crafterLine({ character: row.character, skill: row.skillLevel, lastSeen: row.lastSeen }, seen(row.lastSeen), now, name));
   if (post.skilled.length > MAX_CRAFTER_LINES) head.push(t(`…and ${post.skilled.length - MAX_CRAFTER_LINES} more`, `…et ${post.skilled.length - MAX_CRAFTER_LINES} autres`));
-  const header = head.join("\n");
-  let used = header.length + 40;
-  const rows: string[] = [];
-  let omitted = 0;
-  for (const recipe of post.recipes) {
-    const who = recipe.crafters.slice(0, MAX_CRAFTERS_SHOWN).map(crafter => `${seenDot(crafter.lastSeen, now)} ${name(crafter.character)}`).join(", ")
-      + (recipe.crafters.length > MAX_CRAFTERS_SHOWN ? ` +${recipe.crafters.length - MAX_CRAFTERS_SHOWN}` : "");
+  const title = professionTitle(post.profession, lang).slice(0, 256);
+  const footer = `${PROFESSION_POST_MARKER} • ${guildId} • ${t("recipes come from members' profession scans · last seen from the guild roster", "recettes tirées des relevés de métiers · dernière présence selon le registre de guilde")}`.slice(0, 2048);
+  const recipesTitle = post.recipes.length ? `\n\n**${t("Recipes", "Recettes")}** (${post.recipes.length}) — ${t("grouped by category; pick one in the menu below to request it or see its details", "groupées par catégorie; choisissez-en une dans le menu ci-dessous pour la demander ou voir ses détails")}\n` : "";
+  const empty = post.recipes.length ? "" : `\n\n${t("No recipe recorded yet. Open this profession's window in game with Guilded to add yours.", "Aucune recette enregistrée. Ouvrez la fenêtre de ce métier en jeu avec Guilded pour ajouter les vôtres.")}`;
+
+  const lineOf = (recipe: ProfessionRecipe, compact: boolean): string => {
+    const shown = compact ? 1 : MAX_CRAFTERS_SHOWN;
+    const who = recipe.crafters.slice(0, shown).map(crafter => `${seenDot(crafter.lastSeen, now)} ${name(crafter.character)}`).join(", ")
+      + (recipe.crafters.length > shown ? ` +${recipe.crafters.length - shown}` : "");
     // A crafted item links to its Wowhead classic page (name only, so the line stays short); enchants have no item page.
     const label = escapeMarkdown(recipe.itemName.replace(/[[\]]/g, "")).slice(0, 80);
     const mark = recipe.quality !== undefined ? QUALITY_SQUARES[recipe.quality] ?? "•" : "•";
-    const line = recipe.itemKey > 0 ? `${mark} **[${label}](${wowheadItemUrl(recipe.itemKey)})** — ${who}` : `• **${label}** — ${who}`;
-    if (used + line.length + 1 > DESCRIPTION_LIMIT - 160) { omitted++; continue; }
-    rows.push(line); used += line.length + 1;
+    return recipe.itemKey > 0 ? `${mark} **[${label}](${wowheadItemUrl(recipe.itemKey)})** — ${who}` : `• **${label}** — ${who}`;
+  };
+  const groups = groupByCategory(post.recipes);
+  const headed = groups.length > 1 || (groups[0] !== undefined && groups[0].key !== "all");
+  const headingOf = (key: string, count: number, cont = false) => `### ${categoryLabel(key, lang)}${cont ? ` ${t("(continued)", "(suite)")}` : ` (${count})`}`;
+  // Full lines first; when the whole message would not fit, the compact form (one crafter) keeps more recipes visible.
+  const fullSize = groups.reduce((sum, group) => sum + (headed ? 40 : 0) + group.recipes.reduce((inner, recipe) => inner + lineOf(recipe, false).length + 1, 0), 0);
+  const headLength = head.join("\n").length + recipesTitle.length + empty.length;
+  const fixed = title.length + footer.length + headLength;
+  const compact = fixed + fullSize > MESSAGE_LIMIT - 330;
+
+  const chunks: string[][] = [[]];
+  let chunkLen = headLength, total = fixed;
+  const omitted = new Map<string, number>();
+  const NOTE_RESERVE = 330;
+  for (const group of groups) {
+    let headingShown = false;
+    for (const recipe of group.recipes) {
+      const line = lineOf(recipe, compact);
+      const heading = headed ? headingOf(group.key, group.recipes.length) : "";
+      const need = line.length + 1 + (headed && !headingShown ? heading.length + 1 : 0);
+      const lastChunk = () => chunks[chunks.length - 1]!;
+      if (total + need > MESSAGE_LIMIT - NOTE_RESERVE) { omitted.set(group.key, (omitted.get(group.key) ?? 0) + 1); continue; }
+      if (chunkLen + need > CHUNK_LIMIT) {
+        if (chunks.length >= MAX_EMBEDS) { omitted.set(group.key, (omitted.get(group.key) ?? 0) + 1); continue; }
+        chunks.push([]); chunkLen = 0;
+        if (headed && headingShown) { const cont = headingOf(group.key, group.recipes.length, true); lastChunk().push(cont); chunkLen += cont.length + 1; total += cont.length + 1; }
+      }
+      if (headed && !headingShown) { lastChunk().push(heading); headingShown = true; chunkLen += heading.length + 1; total += heading.length + 1; }
+      lastChunk().push(line); chunkLen += line.length + 1; total += line.length + 1;
+    }
   }
-  const recipesTitle = post.recipes.length ? `
-
-**${t("Recipes", "Recettes")}** (${post.recipes.length}) — ${t("pick one below to request it or see its details", "choisissez-en une ci-dessous pour la demander ou voir ses détails")}
-` : "";
-  const more = omitted ? `
-${t(`…and ${omitted} more recipes. Search them with /craft who.`, `…et ${omitted} autres recettes. Cherchez-les avec /craft who.`)}` : "";
-  const empty = post.recipes.length ? "" : `
-
-${t("No recipe recorded yet. Open this profession's window in game with Guilded to add yours.", "Aucune recette enregistrée. Ouvrez la fenêtre de ce métier en jeu avec Guilded pour ajouter les vôtres.")}`;
-  const gallery = "";
-  return new EmbedBuilder().setColor(0xd4af37).setTitle(professionTitle(post.profession, lang).slice(0, 256))
-    .setDescription(`${header}${recipesTitle}${rows.join("\n")}${more}${empty}${gallery}`.slice(0, 4096))
-    .setFooter({ text: `${PROFESSION_POST_MARKER} • ${guildId} • ${t("recipes come from members' profession scans · last seen from the guild roster", "recettes tirées des relevés de métiers · dernière présence selon le registre de guilde")}`.slice(0, 2048) });
+  if (omitted.size) {
+    const where = [...omitted].map(([key, count]) => headed ? `${categoryLabel(key, lang)} ${count}` : String(count)).join(", ");
+    const count = [...omitted.values()].reduce((sum, value) => sum + value, 0);
+    chunks[chunks.length - 1]!.push(t(`…and ${count} more recipes not shown (${where}). Pick a category in the Details menu below to see them all, or search with /craft who.`,
+      `…et ${count} autres recettes non affichées (${where}). Choisissez une catégorie dans le menu Détails ci-dessous pour toutes les voir, ou cherchez avec /craft who.`));
+  }
+  return chunks.map((lines, index) => {
+    const text = index === 0 ? `${head.join("\n")}${recipesTitle}${lines.join("\n")}${empty}` : lines.join("\n");
+    const embed = new EmbedBuilder().setColor(0xd4af37).setDescription((text || "​").slice(0, 4096));
+    if (index === 0) embed.setTitle(title).setFooter({ text: footer });
+    return embed;
+  });
 }
+
+/** The first embed of the profession post (title, crafters and the first recipes); see professionPostEmbeds for the whole post. */
+export const professionPostEmbed = (post: ProfessionPost, lang: Lang, guildId = "", now = new Date()): EmbedBuilder => professionPostEmbeds(post, lang, guildId, now)[0]!;
 
 /** Who knows one recipe, with skill and last seen, for the picker's reply. */
 export async function recipeCrafters(db: Db, guildId: string, itemKey: number): Promise<{ itemName: string; profession: string; crafters: { character: string; skill: number | null; lastSeen: Date | null }[] } | null> {
@@ -233,7 +297,7 @@ export async function updateProfessionPosts(discordGuild: DiscordGuild, forum: F
     for (const post of posts) {
       if (!post.skilled.length && !post.recipes.length) continue;
       const details = professionDetailsRow(post, lang);
-      const payload = { embeds: [professionPostEmbed(post, lang, guildId, now)], components: details ? [details] : [], allowedMentions: { parse: [] as never[] } };
+      const payload = { embeds: professionPostEmbeds(post, lang, guildId, now), components: details ? [details] : [], allowedMentions: { parse: [] as never[] } };
       const thread = existing.get(pkey(post.profession));
       if (thread) {
         const starter = await thread.fetchStarterMessage().catch(() => null);

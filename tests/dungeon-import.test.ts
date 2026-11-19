@@ -309,16 +309,6 @@ describe("importDungeonRuns", () => {
     expect(runs).toHaveLength(1);
   });
 
-  it("answers a run that breaks the schema with a refusal naming the field, not a retry (9.4)", async () => {
-    const { tx } = fakeTx();
-    const base = run("bad-shape") as { players: Record<string, unknown>[] };
-    const players = base.players.map((player, index) => index === 0 ? { ...player, character: "" } : player);
-    const summary = await importDungeonRuns(tx, "g1", [{ ...base, players }, { id: "not-a-run-object-ok", players: "x" }], characters, "officer", "imp1", now);
-    expect(summary.malformed).toBe(2);
-    expect(summary.receipts?.map((receipt) => receipt.outcome)).toEqual(["refused", "refused"]);
-    expect(summary.receipts?.[0]?.reason).toBe("Run data invalid: players[].character");
-  });
-
   it("upgrades a run stored as ABANDONED when the recovered COMPLETED copy arrives, once", async () => {
     const { tx, runs, points } = fakeTx();
     await importDungeonRuns(tx, "g1", [run("recovered", { state: "ABANDONED", completedBy: undefined, endReason: "left the dungeon", endedAt: start + 3000 })],

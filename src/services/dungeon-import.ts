@@ -369,12 +369,7 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
     const issue = result.error.issues[0];
     logDungeonRun(`malformed (${issue ? `${issue.path.join(".")}: ${issue.code}` : "unreadable"})`, rawRuns[index] as Record<string, unknown> | null);
     const ref = refOf(rawRuns[index]);
-    // A run that arrived as an object but breaks the schema breaks it again on every resend (9.4): refuse it with the field named so
-    // the companion stops resending. Only data that is not a run object at all stays "retry".
-    const readable = !!rawRuns[index] && typeof rawRuns[index] === "object" && !Array.isArray(rawRuns[index]);
-    if (ref) receipts.push(readable
-      ? { runRef: ref, outcome: "refused", reason: receiptReason(`Run data invalid: ${issue ? issue.path.join(".").replace(/\.\d+(?=\.|$)/g, "[]") || issue.code : "unreadable"}`), runId: null }
-      : { runRef: ref, outcome: RETRY_OUTCOME, reason: "Run data could not be read", runId: null });
+    if (ref) receipts.push({ runRef: ref, outcome: RETRY_OUTCOME, reason: "Run data could not be read", runId: null });
   });
   const sorted = parsed.filter((result) => result.success).map((result) => result.data)
     .filter(run => {

@@ -124,7 +124,7 @@ export function formatRosterGaps(gaps: RosterGaps, lang: "en" | "fr"): { text: s
     lines.push("", `**${t("Linked, reported but not verified", "Liés, signalés mais non vérifiés")}** (${gaps.reported.length})`);
     lines.push(gaps.reported.length
       ? gaps.reported.slice(0, 15).map((row) => `${row.name} (${row.displayName.slice(0, 20)})`).join(", ") + (gaps.reported.length > 15 ? ` +${gaps.reported.length - 15}` : "")
-        + `\n-# ${t("Confirmed when the member syncs with their own Guilded app, an officer links it, or an officer's sync hears their /guilded verify code.", "Confirmé quand le membre synchronise avec sa propre application Guilded, qu'un officier le lie, ou que la synchro d'un officier entend son code /guilded verify.")}`
+        + `\n-# ${t("Confirmed when the member syncs with their own Guilded app, an officer links it, or at the next sync that shows the character in the guild.", "Confirmé quand le membre synchronise avec sa propre application Guilded, qu'un officier le lie, ou à la prochaine synchronisation qui montre le personnage dans la guilde.")}`
       : "—");
   }
   if (gaps.fromCompanions?.length) {

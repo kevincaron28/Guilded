@@ -169,7 +169,7 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en", now = new Date
       label: T("At least one companion account connected"),
       ok: facts.companionPaired,
       optional: true,
-      fix: T("Optional for WoW sync: in the companion choose Sign in with Discord, then this server (/character link has the link). Members without a companion link with the /guilded verify line from /character link.")
+      fix: T("Optional for WoW sync: in the companion choose Sign in with Discord, then this server (/character link has the link). Members without a companion DM the bot their character's full name.")
     },
     {
       label: T("At least one WoW character linked"),
@@ -178,7 +178,7 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en", now = new Date
       fix: T("WoW players only: /character link shows existing characters and how to link them. Already connected? Sync alts with the same companion.")
     }
   ];
-  // Addon-only members (and their /guilded verify links) depend on an officer's companion. Only for
+  // Addon-only members depend on an officer's companion. Only for
   // guilds that use WoW sync at all, so a guild without WoW players never sees it.
   if (facts.officerSyncAt !== undefined && (facts.companionPaired || facts.linkedCharacters > 0)) {
     const recent = officerSyncRecent(facts.officerSyncAt, now);
@@ -188,7 +188,7 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en", now = new Date
     checks.push({
       label: T("An officer's companion synced in the last 2 weeks"), ok: recent, optional: true,
       ...(recent ? {} : { warn: true }),
-      fix: `${last} ${T("Members who only use the addon (their /guilded verify links, gear, dungeon runs) reach Discord through an officer's companion. An officer: run /character link, connect the companion with Sign in with Discord, then /reload in WoW and press Sync now.")}`
+      fix: `${last} ${T("Members who only use the addon (their gear, dungeon runs) reach Discord through an officer's companion. An officer: run /character link, connect the companion with Sign in with Discord, then /reload in WoW and press Sync now.")}`
     });
   }
   // 9.1 (docs/JEEVES_COMPARISON.md idea 3): how fresh the guild roster is and whose upload last

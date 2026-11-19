@@ -14,7 +14,7 @@ const words = {
   above: { en: "You are already {rank}. Nothing left to do.", fr: "Vous êtes déjà {rank}. Il ne reste rien à faire." },
   ready: { en: "You are on the list to be promoted at the next officer pass.", fr: "Vous êtes sur la liste pour être promu à la prochaine passe des officiers." },
   notYet: { en: "Not yet: finish the items marked as missing.", fr: "Pas encore : terminez les points marqués comme manquants." },
-  linkHow: { en: "Link a character: send its full name (First Last) to the Guilded bot in a Discord message, or use /guilded verify in game.", fr: "Liez un personnage : envoyez son nom complet (Prénom Nom) au bot Guilded en message privé Discord, ou utilisez /guilded verify en jeu." },
+  linkHow: { en: "Link a character: send its full name (First Last) to the Guilded bot in a Discord message, or type it in the guild-invite channel.", fr: "Liez un personnage : envoyez son nom complet (Prénom Nom) au bot Guilded en message privé Discord, ou écrivez-le dans le salon d'invitation." },
   solo: { en: "Time alone in a voice channel counts.", fr: "Le temps seul dans un salon vocal compte." },
   failed: { en: "Promotion status is unavailable right now.", fr: "Le statut de promotion est indisponible pour le moment." },
   ok: { en: "Done", fr: "Fait" },

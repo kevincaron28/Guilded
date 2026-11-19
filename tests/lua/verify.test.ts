@@ -18,45 +18,33 @@ function loggedIn(): LuaSession {
 }
 const lastDigest = (s: LuaSession) => s.run(`local text = ""; for _, m in ipairs(SENT or {}) do if string.find(m.text, "^READINESS|") then text = m.text end end; return text`);
 
-describe("/guilded verify", () => {
-  it("saves the pasted code, however it was typed, and tells the guild right away", () => {
+describe("/guilded verify (retired)", () => {
+  it("only says it is no longer needed and saves nothing", () => {
     const s = loggedIn();
     s.run(`SENT = {}; SlashCmdList["GUILDED"]("verify abcd-efgh")`);
-    expect(s.run(`return GuildedDB.verifyCode`)).toBe("ABCDEFGH");
-    expect(lastDigest(s)).toContain("|V:ABCDEFGH");
-    expect(s.chat().join("\n")).toContain("Nothing else to do, also for your alts");
-    // Later digests (alts read the same saved data) keep carrying it.
-    s.run(`SENT = {}; SlashCmdList["GUILDED"]("inspect")`);
-    expect(lastDigest(s)).toContain("|V:ABCDEFGH");
+    expect(s.run(`return tostring(GuildedDB.verifyCode)`)).toBe("nil");
+    expect(s.chat().join("\n")).toContain("No longer needed: links are confirmed by sync.");
+    expect(lastDigest(s)).not.toContain("|V:");
+    s.run(`SlashCmdList["GUILDED"]("verify")`);
+    expect(s.run(`return tostring(GuildedDB.verifyCode)`)).toBe("nil");
   });
 
-  it("refuses a mistyped code without forgetting the saved one, and removes it on request", () => {
+  it("keeps repeating a code saved before the retirement, and still removes it on request", () => {
     const s = loggedIn();
-    s.run(`SlashCmdList["GUILDED"]("verify ABCD EFGH")`);
-    s.run(`SlashCmdList["GUILDED"]("verify ABCD-EFG")`);
-    expect(s.chat().join("\n")).toContain("That code does not look right");
-    expect(s.run(`return GuildedDB.verifyCode`)).toBe("ABCDEFGH");
-    s.run(`SlashCmdList["GUILDED"]("verify")`);
-    expect(s.chat().join("\n")).toContain("Your Discord link code is saved");
+    s.run(`GuildedDB.verifyCode = "ABCDEFGH"; SENT = {}; SlashCmdList["GUILDED"]("inspect")`);
+    expect(lastDigest(s)).toContain("|V:ABCDEFGH");
     s.run(`SENT = {}; SlashCmdList["GUILDED"]("verify off")`);
     expect(s.run(`return tostring(GuildedDB.verifyCode)`)).toBe("nil");
     expect(lastDigest(s)).not.toContain("|V:");
   });
 
-  it("still lets a player who left the guild remove the code", () => {
-    const s = loggedIn();
-    s.run(`SlashCmdList["GUILDED"]("verify ABCD-EFGH"); function IsInGuild() return false end`);
-    s.run(`SlashCmdList["GUILDED"]("verify KLMN-PQRS")`);
-    expect(s.run(`return GuildedDB.verifyCode`)).toBe("ABCDEFGH");
-    s.run(`SlashCmdList["GUILDED"]("verify off")`);
-    expect(s.run(`return tostring(GuildedDB.verifyCode)`)).toBe("nil");
-  });
-
-  it("answers in French for a French player", () => {
+  it("is not in the help, and answers in French for a French player", () => {
     const s = loggedIn();
     s.load("Locale.lua");
+    s.run(`SlashCmdList["GUILDED"]("help")`);
+    expect(s.chat().join("\n")).not.toContain("/guilded verify");
     s.run(`GuildedDB.settings.language = "fr"; SlashCmdList["GUILDED"]("verify")`);
-    expect(s.chat().join("\n")).toContain("Sur Discord, utilisez /character link");
+    expect(s.chat().join("\n")).toContain("Plus besoin");
   });
 });
 
@@ -99,7 +87,7 @@ describe("the code is repeated while nobody has heard it", () => {
 
   it("sends the digest with the code every five minutes through the paced queue", () => {
     const s = withTimers();
-    s.run(`SlashCmdList["GUILDED"]("verify ABCD-EFGH")`);
+    s.run(`GuildedDB.verifyCode = "ABCDEFGH"; NS.scheduleVerifyResend()`);
     expect(timers(s)).toBe("1");
     fire(s);
     expect(lastDigest(s)).toContain("|V:ABCDEFGH");
@@ -112,7 +100,7 @@ describe("the code is repeated while nobody has heard it", () => {
 
   it("stops once the code is removed", () => {
     const s = withTimers();
-    s.run(`SlashCmdList["GUILDED"]("verify ABCD-EFGH")`);
+    s.run(`GuildedDB.verifyCode = "ABCDEFGH"; NS.scheduleVerifyResend()`);
     s.run(`SlashCmdList["GUILDED"]("verify off")`);
     fire(s);
     expect(lastDigest(s)).toBe("");
@@ -121,7 +109,7 @@ describe("the code is repeated while nobody has heard it", () => {
 
   it("stops once the member appears in the shared standings (confirmed)", () => {
     const s = withTimers();
-    s.run(`SlashCmdList["GUILDED"]("verify ABCD-EFGH")`);
+    s.run(`GuildedDB.verifyCode = "ABCDEFGH"; NS.scheduleVerifyResend()`);
     s.run(`NS.getStanding = function() return { ep = 1, gp = 1, pr = 1 } end`);
     fire(s);
     expect(lastDigest(s)).toBe("");

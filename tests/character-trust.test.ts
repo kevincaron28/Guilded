@@ -30,6 +30,22 @@ describe("reported, not verified", () => {
     expect(characterTrust({ confirmedAt: null })).toBe("reported");
   });
 
+  // Owner decision, November 2026 (/guilded verify removed): a link made from a sent name is confirmed by sync alone.
+  it("confirms an invite-channel link (a PROVISIONAL claim) at the next sync that shows the character in the guild", async () => {
+    expect(characterTrust({ confirmedAt: null }, { claim: "PROVISIONAL" })).toBe("reported");
+    expect(characterTrust({ confirmedAt: null }, { claim: "PROVISIONAL", inRoster: true })).toBe("confirmed");
+    // A bare named link (a DM, or a name an edited companion file listed) is not confirmed by the roster alone.
+    expect(characterTrust({ confirmedAt: null, linkEvidence: "named" }, { inRoster: true })).toBe("reported");
+    expect(characterTrust({ confirmedAt: null, linkEvidence: null }, { inRoster: true })).toBe("reported");
+    const claims = vi.fn(async () => [{ memberId: "m1", nameKey: "walter sobchak", status: "PROVISIONAL" }, { memberId: "m1", nameKey: "donny kerabatsos", status: "PROVISIONAL" }]);
+    const roster = vi.fn(async () => [{ nameKey: "walter sobchak", gameEdition: "forever" }]);
+    const trust = await characterTrustMap({ characterVerifyClaim: { findMany: claims }, guildRosterEntry: { findMany: roster } } as never, "g1", [
+      character("a", "Walter Sobchak", { linkEvidence: "named" }), character("b", "Donny Kerabatsos", { linkEvidence: "named" }), character("c", "Maude Lebowski", { linkEvidence: "named" })
+    ]);
+    // a: in the roster after the sync. b: claimed but not in the guild roster yet. c: no claim at all.
+    expect(Object.fromEntries(trust)).toEqual({ a: "confirmed", b: "reported", c: "reported" });
+  });
+
   it("grandfathers links confirmed before the strict rule went live", async () => {
     // Own companion (or an officer's hand link) before T8: confirmed as it always was, with no roster or code.
     expect(characterTrust({ confirmedAt: OLD })).toBe("confirmed");

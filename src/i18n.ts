@@ -170,12 +170,12 @@ const STRINGS = {
   "onboard.button.chat": { en: "💬 WoW chat ↔ Discord", fr: "💬 Chat WoW ↔ Discord" },
   "onboard.panel.chat": { en: "💬 **WoW chat ↔ Discord** — how guild chat reaches Discord, and how to link your character.", fr: "💬 **Chat WoW ↔ Discord** — comment le chat de guilde arrive sur Discord, et comment lier ton personnage." },
   "onboard.chat.guide": {
-    en: "**Guild chat and Discord**\n• Blizzard's own Discord link, if your guild leader set it up, shows guild chat in a channel (ask an officer). It does not know who you are here.\n• To link your character: press **Request a guild invite** (or type your full character name in <#{channel}>). Already in the guild? `/character link`, then paste the `/guilded verify` line in WoW chat.",
-    fr: "**Chat de guilde et Discord**\n• Le lien Discord de Blizzard, si le chef de guilde l'a activé, affiche le chat de guilde dans un salon (demande à un officier). Il ne sait pas qui tu es ici.\n• Pour lier ton personnage : appuie sur **Demander une invitation de guilde** (ou écris son nom complet dans <#{channel}>). Déjà dans la guilde ? `/character link`, puis colle la ligne `/guilded verify` dans le chat WoW."
+    en: "**Guild chat and Discord**\n• Blizzard's own Discord link, if your guild leader set it up, shows guild chat in a channel (ask an officer). It does not know who you are here.\n• To link your character: press **Request a guild invite** (or type your full character name in <#{channel}>). Already in the guild? DM me the full name, or use `/character link`. It is confirmed at the next sync.",
+    fr: "**Chat de guilde et Discord**\n• Le lien Discord de Blizzard, si le chef de guilde l'a activé, affiche le chat de guilde dans un salon (demande à un officier). Il ne sait pas qui tu es ici.\n• Pour lier ton personnage : appuie sur **Demander une invitation de guilde** (ou écris son nom complet dans <#{channel}>). Déjà dans la guilde ? Envoie-moi le nom complet en MP, ou utilise `/character link`. Le lien est confirmé à la prochaine synchronisation."
   },
   "onboard.chat.guideNoChannel": {
-    en: "**Guild chat and Discord**\n• Blizzard's own Discord link, if your guild leader set it up, shows guild chat in a channel (ask an officer). It does not know who you are here.\n• To link your character: `/character link`, then paste the `/guilded verify` line in WoW chat.",
-    fr: "**Chat de guilde et Discord**\n• Le lien Discord de Blizzard, si le chef de guilde l'a activé, affiche le chat de guilde dans un salon (demande à un officier). Il ne sait pas qui tu es ici.\n• Pour lier ton personnage : `/character link`, puis colle la ligne `/guilded verify` dans le chat WoW."
+    en: "**Guild chat and Discord**\n• Blizzard's own Discord link, if your guild leader set it up, shows guild chat in a channel (ask an officer). It does not know who you are here.\n• To link your character: DM me its full name, or use `/character link`. It is confirmed at the next sync.",
+    fr: "**Chat de guilde et Discord**\n• Le lien Discord de Blizzard, si le chef de guilde l'a activé, affiche le chat de guilde dans un salon (demande à un officier). Il ne sait pas qui tu es ici.\n• Pour lier ton personnage : envoie-moi son nom complet en MP, ou utilise `/character link`. Le lien est confirmé à la prochaine synchronisation."
   },
   "onboard.panel.title": { en: "👋 Start here", fr: "👋 Commence ici" },
   "onboard.panel.intro": {
@@ -222,10 +222,10 @@ const STRINGS = {
   // Commands restructure (November 2026): /character link, and the answer of a subcommand that moved.
   "command.moved": { en: "This moved to {target}.", fr: "Ceci a été déplacé vers {target}." },
   "link.title": { en: "🔗 Link your WoW characters", fr: "🔗 Lier tes personnages WoW" },
-  "link.waysTitle": { en: "Three simple ways (pick one)", fr: "Trois façons simples (choisis-en une)" },
+  "link.waysTitle": { en: "Two simple ways (pick one)", fr: "Deux façons simples (choisis-en une)" },
   "link.ways": {
-    en: "1. **DM me** your character's full name (First Last).\n2. **Type it** in the guild-invite channel.\n3. **In WoW**, paste this in chat on any of your characters:\n```\n/guilded verify {code}\n```",
-    fr: "1. **Envoie-moi en MP** le nom complet de ton personnage (Prénom Nom).\n2. **Écris-le** dans le salon d'invitation de la guilde.\n3. **Dans WoW**, colle ceci dans le chat sur un de tes personnages :\n```\n/guilded verify {code}\n```"
+    en: "1. **DM me** your character's full name (First Last).\n2. **Type it** in the guild-invite channel.\nEither way, the link is confirmed at the next sync (an officer's or your companion's).",
+    fr: "1. **Envoie-moi en MP** le nom complet de ton personnage (Prénom Nom).\n2. **Écris-le** dans le salon d'invitation de la guilde.\nDans les deux cas, le lien est confirmé à la prochaine synchronisation (celle d'un officier ou de ton compagnon)."
   },
   "link.pasteTitle": { en: "Have a line or a code?", fr: "Tu as une ligne ou un code ?" },
   "link.paste": {
@@ -242,19 +242,14 @@ const STRINGS = {
     en: "**Install the [Guilded addon](https://www.curseforge.com/wow/addons/guilded)** (or your officers' matching download) for the WoW version you play, then link your characters below. The addon works in game even if you never link.",
     fr: "**Installe l'[addon Guilded](https://www.curseforge.com/wow/addons/guilded)** (ou la version de tes officiers) pour la version de WoW que tu joues, puis lie tes personnages ci-dessous. L'addon fonctionne en jeu même si tu ne lies jamais."
   },
-  "pair.verifyTitle": { en: "🎮 No Windows PC? One line instead", fr: "🎮 Pas de PC Windows ? Une ligne à la place" },
-  "pair.verifyCompanionTitle": { en: "🎮 No companion? 1 step instead", fr: "🎮 Pas de compagnon ? 1 étape à la place" },
-  "pair.verify": {
-    en: "Paste this in WoW chat on any of your characters:\n```\n/guilded verify {code}\n```Your characters link themselves at the next companion sync of any guildmate, usually within the hour. I'll DM you.",
-    fr: "Colle ceci dans le chat de WoW sur un de tes personnages :\n```\n/guilded verify {code}\n```Tes personnages se lient à la prochaine synchro du compagnon d'un guildien, souvent en moins d'une heure. Je t'envoie un MP."
-  },
-  "pair.verifySlow": {
-    en: "⏳ No officer's companion has synced in 2 weeks, so this can take longer if guildmates don't use the companion either. Can't wait? In WoW type `/guilded character`, then paste that line into `/character link` here.",
-    fr: "⏳ Aucun compagnon d'officier n'a synchronisé depuis 2 semaines, ça peut donc prendre plus de temps si tes coéquipiers n'utilisent pas le compagnon non plus. Pressé ? Dans WoW tape `/guilded character`, puis colle cette ligne dans `/character link` ici."
+  "pair.nameTitle": { en: "🎮 No Windows PC? Send the name instead", fr: "🎮 Pas de PC Windows ? Envoie le nom à la place" },
+  "pair.name": {
+    en: "DM me your character's full name (First Last), or type it in the guild-invite channel. It is confirmed at the next sync of an officer's or your own companion.",
+    fr: "Envoie-moi en MP le nom complet de ton personnage (Prénom Nom), ou écris-le dans le salon d'invitation. Le lien est confirmé à la prochaine synchronisation du compagnon d'un officier ou du tien."
   },
   "verify.linked": {
-    en: "✅ **{name}** is now linked to your Discord account on **{server}** as {kind} (your `/guilded verify` code). Not your character? Use `/character unlink` there.",
-    fr: "✅ **{name}** est maintenant lié à ton compte Discord sur **{server}** comme {kind} (ton code `/guilded verify`). Ce n'est pas ton personnage ? Utilise `/character unlink` là-bas."
+    en: "✅ **{name}** is now linked to your Discord account on **{server}** as {kind} (from the code you pasted in game). Not your character? Use `/character unlink` there.",
+    fr: "✅ **{name}** est maintenant lié à ton compte Discord sur **{server}** comme {kind} (d'après le code collé en jeu). Ce n'est pas ton personnage ? Utilise `/character unlink` là-bas."
   },
   // 8.5 track F / ROADMAP 5: the linked-characters DM and its button (companion-link-dm.ts).
   "invite.prelinked": {
@@ -384,7 +379,7 @@ const STRINGS = {
   // Linking audit T3: two members and one character (link-conflict-dm.ts). {proof} is one of linkmove.proof.*.
   "linkmove.proof.named": { en: "a name (typed, claimed or matched)", fr: "un nom (tapé, réclamé ou reconnu)" },
   "linkmove.proof.companion": { en: "their own Guilded app", fr: "sa propre application Guilded" },
-  "linkmove.proof.heard": { en: "a `/guilded verify` code heard in game by a guildmate's addon", fr: "un code `/guilded verify` entendu en jeu par l'addon d'un coéquipier" },
+  "linkmove.proof.heard": { en: "a code heard in game by a guildmate's addon", fr: "un code entendu en jeu par l'addon d'un coéquipier" },
   "linkmove.proof.officer": { en: "an officer", fr: "un officier" },
   "linkmove.gained": {
     en: "🔁 **{name}** is now linked to you on **{server}**. It was linked to another member; your proof ({proof}) is stronger than theirs ({other}), so it moved with its history. Not your character? Press the button and it goes back.",
@@ -399,8 +394,8 @@ const STRINGS = {
     fr: "⚖️ **{name}** est déjà lié à un autre membre sur **{server}**, avec le même genre de preuve que la tienne ({proof}). Rien n'a changé. Les officiers ont été avisés et vont trancher."
   },
   "linkmove.weaker": {
-    en: "**{name}** is already linked to another member on **{server}** with stronger proof ({other}) than yours ({proof}), so it stays there. If it is yours, paste your `/guilded verify` line in game with that character, or ask an officer.",
-    fr: "**{name}** est déjà lié à un autre membre sur **{server}** avec une preuve plus forte ({other}) que la tienne ({proof}), il reste donc là. S'il est à toi, colle ta ligne `/guilded verify` en jeu avec ce personnage, ou demande à un officier."
+    en: "**{name}** is already linked to another member on **{server}** with stronger proof ({other}) than yours ({proof}), so it stays there. If it is yours, sign in with Discord in the Guilded companion, or ask an officer.",
+    fr: "**{name}** est déjà lié à un autre membre sur **{server}** avec une preuve plus forte ({other}) que la tienne ({proof}), il reste donc là. S'il est à toi, connecte-toi avec Discord dans le compagnon Guilded, ou demande à un officier."
   },
   "linkmove.notMine": { en: "Not mine, undo", fr: "Pas à moi, annuler" },
   "linkmove.mine": { en: "It is mine, undo", fr: "Il est à moi, annuler" },
@@ -465,8 +460,8 @@ const STRINGS = {
   "invite.doneOfficers": { en: "Only officers can mark an invite as done.", fr: "Seuls les officiers peuvent marquer une invitation comme faite." },
   "invite.unavailable": { en: "Guild invites are not open on this server right now. Ask an officer.", fr: "Les invitations de guilde ne sont pas ouvertes sur ce serveur pour le moment. Demande à un officier." },
   "verify.taken": {
-    en: "**{name}** sent your `/guilded verify` code, but it is already linked to someone else on **{server}**. Ask an officer to move it to you.",
-    fr: "**{name}** a envoyé ton code `/guilded verify`, mais il est déjà lié à quelqu'un d'autre sur **{server}**. Demande à un officier de te le transférer."
+    en: "**{name}** sent your Discord link code, but it is already linked to someone else on **{server}**. Ask an officer to move it to you.",
+    fr: "**{name}** a envoyé ton code de lien Discord, mais il est déjà lié à quelqu'un d'autre sur **{server}**. Demande à un officier de te le transférer."
   },
   "pair.optionalTitle": { en: "Optional: sync with the Windows companion", fr: "Facultatif : synchroniser avec le compagnon Windows" },
   "pair.optional": {
@@ -475,8 +470,8 @@ const STRINGS = {
   },
   "pair.connectOptional": { en: "Connect optional companion", fr: "Connecter le compagnon (facultatif)" },
   "pair.addAlts": {
-    en: "Your main is already linked. Alts link by themselves: with the `/guilded verify` line above, or with your companion's next **Sync now** (every character that logged in on this PC). Nothing to do per alt.",
-    fr: "Ton principal est déjà lié. Tes alts se lient tout seuls : avec la ligne `/guilded verify` ci-dessus, ou à la prochaine **Sync now** de ton compagnon (chaque personnage connecté sur ce PC). Rien à faire par alt."
+    en: "Your main is already linked. Alts link by themselves at the next sync, or with your companion's **Sync now** (every character that logged in on this PC). Nothing to do per alt.",
+    fr: "Ton principal est déjà lié. Tes alts se lient tout seuls à la prochaine synchronisation, ou avec la **Sync now** de ton compagnon (chaque personnage connecté sur ce PC). Rien à faire par alt."
   },
   "pair.codeTitle": { en: "🔑 Code for companions older than 7.2", fr: "🔑 Code pour les compagnons plus anciens que 7.2" },
   "pair.code": {

@@ -36,7 +36,7 @@ answer privately with their new place for one release.
 | Command | What it does | Who |
 | --- | --- | --- |
 | `/help` | Lists the commands you can use | Everyone |
-| `/character link` | Link your characters: DM the bot your character's full name, type it in the guild-invite channel, or paste `/guilded verify` in game. A `/guilded character` line or `/guilded share` code can be pasted into it | Everyone |
+| `/character link` | Link your characters: DM the bot your character's full name, or type it in the guild-invite channel (confirmed at the next sync). A `/guilded character` line or `/guilded share` code can be pasted into it | Everyone |
 | `/character` `add` `unlink` `list` `guild` | Add a character by hand; unlink one; your characters; choose your in-game guild | Everyone |
 | `/character privacy` | Hide or show you on the website; `action:delete` deletes your data | Everyone |
 | `/character` `profile` `achievements` `who` | Your profile and achievements card; look up any player | Everyone |
@@ -146,7 +146,6 @@ Type `/guilded` (or `/gd`) in game. A bare `/guilded` opens the window; `/guilde
 | `/guilded history [player]` | Your EP/GP and loot history | Everyone |
 | `/guilded share` | One paste with your character, gear check and attunements (Discord: `/character link`) | Everyone |
 | `/guilded character` | A line to link this character in Discord | Everyone |
-| `/guilded verify <code>` | Link all your characters to Discord at once (Discord: `/character link`) | Everyone |
 | `/guilded sync` | How to send your data to Discord now | Everyone |
 | `/guilded attune <key>` | Mark your own attunement | Everyone |
 | `/guilded inspect` · `enchants` · `slots` | Gear check; missing-enchant and empty-slot rules | Everyone |

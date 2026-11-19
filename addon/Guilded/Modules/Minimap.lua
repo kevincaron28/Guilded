@@ -1422,7 +1422,7 @@ local function buildHomePage(page)
   officerOnly(link("Local guild", "Pick a raid core", 0, -94, 170, "Choose or create the raid core (team) that loot and standings use."))
   link("Layer invite", "Change layer", 178, -94, 170, "Ask guildmates on your continent to invite you, so you land on their layer.")
 
-  -- Linking to Discord, in the open: the Windows app does it in one step; the code is the fallback.
+  -- Linking to Discord, in the open: the Windows app does it in one step; a name sent to the bot is the fallback (no code box since November 2026).
   ui.linkWidgets = {}
   local function linkWidget(widget) table.insert(ui.linkWidgets, widget) return widget end
   linkWidget(below(newLabel(page, "Link to Discord", "GameFontNormal"), 0, -138))
@@ -1434,37 +1434,21 @@ local function buildHomePage(page)
   local HOME_WIDTH = PAGE_WIDTH - 16
   ui.linkStatus:SetWidth(HOME_WIDTH)
   local howTo = linkWidget(newLabel(page,
-    "Easiest: install the Guilded Windows app (steps below). It syncs by itself, no sign-in needed. No app? In Discord use /character link, then paste the code below.",
+    "Easiest: install the Guilded Windows app (steps below). It syncs by itself, no sign-in needed. No app? Send the bot your character's full name in a Discord message; it is confirmed at the next sync.",
     "GameFontDisableSmall"))
   -- Under the status line, wherever its (translated, possibly two-line) text ends, never at a fixed height.
   howTo:SetPoint("TOPLEFT", ui.linkStatus, "BOTTOMLEFT", 0, -6)
   howTo:SetWidth(HOME_WIDTH)
-  ui.linkBox = linkWidget(placeholder(below(newEdit(page, 170), 6, -242), "Code from /character link"))
-  ui.linkBox:SetMaxLetters(24)
-  ui.linkBox:SetScript("OnEnterPressed", function(self)
-    self:ClearFocus()
-    if self:GetText() ~= "" then run("verify " .. self:GetText()); self:SetText("") end
-  end)
-  local saveCode = linkWidget(tip(below(newButton(page, "Save code", 100, function()
-    local text = ui.linkBox:GetText() or ""
-    if text == "" then ns.message(L("Paste the code from Discord (/character link) first.")); return end
-    run("verify " .. text)
-    ui.linkBox:SetText("")
-  end), 182, -238), "Links all your characters on this WoW account. A guildmate's Guilded companion passes the code on when it next syncs."))
-  -- Beside Save code, wherever its (translated) width ends, so the two never overlap.
-  local removeCode = linkWidget(tip(below(newButton(page, "Remove code", 110, function() run("verify off") end), 288, -238), "Forgets the saved code on this WoW account."))
-  removeCode:ClearAllPoints()
-  removeCode:SetPoint("LEFT", saveCode, "RIGHT", 6, 0)
 
   -- Get the companion (8.5.0): links to copy, since an addon cannot open a web page.
   if ns.companionLink then
-    below(newLabel(page, L("Get the Windows companion (select a link, Ctrl+C):"), "GameFontNormal"), 0, -282)
+    below(newLabel(page, L("Get the Windows companion (select a link, Ctrl+C):"), "GameFontNormal"), 0, -242)
     -- One under the other, each as wide as the page: the direct link (62 characters) did not fit beside the short one.
     ui.companionBoxes = {
-      below(copyBox(page, ns.companionLink.SHORT, HOME_WIDTH - 12), 6, -302),
-      below(copyBox(page, ns.companionLink.DIRECT, HOME_WIDTH - 12), 6, -326),
+      below(copyBox(page, ns.companionLink.SHORT, HOME_WIDTH - 12), 6, -262),
+      below(copyBox(page, ns.companionLink.DIRECT, HOME_WIDTH - 12), 6, -286),
     }
-    local steps = below(newLabel(page, table.concat(ns.companionLink.steps(), "\n"), "GameFontHighlightSmall"), 0, -358)
+    local steps = below(newLabel(page, table.concat(ns.companionLink.steps(), "\n"), "GameFontHighlightSmall"), 0, -318)
     steps:SetWidth(HOME_WIDTH)
     steps:SetJustifyH("LEFT")
   end
@@ -2053,7 +2037,7 @@ local function refreshHome(db, officer, me)
     if show then
       local state = ns.verifyStatus and ns.verifyStatus() or {}
       ui.linkStatus:SetText(state.linked and ("|cff55dd55" .. L("Linked to Discord.") .. "|r")
-        or state.pending and ("|cffffcc33" .. L("Code saved. Your characters link when a guildmate's Guilded companion next syncs.") .. "|r")
+        or state.pending and ("|cffffcc33" .. L("Waiting for the next sync to confirm your link.") .. "|r")
         or ("|cffff7755" .. L("Not linked to Discord yet.") .. "|r"))
     end
   end

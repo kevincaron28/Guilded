@@ -20,7 +20,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
   everyone: {
     en: [
       "**New here?** [guildedwow.com/start](https://guildedwow.com/start/) — install the addon, then [the Windows companion](https://guildedwow.com/companion/) (\"Guild Sync Companion\" in the Microsoft Store; it syncs by itself). Every command: [guildedwow.com/reference](https://guildedwow.com/reference/)",
-      "`/character link` — link your WoW characters: DM me your character's full name, type it in the guild-invite channel, or paste `/guilded verify` in game · `/character profile` · `/character privacy`",
+      "`/character link` — link your WoW characters: DM me your character's full name, or type it in the guild-invite channel · `/character profile` · `/character privacy`",
       "`/promotion status` — what's left before your next rank",
       "`/craft request` — ask a guild crafter · `/craft who` — who can make it",
       "`/leaderboard` — dungeon rating; `board:` guild records, PvP, community points or EPGP",
@@ -30,7 +30,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
     ],
     fr: [
       "**Nouveau ?** [guildedwow.com/start](https://guildedwow.com/start/?lang=fr) — installez l'addon, puis [le compagnon Windows](https://guildedwow.com/companion/?lang=fr) (« Guild Sync Companion » dans le Microsoft Store; il synchronise tout seul). Toutes les commandes : [guildedwow.com/reference](https://guildedwow.com/reference/?lang=fr)",
-      "`/character link` — liez vos personnages WoW : envoyez-moi en MP le nom complet du personnage, écrivez-le dans le salon d'invitation, ou collez `/guilded verify` en jeu · `/character profile` · `/character privacy`",
+      "`/character link` — liez vos personnages WoW : envoyez-moi en MP le nom complet du personnage, ou écrivez-le dans le salon d'invitation · `/character profile` · `/character privacy`",
       "`/promotion status` — ce qu'il vous reste avant le prochain rang",
       "`/craft request` — demander à un artisan · `/craft who` — qui peut le fabriquer",
       "`/leaderboard` — cote des donjons; `board:` records de la guilde, JcJ, points de communauté ou EPGP",

@@ -1,9 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, escapeMarkdown } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { t, type Lang } from "../i18n.js";
-import { formatVerifyCode, verifyCodeFor } from "./character-verify.js";
 import { companionWebUrl } from "./companion-links.js";
-import { officerSyncRecent } from "./officer-sync.js";
 import { linkStatusLines, memberLinkStatus } from "./link-status.js";
 
 // Shared by the welcome button and /character link so the two entry points never drift.
@@ -23,23 +21,16 @@ export async function characterLinkPrompt(database: PrismaClient, guildId: strin
   const url = companionWebUrl(discordGuildId);
   const embed = new EmbedBuilder().setTitle(t(lang, "pair.title")).setColor(0xd4af37)
     .setDescription(`${listing}\n\n${t(lang, "pair.addonDefault")}`);
-  // One line to paste in game, the same every time: the easiest way for everyone, so it comes first.
-  const code = formatVerifyCode(await verifyCodeFor(database, guildId, memberId));
-  const guild = await database.guild.findUnique({ where: { id: guildId }, select: { officerSyncAt: true } });
-  // Without a recent officer sync the code may wait a long time: the manual way is shown too.
-  const officersSync = officerSyncRecent(guild?.officerSyncAt);
   // The Windows app is the way in (2 steps, links every character on the PC at once, no officer
-  // needed), so it comes first in both modes; the pasted line stays for members without Windows.
+  // needed). Members without Windows DM their full name or type it in the invite channel; a link
+  // made that way is confirmed by the next roster sync (no verify code, removed in November 2026).
   // The one-use code for older companions is only made when asked for (the button below):
   // making one on every prompt silently replaced the previous code.
   embed.addFields(
     { name: t(lang, "pair.syncTitle"), value: t(lang, "pair.sync", {
       companion: url ? t(lang, "pair.openOnline") : t(lang, "pair.askLink"), server: discordGuildId
     }) },
-    {
-      name: t(lang, mode === "companion" ? "pair.verifyCompanionTitle" : "pair.verifyTitle"),
-      value: t(lang, "pair.verify", { code }) + (officersSync ? "" : `\n${t(lang, "pair.verifySlow")}`)
-    }
+    { name: t(lang, "pair.nameTitle"), value: t(lang, "pair.name") }
   );
   if (mode === "companion") embed.addFields({ name: t(lang, "pair.checkTitle"), value: t(lang, hasMain ? "pair.addAlts" : "pair.check") });
   // Connected / Last synced / What to do next, in plain words. Never blocks the prompt.
@@ -75,11 +66,9 @@ export async function characterLinkHelp(database: PrismaClient, guildId: string,
       name: escapeMarkdown(character.name.slice(0, 50)), realm: escapeMarkdown(character.realm.slice(0, 50))
     })), ...(characters.length > 5 ? [t(lang, "pair.more")] : [])].join("\n")
     : t(lang, "pair.none");
-  const code = formatVerifyCode(await verifyCodeFor(database, guildId, memberId));
   const embed = new EmbedBuilder().setTitle(t(lang, "link.title")).setColor(0xd4af37).setDescription(listing)
     .addFields(
-      { name: t(lang, "link.waysTitle"), value: t(lang, "link.ways", { code }) },
-      { name: t(lang, "link.pasteTitle"), value: t(lang, "link.paste") }
+      { name: t(lang, "link.waysTitle"), value: t(lang, "link.ways") }
     );
   // The same two buttons /character pair had: the companion page, and a one-use code for older companions.
   const row = new ActionRowBuilder<ButtonBuilder>();

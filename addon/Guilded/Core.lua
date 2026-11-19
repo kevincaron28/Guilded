@@ -1701,7 +1701,6 @@ local function showFullHelp()
   message("/guilded enchants - show or change the missing-enchant check (on/off, starting level)")
   message("/guilded slots level <n> - from which level empty gear slots count as not ready (default 60)")
   message("/guilded share - one paste with your character, gear check, consumables and attunements (Discord: /character link)")
-  message(L("/guilded verify <code> - link all your characters to Discord at once (Discord: /character link gives the line)"))
   message("/guilded character - copy a line to link this character in Discord (/character link)")
   message("/guilded sheet standings|loot|attendance|raids|dungeons - copy a table to paste into Excel or Google Sheets")
   if officer then
@@ -1729,7 +1728,6 @@ end
 local function showHelp()
   message("|cffffd100Guilded|r")
   message(L("/guilded - open the Guilded window"))
-  message(L("/guilded verify <code> - link all your characters to Discord at once (Discord: /character link gives the line)"))
   message(L("/guilded companion - the three steps to set up the companion"))
   message(L("/guilded sync - save your addon data so the companion can send it"))
   message(L("/guilded announce off - stop your guild-chat milestone announcements"))
@@ -2184,30 +2182,15 @@ local function command(text)
     message("Your character line (also shown in a box to copy): " .. line)
     showCharacterExport(line)
   elseif action == "verify" then
-    local sub = string.lower(args[2] or "")
-    -- Only guildmates' addons hear the code (guild chat). Without a guild there is nothing to link,
-    -- and nothing else in Guilded needs a guild or Discord.
-    if sub ~= "off" and not (IsInGuild and IsInGuild()) then
-      message(L("You are not in a guild, so there is nothing to link: /guilded verify connects guild members to their guild's Discord. Everything else in Guilded works without a guild or Discord."))
-    elseif sub == "off" then
+    -- Retired in November 2026 (owner decision: links are confirmed by sync, the code was friction and
+    -- confusion). The command stays for one release so a member typing it from habit gets one short
+    -- line. A code already saved on this account is still repeated in the digest (the bot accepts
+    -- already-issued codes for one release); "off" still removes it.
+    if string.lower(args[2] or "") == "off" and db.verifyCode then
       db.verifyCode = nil
-      message(L("Your Discord link code was removed from this WoW account."))
       inspectReadiness(true, "GUILD")
-    elseif args[2] then
-      local code = verifyCodeFrom(table.concat(args, "", 2))
-      if code then
-        db.verifyCode = code
-        scheduleVerifyResend()
-        message(L("Saved. All your characters on this WoW account will link to your Discord by themselves the next time a guildmate's Guilded companion syncs, and Discord will message you. Nothing else to do, also for your alts."))
-        inspectReadiness(true, "GUILD")
-      else
-        message(L("That code does not look right. In Discord, use /character link and copy the whole /guilded verify line."))
-      end
-    elseif validVerifyCode(db.verifyCode) then
-      message(L("Your Discord link code is saved: your characters link by themselves. /guilded verify off removes it."))
-    else
-      message(L("In Discord, use /character link, copy the /guilded verify line it shows and paste it here."))
     end
+    message(L("No longer needed: links are confirmed by sync."))
   elseif action == "start" then if requireOfficer() then raidStart(table.concat(args, " ", 2)) end
   elseif action == "end" then if requireOfficer() then raidEnd() end
   elseif action == "summary" then

@@ -10,8 +10,18 @@ import { characterKey } from "../../companion/character-identity.mjs";
 import { gameEditionOf } from "./game-edition.js";
 import { contestCharacter, detachCharacter, pairedSince, type LinkEvidence } from "./character-move.js";
 
-// Linking without a companion: a member gets one code (/character link, the welcome button) and
-// pastes `/guilded verify CODE` in WoW chat once. The addon keeps it with the account's saved data,
+// RETIRED FOR MEMBERS (November 2026, owner decision: "it creates friction and confusion"): the bot no
+// longer shows or issues these codes and the addon no longer has a `/guilded verify` command. A link made
+// from a DM name, the invite channel or a companion is confirmed only by sync: the next officer or
+// companion roster upload that shows the character in the guild (see confirmProvisionalClaims in
+// character-autolink.ts). This file keeps accepting codes ALREADY issued, heard by addons that still
+// carry them in their saved data, for ONE release so members in flight are not broken; the next
+// release removes this file's redemption path, `verifyCodeFor` and the `verify` digest field. The
+// tables (CharacterVerifyCode, CharacterVerifyClaim) stay: the claim table also records blocks,
+// removals and provisional links for every other link path.
+//
+// How it worked: a member got one code (/character link, the welcome button) and
+// pasted `/guilded verify CODE` in WoW chat once. The addon keeps it with the account's saved data,
 // so every character they play repeats it in the guild digest. Every guildmate's addon keeps a
 // digest only under the name of the character the game says sent it, and a companion upload brings
 // it here: the code says which member, the game says which character. Someone repeating a
@@ -49,7 +59,11 @@ export function normalizeVerifyCode(text: unknown): string | null {
   return code.length === LENGTH && [...code].every((letter) => LETTERS.includes(letter)) ? code : null;
 }
 
-/** The member's code, made the first time. It never changes, so the line pasted in game keeps working. */
+/**
+ * The member's code, made the first time. No longer called: nothing issues new codes (see the header).
+ * Kept for one release with the redemption path, then removed.
+ * @deprecated
+ */
 export async function verifyCodeFor(database: PrismaClient, guildId: string, memberId: string): Promise<string> {
   for (let attempt = 0; ; attempt++) {
     try {
@@ -184,9 +198,9 @@ export async function tellVerified(client: Client, discordGuildId: string, lang:
   const linked = results.filter((result) => result.status === "linked" && !result.movedFrom);
   if (discordGuild && linked.length) {
     await postToLogChannel(discordGuild, linked.map((result) => lang === "fr"
-      ? `🔗 ${result.name} a été lié à <@${result.discordUserId}> par son code /guilded verify`
+      ? `🔗 ${result.name} a été lié à <@${result.discordUserId}> par un code de lien reçu en jeu`
         + (result.reportedBy ? ` (reçu par l'addon de <@${result.reportedBy}>; la prochaine synchronisation d'un officier le confirme).` : ".")
-      : `🔗 ${result.name} was linked to <@${result.discordUserId}> by their /guilded verify code`
+      : `🔗 ${result.name} was linked to <@${result.discordUserId}> by a link code received in game`
         + (result.reportedBy ? ` (heard by <@${result.reportedBy}>'s addon; the next officer sync confirms it).` : ".")).join("\n"));
   }
 }

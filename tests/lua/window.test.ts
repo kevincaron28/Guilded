@@ -775,13 +775,14 @@ describe("in-game UI fixes from the 5 November pass", () => {
       return tostring(top[2] ~= nil and top[3] == "BOTTOMLEFT" and top[5] == -6)`)).toBe("true");
   });
 
-  it("offers linking on Home, saves a pasted code through the same command, and shows the state", () => {
+  it("offers linking on Home without a code box, and shows the state", () => {
     const s = openWindow(5, `function IsInGuild() return true end; GetInventoryItemLink = function() return nil end`);
     s.run(`NS.windowState().selectTabByName("Home")`);
     expect(homeText(s, "linkStatus")).toContain("Not linked to Discord yet.");
-    s.run(`UI = NS.windowState(); UI.linkBox:SetText("abcd-efgh"); UI.linkBox:GetScript("OnEnterPressed")(UI.linkBox)`);
-    expect(s.run("return GuildedDB.verifyCode")).toBe("ABCDEFGH");
-    expect(homeText(s, "linkStatus")).toContain("Code saved");
+    // No verify code box any more (links are confirmed by sync); a code saved before still shows as waiting.
+    expect(s.run(`return tostring(NS.windowState().linkBox)`)).toBe("nil");
+    s.run(`GuildedDB.verifyCode = "ABCDEFGH"; NS.windowState().selectTabByName("Home")`);
+    expect(homeText(s, "linkStatus")).toContain("Waiting for the next sync");
     // Once the member shows up in the shared standings, the addon knows they are linked.
     s.run(`NS.getStanding = function() return { ep = 1, gp = 1, pr = 1 } end; NS.windowState().selectTabByName("Home")`);
     expect(homeText(s, "linkStatus")).toContain("Linked to Discord.");
@@ -996,16 +997,9 @@ describe("the minimap button", () => {
 });
 
 describe("Home page link buttons (8.5 in-game fix)", () => {
-  it("puts Remove code right beside Save code, so a longer translation cannot overlap it", () => {
+  it("has no Save code or Remove code buttons any more (links are confirmed by sync)", () => {
     const s = openWindow(1);
-    const anchor = s.run(`local save, remove
-      for _, f in ipairs(FRAMES) do
-        if f.text == "Save code" then save = f end
-        if f.text == "Remove code" then remove = f end
-      end
-      local p = remove.points[#remove.points]
-      return p[1] .. ":" .. p[3] .. ":" .. tostring(p[2] == save) .. ":" .. p[4]`);
-    expect(anchor).toBe("LEFT:RIGHT:true:6");
+    expect(s.run(`for _, f in ipairs(FRAMES) do if f.text == "Save code" or f.text == "Remove code" then return "found" end end; return "none"`)).toBe("none");
   });
 });
 

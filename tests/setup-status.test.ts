@@ -45,7 +45,7 @@ describe("setup checklist", () => {
     const stale = row({ companionPaired: true, officerSyncAt: new Date("2026-10-01T12:00:00Z") })!;
     expect(stale).toMatchObject({ ok: false, optional: true, warn: true });
     expect(stale.fix).toContain(`Last officer sync: <t:${Math.floor(new Date("2026-10-01T12:00:00Z").getTime() / 1000)}:R>.`);
-    expect(stale.fix).toContain("/guilded verify");
+    expect(stale.fix).toContain("An officer: run /character link");
     expect(formatChecks([stale])).toMatch(/^⚠️ /);
     expect(row({ linkedCharacters: 1, officerSyncAt: null }, "fr")!.fix).toContain("Aucun compagnon d'officier n'a encore synchronisé.");
     // Optional: it never blocks "set up".

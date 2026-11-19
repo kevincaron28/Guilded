@@ -18,7 +18,7 @@ export const GLOBAL_RANK_OUTSIDERS = true;
 /** Whether a character outside any listed guild shows with its name (owner decision: yes). One switch to hide them as "a player outside the listed guilds". */
 export const SHOW_OUTSIDER_NAMES = true;
 /** Plausibility bounds for a reported duel. */
-export const GLOBAL_LIMITS = { minDurationSec: 3, maxDurationSec: 30 * 60, maxAgeDays: 30, futureSlackMs: 300_000, maxRows: 200, textMax: 60 } as const;
+export const GLOBAL_LIMITS = { minDurationSec: 3, maxDurationSec: 30 * 60, maxAgeDays: 30, futureSlackMs: 300_000, maxRows: 5000, textMax: 60 } as const;
 
 /** Text from a client: control characters out, whitespace collapsed, cut to `max` (rendered escaped; never a link or markup). */
 export const cleanText = (text: string | null | undefined, max: number = GLOBAL_LIMITS.textMax) => (text ?? "").replace(/\p{Cc}/gu, " ").replace(/\s+/g, " ").trim().slice(0, max);
@@ -82,6 +82,36 @@ export function implausible(d: ExternalDuelInput, now: Date): string | null {
   return null;
 }
 
+const nameWords = (name: string) => name.trim().replace(/\s+/g, " ").toLowerCase();
+/**
+ * WoW Forever names reach the ladder as "Kev" from an older addon and "Kev Caron" from a newer one. A bare first name is the full name when
+ * exactly one full name starting with it is known on that realm (this upload's, or already stored): the same rule the dungeon side uses
+ * (foreverNameMatches). A doubled name ("Xaldin Xaldin") is a full name like any other, so "Xaldin" resolves to it. Ambiguous stays as sent.
+ */
+export function resolveDuelNames(sides: { name: string; realm: string }[], stored: string[] = []): Map<string, string> {
+  const book = new Map<string, Set<string>>();   // first name + realm key -> full names (as sent)
+  const add = (name: string, realm: string) => {
+    const clean = name.trim().replace(/\s+/g, " ");
+    if (!clean.includes(" ")) return;
+    const k = `${nameWords(clean).split(" ")[0]}|${realm.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "")}`;
+    const set = book.get(k) ?? new Set<string>();
+    if (![...set].some(n => nameWords(n) === nameWords(clean))) set.add(clean);
+    book.set(k, set);
+  };
+  for (const side of sides) add(side.name, side.realm);
+  for (const full of stored) add(full, "");
+  const out = new Map<string, string>();
+  for (const side of sides) {
+    const clean = side.name.trim().replace(/\s+/g, " ");
+    if (clean.includes(" ")) { out.set(`${nameWords(clean)}|${side.realm}`, clean); continue; }
+    const realmKey = side.realm.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+    const found = new Map<string, string>();
+    for (const k of [`${nameWords(clean)}|${realmKey}`, `${nameWords(clean)}|`]) for (const n of book.get(k) ?? []) found.set(nameWords(n), n);
+    out.set(`${nameWords(clean)}|${side.realm}`, found.size === 1 ? [...found.values()][0]! : clean);
+  }
+  return out;
+}
+
 type Tx = Prisma.TransactionClient;
 export interface DuelSource {
   /** "member:<id>" for a guild member, "install:<id>" for a standalone addon. */
@@ -114,10 +144,23 @@ export async function recordGlobalDuels(tx: Pick<Tx, "publicDuel" | "publicDuelR
   const parsed = rows.slice(0, GLOBAL_LIMITS.maxRows).flatMap(row => { const p = externalDuelSchema.safeParse(row); return p.success ? [p.data] : []; });
   result.rejected += rows.length - parsed.length;
   parsed.sort((a, b) => a.at - b.at);
+  // Full names already stored for the bare first names in this upload (one read).
+  const sides = parsed.flatMap(d => [splitName(d.winner, d.winnerRealm), splitName(d.loser, d.loserRealm)]);
+  const firsts = [...new Set(sides.filter(side => side.name && !side.name.includes(" ")).map(side => side.name.toLowerCase()))].slice(0, 200);
+  const storedNames: string[] = [];
+  if (firsts.length && typeof tx.publicDuel.findMany === "function") {
+    const rowsStored = await tx.publicDuel.findMany({ where: { gameEdition: edition, OR: firsts.flatMap(first => [{ winnerKey: { startsWith: `${first} ` } }, { loserKey: { startsWith: `${first} ` } }]) },
+      select: { winnerName: true, loserName: true, winnerKey: true, loserKey: true }, take: 2_000 });
+    for (const row of rowsStored) for (const [name, key] of [[row.winnerName, row.winnerKey], [row.loserName, row.loserKey]] as const) if (firsts.some(first => key.startsWith(`${first} `))) storedNames.push(name);
+  }
+  const resolved = resolveDuelNames(sides, storedNames);
+  const full = (side: { name: string; realm: string }) => ({ name: resolved.get(`${nameWords(side.name)}|${side.realm}`) ?? side.name, realm: side.realm });
   for (const d of parsed) {
     if (implausible(d, now)) { result.rejected++; continue; }
     const w = splitName(d.winner, d.winnerRealm), l = splitName(d.loser, d.loserRealm);
-    const winnerKey = characterKey(w.name, w.realm), loserKey = characterKey(l.name, l.realm);
+    const wf = full(w), lf = full(l);
+    // The key (and the stored name) use the full name; the integrity check keeps the name exactly as the addon signed it.
+    const winnerKey = characterKey(wf.name, wf.realm), loserKey = characterKey(lf.name, lf.realm);
     const endedAt = new Date(d.at * 1000);
     // A sequence number that was already used by a different record of the same device is a replay.
     if (source.deviceId && d.seq) {
@@ -197,7 +240,7 @@ export async function recordGlobalDuels(tx: Pick<Tx, "publicDuel" | "publicDuelR
     // A carried duel is stored uncounted (it takes no daily allowance) until it is released.
     const counted = !source.carried && pairCount < DUEL_RULES.pairDailyCap && reporterCount < DUEL_RULES.reporterDailyCap;
     await tx.publicDuel.create({ data: {
-      gameEdition: edition, winnerKey, loserKey, winnerName: w.name, winnerRealm: w.realm, loserName: l.name, loserRealm: l.realm,
+      gameEdition: edition, winnerKey, loserKey, winnerName: wf.name, winnerRealm: w.realm, loserName: lf.name, loserRealm: l.realm,
       winnerClass: cleanText(d.winnerClass, 30) || null, loserClass: cleanText(d.loserClass, 30) || null, winnerLevel: d.winnerLevel ?? null, loserLevel: d.loserLevel ?? null,
       winnerGuild, loserGuild, winnerMemberId: source.winnerMemberId ?? null, loserMemberId: source.loserMemberId ?? null,
       zone: cleanText(d.zone) || null, endedAt, durationSec: d.durationSec || null, reason: d.reason, counted, pairKey: pair, dayKey: day,

@@ -34,7 +34,7 @@ export async function promptDepartures(discordGuild: DiscordGuild | undefined | 
       content: `${text}\n_Nothing is added unless an officer clicks. Default: one year._`, allowedMentions: { parse: [] },
       components: shown.map((row) => new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder().setCustomId(`${DNI_PREFIX}k:${row.id}`).setLabel(`Kicked: add ${row.name}`.slice(0, 80)).setStyle(ButtonStyle.Danger),
-        new ButtonBuilder().setCustomId(`${DNI_PREFIX}i:${row.id}`).setLabel(`Left: ignore`).setStyle(ButtonStyle.Secondary)))
+        new ButtonBuilder().setCustomId(`${DNI_PREFIX}i:${row.id}`).setLabel(`Left: don't add`).setStyle(ButtonStyle.Secondary)))
     });
   } catch (error) {
     console.error("Do-not-invite departure prompt failed", error);
@@ -52,21 +52,34 @@ export async function handleDniButton(interaction: ButtonInteraction): Promise<v
   const [, action, id] = interaction.customId.split(":");
   const say = (content: string) => interaction.reply({ content, flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
   if (!interaction.guildId || !interaction.member || !hasPermission(interaction.member as GuildMember, "officer")) { await say("Only officers can use this."); return; }
-  if (!id || !["k", "i", "u", "c"].includes(action ?? "")) { await say("This button is out of date."); return; }
+  if (!id || !["k", "i", "u", "c", "x"].includes(action ?? "")) { await say("This button is out of date."); return; }
   if (action === "k" || action === "i") {
     const row = await prisma.guildRosterEntry.findUnique({ where: { id }, select: { name: true, guildId: true } });
     const owner = row ? await prisma.guild.findUnique({ where: { id: row.guildId }, select: { discordId: true } }) : null;
     if (!row || owner?.discordId !== interaction.guildId) { await say("That roster entry is no longer there."); return; }
+    let added: { id: string } | null = null;
     if (action === "k") {
       const listed = await service.list(row.guildId, { take: 500 });
-      if (!dniMatches(listed, { names: [row.name] }).length) await service.add(row.guildId, { name: row.name, kind: "KICKED", expiry: "1y", reason: "Kicked from the guild", addedBy: interaction.user.id });
+      if (!dniMatches(listed, { names: [row.name] }).length) added = await service.add(row.guildId, { name: row.name, kind: "KICKED", expiry: "1y", reason: "Kicked from the guild", addedBy: interaction.user.id });
     }
     const rest = withoutRow(interaction.message, id);
-    await interaction.update({ components: rest, content: `${interaction.message.content}\n${action === "k" ? `✅ **${row.name}** added by <@${interaction.user.id}> (one year).` : `Ignored: **${row.name}** (<@${interaction.user.id}>).`}`.slice(0, 1990) });
+    // A mis-click on "Kicked" can be undone from the same message (the Undo row takes the freed row's place).
+    if (added) rest.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`${DNI_PREFIX}x:${added.id}`).setLabel(`Undo: remove ${row.name}`.slice(0, 80)).setStyle(ButtonStyle.Secondary)));
+    const line = action === "k"
+      ? `⛔ **${row.name}** added to do-not-invite for one year by <@${interaction.user.id}>.`
+      : `👋 **${row.name}** left: not added, can be invited again (<@${interaction.user.id}>).`;
+    await interaction.update({ components: rest, content: `${interaction.message.content}\n${line}`.slice(0, 1990) });
     return;
   }
   const entry = await prisma.doNotInvite.findUnique({ where: { id }, select: { name: true, guildId: true, status: true, guild: { select: { discordId: true } } } });
   if (!entry || entry.guild.discordId !== interaction.guildId) { await say("That entry is gone."); return; }
+  if (action === "x") {
+    if (entry.status !== "CLEARED") await service.clear(entry.guildId, id, interaction.user.id);
+    await interaction.update({ components: withoutRow(interaction.message, id),
+      content: `${interaction.message.content}\n↩️ Undone: **${entry.name}** removed from do-not-invite by <@${interaction.user.id}>; can be invited again.`.slice(0, 1990) });
+    return;
+  }
   if (entry.status === "CLEARED") { await interaction.update({ components: [] }); return; }
   await service.decideAppeal(entry.guildId, id, interaction.user.id, action === "c" ? "clear" : "uphold");
   await interaction.update({ components: [], content: `${interaction.message.content}\n${action === "c" ? "✅ Appeal granted: cleared" : "⛔ Appeal declined: the entry stays"} by <@${interaction.user.id}>.`.slice(0, 1990) });

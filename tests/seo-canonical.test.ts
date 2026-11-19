@@ -14,19 +14,19 @@ const SITE = "https://guilded.kcaron.top";
 const page = (path: string, lang: "en" | "fr", extra: { noindex?: boolean } = {}) => withEdition("forever", () => layout({ lang, title: "T", path, body: "<p>x</p>", account: null, csrf: null, signInOn: false, ...extra }));
 
 describe("canonical and hreflang on bot-served pages", () => {
-  it("English: self canonical in the edition section, hreflang en/x-default clean and fr with ?lang=fr", () => {
+  it("English: self canonical in the edition section, hreflang en/x-default clean and fr under /fr/", () => {
     const html = page("/leaderboards/", "en");
     expect(html).toContain(`<link rel="canonical" href="${SITE}/forever/leaderboards/">`);
     expect(html).toContain(`<meta property="og:url" content="${SITE}/forever/leaderboards/">`);
     expect(html).toContain(`hreflang="en" href="${SITE}/forever/leaderboards/"`);
     expect(html).toContain(`hreflang="x-default" href="${SITE}/forever/leaderboards/"`);
-    expect(html).toContain(`hreflang="fr" href="${SITE}/forever/leaderboards/?lang=fr"`);
+    expect(html).toContain(`hreflang="fr" href="${SITE}/fr/forever/leaderboards/"`);
   });
-  it("French: canonical is the ?lang=fr address, hreflang points back at the clean English one", () => {
+  it("French: canonical is the /fr/ address, hreflang points back at the clean English one", () => {
     const html = page("/leaderboards/", "fr");
-    expect(html).toContain(`<link rel="canonical" href="${SITE}/forever/leaderboards/?lang=fr">`);
+    expect(html).toContain(`<link rel="canonical" href="${SITE}/fr/forever/leaderboards/">`);
     expect(html).toContain(`hreflang="en" href="${SITE}/forever/leaderboards/"`);
-    expect(html).toContain(`<meta property="og:url" content="${SITE}/forever/leaderboards/?lang=fr">`);
+    expect(html).toContain(`<meta property="og:url" content="${SITE}/fr/forever/leaderboards/">`);
   });
   it("never puts a filter in the canonical, and keeps character, run and guild leaves without a trailing slash", () => {
     expect(page("/leaderboards/dungeons/?season=s1&dungeon=389", "en")).toContain(`rel="canonical" href="${SITE}/forever/leaderboards/dungeons/"`);
@@ -76,7 +76,7 @@ describe("language of public pages", () => {
     expect(en).not.toMatch(/href="[^"]*\/(?:leaderboards|recruitment|players)[^"]*lang=en/);
     const fr = (await get("/recruitment/?lang=fr")).body;
     expect(fr).toContain('<html lang="fr">');
-    expect(fr).toContain(`rel="canonical" href="${SITE}/forever/recruitment/?lang=fr"`);
+    expect(fr).toContain(`rel="canonical" href="${SITE}/fr/forever/recruitment/"`);
     expect(fr).toContain(`hreflang="en" href="${SITE}/forever/recruitment/"`);
   });
 });
@@ -105,6 +105,11 @@ describe("Worker: ?lang=en moves permanently to the clean address", () => {
     const c = await visit("/leaderboards/?lang=en");
     expect(c.headers.get("location")).toBe("/forever/leaderboards/");
     expect((await visit("/forever/leaderboards/?lang=fr")).status).toBe(200);
+    // The French address (the canonical the bot writes) reaches the bot as the same page with ?lang=fr.
+    const fetched = vi.mocked(fetch);
+    fetched.mockClear();
+    expect((await visit("/fr/forever/leaderboards/")).status).toBe(200);
+    expect(String(fetched.mock.calls[0]![0])).toContain("lang=fr");
     expect((await visit("/forever/leaderboards/")).status).toBe(200);
     expect((await visit("/forever/leaderboards/summary.json?lang=en")).status).toBe(200);
   });

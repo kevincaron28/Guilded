@@ -192,7 +192,7 @@ describe("leaderboard and personal pages", () => {
       for (const kind of ["players", "guilds", "runs"]) expect(index.body).toContain(`${SITE}/forever/leaderboards/sitemap-${kind}-1.xml`);
       const players = (await request("GET", "/leaderboards/sitemap-players-1.xml")).body;
       expect(players).toContain(`${SITE}/forever/leaderboards/character/Kev-Doomhowl</loc>`);
-      expect(players).toContain(`hreflang="fr" href="${SITE}/forever/leaderboards/character/Kev-Doomhowl?lang=fr"`);
+      expect(players).toContain(`hreflang="fr" href="${SITE}/fr/forever/leaderboards/character/Kev-Doomhowl"`);
       expect(players).not.toContain("Ghost");
       const guilds = (await request("GET", "/leaderboards/sitemap-guilds-1.xml")).body;
       expect(guilds).toContain("/leaderboards/guild/quebec-gold<");
@@ -560,7 +560,7 @@ describe("leaderboard and personal pages", () => {
     expect(home.body.indexOf('id="season"')).toBeGreaterThan(scoreAt);
     expect(home.body).toContain("table.rank-cards");
     expect(home.body).toContain('rel="canonical" href="https://guilded.kcaron.top/forever/leaderboards/dungeons/"');
-    expect(home.body).toContain('hreflang="fr" href="https://guilded.kcaron.top/forever/leaderboards/dungeons/?lang=fr"');
+    expect(home.body).toContain('hreflang="fr" href="https://guilded.kcaron.top/fr/forever/leaderboards/dungeons/"');
     expect(home.body).toContain(">This week</a>");
     expect(home.body).toContain("position:sticky");
     expect(home.body).toContain("overflow-x:visible");

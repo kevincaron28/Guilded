@@ -40,6 +40,13 @@ export function link(path: string, lang: Lang, params: Record<string, string | n
   return `${pathname}${search2 ? `?${search2}` : ""}${hash ? `#${hash}` : ""}`;
 }
 
+/** The French address of a public page, like the static site's: `/fr` + the English path (`https://host/fr/forever/leaderboards/`). The Worker serves it as the page with ?lang=fr. */
+export function frenchUrl(englishUrl: string): string {
+  const url = new URL(englishUrl);
+  url.pathname = `/fr${url.pathname}`;
+  return url.href;
+}
+
 export const SECURITY_HEADERS = {
   // data: is the inline header logo (site-logo.ts); font-src is the website's own Inter font.
   "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
@@ -85,14 +92,15 @@ export function layout(input: LayoutInput): string {
   const languages = input.lang === "fr" ? { en: link(input.path, other, input.languageParams), fr: here } : { en: here, fr: link(input.path, other, input.languageParams) };
   const description = escapeHtml((input.description ?? input.title).slice(0, 160));
   // The canonical address is the clean, English, unfiltered page as the website serves it (inside the edition's section).
-  // Every filter and page number points back at it; ?lang=fr is the French alternate of the same page.
+  // Every filter and page number points back at it; /fr/ + the path is the French alternate of the same page.
   const bare = (input.path.split("?")[0] || "/");
   const bareNoSlash = bare.replace(/\/+$/, "");
   const leaf = /^\/(?:leaderboards\/(?:character|run|guild)\/[^/]+|g\/[^/]+)$/.test(bareNoSlash);
   const canonicalPath = editionHref(leaf ? bareNoSlash : `${bareNoSlash}/`, currentEdition()).split("?")[0]!;
   const canonical = siteUrl(canonicalPath);
-  const here2 = input.lang === "fr" ? `${canonical}?lang=fr` : canonical;
-  const alternates = input.noindex ? "" : `<link rel="canonical" href="${here2}"><link rel="alternate" hreflang="en" href="${canonical}"><link rel="alternate" hreflang="fr" href="${canonical}?lang=fr"><link rel="alternate" hreflang="x-default" href="${canonical}"><meta property="og:url" content="${here2}">`;
+  const frenchCanonical = frenchUrl(canonical);
+  const here2 = input.lang === "fr" ? frenchCanonical : canonical;
+  const alternates = input.noindex ? "" : `<link rel="canonical" href="${here2}"><link rel="alternate" hreflang="en" href="${canonical}"><link rel="alternate" hreflang="fr" href="${frenchCanonical}"><link rel="alternate" hreflang="x-default" href="${canonical}"><meta property="og:url" content="${here2}">`;
   return `<!doctype html><html lang="${input.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`
     + `<title>${escapeHtml(input.documentTitle ?? `${input.title} · Guilded`)}</title><meta name="description" content="${description}">${input.noindex ? '<meta name="robots" content="noindex">' : alternates}`
     // Link previews (Discord, social sites): a pasted page shows its title, summary and the logo.

@@ -98,8 +98,8 @@ describe("robots.txt and sitemaps", () => {
     expect(urls.some((u) => /\/status\//.test(u))).toBe(false);
     expect(readFileSync("dist/site/status/index.html", "utf8")).toContain('name="robots" content="noindex,follow"');
     expect(urls.some((u) => /poe2|diablo/i.test(u))).toBe(false);
-    expect(urls).toContain("https://guildedwow.com/forever/leaderboards/?lang=fr");
+    expect(urls).toContain("https://guildedwow.com/fr/forever/leaderboards/");
     expect(new Set(urls).size).toBe(urls.length);
-    for (const url of urls) expect(url).not.toMatch(/\?(?!lang=fr$)/);
+    for (const url of urls) expect(url).not.toMatch(/\?/);
   });
 });

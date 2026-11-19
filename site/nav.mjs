@@ -35,6 +35,7 @@ export const FOOTER_NAV = [
   { key: "features", column: "product", href: "/features/", en: "Features", fr: "Fonctions" },
   { key: "officers", column: "product", href: "/officers/", en: "For officers", fr: "Pour les officiers" },
   { key: "companion", column: "product", href: "/companion/", en: "Companion app", fr: "Application compagnon" },
+  { key: "mobile", column: "product", href: "/mobile/", en: "Phone app", fr: "Application mobile" },
   { key: "forever", column: "product", href: "/forever/", en: "WoW Forever launch", fr: "Lancement de WoW Forever" },
   { key: "leaderboards", column: "community", href: "/leaderboards/", en: "Leaderboards", fr: "Classements", bot: true },
   { key: "guilds", column: "community", href: "/recruitment/guilds/", en: "Find a guild", fr: "Trouver une guilde", bot: true },

@@ -30,13 +30,19 @@ export const runResendDue = (lastFullAt, now = Date.now()) => !Number.isFinite(l
 // (9.3.8) A finished run the bot already holds (it is in the answer's acceptedRunRefs, so the addon shows it as synced) and gave no note is
 // not sent again: 263 of a PC's 291 runs were 79% of its upload. Unfinished runs, runs with a note and runs the bot does not list go every time.
 // An older bot that lists nothing leaves every run in, exactly as before.
-function pruneKnownRuns(runs, ack, features, resend) {
+// (Data-loss audit, 13) A run this PC recorded in full (death map, affixes, trace, diagnostic) is not pruned on the bot's receipt alone: the receipt can come
+// from a guildmate's thinner chat copy of the same run. It is pruned once this companion has itself sent that full copy (options.fullSent, ids of runs
+// sent in an upload the bot accepted). The weekly full resend still repeats it.
+export const isFullRun = (run) => Boolean(run && (run.challenge || run.diagnostic || (Array.isArray(run.deathPoints) && run.deathPoints.length) || run.trace));
+
+function pruneKnownRuns(runs, ack, features, resend, fullSent) {
   let omitted = 0;
   const kept = runs.filter((run) => {
     if (!run) return true;
     if (isGroupRun(run)) return !leaveOut(run, { enabled: features.has(GROUP_RELAY_FEATURE), acknowledged: ack?.runs ?? new Set() });
     if (resend || !ack?.runs?.size || run.state !== "COMPLETED" || typeof run.id !== "string") return true;
     if (!ack.runs.has(run.id) || ack.runNotes?.has(run.id)) return true;
+    if (isFullRun(run) && !(fullSent instanceof Set && fullSent.has(run.id))) return true;
     omitted++;
     return false;
   });
@@ -80,7 +86,7 @@ export function pruneAcknowledged(full, ack, features = new Set(["ledger-delta",
   let runsOmitted = 0;
   let exported = pruned.exported;
   if (exported && Array.isArray(exported.dungeonRuns) && exported.dungeonRuns.length) {
-    const { kept, omitted } = pruneKnownRuns(exported.dungeonRuns, ack, features, options.resendRuns === true);
+    const { kept, omitted } = pruneKnownRuns(exported.dungeonRuns, ack, features, options.resendRuns === true, options.fullSent);
     runsOmitted = omitted;
     if (kept.length !== exported.dungeonRuns.length) exported = { ...exported, dungeonRuns: kept };
   }

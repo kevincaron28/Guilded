@@ -52,7 +52,7 @@ export function linkSteps(config = {}, state = {}, hub = null) {
   else if (characters) proof = { state: 'done', label: '{0} character(s) linked', args: [characters], next: null };
   else if (!wowFile) proof = { state: 'todo', label: 'Characters not found yet', next: 'Press Find my addon data, then log in to WoW once and we will find your characters.' };
   else if (!state.lastUpload) proof = { state: 'todo', label: 'Characters not found yet', next: 'Log in to WoW once and we will find your characters. Type /reload or log out so your data is saved.' };
-  else proof = { state: 'todo', label: 'Characters not found yet', next: 'Sent, but no character matched yet. Press Check my characters in a minute; if it stays empty, open Discord, type /character claim and pick yours.' };
+  else proof = { state: 'todo', label: 'Characters not found yet', next: 'Sent, but no character matched yet. Press Check my characters in a minute; if it stays empty, send the bot the full name of your character (First Last) in a Discord DM, or type it in the guild-invite channel.' };
   steps.push({ id: 'characters', required: !personal, args: [], ...proof });
 
   const required = steps.filter(step => step.required);

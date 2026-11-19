@@ -30,7 +30,7 @@
 <li><strong>Même PC, avec le compagnon :</strong> connectez-vous avec l’alt, tapez <code>/reload</code>, puis appuyez sur <strong>Synchroniser maintenant</strong> dans le compagnon. Il rejoint les autres.</li>
 <li><strong>Un autre PC :</strong> installez aussi le compagnon là-bas et appuyez de nouveau sur <strong>Se connecter avec Discord</strong>. Votre autre PC reste lié.</li>
 <li><strong>Avec la ligne verify :</strong> votre code couvre déjà tous les personnages de votre compte WoW.</li>
-<li><strong>Il manque un personnage ?</strong> Dans Discord, tapez <code>/character claim</code> et choisissez-le dans la liste. Vérifiez avec <code>/character list</code>.</li>
+<li><strong>Il manque un personnage ?</strong> Envoyez le nom complet du personnage (Prénom Nom) en message privé au bot, ou écrivez-le dans le salon d’invitation de guilde. Vérifiez avec <code>/character list</code>.</li>
 <li><strong>Un personnage est de trop ?</strong> Dans Discord, tapez <code>/character unlink</code> et choisissez-le.</li>
 </ul>
 <h3>Ça n’a pas marché ?</h3>

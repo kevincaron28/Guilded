@@ -1,5 +1,31 @@
 # Changelog
 
+## 9.4.0 — 19 November 2026
+
+The owner's 9.4 list. Prepared 19 November 2026, not yet published. Not yet confirmed on real clients (see docs/V9_4_0_RELEASE_ACCEPTANCE.md). Details: docs/V9_4_0_RELEASE_NOTES.md.
+
+Addon:
+
+- Layer has its own sidebar button, with "Auto-invite layer requests on my continent" and "Show guildmates' layer requests" on the page (#1114).
+- `/guilded layer auto|helper|direct on|off` now changes the setting instead of sending a layer request, also without a guild (#1126).
+- "Promote next ready member" key binding (Key Bindings > Guilded), and Initiates are offered again when an Alt rank sits above them (#1119).
+- Crafting window: Request (recipe list, favourites, recent, crafter online filter, reagents have/need, I bring the materials), My requests (status), Craft for the guild (shopping list) (#1125).
+- Officers see a red "Do not invite" tag in the To invite panel (#1120).
+- Officer ledger sync never sends half a day when the message queue is full (#1126).
+
+Companion:
+
+- Retries are spread out and an upload gives up after 18 s instead of hanging; runs the bot already has are not sent again; updates can roll out gradually and a failed update says so in the window (#1122).
+- Dungeon runs no longer carry an empty realm (#1116).
+
+Bot and website (already live):
+
+- Promotion: linked character + 7 days + 3 h of voice a week (solo counts), `/promotion status` and the "Where am I?" announcement (#1121).
+- Do-not-invite list with expiry, alts, a prompt when someone leaves and `/character appeal` (#1120).
+- Weekly recap cards, records shown once, shorter messages (#1124); recipes grouped by category (#1118).
+- World PvP in the recaps and on guild pages; My Guilded characters with Make main and Unlink; the armory character card (#1117, #1123).
+- Simpler commands: `/leaderboard`, `/character link`, French command names, officer tools out of member commands (#1127, #1128).
+
 ## 9.3.11 — 18 November 2026
 
 Raid progress. Published 18 November 2026. Not yet confirmed on real clients (see docs/V9_3_11_RELEASE_ACCEPTANCE.md). Details: docs/V9_3_11_RELEASE_NOTES.md.

@@ -65,7 +65,7 @@ export async function applyRecipeData(tx: Tx, guildId: string, input: RecipeImpo
     const key = tupleKey(set.character, set.realm, set.profession);
     const newest = newestRecipe.get(key);
     if (newest !== undefined && newest >= set.at.getTime()) continue;
-    const keys = [...new Set(set.keys)];
+    const keys = [...new Set(set.keys)].sort((a, b) => a - b);
     recipeWrites.set(key, { set, keys });
     newestRecipe.set(key, set.at.getTime());
     summary.recipeSets++;

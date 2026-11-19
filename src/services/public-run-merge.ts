@@ -21,8 +21,13 @@ const forever = (run: LeaderRun) => (run.gameEdition ?? "forever") === "forever"
 function mergePlayer(a: LeaderPlayer, b: LeaderPlayer): LeaderPlayer {
   const aliases = [...new Set([...(a.aliases ?? []), ...(b.aliases ?? [])])];
   const presentSec = a.presentSec == null && b.presentSec == null ? null : Math.max(a.presentSec ?? 0, b.presentSec ?? 0);
+  // guild, faction, displayName and spec fill from the other copy when this one lacks them; deaths take the higher count (never lose a report).
+  const extra: Record<string, unknown> = {};
+  const ra = a as unknown as Record<string, unknown>, rb = b as unknown as Record<string, unknown>;
+  for (const key of ["guild", "faction", "spec", "displayName"]) if (!ra[key] && rb[key]) extra[key] = rb[key];
+  if (typeof ra["deaths"] === "number" || typeof rb["deaths"] === "number") extra["deaths"] = Math.max(typeof ra["deaths"] === "number" ? ra["deaths"] : 0, typeof rb["deaths"] === "number" ? rb["deaths"] : 0);
   return { ...a, className: a.className ?? b.className, role: a.role ?? b.role, level: a.level ?? b.level, minLevel: a.minLevel ?? b.minLevel ?? null,
-    presentSec, ...(a.integrity === undefined && b.integrity !== undefined ? { integrity: b.integrity } : {}), ...(aliases.length ? { aliases } : {}) };
+    presentSec, ...extra, ...(a.integrity === undefined && b.integrity !== undefined ? { integrity: b.integrity } : {}), ...(aliases.length ? { aliases } : {}) };
 }
 
 function dedupePlayers(players: LeaderPlayer[]): LeaderPlayer[] {

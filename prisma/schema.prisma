@@ -2525,6 +2525,9 @@ model DeviceCharacter {
   className   String?
   race        String?
   level       Int?
+  /// (9.4.2) Reported by the unsigned companion, never confirmed.
+  spec        String?
+  professions Json?
   firstSeenAt DateTime @default(now())
   lastSeenAt  DateTime @default(now())
   device      CompanionDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)

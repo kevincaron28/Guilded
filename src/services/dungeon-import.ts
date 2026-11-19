@@ -297,6 +297,57 @@ async function sameRunAs(tx: Tx, guildId: string, run: DungeonRunInput, unfinish
   }) ?? null;
 }
 
+/**
+ * A later report of a run that is already stored (same run id, or another observer's copy) enriches it: gaps are filled, nothing known is overwritten
+ * (never a value with null), deaths take the higher count and in-guild is an OR. Fields: death map points, challenge, diagnostic, and per player
+ * guild, class, role, faction, spec, level, minLevel. Returns whether anything changed.
+ */
+export async function enrichStoredRun(tx: Pick<Tx, "dungeonRun">,
+  stored: { id: string; competitionData?: unknown; players?: { id: string; character: string; class: string | null; role: string | null; deaths: number | null; inGuild: boolean; guild: string | null }[] },
+  run: DungeonRunInput): Promise<boolean> {
+  let changed = false;
+  // Always the row as it is now: an earlier step of this import (a late observer report, a reconciliation) may have just rewritten
+  // competitionData, and writing back an older copy would drop it. Only the keys enrichment owns are touched below.
+  try {
+    const read = await tx.dungeonRun.findUnique({ where: { id: stored.id }, select: { competitionData: true, players: true } });
+    if (!read) return false;
+    stored = { id: stored.id, competitionData: read.competitionData, players: read.players };
+  } catch { return false; }
+  const before = (stored.competitionData ?? {}) as Record<string, unknown>;
+  const data: Record<string, unknown> = { ...before };
+  if (!(Array.isArray(data["deathPoints"]) && data["deathPoints"].length) && run.deathPoints?.length) data["deathPoints"] = run.deathPoints;
+  if (!data["challenge"] && run.challenge) data["challenge"] = run.challenge;
+  if (!data["challengeMode"] && run.challengeMode) data["challengeMode"] = true;
+  if (!data["diagnostic"] && run.diagnostic) data["diagnostic"] = run.diagnostic;
+  const listed = Array.isArray(data["players"]) ? (data["players"] as Record<string, unknown>[]).map(entry => ({ ...entry })) : [];
+  for (const player of run.players) {
+    const key = firstNameKey(player.character);
+    const entry = listed.find(e => typeof e["name"] === "string" && plain(e["name"]) === plain(player.character)) ?? listed.find(e => typeof e["name"] === "string" && firstNameKey(e["name"]) === key);
+    if (!entry) continue;
+    for (const [field, value] of [["level", player.level], ["minLevel", player.minLevel], ["spec", player.spec], ["faction", player.faction]] as const) {
+      if ((entry[field] === null || entry[field] === undefined) && value !== null && value !== undefined && value !== "") entry[field] = value;
+    }
+  }
+  if (listed.length) data["players"] = listed;
+  if (JSON.stringify(data) !== JSON.stringify(before)) {
+    await tx.dungeonRun.update({ where: { id: stored.id }, data: { competitionData: data as Prisma.InputJsonValue } });
+    changed = true;
+  }
+  const rows = stored.players ?? (await tx.dungeonRun.findUnique({ where: { id: stored.id }, select: { players: true } }))?.players ?? [];
+  for (const player of run.players) {
+    const row = rows.find(r => plain(r.character) === plain(player.character)) ?? rows.find(r => firstNameKey(r.character) === firstNameKey(player.character));
+    if (!row) continue;
+    const update: Prisma.DungeonRunPlayerUpdateInput = {};
+    if (!row.guild && player.guild) update.guild = player.guild;
+    if (!row.class && player.class) update.class = player.class;
+    if (!row.role && dungeonRole(player.role)) update.role = dungeonRole(player.role);
+    if (player.deaths !== null && player.deaths !== undefined && (row.deaths === null || player.deaths > row.deaths)) update.deaths = player.deaths;
+    if (!row.inGuild && player.inGuild) update.inGuild = true;
+    if (Object.keys(update).length) { await tx.dungeonRun.update({ where: { id: stored.id }, data: { players: { update: { where: { id: row.id }, data: update } } } }); changed = true; }
+  }
+  return changed;
+}
+
 export async function seasonForRun(tx: Pick<Tx, "dungeonSeason">, guildId: string, active: Awaited<ReturnType<typeof activeSeason>>, endedAt: number | undefined) {
   if (!endedAt || !currentIntegrityPolicy(active.ratingRules) && endedAt * 1000 >= (active.startsAt?.getTime() ?? 0)) return active;
   const prior = await tx.dungeonSeason.findFirst({ where: { guildId, startsAt: { lte: new Date(endedAt * 1000) } }, orderBy: { startsAt: "desc" } });
@@ -530,6 +581,7 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
       // Routine: the companion sends every saved run on each upload. Not logged any more (it filled
       // the journal); the receipt is what tells the addon to stop waiting for it.
       receipts.push({ runRef: run.id, outcome: "stored", reason: receiptReason(existing.invalidReason ?? (existing.state === "COMPLETED" ? null : "Not completed")), runId: existing.id });
+      if (season.status !== "ENDED") await enrichStoredRun(tx, existing as Parameters<typeof enrichStoredRun>[1], run).catch((error: unknown) => console.error("Dungeon run enrich failed", error));
       summary.duplicates++;
       continue;
     }
@@ -546,6 +598,7 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
           memberId: findCharacter(characters, player.character, player.realm, gameEditionOf(run))?.memberId ?? null,
           class: player.class ?? null, role: dungeonRole(player.role), deaths: player.deaths ?? null, presentSec: player.presentSec, inGuild: player.inGuild, guild: player.guild ?? null })) } } : {})
       } });
+      if (season.status !== "ENDED") await enrichStoredRun(tx, sameRun as Parameters<typeof enrichStoredRun>[1], run).catch((error: unknown) => console.error("Dungeon run enrich failed", error));
       receipts.push({ runRef: run.id, outcome: "copy", state: run.state, reason: "Counted with a guildmate's copy of this run", runId: sameRun.id });
       summary.duplicates++;
       continue;

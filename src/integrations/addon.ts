@@ -265,7 +265,7 @@ export const addonSnapshotSchema = z.object({
   reserves: addonReservesSchema.optional(),
   calendarEvents: z.array(addonCalendarEventSchema).max(100).default([]),
   signupAnswers: z.array(addonSignupAnswerSchema).max(100).default([]),
-  recipes: z.array(addonRecipeSetSchema).max(400).default([]),
+  recipes: z.array(addonRecipeSetSchema).max(800).default([]),
   recipeNames: z.record(z.string(), z.string().max(100)).default({}),
   cooldowns: z.array(addonCooldownSetSchema).max(300).default([]),
   transactions: z.array(addonTransactionSchema).default([]),
@@ -280,10 +280,10 @@ export const addonSnapshotSchema = z.object({
   battlegroundReports: z.array(battlegroundReportSchema).max(100).default([]),
   // Guild duels and personal milestones (8.4.5). Each row is validated on apply (services/duels), so one
   // malformed row never rejects the upload.
-  duelResults: z.array(z.unknown()).max(200).default([]),
+  duelResults: z.array(z.unknown()).max(5000).default([]),
   // Duels against players outside the guild (global ladder; docs/DUEL_RATING_ADDON_SPEC.md section 8). Validated row by row on apply.
-  externalDuels: z.array(z.unknown()).max(200).default([]),
-  milestones: z.array(z.unknown()).max(600).default([]),
+  externalDuels: z.array(z.unknown()).max(5000).default([]),
+  milestones: z.array(z.unknown()).max(5000).default([]),
   // Records the addon kept for the player and offered to a carrier, and records it heard from others (9.3.2): applied by services/carried-records.
   carriedRecords: z.array(z.unknown()).max(200).default([]),
   // Client probes (/guilded probe ...), sanitized by the companion and again by services/client-probes.ts. Optional: older companions send none.

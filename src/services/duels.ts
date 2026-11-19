@@ -73,7 +73,7 @@ export async function importDuelResults(tx: Pick<Tx, "duelResult">, guildId: str
   const result: DuelImportResult = { recorded: 0, counted: 0, capped: 0, duplicates: 0, rejected: 0, fresh: [] };
   if (!rows.length) return result;
   if (!reporterId) return { ...result, rejected: rows.length };
-  const parsed = rows.slice(0, 200).flatMap(row => { const p = duelResultSchema.safeParse(row); return p.success ? [p.data] : []; });
+  const parsed = rows.slice(0, 5000).flatMap(row => { const p = duelResultSchema.safeParse(row); return p.success ? [p.data] : []; });
   result.rejected += rows.length - parsed.length;
   // Oldest first, so the daily allowance goes to the earliest duels.
   parsed.sort((a, b) => a.at - b.at);
@@ -113,7 +113,7 @@ export async function importDuelResults(tx: Pick<Tx, "duelResult">, guildId: str
 }
 
 /** Rows one upload may carry (the addon sends its log; in-game achievements make it longer than the 300 of 8.4.5). */
-export const MAX_MILESTONE_ROWS = 600;
+export const MAX_MILESTONE_ROWS = 5000;
 /** Text from a client: control characters out, whitespace collapsed, cut to `max`. */
 const cleanText = (text: string | undefined, max: number) => (text ?? "").replace(/\p{Cc}/gu, " ").replace(/\s+/g, " ").trim().slice(0, max);
 

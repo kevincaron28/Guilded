@@ -18,11 +18,16 @@ export async function syncProfessionSnapshot(tx: Tx, guildId: string, character:
     await tx.recipeKnown.deleteMany({ where: { guildId, character: character.name, realm: character.realm, profession: { notIn: names } } });
     await tx.professionCooldown.deleteMany({ where: { guildId, character: character.name, realm: character.realm, profession: { notIn: names } } });
   }
+  // Skill levels only go up unless this is a complete self-report: a stale or partial relayed digest never lowers one.
+  const stored = !complete && typeof tx.professionSkill.findMany === "function"
+    ? new Map((await tx.professionSkill.findMany({ where: { characterId: character.id }, select: { profession: true, skillLevel: true } })).map((row) => [row.profession, row.skillLevel]))
+    : new Map<string, number>();
   for (const profession of professions) {
     const name = profession.name.trim();
     if (!name) continue;
+    const level = Math.max(profession.skillLevel, stored.get(name) ?? 0);
     await tx.professionSkill.upsert({ where: { characterId_profession: { characterId: character.id, profession: name } },
-      create: { characterId: character.id, profession: name, skillLevel: profession.skillLevel }, update: { skillLevel: profession.skillLevel } });
+      create: { characterId: character.id, profession: name, skillLevel: level }, update: { skillLevel: level } });
   }
   return true;
 }

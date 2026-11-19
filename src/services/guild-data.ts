@@ -109,7 +109,7 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
       if (!previous || !previous.inGuild) membershipChanged = true;
       if (!previous || previous.observedAt < observedAt) {
         const data = { name: member.name, level: member.level ?? previous?.level ?? null, className: member.class ?? previous?.className ?? null,
-          rankName: member.rankName ?? null, rankIndex: member.rankIndex ?? null,
+          rankName: member.rankName ?? previous?.rankName ?? null, rankIndex: member.rankIndex ?? previous?.rankIndex ?? null,
           lastOnlineAt: movedForward(previous?.lastOnlineAt, lastOnlineOk, minMove) ?? previous?.lastOnlineAt ?? null, inGuild: true, observedAt, reportedById };
         if (previous && previous.inGuild && previous.name === data.name && previous.level === data.level && previous.className === data.className
           && previous.rankName === data.rankName && previous.rankIndex === data.rankIndex) {
@@ -258,7 +258,8 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
     const at = new Date(text.at * 1000);
     const current = await tx.guildText.findUnique({ where: { guildId } });
     if (fresh(at) && (!current || current.observedAt < at)) {
-      const data = { motd: text.motd ?? null, info: text.info ?? null, observedAt: at, reportedById };
+      // A reading that lacks one field (blocked or not loaded yet) keeps the stored value; only an explicit empty string clears it.
+      const data = { motd: text.motd !== undefined ? text.motd || null : current?.motd ?? null, info: text.info !== undefined ? text.info || null : current?.info ?? null, observedAt: at, reportedById };
       await tx.guildText.upsert({ where: { guildId }, create: { guildId, ...data }, update: data });
       result.text = true;
     }

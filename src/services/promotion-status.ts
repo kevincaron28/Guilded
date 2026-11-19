@@ -107,5 +107,5 @@ export function promotionAnnouncement(rule: PromotionRule, lang: Lang, custom: {
   const opening = intro?.trim() || t("We want an active guild, not just a list of names.", "On veut une guilde vivante, pas juste une liste de noms.");
   return new EmbedBuilder().setColor(0xc9a227)
     .setTitle(title?.trim() || t("📣 How to get promoted", "📣 Comment être promu"))
-    .setDescription([opening, "", `**${t(`To go from ${rule.fromRank} to the next rank:`, `Pour passer de ${rule.fromRank} au rang suivant :`)}**`, ...steps, ...(note?.trim() ? [note.trim(), ""] : []), t("Click “Where am I?” to see what you still need.", "Clique sur « Où j'en suis ? » pour voir ce qu'il te manque.")].join("\n").slice(0, 3900));
+    .setDescription([opening, "", `**${t(`To go from ${rule.fromRank} to the next rank:`, `Pour passer ${/^[aeiouyhàâéèêëîïôûù]/i.test(rule.fromRank) ? "d'" : "de "}${rule.fromRank} au rang suivant :`)}**`, ...steps, ...(note?.trim() ? [note.trim(), ""] : []), t("Click “Where am I?” to see what you still need.", "Clique sur « Où j'en suis ? » pour voir ce qu'il te manque.")].join("\n").slice(0, 3900));
 }

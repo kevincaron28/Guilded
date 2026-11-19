@@ -1,6 +1,7 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { guildStats, type GuildStats } from "./guild-stats.js";
 import { weekStart } from "./dungeon-rules.js";
+import { worldPvpWeekLine, type WorldPvpWeekLine } from "./world-pvp.js";
 
 // The weekly report (posted right after the weekly reset, Tuesday 15:00 UTC, the same week the
 // dungeon challenge uses): the guild's week against the one before, each raid core, the dungeon
@@ -41,9 +42,11 @@ export interface WeeklyReport {
   raiderOfWeek: { name: string; ep: number; raids: number } | null;
   // Most dungeon points.
   dungeonHero: { name: string; points: number } | null;
+  // 9.4: the guild's open-world PvP for that raid week; absent when nothing was counted or the switch is off.
+  worldPvp?: WorldPvpWeekLine | null;
 }
 
-type Db = Pick<PrismaClient, "raid" | "lootAward" | "epgpTransaction" | "member" | "application" | "dungeonRun" | "dungeonPointTransaction">;
+type Db = Pick<PrismaClient, "raid" | "lootAward" | "epgpTransaction" | "member" | "application" | "dungeonRun" | "dungeonPointTransaction"> & Partial<Pick<PrismaClient, "worldPvpWeek" | "guildSettings" | "character" | "unclaimedCharacter" | "guildRosterEntry" | "officialSeason">>;
 
 const PRESENT = new Set(["PRESENT", "LATE"]);
 
@@ -162,6 +165,7 @@ export async function weeklyReport(database: Db, guildId: string, now = new Date
       firsts: [...new Set(firsts)], records: [...new Set(records)], topPoints, marathon
     },
     raiderOfWeek: bestEp,
-    dungeonHero: topPoints[0] ?? null
+    dungeonHero: topPoints[0] ?? null,
+    worldPvp: database.worldPvpWeek ? await worldPvpWeekLine(database as never, guildId, "forever", new Date(end.getTime() - 1)) : null
   };
 }

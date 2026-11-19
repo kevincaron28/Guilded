@@ -19,7 +19,9 @@ export interface PvpPlayer { key: string; name: string; short: string; realm: st
 export interface PvpWorldRow extends PvpPlayer { kills: number; deaths: number; defends: number; helped: number }
 export interface PvpGame extends PvpPlayer { mode: string; bracket: string; mapId: number; outcome: string; endedAt: Date; /** One value per battleground match, shared by every member who reported it. */ matchKey: string }
 export interface PvpCall { guildId: string; zone: string; mapId?: number | null; calledAt: Date }
-export interface PvpData { weekKey: number; week: PvpWorldRow[]; total: PvpWorldRow[]; games: PvpGame[]; calls: PvpCall[]; /** Kills and deaths per zone (exact counts) and the newest of them with a position, from the pvp-events upload. */ zoneActivity?: PvpZoneActivity[]; events?: PvpEvent[] }
+/** One guild's world PvP totals for one raid week (the sparkline on the guild page). No names. */
+export interface PvpTrendWeek { guildId: string; weekKey: number; kills: number; deaths: number; defends: number }
+export interface PvpData { weekKey: number; week: PvpWorldRow[]; total: PvpWorldRow[]; /** The last TREND_WEEKS weeks per guild. */ trend?: PvpTrendWeek[]; games: PvpGame[]; calls: PvpCall[]; /** Kills and deaths per zone (exact counts) and the newest of them with a position, from the pvp-events upload. */ zoneActivity?: PvpZoneActivity[]; events?: PvpEvent[] }
 /** One kill or death with its place: zone map position 0-1 (null when the game gave none), no enemy name. */
 /** `memberId` is only used to count how many members a zone's points come from; it never reaches a page. */
 export interface PvpEvent { memberId?: string; guildId: string; kind: "kill" | "death"; weekKey: number; at: Date; mapId: number; x: number | null; y: number | null; approx: boolean; className: string | null; level: number | null }
@@ -29,6 +31,7 @@ export const PVP_LEVEL_BANDS: { key: string; from: number; to: number }[] = [
   { key: "1-19", from: 1, to: 19 }, { key: "20-39", from: 20, to: 39 }, { key: "40-59", from: 40, to: 59 }, { key: "60", from: 60, to: 60 }
 ];
 export const PVP_MODES = ["casual", "rated", "blitz"] as const;
+export const TREND_WEEKS = 8;
 const BG_DAYS = 30, WORLD_ROWS = 5_000, GAME_ROWS = 5_000, CALL_ROWS = 2_000, CALL_DAYS = 28, EVENT_GROUPS = 5_000, EVENT_ROWS = 2_000, EVENT_DELAY_MS = 6 * 3_600_000, MIN_DOT_MEMBERS = 3;
 
 const MAPS: Record<number, [string, string]> = {
@@ -53,9 +56,10 @@ export async function loadPvpData(database: PrismaClient, guildIds: readonly str
   const visible = hidden.users.size ? { ...VISIBLE, discordUserId: { notIn: [...hidden.users] } } : VISIBLE;
   const since = new Date(now.getTime() - BG_DAYS * 86_400_000);
   const callsSince = new Date(now.getTime() - CALL_DAYS * 86_400_000);
-  const [weekRows, totalRows, reports, calls, eventGroups, eventRows] = await Promise.all([
+  const [weekRows, totalRows, trendRows, reports, calls, eventGroups, eventRows] = await Promise.all([
     database.worldPvpWeek.findMany({ where: { guildId: { in: ids }, weekKey, member: visible }, select: { memberId: true, guildId: true, kills: true, deaths: true, defends: true, helped: true }, orderBy: { kills: "desc" }, take: WORLD_ROWS }),
     database.worldPvpWeek.groupBy({ by: ["memberId", "guildId"], where: { guildId: { in: ids }, member: visible }, _sum: { kills: true, deaths: true, defends: true, helped: true }, orderBy: { _sum: { kills: "desc" } }, take: WORLD_ROWS }),
+    database.worldPvpWeek.groupBy({ by: ["guildId", "weekKey"], where: { guildId: { in: ids }, weekKey: { gt: weekKey - TREND_WEEKS, lte: weekKey }, member: visible }, _sum: { kills: true, deaths: true, defends: true } }),
     database.battlegroundReport.findMany({ where: { guildId: { in: ids }, gameEdition: edition, status: "PROVISIONAL", endedAt: { gte: since, lt: now }, member: visible }, orderBy: { endedAt: "desc" }, take: GAME_ROWS,
       select: { guildId: true, mode: true, bracket: true, mapId: true, outcome: true, endedAt: true, premadeNonce: true, character: { select: { name: true, displayName: true, realm: true, className: true, level: true } } } }),
     database.guildHelpCall.findMany({ where: { guildId: { in: ids }, calledAt: { gte: callsSince, lt: now }, member: visible }, select: { guildId: true, zone: true, mapId: true, calledAt: true }, orderBy: { calledAt: "desc" }, take: CALL_ROWS }),
@@ -98,6 +102,7 @@ export async function loadPvpData(database: PrismaClient, guildIds: readonly str
   }
   if (activity.size) data.zoneActivity = [...activity.values()];
   if (eventRows.length) data.events = eventRows.map((row) => ({ memberId: row.memberId, guildId: row.guildId, kind: row.kind === "death" ? "death" as const : "kill" as const, weekKey: row.weekKey, at: row.at, mapId: row.mapId, x: row.x, y: row.y, approx: row.approx, ...classOf(row.memberId) }));
+  if (trendRows.length) data.trend = trendRows.map((row) => ({ guildId: row.guildId, weekKey: row.weekKey, kills: row._sum.kills ?? 0, deaths: row._sum.deaths ?? 0, defends: row._sum.defends ?? 0 }));
   data.week = world(shown.week);
   data.total = world(shown.total);
   data.games = reports.filter((row) => !(hideNames && isHiddenPlayer(hidden, row.character.name, row.character.realm))).map((row) => ({ ...player(row.character, row.guildId), mode: row.mode, bracket: row.bracket, mapId: row.mapId, outcome: row.outcome, endedAt: row.endedAt, matchKey: matchKeyOf(row.guildId, row.mapId, row.mode, row.endedAt, row.premadeNonce) }));
@@ -476,14 +481,51 @@ export function playerPvpPanel(env: PvpEnv, data: PvpData, character: string, re
     + `<p><a href="${link("/leaderboards/pvp/", lang)}">${t("PvP leaderboards →", "Classements PvP →")}</a></p>`;
 }
 
-/** A guild page's PvP section, or "" when its members have none. */
-export function guildPvpPanel(env: PvpEnv, data: PvpData, guildId: string): string {
+/** Pure: the guild's last TREND_WEEKS weeks, oldest first, missing weeks as zero. */
+export function guildTrend(data: PvpData, guildId: string): PvpTrendWeek[] {
+  const byWeek = new Map((data.trend ?? []).filter((row) => row.guildId === guildId).map((row) => [row.weekKey, row]));
+  return Array.from({ length: TREND_WEEKS }, (_, i) => data.weekKey - (TREND_WEEKS - 1) + i).map((weekKey) => byWeek.get(weekKey) ?? { guildId, weekKey, kills: 0, deaths: 0, defends: 0 });
+}
+
+/** Pure: a small inline SVG (no scripts, no libraries): kills as a solid line, deaths dashed, one dot per week. */
+export function trendSparkline(weeks: readonly PvpTrendWeek[], label: string): string {
+  const W = 240, H = 56, PAD = 6;
+  const max = Math.max(1, ...weeks.map((w) => Math.max(w.kills, w.deaths)));
+  const x = (i: number) => PAD + (i * (W - 2 * PAD)) / Math.max(1, weeks.length - 1);
+  const y = (v: number) => (H - PAD - (v * (H - 2 * PAD)) / max).toFixed(1);
+  const line = (pick: (w: PvpTrendWeek) => number) => weeks.map((w, i) => `${x(i).toFixed(1)},${y(pick(w))}`).join(" ");
+  const dots = weeks.map((w, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(w.kills)}" r="2.5" fill="#b91c1c"/>`).join("");
+  return `<svg class="pvp-trend" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${escapeHtml(label)}"><polyline points="${line((w) => w.deaths)}" fill="none" stroke="#6b7fa8" stroke-width="1.5" stroke-dasharray="4 3"/><polyline points="${line((w) => w.kills)}" fill="none" stroke="#b91c1c" stroke-width="2"/>${dots}</svg>`;
+}
+
+export interface GuildPvpView { period: "week" | "all"; /** The guild page's address with `pvpPeriod` set to the given value. */ href: (period: "week" | "all") => string }
+/** Read from the address: `pvpPeriod=all` shows every week, anything else this week. */
+export const readPvpPeriod = (query: URLSearchParams): "week" | "all" => (query.get("pvpPeriod") === "all" ? "all" : "week");
+
+/** A guild page's PvP section. With no data at all it explains what is missing instead of vanishing. */
+export function guildPvpPanel(env: PvpEnv, data: PvpData, guildId: string, view?: GuildPvpView): string {
   const { t, lang } = env;
   const mine = guildPvp(data, guildId);
-  if (!mine.top.length && !mine.games && !mine.zones.length) return "";
+  if (!mine.top.length && !mine.games && !mine.zones.length) {
+    return `<a id="pvp"></a><h2>PvP</h2><p class="muted">${t("No world PvP from this guild yet. It needs members on Guilded addon 9.x, a companion that uploads, and the officer switch for world PvP turned on. Kills, deaths, defends and calls answered then appear here.", "Pas encore de PvP mondial pour cette guilde. Il faut des membres avec l'addon Guilded 9.x, un compagnon qui envoie les données et l'option PvP mondial activée par un officier. Éliminations, morts, défenses et appels répondus apparaîtront ici.")}</p>`;
+  }
+  const period = view?.period ?? "week";
   const tile = (k: string, v: string) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div></div>`;
-  return `<h2>PvP</h2><div class="tiles">${tile(t("Kills this week", "Éliminations cette semaine"), String(mine.week.kills))}${tile(t("Deaths this week", "Morts cette semaine"), String(mine.week.deaths))}${tile(t("K/D this week", "É/M cette semaine"), killDeathRatio(mine.week.kills, mine.week.deaths))}${tile(t("Battleground wins", "Victoires en champ de bataille"), `${mine.wins}<span class="tag">/${mine.games}</span>`)}</div>`
-    + (mine.top.length ? env.table([t("Player", "Joueur"), t("Kills", "Éliminations"), t("Deaths", "Morts")], mine.top.map((row) => `<tr><td>${env.person(row)}</td><td class="num score">${row.kills}</td><td class="num">${row.deaths}</td></tr>`), [1, 2], "dense") : "")
+  const rows = [...(period === "all" ? data.total : data.week)].filter((row) => row.guildId === guildId)
+    .sort((a, b) => b.kills - a.kills || a.deaths - b.deaths || a.name.localeCompare(b.name)).slice(0, 50);
+  const toggle = view ? `<nav class="tabs"><a class="${period === "week" ? "on" : ""}" href="${escapeHtml(view.href("week"))}">${t("This week", "Cette semaine")}</a><a class="${period === "all" ? "on" : ""}" href="${escapeHtml(view.href("all"))}">${t("All weeks", "Toutes les semaines")}</a></nav>` : "";
+  const table = rows.length
+    ? env.table([t("Player", "Joueur"), t("Kills", "Éliminations"), t("Deaths", "Morts"), t("K/D", "É/M"), t("Defends", "Défenses"), t("Helped", "Aides")],
+      rows.map((row) => `<tr><td>${env.person(row)}</td><td class="num score">${row.kills}</td><td class="num">${row.deaths}</td><td class="num">${killDeathRatio(row.kills, row.deaths)}</td><td class="num">${row.defends}</td><td class="num">${row.helped}</td></tr>`), [1, 2, 3, 4, 5], "dense")
+    : `<p class="muted">${t("No world PvP from this guild for this period.", "Pas de PvP mondial de cette guilde pour cette période.")}</p>`;
+  const trend = guildTrend(data, guildId);
+  const summary = trend.map((w) => `${w.kills}/${w.deaths}`).join(", ");
+  const trendLabel = t(`Guild kills (solid) and deaths (dashed) over the last ${TREND_WEEKS} weeks: ${summary}`, `Éliminations (trait plein) et morts (pointillés) de la guilde sur les ${TREND_WEEKS} dernières semaines : ${summary}`);
+  const trendBlock = trend.some((w) => w.kills || w.deaths)
+    ? `<h3>${t(`Last ${TREND_WEEKS} weeks`, `${TREND_WEEKS} dernières semaines`)}</h3><p>${trendSparkline(trend, trendLabel)}</p><p class="muted">${t("Red: guild kills per raid week. Dashed: deaths.", "Rouge : éliminations de la guilde par semaine de raid. Pointillés : morts.")}</p>`
+    : "";
+  return `<a id="pvp"></a><h2>PvP</h2><div class="tiles">${tile(t("Kills this week", "Éliminations cette semaine"), String(mine.week.kills))}${tile(t("Deaths this week", "Morts cette semaine"), String(mine.week.deaths))}${tile(t("K/D this week", "É/M cette semaine"), killDeathRatio(mine.week.kills, mine.week.deaths))}${tile(t("Battleground wins", "Victoires en champ de bataille"), `${mine.wins}<span class="tag">/${mine.games}</span>`)}</div>`
+    + toggle + table + trendBlock
     + (mine.zones.length ? `<p class="muted">${t("Most active zones", "Zones les plus actives")}${t(":", " :")} ${mine.zones.map((z) => `${escapeHtml(lang === "fr" ? z.fr : z.en)} (${z.heat})`).join(", ")}</p>` : "")
     + `<p><a href="${link("/leaderboards/pvp/", lang)}">${t("PvP leaderboards →", "Classements PvP →")}</a></p>`;
 }

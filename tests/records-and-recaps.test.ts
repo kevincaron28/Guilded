@@ -170,6 +170,20 @@ describe("daily recap", () => {
     expect(recap.pvp).toBeNull();
     expect(recapIsEmpty({ day: "x", race: null, dungeons: null, pvp: null })).toBe(true);
   });
+  it("adds the guild's world PvP week as one line, only on a recap that has other content", async () => {
+    const empty = { findMany: vi.fn(async () => []) };
+    const pvp = { findMany: vi.fn(async () => [{ memberId: "m1", kills: 30, defends: 4, helped: 5, deaths: 2 }]) };
+    const base = { levelRaceEntry: { findMany: vi.fn(async () => [{ name: "Alda", className: "Mage", level: 20, dayStartLevel: 17, dayStartedAt: new Date("2026-11-06T05:00:00Z"), lastDayGain: 0, lastDayStartedAt: null }]) }, raceHallEntry: empty, dungeonRun: empty, dungeonHighlight: empty, duelResult: empty, battlegroundReport: empty,
+      worldPvpWeek: pvp, member: { findMany: vi.fn(async () => [{ id: "m1", displayName: "Alda", characters: [] }]) } };
+    const recap = await dailyRecap(base as never, "g1", "2026-11-06", "America/Toronto");
+    expect(recap.worldPvp).toEqual({ kills: 30, defends: 4, helped: 5 });
+    expect(dailyRecapEmbed(recap, "fr").data.description).toContain("30 victoires · 4 défenses · 5 appels répondus");
+    expect(JSON.stringify(dailyRecapCard(recap, "en", "G"))).toContain("World PvP this week");
+    // A quiet day posts nothing, even in a week with world PvP.
+    const quiet = await dailyRecap({ ...base, levelRaceEntry: empty } as never, "g1", "2026-11-06", "America/Toronto");
+    expect(quiet.worldPvp).toBeUndefined();
+    expect(recapIsEmpty(quiet)).toBe(true);
+  });
   it("posts once per day and claims quiet days without posting", async () => {
     const empty = { findMany: vi.fn(async () => []) };
     let lastDay: string | null = null;

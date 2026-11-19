@@ -62,6 +62,8 @@ export interface SetupFacts {
   // Officer roles that can't see /lead, /officer or /organize ("Raid Leader → /lead");
   // null when Discord refused the check (services/command-visibility.ts).
   commandAccess?: { role: string; command: string }[] | null;
+  // 9.4: world PvP is on (the default) but the PvP ladder channel (bgStatsChannelId) is not set, so its panel is never posted.
+  worldPvpPanelMissing?: boolean;
 }
 
 /** After this long without a new roster reading, /setup status warns (members log in daily in an active guild). */
@@ -248,6 +250,10 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en", now = new Date
         : `${T("Hidden from: {list}.", { list: blocked.map((entry) => `${entry.role} → /${entry.command}`).join(", ") })} ${howTo}`
     });
   }
+  if (facts.worldPvpPanelMissing) checks.push({
+    label: T("World PvP panel"), ok: false, optional: true, warn: true,
+    fix: T("World PvP is on, but the PvP ladder channel is not set, so its panel never appears. Run /bg pvp-module, then press \"Create missing channels\" on this checklist, or run /bg setup.")
+  });
   // The #bot-faq answer channel was retired in 9.0: it is neither listed nor counted any more.
   // The bot's messages: missing (❌-style, optional) or out of date (⚠️), fixed by one button.
   const MESSAGE_LABELS: Record<string, string> = {

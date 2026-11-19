@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { clearLeaderboardCaches, createLeaderboardPages, type LeaderRun, type LeaderboardStore } from "../src/services/public-leaderboard.js";
 import { continentView, zoneBox, zoneLabel, zonePoint, zoneMapHtml, bgBoard, guildPvp, loadPvpData, playerPvp, readPvpFilters, worldBoard, zoneStats, type PvpData, type PvpGame, type PvpWorldRow } from "../src/services/leaderboard-pvp.js";
 import { weekKeyOf } from "../src/services/world-pvp.js";
+import { guildPvpPanel, guildTrend, readPvpPeriod, trendSparkline } from "../src/services/leaderboard-pvp.js";
 import { PVP_ZONES, zoneById, zoneByName, zoneOf } from "../src/services/pvp-zones.js";
 import { existsSync } from "node:fs";
 import { ZONE_SHAPES } from "../src/services/pvp-zone-shapes.js";
@@ -144,7 +145,7 @@ describe("PvP leaderboards: the store query", () => {
     expect(await loadPvpData(database as never, [], "forever", NOW)).toMatchObject({ week: [], games: [] });
     expect(calls).toHaveLength(0);
     await loadPvpData(database as never, ["g1"], "forever", NOW);
-    expect(calls.map((c) => c.table).sort()).toEqual(["battlegroundReport", "guildHelpCall", "worldPvpEvent", "worldPvpEvent.groups", "worldPvpWeek", "worldPvpWeek.total"]);
+    expect(calls.map((c) => c.table).sort()).toEqual(["battlegroundReport", "guildHelpCall", "worldPvpEvent", "worldPvpEvent.groups", "worldPvpWeek", "worldPvpWeek.total", "worldPvpWeek.total"]);
     for (const call of calls) {
       expect(call.where["guildId"]).toEqual({ in: ["g1"] });
       expect(call.where["member"]).toEqual({ status: { in: ["ACTIVE", "TRIAL"] }, isTest: false, raceHidden: false });
@@ -507,5 +508,49 @@ describe("PvP leaderboards: pages", () => {
     expect((await get()).body).toContain("Newcomer");
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(loads).toBe(3);
+  });
+});
+
+describe("guild page PvP panel (9.4)", () => {
+  const env = { t: (en: string) => en, lang: "en" as const, edition: "forever", duelsOpen: false,
+    table: (head: string[], rows: string[]) => `<table>${head.join("|")}${rows.join("")}</table>`, person: (p: { name: string }) => p.name, guild: () => "", classLabel: (n: string) => n, classSlug: (n: string | null) => n ?? "" };
+  const view = (period: "week" | "all") => ({ period, href: (p: "week" | "all") => `/g/x/?pvpPeriod=${p}` });
+
+  it("explains an empty panel instead of vanishing", () => {
+    const html = guildPvpPanel(env as never, { weekKey: week, week: [], total: [], games: [], calls: [] }, "g1", view("week"));
+    expect(html).toContain("addon 9.x");
+    expect(html).toContain("officer switch");
+  });
+
+  it("lists every member of this guild only, by week or all weeks, with K/D, defends and helped", () => {
+    const d = { ...data(), week: [world("Dara", "Rogue", 60, 40, 10, { defends: 4, helped: 7 }), world("Other", "Mage", 60, 99, 1, { guildId: "g2" })], total: [world("Dara", "Rogue", 60, 140, 40), world("Corvin", "Mage", 60, 90, 20)] };
+    const weekHtml = guildPvpPanel(env as never, d, "g1", view("week"));
+    expect(weekHtml).toContain("Defends");
+    expect(weekHtml).toContain("Dara");
+    expect(weekHtml).not.toContain("Other");
+    expect(weekHtml).not.toContain("Corvin");
+    expect(weekHtml).toContain("4.0");
+    const all = guildPvpPanel(env as never, d, "g1", view("all"));
+    expect(all).toContain("Corvin");
+    expect(all).toContain("pvpPeriod=week");
+  });
+
+  it("draws an 8-week sparkline from plain inline SVG, with zeros for missing weeks", () => {
+    const trend = Array.from({ length: 3 }, (_, i) => ({ guildId: "g1", weekKey: week - i, kills: 10 * (i + 1), deaths: i, defends: 0 }));
+    const weeks = guildTrend({ ...data(), trend: [...trend, { guildId: "g2", weekKey: week, kills: 999, deaths: 0, defends: 0 }] }, "g1");
+    expect(weeks).toHaveLength(8);
+    expect(weeks.at(-1)!.kills).toBe(10);
+    expect(weeks[0]!.kills).toBe(0);
+    const svg = trendSparkline(weeks, "Trend <b>");
+    expect(svg).toMatch(/^<svg /);
+    expect(svg).toContain("&lt;b&gt;");
+    expect(svg).not.toMatch(/<script|href=|http/);
+    expect(guildPvpPanel(env as never, { ...data(), trend }, "g1", view("week"))).toContain("<svg");
+    expect(guildPvpPanel(env as never, data(), "g1", view("week"))).not.toContain("<svg");
+  });
+
+  it("reads the period from the address", () => {
+    expect(readPvpPeriod(new URLSearchParams("pvpPeriod=all"))).toBe("all");
+    expect(readPvpPeriod(new URLSearchParams("pvpPeriod=x"))).toBe("week");
   });
 });

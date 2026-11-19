@@ -641,5 +641,7 @@ export const FR_TEXT: Record<string, string> = {
   "📌 Guild news": "📌 Nouvelles de la guilde",
   "{name}, from the game": "{name}, depuis le jeu",
   "News posted.": "Nouvelle publiée.",
-  "I can't post in this channel.": "Je ne peux pas publier dans ce salon."
+  "I can't post in this channel.": "Je ne peux pas publier dans ce salon.",
+  "World PvP panel": "Panneau JcJ en monde ouvert",
+  "World PvP is on, but the PvP ladder channel is not set, so its panel never appears. Run /bg pvp-module, then press \"Create missing channels\" on this checklist, or run /bg setup.": "Le JcJ en monde ouvert est activé, mais le salon du classement JcJ n'est pas défini : son panneau n'apparaît donc jamais. Lancez /bg pvp-module, puis appuyez sur « Créer les salons manquants » sur cette liste, ou lancez /bg setup."
 };

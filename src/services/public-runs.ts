@@ -119,6 +119,15 @@ function observationOf(summary: RunEvidence, edition: string) {
 }
 
 /** Derived participation retains reports and never invents an individual observer's view. */
+/** One player seen in several reports: later reports win, but a field they lack keeps the earlier value; deaths take the highest count. */
+export function mergePlayerReports(previous: RunSummary["players"][number] | undefined, next: RunSummary["players"][number]): RunSummary["players"][number] {
+  if (!previous) return next;
+  const pick = <K extends "guild" | "faction" | "displayName" | "className" | "role" | "level" | "minLevel">(key: K) => (next[key] ?? previous[key]);
+  const deaths = next.deaths === null || next.deaths === undefined ? (previous.deaths ?? null) : previous.deaths === null || previous.deaths === undefined ? next.deaths : Math.max(previous.deaths, next.deaths);
+  const out = { ...previous, ...next, className: pick("className") ?? null, role: pick("role") ?? null, level: pick("level") ?? null, minLevel: pick("minLevel") ?? null, deaths } as RunSummary["players"][number];
+  for (const key of ["guild", "faction", "displayName"] as const) { const value = pick(key); if (value) (out as Record<string, unknown>)[key] = value; }
+  return out;
+}
 export function reconcileSummaries(reports: RunSummary[]): RunSummary | null {
   const unique = new Map<string,RunSummary>();
   for (const report of reports) {
@@ -138,7 +147,9 @@ export function reconcileSummaries(reports: RunSummary[]): RunSummary | null {
   // An earlier peer clock or incomplete report must not replace a qualifying
   // observer's start provenance. Keep the selected original source intact.
   const base = sorted.find(r=>!integrityStartReason((r.integrity as {run?:unknown}|undefined)?.run,new Date(from*1000),to-from)) ?? first;
-  const players = [...new Map(sorted.flatMap(r=>r.players).map(p=>[playerKey(p),p])).values()].sort((a,b)=>playerKey(a).localeCompare(playerKey(b)));
+  // Every report of a player contributes: a guildmate's relayed copy has no guild, faction, display name or death count, and must not
+  // erase what the recorder's own report carried (the last report used to win the whole row).
+  const players = [...sorted.flatMap(r=>r.players).reduce((map,p)=>{const key=playerKey(p);map.set(key,mergePlayerReports(map.get(key),p));return map;},new Map<string,RunSummary["players"][number]>()).values()].sort((a,b)=>playerKey(a).localeCompare(playerKey(b)));
   const participant = players.map(p=>({character:p.character,realm:p.realm,observation:reconcileParticipation(observations.filter(o=>o!==null),p,from,to,base.gameEdition)}));
   const encounters = [...new Map(sorted.flatMap(r=>r.encounters).sort((a,b)=>Number(a.source==="native")-Number(b.source==="native") || (a.at??0)-(b.at??0)).map(e=>[`${e.kind??"encounter"}:${e.id}`,e])).values()];
   const data = base.integrity as {run: Prisma.InputJsonValue};

@@ -486,7 +486,7 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
           ...(merged ? {startedAt:merged.startedAt,endedAt:merged.endedAt,durationSec:merged.durationSec,
             players:{deleteMany:{},create:merged.players.map(p=>({character:p.character,
               memberId:findCharacter(characters,p.character,p.realm,gameEditionOf(run))?.memberId??null,
-              class:p.className,role:p.role,presentSec:p.presentSec,deaths:p.deaths,inGuild:run.players.find(q=>q.character===p.character)?.inGuild??false,guild:run.players.find(q=>q.character===p.character)?.guild??null}))}} : {})
+              class:p.className,role:p.role,presentSec:p.presentSec,deaths:p.deaths,inGuild:run.players.find(q=>q.character===p.character)?.inGuild??false,guild:p.guild??run.players.find(q=>q.character===p.character)?.guild??null}))}} : {})
         }});
         if (merged && observations) {
           ratingCache.delete(season.id);

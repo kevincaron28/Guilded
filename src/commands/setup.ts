@@ -199,7 +199,8 @@ export async function gatherFacts(guild: DiscordGuild, guildId: string, settings
     messageContentIntent: config.MESSAGE_CONTENT_INTENT,
     community: await communitySetupState(prisma, guildId).catch(() => null),
     botMessages: await botMessageFacts(guild, prisma, settings, lang, craftGuideText(lang)).catch(() => []),
-    commandAccess: await commandVisibility(guild)
+    commandAccess: await commandVisibility(guild),
+    ...(settings.worldPvpEnabled !== false && !settings.bgStatsChannelId ? { worldPvpPanelMissing: true } : {})
   };
 }
 

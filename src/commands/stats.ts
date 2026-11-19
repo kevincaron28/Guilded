@@ -150,6 +150,7 @@ export function weeklyReportEmbeds(report: WeeklyReport, lang: Lang = "en", lead
     report.dungeonHero ? t(lang, "weekly.hero", { name: report.dungeonHero.name, points: dungeonShare(report.dungeonHero.points) }) : ""
   ].filter(Boolean);
   if (players.length) main.addFields({ name: t(lang, "weekly.players"), value: players.join("\n") });
+  if (report.worldPvp) main.addFields({ name: lang === "fr" ? "⚔️ JcJ en monde ouvert" : "⚔️ World PvP", value: lang === "fr" ? `${report.worldPvp.kills} victoires · ${report.worldPvp.defends} défenses · ${report.worldPvp.helped} appels répondus` : `${report.worldPvp.kills} kills · ${report.worldPvp.defends} defends · ${report.worldPvp.helped} calls answered` });
   const embeds = [main];
 
   if (report.cores.length) {

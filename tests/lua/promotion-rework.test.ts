@@ -196,14 +196,55 @@ describe("the Alt rank is never promoted", () => {
     setup(FEED().replace('fromRank = "Initiate"', 'fromRank = "Alt"').replace('"Bob-Realm" }', '"Bob-Realm", "Cy-Realm" }')); roster();
     expect(ready()).toBe("");
   });
-  it("never promotes INTO an alt rank", () => {
-    // The rank above Initiate is an alt rank in this layout.
-    setup(FEED(), '{ "Guild Master", "Officer", "Veteran", "Member", "Alt", "Initiate" }');
-    s.run('ROWS[2].rank = 5; ROWS[3].rank = 5; ROWS[4].rank = 3; ROWS[5].rank = 5');
+  // 17 Nov 2026 root cause: the guild keeps Alt (index 5) directly above Initiate (index 6). The old check read the rank
+  // one step up and dropped every Initiate ("Nobody is ready"). The promotion now skips the alt rank and lands on Member.
+  const ALT_ABOVE = '{ "Guild Master", "Officer", "Veteran", "Member", "Member", "Alt", "Initiate" }';
+  const altAbove = () => {
+    setup(FEED(), ALT_ABOVE);
+    s.run('ROWS[2].rank = 6; ROWS[3].rank = 6; ROWS[4].rank = 5; ROWS[5].rank = 6');
     roster();
-    expect(ready()).toBe("");
+  };
+  it("lists Initiates when the rank above them is an alt rank, and promotes past it (never into it)", () => {
+    altAbove();
+    expect(ready()).toBe("Amy-Realm|Bob-Realm");
+    s.run('C_GuildInfo={SetGuildRankOrder=function(g,r) CALLS[#CALLS+1]={g,r} end}');
+    expect(s.run('local ok = NS.promotion.promote("Amy-Realm"); return tostring(ok)')).toBe("true");
+    expect(s.run('return CALLS[1][1]..":"..CALLS[1][2]')).toBe("amy:5"); // 1-based order 5 = index 4, the Member rank above Alt
+  });
+  it("offers nothing it cannot do: a client that can only promote one step refuses to skip the alt rank", () => {
+    altAbove();
     expect(s.run('local ok = NS.promotion.promote("Amy-Realm"); return tostring(ok)')).toBe("false");
     expect(calls()).toBe("");
+  });
+  it("explains an empty list with /guilded promote why", () => {
+    altAbove();
+    s.run("NS.isOfficer = function() return true end; MESSAGES = {}; NS.commandHandlers.promote({ 'promote', 'why' })");
+    const out = s.run("return table.concat(MESSAGES, '|')");
+    expect(out).toContain("Promote check, rank Initiate: 5 roster rows, 2 at another rank, 0 you, 0 alt rank, 0 with no rank to move up to.");
+    expect(out).toContain("Discord list: 2 names, 0 not found in the roster. Of 3 at the rank: 1 not on the list, 2 ready.");
+    s.run("NS.isOfficer = function() return false end; MESSAGES = {}; NS.commandHandlers.promote({ 'promote', 'why' })");
+    expect(s.run("return table.concat(MESSAGES, '|')")).toBe("Officers only.");
+  });
+  it("the key binding promotes the next ready member, prints the result and does nothing in combat", () => {
+    altAbove();
+    s.run("NS.isOfficer = function() return true end; MESSAGES = {}; C_GuildInfo={SetGuildRankOrder=function(g,r) CALLS[#CALLS+1]={g,r} end}");
+    expect(s.run("return type(GuildedPromoteNext_OnKey) .. ':' .. BINDING_NAME_GUILDED_PROMOTE_NEXT")).toBe("function:Promote next ready member");
+    s.run("COMBAT = true; GuildedPromoteNext_OnKey()");
+    expect(calls()).toBe("");
+    expect(s.run("return MESSAGES[#MESSAGES]")).toBe("Promote next: not while in combat.");
+    s.run("COMBAT = false; CLOCK = 101; fire_event('GUILD_ROSTER_UPDATE'); GuildedPromoteNext_OnKey()");
+    expect(s.run("return CALLS[1][1]")).toBe("amy");
+    expect(s.run("return MESSAGES[#MESSAGES]")).toContain("Promotion requested: Amy-Realm.");
+    // A second press waits for the roster to verify the first.
+    s.run("GuildedPromoteNext_OnKey()");
+    expect(s.run("return #CALLS")).toBe("1");
+    s.run("NS.isOfficer = function() return false end; GuildedPromoteNext_OnKey()");
+    expect(s.run("return MESSAGES[#MESSAGES]")).toBe("Officers only.");
+  });
+  it("registers the key binding in Bindings.xml", async () => {
+    const xml = (await import("node:fs")).readFileSync(new URL("../../addon/Guilded/Bindings.xml", import.meta.url), "utf8");
+    expect(xml).toContain('name="GUILDED_PROMOTE_NEXT"');
+    expect(xml).toContain("GuildedPromoteNext_OnKey()");
   });
   it("refuses an alt rank as the local rule's starting rank", () => {
     setup(null); roster();

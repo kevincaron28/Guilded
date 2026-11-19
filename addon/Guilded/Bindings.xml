@@ -5,4 +5,7 @@
   <Binding name="GUILDED_CALL_FOR_HELP" category="ADDONS">
     Guilded_CallForHelp()
   </Binding>
+  <Binding name="GUILDED_PROMOTE_NEXT" category="ADDONS">
+    GuildedPromoteNext_OnKey()
+  </Binding>
 </Bindings>

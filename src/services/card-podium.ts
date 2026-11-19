@@ -2,6 +2,7 @@ import sharp, { type OverlayOptions } from "sharp";
 import { cardBackdropArt as paintedArt } from "./card-backdrop.js";
 import { plainArt } from "./card-layouts-recap.js";
 import { ACCENTS, CARD_H, CARD_W, CardCanvas, INK, SUB } from "./card-kit.js";
+import { MEDAL_CENTRE, artHeight, artImage, hasArt, preloadPodiumArt, type PodiumArt } from "./podium-art.js";
 import type { ScoreCard, WeeklyIcon, WeeklyVisual } from "./score-card.js";
 
 /**
@@ -39,14 +40,18 @@ async function bannerLayer(card: ScoreCard, bh: number): Promise<OverlayOptions>
   return { input: await sharp(full).extract({ left: 0, top: Math.round((CARD_H - bh) * 0.5), width: CARD_W, height: bh }).toBuffer(), left: 0, top: 0 };
 }
 
-/** A medal on a ribbon: gradient disc, ring and the rank number (drawn as text so it keeps the kit's contrast check). */
+/** A medal: the painted medal and ribbon when its picture loads, else a gradient disc on a drawn ribbon. The rank number is drawn on top as text. */
 async function medal(c: CardCanvas, cx: number, cy: number, r: number, rank: number, metal: Metal): Promise<void> {
-  const g = nextId("m");
-  c.raw(`<defs><linearGradient id="${g}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${metal.light}"/><stop offset="1" stop-color="${metal.dark}"/></linearGradient></defs>`
-    + `<path d="M${cx - r * 0.7} ${cy - r * 0.2} L${cx - r * 1.0} ${cy + r * 1.35} L${cx - r * 0.5} ${cy + r * 1.05} L${cx - r * 0.2} ${cy + r * 1.4} L${cx + r * 0.1} ${cy + r * 0.3} Z" fill="#b3302b"/>`
-    + `<path d="M${cx + r * 0.7} ${cy - r * 0.2} L${cx + r * 1.0} ${cy + r * 1.35} L${cx + r * 0.5} ${cy + r * 1.05} L${cx + r * 0.2} ${cy + r * 1.4} L${cx - r * 0.1} ${cy + r * 0.3} Z" fill="#8f2420"/>`
-    + `<circle cx="${cx}" cy="${cy}" r="${r + 3}" fill="#000" fill-opacity="0.35"/><circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#${g})" stroke="${metal.ring}" stroke-width="3"/>`
-    + `<circle cx="${cx}" cy="${cy}" r="${r - 8}" fill="none" stroke="${metal.ink}" stroke-opacity="0.35" stroke-width="2"/>`);
+  const art = `medal-${["gold", "silver", "bronze"][Math.min(3, Math.max(1, rank)) - 1]}` as PodiumArt, width = Math.round(r * 2.0);
+  if (hasArt(art)) c.raw(artImage(art, cx - width / 2, cy - width * MEDAL_CENTRE, width));
+  else {
+    const g = nextId("m");
+    c.raw(`<defs><linearGradient id="${g}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${metal.light}"/><stop offset="1" stop-color="${metal.dark}"/></linearGradient></defs>`
+      + `<path d="M${cx - r * 0.7} ${cy - r * 0.2} L${cx - r * 1.0} ${cy + r * 1.35} L${cx - r * 0.5} ${cy + r * 1.05} L${cx - r * 0.2} ${cy + r * 1.4} L${cx + r * 0.1} ${cy + r * 0.3} Z" fill="#b3302b"/>`
+      + `<path d="M${cx + r * 0.7} ${cy - r * 0.2} L${cx + r * 1.0} ${cy + r * 1.35} L${cx + r * 0.5} ${cy + r * 1.05} L${cx + r * 0.2} ${cy + r * 1.4} L${cx - r * 0.1} ${cy + r * 0.3} Z" fill="#8f2420"/>`
+      + `<circle cx="${cx}" cy="${cy}" r="${r + 3}" fill="#000" fill-opacity="0.35"/><circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#${g})" stroke="${metal.ring}" stroke-width="3"/>`
+      + `<circle cx="${cx}" cy="${cy}" r="${r - 8}" fill="none" stroke="${metal.ink}" stroke-opacity="0.35" stroke-width="2"/>`);
+  }
   await c.text(String(rank), cx, cy - Math.round(r * 0.62), { size: Math.round(r * 1.1) < 24 ? 24 : Math.round(r * 1.1), face: "bold", color: metal.ink, anchor: "c" });
 }
 
@@ -73,7 +78,7 @@ async function header(c: CardCanvas, card: ScoreCard, bh: number, emblem: "crown
   c.gradient(0, 0, 780, bh, "h", [[0, "#000", 0.82], [0.7, "#000", 0.4], [1, "#000", 0]]);
   c.rect(0, bh, CARD_W, c.height - bh, BODY);
   c.rect(0, bh, CARD_W, 5, accent);
-  c.emblem(emblem, PAD, 24, 44, tint);
+  if (emblem === "crown" && hasArt("crown")) c.raw(artImage("crown", PAD - 4, 20, 58)); else c.emblem(emblem, PAD, 24, 44, tint);
   await c.text((card.eyebrow ?? card.title).split("·").pop()!.trim().toUpperCase(), PAD + 60, 28, { size: 30, face: "title", color: tint, spacing: 800, maxW: 560 });
   await c.text(card.title, PAD, 70, { size: 55, face: "title", maxW: 1000 });
   if (card.subtitle) await c.text(card.subtitle, PAD, 134, { size: 32, face: "bold", color: INK, maxW: 1000 });
@@ -85,8 +90,9 @@ export async function renderCommunityPodium(card: ScoreCard): Promise<Buffer> {
   const fr = /Mis à jour/.test(visual.meta ?? "");
   const top = rows.slice(0, 3), rest = rows.slice(3);
   const cols = rest.length > 18 ? 3 : rest.length > 0 ? 2 : 1, perCol = Math.ceil(rest.length / cols), ROW = 64;
-  const podiumTop = BANNER + 28, tileBottom = podiumTop + 292, restTop = tileBottom + 34;
+  const podiumTop = BANNER + 44, tileBottom = podiumTop + 292, restTop = tileBottom + 34;
   const H = restTop + (rest.length ? perCol * ROW + 14 : -6) + 118;
+  await preloadPodiumArt();
   const c = new CardCanvas(H);
   await header(c, card, BANNER, "crown");
 
@@ -101,8 +107,8 @@ export async function renderCommunityPodium(card: ScoreCard): Promise<Buffer> {
     c.rect(x, y, tileW, h, "#1d1710", { rx: 16, stroke: metal.wash, strokeWidth: 3 });
     c.rect(x, y, tileW, h, `url(#${gid})`, { rx: 16 });
     c.rect(x + 16, y + 3, tileW - 32, 4, metal.text, { rx: 2, opacity: 0.9 });
-    const medalR = first ? 30 : 26, medalY = y + (first ? 52 : 46);
-    if (first) c.emblem("crown", cx - 20, y - 12, 40, metal.text);
+    const medalR = first ? 30 : 26, medalY = y + (first ? 66 : 50);
+    if (first) { if (hasArt("crown")) c.raw(artImage("crown", cx - 31, y + 2 - artHeight("crown", 62), 62)); else c.emblem("crown", cx - 20, y - 12, 40, metal.text); }
     await medal(c, cx, medalY, medalR, row.rank, metal);
     const { name, character } = splitName(row.name);
     const nameY = y + (first ? 98 : 88);
@@ -160,8 +166,17 @@ const ICONS: Record<WeeklyIcon, string> = {
   activities: '<path d="M16 8 V58"/><path d="M16 10 H52 L43 22 L52 34 H16 Z"/>',
   reactions: '<path d="M32 54 C10 38 8 22 18 14 C25 9 31 13 32 19 C33 13 39 9 46 14 C56 22 54 38 32 54 Z"/>'
 };
-const icon = (c: CardCanvas, kind: WeeklyIcon, x: number, y: number, size: number, color: string) =>
-  c.raw(`<g transform="translate(${x} ${y}) scale(${size / 64})" fill="none" stroke="${color}" stroke-width="5" stroke-linejoin="round" stroke-linecap="round">${ICONS[kind]}</g>`);
+const ICON_ART: Partial<Record<WeeklyIcon, PodiumArt>> = { points: "icon-points", messages: "icon-messages", voice: "icon-voice", dungeons: "icon-dungeons", newcomers: "icon-newcomers", activities: "icon-activities", reactions: "icon-reactions", raids: "icon-raids" };
+/** A stat icon: the painted badge when there is one for it, else the drawn outline. */
+const icon = (c: CardCanvas, kind: WeeklyIcon, x: number, y: number, size: number, color: string) => {
+  const art = ICON_ART[kind];
+  if (art && hasArt(art)) c.raw(artImage(art, x, y, size));
+  else if (hasArt("icon-points")) {
+    // No painted badge for this one: the drawn outline sits in a matching gold-rimmed leather disc.
+    const m = size * 0.24, k = (size - 2 * m) / 64;
+    c.raw(`<circle cx="${x + size / 2}" cy="${y + size / 2}" r="${size / 2 - 2}" fill="#4a2c14" stroke="#e0a22a" stroke-width="4"/><g transform="translate(${x + m} ${y + m}) scale(${k})" fill="none" stroke="#f2c14e" stroke-width="6" stroke-linejoin="round" stroke-linecap="round">${ICONS[kind]}</g>`);
+  } else c.raw(`<g transform="translate(${x} ${y}) scale(${size / 64})" fill="none" stroke="${color}" stroke-width="5" stroke-linejoin="round" stroke-linecap="round">${ICONS[kind]}</g>`);
+};
 
 export async function renderWeeklyHonorsCard(card: ScoreCard): Promise<Buffer | null> {
   const v: WeeklyVisual | undefined = card.weekly;
@@ -171,6 +186,7 @@ export async function renderWeeklyHonorsCard(card: ScoreCard): Promise<Buffer | 
   const panelTop = BANNER + 28, heroH = 290;
   const row2 = panelTop + heroH + 24, row2H = Math.max(v.rookie ? 236 : 0, 60 + statRows * STAT_ROW + 8);
   const H = row2 + row2H + 70;
+  await preloadPodiumArt();
   const c = new CardCanvas(H);
   await header(c, card, BANNER, "crown");
   const layers: OverlayOptions[] = [await bannerLayer(card, BANNER)];
@@ -190,7 +206,7 @@ export async function renderWeeklyHonorsCard(card: ScoreCard): Promise<Buffer | 
     } catch { icon(c, "points", faceX + 28, faceY + 28, 72, METALS[0]!.text); }
   } else {
     c.raw(`<circle cx="${faceX + face / 2}" cy="${faceY + face / 2}" r="${face / 2}" fill="#2a2113"/>`);
-    c.emblem("star", faceX + 30, faceY + 30, 68, METALS[0]!.text);
+    if (hasArt("mvp-shield")) c.raw(artImage("mvp-shield", faceX - 14, faceY + (face - artHeight("mvp-shield", 156)) / 2, 156)); else c.emblem("star", faceX + 30, faceY + 30, 68, METALS[0]!.text);
   }
   const tx = faceX + face + 30, tw = PAD + leftW - 24 - tx;
   const split = splitName(v.mvp.name);
@@ -208,7 +224,7 @@ export async function renderWeeklyHonorsCard(card: ScoreCard): Promise<Buffer | 
   for (const [i, row] of top3.entries()) {
     const y = panelTop + 72 + i * rowH, metal = metalFor(row.rank);
     c.rect(rightX + 12, y, rightW - 24, rowH - 8, metal.wash, { rx: 12, opacity: i === 0 ? 0.16 : 0.08 });
-    await medal(c, rightX + 54, y + 26, 22, row.rank, metal);
+    await medal(c, rightX + 54, y + 36, 20, row.rank, metal);
     const sp = splitName(row.name);
     const figW = await c.width(row.points, 36, "bold");
     const nameR = rightX + rightW - 24 - figW - 50, nameX = rightX + 96;
@@ -225,7 +241,8 @@ export async function renderWeeklyHonorsCard(card: ScoreCard): Promise<Buffer | 
   if (v.rookie) {
     c.rect(PAD, row2, leftW, row2H, "#1d1710", { rx: 18, stroke: "#4fbf7a", strokeWidth: 3 });
     c.rect(PAD, row2, leftW, row2H, "#2ecc71", { rx: 18, opacity: 0.09 });
-    c.raw(`<g transform="translate(${PAD + leftW - 96} ${row2 + 20}) scale(1.1)" fill="none" stroke="#7fe0a2" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M32 58 V30"/><path d="M32 34 C32 20 22 14 10 14 C10 28 18 34 32 34 Z"/><path d="M32 28 C32 16 42 8 56 8 C56 22 48 28 32 28 Z"/></g>`);
+    if (hasArt("rookie-banner")) c.raw(artImage("rookie-banner", PAD + leftW - 118, row2 + 14, 92));
+    else c.raw(`<g transform="translate(${PAD + leftW - 96} ${row2 + 20}) scale(1.1)" fill="none" stroke="#7fe0a2" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M32 58 V30"/><path d="M32 34 C32 20 22 14 10 14 C10 28 18 34 32 34 Z"/><path d="M32 28 C32 16 42 8 56 8 C56 22 48 28 32 28 Z"/></g>`);
     await c.text(v.rookie.label.toUpperCase(), PAD + 28, row2 + 20, { size: 28, face: "title", color: "#7fe0a2", spacing: 600, maxW: leftW - 150 });
     const rs = splitName(v.rookie.name);
     await c.text(rs.name, PAD + 28, row2 + 70, { size: 40, face: "bold", maxW: leftW - 56 });
@@ -243,9 +260,9 @@ export async function renderWeeklyHonorsCard(card: ScoreCard): Promise<Buffer | 
   const cellW = (sw - 24) / statCols;
   for (const [i, s] of stats.entries()) {
     const col = i % statCols, r = Math.floor(i / statCols), x = sx + 24 + col * cellW, y = row2 + 64 + r * STAT_ROW;
-    icon(c, s.icon, x, y + 2, 38, tint);
-    await c.text(s.value, x + 52, y - 2, { size: 34, face: "bold", maxW: cellW - 70 });
-    await c.text(s.label, x + 52, y + 32, { size: 24, color: SUB, maxW: cellW - 62 });
+    icon(c, s.icon, x - 4, y - 2, 48, tint);
+    await c.text(s.value, x + 56, y - 2, { size: 34, face: "bold", maxW: cellW - 74 });
+    await c.text(s.label, x + 56, y + 32, { size: 24, color: SUB, maxW: cellW - 66 });
   }
   if (card.footer) await c.text(card.footer, PAD, H - 50, { size: 24, color: SUB, maxW: CARD_W - 2 * PAD });
   return (await c.finish(layers)).png;

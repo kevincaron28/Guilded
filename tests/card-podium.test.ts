@@ -52,3 +52,10 @@ describe("weekly honors card", () => {
     save(`weekly-${lang}.png`, png);
   }, 30000);
 });
+
+describe("podium art", () => {
+  it("ships every emblem, cut out and small", async () => {
+    const { check } = await import("../scripts/build-podium-art.mjs");
+    expect(await check()).toEqual([]);
+  });
+});

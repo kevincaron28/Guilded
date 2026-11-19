@@ -2,7 +2,7 @@
 
 ## 9.4.1 — 19 November 2026
 
-Fixes from the owner's day of testing 9.4.0. Prepared 19 November 2026, not yet published. Not yet confirmed on real clients (see docs/V9_4_1_RELEASE_ACCEPTANCE.md).
+Fixes from the owner's day of testing 9.4.0. Published 19 November 2026. Not yet confirmed on real clients (see docs/V9_4_1_RELEASE_ACCEPTANCE.md).
 
 Addon:
 
@@ -20,7 +20,7 @@ Bot and website (already live):
 
 ## 9.4.0 — 19 November 2026
 
-The owner's 9.4 list. Prepared 19 November 2026, not yet published. Not yet confirmed on real clients (see docs/V9_4_0_RELEASE_ACCEPTANCE.md). Details: docs/V9_4_0_RELEASE_NOTES.md.
+The owner's 9.4 list. Published 19 November 2026. Not yet confirmed on real clients (see docs/V9_4_0_RELEASE_ACCEPTANCE.md). Details: docs/V9_4_0_RELEASE_NOTES.md.
 
 Addon:
 

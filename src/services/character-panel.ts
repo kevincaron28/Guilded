@@ -19,7 +19,7 @@ import { linkBackRow, tellAutoLinked, unlinkNotMine } from "./companion-link-dm.
 // a DM: every custom id carries the Discord server id, nothing else is guessed from where it was pressed.
 //
 // Proof and conflicts: linking goes through claimCharacter, which only takes characters nobody has linked (the
-// proof is the weakest, "named", like /character claim); unlinking goes through unlinkCharacter (detach, history
+// proof is the weakest, "named", like /character link); unlinking goes through unlinkCharacter (detach, history
 // kept, the member's own unlink sticks); setting the main only changes the member's own rows. A custom id never
 // decides who owns what: every click re-reads the character and checks it belongs to the member who pressed.
 

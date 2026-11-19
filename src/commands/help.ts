@@ -11,120 +11,76 @@ export const helpCommand = new SlashCommandBuilder()
   .setName("help")
   .setDescription("What can I do here? Lists the commands you can use.");
 
-// Forever-only focus (companion/active-games.mjs): lines about a switched-off game are not listed.
-export const visibleLines = (lines: string[], poe = POE_TRACKING_ENABLED): string[] => poe ? lines : lines.filter(line => !line.includes("`/poe "));
+// Forever-only focus (companion/active-games.mjs): lines and mentions of a switched-off game are not listed.
+export const visibleLines = (lines: string[], poe = POE_TRACKING_ENABLED): string[] => poe ? lines : lines.filter(line => !line.includes("`/poe ")).map(line => line.replace(" · `/poe`", ""));
 
+// Commands restructure (November 2026): members are taught seven commands and three links; the
+// rest is there for those who use it. Officers and leaders also see where their tools are.
 const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record<Lang, string[]>> = {
   everyone: {
     en: [
-      "**New here? https://guildedwow.com/start/** — 1) install the addon for your WoW version (required) · 2) sync with Discord: [download the Windows companion](https://guildedwow.com/companion/) (or search \"Guild Sync Companion\" in the Microsoft Store) and run the installer · 3) keep it open, it starts with Windows. Discord sign-in is optional, and so is the companion for the leaderboards",
-      "The addon works alone. The companion syncs by itself; **Sign in with Discord** is optional and confirms your characters (no code). A character missing? Type its full name in the guild-invite channel; `/character list` checks them",
-      "`/wow list` · `/wow use` — choose your guild; channel bindings take priority. Keep Forever first/last names and Blizzard realms from the addon",
-      "`/character add` — link a character by hand, or `/character import` — paste the line `/guilded character` shows, or the code from `/guilded share`",
-      "`/character privacy hide` — leave the public website pages (shown by default; `show` brings you back)",
-      "Raid posts have buttons to sign up",
-      "`/epgp balance` · `/epgp leaderboard` · `/character profile` · `/character achievements` · `/character who <name>`",
-      "`/raid progress` · `/raid report` · `/report stats` · `/loot history`",
-      "`/loot bid` — bid GP on a Discord loot auction",
-      "`/character wishlist add` · `/character profession set` · `/character profession who <prof>`",
-      "`/bank search` · `/bank request` — search and ask the guild bank · `/craft request` — ask a crafter",
-      "`/dungeon leaderboard` · `/dungeon records` · `/dungeon player` — dungeon challenge · `/dungeon group` — form a group with its own voice channel · `/dungeon alerts` — get pinged for groups you fit",
-      "`/bg history` · `/bg duels` — your battleground records (paired companion; nothing is awarded automatically), duels and ladder (ranks: kills, defends, calls; deaths never count)",
-      "Guild chat milestones are on by default; turn them off with `/guilded announce off`",
-      "In game: call for help (Shift+right-click the minimap button), layer invite and raid sign-up",
-      "`/character readiness me` — your latest gear check from the addon",
-      "`/team list` · `/team sessions` · `/team respond` — weekly dungeon and PvP cores; confirm for each session",
-      "`/apply` — apply to a raid core (or press **Apply** on that core's own roster post in the raid roster channel)",
-      "`/report bug` — report a bug or problem with the bot",
-      "`/community seasons` · `/community leaderboard` · `/community wallet` · `/community dice` — game seasons, scores and daily dice",
-      "`/community honors` — hall of fame: weekly MVPs, rookies and monthly podiums",
-      "Lottery, gaming night, quiz and challenge posts have participation buttons",
-      "`/participation status` · `/participation nominate` · `/participation history` — capped Discord points, helper recognition and guild goals",
-      "`/poe status` · `/poe pair` · `/poe runs` · `/poe summary` — PoE2 companion mapping journal"
+      "**New here?** [guildedwow.com/start](https://guildedwow.com/start/) — install the addon, then [the Windows companion](https://guildedwow.com/companion/) (\"Guild Sync Companion\" in the Microsoft Store; it syncs by itself). Every command: [guildedwow.com/reference](https://guildedwow.com/reference/)",
+      "`/character link` — link your WoW characters: DM me your character's full name, type it in the guild-invite channel, or paste `/guilded verify` in game · `/character profile` · `/character privacy`",
+      "`/promotion status` — what's left before your next rank",
+      "`/craft request` — ask a guild crafter · `/craft who` — who can make it",
+      "`/leaderboard` — dungeon rating; `board:` guild records, PvP, community points or EPGP",
+      "`/raid progress` · `/raid report` — sign up with the buttons on raid posts",
+      "`/report bug` — tell the developer about a problem · `/help` — this list",
+      "Also there when you need them: `/dungeon` · `/bank` · `/community` · `/epgp` · `/loot` · `/apply` · `/team` · `/bg` · `/participation` · `/tag` · `/poe`"
     ],
     fr: [
-      "**Nouveau ? https://guildedwow.com/start/?lang=fr** — 1) installez l'addon de votre version de WoW (obligatoire) · 2) [téléchargez le compagnon Windows](https://guildedwow.com/companion/?lang=fr) (ou « Guild Sync Companion » dans le Microsoft Store) et lancez-le · 3) laissez-le ouvert. Connexion Discord facultative",
-      "L'addon fonctionne seul. Le compagnon synchronise tout seul; **Sign in with Discord** est facultatif et confirme tes personnages (aucun code). Il en manque un ? Écris son nom complet dans le salon d'invitation; `/character list` les affiche",
-      "`/wow list` · `/wow use` — choisir sa guilde; les salons associés ont priorité. Gardez les prénoms/noms Forever et les royaumes Blizzard de l'addon",
-      "`/character add` — liez un personnage manuellement, ou `/character import` — collez la ligne de `/guilded character`, ou le code de `/guilded share`",
-      "`/character privacy hide` — quittez les pages publiques du site (affiché par défaut; `show` vous ramène)",
-      "Les annonces de raid ont des boutons pour s'inscrire",
-      "`/epgp balance` · `/epgp leaderboard` · `/character profile` · `/character achievements` · `/character who <nom>`",
-      "`/raid progress` · `/raid report` · `/report stats` · `/loot history`",
-      "`/loot bid` — miser des GP sur une enchère Discord",
-      "`/character wishlist add` · `/character profession set` · `/character profession who <métier>`",
-      "`/bank search` · `/bank request` — chercher et demander à la banque de guilde · `/craft request` — demander à un artisan",
-      "`/dungeon leaderboard` · `/dungeon records` · `/dungeon player` — défi des donjons · `/dungeon group` — former un groupe avec son salon vocal · `/dungeon alerts` — être mentionné pour les groupes qui vous conviennent",
-      "`/bg history` · `/bg duels` — champs de bataille (compagnon lié; rien n'est attribué), duels et classement",
-      "Jalons de guilde en clavardage activés; coupez-les avec `/guilded announce off`",
-      "En jeu : appel à l'aide (Maj + clic droit sur la minicarte), invitation de couche, inscription aux raids",
-      "`/character readiness me` — votre dernière vérification d'équipement (addon)",
-      "`/team list` · `/team sessions` · `/team respond` — cores donjon et JcJ; confirmez chaque séance",
-      "`/apply` — postuler à un core de raid (ou appuyez sur **Postuler** sur le message du core dans le salon des cores de raid)",
-      "`/report bug` — signaler un bug ou un problème avec le bot",
-      "`/community seasons` · `/community leaderboard` · `/community wallet` · `/community dice` — saisons, classements et dé quotidien",
-      "`/community honors` — palmarès : MVP de la semaine, recrues et podiums du mois",
-      "Les annonces de loterie, soirée gaming, quiz et défi ont des boutons pour participer",
-      "`/participation status` · `/participation nominate` · `/participation history` — points Discord plafonnés, entraide et objectifs de guilde",
-      "`/poe status` · `/poe pair` · `/poe runs` · `/poe summary` — journal de mapping PoE2 du compagnon"
+      "**Nouveau ?** [guildedwow.com/start](https://guildedwow.com/start/?lang=fr) — installez l'addon, puis [le compagnon Windows](https://guildedwow.com/companion/?lang=fr) (« Guild Sync Companion » dans le Microsoft Store; il synchronise tout seul). Toutes les commandes : [guildedwow.com/reference](https://guildedwow.com/reference/?lang=fr)",
+      "`/character link` — liez vos personnages WoW : envoyez-moi en MP le nom complet du personnage, écrivez-le dans le salon d'invitation, ou collez `/guilded verify` en jeu · `/character profile` · `/character privacy`",
+      "`/promotion status` — ce qu'il vous reste avant le prochain rang",
+      "`/craft request` — demander à un artisan · `/craft who` — qui peut le fabriquer",
+      "`/leaderboard` — cote des donjons; `board:` records de la guilde, JcJ, points de communauté ou EPGP",
+      "`/raid progress` · `/raid report` — inscrivez-vous avec les boutons des annonces de raid",
+      "`/report bug` — signaler un problème au développeur · `/help` — cette liste",
+      "Aussi là au besoin : `/dungeon` · `/bank` · `/community` · `/epgp` · `/loot` · `/apply` · `/team` · `/bg` · `/participation` · `/tag` · `/poe`"
     ]
   },
   raidLeader: {
     en: [
       "Raid Leader tools are under `/lead`. Discord shows it to people with Manage Events: give the Raid Leader role that permission, or allow the role on `/lead` in Server Settings → Integrations → Guilded",
       "`/lead create` (times like `friday 8pm`) · `/lead edit` · `/lead start` · `/lead end` (shows the EP to approve)",
-      "`/lead attendance` · `/lead boss` · `/lead note` · `/lead award-ep`",
-      "`/lead season` · `/lead history` — officers: attendance over a season, per raid and per player",
-      "`/core setup` raid nights: `Tuesday 8pm; Thursday 8pm` — creates only the next 6 days automatically; change or pause in `/core edit` → 📅",
-      "`/core setup` — guided raid core (name, players, rules) · `/core add` · `/core remove` · `/core character` (the character or backup characters a player brings; one player can be in several cores) · members join with the roster's Apply button · `/lead create core:` (priority signups)",
-      "`/lead readiness-raid` — who's ready for tonight",
-      "`/team create` · `/team member` · `/team schedule` · `/team lineup` · `/team attendance` — manage weekly dungeon/PvP teams"
+      "`/lead attendance` · `/lead boss` · `/lead note` · `/lead award-ep` · `/lead readiness-raid` — who's ready for tonight",
+      "`/lead season` · `/lead history` — attendance over a season · `/lead wcl-report url:` — a Warcraft Logs report",
+      "`/core setup` — guided raid core and raid nights (`Tuesday 8pm; Thursday 8pm`); change or pause in `/core edit` → 📅 · members join with the roster's Apply button",
+      "`/team create` · `/team schedule` · `/team lineup` — weekly dungeon/PvP teams"
     ],
     fr: [
       "Les outils des chefs de raid sont sous `/lead`. Discord le montre à qui a « Gérer les événements » : donnez cette permission au rôle Chef de raid, ou autorisez le rôle sur `/lead` dans Paramètres du serveur → Intégrations → Guilded",
       "`/lead create` (heures comme `vendredi 20h`) · `/lead edit` · `/lead start` · `/lead end` (propose les EP à approuver)",
-      "`/lead attendance` · `/lead boss` · `/lead note` · `/lead award-ep`",
-      "`/lead season` · `/lead history` — officiers : présences sur une saison, par raid et par joueur",
-      "`/core setup`, horaire : `mardi 20h; jeudi 20h` — raids automatiques pour les 6 prochains jours; ajuste ou arrête dans `/core edit` → 📅",
-      "`/core setup` — noyau de raid guidé (nom, joueurs, règles) · `/core add` · `/core remove` · `/core character` (le personnage ou les personnages de secours d'un joueur ; plusieurs noyaux possibles) · les membres postulent avec le bouton du roster · `/lead create core:` (inscription prioritaire)",
-      "`/lead readiness-raid` — qui est prêt pour ce soir",
-      "`/team create` · `/team member` · `/team schedule` · `/team lineup` · `/team attendance` — gérer les cores de donjon/JcJ"
+      "`/lead attendance` · `/lead boss` · `/lead note` · `/lead award-ep` · `/lead readiness-raid` — qui est prêt pour ce soir",
+      "`/lead season` · `/lead history` — présences sur une saison · `/lead wcl-report url:` — un rapport Warcraft Logs",
+      "`/core setup` — noyau de raid guidé et soirées (`mardi 20h; jeudi 20h`); ajustez ou arrêtez dans `/core edit` → 📅 · les membres postulent avec le bouton du roster",
+      "`/team create` · `/team schedule` · `/team lineup` — cores de donjon/JcJ"
     ]
   },
   dkpOfficer: {
-    en: ["`/officer epgp award-ep` · `/officer epgp award-gp` · `/officer epgp reverse` · `/officer epgp decay`", "`/epgp history player:` — anyone's history"],
-    fr: ["`/officer epgp award-ep` · `/officer epgp award-gp` · `/officer epgp reverse` · `/officer epgp decay`", "`/epgp history player:` — l'historique de n'importe qui"]
+    en: ["`/lead epgp award-ep` · `/lead epgp award-gp` · `/lead epgp reverse` · `/lead epgp decay` · `/lead loot auction` · `/lead loot award` (loot council)", "`/epgp history player:` — anyone's history"],
+    fr: ["`/lead epgp award-ep` · `/lead epgp award-gp` · `/lead epgp reverse` · `/lead epgp decay` · `/lead loot auction` · `/lead loot award` (conseil de butin)", "`/epgp history player:` — l'historique de n'importe qui"]
   },
   officer: {
     en: [
-      "`/setup start` — guided setup and checklist · `/config` — every setting",
-      "Members don't see `/officer`, `/organize`, `/setup`, `/config`, `/mod`, `/import` or `/poll`. An Officer without Manage Server doesn't either: allow the Officer role on them in Server Settings → Integrations → Guilded",
-      "`/officer loot auction` · `/officer loot close` · `/import apply` · `/import held` (addon data)",
-      "`/setup testraid start` — fake raid to try everything, `/setup testraid cleanup` after · `/setup system status` — sync and delivery status",
-      "`/officer dungeon` — invalidate a run, adjust points, view locked rules",
-      "An officer's guild-wide off switch for chat milestones wins over members' settings",
-      "`/bank list` / `handle` · `/mod application list` · `/mod` · `/mod faq` — answers · `/tag set` · `/setup selfroles`",
-      "`/lead wcl-report url:` — pull a Warcraft Logs report into the raid history",
-      "`/report inactive` · `/report guild` · `/poll create` · `/officer loot award` (loot council)",
-      "`/officer export table:` — CSV for Excel or Google Sheets: standings, EPGP ledger, loot, attendance or roster (only you see it)",
-      "`/organize start-season` · `/organize lottery create` · `/organize gaming create` · `/organize challenge create` · `/organize quiz` — organize activities",
-      "`/organize honors-preview` · `/organize honors-settings` — preview the weekly MVP post; weekly on/off, week start, MVP ping",
-      "`/participation settings` · `/participation channels` · `/participation claims` · `/participation review` · `/participation reverse` — earning coverage, controls and helper approvals"
+      "`/setup start` — guided setup and checklist · `/config` — every setting (`/config craft`: the craft board) · `/setup guild` — in-game guilds",
+      "Members don't see `/officer`, `/lead`, `/organize`, `/mod`, `/setup` or `/config`. An Officer without Manage Server doesn't either: allow the Officer role on them in Server Settings → Integrations → Guilded",
+      "`/officer character link` — link a reported character to its owner · `/officer character unclaimed` · `/officer roster gaps`",
+      "`/officer reports inactive` · `/officer reports guild` · `/officer bank handle` · `/officer dungeon` · `/officer export table:` (CSV)",
+      "`/setup import upload` · `/setup import held` (addon data) · `/setup testraid start` · `/setup system status`",
+      "`/mod application list` · `/mod faq` — answers · `/mod dni` · `/setup tags set` · `/setup participation claims` · `/setup selfroles`",
+      "`/organize poll create` · `/organize start-season` · `/organize lottery create` · `/organize gaming create` · `/organize quiz` · `/organize honors-settings`",
+      "An officer's guild-wide off switch for chat milestones wins over members' settings"
     ],
     fr: [
-      "`/setup start` — configuration guidée et liste de vérification · `/config` — tous les réglages",
-      "Les membres ne voient pas `/officer`, `/organize`, `/setup`, `/config`, `/mod`, `/import` ni `/poll`. Officier sans « Gérer le serveur » non plus : autorisez le rôle dans Paramètres → Intégrations → Guilded",
-      "`/officer loot auction` · `/officer loot close` · `/import apply` · `/import held` (données de l'addon)",
-      "`/setup testraid start` — faux raid pour tout essayer, puis `/setup testraid cleanup` · `/setup system status` — état de la synchro",
-      "`/officer dungeon` — annuler un donjon, ajuster les points, consulter les règles fixes",
-      "Le réglage d'un officier pour couper les jalons l'emporte",
-      "`/bank list` / `handle` · `/mod application list` · `/mod` · `/mod faq` — réponses · `/tag set` · `/setup selfroles`",
-      "`/lead wcl-report url:` — importer un rapport Warcraft Logs dans l'historique des raids",
-      "`/report inactive` · `/report guild` · `/poll create` · `/officer loot award` (conseil de loot)",
-      "`/officer export table:` — CSV pour Excel ou Sheets : classement, registre EPGP, butin, présences ou effectif (vous seul)",
-      "`/organize start-season` · `/organize lottery create` · `/organize gaming create` · `/organize challenge create` · `/organize quiz` — organiser les activités",
-      "`/organize honors-preview` · `/organize honors-settings` — aperçu du MVP de la semaine et réglages",
-      "`/participation settings` · `/participation channels` · `/participation claims` · `/participation review` · `/participation reverse` — couverture des gains, réglages, entraide"
+      "`/setup start` — configuration guidée · `/config` — tous les réglages (`/config craft` : l'artisanat) · `/setup guild` — guildes en jeu",
+      "Les membres ne voient pas `/officer`, `/lead`, `/organize`, `/mod`, `/setup` ni `/config`. Officier sans « Gérer le serveur » non plus : autorisez le rôle dans Paramètres → Intégrations → Guilded",
+      "`/officer character link` — lier un personnage signalé à son propriétaire · `/officer character unclaimed` · `/officer roster gaps`",
+      "`/officer reports inactive` · `/officer reports guild` · `/officer bank handle` · `/officer dungeon` · `/officer export table:` (CSV)",
+      "`/setup import upload` · `/setup import held` (données de l'addon) · `/setup testraid start` · `/setup system status`",
+      "`/mod application list` · `/mod faq` — réponses · `/mod dni` · `/setup tags set` · `/setup participation claims` · `/setup selfroles`",
+      "`/organize poll create` · `/organize start-season` · `/organize lottery create` · `/organize gaming create` · `/organize quiz` · `/organize honors-settings`",
+      "Le réglage d'un officier pour couper les jalons l'emporte"
     ]
   }
 };

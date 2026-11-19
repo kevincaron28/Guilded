@@ -24,17 +24,26 @@ d’officier aux membres. Nouveau ? [Commencer ici](/start/).
 
 Tapez `/` dans Discord et choisissez la commande. Chaque ligne est une commande ; les mots qui
 suivent sont ses sous-commandes. Vos propres vues (profil, statistiques, statut, souhaits) restent privées.
-Dans un Discord en français, les commandes des membres ont aussi un nom français : `/personnage` `profil` `metier` `souhaits` `delier`,
-`/artisanat` `demander` `liste` `qui` `mes-demandes` `proposer`, `/aide`, `/rapport` et `/promotion` `statut`.
+Dans un Discord en français, les commandes des membres ont aussi un nom français : `/personnage` `lier` `profil` `metier` `souhaits` `delier`,
+`/artisanat` `demander` `liste` `qui` `mes-demandes` `proposer`, `/classement`, `/aide`, `/rapport` et `/promotion` `statut`.
+
+**Les sept à connaître :** `/help`, `/character link`, `/promotion status`, `/craft request`, `/leaderboard`, `/raid` et `/report bug`.
+Le reste est là au besoin. Les commandes déplacées en novembre 2026 (`/character pair`, `import` et `claim`,
+`/wow`, `/import`, `/poll`, `/delete-my-data` et les parties officiers de `/bank`, `/tag`, `/participation`, `/report` et `/craft`)
+indiquent en privé leur nouvel emplacement pendant une version.
 
 ### Membres
 
 | Commande | Ce qu’elle fait | Qui |
 | --- | --- | --- |
 | `/help` | Liste les commandes que vous pouvez utiliser | Tout le monde |
-| `/character` `pair` `add` `import` `claim` `unlink` `list` | Lier votre personnage principal et vos rerolls à votre compte Discord | Tout le monde |
+| `/character link` | Lier vos personnages : envoyez au bot le nom complet du personnage, écrivez-le dans le salon d’invitation, ou collez `/guilded verify` en jeu. On peut aussi y coller une ligne `/guilded character` ou un code `/guilded share` | Tout le monde |
+| `/character` `add` `unlink` `list` `guild` | Ajouter un personnage à la main ; en délier un ; vos personnages ; choisir votre guilde en jeu | Tout le monde |
+| `/character privacy` | Vous cacher ou vous montrer sur le site ; `action:delete` supprime vos données | Tout le monde |
 | `/character` `profile` `achievements` `who` | Votre profil et vos succès ; chercher n’importe quel joueur | Tout le monde |
 | `/character` `profession` `attunement` `wishlist` `readiness` | Métiers, accès aux raids, liste de souhaits et préparation au raid. L’option du personnage est facultative : votre principal est utilisé | Tout le monde |
+| `/promotion` `status` | Ce qu’il vous reste avant le prochain rang | Tout le monde |
+| `/leaderboard` `board:` | Cote des donjons (par défaut), records de la guilde, duels JcJ, points de communauté ou EPGP | Tout le monde |
 | `/epgp` `balance` `history` `leaderboard` | Vos EP, GP et priorité ; le classement de la guilde | Tout le monde |
 | `/loot` `bid` `history` `reserves` | Miser aux enchères ; historique du butin ; réserves | Tout le monde |
 | `/craft` `request` `list` `who` `mine` `claim` `done` `release` `cancel` | Demander un objet aux artisans, ou prendre des demandes | Tout le monde |
@@ -46,7 +55,6 @@ Dans un Discord en français, les commandes des membres ont aussi un nom frança
 | `/participation` `status` `nominate` `history` | Votre participation sur Discord ; souligner l’aide d’un membre | Tout le monde |
 | `/report` `bug` `ping` `stats` | Envoyer un rapport de bogue privé ; vérifier que le bot répond ; activité de la guilde | Tout le monde |
 | `/automation` `recap` | Récapitulatif hebdomadaire en message privé (désactivé par défaut) | Tout le monde |
-| `/wow` `list` `use` | Choisir la guilde en jeu utilisée par vos commandes | Tout le monde |
 | `/poe` `pair` `status` `runs` `summary` | Journal de cartes de Path of Exile 2 | Tout le monde | <!--poe-->
 
 ### Raids
@@ -84,7 +92,7 @@ Dans un Discord en français, les commandes des membres ont aussi un nom frança
 | `/dungeon` `leaderboard` `season` `records` `player` `history` | Cote de saison, meilleurs temps, parcours d’un joueur | Tout le monde |
 | `/dungeon` `archive` `hall-of-fame` `rules` `catalog` `keystones` `together` | Saisons passées, règles de pointage, liste des donjons, objectif d’équipe de la semaine | Tout le monde |
 | `/dungeon` `group` `alerts` `watch` | Former un groupe avec un canal vocal ; être prévenu des groupes qui vous conviennent | Tout le monde |
-| `/officer dungeon` `invalidate` `award` `audit` `config` | Corriger une partie, ajuster les points de guilde, lire l’historique | Officiers |
+| `/officer dungeon` `invalidate` `award` `audit` `config` `goal` `announce` | Corriger une partie, ajuster les points de guilde, lire l’historique ; l’objectif commun de la semaine et les annonces de records | Officiers |
 | `/organize dungeon-seasons preview` | Voir les saisons de donjon en cours et à venir | Organisateurs |
 
 ### Officiers et configuration
@@ -95,24 +103,25 @@ Dans un Discord en français, les commandes des membres ont aussi un nom frança
 | `/setup` `system` `testraid` `selfroles` | État de la synchro et relances ; faux raid de test ; boutons de rôles | Officiers |
 | `/setup` `reset` `uninstall` | Effacer les canaux et les données de Guilded | Admin |
 | `/config` `view` `set` `welcome` `farewell` `roles` `channel` `timezone` `weekly-report` … | Réglages du serveur : accueil, rôles, fuseau horaire, rapports, mode de butin, import automatique | Officiers |
-| `/officer epgp` `award-ep` `award-gp` `decay` `reverse` | Donner, réduire ou annuler des EP et GP | Officiers |
-| `/officer loot` `auction` `award` `close` `priority` | Mener les enchères et attribuer le butin | Officiers |
+| `/lead epgp` `award-ep` `award-gp` `decay` `reverse` | Donner, réduire ou annuler des EP et GP | Officiers |
+| `/lead loot` `auction` `award` `close` `priority` | Mener les enchères et attribuer le butin | Officiers |
 | `/officer character` `unclaimed` `link` `autolink` | Lier les personnages signalés à des membres Discord | Officiers |
 | `/officer export` | Télécharger classements, EPGP, butin, présences ou roster en CSV | Officiers |
-| `/import` `upload` `apply` `held` | Prévisualiser et appliquer les données de l’addon | Officiers |
+| `/setup import` `upload` `apply` `held` | Prévisualiser et appliquer les données de l’addon | Officiers |
 | `/mod` `warn` `timeout` `kick` `ban` `history` | Modération | Officiers |
 | `/mod` `application` `dni` | Examiner les candidatures ; liste « ne pas inviter » | Officiers |
 | `/mod` `faq` | Le canal de réponses : rédiger les réponses du bot | Officiers |
 | `/mod` `page` `recruit` `leaderboard` `rankroles` | Page publique de la guilde, recrutement, classements publics, rôles de rang | Officiers |
-| `/report` `inactive` `guild` | Membres inactifs ; santé de la guilde | Officiers |
+| `/officer reports` `inactive` `guild` `games` `remind` `auto-remind` `posts` | Membres inactifs ; santé de la guilde ; rappels de jeu ; bilan quotidien et records de la semaine | Officiers |
 | `/organize` | Saisons communautaires, quiz, palmarès, loteries, soirées de jeu, défis | Organisateurs |
-| `/poll` `create` `close` `weekly` `news` | Sondages, question de la semaine et nouvelles | Officiers |
-| `/participation` `settings` `channels` `claims` `review` `reverse` | Réglages de participation, nominations et récompenses | Officiers |
-| `/wow` `add` `channel` `roles` | Ajouter une guilde en jeu ; lier un canal ; régler ses rôles | Officiers |
+| `/organize poll` `create` `close` `weekly` `news` | Sondages, question de la semaine et nouvelles | Officiers |
+| `/setup participation` `settings` `channels` `claims` `review` `reverse` | Réglages de participation, nominations et récompenses | Officiers |
+| `/setup guild` `add` `channel` `roles` | Ajouter une guilde en jeu ; lier un canal ; régler ses rôles | Officiers |
 | `/poe setup` | Activer ou suspendre le suivi PoE2 | Officiers |
 | `/automation` `question` `vacancies` | Question hebdomadaire automatique et correspondances de groupes de donjon | Officiers |
-| `/tag` `set` `delete` | Créer ou supprimer des textes enregistrés | Officiers |
-| `/craft permissions` · `/bank` `list` `handle` | Permissions du tableau d’artisanat ; traiter les demandes à la banque | Officiers |
+| `/setup tags` `set` `delete` | Créer ou supprimer des textes enregistrés | Officiers |
+| `/config craft` `offers` `posts` `orders` `permissions` `notify` | Réglages et permissions du tableau d’artisanat | Officiers |
+| `/officer bank` `list` `handle` `stock` `settings` | Demandes à la banque, minimums de stock et réglages | Officiers |
 
 ### Propriétaire
 
@@ -136,9 +145,9 @@ Les lignes « Officiers » demandent le rang d’officier dans votre guilde WoW.
 | `/guilded help` | Les commandes principales (`/guilded help all` liste toutes celles que vous pouvez utiliser) | Tout le monde |
 | `/guilded standings [joueur]` | Les classements, ou ceux d’un joueur | Tout le monde |
 | `/guilded history [joueur]` | Votre historique d’EP/GP et de butin | Tout le monde |
-| `/guilded share` | Un seul collage avec votre personnage, équipement et accès (Discord : `/character import`) | Tout le monde |
+| `/guilded share` | Un seul collage avec votre personnage, équipement et accès (Discord : `/character link`) | Tout le monde |
 | `/guilded character` | Une ligne pour lier ce personnage dans Discord | Tout le monde |
-| `/guilded verify <code>` | Lier tous vos personnages à Discord d’un coup (Discord : `/character pair`) | Tout le monde |
+| `/guilded verify <code>` | Lier tous vos personnages à Discord d’un coup (Discord : `/character link`) | Tout le monde |
 | `/guilded sync` | Comment envoyer vos données à Discord maintenant | Tout le monde |
 | `/guilded attune <clé>` | Noter votre propre accès à un raid | Tout le monde |
 | `/guilded inspect` · `enchants` · `slots` | Vérification d’équipement ; règles d’enchantements et d’emplacements vides | Tout le monde |

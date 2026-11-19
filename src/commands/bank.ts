@@ -44,9 +44,9 @@ export const bankCommand = new SlashCommandBuilder()
     .addIntegerOption((o) => o.setName("min").setDescription("Keep at least this many (0 removes)").setMinValue(0).setMaxValue(100000)))
   .addSubcommand((sub) => sub.setName("settings").setDescription("Bank switches (officers).")
     .addBooleanOption((o) => o.setName("member_search").setDescription("Members can search the contents"))
-    .addBooleanOption((o) => o.setName("request_posts").setDescription("Post request cards for officers"))
-    .addChannelOption((o) => o.setName("request_channel").setDescription("Where request cards go (default: log channel)").addChannelTypes(ChannelType.GuildText))
-    .addBooleanOption((o) => o.setName("stock_alerts").setDescription("Alert when an item goes below its minimum")));
+    .addBooleanOption((o) => o.setName("request_posts").setDescription("Post request cards"))
+    .addChannelOption((o) => o.setName("request_channel").setDescription("Request card channel (default: log)").addChannelTypes(ChannelType.GuildText))
+    .addBooleanOption((o) => o.setName("stock_alerts").setDescription("Alert below an item's minimum")));
 
 const isOfficer = (interaction: ChatInputCommandInteraction | ButtonInteraction) => !!interaction.member && hasPermission(interaction.member as GuildMember, "officer");
 
@@ -131,7 +131,7 @@ export async function executeBank(interaction: ChatInputCommandInteraction): Pro
     }
     if (!memberSearch) { await reply(t("Officers turned off member bank search here.", "Les officiers ont désactivé la recherche dans la banque ici.")); return; }
     const targets = await prisma.guildBankTarget.findMany({ where: { guildId: context.guildId }, orderBy: { itemName: "asc" } });
-    if (!targets.length) { await reply(t("No bank minimums yet. Officers: `/bank stock item:<item> min:<count>`.", "Aucun minimum. Officiers : `/bank stock item:<objet> min:<nombre>`.")); return; }
+    if (!targets.length) { await reply(t("No bank minimums yet. Officers: `/officer bank stock item:<item> min:<count>`.", "Aucun minimum. Officiers : `/officer bank stock item:<objet> min:<nombre>`.")); return; }
     const low = lowStock((await loadItems(context.guildId)).items, targets);
     await reply([low.length ? t("**Below target** (have / target):", "**Sous la cible** (disponible / cible) :") : t("Everything is at or above its target.", "Tout est à la cible ou au-dessus."),
       ...lowStockLines(low, lang), "", t(`${targets.length} item(s) have a minimum.`, `${targets.length} objet(s) ont un minimum.`)].join("\n"));

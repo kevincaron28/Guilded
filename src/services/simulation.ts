@@ -115,7 +115,7 @@ export async function startTestRaid(database: PrismaClient, input: SimStartInput
 // Plays the raid: attendance (one late, one no-show, one walk-in from the
 // waitlist), all bosses killed, two loot auctions won by test players, and
 // ends it. With viaAddon, attendance comes from a generated addon import
-// instead (the officer applies it with /import apply), exercising the
+// instead (the officer applies it with /setup import apply), exercising the
 // companion import path.
 export async function finishTestRaid(database: PrismaClient, input: { guildId: string; raidId: string; officerId: string; realm: string; viaAddon: boolean }) {
   const raidService = createRaidService(database);

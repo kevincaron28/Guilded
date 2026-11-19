@@ -46,7 +46,7 @@ export async function showEpProposal(interaction: ChatInputCommandInteraction, g
     ? interaction.editReply(payload) : interaction.reply({ ...payload, flags: MessageFlags.Ephemeral });
   if (proposal.rows.length === 0) {
     await answer({
-      content: `${header}\nNo attendance recorded yet, so there's no EP to propose. Record attendance (or run \`/import apply\` after the addon export), then \`/lead award-ep raid:${raidId}\`.`
+      content: `${header}\nNo attendance recorded yet, so there's no EP to propose. Record attendance (or run \`/setup import apply\` after the addon export), then \`/lead award-ep raid:${raidId}\`.`
     });
     return;
   }

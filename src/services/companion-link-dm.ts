@@ -143,7 +143,7 @@ export function linkedCharacterCount(database: Pick<PrismaClient, "character">, 
 }
 
 /**
- * Name-match, sole-newcomer and /character claim links (no companion upload involved): tell each member once, with the
+ * Name-match, sole-newcomer and /character link links (no companion upload involved): tell each member once, with the
  * same undo buttons. `links` is one entry per member with how many characters were just linked to them. Never throws.
  */
 export async function tellAutoLinked(client: Messenger | null | undefined, database: Database & Pick<PrismaClient, "guildSettings">,
@@ -194,7 +194,7 @@ export async function askUnlink(database: UndoDatabase, discordUserId: string, c
 /**
  * The member's own unlink (the confirm step's "Yes", the panel, /character unlink): the character is detached with its history and the
  * unlink is recorded as BLOCKED, which only keeps AUTOMATION (name match, uploads, verify codes) from linking it back. The member
- * can always take it back: "Link it back" (7 days), /character claim, the panel's Link a character, /character pair.
+ * can always take it back: "Link it back" (7 days), /character link, the panel's Link a character, /character link.
  * One line goes to the officer log. Only the member the character is linked to can do it.
  */
 export async function unlinkNotMine(database: UndoDatabase, client: Pick<Client, "guilds">, discordUserId: string, characterId: string, source: "button" | "panel" | "web" = "button"): Promise<{ text: string; lang: Lang; undoId: string | null }> {
@@ -218,7 +218,7 @@ export async function unlinkNotMine(database: UndoDatabase, client: Pick<Client,
   return { text: t(lang, "linked.unlinked", { name: escapeMarkdown(name), server: escapeMarkdown(character.member.guild.name) }), lang, undoId: character.id };
 }
 
-/** "Link it back": the member's own unlink, undone. This button works for 7 days; /character claim and the panel have no limit. */
+/** "Link it back": the member's own unlink, undone. This button works for 7 days; /character link and the panel have no limit. */
 export async function linkBack(database: UndoDatabase, discordUserId: string, characterId: string, now = new Date()): Promise<string> {
   const result = await relinkOwnUnlinked(database as unknown as PrismaClient, { discordUserId, characterId, maxAgeMs: RELINK_WINDOW_MS, now });
   if (result.status === "relinked") {

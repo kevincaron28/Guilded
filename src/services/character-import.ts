@@ -96,7 +96,7 @@ export async function importCharacter(
   if (!owner) throw new Error("Your member profile was not found.");
   const gameEdition = gameEditionOf(parsed);
   assertForeverEdition(gameEdition);
-  if (gameEdition !== gameEditionOf(owner.guild ?? {})) throw new Error("Select the matching WoW guild with /wow use before importing this character.");
+  if (gameEdition !== gameEditionOf(owner.guild ?? {})) throw new Error("Select the matching WoW guild with /character guild before importing this character.");
   // Same name in this guild, tolerating a different realm spelling (Forever has no real realms).
   const sameName = await database.character.findMany({
     where: { name: { equals: parsed.name, mode: "insensitive" }, member: { guildId: owner.guildId } }

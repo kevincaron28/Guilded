@@ -367,7 +367,7 @@ export function createRaidService(database: PrismaClient) {
         const signup = await tx.raidSignup.findUnique({ where: { raidId_memberId: { raidId, memberId } }, select: KIND_SELECT });
         if (!signup || signup.status === "CANCELLED") throw new Error("Sign up for this raid first, then choose your spec.");
         const character = signup.character ?? signup.member.characters[0] ?? null;
-        if (!character) throw new Error("Link your character first (/character pair), so Guilded knows your class.");
+        if (!character) throw new Error("Link your character first (/character link), so Guilded knows your class.");
         const chosen = specName ? specsForRole(character.className, signup.role).find(spec => spec.name === specName) : null;
         if (specName && !chosen) throw new Error("That spec does not fit your class and role for this raid.");
         const before = signupDpsKind(signup);

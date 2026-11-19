@@ -21,7 +21,7 @@ Bots and members holding an ignored role are left out (`/officer roster ignore r
 Posts in the bot guide channel until an officer picks one: `/officer roster whoswho channel:#...` (`on:false` switches it off). One bot message (up to 3 embeds, ~5400 characters) edited in place, each member with main in bold then alts. Large guilds are cut at the limit and the footer says "N of M". Refreshed every 30 minutes with the other boards, via `discord-jobs.ts` (`WHOS_WHO_BOARD`).
 
 ## Roster picture (C3)
-`src/services/roster-visual.ts`: class counts by level band (same query and bands as `/report guild`) and a profession grid (crafters, top skill, red when nobody has it). Drawn as a share card (`score-card.ts` roster layout) attached to `/report guild`, and as inline SVG charts on the roster dashboard.
+`src/services/roster-visual.ts`: class counts by level band (same query and bands as `/officer reports guild`) and a profession grid (crafters, top skill, red when nobody has it). Drawn as a share card (`score-card.ts` roster layout) attached to `/officer reports guild`, and as inline SVG charts on the roster dashboard.
 
 ## Not verified here
 Nothing was run against a live Discord server. Needs a test server: renaming and restoring, Manage Nicknames check, the DM button, the board staying one message across a bot restart, and a hand check of the three lists on Québec Gold.

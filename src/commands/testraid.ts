@@ -18,7 +18,7 @@ export const testRaidCommand = new SlashCommandBuilder()
     .addStringOption((o) => o.setName("realm").setDescription("Realm for the fake characters (default: your main's realm)")))
   .addSubcommand((sub) => sub.setName("finish").setDescription("Play the test raid: attendance, boss kills, loot, then end it and propose EP.")
     .addStringOption((o) => o.setName("raid").setDescription("Test raid (pick from the list)").setAutocomplete(true).setRequired(true))
-    .addBooleanOption((o) => o.setName("via_addon").setDescription("Send attendance as an addon import to /import apply instead")))
+    .addBooleanOption((o) => o.setName("via_addon").setDescription("Send attendance as an addon import to /setup import apply instead")))
   .addSubcommand((sub) => sub.setName("dungeon").setDescription("Fake dungeon run by 5 test characters: points, records, announcement.")
     .addNumberOption((o) => o.setName("minutes").setDescription("How long the run took (default 20-30)").setMinValue(1).setMaxValue(300))
     .addBooleanOption((o) => o.setName("deaths").setDescription("Give one player 2 deaths"))
@@ -125,7 +125,7 @@ export async function executeTestRaid(interaction: ChatInputCommandInteraction):
   ].join("\n");
   if (result.importId) {
     await interaction.editReply({
-      content: `${summary}\nAttendance was sent as an addon import. Apply it with \`/import apply id:${result.importId}\` (you should see the no-show and the walk-in), then \`/lead award-ep raid:${result.raid.id}\`.`
+      content: `${summary}\nAttendance was sent as an addon import. Apply it with \`/setup import apply id:${result.importId}\` (you should see the no-show and the walk-in), then \`/lead award-ep raid:${result.raid.id}\`.`
     });
     return;
   }

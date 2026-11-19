@@ -14,7 +14,7 @@ the financial ledger.
 New core membership, applications and raid signups require an owned character
 in this guild. IDs distinguish same-name characters on different realms. A
 private paginated selector appears when a person has several characters. Add
-or pair characters with `/character add` or `/character pair`. Officers adding
+or pair characters with `/character add` or `/character link`. Officers adding
 a player select one of that player's characters.
 
 Each raid stores the selected character ID and name/realm snapshots. Signing

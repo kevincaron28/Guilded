@@ -32,7 +32,9 @@ describe("Lite command set", () => {
   const subs = (name: string) => (byName.get(name)?.options ?? []).map((option) => option.name).sort();
 
   it("registers only setup, help, FAQ, bug reports, data deletion, dungeon groups and basic signups", () => {
-    expect([...byName.keys()].sort()).toEqual(["delete-my-data", "dungeon", "help", "lead", "mod", "raid", "report", "setup"]);
+    expect([...byName.keys()].sort()).toEqual(["character", "dungeon", "help", "lead", "mod", "raid", "report", "setup"]);
+    // Deleting one's own data: /character privacy action:delete (was /delete-my-data).
+    expect(subs("character")).toEqual(["privacy"]);
     expect(subs("setup")).toEqual(["start"]);
     expect(subs("report")).toEqual(["bug", "ping"]);
     expect(subs("mod")).toEqual(["faq"]);

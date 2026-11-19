@@ -24,15 +24,15 @@ export const lootCommand = new SlashCommandBuilder()
     .addIntegerOption((o) => o.setName("minimum").setDescription("Minimum bid (default: your guild's setting)").setMinValue(1))
     .addIntegerOption((o) => o.setName("increment").setDescription("Bid increment (default: your guild's setting)").setMinValue(1))
     .addIntegerOption((o) => o.setName("duration").setDescription("How long, in seconds (pick one, or type)").setMinValue(1).setMaxValue(86400).setAutocomplete(true))
-    .addStringOption((o) => o.setName("boss").setDescription("Boss that dropped it (for loot history)"))
-    .addStringOption((o) => o.setName("raid").setDescription("Raid for loot history (start typing its name)").setAutocomplete(true)))
+    .addStringOption((o) => o.setName("boss").setDescription("Boss that dropped it"))
+    .addStringOption((o) => o.setName("raid").setDescription("Raid (for loot history)").setAutocomplete(true)))
   .addSubcommand((sub) => sub.setName("award").setDescription("Give an item straight to a player (council or manual award).")
     .addStringOption((o) => o.setName("item").setDescription("Item name").setRequired(true))
     .addUserOption((o) => o.setName("player").setDescription("Who gets it").setRequired(true))
     .addIntegerOption((o) => o.setName("gp").setDescription("GP to charge (default 0)").setMinValue(0))
     .addBooleanOption((o) => o.setName("offspec").setDescription("Off-spec win: charge the core's off-spec share of the price (default 50%)"))
-    .addStringOption((o) => o.setName("boss").setDescription("Boss that dropped it (for loot history)"))
-    .addStringOption((o) => o.setName("raid").setDescription("Raid for loot history (start typing its name)").setAutocomplete(true)))
+    .addStringOption((o) => o.setName("boss").setDescription("Boss that dropped it"))
+    .addStringOption((o) => o.setName("raid").setDescription("Raid (for loot history)").setAutocomplete(true)))
   .addSubcommand((sub) => sub.setName("bid").setDescription("Bid on an active auction.")
     .addStringOption((o) => o.setName("auction").setDescription("Auction (start typing the item)").setAutocomplete(true).setRequired(true))
     .addIntegerOption((o) => o.setName("amount").setDescription("Bid amount").setMinValue(1).setRequired(true)))
@@ -121,9 +121,9 @@ export async function executeLoot(interaction: ChatInputCommandInteraction): Pro
   }
   if (lootMode !== "EPGP" && (subcommand === "auction" || subcommand === "bid")) {
     const how: Record<string, string> = {
-      COUNCIL: "officers decide. In game, officers open the loot council (answer BiS, Upgrade, Off-spec or Pass in the popup) and award with `/officer loot award` or in the Council tab; add the item to your `/character wishlist` to state interest.",
-      RESERVE: "players reserve items before the raid (`/guilded reserve` in game, `/loot reserves` here) and the reservers of a dropped item roll for it. Officers record the award with `/officer loot award`.",
-      PRIORITY: "every item has a set GP price and goes to the highest PR of the players who want it (wishlist here, the popup in game). `/officer loot priority` shows who is next; `/officer loot award` charges the set price."
+      COUNCIL: "officers decide. In game, officers open the loot council (answer BiS, Upgrade, Off-spec or Pass in the popup) and award with `/lead loot award` or in the Council tab; add the item to your `/character wishlist` to state interest.",
+      RESERVE: "players reserve items before the raid (`/guilded reserve` in game, `/loot reserves` here) and the reservers of a dropped item roll for it. Officers record the award with `/lead loot award`.",
+      PRIORITY: "every item has a set GP price and goes to the highest PR of the players who want it (wishlist here, the popup in game). `/lead loot priority` shows who is next; `/lead loot award` charges the set price."
     };
     await interaction.reply({ content: `This raid uses **${LOOT_MODE_LABEL[lootMode]}**: ${how[lootMode]}`, flags: MessageFlags.Ephemeral });
     return;

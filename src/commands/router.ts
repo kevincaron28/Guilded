@@ -9,6 +9,9 @@ import type { ChatInputCommandInteraction } from "discord.js";
 // A parent can also take only some of a command's subcommands (`only` / `except`), or lift
 // them to its own level under new names (`flat`): that is how the officer tools moved to /lead,
 // /officer and /organize while their handlers still see `/raid create`, `/epgp decay` and so on.
+// A `Group` builds a new subcommand group from picked subcommands of several old commands
+// (or whole old commands without subcommands): `/officer reports inactive` is `/inactive`,
+// `/officer reports remind` is `/games remind` (commands restructure, November 2026).
 
 export type Handler = (interaction: ChatInputCommandInteraction) => Promise<void>;
 type Json = Record<string, unknown> & { name: string; description: string; options?: Json[]; type?: number };
@@ -28,6 +31,27 @@ export interface Mount {
   flat?: Record<string, string>;
 }
 
+/** One subcommand of a `Group`: an old command's subcommand (`sub`), or the whole old command (no `sub`). */
+export interface Pick {
+  command: Buildable;
+  handler: Handler;
+  /** The old subcommand; leave out for an old command that has no subcommands. */
+  sub?: string;
+  /** Its name in the group. Defaults to `sub`, else the old command name. */
+  as?: string;
+  /** A shorter description (Discord's 4000-character limit per command). */
+  description?: string;
+}
+
+/** A new subcommand group made of picked subcommands. */
+export interface Group {
+  group: string;
+  description: string;
+  picks: Pick[];
+}
+
+const isGroup = (mount: Mount | Group): mount is Group => "group" in mount;
+
 /** The parent's own subcommands: a command whose subcommands sit directly on the parent. */
 export interface Base {
   command: Buildable;
@@ -36,8 +60,8 @@ export interface Base {
   except?: string[];
 }
 
-// `sub` set: a lifted subcommand, which the handler must see under its old name.
-interface Route { legacy: string; handler: Handler; grouped: boolean; sub?: string }
+// `sub` set: a lifted subcommand, which the handler must see under its old name (null: none).
+interface Route { legacy: string; handler: Handler; grouped: boolean; sub?: string | null }
 
 const jsonOf = (command: Buildable): Json => {
   // Discord reads default_member_permissions on the top-level command only.
@@ -57,6 +81,24 @@ function lifted(json: Json, flat: Record<string, string>): Json[] {
   });
 }
 
+const pickName = (pick: Pick) => pick.as ?? pick.sub ?? pick.command.name;
+
+// A picked subcommand, renamed: from the old command's subcommands, or the whole old command as one.
+function pickedOption(pick: Pick): Json {
+  const json = jsonOf(pick.command);
+  let option: Json;
+  if (pick.sub) {
+    const found = (json.options ?? []).find((entry) => entry.name === pick.sub && entry.type === 1);
+    if (!found) throw new Error(`/${json.name} has no subcommand "${pick.sub}" to pick`);
+    option = { ...found };
+  } else {
+    if (isGrouped(json)) throw new Error(`/${json.name} has subcommands: pick one`);
+    // Only what a subcommand may carry: the top-level fields (permissions, contexts...) stay behind.
+    option = { name: json.name, description: json.description, type: 1, ...(json["description_localizations"] ? { description_localizations: json["description_localizations"] } : {}), ...(json.options ? { options: json.options } : {}) };
+  }
+  return { ...option, name: pickName(pick), ...(pick.description ? { description: pick.description } : {}) };
+}
+
 // Object with the same surface the top-level list needs (name + toJSON).
 export class MergedCommand {
   readonly routes = new Map<string, Route>();
@@ -67,7 +109,7 @@ export class MergedCommand {
   constructor(
     readonly name: string,
     private readonly description: string,
-    private readonly mounts: Mount[],
+    private readonly mounts: (Mount | Group)[],
     base?: Base
   ) {
     this.base = base ?? null;
@@ -76,6 +118,14 @@ export class MergedCommand {
       this.routes.set(name, route);
     };
     for (const mount of mounts) {
+      if (isGroup(mount)) {
+        add(mount.group, { legacy: "", handler: async () => undefined, grouped: true });
+        for (const pick of mount.picks) {
+          pickedOption(pick);
+          add(`${mount.group} ${pickName(pick)}`, { legacy: pick.command.name, handler: pick.handler, grouped: false, sub: pick.sub ?? null });
+        }
+        continue;
+      }
       const json = jsonOf(mount.command);
       if (mount.flat) {
         lifted(json, mount.flat);
@@ -108,6 +158,10 @@ export class MergedCommand {
     const options: Json[] = [];
     if (this.base) options.push(...keep(jsonOf(this.base.command).options ?? [], this.base));
     for (const mount of this.mounts) {
+      if (isGroup(mount)) {
+        options.push({ name: mount.group, description: mount.description, type: 2, options: mount.picks.map(pickedOption) });
+        continue;
+      }
       const json = jsonOf(mount.command);
       if (mount.flat) {
         options.push(...lifted(json, mount.flat));
@@ -127,8 +181,10 @@ export class MergedCommand {
     const group = interaction.options.getSubcommandGroup(false);
     const sub = interaction.options.getSubcommand(false);
     if (group) {
+      const picked = this.routes.get(`${group} ${sub}`);
+      if (picked) return { legacy: picked.legacy, sub: picked.sub ?? null, handler: picked.handler };
       const route = this.routes.get(group);
-      return route ? { legacy: route.legacy, sub, handler: route.handler } : null;
+      return route && route.legacy ? { legacy: route.legacy, sub, handler: route.handler } : null;
     }
     const route = sub ? this.routes.get(sub) : undefined;
     if (route && !route.grouped) return { legacy: route.legacy, sub: route.sub ?? null, handler: route.handler };

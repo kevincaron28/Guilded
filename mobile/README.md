@@ -73,7 +73,7 @@ Shared pieces live in `src/ui/`; the signed-in state is `src/useGuild.ts`.
   calls `POST /api/v1/companion/sign-in`, shows the short code, and opens
   `/me/companion` in the browser. You choose the server there and type the
   code. The phone then polls `POST /api/v1/companion/sign-in/poll`. A
-  `/character pair` code still works through `POST /api/v1/addon-pairings`.
+  `/character link` code still works through `POST /api/v1/addon-pairings`.
   The credential is stored in the device keychain (on the web preview it stays
   in local storage on that browser). The app does not copy the website's
   session cookie.

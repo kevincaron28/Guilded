@@ -11,7 +11,7 @@ const copy = {
   expired: { en: "This sign-in expired. Start again.", fr: "Cette connexion a expiré. Recommencez." },
   cancel: { en: "Cancel", fr: "Annuler" },
   retry: { en: "Try again", fr: "Réessayer" },
-  pairingLabel: { en: "Or paste a code from /character pair", fr: "Ou collez un code de /character pair" },
+  pairingLabel: { en: "Or paste a code from /character link", fr: "Ou collez un code de /character link" },
   pairingHide: { en: "Hide the pairing code", fr: "Masquer le code de jumelage" },
   openPageFailed: { en: "This phone could not open the page. Open guildedwow.com in a browser and choose Sign in there.", fr: "Ce téléphone n'a pas pu ouvrir la page. Ouvrez guildedwow.com dans un navigateur et choisissez la connexion." },
   pairingPlaceholder: { en: "Pairing code", fr: "Code de jumelage" },

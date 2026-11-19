@@ -11,7 +11,7 @@ textuels, annonces, clavardage des vocaux/scènes et fils, y compris les publica
 des forums et médias. Les fils privés exigent un accès existant (adhésion ou
 modération); le bot ne les rejoint pas automatiquement. Les MP, bots, webhooks et
 messages système sont exclus. Le temps vocal compte séparément, hors salon AFK.
-`all-text:false` ou `all-voice:false` dans `/participation settings` revient à une
+`all-text:false` ou `all-voice:false` dans `/setup participation settings` revient à une
 liste de salons choisis. Les listes de messages visent des identifiants exacts;
 choisir un salon parent n'inscrit pas automatiquement ses futurs fils.
 
@@ -19,7 +19,7 @@ Depuis `/setup start`, « Créer ceux qui manquent » (étape 2) et « Configure
 (liste de vérification) font tout ceci automatiquement sur un nouveau serveur : catégorie
 Communauté, salons activités / leaderboard / chat, première saison Discord et participation
 activée avec les règles par défaut (messages de tous les salons accessibles et vocaux hors AFK).
-`/participation settings season:SAISON all-voice:true` compte tous les vocaux (sauf AFK), y compris
+`/setup participation settings season:SAISON all-voice:true` compte tous les vocaux (sauf AFK), y compris
 les vocaux temporaires des groupes; `all-voice:false` revient à la liste de salons choisis.
 Une saison existante et des réglages déjà choisis ne sont jamais écrasés. Les commandes
 ci-dessous servent à ajuster ou à configurer à la main.
@@ -28,9 +28,9 @@ Un officier crée une saison Discord dans un salon communautaire accessible au b
 
 ```text
 /organize start-season name:Participation octobre game:DISCORD
-/participation settings season:SAISON channel:#discussion enabled:true
-/participation settings season:SAISON channel:Vocal
-/participation channels season:SAISON
+/setup participation settings season:SAISON channel:#discussion enabled:true
+/setup participation settings season:SAISON channel:Vocal
+/setup participation channels season:SAISON
 /participation status season:SAISON
 ```
 
@@ -42,7 +42,7 @@ choisi ou un mode tous-salons actif.
 `enabled:false` suspend les gains. `channel:... remove:true` retire un salon.
 `settings` sans autre option affiche les règles. Maximum 20 salons de chaque type.
 
-`/participation channels` donne aux officiers un rapport privé paginé des salons
+`/setup participation channels` donne aux officiers un rapport privé paginé des salons
 admissibles, exclus, en pause ou inaccessibles au bot. Il n'affiche que les salons
 visibles par l'officier. Les parents de forum/média sont indiqués comme publications;
 les fils accessibles sont couverts par le mode tous-salons sans être énumérés.
@@ -65,7 +65,7 @@ Les saisons sans taux explicite conservent 2 points par tranche et leur plafond
 existant. Déployer le bot et réenregistrer les commandes avant d'appliquer :
 
 ```text
-/participation settings season:SAISON voice-minutes:120 voice-points:4
+/setup participation settings season:SAISON voice-minutes:120 voice-points:4
 ```
 
 Le nouveau taux s'applique uniquement aux tranches nouvellement terminées. Les
@@ -110,11 +110,11 @@ n'est rendu obligatoire.
 
 ```text
 /participation nominate season:SAISON player:@membre reason:A aidé un nouveau joueur
-/participation claims season:SAISON
-/participation review season:SAISON id:NOMINATION decision:APPROVE reason:Vérifié
+/setup participation claims season:SAISON
+/setup participation review season:SAISON id:NOMINATION decision:APPROVE reason:Vérifié
 /participation history season:SAISON
 /participation history season:SAISON player:@membre
-/participation reverse season:SAISON id:GAIN reason:Récompense incorrecte
+/setup participation reverse season:SAISON id:GAIN reason:Récompense incorrecte
 ```
 
 Maximum 3 nominations par auteur/semaine et une nomination par auteur/destinataire/

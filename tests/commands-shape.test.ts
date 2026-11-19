@@ -51,7 +51,8 @@ describe("slash command definitions follow Discord's rules", () => {
     for (const command of all) expect(command.options?.length ?? 0).toBeLessThanOrEqual(25);
     // Stop 100 characters early, so a small wording change fails here, with the command and its
     // size named, rather than at command registration on the live bot. Trim wording; do not
-    // raise this margin. (21 October 2026: /officer is the largest, 3,431, then /character, 3,346.)
+    // raise this margin. (21 October 2026: /officer is the largest, 3,431, then /character, 3,346.
+    // 19 November 2026, after the commands restructure: /mod 3,883, /organize ~3,800, /character 3,805, /officer 3,804.)
     const crowded = all.map((command) => `${command.name}: ${size(command as never)}`).filter((row) => Number(row.split(": ")[1]) > 3900);
     expect(crowded, "within 100 characters of Discord's 4000-character limit: trim wording").toEqual([]);
   });
@@ -63,8 +64,8 @@ describe("slash command definitions follow Discord's rules", () => {
     expect(find("character", "profession", "set", "profession")?.choices).toHaveLength(PROFESSIONS.length);
     expect(find("character", "add", "spec")?.autocomplete).toBe(true);
     expect(find("character", "add", "realm")?.required).toBeFalsy();
-    // /officer loot auction needs only the item.
-    const auction = find("officer", "loot", "auction");
+    // /lead loot auction needs only the item.
+    const auction = find("lead", "loot", "auction");
     expect(auction?.options?.filter((option) => option.required).map((option) => option.name)).toEqual(["item"]);
   });
 });

@@ -17,7 +17,7 @@ export function welcomeCard(lang: Lang, input: { name: string; guildName: string
   const list: { name: string; sub: string }[] = [];
   if (steps.rules) list.push({ name: t("Read and accept the rules", "Lisez et acceptez les règles"), sub: t("Use the Rules button on the welcome message", "Utilisez le bouton des règles du message de bienvenue") });
   if (steps.games) list.push({ name: t("Pick your games", "Choisissez vos jeux"), sub: t("So you see the right channels", "Pour voir les bons salons") });
-  list.push({ name: t("Link your character", "Liez votre personnage"), sub: t("/character pair shows how, in a few steps", "/character pair explique comment, en quelques étapes") });
+  list.push({ name: t("Link your character", "Liez votre personnage"), sub: t("/character link shows how, in a few steps", "/character link explique comment, en quelques étapes") });
   return {
     eyebrow: t("Guilded · Welcome", "Guilded · Bienvenue"), title: input.name,
     subtitle: t(`Welcome to ${guildName}!`, `Bienvenue dans ${guildName} !`),

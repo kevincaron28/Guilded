@@ -10,7 +10,7 @@ import { LIFETIME_MAX_REMINDERS, PAGE_SIZE, listNoGame, queueManualReminders, re
 import { officerAccess } from "./officer-tools.js";
 import { guildService } from "./context.js";
 
-// /report games: members who joined the server but have not picked a game, and the private reminder to them.
+// /officer reports games: members who joined the server but have not picked a game, and the private reminder to them.
 // Officers and Guild Masters only. Nothing is sent unless an officer asks (one member, one page, everyone
 // listed) or the server switched the automatic reminder on (`auto`, off by default).
 

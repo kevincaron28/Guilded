@@ -206,13 +206,13 @@ export async function exchangeCharacterPairingCode(database: PrismaClient, guild
       where: { codeHash, guild: { discordId: guildDiscordId }, expiresAt: { gt: now }, consumedAt: null },
       select: { id: true, memberId: true, guild: { select: { id: true, name: true, gameEdition: true } }, member: { select: { discordUserId: true } } }
     });
-    if (!pairing) throw new Error("Pairing code is invalid, expired, or already used. Generate a new one with /character pair.");
+    if (!pairing) throw new Error("Pairing code is invalid, expired, or already used. Generate a new one with /character link.");
 
     const consumed = await tx.characterPairing.updateMany({
       where: { id: pairing.id, consumedAt: null, expiresAt: { gt: now } },
       data: { consumedAt: now }
     });
-    if (consumed.count !== 1) throw new Error("Pairing code is invalid, expired, or already used. Generate a new one with /character pair.");
+    if (consumed.count !== 1) throw new Error("Pairing code is invalid, expired, or already used. Generate a new one with /character link.");
 
     // Each successful exchange connects one device. Lost devices can be revoked
     // individually (or all at once) from the authenticated connections page.

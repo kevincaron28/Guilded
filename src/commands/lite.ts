@@ -13,16 +13,21 @@ export const LITE_COMMANDS: Record<string, null | Record<string, string[]>> = {
   // Basic signups: no raid cores, weekly repeats, EP, attendance or seasons.
   raid: { "cancel-signup": [], status: [], roster: [] },
   lead: { create: ["core", "weekly"], edit: [], cancel: [] },
-  // Deleting one's own data must work in every server, whatever its tier.
-  "delete-my-data": null
+  // Deleting one's own data (/character privacy action:delete, was /delete-my-data) must work in every server, whatever its tier.
+  character: { privacy: [] }
 };
 
-/** Commands that run in every server, also a blocked one, and without the in-game guild's member role. */
-export const ALWAYS_ALLOWED_COMMANDS: readonly string[] = ["delete-my-data"];
+/** Commands (or "command subcommand") that run in every server, also a blocked one, and without the in-game guild's member role. */
+export const ALWAYS_ALLOWED_COMMANDS: readonly string[] = ["character privacy"];
+
+/** Whether a command runs in every server, whatever its tier (ALWAYS_ALLOWED_COMMANDS). */
+export function alwaysAllowed(commandName: string, group: string | null, sub: string | null): boolean {
+  return ALWAYS_ALLOWED_COMMANDS.includes(commandName) || (group === null && sub !== null && ALWAYS_ALLOWED_COMMANDS.includes(`${commandName} ${sub}`));
+}
 
 /** The tier gate for slash commands and their autocomplete: null lets the command run, otherwise which refusal applies. */
 export function tierDenial(tier: string, commandName: string, group: string | null, sub: string | null): "blocked" | "lite" | null {
-  if (ALWAYS_ALLOWED_COMMANDS.includes(commandName)) return null;
+  if (alwaysAllowed(commandName, group, sub)) return null;
   if (tier === "blocked") return "blocked";
   if (tier === "lite" && !allowsLite(commandName, group, sub)) return "lite";
   return null;

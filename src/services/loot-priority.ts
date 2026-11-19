@@ -85,7 +85,7 @@ export function describePriority(itemName: string, coreName: string | null, resu
     head, ...lines,
     result.ranking.length > 10 ? `…and ${result.ranking.length - 10} more.` : "",
     result.visibleTies ? (tied.length > 1 ? `Priority tie: ${tied.map(row => `**${cleanCharacterName(row.character)}**`).join(", ")}. Resolve with a visible /roll 100 in game; wishlist order does not break the tie.` : `Highest wishlist priority by PR: **${cleanCharacterName(winner.character)}**. Confirm main/off-spec interest and usability in game before awarding.`)
-      : `Goes to **${cleanCharacterName(winner.character)}**${result.price === null ? "" : ` for ${result.price} GP`}: \`/officer loot award\` with that player${result.price === null ? " and a gp" : " charges the set price"}.`,
+      : `Goes to **${cleanCharacterName(winner.character)}**${result.price === null ? "" : ` for ${result.price} GP`}: \`/lead loot award\` with that player${result.price === null ? " and a gp" : " charges the set price"}.`,
     result.outsideCore ? `(${result.outsideCore} wisher(s) are not in this core and were left out.)` : ""
   ].filter(Boolean).join("\n");
 }

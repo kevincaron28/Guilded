@@ -11,7 +11,7 @@ import { professionName as shownProfession } from "./profession-style.js";
 //     button). A new request pings only opted-in members whose characters know that exact recipe
 //     (from the addon's profession scans), at most MAX_PINGS per request and once per COOLDOWN per
 //     member and profession.
-// On by default; officers turn the channels or the pings off with /craft notify-setting.
+// On by default; officers turn the channels or the pings off with /config craft notify.
 
 export const MAX_PINGS = 5;
 export const PING_COOLDOWN_MS = 30 * 60_000;

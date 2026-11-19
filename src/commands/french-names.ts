@@ -1,6 +1,6 @@
 import { bugCommand } from "./bugreport.js";
 import { craftCommand } from "./craft.js";
-import { characterCommand } from "./character.js";
+import { characterCommand, characterLinkCommand } from "./character.js";
 import { helpCommand } from "./help.js";
 import { professionCommand } from "./profession.js";
 import { profileCommand } from "./profile.js";
@@ -62,6 +62,14 @@ export function applyFrenchNames(): void {
   localize(attunementCommand as unknown as Localizable, { description: "Suivre les harmonisations de raid de vos personnages.", options: MEMBER_OPTIONS });
   localize(wishlistCommand as unknown as Localizable, { name: "souhaits", description: "Les objets que vos personnages souhaitent obtenir.", options: MEMBER_OPTIONS });
   localize(characterCommand as unknown as Localizable, { subs: { unlink: { name: "delier", description: "Délier un personnage (le vôtre ; un officier peut délier celui d'un autre)." } } });
+  // Commands restructure (November 2026): /personnage lier replaces pair, import and claim; /personnage guilde replaces /wow.
+  localize(characterLinkCommand as unknown as Localizable, {
+    subs: {
+      link: { name: "lier", description: "Comment lier vos personnages, ou collez une ligne ou un code de l'addon." },
+      guild: { name: "guilde", description: "Votre guilde en jeu : la liste, ou en choisir une." }
+    },
+    options: { line_or_code: "ligne_ou_code", main: "principal", guild: "guilde" }
+  });
   localize(craftCommand as unknown as Localizable, {
     name: "artisanat",
     description: "Demandez aux artisans de la guilde de fabriquer un objet, ou prenez des demandes.",

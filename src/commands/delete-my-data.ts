@@ -1,15 +1,12 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags, SlashCommandBuilder, type ChatInputCommandInteraction } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags, type ChatInputCommandInteraction } from "discord.js";
 import { prisma } from "../database.js";
 import { deleteMyData } from "../services/data-deletion.js";
 
 // "Delete my data" lives in Discord, where Discord itself proves who is asking (the website has no sign-in page for it).
 // A preview says what goes, and nothing is deleted until the member presses the confirm button. It calls the same
 // service the website page and the companion call (data-deletion.ts).
-export const deleteMyDataCommand = new SlashCommandBuilder()
-  .setName("delete-my-data")
-  .setDescription("Delete the data Guilded keeps about you (asks you to confirm first).")
-  .setDescriptionLocalizations({ fr: "Supprimer les données que Guilded garde sur vous (une confirmation est demandée)." });
-
+// Since the commands restructure (November 2026) it is /character privacy action:delete; the old
+// /delete-my-data name answers "moved" (moved.ts).
 export async function executeDeleteMyData(interaction: ChatInputCommandInteraction, onError: (error: unknown) => void = () => undefined): Promise<void> {
   const fr = interaction.locale.startsWith("fr");
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });

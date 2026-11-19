@@ -13,12 +13,12 @@ export const wowCommand = new SlashCommandBuilder().setName("wow").setDescriptio
     .addRoleOption(o => o.setName("officers").setDescription("Officer role for this in-game guild"))
     .addRoleOption(o => o.setName("members").setDescription("Member role; omit to allow all server members")))
   .addSubcommand(s => s.setName("use").setDescription("Select your in-game guild for commands and companion pairing.")
-    .addStringOption(o => o.setName("guild").setDescription("Guild ID from /wow list, or default").setRequired(true)))
+    .addStringOption(o => o.setName("guild").setDescription("Guild ID from /character guild, or default").setRequired(true)))
   .addSubcommand(s => s.setName("channel").setDescription("Officer: bind a channel to an in-game guild, overriding personal choices.")
-    .addStringOption(o => o.setName("guild").setDescription("Guild ID from /wow list, or default").setRequired(true))
+    .addStringOption(o => o.setName("guild").setDescription("Guild ID from /character guild, or default").setRequired(true))
     .addChannelOption(o => o.setName("channel").setDescription("Channel for this guild").setRequired(true).addChannelTypes(ChannelType.GuildText, ChannelType.GuildForum, ChannelType.GuildCategory)))
   .addSubcommand(s => s.setName("roles").setDescription("Admin: change the roles that can use and manage an in-game guild.")
-    .addStringOption(o => o.setName("guild").setDescription("Guild ID from /wow list").setRequired(true))
+    .addStringOption(o => o.setName("guild").setDescription("Guild ID from /character guild").setRequired(true))
     .addRoleOption(o => o.setName("officers").setDescription("Officer role").setRequired(true))
     .addRoleOption(o => o.setName("members").setDescription("Member role; omit to allow all server members")));
 
@@ -31,7 +31,7 @@ export async function executeWow(interaction: ChatInputCommandInteraction): Prom
   if (sub === "list") {
     const choices = await prisma.wowGuild.findMany({ where: { guildId: root.id, scopeGuildId: { not: null } }, orderBy: { name: "asc" } });
     const selected = await prisma.wowGuildSelection.findUnique({ where: { discordId_userId: { discordId: root.discordId, userId: member.id } } });
-    await interaction.editReply([`**In-game guilds** (channel bindings take precedence)`, `\`default\` — Forever · existing guild data`, ...choices.map(w => `\`${w.scopeGuildId}\` — ${w.name} · ${w.gameEdition} · ${w.realm}`), `Your default: \`${selected?.scopeGuildId ?? "default"}\`. Use /wow use, then /character pair for that guild.`].join("\n"));
+    await interaction.editReply([`**In-game guilds** (channel bindings take precedence)`, `\`default\` — Forever · existing guild data`, ...choices.map(w => `\`${w.scopeGuildId}\` — ${w.name} · ${w.gameEdition} · ${w.realm}`), `Your default: \`${selected?.scopeGuildId ?? "default"}\`. Use /character guild guild:<ID>, then /character link for that guild.`].join("\n"));
     return;
   }
   if (sub === "add") {
@@ -41,7 +41,7 @@ export async function executeWow(interaction: ChatInputCommandInteraction): Prom
       ...(interaction.options.getRole("officers") ? { officer: interaction.options.getRole("officers")!.id } : {}),
       ...(interaction.options.getRole("members") ? { member: interaction.options.getRole("members")!.id } : {})
     });
-    await interaction.editReply(`Created **${space.name} · ${space.gameEdition}**. ID: \`${space.scopeGuildId}\`. Use /wow use or /wow channel, then /setup start in that guild's channel.`);
+    await interaction.editReply(`Created **${space.name} · ${space.gameEdition}**. ID: \`${space.scopeGuildId}\`. Use /character guild or /setup guild channel, then /setup start in that guild's channel.`);
     return;
   }
   const selected = interaction.options.getString("guild", true);

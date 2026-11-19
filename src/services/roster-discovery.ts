@@ -11,7 +11,7 @@ import { characterKey } from "../../companion/character-identity.mjs";
 // Characters that addons reveal through the guild digest (name, class, race,
 // level, spec, professions). A character already linked to a Discord member is
 // refreshed; any other is remembered as "unclaimed" until it is linked
-// (automatically by Discord name, or with /character claim).
+// (automatically by Discord name, or with /character link).
 
 export const nameKey = (name: string) => name.trim().toLowerCase();
 

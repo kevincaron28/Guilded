@@ -5,15 +5,18 @@ import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } f
 import { prisma } from "../database.js";
 import { importCharacter, parseCharacterString } from "../services/character-import.js";
 import { applySelfExport, parseSelfExport } from "../services/self-export.js";
-import { autoLinkUnclaimed, claimCharacter, linkUnclaimed } from "../services/character-autolink.js";
-import { askUnlink, tellAutoLinked } from "../services/companion-link-dm.js";
+import { autoLinkUnclaimed, linkUnclaimed } from "../services/character-autolink.js";
+import { askUnlink } from "../services/companion-link-dm.js";
 import { postToLogChannel } from "../services/housekeeping.js";
 import { hasPermission } from "../permissions.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { CLASSES } from "../wow-data.js";
-import { characterLinkPrompt } from "../services/character-link-prompt.js";
+import { characterLinkHelp } from "../services/character-link-prompt.js";
 import { unlinkCharacter } from "../services/character-verify.js";
-import { asLang, t } from "../i18n.js";
+import { asLang, t, type Lang } from "../i18n.js";
+import { executeWow } from "./wow.js";
+import { legacyView } from "./router.js";
+import { executeDeleteMyData } from "./delete-my-data.js";
 import { removePictureByOfficer } from "../services/character-picture.js";
 import { addRaceSubcommand, executeRace } from "./race.js";
 import { characterPanel } from "../services/character-panel.js";
@@ -25,10 +28,7 @@ const PANEL_HINT = [t("en", "panel.hint"), t("fr", "panel.hint")].join("\n");
 
 export const characterCommand = new SlashCommandBuilder()
   .setName("character")
-  .setDescription("Manage characters in your selected WoW guild.")
-  .addSubcommand((subcommand) => subcommand
-    .setName("pair")
-    .setDescription("Link your main and alts (one line to paste in WoW)."))
+  .setDescription("Character links and conflicts.")
   .addSubcommand((subcommand) => subcommand
     .setName("add")
     .setDescription("Link a character to your profile.")
@@ -40,15 +40,6 @@ export const characterCommand = new SlashCommandBuilder()
     .addStringOption((option) => option.setName("spec").setDescription("Specialization (pick or type)").setAutocomplete(true))
     .addIntegerOption((option) => option.setName("level").setDescription("Character level").setMinValue(1).setMaxValue(100))
     .addStringOption((option) => option.setName("race").setDescription("Race (pick or type)").setAutocomplete(true)))
-  .addSubcommand((subcommand) => subcommand
-    .setName("import")
-    .setDescription("Link a character or send a gear check from a /guilded line.")
-    .addStringOption((option) => option.setName("code").setDescription("The line from /guilded character or /guilded share").setRequired(true))
-    .addBooleanOption((option) => option.setName("main").setDescription("Set as your main (default: main only if you have none)")))
-  .addSubcommand((subcommand) => subcommand
-    .setName("claim")
-    .setDescription("Link a character your addon reported (pick it from the list).")
-    .addStringOption((option) => option.setName("name").setDescription("Your character").setAutocomplete(true).setRequired(true)))
   .addSubcommand((subcommand) => subcommand
     .setName("unlink")
     .setDescription("Unlink a character (officers: anyone's).")
@@ -87,17 +78,81 @@ export const characterCommand = new SlashCommandBuilder()
     .setName("privacy")
     .setDescription("Hide or show you on the public website pages.")
     .addStringOption((option) => option.setName("action").setDescription("Action").setRequired(true)
-      .addChoices({ name: "hide", value: "hide" }, { name: "show", value: "show" }, { name: "status", value: "status" })))
+      .addChoices({ name: "hide", value: "hide" }, { name: "show", value: "show" }, { name: "status", value: "status" }, { name: "delete all my data", value: "delete" })))
   .addSubcommand((subcommand) => subcommand
     .setName("list")
     .setDescription("Your characters: link, set main, unlink."))
   .addSubcommand((subcommand) => addRaceSubcommand(subcommand));
 
+// Commands restructure (November 2026): one way in for members. /character link replaces pair,
+// import and claim (those answer "moved" for one release, see index.ts), and /character guild
+// replaces /wow list and /wow use. Mounted on /character beside the builder above.
+export const characterLinkCommand = new SlashCommandBuilder()
+  .setName("character")
+  .setDescription("Link your characters; choose your in-game guild.")
+  .addSubcommand((subcommand) => subcommand
+    .setName("link")
+    .setDescription("How to link your characters, or paste a line or code from the addon.")
+    .addStringOption((option) => option.setName("line_or_code").setDescription("Line from /guilded character or code from /guilded share"))
+    .addBooleanOption((option) => option.setName("main").setDescription("Set as your main (default: only if you have none)")))
+  .addSubcommand((subcommand) => subcommand
+    .setName("guild")
+    .setDescription("Your in-game guild: list them, or pick one.")
+    .addStringOption((option) => option.setName("guild").setDescription("Guild ID to use, or default (empty: list)")));
+
+/** /character link and /character guild. */
+export async function executeCharacterLink(interaction: ChatInputCommandInteraction): Promise<void> {
+  if (interaction.options.getSubcommand() === "guild") {
+    await executeWow(legacyView(interaction, "wow", interaction.options.getString("guild") ? "use" : "list"));
+    return;
+  }
+  const pasted = interaction.options.getString("line_or_code")?.trim();
+  if (interaction.guild && interaction.guildId && interaction.member) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const context = await requireGuildContext(interaction);
+  if (!context) return;
+  const settings = await guildService.getSettings(context.guildId);
+  const lang = asLang(settings?.language);
+  if (!pasted) {
+    await interaction.editReply(await characterLinkHelp(prisma, context.guildId, context.memberId, interaction.guildId!, lang));
+    return;
+  }
+  await linkPastedLine(interaction, context.memberId, lang, pasted);
+}
+
+// Was /character import: an addon line (/guilded character) or a self-export code (/guilded share).
+async function linkPastedLine(interaction: ChatInputCommandInteraction, memberId: string, lang: Lang, code: string): Promise<void> {
+  const linkedText = (outcome: { action: "created" | "updated"; name: string; isMain: boolean }) => t(lang, "character.linkResult", {
+    action: t(lang, outcome.action === "created" ? "character.created" : "character.updated"), name: outcome.name,
+    kind: t(lang, outcome.isMain ? "character.mainKind" : "character.altKind")
+  });
+  if (code.startsWith("QGEXP1:")) {
+    const data = parseSelfExport(code);
+    const outcome = await applySelfExport(prisma, memberId, data, interaction.options.getBoolean("main") ?? undefined);
+    const problems = data.findings.filter((finding) => finding.severity !== "INFO").length;
+    await interaction.editReply({
+      content: linkedText(outcome)
+        + (outcome.status ? ` Gear check: **${outcome.status}**${problems ? ` (${problems} issue${problems === 1 ? "" : "s"})` : ""}.` : " No gear check in that code (run /guilded inspect first).")
+        + (data.consumables.length ? ` Consumables: ${data.consumables.map((row) => row.name).join(", ")}.` : "")
+        + (outcome.attunements ? ` ${outcome.attunements} attunement${outcome.attunements === 1 ? "" : "s"} recorded.` : "")
+        + `\n${t(lang, outcome.isMain ? "character.mainNext" : "character.altNext")}`
+    });
+    return;
+  }
+  const parsed = parseCharacterString(code);
+  const outcome = await importCharacter(prisma, memberId, parsed, interaction.options.getBoolean("main") ?? undefined);
+  const details = [parsed.race, parsed.className, parsed.spec ? `(${parsed.spec})` : "", parsed.level ? `level ${parsed.level}` : ""].filter(Boolean).join(" ");
+  await interaction.editReply({
+    content: `${linkedText(outcome)} ${parsed.realm} · ${details}.`
+      + (parsed.professions.length ? `\nProfessions: ${parsed.professions.map((p) => `${p.name} ${p.skillLevel}`).join(", ")}.` : "")
+      + `\n${t(lang, outcome.isMain ? "character.mainNext" : "character.altNext")}`
+  });
+}
+
 // The realm most of the guild's characters use, so nobody types it.
 async function defaultRealm(guildId: string): Promise<string> {
   const rows = await prisma.character.groupBy({ by: ["realm"], where: { member: { guildId } }, _count: { realm: true }, orderBy: { _count: { realm: "desc" } }, take: 1 });
   const realm = rows[0]?.realm;
-  if (!realm) throw new Error("Nobody has a character linked yet, so I don't know your realm: add the realm option once (or use /character import).");
+  if (!realm) throw new Error("Nobody has a character linked yet, so I don't know your realm: add the realm option once (or use /character link).");
   return realm;
 }
 
@@ -105,11 +160,11 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
   const subcommand = interaction.options.getSubcommand();
   // 9.4: the listed person's appeal (do-not-invite-flow.ts), under /character to keep the top-level command count.
   if (subcommand === "appeal") { await executeAppeal(interaction); return; }
-  // Acknowledge before database lookups, especially when the hosted database is waking up.
-  if (["pair", "import"].includes(subcommand) && interaction.guild && interaction.guildId && interaction.member) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   // "Hide my profile": per Discord user, so it needs no server context (profile-privacy.ts).
   if (subcommand === "privacy") {
     const asked = interaction.options.getString("action", true);
+    // Was /delete-my-data (commands restructure, November 2026): main.ts routes it with error reporting.
+    if (asked === "delete") { await executeDeleteMyData(interaction); return; }
     if (asked !== "hide" && asked !== "show" && asked !== "status") { await interaction.reply({ content: "Choose hide, show or status.", flags: MessageFlags.Ephemeral }); return; }
     const action = asked;
     if (action !== "status") await setProfileHidden(prisma, interaction.user.id, action === "hide");
@@ -118,11 +173,6 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
   }
   const context = await requireGuildContext(interaction);
   if (!context) return;
-  if (subcommand === "pair") {
-    const settings = await guildService.getSettings(context.guildId);
-    await interaction.editReply(await characterLinkPrompt(prisma, context.guildId, context.memberId, interaction.guildId!, asLang(settings?.language), "companion"));
-    return;
-  }
   if (subcommand === "race") { await executeRace(interaction, context); return; }
   if (subcommand === "list") {
     // The panel: the member's characters with Link, Set main, Unlink, Picture and Refresh (character-panel.ts).
@@ -130,15 +180,6 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
     return;
   }
 
-  if (subcommand === "claim") {
-    const result = await claimCharacter(prisma, context.guildId, context.memberId, interaction.options.getString("name", true));
-    // The same DM as every automatic link, with its "Not mine" undo (skipped quietly when DMs are closed).
-    if (interaction.guildId) void tellAutoLinked(interaction.client, prisma, interaction.guildId, context.guildId, [{ memberId: context.memberId, count: 1 }]);
-    await interaction.reply({ content: `Linked **${characterName(result.row)}** (${result.row.className}${result.row.level ? `, level ${result.row.level}` : ""}) as ${result.isMain ? "your main" : "an alt"}. Its gear and consumables now show up by themselves.
-
-${PANEL_HINT}`, flags: MessageFlags.Ephemeral });
-    return;
-  }
   if (subcommand === "unlink") {
     const wanted = interaction.options.getString("name", true).trim();
     const character = selectedCharacter(await prisma.character.findMany({
@@ -258,38 +299,6 @@ ${PANEL_HINT}`,
     const target = await guildService.ensureMember(context.guildId, user.id, user.username);
     const outcome = await linkUnclaimed(prisma, target.id, row, { confirmed: true });
     await interaction.reply({ content: `Linked **${characterName(row)}** to ${user.username} as ${outcome.isMain ? "their main" : "an alt"}.`, flags: MessageFlags.Ephemeral });
-    return;
-  }
-
-  if (subcommand === "import") {
-    const settings = await guildService.getSettings(context.guildId);
-    const lang = asLang(settings?.language);
-    const linkedText = (outcome: { action: "created" | "updated"; name: string; isMain: boolean }) => t(lang, "character.linkResult", {
-      action: t(lang, outcome.action === "created" ? "character.created" : "character.updated"), name: outcome.name,
-      kind: t(lang, outcome.isMain ? "character.mainKind" : "character.altKind")
-    });
-    const code = interaction.options.getString("code", true);
-    if (code.trim().startsWith("QGEXP1:")) {
-      const data = parseSelfExport(code);
-      const outcome = await applySelfExport(prisma, context.memberId, data, interaction.options.getBoolean("main") ?? undefined);
-      const problems = data.findings.filter((finding) => finding.severity !== "INFO").length;
-      await interaction.editReply({
-        content: linkedText(outcome)
-          + (outcome.status ? ` Gear check: **${outcome.status}**${problems ? ` (${problems} issue${problems === 1 ? "" : "s"})` : ""}.` : " No gear check in that code (run /guilded inspect first).")
-          + (data.consumables.length ? ` Consumables: ${data.consumables.map((row) => row.name).join(", ")}.` : "")
-          + (outcome.attunements ? ` ${outcome.attunements} attunement${outcome.attunements === 1 ? "" : "s"} recorded.` : "")
-          + `\n${t(lang, outcome.isMain ? "character.mainNext" : "character.altNext")}`
-      });
-      return;
-    }
-    const parsed = parseCharacterString(code);
-    const outcome = await importCharacter(prisma, context.memberId, parsed, interaction.options.getBoolean("main") ?? undefined);
-    const details = [parsed.race, parsed.className, parsed.spec ? `(${parsed.spec})` : "", parsed.level ? `level ${parsed.level}` : ""].filter(Boolean).join(" ");
-    await interaction.editReply({
-      content: `${linkedText(outcome)} ${parsed.realm} · ${details}.`
-        + (parsed.professions.length ? `\nProfessions: ${parsed.professions.map((p) => `${p.name} ${p.skillLevel}`).join(", ")}.` : "")
-        + `\n${t(lang, outcome.isMain ? "character.mainNext" : "character.altNext")}`
-    });
     return;
   }
 

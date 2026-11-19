@@ -114,7 +114,7 @@ async function writeBackup(database: PrismaClient, now: Date, dir: string, keep:
 // AddonImport holds raw companion uploads and was ~97% of the backup's JSON (9 Nov 2026). Restoring a
 // guild does not need an applied upload's payload (it is already in the ledger tables, and the bot
 // compacts it on apply), so applied rows are written without it (payload: {"omitted":true}). Rows still
-// waiting for /import apply keep their payload: without it they could not be applied after a restore.
+// waiting for /setup import apply keep their payload: without it they could not be applied after a restore.
 async function addonImportRows(transaction: Prisma.TransactionClient): Promise<unknown[]> {
   const applied = await transaction.addonImport.findMany({ where: { status: "APPLIED" }, omit: { payload: true } });
   const pending = await transaction.addonImport.findMany({ where: { status: { not: "APPLIED" } } });

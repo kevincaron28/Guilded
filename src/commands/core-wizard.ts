@@ -85,7 +85,7 @@ async function rulesStep(coreId: string, guildId: string, note: string) {
     btn("ep", "Change EP values"),
     ...(settings?.coreLootOnly ? [] : [btn("pool", core.separatePool ? "Own point pool: ON" : "Own point pool: off", core.separatePool ? ButtonStyle.Success : ButtonStyle.Secondary)])
   ];
-  // Prices are used by EPGP priority loot and by /officer loot award when the GP is left out, so they
+  // Prices are used by EPGP priority loot and by /lead loot award when the GP is left out, so they
   // can be set whatever the loot system.
   buttons.push(btn("prices", "Item prices", rules.lootMode === "PRIORITY" ? ButtonStyle.Primary : ButtonStyle.Secondary));
   if (rules.lootMode === "RESERVE") buttons.push(btn("reserves", `Reserves per player: ${rules.reservesPerPlayer}`));

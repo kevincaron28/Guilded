@@ -10,7 +10,7 @@ import { participationRules } from "./participation-rules.js";
 
 // Helper nominations wait for a Discord officer other than the two members involved. Each one
 // gets a review card in the Discord admin channel (the community officers' channel, not the WoW
-// officers' log) with Approve / Reject buttons; /participation claims and review still work.
+// officers' log) with Approve / Reject buttons; /setup participation claims and review still work.
 
 const say = (lang: Lang, en: string, fr: string) => lang === "fr" ? fr : en;
 const POSTING = "posting";
@@ -68,7 +68,7 @@ export async function postNominationCards(guild: Guild, database: PrismaClient, 
   return posted;
 }
 
-// The shared approve/reject path for /participation review and the card buttons.
+// The shared approve/reject path for /setup participation review and the card buttons.
 export async function reviewNomination(guild: Guild, database: PrismaClient, guildId: string, id: string, actorId: string, approve: boolean, note: string, seasonId?: string) {
   const claim = await database.communityKudos.findFirst({ where: { id, ...(seasonId ? { seasonId } : {}), season: { guildId, game: "DISCORD" } }, include: { season: { include: { participation: true } } } });
   if (!claim) throw new Error("Nomination introuvable / Nomination not found.");

@@ -10,7 +10,7 @@ import { characterKey } from "../../companion/character-identity.mjs";
 import { gameEditionOf } from "./game-edition.js";
 import { contestCharacter, detachCharacter, pairedSince, type LinkEvidence } from "./character-move.js";
 
-// Linking without a companion: a member gets one code (/character pair, the welcome button) and
+// Linking without a companion: a member gets one code (/character link, the welcome button) and
 // pastes `/guilded verify CODE` in WoW chat once. The addon keeps it with the account's saved data,
 // so every character they play repeats it in the guild digest. Every guildmate's addon keeps a
 // digest only under the name of the character the game says sent it, and a companion upload brings

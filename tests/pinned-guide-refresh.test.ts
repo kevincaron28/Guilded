@@ -63,6 +63,7 @@ describe("existing Discord guide maintenance", () => {
     const fields = embed.fields as { name: string; value: string }[];
     expect(fields.every(field => field.value.length <= 1024)).toBe(true);
     expect((embed.title?.length ?? 0) + (embed.description?.length ?? 0) + (embed.footer?.text.length ?? 0) + fields.reduce((n, f) => n + f.name.length + f.value.length, 0)).toBeLessThanOrEqual(6000);
-    expect(JSON.stringify(embed)).toContain("/wow use");
+    expect(JSON.stringify(embed)).toContain("/setup guild");
+    expect(JSON.stringify(embed)).toContain("/character link");
   });
 });

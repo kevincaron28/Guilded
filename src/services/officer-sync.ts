@@ -1,5 +1,5 @@
 // /guilded verify codes and addon-only members' data reach the bot only with an upload from an
-// officer's companion (Guild.officerSyncAt). After this long without one, members (/character pair)
+// officer's companion (Guild.officerSyncAt). After this long without one, members (/character link)
 // and officers (/setup status) are told.
 export const OFFICER_SYNC_DAYS = 14;
 

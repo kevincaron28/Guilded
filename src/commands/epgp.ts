@@ -19,7 +19,7 @@ const auditService = createAuditService(prisma);
 
 // Which point pool: leave empty for the guild pool, or name a raid core that keeps its own.
 const poolOption = (o: import("discord.js").SlashCommandStringOption) =>
-  o.setName("core").setDescription("Raid core with its own points (defaults to this core channel)").setAutocomplete(true);
+  o.setName("core").setDescription("Raid core (default: this channel)").setAutocomplete(true);
 
 export const epgpCommand = new SlashCommandBuilder()
   .setName("epgp")
@@ -106,7 +106,7 @@ export async function executeEpgp(interaction: ChatInputCommandInteraction): Pro
       shown = await epgpService.getStanding(memberId, baseGp, pool.id);
     }
     const history = await epgpService.getHistory(memberId, 10, pool.id);
-    // Entry IDs are shown so officers can pass one to /officer epgp reverse.
+    // Entry IDs are shown so officers can pass one to /lead epgp reverse.
     await interaction.reply({
       content: [`${other ? `**${other.username}** - ` : ""}EP: **${shown.ep}** | GP: **${shown.gp}** | PR: **${shown.pr.toFixed(3)}**`,
         ...history.map((row) => `EP ${row.epAmount >= 0 ? "+" : ""}${row.epAmount}, GP ${row.gpAmount >= 0 ? "+" : ""}${row.gpAmount} — ${row.reason} \`${row.id}\``)].join("\n"),

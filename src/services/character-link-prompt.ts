@@ -6,7 +6,7 @@ import { companionWebUrl } from "./companion-links.js";
 import { officerSyncRecent } from "./officer-sync.js";
 import { linkStatusLines, memberLinkStatus } from "./link-status.js";
 
-// Shared by the welcome button and /character pair so the two entry points never drift.
+// Shared by the welcome button and /character link so the two entry points never drift.
 export async function characterLinkPrompt(database: PrismaClient, guildId: string, memberId: string, discordGuildId: string, lang: Lang, mode: "addon" | "companion" = "addon") {
   const characters = await database.character.findMany({
     where: { memberId, member: { guildId } },
@@ -57,4 +57,34 @@ export async function characterLinkPrompt(database: PrismaClient, guildId: strin
     components: row.components.length ? [row] : [],
     allowedMentions: { parse: [] as [] }
   };
+}
+
+// /character link with nothing pasted (commands restructure, November 2026): the member's own
+// linked characters and the simple ways to link one. Deliberately no list of unclaimed or reported
+// characters to pick from: picking made it easy to claim someone else's character by mistake
+// (owner, November 2026). Officers still link those with /officer character link.
+export async function characterLinkHelp(database: PrismaClient, guildId: string, memberId: string, discordGuildId: string, lang: Lang) {
+  const characters = await database.character.findMany({
+    where: { memberId, member: { guildId } },
+    select: { name: true, realm: true, isMain: true },
+    orderBy: [{ isMain: "desc" }, { name: "asc" }],
+    take: 6
+  });
+  const listing = characters.length
+    ? [t(lang, "pair.linked"), ...characters.slice(0, 5).map((character) => t(lang, character.isMain ? "pair.main" : "pair.alt", {
+      name: escapeMarkdown(character.name.slice(0, 50)), realm: escapeMarkdown(character.realm.slice(0, 50))
+    })), ...(characters.length > 5 ? [t(lang, "pair.more")] : [])].join("\n")
+    : t(lang, "pair.none");
+  const code = formatVerifyCode(await verifyCodeFor(database, guildId, memberId));
+  const embed = new EmbedBuilder().setTitle(t(lang, "link.title")).setColor(0xd4af37).setDescription(listing)
+    .addFields(
+      { name: t(lang, "link.waysTitle"), value: t(lang, "link.ways", { code }) },
+      { name: t(lang, "link.pasteTitle"), value: t(lang, "link.paste") }
+    );
+  // The same two buttons /character pair had: the companion page, and a one-use code for older companions.
+  const row = new ActionRowBuilder<ButtonBuilder>();
+  const url = companionWebUrl(discordGuildId);
+  if (url) row.addComponents(new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel(t(lang, "pair.online")).setURL(url));
+  row.addComponents(new ButtonBuilder().setStyle(ButtonStyle.Secondary).setCustomId(`onboard:paircode:${discordGuildId}`).setLabel(t(lang, "pair.codeButton")));
+  return { embeds: [embed], components: [row], allowedMentions: { parse: [] as [] } };
 }

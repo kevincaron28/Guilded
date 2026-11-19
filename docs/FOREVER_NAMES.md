@@ -62,7 +62,7 @@ the roster loads and `/guilded names` lists them. Nothing is deleted.
   points. A ledger row named only "Lebowski" (an 8.4 addon) goes to the member when every
   "Lebowski …" character is theirs (`ledgerOwner`); when several members have one, the row is held
   as `SHARED_FIRST_NAME`: the "legacy account" an officer assigns. It shows in the officer log after
-  the sync and in `/import held`; the officer links that name to the right member with
+  the sync and in `/setup import held`; the officer links that name to the right member with
   `/officer character link`, and the next sync imports it. Nothing is guessed.
 - `linkPairedCharacter`: the member's own upload renames their own first-name row to the full name
   (old name in `legacyName`), so their next alt with the same first name becomes a new row.
@@ -90,7 +90,7 @@ After the 8.5 deploy (the deploy runs `npm run db:update`, which adds the `legac
    ```bash
    npm run names:forever -- --apply
    ```
-4. For each REVIEW line and each `SHARED_FIRST_NAME` row in `/import held`, an officer decides:
+4. For each REVIEW line and each `SHARED_FIRST_NAME` row in `/setup import held`, an officer decides:
    link the first name to the member it belongs to (`/officer character link`) or dismiss the entry.
 5. Undo, if ever needed: a renamed row has its old name in `legacyName`
    (`UPDATE "Character" SET name = "legacyName" WHERE "legacyName" IS NOT NULL AND ...`).

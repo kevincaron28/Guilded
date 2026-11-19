@@ -56,7 +56,7 @@ describe("/guilded verify", () => {
     const s = loggedIn();
     s.load("Locale.lua");
     s.run(`GuildedDB.settings.language = "fr"; SlashCmdList["GUILDED"]("verify")`);
-    expect(s.chat().join("\n")).toContain("Sur Discord, utilisez /character pair");
+    expect(s.chat().join("\n")).toContain("Sur Discord, utilisez /character link");
   });
 });
 

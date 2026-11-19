@@ -7,7 +7,7 @@ import { markMemberChanged } from "./member-sync-events.js";
 // Linking audit T3 (docs/plans/LINKING_AUDIT_2026-11-10.md, owner decisions of 10 November 2026).
 //
 // Proof order. A link remembers what proved it (Character.linkEvidence), weakest to strongest:
-//   named     typed in, /character claim, a Discord name match, an invite request
+//   named     typed in, /character link, a Discord name match, an invite request
 //   companion the member's own signed-in companion uploaded it
 //   heard     a guildmate's addon heard the member's /guilded verify code from that character
 //   officer   an officer linked or moved it by hand, or an officer's own addon heard the code

@@ -152,7 +152,7 @@ describe("the officer notice for held entries", () => {
     expect(en).toContain("Addon entries on hold** (3)");
     expect(en).toContain("1 for a character nobody linked (Pug)");
     expect(en).toContain("/guilded void");
-    expect(en).toContain("/import held");
+    expect(en).toContain("/setup import held");
     expect(heldNotice(rows, "fr")).toContain("Entrées de l'addon en attente** (3)");
   });
   it("tells officers about the same failed import once an hour, not on every upload", () => {

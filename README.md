@@ -25,7 +25,7 @@ Check each channel for its version: the Microsoft Store companion updates separa
 - **Guildmates or addon-only players:** follow [the member install guide](docs/MEMBER_INSTALL.md).
   Install into the client you actually play: the folder beside the game's .exe (the beta used
   `_classic_beta_`; check again on 4 November). To connect the companion, choose Sign in with Discord
-  (a `/character pair` code still works).
+  (a `/character link` code still works).
 - **Add the hosted bot:** [add it to your server](docs/HOSTED_PILOT.md) and run `/setup start`; no hosting or database account needed. Guilded Lite (setup, help, bug reports, dungeon groups, basic signups) works right away; KCaron's approval unlocks addon sync, EP/GP, seasons and the guild page. Optional [support](docs/SUPPORT_GUILDED.md) never buys approval.
 - **Run your own guild's bot:** follow [the illustrated beginner walkthrough](docs/OWNER_WALKTHROUGH.md), with Discord and Oracle account links, screenshots and success checks.
 - **Plan a quick installation:** use the [30-minute setup checklist](docs/QUICK_START.md), including what must be ready first.
@@ -85,7 +85,7 @@ npm run db:update                      # applies the database migrations
 npm run dev
 ```
 
-`.env.local` needs `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, `DISCORD_GUILD_ID`, `DATABASE_URL`. Companions authenticate using `/character pair`. `WCL_CLIENT_ID` and `WCL_CLIENT_SECRET` are optional (they turn on `/raid wcl`).
+`.env.local` needs `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, `DISCORD_GUILD_ID`, `DATABASE_URL`. Companions authenticate using `/character link`. `WCL_CLIENT_ID` and `WCL_CLIENT_SECRET` are optional (they turn on `/raid wcl`).
 On Windows, `start-bot.bat` does the database update, starts the companion app and restarts the bot if it
 crashes. Never commit `.env*` or `companion/companion.config.json` (both are already gitignored).
 
@@ -112,7 +112,7 @@ WoW addon --(saved file on logout or /reload)--> companion --(HTTPS)--> bot --> 
 
 - The game only writes the addon's data file on `/reload` or logout, so a reload (or logging out) is what
   sends new data. Nothing reloads the game on its own unless a player opts in with `/guilded sync auto on`.
-- Uploads wait as a preview until an officer runs `/import apply`, unless `/config auto-import` is on.
+- Uploads wait as a preview until an officer runs `/setup import apply`, unless `/config auto-import` is on.
 - The API defaults to `127.0.0.1`; use HTTPS behind a reverse proxy remotely. Uploads and standings require a guild-scoped personal pairing credential.
 - Each WoW guild keeps its own saved data in the addon; a realm rename keeps the data.
 

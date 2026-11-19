@@ -56,7 +56,7 @@ export function createCraftOfferService(database: Db) {
       guildId: string; crafterId: string; item: string; profession?: string | undefined; price?: string | undefined;
       materialsProvided: boolean; note?: string | undefined; days?: number | undefined; allowUnverified: boolean; now?: Date;
     }) {
-      if (!(await this.isEnabled(input.guildId))) throw new Error("Crafter offers are off on this server. An officer can turn them on with /craft offer-setting.");
+      if (!(await this.isEnabled(input.guildId))) throw new Error("Crafter offers are off on this server. An officer can turn them on with /config craft offers.");
       const item = input.item.trim();
       if (item.length < 2) throw new Error("Name the item you can craft.");
       const days = Math.min(OFFER_LIMITS.maxDays, Math.max(1, Math.floor(input.days ?? OFFER_LIMITS.defaultDays)));

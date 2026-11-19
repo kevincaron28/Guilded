@@ -86,7 +86,7 @@ export async function executeImportApply(interaction: ChatInputCommandInteractio
       + (result.loot.recorded ? ` ${result.loot.recorded} in-game loot award(s) added to /loot history.` : "")
       + (result.loot.unmatched.length ? ` Loot for unlinked characters skipped: ${result.loot.unmatched.join(", ")}.` : "")
       + (result.voided ? ` ${result.voided} entr${result.voided === 1 ? "y" : "ies"} voided in game reversed.` : "")
-      + (result.held.rows.length ? ` **${result.held.rows.length} entr${result.held.rows.length === 1 ? "y is" : "ies are"} on hold** (see \`/import held\`).` : "")
+      + (result.held.rows.length ? ` **${result.held.rows.length} entr${result.held.rows.length === 1 ? "y is" : "ies are"} on hold** (see \`/setup import held\`).` : "")
       + (result.rejected.length ? ` ${result.rejected.length} malformed row(s) were left out.` : "")
       + raidReport(result.raids)
       + (calendar && describeCalendar(calendar) ? `\n\n**Calendar**\n${describeCalendar(calendar)}` : "")

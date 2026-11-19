@@ -26,7 +26,7 @@ describe("private signup character selection", () => {
     const i = interaction([], acknowledged);
     expect(await pickSignupCharacter(i as never, 'guild', 'member')).toBeNull();
     const send = acknowledged ? i.followUp : i.editReply;
-    expect(send).toHaveBeenCalledWith(expect.objectContaining({ content: expect.stringContaining('/character pair'), components: [] }));
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({ content: expect.stringContaining('/character link'), components: [] }));
     expect(send.mock.calls[0]![0].content).toContain('Choisis ton personnage');
     expect(i.message.awaitMessageComponent).not.toHaveBeenCalled();
   });

@@ -77,7 +77,7 @@ export const configCommand = new SlashCommandBuilder()
     .addStringOption((o) => o.setName("zone").setDescription("IANA name, e.g. America/Toronto, Europe/Paris").setRequired(true)))
   .addSubcommand((sub) => sub.setName("weekly-report").setDescription("Post a weekly guild activity report in the notify channel.")
     .addBooleanOption((o) => o.setName("enabled").setDescription("Turn the weekly report on or off").setRequired(true)))
-  .addSubcommand((sub) => sub.setName("auto-import").setDescription("Apply addon uploads from the companion by itself (no /import apply).")
+  .addSubcommand((sub) => sub.setName("auto-import").setDescription("Apply addon uploads from the companion by itself (no /setup import apply).")
     .addBooleanOption((o) => o.setName("enabled").setDescription("Apply uploads automatically").setRequired(true)))
   .addSubcommand((sub) => sub.setName("wcl-guild").setDescription("Warcraft Logs: find the guild's new reports by itself and check them against attendance.")
     .addStringOption((o) => o.setName("guild").setDescription("The guild's page link on warcraftlogs.com (.../guild/id/12345) or its number"))
@@ -122,14 +122,14 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
         `Minimum bid: ${settings.minimumBid} DKP`,
         `Bid increment: ${settings.bidIncrement} DKP`,
         `Auction duration: ${settings.auctionDurationSec}s`,
-        `EPGP decay: ${(settings.epgpDecayPercent * 100).toFixed(0)}% (run \`/officer epgp decay\` to apply)`,
+        `EPGP decay: ${(settings.epgpDecayPercent * 100).toFixed(0)}% (run \`/lead epgp decay\` to apply)`,
         `EPGP base GP: ${settings.baseGp} (PR = EP / (GP + base))`,
         `Full-clear EP bonus: ${settings.epCompletionBonus}`,
         `Raid reminders: ${settings.raidReminderMinutes > 0 ? `${settings.raidReminderMinutes} min before start` : "off"}`,
         `Notifications: ${settings.notifyChannelId ? `<#${settings.notifyChannelId}>` : "disabled"}`,
         `Dungeon posts: ${settings.dungeonChannelId ? `<#${settings.dungeonChannelId}>` : "notify channel"}`,
         "Raid reports and loot logs: each raid core's own channels",
-        `Auto-apply addon uploads: ${settings.autoApplyImports ? "on" : "off (officers run /import apply)"}`,
+        `Auto-apply addon uploads: ${settings.autoApplyImports ? "on" : "off (officers run /setup import apply)"}`,
         settings.coreLootOnly ? "Butin : chaque core choisit sa méthode; EP/GP et prix séparés (/core edit)." : `Loot system: ${LOOT_MODE_LABEL[asLootMode(settings.lootMode)]} (cores can differ: /core rules)`,
         `WoW weekly report: ${settings.weeklyReportChannelId ? `<#${settings.weeklyReportChannelId}>` : "notify channel"}`,
         "Raid rosters: each raid core's own channel",
@@ -313,8 +313,8 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
     await guildService.updateSettings(context.guildId, { autoApplyImports: enabled });
     await interaction.reply({
       content: enabled
-        ? "Auto-apply is on: whatever the companion uploads (EPGP ledger, attendance, loot, dungeon runs, gear checks, discovered characters) is applied right away and announced. Duplicates are still skipped. Turn it off to review uploads with `/import apply` again."
-        : "Auto-apply is off: uploads wait for an officer's `/import apply`.",
+        ? "Auto-apply is on: whatever the companion uploads (EPGP ledger, attendance, loot, dungeon runs, gear checks, discovered characters) is applied right away and announced. Duplicates are still skipped. Turn it off to review uploads with `/setup import apply` again."
+        : "Auto-apply is off: uploads wait for an officer's `/setup import apply`.",
       flags: MessageFlags.Ephemeral
     });
     return;
@@ -355,7 +355,7 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
     await guildService.updateSettings(context.guildId, { lootMode: mode });
     await interaction.reply({
       content: `Loot system for the guild: **${LOOT_MODE_LABEL[mode]}**. ${LOOT_MODE_HELP[mode]}`
-        + (mode === "EPGP" ? " `/officer loot auction` and `/loot bid` work." : " `/officer loot auction` and `/loot bid` are off; officers use `/officer loot award`.")
+        + (mode === "EPGP" ? " `/lead loot auction` and `/loot bid` work." : " `/lead loot auction` and `/loot bid` are off; officers use `/lead loot award`.")
         + (mode === "PRIORITY" ? " Set the prices with `/core items`." : "")
         + "\nA raid core can use another system: `/core rules` or `/core setup`.",
       flags: MessageFlags.Ephemeral
@@ -375,7 +375,7 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
     await guildService.updateSettings(context.guildId, { characterSignups: enabled });
     const without = enabled ? await prisma.member.count({ where: { guildId: context.guildId, status: "ACTIVE", isTest: false, characters: { none: {} } } }) : 0;
     await interaction.reply({ content: enabled
-      ? `Character signups on: raid signups, applications and core spots now need one of the member's linked characters (a picker appears when they have several). ${without} active member(s) have no linked character yet; they link one with /character pair or /character add.`
+      ? `Character signups on: raid signups, applications and core spots now need one of the member's linked characters (a picker appears when they have several). ${without} active member(s) have no linked character yet; they link one with /character link or /character add.`
       : "Character signups off: members sign up as themselves. Characters already chosen on signups and cores are kept.", flags: MessageFlags.Ephemeral });
     return;
   }

@@ -29,10 +29,16 @@ export const statsCommand = new SlashCommandBuilder()
     .setDescriptionLocalizations({ fr: "Bilan hebdomadaire privé; sans filtres jours/core" }))
   .addBooleanOption(o => o.setName("server").setDescription("Server statistics: members, activity and a class chart").setDescriptionLocalizations({ fr: "Statistiques du serveur : membres, activité, graphique des classes" }))
   .addBooleanOption(o => o.setName("recap").setDescription("Yesterday's daily recap card, privately").setDescriptionLocalizations({ fr: "Le bilan d'hier, en privé" }))
-  .addBooleanOption(o => o.setName("recap-posts").setDescription("Officers: post the daily recap (default on)").setDescriptionLocalizations({ fr: "Officiers : publier le bilan quotidien (actif par défaut)" }))
-  .addBooleanOption(o => o.setName("records-posts").setDescription("Officers: post records broken each week (default off)").setDescriptionLocalizations({ fr: "Officiers : publier les records de la semaine (désactivé par défaut)" }))
   .addIntegerOption((o) => o.setName("days").setDescription("How far back (default 7)").setMinValue(1).setMaxValue(365))
   .addStringOption(o => o.setName("core").setDescription("Raid core (defaults to this channel)").setAutocomplete(true));
+
+// The two officer switches, under /officer reports posts since the commands restructure (November
+// 2026). Same handler (executeStats), which reads them before anything else.
+export const statsPostsCommand = new SlashCommandBuilder()
+  .setName("stats")
+  .setDescription("Daily recap and weekly records posts on or off.")
+  .addBooleanOption(o => o.setName("recap-posts").setDescription("Post the daily recap (default on)").setDescriptionLocalizations({ fr: "Publier le bilan quotidien (actif par défaut)" }))
+  .addBooleanOption(o => o.setName("records-posts").setDescription("Post records broken each week (default off)").setDescriptionLocalizations({ fr: "Publier les records de la semaine (désactivé par défaut)" }));
 
 // "12 (▲3)": a number and how it moved against the week before (none when there is no week before).
 export function withDelta(value: number, previous?: number): string {

@@ -7,8 +7,8 @@ import { localClassName } from "./character-display.js";
 import { professionName } from "./profession-style.js";
 
 // 8.5 track C3: the visual guild roster. One data object (class counts by level band, a profession grid) drawn two
-// ways: a share-card image (score-card.ts, shown by /report guild) and inline SVG charts on the roster dashboard.
-// The class and level numbers come from the same query and the same level bands as /report guild (guild-health.ts),
+// ways: a share-card image (score-card.ts, shown by /officer reports guild) and inline SVG charts on the roster dashboard.
+// The class and level numbers come from the same query and the same level bands as /officer reports guild (guild-health.ts),
 // so the picture and the text always agree.
 
 export interface RosterVisualClass { name: string; color: string; total: number; byBand: number[] }
@@ -18,7 +18,7 @@ export interface RosterVisual {
   members: number;
   bands: string[];
   classes: RosterVisualClass[];
-  /** Characters with no level reported (not in any band, as in /report guild). */
+  /** Characters with no level reported (not in any band, as in /officer reports guild). */
   unknownLevel: number;
   professions: RosterVisualProfession[];
 }

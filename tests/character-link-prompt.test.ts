@@ -17,7 +17,7 @@ vi.mock("../src/services/character-import.js", async (importOriginal) => ({
 
 import { characterLinkPrompt } from "../src/services/character-link-prompt.js";
 import { companionWebUrl } from "../src/services/companion-links.js";
-import { executeCharacter } from "../src/commands/character.js";
+import { executeCharacterLink } from "../src/commands/character.js";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -85,7 +85,7 @@ describe("private character connection instructions", () => {
     mocks.db.guild.findUnique.mockResolvedValue({ officerSyncAt: new Date(Date.now() - 15 * 86_400_000) });
     const stale = await characterLinkPrompt(mocks.db as never, "guild1", "member1", "server1", "en");
     expect(stale.embeds[0]!.data.fields![1]!.value).toContain("No officer's companion has synced in 2 weeks");
-    expect(stale.embeds[0]!.data.fields![1]!.value).toContain("/character import");
+    expect(stale.embeds[0]!.data.fields![1]!.value).toContain("/character link");
     mocks.db.guild.findUnique.mockResolvedValue({ officerSyncAt: null });
     const never = await characterLinkPrompt(mocks.db as never, "guild1", "member1", "server1", "fr");
     expect(never.embeds[0]!.data.fields![1]!.value).toContain("Aucun compagnon d'officier");
@@ -135,24 +135,27 @@ describe("private character connection instructions", () => {
     expect(embed.description).toContain("/character list");
   });
 
-  it("uses the same French instructions for /character pair and acknowledges before database work", async () => {
+  it("/character link with nothing pasted answers in French and acknowledges before database work", async () => {
     const interaction = {
       guild: { id: "server1" }, guildId: "server1", member: {},
-      options: { getSubcommand: () => "pair" }, deferReply: vi.fn(), editReply: vi.fn()
+      options: { getSubcommand: () => "link", getString: () => null, getBoolean: () => null }, deferReply: vi.fn(), editReply: vi.fn()
     };
     mocks.context.mockImplementation(async () => {
       expect(interaction.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
       return { guildId: "guild1", memberId: "member1" };
     });
-    await executeCharacter(interaction as never);
-    expect(interaction.editReply.mock.calls[0]![0].embeds[0].data.title).toBe("🔗 Tes personnages WoW");
+    await executeCharacterLink(interaction as never);
+    const reply = interaction.editReply.mock.calls[0]![0];
+    expect(reply.embeds[0].data.title).toBe("🔗 Lier tes personnages WoW");
+    expect(reply.embeds[0].data.fields[0].value).toContain("/guilded verify ABCD-EFGH");
+    expect(reply.components[0].toJSON().components.at(-1)).toMatchObject({ custom_id: "onboard:paircode:server1" });
     expect(mocks.issueCode).not.toHaveBeenCalled();
   });
 
   it.each([true, false])("confirms a manual main/alt link in French and acknowledges before database work (main=%s)", async (isMain) => {
     const interaction = {
       guild: { id: "server1" }, guildId: "server1", member: {},
-      options: { getSubcommand: () => "import", getString: () => "QG2;NewCharacter;Forever;MAGE;;60;;", getBoolean: () => null },
+      options: { getSubcommand: () => "link", getString: () => "QG2;NewCharacter;Forever;MAGE;;60;;", getBoolean: () => null },
       deferReply: vi.fn(), editReply: vi.fn()
     };
     mocks.context.mockImplementation(async () => {
@@ -160,7 +163,7 @@ describe("private character connection instructions", () => {
       return { guildId: "guild1", memberId: "member1" };
     });
     mocks.importCharacter.mockResolvedValue({ action: "created", name: "NewCharacter", isMain });
-    await executeCharacter(interaction as never);
+    await executeCharacterLink(interaction as never);
     expect(interaction.editReply.mock.calls[0]![0].content).toContain(isMain ? "comme ton principal" : "comme un alt");
     expect(interaction.editReply.mock.calls[0]![0].content).toContain(isMain ? "compagnon est facultatif" : "Aucun compagnon n'est requis");
     expect(mocks.issueCode).not.toHaveBeenCalled();

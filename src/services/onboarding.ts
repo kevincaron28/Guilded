@@ -355,7 +355,7 @@ export async function runOnboardingNudges(client: Client, now = new Date()): Pro
   return sent;
 }
 
-// The automatic game reminder (its own switch, /report games auto, off by default). Only queues; see game-reminder.ts.
+// The automatic game reminder (its own switch, /officer reports auto-remind, off by default). Only queues; see game-reminder.ts.
 export async function runGameReminders(client: Client, now = new Date()): Promise<number> {
   return runAutoGameReminders(client, prisma, async (discordGuild) => {
     const guild = await guildService.ensureGuild(discordGuild.id, discordGuild.name);

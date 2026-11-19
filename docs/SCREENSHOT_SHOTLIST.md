@@ -34,7 +34,7 @@ rectangle or arrow. Game shots at the normal UI scale, no other addons' clutter.
 | `link-ingame-reload.png` | WoW chat box with `/reload` typed, before pressing Enter | The typed command |
 | `link-companion-linked.png` | Companion window after linking: all status lines green and "Synced as <name> (Discord)" | The green dots and the Synced as line |
 | `link-discord-confirmation.png` | Discord, the direct message from the bot naming the linked characters | The character names |
-| `link-discord-character-pair.png` | Discord, the private reply to `/character pair` showing the `/guilded verify CODE` line (blur the code) | The `/guilded verify` line |
+| `link-discord-character-pair.png` | Discord, the private reply to `/character link` showing the `/guilded verify CODE` line (blur the code) | The `/guilded verify` line |
 | `link-ingame-verify.png` | WoW chat after pasting `/guilded verify CODE` and pressing Enter, with the "Your Discord link code is saved" line | The confirmation line (blur the code) |
 
 ## Later (not used by a guide yet)

@@ -23,17 +23,26 @@ admin. Discord hides officer commands from members. New here? [Start here](/star
 
 Type `/` in Discord and pick the command. Each row is one command; the words after it are its
 sub-commands. Your own views (profile, stats, status, wishlist) are private to you.
-In a French Discord the member commands also have French names, for example `/personnage` `profil` `metier` `souhaits` `delier`,
-`/artisanat` `demander` `liste` `qui` `mes-demandes` `proposer`, `/aide`, `/rapport` and `/promotion` `statut`.
+In a French Discord the member commands also have French names, for example `/personnage` `lier` `profil` `metier` `souhaits` `delier`,
+`/artisanat` `demander` `liste` `qui` `mes-demandes` `proposer`, `/classement`, `/aide`, `/rapport` and `/promotion` `statut`.
+
+**The seven to know:** `/help`, `/character link`, `/promotion status`, `/craft request`, `/leaderboard`, `/raid` and `/report bug`.
+Everything else is there when you need it. Commands that moved in November 2026 (`/character pair`, `import` and `claim`,
+`/wow`, `/import`, `/poll`, `/delete-my-data` and the officer parts of `/bank`, `/tag`, `/participation`, `/report` and `/craft`)
+answer privately with their new place for one release.
 
 ### Members
 
 | Command | What it does | Who |
 | --- | --- | --- |
 | `/help` | Lists the commands you can use | Everyone |
-| `/character` `pair` `add` `import` `claim` `unlink` `list` | Link your main and alts to your Discord account | Everyone |
+| `/character link` | Link your characters: DM the bot your character's full name, type it in the guild-invite channel, or paste `/guilded verify` in game. A `/guilded character` line or `/guilded share` code can be pasted into it | Everyone |
+| `/character` `add` `unlink` `list` `guild` | Add a character by hand; unlink one; your characters; choose your in-game guild | Everyone |
+| `/character privacy` | Hide or show you on the website; `action:delete` deletes your data | Everyone |
 | `/character` `profile` `achievements` `who` | Your profile and achievements card; look up any player | Everyone |
 | `/character` `profession` `attunement` `wishlist` `readiness` | Professions, attunements, item wishlist and your raid readiness. The character option is optional: your main is used | Everyone |
+| `/promotion` `status` | What is left before your next rank | Everyone |
+| `/leaderboard` `board:` | Dungeon rating (default), guild records, PvP duels, community points or EPGP | Everyone |
 | `/epgp` `balance` `history` `leaderboard` | Your EP, GP and priority; the guild board | Everyone |
 | `/loot` `bid` `history` `reserves` | Bid on an auction; loot history; soft reserves | Everyone |
 | `/craft` `request` `list` `who` `mine` `claim` `done` `release` `cancel` | Ask crafters for an item, or pick up requests | Everyone |
@@ -45,7 +54,6 @@ In a French Discord the member commands also have French names, for example `/pe
 | `/participation` `status` `nominate` `history` | Your Discord participation; recognise a helper | Everyone |
 | `/report` `bug` `ping` `stats` | Send a private bug report; check the bot is up; guild activity | Everyone |
 | `/automation` `recap` | Weekly recap by private message (off by default) | Everyone |
-| `/wow` `list` `use` | Choose which in-game guild your commands use | Everyone |
 | `/poe` `pair` `status` `runs` `summary` | Path of Exile 2 mapping journal | Everyone | <!--poe-->
 
 ### Raids
@@ -83,7 +91,7 @@ In a French Discord the member commands also have French names, for example `/pe
 | `/dungeon` `leaderboard` `season` `records` `player` `history` | Season rating, fastest clears, a player's runs (`player` offers your guild's characters as you type; your own stats are private) | Everyone |
 | `/dungeon` `archive` `hall-of-fame` `rules` `catalog` `keystones` `together` | Past seasons, scoring rules, dungeon list, this week's team goal | Everyone |
 | `/dungeon` `group` `alerts` `watch` | Form a group with a voice channel; get pinged for groups that fit you | Everyone |
-| `/officer dungeon` `invalidate` `award` `audit` `config` | Correct a run, adjust guild points, read the point history | Officers |
+| `/officer dungeon` `invalidate` `award` `audit` `config` `goal` `announce` | Correct a run, adjust guild points, read the point history; the weekly together goal and record callouts | Officers |
 | `/organize dungeon-seasons preview` | See the current and next dungeon seasons | Organizers |
 
 ### Officers and setup
@@ -94,24 +102,25 @@ In a French Discord the member commands also have French names, for example `/pe
 | `/setup` `system` `testraid` `selfroles` | Sync status and retries; fake test raid; role buttons | Officers |
 | `/setup` `reset` `uninstall` | Erase Guilded's channels and data | Admin |
 | `/config` `view` `set` `welcome` `farewell` `roles` `channel` `timezone` `weekly-report` … | Server settings: welcome, roles, time zone, reports, loot mode, auto-import | Officers |
-| `/officer epgp` `award-ep` `award-gp` `decay` `reverse` | Give, decay or undo EP and GP | Officers |
-| `/officer loot` `auction` `award` `close` `priority` | Run loot auctions and awards | Officers |
+| `/lead epgp` `award-ep` `award-gp` `decay` `reverse` | Give, decay or undo EP and GP | Officers |
+| `/lead loot` `auction` `award` `close` `priority` | Run loot auctions and awards | Officers |
 | `/officer character` `unclaimed` `link` `autolink` | Link reported characters to Discord members | Officers |
 | `/officer export` | Download standings, EPGP, loot, attendance or roster as CSV | Officers |
-| `/import` `upload` `apply` `held` | Preview and apply addon data | Officers |
+| `/setup import` `upload` `apply` `held` | Preview and apply addon data | Officers |
 | `/mod` `warn` `timeout` `kick` `ban` `history` | Moderation | Officers |
 | `/mod` `application` `dni` | Review applications; do-not-invite list | Officers |
 | `/mod` `faq` | The answer channel: write answers the bot replies with | Officers |
 | `/mod` `page` `recruit` `leaderboard` `rankroles` | Public guild page, recruitment listing, public leaderboards, rank roles | Officers |
-| `/report` `inactive` `guild` | Inactive members; guild health | Officers |
+| `/officer reports` `inactive` `guild` `games` `remind` `auto-remind` `posts` | Inactive members; guild health; game reminders; daily recap and weekly records posts | Officers |
 | `/organize` | Community seasons, quizzes, honors, lotteries, gaming nights, challenges | Organizers |
-| `/poll` `create` `close` `weekly` `news` | Polls, the weekly question, and news posts | Officers |
-| `/participation` `settings` `channels` `claims` `review` `reverse` | Participation settings, nominations and awards | Officers |
-| `/wow` `add` `channel` `roles` | Add an in-game guild; bind a channel; set its roles | Officers |
+| `/organize poll` `create` `close` `weekly` `news` | Polls, the weekly question, and news posts | Officers |
+| `/setup participation` `settings` `channels` `claims` `review` `reverse` | Participation settings, nominations and awards | Officers |
+| `/setup guild` `add` `channel` `roles` | Add an in-game guild; bind a channel; set its roles | Officers |
 | `/poe setup` | Turn PoE2 tracking on or off | Officers |
 | `/automation` `question` `vacancies` | Automatic weekly question and dungeon-group matches | Officers |
-| `/tag` `set` `delete` | Create or remove saved texts | Officers |
-| `/craft permissions` · `/bank` `list` `handle` | Craft board permissions; handle bank requests | Officers |
+| `/setup tags` `set` `delete` | Create or remove saved texts | Officers |
+| `/config craft` `offers` `posts` `orders` `permissions` `notify` | Craft board switches and permissions | Officers |
+| `/officer bank` `list` `handle` `stock` `settings` | Bank requests, stock minimums and switches | Officers |
 
 ### Owner
 
@@ -135,9 +144,9 @@ Type `/guilded` (or `/gd`) in game. A bare `/guilded` opens the window; `/guilde
 | `/guilded help` | The main commands (`/guilded help all` lists every command you can use) | Everyone |
 | `/guilded standings [player]` | Standings, or one player's | Everyone |
 | `/guilded history [player]` | Your EP/GP and loot history | Everyone |
-| `/guilded share` | One paste with your character, gear check and attunements (Discord: `/character import`) | Everyone |
+| `/guilded share` | One paste with your character, gear check and attunements (Discord: `/character link`) | Everyone |
 | `/guilded character` | A line to link this character in Discord | Everyone |
-| `/guilded verify <code>` | Link all your characters to Discord at once (Discord: `/character pair`) | Everyone |
+| `/guilded verify <code>` | Link all your characters to Discord at once (Discord: `/character link`) | Everyone |
 | `/guilded sync` | How to send your data to Discord now | Everyone |
 | `/guilded attune <key>` | Mark your own attunement | Everyone |
 | `/guilded inspect` · `enchants` · `slots` | Gear check; missing-enchant and empty-slot rules | Everyone |

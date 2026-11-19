@@ -31,16 +31,18 @@ describe("command registration", () => {
   it("registers each top-level command exactly once", () => {
     const names = commands.map((command) => command.name);
     expect(new Set(names).size).toBe(names.length);
-    for (const name of ["setup", "config", "import", "loot", "apply", "mod", "tag", "character", "report", "poe", "team"]) expect(names).toContain(name);
+    for (const name of ["setup", "config", "leaderboard", "loot", "apply", "mod", "tag", "character", "report", "poe", "team"]) expect(names).toContain(name);
   });
 
   it("keeps the command list short: old commands live under a parent", () => {
     // Battleground planning adds /bg beside weekly /team; /lead, /officer and /organize (hidden from
     // members) hold the leader tools; legacy smaller commands stay merged.
     // Discord's separate 4000-character command limit is enforced in commands-shape.test.ts.
-    expect(commands.length).toBeLessThanOrEqual(29);
+    // Commands restructure (November 2026): 29 -> 26. /wow, /import, /poll and /delete-my-data went
+    // under /character, /setup and /organize; /leaderboard is new. The count only goes down from here.
+    expect(commands.length).toBeLessThanOrEqual(26);
     const names = commands.map((command) => command.name);
-    for (const gone of ["testraid", "selfroles", "who", "wcl", "dkp", "application", "import-apply", "readiness", "profession", "attunement", "wishlist", "dungeon-admin", "stats", "inactive", "export", "guildhealth", "health"]) {
+    for (const gone of ["testraid", "selfroles", "who", "wcl", "dkp", "application", "import-apply", "readiness", "profession", "attunement", "wishlist", "dungeon-admin", "stats", "inactive", "export", "guildhealth", "health", "wow", "import", "poll", "delete-my-data"]) {
       expect(names).not.toContain(gone);
     }
   });

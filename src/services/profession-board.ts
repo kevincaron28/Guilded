@@ -11,7 +11,7 @@ import { categoryLabel, categoryOf, groupByCategory } from "./recipe-categories.
 
 // 8.5 track D2: ONE post per profession in the craft forum, edited in place (the duel-board pattern), listing every
 // recipe and the crafters who know it with their last seen. It replaces the old "top 3 per profession" directory
-// text. On by default (GuildSettings.professionPostsEnabled); an officer can switch it off with /craft posts-setting.
+// text. On by default (GuildSettings.professionPostsEnabled); an officer can switch it off with /config craft posts.
 // Posts are found by their thread title + embed footer, so no message id is stored. Nothing is ever awarded.
 
 export const PROFESSION_POST_MARKER = "Guilded profession board";

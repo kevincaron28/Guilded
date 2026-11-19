@@ -140,7 +140,7 @@ Run **`/core setup`** for each raid roster. Select the loot method and decide
 whether points use the guild pool or a separate core pool. Give a priority core
 item prices before testing an award. `/core edit` changes the roster and rules.
 
-Choose whether officers review uploads with `/import apply`, or enable automatic
+Choose whether officers review uploads with `/setup import apply`, or enable automatic
 guild import with `/config auto-import`. Personal member uploads remain
 restricted to their own characters; do not give everyone officer access for sync.
 
@@ -150,7 +150,7 @@ roster/signup channels and cannot see officer-only channels or use officer actio
 ## 4. Connect one officer and one member
 
 Follow [the member install guide](MEMBER_INSTALL.md) on both PCs. Give each person
-your bot address and server ID; each obtains their own `/character pair` code.
+your bot address and server ID; each obtains their own `/character link` code.
 New desktop installs ask for **Your guild's bot address** beside the pairing
 fields. Older 5.0 builds have a prefilled Quebec Gold address: replace it in
 **Advanced preferences** before pairing with a different guild's bot. Upgrades
@@ -185,7 +185,7 @@ Our bot address: <https://our-host/api/v1/addon-imports>
 Windows companion: https://apps.microsoft.com/detail/9N680XX3QFL9
 Install the addon in your actual WoW client, log in, then /reload.
 Install the Windows companion and set our bot address (Advanced) before connecting.
-Use /character pair here in Discord to get your own private code.
+Use /character link here in Discord to get your own private code.
 Need help? Contact <officer>; share the error or support summary, never your code.
 ```
 

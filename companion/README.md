@@ -22,11 +22,11 @@ This lightweight companion watches a normalized addon export file and sends new 
 ## One-time setup
 
 1. Copy `companion.config.example.json` to `companion.config.json`.
-2. Set the bot URL, server ID and saved-data path. Run `/character pair` and enter its code as `pairingCode`.
+2. Set the bot URL, server ID and saved-data path. Run `/character link` and enter its code as `pairingCode`.
 3. Ensure the existing bot is running (do not start a second instance).
 4. Run `node companion/watcher.mjs`.
 
-To link this companion to your own Discord account, run `/character pair` in
+To link this companion to your own Discord account, run `/character link` in
 Discord and put the one-time code in `pairingCode` in `companion.config.json`.
 Start the watcher once; it exchanges the code, clears it, and stores the
 companion credential in that config. Future uploads link the exporter's own

@@ -27,7 +27,7 @@ bot deployment, installed-app upgrade or real-game verification was performed.
 1. After the bot update and migration, an officer uses `/poe setup enabled:true`.
    It is disabled by default and creates no channels or points.
 2. Members keep their existing Guilded companion pairing. New members use
-   `/poe pair`, then Settings → Link Discord account. `/character pair` works
+   `/poe pair`, then Settings → Link Discord account. `/character link` works
    for either game too. Pairing again revokes the old credential.
 3. In companion Settings, select **Read my PoE2 log and share map visits with
    this Discord guild**. Choose `logs/Client.txt` from the PoE2 installation.

@@ -1,4 +1,5 @@
 import type { Lang } from "../i18n.js";
+import { reportedFooter } from "./card-format.js";
 import type { ScoreCard } from "./score-card.js";
 import type { WeekRecap } from "./world-pvp-extras.js";
 import { killDeathRatio } from "./world-pvp.js";
@@ -30,6 +31,6 @@ export function worldPvpRecapCard(recap: WeekRecap, lang: Lang): ScoreCard {
       ...(recap.totals.deaths > 0 ? [{ label: t("Guild deaths", "Morts de la guilde"), value: String(recap.totals.deaths), note: `${t("K/D", "victoires/morts")} ${killDeathRatio(recap.totals.kills, recap.totals.deaths)}`, accent: "red" as const }] : [])
     ],
     rowsLabel: t("Players of the week", "Joueurs de la semaine"), rows,
-    footer: t("Counted by members' Guilded addon, capped each week · No points or awards", "Comptés par l'addon Guilded des membres, plafonnés chaque semaine · Aucun point ni récompense")
+    footer: reportedFooter(lang)
   };
 }

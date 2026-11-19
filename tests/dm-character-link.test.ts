@@ -116,7 +116,7 @@ describe("DM a character name to link it", () => {
     await handleCharacterDm(dm.message, database as never, { afterInvite: true });
     expect(claimCharacter).not.toHaveBeenCalled();
     expect(dm.reply).toHaveBeenCalledTimes(1);
-    expect((dm.reply.mock.calls[0] as unknown as [{ content: string }])[0].content).toContain("/character claim");
+    expect((dm.reply.mock.calls[0] as unknown as [{ content: string }])[0].content).toContain("guild-invite channel");
     const quiet = message("Nobody Known");
     await handleCharacterDm(quiet.message, database as never, { afterInvite: true });
     expect(quiet.reply).not.toHaveBeenCalled();

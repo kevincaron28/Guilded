@@ -294,12 +294,11 @@ describe("battleground ladder (separate from the duel ladder)", () => {
     const empty = bgLadderEmbed({ brackets: [], participations: 0, edition: "forever" }, "fr").toJSON();
     expect(empty.title).toBe("🏴 Classement des champs de bataille");
     expect(empty.footer?.text).not.toContain(BG_LADDER_MARKER);
-    expect(empty.footer?.text).toContain("non vérifiés par Blizzard");
+    expect(empty.footer?.text).toContain("Rapporté par les addons des membres");
     const json = bgLadderEmbed({ brackets: bgLadders([group("a", "win", 2)], names), participations: 2, edition: "forever" }, "en").toJSON();
     expect(json.fields?.[0]).toMatchObject({ name: "casual · 10-19" });
     expect(json.fields?.[0]?.value).toContain("🥇 Aria — 2W 0L · 100% · 2 games");
-    expect(json.footer?.text).toContain("not verified by Blizzard");
-    expect(json.footer?.text).toContain("separate from the duel ladder");
+    expect(json.footer?.text).toBe("Reported by members' addons · no points");
   });
 });
 

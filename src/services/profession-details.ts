@@ -90,7 +90,7 @@ export function professionDetailsEmbed(post: ProfessionPost, recipe: ProfessionR
   if ("thumbnail" in base && base.thumbnail) embed.setThumbnail(base.thumbnail.url);
   embed.addFields({ name: `${professionTitle(post.profession, lang)} · ${fr ? "Artisans" : "Crafters"} (${recipe.crafters.length})`, value: `${professionLegend(lang)}\n${crafters || (fr ? "Aucun" : "None")}`.slice(0, 1024) });
   const source = details ? (fr ? " · données d'objet : Blizzard" : " · item data: Blizzard") : "";
-  return embed.setFooter({ text: (fr ? "Recettes tirées des relevés de métiers · dernière présence selon le registre" : "Recipes from members' profession scans · last seen from the guild roster") + source });
+  return embed.setFooter({ text: (fr ? "Tiré des relevés de métiers des membres" : "From members' profession scans") + source });
 }
 
 /** Finds the post and recipe a Details pick refers to; null when either is gone. */

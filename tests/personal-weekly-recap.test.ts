@@ -43,3 +43,21 @@ describe("private personal recap", () => {
     expect(en.fields![2]!.value).not.toContain("**Raid**");
   });
 });
+
+describe("personal recap card (9.4)", () => {
+  it("draws points, badges and signups as a card, and falls back to the text embed", async () => {
+    const { personalWeeklyRecapCard, personalWeeklyRecapMessage } = await import("../src/services/personal-weekly-recap.js");
+    const database = db();
+    database.communityBadge.findMany.mockResolvedValue([{ code: "first-boss", earnedAt: now }]);
+    database.raidSignup.findMany.mockResolvedValue([{ status: "SIGNED_UP", raid: { title: "Karazhan", scheduledAt: now } }]);
+    const recap = await personalWeeklyRecap(database as never, "guild", "actor", now);
+    const card = personalWeeklyRecapCard(recap, "en", "Private");
+    expect(card.stats.map(stat => stat.label)).toEqual(["Community points", "Badges earned", "Signups, next 7 days"]);
+    expect(card.rows?.map(row => row.name)).toEqual(["Karazhan", "first-boss"]);
+    expect(personalWeeklyRecapCard(recap, "fr", "Privé").title).toBe("Mon bilan hebdomadaire");
+    const message = await personalWeeklyRecapMessage(recap, "en");
+    // Either the picture (with its alt text) or, when it cannot be drawn, the full text: never both and never nothing.
+    expect(message.embeds).toHaveLength(1);
+    expect(message.files.length === 1 || message.embeds[0]!.data.fields?.length === 3).toBe(true);
+  });
+});

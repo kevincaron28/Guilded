@@ -140,19 +140,16 @@ const STRINGS = {
   "stats.applications": { en: "📝 Applications", fr: "📝 Candidatures" },
   "stats.mostRaids": { en: "Most raids attended", fr: "Plus de raids" },
   "stats.mostLoot": { en: "Most loot", fr: "Plus de butin" },
-  "weekly.week": { en: "Week of {start} to {end} (weekly reset to weekly reset)", fr: "Semaine du {start} au {end} (d'une réinitialisation à l'autre)" },
+  "weekly.week": { en: "Week {start} → {end}", fr: "Semaine {start} → {end}" },
   "weekly.players": { en: "🏆 Players of the week", fr: "🏆 Joueurs de la semaine" },
   "weekly.raider": { en: "**Raider of the week:** {name}, +{ep} EP ({raids} raid(s))", fr: "**Raideur de la semaine :** {name}, +{ep} EP ({raids} raid(s))" },
   "weekly.hero": { en: "**Dungeon hero:** {name}, {points} community point(s) from dungeons", fr: "**Héros des donjons :** {name}, {points} point(s) de communauté (donjons)" },
   "weekly.cores": { en: "⚔️ Raid cores", fr: "⚔️ Groupes de raid" },
-  "weekly.coreLine": { en: "{raids} raid(s), {kills} boss kill(s), attendance {attendance}, {loot} item(s) for {gp} GP", fr: "{raids} raid(s), {kills} boss vaincu(s), présence {attendance}, {loot} objet(s) pour {gp} GP" },
   "weekly.perfect": { en: "Every raid: {names}", fr: "Tous les raids : {names}" },
   "weekly.dungeons": { en: "🗝️ Dungeon week", fr: "🗝️ Semaine des donjons" },
   "weekly.dungeonRuns": { en: "{completed} run(s) completed ({runs} recorded)", fr: "{completed} donjon(s) terminé(s) ({runs} enregistré(s))" },
   "weekly.fastest": { en: "Fastest", fr: "Plus rapides" },
   "weekly.topPoints": { en: "Most community points from dungeons", fr: "Plus de points de communauté (donjons)" },
-  "weekly.firsts": { en: "First completions", fr: "Premières réussites" },
-  "weekly.records": { en: "Records", fr: "Records" },
   "weekly.leaderboard": { en: "🏆 Full rankings on the public leaderboards: {url}", fr: "🏆 Classement complet sur les classements publics : {url}" },
   "weekly.nothing": { en: "A quiet week: nothing recorded.", fr: "Semaine calme : rien d'enregistré." },
 
@@ -173,12 +170,12 @@ const STRINGS = {
   "onboard.button.chat": { en: "💬 WoW chat ↔ Discord", fr: "💬 Chat WoW ↔ Discord" },
   "onboard.panel.chat": { en: "💬 **WoW chat ↔ Discord** — how guild chat reaches Discord, and how to link your character.", fr: "💬 **Chat WoW ↔ Discord** — comment le chat de guilde arrive sur Discord, et comment lier ton personnage." },
   "onboard.chat.guide": {
-    en: "**Guild chat and Discord**\n1) **Blizzard's own link:** if your guild's leader connected the guild to this Discord with Blizzard's guild Discord integration, guild chat can show up in a Discord channel. Ask an officer where it is. Blizzard's link does not know which Discord member you are.\n2) **Tell Guilded who you are** so your name, gear and stats show up with you here. Easiest: ask for your guild invite with the **Request a guild invite** button (or type your full character name in <#{channel}>). When your character joins the guild and a guildmate's addon or companion sees it, I link it to you and send you one message. Already in the guild? Use `/character pair` and paste the `/guilded verify` line in WoW chat once.\nNot your character? `/character unlink`.",
-    fr: "**Chat de guilde et Discord**\n1) **Le lien de Blizzard :** si le chef de ta guilde a relié la guilde à ce Discord avec l'intégration Discord de guilde de Blizzard, le chat de guilde peut apparaître dans un salon Discord. Demande à un officier où il se trouve. Le lien de Blizzard ne sait pas qui tu es sur Discord.\n2) **Dis à Guilded qui tu es** pour que ton nom, ton équipement et tes stats apparaissent avec toi ici. Le plus simple : demande ton invitation de guilde avec le bouton **Demander une invitation de guilde** (ou écris le nom complet de ton personnage dans <#{channel}>). Quand ton personnage rejoint la guilde et qu'un addon ou un compagnon de guildien le voit, je le lie à toi et je t'envoie un message. Déjà dans la guilde ? Utilise `/character pair` et colle la ligne `/guilded verify` dans le chat WoW une fois.\nCe n'est pas ton personnage ? `/character unlink`."
+    en: "**Guild chat and Discord**\n• Blizzard's own Discord link, if your guild leader set it up, shows guild chat in a channel (ask an officer). It does not know who you are here.\n• To link your character: press **Request a guild invite** (or type your full character name in <#{channel}>). Already in the guild? `/character pair`, then paste the `/guilded verify` line in WoW chat.",
+    fr: "**Chat de guilde et Discord**\n• Le lien Discord de Blizzard, si le chef de guilde l'a activé, affiche le chat de guilde dans un salon (demande à un officier). Il ne sait pas qui tu es ici.\n• Pour lier ton personnage : appuie sur **Demander une invitation de guilde** (ou écris son nom complet dans <#{channel}>). Déjà dans la guilde ? `/character pair`, puis colle la ligne `/guilded verify` dans le chat WoW."
   },
   "onboard.chat.guideNoChannel": {
-    en: "**Guild chat and Discord**\n1) **Blizzard's own link:** if your guild's leader connected the guild to this Discord with Blizzard's guild Discord integration, guild chat can show up in a Discord channel. Ask an officer where it is. Blizzard's link does not know which Discord member you are.\n2) **Tell Guilded who you are** so your name, gear and stats show up with you here: use `/character pair` and paste the `/guilded verify` line in WoW chat once.\nNot your character? `/character unlink`.",
-    fr: "**Chat de guilde et Discord**\n1) **Le lien de Blizzard :** si le chef de ta guilde a relié la guilde à ce Discord avec l'intégration Discord de guilde de Blizzard, le chat de guilde peut apparaître dans un salon Discord. Demande à un officier où il se trouve. Le lien de Blizzard ne sait pas qui tu es sur Discord.\n2) **Dis à Guilded qui tu es** pour que ton nom, ton équipement et tes stats apparaissent avec toi ici : utilise `/character pair` et colle la ligne `/guilded verify` dans le chat WoW une fois.\nCe n'est pas ton personnage ? `/character unlink`."
+    en: "**Guild chat and Discord**\n• Blizzard's own Discord link, if your guild leader set it up, shows guild chat in a channel (ask an officer). It does not know who you are here.\n• To link your character: `/character pair`, then paste the `/guilded verify` line in WoW chat.",
+    fr: "**Chat de guilde et Discord**\n• Le lien Discord de Blizzard, si le chef de guilde l'a activé, affiche le chat de guilde dans un salon (demande à un officier). Il ne sait pas qui tu es ici.\n• Pour lier ton personnage : `/character pair`, puis colle la ligne `/guilded verify` dans le chat WoW."
   },
   "onboard.panel.title": { en: "👋 Start here", fr: "👋 Commence ici" },
   "onboard.panel.intro": {
@@ -235,8 +232,8 @@ const STRINGS = {
   "pair.verifyTitle": { en: "🎮 No Windows PC? One line instead", fr: "🎮 Pas de PC Windows ? Une ligne à la place" },
   "pair.verifyCompanionTitle": { en: "🎮 No companion? 1 step instead", fr: "🎮 Pas de compagnon ? 1 étape à la place" },
   "pair.verify": {
-    en: "Copy this line, paste it in WoW chat on any of your characters and press Enter:\n```\n/guilded verify {code}\n```That's all. Every character you play on this WoW account links itself, the first one as your main. It happens the next time anyone in the guild syncs with the Guilded companion (often within the hour) and I'll send you a DM. Once is enough, also for alts.",
-    fr: "Copie cette ligne, colle-la dans le chat de WoW sur n'importe lequel de tes personnages et appuie sur Entrée :\n```\n/guilded verify {code}\n```C'est tout. Chaque personnage que tu joues sur ce compte WoW se lie tout seul, le premier comme principal. Ça se fait à la prochaine synchro d'un membre de la guilde avec le compagnon Guilded (souvent en moins d'une heure) et je t'envoie un MP. Une fois suffit, aussi pour les alts."
+    en: "Paste this in WoW chat on any of your characters:\n```\n/guilded verify {code}\n```Your characters link themselves at the next companion sync of any guildmate, usually within the hour. I'll DM you.",
+    fr: "Colle ceci dans le chat de WoW sur un de tes personnages :\n```\n/guilded verify {code}\n```Tes personnages se lient à la prochaine synchro du compagnon d'un guildien, souvent en moins d'une heure. Je t'envoie un MP."
   },
   "pair.verifySlow": {
     en: "⏳ No officer's companion has synced in 2 weeks, so this can take longer if guildmates don't use the companion either. Can't wait? In WoW type `/guilded character`, then paste that line into `/character import` here.",
@@ -279,9 +276,9 @@ const STRINGS = {
   "dmlink.mine": { en: "**{name}** is already linked to you on **{server}**.", fr: "**{name}** est déjà lié à toi sur **{server}**." },
   "dmlink.other": { en: "**{name}** on **{server}** is already linked to another member, so I did not move it.", fr: "**{name}** sur **{server}** est déjà lié à un autre membre, je ne l'ai donc pas déplacé." },
   "dmlink.otherHow": { en: "If it is really yours, install the Guilded companion and sign in with Discord: that proves it and takes it over.", fr: "Si c'est vraiment le tien, installe le compagnon Guilded et connecte-toi avec Discord : cela le prouve et le reprend." },
-  "dmlink.none": { en: "I don't know **{name}** yet. Check the spelling (first AND last name), or install the Guilded companion so your characters link by themselves, or use `/character claim` on the server.", fr: "Je ne connais pas encore **{name}**. Vérifie l'orthographe (prénom ET nom), installe le compagnon Guilded pour lier tes personnages automatiquement, ou utilise `/character claim` sur le serveur." },
+  "dmlink.none": { en: "I don't know **{name}** yet. Send me the full name again (first AND last), or type it in the guild-invite channel on the server.", fr: "Je ne connais pas encore **{name}**. Renvoie-moi le nom complet (prénom ET nom), ou écris-le dans le salon d'invitation de guilde du serveur." },
   "dmlink.hint": { en: "Not yours? Press **This isn't my character** below. You confirm first, and you can always link it back.", fr: "Pas à toi ? Appuie sur **Ce n'est pas mon personnage** ci-dessous. Tu confirmes d'abord, et tu peux toujours le relier à nouveau." },
-  "dmlink.offer": { en: "**{name}** is also known on **{server}**: to link it to you, use `/character claim` there.", fr: "**{name}** est aussi connu sur **{server}** : pour le lier à toi, utilise `/character claim` là-bas." },
+  "dmlink.offer": { en: "**{name}** is also known on **{server}**: type its full name in the guild-invite channel there to link it.", fr: "**{name}** est aussi connu sur **{server}** : écris son nom complet dans le salon d'invitation de guilde là-bas pour le lier." },
   "linked.notMine": { en: "This isn't my character: {name}", fr: "Ce n'est pas mon personnage : {name}" },
   "linked.notMineMenu": { en: "This isn't my character… pick one", fr: "Ce n'est pas mon personnage… choisis-en un" },
   "linked.confirm": { en: "Unlink **{name}**? Its history is kept and you can link it back any time.", fr: "Délier **{name}** ? Son historique est conservé et tu peux le relier à nouveau en tout temps." },
@@ -456,8 +453,8 @@ const STRINGS = {
   },
   "pair.optionalTitle": { en: "Optional: sync with the Windows companion", fr: "Facultatif : synchroniser avec le compagnon Windows" },
   "pair.optional": {
-    en: "Want to sync saved data and download standings? Press **Connect optional companion**, install the free Windows companion (Microsoft Store first, or the direct download that updates itself at https://guildedwow.com/companion/) and choose **Sign in with Discord**, then press **Connect** on the page that opens. Nothing to type. The companion is Windows-only and optional for the addon alone. You keep your linked characters.",
-    fr: "Tu veux synchroniser tes données et télécharger les classements ? Appuie sur **Connecter le compagnon (facultatif)**, installe le compagnon Windows gratuit (Microsoft Store d'abord, ou le téléchargement direct qui se met à jour seul sur https://guildedwow.com/companion/?lang=fr) et choisis **Connexion avec Discord**, puis appuie sur **Relier** sur la page qui s'ouvre. Rien à taper. Le compagnon fonctionne sous Windows seulement et reste facultatif pour l'addon seul. Tes personnages liés restent liés."
+    en: "Optional: the free Windows companion syncs your saved data. Press **Connect optional companion**, install it (Microsoft Store, or https://guildedwow.com/companion/), choose **Sign in with Discord**, then **Connect**. Your linked characters stay linked.",
+    fr: "Facultatif : le compagnon Windows gratuit synchronise tes données. Appuie sur **Connecter le compagnon (facultatif)**, installe-le (Microsoft Store, ou https://guildedwow.com/companion/?lang=fr), choisis **Connexion avec Discord**, puis **Relier**. Tes personnages liés restent liés."
   },
   "pair.connectOptional": { en: "Connect optional companion", fr: "Connecter le compagnon (facultatif)" },
   "pair.addAlts": {

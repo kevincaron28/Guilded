@@ -36,6 +36,7 @@ import { classColor, scoreCardResponse, type CardRow, type CardStat } from "./sc
 import { currentEdition, withEdition } from "./edition-context.js";
 import { gameEditionOf } from "./game-edition.js";
 import { factionOfRace, majorityFaction } from "../../companion/race-faction.mjs";
+import { factionTag, guildFactions } from "./guild-faction.js";
 import { freeSlug, groupObservedGuilds, guildPageStats, guildSlugs, observedGuildDuels, observedRecord, realmSlugOf, OBSERVED_PREFIX, routeKeyOf, slugBase, unrankedReason, type ObservedGuild } from "./guild-public-stats.js";
 import { duelPoints, percent, ratingStartOf, streakText } from "./duels.js";
 import { ADDON_SHOWS_RATING, DUEL_RULES, duelRuleLines, ratingRuleLines } from "./duel-rules.js";
@@ -598,6 +599,8 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
       const edition = currentEdition();
       const hiding = await hiddenNow();
       const notHidden = hiding.users.size ? { discordUserId: { notIn: [...hiding.users] } } : {};
+      // Stored listing faction first, else the clear majority of the guild's roster and linked characters (guild-faction.ts).
+      const derivedFactions = await guildFactions(database, guildIds);
       const [members, characters, listings, duels] = await Promise.all([
         database.member.groupBy({ by: ["guildId"], where: { guildId: { in: guildIds }, status: "ACTIVE", isTest: false, ...notHidden }, _count: { _all: true } }),
         database.character.findMany({ where: { gameEdition: edition, member: { guildId: { in: guildIds }, status: "ACTIVE", isTest: false, ...notHidden } },
@@ -613,7 +616,7 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
         for (const row of own) if (row.realm) realms.set(row.realm, (realms.get(row.realm) ?? 0) + 1);
         const commonRealm = [...realms.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? null;
         return {
-          guildId, faction: listing?.faction ?? null, realm: listing?.realm ?? commonRealm,
+          guildId, faction: derivedFactions.get(guildId) ?? listing?.faction ?? null, realm: listing?.realm ?? commonRealm,
           members: members.find((row) => row.guildId === guildId)?._count._all ?? 0,
           linked: new Set(own.map((row) => row.memberId)).size,
           levelled: levels.length, at60: levels.filter((level) => level >= LEVEL_CAP).length, levelSum: levels.reduce((sum, level) => sum + level, 0),
@@ -991,8 +994,8 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       }).join("") + `</tbody></table></div>`
       : `<p class="muted">${t("No guild matches these filters.", "Aucune guilde ne correspond à ces filtres.")}</p>`;
     return `<h2>${t("All guilds", "Toutes les guildes")} <span class="tag">(${shown.length})</span></h2>` + form + table + pager(ctx, "/leaderboards/guilds/", keep, page, pages)
-      + `<p class="muted">${t("Dungeon score: the guild's best level bracket this period (its five best members). Records: dungeons whose fastest public clear this period has one of its members. Members, linked and levels are counts from the guild's Guilded data, never names; members hidden from the race to 60 board are not counted in levels. Faction and realm come from the guild's recruitment listing. Gear score is not shown: Guilded has no gear data yet.",
-        "Score de donjon : la meilleure tranche de niveaux de la guilde pour la période (ses cinq meilleurs membres). Records : donjons dont l'essai public le plus rapide de la période compte un de ses membres. Membres, liés et niveaux sont des nombres tirés des données Guilded de la guilde, jamais des noms ; les membres masqués de la course au 60 ne comptent pas dans les niveaux. Faction et royaume viennent de l'annonce de recrutement de la guilde. Le score d'équipement n'est pas affiché : Guilded n'a pas encore de données d'équipement.")}</p>`;
+      + `<p class="muted">${t("Dungeon score: the guild's best level bracket this period (its five best members). Records: dungeons whose fastest public clear this period has one of its members. Members, linked and levels are counts from the guild's Guilded data, never names; members hidden from the race to 60 board are not counted in levels. Faction comes from the guild's recruitment listing or, failing that, from the races of its known players; realm from its recruitment listing. Gear score is not shown: Guilded has no gear data yet.",
+        "Score de donjon : la meilleure tranche de niveaux de la guilde pour la période (ses cinq meilleurs membres). Records : donjons dont l'essai public le plus rapide de la période compte un de ses membres. Membres, liés et niveaux sont des nombres tirés des données Guilded de la guilde, jamais des noms ; les membres masqués de la course au 60 ne comptent pas dans les niveaux. La faction vient de l'annonce de recrutement de la guilde ou, à défaut, des races de ses joueurs connus ; le royaume, de l'annonce. Le score d'équipement n'est pas affiché : Guilded n'a pas encore de données d'équipement.")}</p>`;
   }
 
   // Previous / numbered / next page links, keeping the page's filters.
@@ -1645,7 +1648,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const topMembers = rules.brackets[0] ? scores.filter((row) => row.bracket === rules.brackets[0]!.key).slice(0, 3) : [];
     const memberPodium = topMembers.length ? `<h2>${t("Top members", "Meilleurs membres")} · ${escapeHtml(bracketName(ctx, rules.brackets[0]!.key))}</h2>` + podium(topMembers.map((row): PodiumEntry => ({ name: (row.player as LeaderPlayer).displayName || row.player.character, href: link(characterPath(row.player), lang), sub: row.player.className ? classLabel(row.player.className, lang) : "", value: String(row.points), className: classSlug(row.player.className) }))) : "";
     const body = PAGE_CSS + HUB_CSS + hubTabs(t, lang, "guilds") + breadcrumbs(lang, [[t("Leaderboards", "Classements"), link("/leaderboards/", lang)], [t("Guilds", "Guildes"), link("/leaderboards/guilds/", lang)], [guild.name, null]], escapeHtml)
-      + guildBanner(guild.id) + `<p class="eyebrow">${t("Guild", "Guilde")} · ${escapeHtml(periodName(ctx, period))}</p><div class="hero"><h1>${escapeHtml(guild.name)}</h1>`
+      + guildBanner(guild.id) + `<p class="eyebrow">${t("Guild", "Guilde")} · ${escapeHtml(periodName(ctx, period))}</p><div class="hero"><h1>${escapeHtml(guild.name)}${info?.faction ? ` <small>${factionTag(info.faction, lang)}</small>` : ""}</h1>`
       + (guild.slug ? `<a href="/g/${encodeURIComponent(guild.slug)}/">${t("Guild page →", "Page de guilde →")}</a>` : "") + `</div>`
       + (armoryGuildUrl(guild.name, lang) ? `<p class="muted"><a href="${escapeHtml(armoryGuildUrl(guild.name, lang)!)}" target="_blank" rel="noopener noreferrer">${t("View on the WoW armory ↗", "Voir sur l'armurerie WoW ↗")}</a></p>` : "")
       + (standing.length ? `<p>${standing.join(" &nbsp; ")}</p>` : "")

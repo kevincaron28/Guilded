@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { escapeHtml, link } from "./web-layout.js";
+import { factionTag, guildFactions } from "./guild-faction.js";
 import { registerLeaderboardCache } from "./leaderboard-cache-hooks.js";
 import type { WebContext, WebKit, WebRoute } from "./web-app.js";
 
@@ -110,7 +111,7 @@ export async function applyRaidKills(db: PrismaClient, input: { guildId: string;
 // The board
 
 export interface BoardKill { guildId: string; instanceId: number; instanceName: string; encounterId: number; bossName: string; difficultyId: number; difficultyName: string | null; killedAt: Date; reporters: number }
-export interface BoardGuild { id: string; name: string; slug: string | null }
+export interface BoardGuild { id: string; name: string; slug: string | null; /** ALLIANCE or HORDE when known (guild-faction.ts). */ faction?: string | null }
 export interface RaidBoardRow { guild: BoardGuild; bosses: number; lastKillAt: Date; firstKillAt: Date; worldFirsts: number }
 export interface RaidFirst { instanceId: number; instanceName: string; encounterId: number; bossName: string; difficultyId: number; difficultyName: string | null; guild: BoardGuild; killedAt: Date; reporters: number }
 export interface RaidBoard { rows: RaidBoardRow[]; firsts: RaidFirst[]; totalKills: number }
@@ -161,6 +162,8 @@ export async function loadRaidBoard(db: PrismaClient, now = new Date()): Promise
       guild: { select: { id: true, name: true, settings: { select: { publicSlug: true } } } } } });
   const guilds = new Map<string, BoardGuild>();
   for (const kill of kills) guilds.set(kill.guildId, { id: kill.guild.id, name: kill.guild.name, slug: kill.guild.settings?.publicSlug ?? null });
+  const factions = await guildFactions(db, [...guilds.keys()]);
+  for (const [id, guild] of guilds) guild.faction = factions.get(id) ?? null;
   const board = buildRaidBoard(kills, guilds);
   boardCache = { at: now.getTime(), board };
   return board;
@@ -178,10 +181,10 @@ export function raidBoardJson(board: RaidBoard, now: Date): Record<string, unkno
   const open = now >= RAIDS_OPEN_AT;
   return {
     opensAt: RAIDS_OPEN_AT.toISOString(), open, totalKills: board.totalKills,
-    guilds: board.rows.map((row, index) => ({ rank: index + 1, name: row.guild.name, slug: row.guild.slug, bosses: row.bosses, worldFirsts: row.worldFirsts, lastKillAt: row.lastKillAt.toISOString() })),
+    guilds: board.rows.map((row, index) => ({ rank: index + 1, name: row.guild.name, slug: row.guild.slug, faction: row.guild.faction ?? null, bosses: row.bosses, worldFirsts: row.worldFirsts, lastKillAt: row.lastKillAt.toISOString() })),
     firsts: board.firsts.map((first) => ({ instanceId: first.instanceId, instance: names(first.instanceId, first.encounterId, "en", { instance: first.instanceName, boss: first.bossName }).instance,
       encounterId: first.encounterId, boss: names(first.instanceId, first.encounterId, "en", { instance: first.instanceName, boss: first.bossName }).boss, difficultyId: first.difficultyId,
-      difficulty: first.difficultyName, guild: first.guild.name, slug: first.guild.slug, killedAt: first.killedAt.toISOString(), confirmedBy: first.reporters }))
+      difficulty: first.difficultyName, guild: first.guild.name, slug: first.guild.slug, faction: first.guild.faction ?? null, killedAt: first.killedAt.toISOString(), confirmedBy: first.reporters }))
   };
 }
 
@@ -200,12 +203,12 @@ export function raidBoardBody(board: RaidBoard, ctx: Pick<WebContext, "t" | "lan
     return body + `<p><a href="${link("/leaderboards/", lang)}">${t("All leaderboards →", "Tous les classements →")}</a></p>`;
   }
   body += `<h2>${t("Guilds", "Guildes")}</h2><div class="table-wrap"><table><thead><tr><th>#</th><th>${t("Guild", "Guilde")}</th><th>${t("Bosses", "Boss")}</th><th>${t("World firsts", "Premières mondiales")}</th><th>${t("Last kill", "Dernière victoire")}</th></tr></thead><tbody>`
-    + board.rows.slice(0, 100).map((row, index) => `<tr><td>${index + 1}</td><td><a href="${escapeHtml(guildHref(row.guild, lang))}">${escapeHtml(row.guild.name)}</a></td><td>${row.bosses}</td><td>${row.worldFirsts}</td><td>${date(row.lastKillAt)}</td></tr>`).join("")
+    + board.rows.slice(0, 100).map((row, index) => `<tr><td>${index + 1}</td><td><a href="${escapeHtml(guildHref(row.guild, lang))}">${escapeHtml(row.guild.name)}</a>${row.guild.faction ? ` ${factionTag(row.guild.faction, lang)}` : ""}</td><td>${row.bosses}</td><td>${row.worldFirsts}</td><td>${date(row.lastKillAt)}</td></tr>`).join("")
     + `</tbody></table></div>`;
   body += `<h2>${t("World firsts", "Premières mondiales")}</h2><div class="table-wrap"><table><thead><tr><th>${t("Raid", "Raid")}</th><th>${t("Boss", "Boss")}</th><th>${t("First guild", "Première guilde")}</th><th>${t("When", "Quand")}</th></tr></thead><tbody>`
     + board.firsts.slice(0, 200).map((first) => {
       const label = names(first.instanceId, first.encounterId, lang, { instance: first.instanceName, boss: first.bossName });
-      return `<tr><td>${escapeHtml(label.instance)}${first.difficultyName ? ` <span class="muted">${escapeHtml(first.difficultyName)}</span>` : ""}</td><td>${escapeHtml(label.boss)}</td><td><a href="${escapeHtml(guildHref(first.guild, lang))}">${escapeHtml(first.guild.name)}</a></td><td>${date(first.killedAt)}</td></tr>`;
+      return `<tr><td>${escapeHtml(label.instance)}${first.difficultyName ? ` <span class="muted">${escapeHtml(first.difficultyName)}</span>` : ""}</td><td>${escapeHtml(label.boss)}</td><td><a href="${escapeHtml(guildHref(first.guild, lang))}">${escapeHtml(first.guild.name)}</a>${first.guild.faction ? ` ${factionTag(first.guild.faction, lang)}` : ""}</td><td>${date(first.killedAt)}</td></tr>`;
     }).join("")
     + `</tbody></table></div>`;
   return body + `<p class="muted">${t("Only guilds that share their dungeon runs publicly are listed. WoW Forever has no regions, so firsts are worldwide.", "Seules les guildes qui partagent publiquement leurs parcours de donjon sont listées. WoW Forever n'a pas de régions : les premières sont mondiales.")} <a href="${link("/leaderboards/raids.json", lang)}">JSON</a></p>`

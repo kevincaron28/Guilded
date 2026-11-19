@@ -3,6 +3,7 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import { GAME_EDITIONS } from "../../companion/game-edition.mjs";
 import { currentEdition } from "./edition-context.js";
 import { factionLabel, FACTIONS, languageLabel } from "./recruitment.js";
+import { factionTag, guildFactions } from "./guild-faction.js";
 import { escapeHtml, link, options } from "./web-layout.js";
 import type { WebContext, WebKit, WebRoute } from "./web-app.js";
 
@@ -20,6 +21,8 @@ export interface DirectoryGuild {
   /** Publishes dungeon runs: /leaderboards/guild/<id>/. */
   dungeons: boolean;
   cores: string[];
+  /** ALLIANCE or HORDE when known: a listing's, else the races of the guild's known players (guild-faction.ts). */
+  faction?: string | null;
   listings: { id: string; faction: string | null; realm: string | null; language: string | null }[];
 }
 export interface GuildDirectoryStore { guilds(edition: string): Promise<DirectoryGuild[]> }
@@ -43,10 +46,12 @@ export function prismaGuildDirectoryStore(database: PrismaClient, allows: (disco
         },
         orderBy: { name: "asc" }, take: MAX_GUILDS
       });
-      return rows.filter((row) => allows(row.discordId)).map((row) => ({
+      const allowed = rows.filter((row) => allows(row.discordId));
+      const factions = await guildFactions(database, allowed.map((row) => row.id));
+      return allowed.map((row) => ({
         id: row.id, name: row.name, gameEdition: row.gameEdition, language: row.settings?.language ?? null,
         slug: row.page?.published ? row.page.slug : null, indexable: row.page?.published === true && row.page.indexable !== false, dungeons: row.settings?.publicDungeonRuns === true,
-        cores: row.raidCores.map((core) => core.name), listings: row.recruitmentListings
+        cores: row.raidCores.map((core) => core.name), faction: factions.get(row.id) ?? row.recruitmentListings.find((listing) => listing.faction)?.faction ?? null, listings: row.recruitmentListings
       }));
     }
   };
@@ -72,7 +77,7 @@ export function readDirectoryFilters(query: URLSearchParams): DirectoryFilters {
 export function directoryMatches(guild: DirectoryGuild, filters: DirectoryFilters): boolean {
   if (filters.q && !fold(guild.name).includes(fold(filters.q))) return false;
   if (filters.recruiting && !guild.listings.length) return false;
-  if (filters.faction && !guild.listings.some((listing) => listing.faction === filters.faction)) return false;
+  if (filters.faction && guild.faction !== filters.faction && !guild.listings.some((listing) => listing.faction === filters.faction)) return false;
   if (filters.language && guild.language !== filters.language && !guild.listings.some((listing) => listing.language === filters.language)) return false;
   return true;
 }
@@ -95,7 +100,7 @@ export function createGuildDirectory(store: GuildDirectoryStore): { route: WebRo
     const name = page ? `<a href="${escapeHtml(page)}">${escapeHtml(guild.name)}</a>` : escapeHtml(guild.name);
     const tags = [
       guild.language && languageLabel(guild.language, lang),
-      ...new Set(guild.listings.map((listing) => listing.faction && factionLabel(listing.faction, lang))),
+      ...(guild.faction ? [] : [...new Set(guild.listings.map((listing) => listing.faction && factionLabel(listing.faction, lang)))]),
       ...new Set(guild.listings.map((listing) => listing.realm))
     ].filter((part): part is string => Boolean(part));
     const count = guild.cores.length;
@@ -106,7 +111,7 @@ export function createGuildDirectory(store: GuildDirectoryStore): { route: WebRo
       guild.listings[0] ? `<a href="${link(`/recruitment/apply/${guild.listings[0].id}`, lang)}">${t("Apply", "Postuler")}</a>` : "",
       guild.dungeons ? `<a href="${link(`/leaderboards/guild/${encodeURIComponent(guild.id)}`, lang)}">${t("Dungeon scores", "Scores de donjon")}</a>` : ""
     ].filter(Boolean);
-    return `<article class="card"><h3>${name}${guild.listings.length ? ` <span class="tag">· ${t("recruiting", "recrute")}</span>` : ""}</h3>`
+    return `<article class="card"><h3>${name}${guild.faction ? ` ${factionTag(guild.faction, lang)}` : ""}${guild.listings.length ? ` <span class="tag">· ${t("recruiting", "recrute")}</span>` : ""}</h3>`
       + (tags.length ? `<p class="tag">${escapeHtml(tags.join(" · "))}</p>` : "") + cores
       + (links.length ? `<p>${links.join(" &nbsp;")}</p>` : "") + "</article>";
   }

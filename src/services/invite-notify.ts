@@ -2,6 +2,7 @@ import type { Guild } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, t } from "../i18n.js";
 import { isPermissionRoleName } from "../permissions.js";
+import { characterFaction, factionsByName, guildFaction, type Faction } from "./guild-faction.js";
 
 // 9.1: someone posts their character name in the invite channel -> tag the people who can invite them
 // right now. "Online" is the game's own roster as the companion or addon last uploaded it (a roster row
@@ -9,6 +10,9 @@ import { isPermissionRoleName } from "../permissions.js";
 // Who can invite: every member of the in-game guild can (owner decision, 7 Nov), so any guildmate whose
 // character is linked to a Discord member and shows online is a candidate, most recently online first.
 // Nobody known online: the officer role once. When the character joins, markPostsDone edits the tag message.
+// Faction: you can only invite your own faction, and a roster is one in-game guild (rows are keyed by that guild), so only
+// that guild's online members are ever tagged. When the requested character is known to be of the other faction, nobody is
+// tagged and the requester is told to bring a character of the guild's faction (guild-faction.ts decides both factions).
 // At most 3 people, once per request. Officers turn it off with /mod invites settings notify:false.
 
 type Database = Pick<PrismaClient, "guildSettings" | "inviteRequest" | "guildRosterEntry" | "character">;
@@ -20,7 +24,7 @@ export const ONLINE_WINDOW_MS = 10 * 60 * 1000;
 const fold = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/gu, "").replace(/\s+/g, " ").trim().toLowerCase();
 
 /** Discord IDs of linked guild characters the roster shows online, most recently online first. */
-export async function onlineInviters(database: Pick<PrismaClient, "guildRosterEntry" | "character">, guildId: string, exceptDiscordUserId: string, now = new Date()): Promise<string[]> {
+export async function onlineInviters(database: Pick<PrismaClient, "guildRosterEntry" | "character">, guildId: string, exceptDiscordUserId: string, now = new Date(), faction?: Faction | null): Promise<string[]> {
   const online = await database.guildRosterEntry.findMany({
     where: { guildId, inGuild: true, lastOnlineAt: { gte: new Date(now.getTime() - ONLINE_WINDOW_MS) } },
     select: { name: true }, orderBy: [{ lastOnlineAt: "desc" }, { rankIndex: "asc" }], take: 200
@@ -28,14 +32,20 @@ export async function onlineInviters(database: Pick<PrismaClient, "guildRosterEn
   if (!online.length) return [];
   const linked = await database.character.findMany({ where: { member: { guildId } }, select: { name: true, member: { select: { discordUserId: true } } } });
   const owner = new Map(linked.map((row) => [fold(row.name), row.member.discordUserId]));
+  // When the requested character's faction is known, an online member whose own character is known to be of the other one cannot invite.
+  const factions = faction ? await factionsByName(database, online.map((row) => row.name)) : new Map<string, Faction>();
   const ids: string[] = [];
   for (const row of online) {
+    const own = factions.get(row.name.trim().toLowerCase());
+    if (faction && own && own !== faction) continue;
     const id = owner.get(fold(row.name));
     if (id && id !== exceptDiscordUserId && !ids.includes(id)) ids.push(id);
     if (ids.length >= MAX_TAGGED) break;
   }
   return ids;
 }
+
+const factionWord = (_lang: unknown, faction: Faction) => faction === "HORDE" ? "Horde" : "Alliance";
 
 /** Keep the tag message's ID so it can be edited once the invite is done. Best effort. */
 async function remember(database: Database, input: { guildId: string; requestMessageId: string }, sent: unknown): Promise<void> {
@@ -51,7 +61,7 @@ async function remember(database: Database, input: { guildId: string; requestMes
 export async function notifyInviters(database: Database, input: {
   guildId: string; discordGuild: Pick<Guild, "roles"> | null; channel: { send: (options: unknown) => Promise<unknown> };
   requestMessageId: string; requesterId: string; displayName: string; now?: Date
-}): Promise<"people" | "role" | "none"> {
+}): Promise<"people" | "role" | "wrong-faction" | "none"> {
   try {
     const settings = await database.guildSettings.findUnique({ where: { guildId: input.guildId }, select: { inviteNotifyEnabled: true, language: true } });
     if (!settings || settings.inviteNotifyEnabled === false) return "none";
@@ -60,7 +70,14 @@ export async function notifyInviters(database: Database, input: {
     if (!claimed.count) return "none";
     const lang = asLang(settings.language);
     const reply = { messageReference: input.requestMessageId, failIfNotExists: false };
-    const people = await onlineInviters(database, input.guildId, input.requesterId, input.now);
+    // The requested character's faction against the guild's: a mismatch cannot be invited, so tag nobody.
+    const wanted = await characterFaction(database, input.displayName);
+    const ours = wanted ? await guildFaction(database, input.guildId) : null;
+    if (wanted && ours && wanted !== ours) {
+      await input.channel.send({ content: t(lang, "invite.notify.wrongFaction", { name: input.displayName, faction: factionWord(lang, ours) }), reply, allowedMentions: { parse: [], users: [input.requesterId] } });
+      return "wrong-faction";
+    }
+    const people = await onlineInviters(database, input.guildId, input.requesterId, input.now, wanted);
     if (people.length) {
       const sent = await input.channel.send({ content: t(lang, "invite.notify.people", { mentions: people.map((id) => `<@${id}>`).join(" "), name: input.displayName }), reply, allowedMentions: { parse: [], users: people } });
       await remember(database, input, sent);

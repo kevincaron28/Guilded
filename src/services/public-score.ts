@@ -135,7 +135,9 @@ export function scoreRun(run: ScoreRun, rules: BracketedRules = publicRules()): 
 }
 
 export interface ScoreRow { player: ScorePlayer; bracket: string; points: number; routes: { key: string; points: number; run: ScoreRun; counted: boolean }[] }
-export const characterId = (p: { character: string; realm: string }) => `${p.character.toLowerCase()}\0${p.realm.toLowerCase()}`;
+// A Forever "First First" in-game name ("Xaldin Xaldin") is the one character "Xaldin" (the cleaned display key); "Hulke" and "Hulke Hogan" stay apart.
+const undoubled = (name: string) => { const w = name.trim().split(/\s+/); return w.length === 2 && w[0]!.toLowerCase() === w[1]!.toLowerCase() ? w[0]! : name; };
+export const characterId = (p: { character: string; realm: string }) => `${undoubled(p.character).toLowerCase()}\0${p.realm.toLowerCase()}`;
 
 /** Each character's score per bracket: best run per route, best N routes summed. Highest first. */
 export function characterScores(runs: ScoreRun[], rules: BracketedRules = publicRules(),

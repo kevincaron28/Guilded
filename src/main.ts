@@ -179,7 +179,7 @@ import { runRetention } from "./services/retention.js";
 import { runStatSnapshots } from "./services/stat-snapshots.js";
 import { discordTrialDelivery, remindEndedTrials } from "./services/trial-reminders.js";
 import { warnDoNotInvite } from "./services/do-not-invite.js";
-import { DNI_PREFIX, executeAppeal, handleDniButton } from "./services/do-not-invite-flow.js";
+import { DNI_PREFIX, handleDniButton } from "./services/do-not-invite-flow.js";
 import { handleStarReaction } from "./services/starboard.js";
 import { logMessageDelete, logMessageEdit } from "./services/message-log.js";
 
@@ -269,7 +269,6 @@ handlers.set("bg", executeBattleground);
 handlers.set("automation", executeAutomation);
 handlers.set("poll", executePoll);
 handlers.set("bank", executeBank);
-handlers.set("appeal", executeAppeal);
 handlers.set("delete-my-data", interaction => executeDeleteMyData(interaction, error => reportInteractionError("Delete my data", interaction, error)));
 handlers.set("craft", executeCraft);
 handlers.set("help", executeHelp);

@@ -33,3 +33,6 @@ export async function loadCardTimeZone(database: Pick<PrismaClient, "guildSettin
     return safeZone(settings?.timezone);
   } catch { return DEFAULT_CARD_TIME_ZONE; }
 }
+
+/** The one footer for boards and cards built from what members' addons report (ladders, world PvP, weekly card, weekly records). */
+export const reportedFooter = (lang: Lang): string => lang === "fr" ? "Rapporté par les addons des membres · aucun point" : "Reported by members' addons · no points";

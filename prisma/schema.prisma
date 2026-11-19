@@ -77,6 +77,8 @@ enum AuditAction {
   DNI_CLEARED
   DNI_APPEAL
   DNI_ALIAS
+  CHARACTER_MAIN_SET
+  CHARACTER_UNLINKED_WEB
 }
 
 enum RaidStatus {

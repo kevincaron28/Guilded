@@ -10,7 +10,6 @@ import { configCommand } from "./settings.js";
 import { raidCommand, executeRaid } from "./raid.js";
 import { worldBuffCommand, executeWorldBuff } from "./world-buffs.js";
 import { dniCommand, executeDni } from "./do-not-invite.js";
-import { appealCommand } from "./appeal.js";
 import { importCommand, executeImport } from "./import.js";
 import { lootCommand, executeLoot } from "./loot.js";
 import { applicationCommand, applyCommand, executeApplication } from "./application.js";
@@ -177,7 +176,7 @@ export const commands: AnyCommand[] = [
   wowCommand,
   setup, configCommand, helpCommand, character, raid, epgp, loot, dungeon, craftCommand,
   bankCommand, applyCommand, pollCommand, report, mod, coreCommand, tagCommand, importer,
-  community, deleteMyDataCommand, ...(POE_TRACKING_ENABLED ? [poeCommand] : []), participationCommand, promotionStatusCommand, teamCommand, battlegroundCommand, automationCommand, lead, officer, organize, appealCommand
+  community, deleteMyDataCommand, ...(POE_TRACKING_ENABLED ? [poeCommand] : []), participationCommand, promotionStatusCommand, teamCommand, battlegroundCommand, automationCommand, lead, officer, organize
 ];
 
 // Commands whose every subcommand checks a leader role (Raid Leader for /lead, Officer or Guild

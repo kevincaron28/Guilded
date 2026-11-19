@@ -57,7 +57,7 @@ describe("private character connection instructions", () => {
     expect(embed.fields![1]!.name).toContain("No Windows PC");
     // The command alone on its line in a box, so the whole line is copied.
     expect(embed.fields![1]!.value).toContain("```\n/guilded verify ABCD-EFGH\n```");
-    expect(embed.fields![1]!.value).toContain("the first one as your main");
+    expect(embed.fields![1]!.value).toContain("link themselves at the next companion sync");
     expect(embed.fields![1]!.value).not.toContain("/character import");
     expect(embed.fields!.some((field) => /optional/i.test(field.name))).toBe(false);
     expect(mocks.db.characterVerifyCode.upsert).toHaveBeenCalledWith(expect.objectContaining({ where: { guildId_memberId: { guildId: "guild1", memberId: "member1" } }, update: {} }));
@@ -77,7 +77,7 @@ describe("private character connection instructions", () => {
     const text = reply.embeds[0]!.data.description!;
     expect(text).toContain("Main: **Ray** — Forever");
     expect(text).toContain("Alt: **AltRay** — Other Realm");
-    expect(reply.embeds[0]!.data.fields![1]!.value).toContain("Once is enough, also for alts");
+    expect(reply.embeds[0]!.data.fields![1]!.value).toContain("link themselves at the next companion sync");
     expect(mocks.issueCode).not.toHaveBeenCalled();
   });
 

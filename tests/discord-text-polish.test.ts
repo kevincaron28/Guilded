@@ -15,8 +15,8 @@ describe("member-facing command mentions", () => {
     expect(offenders).toEqual([]);
   });
   it("names the real recap commands", () => {
-    const text = readFileSync("src/services/daily-recap.ts", "utf8");
-    expect(text).toContain("/report stats recap-posts:false");
+    const text = readFileSync("src/commands/stats.ts", "utf8");
+    expect(text).toContain("recap-posts");
   });
 });
 

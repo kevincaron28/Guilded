@@ -9,7 +9,7 @@ import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./disc
 import { percent } from "./duels.js";
 import { displayCharacterName, loadFullNameBook } from "./character-display.js";
 import { classOf, loadClassBook, type ClassBook } from "./ladder-classes.js";
-import { loadCardTimeZone } from "./card-format.js";
+import { loadCardTimeZone, reportedFooter } from "./card-format.js";
 import { classColor, ladderMeta, scoreCardPng, type ScoreCard } from "./score-card.js";
 import { currentOfficialSeason, officialSeasonName } from "./season-calendar.js";
 import { loadExtrasFields } from "./world-pvp-extras.js";
@@ -69,7 +69,7 @@ export function bgLadderCard(data: BgLadderData, lang: Lang, classes: ClassBook 
     eyebrow: `Guilded · ${fr ? "JcJ" : "PvP"}`, title: fr ? "Champs de bataille" : "Battleground ladder",
     subtitle: fr ? `${data.participations} participations rapportées · ${windowText(data, "fr")}` : `${data.participations} reported participations · ${windowText(data, "en")}`,
     backdrop: { kind: "board", key: "battlegrounds" },
-    stats: [], footer: fr ? "Rapports de joueurs, pas des matchs vérifiés · distinct des duels · aucun point ni récompense" : "Player reports, not verified matches · separate from duels · no points or awards",
+    stats: [], footer: reportedFooter(lang),
     ladder: {
       meta: ladderMeta(lang, updatedAt, null, timeZone), empty: fr ? "Aucun rapport de champ de bataille." : "No battleground report yet.",
       columns: [{ label: fr ? "V" : "W", width: 40, primary: true }, { label: fr ? "D" : "L", width: 40 }, { label: "%", width: 52 }, { label: fr ? "Parties" : "Games", width: 56 },
@@ -97,7 +97,7 @@ export function bgLadderEmbed(data: BgLadderData, lang: Lang, image?: string): E
     }
   }
   if (image && data.brackets.length) embed.setImage(`attachment://${image}`);
-  return embed.setFooter({ text: t("Members' reports after each match, not verified by Blizzard · separate from the duel ladder · no points or awards", "Rapports des membres après chaque match, non vérifiés par Blizzard · distinct du classement des duels · aucun point ni récompense") });
+  return embed.setFooter({ text: reportedFooter(lang) });
 }
 
 export async function loadBgLadderData(db: Pick<PrismaClient, "battlegroundReport" | "member"> & Partial<Pick<PrismaClient, "unclaimedCharacter" | "guildRosterEntry" | "character" | "officialSeason">>, guildId: string, edition: string, now = new Date()): Promise<BgLadderData> {

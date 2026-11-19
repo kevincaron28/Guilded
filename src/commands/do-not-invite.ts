@@ -70,7 +70,7 @@ export async function executeDni(interaction: ChatInputCommandInteraction): Prom
   }
   if (subcommand === "appeal-status") {
     const appealed = (await service.list(context.guildId, { take: 200 })).filter((entry) => entry.status === "APPEALED");
-    await reply(appealed.length ? appealed.map(dniLine).join("\n").slice(0, 1900) : "No appeal is waiting. A person appeals with /appeal; the decision buttons are posted in the officer log.");
+    await reply(appealed.length ? appealed.map(dniLine).join("\n").slice(0, 1900) : "No appeal is waiting. A person appeals with /character appeal; the decision buttons are posted in the officer log.");
     return;
   }
   const page = Math.max(1, interaction.options.getInteger("page") ?? 1);

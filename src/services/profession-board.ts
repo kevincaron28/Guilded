@@ -138,7 +138,7 @@ export function professionPostEmbeds(post: ProfessionPost, lang: Lang, guildId =
   for (const row of post.skilled.slice(0, MAX_CRAFTER_LINES)) head.push(crafterLine({ character: row.character, skill: row.skillLevel, lastSeen: row.lastSeen }, seen(row.lastSeen), now, name));
   if (post.skilled.length > MAX_CRAFTER_LINES) head.push(t(`…and ${post.skilled.length - MAX_CRAFTER_LINES} more`, `…et ${post.skilled.length - MAX_CRAFTER_LINES} autres`));
   const title = professionTitle(post.profession, lang).slice(0, 256);
-  const footer = `${PROFESSION_POST_MARKER} • ${guildId} • ${t("recipes come from members' profession scans · last seen from the guild roster", "recettes tirées des relevés de métiers · dernière présence selon le registre de guilde")}`.slice(0, 2048);
+  const footer = `${PROFESSION_POST_MARKER} • ${guildId} • ${t("From members' profession scans", "Tiré des relevés de métiers des membres")}`.slice(0, 2048);
   const recipesTitle = post.recipes.length ? `\n\n**${t("Recipes", "Recettes")}** (${post.recipes.length}) — ${t("grouped by category; pick one in the menu below to request it or see its details", "groupées par catégorie; choisissez-en une dans le menu ci-dessous pour la demander ou voir ses détails")}\n` : "";
   const empty = post.recipes.length ? "" : `\n\n${t("No recipe recorded yet. Open this profession's window in game with Guilded to add yours.", "Aucune recette enregistrée. Ouvrez la fenêtre de ce métier en jeu avec Guilded pour ajouter les vôtres.")}`;
 

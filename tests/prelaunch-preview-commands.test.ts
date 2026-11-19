@@ -9,7 +9,7 @@ vi.mock("../src/commands/context.js", () => ({ requireGuildContext: mocks.requir
   guildService: { getSettings: mocks.getSettings } }));
 vi.mock("../src/services/cooperative-goal.js", () => ({ cooperativeGoalStatus: mocks.cooperative, saveCooperativeGoal: mocks.saveGoal }));
 vi.mock("../src/services/weekly-question-store.js", () => ({ saveWeeklyQuestion: mocks.saveQuestion, reviewWeeklyQuestion: mocks.reviewQuestion, pauseWeeklyQuestion: vi.fn(), actOnWeeklyQuestion: vi.fn() }));
-vi.mock("../src/services/personal-weekly-recap.js", () => ({ personalWeeklyRecap: mocks.recap, personalWeeklyRecapEmbed: () => ({ title: "private recap" }) }));
+vi.mock("../src/services/personal-weekly-recap.js", () => ({ personalWeeklyRecap: mocks.recap, personalWeeklyRecapEmbed: () => ({ title: "private recap" }), personalWeeklyRecapMessage: async () => ({ embeds: [{ title: "private recap" }], files: [] }) }));
 vi.mock("../src/permissions.js", () => ({ hasPermission: mocks.hasPermission }));
 
 import { executeDungeon, dungeonCommand } from "../src/commands/dungeon.js";

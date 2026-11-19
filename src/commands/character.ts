@@ -1,4 +1,5 @@
 import { characterName, displayCharacterName, loadFullNameBook, cleanCharacterName } from "../services/character-display.js";
+import { executeAppeal } from "../services/do-not-invite-flow.js";
 import { selectedCharacter } from "../services/character-match.js";
 import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
@@ -27,7 +28,7 @@ export const characterCommand = new SlashCommandBuilder()
   .setDescription("Manage characters in your selected WoW guild.")
   .addSubcommand((subcommand) => subcommand
     .setName("pair")
-    .setDescription("Link your main and alts: one line to paste in WoW, or the optional companion."))
+    .setDescription("Link your main and alts (one line to paste in WoW)."))
   .addSubcommand((subcommand) => subcommand
     .setName("add")
     .setDescription("Link a character to your profile.")
@@ -41,17 +42,21 @@ export const characterCommand = new SlashCommandBuilder()
     .addStringOption((option) => option.setName("race").setDescription("Race (pick or type)").setAutocomplete(true)))
   .addSubcommand((subcommand) => subcommand
     .setName("import")
-    .setDescription("Link a character, or send a gear check, from the /guilded character or /guilded share line.")
-    .addStringOption((option) => option.setName("code").setDescription("Paste the line from /guilded character, or the code from /guilded share").setRequired(true))
+    .setDescription("Link a character or send a gear check from a /guilded line.")
+    .addStringOption((option) => option.setName("code").setDescription("The line from /guilded character or /guilded share").setRequired(true))
     .addBooleanOption((option) => option.setName("main").setDescription("Set as your main (default: main only if you have none)")))
   .addSubcommand((subcommand) => subcommand
     .setName("claim")
-    .setDescription("Link a character your addon has already reported (pick it from the list, nothing to type or paste).")
+    .setDescription("Link a character your addon reported (pick it from the list).")
     .addStringOption((option) => option.setName("name").setDescription("Your character").setAutocomplete(true).setRequired(true)))
   .addSubcommand((subcommand) => subcommand
     .setName("unlink")
-    .setDescription("Unlink a character (yours, or an officer can unlink anyone's).")
+    .setDescription("Unlink a character (officers: anyone's).")
     .addStringOption((option) => option.setName("name").setDescription("The character").setAutocomplete(true).setRequired(true)))
+  .addSubcommand((subcommand) => subcommand
+    .setName("appeal")
+    .setDescription("Ask officers to review your do-not-invite entry.")
+    .addStringOption((o) => o.setName("message").setDescription("For the officers").setMaxLength(500)))
   .addSubcommand((subcommand) => subcommand
     .setName("unclaimed")
     .setDescription("Unlinked characters and conflicts."))
@@ -98,6 +103,8 @@ async function defaultRealm(guildId: string): Promise<string> {
 
 export async function executeCharacter(interaction: ChatInputCommandInteraction): Promise<void> {
   const subcommand = interaction.options.getSubcommand();
+  // 9.4: the listed person's appeal (do-not-invite-flow.ts), under /character to keep the top-level command count.
+  if (subcommand === "appeal") { await executeAppeal(interaction); return; }
   // Acknowledge before database lookups, especially when the hosted database is waking up.
   if (["pair", "import"].includes(subcommand) && interaction.guild && interaction.guildId && interaction.member) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   // "Hide my profile": per Discord user, so it needs no server context (profile-privacy.ts).

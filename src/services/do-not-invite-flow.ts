@@ -72,7 +72,7 @@ export async function handleDniButton(interaction: ButtonInteraction): Promise<v
   await interaction.update({ components: [], content: `${interaction.message.content}\n${action === "c" ? "✅ Appeal granted: cleared" : "⛔ Appeal declined: the entry stays"} by <@${interaction.user.id}>.`.slice(0, 1990) });
 }
 
-/** `/appeal`: the listed person asks the officers to review. Needs their own Discord account on an entry; nothing about the entry is shown. */
+/** `/character appeal`: the listed person asks the officers to review. Needs their own Discord account on an entry; nothing about the entry is shown. */
 export async function executeAppeal(interaction: ChatInputCommandInteraction): Promise<void> {
   const say = (content: string) => interaction.reply({ content, flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
   if (!interaction.guild || !interaction.guildId) { await say("Use this in the guild's Discord server."); return; }

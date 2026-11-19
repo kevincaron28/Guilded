@@ -74,9 +74,10 @@ function ga.earned()
       local categoryName = call(GetCategoryInfo, category)
       local total, completed = call(GetCategoryNumAchievements, category)
       if type(total) == "number" and total > 0 and not (type(completed) == "number" and completed == 0) then
+        if total > 500 then ga.truncated = (ga.truncated or 0) + 1 end
         for index = 1, math.min(total, 500) do
           scanned = scanned + 1
-          if scanned > MAX_SCAN then return out end
+          if scanned > MAX_SCAN then ga.truncated = (ga.truncated or 0) + 1; return out end
           local id, name, points, done, month, day, year, description = call(GetAchievementInfo, category, index)
           if done == true and not seen[id or 0] then
             local e = entry(id, name, points, month, day, year, description, categoryName)

@@ -143,7 +143,8 @@ export interface DeviceRunSource { deviceId: string; characterKeys: readonly str
   /** (9.3.2) A copy of a run another guild's lane stored (cross-guild-runs.ts): judged like a device's run, but there is no device signature to check. */ shared?: boolean }
 export interface DeviceRunResult { stored: number; skipped: number; /** Run ref -> why it waits (not a run anywhere yet). */ pending?: Record<string, string>;
   /** (9.3.2) The runs stored by this call (for the other guilds with a member in them). */ shareable?: unknown[];
-  /** (9.3.2) What each stored run came to, for the run cards. */ summaries?: DungeonImportSummary[] }
+  /** (9.3.2) What each stored run came to, for the run cards. */ summaries?: DungeonImportSummary[]
+  /** (9.4) Refs of this call's runs the server already held as completed runs before it (never more than the call carried). */ known?: string[] }
 
 export interface DeviceStore {
   create(tokenHash: string, now: Date): Promise<{ id: string }>;
@@ -187,7 +188,7 @@ export interface DeviceStore {
 export const splitGroupRuns = (raw: unknown[]): { group: unknown[]; rest: unknown[] } => splitGroupCarried(raw);
 
 /** The runs of one unsigned upload the server now holds, in the shape the signed-in standings use. */
-export interface DeviceRunReceipts { acceptedRunRefs: string[]; runNotes: Record<string, string>; /** Received but not counted yet, with the reason. Never "synced". */ pendingRunNotes?: Record<string, string>; /** (9.3.5) The result card rows of the runs held, by run ref. */ runCards?: Record<string, ReceiptCardRow[]> }
+export interface DeviceRunReceipts { acceptedRunRefs: string[]; /** (9.4) Refs of the upload's runs the bot already held; a subset of acceptedRunRefs, so an older companion loses nothing by ignoring it. */ knownRunRefs?: string[]; runNotes: Record<string, string>; /** Received but not counted yet, with the reason. Never "synced". */ pendingRunNotes?: Record<string, string>; /** (9.3.5) The result card rows of the runs held, by run ref. */ runCards?: Record<string, ReceiptCardRow[]> }
 
 /** What an unsigned companion should tell its member. PvP counters (kills, defends, duels, calls) are applied only for a signed-in member. */
 export interface DeviceNotice { en: string; fr: string }
@@ -335,6 +336,7 @@ async function handleDeviceUploadCore(store: DeviceStore, device: DeviceRow, bod
   if (!runsOnly && target?.viaRoster && store.noteAlias) await store.noteAlias(target.guildId, guild, now).catch(() => undefined);
   let runs: { received: number; stored: number; skipped: number; pending?: number } | undefined;
   let pending: Record<string, string> = {};
+  let knownRefs: string[] = [];
   // Guild-only Discord: a run with no player of this guild (and none of the device's own) is not the guild's. It goes to the public lane
   // instead (ranked there like any single-report run), never to this guild's rows, cards, ranks or points.
   let guildRuns = split.rest;
@@ -368,6 +370,7 @@ async function handleDeviceUploadCore(store: DeviceStore, device: DeviceRow, bod
     pending = result.pending ?? {};
     if (result.shareable?.length) options.afterShare?.({ guildId: target.guildId, deviceId: device.id, characterKeys: [...known], receivedAt: now }, result.shareable);
     runs = { received: guildRuns.length, stored: result.stored, skipped: result.skipped, ...(Object.keys(pending).length ? { pending: Object.keys(pending).length } : {}) };
+    knownRefs = result.known ?? [];
   }
   // Every ref this upload carried that the server now holds (stored, a guildmate's copy, refused), so the addon stops waiting.
   // A guildmate's run the addon got by peer sync (none of this PC's characters in it) is not stored and gets NO receipt
@@ -383,7 +386,8 @@ async function handleDeviceUploadCore(store: DeviceStore, device: DeviceRow, bod
     const runNotes: Record<string, string> = { ...carriedNotes, ...Object.fromEntries(held.flatMap((row) => row.reason ? [[row.runRef, row.reason] as const] : [])) };
     const waiting = Object.fromEntries(Object.entries(pending).filter(([ref]) => !acceptedRunRefs.includes(ref)));
     const runCards = runCardsOf(held);
-    if (acceptedRunRefs.length || Object.keys(waiting).length) runReceipts = { acceptedRunRefs, runNotes, ...(Object.keys(waiting).length ? { pendingRunNotes: waiting } : {}), ...(Object.keys(runCards).length ? { runCards } : {}) };
+    const knownRunRefs = knownRefs.filter((ref) => refs.includes(ref) && acceptedRunRefs.includes(ref));
+    if (acceptedRunRefs.length || Object.keys(waiting).length) runReceipts = { acceptedRunRefs, runNotes, ...(knownRunRefs.length ? { knownRunRefs } : {}), ...(Object.keys(waiting).length ? { pendingRunNotes: waiting } : {}), ...(Object.keys(runCards).length ? { runCards } : {}) };
   }
   if (!runReceipts && carriedReceipts) runReceipts = carriedReceipts;
   // (9.1.4) The characters THIS upload reported and the server holds for the device, so the addon can say "Reported, not
@@ -441,7 +445,7 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
   const deviceKeys = new Set(source.characterKeys);
   const nowSec = Math.floor(now.getTime() / 1000);
   const guild = await tx.guild.findUnique({ where: { id: guildId }, select: { gameEdition: true } });
-  const heldRows = await tx.dungeonRun.findMany({ where: { guildId, runRef: { in: refs } }, select: { id: true, runRef: true, trust: true } });
+  const heldRows = await tx.dungeonRun.findMany({ where: { guildId, runRef: { in: refs } }, select: { id: true, runRef: true, trust: true, state: true } });
   const mineRows = await tx.dungeonRunWitness.findMany({ where: { guildId, deviceId: source.deviceId, runRef: { in: refs } } }) as WitnessRow[];
   const characters = await tx.character.findMany({ where: { member: { guildId } }, include: { member: true } });
   const roster = await tx.guildRosterEntry.findMany({ where: { guildId, gameEdition: "forever", inGuild: true }, select: { nameKey: true }, take: 5000 });
@@ -597,6 +601,9 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
     if (copies.length) await saveRunReceipts(tx, guildId, copies.map((runRef) => ({ runRef, outcome: "copy" as const, state: "COMPLETED", reason: COPY_REASON, runId: made.runId ?? null })), now);
   }
   if (Object.keys(pending).length) result.pending = pending;
+  // (9.4) The runs this upload carried that the bot already held, finished: the answer lists them so the companion never sends them again.
+  const known = heldRows.filter((row) => (row as { state?: string }).state === "COMPLETED" && !(row.runRef in pending)).map((row) => row.runRef);
+  if (known.length) result.known = known;
   const settings = await tx.guildSettings.findUnique({ where: { guildId }, select: { dungeonLeaderboardChannelId: true } });
   if (result.stored && settings?.dungeonLeaderboardChannelId) await enqueueDiscordJob(tx, guildId, "dungeon-board", "DUNGEON_BOARD");
   return result;

@@ -38,6 +38,12 @@ This only works if every release carries an asset with that exact name. `scripts
 3. Never publish a release as a pre-release or leave it a draft if members should receive it: the updater only reads the latest stable release.
 4. The first release that includes the fixed-name asset is the one that makes the stable link work. Until then the link returns 404 (8.4.6 does not have it).
 
+## Staged rollout, visible failures and the download checksum (9.4)
+
+- **Staged rollout.** `guilded.companionDirect` in `site/releases.json` may carry `"rolloutPercent": 0-100`. A direct-download companion downloads and installs an update only when a stable hash of its device key (the zero-setup device secret; the PC name when there is none) modulo 100 is below the percent. A missing, non-numeric or out-of-range value means 100, so an old feed behaves as before. The same install always has the same bucket, so raising the number only adds installs: publish a release with `25`, watch the logs and the bug inbox, then edit the file to `50`, `100` (or remove the key). `0` pauses a bad release for everyone who has not downloaded it. It never blocks a member who presses "Update now", an installer already downloaded, or the Store build. Startup.log says `skipped (staged rollout ...)`. The hash never leaves the PC.
+- **Visible failures.** A failed download, size or SHA-256 check, or install shows one line in the companion window: "Update failed — retrying at HH:MM" (the next check, every 4 hours; or the end of an install back-off), with a Try again button. A checked update that waits for WoW to close shows "Update ready — installs when WoW closes". Both clear by themselves after the next good step.
+- **`x-sha256` on downloads.** The companion already rejects a download whose `x-sha256` response header differs from the feed's hash, before reading the body. `worker/index.mjs` now passes that header through from the origin. The origin (Caddy `file_server` on Oracle, `/var/lib/guilded/downloads/`) must send it: see `docs/DOWNLOADS_RELIABILITY.md`. Until it does, nothing changes (the header is optional).
+
 ## Getting existing 8.4.6 direct installs onto auto-updates
 
 8.4.6 and earlier only update when the member presses "Update now". They need one last manual update to the first release that contains this updater; from then on it is automatic.

@@ -73,10 +73,10 @@ describe("runs an unsigned device sends", () => {
   it("never touches a run the server already stores, and a second upload adds nothing", async () => {
     const confirmed = { id: "run-0", runRef: "QG-1", valid: true, state: "COMPLETED", completedBy: "final boss", instanceId: 90, players: [] };
     const { tx, runs } = fakeTx([confirmed]);
-    expect(await storeDeviceRuns(tx, "g1", [run("QG-1", { endedAt: start + 3000 })], now, SRC)).toEqual({ stored: 0, skipped: 1 });
+    expect(await storeDeviceRuns(tx, "g1", [run("QG-1", { endedAt: start + 3000 })], now, SRC)).toEqual({ stored: 0, skipped: 1, known: ["QG-1"] });
     expect(runs).toEqual([confirmed]);
     expect(await storeDeviceRuns(tx, "g1", [run("QG-2")], now, SRC)).toMatchObject({ stored: 1 });
-    expect(await storeDeviceRuns(tx, "g1", [run("QG-2")], now, SRC)).toEqual({ stored: 0, skipped: 1 });
+    expect(await storeDeviceRuns(tx, "g1", [run("QG-2")], now, SRC)).toEqual({ stored: 0, skipped: 1, known: ["QG-2"] });
     expect(runs).toHaveLength(2);
   });
 });
@@ -506,5 +506,38 @@ describe("a copy of a mixed-party run in another guild (9.3.2)", () => {
       const result = await storeDeviceRuns(base.tx, "g1", [mk("QG-SIM1", ["Kev", "Bob", "Amy"], start), mk("QG-SIM2", ["Zed", "Liz", "Cy"], start + 60)], now, inbox);
       expect(result).toMatchObject({ stored: 2 });
     } finally { delete process.env["RUN_INTEGRITY_CONFIG"]; }
+  });
+});
+
+describe("9.4 delta uploads: the answer lists the runs the bot already held", () => {
+  const unsignedStore = (importRuns: NonNullable<DeviceStore["importRuns"]>): DeviceStore => {
+    const rows: DeviceRow[] = [];
+    return {
+      async create() { return { id: "d1" }; }, async find() { return rows[0] ?? null; },
+      async candidates() { return [{ guildId: "g1", discordId: "111111111", serverName: "Quebec Gold", officerLinked: true }]; },
+      async characterKeys() { return []; }, async saveUpload() { /* not under test */ }, async claim() { return false; },
+      importRuns, async receipts() { return [{ runRef: "a", reason: null }]; }
+    };
+  };
+  const device: DeviceRow = { id: "d1", guildId: null, chosenGuildId: null, claimedMemberId: null, revokedAt: null, uploads: 0 };
+  const body = { guild: { name: "Quebec Gold", realm: "R" }, characters: [{ name: "Kev" }], dungeonRuns: [run("a")] };
+
+  it("storeDeviceRuns names a finished stored run sent again, and nothing for a new one", async () => {
+    const { tx } = fakeTx([], [], ["kev"]);
+    const first = await storeDeviceRuns(tx, "g1", [run("QG-K1")], now, SRC);
+    expect(first.stored).toBe(1);
+    expect(first.known).toBeUndefined();
+    const again = await storeDeviceRuns(tx, "g1", [run("QG-K1"), run("QG-K2", { startedAt: start + 9000, endedAt: start + 11700 })], now, SRC);
+    expect(again.known).toEqual(["QG-K1"]);
+  });
+
+  it("handleDeviceUpload sends knownRunRefs only for refs of this upload, inside the accepted refs", async () => {
+    const answer = await handleDeviceUpload(unsignedStore(async () => ({ stored: 0, skipped: 1, known: ["a", "not-in-this-upload"] })), device, body, { now });
+    expect(answer).toMatchObject({ runReceipts: { acceptedRunRefs: ["a"], knownRunRefs: ["a"] } });
+  });
+
+  it("answers with no knownRunRefs when the store lists none (an older store, a first upload)", async () => {
+    const answer = await handleDeviceUpload(unsignedStore(async () => ({ stored: 1, skipped: 0 })), device, body, { now });
+    expect((answer as { runReceipts?: Record<string, unknown> }).runReceipts).not.toHaveProperty("knownRunRefs");
   });
 });

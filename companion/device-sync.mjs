@@ -1,4 +1,5 @@
 import { requestJson, versionHeaders } from "./request.mjs";
+import { UPLOAD_TIMEOUT_MS } from "./retry.mjs";
 import { foreverSameName } from "./character-identity.mjs";
 import { leaveOut } from "./group-relay.mjs";
 import { carryId } from "./carry-content.mjs";
@@ -88,7 +89,7 @@ export async function uploadAsDevice(config, full, signal, options = {}) {
     method: "POST",
     headers: { ...deviceHeaders(config), "content-type": "application/json", ...(options.runsOnly ? { "x-guilded-runs-only": "1" } : {}), ...(options.health ? { "x-companion-health": options.health } : {}) },
     body: JSON.stringify(sent)
-  }, signal);
+  }, signal, UPLOAD_TIMEOUT_MS);
   return { response, body, sent };
 }
 

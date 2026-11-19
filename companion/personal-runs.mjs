@@ -5,6 +5,8 @@ import { basename, dirname, join, sep } from "node:path";
 import { personalResponseToLua, PERSONAL_SAVED_FILES, personalPayloadFrom, personalResultMessage } from "./personal-runs-content.mjs";
 import { credentialHeaders, jsonBody, requestJson } from "./request.mjs";
 import { personalRunCounts } from "./run-report.mjs";
+import { UPLOAD_TIMEOUT_MS, retryAfterOf } from "./retry.mjs";
+import { foldKnownRefs } from "./known-runs.mjs";
 export { acceptedToLua, personalPayload, personalPayloadFrom, personalResultMessage, readPersonalRuns } from "./personal-runs-content.mjs";
 
 // Personal mode (7.0): a companion linked to a website account ("Public dungeon leaderboards
@@ -71,16 +73,19 @@ export async function uploadPersonalRuns(config, signal, onEvidence = () => {}) 
   // even when every local run is already marked synced.
   const payload = jsonBody({ character, ...(characters.length > 1 ? { characters } : {}), runs: finished, includeScore: true });
   const uploadedAt = new Date().toISOString();
-  const { response, body } = await requestJson(new URL("/api/v1/public-runs", config.uploadUrl), {
+  const { response, body: answer } = await requestJson(new URL("/api/v1/public-runs", config.uploadUrl), {
     method: "POST", headers: { ...credentialHeaders(config), ...payload.headers }, body: payload.body
-  }, signal);
+  }, signal, UPLOAD_TIMEOUT_MS);
   if (!response.ok) {
     const error = new Error(response.status === 401
       ? "The website refused this companion. Choose Sign in with Discord again in Connection & setup."
-      : `Sending runs failed (${response.status}): ${body.error ?? "unknown error"}`);
+      : `Sending runs failed (${response.status}): ${answer.error ?? "unknown error"}`);
     error.retryable = response.status === 429 || response.status >= 500;
+    error.retryAfterMs = retryAfterOf(response);
     throw error;
   }
+  // 9.4: the runs of this upload the bot already held count as accepted (an older bot lists none).
+  const body = foldKnownRefs(answer);
   Object.assign(evidence, { uploadedAt, uploadedRevision: revision });
   if (Array.isArray(body.acceptedRunRefs) && finished.every(run => body.acceptedRunRefs.includes(run.id))) {
     Object.assign(evidence, { acceptedAt: new Date().toISOString(), acceptedRevision: revision });

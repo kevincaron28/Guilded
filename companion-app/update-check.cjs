@@ -40,7 +40,7 @@ function isNewer(candidate, current) {
 // The update to suggest, or null. `latest` is { version, url } from GitHub (or null).
 function pickUpdate(current, latest) {
   let best = null;
-  if (latest && isNewer(latest.version, current)) best = { version: parseVersion(latest.version).join("."), url: latest.url, ...(latest.installer ? { installer: latest.installer } : {}) };
+  if (latest && isNewer(latest.version, current)) best = { version: parseVersion(latest.version).join("."), url: latest.url, ...(latest.installer ? { installer: latest.installer } : {}), ...(latest.rolloutPercent !== undefined ? { rolloutPercent: latest.rolloutPercent } : {}) };
   return best;
 }
 
@@ -72,7 +72,7 @@ function siteRelease(guilded) {
   const url = parseVersion(github?.version)?.join(".") === version && typeof github.url === "string" && github.url.startsWith("https://github.com/kevincaron28/Guilded/") ? github.url : RELEASES_PAGE;
   // The versioned name is stable bytes; the fixed name may move to a newer release mid-download.
   const name = `Guilded.Companion.Setup.${version}.exe`;
-  return { version, url, installer: { name, url: `${SITE_DOWNLOADS}${name}`, size, sha256 } };
+  return { version, url, installer: { name, url: `${SITE_DOWNLOADS}${name}`, size, sha256 }, ...(direct.rolloutPercent !== undefined ? { rolloutPercent: rolloutPercent(direct.rolloutPercent) } : {}) };
 }
 
 // The latest stable release: the website's releases.json first, the GitHub API when the site fails.
@@ -192,13 +192,15 @@ function isStoreInstall({ windowsStore, execPath } = {}) {
 
 // Whether the companion may fetch and install updates without being asked. Only the packaged
 // direct-download (NSIS) build on Windows, and only while the member has not turned it off.
-function decideAutoUpdate({ store, packaged, platform = "win32", enabled, current, latest, pending }) {
+function decideAutoUpdate({ store, packaged, platform = "win32", enabled, current, latest, pending, deviceKey = null }) {
   if (store) return { action: "skip", reason: "store" };
   if (!packaged || platform !== "win32") return { action: "skip", reason: "unpackaged" };
   if (enabled === false) return { action: "skip", reason: "disabled" };
   const update = pickUpdate(current, latest);
   if (!update) return { action: "none" };
   if (!update.installer) return { action: "skip", reason: "no-checked-installer" };
+  // Staged rollout: an install outside the released percent waits (a download already staged is not touched).
+  if (!(pending?.version === update.version && pending?.sha256 === update.installer.sha256) && !inRollout(deviceKey, update.rolloutPercent)) return { action: "skip", reason: "rollout", update };
   if (pending?.version === update.version && pending?.sha256 === update.installer.sha256) return { action: "staged", update };
   return { action: "download", update };
 }
@@ -206,7 +208,7 @@ function decideAutoUpdate({ store, packaged, platform = "win32", enabled, curren
 // One line for startup.log: what the update decision was (never a path or a secret).
 function describeDecision(decision) {
   if (!decision) return "unknown";
-  if (decision.action === "skip") return `skipped (${decision.reason})`;
+  if (decision.action === "skip") return decision.reason === "rollout" ? `skipped (staged rollout: not this install's turn yet, ${rolloutPercent(decision.update?.rolloutPercent)}% released)` : `skipped (${decision.reason})`;
   if (decision.action === "none") return "up to date";
   if (decision.action === "staged") return `${decision.update.version} is already downloaded`;
   if (decision.action === "download") return `download ${decision.update.version}`;
@@ -282,4 +284,41 @@ function versionStatus({ current, latest = null, pending = null, pendingReady = 
   return { ...base, status: "unknown", action: "check", ...(checkFailed ? { checkFailed: true } : {}) };
 }
 
-module.exports = { versionStatus, STORE_LISTING, parseVersion, isNewer, pickUpdate, fetchLatestRelease, fetchGithubRelease, fetchSiteReleases, siteRelease, installerSources, SITE, SITE_RELEASES, SITE_DOWNLOADS, installerFrom, downloadInstaller, launchInstaller, isStoreInstall, decideAutoUpdate, hashFileSync, inspectPending, launchInstallerOnExit, describeDecision, RELEASES_PAGE, DIRECT_DOWNLOAD_URL, CHECK_INTERVAL_MS };
+// Staged rollout (9.4 T2). releases.json's companion entry may carry `rolloutPercent` (0 to 100); a missing, non-numeric or
+// out-of-range value means 100 (everyone), so an old feed behaves as before. A companion updates only when a stable hash of its
+// device key (the zero-setup device secret; the install's own random id when it has none) modulo 100 is below the percent.
+// The same install always lands in the same bucket, so raising the percent only ever adds installs. Nothing about the
+// decision is sent anywhere. An update the member asks for with "Update now" is never held back.
+function rolloutPercent(value) {
+  if (value === undefined || value === null || value === "") return 100;
+  const number = typeof value === "number" ? value : /^\s*\d{1,3}(\.\d+)?\s*$/.test(String(value)) ? Number(value) : NaN;
+  return Number.isFinite(number) && number >= 0 && number <= 100 ? number : 100;
+}
+/** 0 to 99: the same for the same device key, spread evenly across keys. The key itself is never kept or sent. */
+function rolloutBucket(deviceKey) {
+  const { createHash } = require("node:crypto");
+  return createHash("sha256").update(`guilded-rollout:${String(deviceKey ?? "")}`).digest().readUInt32BE(0) % 100;
+}
+/** True when this install may take the update now. `percent` from rolloutPercent(); no key means no bucket, so it waits unless the rollout is 100. */
+function inRollout(deviceKey, percent) {
+  const limit = rolloutPercent(percent);
+  if (limit >= 100) return true;
+  if (limit <= 0 || !deviceKey) return false;
+  return rolloutBucket(deviceKey) < limit;
+}
+
+// What the window says about an update that is not going smoothly (9.4 T2), or null. Pure.
+//   trouble: { retryAt } a download, checksum or install step failed and the next try is at retryAt (an ISO time);
+//   failure: the install backoff record ({ version, nextAt }) of idle-update.cjs;
+//   pendingReady + wowRunning: a checked installer waits for WoW to close.
+function updateNotice({ trouble = null, failure = null, pendingReady = false, wowRunning = false, version = null, now = Date.now() } = {}) {
+  const at = (iso) => { const time = Date.parse(iso ?? ""); return Number.isFinite(time) ? new Date(time).toISOString() : null; };
+  const troubleAt = at(trouble?.retryAt);
+  if (trouble && troubleAt) return { kind: "failed", retryAt: troubleAt };
+  const next = Date.parse(failure?.nextAt ?? "");
+  if (failure && (!version || failure.version === version) && Number.isFinite(next) && now < next) return { kind: "failed", retryAt: new Date(next).toISOString() };
+  if (pendingReady && wowRunning) return { kind: "ready" };
+  return null;
+}
+
+module.exports = { rolloutPercent, rolloutBucket, inRollout, updateNotice, versionStatus, STORE_LISTING, parseVersion, isNewer, pickUpdate, fetchLatestRelease, fetchGithubRelease, fetchSiteReleases, siteRelease, installerSources, SITE, SITE_RELEASES, SITE_DOWNLOADS, installerFrom, downloadInstaller, launchInstaller, isStoreInstall, decideAutoUpdate, hashFileSync, inspectPending, launchInstallerOnExit, describeDecision, RELEASES_PAGE, DIRECT_DOWNLOAD_URL, CHECK_INTERVAL_MS };

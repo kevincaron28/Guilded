@@ -7,6 +7,7 @@ import { linkedMapLua } from "./standings-format.mjs";
 import { featuresLua } from "./group-relay.mjs";
 import { mergeRunCards, parseRunCards, runCardsToAddLua, runCardsToLua } from "./run-cards.mjs";
 import { patchReceiptBlocks, readRecord, recordReceipts } from "./parked-runs.mjs";
+import { acceptedWithKnown } from "./known-runs.mjs";
 
 // Zero-setup companion (9.1.3): an unsigned device never fetches the guild standings, so nothing told the
 // addon which of its dungeon runs the bot had received, and they stayed "waiting" for ever. The bot's answer
@@ -41,7 +42,7 @@ export const NOT_THIS_PC = "Not one of this PC's characters";
 export function mergeDeviceReceipts(previous, answer) {
   const answerNotes = answer?.runNotes && typeof answer.runNotes === "object" ? answer.runNotes : {};
   const refused = (ref, held) => (held ?? {})[ref] === NOT_THIS_PC;
-  const fresh = (Array.isArray(answer?.acceptedRunRefs) ? answer.acceptedRunRefs.filter((ref) => typeof ref === "string" && ref) : []).filter((ref) => !refused(ref, answerNotes));
+  const fresh = (Array.isArray(answer?.acceptedRunRefs) || Array.isArray(answer?.knownRunRefs) ? acceptedWithKnown(answer).filter((ref) => typeof ref === "string" && ref) : []).filter((ref) => !refused(ref, answerNotes));
   const refs = [...new Set([...fresh, ...(previous?.refs ?? []).filter((ref) => !refused(ref, previous?.notes))])].slice(0, MAX_REFS);
   const notes = { ...(previous?.notes ?? {}) };
   for (const ref of fresh) delete notes[ref]; // The bot's latest word on a run replaces an older note.

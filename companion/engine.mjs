@@ -11,6 +11,8 @@ import { readSavedExport, watchedSavedFiles, NO_GUILD_KEY_MESSAGE } from "./addo
 import { dungeonRunReport, runReportMessage, relayedRunReport, deviceRunCounts, signedRunCounts } from "./run-report.mjs";
 import { resolveStandingsPath, standingsFileHolds, writeStandings } from "./standings.mjs";
 import { credentialHeaders, checkUrl, requestJson, jsonBody, setAddonVersion, MAX_UPLOAD_BYTES } from "./request.mjs";
+import { acceptedWithKnown } from "./known-runs.mjs";
+import { retryDelay, retryAfterOf, UPLOAD_TIMEOUT_MS } from "./retry.mjs";
 import { acknowledgements, pruneAcknowledged, runResendDue } from "./delta.mjs";
 import { createPoeEngine, validatePoeConfig } from "./poe-engine.mjs";
 import { personalSavedFiles, resolveAcceptedPath, uploadPersonalRuns } from "./personal-runs.mjs";
@@ -418,7 +420,7 @@ export function createEngine(initialConfig, hooks = {}) {
       method: "POST",
       headers: { ...credentialHeaders(current), ...payload.headers, ...(healthHeader() ? { "x-companion-health": healthHeader() } : {}) },
       body: payload.body
-    }, controller.signal);
+    }, controller.signal, UPLOAD_TIMEOUT_MS);
     // A compressed upload the bot (or something on the way) could not read: send it plain from now on.
     if (gzip && epoch === generation && (result.response.status === 400 || result.response.status === 415)) {
       gzipOff = true;
@@ -468,7 +470,7 @@ export function createEngine(initialConfig, hooks = {}) {
       state.syncPhase = error.retryable === false ? "needs-attention" : "retry";
       log("error", `Upload failed: ${state.uploadError}${errorCodeNote(error)}`);
       if (error.retryable !== false && state.running) {
-        const delay = Math.min(300_000, 5_000 * 2 ** Math.min(failures++, 6));
+        const delay = retryDelay(failures++, { retryAfterMs: error.retryAfterMs });
         state.retryAt = new Date(Date.now() + delay).toISOString();
         scheduleUpload(delay);
       }
@@ -497,10 +499,10 @@ export function createEngine(initialConfig, hooks = {}) {
         if (response.ok && body.status === "claimed") break;
         if (!response.ok) { log("warn", `Dungeon runs of ${key}: the bot answered ${response.status}; they will be sent again later.`); }
         else {
-          edits.push((fresh) => recordAcknowledged(fresh, key, sent.dungeonRuns, body.runReceipts?.acceptedRunRefs, body.runReceipts?.runNotes).record);
+          edits.push((fresh) => recordAcknowledged(fresh, key, sent.dungeonRuns, acceptedWithKnown(body.runReceipts), body.runReceipts?.runNotes).record);
           const line = runReportMessage(deviceRunCounts(sent.dungeonRuns, body));
           if (line) log(line.level, line.message.replace("Dungeon runs:", `Dungeon runs of ${key}:`));
-          const unheld = sent.dungeonRuns.filter((run) => !(body.runReceipts?.acceptedRunRefs ?? []).includes(run.id));
+          const unheld = sent.dungeonRuns.filter((run) => !acceptedWithKnown(body.runReceipts).includes(run.id));
           kind = body.status === "no-guild" ? "no-guild" : body.status === "choose" ? "choose" : unheld.length ? "unvouched" : "ok";
           if (kind !== "ok") waiting.push(waitLine(key, unheld.length || ids.length));
         }
@@ -630,6 +632,7 @@ export function createEngine(initialConfig, hooks = {}) {
       if (!response.ok) {
         const error = new Error(`Upload failed (${response.status}): ${describeApiError(response.status, body.error)}`);
         error.retryable = response.status === 429 || response.status >= 500;
+        error.retryAfterMs = retryAfterOf(response);
         throw error;
       }
       deviceFeatureSet = new Set(Array.isArray(body.deviceFeatures) ? body.deviceFeatures : []);
@@ -674,7 +677,7 @@ export function createEngine(initialConfig, hooks = {}) {
       state.syncPhase = error.retryable === false ? "needs-attention" : "retry";
       log("error", `Upload failed: ${state.uploadError}${errorCodeNote(error)}`);
       if (error.retryable !== false && state.running) {
-        const delay = Math.min(300_000, 5_000 * 2 ** Math.min(failures++, 6));
+        const delay = retryDelay(failures++, { retryAfterMs: error.retryAfterMs });
         state.retryAt = new Date(Date.now() + delay).toISOString();
         scheduleUpload(delay);
       }
@@ -808,6 +811,7 @@ export function createEngine(initialConfig, hooks = {}) {
     } else {
       const error = new Error(`Upload failed (${response.status}): ${describeApiError(response.status, body.error)}`);
       error.retryable = response.status === 429 || response.status >= 500;
+        error.retryAfterMs = retryAfterOf(response);
       throw error;
     }
       state.uploadError = null;
@@ -821,7 +825,7 @@ export function createEngine(initialConfig, hooks = {}) {
       state.syncPhase = error.retryable === false ? "needs-attention" : "retry";
       log("error", `Upload failed: ${state.uploadError}${errorCodeNote(error)}`);
       if (error.retryable !== false && state.running) {
-        const delay = Math.min(300_000, 5_000 * 2 ** Math.min(failures++, 6));
+        const delay = retryDelay(failures++, { retryAfterMs: error.retryAfterMs });
         state.retryAt = new Date(Date.now() + delay).toISOString();
         scheduleUpload(delay);
       }

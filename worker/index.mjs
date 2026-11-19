@@ -208,7 +208,7 @@ function mirrorUrl(env) {
   } catch { /* not configured */ }
   return null;
 }
-const PASSED_HEADERS = ["content-length", "content-range", "accept-ranges", "last-modified", "etag"];
+const PASSED_HEADERS = ["content-length", "content-range", "accept-ranges", "last-modified", "etag", "x-sha256"];
 export async function hostedDownload(request, env, ctx, url = new URL(request.url)) {
   const match = HOSTED_DOWNLOAD.exec(url.pathname);
   if (!match) return null;

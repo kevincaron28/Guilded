@@ -34,7 +34,7 @@ const say = (message, ok = true) => { syncNote = null; const notice = $('notice'
 function render() {
   const status = window.guildedMainStatus({
     config: snapshot.config, state: snapshot.state || {}, problems: snapshot.problems || [], savedFile: snapshot.savedFile,
-    addonAction: snapshot.addonAction, wowRunning: snapshot.addonAction?.blocked === 'wow-running', update: snapshot.update, otherAccount: snapshot.otherAccount, me
+    addonAction: snapshot.addonAction, wowRunning: snapshot.addonAction?.blocked === 'wow-running', update: snapshot.update, updateNotice: snapshot.updateNotice, otherAccount: snapshot.otherAccount, me
   });
   for (const entry of status.lines) {
     const row = $('line-' + entry.id);
@@ -183,7 +183,7 @@ $('btnClaimLater').onclick = () => void answerClaim('later');
 setInterval(() => void loadClaimOffers(), 10 * 60_000);
 async function reload() {
   const all = await api.getAll();
-  snapshot = { ...snapshot, accountRows: all.accountRows || [], otherAccount: all.otherAccount ?? null, config: all.config, state: all.state, problems: all.problems, savedFile: all.savedFile, addonAction: all.addonAction, update: all.update };
+  snapshot = { ...snapshot, accountRows: all.accountRows || [], otherAccount: all.otherAccount ?? null, config: all.config, state: all.state, problems: all.problems, savedFile: all.savedFile, addonAction: all.addonAction, update: all.update, updateNotice: all.updateNotice };
   storePackage = all.storePackage === true; version = all.version || '';
   logs = all.logs || logs;
   $('autostart').checked = all.autostart === true;
@@ -224,7 +224,7 @@ window.addEventListener('online', () => { reportOnline(); void api.recoverSync?.
 window.addEventListener('offline', reportOnline);
 if (!navigator.onLine) reportOnline();
 
-api.onState((next) => { snapshot = { ...snapshot, state: next.state, problems: next.problems, savedFile: next.savedFile, addonAction: next.addonAction, update: next.update, otherAccount: next.otherAccount, accountRows: next.accountRows || [] }; render(); endSyncNote(); });
+api.onState((next) => { snapshot = { ...snapshot, state: next.state, problems: next.problems, savedFile: next.savedFile, addonAction: next.addonAction, update: next.update, updateNotice: next.updateNotice, otherAccount: next.otherAccount, accountRows: next.accountRows || [] }; render(); endSyncNote(); });
 api.onUpdateProgress?.((percent) => say(T('Downloading and checking the update: {0}%', percent)));
 api.onLog((entry) => { logs = [...logs, entry].slice(-100); renderAdvanced(); });
 $('language').value = $('advLanguage').value = languageUI.language;

@@ -23,6 +23,8 @@ export async function renderNextCard(card: ScoreCard, options: { branded?: boole
   if (card.dungeon) return dungeonCard(card);
   const recapped = await renderRecapKind(card, fit);
   if (recapped) return recapped;
+  if (card.weekly) return (await import("./card-podium.js")).renderWeeklyHonorsCard(card);
+  if (card.ladder && card.backdrop?.key === "community" && card.ladder.boards.some((board) => board.rows.length)) return (await import("./card-podium.js")).renderCommunityPodium(card);
   if (card.ladder) return ladderCard(card);
   const kind = card.backdrop?.kind;
   if (kind === "board" && card.backdrop?.key === "duel" && card.rows?.length === 2 && card.stats.length >= 1 && card.stats.length <= 3) return duelCard(card);

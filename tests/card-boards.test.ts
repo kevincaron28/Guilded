@@ -47,7 +47,8 @@ describe("ladder cards on the banner layout", () => {
         const png = await scoreCardPng(card);
         expect(png, name).toBeInstanceOf(Buffer);
         const meta = await sharp(png!).metadata();
-        expect([meta.width, meta.height], name).toEqual([1200, 630]); // the redesigned banner card; the old ladder card grew with its rows
+        if (name === "community") { expect(meta.width, name).toBe(1200); expect(meta.height, name).toBeGreaterThan(630); } // the podium card grows with its rows
+        else expect([meta.width, meta.height], name).toEqual([1200, 630]); // the redesigned banner card; the old ladder card grew with its rows
         save(`${name}-${lang}`, png!);
       }
     }, 120_000);

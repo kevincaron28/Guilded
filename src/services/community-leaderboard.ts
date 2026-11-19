@@ -21,7 +21,7 @@ const boardMarker = (lang: Lang) => lang === "fr" ? COMMUNITY_BOARD_MARKER_FR : 
 // Posts made before the footer followed the server language carry the English text: both count as the live board.
 const isBoardFooter = (text: string | undefined) => !!text && (text.startsWith(COMMUNITY_BOARD_MARKER) || text.startsWith(COMMUNITY_BOARD_MARKER_FR));
 export const COMMUNITY_CARD_PREFIX = "community-board-";
-const CARD_TOP = 25, TEXT_TOP = 10;
+const CARD_TOP = 30, TEXT_TOP = 10;
 /** A standing as the board holds it: the ledger's, plus the split between Discord, dungeons and PvP once in-game points are merged in. */
 export type BoardRow = Standing & Partial<Pick<MergedStanding, "discord" | "dungeons" | "pvp">>;
 
@@ -101,13 +101,14 @@ export function communityBoardCard(input: { lang: Lang; season: { name: string; 
   const label = season ? communitySeasonLabel({ name: season.name, ...(season.number === undefined ? {} : { number: season.number }) }, lang) : fr ? "4 dernières semaines" : "Last 4 weeks";
   const figure = (value: number) => value.toLocaleString(fr ? "fr-CA" : "en-CA");
   return {
-    eyebrow: fr ? "Guilded · Communauté" : "Guilded · Community", title: fr ? "Classement de la communauté" : "Community leaderboard",
+    eyebrow: fr ? "Communauté" : "Community", title: fr ? "Classement de la communauté" : "Community leaderboard",
     subtitle: fr ? `${label} · ${ranked.length} membres` : `${label} · ${ranked.length} members`,
     backdrop: { kind: "board", key: "community", fallbackKey: "season-podium" }, stats: [],
     footer: fr ? "Discord, donjons, duels, champs de bataille et JcJ en monde ouvert : tout compte au même classement." : "Discord, dungeons, duels, battlegrounds and open-world PvP all count on the same board.",
     ladder: {
       meta: ladderMeta(lang, input.updatedAt ?? new Date(), null, input.timeZone),
       empty: fr ? "Aucun point pour le moment." : "No points yet.",
+      ...(ranked.length > CARD_TOP ? { more: fr ? `+${ranked.length - CARD_TOP} autres` : `+${ranked.length - CARD_TOP} more` } : {}),
       columns: [{ label: "Discord", width: 64 }, { label: fr ? "Donjons" : "Dungeons", width: 70 }, { label: fr ? "JcJ" : "PvP", width: 56 },
         { label: "Total", width: 70, primary: true }, ...(input.moves ? [moveColumn(lang)] : [])],
       boards: [{ rows: ranked.slice(0, CARD_TOP).map(row => {

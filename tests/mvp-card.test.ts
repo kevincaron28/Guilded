@@ -11,13 +11,13 @@ const names = new Map([[A, "haraz5093"], [B, "Bubble bubble"], [C, "Simon"], [D,
 const post = (lang: "fr" | "en", over: Record<string, unknown> = {}) =>
   weeklyHonorsMessage(lang, { week: "2026-11-09", board, mvps: [A], recap, rookie: board[3]!, names, ...over } as never);
 type Extra = {
-  card: { title: string; rows?: { name: string }[]; stats: { value: string }[]; eyebrow: string };
-  cardOnly: { content?: string; embeds: { description?: string; fields?: { name: string; value: string }[] }[] };
+  card: { title: string; eyebrow: string; weekly: { mvp: { name: string; points: string }; top: { rank: number; name: string }[]; rookie?: { name: string; place: string }; stats: { icon: string }[] } };
+  cardOnly: { content?: string; embeds: Record<string, unknown>[] };
   cardMember: string;
-  extraCard?: { card: { title: string; eyebrow: string; subtitle: string }; dropField: string; member?: string };
+  extraCard?: unknown;
 };
-const run = (lang: "fr" | "en", over: Record<string, unknown>, mvps: string[], rookie: typeof board[number] | null) =>
-  weeklyPostCardExtra(lang, post(lang, over), "2026-11-09", mvps.length || rookie ? board : [], mvps, rookie, names) as unknown as Extra;
+const run = (lang: "fr" | "en", over: Record<string, unknown>, mvps: string[], rookie: typeof board[number] | null, withRecap = true) =>
+  weeklyPostCardExtra(lang, post(lang, over), "2026-11-09", mvps.length || rookie ? board : [], mvps, rookie, names, withRecap ? recap : undefined, new Map([[A, 2]])) as unknown as Extra;
 
 describe("MVP of the week card", () => {
   it("is drawn for the MVP, with the next places as rows and the lead as a stat", async () => {
@@ -31,53 +31,38 @@ describe("MVP of the week card", () => {
     expect(weeklyMvpCard("en", { name: "A", points: 1, others: [] }).rows).toBeUndefined();
   });
 
-  it("MVP + rookie: the MVP card first, the rookie card second, each fact once across both cards and the text", () => {
+  it("the whole weekly post is ONE card: week, MVP, top three, rookie and the guild's week; the text tags the MVP", async () => {
     for (const lang of ["fr", "en"] as const) {
       const extra = run(lang, {}, [A], board[3]!);
-      expect(extra.card.title).toBe("haraz5093");
+      expect(extra.card.title).toBe(lang === "fr" ? "La semaine du 9 novembre au 15 novembre" : "The week of November 9 to November 15");
+      expect(extra.card.eyebrow).not.toMatch(/Guilded/);
+      expect(extra.card.weekly.mvp.name).toBe("haraz5093");
+      expect(extra.card.weekly.top.map(row => row.name)).toEqual(["haraz5093", "Bubble bubble", "Simon"]);
+      expect(extra.card.weekly.rookie).toMatchObject({ name: "Newbie", place: "4/4" });
+      expect(extra.card.weekly.stats.length).toBeGreaterThan(3);
       expect(extra.cardMember).toBe(A);
-      expect(extra.extraCard!.card.title).toBe("Newbie");
-      expect(extra.extraCard!.card.eyebrow).toBe(lang === "fr" ? "Guilded · Recrue de la semaine" : "Guilded · Rookie of the week");
-      expect(extra.extraCard!.card.subtitle).toMatch(/MVP/);
-      expect(extra.extraCard!.member).toBe(D);
-      // The rookie is not repeated in the MVP card's rows.
-      expect(extra.card.rows!.map(r => r.name)).toEqual(["Bubble bubble", "Simon"]);
-      const embeds = extra.cardOnly.embeds;
-      const text = JSON.stringify(embeds);
-      expect(text).not.toMatch(/Top of the week|Le top de la semaine/);
-      expect(text).not.toContain("224");
-      expect(embeds[0]!.description).toMatch(/MVP/);
-      expect(embeds[0]!.fields!.map(f => f.name).some(name => /guild's week|semaine de la guilde/.test(name))).toBe(true);
-      // Two picture-less embeds, one per card. The rookie text line stays in the stored message; the delivery drops it when the second card drew.
-      expect(embeds.slice(-2)).toEqual([{ color: 0x9b59b6 }, { color: 0x2ecc71 }]);
-      const rookie = embeds[0]!.fields!.find(f => /Rookie|Recrue/.test(f.name))!;
-      expect(rookie.name).toBe(extra.extraCard!.dropField);
-      expect(rookie.value).toContain("Newbie");
-      expect(rookie.value).toMatch(/4(th|e)/);
-      expect(extra.cardOnly.content).toMatch(/Congratulations|Bravo/);
+      // One picture-less embed, no second card, and the text line tags the MVP.
+      expect(extra.extraCard).toBeUndefined();
+      expect(extra.cardOnly.embeds).toEqual([{ color: 0x9b59b6 }]);
+      expect(extra.cardOnly.content).toContain(`<@${A}>`);
+      expect((await scoreCardPng(extra.card as never))?.subarray(1, 4).toString()).toBe("PNG");
     }
   });
 
-  it("MVP only (no rookie): one card, one picture-less embed, no rookie field", () => {
+  it("MVP only (no rookie): the same single card without a rookie panel", () => {
     const extra = run("en", { rookie: null }, [A], null);
-    expect(extra.card.title).toBe("haraz5093");
-    expect(extra.extraCard).toBeUndefined();
-    expect(extra.cardOnly.embeds.filter(e => Object.keys(e).every(k => k === "color"))).toHaveLength(1);
-    expect(JSON.stringify(extra.cardOnly.embeds)).not.toContain("Rookie");
+    expect(extra.card.weekly.rookie).toBeUndefined();
+    expect(extra.cardOnly.embeds).toHaveLength(1);
   });
 
   it("rookie only (no MVP): the rookie card is the post's card", () => {
-    const extra = run("en", { mvps: [] }, [], board[3]!);
+    const extra = weeklyPostCardExtra("en", post("en", { mvps: [] }), "2026-11-09", board, [], board[3]!, names, recap) as unknown as { card: { title: string } };
     expect(extra.card.title).toBe("Newbie");
-    expect(extra.extraCard).toBeUndefined();
   });
 
-  it("an MVP with nobody beneath gets no card of their own (the text says it); the rookie still does", () => {
-    const solo = weeklyPostCardExtra("en", post("en", { board: [board[0]!] }), "2026-11-09", [board[0]!], [A], null, names);
-    expect(solo).toEqual({});
-    const pair = weeklyPostCardExtra("en", post("en", { board: [board[0]!, board[3]!] }), "2026-11-09", [board[0]!, board[3]!], [A], board[3]!, names) as unknown as Extra;
-    expect(pair.card.title).toBe("Newbie");
-    expect(pair.extraCard).toBeUndefined();
+  it("an MVP alone still gets the card", () => {
+    const solo = weeklyPostCardExtra("en", post("en", { board: [board[0]!] }), "2026-11-09", [board[0]!], [A], null, names, recap) as unknown as Extra;
+    expect(solo.card.weekly.top).toHaveLength(1);
   });
 
   it("neither: no card; the text post is unchanged", () => {

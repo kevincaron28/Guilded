@@ -44,7 +44,7 @@ clears, deaths, loot, XP or party participation and award no automatic points.
 Press **Sign in with Discord** in the companion window (optional): your browser opens the
 website, you pick your server (or public leaderboards only) and press Connect. The
 app listens on 127.0.0.1 and receives a one-time proof, so there is nothing to type.
-Older companions can still use the one-time `/character pair` code.
+Older companions can still use the one-time `/character link` code.
 
 Uploads use the personal credential header; no third-party scripts, broad CORS
 policy or global token bypass is added. The bot freshly verifies Discord membership

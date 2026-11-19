@@ -21,7 +21,7 @@ PoE2 integration analysis: [POE2_DISCORD_INTEGRATION.md](POE2_DISCORD_INTEGRATIO
 - Helper nominations use a member selector and a short form. They still require
   participation to be enabled, eligible members and independent officer review.
 - `/community hub` gives officers quiz, gaming-night and cooperative-challenge forms.
-  Officers create polls through `/poll create`; the hub links the latest open polls
+  Officers create polls through `/organize poll create`; the hub links the latest open polls
   in its visible activity destinations. Existing Discord events supply opt-in
   Interested reminders; their link is added when the native event is created.
 - `/organize season-settings` renames a season or changes its announcement channel.

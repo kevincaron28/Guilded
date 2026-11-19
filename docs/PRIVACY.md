@@ -144,7 +144,7 @@ trusted HTTPS endpoint when using a separately hosted server.
 
 ### Choices, access and deletion
 
-**Delete my data.** In your guild's Discord server, type `/delete-my-data` and press the confirm button
+**Delete my data.** In your guild's Discord server, type `/character privacy action:delete` and press the confirm button
 (the command shows what will be removed first; see also guildedwow.com/delete-my-data/). This removes your website account (profile, recruitment card,
 Battle.net selection, devices and sign-ins), your guild characters and what hangs off them, and your
 personal records (battleground reports, achievements, milestones, recap schedule, alerts, availability,
@@ -376,7 +376,7 @@ configurez une adresse HTTPS de confiance.
 
 ### Choix, accès et suppression
 
-**Supprimer mes données.** Dans le serveur Discord de votre guilde, tapez `/delete-my-data` et appuyez sur le bouton de
+**Supprimer mes données.** Dans le serveur Discord de votre guilde, tapez `/character privacy action:delete` et appuyez sur le bouton de
 confirmation (la commande montre d'abord ce qui sera retiré; voir aussi guildedwow.com/delete-my-data/). Cela supprime votre compte du site (profil, fiche de
 recrutement, sélection Battle.net, appareils et connexions), vos personnages de guilde et leurs dépendances, et vos
 données personnelles (rapports JcJ, succès, jalons, bilans, alertes, disponibilité, identifiants d'appairage et du

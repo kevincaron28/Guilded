@@ -18,7 +18,7 @@ each week. No scoring or awards are changed.
 
 ## Officers
 
-1. In the intended existing channel, save `/poll weekly-preview` with a question,
+1. In the intended existing channel, save `/organize poll weekly-preview` with a question,
    day, time and timezone. Review the text and channel.
 2. `/automation question action:on` explicitly enables that saved weekly post.
    Editing its text/channel/schedule disables automation until approved again.
@@ -45,7 +45,7 @@ Tout commence **désactivé**. Aucun score ni point n'est modifié.
 - `/dungeon watch` : rôles, disponibilités, silence et expiration (sept jours
   maximum). Un officier doit activer le salon. Aucun MP de secours; deux avis
   maximum par 24 h, espacés d'au moins six heures.
-- Officiers : enregistrez `/poll weekly-preview`, vérifiez le salon et le texte,
+- Officiers : enregistrez `/organize poll weekly-preview`, vérifiez le salon et le texte,
   puis activez `/automation question action:on`. Modifier la question désactive
   l'envoi jusqu'à une nouvelle approbation.
 - `/automation vacancies action:on channel:…` active les correspondances pour

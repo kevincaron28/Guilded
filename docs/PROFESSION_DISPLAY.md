@@ -42,7 +42,7 @@ Track C's compact "Details" for chat links is a different message; if it lands f
 
 - Reagent search still needs recipe materials that the addon does not upload yet.
 - Posts are edited by the existing profession refresh job; Discord components in an old post appear on its next edit.
-- Everything is on by default; an officer switches the posts off with `/craft posts-setting` (see `docs/ARTISANS_GALLERY.md`).
+- Everything is on by default; an officer switches the posts off with `/config craft posts` (see `docs/ARTISANS_GALLERY.md`).
 
 ## One profession, one name in every game language (9 November 2026)
 

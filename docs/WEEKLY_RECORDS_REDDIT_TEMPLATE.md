@@ -34,4 +34,4 @@ Want your guild on it? Install the Guilded addon and Windows companion, then an 
 Notes for you
 - Do not name or link private individuals beyond what the public boards already show; players who hid their profile are not on the boards.
 - Raid firsts are worldwide (WoW Forever has no regions). Times are UTC.
-- The weekly Discord card is opt-in per server: `/report stats records-posts:true` (officers).
+- The weekly Discord card is opt-in per server: `/officer reports posts records-posts:true` (officers).

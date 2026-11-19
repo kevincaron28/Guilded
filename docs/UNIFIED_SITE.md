@@ -21,7 +21,7 @@ server ID and personal pairing. KCaron must approve each server first; see
 [HOSTED_PILOT.md](HOSTED_PILOT.md). Independently hosted guilds use their own addresses.
 
 Browser sessions are stored per origin. Members opening this address for the
-first time need their own new `/character pair` or `/poe pair` code. Pairing a
+first time need their own new `/character link` or `/poe pair` code. Pairing a
 new session replaces the previous companion credential; finish queued uploads
 before switching. This also applies when the Cloudflare subdomain is renamed.
 Do not copy credentials between sites or commit them.

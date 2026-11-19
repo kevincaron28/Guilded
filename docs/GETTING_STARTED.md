@@ -22,11 +22,11 @@ Store installations update through Microsoft Store; each channel may publish at 
 
 Members start with the addon download. The default is **In-game only**; Discord
 character linking and companion sync are optional. To link without a companion,
-`/character pair` (or the welcome character button) shows one line,
+`/character link` (or the welcome character button) shows one line,
 `/guilded verify ABCD-EFGH`, to paste in WoW chat once: every character on that
 WoW account then links on the next upload from an officer's companion, and the
 member gets a DM. So at least one officer should run the companion. The manual
-`/guilded character` → `/character import` way still works for one character.
+`/guilded character` → `/character link` way still works for one character.
 The companion connects with **Sign in with Discord**: enter the confirmation code
 displayed in your companion on the sign-in page, then choose your server.
 Members do not need the host's bot token or database credentials. Only a guild
@@ -43,7 +43,7 @@ companions or your guild's own bot**.
 4. The companion downloads standings. Another `/reload` loads those into the addon.
 
 Open professions normally to collect recipes automatically. Personal uploads
-apply automatically; an officer's guild data may require `/import apply` if
+apply automatically; an officer's guild data may require `/setup import apply` if
 automatic import is disabled. Install the Windows companion from [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) (GitHub direct download as
 a fallback; it is unsigned). It is optional for the addon alone, needed for Discord and
 website features, and Windows only.

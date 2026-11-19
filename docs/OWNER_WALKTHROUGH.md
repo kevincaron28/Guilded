@@ -332,7 +332,7 @@ WoW client, open the game and `/reload`. Members install the Windows companion f
 (Windows only) and, under Advanced, set your own bot address
 `https://myguild.duckdns.org/api/v1/addon-imports` before signing in.
 
-Each player runs `/character pair` in **your** Discord server and enters their own
+Each player runs `/character link` in **your** Discord server and enters their own
 private code. In the Windows companion, choose **Sign in with Discord**, pick the
 account's saved `Guilded.lua`, save preferences and sync. The app writes standings into
 the addon's folder; `/reload` again to load them. It then keeps syncing automatically.
@@ -353,7 +353,7 @@ Guide: <member guide link>
 Discord server ID: <our server ID>
 Bot address: https://<our-hostname>/api/v1/addon-imports
 Windows companion: https://apps.microsoft.com/detail/9N680XX3QFL9 (set our bot address in Advanced)
-Install the addon, log in and /reload. Use /character pair here for your own code.
+Install the addon, log in and /reload. Use /character link here for your own code.
 Never share the code. For help, contact <our officer>.
 ```
 

@@ -123,7 +123,7 @@ A database connection failure needs the provider URL/SSL/network fixed. A
 Your member bot address is `https://guild.example.org/api/v1/addon-imports`.
 Members install the Windows companion from [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) and set your bot address under Advanced.
 Replace the hostname, then fill the handout in [Guild owner setup](GUILD_OWNER_SETUP.md#5-give-members-one-pinned-message).
-Each member uses their own `/character pair` code. Desktop companions stay on
+Each member uses their own `/character link` code. Desktop companions stay on
 players' PCs because they read game files; they do not move to the bot host.
 
 ## Updates and recovery

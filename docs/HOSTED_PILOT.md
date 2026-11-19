@@ -20,7 +20,7 @@ While your server waits for approval (up to 50 servers at a time):
 | Included in Lite | Unlocked by approval |
 | --- | --- |
 | `/setup start`: language, roles and channels (steps 1 to 4, then the checklist) | Welcome, auto-roles, EPGP and automation steps of `/setup start` |
-| `/help` | Addon and companion sync, `/character pair` |
+| `/help` | Addon and companion sync, `/character link` |
 | `/mod faq` (saved answers) | EPGP, loot, raid cores, seasons, attendance |
 | `/report bug` and `/report ping` | Community activities, polls, participation points |
 | `/dungeon group` | Dungeon leaderboards and records |
@@ -53,7 +53,7 @@ The hosted bot is free. Optional support never buys approval or priority.
 5. For WoW features, install the addon. Install the free
    [Windows companion](https://guilded.kcaron.top/companion/) (Microsoft Store first, unsigned GitHub download as a fallback; Windows only). Choose **Sign in with Discord**,
    then your server. Older companions can use the private one-time code from
-   `/character pair`. Every member connects separately. The desktop companion is
+   `/character link`. Every member connects separately. The desktop companion is
    optional; see the [member guide](MEMBER_INSTALL.md).
 
 An invitation is not an approval. Changing the server ID in a copied invite does
@@ -88,7 +88,7 @@ jours si l'hôte l'a activé et que le serveur est configuré et actif.
    ne nécessitent ni addon WoW, ni personnage lié.
 5. Pour synchroniser WoW, installez l'addon. Dans le compagnon, chaque membre
    choisit **Sign in with Discord**, puis son serveur. Les anciens compagnons
-   peuvent utiliser le code privé à usage unique de `/character pair`.
+   peuvent utiliser le code privé à usage unique de `/character link`.
    Faites `/reload`, synchronisez, vérifiez le bon personnage et rechargez les classements.
 
 Le bot hébergé et l'addon restent gratuits. Le soutien Ko-fi est facultatif et ne

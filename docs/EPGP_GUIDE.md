@@ -65,7 +65,7 @@ Pairing never grants officer access.
 
 After recording in game, `/reload`, sync the correct saved-data file, and inspect
 the import outcome. If automatic import is disabled, an officer reviews with
-`/import apply`. `/import held` explains unresolved entries. A connected core's
+`/setup import apply`. `/setup import held` explains unresolved entries. A connected core's
 loot must match its Discord raid; missing character links or the wrong core need review.
 **Do not award again just because an entry is held:** some parts may already be applied.
 
@@ -81,7 +81,7 @@ GP and history in both places. Members can inspect `/epgp balance` and
 - A regular member sees the correct standings and cannot award officer points.
 - Reloading preserves the records; connected guilds also check import status and returned standings.
 - For a mistake, review history first. Addon `/guilded undo` reverses your last
-  eligible EP/GP award; Discord `/officer epgp reverse` retains history with an opposite entry.
+  eligible EP/GP award; Discord `/lead epgp reverse` retains history with an opposite entry.
   These are correction actions, not a reason to delete SavedVariables or re-import blindly.
 
 If you need help, provide versions, client build, selected workflow, steps and the
@@ -148,7 +148,7 @@ et `/core items`; **Cores & prices** dans le compagnon respecte les permissions
 Discord existantes. La liaison ne donne aucun droit d'officier.
 
 Après `/reload`, synchronisez le bon fichier et lisez le résultat. Un import peut
-attendre `/import apply`; `/import held` explique les éléments à corriger.
+attendre `/setup import apply`; `/setup import held` explique les éléments à corriger.
 Le butin d'un core connecté doit correspondre à son raid Discord. Une liaison
 manquante ou un mauvais core nécessite une révision. **N'attribuez pas à nouveau
 des points parce qu'une ligne est retenue : une partie peut déjà être appliquée.**
@@ -162,7 +162,7 @@ historique. `/epgp balance` et `/epgp history` permettent la vérification côt�
 Vérifiez une attribution de présence et un butin enregistrés une seule fois,
 les permissions d'un membre ordinaire et la conservation après rechargement.
 Relisez l'historique avant toute correction. `/guilded undo` annule votre dernière
-attribution EP/GP admissible; `/officer epgp reverse` ajoute une écriture opposée sur
+attribution EP/GP admissible; `/lead epgp reverse` ajoute une écriture opposée sur
 Discord en conservant l'historique. Ne supprimez pas SavedVariables pour corriger un montant.
 
 Pour un signalement utile : versions, build du client, core, étapes et message

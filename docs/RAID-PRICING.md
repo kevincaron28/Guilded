@@ -10,7 +10,7 @@ The preset is an editable guild policy, not a claim that these numbers are mathe
 - Attendance is 100 EP; late/partial attendance is 50 EP instead of 100. Boss and completion bonuses are zero. Use one scheduled session across the evening's instances. Approved standby is credited through the existing attendance workflow.
 - Base GP is 100; earned GP starts at zero. Priority is EP / (earned GP + base GP). Characters belonging to the same member share points. Changing the main character does not reset them.
 - Weekly decay is 10% of EP and earned GP, with the existing rounding-up deduction. Base GP does not decay. New preset pools enable their own scheduler at Tuesday 15:00 UTC; no decay is applied immediately on creation. Connected active raids defer it. Finish and upload offline raids before reset because the server cannot observe them.
-- `/officer epgp decay core:<name> weekly:false` disables that preset core's schedule; `weekly:true` enables it. Manual and automatic decay for a preset core use the same weekly reference, preventing a second decay that week. Guild-wide scheduling remains independent.
+- `/lead epgp decay core:<name> weekly:false` disables that preset core's schedule; `weekly:true` enables it. Manual and automatic decay for a preset core use the same weekly reference, preventing a second decay that week. Guild-wide scheduling remains independent.
 - Off-spec costs 50%, rounded to the nearest whole GP: 75 → 38, 25 → 13. Main spec takes precedence; highest unrounded PR wins within eligibility. Exact ties use a visible `/roll 100`, repeating ties. The officer confirms usability and tradeability before awarding.
 
 ## Default prices

@@ -6,7 +6,7 @@ free text and the trade happens in game.
 
 ## Turn it on or off
 
-An officer runs `/craft offer-setting enabled:true` (or `false`). Default is off. When off, nobody
+An officer runs `/config craft offers enabled:true` (or `false`). Default is off. When off, nobody
 can post or answer offers; existing posts stay readable until they end. Nothing runs for servers
 that never turned it on (the 10-minute expiry sweep finds no rows).
 

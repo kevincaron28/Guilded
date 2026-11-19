@@ -540,18 +540,7 @@ serialize = function(run)
   end
   local guildData = #guilds > 0 and (";gu=" .. table.concat(guilds, ",")) or ""
   local factionData = #factions > 0 and (";fa=" .. table.concat(factions, ",")) or ""
-  local reserved = #guildData + #factionData
-  for _, encounter in ipairs(run.encounters or {}) do
-    if encounter.id and encounter.at then
-      local row = table.concat({ encounter.id, clean(string.sub(encounter.name or "", 1, 100)), encounter.success and "1" or "0",
-        encounter.at, encounter.startedAt or "" }, ":")
-      if encounter.kind == "npc" then row = row .. ":npc" end
-      local candidate = table.concat(timeline, ",") .. (#timeline > 0 and "," or "") .. row
-      if #summary + #candidate + 4 + reserved > CHUNK_BYTES * 20 then break end
-      timeline[#timeline + 1] = row
-    end
-  end
-  if #timeline > 0 then summary = summary .. ";tl=" .. table.concat(timeline, ",") end
+  local integrityData = ""
   if run.integrity then
     local observed, intervals, native = {}, {}, {}
     for name, player in pairs(run.players) do
@@ -563,13 +552,29 @@ serialize = function(run)
         intervals[#intervals + 1] = clean(name) .. ":" .. table.concat(spans, "/")
       end
     end
+    local extra
     for _, e in ipairs(run.encounters or {}) do if e.source == "native" and e.at then native[#native + 1] = e.id .. ":" .. e.at end end
-    local extra = ";iv=2;iw=" .. clean(run.integrity.startWitness) .. ";ic=" .. (run.integrity.continuous and "1" or "0")
+    extra = ";iv=2;iw=" .. clean(run.integrity.startWitness) .. ";ic=" .. (run.integrity.continuous and "1" or "0")
       .. ";io=" .. clean(run.integrity.observer) .. ";ie=" .. (run.integrity.detectedAt or "") .. ";ia=" .. (run.integrity.combatAt or "")
       .. ";it=" .. clean(run.integrity.startTrigger) .. ";ip=" .. table.concat(observed, ",")
       .. ";ix=" .. table.concat(intervals, ",") .. ";ns=" .. table.concat(native, ",") .. ";wa=" .. (run.integrity.witnessAt or "")
-    if #summary + #extra <= CHUNK_BYTES * 20 then summary = summary .. extra end
+    integrityData = extra
   end
+  -- (9.4.2) Everything the bot reads per player (levels, spec and the base fields are written above; guild, faction and the
+  -- integrity data here) keeps its room; the timeline is the only part that is trimmed.
+  local reserved = #guildData + #factionData + #integrityData
+  for _, encounter in ipairs(run.encounters or {}) do
+    if encounter.id and encounter.at then
+      local row = table.concat({ encounter.id, clean(string.sub(encounter.name or "", 1, 100)), encounter.success and "1" or "0",
+        encounter.at, encounter.startedAt or "" }, ":")
+      if encounter.kind == "npc" then row = row .. ":npc" end
+      local candidate = table.concat(timeline, ",") .. (#timeline > 0 and "," or "") .. row
+      if #summary + #candidate + 4 + reserved > CHUNK_BYTES * 20 then break end
+      timeline[#timeline + 1] = row
+    end
+  end
+  if #timeline > 0 then summary = summary .. ";tl=" .. table.concat(timeline, ",") end
+  if integrityData ~= "" and #summary + #integrityData <= CHUNK_BYTES * 20 then summary = summary .. integrityData end
   -- (9.3) Guild and faction after everything else; their room was reserved above, so they fit even with a long timeline.
   if guildData ~= "" and #summary + #guildData <= CHUNK_BYTES * 20 then summary = summary .. guildData end
   if factionData ~= "" and #summary + #factionData <= CHUNK_BYTES * 20 then summary = summary .. factionData end

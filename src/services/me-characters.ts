@@ -89,7 +89,7 @@ export function charactersMeSection(status: (discordUserId: string) => Promise<L
       ? `<p>${t("Reported, not verified. A character is confirmed once your own Guilded app has synced it and the guild roster agrees (or a guildmate's addon heard your /guilded verify line), or when an officer links it.", "Signalé, non vérifié. Un personnage est confirmé quand votre propre application Guilded l'a synchronisé et que la liste de la guilde le confirme (ou que l'addon d'un coéquipier a entendu votre ligne /guilded verify), ou quand un officier le lie.")}</p>`
       : "";
     const noCompanion = table ? "" : `<p class="muted">${t("No companion? You still appear on the leaderboards: your dungeon runs and duels reach the site through other players’ companions. Search your character name on the leaderboards page. The companion adds instant sync and links your characters to this account.", "Pas de compagnon ? Vous apparaissez quand même aux classements : vos donjons et vos duels arrivent sur le site par le compagnon d’autres joueurs. Cherchez le nom de votre personnage sur la page des classements. Le compagnon ajoute la synchro instantanée et lie vos personnages à ce compte.")} <a href="${link("/leaderboards/", ctx.lang)}">${t("Leaderboards", "Classements")}</a></p>`;
-    const notice = meCharacterNotice(ctx.request.query.get("char"), t);
+    const notice = meCharacterNotice(ctx.request?.query?.get("char") ?? null, t);
     const banner = notice ? `<p class="notice${notice.error ? " error" : ""}">${escapeHtml(notice.text)}</p>` : "";
     return `<h2>${t("Your characters", "Vos personnages")}</h2>${banner}<p>${lines}</p>${table ? `${card}${table}${note}` : noCompanion}`;
   };

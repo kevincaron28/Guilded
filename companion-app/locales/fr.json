@@ -784,7 +784,7 @@
   "Characters verified": "Personnages vérifiés",
   "Press Find my saved data. The companion reads it and proves your characters itself; no code to type.": "Appuyez sur Trouver mes données enregistrées. Le compagnon les lit et prouve vos personnages lui-même ; aucun code à saisir.",
   "In WoW, type /reload (or log out) so your data is saved. The companion then proves your characters by itself.": "Dans WoW, tapez /reload (ou déconnectez-vous) pour enregistrer vos données. Le compagnon prouve ensuite vos personnages tout seul.",
-  "Sent, but no character matched yet. Press Check my characters in a minute; if it stays empty, open Discord, type /character claim and pick yours.": "Envoyé, mais aucun personnage ne correspond encore. Appuyez sur Vérifier mes personnages dans une minute; si rien n'apparaît, ouvrez Discord, tapez /character claim et choisissez le vôtre.",
+  "Sent, but no character matched yet. Press Check my characters in a minute; if it stays empty, send the bot the full name of your character (First Last) in a Discord DM, or type it in the guild-invite channel.": "Envoyé, mais aucun personnage ne correspond encore. Appuyez sur Vérifier mes personnages dans une minute; si rien n'apparaît, envoyez au bot le nom complet de votre personnage (Prénom Nom) en message privé Discord, ou écrivez-le dans le salon d'invitation de guilde.",
   "Already linked, nothing to do.": "Déjà relié, rien à faire.",
   "Discord linked to {0}": "Discord relié à {0}",
   "Discord not linked yet": "Discord pas encore relié",

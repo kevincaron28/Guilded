@@ -54,6 +54,15 @@ describe("weekly report text that stays", () => {
     expect(wowWeeklyStillWanted("daily-recap:2026-12-15", { weeklyReportEnabled: false })).toBe(true);
   });
 
+  it("adds one world PvP line to the card and the text only when the week has data", () => {
+    const none = weeklyReportCard(report, "en");
+    expect(JSON.stringify(none)).not.toContain("World PvP");
+    const withPvp = { ...report, worldPvp: { kills: 40, defends: 6, helped: 9 } } as unknown as WeeklyReport;
+    expect(JSON.stringify(weeklyReportCard(withPvp, "fr"))).toContain("40 victoires · 6 défenses · 9 appels répondus");
+    expect(JSON.stringify(weeklyReportEmbeds(withPvp, "en"))).toContain("40 kills · 6 defends · 9 calls answered");
+    expect(JSON.stringify(weeklyReportEmbeds(report, "en"))).not.toContain("World PvP");
+  });
+
   it("keeps EP, loot and GP as text under the card, and posts no card for an empty week", () => {
     const full = { ...report, guild: { ...report.guild, coreId: undefined, topAttendance: [{ name: "Brenna", raids: 3 }], topLoot: [] } } as unknown as WeeklyReport;
     const extra = weeklyCardExtra(full, "en", weeklyReportEmbeds(full, "en")) as { card?: unknown; cardOnly?: { embeds: { fields?: { name: string }[] }[] } };

@@ -244,7 +244,7 @@ export interface PublicRunStore {
   restoreRelayRun?(backup: unknown): Promise<void>;
 }
 
-export interface IngestResult { accepted: string[]; confirmed: string[]; duplicates: string[]; historyOnly: string[]; rejected: { id: string; reason: string }[]; acceptedRunRefs: string[]; /** (9.4) Refs of THIS upload the bot already held (repeats, confirmations, history only): the companion never sends them again. */ knownRunRefs: string[] }
+export interface IngestResult { accepted: string[]; confirmed: string[]; duplicates: string[]; historyOnly: string[]; rejected: { id: string; reason: string; /** (9.4) Which check failed, for the journal only (paths and codes, no values). */ check?: string }[]; acceptedRunRefs: string[]; /** (9.4) Refs of THIS upload the bot already held (repeats, confirmations, history only): the companion never sends them again. */ knownRunRefs: string[] }
 export class PublicUploadError extends Error { constructor(message: string, readonly status: number) { super(message); } }
 
 export async function ingestPublicRuns(store: PublicRunStore, input: { uploaderKey: string; character: string | null; /** The account's other saved characters (9.3.0). */ characters?: string[]; gameEdition?: string; source: "personal" | "guild"; /** Runs a companion carried for other players (9.3.1): they never dispute a first-hand run. */ relayed?: boolean; runs: unknown }, now = new Date()): Promise<IngestResult> {
@@ -259,7 +259,11 @@ export async function ingestPublicRuns(store: PublicRunStore, input: { uploaderK
   for (const raw of input.runs) {
     const parsed = dungeonRunSchema.safeParse(raw);
     const id = typeof (raw as { id?: unknown })?.id === "string" ? String((raw as { id: string }).id).slice(0, 100) : "?";
-    if (!parsed.success) { result.rejected.push({ id, reason: "not a valid run" }); continue; }
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0];
+      result.rejected.push({ id, reason: "not a valid run", check: issue ? `${issue.path.map((part) => typeof part === "number" ? "[]" : String(part)).join(".").replace(/\.\[\]/g, "[]") || "-"}: ${issue.code}${parsed.error.issues.length > 1 ? ` (+${parsed.error.issues.length - 1})` : ""}` : "unreadable" });
+      continue;
+    }
     const run = parsed.data;
     try {
       const edition = gameEditionOf(run);

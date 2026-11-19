@@ -3,6 +3,8 @@ import { DEFAULT_PROMOTION_RULE, formatPromotionPlan, observeRanks, planPromotio
 import { noteIsWritable, professionNoteTag } from "../src/services/profession-note.js";
 import { rosterProfessionSkills } from "../src/services/roster-dashboard-store.js";
 
+// These tests are about days and ranks; the voice condition has its own tests.
+const NO_VOICE = { ...DEFAULT_PROMOTION_RULE, minVoiceMinutes: 0 };
 const NOW = new Date("2026-11-20T12:00:00Z");
 const days = (n: number) => new Date(NOW.getTime() - n * 86_400_000);
 const char = (over: Partial<PromotionCharacter> = {}): PromotionCharacter => ({ name: "Halidor Galemorne", level: 20, rankName: "Initiate", rankAt: days(1), since: days(9), isMain: true, ...over });
@@ -10,19 +12,19 @@ const person = (id: string, characters: PromotionCharacter[], inDiscord = true):
 
 describe("promotion plan", () => {
   it("lists Initiates of 7+ days who are in Discord, longest first", () => {
-    const plan = planPromotions({ now: NOW, rule: DEFAULT_PROMOTION_RULE, unclaimed: [], people: [
+    const plan = planPromotions({ now: NOW, rule: NO_VOICE, unclaimed: [], people: [
       person("a", [char({ since: days(8) })]), person("b", [char({ name: "Old Timer", since: days(30) })]), person("c", [char({ since: days(3) })]),
       person("d", [char({ rankName: "Member" })]), person("e", [char({ rankName: "initiate", since: days(10) })])] });
     expect(plan.ready.map((r) => r.displayName)).toEqual(["B", "E", "A"]);
     expect(plan.waiting).toEqual([{ displayName: "C", character: "Halidor Galemorne", daysLeft: 4 }]);
   });
   it("applies the optional minimum level and ignores a stale rank", () => {
-    const rule = { ...DEFAULT_PROMOTION_RULE, minLevel: 30 };
+    const rule = { ...NO_VOICE, minLevel: 30 };
     const plan = planPromotions({ now: NOW, rule, unclaimed: [], people: [person("a", [char({ level: 20 })]), person("b", [char({ level: 31 })]), person("c", [char({ level: 40, rankAt: days(30) })])] });
     expect(plan.ready.map((r) => r.displayName)).toEqual(["B"]);
   });
   it("reports linked members who left the server and unclaimed Initiates as not in Discord yet", () => {
-    const plan = planPromotions({ now: NOW, rule: DEFAULT_PROMOTION_RULE,
+    const plan = planPromotions({ now: NOW, rule: NO_VOICE,
       people: [person("gone", [char()], false)],
       unclaimed: [{ name: "Lone Wolf", level: 12, rankName: "Initiate", rankAt: days(2) }, { name: "Vet One", level: 60, rankName: "Member", rankAt: days(2) }, { name: "Stale One", level: 5, rankName: "Initiate", rankAt: days(40) }] });
     expect(plan.ready).toEqual([]);
@@ -33,7 +35,7 @@ describe("promotion plan", () => {
     expect(text).toContain("Lone Wolf");
   });
   it("is on by default with Initiate and 7 days", () => {
-    expect(ruleFrom(null)).toEqual({ enabled: true, fromRank: "Initiate", minDays: 7, minLevel: null });
+    expect(ruleFrom(null)).toEqual({ enabled: true, fromRank: "Initiate", minDays: 7, minLevel: null, requireLink: true, minVoiceMinutes: 180 });
     expect(ruleFrom({ promotionEnabled: false, promotionMinLevel: 10 })).toMatchObject({ enabled: false, minLevel: 10 });
   });
   it("starts the clock at the link date for a new rank record and again when the rank changes", async () => {

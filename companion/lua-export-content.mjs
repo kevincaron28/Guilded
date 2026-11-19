@@ -848,6 +848,8 @@ function buildRecipes(saved, realm) {
 // Dungeon runs (addon Modules/Dungeon.lua) in the bot's dungeonRunSchema shape. Shared by the
 // guild upload and the personal one (personal-runs.mjs, GuildedDungeonsDB has the same shape).
 export function exportDungeonRuns(database, realm, options = {}) {
+  // 9.4: Forever has no realms, so the caller's realm can be empty; the bot refused every such run (players.N.realm too_small) and the companion resent it for days. "-" is the unknown-realm marker.
+  realm = String(realm ?? "").trim() || "-";
   const dungeonRuns = [];
   // Dungeon runs (addon Modules/Dungeon.lua). The bot validates each run and
   // ignores ones it already has, so exporting all of them every time is safe.

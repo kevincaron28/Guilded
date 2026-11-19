@@ -641,5 +641,7 @@ export const FR_TEXT: Record<string, string> = {
   "📌 Guild news": "📌 Nouvelles de la guilde",
   "{name}, from the game": "{name}, depuis le jeu",
   "News posted.": "Nouvelle publiée.",
-  "I can't post in this channel.": "Je ne peux pas publier dans ce salon."
+  "I can't post in this channel.": "Je ne peux pas publier dans ce salon.",
+  "World PvP panel": "Panneau JcJ en monde ouvert",
+  "No PvP ladder channel, so no panel. Press \"Create missing channels\".": "Pas de salon de classement JcJ, donc pas de panneau. Appuyez sur « Créer les salons manquants »."
 };

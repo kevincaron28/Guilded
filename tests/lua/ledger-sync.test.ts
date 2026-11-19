@@ -435,6 +435,22 @@ describe("compressed ledger batches (7.5.0)", () => {
     expect(s.run('return attempts .. ":" .. NS.comm.pending("GuildedLedger")')).toBe("1:0");
   });
 
+  it("sends no part of a day when the send queue has no room for all of it, and sends it once there is room", () => {
+    const alice = client("Alice", { pack: true }); const bob = client("Bob", { pack: true });
+    alice.s.run('for i = 1, 30 do award("P" .. i, i, 0, i, "Boss kill number " .. i) end');
+    alice.s.run('QUEUED = 895; NS.comm.pending = function() return QUEUED end');
+    alice.s.run('NS.commandHandlers.ledgersync({"now"})');
+    pump([alice, bob]);
+    expect(sentBy("Alice", "Z")).toBe(0);
+    expect(sentBy("Alice", "E")).toBe(0);
+    expect(bob.s.run('return count("P1")')).toBe("0");
+    alice.s.run('QUEUED = 0');
+    advance([alice, bob], 120);
+    alice.s.run('NS.commandHandlers.ledgersync({"now"})');
+    pump([alice, bob]);
+    expect(summary(bob)).toBe(summary(alice));
+  });
+
   it("keeps single entries for an officer whose game cannot pack, and for one entry", () => {
     const alice = client("Alice", { pack: true }); const bob = client("Bob");
     alice.s.run('for i = 1, 5 do award("P" .. i, i, 0, i) end');

@@ -96,3 +96,15 @@ describe("points", () => {
     expect(bad.weeklyRepeat).toEqual([1, 0.5, 0]);
   });
 });
+
+describe("player realm (9.4)", () => {
+  it("normalises an empty or missing realm to the unknown-realm marker", async () => {
+    const { dungeonRunSchema } = await import("../src/services/dungeon-rules.js");
+    const player = (extra: Record<string, unknown>) => ({ character: "Kev", deaths: 0, presentSec: 10, inGuild: true, ...extra });
+    const parse = (extra: Record<string, unknown>) => dungeonRunSchema.parse({ ...run(), players: [player(extra)] }).players[0]!.realm;
+    expect(parse({ realm: "" })).toBe("-");
+    expect(parse({ realm: "   " })).toBe("-");
+    expect(parse({})).toBe("-");
+    expect(parse({ realm: " Forever " })).toBe("Forever");
+  });
+});

@@ -181,7 +181,7 @@ describe("/craft who", () => {
 
   it("says so when nobody is known, and suggests names for autocomplete", async () => {
     const { db } = fakeDb();
-    expect(describeCrafters("nothing", await findCrafters(db as never, "g1", "nothing"))).toMatch(/Nobody is known to craft "nothing"/);
+    expect(describeCrafters("nothing", await findCrafters(db as never, "g1", "nothing"))).toMatch(/Nobody known for "nothing" yet\. Recipes appear once a member opens that profession in game\./);
     await applyRecipeData(db as never, "g1", { recipes: [set("Ann", "Alchemy", [1001, 1002])], recipeNames: { "1001": "Elixir of X", "1002": "Elixir of Y" }, cooldowns: [] });
     expect((await recipeNameSuggestions(db as never, "g1", "of y")).map((s) => s.value)).toEqual(["Elixir of Y"]);
   });

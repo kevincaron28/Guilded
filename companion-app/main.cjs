@@ -303,7 +303,14 @@ registerIpc("open-store-listing", () => shell.openExternal(updates.STORE_LISTING
 
 // Silent updates for the direct-download build (8.5). The decision lives in update-check.cjs.
 const updateDirectory = () => path.join(app.getPath("userData"), "updates");
-const autoUpdateDecision = () => updates.decideAutoUpdate({ store: STORE_INSTALL, packaged: app.isPackaged, platform: process.platform, enabled: config.autoUpdate !== false, current: app.getVersion(), latest: latestRelease, pending: config.pendingUpdate });
+const autoUpdateDecision = () => updates.decideAutoUpdate({ store: STORE_INSTALL, packaged: app.isPackaged, platform: process.platform, enabled: config.autoUpdate !== false, current: app.getVersion(), latest: latestRelease, pending: config.pendingUpdate, deviceKey: config.deviceSecret || require("node:os").hostname() });
+// What the window says about an update that is not going smoothly (update-check.cjs updateNotice): a failed download, checksum
+// or install with the time of the next try, or a checked installer waiting for WoW to close. Cleared by the next good step.
+let updateTrouble = null;
+const updateNotice = () => {
+  const pending = config.pendingUpdate;
+  return updates.updateNotice({ trouble: updateTrouble, failure: config.updateFailure, pendingReady: !!pending && updates.isNewer(pending.version, app.getVersion()) && !STORE_INSTALL, wowRunning, version: pending?.version ?? null });
+};
 const autoUpdateOn = () => !["store", "unpackaged", "disabled"].includes(autoUpdateDecision().reason);
 let staging = false;
 let installerHandedOff = false; // the update installer, or data removal, already owns this exit
@@ -323,12 +330,16 @@ async function stageUpdate() {
     // Size and SHA-256 are checked against the release before the file is kept (update-check.cjs).
     await updates.downloadInstaller(installer, target);
     config.pendingUpdate = { version, file: target, sha256: installer.sha256, attempts: 0 };
+    updateTrouble = null;
     await saveConfig();
     updateLine(`download of ${version} finished and checked; it installs when the companion is idle, or at the next quit or start`);
     pushLog({ time: new Date().toISOString(), level: "info", message: E("Guilded Companion {0} was downloaded and checked. It installs when you quit the companion or start it next.", version) });
   } catch (error) {
     // Offline, rate limited or interrupted: stay quiet and try again at the next check.
     updateLine(`download failed: ${error instanceof Error ? error.message : String(error)}`);
+    // Shown in the window with the time of the next check (the download is tried again then).
+    updateTrouble = { retryAt: new Date(Date.now() + updates.CHECK_INTERVAL_MS).toISOString() };
+    if (engine) onState(engine.state());
     pushLog({ time: new Date().toISOString(), level: "info", message: E("Automatic update download skipped: {0}", error instanceof Error ? error.message : String(error)) });
   } finally { staging = false; }
 }
@@ -604,7 +615,7 @@ function onState(raw) {
   refreshUpdate(state);
   const status = health(state);
   const found = problems(state);
-  win?.webContents.send("state", { state, health: status, update, savedFile, problems: found, addonAction: addonAction(), otherAccount: otherAccount ? { account: otherAccount.account } : null, accountRows: accountRowsFor(state) });
+  win?.webContents.send("state", { state, health: status, update, updateNotice: updateNotice(), savedFile, problems: found, addonAction: addonAction(), otherAccount: otherAccount ? { account: otherAccount.account } : null, accountRows: accountRowsFor(state) });
   if (tray) {
     // Only problems the member can fix turn the tray red; Guilded's outages stay amber.
     const own = linkIdentity.memberProblems(found);
@@ -630,7 +641,7 @@ function onState(raw) {
 let zeroSetupFailures = 0;
 function currentState() {
   const state = { ...engine.state(), zeroSetupFailures };
-  return { state, health: health(state), update, savedFile, problems: problems(state), addonAction: addonAction(), accountRows: accountRowsFor(state) };
+  return { state, health: health(state), update, savedFile, problems: problems(state), addonAction: addonAction(), updateNotice: updateNotice(), accountRows: accountRowsFor(state) };
 }
 
 function showWindow() {
@@ -667,7 +678,7 @@ function createWindow() {
 
 // The tray status line and the window's "open by itself" rule share the window's own model (redo C3).
 function statusInput(state, found) {
-  return { config, state, problems: found, savedFile, addonAction: addonAction(), wowRunning, update, otherAccount: otherAccount ? { account: otherAccount.account } : null };
+  return { config, state, problems: found, savedFile, addonAction: addonAction(), wowRunning, update, updateNotice: updateNotice(), otherAccount: otherAccount ? { account: otherAccount.account } : null };
 }
 function statusWords(text) {
   const [key, ...values] = Array.isArray(text) ? text : [];

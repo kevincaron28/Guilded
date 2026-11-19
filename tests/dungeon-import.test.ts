@@ -300,6 +300,25 @@ describe("importDungeonRuns", () => {
     expect(points).toHaveLength(0);
   });
 
+  it("reads an empty or missing player realm as the unknown-realm marker instead of refusing the run (9.4)", async () => {
+    const { tx, runs } = fakeTx();
+    const base = run("empty-realm") as { players: Record<string, unknown>[] };
+    const players = base.players.map((player, index) => index === 0 ? { ...player, realm: "" } : index === 1 ? (({ realm: _drop, ...rest }) => rest)(player as { realm: unknown }) : player);
+    const summary = await importDungeonRuns(tx, "g1", [{ ...base, players }], characters, "officer", "imp1", now);
+    expect(summary.malformed).toBe(0);
+    expect(runs).toHaveLength(1);
+  });
+
+  it("answers a run that breaks the schema with a refusal naming the field, not a retry (9.4)", async () => {
+    const { tx } = fakeTx();
+    const base = run("bad-shape") as { players: Record<string, unknown>[] };
+    const players = base.players.map((player, index) => index === 0 ? { ...player, character: "" } : player);
+    const summary = await importDungeonRuns(tx, "g1", [{ ...base, players }, { id: "not-a-run-object-ok", players: "x" }], characters, "officer", "imp1", now);
+    expect(summary.malformed).toBe(2);
+    expect(summary.receipts?.map((receipt) => receipt.outcome)).toEqual(["refused", "refused"]);
+    expect(summary.receipts?.[0]?.reason).toBe("Run data invalid: players[].character");
+  });
+
   it("upgrades a run stored as ABANDONED when the recovered COMPLETED copy arrives, once", async () => {
     const { tx, runs, points } = fakeTx();
     await importDungeonRuns(tx, "g1", [run("recovered", { state: "ABANDONED", completedBy: undefined, endReason: "left the dungeon", endedAt: start + 3000 })],

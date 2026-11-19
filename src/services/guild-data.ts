@@ -45,7 +45,7 @@ const eventSchema = z.object({
 
 export interface GuildDataResult { roster: number; skippedOlder: boolean; left: number; characters: number; unclaimed: number; events: number; duplicateEvents: number; text: boolean; ranksDated: number;
   /** Linked characters whose rank moved up in this officer roster (lower rank index): announced once in the officer log. */
-  promotions: { name: string; rankName: string }[] }
+  promotions: { name: string; rankName: string }[]; leftEntries: { id: string; name: string }[] }
 
 type Tx = Pick<Prisma.TransactionClient, "guildRosterEntry" | "guildEventEntry" | "guildText" | "character" | "unclaimedCharacter" | "characterRankSeen">;
 
@@ -64,7 +64,7 @@ const titleClass = (value: string) => value.charAt(0) + value.slice(1).toLowerCa
 /** Applies one upload's guild data inside the caller's transaction. */
 export async function applyGuildData(tx: Tx, guildId: string, uploader: { memberId: string | null; officer: boolean },
   snapshot: Pick<AddonSnapshot, "guildRoster" | "guildEvents" | "guildInfo" | "gameEdition" | "interface">, now = new Date()): Promise<GuildDataResult> {
-  const result: GuildDataResult = { roster: 0, skippedOlder: false, left: 0, characters: 0, unclaimed: 0, events: 0, duplicateEvents: 0, text: false, ranksDated: 0, promotions: [] };
+  const result: GuildDataResult = { roster: 0, skippedOlder: false, left: 0, characters: 0, unclaimed: 0, events: 0, duplicateEvents: 0, text: false, ranksDated: 0, promotions: [], leftEntries: [] };
   const edition = gameEditionOf(snapshot);
   const fresh = (at: Date) => at.getTime() <= now.getTime() + FUTURE_SLACK_MS && now.getTime() - at.getTime() <= MAX_AGE_MS;
   const reportedById = uploader.memberId;
@@ -219,7 +219,10 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
     }
     // Only the newest complete roster may say someone left.
     if (roster.complete && !result.skippedOlder && seenKeys.size) {
-      const gone = stored.filter((row) => row.inGuild && !seenKeys.has(row.nameKey)).map((row) => row.id);
+      const goneRows = stored.filter((row) => row.inGuild && !seenKeys.has(row.nameKey));
+      const gone = goneRows.map((row) => row.id);
+      // The officer log asks "Add to do-not-invite?" about these (services/do-not-invite-flow.ts).
+      result.leftEntries = goneRows.map((row) => ({ id: row.id, name: row.name }));
       if (gone.length) result.left = (await tx.guildRosterEntry.updateMany({ where: { id: { in: gone } }, data: { inGuild: false, observedAt } })).count;
     }
     // (17 Nov 2026) The participant list (guild-participants.ts) depends on WHO is on the roster, not on levels or last seen, so only a

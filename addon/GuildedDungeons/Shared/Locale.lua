@@ -6193,6 +6193,8 @@ FR["Not counted on the guild ladder: %s is not in your guild."] = "Non compt\195
 FR["Not counted yet: the guild roster has not loaded."] = "Pas encore compt\195\169 : la liste de la guilde n'est pas charg\195\169e."
 -- Officer "To invite" window in three sections (9.3)
 FR["To invite now (%d)"] = "\195\128 inviter maintenant (%d)"
+FR["Do not invite"] = "Ne pas inviter"
+FR["On the do-not-invite list"] = "Sur la liste ne pas inviter"
 FR["Nobody to invite right now."] = "Personne \195\160 inviter pour le moment."
 FR["Invited, waiting for them to accept (%d)"] = "Invit\195\169s, en attente de leur r\195\169ponse (%d)"
 FR["invited %s"] = "invit\195\169 %s"

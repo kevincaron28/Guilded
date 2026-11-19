@@ -58,6 +58,8 @@ import { linkVerifiedCharacters, tellVerified } from "./services/character-verif
 import { tellLinkConflicts } from "./services/link-conflict-dm.js";
 import { applyGuildmateRelay } from "./services/guildmate-relay.js";
 import { applyGuildData } from "./services/guild-data.js";
+import { promptDepartures } from "./services/do-not-invite-flow.js";
+import { dniNamesForGuild } from "./services/do-not-invite.js";
 import { announcePromotions } from "./services/promotion.js";
 import { applyGuildBank } from "./services/guild-bank.js";
 import { serverKnowsWowGuild } from "./services/wow-guilds.js";
@@ -620,13 +622,16 @@ export async function standingsParts(guild: { id: string; discordId: string }, a
     ]);
     return { loot, dungeonBoard, nextRaid, items, botRaids, craftOrders };
   });
-  const [{ loot, dungeonBoard, nextRaid, items, botRaids, craftOrders }, bank, officerInvites, pilotRaids] = await Promise.all([
+  const [{ loot, dungeonBoard, nextRaid, items, botRaids, craftOrders }, bank, officerInvites, officerDni, pilotRaids] = await Promise.all([
     guildReads,
     // 9.1 guild bank (guild-bank-member.ts): contents to search in game, the low list, this member's requests.
     bankForAddon(prisma, guild.id, access.memberId, !!access.officer),
     // Officers only (8.5 batch 3): the names waiting for a guild invite, for the addon's "To invite" panel. The bot does not
     // know which guild ranks hold the invite right, so members' files never carry applicants' names.
     access.officer ? pendingInvites(prisma, guild.id).then(inviteListForAddon) : Promise.resolve(null),
+    // 9.4 T10, officers only: the do-not-invite NAMES (no reason, no Discord id) so the addon can flag them in the invite panels.
+    // A member's feed never carries it; the stamp is per member and officer flag, so it cannot reach a member through the shared part.
+    access.officer ? dniNamesForGuild(prisma, guild.id).catch(() => null) : Promise.resolve(null),
     publicRaids(prisma, hostedPilot.allows)
   ]);
   const raids = mergeCalendarEvents(botRaids, scheduledEvents);
@@ -643,6 +648,7 @@ export async function standingsParts(guild: { id: string; discordId: string }, a
     shared: { accounts, baseGp, craftOrders, dungeonBoard, nextRaid, items, loot: loot ? { ...loot, cores: loot.cores.map((core) => ({ ...core, accounts })) } : null, standings },
     personal: { acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, runNotes, ...(Object.keys(pendingRunNotes).length ? { pendingRunNotes } : {}), ...(Object.keys(runCards).length ? { runCards } : {}), raids, ...(promotion ? { promotion } : {}),
       ...(officerInvites ? { officerInvites } : {}),
+      ...(access.officer && officerDni ? { officerDni } : {}),
       bank,
       publicRaids: { raids: pilotRaids } },
     // (9.3.5) A new or changed result card changes the stamp too, so a card that arrives after its run was acknowledged is fetched and written.
@@ -1603,6 +1609,8 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           // 16 Nov 2026: a rank moved up in the officer's roster: one line in the officer log (the bot is the single source; nothing public).
           const promotedDiscord = guildData?.promotions.length ? client?.guilds.cache.get(guild.discordId) : undefined;
           if (promotedDiscord && guildData) void announcePromotions(promotedDiscord, guildData.promotions);
+          // Someone left: ask the officer log once, for all of them ("Add to do-not-invite?"). Never adds by itself.
+          if (guildData?.leftEntries.length && client) void promptDepartures(client.guilds.cache.get(guild.discordId), guild.id, guildData.leftEntries);
           // The whole guild roster (any member's upload) is now stored: waiting invite requests for those names are done.
           if (client && uploadSnapshot.guildRoster) {
             void backCheckInvites(client, prisma, { id: guild.id, discordId: guild.discordId })

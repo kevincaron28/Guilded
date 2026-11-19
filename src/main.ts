@@ -176,6 +176,7 @@ import { runRetention } from "./services/retention.js";
 import { runStatSnapshots } from "./services/stat-snapshots.js";
 import { discordTrialDelivery, remindEndedTrials } from "./services/trial-reminders.js";
 import { warnDoNotInvite } from "./services/do-not-invite.js";
+import { DNI_PREFIX, executeAppeal, handleDniButton } from "./services/do-not-invite-flow.js";
 import { handleStarReaction } from "./services/starboard.js";
 import { logMessageDelete, logMessageEdit } from "./services/message-log.js";
 
@@ -263,6 +264,7 @@ handlers.set("bg", executeBattleground);
 handlers.set("automation", executeAutomation);
 handlers.set("poll", executePoll);
 handlers.set("bank", executeBank);
+handlers.set("appeal", executeAppeal);
 handlers.set("delete-my-data", interaction => executeDeleteMyData(interaction, error => reportInteractionError("Delete my data", interaction, error)));
 handlers.set("craft", executeCraft);
 handlers.set("help", executeHelp);
@@ -773,7 +775,7 @@ if (config.MESSAGE_CONTENT_INTENT) {
 client.on(Events.InteractionCreate, async interaction => {
   try {
     const serverCommands = ["wow", "community", "organize", "poe", "participation", "guilded-season", OWNER_PREVIEWS_COMMAND, OWNER_PROBES_COMMAND, OWNER_CONSOLE_COMMAND];
-    const globalButton = "customId" in interaction && [PILOT_REQUEST_PREFIX, COMMUNITY_PREFIX, WELCOME_ROLE_PREFIX, SELF_ROLE_PREFIX, ONBOARD_PREFIX, GAME_REMINDER_PREFIX, INVITE_REQUEST_PREFIX, LINKED_PREFIX, PUG_PREFIX, CONSOLE_PREFIX, ITEM_PREVIEW_PREFIX].some(prefix => interaction.customId.startsWith(prefix));
+    const globalButton = "customId" in interaction && [PILOT_REQUEST_PREFIX, COMMUNITY_PREFIX, WELCOME_ROLE_PREFIX, SELF_ROLE_PREFIX, ONBOARD_PREFIX, GAME_REMINDER_PREFIX, INVITE_REQUEST_PREFIX, LINKED_PREFIX, PUG_PREFIX, CONSOLE_PREFIX, ITEM_PREVIEW_PREFIX, DNI_PREFIX].some(prefix => interaction.customId.startsWith(prefix));
 
     const wowOrganize = interaction.isChatInputCommand() && interaction.commandName === "organize" && interaction.options.getSubcommandGroup(false) === "dungeon-seasons";
     const globalCommand = ("commandName" in interaction && serverCommands.includes(interaction.commandName) && !wowOrganize) || skipsGuildScope(interaction);
@@ -804,6 +806,14 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   // A setup wizard screen whose collector is gone (bot restarted, or the wizard timed out): say so instead of "This interaction failed".
   if (interaction.isMessageComponent() && interaction.customId.startsWith("setup:") && !isLiveSetupMessage(interaction.message.id)) {
     await interaction.reply({ content: "This setup screen has expired. Run `/setup start` again; your choices are saved. / Cet écran de configuration a expiré. Relancez `/setup start`; vos choix sont enregistrés.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
+    return;
+  }
+  if (interaction.isButton() && interaction.customId.startsWith(DNI_PREFIX)) {
+    try { await handleDniButton(interaction); }
+    catch (error) {
+      reportInteractionError("Do-not-invite button", interaction, error);
+      if (!interaction.replied && !interaction.deferred) await interaction.reply({ content: "Could not do that. Try /mod dni.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
+    }
     return;
   }
   if (interaction.isButton() && interaction.customId.startsWith(ITEM_PREVIEW_PREFIX)) {

@@ -73,6 +73,10 @@ enum AuditAction {
   DUNGEON_ADMIN
   RAID_OFFICER
   CORE_OFFICER
+  DNI_ADDED
+  DNI_CLEARED
+  DNI_APPEAL
+  DNI_ALIAS
 }
 
 enum RaidStatus {
@@ -1349,18 +1353,44 @@ model WorldBuffDrop {
 
 // Officers' shared "do not invite" list. Officer-only: never shown to members. A match warns
 // the officer log (applications, Discord joins); nothing is blocked automatically.
+enum DniKind {
+  KICKED
+  LEFT_BADLY
+  SCAMMER
+  OTHER
+}
+
+enum DniStatus {
+  ACTIVE
+  APPEALED
+  CLEARED
+}
+
+// The officers' do-not-invite list. Officer-only; never shown to members, never public.
 model DoNotInvite {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   guildId       String
   name          String
   realm         String?
   discordUserId String?
   reason        String
   addedBy       String
-  createdAt     DateTime @default(now())
-  guild         Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  createdAt     DateTime  @default(now())
+  kind          DniKind   @default(KICKED)
+  // Null means forever; new entries get one year from the code (services/do-not-invite.ts).
+  expiresAt     DateTime?
+  evidence      String?
+  status        DniStatus @default(ACTIVE)
+  // Entries of the same person's alts share this value.
+  aliasGroup    String?
+  clearedBy     String?
+  clearedAt     DateTime?
+  updatedAt     DateTime  @default(now()) @updatedAt
+  guild         Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   @@index([guildId])
+  @@index([guildId, status])
+  @@index([discordUserId])
 }
 
 // One starboard repost per starred message, updated as stars change.

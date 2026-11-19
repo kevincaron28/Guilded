@@ -7,6 +7,7 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, t, type Lang } from "../i18n.js";
 import { settleIfAlreadyIn } from "./invite-channel.js";
 import { parseInviteName, recordInviteRequest, SEEN, type ParsedInviteName } from "./invite-queue.js";
+import { warnDoNotInvite } from "./do-not-invite.js";
 import { hostedPilot } from "../hosted-pilot.js";
 
 // Owner request (9.0): a "Request a guild invite" button in the World of Warcraft role DM and in the onboarding game menu.
@@ -78,6 +79,8 @@ export async function submitInviteRequest(client: Pick<Client, "guilds" | "chann
   if (!posted) return { status: "unavailable", lang };
   await recordInviteRequest(database, { guildId: settings.guildId, parsed: input.parsed, discordUserId: input.discordUserId, channelId: channel.id, messageId: posted.id, ...(input.answers ? { answers: input.answers } : {}) });
   await posted.react(SEEN).catch(() => undefined);
+  // Officers only (the officer log): never in the public request.
+  await warnDoNotInvite(guild, { discordUserId: input.discordUserId, names: [input.parsed.displayName] }, `<@${input.discordUserId}> (${input.parsed.displayName})`, "invite", database as never);
   await settleIfAlreadyIn(client as never, database, { id: settings.guildId, discordId: input.discordGuildId }, input.parsed.nameKey);
   await notifyInviters(database as never, { guildId: settings.guildId, discordGuild: guild, channel: channel as never, requestMessageId: posted.id, requesterId: input.discordUserId, displayName: input.parsed.displayName });
   // The member row lets the character link to them when it joins (invite-prelink.ts). Best effort.

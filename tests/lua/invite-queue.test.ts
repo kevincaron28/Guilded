@@ -714,4 +714,19 @@ describe("InviteQueue.lua: reports for the bot's request expiry (9.3.5)", () => 
     expect(texts).toContain("5d old, 3 sent, asked to confirm");
     expect(texts).toContain("3h old, declined in game");
   });
+  it("tags names on the officers' do-not-invite list in red, with or without a realm, and only for officers", () => {
+    const s = withQueue();
+    s.run(String.raw`GuildedDni = { names = { "bob brewer-Forever", "Nobody Here" } }`);
+    s.run("NS.inviteQueue.open()");
+    expect(s.run(String.raw`local t = {} for _, i in ipairs(NS.inviteQueue.sections().todo) do t[#t + 1] = i.name .. ":" .. tostring(i.dni) end return table.concat(t, "|")`)).toBe("Amy Archer:nil|Bob Brewer:true");
+    const texts = s.run(`local t = {} for _, r in ipairs(FS) do local x = rawget(r, "text") if type(x) == "string" and string.find(x, "[Dd]o.not.invite") then t[#t + 1] = x end end return table.concat(t, "|")`);
+    expect(texts).toContain("|cffff4040On the do-not-invite list: Bob Brewer|r");
+    expect(texts).toContain("Do not invite");
+    // No list, no tag; a non-officer gets no sections at all.
+    s.run("GuildedDni = nil");
+    expect(s.run(String.raw`local n = 0 for _, i in ipairs(NS.inviteQueue.sections().todo) do if i.dni then n = n + 1 end end return n`)).toBe("0");
+    const member = withQueue(false);
+    member.run(String.raw`GuildedDni = { names = { "Bob Brewer" } }`);
+    expect(member.run("return tostring(NS.inviteQueue.sections())")).toBe("nil");
+  });
 });

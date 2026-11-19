@@ -208,7 +208,7 @@ describe("retention", () => {
     const addonImport = { deleteMany: vi.fn<(query: { where: { OR: Row[] } }) => Promise<{ count: number }>>(async () => ({ count: 4 })) };
     const errorReport = { deleteMany: vi.fn(async () => ({ count: 2 })) };
     const $executeRaw = vi.fn(async () => 7);
-    expect(await runRetention({ addonImport, errorReport, $executeRaw } as never, now)).toEqual({ imports: 11, snapshots: 7, errors: 2 });
+    expect(await runRetention({ addonImport, errorReport, doNotInvite: { deleteMany: vi.fn(async () => ({ count: 0 })) }, $executeRaw } as never, now)).toEqual({ imports: 11, snapshots: 7, errors: 2 });
     const sql = $executeRaw.mock.calls.map(call => (call as unknown as string[][])[0]!.join("?"));
     // Pending uploads are capped per guild; applied ones lose their raw payload.
     expect(sql.some(text => text.includes('FROM "AddonImport"') && text.includes("row_number()"))).toBe(true);

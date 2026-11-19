@@ -6,6 +6,7 @@ import { notifyInviters } from "./invite-notify.js";
 import { DONE_BUTTON, requestInviteRow, submitInviteRequest, withWhoTip } from "./invite-request.js";
 import { extractInviteName, isFiller } from "./invite-name.js";
 import { INVITE_REQUEST_PREFIX } from "./invite-request.js";
+import { warnDoNotInvite } from "./do-not-invite.js";
 import { parseInviteAnswers, questionsBlock, storedQuestions } from "./recruiting-kit.js";
 import { foldKey, knownRealms, stripRealm, markInvitedByMessage, markInvitedByName, parseInviteName, recordInviteRequest, SEEN, type InvitedRow, type ParsedInviteName } from "./invite-queue.js";
 
@@ -95,6 +96,8 @@ export async function handleInviteMessage(message: Message, database: Database):
   }
   await recordInviteRequest(database, { guildId: settings.guildId, parsed, discordUserId: message.author.id, channelId: message.channelId, messageId: message.id, answers: parseInviteAnswers(message.content) });
   await message.react(SEEN).catch(() => undefined);
+  // Officers only (the officer log): never in the public request.
+  await warnDoNotInvite(message.guild, { discordUserId: message.author.id, names: [parsed.displayName] }, `<@${message.author.id}> (${parsed.displayName})`, "invite", database as never);
   // Someone already in the guild is done at once: no tag, no wait for the hourly back-check.
   await settleIfAlreadyIn(message.client, database, { id: settings.guildId, discordId: message.guildId }, parsed.nameKey);
   if (message.channel && "send" in message.channel) await notifyInviters(database as never, { guildId: settings.guildId, discordGuild: message.guild, channel: message.channel as never, requestMessageId: message.id, requesterId: message.author.id, displayName: parsed.displayName });

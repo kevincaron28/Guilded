@@ -195,6 +195,14 @@ Availability is hidden immediately at expiry and purged within six hours by
 housekeeping. Points, loot and raid records remain part of guild history until
 removed through applicable administration or a reviewed request.
 
+Do-not-invite list: a guild's officers may keep a private list of characters (and, if 
+known, the linked Discord account) that the guild chose not to invite again, with a kind, a short
+reason and optional evidence. It is visible to officers only (names, without the reason, in the officers'
+addon), is never published, expires after one year unless an officer sets another term, and is deleted
+30 days after it expires or is cleared. A listed person can appeal through Discord (`/appeal`);
+every add, clear and appeal decision is kept in the audit log without names. Delete my data removes
+entries tied to your Discord account.
+
 The automatic daily database backup retains the latest 14 copies; season backups
 retain the latest 24. Separate deployment/recovery archives may be retained for
 recovery and incident investigation. A live deletion does not immediately erase
@@ -422,6 +430,14 @@ relevés d'équipement sont nettoyés après 45 jours en conservant le plus réc
 La disponibilité est masquée à expiration, puis purgée dans les six heures par
 le nettoyage. Les points, butins et raids restent dans l'historique jusqu'à leur
 suppression par l'administration applicable ou après examen d'une demande.
+
+Liste ne pas inviter : les officiers d'une guilde peuvent garder une liste privée de personnages (et, si
+connu, du compte Discord lié) que la guilde a choisi de ne plus inviter, avec un type, une courte
+raison et des preuves facultatives. Elle n'est visible que des officiers (les noms, sans la raison, dans
+l'addon des officiers), n'est jamais publiée, expire après un an sauf autre durée choisie par un officier,
+et est supprimée 30 jours après son expiration ou son retrait. Une personne inscrite peut faire appel par Discord
+(`/appeal`); chaque ajout, retrait et décision d'appel est consigné au journal d'audit sans noms.
+« Supprimer mes données » retire les entrées liées à votre compte Discord.
 
 La sauvegarde quotidienne conserve les 14 dernières copies; les sauvegardes de
 saison, les 24 dernières. Des archives de déploiement/récupération peuvent être

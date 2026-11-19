@@ -44,9 +44,9 @@ export const bankCommand = new SlashCommandBuilder()
     .addIntegerOption((o) => o.setName("min").setDescription("Keep at least this many (0 removes)").setMinValue(0).setMaxValue(100000)))
   .addSubcommand((sub) => sub.setName("settings").setDescription("Bank switches (officers).")
     .addBooleanOption((o) => o.setName("member_search").setDescription("Members can search the contents"))
-    .addBooleanOption((o) => o.setName("request_posts").setDescription("Post request cards for officers"))
-    .addChannelOption((o) => o.setName("request_channel").setDescription("Where request cards go (default: log channel)").addChannelTypes(ChannelType.GuildText))
-    .addBooleanOption((o) => o.setName("stock_alerts").setDescription("Alert when an item goes below its minimum")));
+    .addBooleanOption((o) => o.setName("request_posts").setDescription("Post request cards"))
+    .addChannelOption((o) => o.setName("request_channel").setDescription("Request card channel (default: log)").addChannelTypes(ChannelType.GuildText))
+    .addBooleanOption((o) => o.setName("stock_alerts").setDescription("Alert below an item's minimum")));
 
 const isOfficer = (interaction: ChatInputCommandInteraction | ButtonInteraction) => !!interaction.member && hasPermission(interaction.member as GuildMember, "officer");
 

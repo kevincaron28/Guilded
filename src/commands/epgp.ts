@@ -19,7 +19,7 @@ const auditService = createAuditService(prisma);
 
 // Which point pool: leave empty for the guild pool, or name a raid core that keeps its own.
 const poolOption = (o: import("discord.js").SlashCommandStringOption) =>
-  o.setName("core").setDescription("Raid core with its own points (defaults to this core channel)").setAutocomplete(true);
+  o.setName("core").setDescription("Raid core (default: this channel)").setAutocomplete(true);
 
 export const epgpCommand = new SlashCommandBuilder()
   .setName("epgp")

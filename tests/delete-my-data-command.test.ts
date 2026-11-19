@@ -6,7 +6,8 @@ const mocks = vi.hoisted(() => ({ deleteMyData: vi.fn(async () => ({ members: 2,
 vi.mock("../src/services/data-deletion.js", () => ({ deleteMyData: mocks.deleteMyData }));
 vi.mock("../src/database.js", () => ({ prisma: {} }));
 
-import { deleteMyDataCommand, executeDeleteMyData } from "../src/commands/delete-my-data.js";
+import { executeDeleteMyData } from "../src/commands/delete-my-data.js";
+import { characterCommand } from "../src/commands/character.js";
 
 function interaction(choice: string | null, over: Record<string, unknown> = {}) {
   const replies: any[] = [];
@@ -22,11 +23,9 @@ function interaction(choice: string | null, over: Record<string, unknown> = {}) 
 
 describe("/delete-my-data", () => {
   beforeEach(() => mocks.deleteMyData.mockClear());
-  it("is its own command with a French description and no options", () => {
-    const json = deleteMyDataCommand.toJSON();
-    expect(json.name).toBe("delete-my-data");
-    expect(json.description_localizations?.fr).toBeTruthy();
-    expect(json.options ?? []).toHaveLength(0);
+  it("is /character privacy action:delete (was its own command)", () => {
+    const privacy = characterCommand.toJSON().options?.find((option) => option.name === "privacy") as unknown as { options: { choices: { value: string }[] }[] };
+    expect(privacy.options[0]!.choices.map((choice) => choice.value)).toContain("delete");
   });
   it("previews first and deletes only the asker's data after the confirm button", async () => {
     const { value, replies } = interaction("deletemydata:i1:yes");
@@ -57,32 +56,40 @@ import { gateOutcome, skipsGuildScope } from "../src/services/interaction-gate.j
 import { tierDenial, ALWAYS_ALLOWED_COMMANDS, liteCommandJson } from "../src/commands/lite.js";
 import { commands } from "../src/commands/index.js";
 
-describe("/delete-my-data in every tier", () => {
+// Commands restructure (November 2026): /delete-my-data is now /character privacy action:delete.
+describe("/character privacy (was /delete-my-data) in every tier", () => {
   it("is never refused by the tier gate, also for blocked and Lite servers", () => {
-    for (const tier of ["approved", "lite", "blocked"]) expect(tierDenial(tier, "delete-my-data", null, null)).toBeNull();
+    for (const tier of ["approved", "lite", "blocked"]) expect(tierDenial(tier, "character", null, "privacy")).toBeNull();
+    expect(tierDenial("lite", "character", null, "add")).toBe("lite");
+    expect(tierDenial("lite", "character", "profession", "privacy")).toBe("lite");
     expect(tierDenial("blocked", "report", null, "bug")).toBe("blocked");
     expect(tierDenial("lite", "raid", null, "create")).toBe("lite");
     expect(tierDenial("lite", "report", null, "bug")).toBeNull();
   });
   it("is in the Lite command set", () => {
-    expect((liteCommandJson(commands) as { name: string }[]).some(c => c.name === "delete-my-data")).toBe(true);
-    expect(ALWAYS_ALLOWED_COMMANDS).toContain("delete-my-data");
+    const lite = liteCommandJson(commands) as { name: string; options?: { name: string; options?: { name: string; choices?: { value: string }[] }[] }[] }[];
+    const character = lite.find(c => c.name === "character");
+    expect(character?.options?.map(o => o.name)).toEqual(["privacy"]);
+    expect(character?.options?.[0]?.options?.[0]?.choices?.map(c => c.value)).toContain("delete");
+    expect(lite.some(c => c.name === "delete-my-data")).toBe(false);
+    expect(ALWAYS_ALLOWED_COMMANDS).toContain("character privacy");
   });
   // The global handler in main.ts asks these functions before replying or checking the member role.
   const click = (customId: string, button = true) => ({ customId, isButton: () => button });
-  const slash = (commandName: string) => ({ commandName, options: { getSubcommandGroup: () => null, getSubcommand: () => null } });
+  const slash = (commandName: string, sub: string | null = null) => ({ commandName, options: { getSubcommandGroup: () => null, getSubcommand: () => sub } });
   it("leaves the confirm and cancel clicks to the command's collector in every tier, with no denial and no role check", async () => {
     for (const tier of ["approved", "lite", "blocked"]) for (const id of ["deletemydata:i1:yes", "deletemydata:i1:no"]) {
       expect(gateOutcome(tier, click(id), false)).toBe("collector");
       expect(skipsGuildScope(click(id))).toBe(true);
     }
-    expect(skipsGuildScope(slash("delete-my-data"))).toBe(true);
+    expect(skipsGuildScope(slash("character", "privacy"))).toBe(true);
+    expect(skipsGuildScope(slash("character", "add"))).toBe(false);
     expect(skipsGuildScope(slash("raid"))).toBe(false);
     expect(gateOutcome("blocked", click("other:button"), false)).toBe("blocked");
     // A modal or select menu with the same prefix is not one of our buttons.
     expect(skipsGuildScope(click("deletemydata:i1:yes", false))).toBe(false);
     expect(gateOutcome("blocked", click("deletemydata:i1:yes", false), false)).toBe("blocked");
-    expect(gateOutcome("blocked", slash("delete-my-data"), true)).toBeNull();
+    expect(gateOutcome("blocked", slash("character", "privacy"), true)).toBeNull();
     expect(gateOutcome("blocked", slash("raid"), true)).toBe("blocked");
   });
   it("a click in a blocked server deletes once: the handler stays silent and the collector runs the service", async () => {
@@ -103,6 +110,9 @@ describe("/delete-my-data in every tier", () => {
   });
   it("main.ts asks the gate before the member-role check and the tier block", () => {
     const main = readFileSync("src/main.ts", "utf8");
+    // The deletion keeps its error report, and a stale /delete-my-data call says where it went.
+    expect(main).toContain('executeDeleteMyData(interaction, error => reportInteractionError("Delete my data"');
+    expect(main).toContain("handlers.set(name, retiredHandler(name))");
     expect(main).toContain("skipsGuildScope(interaction)");
     expect(main).toContain("gateOutcome(tier, interaction");
     expect(main).toMatch(/denial === "collector"\) return/);

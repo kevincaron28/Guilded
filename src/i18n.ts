@@ -219,6 +219,19 @@ const STRINGS = {
   },
   "onboard.gone": { en: "That isn't offered here anymore. Ask an officer.", fr: "Ce n'est plus offert ici. Demande à un officier." },
   "pair.statusTitle": { en: "Where you stand", fr: "Où tu en es" },
+  // Commands restructure (November 2026): /character link, and the answer of a subcommand that moved.
+  "command.moved": { en: "This moved to {target}.", fr: "Ceci a été déplacé vers {target}." },
+  "link.title": { en: "🔗 Link your WoW characters", fr: "🔗 Lier tes personnages WoW" },
+  "link.waysTitle": { en: "Three simple ways (pick one)", fr: "Trois façons simples (choisis-en une)" },
+  "link.ways": {
+    en: "1. **DM me** your character's full name (First Last).\n2. **Type it** in the guild-invite channel.\n3. **In WoW**, paste this in chat on any of your characters:\n```\n/guilded verify {code}\n```",
+    fr: "1. **Envoie-moi en MP** le nom complet de ton personnage (Prénom Nom).\n2. **Écris-le** dans le salon d'invitation de la guilde.\n3. **Dans WoW**, colle ceci dans le chat sur un de tes personnages :\n```\n/guilded verify {code}\n```"
+  },
+  "link.pasteTitle": { en: "Have a line or a code?", fr: "Tu as une ligne ou un code ?" },
+  "link.paste": {
+    en: "Paste the line from `/guilded character` (or the code from `/guilded share`) into `/character link line_or_code:`. The Windows companion links every character on your PC by itself. A character that isn't yours? `/character unlink`.",
+    fr: "Colle la ligne de `/guilded character` (ou le code de `/guilded share`) dans `/character link line_or_code:`. Le compagnon Windows lie tout seul tous les personnages de ton PC. Un personnage qui n'est pas à toi ? `/character unlink`."
+  },
   "pair.title": { en: "🔗 Your WoW characters", fr: "🔗 Tes personnages WoW" },
   "pair.linked": { en: "✅ **Already linked to your Discord account on this server:**", fr: "✅ **Déjà liés à ton compte Discord sur ce serveur :**" },
   "pair.main": { en: "⭐ Main: **{name}** — {realm}", fr: "⭐ Personnage principal : **{name}** — {realm}" },

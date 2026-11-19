@@ -29,12 +29,12 @@ export const professionCommand = new SlashCommandBuilder()
       .addChoices(...PROFESSIONS.map((name) => ({ name, value: name })))))
   .addSubcommand((subcommand) => subcommand
     .setName("cooldowns")
-    .setDescription("Profession cooldowns (transmutes and so on) read by the addon, and a ready-DM option.")
+    .setDescription("Profession cooldowns from the addon; a DM when ready.")
     .addBooleanOption((option) => option.setName("mine").setDescription("Only my characters"))
-    .addBooleanOption((option) => option.setName("notify").setDescription("DM me when a cooldown of mine is ready (true or false)")))
+    .addBooleanOption((option) => option.setName("notify").setDescription("DM me when one is ready")))
   .addSubcommand((subcommand) => subcommand
     .setName("directory")
-    .setDescription("Show the guild's top crafters and recipe lookup commands for everyone."))
+    .setDescription("Top crafters and recipe lookups."))
   .addSubcommand((subcommand) => subcommand
     .setName("coverage")
     .setDescription("How many characters have each profession, and who is highest."));

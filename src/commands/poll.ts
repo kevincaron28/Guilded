@@ -41,7 +41,7 @@ export const pollCommand = new SlashCommandBuilder()
         { name: "Thursday", value: 4 }, { name: "Friday", value: 5 }, { name: "Saturday", value: 6 }))
       .addStringOption(o => o.setName("time").setDescription("24-hour local time, HH:mm").setRequired(true))
       .addStringOption(o => o.setName("timezone").setDescription("IANA timezone; defaults to the guild timezone"));
-    for (const n of [1, 2, 3, 4, 5]) sub.addStringOption(o => o.setName(`option${n}`).setDescription(`Poll option ${n}; omit all for a discussion question`).setMaxLength(80));
+    for (const n of [1, 2, 3, 4, 5]) sub.addStringOption(o => o.setName(`option${n}`).setDescription(`Option ${n} (none at all: a discussion question)`).setMaxLength(80));
     return sub;
   })
   .addSubcommand((sub) => {

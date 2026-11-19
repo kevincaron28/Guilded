@@ -7,7 +7,8 @@ import { BG_PREFIX, executeBattleground, handleBattlegroundComponent } from "./c
 import "./services/diagnostic-console.js";
 import { withEdition } from "./services/edition-context.js";
 import { guildWhere, interactionGuildScope, entityGuildScope, runInGuildScope, withGuildScope, forEachGuildScope } from "./services/guild-scope.js";
-import { executeWow } from "./commands/wow.js";
+import { RETIRED_COMMANDS, retiredHandler } from "./commands/moved.js";
+import { executeLeaderboard } from "./commands/leaderboard.js";
 import type { Interaction } from "discord.js";
 import { hostedPilot, pilotGuildScope, replacePilotApprovals, replacePilotLite } from "./hosted-pilot.js";
 import { runRaidNightChecks } from "./services/raid-night-check.js";
@@ -15,7 +16,7 @@ import { createPilotRequests, PILOT_REQUEST_PREFIX } from "./services/pilot-requ
 import { warnIdleLite, welcomeApprovedOwner } from "./services/pilot-welcome.js";
 import { PILOT_DENIED, PILOT_LITE_DENIED } from "./services/pilot-policy.js";
 import { commandSetFor } from "./commands/lite.js";
-import { gateOutcome, skipsGuildScope } from "./services/interaction-gate.js";
+import { gateOutcome, serverWideCommand, skipsGuildScope } from "./services/interaction-gate.js";
 import { ensureCoreDiscord } from "./services/raid-core.js";
 import { fillGuildWeeklyRaids } from "./services/core-weekly-raids.js";
 import { runTeamSchedules } from "./services/activity-core.js";
@@ -85,7 +86,7 @@ import { RANK_ROLES_BUTTON_PREFIX, handleRankRolesButton } from "./commands/rank
 import { sweepAchievementAnnouncements } from "./services/achievement-announce.js";
 import { purgeOldPvpEvents } from "./services/world-pvp-events.js";
 import { sweepServerAnniversaries } from "./services/server-anniversary.js";
-import { executePoll, handlePollButton, handleWeeklyQuestionButton, POLL_PREFIX, WEEKLY_QUESTION_PREFIX } from "./commands/poll.js";
+import { handlePollButton, handleWeeklyQuestionButton, POLL_PREFIX, WEEKLY_QUESTION_PREFIX } from "./commands/poll.js";
 import { CRAFT_PREFIX, handleCraftButton, handleCraftModal, handleCraftSelect } from "./commands/craft-board.js";
 import { handleProfessionDetails, handleProfessionPage } from "./commands/profession-details.js";
 import { PROFESSION_DETAILS_PREFIX, PROFESSION_PAGE_PREFIX } from "./services/profession-details.js";
@@ -256,7 +257,9 @@ process.on("uncaughtException", (error) => {
 // A rejected promise nobody awaited is a bug in one handler, not a broken process: report it and carry on.
 process.on("unhandledRejection", (error) => { void errorReportService.report(client, error, { source: "unhandledRejection" }); });
 const handlers = new Collection<string, (interaction: ChatInputCommandInteraction) => Promise<void>>();
-handlers.set("wow", executeWow);
+// Retired top-level commands (commands restructure, November 2026): a call Discord still routes says where they went.
+for (const name of Object.keys(RETIRED_COMMANDS)) handlers.set(name, retiredHandler(name));
+handlers.set("leaderboard", executeLeaderboard);
 handlers.set("profile", executeProfile);
 handlers.set("config", executeConfig);
 handlers.set("loot", executeLoot);
@@ -267,9 +270,7 @@ handlers.set("core", executeCore);
 handlers.set("team", executeTeam);
 handlers.set("bg", executeBattleground);
 handlers.set("automation", executeAutomation);
-handlers.set("poll", executePoll);
 handlers.set("bank", executeBank);
-handlers.set("delete-my-data", interaction => executeDeleteMyData(interaction, error => reportInteractionError("Delete my data", interaction, error)));
 handlers.set("craft", executeCraft);
 handlers.set("help", executeHelp);
 handlers.set("uninstall", executeUninstall);
@@ -781,11 +782,12 @@ if (config.MESSAGE_CONTENT_INTENT) {
 
 client.on(Events.InteractionCreate, async interaction => {
   try {
-    const serverCommands = ["wow", "community", "organize", "poe", "participation", "guilded-season", OWNER_PREVIEWS_COMMAND, OWNER_PROBES_COMMAND, OWNER_CONSOLE_COMMAND];
     const globalButton = "customId" in interaction && [PILOT_REQUEST_PREFIX, COMMUNITY_PREFIX, WELCOME_ROLE_PREFIX, SELF_ROLE_PREFIX, ONBOARD_PREFIX, GAME_REMINDER_PREFIX, INVITE_REQUEST_PREFIX, LINKED_PREFIX, PUG_PREFIX, CONSOLE_PREFIX, ITEM_PREVIEW_PREFIX, DNI_PREFIX].some(prefix => interaction.customId.startsWith(prefix));
 
-    const wowOrganize = interaction.isChatInputCommand() && interaction.commandName === "organize" && interaction.options.getSubcommandGroup(false) === "dungeon-seasons";
-    const globalCommand = ("commandName" in interaction && serverCommands.includes(interaction.commandName) && !wowOrganize) || skipsGuildScope(interaction);
+    // Per Discord server, not per in-game guild: the owner's commands and what serverWideCommand lists.
+    const ownerCommands = ["guilded-season", OWNER_PREVIEWS_COMMAND, OWNER_PROBES_COMMAND, OWNER_CONSOLE_COMMAND];
+    const globalCommand = ("commandName" in interaction && ownerCommands.includes(interaction.commandName))
+      || ((interaction.isChatInputCommand() || interaction.isAutocomplete()) && serverWideCommand(commands, interaction)) || skipsGuildScope(interaction);
     const scope = interaction.guildId && hostedPilot.allows(interaction.guildId) && !globalCommand && !globalButton
       ? ("customId" in interaction ? await entityGuildScope(prisma, interaction.guildId, interaction.customId) : null)
         ?? await interactionGuildScope(prisma, { discordId: interaction.guildId, userId: interaction.user.id, channelId: interaction.channelId, parentId: interaction.channel && "parentId" in interaction.channel ? interaction.channel.parentId : null }) : null;
@@ -797,7 +799,7 @@ client.on(Events.InteractionCreate, async interaction => {
   } catch (error) {
     if (interaction.isAutocomplete()) await interaction.respond([]).catch(() => undefined);
     else if (interaction.isRepliable()) {
-      const content = error instanceof Error && error.message.length < 220 ? error.message : "Could not select the in-game guild. Use /wow list and /wow use.";
+      const content = error instanceof Error && error.message.length < 220 ? error.message : "Could not select the in-game guild. Use /character guild.";
       if (interaction.deferred || interaction.replied) await interaction.followUp({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
       else await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
@@ -1188,6 +1190,11 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   }
   if (interaction.commandName === OWNER_SEASON_COMMAND) {
     await executeOwnerSeason(interaction).catch((error: unknown) => replyWithCommandError(interaction, error));
+    return;
+  }
+  // /character privacy action:delete (was /delete-my-data), with the same error report as before.
+  if (interaction.commandName === "character" && interaction.options.getSubcommandGroup(false) === null && interaction.options.getSubcommand(false) === "privacy" && interaction.options.getString("action") === "delete") {
+    await executeDeleteMyData(interaction, error => reportInteractionError("Delete my data", interaction, error));
     return;
   }
   const found = resolveCommand(commands, interaction);

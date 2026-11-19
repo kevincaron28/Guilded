@@ -6,6 +6,7 @@ import { hasPermission } from "../permissions.js";
 import { config } from "../config.js";
 import { asLang, t, tx, type Lang } from "../i18n.js";
 import { v2Reply, type V2Link } from "../services/components-v2.js";
+import { legacyView } from "./router.js";
 import { achievementName } from "../services/dungeon-achievements.js";
 import { ensureDungeonSignupGuide } from "../services/dungeon-guide.js";
 import { sharedDungeonConfig, formatDuration } from "../services/dungeon-rules.js";
@@ -36,11 +37,7 @@ export const dungeonCommand = new SlashCommandBuilder()
   .setDescription("Dungeon challenge: points leaderboard, records, player stats, recent runs.")
   .addSubcommand(groupWatchSubcommand)
   .addSubcommand(sub => sub.setName("together").setDescription("Preview this week's cooperative dungeon progress; no points")
-    .setDescriptionLocalizations({ fr: "Objectif de donjons ensemble; reconnaissance sans points" })
-    .addIntegerOption(o => o.setName("goal").setDescription("Officers: target 1–100").setMinValue(1).setMaxValue(100))
-    .addStringOption(o => o.setName("season").setDescription("Required with goal").setAutocomplete(true))
-    .addStringOption(o => o.setName("goal-kind").setDescription("What counts").addChoices({ name: "Different dungeons", value: "dungeons" }, { name: "Runs", value: "runs" }))
-    .addBooleanOption(o => o.setName("pause").setDescription("Officers: pause/resume the goal")))
+    .setDescriptionLocalizations({ fr: "Objectif de donjons ensemble; reconnaissance sans points" }))
   .addSubcommand(sub => sub.setName("catalog").setDescription("November dungeon plan; separate from active season rules")
     .setDescriptionLocalizations({ fr: "Catalogue prévu pour novembre; distinct des règles actives" }))
   .addSubcommand(sub => sub.setName("rules").setDescription("How dungeon rating and community points are calculated")
@@ -53,11 +50,7 @@ export const dungeonCommand = new SlashCommandBuilder()
     .addStringOption((o) => o.setName("dungeon").setDescription("Only one dungeon (pick from the list)").setAutocomplete(true))
     .addStringOption((o) => o.setName("bracket").setDescription("Level bracket, for all-level seasons (default: yours)").setAutocomplete(true)))
   .addSubcommand((sub) => sub.setName("records").setDescription("Fastest clears and boss kills: every dungeon, or the top times of one")
-    .addStringOption((o) => o.setName("dungeon").setDescription("One dungeon (pick from the list)").setAutocomplete(true))
-    .addBooleanOption((o) => o.setName("announce").setDescription("Officers: record and challenge callouts on run posts (default on)")
-      .setDescriptionLocalizations({ fr: "Officiers : annonces des records et défis sur les parcours (actives par défaut)" }))
-    .addBooleanOption((o) => o.setName("other-guilds").setDescription("Officers: receive the runs your members did in a party with other guilds (default on)")
-      .setDescriptionLocalizations({ fr: "Officiers : recevoir les parcours de vos membres faits avec d'autres guildes (actif par défaut)" })))
+    .addStringOption((o) => o.setName("dungeon").setDescription("One dungeon (pick from the list)").setAutocomplete(true)))
   .addSubcommand((sub) => sub.setName("player").setDescription("A player's points, best times and recent runs (default: you)")
     .addUserOption((o) => o.setName("member").setDescription("Discord member"))
     .addStringOption((o) => o.setName("character").setDescription("Or a character name").setAutocomplete(true)))
@@ -121,6 +114,24 @@ async function resolveMember(interaction: ChatInputCommandInteraction, guildId: 
     return member;
   }
   return fallbackMemberId ? prisma.member.findUnique({ where: { id: fallbackMemberId } }) : null;
+}
+
+// The officer switches of /dungeon together and /dungeon records, under /officer dungeon since the
+// commands restructure (November 2026): members no longer see them. The handler is executeDungeon's.
+export const dungeonOfficerCommand = new SlashCommandBuilder()
+  .setName("dungeon")
+  .setDescription("Dungeon challenge officer switches.")
+  .addSubcommand(sub => sub.setName("goal").setDescription("Weekly dungeons-together goal")
+    .addIntegerOption(o => o.setName("goal").setDescription("Target 1–100").setMinValue(1).setMaxValue(100))
+    .addStringOption(o => o.setName("season").setDescription("Season (with goal)").setAutocomplete(true))
+    .addStringOption(o => o.setName("goal-kind").setDescription("What counts").addChoices({ name: "Different dungeons", value: "dungeons" }, { name: "Runs", value: "runs" }))
+    .addBooleanOption(o => o.setName("pause").setDescription("Pause or resume")))
+  .addSubcommand(sub => sub.setName("announce").setDescription("Run post callouts; runs with other guilds")
+    .addBooleanOption(o => o.setName("announce").setDescription("Record callouts (default on)"))
+    .addBooleanOption(o => o.setName("other-guilds").setDescription("Runs done with other guilds (default on)")));
+
+export async function executeDungeonOfficer(interaction: ChatInputCommandInteraction): Promise<void> {
+  await executeDungeon(legacyView(interaction, "dungeon", interaction.options.getSubcommand() === "goal" ? "together" : "records"));
 }
 
 export async function executeDungeon(interaction: ChatInputCommandInteraction): Promise<void> {

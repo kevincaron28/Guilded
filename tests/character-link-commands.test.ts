@@ -162,16 +162,11 @@ describe("Discord character link commands", () => {
     expect(mocks.prisma.character.delete).not.toHaveBeenCalled();
   });
 
-  it("claims a reported character and surfaces a conflict", async () => {
-    mocks.claim.mockResolvedValue({ row: { name: "Ray", displayName: null, className: "Priest", level: 60 }, isMain: true });
-    const claim = interaction("claim", { name: "Ray" });
-    await executeCharacter(claim as never);
-    expect(mocks.claim).toHaveBeenCalledWith(expect.anything(), "g1", "m1", "Ray");
-    expect(claim.reply.mock.calls[0]?.[0].content).toContain("Linked **Ray**");
-    expect(claim.reply.mock.calls[0]?.[0].content).toContain("your main");
-
-    mocks.claim.mockRejectedValue(new Error("Ray is already linked to Kev. /character list shows what is linked."));
-    await expect(executeCharacter(interaction("claim", { name: "Ray" }) as never)).rejects.toThrow(/already linked to Kev/);
+  // Commands restructure (November 2026): members no longer claim from a list (it made it easy to
+  // claim someone else's character by mistake); /character claim answers "moved" (commands-restructure.test.ts).
+  it("no longer lets a member claim a reported character with /character", async () => {
+    await executeCharacter(interaction("claim", { name: "Ray" }) as never).catch(() => undefined);
+    expect(mocks.claim).not.toHaveBeenCalled();
   });
 
   it("limits officer link, autolink and the unclaimed list to officers", async () => {

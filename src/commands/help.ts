@@ -25,7 +25,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/craft request` — ask a guild crafter · `/craft who` — who can make it",
       "`/leaderboard` — dungeon rating; `board:` guild records, PvP, community points or EPGP",
       "`/raid progress` · `/raid report` — sign up with the buttons on raid posts",
-      "`/report bug` — tell the developer about a problem",
+      "`/report bug` — tell the developer about a problem · `/help` — this list",
       "Also there when you need them: `/dungeon` · `/bank` · `/community` · `/epgp` · `/loot` · `/apply` · `/team` · `/bg` · `/participation` · `/tag` · `/poe`"
     ],
     fr: [
@@ -35,7 +35,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/craft request` — demander à un artisan · `/craft who` — qui peut le fabriquer",
       "`/leaderboard` — cote des donjons; `board:` records de la guilde, JcJ, points de communauté ou EPGP",
       "`/raid progress` · `/raid report` — inscrivez-vous avec les boutons des annonces de raid",
-      "`/report bug` — signaler un problème au développeur",
+      "`/report bug` — signaler un problème au développeur · `/help` — cette liste",
       "Aussi là au besoin : `/dungeon` · `/bank` · `/community` · `/epgp` · `/loot` · `/apply` · `/team` · `/bg` · `/participation` · `/tag` · `/poe`"
     ]
   },

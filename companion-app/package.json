@@ -84,6 +84,7 @@
           "standings-format.mjs",
           "poe-events.mjs",
           "delta.mjs",
+          "upload-split.mjs",
           "data-addon.mjs",
           "personal-runs.mjs",
           "personal-runs-content.mjs",

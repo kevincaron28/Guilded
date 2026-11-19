@@ -13,10 +13,11 @@ import { resolveStandingsPath, standingsFileHolds, writeStandings } from "./stan
 import { credentialHeaders, checkUrl, requestJson, jsonBody, setAddonVersion, MAX_UPLOAD_BYTES } from "./request.mjs";
 import { acceptedWithKnown } from "./known-runs.mjs";
 import { retryDelay, retryAfterOf, UPLOAD_TIMEOUT_MS } from "./retry.mjs";
-import { acknowledgements, pruneAcknowledged, runResendDue } from "./delta.mjs";
+import { acknowledgements, pruneAcknowledged, runResendDue, isFullRun } from "./delta.mjs";
 import { createPoeEngine, validatePoeConfig } from "./poe-engine.mjs";
 import { personalSavedFiles, resolveAcceptedPath, uploadPersonalRuns } from "./personal-runs.mjs";
 import { GAME_EDITIONS } from "./game-edition.mjs";
+import { splitExport, describeCounts } from "./upload-split.mjs";
 import { normalizeSavedPath } from "./saved-folder.mjs";
 import { errorDetail, isTimeout, rememberError } from "./error-detail.mjs";
 import { deviceHeaders, deviceMessage, deviceSummary, deviceUploadBody, hasDeviceKey, uploadAsDevice } from "./device-sync.mjs";
@@ -315,6 +316,7 @@ export function createEngine(initialConfig, hooks = {}) {
   let ack = null;
   // (9.3.8) When every dungeon run last went up in full; runs the bot holds are otherwise left out (delta.mjs). Unknown after a restart: the first upload is full.
   let runsFullAt = null;
+  const fullRunsSent = new Set();
   let etag = null;
   let gzipOff = false;
   let lastFile = null;
@@ -428,6 +430,33 @@ export function createEngine(initialConfig, hooks = {}) {
       return send(current, exported, epoch);
     }
     return result;
+  }
+
+  // (Data-loss audit, 3) An export over the bot's row or size limits goes as several requests; the first (roster and ledger) answers as the upload,
+  // and a part that fails (size included) is logged with its counts and never stops the others.
+  async function sendParts(current, exported, epoch) {
+    const parts = splitExport(exported);
+    if (parts.length === 1) return send(current, exported, epoch);
+    let first = null, firstError = null, retry = null;
+    for (const [index, item] of parts.entries()) {
+      if (epoch !== generation) break;
+      const counts = describeCounts(item.counts);
+      try {
+        const result = await send(current, item.export, epoch);
+        if (index === 0) first = result;
+        else if (!result.response.ok && result.response.status !== 409) {
+          log("warn", `Part "${item.label}" (${counts}) was not accepted (${result.response.status}); it is sent again at the next upload.`);
+          if (result.response.status === 429 || result.response.status >= 500) retry ??= new Error(`Upload failed (${result.response.status})`);
+        }
+      } catch (error) {
+        if (index === 0) { firstError = error; continue; }
+        log("warn", `Part "${item.label}" (${counts}) could not be sent: ${describeError(error)}`);
+        if (error.retryable !== false) retry ??= error;
+      }
+    }
+    if (firstError) throw firstError;
+    if (retry && state.running && epoch === generation) scheduleUpload(60_000);
+    return first;
   }
 
   // Support summary: what failed, where and how long it took (no message text, no IDs).
@@ -740,9 +769,9 @@ export function createEngine(initialConfig, hooks = {}) {
     // Leave out what the bot already stored (it said so in the last standings answer).
     const carry = await readCarryReceipts(current).catch(() => new Set());
     const resendRuns = runResendDue(runsFullAt);
-    const { exported, omitted } = pruneAcknowledged(full, { ...(ack ?? {}), carry }, features, Date.now(), { resendRuns });
+    const { exported, omitted } = pruneAcknowledged(full, { ...(ack ?? {}), carry }, features, Date.now(), { resendRuns, fullSent: fullRunsSent });
     const uploadedAt = new Date().toISOString();
-    const { response, body } = await withUploadGate(current.watchFile, () => send(current, exported, epoch));
+    const { response, body } = await withUploadGate(current.watchFile, () => sendParts(current, exported, epoch));
     if (epoch !== generation) return;
     // Receipts for carried records first: a wrong-server answer or a duplicate upload has still dealt with them.
     if (response.ok || response.status === 409) await writeCarryReceipts(current, body, controller.signal).catch(() => undefined);
@@ -777,6 +806,8 @@ export function createEngine(initialConfig, hooks = {}) {
     const left = omitted.ledger + omitted.loot + (omitted.raids ?? 0) + (omitted.runs ?? 0);
     const leftNote = left > 0 ? ` ${left} entries the bot already has were not sent again.` : "";
     if (response.ok && resendRuns) runsFullAt = Date.now();
+    // Runs sent in full and accepted: only now may the bot's receipt prune them (delta.mjs, isFullRun).
+    if (response.ok) for (const run of exported.dungeonRuns ?? []) if (run?.id && isFullRun(run)) fullRunsSent.add(run.id);
     if (response.ok) {
       // 9.2.1: a big guild upload is still being applied when the bot answers; it finishes on its own, nothing to resend.
       const message = body.applyError

@@ -24,8 +24,8 @@ describe("setup checklist", () => {
   it("warns, in both languages, when world PvP is on but the PvP ladder channel is not set", () => {
     expect(formatChecks(setupChecks(done))).not.toContain("World PvP");
     const en = formatChecks(setupChecks({ ...done, worldPvpPanelMissing: true }));
-    expect(en).toContain("⚠️ World PvP panel");
-    expect(en).toContain("/bg pvp-module");
+    expect(en).toContain("➖ World PvP panel");
+    expect(en).toContain("No PvP ladder channel");
     expect(formatChecks(setupChecks({ ...done, worldPvpPanelMissing: true }, "fr"))).toContain("Panneau JcJ en monde ouvert");
     expect(setupComplete(setupChecks({ ...done, worldPvpPanelMissing: true }))).toBe(true);
   });

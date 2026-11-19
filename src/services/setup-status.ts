@@ -251,8 +251,8 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en", now = new Date
     });
   }
   if (facts.worldPvpPanelMissing) checks.push({
-    label: T("World PvP panel"), ok: false, optional: true, warn: true,
-    fix: T("World PvP is on, but the PvP ladder channel is not set, so its panel never appears. Run /bg pvp-module, then press \"Create missing channels\" on this checklist, or run /bg setup.")
+    label: T("World PvP panel"), ok: false, optional: true,
+    fix: T("No PvP ladder channel, so no panel. Press \"Create missing channels\".")
   });
   // The #bot-faq answer channel was retired in 9.0: it is neither listed nor counted any more.
   // The bot's messages: missing (❌-style, optional) or out of date (⚠️), fixed by one button.

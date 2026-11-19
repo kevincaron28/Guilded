@@ -64,7 +64,7 @@ const RICH_FRAMES = String.raw`
   function UnitIsPlayer() return true end
 `;
 
-function openWindow(rank: number, extraLua = ""): LuaSession {
+function openWindow(rank: number, extraLua = "", extraFiles: string[] = []): LuaSession {
   session = newLuaSession();
   session.run(RICH_FRAMES);
   session.run(String.raw`
@@ -73,7 +73,7 @@ function openWindow(rank: number, extraLua = ""): LuaSession {
     function GetGuildInfo() return "Alpha", "Rank", ${rank} end
     ${extraLua}
   `);
-  for (const file of ["Core.lua", "Compat.lua", "Modules/Sync.lua", "Modules/SyncNow.lua", "Modules/LootRoll.lua", "Modules/ConsumableData.lua", "Modules/Consumables.lua", "Modules/Ready.lua", "Modules/Minimap.lua"]) session.load(file);
+  for (const file of ["Core.lua", "Compat.lua", "Modules/Sync.lua", "Modules/SyncNow.lua", "Modules/LootRoll.lua", "Modules/ConsumableData.lua", "Modules/Consumables.lua", "Modules/Ready.lua", ...extraFiles, "Modules/Minimap.lua"]) session.load(file);
   session.run(`fire_event("PLAYER_LOGIN"); fire_event("PLAYER_ENTERING_WORLD"); NS.commandHandlers["menu"]()`);
   return session;
 }
@@ -100,24 +100,24 @@ describe("standalone games host window", () => {
 });
 
 describe("the five member tabs", () => {
-  const shownGroups = (s: LuaSession) => s.run(`local n = {}; for _, g in ipairs({ "Home", "Guild", "Dungeons", "Crafting", "Raids", "Settings" }) do local b = NS.windowState().groupButtons[g]; if b and b.shown then n[#n + 1] = g end end; return table.concat(n, ",")`);
+  const shownGroups = (s: LuaSession) => s.run(`local n = {}; for _, g in ipairs({ "Home", "Guild", "Layer", "Dungeons", "Crafting", "Raids", "Settings" }) do local b = NS.windowState().groupButtons[g]; if b and b.shown then n[#n + 1] = g end end; return table.concat(n, ",")`);
   const shownPages = (s: LuaSession) => s.run(`local n = {}; for _, t in ipairs(NS.windowState().tabs) do if t.button.shown then n[#n + 1] = t.name end end; return table.concat(n, ",")`);
 
   it("shows the five tabs and Settings, and only the open tab lists its pages", () => {
     const s = openWindow(5, `NS.dungeonScorePanel = { open = function(mode) openedMode = mode end }`);
-    expect(shownGroups(s)).toBe("Home,Guild,Dungeons,Crafting,Raids,Settings");
+    expect(shownGroups(s)).toBe("Home,Guild,Layer,Dungeons,Crafting,Raids,Settings");
     expect(shownPages(s)).toBe("Home,Me");
     s.run(`NS.windowState().groupButtons.Raids.scripts.OnClick()`);
     expect(shownPages(s)).toBe("Open raids,Reserves,Signups");
     s.run(`NS.windowState().groupButtons.Guild.scripts.OnClick()`);
-    expect(shownPages(s)).toBe("Guild overview,Layer invite,Standings,Duels");
+    expect(shownPages(s)).toBe("Guild overview,Standings,Duels");
   });
 
   it("shows Guild as one page with its sections in a row at the top, and Crafting as a single page", () => {
     const s = openWindow(5);
     const row = () => s.run(`local out = {}; for _, t in ipairs(NS.windowState().tabs) do if t.button.shown then local p = t.button.points[#t.button.points]; out[#out + 1] = t.name .. "@" .. tostring(p[5]) end end; return table.concat(out, ",")`);
     s.run(`NS.windowState().groupButtons.Guild.scripts.OnClick()`);
-    expect(row()).toBe("Guild overview@-12,Layer invite@-12,Standings@-12,Duels@-12"); // all on the first line, which ends before the window's - / + / close buttons
+    expect(row()).toBe("Guild overview@-12,Standings@-12,Duels@-12"); // all on the first line, which ends before the window's - / + / close buttons
     expect(s.run(`return NS.windowState().pageTitle.text`)).toBe("");
     s.run(`NS.windowState().groupButtons.Crafting.scripts.OnClick()`);
     expect(row()).toBe("");   // one page: no section row
@@ -263,11 +263,32 @@ describe("the tools window (sidebar and Home page)", () => {
     expect(s.run('return UI.guildScroll:GetVerticalScroll()')).toBe("48");
   });
 
-  it("gives the Layer invite page its real height inside the scroll (its fifth row ends near y=-250)", () => {
+  it("gives the Layer invite page its real height inside the scroll (its fifth row ends near y=-316)", () => {
     const s = openWindow(5);
     s.run(`UI = NS.windowState(); UI.selectTabByName("Layer invite"); UI.guildScroll.GetHeight = function() return 100 end; UI.selectTabByName("Layer invite")`);
     expect(s.run("return tostring(UI.guildScroll.shown and UI.guildScroll.scrollChild == UI.tabs[UI.currentTab].page)")).toBe("true");
-    expect(s.run("return UI.guildScrollRange")).toBe("188");
+    expect(s.run("return UI.guildScrollRange")).toBe("254");
+  });
+
+  it("Layer invite is a sidebar button of its own for every member, and its page has the two layer switches kept in step with the settings", () => {
+    const s = openWindow(5, "", ["Modules/LayerInvite.lua"]);
+    expect(s.run(`return tostring(NS.windowState().groupButtons.Layer ~= nil and NS.windowState().groupButtons.Layer.shown)`)).toBe("true");
+    s.run(`NS.windowState().groupButtons.Layer.scripts.OnClick()`);
+    expect(s.run(`local UI = NS.windowState(); return UI.tabs[UI.currentTab].name`)).toBe("Layer invite");
+    expect(s.run(`return tostring(NS.windowState().tabs[NS.windowState().currentTab].page.shown)`)).toBe("true");
+    // The shared frame mock does not keep a check state: give the two boxes one, then draw the page again.
+    s.run(`for _, b in pairs(NS.layerInvite.pageBoxes) do b.SetChecked = function(self, v) self.c = v and true or false end; b.GetChecked = function(self) return self.c == true end end; NS.layerInvite.refreshPage()`);
+    const boxes = () => s.run(`local b = NS.layerInvite.pageBoxes; return tostring(b.helper:GetChecked()) .. "," .. tostring(b.auto:GetChecked())`);
+    expect(boxes()).toBe("true,false");
+    s.run(`local b = NS.layerInvite.pageBoxes; b.auto:SetChecked(true); b.auto.scripts.OnClick(b.auto)`);
+    expect(s.run(`return tostring(NS.getDb().layer.auto) .. "," .. tostring(NS.layerInvite.autoInvite())`)).toBe("true,true");
+    expect(boxes()).toBe("true,true");
+    // Same getters and setters as Settings: turning it off from the command (what Settings runs) shows on the page.
+    s.run(`NS.commandHandlers["layer"]({ "layer", "auto", "off" }); NS.layerInvite.refreshPage()`);
+    expect(boxes()).toBe("true,false");
+    // In combat the switch only changes the saved setting.
+    s.run(`IN_COMBAT = true; InCombatLockdown = function() return true end; local b = NS.layerInvite.pageBoxes; b.helper:SetChecked(false); b.helper.scripts.OnClick(b.helper)`);
+    expect(s.run(`return tostring(NS.layerInvite.helper())`)).toBe("false");
   });
 
   it("scrolls the long pages and leaves the short ones on the window", () => {

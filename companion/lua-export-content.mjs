@@ -440,7 +440,7 @@ export function exportDuelResults(database) {
   return Object.values(results)
     .filter((r) => r && name(r.winner) && name(r.loser) && r.winner !== r.loser && Number.isSafeInteger(r.at) && r.at > 0 && r.at < 4102444800
       && (r.reason === "knockout" || r.reason === "retreat"))
-    .sort((a, b) => b.at - a.at).slice(0, 200)
+    .sort((a, b) => b.at - a.at || (a.winner < b.winner ? -1 : a.winner > b.winner ? 1 : 0))
     .map((r) => ({ winner: r.winner, loser: r.loser, at: r.at, reason: r.reason }));
 }
 
@@ -751,7 +751,7 @@ export function exportMilestones(database) {
       out.push({ character: entry.name, realm: typeof entry.realm === "string" ? entry.realm.slice(0, 100) : "", kind: row.kind, ref: row.ref, value: row.value, at: row.at, ...extra });
     }
   }
-  return out.sort((a, b) => b.at - a.at).slice(0, 600);
+  return out.sort((a, b) => b.at - a.at || (a.ref < b.ref ? -1 : a.ref > b.ref ? 1 : 0) || (a.character < b.character ? -1 : a.character > b.character ? 1 : 0)); // every milestone: upload-split.mjs sends them in several requests
 }
 
 // The character's rank in the WoW guild the saved data belongs to: { guildRankName, guildRankIndex }
@@ -821,13 +821,14 @@ function buildRecipes(saved, realm) {
   const used = new Set();
   for (const [player, professions] of Object.entries(saved.people ?? {})) {
     for (const [profession, entry] of Object.entries(professions ?? {})) {
-      const keys = Object.values(entry?.keys ?? {}).map(Number).filter((key) => Number.isInteger(key) && key !== 0).slice(0, 800);
+      const keys = Object.values(entry?.keys ?? {}).map(Number).filter((key) => Number.isInteger(key) && key !== 0).sort((a, b) => a - b).slice(0, 800);
       if (!entry?.v || keys.length === 0) continue;
       out.recipes.push({ character: String(player), realm, profession: String(profession).slice(0, 40), at: iso(entry.v), keys });
       for (const key of keys) used.add(key);
     }
   }
-  out.recipes = out.recipes.slice(0, 400);
+  // Every (character, profession) pair, newest first; upload-split.mjs sends them in requests of 400.
+  out.recipes.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0) || (a.character < b.character ? -1 : a.character > b.character ? 1 : 0) || (a.profession < b.profession ? -1 : 1));
   for (const key of used) {
     const name = saved.names?.[key] ?? saved.names?.[String(key)];
     if (typeof name === "string" && name) out.recipeNames[String(key)] = name.slice(0, 100);

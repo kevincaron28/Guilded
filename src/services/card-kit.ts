@@ -143,7 +143,7 @@ export class CardCanvas {
    * painting keeps its own lighting) until every string passes, rather than shipping a low-contrast card.
    */
   async finish(layers: OverlayOptions[]): Promise<{ png: Buffer; report: TextReport[]; scrim: number }> {
-    const svg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${this.height}">${this.svg}</svg>`);
+    const svg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${CARD_W}" height="${this.height}">${this.svg}</svg>`);
     // Owner, 17 Nov 2026: keep the painting's own lighting. A string that would be hard to read gets a soft dark patch behind it
     // (stronger in steps), instead of the whole picture being darkened for one word. `scrim` reports the strongest patch used.
     const shade = this.texts.map(() => 0);

@@ -63,6 +63,20 @@ describe("player factions in a dungeon run", () => {
     expect(s.run("return PEER.players.Friend.faction")).toBe("HORDE");
     expect(s.run("return PEER.players.Tester.faction")).toBe("ALLIANCE");
   });
+  it("keeps guild and faction in the summary of a long dungeon (a 100-row timeline used to push them out)", () => {
+    const s = start();
+    s.run(`local run = GuildedDB.dungeon.current
+      run.players.Tester.guild = "Quebec Gold"; run.players.Friend.guild = "Quebec Gold"
+      run.encounters = {}
+      for i = 1, 100 do run.encounters[#run.encounters + 1] = { id = 1000 + i, kind = "npc", name = "A long creature name " .. i, success = true, at = 1800000000 + i, startedAt = 1800000000 + i - 5 } end
+      LONG = NS.dungeon.serialize(run)`);
+    expect(Number(s.run("return #LONG"))).toBeLessThanOrEqual(4000);
+    expect(String(s.run("return tostring(LONG:find(';tl=', 1, true) ~= nil)"))).toBe("true");
+    s.run(`PEER = NS.dungeon.deserialize("X", LONG)`);
+    expect(s.run("return PEER.players.Friend.guild")).toBe("Quebec Gold");
+    expect(s.run("return PEER.players.Friend.faction")).toBe("HORDE");
+    expect(s.run("return PEER.players.Tester.faction")).toBe("ALLIANCE");
+  });
   it("is exported by the companion only as ALLIANCE or HORDE", () => {
     const run = (faction: unknown) => exportDungeonRuns({ dungeon: { runs: { A: { id: "A", state: "COMPLETED", startedAt: 1, endedAt: 2, instanceId: 1, name: "x", difficultyId: 1, players: { Kev: { class: "WARRIOR", faction, presentSec: 1 } }, encounters: [] } } }, displayNames: {} } as never, "forever") as { players: { faction?: string }[] }[];
     const first = (value: unknown) => run(value)[0]?.players[0]?.faction;

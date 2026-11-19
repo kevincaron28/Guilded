@@ -26,6 +26,8 @@ export const rosterCommand = new SlashCommandBuilder()
     .addStringOption((o) => o.setName("format").setDescription("{name} ({full}); {main} = first name").setMaxLength(60))
     .addBooleanOption((o) => o.setName("apply").setDescription("Run now (default: preview)")))
   .addSubcommand((sub) => sub.setName("map").setDescription("Phone guildmate map.")
+    .addBooleanOption((o) => o.setName("on").setDescription("On or off")))
+  .addSubcommand((sub) => sub.setName("gamelink").setDescription("Link characters from WoW's Discord chat link.")
     .addBooleanOption((o) => o.setName("on").setDescription("On or off")));
 
 export const ROSTER_BUTTON_PREFIX = "rostergap:";
@@ -112,6 +114,20 @@ export async function executeRoster(interaction: ChatInputCommandInteraction): P
         "La carte des membres est **activée** : les membres connectés de cette guilde voient les dernières positions, une carte de chaleur et les appels à l'aide dans l'appli mobile. Jamais publique ; chaque membre peut y couper son partage, ce qui efface ses positions.")
       : t("Guildmate map is **off**: nobody sees it and new positions are not stored. Turn it on with `on:true`.",
         "La carte des membres est **désactivée** : personne ne la voit et les nouvelles positions ne sont pas gardées. Active-la avec `on:true`."));
+    return;
+  }
+
+  if (sub === "gamelink") {
+    // 19 Nov: WoW's Discord link relays guild chat as the real Discord user with their character name; the bot links that character
+    // (services/game-bridge-link.ts). On by default (rule 5). Never moves a character another member holds.
+    const on = interaction.options.getBoolean("on");
+    if (on !== null) await prisma.guildSettings.upsert({ where: { guildId }, create: { guildId, gameBridgeLinkEnabled: on }, update: { gameBridgeLinkEnabled: on } });
+    const enabled = on ?? settings?.gameBridgeLinkEnabled ?? true;
+    await reply(enabled
+      ? t("Game chat link is **on**: when a member's guild chat is relayed here by WoW's Discord link, I link the character it names to them. A character another member holds is never moved (one line in the officer log). Turn it off with `on:false`.",
+        "Le lien du clavardage en jeu est **activé** : quand le lien Discord de WoW relaie le clavardage de guilde d'un membre ici, je lie le personnage nommé à ce membre. Un personnage lié à un autre membre n'est jamais déplacé (une ligne dans le journal des officiers). Désactive-le avec `on:false`.")
+      : t("Game chat link is **off**: relayed guild chat links nothing. Turn it on with `on:true`.",
+        "Le lien du clavardage en jeu est **désactivé** : le clavardage relayé ne lie rien. Active-le avec `on:true`."));
     return;
   }
 }

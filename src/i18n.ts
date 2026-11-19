@@ -380,6 +380,7 @@ const STRINGS = {
   "linkmove.proof.named": { en: "a name (typed, claimed or matched)", fr: "un nom (tapé, réclamé ou reconnu)" },
   "linkmove.proof.companion": { en: "their own Guilded app", fr: "sa propre application Guilded" },
   "linkmove.proof.heard": { en: "a code heard in game by a guildmate's addon", fr: "un code entendu en jeu par l'addon d'un coéquipier" },
+  "linkmove.proof.game": { en: "the game itself (WoW's Discord link)", fr: "le jeu lui-même (lien Discord de WoW)" },
   "linkmove.proof.officer": { en: "an officer", fr: "un officier" },
   "linkmove.gained": {
     en: "🔁 **{name}** is now linked to you on **{server}**. It was linked to another member; your proof ({proof}) is stronger than theirs ({other}), so it moved with its history. Not your character? Press the button and it goes back.",

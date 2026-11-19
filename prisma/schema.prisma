@@ -1037,6 +1037,8 @@ model GuildSettings {
   // 8.5 track C: roster gaps, nickname sync and the Who's who board. All off until an officer turns them on.
   rosterIgnoredRoleIds     String[] @default([])
   nicknameSyncEnabled      Boolean @default(true)
+  // 19 Nov 2026: WoW's Discord link relays guild chat as the real Discord user with their character name; that links the character (game-bridge-link.ts). On by default, officers switch it off.
+  gameBridgeLinkEnabled    Boolean @default(true)
   nicknameFormat           String?
   whosWhoEnabled           Boolean @default(true)
   whosWhoChannelId         String?

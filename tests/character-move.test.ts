@@ -120,8 +120,8 @@ function newGuild() {
 const upload = (name: string) => parseAddonSnapshot({ source: "Guilded", exportedAt: "2026-11-10T20:00:00Z", characters: [{ name, realm: "Forever", class: "MAGE", level: 60 }] }).characters[0]!;
 
 describe("proof order", () => {
-  it("ranks named < companion < heard < officer", () => {
-    expect(["named", "companion", "heard", "officer"].map((value) => evidenceRank(value as never))).toEqual([1, 2, 3, 4]);
+  it("ranks named < companion < heard < game < officer", () => {
+    expect(["named", "companion", "heard", "game", "officer"].map((value) => evidenceRank(value as never))).toEqual([1, 2, 3, 4, 5]);
   });
 
   it("reads the proof of rows linked before the column existed", () => {

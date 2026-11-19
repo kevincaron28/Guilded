@@ -10,6 +10,7 @@ import { markMemberChanged } from "./member-sync-events.js";
 //   named     typed in, /character link, a Discord name match, an invite request
 //   companion the member's own signed-in companion uploaded it
 //   heard     a guildmate's addon heard the member's /guilded verify code from that character
+//   game      the game itself vouched: WoW's Discord link relayed the member's own guild chat under that character (game-bridge-link.ts)
 //   officer   an officer linked or moved it by hand, or an officer's own addon heard the code
 // (A device-reported character is weaker than all of them and is never a Character row.)
 // A stronger claim takes the character from a weaker one: the row keeps its id, so its history
@@ -22,7 +23,7 @@ import { markMemberChanged } from "./member-sync-events.js";
 
 type Tx = Prisma.TransactionClient;
 
-export const LINK_EVIDENCE = ["named", "companion", "heard", "officer"] as const;
+export const LINK_EVIDENCE = ["named", "companion", "heard", "game", "officer"] as const;
 export type LinkEvidence = typeof LINK_EVIDENCE[number];
 
 export const evidenceRank = (evidence: LinkEvidence): number => LINK_EVIDENCE.indexOf(evidence) + 1;
@@ -41,7 +42,7 @@ export function evidenceOf(character: { linkEvidence?: string | null; confirmedA
 }
 
 /** Whether this proof alone makes a link confirmed when it is written (character-trust.ts reads it back). */
-const confirms = (evidence: LinkEvidence) => evidence === "officer" || evidence === "companion";
+const confirms = (evidence: LinkEvidence) => evidence === "officer" || evidence === "game" || evidence === "companion";
 
 // The holding member: one per server, never a real Discord account (same idea as "deleted-<id>" in
 // data-deletion.ts). LEFT and isTest keep it out of rosters, ranks, nicknames and standings.

@@ -496,7 +496,16 @@ end
 function module.refreshPage() end
 
 ns.commandHandlers = ns.commandHandlers or {}
+-- The note added to a settings answer when the character has no guild yet (only asking needs a guild).
+local function guildless(text)
+  if IsInGuild and not IsInGuild() then return text .. " " .. L("(takes effect once you are in a guild)") end
+  return text
+end
+
 ns.commandHandlers["layer"] = function(args)
+  -- Core hands a module the tokens after the action ({ "auto", "on" }); older callers pass { "layer", "auto", "on" }.
+  args = args or {}
+  if string.lower(args[1] or "") ~= "layer" then table.insert(args, 1, "layer") end
   local what = string.lower(args and args[2] or "")
   if what == "list" then
     local list = openRequests()
@@ -508,8 +517,8 @@ ns.commandHandlers["layer"] = function(args)
     local value = string.lower(args[3] or "")
     if value == "on" or value == "off" then
       module.setAutoInvite(value == "on")
-      say(value == "on" and L("Guildmates who ask for a layer on your continent are invited at once (when you are alone or lead your party, out of combat).")
-        or L("Layer requests are no longer invited by themselves."))
+      say(guildless(value == "on" and L("Guildmates who ask for a layer on your continent are invited at once (when you are alone or lead your party, out of combat).")
+        or L("Layer requests are no longer invited by themselves.")))
     else
       say(L("/guilded layer auto on|off"))
     end
@@ -521,7 +530,7 @@ ns.commandHandlers["layer"] = function(args)
         say(L("This game build refused a direct invite: Invite buttons show the line to paste."))
       elseif u and u.setDirectInvite then
         u.setDirectInvite(value == "on")
-        say(value == "on" and L("Party Invite buttons invite directly.") or L("Party Invite buttons show the /invite line to paste."))
+        say(guildless(value == "on" and L("Party Invite buttons invite directly.") or L("Party Invite buttons show the /invite line to paste.")))
       end
     else
       say(L("/guilded layer direct on|off"))
@@ -531,7 +540,7 @@ ns.commandHandlers["layer"] = function(args)
     if value == "on" or value == "off" then
       data().helper = value == "on"
       if value == "off" then data().auto = nil end
-      say(value == "on" and L("You will see guildmates' layer requests.") or L("You will not see guildmates' layer requests."))
+      say(guildless(value == "on" and L("You will see guildmates' layer requests.") or L("You will not see guildmates' layer requests.")))
     else
       say(L("/guilded layer helper on|off"))
     end

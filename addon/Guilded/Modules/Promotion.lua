@@ -129,6 +129,28 @@ function module.ready()
   return out, rule
 end
 
+-- One waiting row's text. The bot's optional reason is "link" and/or "voice:<have min>:<need min>" (old feeds have none).
+local function reasonText(code)
+  local parts = {}
+  for part in tostring(code or ""):gmatch("[^,]+") do
+    if part == "link" then parts[#parts + 1] = L("needs link")
+    else
+      local have, need = part:match("^voice:(%d+):(%d+)$")
+      if have then
+        local function hm(n) n = tonumber(n) or 0; if n >= 60 then return string.format("%d h %02d", math.floor(n / 60), n % 60) end return string.format("%d min", n) end
+        parts[#parts + 1] = string.format(L("voice %s / %s"), hm(have), hm(need))
+      end
+    end
+  end
+  return table.concat(parts, ", ")
+end
+local function waitingText(row)
+  local why = reasonText(row.reason)
+  if why == "" then return string.format(L("%s - waiting (%d days left)"), row.display, row.daysLeft) end
+  if (row.daysLeft or 0) > 0 then return string.format(L("%s - waiting (%d days left)"), row.display, row.daysLeft) .. ", " .. why end
+  return string.format(L("%s - waiting (%s)"), row.display, why)
+end
+
 -- The bot's "not yet" members who are still at the starting rank: { { display, daysLeft } }, soonest first.
 function module.waiting()
   local f = feed()
@@ -140,7 +162,7 @@ function module.waiting()
     if type(entry) == "table" and type(entry.name) == "string" then
       local row = snapshot.rows[bare(entry.name) or entry.name]
       if row and row.rankName:lower() == rule.fromRank:lower() and not altInvolved(snapshot, row) then
-        out[#out + 1] = { display = row.display, daysLeft = tonumber(entry.daysLeft) or 0 }
+        out[#out + 1] = { display = row.display, daysLeft = tonumber(entry.daysLeft) or 0, reason = type(entry.reason) == "string" and entry.reason or nil }
       end
     end
   end
@@ -201,7 +223,7 @@ function module.text()
     lines[#lines + 1] = string.format("%s%s - %d %s", row.display, row.level and (" " .. row.level) or "", row.days, L("days"))
   end
   for _, row in ipairs(module.waiting()) do
-    lines[#lines + 1] = string.format(L("%s - waiting (%d days left)"), row.display, row.daysLeft)
+    lines[#lines + 1] = waitingText(row)
   end
   return table.concat(lines, "\n")
 end
@@ -257,7 +279,7 @@ function module.refresh()
   -- Members who are not ready yet fill the free rows, without a button.
   for i = shown + 1, MAX_ROWS do
     local row, entry = rows[i], waiting[i - shown]
-    if entry then row.label:SetText(string.format(L("%s - waiting (%d days left)"), entry.display, entry.daysLeft)); row.label:Show() end
+    if entry then row.label:SetText(waitingText(entry)); row.label:Show() end
   end
   local actionable = 0
   if ready then for _, item in ipairs(ready) do if not item.exhausted then actionable = actionable + 1 end end end

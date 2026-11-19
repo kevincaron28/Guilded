@@ -1,6 +1,6 @@
 # 9.4.1 release acceptance
 
-Status: published 19 November 2026 (GitHub v9.4.1, the website download, the bot); CurseForge 9707178/9707179 in review; the Store serves 9.3.11.0 and 9.4.1.0 is being submitted. 9.4.1 is not yet confirmed on real clients.
+Status: published 19 November 2026 (GitHub v9.4.1, the website download, the bot); CurseForge 9707178/9707179 in review; the Store serves 9.4.0.0 (Submission 17) and 9.4.1.0 is in certification (Submission 18). 9.4.1 is not yet confirmed on real clients.
 
 ## Where it stands
 

@@ -1,5 +1,23 @@
 # Changelog
 
+## 9.4.1 — 19 November 2026
+
+Fixes from the owner's day of testing 9.4.0. Prepared 19 November 2026, not yet published. Not yet confirmed on real clients (see docs/V9_4_1_RELEASE_ACCEPTANCE.md).
+
+Addon:
+
+- Ready to promote opens in front and no longer overlaps; officers promote one member per click, and the rank number the game expects is checked after the first promotion of each client build (a wrong guess lands one rank low, never high) (#1134).
+- `/guilded verify` is retired: links are confirmed by sync. The Home page loses the code box (#1137).
+- Dungeon run summaries keep each player's guild, faction, levels and presence even with a long kill list (#1141, #1142).
+
+Bot and website (already live):
+
+- Invites tag only same-faction guildmates; guild factions shown on the site (#1135).
+- Do-not-invite prompt: clearer wording and an Undo after Kicked (#1136).
+- The community leaderboard shows the top 30 on a podium, and the weekly recap is one card that pings the MVP (#1143).
+- Sending the bot a name links the full-name character even when an old first-name-only row exists (#1138).
+- Several reports of one run no longer erase each other's guild and faction (#1139); names written "Xaldin Xaldin" are one character (#1140).
+
 ## 9.4.0 — 19 November 2026
 
 The owner's 9.4 list. Prepared 19 November 2026, not yet published. Not yet confirmed on real clients (see docs/V9_4_0_RELEASE_ACCEPTANCE.md). Details: docs/V9_4_0_RELEASE_NOTES.md.

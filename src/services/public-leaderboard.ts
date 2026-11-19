@@ -29,6 +29,7 @@ import { SITEMAP_PAGE_SIZE, parseSitemapPath, sitemapFiles, sitemapIndex, sitema
 import { siteUrl } from "../site-url.js";
 import { breadcrumbLd, ldGraph, publicUrl, seoTitle } from "./leaderboard-seo.js";
 import { armoryCharacterUrl, armoryGuildUrl } from "./armory-link.js";
+import { characterCardHtml } from "./character-card.js";
 import { editionHref } from "../../site/nav.mjs";
 import type { WebContext, WebKit, WebResponse, WebRoute } from "./web-app.js";
 import { classColor, scoreCardResponse, type CardRow, type CardStat } from "./score-card.js";
@@ -43,7 +44,7 @@ import { buildDuelBoard, buildRatingBoard, DUEL_LEVEL_BANDS, headToHead, type Du
 import { loadFullNameBook } from "./character-display.js";
 import { buildGlobalBoard, characterKey as duelKey, globalHeadToHead, playerDuelTrend, type GlobalDuel } from "./duel-global.js";
 import { pictureUrl } from "./character-picture.js";
-import { emptyPvp, guildPvpPanel, loadPvpData, playerPvpPanel, pvpHubParts, pvpPageBody, readPvpFilters, type PvpData, type PvpEnv, type PvpPlayer } from "./leaderboard-pvp.js";
+import { emptyPvp, guildPvpPanel, loadPvpData, playerPvpPanel, pvpHubParts, pvpPageBody, readPvpFilters, readPvpPeriod, type PvpData, type PvpEnv, type PvpPlayer } from "./leaderboard-pvp.js";
 import { className as canonicalClass } from "./recruitment.js";
 import { weekKeyOf } from "./world-pvp.js";
 import type { PublicPicture } from "./public-pictures.js";
@@ -1479,7 +1480,8 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const myGuild = me ? guildOf(ctx, me) : null;
     const guildArmory = myGuild ? armoryGuildUrl(myGuild.name, lang) : null;
     const external = (href: string, text: string) => `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${text}</a>`;
-    const profileLinks = armory || myGuild ? `<p class="muted">${[armory ? external(armory, t("View on the WoW armory ↗", "Voir sur l'armurerie WoW ↗")) : "",
+    const charCard = me ? characterCardHtml({ name: fullName, className: me.className, classLabel: me.className ? classLabel(me.className, lang) : null, level: me.level, guild: me.guild ?? myGuild?.name ?? null, armoryUrl: armory }, t) : "";
+    const profileLinks = myGuild ? `<p class="muted">${[
       myGuild ? `${t("Guild", "Guilde")} ${guildLink(ctx, myGuild)}${guildArmory ? ` (${external(guildArmory, t("guild armory ↗", "armurerie de la guilde ↗"))})` : ""}` : ""].filter(Boolean).join(" · ")}</p>` : "";
     const badgeShelf = badgeList.length ? `<div class="pbadges" aria-label="${t("Badges", "Badges")}">${badgeList.map((b) => `<span><img src="${b.img}" alt="" width="28" height="28" loading="lazy">${escapeHtml(b.text)}</span>`).join("")}</div>` : "";
     const runRow = (run: LeaderRun) => `<tr><td>${date(run.endedAt)}</td><td><span class="dcell">${dungeonThumb(run.dungeonName, localDungeonName(run, lang))}<a href="${link(runPath(run.runId), lang)}">${escapeHtml(localDungeonName(run, lang))}</a></span></td><td class="num">${time(run.durationSec)}</td><td class="num score">${cell(run)}</td><td class="num">${run.deaths ?? "?"}</td><td>${escapeHtml(run.bracket ?? "?")}</td><td></td></tr>`;
@@ -1487,7 +1489,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const top = Math.max(1, ...history.flatMap((h) => h.rows.map((r) => r.points)));
     const body = PAGE_CSS + HUB_CSS + hubTabs(t, lang, "players") + `<p class="eyebrow">${t("Character", "Personnage")}</p><div class="hero">${face ? `<img src="${escapeHtml(pictureUrl(face.characterId, face.version, "thumb"))}" alt="" width="64" height="64" style="border-radius:50%;align-self:center">` : ""}<h1 class="c-${classSlug(me?.className ?? duelSide?.className ?? null)}">${escapeHtml(title)}</h1>`
       + ((me?.className ?? duelSide?.className) ? `<span>${escapeHtml(classLabel((me?.className ?? duelSide?.className)!, lang))}${(me?.level ?? duelSide?.level) ? ` · ${t("level", "niveau")} ${me?.level ?? duelSide?.level}` : ""}</span>` : "") + `</div>`
-      + (runs.length ? profileLinks + badgeShelf + `<h2>${t("Score", "Score")} · ${escapeHtml(periodName(ctx, seasons[0]!))}</h2>`
+      + charCard + (runs.length ? profileLinks + badgeShelf + `<h2>${t("Score", "Score")} · ${escapeHtml(periodName(ctx, seasons[0]!))}</h2>`
         + (current.length ? `<p>${current.map((row) => `<span class="badge">${escapeHtml(bracketName(ctx, row.bracket))}</span> <span class="score ${scoreTier(row.points)}">${row.points}</span>`).join(" &nbsp; ")}</p>` : `<p class="muted">${t("No rated run this season yet.", "Aucun essai classé cette saison.")}</p>`)
         + roles + guidance
         + `<h2>${t("Routes", "Parcours")}</h2><p class="muted">${t(`${best.size} ${best.size === 1 ? "dungeon" : "dungeons"} with a public best time.`, `${best.size} ${best.size === 1 ? "donjon" : "donjons"} avec un meilleur temps public.`)}</p>`
@@ -1648,7 +1650,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       + (armoryGuildUrl(guild.name, lang) ? `<p class="muted"><a href="${escapeHtml(armoryGuildUrl(guild.name, lang)!)}" target="_blank" rel="noopener noreferrer">${t("View on the WoW armory ↗", "Voir sur l'armurerie WoW ↗")}</a></p>` : "")
       + (standing.length ? `<p>${standing.join(" &nbsp; ")}</p>` : "")
       + `<nav class="tabs"><a class="${filters.week ? "" : "on"}" href="${link(base, lang)}">${t("Season", "Saison")}</a><a class="${filters.week ? "on" : ""}" href="${link(base, lang, { period: "week" })}">${t("This week", "Cette semaine")}</a>${deps.store.guildDuelRows ? `<a href="${link(`${base}/duels`, lang)}">${t("Duels", "Duels")}</a>` : ""}</nav>`
-      + tiles + memberPodium + (pvpForGuild ? guildPvpPanel(await pvpEnv(ctx), pvpForGuild, guild.id) : "") + (reason ? `<p class="notice">${reasonText[reason]}</p>` : "")
+      + tiles + memberPodium + (pvpForGuild ? guildPvpPanel(await pvpEnv(ctx), pvpForGuild, guild.id, { period: readPvpPeriod(ctx.request.query), href: (pvpPeriod) => link(base, lang, { ...Object.fromEntries([...ctx.request.query].filter(([k]) => k !== "lang" && k !== "pvpPeriod")), ...(pvpPeriod === "all" ? { pvpPeriod } : {}) }) + "#pvp" }) : "") + (reason ? `<p class="notice">${reasonText[reason]}</p>` : "")
       + `<h2>${t("Dungeons", "Donjons")}</h2>` + dungeonTable
       + (roleRows ? `<h2>${t("Top player per role", "Meilleur joueur par rôle")}</h2>${roleRows}` : "")
       + (activity ? `<h2>${t("Activity", "Activité")}</h2>${activity}` : "")

@@ -204,6 +204,7 @@ model Guild {
   consumableChecks    ConsumableCheck[]
   reserveList         ReserveList?
   recipesKnown        RecipeKnown[]
+  professionPostMessages ProfessionPostMessage[]
   coreItemValues      CoreItemValue[]
   professionCooldowns ProfessionCooldown[]
   itemReserves        ItemReserve[]
@@ -4342,4 +4343,19 @@ model RaidKill {
   @@unique([guildId, instanceId, encounterId, difficultyId, killedAt])
   @@index([guildId, killedAt])
   @@index([instanceId, encounterId, difficultyId, killedAt])
+}
+
+// 9.4.x: one row per bot message of a profession forum thread (one message per recipe category part), so the board edits them in place.
+model ProfessionPostMessage {
+  id          String   @id @default(cuid())
+  guildId     String
+  profession  String
+  slot        String
+  threadId    String
+  messageId   String
+  contentHash String
+  updatedAt   DateTime @default(now()) @updatedAt
+  guild       Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, profession, slot])
 }

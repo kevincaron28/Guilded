@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import { professionLabel } from "../src/commands/craft-board.js";
 import { crafterStandings } from "../src/services/craft-ladder.js";
 import { PROFESSION_IDENTITIES, canonicalProfessionText, professionSlug } from "../src/services/profession-names.js";
-import { loadProfessionPosts, professionPostEmbed, professionPostLinks, threadTitle, updateProfessionPosts } from "../src/services/profession-board.js";
+import { professionSummaryEmbed } from "../src/services/profession-messages.js";
+import { loadProfessionPosts, professionPostLinks, threadTitle, updateProfessionPosts } from "../src/services/profession-board.js";
 import { professionKey } from "../src/services/profession-details.js";
 import { professionNavRows } from "../src/services/profession-directory.js";
 import { findProfessionHolders, professionCoverage } from "../src/services/profession-search.js";
@@ -50,8 +51,8 @@ describe("one profession name in every Discord view", () => {
     expect(posts[0]!.recipes).toHaveLength(1);
     expect(posts[0]!.recipes[0]!.crafters.map((crafter) => crafter.character).sort()).toEqual(["Amy", "Bob"]);
     // Shown once, in the guild's language.
-    expect(professionPostEmbed(posts[0]!, "fr", "g1").toJSON().title).toContain("Cuisine");
-    expect(professionPostEmbed(posts[0]!, "en", "g1").toJSON().title).toContain("Cooking");
+    expect(professionSummaryEmbed(posts[0]!, "fr", "g1").toJSON().title).toContain("Cuisine");
+    expect(professionSummaryEmbed(posts[0]!, "en", "g1").toJSON().title).toContain("Cooking");
     expect(professionKey("Cuisine")).toBe(professionKey("Cooking"));
   });
 

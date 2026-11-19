@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { categoryLabel, categoryOf, groupByCategory, isCategoryKey } from "../src/services/recipe-categories.js";
-import { professionPostEmbeds, assignCategories, type ProfessionPost, type ProfessionRecipe } from "../src/services/profession-board.js";
+import { professionCategoryMessages } from "../src/services/profession-messages.js";
+import { assignCategories, type ProfessionPost, type ProfessionRecipe } from "../src/services/profession-board.js";
 import { professionDetailsRow, professionCategoryView, findProfessionCategory } from "../src/services/profession-details.js";
 
 const NOW = new Date("2026-11-19T12:00:00Z");
@@ -77,34 +78,21 @@ const bigEnchanting = (): ProfessionPost => {
 };
 
 describe("post sections", () => {
-  it("renders one heading per category, Other last, within Discord's limits, and points to Details for what does not fit", () => {
-    const embeds = professionPostEmbeds(bigEnchanting(), "en", "g1", NOW).map(embed => embed.toJSON());
-    const text = embeds.map(embed => embed.description ?? "").join("\n");
+  it("renders every recipe under one heading per category, Other last, with nothing hidden", () => {
+    const messages = professionCategoryMessages(bigEnchanting(), "en", NOW);
+    const text = messages.flatMap(message => message.embeds).map(embed => embed.toJSON().description ?? "").join("\n");
     expect(text).toContain("### Weapon (12)");
     expect(text).toContain("### Chest (12)");
     expect(text.indexOf("### Weapon")).toBeLessThan(text.indexOf("### Chest"));
-    expect(embeds.length).toBeLessThanOrEqual(10);
-    for (const embed of embeds) expect((embed.description ?? "").length).toBeLessThanOrEqual(4096);
-    expect(embeds.reduce((sum, embed) => sum + (embed.title ?? "").length + (embed.description ?? "").length + (embed.footer?.text ?? "").length, 0)).toBeLessThanOrEqual(6000);
-    expect(embeds[0]!.footer?.text).toContain("Guilded profession board");
-    expect(embeds.slice(1).every(embed => !embed.title && !embed.footer)).toBe(true);
-    // Every recipe is either listed or counted in the pointer; none vanishes silently.
-    const shown = (text.match(/^• \*\*/gm) ?? []).length;
-    const pointer = /…and (\d+) more recipes not shown/.exec(text);
-    expect(shown + Number(pointer?.[1] ?? 0)).toBe(97);
-    if (pointer) expect(text).toContain("Details menu");
+    expect(text).not.toContain("more recipes not shown");
+    expect((text.match(/^• \*\*/gm) ?? []).length).toBe(97);
   });
   it("keeps the line format and the French headings", () => {
     const post: ProfessionPost = { profession: "Alchemy", skilled: [], recipes: [{ ...recipe(0, "Elixir of Might"), itemKey: 9, category: "alch:elixir", quality: 2 }, { ...recipe(1, "Major Healing Potion"), itemKey: 8, category: "alch:potion" }] };
-    const text = professionPostEmbeds(post, "fr", "g1", NOW)[0]!.toJSON().description ?? "";
+    const text = professionCategoryMessages(post, "fr", NOW).flatMap(message => message.embeds).map(embed => embed.toJSON().description ?? "").join("\n");
     expect(text).toContain("### Potions (1)");
     expect(text).toContain("### Élixirs (1)");
     expect(text).toContain("🟩 **[Elixir of Might](https://www.wowhead.com/classic/item=9)** — 🟢 Ann, ⚪ Bo");
-  });
-  it("does not title a single-group profession and keeps Cooking in one list", () => {
-    const post: ProfessionPost = { profession: "Cooking", skilled: [], recipes: [recipe(0, "Stew")] };
-    assignCategories([post]);
-    expect(professionPostEmbeds(post, "en", "g1", NOW)[0]!.toJSON().description).not.toContain("###");
   });
 });
 

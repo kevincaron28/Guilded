@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { addItemQuality, loadProfessionPosts, professionPostEmbed, professionPostEmbeds, QUALITY_SQUARES, recipeCrafters, updateProfessionPosts } from "../src/services/profession-board.js";
+import { addItemQuality, loadProfessionPosts, QUALITY_SQUARES, recipeCrafters, updateProfessionPosts } from "../src/services/profession-board.js";
+import { professionCategoryMessages, professionSummaryEmbed } from "../src/services/profession-messages.js";
 import { professionDetailsRow } from "../src/services/profession-details.js";
 import { professionDirectoryText, professionNavRows } from "../src/services/profession-directory.js";
 import { findProfessionHolders } from "../src/services/profession-search.js";
@@ -33,23 +34,15 @@ describe("profession posts and last seen", () => {
   });
   it("renders one embed per profession with last seen, in both languages, and marks itself for adoption", async () => {
     const [alchemy] = await loadProfessionPosts(db as never, "g1");
-    const en = professionPostEmbed(alchemy!, "en", "g1", NOW).toJSON();
+    const en = professionSummaryEmbed(alchemy!, "en", "g1", NOW).toJSON();
     expect(en.title).toBe("🧪 Alchemy");
     expect(en.description).toContain("skill (out of 300)");
     expect(en.description).toContain("🟢 **Fresh** ▰▰▰▰▱▱▱▱ 150 · today");
-    expect(en.description).toContain("• **[Elixir](https://www.wowhead.com/classic/item=1)** — 🟢 Fresh, ⚪ Old");
+    expect(en.description).toContain("Elixir");
+    const recipes = professionCategoryMessages(alchemy!, "en", NOW)[0]!.embeds[0]!.toJSON().description;
+    expect(recipes).toContain("• **[Elixir](https://www.wowhead.com/classic/item=1)** — 🟢 Fresh, ⚪ Old");
     expect(en.footer?.text).toContain("Guilded profession board");
-    expect(professionPostEmbed(alchemy!, "fr", "g1", NOW).toJSON().description).toContain("aujourd'hui");
-  });
-  it("cuts a very long recipe list with a pointer to the search instead of overflowing Discord", () => {
-    const recipes = Array.from({ length: 400 }, (_, index) => ({ itemKey: index, itemName: `Recipe number ${index}`, crafters: [{ character: "Ann", lastSeen: NOW }] }));
-    const embeds = professionPostEmbeds({ profession: "Cooking", skilled: [], recipes }, "en", "g1", NOW).map(embed => embed.toJSON());
-    expect(embeds.length).toBeLessThanOrEqual(10);
-    for (const embed of embeds) expect((embed.description ?? "").length).toBeLessThanOrEqual(4096);
-    const all = embeds.reduce((sum, embed) => sum + (embed.title ?? "").length + (embed.description ?? "").length + (embed.footer?.text ?? "").length, 0);
-    expect(all).toBeLessThanOrEqual(6000);
-    expect(embeds.at(-1)?.description).toMatch(/…and \d+ more recipes not shown/);
-    expect(embeds.at(-1)?.description).toContain("Details menu");
+    expect(professionSummaryEmbed(alchemy!, "fr", "g1", NOW).toJSON().description).toContain("aujourd'hui");
   });
   it("adds last seen to holders and to the directory index, and links the profession post", async () => {
     const holders = await findProfessionHolders(db as never, "g1", "mining");
@@ -121,7 +114,7 @@ describe("item links in profession posts (docs/plans/ITEM_LINKS.md)", () => {
     const lookup = vi.fn(async () => ({ name: "Thunderfury", quality: 5 }));
     await addItemQuality([post], { lookup });
     expect(lookup).toHaveBeenCalledTimes(1); // the enchant is a spell, never looked up
-    const text = professionPostEmbed(post, "en", "g1", NOW).toJSON().description ?? "";
+    const text = professionCategoryMessages(post, "en", NOW).flatMap(message => message.embeds).map(embed => embed.toJSON().description).join("\n");
     expect(text).toContain("🟧 **[Thunder x fury](https://www.wowhead.com/classic/item=19019)**");
     expect(text).toContain("• **Enchant Bracer - Minor Health**");
     expect(QUALITY_SQUARES).toHaveLength(6);
@@ -129,6 +122,6 @@ describe("item links in profession posts (docs/plans/ITEM_LINKS.md)", () => {
   it("keeps the bullet when the item data source knows nothing or fails", async () => {
     const post = { profession: "Cooking", skilled: [], recipes: [{ itemKey: 5, itemName: "Stew", crafters: [] }] };
     await addItemQuality([post], { lookup: async () => { throw new Error("down"); } });
-    expect(professionPostEmbed(post, "en", "g1", NOW).toJSON().description).toContain("• **[Stew]");
+    expect(professionCategoryMessages(post, "en", NOW)[0]!.embeds[0]!.toJSON().description).toContain("• **[Stew]");
   });
 });

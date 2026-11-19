@@ -54,6 +54,19 @@ end
 function tools.authorized()
   return ns.isOfficer and ns.isOfficer() == true and tools.context() ~= nil
 end
+-- Why this character is not an officer for Guilded, in one line (the buttons stay out of reach, the reason is shown).
+function tools.accessMessage()
+  if tools.authorized() then return "" end
+  local _, rankName, rankIndex = nil, nil, nil
+  if type(GetGuildInfo) == "function" then
+    local ok, _a, name, index = pcall(GetGuildInfo, "player")
+    if ok and not secret(name) and not secret(index) then rankName, rankIndex = name, index end
+  end
+  if rankName and type(rankIndex) == "number" then
+    return string.format(L("Officer access needed: rank %s is not an officer rank in Guilded settings."), tostring(rankName))
+  end
+  return L("Current officer access is required.")
+end
 function tools.store()
   if not tools.authorized() then return nil end
   local key = tools.context()
@@ -105,6 +118,19 @@ function tools.promoteTarget(snapshot, row)
   while dest >= 0 and tools.isAltRank(snapshot.rankNames and snapshot.rankNames[dest + 1]) do dest = dest - 1 end
   return dest
 end
+-- True when the rank directly above this member is an alt rank. The addon never promotes in that case (the one-step
+-- call would land the member in Alt, and skipping past it is refused or unreliable): the officer does it by hand.
+function tools.altInWay(snapshot, row)
+  return row.rank > 0 and tools.isAltRank(snapshot.rankNames and snapshot.rankNames[row.rank]) == true
+end
+-- SetGuildMemberRank(rosterIndex, rankNumber) sets a member straight to a rank (what Guild Roster Manager and the
+-- Blizzard roster menu use), so a promotion can skip an alt rank. GetGuildRosterInfo's rank index is 0-based (0 = Guild
+-- Master); the setter takes the 1-based rank number, the same one GuildControlGetRankName uses: rank number = index + 1.
+-- C_GuildInfo.SetGuildRankOrder is never called (19 Nov 2026, owner decision).
+tools.RANK_SETTER = "SetGuildMemberRank"
+tools.LEGACY_PROMOTE = "GuildPromote"
+function tools.rankNumber(rankIndex) return rankIndex + 1 end
+function tools.canSetRank() return type(SetGuildMemberRank) == "function" end
 local function permitted(action, target, snapshot)
   if target.key == snapshot.actor.key or target.rank <= snapshot.actor.rank then return false end
   if action == "promote" then return tools.promoteTarget(snapshot, target) > snapshot.actor.rank and read(CanGuildPromote) == true end
@@ -126,12 +152,12 @@ local function operation(row, action, value, dest)
     return GuildRosterSetOfficerNote, { row.index, value }
   end
   if action == "kick" and api.RemoveFromGuild and row.guid then return api.RemoveFromGuild, { row.guid } end
-  if (action == "promote" or action == "demote") and api.SetGuildRankOrder and row.guid then
-    local rankOrder = (action == "promote" and (dest or row.rank - 1) or row.rank + 1) + 1
-    if api.IsGuildRankAssignmentAllowed and read(api.IsGuildRankAssignmentAllowed, row.guid, rankOrder) ~= true then return nil end
-    return api.SetGuildRankOrder, { row.guid, rankOrder }
+  if (action == "promote" or action == "demote") and tools.canSetRank() and row.index then
+    local target = action == "promote" and (dest or row.rank - 1) or row.rank + 1
+    return SetGuildMemberRank, { row.index, tools.rankNumber(target) }
   end
-  if action == "promote" and dest and dest ~= row.rank - 1 then return nil end -- the one-step legacy call cannot skip an alt rank
+  -- Fallback: the one-step calls, only when the next rank up IS the target (they cannot skip an alt rank).
+  if action == "promote" and dest and dest ~= row.rank - 1 then return nil end
   local name = ns.util and ns.util.address(row.name) or row.name
   if ns.util.gameEdition() == "forever" and not name:find(" ", 1, true) then
     -- Only a known full display name may substitute for the raw roster spelling.
@@ -293,6 +319,13 @@ function tools.verify()
   local snapshot = tools.snapshot(); if not snapshot then return end
   local row, item = snapshot.rows[pending.item.key], pending.item
   local changed = item.action == "kick" and not row or row and row.guid == item.guid and beforeValue(row, item.action) == item.after
+  -- The member moved, but not to the rank asked for (the rank number convention is off on this client): stop asking.
+  if not changed and row and row.guid == item.guid and (item.action == "promote" or item.action == "demote") and row.rank ~= item.beforeRank then
+    pending.record.status = "landed at the wrong rank"; item.status = "landed at the wrong rank"; p.pending = nil; p.confirmed = false
+    local blocked = blockedTable(); if blocked then blocked.rank = clientBuild() end
+    if ns.message then ns.message(L("A promotion landed at an unexpected rank. Guilded stopped promoting; use the guild roster.")) end
+    return
+  end
   if changed then
     pending.record.status = "verified"; item.status = "verified"; p.pending = nil; p.cursor = p.cursor + 1
     for _, fn in ipairs(tools.onVerified) do pcall(fn, item, pending.record) end

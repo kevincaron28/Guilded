@@ -8,7 +8,7 @@ import { loadPromotionPlan } from "./promotion.js";
 // re-shares to every guildmate); the officer's companion writes it to the addon as GuildedPromotion.
 
 export interface PromotionFeed {
-  updatedAt: string; fromRank: string; minDays: number; /** Minimum level, 0 = none. */ minLevel: number;
+  updatedAt: string; fromRank: string; minDays: number; /** Minimum level, 0 = none. */ minLevel: number; /** Optional: minutes of voice a week the rule asks for (0 = none), and whether a Discord link is required. */ minVoiceMinutes?: number; requireLink?: boolean;
   /** The only members the officer's addon may offer for promotion: the bot rule says they are ready. */
   ready: string[];
   /** Linked members at the starting rank that are not ready yet (the panel shows them as waiting). */
@@ -24,5 +24,5 @@ export async function promotionForAddon(db: PromotionFeedDb, discordGuild: Pick<
   // Characters at the rank nobody has linked yet: the link is what they still need (only when the rule asks for a link).
   if (rule.requireLink) for (const u of plan.unclaimed) if (u.addon) waiting.push({ name: u.addon, daysLeft: 0, reason: "link" });
   waiting.splice(100);
-  return { updatedAt: now.toISOString(), fromRank: rule.fromRank, minDays: rule.minDays, minLevel: rule.minLevel ?? 0, ready, waiting };
+  return { updatedAt: now.toISOString(), fromRank: rule.fromRank, minDays: rule.minDays, minLevel: rule.minLevel ?? 0, minVoiceMinutes: rule.minVoiceMinutes, requireLink: rule.requireLink, ready, waiting };
 }

@@ -32,22 +32,22 @@ describe("native roster bulk operations", () => {
  it("preserves the pending receipt when the draft is invalidated",()=>{setup();s.run(preview);s.run('assert(NS.rosterTools.step());NS.rosterTools.invalidatePreview();ROWS[2].public="new";fire_event("GUILD_ROSTER_UPDATE")');expect(s.run('return NS.rosterTools.store().audit[1].status')).toBe('verified');expect(s.run('return tostring(NS.rosterTools.plan.confirmed)')).toBe('false');});
 
  it("invalidates rank changes and previous confirmations after malformed previews",()=>{setup();s.run('LABEL="Member"; GuildControlGetRankName=function(i) return LABEL..i end');s.run(preview);s.run('LABEL="Changed"');expect(s.run('return tostring(NS.rosterTools.step())')).toBe('false');s.close();setup();s.run(preview);s.run('NS.rosterTools.preview("bad")');expect(s.run('return tostring(NS.rosterTools.step())')).toBe('false');});
- it("wires manual review controls without triggering actions on open",()=>{
+ it("roster admin opens without triggering actions and no longer offers the bulk plan buttons",()=>{
   setup();s.run(`local original=CreateFrame;function CreateFrame(kind,...)
     local f=original(kind,...); f.kind=kind; f.text=""; f.TitleText={SetText=function() end}
     f.SetText=function(self,v) self.text=v end; f.GetText=function(self) return self.text end
     f.CreateFontString=function() return CreateFrame("Font") end
     return f
   end
-  COPIED=""; NS.showCopyText=function(t) COPIED=t end; NS.message=function() end; NS.grmMigration={};`);
+  NS.showCopyText=function() end; NS.message=function() end`);
   s.load('Modules/RosterAdmin.lua');s.run('NS.openRosterAdmin()');expect(s.run('return tostring(#CALLS)')).toBe('0');
-  s.run(String.raw`for _,f in ipairs(FRAMES) do if f.kind=="EditBox" then f.text="character\taction\tvalue\nAmy-Realm\tpublic\tnew"; break end end
-  function CLICK(text) for _,f in ipairs(FRAMES) do if f.text==text and f.scripts.OnClick then f.scripts.OnClick();return end end; error("missing button "..text) end
-  CLICK("Preview actions")`);
-  expect(s.run('return COPIED')).toContain('APPLY 1');expect(s.run('return tostring(#CALLS)')).toBe('0');s.run('CLICK("Apply next action")');expect(s.run('return tostring(#CALLS)')).toBe('0');
-  s.run('local n=0;for _,f in ipairs(FRAMES) do if f.kind=="EditBox" then n=n+1;if n==2 then f.text="APPLY 1" end end end;CLICK("Confirm plan");CLICK("Apply next action")');expect(s.run('return tostring(#CALLS)')).toBe('1');
-  s.run('ROWS[2].public="new";fire_event("GUILD_ROSTER_UPDATE");NS.grmMigration.pending={};for _,f in ipairs(FRAMES) do if f.kind=="EditBox" and f.scripts.OnTextChanged then f.scripts.OnTextChanged(f) end end');
-  expect(s.run('return tostring(NS.rosterTools.plan)..":"..tostring(NS.grmMigration.pending)')).toBe('nil:nil');
+  for (const label of ["Preview actions","Confirm plan","Apply next action","View plan / status","Cancel plan","Recovery preview","Local audit","Preview GRM","Import GRM"]) {
+    expect(s.run(`for _,f in ipairs(FRAMES) do if f.text=="${label}" then return "yes" end end return "no"`),label).toBe("no");
+  }
+  expect(s.run('local n=0;for _,f in ipairs(FRAMES) do if f.kind=="EditBox" then n=n+1 end end return tostring(n)')).toBe('0');
+  for (const label of ["Refresh roster","Ready to promote","Invite queue"]) {
+    expect(s.run(`for _,f in ipairs(FRAMES) do if f.text=="${label}" and f.scripts.OnClick then return "yes" end end return "no"`),label).toBe("yes");
+  }
  });
 
  it("does not write during preview, confirmation, login or frame updates",()=>{setup();s.run(preview);s.run('fire_event("PLAYER_LOGIN"); for _,f in ipairs(FRAMES) do if f.scripts.OnUpdate then f.scripts.OnUpdate() end end');expect(s.run('return tostring(#CALLS)')).toBe('0');});
@@ -57,7 +57,7 @@ describe("native roster bulk operations", () => {
  it("blocks duplicates and self edits",()=>{setup();expect(s.run(String.raw`local p=NS.rosterTools.preview("character\taction\tvalue\nAmy-Realm\tpublic\tx\nAmy-Realm\tdemote\t"); return tostring(p.blocked)`)).toBe('true');expect(s.run(String.raw`local p=NS.rosterTools.preview("character\taction\tvalue\nBoss-Realm\tpublic\tx"); return tostring(p.blocked)`)).toBe('true');});
  it("requires REMOVE and does not offer removal recovery",()=>{setup();s.run(String.raw`assert(NS.rosterTools.preview("character\taction\tvalue\nAmy-Realm\tkick\t")); assert(not NS.rosterTools.confirm("APPLY 1")); assert(NS.rosterTools.confirm("REMOVE 1")); assert(NS.rosterTools.step()); table.remove(ROWS,2); fire_event("GUILD_ROSTER_UPDATE")`);expect(s.run('return tostring(NS.rosterTools.undoPreview())')).toBe('nil');});
  it("stops on timeout without retries or per-frame roster rescans",()=>{setup();s.run(preview);s.run('assert(NS.rosterTools.step()); fire_event("GUILD_ROSTER_UPDATE"); READS=0; for i=1,100 do NS.rosterTools.verify() end');expect(s.run('return tostring(READS)')).toBe('0');s.run('CLOCK=116; NS.rosterTools.verify()');expect(s.run('return NS.rosterTools.store().audit[1].status')).toBe('unverified');expect(s.run('return tostring(NS.rosterTools.step())')).toBe('false');});
- it("uses GUID-based modern calls and one-based rank order",()=>{setup();s.run('C_GuildInfo={SetGuildRankOrder=function(g,r) CALLS[#CALLS+1]={g,r} end,IsGuildRankAssignmentAllowed=function() return true end}');s.run(String.raw`assert(NS.rosterTools.preview("character\taction\tvalue\nAmy-Realm\tpromote\t"));assert(NS.rosterTools.confirm("APPLY 1"));assert(NS.rosterTools.step())`);expect(s.run('return CALLS[1][1]..":"..CALLS[1][2]')).toBe('amy:3');});
+ it("promotes with SetGuildMemberRank(rosterIndex, rankIndex + 1) and never calls SetGuildRankOrder",()=>{setup();s.run('C_GuildInfo={SetGuildRankOrder=function() RANKORDER=true end}; SetGuildMemberRank=function(i,r) CALLS[#CALLS+1]={i,r} end');s.run(String.raw`assert(NS.rosterTools.preview("character\taction\tvalue\nAmy-Realm\tpromote\t"));assert(NS.rosterTools.confirm("APPLY 1"));assert(NS.rosterTools.step())`);expect(s.run('return CALLS[1][1]..":"..CALLS[1][2]')).toBe('2:3');expect(s.run('return tostring(RANKORDER)')).toBe('nil');expect(s.run('return NS.rosterTools.rankNumber(0)..":"..NS.rosterTools.rankNumber(4)')).toBe('1:5');});
  it("stops on game API errors and masks private audit values",()=>{setup();s.run(String.raw`GuildRosterSetOfficerNote=function() error("protected") end; assert(NS.rosterTools.preview("character\taction\tvalue\nAmy-Realm\tofficer\tprivate")); assert(NS.rosterTools.confirm("APPLY 1")); assert(not NS.rosterTools.step()); PRIVATE=false`);expect(s.run('return NS.rosterTools.auditText()')).not.toContain('secret');expect(s.run('return NS.rosterTools.store().audit[1].status')).toBe('failed');});
  it("refuses bare Forever first names and accepts full names",()=>{setup();s.run('EDITION="forever"; ROWS[2].name="Amy"; fire_event("GUILD_ROSTER_UPDATE")');expect(s.run(String.raw`return tostring(NS.rosterTools.preview("character\taction\tvalue\nAmy\tkick\t").blocked)`)).toBe('true');s.run('ROWS[2].name="Amy Winter"');expect(s.run(String.raw`return tostring(NS.rosterTools.preview("character\taction\tvalue\nAmy Winter\tkick\t").blocked)`)).toBe('false');});
  it("rejects oversized notes and requires a fresh full roster",()=>{setup();expect(s.run(String.raw`return tostring(NS.rosterTools.preview("character\taction\tvalue\nAmy-Realm\tpublic\t"..string.rep("x",32)))`)).toBe('nil');s.run('CLOCK=131');expect(s.run(String.raw`return tostring(NS.rosterTools.preview("character\taction\tvalue\nAmy-Realm\tpublic\tx"))`)).toBe('nil');});

@@ -131,13 +131,14 @@ tools.RANK_SETTER = "SetGuildMemberRank"
 tools.LEGACY_PROMOTE = "GuildPromote"
 local clientBuild
 -- Self-calibrating base (per client build): the number passed is rankIndex + base. Default base 0 (the roster's own
--- index); if the first promotion lands one rank lower than asked, the base becomes 1, and the officer clicks again.
+-- index + 1); if the first promotion lands one rank lower than asked, the base becomes 0 and the officer clicks again.
+-- One rank higher, or anything else, is a hard stop (manual mode). A wrong base can only err toward the lower rank.
 local function calibration()
   local db = ns.getDb and ns.getDb()
-  if type(db) ~= "table" then return { base = 0, confirmed = false } end
+  if type(db) ~= "table" then return { base = 1, confirmed = false } end
   local c = db.rosterRankBase
   if type(c) == "table" and c.build == clientBuild() and (c.base == 0 or c.base == 1) then return c end
-  return { base = 0, confirmed = false }
+  return { base = 1, confirmed = false }
 end
 local function saveCalibration(base, confirmed)
   local db = ns.getDb and ns.getDb()
@@ -334,21 +335,16 @@ function tools.verify()
   local snapshot = tools.snapshot(); if not snapshot then return end
   local row, item = snapshot.rows[pending.item.key], pending.item
   local changed = item.action == "kick" and not row or row and row.guid == item.guid and beforeValue(row, item.action) == item.after
-  -- Calibrate the rank number base from the first promotion: on target = confirmed; one rank lower = base 1; one higher =
-  -- base 0 (the officer clicks again, nothing is retried here); anything else = stop, manual mode.
+  -- Calibrate the rank number base from the first promotion: on target = confirmed; one rank lower = base 0 (the
+  -- officer clicks again, nothing is retried here); one higher or anything else = stop, manual mode.
   if row and row.guid == item.guid and item.action == "promote" and tools.canSetRank() and row.rank ~= item.beforeRank then
     local base, confirmed = tools.rankBase()
     if row.rank == item.after then
       if not confirmed then saveCalibration(base, true) end
-    elseif row.rank == item.after + 1 and base == 0 then
-      saveCalibration(1, false)
+    elseif row.rank == item.after + 1 and base == 1 and not confirmed then
+      saveCalibration(0, false)
       pending.record.status = "landed one rank low"; item.status = "landed one rank low"; p.pending = nil; p.confirmed = false
       if ns.message then ns.message(L("That promotion landed one rank low. Guilded adjusted the rank numbering for this game build: click Promote again.")) end
-      return
-    elseif row.rank == item.after - 1 and base == 1 then
-      saveCalibration(0, false)
-      pending.record.status = "landed one rank high"; item.status = "landed one rank high"; p.pending = nil; p.confirmed = false
-      if ns.message then ns.message(L("That promotion landed one rank high. Guilded adjusted the rank numbering for this game build: click Promote again.")) end
       return
     end
   end

@@ -9,7 +9,7 @@ WoW Forever (level cap 60) launched 4 November 2026; its first raids open 9 Dece
 Guilded supports WoW Forever only (the other editions were removed 7 November) and PoE2 is hidden ([WoW Forever only](docs/FOREVER_ONLY_FOCUS.md)).
 Release history: [CHANGELOG.md](CHANGELOG.md). Older roadmap text, including every finished
 request list: [roadmap history](docs/archive/ROADMAP-history.md).
-Latest (16 November 2026): 9.3.5 is released; 9.3.6 is being prepared from the work merged on 16 November (see "Start here — 16 November 2026").
+Latest (19 November 2026): 9.4.1 is published; 9.4.2 (data-loss audit fixes) is next. See "Start here — 19 November 2026".
 
 ## 9.4 — owner list of 19 November 2026
 
@@ -22,7 +22,51 @@ Every request of 16 November, with its PR and status, is in "Start here — 16 N
 - **(a) Secret achievements** — hidden until earned (mystery entry "???" and "+N secret" in counts on Discord, website, app and addon; normal with a "Secret" tag once earned). First one: killed by the Son of Arugal (NPC 2529), this PR. More secrets later are one line in the addon's `KILLED_BY` table plus one catalogue row. Needs a companion release (new `secret` milestone kind) and the addon.
 - **(b) Guild promotions rework (PR #1024).** Auto-promote follows the bot's rule only (`GuildedPromotion.ready`, matched by rank name); no timer: officers get a small "N ready to promote" alert, a Ready to promote panel and one click per member ("Promote next (N left)"); the Alt rank is never promoted into or out of; the bot announces promotions in the officer log only (when a roster upload shows a rank moving up). Real-client checks owed: one-click promote on Forever, no blocked-action popup, the officer-log line after the next upload.
 
-## Start here — 16 November 2026
+## Start here — 19 November 2026
+
+**State (19 November 2026, about 23:30 UTC, checked against `origin/main` 780a88bb):**
+- **Published:** 9.4.0 (#1129), then 9.4.1 (#1145, published in #1146). GitHub v9.4.1 is latest, the website installer is swapped, CurseForge 9707178/9707179 is in review, the bot runs 9.4.1. Store: 9.4.0.0 is live (Submission 17); 9.4.1.0 is in certification (Submission 18). Check each provider live before claiming status.
+- **9.4.2 is next:** the data-loss audit fixes (`docs/plans/DATA_LOSS_AUDIT_2026-11-19.md`). Merged: companion #1147. Open: bot #1149, addon #1148 and #1151. The bot part goes live on merge. Only the coordinator bumps the version.
+- **Merged on 19 November and already live on the bot:** #1134 promotion panel, #1135 faction invites and site factions, #1136 do-not-invite wording and Undo, #1137 `/guilded verify` removed, #1138 DM link duplicate rows, #1139 run report merge (plus a 45-row backfill), #1140 doubled first names, #1141 and #1142 run summary fields, #1143 podium and weekly recap cards, #1144 painted emblems, #1150 Store line. The whole 9.4 list (#1114–#1133) is in the table below.
+- **Phone app:** 0.5.0 is in Google review on the closed test track (Alpha); 0.4.1 is live there.
+- **Goldline** (WoW Forever auction-house charts) is a separate project, `Desktop\wow-trading`, not tracked here.
+
+### Owner request, 19 November 2026: "make sure we are finished everything, all items on the roadmap"
+
+Every open item was checked against main. Result: nothing from the 9.4 list or the 16 November list is half-built on main except the items marked "open" below.
+
+**Done on main (with PR):**
+- 9.4 tracks T1–T10 and T12: see the table in [docs/plans/V9_4_PLAN.md](docs/plans/V9_4_PLAN.md) (status table at the top).
+- Worker W1–W4 (#1031). SEO3 (#1071), SEO4 (#1072), S7 (#1069). R1.7: the Cloudflare beacon token is committed in `site/analytics.json` (#1040).
+- Sync and upload speed work: #1070, #1079, #1080, #1081, #1082, #1083, #1116, #1122.
+- Compatibility policy (#1025), single-witness run ranking (#872), Season 2 dates and routes (#1019, #1021).
+
+**Still open, code (Claude can do these):**
+- **In progress (claude/roadmap-open-items):** SEO3, SEO4, R2.6, R2.7, S7 follow-ups. Main already has the first pass of SEO3, SEO4 and S7 (PRs above); R2.6 (mobile app page) and R2.7 (visual regression in CI) are not on main yet.
+- **T1.5 "answer first, work after":** the upload still answers after the main work; only the standing background guard exists. Not built.
+- **T2 rollback and delta updates:** not built. Release signing waits for an owner decision (where the private key is kept).
+- **T8C (move a character to another Discord server):** deliberately later, after Make main and Unlink have run in production.
+- **T9 Blizzard character pictures:** blocked until Blizzard's Forever profile API opens (`scripts/probe-forever-profile-api.ts`); our own character card is live.
+- **Item previews and crafter offers:** built, off by default, never accepted on a real server.
+- **Backup size check** (15 MB on 9 November, before #679) and **monetization groundwork** ("Later: monetization"): not started, not a priority.
+
+**Owner or real-client only:**
+- Real-client checks for 9.4.1 and 9.4.2: the promote panel and `/guilded promote test`, dungeon card guilds and levels, the crafting window, the Layer button. Also the older carried checks: member ledger sync, duels with several clients, G6–G10 dungeon and French-client checks, Layer invite accept, crafter claim, call for help, combat behaviour.
+- T11 ads: the AdSense script loads on the website, but Google is not filling the slots yet (Google side). App ads and the Play trader status are the owner's decision.
+- Google Play: 0.5.0 in review; the 12-tester, 14-day closed test; Firebase and `EXPO_TOKEN` are the owner's.
+- Store: 9.4.1.0 certification, then 9.4.2.0 (submit with every companion release).
+
+### Owner to-dos (19 November 2026)
+
+- **Season 2 activation, 5–7 December:** run `/guilded-season season2-review`, then `season2-activate`. Season 2 begins 9 December 15:00 Pacific.
+- **In-game checks for 9.4.1 and 9.4.2:** the promote panel and `/guilded promote test`, dungeon card guilds and levels, the crafting window, the Layer button (`docs/V9_4_1_RELEASE_ACCEPTANCE.md`).
+- **Season 2 map ids** before 9 December: one run each in Krol'dok, Alcaz, Blackmaw and Shaper's Terrace.
+- **Cloudflare analytics token (R1.7):** a token is committed in `site/analytics.json` (#1040). Verify in the Cloudflare dashboard that visits arrive; if not, replace the token.
+- **`GUILDED_ORIGIN_TOKEN`:** no document records that it was set on the bot and the Worker, or that the Caddyfile was copied. Verify; until then the real-client-IP protection (S1) is inactive.
+
+Everything not listed above (Google Play steps, the CurseForge description paste, the Store submissions) is in the older to-do lists below and unchanged.
+
+## Historical: Start here — 16 November 2026 (superseded by the section above)
 
 **State:** 9.3.5 is released (GitHub, website, CurseForge). Everything below marked "merged" is on `main` and ships as **9.3.6**. Only the coordinator bumps the version. Check each provider live before claiming status.
 

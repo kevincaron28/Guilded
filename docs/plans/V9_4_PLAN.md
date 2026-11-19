@@ -2,6 +2,25 @@
 
 The owner gave 12 items on 19 November 2026 ("we will be working on 9.4 today … add on roadmap, analyse how to implement each the best way, and work progressively"). Each was analysed read-only against main a8a62bda (9.3.11), using 48 h of server logs. Tracks are numbered in build order: reliability first, then member-visible work, then the larger features.
 
+## Status on 19 November 2026 (checked against main 780a88bb)
+
+| Track | State | PRs |
+|---|---|---|
+| T1 Timeouts and sync health | Mostly done. Open: T1.5 (answer first, work in the background) is not built. | #1116 (empty realm, failure reasons, parallel phases), #1122 (jittered retries, 18 s timeout, known-run deltas), #1080 (deploy warm-up), #1147 (companion split uploads, prune only after a full send) |
+| T2 Companion auto-update | Partly done. Done: staged rollout, visible failures, x-sha256. Open: release signing (owner decision: key custody), rollback, delta updates. | #1122 |
+| T3 Clear, short Discord messages | Done | #1124, #1132 |
+| T4 Recap card and repeated information | Done | #1124, #1143, #1144 |
+| T5 World PvP everywhere | Done | #1117 |
+| T6 Recipes by category | Done | #1118, #1131 |
+| T7 In-game crafting window | Done (three sub-tabs) | #1125 |
+| T8 Manage characters on My Guilded | A and B done (table, Make main, Unlink). C (move to another server) is later by design. | #1123, #1133 (phone app) |
+| T9 Armory character card | Card done. Blizzard character pictures wait for the Blizzard API (blocked outside our control). | #1117 |
+| T10 Do-not-invite list | Done (expiry, alts, departure prompt, appeals, officer-only tag, wording and Undo) | #1120, #1136 |
+| T11 Ads | Website side live: the AdSense script loads, but Google is not filling slots yet (Google/owner side). No ads in the addon, bot or companion; app ads wait for the owner's trader-status decision. | no code left |
+| T12 Sync review | Done; its findings became T1.1, T1.6 and the ledger fix. | #1126, #1116, #1122 |
+
+Also shipped with 9.4: Layer sidebar button (#1114), promotion rules and panel (#1119, #1121, #1134), simpler commands (#1127, #1128). Data-loss audit fixes (9.4.2): companion #1147 merged; bot #1149 and addon #1148, #1151 open.
+
 Decisions the owner still has to take are marked **Decide:** below.
 
 ## T1 — Timeouts and sync health (bot plus companion) — first

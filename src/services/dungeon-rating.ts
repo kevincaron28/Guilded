@@ -143,10 +143,8 @@ function knownLevels(run: RatingRun): KnownLevel[] {
   for (const p of data.players) {
     if (!p || typeof p.name !== "string" || seen.has(p.name) || !run.players.some(r => r.character === p.name)) continue;
     seen.add(p.name);
-    // A summary that lost its level range (a relayed copy) still names the level: it stands in for the lowest level.
-    const minLevel = Number.isInteger(p.minLevel) ? p.minLevel! : p.level;
-    if (!Number.isInteger(p.level) || !Number.isInteger(minLevel) || minLevel! < 1 || p.level! > 100 || minLevel! > p.level!) continue;
-    out.push({ name: p.name, level: p.level!, minLevel: minLevel! });
+    if (!Number.isInteger(p.level) || !Number.isInteger(p.minLevel) || p.minLevel! < 1 || p.level! > 100 || p.minLevel! > p.level!) continue;
+    out.push({ name: p.name, level: p.level!, minLevel: p.minLevel! });
   }
   return out;
 }

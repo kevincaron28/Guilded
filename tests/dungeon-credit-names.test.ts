@@ -49,13 +49,6 @@ describe("party levels unknown", () => {
   it("still fails a run where nobody's level is known", () => {
     expect(competitionReason(run([linked("Kev Caron")], { "Kev Caron": null }), band, 3)).toBe("Party levels unknown");
   });
-  it("rates a run whose summary kept the levels but lost the minimum levels (a relayed copy)", () => {
-    const players = [linked("Kev Caron"), linked("Bob Smith")];
-    const data = run(players, {});
-    data.competitionData = { ...(data.competitionData as object), players: players.map(p => ({ name: p.character, level: 16, minLevel: null })) };
-    expect(competitionReason(data, band, 3)).toBeUndefined();
-    expect(calculateDungeonRating([data], rules).map(r => r.name).sort()).toEqual(["Bob Smith", "Kev Caron"]);
-  });
   it("keeps the overlevel rule for the players whose level is known", () => {
     expect(competitionReason(run([linked("Kev Caron"), linked("Big Carry")], { "Big Carry": band.max + 8 }), band, 3)).toBe("Overlevel carry");
   });

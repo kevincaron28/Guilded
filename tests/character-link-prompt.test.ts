@@ -45,7 +45,7 @@ describe("companion links", () => {
 });
 
 describe("private character connection instructions", () => {
-  it("starts an unlinked member with one line to paste in game, without generating a companion code", async () => {
+  it("starts an unlinked member with the companion, then a name to send, without any verify or companion code", async () => {
     const reply = await characterLinkPrompt(mocks.db as never, "guild1", "member1", "server1", "en");
     const embed = reply.embeds[0]!.toJSON();
     expect(embed.description).toContain("No WoW character is linked");
@@ -61,7 +61,8 @@ describe("private character connection instructions", () => {
     expect(embed.fields![1]!.value).toContain("confirmed at the next sync");
     expect(embed.fields![1]!.value).not.toContain("/character import");
     expect(embed.fields!.some((field) => /optional/i.test(field.name))).toBe(false);
-    expect(mocks.db.characterVerifyCode.upsert).toHaveBeenCalledWith(expect.objectContaining({ where: { guildId_memberId: { guildId: "guild1", memberId: "member1" } }, update: {} }));
+    // No verify code is made or read any more.
+    expect(mocks.db.characterVerifyCode.upsert).not.toHaveBeenCalled();
     expect(mocks.issueCode).not.toHaveBeenCalled();
     const buttons = reply.components[0]!.toJSON().components;
     // One direct button to the companion page; no extra "Connect optional companion" click first.
@@ -70,7 +71,7 @@ describe("private character connection instructions", () => {
     expect(mocks.db.character.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { memberId: "member1", member: { guildId: "guild1" } } }));
   });
 
-  it("lists already linked main/alts and says the same line covers alts", async () => {
+  it("lists already linked main/alts", async () => {
     mocks.db.character.findMany.mockResolvedValue([
       { name: "Ray", realm: "Forever", isMain: true }, { name: "AltRay", realm: "Other Realm", isMain: false }
     ]);
@@ -78,26 +79,24 @@ describe("private character connection instructions", () => {
     const text = reply.embeds[0]!.data.description!;
     expect(text).toContain("Main: **Ray** — Forever");
     expect(text).toContain("Alt: **AltRay** — Other Realm");
-    expect(reply.embeds[0]!.data.fields![1]!.value).toContain("link themselves at the next companion sync");
+    expect(reply.embeds[0]!.data.fields![1]!.value).toContain("confirmed at the next sync");
     expect(mocks.issueCode).not.toHaveBeenCalled();
   });
 
-  it("adds the manual way only when no officer's companion synced in two weeks", async () => {
-    mocks.db.guild.findUnique.mockResolvedValue({ officerSyncAt: new Date(Date.now() - 15 * 86_400_000) });
-    const stale = await characterLinkPrompt(mocks.db as never, "guild1", "member1", "server1", "en");
-    expect(stale.embeds[0]!.data.fields![1]!.value).toContain("No officer's companion has synced in 2 weeks");
-    expect(stale.embeds[0]!.data.fields![1]!.value).toContain("/character link");
+  it("says the same thing whether or not an officer's companion synced recently (no verify wait notice)", async () => {
     mocks.db.guild.findUnique.mockResolvedValue({ officerSyncAt: null });
     const never = await characterLinkPrompt(mocks.db as never, "guild1", "member1", "server1", "fr");
-    expect(never.embeds[0]!.data.fields![1]!.value).toContain("Aucun compagnon d'officier");
+    expect(never.embeds[0]!.data.fields![1]!.value).toContain("Envoie-moi en MP");
+    expect(never.embeds[0]!.data.fields![1]!.value).not.toContain("Aucun compagnon d'officier");
+    expect(mocks.db.guild.findUnique).not.toHaveBeenCalled();
   });
 
   it("shows the companion steps without making a code, which waits for its own button", async () => {
     const reply = await characterLinkPrompt(mocks.db as never, "guild1", "member1", "server1", "en", "companion");
     expect(mocks.issueCode).not.toHaveBeenCalled();
     const fields = reply.embeds[0]!.data.fields!;
-    // Sign in with Discord first (2 steps), then the in-game line.
-    expect(fields[1]!.name).toContain("No companion?");
+    // Sign in with Discord first (2 steps), then the name to send.
+    expect(fields[1]!.name).toContain("No Windows PC");
     expect(fields[1]!.value).not.toContain("/guilded verify");
     expect(fields[1]!.value).toContain("DM me your character's full name");
     expect(fields[0]!.value).toContain("**Sign in with Discord**");

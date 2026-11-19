@@ -24,6 +24,7 @@ import { hasPermission } from "./permissions.js";
 import { claimOffer, offerByDm, offerByDmToUsers, offersFor, snoozeOffer } from "./services/device-claim-offer.js";
 import { companionMe } from "./services/companion-me.js";
 import { albumFor } from "./services/companion-album.js";
+import { makeMainFor, mePromotionFor, meCharactersFor, unlinkFor } from "./services/me-api.js";
 import { applyWorldPvpUpload, parseWorldPvpUploads } from "./services/world-pvp.js";
 import { applyPvpEvents, parsePvpEvents } from "./services/world-pvp-events.js";
 import { applyRaidKills, createRaidProgressWeb, parseRaidKills } from "./services/raid-progress.js";
@@ -938,6 +939,12 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // Track L: who is signed in, their Guilded servers, and the join invite for their in-game guild.
       const isCompanionMe = request.method === "GET" && url.pathname === "/api/v1/companion/me";
       const isAlbum = request.method === "GET" && url.pathname === "/api/v1/companion/achievements";
+      // Phone app 0.5.0 (My characters, promotion status): the signed-in member's own data and their own two actions (services/me-api.ts).
+      const isMeCharacters = request.method === "GET" && url.pathname === "/api/v1/me/characters";
+      const isMeMain = request.method === "POST" && url.pathname === "/api/v1/me/characters/main";
+      const isMeUnlink = request.method === "POST" && url.pathname === "/api/v1/me/characters/unlink";
+      const isMePromotion = request.method === "GET" && url.pathname === "/api/v1/me/promotion";
+      const isMeApi = isMeCharacters || isMeMain || isMeUnlink || isMePromotion;
       // Guilded Collection (TCG stage 1): the phone's card collection, daily pack and crafting. Signed-in member only.
       const isCards = (request.method === "GET" && url.pathname === "/api/v1/companion/cards") || (request.method === "POST" && (url.pathname === "/api/v1/companion/cards/open" || url.pathname === "/api/v1/companion/cards/craft"));
       // Guilded Clash (TCG stage C): matches against the AI or a PvE boss. Signed-in member only; ids travel in the query or body.
@@ -971,7 +978,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const isDeviceRegister = request.method === "POST" && url.pathname === "/api/v1/device/register";
       const isDeviceUpload = request.method === "POST" && url.pathname === "/api/v1/device/uploads";
       const isDeviceClaim = request.method === "POST" && url.pathname === "/api/v1/device/claim";
-      if (!isRenew && !isMobileReport && !isMobileDevice && !isDeviceRegister && !isDeviceUpload && !isDeviceClaim && !isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isPersonalStatus && !isCompanionMe && !isAlbum && !isCards && !isClash && !isStandings && !isPoeUpload && !isPoeLevels && !isPoeStatus && !isPoeRecent && !isLogout && !isDeleteData && !isManageView && !isManageEdit && !isHubView && !isHubEdit && !isClaimView && !isClaimEdit && !isMapView && !isMapEdit) {
+      if (!isRenew && !isMobileReport && !isMobileDevice && !isDeviceRegister && !isDeviceUpload && !isDeviceClaim && !isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isPersonalStatus && !isCompanionMe && !isAlbum && !isMeApi && !isCards && !isClash && !isStandings && !isPoeUpload && !isPoeLevels && !isPoeStatus && !isPoeRecent && !isLogout && !isDeleteData && !isManageView && !isManageEdit && !isHubView && !isHubEdit && !isClaimView && !isClaimEdit && !isMapView && !isMapEdit) {
         json(response, 404, { error: "Not found" });
         return;
       }
@@ -1253,6 +1260,27 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           if (error instanceof TcgError) { json(response, error.status, { error: error.message }); return; }
           throw error;
         }
+      }
+      if (isMeApi) {
+        // The member's own characters and promotion progress. Credential -> Discord user; an id in a body is re-checked against that user.
+        const secret = request.headers["x-companion-credential"] ?? request.headers.authorization?.replace(/^Bearer\s+/i, "");
+        if (typeof secret !== "string" || secret.length < 32 || secret.length > 256) { json(response, 401, { error: "Sign in with Discord in the companion first." }); return; }
+        const tokenHash = hashCompanionSecret(secret);
+        const owner = await prisma.companionCredential.findFirst({ where: { tokenHash, revokedAt: null, member: { status: "ACTIVE" } }, select: { member: { select: { discordUserId: true } } } })
+          ?? await prisma.webCompanionCredential.findFirst({ where: { tokenHash, revokedAt: null }, select: { account: { select: { discordUserId: true } } } });
+        const discordUserId = owner ? ("member" in owner ? owner.member.discordUserId : owner.account.discordUserId) : null;
+        if (!discordUserId) { recordFailure(address); json(response, 401, { error: "This companion link is no longer valid. Sign in with Discord again." }); return; }
+        if (isMeCharacters) { privateJson(response, await meCharactersFor(prisma, discordUserId)); return; }
+        if (isMePromotion) { privateJson(response, await mePromotionFor(prisma, discordUserId, (id) => hostedPilot.allows(id))); return; }
+        if (!allowCompanionRevocation(`me-characters:${discordUserId}`)) { json(response, 429, { error: "Too many changes. Wait a minute and try again." }); return; }
+        const body = await readBody(request).catch(() => null) as { character?: unknown } | null;
+        if (!body || typeof body !== "object") { json(response, 400, { error: "A JSON body is required." }); return; }
+        const outcome = isMeMain ? await makeMainFor(prisma, discordUserId, body.character) : await unlinkFor(prisma, client ?? null, discordUserId, body.character);
+        if (outcome.status === "ok") { privateJson(response, { ok: true, ...await meCharactersFor(prisma, discordUserId) }); return; }
+        if (outcome.status === "forbidden") { json(response, 403, { error: "That character is not one of yours." }); return; }
+        if (outcome.status === "gone") { json(response, 409, { error: "That character was already unlinked." }); return; }
+        json(response, 503, { error: "That could not be done right now. Try again later." });
+        return;
       }
       if (isAlbum) {
         // Phone badge album: the signed-in member's own stored achievements (companion-album.ts). Read-only.

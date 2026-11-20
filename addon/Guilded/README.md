@@ -111,7 +111,6 @@ After login, an officer (guild rank 0 or 1 by default) can use:
 /guilded deduct Player 5 Mistake
 /guilded loot Player [Tier Item] 25
 /guilded inspect
-/guilded verify   (retired: prints "No longer needed"; links are confirmed by sync)
 /guilded character
 /guilded share
 /guilded consumes
@@ -205,10 +204,7 @@ same way.
 
 **Linking to Discord without a companion.** Send the Guilded bot your character's
 full name in a Discord message (or type it in the guild-invite channel); the link is
-confirmed at the next sync. `/guilded verify` was retired in November 2026 and only
-prints "No longer needed: links are confirmed by sync." A code saved on the account
-before is still carried as `V:ABCDEFGH` in the digest for one more release (the bot
-accepts already-issued codes during that time), and `/guilded verify off` removes it.
+confirmed at the next sync.
 
 Exports are the SavedVariables file itself. The companion
 (`companion/lua-export.mjs` in the bot repository) reads it and sends the

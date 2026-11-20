@@ -129,7 +129,7 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
     const posted = enabled ? await updateBgLadder(i.guild) : false;
     await i.editReply({ content: enabled
       ? t(`Battleground ladder ${posted ? "posted" : "on; it appears once the ladder channel exists (/setup)"}. It is edited in place, separate from the duel ladder.`, `Classement des champs de bataille ${posted ? "publié" : "activé; il apparaîtra quand le salon du classement existera (/setup)"}. Il est modifié sur place, distinct de celui des duels.`)
-      : t("Battleground ladder off. The existing message stays; delete it if you wish.", "Classement des champs de bataille désactivé. Le message existant reste; supprimez-le si vous le souhaitez."), allowedMentions: { parse: [] } }); return;
+      : t("Battleground ladder off. The existing message stays; delete it if you wish.", "Classement des champs de bataille désactivé. Le message existant reste ; supprimez-le si vous le souhaitez."), allowedMentions: { parse: [] } }); return;
   }
   if (sub === "world") {
     const week = await loadWorldPvpExtras(prisma, ctx.guildId);
@@ -176,7 +176,7 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
     const posted = enabled ? await updateDuelBoard(i.guild) : false;
     await i.editReply({ content: enabled
       ? t(`Live duel board ${posted ? "posted" : "saved; it appears on the next refresh"} in <#${settings.duelBoardChannelId}>. It is edited in place, never re-posted.`, `Tableau des duels ${posted ? "publié" : "enregistré; il apparaîtra au prochain rafraîchissement"} dans <#${settings.duelBoardChannelId}>. Il est modifié sur place, jamais republié.`)
-      : t("Live duel board off. The existing message stays; delete it if you wish.", "Tableau des duels désactivé. Le message existant reste; supprimez-le si vous le souhaitez."), allowedMentions: { parse: [] } }); return;
+      : t("Live duel board off. The existing message stays; delete it if you wish.", "Tableau des duels désactivé. Le message existant reste ; supprimez-le si vous le souhaitez."), allowedMentions: { parse: [] } }); return;
   }
   if (sub === "season-cards") {
     const enabled = command?.options.getBoolean("enabled", true) ?? false;

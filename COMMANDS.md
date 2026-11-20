@@ -29,8 +29,8 @@ Hover a page name for what it is for. The **Player** box (target someone, or **M
 | `/guilded attune <key> clear` | Mark it not done |
 | `/guilded diag` | Show recent addon errors / blocked actions (send this when reporting a bug) |
 | `/guilded menu` | Open the tools window |
-| `/guilded share` | One paste with your character, latest gear check, consumables and attunements (a box to copy). In Discord: `/character import` |
-| `/guilded character` | One line with your character (name, class, race, level, spec, professions) for `/character import` |
+| `/guilded share` | One paste with your character, latest gear check, consumables and attunements (a box to copy). In Discord: `/character link` |
+| `/guilded character` | One line with your character (name, class, race, level, spec, professions) to paste into `/character link` |
 | `/guilded enchants [on/off/level <n>]` | Show or change the missing-enchant check (which slots, from what level) |
 | `/guilded ready` / `ready ask` / `ready post` | Officers and group leaders (raid leader or assistant): who in your raid or party is ready: a summary and everyone who is not. It runs by itself on every Blizzard ready check (each addon reports what it carries, and you get a summary when it ends). `ask` asks every addon to check again without a ready check; `post` tells the group who needs attention. The window's **Ready** page (officers and group leaders only) shows an icon per check |
 | `/guilded ready settings` / `ready require <flask\|food\|buffs\|weapon\|augment\|vantus> on\|off` / `ready expiry <minutes>` / `ready durability <percent>` / `ready report on\|off` / `ready autopost on\|off` | Officers: what the ready check requires (flask, food and raid buffs by default), how many minutes left counts as running out (10), the lowest durability that is fine (20), whether you get the end-of-check summary, and whether it is also posted to the group |
@@ -154,7 +154,7 @@ roll for it (clearing or reopening the list counts the week; winning the item us
 
 The in-game guild calendar and Discord raids, both ways (in game: officers, the Calendar tab or `/guilded calendar ...`).
 
-- **In game to Discord:** `/guilded calendar sync` reads the guild's calendar events and how each member answered. The companion sends them with the rest of the export. An event at the same time (within 90 minutes) as a planned Discord raid fills in signups for players who have **not answered on Discord**: accepted signs up, tentative is a Maybe, through the normal role caps and waitlist (core members get their core role, others DPS). Declined answers and anyone who already signed up or cancelled on Discord are never changed. Players are matched by character name. Events with no Discord raid and unlinked names are listed for the officers in the officer log and the `/import apply` reply.
+- **In game to Discord:** `/guilded calendar sync` reads the guild's calendar events and how each member answered. The companion sends them with the rest of the export. An event at the same time (within 90 minutes) as a planned Discord raid fills in signups for players who have **not answered on Discord**: accepted signs up, tentative is a Maybe, through the normal role caps and waitlist (core members get their core role, others DPS). Declined answers and anyone who already signed up or cancelled on Discord are never changed. Players are matched by character name. Events with no Discord raid and unlinked names are listed for the officers in the officer log and the `/setup import apply` reply.
 - **Discord to in game:** the companion writes the next three weeks of planned raids next to the standings. The Calendar tab (or `/guilded calendar create`) makes the in-game guild event for one. It will not make a duplicate of an event that is already there.
 - It works only if WoW Forever's client offers the calendar to addons; `/guilded calendar check` tells you, and every calendar command says so when it cannot.
 
@@ -311,7 +311,7 @@ Small commands sit under a parent, so typing `/` shows a short list. Members see
 | Command | What is under it |
 | --- | --- |
 | `/setup` | `start` (the guided setup), `config` (every setting; `config channel` picks where each kind of post goes), `testraid`, `selfroles` |
-| `/character` | `add`, `list`, `claim`, `import`, ..., plus `who`, `profession`, `attunement`, `wishlist`, `readiness` |
+| `/character` | `link`, `add`, `list`, `unlink`, ..., plus `who`, `profession`, `attunement`, `wishlist`, `readiness` |
 | `/raid` | signups, progress, reports, plus `wcl check` / `wcl list` (Warcraft Logs) |
 | `/epgp` | your EPGP: `balance`, `history`, `leaderboard` |
 | `/dungeon` | the challenge: leaderboard, records, groups, alerts |
@@ -319,15 +319,15 @@ Small commands sit under a parent, so typing `/` shows a short list. Members see
 | `/officer` | Officers: `epgp` (award-ep, award-gp, decay, reverse), `loot` (auction, award, close, priority), `dungeon` (the challenge's officer tools), `character` (unclaimed, link, autolink), `export` (CSV files) |
 | `/organize` | Community organizers: seasons, quizzes, honors, and creating and running lotteries, gaming nights and challenges |
 | `/mod` | moderation, plus `application` (handle guild applications), `page` (the guild web page), `recruit` (the website's recruitment listing) and `leaderboard` (share runs on the public leaderboards) |
-| `/import` | `upload` (preview an addon file), `apply` (apply it), `held` (entries waiting, and why) |
+| `/setup import` | `upload` (preview an addon file), `apply` (apply it), `held` (entries waiting, and why) |
 | `/report` | `stats`, `inactive`, `guild` (health), `ping` (is the bot online), `bug` |
 | `/setup` | `start`, `testraid`, `selfroles`, `system` (sync status, delivery retries, permissions; was `/system`), `reset`, `uninstall` (was `/uninstall`) |
 | `/character profile` | your profile (was `/profile`) |
-| `/help` `/loot` `/craft` `/bank` `/apply` `/poll` `/core` `/tag` | unchanged (`/loot` keeps `bid`, `history`, `reserves`) |
+| `/help` `/loot` `/craft` `/bank` `/apply` `/core` `/tag` | unchanged (`/loot` keeps `bid`, `history`, `reserves`) |
 
 ### Commands members don't see
 
-`/officer`, `/organize`, `/setup`, `/config`, `/mod`, `/import` and `/poll` are only for
+`/officer`, `/organize`, `/setup`, `/config` and `/mod` are only for
 officers, so Discord shows them only to people with the **Manage Server** permission; `/lead`
 only to **Manage Events**. The bot still checks the Officer / Guild Master / Raid Leader role
 when one is run; `/setup reset` and `/setup uninstall` also need the server owner or Administrator.
@@ -350,10 +350,8 @@ also works. `/help` reminds leaders of this. `/core`, `/team`, `/report`, `/part
 | `/character profile` | Your profile: characters (race, class, professions, last seen), EP/GP/PR |
 | `/character achievements [member]` | Achievements card (levels, guild dungeon runs, raids, participation, PoE2 levels), yours or another member's. Computed from recorded data only; no points, no automatic posts. Also on [guilded.kcaron.top/me/](https://guilded.kcaron.top/me/) and on public player pages |
 | `/character who <character>` | Look anyone up: main and alts, professions, EP/GP/PR, 30-day attendance, last seen |
-| `/character pair` | **Start here.** Shows the simple ways to link: the Windows Companion, or DM the bot your character's full name (confirmed at the next sync) |
+| `/character link` | **Start here.** Link your characters: DM the bot your character's full name (confirmed at the next sync), or use the Windows Companion. A `/guilded character` line or `/guilded share` code can be pasted into it |
 | `/character add <name> <realm> <class> <main> [spec] [level] [race]` / `/character list` | Link your WoW characters (needed before imports can match you) |
-| `/character claim <name>` | Link a character your addon already reported (pick it from the list; nothing to type or paste). Most people never need it: characters whose name matches the Discord nickname are linked automatically |
-| `/character import <code> [main]` | Link or refresh a character: paste the line `/guilded character` shows (name, realm, class, race, level, spec, professions), or the code `/guilded share` shows (also records a gear check, consumables and attunements) — no typing |
 | `/character unlink <name>` | Unlink a character: yours, or (Officers/GM) anyone's. If the addon reports it again it goes back to unclaimed |
 | `/raid wcl check [raid] [url]` | Officers: the private check of a raid's log: who is in the log but not credited (or the reverse), characters not linked to anyone, EP not yet awarded, who came to boss pulls without a flask or food, and deaths. No damage or parse numbers |
 | `/raid wcl list` | The latest Warcraft Logs reports the officers pulled in |
@@ -390,7 +388,7 @@ also works. `/help` reminds leaders of this. `/core`, `/team`, `/report`, `/part
 Run a dungeon with the addon installed (one person in the group is enough;
 more is better for death tracking). It is recorded automatically: the timer
 starts on the first pull and stops on the last boss. An officer imports it
-like everything else (`/import apply`) and points are given out:
+like everything else (`/setup import apply`) and points are given out:
 completion 50, no deaths 25 (1 death 15, 2 deaths 5), first clear of that
 dungeon 25, personal record 15, guild record 25, full guild group 20.
 The same dungeon more than once a week is worth 50%, then 0% (resets
@@ -423,7 +421,7 @@ After each import, completed runs and new records are posted once in the dungeon
 | `/lead create <title> <time> [description] [bosses] [core] [preset] [weekly] [tanks] [healers] [dps] [close_hours]` | Create a raid. Time like `friday 8pm`, `tonight 20:00`, `vendredi 20h`, `2026-10-03 20:00` (your server's timezone). `preset` lists WoW Forever's raids (Barrow Deeps, Hyjal Summit, Onyxia's Lair) plus generic sizes ([raid loot](docs/raid-loot/FOREVER_RAID_LOOT_2026-10-25.md)); it suggests role seats, and explicit seat counts override them. `weekly:true` repeats after ending. `close_hours` closes signups that many hours before the start (Can't come and Late still work). Posts Tank / Healer / DPS / Maybe / Can't come / Late buttons |
 | `/lead edit` / `cancel` / `start` | Manage the raid (raising a cap moves waitlisted players in; `close_hours` sets or, with 0, removes the signup deadline) |
 | `/lead end <raid>` | End the raid and see the **proposed EP** with Approve / Cancel buttons |
-| `/lead award-ep <raid>` | Show the proposed EP again (e.g. after `/import apply` added attendance) |
+| `/lead award-ep <raid>` | Show the proposed EP again (e.g. after `/setup import apply` added attendance) |
 | `/lead boss <raid> <name> <Killed\|Pending>` | Boss status |
 | `/lead attendance <raid> <player> <status> [notes]` | Record attendance |
 | `/lead attendance-voice <raid> [channel]` | Mark everyone in the raid's voice channel present (default: the one you are in). Records already made are kept; nobody is marked absent: signups not in the channel are listed for you |
@@ -431,7 +429,7 @@ After each import, completed runs and new records are posted once in the dungeon
 | `/lead history [season] [core] [player]` | Officers, only you see it. Who attended each raid of the season: rate, count per status and last raids per member, plus a CSV grid (one line per member, one column per raid). `player` lists one member's raids. With no season it covers the last 90 days. The same summary is pinned in the raid attendance channel and updated after each raid report |
 | `/lead note <raid> <text> [boss]` | Officer note (general, per boss, what to improve); shown in `/raid status` to raid leaders |
 | `/lead readiness-raid` also shows a **Consumables** section (who has no flask/elixir or food) from the officer's last in-game `/guilded consumes` scan, if it is under 3 hours old |
-| `/lead readiness-member <player>` / `/lead readiness-raid` | Check other people's readiness (also Guild Master, Loot Leader, Class Leader). `/lead readiness-raid` posts the whole-guild board in the private **raid-readiness** channel when one is set (otherwise it replies only to you). The board is also refreshed after every `/import apply` that carries gear checks |
+| `/lead readiness-member <player>` / `/lead readiness-raid` | Check other people's readiness (also Guild Master, Loot Leader, Class Leader). `/lead readiness-raid` posts the whole-guild board in the private **raid-readiness** channel when one is set (otherwise it replies only to you). The board is also refreshed after every `/setup import apply` that carries gear checks |
 
 Proposed EP = attendance EP (present or late) + boss kills × boss EP + a
 full-clear bonus, all from `/config set`. Only EPGP officers can press
@@ -454,20 +452,20 @@ Approve, and a raid can never be paid twice.
 | `/report inactive [days]` | Members not seen in game for N days (default 30): a read-only report, nobody is changed |
 | `/officer export table:<standings\|ledger\|loot\|attendance\|roster>` | A CSV file of this server's data, only you see it: standings (EP, GP, PR per point pool), the EPGP ledger, loot history, raid attendance or the roster. UTF-8 with a byte-order mark, so Excel shows accents; opens in Google Sheets too. Was `/report export` before 7.0. The companion's *Export to spreadsheet* and `/guilded sheet` in game export the addon's own data |
 | `/report guild` | Class / race / level mix, retention at 30 / 60 / 90 days, and what needs attention |
-| `/poll create <question> <option1> <option2> [option3-5] [closes]` / `/poll close <poll>` | Poll answered with buttons; one vote each, changeable; the result bars update live |
+| `/organize poll create <question> <option1> <option2> [option3-5] [closes]` / `/organize poll close <poll>` | Poll answered with buttons; one vote each, changeable; the result bars update live |
 | `/officer loot award <item> <player> [gp] [boss] [raid] [offspec]` | Give an item straight to a player (loot council or manual); GP is charged only if you give a price; `offspec:true` charges the core's off-spec share of it (50% by default); lands in `/loot history` |
 | `/config loot-mode <EPGP\|Council>` | Council mode turns `/officer loot auction` and `/loot bid` off; officers decide with `/officer loot award` |
 | `/officer character unclaimed` / `link <name> <player>` / `autolink` | Characters the addons reported that nobody has linked: list them, link one by hand, or link every one whose name matches a Discord member |
-| `/config auto-import <true/false>` | Apply what the companion uploads by itself (ledger, attendance, loot, dungeon runs, gear checks, discovered characters) with no `/import apply`. Also a button in `/setup start` step 7 |
+| `/config auto-import <true/false>` | Apply what the companion uploads by itself (ledger, attendance, loot, dungeon runs, gear checks, discovered characters) with no `/setup import apply`. Also a button in `/setup start` step 7 |
 | `/setup start` | **Start here.** Guided setup: roles, channels (core, dungeon, extras; one button makes the whole WoW section under a "Guilded" category), welcome, EPGP values. `/setup start status:true` shows the checklist |
 | `/lead wcl-report <url> [raid] [post]` | Pull a Warcraft Logs report (link or code): zone, duration, boss kills and wipes, player list. Saved, posted to the raid logs channel, and linked to a Discord raid if you give its id. Needs `WCL_CLIENT_ID` / `WCL_CLIENT_SECRET` in `.env.local` |
 | `/setup testraid start [raiders] [starts_in] [realm]` | Fake `[TEST]` raid with fake raiders signed up (hits role caps, Maybe, waitlist) |
-| `/setup testraid finish <raid> [via_addon]` | Play it: attendance (late, no-show, walk-in), boss kills, loot, end, EP proposal. `via_addon` sends attendance through `/import apply` instead |
+| `/setup testraid finish <raid> [via_addon]` | Play it: attendance (late, no-show, walk-in), boss kills, loot, end, EP proposal. `via_addon` sends attendance through `/setup import apply` instead |
 | `/setup testraid dungeon [minutes] [deaths]` | Fake dungeon run by 5 test characters through the real import: points, records, `[TEST]` announcement. Run twice to see the weekly repeat share |
 | `/setup testraid cleanup` | Delete every test raid, test dungeon run and fake raider with their EPGP, points and loot. Real data is untouched |
 | `/officer loot auction <item> <minimum> <increment> <duration> [boss] [raid]` / `/officer loot close <auction>` | Run a GP auction (boss/raid show up in loot history) |
-| `/import upload <file>` then `/import apply <id>` | Preview then apply an addon export. Entries already imported are skipped; in-game raids fill Discord attendance and list no-shows and walk-ins |
-| `/import held [dismiss] [restore]` | Addon entries the bot could not place yet (unlinked character, no raid core chosen, loot with no core raid) and why. Everything else in the upload is imported; a held entry imports by itself on a later sync once its cause is fixed. `dismiss:<code>` drops one for good, `restore:<code>` undoes that |
+| `/setup import upload <file>` then `/setup import apply <id>` | Preview then apply an addon export. Entries already imported are skipped; in-game raids fill Discord attendance and list no-shows and walk-ins |
+| `/setup import held [dismiss] [restore]` | Addon entries the bot could not place yet (unlinked character, no raid core chosen, loot with no core raid) and why. Everything else in the upload is imported; a held entry imports by itself on a later sync once its cause is fixed. `dismiss:<code>` drops one for good, `restore:<code>` undoes that |
 | `/officer dungeon invalidate <run> <reason>` | A run stops counting and its points are taken back (records update by themselves) |
 | `/officer dungeon award <amount> <reason> [member | character]` | Give dungeon points by hand; a negative amount takes them away |
 | `/officer dungeon audit [member | character | run]` | Point history: what, why, automatic or which officer |
@@ -524,8 +522,8 @@ channel once, `raidReminderMinutes` before start (default 60, 0 = off).
 
 1. In game (officer): `/guilded export`, then `/reload`.
 2. Keep the companion running on your PC (`npm run companion:watch`). When the game
-   saves, it uploads automatically and prints the `/import apply` line to use.
-3. On Discord: `/import apply <id>` with the id the companion printed.
+   saves, it uploads automatically and prints the `/setup import apply` line to use.
+3. On Discord: `/setup import apply <id>` with the id the companion printed.
 
 The companion also writes the bot's EPGP standings into the addon folder
 every 15 minutes. After a `/reload`, your client shares them with online
@@ -561,11 +559,11 @@ By default everyone has **one guild pool** of EP/GP, whatever raid core they rai
 1. Every addon tells the guild who it is (name, class, race, level, spec, professions) in its normal gear digest, so an officer's upload (the companion) carries everyone who was online.
 2. The bot remembers new names as *unclaimed* characters and refreshes the linked ones.
 3. **Without a companion (the easy way):** the member sends the bot the character's full name in a private message, or types it in the guild-invite channel. The link is made provisionally and is confirmed at the next sync, an officer's or a companion's upload, that shows the character in the guild. (The `/guilded verify` code was retired in November 2026; codes already issued are still accepted for one release, see `src/services/character-verify.ts`.) A character linked to someone else is never taken (the member is told once), and one that is unlinked (`/character unlink`) is not linked again automatically.
-4. A member can pair their own Companion with `/character pair` (Sign in with Discord); the uploader's own character and every character that logged in on that PC are linked on upload. The first character becomes the main.
-5. Without either, a character may still be linked automatically when the Discord name matches (`Ray`, `[GOLD] Ray`, `Ray | Priest`; exactly one member must fit). Anyone left over can use `/character claim` or an officer can use `/officer character link`.
-6. With `/config auto-import true`, the guild-wide import (including the shared digest and ledger) is applied right after each upload. Otherwise an officer runs `/import apply`.
+4. A member can pair their own Companion with `/character link` (Sign in with Discord); the uploader's own character and every character that logged in on that PC are linked on upload. The first character becomes the main.
+5. Without either, a character may still be linked automatically when the Discord name matches (`Ray`, `[GOLD] Ray`, `Ray | Priest`; exactly one member must fit). Anyone left over can use `/character link` or an officer can use `/officer character link`.
+6. With `/config auto-import true`, the guild-wide import (including the shared digest and ledger) is applied right after each upload. Otherwise an officer runs `/setup import apply`.
 
-The addon's `/guilded character` and `/guilded share` codes still work as a fallback. Name matching and `/character claim` trust the Discord name or the person's own pick (small, trusted guild); companion pairing is proven by the game itself. Officers can see and fix links with `/officer character unclaimed` and `/officer character link`. Discord does not let a bot see a member's Battle.net connection without a separate login page, and Blizzard has no character list for Forever, so "linked WoW account" cannot be used.
+The addon's `/guilded character` and `/guilded share` lines can be pasted into `/character link`. Name matching trusts the Discord name (small, trusted guild); companion linking is proven by the game itself. Officers can see and fix links with `/officer character unclaimed` and `/officer character link`. Discord does not let a bot see a member's Battle.net connection without a separate login page, and Blizzard has no character list for Forever, so "linked WoW account" cannot be used.
 
 ## Fewer things to type
 

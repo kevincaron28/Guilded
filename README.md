@@ -29,22 +29,19 @@ Check each channel for its version: the Microsoft Store companion updates separa
 - **Add the hosted bot:** [add it to your server](docs/HOSTED_PILOT.md) and run `/setup start`; no hosting or database account needed. Guilded Lite (setup, help, bug reports, dungeon groups, basic signups) works right away; KCaron's approval unlocks addon sync, EP/GP, seasons and the guild page. Optional [support](docs/SUPPORT_GUILDED.md) never buys approval.
 - **Run your own guild's bot:** follow [the illustrated beginner walkthrough](docs/OWNER_WALKTHROUGH.md), with Discord and Oracle account links, screenshots and success checks.
 - **Plan a quick installation:** use the [30-minute setup checklist](docs/QUICK_START.md), including what must be ready first.
-- **Optional Windows companion:** install [Guilded Companion from Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9), or use the standalone installer from the [website](https://guilded.kcaron.top/companion/). Store installations update through Microsoft Store. Check the version offered by each channel.
+- **Optional Windows companion:** install [Guilded Companion from Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9), or use the standalone installer from the [website](https://guildedwow.com/companion/). Store installations update through Microsoft Store. Check the version offered by each channel.
 - **Want an AI to guide you:** copy a [setup or troubleshooting prompt](docs/AI_SETUP_HELP.md).
 
 **Current version: 9.4.2** (19 November 2026, protocol 2). See the [changelog](CHANGELOG.md).
 Supports WoW Forever across the addon, Discord bot and companion, including several guilds in one Discord.
-Use the Forever ZIP from the [download page](https://guilded.kcaron.top/editions/).
+Use the Forever ZIP from the [download page](https://guildedwow.com/editions/).
 The other WoW editions were removed on 7 November 2026 ([details](docs/FOREVER_ONLY_FOCUS.md)); their stored data stays readable.
 
-The owner authorized release before the unavailable Forever two-PC tests.
-[Game checks remain pending follow-up](docs/archive/V7_5_0_GAME_CHECKLIST.md); benchmarks are provisional.
-[Release decision](docs/archive/RELEASE_DECISION_2026-10-25.md). WoW Forever launches 4 November 2026.
 
 Also from this repository: **Guilded Dungeons** (`addon/GuildedDungeons/`), a standalone dungeon
 timer and score tracker with no guild needed, and the website's
-[public leaderboards](https://guilded.kcaron.top/leaderboards/), [player profiles](https://guilded.kcaron.top/players/)
-and [recruitment board](https://guilded.kcaron.top/recruitment/).
+[public leaderboards](https://guildedwow.com/leaderboards/), [player profiles](https://guildedwow.com/players/)
+and [recruitment board](https://guildedwow.com/recruitment/).
 
 ## Documentation
 

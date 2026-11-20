@@ -10,34 +10,42 @@ import { niceAxis } from "../src/services/member-trend-card.js";
 import { dungeonSeasonCard } from "../src/services/dungeon-leaderboard.js";
 import { highlightText } from "../src/services/dungeon-records.js";
 
-describe("dungeon names come from the instance id, in the page language", () => {
+describe("dungeon names come from the instance id, in English whatever the page language", () => {
   it("every catalog dungeon has a French name or is on the explicit unverified list", () => {
     const missing = allEnglishDungeonNames().filter(name => !hasFrenchName(name) && !UNVERIFIED_FRENCH.some(u => name.startsWith(u)));
     expect(missing).toEqual([]);
   });
-  it("names the dungeon in French whatever language the uploader's client used", () => {
+  it("names the dungeon in English on French pages whatever language the uploader's client used", () => {
     for (const uploaded of ["Deadmines", "The Deadmines", "Mortemines", "Les Mortemines"]) {
-      expect(dungeonDisplayName({ dungeonName: uploaded, instanceId: 36 }, "fr")).toBe("Les Mortemines");
+      expect(dungeonDisplayName({ dungeonName: uploaded, instanceId: 36 }, "fr")).toBe("The Deadmines");
       expect(dungeonDisplayName({ dungeonName: uploaded, instanceId: 36 }, "en")).toBe("The Deadmines");
     }
-    expect(localDungeonName({ instanceId: 2999, dungeonName: "Ruines de Lordaeron" }, "fr")).toBe("Ruines de Lordaeron");
-    expect(localDungeonName({ instanceId: 2999, dungeonName: "Ruins of Lordaeron" }, "fr")).toBe("Ruines de Lordaeron");
-    expect(localDungeonName({ instanceId: 129, dungeonName: "Razorfen Downs" }, "fr")).toBe("Souilles de Tranchebauge");
-    expect(localDungeonName({ instanceId: 2970, dungeonName: "The Drowned City" }, "fr")).toBe("La Cité engloutie");
+    expect(localDungeonName({ instanceId: 2999, dungeonName: "Ruines de Lordaeron" }, "fr")).toBe("Ruins of Lordaeron");
+    expect(localDungeonName({ instanceId: 2999, dungeonName: "Ruins of Lordaeron" }, "fr")).toBe("Ruins of Lordaeron");
+    expect(localDungeonName({ instanceId: 129, dungeonName: "Razorfen Downs" }, "fr")).toBe("Razorfen Downs");
+    expect(dungeonRunCard({ runRef: "QG-2", dungeonName: "Souilles de Tranchebauge", instanceId: 129, difficultyId: 1, state: "COMPLETED", valid: true, durationSec: 600, points: 0, completedBy: "final boss", guildRecord: false, previousGuildBest: null, personalRecords: [], players: ["A"], deaths: 0, unlinked: [], inGuildPlayers: ["A"], achievements: [], endedAt: 1794000000, playerDetails: [{ character: "A", class: "WARRIOR", deaths: 0, presentSec: 1, points: 0 }] } as never, "fr").title).toBe("Razorfen Downs");
+    // Legacy runs with no known instance: a French upload is translated back to English.
+    expect(dungeonDisplayName({ dungeonName: "Mortemines" }, "fr")).toBe("The Deadmines");
+    expect(dungeonDisplayName({ dungeonName: "Les Mortemines" }, "fr")).toBe("The Deadmines");
+    expect(dungeonDisplayName({ dungeonName: "Souilles de Tranchebauge" }, "fr")).toBe("Razorfen Downs");
+    expect(dungeonDisplayName({ dungeonName: "Ruines de Lordaeron" }, "fr")).toBe("Ruins of Lordaeron");
+    expect(dungeonDisplayName({ dungeonName: "Monastère Écarlate : Cimetière" }, "fr")).toBe("Scarlet Monastery: Graveyard");
+    expect(dungeonDisplayName({ dungeonName: "Scarlet Monastery" }, "fr")).toBe("Scarlet Monastery");
+    expect(localDungeonName({ instanceId: 2970, dungeonName: "The Drowned City" }, "fr")).toBe("The Drowned City");
     expect(englishDungeonName({ instanceId: 36, dungeonName: "Mortemines" })).toBe("The Deadmines");
   });
-  it("gives every Scarlet Monastery wing a French name", () => {
-    expect(localDungeonName({ instanceId: 189, dungeonName: "x", routeKey: "189:cathedral" }, "fr")).toBe("Monastère Écarlate : Cathédrale");
+  it("shows every Scarlet Monastery wing in English on French pages", () => {
+    expect(localDungeonName({ instanceId: 189, dungeonName: "x", routeKey: "189:cathedral" }, "fr")).toBe("Scarlet Monastery: Cathedral");
     expect(frenchDungeon("Scarlet Monastery: Armory", "fr")).toBe("Monastère Écarlate : Armurerie");
-    expect(dungeonDisplayName({ dungeonName: "Scarlet Monastery", instanceId: 189, encounters: [{ name: "High Inquisitor Whitemane", success: true }] }, "fr")).toBe("Monastère Écarlate : Cathédrale");
+    expect(dungeonDisplayName({ dungeonName: "Scarlet Monastery", instanceId: 189, encounters: [{ name: "High Inquisitor Whitemane", success: true }] }, "fr")).toBe("Scarlet Monastery: Cathedral");
   });
   it("uses one name on the run card title, the personal-record line and the recap", () => {
     const run = { runRef: "QG-1", dungeonName: "Deadmines", instanceId: 36, difficultyId: 1, state: "COMPLETED", valid: true, durationSec: 600, points: 0, completedBy: "final boss", guildRecord: false,
       previousGuildBest: null, personalRecords: [], players: ["A"], deaths: 0, unlinked: [], inGuildPlayers: ["A"], achievements: [], endedAt: 1794000000,
       playerDetails: [{ character: "A", class: "WARRIOR", deaths: 0, presentSec: 1, points: 0 }] } as never;
-    expect(dungeonRunCard(run, "fr").title).toBe("Les Mortemines");
+    expect(dungeonRunCard(run, "fr").title).toBe("The Deadmines");
     expect(dungeonRunCard(run, "en").title).toBe("The Deadmines");
-    expect(highlightText({ kind: "first", dungeonName: "Deadmines", instanceId: 36 }, "fr", true)).toContain("Les Mortemines");
+    expect(highlightText({ kind: "first", dungeonName: "Deadmines", instanceId: 36 }, "fr", true)).toContain("The Deadmines");
   });
 });
 
@@ -61,7 +69,7 @@ describe("daily recap card text", () => {
     expect(text).toContain("Druide");
     expect(text).toContain("Démoniste");
     expect(text).not.toMatch(/Druid[^e]|Warlock/);
-    expect(text).toContain("Souilles de Tranchebauge");
+    expect(text).toContain("Razorfen Downs");
     // The duel count is on the strip once; no panel row repeats it.
     expect(dailyRecapCard(recap, "fr", "QG").stats.find(stat => stat.label === "Duels")?.value).toBe("1");
     expect(text).not.toMatch(/\d+ duels?"/);

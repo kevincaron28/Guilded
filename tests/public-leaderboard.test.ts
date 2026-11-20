@@ -496,7 +496,7 @@ describe("leaderboard and personal pages", () => {
     expect((await request("GET", "/leaderboards/character/Nobody")).status).toBe(404);
   });
 
-  it("names dungeons in the page language, not the first uploader's client language", async () => {
+  it("names dungeons in English on every page, not the first uploader's client language", async () => {
     const deadmines = (id: string, name: string, sec: number, over: Partial<LeaderRun> = {}) => leaderRun(id, sec, [player("Kev", "Warrior", "TANK", 20), player("Amy", "Priest", "HEALER", 20)], { instanceId: 36, dungeonName: name, ...over });
     const scarlet = leaderRun("s", 1500, [player("Kev", "Warrior", "TANK", 28)], { instanceId: 189, dungeonName: "Monastère écarlate",
       evidence: { startedAt: new Date(NOW.getTime() - 3_000_000), completedBy: "final boss", encounters: [{ name: "Herod", success: true, at: 1 }] } as never });
@@ -509,9 +509,9 @@ describe("leaderboard and personal pages", () => {
     expect(records).not.toContain("Monastère");
     const fr = await request("GET", "/leaderboards/dungeons/?lang=fr");
     const frRecords = fr.body.slice(fr.body.indexOf("Records des donjons"));
-    expect(frRecords).toContain(">Les Mortemines</a>");
-    expect(frRecords).not.toContain(">The Deadmines<");
-    expect(frRecords).toContain("Monastère Écarlate");
+    expect(frRecords).toContain(">The Deadmines</a>");
+    expect(frRecords).not.toContain("Mortemines");
+    expect(frRecords).toContain("Scarlet Monastery");
     const run = await request("GET", "/leaderboards/run/d1");
     if (run.status === 200) expect(run.body).toContain("The Deadmines");
   });

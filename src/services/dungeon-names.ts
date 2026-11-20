@@ -1,9 +1,9 @@
 import type { Lang } from "../i18n.js";
 import { dungeonDisplayName } from "./dungeon-card.js";
 
-// A dungeon's name in the page language. A run stores the name the UPLOADER's client reported (a French client says "Mortemines"), so a
+// A dungeon name, always English. A run stores the name the UPLOADER's client reported (a French client says "Mortemines"), so a
 // public table that shows run.dungeonName shows the first uploader's language. The canonical English name comes from the instance
-// (and route) id (dungeon-name-table.ts), then the French table translates it when the page is French.
+// (and route) id (dungeon-name-table.ts), and the name stays English on French pages (owner decision, 20 Nov 2026).
 
 type Encounters = readonly { name?: string | undefined; success?: boolean | undefined }[];
 interface NamedRun { instanceId: number; dungeonName: string; routeKey?: string | null | undefined; evidence?: { encounters?: readonly unknown[] | undefined } | null }
@@ -15,7 +15,7 @@ export function englishDungeonName(run: NamedRun): string {
   return dungeonDisplayName(asDisplay(run), "en");
 }
 
-/** The dungeon's name in the page language, whichever language the uploader's client used. */
+/** The dungeon name, always English, whichever language the uploader's client used. */
 export function localDungeonName(run: NamedRun, lang: Lang): string {
   return dungeonDisplayName(asDisplay(run), lang);
 }

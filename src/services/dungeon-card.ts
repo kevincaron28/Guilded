@@ -3,7 +3,7 @@ import { cardDate } from "./card-format.js";
 import type { Lang } from "../i18n.js";
 import { SCARLET_WINGS } from "./dungeon-rating.js";
 import { plural } from "./card-plural.js";
-import { frenchDungeon, instanceEnglishName, routeEnglishName } from "./dungeon-name-table.js";
+import { englishDungeon, frenchDungeon, instanceEnglishName, routeEnglishName } from "./dungeon-name-table.js";
 import { canonicalClass } from "./character-display.js";
 import { CLASS_NAMES_FR } from "../permissions.js";
 import { canonicalSpecialization } from "../wow-specializations.js";
@@ -110,15 +110,16 @@ function wingInName(name: string): string | undefined {
   return m ? WING_NAME[m]![0] : undefined;
 }
 /**
- * The dungeon's name in the page language. The canonical English name comes from the map or route id, never from the language of the
- * uploader's client (a French client reports "Mortemines", an English one "The Deadmines"); French pages then translate it. A run with no
+ * The dungeon's name, always English whatever the page language (owner decision, 20 Nov 2026); `_lang` stays so callers need no change. The canonical English name comes from the map or route id, never from the language of the
+ * uploader's client (a French client reports "Mortemines", an English one "The Deadmines"); a French upload is translated back to English. A run with no
  * known id keeps the uploaded name. Scarlet Monastery is one map (189) for four wings and the game reports only "Scarlet Monastery": the
  * wing is told apart by the last boss killed, the same rule the rating uses (SCARLET_WINGS), or by a wing the name already carries.
  */
-export function dungeonDisplayName(run: NamedRun, lang: Lang = "en"): string {
+export function dungeonDisplayName(run: NamedRun, _lang: Lang = "en"): string {
+  void _lang; // kept so callers need no change: the name is English on every page
   const routeName = routeEnglishName(run.routeKey);
   const mapName = routeName ? undefined : instanceEnglishName(run.instanceId);
-  if (!routeName && !mapName) return legacyName(run, lang);
+  if (!routeName && !mapName) return legacyName(run);
   let english = routeName ?? mapName!;
   if (mapName) {
     if (/scarlet/i.test(mapName)) {
@@ -132,15 +133,15 @@ export function dungeonDisplayName(run: NamedRun, lang: Lang = "en"): string {
       if (own.toLowerCase().startsWith(`${mapName.toLowerCase()}: `)) english = `${mapName}${own.slice(mapName.length)}`;
     }
   }
-  return frenchDungeon(english, lang);
+  return english;
 }
-function legacyName(run: NamedRun, lang: Lang): string {
-  if (!/scarlet|[ée]carlate/i.test(run.dungeonName) || HAS_WING.test(run.dungeonName)) return frenchDungeon(run.dungeonName, lang);
+function legacyName(run: NamedRun): string {
+  const name = englishDungeon(run.dungeonName);
+  if (!/scarlet|[ée]carlate/i.test(run.dungeonName) || HAS_WING.test(run.dungeonName)) return name;
   const killed = new Set((run.encounters ?? []).filter((e) => e.success === true).map((e) => e.name?.toLowerCase()));
   const wings = SCARLET_WINGS.filter(([, bosses]) => bosses.some((boss) => killed.has(boss)));
-  if (wings.length !== 1) return frenchDungeon(run.dungeonName, lang);
-  const [en, fr] = WING_NAME[wings[0]![0]]!;
-  return frenchDungeon(`${run.dungeonName}${lang === "fr" ? " : " : ": "}${lang === "fr" ? fr : en}`, lang);
+  if (wings.length !== 1) return name;
+  return `${name}: ${WING_NAME[wings[0]![0]]![0]}`;
 }
 export function runLabel(run: { runRef: string; dungeonName: string; instanceId?: number | null | undefined; routeKey?: string | null | undefined; difficultyId: number; encounters?: readonly { name?: string | undefined; success?: boolean | undefined }[] | undefined }, lang: Lang = "en"): string {
   const difficulty = difficultyName(run.difficultyId);

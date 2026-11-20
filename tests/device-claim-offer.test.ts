@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { frenchTypography as fr } from "../src/fr-typography.js";
 
 const linkCalls: { memberId: string; name: string; options: unknown }[] = [];
 interface Row { name: string; realm: string; gameEdition: string; memberId: string; detachedAt: Date | null; confirmedAt: Date | null; linkEvidence: string | null }
@@ -241,7 +242,7 @@ describe("the DM fallback", () => {
 
   it("writes the French DM for a French server", () => {
     const message = offerMessage("fr", "Québec Gold", { deviceId: "d", guildId: "g1", characters: [{ name: "Amy Jones", realm: "Forever", className: "Mage", level: 20 }], taken: [], snoozedUntil: null, dmAt: null });
-    expect(message.content).toContain("Les lier à vous ?");
+    expect(message.content).toContain(fr("Les lier à vous ?"));
   });
 });
 

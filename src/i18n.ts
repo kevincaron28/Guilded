@@ -2,6 +2,7 @@
 // Officer/admin replies stay in English. Placeholders look like {name}.
 
 import { FR_TEXT } from "./i18n-fr.js";
+import { frenchTypography } from "./fr-typography.js";
 
 export type Lang = "en" | "fr";
 
@@ -614,7 +615,8 @@ const STRINGS = {
 export type StringKey = keyof typeof STRINGS;
 
 export function t(lang: Lang, key: StringKey, vars: Record<string, string | number> = {}): string {
-  const template = STRINGS[key][lang] ?? STRINGS[key].en;
+  const raw = STRINGS[key][lang] ?? STRINGS[key].en;
+  const template = lang === "fr" ? frenchTypography(raw) : raw;
   return template.replace(/\{(\w+)\}/g, (match, name: string) => (name in vars ? String(vars[name]) : match));
 }
 
@@ -622,6 +624,7 @@ export function t(lang: Lang, key: StringKey, vars: Record<string, string | numb
 // the English wording stays in the code, and French is looked up by that exact English text
 // in i18n-fr.ts. Text without a French entry is shown in English. {name} placeholders work as in t().
 export function tx(lang: Lang, english: string, vars: Record<string, string | number> = {}): string {
-  const template = (lang === "fr" ? FR_TEXT[english] : undefined) ?? english;
+  const translated = lang === "fr" ? FR_TEXT[english] : undefined;
+  const template = translated !== undefined ? frenchTypography(translated) : english;
   return template.replace(/\{(\w+)\}/g, (match, name: string) => (name in vars ? String(vars[name]) : match));
 }

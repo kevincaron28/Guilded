@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { frenchTypography as fr } from "../src/fr-typography.js";
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } from "discord.js";
 import { signupLayout, SIGNUP_TEXT_LIMIT, type SignupLayoutInput } from "../src/services/signup-layout.js";
 import { CLASS_EMOJI_NAMES, ROLE_EMOJI_NAMES, classEmojiMap, type DisplayCharacter } from "../src/services/character-display.js";
@@ -139,7 +140,7 @@ describe("raid signup post (Components V2)", () => {
     expect(text).toMatch(/\*\*Participants\*\* ✅ 20\/20 · \*\*Niveau d'objet moyen\*\* [\d,]+ \(\d+ vérifiés\)/);
     for (const heading of ["TANKS", "SOIGNEURS", "DPS", "EN RETARD", "PEUT-ÊTRE", "LISTE D'ATTENTE", "BANC", "ABSENTS", "SANS RÉPONSE"]) expect(text).toContain(`**\`${heading}\`**`);
     expect(text).toContain("COMPLET");
-    expect(text).toContain("Liste complète : /raid roster");
+    expect(text).toContain(fr("Liste complète : /raid roster"));
     expect(text).toContain("alertes de la vérification d'équipement");
     expect(text).not.toMatch(/Signups|Attendees|Full roster|DECLINED|PENDING/);
   });

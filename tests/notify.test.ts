@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { frenchTypography as fr } from "../src/fr-typography.js";
 import { notifications } from "../src/services/notify.js";
 
 describe("notification lines", () => {
@@ -14,7 +15,7 @@ describe("notification lines", () => {
   });
 
   it("speaks French when the guild does", () => {
-    expect(notifications.raidStarted("Cœur du Magma")("fr")).toBe("⚔️ Raid commencé : **Cœur du Magma**");
-    expect(notifications.importApplied(3, 1)("fr")).toBe("📥 Import de l'addon appliqué : 3 entrée(s) EPGP, présences pour 1 raid(s)");
+    expect(notifications.raidStarted("Cœur du Magma")("fr")).toBe(fr("⚔️ Raid commencé : **Cœur du Magma**"));
+    expect(notifications.importApplied(3, 1)("fr")).toBe(fr("📥 Import de l'addon appliqué : 3 entrée(s) EPGP, présences pour 1 raid(s)"));
   });
 });

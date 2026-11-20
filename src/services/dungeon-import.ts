@@ -31,6 +31,7 @@ export function runFullName(character: string, known: readonly { name: string; d
 
 import { competitionReason, completionReason, dungeonRating, hasDungeonRating, ratingCharacterKey, ROUTE_WINGS, UNLINKED_RATING_PREFIX, type LevelBand } from "./dungeon-rating.js";
 import { participationDungeonKey, participationMode, participationRecordEligible, type ParticipationRun } from "./dungeon-participation.js";
+import { parseWowId } from "./character-ref.js";
 import {
   computeRunPoints, computeWeeklyVarietyPoints, sharedDungeonConfig, dungeonRunSchema, validateRun, weekStart,
   type DungeonRunInput, type PlayerContext
@@ -730,7 +731,8 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
             deaths: player.deaths ?? null,
             presentSec: player.presentSec,
             inGuild: player.inGuild,
-            guild: player.guild ?? null
+            guild: player.guild ?? null,
+            wowId: parseWowId(player.id)
           }))
         }
       }

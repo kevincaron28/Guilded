@@ -1942,6 +1942,47 @@ ns.commandHandlers["probe"] = function(args)
     runAuctionProbe()
     return
   end
+  if what == "guids" then
+    -- Developer probe (docs/plans/CHARACTER_ID_MATCHING_2026-11-20.md, stage 0): read-only, chat frame only, nothing saved or sent.
+    -- Does this client give UnitGUID for the player and a party member, and which GetGuildRosterInfo return is the GUID?
+    if inCombatNow() then message(L("Not in combat.")); return end
+    local function lowId(guid)
+      if type(guid) ~= "string" or (ns.isSecret and ns.isSecret(guid)) then return nil end
+      local hex = guid:match("^Player%-%d+%-(%x+)$")
+      return hex, hex and tonumber(hex, 16) or nil
+    end
+    local function show(label, guid)
+      if guid == nil then message("GUID probe " .. label .. ": no value"); return end
+      if ns.isSecret and ns.isSecret(guid) then message("GUID probe " .. label .. ": secret value"); return end
+      local hex, dec = lowId(guid)
+      message(string.format("GUID probe %s: %s -> low id %s (hex), %s (decimal)", label, tostring(guid), tostring(hex or "?"), tostring(dec or "?")))
+    end
+    show("player", UnitGUID and UnitGUID("player"))
+    local member
+    for i = 1, 4 do
+      local unit = "party" .. i
+      if UnitExists and UnitExists(unit) then member = unit; break end
+    end
+    if member then show(member, UnitGUID and UnitGUID(member)) else message("GUID probe party: not grouped") end
+    if not GetGuildRosterInfo then message("GUID probe roster: no GetGuildRosterInfo"); return end
+    if IsInGuild and not IsInGuild() then message("GUID probe roster: not in a guild"); return end
+    for row = 1, 3 do
+      local values = { pcall(GetGuildRosterInfo, row) }
+      if not values[1] then message("GUID probe roster row " .. row .. ": call failed"); break end
+      local found
+      for index = 2, #values do
+        local value = values[index]
+        if type(value) == "string" and not (ns.isSecret and ns.isSecret(value)) and value:match("^Player%-%d+%-%x+$") then found = index - 1; break end
+      end
+      if found then
+        local hex, dec = lowId(values[found + 1])
+        message(string.format("GUID probe roster row %d: return #%d = %s -> low id %s (hex), %s (decimal)", row, found, tostring(values[found + 1]), tostring(hex or "?"), tostring(dec or "?")))
+      else
+        message(string.format("GUID probe roster row %d: no GUID among %d returns", row, #values - 1))
+      end
+    end
+    return
+  end
   if what == "comm" then
     if string.lower((args and args[2]) or "") == "auto" then
       db.probes = type(db.probes) == "table" and db.probes or {}
@@ -1973,7 +2014,7 @@ ns.commandHandlers["probe"] = function(args)
   if ns.logDiagnostic then ns.logDiagnostic("PROBE", string.format("%d maps read", #rows), true) end
   message(string.format(L("Map probe: %d maps written to the saved variables (probes.maps). Reload or log out to save the file."), #rows))
 end
-table.insert(ns.commandHelp, "/guilded probe maps - write the game's map ids, names and rectangles to the saved variables for diagnostics; /guilded probe comm [auto] - test addon messages on a temporary channel and by whisper; /guilded probe auctions - check read-only what this client offers for auction achievements")
+table.insert(ns.commandHelp, "/guilded probe maps - write the game's map ids, names and rectangles to the saved variables for diagnostics; /guilded probe comm [auto] - test addon messages on a temporary channel and by whisper; /guilded probe auctions - check read-only what this client offers for auction achievements; /guilded probe guids - print the player, party and roster GUIDs the client gives (developer probe)")
 
 -- /guilded names: saved first-name keys (from before 8.5) that could not move to a full Forever
 -- name on their own. Nothing is changed here; an officer moves or merges them by hand.

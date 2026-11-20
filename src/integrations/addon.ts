@@ -132,6 +132,8 @@ export const addonCharacterSchema = z.object({
   name: z.string().min(1),
   displayName: z.string().trim().min(1).max(80).refine(value => !value.includes("|") && Array.from(value).every(char => char.charCodeAt(0) >= 32 && char.charCodeAt(0) !== 127)).optional(),
   realm: z.string().min(1),
+  // Low part of the in-game GUID, lowercase hex (character-ref.ts parseWowId). Optional: older addons omit it; unreadable values are ignored, never rejected.
+  id: z.unknown().optional(),
   class: z.string().default(""),
   race: z.string().default(""),
   level: z.number().int().min(0).max(100).default(0),

@@ -613,7 +613,9 @@ model Character {
   raidSignups        RaidSignup[]
   coreApplications   Application[]
 
+  wowId              BigInt?
   @@unique([guildId, gameEdition, realm, name])
+  @@unique([guildId, gameEdition, wowId])
   @@index([memberId, isMain])
 }
 
@@ -1864,9 +1866,11 @@ model DungeonRunPlayer {
   guild      String?
   run        DungeonRun @relation(fields: [runId], references: [id], onDelete: Cascade)
   member     Member?    @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  wowId      BigInt?
 
   @@index([runId])
   @@index([memberId])
+  @@index([wowId])
 }
 
 // Every point change, with why. Totals and rankings are computed from these.
@@ -2318,7 +2322,9 @@ model UnclaimedCharacter {
   guildRankAt   DateTime?
   guild       Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
+  wowId       BigInt?
   @@unique([guildId, nameKey])
+  @@unique([guildId, gameEdition, wowId])
 }
 
 model CharacterPairing {
@@ -2538,6 +2544,7 @@ model DeviceCharacter {
   lastSeenAt  DateTime @default(now())
   device      CompanionDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
+  wowId       BigInt?
   @@unique([deviceId, nameKey])
   @@index([nameKey])
 }
@@ -2888,8 +2895,10 @@ model PublicRunPlayer {
   faction   String?
   run       PublicRun @relation(fields: [runId], references: [id], onDelete: Cascade)
 
+  wowId     BigInt?
   @@unique([runId, character, realm])
   @@index([character, realm])
+  @@index([wowId])
   @@index([guild])
 }
 

@@ -156,6 +156,21 @@ export const ROUTE_BOSSES: readonly RouteBosses[] = [
     { ids: [3478], name: "Deathless Guardians" },
     { ids: [3479], name: "Min'loth the Serpent", final: true },
     { ids: [3511], name: "Primeval Elemental" }
+  ] },
+  // Real guild runs of 19 Nov 2026 (encounter order as recorded): Overseer Mugg was the last boss of every complete run.
+  { key: "3039", instanceId: 3039, name: "Krol'dok Stronghold", bosses: [
+    { ids: [3450], name: "Slavecrusher Grox" },
+    { ids: [3452], name: "Twilight Commander Zarmok" },
+    { ids: [3453], name: "Handler Ashka" },
+    { ids: [3449], name: "Nar'gurk" },
+    { ids: [3451], name: "Overseer Mugg", final: true }
+  ] },
+  { key: "2994", instanceId: 2994, name: "Alcaz Prison", bosses: [
+    { ids: [3403], name: "Overseer Wrex" },
+    { ids: [3410], name: "Tidemistress Ca'zass" },
+    { ids: [3415], name: "The Questioner" },
+    { ids: [3418], name: "Katerina the Cleaner" },
+    { ids: [3409], name: "Blazeroar", final: true }
   ] }
 ];
 
@@ -178,5 +193,5 @@ export const isBoss = (boss: RouteBoss, event: { id?: unknown; name?: unknown })
 export const finalBossOf = (instanceId: number): RouteBoss | null => routeBosses(instanceId)?.bosses.find((boss) => boss.final) ?? null;
 
 /** Dungeons whose unfinished runs may be completed at their final boss kill (dungeon-recovery.ts): only where an older addon did not know that boss. */
-const RECOVERABLE_INSTANCES: ReadonlySet<number> = new Set([2970]);
+const RECOVERABLE_INSTANCES: ReadonlySet<number> = new Set([2970, 3039, 2994]);
 export const recoverableFinalBoss = (instanceId: number): RouteBoss | null => RECOVERABLE_INSTANCES.has(instanceId) ? finalBossOf(instanceId) : null;

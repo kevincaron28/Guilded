@@ -7,6 +7,8 @@ import { ratingDungeonKey } from "../src/services/dungeon-rating.js";
 import { season2Embed } from "../src/services/dungeon-season2-admin.js";
 import { season2Proposal } from "../src/services/dungeon-season2.js";
 import { publicRouteKey, publicRules } from "../src/services/public-score.js";
+import { completeAtFinalBoss } from "../src/services/dungeon-recovery.js";
+import { finalBossOf, routeBosses } from "../src/services/dungeon-bosses.js";
 import { localDungeonName } from "../src/services/dungeon-names.js";
 
 const START = new Date("2026-12-09T23:00:00Z");
@@ -32,16 +34,16 @@ describe("Season 2 endgame routes (zero observations)", () => {
   });
   it("keeps the 15-44 targets and adds the 45-59 and 60 brackets (best-N capped by the routes that exist)", () => {
     const { rules: s2 } = proposal();
-    expect(s2.brackets.map(b => [b.key, b.bestCount])).toEqual([["15-29", 5], ["30-44", 5], ["45-59", 3], ["60", 8]]);
+    expect(s2.brackets.map(b => [b.key, b.bestCount])).toEqual([["15-29", 5], ["30-44", 5], ["45-59", 4], ["60", 8]]);
     for (const [key, sec] of Object.entries(rules.targets)) expect(s2.targets[key]).toBe(sec);
   });
   it("lists the dungeons whose map id nobody has seen as waiting, never invented as routes", () => {
     const { rules: s2, waiting } = proposal();
-    expect(SEASON2_WAITING.map(w => w.id).sort()).toEqual(["alcaz-prison", "blackmaw-hold", "kroldok-stronghold", "shapers-terrace"]);
+    expect(SEASON2_WAITING.map(w => w.id).sort()).toEqual(["blackmaw-hold", "shapers-terrace"]);
     expect(waiting.map(w => w.id)).toEqual(expect.arrayContaining(SEASON2_WAITING.map(w => w.id)));
     expect(s2.provisional!.waiting.map(w => w.id)).not.toContain("blackrock-depths");
     expect(s2.provisional!.waiting.map(w => w.id)).not.toContain("drowned-city");
-    expect(s2.routes.map(r => r.name).join("|")).not.toMatch(/Alcaz|Blackmaw|Shaper|Krol/);
+    expect(s2.routes.map(r => r.name).join("|")).not.toMatch(/Blackmaw|Shaper/);
   });
   it("shows them as provisional in the review, not as missing", () => {
     const { rules: s2 } = proposal();
@@ -52,12 +54,42 @@ describe("Season 2 endgame routes (zero observations)", () => {
     expect(text).toContain("provisional, no data");
     expect(text).toContain("Blackrock Depths");
     expect(embed.fields!.some(f => f.name.startsWith("Not in Season 2 yet"))).toBe(false);
-    expect(embed.fields!.find(f => f.name.startsWith("Waiting for a map id"))!.value).toContain("alcaz-prison");
+    expect(embed.fields!.find(f => f.name.startsWith("Waiting for a map id"))!.value).toContain("blackmaw-hold");
     expect(text.length).toBeLessThan(6000);
   });
   it("keeps the bracket plan in step with the Season 2 targets, with Upper Blackrock Spire", () => {
     expect(bracketPlanProblems()).toEqual([]);
     for (const r of SEASON2_ENDGAME_ROUTES) expect(BRACKET_PLAN.find(p => p.id === r.planId), r.planId).toMatchObject({ minutes: r.minutes, bracket: r.bracket });
+  });
+});
+
+describe("Krol'dok Stronghold and Alcaz Prison (real runs of 19 November 2026)", () => {
+  const { rules: s2 } = proposal();
+  it("are provisional routes ending at their final boss, with generous targets", () => {
+    const k = s2.routes.find(r => r.dungeonKey === "3039")!, a = s2.routes.find(r => r.dungeonKey === "2994")!;
+    expect(k).toMatchObject({ instanceId: 3039, name: "Krol'dok Stronghold", completionModel: "addon-final-boss", targetSec: 70 * 60, competitionBand: { min: 38, max: 44, difficultyId: 0 } });
+    expect(a).toMatchObject({ instanceId: 2994, name: "Alcaz Prison", completionModel: "addon-final-boss", targetSec: 60 * 60, competitionBand: { min: 48, max: 56, difficultyId: 0 } });
+    expect(s2.routeBracket["3039"]).toBe("30-44");
+    expect(s2.routeBracket["2994"]).toBe("45-59");
+    expect(s2.provisional!.waiting.map(w => w.id).sort()).toEqual(["blackmaw-hold", "shapers-terrace"]);
+  });
+  it("knows both final bosses in the bot and in both addons", () => {
+    expect(finalBossOf(3039)).toMatchObject({ ids: [3451], name: "Overseer Mugg" });
+    expect(finalBossOf(2994)).toMatchObject({ ids: [3409], name: "Blazeroar" });
+    expect(routeBosses(3039)!.bosses.flatMap(b => b.ids)).toEqual([3450, 3452, 3453, 3449, 3451]);
+    expect(routeBosses(2994)!.bosses.flatMap(b => b.ids)).toEqual([3403, 3410, 3415, 3418, 3409]);
+    for (const file of ["addon/Guilded/Compat.lua", "addon/GuildedDungeons/Shared/Compat.lua"]) {
+      const lua = readFileSync(file, "utf8");
+      for (const line of ["[3039] = 3451", "[2994] = 3409", '[3039] = { "Overseer Mugg" }', '[2994] = { "Blazeroar" }']) expect(lua, `${file} ${line}`).toContain(line);
+    }
+  });
+  it("recovers an unfinished run at the final boss kill", () => {
+    const T = 1_800_000_000;
+    const k = (id: number, at: number) => ({ id, success: true, at, source: "native" });
+    const r = completeAtFinalBoss({ id: "K1", instanceId: 3039, startedAt: T, state: "ABANDONED", encounters: [k(3450, T + 600), k(3451, T + 3600), k(3450, T + 5000)],
+      players: [{ character: "A", realm: "Forever", presentSec: 4000 }] });
+    expect("skip" in r).toBe(false);
+    if (!("skip" in r)) expect(r).toMatchObject({ endedAt: T + 3600, trimmed: 1, run: { state: "COMPLETED", completedBy: "final boss" } });
   });
 });
 

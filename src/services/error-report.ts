@@ -3,7 +3,7 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import { readFileSync } from "node:fs";
 import { config } from "../config.js";
 import { ScopedReportError, encodeReportOrigin, reportSourceLink, type ReportOrigin } from "./report-context.js";
-import { automaticDiagnostic, approvedDiagnosticFields, discordAttachmentUrl, redactDiagnosticText } from "./diagnostic-privacy.js";
+import { automaticDiagnostic, approvedDiagnosticFields, isDatabaseUnavailable, discordAttachmentUrl, redactDiagnosticText } from "./diagnostic-privacy.js";
 import { diagnosticTarget } from "./diagnostic-target.js";
 import { MemberAnswerError } from "./member-answer.js";
 
@@ -77,6 +77,12 @@ export function createErrorReportService(prisma: PrismaClient) {
       }
       const bug=context.source==="bug-report";
       if (bug && !context.consented) return null;
+      // A database outage hits every job at once. Keep one saved report per five minutes, not one per job (see isDatabaseUnavailable).
+      if (!bug && isDatabaseUnavailable(error)) {
+        console.warn(`${context.source}: database unavailable`, automaticDiagnostic(error).message);
+        if (!allowErrorNotification("database-unavailable")) return null;
+        context = { ...context, source: "Database", operation: context.operation ? `${context.operation} (first of a database outage)` : "database outage" };
+      }
       const detail=bug ? {message:redactDiagnosticText(typeof error==="string"?error:"[non-text report omitted]"),stack:null} : automaticDiagnostic(error);
       const {message,stack}=detail;
       const diagnostics=approvedDiagnosticFields(context.diagnostics);

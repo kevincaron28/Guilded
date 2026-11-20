@@ -2,7 +2,7 @@
 
 ## 9.4.3 — 20 November 2026
 
-Prepared 20 November 2026, not yet published. Not yet confirmed on real clients (see docs/V9_4_3_RELEASE_ACCEPTANCE.md).
+Published 20 November 2026. Not yet confirmed on real clients (see docs/V9_4_3_RELEASE_ACCEPTANCE.md).
 
 Addon:
 

@@ -757,10 +757,14 @@ export async function craftRequestNeedsPost(id: string): Promise<boolean> {
   return !!row && !row.threadId && !row.orderMessageId && row.status === "OPEN";
 }
 
-// An apply of a big officer import takes longer than the companion waits. The response never waits for more than this
-// (10 s after the handler started, never past 12 s); the same apply keeps running in the background.
-const APPLY_DEADLINE_MS = 10_000;
-const APPLY_DEADLINE_MAX_MS = 12_000;
+// (9.4 T1.5) Answer first, work after. The upload is already stored (the import row and its ledger refs are written before this
+// point), so the response waits for the apply only for a short grace and otherwise answers "received, applying" (the companion
+// handles `applying` and does not resend). The apply keeps running in the background; a failure is logged, told and retried
+// (failApply / retryApplyLater), and a PREVIEWED import left by a restart is applied again when the companion resends the file.
+export const APPLY_GRACE_MS = 2_500;
+export function applyWaitMs(graceMs = APPLY_GRACE_MS): number { return Math.max(0, graceMs); }
+/** Applies for one guild never overlap, whoever uploaded (the lanes below only order one uploader's own uploads). */
+export function runGuildApply<T>(guildId: string, work: () => Promise<T>): Promise<T> { return serializeByKey(`apply:${guildId}`, work); }
 const applyLanes = new Map<string, { pending: unknown }>();
 
 /**
@@ -1809,7 +1813,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const began = Date.now();
         let applied = false;
         try {
-          const result = await autoApplyImport({ guildId: guild.id, discordId: guild.discordId, importId: job.importId, createdBy, since: uploadStartedAt, retried: job.retried, onApplied: () => { applied = true; } });
+          const result = await runGuildApply(guild.id, () => autoApplyImport({ guildId: guild.id, discordId: guild.discordId, importId: job.importId, createdBy, since: uploadStartedAt, retried: job.retried, onApplied: () => { applied = true; } }));
           return { ok: true, result, ms: Date.now() - began };
         } catch (error) { return { ok: false, error, applied, ms: Date.now() - began }; }
       };
@@ -1858,8 +1862,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           await prisma.addonImport.updateMany({ where: { id: replaced.importId, guildId: guild.id, status: "PREVIEWED" }, data: { status: "SUPERSEDED" } });
         }));
         if (!first) return { state: "applying" };
-        const wait = Math.min(APPLY_DEADLINE_MS, APPLY_DEADLINE_MAX_MS) - (Date.now() - requestStartedAt);
-        const outcome = await raceDeadline(first, Math.max(1_000, wait));
+        const outcome = await raceDeadline(first, applyWaitMs());
         if (!outcome) { void first.then((late) => settleLate(late, job)); return { state: "applying" }; }
         // Finished inside the deadline: the answer carries the result. Logged with late=0 so the two kinds can be told apart.
         console.info(applyFinishedLine({ guildHash, ms: outcome.ms, late: false, ok: outcome.ok, ...(outcome.ok ? {} : { error: outcome.error }) }));

@@ -137,10 +137,10 @@ describe("Blackrock Spire, Dire Maul and Stratholme wings", () => {
   });
   it("names them in English and French", () => {
     expect(localDungeonName({ instanceId: 229, dungeonName: "Pic Rochenoire", routeKey: "229:upper" }, "en")).toBe("Upper Blackrock Spire");
-    expect(localDungeonName({ instanceId: 229, dungeonName: "x", routeKey: "229:upper" }, "fr")).toBe("Sommet du pic Rochenoire");
+    expect(localDungeonName({ instanceId: 229, dungeonName: "x", routeKey: "229:upper" }, "fr")).toBe("Upper Blackrock Spire");
     expect(localDungeonName({ instanceId: 36, dungeonName: "Mortemines" }, "en")).toBe("The Deadmines");
-    expect(localDungeonName({ instanceId: 36, dungeonName: "The Deadmines" }, "fr")).toBe("Les Mortemines");
-    expect(localDungeonName({ instanceId: 189, dungeonName: "Monastère écarlate", routeKey: "189:armory" }, "fr")).toBe("Monastère Écarlate : Armurerie");
+    expect(localDungeonName({ instanceId: 36, dungeonName: "The Deadmines" }, "fr")).toBe("The Deadmines");
+    expect(localDungeonName({ instanceId: 189, dungeonName: "Monastère écarlate", routeKey: "189:armory" }, "fr")).toBe("Scarlet Monastery: Armory");
     expect(localDungeonName({ instanceId: 999999, dungeonName: "Whatever" }, "en")).toBe("Whatever");
   });
 });

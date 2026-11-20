@@ -35,7 +35,7 @@ describe("community chat channel lookup", () => {
       guildSettings: { findUnique: async () => ({ language: "en", promotionCongratsEnabled: true }) },
       communitySeason: { findFirst: async () => null }, communityHonors: { findUnique: async () => ({ channelId: "fame" }) },
       member: { findMany: async () => [{ id: "m1", discordUserId: USER, displayName: "Simon" }] },
-      discordJob: { findUnique: async () => null, upsert: async ({ where, create }: { where: { guildId_key: { key: string } }; create: { payload: Record<string, unknown> } }) => { jobs.set(where.guildId_key.key, create); return create; } }
+      discordJob: { findMany: async () => [], upsert: async ({ where, create }: { where: { guildId_key: { key: string } }; create: { payload: Record<string, unknown> } }) => { jobs.set(where.guildId_key.key, create); return create; } }
     } as never;
     const guild = { members: {}, channels: { cache: new Map([["c1", { id: "c1", name: "Community", type: 4 }], ["t1", { id: "t1", name: "community-chat", type: 0, parentId: "c1" }]]) } } as never;
     expect(await postPromotionCongrats(db, guild, "g", [{ name: "Halidor", rankName: "Member", memberId: "m1" }])).toBe(1);
@@ -53,7 +53,7 @@ describe("spread backfill", () => {
   it("queues a card job with its own release time and the worker waits for it", async () => {
     let row: Record<string, unknown> | null = null;
     const db = { discordJob: {
-      findUnique: async () => row ? { ...row } : null,
+      findUnique: async () => row ? { ...row } : null, findMany: async () => [],
       upsert: async ({ create }: { create: Record<string, unknown> }) => { row = { id: "j", revision: 1, status: "PENDING", attempts: 0, nextAttemptAt: new Date(), lockedUntil: null, leaseToken: null, ...create }; return row; },
       updateMany: async ({ where, data }: { where: { nextAttemptAt?: { lte: Date } }; data: Record<string, unknown> }) => {
         if (where.nextAttemptAt && (row!["nextAttemptAt"] as Date) > where.nextAttemptAt.lte) return { count: 0 };

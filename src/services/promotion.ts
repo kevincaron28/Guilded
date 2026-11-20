@@ -183,8 +183,9 @@ export function promotionLogLine(name: string, rankName: string, lang: "en" | "f
 }
 
 /** The public congratulations (19 Nov 2026), server language. `who` is a mention or a plain name. */
-export function promotionCongratsText(who: string, character: string, rankName: string, lang: "en" | "fr"): string {
-  return lang === "fr" ? `🎉 Félicitations à ${who} (${character}), promu·e **${rankName}** !` : `🎉 Congratulations to ${who} (${character}), promoted to **${rankName}**!`;
+export function promotionCongratsText(who: string, rankName: string, lang: "en" | "fr"): string {
+  // The character is not repeated here: the mention already shows the member's "Discord (Main)" name and the card carries the character.
+  return lang === "fr" ? `🎉 Félicitations à ${who} pour sa promotion au rang de **${rankName}** !` : `🎉 Congratulations to ${who} on their promotion to **${rankName}**!`;
 }
 
 type CongratsDb = Pick<PrismaClient, "guildSettings" | "member" | "discordJob" | "communitySeason" | "communityHonors">;
@@ -254,10 +255,12 @@ export async function postPromotionCongrats(db: CongratsDb, discordGuild: Pick<D
 export async function queuePromotionCongrats(db: Pick<PrismaClient, "discordJob">, guildId: string, channelId: string, lang: "en" | "fr",
   p: { userId: string; memberName: string; name: string; rankName: string; at: Date }, notBefore?: Date): Promise<boolean> {
   if (!/^\d{17,20}$/.test(p.userId) || isAltRank(p.rankName)) return false;
-  const key = `promotion-congrats:${p.userId}:${p.rankName.trim().toLowerCase()}:${p.at.toISOString().slice(0, 10)}`;
-  if (await db.discordJob.findUnique({ where: { guildId_key: { guildId, key } }, select: { id: true } })) return false;
+  const prefix = `promotion-congrats:${p.userId}:${p.rankName.trim().toLowerCase()}:`, key = `${prefix}${p.at.toISOString().slice(0, 10)}`;
+  // The live path keys on the upload day and the backfill on the event day (hours apart at best): any job for the same member and rank within 7 days counts as the same promotion.
+  const near = await db.discordJob.findMany({ where: { guildId, key: { startsWith: prefix } }, select: { key: true } });
+  if (near.some((j) => Math.abs(Date.parse(`${j.key.slice(prefix.length)}T00:00:00Z`) - p.at.getTime()) <= 7 * 86_400_000 + 86_400_000)) return false;
   const character = cleanCharacterName(p.name);
-  const text = promotionCongratsText(`<@${p.userId}>`, character, p.rankName, lang);
+  const text = promotionCongratsText(`<@${p.userId}>`, p.rankName, lang);
   const card = promotionCard(lang, { name: p.memberName, character, rank: p.rankName });
   await enqueueDiscordJob(db, guildId, key, "MESSAGE", { channelId, message: { content: text }, mentionUsers: [p.userId], card: JSON.parse(JSON.stringify(card)),
     cardOnly: { content: text, embeds: [textlessEmbed(0xc9a227)] } }, notBefore);

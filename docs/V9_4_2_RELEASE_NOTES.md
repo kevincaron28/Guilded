@@ -1,6 +1,6 @@
 # Guilded 9.4.2 — release notes (19 November 2026)
 
-**The data-loss audit fixes.** Prepared 19 November 2026, not yet published. Protocol 2, WoW Forever only. Bot changes are already live.
+**The data-loss audit fixes.** Published 19 November 2026. Protocol 2, WoW Forever only. Bot changes are already live.
 
 Real-client checks: docs/V9_4_2_RELEASE_ACCEPTANCE.md. 9.4.2 is not yet confirmed on real clients.
 

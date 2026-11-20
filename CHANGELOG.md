@@ -2,7 +2,7 @@
 
 ## 9.4.2 — 19 November 2026
 
-The data-loss audit fixes (docs/plans/DATA_LOSS_AUDIT_2026-11-19.md). Prepared 19 November 2026, not yet published. Not yet confirmed on real clients (see docs/V9_4_2_RELEASE_ACCEPTANCE.md).
+The data-loss audit fixes (docs/plans/DATA_LOSS_AUDIT_2026-11-19.md). Published 19 November 2026. Not yet confirmed on real clients (see docs/V9_4_2_RELEASE_ACCEPTANCE.md).
 
 Addon:
 

@@ -2,6 +2,8 @@
 
 Prepared 20 November 2026, not yet published. Protocol 2, WoW Forever only. Bot changes are already live.
 
+Real-client checks: docs/V9_4_3_RELEASE_ACCEPTANCE.md. 9.4.3 is not yet confirmed on real clients.
+
 ## What changes for members
 
 - **Dungeons:** Krol'dok Stronghold and Alcaz Prison count as finished at their last boss.

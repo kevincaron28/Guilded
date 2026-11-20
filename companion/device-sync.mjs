@@ -1,6 +1,6 @@
 import { requestJson, versionHeaders } from "./request.mjs";
 import { UPLOAD_TIMEOUT_MS } from "./retry.mjs";
-import { foreverSameName } from "./character-identity.mjs";
+import { foreverSameName, sameCharacter, characterId } from "./character-identity.mjs";
 import { leaveOut } from "./group-relay.mjs";
 import { carryId } from "./carry-content.mjs";
 
@@ -40,6 +40,7 @@ export function deviceUploadBody(full, options = {}) {
       name,
       realm: label(entry.realm, 100) ?? "",
       ...(label(entry.displayName, 80) ? { displayName: label(entry.displayName, 80) } : {}),
+      ...(characterId(entry.id) ? { id: characterId(entry.id) } : {}),
       ...(label(entry.class, 30) ? { class: label(entry.class, 30) } : {}),
       ...(label(entry.race, 30) ? { race: label(entry.race, 30) } : {}),
       ...(Number.isInteger(level) && level >= 1 && level <= 100 ? { level } : {})
@@ -52,7 +53,7 @@ export function deviceUploadBody(full, options = {}) {
   // companion that agrees (docs/plans/RUN_TRUST_2026-11-10.md). Until then they wait on the bot, not as "received".
   const acknowledged = options.acknowledged instanceof Set ? options.acknowledged : new Set();
   const played = (run) => Array.isArray(run.players) && run.players.some(player => typeof player?.character === "string"
-    && characters.some(own => foreverSameName(own.name, player.character)));
+    && characters.some(own => sameCharacter(own.name, player.character, own.id, player.id)));
   const heard = (run) => Array.isArray(run.reporterNames) && Array.isArray(run.players) && run.players.some(player => typeof player?.character === "string"
     && run.reporterNames.some(name => typeof name === "string" && foreverSameName(name, player.character)));
   const dungeonRuns = (Array.isArray(full?.dungeonRuns) ? full.dungeonRuns : []).filter(run => run && run.state === "COMPLETED" && !leaveOut(run, { enabled: options.groupRelay === true, acknowledged }) && (played(run) || heard(run)))
@@ -60,7 +61,7 @@ export function deviceUploadBody(full, options = {}) {
   if (options.runsOnly) {
     // (9.3.1) A parked guild's runs: only the characters that vouch for them (one of them played a sent run), flagged so the bot stores
     // nothing of the device (guild, server pick, characters) and never guesses the server from a roster.
-    const vouching = characters.filter(own => dungeonRuns.some(run => Array.isArray(run.players) && run.players.some(player => typeof player?.character === "string" && foreverSameName(own.name, player.character))));
+    const vouching = characters.filter(own => dungeonRuns.some(run => Array.isArray(run.players) && run.players.some(player => typeof player?.character === "string" && sameCharacter(own.name, player.character, own.id, player.id))));
     return { runsOnly: true, guild: splitGuildKey(full?.wowGuild), characters: vouching, ...(dungeonRuns.length ? { dungeonRuns } : {}) };
   }
   // (9.3.2) Records the addon carried for players near this PC, only to a bot that announced the feature.

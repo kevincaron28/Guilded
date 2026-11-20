@@ -3,21 +3,39 @@ import { gameEditionOf } from "./game-edition.mjs";
 export const realmKey = value => String(value ?? "").normalize("NFC").replace(/\s+/g, "").toLowerCase();
 
 const bareLower = value => String(value ?? "").split("-")[0].trim().replace(/\s+/g, " ").normalize("NFC").toLowerCase();
-/** An id as sent or stored (hex string, bigint or number); empty means unknown. */
-const idText = value => value === undefined || value === null || value === "" ? null : String(value);
-
+/**
+ * (Character ids, docs/plans/CHARACTER_ID_MATCHING_2026-11-20.md) The character id the addon read from a GUID: lowercase hex of the
+ * low part, no leading zeros, 1-16 digits. Anything else is "no id" (undefined), never an error.
+ */
+export function characterId(value) {
+  if (typeof value !== "string") return undefined;
+  const text = value.trim().toLowerCase();
+  if (!/^[0-9a-f]{1,16}$/.test(text)) return undefined;
+  const stripped = text.replace(/^0+/, "");
+  return stripped === "" ? undefined : stripped;
+}
+/**
+ * One comparable form for every id shape: the addon and companion send hex strings ("6a7bd5"), the bot stores `wowId` as a bigint
+ * (6978517n) and the Armory gives a number. All become the decimal text of the same integer; anything unreadable is null.
+ */
+export function idKey(value) {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value === "bigint") return value > 0n ? value.toString() : null;
+  if (typeof value === "number") return Number.isSafeInteger(value) && value > 0 ? String(value) : null;
+  const hex = characterId(value);
+  return hex ? BigInt(`0x${hex}`).toString() : null;
+}
 /**
  * WoW Forever names during the 8.5 move from first-name keys to full "First Last" names: the
  * same name, or one side is a bare first name (an older addon, a row stored before the fix)
  * and the other a full name starting with it. Callers accept the loose match only when it is
  * the single candidate (see foreverNameMatches).
- * Character IDs (docs/plans/CHARACTER_ID_MATCHING_2026-11-20.md), always on: with both ids known they alone decide (equal = same
- * character, even renamed); with one id known only the exact name counts, never the loose first-name branch. The loose rule below
- * runs only when neither side has an id (rows and reports not yet stamped).
+ * Character IDs, always on: with both ids known they alone decide (equal = same character, even renamed); with one id known only
+ * the exact name counts, never the loose first-name branch. The loose rule runs only when neither side has an id.
  */
 export function foreverSameName(a, b, idA, idB) {
   const x = bareLower(a), y = bareLower(b);
-  const p = idText(idA), q = idText(idB);
+  const p = idKey(idA), q = idKey(idB);
   if (p !== null && q !== null) return p === q;
   if (p !== null || q !== null) return !!x && x === y;
   if (!x || !y) return false;
@@ -26,21 +44,30 @@ export function foreverSameName(a, b, idA, idB) {
   return !short.includes(" ") && long.includes(" ") && long.startsWith(`${short} `);
 }
 /**
- * Items whose name is exactly `name`; failing that, the single loose (first-name) match, or none.
- * Items may carry `wowId` (bigint or null). A loose match never lands on an item with an id; with `refId` (the report's id) the item
- * holding that id wins, and an item with a different id never matches, even by exact name.
+ * Players of one run (copies from several addons): both ids known -> equal ids decide; otherwise the name rule without ids, so an
+ * older addon's unstamped copy of a run still matches the stamped one.
  */
-export function foreverNameMatches(items, name, nameOf = item => item.name, refId = /** @type {unknown} */ (null)) {
+export function sameCharacter(a, b, idA, idB) {
+  const x = idKey(idA), y = idKey(idB);
+  if (x !== null && y !== null) return x === y;
+  return foreverSameName(a, b);
+}
+/**
+ * Items whose name is exactly `name`; failing that, the single loose (first-name) match, or none.
+ * Items may carry an id (`wowId`, else `id`; any shape idKey reads). A loose match never lands on an item with an id; with `refId`
+ * (the report's id) the item holding that id wins, and an item with a different id never matches, even by exact name.
+ */
+export function foreverNameMatches(items, name, nameOf = item => item.name, refId = /** @type {unknown} */ (null), idOf = item => item.wowId ?? item.id) {
   const wanted = bareLower(name);
   let exact = items.filter(item => bareLower(nameOf(item)) === wanted);
-  const ref = idText(refId);
+  const ref = idKey(refId);
   if (ref !== null) {
-    const held = items.find(item => idText(item.wowId) === ref);
-    if (held) return [held];
-    exact = exact.filter(item => idText(item.wowId) === null);
+    const held = items.filter(item => idKey(idOf(item)) === ref);
+    if (held.length) return held;
+    exact = exact.filter(item => idKey(idOf(item)) === null);
   }
   if (exact.length) return exact;
-  const loose = items.filter(item => idText(item.wowId) === null && foreverSameName(nameOf(item), name));
+  const loose = items.filter(item => idKey(idOf(item)) === null && foreverSameName(nameOf(item), name));
   return loose.length === 1 ? loose : [];
 }
 export function characterReference(name, realm, edition = "forever") {

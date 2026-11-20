@@ -519,7 +519,7 @@ export function createAddonImportService(database: PrismaClient) {
         const battlegrounds = await importBattlegroundReports(tx, guildId, imported.pairedMemberId, snapshot.battlegroundReports);
         // Duels and milestones come only from a paired member's own companion (never an officer's whole-guild upload).
         const guildEdition = gameEditionOf(guild ?? {});
-        const duels = await importDuelResults(tx, guildId, guildEdition, imported.pairedMemberId, characters.map((character) => ({ id: character.id, name: character.name, realm: character.realm, memberId: character.memberId, level: character.level })), snapshot.duelResults);
+        const duels = await importDuelResults(tx, guildId, guildEdition, imported.pairedMemberId, characters.map((character) => ({ id: character.id, name: character.name, realm: character.realm, memberId: character.memberId, level: character.level, wowId: character.wowId ?? null })), snapshot.duelResults);
         // Duels against players outside the guild (an addon that records them): the paired member's own reports only.
         if (snapshot.externalDuels.length && imported.pairedMemberId && (tx as { publicDuel?: unknown }).publicDuel) {
           await recordGlobalDuels(tx, { reporterKey: `member:${imported.pairedMemberId}`, guildId, guildName: guild?.wowSpace?.name ?? null, guildRealm: guild?.wowSpace?.realm ?? null }, snapshot.externalDuels);

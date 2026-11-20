@@ -935,6 +935,8 @@ local function collectCharacter()
     guildRankName = rankName,
     guildRankIndex = rankIndex,
     name = ns.util.bareName(playerName()),
+    -- (stage B) The character id (low part of the GUID, hex); nil when the client gives none.
+    id = ns.util.unitId("player"),
     displayName = ns.util.unitDisplayName("player"),
     gameEdition = ns.util.gameEdition(),
     interface = ns.util.clientInterface(),
@@ -1437,6 +1439,12 @@ inspectReadiness = function(silent, target, tries)
   if identityOk and type(identity) == "table" and identity.class ~= "" then
     local field = "I:" .. table.concat({ identity.class, identity.race, tostring(identity.level or 0),
       (string.gsub(identity.spec or "", "[|,;]", "")) }, ",")
+    if #digest + 1 + #field <= MAX_ADDON_MESSAGE then digest = digest .. "|" .. field end
+  end
+  -- (stage B) This character's id as "ID=<hex>": a prefix older addons do not know (it has no colon, so they never read it as a
+  -- profession); receivers keep it beside the sender's name.
+  if identityOk and type(identity) == "table" and identity.id then
+    local field = "ID=" .. identity.id
     if #digest + 1 + #field <= MAX_ADDON_MESSAGE then digest = digest .. "|" .. field end
   end
   -- The /guilded verify code.
@@ -2345,9 +2353,10 @@ local function handlePeerReadiness(text, sender, channel)
   if channel ~= "GUILD" and not isGuildMember(name) then return end
   -- The text comes from another player's client. Only well-formed pieces are kept: this ends
   -- up in the officer's upload, and one odd value must not spoil it.
-  local professions, flags, identity, professionsAt, verify = "", "", nil, nil, nil
+  local professions, flags, identity, professionsAt, verify, peerId = "", "", nil, nil, nil, nil
   for index = 6, #parts do
-    if string.sub(parts[index], 1, 2) == "F:" then flags = string.sub(parts[index], 3, 120)
+    if string.sub(parts[index], 1, 3) == "ID=" then peerId = ns.util.validId(string.sub(parts[index], 4))
+    elseif string.sub(parts[index], 1, 2) == "F:" then flags = string.sub(parts[index], 3, 120)
     -- Kept under the sender's name only (checked above), which is what makes it proof.
     elseif string.sub(parts[index], 1, 2) == "V:" then verify = validVerifyCode(string.sub(parts[index], 3))
     elseif string.sub(parts[index], 1, 2) == "I:" then
@@ -2388,6 +2397,7 @@ local function handlePeerReadiness(text, sender, channel)
     professionsAt = professionsAt,
     flags = flags,
     identity = identity,
+    id = peerId or (previous and previous.id) or nil,
     verify = verify,
     updatedAt = now(),
     -- When it arrived (seconds), so the Ready page can say how old it is.

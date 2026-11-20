@@ -60,6 +60,16 @@ describe("util.placeBeside", () => {
     expect(s!.run(`local a, b = GuildedRosterAdmin, GuildedPanel; return tostring(a.l >= b.l and a.l + a.w <= b.l + b.w and a.b >= b.b and a.b + a.h <= b.b + b.h)`)).toBe("true");
   });
 
+  it("with the main window and Roster admin filling the width, covers Roster admin squarely and is raised (seen in game 20 Nov)", () => {
+    setup();
+    s!.run(`GuildedPanel = fake(60, 300, 590, 600, true); GuildedRosterAdmin = fake(660, 400, 520, 430, true); GuildedPromotionPanel = fake(0, 0, 480, 400, false)
+      UIParent.GetWidth = function() return 1200 end; raised = false; function GuildedPromotionPanel:Raise() raised = true end`);
+    s!.run(`NS.util.placeBeside(GuildedPromotionPanel)`);
+    expect(s!.run(`return tostring(overlaps(GuildedPromotionPanel, GuildedPanel))`)).toBe("false");
+    expect(s!.run(`local a, b = GuildedPromotionPanel, GuildedRosterAdmin; return tostring(a.l == b.l and a.b + a.h == b.b + b.h)`)).toBe("true");
+    expect(s!.run(`return tostring(raised)`)).toBe("true");
+  });
+
   it("does nothing when no other Guilded window is shown", () => {
     setup();
     s!.run(`GuildedRosterAdmin = fake(300, 100, 720, 580, false); GuildedPanel = fake(0, 0, 10, 10, false)`);

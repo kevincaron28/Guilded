@@ -127,7 +127,7 @@ function util.placeBeside(frame, gap)
     local o = _G[name]
     if o and o ~= frame and o.IsShown and o:IsShown() then
       local l, r, t, b = cardRect(o)
-      if l then others[#others + 1] = { l = l, r = r, t = t, b = b } end
+      if l then others[#others + 1] = { l = l, r = r, t = t, b = b, main = name == "GuildedPanel" } end
     end
   end
   if #others == 0 then return false end
@@ -144,15 +144,28 @@ function util.placeBeside(frame, gap)
   for _, o in ipairs(others) do spots[#spots + 1] = { o.r + gap, top }; spots[#spots + 1] = { o.l - w - gap, top } end
   local left, spotTop
   for _, c in ipairs(spots) do if free(c[1], c[2]) then left, spotTop = c[1], c[2]; break end end
+  local covering = false
   if not left then
-    local big = others[1]
-    for _, o in ipairs(others) do if (o.r - o.l) * (o.t - o.b) > (big.r - big.l) * (big.t - big.b) then big = o end end
-    left = math.max(0, math.min(sw - w, (big.l + big.r) / 2 - w / 2))
-    spotTop = math.max(h, math.min(sh, (big.t + big.b) / 2 + h / 2))
+    -- No room beside (20 Nov 2026, seen in game: the main window and Roster admin fill the screen width): cover ONE window
+    -- squarely instead of half-covering the main one. Prefer a side window (Roster admin opened this one) over the main
+    -- window, then the biggest; align to its top-left so the covered window's own title and buttons are hidden, not mixed in.
+    local pick
+    for _, o in ipairs(others) do
+      if not o.main and (not pick or (o.r - o.l) * (o.t - o.b) > (pick.r - pick.l) * (pick.t - pick.b)) then pick = o end
+    end
+    if not pick then
+      pick = others[1]
+      for _, o in ipairs(others) do if (o.r - o.l) * (o.t - o.b) > (pick.r - pick.l) * (pick.t - pick.b) then pick = o end end
+    end
+    left = math.max(0, math.min(sw - w, pick.l))
+    spotTop = math.max(h, math.min(sh, pick.t))
+    covering = true
   end
   local ok = pcall(function()
     frame:ClearAllPoints()
     frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, spotTop)
+    -- On top of what it covers: same strata as the highest shown Guilded window, then raised above every frame in it.
+    if covering and frame.Raise then frame:Raise() end
   end)
   return ok
 end

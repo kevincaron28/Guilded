@@ -479,7 +479,7 @@ function calendar.createMissing()
       return ok
     end
   end
-  ns.message("All upcoming Discord events are already in the guild calendar (or none are available).")
+  ns.message(L("All upcoming Discord events are already in the guild calendar (or none are available)."))
   return false
 end
 

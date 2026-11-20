@@ -1,5 +1,6 @@
 -- Optional officer bridge: companion files -> online guildmates, never executable Lua.
 local _, ns = ...
+local function L(text) return ns.L and ns.L(text) or text end
 local PREFIX, CHUNK, MAX_BYTES, MAX_PARTS = "GuildedBridge", 180, 46080, 256
 -- Wire versions. DATA|1 sends every byte as two hex digits. DATA|2 keeps printable ASCII as is
 -- and writes only other bytes, "%" and "|" as %XX: the data is mostly plain text, so it takes
@@ -240,7 +241,7 @@ local function share(forceV1)
   elseif okay and not v1 and #payload <= MAX_BYTES then
     wire, size, kind = escape2(payload), CHUNK2, "DATA|2|"
   end
-  if not wire or math.ceil(#wire / size) > MAX_PARTS then ns.message("Officer bridge data is too large to share. Use the Windows companion for now."); return end
+  if not wire or math.ceil(#wire / size) > MAX_PARTS then ns.message(L("Officer bridge data is too large to share. Use the Windows companion for now.")); return end
   lastShare = clock()
   local total = math.ceil(#wire / size)
   for index = 1, total do
@@ -300,8 +301,8 @@ ns.commandHandlers["bridge"] = function(args)
   local mode, d, key = string.lower(args[1] or "status"), db(), guildKey()
   if mode == "off" then mode = "on" end -- there is no off any more
   if mode == "on" then
-    if not ns.isOfficer() then ns.message("Only an officer can enable the guild's Discord bridge."); return end
-    if not d or not key then ns.message("Join your in-game guild before enabling the officer bridge."); return end
+    if not ns.isOfficer() then ns.message(L("Only an officer can enable the guild's Discord bridge.")); return end
+    if not d or not key then ns.message(L("Join your in-game guild before enabling the officer bridge.")); return end
     d.settings = d.settings or {}; d.settings.officerBridge = { enabled = true, guild = key }
     if mode == "on" then d.bridgeCompanionGuild = key end
     if mode == "on" then capture(); share() end
@@ -312,10 +313,10 @@ ns.commandHandlers["bridge"] = function(args)
   local data = d and d.officerBridge
   if ns.isOfficer() and key then
     if d and d.bridgeCompanionGuild and d.bridgeCompanionGuild ~= key then
-      ns.message("Companion data is bound to another guild. Check the companion guild, save standings, /reload, then /guilded bridge on."); return
+      ns.message(L("Companion data is bound to another guild. Check the companion guild, save standings, /reload, then /guilded bridge on.")); return
     end
     if (not data or not sameGuild(data.snapshot)) and (type(GuildedStandings) ~= "table" or type(GuildedStandings.updatedAt) ~= "string") then
-      ns.message("Officer bridge needs companion data. Sync and save standings on this PC, then /reload."); return
+      ns.message(L("Officer bridge needs companion data. Sync and save standings on this PC, then /reload.")); return
     end
   end
   ns.message(data and sameGuild(data.snapshot) and ("Guild data from " .. tostring(data.from) .. " (" .. data.updatedAt .. ").") or "Waiting for an online officer to share Discord guild data. The Windows companion is optional.")

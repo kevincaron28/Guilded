@@ -645,7 +645,7 @@ local function voidEntry(target)
   logEvent("VOID", { name = foundName, id = found.id, epAmount = found.epAmount, gpAmount = found.gpAmount })
   local channel = util.groupChannel()
   if channel then comm.send(PREFIX, "LEDGERVOID|" .. found.id, channel, nil, nil, "interactive") end
-  message(string.format("Voided: %s. Discord takes it back with the next upload.", describeEntry(foundName, found)))
+  message(string.format(L("Voided: %s. Discord takes it back with the next upload."), describeEntry(foundName, found)))
   return true
 end
 
@@ -722,7 +722,7 @@ local function seenAttendance()
     if not recorded[name] and setAttendance(name, "PRESENT", true) then count = count + 1 end
     recorded = db.attendance[activeRaid.id]
   end
-  message(string.format("Marked %d more player(s) PRESENT from who was in the raid group.", count))
+  message(string.format(L("Marked %d more player(s) PRESENT from who was in the raid group."), count))
 end
 
 -- /guilded attendance roster: the selected raid core's roster against who is in the group:
@@ -774,11 +774,11 @@ local function raidTemplate(args)
     if title == "" then title = activeRaid and activeRaid.title or args[3] end
     local core = ns.loot and ns.loot.core and ns.loot.core()
     db.raidTemplates[name] = { title = title, coreId = core and core.id or nil }
-    message(string.format("Template %s saved: %s%s. Start it with /guilded start %s.", args[3], title,
-      core and (" (core " .. (core.name or core.id) .. ")") or "", args[3]))
+    message(string.format(L("Template %s saved: %s%s. Start it with /guilded start %s."), args[3], title,
+      core and string.format(L(" (core %s)"), core.name or core.id) or "", args[3]))
   elseif sub == "remove" and args[3] then
     db.raidTemplates[string.lower(args[3])] = nil
-    message("Template " .. args[3] .. " removed.")
+    message(string.format(L("Template %s removed."), args[3]))
   else
     local names = {}
     for name, t in pairs(db.raidTemplates) do table.insert(names, name .. " (" .. (t.title or name) .. ")") end
@@ -817,7 +817,7 @@ local function groupAttendance(status)
   for _, name in ipairs(groupMembers()) do
     if setAttendance(name, status or "PRESENT", true) then count = count + 1 end
   end
-  message(string.format("Marked %d group member(s) %s.", count, string.upper(status or "PRESENT")))
+  message(string.format(L("Marked %d group member(s) %s."), count, string.upper(status or "PRESENT")))
 end
 
 -- /guilded snapshot [label]: a named "who is here right now" (pre-pull, after a
@@ -860,7 +860,7 @@ local function groupAward(rawAmount, reason)
       -- Nothing left to award.
     elseif changeEpgp(name, amount, note, "EP_AWARD", true) then count = count + 1 else return end
   end
-  message(string.format("Awarded %s EP to %d group member(s)%s.", tostring(rawAmount), count,
+  message(string.format(L("Awarded %s EP to %d group member(s)%s."), tostring(rawAmount), count,
     (reason and reason ~= "") and (" (" .. reason .. ")") or ""))
   if #reduced > 0 then message(string.format(L("Consumable penalty applied to %d player(s): %s."), #reduced, table.concat(reduced, ", "))) end
 end
@@ -1609,7 +1609,7 @@ local function exportData()
   for existing in pairs(db.exports) do table.insert(keys, existing) end
   table.sort(keys)
   for i = 1, #keys - MAX_EXPORT_MARKERS do db.exports[keys[i]] = nil end
-  message("Export marked at " .. key .. ". /reload (or log out) so the game writes SavedVariables, then run the companion.")
+  message(string.format(L("Export marked at %s. /reload (or log out) so the game writes SavedVariables, then run the companion."), key))
 end
 
 local function showIdentity()
@@ -1680,9 +1680,9 @@ local function officerCommand(args)
     local ranks = {}
     for rank, on in pairs(db.settings.officerRanks) do if on then table.insert(ranks, tostring(rank)) end end
     table.sort(ranks)
-    message("Officer rank indexes (0 = guild master): " .. (#ranks > 0 and table.concat(ranks, ", ") or "none"))
-    message("Extra officers: " .. (#names > 0 and table.concat(names, ", ") or "none"))
-    message("You are " .. (isOfficer() and "" or "NOT ") .. "an officer for this addon.")
+    message(string.format(L("Officer rank indexes (0 = guild master): %s"), #ranks > 0 and table.concat(ranks, ", ") or L("none")))
+    message(string.format(L("Extra officers: %s"), #names > 0 and table.concat(names, ", ") or L("none")))
+    message(isOfficer() and L("You are an officer for this addon.") or L("You are NOT an officer for this addon."))
     return
   end
   if action == "auto" and ns.officerNotes then ns.officerNotes.command(args); return end
@@ -1697,7 +1697,7 @@ local function officerCommand(args)
     local on = string.lower(args[4] or "")
     if not rank or (on ~= "on" and on ~= "off") then message("Usage: /guilded officer rank <index> on|off"); return end
     db.settings.officerRanks[rank] = on == "on" or nil
-    message("Guild rank index " .. rank .. " is " .. (on == "on" and "now" or "no longer") .. " an officer rank.")
+    message(string.format(on == "on" and L("Guild rank index %s is now an officer rank.") or L("Guild rank index %s is no longer an officer rank."), tostring(rank)))
   else
     message("Usage: /guilded officer list | add <name> | remove <name> | rank <index> on|off | auto status|professions|epgp|promote|greet|all on|off")
   end
@@ -2161,22 +2161,22 @@ local function command(text)
     local sub = string.lower(args[2] or "")
     if sub == "on" or sub == "off" then
       db.settings.enchantCheck = (sub == "on")
-      message("Enchant check " .. sub .. ".")
+      message(sub == "on" and L("Enchant check on.") or L("Enchant check off."))
     elseif sub == "level" and tonumber(args[3]) then
       db.settings.enchantMinLevel = math.floor(tonumber(args[3]))
-      message("Enchants are checked from level " .. db.settings.enchantMinLevel .. ".")
+      message(string.format(L("Enchants are checked from level %d."), db.settings.enchantMinLevel))
     else
-      message(string.format("Enchant check is %s, from level %d. /guilded enchants on|off|level <n>.",
-        db.settings.enchantCheck ~= false and "on" or "off", db.settings.enchantMinLevel or DEFAULT_ENCHANT_MIN_LEVEL))
+      message(string.format(L("Enchant check is %s, from level %d. /guilded enchants on|off|level <n>."),
+        db.settings.enchantCheck ~= false and L("on") or L("off"), db.settings.enchantMinLevel or DEFAULT_ENCHANT_MIN_LEVEL))
     end
   elseif action == "slots" then
     local sub = string.lower(args[2] or "")
     if sub == "level" and tonumber(args[3]) then
       db.settings.slotMinLevel = math.max(1, math.floor(tonumber(args[3])))
-      message("Empty gear slots count as not ready from level " .. db.settings.slotMinLevel .. ".")
+      message(string.format(L("Empty gear slots count as not ready from level %d."), db.settings.slotMinLevel))
       inspectReadiness(true, "GUILD")
     else
-      message(string.format("Empty gear slots count as not ready from level %d. /guilded slots level <n> (1 = always).",
+      message(string.format(L("Empty gear slots count as not ready from level %d. /guilded slots level <n> (1 = always)."),
         db.settings.slotMinLevel or DEFAULT_SLOT_MIN_LEVEL))
     end
   elseif action == "share" then
@@ -2185,14 +2185,14 @@ local function command(text)
     local info = collectCharacter()
     db.character = info
     local code = selfExportString(info, db.readiness[playerName()], db.attunements[playerName()])
-    message("Your share code is " .. #code .. " characters (also shown in a box to copy). In Discord: /character link")
+    message(string.format(L("Your share code is %d characters (also shown in a box to copy). In Discord: /character link"), #code))
     showCharacterExport(code, "Guilded - copy this (Ctrl+C), then in Discord: /character link")
     ns.lastShareCode = code
   elseif action == "character" then
     local info = collectCharacter()
     db.character = info
     local line = characterString(info)
-    message("Your character line (also shown in a box to copy): " .. line)
+    message(string.format(L("Your character line (also shown in a box to copy): %s"), line))
     showCharacterExport(line)
   elseif action == "verify" then
     -- Retired in November 2026 (owner decision: links are confirmed by sync, the code was friction and
@@ -2481,7 +2481,7 @@ local function resolveGuildData()
     and guildPart(old) == guildPart(key) and not db.otherGuilds[key] then
     db.guildKey = key
     db.guildEdition = edition
-    message(string.format("Guild realm changed from \"%s\" to \"%s\": your saved data was kept (same guild name).", old, key))
+    message(string.format(L("Guild realm changed from \"%s\" to \"%s\": your saved data was kept (same guild name)."), old, key))
     return "rekeyed"
   end
   local parked = {}
@@ -2521,11 +2521,11 @@ local function resolveGuildData()
   db.guildEdition = edition
   ensureDb()
   if mergedFields then
-    message(string.format("Saved data under %s was merged into %s (%d sections). EP/GP stays under the old name. /reload is recommended.", old, key, mergedFields))
+    message(string.format(L("Saved data under %s was merged into %s (%d sections). EP/GP stays under the old name. /reload is recommended."), old, key, mergedFields))
     return "merged"
   end
-  message(string.format("Guild changed: now using the saved data for %s (%s). Data for %s is kept and comes back if you play there. /reload is recommended.",
-    key, restored and "restored" or "new", old))
+  message(string.format(L("Guild changed: now using the saved data for %s (%s). Data for %s is kept and comes back if you play there. /reload is recommended."),
+    key, restored and L("restored") or L("new"), old))
   return "switched"
 end
 

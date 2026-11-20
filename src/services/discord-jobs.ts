@@ -146,6 +146,11 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
       channelId = communityActivityChannel(activity);
       await assertCommunityChannelAudience(guild, activity.season.channelId, channelId);
     }
+    if (job.key.startsWith("promotion-congrats:")) {
+      // An officer who switched the congratulations off after a card was queued stops it here too.
+      const settings = await prisma.guildSettings.findUnique({ where: { guildId: job.guildId }, select: { promotionCongratsEnabled: true } });
+      if (settings?.promotionCongratsEnabled === false) return;
+    }
     const route = payload["route"];
     if (route === "dungeon") {
       const settings = await prisma.guildSettings.findUnique({ where: { guildId: job.guildId }, select: { dungeonChannelId: true, notifyChannelId: true } });

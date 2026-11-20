@@ -255,8 +255,10 @@ export async function postPromotionCongrats(db: CongratsDb, discordGuild: Pick<D
 export async function queuePromotionCongrats(db: Pick<PrismaClient, "discordJob">, guildId: string, channelId: string, lang: "en" | "fr",
   p: { userId: string; memberName: string; name: string; rankName: string; at: Date }, notBefore?: Date): Promise<boolean> {
   if (!/^\d{17,20}$/.test(p.userId) || isAltRank(p.rankName)) return false;
-  const key = `promotion-congrats:${p.userId}:${p.rankName.trim().toLowerCase()}:${p.at.toISOString().slice(0, 10)}`;
-  if (await db.discordJob.findUnique({ where: { guildId_key: { guildId, key } }, select: { id: true } })) return false;
+  const prefix = `promotion-congrats:${p.userId}:${p.rankName.trim().toLowerCase()}:`, key = `${prefix}${p.at.toISOString().slice(0, 10)}`;
+  // The live path keys on the upload day and the backfill on the event day (hours apart at best): any job for the same member and rank within 7 days counts as the same promotion.
+  const near = await db.discordJob.findMany({ where: { guildId, key: { startsWith: prefix } }, select: { key: true } });
+  if (near.some((j) => Math.abs(Date.parse(`${j.key.slice(prefix.length)}T00:00:00Z`) - p.at.getTime()) <= 7 * 86_400_000 + 86_400_000)) return false;
   const character = cleanCharacterName(p.name);
   const text = promotionCongratsText(`<@${p.userId}>`, p.rankName, lang);
   const card = promotionCard(lang, { name: p.memberName, character, rank: p.rankName });

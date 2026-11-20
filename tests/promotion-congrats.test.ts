@@ -12,7 +12,7 @@ function fakeDb(over: { settings?: Record<string, unknown> | null; season?: stri
     communityHonors: { findUnique: async () => over.honors === undefined ? { channelId: "chan-honors" } : over.honors ? { channelId: over.honors } : null },
     member: { findMany: async () => [{ id: "m1", discordUserId: USER, displayName: "Simon" }] },
     discordJob: {
-      findUnique: async ({ where }: { where: { guildId_key: { key: string } } }) => jobs.has(where.guildId_key.key) ? { id: "x" } : null,
+      findMany: async ({ where }: { where: { key: { startsWith: string } } }) => [...jobs.keys()].filter((k) => k.startsWith(where.key.startsWith)).map((key) => ({ key })),
       upsert: async ({ where, create }: { where: { guildId_key: { key: string } }; create: { kind: string; payload: Record<string, unknown> } }) => { jobs.set(where.guildId_key.key, create); return create; }
     }
   };
@@ -55,6 +55,17 @@ describe("promotion congratulations", () => {
     expect(await postPromotionCongrats(db, guild, "g1", [promo], now)).toBe(1);
     expect(await postPromotionCongrats(db, guild, "g1", [promo], new Date("2026-11-19T10:05:00Z"))).toBe(0);
     expect(jobs.size).toBe(1);
+  });
+  it("treats a backfilled event and a later live upload as one promotion, in both directions", async () => {
+    const live = fakeDb();
+    expect(await postPromotionCongrats(live.db, guild, "g1", [promo], new Date("2026-11-20T10:00:00Z"))).toBe(1);
+    expect(await postPromotionCongrats(live.db, guild, "g1", [promo], new Date("2026-11-17T22:00:00Z"))).toBe(0);
+    const back = fakeDb();
+    expect(await postPromotionCongrats(back.db, guild, "g1", [promo], new Date("2026-11-17T22:00:00Z"))).toBe(1);
+    expect(await postPromotionCongrats(back.db, guild, "g1", [promo], new Date("2026-11-20T10:00:00Z"))).toBe(0);
+    expect(live.jobs.size + back.jobs.size).toBe(2);
+    // A promotion to the same rank weeks later is a new one.
+    expect(await postPromotionCongrats(back.db, guild, "g1", [promo], new Date("2026-12-20T10:00:00Z"))).toBe(1);
   });
   it("words it in English too", () => {
     expect(promotionCongratsText("<@1>", "Member", "en")).toBe("🎉 Congratulations to <@1> on their promotion to **Member**!");

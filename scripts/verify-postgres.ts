@@ -279,10 +279,10 @@ try {
 
     // Core-only loot preserves historical entries while rejecting new global writes.
     await database.guildSettings.upsert({ where: { guildId: guild.id }, create: { guildId: guild.id, coreLootOnly: true, weeklyReportEnabled: true, weeklyReportChannelId: "wow-reports" }, update: { coreLootOnly: true, weeklyReportEnabled: true, weeklyReportChannelId: "wow-reports" } });
-    await assert.rejects(createEpgpService(database).awardEP({ guildId: guild.id, memberId: member.id, amount: 10, reason: "No core", createdBy: "policy-test" }), /Choisis un core/);
+    await assert.rejects(createEpgpService(database).awardEP({ guildId: guild.id, memberId: member.id, amount: 10, reason: "No core", createdBy: "policy-test" }), /Choisissez un core/);
     const raidForLoot = await database.raid.findFirstOrThrow({ where: { title: "Release mirrored raid" } });
     await createLootService(database).awardDirect({ guildId: guild.id, memberId: member.id, itemName: "Core council loot", gp: 0, raidId: raidForLoot.id, awardedBy: "policy-test" });
-    await assert.rejects(createLootService(database).awardDirect({ guildId: guild.id, memberId: member.id, itemName: "Unscoped council loot", gp: 0, awardedBy: "policy-test" }), /Choisis un core/);
+    await assert.rejects(createLootService(database).awardDirect({ guildId: guild.id, memberId: member.id, itemName: "Unscoped council loot", gp: 0, awardedBy: "policy-test" }), /Choisissez un core/);
     const missingCore = await service.preview(guild.id, { ...payload, epgpTransactions: [{ ...payload.epgpTransactions[0], sourceRef: "missing-core", coreId: undefined }] }, "policy-test");
     const unscoped = await service.record(guild.id, missingCore.snapshot, "unscoped", "policy-test");
     // The entry with no core is held for review; the rest of the upload is not blocked.

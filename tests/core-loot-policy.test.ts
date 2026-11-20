@@ -12,8 +12,8 @@ const policy = (enabled = true) => ({ guildSettings: { findUnique: vi.fn().mockR
 describe("loot belongs to each core", () => {
   it("rejects missing or foreign cores and shared pools, while legacy guilds retain their behavior", async () => {
     const database = policy();
-    await expect(requireCorePool(database as never, "g", null)).rejects.toThrow(/Choisis un core/);
-    await expect(requireCorePool(database as never, "g", "foreign")).rejects.toThrow(/Choisis un core/);
+    await expect(requireCorePool(database as never, "g", null)).rejects.toThrow(/Choisissez un core/);
+    await expect(requireCorePool(database as never, "g", "foreign")).rejects.toThrow(/Choisissez un core/);
     expect(database.raidCore.findFirst).toHaveBeenCalledWith({ where: { id: "foreign", guildId: "g", separatePool: true }, select: { id: true } });
     database.raidCore.findFirst.mockResolvedValue({ id: "a" } as never);
     await requireCorePool(database as never, "g", "a");
@@ -28,7 +28,7 @@ describe("loot belongs to each core", () => {
     const create = vi.fn().mockImplementation(({ data }) => data);
     const service = createEpgpService({ ...policy(), epgpTransaction: { create } } as never);
     const input = { guildId: "g", memberId: "m", reason: "Correction", createdBy: "officer", epAmount: 10 };
-    await expect(service.createTransaction({ ...input, type: "EP_AWARD" })).rejects.toThrow(/Choisis un core/);
+    await expect(service.createTransaction({ ...input, type: "EP_AWARD" })).rejects.toThrow(/Choisissez un core/);
     expect(create).not.toHaveBeenCalled();
     expect(await service.createTransaction({ ...input, type: "REVERSAL", epAmount: -10 })).toMatchObject({ coreId: null, epAmount: -10 });
   });
@@ -42,14 +42,14 @@ describe("loot belongs to each core", () => {
     expect(await service.priceOf("g", "b", { name: "Helm" })).toBe(200);
     expect(await service.priceOf("g", null, { name: "Helm" })).toBeNull();
     expect(await service.effective("g", null)).toEqual([]);
-    await expect(service.setMany("g", null, [{ name: "Helm", id: null, gp: 5 }])).rejects.toThrow(/Choisis un core/);
+    await expect(service.setMany("g", null, [{ name: "Helm", id: null, gp: 5 }])).rejects.toThrow(/Choisissez un core/);
     expect(upsert).not.toHaveBeenCalled();
   });
   it("blocks unscoped council awards even when charging zero GP", async () => {
     const create = vi.fn();
     const tx = { ...policy(), member: { findUnique: async () => ({ guildId: "g" }) }, lootAward: { create } };
     const service = createLootService({ $transaction: async (work: (tx: unknown) => unknown) => work(tx) } as never);
-    await expect(service.awardDirect({ guildId: "g", memberId: "m", itemName: "Helm", gp: 0, awardedBy: "officer" })).rejects.toThrow(/Choisis un core/);
+    await expect(service.awardDirect({ guildId: "g", memberId: "m", itemName: "Helm", gp: 0, awardedBy: "officer" })).rejects.toThrow(/Choisissez un core/);
     expect(create).not.toHaveBeenCalled();
   });
   it("holds addon loot until it matches a core raid, while preserving already imported history", async () => {

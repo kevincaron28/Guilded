@@ -163,7 +163,7 @@ describe("Discord character link commands", () => {
   });
 
   // Commands restructure (November 2026): members no longer claim from a list (it made it easy to
-  // claim someone else's character by mistake); /character claim answers "moved" (commands-restructure.test.ts).
+  // claim someone else's character by mistake); /character claim was retired.
   it("no longer lets a member claim a reported character with /character", async () => {
     await executeCharacter(interaction("claim", { name: "Ray" }) as never).catch(() => undefined);
     expect(mocks.claim).not.toHaveBeenCalled();

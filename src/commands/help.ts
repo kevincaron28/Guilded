@@ -33,7 +33,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/character link` — liez vos personnages WoW : envoyez-moi en MP le nom complet du personnage, ou écrivez-le dans le salon d'invitation · `/character profile` · `/character privacy`",
       "`/promotion status` — ce qu'il vous reste avant le prochain rang",
       "`/craft request` — demander à un artisan · `/craft who` — qui peut le fabriquer",
-      "`/leaderboard` — cote des donjons; `board:` records de la guilde, JcJ, points de communauté ou EPGP",
+      "`/leaderboard` — cote des donjons ; `board:` records de la guilde, JcJ, points de communauté ou EPGP",
       "`/raid progress` · `/raid report` — inscrivez-vous avec les boutons des annonces de raid",
       "`/report bug` — signaler un problème au développeur · `/help` — cette liste",
       "Aussi là au besoin : `/dungeon` · `/bank` · `/community` · `/epgp` · `/loot` · `/apply` · `/team` · `/bg` · `/participation` · `/tag` · `/poe`"
@@ -53,7 +53,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/lead create` (heures comme `vendredi 20h`) · `/lead edit` · `/lead start` · `/lead end` (propose les EP à approuver)",
       "`/lead attendance` · `/lead boss` · `/lead note` · `/lead award-ep` · `/lead readiness-raid` — qui est prêt pour ce soir",
       "`/lead season` · `/lead history` — présences sur une saison · `/lead wcl-report url:` — un rapport Warcraft Logs",
-      "`/core setup` — noyau de raid guidé et soirées (`mardi 20h; jeudi 20h`); ajustez ou arrêtez dans `/core edit` → 📅 · les membres postulent avec le bouton du roster",
+      "`/core setup` — noyau de raid guidé et soirées (`mardi 20h; jeudi 20h`) ; ajustez ou arrêtez dans `/core edit` → 📅 · les membres postulent avec le bouton du roster",
       "`/team create` · `/team schedule` · `/team lineup` — cores de donjon/JcJ"
     ]
   },

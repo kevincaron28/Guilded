@@ -78,7 +78,7 @@ export async function eventVenue(guild: Guild, audienceChannelId: string | null,
 }
 
 export function eventDescription(guildDiscordId: string, guildId: string, source: EventSource): string {
-  const instructions = source.language === "fr" ? "Inscris-toi avec les boutons Guilded. « Intéressé » sert aux notifications Discord."
+  const instructions = source.language === "fr" ? "Inscrivez-vous avec les boutons Guilded. « Intéressé » sert aux notifications Discord."
     : "Sign up using the Guilded buttons. Interested is for Discord notifications.";
   const link = source.channelId && source.messageId ? `https://discord.com/channels/${guildDiscordId}/${source.channelId}/${source.messageId}` : "";
   const footer = [instructions, link, marker(guildId, source.type, source.id)].filter(Boolean).join("\n");

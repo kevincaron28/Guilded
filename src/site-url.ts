@@ -1,8 +1,7 @@
 // The one place the bot decides its public website address (docs/plans/GUILDEDWOW_DOMAIN.md).
-// PUBLIC_SITE_URL (the same value Discord sign-in uses as its redirect base) wins; until it is set the
-// original address stays, so merging this changes nothing. Moving to guildedwow.com is then one
-// environment change plus a restart, and moving back is the same change reversed.
-export const DEFAULT_SITE_ORIGIN = "https://guilded.kcaron.top";
+// PUBLIC_SITE_URL (the same value Discord sign-in uses as its redirect base) wins; otherwise the canonical
+// guildedwow.com is used (guilded.kcaron.top stays a legacy host that redirects).
+export const DEFAULT_SITE_ORIGIN = "https://guildedwow.com";
 // Addresses that keep answering forever because released companions, addons and phone apps contain them.
 export const LEGACY_SITE_HOSTS = ["guilded.kcaron.top"] as const;
 

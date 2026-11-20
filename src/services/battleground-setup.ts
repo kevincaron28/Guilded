@@ -38,7 +38,7 @@ const posting = [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessag
 const PANEL_TEXT: Record<BgPanelPart, Record<Lang, string>> = {
   groups: {
     en: "**Find a PvP group.** Press **Create** to start one: it gets its own post here with Tank, Healer and DPS buttons, a waiting list and an optional voice channel, and it closes after 24 hours. **Who's looking** shows the open groups, **My groups** yours, **Upcoming** the ones starting soon.",
-    fr: "**Trouver un groupe JcJ.** Appuie sur **Créer** pour en lancer un : il a son propre message ici avec les boutons Tank, Soigneur et DPS, une liste d'attente et un salon vocal facultatif, et il se ferme après 24 h. **Qui cherche** montre les groupes ouverts, **Mes groupes** les tiens, **À venir** ceux qui commencent bientôt."
+    fr: "**Trouver un groupe JcJ.** Appuyez sur **Créer** pour en lancer un : il a son propre message ici avec les boutons Tank, Soigneur et DPS, une liste d'attente et un salon vocal facultatif, et il se ferme après 24 h. **Qui cherche** montre les groupes ouverts, **Mes groupes** les vôtres, **À venir** ceux qui commencent bientôt."
   },
   results: {
     en: "**Your battleground results.** After each match, the Guilded addon sends your result. Press **My results** to see your history (only you see it). `/bg result` shows one match; `/bg correct` removes a wrong report.",

@@ -40,7 +40,7 @@ export function questionsBlock(lang: Lang, questions: readonly string[]): string
 
 export function guideText(lang: Lang, questions: readonly string[]): string {
   const how = lang === "fr"
-    ? "**Envie de rejoindre la guilde ?** Appuie sur le bouton ou écrivez votre nom de personnage complet (prénom et nom)."
+    ? "**Envie de rejoindre la guilde ?** Appuyez sur le bouton ou écrivez votre nom de personnage complet (prénom et nom)."
     : "**Want to join?** Press the button or type your full character name (first and last).";
   return [how, questionsBlock(lang, questions)].filter(Boolean).join("\n\n");
 }

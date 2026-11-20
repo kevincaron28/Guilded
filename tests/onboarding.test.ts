@@ -106,7 +106,7 @@ describe("onboarding checklist", () => {
   it("lists only the steps the server uses", () => {
     const text = checklistText({ rules: true, games: false, character: false }, "fr", "Quebec Gold");
     expect(text).toContain("✅ Lire et accepter les règles");
-    expect(text).toContain("⬜ Choisir tes jeux");
+    expect(text).toContain("⬜ Choisir vos jeux");
     expect(text).toContain("facultatif; l'addon fonctionne seul");
     expect(checklistText({ rules: null, games: null, character: true }, "en", "QG")).not.toContain("rules");
   });

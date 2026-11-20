@@ -73,7 +73,7 @@ const SEEDS: Seed[] = [
   },
   {
     triggers: { en: ["professions", "profession", "who crafts"], fr: ["metiers", "metier", "qui fabrique"] },
-    answer: { en: "**Professions**: record yours with `/character profession`, and ask for crafts with `/craft`.", fr: "**Métiers** : enregistre les tiens avec `/character profession`, et demandez des fabrications avec `/craft`." }
+    answer: { en: "**Professions**: record yours with `/character profession`, and ask for crafts with `/craft`.", fr: "**Métiers** : enregistrez les vôtres avec `/character profession`, et demandez des fabrications avec `/craft`." }
   }
 ];
 

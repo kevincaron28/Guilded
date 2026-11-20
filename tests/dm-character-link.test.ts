@@ -104,7 +104,7 @@ describe("DM a character name to link it", () => {
   it("replies in the server's language (French)", async () => {
     const database = db({ members: [{ ...member, lang: "fr" }], characters: [{ id: "c1", name: "Lebowski Holyroller", memberId: "m1", guildId: "g1" }] });
     const answer = await answerCharacterDm(database as never, "u1", parsed("Lebowski Holyroller"));
-    expect(answer?.content).toContain("déjà lié à toi");
+    expect(answer?.content).toContain("déjà lié à vous");
   });
   it("ignores a DM that is not a name, a bot, a server message and a user in no approved server", async () => {
     const database = db({ members: [member] });

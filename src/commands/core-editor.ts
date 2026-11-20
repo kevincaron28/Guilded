@@ -296,7 +296,7 @@ async function runCharacterPicker(button: MessageComponentInteraction, guildId: 
   const message = await button.fetchReply();
   const collector = message.createMessageComponentCollector({ time: 10 * 60_000, filter: (i) => i.user.id === button.user.id });
   collector.on("collect", bindGuildScope(async (i: MessageComponentInteraction) => {
-    if (busy) { await i.reply({ content: "Wait for the current change. / Attends la fin du changement.", flags: MessageFlags.Ephemeral }); return; }
+    if (busy) { await i.reply({ content: "Wait for the current change. / Attendez la fin du changement.", flags: MessageFlags.Ephemeral }); return; }
     busy = true;
     try {
       if (!await checkCoreAccess(i)) return;

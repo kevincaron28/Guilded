@@ -72,7 +72,7 @@ export interface DuelResponse { duel: DuelInfo; view: PlayerView | null; events:
 
 type Names = ReadonlyMap<string, string>;
 
-function infoOf(row: DuelRow, userId: string, names: Names): DuelInfo {
+function infoOf(row: DuelRow, userId: string, names: Names, now = new Date()): DuelInfo {
   const seat = seatOf(row, userId);
   if (seat === null) throw new TcgError("That match does not exist.", 404);
   const mine = seat === 0 ? row.clsA : row.clsB ?? "";
@@ -86,17 +86,17 @@ function infoOf(row: DuelRow, userId: string, names: Names): DuelInfo {
     id: row.id, kind: row.kind as "friendly" | "ranked", status, reason: row.reason, live: row.live,
     direction: row.status === "pending" ? (seat === 0 ? "outgoing" : "incoming") : "match",
     seat, yourTurn: row.status === "active" && state !== null && state.phase !== "over" && actor(state) === seat,
-    you: { id: userId, cls: mine }, opponent: { id: otherId, name: names.get(otherId) ?? "A guildmate", cls: otherCls, onlineInApp: onlineInApp(otherId) },
+    you: { id: userId, cls: mine }, opponent: { id: otherId, name: names.get(otherId) ?? "A guildmate", cls: otherCls, onlineInApp: onlineInApp(otherId, now) },
     season: row.kind === "ranked" ? row.season : null, round: state ? round(state) : 0, version: row.version, turnSeconds: row.turnSeconds,
     turnDeadlineAt: row.turnDeadlineAt?.toISOString() ?? null, expiresAt: row.expiresAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(), finishedAt: row.finishedAt?.toISOString() ?? null, rated: row.rated
   };
 }
 
-function responseOf(row: DuelRow, userId: string, names: Names, events: MatchEvent[] = []): DuelResponse {
+function responseOf(row: DuelRow, userId: string, names: Names, events: MatchEvent[] = [], now = new Date()): DuelResponse {
   const seat = seatOf(row, userId)!;
   const outcome = Array.isArray(row.result) ? (row.result as (SeatOutcome | null)[])[seat] ?? null : null;
-  return { duel: infoOf(row, userId, names), view: row.state ? playerView(stateOf(row), seat) : null, events, rewards: outcome?.rewards ?? null, ranked: outcome?.ranked ?? null };
+  return { duel: infoOf(row, userId, names, now), view: row.state ? playerView(stateOf(row), seat) : null, events, rewards: outcome?.rewards ?? null, ranked: outcome?.ranked ?? null };
 }
 
 async function namesOf(tx: Pick<Tx, "member">, ids: string[]): Promise<Names> {
@@ -106,7 +106,7 @@ async function namesOf(tx: Pick<Tx, "member">, ids: string[]): Promise<Names> {
   for (const row of rows) if (!out.has(row.discordUserId)) out.set(row.discordUserId, row.displayName);
   return out;
 }
-const reply = async (tx: Pick<Tx, "member">, row: DuelRow, userId: string, events: MatchEvent[] = []): Promise<DuelResponse> => responseOf(row, userId, await namesOf(tx, [row.userA, row.userB]), events);
+const reply = async (tx: Pick<Tx, "member">, row: DuelRow, userId: string, events: MatchEvent[] = [], now = new Date()): Promise<DuelResponse> => responseOf(row, userId, await namesOf(tx, [row.userA, row.userB]), events, now);
 
 const random31 = () => randomInt(1, 2 ** 31 - 1);
 async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
@@ -287,7 +287,7 @@ export async function challenge(db: DuelDb, userId: string, input: { to: string;
       kind: "friendly", guildId, userA: userId, userB: input.to, clsA: cls, live, status: "pending",
       turnSeconds: live ? LIVE_TURN_SECONDS : TURN_SECONDS, expiresAt: new Date(now.getTime() + (live ? LIVE_CHALLENGE_TTL_MS : CHALLENGE_TTL_MS)), lastActionAt: now
     } }) as DuelRow;
-    const response = await reply(tx, row, userId);
+    const response = await reply(tx, row, userId, [], now);
     response.duel.opponent.onlineInGame = (await onlineInGame(tx, [input.to], now)).has(input.to);
     return response;
   });
@@ -403,7 +403,7 @@ export async function listDuels(db: DuelDb, userId: string, now = new Date(), li
   const out: DuelInfo[] = [];
   for (const row of rows) {
     const due = (row.status === "pending" && row.expiresAt && row.expiresAt.getTime() <= now.getTime()) || (row.status === "active" && row.turnDeadlineAt && row.turnDeadlineAt.getTime() <= now.getTime());
-    const info = infoOf(row, userId, names);
+    const info = infoOf(row, userId, names, now);
     info.opponent.onlineInApp = onlineInApp(info.opponent.id, now);
     info.opponent.onlineInGame = inGame.has(info.opponent.id);
     if (due) { const settled = await getDuel(db, userId, row.id, now).catch(() => null); if (settled) { settled.duel.opponent.onlineInGame = info.opponent.onlineInGame; out.push(settled.duel); continue; } }

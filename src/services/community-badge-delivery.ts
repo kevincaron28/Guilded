@@ -3,11 +3,12 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import { assertCommunityChannelAudience, communityAccess } from "./community-access.js";
 import { COMMUNITY_MILESTONES } from "./community-badge-rules.js";
 import { asLang, type Lang } from "../i18n.js";
+import { quebecLine } from "./fr-quebec-voice.js";
 
 export function milestoneMessage(name: string, threshold: number, lang: Lang) {
   const safe = escapeMarkdown(name.replace(/[\r\n<>@]/g, " ").slice(0, 80));
   return { content: lang === "fr"
-    ? `🏅 Bravo **${safe}** ! Vous avez atteint **${threshold} points communautaires** cette saison. Votre badge est conservé dans /community badges. Merci de faire vivre la communauté !`
+    ? quebecLine("badge", `${safe}:${threshold}`, { name: safe, threshold })
     : `🏅 Congratulations **${safe}**! You reached **${threshold} community points** this season. Your badge is saved in /community badges. Thank you for being part of the community!`,
     allowedMentions: { parse: [] as [], users: [] as string[], roles: [] as string[] } };
 }

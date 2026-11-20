@@ -1,4 +1,5 @@
 import { ChannelType, EmbedBuilder, type Guild as DiscordGuild } from "discord.js";
+import { quebecLine } from "./fr-quebec-voice.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { characterName, displayCharacterName, fullNameBook, cleanCharacterName } from "./character-display.js";
 import { cacheAllMembers } from "./member-cache.js";
@@ -236,7 +237,7 @@ export function promotionLogLine(name: string, rankName: string, lang: "en" | "f
 /** The public congratulations (19 Nov 2026), server language. `who` is a mention or a plain name. */
 export function promotionCongratsText(who: string, rankName: string, lang: "en" | "fr"): string {
   // The character is not repeated here: the mention already shows the member's "Discord (Main)" name and the card carries the character.
-  return lang === "fr" ? `🎉 Félicitations à ${who} pour sa promotion au rang de **${rankName}** !` : `🎉 Congratulations to ${who} on their promotion to **${rankName}**!`;
+  return lang === "fr" ? quebecLine("promotion", `${who}:${rankName}`, { who, rank: rankName }) : `🎉 Congratulations to ${who} on their promotion to **${rankName}**!`;
 }
 
 type CongratsDb = Pick<PrismaClient, "guildSettings" | "member" | "discordJob" | "communitySeason" | "communityHonors">;

@@ -1,4 +1,5 @@
 import { textlessEmbed } from "./card-only.js";
+import { quebecLine } from "./fr-quebec-voice.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { ACHIEVEMENT_CATALOGUE_VERSION, RETIRED_ACHIEVEMENT_IDS, achievementById, TIER_LABEL, SECRET_TAG } from "./achievements-catalogue.js";
 import { syncMemberAchievements } from "./achievements.js";
@@ -48,7 +49,7 @@ export async function announceNewAchievements(db: Db, guildId: string, memberId:
     : defs.length === 1
     ? (lang === "fr" ? `🏅 Succès débloqué : ${defs[0]![lang].name}` : `🏅 Achievement unlocked: ${defs[0]![lang].name}`)
     : (lang === "fr" ? `🏅 ${defs.length} succès débloqués` : `🏅 ${defs.length} achievements unlocked`);
-  const content = lang === "fr" ? `🎉 Bravo <@${member.discordUserId}> !` : `🎉 Congratulations <@${member.discordUserId}>!`;
+  const content = lang === "fr" ? quebecLine("achievement", `${member.discordUserId}:${ids.join(",")}`, { id: member.discordUserId }) : `🎉 Congratulations <@${member.discordUserId}>!`;
   const card = achievementUnlockedCard(member.displayName, defs.map(def => def.id), total, lang);
 
   return db.$transaction(async tx => {

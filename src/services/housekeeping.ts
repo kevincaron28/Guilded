@@ -1,4 +1,5 @@
 import { welcomeCardFile } from "./welcome-card.js";
+import { quebecLine } from "./fr-quebec-voice.js";
 import { hostedPilot } from "../hosted-pilot.js";
 import { PILOT_DENIED } from "./pilot-policy.js";
 import { type ButtonInteraction, type Guild as DiscordGuild, type GuildMember, type PartialGuildMember, MessageFlags } from "discord.js";
@@ -119,7 +120,7 @@ export function buildWelcomeMessage(
   member: { id: string; username: string }
 ) {
   const lang = asLang(settings.language);
-  const text = renderTemplate(settings.welcomeMessageTemplate ?? t(lang, "welcome.default"), {
+  const text = renderTemplate(settings.welcomeMessageTemplate ?? (lang === "fr" ? quebecLine("welcome", `${discordGuild.id}:${member.id}`) : t(lang, "welcome.default")), {
     mention: `<@${member.id}>`,
     username: member.username,
     guildName: discordGuild.name,

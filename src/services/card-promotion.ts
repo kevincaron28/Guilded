@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { quebecLine } from "./fr-quebec-voice.js";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import { ACCENTS, CARD_H, CARD_W, CardCanvas, INK, SUB, type EmblemKind } from "./card-kit.js";
@@ -84,7 +85,7 @@ async function roundPortrait(base64: string | undefined, size: number): Promise<
 
 /** The card definition for one promotion (stored on the Discord job, drawn at delivery). */
 export function promotionCard(lang: Lang, input: { name: string; character: string; rank: string }): ScoreCard {
-  const fr = lang === "fr", kicker = fr ? "Félicitations !" : "Congratulations!", rankLabel = fr ? "Nouveau rang :" : "New rank:";
+  const fr = lang === "fr", kicker = fr ? quebecLine("promotionKicker", `${input.name}:${input.rank}`) : "Congratulations!", rankLabel = fr ? "Nouveau rang :" : "New rank:";
   return { title: kicker, subtitle: `${input.name} · ${input.rank}`, stats: [], footer: fr ? "Promotion vue dans le jeu" : "Promotion seen in game",
     promotion: { tier: promotionTier(input.rank), kicker, name: input.name, character: input.character, rankLabel, rank: input.rank } };
 }

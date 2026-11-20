@@ -1,4 +1,5 @@
 import { guildWhere } from "./guild-scope.js";
+import { quebecLine } from "./fr-quebec-voice.js";
 import { ChannelType, EmbedBuilder, PermissionFlagsBits, escapeMarkdown, type Guild, type OverwriteResolvable } from "discord.js";
 import type { CommunityHonors, Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { BRAND } from "../brand.js";
@@ -136,7 +137,7 @@ export function weeklyHonorsMessage(lang: Lang, input: WeeklyMessageInput) {
     const spot = at ? say(lang, `, ${ordinal(lang, at)} of ${n(ranked.length)}`, `, ${ordinal(lang, at)} sur ${n(ranked.length)}`) : "";
     embed.addFields({ name: say(lang, "🌱 Rookie of the week", "🌱 Recrue de la semaine"),
       value: say(lang, `${who(names, input.rookie.userId)} — **${n(input.rookie.points)} pts**${spot}. New to the community: welcome!`,
-        `${who(names, input.rookie.userId)} — **${n(input.rookie.points)} pts**${spot}. Nouveau dans la gang : bienvenue !`) });
+        `${who(names, input.rookie.userId)} — **${n(input.rookie.points)} pts**${spot}. ${quebecLine("rookie", `${input.rookie.userId}`)}`) });
   }
   const lines = [
     recap.points ? say(lang, `🎯 **${n(recap.points)} pts** earned by **${n(recap.members)}** members`, `🎯 **${n(recap.points)} pts** gagnés par **${n(recap.members)}** membres`) : "",
@@ -150,7 +151,7 @@ export function weeklyHonorsMessage(lang: Lang, input: WeeklyMessageInput) {
   if (lines.length) embed.addFields({ name: say(lang, "📊 The guild's week", "📊 La semaine de la guilde"), value: lines.join("\n") });
   embed.setFooter({ text: say(lang, "Guilded · Hall of fame", "Guilded · Palmarès") });
   const winners = mvps.map(id => input.ping ? `${who(names, id)} (<@${id}>)` : who(names, id)).join(", ");
-  return { content: mvps.length && !input.partial ? say(lang, `⭐ Congratulations ${winners}!`, `⭐ Bravo ${winners} !`) : "", embeds: [embed.toJSON()] };
+  return { content: mvps.length && !input.partial ? say(lang, `⭐ Congratulations ${winners}!`, quebecLine("mvp", `${input.week}:${winners}`, { who: winners })) : "", embeds: [embed.toJSON()] };
 }
 
 /**
@@ -167,7 +168,7 @@ export function weeklyPostCardExtra(lang: Lang, message: ReturnType<typeof weekl
   const rookieAt = withRookie ? ranked.findIndex(row => row.userId === rookie!.userId) + 1 : 0;
   const title = say(lang, `The week of ${dayLabel(lang, week)} to ${dayLabel(lang, dateAfter(week, 6))}`, `La semaine du ${dayLabel(lang, week)} au ${dayLabel(lang, dateAfter(week, 6))}`);
   const winners = mvps.filter(id => SNOWFLAKE.test(id)).map(id => `<@${id}>`).join(", ");
-  const content = winners ? say(lang, `⭐ Congratulations ${winners}, MVP of the week!`, `⭐ Bravo ${winners}, MVP de la semaine !`) : "";
+  const content = winners ? say(lang, `⭐ Congratulations ${winners}, MVP of the week!`, quebecLine("weeklyMvp", `${week}:${winners}`, { who: winners })) : "";
   return {
     card: weeklyHonorsCard(lang, {
       title, recap,
@@ -215,7 +216,7 @@ export function monthlyHonorsMessage(lang: Lang, season: { name: string; number:
   if (rookie) embed.addFields({ name: ROOKIE_ROLE[lang], value: say(lang,
     `${who(names, rookie.userId)} — **${n(rookie.points)} pts** across **${rookie.activeDays} active days**. ${n(rookie.messages)} messages · ${n(rookie.reactions)} reactions · ${n(rookie.voiceHours)} h in voice. They hold the role until the next monthly award!`,
     `${who(names, rookie.userId)} — **${n(rookie.points)} pts**, **${rookie.activeDays} jours actifs**. ${n(rookie.messages)} messages · ${n(rookie.reactions)} réactions · ${n(rookie.voiceHours)} h en vocal. Le rôle est à vous jusqu’au prochain palmarès mensuel !`) });
-  return { content: say(lang, `🏆 Congratulations to the community's top 3: ${places.flat().map(id => who(names, id)).join(", ")}!`, `🏆 Bravo au top 3 de la gang : ${places.flat().map(id => who(names, id)).join(", ")} !`), embeds: [embed.toJSON()] };
+  return { content: say(lang, `🏆 Congratulations to the community's top 3: ${places.flat().map(id => who(names, id)).join(", ")}!`, quebecLine("top3", `${season.number}:${places.flat().join(",")}`, { names: places.flat().map(id => who(names, id)).join(", ") })), embeds: [embed.toJSON()] };
 }
 
 export interface HonorsHistory {

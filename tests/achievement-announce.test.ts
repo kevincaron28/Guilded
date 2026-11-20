@@ -76,7 +76,7 @@ describe("achievement announcements", () => {
     const { db, jobs } = fakeDb({ language: "fr", keys: ["raids-1"] });
     await announceNewAchievements(db, "g1", "m1");
     expect(JSON.stringify(jobs[0]!.payload)).toContain("Succès débloqué : Au raid");
-    expect(JSON.stringify(jobs[0]!.payload)).toContain("Bravo");
+    expect(JSON.stringify(jobs[0]!.payload)).toMatch(/🎉 .*<@123456789012345678>.*!/);
   });
   it("lists a few and counts the rest when many unlock at once", async () => {
     const { db, jobs } = fakeDb({ keys: ["wow-forever-level-10", "wow-forever-level-20", "wow-forever-level-30", "wow-forever-level-40", "raids-1", "raids-5", "raids-10", "dungeon-runs-1"] });

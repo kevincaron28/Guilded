@@ -46,6 +46,50 @@ function botOrigins(env) {
 }
 const ATTEMPTS = 3;
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+// Public data pages (leaderboards, player and run pages) are kept so a bot restart or a short database outage shows the last
+// good copy instead of a 502/503 (docs/plans/POLISH_AUDIT_2026-11-20.md item 2). Only anonymous GET page views are stored.
+export const PAGE_FRESH_SECONDS = 60;
+export const PAGE_STALE_SECONDS = 24 * 3600;
+/* global caches */
+const ORIGIN_FAILURES = new Set([502, 503, 504, 530]);
+const SESSION_COOKIE_NAME = "__Host-guilded_session";
+// The Worker is cut off after about 20 seconds (CLAUDE.md): retries share one budget.
+const ORIGIN_BUDGET_MS = 17_000;
+export function pageCacheKey(request, url, pagePath) {
+  if (request.method !== "GET" || !/^\/(?:leaderboards|players)(?:\/|$)/.test(pagePath)) return null;
+  if (!(request.headers.get("accept") ?? "").includes("text/html")) return null;
+  // A signed-in visitor's page can differ (their own character, menus): never stored, never answered from a copy.
+  if (request.headers.has("authorization") || request.headers.get("cookie")?.includes(SESSION_COOKIE_NAME)) return null;
+  const chosen = url.searchParams.get("lang");
+  const fr = chosen === "fr" || (chosen !== "en" && /^\s*fr\b/i.test(request.headers.get("accept-language") ?? ""));
+  const key = new URL(url.origin + url.pathname + url.search);
+  key.searchParams.set("__wl", fr ? "fr" : "en");
+  return new Request(key.href);
+}
+async function cacheLookup(key) {
+  try {
+    const hit = await caches.default.match(key);
+    if (!hit) return null;
+    const age = (Date.now() - Number(hit.headers.get("x-guilded-stored-at") ?? 0)) / 1000;
+    return age >= 0 && age <= PAGE_STALE_SECONDS ? { response: hit, age } : null;
+  } catch { return null; }
+}
+function cacheStore(ctx, key, response) {
+  try {
+    const headers = new Headers(response.headers);
+    headers.set("x-guilded-stored-at", String(Date.now()));
+    headers.set("cache-control", `public, max-age=${PAGE_STALE_SECONDS}`);
+    const put = caches.default.put(key, new Response(response.body, { status: 200, headers })).catch(() => {});
+    ctx?.waitUntil?.(put);
+  } catch { /* no cache available: pages still load from the bot */ }
+}
+function servedFromCache(request, hit, stale) {
+  const headers = new Headers(hit.headers);
+  headers.delete("x-guilded-stored-at");
+  headers.set("cache-control", "no-store");
+  headers.set("x-guilded-cache", stale ? "stale" : "fresh");
+  return new Response(request.method === "HEAD" ? null : hit.body, { status: 200, headers });
+}
 const apiMethods = new Map([
   ["/api/v1/addon-imports", ["POST"]],
   ["/api/v1/addon-pairings", ["POST"]],
@@ -518,6 +562,11 @@ async function route(request, env, ctx) {
     const origins = botOrigins(env);
     // A visitor's page view (not an API call or an image) gets the branded page when the bot is unreachable.
     const pageView = (web || guildPage) && ["GET", "HEAD"].includes(request.method) && (request.headers.get("accept") ?? "").includes("text/html");
+    const cacheKey = web ? pageCacheKey(request, url, pagePath) : null;
+    const cached = cacheKey ? await cacheLookup(cacheKey) : null;
+    if (cached && cached.age < PAGE_FRESH_SECONDS) return servedFromCache(request, cached.response, false);
+    const staleOr = (fallback) => (cached ? servedFromCache(request, cached.response, true) : fallback());
+    const startedAt = Date.now();
     try {
       const body = request.method === "POST" ? await limitedBody(request) : undefined;
       let upstream, target;
@@ -529,10 +578,12 @@ async function route(request, env, ctx) {
         target.search = health || guildPage ? "" : url.search;
         // A removed edition's old section (a form post; page views were redirected above) is served as WoW Forever.
         if (section) target.searchParams.set("edition", section.retired ? "forever" : section.edition);
+        const remaining = ORIGIN_BUDGET_MS - (Date.now() - startedAt);
+        if (attempt && remaining < 1_500) break;
         try {
           upstream = await fetch(target.href, {
             method: request.method, headers, ...(body ? { body } : {}),
-            redirect: "manual", signal: AbortSignal.timeout(20_000),
+            redirect: "manual", signal: AbortSignal.timeout(request.method === "POST" ? 20_000 : Math.max(1_500, remaining)),
             // A guild page is the same for every visitor: Cloudflare keeps it briefly so visits rarely reach the bot.
             cf: guildPage ? { cacheEverything: true, cacheTtlByStatus: { "200-299": 300, "301": 3600, "404": 60, "500-599": 0 } } : { cacheTtl: 0, cacheEverything: false }
           });
@@ -543,10 +594,16 @@ async function route(request, env, ctx) {
         }
         // 530 means Cloudflare never reached the bot (error 1016 is a failed address lookup), so even
         // a POST did not arrive and is safe to send again.
-        if (upstream.status !== 530) break;
+        // A 502/503/504 from the bot's own proxy (it is restarting, or its database was busy) is a read worth one more try.
+        const retryable = upstream.status === 530 || (["GET", "HEAD"].includes(request.method) && [502, 503, 504].includes(upstream.status));
+        if (!retryable || attempt === ATTEMPTS - 1) break;
         await upstream.body?.cancel();
       }
-      if (upstream.status === 530) return pageView ? unavailablePage(request, url) : failure(503, "The guild bot is temporarily unavailable. Try again shortly.");
+      if (!upstream) throw new Error("origin-unreachable");
+      if (ORIGIN_FAILURES.has(upstream.status)) {
+        await upstream.body?.cancel();
+        return staleOr(() => pageView ? unavailablePage(request, url) : failure(503, "The guild bot is temporarily unavailable. Try again shortly."));
+      }
       // 304 Not Modified is a conditional answer, not a redirect: the standings long poll gets it
       // whenever nothing changed, and must reach the companion as 304 (not "Unexpected server redirect").
       if (api && upstream.status === 304) {
@@ -585,9 +642,16 @@ async function route(request, env, ctx) {
         responseHeaders.set("permissions-policy", PERMISSIONS_POLICY);
       }
       if (web) for (const cookie of hostCookies(upstream)) responseHeaders.append("set-cookie", cookie);
+      // Keep a copy of a good anonymous page (never one that sets a cookie).
+      if (cacheKey && upstream.status === 200 && upstream.body && !upstream.headers.has("set-cookie") && !responseHeaders.has("set-cookie")
+        && (responseHeaders.get("content-type") ?? "").toLowerCase().startsWith("text/html")) {
+        const [forVisitor, forCache] = upstream.body.tee();
+        cacheStore(ctx, cacheKey, new Response(forCache, { status: 200, headers: responseHeaders }));
+        return new Response(forVisitor, { status: 200, headers: responseHeaders });
+      }
       return new Response(upstream.body, { status: upstream.status, headers: responseHeaders });
     } catch (error) {
       return error.message === "body-limit" ? failure(413, "Request body is too large")
-        : pageView ? unavailablePage(request, url) : failure(502, "The guild bot is temporarily unavailable. Try again shortly.");
+        : staleOr(() => pageView ? unavailablePage(request, url) : failure(502, "The guild bot is temporarily unavailable. Try again shortly."));
     }
 }

@@ -212,7 +212,7 @@ describe("native Discord events", () => {
     expect(options.description.length).toBeLessThanOrEqual(1000);
     expect(options.description.endsWith(stamp)).toBe(true);
     const source: EventSource = { type: "community", id: "night", title: "Soirée", description: "", startsAt: start, endsAt: end, state: "scheduled", channelId: "signups", messageId: "message", audienceChannelId: "signups", voiceChannelId: null, language: "fr" };
-    expect(eventDescription("discord", "guild", source)).toContain("Inscris-toi");
+    expect(eventDescription("discord", "guild", source)).toContain("Inscrivez-vous");
   });
 });
 

@@ -85,7 +85,7 @@ export const characterCommand = new SlashCommandBuilder()
   .addSubcommand((subcommand) => addRaceSubcommand(subcommand));
 
 // Commands restructure (November 2026): one way in for members. /character link replaces pair,
-// import and claim (those answer "moved" for one release, see index.ts), and /character guild
+// import and claim (retired; use /character link), and /character guild
 // replaces /wow list and /wow use. Mounted on /character beside the builder above.
 export const characterLinkCommand = new SlashCommandBuilder()
   .setName("character")

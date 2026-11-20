@@ -232,7 +232,7 @@ ns.commandHandlers["sync"] = function(args)
   local action = string.lower(args[1] or "")
   if action == "auto" then
     -- The old automatic reload: the game no longer allows it (see the top of this file).
-    ns.message("Automatic saving is no longer possible: the game only reloads on your own click. Press Send to Discord, or type /reload.")
+    ns.message(L("Automatic saving is no longer possible: the game only reloads on your own click. Press Send to Discord, or type /reload."))
   elseif action == "status" then
     local saved = module.lastSavedLine()
     if saved then ns.message(saved) end
@@ -240,12 +240,12 @@ ns.commandHandlers["sync"] = function(args)
     if age and ns.relay and ns.relay.ageText then
       ns.message(string.format(L("Companion last active: %s"), ns.relay.ageText(age)))
     end
-    ns.message("Sync to Discord: " .. (dirtyAt and ("changes waiting since " .. math.floor((clock() - dirtyAt) / 60) .. " min") or "nothing waiting") .. ".")
+    ns.message(dirtyAt and string.format(L("Sync to Discord: changes waiting since %d min."), math.floor((clock() - dirtyAt) / 60)) or L("Sync to Discord: nothing waiting."))
   else
     -- A slash command cannot reload either; the player types it (or clicks the button).
     local saved = module.lastSavedLine()
     if saved then ns.message(saved) end
-    ns.message("To send your data to Discord now, type /reload (or press Send to Discord in the Guilded window).")
+    ns.message(L("To send your data to Discord now, type /reload (or press Send to Discord in the Guilded window)."))
   end
 end
 ns.commandHelp = ns.commandHelp or {}

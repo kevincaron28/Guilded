@@ -382,7 +382,7 @@ local function unitLabel(unit)
 end
 
 local function listOrNone(names)
-  if #names == 0 then return "none" end
+  if #names == 0 then return L("none") end
   table.sort(names)
   return table.concat(names, ", ")
 end
@@ -434,19 +434,19 @@ local function report()
     mark(noFlask, "flask"); mark(noFood, "food")
     db.consumeScan = { at = ns.now(), by = ns.playerName(), raid = raid and raid.title or nil, raidId = raid and raid.id or nil, players = players, missing = missing }
   end
-  ns.message(string.format("Consumable scan: %d player(s) checked.", #players))
-  ns.message("No flask or elixir: " .. listOrNone(noFlask))
-  ns.message("No food buff: " .. listOrNone(noFood))
-  if #hidden > 0 then ns.message("Could not read buffs (out of range or hidden by the game): " .. listOrNone(hidden)) end
-  if #players == 0 then ns.message("Nobody could be read. Try again out of combat and in range.") end
+  ns.message(string.format(L("Consumable scan: %d player(s) checked."), #players))
+  ns.message(string.format(L("No flask or elixir: %s"), listOrNone(noFlask)))
+  ns.message(string.format(L("No food buff: %s"), listOrNone(noFood)))
+  if #hidden > 0 then ns.message(string.format(L("Could not read buffs (out of range or hidden by the game): %s"), listOrNone(hidden))) end
+  if #players == 0 then ns.message(L("Nobody could be read. Try again out of combat and in range.")) end
 end
 
 local function mine()
   local rows, result = module.ownRows()
-  if not result.readable then ns.message("Could not read your buffs right now.") return end
+  if not result.readable then ns.message(L("Could not read your buffs right now.")) return end
   local parts = {}
   for _, row in ipairs(rows) do table.insert(parts, string.lower(row.category) .. ": " .. row.name) end
-  ns.message("Your consumables: " .. (#parts > 0 and table.concat(parts, ", ") or "none active"))
+  ns.message(string.format(L("Your consumables: %s"), #parts > 0 and table.concat(parts, ", ") or L("none active")))
 end
 
 -- Consumable penalty: /guilded consumes penalty <percent> makes /guilded award group give that
@@ -498,7 +498,7 @@ ns.commandHandlers["consumes"] = function(args)
   elseif action == "me" then mine()
   elseif action == "" or action == "scan" then
     if ns.isOfficer and not ns.isOfficer() then
-      ns.message("Only officers can scan the group. Use /guilded consumes me for your own.")
+      ns.message(L("Only officers can scan the group. Use /guilded consumes me for your own."))
       return
     end
     report()

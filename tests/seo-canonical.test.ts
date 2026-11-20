@@ -10,7 +10,7 @@ import worker from "../worker/index.mjs";
 // SEO3 (docs/AI_HANDOFF.md): bot-served public pages carry a self canonical and an en/fr/x-default hreflang set,
 // never switch language by Accept-Language, and never link to ?lang=en.
 afterEach(() => vi.unstubAllGlobals());
-const SITE = "https://guilded.kcaron.top";
+const SITE = "https://guildedwow.com";
 const page = (path: string, lang: "en" | "fr", extra: { noindex?: boolean } = {}) => withEdition("forever", () => layout({ lang, title: "T", path, body: "<p>x</p>", account: null, csrf: null, signInOn: false, ...extra }));
 
 describe("canonical and hreflang on bot-served pages", () => {

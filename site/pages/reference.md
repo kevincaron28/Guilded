@@ -27,9 +27,7 @@ In a French Discord the member commands also have French names, for example `/pe
 `/artisanat` `demander` `liste` `qui` `mes-demandes` `proposer`, `/classement`, `/aide`, `/rapport` and `/promotion` `statut`.
 
 **The seven to know:** `/help`, `/character link`, `/promotion status`, `/craft request`, `/leaderboard`, `/raid` and `/report bug`.
-Everything else is there when you need it. Commands that moved in November 2026 (`/character pair`, `import` and `claim`,
-`/wow`, `/import`, `/poll`, `/delete-my-data` and the officer parts of `/bank`, `/tag`, `/participation`, `/report` and `/craft`)
-answer privately with their new place for one release.
+Everything else is there when you need it.
 
 ### Members
 
@@ -213,12 +211,12 @@ Type `/guilded` (or `/gd`) in game. A bare `/guilded` opens the window; `/guilde
 ## Windows companion
 
 A small free Windows app. It is optional for the addon and needed for Discord and website
-features. Full steps: [Companion app](https://guilded.kcaron.top/companion/).
+features. Full steps: [Companion app](https://guildedwow.com/companion/).
 
 | What | Detail |
 | --- | --- |
 | What it does | Sends your addon's saved data to Discord and the website, and brings standings back into the game |
-| Where to get it | [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) (recommended, updates itself) or the [direct download](https://guilded.kcaron.top/downloads/Guilded.Companion.Setup.exe) (unsigned fallback) |
+| Where to get it | [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) (recommended, updates itself) or the [direct download](https://guildedwow.com/downloads/Guilded.Companion.Setup.exe) (unsigned fallback) |
 | Platform | Windows only. No Mac, Linux or browser version |
 | First run | Choose **Sign in with Discord**, pick your server (or public leaderboards only), choose your saved data |
 | After playing | `/reload` in WoW and the companion syncs |

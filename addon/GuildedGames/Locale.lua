@@ -8,7 +8,7 @@ local FR = {
   JOINING = "Inscriptions", READY = "Pr\195\170t", ROLLING = "Jets en cours", ANSWERING = "R\195\169ponses",
   out = "\195\169limin\195\169", waiting = "en attente",
   ["High roll"] = "Grand jet", ["Deathroll"] = "\195\137limination", ["Duel"] = "Duel",
-  ["Closest target"] = "Proche de la cible", ["Trivia"] = "Quiz", ["Team trivia"] = "Quiz en equipes",
+  ["Closest target"] = "Proche de la cible", ["Trivia"] = "Quiz", ["Team trivia"] = "Quiz en \195\169quipes",
   ["Next round"] = "Manche suivante", ["Join myself"] = "Participer", ["Remove player"] = "Retirer le joueur",
   ["Skip question"] = "Passer la question", ["Cancel"] = "Annuler", ["Confirm cancel"] = "Confirmer",
   ["Rematch"] = "Rejouer", ["History"] = "Historique", ["Back"] = "Retour",

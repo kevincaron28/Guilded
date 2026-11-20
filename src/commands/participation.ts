@@ -65,7 +65,7 @@ export async function executeParticipation(interaction: ChatInputCommandInteract
   let content = "";
   if (sub === "settings") {
     const selected = interaction.options.getChannel("channel"), remove = interaction.options.getBoolean("remove") ?? false;
-    if (remove && !selected) throw new Error("Choisis un salon / Select a channel.");
+    if (remove && !selected) throw new Error("Choisissez un salon / Select a channel.");
     if (selected) {
       const target = await guild.channels.fetch(selected.id);
       if (!target || !supportsParticipationMessages(target.type) || target.id === guild.afkChannelId) throw new Error("Salon de messages ou vocal hors AFK requis / Non-AFK message or voice channel required.");

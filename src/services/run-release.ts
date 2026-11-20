@@ -49,13 +49,16 @@ export async function releaseHeldRuns(database: PrismaClient, guildId: string, t
     const without = mine.filter((row) => !row.payload);
     // A copy of another guild's run sits under that guild's shared inbox: its vouching player is named in the kept copy itself.
     const shared = !!(await database.companionDevice.findUnique({ where: { id: deviceId }, select: { tokenHash: true } }))?.tokenHash.startsWith(INBOX_PREFIX);
-    const characterKeys = shared ? [] : (await database.deviceCharacter.findMany({ where: { deviceId }, select: { nameKey: true } })).map((row) => row.nameKey);
+    const deviceRows = shared ? [] : await database.deviceCharacter.findMany({ where: { deviceId }, select: { nameKey: true, wowId: true } });
+    const characterKeys = deviceRows.map((row) => row.nameKey);
+    // Character ids: the game ids this device reported, so a released run is judged the way its upload was.
+    const characterIds = new Map(deviceRows.flatMap((row) => typeof row.wowId === "bigint" ? [[row.nameKey, row.wowId.toString()] as const] : []));
     await database.$transaction(async (tx) => {
       await tx.dungeonRunWitness.updateMany({ where: { id: { in: mine.map((row) => row.id) } }, data: { status: "pending", reason: "released" } });
       // Without a kept copy the PC is asked to send the run again.
       if (without.length) await saveRunReceipts(tx, guildId, without.map((row) => ({ runRef: row.runRef, outcome: "retry" as const, reason: "Counts when sent again", runId: null, fresh: true })), now);
       if (withCopy.length) {
-        counted += (await storeDeviceRuns(tx, guildId, withCopy.map((row) => row.payload), now, { deviceId, characterKeys, ...(shared ? { shared: true } : {}) })).stored;
+        counted += (await storeDeviceRuns(tx, guildId, withCopy.map((row) => row.payload), now, { deviceId, characterKeys, characterIds, ...(shared ? { shared: true } : {}) })).stored;
         const states = (await tx.dungeonRunWitness.findMany({ where: { id: { in: withCopy.map((row) => row.id) } }, select: { status: true } })).map((row) => row.status);
         stored += states.filter((state) => state === "stored").length;
         waiting += states.filter((state) => state === "pending" || state === "held").length;

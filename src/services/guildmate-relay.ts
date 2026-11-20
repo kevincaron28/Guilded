@@ -3,7 +3,8 @@ import type { AddonSnapshot } from "../integrations/addon.js";
 import { gameEditionOf } from "./game-edition.js";
 import { findCharacter } from "./character-match.js";
 import { syncProfessionSnapshot } from "./profession-snapshot.js";
-import { foreverSameName } from "../../companion/character-identity.mjs";
+import { foreverSameName, sameCharacter } from "../../companion/character-identity.mjs";
+import { parseWowId } from "./character-ref.js";
 
 // Addon-only members still reach Discord (8.5, Track K; docs/ADDON_ONLY_SYNC.md).
 //
@@ -37,8 +38,11 @@ const baseName = (value: unknown) => typeof value === "string" ? value.split("-"
  * own characters played it (first-hand), or when it reached the uploader's addon from someone who
  * played it (reporterNames, which the addon fills only with the game-reported sender of a SUM it
  * accepted from a participant). Recent runs only, newest first, capped.
+ * Character ids (docs/plans/CHARACTER_ID_MATCHING_2026-11-20.md): `ownedIds` maps an owned lowercase name to its game id (any shape idKey
+ * reads). A run player with an id and an owned character with an id are the same character by the ids alone (a rename still counts,
+ * a namesake never does); with an id missing on either side the name rule applies. reporterNames carry no ids.
  */
-export function relayableDungeonRuns(runs: readonly unknown[], ownedNames: ReadonlySet<string>, nowSec = Math.floor(Date.now() / 1000)): unknown[] {
+export function relayableDungeonRuns(runs: readonly unknown[], ownedNames: ReadonlySet<string>, nowSec = Math.floor(Date.now() / 1000), ownedIds?: ReadonlyMap<string, unknown>): unknown[] {
   const kept: { run: unknown; endedAt: number }[] = [];
   for (const raw of runs) {
     if (!raw || typeof raw !== "object") continue;
@@ -46,12 +50,12 @@ export function relayableDungeonRuns(runs: readonly unknown[], ownedNames: Reado
     const endedAt = Number(run.endedAt);
     if (!Number.isFinite(endedAt) || endedAt <= 0 || endedAt < nowSec - RELAYED_RUN_MAX_AGE_SEC || endedAt > nowSec + 600) continue;
     const players = (Array.isArray(run.players) ? run.players : [])
-      .map((player) => baseName((player as { character?: unknown } | null)?.character)).filter(Boolean);
+      .map((player) => ({ name: baseName((player as { character?: unknown } | null)?.character), id: (player as { id?: unknown } | null)?.id })).filter((player) => player.name);
     if (!players.length) continue;
     // Forever names: a first-name row from before 8.5 still matches "First Last" (foreverSameName).
-    const played = (name: string) => players.some((player) => foreverSameName(player, name));
-    const own = [...ownedNames].some(played);
+    const own = [...ownedNames].some((owned) => players.some((player) => sameCharacter(player.name, owned, player.id, ownedIds?.get(owned))));
     const reporters = Array.isArray(run.reporterNames) ? run.reporterNames.map(baseName).filter(Boolean) : [];
+    const played = (name: string) => players.some((player) => foreverSameName(player.name, name));
     if (own || reporters.some(played)) kept.push({ run: raw, endedAt });
   }
   return kept.sort((a, b) => b.endedAt - a.endedAt).slice(0, RELAYED_RUNS_PER_UPLOAD).map((entry) => entry.run);
@@ -64,7 +68,7 @@ export const RELAYED_ATTUNEMENTS_PER_UPLOAD = 300;
 /** A recipe list is a slow-changing fact: its author's stamp may be this old (the addon keeps lists 45 days when forwarding). */
 export const RELAYED_RECIPE_MAX_AGE_MS = 180 * 24 * 3600 * 1000;
 
-export interface RelayLinkedCharacter { name: string; realm: string; memberId: string; gameEdition?: string }
+export interface RelayLinkedCharacter { name: string; realm: string; memberId: string; gameEdition?: string; wowId?: bigint | null }
 type CraftSnapshot = Pick<AddonSnapshot, "recipes" | "recipeNames" | "cooldowns" | "attunements" | "gameEdition" | "interface">;
 
 /**
@@ -135,7 +139,7 @@ export async function applyGuildmateRelay(database: RelayDatabase, guildId: stri
   return database.$transaction(async (tx) => {
     const linked = await tx.character.findMany({
       where: { member: { guildId }, gameEdition: edition },
-      select: { id: true, name: true, realm: true, memberId: true, gameEdition: true, level: true, className: true, race: true }
+      select: { id: true, name: true, realm: true, memberId: true, gameEdition: true, level: true, className: true, race: true, wowId: true }
     });
     // (17 Nov 2026) The stored skills of every character that may need a profession comparison, in ONE read (it was one read per
     // heard guildmate: up to 300 sequential round trips, 2.5-3.5 s of the relay on the live database). A character whose
@@ -145,7 +149,7 @@ export async function applyGuildmateRelay(database: RelayDatabase, guildId: stri
       const wanted = new Set<string>();
       for (const entry of entries) {
         if (entry.professionsComplete !== true || !entry.professionsAt) continue;
-        const character = findCharacter(linked, entry.name, entry.realm, edition);
+        const character = findCharacter(linked, entry.name, entry.realm, edition, parseWowId(entry.id));
         if (character && character.memberId !== uploaderMemberId) wanted.add(character.id);
       }
       if (wanted.size) {
@@ -157,7 +161,8 @@ export async function applyGuildmateRelay(database: RelayDatabase, guildId: stri
     for (const entry of entries) {
       const observed = entry.observedAt!.getTime();
       if (observed > now.getTime() + FUTURE_SLACK_MS || now.getTime() - observed > RELAY_MAX_AGE_MS) { result.ignored++; continue; }
-      const character = findCharacter(linked, entry.name, entry.realm, edition);
+      // Character ids: a heard guildmate with a game id is matched by it (a rename still lands on the row); one without falls back to the name.
+      const character = findCharacter(linked, entry.name, entry.realm, edition, parseWowId(entry.id));
       if (!character) { result.unlinked++; continue; }
       if (character.memberId === uploaderMemberId) { result.ignored++; continue; }
       const data: { level?: number; className?: string; race?: string } = {};

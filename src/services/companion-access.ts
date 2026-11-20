@@ -7,7 +7,7 @@ import { noteCredentialUse } from "./credential-use.js";
 import { credentialBySecret } from "./companion-renew.js";
 import { parseAddonSnapshot, type AddonSnapshot } from "../integrations/addon.js";
 import { currentGuildScope } from "./guild-scope.js";
-import { characterKey, foreverSameName } from "../../companion/character-identity.mjs";
+import { characterKey, idKey, sameCharacter } from "../../companion/character-identity.mjs";
 import { gameEditionOf } from "./game-edition.js";
 import { relayableCraftData, relayableDungeonRuns, type RelayLinkedCharacter } from "./guildmate-relay.js";
 
@@ -59,7 +59,7 @@ export class CompanionUnavailable extends Error {
 
 // Personal companions cannot change the ledger, other players' readiness, prices,
 // attendance or reserves. Build an allowlist, so newly added fields default to denied.
-export function personalSnapshot(snapshot: AddonSnapshot, owned: { name: string; realm: string }[],
+export function personalSnapshot(snapshot: AddonSnapshot, owned: { name: string; realm: string; wowId?: bigint | null }[],
   guildmates?: { uploaderMemberId: string; linked: readonly RelayLinkedCharacter[]; now?: Date }): AddonSnapshot {
   const edition = gameEditionOf(snapshot);
   const key = (name: string, realm: string) => edition === "forever" ? `${name.toLowerCase()}\0${realm.toLowerCase()}` : characterKey(name, realm, edition);
@@ -69,13 +69,29 @@ export function personalSnapshot(snapshot: AddonSnapshot, owned: { name: string;
   // owned row is the match (foreverSameName). Their own upload then renames the row.
   // Only for characters this PC reports as its own (character + alts), never a guildmate's.
   const pcNames = new Set([...(snapshot.character ? [snapshot.character] : []), ...snapshot.alts].map((c) => c.name.trim().toLowerCase()));
-  const looseOwn = (name: string) => edition === "forever" && pcNames.has(name.split("-")[0]!.trim().toLowerCase())
-    && owned.filter((c) => foreverSameName(c.name, name)).length === 1;
-  const own = (c: { character: string; realm: string }) => names.has(key(c.character, c.realm)) || looseOwn(c.character);
-  const ownCharacter = (c: { name: string; realm: string }) => names.has(key(c.name, c.realm)) || looseOwn(c.name);
+  // Character ids (docs/plans/CHARACTER_ID_MATCHING_2026-11-20.md): a report carrying a game id is the member's own exactly when an owned
+  // row holds that id (a renamed character still is, a namesake never is). A report without an id, or an owned row without one, keeps the
+  // name rules above. Both ids known: the ids alone decide, so an exact name never overrides a different id.
+  const heldIds = new Set(owned.flatMap((c) => { const id = idKey(c.wowId); return id === null ? [] : [id]; }));
+  const ownedRows = new Map<string, typeof owned>();
+  for (const c of owned) { const k = key(c.name, c.realm); ownedRows.set(k, [...(ownedRows.get(k) ?? []), c]); }
+  const sameName = (name: string, realm: string, id?: unknown) => {
+    if (!names.has(key(name, realm))) return false;
+    const reported = idKey(id);
+    // A report with an id never claims an owned row that holds a different id.
+    return reported === null || (ownedRows.get(key(name, realm)) ?? []).some((c) => idKey(c.wowId) === null || idKey(c.wowId) === reported);
+  };
+  const byId = (id?: unknown) => { const reported = idKey(id); return reported !== null && heldIds.has(reported); };
+  const looseOwn = (name: string, id?: unknown) => edition === "forever" && pcNames.has(name.split("-")[0]!.trim().toLowerCase())
+    && owned.filter((c) => sameCharacter(c.name, name, c.wowId, id)).length === 1;
+  // A character this PC reports under a new name but an id an owned row holds: its other rows (readiness, recipes) still belong to the member.
+  for (const c of [...(snapshot.character ? [snapshot.character] : []), ...snapshot.alts]) if (edition === "forever" && byId((c as { id?: unknown }).id)) names.add(key(c.name, c.realm));
+  const own = (c: { character: string; realm: string }) => sameName(c.character, c.realm) || looseOwn(c.character);
+  const ownCharacter = (c: { name: string; realm: string; id?: unknown }) => (edition === "forever" && byId(c.id)) || sameName(c.name, c.realm, c.id) || looseOwn(c.name, c.id);
   // 9.1: guildmates' crafting data the uploader's addon heard (only for characters already linked in this guild).
   const crafts = guildmates ? relayableCraftData(snapshot, guildmates.uploaderMemberId, guildmates.linked, guildmates.now) : null;
   const ownNames = new Set(owned.map((c) => c.name.toLowerCase()));
+  const ownIds = new Map(owned.flatMap((c) => c.wowId === null || c.wowId === undefined ? [] : [[c.name.toLowerCase(), c.wowId] as const]));
   const ownsName = (name: string) => ownNames.has(name.split("-")[0]!.trim().toLowerCase()) || looseOwn(name);
   return parseAddonSnapshot({
     source: snapshot.source, exportedAt: snapshot.exportedAt, wowGuild: snapshot.wowGuild,
@@ -86,7 +102,7 @@ export function personalSnapshot(snapshot: AddonSnapshot, owned: { name: string;
     recipes: [...snapshot.recipes.filter(own), ...(crafts?.recipes ?? [])], cooldowns: [...snapshot.cooldowns.filter(own), ...(crafts?.cooldowns ?? [])],
     recipeNames: { ...Object.fromEntries(Object.entries(snapshot.recipeNames).filter(([key]) => snapshot.recipes.filter(own).some((set) => set.keys.includes(Number(key))))), ...(crafts?.recipeNames ?? {}) },
     // Own postmatch reports only. record() still requires Discord consent and drops the rest.
-    battlegroundReports: snapshot.battlegroundReports.filter((row) => row.edition === edition && names.has(key(row.character, row.realm))),
+    battlegroundReports: snapshot.battlegroundReports.filter((row) => row.edition === edition && sameName(row.character, row.realm)),
     // Duels where the member took part, and the member's own milestones (names are matched on apply).
     duelResults: snapshot.duelResults.filter((row) => { const r = row as { winner?: unknown; loser?: unknown } | null; return [r?.winner, r?.loser].some((n) => typeof n === "string" && ownsName(n)); }),
     // Duels outside the guild: only the ones this member reported as a side of the duel (the record's own side decides).
@@ -94,6 +110,6 @@ export function personalSnapshot(snapshot: AddonSnapshot, owned: { name: string;
     milestones: snapshot.milestones.filter((row) => { const c = (row as { character?: unknown } | null)?.character; return typeof c === "string" && ownsName(c); }),
     // 8.5: the member's own dungeon runs and guildmates' runs reported by someone who played them
     // (guildmate-relay.ts). The usual run validation and one-row-per-run-id still apply on import.
-    dungeonRuns: relayableDungeonRuns(snapshot.dungeonRuns, ownNames)
+    dungeonRuns: relayableDungeonRuns(snapshot.dungeonRuns, ownNames, undefined, ownIds)
   });
 }

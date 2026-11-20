@@ -1800,8 +1800,8 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       if (!access.officer) {
         // 9.1: guildmates' recipes, cooldowns and attunements, for characters already linked in this guild.
         const [owned, linkedInGuild] = await Promise.all([
-          prisma.character.findMany({ where: { memberId: pairedMemberId }, select: { name: true, realm: true } }),
-          pairedMemberId ? prisma.character.findMany({ where: { member: { guildId: guild.id } }, select: { name: true, realm: true, memberId: true, gameEdition: true } }) : []
+          prisma.character.findMany({ where: { memberId: pairedMemberId }, select: { name: true, realm: true, wowId: true } }),
+          pairedMemberId ? prisma.character.findMany({ where: { member: { guildId: guild.id } }, select: { name: true, realm: true, memberId: true, gameEdition: true, wowId: true } }) : []
         ]);
         mark("personal-reads");
         preview = await importService.previewSnapshot(guild.id, personalSnapshot(preview.snapshot, owned, pairedMemberId ? { uploaderMemberId: pairedMemberId, linked: linkedInGuild } : undefined), createdBy);

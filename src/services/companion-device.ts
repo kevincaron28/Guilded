@@ -3,13 +3,13 @@ import { z } from "zod";
 import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
 import { dungeonRunSchema } from "./dungeon-rules.js";
 import { mergeProfessionSkills } from "./profession-names.js";
-import { characterKey, foreverSameName } from "../../companion/character-identity.mjs";
+import { characterKey, idKey, sameCharacter } from "../../companion/character-identity.mjs";
 import { runCardsOf, type ReceiptCardRow } from "./dungeon-card.js";
 import { enrichStoredRun, firstNameKey, importDungeonRuns, receiptReason, RETRY_OUTCOME, saveRunReceipts, type DungeonImportSummary } from "./dungeon-import.js";
 import { plausibilityFlags, type Anomaly, type NeighbourRun } from "./run-plausibility.js";
 import { challengeSecret, holdsRun, integrityConfig } from "./run-integrity-config.js";
 import { contradicts, issueChallenge, verifyBatch } from "./run-challenge.js";
-import { anchored, countsDeviceOnlyRuns, decide, fingerprintOf, independent, RUN_TRUST, sameRun, voucherOf, type RunFingerprint, type Statement } from "./run-trust.js";
+import { anchored, countsDeviceOnlyRuns, decide, fingerprintOf, independent, RUN_TRUST, sameRun, voucherOf, type KeyIds, type KnownCharacter, type RunFingerprint, type Statement } from "./run-trust.js";
 import { guildMembership, splitStrangerRuns, type GuildMembership } from "./guild-participants.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
 import { withEdition } from "./edition-context.js";
@@ -155,7 +155,8 @@ export interface ServerCandidate {
 }
 
 /** The device a batch of runs came from, and the characters it reported. */
-export interface DeviceRunSource { deviceId: string; characterKeys: readonly string[]; /** Signing key derived from the device key sent with this upload. */ sealKey?: string | null;
+export interface DeviceRunSource { deviceId: string; characterKeys: readonly string[];
+  /** Character ids: the game id (decimal text) each of those keys reported; keys without one are absent. */ characterIds?: KeyIds; /** Signing key derived from the device key sent with this upload. */ sealKey?: string | null;
   /** (9.3.2) A copy of a run another guild's lane stored (cross-guild-runs.ts): judged like a device's run, but there is no device signature to check. */ shared?: boolean }
 export interface DeviceRunResult { stored: number; skipped: number; /** Run ref -> why it waits (not a run anywhere yet). */ pending?: Record<string, string>;
   /** (9.3.2) The runs stored by this call (for the other guilds with a member in them). */ shareable?: unknown[];
@@ -171,6 +172,8 @@ export interface DeviceStore {
    */
   candidates(nameKey: string, realmKey: string, characterKeys?: string[]): Promise<ServerCandidate[]>;
   characterKeys(deviceId: string): Promise<string[]>;
+  /** Character ids: name key -> game id (decimal text) for the characters this device reported with one. */
+  characterIds?(deviceId: string): Promise<[string, string][]>;
   saveUpload(deviceId: string, data: { guildId: string | null; chosenGuildId: string | null; wowGuild: { key: string; name: string; realm: string } | null; now: Date },
     characters: { nameKey: string; name: string; realm: string; displayName?: string; className?: string; race?: string; level?: number; spec?: string; professions?: Prisma.InputJsonValue; gameEdition: string }[]): Promise<void>;
   /** Marks the device claimed by this member; false when it is unknown, revoked or claimed by someone else. */
@@ -261,11 +264,12 @@ export function pickServer(candidates: readonly ServerCandidate[], chosenDiscord
 const deviceRunHits = windowLimiter(DEVICE_LIMITS.runsPerDevicePerHour, 3_600_000);
 
 /** Runs a device may send: a party member is a character this device reported (a device cannot post strangers' runs). */
-export function runsOfDevice(raw: unknown[], deviceKeys: ReadonlySet<string>): unknown[] {
+export function runsOfDevice(raw: unknown[], deviceKeys: ReadonlySet<string>, deviceIds?: KeyIds): unknown[] {
   return raw.filter((run) => {
     const players = (run as { players?: unknown } | null)?.players;
+    // Character ids: both sides carrying an id, the id alone decides; otherwise the name rule.
     return Array.isArray(players) && players.some((player) => typeof (player as { character?: unknown })?.character === "string"
-      && [...deviceKeys].some((own) => foreverSameName(own, (player as { character: string }).character)));
+      && [...deviceKeys].some((own) => sameCharacter(own, (player as { character: string }).character, deviceIds?.get(own), (player as { id?: unknown }).id)));
   });
 }
 
@@ -325,6 +329,13 @@ async function handleDeviceUploadCore(store: DeviceStore, device: DeviceRow, bod
   // A runs-only upload vouches only with characters this device already reported through its own sync (never new ones: the cap stays).
   const reportedBefore = await store.characterKeys(device.id);
   const known = new Set(runsOnly ? characterKeys.filter((nameKey) => reportedBefore.includes(nameKey)) : reportedBefore);
+  // Character ids: what this device reported before, then this upload's own (a renamed character keeps its id; a name key without one stays absent).
+  const deviceIds = new Map<string, string>(store.characterIds ? await store.characterIds(device.id) : []);
+  for (const character of upload.characters) {
+    const id = idKey(character.id);
+    const nameKey = characterKey(character.name, character.realm, character.gameEdition);
+    if (id !== null) deviceIds.set(nameKey, id); // only keys in `known` are ever looked up
+  }
   const rows: Parameters<DeviceStore["saveUpload"]>[2] = [];
   for (const character of runsOnly ? [] : upload.characters) {
     const nameKey = characterKey(character.name, character.realm, character.gameEdition);
@@ -387,12 +398,12 @@ async function handleDeviceUploadCore(store: DeviceStore, device: DeviceRow, bod
     let relayed = 0;
     // Runs this device has standing for: one of its characters played it, or a participant's addon sent it in game.
     for (const run of guildRuns) {
-      const standing = voucherOf(run, known);
+      const standing = voucherOf(run, known, deviceIds);
       if (!standing || (standing.kind === "relay" && ++relayed > RUN_TRUST.relayedPerUpload)) continue;
       if (!limiter(device.id)) break;
       allowed.push(run);
     }
-    const result = allowed.length ? await store.importRuns(target.guildId, allowed, now, { deviceId: device.id, characterKeys: [...known], sealKey: options.sealKey ?? null }) : { stored: 0, skipped: 0 };
+    const result = allowed.length ? await store.importRuns(target.guildId, allowed, now, { deviceId: device.id, characterKeys: [...known], characterIds: deviceIds, sealKey: options.sealKey ?? null }) : { stored: 0, skipped: 0 };
     pending = result.pending ?? {};
     if (result.shareable?.length) options.afterShare?.({ guildId: target.guildId, deviceId: device.id, characterKeys: [...known], receivedAt: now }, result.shareable);
     runs = { received: guildRuns.length, stored: result.stored, skipped: result.skipped, ...(Object.keys(pending).length ? { pending: Object.keys(pending).length } : {}) };
@@ -469,15 +480,18 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
   const standing = await tx.companionDevice.findUnique({ where: { id: source.deviceId }, select: { excludedGuilds: true, createdAt: true } });
   const excludedHere = standing?.excludedGuilds?.includes(guildId) ?? false;
   const deviceKeys = new Set(source.characterKeys);
+  const deviceIds: KeyIds = source.characterIds ?? new Map();
   const nowSec = Math.floor(now.getTime() / 1000);
   const guild = await tx.guild.findUnique({ where: { id: guildId }, select: { gameEdition: true } });
   const heldRows = await tx.dungeonRun.findMany({ where: { guildId, runRef: { in: refs } }, select: { id: true, runRef: true, trust: true, state: true } });
   const mineRows = await tx.dungeonRunWitness.findMany({ where: { guildId, deviceId: source.deviceId, runRef: { in: refs } } }) as WitnessRow[];
   const characters = await tx.character.findMany({ where: { member: { guildId } }, include: { member: true } });
-  const roster = await tx.guildRosterEntry.findMany({ where: { guildId, gameEdition: "forever", inGuild: true }, select: { nameKey: true }, take: 5000 });
+  const roster = await tx.guildRosterEntry.findMany({ where: { guildId, gameEdition: "forever", inGuild: true }, select: { nameKey: true, wowId: true }, take: 5000 });
   const held = new Map(heldRows.map((row) => [row.runRef, row] as const));
   const mine = new Map(mineRows.map((row) => [row.runRef, row] as const));
-  const knownNames = [...roster.map((row) => row.nameKey), ...characters.map((character) => character.name.toLowerCase())];
+  // Character ids: a row with a stored game id carries it, so a run player with an id is matched by it (anchored in run-trust.ts).
+  const knownNames: KnownCharacter[] = [...roster.map((row) => typeof row.wowId === "bigint" ? { name: row.nameKey, id: row.wowId } : row.nameKey),
+    ...characters.map((character) => typeof character.wowId === "bigint" ? { name: character.name.toLowerCase(), id: character.wowId } : character.name.toLowerCase())];
   const linked = characters.map((character) => ({ name: character.name, realm: character.realm, memberId: character.memberId, spec: character.spec, discordId: character.member?.discordUserId ?? null, displayName: character.displayName ?? null }));
   const started = await tx.officialSeason.findMany({ where: { gameEdition: gameEditionOf(guild ?? {}), startsAt: { lte: now } }, select: { number: true } });
   const allowDeviceOnly = countsDeviceOnlyRuns(started.map((season) => season.number));
@@ -486,7 +500,7 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
   let storedToday = source.shared ? 0 : await tx.dungeonRunWitness.count({ where: { deviceId: source.deviceId, trust: "device", decidedAt: { gte: new Date(now.getTime() - 86_400_000) } } });
   const pending: Record<string, string> = {};
   const config = integrityConfig();
-  const batchFlags = source.shared ? new Map<string, Anomaly[]>() : verifyBatch(entries.map(({ ref, raw }) => ({ raw, ref, endedAt: fingerprintOf(raw)?.endedAt ?? null, kind: voucherOf(raw, deviceKeys)?.kind ?? "relay" as const, earlier: mine.get(ref)?.reason === "released" })),
+  const batchFlags = source.shared ? new Map<string, Anomaly[]>() : verifyBatch(entries.map(({ ref, raw }) => ({ raw, ref, endedAt: fingerprintOf(raw)?.endedAt ?? null, kind: voucherOf(raw, deviceKeys, deviceIds)?.kind ?? "relay" as const, earlier: mine.get(ref)?.reason === "released" })),
     { deviceId: source.deviceId, sealKey: source.sealKey ?? null, secret: challengeSecret(), windowSec: config.challengeWindowSec, clockSlackSec: config.clockSlackSec, deviceSince: epoch(standing?.createdAt), requireSeal: config.requireSeal });
   let strikes = source.shared || config.strikeWindowSec === null ? 0 : await tx.dungeonRunWitness.count({ where: { deviceId: source.deviceId, status: "held", firstSeenAt: { gte: new Date(now.getTime() - config.strikeWindowSec * 1000) } } });
 
@@ -552,7 +566,7 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
   };
 
   for (const { ref, raw } of entries) {
-    const standing = voucherOf(raw, deviceKeys);
+    const standing = voucherOf(raw, deviceKeys, deviceIds);
     const print = fingerprintOf(raw);
     if (!standing || !print) { result.skipped++; continue; }
     const statement: Statement = { ...print, deviceId: source.deviceId, ...standing };
@@ -696,6 +710,7 @@ export function prismaInstallStore(database: PrismaClient, serverName: (discordI
       return result;
     },
     characterKeys: async (deviceId) => (await database.deviceCharacter.findMany({ where: { deviceId }, select: { nameKey: true } })).map((row) => row.nameKey),
+    characterIds: async (deviceId) => (await database.deviceCharacter.findMany({ where: { deviceId, wowId: { not: null } }, select: { nameKey: true, wowId: true } })).flatMap((row) => row.wowId === null ? [] : [[row.nameKey, row.wowId.toString()] as [string, string]]),
     async saveUpload(deviceId, data, characters) {
       await database.$transaction(async (tx) => {
         await tx.companionDevice.update({ where: { id: deviceId }, data: {

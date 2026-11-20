@@ -289,9 +289,8 @@ describe("persistent participation accounting", () => {
   it("registers a bounded French/English command without mandatory content access", () => {
     const command = commands.find(row => row.name === "participation")!;
     const data = command.toJSON() as { options: { name: string }[] };
-    // The officer subcommands moved to /setup participation (November 2026) and answer "moved" here for one release.
-    expect(data.options.map(option => option.name)).toEqual(["status", "nominate", "history", "settings", "channels", "claims", "review", "reverse"]);
-    for (const option of data.options.slice(3)) expect((option as unknown as { description: string }).description).toMatch(/^\(moved\) \/setup participation/);
+    // The officer subcommands live under /setup participation (November 2026).
+    expect(data.options.map(option => option.name)).toEqual(["status", "nominate", "history"]);
     type Node = { name?: string; description?: string; description_localizations?: { fr?: string }; value?: string; options?: Node[]; choices?: Node[] };
     const size = (node: Node, french: boolean): number => (node.name?.length ?? 0) + (french ? node.description_localizations?.fr ?? node.description ?? "" : node.description ?? "").length + (typeof node.value === "string" ? node.value.length : 0) + [...(node.options ?? []), ...(node.choices ?? [])].reduce((sum, child) => sum + size(child, french), 0);
     expect(size(command.toJSON() as Node, false)).toBeLessThanOrEqual(4000);

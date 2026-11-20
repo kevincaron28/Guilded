@@ -2817,6 +2817,9 @@ local DE = {
   ["Click a player to see your record against them."] = "Klicke auf einen Spieler, um eure Bilanz zu sehen.",
   ["your health left %d%%"] = "deine verbleibende Gesundheit: %d%%",
   ["opponent's health left %d%%"] = "Gesundheit des Gegners: %d%%",
+  ["damage taken %s"] = "erlittener Schaden: %s",
+  ["healing %s"] = "erhaltene Heilung: %s",
+  ["lowest health %d%%"] = "niedrigste Gesundheit: %d%%",
   -- 9.3 settings page (Modules/SettingsPage.lua)
   ["A /ginvite line when someone whispers a phrase."] = "Eine /ginvite-Zeile, wenn jemand eine bestimmte Phrase fl\195\188stert.",
   ["A dungeon score per player from recorded runs, on tooltips."] = "Eine Dungeon-Wertung pro Spieler aus aufgezeichneten Durchl\195\164ufen, in den Tooltips.",
@@ -5135,6 +5138,9 @@ local ES = {
   ["Click a player to see your record against them."] = "Haz clic en un jugador para ver tu marca contra \195\169l.",
   ["your health left %d%%"] = "tu salud restante: %d%%",
   ["opponent's health left %d%%"] = "salud del rival: %d%%",
+  ["damage taken %s"] = "da\195\177o recibido: %s",
+  ["healing %s"] = "curaci\195\179n recibida: %s",
+  ["lowest health %d%%"] = "salud m\195\173nima: %d%%",
   -- 9.3 settings page (Modules/SettingsPage.lua)
   ["A /ginvite line when someone whispers a phrase."] = "Una l\195\173nea /ginvite cuando alguien susurra una frase.",
   ["A dungeon score per player from recorded runs, on tooltips."] = "Una puntuaci\195\179n de mazmorra por jugador seg\195\186n las partidas registradas, en las descripciones emergentes.",
@@ -6744,6 +6750,9 @@ FR["Your record: %d wins, %d losses (%d%%), streak %s. Click a player to see you
 FR["Click a player to see your record against them."] = "Cliquez sur un joueur pour voir votre bilan contre lui."
 FR["your health left %d%%"] = "votre sant\195\169 restante : %d%%"
 FR["opponent's health left %d%%"] = "sant\195\169 de l'adversaire : %d%%"
+FR["damage taken %s"] = "d\195\169g\195\162ts subis : %s"
+FR["healing %s"] = "soins re\195\167us : %s"
+FR["lowest health %d%%"] = "sant\195\169 minimale : %d%%"
 
 FR["Shows a small card with the result, the record and the rank change after each of your guild duels. Type /guilded duels card test to preview it."] = "Affiche une petite carte avec le r\195\169sultat, le bilan et le changement de rang apr\195\168s chacun de vos duels de guilde. Tapez /guilded duels card test pour l'aper\195\167u."
 FR["Not recorded."] = "Non enregistr\195\169."

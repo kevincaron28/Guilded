@@ -29,7 +29,7 @@ describe("promotion congratulations", () => {
     expect(job!.kind).toBe("MESSAGE");
     expect(job!.payload["channelId"]).toBe("chan-honors");
     expect(job!.payload["mentionUsers"]).toEqual([USER]);
-    expect(JSON.stringify(job!.payload["message"])).toContain(`Félicitations à <@${USER}> (Halidor Galemorne), promu·e **Membre** !`);
+    expect(JSON.stringify(job!.payload["message"])).toContain(`Félicitations à <@${USER}> pour sa promotion au rang de **Membre** !`);
     expect(job!.payload["card"]).toMatchObject({ promotion: { tier: "member", name: "Simon", character: "Halidor Galemorne", rank: "Membre", kicker: "Félicitations !" } });
   });
   it("prefers the announcements channel", async () => {
@@ -57,7 +57,8 @@ describe("promotion congratulations", () => {
     expect(jobs.size).toBe(1);
   });
   it("words it in English too", () => {
-    expect(promotionCongratsText("<@1>", "Halidor", "Member", "en")).toBe("🎉 Congratulations to <@1> (Halidor), promoted to **Member**!");
+    expect(promotionCongratsText("<@1>", "Member", "en")).toBe("🎉 Congratulations to <@1> on their promotion to **Member**!");
+    expect(promotionCongratsText("<@1>", "Co-GM", "fr")).toBe("🎉 Félicitations à <@1> pour sa promotion au rang de **Co-GM** !");
   });
   it("maps rank names to tiers, unknown ones to neutral", () => {
     expect(["Initiate", "Membre", "Officier", "Co-GM", "Guild Master", "Ambassadeur"].map(promotionTier)).toEqual(["initiate", "member", "officer", "leader", "leader", "neutral"]);

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { foreverNameMatches } from "../../companion/character-identity.mjs";
+import { parseWowId } from "./character-ref.js";
 import { DUEL_ARCHIVE_BEFORE, DUEL_RULES } from "./duel-rules.js";
 import { refreshSeasonCalendar } from "./season-calendar.js";
 import { RATING_START, placement, rateSeason, ratingApplies, ratingStandings, seasonOf, type RatedDuel, type SeasonInfo } from "./duel-rating.js";
@@ -24,7 +25,10 @@ export const duelResultSchema = z.object({
   winner: z.string().trim().min(1).max(80),
   loser: z.string().trim().min(1).max(80),
   at: z.number().int().positive().max(4102444800),
-  reason: z.enum(["knockout", "retreat"])
+  reason: z.enum(["knockout", "retreat"]),
+  // Character ids (low GUID part, hex) of both sides, sent by stage B addons through the companion; unreadable values are dropped.
+  winnerId: z.string().regex(/^[0-9a-fA-F]{1,16}$/).optional().catch(undefined),
+  loserId: z.string().regex(/^[0-9a-fA-F]{1,16}$/).optional().catch(undefined)
 }).strict();
 export type DuelResultInput = z.infer<typeof duelResultSchema>;
 
@@ -44,7 +48,7 @@ export const milestoneSchema = z.object({
 export type MilestoneInput = z.infer<typeof milestoneSchema>;
 
 type Tx = Prisma.TransactionClient;
-type Row = { id: string; name: string; realm: string; memberId: string; level?: number | null };
+type Row = { id: string; name: string; realm: string; memberId: string; level?: number | null; wowId?: bigint | null };
 
 const dayKey = (at: Date) => at.toISOString().slice(0, 10);
 /** Order-free key of two members. */
@@ -53,8 +57,14 @@ const reportKey = (winnerId: string, loserId: string, at: number) =>
   createHash("sha256").update(`${winnerId}|${loserId}|${at}`).digest("hex").slice(0, 32);
 
 /** A character name to the single member that owns it, or null when unknown or ambiguous. */
-function memberOf(characters: readonly Row[], name: string): { memberId: string; name: string; level: number | null } | null {
+function memberOf(characters: readonly Row[], name: string, wowId?: bigint | null): { memberId: string; name: string; level: number | null } | null {
   // Exact name, or (WoW Forever, 8.5) the single row still stored under the first name.
+  // An id the addon read from the game decides when a stored row has it; a row with another id is never the character.
+  if (wowId != null) {
+    const byId = characters.find(character => character.wowId === wowId);
+    if (byId) return { memberId: byId.memberId, name: byId.name, level: byId.level ?? null };
+    characters = characters.filter(character => character.wowId == null);
+  }
   const matches: Row[] = foreverNameMatches(characters, name);
   const owners = new Set(matches.map(character => character.memberId));
   return owners.size === 1 ? { memberId: matches[0]!.memberId, name: matches[0]!.name, level: matches[0]!.level ?? null } : null;
@@ -80,7 +90,7 @@ export async function importDuelResults(tx: Pick<Tx, "duelResult">, guildId: str
   for (const duel of parsed) {
     const endedAt = new Date(duel.at * 1000);
     const age = now.getTime() - endedAt.getTime();
-    const winner = memberOf(characters, duel.winner), loser = memberOf(characters, duel.loser);
+    const winner = memberOf(characters, duel.winner, parseWowId(duel.winnerId)), loser = memberOf(characters, duel.loser, parseWowId(duel.loserId));
     // Both must be known guild members and different people; the reporter must be one of them.
     if (!winner || !loser || winner.memberId === loser.memberId || (reporterId !== winner.memberId && reporterId !== loser.memberId)
       || age < -300_000 || age > MAX_AGE_DAYS * 86_400_000) { result.rejected++; continue; }

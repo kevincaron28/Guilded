@@ -2,7 +2,7 @@
 -- companion so members who never install Guilded still reach Discord (docs/GUILD_DATA_INVENTORY.md).
 --
 --   db.guildSnapshot = { at, complete, count, members = { [key] = { level, class, rankName,
---     rankIndex, online, lastOnline, guid } }, motd, info, textAt }
+--     rankIndex, online, lastOnline, guid, id } }, motd, info, textAt }
 --
 -- * Read from the game's own guild roster (GetGuildRosterInfo, GetGuildRosterLastOnline), so it
 --   covers every member, with or without the addon. At most once a minute.
@@ -71,6 +71,20 @@ local function guarded(name, fn)
   return ok, value
 end
 
+-- (stage B) ns.idToKey / ns.keyToId: the one place the addon learns which id belongs to which roster name. Rebuilt once per
+-- roster refresh. An id seen on two rows (should not happen) is dropped from both maps, so it can never point at a wrong name.
+function snapshot.buildIdMaps(members)
+  local idToKey, keyToId, clash = {}, {}, {}
+  for key, row in pairs(members) do
+    local id = row.id
+    if id then
+      if idToKey[id] or clash[id] then clash[id] = true; idToKey[id] = nil else idToKey[id] = key; keyToId[key] = id end
+    end
+  end
+  for id in pairs(clash) do for key, mapped in pairs(keyToId) do if mapped == id then keyToId[key] = nil end end end
+  ns.idToKey, ns.keyToId = idToKey, keyToId
+end
+
 -- Reads the whole roster; returns the snapshot, or nil when the roster is not loaded.
 function snapshot.read(force)
   local db = ns.getDb and ns.getDb()
@@ -94,6 +108,8 @@ function snapshot.read(force)
         rankIndex = (rank and rank >= 0 and rank < 20) and math.floor(rank) or nil,
         -- (9.4) The player GUID (17th return of GetGuildRosterInfo): the exact key the Armory sync matches on.
         guid = type(guid) == "string" and not secret(guid) and #guid <= 40 and guid:match("^Player%-%d+%-%x+$") and guid or nil,
+        -- (stage B) The character id: the low part of that GUID as hex, the exact key the bot matches on.
+        id = ns.util and ns.util.charId and ns.util.charId(guid) or nil,
         online = online and true or false,
         lastOnline = lastOnline(index, online, now)
       }
@@ -101,6 +117,7 @@ function snapshot.read(force)
     end
   end
   if kept == 0 then return nil end
+  snapshot.buildIdMaps(members)
   local showsOffline = true
   if type(GetGuildRosterShowOffline) == "function" then
     local okShow, value = pcall(GetGuildRosterShowOffline)

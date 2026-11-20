@@ -345,9 +345,36 @@ function util.firstName(key)
   return key:match("^(%S+) ") or key
 end
 
+-- (9.4.x, docs/plans/CHARACTER_ID_MATCHING_2026-11-20.md) The character id: the low part of the GUID
+-- "Player-<server>-<hex>" as lowercase hex without leading zeros, the same number the bot stores as `wowId`.
+-- Nil for anything that is not a plain player GUID (and for a secret value). Never part of a hashed field.
+function util.charId(guid)
+  if type(guid) ~= "string" or isSecret(guid) or #guid > 40 then return nil end
+  local hex = guid:match("^Player%-%d+%-(%x+)$")
+  if not hex or #hex > 16 then return nil end
+  hex = hex:lower():gsub("^0+", "")
+  return hex ~= "" and hex or nil
+end
+-- A character id as received (from a peer or the saved data): the same shape or nil.
+function util.validId(value)
+  if type(value) ~= "string" or isSecret(value) or #value < 1 or #value > 16 or not value:match("^%x+$") then return nil end
+  value = value:lower():gsub("^0+", "")
+  return value ~= "" and value or nil
+end
+-- The id of a unit token (player, partyN, target...); nil when the client does not give one.
+function util.unitId(unit)
+  if type(UnitGUID) ~= "function" or type(unit) ~= "string" then return nil end
+  local ok, guid = pcall(UnitGUID, unit)
+  return ok and util.charId(guid) or nil
+end
+
 -- Two names are the same character: equal keys, or (an older addon or saved row that knew only
 -- the first name) one is a bare first name and the other a full name starting with it.
-function util.sameCharacter(a, b)
+-- With both ids known the ids decide (equal = same, different = different, whatever the names say);
+-- with an id missing on either side the name rule below applies.
+function util.sameCharacter(a, b, idA, idB)
+  local ia, ib = util.validId(idA), util.validId(idB)
+  if ia and ib then return ia == ib end
   local ka, kb = util.characterKey(a or ""), util.characterKey(b or "")
   if not ka or not kb then return false end
   if ka == kb then return true end
@@ -361,9 +388,12 @@ end
 -- an 8.4 companion or guildmate still uses first names, the one key that is the same character
 -- (util.sameCharacter). Like the bot's transitional rule, a first name counts only when it is not
 -- shared: two matching keys, or two known full names for that first name, mean no match.
-function util.findCharacterKey(map, name)
+function util.findCharacterKey(map, name, id)
   if type(map) ~= "table" or type(name) ~= "string" then return nil end
   if map[name] ~= nil then return name end
+  -- (stage B) With a known id the roster's name for it decides, with no scan: that key, or nothing.
+  local viaId = id and ns.idToKey and ns.idToKey[util.validId(id) or ""]
+  if viaId and map[viaId] ~= nil then return viaId end
   if not util.isForever() then return nil end
   local found
   for key in pairs(map) do

@@ -140,6 +140,7 @@ local function unitInfo(unit)
     unit = unit, level = level, guild = guild, faction = faction,
     name = ns.normalizeName(name),
     guid = (not secret(guid)) and guid or nil,
+    id = (not secret(guid)) and ns.util.charId(guid) or nil,
     class = (not secret(classFile)) and classFile or nil,
     role = ns.util.dungeonRole(role),
     inGuild = inGuild and true or false,

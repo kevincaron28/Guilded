@@ -146,6 +146,8 @@ local function updatePlayers(run)
       observations[member.name] = inside and compat.dungeonPresence(member.unit) == true
     end
     player.guid = member.guid or player.guid
+    -- (stage B) The character id from that GUID; once known it is kept (a different id for the same name is never written over it).
+    if not player.id then player.id = ns.util.charId(member.guid) end
     player.inGuild = member.inGuild or player.inGuild
     -- (9.3) The guild the game reports for this player; kept when it is unknown for a moment (out of range).
     if member.guild then player.guild = member.guild end
@@ -537,6 +539,13 @@ serialize = function(run)
     if player.guild and player.guild ~= "" then guilds[#guilds + 1] = clean(name) .. ":" .. clean(string.sub(player.guild, 1, 40)) end
     if player.faction == "ALLIANCE" or player.faction == "HORDE" then factions[#factions + 1] = clean(name) .. ":" .. string.sub(player.faction, 1, 1) end
   end
+  -- (stage B) Character ids (low GUID part, hex) per player: a new key, so older peers skip it and nobody's `p=` entry changes.
+  local ids = {}
+  for name, player in pairs(run.players) do
+    local id = ns.util.validId(player.id)
+    if id then ids[#ids + 1] = clean(name) .. ":" .. id end
+  end
+  local idData = #ids > 0 and (";pi=" .. table.concat(ids, ",")) or ""
   local guildData = #guilds > 0 and (";gu=" .. table.concat(guilds, ",")) or ""
   local factionData = #factions > 0 and (";fa=" .. table.concat(factions, ",")) or ""
   local integrityData = ""
@@ -561,7 +570,7 @@ serialize = function(run)
   end
   -- (9.4.2) Everything the bot reads per player (levels, spec and the base fields are written above; guild, faction and the
   -- integrity data here) keeps its room; the timeline is the only part that is trimmed.
-  local reserved = #guildData + #factionData + #integrityData
+  local reserved = #guildData + #factionData + #integrityData + #idData
   for _, encounter in ipairs(run.encounters or {}) do
     if encounter.id and encounter.at then
       local row = table.concat({ encounter.id, clean(string.sub(encounter.name or "", 1, 100)), encounter.success and "1" or "0",
@@ -577,6 +586,7 @@ serialize = function(run)
   -- (9.3) Guild and faction after everything else; their room was reserved above, so they fit even with a long timeline.
   if guildData ~= "" and #summary + #guildData <= CHUNK_BYTES * 20 then summary = summary .. guildData end
   if factionData ~= "" and #summary + #factionData <= CHUNK_BYTES * 20 then summary = summary .. factionData end
+  if idData ~= "" and #summary + #idData <= CHUNK_BYTES * 20 then summary = summary .. idData end
   return summary
 end
 
@@ -642,6 +652,12 @@ local function deserialize(id, text)
     local name, letter = string.match(entry, "^([^:]+):([AH])$")
     name = name and ns.normalizeName(name)
     if name and run.players[name] then run.players[name].faction = letter == "A" and "ALLIANCE" or "HORDE" end
+  end
+  for entry in string.gmatch(fields.pi or "", "[^,]+") do
+    local name, id = string.match(entry, "^([^:]+):(%x+)$")
+    name = name and ns.normalizeName(name)
+    id = id and ns.util.validId(id)
+    if name and id and run.players[name] then run.players[name].id = id end
   end
   if fields.iv == "2" and (fields.iw == "unknown" or fields.iw == "native-reset" and tonumber(fields.wa)) and (fields.ic == "1" or fields.ic == "0") then
     run.integrity = { version = 2, startWitness = fields.iw, witnessAt = tonumber(fields.wa), startTrigger = fields.it or "unknown", continuous = fields.ic == "1",
@@ -835,7 +851,7 @@ local function storePeerRun(run, sender, delivery)
     if mine and not mine.spec and player.spec then mine.spec = player.spec end
     -- Heal copies stored before the serializer fix: fill whatever this copy lacks, never overwrite a known value with nil.
     if mine then
-      for _, field in ipairs({ "guild", "faction", "class", "role", "inGuild" }) do
+      for _, field in ipairs({ "guild", "faction", "class", "role", "inGuild", "id" }) do
         if mine[field] == nil and player[field] ~= nil then mine[field] = player[field] end
       end
       if player.presentSec and (not mine.presentSec or player.presentSec > mine.presentSec) then mine.presentSec = player.presentSec end

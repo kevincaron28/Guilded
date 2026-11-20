@@ -1,5 +1,7 @@
 import { fileURLToPath } from "node:url";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createRequire } from "node:module";
 import { EventEmitter } from "node:events";
 import { runInNewContext } from "node:vm";
@@ -8,6 +10,8 @@ import { describe, expect, it, vi } from "vitest";
 const require = createRequire(import.meta.url);
 const realUpdates = require("../companion-app/update-check.cjs");
 const i18n = require("../companion-app/i18n.cjs");
+// The update-rollback trial marker is written under app.getPath(): keep it out of the source tree (CI fails on changed sources).
+const fakeAppDir = mkdtempSync(join(tmpdir(), "guilded-update-flow-"));
 const installer = { name: "setup.exe", url: "https://github.com/kevincaron28/Guilded/releases/download/v7.3.0/setup.exe" };
 function harness(latest: unknown, locale = 'en', windowsStore = false) {
   const handlers = new Map<string, () => Promise<{ ok: boolean; action?: string }>>();
@@ -21,10 +25,10 @@ function harness(latest: unknown, locale = 'en', windowsStore = false) {
   const context = {
     ipcTestContents: contents,
     require: (id: string) => id === "electron" ? {
-      app: { requestSingleInstanceLock: () => true, whenReady: () => new Promise(() => {}), on: vi.fn(), getVersion: () => "7.2.0", getLocale: () => locale, getPath: () => "C:/fake", setPath: vi.fn(), quit },
+      app: { requestSingleInstanceLock: () => true, whenReady: () => new Promise(() => {}), on: vi.fn(), getVersion: () => "7.2.0", getLocale: () => locale, getPath: () => fakeAppDir, setPath: vi.fn(), quit },
       ipcMain: { handle: (name: string, callback: () => Promise<{ ok: boolean }>) => handlers.set(name, () => (callback as (...args: unknown[]) => Promise<{ ok: boolean }>)(event)) },
       shell: { openExternal }, Notification: { isSupported: () => false }
-    } : id === "./ipc-security.cjs" ? require("../companion-app/ipc-security.cjs") : id === "./store-config.cjs" ? require("../companion-app/store-config.cjs") : id === "./i18n.cjs" ? i18n : id === "./update-check.cjs" ? updates : id === "./idle-update.cjs" ? require("../companion-app/idle-update.cjs") : id === "./autostart.cjs" ? require("../companion-app/autostart.cjs") : id === "./detect-wow.cjs" ? {} : id === "./link-identity.cjs" ? require("../companion-app/link-identity.cjs") : id === "./disk-space.cjs" ? require("../companion-app/disk-space.cjs") : id === "node:fs" ? { mkdirSync: vi.fn(), writeFileSync: vi.fn() } : require(id),
+    } : id === "./ipc-security.cjs" ? require("../companion-app/ipc-security.cjs") : id === "./store-config.cjs" ? require("../companion-app/store-config.cjs") : id === "./i18n.cjs" ? i18n : id === "./update-check.cjs" ? updates : id === "./idle-update.cjs" ? require("../companion-app/idle-update.cjs") : id === "./update-rollback.cjs" ? require("../companion-app/update-rollback.cjs") : id === "./autostart.cjs" ? require("../companion-app/autostart.cjs") : id === "./detect-wow.cjs" ? {} : id === "./link-identity.cjs" ? require("../companion-app/link-identity.cjs") : id === "./disk-space.cjs" ? require("../companion-app/disk-space.cjs") : id === "node:fs" ? { mkdirSync: vi.fn(), writeFileSync: vi.fn() } : require(id),
     process: { argv: [], windowsStore }, __dirname: fileURLToPath(new URL("../companion-app/", import.meta.url)), setTimeout: timers, setInterval: vi.fn(), console
   };
   runInNewContext(readFileSync("companion-app/main.cjs", "utf8") + `

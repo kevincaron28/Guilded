@@ -155,6 +155,7 @@ function createIdleInstaller(deps) {
     config.updateFailure = recordFailure(config.updateFailure, version, now());
     stopRefresh();
     deps.clearMarker();
+    deps.abortTrial?.();
     active = false; child = null;
     deps.log(`install of ${version} failed (${why}); not tried again before ${config.updateFailure.nextAt}`);
     return deps.saveConfig();
@@ -178,6 +179,7 @@ function createIdleInstaller(deps) {
       lastNote = "";
       config.pendingUpdate = { ...config.pendingUpdate, attempts: (config.pendingUpdate.attempts ?? 0) + 1 };
       await deps.saveConfig();
+      deps.beginTrial?.(verdict);
       deps.writeMarker(verdict.version);
       try {
         child = await new Promise((resolve, reject) => {

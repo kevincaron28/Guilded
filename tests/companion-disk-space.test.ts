@@ -127,7 +127,8 @@ describe("the updater's installer copy", () => {
     expect(main).toMatch(/async function stageUpdate\(\)[\s\S]{0,600}checkDisk\(\)/);
     expect(main).toMatch(/async function installAddonNow[\s\S]{0,400}checkDisk\(\)/);
     expect(main).toMatch(/launchInstallerOnExit/);
-    expect(main).toMatch(/checkDisk\(\)\.ok && updates\.launchInstallerOnExit/);
+    // The disk check still gates the on-quit install; the rollback trial is started between the two (T2).
+    expect(main).toMatch(/checkDisk\(\)\.ok\)\s*\{[\s\S]{0,200}updates\.launchInstallerOnExit/);
     const pkg = JSON.parse(readFileSync("companion-app/package.json", "utf8"));
     expect(pkg.build.files).toContain("disk-space.cjs");
   });

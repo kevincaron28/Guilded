@@ -33,6 +33,7 @@
       "detect-wow.cjs",
       "update-check.cjs",
       "idle-update.cjs",
+      "update-rollback.cjs",
       "autostart.cjs",
       "i18n.cjs",
       "locales/**",

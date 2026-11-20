@@ -62,7 +62,7 @@ Upgrades:
 - **Staged rollout:** a percentage in `releases.json`, by device-key hash. Effort S.
 - **Visible failures:** show "update failed, retrying at …" in the window. Effort S.
 - **Hash header:** serve `x-sha256` on downloads. Effort S.
-- **Rollback:** keep the previous installer for one-click rollback. Effort M.
+- **Rollback (done, `companion-app/update-rollback.cjs`):** a pending-verification marker (`update-trial.json`) is written before every self-update and cleared once the new version has run 10 minutes. `entry.cjs` counts each start; after 3 launches without a healthy run (a normal quit does not count) the kept installer of the previous version (SHA-256 checked) is reinstalled, the failed version is banned until a newer one is out, and the window says "Update to X failed; back on Y". Settings and the Discord link are never touched. Store installs are skipped. Limit: the first update after this ships has no kept installer, so only later updates can roll back. Still open: **release signing** (waits on the owner key-custody decision) and **delta updates**.
 - **Smaller updates:** delta updates. Effort L, later.
 
 ## T3 — Clear, short Discord messages

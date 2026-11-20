@@ -309,10 +309,12 @@ function inRollout(deviceKey, percent) {
 
 // What the window says about an update that is not going smoothly (9.4 T2), or null. Pure.
 //   trouble: { retryAt } a download, checksum or install step failed and the next try is at retryAt (an ISO time);
+//   rolledBack: { failed, back } after the rollback of a version that failed to run (update-rollback.cjs);
 //   failure: the install backoff record ({ version, nextAt }) of idle-update.cjs;
 //   pendingReady + wowRunning: a checked installer waits for WoW to close.
-function updateNotice({ trouble = null, failure = null, pendingReady = false, wowRunning = false, version = null, now = Date.now() } = {}) {
+function updateNotice({ rolledBack = null, trouble = null, failure = null, pendingReady = false, wowRunning = false, version = null, now = Date.now() } = {}) {
   const at = (iso) => { const time = Date.parse(iso ?? ""); return Number.isFinite(time) ? new Date(time).toISOString() : null; };
+  if (rolledBack?.failed && rolledBack?.back) return { kind: "rolled-back", failed: rolledBack.failed, back: rolledBack.back };
   const troubleAt = at(trouble?.retryAt);
   if (trouble && troubleAt) return { kind: "failed", retryAt: troubleAt };
   const next = Date.parse(failure?.nextAt ?? "");

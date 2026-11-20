@@ -33,7 +33,7 @@ describe("core planning forms", () => {
     const submitted = { ...access(), fields: { getTextInputValue: (key: string) => ({ size: "20", tanks: "2", healers: "4", dps: "14" })[key] }, deferReply: vi.fn(), editReply: vi.fn() };
     const choice = { ...access(), isStringSelectMenu: () => true, values: ["20"], showModal: vi.fn(async modal => modal.toJSON()), awaitModalSubmit: vi.fn(async () => submitted) };
     const i = { ...access(), id: "click", user: { id: "leader" }, deferReply: vi.fn(), editReply: vi.fn(), fetchReply: vi.fn(async () => ({ awaitMessageComponent: async () => choice })) };
-    expect(await editCoreComposition(i as never, "guild", "core")).toContain("20 joueurs");
+    expect(await editCoreComposition(i as never, "guild", "core")).toContain("20 players");
     expect(mocks.core).toHaveBeenCalledWith({ where: { id: "core", guildId: "guild" } });
     expect(mocks.update).toHaveBeenCalledWith({ where: { id: "core" }, data: { raidSize: 20, tankLimit: 2, healerLimit: 4, dpsLimit: 14 } });
     expect(choice.showModal.mock.calls[0]![0].toJSON().components).toHaveLength(3);
@@ -48,7 +48,7 @@ describe("core planning forms", () => {
     const fields = choice.showModal.mock.calls[0]![0].toJSON().components.map((row: { components: { value: string }[] }) => row.components[0]!.value);
     expect(fields).toEqual(["2", "2", "6"]);
     expect(mocks.update).toHaveBeenCalledWith({ where: { id: "core" }, data: { raidSize: 10, tankLimit: 1, healerLimit: 3, dpsLimit: 6 } });
-    expect(result).toContain("raids publiés restent inchangés");
+    expect(result).toContain("raids already posted stay as they are");
   });
   it("does not save a schedule unless the officer confirms its dated preview", async () => {
     const submitted = { ...access(), fields: { getTextInputValue: (key: string) => ({ time: "20:00", start: "2026-12-04", days: "28", custom: "" })[key] },

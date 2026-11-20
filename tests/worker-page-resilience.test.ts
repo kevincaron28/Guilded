@@ -72,6 +72,23 @@ describe("bot-backed page resilience", () => {
     expect(again).not.toHaveBeenCalled();
   });
 
+  it("passes the bot's own 5xx through for API calls and /health, after the retries", async () => {
+    const down = vi.fn(async () => new Response(JSON.stringify({ error: "CompanionUnavailable" }), { status: 503, headers: { "content-type": "application/json", "retry-after": "30" } }));
+    vi.stubGlobal("fetch", down);
+    const api = await worker.fetch(new Request("https://guildedwow.com/api/v1/standings", { headers: { accept: "application/json" } }), env, ctx());
+    expect(api.status).toBe(503);
+    expect(api.headers.get("retry-after")).toBe("30");
+    expect(await api.json()).toEqual({ error: "CompanionUnavailable" });
+    expect(down).toHaveBeenCalledTimes(3);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("db down", { status: 503, headers: { "content-type": "text/plain" } })));
+    const health = await worker.fetch(new Request("https://guildedwow.com/health"), env, ctx());
+    expect(health.status).toBe(503);
+    expect(await health.text()).toBe("db down");
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("network"); }));
+    const gone = await worker.fetch(new Request("https://guildedwow.com/api/v1/standings", { headers: { accept: "application/json" } }), env, ctx());
+    expect(gone.status).toBe(502);
+  });
+
   it("never stores or serves copies for signed-in visitors, cookies set by the bot, non-GET or non-page routes", async () => {
     const c = ctx();
     vi.stubGlobal("fetch", vi.fn(async () => new Response("<html>mine</html>", { headers: html })));

@@ -339,14 +339,12 @@ describe("call for help: guildmates in the zone and party invites", () => {
     expect(lua.run(`return tostring(#NS.callForHelp.zoneMates())`)).toBe("5");
   });
 
-  it("gives a defender Join (whisper inv) and Invite caller", () => {
+  it("gives a defender the Join whisper as a fallback, and no Invite caller button any more (9.5: the caller invites the defender)", () => {
     const lua = withRoster();
     expect(callFrom("Bob-Realm", goodCall)).toBe("banner");
     expect(lua.run(`return tostring(NS.callForHelp.join())`)).toBe("true");
     expect(lua.run(`return table.concat(WHISPERS, ",")`)).toBe("Bob-Realm:inv");
-    expect(lines()).toContain("/invite Bob");
-    clickLine("/invite Bob");
-    expect(invites()).toBe("Bob");
+    expect(lines()).not.toContain("/invite Bob");
     expect(lua.run(`return #OPENED`)).toBe("0");
   });
 
@@ -603,12 +601,20 @@ describe("call for help: the toast is never in the way", () => {
     expect(lua.run(`return tostring(rawget(FIND("coming"), "call"))`)).toBe("nil");
   });
 
-  it("replying closes the toast", () => {
+  it("replying closes the call; On my way leaves one small notice that goes away by itself", () => {
     const lua = withFrames();
     callFrom("Bob", goodCall);
-    lua.run(`NS.callForHelp.reply(true)`);
+    lua.run(`NS.callForHelp.reply(false)`);
     expect(toastShown()).toBe("false");
+    expect(sent()).toContain(":R|42|N");
+    callFrom("Cy", goodCall);
+    lua.run(`NS.callForHelp.reply(true)`);
     expect(sent()).toContain(":R|42|Y");
+    expect(lua.run(`return tostring(NS.callForHelp.noticeText())`)).toContain("Ask Cy for a party invite");   // no layer module here: the Join whisper
+    expect(toastShown()).toBe("true");
+    lua.run(`UPDATE(25)`);
+    expect(lua.run(`return tostring(NS.callForHelp.noticeText())`)).toBe("nil");
+    expect(toastShown()).toBe("false");
   });
 
   it("respects the alert style, the sound switch and a ten-minute mute", () => {

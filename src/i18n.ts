@@ -156,7 +156,7 @@ const STRINGS = {
   // Welcome
   "welcome.default": {
     en: "Welcome to {guild}, {mention}! Use the buttons below to get started: they answer privately, only you see the replies.",
-    fr: "Bienvenue sur {guild}, {mention} ! Servez-vous des boutons ci-dessous pour bien commencer : les réponses sont privées, vous seul les voyez."
+    fr: "Bienvenue dans la gang de {guild}, {mention} ! Servez-vous des boutons ci-dessous pour bien commencer : les réponses sont privées, vous seul les voyez."
   },
   "welcome.added": { en: "Added **{role}**. You can pick more, or click again to remove it.", fr: "**{role}** ajouté. Vous pouvez en choisir d'autres, ou recliquer pour le retirer." },
   "welcome.removed": { en: "Removed **{role}**. Click again to get it back.", fr: "**{role}** retiré. Recliquez pour le récupérer." },
@@ -167,15 +167,15 @@ const STRINGS = {
   "onboard.button.pair": { en: "🔗 Link my WoW character", fr: "🔗 Lier mon personnage WoW" },
   "onboard.button.steps": { en: "✅ First steps", fr: "✅ Premiers pas" },
   "onboard.button.accept": { en: "I have read and accept the rules", fr: "J'ai lu et j'accepte les règles" },
-  "onboard.button.chat": { en: "💬 WoW chat ↔ Discord", fr: "💬 Chat WoW ↔ Discord" },
-  "onboard.panel.chat": { en: "💬 **WoW chat ↔ Discord** — how guild chat reaches Discord, and how to link your character.", fr: "💬 **Chat WoW ↔ Discord** — comment le chat de guilde arrive sur Discord, et comment lier votre personnage." },
+  "onboard.button.chat": { en: "💬 WoW chat ↔ Discord", fr: "💬 Clavardage WoW ↔ Discord" },
+  "onboard.panel.chat": { en: "💬 **WoW chat ↔ Discord** — how guild chat reaches Discord, and how to link your character.", fr: "💬 **Clavardage WoW ↔ Discord** — comment le clavardage de guilde arrive sur Discord, et comment lier votre personnage." },
   "onboard.chat.guide": {
     en: "**Guild chat and Discord**\n• Blizzard's own Discord link, if your guild leader set it up, shows guild chat in a channel (ask an officer). It does not know who you are here.\n• To link your character: press **Request a guild invite** (or type your full character name in <#{channel}>). Already in the guild? DM me the full name, or use `/character link`. It is confirmed at the next sync.",
-    fr: "**Chat de guilde et Discord**\n• Le lien Discord de Blizzard, si le chef de guilde l'a activé, affiche le chat de guilde dans un salon (demandez à un officier). Il ne sait pas qui vous êtes ici.\n• Pour lier votre personnage : appuyez sur **Demander une invitation de guilde** (ou écris son nom complet dans <#{channel}>). Déjà dans la guilde ? Envoyez-moi le nom complet en MP, ou utilisez `/character link`. Le lien est confirmé à la prochaine synchronisation."
+    fr: "**Clavardage de guilde et Discord**\n• Le lien Discord de Blizzard, si le chef de guilde l'a activé, affiche le clavardage de guilde dans un salon (demandez à un officier). Il ne sait pas qui vous êtes ici.\n• Pour lier votre personnage : appuyez sur **Demander une invitation de guilde** (ou écrivez son nom complet dans <#{channel}>). Déjà dans la guilde ? Envoyez-moi le nom complet en MP, ou utilisez `/character link`. Le lien est confirmé à la prochaine synchronisation."
   },
   "onboard.chat.guideNoChannel": {
     en: "**Guild chat and Discord**\n• Blizzard's own Discord link, if your guild leader set it up, shows guild chat in a channel (ask an officer). It does not know who you are here.\n• To link your character: DM me its full name, or use `/character link`. It is confirmed at the next sync.",
-    fr: "**Chat de guilde et Discord**\n• Le lien Discord de Blizzard, si le chef de guilde l'a activé, affiche le chat de guilde dans un salon (demandez à un officier). Il ne sait pas qui vous êtes ici.\n• Pour lier votre personnage : envoyez-moi son nom complet en MP, ou utilisez `/character link`. Le lien est confirmé à la prochaine synchronisation."
+    fr: "**Clavardage de guilde et Discord**\n• Le lien Discord de Blizzard, si le chef de guilde l'a activé, affiche le clavardage de guilde dans un salon (demandez à un officier). Il ne sait pas qui vous êtes ici.\n• Pour lier votre personnage : envoyez-moi son nom complet en MP, ou utilisez `/character link`. Le lien est confirmé à la prochaine synchronisation."
   },
   "onboard.panel.title": { en: "👋 Start here", fr: "👋 Commence ici" },
   "onboard.panel.intro": {
@@ -445,7 +445,7 @@ const STRINGS = {
   "invite.confirmName": { en: "I'll invite **{name}**, is that right?", fr: "J'invite **{name}**, c'est bien ça ?" },
   "invite.yesButton": { en: "Yes", fr: "Oui" },
   "invite.fixButton": { en: "No, let me fix it", fr: "Non, je corrige" },
-  "invite.fixPrompt": { en: "No problem. Type just your full character name, first and last, for example `Lebowski Holyroller`.", fr: "Pas de souci. Écrivez seulement le nom complet de votre personnage, prénom et nom, par exemple `Lebowski Holyroller`." },
+  "invite.fixPrompt": { en: "No problem. Type just your full character name, first and last, for example `Lebowski Holyroller`.", fr: "Pas de problème. Écrivez seulement le nom complet de votre personnage, prénom et nom, par exemple `Lebowski Holyroller`." },
   "invite.needLast": {
     en: "I found the first name **{first}**, but WoW Forever names have a last name too. Type your full character name, first and last.",
     fr: "J'ai trouvé le prénom **{first}**, mais les noms de WoW Forever ont aussi un nom de famille. Écrivez le nom complet de votre personnage, prénom et nom."
@@ -486,7 +486,7 @@ const STRINGS = {
   "pair.syncTitle": { en: "🔗 Link all your characters: 2 steps (Windows)", fr: "🔗 Lier tous vos personnages : 2 étapes (Windows)" },
   "pair.sync": {
     en: "1. {companion} Open it and press **Sign in with Discord**, then **Connect** on the page that opens. Nothing to type; it finds your WoW folder by itself.\n2. In WoW, log in and type `/reload` once. The app shows a green **✓** when you are linked: your main and every alt that logged in on this PC link at once.",
-    fr: "1. {companion} Ouvrez-le et appuyez sur **Sign in with Discord**, puis **Relier** sur la page qui s'ouvre. Rien à taper; il trouve tout seul votre dossier WoW.\n2. Dans WoW, connectez-vous et tapez `/reload` une fois. L'appli affiche un **✓** vert quand vous êtes lié : votre principal et chaque alt connecté sur ce PC se lient d'un coup."
+    fr: "1. {companion} Ouvrez-le et appuyez sur **Sign in with Discord**, puis **Relier** sur la page qui s'ouvre. Rien à taper; il trouve tout seul votre dossier WoW.\n2. Dans WoW, connectez-vous et tapez `/reload` une fois. L'application affiche un **✓** vert quand vous êtes lié : votre principal et chaque alt connecté sur ce PC se lient d'un coup."
   },
   "pair.checkTitle": { en: "Check the result", fr: "Vérifier le résultat" },
   "pair.check": {
@@ -560,7 +560,7 @@ const STRINGS = {
   },
   "guide.body": {
     en: "**Guilded** tracks your guild's dungeons, duels, crafts and raids from the WoW addon and posts the results here.\n\n**Get started**\n1) Install the addon (required): {url}\n2) Optional, Windows: the companion sends your game data to Discord. [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) or [direct download](https://guildedwow.com/companion/). Sign in with Discord to confirm your characters.\n3) Play. Runs and duels show up in the guild channels, and `/help` lists what you can use.\n\n**Bot commands**\n`/help` · `/character link` (link your characters: paste the line it gives you into WoW chat) · `/character list` · `/dungeon leaderboard` · `/bg duels` · `/craft request` · `/report bug`\n\n**Addon commands (in game)**\n`/guilded` (open the window) · `/guilded companion` · `/guilded sync` · `/gdg` (dungeon groups, Guilded Dungeons addon) · `/gsos` (call for help) · `/guilded diag` (for bug reports)\n\n[Full 3-step guide](https://guildedwow.com/start/)",
-    fr: "**Guilded** suit les donjons, duels, métiers et raids de votre guilde depuis l'addon WoW et publie les résultats ici.\n\n**Pour commencer**\n1) Installez l'addon (obligatoire) : {url}\n2) Facultatif, Windows : le compagnon envoie vos données de jeu vers Discord. [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) ou [téléchargement direct](https://guildedwow.com/companion/?lang=fr). Se connecter avec Discord confirme vos personnages.\n3) Jouez. Les donjons et duels apparaissent dans les salons de la guilde, et `/help` liste ce que vous pouvez utiliser.\n\n**Commandes du bot**\n`/help` · `/character link` (lier vos personnages : collez la ligne obtenue dans le chat WoW) · `/character list` · `/dungeon leaderboard` · `/bg duels` · `/craft request` · `/report bug`\n\n**Commandes de l'addon (en jeu)**\n`/guilded` (ouvrir la fenêtre) · `/guilded companion` · `/guilded sync` · `/gdg` (groupes de donjon, addon Guilded Dungeons) · `/gsos` (appel à l'aide) · `/guilded diag` (pour les rapports de bug)\n\n[Guide complet en 3 étapes](https://guildedwow.com/start/?lang=fr)"
+    fr: "**Guilded** suit les donjons, duels, métiers et raids de votre guilde depuis l'addon WoW et publie les résultats ici.\n\n**Pour commencer**\n1) Installez l'addon (obligatoire) : {url}\n2) Facultatif, Windows : le compagnon envoie vos données de jeu vers Discord. [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) ou [téléchargement direct](https://guildedwow.com/companion/?lang=fr). Se connecter avec Discord confirme vos personnages.\n3) Jouez. Les donjons et duels apparaissent dans les salons de la guilde, et `/help` liste ce que vous pouvez utiliser.\n\n**Commandes du bot**\n`/help` · `/character link` (lier vos personnages : collez la ligne obtenue dans le clavardage WoW) · `/character list` · `/dungeon leaderboard` · `/bg duels` · `/craft request` · `/report bug`\n\n**Commandes de l'addon (en jeu)**\n`/guilded` (ouvrir la fenêtre) · `/guilded companion` · `/guilded sync` · `/gdg` (groupes de donjon, addon Guilded Dungeons) · `/gsos` (appel à l'aide) · `/guilded diag` (pour les rapports de bug)\n\n[Guide complet en 3 étapes](https://guildedwow.com/start/?lang=fr)"
   },
 
   // Help

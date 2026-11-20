@@ -788,7 +788,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       .sort((a, b) => b.s.points - a.s.points || a.run.durationSec - b.run.durationSec).slice(0, limit);
     if (!rated.length) return `<div class="empty-cta"><p><strong>${t("No rated standard dungeon run this week yet. Be the first on the board.", "Aucun essai de donjon standard classé cette semaine. Soyez le premier au classement.")}</strong></p>`
       + `<p class="muted">${t("Install Guilded Dungeons and clear a dungeon with your group. Your run reaches this board when your companion, or the companion of anyone in your group, sends it.", "Installez Guilded Dungeons et terminez un donjon en groupe. Votre essai arrive ici quand votre compagnon, ou celui d'un membre de votre groupe, l'envoie.")} `
-      + `<a href="${link("/editions/", ctx.lang)}">${t("Download", "Télécharger")}</a> · <a href="/docs/DUNGEONS_GUIDE.html${ctx.lang === "fr" ? "#fr" : ""}">${t("How it works", "Comment ça marche")}</a></p></div>`;
+      + `<a href="${link("/editions/", ctx.lang)}">${t("Download", "Télécharger")}</a> · <a href="/docs/DUNGEONS_GUIDE.html${ctx.lang === "fr" ? "#fr" : ""}">${t("How it works", "Comment ça fonctionne")}</a></p></div>`;
     return table([t("Dungeon", "Donjon"), t("Levels", "Niveaux"), t("Time", "Temps"), t("Score", "Score"), t("Party", "Groupe"), ""],
       rated.map(({ run, s }) => `<tr><td>${escapeHtml(localDungeonName(run, ctx.lang))}</td><td>${escapeHtml(bracketName(ctx, s.bracket))}</td><td class="num">${time(run.durationSec)}</td>`
         + `<td class="num score">${s.points}${s.penaltyPercent ? ` <span class="tag">−${s.penaltyPercent}%</span>` : ""}</td><td>${party(ctx, run)}</td><td></td></tr>`), [2, 3]);

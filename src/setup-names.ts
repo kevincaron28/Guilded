@@ -35,7 +35,7 @@ export const COMMUNITY_CHANNEL_SPECS: Record<Lang, Record<"activities" | "standi
   fr: {
     activities: { name: "activités", topic: "À vous de jouer : dé quotidien, activités, points et entraide. Utilisez les boutons du panneau épinglé. Modèles organisateurs : /community hub.", access: "readonly" },
     standings: { name: "🏆・leaderboard", topic: "Le podium de la gang. Cliquez pour vos points, votre dé, le classement complet et les anciennes saisons. Score gagné et solde disponible restent distincts.", access: "readonly" },
-    chat: { name: "chat-communauté", topic: "Chat communautaire pour tout le monde, tous jeux confondus.", access: "open" },
+    chat: { name: "chat-communauté", topic: "Clavardage de la gang, pour tout le monde, tous jeux confondus.", access: "open" },
     honors: { name: "🏅・palmarès", topic: "Chaque lundi : le MVP de la semaine et le résumé de la semaine de la guilde. À la fin du mois : le top 3 du podium de la gang.", access: "readonly" },
     admin: { name: "admin-discord", topic: "Pour les officiers de la communauté Discord, pas ceux de la guilde WoW (leurs salons sont dans la catégorie Officiers). Les nominations d’entraide et autres validations communautaires arrivent ici.", access: "officers" }
   }
@@ -108,7 +108,7 @@ const TEXT: Record<Lang, Record<ChannelField, { name: string; topic: string }>> 
     coreChannelId: { name: "cores-de-raid", topic: "Compositions des cores de raid : les membres du core ont la priorité aux inscriptions" },
     raidLogChannelId: { name: "rapports-raid", topic: "Résumés de raid et Warcraft Logs, publiés après chaque raid" },
     lootChannelId: { name: "butin", topic: "Butin attribué et changements d'EP/GP" },
-    dungeonSignupChannelId: { name: "recherche-de-groupe", topic: "Groupes de donjon et de JcJ : publiez avec le bouton épinglé (donjon, champ de bataille, arène ou JcJ en monde ouvert); rejoignez comme tank, soigneur ou DPS. Le leveling a son salon" },
+    dungeonSignupChannelId: { name: "recherche-de-groupe", topic: "Groupes de donjon et de JcJ : publiez avec le bouton épinglé (donjon, champ de bataille, arène ou JcJ en monde ouvert); rejoignez comme tank, soigneur ou DPS. La montée de niveau a son salon" },
     dungeonLeaderboardChannelId: { name: "classement-donjons", topic: "Classement du défi des donjons, mis à jour automatiquement" },
     dungeonChannelId: { name: "donjons-termines", topic: "Donjons terminés et nouveaux records" },
     craftChannelId: { name: "tableau-artisanat", topic: "Demandes d'artisanat : appuyez sur Demander un craft dans le message épinglé. Les artisans filtrent par métier et appuient sur Je le fabrique." },
@@ -116,7 +116,7 @@ const TEXT: Record<Lang, Record<ChannelField, { name: string; topic: string }>> 
     craftArchiveChannelId: { name: "archive-artisanat", topic: "Demandes d'artisanat terminées et annulées." },
     craftLadderChannelId: { name: "meilleurs-artisans", topic: "Les meilleurs artisans de la guilde : un point par commande terminée, mis à jour après chacune." },
     logChannelId: { name: "journal-officiers", topic: "Journal des officiers WoW : arrivées, modération, banque et demandes d'artisanat (les validations de la communauté Discord vont au salon admin Discord)" },
-    readinessChannelId: { name: "preparation-raid", topic: "Qui est prêt pour la soirée de raid : gear et consommables (officiers et chefs de raid seulement)" },
+    readinessChannelId: { name: "preparation-raid", topic: "Qui est prêt pour la soirée de raid : équipement et consommables (officiers et chefs de raid seulement)" },
     attendanceChannelId: { name: "presences-raid", topic: "Présents, retards, banc et absents de chaque raid (officiers seulement), publié avec le rapport de raid" },
     applicationChannelId: { name: "candidatures-raid", topic: "Nouvelles candidatures de recrutement (officiers seulement) : décidez sur chaque carte, ou utilisez /mod application list|view|approve|reject|trial" },
     guideChannelId: { name: `${BRAND.channelPrefix}-guide`, topic: "Commence ici : utiliser Guilded, installer l’addon WoW et connecter le compagnon" },

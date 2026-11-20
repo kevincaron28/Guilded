@@ -134,7 +134,7 @@ const ACTIVITY_LADDERS: AchievementDef[] = [
   ], (n, fr) => fr ? `Passer ${grouped(n, true)} ${plural(n, "heure", "heures")} en vocal avec d'autres membres.` : `Spend ${grouped(n, false)} ${plural(n, "hour", "hours")} in voice channels with other members.`),
   ...ladder("reactions-given", "reactionsGiven", [
     [25, "bronze", "Thumbs Up", "Pouce en l'air"], [100, "silver", "Cheerleader", "Meneur de claque"], [250, "silver", "Applause", "Applaudissements"],
-    [1000, "gold", "Hype Machine", "Machine à enthousiasme"], [2500, "platinum", "Morale Booster", "Booster de moral"], [5000, "epic", "Beacon of Positivity", "Phare de positivité"],
+    [1000, "gold", "Hype Machine", "Machine à enthousiasme"], [2500, "platinum", "Morale Booster", "Gonfleur de moral"], [5000, "epic", "Beacon of Positivity", "Phare de positivité"],
     [10000, "legendary", "Reaction Legend", "Légende des réactions"]
   ], (n, fr) => fr ? `Réagir à ${grouped(n, true)} messages de la guilde.` : `React to ${grouped(n, false)} messages in the guild.`),
   ...ladder("reactions-received", "reactionsReceived", [

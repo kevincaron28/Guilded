@@ -10,9 +10,9 @@ ns = ns or {}
 
 local FR = {
   -- 9.3.6 quiet login.
-  ["Quiet login: no Guilded messages in chat at login"] = "Connexion discr\195\168te : aucun message de Guilded dans le chat \195\160 la connexion",
-  ["Hides Guilded's informational chat lines for the first minute after you log in or reload (loaded, login summary, reminders), and the notices caused by guildmates' Guilded messages (newer version, guild settings, ledger received). Errors and answers to your own commands always show. Same as /guilded quiet on | off."] = "Masque les lignes d'information de Guilded dans le chat pendant la premi\195\168re minute apr\195\168s la connexion ou le rechargement (chargement, r\195\169sum\195\169 de connexion, rappels), ainsi que les avis caus\195\169s par les messages Guilded des membres (nouvelle version, r\195\169glages de guilde, registre re\195\167u). Les erreurs et les r\195\169ponses \195\160 vos commandes s'affichent toujours. Identique \195\160 /guilded quiet on | off.",
-  ["Quiet login is on: Guilded keeps its informational lines out of chat at login. Errors and your own commands still show."] = "La connexion discr\195\168te est activ\195\169e : Guilded n'affiche plus ses lignes d'information dans le chat \195\160 la connexion. Les erreurs et vos commandes s'affichent toujours.",
+  ["Quiet login: no Guilded messages in chat at login"] = "Connexion discr\195\168te : aucun message de Guilded dans le clavardage \195\160 la connexion",
+  ["Hides Guilded's informational chat lines for the first minute after you log in or reload (loaded, login summary, reminders), and the notices caused by guildmates' Guilded messages (newer version, guild settings, ledger received). Errors and answers to your own commands always show. Same as /guilded quiet on | off."] = "Masque les lignes d'information de Guilded dans le clavardage pendant la premi\195\168re minute apr\195\168s la connexion ou le rechargement (chargement, r\195\169sum\195\169 de connexion, rappels), ainsi que les avis caus\195\169s par les messages Guilded des membres (nouvelle version, r\195\169glages de guilde, registre re\195\167u). Les erreurs et les r\195\169ponses \195\160 vos commandes s'affichent toujours. Identique \195\160 /guilded quiet on | off.",
+  ["Quiet login is on: Guilded keeps its informational lines out of chat at login. Errors and your own commands still show."] = "La connexion discr\195\168te est activ\195\169e : Guilded n'affiche plus ses lignes d'information dans le clavardage \195\160 la connexion. Les erreurs et vos commandes s'affichent toujours.",
   ["Quiet login is off."] = "La connexion discr\195\168te est d\195\169sactiv\195\169e.",
   -- 9.3.2 records carried for players near you.
   ["Carrying records is turned off for the whole guild by an officer."] = "Le relais est d\195\169sactiv\195\169 pour toute la guilde par un officier.",
@@ -67,8 +67,8 @@ local FR = {
   ["World PvP this week"] = "PvP mondial cette semaine",
   ["World PvP in total"] = "PvP mondial au total",
   ["%s: %d kills, %d deaths, %d defends. Calls for help: %d made (%d answered), %d answered by me."] = "%s : %d victoires, %d morts, %d d\195\169fenses. Appels \195\160 l'aide : %d lanc\195\169s (%d r\195\169pondus), %d auxquels j'ai r\195\169pondu.",
-  ["No attack was seen, so no line was posted in guild chat."] = "Aucune attaque d\195\169tect\195\169e : rien n'a \195\169t\195\169 post\195\169 dans le chat de guilde.",
-  ["A line about this zone was posted a moment ago, so none was posted now."] = "Une ligne sur cette zone vient d'\195\170tre post\195\169e : rien de nouveau n'a \195\169t\195\169 post\195\169.",
+  ["No attack was seen, so no line was posted in guild chat."] = "Aucune attaque d\195\169tect\195\169e : rien n'a \195\169t\195\169 publi\195\169 dans le clavardage de guilde.",
+  ["A line about this zone was posted a moment ago, so none was posted now."] = "Une ligne sur cette zone vient d'\195\170tre publi\195\169e : rien de nouveau n'a \195\169t\195\169 publi\195\169.",
   ["Invite"] = "Inviter",
   ["Join"] = "Rejoindre",
   ["Invite caller"] = "Inviter l'appelant",
@@ -135,7 +135,7 @@ local FR = {
   ["Developer tools: test raids with fake players (saved tests can sync to Discord)"] = "Outils de d\195\169veloppement : raids de test avec faux joueurs (les tests enregistr\195\169s peuvent se synchroniser avec Discord)",
   ["Deletes every test raid and test dungeon run from this PC. Click twice to confirm."] = "Supprime tous les raids et donjons de test de ce PC. Cliquez deux fois pour confirmer.",
   ["Needs a running raid: press Start raid first."] = "N\195\169cessite un raid en cours : appuyez d\226\128\153abord sur D\195\169marrer le raid.",
-  ["Writes the ready summary in group chat. Click twice to confirm."] = "\195\137crit le r\195\169sum\195\169 de pr\195\169paration dans le chat de groupe. Cliquez deux fois pour confirmer.",
+  ["Writes the ready summary in group chat. Click twice to confirm."] = "\195\137crit le r\195\169sum\195\169 de pr\195\169paration dans le clavardage de groupe. Cliquez deux fois pour confirmer.",
   ["? = not checked. It needs a group, and the game hides some buffs."] = "? = non v\195\169rifi\195\169. Il faut un groupe, et le jeu cache certains effets.",
   ["This code excludes per-character imported loot history. Back up the character's SavedVariables/Guilded.lua file separately."] = "Ce code exclut l'historique de butin import\195\169 propre au personnage. Sauvegardez aussi son fichier SavedVariables/Guilded.lua.",
   ["Start a raid with /guilded start before using the pricing preset."] = "D\195\169marrez un raid avec /guilded start avant d\226\128\153utiliser le pr\195\169r\195\169glage de prix.",
@@ -908,8 +908,8 @@ local FR = {
   ["Interface options"] = "Options de l'interface",
   ["Daily digest on"] = "R\195\169sum\195\169 quotidien activ\195\169",
   ["Daily digest off"] = "R\195\169sum\195\169 quotidien d\195\169sactiv\195\169",
-  ["Main names in chat on"] = "Noms des principaux dans le chat : activ\195\169",
-  ["Main names in chat off"] = "Noms des principaux dans le chat : d\195\169sactiv\195\169",
+  ["Main names in chat on"] = "Noms des principaux dans le clavardage : activ\195\169",
+  ["Main names in chat off"] = "Noms des principaux dans le clavardage : d\195\169sactiv\195\169",
   ["Auto-invite status"] = "\195\137tat de l'invitation automatique",
   ["Pending loot rolls"] = "Jets de butin en attente",
   ["Consumables check"] = "V\195\169rification des consommables",
@@ -923,8 +923,8 @@ local FR = {
   ["Opens Guilded's page in the game's options."] = "Ouvre la page de Guilded dans les options du jeu.",
   ["Show what changed since your last login, once at login."] = "Affiche ce qui a chang\195\169 depuis votre derni\195\168re connexion, une fois \195\160 la connexion.",
   ["Stop the login digest."] = "Arr\195\170ter le r\195\169sum\195\169 \195\160 la connexion.",
-  ["Show an alt's main name in guild and officer chat."] = "Affiche le nom du principal d'un alt dans le chat de guilde et d'officiers.",
-  ["Stop showing main names in chat."] = "Ne plus afficher les noms des principaux dans le chat.",
+  ["Show an alt's main name in guild and officer chat."] = "Affiche le nom du principal d'un alt dans le clavardage de guilde et d'officiers.",
+  ["Stop showing main names in chat."] = "Ne plus afficher les noms des principaux dans le clavardage.",
   ["Players waiting for a guild invite, one click each."] = "Joueurs en attente d'une invitation de guilde, un clic chacun.",
   ["Who is ready to promote, one click each."] = "Qui est pr\195\170t pour une promotion, un clic chacun.",
   ["Whether whispering a phrase invites players."] = "Indique si chuchoter une phrase invite les joueurs.",
@@ -976,7 +976,7 @@ local FR = {
   ["Your officers turned crafting orders off (in Discord: /config craft orders)."] = "Vos officiers ont d\195\169sactiv\195\169 les commandes d'artisanat (sur Discord : /config craft orders).",
   ["Your officers turned crafting orders off."] = "Vos officiers ont d\195\169sactiv\195\169 les commandes d'artisanat.",
   ["Yours - goes to Discord with your next sync"] = "\195\128 vous - part vers Discord \195\160 la prochaine synchro",
-  ["Claim an order, craft it, then press Done. Trade or mail the item to the requester; gold never goes through Guilded."] = "Prenez une commande, fabriquez-la, puis appuyez sur Termin\195\169. \195\137changez ou postez l'objet au demandeur ; l'or ne passe jamais par Guilded.",
+  ["Claim an order, craft it, then press Done. Trade or mail the item to the requester; gold never goes through Guilded."] = "Prenez une commande, fabriquez-la, puis appuyez sur Termin\195\169. \195\137changez ou envoyez l'objet au demandeur par courrier ; l'or ne passe jamais par Guilded.",
 }
 
 -- German and Spanish: all catalogued French-reference strings translated; unknown runtime text stays unchanged.

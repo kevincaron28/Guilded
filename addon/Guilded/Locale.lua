@@ -3215,6 +3215,17 @@ local DE = {
   ["Guild changed: now using the saved data for %s (%s). Data for %s is kept and comes back if you play there. /reload is recommended."] = "Gilde gewechselt: Es werden die gespeicherten Daten f\195\188r %s verwendet (%s). Die Daten f\195\188r %s bleiben erhalten und kommen zur\195\188ck, wenn du dort spielst. /reload wird empfohlen.",
   ["restored"] = "wiederhergestellt",
   ["new"] = "neu",
+  -- Crafting UI polish (20 Nov 2026)
+  ["Fav"] = "Fav",
+  ["Favourite"] = "Favorit",
+  ["Add to Favourites"] = "Zu Favoriten hinzuf\195\188gen",
+  ["Remove from Favourites"] = "Aus Favoriten entfernen",
+  ["Previous page of recipes"] = "Vorherige Seite der Rezepte",
+  ["Next page of recipes"] = "N\195\164chste Seite der Rezepte",
+  ["Only recipes a guildmate can craft right now."] = "Nur Rezepte, die ein Gildenmitglied gerade herstellen kann.",
+  ["Showing %d-%d of %d. Scroll with the mouse wheel."] = "Zeige %d-%d von %d. Mit dem Mausrad scrollen.",
+  ["Open your profession window once to see the reagents."] = "\195\150ffne einmal dein Berufsfenster, um die Reagenzien zu sehen.",
+  ["Pick a recipe on the left, or type what you need above. Favourite keeps it at the top of the list."] = "W\195\164hle links ein Rezept oder tippe oben, was du brauchst. Favorit h\195\164lt es oben in der Liste.",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -5451,6 +5462,17 @@ local ES = {
   ["Guild changed: now using the saved data for %s (%s). Data for %s is kept and comes back if you play there. /reload is recommended."] = "Hermandad cambiada: se usan los datos guardados de %s (%s). Los datos de %s se conservan y vuelven si juegas all\195\173. Se recomienda /reload.",
   ["restored"] = "restaurados",
   ["new"] = "nuevos",
+  -- Crafting UI polish (20 Nov 2026)
+  ["Fav"] = "Fav",
+  ["Favourite"] = "Favorito",
+  ["Add to Favourites"] = "A\195\177adir a favoritos",
+  ["Remove from Favourites"] = "Quitar de favoritos",
+  ["Previous page of recipes"] = "P\195\161gina anterior de recetas",
+  ["Next page of recipes"] = "P\195\161gina siguiente de recetas",
+  ["Only recipes a guildmate can craft right now."] = "Solo las recetas que un miembro de la hermandad puede hacer ahora.",
+  ["Showing %d-%d of %d. Scroll with the mouse wheel."] = "Mostrando %d-%d de %d. Usa la rueda del rat\195\179n para desplazarte.",
+  ["Open your profession window once to see the reagents."] = "Abre una vez la ventana de tu profesi\195\179n para ver los componentes.",
+  ["Pick a recipe on the left, or type what you need above. Favourite keeps it at the top of the list."] = "Elige una receta a la izquierda o escribe arriba lo que necesitas. Favorito la mantiene arriba en la lista.",
 }
 -- END ES
 
@@ -6844,3 +6866,14 @@ FR["Saved data under %s was merged into %s (%d sections). EP/GP stays under the 
 FR["Guild changed: now using the saved data for %s (%s). Data for %s is kept and comes back if you play there. /reload is recommended."] = "Guilde chang\195\169e : utilisation des donn\195\169es enregistr\195\169es pour %s (%s). Les donn\195\169es de %s sont conserv\195\169es et reviennent si vous y jouez. Un /reload est conseill\195\169."
 FR["restored"] = "restaur\195\169es"
 FR["new"] = "nouvelles"
+-- Crafting UI polish (20 Nov 2026)
+FR["Fav"] = "Fav"
+FR["Favourite"] = "Favori"
+FR["Add to Favourites"] = "Ajouter aux favoris"
+FR["Remove from Favourites"] = "Retirer des favoris"
+FR["Previous page of recipes"] = "Page pr\195\169c\195\169dente de recettes"
+FR["Next page of recipes"] = "Page suivante de recettes"
+FR["Only recipes a guildmate can craft right now."] = "Seulement les recettes qu'un membre de la guilde peut fabriquer maintenant."
+FR["Showing %d-%d of %d. Scroll with the mouse wheel."] = "Affichage de %d \195\160 %d sur %d. Utilisez la molette de la souris pour d\195\169filer."
+FR["Open your profession window once to see the reagents."] = "Ouvrez une fois votre fen\195\170tre de m\195\169tier pour voir les composants."
+FR["Pick a recipe on the left, or type what you need above. Favourite keeps it at the top of the list."] = "Choisissez une recette \195\160 gauche, ou tapez ci-dessus ce qu'il vous faut. Favori la garde en haut de la liste."

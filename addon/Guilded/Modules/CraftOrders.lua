@@ -578,6 +578,8 @@ end
 local LEFT_ROWS = 14     -- rows of the recipe list (matches, or Favourites, Recent and the professions)
 local LEFT_ROW_H = 22
 local LEFT_W = 250
+local LIST_W = LEFT_W - 22   -- the rows; the scroll buttons take the strip on the right
+local SEARCH_LIMIT = 80      -- recipes a search keeps (the list scrolls)
 local DETAIL_W = 320
 local MAX_REAGENT_ROWS = 8
 local MAX_CRAFTER_ROWS = 5
@@ -1025,8 +1027,9 @@ function orders.buildCraftingPage(page, helpers)
   local function search()
     local text = view.box:GetText() or ""
     view.query = text
+    view.offset = 0
     view.results, view.total = {}, 0
-    if text ~= "" and ns.recipes and ns.recipes.search then view.results, view.total = ns.recipes.search(text, LEFT_ROWS) end
+    if text ~= "" and ns.recipes and ns.recipes.search then view.results, view.total = ns.recipes.search(text, SEARCH_LIMIT) end
     -- Nobody known for that name yet: it can still be requested by name (the bot looks the item up).
     if #view.results == 0 and #text >= 2 then view.results, view.total = { { name = string.sub(text, 1, 60), crafters = {} } }, 1 end
     -- One match (a shift-clicked item, or a name nobody knows yet): it is already the one picked.
@@ -1046,36 +1049,85 @@ function orders.buildCraftingPage(page, helpers)
   end)
   view.searchButton = newButton(page, "Search", 90, search)
   view.searchButton:SetPoint("TOPLEFT", page, "TOPLEFT", 344, -31)
-  view.onlineButton = newButton(page, "Crafter online now", 138, function() view.onlineOnly = not view.onlineOnly; view.browse = nil; orders.refresh(true) end, 22)
+  view.onlineButton = newButton(page, "Crafter online now", 138, function() view.onlineOnly = not view.onlineOnly; view.browse = nil; view.offset = 0; orders.refresh(true) end, 22)
+  if view.onlineButton.SetScript then
+    view.onlineButton:SetScript("OnEnter", function(self)
+      if not GameTooltip then return end
+      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      GameTooltip:AddLine(L("Only recipes a guildmate can craft right now."), 1, 1, 1, true)
+      GameTooltip:Show()
+    end)
+    view.onlineButton:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  end
   view.note = newLabel(page, "", "GameFontHighlightSmall")           -- the detail pane's hint when no recipe is picked
   view.note:SetWidth(width - LEFT_W - 16)
   view.leftNote = newLabel(page, "", "GameFontDisableSmall")         -- the list's own message when it is empty
   view.leftNote:SetWidth(LEFT_W - 8)
-  view.more = newLabel(page, "", "GameFontDisableSmall")
+  view.more = newLabel(page, "", "GameFontDisableSmall")      -- "Showing 15-28 of 120" under a list that scrolls
   view.more:SetWidth(LEFT_W)
+  view.offset = 0                                               -- the first list item shown (the list scrolls)
+  local function tip(frame, ...)
+    local lines = { ... }
+    if not frame.SetScript then return end
+    local oldEnter, oldLeave = frame.GetScript and frame:GetScript("OnEnter"), frame.GetScript and frame:GetScript("OnLeave")
+    frame:SetScript("OnEnter", function(self, ...)
+      if type(oldEnter) == "function" then oldEnter(self, ...) end
+      if not GameTooltip then return end
+      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      for i, line in ipairs(lines) do
+        local text = type(line) == "function" and line() or line
+        if text and text ~= "" then GameTooltip:AddLine(text, i == 1 and 1 or 0.8, i == 1 and 1 or 0.8, i == 1 and 1 or 0.8, true) end
+      end
+      GameTooltip:Show()
+    end)
+    frame:SetScript("OnLeave", function(self, ...)
+      if type(oldLeave) == "function" then oldLeave(self, ...) end
+      if GameTooltip then GameTooltip:Hide() end
+    end)
+  end
+  -- Scroll the list by `steps` items (negative: up). Plain offset arithmetic, no protected calls.
+  function view.scrollBy(steps)
+    view.offset = math.max(0, (view.offset or 0) + steps)
+    orders.refresh(true)
+  end
+  local function wheel(frame)
+    if frame.EnableMouseWheel then frame:EnableMouseWheel(true) end
+    frame:SetScript("OnMouseWheel", function(_, delta) view.scrollBy(delta > 0 and -3 or 3) end)
+  end
+  view.scrollUp = newButton(page, "^", 20, function() view.scrollBy(-LEFT_ROWS + 1) end, 20)
+  view.scrollDown = newButton(page, "v", 20, function() view.scrollBy(LEFT_ROWS - 1) end, 20)
+  tip(view.scrollUp, function() return L("Previous page of recipes") end)
+  tip(view.scrollDown, function() return L("Next page of recipes") end)
 
   -- The left list: matches, or Favourites, Recent and the professions. A row picks the recipe; its star favourites it.
   view.resultRows = {}
   for i = 1, LEFT_ROWS do
     local frame = CreateFrame("Button", nil, page)
-    frame:SetWidth(LEFT_W)
+    frame:SetWidth(LIST_W)
     frame:SetHeight(LEFT_ROW_H - 2)
-    local row = { frame = frame }
+    local row = { frame = frame, index = i }
     row.back = frame:CreateTexture(nil, "BACKGROUND")
     row.back:SetAllPoints(frame)
     row.text = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     row.text:SetPoint("LEFT", frame, "LEFT", 6, 0)
-    row.text:SetWidth(LEFT_W - 36)
+    row.text:SetWidth(LIST_W - 46)
     row.text:SetJustifyH("LEFT")
-    row.star = newButton(frame, "*", 22, function()
+    -- "Fav" keeps the recipe in Favourites (gold = kept). The whole row picks the recipe.
+    row.star = newButton(frame, "Fav", 36, function()
       if row.item and row.item.entry then orders.toggleFavourite(row.item.entry); orders.refresh(true) end
     end, 18)
     row.star:SetPoint("RIGHT", frame, "RIGHT", -2, 0)
+    tip(row.star, function() return row.item and row.item.entry and orders.isFavourite(row.item.entry) and L("Remove from Favourites") or L("Add to Favourites") end)
+    wheel(frame)
     frame:SetScript("OnClick", function()
       local item = row.item
       if not item then return end
       if item.kind == "header" then
-        if item.group then view.expanded[item.id] = not view.expanded[item.id]; orders.refresh(true) end
+        if item.group then
+          view.expanded[item.id] = not view.expanded[item.id]
+          if view.expanded[item.id] then view.offset = (view.offset or 0) + row.index - 1 end   -- bring the opened profession to the top
+          orders.refresh(true)
+        end
       elseif item.entry then
         view.select(item.entry)
       end
@@ -1086,10 +1138,11 @@ function orders.buildCraftingPage(page, helpers)
 
   -- The detail pane: reagents, crafters, quantity, note, who brings the materials, Request.
   view.dTitle = newLabel(page, "", "GameFontNormalLarge")
-  view.dTitle:SetWidth(DETAIL_W - 34)
-  view.dStar = newButton(page, "*", 24, function()
+  view.dTitle:SetWidth(DETAIL_W)
+  view.dStar = newButton(page, "Favourite", 86, function()
     if view.sel then orders.toggleFavourite(view.sel); orders.refresh(true) end
-  end, 22)
+  end, 20)
+  tip(view.dStar, function() return view.sel and orders.isFavourite(view.sel) and L("Remove from Favourites") or L("Add to Favourites") end)
   view.dProf = newLabel(page, "", "GameFontDisableSmall")
   view.dProf:SetWidth(DETAIL_W)
   view.dReagentHeader = newLabel(page, "Reagents (have/need)", "GameFontNormalSmall")
@@ -1137,7 +1190,7 @@ function orders.buildCraftingPage(page, helpers)
   view.noteBox:SetMaxLetters(60)
   view.matsButton = newButton(page, "Materials: crafter provides", DETAIL_W, function() view.mats = not view.mats; orders.refresh(true) end, 22)
   view.requestButton = newButton(page, "Request", 120, function() view.request() end, 24)
-  view.requestWidgets = { view.onlineButton, view.note, view.leftNote, view.more, view.dTitle, view.dStar, view.dProf, view.dReagentHeader, view.dReagentNote,
+  view.requestWidgets = { view.onlineButton, view.scrollUp, view.scrollDown, view.note, view.leftNote, view.more, view.dTitle, view.dStar, view.dProf, view.dReagentHeader, view.dReagentNote,
     view.dCraftersHeader, view.askButton, view.qtyLabel, view.qtyBox, view.noteLabel, view.noteBox, view.matsButton, view.requestButton }
   for _, label in ipairs(view.dCrafters) do view.requestWidgets[#view.requestWidgets + 1] = label end
 
@@ -1326,7 +1379,7 @@ end
 local function renderDetail(view, page, x, y, off)
   local sel = view.sel
   if not sel then
-    view.note:SetText(off and L("Your officers turned crafting orders off (in Discord: /config craft orders).") or L("Pick a recipe on the left, or type what you need above. The star keeps it in Favourites."))
+    view.note:SetText(off and L("Your officers turned crafting orders off (in Discord: /config craft orders).") or L("Pick a recipe on the left, or type what you need above. Favourite keeps it at the top of the list."))
     place(view.note, page, x, y - 4); view.note:Show()
     return y - math.max(18, textHeight(view.note) + 6)
   end
@@ -1334,13 +1387,15 @@ local function renderDetail(view, page, x, y, off)
   local qty = math.max(1, math.min(200, math.floor(tonumber(view.qtyBox:GetText()) or 1)))
   view.dTitle:SetText("|cffffd100" .. tostring(detail.name or "?") .. "|r")
   place(view.dTitle, page, x, y); view.dTitle:Show()
-  view.dStar:SetText(orders.isFavourite(sel) and "|cffffd100*|r" or "|cff808080*|r")
-  place(view.dStar, page, x + DETAIL_W - 26, y + 3); view.dStar:Show()
-  y = y - 24
+  -- The title may wrap onto two lines: the lines under it start below its real height.
+  y = y - math.max(24, math.min(46, textHeight(view.dTitle) + 6))
+  view.dStar:SetText(orders.isFavourite(sel) and ("|cffffd100" .. L("Favourite") .. "|r") or ("|cff909090" .. L("Favourite") .. "|r"))
+  place(view.dStar, page, x + DETAIL_W - 86, y + 2); view.dStar:Show()
   local prof = sel.prof and (ns.util and ns.util.professionLabel and ns.util.professionLabel(sel.prof) or sel.prof)
+  view.dProf:SetWidth(DETAIL_W - 92)
   view.dProf:SetText(prof or "")
   place(view.dProf, page, x, y); view.dProf:Show()
-  y = y - 18
+  y = y - 22
   -- Reagents with what is in your bags.
   view.dReagentHeader:SetText(view.mats and L("Reagents you bring (have/need)") or L("Reagents (have/need)"))
   place(view.dReagentHeader, page, x, y); view.dReagentHeader:Show()
@@ -1361,7 +1416,7 @@ local function renderDetail(view, page, x, y, off)
     end
   end
   if #reagents == 0 then
-    view.dReagentNote:SetText(L("Reagents are shown for recipes you can make. Open your profession window once so Guilded can read them."))
+    view.dReagentNote:SetText(L("Open your profession window once to see the reagents."))
     place(view.dReagentNote, page, x, y); view.dReagentNote:Show()
     y = y - textHeight(view.dReagentNote) - 4
   else view.dReagentNote:Hide() end
@@ -1414,16 +1469,20 @@ local function renderRequest(view, page, y, off)
   setShown(view.box, true); setShown(view.searchButton, true)
   place(view.box, page, 6, y); place(view.searchButton, page, 344, y + 3)
   place(view.onlineButton, page, 440, y + 3)
-  view.onlineButton:SetText(view.onlineOnly and ("|cffffd100" .. L("Crafter online now") .. "|r") or L("Crafter online now")); view.onlineButton:Show()
+  view.onlineButton:SetText(view.onlineOnly and ("|cffffd100[x] " .. L("Crafter online now") .. "|r") or ("[ ] " .. L("Crafter online now"))); view.onlineButton:Show()
   y = y - 34
   local top = y
   -- Left list.
   local items, mode = orders.requestItems(view)
-  local shown = math.min(#items, LEFT_ROWS)
+  local maxOffset = math.max(0, #items - LEFT_ROWS)
+  view.offset = math.max(0, math.min(view.offset or 0, maxOffset))
+  local listTop = y
+  local shown = 0
   for i, row in ipairs(view.resultRows) do
-    local item = items[i]
+    local item = items[view.offset + i]
     row.item = item
     if item then
+      shown = shown + 1
       local selected = view.sel and item.entry and ((view.sel.key and view.sel.key == tonumber(item.entry.key)) or (not view.sel.key and fold(view.sel.name) == fold(item.entry.name)))
       if item.kind == "header" then
         row.text:SetText("|cffffd100" .. (item.group and (item.open and "- " or "+ ") or "") .. item.label .. "|r")
@@ -1438,8 +1497,8 @@ local function renderRequest(view, page, y, off)
         end
         local count = entry.crafterCount or entry.crafters and #entry.crafters
         local tail = count and (" |cff" .. (online > 0 and "20ff20" or "808080") .. "(" .. online .. ")|r") or ""
-        row.text:SetText((selected and "|cffffd100" or "|cffffffff") .. clip(tostring(entry.name or "?"), 30) .. "|r" .. tail)
-        row.star:SetText(orders.isFavourite(entry) and "|cffffd100*|r" or "|cff606060*|r")
+        row.text:SetText((selected and "|cffffd100" or "|cffffffff") .. clip(tostring(entry.name or "?"), 27) .. "|r" .. tail)
+        row.star:SetText(orders.isFavourite(entry) and "|cffffd100Fav|r" or "|cff707070Fav|r")
         row.star:Show()
         if row.back.SetColorTexture then row.back:SetColorTexture(1, 1, 1, selected and 0.18 or 0.04) end
       end
@@ -1450,6 +1509,13 @@ local function renderRequest(view, page, y, off)
       row.frame:Hide()
     end
   end
+  -- Scroll buttons (right of the rows) and the "Showing a-b of n" line appear only when the list is longer than the rows.
+  local scrolls = #items > LEFT_ROWS
+  setShown(view.scrollUp, scrolls); setShown(view.scrollDown, scrolls)
+  if scrolls then
+    place(view.scrollUp, page, LIST_W + 2, listTop)
+    place(view.scrollDown, page, LIST_W + 2, listTop - (LEFT_ROWS - 1) * LEFT_ROW_H)
+  end
   if #items == 0 then
     local message
     if view.onlineOnly then message = L("Nobody who can craft these is online right now.")
@@ -1459,10 +1525,10 @@ local function renderRequest(view, page, y, off)
     place(view.leftNote, page, 4, y); view.leftNote:Show()
     y = y - math.max(18, textHeight(view.leftNote) + 6)
   else view.leftNote:Hide() end
-  local extra = #items - shown
-  if mode == "search" then extra = math.max(extra, (view.total or 0) - shown) end
-  if extra > 0 then
-    view.more:SetText(string.format(L("... and %d more. Type a name to narrow."), extra))
+  local total = #items
+  if mode == "search" then total = math.max(total, view.total or 0) end
+  if scrolls or total > shown then
+    view.more:SetText(string.format(L("Showing %d-%d of %d. Scroll with the mouse wheel."), view.offset + 1, view.offset + shown, total))
     place(view.more, page, 4, y); view.more:Show(); y = y - 16
   else view.more:Hide() end
   local leftBottom = y

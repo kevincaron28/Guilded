@@ -654,7 +654,7 @@ describe("the Crafting page: review fixes", () => {
     s!.run(`NS.craftOrders.submit({ item = "Linen Belt", key = 7026 })
       for _, r in pairs(NS.getDb().craftOrders.requests) do r.at = 1800000000 - 7 * 3600 end`);
     s!.run(`GuildedOrders = { at = "2027-01-15T06:30:00.000Z", orders = {} }; NS.craftOrders.refresh()`);   // not yet 6 h after the request
-    expect(requests()).toBe(1);
+    expect(requests()).toBe("1");
     s!.run(`${FEED_LATER}; NS.craftOrders.refresh()`);
     expect(requests()).toBe(0);
   });
@@ -665,7 +665,7 @@ describe("the Crafting page: review fixes", () => {
       for _, r in pairs(NS.getDb().craftOrders.requests) do r.at = 1800000000 - 7 * 3600 end
       fire_event("CHAT_MSG_ADDON", "GuildedOrd", "ORDERS|2027-01-15T07:59:00.000Z|1|1|E", "GUILD", "Kev Caron")`);
     expect(s!.run("return NS.craftOrders.current().source")).toBe("guild");
-    expect(requests()).toBe(1);
+    expect(requests()).toBe("1");
   });
 
   it("a cancelled order drops its local request at once (nothing is re-said or uploaded for it)", () => {
@@ -734,7 +734,7 @@ describe("requests heard from guildmates: limits and clean-up", () => {
     for (let i = 0; i < 7; i++) s!.run(`fire_event("CHAT_MSG_ADDON", "GuildedOrd", "NEW|gaaaaa${i}|2580|1|0|${1799999000 + i}|||Brown Linen Shirt|", "GUILD", "Ann Walker")`);
     const count = (name: string) => Number(s!.run(`local n = 0 for _, v in pairs(NS.getDb().craftOrders.heardRequests) do if v.name == "${name}" then n = n + 1 end end return n`));
     expect(count("Ann Walker")).toBe(5);
-    expect(count("Bo Dee")).toBe(1);
+    expect(count("Bo Dee")).toBe("1");
     expect(s!.run(`return tostring(NS.getDb().craftOrders.heardRequests["gaaaaa0@Ann Walker"])`)).toBe("nil");   // her oldest went
     expect(s!.run(`return tostring(NS.getDb().craftOrders.heardRequests["gaaaaa6@Ann Walker"] ~= nil)`)).toBe("true");
     // Ann made seven and Bo one: Ann alerted once (the 30 s gap), Bo once.
@@ -779,5 +779,82 @@ describe("the orders relay carries the request refs", () => {
       BIG = NS.craftOrders.encode({ orders = rows })`);
     // Newest first: whatever fits the parts is the newest, and the decoder takes at most 500.
     expect(s!.run(`local c = NS.craftOrders.decode(BIG); return tostring(#c.orders <= 500) .. "," .. c.orders[#c.orders].id`)).toBe("true,req_m700");
+  });
+});
+
+describe("the Crafting page: scrolling list (20 Nov 2026 polish)", () => {
+  function withMany() {
+    setup();
+    // 40 recipes shared by Ann: a list far longer than the 14 rows.
+    s!.run(`local book = NS.recipes.book()
+      local keys = {}
+      for i = 1, 40 do book.names[5000 + i] = string.format("Gizmo %02d", i); keys[i] = 5000 + i end
+      book.people["Ann Walker"] = { Engineering = { v = 1799990000, keys = keys } }
+      GetNumGuildMembers = function() return 0 end`);
+    buildPage();
+    s!.run(`VIEW.expanded.Engineering = true; VIEW.browse = nil; NS.craftOrders.refresh()`);
+  }
+  const rows = () => s!.run(`local t = {} for _, row in ipairs(VIEW.resultRows) do if row.frame.shown then t[#t + 1] = row.text.text end end return table.concat(t, "\\n")`).split("\n");
+
+  it("shows a window of the list and scrolls with the wheel and the page buttons", () => {
+    withMany();
+    expect(rows()).toHaveLength(14);
+    expect(rows()[0]).toContain("- Engineering (40)");
+    expect(s!.run("return VIEW.more.text")).toBe("Showing 1-14 of 42. Scroll with the mouse wheel.");
+    expect(s!.run("return tostring(VIEW.scrollDown.shown)")).toBe("true");
+    // The wheel moves three items; it cannot pass the top or the end of the list.
+    s!.run(`local f = VIEW.resultRows[1].frame; f.scripts.OnMouseWheel(f, -1)`);
+    expect(rows()[0]).toContain("Gizmo 03");
+    s!.run(`local f = VIEW.resultRows[1].frame; f.scripts.OnMouseWheel(f, 1); f.scripts.OnMouseWheel(f, 1)`);
+    expect(rows()[0]).toContain("- Engineering");
+    s!.run("for i = 1, 4 do VIEW.scrollDown.scripts.OnClick(VIEW.scrollDown) end");
+    expect(rows()[13]).toContain("Tailoring");
+    expect(s!.run("return VIEW.more.text")).toBe("Showing 29-42 of 42. Scroll with the mouse wheel.");
+    s!.run("VIEW.scrollUp.scripts.OnClick(VIEW.scrollUp)");
+    expect(rows()[0]).toContain("Gizmo 1");
+  });
+
+  it("a row far down the list is reachable and picks its recipe", () => {
+    withMany();
+    s!.run("VIEW.scrollBy(30)");
+    const index = rows().findIndex((r) => r.includes("Gizmo 35"));
+    expect(index).toBeGreaterThanOrEqual(0);
+    s!.run(`local f = VIEW.resultRows[${index + 1}].frame; f.scripts.OnClick(f)`);
+    expect(s!.run("return VIEW.dTitle.text")).toContain("Gizmo 35");
+    expect(s!.run("return VIEW.sel.key")).toBe("5035");
+  });
+
+  it("the Fav button keeps the recipe without picking the row, and a short list has no scroll buttons", () => {
+    withMany();
+    s!.run("VIEW.scrollBy(2)");
+    s!.run(`local r = VIEW.resultRows[1]; r.star.scripts.OnClick(r.star)`);
+    expect(s!.run("return #NS.craftOrders.favourites()")).toBe("1");
+    expect(s!.run("return tostring(VIEW.sel == nil)")).toBe("true");
+    search("gizmo 07");
+    expect(s!.run("return tostring(VIEW.scrollDown.shown)")).toBe("false");
+    expect(s!.run("return tostring(VIEW.more.shown)")).toBe("false");
+  });
+
+  it("filters as you type, resets the scroll, and keeps more than the visible rows of matches", () => {
+    withMany();
+    s!.run("VIEW.scrollBy(20)");
+    s!.run(`VIEW.box:SetText("gizmo"); VIEW.box.scripts.OnTextChanged(VIEW.box, true)`);
+    expect(rows()).toHaveLength(14);
+    expect(rows()[0]).toContain("Gizmo 01");
+    expect(s!.run("return VIEW.more.text")).toContain("of 40");
+    s!.run(`VIEW.box:SetText("gizmo 3"); VIEW.box.scripts.OnTextChanged(VIEW.box, true)`);
+    expect(rows().some((r) => r.includes("Gizmo 01"))).toBe(false);
+    // The Search button stays harmless: it repeats the same search.
+    s!.run("VIEW.searchButton.scripts.OnClick(VIEW.searchButton)");
+    expect(rows().some((r) => r.includes("Gizmo 3"))).toBe(true);
+  });
+
+  it("a wrapped title pushes the profession line down (no overlap)", () => {
+    withMany();
+    s!.run(`VIEW.dProf.SetPoint = function(self, _, _, _, x, y) self.y = y end`);
+    search("gizmo 07");
+    const oneLine = Number(s!.run("return VIEW.dProf.y"));
+    s!.run(`VIEW.dTitle.GetStringHeight = function() return 36 end; NS.craftOrders.refresh()`);
+    expect(Number(s!.run("return VIEW.dProf.y"))).toBeLessThan(oneLine);
   });
 });

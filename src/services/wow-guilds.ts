@@ -49,6 +49,20 @@ export async function provisionWowGuild(database: PrismaClient, rootGuildId: str
   });
 }
 
+// 20 Nov 2026: this read ran on every upload and waited for a pool connection under load (3-7 s in production). The registered
+// in-game guilds of a server change rarely (setup), so they are kept for a minute; a failed read is never cached.
+const KNOWN_ROWS_MS = 60_000;
+const knownRows = new Map<string, { at: number; rows: Array<{ name: string; realm: string }> }>();
+export function forgetKnownWowGuildRows(): void { knownRows.clear(); }
+async function knownWowGuildRows(database: Pick<PrismaClient, "wowGuild">, guildId: string): Promise<Array<{ name: string; realm: string }>> {
+  const kept = knownRows.get(guildId);
+  if (kept && Date.now() - kept.at < KNOWN_ROWS_MS) return kept.rows;
+  const rows = await database.wowGuild.findMany({ where: { OR: [{ scopeGuildId: guildId }, { guildId }] }, select: { name: true, realm: true } });
+  knownRows.set(guildId, { at: Date.now(), rows });
+  if (knownRows.size > 500) knownRows.delete(knownRows.keys().next().value as string);
+  return rows;
+}
+
 /**
  * Does this server know the in-game guild an upload came from? `known: false` means the character's guild is not set up here
  * (the 9 Nov 2026 wrong-connection case). Matches the server's own guild name and every registered in-game guild, with or without the realm.
@@ -58,7 +72,7 @@ export async function serverKnowsWowGuild(database: Pick<PrismaClient, "wowGuild
   // (9.3) The same loosened key the unsigned device path uses (accents and decoration ignored), so "Québec Gold" and
   // "Quebec Gold" match and one spelling difference does not skip a whole upload as the wrong server.
   const norm = (value: string) => looseKey(value);
-  const rows = await database.wowGuild.findMany({ where: { OR: [{ scopeGuildId: guild.id }, { guildId: guild.id }] }, select: { name: true, realm: true } });
+  const rows = await knownWowGuildRows(database, guild.id);
   const known = new Set<string>();
   if (guild.name) known.add(norm(guild.name));
   for (const row of rows) { known.add(norm(row.name)); known.add(norm(`${row.name}-${row.realm}`)); }

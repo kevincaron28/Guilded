@@ -746,6 +746,8 @@ export async function craftRequestNeedsPost(id: string): Promise<boolean> {
 // handles `applying` and does not resend). The apply keeps running in the background; a failure is logged, told and retried
 // (failApply / retryApplyLater), and a PREVIEWED import left by a restart is applied again when the companion resends the file.
 export const APPLY_GRACE_MS = 2_500;
+/** How long an upload's answer waits for its side-effect lanes (they carry on and the apply runs after them). */
+export const LANES_WAIT_MS = Math.max(0, Math.floor(Number(process.env["UPLOAD_LANES_WAIT_MS"])) || 3_000);
 export function applyWaitMs(graceMs = APPLY_GRACE_MS): number { return Math.max(0, graceMs); }
 /** Applies for one guild never overlap, whoever uploaded (the lanes below only order one uploader's own uploads). */
 export function runGuildApply<T>(guildId: string, work: () => Promise<T>): Promise<T> { return serializeByKey(`apply:${guildId}`, work); }
@@ -816,9 +818,12 @@ export function createUploadTimer(startedAt = Date.now()) {
   const mark = (name: string, at = Date.now()) => { phases.push([name, at - last]); last = at; };
   // Lanes that run at the same time: each one's own time, printed apart (they overlap, so they are not part of the gap-free sum).
   const lanes: Array<[string, number]> = [];
+  // Lanes still running when the line is printed (the response no longer waits for a slow one): named, with how long they have run.
+  const running = new Map<string, number>();
   const lane = async <T>(name: string, task: () => Promise<T>): Promise<T> => {
     const began = Date.now();
-    try { return await task(); } finally { lanes.push([name, Date.now() - began]); }
+    running.set(name, began);
+    try { return await task(); } finally { running.delete(name); lanes.push([name, Date.now() - began]); }
   };
   return {
     mark,
@@ -838,6 +843,7 @@ export function createUploadTimer(startedAt = Date.now()) {
       const slow = phases.filter(([, ms]) => ms > 200).map(([name, ms]) => `${name}:${ms}`);
       slow.push(`other:${Math.max(0, total - spent)}`);
       const overlapped = lanes.filter(([, ms]) => ms > 200).map(([name, ms]) => `${name}~${ms}`);
+      for (const [name, began] of running) overlapped.push(`${name}~${Date.now() - began}+running`);
       return `upload guild=${createHash("sha256").update(guildId).digest("hex").slice(0, 8)} total=${total} bytes=${bytes} officer=${officer ? 1 : 0}${overlapped.length ? ` lanes=${overlapped.join(",")}` : ""} phases=${slow.join(",")}`;
     }
   };
@@ -1552,6 +1558,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const membershipRead = guildMembership(prisma, guild.id, new Date());
       membershipRead.catch(() => undefined);
       const ownKeys = await ownCarrierKeys(prisma, { memberId: pairedMemberId, character: preview.snapshot.character, alts: preview.snapshot.alts });
+      mark("own-keys");
       // Guild-only Discord: a run with no player of this guild (and none of the uploader's own characters) is not the guild's. It is handed to the
       // public relay lane below instead, never stored, carded, ranked or paid in this guild.
       // Those runs sit in the addon's own run list: besides the "group:" receipt they get a plain one (STRANGER_NOTE), or they wait for ever.
@@ -1568,6 +1575,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         onPlaced: (placed) => { void import("./services/cross-guild-post.js").then((module) => module.shareAndAnnounce(client, { guildId: null, characterKeys: [], receivedAt: new Date() }, placed)).catch(() => undefined); },
         // A "group:" receipt says the relay lane has the run; a stranger's plain receipt says this guild will not take it ("refused", with the note).
         saveReceipts: (rows) => prisma.$transaction((tx) => saveRunReceipts(tx, guild.id, rows.map(({ runRef, reason }) => ({ runRef, outcome: reason ? "refused" as const : "stored" as const, reason, runId: null })), new Date())).then(() => undefined) });
+      mark("carried-runs");
       // (9.3.2) Records the uploader's addon carried for players near it: applied by each kind's own code, answered by key.
       const carriedRecords = preview.snapshot.carriedRecords ?? [];
       if (preview.snapshot.probes) void storeClientProbes(prisma, preview.snapshot.probes, clientVersion ?? null).catch(() => undefined);
@@ -1575,6 +1583,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         ? await applyCarriedRecords(prisma, { carrier: `member:${access.actorId}`, carrierKeys: ownKeys, records: carriedRecords, relay: { store: publicRuns, onPlaced: (placed) => { void import("./services/cross-guild-post.js").then((module) => module.shareAndAnnounce(client, { guildId: null, characterKeys: [], receivedAt: new Date() }, placed)).catch(() => undefined); } } })
           .catch((error: unknown) => { console.error(`Carried records failed for member:${access.actorId}: ${error instanceof Error ? error.message : String(error)}`); return { receipts: [] as string[], applied: 0 }; })
         : { receipts: [] as string[], applied: 0 };
+      mark("carried-records");
       const carriedExtra = carriedAnswer.receipts.length ? { carriedReceipts: carriedAnswer.receipts } : {};
       // T1 (10 Nov 2026): a signed upload only links and imports in a server that knows the saved file's in-game guild.
       // Officers stay exempt (their server may not list every guild an alt is in). The companion shows the warning.
@@ -1776,10 +1785,18 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         }
       }
       const lanes = [{ name: "guild", steps: laneGuildData }, { name: "bank", steps: laneBank }, { name: "craft", steps: laneCraft }, { name: "board", steps: laneBoard }].filter((lane) => lane.steps.length);
-      const laneRun = await uploadTimer.parallel("lanes", () => runUploadLanes(lanes, { repeat, track: uploadTimer.lane }));
-      if (repeat) console.info(`upload-repeat guild=${guild.id.slice(-6)} skipped=${laneRun.skipped.join(",") || "-"}`);
-      // Only an upload whose payload steps all ran without a failure is remembered: a failed step is tried again by the next one.
-      else if (!laneRun.failed) rememberAppliedUpload(repeatKey, fullChecksum);
+      // 20 Nov 2026: the response no longer waits for a slow lane (production: a guild-data roster transaction queued behind other uploads
+      // kept an upload for 14-16 s, until the website Worker's 20 s limit). The lanes keep running; the import's apply waits for them
+      // (same order as before: lane A writes the Character rows before the apply), and the answer is bounded by LANES_WAIT_MS.
+      const lanesDone = runUploadLanes(lanes, { repeat, track: uploadTimer.lane });
+      void lanesDone.then((laneRun) => {
+        if (repeat) console.info(`upload-repeat guild=${guild.id.slice(-6)} skipped=${laneRun.skipped.join(",") || "-"}`);
+        // Only an upload whose payload steps all ran without a failure is remembered: a failed step is tried again by the next one.
+        else if (!laneRun.failed) rememberAppliedUpload(repeatKey, fullChecksum);
+      }, (error: unknown) => console.warn("Upload lanes failed", error));
+      uploadTimer.mark("before:lanes");
+      const lanesFinished = await raceDeadline(lanesDone.then(() => true, () => true), LANES_WAIT_MS);
+      uploadTimer.mark(lanesFinished ? "lanes" : "lanes-deadline");
       if (!access.officer) {
         // 9.1: guildmates' recipes, cooldowns and attunements, for characters already linked in this guild.
         const [owned, linkedInGuild] = await Promise.all([
@@ -1799,6 +1816,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const began = Date.now();
         let applied = false;
         try {
+          await lanesDone.catch(() => undefined);
           const result = await runGuildApply(guild.id, () => autoApplyImport({ guildId: guild.id, discordId: guild.discordId, importId: job.importId, createdBy, since: uploadStartedAt, retried: job.retried, onApplied: () => { applied = true; } }));
           return { ok: true, result, ms: Date.now() - began };
         } catch (error) { return { ok: false, error, applied, ms: Date.now() - began }; }

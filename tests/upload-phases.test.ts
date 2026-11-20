@@ -20,6 +20,7 @@ vi.mock("../src/services/audit.js", async (original) => ({
   createAuditService: () => ({ record: async () => undefined })
 }));
 
+import { runUploadLanes } from "../src/services/upload-repeat.js";
 import { applyWaitMs, runGuildApply, autoApplyImportWith, createUploadTimer, craftRequestNeedsPost, inBackground, inGuildBackground, raceDeadline, startApplyLane } from "../src/companion-api.js";
 import { snapshotChecksum } from "../src/services/addon-import.js";
 
@@ -57,6 +58,26 @@ describe("the upload timing line", () => {
     expect(line).toMatch(/^upload guild=[0-9a-f]{8} total=\d+ bytes=4096 officer=1 phases=slow:\d+,other:\d+$/);
     expect(line).not.toContain("guild-internal-id-123");
     expect(createUploadTimer().line("g", 0, false)).toMatch(/officer=0 phases=other:\d+$/);
+  });
+
+  it("names a lane that is still running when the line is printed", async () => {
+    const timer = createUploadTimer();
+    let release: () => void = () => undefined;
+    const slow = timer.lane("guild", () => new Promise<void>((resolve) => { release = resolve; }));
+    await timer.lane("bank", () => new Promise((resolve) => setTimeout(resolve, 230)));
+    expect(timer.line("g", 1, false)).toMatch(/lanes=bank~\d+,guild~\d+\+running /);
+    release(); await slow;
+    expect(timer.line("g", 1, false)).toMatch(/lanes=bank~\d+,guild~\d+ /);
+  });
+
+  it("answers at the lanes deadline while a slow lane keeps running and finishes later", async () => {
+    let done = false;
+    const lanes = runUploadLanes([{ name: "guild", steps: [{ name: "guild-data", run: () => new Promise<void>((resolve) => setTimeout(() => { done = true; resolve(); }, 120)) }] }], { repeat: false });
+    expect(await raceDeadline(lanes.then(() => true), 20)).toBeNull();
+    expect(done).toBe(false);
+    const run = await lanes;
+    expect(done).toBe(true);
+    expect(run.ran).toEqual(["guild-data"]);
   });
 
   it("attributes every millisecond: untimed waits between phases, the time before the timer started, and the tail", async () => {

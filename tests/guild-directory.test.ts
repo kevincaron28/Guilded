@@ -41,7 +41,7 @@ describe("guild directory page", () => {
     const map = (await open("/recruitment/guilds/sitemap.xml"))!;
     expect(map.status).toBe(200);
     expect(map.headers["content-type"]).toContain("application/xml");
-    expect(map.body).toContain("<loc>https://guilded.kcaron.top/g/quebec-gold/</loc>");
+    expect(map.body).toContain("<loc>https://guildedwow.com/g/quebec-gold/</loc>");
     expect(map.body).not.toContain("not-indexed");
     expect(map.body.match(/<url>/g)).toHaveLength(1);
     expect(store.guilds).toHaveBeenCalledTimes(5);

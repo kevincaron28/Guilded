@@ -364,3 +364,25 @@ describe("the participant list is forgotten only when roster membership changes 
     expect(probe.count()).toBe(3);   // someone left: forgotten
   });
 });
+
+describe("player GUID in the guild roster (Armory key)", () => {
+  it("stores the Blizzard character id read from the GUID, keeps it when a later upload has none, ignores a malformed GUID", async () => {
+    const db = fakeDb();
+    await applyGuildData(db.tx, "g", { memberId: "m", officer: false }, upload([
+      { name: "Dude Lebowski", level: 12, class: "WARRIOR", guid: "Player-4408-0A1B2C3D" },
+      { name: "Walter Sobchak", level: 22, class: "PALADIN", guid: "Creature-0-1-2-3-4-5" }
+    ]), NOW);
+    const byName = (name: string) => db.tables.roster.find((row: { name: string }) => row.name === name);
+    expect(byName("Dude Lebowski").blizzardCharacterId).toBe(0x0A1B2C3D);
+    expect(byName("Walter Sobchak")?.blizzardCharacterId ?? null).toBeNull();
+    // An upload from a client without the GUID (older addon) never erases a known id.
+    await applyGuildData(db.tx, "g", { memberId: "m", officer: false }, upload([{ name: "Dude Lebowski", level: 13, class: "WARRIOR" }], {}, T + 600), NOW);
+    expect(byName("Dude Lebowski")).toMatchObject({ level: 13, blizzardCharacterId: 0x0A1B2C3D });
+  });
+  it("the companion export passes only well-formed GUIDs", () => {
+    const { guildRoster } = exportGuildData({ guildSnapshot: { at: T, complete: true, members: {
+      "dude lebowski": { level: 12, class: "WARRIOR", guid: "Player-4408-0A1B2C3D" }, "walter sobchak": { level: 22, guid: "Player-1-zzz; drop" } } } });
+    expect(guildRoster.members.find((m: { name: string }) => m.name === "dude lebowski").guid).toBe("Player-4408-0A1B2C3D");
+    expect(guildRoster.members.find((m: { name: string }) => m.name === "walter sobchak").guid).toBeUndefined();
+  });
+});

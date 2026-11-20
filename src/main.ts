@@ -152,6 +152,8 @@ import { cleanupPastRaidPosts } from "./services/raid-post-cleanup.js";
 import { cleanupRaidAlerts } from "./services/raid-alert-cleanup.js";
 import { runWclDiscovery } from "./services/wcl-check.js";
 import { config } from "./config.js";
+import { armoryClientFromEnv } from "./services/blizzard-armory.js";
+import { ARMORY_INTERVAL_MS, syncAllArmoryGuilds } from "./services/armory-sync.js";
 import { standingsParts, startCompanionApi } from "./companion-api.js";
 import { warmStandings } from "./services/standings-warmup.js";
 import { handleWebApplicationButton, WEB_APPLY_PREFIX } from "./services/recruitment-discord.js";
@@ -505,6 +507,13 @@ client.once(Events.ClientReady, (readyClient) => {
     .catch(reportJobError("Statistics snapshots"));
   setTimeout(() => void statSnapshots(), 7 * 60 * 1000);
   setInterval(() => void statSnapshots(), 6 * 60 * 60 * 1000);
+  // Blizzard Armory roster per server (services/armory-sync.ts, docs/ARMORY_SYNC.md): every 6 h (first run 9-14 min in), one guild at a time; no-op without Battle.net credentials.
+  const armoryClient = armoryClientFromEnv({ BATTLENET_CLIENT_ID: config.BATTLENET_CLIENT_ID, BATTLENET_CLIENT_SECRET: config.BATTLENET_CLIENT_SECRET });
+  const armory = () => syncAllArmoryGuilds(prisma, armoryClient, { log: (message) => console.warn(message) }).catch(reportJobError("Armory roster sync"));
+  if (armoryClient) {
+    setTimeout(() => void armory(), 9 * 60 * 1000 + Math.floor(Math.random() * 5 * 60 * 1000));
+    setInterval(() => void armory(), ARMORY_INTERVAL_MS + Math.floor(Math.random() * 10 * 60 * 1000));
+  }
   // Ended trial periods are announced once in the core's officer log (services/trial-reminders.ts).
   const trials = () => remindEndedTrials(prisma, discordTrialDelivery(readyClient, prisma, (id) => hostedPilot.allows(id)))
     .catch(reportJobError("Trial reminders"));

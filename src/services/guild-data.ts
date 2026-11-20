@@ -6,6 +6,7 @@ import { characterKey, foreverNameMatches } from "../../companion/character-iden
 import { gameEditionOf } from "./game-edition.js";
 import { findCharacter } from "./character-match.js";
 import { clearGuildMembershipCache } from "./guild-participants.js";
+import { characterIdFromGuid } from "./guild-armory-id.js";
 
 // What the game shows every member about the whole guild (8.5, docs/GUILD_DATA_INVENTORY.md):
 // the roster (level, class, rank, last online), the guild event log and the MOTD/info text.
@@ -32,6 +33,7 @@ const memberSchema = z.object({
   class: z.string().regex(/^[A-Z]{1,20}$/).optional(),
   rankName: z.string().trim().min(1).max(60).optional(),
   rankIndex: z.number().int().min(0).max(19).optional(),
+  guid: z.string().regex(/^Player-\d+-[0-9A-Fa-f]+$/).max(40).optional(),
   online: z.boolean().default(false),
   lastOnline: z.number().int().positive().optional()
 });
@@ -110,9 +112,11 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
       if (!previous || previous.observedAt < observedAt) {
         const data = { name: member.name, level: member.level ?? previous?.level ?? null, className: member.class ?? previous?.className ?? null,
           rankName: member.rankName ?? previous?.rankName ?? null, rankIndex: member.rankIndex ?? previous?.rankIndex ?? null,
+          // The Blizzard character id inside the uploaded player GUID: the only key the Armory sync matches on (guild-armory-id.ts).
+          blizzardCharacterId: characterIdFromGuid(member.guid) ?? previous?.blizzardCharacterId ?? null,
           lastOnlineAt: movedForward(previous?.lastOnlineAt, lastOnlineOk, minMove) ?? previous?.lastOnlineAt ?? null, inGuild: true, observedAt, reportedById };
         if (previous && previous.inGuild && previous.name === data.name && previous.level === data.level && previous.className === data.className
-          && previous.rankName === data.rankName && previous.rankIndex === data.rankIndex) {
+          && previous.rankName === data.rankName && previous.rankIndex === data.rankIndex && previous.blizzardCharacterId === data.blizzardCharacterId) {
           // Only the reading time (and maybe last online) moved: batched, grouped by the identical new value.
           const moved = !sameTime(previous.lastOnlineAt, data.lastOnlineAt);
           const group = `${moved ? data.lastOnlineAt?.getTime() : "same"}|${reportedById}`;

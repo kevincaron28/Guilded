@@ -129,6 +129,8 @@ enum ApplicationStatus {
 }
 
 model Guild {
+  armoryGuild ArmoryGuild?
+  armoryRoster ArmoryRosterEntry[]
   companionDevices CompanionDevice[]
   mapSightings GuildMapSighting[]
   helpCalls GuildHelpCall[]
@@ -3647,10 +3649,13 @@ model GuildRosterEntry {
   // When the uploader's game read this row, and whose companion brought it (Member id).
   observedAt   DateTime
   reportedById String?
+  // The Blizzard character id read from the player GUID the addon uploaded (guild-armory-id.ts): the only key that ties a row to an Armory row.
+  blizzardCharacterId Int?
   updatedAt    DateTime  @updatedAt
 
   @@unique([guildId, gameEdition, nameKey])
   @@index([guildId, inGuild])
+  @@index([guildId, blizzardCharacterId])
 }
 
 // The game's guild event log (invites, joins, promotions, demotions, removals, quits). The game
@@ -4365,4 +4370,32 @@ model ProfessionPostMessage {
   guild       Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   @@unique([guildId, profession, slot])
+}
+
+// The Blizzard Armory's view of a guild (services/armory-sync.ts, docs/ARMORY_SYNC.md). Public data, first names only. Never merged into
+// GuildRosterEntry: the addon's roster stays the source; a row is tied to one only through blizzardCharacterId.
+model ArmoryGuild {
+  guildId           String   @id
+  wowGuildName      String
+  slug              String
+  faction           String?
+  memberCount       Int?
+  achievementPoints Int?
+  fetchedAt         DateTime
+  guild             Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+}
+
+model ArmoryRosterEntry {
+  id                  String   @id @default(cuid())
+  guildId             String
+  blizzardCharacterId Int
+  name                String
+  level               Int?
+  classId             Int?
+  raceId              Int?
+  rank                Int?
+  seenAt              DateTime
+  guild               Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, blizzardCharacterId])
 }

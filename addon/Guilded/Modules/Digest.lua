@@ -117,7 +117,7 @@ ns.commandHandlers["digest"] = function(args)
   local digest = state()
   if action == "on" or action == "off" then
     if digest then digest.enabled = (action == "on") end
-    ns.message("Login digest " .. action .. ".")
+    ns.message(action == "on" and L("Login digest on.") or L("Login digest off."))
   else
     show(true)
   end

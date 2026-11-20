@@ -13,6 +13,7 @@
 -- different guild is refused.
 local addonName, ns = ...
 ns = ns or {}
+local function L(text) return ns.L and ns.L(text) or text end
 
 local FORMAT = "QGBKP1"
 local MAX_DEPTH = 30
@@ -362,7 +363,7 @@ local function ensureFrame()
     local scope = (activeDb().guildKey or "") .. "|" .. ns.util.gameEdition()
     if not previewed or previewed.code ~= code or previewed.scope ~= scope then
       previewed = { code = code, scope = scope }
-      ns.message(string.format("Backup from %s by %s: %d raid(s), %d ledger entries, %d known members. Press Restore again to replace your saved data (undo: /guilded restore undo).",
+      ns.message(string.format(L("Backup from %s by %s: %d raid(s), %d ledger entries, %d known members. Press Restore again to replace your saved data (undo: /guilded restore undo)."),
         info.parsed.at ~= "" and info.parsed.at or "?", info.parsed.by ~= "" and info.parsed.by or "?", info.raids, info.ledger, info.members))
       local text = "Local guild: %d core(s), %d roster entries. Restore replaces this PC's copy; it does not merge officers' records."
       ns.message(string.format(ns.L and ns.L(text) or text, info.cores, info.coreMembers))
@@ -371,7 +372,7 @@ local function ensureFrame()
     previewed = nil
     local done, problem = module.restore(code)
     if done then
-      ns.message("Backup restored. /reload now so everything uses it. The old data is kept for 7 days for /guilded restore undo (/guilded restore forget removes it now).")
+      ns.message(L("Backup restored. /reload now so everything uses it. The old data is kept for 7 days for /guilded restore undo (/guilded restore forget removes it now)."))
       frame:Hide()
     else
       ns.message(problem)
@@ -397,8 +398,8 @@ ns.commandHandlers["backup"] = function()
   if ns.moduleActive and not ns.moduleActive("backup") then return end
   local code, err = module.build()
   if not code then ns.message(err) return end
-  ns.message(string.format("Backup code: %d characters. Copy it from the box (Ctrl+C) and keep it somewhere safe.%s", #code,
-    #code > 200000 and " It is large; paste it into a text file, not a chat window." or ""))
+  ns.message(string.format(L("Backup code: %d characters. Copy it from the box (Ctrl+C) and keep it somewhere safe.%s"), #code,
+    #code > 200000 and (" " .. L("It is large; paste it into a text file, not a chat window.")) or ""))
   ns.lastBackupCode = code
   local scopeNote = "This code excludes per-character imported loot history. Back up the character's SavedVariables/Guilded.lua file separately."
   ns.message(ns.L and ns.L(scopeNote) or scopeNote)
@@ -428,9 +429,9 @@ ns.commandHandlers["restore"] = function(args)
     local db = activeDb()
     if db and db.preRestore then
       db.preRestore = nil
-      ns.message("The copy kept for /guilded restore undo was removed.")
+      ns.message(L("The copy kept for /guilded restore undo was removed."))
     else
-      ns.message("There is no undo copy to remove.")
+      ns.message(L("There is no undo copy to remove."))
     end
     return
   end

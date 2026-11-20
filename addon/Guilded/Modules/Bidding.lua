@@ -138,17 +138,20 @@ local function closeBidding(id)
     bidding.current = nil
   else
     auction.winner = ranked[1]
-    ns.message(string.format("Bidding closed: %s leads with %d GP (%d bid%s). Press Award or /guilded bid award.",
-      auction.winner.name, auction.winner.amount, #ranked, #ranked == 1 and "" or "s"))
+    if #ranked == 1 then
+      ns.message(string.format(L("Bidding closed: %s leads with %d GP (1 bid). Press Award or /guilded bid award."), auction.winner.name, auction.winner.amount))
+    else
+      ns.message(string.format(L("Bidding closed: %s leads with %d GP (%d bids). Press Award or /guilded bid award."), auction.winner.name, auction.winner.amount, #ranked))
+    end
   end
   changed()
 end
 
 local function openBidding(args)
-  if not ns.isOfficer() then ns.message("Only officers can run loot bidding."); return end
-  if bidding.current then ns.message("Bidding is already running for " .. bidding.current.item .. ". Award or cancel it first."); return end
+  if not ns.isOfficer() then ns.message(L("Only officers can run loot bidding.")); return end
+  if bidding.current then ns.message(string.format(L("Bidding is already running for %s. Award or cancel it first."), bidding.current.item)); return end
   local channel = groupChannel()
-  if not channel then ns.message("Be in a raid or party to run bidding (or start a test raid: /guilded sim start)."); return end
+  if not channel then ns.message(L("Be in a raid or party to run bidding (or start a test raid: /guilded sim start).")); return end
   local minimum = tonumber(args[1])
   local last = #args
   local seconds = DEFAULT_SECONDS
@@ -197,7 +200,7 @@ bidding.addBid = addBid
 
 local function awardBidding()
   local auction = bidding.current
-  if not auction then ns.message("No bidding to award."); return end
+  if not auction then ns.message(L("No bidding to award.")); return end
   if auction.open then closeBidding(auction.id) end
   auction = bidding.current
   if not auction or not auction.winner then return end
@@ -213,7 +216,7 @@ end
 
 local function cancelBidding()
   local auction = bidding.current
-  if not auction then ns.message("No bidding to cancel."); return end
+  if not auction then ns.message(L("No bidding to cancel.")); return end
   sendAddon("CLOSE|" .. auction.id, auction.channel)
   announce(string.format(L("Bidding on %s cancelled."), auction.item))
   bidding.current = nil
@@ -231,7 +234,7 @@ function bidding.restore()
   -- more, so it is dropped rather than closed and awarded by itself.
   if saved.open and left < -STALE_SESSION_SECONDS then
     d.biddingSession = nil
-    ns.message(string.format("Bidding on %s from an earlier session ran out while you were away and was dropped.", plainItem(saved.item)))
+    ns.message(string.format(L("Bidding on %s from an earlier session ran out while you were away and was dropped."), plainItem(saved.item)))
     return
   end
   local auction = {}
@@ -243,8 +246,8 @@ function bidding.restore()
   if auction.open and C_Timer and C_Timer.After then
     C_Timer.After(math.max(5, left), function() closeBidding(auction.id) end)
   end
-  ns.message(string.format("Bidding on %s was restored after the reload%s.", plainItem(auction.item),
-    auction.open and (left > 0 and string.format(" (%ds left)", left) or " and closes now") or " (waiting for Award)"))
+  ns.message(string.format(L("Bidding on %s was restored after the reload%s."), plainItem(auction.item),
+    auction.open and (left > 0 and string.format(L(" (%ds left)"), left) or L(" and closes now")) or L(" (waiting for Award)")))
   if ns.onBiddingChange then pcall(ns.onBiddingChange) end
 end
 
@@ -392,13 +395,13 @@ ns.commandHandlers["bid"] = function(args)
   table.remove(args, 1)
   if action == "start" then openBidding(args)
   elseif action == "close" then
-    if not ns.isOfficer() then ns.message("Only officers can run loot bidding."); return end
+    if not ns.isOfficer() then ns.message(L("Only officers can run loot bidding.")); return end
     if bidding.current then closeBidding(bidding.current.id) end
   elseif action == "award" then
-    if not ns.isOfficer() then ns.message("Only officers can run loot bidding."); return end
+    if not ns.isOfficer() then ns.message(L("Only officers can run loot bidding.")); return end
     awardBidding()
   elseif action == "cancel" then
-    if not ns.isOfficer() then ns.message("Only officers can run loot bidding."); return end
+    if not ns.isOfficer() then ns.message(L("Only officers can run loot bidding.")); return end
     cancelBidding()
   elseif action == "status" then
     ns.message(bidding.statusText())

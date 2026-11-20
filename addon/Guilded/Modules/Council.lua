@@ -288,7 +288,7 @@ local function closeSession(id)
     awardSession({})
     return
   else
-    ns.message(string.format("Council closed: %d want %s. Look at the list, then award: /guilded council award <player> [GP].",
+    ns.message(string.format(L("Council closed: %d want %s. Look at the list, then award: /guilded council award <player> [GP]."),
       #ranked, plainItem(session.item)))
     council.sendList(session, ranked)
   end
@@ -332,10 +332,10 @@ end
 -- opts: { kind = "priority", price = GP } for EPGP priority loot; nothing for a loot council.
 local function openSession(args, opts)
   opts = opts or {}
-  if not ns.isOfficer() then ns.message("Only officers can run the loot council."); return end
-  if council.current then ns.message("The council is already looking at " .. council.current.item .. ". Award or cancel it first."); return end
+  if not ns.isOfficer() then ns.message(L("Only officers can run the loot council.")); return end
+  if council.current then ns.message(string.format(L("The council is already looking at %s. Award or cancel it first."), council.current.item)); return end
   local channel = groupChannel()
-  if not channel then ns.message("Be in a raid or party to run the loot council (or start a test raid: /guilded sim start)."); return end
+  if not channel then ns.message(L("Be in a raid or party to run the loot council (or start a test raid: /guilded sim start).")); return end
   local last = #args
   local seconds = DEFAULT_SECONDS
   if last >= 2 and tonumber(args[last]) then
@@ -391,7 +391,7 @@ council.addResponse = addResponse
 
 awardSession = function(args)
   local session = council.current
-  if not session then ns.message("No loot council to award."); return end
+  if not session then ns.message(L("No loot council to award.")); return end
   if session.open then closeSession(session.id) end
   session = council.current
   if not session then return end
@@ -403,7 +403,7 @@ awardSession = function(args)
     name = session.eligibleWinner
   end
   if not name then
-    if not ranked[1] then ns.message("Say who gets it: /guilded council award <player> [GP]."); return end
+    if not ranked[1] then ns.message(L("Say who gets it: /guilded council award <player> [GP].")); return end
     name = ranked[1].name
   end
   -- Priority loot costs the set price unless the officer names another one; an off-spec win
@@ -412,7 +412,7 @@ awardSession = function(args)
   local answer = session.responses[name]
   local offspecWin = not tonumber(args[2]) and session.price and answer and answer.tier == "os"
   if offspecWin then gp = math.floor(session.price * (tonumber(session.offspec) or 50) / 100 + 0.5) end
-  if gp < 0 or gp > MAX_GP then ns.message("That GP is out of range."); return end
+  if gp < 0 or gp > MAX_GP then ns.message(L("That GP is out of range.")); return end
   local item = plainItem(session.item)
   if session.pricing then
     session.pricing.finalGp = gp
@@ -435,7 +435,7 @@ end
 
 local function cancelSession()
   local session = council.current
-  if not session then ns.message("No loot council to cancel."); return end
+  if not session then ns.message(L("No loot council to cancel.")); return end
   if session.rollStarted and ns.lootRoll then ns.lootRoll.session = nil end
   sendAddon("CLOSE|" .. session.id, session.channel)
   announce(string.format(L("Loot council on %s cancelled."), session.item))
@@ -453,7 +453,7 @@ function council.restore()
   -- more, so it is dropped rather than closed and awarded by itself.
   if saved.open and left < -STALE_SESSION_SECONDS then
     d.councilSession = nil
-    ns.message(string.format("Loot council on %s from an earlier session ran out while you were away and was dropped.", plainItem(saved.item)))
+    ns.message(string.format(L("Loot council on %s from an earlier session ran out while you were away and was dropped."), plainItem(saved.item)))
     return
   end
   local session = {}
@@ -466,8 +466,8 @@ function council.restore()
   if session.open and C_Timer and C_Timer.After then
     C_Timer.After(math.max(5, left), function() closeSession(session.id) end)
   end
-  ns.message(string.format("Loot council on %s was restored after the reload%s.", plainItem(session.item),
-    session.open and (left > 0 and string.format(" (%ds left)", left) or " and closes now") or " (waiting for Award)"))
+  ns.message(string.format(L("Loot council on %s was restored after the reload%s."), plainItem(session.item),
+    session.open and (left > 0 and string.format(L(" (%ds left)"), left) or L(" and closes now")) or L(" (waiting for Award)")))
   if ns.onCouncilChange then pcall(ns.onCouncilChange) end
 end
 
@@ -636,7 +636,7 @@ ns.commandHandlers["council"] = function(args)
   table.remove(args, 1)
   local officerActions = { start = true, priority = true, close = true, award = true, cancel = true }
   if officerActions[action] and not ns.isOfficer() then
-    ns.message("Only officers can run the loot council.")
+    ns.message(L("Only officers can run the loot council."))
     return
   end
   if action == "start" then openSession(args)
@@ -654,7 +654,7 @@ ns.commandHandlers["council"] = function(args)
   elseif action == "vote" then council.vote(args[1])
   elseif WORDS[action] then
     -- A member answering from the keyboard, e.g. /guilded council bis
-    if council.incoming then respond(WORDS[action]) else ns.message("No loot council is open for you.") end
+    if council.incoming then respond(WORDS[action]) else ns.message(L("No loot council is open for you.")) end
   else
     ns.message("/guilded council start <item> [seconds] | priority <GP> <item> [seconds] | close | award [player] [GP] | cancel | status | vote <player>  -  members: bis | upgrade | os | want | pass")
   end
@@ -664,8 +664,8 @@ ns.commandHandlers["lc"] = ns.commandHandlers["council"]
 -- Officer side of a vote: the list from the host (council.voting), a name or a number from it.
 function council.vote(choice)
   local voting = council.voting
-  if not voting then ns.message("No loot council is waiting for your vote.") return end
-  if not ns.isOfficer() then ns.message("Only officers vote on the loot council.") return end
+  if not voting then ns.message(L("No loot council is waiting for your vote.")) return end
+  if not ns.isOfficer() then ns.message(L("Only officers vote on the loot council.")) return end
   local pick = voting.candidates[tonumber(choice or "") or 0]
   if not pick then
     local wanted = ns.normalizeName and ns.normalizeName(choice)

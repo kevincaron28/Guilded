@@ -7,9 +7,10 @@
 // confirmed against a real upload, so armory-sync.ts also refuses an id match whose first names differ.
 
 const GUID = /^Player-(\d+)-([0-9A-Fa-f]{1,16})$/;
-const MAX_ID = 2_147_483_647; // the database column is a 32-bit integer
+// Up to 8 hex digits in practice (4 294 967 295), which overflows a 32-bit INTEGER: the column is BigInt (`wowId`).
+const MAX_ID = 9_223_372_036_854_775_807n;
 
-export interface ParsedGuid { realmId: number; characterId: number }
+export interface ParsedGuid { realmId: number; characterId: bigint }
 
 /** The realm id and Blizzard character id inside a player GUID; null for anything else (pets, creatures, odd text). */
 export function parsePlayerGuid(guid: unknown): ParsedGuid | null {
@@ -18,12 +19,15 @@ export function parsePlayerGuid(guid: unknown): ParsedGuid | null {
   if (!match) return null;
   const realmId = Number(match[1]);
   const characterId = BigInt(`0x${match[2]}`);
-  if (!Number.isSafeInteger(realmId) || characterId < 1n || characterId > BigInt(MAX_ID)) return null;
-  return { realmId, characterId: Number(characterId) };
+  if (!Number.isSafeInteger(realmId) || characterId < 1n || characterId > MAX_ID) return null;
+  return { realmId, characterId };
 }
 
 /** Just the Blizzard character id, or null. */
-export const characterIdFromGuid = (guid: unknown): number | null => parsePlayerGuid(guid)?.characterId ?? null;
+export const characterIdFromGuid = (guid: unknown): bigint | null => parsePlayerGuid(guid)?.characterId ?? null;
 
-/** Whether an Armory id is usable as a stored key. */
-export const validArmoryId = (id: unknown): id is number => typeof id === "number" && Number.isInteger(id) && id > 0 && id <= MAX_ID;
+/** An Armory `character.id` (a JSON number) as a stored key, or null. */
+export const armoryId = (id: unknown): bigint | null => {
+  if (typeof id === "bigint") return id > 0n && id <= MAX_ID ? id : null;
+  return typeof id === "number" && Number.isSafeInteger(id) && id > 0 ? BigInt(id) : null;
+};

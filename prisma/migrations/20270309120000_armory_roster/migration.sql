@@ -1,5 +1,5 @@
-ALTER TABLE "GuildRosterEntry" ADD COLUMN "blizzardCharacterId" INTEGER;
-CREATE INDEX "GuildRosterEntry_guildId_blizzardCharacterId_idx" ON "GuildRosterEntry"("guildId", "blizzardCharacterId");
+ALTER TABLE "GuildRosterEntry" ADD COLUMN "wowId" BIGINT;
+CREATE INDEX "GuildRosterEntry_guildId_wowId_idx" ON "GuildRosterEntry"("guildId", "wowId");
 
 CREATE TABLE "ArmoryGuild" (
     "guildId" TEXT NOT NULL,
@@ -15,7 +15,7 @@ CREATE TABLE "ArmoryGuild" (
 CREATE TABLE "ArmoryRosterEntry" (
     "id" TEXT NOT NULL,
     "guildId" TEXT NOT NULL,
-    "blizzardCharacterId" INTEGER NOT NULL,
+    "wowId" BIGINT NOT NULL,
     "name" TEXT NOT NULL,
     "level" INTEGER,
     "classId" INTEGER,
@@ -25,7 +25,7 @@ CREATE TABLE "ArmoryRosterEntry" (
     CONSTRAINT "ArmoryRosterEntry_pkey" PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX "ArmoryRosterEntry_guildId_blizzardCharacterId_key" ON "ArmoryRosterEntry"("guildId", "blizzardCharacterId");
+CREATE UNIQUE INDEX "ArmoryRosterEntry_guildId_wowId_key" ON "ArmoryRosterEntry"("guildId", "wowId");
 
 ALTER TABLE "ArmoryGuild" ADD CONSTRAINT "ArmoryGuild_guildId_fkey" FOREIGN KEY ("guildId") REFERENCES "Guild"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "ArmoryRosterEntry" ADD CONSTRAINT "ArmoryRosterEntry_guildId_fkey" FOREIGN KEY ("guildId") REFERENCES "Guild"("id") ON DELETE CASCADE ON UPDATE CASCADE;

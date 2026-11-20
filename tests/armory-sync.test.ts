@@ -46,7 +46,7 @@ describe("Armory client", () => {
   it("parses members and skips rows without a usable id", () => {
     const roster = parseRoster(rosterBody())!;
     expect(roster.guild).toEqual({ name: "Québec Gold", faction: "HORDE" });
-    expect(roster.members.map((m) => m.id)).toEqual([100, 101, 102]);
+    expect(roster.members.map((m) => m.id)).toEqual([100n, 101n, 102n]);
     expect(roster.members[0]).toMatchObject({ name: "Slaiker", level: 60, classId: 4, raceId: 2, rank: 0 });
   });
   it("answers null on 404 and 403 without throwing, logging once", async () => {
@@ -74,8 +74,8 @@ function fakeDb(addon: Record<string, unknown>[] = []) {
       deleteMany: async ({ where }: { where: { guildId: string } }) => { tables.entries = tables.entries.filter((r) => r["guildId"] !== where.guildId); },
       createMany: async ({ data }: { data: Record<string, unknown>[] }) => { tables.entries.push(...data); },
       findMany: async ({ where }: { where: { guildId: string } }) => tables.entries.filter((r) => r["guildId"] === where.guildId),
-      findUnique: async ({ where }: { where: { guildId_blizzardCharacterId: { guildId: string; blizzardCharacterId: number } } }) =>
-        tables.entries.find((r) => r["guildId"] === where.guildId_blizzardCharacterId.guildId && r["blizzardCharacterId"] === where.guildId_blizzardCharacterId.blizzardCharacterId) ?? null
+      findUnique: async ({ where }: { where: { guildId_wowId: { guildId: string; wowId: bigint } } }) =>
+        tables.entries.find((r) => r["guildId"] === where.guildId_wowId.guildId && r["wowId"] === where.guildId_wowId.wowId) ?? null
     },
     armoryGuild: {
       upsert: async ({ where, create, update }: { where: { guildId: string }; create: Record<string, unknown>; update: Record<string, unknown> }) => { tables.guild.set(where.guildId, { ...(tables.guild.get(where.guildId) ?? create), ...update }); },
@@ -110,7 +110,7 @@ describe("Armory snapshot", () => {
     expect(a.tables.entries).toHaveLength(0);
   });
   it("a whole pass is a no-op without credentials and visits only servers with a known guild name", async () => {
-    const guildDb = { ...fakeDb().db, guild: { findMany: async () => [{ id: "g1" }, { id: "g2" }] },
+    const guildDb = { ...(fakeDb().db as object), guild: { findMany: async () => [{ id: "g1" }, { id: "g2" }] },
       wowGuild: { findMany: async ({ where }: { where: { guildId: string } }) => where.guildId === "g1" ? [{ name: "Québec Gold" }] : [] },
       companionDevice: { groupBy: async () => [] } } as never;
     expect(await syncAllArmoryGuilds(guildDb, null)).toEqual({ synced: 0, skipped: 0 });
@@ -120,23 +120,24 @@ describe("Armory snapshot", () => {
 
 describe("GUID to Blizzard character id", () => {
   it("reads the hex low part as decimal", () => {
-    expect(parsePlayerGuid("Player-4408-0A1B2C3D")).toEqual({ realmId: 4408, characterId: 169_552_957 });
-    expect(characterIdFromGuid("Player-4408-0000000F")).toBe(15);
-    expect(characterIdFromGuid("Player-1-ff")).toBe(255);
+    expect(parsePlayerGuid("Player-4408-0A1B2C3D")).toEqual({ realmId: 4408, characterId: 169_552_957n });
+    expect(characterIdFromGuid("Player-4408-0000000F")).toBe(15n);
+    expect(characterIdFromGuid("Player-1-ff")).toBe(255n);
+    expect(characterIdFromGuid("Player-4408-FFFFFFFF")).toBe(4_294_967_295n); // past a 32-bit INTEGER, hence BigInt
   });
   it("refuses anything that is not a player GUID or does not fit", () => {
-    for (const bad of ["Creature-0-1-2-3-4-5", "Player-1", "Player-1-xyz", "Player-1-0", "Player-1-FFFFFFFFFFFF", "", null, 5]) expect(characterIdFromGuid(bad)).toBeNull();
+    for (const bad of ["Creature-0-1-2-3-4-5", "Player-1", "Player-1-xyz", "Player-1-0", "Player-1-FFFFFFFFFFFFFFFFF", "", null, 5]) expect(characterIdFromGuid(bad)).toBeNull();
   });
 });
 
-const addonRow = (over: Record<string, unknown>) => ({ name: "Dude Lebowski", level: 50, className: "WARRIOR", rankName: "Veteran", rankIndex: 3, blizzardCharacterId: null, ...over });
+const addonRow = (over: Record<string, unknown>) => ({ name: "Dude Lebowski", level: 50, className: "WARRIOR", rankName: "Veteran", rankIndex: 3, wowId: null, ...over });
 
 describe("website roster from the Armory", () => {
   it("ties a row to an addon character only through the Blizzard character id; a same first name, level and class is NOT linked", async () => {
     const { db } = fakeDb([
-      addonRow({ name: "Slaiker Moonbrook", level: 60, className: "ROGUE", rankName: "Guild Master", rankIndex: 0, blizzardCharacterId: 100 }),
+      addonRow({ name: "Slaiker Moonbrook", level: 60, className: "ROGUE", rankName: "Guild Master", rankIndex: 0, wowId: 100n }),
       // Same first name, same level and class as Armory "Dude" (101) but no GUID known: stays Armory-only.
-      addonRow({ name: "Dude Lebowski", level: 42, className: "WARRIOR", blizzardCharacterId: null })]);
+      addonRow({ name: "Dude Lebowski", level: 42, className: "WARRIOR", wowId: null })]);
     await syncArmoryGuild(db, client(happy).client, "g1", "Québec Gold", NOW);
     const view = (await loadArmoryRosterView(db, "g1", NOBODY_HIDDEN))!;
     const byName = (name: string) => view.rows.find((r) => r.name === name);
@@ -148,8 +149,8 @@ describe("website roster from the Armory", () => {
     expect(view.memberCount).toBe(341);
   });
   it("the addon's values win on a linked row, and a wrong first name refuses the id match", async () => {
-    const { db } = fakeDb([addonRow({ name: "Dude Lebowski", level: 55, className: "WARRIOR", rankName: "Officer", rankIndex: 1, blizzardCharacterId: 101 }),
-      addonRow({ name: "Someone Else", blizzardCharacterId: 102 })]);
+    const { db } = fakeDb([addonRow({ name: "Dude Lebowski", level: 55, className: "WARRIOR", rankName: "Officer", rankIndex: 1, wowId: 101n }),
+      addonRow({ name: "Someone Else", wowId: 102n })]);
     await syncArmoryGuild(db, client(happy).client, "g1", "Québec Gold", NOW);
     const view = (await loadArmoryRosterView(db, "g1", NOBODY_HIDDEN))!;
     expect(view.rows.find((r) => r.name === "Dude Lebowski")).toMatchObject({ level: 55, rankLabel: "Officer", source: "addon" });
@@ -167,9 +168,9 @@ describe("website roster from the Armory", () => {
     const { db } = fakeDb();
     expect(await loadArmoryRosterView(db, "g1", NOBODY_HIDDEN)).toBeNull();
     await syncArmoryGuild(db, client(happy).client, "g1", "Québec Gold", NOW);
-    expect(await armoryRankHint(db, "g1", 101)).toBe(3);
+    expect(await armoryRankHint(db, "g1", 101n)).toBe(3);
     expect(await armoryRankHint(db, "g1", null)).toBeNull();
-    expect(await armoryRankHint(db, "g1", 999)).toBeNull();
+    expect(await armoryRankHint(db, "g1", 999n)).toBeNull();
   });
   it("renders the roster with the Armory note, the update time and the Armory-only tag, escaped", () => {
     const base: GuildPageView = { slug: "qg", name: "Québec Gold", language: "en", indexable: true, intro: null, sections: ["rosters"], cores: [], recruitment: null };

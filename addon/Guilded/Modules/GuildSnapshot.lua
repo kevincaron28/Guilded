@@ -92,6 +92,8 @@ function snapshot.read(force)
         class = type(classFile) == "string" and classFile:match("^%u+$") and #classFile <= 20 and classFile or nil,
         rankName = text(rankName, 60),
         rankIndex = (rank and rank >= 0 and rank < 20) and math.floor(rank) or nil,
+        -- (9.4) The player GUID (17th return of GetGuildRosterInfo): the exact key the Armory sync matches on.
+        guid = type(guid) == "string" and not secret(guid) and #guid <= 40 and guid:match("^Player%-%d+%-%x+$") and guid or nil,
         online = online and true or false,
         lastOnline = lastOnline(index, online, now)
       }

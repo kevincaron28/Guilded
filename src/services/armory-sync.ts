@@ -6,7 +6,7 @@ import { isHiddenPlayer, type HiddenIdentity } from "./profile-privacy.js";
 // The Blizzard Armory roster of a guild, kept beside (never inside) the addon's roster (docs/ARMORY_SYNC.md).
 //   * One snapshot per Discord server, replaced whole on every run; the addon's GuildRosterEntry rows are never written here.
 //   * An Armory row is tied to a Guilded character ONLY through the Blizzard character id read from a player GUID the addon
-//     uploaded (GuildRosterEntry.blizzardCharacterId). No name, level or class matching: rows without a known id stay
+//     uploaded (GuildRosterEntry.wowId). No name, level or class matching: rows without a known id stay
 //     Armory-only (first name, level, class, rank), shown as such and never merged with a "First Last" character.
 
 export const ARMORY_INTERVAL_MS = 6 * 3_600_000;
@@ -33,7 +33,7 @@ export async function syncArmoryGuild(db: Pick<PrismaClient, "armoryGuild" | "ar
     achievementPoints: summary?.achievementPoints ?? null, fetchedAt: now };
   await db.$transaction([
     db.armoryRosterEntry.deleteMany({ where: { guildId } }),
-    db.armoryRosterEntry.createMany({ data: roster.members.map((member) => ({ guildId, blizzardCharacterId: member.id, name: member.name, level: member.level, classId: member.classId, raceId: member.raceId, rank: member.rank, seenAt: now })) }),
+    db.armoryRosterEntry.createMany({ data: roster.members.map((member) => ({ guildId, wowId: member.id, name: member.name, level: member.level, classId: member.classId, raceId: member.raceId, rank: member.rank, seenAt: now })) }),
     db.armoryGuild.upsert({ where: { guildId }, create: { guildId, ...guildRow }, update: guildRow })
   ]);
   return "synced";
@@ -82,18 +82,18 @@ export async function loadArmoryRosterView(db: ViewDb, guildId: string, hidden: 
   if (!guild) return null;
   const [entries, addon] = await Promise.all([
     db.armoryRosterEntry.findMany({ where: { guildId }, take: 5000 }),
-    db.guildRosterEntry.findMany({ where: { guildId, gameEdition: "forever", inGuild: true }, select: { name: true, level: true, className: true, rankName: true, rankIndex: true, blizzardCharacterId: true }, take: 5000 })
+    db.guildRosterEntry.findMany({ where: { guildId, gameEdition: "forever", inGuild: true }, select: { name: true, level: true, className: true, rankName: true, rankIndex: true, wowId: true }, take: 5000 })
   ]);
   if (!entries.length) return null;
   const rankNames = new Map<number, string>();
   for (const row of addon) if (row.rankIndex != null && row.rankName && !rankNames.has(row.rankIndex)) rankNames.set(row.rankIndex, row.rankName);
   // An id seen on two addon rows is ambiguous: neither is used.
-  const byId = new Map<number, (typeof addon)[number] | null>();
-  for (const row of addon) if (row.blizzardCharacterId != null) byId.set(row.blizzardCharacterId, byId.has(row.blizzardCharacterId) ? null : row);
+  const byId = new Map<bigint, (typeof addon)[number] | null>();
+  for (const row of addon) if (row.wowId != null) byId.set(row.wowId, byId.has(row.wowId) ? null : row);
   const rows: ArmoryRosterRow[] = [];
   let linked = 0;
   for (const entry of entries) {
-    const mate = byId.get(entry.blizzardCharacterId) ?? null;
+    const mate = byId.get(entry.wowId) ?? null;
     // The id must agree with the first name: a wrong GUID conversion (never seen, but unverified for Forever) cannot attach a stranger.
     const tied = mate && firstWord(mate.name) === firstWord(entry.name) ? mate : null;
     const name = tied?.name ?? entry.name;
@@ -112,8 +112,8 @@ export async function loadArmoryRosterView(db: ViewDb, guildId: string, hidden: 
  * A hint for the promotion plan (not used by it yet): the Armory rank index of a character, only through its Blizzard character
  * id. Null when the id is unknown or the Armory has no such member.
  */
-export async function armoryRankHint(db: Pick<PrismaClient, "armoryRosterEntry">, guildId: string, blizzardCharacterId: number | null | undefined): Promise<number | null> {
-  if (!blizzardCharacterId) return null;
-  const row = await db.armoryRosterEntry.findUnique({ where: { guildId_blizzardCharacterId: { guildId, blizzardCharacterId } }, select: { rank: true } });
+export async function armoryRankHint(db: Pick<PrismaClient, "armoryRosterEntry">, guildId: string, wowId: bigint | null | undefined): Promise<number | null> {
+  if (!wowId) return null;
+  const row = await db.armoryRosterEntry.findUnique({ where: { guildId_wowId: { guildId, wowId } }, select: { rank: true } });
   return row?.rank ?? null;
 }

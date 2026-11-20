@@ -113,10 +113,10 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
         const data = { name: member.name, level: member.level ?? previous?.level ?? null, className: member.class ?? previous?.className ?? null,
           rankName: member.rankName ?? previous?.rankName ?? null, rankIndex: member.rankIndex ?? previous?.rankIndex ?? null,
           // The Blizzard character id inside the uploaded player GUID: the only key the Armory sync matches on (guild-armory-id.ts).
-          blizzardCharacterId: characterIdFromGuid(member.guid) ?? previous?.blizzardCharacterId ?? null,
+          wowId: characterIdFromGuid(member.guid) ?? previous?.wowId ?? null,
           lastOnlineAt: movedForward(previous?.lastOnlineAt, lastOnlineOk, minMove) ?? previous?.lastOnlineAt ?? null, inGuild: true, observedAt, reportedById };
         if (previous && previous.inGuild && previous.name === data.name && previous.level === data.level && previous.className === data.className
-          && previous.rankName === data.rankName && previous.rankIndex === data.rankIndex && previous.blizzardCharacterId === data.blizzardCharacterId) {
+          && previous.rankName === data.rankName && previous.rankIndex === data.rankIndex && previous.wowId === data.wowId) {
           // Only the reading time (and maybe last online) moved: batched, grouped by the identical new value.
           const moved = !sameTime(previous.lastOnlineAt, data.lastOnlineAt);
           const group = `${moved ? data.lastOnlineAt?.getTime() : "same"}|${reportedById}`;

@@ -31,8 +31,8 @@ time, 2 s apart, calls spaced 100 ms and capped per hour; two retries on 5xx/429
 Migration `20270309120000_armory_roster`:
 
 - `ArmoryGuild` (one row per server: guild name, slug, faction, member count, achievement points, fetch time)
-- `ArmoryRosterEntry` (guildId, `blizzardCharacterId`, first name, level, class id, race id, rank, seenAt), replaced whole on every run
-- `GuildRosterEntry.blizzardCharacterId` (nullable), written from the addon's GUID
+- `ArmoryRosterEntry` (guildId, `wowId`, first name, level, class id, race id, rank, seenAt), replaced whole on every run
+- `GuildRosterEntry.wowId` (nullable), written from the addon's GUID
 
 ## Matching: exact only
 
@@ -50,7 +50,7 @@ upload with the new addon: how many roster rows show "linked".
 Pipeline: addon `Modules/GuildSnapshot.lua` reads the 17th return value of `GetGuildRosterInfo` (the GUID, kept only if it
 matches `Player-<digits>-<hex>`) into `db.guildSnapshot.members[...].guid`; `companion/lua-export-content.mjs` passes it in
 `guildRoster.members[].guid` (optional, backward compatible); `guild-data.ts` converts it with `guild-armory-id.ts` and
-stores `GuildRosterEntry.blizzardCharacterId`, never erasing a known id when a later upload lacks it. Older addons simply
+stores `GuildRosterEntry.wowId`, never erasing a known id when a later upload lacks it. Older addons simply
 send no GUID. The id is not yet stored on `Character`; a character's id is reachable through its roster row.
 
 ## What the website shows
@@ -66,5 +66,5 @@ every run; it follows the guild, not Delete my data.
 
 ## Promotion hint
 
-`armoryRankHint(db, guildId, blizzardCharacterId)` returns a character's Armory rank index. Nothing in the promotion plan
+`armoryRankHint(db, guildId, wowId)` returns a character's Armory rank index. Nothing in the promotion plan
 calls it yet.

@@ -1,5 +1,5 @@
 import { CallSpacer } from "./blizzard-items.js";
-import { validArmoryId } from "./guild-armory-id.js";
+import { armoryId } from "./guild-armory-id.js";
 
 // Blizzard's Armory (Profile API) for WoW Forever, with the bot's own Battle.net app and a client-credentials token (no member
 // account involved). As of 20 Nov 2026 the API answers for Forever with `namespace=profile-forever-us` and an EMPTY realm segment:
@@ -22,7 +22,7 @@ export const armoryNameKey = (name: string) => name.normalize("NFC").toLowerCase
 export const rosterUrl = (slug: string) => `${API}/data/wow/guild//${encodeURIComponent(slug)}/roster?namespace=${ARMORY_NAMESPACE}&locale=en_US`;
 export const summaryUrl = (slug: string) => `${API}/data/wow/guild//${encodeURIComponent(slug)}?namespace=${ARMORY_NAMESPACE}&locale=en_US`;
 
-export interface ArmoryMember { id: number; name: string; level: number | null; classId: number | null; raceId: number | null; rank: number | null }
+export interface ArmoryMember { id: bigint; name: string; level: number | null; classId: number | null; raceId: number | null; rank: number | null }
 export interface ArmoryGuildSummary { name: string; faction: string | null; memberCount: number | null; achievementPoints: number | null }
 export interface ArmoryRoster { guild: { name: string | null; faction: string | null }; members: ArmoryMember[] }
 
@@ -42,11 +42,11 @@ export function parseRoster(body: unknown): ArmoryRoster | null {
   const members = at(body, "members");
   if (!Array.isArray(members)) return null;
   const parsed: ArmoryMember[] = [];
-  const seen = new Set<number>();
+  const seen = new Set<bigint>();
   for (const row of members.slice(0, 5000)) {
-    const id = at(row, "character", "id");
+    const id = armoryId(at(row, "character", "id"));
     const name = text(at(row, "character", "name"), 40);
-    if (!validArmoryId(id) || !name || seen.has(id)) continue;
+    if (id === null || !name || seen.has(id)) continue;
     seen.add(id);
     parsed.push({ id, name, level: int(at(row, "character", "level"), 1, 100), classId: int(at(row, "character", "playable_class", "id"), 1, 100),
       raceId: int(at(row, "character", "playable_race", "id"), 1, 100), rank: int(at(row, "rank"), 0, 19) });

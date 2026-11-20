@@ -407,7 +407,7 @@ describe("older addons (9.4.4 formats)", () => {
     setup();
     run(`NS.callForHelp.open()`);
     const line = sent().split("\n").find((l) => l.startsWith("GuildedSOS:GUILD::S|"))!;
-    expect(line.split(":GUILD::")[1].split("|")).toHaveLength(10);
+    expect((line.split(":GUILD::")[1] ?? "").split("|")).toHaveLength(10);
   });
 });
 

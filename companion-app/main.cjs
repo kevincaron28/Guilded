@@ -6,6 +6,7 @@ const { pathToFileURL } = require("node:url");
 const { detectSavedVariables, pickSavedVariables, pickPrimaryAccount, pickerStart, accountsUnder, searchWow } = require("./detect-wow.cjs");
 const updates = require("./update-check.cjs");
 const idleUpdate = require("./idle-update.cjs");
+const rollback = require("./update-rollback.cjs");
 const autostart = require("./autostart.cjs");
 // Loaded on first use (Store build only): companion-app/store-update.cjs.
 const storeUpdatesModule = () => require("./store-update.cjs");
@@ -309,7 +310,7 @@ const autoUpdateDecision = () => updates.decideAutoUpdate({ store: STORE_INSTALL
 let updateTrouble = null;
 const updateNotice = () => {
   const pending = config.pendingUpdate;
-  return updates.updateNotice({ trouble: updateTrouble, failure: config.updateFailure, pendingReady: !!pending && updates.isNewer(pending.version, app.getVersion()) && !STORE_INSTALL, wowRunning, version: pending?.version ?? null });
+  return updates.updateNotice({ rolledBack: rolledBackNotice, trouble: updateTrouble, failure: config.updateFailure, pendingReady: !!pending && updates.isNewer(pending.version, app.getVersion()) && !STORE_INSTALL, wowRunning, version: pending?.version ?? null });
 };
 const autoUpdateOn = () => !["store", "unpackaged", "disabled"].includes(autoUpdateDecision().reason);
 let staging = false;
@@ -318,6 +319,7 @@ async function stageUpdate() {
   if (staging || installing) return;
   const decision = autoUpdateDecision();
   if (decision.action !== "download") return;
+  if (rollback.isBanned(trialDir(), decision.update.version)) { updateLine(`download of ${decision.update.version} not started: it failed to run here and was rolled back`); return; }
   if (idleUpdate.inBackoff(config.updateFailure, decision.update.version, Date.now())) { updateLine(`download of ${decision.update.version} not started: its install failed before; next try after ${config.updateFailure.nextAt}`); return; }
   const disk = checkDisk();
   if (!disk.ok) { updateLine(`download not started: only ${disk.freeMb} MB free on ${disk.drive}, ${disk.neededMb} MB needed`); logLowDisk(disk, E("The automatic update")); return; }
@@ -362,6 +364,8 @@ const idleInstaller = idleUpdate.createIdleInstaller({
   checkDisk: () => checkDisk(),
   writeMarker: (version) => { try { fs.writeFileSync(idleUpdateMarkerFile(), JSON.stringify({ at: new Date().toISOString(), version })); } catch { /* the window may show once */ } },
   clearMarker: () => { try { fs.rmSync(idleUpdateMarkerFile(), { force: true }); } catch { /* none */ } },
+  beginTrial: (verdict) => beginUpdateTrial(verdict.version, verdict.file, config.pendingUpdate?.sha256),
+  abortTrial: () => abortUpdateTrial(),
   spawn,
   log: (text) => updateLine(text)
 });
@@ -369,9 +373,15 @@ async function installWhenIdle() {
   const result = await idleInstaller.run();
   if (result.started) pushLog({ time: new Date().toISOString(), level: "info", message: E("Installer started for Guilded Companion {0}; restarting the companion.", result.version) });
 }
+// Update rollback (9.4 T2, update-rollback.cjs): the marker is written before an installer starts and cleared after
+// the new version ran healthily; the installer of a version that ran healthily is kept for the next rollback.
+const trialDir = () => app.getPath("userData");
+const beginUpdateTrial = (to, file, sha256) => { try { rollback.beginTrial({ dir: trialDir(), from: app.getVersion(), to, toFile: file, toSha256: sha256 }); } catch { /* no rollback for this update */ } };
+const abortUpdateTrial = () => { try { rollback.abortTrial(trialDir()); } catch { /* none */ } };
+let rolledBackNotice = null;
 function forgetPendingUpdate(file) {
   config.pendingUpdate = undefined;
-  if (file) try { fs.rmSync(file, { force: true }); fs.rmSync(file + ".part", { force: true }); } catch { /* best effort */ }
+  if (file && !rollback.protectsFile(trialDir(), file)) try { fs.rmSync(file, { force: true }); fs.rmSync(file + ".part", { force: true }); } catch { /* best effort */ }
 }
 // electron-builder keeps a copy of the installer (about 120 MB) in %LOCALAPPDATA%; the installer
 // removes it (installer.nsh customInstall), and so does every start, for a copy an older
@@ -394,11 +404,20 @@ async function startupUpdateStep() {
   const previous = config.lastRunVersion;
   config.lastRunVersion = current;
   removeStaleUpdaterCopy();
+  rolledBackNotice = rollback.takeResult({ dir: trialDir(), current });
+  if (rolledBackNotice) {
+    config.pendingUpdate = undefined;
+    pushLog({ time: new Date().toISOString(), level: "warn", message: E("Update to {0} failed; back on {1}", rolledBackNotice.failed, rolledBackNotice.back) });
+  }
+  // A new version counts as healthy after it ran ten minutes (update-rollback.cjs); its installer is then kept for a rollback.
+  const healthy = setTimeout(() => { try { rollback.markHealthy({ dir: trialDir(), current }); } catch { /* none */ } }, rollback.HEALTHY_MS);
+  healthy.unref?.();
   if (previous && updates.isNewer(current, previous)) {
     pushLog({ time: new Date().toISOString(), level: "info", message: E("Guilded Companion updated to {0}.", current) });
     if (Notification.isSupported()) new Notification({ title: T("Guilded Companion updated to {0}", current), body: T("Your settings and Discord link were kept."), icon: asset("icon.png") }).show();
   }
   if (config.updateFailure && !updates.isNewer(config.updateFailure.version, current)) config.updateFailure = undefined;
+  if (config.pendingUpdate && rollback.isBanned(trialDir(), config.pendingUpdate.version)) forgetPendingUpdate(config.pendingUpdate.file);
   const verdict = updates.inspectPending({ pending: config.pendingUpdate, current, directory: updateDirectory() });
   updateLine(`start: running ${current}, downloaded update ${verdict.action}${verdict.reason ? ` (${verdict.reason})` : ""}, auto update ${config.autoUpdate === false ? "off" : "on"}`);
   if (verdict.action === "clear") forgetPendingUpdate(config.pendingUpdate?.file);
@@ -408,9 +427,11 @@ async function startupUpdateStep() {
   if (!disk.ok) { logLowDisk(disk, E("The automatic update")); await saveConfig(); return false; }
   config.pendingUpdate = { ...config.pendingUpdate, attempts: (config.pendingUpdate.attempts ?? 0) + 1 };
   await saveConfig();
+  beginUpdateTrial(verdict.version, verdict.file, config.pendingUpdate?.sha256);
   try {
     await updates.launchInstaller(verdict.file, spawn);
   } catch (error) {
+    abortUpdateTrial();
     pushLog({ time: new Date().toISOString(), level: "error", message: E("Update failed: {0}", error instanceof Error ? error.message : String(error)) });
     return false;
   }
@@ -420,9 +441,13 @@ async function startupUpdateStep() {
 }
 // On quit: a downloaded, still-matching update installs silently in the background.
 app.on("will-quit", () => {
+  try { rollback.cleanQuit({ dir: trialDir(), current: app.getVersion() }); } catch { /* none */ }
   if (installerHandedOff || STORE_INSTALL || !app.isPackaged || config.autoUpdate === false) return;
   const verdict = updates.inspectPending({ pending: config.pendingUpdate, current: app.getVersion(), directory: updateDirectory() });
-  if (verdict.action === "install" && checkDisk().ok && updates.launchInstallerOnExit(verdict.file)) installerHandedOff = true;
+  if (verdict.action === "install" && checkDisk().ok) {
+    beginUpdateTrial(verdict.version, verdict.file, config.pendingUpdate?.sha256);
+    if (updates.launchInstallerOnExit(verdict.file)) installerHandedOff = true; else abortUpdateTrial();
+  }
 });
 
 // Microsoft Store build updates itself (8.5, track F5; companion-app/store-update.cjs). Silent on
@@ -1074,7 +1099,8 @@ registerIpc("install-update", async () => {
       if (!disk.ok) return { ok: false, message: lowDiskMessage(disk) };
       config.pendingUpdate = { ...config.pendingUpdate, attempts: (config.pendingUpdate.attempts ?? 0) + 1 };
       await saveConfig();
-      await updates.launchInstaller(staged.file, spawn);
+      beginUpdateTrial(staged.version, staged.file, config.pendingUpdate?.sha256);
+      try { await updates.launchInstaller(staged.file, spawn); } catch (error) { abortUpdateTrial(); throw error; }
       pushLog({ time: new Date().toISOString(), level: "info", message: E("Installer started for Guilded Companion {0}; restarting the companion.", staged.version) });
       handedOff = true;
       installerHandedOff = true;
@@ -1103,7 +1129,8 @@ registerIpc("install-update", async () => {
     } });
     await saveConfig();
     // NSIS (electron-builder): /S silent, --updated keeps it an upgrade, --force-run starts the new version.
-    await updates.launchInstaller(target, spawn);
+    beginUpdateTrial(selected.version, target, selected.installer.sha256);
+    try { await updates.launchInstaller(target, spawn); } catch (error) { abortUpdateTrial(); throw error; }
     pushLog({ time: new Date().toISOString(), level: "info", message: E("Installer started for Guilded Companion {0}; restarting the companion.", selected.version) });
     handedOff = true;
     installerHandedOff = true;

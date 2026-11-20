@@ -1105,6 +1105,8 @@
   "No": "Non",
   "Found": "Trouvé",
   "Update ready, installs when WoW closes": "Mise à jour prête, installée à la fermeture de WoW",
+  "Update to {0} failed; back on {1}": "La mise à jour vers {0} a échoué ; retour à la version {1}",
+  "Your settings were kept. It will not try that version again.": "Vos paramètres ont été conservés. Cette version ne sera pas réessayée.",
   "Update failed — retrying at {0}": "La mise à jour a échoué — nouvel essai à {0}",
   "Update ready — installs when WoW closes": "Mise à jour prête — installée à la fermeture de WoW",
   "Syncing is not affected.": "La synchronisation n'est pas touchée.",

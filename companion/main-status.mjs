@@ -95,6 +95,7 @@ export function retryClock(iso, now = Date.now()) {
 
 /** The update line (9.4 T2): a failed download, checksum or install with its next try, or a checked update waiting for WoW to close. */
 function updateNoticeItem(notice, now) {
+  if (notice?.kind === "rolled-back" && notice.failed && notice.back) return { id: "update-rolled-back", tone: "warn", text: ["Update to {0} failed; back on {1}", notice.failed, notice.back], detail: ["Your settings were kept. It will not try that version again."], buttons: [] };
   if (notice?.kind === "failed" && notice.retryAt) return { id: "update-failed", tone: "warn", text: ["Update failed — retrying at {0}", retryClock(notice.retryAt, now)], detail: ["Syncing is not affected."], buttons: [{ action: "install-update", label: "Try again" }] };
   if (notice?.kind === "ready") return { id: "update-ready", tone: "warn", text: ["Update ready — installs when WoW closes"], detail: null, buttons: [] };
   return null;

@@ -97,7 +97,7 @@ export async function runCoreEditor(interaction: ChatInputCommandInteraction, gu
         const selected = effectiveRules(settings, current).lootMode;
         const picker = new StringSelectMenuBuilder().setCustomId(`coreloot:${core.id}`).setPlaceholder("Le butin de ce core")
           .addOptions(LOOT_MODES.map(value => ({ value, label: CORE_LOOT_LABEL[value], default: value === selected })));
-        await i.reply({ content: `**${current.name}** : choisis sa méthode de butin. Les autres cores gardent leurs propres règles.`,
+        await i.reply({ content: `**${current.name}** : choisissez sa méthode de butin. Les autres cores gardent leurs propres règles.`,
           components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(picker)], flags: MessageFlags.Ephemeral });
         const message = await i.fetchReply();
         const choice = await message.awaitMessageComponent({ time: 5 * 60_000,
@@ -296,7 +296,7 @@ async function runCharacterPicker(button: MessageComponentInteraction, guildId: 
   const message = await button.fetchReply();
   const collector = message.createMessageComponentCollector({ time: 10 * 60_000, filter: (i) => i.user.id === button.user.id });
   collector.on("collect", bindGuildScope(async (i: MessageComponentInteraction) => {
-    if (busy) { await i.reply({ content: "Wait for the current change. / Attends la fin du changement.", flags: MessageFlags.Ephemeral }); return; }
+    if (busy) { await i.reply({ content: "Wait for the current change. / Attendez la fin du changement.", flags: MessageFlags.Ephemeral }); return; }
     busy = true;
     try {
       if (!await checkCoreAccess(i)) return;

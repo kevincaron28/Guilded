@@ -67,7 +67,7 @@ describe("Krol'dok Stronghold and Alcaz Prison (real runs of 19 November 2026)",
   const { rules: s2 } = proposal();
   it("are provisional routes ending at their final boss, with generous targets", () => {
     const k = s2.routes.find(r => r.dungeonKey === "3039")!, a = s2.routes.find(r => r.dungeonKey === "2994")!;
-    expect(k).toMatchObject({ instanceId: 3039, name: "Krol'dok Stronghold", completionModel: "addon-final-boss", targetSec: 70 * 60, competitionBand: { min: 38, max: 44, difficultyId: 0 } });
+    expect(k).toMatchObject({ instanceId: 3039, name: "Krol'dok Stronghold", completionModel: "addon-final-boss", targetSec: 70 * 60, competitionBand: { min: 40, max: 44, difficultyId: 0 } });
     expect(a).toMatchObject({ instanceId: 2994, name: "Alcaz Prison", completionModel: "addon-final-boss", targetSec: 60 * 60, competitionBand: { min: 48, max: 56, difficultyId: 0 } });
     expect(s2.routeBracket["3039"]).toBe("30-44");
     expect(s2.routeBracket["2994"]).toBe("45-59");

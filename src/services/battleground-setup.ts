@@ -38,18 +38,18 @@ const posting = [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessag
 const PANEL_TEXT: Record<BgPanelPart, Record<Lang, string>> = {
   groups: {
     en: "**Find a PvP group.** Press **Create** to start one: it gets its own post here with Tank, Healer and DPS buttons, a waiting list and an optional voice channel, and it closes after 24 hours. **Who's looking** shows the open groups, **My groups** yours, **Upcoming** the ones starting soon.",
-    fr: "**Trouver un groupe JcJ.** Appuie sur **Créer** pour en lancer un : il a son propre message ici avec les boutons Tank, Soigneur et DPS, une liste d'attente et un salon vocal facultatif, et il se ferme après 24 h. **Qui cherche** montre les groupes ouverts, **Mes groupes** les tiens, **À venir** ceux qui commencent bientôt."
+    fr: "**Trouver un groupe JcJ.** Appuyez sur **Créer** pour en lancer un : il a son propre message ici avec les boutons Tank, Soigneur et DPS, une liste d'attente et un salon vocal facultatif, et il se ferme après 24 h. **Qui cherche** montre les groupes ouverts, **Mes groupes** les vôtres, **À venir** ceux qui commencent bientôt."
   },
   results: {
     en: "**Your battleground results.** After each match, the Guilded addon sends your result. Press **My results** to see your history (only you see it). `/bg result` shows one match; `/bg correct` removes a wrong report.",
-    fr: "**Tes résultats en champ de bataille.** Après chaque match, l'addon Guilded envoie ton résultat. Appuie sur **Mes résultats** pour voir ton historique (toi seul le vois). `/bg result` montre un match; `/bg correct` retire un rapport erroné."
+    fr: "**Vos résultats en champ de bataille.** Après chaque match, l'addon Guilded envoie votre résultat. Appuyez sur **Mes résultats** pour voir votre historique (vous seul le voyez). `/bg result` montre un match; `/bg correct` retire un rapport erroné."
   },
   stats: {
     en: "**The guild's battleground ladder.** The board below updates by itself: wins, then win rate, by battleground and level bracket, from the members' reports after each match (not verified by Blizzard). Press **Statistics** for more detail.",
-    fr: "**Le classement de la guilde en champ de bataille.** Le tableau ci-dessous se met à jour tout seul : victoires, puis taux de victoire, par champ de bataille et tranche de niveaux, d'après les rapports des membres après chaque match (non vérifiés par Blizzard). Appuie sur **Statistiques** pour plus de détails."
+    fr: "**Le classement de la guilde en champ de bataille.** Le tableau ci-dessous se met à jour tout seul : victoires, puis taux de victoire, par champ de bataille et tranche de niveaux, d'après les rapports des membres après chaque match (non vérifiés par Blizzard). Appuyez sur **Statistiques** pour plus de détails."
   }
 };
-const PANEL_NOTE: Record<Lang, string> = { en: "Button answers are private: only you see them.", fr: "Les réponses aux boutons sont privées : toi seul les vois." };
+const PANEL_NOTE: Record<Lang, string> = { en: "Button answers are private: only you see them.", fr: "Les réponses aux boutons sont privées : vous seul les voyez." };
 /** Panels made before 9.0.5 were found by this footer; it is still recognised so they are edited, never duplicated. */
 const legacyMarker = (guildId: string, part: BgPanelPart) => `Guilded BG setup • ${guildId} • ${part}`;
 /** True when `message` is this bot's panel for `part` (current text in either language, or the old footer). */

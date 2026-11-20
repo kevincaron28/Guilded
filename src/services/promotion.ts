@@ -1,4 +1,4 @@
-import { EmbedBuilder, type Guild as DiscordGuild } from "discord.js";
+import { ChannelType, EmbedBuilder, type Guild as DiscordGuild } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { characterName, displayCharacterName, fullNameBook, cleanCharacterName } from "./character-display.js";
 import { cacheAllMembers } from "./member-cache.js";
@@ -9,6 +9,7 @@ import { postToLogChannel } from "./housekeeping.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
 import { promotionCard } from "./card-promotion.js";
 import { textlessEmbed } from "./card-only.js";
+import { communityChannelNames } from "../setup-names.js";
 
 // 8.5 track C5: the promotion panel. Officers set a rule (default: in Discord, a linked character at rank "Initiate"
 // for 7+ days, optional minimum level). The bot computes "Ready to promote" and "Not in Discord yet". Read-only:
@@ -189,8 +190,34 @@ export function promotionCongratsText(who: string, character: string, rankName: 
 type CongratsDb = Pick<PrismaClient, "guildSettings" | "member" | "discordJob" | "communitySeason" | "communityHonors">;
 export interface PromotionEvent { name: string; rankName: string; memberId?: string | null }
 
-/** Where the congratulations go: the public community season's announcements channel, else the hall-of-fame channel the weekly MVP post uses. */
-export async function promotionCongratsChannel(db: Pick<PrismaClient, "communitySeason" | "communityHonors">, guildId: string): Promise<string | null> {
+/** The few channel fields the chat lookup needs; discord.js channels and REST channel objects (parent_id) both reduce to this. */
+export interface ChannelLike { id: string; name?: string | null; type: number; parentId?: string | null }
+const COMMUNITY_CATEGORY = /community|communaut/i;
+
+/**
+ * The community chat channel (setup-names.ts COMMUNITY_CHANNEL_SPECS "chat": community-chat / chat-communauté, plus legacy names): the text
+ * channel with one of those names inside a Community category, found the same way community-setup.ts finds it. Pure, so the live path
+ * (guild channel cache) and scripts/announce-recent-promotions.ts (REST channel list) share it. Null when there is none.
+ */
+export function findCommunityChatChannelId(channels: Iterable<ChannelLike>): string | null {
+  const all = [...channels];
+  const categories = new Set(all.filter((c) => c.type === ChannelType.GuildCategory && COMMUNITY_CATEGORY.test(c.name ?? "")).map((c) => c.id));
+  const names = communityChannelNames("chat");
+  return all.find((c) => c.type === ChannelType.GuildText && !!c.parentId && categories.has(c.parentId) && names.includes(c.name ?? ""))?.id ?? null;
+}
+
+/** A discord.js guild's cached channels as ChannelLike rows (empty for a partial guild, as in tests). */
+export function guildChannelLikes(discordGuild: { channels?: { cache?: { values(): Iterable<{ id: string; name?: string | null; type: number; parentId?: string | null }> } } } | undefined): ChannelLike[] {
+  return [...(discordGuild?.channels?.cache?.values() ?? [])].map((c) => ({ id: c.id, name: c.name ?? null, type: c.type, parentId: c.parentId ?? null }));
+}
+
+/**
+ * Where the congratulations go (owner request, 20 Nov 2026): the community chat channel; when the server has none, the public community
+ * season's announcements channel, else the hall-of-fame channel the weekly MVP post uses. `channels` is the server's channel list.
+ */
+export async function promotionCongratsChannel(db: Pick<PrismaClient, "communitySeason" | "communityHonors">, guildId: string, channels: Iterable<ChannelLike> = []): Promise<string | null> {
+  const chat = findCommunityChatChannelId(channels);
+  if (chat) return chat;
   const season = await db.communitySeason.findFirst({ where: { guildId, game: "DISCORD", audienceRoleId: null, announcementChannelId: { not: null } }, orderBy: { createdAt: "desc" }, select: { announcementChannelId: true } });
   if (season?.announcementChannelId) return season.announcementChannelId;
   return (await db.communityHonors.findUnique({ where: { guildId }, select: { channelId: true } }))?.channelId ?? null;
@@ -198,16 +225,16 @@ export async function promotionCongratsChannel(db: Pick<PrismaClient, "community
 
 /**
  * One public post per promoted member (owner request, 19 Nov 2026): on by default, officers switch it off with
- * `/officer promotion rule congrats:false`. Never for the Alt rank (alts are not promotions). Goes to the community
- * season's announcements channel, else the hall-of-fame channel the weekly MVP post uses. Queued as a Discord job whose
+ * `/officer promotion rule congrats:false`. Never for the Alt rank (alts are not promotions). Goes to the community chat channel, else the
+ * community season's announcements or hall-of-fame channel (promotionCongratsChannel). Queued as a Discord job whose
  * key is the member, the rank and the day, so the same promotion seen in two uploads is posted once. Pings only the linked member.
  */
-export async function postPromotionCongrats(db: CongratsDb, discordGuild: Pick<DiscordGuild, "members">, guildId: string, promotions: readonly PromotionEvent[], now = new Date()): Promise<number> {
+export async function postPromotionCongrats(db: CongratsDb, discordGuild: Pick<DiscordGuild, "members"> & Parameters<typeof guildChannelLikes>[0], guildId: string, promotions: readonly PromotionEvent[], now = new Date()): Promise<number> {
   const settings = await db.guildSettings.findUnique({ where: { guildId }, select: { language: true, promotionCongratsEnabled: true } });
   if (settings?.promotionCongratsEnabled === false) return 0;
   const todo = promotions.filter((p) => p.memberId && !isAltRank(p.rankName)).slice(0, 10);
   if (!todo.length) return 0;
-  const channelId = await promotionCongratsChannel(db, guildId);
+  const channelId = await promotionCongratsChannel(db, guildId, guildChannelLikes(discordGuild));
   if (!channelId) return 0;
   const members = await db.member.findMany({ where: { id: { in: todo.map((p) => p.memberId!) } }, select: { id: true, discordUserId: true, displayName: true } });
   const lang = settings?.language === "fr" ? "fr" : "en";
@@ -225,7 +252,7 @@ export async function postPromotionCongrats(db: CongratsDb, discordGuild: Pick<D
  * Shared by the live upload path and scripts/announce-recent-promotions.ts, so both dedupe on the same job key. Returns false when skipped.
  */
 export async function queuePromotionCongrats(db: Pick<PrismaClient, "discordJob">, guildId: string, channelId: string, lang: "en" | "fr",
-  p: { userId: string; memberName: string; name: string; rankName: string; at: Date }): Promise<boolean> {
+  p: { userId: string; memberName: string; name: string; rankName: string; at: Date }, notBefore?: Date): Promise<boolean> {
   if (!/^\d{17,20}$/.test(p.userId) || isAltRank(p.rankName)) return false;
   const key = `promotion-congrats:${p.userId}:${p.rankName.trim().toLowerCase()}:${p.at.toISOString().slice(0, 10)}`;
   if (await db.discordJob.findUnique({ where: { guildId_key: { guildId, key } }, select: { id: true } })) return false;
@@ -233,7 +260,7 @@ export async function queuePromotionCongrats(db: Pick<PrismaClient, "discordJob"
   const text = promotionCongratsText(`<@${p.userId}>`, character, p.rankName, lang);
   const card = promotionCard(lang, { name: p.memberName, character, rank: p.rankName });
   await enqueueDiscordJob(db, guildId, key, "MESSAGE", { channelId, message: { content: text }, mentionUsers: [p.userId], card: JSON.parse(JSON.stringify(card)),
-    cardOnly: { content: text, embeds: [textlessEmbed(0xc9a227)] } });
+    cardOnly: { content: text, embeds: [textlessEmbed(0xc9a227)] } }, notBefore);
   return true;
 }
 
@@ -241,4 +268,11 @@ export async function queuePromotionCongrats(db: Pick<PrismaClient, "discordJob"
 export async function announcePromotions(discordGuild: DiscordGuild, promotions: readonly PromotionEvent[], congrats?: { db: CongratsDb; guildId: string }): Promise<void> {
   for (const p of promotions.slice(0, 10)) await postToLogChannel(discordGuild, (lang) => promotionLogLine(cleanCharacterName(p.name), p.rankName, lang));
   if (congrats) await postPromotionCongrats(congrats.db, discordGuild, congrats.guildId, promotions).catch((error) => console.error("Promotion congratulations failed", error));
+}
+
+/** Release times for a backfill: card i of n at start + i * hours / n (the first right away); undefined entries mean "now". */
+export function spreadSchedule(count: number, hours: number, start = new Date()): (Date | undefined)[] {
+  if (!(hours > 0) || count <= 0) return Array.from({ length: Math.max(count, 0) }, () => undefined);
+  const step = (hours * 3_600_000) / count;
+  return Array.from({ length: count }, (_, i) => new Date(start.getTime() + Math.round(i * step)));
 }

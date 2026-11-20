@@ -98,9 +98,11 @@ export async function loadFullNameBook(db: { character?: { findMany: (args: neve
  * full name that starts with it (the display name, then the book, then the first tier that has exactly one); two different
  * full names are ambiguous and the stored name stays. Names that are already full, or are not Forever names, are returned as stored.
  */
-function resolveCharacterName(character: string | { name: string; displayName?: string | null },
+function resolveCharacterName(character: string | { name: string; displayName?: string | null; wowId?: bigint | null },
   sources: (FullNameBook | null | undefined | readonly (string | null | undefined)[])[]): string {
   const row = typeof character === "string" ? { name: character, displayName: null } : character;
+  // Character IDs: a row with an id already holds its canonical name; no first-name repair from books or tiers.
+  if (typeof character !== "string" && (character.wowId ?? null) !== null) return characterName(row);
   const name = squash(row.name);
   if (!name) return row.displayName?.trim() || row.name;
   if (name.includes(" ")) return name;
@@ -133,7 +135,7 @@ export function cleanCharacterName(name: string, realm?: string | null): string 
 }
 
 /** The one place that decides how a character is named in Discord output (see docs/NAME_STANDARD.md). */
-export function displayCharacterName(character: string | { name: string; displayName?: string | null; realm?: string | null },
+export function displayCharacterName(character: string | { name: string; displayName?: string | null; realm?: string | null; wowId?: bigint | null },
   ...sources: (FullNameBook | null | undefined | readonly (string | null | undefined)[])[]): string {
   const realm = typeof character === "string" ? undefined : character.realm;
   return cleanCharacterName(resolveCharacterName(character, sources), realm);

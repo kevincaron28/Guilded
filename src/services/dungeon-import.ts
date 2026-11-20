@@ -22,7 +22,9 @@ import { receiptCardOf, type ReceiptCardRow } from "./dungeon-card.js";
 export { cleanCharacterName };
 
 /** The name a run card shows: the guild's full name, keeping a real doubled last name ("Xaldin Xaldin") its own tables hold. */
-export function runFullName(character: string, known: readonly { name: string; displayName?: string | null }[], party: readonly string[] = []): string {
+export function runFullName(character: string, known: readonly { name: string; displayName?: string | null }[], party: readonly string[] = [], id?: bigint | null): string {
+  // Character IDs: a player with an id keeps the name the addon sent; no repair from other rows' names.
+  if ((id ?? null) !== null) return cleanCharacterName(character);
   const names = known.flatMap(c => [c.displayName, c.name]);
   const first = character.trim().toLowerCase();
   const doubled = names.find(n => n && n.trim().replace(/\s+/g, " ").toLowerCase() === `${first} ${first}`);
@@ -229,6 +231,18 @@ export async function activeSeason(tx: Pick<Prisma.TransactionClient, "dungeonSe
 const plain = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 /** The first word of a character name, lowercased and without accents: "Hulke Hogan" and "Hulke" share the key "hulke". */
 export function firstNameKey(name: string): string { return plain(name).split(" ")[0] ?? ""; }
+type RunPlayerRef = { character: string; id?: unknown; wowId?: unknown };
+const runPlayerId = (player: RunPlayerRef) => parseWowId(player.id ?? player.wowId);
+/**
+ * Two reports of the same run player. No ids: the first-word key, as always. Both ids known = ids decide;
+ * one id known = only the exact name; no ids = the first-word key.
+ */
+export function sameRunPlayer(a: RunPlayerRef, b: RunPlayerRef): boolean {
+  const x = runPlayerId(a), y = runPlayerId(b);
+  if (x !== null && y !== null) return x === y;
+  if (x !== null || y !== null) return plain(a.character) === plain(b.character);
+  return firstNameKey(a.character) === firstNameKey(b.character);
+}
 // One row per character (case- and accent-insensitive). Observers can disagree on the realm ("-" vs a name),
 // repeat a player, or know only a first name ("Hulke") where another knows the full one ("Hulke Hogan"): merge
 // them, keeping the full name, the longest presence and any known details. A first-name-only entry merges into a
@@ -262,7 +276,9 @@ export function dedupeRunPlayers<P extends DungeonRunInput["players"][number]>(p
   const rows = [...byName.values()];
   const merged = new Set<P>();
   for (const short of rows.filter((row) => wordsOf(row) === 1)) {
-    const candidates = rows.filter((row) => row !== short && !merged.has(row) && wordsOf(row) > 1 && firstNameKey(row.character) === firstNameKey(short.character) && compatible(row, short));
+    // Character IDs: a first-name entry with an id is its own character, and an id-bearing full name refuses a first-name-only entry.
+    if (runPlayerId(short) !== null) continue;
+    const candidates = rows.filter((row) => row !== short && !merged.has(row) && wordsOf(row) > 1 && runPlayerId(row) === null && firstNameKey(row.character) === firstNameKey(short.character) && compatible(row, short));
     // Another short name or a second compatible full name makes it ambiguous: leave everyone as reported.
     if (candidates.length !== 1) continue;
     const full = candidates[0]!;
@@ -287,14 +303,13 @@ async function sameRunAs(tx: Tx, guildId: string, run: DungeonRunInput, unfinish
       startedAt: { gte: new Date((start - 4 * 3600 - SAME_RUN_SLACK_SECONDS) * 1000), lte: new Date((end + SAME_RUN_SLACK_SECONDS) * 1000) } },
     include: { players: true }
   });
-  const names = new Set(run.players.map((player) => firstNameKey(player.character)));
   return candidates.find((candidate) => {
     if (!candidate.startedAt || candidate.difficultyId !== run.difficultyId) return false;
     if (unfinished ? candidate.state === "COMPLETED" : candidate.state !== "COMPLETED" && run.state === "COMPLETED") return false;
     const candidateEnd = candidate.endedAt ?? new Date(candidate.startedAt.getTime() + (candidate.durationSec ?? 0) * 1000);
     if (candidate.startedAt.getTime() / 1000 > end + SAME_RUN_SLACK_SECONDS || candidateEnd.getTime() / 1000 < start - SAME_RUN_SLACK_SECONDS) return false;
-    const shared = new Set(candidate.players.map((player) => firstNameKey(player.character)).filter((key) => names.has(key))).size;
-    return shared >= Math.min(2, names.size, candidate.players.length);
+    const shared = new Set(candidate.players.filter((player) => run.players.some((mine) => sameRunPlayer(mine, player))).map((player) => runPlayerId(player) ?? `n:${firstNameKey(player.character)}`)).size;
+    return shared >= Math.min(2, new Set(run.players.map((player) => runPlayerId(player) ?? `n:${firstNameKey(player.character)}`)).size, candidate.players.length);
   }) ?? null;
 }
 
@@ -590,8 +605,7 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
     if (sameRun) {
       logDungeonRun("another observer's copy of a stored run", run);
       // Keep the copy as evidence and add anyone the first report missed. Never a new run, never a new post.
-      const known = new Set(sameRun.players.map((player) => firstNameKey(player.character)));
-      const extra = run.players.filter((player) => !known.has(firstNameKey(player.character)));
+      const extra = run.players.filter((player) => !sameRun.players.some((mine) => sameRunPlayer(mine, player)));
       const data = sameRun.competitionData as { observerReports?: unknown[]; [key: string]: unknown } | null;
       await tx.dungeonRun.update({ where: { id: sameRun.id }, data: {
         competitionData: { ...data, observerReports: [...(data?.observerReports ?? []).slice(-39), run] } as Prisma.InputJsonValue,
@@ -860,7 +874,7 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
       inGuildPlayers: run.players.filter((player) => player.inGuild).map((player) => player.character),
       mentions: Object.fromEntries(linked.flatMap(({ player, character }) => character?.discordId ? [[player.character, character.discordId] as const] : [])),
       fullNames: Object.fromEntries(run.players.flatMap(player => {
-        const full = runFullName(player.character, characters, run.players.map(p => p.character));
+        const full = runFullName(player.character, characters, run.players.map(p => p.character), parseWowId(player.id));
         return full !== player.character ? [[player.character, full] as const] : [];
       })),
       achievements

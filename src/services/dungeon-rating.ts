@@ -417,7 +417,7 @@ export async function dungeonRating(database: Pick<PrismaClient, "dungeonRun"> &
   // The guild roster (any paired member's upload) gives levels the run record lacks and the full
   // "First Last" names; both are optional, so callers without those tables keep working.
   const roster = timed && database.guildRosterEntry
-    ? await database.guildRosterEntry.findMany({ where: { guildId, gameEdition: currentEdition(), inGuild: true }, select: { name: true, level: true } }) : [];
+    ? await database.guildRosterEntry.findMany({ where: { guildId, gameEdition: currentEdition(), inGuild: true }, select: { name: true, level: true, wowId: true } }) : [];
   const eligible = timed ? runs.map(run => {
     const rosterLevels: Record<string, number> = {};
     for (const p of run.players) {

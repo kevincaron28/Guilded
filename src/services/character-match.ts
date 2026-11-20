@@ -4,6 +4,7 @@
 // reports (GetRealmName) may not equal the one the companion is configured
 // with, and a single mismatch must not reject a whole import.
 import { realmKey, characterReference, foreverSameName } from "../../companion/character-identity.mjs";
+import { resolveCharacter } from "./character-ref.js";
 import { currentEdition } from "./edition-context.js";
 
 /** Manual pickers may use IDs, qualified names or an unambiguous bare name. */
@@ -17,14 +18,25 @@ export function selectedCharacter<T extends { id?: string; name: string; realm: 
   return matches[0];
 }
 
-export function findCharacter<T extends { name: string; realm: string; gameEdition?: string }>(characters: readonly T[], name: string, realm: string, gameEdition?: string): T | undefined {
+/**
+ * `id` (optional, the report's wowId) matters for WoW Forever: a
+ * row holding that id is the answer, a row holding another id never is, and the loose first-name branch skips rows that carry an id.
+ */
+export function findCharacter<T extends { name: string; realm: string; gameEdition?: string; wowId?: bigint | null }>(characters: readonly T[], name: string, realm: string, gameEdition?: string, id?: bigint | null): T | undefined {
   gameEdition ??= currentEdition();
   if (gameEdition && gameEdition !== "forever") {
     const ref = characterReference(name, realm, gameEdition);
     name = ref.character; realm = ref.realm;
   }
+  const inEdition = (candidate: T) => gameEdition === undefined || (candidate.gameEdition ?? currentEdition() ?? "forever") === gameEdition;
+  if (id !== null && id !== undefined && (gameEdition === undefined || gameEdition === "forever")) {
+    const resolved = resolveCharacter(characters.filter(inEdition) as (T & { wowId: bigint | null })[], { id, name });
+    if (resolved.kind === "match") return resolved.row;
+    // Unknown id: only rows with no id of their own may still match by name (rows not yet stamped).
+    characters = characters.filter((candidate) => (candidate.wowId ?? null) === null);
+  }
   const wanted = name.trim().toLowerCase();
-  const sameName = characters.filter((candidate) => candidate.name.toLowerCase() === wanted && (gameEdition === undefined || (candidate.gameEdition ?? currentEdition() ?? "forever") === gameEdition));
+  const sameName = characters.filter((candidate) => candidate.name.toLowerCase() === wanted && inEdition(candidate));
   const exact = sameName.find((candidate) => realmKey(candidate.realm) === realmKey(realm));
   if (exact) return exact;
   if (sameName.length) return sameName.length === 1 && (gameEdition ?? sameName[0]?.gameEdition ?? "forever") === "forever" ? sameName[0] : undefined;
@@ -36,9 +48,10 @@ export function findCharacter<T extends { name: string; realm: string; gameEditi
  * "Lebowski" still matches an upload's "Lebowski Holyroller" (and the other way round) when it is
  * the only such row, and a bare row whose known full name is another alt's never does.
  */
-function looseForeverMatch<T extends { name: string; realm: string; gameEdition?: string }>(characters: readonly T[], name: string, gameEdition?: string): T | undefined {
+function looseForeverMatch<T extends { name: string; realm: string; gameEdition?: string; wowId?: bigint | null }>(characters: readonly T[], name: string, gameEdition?: string): T | undefined {
   const wanted = name.trim().replace(/\s+/g, " ").toLowerCase();
   const loose = characters.filter((candidate) => (candidate.gameEdition ?? currentEdition() ?? "forever") === (gameEdition ?? "forever")
+    && (candidate.wowId ?? null) === null
     && foreverSameName(candidate.name, name)
     && (!wanted.includes(" ") || !(candidate as { displayName?: string | null }).displayName
       || (candidate as { displayName?: string | null }).displayName!.trim().replace(/\s+/g, " ").toLowerCase() === wanted));
@@ -51,12 +64,13 @@ function looseForeverMatch<T extends { name: string; realm: string; gameEdition?
  * full-name characters, their member when they all belong to one member, or "shared" when they
  * belong to several (the row is held for an officer: SHARED_FIRST_NAME, /setup import held).
  */
-export function ledgerOwner<T extends { name: string; realm: string; gameEdition?: string; memberId: string }>(characters: readonly T[], name: string, realm: string, gameEdition?: string): T | "shared" | undefined {
+export function ledgerOwner<T extends { name: string; realm: string; gameEdition?: string; memberId: string; wowId?: bigint | null }>(characters: readonly T[], name: string, realm: string, gameEdition?: string): T | "shared" | undefined {
   const found = findCharacter(characters, name, realm, gameEdition);
   if (found) return found;
   const edition = gameEdition ?? currentEdition();
   if (edition && edition !== "forever") return undefined;
-  const loose = characters.filter((candidate) => (candidate.gameEdition ?? currentEdition() ?? "forever") === "forever" && foreverSameName(candidate.name, name));
+  const loose = characters.filter((candidate) => (candidate.gameEdition ?? currentEdition() ?? "forever") === "forever"
+    && (candidate.wowId ?? null) === null && foreverSameName(candidate.name, name));
   const members = new Set(loose.map((candidate) => candidate.memberId));
   if (members.size === 1) return loose[0];
   return members.size > 1 ? "shared" : undefined;

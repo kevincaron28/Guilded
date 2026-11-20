@@ -6,6 +6,7 @@ import type { AddonCharacter } from "../integrations/addon.js";
 import { findCharacter } from "./character-match.js";
 import { normalizeClassName, normalizeRaceName } from "./character-import.js";
 import { characterKey, foreverSameName } from "../../companion/character-identity.mjs";
+import { parseWowId } from "./character-ref.js";
 import { clearGuildMembershipCache } from "./guild-participants.js";
 import { guildRankUpdate } from "./guild-rank.js";
 import { gameEditionOf } from "./game-edition.js";
@@ -89,9 +90,14 @@ export async function linkPairedCharacter(database: PrismaClient, guildId: strin
  * The characters of the server that findCharacter can return for `self`: same edition and, for WoW Forever (full "First Last" names and older
  * bare first names), a name that starts with the same first word. Other editions keep the whole edition's rows (their names carry a realm).
  */
-export function pairingCandidatesWhere(guildId: string, self: { name: string; gameEdition?: string | null | undefined }) {
+export function pairingCandidatesWhere(guildId: string, self: { name: string; gameEdition?: string | null | undefined; id?: unknown }) {
   const edition = gameEditionOf(self);
   const first = self.name.split("-")[0]?.trim().split(/\s+/)[0] ?? "";
+  const id = parseWowId(self.id);
+  // Character IDs: an uploader with an id sees the row holding it, plus the rows that have no id yet and share the first name; no first-name sweep over id-bearing rows.
+  if (edition === "forever" && first && id !== null) {
+    return { guildId, gameEdition: edition, OR: [{ wowId: id }, { wowId: null, name: { startsWith: first, mode: "insensitive" as const } }] };
+  }
   return { guildId, gameEdition: edition, ...(edition === "forever" && first ? { name: { startsWith: first, mode: "insensitive" as const } } : {}) };
 }
 
@@ -100,7 +106,7 @@ async function linkPairedCharacterOnce(database: PrismaClient, guildId: string, 
     // Only the rows that could match this name (it ran over the whole server's characters, joined to their members, for the
     // uploader and again for each alt: 3.6-4.7 s of an upload on 16 November). findCharacter's candidates all share the first name.
     const characters = await tx.character.findMany({ where: pairingCandidatesWhere(guildId, self) });
-    const existing = findCharacter(characters, self.name, self.realm, gameEditionOf(self));
+    const existing = findCharacter(characters, self.name, self.realm, gameEditionOf(self), parseWowId(self.id));
     if (existing && existing.memberId !== memberId) {
       // Another member has it: stronger proof moves it (history kept, both told, undo), equal proof goes
       // to the officers, weaker proof is told once (character-move.ts). Never silent.
@@ -119,7 +125,7 @@ async function linkPairedCharacterOnce(database: PrismaClient, guildId: string, 
       // Holyroller") while the row still has the pre-8.5 first-name key: it takes the full name,
       // so the member's other "Lebowski" alts become their own rows instead of sharing this one.
       const upgradeName = gameEditionOf(self) === "forever" && !existing.name.trim().includes(" ")
-        && self.name.trim().includes(" ") && foreverSameName(existing.name, self.name);
+        && self.name.trim().includes(" ") && foreverSameName(existing.name, self.name, existing.wowId, parseWowId(self.id));
       await tx.character.update({
         where: { id: existing.id },
         data: {

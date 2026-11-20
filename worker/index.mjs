@@ -600,7 +600,9 @@ async function route(request, env, ctx) {
         await upstream.body?.cancel();
       }
       if (!upstream) throw new Error("origin-unreachable");
-      if (ORIGIN_FAILURES.has(upstream.status)) {
+      // Page views get the stored copy or the branded page. An API call or /health keeps the bot's own 5xx (body and
+      // retry-after: the companion honours it); only 530 (the bot was never reached) has no answer of the bot's to pass on.
+      if (upstream.status === 530 || (ORIGIN_FAILURES.has(upstream.status) && (pageView || cached))) {
         await upstream.body?.cancel();
         return staleOr(() => pageView ? unavailablePage(request, url) : failure(503, "The guild bot is temporarily unavailable. Try again shortly."));
       }

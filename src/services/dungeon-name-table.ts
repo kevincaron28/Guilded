@@ -91,3 +91,23 @@ export function frenchDungeon(title: string, lang: Lang): string {
   const wing = WING_TAIL.exec(rest);
   return `${found[1]}${wing ? ` : ${FRENCH_WING[wing[1]!]}${rest.slice(wing[0].length)}` : rest}`;
 }
+
+const plain = (text: string) => text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+const stripArticle = (text: string) => text.replace(/^(?:les|la|le|l'|the)\s*/i, "");
+// French name (accent- and article-insensitive) to the first English name of its row, longest first.
+const ENGLISH_BY_FRENCH: [string, string][] = FRENCH_NAMES.map(([names, french]): [string, string] => [plain(stripArticle(french)), names[0]!])
+  .sort((a, b) => b[0].length - a[0].length);
+const ENGLISH_WING_BY_FRENCH = Object.entries(FRENCH_WING).map(([en, fr]): [string, string] => [plain(fr), en]);
+
+/** The English name of a dungeon title as a French client uploads it ("Mortemines", "Monastere Ecarlate : Cimetiere"); an English or unknown title stays as it is. Display always uses English. */
+export function englishDungeon(title: string): string {
+  const base = stripArticle(title.trim());
+  const key = plain(base);
+  const found = ENGLISH_BY_FRENCH.find(([fr]) => key.startsWith(fr) && !/[\p{L}\p{N}]/u.test(key.charAt(fr.length)));
+  if (!found) return title;
+  const rest = key.slice(found[0].length);
+  const wing = /^\s*:\s*(.+)$/.exec(rest);
+  if (!wing) return rest.trim() ? `${found[1]}${rest}` : found[1];
+  const hit = ENGLISH_WING_BY_FRENCH.find(([fr]) => plain(wing[1]!).startsWith(fr));
+  return hit ? `${found[1]}: ${hit[1]}${wing[1]!.slice(hit[0].length)}` : title;
+}

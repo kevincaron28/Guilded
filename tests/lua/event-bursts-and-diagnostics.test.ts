@@ -94,6 +94,22 @@ describe("blocked calls and diagnostics", () => {
     expect(s.run("return MOTD_CALLS")).toBe("0");
   });
 
+  it("keeps the player GUID (17th return of GetGuildRosterInfo) in the guild snapshot and ignores a malformed one", () => {
+    const s = loggedIn(`
+      function GetNumGuildMembers() return 3 end
+      function GetGuildRosterInfo(i)
+        local guids = { "Player-4408-0A1B2C3D", "Creature-0-1-2-3-4-5", "Player-1-zzz" }
+        return "Member" .. i .. "-Realm", "Member", 3, 60, "Warrior", "Zone", "", "", true, 0, "WARRIOR", 0, 0, false, false, 0, guids[i]
+      end
+    `);
+    s.load("Modules/GuildSnapshot.lua");
+    s.run(`NS.guildSnapshot.read(true)`);
+    const members = "local m = GuildedDB.guildSnapshot.members; local k = {}; for key, v in pairs(m) do k[#k + 1] = key .. '=' .. tostring(v.guid) end; table.sort(k); return table.concat(k, ',')";
+    const text = s.run(members);
+    expect(text).toContain("=Player-4408-0A1B2C3D");
+    expect(text.match(/=nil/g)).toHaveLength(2);
+  });
+
   // 9.3.1: "UNKNOWN()" names no function, so the record says what else was going on.
   it("records combat, the open window page and the last event beside an unnamed blocked call", () => {
     const s = loggedIn(`CLOCK = 100; function GetTime() return CLOCK end`);

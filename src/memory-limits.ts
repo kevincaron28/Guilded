@@ -1,4 +1,6 @@
 import sharp from "sharp";
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { Options, type ClientOptions } from "discord.js";
 
 /**
@@ -11,8 +13,18 @@ import { Options, type ClientOptions } from "discord.js";
 export const SHARP_CACHE = { memory: 24, files: 0, items: 32 } as const;
 export const SHARP_CONCURRENCY = 1;
 
+/** The bot's own fontconfig file (site/fonts/fonts.conf): the VM has no system fontconfig, and libvips logged an error on every card. */
+export const FONTCONFIG_PATH = fileURLToPath(new URL("../site/fonts/fonts.conf", import.meta.url));
+
+/** Points fontconfig at the bot's own config unless the environment already chose one. Must run before the first text render. */
+export function applyFontConfig(env: NodeJS.ProcessEnv = process.env): string | undefined {
+  if (!env["FONTCONFIG_FILE"] && existsSync(FONTCONFIG_PATH)) env["FONTCONFIG_FILE"] = FONTCONFIG_PATH;
+  return env["FONTCONFIG_FILE"];
+}
+
 /** Applied once at startup; harmless to repeat. Returns the effective cache settings (for the test and the log line). */
 export function applySharpLimits(): ReturnType<typeof sharp.cache> {
+  applyFontConfig();
   sharp.concurrency(SHARP_CONCURRENCY);
   return sharp.cache({ ...SHARP_CACHE });
 }

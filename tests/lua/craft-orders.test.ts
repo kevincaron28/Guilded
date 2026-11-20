@@ -781,3 +781,85 @@ describe("the orders relay carries the request refs", () => {
     expect(s!.run(`local c = NS.craftOrders.decode(BIG); return tostring(#c.orders <= 500) .. "," .. c.orders[#c.orders].id`)).toBe("true,req_m700");
   });
 });
+
+describe("the Crafting page: scrolling list (20 Nov 2026 polish)", () => {
+  function withMany() {
+    setup();
+    // 40 recipes shared by Ann: a list far longer than the 14 rows.
+    s!.run(`local book = NS.recipes.book()
+      local keys = {}
+      for i = 1, 40 do book.names[5000 + i] = string.format("Gizmo %02d", i); keys[i] = 5000 + i end
+      book.people["Ann Walker"] = { Engineering = { v = 1799990000, keys = keys } }
+      GetNumGuildMembers = function() return 0 end`);
+    buildPage();
+    s!.run(`VIEW.expanded.Engineering = true; VIEW.browse = nil; NS.craftOrders.refresh()`);
+  }
+  const rows = () => s!.run(`local t = {} for _, row in ipairs(VIEW.resultRows) do if row.frame.shown then t[#t + 1] = row.text.text end end return table.concat(t, "\\n")`).split("\n");
+
+  it("shows a window of the list and scrolls with the wheel and the page buttons", () => {
+    withMany();
+    expect(rows()).toHaveLength(14);
+    expect(rows()[0]).toContain("- Engineering (40)");
+    expect(s!.run("return VIEW.more.text")).toBe("Showing 1-14 of 42. Scroll with the mouse wheel.");
+    expect(s!.run("return tostring(VIEW.scrollDown.shown)")).toBe("true");
+    // The wheel moves three items; it cannot pass the top or the end of the list.
+    s!.run(`local f = VIEW.resultRows[1].frame; f.scripts.OnMouseWheel(f, -1)`);
+    expect(rows()[0]).toContain("Gizmo 03");
+    s!.run(`local f = VIEW.resultRows[1].frame; f.scripts.OnMouseWheel(f, 1); f.scripts.OnMouseWheel(f, 1)`);
+    expect(rows()[0]).toContain("- Engineering");
+    s!.run("for i = 1, 4 do VIEW.scrollDown.scripts.OnClick(VIEW.scrollDown) end");
+    expect(rows()[13]).toContain("Tailoring");
+    expect(s!.run("return VIEW.more.text")).toBe("Showing 29-42 of 42. Scroll with the mouse wheel.");
+    s!.run("VIEW.scrollUp.scripts.OnClick(VIEW.scrollUp)");
+    expect(rows()[0]).toContain("Gizmo 1");
+  });
+
+  it("a row far down the list is reachable and picks its recipe", () => {
+    withMany();
+    s!.run("VIEW.scrollBy(30)");
+    const index = rows().findIndex((r) => r.includes("Gizmo 35"));
+    expect(index).toBeGreaterThanOrEqual(0);
+    s!.run(`local f = VIEW.resultRows[${index + 1}].frame; f.scripts.OnClick(f)`);
+    expect(s!.run("return VIEW.dTitle.text")).toContain("Gizmo 35");
+    expect(s!.run("return VIEW.sel.key")).toBe("5035");
+  });
+
+  it("the Fav button keeps the recipe without picking the row, and a short list has no scroll buttons", () => {
+    withMany();
+    s!.run("VIEW.scrollBy(2)");
+    s!.run(`local r = VIEW.resultRows[1]; r.star.scripts.OnClick(r.star)`);
+    expect(s!.run("return #NS.craftOrders.favourites()")).toBe("1");
+    expect(s!.run("return tostring(VIEW.sel == nil)")).toBe("true");
+    search("gizmo 07");
+    expect(s!.run("return tostring(VIEW.scrollDown.shown)")).toBe("false");
+    expect(s!.run("return tostring(VIEW.more.shown)")).toBe("false");
+  });
+
+  it("filters as you type, resets the scroll, and keeps more than the visible rows of matches", () => {
+    withMany();
+    s!.run("VIEW.scrollBy(20)");
+    s!.run(`VIEW.box:SetText("gizmo"); VIEW.box.scripts.OnTextChanged(VIEW.box, true)`);
+    expect(rows()).toHaveLength(14);
+    expect(rows()[0]).toContain("Gizmo 01");
+    expect(s!.run("return VIEW.more.text")).toContain("of 40");
+    // A search that found more than the list keeps says so; an empty list says nothing.
+    s!.run("VIEW.total = 120; NS.craftOrders.refresh()");
+    expect(s!.run("return VIEW.more.text")).toContain("of 40. Scroll with the mouse wheel. Refine the search for more.");
+    search("zzzz nothing");
+    expect(s!.run("return VIEW.more.text")).not.toContain("Showing 1-0");
+    s!.run(`VIEW.box:SetText("gizmo 3"); VIEW.box.scripts.OnTextChanged(VIEW.box, true)`);
+    expect(rows().some((r) => r.includes("Gizmo 01"))).toBe(false);
+    // The Search button stays harmless: it repeats the same search.
+    s!.run("VIEW.searchButton.scripts.OnClick(VIEW.searchButton)");
+    expect(rows().some((r) => r.includes("Gizmo 3"))).toBe(true);
+  });
+
+  it("a wrapped title pushes the profession line down (no overlap)", () => {
+    withMany();
+    s!.run(`VIEW.dProf.SetPoint = function(self, _, _, _, x, y) self.y = y end`);
+    search("gizmo 07");
+    const oneLine = Number(s!.run("return VIEW.dProf.y"));
+    s!.run(`VIEW.dTitle.GetStringHeight = function() return 36 end; NS.craftOrders.refresh()`);
+    expect(Number(s!.run("return VIEW.dProf.y"))).toBeLessThan(oneLine);
+  });
+});

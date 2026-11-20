@@ -304,11 +304,14 @@ export async function renderUnlockHero(spec: UnlockHeroSpec): Promise<RenderedCa
   if (shown.length === 1) {
     const u = shown[0]!;
     c.raw(medallion("hero0", mid, 192, 112, u.color, u.icon));
-    await c.text(u.name, mid, 326, { size: 60, face: "title", color: u.color, anchor: "c", maxW: 1060 });
-    await c.text([spec.player, u.tier, u.group].filter(Boolean).join("  ·  "), mid, 404, { size: 32, face: "bold", anchor: "c", maxW: 1060 });
+    await c.text(u.name, mid, 318, { size: 60, face: "title", color: u.color, anchor: "c", maxW: 1060 });
+    // "WoW Forever" is the only edition left, so a group that just says it adds nothing next to the name.
+    const group = u.group && !/^(wow )?forever$/i.test(u.group.trim()) ? u.group : undefined;
+    await c.text([spec.player, u.tier, group].filter(Boolean).join("  ·  "), mid, 396, { size: 32, face: "bold", anchor: "c", maxW: 1060 });
     if (u.detail) {
-      const lines = wrapLines(u.detail, 70, 2);
-      for (const [i, line] of lines.entries()) await c.text(line, mid, 450 + i * 36, { size: 28, color: SUB, anchor: "c", maxW: 1080 });
+      // A description that needs two lines is split near the middle, not left with one orphan word on the second.
+      const lines = wrapLines(u.detail, u.detail.length > 70 ? Math.min(70, Math.ceil(u.detail.length / 2) + 6) : 70, 2);
+      for (const [i, line] of lines.entries()) await c.text(line, mid, 444 + i * 36, { size: 28, color: SUB, anchor: "c", maxW: 1080 });
     }
   } else {
     const step = shown.length === 2 ? 420 : 370;
@@ -322,10 +325,10 @@ export async function renderUnlockHero(spec: UnlockHeroSpec): Promise<RenderedCa
     await c.text(spec.player, mid, 410, { size: 38, face: "title", anchor: "c", maxW: 1000 });
   }
   if (spec.progress) {
-    await c.text(spec.progress.text, mid, 520, { size: 26, color: SUB, anchor: "c", maxW: 1000 });
-    const w = 520, x = mid - w / 2, fill = Math.max(6, Math.round(w * Math.min(1, Math.max(0, spec.progress.ratio))));
-    c.rect(x, 566, w, 10, "#ffffff", { opacity: 0.16, rx: 5 });
-    c.rect(x, 566, fill, 10, "#ffd100", { rx: 5 });
+    await c.text(spec.progress.text, mid, 532, { size: 26, color: SUB, anchor: "c", maxW: 1000 });
+    const w = 560, x = mid - w / 2, fill = Math.max(8, Math.round(w * Math.min(1, Math.max(0, spec.progress.ratio))));
+    c.rect(x, 574, w, 16, "#ffffff", { opacity: 0.18, rx: 8 });
+    c.rect(x, 574, fill, 16, "#ffd100", { rx: 8 });
   }
   const layers: OverlayLayer[] = [];
   if (spec.portrait) {
@@ -338,8 +341,9 @@ export async function renderUnlockHero(spec: UnlockHeroSpec): Promise<RenderedCa
     if (spec.chip) {
       // The rank sits on the painting: a pill of its own behind it, or the contrast guard darkens the whole card for this one word.
       const w = Math.min(240, await c.width(spec.chip.text, 24)) + 24;
-      c.rect(left + size / 2 - w / 2, top + size + 2, w, 36, "#000", { opacity: 0.72, rx: 18 });
-      await c.text(spec.chip.text, left + size / 2, top + size + 6, { size: 24, color: spec.chip.color, anchor: "c", maxW: 240 });
+      // Clear of the avatar's ring (3 px) with a gap of its own, centred under it.
+      c.rect(left + size / 2 - w / 2, top + size + 14, w, 36, "#000", { opacity: 0.78, rx: 18 });
+      await c.text(spec.chip.text, left + size / 2, top + size + 18, { size: 24, color: spec.chip.color, anchor: "c", maxW: 240 });
     }
   }
   const art = await sharp(spec.art).resize(CARD_W, CARD_H, { fit: "cover" }).removeAlpha().toBuffer();

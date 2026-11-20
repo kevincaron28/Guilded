@@ -28,7 +28,7 @@ import { planSignupAnswers } from "./signup-answers.js";
 import { queueCharacterDisplayRefresh } from "./character-display-refresh.js";
 import { assertSnapshotEdition, gameEditionOf } from "./game-edition.js";
 import { characterKey } from "../../companion/character-identity.mjs";
-import { parseWowId, indexCharacters, addToIndex, resolveCharacter } from "./character-ref.js";
+import { adoptWowId, parseWowId, indexCharacters, addToIndex, resolveCharacter } from "./character-ref.js";
 
 // Why a row is waiting (see AddonHeldEntry). Every reason clears by itself once the cause is
 // fixed, because each upload carries the whole ledger again; a dismissed row is never imported.
@@ -235,7 +235,7 @@ export function createAddonImportService(database: PrismaClient) {
             if (id === null) continue;
             const found = resolveCharacter(idIndex, { id, name: entry.name });
             if (found.kind !== "match" || !found.adopt || found.row.realm !== entry.realm) continue;
-            await tx.character.update({ where: { id: found.row.id }, data: { wowId: id } });
+            if (!await adoptWowId(tx, "character", found.row.id, id)) continue;
             found.row.wowId = id;
             addToIndex(idIndex, found.row);
           }

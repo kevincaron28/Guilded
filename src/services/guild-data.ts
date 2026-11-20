@@ -7,7 +7,7 @@ import { gameEditionOf } from "./game-edition.js";
 import { findCharacter } from "./character-match.js";
 import { clearGuildMembershipCache } from "./guild-participants.js";
 import { characterIdFromGuid } from "./guild-armory-id.js";
-import { parseWowId, indexCharacters, addToIndex, resolveCharacter, refNameKey } from "./character-ref.js";
+import { adoptWowId, parseWowId, indexCharacters, addToIndex, resolveCharacter, refNameKey } from "./character-ref.js";
 
 // What the game shows every member about the whole guild (8.5, docs/GUILD_DATA_INVENTORY.md):
 // the roster (level, class, rank, last online), the guild event log and the MOTD/info text.
@@ -150,7 +150,7 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
       } else if (character && (character.wowId ?? null) !== null && refNameKey(character.name) !== refNameKey(member.name)) character = undefined;
       if (character) {
         const update: Prisma.CharacterUpdateInput = {};
-        if (adoptCharacter && wowId !== null) { update.wowId = wowId; character.wowId = wowId; addToIndex(characterIndex, character); }
+        if (adoptCharacter && wowId !== null && await adoptWowId(tx, "character", character.id, wowId)) { character.wowId = wowId; addToIndex(characterIndex, character); }
         if (member.level && member.level > (character.level ?? 0)) update.level = member.level;
         if (member.class && (!character.className || character.className === "UNKNOWN")) update.className = titleClass(member.class);
         const seen = movedForward(character.lastSeenAt, lastOnlineOk, minMove);
@@ -197,7 +197,7 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
       const seen = movedForward(existing?.lastSeenAt, lastOnlineOk, minMove);
       if (existing) {
         const update: Prisma.UnclaimedCharacterUpdateInput = {};
-        if (adoptUnclaimed && wowId !== null) { update.wowId = wowId; existing.wowId = wowId; addToIndex(unclaimedIndex, existing); }
+        if (adoptUnclaimed && wowId !== null && existing.id && await adoptWowId(tx, "unclaimedCharacter", existing.id, wowId)) { existing.wowId = wowId; addToIndex(unclaimedIndex, existing); }
         if (existing.nameKey !== key && member.name.includes(" ")) {
           update.name = member.name; update.nameKey = key; update.legacyName = existing.nameKey;
           unclaimedByKey.delete(existing.nameKey); unclaimedByKey.set(key, existing); existing.nameKey = key;

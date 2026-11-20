@@ -92,3 +92,25 @@ export function sameCharacterRef(a: CharacterRef, b: CharacterRef): boolean {
   const key = refNameKey(a.name);
   return key !== "" && key === refNameKey(b.name);
 }
+
+/**
+ * Writes a first-time wowId on one row. A unique violation (another upload stored that id on a different row of the guild first)
+ * must not abort the upload: inside a Postgres transaction a failed statement poisons the rest, so the write runs in a savepoint
+ * that is rolled back on P2002. Returns whether the id was stored; on a clash the row is simply left without it (logged once).
+ */
+let clashLogged = false;
+export async function adoptWowId(tx: unknown, model: "character" | "unclaimedCharacter", rowId: string, wowId: bigint): Promise<boolean> {
+  const db = tx as Record<string, { update: (args: unknown) => Promise<unknown> }> & { $executeRawUnsafe?: (sql: string) => Promise<unknown> };
+  const savepoint = typeof db.$executeRawUnsafe === "function";
+  try {
+    if (savepoint) await db.$executeRawUnsafe!("SAVEPOINT wow_id_adopt");
+    await db[model]!.update({ where: { id: rowId }, data: { wowId } });
+    if (savepoint) await db.$executeRawUnsafe!("RELEASE SAVEPOINT wow_id_adopt");
+    return true;
+  } catch (error) {
+    if ((error as { code?: string })?.code !== "P2002") throw error;
+    if (savepoint) await db.$executeRawUnsafe!("ROLLBACK TO SAVEPOINT wow_id_adopt");
+    if (!clashLogged) { clashLogged = true; console.warn(`wowId ${wowId} is already stored on another ${model} row; left unset for this upload`); }
+    return false;
+  }
+}

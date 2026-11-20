@@ -110,11 +110,16 @@ describe("regression fixtures from the real bugs", () => {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
 function fakeDb(seed: { characters?: Any[]; unclaimed?: Any[] } = {}) {
-  const tables = { roster: [] as Any[], characters: seed.characters ?? [], unclaimed: seed.unclaimed ?? [] };
+  const tables = { roster: [] as Any[], characters: seed.characters ?? [], unclaimed: seed.unclaimed ?? [], sql: [] as string[], hidden: [] as Any[] };
   let n = 0;
   const tx = {
     guildRosterEntry: { findMany: async () => tables.roster, upsert: async ({ create }: Any) => { tables.roster.push({ ...create, id: `r${++n}` }); }, updateMany: async () => ({ count: 0 }) },
-    character: { findMany: async () => tables.characters.map((c) => ({ ...c, rankSeen: null })), update: async ({ where, data }: Any) => Object.assign(tables.characters.find((c) => c.id === where.id), data), updateMany: async () => ({ count: 0 }) },
+    $executeRawUnsafe: async (sql: string) => { tables.sql.push(sql); },
+    character: { findMany: async () => tables.characters.map((c) => ({ ...c, rankSeen: null })), update: async ({ where, data }: Any) => {
+      // The unique index on (guildId, gameEdition, wowId): another row already holding the id raises P2002.
+      if (data.wowId !== undefined && tables.hidden.some((c) => c.wowId === data.wowId)) throw Object.assign(new Error("Unique constraint failed"), { code: "P2002" });
+      return Object.assign(tables.characters.find((c) => c.id === where.id), data);
+    }, updateMany: async () => ({ count: 0 }) },
     unclaimedCharacter: {
       findMany: async () => tables.unclaimed, update: async ({ where, data }: Any) => Object.assign(tables.unclaimed.find((c) => c.id === where.id), data), updateMany: async () => ({ count: 0 }),
       createMany: async ({ data }: Any) => { for (const r of data) tables.unclaimed.push({ ...r, id: `u${++n}` }); return { count: data.length }; }
@@ -139,6 +144,13 @@ describe("roster ingest by id", () => {
     ]), NOW);
     expect(db.tables.characters.find((c) => c.id === "c1")).toMatchObject({ wowId: 1000n, level: 20 });
     expect(db.tables.characters.find((c) => c.id === "c2")).toMatchObject({ wowId: 1005n, level: 10 });
+  });
+  it("an id another upload stored first (unique violation) leaves the row without it and does not throw", async () => {
+    const db = fakeDb({ characters: [linked("c1", "Dude Lebowski")] });
+    db.tables.hidden.push({ wowId: 1000n });   // the row a parallel upload committed, not visible to this upload's read
+    await expect(applyGuildData(db.tx, "g", { memberId: null, officer: false }, upload([{ name: "Dude Lebowski", level: 20, class: "WARRIOR", id: "3e8" }]), NOW)).resolves.toBeDefined();
+    expect(db.tables.characters[0]).toMatchObject({ wowId: null });
+    expect(db.tables.sql).toEqual(["SAVEPOINT wow_id_adopt", "ROLLBACK TO SAVEPOINT wow_id_adopt"]);
   });
   it("an old client's name-only roster still works", async () => {
     const db = fakeDb({ characters: [linked("c1", "Dude Lebowski")] });

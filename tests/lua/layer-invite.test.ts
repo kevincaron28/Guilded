@@ -155,13 +155,13 @@ describe("layer invite: a helper", () => {
     expect(toastShown()).toBe("false");
   });
 
-  it("asks a first-time helper once whether to help at all, and remembers No", () => {
+  it("shows the request at once by default (Help guildmates is on), and shows nothing once it is switched off", () => {
     setup(12); login();
     heard("Ann", "REQ|5|12|Elwynn Forest");
-    expect(s!.run(`return FR.GuildedLayerToast.mode`)).toBe("ask");
-    s!.run(`FR.GuildedLayerToast.no:GetScript("OnClick")(FR.GuildedLayerToast.no)`);
+    expect(s!.run(`return FR.GuildedLayerToast.mode`)).toBe("request");
+    s!.run(`FR.GuildedLayerToast:Hide(); FR.GuildedLayerToast.isOpen = false`);
+    s!.run(`NS.commandHandlers.layer({ "helper", "off" })`);
     expect(s!.run(`return tostring(DB.layer.helper)`)).toBe("false");
-    expect(toastShown()).toBe("false");
     heard("Bo", "REQ|6|12|Elwynn Forest");
     expect(toastShown()).toBe("false");
     expect(openList()).toBe("Ann,Bo");
@@ -376,12 +376,12 @@ describe("layer invite: auto-invite opt-in and direct party invites", () => {
   const copied = () => s!.run(`return table.concat(COPIED, ",")`);
   const mode = () => s!.run(`return tostring(FR.GuildedLayerToast and FR.GuildedLayerToast.mode)`);
 
-  it("is off by default: a request is never invited by itself, and a first one still asks whether to help", () => {
+  it("is off by default: a request is never invited by itself, it shows the window with an Invite button", () => {
     withDirect();
     expect(s!.run(`return tostring(NS.layerInvite.autoInvite())`)).toBe("false");
     heard("Ann", "REQ|5|12|Elwynn Forest");
     expect(invites()).toBe("");
-    expect(mode()).toBe("ask");
+    expect(mode()).toBe("request");
   });
 
   it("on: invites a same-continent request when it arrives, claims it, and shows a short notice (no chat line)", () => {

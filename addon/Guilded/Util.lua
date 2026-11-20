@@ -646,9 +646,14 @@ function util.setDirectInvite(on)
   return true
 end
 -- Alone, or the leader of my party (a member's invite only asks the leader).
-function util.canPartyInvite()
+-- allowRaid (optional, 9.5): the leader or an assistant of a raid may invite too (a party converted to a raid).
+function util.canPartyInvite(allowRaid)
   if not (IsInGroup and IsInGroup()) then return true end
-  if IsInRaid and IsInRaid() then return false end
+  if IsInRaid and IsInRaid() then
+    if not allowRaid then return false end
+    local okRaid, lead = pcall(function() return (UnitIsGroupLeader and UnitIsGroupLeader("player")) or (UnitIsGroupAssistant and UnitIsGroupAssistant("player")) end)
+    return okRaid and lead and true or false
+  end
   local ok, leader = pcall(function() return UnitIsGroupLeader and UnitIsGroupLeader("player") end)
   return ok and leader and true or false
 end
@@ -670,9 +675,9 @@ function util.noteInviteBlocked(named)
 end
 -- A party invite now. Returns true when the game took it without refusing; false (nothing sent) in combat, in a
 -- group I do not lead, after a refusal on this build, or when the player switched direct invites off.
-function util.partyInvite(name, why)
+function util.partyInvite(name, why, allowRaid)
   if type(name) ~= "string" or name == "" or isSecret(name) or name:find("[|%c]") then return false end
-  if util.inCombat() or not util.directInviteOn() or not util.canPartyInvite() then return false end
+  if util.inCombat() or not util.directInviteOn() or not util.canPartyInvite(allowRaid) then return false end
   local invite = (C_PartyInfo and C_PartyInfo.InviteUnit) or InviteUnit
   if type(invite) ~= "function" then return false end
   directAttempt = { at = GetTime and GetTime() or 0, refused = false }

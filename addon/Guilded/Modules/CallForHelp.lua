@@ -3,7 +3,9 @@
 --   /guilded sos            show the options and ask "Call for help now?" (also /gsos)
 --   /guilded sos now        call for help at once (the button, the key binding and the quick menu do too)
 --   /guilded sos clear      all clear
---   /guilded sos defender on|off   get the loud alert when a guildmate in your zone calls (default: on)
+--   /guilded sos guildmates on|off "Help guildmates" (9.5, default on): the small window for calls in your zone AND for
+--                                  guildmates' layer requests. It replaces the two old switches Defender and Layer helper,
+--                                  which stay as aliases (/guilded sos defender on|off, /guilded layer helper on|off).
 --   /guilded sos chat on|off       also post one short line in guild chat (default on)
 --
 --   /guilded sos alert toast|chat|off   how a guildmate's call reaches me (default: a small window)
@@ -14,11 +16,20 @@
 -- The Call for help button appears for 20 s when an enemy player damages you outside an
 -- instance. Nothing is ever sent by itself: the player presses the button (or the key, or the
 -- command). The call goes to the guild on the addon prefix GuildedSOS; guildmates in the same
--- zone who are Defenders get a small toast (top right, movable, closable, click-through, hides by
+-- zone who help guildmates get a small window (top right, movable, closable, click-through, hides by
 -- itself; only a chat line and an SOS icon in combat), a soft sound, distance and direction, and On my
 -- way / Can't buttons. Everyone else gets one line in Guilded's chat tab. No protected action is used, so
 -- it works in combat. The combat log is deliberately NOT read (restricted on Retail and
 -- Forever); attackers are seen through the target, focus, mouseover and nameplate units.
+--
+-- (9.5) One window, "Guild calls" (the banner below): the call for help on top, a guildmate's layer request under it
+-- (LayerInvite hangs its section inside this window, ns.callForHelp.attachLayer), and a one-line notice with at most one
+-- small text-style button (Convert to raid, Leave group, Ask by whisper) that goes away by itself. It is never always on
+-- screen: it shows only while there is something to show.
+-- On my way also asks the caller's side to bring the defender onto the caller's layer: joining a group moves the JOINER
+-- to the inviter's layer, so the ganked caller (in combat) must not be the one who moves. LayerInvite sends the JOIN
+-- request (prefix GuildedLayer); the caller's addon, or the addon of the guildmate who leads the caller's party, invites
+-- the defender as soon as it is out of combat. On all clear, caller and responders get a Leave group button.
 local addonName, ns = ...
 ns = ns or {}
 
@@ -62,6 +73,7 @@ local attackedAt         -- the last time an attack by an enemy player was confi
 local duelAskedAt        -- a duel was asked for (by me or of me) at this time; counts for DUEL_REQUEST_SECONDS unless it starts
 local duelStarted = false -- the countdown ran or I walked back in: a duel is in progress until DUEL_FINISHED
 local lineAt             -- when the last guild chat line was posted
+local responded = {}        -- callers I answered On my way: name -> call id (for the Leave group button on their all clear)
 local zoneLineAt = {}    -- zone -> when a guild chat line about it was last posted
 
 local function L(text) return ns.L and ns.L(text) or text end
@@ -97,9 +109,34 @@ end
 -- Settings
 -- ---------------------------------------------------------------------
 
--- Defender: on for every member at any level unless the member turned it off.
-function module.defender()
-  return settings().helpDefender ~= false
+-- Help guildmates (9.5): one switch, on for every member at any level unless the member turned it off. It replaces
+-- Defender (settings.helpDefender) and Layer helper (db.layer.helper): once set it is saved as settings.helpGuildmates, and
+-- until then an explicit off in either old value means off. The old keys are still written so an older addon reads the
+-- same choice.
+function module.helpGuildmates()
+  local s = settings()
+  if type(s.helpGuildmates) == "boolean" then return s.helpGuildmates end
+  if s.helpDefender == false then return false end
+  local db = ns.getDb and ns.getDb()
+  local layer = type(db) == "table" and db.layer
+  if type(layer) == "table" and layer.helper == false then return false end
+  return true
+end
+module.defender = module.helpGuildmates
+
+function module.setHelpGuildmates(on)
+  local s = ns.getSettings and ns.getSettings()
+  if not s then return false end
+  on = on and true or false
+  s.helpGuildmates, s.helpDefender = on, on
+  local db = ns.getDb and ns.getDb()
+  if type(db) == "table" then
+    db.layer = type(db.layer) == "table" and db.layer or {}
+    db.layer.helper = on
+    if not on then db.layer.auto = nil end
+  end
+  if not on and module.dismissAll then module.dismissAll() end
+  return true
 end
 
 function module.guildChat()
@@ -333,21 +370,33 @@ function module.invited(name)
   return true
 end
 
--- Join button: ask the caller for a party invite the usual way (a whisper of "inv").
-function module.join()
-  if not (banner and banner.sender) then return false end
-  if SendChatMessage and pcall(SendChatMessage, "inv", "WHISPER", nil, banner.sender) then
-    say(string.format(L("Asked %s for a party invite."), display(banner.sender)))
+-- Join (the fallback): ask the caller for a party invite the usual way (a whisper of "inv"). Only offered after On my
+-- way when nobody invited within a few seconds (the caller's side may run an older addon or have no group to lead).
+function module.join(name)
+  name = name or (banner and banner.sender)
+  if not name then return false end
+  if SendChatMessage and pcall(SendChatMessage, "inv", "WHISPER", nil, name) then
+    say(string.format(L("Asked %s for a party invite."), display(name)))
+    if module.clearNotice then module.clearNotice() end
     return true
   end
   return false
 end
 
+-- For LayerInvite's JOIN checks: my own open call, and whether a guildmate's call (name, id) was heard by this client.
+function module.myCallId() return mine and mine.id or nil end
+function module.knownCall(name, id)
+  local entry = incoming[baseName(name)]
+  return entry ~= nil and id ~= nil and entry.id == id
+end
+-- LayerInvite tells me it invited someone for my call, so my all clear offers Leave group.
+function module.noteInvited() if mine then mine.invited = true end end
+
 
 -- ---------------------------------------------------------------------
 -- Frames (created lazily; plain non-secure frames, no protected actions).
 --
--- Small and never in the way: a compact window (TOAST_W wide) near the top right, medium strata (under
+-- Small and never in the way: a compact window (TOAST_W wide, 82 high for a call alone) near the top right, medium strata (under
 -- dialogs and the game menu), clicks pass straight through it except on its own buttons and its title strip, it
 -- never takes the keyboard, it closes with the X or a right-click on the title strip, it hides by itself, and
 -- it can be dragged (the position is saved). One window carries every waiting call. Nothing here is protected,
@@ -355,7 +404,12 @@ end
 -- ---------------------------------------------------------------------
 
 local TOAST_W = 300
-local TOAST_H = 104
+local TOAST_H = 82            -- the call section (title, two detail lines, one button row)
+local HEADER_H = 28           -- the title strip alone (a layer request or a notice without a call)
+local LAYER_H = 52            -- LayerInvite's section inside the window
+local NOTICE_H = 28           -- the one-line notice
+local layerHost               -- LayerInvite's section frame (parented to the window)
+local noticeState             -- { text, label, fn, endsAt, actionAt }
 local FOOTPRINT_H = 170       -- the toast with the caller's offer under it: the box that must stay on screen
 local ICON_W = 64
 local DEFAULT_POS = { "TOPRIGHT", "TOPRIGHT", -20, -220 }
@@ -461,7 +515,7 @@ local function layout()
   if banner then banner:ClearAllPoints(); banner:SetPoint("TOPLEFT", anchor, "TOPLEFT", 0, 0) end
   if icon then icon:ClearAllPoints(); icon:SetPoint("TOPLEFT", anchor, "TOPLEFT", 0, 0) end
   if offerFrame then
-    local below = (banner and banner.isOpen and (TOAST_H + 4)) or (icon and icon.isOpen and 30) or 0
+    local below = (banner and banner.isOpen and ((banner.h or TOAST_H) + 4)) or (icon and icon.isOpen and 30) or 0
     offerFrame:ClearAllPoints()
     offerFrame:SetPoint("TOPLEFT", anchor, "TOPLEFT", 0, -below)
   end
@@ -635,8 +689,8 @@ local TOAST_LIVE_SECONDS = 120    -- a waiting call older than this is stale and
 local MUTE_SECONDS = 600
 
 local function closeToast()
-  if banner then banner:Hide(); banner.isOpen = false; banner.call, banner.sender, banner.callerName = nil, nil, nil end
-  layout()
+  if banner then banner.callOpen = false; banner.call, banner.sender, banner.callerName = nil, nil, nil end
+  module.refreshWindow()
 end
 
 local function hideIcon()
@@ -675,41 +729,116 @@ end
 local function ensureBanner()
   if banner then return banner end
   banner = makeToast(TOAST_H, function() module.dismiss() end)
+  banner.callOpen = false
   banner.detail = banner:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   banner.detail:SetPoint("TOPLEFT", banner.text, "BOTTOMLEFT", 0, -3)
   banner.detail:SetWidth(TOAST_W - 20)
   if banner.detail.SetJustifyH then banner.detail:SetJustifyH("LEFT") end
+  -- One row of three buttons (never more than three on a row).
   banner.coming = makeButton(banner, L("On my way"), 92, function() module.reply(true) end)
-  banner.coming:SetPoint("BOTTOMLEFT", banner, "BOTTOMLEFT", 10, 34)
+  banner.coming:SetPoint("TOPLEFT", banner, "TOPLEFT", 10, -54)
   banner.cant = makeButton(banner, L("Can't"), 60, function() module.reply(false) end)
   banner.cant:SetPoint("LEFT", banner.coming, "RIGHT", 4, 0)
   banner.mute = makeButton(banner, L("Mute 10 min"), 100, function() module.mute() end)
   banner.mute:SetPoint("LEFT", banner.cant, "RIGHT", 4, 0)
-  banner.join = makeButton(banner, L("Join"), 92, function() module.join() end)
-  banner.join:SetPoint("BOTTOMLEFT", banner, "BOTTOMLEFT", 10, 8)
-  banner.inviteCaller = ns.util.inviteButton(banner, "party", L("Invite caller"), 120, 22, function(name) module.invited(name) end)
-  banner.inviteCaller:SetPoint("LEFT", banner.join, "RIGHT", 4, 0)
+  -- The notice line: text, and at most one small text-style button (no panel button: it must not look like a dialog).
+  banner.note = banner:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  banner.note:SetWidth(TOAST_W - 20)
+  if banner.note.SetJustifyH then banner.note:SetJustifyH("LEFT") end
+  banner.noteBtn = CreateFrame("Button", nil, banner)
+  banner.noteBtn:SetWidth(90)
+  banner.noteBtn:SetHeight(16)
+  banner.noteBtn.label = banner.noteBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  banner.noteBtn.label:SetPoint("RIGHT", banner.noteBtn, "RIGHT", 0, 0)
+  banner.noteBtn:SetScript("OnClick", function()
+    local state = noticeState
+    if state and state.fn then state.fn() end
+  end)
+  banner.note:Hide(); banner.noteBtn:Hide()
   return banner
 end
 
 local function setToastTitle()
-  if not (banner and banner.isOpen and banner.callerName) then return end
+  if not (banner and banner.callOpen and banner.callerName) then return end
   local title = string.format(L("CALL FOR HELP: %s"), display(banner.callerName))
   if #queue > 0 then title = title .. " " .. string.format(L("(+%d more)"), #queue) end
   banner.text:SetText(title)
 end
 
+-- The one window: shows the sections that are open (call, layer request, notice) and hides when none is.
+function module.refreshWindow()
+  if not banner then return end
+  local call = banner.callOpen == true
+  local layer = layerHost ~= nil and layerHost.isOpen == true
+  local note = noticeState ~= nil
+  if not (call or layer or note) then
+    banner:Hide(); banner.isOpen = false
+    layout()
+    return
+  end
+  if call then setToastTitle() else banner.text:SetText(L("Guild calls")) end
+  for _, w in ipairs({ banner.detail, banner.coming, banner.cant, banner.mute }) do
+    if call then w:Show() else w:Hide() end
+  end
+  local cursor = call and TOAST_H or HEADER_H
+  if layer then
+    layerHost:ClearAllPoints()
+    layerHost:SetPoint("TOPLEFT", banner, "TOPLEFT", 0, -cursor)
+    cursor = cursor + LAYER_H
+  end
+  if note then
+    local showButton = noticeState.label ~= nil and now() >= (noticeState.actionAt or 0)
+    banner.note:SetText(noticeState.text)
+    banner.note:SetWidth(showButton and (TOAST_W - 110) or (TOAST_W - 20))
+    banner.note:ClearAllPoints()
+    banner.note:SetPoint("TOPLEFT", banner, "TOPLEFT", 10, -(cursor + 4))
+    banner.note:Show()
+    banner.noteBtn:ClearAllPoints()
+    banner.noteBtn:SetPoint("TOPRIGHT", banner, "TOPRIGHT", -8, -(cursor + 4))
+    if showButton then banner.noteBtn.label:SetText(noticeState.label); banner.noteBtn:Show() else banner.noteBtn:Hide() end
+    cursor = cursor + NOTICE_H
+  else
+    banner.note:Hide(); banner.noteBtn:Hide()
+  end
+  banner.h = cursor + ((layer or note) and 4 or 0)
+  banner:SetHeight(banner.h)
+  banner.isOpen = true
+  banner:Show()
+  layout()
+end
+
+-- LayerInvite's section lives inside this window (one window, not two): it asks for the frame, then attaches its own.
+function module.host() return ensureBanner() end
+function module.attachLayer(frame) layerHost = frame end
+
+-- A one-line notice with at most one small text-style button, gone after `seconds` (the button only appears `actionAfter`
+-- seconds in). In combat (quiet mode) it is one chat line instead: nothing pops up in a fight.
+function module.notice(text, label, fn, seconds, actionAfter)
+  if ns.util.inCombat() and module.quiet() then say(text); return false end
+  ensureBanner()
+  noticeState = { text = text, label = label, fn = fn, endsAt = now() + (seconds or 12), actionAt = now() + (actionAfter or 0) }
+  module.refreshWindow()
+  return true
+end
+function module.clearNotice()
+  noticeState = nil
+  module.refreshWindow()
+end
+function module.noticeText() return noticeState and noticeState.text or nil end
+-- The label of the notice's small button once it is showing (nil before, or when there is none).
+function module.noticeAction()
+  if noticeState and noticeState.label and now() >= (noticeState.actionAt or 0) then return noticeState.label end
+  return nil
+end
+
 local function showEntry(entry)
   ensureBanner()
   local call = entry.call
-  banner.call, banner.sender, banner.callerName, banner.shownAt, banner.isOpen = call, entry.sender, entry.name, now(), true
+  banner.call, banner.sender, banner.callerName, banner.shownAt, banner.callOpen = call, entry.sender, entry.name, now(), true
   banner.seconds = ns.util.inCombat() and TOAST_COMBAT_SECONDS or TOAST_SECONDS
-  banner.inviteCaller.setInvite(entry.sender)
-  setToastTitle()
   local where = whereText(call)
   banner.detail:SetText(describe(call, entry.name) .. (where ~= "" and ("\n" .. where) or ""))
-  banner:Show()
-  layout()
+  module.refreshWindow()
 end
 
 local function playAlert()
@@ -743,7 +872,7 @@ function module.enqueue(call, callerName, sender)
   local key = baseName(sender)
   local entry = { call = call, name = callerName, sender = sender, key = key, at = now() }
   for i = #queue, 1, -1 do if queue[i].key == key then table.remove(queue, i) end end
-  if banner and banner.isOpen then
+  if banner and banner.callOpen then
     if banner.sender == sender then showEntry(entry) else queue[#queue + 1] = entry; setToastTitle() end
     return "banner"
   end
@@ -758,13 +887,17 @@ function module.enqueue(call, callerName, sender)
 end
 
 -- The X, a right-click on the title strip or the toast timer: close this call, show the next one if any.
+-- The X also closes the layer request and the notice: one window, one close.
 function module.dismiss()
+  noticeState = nil
+  if layerHost and layerHost.isOpen and layerHost.onDismiss then layerHost.onDismiss() end
   closeToast()
   presentNext()
 end
 
 function module.dismissAll()
   queue = {}
+  noticeState = nil
   closeToast()
   hideIcon()
 end
@@ -901,11 +1034,21 @@ function module.allClear()
   if mine.posted and SendChatMessage then
     pcall(SendChatMessage, string.format(L("[Guilded] All clear: %s is safe."), clean(mine.name or playerName(), 24)), "GUILD")
   end
+  local invited = mine.invited
   mine = nil
   say(L("All clear sent."))
   refreshOffer()
   closeOffer()
+  if invited then module.offerLeave() end
   return true
+end
+
+-- After the fight (the caller's all clear, or a caller's all clear heard by a responder): a small Leave group button, only
+-- while I am in a group. The click does the leaving (LayerInvite.leaveGroup); nothing leaves by itself.
+function module.offerLeave()
+  local li = ns.layerInvite
+  if not (li and li.leaveGroup and IsInGroup and IsInGroup()) then return false end
+  return module.notice(L("All clear. Leave the group when you are ready."), L("Leave group"), function() li.leaveGroup() end, 20, 0)
 end
 
 -- True while an attack by an enemy player was confirmed in the last minute.
@@ -998,9 +1141,13 @@ function module.receive(text, sender, channel)
     if not entry or entry.id ~= msg.id then return "ignored" end
     incoming[name] = nil
     for i = #queue, 1, -1 do if queue[i].key == name then table.remove(queue, i) end end
-    if banner and banner.isOpen and banner.sender == sender then closeToast(); presentNext() else setToastTitle() end
+    if banner and banner.callOpen and banner.sender == sender then closeToast(); presentNext() else setToastTitle() end
     if icon and icon.isOpen then purgeQueue(); if #queue == 0 then hideIcon() else showIcon() end end
     say(string.format(L("%s: all clear."), display(name)))
+    if responded[name] == msg.id then
+      responded[name] = nil
+      module.offerLeave()
+    end
     return "clear"
   end
 
@@ -1012,7 +1159,7 @@ function module.receive(text, sender, channel)
   local mode = module.alertMode()
   if mode == "off" then return "off" end
   say(describe(msg, name))
-  if mode == "toast" and not module.muted() and module.defender() and sameZone(msg) and not inInstance() then
+  if mode == "toast" and not module.muted() and module.helpGuildmates() and sameZone(msg) and not inInstance() then
     return module.enqueue(msg, name, sender)
   end
   return "line"
@@ -1023,11 +1170,26 @@ function module.reply(coming)
   if not (banner and banner.call and banner.sender) then return false end
   local entry = ns.normalizeName and incoming[ns.normalizeName(banner.sender)]
   local id = entry and entry.id or banner.call.id
-  ns.comm.send(PREFIX, "R|" .. id .. "|" .. (coming and "Y" or "N"), "WHISPER", banner.sender, nil, "interactive")
+  local sender = banner.sender
+  ns.comm.send(PREFIX, "R|" .. id .. "|" .. (coming and "Y" or "N"), "WHISPER", sender, nil, "interactive")
   if coming and ns.worldPvp then pcall(ns.worldPvp.note, "responded", banner.call.zone, banner.call.mapId) end
+  if coming then responded[baseName(sender)] = id end
   closeToast()
+  if coming then module.startJoin(sender, id) end
   presentNext()
   return true
+end
+
+-- On my way: ask the caller's side to invite me, so I land on the caller's layer (joining a group moves the joiner). The
+-- notice says so; its small button (the old "Join" whisper) only appears after 15 s without an invite.
+function module.startJoin(sender, id)
+  local li = ns.layerInvite
+  local who = display(sender)
+  if li and li.askJoin and li.askJoin(sender, id) then
+    module.notice(string.format(L("Asking %s's group to invite you."), who), L("Ask by whisper"), function() module.join(sender) end, 30, 15)
+  else
+    module.notice(string.format(L("Ask %s for a party invite."), who), L("Join"), function() module.join(sender) end, 20, 0)
+  end
 end
 
 -- ---------------------------------------------------------------------
@@ -1049,9 +1211,9 @@ end
 
 local function options()
   local s = settings()
-  say(string.format(L("Call for help: defender %s, guild chat line %s."),
-    module.defender() and L("on") or L("off"), module.guildChat() and L("on") or L("off")))
-  say(L("/guilded sos now | clear | status | defender on|off | chat on|off"))
+  say(string.format(L("Call for help: help guildmates %s, guild chat line %s."),
+    module.helpGuildmates() and L("on") or L("off"), module.guildChat() and L("on") or L("off")))
+  say(L("/guilded sos now | clear | status | guildmates on|off | chat on|off"))
   say(string.format(L("Call alerts: %s, sound %s, quiet in combat %s."), module.alertMode() == "toast" and L("small window") or module.alertMode() == "chat" and L("chat line only") or L("off"),
     module.sound() and L("on") or L("off"), module.quiet() and L("on") or L("off")))
   say(L("/guilded sos alert toast|chat|off | sound on|off | quiet on|off | mute | unmute | show | reset"))
@@ -1065,10 +1227,10 @@ ns.commandHandlers["sos"] = function(args)
     module.open()
   elseif what == "clear" or what == "allclear" then
     if not module.allClear() then say(L("You have no open call for help.")) end
-  elseif what == "defender" and (value == "on" or value == "off") and s then
-    s.helpDefender = value == "on"
-    say(s.helpDefender and L("You will get a loud alert when a guildmate in your zone calls for help.")
-      or L("You will only see a chat line when a guildmate calls for help."))
+  elseif (what == "defender" or what == "guildmates" or what == "help") and (value == "on" or value == "off") and s then
+    module.setHelpGuildmates(value == "on")
+    say(value == "on" and L("You will help guildmates: a small window for calls for help in your zone and for layer requests.")
+      or L("You will only see a chat line when a guildmate calls for help or asks for a layer."))
   elseif what == "chat" and (value == "on" or value == "off") and s then
     s.helpGuildChat = value == "on"
     say(s.helpGuildChat and L("A call for help also posts one line in guild chat.") or L("A call for help stays on Guilded only."))
@@ -1100,7 +1262,7 @@ ns.commandHandlers["sos"] = function(args)
 end
 ns.commandHandlers["callforhelp"] = ns.commandHandlers["sos"]
 ns.commandHelp = ns.commandHelp or {}
-table.insert(ns.commandHelp, "/guilded sos - options and a confirm to call guildmates for help (now, clear, status, defender on|off, chat on|off, alert toast|chat|off, sound, quiet, mute, unmute, show, reset); /gsos too")
+table.insert(ns.commandHelp, "/guilded sos - options and a confirm to call guildmates for help (now, clear, status, guildmates on|off (alias defender), chat on|off, alert toast|chat|off, sound, quiet, mute, unmute, show, reset); /gsos too")
 
 -- The key binding (Bindings.xml: Options > Keybindings > Guilded).
 BINDING_NAME_GUILDED_CALL_FOR_HELP = L("Call for help")
@@ -1127,6 +1289,7 @@ register("DUEL_OUTOFBOUNDS")
 register("DUEL_FINISHED")
 register("PLAYER_ENTERING_WORLD")
 register("PLAYER_REGEN_ENABLED") -- combat over: show the call the SOS icon was holding
+register("PLAYER_REGEN_DISABLED") -- a fight starts: a notice goes away (quiet mode), the rest follows its own rules
 -- I asked for the duel: hooksecurefunc only watches StartDuel and taints nothing.
 if hooksecurefunc and StartDuel then pcall(hooksecurefunc, "StartDuel", duelAsked) end
 
@@ -1147,9 +1310,13 @@ local function onUpdate(_, elapsed)
       if t - (offerFrame.shownAt or t) > OFFER_OPEN_SECONDS then closeOffer() end
     elseif offerUntil and t > offerUntil then closeOffer() end
   end
-  if banner and banner.isOpen and banner.shownAt and t - banner.shownAt > (banner.seconds or TOAST_SECONDS) then
+  if banner and banner.callOpen and banner.shownAt and t - banner.shownAt > (banner.seconds or TOAST_SECONDS) then
     closeToast()
     presentNext()
+  end
+  if noticeState then
+    if t >= noticeState.endsAt then noticeState = nil end
+    module.refreshWindow()
   end
   if icon and icon.isOpen and not ns.util.inCombat() then presentNext() end
   if mine and offerFrame and offerFrame.isOpen and t - (matesAt or 0) >= MATE_REFRESH_SECONDS then
@@ -1165,8 +1332,10 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if event == "PLAYER_LOGIN" then
       ns.comm.register(PREFIX)
       frame:SetScript("OnUpdate", onUpdate)
+    elseif event == "PLAYER_REGEN_DISABLED" then
+      if noticeState and module.quiet() then noticeState = nil; module.refreshWindow() end
     elseif event == "PLAYER_REGEN_ENABLED" then
-      if not (banner and banner.isOpen) then presentNext() end
+      if not (banner and banner.callOpen) then presentNext() end
     elseif event == "UNIT_COMBAT" then
       if args[1] == "player" and args[2] == "WOUND" then module.noteDamage(args[4]) end
     elseif event == "DUEL_REQUESTED" then

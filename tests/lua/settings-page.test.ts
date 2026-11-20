@@ -143,7 +143,7 @@ describe("toggling a setting changes the value it always changed", () => {
     ["Online and offline lines: officers only", `tostring(GuildedDB.settings.chatEventsOfficersOnly)`, "true", "nil"],
     ["Weekly reminder to get the Windows companion", `tostring(GuildedDB.settings.companionReminder)`, "true", "false"],
     ["Show what changed since my last login", `tostring(GuildedDB.digest.enabled)`, "true", "false"],
-    ["Loud alert for calls in my zone", `tostring(GuildedDB.settings.helpDefender)`, "true", "false"],
+    ["Help guildmates", `tostring(GuildedDB.settings.helpGuildmates)`, "true", "false"],
     ["Play a sound", `tostring(GuildedDB.settings.helpSound)`, "true", "false"],
     ["Quiet in combat", `tostring(GuildedDB.settings.helpQuiet)`, "true", "false"],
     ["Post my calls in guild chat", `tostring(GuildedDB.settings.helpGuildChat)`, "true", "false"],

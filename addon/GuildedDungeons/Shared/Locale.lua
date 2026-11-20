@@ -3214,6 +3214,8 @@ local DE = {
   ["Guild realm changed from \"%s\" to \"%s\": your saved data was kept (same guild name)."] = "Gildenrealm von \226\128\158%s\226\128\156 zu \226\128\158%s\226\128\156 ge\195\164ndert: Deine gespeicherten Daten wurden behalten (gleicher Gildenname).",
   ["Saved data under %s was merged into %s (%d sections). EP/GP stays under the old name. /reload is recommended."] = "Unter %s gespeicherte Daten wurden in %s zusammengef\195\188hrt (%d Abschnitte). EP/GP bleiben unter dem alten Namen. /reload wird empfohlen.",
   ["Guild changed: now using the saved data for %s (%s). Data for %s is kept and comes back if you play there. /reload is recommended."] = "Gilde gewechselt: Es werden die gespeicherten Daten f\195\188r %s verwendet (%s). Die Daten f\195\188r %s bleiben erhalten und kommen zur\195\188ck, wenn du dort spielst. /reload wird empfohlen.",
+  ["restored"] = "wiederhergestellt",
+  ["new"] = "neu",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -5448,6 +5450,8 @@ local ES = {
   ["Guild realm changed from \"%s\" to \"%s\": your saved data was kept (same guild name)."] = "El reino de la hermandad cambi\195\179 de \"%s\" a \"%s\": se conservaron tus datos guardados (mismo nombre de hermandad).",
   ["Saved data under %s was merged into %s (%d sections). EP/GP stays under the old name. /reload is recommended."] = "Los datos guardados en %s se fusionaron en %s (%d secciones). EP/GP siguen bajo el nombre antiguo. Se recomienda /reload.",
   ["Guild changed: now using the saved data for %s (%s). Data for %s is kept and comes back if you play there. /reload is recommended."] = "Hermandad cambiada: se usan los datos guardados de %s (%s). Los datos de %s se conservan y vuelven si juegas all\195\173. Se recomienda /reload.",
+  ["restored"] = "restaurados",
+  ["new"] = "nuevos",
 }
 -- END ES
 
@@ -6839,3 +6843,5 @@ FR["Your character line (also shown in a box to copy): %s"] = "Votre ligne de pe
 FR["Guild realm changed from \"%s\" to \"%s\": your saved data was kept (same guild name)."] = "Le royaume de la guilde est pass\195\169 de \194\171 %s \194\187 \195\160 \194\171 %s \194\187 : vos donn\195\169es ont \195\169t\195\169 conserv\195\169es (m\195\170me nom de guilde)."
 FR["Saved data under %s was merged into %s (%d sections). EP/GP stays under the old name. /reload is recommended."] = "Les donn\195\169es enregistr\195\169es sous %s ont \195\169t\195\169 fusionn\195\169es dans %s (%d sections). Les EP/GP restent sous l'ancien nom. Un /reload est conseill\195\169."
 FR["Guild changed: now using the saved data for %s (%s). Data for %s is kept and comes back if you play there. /reload is recommended."] = "Guilde chang\195\169e : utilisation des donn\195\169es enregistr\195\169es pour %s (%s). Les donn\195\169es de %s sont conserv\195\169es et reviennent si vous y jouez. Un /reload est conseill\195\169."
+FR["restored"] = "restaur\195\169es"
+FR["new"] = "nouvelles"

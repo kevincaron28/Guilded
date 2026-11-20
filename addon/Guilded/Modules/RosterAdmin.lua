@@ -12,7 +12,8 @@ local CONTENT_WIDTH = 650
 
 function ns.openRosterAdmin()
   if not ns.rosterTools.authorized() then ns.message(ns.rosterTools.accessMessage()); return end
-  if window then window:Show(); return end
+  local function place(frame) if ns.util and ns.util.placeBeside then ns.util.placeBeside(frame) end end
+  if window then window:Show(); place(window); return end
   local f = CreateFrame("Frame", "GuildedRosterAdmin", UIParent, "BasicFrameTemplateWithInset")
   window = f; f:SetSize(720, 580); f:SetPoint("CENTER"); f:SetMovable(true); f:EnableMouse(true)
   if f.SetClampedToScreen then f:SetClampedToScreen(true) end
@@ -21,6 +22,8 @@ function ns.openRosterAdmin()
   if f.TitleText then f.TitleText:SetText(L("Roster admin")) end
   -- Escape closes the window like any other Blizzard panel.
   if type(UISpecialFrames) == "table" then table.insert(UISpecialFrames, "GuildedRosterAdmin") end
+  -- Beside the Guilded main window (and any other officer window), never on top of it.
+  place(f)
 
   local scroll = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
   scroll:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -32); scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -32, 50)

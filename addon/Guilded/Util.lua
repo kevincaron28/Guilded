@@ -111,6 +111,52 @@ function util.keepApart(frame, other, gap)
   return ok
 end
 
+-- Officer windows (Roster admin, Ready to promote, Invite queue) never cover each other or the main Guilded window.
+-- `util.placeBeside(frame)` puts `frame` next to the windows that are shown (right side first, then left), clamped to the
+-- screen, top aligned with the first of them. With no room it centres over the biggest one (the others stay apart
+-- from a frame placed fully on top). Absolute offsets from UIParent, never anchored to another window.
+util.OFFICER_WINDOWS = { "GuildedPanel", "GuildedRosterAdmin", "GuildedPromotionPanel", "GuildedInviteQueuePanel" }
+function util.placeBeside(frame, gap)
+  if not (frame and frame.GetWidth and UIParent and UIParent.GetWidth) then return false end
+  gap = gap or 8
+  local w, h = frame:GetWidth(), frame:GetHeight()
+  local sw, sh = UIParent:GetWidth(), UIParent:GetHeight()
+  if not (type(w) == "number" and type(h) == "number" and type(sw) == "number" and type(sh) == "number") then return false end
+  local others = {}
+  for _, name in ipairs(util.OFFICER_WINDOWS) do
+    local o = _G[name]
+    if o and o ~= frame and o.IsShown and o:IsShown() then
+      local l, r, t, b = cardRect(o)
+      if l then others[#others + 1] = { l = l, r = r, t = t, b = b } end
+    end
+  end
+  if #others == 0 then return false end
+  local function free(l, t)
+    if l < 0 or l + w > sw or t > sh or t - h < 0 then return false end
+    for _, o in ipairs(others) do
+      if l < o.r and l + w > o.l and t > o.b and t - h < o.t then return false end
+    end
+    return true
+  end
+  local top = math.min(others[1].t, sh)
+  if top - h < 0 then top = h end
+  local spots = {}
+  for _, o in ipairs(others) do spots[#spots + 1] = { o.r + gap, top }; spots[#spots + 1] = { o.l - w - gap, top } end
+  local left, spotTop
+  for _, c in ipairs(spots) do if free(c[1], c[2]) then left, spotTop = c[1], c[2]; break end end
+  if not left then
+    local big = others[1]
+    for _, o in ipairs(others) do if (o.r - o.l) * (o.t - o.b) > (big.r - big.l) * (big.t - big.b) then big = o end end
+    left = math.max(0, math.min(sw - w, (big.l + big.r) / 2 - w / 2))
+    spotTop = math.max(h, math.min(sh, (big.t + big.b) / 2 + h / 2))
+  end
+  local ok = pcall(function()
+    frame:ClearAllPoints()
+    frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, spotTop)
+  end)
+  return ok
+end
+
 util.COMPANION_PAGE = "https://guildedwow.com/companion/"
 util.COMPANION_DOWNLOAD = "https://guildedwow.com/downloads/Guilded.Companion.Setup.exe"
 function util.companionSteps()

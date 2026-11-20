@@ -1,5 +1,26 @@
 # Changelog
 
+## 9.4.4 — 20 November 2026
+
+Prepared 20 November 2026, not yet published. Checked in game on 20 November on one officer character (see docs/V9_4_4_RELEASE_ACCEPTANCE.md).
+
+Addon:
+
+- First-time setup window (`/guilded setup`): the companion, the Guilded chat tab and a few options in five steps (#1175, #1187).
+- Promotion window: alts are named as alts and go to the Alt rank; a main/alt swap gives the new main the old main's rank (#1177).
+- Crafting tab: scrolling lists, favourites, a real "Crafter online now" checkbox, a detail pane that fits, recipe names in your game's language (#1176, #1187, #1188).
+- Exact character ids: the addon sends each character's game id with the roster, runs, duels and its own characters, so characters with the same first name are never mixed up (#1189).
+- Carried runs keep the lowest party level, so cards stop saying "party levels unknown" (#1171).
+- French: vous everywhere and 106 more chat lines translated (#1172); Quebec vocabulary (#1180).
+
+Companion:
+
+- Sends the character ids and recognises its own runs by id (#1189).
+
+Bot (already live):
+
+- Character ids stored and matched first, always on (#1183, #1186); Armory roster on the guild page (#1178); promotion cards in the community chat, spread through the day (#1174, #1182); dungeon names in English on every card (#1185); vous across the bot (#1170); no more fontconfig warning (#1179); the website retries the bot (#1169, #1181).
+
 ## 9.4.3 — 20 November 2026
 
 Published 20 November 2026. Not yet confirmed on real clients (see docs/V9_4_3_RELEASE_ACCEPTANCE.md).

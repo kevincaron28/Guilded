@@ -63,6 +63,6 @@ export async function renderPromotionCard(card: ScoreCard): Promise<Buffer | nul
 /** The card definition for one promotion (stored on the Discord job, drawn at delivery). */
 export function promotionCard(lang: Lang, input: { name: string; character: string; rank: string }): ScoreCard {
   const fr = lang === "fr", kicker = fr ? "Félicitations !" : "Congratulations!", rankLabel = fr ? "Nouveau rang :" : "New rank:";
-  return { title: kicker, subtitle: `${input.name} · ${input.rank}`, stats: [], footer: fr ? "Guilded · Promotion vue dans le jeu · guildedwow.com" : "Guilded · Promotion seen in game · guildedwow.com",
+  return { title: kicker, subtitle: `${input.name} · ${input.rank}`, stats: [], footer: fr ? "Promotion vue dans le jeu" : "Promotion seen in game",
     promotion: { tier: promotionTier(input.rank), kicker, name: input.name, character: input.character, rankLabel, rank: input.rank } };
 }

@@ -172,6 +172,19 @@ describe("the delivery step: a dungeon run", () => {
   });
 });
 
+describe("the delivery step: a guild record card", () => {
+  it("adds Armory portraits to the record party, and draws the card with and without them", async () => {
+    const { recordCard } = await import("../src/services/record-card.js");
+    const item = { kind: "clear", key: "c", instanceId: 36, difficultyId: 1, dungeonName: "The Deadmines", players: ["Kev Caron"], valueSec: 1302, previousSec: 1400, previousPlayers: ["Old Holder"] } as never;
+    const card = recordCard(run, item, "en");
+    const after = await withArmoryCardPortraits(fakeDb() as never, await renders([KEV, MEL]), "g1", card);
+    expect(after.record!.party.slice(0, 2).every(member => member.portrait)).toBe(true);
+    expect(after.record!.party.slice(2).some(member => member.portrait)).toBe(false);
+    isPng(await scoreCardPng(after)); isPng(await scoreCardPng(card));
+    expect(await withArmoryCardPortraits(fakeDb() as never, portraitsFrom(new Map()), "g1", card)).toEqual(card);
+  });
+});
+
 describe("member-uploaded pictures are gone", () => {
   const kit = { page: (status: number, title: string, body: string) => ({ status, headers: {}, body: `${title}${body}` }) } as never;
   const ctx = (path: string, lang = "en") => ({ request: { path, method: "GET" }, lang, t: (en: string, fr: string) => lang === "fr" ? fr : en }) as never;

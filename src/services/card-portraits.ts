@@ -57,13 +57,29 @@ async function withPartyPortraits(db: Db, portraits: CharacterPortraits, guildId
   return { ...card, dungeon: { ...card.dungeon!, party: party.map((member, index) => images.has(index) ? { ...member, portrait: images.get(index)! } : member) } };
 }
 
+async function withRecordPortraits(db: Db, portraits: CharacterPortraits, guildId: string, card: ScoreCard, now: () => number, deadline: number): Promise<ScoreCard> {
+  const record = card.record!, party = record.party.slice(0, MAX_ROWS);
+  const slots = party.flatMap((member, index) => member.guild && member.character ? [{ index, name: bareName(member.character) }] : []);
+  const found = await pool(slots, CARD_PORTRAIT_CONCURRENCY, deadline, now, async (slot) => {
+    const id = await findCharacterWowId(db, guildId, slot.name).catch(() => null);
+    return armoryFor(portraits, id, slot.name);
+  });
+  const images = new Map<number, string>();
+  slots.forEach((slot, i) => { const image = found[i]; if (image) images.set(slot.index, image.toString("base64")); });
+  if (!images.size) return card;
+  return { ...card, record: { ...record, party: record.party.map((member, index) => images.has(index) ? { ...member, portrait: images.get(index)! } : member) } };
+}
+
 /** The card with Armory portraits where they fit; the card itself (unchanged) when nothing applies or anything fails or runs late. */
 export async function withArmoryCardPortraits(db: Db, portraits: CharacterPortraits, guildId: string, card: ScoreCard, cardMember?: string, options: { budgetMs?: number; now?: () => number } = {}): Promise<ScoreCard> {
   const now = options.now ?? Date.now, budget = options.budgetMs ?? CARD_PORTRAIT_BUDGET_MS, deadline = now() + budget;
   const wantsParty = Boolean(card.dungeon && !card.dungeon.pvp && card.dungeon.party.some(member => member.guild && member.character));
+  // The guild record card (21 Nov 2026) shows its party of up to five as round portraits.
+  const wantsRecord = Boolean(card.record?.party.some(member => member.guild && member.character));
   const wantsMember = Boolean(cardMember && !card.dungeon && !card.ladder && !card.roster && !card.promotion);
-  if (!wantsParty && !wantsMember) return card;
+  if (!wantsParty && !wantsMember && !wantsRecord) return card;
   const work = async (): Promise<ScoreCard> => {
+    if (wantsRecord && card.record) return withRecordPortraits(db, portraits, guildId, card, now, deadline);
     if (wantsParty) return withPartyPortraits(db, portraits, guildId, card, now, deadline);
     const main = await mainCharacter(db, guildId, cardMember!);
     if (!main) return card;

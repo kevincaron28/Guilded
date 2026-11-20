@@ -2,6 +2,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags, type Button
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, t, type Lang } from "../i18n.js";
 import { hasPermission } from "../permissions.js";
+import { quebecLine } from "./fr-quebec-voice.js";
 import { notifyInviters } from "./invite-notify.js";
 import { DONE_BUTTON, requestInviteRow, submitInviteRequest, withWhoTip } from "./invite-request.js";
 import { extractInviteName, isFiller } from "./invite-name.js";
@@ -15,6 +16,11 @@ import { foldKey, knownRealms, stripRealm, markInvitedByMessage, markInvitedByNa
 // intent (MESSAGE_CONTENT_INTENT=true): without it the channel is simply not watched.
 
 const DOUBLE_BREAK = String.fromCharCode(10, 10);
+/** The note that replaces the "please invite" message once the member is in the guild (French rotates in the gang voice). */
+function inviteDoneNote(lang: Lang, row: { id: string; displayName: string }): string {
+  return lang === "fr" ? quebecLine("joined", row.id, { name: row.displayName }) : t(lang, "invite.done.note", { name: row.displayName });
+}
+
 export { SEEN };
 export const DONE = "✅";
 const HINT_LIFETIME_MS = 45_000;
@@ -154,10 +160,10 @@ export async function markPostsDone(client: Pick<Client, "channels" | "user">, r
       let noted = false;
       if (row.notifyMessageId) {
         const note = await channel.messages.fetch(row.notifyMessageId).catch(() => null);
-        if (note && note.author?.id === client.user?.id) { await note.edit({ content: t(lang, "invite.done.note", { name: row.displayName }), allowedMentions: { parse: [] } }).catch(() => undefined); noted = true; }
+        if (note && note.author?.id === client.user?.id) { await note.edit({ content: inviteDoneNote(lang, row), allowedMentions: { parse: [] } }).catch(() => undefined); noted = true; }
       }
       if (!own && !noted) {
-        const thanks = await post.reply({ content: t(lang, "invite.done.note", { name: row.displayName }), allowedMentions: { parse: [], repliedUser: false } }).catch(() => null);
+        const thanks = await post.reply({ content: inviteDoneNote(lang, row), allowedMentions: { parse: [], repliedUser: false } }).catch(() => null);
         // Remembered so the clean-up (invite-cleanup.ts) removes it by id.
         if (thanks && database) await database.inviteRequest.updateMany({ where: { id: row.id }, data: { doneNoteMessageId: thanks.id } }).catch(() => undefined);
       }

@@ -1,4 +1,5 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, escapeMarkdown } from "discord.js";
+import { quebecLine } from "./fr-quebec-voice.js";
 import { t, type Lang } from "../i18n.js";
 import { achievementName } from "./dungeon-achievements.js";
 import { highlightHeadline, highlightText } from "./dungeon-records.js";
@@ -10,6 +11,13 @@ import type { ScoreCard } from "./score-card.js";
 import { recordItems } from "./record-card.js";
 
 /** Button on a run post: shows the boss chronology to whoever asks, privately. */
+/** A record line: French rotates in the gang voice (stable per dungeon and time), English keeps its fixed text. */
+function recordLine(lang: Lang, kind: "guildRecord" | "personalBest", run: Parameters<typeof runLabel>[0], vars: Record<string, string>): string {
+  const dungeon = runLabel(run, lang);
+  if (lang === "fr") return quebecLine(kind, `${dungeon}:${vars["now"] ?? vars["names"] ?? ""}`, { dungeon, ...vars });
+  return t(lang, kind === "guildRecord" ? "dungeon.post.guildRecord" : "dungeon.post.personal", { dungeon, ...vars });
+}
+
 export const DUNGEON_TIMELINE_PREFIX = "dgtl:";
 
 export { unrankedLabel };
@@ -89,10 +97,10 @@ export function dungeonCardOnly(run: DungeonImportResult, lang: Lang): { content
   const others = (run.highlights ?? []).filter(item => item.kind !== "clear" && item.kind !== "first");
   for (const item of others.slice(0, 6)) lines.push(highlightText(item, lang));
   if (!recordCardFollows && run.guildRecord && run.previousGuildBest !== null) {
-    lines.push(t(lang, "dungeon.post.guildRecord", { dungeon: runLabel(run, lang), before: formatDuration(run.previousGuildBest), now: formatDuration(run.durationSec as number) }));
+    lines.push(recordLine(lang, "guildRecord", run, { before: formatDuration(run.previousGuildBest), now: formatDuration(run.durationSec as number) }));
   }
   const personal = run.personalRecords.filter((record) => members.has(record.character));
-  if (personal.length) lines.push(t(lang, "dungeon.post.personal", { dungeon: runLabel(run, lang), names: personal.map((record) => run.fullNames?.[record.character] ?? record.character).join(", ") }));
+  if (personal.length) lines.push(recordLine(lang, "personalBest", run, { names: personal.map((record) => run.fullNames?.[record.character] ?? record.character).join(", ") }));
   const earned = new Map<string, string[]>();
   for (const achievement of run.achievements) {
     if (!members.has(achievement.character)) continue;
@@ -155,10 +163,10 @@ function dungeonEmbed(run: DungeonImportResult, lang: Lang): EmbedBuilder {
   // 9.1 records and challenges: the clear record keeps its own line below; boss records and challenges are listed here.
   for (const item of (run.highlights ?? []).filter(item => item.kind !== "clear").slice(0, 6)) lines.push(highlightText(item, lang));
   if (run.guildRecord && run.previousGuildBest !== null) {
-    lines.push(t(lang, "dungeon.post.guildRecord", { dungeon: runLabel(run, lang), before: formatDuration(run.previousGuildBest), now: formatDuration(run.durationSec as number) }));
+    lines.push(recordLine(lang, "guildRecord", run, { before: formatDuration(run.previousGuildBest), now: formatDuration(run.durationSec as number) }));
   }
   const personal = run.personalRecords.filter((record) => members.has(record.character));
-  if (personal.length) lines.push(t(lang, "dungeon.post.personal", { dungeon: runLabel(run, lang), names: personal.map((record) => run.fullNames?.[record.character] ?? record.character).join(", ") }));
+  if (personal.length) lines.push(recordLine(lang, "personalBest", run, { names: personal.map((record) => run.fullNames?.[record.character] ?? record.character).join(", ") }));
   const earned = new Map<string, string[]>();
   for (const achievement of run.achievements) {
     if (!members.has(achievement.character)) continue;

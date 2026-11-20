@@ -9,7 +9,7 @@ WoW Forever (level cap 60) launched 4 November 2026; its first raids open 9 Dece
 Guilded supports WoW Forever only (the other editions were removed 7 November) and PoE2 is hidden ([WoW Forever only](docs/FOREVER_ONLY_FOCUS.md)).
 Release history: [CHANGELOG.md](CHANGELOG.md). Older roadmap text, including every finished
 request list: [roadmap history](docs/archive/ROADMAP-history.md).
-Latest (19 November 2026): 9.4.1 is published; 9.4.2 (data-loss audit fixes) is next. See "Start here — 19 November 2026".
+Latest (19 November 2026): 9.4.2 (data-loss audit fixes) is published. See "Start here — 19 November 2026".
 
 ## 9.4 — owner list of 19 November 2026
 
@@ -43,7 +43,7 @@ Every open item was checked against main. Result: nothing from the 9.4 list or t
 
 **Still open, code (Claude can do these):**
 - **In progress (claude/roadmap-open-items):** SEO3, SEO4, R2.6, R2.7, S7 follow-ups. Main already has the first pass of SEO3, SEO4 and S7 (PRs above); R2.6 (mobile app page) and R2.7 (visual regression in CI) are not on main yet.
-- **T1.5 "answer first, work after":** the upload still answers after the main work; only the standing background guard exists. Not built.
+- **T1.5 "answer first, work after":** built: the apply of an upload is answered after a 2.5 s grace as "received, applying", applies never overlap per guild, failures are logged, told and retried, and a PREVIEWED import left by a restart is applied again when the companion resends it.
 - **T2 rollback and delta updates:** not built. Release signing waits for an owner decision (where the private key is kept).
 - **T8C (move a character to another Discord server):** deliberately later, after Make main and Unlink have run in production.
 - **T9 Blizzard character pictures:** blocked until Blizzard's Forever profile API opens (`scripts/probe-forever-profile-api.ts`); our own character card is live.

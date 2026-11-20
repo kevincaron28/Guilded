@@ -20,7 +20,7 @@ vi.mock("../src/services/audit.js", async (original) => ({
   createAuditService: () => ({ record: async () => undefined })
 }));
 
-import { autoApplyImportWith, createUploadTimer, craftRequestNeedsPost, inBackground, inGuildBackground, raceDeadline, startApplyLane } from "../src/companion-api.js";
+import { applyWaitMs, runGuildApply, autoApplyImportWith, createUploadTimer, craftRequestNeedsPost, inBackground, inGuildBackground, raceDeadline, startApplyLane } from "../src/companion-api.js";
 import { snapshotChecksum } from "../src/services/addon-import.js";
 
 describe("uploads never wait on Discord", () => {
@@ -182,5 +182,41 @@ describe("the upload timing line with concurrent lanes", () => {
     expect(line).toMatch(/ lanes=(bank~2\d\d,craft~2\d\d|craft~2\d\d,bank~2\d\d) phases=lanes:\d+,other:\d+$/);
     const phases = [...(/phases=(.*)$/.exec(line)?.[1] ?? "").matchAll(/:(\d+)/g)].reduce((n, m) => n + Number(m[1]), 0);
     expect(Math.abs(phases - Number(/total=(\d+)/.exec(line)?.[1]))).toBeLessThanOrEqual(1);
+  });
+});
+
+describe("T1.5 answer first, apply after", () => {
+  const tick = (ms = 10) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  it("the answer comes back at the grace while a slow apply keeps running; a failure is the outcome, not the response", async () => {
+    let release!: () => void;
+    const slow = runGuildApply("g-slow", async () => { await new Promise<void>((resolve) => { release = resolve; }); return "applied"; });
+    const started = Date.now();
+    expect(await raceDeadline(slow, 30)).toBeNull();
+    expect(Date.now() - started).toBeLessThan(500);
+    release();
+    expect(await slow).toBe("applied");
+    const failing = runGuildApply("g-fail", async () => { throw new Error("P2028"); });
+    await expect(failing).rejects.toThrow("P2028");
+    // A failed apply does not block the guild's next one.
+    expect(await runGuildApply("g-fail", async () => "next")).toBe("next");
+    expect(applyWaitMs()).toBeLessThanOrEqual(3_000);
+  });
+
+  it("applies for one guild never overlap (others run), in arrival order", async () => {
+    const log: string[] = [];
+    let release!: () => void;
+    const first = runGuildApply("g1", async () => { log.push("a-start"); await new Promise<void>((resolve) => { release = resolve; }); log.push("a-end"); });
+    const second = runGuildApply("g1", async () => { log.push("b-start"); log.push("b-end"); });
+    const other = runGuildApply("g2", async () => { log.push("other"); });
+    await other; await tick();
+    expect(log).toEqual(["a-start", "other"]);
+    release(); await first; await second;
+    expect(log).toEqual(["a-start", "other", "a-end", "b-start", "b-end"]);
+  });
+
+  it("the receipts are unchanged: the apply result still carries the counts the companion shows", async () => {
+    const out = await runGuildApply("g3", async () => ({ epgp: 2, discovered: 1, held: 0, voided: 0, rejected: 0 }));
+    expect(out).toEqual({ epgp: 2, discovered: 1, held: 0, voided: 0, rejected: 0 });
   });
 });

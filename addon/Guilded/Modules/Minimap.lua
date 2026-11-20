@@ -284,13 +284,13 @@ end
 
 local function needPlayer()
   local name = selectedPlayer()
-  if not name then ns.message("Pick a player first: target them, or use Me / Group... next to Player.") end
+  if not name then ns.message(L("Pick a player first: target them, or use Me / Group... next to Player.")) end
   return name
 end
 
 local function amount()
   local n = tonumber(ui.amountBox and ui.amountBox:GetText() or "")
-  if not n or n <= 0 then ns.message("Enter an amount first.") end
+  if not n or n <= 0 then ns.message(L("Enter an amount first.")) end
   return n and n > 0 and n or nil
 end
 
@@ -310,7 +310,7 @@ local function fillFromTarget()
   if UnitExists("target") and UnitIsPlayer("target") then
     setPlayer(ns.util.unitKey("target"))
   else
-    ns.message("Target a player first.")
+    ns.message(L("Target a player first."))
   end
 end
 
@@ -397,11 +397,11 @@ local function buildRaidPage(page)
   at(newLabel(page, "Boss"), page, 0, -66)
   ui.bossName = at(newEdit(page, 170), page, 86, -62)
   at(newButton(page, "Target", 90, function()
-    if UnitExists("target") then ui.bossName:SetText((UnitName("target"))) else ns.message("Target the boss first.") end
+    if UnitExists("target") then ui.bossName:SetText((UnitName("target"))) else ns.message(L("Target the boss first.")) end
   end), page, 266, -62)
   at(newButton(page, "Record kill", 80, function()
     local boss = ui.bossName:GetText()
-    if boss == "" then ns.message("Type or target the boss first."); return end
+    if boss == "" then ns.message(L("Type or target the boss first.")); return end
     run("boss " .. boss)
   end), page, 360, -62)
 
@@ -431,13 +431,13 @@ local function buildRaidPage(page)
   ui.raidNote = at(newEdit(page, 260), page, 86, -196)
   at(newButton(page, "Add note", 110, function()
     local text = ui.raidNote:GetText()
-    if text == "" then ns.message("Type the note first."); return end
+    if text == "" then ns.message(L("Type the note first.")); return end
     run("note " .. text)
     ui.raidNote:SetText("")
   end), page, 352, -196)
   tip(at(newButton(page, "Save as template", 140, function()
     local name = ui.raidName:GetText()
-    if name == "" then ns.message("Type the template's name in Raid name first."); return end
+    if name == "" then ns.message(L("Type the template's name in Raid name first.")); return end
     run("template save " .. string.gsub(string.lower(name), "%s+", "-") .. " " .. name)
   end), page, 0, -234), "Saves the raid name with the selected raid core. Next time, type that name and Start raid.")
   at(newButton(page, "Templates", 90, function() run("template list") end), page, 146, -234)
@@ -515,12 +515,12 @@ local function buildLootPage(page)
 
   local function item()
     local text = ui.itemBox:GetText()
-    if text == "" then ns.message("Put the item in the Item box first (shift-click it).") end
+    if text == "" then ns.message(L("Put the item in the Item box first (shift-click it).")) end
     return text ~= "" and text or nil
   end
   local function minGp()
     local n = tonumber(ui.minGpBox:GetText())
-    if not n then ns.message("Enter a minimum GP.") end
+    if not n then ns.message(L("Enter a minimum GP.")) end
     return n
   end
 
@@ -656,7 +656,7 @@ local function buildCalendarPage(page)
   ui.calendarStatus = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -70)
   ui.calendarStatus:SetWidth(PAGE_WIDTH)
   at(newButton(page, "Scan the calendar", 150, function()
-    if ns.calendar then ns.message("Reading the guild calendar..."); ns.calendar.sync(false) end
+    if ns.calendar then ns.message(L("Reading the guild calendar...")); ns.calendar.sync(false) end
   end), page, 0, -32)
   at(newButton(page, "Sync next missing event", 200, function()
     if ns.calendar then ns.calendar.createMissing() end
@@ -669,7 +669,7 @@ local function buildReservePage(page)
   ui.reserveItemBox = itemBox(at(newEdit(page, 400), page, 6, -18))
   local function itemText()
     local text = ui.reserveItemBox:GetText()
-    if text == "" then ns.message("Put the item in the Item box first (shift-click it).") end
+    if text == "" then ns.message(L("Put the item in the Item box first (shift-click it).")) end
     return text ~= "" and text or nil
   end
   at(newButton(page, "Reserve", 90, function()
@@ -730,7 +730,7 @@ local function buildCouncilPage(page)
 
   at(newButton(page, "Open council", 110, function()
     local text = ui.councilItemBox:GetText()
-    if text == "" then ns.message("Put the item in the Item box first (shift-click it).") return end
+    if text == "" then ns.message(L("Put the item in the Item box first (shift-click it).")) return end
     run("council start " .. text .. " " .. ui.councilSeconds)
   end), page, 0, -80)
   at(newButton(page, "Close now", 90, function() run("council close") end), page, 114, -80)
@@ -922,7 +922,7 @@ local function buildMePage(page)
   ui.attuneBox = at(newEdit(attuneBlock, 200), attuneBlock, 6, -52)
   local function attune(clear)
     local key = string.gsub(ui.attuneBox:GetText(), '"', "")
-    if key == "" then ns.message("Pick or type an attunement first."); return end
+    if key == "" then ns.message(L("Pick or type an attunement first.")); return end
     local target = selectedPlayer()
     if ns.isOfficer() and target and target ~= ns.playerName() then
       run('attune ' .. target .. ' "' .. key .. '"' .. (clear and " clear" or ""))

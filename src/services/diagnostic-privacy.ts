@@ -51,6 +51,19 @@ export function discordRequestShape(error: unknown): string {
   return ` [${typeof value.method === "string" && /^[A-Z]{3,7}$/.test(value.method) ? value.method : "?"} ${route.slice(0, 80)}; ${fields.join(", ") || "no field detail"}]`;
 }
 
+/**
+ * The database was unreachable or its pool was full: node-postgres throws a plain Error ("timeout exceeded when trying to
+ * connect", "Connection terminated unexpectedly") that carries no code and, once the message is dropped, shares the one
+ * Prisma stack in every job. One bad minute then filed a separate report per job (19-20 Nov 2026, ~40 kinds). Matching
+ * is on the message text only; nothing of it is stored.
+ */
+export function isDatabaseUnavailable(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const { code, message } = error as { code?: unknown; message?: unknown };
+  if (typeof code === "string" && /^(?:P1001|P1002|P1008|P1017|P2024|ECONNRESET|ECONNREFUSED|ETIMEDOUT|57P0[1-3])$/.test(code)) return true;
+  return typeof message === "string" && /timeout exceeded when trying to connect|Connection terminated|Client has encountered a connection error|server closed the connection|Can't reach database server|Timed out fetching a new connection|Unable to start a transaction in the given time|terminating connection/i.test(message);
+}
+
 /** Automatic failures never retain arbitrary exception messages, request bodies
  * or serialized objects. Class/code and basename+line frames identify the fault. */
 export function automaticDiagnostic(error: unknown): {message:string;stack:string|null} {

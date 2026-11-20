@@ -195,7 +195,9 @@ local finalBossFallbacks = {
   [36] = 2747,
   [389] = 2735,  -- Bazzalan, seen in the owner's Ragefire Chasm run of 5 Nov 2026
   [3065] = 3496,
-  [2970] = 3479  -- Min'loth the Serpent, last in both full clears of the Drowned City (10-14 Nov 2026)
+  [2970] = 3479,  -- Min'loth the Serpent, last in both full clears of the Drowned City (10-14 Nov 2026)
+  [3039] = 3451, -- Overseer Mugg, last boss in every complete Krol'dok Stronghold run (19 Nov 2026)
+  [2994] = 3409  -- Blazeroar, last boss of the Alcaz Prison run (19 Nov 2026)
 }
 
 -- Forever reports its own encounter ids (Ragefire Chasm 2732-2735, not the Classic Era
@@ -217,6 +219,8 @@ local foreverFinalBossNames = {
   [70]  = { "Archaedas" },
   [3065] = { "Durgen Dirgehammer" },
   [2970] = { "Min'loth the Serpent" },
+  [3039] = { "Overseer Mugg" },
+  [2994] = { "Blazeroar" },
   -- Forever-only dungeons, from the community guides of 7 Nov 2026 (no saved run yet; English
   -- names only until a French client reports them). Ruins of Lordaeron's secret boss Viktor
   -- the Vile and Dalaran's Lyn the Ignored are optional, so they do not end the run.

@@ -2,16 +2,19 @@ import { recordCommunityPoint, grantCommunityBadge } from "./community-badges.js
 import type { CommunityParticipationDay, Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { dateAfter, dayStart, HELPER_POINTS, HELPER_WEEKLY_APPROVALS, HELPER_WEEKLY_POINTS, MESSAGE_COOLDOWN_MS, participationDay, participationRules, participationWeek, VOICE_BLOCK_MS, voiceSegments, type ParticipationRules } from "./participation-rules.js";
 import { participationSummaryTotals } from "./participation-summary.js";
+import { retryTransientTransaction, SHORT_TRANSACTION } from "./transaction-retry.js";
 
 type Tx = Prisma.TransactionClient;
 const fail = (text: string): never => { throw new Error(text); };
 const json = (value: unknown) => value as Prisma.InputJsonValue;
 export function createParticipationService(database: PrismaClient) {
   // Share the community lock with wallets, season archives and event rewards.
-  const locked = <T>(guildId: string, work: (tx: Tx) => Promise<T>) => database.$transaction(async tx => {
+  // Like community.ts: when the pool is busy, fail the START after 8 s and retry it (voice checkpoint P2028, 19-20 Nov 2026:
+  // the default 30 s pool wait let waiting transactions pile up behind the lock and starve every other job's queries).
+  const locked = <T>(guildId: string, work: (tx: Tx) => Promise<T>) => retryTransientTransaction(() => database.$transaction(async tx => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`community:${guildId}`}, 0))`;
     return work(tx);
-  }, { timeout: 20_000 });
+  }, { ...SHORT_TRANSACTION, timeout: 20_000 }));
   const current = async (tx: Tx, guildId: string, seasonId: string, revision?: number, requireEnabled = true) => {
     const row = await tx.communityParticipationConfig.findFirst({ where: { seasonId, ...(requireEnabled ? { enabled: true } : {}), season: { guildId, game: "DISCORD", status: "ACTIVE" } }, include: { season: { include: { guild: { include: { settings: true } } } } } });
     if (!row || revision !== undefined && row.revision !== revision) return null;

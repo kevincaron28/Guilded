@@ -8,7 +8,7 @@ export const SOURCES = [
   "src/commands/setup.ts", "src/services/setup-status.ts", "src/commands/craft-board.ts", "src/commands/dungeon-group.ts",
   "src/commands/poll.ts", "src/services/raid-core.ts", "src/commands/wcl.ts",
   // 5.0
-  "src/services/dungeon-guide.ts", "src/commands/group-alerts.ts", "src/commands/faq.ts"
+  "src/services/dungeon-guide.ts", "src/commands/group-alerts.ts", "src/commands/faq.ts", "src/commands/core-planning.ts"
 ];
 
 const CALL = /\b(?:T|tx)\(\s*(?:\w+\s*,\s*)?("(?:[^"\\]|\\.)*")/g;

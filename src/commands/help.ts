@@ -29,7 +29,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "Also there when you need them: `/dungeon` · `/bank` · `/community` · `/epgp` · `/loot` · `/apply` · `/team` · `/bg` · `/participation` · `/tag` · `/poe`"
     ],
     fr: [
-      "**Nouveau ?** [guildedwow.com/start](https://guildedwow.com/start/?lang=fr) — installez l'addon, puis [le compagnon Windows](https://guildedwow.com/companion/?lang=fr) (« Guild Sync Companion » dans le Microsoft Store; il synchronise tout seul). Toutes les commandes : [guildedwow.com/reference](https://guildedwow.com/reference/?lang=fr)",
+      "**Nouveau ?** [guildedwow.com/start](https://guildedwow.com/start/?lang=fr) — installez l'addon, puis [le compagnon Windows](https://guildedwow.com/companion/?lang=fr) (« Guild Sync Companion » dans le Microsoft Store ; il synchronise tout seul). Toutes les commandes : [guildedwow.com/reference](https://guildedwow.com/reference/?lang=fr)",
       "`/character link` — liez vos personnages WoW : envoyez-moi en MP le nom complet du personnage, ou écrivez-le dans le salon d'invitation · `/character profile` · `/character privacy`",
       "`/promotion status` — ce qu'il vous reste avant le prochain rang",
       "`/craft request` — demander à un artisan · `/craft who` — qui peut le fabriquer",

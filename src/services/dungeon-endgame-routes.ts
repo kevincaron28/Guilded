@@ -12,8 +12,9 @@ import { ENDGAME_WINGS } from "./dungeon-rating.js";
 //   Thaurissan (the BRD route is the full clear to the Emperor, so its 70 minute target is a full clear, not the Ring of Law),
 //   Scholomance Darkmaster Gandling, The Drowned City Min'loth the Serpent (seen in real runs, map 2970).
 // Wing routes (Blackrock Spire, Dire Maul, Stratholme) share one map and are told apart by their last boss (ENDGAME_WINGS).
-// NOT included, because no map id is known and none is invented: Krol'dok Stronghold, Alcaz Prison, Blackmaw Hold, Shaper's Terrace
-// (`SEASON2_WAITING`). Add them to the reviewed rules file once a real run reports their map id, before Season 2 starts.
+// Krol'dok Stronghold (map 3039, final boss Overseer Mugg) and Alcaz Prison (map 2994, final boss Blazeroar) come from real guild runs
+// of 19 November 2026 (6 and 1 runs); their targets are generous guesses, measured runs take over through the usual formula.
+// NOT included, because no map id is known and none is invented: Blackmaw Hold, Shaper's Terrace (`SEASON2_WAITING`). Add them to the reviewed rules file once a real run reports their map id, before Season 2 starts.
 export const ENDGAME_RUN_REF = "season-2-endgame-2026-11-16";
 
 export interface EndgameRoute {
@@ -26,8 +27,10 @@ const wing = (instanceId: keyof typeof ENDGAME_WINGS, w: string) => `${instanceI
 
 export const SEASON2_ENDGAME_ROUTES: readonly EndgameRoute[] = [
   { planId: "drowned-city", key: "2970", instanceId: 2970, bracket: "30-44", min: 34, max: 42, minutes: 35, finalBoss: "Min'loth the Serpent" },
+  { planId: "kroldok-stronghold", key: "3039", instanceId: 3039, bracket: "30-44", min: 38, max: 44, minutes: 70, finalBoss: "Overseer Mugg" },
   { planId: "zulfarrak", key: "209", instanceId: 209, bracket: "45-59", min: 45, max: 54, minutes: 40, finalBoss: "Chief Ukorz Sandscalp" },
   { planId: "maraudon", key: "349", instanceId: 349, bracket: "45-59", min: 46, max: 55, minutes: 50, finalBoss: "Princess Theradras" },
+  { planId: "alcaz-prison", key: "2994", instanceId: 2994, bracket: "45-59", min: 48, max: 56, minutes: 60, finalBoss: "Blazeroar" },
   { planId: "sunken-temple", key: "109", instanceId: 109, bracket: "45-59", min: 50, max: 59, minutes: 45, finalBoss: "Shade of Eranikus" },
   { planId: "blackrock-depths", key: "230", instanceId: 230, bracket: "60", min: 60, max: 60, minutes: 70, finalBoss: "Emperor Dagran Thaurissan" },
   { planId: "lower-blackrock-spire", key: wing(229, "lower"), instanceId: 229, bracket: "60", min: 60, max: 60, minutes: 70 },
@@ -41,7 +44,7 @@ export const SEASON2_ENDGAME_ROUTES: readonly EndgameRoute[] = [
 ];
 
 /** Plan dungeons of levels 30-60 whose map id nobody has observed yet: no route can exist for them (a rated route needs its map id). */
-export const SEASON2_WAITING: readonly { id: string; reason: string }[] = ["kroldok-stronghold", "alcaz-prison", "blackmaw-hold", "shapers-terrace"]
+export const SEASON2_WAITING: readonly { id: string; reason: string }[] = ["blackmaw-hold", "shapers-terrace"]
   .map(id => ({ id, reason: "Map id not known yet: add it to the reviewed rules before Season 2 starts" }));
 
 /** Names of the last boss of a wing route, from ENDGAME_WINGS. */

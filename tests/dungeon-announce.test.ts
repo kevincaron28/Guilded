@@ -28,7 +28,7 @@ describe("dungeonPosts", () => {
       result({ runRef: "A", dungeonName: "Wailing Caverns" }), result({ runRef: "B", dungeonName: "Wailing Caverns" }),
       result({ runRef: "C", dungeonName: "Ragefire Chasm" }), result({ runRef: "D", state: "ABANDONED" }), result({ runRef: "E", valid: false })), "fr");
     expect(posts.map((post) => post.runRef)).toEqual(["A", "B", "C"]);
-    expect(posts.map((post) => post.card.title)).toEqual(["Cavernes des lamentations", "Cavernes des lamentations", "Gouffre de Ragefeu"]); // French cards use the French dungeon name
+    expect(posts.map((post) => post.card.title)).toEqual(["Wailing Caverns", "Wailing Caverns", "Ragefire Chasm"]); // French cards keep the English dungeon name
     for (const post of posts) expect(post.embed.toJSON().description!.length).toBeLessThan(1500);
   });
   it("keeps the embed short: no repeated speed-rating line, no per-player blocks", () => {
@@ -103,10 +103,10 @@ describe("dungeonPosts", () => {
   it("lists the records a run set and marks test runs", () => {
     const run = result({ runRef: "SIM-1790000000-abcde", guildRecord: true, previousGuildBest: 1500, personalRecords: [{ character: "Kev", previous: 1500, now: 1300 }, { character: "Bob", previous: 1, now: 0 }], unlinked: ["Bob"] });
     const embed = dungeonPosts(summary(run), "fr")[0]!.embed.toJSON();
-    expect(embed.title).toBe("✅ [TEST] Les Mortemines (Normal)");
-    expect(embed.description).toContain("Nouveau record de guilde dans **[TEST] Les Mortemines (Normal)** : 25:00 → **21:40**");
-    expect(embed.description).toContain("Record personnel dans [TEST] Les Mortemines (Normal) : Kev");
-    expect(embed.description).not.toContain("Record personnel dans [TEST] Les Mortemines (Normal) : Kev, Bob");
+    expect(embed.title).toBe("✅ [TEST] Deadmines (Normal)");
+    expect(embed.description).toContain("Nouveau record de guilde dans **[TEST] Deadmines (Normal)** : 25:00 → **21:40**");
+    expect(embed.description).toContain("Record personnel dans [TEST] Deadmines (Normal) : Kev");
+    expect(embed.description).not.toContain("Record personnel dans [TEST] Deadmines (Normal) : Kev, Bob");
   });
 });
 

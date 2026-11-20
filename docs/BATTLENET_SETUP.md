@@ -11,6 +11,12 @@ use the bot's own data and nothing else changes.
 > `BattleNetCharacter`) and are removed by **Delete my data**; nothing reads them any more.
 > See `docs/plans/FOREVER_ONLY_REMOVAL.md` (stage 4a).
 
+> **Update, 20 November 2026: the guild Armory answers for WoW Forever.** The Profile API now serves Forever with
+> `namespace=profile-forever-us` and an **empty realm segment**, for example
+> `GET https://us.api.blizzard.com/data/wow/guild//québec-gold/roster?namespace=profile-forever-us&locale=en_US`
+> (the slug keeps its accent; `quebec-gold` is a different guild). The bot reads each server's guild roster with the same
+> client-credentials app, see `docs/ARMORY_SYNC.md`. Member character discovery stays removed.
+
 ## Configuration
 
 Set these two values in the bot service's protected environment (names are read in `src/config.ts`):

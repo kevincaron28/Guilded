@@ -702,6 +702,7 @@ export function exportGuildData(database) {
       ...(typeof m.class === "string" && /^[A-Z]{1,20}$/.test(m.class) ? { class: m.class } : {}),
       ...(typeof m.rankName === "string" && m.rankName.trim() ? { rankName: m.rankName.trim().slice(0, 60) } : {}),
       ...(Number.isInteger(m.rankIndex) && m.rankIndex >= 0 && m.rankIndex < 20 ? { rankIndex: m.rankIndex } : {}),
+      ...(typeof m.guid === "string" && /^Player-\d+-[0-9A-Fa-f]+$/.test(m.guid) && m.guid.length <= 40 ? { guid: m.guid } : {}),
       online: m.online === true,
       ...(epoch(m.lastOnline) ? { lastOnline: m.lastOnline } : {})
     }));

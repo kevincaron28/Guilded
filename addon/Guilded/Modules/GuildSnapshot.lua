@@ -2,7 +2,7 @@
 -- companion so members who never install Guilded still reach Discord (docs/GUILD_DATA_INVENTORY.md).
 --
 --   db.guildSnapshot = { at, complete, count, members = { [key] = { level, class, rankName,
---     rankIndex, online, lastOnline } }, motd, info, textAt }
+--     rankIndex, online, lastOnline, guid } }, motd, info, textAt }
 --
 -- * Read from the game's own guild roster (GetGuildRosterInfo, GetGuildRosterLastOnline), so it
 --   covers every member, with or without the addon. At most once a minute.
@@ -82,7 +82,7 @@ function snapshot.read(force)
   if count < 1 then return nil end
   local members, kept = {}, 0
   for index = 1, math.min(count, MAX_MEMBERS) do
-    local ok, rawName, rankName, rankIndex, level, _, _, _, _, online, _, classFile = pcall(GetGuildRosterInfo, index)
+    local ok, rawName, rankName, rankIndex, level, _, _, _, _, online, _, classFile, _, _, _, _, _, guid = pcall(GetGuildRosterInfo, index)
     local key = ok and ns.normalizeName and ns.normalizeName(rawName) or nil
     if key and not secret(rawName) then
       if ns.util and ns.util.rememberDisplayName then ns.util.rememberDisplayName(rawName) end
@@ -92,6 +92,8 @@ function snapshot.read(force)
         class = type(classFile) == "string" and classFile:match("^%u+$") and #classFile <= 20 and classFile or nil,
         rankName = text(rankName, 60),
         rankIndex = (rank and rank >= 0 and rank < 20) and math.floor(rank) or nil,
+        -- (9.4) The player GUID (17th return of GetGuildRosterInfo): the exact key the Armory sync matches on.
+        guid = type(guid) == "string" and not secret(guid) and #guid <= 40 and guid:match("^Player%-%d+%-%x+$") and guid or nil,
         online = online and true or false,
         lastOnline = lastOnline(index, online, now)
       }

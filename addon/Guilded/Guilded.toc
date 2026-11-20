@@ -95,3 +95,4 @@ Modules\LootImports.lua
 Modules\SettingsPage.lua
 Modules\Minimap.lua
 Modules\Options.lua
+Modules\FirstRunSetup.lua

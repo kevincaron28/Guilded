@@ -9,6 +9,8 @@ import { gameEditionOf } from "./game-edition.js";
 import { editionHref } from "../../site/nav.mjs";
 import type { GuildDungeonSummary } from "./public-leaderboard.js";
 import { clearLeaderboardCaches, registerLeaderboardCache } from "./leaderboard-cache-hooks.js";
+import { loadArmoryRosterView, type ArmoryRosterView } from "./armory-sync.js";
+import { loadHiddenIdentity } from "./profile-privacy.js";
 
 // A guild's public page at /g/<slug>/ (docs/GUILD_PAGES_DESIGN.md). Read-only, no scripts, and
 // only what officers turned on. Names are character names, never Discord users or IDs.
@@ -64,6 +66,8 @@ export interface GuildPageView {
   guildId?: string;
   /** Members' top scores, recent runs and records, when the guild publishes its runs (public-leaderboard.ts). */
   dungeons?: GuildDungeonSummary | null;
+  /** The whole guild as the Blizzard Armory lists it (armory-sync.ts), under the "rosters" section; absent until a sync has run. */
+  armory?: ArmoryRosterView | null;
 }
 
 // The published page for `slug`, or null (unknown, unpublished, or its server is not allowed).
@@ -127,7 +131,11 @@ export async function loadGuildPageView(database: PrismaClient, slug: string, al
     }
   }
   const edition = gameEditionOf(page.guild);
+  // The Armory roster follows the same privacy rules as the rest: hidden members are matched by name and left out.
+  const armory = on("rosters") && database.armoryGuild
+    ? await loadHiddenIdentity(database).then((hidden) => loadArmoryRosterView(database, page.guild.id, hidden)).catch(() => null) : null;
   return {
+    armory,
     slug: page.slug, name: page.guild.name, language: settings?.language === "fr" ? "fr" : "en", indexable: page.indexable,
     intro: page.intro, sections, cores, edition, guildId: page.guild.id,
     recruitment: on("recruitment") && (page.recruitment || page.inviteUrl) ? { text: page.recruitment, inviteUrl: page.inviteUrl } : null,
@@ -212,6 +220,7 @@ export function renderGuildPage(view: GuildPageView): string {
         + "</tbody></table></div>");
     }
   }
+  if (on("rosters") && view.armory?.rows.length) parts.push(armorySection(view, view.armory));
   if (on("rankings")) {
     for (const core of view.cores.filter((c) => c.ranking?.length)) {
       parts.push(`<h2>${t("EPGP ranking", "Classement EPGP")} · ${escapeHtml(core.name)}</h2><div class="table-wrap"><table><thead><tr><th>#</th><th>${t("Character", "Personnage")}</th><th class="num">EP</th><th class="num">GP</th><th class="num">${t("Priority", "Priorité")}</th></tr></thead><tbody>`
@@ -229,6 +238,19 @@ export function renderGuildPage(view: GuildPageView): string {
 ${SITE_HEADER_STYLE}</style></head><body>${siteHeader(view.language, `/g/${view.slug}/`, undefined, view.edition)}<main>`
     + breadcrumbs(view.language, [[t("Guilds", "Guildes"), `/recruitment/guilds/?lang=${view.language}`], [view.name, null]], escapeHtml) + parts.join("")
     + `<footer class="site-foot">${siteFooterNav(view.language, view.edition)}<p class="foot-note">${t("Guild page made with", "Page de guilde créée avec")} <a href="${siteUrl("/")}">Guilded</a>. ${t("Not affiliated with Blizzard Entertainment.", "Sans affiliation avec Blizzard Entertainment.")}</p></footer></main></body></html>`;
+}
+
+// The guild's whole roster from the Blizzard Armory. Armory-only rows carry a first name only and a tag saying so.
+function armorySection(view: GuildPageView, armory: ArmoryRosterView): string {
+  const fr = view.language === "fr";
+  const t = (en: string, frText: string) => (fr ? frText : en);
+  const when = armory.fetchedAt.toISOString().slice(0, 16).replace("T", " ") + " UTC";
+  const count = armory.memberCount ?? armory.rows.length;
+  const rank = (label: string) => label ? escapeHtml(fr ? label.replace(/^Rank (\d+)$/, "Rang $1") : label) : "–";
+  return `<h2>${t("Guild roster", "Roster de la guilde")}</h2><p class="muted">${t(`${count} members. Updated ${when} from the Blizzard Armory.`, `${count} membres. Mis à jour le ${when} à partir de l'Armurerie Blizzard.`)}</p>`
+    + `<div class="table-wrap"><table><thead><tr><th>${t("Character", "Personnage")}</th><th class="num">${t("Level", "Niveau")}</th><th>${t("Class", "Classe")}</th><th>${t("Rank", "Rang")}</th></tr></thead><tbody>`
+    + armory.rows.map((row) => `<tr><td>${escapeHtml(row.name)}${row.source === "armory" ? ` <span class="tag">${t("from the Armory", "de l'Armurerie")}</span>` : ""}</td><td class="num">${row.level ?? "–"}</td><td>${escapeHtml(row.className ?? "–")}</td><td>${rank(row.rankLabel)}</td></tr>`).join("")
+    + "</tbody></table></div>";
 }
 
 // Members' top scores, recent public runs and records this season (only for guilds that publish their runs).
@@ -254,7 +276,8 @@ const NOT_FOUND = `<!doctype html><html lang="en"><head><meta charset="utf-8"><m
 /** The public page as data for the phone app: only what renderGuildPage shows (no Discord ids, no invite unless published). */
 export function guildPageJson(view: GuildPageView) {
   return { slug: view.slug, name: view.name, language: view.language, intro: view.intro, edition: view.edition ?? null, sections: view.sections,
-    recruitment: view.recruitment, dungeonPage: view.dungeonPage ?? null, cores: view.cores, dungeons: view.dungeons ?? null };
+    recruitment: view.recruitment, dungeonPage: view.dungeonPage ?? null, cores: view.cores, dungeons: view.dungeons ?? null,
+    armory: view.armory ? { updatedAt: view.armory.fetchedAt.toISOString(), memberCount: view.armory.memberCount, faction: view.armory.faction, rows: view.armory.rows.map((row) => ({ name: row.name, level: row.level, className: row.className, rank: row.rankLabel || null, fromArmory: row.source === "armory" })) } : null };
 }
 
 export interface PageResponse { status: number; headers: Record<string, string>; body: string }

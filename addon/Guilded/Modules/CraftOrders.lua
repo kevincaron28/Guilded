@@ -1486,6 +1486,8 @@ local function renderDetail(view, page, x, y, off)
   place(view.matsButton, page, x, y); view.matsButton:Show()
   y = y - 28
   view.askButton:SetText(view.askedShown and string.format(L("Ask: %s"), view.askedShown) or L("Ask: anyone"))
+  -- Ask shares the row with Request (120 wide, at DETAIL_W - 124): keep a 6 px gap however narrow the pane is.
+  view.askButton:SetWidth(math.max(100, math.min(190, DETAIL_W - 124 - 6)))
   place(view.askButton, page, x, y); view.askButton:Show()
   setShown(view.requestButton, not off)
   place(view.requestButton, page, x + DETAIL_W - 124, y - 2)

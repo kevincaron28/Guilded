@@ -68,7 +68,7 @@ export async function executeRace(interaction: ChatInputCommandInteraction, cont
   }
   if (action === "board-off") {
     await prisma.guildSettings.update({ where: { guildId: context.guildId }, data: { raceBoardEnabled: false } });
-    await reply(t("Race to 60 board off. The existing message stays; delete it if you wish.", "Tableau de la course au 60 désactivé. Le message existant reste; supprimez-le si vous le souhaitez."));
+    await reply(t("Race to 60 board off. The existing message stays; delete it if you wish.", "Tableau de la course au 60 désactivé. Le message existant reste ; supprimez-le si vous le souhaitez."));
     return;
   }
   if (action === "board-on") {

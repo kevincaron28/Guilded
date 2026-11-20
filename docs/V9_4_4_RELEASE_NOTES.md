@@ -1,6 +1,6 @@
 # Guilded 9.4.4 — release notes (20 November 2026)
 
-Prepared 20 November 2026, not yet published. Protocol 2, WoW Forever only. Bot changes are already live.
+Published 20 November 2026. Protocol 2, WoW Forever only. Bot changes are already live.
 
 Real-client checks: docs/V9_4_4_RELEASE_ACCEPTANCE.md.
 

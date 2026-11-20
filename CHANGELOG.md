@@ -2,7 +2,7 @@
 
 ## 9.4.4 — 20 November 2026
 
-Prepared 20 November 2026, not yet published. Checked in game on 20 November on one officer character (see docs/V9_4_4_RELEASE_ACCEPTANCE.md).
+Published 20 November 2026 (GitHub v9.4.4, website download and installer). Checked in game on 20 November on one officer character (see docs/V9_4_4_RELEASE_ACCEPTANCE.md).
 
 Addon:
 

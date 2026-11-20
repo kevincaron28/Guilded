@@ -1,11 +1,11 @@
 # 9.4.4 release acceptance
 
-Status: prepared 20 November 2026, not yet published.
+Status: published 20 November 2026 (GitHub, website).
 
 | Provider | State |
 | --- | --- |
-| GitHub | not yet published. |
-| Installer | not yet built or published. |
+| GitHub | v9.4.4 is the latest release (tag at eee18935). |
+| Installer | Guilded.Companion.Setup.9.4.4.exe and the fixed-name installer on the website (sha256 4a7673a5...). |
 | CurseForge | not yet uploaded. |
 | Microsoft Store | 9.4.4.0 after the pending certification. |
 | Bot | already live (#1167–#1189). |

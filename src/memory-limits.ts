@@ -18,8 +18,8 @@ export const FONTCONFIG_PATH = fileURLToPath(new URL("../site/fonts/fonts.conf",
 
 /** Points fontconfig at the bot's own config unless the environment already chose one. Must run before the first text render. */
 export function applyFontConfig(env: NodeJS.ProcessEnv = process.env): string | undefined {
-  if (!env.FONTCONFIG_FILE && existsSync(FONTCONFIG_PATH)) env.FONTCONFIG_FILE = FONTCONFIG_PATH;
-  return env.FONTCONFIG_FILE;
+  if (!env["FONTCONFIG_FILE"] && existsSync(FONTCONFIG_PATH)) env["FONTCONFIG_FILE"] = FONTCONFIG_PATH;
+  return env["FONTCONFIG_FILE"];
 }
 
 /** Applied once at startup; harmless to repeat. Returns the effective cache settings (for the test and the log line). */

@@ -3,12 +3,12 @@ import { DEFAULT_PROMOTION_RULE, formatPromotionPlan, planPromotions, type Promo
 import { promotionForAddon } from "../src/services/promotion-feed.js";
 
 // 20 Nov 2026: alts and main changes. Safety rules from the review: only a CHOSEN main counts, nothing at or above the
-// starting rank is touched, an "alt" never out-levels its main, an unknown main rank offers nothing.
+// officer-level rank is touched, an "alt" never out-levels its main, an unknown main rank offers nothing.
 const NO_VOICE = { ...DEFAULT_PROMOTION_RULE, minVoiceMinutes: 0 };
 const NOW = new Date("2026-11-20T12:00:00Z");
 const days = (n: number) => new Date(NOW.getTime() - n * 86_400_000);
-// Ranks: 2 Veteran, 3 Member, 4 Initiate (the starting rank), 5 Newbie, 6 Alt.
-const IDX: Record<string, number> = { Veteran: 2, Member: 3, Initiate: 4, Newbie: 5, Alt: 6 };
+// Ranks: 0 Guild Master, 1 Officer, 2 Veteran, 3 Member, 4 Initiate (the starting rank), 5 Newbie, 6 Alt. Officer ranks are 0 and 1.
+const IDX: Record<string, number> = { "Guild Master": 0, Officer: 1, Veteran: 2, Member: 3, Initiate: 4, Newbie: 5, Alt: 6 };
 const mk = (name: string, rankName: string | null, isMain: boolean, chosen = isMain, level = 30, rankIndex: number | null = rankName ? IDX[rankName]! : null): PromotionCharacter =>
   ({ name, addon: `${name.split(" ")[0]}-Realm`, level, rankName, rankIndex, rankAt: rankName ? days(1) : null, since: days(9), isMain, mainChosen: chosen });
 const person = (id: string, characters: PromotionCharacter[]): PromotionPerson => ({ discordUserId: id, displayName: id.toUpperCase(), inDiscord: true, characters });
@@ -30,20 +30,26 @@ describe("alts in the promotion plan", () => {
   it("never guesses: without a flagged main nobody is an alt", () => {
     expect(plan([person("a", [mk("Aaa One", "Initiate", false), mk("Bbb Two", "Initiate", false)])]).alts).toEqual([]);
   });
-  it("never touches a character above the starting rank (officers and up), nor an 'alt' that out-levels its main", () => {
-    const result = plan([person("a", [mk("Main One", "Initiate", true), mk("Officer Two", "Veteran", false), mk("Member Three", "Member", false), mk("Strong Four", "Initiate", false, false, 60)]),
-      person("b", [mk("Anchor Main", "Initiate", true)])]);
+  it("never touches an officer-level character (guild master, officer ranks), nor an 'alt' that out-levels its main", () => {
+    const result = plan([person("a", [mk("Main One", "Initiate", true), mk("Officer Two", "Officer", false), mk("Master Three", "Guild Master", false), mk("Strong Four", "Initiate", false, false, 60)])]);
     expect(result.alts).toEqual([]);
     expect(result.swaps).toEqual([]);
+  });
+  it("an ordinary member's Veteran or Member alt is an alt, and a Veteran old main is swapped with a new main at Initiate", () => {
+    const alts = plan([person("a", [mk("Main One", "Initiate", true), mk("Vet Two", "Veteran", false), mk("Mem Three", "Member", false)])]);
+    expect(alts.swaps.map((w) => w.oldMain)).toEqual(["Vet Two"]);
+    expect(alts.alts.map((a) => a.character)).toEqual(["Mem Three"]);
+    const swap = plan([person("a", [mk("Old Vet", "Veteran", false), mk("New Main", "Initiate", true)])]);
+    expect(swap.swaps).toMatchObject([{ oldMain: "Old Vet", oldRankName: "Veteran", newMain: "New Main" }]);
+  });
+  it("a rank named like an officer is protected even when its index is not an officer index", () => {
+    const named = { ...mk("Named Two", "Officer", false), rankIndex: 4 };
+    expect(plan([person("a", [mk("Main One", "Initiate", true), named])]).alts).toEqual([]);
   });
   it("offers nothing when the main's rank index is unknown", () => {
     const result = plan([person("a", [mk("Main One", "Initiate", true, true, 30, null), mk("Alt Two", "Initiate", false), mk("Old Three", "Initiate", false)]), person("b", [mk("Anchor", "Initiate", false)])]);
     expect(result.alts).toEqual([]);
     expect(result.swaps).toEqual([]);
-  });
-  it("offers nothing when the starting rank cannot be located in the roster", () => {
-    const rule = { ...NO_VOICE, fromRank: "Probation" };
-    expect(planPromotions({ now: NOW, rule, unclaimed: [], people: [person("a", [mk("Main One", "Initiate", true), mk("Alt Two", "Initiate", false)])] }).alts).toEqual([]);
   });
 });
 

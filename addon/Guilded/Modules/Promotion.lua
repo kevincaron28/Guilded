@@ -109,8 +109,8 @@ end
 -- ----- alts and main changes (owner request, 20 Nov 2026; safety review the same day) ------------------------
 -- Alt evidence: the bot's `alts` list, which it builds only from a main a member or officer CHOSE (never from a flag
 -- that is just the first linked character). A guild/officer note that STARTS with alt / alt of / reroll / twink is shown
--- as information ("maybe an alt") with no button, and never takes anyone out of the promotion list. Nothing at or above
--- the rule's starting rank is ever offered (so no officer), nor the officer's own characters. The move goes to the guild's
+-- as information ("maybe an alt") with no button, and never takes anyone out of the promotion list. No officer-level rank is
+-- ever offered (the officer ranks of /guilded officer, default 0 and 1, or a rank named like an officer), nor the officer's own characters. The move goes to the guild's
 -- Alt rank only when a rank whose name passes isAltRank exists; otherwise the officer does it by hand. A demotion needs
 -- an explicit second click (armed for ARM_SECONDS). A main change (`swaps`) is a pair: the new main gets the old main's
 -- rank, then the old main goes to the Alt rank.
@@ -135,23 +135,26 @@ local function altMap()
   return out
 end
 
-local function rankIndexByName(snapshot, name)
-  if type(name) ~= "string" then return nil end
-  for i = 0, (snapshot.ranks or 0) - 1 do
-    local n = snapshot.rankNames and snapshot.rankNames[i + 1]
-    if type(n) == "string" and n:lower() == name:lower() then return i end
-  end
+-- Where the rules allow a move: below the acting officer, below every officer-level rank, strictly above the Alt rank.
+local function officerMax()
+  local d = db()
+  local ranks = d and type(d.settings) == "table" and type(d.settings.officerRanks) == "table" and d.settings.officerRanks or { [0] = true, [1] = true }
+  local max = 1
+  for rank, on in pairs(ranks) do if on and type(rank) == "number" and rank > max then max = rank end end
+  return max
 end
--- Where the rules allow a move: below the officer (actor) and at or below the starting rank, strictly above the Alt rank.
+local OFFICER_NAMES = { "officer", "officier", "guild master", "co-gm", "co gm", "chief", "chef", "leader", "ma\195\174tre" }
+local function officerNamed(rankName)
+  local n = type(rankName) == "string" and rankName:lower() or ""
+  for _, word in ipairs(OFFICER_NAMES) do if n:find(word, 1, true) then return true end end
+  return n == "gm"
+end
 local function limits(snapshot)
-  local tools = ns.rosterTools
-  local f = feed()
-  local fromIdx = f and rankIndexByName(snapshot, f.fromRank)
-  local dest = tools.altRankIndex(snapshot)
-  return fromIdx, dest
+  return officerMax(), ns.rosterTools.altRankIndex(snapshot)
 end
-local function movable(snapshot, row, fromIdx, dest)
-  return fromIdx ~= nil and dest ~= nil and row.key ~= snapshot.actor.key and row.rank > snapshot.actor.rank and row.rank >= fromIdx and row.rank < dest
+local function movable(snapshot, row, officer, dest)
+  return officer ~= nil and dest ~= nil and row.key ~= snapshot.actor.key and row.rank > snapshot.actor.rank and row.rank > officer
+    and not officerNamed(row.rankName) and row.rank < dest
 end
 
 -- Pairs still to do: { { to = row, from = row, rankName, rankIndex, needGive } }. Nothing when there is no Alt rank, the old

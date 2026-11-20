@@ -3,7 +3,7 @@ import { newLuaSession, type LuaSession } from "./harness.js";
 import { rosterPrelude } from "./roster-tools.test.js";
 
 // 20 Nov 2026: the promotion window identifies the bot's alts, moves them to the Alt rank on an officer's two clicks, and swaps
-// ranks when a member changes main. Review rules: nobody above the starting rank, notes are information only, an Alt-named rank
+// ranks when a member changes main. Review rules: no officer-level rank, notes are information only, an Alt-named rank
 // is required, a demotion needs a confirming click, the officer's own characters are left alone.
 let s: LuaSession;
 afterEach(() => s?.close());
@@ -34,7 +34,7 @@ function setup(feed: string | null = FEED(), ranks = DEFAULT_RANKS, calibrated =
       { name = "Eve-Realm", rank = 6, guid = "eve", public = "", officer = "" },
       { name = "Fay-Realm", rank = 4, guid = "fay", public = "alt of Boo", officer = "" },
       { name = "Gus-Realm", rank = 4, guid = "gus", public = "Main - alts: Foo", officer = "" },
-      { name = "Vic-Realm", rank = 2, guid = "vic", public = "", officer = "" } }
+      { name = "Vic-Realm", rank = 1, guid = "vic", public = "", officer = "" } }
     function GetGuildRosterInfo(i) READS = READS + 1; local r = ROWS[i]; return r.name, RANKNAMES[r.rank + 1], r.rank, 30, "Mage", "Zone", r.public, r.officer, true, nil, "MAGE", 0, 0, false, false, 0, r.guid end
     SetGuildMemberRank = function(i, r) CALLS[#CALLS + 1] = { i, r } end
     local original = CreateFrame
@@ -82,11 +82,18 @@ describe("alt identification in the promotion window", () => {
   it("offers no move for a note hint (no button) and never lists an officer-level character the bot named", () => {
     setup(); s.run("NS.promotion.open()");
     const text = s.run("return NS.promotion.altsText()");
-    expect(text).not.toContain("Vic-Realm"); // Veteran, above the starting rank
+    expect(text).not.toContain("Vic-Realm"); // Officer rank
     expect(s.run("for _, a in ipairs((NS.promotion.alts())) do if a.name == 'Fay-Realm' then return tostring(a.hint) end end")).toBe("true");
     expect(moveTwice("Fay-Realm")).toBe("false"); // a note hint is information only
     expect(calls()).toBe("0");
     expect(s.run("return tostring((NS.promotion.moveToAlt('Vic-Realm')))")).toBe("false");
+  });
+  it("an ordinary Veteran the bot names is offered, but not when the officer settings include the Veteran rank", () => {
+    setup(FEED().replace('{ name = "Vic-Realm", main = "Boo" }', '{ name = "Vic-Realm", main = "Boo" }').replace("ready =", "ready ="));
+    s.run("ROWS[8].rank = 2"); roster(101);
+    expect(s.run("return NS.promotion.altsText()")).toContain("Vic-Realm - alt of Boo (Veteran)");
+    s.run("DB.settings = { officerRanks = { [0] = true, [1] = true, [2] = true } }");
+    expect(s.run("return NS.promotion.altsText()")).not.toContain("Vic-Realm");
   });
   it("shows the alt section in the panel with a Move to Alt button", () => {
     setup(); s.run("NS.promotion.open()");
@@ -191,10 +198,14 @@ describe("a main change swaps the ranks", () => {
     s.run("FRAME('Give rank').scripts.OnClick()");
     expect(lastCall()).toBe("3:4");
   });
-  it("shows nothing for a swap whose old main already sits in the Alt rank, is above the starting rank, or is the officer", () => {
+  it("shows nothing for a swap whose old main already sits in the Alt rank, is officer-level, or is the officer; a Veteran old main is offered", () => {
     setup(); s.run("ROWS[2].rank = 6"); roster(101);
     expect(s.run("return #NS.promotion.swaps()")).toBe("0");
-    setup(); s.run("ROWS[2].rank = 2"); roster(101); // old main is a Veteran
+    setup(); s.run("ROWS[2].rank = 2"); roster(101); // old main is an ordinary Veteran: offered
+    expect(s.run("return #NS.promotion.swaps()")).toBe("1");
+    s.run("DB.settings = { officerRanks = { [0] = true, [1] = true, [2] = true } }"); // ... unless the guild treats Veteran as officer
+    expect(s.run("return #NS.promotion.swaps()")).toBe("0");
+    setup(); s.run("ROWS[2].rank = 1"); roster(101); // old main is an Officer
     expect(s.run("return #NS.promotion.swaps()")).toBe("0");
     setup(); s.run('GuildedPromotion.swaps = { { to = "Boss-Realm", from = "Old-Realm" } }'); // the officer's own character
     expect(s.run("return #NS.promotion.swaps()")).toBe("0");

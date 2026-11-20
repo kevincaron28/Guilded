@@ -77,20 +77,23 @@ const DAY = 86_400_000;
  * in-guild character of that member is an alt. Names alone are never used. If an alt holds a more senior rank than the
  * main (the member switched mains), that is a swap, not just an alt. A main outside the guild suggests nothing.
  * Safety (review, 20 Nov 2026): only a main the member or an officer CHOSE counts (isMain alone is often the first linked
- * character); a character above the rule's starting rank (so officers and up) is never touched; an "alt" that out-levels
- * its "main", or a main without a known rank index, yields nothing. The starting rank's index is learnt from the roster
- * (any character at that rank); unknown means nothing is suggested.
+ * character); an officer-level character (guild master, co-GM, officer ranks) is never touched; an "alt" that out-levels
+ * its "main", or a main without a known rank index, yields nothing. The bot has no officer-rank setting (the addon keeps
+ * one, Core.lua settings.officerRanks, default ranks 0 and 1, and enforces it again in the panel), so here the cutoff is
+ * the default officer ranks plus any rank named like an officer.
  */
-export function planAlts(people: readonly PromotionPerson[], now: number, fromRank: string): Pick<PromotionPlan, "alts" | "swaps" | "mainAway"> {
+export const OFFICER_MAX_RANK_INDEX = 1;
+const OFFICER_NAME = /guild\s*master|\bgm\b|co-?gm|officer|officier|\bchief\b|\bchef\b|leader|\bma[iî]tre\b/i;
+export function isOfficerLevel(rankName: string | null | undefined, rankIndex: number | null | undefined): boolean {
+  return rankIndex == null || rankIndex <= OFFICER_MAX_RANK_INDEX || OFFICER_NAME.test(rankName ?? "");
+}
+export function planAlts(people: readonly PromotionPerson[], now: number): Pick<PromotionPlan, "alts" | "swaps" | "mainAway"> {
   const out: Pick<PromotionPlan, "alts" | "swaps" | "mainAway"> = { alts: [], swaps: [], mainAway: [] };
-  let fromIdx: number | null = null;
-  for (const p of people) for (const c of p.characters) if (c.rankIndex != null && same(c.rankName, fromRank)) fromIdx = c.rankIndex;
-  if (fromIdx === null) return out;
   const inGuild = (c: PromotionCharacter) => c.rankName !== null && c.rankAt !== null && now - c.rankAt.getTime() <= RANK_MAX_AGE_MS;
   for (const person of people) {
     const main = person.characters.find((c) => c.isMain && c.mainChosen === true);
     if (!main) continue;
-    const others = person.characters.filter((c) => c !== main && c.isMain === false && inGuild(c) && !isAltRank(c.rankName) && c.rankIndex != null && c.rankIndex >= fromIdx!
+    const others = person.characters.filter((c) => c !== main && c.isMain === false && inGuild(c) && !isAltRank(c.rankName) && !isOfficerLevel(c.rankName, c.rankIndex)
       && !(c.level != null && main.level != null && c.level > main.level));
     if (!others.length) continue;
     if (!inGuild(main)) { out.mainAway.push({ displayName: person.displayName, main: characterName(main) }); continue; }
@@ -109,7 +112,7 @@ export function planAlts(people: readonly PromotionPerson[], now: number, fromRa
 export function planPromotions(input: { people: readonly PromotionPerson[]; unclaimed: readonly { name: string; addon?: string | undefined; displayName?: string | null; level: number | null; rankName: string | null; rankAt: Date | null }[]; rule: PromotionRule; now?: Date }): PromotionPlan {
   const now = (input.now ?? new Date()).getTime();
   const fresh = (at: Date | null) => at !== null && now - at.getTime() <= RANK_MAX_AGE_MS;
-  const plan: PromotionPlan = { ready: [], left: [], unclaimed: [], waiting: [], ...planAlts(input.people, now, input.rule.fromRank) };
+  const plan: PromotionPlan = { ready: [], left: [], unclaimed: [], waiting: [], ...planAlts(input.people, now) };
   const swapped = new Set(plan.swaps.map((w) => w.discordUserId));
   // Never promote out of an alt rank, whatever the rule says.
   if (isAltRank(input.rule.fromRank)) return plan;

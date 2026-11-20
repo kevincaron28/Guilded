@@ -1,6 +1,6 @@
 # 9.4.3 release acceptance
 
-Status: prepared 20 November 2026, not yet published. 9.4.3 is not yet confirmed on real clients.
+Status: published 19 November 2026 (GitHub v9.4.3, the website download, the bot); CurseForge 9709936/9709937 in review; the Store serves 9.4.0.0, 9.4.2.0 is in certification, 9.4.3.0 follows. 9.4.3 is not yet confirmed on real clients.
 
 | Provider | State |
 | --- | --- |

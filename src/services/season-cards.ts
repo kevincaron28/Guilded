@@ -17,7 +17,7 @@ import { seasonLabel } from "./season-label.js";
 // /bg season-cards. Switch and channel are re-checked
 // at delivery, only for these jobs (key season-card:). Nothing is awarded.
 
-const COLOR = 0xd4a017;
+const COLOR = 0xd4af37;
 export interface SeasonInfo { name: string; startsAt: Date; endsAt: Date | null }
 const dayIn = (lang: Lang, timeZone?: string) => (date: Date) => cardDate(date, lang, timeZone);
 const MEDALS = ["🥇", "🥈", "🥉"];

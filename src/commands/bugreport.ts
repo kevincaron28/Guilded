@@ -57,7 +57,7 @@ export async function executeBug(interaction: ChatInputCommandInteraction): Prom
   });
   // The officers see exactly what the member previewed: the redacted text and the screenshot.
   const officers = officerDestination && ref ? await notifyEmbed(interaction.guild, (lang) => {
-    const embed = new EmbedBuilder().setColor(0xd4a017).setDescription([
+    const embed = new EmbedBuilder().setColor(0xd4af37).setDescription([
       `🐞 ${lang === "fr" ? "Rapport de bug" : "Bug report"}${ref ? ` \`${ref}\`` : ""} ${lang === "fr" ? "de" : "from"} <@${interaction.user.id}>`,
       escapeMarkdown(description) || "—"
     ].join("\n"));

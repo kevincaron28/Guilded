@@ -113,14 +113,16 @@ export function renderBannerCard(spec: NextCardSpec): Promise<RenderedCard> {
     await c.text(spec.label, 116, 28, { size: 30, face: "title", color: tint, spacing: 800, maxW: 420 });
     if (columns) {
       await c.text(spec.title, 56, 68, { size: 53, face: "title", maxW: 420 });
-      const hero = await c.text(spec.hero, 56, 134, { size: 34, face: "bold", color: spec.heroColor ?? INK, maxW: 420 });
+      const hero = await c.text(spec.hero, 56, 134, { size: 34, face: "bold", color: spec.heroColor ?? INK, maxW: 620 });
       if (spec.heroNote) await c.text(spec.heroNote, 56 + hero.w + 16, 140, { size: 28, color: SUB, maxW: 330 });
       const colw = columns.length > 1 ? 560 : 1120, tallest = Math.max(...columns.map((col) => col.rows.length)), rowh = tallest <= 3 ? 84 : tallest === 4 ? 68 : tallest === 5 ? 58 : 50, pad = (rowh - 50) / 2, headY = bh + 10, top = bh + 44, heads = spec.heads, headed = Boolean(heads?.record || heads?.score);
       let drawn = 0;
       for (const [ci, col] of columns.entries()) {
         const x = 56 + ci * (colw + 24), edge = x + colw - 24;
         // The widest score and record of the column decide how much of the row is left for the name.
-        const scoreW = Math.max(0, ...await Promise.all(col.rows.map((r) => c.width(r.score, 34, "bold"))));
+        // The column head counts too: a short score ("8") under a longer head ("Kills") would otherwise let the two heads touch.
+        const headScoreW = headed && heads?.score ? await c.width(heads.score, 24) : 0;
+        const scoreW = Math.max(headScoreW, ...await Promise.all(col.rows.map((r) => c.width(r.score, 34, "bold"))));
         const recW = Math.max(0, ...await Promise.all(col.rows.map((r) => (r.record ? c.width(r.record, 26) : Promise.resolve(0)))));
         const recR = edge - Math.min(scoreW, 100) - 22, nameX = x + 56, nameR = recW ? recR - recW - 16 : recR;
         if (col.title) await c.text(col.title, x, headY, { size: 26, face: "bold", color: tint, maxW: colw / 2 });

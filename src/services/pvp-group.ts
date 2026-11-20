@@ -46,7 +46,7 @@ export function pvpGroupLine(group: PvpGroupView, lang: Lang): string {
 /** Pure: the ephemeral "who's looking" answer. */
 export function lookingEmbed(groups: readonly PvpGroupView[], lang: Lang): EmbedBuilder {
   const fr = lang === "fr";
-  const embed = new EmbedBuilder().setColor(0xd4a017).setTitle(fr ? "⚔️ Qui cherche un groupe JcJ" : "⚔️ Who's looking for a PvP group");
+  const embed = new EmbedBuilder().setColor(0xd4af37).setTitle(fr ? "⚔️ Qui cherche un groupe JcJ" : "⚔️ Who's looking for a PvP group");
   if (!groups.length) return embed.setDescription(fr ? "Personne ne cherche pour l'instant. Appuyez sur **Créer** pour lancer un groupe : un message avec les boutons Tank/Soigneur/DPS est publié dans le salon des groupes." : "Nobody is looking right now. Press **Create** to start a group: one post with the Tank/Healer/DPS buttons goes up in the groups channel.");
   const lines: string[] = [];
   let used = 0;

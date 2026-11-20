@@ -25,7 +25,7 @@ export function webApplicationEmbed(view: DecisionView, lang: "en" | "fr") {
   const fr = lang === "fr";
   return new EmbedBuilder()
     .setTitle(`${fr ? "Candidature du site web" : "Website application"}${view.coreName ? ` · ${view.coreName}` : ""}`.slice(0, 256))
-    .setColor(0xd4a017)
+    .setColor(0xd4af37)
     .addFields(
       { name: fr ? "Personnage" : "Character", value: view.character.slice(0, 100), inline: true },
       { name: fr ? "Classe et rôle" : "Class and role", value: `${classLabel(view.className, lang)} · ${roleLabel(view.role, lang)}`, inline: true },

@@ -41,7 +41,7 @@ export function raidReportEmbed(report: RaidReport, lang: Lang = "en"): EmbedBui
 // never ping (the delivery strips them).
 export function raidAttendanceEmbed(list: RaidAttendanceList, lang: Lang = "en"): EmbedBuilder {
   const say = (en: string, fr: string) => lang === "fr" ? fr : en;
-  const embed = new EmbedBuilder().setTitle(`🧾 ${say("Attendance", "Présences")} — ${list.title}`.slice(0, 250)).setColor(0xd4a017);
+  const embed = new EmbedBuilder().setTitle(`🧾 ${say("Attendance", "Présences")} — ${list.title}`.slice(0, 250)).setColor(0xd4af37);
   const groups: [string, string[]][] = [
     [say("✅ Present", "✅ Présents"), list.present], [say("⏰ Late", "⏰ En retard"), list.late], [say("🪑 Benched", "🪑 Sur le banc"), list.benched],
     [say("❌ Absent", "❌ Absents"), list.absent], [say("❓ Signed up, not recorded", "❓ Inscrits, non notés"), list.unrecorded]

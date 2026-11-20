@@ -161,7 +161,7 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
   if (subcommand === "archive" || subcommand === "hall-of-fame") {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const archive = await seasonArchive(prisma, context.guildId, interaction.options.getInteger("page") ?? 1, subcommand === "hall-of-fame");
-    await interaction.editReply({ embeds: [new EmbedBuilder().setColor(0xd4a017)
+    await interaction.editReply({ embeds: [new EmbedBuilder().setColor(0xd4af37)
       .setTitle(subcommand === "archive" ? lang === "fr" ? "Saisons" : "Season archive" : lang === "fr" ? "Temple de la renommée" : "Hall of Fame")
       .setDescription(archive.text).setFooter({ text: `${archive.current} / ${archive.pages}` })], allowedMentions: { parse: [] } });
     return;
@@ -186,7 +186,7 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
     await openGroupAlerts(interaction);
     return;
   }
-  const embed = new EmbedBuilder().setColor(0xd4a017);
+  const embed = new EmbedBuilder().setColor(0xd4af37);
 
   if (subcommand === "leaderboard") {
     const seasonId = interaction.options.getString("season") ?? undefined;

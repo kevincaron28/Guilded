@@ -72,7 +72,7 @@ export function weeklyRecordsEmbed(week: WeeklyRecords, lang: Lang): EmbedBuilde
   if (week.raidKills.bosses) {
     lines.push(`🐉 **${fr ? "Raids" : "Raids"}** · ${plural(lang, week.raidKills.bosses, ["boss killed", "bosses killed"], ["boss tué", "boss tués"])}${week.raidKills.firsts ? ` (${plural(lang, week.raidKills.firsts, ["first for the guild", "firsts for the guild"], ["première de la guilde", "premières de la guilde"])})` : ""}`);
   }
-  return new EmbedBuilder().setColor(0xd4a017).setTitle(`${fr ? "🏆 Records de la semaine" : "🏆 Records broken this week"} · ${range(week, lang)}`.slice(0, 256))
+  return new EmbedBuilder().setColor(0xd4af37).setTitle(`${fr ? "🏆 Records de la semaine" : "🏆 Records broken this week"} · ${range(week, lang)}`.slice(0, 256))
     .setDescription(lines.join("\n").slice(0, 3800))
     .setFooter({ text: reportedFooter(lang) });
 }
@@ -126,7 +126,7 @@ export async function queueWeeklyRecords(db: QueueDb, now = new Date(), options:
         const claim = await tx.guildSettings.updateMany({ where: { guildId: settings.guildId, weeklyRecordsEnabled: true, OR: [{ weeklyRecordsLastAt: null }, { weeklyRecordsLastAt: { lt: resetAt } }] }, data: { weeklyRecordsLastAt: now } });
         if (!claim.count || recordsIsEmpty(week)) return false;
         await enqueueDiscordJob(tx, settings.guildId, `weekly-records:${week.weekEnd.toISOString()}`, "MESSAGE", { route: "wowWeekly",
-          message: JSON.parse(JSON.stringify({ embeds: [weeklyRecordsEmbed(week, lang).toJSON()] })), card: JSON.parse(JSON.stringify(weeklyRecordsCard(week, lang, settings.guild.name))), cardOnly: { embeds: [textlessEmbed(0xd4a017)] } });
+          message: JSON.parse(JSON.stringify({ embeds: [weeklyRecordsEmbed(week, lang).toJSON()] })), card: JSON.parse(JSON.stringify(weeklyRecordsCard(week, lang, settings.guild.name))), cardOnly: { embeds: [textlessEmbed(0xd4af37)] } });
         return true;
       });
       if (done) queued++;

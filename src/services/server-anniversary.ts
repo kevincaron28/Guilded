@@ -75,7 +75,7 @@ export async function celebrateServerAnniversary(db: Db, guildId: string, now = 
   const content = lang === "fr" ? `🎂 **${guild.name}** fête ses ${due.year} ${due.year === 1 ? "an" : "ans"} !` : `🎂 **${guild.name}** turns ${due.year}!`;
   await enqueueDiscordJob(db, guildId, key, "MESSAGE", {
     route: "achievements", channelId: settings.achievementChannelId,
-    message: { content }, card: JSON.parse(JSON.stringify(card)), cardOnly: { embeds: [textlessEmbed(0xd4a017)] }
+    message: { content }, card: JSON.parse(JSON.stringify(card)), cardOnly: { embeds: [textlessEmbed(0xd4af37)] }
   });
   return true;
 }

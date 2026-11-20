@@ -174,7 +174,7 @@ export async function executePoll(interaction: ChatInputCommandInteraction): Pro
 // Officers' news: a Discord post (an older addon can still send news written in game).
 // ---------------------------------------------------------------------------------------------
 export function newsEmbed(lang: Lang, post: { body: string; author: string; source: string }): EmbedBuilder {
-  return new EmbedBuilder().setColor(0xc9a227).setTitle(tx(lang, "📌 Guild news")).setDescription(escapeMarkdown(post.body))
+  return new EmbedBuilder().setColor(0xd4af37).setTitle(tx(lang, "📌 Guild news")).setDescription(escapeMarkdown(post.body))
     .setFooter({ text: post.source === "game" ? tx(lang, "{name}, from the game", { name: post.author }) : post.author });
 }
 

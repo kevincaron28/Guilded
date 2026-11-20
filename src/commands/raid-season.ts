@@ -32,7 +32,7 @@ export function seasonSummaryEmbeds(data: SeasonAttendance, window: Window, lang
   const period = `${stamp(window.from)} → ${window.until ? stamp(window.until) : say("now", "maintenant")}`;
   const title = (core: string | null) => `🧾 ${say("Attendance", "Présences")} — ${window.name}${core ? ` · ${core}` : ""}`.slice(0, 250);
   if (!data.raids.length) {
-    return [new EmbedBuilder().setTitle(title(null)).setColor(0xd4a017)
+    return [new EmbedBuilder().setTitle(title(null)).setColor(0xd4af37)
       .setDescription(`${period}\n${say("No completed raid in this period yet.", "Aucun raid terminé dans cette période pour l'instant.")}`)];
   }
   const parts = splitByCore(data).slice(0, 10);
@@ -50,7 +50,7 @@ export function seasonSummaryEmbeds(data: SeasonAttendance, window: Window, lang
       shown++;
     }
     if (shown < rows.length) text += say(`… and ${rows.length - shown} more: see the file from /lead history.`, `… et ${rows.length - shown} de plus : voir le fichier de /lead history.`);
-    return new EmbedBuilder().setTitle(title(parts.length > 1 || part.coreName ? part.coreName ?? say("No core", "Sans noyau") : null)).setColor(0xd4a017)
+    return new EmbedBuilder().setTitle(title(parts.length > 1 || part.coreName ? part.coreName ?? say("No core", "Sans noyau") : null)).setColor(0xd4af37)
       .setDescription(text).setFooter({ text: say("% = recorded raids attended (late counts half, benched in full). ❓ = expected, nobody recorded it.", "% = raids notés où le joueur était là (retard = moitié, banc = complet). ❓ = attendu, personne ne l'a noté.") });
   });
 }
@@ -58,7 +58,7 @@ export function seasonSummaryEmbeds(data: SeasonAttendance, window: Window, lang
 // One player's season: every raid that concerned them, newest first.
 export function playerHistoryEmbed(data: SeasonAttendance, row: SeasonRow | undefined, window: Window, name: string, lang: Lang = "en"): EmbedBuilder {
   const say = (en: string, fr: string) => (lang === "fr" ? fr : en);
-  const embed = new EmbedBuilder().setTitle(`🧾 ${name} — ${window.name}`.slice(0, 250)).setColor(0xd4a017);
+  const embed = new EmbedBuilder().setTitle(`🧾 ${name} — ${window.name}`.slice(0, 250)).setColor(0xd4af37);
   if (!row) return embed.setDescription(say("No raid of this period concerned this player.", "Aucun raid de cette période ne concernait ce joueur."));
   const label: Record<string, string> = {
     PRESENT: say("Present", "Présent"), LATE: say("Late", "En retard"), BENCHED: say("Benched", "Sur le banc"),

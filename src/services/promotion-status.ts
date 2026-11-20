@@ -105,7 +105,7 @@ export function promotionAnnouncement(rule: PromotionRule, lang: Lang, custom: {
   steps.push(`${num()} ${t(`Stay ${rule.fromRank}${rule.requireLink ? " and linked" : ""} for ${rule.minDays} days.`, `Reste ${rule.fromRank}${rule.requireLink ? " lié" : ""} pendant ${rule.minDays} jours.`)}`);
   if (rule.minVoiceMinutes > 0) steps.push(`${num()} ${t(`Spend at least ${formatVoiceDuration(rule.minVoiceMinutes)} in voice every week (even alone in a channel, it counts).`, `Passez au moins ${formatVoiceDuration(rule.minVoiceMinutes)} dans le vocal par semaine (même seul dans un channel, ça compte).`)}`);
   const opening = intro?.trim() || t("We want an active guild, not just a list of names.", "On veut une guilde vivante, pas juste une liste de noms.");
-  return new EmbedBuilder().setColor(0xc9a227)
+  return new EmbedBuilder().setColor(0xd4af37)
     .setTitle(title?.trim() || t("📣 How to get promoted", "📣 Comment être promu"))
     .setDescription([opening, "", `**${t(`To go from ${rule.fromRank} to the next rank:`, `Pour passer ${/^[aeiouyhàâéèêëîïôûù]/i.test(rule.fromRank) ? "d'" : "de "}${rule.fromRank} au rang suivant :`)}**`, ...steps, ...(note?.trim() ? [note.trim(), ""] : []), t("Click “Where am I?” to see what you still need.", "Cliquez sur « Où j'en suis ? » pour voir ce qu'il vous manque.")].join("\n").slice(0, 3900));
 }

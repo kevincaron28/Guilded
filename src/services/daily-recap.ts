@@ -178,7 +178,7 @@ export function dailyRecapEmbed(recap: DailyRecap, lang: Lang): EmbedBuilder {
     if (recap.pvp.topDueler) lines.push(`🤺 ${fr ? "Le plus de duels gagnés" : "Most duel wins"}: ${recap.pvp.topDueler.name} (×${recap.pvp.topDueler.wins})`);
   }
   if (recap.worldPvp) lines.push(`🗡️ **${fr ? "JcJ en monde ouvert cette semaine" : "World PvP this week"}** · ${recap.worldPvp.kills} ${fr ? "victoires" : "kills"} · ${recap.worldPvp.defends} ${fr ? "défenses" : "defends"} · ${recap.worldPvp.helped} ${fr ? "appels répondus" : "calls answered"}`);
-  return new EmbedBuilder().setColor(0xd4a017).setTitle(`${fr ? "🗓️ Bilan du" : "🗓️ Recap for"} ${dayLabel(recap.day, lang)}`.slice(0, 256))
+  return new EmbedBuilder().setColor(0xd4af37).setTitle(`${fr ? "🗓️ Bilan du" : "🗓️ Recap for"} ${dayLabel(recap.day, lang)}`.slice(0, 256))
     .setDescription(lines.join("\n").slice(0, 3800));
 }
 
@@ -205,7 +205,7 @@ export async function queueDailyRecaps(db: DeliveryDb, now = new Date(), options
         if (!claim.count || recapIsEmpty(recap)) return false;
         const card = dailyRecapCard(recap, lang, settings.guild.name);
         await enqueueDiscordJob(tx, settings.guildId, `daily-recap:${day}`, "MESSAGE", { route: "wowWeekly",
-          message: JSON.parse(JSON.stringify({ embeds: [dailyRecapEmbed(recap, lang).toJSON()] })), card: JSON.parse(JSON.stringify(card)), cardOnly: { embeds: [textlessEmbed(0xd4a017)] } });
+          message: JSON.parse(JSON.stringify({ embeds: [dailyRecapEmbed(recap, lang).toJSON()] })), card: JSON.parse(JSON.stringify(card)), cardOnly: { embeds: [textlessEmbed(0xd4af37)] } });
         return true;
       });
       if (done) queued++;

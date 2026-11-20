@@ -333,7 +333,7 @@ export async function queuePromotionCongrats(db: Pick<PrismaClient, "discordJob"
   const text = promotionCongratsText(`<@${p.userId}>`, p.rankName, lang);
   const card = promotionCard(lang, { name: p.memberName, character, rank: p.rankName });
   await enqueueDiscordJob(db, guildId, key, "MESSAGE", { channelId, message: { content: text }, mentionUsers: [p.userId], card: JSON.parse(JSON.stringify(card)),
-    cardOnly: { content: text, embeds: [textlessEmbed(0xc9a227)] } }, notBefore);
+    cardOnly: { content: text, embeds: [textlessEmbed(0xd4af37)] } }, notBefore);
   return true;
 }
 

@@ -108,7 +108,7 @@ export function dungeonCardOnly(run: DungeonImportResult, lang: Lang): { content
     earned.set(label, [...(earned.get(label) ?? []), run.fullNames?.[achievement.character] ?? achievement.character]);
   }
   for (const [label, who] of earned) lines.push(`🎖️ ${label}: ${[...new Set(who)].join(", ")}`);
-  const embed = new EmbedBuilder().setColor(0xd4a017);
+  const embed = new EmbedBuilder().setColor(0xd4af37);
   if (lines.length) embed.setDescription(lines.join("\n").slice(0, 3500));
   const headline = others.length ? highlightHeadline(others, runLabel(run, lang), lang) : undefined;
   return { ...(headline ? { content: headline } : {}), embed };
@@ -175,6 +175,6 @@ function dungeonEmbed(run: DungeonImportResult, lang: Lang): EmbedBuilder {
   }
   for (const [label, who] of earned) lines.push(`🎖️ ${label}: ${[...new Set(who)].join(", ")}`);
 
-  return new EmbedBuilder().setColor(0xd4a017).setTitle(`✅ ${runLabel(run, lang)}`.slice(0, 256))
+  return new EmbedBuilder().setColor(0xd4af37).setTitle(`✅ ${runLabel(run, lang)}`.slice(0, 256))
     .setDescription(lines.join("\n").slice(0, 3500)).setFooter({ text: t(lang, "dungeon.post.footer") });
 }

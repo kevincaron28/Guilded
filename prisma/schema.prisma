@@ -1076,7 +1076,7 @@ model GuildSettings {
   pvpMostWantedEnabled     Boolean @default(true)
   pvpRecapLastWeek         Int?
   // 8.5 track C5: promotion panel (Initiate -> Member). On by default; officers change the rule or switch it off.
-  // 9.1 character pictures (docs/plans/CHARACTER_VISUALS.md): officers switch member pictures off for the server.
+  // 9.1 character pictures: REMOVED 20 Nov 2026, no longer read or written (column kept).
   characterPicturesEnabled Boolean @default(true)
   // The phone card collection (TCG): on by default, officers can turn it off with /officer stats cards.
   tcgEnabled Boolean @default(true)
@@ -3922,6 +3922,8 @@ model DungeonMapGrid {
   updatedAt   DateTime @updatedAt
 }
 
+// REMOVED 20 Nov 2026: the member-uploaded character picture feature was removed (nothing reads or writes this table now; rows kept, no
+// destructive migration until the owner says so). Cards use the WoW Armory picture instead.
 // 9.1: a member-chosen picture per character (docs/plans/CHARACTER_VISUALS.md). Only the re-encoded WebP
 // copies are kept (no original file, no EXIF). "guild" pictures are shown to that guild only; "public" also
 // on public pages. An officer removal keeps the row (status "removed", bytes cleared) as the log of who did it.

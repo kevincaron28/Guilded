@@ -15,8 +15,9 @@ describe("upload linking under load", () => {
     try {
       const status = await linkUploaderCharacters({ $transaction } as never, "g1", "m1", { character: character("Hulke Hogan"), alts: [character("Hulke Alt")] });
       expect(status).toBe("link-retry");
-      expect($transaction).toHaveBeenCalledTimes(2);
-      expect($transaction.mock.calls[0]![1]).toEqual({ timeout: 20_000, maxWait: 10_000 });
+      // 20 Nov 2026 (#1203): each link is retried once on P2028 before giving up, so two characters make four attempts.
+      expect($transaction).toHaveBeenCalledTimes(4);
+      expect($transaction.mock.calls[0]![1]).toEqual({ timeout: 15_000, maxWait: 6_000 });
     } finally { errors.mockRestore(); }
   });
 });

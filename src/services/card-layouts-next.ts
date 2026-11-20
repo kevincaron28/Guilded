@@ -41,6 +41,8 @@ export interface NextCardSpec {
   art: Buffer;
   /** For the banner: which part of the painting's height to show, 0 (top) to 1 (bottom). Default 0.5. */
   bannerFocus?: number | undefined;
+  /** 20 Nov 2026: a round portrait (the Armory picture, else the Discord avatar) at the right of a one-member banner (not on ladders). */
+  portrait?: Buffer | undefined;
 }
 export interface RenderedCard { png: Buffer; report: TextReport[]; scrim: number }
 
@@ -183,7 +185,12 @@ export function renderBannerCard(spec: NextCardSpec): Promise<RenderedCard> {
     const full = await sharp(spec.art).resize(CARD_W, CARD_H, { fit: "cover" }).removeAlpha().toBuffer();
     const top = Math.round((CARD_H - bh) * Math.min(1, Math.max(0, spec.bannerFocus ?? 0.5)));
     const banner = await sharp(full).extract({ left: 0, top, width: CARD_W, height: bh }).toBuffer();
-    return c.finish([{ input: banner, left: 0, top: 0 }]);
+    // The portrait: a ring in the card's shapes, the picture on top of the finished card (an unreadable picture leaves the card as it was).
+    const face = !columns && spec.portrait ? await roundFace(spec.portrait, 200) : null;
+    if (face) c.raw(`<circle cx="1018" cy="${bh / 2 + 2}" r="104" fill="none" stroke="${accent}" stroke-opacity=".9" stroke-width="4"/>`);
+    const done = await c.finish([{ input: banner, left: 0, top: 0 }]);
+    if (!face) return done;
+    try { return { ...done, png: await sharp(done.png).composite([{ input: face, left: 918, top: Math.round(bh / 2 + 2 - 100) }]).png().toBuffer() }; } catch { return done; }
   });
 }
 
@@ -203,6 +210,8 @@ export interface DungeonPartyRow {
   level?: number | undefined; gain?: number | undefined; total?: string | undefined;
   /** A player of the posting guild: the row gets a soft gold highlight (outsiders stay neutral). */
   member?: boolean | undefined;
+  /** 20 Nov 2026: the player's round portrait (the Armory picture, added at delivery); drawn left of the role emblem in a dungeon party table. */
+  portrait?: Buffer | undefined;
 }
 /** Traced floor cells (200 x 200 grid, key = column * 200 + row), death points as 0..1 map fractions, optionally the dungeon's own map image (PNG buffer). */
 export interface DungeonMapSpec { cells: readonly number[]; points: readonly { x: number; y: number }[]; image?: Buffer | undefined }
@@ -248,15 +257,27 @@ export function renderDungeonCard(spec: DungeonCardSpec): Promise<RenderedCard> 
     let y = 126 + hero.h + 6;
     if (spec.facts.length) { await c.text(spec.facts.join("  ·  "), x, y, { size: 28, color: INK, maxW: colW }); y += 38; }
     if (spec.reason) { await c.text(spec.reason, x, y, { size: 26, color: SUB, maxW: colW }); y += 32; }
+    let faces: PartyFace[] = [];
     if (spec.pvp) await drawPvpParty(c, spec, y, x, colW);
-    else await drawDungeonParty(c, spec, y, x, colW);
+    else faces = await drawDungeonParty(c, spec, y, x, colW);
     if (spec.strip) await c.text(spec.strip, x, 575, { size: 26, color: SUB, maxW: CARD_W - 112 });
-    return c.finish([{ input: await fitted(spec.art), left: 0, top: 0 }]);
+    const done = await c.finish([{ input: await fitted(spec.art), left: 0, top: 0 }]);
+    if (!faces.length) return done;
+    // The round portraits go on last: the table's dark panel is part of the card's shapes and would dim them.
+    try { return { ...done, png: await sharp(done.png).composite(faces).png().toBuffer() }; } catch { return done; }
   });
 }
 
 const TABLE_END = 540;
-async function drawDungeonParty(c: CardCanvas, spec: DungeonCardSpec, top: number, x: number, colW: number): Promise<void> {
+type PartyFace = { input: Buffer; left: number; top: number };
+const FACE = 38;
+/** A portrait cut to a circle; null for an unreadable picture (the row then shows only its role emblem). */
+async function roundFace(image: Buffer, size: number): Promise<Buffer | null> {
+  try {
+    return await sharp(image).resize(size, size, { fit: "cover" }).composite([{ input: Buffer.from(`<svg width="${size}" height="${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${size / 2}"/></svg>`), blend: "dest-in" }]).png().toBuffer();
+  } catch { return null; }
+}
+async function drawDungeonParty(c: CardCanvas, spec: DungeonCardSpec, top: number, x: number, colW: number): Promise<PartyFace[]> {
   // Column edges (right edges for numbers). Role emblem 38 px, then name, level, guild, +gain, season total. The Guild column is always there
   // (a dash when nobody told its guild); level and the two score columns only when some player has the figure, so no header sits over empty cells.
   const party = spec.party.slice(0, 5), real = (p: DungeonPartyRow) => !p.name.startsWith("+");
@@ -266,7 +287,11 @@ async function drawDungeonParty(c: CardCanvas, spec: DungeonCardSpec, top: numbe
   let y = top + (headed ? 4 : 6);
   const base = party.length <= 2 ? 72 : party.length === 3 ? 60 : 50;
   const bodyTop = y + (headed ? 40 : 0), pitch = Math.min(base, Math.max(42, Math.floor((TABLE_END - bodyTop) / Math.max(1, party.length)))), extra = pitch - 50;
-  const E = x + 50, totalR = x + colW, gainR = totalR - 140, nameW = 290;
+  // Room for a round portrait left of the role emblem only when some row has a readable one (every name and column then moves right by one slot).
+  const faces = new Map<DungeonPartyRow, Buffer>();
+  for (const p of party) if (p.portrait) { const face = await roundFace(p.portrait, FACE); if (face) faces.set(p, face); }
+  const slot = faces.size ? FACE + 8 : 0, placed: PartyFace[] = [];
+  const E = x + 50 + slot, totalR = x + colW, gainR = totalR - 140, nameW = 290;
   const levelR = showLevel ? E + nameW + 44 : E + nameW - 40, guildX = levelR + (showLevel ? 20 : 52), guildW = (showScore ? gainR - 100 : totalR) - guildX;
   c.rect(x - 14, y - 8, colW + 28, (bodyTop - y) + party.length * pitch + 6, "#000", { opacity: 0.66, rx: 12 });
   if (spec.columns) {
@@ -289,7 +314,9 @@ async function drawDungeonParty(c: CardCanvas, spec: DungeonCardSpec, top: numbe
     if (p.member) { c.rect(x - 10, by - 8, colW + 20, pitch - 2, "#e0b84a", { opacity: 0.16, rx: 8 }); c.rect(x - 10, by - 8, 5, pitch - 2, "#f2cf63", { opacity: 0.95, rx: 2 }); }
     else if (stripe && (!anyMember || allMembers)) c.rect(x - 10, by - 8, colW + 20, pitch - 2, "#ffffff", { opacity: 0.05, rx: 8 });
     stripe = !stripe;
-    if (p.role) c.raw(await roleEmblem(p.role, spec.roleStyle ?? "painted", x, y - 3, 38, used));
+    const face = faces.get(p);
+    if (face) { c.raw(`<circle cx="${x + FACE / 2}" cy="${y - 3 + FACE / 2}" r="${FACE / 2 + 2}" fill="none" stroke="#f2cf63" stroke-opacity=".85" stroke-width="2"/>`); placed.push({ input: face, left: x, top: y - 3 }); }
+    if (p.role) c.raw(await roleEmblem(p.role, spec.roleStyle ?? "painted", x + slot, y - 3, 38, used));
     const tag = guildTag(p.guild, 28).replace(/^<|>$/g, ""); // the Guild column header says what it is
     await c.text(p.name, E, y, { size: 30, face: "bold", color: p.color, ellipsis: true, maxW: real(p) ? nameW : colW - 60 });
     if (!real(p)) { y = by + pitch; continue; } // the "+N more" row has no columns
@@ -307,6 +334,7 @@ async function drawDungeonParty(c: CardCanvas, spec: DungeonCardSpec, top: numbe
     }
     y = by + pitch;
   }
+  return placed;
 }
 
 /** The PvP group's party: two columns, filled column by column, so a group of ten shows every name; the waiting list is one line under them. */

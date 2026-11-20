@@ -17,7 +17,6 @@ import { asLang, t, type Lang } from "../i18n.js";
 import { executeWow } from "./wow.js";
 import { legacyView } from "./router.js";
 import { executeDeleteMyData } from "./delete-my-data.js";
-import { removePictureByOfficer } from "../services/character-picture.js";
 import { addRaceSubcommand, executeRace } from "./race.js";
 import { characterPanel } from "../services/character-panel.js";
 import { isProfileHidden, privacyReply, setProfileHidden } from "../services/profile-privacy.js";
@@ -68,12 +67,6 @@ export const characterCommand = new SlashCommandBuilder()
     .setName("claimdm")
     .setDescription("Claim DMs on or off")
     .addBooleanOption((option) => option.setName("on").setDescription("On").setRequired(true)))
-  .addSubcommand((subcommand) => subcommand
-    .setName("picture")
-    .setDescription("Remove a picture; pictures on/off")
-    .addStringOption((option) => option.setName("action").setDescription("Action").setRequired(true)
-      .addChoices({ name: "remove", value: "remove" }, { name: "off", value: "off" }, { name: "on", value: "on" }))
-    .addStringOption((option) => option.setName("name").setDescription("Character").setAutocomplete(true)))
   .addSubcommand((subcommand) => subcommand
     .setName("privacy")
     .setDescription("Hide or show you on the public website pages.")
@@ -175,7 +168,7 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
   if (!context) return;
   if (subcommand === "race") { await executeRace(interaction, context); return; }
   if (subcommand === "list") {
-    // The panel: the member's characters with Link, Set main, Unlink, Picture and Refresh (character-panel.ts).
+    // The panel: the member's characters with Link, Set main, Unlink and Refresh (character-panel.ts).
     await interaction.reply({ ...await characterPanel(prisma, interaction.user.id, interaction.guildId!), flags: MessageFlags.Ephemeral });
     return;
   }
@@ -215,7 +208,7 @@ ${PANEL_HINT}`,
     });
     return;
   }
-  if (["unclaimed", "link", "move", "autolink", "picture", "claimdm"].includes(subcommand)) {
+  if (["unclaimed", "link", "move", "autolink", "claimdm"].includes(subcommand)) {
     if (!interaction.member || !hasPermission(interaction.member as Parameters<typeof hasPermission>[0], "officer")) {
       await interaction.reply({ content: "Only Officers and Guild Masters can do that.", flags: MessageFlags.Ephemeral });
       return;
@@ -257,27 +250,6 @@ ${PANEL_HINT}`,
         content: `Moved **${characterName(character)}** from ${from} to ${user.username} as ${moved.character.isMain ? "their main" : "an alt"}. Its history came with it${character.detachedAt ? "" : `, and ${character.member.displayName}'s uploads and verify code won't take it back`}.`,
         flags: MessageFlags.Ephemeral
       });
-      return;
-    }
-    if (subcommand === "picture") {
-      const action = interaction.options.getString("action", true);
-      if (action === "on" || action === "off") {
-        await prisma.guildSettings.update({ where: { guildId: context.guildId }, data: { characterPicturesEnabled: action === "on" } });
-        if (interaction.guild) await postToLogChannel(interaction.guild, lang => lang === "fr" ? `${interaction.user.username} a modifié les images de personnage : ${action}.` : `${interaction.user.username} turned character pictures ${action}.`);
-        await interaction.reply({ content: action === "on"
-          ? "Character pictures are on: cards show a character's picture when one is set. Picking pictures is paused for now."
-          : "Character pictures are off for this server: cards and pages stop showing them. Stored pictures are kept; turn them on again to show them.", flags: MessageFlags.Ephemeral });
-        return;
-      }
-      const wanted = interaction.options.getString("name")?.trim();
-      if (!wanted) throw new Error("Pick the character whose picture to remove.");
-      const character = selectedCharacter(await prisma.character.findMany({ where: { member: { guildId: context.guildId } }, include: { member: true } }), wanted);
-      if (!character) throw new Error(`No linked character called "${wanted}".`);
-      const removed = await removePictureByOfficer(prisma, context.guildId, character.id, context.memberId);
-      if (removed && interaction.guild) await postToLogChannel(interaction.guild, lang => lang === "fr" ? `${interaction.user.username} a retiré l'image de ${characterName(character)} (${character.member.displayName}).` : `${interaction.user.username} removed the picture of ${characterName(character)} (${character.member.displayName}).`);
-      await interaction.reply({ content: removed
-        ? `Removed the picture of **${characterName(character)}**. New cards no longer show it; cards already posted keep it. ${character.member.displayName} can pick another one.`
-        : `${characterName(character)} has no picture.`, flags: MessageFlags.Ephemeral });
       return;
     }
     if (subcommand === "claimdm") {

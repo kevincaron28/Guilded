@@ -44,11 +44,9 @@ import { RATING, RATING_START, ratingApplies, ratingSeasonIds, ratingSeasonName,
 import { buildDuelBoard, buildRatingBoard, DUEL_LEVEL_BANDS, headToHead, type DuelFilters, type DuelRow, type PublicDuel } from "./public-duels.js";
 import { loadFullNameBook } from "./character-display.js";
 import { buildGlobalBoard, characterKey as duelKey, globalHeadToHead, playerDuelTrend, type GlobalDuel } from "./duel-global.js";
-import { pictureUrl } from "./character-picture.js";
 import { emptyPvp, guildPvpPanel, loadPvpData, playerPvpPanel, pvpHubParts, pvpPageBody, readPvpFilters, readPvpPeriod, type PvpData, type PvpEnv, type PvpPlayer } from "./leaderboard-pvp.js";
 import { className as canonicalClass } from "./recruitment.js";
 import { weekKeyOf } from "./world-pvp.js";
-import type { PublicPicture } from "./public-pictures.js";
 
 // WoW Forever's classes (no Death Knight, Monk, Demon Hunter or Evoker).
 const FOREVER_CLASSES = CLASSES.filter(name => !["Death Knight", "Monk", "Demon Hunter", "Evoker"].includes(name));
@@ -655,8 +653,6 @@ thead th{position:sticky;top:0;background:var(--bg);z-index:1}
 export interface LeaderboardDeps { store: LeaderboardStore; personal: PersonalStore | null; now?: () => Date; cacheMs?: number;
   /** The owner's season calendar (official-seasons.ts); the seeded Season 1 when left out. */
   calendar?: () => Promise<OfficialWindow[]>;
-  /** The character's Public picture (public-pictures.ts), shown on its page and card; none when left out. */
-  picture?: (name: string, realm: string | null) => Promise<PublicPicture | null>;
   /** Reloads the in-memory season calendar (season-calendar.ts) before a page is served, so a restart never shows a later season under the first one's name. */
   refreshSeasons?: () => Promise<void> }
 
@@ -1402,7 +1398,6 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     }
     const duelSide: DuelSide | null = [...sidesFound.values()][0] ?? null;
     const title = `${me?.displayName || me?.character || duelSide?.name || name}${realm ? `-${realm}` : duelSide?.realm ? `-${duelSide.realm}` : ""}`;
-    const face = deps.picture && runs.length ? await cached(`p:${name.toLowerCase()}:${realm?.toLowerCase() ?? ""}`, () => deps.picture!(name, realm).catch(() => null)) : null;
     const seasons = await seasonsNow();
     const inPeriod = (p: PublicPeriod) => runs.filter((run) => (!p.from || run.endedAt >= p.from) && (!p.to || run.endedAt < p.to));
     const mine = (rows: ScoreRow[]) => rows.filter((row) => isMe(row.player));
@@ -1422,7 +1417,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
         return { name: localDungeonName(r, lang), color: r.challenge ? (r.challenge.onTime ? "#8fd19e" : "#ee8a7a") : undefined, sub: `${date(r.endedAt)} · ${r.challenge ? challengeClock(r.challenge.durationMs) : time(r.durationSec)}`,
           right: r.challenge ? `+${r.challenge.level}` : points === undefined ? "—" : String(points), rightTone: r.challenge ? (r.challenge.onTime ? "green" as const : "red" as const) : undefined };
       });
-      return scoreCardResponse({ eyebrow: t("Guilded · Dungeons · Character", "Guilded · Donjons · Personnage"), title, ...(face ? { portrait: face.thumb.toString("base64") } : {}),
+      return scoreCardResponse({ eyebrow: t("Guilded · Dungeons · Character", "Guilded · Donjons · Personnage"), title,
         subtitle: [me?.className ? classLabel(me.className, lang) : null, me?.level ? `${t("level", "niveau")} ${me.level}` : null, periodName(ctx, season)].filter(Boolean).join(" · "), stats,
         rows, rowsLabel: t("Recent runs", "Essais récents"),
         badges: [{ text: t(`${runs.length} public ${runs.length === 1 ? "run" : "runs"}`, `${runs.length} ${runs.length === 1 ? "essai public" : "essais publics"}`), tone: "muted" }],
@@ -1499,7 +1494,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const runRow = (run: LeaderRun) => `<tr><td>${date(run.endedAt)}</td><td><span class="dcell">${dungeonThumb(run.dungeonName, localDungeonName(run, lang))}<a href="${link(runPath(run.runId), lang)}">${escapeHtml(localDungeonName(run, lang))}</a></span></td><td class="num">${time(run.durationSec)}</td><td class="num score">${cell(run)}</td><td class="num">${run.deaths ?? "?"}</td><td>${escapeHtml(run.bracket ?? "?")}</td><td></td></tr>`;
     const history = seasons.map((p) => ({ p, rows: mine(characterScores(inPeriod(p), periodRules(p))) })).filter((h) => h.rows.length);
     const top = Math.max(1, ...history.flatMap((h) => h.rows.map((r) => r.points)));
-    const body = PAGE_CSS + HUB_CSS + hubTabs(t, lang, "players") + `<p class="eyebrow">${t("Character", "Personnage")}</p><div class="hero">${face ? `<img src="${escapeHtml(pictureUrl(face.characterId, face.version, "thumb"))}" alt="" width="64" height="64" style="border-radius:50%;align-self:center">` : ""}<h1 class="c-${classSlug(me?.className ?? duelSide?.className ?? null)}">${escapeHtml(title)}</h1>`
+    const body = PAGE_CSS + HUB_CSS + hubTabs(t, lang, "players") + `<p class="eyebrow">${t("Character", "Personnage")}</p><div class="hero"><h1 class="c-${classSlug(me?.className ?? duelSide?.className ?? null)}">${escapeHtml(title)}</h1>`
       + ((me?.className ?? duelSide?.className) ? `<span>${escapeHtml(classLabel((me?.className ?? duelSide?.className)!, lang))}${(me?.level ?? duelSide?.level) ? ` · ${t("level", "niveau")} ${me?.level ?? duelSide?.level}` : ""}</span>` : "") + `</div>`
       + charCard + (runs.length ? profileLinks + badgeShelf + `<h2>${t("Score", "Score")} · ${escapeHtml(periodName(ctx, seasons[0]!))}</h2>`
         + (current.length ? `<p>${current.map((row) => `<span class="badge">${escapeHtml(bracketName(ctx, row.bracket))}</span> <span class="score ${scoreTier(row.points)}">${row.points}</span>`).join(" &nbsp; ")}</p>` : `<p class="muted">${t("No rated run this season yet.", "Aucun essai classé cette saison.")}</p>`)

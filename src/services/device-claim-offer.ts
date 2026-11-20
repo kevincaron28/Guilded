@@ -43,19 +43,19 @@ type Db = PrismaClient;
 
 /** Anchor matching: when both names carry a last name the FULL name must match ("Bob Smith" is not "Bob Jones"); only when one side is a
  * bare first name (older rows) does the loose first-name rule of foreverSameName apply. */
-export function sameCharacter(anchor: string, reported: string): boolean {
+export function sameCharacter(anchor: string, reported: string, anchorId?: bigint | null, reportedId?: bigint | null): boolean {
   const a = anchor.trim().replace(/\s+/g, " "), b = reported.trim().replace(/\s+/g, " ");
+  if (anchorId != null && reportedId != null) return anchorId === reportedId;
   if (a.includes(" ") && b.includes(" ")) return a.toLowerCase() === b.toLowerCase();
-  return foreverSameName(a, b);
+  return foreverSameName(a, b, anchorId, reportedId);
 }
 
 /** Offers for one member, one per install with at least one character to link. Snoozed installs are left out unless asked for. */
 export async function offersFor(db: Db, memberId: string, now = new Date(), options: { includeSnoozed?: boolean; deviceId?: string } = {}): Promise<DeviceOffer[]> {
   const member = await db.member.findUnique({
-    where: { id: memberId }, select: { id: true, guildId: true, status: true, characters: { where: { detachedAt: null }, select: { name: true, realm: true, confirmedAt: true, linkEvidence: true } } }
+    where: { id: memberId }, select: { id: true, guildId: true, status: true, characters: { where: { detachedAt: null }, select: { name: true, realm: true, wowId: true, confirmedAt: true, linkEvidence: true } } }
   });
   if (!member || member.status !== "ACTIVE") return [];
-  const own = member.characters.map((character) => character.name);
   // An install's list is client-controlled (registration is open, uploads are unsigned), so an unclaimed install only counts as this
   // member's through one of their CONFIRMED characters, matched on name and realm.
   const anchors = member.characters.filter((character) => character.confirmedAt || character.linkEvidence === "heard" || character.linkEvidence === "game" || character.linkEvidence === "officer");
@@ -66,14 +66,14 @@ export async function offersFor(db: Db, memberId: string, now = new Date(), opti
     },
     select: {
       id: true, claimedMemberId: true,
-      characters: { orderBy: { lastSeenAt: "desc" }, take: MAX_OFFERED, select: { name: true, realm: true, className: true, level: true } },
+      characters: { orderBy: { lastSeenAt: "desc" }, take: MAX_OFFERED, select: { name: true, realm: true, wowId: true, className: true, level: true } },
       claimOffers: { where: { memberId }, select: { snoozedUntil: true, dmAt: true } }
     }
   });
   if (!devices.length) return [];
   const [roster, guildCharacters, declined] = await Promise.all([
     db.guildRosterEntry.findMany({ where: { guildId: member.guildId, gameEdition: "forever", inGuild: true, observedAt: { gte: new Date(now.getTime() - RECENT_MEMBER_MS) } }, select: { nameKey: true } }),
-    db.character.findMany({ where: { member: { guildId: member.guildId } }, select: { name: true, realm: true, gameEdition: true, memberId: true, detachedAt: true } }),
+    db.character.findMany({ where: { member: { guildId: member.guildId } }, select: { name: true, realm: true, wowId: true, gameEdition: true, memberId: true, detachedAt: true } }),
     db.characterVerifyClaim.findMany({ where: { guildId: member.guildId, memberId, status: { in: ["BLOCKED", "REMOVED"] } }, select: { nameKey: true } })
   ]);
   const declinedKeys = new Set(declined.map((row) => row.nameKey));
@@ -82,16 +82,16 @@ export async function offersFor(db: Db, memberId: string, now = new Date(), opti
   for (const device of devices) {
     // An unclaimed install is only this member's when it reported one of their characters; their own claimed install always is.
     const claimed = device.claimedMemberId === memberId;
-    const theirs = claimed || device.characters.some((character) => anchors.some((anchor) => sameCharacter(anchor.name, character.name) && realmKey(anchor.realm) === realmKey(character.realm)));
+    const theirs = claimed || device.characters.some((character) => anchors.some((anchor) => sameCharacter(anchor.name, character.name, anchor.wowId, character.wowId) && realmKey(anchor.realm) === realmKey(character.realm)));
     if (!theirs) continue;
     const row = device.claimOffers[0];
     if (!options.includeSnoozed && row?.snoozedUntil && row.snoozedUntil > now) continue;
     const characters: OfferedCharacter[] = [];
     const taken: string[] = [];
     for (const character of device.characters) {
-      if (own.some((name) => foreverSameName(name, character.name))) continue;
+      if (member.characters.some((mine) => foreverSameName(mine.name, character.name, mine.wowId, character.wowId))) continue;
       if (declinedKeys.has(characterKey(character.name, character.realm, "forever"))) continue;
-      const existing = findCharacter(guildCharacters, character.name, character.realm, "forever");
+      const existing = findCharacter(guildCharacters, character.name, character.realm, "forever", character.wowId);
       if (existing) {
         if (existing.memberId !== memberId && !existing.detachedAt) taken.push(character.name);
         continue;

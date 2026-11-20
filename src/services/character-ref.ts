@@ -63,7 +63,7 @@ export function addToIndex<T extends RefRow>(index: CharacterIndex<T>, row: T): 
  *  2. id given, no row has it -> the single row with wowId NULL and exactly that full name adopts it;
  *     otherwise a new row. Two different ids never merge, and an id-bearing row never takes another id.
  *  3. no id given -> the single row with exactly that name; zero or several -> none.
- * First-name-only (loose) matching is not part of this rule; callers keep theirs until the sunset flag.
+ * First-name-only (loose) matching is not part of this rule; callers keep theirs for rows and reports that have no id.
  */
 export function resolveCharacter<T extends RefRow>(source: readonly T[] | CharacterIndex<T>, ref: CharacterRef): Resolution<T> {
   const index = Array.isArray(source) ? indexCharacters(source as readonly T[]) : source as CharacterIndex<T>;

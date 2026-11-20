@@ -89,7 +89,7 @@ describe("the delivery step: a card about one member", () => {
     const before = await card();
     const broken = { character: { findFirst: async () => { throw new Error("db down"); }, findMany: async () => { throw new Error("db down"); } }, armoryRosterEntry: { findFirst: async () => null } };
     expect(await withArmoryCardPortraits(broken as never, await renders([KEV]), "g1", before, A)).toEqual(before);
-    const slow = createCharacterPortraits({ fetchImage: () => new Promise<Buffer | null>(() => { /* never answers */ }) });
+    const slow = createCharacterPortraits({ fetchImage: () => new Promise<Buffer | null>((resolve) => setTimeout(() => resolve(null), 400)) /* answers after the 80 ms budget; a never-answering fetch would also block the shared one-at-a-time queue for later tests */ });
     const started = Date.now();
     expect(await withArmoryCardPortraits(fakeDb() as never, slow, "g1", before, A, { budgetMs: 80 })).toEqual(before);
     expect(Date.now() - started).toBeLessThan(2000);
@@ -152,14 +152,14 @@ describe("the delivery step: a dungeon run", () => {
     expect(await scoreCardPng(bad)).toEqual(plain);
   });
 
-  it("loads at most three pictures at once and stops starting new ones after the budget", async () => {
+  it("loads pictures one crop at a time (the shared queue), never more than three at once, and stops starting new ones after the budget", async () => {
     let live = 0, peak = 0;
     const image = await fakeRender();
     const portraits = createCharacterPortraits({ fetchImage: async () => { live++; peak = Math.max(peak, live); await new Promise(r => setTimeout(r, 25)); live--; return image; } });
     const many = Array.from({ length: 5 }, (_, i) => ({ name: `Char${i}`, wowId: BigInt(1000 + i), discord: `u${i}` }));
     const card = dungeonRunCard({ ...run, players: many.map(c => c.name), inGuildPlayers: many.map(c => c.name), playerDetails: many.map(c => ({ character: c.name, class: "MAGE", role: "DAMAGER", deaths: 0, presentSec: 1, points: 0 })), fullNames: {} }, "en");
     const after = await withArmoryCardPortraits(fakeDb(many) as never, portraits, "g1", card);
-    expect(peak).toBeLessThanOrEqual(3);
+    expect(peak).toBe(1); // one crop at a time (upload-pressure queue)
     expect(after.dungeon!.party.filter(member => member.portrait).length).toBe(5);
   });
 

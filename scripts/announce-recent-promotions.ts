@@ -43,7 +43,7 @@ try {
         const label = `${cleanCharacterName(event.target!)} -> ${event.rank}`;
         if (events.some((e) => e.kind === "demote" && (e.target ?? "").toLowerCase() === target && e.at > event.at)) { console.log(`  skip (demoted since): ${label}`); continue; }
         const owner = characters.find((c) => c.name.toLowerCase() === target)?.member;
-        if (!owner || !/^d{17,20}$/.test(owner.discordUserId)) { console.log(`  skip (not linked): ${label}`); continue; }
+        if (!owner || !/^\d{17,20}$/.test(owner.discordUserId)) { console.log(`  skip (not linked): ${label}`); continue; }
         lines.push(`<@${owner.discordUserId}> (${cleanCharacterName(event.target!)}) → **${event.rank}**`);
         console.log(`  in recap: ${label} for ${owner.displayName}`);
       }
@@ -52,8 +52,7 @@ try {
       for (const [i, line] of lines.entries()) {
         const more = lines.length - i;
         if (description.length + line.length + 40 > 4000) { description += lang === "fr" ? `… et ${more} de plus` : `… and ${more} more`; break; }
-        description += line + "
-";
+        description += `${line}\n`;
       }
       const title = lang === "fr" ? `🎉 Promotions des ${days} derniers jours` : `🎉 Promotions from the last ${days} days`;
       const footer = lang === "fr" ? "Promotions vues dans le jeu. Félicitations à tous !" : "Promotions seen in the game. Congratulations, everyone!";

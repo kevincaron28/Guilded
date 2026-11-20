@@ -25,11 +25,12 @@ describe("companion identity rule", () => {
   });
 
   it("foreverNameMatches with an id picks the row holding it and never a row with another id", () => {
+    const byId = (row: { id?: string }) => row.id;
     const rows = [{ name: "Dude Lebowski", id: "1a" }, { name: "Dude Holyroller", id: "2b" }, { name: "Dude Greenleaf" }];
-    expect(foreverNameMatches(rows, "Dude Holyroller", undefined, "1a")).toEqual([rows[0]]);
-    expect(foreverNameMatches(rows, "Dude Lebowski", undefined, "99")).toEqual([]);            // a new id matches no row by name that has another id
-    expect(foreverNameMatches(rows, "Dude Greenleaf", undefined, "99")).toEqual([rows[2]]);     // a row without an id still matches by name
-    expect(foreverNameMatches(rows, "Dude Lebowski")).toEqual([rows[0]]);                       // no id: unchanged
+    expect(foreverNameMatches(rows, "Dude Holyroller", undefined, "1a", byId)).toEqual([rows[0]]);
+    expect(foreverNameMatches(rows, "Dude Lebowski", undefined, "99", byId)).toEqual([]);            // a new id matches no row by name that has another id
+    expect(foreverNameMatches(rows, "Dude Greenleaf", undefined, "99", byId)).toEqual([rows[2]]);     // a row without an id still matches by name
+    expect(foreverNameMatches(rows, "Dude Lebowski", undefined, null, byId)).toEqual([rows[0]]);                     // no id: unchanged
   });
 
   it("normalizeExportIdentities passes an id through untouched", () => {

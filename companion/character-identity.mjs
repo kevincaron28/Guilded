@@ -54,10 +54,10 @@ export function sameCharacter(a, b, idA, idB) {
 }
 /**
  * Items whose name is exactly `name`; failing that, the single loose (first-name) match, or none.
- * Items may carry an id (`wowId`, else `id`; any shape idKey reads). A loose match never lands on an item with an id; with `refId`
+ * Items may carry `wowId` (any shape idKey reads; pass `idOf` for another field: a plain `id` is usually a database key, never a game id). A loose match never lands on an item with an id; with `refId`
  * (the report's id) the item holding that id wins, and an item with a different id never matches, even by exact name.
  */
-export function foreverNameMatches(items, name, nameOf = item => item.name, refId = /** @type {unknown} */ (null), idOf = item => item.wowId ?? item.id) {
+export function foreverNameMatches(items, name, nameOf = item => item.name, refId = /** @type {unknown} */ (null), idOf = item => item.wowId) {
   const wanted = bareLower(name);
   let exact = items.filter(item => bareLower(nameOf(item)) === wanted);
   const ref = idKey(refId);

@@ -49,8 +49,8 @@ let portraitCache: import("./character-portrait.js").CharacterPortraits | undefi
 /** One shared portrait cache (the Battle.net client is only used when credentials are configured). */
 async function sharedPortraits() {
   if (portraitCache) return portraitCache;
-  const [{ createCharacterPortraits }, { armoryClientFromEnv }, { config }] = await Promise.all([import("./character-portrait.js"), import("./blizzard-armory.js"), import("../config.js")]);
-  return portraitCache = createCharacterPortraits({ armory: armoryClientFromEnv({ BATTLENET_CLIENT_ID: config.BATTLENET_CLIENT_ID, BATTLENET_CLIENT_SECRET: config.BATTLENET_CLIENT_SECRET }) });
+  const [{ createCharacterPortraits, defaultPortraitDir }, { armoryClientFromEnv }, { config }] = await Promise.all([import("./character-portrait.js"), import("./blizzard-armory.js"), import("../config.js")]);
+  return portraitCache = createCharacterPortraits({ cacheDir: defaultPortraitDir(), armory: armoryClientFromEnv({ BATTLENET_CLIENT_ID: config.BATTLENET_CLIENT_ID, BATTLENET_CLIENT_SECRET: config.BATTLENET_CLIENT_SECRET }) });
 }
 
 export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise<void> {

@@ -8,7 +8,7 @@ import { credentialBySecret, renewCompanionCredential } from "./services/compani
 import { allowMobileReport, mobileReportText } from "./services/mobile-app-report.js";
 import { createErrorReportService } from "./services/error-report.js";
 import { MobileCredentialUnknown, configureMobileDevice, mobileDeviceEnabled, retireMobileDevice } from "./services/mobile-alerts.js";
-import { guildWhere, loadGuildScope, runInGuildScope, withGuildScope } from "./services/guild-scope.js";
+import { guildScopeOf, guildWhere, loadGuildScope, runInGuildScope, withGuildScope } from "./services/guild-scope.js";
 import { hostedPilot } from "./hosted-pilot.js";
 import { assertForeverEdition, GameEditionError, gameEditionOf } from "./services/game-edition.js";
 import { withEdition } from "./services/edition-context.js";
@@ -1366,13 +1366,15 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const cachedAuth = isStandings && typeof header === "string" ? standingsAuth.get(header, guildDiscordId) : undefined;
       const credential = cachedAuth ? { member: { guild: cachedAuth.guild } } : typeof header === "string" ? await prisma.companionCredential.findFirst({
         where: { ...(isMobileDevice ? credentialBySecret(header) : { tokenHash: hashCompanionSecret(header) }), revokedAt: null, member: { guild: { discordId: guildDiscordId }, status: "ACTIVE" } },
-        select: { member: { select: { guild: true } } }
+        // One query for the credential, its member and the guild with its Discord scope: companionAccess and the guild scope reuse it
+        // (they each looked the same credential and guild up again: 2 of the 4 round trips of `auth` + `access`, 20 Nov 2026).
+        select: { memberId: true, member: { select: { discordUserId: true, guild: { include: { wowSpace: true } } } } }
       }) : null;
       const guild = credential?.member.guild;
       if (!guild) { json(response, 401, { error: "Pair this companion with /character link in the selected in-game guild." }); return; }
-      return await runInGuildScope(await loadGuildScope(prisma, guild.id, guildDiscordId), async () => {
+      return await runInGuildScope(guildScopeOf(guild) ?? await loadGuildScope(prisma, guild.id, guildDiscordId), async () => {
       const scopeLoadedAt = Date.now();
-      const access = cachedAuth ? cachedAuth.access : typeof header === "string" ? await companionAccess(prisma, client, guild.id, guild.discordId, header, isMobileDevice) : null;
+      const access = cachedAuth ? cachedAuth.access : typeof header === "string" ? await companionAccess(prisma, client, guild.id, guild.discordId, header, isMobileDevice, { known: credential && "memberId" in credential && credential.memberId ? { memberId: credential.memberId, discordUserId: credential.member.discordUserId } : undefined, cacheMs: isImport ? 10_000 : 0 }) : null;
       const accessAt = Date.now();
       if (isStandings && access && !cachedAuth && typeof header === "string") standingsAuth.set(header, guildDiscordId, { guild, access });
       if (!access) {

@@ -14,6 +14,7 @@ import { ENDGAME_WINGS } from "./dungeon-rating.js";
 // Wing routes (Blackrock Spire, Dire Maul, Stratholme) share one map and are told apart by their last boss (ENDGAME_WINGS).
 // Krol'dok Stronghold (map 3039, final boss Overseer Mugg) and Alcaz Prison (map 2994, final boss Blazeroar) come from real guild runs
 // of 19 November 2026 (6 and 1 runs); their targets are generous guesses, measured runs take over through the usual formula.
+// Krol'dok Stronghold: Blizzard's corrected range is 40-45 (Sep 2026). A rated band must sit inside its bracket (bracketPlanProblems), and 45 belongs to the 45-59 bracket, so the band is 40-44 in "30-44"; a level-45 character is rated in the 45-59 bracket.
 // NOT included, because no map id is known and none is invented: Blackmaw Hold, Shaper's Terrace (`SEASON2_WAITING`). Add them to the reviewed rules file once a real run reports their map id, before Season 2 starts.
 export const ENDGAME_RUN_REF = "season-2-endgame-2026-11-16";
 
@@ -27,7 +28,7 @@ const wing = (instanceId: keyof typeof ENDGAME_WINGS, w: string) => `${instanceI
 
 export const SEASON2_ENDGAME_ROUTES: readonly EndgameRoute[] = [
   { planId: "drowned-city", key: "2970", instanceId: 2970, bracket: "30-44", min: 34, max: 42, minutes: 35, finalBoss: "Min'loth the Serpent" },
-  { planId: "kroldok-stronghold", key: "3039", instanceId: 3039, bracket: "30-44", min: 38, max: 44, minutes: 70, finalBoss: "Overseer Mugg" },
+  { planId: "kroldok-stronghold", key: "3039", instanceId: 3039, bracket: "30-44", min: 40, max: 44, minutes: 70, finalBoss: "Overseer Mugg" },
   { planId: "zulfarrak", key: "209", instanceId: 209, bracket: "45-59", min: 45, max: 54, minutes: 40, finalBoss: "Chief Ukorz Sandscalp" },
   { planId: "maraudon", key: "349", instanceId: 349, bracket: "45-59", min: 46, max: 55, minutes: 50, finalBoss: "Princess Theradras" },
   { planId: "alcaz-prison", key: "2994", instanceId: 2994, bracket: "45-59", min: 48, max: 56, minutes: 60, finalBoss: "Blazeroar" },

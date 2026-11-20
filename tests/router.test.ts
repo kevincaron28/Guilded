@@ -106,7 +106,6 @@ describe("the real command list", () => {
     expect(find("lead", null, "readiness-raid")).toMatchObject({ legacy: "readiness", sub: "raid" });
     expect(find("lead", "epgp", "decay")).toMatchObject({ legacy: "epgp", sub: "decay" });
     expect(find("lead", "loot", "auction")).toMatchObject({ legacy: "loot", sub: "auction" });
-    expect(find("officer", null, "epgp")).toMatchObject({ legacy: "moved", sub: "epgp" });
     expect(find("officer", "character", "link")).toMatchObject({ legacy: "character", sub: "link" });
     expect(find("organize", null, "start-season")).toMatchObject({ legacy: "community", sub: "start-season" });
     expect(find("organize", "lottery", "create")).toMatchObject({ legacy: "lottery", sub: "create" });

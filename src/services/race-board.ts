@@ -198,7 +198,7 @@ export function raceBoardEmbed(data: RaceBoardData, lang: Lang, options: { image
   }
   if (options.image && data.total) embed.setImage(`attachment://${options.image}`);
   const note = data.rosterStale && data.rosterAt ? t(` · roster last updated ${data.rosterAt.toISOString().slice(0, 10)}`, ` · liste de la guilde mise à jour le ${data.rosterAt.toISOString().slice(0, 10)}`) : "";
-  return embed.setFooter({ text: t("/character race near finds partners at your level", "/character race near trouve des partenaires de ton niveau") + note });
+  return embed.setFooter({ text: t("/character race near finds partners at your level", "/character race near trouve des partenaires de votre niveau") + note });
 }
 
 export interface HallRecord { order: number; name: string; className: string; race: string | null; reachedAt: Date; firstSeenAt: Date; professions: string | null; memberDiscordId: string | null;

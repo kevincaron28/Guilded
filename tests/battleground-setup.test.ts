@@ -92,7 +92,7 @@ describe("optional battleground installation", () => {
     await f.run(undefined, "fr");
     expect(f.guild.channels.create).toHaveBeenCalledTimes(5);
     expect([...f.channels.values()].map(c => c.permissionOverwrites)).toEqual(before);
-    expect(f.posted[0].edit.mock.calls[0][0].content).toContain("Appuie sur **Créer**");
+    expect(f.posted[0].edit.mock.calls[0][0].content).toContain("Appuyez sur **Créer**");
   });
   it("recovers bot-owned marker messages when message IDs were lost", async () => {
     const f = fixture(); await f.run();
@@ -250,7 +250,7 @@ describe("plain PvP panels (owner request, 8 November 2026)", () => {
     expect(foreign.edit).not.toHaveBeenCalled(); // a member's message is never touched
     expect(send).not.toHaveBeenCalled();
     // Already current: nothing to do.
-    Object.assign(stats, { content: bgSetupPanel("stats", "scope", "fr").content, embeds: [{ description: "Les réponses aux boutons sont privées : toi seul les vois." }], components: [{ components: [{ label: "Statistiques" }] }] });
+    Object.assign(stats, { content: bgSetupPanel("stats", "scope", "fr").content, embeds: [{ description: "Les réponses aux boutons sont privées : vous seul les voyez." }], components: [{ components: [{ label: "Statistiques" }] }] });
     expect(await refreshBgPanels(guild as never, db as never)).toBe(0);
   });
 });

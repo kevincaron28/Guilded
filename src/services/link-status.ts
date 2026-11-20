@@ -55,11 +55,11 @@ export function linkStatusLines(status: LinkStatus, lang: "en" | "fr", now = new
   const synced = status.lastSynced ? ago(status.lastSynced, now, fr) : (fr ? "Pas encore" : "Not yet");
   const step = nextStep(status);
   const next = {
-    connect: fr ? "Installe l'application Windows Guilded et connecte-toi avec Discord : tes personnages se lient tout seuls." : "Get the Guilded Windows app and sign in with Discord: your characters link themselves.",
+    connect: fr ? "Installez l'application Windows Guilded et connectez-vous avec Discord : vos personnages se lient tout seuls." : "Get the Guilded Windows app and sign in with Discord: your characters link themselves.",
     characters: fr
-      ? "Ton application est connectée. Rejoins le serveur Discord de ta guilde qui utilise Guilded, puis appuie sur Relier dans l'application ; sinon connecte-toi à WoW et tape /reload."
+      ? "Votre application est connectée. Rejoignez le serveur Discord de votre guilde qui utilise Guilded, puis appuyez sur Relier dans l'application ; sinon connectez-vous à WoW et tapez /reload."
       : "Your app is connected. Join your guild's Discord server that uses Guilded, then press Link in the app; otherwise log in to WoW and type /reload.",
-    sync: fr ? "Ouvre l'application Guilded et connecte-toi avec Discord pour que tout se synchronise tout seul." : "Open the Guilded app and sign in with Discord so everything syncs by itself.",
+    sync: fr ? "Ouvrez l'application Guilded et connectez-vous avec Discord pour que tout se synchronise tout seul." : "Open the Guilded app and sign in with Discord so everything syncs by itself.",
     done: fr ? "Rien. Tout est prêt." : "Nothing. You're all set."
   }[step];
   return fr

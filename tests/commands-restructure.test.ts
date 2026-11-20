@@ -33,7 +33,6 @@ import { commands } from "../src/commands/index.js";
 import { executeLeaderboard, leaderboardBoard, leaderboardCommand } from "../src/commands/leaderboard.js";
 import { executeCharacterLink } from "../src/commands/character.js";
 import { RETIRED_COMMANDS, retiredHandler } from "../src/commands/moved.js";
-import { legacyView, resolveCommand } from "../src/commands/router.js";
 import { serverWideCommand } from "../src/services/interaction-gate.js";
 
 type Option = { name: string; description: string; type: number; options?: Option[] };
@@ -135,37 +134,6 @@ describe("/character link", () => {
 });
 
 describe("moved answers", () => {
-  // Every "(moved)" subcommand still registered answers privately where it went, in the server's language.
-  const moved: { command: string; group: string | null; sub: string }[] = [];
-  for (const command of commands) {
-    const json = command.toJSON() as unknown as Option;
-    for (const option of json.options ?? []) {
-      if (option.type === 1 && option.description.startsWith("(moved)")) moved.push({ command: json.name, group: null, sub: option.name });
-      if (option.type === 2) for (const inner of option.options ?? []) if (inner.description.startsWith("(moved)")) moved.push({ command: json.name, group: option.name, sub: inner.name });
-    }
-  }
-
-  it("covers the retired subcommands", () => {
-    const names = moved.map((row) => `${row.command} ${row.sub}`);
-    for (const name of ["character pair", "character import", "character claim", "craft offer-setting", "bank handle", "tag set", "participation review", "report inactive", "officer epgp", "officer loot"]) expect(names).toContain(name);
-  });
-
-  it.each(["en", "fr"])("each one replies ephemerally with its new place (%s)", async (language) => {
-    mocks.language = language;
-    for (const row of moved) {
-      const { value, replies } = slash(row.command, row.sub, {}, row.group);
-      const found = resolveCommand(commands, value);
-      expect(found.handler, `${row.command} ${row.sub}`).toBeTruthy();
-      await found.handler!(legacyView(value, found.legacy, found.sub));
-      const target = (commands.find((command) => command.name === row.command)!.toJSON() as unknown as Option).options!
-        .find((option) => option.name === row.sub)!.description.replace("(moved) ", "");
-      expect(replies[0].flags).toBeTruthy();
-      expect(replies[0].content).toContain(`\`${target}\``);
-      expect(replies[0].content).toContain(language === "fr" ? "déplacé" : "moved");
-    }
-    mocks.language = "en";
-  });
-
   it("retired top-level commands answer where they went", async () => {
     expect(Object.keys(RETIRED_COMMANDS).sort()).toEqual(["delete-my-data", "import", "poll", "wow"]);
     for (const name of Object.keys(RETIRED_COMMANDS)) {

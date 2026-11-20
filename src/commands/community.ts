@@ -120,7 +120,7 @@ async function getActivity(guild: Guild, guildId: string, id: string, userId: st
 }
 
 export async function executeCommunity(interaction: ChatInputCommandInteraction): Promise<void> {
-  if (!interaction.guild) { await interaction.reply({ content: "Utilise cette commande sur le serveur / Use this command in the server.", flags: MessageFlags.Ephemeral }); return; }
+  if (!interaction.guild) { await interaction.reply({ content: "Utilisez cette commande sur le serveur / Use this command in the server.", flags: MessageFlags.Ephemeral }); return; }
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const context = await requireGuildContext(interaction);
   if (!context) return;
@@ -150,7 +150,7 @@ export async function executeCommunity(interaction: ChatInputCommandInteraction)
     if (!badges) content = say(lang, "Season not found.", "Saison introuvable.");
     else content = say(lang, "Season badges", "Badges de saison") + " · " + COMMUNITY_MILESTONE_LABEL + "\n" +
       (badges.map(badge => badgeLabel(badge.code, lang) + " · " + (badge.earnedAt ? badge.earnedAt.toISOString().slice(0, 10) : say(lang, "Historical; date unknown", "Historique; date inconnue"))).join("\n") || say(lang, "No badges recorded yet.", "Aucun badge enregistré.")) + "\n\n" +
-      say(lang, "Cosmetic only. Shelves are visible to members who can access this season, and everything is shared. Archives: select a season.", "Décoratifs seulement. Les collections sont visibles aux membres ayant accès à cette saison, et tout est partagé. Archives : choisis une saison.");
+      say(lang, "Cosmetic only. Shelves are visible to members who can access this season, and everything is shared. Archives: select a season.", "Décoratifs seulement. Les collections sont visibles aux membres ayant accès à cette saison, et tout est partagé. Archives : choisissez une saison.");
   } else if (sub === "badge-settings") {
     const channelId = interaction.options.getChannel("channel", true).id;
     await validateCommunityDestination(guild, current!, channelId, actor);
@@ -160,9 +160,9 @@ export async function executeCommunity(interaction: ChatInputCommandInteraction)
     const member = await guild.members.fetch({ user: actor, force: true });
     if (!hasPermission(member, "officer")) throw new Error("Organisateurs seulement / Organizers only.");
     const channel = interaction.channel;
-    if (!channel?.isTextBased() || channel.isDMBased() || !channel.permissionsFor(member)?.has(PermissionFlagsBits.ViewChannel) || !channel.permissionsFor(guild.members.me!)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.ReadMessageHistory])) throw new Error("Choisis un salon accessible au bot / Choose a channel the bot can use.");
+    if (!channel?.isTextBased() || channel.isDMBased() || !channel.permissionsFor(member)?.has(PermissionFlagsBits.ViewChannel) || !channel.permissionsFor(guild.members.me!)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.ReadMessageHistory])) throw new Error("Choisissez un salon accessible au bot / Choose a channel the bot can use.");
     const role = interaction.options.getRole("role");
-    if (role?.id === guild.id || role?.managed) throw new Error("Choisis un rôle de jeu / Choose a game role.");
+    if (role?.id === guild.id || role?.managed) throw new Error("Choisissez un rôle de jeu / Choose a game role.");
     const created = await service.startSeason(context.guildId, { name: interaction.options.getString("name") ?? communityMonthName(new Date(), timezone, lang), game: interaction.options.getString("game", true), channelId: channel.id, audienceRoleId: role?.id ?? null, actorId: actor });
     content = `${say(lang, "Season created", "Saison créée")} : **${communitySeasonLabel(created, lang)}** (${communityGameLabel(created.game, lang)})\n/community hub`;
   } else if (sub === "season-settings") {
@@ -201,7 +201,7 @@ export async function executeCommunity(interaction: ChatInputCommandInteraction)
   } else if (sub === "dice") {
     content = await diceReply(context.guildId, current!, actor, timezone, lang);
   } else if (sub === "create" || sub === "quiz") {
-    if (interaction.channelId !== (current!.announcementChannelId ?? current!.channelId)) throw new Error("Crée l'activité dans le salon des annonces / Create this in the announcements channel.");
+    if (interaction.channelId !== (current!.announcementChannelId ?? current!.channelId)) throw new Error("Créez l'activité dans le salon des annonces / Create this in the announcements channel.");
     await validateCommunityDestination(guild, current!, interaction.channelId, actor);
     const startsAt = kind === "EVENT" ? parseRaidTime(interaction.options.getString("starts", true), timezone) : undefined;
     const endsAt = parseRaidTime(interaction.options.getString("ends", true), timezone);
@@ -293,7 +293,7 @@ async function validateEventVenue(guild: Guild, channelId: string, voiceId: stri
   try { await eventVenue(guild, channelId, voiceId); }
   catch (error) {
     if (error && typeof error === "object" && "code" in error && error.code === "event-voice-audience") {
-      throw new Error("Choisis un vocal avec la même visibilité que le salon de la saison / Choose a voice channel with the same visibility as the season channel.", { cause: error });
+      throw new Error("Choisissez un vocal avec la même visibilité que le salon de la saison / Choose a voice channel with the same visibility as the season channel.", { cause: error });
     }
     throw error;
   }
@@ -303,7 +303,7 @@ const tickets = (lang: Lang, count: number) => `${count} ${say(lang, count === 1
 function ticketReply(lang: Lang, row: CommunityActivity, entry: { status: string; quantity: number }) {
   const rules = lotteryRules.parse(row.rules);
   return entry.status === "PENDING"
-    ? say(lang, `${tickets(lang, entry.quantity)} requested (${entry.quantity * rules.cost} ${rules.currency}, ${rules.realm}). Arrange the trade with an organizer. Tickets count after payment confirmation.`, `${tickets(lang, entry.quantity)} ${entry.quantity === 1 ? "demandé" : "demandés"} (${entry.quantity * rules.cost} ${rules.currency}, ${rules.realm}). Fais l'échange avec un organisateur. Les billets comptent après sa confirmation du paiement.`)
+    ? say(lang, `${tickets(lang, entry.quantity)} requested (${entry.quantity * rules.cost} ${rules.currency}, ${rules.realm}). Arrange the trade with an organizer. Tickets count after payment confirmation.`, `${tickets(lang, entry.quantity)} ${entry.quantity === 1 ? "demandé" : "demandés"} (${entry.quantity * rules.cost} ${rules.currency}, ${rules.realm}). Faites l'échange avec un organisateur. Les billets comptent après sa confirmation du paiement.`)
     : say(lang, `${tickets(lang, entry.quantity)} confirmed. One request per member; repeated clicks do not purchase more.`, `${tickets(lang, entry.quantity)} ${entry.quantity === 1 ? "confirmé" : "confirmés"}. Une demande par membre; recliquer n'achète pas de billets supplémentaires.`);
 }
 function signupReply(lang: Lang, status: string) {
@@ -397,10 +397,10 @@ export async function handleCommunityButton(interaction: ButtonInteraction): Pro
     content = ticketReply(lang, row, await service.enterLottery(record.id, id, interaction.user.id, quantity));
   } else if (action === "claim-status") {
     const entry = await prisma.communityEntry.findUnique({ where: { activityId_userId: { activityId: id, userId: interaction.user.id } } });
-    content = entry ? `${communityStatusLabel(entry.status, lang)}\n${entry.evidence ?? ""}\n${entry.reviewNote ?? ""}` : say(lang, "No submission yet. Use Submit evidence.", "Aucune soumission. Utilise Soumettre une preuve.");
+    content = entry ? `${communityStatusLabel(entry.status, lang)}\n${entry.evidence ?? ""}\n${entry.reviewNote ?? ""}` : say(lang, "No submission yet. Use Submit evidence.", "Aucune soumission. Utilisez Soumettre une preuve.");
   } else if (/^answer[0-3]$/.test(action)) {
     const entry = await service.answerQuiz(record.id, id, interaction.user.id, Number(action.slice(-1)));
-    content = entry.status === "CORRECT" ? say(lang, "Correct! Points saved.", "Bonne réponse! Points enregistrés.") : say(lang, "Answer saved. Try the next quiz!", "Réponse enregistrée. Réessaie au prochain quiz!");
+    content = entry.status === "CORRECT" ? say(lang, "Correct! Points saved.", "Bonne réponse! Points enregistrés.") : say(lang, "Answer saved. Try the next quiz!", "Réponse enregistrée. Réessayez au prochain quiz!");
   } else {
     const choice = { present: "JOINED", maybe: "MAYBE", absent: "ABSENT" }[action];
     if (!choice) throw new Error("Bouton invalide / Invalid button.");

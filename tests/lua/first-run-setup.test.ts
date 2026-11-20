@@ -55,6 +55,8 @@ function addon(): LuaSession {
     function GetInventoryItemDurability() return nil end
     IN_COMBAT = false
     function InCombatLockdown() return IN_COMBAT end
+    IN_INSTANCE = false
+    function IsInInstance() return IN_INSTANCE, IN_INSTANCE and "party" or "none" end
     TIMERS = {}
     C_Timer = { After = function(delay, fn) TIMERS[#TIMERS + 1] = { delay = delay, fn = fn } end }
     -- chat windows: General only, until a test adds Guilded
@@ -73,7 +75,7 @@ function addon(): LuaSession {
 
 function reset(s: LuaSession) {
   s.run(`
-    IN_COMBAT = false; MOCK_UNITS.player.name = "Kev"; WINDOW_NAMES[3] = nil
+    IN_COMBAT = false; IN_INSTANCE = false; MOCK_UNITS.player.name = "Kev"; WINDOW_NAMES[3] = nil
     fire_event("PLAYER_REGEN_ENABLED"); fire_event("PLAYER_ENTERING_WORLD")
     if NAMED.GuildedFirstRunSetup then NAMED.GuildedFirstRunSetup:Hide() end
     NS.getDb().setupWizard = nil; NS.getSettings().chatTab = nil; NS.getSettings().quietLogin = nil
@@ -99,13 +101,46 @@ describe("first-run setup window", () => {
     enterWorld(s);
     expect(open(s)).toBe(true);
     expect(s.run(`return tostring(NS.getDb().setupWizard.shown.kev)`)).toBe("true");
-    // Closed without finishing: the next login of this character does not open it again ...
-    s.run(`NAMED.GuildedFirstRunSetup:Hide()`);
+    // Closed with X / Escape (the game fires OnHide): not opened again on this character ...
+    s.run(`local f = NAMED.GuildedFirstRunSetup; f:Hide(); f.scripts.OnHide(f)`);
     enterWorld(s);
     expect(open(s)).toBe(false);
-    // ... but another character that has not seen it yet does (until the account finishes it).
+    // ... nor on another character: one dismissal counts for the whole account (/guilded setup still works).
     s.run(`MOCK_UNITS.player.name = "Other"`);
     enterWorld(s);
+    expect(open(s)).toBe(false);
+    expect(s.run(`return tostring(NS.getDb().setupWizard.dismissed)`)).toBe("true");
+    s.run(`NS.runCommand("setup")`);
+    expect(open(s)).toBe(true);
+  });
+
+  it("does not open for members who already have the companion and the chat tab", () => {
+    const s = addon();
+    s.run(`GuildedStandings = { updatedAt = "2026-11-19T10:00:00Z" }`);
+    enterWorld(s);
+    expect(open(s)).toBe(true);   // companion only: still has the chat tab to do
+    s.run(`NAMED.GuildedFirstRunSetup:Hide(); NS.getDb().setupWizard = nil; WINDOW_NAMES[3] = "Guilded"; NS.getSettings().chatTab = true`);
+    enterWorld(s);
+    expect(open(s)).toBe(false);  // both done: already set up
+    s.run(`GuildedStandings = nil; GuildedCompanion = { mode = "device" }`);
+    enterWorld(s);
+    expect(open(s)).toBe(false);
+    s.run(`NS.runCommand("setup")`);
+    expect(open(s)).toBe(true);   // /guilded setup always works
+  });
+
+  it("waits in dungeons and battlegrounds and opens on the next zone change outside", () => {
+    const s = addon();
+    s.run(`IN_INSTANCE = true`);
+    enterWorld(s);
+    expect(open(s)).toBe(false);
+    expect(s.run(`return tostring(NS.getDb().setupWizard.shown.kev)`)).toBe("nil");
+    s.run(`fire_event("ZONE_CHANGED_NEW_AREA")`);
+    expect(open(s)).toBe(false);  // still inside
+    s.run(`IN_INSTANCE = false; fire_event("ZONE_CHANGED_NEW_AREA")`);
+    expect(open(s)).toBe(true);
+    // A typed /guilded setup works inside an instance (the player asked).
+    s.run(`NAMED.GuildedFirstRunSetup:Hide(); IN_INSTANCE = true; NS.runCommand("setup")`);
     expect(open(s)).toBe(true);
   });
 
@@ -117,17 +152,29 @@ describe("first-run setup window", () => {
     expect(s.run(`return tostring(NS.getDb().setupWizard.shown.kev)`)).toBe("nil");
     s.run(`IN_COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")`);
     expect(open(s)).toBe(true);
-    // A fight starts: the window hides, and comes back when it ends.
+    // A fight starts: the hide is not a dismissal, and an automatically opened window does not come back by itself.
+    s.run(`IN_COMBAT = true; fire_event("PLAYER_REGEN_DISABLED")`);
+    expect(open(s)).toBe(false);
+    s.run(`IN_COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")`);
+    expect(open(s)).toBe(false);
+    expect(s.run(`return tostring(NS.getDb().setupWizard.dismissed)`)).toBe("nil");
+    // A loading screen: nothing opens while loading, it opens after the next entering world.
+    s.run(`NS.getDb().setupWizard.shown = {}; fire_event("PLAYER_LEAVING_WORLD")`);
+    s.run(`NS.firstRunSetup.tryAutoOpen()`);
+    expect(open(s)).toBe(false);
+    enterWorld(s);
+    expect(open(s)).toBe(true);
+  });
+
+  it("brings back a window the player opened after combat, on the same step", () => {
+    const s = addon();
+    s.run(`NS.runCommand("setup"); NS.firstRunSetup.go(3)`);
+    expect(open(s)).toBe(true);
     s.run(`IN_COMBAT = true; fire_event("PLAYER_REGEN_DISABLED")`);
     expect(open(s)).toBe(false);
     s.run(`IN_COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")`);
     expect(open(s)).toBe(true);
-    // A loading screen: nothing opens while loading, it opens after the next entering world.
-    s.run(`NAMED.GuildedFirstRunSetup:Hide(); NS.getDb().setupWizard.shown = {}; fire_event("PLAYER_LEAVING_WORLD")`);
-    s.run(`NS.firstRunSetup.tryAutoOpen()`);
-    expect(open(s)).toBe(false);
-    s.run(`fire_event("PLAYER_ENTERING_WORLD")`);
-    expect(open(s)).toBe(true);
+    expect(s.run(`return NAMED.GuildedFirstRunSetup.counter:GetText()`)).toBe("Step 3 of 5");
   });
 
   it("detects the companion and the Guilded chat tab for the green checks", () => {

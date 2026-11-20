@@ -223,6 +223,13 @@ local function build()
   bg:SetTexture("Interface\\Buttons\\WHITE8X8")
   bg:SetVertexColor(0.04, 0.04, 0.05, 1)
   if UISpecialFrames then table.insert(UISpecialFrames, "GuildedFirstRunSetup") end
+  -- Closing it by hand (X, Escape, any button) counts as dismissed for the whole account: it is not opened
+  -- by itself again, on this character or another. /guilded setup still opens it. Hiding it for combat does not count.
+  f:SetScript("OnHide", function()
+    if module.hidingForCombat then return end
+    local w = state()
+    if w then w.dismissed = true; w.shown[characterKey()] = true end
+  end)
 
   f.header = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   f.header:SetPoint("TOP", 0, -6)
@@ -337,17 +344,23 @@ function module.frame() return win end
 function module.isOpen() return win ~= nil and win.IsShown and win:IsShown() and true or false end
 
 local loading = false
-local pending = false
+local pending = false        -- the player asked for it (/guilded setup) during combat or a loading screen
+local pendingAuto = false    -- the automatic first-login open is waiting for a quiet moment
 
 -- Opens the window. `auto` is true for the automatic first-login open (it then waits for a quiet moment).
-function module.open(auto)
+function module.open(auto, keepStep)
   if not db() then return false end
-  if inCombat() or loading then
-    pending = true
+  local inInstance = false
+  if auto and IsInInstance then local ok, value = pcall(IsInInstance); inInstance = ok and value == true end
+  if inCombat() or loading or inInstance then
+    -- Automatic opens wait for a quiet moment (not in a dungeon or battleground either): the next zone change
+    -- or the next login retries. A typed /guilded setup in combat opens when the fight ends.
+    if auto then pendingAuto = true else pending = true end
     if not auto and ns.message then ns.message(L("Open setup after combat.")) end
     return false
   end
   pending = false
+  pendingAuto = false
   if not win then
     local ok, frame = pcall(build)
     if not ok then
@@ -356,7 +369,8 @@ function module.open(auto)
     end
     win = frame
   end
-  module.step = 1
+  if not keepStep then module.step = 1 end
+  win.manual = not auto
   local w = state()
   if w then w.shown[characterKey()] = true end
   module.render()
@@ -368,12 +382,15 @@ end
 -- The automatic open: once per character, until the account has finished the setup.
 function module.shouldAutoOpen()
   local w = state()
-  if not w or w.done == true then return false end
-  return w.shown[characterKey()] ~= true
+  if not w or w.done == true or w.dismissed == true then return false end
+  if w.shown[characterKey()] == true then return false end
+  -- Already set up (companion data and the Guilded chat tab): nothing to walk through.
+  if module.companionStatus() and module.chatTabStatus() then return false end
+  return true
 end
 
 function module.tryAutoOpen()
-  if not module.shouldAutoOpen() then return false end
+  if not module.shouldAutoOpen() then pendingAuto = false; return false end
   return module.open(true)
 end
 
@@ -382,23 +399,37 @@ end
 -- ---------------------------------------------------------------------
 local hiddenByCombat = false
 
+local function retryAuto()
+  if pendingAuto then pcall(module.tryAutoOpen) end
+end
+
 local function onEvent(_, event)
   if event == "PLAYER_ENTERING_WORLD" then
     loading = false
     if C_Timer and C_Timer.After then
       C_Timer.After(module.AUTO_DELAY, function() pcall(module.tryAutoOpen) end)
     end
-    if pending then pcall(module.open, true) end
+    if pending then pcall(module.open, false) end
+  elseif event == "ZONE_CHANGED_NEW_AREA" then
+    retryAuto()  -- left a dungeon or battleground
   elseif event == "PLAYER_LEAVING_WORLD" then
     loading = true
   elseif event == "PLAYER_REGEN_DISABLED" then
-    if win and win:IsShown() then hiddenByCombat = true; win:Hide() end
+    -- Hide for the fight. Only a window the player opened themselves comes back afterwards, on the same step.
+    if win and win:IsShown() then
+      module.hidingForCombat = true
+      win:Hide()
+      module.hidingForCombat = false
+      hiddenByCombat = win.manual == true
+    end
   elseif event == "PLAYER_REGEN_ENABLED" then
     if hiddenByCombat then
       hiddenByCombat = false
-      pcall(module.open, true)  -- reopens on the first step; the player had not finished
+      pcall(module.open, false, true)
     elseif pending then
-      pcall(module.open, true)
+      pcall(module.open, false)
+    else
+      retryAuto()
     end
   end
 end
@@ -406,6 +437,7 @@ end
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 frame:RegisterEvent("PLAYER_LEAVING_WORLD")
+frame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
 frame:RegisterEvent("PLAYER_REGEN_DISABLED")
 frame:RegisterEvent("PLAYER_REGEN_ENABLED")
 frame:SetScript("OnEvent", onEvent)

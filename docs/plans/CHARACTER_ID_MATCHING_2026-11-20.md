@@ -183,6 +183,13 @@ machinery (section 6). The Lua deletions need the next addon release.
 `guildmate-relay.ts`, `run-trust.ts`; `bridge-provisional-revert.ts` and the `forever-names` backfill scripts once
 nothing provisional remains. They stay only for rows whose `wowId` is still NULL, until the sunset flag flips.
 
+**Status (20 Nov 2026): the last five name-only places are id-first** (always on, no switch; ids decide only when both sides carry one, otherwise the name rule, so older unstamped data still matches):
+- `run-trust.ts`: `voucherOf` (device name key -> id map) and `anchored` (roster and linked rows carry `wowId`);
+- `companion-device.ts`: `runsOfDevice`, the upload's vouching, `storeDeviceRuns` and `run-release.ts` (new optional `DeviceStore.characterIds`, `DeviceRunSource.characterIds`; `DeviceCharacter.wowId` read);
+- `guildmate-relay.ts`: `applyGuildmateRelay` passes the heard character's id to `findCharacter` (`wowId` added to the select); `relayableDungeonRuns` takes the owned ids;
+- `companion-access.ts`: `personalSnapshot` (`looseOwn`, exact-name and renamed-by-id ownership; `wowId` added to the selects in `companion-api.ts`);
+- `companion/device-sync.mjs`: the run vouching already used ids (stage C). The one name-only check left, a run heard from a reporter (`reporterNames`), stays by name because the addon sends reporter names without ids.
+
 ## 7. Risks and verification
 
 | Risk | Mitigation / check |

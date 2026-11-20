@@ -1,4 +1,4 @@
-import { foreverSameName } from "../../companion/character-identity.mjs";
+import { foreverSameName, sameCharacter } from "../../companion/character-identity.mjs";
 import { firstNameKey } from "./dungeon-import.js";
 
 // Dungeon run trust (docs/plans/RUN_TRUST_2026-11-10.md). Everything in a saved file can be edited, so a run that only
@@ -61,6 +61,15 @@ const seconds = (value: unknown): number | null => typeof value === "number" && 
 const partyNames = (run: Loose): string[] => (Array.isArray(run["players"]) ? run["players"] : [])
   .flatMap((player) => { const name = record(player)?.["character"]; return typeof name === "string" && name.trim() ? [name] : []; });
 
+/** Run players with the game id the addon stamped on them (any shape idKey reads; absent on older copies). */
+const partyPlayers = (run: Loose): { name: string; id: unknown }[] => (Array.isArray(run["players"]) ? run["players"] : [])
+  .flatMap((player) => { const row = record(player); const name = row?.["character"]; return typeof name === "string" && name.trim() ? [{ name, id: row?.["id"] }] : []; });
+
+/** Character ids (docs/plans/CHARACTER_ID_MATCHING_2026-11-20.md): a device's name key -> the game id it reported (decimal text, idKey); keys it reported without an id are absent. */
+export type KeyIds = ReadonlyMap<string, string>;
+/** A character the server knows: a bare name (no id on record) or a name with its stored game id (a `wowId`, any shape idKey reads). */
+export type KnownCharacter = string | { name: string; id?: unknown };
+
 /** The fingerprint of an uploaded run, or null when it is not a run with a dungeon and a party. */
 export function fingerprintOf(raw: unknown): RunFingerprint | null {
   const run = record(raw);
@@ -100,15 +109,17 @@ export function sameRun(a: RunFingerprint, b: RunFingerprint): boolean {
  * The party character an unsigned upload speaks for: one of the device's own characters in the party (first-hand), or a
  * participant whose addon sent the run in game (reporterNames, relay). Null: the device has no standing for this run.
  */
-export function voucherOf(raw: unknown, deviceKeys: ReadonlySet<string>): { kind: "first-hand" | "relay"; voucher: string } | null {
+export function voucherOf(raw: unknown, deviceKeys: ReadonlySet<string>, deviceIds?: KeyIds): { kind: "first-hand" | "relay"; voucher: string } | null {
   const run = record(raw);
   if (!run) return null;
-  const party = partyNames(run);
-  const own = party.find((name) => [...deviceKeys].some((key) => foreverSameName(key, name)));
-  if (own) return { kind: "first-hand", voucher: firstNameKey(own) };
+  const party = partyPlayers(run);
+  // Character ids: both sides carrying an id, the id alone decides (a renamed character still vouches, a namesake never does).
+  const own = party.find((player) => [...deviceKeys].some((key) => sameCharacter(key, player.name, deviceIds?.get(key), player.id)));
+  if (own) return { kind: "first-hand", voucher: firstNameKey(own.name) };
+  // reporterNames carry no ids: the name rule.
   const reporters = (Array.isArray(run["reporterNames"]) ? run["reporterNames"] : []).filter((name): name is string => typeof name === "string");
-  const reporter = party.find((name) => reporters.some((heard) => foreverSameName(heard, name)));
-  return reporter ? { kind: "relay", voucher: firstNameKey(reporter) } : null;
+  const reporter = party.find((player) => reporters.some((heard) => foreverSameName(heard, player.name)));
+  return reporter ? { kind: "relay", voucher: firstNameKey(reporter.name) } : null;
 }
 
 /** Independent: another device key, speaking for another party character, about the same run. */
@@ -117,9 +128,11 @@ export function independent(a: Statement, b: Statement): boolean {
 }
 
 /** Is a party member known to the server (synced roster or a linked character)? `known` holds lowercase full names or first names. */
-export function anchored(raw: unknown, known: readonly string[]): boolean {
+export function anchored(raw: unknown, known: readonly KnownCharacter[]): boolean {
   const run = record(raw);
-  return !!run && partyNames(run).some((name) => known.some((entry) => foreverSameName(entry, name)));
+  return !!run && partyPlayers(run).some((player) => known.some((entry) => typeof entry === "string"
+    ? sameCharacter(entry, player.name, undefined, player.id)
+    : sameCharacter(entry.name, player.name, entry.id, player.id)));
 }
 
 export type TrustDecision =

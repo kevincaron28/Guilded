@@ -56,8 +56,8 @@ const EMBLEMS = {
 } as const;
 export type EmblemKind = keyof typeof EMBLEMS;
 
-export interface TextOptions { size: number; color?: string; face?: Face; maxW?: number; anchor?: "l" | "r" | "c"; spacing?: number; /** Cut a too-long string with an ellipsis by measured width instead of shrinking the font (names in a column keep one size). */ ellipsis?: boolean }
-export interface DrawnText { data: Buffer; left: number; top: number; w: number; h: number; color: string; size: number; str: string }
+export interface TextOptions { size: number; color?: string; face?: Face; maxW?: number; anchor?: "l" | "r" | "c"; spacing?: number; /** Cut a too-long string with an ellipsis by measured width instead of shrinking the font (names in a column keep one size). */ ellipsis?: boolean; /** A soft dark shadow under the string: lighter cards keep the painting visible and shade only the letters. */ shadow?: boolean }
+export interface DrawnText { shadow?: boolean; data: Buffer; left: number; top: number; w: number; h: number; color: string; size: number; str: string }
 export interface TextReport { text: string; size: number; ratio: number }
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -133,7 +133,7 @@ export class CardCanvas {
       r = await drawRaw(s, color, size, face, spacing);
     }
     const left = Math.round(o.anchor === "r" ? x - r.w : o.anchor === "c" ? x - r.w / 2 : x);
-    this.texts.push({ data: r.data, left, top: Math.round(y), w: r.w, h: r.h, color, size, str: s });
+    this.texts.push({ ...(o.shadow ? { shadow: true } : {}), data: r.data, left, top: Math.round(y), w: r.w, h: r.h, color, size, str: s });
     return { w: r.w, h: r.h, right: left + r.w, bottom: y + r.h };
   }
 
@@ -160,7 +160,9 @@ export class CardCanvas {
       for (const i of failing) shade[i] = Math.min(0.9, Math.round((shade[i]! + 0.25) * 100) / 100);
     }
     const scrim = Math.max(0, ...shade);
-    const png = await sharp(base).composite(this.texts.map((t) => ({ input: t.data, left: t.left, top: t.top }))).png().toBuffer();
+    const shadows: OverlayOptions[] = [];
+    for (const t of this.texts) if (t.shadow) shadows.push({ input: await sharp(t.data).ensureAlpha().linear([0, 0, 0, 1.15], [0, 0, 0, 0]).extend({ top: 6, bottom: 6, left: 6, right: 6, background: { r: 0, g: 0, b: 0, alpha: 0 } }).blur(2.2).png().toBuffer(), left: t.left - 6, top: t.top - 4 });
+    const png = await sharp(base).composite([...shadows, ...this.texts.map((t) => ({ input: t.data, left: t.left, top: t.top }))]).png().toBuffer();
     return { png, report, scrim };
   }
 }

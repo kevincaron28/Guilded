@@ -93,12 +93,10 @@ before then are kept privately, unused: Battle.net account ID/BattleTag, charact
 names, region, edition, account main choice and verification time. They never published alts or
 changed guild permissions. **Delete my data** removes them; retained backups follow their normal rules.
 
-Character pictures are optional. A picture you pick for a character on My page is shrunk by
-your browser; Guilded keeps only a re-encoded 512 px copy and a small thumbnail, without the
-file's metadata (camera, location). It is shown on that character's cards and pages to your
-guild only, or also on public pages if you choose Public. You can change or remove it at any
-time; officers can remove it or turn pictures off for their server. Cards already posted in
-Discord keep the picture they were drawn with. **Delete my data** removes your pictures.
+Character pictures: since 20 November 2026 members no longer upload pictures. Cards show the public WoW
+Armory picture of your character (looked up by its character id or name) or, without one, your Discord
+avatar. Pictures that members uploaded earlier are no longer shown or changed; they stay stored until they
+are deleted, and **Delete my data** still removes them.
 
 Duels outside your guild and records carried for others: when you duel a player who is not in a
 Guilded server, the addon can hand the result to the companion of a player near you, which sends it

@@ -11,7 +11,7 @@ const app = () => createWebApp({ store: memoryWebStore().store, auth: { clientId
 const get = (path: string, query = "") => app().respond({ method: "GET", path, query: new URLSearchParams(query), headers: {} });
 
 describe("retired account tools", () => {
-  it.each(["/me/calendar", "/me/reserves", "/me/wishlist", "/me/battlenet", "/me/pictures/", "/me/pictures/upload", "/me/badges", "/me/artisans", "/me/roster", "/me/roster/review",
+  it.each(["/me/calendar", "/me/reserves", "/me/wishlist", "/me/battlenet", "/me/badges", "/me/artisans", "/me/roster", "/me/roster/review",
     "/me/history", "/me/teams", "/me/groups", "/me/crafters", "/me/handover", "/me/raid-plans", "/me/statistics", "/me/guild-bank", "/me/pair", "/me/achievements.png"])(
     "%s answers with one short page, not an error", async (path) => {
       const response = (await get(path))!;

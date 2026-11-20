@@ -49,8 +49,8 @@ let portraitCache: import("./character-portrait.js").CharacterPortraits | undefi
 /** One shared portrait cache (the Battle.net client is only used when credentials are configured). */
 async function sharedPortraits() {
   if (portraitCache) return portraitCache;
-  const [{ createCharacterPortraits }, { armoryClientFromEnv }, { config }] = await Promise.all([import("./character-portrait.js"), import("./blizzard-armory.js"), import("../config.js")]);
-  return portraitCache = createCharacterPortraits({ armory: armoryClientFromEnv({ BATTLENET_CLIENT_ID: config.BATTLENET_CLIENT_ID, BATTLENET_CLIENT_SECRET: config.BATTLENET_CLIENT_SECRET }) });
+  const [{ createCharacterPortraits, defaultPortraitDir }, { armoryClientFromEnv }, { config }] = await Promise.all([import("./character-portrait.js"), import("./blizzard-armory.js"), import("../config.js")]);
+  return portraitCache = createCharacterPortraits({ cacheDir: defaultPortraitDir(), armory: armoryClientFromEnv({ BATTLENET_CLIENT_ID: config.BATTLENET_CLIENT_ID, BATTLENET_CLIENT_SECRET: config.BATTLENET_CLIENT_SECRET }) });
 }
 
 export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise<void> {
@@ -265,10 +265,12 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
         }).catch(() => base);
         return { definition, png: await scoreCardPng(definition).catch(() => null) };
       }
-      // 9.1: members' character pictures (a database read, best effort): the dungeon party's thumbs, or the member's own picture.
+      // Armory character pictures (20 Nov 2026, best effort, time-boxed): a dungeon party's round portraits, or the member's main character
+      // on a card about one member. Order: Armory picture -> Discord avatar -> none. Member-uploaded pictures no longer exist.
       if (definition) {
-        const { withCardPictures } = await import("./card-pictures.js");
-        definition = await withCardPictures(prisma, job.guildId, definition, typeof memberId === "string" ? memberId : undefined);
+        const { withArmoryCardPortraits } = await import("./card-portraits.js");
+        const base = definition;
+        definition = await withArmoryCardPortraits(prisma, await sharedPortraits(), job.guildId, base, typeof memberId === "string" ? memberId : undefined).catch(() => base);
       }
       return { definition, png: definition ? await scoreCardPng(definition).catch(() => null) : null };
     };

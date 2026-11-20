@@ -9,6 +9,7 @@ import { characterKey, foreverSameName } from "../../companion/character-identit
 import { parseWowId } from "./character-ref.js";
 import { clearGuildMembershipCache } from "./guild-participants.js";
 import { guildRankUpdate } from "./guild-rank.js";
+import { isTransientTransactionStart, isWriteConflict } from "./transaction-retry.js";
 import { gameEditionOf } from "./game-edition.js";
 import { contestCharacter, evidenceOf, evidenceRank, pairedSince, reattachDetached, type LinkEvidence } from "./character-move.js";
 
@@ -74,10 +75,23 @@ export async function createSelfCharacter(tx: Tx, guildId: string, memberId: str
   return created;
 }
 
+/** P2028 (transaction could not start or expired), P2034 (write conflict) or a pool start failure: the transaction did not commit. */
+export function isRetryablePairingError(error: unknown): boolean {
+  const code = (error as { code?: string } | null)?.code;
+  return code === "P2028" || isWriteConflict(error) || isTransientTransactionStart(error);
+}
+
 export async function linkPairedCharacter(database: PrismaClient, guildId: string, memberId: string, self: AddonCharacter, options: { confirm?: boolean; evidence?: LinkEvidence } = {}) {
   if (!self.class) return "missing-class" as const;
   try {
-    return await linkPairedCharacterOnce(database, guildId, memberId, self, options.confirm === true, options.evidence ?? (options.confirm ? "companion" : "named"));
+    // 20 Nov 2026: P2028 (the pool gave no connection in time, or the transaction ran out) rose from 3 to 34 a day under load. The
+    // transaction rolls back whole, so one more try after a short pause is safe (writes are upserts; a unique-key race ends in P2002 below).
+    const run = () => linkPairedCharacterOnce(database, guildId, memberId, self, options.confirm === true, options.evidence ?? (options.confirm ? "companion" : "named"));
+    try { return await run(); } catch (first) {
+      if (!isRetryablePairingError(first)) throw first;
+      await new Promise<void>((resolve) => { setTimeout(resolve, 300 + Math.floor(Math.random() * 300)); });
+      return await run();
+    }
   } catch (error) {
     // A parallel request linked this character between our look and our create (unique constraint, P2002):
     // it is linked, so say so and let the upload carry on.
@@ -159,7 +173,7 @@ async function linkPairedCharacterOnce(database: PrismaClient, guildId: string, 
     clearGuildMembershipCache(guildId);
     return "linked" as const;
   // 9.0.8: its own budget. The 5 s default ran out while a big upload's import held the database (P2028, 9 November).
-  }, { timeout: 20_000, maxWait: 10_000 });
+  }, { timeout: 15_000, maxWait: 6_000 });
 }
 
 // Revokes every credential this member currently has (unlinking them from

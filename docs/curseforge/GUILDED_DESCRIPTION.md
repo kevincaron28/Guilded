@@ -8,7 +8,7 @@ Guilded links your **WoW Forever** guild to its Discord. Install the addon, sign
 
 - No more "blocked action" warning at login.
 - The companion now syncs **several WoW accounts** on one PC by itself.
-- Character pictures, record cards and item previews on the Discord and website side.
+- WoW Armory character pictures on cards, record cards and item previews on the Discord and website side.
 
 Guilded 9.0.x is Forever only: the other WoW versions were removed. Your saved data and SavedVariables are kept when you upgrade.
 

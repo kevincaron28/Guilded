@@ -14,15 +14,28 @@ import { relayableCraftData, relayableDungeonRuns, type RelayLinkedCharacter } f
 // A credential is revocable and scoped to one active Discord member in one guild.
 // Never accept the old server-wide upload token as member authorization.
 // previousSecretToo: the phone's alert settings also accept the secret a renewal replaced less than a day ago.
-export async function companionAccess(database: PrismaClient, client: Client | undefined, guildId: string, discordId: string, secret: string, previousSecretToo = false) {
+export interface CompanionAccessOptions {
+  /** The credential row the caller just read (member id and Discord user): skips the second lookup of the same credential. */
+  known?: { memberId: string; discordUserId: string } | undefined;
+  /** Reuse this member's Discord role check for this many ms (uploads send several parts in a burst; 0 = always fetch). */
+  cacheMs?: number;
+}
+type Access = { memberId: string; actorId: string; officer: boolean; raidLeader: boolean };
+const roleChecks = new Map<string, { at: number; value: Access }>();
+
+export async function companionAccess(database: PrismaClient, client: Client | undefined, guildId: string, discordId: string, secret: string, previousSecretToo = false, options: CompanionAccessOptions = {}) {
   if (!hostedPilot.allows(discordId) || secret.length < 32 || secret.length > 256) return null;
   if (!client) throw new CompanionUnavailable();
-  const credential = await database.companionCredential.findFirst({
+  const credential = options.known ? { memberId: options.known.memberId, member: { discordUserId: options.known.discordUserId } } : await database.companionCredential.findFirst({
     where: { ...(previousSecretToo ? credentialBySecret(secret) : { tokenHash: hashCompanionSecret(secret) }), revokedAt: null, member: { guildId, status: "ACTIVE" } },
     select: { memberId: true, member: { select: { discordUserId: true } } }
   });
   if (!credential) return null;
   noteCredentialUse(database.companionCredential, hashCompanionSecret(secret));
+  const cacheKey = `${guildId}:${credential.member.discordUserId}`;
+  const cacheMs = options.cacheMs ?? 0;
+  const cached = cacheMs > 0 ? roleChecks.get(cacheKey) : undefined;
+  if (cached && Date.now() - cached.at < cacheMs && cached.value.memberId === credential.memberId) return cached.value;
   // Force a fresh fetch: a demoted or departed member must not retain officer access.
   const guild = await client.guilds.fetch(discordId);
   const member = await guild.members.fetch({ user: credential.member.discordUserId, force: true }).catch((error: unknown) => {
@@ -32,7 +45,12 @@ export async function companionAccess(database: PrismaClient, client: Client | u
   if (!member) return null;
   const scope = currentGuildScope();
   if (scope?.memberRoleId && !member.permissions.has("Administrator") && !member.roles.cache.has(scope.memberRoleId)) return null;
-  return { memberId: credential.memberId, actorId: member.id, officer: hasPermission(member, "officer"), raidLeader: hasPermission(member, "raidLeader") };
+  const value: Access = { memberId: credential.memberId, actorId: member.id, officer: hasPermission(member, "officer"), raidLeader: hasPermission(member, "raidLeader") };
+  if (cacheMs > 0) {
+    if (roleChecks.size > 500) roleChecks.clear();
+    roleChecks.set(cacheKey, { at: Date.now(), value });
+  }
+  return value;
 }
 
 export class CompanionUnavailable extends Error {

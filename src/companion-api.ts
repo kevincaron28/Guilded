@@ -8,14 +8,14 @@ import { credentialBySecret, renewCompanionCredential } from "./services/compani
 import { allowMobileReport, mobileReportText } from "./services/mobile-app-report.js";
 import { createErrorReportService } from "./services/error-report.js";
 import { MobileCredentialUnknown, configureMobileDevice, mobileDeviceEnabled, retireMobileDevice } from "./services/mobile-alerts.js";
-import { guildWhere, loadGuildScope, runInGuildScope, withGuildScope } from "./services/guild-scope.js";
+import { guildScopeOf, guildWhere, loadGuildScope, runInGuildScope, withGuildScope } from "./services/guild-scope.js";
 import { hostedPilot } from "./hosted-pilot.js";
 import { assertForeverEdition, GameEditionError, gameEditionOf } from "./services/game-edition.js";
 import { withEdition } from "./services/edition-context.js";
 import { addonName } from "./services/addon-name.js";
 import { characterKey, realmKey } from "../companion/character-identity.mjs";
 import { relayProfessions } from "./services/profession-relay.js";
-import { retiredAvailabilityRoute, retiredToolsRoute } from "./services/retired-pages.js";
+import { retiredAvailabilityRoute, retiredPicturesRoute, retiredToolsRoute } from "./services/retired-pages.js";
 import { autoLinkUnclaimed } from "./services/character-autolink.js";
 import { linkUploaderCharacters, repairMissingLinks } from "./services/upload-linking.js";
 import { guildDataDigest, isRepeatGuildData, isRepeatUpload, rememberAppliedUpload, rememberGuildData, runUploadLanes, uploadRepeatKey, type UploadStep } from "./services/upload-repeat.js";
@@ -49,7 +49,6 @@ import { upcomingRaidsForAddon } from "./services/calendar-sync.js";
 import { publicRaids } from "./services/public-raids.js";
 import { createPlayerProfiles, prismaProfileStore } from "./services/player-profiles.js";
 import { createAchievementsWeb } from "./services/achievements-web.js";
-import { publicPictures } from "./services/public-pictures.js";
 import { createGuildDirectory, prismaGuildDirectoryStore } from "./services/guild-directory.js";
 import { calendarEventsWithin, discordCalendarEvents, mergeCalendarEvents } from "./services/discord-calendar.js";
 import { createAuditService } from "./services/audit.js";
@@ -77,7 +76,6 @@ import { createGuildPageServer, loadGuildPageView } from "./services/guild-page.
 import type { Client } from "discord.js";
 import { CompanionUnavailable, companionAccess, personalSnapshot } from "./services/companion-access.js";
 import { createMemberData, memberDataStore } from "./services/member-data.js";
-import { createPicturePages, prismaPictureStore } from "./services/character-picture.js";
 import { createPrivacyWeb } from "./services/profile-privacy-web.js";
 import { deleteMyDataByCredential } from "./services/data-deletion.js";
 import { promotionForAddon } from "./services/promotion-feed.js";
@@ -378,24 +376,10 @@ async function signInGuildCredential(client: Client | undefined, account: { disc
 }
 
 export function createSiteApp(client?: Client) {
-  const openPictures = publicPictures(prisma, id => hostedPilot.allows(id));
-  const achievementsWeb = createAchievementsWeb(prisma, hostedPilot.allows, (discordUserId, own) => openPictures.byAccount(discordUserId, own));
-  const pictures = createPicturePages(prismaPictureStore(prisma), guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"), {
-    // A "Report this picture" goes to that guild's officer log, with the command that removes it.
-    report: async ({ guildId, characterId, reporter }) => {
-      const character = await prisma.character.findUnique({ where: { id: characterId }, select: { name: true, displayName: true, member: { select: { displayName: true, guild: { select: { discordId: true } } } } } });
-      const discordGuild = character && client ? await client.guilds.fetch(character.member.guild.discordId).catch(() => null) : null;
-      if (!character || !discordGuild) return false;
-      const name = character.displayName ?? character.name;
-      await withGuildScope(prisma, guildId, () => notify(discordGuild, (lang) => lang === "fr"
-        ? `🚩 ${reporter} a signalé l'image du personnage **${name}** (${character.member.displayName}). Pour la retirer : \`/officer character picture action:remove name:${name}\`.`
-        : `🚩 ${reporter} reported the picture of **${name}** (${character.member.displayName}). To remove it: \`/officer character picture action:remove name:${name}\`.`, "officer"));
-      return true;
-    }
-  });
-  const profiles = createPlayerProfiles(prismaProfileStore(prisma, hostedPilot.allows), achievementsWeb, pictures, openPictures);
+  const achievementsWeb = createAchievementsWeb(prisma, hostedPilot.allows);
+  const profiles = createPlayerProfiles(prismaProfileStore(prisma, hostedPilot.allows), achievementsWeb);
   const directory = createGuildDirectory(prismaGuildDirectoryStore(prisma, (id) => hostedPilot.allows(id)));
-  const leaderboards = createLeaderboardPages({ store: prismaLeaderboardStore(prisma, (id) => hostedPilot.allows(id), { hideProfiles: true }), personal: personalStore, calendar: () => loadOfficialWindows(prisma), refreshSeasons: () => refreshSeasonCalendar(prisma, 60_000), picture: (name, realm) => openPictures.byCharacter(name, realm) });
+  const leaderboards = createLeaderboardPages({ store: prismaLeaderboardStore(prisma, (id) => hostedPilot.allows(id), { hideProfiles: true }), personal: personalStore, calendar: () => loadOfficialWindows(prisma), refreshSeasons: () => refreshSeasonCalendar(prisma, 60_000) });
   // Warm the leaderboards landing page once, about 20 s after start (so the first visitor does not pay the cold load), then keep it fresh
   // in the background only while somebody asked for a leaderboard page in the last 10 minutes.
   const warmLeaderboards = () => { if (client && !client.isReady()) return; void leaderboards.warm().catch((error) => console.warn("Leaderboard warm-up failed", error instanceof Error ? error.message : error)); };
@@ -424,7 +408,7 @@ export function createSiteApp(client?: Client) {
   const devices = createDevicePages(prismaDeviceStore(prisma));
   const privacyWeb = createPrivacyWeb(prisma);
   const memberData = createMemberData(memberDataStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")));
-  const routes: WebRoute[] = [retiredToolsRoute, signInPage, retiredAvailabilityRoute, devices.route, memberData.route, createRaidProgressWeb(prisma).route, leaderboards.route, liveNewsFeed().route, directory.route, privacyWeb.route, achievementsWeb.route, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route, createMeCharacterActions(prisma, { client }).route];
+  const routes: WebRoute[] = [retiredToolsRoute, signInPage, retiredPicturesRoute, retiredAvailabilityRoute, devices.route, memberData.route, createRaidProgressWeb(prisma).route, leaderboards.route, liveNewsFeed().route, directory.route, privacyWeb.route, achievementsWeb.route, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route, createMeCharacterActions(prisma, { client }).route];
   // One basic page (owner, 15 Nov 2026): your characters (read-only), connected devices, your data, recruitment card and applications.
   const meSections: MeSectionInput[] = [
     meSection({ id: "characters", group: "overview", render: charactersMeSection(discordUserId => memberLinkStatus(prisma, discordUserId), meCharacterList(prisma)) }),
@@ -1382,13 +1366,15 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const cachedAuth = isStandings && typeof header === "string" ? standingsAuth.get(header, guildDiscordId) : undefined;
       const credential = cachedAuth ? { member: { guild: cachedAuth.guild } } : typeof header === "string" ? await prisma.companionCredential.findFirst({
         where: { ...(isMobileDevice ? credentialBySecret(header) : { tokenHash: hashCompanionSecret(header) }), revokedAt: null, member: { guild: { discordId: guildDiscordId }, status: "ACTIVE" } },
-        select: { member: { select: { guild: true } } }
+        // One query for the credential, its member and the guild with its Discord scope: companionAccess and the guild scope reuse it
+        // (they each looked the same credential and guild up again: 2 of the 4 round trips of `auth` + `access`, 20 Nov 2026).
+        select: { memberId: true, member: { select: { discordUserId: true, guild: { include: { wowSpace: true } } } } }
       }) : null;
       const guild = credential?.member.guild;
       if (!guild) { json(response, 401, { error: "Pair this companion with /character link in the selected in-game guild." }); return; }
-      return await runInGuildScope(await loadGuildScope(prisma, guild.id, guildDiscordId), async () => {
+      return await runInGuildScope(guildScopeOf(guild) ?? await loadGuildScope(prisma, guild.id, guildDiscordId), async () => {
       const scopeLoadedAt = Date.now();
-      const access = cachedAuth ? cachedAuth.access : typeof header === "string" ? await companionAccess(prisma, client, guild.id, guild.discordId, header, isMobileDevice) : null;
+      const access = cachedAuth ? cachedAuth.access : typeof header === "string" ? await companionAccess(prisma, client, guild.id, guild.discordId, header, isMobileDevice, { known: credential && "memberId" in credential && credential.memberId ? { memberId: credential.memberId, discordUserId: credential.member.discordUserId } : undefined, cacheMs: isImport ? 10_000 : 0 }) : null;
       const accessAt = Date.now();
       if (isStandings && access && !cachedAuth && typeof header === "string") standingsAuth.set(header, guildDiscordId, { guild, access });
       if (!access) {

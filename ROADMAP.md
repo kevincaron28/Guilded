@@ -324,7 +324,7 @@ Everything not listed below is done (released, live or merged) per the tables ab
 
 | Item | Status | Where |
 | --- | --- | --- |
-| Character pictures (old not-started 2) | Live | #589-#591, #599 |
+| Character pictures (old not-started 2) | Replaced 20 Nov 2026: member uploads removed, cards use the WoW Armory picture | #589-#591, #599 |
 | Several game accounts (4) | Released 9.0.4 | #592, #593, #600 |
 | Forever-only removal (5) | Done; stage 7 declined | #567-#584 |
 | Phone app restructure (6) | Slices 1-3 merged; Alerts/TCG tab need #345 + Firebase | #614, #615 |

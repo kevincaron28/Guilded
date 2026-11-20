@@ -302,6 +302,21 @@ local function runRecord(run, player)
   if #carry.encode(data) > MAX_RECORD_BYTES then return nil end
   -- (9.3.8) Presence proof for the next season's rules: added only when it fits, so a run that cannot carry it stays exactly as before.
   carry.addProof(data, run, names, startedAt, endedAt)
+  -- (stage B) The players' character ids (hex, in the order of p1..pN, empty where unknown): added only when they fit, after the presence proof, so a record
+  -- that cannot carry them stays exactly as before. The bot ignores a key it does not read.
+  do
+    local ids, any = {}, false
+    for index, name in ipairs(names) do
+      local id = ns.util and ns.util.validId and ns.util.validId(run.players[name].id)
+      ids[index] = id or ""
+      if id then any = true end
+    end
+    if any then
+      local text = table.concat(ids, ",")
+      data.ids = text
+      if #carry.encode(data) > MAX_RECORD_BYTES then data.ids = nil end
+    end
+  end
   local key = string.format("%s-%s", string.gsub(string.sub(run.id, 1, 60), "[^%w%-_:%.]", "_"), hash(run.id))
   return { kind = "run", key = key, author = player, data = data, at = endedAt }
 end

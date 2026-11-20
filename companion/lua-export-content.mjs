@@ -3,7 +3,7 @@ import { exportProbes } from "./probes-content.mjs";
 import { dungeonRole } from "./dungeon-role.mjs";
 import luaparse from "luaparse";
 import { editionMetadata, gameEditionOf, GAME_EDITIONS } from "./game-edition.mjs";
-import { normalizeExportIdentities, characterReference } from "./character-identity.mjs";
+import { normalizeExportIdentities, characterReference, characterId } from "./character-identity.mjs";
 
 const iso = (epoch) => new Date(Number(epoch) * 1000).toISOString();
 export const MAX_SAVED_VARIABLE_CHARACTERS = 16_000_000;
@@ -208,6 +208,7 @@ export function parseAddonExportDatabase(database, realm) {
     .filter(([, entry]) => entry?.identity?.class)
     .map(([name, entry]) => ({
       name,
+      ...(characterId(entry.id) ? { id: characterId(entry.id) } : {}),
       ...(database.displayNames?.[name] ? { displayName: String(database.displayNames[name]) } : {}),
       realm,
       class: String(entry.identity.class),
@@ -441,7 +442,9 @@ export function exportDuelResults(database) {
     .filter((r) => r && name(r.winner) && name(r.loser) && r.winner !== r.loser && Number.isSafeInteger(r.at) && r.at > 0 && r.at < 4102444800
       && (r.reason === "knockout" || r.reason === "retreat"))
     .sort((a, b) => b.at - a.at || (a.winner < b.winner ? -1 : a.winner > b.winner ? 1 : 0))
-    .map((r) => ({ winner: r.winner, loser: r.loser, at: r.at, reason: r.reason }));
+    .map((r) => ({ winner: r.winner, loser: r.loser, at: r.at, reason: r.reason,
+      // Character ids of both sides when the addon knew them (stage B); the bot ignores unreadable ones.
+      ...(characterId(r.wid) ? { winnerId: characterId(r.wid) } : {}), ...(characterId(r.lid) ? { loserId: characterId(r.lid) } : {}) }));
 }
 
 // Duels the addon recorded against players outside the guild (Modules/Duels.lua `external`), for the global ladder. Field by field:
@@ -703,6 +706,7 @@ export function exportGuildData(database) {
       ...(typeof m.rankName === "string" && m.rankName.trim() ? { rankName: m.rankName.trim().slice(0, 60) } : {}),
       ...(Number.isInteger(m.rankIndex) && m.rankIndex >= 0 && m.rankIndex < 20 ? { rankIndex: m.rankIndex } : {}),
       ...(typeof m.guid === "string" && /^Player-\d+-[0-9A-Fa-f]+$/.test(m.guid) && m.guid.length <= 40 ? { guid: m.guid } : {}),
+      ...(characterId(m.id) ? { id: characterId(m.id) } : {}),
       online: m.online === true,
       ...(epoch(m.lastOnline) ? { lastOnline: m.lastOnline } : {})
     }));
@@ -774,6 +778,7 @@ function exportCharacter(entry, realm, roster) {
     ...guildRankFields(roster?.[String(entry.name)], entry),
     ...editionMetadata(entry),
     name: String(entry.name),
+    ...(characterId(entry.id) ? { id: characterId(entry.id) } : {}),
     ...(entry.displayName ? { displayName: String(entry.displayName) } : {}),
     realm: String(entry.realm || realm),
     class: String(entry.class ?? ""),
@@ -927,6 +932,7 @@ export function exportDungeonRuns(database, realm, options = {}) {
       players: Object.entries(run.players ?? {}).map(([character, player]) => ({
         ...characterReference(character, realm, gameEditionOf(run.gameEdition !== undefined || run.interface !== undefined ? run : database.character ?? {})),
         ...(database.displayNames?.[character] ? { displayName: String(database.displayNames[character]) } : {}),
+        ...(characterId(player.id) ? { id: characterId(player.id) } : {}),
         ...(player.class ? { class: String(player.class) } : {}),
         ...(dungeonRole(player.role) ? { role: dungeonRole(player.role) } : {}),
         ...(player.integrity ? { integrity: { knownSec: player.integrity.knownSec, unknownSec: player.integrity.unknownSec,

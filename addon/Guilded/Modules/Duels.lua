@@ -425,6 +425,9 @@ local function infoFor(name)
   return info or {}
 end
 
+-- (stage B) The character id of a duel side, as hex: mine from my own GUID, a guildmate's from the roster (ns.keyToId), the opponent
+-- from my target when it is that player. Nil when none is known (the bot then falls back to the name). Not part of any hash.
+local idFor -- defined below, after the target helpers
 
 -- ----- duels against players outside the guild: recorded for upload, never on the guild ladder ----------------------------------
 
@@ -535,6 +538,7 @@ function duels.record(winner, loser, at, reason, extra)
   -- Level and class of both at the time: they decide the points and colour the board.
   local w, l = infoFor(winner), infoFor(loser)
   row.wlv, row.llv, row.wcl, row.lcl = w.level, l.level, w.class, l.class
+  row.wid, row.lid = idFor(winner), idFor(loser)
   if type(extra) == "table" then
     if tonumber(extra.dur) and extra.dur >= 0 and extra.dur < SESSION_MAX then row.dur = math.floor(extra.dur) end
     if type(extra.zone) == "string" and extra.zone ~= "" and #extra.zone <= 80 then row.zone = extra.zone end
@@ -719,6 +723,17 @@ local function isOpponent(name, opponent)
   if type(name) ~= "string" or type(opponent) ~= "string" then return false end
   if opponent:find(" ", 1, true) then return name:find(" ", 1, true) ~= nil and name:lower() == opponent:lower() end
   return same(name, opponent)
+end
+idFor = function(name)
+  local util = ns.util
+  if not util or not util.unitId then return nil end
+  local mine = me()
+  if mine and same(mine, name) then return util.unitId("player") end
+  local fromRoster = ns.keyToId and ns.keyToId[name]
+  if fromRoster then return fromRoster end
+  local target = targetFullName()
+  if target and isOpponent(target, name) then return util.unitId("target") end
+  return nil
 end
 function targetInfo(opponent)
   if not (UnitExists and UnitName) then return nil end

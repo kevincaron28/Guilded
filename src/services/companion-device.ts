@@ -19,6 +19,7 @@ import { looseKey } from "./loose-key.js";
 import { normalizeClassName, normalizeRaceName } from "./character-import.js";
 import { prismaPublicRunStore } from "./public-runs.js";
 import { CARRY_FEATURE } from "./carried-records.js";
+import { parseWowId } from "./character-ref.js";
 import { GROUP_RELAY_FEATURE, ingestRelayedRuns, runIds, splitGroupCarried, STRANGER_NOTE, strangerReceipts } from "./relay-public.js";
 
 // Zero-setup companion (owner decision, 9 November 2026; docs/ZERO_SETUP_COMPANION.md).
@@ -98,6 +99,8 @@ const deviceCharacterSchema = z.object({
   level: z.number().int().min(1).max(100).optional(),
   /** (9.4.2) Reported spec and professions of the character (never confirmed: a sign-in or officer sync confirms). Rank is not accepted: it is the guild's own fact. */
   spec: z.string().trim().max(40).optional(),
+  // Low part of the in-game GUID, lowercase hex (character-ref.ts); optional, unreadable values are ignored.
+  id: z.unknown().optional(),
   professions: z.array(z.object({ name: z.string().trim().min(1).max(40), skillLevel: z.number().int().min(0).max(1000) })).max(12).optional(),
   gameEdition: z.literal("forever").optional().default("forever")
 });
@@ -336,6 +339,7 @@ async function handleDeviceUploadCore(store: DeviceStore, device: DeviceRow, bod
       ...(character.race ? { race: normalizeRaceName(character.race) } : {}),
       ...(character.level ? { level: character.level } : {}),
       ...(character.spec ? { spec: character.spec } : {}),
+      ...(parseWowId(character.id) !== null ? { wowId: parseWowId(character.id)! } : {}),
       ...(character.professions?.length ? { professions: mergeProfessionSkills(character.professions) as unknown as Prisma.InputJsonValue } : {})
     });
   }

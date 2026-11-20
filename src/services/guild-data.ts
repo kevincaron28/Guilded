@@ -7,6 +7,7 @@ import { gameEditionOf } from "./game-edition.js";
 import { findCharacter } from "./character-match.js";
 import { clearGuildMembershipCache } from "./guild-participants.js";
 import { characterIdFromGuid } from "./guild-armory-id.js";
+import { adoptWowId, parseWowId, indexCharacters, addToIndex, resolveCharacter, refNameKey } from "./character-ref.js";
 
 // What the game shows every member about the whole guild (8.5, docs/GUILD_DATA_INVENTORY.md):
 // the roster (level, class, rank, last online), the guild event log and the MOTD/info text.
@@ -34,6 +35,8 @@ const memberSchema = z.object({
   rankName: z.string().trim().min(1).max(60).optional(),
   rankIndex: z.number().int().min(0).max(19).optional(),
   guid: z.string().regex(/^Player-\d+-[0-9A-Fa-f]+$/).max(40).optional(),
+  // Low GUID part as hex ("id", stage B addons); the `guid` above gives the same number. Unreadable values are ignored.
+  id: z.unknown().optional(),
   online: z.boolean().default(false),
   lastOnline: z.number().int().positive().optional()
 });
@@ -59,7 +62,7 @@ const ONLINE_MIN_MOVE_MS = 0;
 const OFFLINE_MIN_MOVE_MS = 60 * 60_000;
 const movedForward = (stored: Date | null | undefined, candidate: Date | undefined, minMs: number) =>
   candidate && (!stored || (candidate.getTime() > stored.getTime() && candidate.getTime() - stored.getTime() >= minMs)) ? candidate : undefined;
-interface UnclaimedRow { id: string; nameKey: string; level: number | null; lastSeenAt: Date; guildRankName: string | null; guildRankAt: Date | null }
+interface UnclaimedRow { id: string; name: string; wowId: bigint | null; nameKey: string; level: number | null; lastSeenAt: Date; guildRankName: string | null; guildRankAt: Date | null }
 const sameTime = (a: Date | null | undefined, b: Date | null | undefined) => (a?.getTime() ?? null) === (b?.getTime() ?? null);
 const titleClass = (value: string) => value.charAt(0) + value.slice(1).toLowerCase();
 
@@ -93,9 +96,12 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
     if (newest && observedAt <= newest) result.skippedOlder = true;
     const byKey = new Map(stored.map((row) => [row.nameKey, row]));
     const characters = await tx.character.findMany({ where: { member: { guildId }, gameEdition: edition },
-      select: { id: true, memberId: true, name: true, realm: true, gameEdition: true, displayName: true, level: true, className: true, lastSeenAt: true, guildRankName: true, guildRankIndex: true, guildRankAt: true } });
-    const unclaimed = await tx.unclaimedCharacter.findMany({ where: { guildId, gameEdition: edition }, select: { id: true, nameKey: true, level: true, lastSeenAt: true, guildRankName: true, guildRankAt: true } });
+      select: { id: true, wowId: true, memberId: true, name: true, realm: true, gameEdition: true, displayName: true, level: true, className: true, lastSeenAt: true, guildRankName: true, guildRankIndex: true, guildRankAt: true } });
+    const unclaimed = await tx.unclaimedCharacter.findMany({ where: { guildId, gameEdition: edition }, select: { id: true, name: true, wowId: true, nameKey: true, level: true, lastSeenAt: true, guildRankName: true, guildRankAt: true } });
     const unclaimedByKey = new Map(unclaimed.map((row) => [row.nameKey, row]));
+    const characterIndex = indexCharacters(characters);
+    const unclaimedIndex = indexCharacters(unclaimed);
+    const seenIds = new Set<bigint>();
     const seenKeys = new Set<string>();
     // Rank comes only from an officer's upload, decided per row: applied when the stored rank date is empty or older than
     // this roster's reading (whatever other uploads stored in between), never moving a rank date backwards.
@@ -107,6 +113,10 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
       const lastOnline = toDate(member.online ? Math.trunc(observedAt.getTime() / 1000) : member.lastOnline);
       const lastOnlineOk = lastOnline && lastOnline.getTime() <= now.getTime() + FUTURE_SLACK_MS ? lastOnline : undefined;
       const previous = byKey.get(key);
+      // Exact id (character-ref.ts) for the bot's own characters and the unlinked list; an id repeated inside one roster is ignored after its first row.
+      let wowId = parseWowId(member.id) ?? characterIdFromGuid(member.guid);
+      if (wowId !== null && seenIds.has(wowId)) wowId = null;
+      if (wowId !== null) seenIds.add(wowId);
       const minMove = member.online ? ONLINE_MIN_MOVE_MS : OFFLINE_MIN_MOVE_MS;
       if (!previous || !previous.inGuild) membershipChanged = true;
       if (!previous || previous.observedAt < observedAt) {
@@ -131,9 +141,16 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
         result.roster++;
       }
       // The same facts on the bot's own characters: level up only, last seen forward only.
-      const character = findCharacter(characters, member.name, "", edition);
+      let character = findCharacter(characters, member.name, "", edition);
+      let adoptCharacter = false;
+      if (wowId !== null) {
+        const found = resolveCharacter(characterIndex, { id: wowId, name: member.name });
+        if (found.kind === "match") { character = found.row; adoptCharacter = found.adopt; }
+        else if (character && (character.wowId ?? null) !== null) character = undefined;   // the loose name match belongs to another id
+      } else if (character && (character.wowId ?? null) !== null && refNameKey(character.name) !== refNameKey(member.name)) character = undefined;
       if (character) {
         const update: Prisma.CharacterUpdateInput = {};
+        if (adoptCharacter && wowId !== null && await adoptWowId(tx, "character", character.id, wowId)) { character.wowId = wowId; addToIndex(characterIndex, character); }
         if (member.level && member.level > (character.level ?? 0)) update.level = member.level;
         if (member.class && (!character.className || character.className === "UNKNOWN")) update.className = titleClass(member.class);
         const seen = movedForward(character.lastSeenAt, lastOnlineOk, minMove);
@@ -169,10 +186,18 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
       // Only when no other listed member shares that first name (else the old row could be theirs).
       const first = key.split(" ")[0]!;
       const sharesFirst = [...unclaimedByKey.keys()].some((other) => other !== key && other.startsWith(`${first} `));
-      const existing = unclaimedByKey.get(key) ?? (loose && !loose.nameKey.includes(" ") && !sharesFirst ? loose : undefined);
+      let existing = unclaimedByKey.get(key) ?? (loose && !loose.nameKey.includes(" ") && !sharesFirst ? loose : undefined);
+      let adoptUnclaimed = false;
+      let nameTaken = false;
+      if (wowId !== null) {
+        const found = resolveCharacter(unclaimedIndex, { id: wowId, name: member.name });
+        if (found.kind === "match") { existing = found.row as typeof existing; adoptUnclaimed = found.adopt; }
+        else { nameTaken = found.kind === "new" && !!found.nameTaken; if (existing && (existing.wowId ?? null) !== null) existing = undefined; }   // a legacy name match that carries another id is not this character
+      } else if (existing && (existing.wowId ?? null) !== null && refNameKey(existing.name) !== refNameKey(member.name)) existing = undefined;
       const seen = movedForward(existing?.lastSeenAt, lastOnlineOk, minMove);
       if (existing) {
         const update: Prisma.UnclaimedCharacterUpdateInput = {};
+        if (adoptUnclaimed && wowId !== null && existing.id && await adoptWowId(tx, "unclaimedCharacter", existing.id, wowId)) { existing.wowId = wowId; addToIndex(unclaimedIndex, existing); }
         if (existing.nameKey !== key && member.name.includes(" ")) {
           update.name = member.name; update.nameKey = key; update.legacyName = existing.nameKey;
           unclaimedByKey.delete(existing.nameKey); unclaimedByKey.set(key, existing); existing.nameKey = key;
@@ -193,14 +218,14 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
           if (seen && existing.id) { unclaimedSeen.set(seen.getTime(), [...(unclaimedSeen.get(seen.getTime()) ?? []), existing.id]); existing.lastSeenAt = seen; result.unclaimed++; }
           if (touchRank && existing.id) { unclaimedRankTouch.push(existing.id); existing.guildRankAt = observedAt; }
         }
-      } else if (member.class && !result.skippedOlder) {
+      } else if (member.class && !result.skippedOlder && !nameTaken) {
         // A guild member nobody linked yet: listed as unlinked (never linked to anyone here).
         // createMany + skipDuplicates is INSERT .. ON CONFLICT DO NOTHING: a parallel upload that created the row first
         // (P2002) neither errors nor aborts this transaction, and the row it made is kept.
-        await tx.unclaimedCharacter.createMany({ skipDuplicates: true, data: [{ guildId, gameEdition: edition, nameKey: key, name: member.name, realm: "",
+        await tx.unclaimedCharacter.createMany({ skipDuplicates: true, data: [{ guildId, gameEdition: edition, nameKey: key, name: member.name, realm: "", ...(wowId !== null ? { wowId } : {}),
           className: titleClass(member.class), ...(member.level ? { level: member.level } : {}), lastSeenAt: lastOnlineOk ?? observedAt,
           ...(officerRanks && !result.skippedOlder && member.rankName !== undefined ? { guildRankName: member.rankName, guildRankAt: observedAt } : {}) }] });
-        unclaimedByKey.set(key, { id: "", nameKey: key, level: member.level ?? null, lastSeenAt: lastOnlineOk ?? observedAt, guildRankName: null, guildRankAt: null });
+        unclaimedByKey.set(key, { id: "", name: member.name, wowId, nameKey: key, level: member.level ?? null, lastSeenAt: lastOnlineOk ?? observedAt, guildRankName: null, guildRankAt: null });
         result.unclaimed++;
       }
     }

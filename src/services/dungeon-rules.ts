@@ -76,7 +76,9 @@ export const dungeonRunSchema = z.object({
     faction: z.enum(["ALLIANCE", "HORDE"]).optional().catch(undefined),
     deaths: z.number().int().nonnegative().max(500).nullable().optional(),
     presentSec: z.number().int().nonnegative().default(0),
-    inGuild: z.boolean().default(false)
+    inGuild: z.boolean().default(false),
+    // Low part of the player's GUID, lowercase hex (character-ref.ts); optional, an unreadable value is dropped.
+    id: z.string().regex(/^[0-9a-fA-F]{1,16}$/).optional().catch(undefined)
   })).max(40)
 });
 export type DungeonRunInput = z.infer<typeof dungeonRunSchema>;

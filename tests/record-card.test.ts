@@ -44,6 +44,31 @@ describe("record card", () => {
     expect(await png(tie, "en")).toBe("PNG");
   }, 60_000);
 
+  it("draws the hype layout: 1200x630, text at least 24 px and readable, in both languages and for edge cases", async () => {
+    const { renderRecordCard } = await import("../src/services/card-record.js");
+    const { dungeonBackdrop } = await import("../src/services/dungeon-backdrop.js");
+    const { assertCardRules } = await import("../src/services/card-kit.js");
+    const sharp = (await import("sharp")).default;
+    const face = (await sharp({ create: { width: 64, height: 64, channels: 3, background: "#27ae60" } }).png().toBuffer()).toString("base64");
+    const long = { ...clear, previousPlayers: ["Fenn Ashgrove the Unbroken", "Garr Thunderhoof the Mighty", "Third Person", "Fourth Person"] };
+    const cases: [string, ReturnType<typeof recordCard>][] = [
+      ["fr", recordCard(run(), clear, "fr")], ["en", recordCard(run(), clear, "en")], ["first", recordCard(run(), first, "en")], ["tie", recordCard(run(), tie, "fr")],
+      ["long names", recordCard(run({ fullNames: { Alda: "Alda the Magnificent Wanderer of the Plains", Bren: "Bren Vale" } }), long, "fr")],
+      ["four players", recordCard(run({ playerDetails: run().playerDetails!.slice(0, 4) }), clear, "fr")]
+    ];
+    const withFace = recordCard(run(), clear, "en");
+    withFace.record!.party[0]!.portrait = face;
+    cases.push(["portrait", withFace]);
+    for (const [label, card] of cases) {
+      const { png, report } = await renderRecordCard(card, await dungeonBackdrop(card.record!.theme));
+      const meta = await sharp(png).metadata();
+      expect([label, meta.width, meta.height]).toEqual([label, 1200, 630]);
+      expect(() => assertCardRules(report), label).not.toThrow();
+    }
+    expect(recordCard(run(), clear, "fr").record).toMatchObject({ headline: "NOUVEAU RECORD !", rankLabel: "1er de la guilde", dethroneLabel: "Détrône" });
+    expect(recordCard(run(), first, "en").record).toMatchObject({ headline: "FIRST RECORD!", previousHolders: [] });
+  }, 120_000);
+
   it("formats the difference both ways", () => {
     expect(recordDiff(3672, 3915)).toBe("−4:03");
     expect(recordDiff(100, 100)).toBe("=");

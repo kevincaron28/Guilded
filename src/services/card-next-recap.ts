@@ -2,7 +2,6 @@ import sharp from "sharp";
 import { cardArtPlain, cardBackdropArt, type CardBackdrop } from "./card-backdrop.js";
 import { dungeonArt, type DungeonArtTheme } from "./dungeon-art.js";
 import { dungeonBackdrop } from "./dungeon-backdrop.js";
-import { formatDuration } from "./dungeon-rules.js";
 import { renderBarsCard, renderBodyCard, renderUnlockHero, plainArt, type BodyCardSpec, type BodyRow, type UnlockHeroSpec } from "./card-layouts-recap.js";
 import { GOOD } from "./card-kit.js";
 import type { ScoreCard } from "./score-card.js";
@@ -24,7 +23,7 @@ const scene = (theme: DungeonArtTheme) => () => sharp(Buffer.from(`<svg xmlns="h
 /** The cards the old layout drew, or null when `card` is none of them (the caller then tries its other layouts). */
 export async function renderRecapKind(card: ScoreCard, fit = false): Promise<Buffer | null> {
   if (card.recap) return (await renderBodyCard({ ...(await recapSpec(card)), fit })).png;
-  if (card.record) return (await renderBodyCard({ ...(await recordSpec(card)), fit })).png;
+  if (card.record) return (await (await import("./card-record.js")).renderRecordCard(card, await dungeonBackdrop(card.record.theme))).png;
   if (card.roster) return (await renderBarsCard(await rosterSpec(card))).png;
   if (card.unlocks?.length && card.unlocks.length <= 3) return (await renderUnlockHero(await unlockHeroSpec(card))).png;
   if (card.unlocks?.length) return (await renderBodyCard({ ...(await unlockSpec(card)), fit })).png;
@@ -40,18 +39,6 @@ async function recapSpec(card: ScoreCard): Promise<BodyCardSpec> {
     tiles: card.stats.slice(0, 4).map((s) => ({ value: s.value, label: s.label, color: TONE[s.accent ?? "gold"] })),
     sections: visual.sections.slice(0, 3).map((s, i) => ({ title: s.title, rows: s.rows.map(toRow), moreLabel: card.moreLabel, ...(raid ? { weight: i === 0 ? 0.85 : 1.075 } : {}) })),
     art: await painting(card.backdrop, scene(visual.theme))
-  };
-}
-
-async function recordSpec(card: ScoreCard): Promise<BodyCardSpec> {
-  const v = card.record!, tie = v.previousSec !== undefined && v.previousSec === v.newSec;
-  const color = v.previousSec === undefined || tie ? "#ffd100" : v.newSec < v.previousSec ? GOOD : "#ff8a7a";
-  return {
-    type: "dungeon", emblem: "gate", label: v.ribbon.toUpperCase(), title: card.title, hero: formatDuration(v.newSec), heroColor: "#ffd100", heroNote: card.subtitle,
-    tiles: [{ value: v.diffLabel, label: v.oldLabel, color }],
-    sections: [{ title: v.partyLabel, rows: v.party.slice(0, 5).map((m) => ({ name: m.name, color: m.color, right: m.roleLabel })) }],
-    ...(v.previousHolders.length ? { strip: `${v.previousLabel} ${v.previousHolders.join(", ")}` } : {}),
-    art: await dungeonBackdrop(v.theme)
   };
 }
 

@@ -1664,7 +1664,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           if (guildData) rememberGuildData(dataKey, digest);
           // 16 Nov 2026: a rank moved up in the officer's roster: one line in the officer log (the bot is the single source; nothing public).
           const promotedDiscord = guildData?.promotions.length ? client?.guilds.cache.get(guild.discordId) : undefined;
-          if (promotedDiscord && guildData) void announcePromotions(promotedDiscord, guildData.promotions);
+          if (promotedDiscord && guildData) void announcePromotions(promotedDiscord, guildData.promotions, { db: prisma, guildId: guild.id });
           // Someone left: ask the officer log once, for all of them ("Add to do-not-invite?"). Never adds by itself.
           if (guildData?.leftEntries.length && client) void promptDepartures(client.guilds.cache.get(guild.discordId), guild.id, guildData.leftEntries);
           // The whole guild roster (any member's upload) is now stored: waiting invite requests for those names are done.

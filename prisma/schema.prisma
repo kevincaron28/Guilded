@@ -1084,6 +1084,8 @@ model GuildSettings {
   promotionRequireLink     Boolean @default(true)
   promotionMinVoiceMinutes Int     @default(180)
   promotionWeeklyEnabled   Boolean @default(true)
+  // 19 Nov 2026: a public congratulations post when a linked member's in-game rank moves up (on by default; /officer promotion rule congrats).
+  promotionCongratsEnabled Boolean @default(true)
   promotionChannelId       String?
   promotionLastPostAt      DateTime?
   // 9.0 guild bank ledger: weekly summary in the officer log channel (on by default; /officer stats bank).

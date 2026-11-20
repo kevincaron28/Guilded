@@ -6,6 +6,7 @@ import { forEachGuildScope, guildWhere } from "./guild-scope.js";
 import { RANK_MAX_AGE_MS } from "./rank-roles.js";
 import { addonName } from "./addon-name.js";
 import { postToLogChannel } from "./housekeeping.js";
+import { enqueueDiscordJob } from "./discord-jobs.js";
 
 // 8.5 track C5: the promotion panel. Officers set a rule (default: in Discord, a linked character at rank "Initiate"
 // for 7+ days, optional minimum level). The bot computes "Ready to promote" and "Not in Discord yet". Read-only:
@@ -178,7 +179,47 @@ export function promotionLogLine(name: string, rankName: string, lang: "en" | "f
   return lang === "fr" ? `⬆️ ${name} a été promu(e) au rang ${rankName}.` : `⬆️ ${name} was promoted to ${rankName}.`;
 }
 
-/** Officer log only (owner decision, 16 Nov 2026): no public message and no guild-chat line. At most 10 lines per upload. */
-export async function announcePromotions(discordGuild: DiscordGuild, promotions: readonly { name: string; rankName: string }[]): Promise<void> {
+/** The public congratulations (19 Nov 2026), server language. `who` is a mention or a plain name. */
+export function promotionCongratsText(who: string, character: string, rankName: string, lang: "en" | "fr"): string {
+  return lang === "fr" ? `🎉 Félicitations à ${who} (${character}), promu·e **${rankName}** !` : `🎉 Congratulations to ${who} (${character}), promoted to **${rankName}**!`;
+}
+
+type CongratsDb = Pick<PrismaClient, "guildSettings" | "member" | "discordJob" | "communitySeason" | "communityHonors">;
+export interface PromotionEvent { name: string; rankName: string; memberId?: string | null }
+
+/**
+ * One public post per promoted member (owner request, 19 Nov 2026): on by default, officers switch it off with
+ * `/officer promotion rule congrats:false`. Never for the Alt rank (alts are not promotions). Goes to the community
+ * season's announcements channel, else the hall-of-fame channel the weekly MVP post uses. Queued as a Discord job whose
+ * key is the member, the rank and the day, so the same promotion seen in two uploads is posted once. Pings only the linked member.
+ */
+export async function postPromotionCongrats(db: CongratsDb, discordGuild: Pick<DiscordGuild, "members">, guildId: string, promotions: readonly PromotionEvent[], now = new Date()): Promise<number> {
+  const settings = await db.guildSettings.findUnique({ where: { guildId }, select: { language: true, promotionCongratsEnabled: true } });
+  if (settings?.promotionCongratsEnabled === false) return 0;
+  const todo = promotions.filter((p) => p.memberId && !isAltRank(p.rankName)).slice(0, 10);
+  if (!todo.length) return 0;
+  const season = await db.communitySeason.findFirst({ where: { guildId, game: "DISCORD", audienceRoleId: null, announcementChannelId: { not: null } }, orderBy: { createdAt: "desc" }, select: { announcementChannelId: true } });
+  const honors = season?.announcementChannelId ? null : await db.communityHonors.findUnique({ where: { guildId }, select: { channelId: true } });
+  const channelId = season?.announcementChannelId ?? honors?.channelId;
+  if (!channelId) return 0;
+  const members = await db.member.findMany({ where: { id: { in: todo.map((p) => p.memberId!) } }, select: { id: true, discordUserId: true } });
+  const lang = settings?.language === "fr" ? "fr" : "en";
+  const day = now.toISOString().slice(0, 10);
+  let posted = 0;
+  for (const p of todo) {
+    const userId = members.find((m) => m.id === p.memberId)?.discordUserId;
+    if (!userId || !/^\d{17,20}$/.test(userId)) continue;
+    const key = `promotion-congrats:${userId}:${p.rankName.trim().toLowerCase()}:${day}`;
+    if (await db.discordJob.findUnique({ where: { guildId_key: { guildId, key } }, select: { id: true } })) continue;
+    const text = promotionCongratsText(`<@${userId}>`, cleanCharacterName(p.name), p.rankName, lang);
+    await enqueueDiscordJob(db, guildId, key, "MESSAGE", { channelId, message: JSON.parse(JSON.stringify({ embeds: [new EmbedBuilder().setColor(0xc9a227).setDescription(text).toJSON()] })), mentionUsers: [userId] });
+    posted++;
+  }
+  return posted;
+}
+
+/** Officer log line for each promotion (at most 10 per upload), plus the public congratulations when the caller gives the database. */
+export async function announcePromotions(discordGuild: DiscordGuild, promotions: readonly PromotionEvent[], congrats?: { db: CongratsDb; guildId: string }): Promise<void> {
   for (const p of promotions.slice(0, 10)) await postToLogChannel(discordGuild, (lang) => promotionLogLine(cleanCharacterName(p.name), p.rankName, lang));
+  if (congrats) await postPromotionCongrats(congrats.db, discordGuild, congrats.guildId, promotions).catch((error) => console.error("Promotion congratulations failed", error));
 }

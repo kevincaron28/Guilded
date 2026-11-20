@@ -154,6 +154,9 @@ export function promotionToLua(promotion) {
   const ready = Array.isArray(promotion?.ready) ? promotion.ready.filter(name => typeof name === "string" && name && !/[\t\r\n]/.test(name)).slice(0, 100) : null;
   if (!ready) return ["GuildedPromotion = nil"];
   const waiting = Array.isArray(promotion.waiting) ? promotion.waiting.filter(row => row && typeof row.name === "string" && row.name && !/[\t\r\n]/.test(row.name) && Number.isInteger(row.daysLeft) && row.daysLeft >= 0 && row.daysLeft <= 3650).slice(0, 100) : [];
+  const okName = (value, max = 80) => typeof value === "string" && value.length > 0 && value.length <= max && !/[\t\r\n]/.test(value);
+  const alts = Array.isArray(promotion.alts) ? promotion.alts.filter(row => row && okName(row.name) && okName(row.main)).slice(0, 200) : [];
+  const swaps = Array.isArray(promotion.swaps) ? promotion.swaps.filter(row => row && okName(row.to) && okName(row.from) && row.to !== row.from).slice(0, 50) : [];
   const iso = typeof promotion.updatedAt === "string" && !Number.isNaN(Date.parse(promotion.updatedAt)) ? luaString(promotion.updatedAt) : "nil";
   const days = Number.isInteger(promotion.minDays) && promotion.minDays >= 0 && promotion.minDays <= 3650 ? promotion.minDays : "nil";
   const level = Number.isInteger(promotion.minLevel) && promotion.minLevel >= 0 && promotion.minLevel <= 100 ? promotion.minLevel : 0;
@@ -168,6 +171,12 @@ export function promotionToLua(promotion) {
     "  },",
     "  waiting = {",
     ...waiting.map(row => `    { name = ${luaString(row.name)}, daysLeft = ${row.daysLeft}${typeof row.reason === "string" && /^[a-z0-9:,]{1,60}$/.test(row.reason) ? `, reason = ${luaString(row.reason)}` : ""} },`),
+    "  },",
+    "  alts = {",
+    ...alts.map(row => `    { name = ${luaString(row.name)}, main = ${luaString(row.main)} },`),
+    "  },",
+    "  swaps = {",
+    ...swaps.map(row => `    { to = ${luaString(row.to)}, from = ${luaString(row.from)} },`),
     "  }",
     "}"
   ];

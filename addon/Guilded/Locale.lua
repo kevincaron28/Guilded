@@ -3275,6 +3275,21 @@ local DE = {
   ["Guild changed: now using the saved data for %s (%s). Data for %s is kept and comes back if you play there. /reload is recommended."] = "Gilde gewechselt: Es werden die gespeicherten Daten f\195\188r %s verwendet (%s). Die Daten f\195\188r %s bleiben erhalten und kommen zur\195\188ck, wenn du dort spielst. /reload wird empfohlen.",
   ["restored"] = "wiederhergestellt",
   ["new"] = "neu",
+  -- Promotion alts (20 Nov 2026)
+  ["%s is now the main (was %s): give rank %s, then move %s to Alt"] = "%s ist jetzt der Main (vorher %s): Rang %s geben, dann %s auf Alt setzen",
+  ["%s - maybe an alt (note says alt) (%s)"] = "%s - vielleicht ein Twink (Notiz sagt Alt) (%s)",
+  ["%s - alt of %s (%s)"] = "%s - Twink von %s (%s)",
+  ["%d alts already in the Alt rank"] = "%d Twinks bereits im Rang Alt",
+  ["Alts and main changes"] = "Twinks und Main-\195\132nderungen",
+  ["+%d more alts"] = "+%d weitere Twinks",
+  ["Give rank"] = "Rang geben",
+  ["Move to Alt"] = "Auf Alt setzen",
+  ["Rank change requested. Wait for the roster to confirm it before the next one."] = "Rang\195\164nderung angefordert. Warte, bis die Gildenliste sie best\195\164tigt, bevor du die n\195\164chste machst.",
+  ["Move to the Alt rank from the guild roster: right-click the name, then set the rank to Alt."] = "Setze den Rang Alt in der Gildenliste: Rechtsklick auf den Namen, dann den Rang Alt w\195\164hlen.",
+  ["No alts to move."] = "Keine Twinks zu verschieben.",
+  ["Confirm"] = "Best\195\164tigen",
+  ["Click again within %d seconds to confirm: move %s to the Alt rank."] = "Klicke innerhalb von %d Sekunden erneut zur Best\195\164tigung: %s auf den Rang Alt setzen.",
+  ["Promote someone once first so Guilded can check the rank numbering for this game build, or set the rank from the guild roster."] = "Bef\195\182rdere zuerst jemanden, damit Guilded die Rangnummerierung dieser Spielversion pr\195\188fen kann, oder \195\164ndere den Rang in der Gildenliste.",
   -- Crafting UI polish (20 Nov 2026)
   ["Fav"] = "Fav",
   ["Refine the search for more."] = "Verfeinere die Suche f\195\188r mehr.",
@@ -5555,6 +5570,21 @@ local ES = {
   ["Guild changed: now using the saved data for %s (%s). Data for %s is kept and comes back if you play there. /reload is recommended."] = "Hermandad cambiada: se usan los datos guardados de %s (%s). Los datos de %s se conservan y vuelven si juegas all\195\173. Se recomienda /reload.",
   ["restored"] = "restaurados",
   ["new"] = "nuevos",
+  -- Promotion alts (20 Nov 2026)
+  ["%s is now the main (was %s): give rank %s, then move %s to Alt"] = "%s es ahora el personaje principal (antes %s): dale el rango %s y luego pasa a %s a Alt",
+  ["%s - maybe an alt (note says alt) (%s)"] = "%s - quiz\195\161 un alt (la nota dice alt) (%s)",
+  ["%s - alt of %s (%s)"] = "%s - alt de %s (%s)",
+  ["%d alts already in the Alt rank"] = "%d alts ya en el rango Alt",
+  ["Alts and main changes"] = "Alts y cambios de personaje principal",
+  ["+%d more alts"] = "+%d alts m\195\161s",
+  ["Give rank"] = "Dar rango",
+  ["Move to Alt"] = "Pasar a Alt",
+  ["Rank change requested. Wait for the roster to confirm it before the next one."] = "Cambio de rango solicitado. Espera a que la lista de la hermandad lo confirme antes del siguiente.",
+  ["Move to the Alt rank from the guild roster: right-click the name, then set the rank to Alt."] = "Pasa a Alt desde la lista de la hermandad: clic derecho en el nombre y elige el rango Alt.",
+  ["No alts to move."] = "Ning\195\186n alt que mover.",
+  ["Confirm"] = "Confirmar",
+  ["Click again within %d seconds to confirm: move %s to the Alt rank."] = "Haz clic de nuevo en %d segundos para confirmar: pasar a %s al rango Alt.",
+  ["Promote someone once first so Guilded can check the rank numbering for this game build, or set the rank from the guild roster."] = "Asciende primero a alguien para que Guilded compruebe la numeraci\195\179n de rangos de esta versi\195\179n del juego, o cambia el rango desde la lista de la hermandad.",
   -- Crafting UI polish (20 Nov 2026)
   ["Fav"] = "Fav",
   ["Refine the search for more."] = "Afina la b\195\186squeda para ver m\195\161s.",
@@ -6961,6 +6991,21 @@ FR["Saved data under %s was merged into %s (%d sections). EP/GP stays under the 
 FR["Guild changed: now using the saved data for %s (%s). Data for %s is kept and comes back if you play there. /reload is recommended."] = "Guilde chang\195\169e : utilisation des donn\195\169es enregistr\195\169es pour %s (%s). Les donn\195\169es de %s sont conserv\195\169es et reviennent si vous y jouez. Un /reload est conseill\195\169."
 FR["restored"] = "restaur\195\169es"
 FR["new"] = "nouvelles"
+-- Promotion alts (20 Nov 2026)
+FR["%s is now the main (was %s): give rank %s, then move %s to Alt"] = "%s est maintenant le principal (avant : %s) : donnez le rang %s, puis passez %s au rang Alt"
+FR["%s - maybe an alt (note says alt) (%s)"] = "%s - peut-\195\170tre un alt (la note dit alt) (%s)"
+FR["%s - alt of %s (%s)"] = "%s - alt de %s (%s)"
+FR["%d alts already in the Alt rank"] = "%d alts d\195\169j\195\160 au rang Alt"
+FR["Alts and main changes"] = "Alts et changements de principal"
+FR["+%d more alts"] = "+%d autres alts"
+FR["Give rank"] = "Donner le rang"
+FR["Move to Alt"] = "Passer \195\160 Alt"
+FR["Rank change requested. Wait for the roster to confirm it before the next one."] = "Changement de rang demand\195\169. Attendez que la liste de guilde le confirme avant le suivant."
+FR["Move to the Alt rank from the guild roster: right-click the name, then set the rank to Alt."] = "Passez au rang Alt depuis la liste de guilde : clic droit sur le nom, puis choisissez le rang Alt."
+FR["No alts to move."] = "Aucun alt \195\160 d\195\169placer."
+FR["Confirm"] = "Confirmer"
+FR["Click again within %d seconds to confirm: move %s to the Alt rank."] = "Cliquez \195\160 nouveau dans les %d secondes pour confirmer : passer %s au rang Alt."
+FR["Promote someone once first so Guilded can check the rank numbering for this game build, or set the rank from the guild roster."] = "Promouvez d'abord quelqu'un pour que Guilded v\195\169rifie la num\195\169rotation des rangs de cette version du jeu, ou changez le rang depuis la liste de guilde."
 -- Crafting UI polish (20 Nov 2026)
 FR["Fav"] = "Fav"
 FR["Refine the search for more."] = "Affinez la recherche pour en voir plus."

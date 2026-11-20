@@ -10,8 +10,8 @@ export async function setMainCharacter(
   database: Pick<PrismaClient, "$transaction" | "character">, guildId: string, memberId: string, characterId: string
 ): Promise<void> {
   await database.$transaction([
-    database.character.updateMany({ where: { memberId, isMain: true }, data: { isMain: false } }),
-    database.character.update({ where: { id: characterId }, data: { isMain: true } })
+    database.character.updateMany({ where: { memberId, isMain: true }, data: { isMain: false, mainChosenAt: null } }),
+    database.character.update({ where: { id: characterId }, data: { isMain: true, mainChosenAt: new Date() } })
   ]);
   markMemberChanged({ guildId, memberId });
 }

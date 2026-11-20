@@ -35,7 +35,7 @@ export function describeReason(reason: string | undefined, lang: "en" | "fr"): s
   return reason === "link" ? (lang === "fr" ? "lien requis" : "needs link") : "";
 }
 
-export interface PromotionCharacter { /** The name the addon sees in the guild roster. */ addon?: string; name: string; level: number | null; rankName: string | null; rankAt: Date | null; since: Date | null; isMain: boolean }
+export interface PromotionCharacter { /** The name the addon sees in the guild roster. */ addon?: string; name: string; level: number | null; rankName: string | null; /** The guild roster's rank index (0 = Guild Master), when known. */ rankIndex?: number | null; rankAt: Date | null; since: Date | null; isMain: boolean; /** True only when a member or officer CHOSE this main (Character.mainChosenAt). isMain alone is often just the first linked character. */ mainChosen?: boolean }
 export interface PromotionPerson { discordUserId: string; displayName: string; inDiscord: boolean; /** Voice minutes over the last 7 days, shared by all the member's characters. Missing counts as 0. */ voiceMinutes?: number; characters: readonly PromotionCharacter[] }
 export interface ReadyToPromote { discordUserId: string; displayName: string; character: string; /** The in-game roster name (addonName). */ addon?: string | undefined; days: number; level: number | null }
 export interface PromotionPlan {
@@ -46,7 +46,15 @@ export interface PromotionPlan {
   unclaimed: { name: string; /** The in-game roster name (addonName). */ addon?: string | undefined; level: number | null }[];
   /** Linked members at the rank that are not ready yet, with the days left. */
   waiting: { displayName: string; character: string; /** The in-game roster name (addonName). */ addon?: string | undefined; daysLeft: number; /** Why not ready besides days: "link", "voice:<have>:<need>" (minutes), comma separated. */ reason?: string | undefined }[];
+  /** Alts (owner request, 20 Nov 2026): in-guild characters of a member who has a main in the guild, not yet at the Alt rank. They are never promoted; the officer moves them to the Alt rank. */
+  alts: PromotionAlt[];
+  /** A member whose main changed: the new main (a junior rank) gets the old main's rank and the old main goes to the Alt rank. */
+  swaps: PromotionSwap[];
+  /** Members whose main is not in the guild (left, or no rank seen): nothing is suggested for their other characters. */
+  mainAway: { displayName: string; main: string }[];
 }
+export interface PromotionAlt { displayName: string; character: string; /** The in-game roster name (addonName). */ addon?: string | undefined; main: string; rankName: string }
+export interface PromotionSwap { discordUserId: string; displayName: string; newMain: string; newAddon?: string | undefined; newRankName: string; oldMain: string; oldAddon?: string | undefined; /** The rank the old main holds now, which the new main should get. */ oldRankName: string }
 
 /**
  * Owner rule (16 Nov 2026): the Alt rank is never promoted. Rank names that mean "alt character", English and French,
@@ -63,13 +71,53 @@ export function isAltRank(rankName: string | null | undefined): boolean {
 const same = (a: string | null, b: string) => a !== null && a.trim().toLowerCase() === b.trim().toLowerCase();
 const DAY = 86_400_000;
 
+/**
+ * Alt evidence, best first (owner request, 20 Nov 2026). The bot knows a member's linked characters (the companion's
+ * account-level lists link every character of the WoW account to the member) and which one is the main: every other
+ * in-guild character of that member is an alt. Names alone are never used. If an alt holds a more senior rank than the
+ * main (the member switched mains), that is a swap, not just an alt. A main outside the guild suggests nothing.
+ * Safety (review, 20 Nov 2026): only a main the member or an officer CHOSE counts (isMain alone is often the first linked
+ * character); an officer-level character (guild master, co-GM, officer ranks) is never touched; an "alt" that out-levels
+ * its "main", or a main without a known rank index, yields nothing. The bot has no officer-rank setting (the addon keeps
+ * one, Core.lua settings.officerRanks, default ranks 0 and 1, and enforces it again in the panel), so here the cutoff is
+ * the default officer ranks plus any rank named like an officer.
+ */
+export const OFFICER_MAX_RANK_INDEX = 1;
+const OFFICER_NAME = /guild\s*master|\bgm\b|co-?gm|officer|officier|\bchief\b|\bchef\b|leader|\bma[iî]tre\b/i;
+export function isOfficerLevel(rankName: string | null | undefined, rankIndex: number | null | undefined): boolean {
+  return rankIndex == null || rankIndex <= OFFICER_MAX_RANK_INDEX || OFFICER_NAME.test(rankName ?? "");
+}
+export function planAlts(people: readonly PromotionPerson[], now: number): Pick<PromotionPlan, "alts" | "swaps" | "mainAway"> {
+  const out: Pick<PromotionPlan, "alts" | "swaps" | "mainAway"> = { alts: [], swaps: [], mainAway: [] };
+  const inGuild = (c: PromotionCharacter) => c.rankName !== null && c.rankAt !== null && now - c.rankAt.getTime() <= RANK_MAX_AGE_MS;
+  for (const person of people) {
+    const main = person.characters.find((c) => c.isMain && c.mainChosen === true);
+    if (!main) continue;
+    const others = person.characters.filter((c) => c !== main && c.isMain === false && inGuild(c) && !isAltRank(c.rankName) && !isOfficerLevel(c.rankName, c.rankIndex)
+      && !(c.level != null && main.level != null && c.level > main.level));
+    if (!others.length) continue;
+    if (!inGuild(main)) { out.mainAway.push({ displayName: person.displayName, main: characterName(main) }); continue; }
+    if (main.rankIndex == null) continue;
+    let old: PromotionCharacter | undefined;
+    for (const c of others) if (c.rankIndex != null && c.rankIndex < main.rankIndex && (!old || c.rankIndex < old.rankIndex!)) old = c;
+    if (old) out.swaps.push({ discordUserId: person.discordUserId, displayName: person.displayName, newMain: characterName(main), newAddon: main.addon, newRankName: main.rankName!, oldMain: characterName(old), oldAddon: old.addon, oldRankName: old.rankName! });
+    for (const c of others) if (c !== old) out.alts.push({ displayName: person.displayName, character: characterName(c), addon: c.addon, main: characterName(main), rankName: c.rankName! });
+  }
+  out.alts.sort((a, b) => a.displayName.localeCompare(b.displayName) || a.character.localeCompare(b.character));
+  out.swaps.sort((a, b) => a.displayName.localeCompare(b.displayName));
+  out.mainAway.sort((a, b) => a.displayName.localeCompare(b.displayName));
+  return out;
+}
+
 export function planPromotions(input: { people: readonly PromotionPerson[]; unclaimed: readonly { name: string; addon?: string | undefined; displayName?: string | null; level: number | null; rankName: string | null; rankAt: Date | null }[]; rule: PromotionRule; now?: Date }): PromotionPlan {
   const now = (input.now ?? new Date()).getTime();
   const fresh = (at: Date | null) => at !== null && now - at.getTime() <= RANK_MAX_AGE_MS;
-  const plan: PromotionPlan = { ready: [], left: [], unclaimed: [], waiting: [] };
+  const plan: PromotionPlan = { ready: [], left: [], unclaimed: [], waiting: [], ...planAlts(input.people, now) };
+  const swapped = new Set(plan.swaps.map((w) => w.discordUserId));
   // Never promote out of an alt rank, whatever the rule says.
   if (isAltRank(input.rule.fromRank)) return plan;
   for (const person of input.people) {
+    if (swapped.has(person.discordUserId)) continue; // the swap suggestion replaces any promotion for this member
     // A member with a main: only the main is promoted; their other characters are alts even at the starting rank.
     const hasMain = person.characters.some((c) => c.isMain);
     const atRank = person.characters.filter((c) => same(c.rankName, input.rule.fromRank) && fresh(c.rankAt) && !isAltRank(c.rankName) && (!hasMain || c.isMain));
@@ -121,7 +169,7 @@ export async function loadPromotionPlan(db: Db, discordGuild: Pick<DiscordGuild,
   const [people, unclaimed] = await Promise.all([
     db.member.findMany({
       where: { guildId, status: "ACTIVE", isTest: false, characters: { some: { gameEdition: edition, guildRankName: { not: null } } } },
-      select: { discordUserId: true, displayName: true, characters: { where: { gameEdition: edition }, select: { name: true, realm: true, displayName: true, level: true, guildRankName: true, guildRankAt: true, isMain: true, rankSeen: { select: { since: true } } } } }
+      select: { discordUserId: true, displayName: true, characters: { where: { gameEdition: edition }, select: { name: true, realm: true, displayName: true, level: true, guildRankName: true, guildRankIndex: true, guildRankAt: true, isMain: true, mainChosenAt: true, rankSeen: { select: { since: true } } } } }
     }),
     db.unclaimedCharacter.findMany({ where: { guildId, gameEdition: edition, guildRankName: { not: null } }, select: { name: true, realm: true, displayName: true, level: true, guildRankName: true, guildRankAt: true } })
   ]);
@@ -134,7 +182,7 @@ export async function loadPromotionPlan(db: Db, discordGuild: Pick<DiscordGuild,
   const book = fullNameBook([...people.flatMap((p) => p.characters), ...unclaimed]);
   const plan = planPromotions({
     people: people.map((p) => ({ discordUserId: p.discordUserId, displayName: p.displayName, inDiscord: discordGuild.members.cache.has(p.discordUserId), voiceMinutes: voice.get(p.discordUserId) ?? 0,
-      characters: p.characters.map((c) => ({ addon: addonName(c.name, c.realm), name: displayCharacterName(c, book), level: c.level, rankName: c.guildRankName, rankAt: c.guildRankAt, since: c.rankSeen?.since ?? null, isMain: c.isMain })) })),
+      characters: p.characters.map((c) => ({ addon: addonName(c.name, c.realm), name: displayCharacterName(c, book), level: c.level, rankName: c.guildRankName, rankIndex: c.guildRankIndex, rankAt: c.guildRankAt, since: c.rankSeen?.since ?? null, isMain: c.isMain, mainChosen: c.isMain && c.mainChosenAt != null })) })),
     unclaimed: unclaimed.map((u) => ({ name: displayCharacterName(u, book), addon: addonName(u.name, u.realm), displayName: null, level: u.level, rankName: u.guildRankName, rankAt: u.guildRankAt })),
     rule, now
   });
@@ -149,6 +197,9 @@ export function formatPromotionPlan(plan: PromotionPlan, rule: PromotionRule, la
     `**${t("Ready to promote", "Prêts à être promus")}** (${plan.ready.length})`, list(plan.ready.map((r) => `• ${r.displayName} — ${cleanCharacterName(r.character)}${r.level ? ` ${r.level}` : ""} · ${r.days} ${t("days", "jours")}`)), "",
     `**${t("Not in Discord yet", "Pas encore dans Discord")}** (${plan.left.length + plan.unclaimed.length})`,
     list([...plan.left.map((r) => `• ${cleanCharacterName(r.character)} (${t("left the server", "a quitté le serveur")}: ${r.displayName})`), ...plan.unclaimed.map((r) => `• ${r.name}${r.level ? ` ${r.level}` : ""} (${t("no Discord link", "aucun lien Discord")})`)]), "",
+    ...(plan.swaps.length ? [`**${t("Main changed: swap ranks", "Principal changé : échanger les rangs")}** (${plan.swaps.length})`, list(plan.swaps.map((w) => t(`• ${cleanCharacterName(w.newMain)} is now ${w.displayName}'s main: give ${cleanCharacterName(w.newMain)} rank ${w.oldRankName} and move ${cleanCharacterName(w.oldMain)} to the Alt rank`, `• ${cleanCharacterName(w.newMain)} est maintenant le principal de ${w.displayName} : donnez à ${cleanCharacterName(w.newMain)} le rang ${w.oldRankName} et passez ${cleanCharacterName(w.oldMain)} au rang Alt`))), ""] : []),
+    ...(plan.alts.length ? [`**${t("Alts to move to the Alt rank", "Alts à passer au rang Alt")}** (${plan.alts.length})`, list(plan.alts.map((a) => `• ${cleanCharacterName(a.character)} — ${t("alt of", "alt de")} ${cleanCharacterName(a.main)} (${a.rankName})`)), ""] : []),
+    ...(plan.mainAway.length ? [`**${t("Main not in the guild (nothing suggested)", "Principal hors de la guilde (rien de suggéré)")}** (${plan.mainAway.length})`, list(plan.mainAway.map((a) => `• ${a.displayName} — ${cleanCharacterName(a.main)}`)), ""] : []),
     `**${t("Not yet", "Pas encore")}** (${plan.waiting.length})`, list(plan.waiting.slice(0, 10).map((r) => `• ${r.displayName} — ${cleanCharacterName(r.character)} · ${[r.daysLeft > 0 ? t(`${r.daysLeft} day(s) left`, `${r.daysLeft} jour(s) restant(s)`) : "", describeReason(r.reason, lang)].filter(Boolean).join(" · ") || "—"}`))
   ].join("\n").slice(0, 3900);
 }

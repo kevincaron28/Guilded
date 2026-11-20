@@ -299,6 +299,25 @@ export async function postPromotionCongrats(db: CongratsDb, discordGuild: Pick<D
   return posted;
 }
 
+/** True when a job whose key is `<prefix><YYYY-MM-DD>` exists within 7 days of `at` (the day granularity adds one day of slack). */
+async function hasNearJob(db: Pick<PrismaClient, "discordJob">, guildId: string, prefix: string, at: Date): Promise<boolean> {
+  const near = await db.discordJob.findMany({ where: { guildId, key: { startsWith: prefix } }, select: { key: true } });
+  return near.some((j) => Math.abs(Date.parse(`${j.key.slice(prefix.length)}T00:00:00Z`) - at.getTime()) <= 7 * 86_400_000 + 86_400_000);
+}
+
+/**
+ * Queues the officer-log promotion line unless the same character and rank already have one within 7 days (20 Nov 2026: the same line
+ * appeared twice, hours apart, when a stale relayed copy lowered the stored rank in between). One mechanism for dedupe and delivery:
+ * a MESSAGE job keyed `promotion-log:<character>:<rank>:<day>`. Returns false when skipped.
+ */
+export async function queuePromotionLog(db: Pick<PrismaClient, "discordJob">, guildId: string, channelId: string, lang: "en" | "fr",
+  p: { name: string; rankName: string; at: Date }): Promise<boolean> {
+  const prefix = `promotion-log:${cleanCharacterName(p.name).trim().toLowerCase()}:${p.rankName.trim().toLowerCase()}:`;
+  if (await hasNearJob(db, guildId, prefix, p.at)) return false;
+  await enqueueDiscordJob(db, guildId, `${prefix}${p.at.toISOString().slice(0, 10)}`, "MESSAGE", { channelId, message: { content: promotionLogLine(cleanCharacterName(p.name), p.rankName, lang) } });
+  return true;
+}
+
 /**
  * Queues one congratulations post (text with the ping, plus the rank-tier card) unless the same member and rank already have one that day.
  * Shared by the live upload path and scripts/announce-recent-promotions.ts, so both dedupe on the same job key. Returns false when skipped.
@@ -308,8 +327,7 @@ export async function queuePromotionCongrats(db: Pick<PrismaClient, "discordJob"
   if (!/^\d{17,20}$/.test(p.userId) || isAltRank(p.rankName)) return false;
   const prefix = `promotion-congrats:${p.userId}:${p.rankName.trim().toLowerCase()}:`, key = `${prefix}${p.at.toISOString().slice(0, 10)}`;
   // The live path keys on the upload day and the backfill on the event day (hours apart at best): any job for the same member and rank within 7 days counts as the same promotion.
-  const near = await db.discordJob.findMany({ where: { guildId, key: { startsWith: prefix } }, select: { key: true } });
-  if (near.some((j) => Math.abs(Date.parse(`${j.key.slice(prefix.length)}T00:00:00Z`) - p.at.getTime()) <= 7 * 86_400_000 + 86_400_000)) return false;
+  if (await hasNearJob(db, guildId, prefix, p.at)) return false;
   const character = cleanCharacterName(p.name);
   const text = promotionCongratsText(`<@${p.userId}>`, p.rankName, lang);
   const card = promotionCard(lang, { name: p.memberName, character, rank: p.rankName });
@@ -318,10 +336,18 @@ export async function queuePromotionCongrats(db: Pick<PrismaClient, "discordJob"
   return true;
 }
 
-/** Officer log line for each promotion (at most 10 per upload), plus the public congratulations when the caller gives the database. */
-export async function announcePromotions(discordGuild: DiscordGuild, promotions: readonly PromotionEvent[], congrats?: { db: CongratsDb; guildId: string }): Promise<void> {
-  for (const p of promotions.slice(0, 10)) await postToLogChannel(discordGuild, (lang) => promotionLogLine(cleanCharacterName(p.name), p.rankName, lang));
-  if (congrats) await postPromotionCongrats(congrats.db, discordGuild, congrats.guildId, promotions).catch((error) => console.error("Promotion congratulations failed", error));
+/** Officer log line for each promotion (at most 10 per upload, once per character and rank within 7 days), plus the public congratulations when the caller gives the database. */
+export async function announcePromotions(discordGuild: DiscordGuild, promotions: readonly PromotionEvent[], congrats?: { db: CongratsDb; guildId: string }, now = new Date()): Promise<void> {
+  if (congrats) {
+    const settings = await congrats.db.guildSettings.findUnique({ where: { guildId: congrats.guildId }, select: { language: true, logChannelId: true } }).catch(() => null);
+    const logChannelId = (settings as { logChannelId?: string | null } | null)?.logChannelId;
+    if (logChannelId) {
+      const lang = settings?.language === "fr" ? "fr" : "en";
+      for (const p of promotions.slice(0, 10)) await queuePromotionLog(congrats.db, congrats.guildId, logChannelId, lang, { name: p.name, rankName: p.rankName, at: now })
+        .catch((error) => console.error("Promotion log failed", error));
+    }
+  } else for (const p of promotions.slice(0, 10)) await postToLogChannel(discordGuild, (lang) => promotionLogLine(cleanCharacterName(p.name), p.rankName, lang));
+  if (congrats) await postPromotionCongrats(congrats.db, discordGuild, congrats.guildId, promotions, now).catch((error) => console.error("Promotion congratulations failed", error));
 }
 
 /** Release times for a backfill: card i of n at start + i * hours / n (the first right away); undefined entries mean "now". */

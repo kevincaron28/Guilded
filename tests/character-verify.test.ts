@@ -261,7 +261,7 @@ describe("telling the member", () => {
     ]);
     expect(send).toHaveBeenCalledTimes(2);
     expect(send.mock.calls[0]).toEqual(["user-ray", { content: expect.stringContaining("**Ray** est maintenant lié") as unknown, allowedMentions: { parse: [] } }]);
-    expect(send.mock.calls[0]![1].content).toContain("comme ton principal");
+    expect(send.mock.calls[0]![1].content).toContain("comme votre principal");
     expect(send.mock.calls[1]![1].content).toContain("déjà lié à quelqu'un d'autre sur **Quebec Gold**");
     // Only the new link reaches the officers' log (postToLogChannel never pings).
     expect(logged).toHaveBeenCalledWith(discordGuild, "🔗 Ray a été lié à <@user-ray> par un code de lien reçu en jeu.");

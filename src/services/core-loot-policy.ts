@@ -1,7 +1,7 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
 
 type Db = Pick<PrismaClient, "guildSettings" | "raidCore">;
-export const CORE_REQUIRED = "Le butin et les EP/GP sont propres à chaque core. Choisis un core ou un raid de core; dans l'addon : /guilded core <nom>.";
+export const CORE_REQUIRED = "Le butin et les EP/GP sont propres à chaque core. Choisissez un core ou un raid de core; dans l'addon : /guilded core <nom>.";
 
 export async function requireCorePool(database: Db, guildId: string, coreId: string | null | undefined) {
   const settings = await database.guildSettings?.findUnique({ where: { guildId }, select: { coreLootOnly: true } });

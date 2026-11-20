@@ -323,7 +323,7 @@ export async function handleApplyButton(interaction: ButtonInteraction): Promise
       const member = await guildService.ensureMember(guild.id, interaction.user.id, interaction.user.username);
       const character = await pickSignupCharacter(interaction, guild.id, member.id);
       if (!character) return;
-      const payload = { content: `**${displayCharacterName(character)} — ${character.realm}** : continue ta candidature pour **${core.name}**.`,
+      const payload = { content: `**${displayCharacterName(character)} — ${character.realm}** : continuez votre candidature pour **${core.name}**.`,
         components: [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(`${APPLY_PREFIX}character:${core.id}:${rawRole}:${character.id}`).setLabel("Continuer ma candidature").setStyle(ButtonStyle.Primary))] };
       if (interaction.replied || interaction.deferred) await interaction.editReply(payload);
       else await interaction.reply({ ...payload, flags: MessageFlags.Ephemeral });

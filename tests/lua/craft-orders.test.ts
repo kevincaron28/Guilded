@@ -842,6 +842,11 @@ describe("the Crafting page: scrolling list (20 Nov 2026 polish)", () => {
     expect(rows()).toHaveLength(14);
     expect(rows()[0]).toContain("Gizmo 01");
     expect(s!.run("return VIEW.more.text")).toContain("of 40");
+    // A search that found more than the list keeps says so; an empty list says nothing.
+    s!.run("VIEW.total = 120; NS.craftOrders.refresh()");
+    expect(s!.run("return VIEW.more.text")).toContain("of 40. Scroll with the mouse wheel. Refine the search for more.");
+    search("zzzz nothing");
+    expect(s!.run("return VIEW.more.text")).not.toContain("Showing 1-0");
     s!.run(`VIEW.box:SetText("gizmo 3"); VIEW.box.scripts.OnTextChanged(VIEW.box, true)`);
     expect(rows().some((r) => r.includes("Gizmo 01"))).toBe(false);
     // The Search button stays harmless: it repeats the same search.

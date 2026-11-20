@@ -600,7 +600,7 @@ local FR = {
   ["Bosses"] = "Boss",
   ["Deaths %d"] = "Morts %d",
   ["waiting for the first pull"] = "en attente du premier pull",
-  ["No dungeon run in progress. Enter a dungeon: the timer starts on the first pull and stops on the last boss."] = "Aucun donjon en cours. Entrez dans un donjon : le chrono part au premier pull et s'arr\195xte au dernier boss.",
+  ["No dungeon run in progress. Enter a dungeon: the timer starts on the first pull and stops on the last boss."] = "Aucun donjon en cours. Entrez dans un donjon : le chrono part au premier pull et s'arr\195\170te au dernier boss.",
   ["%d received by Discord, not counted yet: %s."] = "%d re\195\167u(s) par Discord, pas encore compt\195\169(s) : %s.",
   ["No dungeon run in progress. Saved runs: %d (%d waiting to reach Discord)."] = "Aucun donjon en cours. Donjons enregistr\195\169s : %d (%d en attente d'envoi vers Discord).",
   ["Your run %s was uploaded by %s's companion."] = "Votre donjon %s a \195\169t\195\169 envoy\195\169 par le compagnon de %s.",
@@ -3217,6 +3217,7 @@ local DE = {
   ["new"] = "neu",
   -- Crafting UI polish (20 Nov 2026)
   ["Fav"] = "Fav",
+  ["Refine the search for more."] = "Verfeinere die Suche f\195\188r mehr.",
   ["^"] = "^",
   ["v"] = "v",
   ["Favourite"] = "Favorit",
@@ -4337,7 +4338,7 @@ local ES = {
   ["Say your milestones in guild chat (on by default)."] = "Anuncia tus hitos en el chat de hermandad (activado por defecto).",
   ["Scan the calendar"] = "Leer calendario",
   ["Scenario at level %d (party maximum)."] = "Escenario de nivel %d (m\195\161ximo del grupo).",
-  ["Scenario only: final-boss evidence and 80% presence required. No confirmation yet."] = "Solo es un escenario: requiere pruebas del \195\186ltimo jefe y un 80% de presencia. A\195\186n sin confirmar.",
+  ["Scenario only: final-boss evidence and 80% presence required. No confirmation yet."] = "Solo es un escenario: requiere pruebas del \195\186ltimo jefe y un 80 % de presencia. A\195\186n sin confirmar.",
   ["score"] = "puntuaci\195\179n",
   ["Scores"] = "Puntuaciones",
   ["scores from recorded dungeon runs"] = "puntuaciones de mazmorras registradas",
@@ -5466,6 +5467,7 @@ local ES = {
   ["new"] = "nuevos",
   -- Crafting UI polish (20 Nov 2026)
   ["Fav"] = "Fav",
+  ["Refine the search for more."] = "Afina la b\195\186squeda para ver m\195\161s.",
   ["^"] = "^",
   ["v"] = "v",
   ["Favourite"] = "Favorito",
@@ -6459,7 +6461,6 @@ FR["This character: %d runs, %d completed, %d dungeons. Click a dungeon for deta
 -- Client probe (Modules/Probe.lua)
 FR["present"] = "pr\195\169sent"
 FR["absent"] = "absent"
-FR["none"] = "aucune"
 FR["registers"] = "s'enregistre"
 FR["does not register"] = "ne s'enregistre pas"
 
@@ -6872,6 +6873,7 @@ FR["restored"] = "restaur\195\169es"
 FR["new"] = "nouvelles"
 -- Crafting UI polish (20 Nov 2026)
 FR["Fav"] = "Fav"
+FR["Refine the search for more."] = "Affinez la recherche pour en voir plus."
 FR["^"] = "^"
 FR["v"] = "v"
 FR["Favourite"] = "Favori"

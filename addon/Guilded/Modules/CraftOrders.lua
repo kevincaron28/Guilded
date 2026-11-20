@@ -1498,7 +1498,7 @@ local function renderRequest(view, page, y, off)
         local count = entry.crafterCount or entry.crafters and #entry.crafters
         local tail = count and (" |cff" .. (online > 0 and "20ff20" or "808080") .. "(" .. online .. ")|r") or ""
         row.text:SetText((selected and "|cffffd100" or "|cffffffff") .. clip(tostring(entry.name or "?"), 27) .. "|r" .. tail)
-        row.star:SetText(orders.isFavourite(entry) and "|cffffd100Fav|r" or "|cff707070Fav|r")
+        row.star:SetText(orders.isFavourite(entry) and ("|cffffd100" .. L("Fav") .. "|r") or ("|cff707070" .. L("Fav") .. "|r"))
         row.star:Show()
         if row.back.SetColorTexture then row.back:SetColorTexture(1, 1, 1, selected and 0.18 or 0.04) end
       end
@@ -1525,10 +1525,13 @@ local function renderRequest(view, page, y, off)
     place(view.leftNote, page, 4, y); view.leftNote:Show()
     y = y - math.max(18, textHeight(view.leftNote) + 6)
   else view.leftNote:Hide() end
-  local total = #items
-  if mode == "search" then total = math.max(total, view.total or 0) end
-  if scrolls or total > shown then
-    view.more:SetText(string.format(L("Showing %d-%d of %d. Scroll with the mouse wheel."), view.offset + 1, view.offset + shown, total))
+  -- "Showing a-b of n": n counts the items the list holds (a search keeps at most SEARCH_LIMIT);
+  -- when the search found more than that, it says so. Nothing shown, nothing said.
+  local kept = #items
+  if shown > 0 and (scrolls or (mode == "search" and (view.total or 0) > kept)) then
+    local text = string.format(L("Showing %d-%d of %d. Scroll with the mouse wheel."), view.offset + 1, view.offset + shown, kept)
+    if mode == "search" and (view.total or 0) > kept then text = text .. " " .. L("Refine the search for more.") end
+    view.more:SetText(text)
     place(view.more, page, 4, y); view.more:Show(); y = y - 16
   else view.more:Hide() end
   local leftBottom = y

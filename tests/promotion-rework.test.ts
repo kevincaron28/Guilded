@@ -18,7 +18,7 @@ describe("alt ranks are never promoted (16 Nov 2026)", () => {
     for (const name of ALT_RANK_NAMES) expect(isAltRank(name)).toBe(true);
   });
   it("never lists a member whose rank is an alt rank, even when it is the configured starting rank", () => {
-    expect(plan([person("a", [char({ rankName: "Alt" })])], { ...DEFAULT_PROMOTION_RULE, fromRank: "Alt" })).toEqual({ ready: [], left: [], unclaimed: [], waiting: [] });
+    expect(plan([person("a", [char({ rankName: "Alt" })])], { ...DEFAULT_PROMOTION_RULE, fromRank: "Alt" })).toEqual({ ready: [], left: [], unclaimed: [], waiting: [], alts: [], swaps: [], mainAway: [] });
     expect(plan([person("a", [char({ rankName: "Alts" })])]).ready).toEqual([]);
   });
   it("ignores a character that is an alt (not the main) even at the starting rank, but still promotes a main", () => {

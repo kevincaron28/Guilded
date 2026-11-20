@@ -118,6 +118,15 @@ function tools.promoteTarget(snapshot, row)
   while dest >= 0 and tools.isAltRank(snapshot.rankNames and snapshot.rankNames[dest + 1]) do dest = dest - 1 end
   return dest
 end
+-- The rank alts belong in: the last (lowest) rank whose name is an alt rank, else the guild's lowest rank
+-- (owner request, 20 Nov 2026: "the ALT rank which is the lowest"). Rank INDEX, 0 = Guild Master.
+function tools.altRankIndex(snapshot)
+  local last = (snapshot.ranks or 1) - 1
+  for i = last, 0, -1 do
+    if tools.isAltRank(snapshot.rankNames and snapshot.rankNames[i + 1]) then return i end
+  end
+  return last
+end
 -- True when the rank directly above this member is an alt rank. The addon never promotes in that case (the one-step
 -- call would land the member in Alt, and skipping past it is refused or unreliable): the officer does it by hand.
 function tools.altInWay(snapshot, row)
@@ -147,8 +156,14 @@ end
 function tools.rankBase() local c = calibration(); return c.base, c.confirmed == true end
 function tools.rankNumber(rankIndex) return rankIndex + calibration().base end
 function tools.canSetRank() return type(SetGuildMemberRank) == "function" end
-local function permitted(action, target, snapshot)
+local function permitted(action, target, snapshot, value)
   if target.key == snapshot.actor.key or target.rank <= snapshot.actor.rank then return false end
+  if action == "setrank" then
+    local dest = tonumber(value)
+    if not dest or dest ~= math.floor(dest) or dest <= snapshot.actor.rank or dest >= snapshot.ranks or dest == target.rank then return false end
+    if dest < target.rank then return read(CanGuildPromote) == true end
+    return read(CanGuildDemote) == true
+  end
   if action == "promote" then return tools.promoteTarget(snapshot, target) > snapshot.actor.rank and read(CanGuildPromote) == true end
   if action == "demote" then return target.rank + 1 < snapshot.ranks and read(CanGuildDemote) == true end
   if action == "kick" then return read(CanGuildRemove) == true end
@@ -168,9 +183,14 @@ local function operation(row, action, value, dest)
     return GuildRosterSetOfficerNote, { row.index, value }
   end
   if action == "kick" and api.RemoveFromGuild and row.guid then return api.RemoveFromGuild, { row.guid } end
-  if (action == "promote" or action == "demote") and tools.canSetRank() and row.index then
-    local target = action == "promote" and (dest or row.rank - 1) or row.rank + 1
+  if (action == "promote" or action == "demote" or action == "setrank") and tools.canSetRank() and row.index then
+    local target = action == "promote" and (dest or row.rank - 1) or action == "setrank" and dest or row.rank + 1
+    if not target then return nil end
     return SetGuildMemberRank, { row.index, tools.rankNumber(target) }
+  end
+  -- "setrank" without the setter: only one step up or down can use the one-step calls.
+  if action == "setrank" then
+    if dest == row.rank - 1 then action = "promote" elseif dest == row.rank + 1 then action = "demote" else return nil end
   end
   -- Fallback: the one-step calls, only when the next rank up IS the target (they cannot skip an alt rank).
   if action == "promote" and dest and dest ~= row.rank - 1 then return nil end
@@ -240,12 +260,12 @@ local function makePlan(entries)
     local item = { name = input.name, action = input.action, value = input.value, status = "ready" }
     if matches ~= 1 or not row then item.status = "Unknown or ambiguous character."
     elseif seen[row.key] then item.status = "Duplicate character in plan."
-    elseif not permitted(input.action, row, snapshot) then item.status = "Permission or rank hierarchy prevents this action."
+    elseif not permitted(input.action, row, snapshot, input.value) then item.status = "Permission or rank hierarchy prevents this action."
     else
       seen[row.key] = true
       item.key, item.guid, item.before, item.beforeRank = row.key, row.guid, beforeValue(row, input.action), row.rank
-      item.after = input.action == "promote" and tools.promoteTarget(snapshot, row) or input.action == "demote" and row.rank + 1 or input.action == "kick" and "removed" or input.value
-      local fn = operation(row, input.action, input.value, input.action == "promote" and item.after or nil)
+      item.after = input.action == "promote" and tools.promoteTarget(snapshot, row) or input.action == "demote" and row.rank + 1 or input.action == "setrank" and tonumber(input.value) or input.action == "kick" and "removed" or input.value
+      local fn = operation(row, input.action, input.value, (input.action == "promote" or input.action == "setrank") and item.after or nil)
       if type(fn) ~= "function" then item.status = "This action is unavailable on this client."
       elseif item.before == item.after then item.status = "unchanged" end
     end
@@ -270,8 +290,8 @@ function tools.preview(input)
         first = false
       else
         local name, action, value = line:match("^([^\t]+)\t([^\t]+)\t([^\t]*)$")
-        if not name or not text(name, 160) or not ({ promote = true, demote = true, kick = true, public = true, officer = true })[action]
-          or not text(value, 31) or ((action == "kick" or action == "promote" or action == "demote") and value ~= "") then return nil, "Invalid action, name or note (31 bytes maximum)." end
+        if not name or not text(name, 160) or not ({ promote = true, demote = true, setrank = true, kick = true, public = true, officer = true })[action]
+          or not text(value, 31) or ((action == "kick" or action == "promote" or action == "demote") and value ~= "") or (action == "setrank" and not value:find("^%d+$")) then return nil, "Invalid action, name or note (31 bytes maximum)." end
         rows[#rows + 1] = { name = name, action = action, value = value }
         if #rows > 50 then return nil, "Plan too large (50 rows maximum)." end
       end
@@ -307,10 +327,10 @@ function tools.step()
   local item = p.rows[p.cursor]; if not item then return false, "Plan complete." end
   if tools.isBlocked(item.action) then item.status = "blocked"; p.confirmed = false; return false, tools.blockedMessage(item.action) end
   local current = snapshot.rows[item.key]
-  if not current or current.guid ~= item.guid or current.rank ~= item.beforeRank or beforeValue(current, item.action) ~= item.before or not permitted(item.action, current, snapshot) then
+  if not current or current.guid ~= item.guid or current.rank ~= item.beforeRank or beforeValue(current, item.action) ~= item.before or not permitted(item.action, current, snapshot, item.value) then
     item.status = "Roster changed; preview again."; p.confirmed = false; return false, item.status
   end
-  local fn, args = operation(current, item.action, item.value, item.action == "promote" and item.after or nil)
+  local fn, args = operation(current, item.action, item.value, (item.action == "promote" or item.action == "setrank") and item.after or nil)
   if type(fn) ~= "function" then p.confirmed = false; return false, "This action is unavailable on this client." end
   local store = tools.store(); if not store then return false, "Local audit storage is unavailable." end
   store.serial = (store.serial or 0) + 1
@@ -337,7 +357,7 @@ function tools.verify()
   local changed = item.action == "kick" and not row or row and row.guid == item.guid and beforeValue(row, item.action) == item.after
   -- Calibrate the rank number base from the first promotion: on target = confirmed; one rank lower = base 0 (the
   -- officer clicks again, nothing is retried here); one higher or anything else = stop, manual mode.
-  if row and row.guid == item.guid and item.action == "promote" and tools.canSetRank() and row.rank ~= item.beforeRank then
+  if row and row.guid == item.guid and (item.action == "promote" or item.action == "setrank") and tools.canSetRank() and row.rank ~= item.beforeRank then
     local base, confirmed = tools.rankBase()
     if row.rank == item.after then
       if not confirmed then saveCalibration(base, true) end
@@ -349,7 +369,7 @@ function tools.verify()
     end
   end
   -- The member moved, but not to the rank asked for (and not the one-off a base switch explains): stop asking.
-  if not changed and row and row.guid == item.guid and (item.action == "promote" or item.action == "demote") and row.rank ~= item.beforeRank then
+  if not changed and row and row.guid == item.guid and (item.action == "promote" or item.action == "demote" or item.action == "setrank") and row.rank ~= item.beforeRank then
     pending.record.status = "landed at the wrong rank"; item.status = "landed at the wrong rank"; p.pending = nil; p.confirmed = false
     local blocked = blockedTable(); if blocked then blocked.rank = clientBuild() end
     if ns.message then ns.message(L("A promotion landed at an unexpected rank. Guilded stopped promoting; use the guild roster.")) end
@@ -383,6 +403,10 @@ function tools.undoPreview()
       local row = snapshot.rows[record.key]
       if not row or row.guid ~= record.guid or beforeValue(row, record.action) ~= record.after then return nil, "Roster changed; recovery would overwrite newer data." end
       if record.action == "promote" and type(record.before) == "number" and type(record.after) == "number" and record.before - record.after > 1 then return nil, "No reversible verified action is available." end -- a promotion that skipped an alt rank cannot be undone one step at a time
+      if record.action == "setrank" then
+        if type(record.before) ~= "number" then return nil, "No reversible verified action is available." end
+        return makePlan({ { name = row.name, action = "setrank", value = tostring(record.before) } })
+      end
       local action = record.action == "promote" and "demote" or record.action == "demote" and "promote" or record.action
       return makePlan({ { name = row.name, action = action, value = (action == "public" or action == "officer") and record.before or "" } })
     end

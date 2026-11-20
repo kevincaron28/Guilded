@@ -3215,6 +3215,18 @@ local DE = {
   ["Guild changed: now using the saved data for %s (%s). Data for %s is kept and comes back if you play there. /reload is recommended."] = "Gilde gewechselt: Es werden die gespeicherten Daten f\195\188r %s verwendet (%s). Die Daten f\195\188r %s bleiben erhalten und kommen zur\195\188ck, wenn du dort spielst. /reload wird empfohlen.",
   ["restored"] = "wiederhergestellt",
   ["new"] = "neu",
+  -- Promotion alts (20 Nov 2026)
+  ["%s is now the main (was %s): give rank %s, then move %s to Alt"] = "%s ist jetzt der Main (vorher %s): Rang %s geben, dann %s auf Alt setzen",
+  ["%s - maybe an alt (note says alt) (%s)"] = "%s - vielleicht ein Twink (Notiz sagt Alt) (%s)",
+  ["%s - alt of %s (%s)"] = "%s - Twink von %s (%s)",
+  ["%d alts already in the Alt rank"] = "%d Twinks bereits im Rang Alt",
+  ["Alts and main changes"] = "Twinks und Main-\195\132nderungen",
+  ["+%d more alts"] = "+%d weitere Twinks",
+  ["Give rank"] = "Rang geben",
+  ["Move to Alt"] = "Auf Alt setzen",
+  ["Rank change requested. Wait for the roster to confirm it before the next one."] = "Rang\195\164nderung angefordert. Warte, bis die Gildenliste sie best\195\164tigt, bevor du die n\195\164chste machst.",
+  ["Move to the Alt rank from the guild roster: right-click the name, then set the rank to Alt."] = "Setze den Rang Alt in der Gildenliste: Rechtsklick auf den Namen, dann den Rang Alt w\195\164hlen.",
+  ["No alts to move."] = "Keine Twinks zu verschieben.",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -5451,6 +5463,18 @@ local ES = {
   ["Guild changed: now using the saved data for %s (%s). Data for %s is kept and comes back if you play there. /reload is recommended."] = "Hermandad cambiada: se usan los datos guardados de %s (%s). Los datos de %s se conservan y vuelven si juegas all\195\173. Se recomienda /reload.",
   ["restored"] = "restaurados",
   ["new"] = "nuevos",
+  -- Promotion alts (20 Nov 2026)
+  ["%s is now the main (was %s): give rank %s, then move %s to Alt"] = "%s es ahora el personaje principal (antes %s): dale el rango %s y luego pasa a %s a Alt",
+  ["%s - maybe an alt (note says alt) (%s)"] = "%s - quiz\195\161 un alt (la nota dice alt) (%s)",
+  ["%s - alt of %s (%s)"] = "%s - alt de %s (%s)",
+  ["%d alts already in the Alt rank"] = "%d alts ya en el rango Alt",
+  ["Alts and main changes"] = "Alts y cambios de personaje principal",
+  ["+%d more alts"] = "+%d alts m\195\161s",
+  ["Give rank"] = "Dar rango",
+  ["Move to Alt"] = "Pasar a Alt",
+  ["Rank change requested. Wait for the roster to confirm it before the next one."] = "Cambio de rango solicitado. Espera a que la lista de la hermandad lo confirme antes del siguiente.",
+  ["Move to the Alt rank from the guild roster: right-click the name, then set the rank to Alt."] = "Pasa a Alt desde la lista de la hermandad: clic derecho en el nombre y elige el rango Alt.",
+  ["No alts to move."] = "Ning\195\186n alt que mover.",
 }
 -- END ES
 
@@ -6844,3 +6868,15 @@ FR["Saved data under %s was merged into %s (%d sections). EP/GP stays under the 
 FR["Guild changed: now using the saved data for %s (%s). Data for %s is kept and comes back if you play there. /reload is recommended."] = "Guilde chang\195\169e : utilisation des donn\195\169es enregistr\195\169es pour %s (%s). Les donn\195\169es de %s sont conserv\195\169es et reviennent si vous y jouez. Un /reload est conseill\195\169."
 FR["restored"] = "restaur\195\169es"
 FR["new"] = "nouvelles"
+-- Promotion alts (20 Nov 2026)
+FR["%s is now the main (was %s): give rank %s, then move %s to Alt"] = "%s est maintenant le principal (avant : %s) : donnez le rang %s, puis passez %s au rang Alt"
+FR["%s - maybe an alt (note says alt) (%s)"] = "%s - peut-\195\170tre un alt (la note dit alt) (%s)"
+FR["%s - alt of %s (%s)"] = "%s - alt de %s (%s)"
+FR["%d alts already in the Alt rank"] = "%d alts d\195\169j\195\160 au rang Alt"
+FR["Alts and main changes"] = "Alts et changements de principal"
+FR["+%d more alts"] = "+%d autres alts"
+FR["Give rank"] = "Donner le rang"
+FR["Move to Alt"] = "Passer \195\160 Alt"
+FR["Rank change requested. Wait for the roster to confirm it before the next one."] = "Changement de rang demand\195\169. Attendez que la liste de guilde le confirme avant le suivant."
+FR["Move to the Alt rank from the guild roster: right-click the name, then set the rank to Alt."] = "Passez au rang Alt depuis la liste de guilde : clic droit sur le nom, puis choisissez le rang Alt."
+FR["No alts to move."] = "Aucun alt \195\160 d\195\169placer."

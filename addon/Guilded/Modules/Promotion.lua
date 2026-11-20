@@ -18,6 +18,7 @@ local function L(s) return ns.L and ns.L(s) or s end
 local function db() return ns.getDb and ns.getDb() end
 local DAY = 86400
 local MAX_ROWS = 12
+local ALT_ROWS = 6
 module.MAX_TRIES = 3 -- unverified attempts per member and session before the panel stops offering one-click retries
 local lastScan, lastUpdate = -1000, -1000
 local tried = {} -- character key -> attempts this session; cleared when the roster verified the promotion
@@ -105,6 +106,135 @@ local function keySet(list)
   return out
 end
 
+-- ----- alts and main changes (owner request, 20 Nov 2026) ----------------------------------------------
+-- Alt evidence, best first: (1) the bot's `alts` list (every other in-guild character of a member whose main the bot
+-- knows, which includes the characters the companion reports from the same WoW account), (2) a guild/officer note that
+-- says alt / reroll / twink (weak hint, shown as "maybe"). Names alone prove nothing. Alts are never offered for
+-- promotion; the officer moves them to the Alt rank (the guild's lowest rank) with one click each. A main change
+-- (`swaps`) is a pair: the new main gets the old main's rank, then the old main goes to the Alt rank.
+local NOTE_WORDS = { "%f[%a]alt%f[%A]", "%f[%a]alts%f[%A]", "%f[%a]reroll%f[%A]", "%f[%a]re%-roll%f[%A]", "%f[%a]twink%f[%A]", "%f[%a]r\195\169roll%f[%A]" }
+local function noteSaysAlt(note)
+  if type(note) ~= "string" or note == "" then return false end
+  local t = note:lower()
+  for _, pattern in ipairs(NOTE_WORDS) do if t:find(pattern) then return true end end
+  return false
+end
+module.noteSaysAlt = noteSaysAlt
+
+local function altMap()
+  local f, out = feed(), {}
+  if f and type(f.alts) == "table" then
+    for _, e in ipairs(f.alts) do
+      if type(e) == "table" and type(e.name) == "string" then out[bare(e.name) or e.name] = type(e.main) == "string" and e.main or "?" end
+    end
+  end
+  return out
+end
+
+-- Pairs still to do: { { to = row, from = row, rankName, needGive, needAlt } }. Skipped when the old main already sits
+-- at the Alt rank (its old rank is lost; the alt list handles it) or both steps are done.
+function module.swaps()
+  local f, tools = feed(), ns.rosterTools
+  local out = {}
+  if not f or type(f.swaps) ~= "table" or not tools or not tools.authorized() then return out end
+  local snapshot = tools.snapshot(); if not snapshot then return out end
+  local dest = tools.altRankIndex(snapshot)
+  for _, e in ipairs(f.swaps) do
+    if type(e) == "table" and type(e.to) == "string" and type(e.from) == "string" then
+      local toRow, fromRow = snapshot.rows[bare(e.to) or e.to], snapshot.rows[bare(e.from) or e.from]
+      if toRow and fromRow and toRow.key ~= fromRow.key and fromRow.rank ~= dest then
+        local needGive = toRow.rank > fromRow.rank
+        if needGive or fromRow.rank ~= dest then
+          out[#out + 1] = { to = toRow, from = fromRow, rankName = fromRow.rankName, rankIndex = fromRow.rank, needGive = needGive, needAlt = true }
+        end
+      end
+    end
+  end
+  table.sort(out, function(a, b) return a.to.display < b.to.display end)
+  return out
+end
+
+-- Alts still to move: ({ { key, name, display, main, hint, rankName } }, alreadyInAltRank). Excludes the old mains of a pending swap.
+function module.alts()
+  local tools = ns.rosterTools
+  if not tools or not tools.authorized() then return {}, 0 end
+  local snapshot = tools.snapshot(); if not snapshot then return {}, 0 end
+  local dest = tools.altRankIndex(snapshot)
+  local map, inSwap = altMap(), {}
+  for _, s in ipairs(module.swaps()) do inSwap[s.from.key] = true; inSwap[s.to.key] = true end
+  local out, done = {}, 0
+  for key, row in pairs(snapshot.rows) do
+    if key ~= snapshot.actor.key and not inSwap[key] then
+      local main = map[key]
+      local hint = main == nil and (noteSaysAlt(row.public) or noteSaysAlt(row.officer))
+      if main ~= nil or hint then
+        if row.rank == dest then done = done + 1
+        elseif row.rank > snapshot.actor.rank and row.rank < dest then
+          out[#out + 1] = { key = key, name = row.name, display = row.display, main = main, hint = hint or false, rankName = row.rankName }
+        end
+      end
+    end
+  end
+  table.sort(out, function(a, b) if a.hint ~= b.hint then return not a.hint end return a.display < b.display end)
+  return out, done
+end
+
+-- True when this roster row is an alt by the bot's list, a pending swap's new main, or a note (never promoted).
+local function altKeys(snapshot)
+  local keys, map = {}, altMap()
+  for key in pairs(map) do keys[key] = true end
+  for _, s in ipairs(module.swaps()) do keys[s.to.key] = true; keys[s.from.key] = true end
+  for key, row in pairs(snapshot.rows) do
+    if not keys[key] and (noteSaysAlt(row.public) or noteSaysAlt(row.officer)) then keys[key] = true end
+  end
+  return keys
+end
+
+local ALT_MANUAL_LINE = "Move to the Alt rank from the guild roster: right-click the name, then set the rank to Alt."
+-- One rank change, one click: the same reviewed path a promotion uses (fresh roster, permission check, audit, verification,
+-- rank-number base calibration, per-build refusal memory). `dest` is a rank index.
+function module.changeRank(name, dest)
+  local tools = ns.rosterTools
+  if not tools or not tools.authorized() then return false, L("Current officer access is required.") end
+  if type(name) ~= "string" or name == "" or name:find("[\t\r\n]") then return false, L("Unknown or ambiguous character.") end
+  if tools.isBlocked and tools.isBlocked("setrank") then return false, L(ALT_MANUAL_LINE) end
+  if tools.plan and tools.plan.pending then return false, L("Wait for the roster to confirm the previous promotion.") end
+  local plan, err = tools.preview("character\taction\tvalue\n" .. name .. "\tsetrank\t" .. tostring(dest))
+  if not plan then return false, L(err or "Not applied. Check the preview and confirmation.") end
+  if plan.blocked then tools.cancel(); return false, L(plan.rows[1] and plan.rows[1].status or "Permission or rank hierarchy prevents this action.") end
+  if not tools.confirm(plan.phrase) then tools.cancel(); return false, L("Not applied. Check the preview and confirmation.") end
+  local ok, message = tools.step()
+  if not ok then return false, L(message or "Not applied. Check the preview and confirmation.") end
+  return true, L("Rank change requested. Wait for the roster to confirm it before the next one.")
+end
+
+function module.moveToAlt(name)
+  local tools = ns.rosterTools
+  local snapshot = tools and tools.authorized() and tools.snapshot()
+  if not snapshot then return false, L("Refresh the full guild roster first.") end
+  return module.changeRank(name, tools.altRankIndex(snapshot))
+end
+
+-- A swap's next step: give the new main the old main's rank first (unless it already ranks as high), then the old main to Alt.
+function module.swapStep(swap)
+  if swap.needGive then return module.changeRank(swap.to.name, swap.rankIndex) end
+  return module.moveToAlt(swap.from.name)
+end
+
+function module.altsText()
+  local lines = {}
+  for _, s in ipairs(module.swaps()) do
+    lines[#lines + 1] = string.format(L("%s is now the main (was %s): give rank %s, then move %s to Alt"), s.to.display, s.from.display, tostring(s.rankName), s.from.display)
+  end
+  local alts, done = module.alts()
+  for _, a in ipairs(alts) do
+    lines[#lines + 1] = a.hint and string.format(L("%s - maybe an alt (note says alt) (%s)"), a.display, tostring(a.rankName)) or string.format(L("%s - alt of %s (%s)"), a.display, tostring(a.main), tostring(a.rankName))
+  end
+  if done > 0 then lines[#lines + 1] = string.format(L("%d alts already in the Alt rank"), done) end
+  if #lines == 0 then lines[1] = L("No alts to move.") end
+  return table.concat(lines, "\n")
+end
+
 -- A member whose own rank is an alt rank: never promote. (Until 17 Nov 2026 this also refused when the rank one
 -- step up was an alt rank, which dropped every Initiate in a guild that keeps Alt between Member and Initiate;
 -- RosterTools now skips the alt rank and lands the promotion on the next real rank.)
@@ -155,6 +285,7 @@ function module.ready()
   local fromBot = f and keySet(f.ready) or {}
   local out, at = {}, nowSeconds()
   local stats = { rows = 0, atRank = 0, wrongRank = 0, self = 0, alt = 0, notListed = 0, tooLow = 0, listed = 0, fromRank = rule.fromRank, bot = f ~= nil, botNames = 0, botMissing = 0, noTarget = 0 }
+  local altSkip = altKeys(snapshot)
   module.lastStats = stats
   if f then for _ in pairs(fromBot) do stats.botNames = stats.botNames + 1 end
     for k in pairs(fromBot) do if not snapshot.rows[k] then stats.botMissing = stats.botMissing + 1 end end end
@@ -162,7 +293,7 @@ function module.ready()
     stats.rows = stats.rows + 1
     if row.rankName:lower() ~= rule.fromRank:lower() then stats.wrongRank = stats.wrongRank + 1
     elseif row.key == snapshot.actor.key then stats.self = stats.self + 1
-    elseif altInvolved(snapshot, row) then stats.alt = stats.alt + 1
+    elseif altInvolved(snapshot, row) or altSkip[key] then stats.alt = stats.alt + 1
     elseif tools.promoteTarget and tools.promoteTarget(snapshot, row) <= snapshot.actor.rank then stats.noTarget = stats.noTarget + 1
     else
       stats.atRank = stats.atRank + 1
@@ -218,10 +349,11 @@ function module.waiting()
   if not f or type(f.waiting) ~= "table" or not tools or not tools.authorized() then return {} end
   local snapshot = tools.snapshot(); if not snapshot then return {} end
   local rule, out = module.rule(), {}
+  local altSkip = altKeys(snapshot)
   for _, entry in ipairs(f.waiting) do
     if type(entry) == "table" and type(entry.name) == "string" then
       local row = snapshot.rows[bare(entry.name) or entry.name]
-      if row and row.rankName:lower() == rule.fromRank:lower() and not altInvolved(snapshot, row) then
+      if row and row.rankName:lower() == rule.fromRank:lower() and not altInvolved(snapshot, row) and not altSkip[row.key] then
         out[#out + 1] = { display = row.display, daysLeft = tonumber(entry.daysLeft) or 0, reason = type(entry.reason) == "string" and entry.reason or nil }
       end
     end
@@ -384,7 +516,7 @@ end
 
 -- ----- the panel ---------------------------------------------------------------
 
-local window, rows = nil, {}
+local window, rows, altRows = nil, {}, {}
 function module.refresh()
   if not window then return end
   local ready, rule = module.ready()
@@ -419,6 +551,29 @@ function module.refresh()
     if window.all.SetEnabled then window.all:SetEnabled(actionable > 0) end
     window.tip:SetText(L("Tip: bind a key in Key Bindings > Guilded"))
   end
+  -- Alts and main changes, below the promotion rows: one button per row (the next rank change).
+  local swaps = ready and module.swaps() or {}
+  local alts, altDone = {}, 0
+  if ready then alts, altDone = module.alts() end
+  local entries = {}
+  for _, s in ipairs(swaps) do entries[#entries + 1] = { swap = s } end
+  for _, a in ipairs(alts) do entries[#entries + 1] = { alt = a } end
+  for i = 1, ALT_ROWS do
+    local row, e = altRows[i], entries[i]
+    if e and e.swap then
+      local s = e.swap
+      row.label:SetText(string.format(L("%s is now the main (was %s): give rank %s, then move %s to Alt"), s.to.display, s.from.display, tostring(s.rankName), s.from.display) .. (s.needGive and " (1/2)" or " (2/2)"))
+      row.button:SetText(manual and L("Copy name") or (s.needGive and L("Give rank") or L("Move to Alt")))
+      row.item = e; row.label:Show(); row.button:Show()
+    elseif e and e.alt then
+      local a = e.alt
+      row.label:SetText(a.hint and string.format(L("%s - maybe an alt (note says alt) (%s)"), a.display, tostring(a.rankName)) or string.format(L("%s - alt of %s (%s)"), a.display, tostring(a.main), tostring(a.rankName)))
+      row.button:SetText(manual and L("Copy name") or L("Move to Alt"))
+      row.item = e; row.label:Show(); row.button:Show()
+    else row.item = nil; row.label:Hide(); row.button:Hide() end
+  end
+  window.altHead:SetText((#entries > 0 or altDone > 0) and L("Alts and main changes") or "")
+  window.altMore:SetText(#entries > ALT_ROWS and string.format(L("+%d more alts"), #entries - ALT_ROWS) or (altDone > 0 and string.format(L("%d alts already in the Alt rank"), altDone) or ""))
   window.empty:SetText(ready and #ready == 0 and L("Nobody is ready to promote yet.") or "")
   window.more:SetText(ready and #ready > MAX_ROWS and string.format(L("+%d more"), #ready - MAX_ROWS) or "")
 end
@@ -429,7 +584,7 @@ function module.open()
   tools.requestRoster()
   if window then window:Show(); if window.Raise then window:Raise() end; module.refresh(); return end
   local f = CreateFrame("Frame", "GuildedPromotionPanel", UIParent, "BasicFrameTemplateWithInset")
-  window = f; f:SetSize(420, 210 + MAX_ROWS * 26); f:SetPoint("CENTER");
+  window = f; f:SetSize(420, 250 + MAX_ROWS * 26 + ALT_ROWS * 26); f:SetPoint("CENTER");
   -- Above the Roster admin window (DIALOG), which opens this panel: at the default strata it opened behind it.
   if f.SetFrameStrata then f:SetFrameStrata("DIALOG") end
  f:SetMovable(true); f:EnableMouse(true); f:SetClampedToScreen(true)
@@ -482,6 +637,34 @@ function module.open()
     end)
     rows[i] = row
   end
+  -- Alts and main changes (20 Nov 2026).
+  local altTop = -150 - MAX_ROWS * 26
+  f.altHead = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  f.altHead:SetPoint("TOPLEFT", 18, altTop); f.altHead:SetWidth(380); f.altHead:SetJustifyH("LEFT")
+  for i = 1, ALT_ROWS do
+    local y = altTop - 18 - (i - 1) * 26
+    local label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    label:SetPoint("TOPLEFT", 18, y - 2); label:SetWidth(285); label:SetJustifyH("LEFT"); label:SetHeight(24)
+    local button = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    button:SetPoint("TOPLEFT", 310, y); button:SetSize(90, 22); button:SetText(L("Move to Alt"))
+    local row = { label = label, button = button }
+    button:SetScript("OnClick", function()
+      local e = row.item; if not e then return end
+      local display = e.swap and (e.swap.needGive and e.swap.to.display or e.swap.from.display) or e.alt.display
+      if f.manual then
+        if ns.showCopyText then ns.showCopyText(display, L("Copy name")) end
+        f.status:SetText(L(ALT_MANUAL_LINE))
+        return
+      end
+      local ok, message
+      if e.swap then ok, message = module.swapStep(e.swap) else ok, message = module.moveToAlt(e.alt.name) end
+      f.status:SetText(message or "")
+      if ok then button:Hide() end
+    end)
+    altRows[i] = row
+  end
+  f.altMore = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+  f.altMore:SetPoint("TOPLEFT", 18, altTop - 20 - ALT_ROWS * 26); f.altMore:SetWidth(380); f.altMore:SetJustifyH("LEFT")
   f:SetScript("OnShow", function(self) if self.Raise then self:Raise() end; module.refresh() end)
   module.refresh()
 end
@@ -540,6 +723,8 @@ ns.commandHandlers.promote = function(args)
   elseif sub == "test" then
     local name = table.concat(args, " ", 3)
     if ns.message then for _, line in ipairs(module.testLines(name)) do ns.message(line) end end
+  elseif sub == "alts" then
+    if ns.showCopyText then ns.showCopyText(module.altsText(), L("Alts and main changes")) end
   elseif sub == "list" then
     if ns.showCopyText then ns.showCopyText(module.text(), L("Ready to promote")) end
   else module.open() end

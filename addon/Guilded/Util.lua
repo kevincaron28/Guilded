@@ -413,7 +413,7 @@ end
 -- Nil for anything that is not a plain player GUID (and for a secret value). Never part of a hashed field.
 function util.charId(guid)
   if type(guid) ~= "string" or isSecret(guid) or #guid > 40 then return nil end
-  local hex = guid:match("^Player%-%d+%-(%x+)$")
+  local hex = guid:match("^Player%-[^%-]*%-(%x+)$")
   if not hex or #hex > 16 then return nil end
   hex = hex:lower():gsub("^0+", "")
   return hex ~= "" and hex or nil

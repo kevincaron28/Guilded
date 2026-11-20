@@ -10,7 +10,7 @@ const reference = z.string().min(8).max(100).regex(/^[A-Za-z0-9_:-]+$/);
 export const battlegroundReportSchema = z.object({
   version: z.literal(1), reportId: reference,
   adapter: z.enum(BG_ADAPTERS), edition: z.enum(GAME_EDITIONS),
-  character: z.string().trim().min(1).max(80), realm: z.string().trim().min(1).max(100),
+  character: z.string().trim().min(1).max(80), realm: z.string().trim().max(100).default(""),
   realmType: z.literal("normal"), mode: z.enum(["casual", "rated", "blitz"]),
   mapId: z.number().int().positive(), bracket: z.string().min(1).max(30),
   endedAt: z.number().int().positive(), durationSeconds: z.number().int().min(0).max(14400),

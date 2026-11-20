@@ -18,9 +18,10 @@ export const hasDeviceKey = (config) => typeof config?.deviceSecret === "string"
 export function splitGuildKey(value) {
   if (typeof value !== "string") return null;
   const cut = value.indexOf("-");
-  if (cut < 1 || cut >= value.length - 1) return null;
+  // (Forever 1.60.1) The game no longer gives a realm: a key "Guild-" (empty realm part) is the same guild, realm unknown.
+  if (cut < 1) return null;
   const name = value.slice(0, cut).trim(), realm = value.slice(cut + 1).trim();
-  return name && realm ? { name: name.slice(0, 80), realm: realm.slice(0, 80) } : null;
+  return name ? { name: name.slice(0, 80), realm: realm.slice(0, 80) } : null;
 }
 
 const MAX_CHARACTERS = 12;

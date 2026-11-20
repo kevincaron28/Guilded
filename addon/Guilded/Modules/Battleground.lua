@@ -22,8 +22,9 @@ end
 local function identity()
   local name = safe(UnitName, "player")
   local realm = safe(GetRealmName)
-  if type(name) ~= "string" or type(realm) ~= "string" or name == "" or realm == "" then return nil end
-  return name .. "-" .. realm, name, realm
+  if type(realm) ~= "string" then realm = "" end -- (Forever 1.60.1) the realm may be hidden: the name alone identifies
+  if type(name) ~= "string" or name == "" then return nil end
+  return realm ~= "" and (name .. "-" .. realm) or name, name, realm
 end
 -- WoW Forever only; any other client records nothing.
 local function edition()

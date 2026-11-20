@@ -22,7 +22,7 @@ local function fullName(unit)
   if UnitFullName then name, realm = UnitFullName(unit) else name, realm = UnitName(unit) end
   if secret(name) or secret(realm) or not name then return nil end
   realm = realm and realm ~= "" and realm or (GetRealmName and GetRealmName())
-  return realm and (name .. "-" .. realm:gsub("%s", "")) or name
+  return (type(realm) == "string" and realm ~= "" and not secret(realm)) and (name .. "-" .. realm:gsub("%s", "")) or name
 end
 -- Resolve only group members; ambiguous short names never select a player.
 function ns.resolve(raw)

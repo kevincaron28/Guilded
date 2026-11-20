@@ -68,10 +68,21 @@ function ns.currentGuildKey()
   local guildName = GetGuildInfo and GetGuildInfo("player")
   if type(guildName) ~= "string" or guildName == "" or ns.isSecret(guildName) then return nil end
   local realm = (ns.compat and ns.compat.identity().realm) or (GetRealmName and GetRealmName()) or ""
+  if type(realm) ~= "string" or ns.isSecret(realm) or realm == "0" then realm = "" end
   local home
   if ns.util.isForever() and GetGuildInfo then
     local ok, _, _, _, value = pcall(GetGuildInfo, "player")
     if ok and type(value) == "string" and value ~= "" and not ns.isSecret(value) then home = value end
+  end
+  if ns.util.isForever() and home == nil and realm == "" then
+    -- (WoW Forever 1.60.1) No realm is revealed any more: keep the key already stored for this guild name (never a new key).
+    local db = ns.getDb and ns.getDb()
+    local prefix = guildName .. "-"
+    local stored = db and db.guildKey
+    if type(stored) == "string" and string.sub(stored, 1, #prefix) == prefix and not string.find(string.sub(stored, #prefix + 1), "-", 1, true) then
+      return stored, true
+    end
+    return prefix, true
   end
   if ns.util.isForever() then return guildName .. "-" .. compactRealm(home or realm), home ~= nil end
   return guildName .. "-" .. (home or realm), home ~= nil

@@ -447,7 +447,10 @@ export function createAddonImportService(database: PrismaClient) {
         let consumables = 0;
         if (snapshot.consumeScan) {
           const scan = snapshot.consumeScan;
-          for (const player of scan.players) {
+          for (const scanned of scan.players) {
+            // (Forever 1.60.1) A scan without a realm lands on the row this character already has, whatever its old realm was.
+            const known = scanned.realm === "" ? await tx.consumableCheck.findFirst({ where: { guildId, character: scanned.character }, select: { realm: true } }) : null;
+            const player = known ? { ...scanned, realm: known.realm } : scanned;
             const existing = await tx.consumableCheck.findUnique({
               where: { guildId_character_realm: { guildId, character: player.character, realm: player.realm } }
             });

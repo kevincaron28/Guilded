@@ -118,14 +118,14 @@ function tools.promoteTarget(snapshot, row)
   while dest >= 0 and tools.isAltRank(snapshot.rankNames and snapshot.rankNames[dest + 1]) do dest = dest - 1 end
   return dest
 end
--- The rank alts belong in: the last (lowest) rank whose name is an alt rank, else the guild's lowest rank
--- (owner request, 20 Nov 2026: "the ALT rank which is the lowest"). Rank INDEX, 0 = Guild Master.
+-- The rank alts belong in: the last (lowest) rank whose NAME is an alt rank (owner request, 20 Nov 2026: "the ALT rank which
+-- is the lowest"). nil when the guild has none: callers then show the manual line, never the lowest rank by default
+-- (review, 20 Nov 2026). Rank INDEX, 0 = Guild Master.
 function tools.altRankIndex(snapshot)
-  local last = (snapshot.ranks or 1) - 1
-  for i = last, 0, -1 do
+  for i = (snapshot.ranks or 1) - 1, 0, -1 do
     if tools.isAltRank(snapshot.rankNames and snapshot.rankNames[i + 1]) then return i end
   end
-  return last
+  return nil
 end
 -- True when the rank directly above this member is an alt rank. The addon never promotes in that case (the one-step
 -- call would land the member in Alt, and skipping past it is refused or unreliable): the officer does it by hand.

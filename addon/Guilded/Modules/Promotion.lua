@@ -106,13 +106,15 @@ local function keySet(list)
   return out
 end
 
--- ----- alts and main changes (owner request, 20 Nov 2026) ----------------------------------------------
--- Alt evidence, best first: (1) the bot's `alts` list (every other in-guild character of a member whose main the bot
--- knows, which includes the characters the companion reports from the same WoW account), (2) a guild/officer note that
--- says alt / reroll / twink (weak hint, shown as "maybe"). Names alone prove nothing. Alts are never offered for
--- promotion; the officer moves them to the Alt rank (the guild's lowest rank) with one click each. A main change
--- (`swaps`) is a pair: the new main gets the old main's rank, then the old main goes to the Alt rank.
-local NOTE_WORDS = { "%f[%a]alt%f[%A]", "%f[%a]alts%f[%A]", "%f[%a]reroll%f[%A]", "%f[%a]re%-roll%f[%A]", "%f[%a]twink%f[%A]", "%f[%a]r\195\169roll%f[%A]" }
+-- ----- alts and main changes (owner request, 20 Nov 2026; safety review the same day) ------------------------
+-- Alt evidence: the bot's `alts` list, which it builds only from a main a member or officer CHOSE (never from a flag
+-- that is just the first linked character). A guild/officer note that STARTS with alt / alt of / reroll / twink is shown
+-- as information ("maybe an alt") with no button, and never takes anyone out of the promotion list. Nothing at or above
+-- the rule's starting rank is ever offered (so no officer), nor the officer's own characters. The move goes to the guild's
+-- Alt rank only when a rank whose name passes isAltRank exists; otherwise the officer does it by hand. A demotion needs
+-- an explicit second click (armed for ARM_SECONDS). A main change (`swaps`) is a pair: the new main gets the old main's
+-- rank, then the old main goes to the Alt rank.
+local NOTE_WORDS = { "^%s*alts?%f[%A]", "^%s*reroll%f[%A]", "^%s*re%-roll%f[%A]", "^%s*twinks?%f[%A]", "^%s*r\195\169roll%f[%A]" }
 local function noteSaysAlt(note)
   if type(note) ~= "string" or note == "" then return false end
   local t = note:lower()
@@ -120,6 +122,8 @@ local function noteSaysAlt(note)
   return false
 end
 module.noteSaysAlt = noteSaysAlt
+local ARM_SECONDS = 15
+local armed -- { key = lowercase name, at = clock } after the first click of a demotion
 
 local function altMap()
   local f, out = feed(), {}
@@ -131,22 +135,39 @@ local function altMap()
   return out
 end
 
--- Pairs still to do: { { to = row, from = row, rankName, needGive, needAlt } }. Skipped when the old main already sits
--- at the Alt rank (its old rank is lost; the alt list handles it) or both steps are done.
+local function rankIndexByName(snapshot, name)
+  if type(name) ~= "string" then return nil end
+  for i = 0, (snapshot.ranks or 0) - 1 do
+    local n = snapshot.rankNames and snapshot.rankNames[i + 1]
+    if type(n) == "string" and n:lower() == name:lower() then return i end
+  end
+end
+-- Where the rules allow a move: below the officer (actor) and at or below the starting rank, strictly above the Alt rank.
+local function limits(snapshot)
+  local tools = ns.rosterTools
+  local f = feed()
+  local fromIdx = f and rankIndexByName(snapshot, f.fromRank)
+  local dest = tools.altRankIndex(snapshot)
+  return fromIdx, dest
+end
+local function movable(snapshot, row, fromIdx, dest)
+  return fromIdx ~= nil and dest ~= nil and row.key ~= snapshot.actor.key and row.rank > snapshot.actor.rank and row.rank >= fromIdx and row.rank < dest
+end
+
+-- Pairs still to do: { { to = row, from = row, rankName, rankIndex, needGive } }. Nothing when there is no Alt rank, the old
+-- main is outside the allowed ranks or already in the Alt rank, or either character is the officer's own.
 function module.swaps()
   local f, tools = feed(), ns.rosterTools
   local out = {}
   if not f or type(f.swaps) ~= "table" or not tools or not tools.authorized() then return out end
   local snapshot = tools.snapshot(); if not snapshot then return out end
-  local dest = tools.altRankIndex(snapshot)
+  local fromIdx, dest = limits(snapshot)
   for _, e in ipairs(f.swaps) do
     if type(e) == "table" and type(e.to) == "string" and type(e.from) == "string" then
       local toRow, fromRow = snapshot.rows[bare(e.to) or e.to], snapshot.rows[bare(e.from) or e.from]
-      if toRow and fromRow and toRow.key ~= fromRow.key and fromRow.rank ~= dest then
-        local needGive = toRow.rank > fromRow.rank
-        if needGive or fromRow.rank ~= dest then
-          out[#out + 1] = { to = toRow, from = fromRow, rankName = fromRow.rankName, rankIndex = fromRow.rank, needGive = needGive, needAlt = true }
-        end
+      if toRow and fromRow and toRow.key ~= fromRow.key and toRow.key ~= snapshot.actor.key and movable(snapshot, fromRow, fromIdx, dest)
+        and toRow.rank > snapshot.actor.rank then
+        out[#out + 1] = { to = toRow, from = fromRow, rankName = fromRow.rankName, rankIndex = fromRow.rank, needGive = toRow.rank > fromRow.rank }
       end
     end
   end
@@ -154,12 +175,13 @@ function module.swaps()
   return out
 end
 
--- Alts still to move: ({ { key, name, display, main, hint, rankName } }, alreadyInAltRank). Excludes the old mains of a pending swap.
+-- Alts still to move: ({ { key, name, display, main, hint, rankName } }, alreadyInAltRank). Bot alts first; note hints
+-- (hint = true) are information only. Excludes the old and new mains of a pending swap.
 function module.alts()
   local tools = ns.rosterTools
   if not tools or not tools.authorized() then return {}, 0 end
   local snapshot = tools.snapshot(); if not snapshot then return {}, 0 end
-  local dest = tools.altRankIndex(snapshot)
+  local fromIdx, dest = limits(snapshot)
   local map, inSwap = altMap(), {}
   for _, s in ipairs(module.swaps()) do inSwap[s.from.key] = true; inSwap[s.to.key] = true end
   local out, done = {}, 0
@@ -167,11 +189,11 @@ function module.alts()
     if key ~= snapshot.actor.key and not inSwap[key] then
       local main = map[key]
       local hint = main == nil and (noteSaysAlt(row.public) or noteSaysAlt(row.officer))
-      if main ~= nil or hint then
-        if row.rank == dest then done = done + 1
-        elseif row.rank > snapshot.actor.rank and row.rank < dest then
-          out[#out + 1] = { key = key, name = row.name, display = row.display, main = main, hint = hint or false, rankName = row.rankName }
-        end
+      if main ~= nil and dest ~= nil and row.rank == dest then done = done + 1
+      elseif main ~= nil and movable(snapshot, row, fromIdx, dest) then
+        out[#out + 1] = { key = key, name = row.name, display = row.display, main = main, hint = false, rankName = row.rankName }
+      elseif hint and row.rank > snapshot.actor.rank and (dest == nil or row.rank < dest) then
+        out[#out + 1] = { key = key, name = row.name, display = row.display, hint = true, rankName = row.rankName }
       end
     end
   end
@@ -179,14 +201,11 @@ function module.alts()
   return out, done
 end
 
--- True when this roster row is an alt by the bot's list, a pending swap's new main, or a note (never promoted).
+-- Rows the bot says are alts or part of a main change: never offered for promotion. Notes do NOT exclude anyone.
 local function altKeys(snapshot)
   local keys, map = {}, altMap()
   for key in pairs(map) do keys[key] = true end
   for _, s in ipairs(module.swaps()) do keys[s.to.key] = true; keys[s.from.key] = true end
-  for key, row in pairs(snapshot.rows) do
-    if not keys[key] and (noteSaysAlt(row.public) or noteSaysAlt(row.officer)) then keys[key] = true end
-  end
   return keys
 end
 
@@ -208,11 +227,34 @@ function module.changeRank(name, dest)
   return true, L("Rank change requested. Wait for the roster to confirm it before the next one.")
 end
 
+-- True while the first click of this demotion is still waiting for its confirming click.
+function module.isArmed(name)
+  return armed ~= nil and type(name) == "string" and armed.key == name:lower() and clock() - armed.at <= ARM_SECONDS and clock() >= armed.at
+end
+
+-- Moving a character to the Alt rank is a demotion: the first click only arms it, the second click (within ARM_SECONDS)
+-- sends it. Refused without an alt-named rank, and into the last rank before the rank numbering has been calibrated.
 function module.moveToAlt(name)
   local tools = ns.rosterTools
   local snapshot = tools and tools.authorized() and tools.snapshot()
   if not snapshot then return false, L("Refresh the full guild roster first.") end
-  return module.changeRank(name, tools.altRankIndex(snapshot))
+  local dest = tools.altRankIndex(snapshot)
+  if dest == nil then return false, L(ALT_MANUAL_LINE) end
+  if type(name) ~= "string" or name == "" then return false, L("Unknown or ambiguous character.") end
+  -- Only what this window lists: a bot alt in the allowed ranks, or the old main of a pending swap. Never a note hint or an officer.
+  local listed = false
+  for _, a in ipairs((module.alts())) do if not a.hint and a.name:lower() == name:lower() then listed = true end end
+  for _, w in ipairs(module.swaps()) do if w.from.name:lower() == name:lower() then listed = true end end
+  if not listed then return false, L("Unknown or ambiguous character.") end
+  if dest == (snapshot.ranks or 0) - 1 and select(2, tools.rankBase()) ~= true then
+    return false, L("Promote someone once first so Guilded can check the rank numbering for this game build, or set the rank from the guild roster.")
+  end
+  if not module.isArmed(name) then
+    armed = { key = name:lower(), at = clock() }
+    return false, string.format(L("Click again within %d seconds to confirm: move %s to the Alt rank."), ARM_SECONDS, name)
+  end
+  armed = nil
+  return module.changeRank(name, dest)
 end
 
 -- A swap's next step: give the new main the old main's rank first (unless it already ranks as high), then the old main to Alt.
@@ -563,13 +605,13 @@ function module.refresh()
     if e and e.swap then
       local s = e.swap
       row.label:SetText(string.format(L("%s is now the main (was %s): give rank %s, then move %s to Alt"), s.to.display, s.from.display, tostring(s.rankName), s.from.display) .. (s.needGive and " (1/2)" or " (2/2)"))
-      row.button:SetText(manual and L("Copy name") or (s.needGive and L("Give rank") or L("Move to Alt")))
+      row.button:SetText(manual and L("Copy name") or (s.needGive and L("Give rank") or (module.isArmed(s.from.name) and L("Confirm") or L("Move to Alt"))))
       row.item = e; row.label:Show(); row.button:Show()
     elseif e and e.alt then
       local a = e.alt
       row.label:SetText(a.hint and string.format(L("%s - maybe an alt (note says alt) (%s)"), a.display, tostring(a.rankName)) or string.format(L("%s - alt of %s (%s)"), a.display, tostring(a.main), tostring(a.rankName)))
-      row.button:SetText(manual and L("Copy name") or L("Move to Alt"))
-      row.item = e; row.label:Show(); row.button:Show()
+      row.button:SetText(manual and L("Copy name") or (module.isArmed(a.name) and L("Confirm") or L("Move to Alt")))
+      row.item = e; row.label:Show(); if a.hint then row.button:Hide() else row.button:Show() end
     else row.item = nil; row.label:Hide(); row.button:Hide() end
   end
   window.altHead:SetText((#entries > 0 or altDone > 0) and L("Alts and main changes") or "")
@@ -659,7 +701,7 @@ function module.open()
       local ok, message
       if e.swap then ok, message = module.swapStep(e.swap) else ok, message = module.moveToAlt(e.alt.name) end
       f.status:SetText(message or "")
-      if ok then button:Hide() end
+      if ok then button:Hide() else module.refresh() end
     end)
     altRows[i] = row
   end

@@ -568,6 +568,8 @@ model Character {
   spec               String?
   level              Int?
   isMain             Boolean                      @default(false)
+  // Set only when a member or officer CHOSE this main (setMainCharacter). isMain alone is often the first linked character, so alt and swap suggestions need this.
+  mainChosenAt       DateTime?
   race               String?
   lastSeenAt         DateTime?
   professionsUpdatedAt DateTime?

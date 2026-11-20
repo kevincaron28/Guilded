@@ -3228,6 +3228,9 @@ local DE = {
   ["Rank change requested. Wait for the roster to confirm it before the next one."] = "Rang\195\164nderung angefordert. Warte, bis die Gildenliste sie best\195\164tigt, bevor du die n\195\164chste machst.",
   ["Move to the Alt rank from the guild roster: right-click the name, then set the rank to Alt."] = "Setze den Rang Alt in der Gildenliste: Rechtsklick auf den Namen, dann den Rang Alt w\195\164hlen.",
   ["No alts to move."] = "Keine Twinks zu verschieben.",
+  ["Confirm"] = "Best\195\164tigen",
+  ["Click again within %d seconds to confirm: move %s to the Alt rank."] = "Klicke innerhalb von %d Sekunden erneut zur Best\195\164tigung: %s auf den Rang Alt setzen.",
+  ["Promote someone once first so Guilded can check the rank numbering for this game build, or set the rank from the guild roster."] = "Bef\195\182rdere zuerst jemanden, damit Guilded die Rangnummerierung dieser Spielversion pr\195\188fen kann, oder \195\164ndere den Rang in der Gildenliste.",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -5476,6 +5479,9 @@ local ES = {
   ["Rank change requested. Wait for the roster to confirm it before the next one."] = "Cambio de rango solicitado. Espera a que la lista de la hermandad lo confirme antes del siguiente.",
   ["Move to the Alt rank from the guild roster: right-click the name, then set the rank to Alt."] = "Pasa a Alt desde la lista de la hermandad: clic derecho en el nombre y elige el rango Alt.",
   ["No alts to move."] = "Ning\195\186n alt que mover.",
+  ["Confirm"] = "Confirmar",
+  ["Click again within %d seconds to confirm: move %s to the Alt rank."] = "Haz clic de nuevo en %d segundos para confirmar: pasar a %s al rango Alt.",
+  ["Promote someone once first so Guilded can check the rank numbering for this game build, or set the rank from the guild roster."] = "Asciende primero a alguien para que Guilded compruebe la numeraci\195\179n de rangos de esta versi\195\179n del juego, o cambia el rango desde la lista de la hermandad.",
 }
 -- END ES
 
@@ -6881,3 +6887,6 @@ FR["Move to Alt"] = "Passer \195\160 Alt"
 FR["Rank change requested. Wait for the roster to confirm it before the next one."] = "Changement de rang demand\195\169. Attendez que la liste de guilde le confirme avant le suivant."
 FR["Move to the Alt rank from the guild roster: right-click the name, then set the rank to Alt."] = "Passez au rang Alt depuis la liste de guilde : clic droit sur le nom, puis choisissez le rang Alt."
 FR["No alts to move."] = "Aucun alt \195\160 d\195\169placer."
+FR["Confirm"] = "Confirmer"
+FR["Click again within %d seconds to confirm: move %s to the Alt rank."] = "Cliquez \195\160 nouveau dans les %d secondes pour confirmer : passer %s au rang Alt."
+FR["Promote someone once first so Guilded can check the rank numbering for this game build, or set the rank from the guild roster."] = "Promouvez d'abord quelqu'un pour que Guilded v\195\169rifie la num\195\169rotation des rangs de cette version du jeu, ou changez le rang depuis la liste de guilde."

@@ -10,17 +10,18 @@ import { guildService, requireGuildContext } from "./context.js";
 
 export const promotionCommand = new SlashCommandBuilder()
   .setName("promotion")
-  .setDescription("Who is ready to promote.")
+  .setDescription("Who can be promoted.")
   .addSubcommand((sub) => sub.setName("list").setDescription("Who is ready."))
-  .addSubcommand((sub) => sub.setName("rule").setDescription("Show or change the rule.")
-    .addBooleanOption((o) => o.setName("on").setDescription("Panel on or off"))
+  .addSubcommand((sub) => sub.setName("rule").setDescription("Show or set the rule.")
+    .addBooleanOption((o) => o.setName("on").setDescription("Panel on/off"))
     .addStringOption((o) => o.setName("rank").setDescription("Rank to promote").setMaxLength(40))
-    .addIntegerOption((o) => o.setName("days").setDescription("Days at that rank").setMinValue(0).setMaxValue(365))
-    .addIntegerOption((o) => o.setName("level").setDescription("Minimum level, 0 = none").setMinValue(0).setMaxValue(100))
+    .addIntegerOption((o) => o.setName("days").setDescription("Days at rank").setMinValue(0).setMaxValue(365))
+    .addIntegerOption((o) => o.setName("level").setDescription("Min level, 0 = none").setMinValue(0).setMaxValue(100))
     .addBooleanOption((o) => o.setName("link").setDescription("Link needed"))
     .addIntegerOption((o) => o.setName("voice").setDescription("Voice min per 7 days").setMinValue(0).setMaxValue(2000))
-    .addBooleanOption((o) => o.setName("weekly").setDescription("Weekly list on or off"))
-    .addChannelOption((o) => o.setName("channel").setDescription("Weekly list channel").addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)));
+    .addBooleanOption((o) => o.setName("weekly").setDescription("Weekly list"))
+    .addBooleanOption((o) => o.setName("congrats").setDescription("Cheer promotions"))
+    .addChannelOption((o) => o.setName("channel").setDescription("List channel").addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)));
 
 export async function executePromotion(interaction: ChatInputCommandInteraction): Promise<void> {
   const context = await requireGuildContext(interaction);
@@ -53,6 +54,7 @@ export async function executePromotion(interaction: ChatInputCommandInteraction)
     ...(o.getBoolean("link") !== null ? { promotionRequireLink: o.getBoolean("link")! } : {}),
     ...(o.getInteger("voice") !== null ? { promotionMinVoiceMinutes: o.getInteger("voice")! } : {}),
     ...(o.getBoolean("weekly") !== null ? { promotionWeeklyEnabled: o.getBoolean("weekly")! } : {}),
+    ...(o.getBoolean("congrats") !== null ? { promotionCongratsEnabled: o.getBoolean("congrats")! } : {}),
     ...(o.getChannel("channel") ? { promotionChannelId: o.getChannel("channel")!.id } : {})
   };
   if (Object.keys(data).length) await prisma.guildSettings.upsert({ where: { guildId }, create: { guildId, ...data }, update: data });

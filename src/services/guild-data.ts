@@ -45,7 +45,7 @@ const eventSchema = z.object({
 
 export interface GuildDataResult { roster: number; skippedOlder: boolean; left: number; characters: number; unclaimed: number; events: number; duplicateEvents: number; text: boolean; ranksDated: number;
   /** Linked characters whose rank moved up in this officer roster (lower rank index): announced once in the officer log. */
-  promotions: { name: string; rankName: string }[]; leftEntries: { id: string; name: string }[] }
+  promotions: { name: string; rankName: string; memberId?: string | null }[]; leftEntries: { id: string; name: string }[] }
 
 type Tx = Pick<Prisma.TransactionClient, "guildRosterEntry" | "guildEventEntry" | "guildText" | "character" | "unclaimedCharacter" | "characterRankSeen">;
 
@@ -139,7 +139,7 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
           if (character.guildRankName !== member.rankName || character.guildRankIndex !== member.rankIndex) {
             // Moved up (a lower index is a higher rank) from a known earlier rank: one officer-log line, sent by the caller.
             if (character.guildRankName && character.guildRankIndex != null && member.rankIndex < character.guildRankIndex && member.rankName !== character.guildRankName && !result.skippedOlder) {
-              result.promotions.push({ name: character.displayName?.trim() || character.name, rankName: member.rankName });
+              result.promotions.push({ name: character.displayName?.trim() || character.name, rankName: member.rankName, memberId: character.memberId });
             }
             update.guildRankName = member.rankName; update.guildRankIndex = member.rankIndex; update.guildRankAt = observedAt;
             markMemberChanged({ guildId, memberId: character.memberId, what: "rank" });

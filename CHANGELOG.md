@@ -1,5 +1,24 @@
 # Changelog
 
+## 9.4.5 — 20 November 2026
+
+Prepared 20 November 2026, not yet published. Officer windows checked in game on 20 November; the help flow and duel stats still need a two-player check (see docs/V9_4_5_RELEASE_ACCEPTANCE.md).
+
+Addon:
+
+- Layer swap and call for help work together: "On my way" brings the helper onto the caller's layer (the caller's addon, or a guildmate party leader, invites once out of combat); one small "Guild calls" window; one "Help guildmates" setting; a key binding to ask for a layer invite any time (#1194).
+- Officer windows open beside each other; with no room, Ready to promote covers Roster admin cleanly; one-line rows with full names on hover (#1196, #1201).
+- Duel stats: duel time, damage taken and healing (from health changes), health left and lowest health, shared between both duelists (#1200).
+- Ready for the WoW Forever 1.60.1 hotfix that blanks realm names: guild data, officer sync and identities stay the same (#1202).
+
+Companion:
+
+- Sends the duel stats and accepts realm-less guild keys (#1200, #1202).
+
+Bot (already live):
+
+- New duel card with portraits and stats (#1197, #1200); no repeated promotion lines in the officer log (#1195); podium fix (#1199); lighter uploads under load (#1203).
+
 ## 9.4.4 — 20 November 2026
 
 Published 20 November 2026 (GitHub v9.4.4, website download and installer). Checked in game on 20 November on one officer character (see docs/V9_4_4_RELEASE_ACCEPTANCE.md).

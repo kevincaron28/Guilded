@@ -1,5 +1,22 @@
 # Changelog
 
+## 9.4.3 — 20 November 2026
+
+Prepared 20 November 2026, not yet published. Not yet confirmed on real clients (see docs/V9_4_3_RELEASE_ACCEPTANCE.md).
+
+Addon:
+
+- Krol'dok Stronghold and Alcaz Prison runs end at their final boss (Overseer Mugg, Blazeroar) instead of being abandoned (#1163).
+- 38 common chat lines (dungeon start and end, raid, errors, minimap prompts) are translated in French, German and Spanish (#1164).
+
+Companion:
+
+- An update that fails to start three times is rolled back to the previous version, with a message in the window (#1160).
+
+Bot (already live):
+
+- Promotion congratulation cards per rank, in the Horde dungeon style (#1161); clearer error reporting and a shorter participation lock (#1162); uploads answered within 2.5 s (#1159); Season 2 routes for Krol'dok and Alcaz (#1163).
+
 ## 9.4.2 — 19 November 2026
 
 The data-loss audit fixes (docs/plans/DATA_LOSS_AUDIT_2026-11-19.md). Published 19 November 2026. Not yet confirmed on real clients (see docs/V9_4_2_RELEASE_ACCEPTANCE.md).

@@ -61,12 +61,20 @@ describe("character ids, always on: rows and reports that carry ids", () => {
     expect(displayCharacterName({ name: "Lebowski", wowId: null }, ["Lebowski Holyroller"])).toBe("Lebowski Holyroller");
     expect(runFullName("Lebowski", [{ name: "Lebowski Holyroller" }], [], 5n)).toBe("Lebowski");
   });
+  it("a stamped run and an older unstamped copy of the same run merge (same players by first name)", () => {
+    const stamped = [{ character: "Dude Lebowski", id: "a1" }, { character: "Walter Sobchak", id: "b2" }];
+    const older = [{ character: "Dude" }, { character: "Walter" }];
+    expect(stamped.every((p) => older.some((q) => sameRunPlayer(p, q)))).toBe(true);
+    expect(older.every((q) => stamped.some((p) => sameRunPlayer(q, p)))).toBe(true);
+  });
   it("run players: ids decide, first-word merging skips id-bearing entries", () => {
     expect(sameRunPlayer({ character: "Dude A", id: "1" }, { character: "Dude B", id: "2" })).toBe(false);
     expect(sameRunPlayer({ character: "Dude A", id: "1" }, { character: "Dude A" })).toBe(true);
-    expect(sameRunPlayer({ character: "Dude", id: "1" }, { character: "Dude A" })).toBe(false);
+    // one side unstamped (older addon): the old first-name rule, so copies of one run still merge
+    expect(sameRunPlayer({ character: "Dude", id: "1" }, { character: "Dude A" })).toBe(true);
     const base = { realm: "-", inGuild: true, presentSec: 10 };
     expect(dedupeRunPlayers([{ ...base, character: "Hulke", id: "1" }, { ...base, character: "Hulke Hogan", id: "2" }] as never)).toHaveLength(2);
+    expect(dedupeRunPlayers([{ ...base, character: "Hulke", id: "1" }, { ...base, character: "Hulke Hogan" }] as never)).toHaveLength(1);
     expect(dedupeRunPlayers([{ ...base, character: "Hulke" }, { ...base, character: "Hulke Hogan" }] as never)).toHaveLength(1);
   });
 });

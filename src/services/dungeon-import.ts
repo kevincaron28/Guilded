@@ -234,13 +234,12 @@ export function firstNameKey(name: string): string { return plain(name).split(" 
 type RunPlayerRef = { character: string; id?: unknown; wowId?: unknown };
 const runPlayerId = (player: RunPlayerRef) => parseWowId(player.id ?? player.wowId);
 /**
- * Two reports of the same run player. No ids: the first-word key, as always. Both ids known = ids decide;
- * one id known = only the exact name; no ids = the first-word key.
+ * Two reports of the same run player. Both ids known: the ids decide. Otherwise (one side or neither has an id) the first-word key, as always:
+ * older addons keep sending unstamped copies of a run for weeks and those must still merge with the stamped copy.
  */
 export function sameRunPlayer(a: RunPlayerRef, b: RunPlayerRef): boolean {
   const x = runPlayerId(a), y = runPlayerId(b);
   if (x !== null && y !== null) return x === y;
-  if (x !== null || y !== null) return plain(a.character) === plain(b.character);
   return firstNameKey(a.character) === firstNameKey(b.character);
 }
 // One row per character (case- and accent-insensitive). Observers can disagree on the realm ("-" vs a name),
@@ -276,9 +275,7 @@ export function dedupeRunPlayers<P extends DungeonRunInput["players"][number]>(p
   const rows = [...byName.values()];
   const merged = new Set<P>();
   for (const short of rows.filter((row) => wordsOf(row) === 1)) {
-    // Character IDs: a first-name entry with an id is its own character, and an id-bearing full name refuses a first-name-only entry.
-    if (runPlayerId(short) !== null) continue;
-    const candidates = rows.filter((row) => row !== short && !merged.has(row) && wordsOf(row) > 1 && runPlayerId(row) === null && firstNameKey(row.character) === firstNameKey(short.character) && compatible(row, short));
+    const candidates = rows.filter((row) => row !== short && !merged.has(row) && wordsOf(row) > 1 && !(runPlayerId(row) !== null && runPlayerId(short) !== null) && firstNameKey(row.character) === firstNameKey(short.character) && compatible(row, short));
     // Another short name or a second compatible full name makes it ambiguous: leave everyone as reported.
     if (candidates.length !== 1) continue;
     const full = candidates[0]!;

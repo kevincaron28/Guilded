@@ -377,8 +377,8 @@ local function finalize(run)
   if ns.onDungeonRunFinished then pcall(ns.onDungeonRunFinished, run) end
   -- Automatic results wait for a safe exit. The summary hook remains the manual reopen action.
   if ns.onDungeonResultReady then pcall(ns.onDungeonResultReady, run) end
-  ns.message(string.format("Dungeon run %s: %s%s.", run.state, run.name or "?",
-    run.durationSec and run.state == "COMPLETED" and string.format(" in %d:%02d", math.floor(run.durationSec / 60), run.durationSec % 60) or ""))
+  ns.message(string.format(T("Dungeon run %s: %s%s."), run.state, run.name or "?",
+    run.durationSec and run.state == "COMPLETED" and string.format(T(" in %d:%02d"), math.floor(run.durationSec / 60), run.durationSec % 60) or ""))
   pcall(explainAbandoned, run)
   if ns.onDungeonChange then pcall(ns.onDungeonChange) end
 end
@@ -388,7 +388,7 @@ local function finish(state, reason)
   local run = d and d.current
   if not run or TERMINAL[run.state] then return end
   if state == "COMPLETED" and run.state ~= "ACTIVE" then
-    ns.message("The run hasn't started yet (no pull). Use /guilded dungeon start first, or abandon it.")
+    ns.message(T("The run hasn't started yet (no pull). Use /guilded dungeon start first, or abandon it."))
     return
   end
   run.state = state
@@ -433,7 +433,7 @@ local function activate(stamp, trigger)
   updatePlayers(run)
   send(string.format("ACTIVE|%s|%d", run.id, run.startedAt))
   save(run)
-  ns.message("Dungeon run started: " .. (run.name or "?") .. ". Good luck!")
+  ns.message(string.format(T("Dungeon run started: %s. Good luck!"), run.name or "?"))
   if ns.onDungeonChange then pcall(ns.onDungeonChange) end
 end
 
@@ -482,7 +482,7 @@ local function evaluate()
     local fresh = newRun(instance)
     save(fresh)
     if fresh.recorder == me() then send(string.format("START|%s|%d", fresh.id, fresh.instanceId)) end
-    ns.message(string.format("Dungeon detected: %s. The timer starts on the first pull (or /guilded dungeon start).", instance.name))
+    ns.message(string.format(T("Dungeon detected: %s. The timer starts on the first pull (or /guilded dungeon start)."), instance.name))
     if ns.onDungeonChange then pcall(ns.onDungeonChange) end
   end
 end
@@ -785,7 +785,7 @@ local function storePeerRun(run, sender, delivery)
     end
     if recoverOne(existing) and not dungeon.peerRecoveryNoticed then
       dungeon.peerRecoveryNoticed = true
-      ns.message(string.format("Guilded recovered a dungeon run (%s) from a guildmate's copy: its final boss was killed; it uploads with your next sync.", tostring(existing.name or "?")))
+      ns.message(string.format(T("Guilded recovered a dungeon run (%s) from a guildmate's copy: its final boss was killed; it uploads with your next sync."), tostring(existing.name or "?")))
     end
   end
   -- An officer may first receive an old client's summary with IDs only.
@@ -2142,14 +2142,14 @@ local function handleDungeonCommand(args)
     local records = ns.commandHandlers and ns.commandHandlers["carry"]
     if records then pcall(records, { args[2], args[3] }) end
   elseif action == "start" then
-    if not d.current then ns.message("Not in a tracked dungeon run.") return end
-    if not canControl() then ns.message("Only the group leader or an officer can do that.") return end
+    if not d.current then ns.message(L("Not in a tracked dungeon run.")) return end
+    if not canControl() then ns.message(L("Only the group leader or an officer can do that.")) return end
     activate(nil, "manual")
   elseif action == "complete" then
-    if not canControl() then ns.message("Only the group leader or an officer can do that.") return end
+    if not canControl() then ns.message(L("Only the group leader or an officer can do that.")) return end
     finish("COMPLETED", "manual")
   elseif action == "abandon" then
-    if not canControl() then ns.message("Only the group leader or an officer can do that.") return end
+    if not canControl() then ns.message(L("Only the group leader or an officer can do that.")) return end
     finish("ABANDONED", "manual")
   else
     ns.message("/guilded dungeon status | results | start | complete | abandon | check | carry on|off")

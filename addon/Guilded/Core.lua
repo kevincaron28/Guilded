@@ -357,7 +357,7 @@ end
 
 local function requireOfficer()
   if not isOfficer() then
-    message("Officer or guild-master rank is required for this command.")
+    message(L("Officer or guild-master rank is required for this command."))
     return false
   end
   return true
@@ -408,7 +408,7 @@ local raidSummaryLines
 
 local function raidStart(title)
   if activeRaid then
-    message("Raid '" .. activeRaid.title .. "' is still active. Use /guilded end first.")
+    message(string.format(L("Raid '%s' is still active. Use /guilded end first."), activeRaid.title))
     return
   end
   if not title or title == "" then title = "Raid" end
@@ -434,35 +434,35 @@ local function raidStart(title)
   if ns.loot and ns.loot.pricingContext then ns.loot.pricingContext() end
   logEvent("RAID_START", { id = activeRaid.id, title = activeRaid.title })
   send("RAID_START|" .. activeRaid.id .. "|" .. activeRaid.title)
-  message("Started raid: " .. activeRaid.title)
+  message(string.format(L("Started raid: %s"), activeRaid.title))
 end
 
 local function raidEnd()
-  if not activeRaid then message("No active raid."); return end
+  if not activeRaid then message(L("No active raid.")); return end
   if ns.council and ns.council.current and ns.council.current.pricing then
-    message("Award or cancel the current priced item before ending this raid."); return
+    message(L("Award or cancel the current priced item before ending this raid.")); return
   end
   recordPresence()
   activeRaid.endedAt = now()
   logEvent("RAID_END", { id = activeRaid.id })
   send("RAID_END|" .. activeRaid.id)
-  message("Ended raid: " .. activeRaid.title)
+  message(string.format(L("Ended raid: %s"), activeRaid.title))
   local ended = activeRaid
   activeRaid = nil
   db.activeRaidId = nil
   -- What was recorded, so the officer can check it before logging out (/guilded summary to copy).
   if raidSummaryLines then
     for _, line in ipairs(raidSummaryLines(ended)) do message(line) end
-    message("/guilded summary opens it to copy into Discord or a forum.")
+    message(L("/guilded summary opens it to copy into Discord or a forum."))
   end
 end
 
 local function setAttendance(name, status, quiet)
-  if not activeRaid then message("Start a raid first."); return end
+  if not activeRaid then message(L("Start a raid first.")); return end
   name = normalizeName(name) or playerName()
   status = string.upper(status or "PRESENT")
   if status ~= "PRESENT" and status ~= "ABSENT" and status ~= "LATE" then
-    message("Status must be PRESENT, ABSENT, or LATE."); return
+    message(L("Status must be PRESENT, ABSENT, or LATE.")); return
   end
   db.attendance[activeRaid.id] = db.attendance[activeRaid.id] or {}
   db.attendance[activeRaid.id][name] = { status = status, at = now(), by = playerName() }
@@ -474,13 +474,13 @@ local function setAttendance(name, status, quiet)
 end
 
 local function bossKill(name)
-  if not activeRaid then message("Start a raid first."); return end
+  if not activeRaid then message(L("Start a raid first.")); return end
   if not name or name == "" then message("Usage: /guilded boss <name>"); return end
   db.bosses[activeRaid.id] = db.bosses[activeRaid.id] or {}
   table.insert(db.bosses[activeRaid.id], { name = name, at = now(), by = playerName() })
   logEvent("BOSS_KILL", { raid = activeRaid.id, boss = name })
   send("BOSS_KILL|" .. activeRaid.id .. "|" .. name)
-  message("Recorded boss kill: " .. name)
+  message(string.format(L("Recorded boss kill: %s"), name))
 end
 
 local EPGP_KINDS = {
@@ -714,7 +714,7 @@ end
 -- point during this raid, without overwriting anything already recorded
 -- (so a manual LATE or ABSENT stays).
 local function seenAttendance()
-  if not activeRaid then message("Start a raid first."); return end
+  if not activeRaid then message(L("Start a raid first.")); return end
   recordPresence()
   local recorded = db.attendance[activeRaid.id] or {}
   local count = 0
@@ -729,11 +729,11 @@ end
 -- PRESENT for its players here, ABSENT for its mains who are not (bench players are left as
 -- they are). Anything already recorded stays.
 local function rosterAttendance()
-  if not activeRaid then message("Start a raid first."); return end
+  if not activeRaid then message(L("Start a raid first.")); return end
   local core = ns.loot and ns.loot.core and ns.loot.core()
   if not (core and core.roster and #core.roster > 0 and ns.loot.rosterCheck) then
     -- Seen in game: a Discord core with no roster yet was told to use the Local guild page.
-    if not core then message("Choose a raid core first: /guilded core <name>.")
+    if not core then message(L("Choose a raid core first: /guilded core <name>."))
     elseif core.localOnly then message((core.name or "This core") .. " has no raiders yet: add them on the Local guild page (step 3).")
     else message((core.name or "This core") .. " has no roster from Discord yet; it comes with the companion upload.") end
     return
@@ -756,13 +756,13 @@ end
 
 -- /guilded note <text>: a note on the running raid (shown in its summary).
 local function raidNote(text)
-  if not activeRaid then message("Start a raid first."); return end
+  if not activeRaid then message(L("Start a raid first.")); return end
   text = string.gsub(text or "", "[|%c]", "")
   if text == "" then message("Usage: /guilded note <text>"); return end
   activeRaid.notes = activeRaid.notes or {}
   table.insert(activeRaid.notes, { at = now(), by = playerName(), text = string.sub(text, 1, 200) })
   logEvent("RAID_NOTE", { raid = activeRaid.id, text = text })
-  message("Note added to " .. activeRaid.title .. ".")
+  message(string.format(L("Note added to %s."), activeRaid.title))
 end
 
 -- /guilded template save <name> [title] | list | remove <name>
@@ -789,7 +789,7 @@ end
 
 -- /guilded raid discard: drops a raid started by mistake, only while nothing was recorded in it.
 local function discardRaid()
-  if not activeRaid then message("No active raid."); return end
+  if not activeRaid then message(L("No active raid.")); return end
   local id = activeRaid.id
   local function has(t) return t and next(t) ~= nil end
   local entries = 0
@@ -799,20 +799,20 @@ local function discardRaid()
   local loot = 0
   for _, row in ipairs(db.loot or {}) do if row.raid == id then loot = loot + 1 end end
   if has(db.attendance[id]) or has(db.bosses[id]) or entries > 0 or loot > 0 then
-    message("This raid already has attendance, bosses, EP/GP or loot: end it with /guilded end instead.")
+    message(L("This raid already has attendance, bosses, EP/GP or loot: end it with /guilded end instead."))
     return
   end
   for i = #db.raids, 1, -1 do if db.raids[i].id == id then table.remove(db.raids, i) end end
   db.presence[id] = nil
   logEvent("RAID_DISCARD", { id = id })
   send("RAID_END|" .. id)
-  message("Discarded the raid " .. activeRaid.title .. " (nothing was recorded in it).")
+  message(string.format(L("Discarded the raid %s (nothing was recorded in it)."), activeRaid.title))
   activeRaid = nil
   db.activeRaidId = nil
 end
 
 local function groupAttendance(status)
-  if not activeRaid then message("Start a raid first."); return end
+  if not activeRaid then message(L("Start a raid first.")); return end
   local count = 0
   for _, name in ipairs(groupMembers()) do
     if setAttendance(name, status or "PRESENT", true) then count = count + 1 end
@@ -835,7 +835,7 @@ end
 
 local function listSnapshots()
   local list = db.snapshots or {}
-  if #list == 0 then message("No snapshots yet. /guilded snapshot [label]"); return end
+  if #list == 0 then message(L("No snapshots yet. /guilded snapshot [label]")); return end
   for i = math.max(1, #list - 4), #list do
     local entry = list[i]
     message(string.format("%s  %s  %d player(s)", entry.at, entry.label ~= "" and entry.label or "(no label)", #entry.names))
@@ -1590,7 +1590,7 @@ local function recordLoot(args)
   table.insert(db.loot, row)
   logEvent("LOOT", row)
   send("LOOT|" .. name .. "|" .. item .. "|" .. row.cost)
-  message("Recorded loot: " .. item .. " -> " .. name .. ".")
+  message(string.format(L("Recorded loot: %s -> %s."), item, name))
   local lootRules = ns.getLootRules and ns.getLootRules()
   if lootRules and lootRules.coreOnly and not activeRaid then
     message(L("No raid is running: Discord files loot under a raid core only once it belongs to a raid. Use /guilded start before the next item."))
@@ -1655,7 +1655,7 @@ local function showDiagnostics(args)
     end
   end
   if #own == 0 then
-    message("No Guilded problems recorded.")
+    message(L("No Guilded problems recorded."))
   else
     message(string.format("Last %d Guilded problem(s):", math.min(5, #own)))
     list(own)
@@ -1686,7 +1686,7 @@ local function officerCommand(args)
     return
   end
   if action == "auto" and ns.officerNotes then ns.officerNotes.command(args); return end
-  if not isGuildMaster() then message("Only the guild master can change officer settings."); return end
+  if not isGuildMaster() then message(L("Only the guild master can change officer settings.")); return end
   if action == "add" or action == "remove" then
     local name = normalizeName(args[3])
     if not name then message("Usage: /guilded officer add|remove <name>"); return end
@@ -2135,7 +2135,7 @@ end
 ns.commandModuleOf = function(name) return name and commandModule[string.lower(name)] end
 
 local function command(text)
-  if not db then message("Still loading, try again in a moment."); return end
+  if not db then message(L("Still loading, try again in a moment.")); return end
   local args = split(text)
   -- A bare /guilded opens the window (the help is long); /guilded help lists every command.
   if not args[1] and ns.commandHandlers and ns.commandHandlers["menu"] then

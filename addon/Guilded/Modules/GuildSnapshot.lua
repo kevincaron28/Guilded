@@ -107,7 +107,7 @@ function snapshot.read(force)
         rankName = text(rankName, 60),
         rankIndex = (rank and rank >= 0 and rank < 20) and math.floor(rank) or nil,
         -- (9.4) The player GUID (17th return of GetGuildRosterInfo): the exact key the Armory sync matches on.
-        guid = type(guid) == "string" and not secret(guid) and #guid <= 40 and guid:match("^Player%-%d+%-%x+$") and guid or nil,
+        guid = type(guid) == "string" and not secret(guid) and #guid <= 40 and guid:match("^Player%-[^%-]*%-%x+$") and guid or nil,
         -- (stage B) The character id: the low part of that GUID as hex, the exact key the bot matches on.
         id = ns.util and ns.util.charId and ns.util.charId(guid) or nil,
         online = online and true or false,

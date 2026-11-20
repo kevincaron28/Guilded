@@ -1956,7 +1956,7 @@ ns.commandHandlers["probe"] = function(args)
     if inCombatNow() then message(L("Not in combat.")); return end
     local function lowId(guid)
       if type(guid) ~= "string" or (ns.isSecret and ns.isSecret(guid)) then return nil end
-      local hex = guid:match("^Player%-%d+%-(%x+)$")
+      local hex = guid:match("^Player%-[^%-]*%-(%x+)$")
       return hex, hex and tonumber(hex, 16) or nil
     end
     local function show(label, guid)
@@ -1980,7 +1980,7 @@ ns.commandHandlers["probe"] = function(args)
       local found
       for index = 2, #values do
         local value = values[index]
-        if type(value) == "string" and not (ns.isSecret and ns.isSecret(value)) and value:match("^Player%-%d+%-%x+$") then found = index - 1; break end
+        if type(value) == "string" and not (ns.isSecret and ns.isSecret(value)) and value:match("^Player%-[^%-]*%-%x+$") then found = index - 1; break end
       end
       if found then
         local hex, dec = lowId(values[found + 1])
@@ -2454,6 +2454,24 @@ local function compactRealm(realm)
   return (string.gsub(realm, "%s+", ""))
 end
 
+-- The key already stored for this guild name: the active data's key first, then a parked one. Used when the game
+-- gives no realm at all (Forever 1.60.1 hides realm names), so the existing key stays the identity.
+local function storedKeyForGuild(guildName)
+  local prefix = guildName .. "-"
+  local function matches(key)
+    return type(key) == "string" and string.sub(key, 1, #prefix) == prefix and not string.find(string.sub(key, #prefix + 1), "-", 1, true)
+  end
+  if db and matches(db.guildKey) then return db.guildKey end
+  if db and type(db.otherGuilds) == "table" then
+    local best
+    for key in pairs(db.otherGuilds) do
+      if matches(key) and (not best or key < best) then best = key end
+    end
+    return best
+  end
+  return nil
+end
+
 -- Returns the guild key, the key built from this character's own realm (same form), and that key
 -- as older versions wrote it (spaces kept). The fourth result is whether the home realm is known:
 -- on Forever a missing home realm may only mean the guild info has not arrived yet.
@@ -2462,8 +2480,15 @@ local function currentGuildKey()
   local guildName = GetGuildInfo and GetGuildInfo("player")
   if type(guildName) ~= "string" or guildName == "" or isSecret(guildName) then return nil end
   local realm = (ns.compat and ns.compat.identity().realm) or (GetRealmName and GetRealmName()) or ""
+  if type(realm) ~= "string" or isSecret(realm) or realm == "0" then realm = "" end
   local rawOwn = guildName .. "-" .. realm
   local home = guildHomeRealm()
+  if ns.util.isForever() and home == nil and realm == "" then
+    -- (WoW Forever 1.60.1) The game no longer reveals any realm: keep the key this guild is already stored under, so
+    -- only the realm part disappearing is never taken for a guild switch. Nothing is parked, nothing is reset.
+    local key = storedKeyForGuild(guildName) or (guildName .. "-")
+    return key, key, key, true
+  end
   if ns.util.isForever() then
     return guildName .. "-" .. compactRealm(home or realm), guildName .. "-" .. compactRealm(realm), rawOwn, home ~= nil
   end
@@ -2937,7 +2962,7 @@ ns.ledgerPeerRole = function(address)
   local realm = (GetNormalizedRealmName and GetNormalizedRealmName()) or GetRealmName()
   local function qualified(name)
     if type(name) ~= "string" or isSecret(name) then return nil end
-    return string.find(name, "-", 1, true) and name or (realm and name .. "-" .. realm:gsub("%s+", ""))
+    return string.find(name, "-", 1, true) and name or ((type(realm) == "string" and realm ~= "" and not isSecret(realm)) and name .. "-" .. realm:gsub("%s+", "") or name)
   end
   local wanted, short = qualified(address), normalizeName(address)
   if not wanted or not short then return nil end

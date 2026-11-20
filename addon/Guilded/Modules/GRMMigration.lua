@@ -17,7 +17,7 @@ local function currentScope(archive)
   if type(archive) ~= "table" or type(archive.realm) ~= "string" then return false end
   if not ns.rosterTools or not ns.rosterTools.authorized() then return false end
   local scope, guild, realm, edition = ns.rosterTools.context()
-  if not scope or archive.guild ~= guild or archive.edition ~= edition or archive.realm:gsub("[%s%-]", ""):lower() ~= realm:gsub("[%s%-]", ""):lower() then return false end
+  if not scope or archive.guild ~= guild or archive.edition ~= edition or (realm ~= "" and archive.realm:gsub("[%s%-]", ""):lower() ~= realm:gsub("[%s%-]", ""):lower()) then return false end
   if archive.private and not ns.rosterTools.canViewPrivate() then return false end
   return true
 end

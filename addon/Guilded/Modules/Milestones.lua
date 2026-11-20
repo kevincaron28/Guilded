@@ -74,7 +74,20 @@ end
 local function identity()
   local name, realm = safe(UnitName, "player"), safe(GetRealmName)
   if type(name) ~= "string" or name == "" then return nil end
-  return name .. "-" .. tostring(realm or ""), name, tostring(realm or "")
+  realm = type(realm) == "string" and realm or ""
+  if realm == "" then
+    -- (Forever 1.60.1) The realm is hidden: keep using the record this character already has ("Name-<old realm>").
+    local d = ns.getDb and ns.getDb()
+    local chars = d and d.milestones and d.milestones.chars
+    if type(chars) == "table" then
+      local prefix, best = name .. "-", nil
+      for key, entry in pairs(chars) do
+        if type(key) == "string" and string.sub(key, 1, #prefix) == prefix and type(entry) == "table" and (not best or key < best) then best = key end
+      end
+      if best then return best, name, chars[best].realm or "" end
+    end
+  end
+  return name .. "-" .. realm, name, realm
 end
 -- This character's record: settings (default OFF), what was reached, and the upload log.
 local function current()

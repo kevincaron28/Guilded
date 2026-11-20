@@ -56,3 +56,16 @@ describe("Discord invalid form body diagnostics", () => {
     expect(message).not.toMatch(/secret|SECRET|123456789012345678/);
   });
 });
+
+describe("isDatabaseUnavailable", () => {
+  it("recognises pool and connection failures, not ordinary bugs", async () => {
+    const { isDatabaseUnavailable } = await import("../src/services/diagnostic-privacy.js");
+    expect(isDatabaseUnavailable(new Error("timeout exceeded when trying to connect"))).toBe(true);
+    expect(isDatabaseUnavailable(new Error("Connection terminated unexpectedly"))).toBe(true);
+    expect(isDatabaseUnavailable(Object.assign(new Error("x"), { code: "P2024" }))).toBe(true);
+    expect(isDatabaseUnavailable(Object.assign(new Error("Unable to start a transaction in the given time."), { code: "P2028" }))).toBe(true);
+    expect(isDatabaseUnavailable(new TypeError("Cannot read properties of undefined"))).toBe(false);
+    expect(isDatabaseUnavailable(Object.assign(new Error("expired"), { code: "P2028" }))).toBe(false);
+    expect(isDatabaseUnavailable(null)).toBe(false);
+  });
+});

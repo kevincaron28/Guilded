@@ -18,7 +18,7 @@ const bareName = (name: string) => key(name.split("-")[0] ?? name);
 
 export async function withCardPictures(db: Db, guildId: string, card: ScoreCard, cardMember?: string): Promise<ScoreCard> {
   try {
-    const wantsParty = Boolean(card.dungeon?.party.some(member => member.guild && member.character));
+    const wantsParty = Boolean((card.dungeon?.party ?? card.record?.party)?.some(member => member.guild && member.character));
     const wantsMember = Boolean(cardMember && !card.dungeon && !card.ladder && !card.roster);
     if (!wantsParty && !wantsMember) return card;
     const settings = await db.guildSettings.findUnique({ where: { guildId }, select: { characterPicturesEnabled: true } });
@@ -33,6 +33,13 @@ export async function withCardPictures(db: Db, guildId: string, card: ScoreCard,
 }
 
 async function withPartyPictures(db: Db, guildId: string, card: ScoreCard): Promise<ScoreCard> {
+  // The record card (21 Nov 2026) shows the same party as round portraits: reuse the dungeon path on a stand-in card.
+  if (!card.dungeon && card.record) {
+    const { record: _record, ...rest } = card;
+    void _record;
+    const done = await withPartyPictures(db, guildId, { ...rest, dungeon: { theme: card.record.theme, party: card.record.party.map(member => ({ ...member })) } as never });
+    return { ...card, record: { ...card.record, party: card.record.party.map((member, index) => { const portrait = done.dungeon?.party[index]?.portrait; return portrait ? { ...member, portrait } : member; }) } };
+  }
   const party = card.dungeon!.party.slice(0, MAX_PARTY);
   const wanted = new Set(party.flatMap(member => member.guild && member.character ? [bareName(member.character), key(member.name)] : []));
   // Names first (no bytes), then the thumbs of the characters in this party only.

@@ -14,7 +14,9 @@ import type { DungeonCardMember, ScoreCard } from "./score-card.js";
 
 /** `previousSec` is absent for a first guild clear; equal to `newSec` for a tie. */
 export interface RecordVisual { theme: DungeonArtTheme; ribbon: string; newSec: number; previousSec?: number | undefined; diffLabel: string; oldLabel: string;
-  party: Pick<DungeonCardMember, "name" | "color" | "role" | "roleLabel" | "guild">[]; partyLabel: string; previousHolders: string[]; previousLabel: string }
+  party: Pick<DungeonCardMember, "name" | "color" | "role" | "roleLabel" | "guild" | "character" | "portrait">[]; partyLabel: string; previousHolders: string[]; previousLabel: string;
+  /** 21 Nov 2026 hype layout (card-record.ts), all optional so a card queued before it still draws: the headline, the standing pill, the word before the old time and the dethroned-holders label. */
+  headline?: string | undefined; rankLabel?: string | undefined; oldWord?: string | undefined; dethroneLabel?: string | undefined }
 
 /** Pure: "−4:03", "+0:12" or "=" for a tie (seconds, formatted like every run time). */
 export function recordDiff(newSec: number, previousSec: number): string {
@@ -36,7 +38,7 @@ export function recordCard(run: DungeonImportResult, item: DungeonHighlightItem,
   const tie = previousSec !== undefined && previousSec === newSec;
   const ribbon = item.kind === "first" ? (fr ? "Premier record de la guilde" : "First guild record")
     : tie ? (fr ? "Record de guilde égalé" : "Guild record tied") : (fr ? "Nouveau record de guilde" : "New guild record");
-  const party = (runCard.dungeon?.party ?? []).slice(0, 5).map(member => ({ name: member.name, color: member.color, role: member.role, roleLabel: member.roleLabel, guild: member.guild }));
+  const party = (runCard.dungeon?.party ?? []).slice(0, 5).map(member => ({ name: member.name, color: member.color, role: member.role, roleLabel: member.roleLabel, guild: member.guild, character: member.character }));
   return {
     eyebrow: fr ? "Guilded · Record de donjon" : "Guilded · Dungeon record", title: runCard.title, subtitle: runCard.subtitle,
     stats: [], footer: fr ? "Le chrono démarre au premier combat" : "Times start at the first pull",
@@ -46,7 +48,11 @@ export function recordCard(run: DungeonImportResult, item: DungeonHighlightItem,
       oldLabel: previousSec === undefined ? (fr ? "Aucun temps avant celui-ci" : "No time before this one") : `${fr ? "Ancien record" : "Previous record"} ${formatDuration(previousSec)}`,
       party, partyLabel: fr ? "Le groupe" : "The party",
       previousHolders: previousSec === undefined ? [] : (item.previousPlayers ?? []).slice(0, 5),
-      previousLabel: fr ? "Détenu avant par :" : "Held before by:"
+      previousLabel: fr ? "Détenu avant par :" : "Held before by:",
+      headline: item.kind === "first" ? (fr ? "PREMIER RECORD !" : "FIRST RECORD!") : tie ? (fr ? "RECORD ÉGALÉ !" : "RECORD TIED!") : (fr ? "NOUVEAU RECORD !" : "NEW RECORD!"),
+      // A new record is, by definition, the guild's best for this dungeon.
+      rankLabel: item.kind === "first" ? (fr ? "Premier clear de la guilde" : "Guild's first clear") : tie ? (fr ? "Égale le n° 1 de la guilde" : "Ties the guild's #1") : (fr ? "1er de la guilde" : "#1 in the guild"),
+      oldWord: fr ? "ancien" : "was", dethroneLabel: tie ? (fr ? "Partagé avec" : "Shared with") : (fr ? "Détrône" : "Dethrones")
     }
   };
 }

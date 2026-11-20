@@ -19,14 +19,20 @@ export function guildWhere(discordId: string): Prisma.GuildWhereUniqueInput {
   return scope?.guild.discordId === discordId ? { id: scope.guild.id } : { discordId_scopeKey: { discordId, scopeKey: "default" } };
 }
 
-export async function loadGuildScope(database: Pick<PrismaClient, "guild">, guildId: string, discordId?: string): Promise<GuildScope> {
-  const guild = await database.guild.findFirst({ where: { id: guildId, ...(discordId ? { discordId } : {}) }, include: { wowSpace: true } });
-  if (!guild) throw new Error("That in-game guild is not available in this Discord server.");
+/** The scope of a guild row that was loaded with its wowSpace (null when the row came without it, e.g. a cached one). */
+export function guildScopeOf(guild: Guild & { wowSpace?: { permissionRoles?: unknown; memberRoleId?: string | null } | null }): GuildScope | null {
+  if (!("wowSpace" in guild)) return null;
   const roles = guild.wowSpace?.permissionRoles;
   return { guild, ...(guild.scopeKey !== "default" ? {
     permissionRoles: roles && typeof roles === "object" && !Array.isArray(roles) ? Object.fromEntries(Object.entries(roles).filter((entry): entry is [string, string] => typeof entry[1] === "string")) : {},
     memberRoleId: guild.wowSpace?.memberRoleId ?? null
   } : {}) };
+}
+
+export async function loadGuildScope(database: Pick<PrismaClient, "guild">, guildId: string, discordId?: string): Promise<GuildScope> {
+  const guild = await database.guild.findFirst({ where: { id: guildId, ...(discordId ? { discordId } : {}) }, include: { wowSpace: true } });
+  if (!guild) throw new Error("That in-game guild is not available in this Discord server.");
+  return guildScopeOf(guild)!;
 }
 
 export async function withGuildScope<T>(database: Pick<PrismaClient, "guild">, guildId: string, work: () => Promise<T>): Promise<T> {

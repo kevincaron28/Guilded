@@ -456,6 +456,12 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
     })
     .sort((a, b) => (a.endedAt ?? a.startedAt ?? 0) - (b.endedAt ?? b.startedAt ?? 0));
   if (!sorted.length) return;
+  // Runs the bot already holds are answered first, from one batched read, before any membership or roster read (20 Nov 2026: a 350-run
+  // part of known runs timed out at the website's 20 s limit and the companion sent it again). A stored run was admitted when it first came.
+  const known = await knownRuns(tx, guildId, sorted);
+  for (const receipt of known.values()) { receipts.push(receipt); summary.duplicates++; }
+  sorted.splice(0, sorted.length, ...sorted.filter((run) => !known.has(run.id)));
+  if (!sorted.length) return;
   // A guild's runs have at least one player of that guild (a linked character or an in-game roster member). A run of strangers only is
   // not stored, carded, ranked or paid here, whoever uploaded it; it is answered "retry" (kept three days, so a roster or link that
   // arrives later still lets a real guild run in) and then refused. Simulations are exempt.
@@ -467,10 +473,7 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
     sorted.splice(0, sorted.length, ...sorted.filter((run) => !outsiders.includes(run)));
     if (!sorted.length) return;
   }
-  const known = await knownRuns(tx, guildId, sorted);
-  for (const receipt of known.values()) { receipts.push(receipt); summary.duplicates++; }
-  const runs = sorted.filter((run) => !known.has(run.id));
-  if (!runs.length) return;
+  const runs = sorted;
   // (9.3) The addon's compact note on an unfinished run (instance, last kills, how the final boss is known), so a final boss the
   // addon does not know yet can be found from the journal. Ids and boss names only.
   for (const run of runs.filter((candidate) => candidate.state === "ABANDONED" && candidate.diagnostic).slice(0, 5)) {

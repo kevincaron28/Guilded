@@ -1,3 +1,5 @@
+import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import sharp from "sharp";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { characterSlug, type ArmoryClient } from "./blizzard-armory.js";
@@ -33,20 +35,57 @@ export async function fetchRenderImage(url: string, timeoutMs = 5000): Promise<B
 
 /** A square head-and-shoulders PNG from a full-body transparent render, or null when the picture has no figure. */
 export async function headAndShoulders(mainRaw: Buffer): Promise<Buffer | null> {
-  const { data, info } = await sharp(mainRaw).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  // 20 Nov 2026: the figure is measured on a 400 px proxy (about 0.5 MB of raw pixels, not the 7.7 MB of the full 1600x1200 render, on a
+  // 1 GB VM that was swapping); only the final cut is taken from the full picture, read sequentially and limited in size.
+  const input = { limitInputPixels: 4_000_000, sequentialRead: true } as const;
+  const meta = await sharp(mainRaw, input).metadata();
+  const fullWidth = meta.width ?? 0, fullHeight = meta.height ?? 0;
+  if (!fullWidth || !fullHeight) return null;
+  const { data, info } = await sharp(mainRaw, input).ensureAlpha().resize({ width: PROXY_SIZE, height: PROXY_SIZE, fit: "inside", withoutEnlargement: true }).raw().toBuffer({ resolveWithObject: true });
   const { width, height } = info;
+  const scale = fullWidth / width;
   let top = height, bottom = -1;
   for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) if (data[(y * width + x) * 4 + 3]! > 40) { if (y < top) top = y; if (y > bottom) bottom = y; }
-  const figure = bottom - top;
-  if (bottom < 0 || figure < 80) return null;
-  const limit = top + figure * 0.3;
+  if (bottom < 0 || (bottom - top) * scale < 80) return null;
+  const limit = top + (bottom - top) * 0.3;
   let sum = 0, count = 0;
   for (let y = top; y < limit; y++) for (let x = 0; x < width; x++) if (data[(y * width + x) * 4 + 3]! > 40) { sum += x; count++; }
   if (!count) return null;
-  const side = Math.min(Math.round(figure * 0.4), width, height);
-  const left = Math.max(0, Math.min(width - side, Math.round(sum / count - side / 2)));
-  const cutTop = Math.max(0, Math.min(height - side, top - Math.round(figure * 0.04)));
-  return sharp(mainRaw).extract({ left, top: cutTop, width: side, height: side }).resize(PORTRAIT_SIZE, PORTRAIT_SIZE).flatten({ background: "#2a2118" }).png().toBuffer();
+  const figure = (bottom - top) * scale, fullTop = top * scale;
+  const side = Math.min(Math.round(figure * 0.4), fullWidth, fullHeight);
+  const left = Math.max(0, Math.min(fullWidth - side, Math.round((sum / count + 0.5) * scale - side / 2)));
+  const cutTop = Math.max(0, Math.min(fullHeight - side, Math.round(fullTop - figure * 0.04)));
+  return sharp(mainRaw, input).extract({ left, top: cutTop, width: side, height: side }).resize(PORTRAIT_SIZE, PORTRAIT_SIZE).flatten({ background: "#2a2118" }).png().toBuffer();
+}
+
+const PROXY_SIZE = 400;
+
+/** One head crop at a time: decoding a render takes tens of MB and several cards used to do it together. */
+let portraitChain: Promise<unknown> = Promise.resolve();
+export function oneAtATime<T>(work: () => Promise<T>): Promise<T> {
+  const next = portraitChain.catch(() => undefined).then(work);
+  portraitChain = next.catch(() => undefined);
+  return next;
+}
+
+/** Disk copy of a finished 256 px crop (a few tens of KB): each character is fetched and decoded once a week. */
+const DISK_TTL_MS = 7 * 24 * 3_600_000;
+export const defaultPortraitDir = (): string => resolve(process.cwd(), "backups", "portraits");
+async function readDisk(dir: string, id: bigint, now: number): Promise<Buffer | null> {
+  try {
+    const file = join(dir, `${id}.png`);
+    const info = await stat(file);
+    if (now - info.mtimeMs > DISK_TTL_MS) return null;
+    return await readFile(file);
+  } catch { return null; }
+}
+async function writeDisk(dir: string, id: bigint, image: Buffer): Promise<void> {
+  try {
+    await mkdir(dir, { recursive: true });
+    const file = join(dir, `${id}.png`), temp = `${file}.${process.pid}.tmp`;
+    await writeFile(temp, image);
+    await rename(temp, file);
+  } catch { /* best effort: the next card draws it again */ }
 }
 
 export interface PortraitDeps {
@@ -55,6 +94,8 @@ export interface PortraitDeps {
   armory?: Pick<ArmoryClient, "fetchForeverCharacterMedia"> | null;
   now?: () => number;
   hitMs?: number; missMs?: number;
+  /** Folder for finished head crops (7 days). Unset: memory cache only. */
+  cacheDir?: string;
 }
 
 /** In-memory cache: found pictures for 6 hours, a missing picture for 30 minutes. */
@@ -64,9 +105,14 @@ export function createCharacterPortraits(deps: PortraitDeps = {}) {
   const cache = new Map<string, { at: number; image: Buffer | null }>();
 
   async function build(id: bigint): Promise<Buffer | null> {
-    const full = await fetchImage(portraitUrl(id, "main-raw.png")).catch(() => null);
-    const cut = full ? await headAndShoulders(full).catch(() => null) : null;
-    if (cut) return cut;
+    const onDisk = deps.cacheDir ? await readDisk(deps.cacheDir, id, now()) : null;
+    if (onDisk) return onDisk;
+    // The fetch and the decode of the big render run one at a time; the 5 s fetch limit and the fallback order are unchanged.
+    const cut = await oneAtATime(async () => {
+      const full = await fetchImage(portraitUrl(id, "main-raw.png")).catch(() => null);
+      return full ? await headAndShoulders(full).catch(() => null) : null;
+    });
+    if (cut) { if (deps.cacheDir) await writeDisk(deps.cacheDir, id, cut); return cut; }
     return await fetchImage(portraitUrl(id, "avatar.jpg")).catch(() => null);
   }
 

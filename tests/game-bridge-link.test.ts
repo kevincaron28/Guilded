@@ -9,9 +9,10 @@ vi.mock("../src/services/character-autolink.js", () => ({ claimCharacter: (...a:
 vi.mock("../src/services/companion-link-dm.js", () => ({ tellAutoLinked: (...a: unknown[]) => (tellAutoLinked as never as (...x: unknown[]) => unknown)(...a) }));
 vi.mock("../src/services/nickname-sync.js", () => ({ syncMemberNickname: (...a: unknown[]) => (syncMemberNickname as never as (...x: unknown[]) => unknown)(...a) }));
 vi.mock("../src/services/housekeeping.js", () => ({ postToLogChannel: (...a: unknown[]) => (postToLogChannel as never as (...x: unknown[]) => unknown)(...a) }));
-vi.mock("../src/services/guild.js", () => ({ createGuildService: () => ({ ensureMember: async (_g: string, discordUserId: string, displayName: string) => ({ id: `m-${discordUserId}`, displayName }) }) }));
+const ensureMember = vi.fn(async (_g: string, discordUserId: string, displayName: string) => ({ id: `m-${discordUserId}`, displayName }));
+vi.mock("../src/services/guild.js", () => ({ createGuildService: () => ({ ensureMember: (...a: unknown[]) => (ensureMember as never as (...x: unknown[]) => unknown)(...a) }) }));
 
-import { allowedBridgeApps, applyBridgeLink, bridgeNameForms, detectBridgeMessage, resetGameBridgeCaches, WOW_BRIDGE_APP_ID, type BridgeMessage } from "../src/services/game-bridge-link.js";
+import { allowedBridgeApps, applyBridgeLink, bridgeNameForms, detectBridgeMessage, handleRawBridgePacket, isProvisionalAccount, resetGameBridgeCaches, WOW_BRIDGE_APP_ID, type BridgeMessage } from "../src/services/game-bridge-link.js";
 
 const packet = (overrides: Record<string, unknown> = {}) => ({
   id: "msg1", channel_id: "ch1", guild_id: "g-discord", author: { id: "u1", username: "kev", global_name: "Kev", bot: false },
@@ -39,6 +40,7 @@ function db(world: World) {
     unclaimedCharacter: { findMany: vi.fn(async () => world.unclaimed ?? []) }
   };
 }
+const u1 = { id: "m-u1", discordUserId: "u1", displayName: "Kev" };
 const logLang = (call: unknown[], lang: "en" | "fr") => (call[1] as (l: string) => string)(lang);
 const client = {} as never;
 const guild = {} as never;
@@ -46,7 +48,7 @@ const guild = {} as never;
 beforeEach(() => {
   resetGameBridgeCaches();
   claimCharacter.mockReset(); declinedKeys.mockReset(); declinedKeys.mockResolvedValue(false);
-  tellAutoLinked.mockClear(); syncMemberNickname.mockClear(); postToLogChannel.mockClear();
+  tellAutoLinked.mockClear(); syncMemberNickname.mockClear(); postToLogChannel.mockClear(); ensureMember.mockClear();
   claimCharacter.mockImplementation(async (_d: unknown, _g: string, _m: string, id: string) => ({ row: { name: id === "un1" ? "Mister Haragot" : id }, isMain: true }));
 });
 
@@ -73,9 +75,53 @@ describe("detecting a relayed guild-chat message", () => {
   });
 });
 
+describe("WoW's provisional Discord accounts (20 Nov 2026)", () => {
+  const provisional = { id: "p1", username: "tranquil_pony_93918", global_name: "Mister Haragot", public_flags: 8388608, flags: 8388608 };
+  it("recognises bit 23 in public_flags or flags, alone or with other bits", () => {
+    expect(isProvisionalAccount(provisional)).toBe(true);
+    expect(isProvisionalAccount({ id: "p", flags: 8388608 + 64 })).toBe(true);
+    expect(isProvisionalAccount({ id: "p", public_flags: 8388608 })).toBe(true);
+    expect(isProvisionalAccount({ id: "u", public_flags: 64, flags: 0 })).toBe(false);
+    expect(isProvisionalAccount({ id: "u" })).toBe(false);
+  });
+  it("ignores a provisional author: no link, no member created", async () => {
+    expect(detectBridgeMessage(packet({ author: provisional }))).toBeNull();
+    expect(detectBridgeMessage(packet({ author: { ...provisional, public_flags: 0 } }))).toBeNull();
+    const database = db({ unclaimed: [{ id: "un1", name: "Mister Haragot" }] });
+    const realClient = { guilds: { cache: new Map() } } as never;
+    expect(await handleRawBridgePacket(realClient, database as never, { t: "MESSAGE_CREATE", d: packet({ author: provisional }) }, [WOW_BRIDGE_APP_ID])).toBeNull();
+    expect(database.guild.findFirst).not.toHaveBeenCalled();
+    expect(claimCharacter).not.toHaveBeenCalled();
+    expect(ensureMember).not.toHaveBeenCalled();
+  });
+  it("never creates a member for an author without a Member row", async () => {
+    const database = db({ unclaimed: [{ id: "un1", name: "Mister Haragot" }] });
+    expect((await applyBridgeLink(database as never, bridge())).outcome).toBe("not-member");
+    expect(claimCharacter).not.toHaveBeenCalled();
+    expect(ensureMember).not.toHaveBeenCalled();
+  });
+  it("live: skips an author who is not a cached member of the Discord server, links a real member", async () => {
+    const database = db({ members: [u1], unclaimed: [{ id: "un1", name: "Mister Haragot" }] });
+    const members = new Map<string, unknown>();
+    const discordGuild = { members: { cache: members } };
+    const live = { guilds: { cache: new Map([["g-discord", discordGuild]]) } } as never;
+    expect(await handleRawBridgePacket(live, database as never, { t: "MESSAGE_CREATE", d: packet() }, [WOW_BRIDGE_APP_ID])).toBe("not-member");
+    expect(claimCharacter).not.toHaveBeenCalled();
+    members.set("u1", {});
+    expect(await handleRawBridgePacket(live, database as never, { t: "MESSAGE_CREATE", d: packet() }, [WOW_BRIDGE_APP_ID])).toBe("linked");
+    expect(claimCharacter).toHaveBeenCalledWith(database, "g1", "m-u1", "un1");
+    expect(ensureMember).not.toHaveBeenCalled();
+  });
+  it("live: the packet's member field counts as server membership", async () => {
+    const database = db({ members: [u1], unclaimed: [{ id: "un1", name: "Mister Haragot" }] });
+    const live = { guilds: { cache: new Map() } } as never;
+    expect(await handleRawBridgePacket(live, database as never, { t: "MESSAGE_CREATE", d: packet({ member: { roles: [] } }) }, [WOW_BRIDGE_APP_ID])).toBe("linked");
+  });
+});
+
 describe("linking from the relayed name", () => {
   it("links an unclaimed character with game proof, tells the member once and refreshes the nickname", async () => {
-    const database = db({ unclaimed: [{ id: "un1", name: "Mister Haragot", displayName: "Mister Haragot" }] });
+    const database = db({ members: [u1], unclaimed: [{ id: "un1", name: "Mister Haragot", displayName: "Mister Haragot" }] });
     const result = await applyBridgeLink(database as never, bridge(), { client, discordGuild: guild });
     expect(result).toEqual({ outcome: "linked", character: "Mister Haragot" });
     expect(claimCharacter).toHaveBeenCalledWith(database, "g1", "m-u1", "un1");
@@ -110,7 +156,7 @@ describe("linking from the relayed name", () => {
     expect(database.character.update).not.toHaveBeenCalled();
   });
   it("does nothing on a repeated message once the pair is cached", async () => {
-    const database = db({ unclaimed: [{ id: "un1", name: "Mister Haragot" }] });
+    const database = db({ members: [u1], unclaimed: [{ id: "un1", name: "Mister Haragot" }] });
     await applyBridgeLink(database as never, bridge(), { client, discordGuild: guild, now: 1 });
     database.guild.findFirst.mockClear();
     expect(await applyBridgeLink(database as never, bridge(), { client, discordGuild: guild, now: 2 })).toEqual({ outcome: "cached" });
@@ -120,7 +166,7 @@ describe("linking from the relayed name", () => {
   it("matches a doubled in-game name both ways, preferring the full-name row", async () => {
     expect(bridgeNameForms("Xaldin Xaldin")).toEqual(["xaldin xaldin", "xaldin"]);
     expect(bridgeNameForms("Xaldin")).toEqual(["xaldin", "xaldin xaldin"]);
-    const database = db({ unclaimed: [{ id: "old", name: "Xaldin", displayName: "Xaldin Xaldin" }, { id: "full", name: "Xaldin Xaldin", displayName: "Xaldin Xaldin" }] });
+    const database = db({ members: [u1], unclaimed: [{ id: "old", name: "Xaldin", displayName: "Xaldin Xaldin" }, { id: "full", name: "Xaldin Xaldin", displayName: "Xaldin Xaldin" }] });
     claimCharacter.mockResolvedValue({ row: { name: "Xaldin Xaldin" }, isMain: true });
     expect((await applyBridgeLink(database as never, bridge("Xaldin Xaldin"))).outcome).toBe("linked");
     expect(claimCharacter).toHaveBeenCalledWith(database, "g1", "m-u1", "full");
@@ -131,10 +177,10 @@ describe("linking from the relayed name", () => {
     expect((await applyBridgeLink(database as never, bridge())).outcome).toBe("declined");
     expect(claimCharacter).not.toHaveBeenCalled();
     resetGameBridgeCaches(); declinedKeys.mockResolvedValue(false);
-    expect((await applyBridgeLink(db({}) as never, bridge("Nobody Known"))).outcome).toBe("unknown");
+    expect((await applyBridgeLink(db({ members: [u1] }) as never, bridge("Nobody Known"))).outcome).toBe("unknown");
   });
   it("a dry run changes and tells nothing", async () => {
-    const database = db({ unclaimed: [{ id: "un1", name: "Mister Haragot" }] });
+    const database = db({ members: [u1], unclaimed: [{ id: "un1", name: "Mister Haragot" }] });
     expect(await applyBridgeLink(database as never, bridge(), { apply: false })).toEqual({ outcome: "linked", character: "Mister Haragot" });
     expect(claimCharacter).not.toHaveBeenCalled();
     expect(tellAutoLinked).not.toHaveBeenCalled();

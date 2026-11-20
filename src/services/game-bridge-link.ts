@@ -4,7 +4,6 @@ import { characterKey } from "../../companion/character-identity.mjs";
 import { claimCharacter, declinedKeys } from "./character-autolink.js";
 import { evidenceRank, evidenceOf } from "./character-move.js";
 import { tellAutoLinked } from "./companion-link-dm.js";
-import { createGuildService } from "./guild.js";
 import { postToLogChannel } from "./housekeeping.js";
 import { foldKey } from "./invite-queue.js";
 import { syncMemberNickname } from "./nickname-sync.js";
@@ -20,11 +19,28 @@ import { syncMemberNickname } from "./nickname-sync.js";
 //
 // Never moves a character held by another member: one officer-log line (at most one per character per day) and an officer decides.
 // A character the member unlinked themselves, or an officer removed, is not linked back by chat (BLOCKED / REMOVED marks).
+//
+// 20 November 2026: most relay authors are NOT real Discord accounts. WoW creates a Discord "provisional account" (user flag 1 << 23,
+// random username, global name = the character name, not a member of the server) for every player who did not link Discord, and posts
+// their chat as that account. Such an author proves nothing: it is ignored, and the bridge never creates a Member row. Only an author
+// who already has a Member row in the guild (and, live, is a cached member of the Discord server) gets a link.
 
 /** WoW's own Discord application: the relayed guild chat carries it as `application_id`. */
 export const WOW_BRIDGE_APP_ID = "1384671873593512078";
 /** The message flag the relay sets (undocumented bit 16). */
 export const BRIDGE_MESSAGE_FLAG = 65536;
+/** Discord's provisional-account user flag (1 << 23): an account WoW made for a player who never linked Discord. Proves nothing. */
+export const PROVISIONAL_ACCOUNT_FLAG = 8388608;
+
+/** Whether a Discord user object (REST or gateway) is a provisional account: bit 23 in public_flags or flags. */
+export function isProvisionalAccount(user: unknown): boolean {
+  if (!user || typeof user !== "object") return false;
+  const u = user as Record<string, unknown>;
+  return [u["public_flags"], u["flags"]].some((value) => {
+    const n = Number(value ?? 0);
+    return Number.isFinite(n) && n > 0 && Math.floor(n / PROVISIONAL_ACCOUNT_FLAG) % 2 === 1;
+  });
+}
 
 export interface BridgeMessage {
   guildDiscordId: string;
@@ -35,6 +51,8 @@ export interface BridgeMessage {
   displayName: string;
   /** The character's full in-game name from the relay ("Mister Haragot"). */
   characterName: string;
+  /** The gateway packet carried the author's server membership (`member`); REST messages never do. */
+  authorIsGuildMember?: boolean;
 }
 
 export function allowedBridgeApps(setting: string | null | undefined): string[] {
@@ -55,6 +73,8 @@ export function detectBridgeMessage(data: unknown, allowedApps: readonly string[
   const lobby = d["lobby_member"] as Record<string, unknown> | undefined;
   const guild = typeof d["guild_id"] === "string" ? d["guild_id"] : guildId;
   if (!guild || !author || typeof author["id"] !== "string" || author["bot"] === true || !lobby) return null;
+  // WoW's provisional account for a player who never linked Discord: not a real person's account, never a link.
+  if (isProvisionalAccount(author)) return null;
   const app = d["application_id"];
   if (typeof app !== "string" || !allowedApps.includes(app)) return null;
   if (!(Number(d["flags"] ?? 0) & BRIDGE_MESSAGE_FLAG)) return null;
@@ -62,12 +82,13 @@ export function detectBridgeMessage(data: unknown, allowedApps: readonly string[
   if (!characterName || typeof d["id"] !== "string" || typeof d["channel_id"] !== "string") return null;
   return {
     guildDiscordId: guild, channelId: d["channel_id"], messageId: d["id"], discordUserId: author["id"],
-    displayName: clean(author["global_name"], 80) || clean(author["username"], 80) || "Member", characterName
+    displayName: clean(author["global_name"], 80) || clean(author["username"], 80) || "Member", characterName,
+    authorIsGuildMember: Boolean(d["member"] && typeof d["member"] === "object")
   };
 }
 
 export type BridgeOutcome =
-  | "off" | "not-set-up" | "cached" | "linked" | "upgraded" | "already" | "conflict" | "declined" | "ambiguous" | "unknown";
+  | "off" | "not-set-up" | "not-member" | "cached" | "linked" | "upgraded" | "already" | "conflict" | "declined" | "ambiguous" | "unknown";
 
 type Database = PrismaClient;
 
@@ -125,25 +146,27 @@ export async function applyBridgeLink(
     const first = bridge.characterName.split(" ")[0]!;
     const same = (row: { name: string; displayName?: string | null }) => forms.includes(foldKey(row.name)) || (row.displayName ? forms.includes(foldKey(row.displayName)) : false);
     const person = await database.member.findFirst({ where: { guildId, discordUserId: bridge.discordUserId }, select: { id: true, displayName: true } });
+    // Only an author the bot already knows as a member of this guild: the bridge never creates a Member row (20 Nov 2026).
+    if (!person) { remember(RETRY_TTL_MS); return { outcome: "not-member" }; }
 
     // 1. A linked character with that name: the author's own (upgrade weaker proof) or another member's (never moved).
     const held = (await database.character.findMany({
       where: { guildId, name: { startsWith: first, mode: "insensitive" } },
       select: { id: true, name: true, displayName: true, memberId: true, linkEvidence: true, confirmedAt: true, member: { select: { displayName: true } } }, take: 200
     })).filter(same);
-    const mine = person ? held.find((row) => row.memberId === person.id) : undefined;
+    const mine = held.find((row) => row.memberId === person.id);
     if (mine) {
       if (evidenceRank(evidenceOf(mine)) >= evidenceRank("game")) { remember(SEEN_TTL_MS); return { outcome: "already", character: mine.name }; }
       if (!apply) return { outcome: "upgraded", character: mine.name };
       await database.character.update({ where: { id: mine.id }, data: { linkEvidence: "game", confirmedAt: mine.confirmedAt ?? new Date(now) } });
       remember(SEEN_TTL_MS);
-      await refreshNickname(database, options.discordGuild, person!.id);
+      await refreshNickname(database, options.discordGuild, person.id);
       return { outcome: "upgraded", character: mine.name };
     }
     const holder = held[0];
     if (holder) {
       if (apply) {
-        await logConflict(options.discordGuild, holder, bridge, person?.displayName ?? bridge.displayName, now);
+        await logConflict(options.discordGuild, holder, bridge, person.displayName, now);
         remember(SEEN_TTL_MS);
       }
       return { outcome: "conflict", character: holder.name };
@@ -160,12 +183,11 @@ export async function applyBridgeLink(
 
     // The member's own "not mine" (or an officer's removal) stands: chat never links it back.
     const keys = row ? [characterKey(row.name, row.realm, row.gameEdition ?? "forever")] : forms.map((form) => characterKey(form, "", "forever"));
-    if (person && await declinedKeys(database, guildId, person.id, keys)) { remember(SEEN_TTL_MS); return { outcome: "declined", character: row?.name ?? bridge.characterName }; }
+    if (await declinedKeys(database, guildId, person.id, keys)) { remember(SEEN_TTL_MS); return { outcome: "declined", character: row?.name ?? bridge.characterName }; }
     if (!row) { remember(RETRY_TTL_MS); return { outcome: "unknown" }; }
     if (!apply) return { outcome: "linked", character: row.name };
 
-    const guildService = createGuildService(database);
-    const member = person ?? await guildService.ensureMember(guildId, bridge.discordUserId, bridge.displayName);
+    const member = person;
     const before = await database.character.count({ where: { memberId: member.id } });
     // The same claim as /character link with a name; the proof is then raised from "named" to "game".
     let claimed: { row: { name: string } };
@@ -201,5 +223,7 @@ export function handleRawBridgePacket(client: Client, database: Database, packet
   const bridge = detectBridgeMessage(packet.d, allowedApps);
   if (!bridge || !allows(bridge.guildDiscordId)) return Promise.resolve(null);
   const discordGuild = client.guilds.cache.get(bridge.guildDiscordId) ?? null;
+  // A real member of the Discord server only: the packet's member field or the member cache. A miss is skipped, never fetched or created.
+  if (!bridge.authorIsGuildMember && !discordGuild?.members.cache.has(bridge.discordUserId)) return Promise.resolve("not-member");
   return applyBridgeLink(database, bridge, { client, discordGuild }).then((result) => result.outcome);
 }

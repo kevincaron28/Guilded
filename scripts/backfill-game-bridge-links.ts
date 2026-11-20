@@ -6,10 +6,13 @@
 //   npx tsx scripts/backfill-game-bridge-links.ts --channel <channel id> [--limit 1000] --apply    writes the links
 // Prints character names and outcomes only, never Discord ids. Apply sends no DM and renames nobody itself: the running bot's member sync
 // follows the linked characters on its next pass. Never run it without the owner's yes.
+// 20 November 2026: WoW's provisional Discord accounts (user flag 1 << 23, players who never linked Discord) are skipped, and only an author
+// who already has a Member row in the guild is linked: the bridge never creates members (game-bridge-link.ts). The first run created junk
+// members for such accounts; scripts/revert-bridge-provisional-links.ts undoes that.
 import { REST, Routes } from "discord.js";
 import { config } from "../src/config.js";
 import { createPrismaClient } from "../src/database.js";
-import { allowedBridgeApps, applyBridgeLink, detectBridgeMessage, type BridgeMessage } from "../src/services/game-bridge-link.js";
+import { allowedBridgeApps, applyBridgeLink, detectBridgeMessage, isProvisionalAccount, type BridgeMessage } from "../src/services/game-bridge-link.js";
 
 const args = process.argv.slice(2);
 const apply = args.includes("--apply");
@@ -25,12 +28,14 @@ const apps = allowedBridgeApps(config.GAME_BRIDGE_APP_IDS);
 
 // Newest first, 100 per page.
 const found = new Map<string, BridgeMessage>();
+const provisional = new Set<string>();
 let scanned = 0, before: string | undefined;
 while (scanned < limit) {
   const query = new URLSearchParams({ limit: String(Math.min(100, limit - scanned)), ...(before ? { before } : {}) });
-  const page = await rest.get(Routes.channelMessages(channelId), { query }) as { id: string }[];
+  const page = await rest.get(Routes.channelMessages(channelId), { query }) as { id: string; author?: { id?: string } }[];
   if (!page.length) break;
   for (const message of page) {
+    if (isProvisionalAccount(message.author) && message.author?.id) provisional.add(message.author.id);
     const bridge = detectBridgeMessage(message, apps, channel.guild_id);
     if (bridge) found.set(`${bridge.discordUserId}:${bridge.characterName.toLowerCase()}`, bridge);
   }
@@ -38,7 +43,7 @@ while (scanned < limit) {
   before = page[page.length - 1]!.id;
   if (page.length < 100) break;
 }
-console.log(`${apply ? "APPLY" : "DRY RUN"}: read ${scanned} message(s) of #${channel.name ?? "channel"}, ${found.size} distinct player/character pair(s) relayed by the game.`);
+console.log(`${apply ? "APPLY" : "DRY RUN"}: read ${scanned} message(s) of #${channel.name ?? "channel"}, ${found.size} distinct player/character pair(s) relayed by the game; ${provisional.size} provisional account(s) skipped.`);
 
 const prisma = createPrismaClient();
 const totals = new Map<string, number>();

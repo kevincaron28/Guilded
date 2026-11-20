@@ -58,6 +58,38 @@ export async function renderDuelFaceOff(visual: DuelVisual, art: Buffer): Promis
   }
   c.rect(572, top + 92, 56, 56, "#0b0907", { opacity: 0.7, rx: 28, stroke: accent, strokeWidth: 2 });
   await c.text("VS", 600, top + 105, { size: 28, face: "bold", color: tint, anchor: "c", shadow: true });
+  // 9.5: a slim stats bar under the panels (only when a figure is known), then pills. Nothing is drawn for what is not known.
+  const hasBar = Boolean(visual.winner.stats?.length || visual.loser.stats?.length || visual.time);
+  const barTop = top + h + 14, barH = 84;
+  if (hasBar) {
+    for (const [side, x] of [[visual.winner, 56], [visual.loser, 616]] as const) {
+      if (!side.stats?.length) continue;
+      c.rect(x, barTop, w, barH, "#0b0907", { opacity: 0.46, rx: 18, stroke: "#ffffff", strokeWidth: 1.5 });
+      // The middle 50 px on the inner side stay clear for the time pill.
+      const from = x + (x < 600 ? 22 : 62), span = w - 84, cell = span / side.stats.length;
+      for (const [i, item] of side.stats.entries()) {
+        const cx = from + cell * i + cell / 2;
+        await c.text(item.value, cx, barTop + 8, { size: 32, face: "bold", color: INK, anchor: "c", maxW: cell - 8, shadow: true });
+        await c.text(item.label, cx, barTop + 48, { size: 24, color: SUB, anchor: "c", maxW: cell - 8, shadow: true });
+      }
+    }
+    if (visual.time) {
+      const tw = Math.max(110, await c.width(visual.time, 34, "bold") + 36), tx = 600 - tw / 2;
+      c.rect(tx, barTop + 14, tw, 56, "#0b0907", { opacity: 0.78, rx: 28, stroke: accent, strokeWidth: 2 });
+      await c.text(visual.time, 600, barTop + 23, { size: 34, face: "bold", color: tint, anchor: "c", shadow: true });
+    }
+  }
+  if (visual.pills?.length) {
+    let px = 56;
+    const py = hasBar ? barTop + barH + 14 : top + h + 18;
+    for (const pill of visual.pills) {
+      const pw = Math.min(420, await c.width(pill.text, 26, "bold") + 40);
+      const upset = pill.kind === "upset";
+      c.rect(px, py, pw, 44, upset ? "#3b2a05" : "#0b0907", { opacity: upset ? 0.85 : 0.6, rx: 22, stroke: upset ? "#ffd75a" : "#ffffff", strokeWidth: 2 });
+      await c.text(pill.text, px + pw / 2, py + 8, { size: 26, face: "bold", color: upset ? "#ffd75a" : INK, anchor: "c", maxW: pw - 24, shadow: true });
+      px += pw + 14;
+    }
+  }
   return finishWith(c, visual, art);
 }
 

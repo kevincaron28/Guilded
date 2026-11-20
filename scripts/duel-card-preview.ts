@@ -29,3 +29,13 @@ await save("after-fr-long-names.png", await withPortraits(long));
 await save("after-en-draw-no-rating.png", await withPortraits(duelResultCard({ ...base, rating: { ...rating, rated: false, winnerDelta: 0, loserDelta: 0 } }, "en", classes, emptyNameBook)));
 await save("after-en-points-only.png", await withPortraits(duelResultCard({ ...base, reason: "retreat" }, "en", classes, emptyNameBook)));
 await save("after-en-placement.png", await withPortraits(duelResultCard({ ...base, rating: { ...rating, winnerPlacement: "3/5", loserPlacement: "2/5" } }, "en", classes, emptyNameBook)));
+
+// 9.5 duel statistics (measured by each side's own addon; shown plainly).
+const all = { durationSec: 47, winnerHealthLeft: 38, loserHealthLeft: 0, winnerDamageTaken: 3120, loserDamageTaken: 4890, winnerHealing: 760, loserHealing: 0, winnerLowestHealth: 21, loserLowestHealth: 0 };
+const extra = { headToHead: { wins: 3, losses: 1 }, rank: 4 };
+await save("stats-all-en.png", await withPortraits(duelResultCard({ ...base, rating, stats: all, ...extra }, "en", classes, emptyNameBook)));
+await save("stats-all-fr.png", await withPortraits(duelResultCard({ ...base, rating, stats: all, ...extra }, "fr", classes, emptyNameBook)));
+await save("stats-time-health-only-en.png", await withPortraits(duelResultCard({ ...base, rating, stats: { durationSec: 83, winnerHealthLeft: 12, loserHealthLeft: 0 } }, "en", classes, emptyNameBook)));
+await save("stats-none-en.png", await withPortraits(duelResultCard({ ...base, rating }, "en", classes, emptyNameBook)));
+await save("stats-upset-fr.png", await withPortraits(duelResultCard({ ...base, winnerLevel: 31, loserLevel: 40, rating: { ...rating, winnerDelta: 9, loserDelta: -9, winnerScore: 1009, loserScore: 991 }, stats: all, ...extra }, "fr", classes, emptyNameBook)));
+await save("stats-long-names-fr.png", await withPortraits(duelResultCard({ ...base, winnerCharacter: "Aldric-de-la-Vallée-des-Tempêtes-Sombres-et-Brumeuses", loserCharacter: "Lebowski Holyroller le Magnifique Gardien des Flammes Éternelles", rating, stats: { ...all, winnerDamageTaken: 1_240_000, loserDamageTaken: 18_400 }, ...extra }, "fr", classes, emptyNameBook)));

@@ -21,6 +21,12 @@ export const REPORTER_DAILY_CAP = DUEL_RULES.reporterDailyCap;
 export const DEDUPE_SECONDS = DUEL_RULES.dedupeSeconds;
 const MAX_AGE_DAYS = 30;
 
+const STAT_MAX = 10_000_000;
+/** An optional whole number inside [min, max]; anything else (wrong type, fraction, out of range) becomes undefined. */
+const stat = (min: number, max: number) => z.number().int().min(min).max(max).optional().catch(undefined);
+export const DUEL_STAT_KEYS = ["durationSec", "winnerHealthLeft", "loserHealthLeft", "winnerDamageTaken", "loserDamageTaken", "winnerHealing", "loserHealing", "winnerLowestHealth", "loserLowestHealth"] as const;
+export type DuelStatKey = typeof DUEL_STAT_KEYS[number];
+export type DuelStats = Partial<Record<DuelStatKey, number>>;
 export const duelResultSchema = z.object({
   winner: z.string().trim().min(1).max(80),
   loser: z.string().trim().min(1).max(80),
@@ -28,7 +34,12 @@ export const duelResultSchema = z.object({
   reason: z.enum(["knockout", "retreat"]),
   // Character ids (low GUID part, hex) of both sides, sent by stage B addons through the companion; unreadable values are dropped.
   winnerId: z.string().regex(/^[0-9a-fA-F]{1,16}$/).optional().catch(undefined),
-  loserId: z.string().regex(/^[0-9a-fA-F]{1,16}$/).optional().catch(undefined)
+  loserId: z.string().regex(/^[0-9a-fA-F]{1,16}$/).optional().catch(undefined),
+  // 9.5: what each side's own addon measured (health changes of its own player; the combat log is restricted on WoW Forever). Unreadable or
+  // out-of-range values are dropped, never a reason to reject the duel; unknown stays null.
+  durationSec: stat(3, 1800), winnerHealthLeft: stat(0, 100), loserHealthLeft: stat(0, 100),
+  winnerDamageTaken: stat(0, STAT_MAX), loserDamageTaken: stat(0, STAT_MAX), winnerHealing: stat(0, STAT_MAX), loserHealing: stat(0, STAT_MAX),
+  winnerLowestHealth: stat(0, 100), loserLowestHealth: stat(0, 100)
 }).strict();
 export type DuelResultInput = z.infer<typeof duelResultSchema>;
 
@@ -71,13 +82,35 @@ function memberOf(characters: readonly Row[], name: string, wowId?: bigint | nul
 }
 
 /** A newly stored COUNTED duel, for the Discord duel card (9.3). */
-export interface FreshDuel { reportKey: string; winnerId: string; loserId: string; winnerCharacter: string; loserCharacter: string; winnerLevel: number | null; loserLevel: number | null; reason: string; endedAt: Date }
+export interface FreshDuel { stats?: DuelStats; reportKey: string; winnerId: string; loserId: string; winnerCharacter: string; loserCharacter: string; winnerLevel: number | null; loserLevel: number | null; reason: string; endedAt: Date }
 export interface DuelImportResult { recorded: number; counted: number; capped: number; duplicates: number; rejected: number; fresh: FreshDuel[] }
 
 /**
  * Stores the duels a paired member's companion reported. `characters` are the guild's characters with their
  * member ids (the import already loaded them). Runs inside the import transaction.
  */
+const STAT_SELECT = Object.fromEntries(DUEL_STAT_KEYS.map(key => [key, true])) as Record<DuelStatKey, true>;
+/** The readable measurements of one reported duel (the schema already dropped the unreadable ones). */
+function statsOf(duel: DuelResultInput): DuelStats {
+  const out: DuelStats = {};
+  for (const key of DUEL_STAT_KEYS) { const value = duel[key]; if (value !== undefined) out[key] = value; }
+  return out;
+}
+/**
+ * Pure: what a second report of the same duel adds. A side's own numbers come from that side's own addon, so the reporter's own side
+ * replaces what is stored; the other side's numbers (relayed to the reporter's addon) and the duration only fill what is still unknown.
+ */
+export function mergeStats(stored: Partial<Record<DuelStatKey, number | null>>, reported: DuelStats, reporterSide: "winner" | "loser"): DuelStats {
+  const patch: DuelStats = {};
+  for (const key of DUEL_STAT_KEYS) {
+    const value = reported[key];
+    if (value === undefined) continue;
+    const own = key.startsWith(reporterSide);
+    if (own ? stored[key] !== value : stored[key] == null) patch[key] = value;
+  }
+  return patch;
+}
+
 export async function importDuelResults(tx: Pick<Tx, "duelResult">, guildId: string, edition: string, reporterId: string | null | undefined,
   characters: readonly Row[], rows: unknown[], now = new Date()): Promise<DuelImportResult> {
   const result: DuelImportResult = { recorded: 0, counted: 0, capped: 0, duplicates: 0, rejected: 0, fresh: [] };
@@ -96,8 +129,14 @@ export async function importDuelResults(tx: Pick<Tx, "duelResult">, guildId: str
       || age < -300_000 || age > MAX_AGE_DAYS * 86_400_000) { result.rejected++; continue; }
     // The other participant's companion reports the same duel a few seconds apart.
     const near = await tx.duelResult.findFirst({ where: { guildId, gameEdition: edition, winnerId: winner.memberId, loserId: loser.memberId,
-      endedAt: { gte: new Date(endedAt.getTime() - DEDUPE_SECONDS * 1000), lte: new Date(endedAt.getTime() + DEDUPE_SECONDS * 1000) } }, select: { id: true } });
-    if (near) { result.duplicates++; continue; }
+      endedAt: { gte: new Date(endedAt.getTime() - DEDUPE_SECONDS * 1000), lte: new Date(endedAt.getTime() + DEDUPE_SECONDS * 1000) } }, select: { id: true, ...STAT_SELECT } });
+    const reported = statsOf(duel);
+    if (near) {
+      result.duplicates++;
+      const patch = mergeStats(near, reported, reporterId === winner.memberId ? "winner" : "loser");
+      if (Object.keys(patch).length) await tx.duelResult.update({ where: { id: near.id }, data: patch });
+      continue;
+    }
     const day = dayKey(endedAt), pair = pairKey(winner.memberId, loser.memberId);
     const [pairCount, reporterCount] = await Promise.all([
       tx.duelResult.count({ where: { guildId, gameEdition: edition, pairKey: pair, dayKey: day, counted: true } }),
@@ -109,14 +148,14 @@ export async function importDuelResults(tx: Pick<Tx, "duelResult">, guildId: str
     const key = reportKey(winner.memberId, loser.memberId, duel.at);
     const created = await tx.duelResult.createMany({ skipDuplicates: true, data: [{
       guildId, gameEdition: edition, winnerId: winner.memberId, loserId: loser.memberId, winnerCharacter: winner.name, loserCharacter: loser.name, winnerLevel: winner.level, loserLevel: loser.level,
-      reason: duel.reason, endedAt, dayKey: day, pairKey: pair, counted, archived, reportKey: key, reporterId
+      reason: duel.reason, endedAt, dayKey: day, pairKey: pair, counted, archived, reportKey: key, reporterId, ...reported
     }] });
     if (!created.count) { result.duplicates++; continue; }
     result.recorded++;
     if (archived) { result.capped++; continue; }
     if (counted) {
       result.counted++;
-      result.fresh.push({ reportKey: key, winnerId: winner.memberId, loserId: loser.memberId, winnerCharacter: winner.name, loserCharacter: loser.name, winnerLevel: winner.level, loserLevel: loser.level, reason: duel.reason, endedAt });
+      result.fresh.push({ reportKey: key, winnerId: winner.memberId, loserId: loser.memberId, winnerCharacter: winner.name, loserCharacter: loser.name, winnerLevel: winner.level, loserLevel: loser.level, reason: duel.reason, endedAt, ...(Object.keys(reported).length ? { stats: reported } : {}) });
     } else result.capped++;
   }
   return result;

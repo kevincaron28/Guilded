@@ -178,7 +178,10 @@ ns.commandHandlers["settings"] = ns.commandHandlers["options"]
 ns.commandHandlers["setup"] = function(args)
   local choice = string.lower(args[1] or "")
   if choice == "guild" then module.guildSetup() return end
-  if not module.chooseSetup(choice) then module.openSetup() end
+  -- (20 Nov 2026) /guilded setup is the first-run setup window; the in-game only / connected chooser is /guilded setup mode.
+  if choice == "mode" then module.openSetup() return end
+  if module.chooseSetup(choice) then return end
+  if ns.firstRunSetup and ns.firstRunSetup.command then ns.firstRunSetup.command(args) else module.openSetup() end
 end
 -- /guilded quiet [on|off]: keep Guilded's informational chat lines out of chat at login (Core.lua, ns.infoMessage).
 ns.commandHandlers["quiet"] = function(args)
@@ -194,7 +197,7 @@ end
 ns.commandHelp = ns.commandHelp or {}
 table.insert(ns.commandHelp, "/guilded quiet on | off - no informational Guilded lines in chat at login (errors and your commands still show)")
 table.insert(ns.commandHelp, "/guilded options - Guilded's page in the game's options: tabs for general, chat, announcements, dungeons and PvP, raids and loot, officers, advanced")
-table.insert(ns.commandHelp, "/guilded setup - choose in-game only or optional Discord connection; /guilded setup guild - set up raid cores step by step (officers)")
+table.insert(ns.commandHelp, "/guilded setup - the first-run setup: companion, Guilded chat tab, options; /guilded setup mode - in-game only or optional Discord connection; /guilded setup guild - set up raid cores step by step (officers)")
 
 -- Built once saved settings exist (after Core.lua's PLAYER_LOGIN).
 local frame = CreateFrame("Frame")

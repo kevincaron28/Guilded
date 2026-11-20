@@ -22,7 +22,6 @@ try {
   await add("accounts that signed in", async (from) => (await database.webSession.groupBy({ by: ["accountId"], where: { createdAt: { gte: from } } })).length);
   await add("companion sign-ins (credentials created)", (from) => database.webCompanionCredential.count({ where: { createdAt: { gte: from } } }));
   // Data of the removed pages. Some of it also comes from the addon or the bot, so these are upper bounds of web use.
-  await add("character pictures added or changed", (from) => database.characterPicture.count({ where: { updatedAt: { gte: from } } }));
   await add("wishlist entries added", (from) => database.wishlistEntry.count({ where: { createdAt: { gte: from } } }));
   await add("raid plan revisions approved", (from) => database.raidPlanRevision.count({ where: { approvedAt: { gte: from } } }));
   await add("craft requests made", (from) => database.craftRequest.count({ where: { createdAt: { gte: from } } }));

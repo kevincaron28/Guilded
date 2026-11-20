@@ -98,7 +98,7 @@ export interface DungeonCardMember { name: string; color: string; role?: "TANK" 
   score?: string | undefined; scoreNote?: string | undefined;
   /** 9.3.2: the player's level, the score this run added to their season score (0 when it added nothing) and their season total. Only set when the bot knows them: never estimated. */
   level?: number | undefined; gain?: number | undefined; total?: number | undefined;
-  /** 9.1: the addon's name for this player, so delivery can find the guild character's picture (card-pictures.ts). */
+  /** 9.1: the addon's name for this player, so delivery can find the guild character's Armory picture (card-portraits.ts). */
   character?: string | undefined;
   /** 9.3: the guild the recorder's game client showed for a player outside this server's guild (display text only: clipped, never used for links, ranking or matching). */
   guildName?: string | undefined;

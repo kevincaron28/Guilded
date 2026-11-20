@@ -328,7 +328,6 @@ const STRINGS = {
   "panel.title": { en: "**Your characters on {server}**", fr: "**Vos personnages sur {server}**" },
   "panel.empty": { en: "Nothing is linked to you yet. Press **Link a character**, or log in with the Guilded Companion once and they link by themselves.", fr: "Aucun personnage n'est encore lié à vous. Appuyez sur **Lier un personnage**, ou ouvrez le jeu une fois avec le compagnon Guilded : ils se lient tout seuls." },
   "panel.link": { en: "Link a character", fr: "Lier un personnage" },
-  "panel.picture": { en: "Picture", fr: "Image" },
   "panel.refresh": { en: "Refresh", fr: "Actualiser" },
   "panel.mainMenu": { en: "Set as main…", fr: "Définir comme principal…" },
   "panel.unlinkMenu": { en: "Unlink…", fr: "Délier…" },

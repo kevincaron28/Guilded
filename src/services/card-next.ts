@@ -79,6 +79,7 @@ async function dataCard(card: ScoreCard): Promise<Buffer | null> {
     stats: rest.slice(0, 3).map((s) => ({ value: s.value, label: s.note ? `${s.label} · ${s.note}` : s.label })),
     rows: (card.rows ?? []).slice(0, 4).map((r) => ({ name: r.name, color: r.color, sub: r.sub, right: r.right })),
     ...(card.checks?.length ? { checks: card.checks, moreWord: card.moreLabel ?? "more" } : {}),
+    ...(card.portrait ? { portrait: Buffer.from(card.portrait, "base64") } : {}),
     strip: [card.subtitle, ...(card.badges ?? []).map((b) => b.text)].filter(Boolean).join("  ·  "), art
   });
   return png;
@@ -95,7 +96,7 @@ async function dungeonCard(card: ScoreCard): Promise<Buffer | null> {
   const badge = card.badges?.[0], time = stat(0), rated = visual.pvp ? undefined : stat(3);
   const roleOf = (role: string | undefined): DungeonPartyRow["role"] => role === "TANK" ? "tank" : role === "HEALER" ? "healer" : role === "DPS" ? "dps" : undefined;
   const members = visual.party, extra = !visual.pvp && members.length > 5 ? members.length - 4 : 0;
-  const party: DungeonPartyRow[] = (extra ? members.slice(0, 4) : members.slice(0, visual.pvp ? 40 : 5)).map((m) => ({ name: m.name, color: m.color, role: roleOf(m.role), score: m.score, guild: m.guildName, level: m.level, gain: m.gain, total: m.total === undefined ? undefined : String(m.total), member: m.guild }));
+  const party: DungeonPartyRow[] = (extra ? members.slice(0, 4) : members.slice(0, visual.pvp ? 40 : 5)).map((m) => ({ name: m.name, color: m.color, role: roleOf(m.role), score: m.score, guild: m.guildName, level: m.level, gain: m.gain, total: m.total === undefined ? undefined : String(m.total), member: m.guild, ...(m.portrait ? { portrait: Buffer.from(m.portrait, "base64") } : {}) }));
   if (extra || visual.pvp) party.push({ name: `+${extra} ${visual.moreLabel}`, color: "#ddd4c0" }); // a PvP card's renderer reads the "more" word from this row and counts the rest itself
   // No death map (owner, 17 Nov 2026): too small to read and it darkened the painting.
   const { png } = await renderDungeonCard({

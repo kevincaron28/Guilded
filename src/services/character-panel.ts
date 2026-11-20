@@ -14,7 +14,7 @@ import { DETACHED } from "./character-move.js";
 import { linkBackRow, tellAutoLinked, unlinkNotMine } from "./companion-link-dm.js";
 
 // The /character panel (linking simplification, 13 November 2026; owner: "Approve, build it").
-// One private message with the member's characters and buttons: link one, set the main, unlink, picture, refresh.
+// One private message with the member's characters and buttons: link one, set the main, unlink, refresh.
 // Everything is a button, a select menu or a modal, so it needs no privileged intent, and it works the same in
 // a DM: every custom id carries the Discord server id, nothing else is guessed from where it was pressed.
 //

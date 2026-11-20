@@ -254,10 +254,12 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
         definition = await withCharacterPortrait(base, portraitSourcesFor(prisma, await sharedPortraits(), job.guildId, definition.promotion.character || definition.promotion.name, userId, avatar)).catch(() => base);
         return { definition, png: await scoreCardPng(definition).catch(() => null) };
       }
-      // 9.1: members' character pictures (a database read, best effort): the dungeon party's thumbs, or the member's own picture.
+      // Armory character pictures (20 Nov 2026, best effort, time-boxed): a dungeon party's round portraits, or the member's main character
+      // on a card about one member. Order: Armory picture -> Discord avatar -> none. Member-uploaded pictures no longer exist.
       if (definition) {
-        const { withCardPictures } = await import("./card-pictures.js");
-        definition = await withCardPictures(prisma, job.guildId, definition, typeof memberId === "string" ? memberId : undefined);
+        const { withArmoryCardPortraits } = await import("./card-portraits.js");
+        const base = definition;
+        definition = await withArmoryCardPortraits(prisma, await sharedPortraits(), job.guildId, base, typeof memberId === "string" ? memberId : undefined).catch(() => base);
       }
       return { definition, png: definition ? await scoreCardPng(definition).catch(() => null) : null };
     };

@@ -4,8 +4,7 @@ import { ACHIEVEMENTS, ACTIVE_ACHIEVEMENTS, achievementById, generatedAchievemen
 import { BADGE_IMG_STYLE, badgeImg, badgeLabel } from "./achievement-badges.js";
 import { storedAchievements, syncMemberAchievements } from "./achievements.js";
 import { achievementsCard } from "./end-cards.js";
-import { scoreCardResponse, type ScoreCard } from "./score-card.js";
-import type { PublicPicture } from "./public-pictures.js";
+import { scoreCardResponse } from "./score-card.js";
 import { escapeHtml, link } from "./web-layout.js";
 import type { WebContext, WebRoute } from "./web-app.js";
 
@@ -16,14 +15,7 @@ import type { WebContext, WebRoute } from "./web-app.js";
 type Db = Pick<PrismaClient, "webAccount" | "publicProfileHidden" | "guildSettings" | "member" | "memberAchievement" | "character" | "professionSkill" | "dungeonRunPlayer" | "raidAttendance" | "communityParticipationDay" | "poeLevelReached" | "poeMapVisit" | "communityPoint" | "communityHonorAward" | "epgpTransaction" | "memberActivityTotal" | "memberMilestone" | "duelResult" | "craftRequest" | "recipeKnown">;
 export interface AchievementProgress { earnedAt: Date | null; value: number }
 
-/** The member's character picture for the share image: Public only on the public card, any of theirs on their own /me/ card. */
-export type SharePortrait = (discordUserId: string, own: boolean) => Promise<PublicPicture | null>;
-
-export function createAchievementsWeb(db: Db, allows: (discordGuildId: string) => boolean, portrait?: SharePortrait) {
-  async function withPortrait(card: ScoreCard, discordUserId: string, own: boolean): Promise<ScoreCard> {
-    const face = portrait ? await portrait(discordUserId, own).catch(() => null) : null;
-    return face ? { ...card, portrait: face.thumb.toString("base64") } : card;
-  }
+export function createAchievementsWeb(db: Db, allows: (discordGuildId: string) => boolean) {
   /** Every catalogue row with its progress, plus the generated in-game rows the account earned. */
   const cardItems = (data: Map<string, AchievementProgress>) => [...ACHIEVEMENTS, ...generatedAchievements().filter(def => data.get(def.id)?.earnedAt)].map(def => ({ id: def.id, ...(data.get(def.id) ?? { earnedAt: null, value: 0 }) }));
   const imagePath = (accountId: string) => `/players/${encodeURIComponent(accountId)}/achievements.png`;
@@ -138,7 +130,7 @@ export function createAchievementsWeb(db: Db, allows: (discordGuildId: string) =
     // A player who hid their profile (profile-privacy.ts) has no public share card; they still see their own.
     if (ctx.account?.id !== match[1] && await db.publicProfileHidden.findUnique({ where: { discordUserId: account.discordUserId }, select: { discordUserId: true } })) return kit.page(404, ctx.t("Not found", "Introuvable"), "", { noindex: true });
     const data = await progress(account.discordUserId, false, ctx.now);
-    return scoreCardResponse(await withPortrait(achievementsCard(account.displayName ?? account.username, cardItems(data), ctx.lang), account.discordUserId, false), ctx.request.method === "HEAD");
+    return scoreCardResponse(achievementsCard(account.displayName ?? account.username, cardItems(data), ctx.lang), ctx.request.method === "HEAD");
   };
 
   return {
@@ -168,7 +160,7 @@ export function createAchievementsWeb(db: Db, allows: (discordGuildId: string) =
       const account = await db.webAccount.findUnique({ where: { id: ctx.account.id }, select: { discordUserId: true, username: true, displayName: true } });
       if (!account) return kit.page(404, ctx.t("Not found", "Introuvable"), "", { noindex: true });
       const data = await progress(account.discordUserId, true, ctx.now);
-      return scoreCardResponse(await withPortrait(achievementsCard(account.displayName ?? account.username, cardItems(data), ctx.lang), account.discordUserId, true), ctx.request.method === "HEAD");
+      return scoreCardResponse(achievementsCard(account.displayName ?? account.username, cardItems(data), ctx.lang), ctx.request.method === "HEAD");
     }) as WebRoute
   };
 }

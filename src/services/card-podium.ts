@@ -190,6 +190,7 @@ export async function renderWeeklyHonorsCard(card: ScoreCard): Promise<Buffer | 
   const c = new CardCanvas(H);
   await header(c, card, BANNER, "crown");
   const layers: OverlayOptions[] = [await bannerLayer(card, BANNER)];
+  let faceLayer: OverlayOptions | undefined; // composited after the card is finished: the MVP panel is an opaque shape that would hide it
   const leftW = 540, rightX = PAD + leftW + 24, rightW = CARD_W - PAD - rightX;
 
   // MVP panel: gold frame, avatar or star disc, name, points.
@@ -202,7 +203,7 @@ export async function renderWeeklyHonorsCard(card: ScoreCard): Promise<Buffer | 
     try {
       const mask = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${face}" height="${face}"><circle cx="${face / 2}" cy="${face / 2}" r="${face / 2}"/></svg>`);
       const image = await sharp(Buffer.from(card.portrait, "base64")).resize(face, face, { fit: "cover" }).composite([{ input: mask, blend: "dest-in" }]).png().toBuffer();
-      layers.push({ input: image, left: faceX, top: faceY });
+      faceLayer = { input: image, left: faceX, top: faceY };
     } catch { icon(c, "points", faceX + 28, faceY + 28, 72, METALS[0]!.text); }
   } else {
     c.raw(`<circle cx="${faceX + face / 2}" cy="${faceY + face / 2}" r="${face / 2}" fill="#2a2113"/>`);
@@ -265,6 +266,7 @@ export async function renderWeeklyHonorsCard(card: ScoreCard): Promise<Buffer | 
     await c.text(s.label, x + 56, y + 32, { size: 24, color: SUB, maxW: cellW - 66 });
   }
   if (card.footer) await c.text(card.footer, PAD, H - 50, { size: 24, color: SUB, maxW: CARD_W - 2 * PAD });
-  return (await c.finish(layers)).png;
+  const finished = (await c.finish(layers)).png;
+  return faceLayer ? sharp(finished).composite([faceLayer]).png().toBuffer().catch(() => finished) : finished;
 }
 

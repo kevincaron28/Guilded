@@ -4,6 +4,8 @@
 // character id. IDs are resolved once, at ingest; every table keeps its name column, now guaranteed to be
 // that row's canonical name. Name-only (old) clients keep working: see rule step 3.
 
+import { armoryId } from "./guild-armory-id.js";
+
 const MAX_WOW_ID = (1n << 63n) - 1n;
 
 /**
@@ -12,8 +14,7 @@ const MAX_WOW_ID = (1n << 63n) - 1n;
  * wire; the Armory's decimal id goes through parseWowIdDecimal.
  */
 export function parseWowId(value: unknown): bigint | null {
-  if (typeof value === "bigint") return value > 0n && value <= MAX_WOW_ID ? value : null;
-  if (typeof value === "number") return Number.isSafeInteger(value) && value > 0 ? BigInt(value) : null;
+  if (typeof value === "bigint" || typeof value === "number") return armoryId(value);
   if (typeof value !== "string") return null;
   const text = value.trim().toLowerCase();
   if (!/^[0-9a-f]{1,16}$/.test(text)) return null;

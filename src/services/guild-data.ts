@@ -114,7 +114,7 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
       const lastOnlineOk = lastOnline && lastOnline.getTime() <= now.getTime() + FUTURE_SLACK_MS ? lastOnline : undefined;
       const previous = byKey.get(key);
       // Exact id (character-ref.ts) for the bot's own characters and the unlinked list; an id repeated inside one roster is ignored after its first row.
-      let wowId = parseWowId(member.id) ?? (() => { const n = characterIdFromGuid(member.guid); return n === null ? null : BigInt(n); })();
+      let wowId = parseWowId(member.id) ?? characterIdFromGuid(member.guid);
       if (wowId !== null && seenIds.has(wowId)) wowId = null;
       if (wowId !== null) seenIds.add(wowId);
       const minMove = member.online ? ONLINE_MIN_MOVE_MS : OFFLINE_MIN_MOVE_MS;

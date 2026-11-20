@@ -42,6 +42,17 @@ export async function deliverDiscordJob(database: Db, id: string, send: (job: Di
   return true;
 }
 
+/** The member id inside a `promotion-congrats:<userId>:<rank>:<day>` key. */
+const promotionUserId = (key: string) => key.split(":")[1] ?? "";
+
+let portraitCache: import("./character-portrait.js").CharacterPortraits | undefined;
+/** One shared portrait cache (the Battle.net client is only used when credentials are configured). */
+async function sharedPortraits() {
+  if (portraitCache) return portraitCache;
+  const [{ createCharacterPortraits }, { armoryClientFromEnv }, { config }] = await Promise.all([import("./character-portrait.js"), import("./blizzard-armory.js"), import("../config.js")]);
+  return portraitCache = createCharacterPortraits({ armory: armoryClientFromEnv({ BATTLENET_CLIENT_ID: config.BATTLENET_CLIENT_ID, BATTLENET_CLIENT_SECRET: config.BATTLENET_CLIENT_SECRET }) });
+}
+
 export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise<void> {
   const pending = job.payload as Record<string, unknown>;
   if (job.kind === "MESSAGE" && pending["route"] === "readiness" && pending["day"]
@@ -148,8 +159,11 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
     }
     if (job.key.startsWith("promotion-congrats:")) {
       // An officer who switched the congratulations off after a card was queued stops it here too.
-      const settings = await prisma.guildSettings.findUnique({ where: { guildId: job.guildId }, select: { promotionCongratsEnabled: true } });
+      const settings = await prisma.guildSettings.findUnique({ where: { guildId: job.guildId }, select: { promotionCongratsEnabled: true, language: true } });
       if (settings?.promotionCongratsEnabled === false) return;
+      // Cards queued before a wording change carry the old text: rebuild it from the stored card with the current wording.
+      const [{ refreshPromotionText }, { promotionCongratsText }] = await Promise.all([import("./character-portrait.js"), import("./promotion.js")]);
+      refreshPromotionText(payload, promotionUserId(job.key), settings?.language === "fr" ? "fr" : "en", promotionCongratsText);
     }
     const route = payload["route"];
     if (route === "dungeon") {
@@ -226,6 +240,19 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
       if (definition && typeof memberId === "string" && /^\d{17,20}$/.test(memberId)) {
         const { withDiscordMember } = await import("./card-member.js");
         definition = await withDiscordMember(guild, definition, memberId);
+      }
+      // Promotion cards (20 Nov 2026): the promoted character's Armory picture, else the member's Discord avatar, else the card's emblem.
+      if (definition?.promotion && job.key.startsWith("promotion-congrats:")) {
+        const userId = promotionUserId(job.key);
+        const { withCharacterPortrait, portraitSourcesFor } = await import("./character-portrait.js");
+        const { downloadImage } = await import("./card-member.js");
+        const avatar = async () => {
+          const member = await guild.members.fetch(userId);
+          return await downloadImage(member.displayAvatarURL({ extension: "png", size: 256, forceStatic: true })).catch(() => null);
+        };
+        const base = definition;
+        definition = await withCharacterPortrait(base, portraitSourcesFor(prisma, await sharedPortraits(), job.guildId, definition.promotion.character || definition.promotion.name, userId, avatar)).catch(() => base);
+        return { definition, png: await scoreCardPng(definition).catch(() => null) };
       }
       // 9.1: members' character pictures (a database read, best effort): the dungeon party's thumbs, or the member's own picture.
       if (definition) {

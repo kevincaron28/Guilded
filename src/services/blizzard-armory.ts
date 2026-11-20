@@ -70,6 +70,24 @@ export interface ArmoryClientOptions {
 export interface ArmoryClient {
   fetchForeverGuildRoster(slug: string): Promise<ArmoryRoster | null>;
   fetchForeverGuildSummary(slug: string): Promise<ArmoryGuildSummary | null>;
+  /** A character's picture links by Armory slug (full name, lower case, no realm), or null. Keys: avatar, avatar-sd, main-raw, main-sd-raw. */
+  fetchForeverCharacterMedia(slug: string): Promise<ArmoryCharacterMedia | null>;
+}
+export interface ArmoryCharacterMedia { id: bigint | null; assets: Record<string, string> }
+
+/** A character's Armory slug: the full name, lower case, spaces to hyphens (Forever has no realm segment). */
+export const characterSlug = guildSlug;
+export const characterMediaUrl = (slug: string) => `${API}/profile/wow/character/${encodeURIComponent(slug)}/character-media?namespace=${ARMORY_NAMESPACE}&locale=en_US`;
+export function parseCharacterMedia(body: unknown): ArmoryCharacterMedia | null {
+  const assets: Record<string, string> = {};
+  const list = at(body, "assets");
+  if (Array.isArray(list)) for (const a of list.slice(0, 20)) {
+    const key = at(a, "key"), value = at(a, "value");
+    if (typeof key === "string" && typeof value === "string" && value.length < 500) assets[key] = value;
+  }
+  const rawId = at(at(body, "character"), "id");
+  const id = typeof rawId === "number" && Number.isSafeInteger(rawId) && rawId > 0 ? BigInt(rawId) : null;
+  return Object.keys(assets).length || id ? { id, assets } : null;
 }
 
 export function createArmoryClient(options: ArmoryClientOptions): ArmoryClient {
@@ -124,7 +142,8 @@ export function createArmoryClient(options: ArmoryClientOptions): ArmoryClient {
 
   return {
     async fetchForeverGuildRoster(slug) { return parseRoster(await get(rosterUrl(slug), "guild roster")); },
-    async fetchForeverGuildSummary(slug) { return parseSummary(await get(summaryUrl(slug), "guild summary")); }
+    async fetchForeverGuildSummary(slug) { return parseSummary(await get(summaryUrl(slug), "guild summary")); },
+    async fetchForeverCharacterMedia(slug) { return parseCharacterMedia(await get(characterMediaUrl(slug), "character media")); }
   };
 }
 

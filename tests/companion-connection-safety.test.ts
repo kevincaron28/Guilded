@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { withUploadGate } from "../companion/engine.mjs";
 import { removeProfile, savedProfiles, switchProfile } from "../companion/profiles.mjs";
-import { serverKnowsWowGuild } from "../src/services/wow-guilds.js";
+import { forgetKnownWowGuildRows, serverKnowsWowGuild } from "../src/services/wow-guilds.js";
 
 describe("several connections of one member (9 Nov 2026)", () => {
   it("never runs two uploads of the same saved file at the same instant", async () => {
@@ -30,6 +30,7 @@ describe("several connections of one member (9 Nov 2026)", () => {
     expect(() => removeProfile(config, "nope")).toThrow(/not found/);
   });
   it("tells the companion when the server does not know the character's WoW guild", async () => {
+    forgetKnownWowGuildRows();
     const db = { wowGuild: { findMany: async () => [{ name: "Québec Gold", realm: "CAMWOW US2 Realm 2 PvP" }] } } as never;
     expect(await serverKnowsWowGuild(db, { id: "g", name: "K Caron Projects" }, undefined)).toBeUndefined();
     expect(await serverKnowsWowGuild(db, { id: "g", name: "K Caron Projects" }, "Another Guild-Other")).toMatchObject({ known: false });
@@ -39,5 +40,13 @@ describe("several connections of one member (9 Nov 2026)", () => {
     expect(await serverKnowsWowGuild(db, { id: "g", name: "K Caron Projects" }, "---")).toMatchObject({ known: false });
     expect(await serverKnowsWowGuild(db, { id: "g", name: "K Caron Projects" }, "québec gold-CAMWOW US2 Realm 2 PvP")).toMatchObject({ known: true });
     expect(await serverKnowsWowGuild(db, { id: "g", name: "K Caron Projects" }, "K Caron Projects")).toMatchObject({ known: true });
+  });
+  it("reads the server's registered in-game guilds once a minute, not on every upload", async () => {
+    forgetKnownWowGuildRows();
+    let reads = 0;
+    const db = { wowGuild: { findMany: async () => { reads++; return [{ name: "Québec Gold", realm: "R" }]; } } } as never;
+    for (let i = 0; i < 3; i++) expect(await serverKnowsWowGuild(db, { id: "cache-g", name: "X" }, "Quebec Gold-R")).toMatchObject({ known: true });
+    expect(reads).toBe(1);
+    forgetKnownWowGuildRows();
   });
 });

@@ -22,6 +22,8 @@ function ns.slash(text)
       pcall(handler, first == "" and "dungeons" or ("dungeon " .. text))
       return
     end
+    -- (20 Nov 2026) The first-run setup window lives in Guilded.
+    if type(handler) == "function" and first == "setup" then pcall(handler, "setup"); return end
     ns.message(ns.L("Guilded is installed, so it records your dungeon runs: use /guilded dungeon. Guilded Dungeons stays quiet."))
     return
   end
@@ -33,6 +35,11 @@ function ns.slash(text)
     ns.commandHandlers["dungeon"](args)
   elseif action == "score" and not args[2] and ns.dungeonScorePanel then
     ns.dungeonScorePanel.open("season")
+  elseif action == "setup" then
+    -- The standalone addon has no setup window: the companion steps are the setup (Guilded has the full window).
+    for _, line in ipairs(ns.util.companionSteps()) do ns.message(line) end
+    ns.message(ns.util.COMPANION_PAGE)
+    ns.message(ns.util.COMPANION_DOWNLOAD)
   elseif action == "companion" then
     -- The three steps to get runs to Discord (the standalone addon has no Home page to show them).
     for _, line in ipairs(ns.util.companionSteps()) do ns.message(line) end

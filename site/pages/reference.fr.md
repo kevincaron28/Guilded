@@ -164,7 +164,7 @@ Les lignes « Officiers » demandent le rang d’officier dans votre guilde WoW.
 | --- | --- | --- |
 | `/guilded modules` | Activer ou désactiver les parties facultatives (les officiers peuvent le faire pour toute la guilde) | Tout le monde |
 | `/guilded options` | La page de Guilded dans les options du jeu | Tout le monde |
-| `/guilded setup` | Choisir en jeu seulement ou la connexion Discord facultative | Tout le monde |
+| `/guilded setup` | La fenêtre de première configuration : companion, onglet de discussion Guilded, options (`setup mode` : en jeu seulement ou connexion Discord facultative) | Tout le monde |
 | `/guilded minimap show\|hide\|reset` | Le bouton de la minicarte | Tout le monde |
 | `/guilded chat tab\|off` · `chattags on\|off` | Onglet de discussion à part ; afficher le nom du principal d’un reroll | Tout le monde |
 | `/guilded digest` · `map` · `gbank` · `guildlog` | Changements depuis la dernière connexion ; guildmates sur la carte ; banque de guilde ; journal de guilde | Tout le monde |

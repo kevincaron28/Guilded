@@ -163,7 +163,7 @@ Type `/guilded` (or `/gd`) in game. A bare `/guilded` opens the window; `/guilde
 | --- | --- | --- |
 | `/guilded modules` | Turn optional parts on or off (officers can do it for the whole guild) | Everyone |
 | `/guilded options` | Guilded's page in the game's options | Everyone |
-| `/guilded setup` | Choose in-game only or the optional Discord connection | Everyone |
+| `/guilded setup` | The first-run setup window: companion, Guilded chat tab, options (`setup mode`: in-game only or the optional Discord connection) | Everyone |
 | `/guilded minimap show\|hide\|reset` | The minimap button | Everyone |
 | `/guilded chat tab\|off` · `chattags on\|off` | Own chat tab; show an alt's main name | Everyone |
 | `/guilded digest` · `map` · `gbank` · `guildlog` | Changes since last login; guildmates on the map; guild bank; guild log | Everyone |

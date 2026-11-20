@@ -5,6 +5,6 @@
 <li>Close World of Warcraft completely.</li>
 <li>Open the folder of the Forever game you launch, then <code>Interface</code> and <code>AddOns</code>.</li>
 <li>Extract the zip there. The result must be <code>Interface/AddOns/Guilded/Guilded.toc</code>, with no extra Guilded folder inside Guilded. For the lighter addon, the file is <code>Interface/AddOns/GuildedDungeons/GuildedDungeons.toc</code>.</li>
-<li>Start WoW, enable the addon, and open it with <code>/guilded</code>.</li>
+<li>Start WoW, enable the addon, and open it with <code>/guilded</code>. On your first login a short setup window opens by itself (the companion, the Guilded chat tab and a few options); reopen it any time with <code>/guilded setup</code>.</li>
 </ol>
 <p><a href="/download/">Get the files</a></p>

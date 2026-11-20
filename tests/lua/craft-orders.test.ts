@@ -654,7 +654,7 @@ describe("the Crafting page: review fixes", () => {
     s!.run(`NS.craftOrders.submit({ item = "Linen Belt", key = 7026 })
       for _, r in pairs(NS.getDb().craftOrders.requests) do r.at = 1800000000 - 7 * 3600 end`);
     s!.run(`GuildedOrders = { at = "2027-01-15T06:30:00.000Z", orders = {} }; NS.craftOrders.refresh()`);   // not yet 6 h after the request
-    expect(requests()).toBe("1");
+    expect(requests()).toBe(1);
     s!.run(`${FEED_LATER}; NS.craftOrders.refresh()`);
     expect(requests()).toBe(0);
   });
@@ -665,7 +665,7 @@ describe("the Crafting page: review fixes", () => {
       for _, r in pairs(NS.getDb().craftOrders.requests) do r.at = 1800000000 - 7 * 3600 end
       fire_event("CHAT_MSG_ADDON", "GuildedOrd", "ORDERS|2027-01-15T07:59:00.000Z|1|1|E", "GUILD", "Kev Caron")`);
     expect(s!.run("return NS.craftOrders.current().source")).toBe("guild");
-    expect(requests()).toBe("1");
+    expect(requests()).toBe(1);
   });
 
   it("a cancelled order drops its local request at once (nothing is re-said or uploaded for it)", () => {
@@ -734,7 +734,7 @@ describe("requests heard from guildmates: limits and clean-up", () => {
     for (let i = 0; i < 7; i++) s!.run(`fire_event("CHAT_MSG_ADDON", "GuildedOrd", "NEW|gaaaaa${i}|2580|1|0|${1799999000 + i}|||Brown Linen Shirt|", "GUILD", "Ann Walker")`);
     const count = (name: string) => Number(s!.run(`local n = 0 for _, v in pairs(NS.getDb().craftOrders.heardRequests) do if v.name == "${name}" then n = n + 1 end end return n`));
     expect(count("Ann Walker")).toBe(5);
-    expect(count("Bo Dee")).toBe("1");
+    expect(count("Bo Dee")).toBe(1);
     expect(s!.run(`return tostring(NS.getDb().craftOrders.heardRequests["gaaaaa0@Ann Walker"])`)).toBe("nil");   // her oldest went
     expect(s!.run(`return tostring(NS.getDb().craftOrders.heardRequests["gaaaaa6@Ann Walker"] ~= nil)`)).toBe("true");
     // Ann made seven and Bo one: Ann alerted once (the 30 s gap), Bo once.

@@ -3218,6 +3218,8 @@ local DE = {
   ["new"] = "neu",
   -- Crafting UI polish (20 Nov 2026)
   ["Fav"] = "Fav",
+  ["^"] = "^",
+  ["v"] = "v",
   ["Favourite"] = "Favorit",
   ["Add to Favourites"] = "Zu Favoriten hinzuf\195\188gen",
   ["Remove from Favourites"] = "Aus Favoriten entfernen",
@@ -5465,6 +5467,8 @@ local ES = {
   ["new"] = "nuevos",
   -- Crafting UI polish (20 Nov 2026)
   ["Fav"] = "Fav",
+  ["^"] = "^",
+  ["v"] = "v",
   ["Favourite"] = "Favorito",
   ["Add to Favourites"] = "A\195\177adir a favoritos",
   ["Remove from Favourites"] = "Quitar de favoritos",
@@ -6869,6 +6873,8 @@ FR["restored"] = "restaur\195\169es"
 FR["new"] = "nouvelles"
 -- Crafting UI polish (20 Nov 2026)
 FR["Fav"] = "Fav"
+FR["^"] = "^"
+FR["v"] = "v"
 FR["Favourite"] = "Favori"
 FR["Add to Favourites"] = "Ajouter aux favoris"
 FR["Remove from Favourites"] = "Retirer des favoris"

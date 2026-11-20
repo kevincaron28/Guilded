@@ -165,6 +165,10 @@ function util.placeBeside(frame, gap)
     frame:ClearAllPoints()
     frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, spotTop)
     -- On top of what it covers: same strata as the highest shown Guilded window, then raised above every frame in it.
+    -- Raised again one frame later: the click that opened it (a button inside the covered window) raises that window after us.
+    -- Seen in game: both windows are DIALOG level 1, so the covered window's buttons (level 2+) still drew over this one's
+    -- background whatever Raise() did. Covering, it goes one strata up (FULLSCREEN, still under tooltips); beside, back to DIALOG.
+    if frame.SetFrameStrata then frame:SetFrameStrata(covering and "FULLSCREEN" or "DIALOG") end
     if covering and frame.Raise then frame:Raise() end
   end)
   return ok

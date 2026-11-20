@@ -63,11 +63,15 @@ describe("util.placeBeside", () => {
   it("with the main window and Roster admin filling the width, covers Roster admin squarely and is raised (seen in game 20 Nov)", () => {
     setup();
     s!.run(`GuildedPanel = fake(60, 300, 590, 600, true); GuildedRosterAdmin = fake(660, 400, 520, 430, true); GuildedPromotionPanel = fake(0, 0, 480, 400, false)
-      UIParent.GetWidth = function() return 1200 end; raised = false; function GuildedPromotionPanel:Raise() raised = true end`);
+      UIParent.GetWidth = function() return 1200 end; raised = false; function GuildedPromotionPanel:Raise() raised = true end
+      function GuildedPromotionPanel:SetFrameStrata(s) self.strata = s end`);
     s!.run(`NS.util.placeBeside(GuildedPromotionPanel)`);
     expect(s!.run(`return tostring(overlaps(GuildedPromotionPanel, GuildedPanel))`)).toBe("false");
     expect(s!.run(`local a, b = GuildedPromotionPanel, GuildedRosterAdmin; return tostring(a.l == b.l and a.b + a.h == b.b + b.h)`)).toBe("true");
-    expect(s!.run(`return tostring(raised)`)).toBe("true");
+    expect(s!.run(`return tostring(raised) .. " " .. tostring(GuildedPromotionPanel.strata)`)).toBe("true FULLSCREEN");
+    // With room again it goes back beside, on the normal strata.
+    s!.run(`GuildedRosterAdmin.shown = false; UIParent.GetWidth = function() return 1920 end; NS.util.placeBeside(GuildedPromotionPanel)`);
+    expect(s!.run(`return tostring(GuildedPromotionPanel.strata)`)).toBe("DIALOG");
   });
 
   it("does nothing when no other Guilded window is shown", () => {

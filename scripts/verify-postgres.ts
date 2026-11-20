@@ -315,8 +315,8 @@ try {
     await charCores.addBackup(guild.id, core.id, member.id, alt.id, "DPS");
     const charRaid = await raids.create({ guildId: guild.id, coreId: core.id, title: "Character signup fixture A", scheduledAt: new Date(Date.now() + 86400000), createdBy: "character-test", dpsLimit: 1 });
     const altRaid = await raids.create({ guildId: guild.id, coreId: otherCore.id, title: "Character signup fixture B", scheduledAt: new Date(Date.now() + 2 * 86400000), createdBy: "character-test", dpsLimit: 1 });
-    await assert.rejects(raids.signup(charRaid.id, guild.id, member.id, "DPS"), /Choisis ton personnage/);
-    await assert.rejects(raids.signup(charRaid.id, guild.id, member.id, "DPS", "AVAILABLE", bob.id), /Choisis ton personnage/);
+    await assert.rejects(raids.signup(charRaid.id, guild.id, member.id, "DPS"), /Choisissez votre personnage/);
+    await assert.rejects(raids.signup(charRaid.id, guild.id, member.id, "DPS", "AVAILABLE", bob.id), /Choisissez votre personnage/);
     await raids.signup(charRaid.id, guild.id, contender.id, "DPS", "AVAILABLE", bob.id);
     const signed = await raids.signup(charRaid.id, guild.id, member.id, "DPS", "AVAILABLE", character.id);
     assert.equal(signed.status, "SIGNED_UP");
@@ -336,7 +336,7 @@ try {
     assert.ok(charResults.every(row => row.characterId && row.characterRealm === "ReleaseTest"));
     const applications = createApplicationService(database);
     const applicationInput = { guildId: guild.id, memberId: member.id, coreId: core.id, character: "UntrustedName", characterId: alt.id, className: "Warrior", spec: "Frost", experience: "Experienced", availability: "Evenings" };
-    await assert.rejects(applications.create({ ...applicationInput, characterId: bob.id }), /Choisis ton personnage/);
+    await assert.rejects(applications.create({ ...applicationInput, characterId: bob.id }), /Choisissez votre personnage/);
     const characterApplication = await applications.create(applicationInput);
     assert.equal(characterApplication.characterId, alt.id);
     assert.equal(characterApplication.character, "ReleaseAlt-ReleaseTest");

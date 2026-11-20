@@ -1,6 +1,5 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { armoryNameKey, guildSlug, type ArmoryClient } from "./blizzard-armory.js";
-import { ownGuildNames } from "./import-followup.js";
 import { isHiddenPlayer, type HiddenIdentity } from "./profile-privacy.js";
 
 // The Blizzard Armory roster of a guild, kept beside (never inside) the addon's roster (docs/ARMORY_SYNC.md).
@@ -8,6 +7,15 @@ import { isHiddenPlayer, type HiddenIdentity } from "./profile-privacy.js";
 //   * An Armory row is tied to a Guilded character ONLY through the Blizzard character id read from a player GUID the addon
 //     uploaded (GuildRosterEntry.wowId). No name, level or class matching: rows without a known id stay
 //     Armory-only (first name, level, class, rank), shown as such and never merged with a "First Last" character.
+
+// The server's in-game guild name: registered WowGuild rows first, else the name its companions reported. The same rule as
+// ownGuildNames (import-followup.ts), kept here because that module pulls in the whole bot (a circular import through guild-page.ts).
+async function ownGuildNames(database: Pick<PrismaClient, "wowGuild" | "companionDevice">, guildId: string): Promise<{ name: string }[]> {
+  const registered = await database.wowGuild.findMany({ where: { guildId, gameEdition: "forever" }, select: { name: true }, orderBy: { createdAt: "asc" } }).catch(() => []);
+  if (registered.length) return registered;
+  const devices = await database.companionDevice.groupBy({ by: ["wowGuildName"], where: { guildId, revokedAt: null, wowGuildName: { not: null } }, _count: { _all: true }, orderBy: { _count: { id: "desc" } }, take: 1 }).catch(() => []);
+  return devices.flatMap((row) => { const name = row.wowGuildName?.trim(); return name ? [{ name }] : []; });
+}
 
 export const ARMORY_INTERVAL_MS = 6 * 3_600_000;
 const SPACING_MS = 2_000;

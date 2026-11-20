@@ -56,7 +56,7 @@ export function createItemValueService(database: Db) {
   return {
     // Saves prices for a core (or the guild default when coreId is null). Returns how many rows changed.
     async setMany(guildId: string, coreId: string | null, values: ParsedValue[]): Promise<number> {
-      if (!(await pricePools(guildId, coreId)).length) throw new Error("Choisis un core : chaque core garde ses propres prix de butin.");
+      if (!(await pricePools(guildId, coreId)).length) throw new Error("Choisissez un core : chaque core garde ses propres prix de butin.");
       let changed = 0;
       for (const value of values) {
         const key = keyOf(value);

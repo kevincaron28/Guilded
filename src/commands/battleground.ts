@@ -79,7 +79,7 @@ export const battlegroundCommand = new SlashCommandBuilder().setName("bg").setDe
     .addBooleanOption(o => o.setName("enabled").setDescription("Turn the battleground ladder on or off").setDescriptionLocalizations({ fr: "Activer ou désactiver le classement" }).setRequired(true)))
   .addSubcommand(s => s.setName("world-pvp").setDescription("Officers: world PvP (kills, defends) on the ladder message (on by default)").setDescriptionLocalizations({ fr: "Officiers : JcJ en monde ouvert sur le classement (activé par défaut)" })
     .addBooleanOption(o => o.setName("enabled").setDescription("Turn world PvP (or the extra below) on or off").setDescriptionLocalizations({ fr: "Activer ou désactiver le JcJ en monde ouvert (ou l'option choisie)" }).setRequired(true))
-    .addStringOption(o => o.setName("extra").setDescription("An extra (on by default); leave empty for world PvP itself").setDescriptionLocalizations({ fr: "Une option (activées par défaut); vide pour le JcJ lui-même" })
+    .addStringOption(o => o.setName("extra").setDescription("An extra (on by default); leave empty for world PvP itself").setDescriptionLocalizations({ fr: "Une option (activées par défaut) ; vide pour le JcJ lui-même" })
       .addChoices(...WORLD_PVP_EXTRAS.map(extra => ({ name: extra.label, value: extra.value, name_localizations: { fr: extra.labelFr } })))))
   .addSubcommand(s => s.setName("world").setDescription("World PvP this week: defender, hot zones, most wanted (the ones officers turned on)").setDescriptionLocalizations({ fr: "JcJ en monde ouvert cette semaine : défenseur, zones chaudes, plus recherchés (selon les options)" }))
   .addSubcommand(s => s.setName("pvp-module").setDescription("Officers: include the PvP channels (groups, results, ladder) in /setup").setDescriptionLocalizations({ fr: "Officiers : inclure les salons JcJ (groupes, résultats, classement) dans /setup" })
@@ -128,7 +128,7 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
     await prisma.guildSettings.update({ where: { guildId: ctx.guildId }, data: { bgLadderEnabled: enabled } });
     const posted = enabled ? await updateBgLadder(i.guild) : false;
     await i.editReply({ content: enabled
-      ? t(`Battleground ladder ${posted ? "posted" : "on; it appears once the ladder channel exists (/setup)"}. It is edited in place, separate from the duel ladder.`, `Classement des champs de bataille ${posted ? "publié" : "activé; il apparaîtra quand le salon du classement existera (/setup)"}. Il est modifié sur place, distinct de celui des duels.`)
+      ? t(`Battleground ladder ${posted ? "posted" : "on; it appears once the ladder channel exists (/setup)"}. It is edited in place, separate from the duel ladder.`, `Classement des champs de bataille ${posted ? "publié" : "activé ; il apparaîtra quand le salon du classement existera (/setup)"}. Il est modifié sur place, distinct de celui des duels.`)
       : t("Battleground ladder off. The existing message stays; delete it if you wish.", "Classement des champs de bataille désactivé. Le message existant reste ; supprimez-le si vous le souhaitez."), allowedMentions: { parse: [] } }); return;
   }
   if (sub === "world") {
@@ -142,7 +142,7 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
       await prisma.guildSettings.update({ where: { guildId: ctx.guildId }, data: { [extra.column]: enabled, ...(extra.value === "recap" && enabled ? { pvpRecapLastWeek: weekKeyOf(new Date()) - 1 } : {}) } });
       if (enabled) await updateBgLadder(i.guild);
       await i.editReply({ content: enabled
-        ? t("On: " + extra.label + ". On by default; switch it off with enabled:false. It appears on the ladder message and in /bg world; the weekly recap goes to the PvP channel.", "Activé : " + extra.labelFr + ". Activé par défaut; désactivez-le avec enabled:false. Il apparaît sur le message du classement et dans /bg world; le récap hebdo va dans le salon JcJ.")
+        ? t("On: " + extra.label + ". On by default; switch it off with enabled:false. It appears on the ladder message and in /bg world; the weekly recap goes to the PvP channel.", "Activé : " + extra.labelFr + ". Activé par défaut ; désactivez-le avec enabled:false. Il apparaît sur le message du classement et dans /bg world ; le récap hebdo va dans le salon JcJ.")
         : t("Off: " + extra.label + ".", "Désactivé : " + extra.labelFr + "."), allowedMentions: { parse: [] } }); return;
     }
   }
@@ -152,7 +152,7 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
     const posted = await updateBgLadder(i.guild);
     await i.editReply({ content: enabled
       ? t(`World PvP on${posted ? "" : "; it appears on the next ladder refresh"}. It is a second panel on the battleground ladder message. Deaths are never shown.`, `JcJ en monde ouvert activé${posted ? "" : "; il apparaîtra au prochain rafraîchissement du classement"}. C'est un second panneau sur le message du classement des champs de bataille. Les morts ne sont jamais affichées.`)
-      : t("World PvP off. It disappears from the ladder message on the next refresh; members' counters are kept.", "JcJ en monde ouvert désactivé. Il disparaît du message à la prochaine mise à jour; les compteurs des membres sont conservés."), allowedMentions: { parse: [] } }); return;
+      : t("World PvP off. It disappears from the ladder message on the next refresh; members' counters are kept.", "JcJ en monde ouvert désactivé. Il disparaît du message à la prochaine mise à jour ; les compteurs des membres sont conservés."), allowedMentions: { parse: [] } }); return;
   }
   if (sub === "pvp-module") {
     const enabled = command?.options.getBoolean("enabled", true) ?? false;
@@ -165,8 +165,8 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
     const enabled = command?.options.getBoolean("enabled", true) ?? false;
     await prisma.guildSettings.update({ where: { guildId: ctx.guildId }, data: { unifiedGroupFinder: enabled } });
     await i.editReply({ content: enabled
-      ? t("One group finder on (the default). The pinned button asks dungeon, battleground, arena or world PvP and every post goes to the group finder channel. /setup stops creating the PvP groups channel; an existing one stays and can be archived.", "Recherche de groupe unique activée (par défaut). Le bouton épinglé demande donjon, champ de bataille, arène ou JcJ en monde ouvert et chaque message va dans le salon de recherche de groupe. /setup ne crée plus le salon des groupes JcJ; celui qui existe reste et peut être archivé.")
-      : t("One group finder off. The pinned button posts dungeons only; PvP groups are posted in the PvP groups channel, as before.", "Recherche de groupe unique désactivée. Le bouton épinglé ne publie que des donjons; les groupes JcJ restent dans leur salon, comme avant."), allowedMentions: { parse: [] } }); return;
+      ? t("One group finder on (the default). The pinned button asks dungeon, battleground, arena or world PvP and every post goes to the group finder channel. /setup stops creating the PvP groups channel; an existing one stays and can be archived.", "Recherche de groupe unique activée (par défaut). Le bouton épinglé demande donjon, champ de bataille, arène ou JcJ en monde ouvert et chaque message va dans le salon de recherche de groupe. /setup ne crée plus le salon des groupes JcJ ; celui qui existe reste et peut être archivé.")
+      : t("One group finder off. The pinned button posts dungeons only; PvP groups are posted in the PvP groups channel, as before.", "Recherche de groupe unique désactivée. Le bouton épinglé ne publie que des donjons ; les groupes JcJ restent dans leur salon, comme avant."), allowedMentions: { parse: [] } }); return;
   }
   if (sub === "duel-board") {
     const enabled = command?.options.getBoolean("enabled", true) ?? false;
@@ -175,7 +175,7 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
     await prisma.guildSettings.update({ where: { guildId: ctx.guildId }, data: { duelBoardEnabled: enabled } });
     const posted = enabled ? await updateDuelBoard(i.guild) : false;
     await i.editReply({ content: enabled
-      ? t(`Live duel board ${posted ? "posted" : "saved; it appears on the next refresh"} in <#${settings.duelBoardChannelId}>. It is edited in place, never re-posted.`, `Tableau des duels ${posted ? "publié" : "enregistré; il apparaîtra au prochain rafraîchissement"} dans <#${settings.duelBoardChannelId}>. Il est modifié sur place, jamais republié.`)
+      ? t(`Live duel board ${posted ? "posted" : "saved; it appears on the next refresh"} in <#${settings.duelBoardChannelId}>. It is edited in place, never re-posted.`, `Tableau des duels ${posted ? "publié" : "enregistré ; il apparaîtra au prochain rafraîchissement"} dans <#${settings.duelBoardChannelId}>. Il est modifié sur place, jamais republié.`)
       : t("Live duel board off. The existing message stays; delete it if you wish.", "Tableau des duels désactivé. Le message existant reste ; supprimez-le si vous le souhaitez."), allowedMentions: { parse: [] } }); return;
   }
   if (sub === "season-cards") {
@@ -189,7 +189,7 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
     const enabled = command?.options.getBoolean("enabled", true) ?? false;
     await prisma.guildSettings.update({ where: { guildId: ctx.guildId }, data: { duelCardsEnabled: enabled } });
     await i.editReply({ content: enabled
-      ? t("Duel cards on (the default): each counted duel gets a card in the duel ladder channel; many duels at once are folded into one summary card. Nobody is pinged.", "Cartes de duel activées (par défaut) : chaque duel compté a sa carte dans le salon du classement des duels; plusieurs duels d'un coup sont regroupés dans une carte résumé. Personne n'est mentionné.")
+      ? t("Duel cards on (the default): each counted duel gets a card in the duel ladder channel; many duels at once are folded into one summary card. Nobody is pinged.", "Cartes de duel activées (par défaut) : chaque duel compté a sa carte dans le salon du classement des duels ; plusieurs duels d'un coup sont regroupés dans une carte résumé. Personne n'est mentionné.")
       : t("Duel cards off. Cards already queued are not posted either. The live duel board is not affected.", "Cartes de duel désactivées. Les cartes déjà en file ne sont pas publiées non plus. Le tableau des duels n'est pas touché."), allowedMentions: { parse: [] } }); return;
   }
   if (sub === "setup" || sub === "privacy-help") {
@@ -220,7 +220,7 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
   if (sub === "stats") {
     const mode = text("mode"), bracket = text("bracket");
     if (!mode || !bracket) {
-      await i.editReply({ content: t("The battleground ladder in the PvP stats channel updates by itself, by battleground and level bracket. For one format only: `/bg stats mode:casual bracket:<bracket>` (the bracket is shown by `/bg result`); add `season:<number>` for an earlier season.", "Le classement des champs de bataille du salon des statistiques JcJ se met à jour tout seul, par champ de bataille et tranche de niveaux. Pour un seul format : `/bg stats mode:casual bracket:<tranche>` (la tranche est affichée par `/bg result`); ajoute `season:<numéro>` pour une saison passée."), allowedMentions: { parse: [] } }); return;
+      await i.editReply({ content: t("The battleground ladder in the PvP stats channel updates by itself, by battleground and level bracket. For one format only: `/bg stats mode:casual bracket:<bracket>` (the bracket is shown by `/bg result`); add `season:<number>` for an earlier season.", "Le classement des champs de bataille du salon des statistiques JcJ se met à jour tout seul, par champ de bataille et tranche de niveaux. Pour un seul format : `/bg stats mode:casual bracket:<tranche>` (la tranche est affichée par `/bg result`) ; ajoute `season:<numéro>` pour une saison passée."), allowedMentions: { parse: [] } }); return;
     }
     const guild = await prisma.guild.findUniqueOrThrow({ where: { id: ctx.guildId }, select: { gameEdition: true } });
     const now = new Date();
@@ -253,7 +253,7 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
   if (sub === "panel") {
     await i.editReply({ components: [battlegroundPanel(fr, ctx.guildId), battlegroundRecordPanel(fr, ctx.guildId)], embeds: [new EmbedBuilder().setTitle(t("Battlegrounds", "Champs de bataille")).setDescription(t(
       "Create: /bg create\nJoin: /bg upcoming → /bg join\nMy groups: /bg mine\nDetails: /bg view\nLeave: /bg leave\n\nMy results: /bg history\nGuild statistics: /bg stats\nPrivate planning; reports are shared. No automatic posts or awards. Unverified queue formats cannot start; provisional reports are excluded from verified statistics.",
-      "Créer : /bg create\nRejoindre : /bg upcoming → /bg join\nMes groupes : /bg mine\nDétails : /bg view\nQuitter : /bg leave\n\nMes résultats : /bg history\nStatistiques de guilde : /bg stats\nPlanification privée; les rapports sont partagés. Aucun message automatique ni récompense. Les formats non vérifiés ne démarrent pas; les rapports provisoires restent hors des statistiques vérifiées."))] });
+      "Créer : /bg create\nRejoindre : /bg upcoming → /bg join\nMes groupes : /bg mine\nDétails : /bg view\nQuitter : /bg leave\n\nMes résultats : /bg history\nStatistiques de guilde : /bg stats\nPlanification privée ; les rapports sont partagés. Aucun message automatique ni récompense. Les formats non vérifiés ne démarrent pas ; les rapports provisoires restent hors des statistiques vérifiées."))] });
     return;
   }
   if (sub === "create") {

@@ -40,7 +40,7 @@ export const BRACKET_PLAN: PlannedRoute[] = [
   guess("drowned-city", "30-44", 34, 42, 35),
   guess("scarlet-cathedral", "30-44", 35, 44, 25, "189:cathedral"),
   beta("razorfen-downs", "129", "30-44", 35, 44),
-  guess("kroldok-stronghold", "30-44", 38, 44, 70),
+  guess("kroldok-stronghold", "30-44", 40, 44, 70),
   beta("uldaman", "70", "30-44", 38, 44),
   guess("zulfarrak", "45-59", 45, 54, 40),
   guess("maraudon", "45-59", 46, 55, 50),

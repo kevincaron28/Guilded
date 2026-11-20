@@ -1,12 +1,10 @@
-import { MessageFlags, SlashCommandBuilder, type ChatInputCommandInteraction } from "discord.js";
+import { MessageFlags, type ChatInputCommandInteraction } from "discord.js";
 import { asLang, t, type Lang } from "../i18n.js";
 import { guildService } from "./context.js";
-import type { Mount } from "./router.js";
 
-// Commands restructure (November 2026): a subcommand that moved stays registered for one release
-// under its old name, marked "(moved)", and answers privately where it went. Retired top-level
-// commands (/wow, /import, /poll, /delete-my-data) are no longer registered; main.ts keeps a handler
-// for their names so a call Discord still routes gets the same answer.
+// Commands restructure (November 2026): retired top-level commands (/wow, /import, /poll, /delete-my-data)
+// are no longer registered; main.ts keeps a handler for their names so a call Discord still routes
+// gets a private answer saying where it went.
 
 /** Old top-level command -> where it went. */
 export const RETIRED_COMMANDS: Record<string, string> = {
@@ -38,20 +36,3 @@ export async function replyMoved(interaction: ChatInputCommandInteraction, targe
 
 /** Handler for a retired top-level command name. */
 export const retiredHandler = (name: string) => (interaction: ChatInputCommandInteraction) => replyMoved(interaction, RETIRED_COMMANDS[name] ?? "/help");
-
-/**
- * Stub subcommands for a parent: old name -> where it went. Mount the result on the parent;
- * each stub has no options and only says where the subcommand moved.
- */
-export function movedStubs(entries: Record<string, string>): Mount {
-  const builder = new SlashCommandBuilder().setName("moved").setDescription("Subcommands that moved.");
-  for (const [name, target] of Object.entries(entries)) {
-    builder.addSubcommand((sub) => sub.setName(name).setDescription(`(moved) ${target}`.slice(0, 100))
-      .setDescriptionLocalizations({ fr: `(déplacé) ${target}`.slice(0, 100) }));
-  }
-  return {
-    command: builder,
-    handler: async (interaction) => replyMoved(interaction, entries[interaction.options.getSubcommand()] ?? "/help"),
-    flat: Object.fromEntries(Object.keys(entries).map((name) => [name, name]))
-  };
-}

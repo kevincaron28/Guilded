@@ -28,9 +28,7 @@ Dans un Discord en français, les commandes des membres ont aussi un nom frança
 `/artisanat` `demander` `liste` `qui` `mes-demandes` `proposer`, `/classement`, `/aide`, `/rapport` et `/promotion` `statut`.
 
 **Les sept à connaître :** `/help`, `/character link`, `/promotion status`, `/craft request`, `/leaderboard`, `/raid` et `/report bug`.
-Le reste est là au besoin. Les commandes déplacées en novembre 2026 (`/character pair`, `import` et `claim`,
-`/wow`, `/import`, `/poll`, `/delete-my-data` et les parties officiers de `/bank`, `/tag`, `/participation`, `/report` et `/craft`)
-indiquent en privé leur nouvel emplacement pendant une version.
+Le reste est là au besoin.
 
 ### Membres
 
@@ -214,12 +212,12 @@ Les lignes « Officiers » demandent le rang d’officier dans votre guilde WoW.
 ## Compagnon Windows
 
 Une petite application Windows gratuite. Facultative pour l’addon, requise pour les fonctions
-Discord et le site. Toutes les étapes : [Application compagnon](https://guilded.kcaron.top/companion/).
+Discord et le site. Toutes les étapes : [Application compagnon](https://guildedwow.com/companion/).
 
 | Quoi | Détail |
 | --- | --- |
 | Ce qu’il fait | Envoie les données enregistrées de votre addon à Discord et au site, et rapporte les classements dans le jeu |
-| Où l’obtenir | [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) (recommandé, mise à jour automatique) ou le [téléchargement direct](https://guilded.kcaron.top/downloads/Guilded.Companion.Setup.exe) (solution de rechange non signée) |
+| Où l’obtenir | [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) (recommandé, mise à jour automatique) ou le [téléchargement direct](https://guildedwow.com/downloads/Guilded.Companion.Setup.exe) (solution de rechange non signée) |
 | Plateforme | Windows seulement. Pas de version Mac, Linux ni navigateur |
 | Première ouverture | Choisir **Connexion avec Discord**, sélectionner votre serveur (ou les classements publics seulement), puis vos données |
 | Après avoir joué | `/reload` dans WoW et le compagnon synchronise |

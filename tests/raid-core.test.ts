@@ -190,7 +190,7 @@ describe("one member in several raid cores", () => {
 
   it("refuses a character that is not one of the player's own", async () => {
     const service = createRaidCoreService(fakeCoreDatabase() as never);
-    await expect(service.addMember("g", "c1", "m1", "DPS", false, "Uther")).rejects.toThrow(/Choisis ton personnage/);
+    await expect(service.addMember("g", "c1", "m1", "DPS", false, "Uther")).rejects.toThrow(/Choisissez votre personnage/);
     await expect(service.setCharacter("g", "c1", "m1", "Thrall")).rejects.toThrow(/not in Tuesday MC/);
   });
 
@@ -242,7 +242,7 @@ describe("backup characters in the same core", () => {
     expect(database.backups).toEqual([{ id: "b1", spotId: "s1", characterId: "ch-alt", role: "DPS" }]);
     await expect(service.addBackup("g", "c1", "m1", "Thrall", "DPS")).rejects.toThrow(/already their character/);
     await expect(service.addBackup("g", "c2", "m1", "Jaina", "DPS")).rejects.toThrow(/not in Weekend BWL/);
-    await expect(service.addBackup("g", "c1", "m1", "Uther", "DPS")).rejects.toThrow(/Choisis ton personnage/);
+    await expect(service.addBackup("g", "c1", "m1", "Uther", "DPS")).rejects.toThrow(/Choisissez votre personnage/);
     const { character } = await service.removeBackup("g", "c1", "m1", "JAINA");
     expect(character.name).toBe("Jaina");
     expect(database.backups).toEqual([]);

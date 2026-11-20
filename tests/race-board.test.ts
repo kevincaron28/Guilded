@@ -48,7 +48,7 @@ describe("race board embed and card", () => {
     expect(raceBoardEmbed(data([]), "en").toJSON().description).toContain("No levelled character");
     const fr = raceBoardEmbed(data([]), "fr").toJSON();
     expect(fr.title).toBe("🏁 Course au niveau 60");
-    expect(fr.footer?.text).toBe("/character race near trouve des partenaires de ton niveau");
+    expect(fr.footer?.text).toBe("/character race near trouve des partenaires de votre niveau");
     expect(fr.footer?.text).not.toContain(RACE_BOARD_MARKER);
   });
   it("lists the top characters with class, race, level bar, professions, last seen and the linked member", () => {

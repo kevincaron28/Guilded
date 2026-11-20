@@ -8,7 +8,7 @@ import { createWebApp, type WebRequest, type WebResponse } from "../src/services
 import { guildBannerTheme } from "../src/services/guild-banner.js";
 import { memoryWebStore } from "./helpers/memory-web-store.js";
 
-const SITE = "https://guilded.kcaron.top";
+const SITE = "https://guildedwow.com";
 const NOW = new Date("2026-11-10T20:00:00Z");
 const player = (character: string, className: string, role: string, level = 16) => ({ character, realm: "Doomhowl", className, role, level });
 const leaderRun = (id: string, durationSec: number, players: LeaderRun["players"] = [player("Kev", "Warrior", "TANK"), player("Amy", "Priest", "HEALER")], over: Partial<LeaderRun> = {}): LeaderRun => ({
@@ -545,7 +545,7 @@ describe("leaderboard and personal pages", () => {
     expect(kev.body).toContain('class="meter"');
     // A pasted link previews the season score and the logo (Discord reads Open Graph tags).
     expect(kev.body).toMatch(/<meta property="og:description" content="Kev, Warrior tank: dungeon score \d+ \([^"]+\), best clear [^"]+\. WoW Forever leaderboards on Guilded\.">/);
-    expect(kev.body).toContain('<meta property="og:image" content="https://guilded.kcaron.top/forever/leaderboards/character/Kev-Doomhowl/card.png">');
+    expect(kev.body).toContain('<meta property="og:image" content="https://guildedwow.com/forever/leaderboards/character/Kev-Doomhowl/card.png">');
     expect(home.body).toContain('<meta property="og:title" content="');
     expect(home.body).toContain("Top guilds");
     expect(home.body).toContain('class="bracket-switch"');
@@ -559,8 +559,8 @@ describe("leaderboard and personal pages", () => {
     expect(scoreAt).toBeGreaterThan(0);
     expect(home.body.indexOf('id="season"')).toBeGreaterThan(scoreAt);
     expect(home.body).toContain("table.rank-cards");
-    expect(home.body).toContain('rel="canonical" href="https://guilded.kcaron.top/forever/leaderboards/dungeons/"');
-    expect(home.body).toContain('hreflang="fr" href="https://guilded.kcaron.top/fr/forever/leaderboards/dungeons/"');
+    expect(home.body).toContain('rel="canonical" href="https://guildedwow.com/forever/leaderboards/dungeons/"');
+    expect(home.body).toContain('hreflang="fr" href="https://guildedwow.com/fr/forever/leaderboards/dungeons/"');
     expect(home.body).toContain(">This week</a>");
     expect(home.body).toContain("position:sticky");
     expect(home.body).toContain("overflow-x:visible");

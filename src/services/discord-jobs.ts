@@ -12,11 +12,11 @@ import { participationDay } from "./participation-rules.js";
 
 type Db = Pick<PrismaClient, "discordJob">;
 export type JobKind = "GAME_EVENT_BOARD" | "GAME_EVENT_REMINDER" | "RAID_REMINDER" | "POLL_REFRESH" | "DUNGEON_BOARD" | "DUEL_BOARD" | "ACTIVITY_BOARD" | "WHOS_WHO_BOARD" | "RACE_BOARD" | "BG_LADDER" | "PROFESSIONS" | "RAID_POST" | "CORE_ROSTER" | "CALENDAR" | "SIGNUP_ANSWERS" | "MESSAGE" | "COMMUNITY_POST" | "SCHEDULED_EVENT" | "TEAM_ROSTER" | "TEAM_SESSION" | "TEAM_REMINDER" | "PUG_POST" | "PUG_NOTICE" | "PVP_CALL" | "PVP_RECAP" | "GAME_REMINDER" | "INVITE_CLEANUP";
-export async function enqueueDiscordJob(database: Db, guildId: string, key: string, kind: JobKind, payload: Prisma.InputJsonValue = {}) {
+export async function enqueueDiscordJob(database: Db, guildId: string, key: string, kind: JobKind, payload: Prisma.InputJsonValue = {}, notBefore?: Date) {
   return database.discordJob.upsert({ where: { guildId_key: { guildId, key } },
-    create: { guildId, key, kind, payload },
+    create: { guildId, key, kind, payload, ...(notBefore ? { nextAttemptAt: notBefore } : {}) },
     // Never clear an active lease. Its owner notices a newer revision when settling.
-    update: { kind, payload, revision: { increment: 1 }, status: "PENDING", attempts: 0, nextAttemptAt: new Date(), lastError: null } });
+    update: { kind, payload, revision: { increment: 1 }, status: "PENDING", attempts: 0, nextAttemptAt: notBefore ?? new Date(), lastError: null } });
 }
 
 export function retryDelay(attempt: number): number { return Math.min(3_600_000, 30_000 * 2 ** Math.min(Math.max(attempt - 1, 0), 7)); }

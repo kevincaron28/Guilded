@@ -846,7 +846,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   if (interaction.isButton() && interaction.customId === PROMOTION_STATUS_BUTTON) {
     await handlePromotionButton(interaction).catch(async (error: unknown) => {
       reportInteractionError("Promotion status", interaction, error);
-      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demande à un officier.";
+      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demandez à un officier.";
       if (interaction.deferred && !interaction.replied) await interaction.editReply({ content }).catch(() => undefined);
       else if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     });
@@ -938,7 +938,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   if (interaction.isButton() && interaction.customId.startsWith(LINK_MOVE_PREFIX)) {
     await handleLinkMoveButton(interaction, prisma).catch(async (error: unknown) => {
       reportInteractionError("Character move undo button", interaction, error);
-      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demande à un officier.";
+      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demandez à un officier.";
       if (interaction.deferred) await interaction.editReply({ content }).catch(() => undefined);
       else if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     });
@@ -947,7 +947,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   if ((interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) && interaction.customId.startsWith(PANEL_PREFIX)) {
     await handlePanelInteraction(interaction, prisma).catch(async (error: unknown) => {
       reportInteractionError("Character panel", interaction, error);
-      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demande à un officier.";
+      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demandez à un officier.";
       if (interaction.deferred) await interaction.editReply({ content }).catch(() => undefined);
       else if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     });
@@ -956,7 +956,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   if ((interaction.isButton() || interaction.isStringSelectMenu()) && interaction.customId.startsWith(LINKED_PREFIX)) {
     await handleLinkedButton(interaction, prisma).catch(async (error: unknown) => {
       reportInteractionError("Linked characters button", interaction, error);
-      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demande à un officier.";
+      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demandez à un officier.";
       if (interaction.deferred) await interaction.editReply({ content }).catch(() => undefined);
       else if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     });
@@ -968,7 +968,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
       : interaction.isButton() && interaction.customId.startsWith(`${INVITE_REQUEST_PREFIX}done:`) ? handleInviteDoneButton(interaction, prisma) : handleInviteRequestInteraction(interaction, prisma);
     await handler.catch(async (error: unknown) => {
       reportInteractionError("Guild invite request", interaction, error);
-      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demande à un officier.";
+      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demandez à un officier.";
       if (interaction.deferred && !interaction.replied) await interaction.editReply({ content }).catch(() => undefined);
       else if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     });
@@ -977,7 +977,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   if (interaction.isButton() && interaction.customId.startsWith(GAME_REMINDER_PREFIX)) {
     await handleGameReminderButton(interaction).catch(async (error: unknown) => {
       reportInteractionError("Game reminders", interaction, error);
-      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demande à un officier.";
+      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demandez à un officier.";
       if (interaction.deferred && !interaction.replied) await interaction.editReply({ content, components: [] }).catch(() => undefined);
       else if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     });
@@ -986,7 +986,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   if ((interaction.isButton() || interaction.isStringSelectMenu()) && interaction.customId.startsWith(ONBOARD_PREFIX)) {
     await handleOnboardingInteraction(interaction).catch(async (error: unknown) => {
       reportInteractionError("Onboarding", interaction, error);
-      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demande à un officier.";
+      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demandez à un officier.";
       if (interaction.deferred && !interaction.replied) await interaction.editReply({ content, components: [], embeds: [] }).catch(() => undefined);
       else if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     });
@@ -1172,7 +1172,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   if (interaction.isButton() && interaction.customId.startsWith(APPLY_PREFIX)) {
     await handleApplyButton(interaction).catch(async (error: unknown) => {
       reportInteractionError("Application button", interaction, error);
-      const content = error instanceof Error ? error.message : "Impossible d'ouvrir ta candidature.";
+      const content = error instanceof Error ? error.message : "Impossible d'ouvrir votre candidature.";
       if (interaction.replied || interaction.deferred) await interaction.editReply({ content, components: [] }).catch(() => undefined);
       else await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     });

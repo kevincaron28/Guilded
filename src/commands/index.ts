@@ -50,7 +50,6 @@ import { communityCommand, lotteryCommand, gamingCommand, challengeCommand, exec
 
 import { PermissionFlagsBits } from "discord.js";
 import { MergedCommand, type AnyCommand, type Base, type Group, type Mount, type Pick } from "./router.js";
-import { movedStubs } from "./moved.js";
 import { leaderboardCommand } from "./leaderboard.js";
 import { applyFrenchNames } from "./french-names.js";
 import { BRAND } from "../brand.js";
@@ -71,7 +70,7 @@ applyFrenchNames();
 // Commands restructure (November 2026, owner: "Yes, full restructure"). Members are taught seven
 // commands (/help, /character, /promotion, /craft, /leaderboard, /raid, /report bug); everything an
 // officer runs lives in a tree members don't see (/officer, /lead, /mod, /organize, /setup, /config).
-// A subcommand that moved stays registered for one release as "(moved)" (moved.ts).
+// Retired top-level command names still get a private "moved" answer (moved.ts).
 
 type Buildable = { name: string; toJSON(): unknown };
 const same = (names: string[]) => Object.fromEntries(names.map((name) => [name, name]));
@@ -126,7 +125,6 @@ const GAMING_ORGANIZER = ["create", "edit", "attendance", "close", "cancel"];
 const CHALLENGE_ORGANIZER = ["create", "review", "claims", "close", "cancel"];
 const BANK_OFFICER = ["list", "handle", "stock", "settings"];
 const PARTICIPATION_OFFICER = ["settings", "channels", "claims", "review", "reverse"];
-const movedTo = (names: string[], prefix: string) => movedStubs(Object.fromEntries(names.map((name) => [name, `${prefix} ${name}`])));
 
 const character = new MergedCommand("character", "Link your characters; profile, professions, wishlist and readiness.", [
   { command: characterLinkCommand, handler: executeCharacterLink, flat: { link: "link", guild: "guild" } },
@@ -136,8 +134,7 @@ const character = new MergedCommand("character", "Link your characters; profile,
   { command: professionCommand, handler: executeProfession, as: "profession" },
   { command: attunementCommand, handler: executeAttunement, as: "attunement" },
   { command: wishlistCommand, handler: executeWishlist, as: "wishlist" },
-  { command: readinessCommand, handler: executeReadiness, as: "readiness", only: ["me"] },
-  movedStubs({ pair: "/character link", import: "/character link", claim: "/character link" })
+  { command: readinessCommand, handler: executeReadiness, as: "readiness", only: ["me"] }
 ], { command: characterCommand, handler: executeCharacter, except: CHARACTER_OFFICER })
   .setNameLocalizations({ fr: "personnage" })
   .setDescriptionLocalizations({ fr: "Lier vos personnages; profil, métiers, souhaits et préparation." });
@@ -158,12 +155,10 @@ const loot = new MergedCommand("loot", "Bid on loot, see loot history and soft r
 const dungeon = new MergedCommand("dungeon", "Dungeon challenge: leaderboard, records, groups and alerts.", [],
   { command: dungeonCommand, handler: executeDungeon });
 
-const craft = memberParent(craftCommand, executeCraft, Object.keys(CRAFT_OFFICER), [
-  movedStubs(Object.fromEntries(Object.entries(CRAFT_OFFICER).map(([old, name]) => [old, `/config craft ${name}`])))
-]);
-const bank = memberParent(bankCommand, executeBank, BANK_OFFICER, [movedTo(BANK_OFFICER, "/officer bank")]);
-const tag = memberParent(tagCommand, executeTag, ["set", "delete"], [movedTo(["set", "delete"], "/setup tags")]);
-const participation = memberParent(participationCommand, executeParticipation, PARTICIPATION_OFFICER, [movedTo(PARTICIPATION_OFFICER, "/setup participation")]);
+const craft = memberParent(craftCommand, executeCraft, Object.keys(CRAFT_OFFICER));
+const bank = memberParent(bankCommand, executeBank, BANK_OFFICER);
+const tag = memberParent(tagCommand, executeTag, ["set", "delete"]);
+const participation = memberParent(participationCommand, executeParticipation, PARTICIPATION_OFFICER);
 
 // Raid Leaders (Manage Events): raids, logs and readiness, and since November 2026 the EPGP and
 // loot officer tools (each handler still checks its own role, as before).
@@ -193,8 +188,7 @@ const officer = new MergedCommand("officer", "Officers: characters, roster, bank
   { command: exportCommand, handler: executeExport, as: "export" },
   { command: statsFeedCommand, handler: executeStatsFeed, as: "stats" },
   { command: rosterCommand, handler: executeRoster, as: "roster" },
-  { command: promotionCommand, handler: executePromotion, as: "promotion" },
-  movedStubs({ epgp: "/lead epgp", loot: "/lead loot" })
+  { command: promotionCommand, handler: executePromotion, as: "promotion" }
 ]).setDescriptionLocalizations({ fr: "Officiers : personnages, effectif, banque, donjons, rapports et exports." });
 
 const mod = new MergedCommand("mod", "Officers: moderation, applications, answers, web, recruiting.", [
@@ -211,8 +205,7 @@ const mod = new MergedCommand("mod", "Officers: moderation, applications, answer
 const report = new MergedCommand("report", "Report a bug; guild activity and bot status.", [
   { command: statsCommand, handler: executeStats, as: "stats" },
   { command: healthCommand, handler: executeHealth, as: "ping" },
-  { command: bugCommand, handler: executeBug, as: "bug" },
-  movedStubs({ inactive: "/officer reports inactive", games: "/officer reports games", guild: "/officer reports guild" })
+  { command: bugCommand, handler: executeBug, as: "bug" }
 ]).setNameLocalizations({ fr: "rapport" })
   .setDescriptionLocalizations({ fr: "Signaler un bogue; activité de la guilde et état du bot." });
 

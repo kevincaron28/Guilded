@@ -84,9 +84,9 @@ it("keeps the delivery id out of the footer members read, and still skips a post
   const sent = d.send.mock.calls[0]![0].embeds[0].data;
   expect(sent.footer.text).toBe("Un bilan par jour");
   expect(JSON.stringify(sent.footer)).not.toContain("delivery");
-  expect(sent.url).toBe("https://guilded.kcaron.top/?delivery=delivery");
+  expect(sent.url).toBe("https://guildedwow.com/?delivery=delivery");
   // A retry after a crash finds the post by that invisible link, or by the footer posts carried before 9.0.5.
-  for (const embed of [{ url: "https://guilded.kcaron.top/?delivery=delivery" }, { footer: { text: "Un bilan · Guilded delivery delivery" } }]) {
+  for (const embed of [{ url: "https://guildedwow.com/?delivery=delivery" }, { footer: { text: "Un bilan · Guilded delivery delivery" } }]) {
     const again = discord();
     again.fetch.mockResolvedValue({ isTextBased: () => true, messages: { fetch: async () => new Collection([["m", { author: { id: "bot" }, embeds: [embed] }]]) }, send: again.send } as never);
     await dispatchDiscordJob(again.guild as never, job({ route: "officer", channelId: "c", message: { embeds: [{ description: "x" }] } }) as never);

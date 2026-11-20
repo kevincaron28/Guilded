@@ -21,7 +21,7 @@ export function parseWeeklySchedule(input: string): WeeklySlot[] {
     const minute = Number(match[3] ?? 0);
     const suffix = match[4];
     if (minute > 59 || hour > 23 || ((suffix === "am" || suffix === "pm") && (hour < 1 || hour > 12)) || (!suffix && !match[3])) {
-      throw new Error(`Heure invalide : « ${line} ». Utilise 20h, 20:30 ou 8pm.`);
+      throw new Error(`Heure invalide : « ${line} ». Utilisez 20h, 20:30 ou 8pm.`);
     }
     if (suffix === "am" && hour === 12) hour = 0;
     if (suffix === "pm" && hour < 12) hour += 12;
@@ -31,7 +31,7 @@ export function parseWeeklySchedule(input: string): WeeklySlot[] {
       slots.set(`${weekday}:${hour}:${minute}`, { weekday, hour, minute });
     }
   }
-  if (!slots.size || slots.size > 14) throw new Error("Indique de 1 à 14 départs de raid par semaine.");
+  if (!slots.size || slots.size > 14) throw new Error("Indiquez de 1 à 14 départs de raid par semaine.");
   return [...slots.values()].sort((a, b) => a.weekday - b.weekday || a.hour - b.hour || a.minute - b.minute);
 }
 
@@ -40,7 +40,7 @@ export const weeklyScheduleText = (slots: WeeklySlot[]): string => slots.map(slo
 
 export function weeklyScheduleData(input: string | null | undefined, timezone: string, createdBy: string) {
   const slots = parseWeeklySchedule(input ?? "");
-  if (!isValidTimeZone(timezone)) throw new Error("Fuseau horaire invalide. Vérifie le fuseau du serveur dans /setup.");
+  if (!isValidTimeZone(timezone)) throw new Error("Fuseau horaire invalide. Vérifiez le fuseau du serveur dans /setup.");
   const schedule = slots.length ? weeklyScheduleText(slots) : null;
   return { schedule, weeklySchedule: schedule, weeklyTimezone: schedule ? timezone : null, weeklyCreatedBy: schedule ? createdBy : null };
 }

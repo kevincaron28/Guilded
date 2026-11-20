@@ -60,6 +60,8 @@ export interface ScoreCard { eyebrow?: string; title: string; subtitle: string; 
   recap?: RecapVisual;
   /** The weekly honors card (see WeeklyVisual). */
   weekly?: WeeklyVisual;
+  /** The promotion congratulations card (card-promotion.ts): one design per rank tier. */
+  promotion?: PromotionVisual;
   /** 9.1: the new guild record card, drawn by card-next-recap.ts. */
   record?: RecordVisual;
   /** Officer member-trend card (member-trend.ts), drawn by member-trend-card.ts. */
@@ -79,6 +81,10 @@ export interface WeeklyVisual {
   topLabel: string; top: { rank: number; name: string; points: string }[];
   rookie?: { label: string; name: string; points: string; place: string; placeLabel: string; note: string } | undefined;
   statsLabel: string; stats: { icon: WeeklyIcon; value: string; label: string }[]; ptsWord: string }
+
+/** Rank tiers of the promotion card: each has its own colour, emblem and background. Unknown rank names are "neutral". */
+export type PromotionTier = "initiate" | "member" | "officer" | "leader" | "neutral";
+export interface PromotionVisual { tier: PromotionTier; kicker: string; name: string; character: string; rankLabel: string; rank: string }
 
 /** A recap: up to three panels, each a title and up to five rows (name in its colour, a line under it, a value on the right). */
 export interface RecapVisual { theme: DungeonArtTheme; sections: { title: string; rows: CardRow[] }[] }

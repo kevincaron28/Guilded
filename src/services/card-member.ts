@@ -11,7 +11,7 @@ const MAX_AVATAR_BYTES = 1_000_000;
 export async function withDiscordMember(guild: Guild, card: ScoreCard, userId: string, fetchImage: (url: string) => Promise<Buffer | null> = downloadImage): Promise<ScoreCard> {
   try {
     const member = await guild.members.fetch(userId);
-    const url = member.displayAvatarURL({ extension: "png", size: 128, forceStatic: true });
+    const url = member.displayAvatarURL({ extension: "png", size: 256, forceStatic: true });
     const image = await fetchImage(url).catch(() => null);
     const role = member.roles.highest;
     const rank = role && role.id !== guild.id ? { label: role.name, color: role.color ? role.hexColor : "#b9a77f" } : undefined;

@@ -65,11 +65,21 @@ export async function renderPromotionCard(card: ScoreCard): Promise<Buffer | nul
   c.rect(x, 292 + dy, 84, 4, accent, { opacity: 0.9, rx: 2 });
   await c.text(v.rankLabel, x, 316 + dy, { size: 28, color: SUB, maxW: headW });
   await c.text(v.rank, x, 354 + dy, { size: 84, face: "bold", color: tint, maxW: headW });
-  // The tier's emblem balances the right side, on a dark disc so it reads against the painting.
-  c.raw(`<circle cx="1018" cy="236" r="104" fill="#000" fill-opacity=".66" stroke="${accent}" stroke-opacity=".85" stroke-width="4"/>`);
-  c.emblem(EMBLEM[tier], 954, 172, 128, tint);
+  // The right side holds the member's round portrait (Armory character picture, else Discord avatar) or, without one, the tier's emblem.
+  const face = await roundPortrait(card.portrait, 200);
+  c.raw(`<circle cx="1018" cy="236" r="104" fill="#000" fill-opacity="${face ? 0 : 0.66}" stroke="${accent}" stroke-opacity=".85" stroke-width="4"/>`);
+  if (!face) c.emblem(EMBLEM[tier], 954, 172, 128, tint);
   if (card.footer) await c.text(card.footer, x, 575, { size: 26, color: SUB, maxW: CARD_W - 112 });
-  return (await c.finish([{ input: await painting(tier), left: 0, top: 0 }])).png;
+  return (await c.finish([{ input: await painting(tier), left: 0, top: 0 }, ...(face ? [{ input: face, left: 918, top: 136 }] : [])])).png;
+}
+
+/** The portrait cut to a circle (null for a missing or unreadable picture, so the emblem shows instead). */
+async function roundPortrait(base64: string | undefined, size: number): Promise<Buffer | null> {
+  if (!base64) return null;
+  try {
+    return await sharp(Buffer.from(base64, "base64")).resize(size, size, { fit: "cover" })
+      .composite([{ input: Buffer.from(`<svg width="${size}" height="${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${size / 2}"/></svg>`), blend: "dest-in" }]).png().toBuffer();
+  } catch { return null; }
 }
 
 /** The card definition for one promotion (stored on the Discord job, drawn at delivery). */

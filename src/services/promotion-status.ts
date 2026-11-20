@@ -51,14 +51,14 @@ export function evaluateProgress(input: { rule: PromotionRule; characters: reado
 /** How to link: the bot DM, plus the server's invite channel when one is set (a full name typed there pre-links, invite-prelink.ts). */
 function linkHow(lang: Lang, inviteChannelId?: string | null): string {
   const ch = inviteChannelId ? `<#${inviteChannelId}>` : "";
-  return lang === "fr" ? `Envoie le nom complet de ton perso (Prénom Nom) en message privé au bot${ch ? `, ou écris-le dans ${ch}` : ""}.`
+  return lang === "fr" ? `Envoyez le nom complet de votre perso (Prénom Nom) en message privé au bot${ch ? `, ou écrivez-le dans ${ch}` : ""}.`
     : `DM your character's full name (First Last) to the bot${ch ? `, or type it in ${ch}` : ""}.`;
 }
 
 export function formatProgress(p: PromotionProgress, lang: Lang, inviteChannelId?: string | null): string {
   const t = (en: string, fr: string) => lang === "fr" ? fr : en;
   if (p.state === "off") return t("The promotion rule is switched off on this server.", "La règle de promotion est désactivée sur ce serveur.");
-  if (p.state === "above") return t(`You're already ${p.rank}. Nothing left to do.`, `Tu es déjà ${p.rank}. Il ne reste rien à faire.`);
+  if (p.state === "above") return t(`You're already ${p.rank}. Nothing left to do.`, `Vous êtes déjà ${p.rank}. Il ne reste rien à faire.`);
   const { rule } = p;
   const lines: string[] = [];
   const who = cleanCharacterName(p.character ?? "");
@@ -70,7 +70,7 @@ export function formatProgress(p: PromotionProgress, lang: Lang, inviteChannelId
   else lines.push(`${p.days >= rule.minDays ? "✅" : "❌"} ${t(`Days as ${rule.fromRank}`, `Jours comme ${rule.fromRank}`)}: ${p.days} / ${rule.minDays}`);
   if (rule.minLevel) lines.push(`${p.level !== null && p.level >= rule.minLevel ? "✅" : "❌"} ${t("Level", "Niveau")}: ${p.level ?? "?"} / ${rule.minLevel}`);
   if (rule.minVoiceMinutes > 0) lines.push(`${p.voiceMinutes >= rule.minVoiceMinutes ? "✅" : "❌"} ${t(`Voice, last ${PROMOTION_VOICE_DAYS} days`, `Vocal, ${PROMOTION_VOICE_DAYS} derniers jours`)}: ${formatVoiceDuration(p.voiceMinutes)} / ${formatVoiceDuration(rule.minVoiceMinutes)} ${t("(solo time counts)", "(seul, ça compte)")}`);
-  lines.push("", p.ready ? t("🎉 You're on the list to be promoted at the next officer pass.", "🎉 Tu es sur la liste pour être promu à la prochaine passe des officiers.") : t("Not yet: finish the ❌ items above.", "Pas encore : termine les points ❌ ci-dessus."));
+  lines.push("", p.ready ? t("🎉 You're on the list to be promoted at the next officer pass.", "🎉 Vous êtes sur la liste pour être promu à la prochaine passe des officiers.") : t("Not yet: finish the ❌ items above.", "Pas encore : termine les points ❌ ci-dessus."));
   return lines.join("\n");
 }
 
@@ -101,11 +101,11 @@ export function promotionAnnouncement(rule: PromotionRule, lang: Lang, custom: {
   const steps: string[] = [];
   const marks = ["1️⃣", "2️⃣", "3️⃣", "4️⃣"];
   const num = () => marks[steps.length]!;
-  if (rule.requireLink) steps.push(`${num()} ${t("Link your character: ", "Lie ton perso : ")}${linkHow(lang, custom.inviteChannelId)}`);
+  if (rule.requireLink) steps.push(`${num()} ${t("Link your character: ", "Liez votre perso : ")}${linkHow(lang, custom.inviteChannelId)}`);
   steps.push(`${num()} ${t(`Stay ${rule.fromRank}${rule.requireLink ? " and linked" : ""} for ${rule.minDays} days.`, `Reste ${rule.fromRank}${rule.requireLink ? " lié" : ""} pendant ${rule.minDays} jours.`)}`);
-  if (rule.minVoiceMinutes > 0) steps.push(`${num()} ${t(`Spend at least ${formatVoiceDuration(rule.minVoiceMinutes)} in voice every week (even alone in a channel, it counts).`, `Passe au moins ${formatVoiceDuration(rule.minVoiceMinutes)} dans le vocal par semaine (même seul dans un channel, ça compte).`)}`);
+  if (rule.minVoiceMinutes > 0) steps.push(`${num()} ${t(`Spend at least ${formatVoiceDuration(rule.minVoiceMinutes)} in voice every week (even alone in a channel, it counts).`, `Passez au moins ${formatVoiceDuration(rule.minVoiceMinutes)} dans le vocal par semaine (même seul dans un channel, ça compte).`)}`);
   const opening = intro?.trim() || t("We want an active guild, not just a list of names.", "On veut une guilde vivante, pas juste une liste de noms.");
   return new EmbedBuilder().setColor(0xc9a227)
     .setTitle(title?.trim() || t("📣 How to get promoted", "📣 Comment être promu"))
-    .setDescription([opening, "", `**${t(`To go from ${rule.fromRank} to the next rank:`, `Pour passer ${/^[aeiouyhàâéèêëîïôûù]/i.test(rule.fromRank) ? "d'" : "de "}${rule.fromRank} au rang suivant :`)}**`, ...steps, ...(note?.trim() ? [note.trim(), ""] : []), t("Click “Where am I?” to see what you still need.", "Clique sur « Où j'en suis ? » pour voir ce qu'il te manque.")].join("\n").slice(0, 3900));
+    .setDescription([opening, "", `**${t(`To go from ${rule.fromRank} to the next rank:`, `Pour passer ${/^[aeiouyhàâéèêëîïôûù]/i.test(rule.fromRank) ? "d'" : "de "}${rule.fromRank} au rang suivant :`)}**`, ...steps, ...(note?.trim() ? [note.trim(), ""] : []), t("Click “Where am I?” to see what you still need.", "Cliquez sur « Où j'en suis ? » pour voir ce qu'il vous manque.")].join("\n").slice(0, 3900));
 }

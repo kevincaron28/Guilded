@@ -16,7 +16,7 @@ const OWNED_TITLES = new Set<string>(Object.values(TITLES));
 
 const BODY = {
   en: "**1. Addon (required).** Pick the file for your WoW version. Close WoW before you install.\n**2. Companion (optional, Windows).** Sends your saved game data to Discord and the website. Latest from the Microsoft Store, or a direct download that updates itself.\n**3. Sign in with Discord.** One click; pairing and sync are then automatic. The 1-minute guide has every step.",
-  fr: "**1. Addon (obligatoire).** Choisis le fichier de ta version de WoW. Ferme WoW avant d'installer.\n**2. Compagnon (facultatif, Windows).** Envoie tes données de jeu enregistrées vers Discord et le site. Dernière version du Microsoft Store, ou un téléchargement direct qui se met à jour seul.\n**3. Connecte-toi avec Discord.** Un clic; le lien et la synchronisation sont ensuite automatiques. Le guide d'une minute détaille chaque étape."
+  fr: "**1. Addon (obligatoire).** Choisis le fichier de votre version de WoW. Fermez WoW avant d'installer.\n**2. Compagnon (facultatif, Windows).** Envoie vos données de jeu enregistrées vers Discord et le site. Dernière version du Microsoft Store, ou un téléchargement direct qui se met à jour seul.\n**3. Connectez-vous avec Discord.** Un clic; le lien et la synchronisation sont ensuite automatiques. Le guide d'une minute détaille chaque étape."
 } as const;
 
 const label = (lang: Lang, en: string, fr: string) => (lang === "fr" ? fr : en);

@@ -348,7 +348,7 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
 
   if (subcommand === "loot-mode") {
     if ((await guildService.getSettings(context.guildId))?.coreLootOnly) {
-      await interaction.reply({ content: "Chaque core choisit sa méthode de butin. Utilise /core edit → Méthode de butin, ou /core rules loot_mode:... pour le core voulu.", flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: "Chaque core choisit sa méthode de butin. Utilisez /core edit → Méthode de butin, ou /core rules loot_mode:... pour le core voulu.", flags: MessageFlags.Ephemeral });
       return;
     }
     const mode = asLootMode(interaction.options.getString("mode", true));

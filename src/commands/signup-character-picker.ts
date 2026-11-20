@@ -19,8 +19,8 @@ export async function pickSignupCharacter(interaction: ButtonInteraction | ChatI
   const lang = asLang((await prisma.guildSettings.findUnique({ where: { guildId }, select: { language: true } }))?.language);
   const text = (en: string, fr: string) => lang === "fr" ? fr : en;
   let page = 0;
-  const screen = () => ({ content: text("Which character are you bringing? Choose their name and realm.", "Quel personnage amènes-tu? Choisis son nom et son royaume."), components: [
-    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder().setCustomId("signupchar:choose").setPlaceholder(text("Your character for this signup", "Ton personnage pour cette inscription"))
+  const screen = () => ({ content: text("Which character are you bringing? Choose their name and realm.", "Quel personnage amenez-vous? Choisissez son nom et son royaume."), components: [
+    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder().setCustomId("signupchar:choose").setPlaceholder(text("Your character for this signup", "Votre personnage pour cette inscription"))
       .addOptions(characters.slice(page * 25, (page + 1) * 25).map(character => ({ label: `${characterName(character)} — ${character.realm}`.slice(0, 100), description: character.className.slice(0, 100), value: character.id })))),
     ...(characters.length > 25 ? [new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId("signupchar:previous").setLabel(text("Previous", "Précédents")).setStyle(ButtonStyle.Secondary).setDisabled(page === 0),

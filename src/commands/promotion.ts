@@ -37,13 +37,13 @@ export async function executePromotion(interaction: ChatInputCommandInteraction)
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const guild = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
     const { plan, rule } = await loadPromotionPlan(prisma, interaction.guild, guildId, guild.gameEdition ?? "forever");
-    await interaction.editReply({ content: rule.enabled ? formatPromotionPlan(plan, rule, lang) : t("The promotion panel is off. Turn it on with `/officer promotion rule on:true`.", "Le panneau de promotion est désactivé. Active-le avec `/officer promotion rule on:true`."), allowedMentions: { parse: [] } });
+    await interaction.editReply({ content: rule.enabled ? formatPromotionPlan(plan, rule, lang) : t("The promotion panel is off. Turn it on with `/officer promotion rule on:true`.", "Le panneau de promotion est désactivé. Activez-le avec `/officer promotion rule on:true`."), allowedMentions: { parse: [] } });
     return;
   }
 
   const o = interaction.options;
   if (isAltRank(o.getString("rank"))) {
-    await reply(t("Alts are never promoted automatically: choose a rank other than an Alt rank.", "Les alts ne sont jamais promus automatiquement : choisis un rang qui n'est pas un rang d'alt."));
+    await reply(t("Alts are never promoted automatically: choose a rank other than an Alt rank.", "Les alts ne sont jamais promus automatiquement : choisissez un rang qui n'est pas un rang d'alt."));
     return;
   }
   const data = {
@@ -61,7 +61,7 @@ export async function executePromotion(interaction: ChatInputCommandInteraction)
   const rule = ruleFrom({ ...settings, ...data });
   const weekly = (data.promotionWeeklyEnabled ?? settings?.promotionWeeklyEnabled) !== false;
   const where = data.promotionChannelId ?? settings?.promotionChannelId ?? settings?.logChannelId;
-  await reply(`${rule.enabled ? t("Promotion panel: **on**.", "Panneau de promotion : **actif**.") : t("Promotion panel: **off**.", "Panneau de promotion : **désactivé**.")} ${t(`Rank **${rule.fromRank}**, ${rule.minDays}+ days${rule.minLevel ? `, level ${rule.minLevel}+` : ""}${rule.requireLink ? ", linked" : ""}${rule.minVoiceMinutes ? `, ${formatVoiceDuration(rule.minVoiceMinutes)} in voice (7 days, solo counts)` : ""}.`, `Rang **${rule.fromRank}**, ${rule.minDays}+ jours${rule.minLevel ? `, niveau ${rule.minLevel}+` : ""}${rule.requireLink ? ", lié" : ""}${rule.minVoiceMinutes ? `, ${formatVoiceDuration(rule.minVoiceMinutes)} en vocal (7 jours, seul compte)` : ""}.`)} ${weekly && where ? t(`Weekly list in <#${where}> when someone is ready.`, `Liste hebdomadaire dans <#${where}> quand quelqu'un est prêt.`) : weekly ? t("Weekly list: no channel yet (set `channel:` or the log channel).", "Liste hebdomadaire : aucun salon (indique `channel:` ou le salon de journal).") : t("Weekly list: off.", "Liste hebdomadaire : désactivée.")}`);
+  await reply(`${rule.enabled ? t("Promotion panel: **on**.", "Panneau de promotion : **actif**.") : t("Promotion panel: **off**.", "Panneau de promotion : **désactivé**.")} ${t(`Rank **${rule.fromRank}**, ${rule.minDays}+ days${rule.minLevel ? `, level ${rule.minLevel}+` : ""}${rule.requireLink ? ", linked" : ""}${rule.minVoiceMinutes ? `, ${formatVoiceDuration(rule.minVoiceMinutes)} in voice (7 days, solo counts)` : ""}.`, `Rang **${rule.fromRank}**, ${rule.minDays}+ jours${rule.minLevel ? `, niveau ${rule.minLevel}+` : ""}${rule.requireLink ? ", lié" : ""}${rule.minVoiceMinutes ? `, ${formatVoiceDuration(rule.minVoiceMinutes)} en vocal (7 jours, seul compte)` : ""}.`)} ${weekly && where ? t(`Weekly list in <#${where}> when someone is ready.`, `Liste hebdomadaire dans <#${where}> quand quelqu'un est prêt.`) : weekly ? t("Weekly list: no channel yet (set `channel:` or the log channel).", "Liste hebdomadaire : aucun salon (indiquez `channel:` ou le salon de journal).") : t("Weekly list: off.", "Liste hebdomadaire : désactivée.")}`);
 }
 
 // `/promotion status` (every member): the member's own progress, private.

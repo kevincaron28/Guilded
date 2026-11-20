@@ -34,13 +34,13 @@ export function parseInviteAnswers(content: string | null | undefined): string |
 
 export function questionsBlock(lang: Lang, questions: readonly string[]): string {
   if (!questions.length) return "";
-  const intro = lang === "fr" ? "Sous ton nom, réponds à ces questions (une réponse par ligne) :" : "Under your name, answer these questions (one answer per line):";
+  const intro = lang === "fr" ? "Sous votre nom, répondez à ces questions (une réponse par ligne) :" : "Under your name, answer these questions (one answer per line):";
   return `${intro}\n${questions.map((q, i) => `${i + 1}. ${q}`).join("\n")}`;
 }
 
 export function guideText(lang: Lang, questions: readonly string[]): string {
   const how = lang === "fr"
-    ? "**Envie de rejoindre la guilde ?** Appuie sur le bouton ou écris ton nom de personnage complet (prénom et nom)."
+    ? "**Envie de rejoindre la guilde ?** Appuie sur le bouton ou écrivez votre nom de personnage complet (prénom et nom)."
     : "**Want to join?** Press the button or type your full character name (first and last).";
   return [how, questionsBlock(lang, questions)].filter(Boolean).join("\n\n");
 }

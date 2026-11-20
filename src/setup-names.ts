@@ -33,8 +33,8 @@ export const COMMUNITY_CHANNEL_SPECS: Record<Lang, Record<"activities" | "standi
     admin: { name: "discord-admin", topic: "For the Discord community officers, not the WoW guild officers (their channels are in the Officers category). Helper nominations and other community reviews land here.", access: "officers" }
   },
   fr: {
-    activities: { name: "activités", topic: "À toi de jouer : dé quotidien, activités, points et entraide. Utilise les boutons du panneau épinglé. Modèles organisateurs : /community hub.", access: "readonly" },
-    standings: { name: "🏆・leaderboard", topic: "Le podium de la gang. Clique pour tes points, ton dé, le classement complet et les anciennes saisons. Score gagné et solde disponible restent distincts.", access: "readonly" },
+    activities: { name: "activités", topic: "À vous de jouer : dé quotidien, activités, points et entraide. Utilisez les boutons du panneau épinglé. Modèles organisateurs : /community hub.", access: "readonly" },
+    standings: { name: "🏆・leaderboard", topic: "Le podium de la gang. Cliquez pour vos points, votre dé, le classement complet et les anciennes saisons. Score gagné et solde disponible restent distincts.", access: "readonly" },
     chat: { name: "chat-communauté", topic: "Chat communautaire pour tout le monde, tous jeux confondus.", access: "open" },
     honors: { name: "🏅・palmarès", topic: "Chaque lundi : le MVP de la semaine et le résumé de la semaine de la guilde. À la fin du mois : le top 3 du podium de la gang.", access: "readonly" },
     admin: { name: "admin-discord", topic: "Pour les officiers de la communauté Discord, pas ceux de la guilde WoW (leurs salons sont dans la catégorie Officiers). Les nominations d’entraide et autres validations communautaires arrivent ici.", access: "officers" }
@@ -120,7 +120,7 @@ const TEXT: Record<Lang, Record<ChannelField, { name: string; topic: string }>> 
     attendanceChannelId: { name: "presences-raid", topic: "Présents, retards, banc et absents de chaque raid (officiers seulement), publié avec le rapport de raid" },
     applicationChannelId: { name: "candidatures-raid", topic: "Nouvelles candidatures de recrutement (officiers seulement) : décidez sur chaque carte, ou utilisez /mod application list|view|approve|reject|trial" },
     guideChannelId: { name: `${BRAND.channelPrefix}-guide`, topic: "Commence ici : utiliser Guilded, installer l’addon WoW et connecter le compagnon" },
-    inviteChannelId: { name: "invitation-guilde", topic: "Envie de joindre la guilde ? Écris ici le nom complet de ton personnage en jeu (prénom et nom, par exemple Lebowski Holyroller). Un officier t’invitera en jeu et le bot ajoute un ✅ quand c’est fait." }
+    inviteChannelId: { name: "invitation-guilde", topic: "Envie de joindre la guilde ? Écrivez ici le nom complet de votre personnage en jeu (prénom et nom, par exemple Lebowski Holyroller). Un officier vous invitera en jeu et le bot ajoute un ✅ quand c’est fait." }
   }
 };
 

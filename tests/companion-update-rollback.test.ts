@@ -57,8 +57,8 @@ describe("9.4 T2: update rollback", () => {
     const { result, spawned, notes } = launch(dir);
     expect(result.action).toBe("rollback");
     expect(spawned).toHaveLength(1);
-    expect(spawned[0].file).toBe(join(dir, "updates", "keep", "Guilded.Companion.Setup.9.4.1.exe"));
-    expect(spawned[0].args).toContain("/S");
+    expect(spawned[0]!.file).toBe(join(dir, "updates", "keep", "Guilded.Companion.Setup.9.4.1.exe"));
+    expect(spawned[0]!.args).toContain("/S");
     expect(notes).toEqual([["9.4.2", "9.4.1"]]);
     expect(rb.readTrial(dir)).toBeNull();
     expect(existsSync(toFile)).toBe(false);

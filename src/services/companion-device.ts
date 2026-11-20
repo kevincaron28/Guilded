@@ -106,7 +106,8 @@ const deviceCharacterSchema = z.object({
 });
 export const deviceUploadSchema = z.object({
   /** The in-game guild the saved data belongs to (GuildedDB.guildKey, split by the companion). */
-  guild: z.object({ name: text(80), realm: text(80) }).nullable().optional(),
+  // The realm may be empty: WoW Forever 1.60.1 hides realm names, so the guild key can be "Guild-" (the name alone identifies the guild).
+  guild: z.object({ name: text(80), realm: z.string().trim().max(80).refine((value) => !value.includes("|") && Array.from(value).every((char) => char.charCodeAt(0) >= 32 && char.charCodeAt(0) !== 127)).optional().default("") }).nullable().optional(),
   characters: z.array(deviceCharacterSchema).max(DEVICE_LIMITS.charactersPerUpload).default([]),
   /** "Advanced: choose server": a Discord server ID among the candidates the bot listed. */
   server: z.string().regex(/^\d{5,25}$/).optional(),

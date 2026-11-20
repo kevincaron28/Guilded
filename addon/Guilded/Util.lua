@@ -111,6 +111,69 @@ function util.keepApart(frame, other, gap)
   return ok
 end
 
+-- Officer windows (Roster admin, Ready to promote, Invite queue) never cover each other or the main Guilded window.
+-- `util.placeBeside(frame)` puts `frame` next to the windows that are shown (right side first, then left), clamped to the
+-- screen, top aligned with the first of them. With no room it centres over the biggest one (the others stay apart
+-- from a frame placed fully on top). Absolute offsets from UIParent, never anchored to another window.
+util.OFFICER_WINDOWS = { "GuildedPanel", "GuildedRosterAdmin", "GuildedPromotionPanel", "GuildedInviteQueuePanel" }
+function util.placeBeside(frame, gap)
+  if not (frame and frame.GetWidth and UIParent and UIParent.GetWidth) then return false end
+  gap = gap or 8
+  local w, h = frame:GetWidth(), frame:GetHeight()
+  local sw, sh = UIParent:GetWidth(), UIParent:GetHeight()
+  if not (type(w) == "number" and type(h) == "number" and type(sw) == "number" and type(sh) == "number") then return false end
+  local others = {}
+  for _, name in ipairs(util.OFFICER_WINDOWS) do
+    local o = _G[name]
+    if o and o ~= frame and o.IsShown and o:IsShown() then
+      local l, r, t, b = cardRect(o)
+      if l then others[#others + 1] = { l = l, r = r, t = t, b = b, main = name == "GuildedPanel" } end
+    end
+  end
+  if #others == 0 then return false end
+  local function free(l, t)
+    if l < 0 or l + w > sw or t > sh or t - h < 0 then return false end
+    for _, o in ipairs(others) do
+      if l < o.r and l + w > o.l and t > o.b and t - h < o.t then return false end
+    end
+    return true
+  end
+  local top = math.min(others[1].t, sh)
+  if top - h < 0 then top = h end
+  local spots = {}
+  for _, o in ipairs(others) do spots[#spots + 1] = { o.r + gap, top }; spots[#spots + 1] = { o.l - w - gap, top } end
+  local left, spotTop
+  for _, c in ipairs(spots) do if free(c[1], c[2]) then left, spotTop = c[1], c[2]; break end end
+  local covering = false
+  if not left then
+    -- No room beside (20 Nov 2026, seen in game: the main window and Roster admin fill the screen width): cover ONE window
+    -- squarely instead of half-covering the main one. Prefer a side window (Roster admin opened this one) over the main
+    -- window, then the biggest; align to its top-left so the covered window's own title and buttons are hidden, not mixed in.
+    local pick
+    for _, o in ipairs(others) do
+      if not o.main and (not pick or (o.r - o.l) * (o.t - o.b) > (pick.r - pick.l) * (pick.t - pick.b)) then pick = o end
+    end
+    if not pick then
+      pick = others[1]
+      for _, o in ipairs(others) do if (o.r - o.l) * (o.t - o.b) > (pick.r - pick.l) * (pick.t - pick.b) then pick = o end end
+    end
+    left = math.max(0, math.min(sw - w, pick.l))
+    spotTop = math.max(h, math.min(sh, pick.t))
+    covering = true
+  end
+  local ok = pcall(function()
+    frame:ClearAllPoints()
+    frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, spotTop)
+    -- On top of what it covers: same strata as the highest shown Guilded window, then raised above every frame in it.
+    -- Raised again one frame later: the click that opened it (a button inside the covered window) raises that window after us.
+    -- Seen in game: both windows are DIALOG level 1, so the covered window's buttons (level 2+) still drew over this one's
+    -- background whatever Raise() did. Covering, it goes one strata up (FULLSCREEN, still under tooltips); beside, back to DIALOG.
+    if frame.SetFrameStrata then frame:SetFrameStrata(covering and "FULLSCREEN" or "DIALOG") end
+    if covering and frame.Raise then frame:Raise() end
+  end)
+  return ok
+end
+
 util.COMPANION_PAGE = "https://guildedwow.com/companion/"
 util.COMPANION_DOWNLOAD = "https://guildedwow.com/downloads/Guilded.Companion.Setup.exe"
 function util.companionSteps()
@@ -350,7 +413,7 @@ end
 -- Nil for anything that is not a plain player GUID (and for a secret value). Never part of a hashed field.
 function util.charId(guid)
   if type(guid) ~= "string" or isSecret(guid) or #guid > 40 then return nil end
-  local hex = guid:match("^Player%-%d+%-(%x+)$")
+  local hex = guid:match("^Player%-[^%-]*%-(%x+)$")
   if not hex or #hex > 16 then return nil end
   hex = hex:lower():gsub("^0+", "")
   return hex ~= "" and hex or nil

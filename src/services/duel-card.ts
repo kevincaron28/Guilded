@@ -4,10 +4,11 @@ import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import type { Lang } from "./../i18n.js";
 import { textlessEmbed } from "./card-only.js";
 import { displayCharacterName, type FullNameBook } from "./character-display.js";
-import { duelPoints, streakText, type FreshDuel } from "./duels.js";
+import { duelPoints, standingsFromDuels, streakText, type FreshDuel } from "./duels.js";
 import { classOf, type ClassBook } from "./ladder-classes.js";
-import { classColor, type ScoreCard } from "./score-card.js";
-import { placement, ratingApplies, rateSeason, ratingSeasonName, seasonOf, showChange, showRating, type RatedDuel } from "./duel-rating.js";
+import { classColor, type DuelSide, type DuelVisual, type ScoreCard } from "./score-card.js";
+import { cardDate } from "./card-format.js";
+import { placement, ratingApplies, rateSeason, ratingSeasonName, ratingStandings, seasonOf, showChange, showRating, type RatedDuel } from "./duel-rating.js";
 import { ratingFooter } from "./duel-rules.js";
 import { ratingStartOf } from "./duels.js";
 
@@ -24,9 +25,81 @@ const DUEL_COLOR = 0xb91c1c;
 
 /** From the rating start date (rating-v1) a duel moves ratings: what it did to each side, in shown-score points, and where they stand. */
 export interface DuelRatingInfo { winnerDelta: number; loserDelta: number; winnerScore: number; loserScore: number; winnerPlacement: string | null; loserPlacement: string | null; rated: boolean; seasonId: string; startsAt: string }
-export interface DuelCardInput extends FreshDuel { points: number; winnerScore: number; winnerStreak: number; winnerBest: number; rating?: DuelRatingInfo }
+export interface DuelCardInput extends FreshDuel { points: number; winnerScore: number; winnerStreak: number; winnerBest: number; rating?: DuelRatingInfo;
+  /** The winner's wins and losses against this very opponent up to and including this duel (counted duels). */ headToHead?: { wins: number; losses: number };
+  /** The winner's ladder rank right after this duel; absent while unranked. */ rank?: number }
+
+/** "0:47". */
+export const clockText = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
+/** 842 -> "842", 12400 -> "12k", 1840 -> "1.8k". */
+export const compactNumber = (value: number) => value < 1000 ? String(value) : value < 10_000 ? `${(Math.round(value / 100) / 10).toString()}k` : value < 1_000_000 ? `${Math.round(value / 1000)}k` : `${(Math.round(value / 100_000) / 10).toString()}M`;
+
+/**
+ * Pure: an upset is a win by the lower-level player against an opponent 3 or more levels above, or (rated duels) by the lower-rated
+ * player against one rated 50 or more points higher before the duel.
+ */
+export function isUpset(duel: Pick<DuelCardInput, "winnerLevel" | "loserLevel" | "rating">): boolean {
+  if (duel.winnerLevel && duel.loserLevel && duel.loserLevel - duel.winnerLevel >= 3) return true;
+  const r = duel.rating;
+  return Boolean(r?.rated && (r.loserScore - r.loserDelta) - (r.winnerScore - r.winnerDelta) >= 50);
+}
+
+/**
+ * What the bot already knows about the pair, per duel: the winner's record against this opponent (up to and including the duel) and
+ * the winner's rank right after it (the season's rating order from the rating start, else the old points order).
+ */
+export function withExtras(duels: readonly DuelCardInput[], history: readonly (HistoryRow & { winnerCharacter: string; loserCharacter: string; endedAt: Date })[], startsAt: Date): DuelCardInput[] {
+  return duels.map(duel => {
+    const upTo = history.filter(row => row.endedAt <= duel.endedAt);
+    const pair = upTo.filter(row => (row.winnerId === duel.winnerId && row.loserId === duel.loserId) || (row.winnerId === duel.loserId && row.loserId === duel.winnerId));
+    const wins = pair.filter(row => row.winnerId === duel.winnerId).length;
+    let rank: number | undefined;
+    if (ratingApplies(duel.endedAt, startsAt)) {
+      const id = seasonOf(duel.endedAt, startsAt).id;
+      const rows: RatedDuel[] = upTo.filter(row => seasonOf(row.endedAt, startsAt).id === id).map(row => ({ winnerKey: row.winnerId, loserKey: row.loserId, winnerName: row.winnerCharacter, loserName: row.loserCharacter, winnerLevel: row.winnerLevel, loserLevel: row.loserLevel, endedAt: row.endedAt }));
+      rank = ratingStandings(rateSeason(rows).players).find(row => row.key === duel.winnerId)?.rank ?? undefined;
+    } else {
+      const index = standingsFromDuels(upTo, 100_000).findIndex(row => row.memberId === duel.winnerId);
+      rank = index >= 0 ? index + 1 : undefined;
+    }
+    return { ...duel, ...(pair.length ? { headToHead: { wins, losses: pair.length - wins } } : {}), ...(rank ? { rank } : {}) };
+  });
+}
+
+/**
+ * The measured numbers as bar figures per side, the time and the pills, shown plainly. Damage and healing are derived from each player's
+ * own health changes (WoW Forever restricts the combat log), so they are close, not exact; that is explained here and in the docs, not on the card.
+ * Only known numbers appear; damage dealt is the opponent's damage taken.
+ */
+function extras(duel: DuelCardInput, fr: boolean): Pick<DuelVisual, "time" | "pills"> & { winner: NonNullable<DuelSide["stats"]>; loser: NonNullable<DuelSide["stats"]> } {
+  const s = duel.stats ?? {}, t = (en: string, french: string) => fr ? french : en;
+  const side = (dealt?: number, taken?: number, heal?: number, left?: number) => [
+    ...(dealt !== undefined ? [{ label: t("Dealt", "Infligés"), value: compactNumber(dealt) }] : []),
+    ...(taken !== undefined ? [{ label: t("Taken", "Subis"), value: compactNumber(taken) }] : []),
+    ...(heal !== undefined ? [{ label: t("Healing", "Soins"), value: compactNumber(heal) }] : []),
+    ...(left !== undefined ? [{ label: t("Health", "Vie"), value: `${left}%` }] : [])];
+  const pills: NonNullable<DuelVisual["pills"]> = [];
+  if (isUpset(duel)) pills.push({ text: t("Upset!", "Surprise !"), kind: "upset" });
+  const h = duel.headToHead;
+  if (h && h.wins + h.losses >= 2) pills.push({ text: `${t("Head to head", "Face à face")} ${h.wins}-${h.losses}` });
+  if (duel.rank) pills.push({ text: `${t("Rank", "Rang")} #${duel.rank}` });
+  return { ...(s.durationSec ? { time: clockText(s.durationSec) } : {}), ...(pills.length ? { pills } : {}),
+    winner: side(s.loserDamageTaken, s.winnerDamageTaken, s.winnerHealing, s.winnerHealthLeft), loser: side(s.winnerDamageTaken, s.loserDamageTaken, s.loserHealing, s.loserHealthLeft) };
+}
+
 
 const level = (value: number | null) => value ? String(value) : "—";
+
+/** The face-off picture's definition (card-duel.ts): same facts as the list rows, grouped per side. Portraits are added at delivery. */
+function faceOff(duel: DuelCardInput, lang: Lang, winner: DuelSide, loser: DuelSide, strip: string): DuelVisual {
+  const fr = lang === "fr", lv = (value: number | null) => value ? `${fr ? "Niv." : "Lv"} ${value}` : undefined;
+  const known = Boolean(duel.winnerLevel || duel.loserLevel), x = extras(duel, fr);
+  return { label: fr ? "Résultat du duel" : "Duel result", outcome: duel.reason === "retreat" ? (fr ? "Adversaire en fuite" : "Opponent fled") : (fr ? "Victoire par K.O." : "Won by knockout"),
+    ...(known ? { levels: `${lv(duel.winnerLevel) ?? (fr ? "Niv. ?" : "Lv ?")} vs ${duel.loserLevel ?? "?"}` } : {}),
+    strip: strip.slice(0, 200), date: cardDate(duel.endedAt, lang), ...(x.time ? { time: x.time } : {}), ...(x.pills ? { pills: x.pills } : {}),
+    winner: { ...winner, character: duel.winnerCharacter, level: lv(duel.winnerLevel), ...(x.winner.length ? { stats: x.winner } : {}) },
+    loser: { ...loser, character: duel.loserCharacter, level: lv(duel.loserLevel), ...(x.loser.length ? { stats: x.loser } : {}) } };
+}
 
 /** Pure: the card of one duel. */
 export function duelResultCard(duel: DuelCardInput, lang: Lang, classes: ClassBook, names: FullNameBook): ScoreCard {
@@ -52,7 +125,11 @@ export function duelResultCard(duel: DuelCardInput, lang: Lang, classes: ClassBo
         { name: winner, color: classColor(classOf(classes, duel.winnerCharacter)), sub: t("Winner", "Gagnant"), right: moved(r.winnerDelta, r.winnerScore), rightTone: "green" },
         { name: loser, color: classColor(classOf(classes, duel.loserCharacter)), sub: fled ? t("Fled", "A fui") : t("Defeated", "Vaincu"), right: moved(r.loserDelta, r.loserScore), rightTone: "red" }
       ],
-      footer: `${r.rated ? "" : t("No rating change for this duel · ", "Aucun changement de cote pour ce duel · ")}${ratingFooter(lg, ratingSeasonName(r.seasonId, lg), new Date(r.startsAt))}`.slice(0, 300)
+      footer: `${r.rated ? "" : t("No rating change for this duel · ", "Aucun changement de cote pour ce duel · ")}${ratingFooter(lg, ratingSeasonName(r.seasonId, lg), new Date(r.startsAt))}`.slice(0, 300),
+      duel: faceOff(duel, lang,
+        { name: winner, color: classColor(classOf(classes, duel.winnerCharacter)), tag: t("Winner", "Gagnant"), delta: change(r.winnerDelta), tone: r.rated ? "green" : "muted", standing: where(r.winnerScore, r.winnerPlacement) },
+        { name: loser, color: classColor(classOf(classes, duel.loserCharacter)), tag: fled ? t("Fled", "A fui") : t("Defeated", "Vaincu"), delta: change(r.loserDelta), tone: r.rated ? "red" : "muted", standing: where(r.loserScore, r.loserPlacement) },
+        `${r.rated ? "" : t("No rating change · ", "Aucun changement de cote · ")}${ratingFooter(lg, ratingSeasonName(r.seasonId, lg), new Date(r.startsAt), true)}`)
     };
   }
   return {
@@ -70,7 +147,11 @@ export function duelResultCard(duel: DuelCardInput, lang: Lang, classes: ClassBo
       { name: winner, color: classColor(classOf(classes, duel.winnerCharacter)), sub: t("Winner", "Gagnant"), right: `+${duel.points}`, rightTone: "green" },
       { name: loser, color: classColor(classOf(classes, duel.loserCharacter)), sub: fled ? t("Fled", "A fui") : t("Defeated", "Vaincu"), right: duel.loserLevel ? t(`Lv ${duel.loserLevel}`, `Niv ${duel.loserLevel}`) : undefined }
     ],
-    footer: t("Guild duel · Score: 10 per win, ±2 per level of difference · No rewards · guildedwow.com", "Duel de guilde · Score : 10 par victoire, ±2 par niveau d'écart · Aucune récompense · guildedwow.com")
+    footer: t("Guild duel · Score: 10 per win, ±2 per level of difference · No rewards · guildedwow.com", "Duel de guilde · Score : 10 par victoire, ±2 par niveau d'écart · Aucune récompense · guildedwow.com"),
+    duel: faceOff(duel, lang,
+      { name: winner, color: classColor(classOf(classes, duel.winnerCharacter)), tag: t("Winner", "Gagnant"), delta: `+${duel.points}`, tone: "green", standing: t(`${duel.winnerScore} in total`, `${duel.winnerScore} au total`) },
+      { name: loser, color: classColor(classOf(classes, duel.loserCharacter)), tag: fled ? t("Fled", "A fui") : t("Defeated", "Vaincu"), delta: "", tone: "muted", standing: t("No points", "Aucun point") },
+      t("Score: 10 per win, ±2 per level of difference · No rewards", "Score : 10 par victoire, ±2 par niveau d'écart · Aucune récompense"))
   };
 }
 
@@ -181,7 +262,7 @@ export async function queueDuelCards(database: Database, guildId: string, editio
   const history = await database.duelResult.findMany({ where: { guildId, gameEdition: edition, counted: true, archived: false }, orderBy: { endedAt: "asc" }, take: 20_000,
     select: { reportKey: true, winnerId: true, loserId: true, winnerCharacter: true, loserCharacter: true, winnerLevel: true, loserLevel: true, endedAt: true } });
   const startsAt = await ratingStartOf(database, guildId);
-  const duels = withRatings(withStandings([...fresh].sort((a, b) => a.endedAt.getTime() - b.endedAt.getTime()), standingsAfterEach(history, new Set(fresh.map(duel => duel.reportKey)))), history, startsAt);
+  const duels = withExtras(withRatings(withStandings([...fresh].sort((a, b) => a.endedAt.getTime() - b.endedAt.getTime()), standingsAfterEach(history, new Set(fresh.map(duel => duel.reportKey)))), history, startsAt), history, startsAt);
   const since = new Date(now.getTime() - WINDOW_MINUTES * 60_000);
   const used = await database.discordJob.count({ where: { guildId, key: { startsWith: "duel-card:one:" }, createdAt: { gte: since } } });
   const room = Math.max(0, WINDOW_CARDS - used), single = duels.slice(0, room), rest = duels.slice(room);

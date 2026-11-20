@@ -368,3 +368,29 @@ describe("manual helper and the alt rank in the way (19 Nov 2026)", () => {
     expect(texts).not.toContain("0 days left");
   });
 });
+
+describe("Ready to promote layout (20 Nov 2026)", () => {
+  it("keeps every row label on one line, narrower than the space left of its button, and sizes the window to its rows", () => {
+    setup(); roster();
+    s.run(`
+      local original = CreateFrame
+      function CreateFrame(kind, ...)
+        local f = original(kind, ...)
+        f.SetWordWrap = function(self, v) self.wrap = v end
+        f.SetWidth = function(self, v) self.width = v end
+        f.SetHeight = function(self, v) self.height = v end
+        f.GetHeight = function(self) return self.height or 0 end
+        return f
+      end
+      NS.promotion.open()`);
+    const labels = JSON.parse(s.run(`
+      local out = {}
+      for _, f in ipairs(FRAMES) do if rawget(f, "wrap") == false then out[#out + 1] = tostring(rawget(f, "width")) end end
+      return "[" .. table.concat(out, ",") .. "]"`));
+    expect(labels.length).toBe(18); // 12 promotion rows + 6 alt rows
+    // Labels start at x = 18 and the buttons at 370: label width + 18 must leave a gap.
+    for (const w of labels) expect(Number(w) + 18).toBeLessThanOrEqual(370);
+    // Two ready members and one waiting: far shorter than the old fixed 12-row height (250 + 18 * 26 = 718).
+    expect(Number(s.run(`local h = 9999 for _, f in ipairs(FRAMES) do local fh = rawget(f, "height"); if fh and fh > 150 and fh < h then h = fh end end return h`))).toBeLessThan(500);
+  });
+});

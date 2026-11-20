@@ -6,7 +6,8 @@
 // to the API. The conversion is documented by community sources for retail and Classic; for WoW Forever it is not yet
 // confirmed against a real upload, so armory-sync.ts also refuses an id match whose first names differ.
 
-const GUID = /^Player-(\d+)-([0-9A-Fa-f]{1,16})$/;
+// (Forever 1.60.1) The realm part may be 0, empty or obfuscated: only the low hex part is the character id.
+const GUID = /^Player-([^-]*)-([0-9A-Fa-f]{1,16})$/;
 // Up to 8 hex digits in practice (4 294 967 295), which overflows a 32-bit INTEGER: the column is BigInt (`wowId`).
 const MAX_ID = 9_223_372_036_854_775_807n;
 
@@ -17,7 +18,7 @@ export function parsePlayerGuid(guid: unknown): ParsedGuid | null {
   if (typeof guid !== "string" || guid.length > 40) return null;
   const match = GUID.exec(guid);
   if (!match) return null;
-  const realmId = Number(match[1]);
+  const realmId = /^\d+$/.test(match[1]!) ? Number(match[1]) : 0;
   const characterId = BigInt(`0x${match[2]}`);
   if (!Number.isSafeInteger(realmId) || characterId < 1n || characterId > MAX_ID) return null;
   return { realmId, characterId };

@@ -74,6 +74,26 @@ describe("officer companion bridge", () => {
     deliver(legacyReceiver, packets(officer));
     expect(legacyReceiver.run('return GuildedNextRaid.id')).toBe("raid1");
   });
+  it("Forever 1.60.1: a member whose client reports no realm still receives, and an officer without a realm still shares", () => {
+    const officer = client(true); snapshot(officer);
+    guildRealm(officer, "Classic Beta PvP", "ClassicBetaPvP");
+    officer.run('NS.commandHandlers.bridge({"on"})');
+    const member = client();
+    member.run('GetRealmName = function() return "" end; GetGuildInfo = function() return GUILD, "Officer", 1, "" end; DB.guildKey = "Test Guild-"');
+    deliver(member, packets(officer));
+    expect(member.run('return GuildedNextRaid.id')).toBe("raid1");
+    // The other way round: the realm-less officer's key is "Test Guild-" and a member with a realm accepts it.
+    const blindOfficer = client(true); snapshot(blindOfficer, "2026-10-05T20:30:00.000Z");
+    blindOfficer.run('GetRealmName = function() return "" end; GetGuildInfo = function() return GUILD, "Officer", 1, "" end; DB.guildKey = "Test Guild-"');
+    blindOfficer.run('NS.commandHandlers.bridge({"on"})');
+    const older = client(); guildRealm(older, "Classic Beta PvP", "ClassicBetaPvP");
+    deliver(older, packets(blindOfficer));
+    expect(older.run('return GuildedNextRaid.id')).toBe("raid1");
+    // A different guild name is still refused.
+    const outsider = client(); outsider.run('GUILD = "Other Guild"; GetRealmName = function() return "" end; GetGuildInfo = function() return GUILD, "Officer", 1, "" end; DB.guildKey = "Other Guild-"');
+    deliver(outsider, packets(officer));
+    expect(outsider.run('return tostring(DB.officerBridge)')).toBe("nil");
+  });
   it.each(segmentRealms)("shares from %s but rejects a same-named guild on another home", senderRealm => {
     const officer = client(true); snapshot(officer);
     guildRealm(officer, senderRealm, "ClassicBetaPvP");

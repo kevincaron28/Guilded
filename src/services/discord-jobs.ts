@@ -254,6 +254,17 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
         definition = await withCharacterPortrait(base, portraitSourcesFor(prisma, await sharedPortraits(), job.guildId, definition.promotion.character || definition.promotion.name, userId, avatar)).catch(() => base);
         return { definition, png: await scoreCardPng(definition).catch(() => null) };
       }
+      // Duel face-off cards (21 Nov 2026): a round portrait per fighter (Armory picture, else the owner's Discord avatar, else a ring).
+      if (definition?.duel && job.key.startsWith("duel-card:one:")) {
+        const { withDuelPortraits } = await import("./character-portrait.js");
+        const { downloadImage } = await import("./card-member.js");
+        const base = definition;
+        definition = await withDuelPortraits(base, prisma, await sharedPortraits(), job.guildId, async (userId) => {
+          const member = await guild.members.fetch(userId).catch(() => null);
+          return member ? await downloadImage(member.displayAvatarURL({ extension: "png", size: 256, forceStatic: true })).catch(() => null) : null;
+        }).catch(() => base);
+        return { definition, png: await scoreCardPng(definition).catch(() => null) };
+      }
       // Armory character pictures (20 Nov 2026, best effort, time-boxed): a dungeon party's round portraits, or the member's main character
       // on a card about one member. Order: Armory picture -> Discord avatar -> none. Member-uploaded pictures no longer exist.
       if (definition) {

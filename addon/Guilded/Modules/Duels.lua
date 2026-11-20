@@ -12,8 +12,12 @@
 --   * both players' level and class, from the guild roster (both are guild members by rule);
 --   * the duration (my own clock: the countdown ends -> the result line) and the zone, only on MY side;
 --   * my own health left at the end (a plain read at the result line), and the opponent's when it is my target.
--- Not available: damage, healing or crowd control (that needs the combat log, which WoW Forever restricts: no addon
--- file may register it, see scripts/validate-combat-log.mjs), the opponent's own numbers, and starting a rematch
+--   * (9.5) the damage I TOOK and the healing I RECEIVED, worked out from my own health going down and up (UNIT_HEALTH on
+--     "player" only, active only during a duel), plus my lowest health. These are estimates: two changes inside one update
+--     (a hit and a heal together) show as their difference, so they can read a little low. Each player measures only their own
+--     side and shares it in a separate "S" message; the damage I DEALT is the opponent's damage taken.
+-- Not available: exact damage, healing or crowd control (that needs the combat log, which WoW Forever restricts: no addon
+-- file may register it, see scripts/validate-combat-log.mjs), and starting a rematch
 -- (a protected action, so the card only says it in words).
 --
 --   /guilded duels            the top of the board in chat
@@ -674,8 +678,6 @@ end
 -- during the duel: no combat log, no unit scan.
 local session
 
-function duels.sessionStop() session = nil end
-
 local targetInfo -- defined below (class and level of my target)
 -- My zone now (a plain read; nil when the client does not say).
 local function currentZone()
@@ -684,11 +686,85 @@ local function currentZone()
   if ok and type(v) == "string" and v ~= "" and #v <= 80 and not (ns.isSecret and ns.isSecret(v)) then return v end
   return nil
 end
+-- (9.5) My own health during the duel: the sum of the decreases (damage taken) and of the increases (healing received), in absolute
+-- points, from the countdown's end to the result line; my lowest percent; a changed maximum is not counted. One frame, listening to
+-- "player" only and only while a duel session runs. A secret or odd value is skipped, never an error.
+local HP_CAP = 9999999
+local hpFrame
+local function hpRead()
+  if not (UnitHealth and UnitHealthMax) then return nil end
+  local ok, cur, max = pcall(function() return UnitHealth("player"), UnitHealthMax("player") end)
+  if not ok or type(cur) ~= "number" or type(max) ~= "number" then return nil end
+  if ns.isSecret and (ns.isSecret(cur) or ns.isSecret(max)) then return nil end
+  if max <= 0 or cur < 0 then return nil end
+  return cur, max
+end
+-- Takes one reading into the running session's tally.
+function duels.hpSample()
+  local s = session
+  local h = s and s.hp
+  if not h then return end
+  local cur, max = hpRead()
+  if not cur then return end
+  if not h.armed then
+    -- Before the countdown ends nothing is counted: only the baseline moves.
+    if clock() < (s.startedAt or 0) then h.last, h.max = cur, max; return end
+    h.armed = true
+  end
+  if h.max and max ~= h.max then
+    -- A new maximum (a buff, a level, gear) is not damage or healing.
+    h.max, h.last = max, cur
+  else
+    local last = h.last
+    if last and cur < last then h.taken = math.min(HP_CAP, h.taken + (last - cur)); h.events = h.events + 1
+    elseif last and cur > last then h.heal = math.min(HP_CAP, h.heal + (cur - last)); h.events = h.events + 1 end
+    h.max, h.last = max, cur
+  end
+  local pct = math.floor(cur * 100 / max)
+  if pct > 100 then pct = 100 end
+  h.left = pct
+  if not h.low or pct < h.low then h.low = pct end
+end
+local function hpStart()
+  local s = session
+  if not s then return end
+  local cur, max = hpRead()
+  s.hp = { taken = 0, heal = 0, events = 0, armed = false, last = cur, max = max }
+  if not hpFrame and CreateFrame then
+    hpFrame = CreateFrame("Frame")
+    hpFrame:SetScript("OnEvent", function(_, event, unit)
+      if (event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH") and unit == "player" and session and session.hp then
+        local ok, err = pcall(duels.hpSample)
+        if not ok and ns.logDiagnostic then ns.logDiagnostic("LUA_ERROR", "duels hp: " .. tostring(err)) end
+      end
+    end)
+  end
+  if hpFrame then
+    for _, event in ipairs({ "UNIT_HEALTH", "UNIT_MAXHEALTH" }) do
+      if hpFrame.RegisterUnitEvent then pcall(hpFrame.RegisterUnitEvent, hpFrame, event, "player") else pcall(hpFrame.RegisterEvent, hpFrame, event) end
+    end
+  end
+end
+local function hpStop()
+  if hpFrame and hpFrame.UnregisterAllEvents then pcall(hpFrame.UnregisterAllEvents, hpFrame) end
+end
+-- What I measured, or nil when nothing was (never armed, or my health never changed). Takes a last reading first.
+function duels.hpResult()
+  local s = session
+  local h = s and s.hp
+  if not h then return nil end
+  pcall(duels.hpSample)
+  if not h.armed or h.events < 1 then return nil end
+  return { taken = h.taken, heal = h.heal, low = h.low, left = h.left, max = h.max }
+end
+function duels.sessionStop() hpStop(); session = nil end
+
 local function startFight(seconds)
   local zone = currentZone()
   local opponent = session and session.opponent
   local wait = tonumber(seconds) or 0
   session = { startedAt = clock() + wait, opponent = opponent, zone = zone, oppInfo = targetInfo(opponent), countdownAt = epoch(), startAt = epoch() + wait }
+  hpStart()
 end
 
 -- Health left, in percent, of a unit; nil when the client does not say.
@@ -821,7 +897,7 @@ function duels.cardData(winner, loser, at, reason, ctx)
   local data = {
     won = won, reason = reason == "retreat" and "retreat" or "knockout", at = at,
     me = myName, opponent = oppName, myClass = myInfo.class, oppClass = oppInfo.class, myLevel = myInfo.level, oppLevel = oppInfo.level,
-    duration = ctx.duration, zone = ctx.zone, counted = ctx.counted ~= false, health = ctx.health, recorded = ctx.recorded ~= false,
+    duration = ctx.duration, zone = ctx.zone, counted = ctx.counted ~= false, health = ctx.health, recorded = ctx.recorded ~= false, hp = ctx.hp,
   }
   if ctx.outsider then
     -- The opponent is not in the guild: the result is shown, never recorded, no points, record or rank.
@@ -857,6 +933,24 @@ function duels.cardData(winner, loser, at, reason, ctx)
   return data
 end
 
+-- 12400 -> "12k", 1840 -> "1.8k": the same short numbers as the Discord card.
+local function shortNumber(n)
+  n = tonumber(n) or 0
+  if n < 1000 then return tostring(math.floor(n)) end
+  if n < 10000 then return string.format("%.1fk", n / 1000) end
+  if n < 1000000 then return string.format("%dk", math.floor(n / 1000 + 0.5)) end
+  return string.format("%.1fM", n / 1000000)
+end
+-- (9.5) "damage taken 3.1k - healing 760 - lowest health 21%", only what was measured; nil when nothing.
+function duels.hpText(hp)
+  if type(hp) ~= "table" then return nil end
+  local parts = {}
+  if hp.taken then parts[#parts + 1] = string.format(L("damage taken %s"), shortNumber(hp.taken)) end
+  if hp.heal then parts[#parts + 1] = string.format(L("healing %s"), shortNumber(hp.heal)) end
+  if hp.low then parts[#parts + 1] = string.format(L("lowest health %d%%"), hp.low) end
+  return #parts > 0 and table.concat(parts, "  -  ") or nil
+end
+
 -- The card's lines (already translated, class-coloured), top to bottom.
 function duels.cardLines(data)
   local lines = {}
@@ -882,6 +976,8 @@ function duels.cardLines(data)
     if h.opponent then parts[#parts + 1] = string.format(L("opponent's health left %d%%"), h.opponent) end
     lines[#lines + 1] = "|cffffd36a" .. table.concat(parts, "  -  ") .. "|r"
   end
+  local hpText = duels.hpText(data.hp)
+  if hpText then lines[#lines + 1] = "|cffffd36a" .. hpText .. "|r" end
   if data.rosterPending then
     lines[#lines + 1] = "|cffe0a050" .. L("Not counted yet: the guild roster has not loaded.") .. "|r"
   elseif data.outsider then
@@ -943,7 +1039,7 @@ local function closeCard() duels.hideCard() end
 
 -- Layout (9.3): one big result word, the two names in class colours, a row of compact stats with small labels at fixed
 -- columns, duration and zone in small print, the rematch hint last. A stat the data does not have is not drawn.
-local CARD_W, CARD_H, COLUMNS_W = 360, 196, 328
+local CARD_W, CARD_H, COLUMNS_W = 360, 210, 328
 local STAT_MAX = 4
 
 -- A name cut to fit its line (the card never grows or clips): "Averyveryverylongname" -> "Averyveryverylo...".
@@ -1022,7 +1118,8 @@ local function buildCard()
   end
   card.facts = text("GameFontHighlightSmall", 16, -148)
   card.health = text("GameFontHighlightSmall", 16, -161)
-  card.hint = text("GameFontDisableSmall", 16, -176)
+  card.hp = text("GameFontHighlightSmall", 16, -175)
+  card.hint = text("GameFontDisableSmall", 16, -190)
   card.close = CreateFrame("Button", nil, card, "UIPanelCloseButton")
   card.close:SetPoint("TOPRIGHT", 0, 0)
   card.close:SetScript("OnClick", closeCard)
@@ -1132,6 +1229,8 @@ local function drawCard(data)
   if h and h.me then parts[#parts + 1] = string.format(L("your health left %d%%"), h.me) end
   if h and h.opponent then parts[#parts + 1] = string.format(L("opponent's health left %d%%"), h.opponent) end
   card.health:SetText(#parts > 0 and ("|cffffd36a" .. table.concat(parts, "  -  ") .. "|r") or "")
+  local hpText = duels.hpText(data.hp)
+  card.hp:SetText(hpText and ("|cffffd36a" .. hpText .. "|r") or "")
   if data.preview then
     card.hint:SetText(L("Preview: sample numbers, nothing is saved."))
   else
@@ -1209,7 +1308,7 @@ end
 function duels.sampleCard()
   local mine = me() or "You"
   local data = duels.cardData(mine, "Rival Example", epoch(), "knockout", { me = mine, duration = 84, zone = L("Test zone"), counted = true,
-    health = { me = 38, opponent = 0 }, before = { rank = 3, best = 1 } })
+    health = { me = 38, opponent = 0 }, hp = { taken = 3120, heal = 760, low = 21, left = 38 }, before = { rank = 3, best = 1 } })
   -- (9.3.1) The preview always shows a stat row, with sample numbers when this character has no counted duel this season.
   -- Only the card's own data is filled in: nothing is saved and no ladder changes.
   data.preview = true
@@ -1227,6 +1326,32 @@ end
 
 local function share(winner, loser, at, reason)
   if IsInGuild and IsInGuild() then ns.comm.send(PREFIX, string.format("D|%s|%s|%d|%s", winner, loser, at, reason), "GUILD") end
+end
+
+-- (9.5) My measured numbers of a duel: kept on the stored row under my side and shared in their own message, so the "D" message keeps
+-- the exact shape older addons decode. "S|winner|loser|time|side|duration|taken|heal|low|left|max" (side w or l = the SENDER's side;
+-- an empty field is unknown). An older addon ignores it; a newer one files it under the sender's side.
+local STAT_MAX = 10000000
+local function statNumber(value, max)
+  value = tonumber(value)
+  if not value or value ~= value or value < 0 or value > max then return nil end
+  return math.floor(value)
+end
+-- Keeps a side's numbers on the row (the same fields for both sides: taken, heal, low, left, max).
+function duels.attachStats(row, side, stats)
+  if type(row) ~= "table" or (side ~= "w" and side ~= "l") or type(stats) ~= "table" then return false end
+  local clean = { taken = statNumber(stats.taken, STAT_MAX), heal = statNumber(stats.heal, STAT_MAX), low = statNumber(stats.low, 100),
+    left = statNumber(stats.left, 100), max = statNumber(stats.max, STAT_MAX) }
+  if clean.taken == nil and clean.heal == nil and clean.low == nil and clean.left == nil then return false end
+  row.stats = type(row.stats) == "table" and row.stats or {}
+  row.stats[side] = clean
+  if ns.syncNow and ns.syncNow.mark then pcall(ns.syncNow.mark) end
+  return true
+end
+local function shareStats(winner, loser, at, side, stats, duration)
+  if not (IsInGuild and IsInGuild()) or type(stats) ~= "table" then return end
+  local function field(v) return v ~= nil and tostring(math.floor(v)) or "" end
+  ns.comm.send(PREFIX, string.format("S|%s|%s|%d|%s|%s|%s|%s|%s|%s|%s", winner, loser, at, side, field(duration), field(stats.taken), field(stats.heal), field(stats.low), field(stats.left), field(stats.max)), "GUILD")
 end
 
 -- (9.3.2) A duel of mine that ended while the guild roster had not loaded (right after login GetNumGuildMembers() is 0): whether the
@@ -1367,6 +1492,7 @@ function duels.onSystem(text)
         if s and s.startedAt and clock() - s.startedAt >= 0 and clock() - s.startedAt < SESSION_MAX then
           ctx.duration, ctx.zone = clock() - s.startedAt, s.zone
           ctx.health = healthLeft(s.opponent)
+          ctx.hp = duels.hpResult()
         end
         -- No countdown seen (I sent the challenge, or the client gave no countdown): my zone now is where the duel ended.
         ctx.zone = ctx.zone or currentZone()
@@ -1382,7 +1508,7 @@ function duels.onSystem(text)
       -- While it has not loaded, the duel waits (duels.holdForRoster) and is recorded once it has, as a guild duel or an outside one.
       if not (ext.rosterPending or rosterPending()) then pcall(duels.recordExternal, winner, loser, at, reason, ext)
       else pcall(duels.holdForRoster, winner, loser, at, reason, ext) end
-      session = nil
+      duels.sessionStop()
     end
     return false
   end
@@ -1400,12 +1526,14 @@ function duels.onSystem(text)
       end
       ctx.zone = ctx.zone or currentZone()
       ctx.before = duels.rowFor(duels.standings(), mine) or { best = 0 }
+      ctx.hp = duels.hpResult()
     end)
     if not okCtx then ctx.before = nil end
-    session = nil
+    duels.sessionStop()
   end
   local isNew, key = duels.record(winner, loser, at, reason, ctx)
   if isNew and involved then share(winner, loser, at, reason) end
+
   if isNew and mine and same(mine, winner) and ns.milestones then pcall(ns.milestones.checkDuelWins, duels.myWins()) end
   if involved then
     local okCard, errCard = pcall(function()
@@ -1423,6 +1551,11 @@ function duels.onSystem(text)
         end
       end
       ctx.row, ctx.counted = row, ctx.recorded and (row == nil or isCounted(row)) or false
+      -- (9.5) My own measurements go on this duel's row and to the guild (not for a rematch inside the dedupe window).
+      if ctx.recorded and row and ctx.hp then
+        local side = same(mine, winner) and "w" or "l"
+        if duels.attachStats(row, side, ctx.hp) then shareStats(winner, loser, at, side, ctx.hp, ctx.duration) end
+      end
       local data = duels.cardData(winner, loser, at, reason, ctx)
       duels.lastCard = data
       duels.showCard(data)
@@ -1432,9 +1565,28 @@ function duels.onSystem(text)
   return isNew
 end
 
+-- "S|winner|loser|time|side|duration|taken|heal|low|left|max" (9.5): the sender's own numbers, believed only from the player whose side it names.
+function duels.onStatsMessage(text, sender)
+  local winner, loser, at, side, rest = text:match("^S|([^|]+)|([^|]+)|(%d+)|([wl])|(.*)$")
+  if not winner then return false end
+  winner, loser, at = bare(winner), bare(loser), tonumber(at)
+  local from = bare(sender)
+  if not winner or not loser or not from or not at then return false end
+  if not same(from, side == "w" and winner or loser) then return false end
+  if not (guildMember(winner) and guildMember(loser)) then return false end
+  local f = {}
+  for part in (rest .. "|"):gmatch("([^|]*)|") do f[#f + 1] = part end
+  local row = findRecent(winner, loser, at)
+  if not row then return false end
+  local duration = statNumber(f[1], SESSION_MAX)
+  if duration and duration >= 3 and not row.dur then row.dur = duration end
+  return duels.attachStats(row, side, { taken = f[2], heal = f[3], low = f[4], left = f[5], max = f[6] })
+end
+
 -- "D|winner|loser|time|reason" from a guildmate. Believed only from one of the two players.
 function duels.onAddonMessage(text, sender)
   if type(text) ~= "string" then return false end
+  if text:sub(1, 2) == "S|" then return duels.onStatsMessage(text, sender) end
   local winner, loser, at, reason = text:match("^D|([^|]+)|([^|]+)|(%d+)|(%a+)$")
   if not winner then return false end
   winner, loser, at = bare(winner), bare(loser), tonumber(at)

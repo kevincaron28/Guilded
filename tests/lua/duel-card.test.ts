@@ -217,9 +217,9 @@ describe("end-of-duel card", () => {
   it("sends only the one duel result through the shared budget, never from the card", () => {
     const lua = setup();
     playDuel(lua, "Kev Caron has defeated Bob Smith in a duel");
-    expect(lua.run(`return table.concat(SENT_LINES, ",")`)).toMatch(/^D\|Kev Caron\|Bob Smith\|\d+\|knockout$/);
+    expect(lua.run(`return table.concat(SENT_LINES, ",")`)).toMatch(/^D\|Kev Caron\|Bob Smith\|\d+\|knockout,S\|Kev Caron\|Bob Smith\|\d+\|w\|84\|58\|0\|42\|42\|100$/); // 9.5: the duel line unchanged, then my health numbers in their own message
     lua.run(`NS.commandHandlers.duels({ "card", "test" })`);
-    expect(stat("#SENT_LINES")).toBe("1");
+    expect(stat("#SENT_LINES")).toBe("2");
     expect(stat("NS.send")).toBe("nil");
   });
 
@@ -234,7 +234,7 @@ describe("end-of-duel card", () => {
     expect(stat("NS.duels.lastCard.rank")).toBe("nil");
     expect(lua.run(`return table.concat(NS.duels.cardLines(NS.duels.lastCard), "\\n")`)).toContain("Not recorded");
     expect(lua.run(`return NS.duels.standings()[1].wins`)).toBe("1");
-    expect(stat("#SENT_LINES")).toBe("1"); // and nothing more is shared
+    expect(stat("#SENT_LINES")).toBe("2"); // the duel and my numbers; nothing more for the rematch
   });
 
   it("when the opponent's message recorded the duel first, my duration and zone fill the row in", () => {
@@ -1023,5 +1023,81 @@ describe("two characters with the same first name", () => {
     lua.run(`ROSTER[#ROSTER + 1] = { "Lebowski Bigsby", 12, "ROGUE" }; NS.duels.rosterRefresh()`);
     expect(lua.run(`local d = NS.duels.cardData("Lebowski", "Blunt Cruising", CLOCK, "knockout", { me = "Blunt Cruising" }); return tostring(d.oppClass) .. tostring(d.oppLevel)`)).toBe("nilnil");
     expect(lua.run(`local d = NS.duels.cardData("Lebowski Highspirits", "Blunt Cruising", CLOCK, "knockout", { me = "Blunt Cruising" }); return tostring(d.oppClass)`)).toBe("nil");
+  });
+});
+
+// 9.5: my own health in a duel -> damage taken, healing received, lowest health (no combat log), shared in their own message.
+describe("duel health statistics (9.5)", () => {
+  const hp = (lua: LuaSession, unit: string, cur: number, max = 100, time?: number) => {
+    lua.run(`${time !== undefined ? `NOW = ${time};` : ""} HEALTH.${unit} = { ${cur}, ${max} }; fire_event("UNIT_HEALTH", "${unit}")`);
+  };
+  const start = (lua: LuaSession) => lua.run(`NOW = 100; HEALTH = { player = { 100, 100 } }; fire_event("DUEL_REQUESTED", "Bob Smith"); fire_event("DUEL_COUNTDOWN", 3)`);
+
+  it("sums decreases as damage taken and increases as healing, counts only after the countdown, skips max-health changes and other units", () => {
+    const lua = setup();
+    start(lua);
+    hp(lua, "player", 90, 100, 101);         // still counting down: only the baseline moves
+    hp(lua, "player", 70, 100, 110);         // -20
+    hp(lua, "player", 85, 100, 115);         // +15
+    hp(lua, "player", 60, 100, 120);         // -25
+    hp(lua, "player", 120, 200, 125);        // new maximum: not healing; 60 %
+    hp(lua, "player", 100, 200, 130);        // -20, lowest 50 %
+    lua.run(`HEALTH.target = { 5, 100 }; fire_event("UNIT_HEALTH", "target")`); // another unit: never read
+    lua.run(`NOW = 187; CLOCK = CLOCK + 90`);
+    say("Kev Caron has defeated Bob Smith in a duel");
+    const d = (field: string) => lua.run(`return tostring(NS.duels.lastCard.${field})`);
+    expect(d("hp.taken")).toBe("65");
+    expect(d("hp.heal")).toBe("15");
+    expect(d("hp.low")).toBe("50");
+    expect(d("hp.left")).toBe("50");
+    expect(lua.run(`return NS.duels.hpText(NS.duels.lastCard.hp)`)).toBe("damage taken 65  -  healing 15  -  lowest health 50%");
+    expect(lua.run(`return table.concat(NS.duels.cardLines(NS.duels.lastCard), "\\n")`)).toContain("damage taken 65");
+    // Never the combat log.
+    expect(stat("REG.COMBAT_LOG_EVENT_UNFILTERED")).toBe("nil");
+  });
+
+  it("is inactive outside a duel and leaves a duel without health changes with no numbers", () => {
+    const lua = setup();
+    hp(lua, "player", 10, 100, 50);          // no session: ignored, no error
+    start(lua);
+    lua.run(`NOW = 187; CLOCK = CLOCK + 90`);
+    say("Kev Caron has defeated Bob Smith in a duel");
+    expect(stat("NS.duels.lastCard.hp")).toBe("nil");
+    expect(lua.run(`return table.concat(NS.duels.cardLines(NS.duels.lastCard), "\\n")`)).not.toContain("damage taken");
+    // After the duel the session is gone: a health change is not counted into anything.
+    hp(lua, "player", 5, 100, 200);
+    expect(stat("NS.duels.hpResult()")).toBe("nil");
+  });
+
+  it("shares the numbers in a separate S message and keeps the D message exactly as older addons decode it", () => {
+    const lua = setup();
+    start(lua);
+    hp(lua, "player", 70, 100, 110); hp(lua, "player", 80, 100, 115);
+    lua.run(`NOW = 187; CLOCK = CLOCK + 90`);
+    say("Kev Caron has defeated Bob Smith in a duel");
+    const lines = lua.run(`return table.concat(SENT_LINES, "\\n")`).split("\n");
+    const dLine = lines.find(l => l.startsWith("D|"))!;
+    expect(dLine).toMatch(/^D\|([^|]+)\|([^|]+)\|(\d+)\|(\w+)$/);  // the pattern a pre-9.5 addon matches, unchanged
+    const sLine = lines.find(l => l.startsWith("S|"))!;
+    expect(sLine).toMatch(/^S\|Kev Caron\|Bob Smith\|\d+\|w\|84\|30\|10\|70\|80\|100$/);
+    // An older addon's decoder (anchored D pattern) never sees the S message as a duel.
+    expect(/^D\|([^|]+)\|([^|]+)\|(\d+)\|(\w+)$/.test(sLine)).toBe(false);
+    expect(lua.run(`local row; for _, r in pairs(DB.duels.results) do row = r end; return row.stats.w.taken .. ":" .. row.stats.w.heal .. ":" .. row.stats.w.low`)).toBe("30:10:70");
+  });
+
+  it("files the other player's own numbers under their side, only from that player", () => {
+    const lua = setup();
+    start(lua);
+    hp(lua, "player", 70, 100, 110);
+    lua.run(`NOW = 187; CLOCK = CLOCK + 90`);
+    say("Kev Caron has defeated Bob Smith in a duel");
+    const at = lua.run(`local row; for _, r in pairs(DB.duels.results) do row = r end; return row.at`);
+    // Cy cannot speak for Bob.
+    expect(lua.run(`return tostring(NS.duels.onAddonMessage("S|Kev Caron|Bob Smith|${at}|l|84|4890|0|0|0|100", "Cy Jones"))`)).toBe("false");
+    expect(lua.run(`return tostring(NS.duels.onAddonMessage("S|Kev Caron|Bob Smith|${at}|l|84|4890||0|0|100", "Bob Smith"))`)).toBe("true");
+    expect(lua.run(`local row; for _, r in pairs(DB.duels.results) do row = r end; return tostring(row.stats.l.taken) .. ":" .. tostring(row.stats.l.heal) .. ":" .. tostring(row.stats.l.low) .. ":" .. row.stats.w.taken`)).toBe("4890:nil:0:30");
+    // Out-of-range values are dropped.
+    lua.run(`NS.duels.onAddonMessage("S|Kev Caron|Bob Smith|${at}|l|84|99999999999|0|500|500|100", "Bob Smith")`);
+    expect(lua.run(`local row; for _, r in pairs(DB.duels.results) do row = r end; return tostring(row.stats.l.taken) .. ":" .. tostring(row.stats.l.low) .. ":" .. tostring(row.stats.l.heal)`)).toBe("nil:nil:0");
   });
 });

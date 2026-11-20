@@ -562,6 +562,21 @@ end
 -- ----- the panel ---------------------------------------------------------------
 
 local window, rows, altRows = nil, {}, {}
+local PANEL_W, LABEL_W, BUTTON_X = 480, 340, 370
+-- One line per row, cut with "..." when it is too long; the full text shows in a tooltip on hover.
+local function oneLine(label)
+  if label.SetWordWrap then label:SetWordWrap(false) end
+  if label.SetMaxLines then label:SetMaxLines(1) end
+  local hit = CreateFrame("Frame", nil, window)
+  hit:SetPoint("TOPLEFT", label, "TOPLEFT", 0, 2); hit:SetPoint("BOTTOMRIGHT", label, "BOTTOMRIGHT", 0, -2)
+  if hit.EnableMouse then hit:EnableMouse(true) end
+  hit:SetScript("OnEnter", function(self)
+    local text = label.GetText and label:GetText()
+    if text and text ~= "" and GameTooltip then GameTooltip:SetOwner(self, "ANCHOR_RIGHT"); GameTooltip:SetText(text, 1, 1, 1, 1, true); GameTooltip:Show() end
+  end)
+  hit:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  label.hit = hit
+end
 function module.refresh()
   if not window then return end
   local ready, rule = module.ready()
@@ -617,6 +632,23 @@ function module.refresh()
       row.item = e; row.label:Show(); if a.hint then row.button:Hide() else row.button:Show() end
     else row.item = nil; row.label:Hide(); row.button:Hide() end
   end
+  -- Size to the content: the rows that are shown, then the alts section, then the tip. Rows keep their order, the window shrinks.
+  local visible = 0
+  for i = 1, MAX_ROWS do if rows[i].label:IsShown() then visible = i end end
+  local moreY = -126 - visible * 26
+  window.more:ClearAllPoints(); window.more:SetPoint("TOPLEFT", 18, moreY)
+  local altTop = moreY - 22
+  local altShown = math.min(#entries, ALT_ROWS)
+  window.altHead:ClearAllPoints(); window.altHead:SetPoint("TOPLEFT", 18, altTop)
+  for i = 1, ALT_ROWS do
+    local row, y = altRows[i], altTop - 18 - (i - 1) * 26
+    row.label:ClearAllPoints(); row.label:SetPoint("TOPLEFT", 18, y - 2)
+    row.button:ClearAllPoints(); row.button:SetPoint("TOPLEFT", BUTTON_X, y)
+  end
+  local bottomY = (altShown > 0 or altDone > 0) and (altTop - 20 - altShown * 26) or moreY
+  window.altMore:ClearAllPoints(); window.altMore:SetPoint("TOPLEFT", 18, bottomY)
+  window:SetHeight(math.max(190, -bottomY + 20 + 40))
+  window.tip:ClearAllPoints(); window.tip:SetPoint("BOTTOMLEFT", 18, 12)
   window.altHead:SetText((#entries > 0 or altDone > 0) and L("Alts and main changes") or "")
   window.altMore:SetText(#entries > ALT_ROWS and string.format(L("+%d more alts"), #entries - ALT_ROWS) or (altDone > 0 and string.format(L("%d alts already in the Alt rank"), altDone) or ""))
   window.empty:SetText(ready and #ready == 0 and L("Nobody is ready to promote yet.") or "")
@@ -627,9 +659,9 @@ function module.open()
   local tools = ns.rosterTools
   if not tools or not tools.authorized() then if ns.message then ns.message(tools and tools.accessMessage and tools.accessMessage() or L("Current officer access is required.")) end; return end
   tools.requestRoster()
-  if window then window:Show(); if window.Raise then window:Raise() end; module.refresh(); return end
+  if window then window:Show(); if window.Raise then window:Raise() end; module.refresh(); if ns.util and ns.util.placeBeside then ns.util.placeBeside(window) end; return end
   local f = CreateFrame("Frame", "GuildedPromotionPanel", UIParent, "BasicFrameTemplateWithInset")
-  window = f; f:SetSize(420, 250 + MAX_ROWS * 26 + ALT_ROWS * 26); f:SetPoint("CENTER");
+  window = f; f:SetSize(PANEL_W, 250 + MAX_ROWS * 26 + ALT_ROWS * 26); f:SetPoint("CENTER");
   -- Above the Roster admin window (DIALOG), which opens this panel: at the default strata it opened behind it.
   if f.SetFrameStrata then f:SetFrameStrata("DIALOG") end
  f:SetMovable(true); f:EnableMouse(true); f:SetClampedToScreen(true)
@@ -638,14 +670,14 @@ function module.open()
   if UISpecialFrames then table.insert(UISpecialFrames, "GuildedPromotionPanel") end
   local function text(y, template)
     local t = f:CreateFontString(nil, "OVERLAY", template or "GameFontHighlightSmall")
-    t:SetPoint("TOPLEFT", 18, y); t:SetWidth(380); t:SetJustifyH("LEFT"); return t
+    t:SetPoint("TOPLEFT", 18, y); t:SetWidth(PANEL_W - 40); t:SetJustifyH("LEFT"); return t
   end
   f.status = text(-34)
   f.req = text(-50)
   f.req:SetHeight(28)
   f.empty = text(-110)
   f.tip = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-  f.tip:SetPoint("BOTTOMLEFT", 18, 12); f.tip:SetWidth(380); f.tip:SetJustifyH("LEFT")
+  f.tip:SetPoint("BOTTOMLEFT", 18, 12); f.tip:SetWidth(PANEL_W - 40); f.tip:SetJustifyH("LEFT")
   f.tip:SetText(L("Tip: bind a key in Key Bindings > Guilded"))
   f.tip:SetHeight(30)
   f.more = text(-134 - MAX_ROWS * 26)
@@ -665,9 +697,9 @@ function module.open()
   for i = 1, MAX_ROWS do
     local y = -126 - (i - 1) * 26
     local label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    label:SetPoint("TOPLEFT", 18, y - 4); label:SetWidth(280); label:SetJustifyH("LEFT")
+    label:SetPoint("TOPLEFT", 18, y - 4); label:SetWidth(LABEL_W); label:SetJustifyH("LEFT"); oneLine(label)
     local button = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    button:SetPoint("TOPLEFT", 310, y); button:SetSize(90, 22); button:SetText(L("Promote"))
+    button:SetPoint("TOPLEFT", BUTTON_X, y); button:SetSize(90, 22); button:SetText(L("Promote"))
     local row = { label = label, button = button }
     button:SetScript("OnClick", function()
       if not row.item then return end
@@ -685,13 +717,13 @@ function module.open()
   -- Alts and main changes (20 Nov 2026).
   local altTop = -150 - MAX_ROWS * 26
   f.altHead = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-  f.altHead:SetPoint("TOPLEFT", 18, altTop); f.altHead:SetWidth(380); f.altHead:SetJustifyH("LEFT")
+  f.altHead:SetPoint("TOPLEFT", 18, altTop); f.altHead:SetWidth(PANEL_W - 40); f.altHead:SetJustifyH("LEFT")
   for i = 1, ALT_ROWS do
     local y = altTop - 18 - (i - 1) * 26
     local label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    label:SetPoint("TOPLEFT", 18, y - 2); label:SetWidth(285); label:SetJustifyH("LEFT"); label:SetHeight(24)
+    label:SetPoint("TOPLEFT", 18, y - 2); label:SetWidth(LABEL_W); label:SetJustifyH("LEFT"); label:SetHeight(24); oneLine(label)
     local button = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    button:SetPoint("TOPLEFT", 310, y); button:SetSize(90, 22); button:SetText(L("Move to Alt"))
+    button:SetPoint("TOPLEFT", BUTTON_X, y); button:SetSize(90, 22); button:SetText(L("Move to Alt"))
     local row = { label = label, button = button }
     button:SetScript("OnClick", function()
       local e = row.item; if not e then return end
@@ -709,9 +741,10 @@ function module.open()
     altRows[i] = row
   end
   f.altMore = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-  f.altMore:SetPoint("TOPLEFT", 18, altTop - 20 - ALT_ROWS * 26); f.altMore:SetWidth(380); f.altMore:SetJustifyH("LEFT")
+  f.altMore:SetPoint("TOPLEFT", 18, altTop - 20 - ALT_ROWS * 26); f.altMore:SetWidth(PANEL_W - 40); f.altMore:SetJustifyH("LEFT")
   f:SetScript("OnShow", function(self) if self.Raise then self:Raise() end; module.refresh() end)
   module.refresh()
+  if ns.util and ns.util.placeBeside then ns.util.placeBeside(f) end
 end
 
 -- The key binding (Bindings.xml: Options > Keybindings > Guilded).

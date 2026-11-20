@@ -1,4 +1,4 @@
-import { cardBackdropArt as paintedArt, type BackdropVariant, type CardBackdrop } from "./card-backdrop.js";
+import { cardArtPlain, cardBackdropArt as paintedArt, type BackdropVariant, type CardBackdrop } from "./card-backdrop.js";
 import { plainArt } from "./card-layouts-recap.js";
 import { renderGenericCard, renderRecapKind } from "./card-next-recap.js";
 import { renderBannerCard, renderDungeonCard, renderResultCard, type CardSpecLadderRow, type DungeonPartyRow, type NextCardSpec } from "./card-layouts-next.js";
@@ -28,12 +28,14 @@ export async function renderNextCard(card: ScoreCard, options: { branded?: boole
   if (card.ladder && card.backdrop?.key === "community" && card.ladder.boards.some((board) => board.rows.length)) return (await import("./card-podium.js")).renderCommunityPodium(card);
   if (card.ladder) return ladderCard(card);
   const kind = card.backdrop?.kind;
-  if (kind === "board" && card.backdrop?.key === "duel" && card.rows?.length === 2 && card.stats.length >= 1 && card.stats.length <= 3) return duelCard(card);
+  if (kind === "board" && card.backdrop?.key === "duel" && (card.duel || (card.rows?.length === 2 && card.stats.length >= 1 && card.stats.length <= 3))) return duelCard(card);
   if (kind === "battleground" && card.stats.length === 3) return battlegroundCard(card);
   return (await dataCard(card)) ?? renderGenericCard(card, fit);
 }
 
 async function duelCard(card: ScoreCard): Promise<Buffer | null> {
+  // 21 Nov 2026: the face-off layout draws the unshaded painting itself; a card queued before it has no `duel` and keeps the list layout below.
+  if (card.duel) return (await (await import("./card-duel.js")).renderDuelFaceOff(card.duel, (await cardArtPlain(card.backdrop)) ?? await plainArt())).png;
   const art = await cardBackdropArt(card.backdrop, "wide");
   if (!art) return null;
   // A duel without a known level ("— vs —") or without a streak draws the same layout, just with fewer figures.

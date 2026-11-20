@@ -45,6 +45,21 @@ function tools.context()
   local guild, realm = read(GetGuildInfo, "player"), read(GetRealmName)
   local edition = ns.util and ns.util.gameEdition()
   if not text(guild, 120) or guild == "" or not text(realm, 120) or not edition or edition == "unknown" then return nil end
+  if realm == "" or realm == "0" then
+    -- (WoW Forever 1.60.1) The game no longer gives a realm: keep the scope this guild's audit is already stored under.
+    realm = ""
+    local scopes = type(GuildedRosterToolsDB) == "table" and GuildedRosterToolsDB.scopes
+    if type(scopes) == "table" then
+      local head, tail, best = edition .. ":", ":" .. guild, nil
+      for key in pairs(scopes) do
+        if type(key) == "string" and #key >= #head + #tail and key:sub(1, #head) == head and key:sub(-#tail) == tail then
+          local middle = key:sub(#head + 1, #key - #tail)
+          if middle ~= "" and (not best or middle < best) then best = middle end
+        end
+      end
+      if best then realm = best end
+    end
+  end
   return edition .. ":" .. realm .. ":" .. guild, guild, realm, edition
 end
 function tools.canViewPrivate()

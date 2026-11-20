@@ -34,7 +34,7 @@ const memberSchema = z.object({
   class: z.string().regex(/^[A-Z]{1,20}$/).optional(),
   rankName: z.string().trim().min(1).max(60).optional(),
   rankIndex: z.number().int().min(0).max(19).optional(),
-  guid: z.string().regex(/^Player-\d+-[0-9A-Fa-f]+$/).max(40).optional(),
+  guid: z.string().regex(/^Player-[^-]*-[0-9A-Fa-f]+$/).max(40).optional(),
   // Low GUID part as hex ("id", stage B addons); the `guid` above gives the same number. Unreadable values are ignored.
   id: z.unknown().optional(),
   online: z.boolean().default(false),

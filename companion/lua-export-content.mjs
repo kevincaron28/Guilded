@@ -417,7 +417,7 @@ export function exportBattlegroundReports(database) {
   const integer = (v, min, max) => Number.isSafeInteger(v) && v >= min && v <= max;
   return Object.values(d.reports).filter(r => r && r.version === 1 && r.edition === edition
     && r.adapter === `${edition}-postmatch-v1` && r.realmType === "normal" && r.postmatch === true && r.consent === true
-    && text(r.character, 80) && text(r.realm, 100)
+    && text(r.character, 80) && (r.realm === "" || text(r.realm, 100))
     && typeof r.reportId === "string" && /^[a-zA-Z0-9_:-]{8,100}$/.test(r.reportId)
     && ["casual", "rated", "blitz"].includes(r.mode) && text(r.bracket, 30)
     && integer(r.mapId, 1, 1000000) && integer(r.endedAt, 1, 4102444800)
@@ -444,7 +444,27 @@ export function exportDuelResults(database) {
     .sort((a, b) => b.at - a.at || (a.winner < b.winner ? -1 : a.winner > b.winner ? 1 : 0))
     .map((r) => ({ winner: r.winner, loser: r.loser, at: r.at, reason: r.reason,
       // Character ids of both sides when the addon knew them (stage B); the bot ignores unreadable ones.
-      ...(characterId(r.wid) ? { winnerId: characterId(r.wid) } : {}), ...(characterId(r.lid) ? { loserId: characterId(r.lid) } : {}) }));
+      ...(characterId(r.wid) ? { winnerId: characterId(r.wid) } : {}), ...(characterId(r.lid) ? { loserId: characterId(r.lid) } : {}),
+      ...duelMeasurements(r) }));
+}
+
+// (9.5) What each side's own addon measured of a duel: its own health going down and up (no combat log on WoW Forever), the lowest
+// health and the health left. Whole numbers in range only; anything else is left out (the bot keeps unknown as null).
+function duelMeasurements(r) {
+  const whole = (v, min, max) => (Number.isSafeInteger(v) && v >= min && v <= max ? v : undefined);
+  const out = {};
+  const dur = whole(r.dur, 3, 1800);
+  if (dur !== undefined) out.durationSec = dur;
+  for (const [side, word] of [["w", "winner"], ["l", "loser"]]) {
+    const s = r.stats && typeof r.stats === "object" ? r.stats[side] : undefined;
+    if (!s || typeof s !== "object") continue;
+    const set = (key, value) => { if (value !== undefined) out[`${word}${key}`] = value; };
+    set("DamageTaken", whole(s.taken, 0, 10_000_000));
+    set("Healing", whole(s.heal, 0, 10_000_000));
+    set("LowestHealth", whole(s.low, 0, 100));
+    set("HealthLeft", whole(s.left, 0, 100));
+  }
+  return out;
 }
 
 // Duels the addon recorded against players outside the guild (Modules/Duels.lua `external`), for the global ladder. Field by field:
@@ -705,7 +725,7 @@ export function exportGuildData(database) {
       ...(typeof m.class === "string" && /^[A-Z]{1,20}$/.test(m.class) ? { class: m.class } : {}),
       ...(typeof m.rankName === "string" && m.rankName.trim() ? { rankName: m.rankName.trim().slice(0, 60) } : {}),
       ...(Number.isInteger(m.rankIndex) && m.rankIndex >= 0 && m.rankIndex < 20 ? { rankIndex: m.rankIndex } : {}),
-      ...(typeof m.guid === "string" && /^Player-\d+-[0-9A-Fa-f]+$/.test(m.guid) && m.guid.length <= 40 ? { guid: m.guid } : {}),
+      ...(typeof m.guid === "string" && /^Player-[^-]*-[0-9A-Fa-f]+$/.test(m.guid) && m.guid.length <= 40 ? { guid: m.guid } : {}),
       ...(characterId(m.id) ? { id: characterId(m.id) } : {}),
       online: m.online === true,
       ...(epoch(m.lastOnline) ? { lastOnline: m.lastOnline } : {})

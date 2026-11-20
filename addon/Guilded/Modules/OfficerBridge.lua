@@ -19,7 +19,9 @@ local function guildKey()
   if not (IsInGuild and IsInGuild()) then return nil end
   local name = GetGuildInfo and GetGuildInfo("player")
   if type(name) ~= "string" or name == "" or (ns.isSecret and ns.isSecret(name)) then return nil end
-  return name .. "-" .. ((GetRealmName and GetRealmName()) or "")
+  local realm = GetRealmName and GetRealmName()
+  if type(realm) ~= "string" or (ns.isSecret and ns.isSecret(realm)) then realm = "" end
+  return name .. "-" .. realm
 end
 -- GetRealmName can be a different Forever server segment on each PC. The
 -- fourth GetGuildInfo result identifies the guild's home when it differs.
@@ -31,16 +33,27 @@ local function guildHome()
     home = (GetRealmName and GetRealmName()) or ""
   end
   if type(home) ~= "string" or (ns.isSecret and ns.isSecret(home)) then return nil end
-  return name .. "-" .. string.gsub(home, "%s+", ""), name .. "-"
+  return name .. "-" .. string.gsub(home, "%s+", ""), name .. "-", home == ""
 end
 local function sameGuild(snapshot)
   if type(snapshot) ~= "table" then return false end
-  local home, prefix = guildHome()
+  local home, prefix, noRealm = guildHome()
   if not home then return false end
-  if snapshot.guildHome ~= nil then return snapshot.guildHome == home end
+  -- (WoW Forever 1.60.1) This client no longer knows any realm: the guild name alone decides (the sender's
+  -- "Guild-Realm" key still names the same guild). Compared without the realm on both sides.
+  if noRealm then
+    local theirs = type(snapshot.guildHome) == "string" and snapshot.guildHome or snapshot.guild
+    return type(theirs) == "string" and string.sub(theirs, 1, #prefix) == prefix
+  end
+  if snapshot.guildHome ~= nil then
+    if snapshot.guildHome == home then return true end
+    -- A sender without a realm ("Guild-") is the same guild as any realm of that name.
+    return snapshot.guildHome == prefix
+  end
   -- Accept older senders without changing their packet format or saved keys.
   local key = snapshot.guild
   if type(key) ~= "string" or string.sub(key, 1, #prefix) ~= prefix then return false end
+  if #key == #prefix then return true end -- a sender without a realm ("Guild-")
   return prefix .. string.gsub(string.sub(key, #prefix + 1), "%s+", "") == home
 end
 local function clock() return ns.util.serverTime() end

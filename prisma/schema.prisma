@@ -3405,6 +3405,16 @@ model DuelResult {
   archived       Boolean  @default(false)
   reportKey      String
   reporterId     String?
+  // Measured by each side's own addon (no combat log on WoW Forever: damage and healing come from the player's own health changes). Null = unknown.
+  durationSec    Int?
+  winnerHealthLeft Int?
+  loserHealthLeft Int?
+  winnerDamageTaken Int?
+  loserDamageTaken Int?
+  winnerHealing  Int?
+  loserHealing   Int?
+  winnerLowestHealth Int?
+  loserLowestHealth Int?
   createdAt      DateTime @default(now())
   guild          Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
   winner         Member   @relation("DuelWinner", fields: [winnerId], references: [id], onDelete: Cascade)

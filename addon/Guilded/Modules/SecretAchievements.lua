@@ -38,8 +38,12 @@ function sa.npcId(guid)
   if kind ~= "Creature" and kind ~= "Vehicle" then return nil end
   local parts = {}
   for piece in rest:gmatch("[^%-]+") do parts[#parts + 1] = piece end
-  -- Creature-<type>-<server>-<instance>-<zone>-<npc id>-<spawn uid>: after the kind, the npc id is the fifth field.
-  return tonumber(parts[5])
+  -- Creature-<type>-<server>-<instance>-<zone>-<npc id>-<spawn uid>: the npc id is the second-to-last field. (Forever 1.60.1
+  -- obfuscates the server, realm and spawn fields, so they may be hex, non-numeric or empty: only the npc id is trusted.)
+  if #parts < 5 then return nil end
+  local npc = parts[#parts - 1]
+  if not npc:match("^%d+$") or #npc > 9 then return nil end
+  return tonumber(npc)
 end
 
 local sightings = {}

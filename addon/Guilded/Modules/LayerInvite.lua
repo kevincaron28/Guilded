@@ -9,6 +9,9 @@
 --                                  click (alone or as party leader, out of combat and instances); a short notice says so
 --   /guilded layer direct on|off   (9.4) party Invite buttons invite directly (on by default); off shows the line to paste
 --
+-- WoW Forever 1.60.1 hotfix (realm ids in creature GUIDs obfuscated, realm APIs return "" or 0): unaffected. Nothing
+-- here reads a layer, a realm or a creature GUID; the flow relies only on "joining a group moves you to the leader's
+-- layer", which Blizzard keeps.
 -- The addon cannot read which layer anyone is on. A request goes out ONCE on the guild addon channel (prefix
 -- GuildedLayer) with the asker's continent; only guildmates who run the addon AND are on the same continent are
 -- candidates, and each of them is shown a request only once (a repeat of the same request is ignored).

@@ -6,7 +6,7 @@ import { mergeProfessionSkills, normalizeProfessionName } from "../services/prof
 export const addonTransactionSchema = z.object({
   createdAt: z.coerce.date().optional(),
   character: z.string().min(1),
-  realm: z.string().min(1),
+  realm: z.string().default(""),
   amount: z.number().int().refine((amount) => amount !== 0, "must not be zero"),
   type: z.enum(["AWARD", "DEDUCTION", "ADJUSTMENT", "REFUND", "DECAY", "IMPORT"]),
   reason: z.string().min(3),
@@ -19,7 +19,7 @@ export const addonEpgpTransactionSchema = z.object({
   createdAt: z.coerce.date().optional(),
   coreId: z.string().min(1).max(100).optional(),
   character: z.string().min(1),
-  realm: z.string().min(1),
+  realm: z.string().default(""),
   epAmount: z.number().int().default(0),
   gpAmount: z.number().int().default(0),
   type: z.enum(["EP_AWARD", "GP_AWARD", "ITEM_AWARD", "DEDUCTION", "ADJUSTMENT", "DECAY", "IMPORT", "REVERSAL"]),
@@ -61,7 +61,7 @@ const addonProfessionSchema = z.object({
 
 const addonReadinessSchema = z.object({
   character: z.string().min(1),
-  realm: z.string().min(1),
+  realm: z.string().default(""),
   itemLevel: z.number().nonnegative().optional(),
   items: z.array(addonItemSchema).default([]),
   consumables: z.array(addonConsumableSchema).default([]),
@@ -78,7 +78,7 @@ const addonReadinessSchema = z.object({
 // snapshot.
 export const addonAttunementSchema = z.object({
   character: z.string().min(1),
-  realm: z.string().min(1),
+  realm: z.string().default(""),
   name: z.string().min(1),
   completed: z.boolean().default(true)
 });
@@ -94,7 +94,7 @@ export const addonRaidSchema = z.object({
   endedAt: z.coerce.date().optional(),
   players: z.array(z.object({
     character: z.string().min(1),
-    realm: z.string().min(1),
+    realm: z.string().default(""),
     status: z.enum(["PRESENT", "LATE", "ABSENT"]).optional(),
     seen: z.boolean().default(false)
   })).default([])
@@ -107,7 +107,7 @@ export type AddonRaid = z.infer<typeof addonRaidSchema>;
 export const addonLootSchema = z.object({
   ref: z.string().min(1),
   character: z.string().min(1),
-  realm: z.string().min(1),
+  realm: z.string().default(""),
   item: z.string().min(1),
   gp: z.number().int().nonnegative().default(0),
   awardedAt: z.coerce.date().optional(),
@@ -131,7 +131,7 @@ export const addonCharacterSchema = z.object({
   interface: z.number().int().positive().optional(),
   name: z.string().min(1),
   displayName: z.string().trim().min(1).max(80).refine(value => !value.includes("|") && Array.from(value).every(char => char.charCodeAt(0) >= 32 && char.charCodeAt(0) !== 127)).optional(),
-  realm: z.string().min(1),
+  realm: z.string().default(""),
   // Low part of the in-game GUID, lowercase hex (character-ref.ts parseWowId). Optional: older addons omit it; unreadable values are ignored, never rejected.
   id: z.unknown().optional(),
   class: z.string().default(""),
@@ -157,7 +157,7 @@ export const addonConsumeScanSchema = z.object({
   by: z.string().default(""),
   players: z.array(z.object({
     character: z.string().min(1),
-    realm: z.string().min(1),
+    realm: z.string().default(""),
     flask: z.string().min(1).optional(),
     elixirs: z.array(z.string().min(1)).default([]),
     food: z.string().min(1).optional(),
@@ -176,7 +176,7 @@ export const addonReservesSchema = z.object({
   active: z.boolean().default(true),
   entries: z.array(z.object({
     character: z.string().min(1),
-    realm: z.string().min(1),
+    realm: z.string().default(""),
     itemId: z.number().int().positive(),
     itemName: z.string().min(1).max(100)
   })).max(2000).default([])
@@ -188,7 +188,7 @@ export type AddonReserves = z.infer<typeof addonReservesSchema>;
 // character and profession; keys are item ids, or minus a spell id for enchants.
 export const addonRecipeSetSchema = z.object({
   character: z.string().min(1),
-  realm: z.string().min(1),
+  realm: z.string().default(""),
   profession: z.string().min(1).max(40),
   at: z.coerce.date(),
   keys: z.array(z.number().int()).max(800)
@@ -196,7 +196,7 @@ export const addonRecipeSetSchema = z.object({
 
 export const addonCooldownSetSchema = z.object({
   character: z.string().min(1),
-  realm: z.string().min(1),
+  realm: z.string().default(""),
   at: z.coerce.date(),
   entries: z.array(z.object({
     profession: z.string().min(1).max(40),
@@ -216,7 +216,7 @@ export const addonCalendarEventSchema = z.object({
   startsAt: z.coerce.date(),
   invites: z.array(z.object({
     character: z.string().min(1),
-    realm: z.string().min(1),
+    realm: z.string().default(""),
     status: z.enum(["ACCEPTED", "TENTATIVE", "DECLINED"])
   })).max(200).default([])
 });
@@ -228,7 +228,7 @@ export type AddonCalendarEvent = z.infer<typeof addonCalendarEventSchema>;
 export const addonSignupAnswerSchema = z.object({
   raidId: z.string().min(1).max(80).regex(/^[a-zA-Z0-9_-]+$/),
   character: z.string().min(1),
-  realm: z.string().min(1),
+  realm: z.string().default(""),
   status: z.enum(["ACCEPTED", "TENTATIVE", "DECLINED"]),
   role: z.enum(["TANK", "HEALER", "DPS"]).optional(),
   at: z.coerce.date()

@@ -7100,3 +7100,43 @@ FR["Help guildmates"] = "Aider les guildmates"
 FR["On by default. A small window when a guildmate in your zone calls for help or a guildmate on your continent asks for a layer, and On my way brings you onto their layer. Off means only a chat line."] = "Activ\195\169 par d\195\169faut. Une petite fen\195\170tre quand un guildmate de votre zone appelle \195\160 l'aide ou qu'un guildmate de votre continent demande une couche; J'arrive vous am\195\168ne sur sa couche. D\195\169sactiv\195\169 : une seule ligne de clavardage."
 FR["On by default. A small window when a guildmate on your continent asks to be invited onto another layer, or calls for help in your zone. The same switch as /guilded sos guildmates on|off."] = "Activ\195\169 par d\195\169faut. Une petite fen\195\170tre quand un guildmate de votre continent demande une invitation vers une autre couche, ou appelle \195\160 l'aide dans votre zone. M\195\170me r\195\169glage que /guilded sos guildmates on|off."
 FR["/guilded sos - options and a confirm to call guildmates for help (now, clear, status, guildmates on|off (alias defender), chat on|off, alert toast|chat|off, sound, quiet, mute, unmute, show, reset); /gsos too"] = "/guilded sos - options et confirmation pour appeler les guildmates \195\160 l'aide (now, clear, status, guildmates on|off (alias defender), chat on|off, alert toast|chat|off, sound, quiet, mute, unmute, show, reset); /gsos aussi"
+
+-- Quebec voice (20 Nov 2026, owner request): only the hype and celebration lines members see in French
+-- (guild-chat milestone announcements, the duel end card and its chat line, the call-for-help replies and
+-- the secret achievement notice). Errors, setup, settings, help and every other text stay formal French.
+-- Guild chat is public to the guild, so the sacres are the mild exclamation kind ("tabarnak", "crisse",
+-- "caline"): never an insult, never aimed at a member. Set QUEBEC_SWEARING to false for the joual-only
+-- twins (same slang, no sacres). Accents as byte escapes (the validator rejects non-ASCII).
+do
+  local QUEBEC_SWEARING = true
+  local function Q(swear, clean) if QUEBEC_SWEARING then return swear end return clean end
+  FR["%s reached level %d!"] = Q("C\195\162line, %s a atteint le niveau %d !", "Wow, %s a atteint le niveau %d !")
+  FR["%s reached the maximum level (%d)!"] = Q("Tabarnak, %s a atteint le niveau maximum (%d) ! Pas pire pantoute !", "Ben voyons donc, %s a atteint le niveau maximum (%d) ! Pas pire pantoute !")
+  FR["%s cleared %s for the first time!"] = Q("Ostie, %s a termin\195\169 %s pour la premi\195\168re fois !", "Ben bravo, %s a termin\195\169 %s pour la premi\195\168re fois !")
+  FR["%s scored a first honorable kill!"] = Q("Crisse, %s a fait une premi\195\168re mise \195\160 mort honorable !", "Wow, %s a fait une premi\195\168re mise \195\160 mort honorable !")
+  FR["%s reached %d honorable kills!"] = Q("Tabarouette, %s a atteint %d mises \195\160 mort honorables !", "Ben coudonc, %s a atteint %d mises \195\160 mort honorables !")
+  FR["%s reached skill %d in %s!"] = Q("C\195\162line, %s a atteint la comp\195\169tence %d en %s !", "Wow, %s a atteint la comp\195\169tence %d en %s !")
+  FR["%s reached the gold milestone: %s!"] = Q("Tabarouette, %s a atteint le palier d'or : %s !", "Ben coudonc, %s a atteint le palier d'or : %s !")
+  FR["%s reached the auction house milestone: %s!"] = Q("C\195\162line, %s a atteint le palier de l'h\195\180tel des ventes : %s !", "Wow, %s a atteint le palier de l'h\195\180tel des ventes : %s !")
+  FR["%s earned the achievement %s!"] = Q("Tabarouette, %s a obtenu le succ\195\168s %s !", "Ben bravo, %s a obtenu le succ\195\168s %s !")
+  FR["%s unlocked a secret achievement: %s!"] = Q("Crisse, %s a d\195\169bloqu\195\169 un succ\195\168s secret : %s !", "Wow, %s a d\195\169bloqu\195\169 un succ\195\168s secret : %s !")
+  FR["Secret achievement unlocked: %s!"] = Q("Tabarnak, succ\195\168s secret d\195\169bloqu\195\169 : %s !", "Ben voyons, succ\195\168s secret d\195\169bloqu\195\169 : %s !")
+  FR["%s won a first duel!"] = Q("C\195\162line, %s a gagn\195\169 un premier duel !", "Wow, %s a gagn\195\169 un premier duel !")
+  FR["%s has won %d duels!"] = Q("Tabarnak, %s a gagn\195\169 %d duels ! Qui va l'arr\195\170ter ?", "Ben coudonc, %s a gagn\195\169 %d duels ! Qui va l'arr\195\170ter ?")
+  -- The end-of-duel card and the one chat line only the duellist sees ("tu": it speaks to the player).
+  FR["VICTORY"] = Q("GAGN\195\137, CRISSE !", "GAGN\195\137 !")
+  FR["DEFEAT"] = Q("PERDU, TABARNAK !", "OUCH, PERDU !")
+  FR["New best streak!"] = Q("Nouveau record de s\195\169rie, tabarnak !", "Nouveau record de s\195\169rie, ben bon !")
+  FR["Rematch? Target %s and choose Duel."] = "Revanche ? Cible %s et choisis Duel."
+  FR["the opponent fled"] = Q("l'adversaire a criss\195\169 son camp", "l'adversaire a pris le bord")
+  FR["you fled"] = "t'as pris le bord"
+  FR["Duel won against %s."] = Q("Tabarnak, duel gagn\195\169 contre %s !", "Duel gagn\195\169 contre %s, ben jou\195\169 !")
+  FR["Duel lost against %s."] = "Duel perdu contre %s. T'auras ta revanche !"
+  FR["Duel won: %s fled."] = Q("Duel gagn\195\169 : %s a criss\195\169 son camp !", "Duel gagn\195\169 : %s a pris la poudre d'escampette !")
+  FR["Duel lost: you fled from %s."] = "Duel perdu : t'as pris le bord devant %s."
+  -- Call for help: the replies and the button, never the alert title or the line posted in guild chat.
+  FR["On my way"] = "J'm'en viens !"
+  FR["%s is on the way."] = Q("Tabarnak, %s s'en vient !", "%s s'en vient !")
+  FR["Help is coming: %s"] = Q("C\195\162line, du renfort s'en vient : %s", "Du renfort s'en vient : %s")
+  FR["%s is coming to help you"] = Q("%s s'en vient t'aider, c\195\162line !", "%s s'en vient t'aider !")
+end

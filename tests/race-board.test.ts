@@ -238,7 +238,7 @@ describe("Hall of Fame", () => {
     expect(json.description).toContain("Mining 300");
     expect(json.description).toContain("<@42>");
     expect(json.footer?.text).toBe("Guilded hall of fame • g1 • aria stone");
-    expect(hallEmbed({ order: 2, name: "A", className: "Mage", race: null, reachedAt: at, firstSeenAt: at, professions: null, memberDiscordId: null }, "fr").toJSON().title).toBe("🏆 N° 2 à atteindre le niveau 60");
+    expect(hallEmbed({ order: 2, name: "A", className: "Mage", race: null, reachedAt: at, firstSeenAt: at, professions: null, memberDiscordId: null }, "fr").toJSON().title).toMatch(/^🏆 .*n° 2 .*niveau 60/i);
   });
   it("on the first run stores every 60 in milestone-date order and posts ONE summary, never one message each", async () => {
     const { db, created } = hallDb([], [{ memberId: "m2", reachedAt: new Date("2026-11-05T00:00:00Z") }, { memberId: "m1", reachedAt: new Date("2026-11-08T00:00:00Z") }]);

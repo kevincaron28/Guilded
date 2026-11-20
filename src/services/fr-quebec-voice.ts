@@ -10,7 +10,8 @@
 
 export const QUEBEC_SWEARING = true;
 
-export type VoiceEvent = "promotion" | "promotionKicker" | "achievement" | "mvp" | "weeklyMvp" | "top3" | "badge" | "welcome" | "joined" | "guildRecord" | "personalBest" | "rookie";
+export type VoiceEvent = "promotion" | "promotionKicker" | "achievement" | "mvp" | "weeklyMvp" | "top3" | "badge" | "welcome" | "joined" | "guildRecord" | "personalBest" | "rookie"
+  | "duelKo" | "duelFled" | "duelUpset" | "duelSwing" | "duelUpsetLine" | "duelSummaryTitle" | "hallTitle" | "hallHead" | "anniversary";
 
 interface Variant { /** With sacres, used while QUEBEC_SWEARING is on. */ swear: string; /** Joual only, no sacres. */ clean: string }
 
@@ -78,6 +79,54 @@ const VARIANTS: Record<VoiceEvent, readonly Variant[]> = {
     { swear: "Nouveau dans la gang : tabarouette, bienvenue !", clean: "Nouveau dans la gang : ben content de te voir, bienvenue !" },
     { swear: "Nouveau dans la gang : câline, bon départ, bienvenue !", clean: "Nouveau dans la gang : pas pire pantoute pour un début, bienvenue !" },
     { swear: "Nouveau dans la gang : crisse, bon début, bienvenue !", clean: "Nouveau dans la gang : beau début, bienvenue !" }
+  ],
+  // Duels (cards and post text). Card texts stay short.
+  duelKo: [
+    { swear: "K.O. : tabarnak, ça a fessé !", clean: "K.O. : ça a fessé dur !" },
+    { swear: "K.O. : câline de belle claque !", clean: "K.O. : toute une claque !" },
+    { swear: "K.O. : crisse, y’a pas fait long feu !", clean: "K.O. : y’a pas fait long feu !" },
+    { swear: "K.O. : ostie de bon coup !", clean: "K.O. : ben bon coup !" }
+  ],
+  duelFled: [
+    { swear: "Tabarnak, y’a fui !", clean: "Y’a pris la poudre d’escampette !" },
+    { swear: "Câline, y’a décampé !", clean: "Y’a lâché la patate !" },
+    { swear: "Crisse, y’a pris le bord !", clean: "Y’a pris le bord !" }
+  ],
+  duelUpset: [
+    { swear: "Tabarnak de surprise !", clean: "Pas vu venir pantoute !" },
+    { swear: "Câline, quelle surprise !", clean: "Ben voyons donc, surprise !" },
+    { swear: "Ostie de coup de théâtre !", clean: "Coup de théâtre !" }
+  ],
+  duelSwing: [
+    { swear: "Tabarouette, ça a swingé fort !", clean: "Ben coudonc, ça a swingé fort !" },
+    { swear: "Câline, grosse swing de cote !", clean: "Wow, grosse swing de cote !" },
+    { swear: "Crisse, ça bouge dans le classement !", clean: "Ça bouge dans le classement !" }
+  ],
+  duelUpsetLine: [
+    { swear: "Tabarnak, le petit a viré le gros de bord ! Personne a vu ça venir !", clean: "Le petit a viré le gros de bord ! Personne a vu ça venir !" },
+    { swear: "Câline, quelle surprise : le plus faible a pris le plus fort !", clean: "Wow, quelle surprise : le plus faible a pris le plus fort !" },
+    { swear: "Ostie de revirement, le petit a gagné contre toute attente !", clean: "Beau revirement, le petit a gagné contre toute attente !" }
+  ],
+  duelSummaryTitle: [
+    { swear: "Câline, ça se bat dans’ gang !", clean: "Ça se bat dans’ gang !" },
+    { swear: "Tabarouette, encore des duels !", clean: "Ben voyons, encore des duels !" },
+    { swear: "Crisse que ça fesse icitte !", clean: "Ça fesse fort icitte !" }
+  ],
+  // Race to 60: the Hall of Fame post title ({order}) and the header line ({n}).
+  hallTitle: [
+    { swear: "🏆 Tabarnak, n° {order} à atteindre le niveau 60 !", clean: "🏆 Ben voyons, n° {order} à atteindre le niveau 60 !" },
+    { swear: "🏆 Câline, n° {order} au niveau 60 !", clean: "🏆 Wow, n° {order} au niveau 60 !" },
+    { swear: "🏆 Ostie, n° {order} rendu au niveau 60 !", clean: "🏆 Pas pire, n° {order} rendu au niveau 60 !" }
+  ],
+  hallHead: [
+    { swear: "**{n}** personnages ont atteint le niveau 60, par ordre d’arrivée. Tabarnak, la gang avance !", clean: "**{n}** personnages ont atteint le niveau 60, par ordre d’arrivée. La gang avance !" },
+    { swear: "**{n}** personnages au niveau 60, par ordre d’arrivée. Câline que ça va vite !", clean: "**{n}** personnages au niveau 60, par ordre d’arrivée. Ça va ben vite !" },
+    { swear: "**{n}** rendus au niveau 60, par ordre d’arrivée. Crisse, du beau monde !", clean: "**{n}** rendus au niveau 60, par ordre d’arrivée. Du beau monde !" }
+  ],
+  anniversary: [
+    { swear: "🎂 Tabarnak, **{name}** fête ses {years} {unit} ! Joyeux anniversaire la gang !", clean: "🎂 Ben voyons donc, **{name}** fête ses {years} {unit} ! Joyeux anniversaire la gang !" },
+    { swear: "🎂 Câline, **{name}** a {years} {unit} astheure ! Faut fêter ça !", clean: "🎂 Wow, **{name}** a {years} {unit} astheure ! Faut fêter ça !" },
+    { swear: "🎂 Ostie qu’on est fiers : **{name}** fête ses {years} {unit} !", clean: "🎂 On est ben fiers : **{name}** fête ses {years} {unit} !" }
   ]
 };
 

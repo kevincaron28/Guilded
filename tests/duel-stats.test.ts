@@ -87,7 +87,8 @@ describe("duel statistics: the card", () => {
     expect(en.winner.stats).toEqual([{ label: "Dealt", value: "4.9k" }, { label: "Taken", value: "3.1k" }, { label: "Healing", value: "760" }, { label: "Health", value: "38%" }]);
     expect(en.pills!.map(p => p.text)).toEqual(["Head to head 3-1", "Rank #4"]);
     const fr = duelResultCard(d({ stats: all, winnerLevel: 31, loserLevel: 40 }), "fr", classes, emptyNameBook).duel!;
-    expect(fr.pills![0]).toMatchObject({ text: "Surprise !", kind: "upset" });
+    expect(fr.pills![0]).toMatchObject({ kind: "upset" });
+    expect(fr.pills![0]!.text).toMatch(/surprise|Pas vu venir|théâtre/);
     expect(fr.winner.stats![0]).toMatchObject({ label: "Infligés" });
     expect(JSON.stringify(fr) + JSON.stringify(en)).not.toMatch(/≈|estim/i);
   });

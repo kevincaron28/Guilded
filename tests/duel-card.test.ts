@@ -3,6 +3,7 @@ import { WINDOW_CARDS, duelResultCard, duelSummaryCard, queueDuelCards, standing
 import { cardAltText } from "../src/services/card-alt.js";
 import { emptyNameBook } from "../src/services/character-display.js";
 import { scoreCardPng } from "../src/services/score-card.js";
+import { quebecLine } from "../src/services/fr-quebec-voice.js";
 import sharp from "sharp";
 
 const duel = (n: number, extra = {}) => ({ reportKey: `k${n}`, winnerId: "w", loserId: "l", winnerCharacter: "Aldric", loserCharacter: "Brenna", winnerLevel: 58, loserLevel: 60, reason: "knockout", endedAt: new Date(Date.UTC(2026, 10, 13, 12, n)), ...extra });
@@ -39,7 +40,8 @@ describe("duel cards", () => {
     expect(d).toMatchObject({ points: 14 });
     const card = duelResultCard(d!, "fr", classes, emptyNameBook);
     expect(card.title).toBe("Résultat du duel");
-    expect(card.subtitle).toBe("Adversaire en fuite");
+    expect(card.subtitle).toBe(quebecLine("duelFled", `${d!.winnerCharacter}:${d!.loserCharacter}:${d!.endedAt.getTime()}`));
+    expect(card.subtitle).toMatch(/fui|escampette|patate|décampé|bord/);
     expect(card.footer).toContain("guildedwow.com");
     expect(card.backdrop).toEqual({ kind: "board", key: "duel" });
     expect(cardAltText(card)).toContain("Résultat du duel");
@@ -92,7 +94,8 @@ describe("duel face-off card (21 Nov 2026)", () => {
   it("groups each side's change and new rating, in both languages", () => {
     const [d] = withStandings([duel(1)], new Map());
     const fr = duelResultCard({ ...d!, rating }, "fr", classes, emptyNameBook).duel!;
-    expect(fr).toMatchObject({ label: "Résultat du duel", outcome: "Victoire par K.O.", levels: "Niv. 58 vs 60" });
+    expect(fr).toMatchObject({ label: "Résultat du duel", levels: "Niv. 58 vs 60" });
+    expect(fr.outcome).toMatch(/^K\.O\. :/);
     expect(fr.winner).toMatchObject({ delta: "+1", standing: "→ 1001", tone: "green", tag: "Gagnant" });
     expect(fr.loser).toMatchObject({ delta: "-1", standing: "→ 999", tone: "red", tag: "Vaincu" });
     expect(duelResultCard({ ...d!, rating }, "en", classes, emptyNameBook).duel!.outcome).toBe("Won by knockout");

@@ -37,7 +37,7 @@ const lastCleanup = new WeakMap<object, number>();
 const lower = (text: string) => text.trim().normalize("NFC").toLowerCase();
 const text = (max: number) => z.string().max(max);
 
-/** What Carry.lua sends: one flat record (no nesting in the whisper format). Players are "name;class;role;level;seconds;deaths". */
+/** What Carry.lua sends: one flat record (no nesting in the whisper format). Players are "name;class;role;level;seconds;deaths;lowest level". */
 const carriedRunSchema = z.object({
   id: text(100).min(3), i: z.number().int().positive(), d: z.number().int().nonnegative().max(50), st: z.number().int().positive(), en: z.number().int().positive(),
   cb: text(40).optional(), nm: text(100).optional(), ev: text(400).optional(),
@@ -91,12 +91,14 @@ export function unpackCarriedRun(data: unknown): UnpackedRun | null {
   for (const packed of [record.p1, record.p2, record.p3, record.p4, record.p5]) {
     if (packed === undefined) continue;
     const parts = packed.split(";");
-    if (parts.length !== 6 || !parts[0]?.trim()) return null;
-    const [name, cls, role, level, present, deaths] = parts as [string, string, string, string, string, string];
-    const levelNumber = Number(level), presentNumber = Number(present), deathNumber = Number(deaths);
-    if (![levelNumber, presentNumber, deathNumber].every((value) => Number.isInteger(value) && value >= 0)) return null;
+    if ((parts.length !== 6 && parts.length !== 7) || !parts[0]?.trim()) return null;
+    // (9.4.4) The seventh field is the lowest level the recorder saw. Older addons send six fields (the level only): the bot never invents a minimum.
+    const [name, cls, role, level, present, deaths, lowest = "0"] = parts as [string, string, string, string, string, string, string?];
+    const levelNumber = Number(level), presentNumber = Number(present), deathNumber = Number(deaths), lowestNumber = Number(lowest);
+    if (![levelNumber, presentNumber, deathNumber, lowestNumber].every((value) => Number.isInteger(value) && value >= 0)) return null;
     players.push({ character: name.trim().slice(0, 40), realm: "Forever", class: cls.slice(0, 20) || undefined, role: role.slice(0, 10) || undefined,
-      ...(levelNumber >= 1 && levelNumber <= 100 ? { level: levelNumber } : {}), presentSec: Math.min(presentNumber, 86_400), deaths: Math.min(deathNumber, 500) });
+      ...(levelNumber >= 1 && levelNumber <= 100 ? { level: levelNumber } : {}),
+      ...(lowestNumber >= 1 && lowestNumber <= levelNumber && levelNumber <= 100 ? { minLevel: lowestNumber } : {}), presentSec: Math.min(presentNumber, 86_400), deaths: Math.min(deathNumber, 500) });
   }
   if (!players.length) return null;
   // The presence proof, when the addon sent one: the recorder's observation of the run and of each player. A malformed piece is left out, never refused.

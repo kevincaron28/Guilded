@@ -351,7 +351,7 @@ end
 
 local function call(handler, args)
   local fn = ns.commandHandlers and ns.commandHandlers[handler]
-  if not fn then ns.message(string.format("The %s part of Guilded is not loaded.", handler)) return end
+  if not fn then ns.message(string.format(L("The %s part of Guilded is not loaded."), handler)) return end
   fn(args)
 end
 
@@ -382,7 +382,7 @@ function loot.drop(args)
     end
     local context = loot.pricingContext()
     if context and context.pricing.edition ~= ns.util.gameEdition() then
-      ns.message("This pricing preset belongs to another game edition. Connect the matching guild before starting loot."); return
+      ns.message(L("This pricing preset belongs to another game edition. Connect the matching guild before starting loot.")); return
     end
     local price = loot.priceOf(item)
     if not price then
@@ -392,7 +392,7 @@ function loot.drop(args)
         item, loot.coreName() or L("this raid")))
       return
     end
-    if not (ns.council and ns.council.startPriority) then ns.message("Priority loot is not loaded.") return end
+    if not (ns.council and ns.council.startPriority) then ns.message(L("Priority loot is not loaded.")) return end
     ns.council.startPriority(item, price, seconds)
   elseif mode == "RESERVE" then
     if not moduleOn("reserve") then ns.message(L("Soft reserves are off (/guilded modules).")) return end

@@ -21,6 +21,7 @@
 -- the choice is saved on this computer. Built-in entries can still be added to LIST below.
 local addonName, ns = ...
 ns = ns or {}
+local function L(text) return ns.L and ns.L(text) or text end
 
 local module = {}
 ns.attunements = module
@@ -177,7 +178,7 @@ function module.command(args)
     for i = #s.attuneTracked, 1, -1 do
       if s.attuneTracked[i].name == name then table.remove(s.attuneTracked, i) end
     end
-    if sub == "untrack" then ns.message("No longer tracking " .. name .. ".") return end
+    if sub == "untrack" then ns.message(string.format(L("No longer tracking %s."), name)) return end
     local kind = string.lower(args[index] or "")
     local numbers = {}
     for i = index + 1, #args do
@@ -192,15 +193,15 @@ function module.command(args)
       ns.message("/guilded attune track \"<name>\" quest <id> ... | rep <factionId> <standing 1-8>")
       return
     end
-    ns.message("Tracking " .. name .. ". It is recorded by itself once you complete it.")
+    ns.message(string.format(L("Tracking %s. It is recorded by itself once you complete it."), name))
     scanSoon(1)
     return
   end
   local newly, done = module.scan(true)
   if #done == 0 then
-    ns.message("No tracked attunement is complete on this character. Track one with /guilded attune track \"<name>\" quest <id>, or mark it by hand: /guilded attune <name>.")
+    ns.message(L("No tracked attunement is complete on this character. Track one with /guilded attune track \"<name>\" quest <id>, or mark it by hand: /guilded attune <name>."))
     return
   end
-  ns.message("Attunements found: " .. table.concat(done, ", ") .. ".")
-  if #newly > 0 then ns.message("Newly recorded and shared with the guild: " .. table.concat(newly, ", ") .. ".") end
+  ns.message(string.format(L("Attunements found: %s."), table.concat(done, ", ")))
+  if #newly > 0 then ns.message(string.format(L("Newly recorded and shared with the guild: %s."), table.concat(newly, ", "))) end
 end

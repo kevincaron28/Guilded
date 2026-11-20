@@ -16,6 +16,7 @@
 -- /guilded autoinvite status. Whispers the game hides (secret) are ignored.
 local addonName, ns = ...
 ns = ns or {}
+local function L(text) return ns.L and ns.L(text) or text end
 
 local DEFAULT_PHRASE = "ginv"
 local PER_NAME_SECONDS = 3600
@@ -79,7 +80,7 @@ function module.onWhisper(text, sender)
   sentAt[name] = now
   table.insert(hourly, now)
   record(auto, name, true)
-  if ns.message then ns.message(string.format("%s whispered \"%s\". To invite them, type: /ginvite %s", name, auto.phrase, sender)) end
+  if ns.message then ns.message(string.format(L("%s whispered \"%s\". To invite them, type: /ginvite %s"), name, auto.phrase, sender)) end
   return true
 end
 
@@ -129,11 +130,11 @@ end
 local function inviteRaid()
   local missing, raid = module.missingFromGroup()
   if not raid then
-    ns.message("No raid roster yet. It comes from Discord signups through the companion (and needs a raid created in the next day and a half).")
+    ns.message(L("No raid roster yet. It comes from Discord signups through the companion (and needs a raid created in the next day and a half)."))
     return
   end
-  if inCombat then ns.message("Not while you are in combat.") return end
-  if #missing == 0 then ns.message("Everyone signed up for " .. tostring(raid.title) .. " is already in your group.") return end
+  if inCombat then ns.message(L("Not while you are in combat.")) return end
+  if #missing == 0 then ns.message(string.format(L("Everyone signed up for %s is already in your group."), tostring(raid.title))) return end
   -- The game refuses Invite()/InviteUnit to addon code on WoW Forever ("Guilded tried to call Invite()", owner's
   -- log of 10 November 2026), so Guilded lists the /invite lines for the officer to paste, never calling it.
   local lines = {}
@@ -142,24 +143,24 @@ local function inviteRaid()
     local line = ns.util.inviteMacro("party", bare)
     if line then table.insert(lines, line) end
   end
-  ns.message(string.format("%d of %d signed up for %s are not in your group. Paste each line in chat (Ctrl+V, Enter):", #missing, #raid.players, tostring(raid.title)))
+  ns.message(string.format(L("%d of %d signed up for %s are not in your group. Paste each line in chat (Ctrl+V, Enter):"), #missing, #raid.players, tostring(raid.title)))
   for _, line in ipairs(lines) do ns.message("  " .. line) end
   if lines[1] and type(ns.showCopyText) == "function" then
     pcall(ns.showCopyText, table.concat(lines, "\n"), "Copy with Ctrl+C, then paste in chat")
   end
-  ns.message("If the group turns into more than 5, convert it to a raid (right-click yourself in the portrait menu).")
+  ns.message(L("If the group turns into more than 5, convert it to a raid (right-click yourself in the portrait menu)."))
 end
 
 ns.commandHandlers = ns.commandHandlers or {}
 ns.commandHandlers["invite"] = function(args)
   if ns.moduleActive and not ns.moduleActive("autoinvite") then return end
-  if not (ns.isOfficer and ns.isOfficer()) then ns.message("Only officers can invite the raid.") return end
+  if not (ns.isOfficer and ns.isOfficer()) then ns.message(L("Only officers can invite the raid.")) return end
   local action = string.lower(args[1] or "raid")
   if action == "missing" then
     local missing, raid = module.missingFromGroup()
-    if not raid then ns.message("No raid roster yet (see /guilded invite raid).") return end
-    ns.message(#missing == 0 and ("Everyone signed up for " .. tostring(raid.title) .. " is in your group.")
-      or (#missing .. " signed up for " .. tostring(raid.title) .. " but not in your group: " .. table.concat(missing, ", ")))
+    if not raid then ns.message(L("No raid roster yet (see /guilded invite raid).")) return end
+    ns.message(#missing == 0 and string.format(L("Everyone signed up for %s is in your group."), tostring(raid.title))
+      or string.format(L("%d signed up for %s but not in your group: %s"), #missing, tostring(raid.title), table.concat(missing, ", ")))
   elseif action == "raid" then inviteRaid()
   else ns.message("/guilded invite raid | missing") end
 end
@@ -167,21 +168,21 @@ ns.commandHandlers["autoinvite"] = function(args)
   if ns.moduleActive and not ns.moduleActive("autoinvite") then return end
   local auto = state()
   if not auto then return end
-  if not (ns.isOfficer and ns.isOfficer()) then ns.message("Only officers can use auto-invite.") return end
+  if not (ns.isOfficer and ns.isOfficer()) then ns.message(L("Only officers can use auto-invite.")) return end
   local action = string.lower(args[1] or "status")
   if action == "on" then
     local phrase = table.concat(args, " ", 2)
     if phrase ~= "" then auto.phrase = phrase end
     auto.enabled = true
-    ns.message("Auto-invite is on: when someone whispers you \"" .. auto.phrase .. "\", Guilded gives you the /ginvite line. Turn it off with /guilded autoinvite off.")
+    ns.message(string.format(L("Auto-invite is on: when someone whispers you \"%s\", Guilded gives you the /ginvite line. Turn it off with /guilded autoinvite off."), auto.phrase))
   elseif action == "off" then
     auto.enabled = false
-    ns.message("Auto-invite is off.")
+    ns.message(L("Auto-invite is off."))
   else
-    ns.message(string.format("Auto-invite is %s, phrase \"%s\". %d recent request(s).", auto.enabled and "on" or "off", auto.phrase, #auto.log))
+    ns.message(string.format(L("Auto-invite is %s, phrase \"%s\". %d recent request(s)."), auto.enabled and L("on") or L("off"), auto.phrase, #auto.log))
     for i = math.max(1, #auto.log - 4), #auto.log do
       local entry = auto.log[i]
-      ns.message(string.format("  %s %s%s", entry.at, entry.name, entry.ok and "" or " (failed)"))
+      ns.message(string.format("  %s %s%s", entry.at, entry.name, entry.ok and "" or (" " .. L("(failed)"))))
     end
   end
 end

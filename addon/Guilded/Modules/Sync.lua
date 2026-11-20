@@ -15,6 +15,7 @@
 --    officer-only: they change what the addon does, not what it shows.
 local addonName, ns = ...
 ns = ns or {}
+local function L(text) return ns.L and ns.L(text) or text end
 
 local PREFIX = "GuildedSync"
 local CHUNK_BYTES = 220
@@ -545,7 +546,7 @@ end
 
 ns.commandHandlers = ns.commandHandlers or {}
 ns.commandHandlers["standings"] = showStandings
-ns.commandHandlers["version"] = function() ns.message("Guilded version " .. myVersion .. ".") end
+ns.commandHandlers["version"] = function() ns.message(string.format(L("Guilded version %s."), myVersion)) end
 -- Who runs which version (this session). Messages are "KIND|field|..." and
 -- every receiver ignores kinds and trailing fields it doesn't know, so an
 -- older addon keeps working next to a newer one; this shows who is behind.
@@ -554,7 +555,7 @@ ns.commandHandlers["peers"] = function()
   for name in pairs(peerVersions) do table.insert(names, name) end
   table.sort(names)
   if #names == 0 then
-    ns.message("No guildmate with the addon has announced a version yet this session.")
+    ns.message(L("No guildmate with the addon has announced a version yet this session."))
     return
   end
   local behind = 0
@@ -565,7 +566,7 @@ ns.commandHandlers["peers"] = function()
     if old then behind = behind + 1 end
     table.insert(parts, name .. " " .. theirs .. (old and " (older)" or ""))
   end
-  ns.message(string.format("%d addon user(s) seen, you run %s, %d older: %s", #names, myVersion, behind, table.concat(parts, ", ")))
+  ns.message(string.format(L("%d addon user(s) seen, you run %s, %d older: %s"), #names, myVersion, behind, table.concat(parts, ", ")))
 end
 ns.peerVersions = function() return peerVersions end
 ns.versionNewer = versionNewer
@@ -618,7 +619,7 @@ local function receiveModules(text, sender)
     table.insert(names, ns.moduleName and ns.moduleName(key) or key)
   end
   if not ns.applyGuildModules(off, updatedAt, by ~= "" and by or sender) then return end
-  ns.helloMessage("Guild module settings from " .. (by ~= "" and by or sender) .. ": " .. (#names > 0 and ("off: " .. table.concat(names, ", ")) or "everything on") .. ". /guilded modules for details.")
+  ns.helloMessage(string.format(L("Guild module settings from %s: %s. /guilded modules for details."), by ~= "" and by or sender, #names > 0 and string.format(L("off: %s"), table.concat(names, ", ")) or L("everything on")))
   for _, module in ipairs(ns.MODULES or {}) do
     if ns.moduleEnabled(module.key) and not ns.moduleActive(module.key) then
       ns.helloMessage(module.name .. " was turned back on - /reload to start it.")
@@ -672,7 +673,7 @@ local function onEvent(_, event, ...)
       if theirs then peerVersions[sender] = theirs end
       if versionNewer(theirs, myVersion) and not warnedNewer then
         warnedNewer = true
-        ns.helloMessage("A newer Guilded (" .. theirs .. ") is out - you have " .. myVersion .. ". Grab it from the guild's download link.")
+        ns.helloMessage(string.format(L("A newer Guilded (%s) is out - you have %s. Grab it from the guild's download link."), theirs, myVersion))
       elseif versionNewer(myVersion, theirs) and channel == "GUILD" and not repliedTo[sender] then
         -- Tell the outdated player directly, once per session.
         repliedTo[sender] = true

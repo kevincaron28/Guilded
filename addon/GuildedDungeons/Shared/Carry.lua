@@ -292,8 +292,8 @@ local function runRecord(run, player)
   if type(run.name) == "string" then data.nm = string.sub(run.name, 1, 100) end
   for index, name in ipairs(names) do
     local p = run.players[name]
-    data["p" .. index] = string.format("%s;%s;%s;%d;%d;%d", name, type(p.class) == "string" and string.sub(p.class, 1, 20) or "", type(p.role) == "string" and string.sub(p.role, 1, 12) or "",
-      tonumber(p.level) or 0, math.floor(tonumber(p.presentSec) or 0), math.floor(tonumber(p.deaths) or 0))
+    data["p" .. index] = string.format("%s;%s;%s;%d;%d;%d;%d", name, type(p.class) == "string" and string.sub(p.class, 1, 20) or "", type(p.role) == "string" and string.sub(p.role, 1, 12) or "",
+      tonumber(p.level) or 0, math.floor(tonumber(p.presentSec) or 0), math.floor(tonumber(p.deaths) or 0), tonumber(p.minLevel) or 0)
   end
   local bosses = {}
   for _, boss in ipairs(type(run.encounters) == "table" and run.encounters or {}) do

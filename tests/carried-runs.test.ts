@@ -112,6 +112,23 @@ describe("unpacking a carried run and its id", () => {
     expect((unpackCarriedRun(data({ i: 189, ev: `448:${start + 1500}` }))!.run as any).encounters).toEqual([{ id: 448, success: true, at: start + 1500, name: "Herod" }]);
     expect((unpackCarriedRun(data({ ev: `99999:${start + 1500}` }))!.run as any).encounters[0]).not.toHaveProperty("name");
   });
+  it("keeps the lowest level a newer addon sends and never invents one for an older six-field record (party-levels-unknown)", async () => {
+    const { competitionReason } = await import("../src/services/dungeon-rating.js");
+    const band = { min: 18, max: 22, difficultyId: 1 } as never;
+    const judge = (p1: string, p2: string) => {
+      const run = unpackCarriedRun(data({ p1, p2 }))!.run as any;
+      const players = run.players.map((p: any) => ({ character: p.character, memberId: null, presentSec: 1, member: null }));
+      return { run, reason: competitionReason({ instanceId: 389, durationSec: 1500, difficultyId: 1, players, competitionData: { players: run.players.map((p: any) => ({ name: p.character, level: p.level ?? null, minLevel: p.minLevel ?? null })) } }, band) };
+    };
+    const full = judge("Aye;WARRIOR;TANK;20;1400;0;18", "Zed;MAGE;DAMAGER;21;1380;1;19");
+    expect(full.run.players.map((p: any) => [p.level, p.minLevel])).toEqual([[20, 18], [21, 19]]);
+    expect(full.reason).toBeUndefined();
+    const old = judge("Aye;WARRIOR;TANK;20;1400;0", "Zed;MAGE;DAMAGER;21;1380;1");
+    expect(old.run.players.map((p: any) => p.minLevel)).toEqual([undefined, undefined]);
+    expect(old.run.players.map((p: any) => p.level)).toEqual([20, 21]);
+    expect(old.reason).toBe("Party levels unknown");
+    expect(judge("Aye;WARRIOR;TANK;20;1400;0;25", "Zed;MAGE;DAMAGER;21;1380;1;0").run.players.map((p: any) => p.minLevel)).toEqual([undefined, undefined]);
+  });
   it("rebuilds a finished Forever run from the flat record, and refuses what is not one", () => {
     const unpacked = unpackCarriedRun(data())!;
     expect(unpacked.runKey).toBe(RUNKEY);

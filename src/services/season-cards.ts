@@ -91,7 +91,7 @@ export function seasonStartCard(season: SeasonInfo, lang: Lang, timeZone?: strin
       { label: t("Starts", "Début"), value: day(season.startsAt), note: cardTime(season.startsAt, lang, timeZone), accent: "gold" },
       { label: t("Ends", "Fin"), value: season.endsAt ? day(season.endsAt) : t("Open", "Ouverte") }
     ],
-    rowsLabel: t("How it works", "Comment ça fonctionne"),
+    rowsLabel: t("How it works", "Comment ça marche"),
     rows: [
       { name: t("Run dungeons with the addon", "Faites des donjons avec l'addon"), sub: t("Valid runs count towards your season score", "Les parcours valides comptent pour votre score de saison") },
       { name: t("Follow the board", "Suivez le classement"), sub: t("The top 3 are announced when the season ends", "Le top 3 est annoncé à la fin de la saison") }

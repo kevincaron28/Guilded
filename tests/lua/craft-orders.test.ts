@@ -159,7 +159,7 @@ describe("the Crafting page: requests for me", () => {
       expect(s!.run("return VIEW.forMeRows[2].first.text")).not.toBe("Claim");
       expect(s!.run("return VIEW.allButton.text")).not.toBe("Show all open orders");
       expect(s!.run("return VIEW.sourceLabel.text")).not.toBe("From Discord, through your companion.");
-      expect(s!.run("return VIEW.onlineButton.text")).not.toBe("Crafter online now");
+      expect(s!.run("return VIEW.onlineButton.label.text")).not.toBe("Crafter online now");
       expect(s!.run("return VIEW.searchButton.text")).not.toBe("Search");
       expect(s!.run("return VIEW.shareButton.text")).not.toBe("Share my recipes");
       expect(s!.run("return VIEW.mineHeader.text")).not.toContain("My requests");
@@ -302,7 +302,7 @@ describe("the Crafting page: Request tab (favourites, recent, tree, filter, deta
     s!.run(`ONLINE.ann = true`);
     s!.run("VIEW.onlineButton.scripts.OnClick(VIEW.onlineButton)");
     expect(rowsText()).toEqual(["|cffffd100+ Tailoring (1)|r"]);   // Ann is online; Cy and the recipes only you know are not
-    expect(s!.run("return VIEW.onlineButton.text")).toContain("|cffffd100");
+    expect(s!.run("return tostring(VIEW.onlineOnly)")).toBe("true");
     s!.run(`ONLINE.ann = false; VIEW.browse = nil; NS.craftOrders.refresh()`);
     expect(rowsText()).toEqual([""]);
     expect(s!.run("return VIEW.leftNote.text")).toBe("Nobody who can craft these is online right now.");

@@ -152,6 +152,10 @@ function module.body(key)
     elseif exists then status = L("The Guilded chat tab exists. Press the button to send Guilded's messages there.")
     else status = L("There is no Guilded chat tab yet. Make it with the steps below.") end
     table.insert(lines, (ok and "|cff33ff33" or "|cffffd100") .. status .. "|r")
+    if ok then
+      table.insert(lines, L("Already set up. To change it: right-click the Guilded tab > Settings."))
+      return lines
+    end
     table.insert(lines, L("WoW keeps chat windows and their settings and addons cannot change them without breaking the game's chat, so you make the tab once yourself: right-click a chat tab, choose New Window and name it Guilded."))
     if ns.chatTab and ns.chatTab.howTo then
       local how = ns.chatTab.howTo()
@@ -318,6 +322,19 @@ function module.render()
   local done = module.stepDone(key)
   win.check:SetText(done and "|TInterface\\RaidFrame\\ReadyCheck-Ready:20|t" or "")
   win.body:SetText(table.concat(module.body(key), "\n\n"))
+  -- Widgets under the text start below it, whatever the font size; the window grows when the text is long.
+  local bodyHeight = win.body.GetStringHeight and win.body:GetStringHeight()
+  local below = 84 + (type(bodyHeight) == "number" and bodyHeight or 0) + 14
+  local function under(widget, offset, x)
+    widget:ClearAllPoints()
+    widget:SetPoint("TOPLEFT", win, "TOPLEFT", x or 24, -offset)
+  end
+  local chatY, linkY = math.max(340, below), math.max(300, below)
+  under(win.chatButton, chatY)
+  under(win.directBox.caption, linkY); under(win.directBox, linkY + 16, 30)
+  under(win.pageBox.caption, linkY + 44); under(win.pageBox, linkY + 60, 30)
+  local lowest = key == "chat" and chatY + 24 or key == "companion" and linkY + 80 or below
+  win:SetHeight(math.max(HEIGHT, lowest + 70))
   showWidgets(win.companionWidgets, key == "companion")
   if key == "chat" then win.chatButton:Show() else win.chatButton:Hide() end
   local options = key == "options" and module.options() or {}

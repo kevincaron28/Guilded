@@ -161,3 +161,19 @@ export function refreshPromotionText(payload: Record<string, unknown>, userId: s
   const only = payload["cardOnly"] as Record<string, unknown> | undefined;
   if (only && typeof only === "object") only["content"] = content;
 }
+
+/**
+ * Duel face-off card (21 Nov 2026): a round portrait per side, each the Armory head crop of that character, else the Discord avatar of
+ * the member who owns the character, else none (the card draws a ring). Reads two names; never throws.
+ */
+export async function withDuelPortraits(card: ScoreCard, db: Db, portraits: CharacterPortraits, guildId: string, avatarOf: (discordUserId: string) => Promise<Buffer | null>): Promise<ScoreCard> {
+  if (!card.duel) return card;
+  const one = async (side: NonNullable<ScoreCard["duel"]>["winner"]) => {
+    const name = (side.character || side.name).trim();
+    const row = name ? await db.character.findFirst({ where: { guildId, OR: [{ name: ci(name) }, { displayName: ci(name) }] }, select: { member: { select: { discordUserId: true } } } }).catch(() => null) : null;
+    const owner = row?.member?.discordUserId;
+    const found = await pickPortrait(portraitSourcesFor(db, portraits, guildId, name, owner ?? "", async () => (owner ? await avatarOf(owner) : null)));
+    return found ? { ...side, portrait: found.image.toString("base64") } : side;
+  };
+  try { return { ...card, duel: { ...card.duel, winner: await one(card.duel.winner), loser: await one(card.duel.loser) } }; } catch { return card; }
+}

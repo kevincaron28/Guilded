@@ -3,6 +3,7 @@ import { WINDOW_CARDS, duelResultCard, duelSummaryCard, queueDuelCards, standing
 import { cardAltText } from "../src/services/card-alt.js";
 import { emptyNameBook } from "../src/services/character-display.js";
 import { scoreCardPng } from "../src/services/score-card.js";
+import sharp from "sharp";
 
 const duel = (n: number, extra = {}) => ({ reportKey: `k${n}`, winnerId: "w", loserId: "l", winnerCharacter: "Aldric", loserCharacter: "Brenna", winnerLevel: 58, loserLevel: 60, reason: "knockout", endedAt: new Date(Date.UTC(2026, 10, 13, 12, n)), ...extra });
 const history = (n: number) => Array.from({ length: n }, (_, i) => ({ reportKey: `k${i + 1}`, winnerId: "w", loserId: "l", winnerLevel: 58, loserLevel: 60, endedAt: new Date(Date.UTC(2026, 10, 13, 11, i)) }));
@@ -82,4 +83,43 @@ describe("duel cards", () => {
     expect([...posted.jobs.values()][0]!.payload["duels"]).toHaveLength(1);
     expect(await queueDuelCards(posted.database, "g", "forever", "en", [], classes, emptyNameBook, now)).toBe(0);
   });
+});
+
+describe("duel face-off card (21 Nov 2026)", () => {
+  const rating = { winnerDelta: 1, loserDelta: -1, winnerScore: 1001, loserScore: 999, winnerPlacement: null, loserPlacement: null, rated: true, seasonId: "2026-11", startsAt: "2026-11-04T23:00:00Z" };
+  const meta = async (card: Parameters<typeof scoreCardPng>[0]) => sharp((await scoreCardPng(card))!).metadata();
+
+  it("groups each side's change and new rating, in both languages", () => {
+    const [d] = withStandings([duel(1)], new Map());
+    const fr = duelResultCard({ ...d!, rating }, "fr", classes, emptyNameBook).duel!;
+    expect(fr).toMatchObject({ label: "Résultat du duel", outcome: "Victoire par K.O.", levels: "Niv. 58 vs 60" });
+    expect(fr.winner).toMatchObject({ delta: "+1", standing: "→ 1001", tone: "green", tag: "Gagnant" });
+    expect(fr.loser).toMatchObject({ delta: "-1", standing: "→ 999", tone: "red", tag: "Vaincu" });
+    expect(duelResultCard({ ...d!, rating }, "en", classes, emptyNameBook).duel!.outcome).toBe("Won by knockout");
+  });
+
+  it("draws at the unchanged card size with long names, unknown levels, no rating change and no portrait", async () => {
+    const [d] = withStandings([duel(1, { winnerCharacter: "Aldric-de-la-Vallée-des-Tempêtes-Sombres-et-Brumeuses", winnerLevel: null, loserLevel: null })], new Map());
+    expect(await meta(duelResultCard({ ...d!, rating }, "fr", classes, emptyNameBook))).toMatchObject({ width: 1200, height: 630 });
+    expect(duelResultCard({ ...d!, rating }, "fr", classes, emptyNameBook).duel!.levels).toBeUndefined();
+    expect(await meta(duelResultCard({ ...d!, rating: { ...rating, rated: false, winnerDelta: 0, loserDelta: 0 } }, "en", classes, emptyNameBook))).toMatchObject({ width: 1200, height: 630 });
+    expect(await meta(duelResultCard(d!, "en", classes, emptyNameBook))).toMatchObject({ width: 1200, height: 630 });
+  }, 60_000);
+
+  it("keeps every string at 24 px or more with enough contrast on a bright painting", async () => {
+    const { renderDuelFaceOff } = await import("../src/services/card-duel.js");
+    const { assertCardRules } = await import("../src/services/card-kit.js");
+    const [d] = withStandings([duel(1)], new Map());
+    const card = duelResultCard({ ...d!, rating }, "fr", classes, emptyNameBook);
+    const art = await sharp({ create: { width: 1200, height: 630, channels: 3, background: "#d98a3a" } }).jpeg().toBuffer();
+    const { report } = await renderDuelFaceOff(card.duel!, art);
+    expect(() => assertCardRules(report)).not.toThrow();
+  }, 60_000);
+
+  it("an older queued duel card without the face-off still draws the list layout", async () => {
+    const [d] = withStandings([duel(1)], new Map());
+    const { duel: gone, ...old } = duelResultCard({ ...d!, rating }, "fr", classes, emptyNameBook);
+    void gone;
+    expect(await meta(old)).toMatchObject({ width: 1200 });
+  }, 60_000);
 });

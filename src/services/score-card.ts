@@ -18,6 +18,10 @@ import type { TrendVisual } from "./member-trend.js";
  */
 export interface CardStat { label: string; value: string; note?: string | undefined; accent?: "gold" | "green" | "red" | undefined }
 export interface CardRow { name: string; color?: string | undefined; sub?: string | undefined; right?: string | undefined; rightTone?: "gold" | "green" | "red" | undefined; icon?: string | undefined }
+/** The duel result card (21 Nov 2026 redesign): a face-off, winner left and loser right, each with their own rating change. */
+export interface DuelSide { name: string; color: string; /** "Winner" / "Defeated" / "Fled". */ tag: string; /** The character name the portrait is looked up by (delivery only). */ character?: string | undefined; /** "Lv 40", absent when the level is unknown. */ level?: string | undefined; /** "+1", "-1", "0"; empty draws no figure. */ delta: string; tone: "green" | "red" | "muted"; /** "→ 1001", "placement 3/5", "14 in total". */ standing?: string | undefined;
+  /** Added at delivery from the Armory (a base64 PNG), never stored. */ portrait?: string | undefined }
+export interface DuelVisual { label: string; outcome: string; /** "Lv 40 vs 34", absent when neither level is known. */ levels?: string | undefined; /** The rating note and season, drawn in the strip. */ strip?: string | undefined; date?: string | undefined; winner: DuelSide; loser: DuelSide }
 export interface CardBadge { text: string; tone?: "ok" | "warn" | "muted" }
 /** One achievement on an unlock card: `icon` is badge artwork (64x64 grid), `color` the tier colour. */
 export interface CardUnlock { name: string; group: string; detail: string; tier: string; color: string; icon: string }
@@ -68,6 +72,8 @@ export interface ScoreCard { eyebrow?: string; title: string; subtitle: string; 
   trend?: TrendVisual;
   /** 9.2: an approved painting for this card (card-backdrop.ts, site/card-art/<kind>/<key>.jpg). Cards without it, or without a file, draw as before. */
   backdrop?: CardBackdrop;
+  /** 21 Nov 2026: the duel face-off layout (card-duel.ts). Duel cards queued before it lack this and keep the list layout. */
+  duel?: DuelVisual;
   /** Ticked rows (the bosses a raid killed): the banner layout draws them in one or two columns; the older layout ignores them. */
   checks?: string[] }
 

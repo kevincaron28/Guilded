@@ -6,7 +6,8 @@ import { textlessEmbed } from "./card-only.js";
 import { displayCharacterName, type FullNameBook } from "./character-display.js";
 import { duelPoints, streakText, type FreshDuel } from "./duels.js";
 import { classOf, type ClassBook } from "./ladder-classes.js";
-import { classColor, type ScoreCard } from "./score-card.js";
+import { classColor, type DuelSide, type DuelVisual, type ScoreCard } from "./score-card.js";
+import { cardDate } from "./card-format.js";
 import { placement, ratingApplies, rateSeason, ratingSeasonName, seasonOf, showChange, showRating, type RatedDuel } from "./duel-rating.js";
 import { ratingFooter } from "./duel-rules.js";
 import { ratingStartOf } from "./duels.js";
@@ -27,6 +28,16 @@ export interface DuelRatingInfo { winnerDelta: number; loserDelta: number; winne
 export interface DuelCardInput extends FreshDuel { points: number; winnerScore: number; winnerStreak: number; winnerBest: number; rating?: DuelRatingInfo }
 
 const level = (value: number | null) => value ? String(value) : "—";
+
+/** The face-off picture's definition (card-duel.ts): same facts as the list rows, grouped per side. Portraits are added at delivery. */
+function faceOff(duel: DuelCardInput, lang: Lang, winner: DuelSide, loser: DuelSide, strip: string): DuelVisual {
+  const fr = lang === "fr", lv = (value: number | null) => value ? `${fr ? "Niv." : "Lv"} ${value}` : undefined;
+  const known = Boolean(duel.winnerLevel || duel.loserLevel);
+  return { label: fr ? "Résultat du duel" : "Duel result", outcome: duel.reason === "retreat" ? (fr ? "Adversaire en fuite" : "Opponent fled") : (fr ? "Victoire par K.O." : "Won by knockout"),
+    ...(known ? { levels: `${lv(duel.winnerLevel) ?? (fr ? "Niv. ?" : "Lv ?")} vs ${duel.loserLevel ?? "?"}` } : {}),
+    strip: strip.slice(0, 200), date: cardDate(duel.endedAt, lang),
+    winner: { ...winner, character: duel.winnerCharacter, level: lv(duel.winnerLevel) }, loser: { ...loser, character: duel.loserCharacter, level: lv(duel.loserLevel) } };
+}
 
 /** Pure: the card of one duel. */
 export function duelResultCard(duel: DuelCardInput, lang: Lang, classes: ClassBook, names: FullNameBook): ScoreCard {
@@ -52,7 +63,11 @@ export function duelResultCard(duel: DuelCardInput, lang: Lang, classes: ClassBo
         { name: winner, color: classColor(classOf(classes, duel.winnerCharacter)), sub: t("Winner", "Gagnant"), right: moved(r.winnerDelta, r.winnerScore), rightTone: "green" },
         { name: loser, color: classColor(classOf(classes, duel.loserCharacter)), sub: fled ? t("Fled", "A fui") : t("Defeated", "Vaincu"), right: moved(r.loserDelta, r.loserScore), rightTone: "red" }
       ],
-      footer: `${r.rated ? "" : t("No rating change for this duel · ", "Aucun changement de cote pour ce duel · ")}${ratingFooter(lg, ratingSeasonName(r.seasonId, lg), new Date(r.startsAt))}`.slice(0, 300)
+      footer: `${r.rated ? "" : t("No rating change for this duel · ", "Aucun changement de cote pour ce duel · ")}${ratingFooter(lg, ratingSeasonName(r.seasonId, lg), new Date(r.startsAt))}`.slice(0, 300),
+      duel: faceOff(duel, lang,
+        { name: winner, color: classColor(classOf(classes, duel.winnerCharacter)), tag: t("Winner", "Gagnant"), delta: change(r.winnerDelta), tone: r.rated ? "green" : "muted", standing: where(r.winnerScore, r.winnerPlacement) },
+        { name: loser, color: classColor(classOf(classes, duel.loserCharacter)), tag: fled ? t("Fled", "A fui") : t("Defeated", "Vaincu"), delta: change(r.loserDelta), tone: r.rated ? "red" : "muted", standing: where(r.loserScore, r.loserPlacement) },
+        `${r.rated ? "" : t("No rating change · ", "Aucun changement de cote · ")}${ratingFooter(lg, ratingSeasonName(r.seasonId, lg), new Date(r.startsAt), true)}`)
     };
   }
   return {
@@ -70,7 +85,11 @@ export function duelResultCard(duel: DuelCardInput, lang: Lang, classes: ClassBo
       { name: winner, color: classColor(classOf(classes, duel.winnerCharacter)), sub: t("Winner", "Gagnant"), right: `+${duel.points}`, rightTone: "green" },
       { name: loser, color: classColor(classOf(classes, duel.loserCharacter)), sub: fled ? t("Fled", "A fui") : t("Defeated", "Vaincu"), right: duel.loserLevel ? t(`Lv ${duel.loserLevel}`, `Niv ${duel.loserLevel}`) : undefined }
     ],
-    footer: t("Guild duel · Score: 10 per win, ±2 per level of difference · No rewards · guildedwow.com", "Duel de guilde · Score : 10 par victoire, ±2 par niveau d'écart · Aucune récompense · guildedwow.com")
+    footer: t("Guild duel · Score: 10 per win, ±2 per level of difference · No rewards · guildedwow.com", "Duel de guilde · Score : 10 par victoire, ±2 par niveau d'écart · Aucune récompense · guildedwow.com"),
+    duel: faceOff(duel, lang,
+      { name: winner, color: classColor(classOf(classes, duel.winnerCharacter)), tag: t("Winner", "Gagnant"), delta: `+${duel.points}`, tone: "green", standing: t(`${duel.winnerScore} in total`, `${duel.winnerScore} au total`) },
+      { name: loser, color: classColor(classOf(classes, duel.loserCharacter)), tag: fled ? t("Fled", "A fui") : t("Defeated", "Vaincu"), delta: "", tone: "muted", standing: t("No points", "Aucun point") },
+      t("Score: 10 per win, ±2 per level of difference · No rewards", "Score : 10 par victoire, ±2 par niveau d'écart · Aucune récompense"))
   };
 }
 

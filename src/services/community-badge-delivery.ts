@@ -7,7 +7,7 @@ import { asLang, type Lang } from "../i18n.js";
 export function milestoneMessage(name: string, threshold: number, lang: Lang) {
   const safe = escapeMarkdown(name.replace(/[\r\n<>@]/g, " ").slice(0, 80));
   return { content: lang === "fr"
-    ? `🏅 Bravo **${safe}** ! Tu as atteint **${threshold} points communautaires** cette saison. Ton badge est conservé dans /community badges. Merci de faire vivre la communauté !`
+    ? `🏅 Bravo **${safe}** ! Vous avez atteint **${threshold} points communautaires** cette saison. Votre badge est conservé dans /community badges. Merci de faire vivre la communauté !`
     : `🏅 Congratulations **${safe}**! You reached **${threshold} community points** this season. Your badge is saved in /community badges. Thank you for being part of the community!`,
     allowedMentions: { parse: [] as [], users: [] as string[], roles: [] as string[] } };
 }

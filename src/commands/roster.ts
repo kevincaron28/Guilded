@@ -111,7 +111,7 @@ export async function executeRoster(interaction: ChatInputCommandInteraction): P
     const enabled = on ?? settings?.guildMapEnabled ?? true;
     await reply(enabled
       ? t("Guildmate map is **on**: signed-in members of this guild see last-seen positions, a heat map and calls for help in the phone app. Never public; each member can turn their own sharing off there, which deletes their positions.",
-        "La carte des membres est **activée** : les membres connectés de cette guilde voient les dernières positions, une carte de chaleur et les appels à l'aide dans l'appli mobile. Jamais publique ; chaque membre peut y couper son partage, ce qui efface ses positions.")
+        "La carte des membres est **activée** : les membres connectés de cette guilde voient les dernières positions, une carte de chaleur et les appels à l'aide dans l'application mobile. Jamais publique ; chaque membre peut y couper son partage, ce qui efface ses positions.")
       : t("Guildmate map is **off**: nobody sees it and new positions are not stored. Turn it on with `on:true`.",
         "La carte des membres est **désactivée** : personne ne la voit et les nouvelles positions ne sont pas gardées. Activez-la avec `on:true`."));
     return;

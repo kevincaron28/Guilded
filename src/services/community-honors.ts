@@ -128,7 +128,7 @@ export function weeklyHonorsMessage(lang: Lang, input: WeeklyMessageInput) {
       // The points are in the "Top of the week" field right below (the MVP is its first row): said once, there.
       ? say(lang, `**MVP of the week:** ${mvpList}. The ${HONOR_ROLES.en.weekly} role is theirs until ${until}!`,
         `**MVP de la semaine :** ${mvpList}. Le rôle ${HONOR_ROLES.fr.weekly} est à eux jusqu’à ${until} !`)
-      : say(lang, "Nobody earned community points this week, so the MVP role stays free. Next week is yours!", "Personne n’a gagné de points cette semaine : le rôle MVP reste libre. La semaine prochaine est à vous !"));
+      : say(lang, "Nobody earned community points this week, so the MVP role stays free. Next week is yours!", "Personne n’a gagné de points cette semaine : le rôle MVP reste libre. La semaine prochaine, c’est votre tour, la gang !"));
   if (top.length) embed.addFields({ name: say(lang, "🏆 Top of the week", "🏆 Le top de la semaine"),
     value: top.map((row, i) => `${MEDALS[i]} ${who(names, row.userId)} — **${n(row.points)} pts**`).join("\n") });
   if (input.rookie) {

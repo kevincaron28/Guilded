@@ -580,7 +580,8 @@ local LEFT_ROW_H = 22
 local LEFT_W = 250
 local LIST_W = LEFT_W - 22   -- the rows; the scroll buttons take the strip on the right
 local SEARCH_LIMIT = 80      -- recipes a search keeps (the list scrolls)
-local DETAIL_W = 320
+local DETAIL_W = 292      -- the detail pane (recomputed from the page width in buildCraftingPage; a margin stays for the scroll bar)
+local DETAIL_X = LEFT_W + 10
 local MAX_REAGENT_ROWS = 8
 local MAX_CRAFTER_ROWS = 5
 local SHOP_ROWS = 10      -- reagent rows of the shopping list
@@ -886,6 +887,27 @@ function orders.addRecent(entry)
   while #s.recent > MAX_RECENT do table.remove(s.recent) end
 end
 
+-- The recipe's name in this client's language when its id is known (names saved from another client may be French);
+-- the stored text otherwise. Keys: item id above 0, a negative spell id for an enchant.
+function orders.localName(entry)
+  if not entry then return nil end
+  local key = tonumber(entry.key)
+  local name
+  if key and key ~= 0 then
+    pcall(function()
+      if key > 0 then
+        if C_Item and C_Item.GetItemNameByID then name = C_Item.GetItemNameByID(key) end
+        if (not name or name == "") and GetItemInfo then name = GetItemInfo(key) end
+      else
+        if C_Spell and C_Spell.GetSpellName then name = C_Spell.GetSpellName(-key) end
+        if (not name or name == "") and GetSpellInfo then name = GetSpellInfo(-key) end
+      end
+    end)
+  end
+  if type(name) == "string" and name ~= "" then return name end
+  return entry.name
+end
+
 function orders.recents()
   local s = state()
   local list = {}
@@ -1011,6 +1033,7 @@ function orders.buildCraftingPage(page, helpers)
   local view = { page = page, width = width, results = {}, all = false, advanced = false, sub = "request", onlineOnly = false, expanded = {}, mats = false }
   orders.ui = view
   view.relayout = helpers.relayout
+  DETAIL_W = math.max(240, width - DETAIL_X - 24)
 
   -- Three sub-tabs (9.4): Request, My requests, Craft for the guild. One shows at a time.
   view.tabs = {}
@@ -1049,7 +1072,13 @@ function orders.buildCraftingPage(page, helpers)
   end)
   view.searchButton = newButton(page, "Search", 90, search)
   view.searchButton:SetPoint("TOPLEFT", page, "TOPLEFT", 344, -31)
-  view.onlineButton = newButton(page, "Crafter online now", 138, function() view.onlineOnly = not view.onlineOnly; view.browse = nil; view.offset = 0; orders.refresh(true) end, 22)
+  -- A real tick box (it used to be a button whose text was "[ ]").
+  view.onlineButton = CreateFrame("CheckButton", nil, page, "UICheckButtonTemplate")
+  view.onlineButton:SetWidth(24); view.onlineButton:SetHeight(24)
+  view.onlineButton.label = view.onlineButton:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  view.onlineButton.label:SetPoint("LEFT", view.onlineButton, "RIGHT", 2, 0)
+  view.onlineButton.label:SetText(L("Crafter online now"))
+  view.onlineButton:SetScript("OnClick", function() view.onlineOnly = not view.onlineOnly; view.browse = nil; view.offset = 0; orders.refresh(true) end)
   if view.onlineButton.SetScript then
     view.onlineButton:SetScript("OnEnter", function(self)
       if not GameTooltip then return end
@@ -1186,7 +1215,7 @@ function orders.buildCraftingPage(page, helpers)
   view.qtyBox = newEdit(page, 40, true)
   view.qtyBox:SetText("1")
   view.noteLabel = newLabel(page, "Note", "GameFontNormalSmall")
-  view.noteBox = newEdit(page, DETAIL_W - 50)
+  view.noteBox = newEdit(page, DETAIL_W - 160)
   view.noteBox:SetMaxLetters(60)
   view.matsButton = newButton(page, "Materials: crafter provides", DETAIL_W, function() view.mats = not view.mats; orders.refresh(true) end, 22)
   view.requestButton = newButton(page, "Request", 120, function() view.request() end, 24)
@@ -1385,7 +1414,7 @@ local function renderDetail(view, page, x, y, off)
   end
   local detail = orders.detail(sel)
   local qty = math.max(1, math.min(200, math.floor(tonumber(view.qtyBox:GetText()) or 1)))
-  view.dTitle:SetText("|cffffd100" .. tostring(detail.name or "?") .. "|r")
+  view.dTitle:SetText("|cffffd100" .. tostring(orders.localName(detail) or "?") .. "|r")
   place(view.dTitle, page, x, y); view.dTitle:Show()
   -- The title may wrap onto two lines: the lines under it start below its real height.
   y = y - math.max(24, math.min(46, textHeight(view.dTitle) + 6))
@@ -1450,7 +1479,7 @@ local function renderDetail(view, page, x, y, off)
   place(view.qtyLabel, page, x, y - 5); view.qtyLabel:Show()
   place(view.qtyBox, page, x + 62, y - 1); view.qtyBox:Show()
   place(view.noteLabel, page, x + 112, y - 5); view.noteLabel:Show()
-  view.noteBox:SetWidth(DETAIL_W - 152)
+  view.noteBox:SetWidth(math.max(60, DETAIL_W - 160))
   place(view.noteBox, page, x + 150, y - 1); view.noteBox:Show()
   y = y - 30
   view.matsButton:SetText(view.mats and L("Materials: I bring them") or L("Materials: crafter provides"))
@@ -1459,7 +1488,7 @@ local function renderDetail(view, page, x, y, off)
   view.askButton:SetText(view.askedShown and string.format(L("Ask: %s"), view.askedShown) or L("Ask: anyone"))
   place(view.askButton, page, x, y); view.askButton:Show()
   setShown(view.requestButton, not off)
-  place(view.requestButton, page, x + DETAIL_W - 120, y - 2)
+  place(view.requestButton, page, x + DETAIL_W - 124, y - 2)
   y = y - 34
   return y
 end
@@ -1468,8 +1497,12 @@ end
 local function renderRequest(view, page, y, off)
   setShown(view.box, true); setShown(view.searchButton, true)
   place(view.box, page, 6, y); place(view.searchButton, page, 344, y + 3)
-  place(view.onlineButton, page, 440, y + 3)
-  view.onlineButton:SetText(view.onlineOnly and ("|cffffd100[x] " .. L("Crafter online now") .. "|r") or ("[ ] " .. L("Crafter online now"))); view.onlineButton:Show()
+  -- The box and its label end inside the page (the label is as wide as the room that is left).
+  local checkX = 436
+  place(view.onlineButton, page, checkX, y + 5)
+  if view.onlineButton.label.SetWidth then view.onlineButton.label:SetWidth(math.max(60, (view.width or 576) - checkX - 30)) end
+  if view.onlineButton.SetChecked then view.onlineButton:SetChecked(view.onlineOnly and true or false) end
+  view.onlineButton:Show()
   y = y - 34
   local top = y
   -- Left list.
@@ -1497,7 +1530,7 @@ local function renderRequest(view, page, y, off)
         end
         local count = entry.crafterCount or entry.crafters and #entry.crafters
         local tail = count and (" |cff" .. (online > 0 and "20ff20" or "808080") .. "(" .. online .. ")|r") or ""
-        row.text:SetText((selected and "|cffffd100" or "|cffffffff") .. clip(tostring(entry.name or "?"), 27) .. "|r" .. tail)
+        row.text:SetText((selected and "|cffffd100" or "|cffffffff") .. clip(tostring(orders.localName(entry) or "?"), 27) .. "|r" .. tail)
         row.star:SetText(orders.isFavourite(entry) and ("|cffffd100" .. L("Fav") .. "|r") or ("|cff707070" .. L("Fav") .. "|r"))
         row.star:Show()
         if row.back.SetColorTexture then row.back:SetColorTexture(1, 1, 1, selected and 0.18 or 0.04) end
@@ -1536,7 +1569,7 @@ local function renderRequest(view, page, y, off)
   else view.more:Hide() end
   local leftBottom = y
   -- Detail pane.
-  local detailBottom = renderDetail(view, page, LEFT_W + 10, top, off)
+  local detailBottom = renderDetail(view, page, DETAIL_X, top, off)
   return math.min(leftBottom, detailBottom) - 6
 end
 

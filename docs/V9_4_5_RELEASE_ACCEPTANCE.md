@@ -1,13 +1,13 @@
 # 9.4.5 release acceptance
 
-Status: prepared 20 November 2026, not yet published.
+Status: published 20 November 2026 (GitHub, website, server and R2 installer; CurseForge 9723332/9723333 in review; Store Submission 21 certifying).
 
 | Provider | State |
 | --- | --- |
-| GitHub | not yet published. |
-| Installer | not yet built or published. |
-| CurseForge | not yet uploaded. |
-| Microsoft Store | 9.4.5.0 after certification. |
+| GitHub | v9.4.5 is the latest release (tag at 68540df5). |
+| Installer | Guilded.Companion.Setup.9.4.5.exe and the fixed-name installer on the server and R2 (sha256 c441c156...). |
+| CurseForge | files 9723332 / 9723333 in review. |
+| Microsoft Store | 9.4.5.0 submitted (Submission 21), publishes on pass. |
 | Bot | already live. |
 
 ## Checked in game (20 November 2026, Lebowski Holyroller, officer)

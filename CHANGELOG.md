@@ -2,7 +2,7 @@
 
 ## 9.4.5 — 20 November 2026
 
-Prepared 20 November 2026, not yet published. Officer windows checked in game on 20 November; the help flow and duel stats still need a two-player check (see docs/V9_4_5_RELEASE_ACCEPTANCE.md).
+Published 20 November 2026 (GitHub v9.4.5, website download and installer). Officer windows checked in game on 20 November; the help flow and duel stats still need a two-player check (see docs/V9_4_5_RELEASE_ACCEPTANCE.md).
 
 Addon:
 

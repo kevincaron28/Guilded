@@ -11,7 +11,7 @@ import { enqueueDiscordJob } from "./discord-jobs.js";
 export async function relayProfessions(database: PrismaClient, guildId: string, snapshot: AddonSnapshot) {
   return database.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${guildId}, 0))`;
-    const characters = await tx.character.findMany({ where: { member: { guildId } }, select: { id: true, name: true, realm: true } });
+    const characters = await tx.character.findMany({ where: { member: { guildId } }, select: { id: true, name: true, realm: true, guildRankAt: true } });
     const discovery = await applyDiscoveredCharacters(tx, guildId,
       [...(snapshot.character ? [snapshot.character] : []), ...snapshot.alts, ...snapshot.characters], characters);
     for (const entry of snapshot.readiness) {

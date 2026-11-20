@@ -20,7 +20,7 @@ type Linked = {
   id: string; name: string; realm: string; gameEdition?: string;
   // What the caller already read (the guild's characters): lets an unchanged character skip its write.
   className?: string | null; race?: string | null; level?: number | null; spec?: string | null; displayName?: string | null;
-  guildRankName?: string | null; guildRankIndex?: number | null; lastSeenAt?: Date | null; professionsUpdatedAt?: Date | null;
+  guildRankName?: string | null; guildRankIndex?: number | null; guildRankAt?: Date | null; lastSeenAt?: Date | null; professionsUpdatedAt?: Date | null;
 };
 
 // Last seen only moves forward when the move means something (an hour): every character in every officer upload used to be
@@ -35,6 +35,10 @@ const sameStored = (existing: Linked, data: Record<string, unknown>): boolean =>
   return true;
 };
 
+// A relayed digest carries the rank its sender last saw, possibly days old (a peer copy): it is dated by its own reading time and never
+// replaces a rank stored from a newer reading (20 Nov 2026: a stale copy lowered a rank, the next roster "promoted" it again).
+const rankIsNewer = (storedAt: Date | null | undefined, at: Date) => !(storedAt instanceof Date) || storedAt < at;
+
 export interface DiscoveryResult {
   refreshed: number;
   discovered: number;
@@ -47,7 +51,7 @@ export async function applyDiscoveredCharacters(tx: Tx, guildId: string, entries
   // The unclaimed rows of everyone not linked, in one read (it was one per entry). Test doubles without findMany read one by one.
   const unlinkedKeys = entries.filter((entry) => !findCharacter(linked, entry.name, entry.realm, gameEditionOf(entry))).map((entry) => characterKey(entry.name, entry.realm, gameEditionOf(entry))).filter(Boolean);
   const preloaded = unlinkedKeys.length && typeof tx.unclaimedCharacter.findMany === "function"
-    ? new Map((await tx.unclaimedCharacter.findMany({ where: { guildId, nameKey: { in: unlinkedKeys } }, select: { id: true, nameKey: true, professionsUpdatedAt: true, lastSeenAt: true, className: true, race: true, level: true, spec: true, displayName: true, guildRankName: true } })).map((row) => [row.nameKey, row]))
+    ? new Map((await tx.unclaimedCharacter.findMany({ where: { guildId, nameKey: { in: unlinkedKeys } }, select: { id: true, nameKey: true, professionsUpdatedAt: true, lastSeenAt: true, className: true, race: true, level: true, spec: true, displayName: true, guildRankName: true, guildRankAt: true } })).map((row) => [row.nameKey, row]))
     : null;
   for (const entry of entries) {
     const gameEdition = gameEditionOf(entry);
@@ -65,7 +69,7 @@ export async function applyDiscoveredCharacters(tx: Tx, guildId: string, entries
     if (existing) {
       const forward = !(existing.lastSeenAt instanceof Date) || seenAt > existing.lastSeenAt;
       const data = { ...(entry.displayName ? { displayName: entry.displayName } : {}), ...(className ? { className } : {}), ...(race ? { race } : {}),
-        ...(level && level > (existing.level ?? 0) ? { level } : {}), ...(spec ? { spec } : {}), ...guildRankUpdate(entry), ...(forward ? { lastSeenAt: seenAt } : {}) };
+        ...(level && level > (existing.level ?? 0) ? { level } : {}), ...(spec ? { spec } : {}), ...(rankIsNewer(existing.guildRankAt, seenAt) ? guildRankUpdate(entry, seenAt) : {}), ...(forward ? { lastSeenAt: seenAt } : {}) };
       if (Object.keys(data).length && !sameStored(existing, data)) await tx.character.update({ where: { id: existing.id }, data });
       await syncProfessionSnapshot(tx, guildId, existing, professions, entry.professionsComplete === true, entry.professionsAt ?? new Date(),
         "professionsUpdatedAt" in existing ? { professionsUpdatedAt: existing.professionsUpdatedAt ?? null } : undefined);
@@ -80,7 +84,7 @@ export async function applyDiscoveredCharacters(tx: Tx, guildId: string, entries
     const acceptProfessions = knownAt ? entry.professionsComplete === true && at > knownAt : !before || professions.length > 0;
     // Nothing new about someone already remembered, seen within the hour: no field write. Their last seen is still refreshed for the
     // whole upload below (one updateMany): the sole-newcomer auto-link counts the characters an upload brought by last seen.
-    const stored = before as { lastSeenAt?: Date | null; className?: string; race?: string | null; level?: number | null; spec?: string | null; displayName?: string | null; guildRankName?: string | null } | null;
+    const stored = before as { guildRankAt?: Date | null; lastSeenAt?: Date | null; className?: string; race?: string | null; level?: number | null; spec?: string | null; displayName?: string | null; guildRankName?: string | null } | null;
     if (preloaded && stored && !acceptProfessions && stored.lastSeenAt instanceof Date && Date.now() - stored.lastSeenAt.getTime() < SEEN_REFRESH_MS
       && stored.className === className && (stored.race ?? null) === race && (stored.level ?? null) === level && (stored.spec ?? null) === spec
       && (!entry.displayName || stored.displayName === entry.displayName) && (entry.guildRankName === undefined || stored.guildRankName === entry.guildRankName)) { if (!entry.observedAt) touched.push((before as { id: string }).id); continue; }
@@ -88,7 +92,7 @@ export async function applyDiscoveredCharacters(tx: Tx, guildId: string, entries
       ...(entry.displayName ? { displayName: entry.displayName } : {}),
       ...(acceptProfessions ? { professions: professions as unknown as Prisma.InputJsonValue, ...(entry.professionsComplete === true ? { professionsUpdatedAt: at } : {}) } : {}),
       // 8.5 C5: the rank the officer's upload reported (omitted by older uploads, which keep the last one).
-      ...(entry.guildRankName !== undefined ? { guildRankName: entry.guildRankName, guildRankAt: new Date() } : {})
+      ...(entry.guildRankName !== undefined && rankIsNewer(stored?.guildRankAt, seenAt) ? { guildRankName: entry.guildRankName, guildRankAt: seenAt } : {})
     };
     const lastSeen = stored?.lastSeenAt instanceof Date && stored.lastSeenAt >= seenAt ? {} : { lastSeenAt: seenAt };
     // A poorer or older digest never erases what is stored: only what it carries is written, the level only upward.

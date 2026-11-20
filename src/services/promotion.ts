@@ -7,6 +7,8 @@ import { RANK_MAX_AGE_MS } from "./rank-roles.js";
 import { addonName } from "./addon-name.js";
 import { postToLogChannel } from "./housekeeping.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
+import { promotionCard } from "./card-promotion.js";
+import { textlessEmbed } from "./card-only.js";
 
 // 8.5 track C5: the promotion panel. Officers set a rule (default: in Discord, a linked character at rank "Initiate"
 // for 7+ days, optional minimum level). The bot computes "Ready to promote" and "Not in Discord yet". Read-only:
@@ -187,6 +189,13 @@ export function promotionCongratsText(who: string, character: string, rankName: 
 type CongratsDb = Pick<PrismaClient, "guildSettings" | "member" | "discordJob" | "communitySeason" | "communityHonors">;
 export interface PromotionEvent { name: string; rankName: string; memberId?: string | null }
 
+/** Where the congratulations go: the public community season's announcements channel, else the hall-of-fame channel the weekly MVP post uses. */
+export async function promotionCongratsChannel(db: Pick<PrismaClient, "communitySeason" | "communityHonors">, guildId: string): Promise<string | null> {
+  const season = await db.communitySeason.findFirst({ where: { guildId, game: "DISCORD", audienceRoleId: null, announcementChannelId: { not: null } }, orderBy: { createdAt: "desc" }, select: { announcementChannelId: true } });
+  if (season?.announcementChannelId) return season.announcementChannelId;
+  return (await db.communityHonors.findUnique({ where: { guildId }, select: { channelId: true } }))?.channelId ?? null;
+}
+
 /**
  * One public post per promoted member (owner request, 19 Nov 2026): on by default, officers switch it off with
  * `/officer promotion rule congrats:false`. Never for the Alt rank (alts are not promotions). Goes to the community
@@ -198,24 +207,34 @@ export async function postPromotionCongrats(db: CongratsDb, discordGuild: Pick<D
   if (settings?.promotionCongratsEnabled === false) return 0;
   const todo = promotions.filter((p) => p.memberId && !isAltRank(p.rankName)).slice(0, 10);
   if (!todo.length) return 0;
-  const season = await db.communitySeason.findFirst({ where: { guildId, game: "DISCORD", audienceRoleId: null, announcementChannelId: { not: null } }, orderBy: { createdAt: "desc" }, select: { announcementChannelId: true } });
-  const honors = season?.announcementChannelId ? null : await db.communityHonors.findUnique({ where: { guildId }, select: { channelId: true } });
-  const channelId = season?.announcementChannelId ?? honors?.channelId;
+  const channelId = await promotionCongratsChannel(db, guildId);
   if (!channelId) return 0;
-  const members = await db.member.findMany({ where: { id: { in: todo.map((p) => p.memberId!) } }, select: { id: true, discordUserId: true } });
+  const members = await db.member.findMany({ where: { id: { in: todo.map((p) => p.memberId!) } }, select: { id: true, discordUserId: true, displayName: true } });
   const lang = settings?.language === "fr" ? "fr" : "en";
-  const day = now.toISOString().slice(0, 10);
   let posted = 0;
   for (const p of todo) {
-    const userId = members.find((m) => m.id === p.memberId)?.discordUserId;
-    if (!userId || !/^\d{17,20}$/.test(userId)) continue;
-    const key = `promotion-congrats:${userId}:${p.rankName.trim().toLowerCase()}:${day}`;
-    if (await db.discordJob.findUnique({ where: { guildId_key: { guildId, key } }, select: { id: true } })) continue;
-    const text = promotionCongratsText(`<@${userId}>`, cleanCharacterName(p.name), p.rankName, lang);
-    await enqueueDiscordJob(db, guildId, key, "MESSAGE", { channelId, message: JSON.parse(JSON.stringify({ embeds: [new EmbedBuilder().setColor(0xc9a227).setDescription(text).toJSON()] })), mentionUsers: [userId] });
-    posted++;
+    const member = members.find((m) => m.id === p.memberId);
+    if (!member) continue;
+    if (await queuePromotionCongrats(db, guildId, channelId, lang, { userId: member.discordUserId, memberName: member.displayName, name: p.name, rankName: p.rankName, at: now })) posted++;
   }
   return posted;
+}
+
+/**
+ * Queues one congratulations post (text with the ping, plus the rank-tier card) unless the same member and rank already have one that day.
+ * Shared by the live upload path and scripts/announce-recent-promotions.ts, so both dedupe on the same job key. Returns false when skipped.
+ */
+export async function queuePromotionCongrats(db: Pick<PrismaClient, "discordJob">, guildId: string, channelId: string, lang: "en" | "fr",
+  p: { userId: string; memberName: string; name: string; rankName: string; at: Date }): Promise<boolean> {
+  if (!/^\d{17,20}$/.test(p.userId) || isAltRank(p.rankName)) return false;
+  const key = `promotion-congrats:${p.userId}:${p.rankName.trim().toLowerCase()}:${p.at.toISOString().slice(0, 10)}`;
+  if (await db.discordJob.findUnique({ where: { guildId_key: { guildId, key } }, select: { id: true } })) return false;
+  const character = cleanCharacterName(p.name);
+  const text = promotionCongratsText(`<@${p.userId}>`, character, p.rankName, lang);
+  const card = promotionCard(lang, { name: p.memberName, character, rank: p.rankName });
+  await enqueueDiscordJob(db, guildId, key, "MESSAGE", { channelId, message: { content: text }, mentionUsers: [p.userId], card: JSON.parse(JSON.stringify(card)),
+    cardOnly: { content: text, embeds: [textlessEmbed(0xc9a227)] } });
+  return true;
 }
 
 /** Officer log line for each promotion (at most 10 per upload), plus the public congratulations when the caller gives the database. */

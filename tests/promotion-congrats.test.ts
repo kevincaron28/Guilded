@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { postPromotionCongrats, promotionCongratsText } from "../src/services/promotion.js";
+import { promotionCard, promotionTier, PROMOTION_TIERS } from "../src/services/card-promotion.js";
+import { renderNextCard } from "../src/services/card-next.js";
 
 const USER = "123456789012345678";
 function fakeDb(over: { settings?: Record<string, unknown> | null; season?: string | null; honors?: string | null } = {}) {
@@ -8,7 +10,7 @@ function fakeDb(over: { settings?: Record<string, unknown> | null; season?: stri
     guildSettings: { findUnique: async () => over.settings === undefined ? { language: "fr", promotionCongratsEnabled: true } : over.settings },
     communitySeason: { findFirst: async () => over.season ? { announcementChannelId: over.season } : null },
     communityHonors: { findUnique: async () => over.honors === undefined ? { channelId: "chan-honors" } : over.honors ? { channelId: over.honors } : null },
-    member: { findMany: async () => [{ id: "m1", discordUserId: USER }] },
+    member: { findMany: async () => [{ id: "m1", discordUserId: USER, displayName: "Simon" }] },
     discordJob: {
       findUnique: async ({ where }: { where: { guildId_key: { key: string } } }) => jobs.has(where.guildId_key.key) ? { id: "x" } : null,
       upsert: async ({ where, create }: { where: { guildId_key: { key: string } }; create: { kind: string; payload: Record<string, unknown> } }) => { jobs.set(where.guildId_key.key, create); return create; }
@@ -28,6 +30,7 @@ describe("promotion congratulations", () => {
     expect(job!.payload["channelId"]).toBe("chan-honors");
     expect(job!.payload["mentionUsers"]).toEqual([USER]);
     expect(JSON.stringify(job!.payload["message"])).toContain(`Félicitations à <@${USER}> (Halidor Galemorne), promu·e **Membre** !`);
+    expect(job!.payload["card"]).toMatchObject({ promotion: { tier: "member", name: "Simon", character: "Halidor Galemorne", rank: "Membre", kicker: "Félicitations !" } });
   });
   it("prefers the announcements channel", async () => {
     const { db, jobs } = fakeDb({ season: "chan-announce" });
@@ -55,5 +58,13 @@ describe("promotion congratulations", () => {
   });
   it("words it in English too", () => {
     expect(promotionCongratsText("<@1>", "Halidor", "Member", "en")).toBe("🎉 Congratulations to <@1> (Halidor), promoted to **Member**!");
+  });
+  it("maps rank names to tiers, unknown ones to neutral", () => {
+    expect(["Initiate", "Membre", "Officier", "Co-GM", "Guild Master", "Ambassadeur"].map(promotionTier)).toEqual(["initiate", "member", "officer", "leader", "leader", "neutral"]);
+  });
+  it("draws a different picture per tier, in French and English", async () => {
+    const pngs = await Promise.all([...PROMOTION_TIERS.map((tier) => ({ tier, rank: { initiate: "Initiate", member: "Membre", officer: "Officier", leader: "Co-GM", neutral: "Ambassadeur" }[tier] })).map(({ rank }) => renderNextCard(promotionCard("fr", { name: "Simon", character: "Halidor Galemorne", rank }))), renderNextCard(promotionCard("en", { name: "Simon", character: "Halidor", rank: "Member" }))]);
+    expect(pngs.every((png) => png && png.length > 5000)).toBe(true);
+    expect(new Set(pngs.slice(0, 5).map((png) => png!.toString("base64"))).size).toBe(5);
   });
 });

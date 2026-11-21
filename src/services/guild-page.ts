@@ -230,7 +230,7 @@ export function renderGuildPage(view: GuildPageView): string {
   }
   if (view.recruitment?.text) parts.push(`<aside class="card recruitment-card"><h2>${t("Recruitment", "Recrutement")}</h2>${paragraphs(view.recruitment.text)}</aside>`);
   const description = escapeHtml((view.intro ?? t(`${view.name}: raid cores, times and rankings.`, `${view.name} : cores de raid, horaires et classements.`)).replace(/\s+/g, " ").slice(0, 160));
-  return `<!doctype html><html lang="${view.language}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`
+  return `<!doctype html><html lang="${view.language}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="google-adsense-account" content="ca-pub-6948243189424271">`
     + `<title>${name} · Guilded</title><meta name="description" content="${description}">${view.indexable ? `<link rel="canonical" href="${siteUrl(`/g/${view.slug}/`)}"><meta property="og:url" content="${siteUrl(`/g/${view.slug}/`)}">` : '<meta name="robots" content="noindex">'}`
     + `<meta property="og:title" content="${name}"><meta property="og:description" content="${description}"><meta property="og:type" content="website">`
     + `<meta property="og:site_name" content="Guilded"><meta property="og:image" content="${siteUrl("/images/social/og-guild.jpg")}"><meta property="og:image:type" content="image/jpeg"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image"><meta name="theme-color" content="#d4af37"><link rel="icon" href="/favicon.png" type="image/png">`

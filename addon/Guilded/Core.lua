@@ -2749,6 +2749,16 @@ local function noteMyCharacter(info)
   if count > 50 and oldestName and oldestName ~= key then db.myCharacters[oldestName] = nil end
 end
 
+-- (9.4.8) Every module that keeps a copy in the guild's saved data hears when that data was switched, re-keyed or repaired.
+do
+  local resolveRaw = resolveGuildData
+  resolveGuildData = function()
+    local result = resolveRaw()
+    if result and result ~= "same" and ns.onGuildDataSwitched then pcall(ns.onGuildDataSwitched, result) end
+    return result
+  end
+end
+
 -- Joining a guild mid-session: GetGuildInfo stays empty for a few seconds after
 -- PLAYER_GUILD_UPDATE, and no roster update may follow until the guild window is opened, so
 -- the guild was only picked up after a /reload. Try again now and a few times after.

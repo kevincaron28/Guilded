@@ -359,6 +359,8 @@ ns.commandHandlers["score"] = function(args)
     for line in string.gmatch(scores.topText(15, args[2] and string.lower(args[2])), "[^\n]+") do ns.message(line) end
     return
   end
+  -- WoW Forever names have two words ("Lebowski Holyroller"): the whole argument is the name, not its first word.
+  if what then what = table.concat(args, " ") end
   local name = (what and ns.normalizeName and ns.normalizeName(what)) or (ns.playerName and ns.playerName())
   for line in string.gmatch(scores.detailText(name), "[^\n]+") do ns.message(line) end
 end

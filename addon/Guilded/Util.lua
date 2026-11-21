@@ -113,23 +113,29 @@ end
 
 -- Officer windows (Roster admin, Ready to promote, Invite queue) never cover each other or the main Guilded window.
 -- `util.placeBeside(frame)` puts `frame` next to the windows that are shown (right side first, then left), clamped to the
--- screen, top aligned with the first of them. With no room it centres over the biggest one (the others stay apart
--- from a frame placed fully on top). Absolute offsets from UIParent, never anchored to another window.
+-- screen, top aligned with the first of them. With no room beside them, the other officer side windows close (one side
+-- window at a time, the main window stays) and it goes beside the main window; only on a screen narrower than both does
+-- it cover one window squarely, one strata up. Absolute offsets from UIParent, never anchored to another window.
+-- 20 Nov 2026 (seen in game after windows had been dragged): WoW restores a dragged, named window to its saved spot after
+-- we place it, and the click that opened a window raises the window it came from afterwards. So positions are never
+-- saved, and the placement and raise run again one frame later.
 util.OFFICER_WINDOWS = { "GuildedPanel", "GuildedRosterAdmin", "GuildedPromotionPanel", "GuildedInviteQueuePanel" }
-function util.placeBeside(frame, gap)
-  if not (frame and frame.GetWidth and UIParent and UIParent.GetWidth) then return false end
-  gap = gap or 8
-  local w, h = frame:GetWidth(), frame:GetHeight()
-  local sw, sh = UIParent:GetWidth(), UIParent:GetHeight()
-  if not (type(w) == "number" and type(h) == "number" and type(sw) == "number" and type(sh) == "number") then return false end
-  local others = {}
+local function shownOfficerWindows(frame)
+  local list = {}
   for _, name in ipairs(util.OFFICER_WINDOWS) do
     local o = _G[name]
     if o and o ~= frame and o.IsShown and o:IsShown() then
       local l, r, t, b = cardRect(o)
-      if l then others[#others + 1] = { l = l, r = r, t = t, b = b, main = name == "GuildedPanel" } end
+      if l then list[#list + 1] = { l = l, r = r, t = t, b = b, main = name == "GuildedPanel", frame = o } end
     end
   end
+  return list
+end
+local function placeOnce(frame, gap)
+  local w, h = frame:GetWidth(), frame:GetHeight()
+  local sw, sh = UIParent:GetWidth(), UIParent:GetHeight()
+  if not (type(w) == "number" and type(h) == "number" and type(sw) == "number" and type(sh) == "number") then return false end
+  local others = shownOfficerWindows(frame)
   if #others == 0 then return false end
   local function free(l, t)
     if l < 0 or l + w > sw or t > sh or t - h < 0 then return false end
@@ -138,40 +144,65 @@ function util.placeBeside(frame, gap)
     end
     return true
   end
-  local top = math.min(others[1].t, sh)
-  if top - h < 0 then top = h end
-  local spots = {}
-  for _, o in ipairs(others) do spots[#spots + 1] = { o.r + gap, top }; spots[#spots + 1] = { o.l - w - gap, top } end
-  local left, spotTop
-  for _, c in ipairs(spots) do if free(c[1], c[2]) then left, spotTop = c[1], c[2]; break end end
-  local covering = false
-  if not left then
-    -- No room beside (20 Nov 2026, seen in game: the main window and Roster admin fill the screen width): cover ONE window
-    -- squarely instead of half-covering the main one. Prefer a side window (Roster admin opened this one) over the main
-    -- window, then the biggest; align to its top-left so the covered window's own title and buttons are hidden, not mixed in.
-    local pick
+  local function findSpot()
+    local top = math.min(others[1].t, sh)
+    if top - h < 0 then top = h end
     for _, o in ipairs(others) do
-      if not o.main and (not pick or (o.r - o.l) * (o.t - o.b) > (pick.r - pick.l) * (pick.t - pick.b)) then pick = o end
+      if free(o.r + gap, top) then return o.r + gap, top end
+      if free(o.l - w - gap, top) then return o.l - w - gap, top end
     end
-    if not pick then
-      pick = others[1]
-      for _, o in ipairs(others) do if (o.r - o.l) * (o.t - o.b) > (pick.r - pick.l) * (pick.t - pick.b) then pick = o end end
+  end
+  local left, spotTop = findSpot()
+  if not left then
+    local closed = false
+    for _, o in ipairs(others) do
+      if not o.main and o.frame.Hide then o.frame:Hide(); closed = true end
     end
+    if closed then
+      others = shownOfficerWindows(frame)
+      if #others > 0 then left, spotTop = findSpot() end
+    end
+  end
+  local covering = false
+  if not left and #others > 0 then
+    -- Screen narrower than this window and the main one: cover ONE window squarely (its top-left), never half of it.
+    local pick = others[1]
+    for _, o in ipairs(others) do if (o.r - o.l) * (o.t - o.b) > (pick.r - pick.l) * (pick.t - pick.b) then pick = o end end
     left = math.max(0, math.min(sw - w, pick.l))
     spotTop = math.max(h, math.min(sh, pick.t))
     covering = true
   end
-  local ok = pcall(function()
+  if not left then return false end
+  return pcall(function()
     frame:ClearAllPoints()
     frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, spotTop)
-    -- On top of what it covers: same strata as the highest shown Guilded window, then raised above every frame in it.
-    -- Raised again one frame later: the click that opened it (a button inside the covered window) raises that window after us.
-    -- Seen in game: both windows are DIALOG level 1, so the covered window's buttons (level 2+) still drew over this one's
-    -- background whatever Raise() did. Covering, it goes one strata up (FULLSCREEN, still under tooltips); beside, back to DIALOG.
+    -- Covering, one strata up (FULLSCREEN, still under tooltips) so the covered window's buttons never draw through it;
+    -- beside, DIALOG like the others. Either way above every other shown officer window of its strata.
     if frame.SetFrameStrata then frame:SetFrameStrata(covering and "FULLSCREEN" or "DIALOG") end
-    if covering and frame.Raise then frame:Raise() end
+    if frame.SetFrameLevel and frame.GetFrameLevel then
+      local level = 1
+      for _, o in ipairs(others) do
+        local ol = o.frame.GetFrameLevel and o.frame:GetFrameLevel()
+        if type(ol) == "number" and ol + 10 > level then level = ol + 10 end
+      end
+      if level > (frame:GetFrameLevel() or 0) then frame:SetFrameLevel(math.min(level, 9000)) end
+    end
+    if frame.Raise then frame:Raise() end
   end)
-  return ok
+end
+function util.placeBeside(frame, gap)
+  if not (frame and frame.GetWidth and UIParent and UIParent.GetWidth) then return false end
+  gap = gap or 8
+  if frame.SetDontSavePosition then pcall(frame.SetDontSavePosition, frame, true) end
+  if frame.SetUserPlaced then pcall(frame.SetUserPlaced, frame, false) end
+  local placed = placeOnce(frame, gap)
+  if C_Timer and C_Timer.After then
+    C_Timer.After(0, function()
+      if frame.IsShown and not frame:IsShown() then return end
+      placeOnce(frame, gap)
+    end)
+  end
+  return placed
 end
 
 util.COMPANION_PAGE = "https://guildedwow.com/companion/"

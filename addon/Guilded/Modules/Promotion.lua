@@ -572,7 +572,13 @@ local function oneLine(label)
   if hit.EnableMouse then hit:EnableMouse(true) end
   hit:SetScript("OnEnter", function(self)
     local text = label.GetText and label:GetText()
-    if text and text ~= "" and GameTooltip then GameTooltip:SetOwner(self, "ANCHOR_RIGHT"); GameTooltip:SetText(text, 1, 1, 1, 1, true); GameTooltip:Show() end
+    -- Only when the name is cut, and above the line (20 Nov 2026: ANCHOR_RIGHT ran off the screen's right edge).
+    if label.IsTruncated and not label:IsTruncated() then return end
+    if text and text ~= "" and GameTooltip then
+      GameTooltip:SetOwner(self, "ANCHOR_NONE"); GameTooltip:ClearAllPoints(); GameTooltip:SetPoint("BOTTOMLEFT", self, "TOPLEFT", 0, 2)
+      if GameTooltip.SetClampedToScreen then GameTooltip:SetClampedToScreen(true) end
+      GameTooltip:SetText(text, 1, 1, 1, 1, true); GameTooltip:Show()
+    end
   end)
   hit:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
   label.hit = hit

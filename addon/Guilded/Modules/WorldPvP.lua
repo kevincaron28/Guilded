@@ -105,13 +105,28 @@ local function compile(format)
   return count >= 1 and table.concat(parts) or nil
 end
 
-local pattern
+-- Built only from the client's own global strings (never a hard-coded English fallback): text that cannot be read or matched
+-- gives no name, and the kill still counts through the statistic.
+local patterns = {}
+local function honorPatterns()
+  local list = {}
+  for _, key in ipairs({ "COMBATLOG_HONORGAIN", "COMBATLOG_HONORGAIN_NO_RANK" }) do
+    local format = _G[key]
+    if type(format) == "string" and not (ns.isSecret and ns.isSecret(format)) then
+      if patterns[format] == nil then patterns[format] = compile(format) or false end
+      if patterns[format] then list[#list + 1] = patterns[format] end
+    end
+  end
+  return list
+end
 function wp.victim(text)
   if type(text) ~= "string" or (ns.isSecret and ns.isSecret(text)) then return nil end
-  pattern = pattern or compile(_G.COMBATLOG_HONORGAIN) or "^(.-) dies, honorable kill"
-  local name = text:match(pattern) or text:match("^(.-) dies, honorable kill")
-  name = name and clean(name, 40)
-  return name ~= "" and name or nil
+  for _, pattern in ipairs(honorPatterns()) do
+    local ok, name = pcall(string.match, text, pattern)
+    name = ok and name and clean(name, 40)
+    if name and name ~= "" then return name end
+  end
+  return nil
 end
 
 -- ---------------------------------------------------------------------
@@ -206,8 +221,174 @@ function wp.defending()
   return clean(currentZone(), 28) == defendingZone
 end
 
+-- ---------------------------------------------------------------------
+-- Who was killed: enrichment only. The honorable-kills statistic stays the one count; what follows only attaches a name, class,
+-- level and guild to a kill that was already counted. Three sources, in order: the honor line, PARTY_KILL, and the last enemy
+-- player seen dying at the target, mouseover or a nameplate. All reads are guarded and tolerate secret values.
+-- ---------------------------------------------------------------------
+local ATTRIBUTION_SECONDS = 3   -- the honor line or PARTY_KILL and the statistic announce the same kill within this
+local DEATH_SECONDS = 5         -- an enemy player seen dying this recently is the likely victim
+local SEEN_KEEP_SECONDS = 30
+local SEEN_MAX = 20
+local FEIGN_SECONDS = 4         -- a unit that is alive again this soon feigned death
+local DUEL_SECONDS = 60         -- a duel request nobody accepts stops counting as a duel after this long
+
+local seen = {}                 -- key -> { name, class, level, guild, zone, m, at, diedAt, used }
+local lineVictim, partyVictim   -- { name, at }
+local lastRow                   -- the newest counted kill: { row, at, src }
+local duelUntil
+
+local function readable(value) return value ~= nil and not (ns.isSecret and ns.isSecret(value)) end
+local function isTrue(fn, ...)
+  if not fn then return false end
+  local ok, value = pcall(fn, ...)
+  return ok and readable(value) and value == true
+end
+local function dueling() return duelUntil ~= nil and clock() < duelUntil end
+
+-- The full name of a unit ("First Last" on Forever) through the repo's own helpers; nil when unreadable.
+local function unitName(unit)
+  local ok, first, second = pcall(UnitName, unit)
+  if not ok or type(first) ~= "string" or not readable(first) or first == "" then return nil end
+  local full = first
+  if type(second) == "string" and readable(second) and second ~= "" and ns.util and ns.util.isForever and ns.util.isForever() then
+    full = first .. " " .. second
+  end
+  if ns.util and ns.util.characterKey then
+    local okKey, key = pcall(ns.util.characterKey, full)
+    if okKey and type(key) == "string" and key ~= "" then full = key end
+  end
+  return clean(full, 40)
+end
+
+local function prune(t)
+  local count = 0
+  for key, e in pairs(seen) do
+    if t - e.at > SEEN_KEEP_SECONDS then seen[key] = nil else count = count + 1 end
+  end
+  while count > SEEN_MAX do
+    local oldestKey, oldestAt
+    for key, e in pairs(seen) do
+      if not oldestAt or e.at < oldestAt then oldestKey, oldestAt = key, e.at end
+    end
+    if not oldestKey then break end
+    seen[oldestKey] = nil
+    count = count - 1
+  end
+end
+
+local function isUnitToken(unit)
+  return unit == "target" or unit == "mouseover" or (type(unit) == "string" and unit:sub(1, 9) == "nameplate")
+end
+
+-- Looks at one unit (target, mouseover, nameplate): an enemy player of the other faction, never a mind-controlled one. Remembers
+-- who it is and when it was seen, and when it was seen dead (alive again within FEIGN_SECONDS = Feign Death, not a death).
+function wp.observe(unit)
+  if not active() or inInstance() or dueling() or not isUnitToken(unit) then return false end
+  return pcall(function()
+    if not isTrue(UnitExists, unit) or not isTrue(UnitIsPlayer, unit) then return end
+    if not (isTrue(UnitIsEnemy, "player", unit) or isTrue(UnitCanAttack, "player", unit)) then return end
+    if isTrue(UnitIsMindControlled, unit) or isTrue(UnitIsCharmed, unit) then return end
+    local theirs = UnitFactionGroup and UnitFactionGroup(unit)
+    local mine = UnitFactionGroup and UnitFactionGroup("player")
+    if readable(theirs) and readable(mine) and theirs ~= nil and theirs == mine then return end
+    local name = unitName(unit)
+    if not name then return end
+    local guid = UnitGUID and UnitGUID(unit)
+    local key = (type(guid) == "string" and readable(guid) and guid ~= "") and guid or name:lower()
+    local t = clock()
+    local e = seen[key]
+    if not e then e = { name = name }; seen[key] = e end
+    e.name, e.at = name, t
+    local class = UnitClass and select(2, UnitClass(unit))
+    if type(class) == "string" and readable(class) then e.class = clean(class, 20) end
+    local level = UnitLevel and UnitLevel(unit)
+    if type(level) == "number" and readable(level) and level > 0 then e.level = level end
+    local guild = GetGuildInfo and GetGuildInfo(unit)
+    if type(guild) == "string" and readable(guild) and guild ~= "" then e.guild = clean(guild, 40) end
+    e.zone = clean(currentZone(), 40)
+    local okMap, mapId = pcall(function() return C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player") end)
+    if okMap and type(mapId) == "number" and readable(mapId) and mapId > 0 then e.m = mapId end
+    if isTrue(UnitIsDeadOrGhost, unit) then
+      if not e.diedAt then e.diedAt, e.used = t, nil end
+    elseif e.diedAt then
+      -- Alive again: within FEIGN_SECONDS it feigned death (not a death); later it simply lives on. Either way no death stands.
+      e.diedAt = nil
+    end
+    prune(t)
+  end)
+end
+
+local function findSeen(name, guid)
+  if guid and seen[guid] then return seen[guid] end
+  if type(name) ~= "string" or name == "" then return nil end
+  local lower = name:lower()
+  local firstWord = lower:match("^(%S+)")
+  local best
+  for _, e in pairs(seen) do
+    local theirs = e.name:lower()
+    if theirs == lower then return e end
+    if firstWord and theirs:match("^(%S+)") == firstWord and (not best or e.at > best.at) then best = e end
+  end
+  return best
+end
+
+local function recentDeath(t)
+  local best
+  for _, e in pairs(seen) do
+    if e.diedAt and not e.used and t - e.diedAt <= DEATH_SECONDS and t - e.at <= SEEN_KEEP_SECONDS and (not best or e.diedAt > best.diedAt) then best = e end
+  end
+  return best
+end
+
+-- Who was killed, for a statistic delta at time t: honor line, else PARTY_KILL, else the newest enemy seen dying.
+local function resolveVictim(t)
+  if lineVictim and t - lineVictim.at <= ATTRIBUTION_SECONDS then return lineVictim.name, findSeen(lineVictim.name), "line" end
+  if partyVictim and t - partyVictim.at <= ATTRIBUTION_SECONDS then return partyVictim.name, findSeen(partyVictim.name, partyVictim.guid), "party" end
+  local e = recentDeath(t)
+  if e then e.used = true; return e.name, e, "death" end
+  return nil, nil, nil
+end
+
+local function enrich(row, e)
+  if not e then return end
+  row.c, row.l, row.g = e.class, e.level, e.guild
+end
+
+-- A source that arrives after the statistic counted the kill: names the "?n" row (or one a seen-dying guess named).
+function wp.attachLate(name, src, t)
+  if not lastRow or t - lastRow.at > ATTRIBUTION_SECONDS then return false end
+  local row = lastRow.row
+  if not (row.n:sub(1, 1) == "?" or (lastRow.src == "death" and src ~= "death")) then return false end
+  row.n, row.c, row.l, row.g, lastRow.src = name, nil, nil, nil, src
+  enrich(row, findSeen(name))
+  return true
+end
+
+-- PARTY_KILL (killer GUID, victim GUID): only my own or my pet's killing blow on a player.
+function wp.notePartyKill(killer, victim)
+  if not active() or inInstance() or dueling() then return false end
+  if type(victim) ~= "string" or not readable(victim) or victim:sub(1, 7) ~= "Player-" then return false end
+  if type(killer) ~= "string" or not readable(killer) then return false end
+  local okMe, me = pcall(UnitGUID, "player")
+  local okPet, pet = pcall(UnitGUID, "pet")
+  local mine = (okMe and readable(me) and me == killer) or (okPet and readable(pet) and pet ~= nil and pet == killer)
+  if not mine then return false end
+  local name = seen[victim] and seen[victim].name
+  if not name and GetPlayerInfoByGUID then
+    local ok, _, _, _, _, _, first = pcall(GetPlayerInfoByGUID, victim)
+    if ok and type(first) == "string" and readable(first) and first ~= "" then name = clean(first, 40) end
+  end
+  if not name then return false end
+  local t = clock()
+  partyVictim = { name = name, guid = victim, at = t }
+  if seen[victim] then seen[victim].used = true end
+  wp.attachLate(name, "party", t)
+  return true
+end
+
 -- Records one kill (victim "" when the game did not name one). Returns true when it was counted.
-local function recordKill(victim)
+local function recordKill(victim, info, src)
   if not bump("kills") then return false end
   local s = store()
   local zone = GetRealZoneText and GetRealZoneText() or ""
@@ -216,7 +397,10 @@ local function recordKill(victim)
   local defended = wp.defending()
   -- A kill the game did not name is stored as "?<n>": the bot's repeat-victim limit must never fold unnamed kills together.
   local who = victim ~= "" and victim or ("?" .. tostring((tonumber(s.seq) or 0) + 1))
-  s.recent[#s.recent + 1] = { n = who, z = clean(zone, 40), at = at, d = defended and 1 or nil, m = place.m, x = place.x, y = place.y, a = place.a and 1 or nil }
+  local row = { n = who, z = clean(zone, 40), at = at, d = defended and 1 or nil, m = place.m, x = place.x, y = place.y, a = place.a and 1 or nil }
+  if victim ~= "" then enrich(row, info or findSeen(victim)) end
+  s.recent[#s.recent + 1] = row
+  lastRow = { row = row, at = clock(), src = victim ~= "" and src or nil }
   while #s.recent > RECENT do table.remove(s.recent, 1) end
   addEvent(s, "kill", clean(zone, 40), at, place)
   if defended then bump("defends") end
@@ -232,15 +416,20 @@ local lineAt, statAt, lastHK
 -- WoW Forever runs on a modern client: the line may be missing, worded differently, or its text secret, so a line that is
 -- not readable still counts as a kill when it is the honor-gain event and the statistic confirms it (see noteStatKill).
 function wp.noteKill(text)
-  if not active() or inInstance() then return false end
+  if not active() or inInstance() or dueling() then return false end
   local victim = wp.victim(text)
   if not victim then return false end
   local t = clock()
   if lastKill and lastKill.name == victim and t - lastKill.at < DEDUPE_SECONDS then return false end
   lastKill = { name = victim, at = t }
-  if statAt and t - statAt <= PAIR_SECONDS then statAt = nil; lineAt = t; return false end -- the statistic already counted it
+  lineVictim = { name = victim, at = t }
+  if statAt and t - statAt <= PAIR_SECONDS then
+    statAt = nil; lineAt = t
+    wp.attachLate(victim, "line", t) -- the statistic already counted it: only the name is new
+    return false
+  end
   lineAt = t
-  return recordKill(victim)
+  return recordKill(victim, nil, "line")
 end
 
 -- The honorable-kills statistic rose (PLAYER_PVP_KILLS_CHANGED): a kill even when no honor line could be read. Battleground and
@@ -250,12 +439,20 @@ function wp.noteStatKill()
   if not ok or type(hk) ~= "number" or hk ~= hk or (ns.isSecret and ns.isSecret(hk)) then return false end
   local before = lastHK
   lastHK = hk
-  if before == nil or hk <= before or not active() or inInstance() then return false end
+  if before == nil or hk <= before or not active() or inInstance() or dueling() then return false end
   local t = clock()
   local counted = false
   for i = 1, math.min(hk - before, 5) do
     if i == 1 and lineAt and t - lineAt <= PAIR_SECONDS then lineAt = nil -- the honor line already counted it
-    else statAt = t; counted = recordKill("") or counted end
+    else
+      statAt = t
+      local victim, info, src = "", nil, nil
+      if i == 1 then
+        local okV, name, entry, source = pcall(resolveVictim, t)
+        if okV and name then victim, info, src = name, entry, source end
+      end
+      counted = recordKill(victim, info, src) or counted
+    end
   end
   return counted
 end
@@ -381,6 +578,15 @@ register("PLAYER_PVP_KILLS_CHANGED")
 register("PLAYER_DEAD")
 register("PLAYER_ENTERING_WORLD")
 register("ZONE_CHANGED_NEW_AREA")
+-- Victim enrichment (all guarded: an event the client does not have is skipped).
+register("PARTY_KILL")
+register("PLAYER_TARGET_CHANGED")
+register("UPDATE_MOUSEOVER_UNIT")
+register("NAME_PLATE_UNIT_ADDED")
+register("NAME_PLATE_UNIT_REMOVED")
+register("UNIT_HEALTH")
+register("DUEL_REQUESTED")
+register("DUEL_FINISHED")
 local sampleTimer = 0
 function wp.tick(elapsed)
   sampleTimer = sampleTimer + (tonumber(elapsed) or 0)
@@ -405,9 +611,17 @@ function wp.tick(elapsed)
   end)
 end
 frame:SetScript("OnUpdate", function(_, elapsed) wp.tick(elapsed) end)
-frame:SetScript("OnEvent", function(_, event, text)
+frame:SetScript("OnEvent", function(_, event, text, second)
   local ok, err = pcall(function()
-    if event == "CHAT_MSG_COMBAT_HONOR_GAIN" then wp.noteKill(text)
+    if event == "UPDATE_MOUSEOVER_UNIT" then wp.observe("mouseover")
+    elseif event == "UNIT_HEALTH" or event == "NAME_PLATE_UNIT_ADDED" or event == "NAME_PLATE_UNIT_REMOVED" then
+      -- Cheap filter first: UNIT_HEALTH fires for every unit in sight.
+      if isUnitToken(text) then wp.observe(text) end
+    elseif event == "PLAYER_TARGET_CHANGED" then wp.observe("target")
+    elseif event == "PARTY_KILL" then wp.notePartyKill(text, second)
+    elseif event == "DUEL_REQUESTED" then duelUntil = clock() + DUEL_SECONDS
+    elseif event == "DUEL_FINISHED" then duelUntil = nil
+    elseif event == "CHAT_MSG_COMBAT_HONOR_GAIN" then wp.noteKill(text)
     elseif event == "PLAYER_PVP_KILLS_CHANGED" then wp.noteStatKill()
     elseif event == "PLAYER_DEAD" then wp.noteDeath()
     else

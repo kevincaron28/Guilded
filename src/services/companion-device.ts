@@ -7,6 +7,7 @@ import { characterKey, idKey, sameCharacter } from "../../companion/character-id
 import { runCardsOf, type ReceiptCardRow } from "./dungeon-card.js";
 import { enrichStoredRun, firstNameKey, importDungeonRuns, receiptReason, RETRY_OUTCOME, saveRunReceipts, type DungeonImportSummary } from "./dungeon-import.js";
 import { plausibilityFlags, type Anomaly, type NeighbourRun } from "./run-plausibility.js";
+import { invalidateDungeonBoard } from "./dungeon-board-cache.js";
 import { challengeSecret, holdsRun, integrityConfig } from "./run-integrity-config.js";
 import { contradicts, issueChallenge, verifyBatch } from "./run-challenge.js";
 import { anchored, countsDeviceOnlyRuns, decide, fingerprintOf, independent, RUN_TRUST, sameRun, voucherOf, type KeyIds, type KnownCharacter, type RunFingerprint, type Statement } from "./run-trust.js";
@@ -741,7 +742,8 @@ export function prismaInstallStore(database: PrismaClient, serverName: (discordI
       for (const row of waiting) byRef.delete(row.runRef);
       return [...byRef].map(([runRef, reason]) => ({ runRef, reason, card: cards.get(runRef) }));
     },
-    importRuns: (guildId, runs, now, source) => database.$transaction((tx) => storeDeviceRuns(tx, guildId, runs, now, source), { timeout: 60_000, maxWait: 15_000 }),
+    importRuns: (guildId, runs, now, source) => database.$transaction((tx) => storeDeviceRuns(tx, guildId, runs, now, source), { timeout: 60_000, maxWait: 15_000 })
+      .then((result) => { if (result.stored) invalidateDungeonBoard(guildId); return result; }),
     guildCharacterCount: (guildId) => database.deviceCharacter.count({ where: { device: { guildId, claimedMemberId: null, revokedAt: null } } }),
     // Claimed devices stay (the member sees and revokes them on /me/connections); characters and waiting runs go with the device.
     expireIdle: async (before) => (await database.companionDevice.deleteMany({ where: { claimedMemberId: null, lastSeenAt: { lt: before } } })).count,

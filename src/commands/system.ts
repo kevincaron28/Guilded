@@ -11,6 +11,10 @@ export const systemCommand = new SlashCommandBuilder().setName("system").setDesc
   .addSubcommand(sub => sub.setName("retry").setDescription("Retry pending Discord updates now"))
   .addSubcommand(sub => sub.setName("permissions").setDescription("Permissions needed without Administrator"));
 
+/** Deliveries the queue stopped after Discord refused them for about a day (discord-jobs.ts givesUp). */
+export const stoppedDeliveriesLine = (count: number): string =>
+  `${count} post(s) stopped: Discord refused them for a day (channel deleted, no access or DMs closed). Fix it, then retry. / ${count} publication(s) arrêtée(s) : Discord les refuse depuis un jour (salon supprimé, accès refusé ou MP fermés). Corrigez, puis relancez.`;
+
 export const REQUIRED_BOT_PERMISSIONS = ["ViewChannel", "SendMessages", "EmbedLinks", "AttachFiles", "ReadMessageHistory", "ManageChannels", "ManageRoles", "ManageMessages", "PinMessages", "AddReactions", "CreatePublicThreads", "SendMessagesInThreads", "ManageThreads", "Connect", "Speak", "MoveMembers", "KickMembers", "BanMembers", "ModerateMembers", "CreateEvents"] as const;
 
 export async function executeSystem(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -33,12 +37,14 @@ export async function executeSystem(interaction: ChatInputCommandInteraction): P
     await interaction.editReply({ content: `${permissions}\n\n${REQUIRED_BOT_PERMISSIONS.join(", ")}\nPlace the bot's role above roles it manages. Channel overrides can still deny access. / Placez le rôle du bot au-dessus des rôles qu'il gère.`, allowedMentions: { parse: [] } });
     return;
   }
-  const [paired, latest, waiting, pending, delivered] = await Promise.all([
+  const [paired, latest, waiting, pending, delivered, stopped] = await Promise.all([
     prisma.companionCredential.count({ where: { revokedAt: null, member: { guildId: guild.id } } }),
     prisma.addonImport.findFirst({ where: { guildId: guild.id }, orderBy: { createdAt: "desc" }, select: { createdAt: true, status: true } }),
     prisma.addonImport.count({ where: { guildId: guild.id, status: "PREVIEWED" } }),
     prisma.discordJob.findMany({ where: { guildId: guild.id, status: "PENDING" }, orderBy: { nextAttemptAt: "asc" }, take: 8 }),
-    prisma.discordJob.findFirst({ where: { guildId: guild.id, status: "DONE" }, orderBy: { deliveredAt: "desc" } })
+    prisma.discordJob.findFirst({ where: { guildId: guild.id, status: "DONE" }, orderBy: { deliveredAt: "desc" } }),
+    // Posts Discord refused for about a day (channel gone, access or DMs closed): they wait for a fix and a retry.
+    prisma.discordJob.count({ where: { guildId: guild.id, status: "FAILED" } })
   ]);
   const channels = await interaction.guild.channels.fetch();
   const channelProblems: string[] = [];
@@ -57,11 +63,11 @@ export async function executeSystem(interaction: ChatInputCommandInteraction): P
       ? `Hidden from / Masquées pour : ${formatBlocked(blocked)}\nGive Raid Leader "Manage Events", or allow these roles in Server Settings > Integrations > Guilded. / Donnez « Gérer les événements » ou autorisez ces rôles dans Intégrations.`
       : "Officer roles can see /lead and /officer / Les rôles d'officier voient /lead et /officer";
   const time = (date: Date | null | undefined) => date ? `<t:${Math.floor(date.getTime() / 1000)}:R>` : "none / aucune";
-  const embed = new EmbedBuilder().setColor(pending.length || channelProblems.length || blocked?.length ? 0xe0a33a : 0x36a863).setTitle("Guilded — Sync / Synchronisation")
+  const embed = new EmbedBuilder().setColor(pending.length || stopped || channelProblems.length || blocked?.length ? 0xe0a33a : 0x36a863).setTitle("Guilded — Sync / Synchronisation")
     .setDescription("Companion activity is shown by uploads, not guessed from Discord online status. / L'activité du compagnon est mesurée par ses envois.")
     .addFields(
       { name: "Game → database / Jeu → base", value: `Active pairings / Jumelages: ${paired}\nLast upload / Dernier envoi: ${time(latest?.createdAt)} (${latest?.status ?? "none"})\nWaiting for approval / En attente: ${waiting}\nAuto-apply / Application auto: ${settings?.autoApplyImports ? "on" : "off"}\nAfter a reset, obtain a new /character link code.` },
-      { name: "Database → Discord / Base → Discord", value: `Last delivery / Dernière publication: ${time(delivered?.deliveredAt)}\n${pending.length ? pending.map(job => `${job.kind}: ${job.attempts} attempt(s), ${job.lastError ?? "queued"} · retry ${time(job.nextAttemptAt)}`).join("\n") : "No pending deliveries / Aucune publication en attente"}\n/setup system retry` },
+      { name: "Database → Discord / Base → Discord", value: `Last delivery / Dernière publication: ${time(delivered?.deliveredAt)}\n${pending.length ? pending.map(job => `${job.kind}: ${job.attempts} attempt(s), ${job.lastError ?? "queued"} · retry ${time(job.nextAttemptAt)}`).join("\n") : "No pending deliveries / Aucune publication en attente"}${stopped ? `\n${stoppedDeliveriesLine(stopped)}` : ""}\n/setup system retry`.slice(0, 1024) },
       { name: "Channels / Salons", value: (channelProblems.join("\n") || "Configured channels accessible / Salons configurés accessibles").slice(0, 1024) },
       { name: "Permissions", value: permissions.slice(0, 1024) },
       { name: "Leader commands / Commandes de direction", value: commandAccess.slice(0, 1024) }

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { commands, HIDDEN_FROM_MEMBERS } from "../src/commands/index.js";
 import { resolveCommand } from "../src/commands/router.js";
 import { executeProfile } from "../src/commands/profile.js";
-import { executeSystem } from "../src/commands/system.js";
+import { executeSystem, stoppedDeliveriesLine } from "../src/commands/system.js";
 import { executeUninstall } from "../src/commands/uninstall.js";
 
 type Option = { name: string; type: number; options?: Option[] };
@@ -25,6 +25,13 @@ describe("merged commands", () => {
     expect(setup.map((option) => option.name)).toEqual(expect.arrayContaining(["start", "reset", "uninstall"]));
     expect(resolve("setup", "status", "system").handler).toBe(executeSystem);
     expect(resolve("setup", "uninstall").handler).toBe(executeUninstall);
+  });
+
+  it("tells officers in /setup system status how many posts stopped, in both languages", () => {
+    const line = stoppedDeliveriesLine(2);
+    expect(line).toContain("2 post(s) stopped");
+    expect(line).toContain("2 publication(s) arrêtée(s)");
+    expect(line.length).toBeLessThan(300);
   });
 
   it("puts the member profile under /character", () => {

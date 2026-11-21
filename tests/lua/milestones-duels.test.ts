@@ -172,7 +172,9 @@ describe("milestone announcements", () => {
   it("speaks French on a French client", () => {
     const lua = setup("frFR"); on();
     lua.run(`fire_event("PLAYER_LEVEL_UP", 10)`); share();
-    expect(out()).toBe("GUILD:Kev a atteint le niveau 10 !");
+    // Québec voice (Locale.lua): the line rotates between variants, always French, naming the player and the level.
+    expect(out()).toMatch(/^GUILD:.*Kev.*niveau 10/);
+    expect(out()).not.toContain("reached level");
   });
 
   it("an officer can switch announcements off for the whole guild, and that wins over member defaults", () => {

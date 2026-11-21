@@ -331,7 +331,7 @@ async function stageUpdate() {
     updateLine(`download of ${version} started`);
     // Size and SHA-256 are checked against the release before the file is kept (update-check.cjs).
     await updates.downloadInstaller(installer, target);
-    config.pendingUpdate = { version, file: target, sha256: installer.sha256, attempts: 0 };
+    config.pendingUpdate = { version, file: target, sha256: installer.sha256, attempts: 0, downloadedAt: new Date().toISOString() };
     updateTrouble = null;
     await saveConfig();
     updateLine(`download of ${version} finished and checked; it installs when the companion is idle, or at the next quit or start`);

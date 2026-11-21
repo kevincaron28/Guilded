@@ -1,4 +1,4 @@
-<p class="eyebrow">GRATUIT · ANDROID ET IPHONE</p>
+<p class="eyebrow">GRATUIT · ANDROID</p>
 <h1>Guilded sur votre téléphone</h1>
 <p class="lead">L’application mobile de Guilded : votre guilde, les classements et vos rappels de raid, loin du jeu.</p>
 
@@ -13,6 +13,6 @@
 <p>L’application est en français et en anglais. Elle lit les mêmes données que le site et le bot Discord : rien à configurer deux fois.</p>
 
 <h2>L’obtenir</h2>
-<p><strong>Bientôt sur Google Play.</strong> D’ici là, l’aperçu Android est sur la <a href="/download/#phone">page de téléchargement</a>. iOS n’est pas encore disponible.</p>
+<p><strong>L’application Android est en test fermé sur Google Play</strong> et s’ouvrira à tous après les tests. D’ici là, l’aperçu Android est sur la <a href="/download/#phone">page de téléchargement</a>. L’iPhone n’est pas encore pris en charge.</p>
 
 <p class="small">Guilded est un projet gratuit et indépendant. Sans affiliation avec Blizzard Entertainment.</p>

@@ -271,12 +271,12 @@ end
 -- /guilded sim bids: fake raiders bid on the open item (test raids).
 ns.simulateBids = function()
   local auction = bidding.current
-  if not auction or not auction.open then ns.message("Open bidding first (/guilded bid start ...)."); return end
+  if not auction or not auction.open then ns.message(L("Open bidding first (/guilded bid start ...).")); return end
   local names = ns.SIM_NAMES or {}
   for i = 1, math.min(5, #names) do
     addBid(names[i], auction.min + math.random(0, 4) * 5, nil, nil)
   end
-  ns.message("Added fake bids. Close or wait for the timer, then Award.")
+  ns.message(L("Added fake bids. Close or wait for the timer, then Award."))
 end
 
 -- ---------------------------------------------------------------------

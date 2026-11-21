@@ -10,7 +10,7 @@
 
 <div class="actions"><a class="button" href="{{ANDROID_APK_URL}}">Télécharger pour Android <span aria-hidden="true">↓</span></a><a class="button secondary" href="{{ANDROID_RELEASE_URL}}">GitHub <span aria-hidden="true">↗</span></a></div>
 
-Une **préversion** gratuite de l’application mobile Guilded pour Android : consultez le roster de raid de votre guilde, les réserves, la liste de souhaits de butin et les classements, et recevez des rappels de raid. C’est une préversion installée hors boutique, version {{ANDROID_VERSION}}, pas encore sur Google Play. Après avoir ouvert le fichier, Android vous demande d’autoriser l’installation depuis votre navigateur : autorisez-le une fois, puis installez. L’application vous avertit quand une version plus récente est prête et met son contenu à jour d’elle-même.
+Une **préversion** gratuite de l’application mobile Guilded pour Android : consultez le roster de raid de votre guilde, les réserves, la liste de souhaits de butin et les classements, et recevez des rappels de raid. C’est une préversion installée hors boutique, version {{ANDROID_VERSION}}, pas encore offerte à tous sur Google Play (elle y est en test fermé). Après avoir ouvert le fichier, Android vous demande d’autoriser l’installation depuis votre navigateur : autorisez-le une fois, puis installez. L’application vous avertit quand une version plus récente est prête et met son contenu à jour d’elle-même.
 
 **Installez-la sur votre téléphone en trois touches :**
 

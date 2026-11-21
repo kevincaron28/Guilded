@@ -541,7 +541,7 @@ local function showStandings(args)
     local r = rows[i]
     ns.message(string.format("%d. %s  PR %.2f  (EP %d / GP %d)", i, r.name, r.row.pr, r.row.ep, r.row.gp))
   end
-  if #rows > 10 then ns.message("/guilded standings <player> for anyone else.") end
+  if #rows > 10 then ns.message(L("/guilded standings <player> for anyone else.")) end
 end
 
 ns.commandHandlers = ns.commandHandlers or {}

@@ -355,7 +355,7 @@ local function ensureFrame()
   local restore = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
   restore:SetSize(120, 22)
   restore:SetPoint("BOTTOMLEFT", 12, 10)
-  restore:SetText("Restore")
+  restore:SetText(L("Restore"))
   restore:SetScript("OnClick", function()
     local code = frame.box:GetText() or ""
     local info, err = module.inspect(code)

@@ -39,7 +39,7 @@ jobs:
           check "website" "https://guilded.kcaron.top/" "Guilded"
           check "creator page" "https://kcaron.top/" "K Caron Projects"
           check "guild page" "https://guilded.kcaron.top/g/quebec-gold/" "Quebec Gold"
-          check "leaderboards" "https://guilded.kcaron.top/leaderboards/?lang=en" "Dungeon leaderboards"
+          check "leaderboards" "https://guilded.kcaron.top/leaderboards/?lang=en" "WoW Forever leaderboards"
           check "guild directory" "https://guilded.kcaron.top/recruitment/guilds/?lang=en" "Find a guild"
           # The retries above hide a page that fails every other visit (Cloudflare error 1016 on
           # 29 October 2026 failed 9 of 20). Ten quick visits: more than one failure is an outage.

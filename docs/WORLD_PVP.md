@@ -78,5 +78,5 @@ The 9.3.2 addon stores, per kill and death, the zone's map id, the position on t
 the newest 500 as `pvpEvents` `{ k, t, m, x, y, s, a }` only to a bot that advertises the feature `pvp-events` (`a: 1` = approximate position).
 The bot stores them in `WorldPvpEvent` (unique per member, event id and time, so a resent upload changes nothing; kept 35 days; deleted
 with the member's data; no enemy name). The public PvP page (`/leaderboards/pvp/`) draws them on the zone map: heat becomes kills plus
-deaths, with red (kills) and blue (deaths) dots at their position, and the table shows kills, deaths and total. Only guilds that publish
-show anything. Until events exist the map is lit by calls for help. See docs/plans/PVP_ZONE_MAP_2026-11-14.md and docs/PRIVACY.md.
+deaths, with red circles (kills) and blue diamonds (deaths) at their position, and the table shows kills, deaths and total. Only guilds that publish
+show anything. Calls for help are no longer drawn on this map (21 November 2026); kills registered through the honorable-kills statistic as well as the honor line (see WorldPvP.lua). See docs/plans/PVP_ZONE_MAP_2026-11-14.md and docs/PRIVACY.md.

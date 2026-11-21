@@ -206,7 +206,31 @@ function wp.defending()
   return clean(currentZone(), 28) == defendingZone
 end
 
+-- Records one kill (victim "" when the game did not name one). Returns true when it was counted.
+local function recordKill(victim)
+  if not bump("kills") then return false end
+  local s = store()
+  local zone = GetRealZoneText and GetRealZoneText() or ""
+  if type(zone) ~= "string" or (ns.isSecret and ns.isSecret(zone)) then zone = "" end
+  local place, at = wp.where(), epoch()
+  local defended = wp.defending()
+  -- A kill the game did not name is stored as "?<n>": the bot's repeat-victim limit must never fold unnamed kills together.
+  local who = victim ~= "" and victim or ("?" .. tostring((tonumber(s.seq) or 0) + 1))
+  s.recent[#s.recent + 1] = { n = who, z = clean(zone, 40), at = at, d = defended and 1 or nil, m = place.m, x = place.x, y = place.y, a = place.a and 1 or nil }
+  while #s.recent > RECENT do table.remove(s.recent, 1) end
+  addEvent(s, "kill", clean(zone, 40), at, place)
+  if defended then bump("defends") end
+  return true
+end
+
+-- Two signals can announce the same kill, in either order: the honor line and the game's honorable-kill statistic going up
+-- (PLAYER_PVP_KILLS_CHANGED). Whichever comes first counts it; the other, within PAIR_SECONDS, is the same kill.
+local PAIR_SECONDS = 3
+local lineAt, statAt, lastHK
+
 -- An honorable kill line from the game. Returns true when it was counted.
+-- WoW Forever runs on a modern client: the line may be missing, worded differently, or its text secret, so a line that is
+-- not readable still counts as a kill when it is the honor-gain event and the statistic confirms it (see noteStatKill).
 function wp.noteKill(text)
   if not active() or inInstance() then return false end
   local victim = wp.victim(text)
@@ -214,16 +238,31 @@ function wp.noteKill(text)
   local t = clock()
   if lastKill and lastKill.name == victim and t - lastKill.at < DEDUPE_SECONDS then return false end
   lastKill = { name = victim, at = t }
-  if not bump("kills") then return false end
-  local s = store()
-  local zone = GetRealZoneText and GetRealZoneText() or ""
-  if ns.isSecret and ns.isSecret(zone) then zone = "" end
-  local place, at = wp.where(), epoch()
-  s.recent[#s.recent + 1] = { n = victim, z = clean(zone, 40), at = at, d = wp.defending() and 1 or nil, m = place.m, x = place.x, y = place.y, a = place.a and 1 or nil }
-  while #s.recent > RECENT do table.remove(s.recent, 1) end
-  addEvent(s, "kill", clean(zone, 40), at, place)
-  if wp.defending() then bump("defends") end
-  return true
+  if statAt and t - statAt <= PAIR_SECONDS then statAt = nil; lineAt = t; return false end -- the statistic already counted it
+  lineAt = t
+  return recordKill(victim)
+end
+
+-- The honorable-kills statistic rose (PLAYER_PVP_KILLS_CHANGED): a kill even when no honor line could be read. Battleground and
+-- instance kills raise the statistic too but are not world PvP; the baseline still moves so they are never counted later.
+function wp.noteStatKill()
+  local ok, hk = pcall(function() return GetPVPLifetimeStats and GetPVPLifetimeStats() end)
+  if not ok or type(hk) ~= "number" or hk ~= hk or (ns.isSecret and ns.isSecret(hk)) then return false end
+  local before = lastHK
+  lastHK = hk
+  if before == nil or hk <= before or not active() or inInstance() then return false end
+  local t = clock()
+  local counted = false
+  for i = 1, math.min(hk - before, 5) do
+    if i == 1 and lineAt and t - lineAt <= PAIR_SECONDS then lineAt = nil -- the honor line already counted it
+    else statAt = t; counted = recordKill("") or counted end
+  end
+  return counted
+end
+
+function wp.baselineHK()
+  local ok, hk = pcall(function() return GetPVPLifetimeStats and GetPVPLifetimeStats() end)
+  if ok and type(hk) == "number" and hk == hk then lastHK = hk end
 end
 
 -- I died. Counts when Call for help confirmed an attack by an enemy player in the last minute.
@@ -338,6 +377,7 @@ local function register(event)
   else pcall(frame.RegisterEvent, frame, event) end
 end
 register("CHAT_MSG_COMBAT_HONOR_GAIN")
+register("PLAYER_PVP_KILLS_CHANGED")
 register("PLAYER_DEAD")
 register("PLAYER_ENTERING_WORLD")
 register("ZONE_CHANGED_NEW_AREA")
@@ -368,8 +408,12 @@ frame:SetScript("OnUpdate", function(_, elapsed) wp.tick(elapsed) end)
 frame:SetScript("OnEvent", function(_, event, text)
   local ok, err = pcall(function()
     if event == "CHAT_MSG_COMBAT_HONOR_GAIN" then wp.noteKill(text)
+    elseif event == "PLAYER_PVP_KILLS_CHANGED" then wp.noteStatKill()
     elseif event == "PLAYER_DEAD" then wp.noteDeath()
-    else wp.sample() end
+    else
+      if event == "PLAYER_ENTERING_WORLD" and lastHK == nil then wp.baselineHK() end
+      wp.sample()
+    end
   end)
   if not ok and ns.logDiagnostic then ns.logDiagnostic("LUA_ERROR", "world pvp: " .. tostring(err)) end
 end)

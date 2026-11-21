@@ -41,7 +41,7 @@ import { memberLinkStatus } from "./services/link-status.js";
 import { prisma } from "./database.js";
 import { createAddonImportService } from "./services/addon-import.js";
 import { createEpgpService } from "./services/epgp.js";
-import { addonDungeonBoard } from "./services/dungeon-stats.js";
+import { dungeonBoardCache, invalidateDungeonBoard } from "./services/dungeon-board-cache.js";
 import { nextRaidRoster } from "./services/raid-roster.js";
 import { itemInsights } from "./services/item-insights.js";
 import { lootRulesForAddon } from "./services/loot-rules-export.js";
@@ -446,6 +446,8 @@ interface AutoApplyInput { guildId: string; discordId: string; importId: string;
 export async function autoApplyImportWith(input: AutoApplyInput): Promise<AutoApplied> {
   const result = await importService.apply(input.guildId, input.importId, input.createdBy);
   input.onApplied?.();
+  // Only an import that carried dungeon runs makes the (slow to build) dungeon board stale; it is rebuilt in the background.
+  if (result.dungeons?.results?.length) invalidateDungeonBoard(input.guildId);
   markGuildChanged(input.guildId);
   await auditService.record({
     guildId: input.guildId, actorId: input.createdBy, action: "IMPORT_APPLIED", entityId: input.importId,
@@ -609,7 +611,8 @@ export async function standingsParts(guild: { id: string; discordId: string }, a
     lootRead.catch(() => undefined);
     const [loot, dungeonBoard, nextRaid, items, botRaids, craftOrders] = await Promise.all([
       lootRead,
-      addonDungeonBoard(prisma, guild.id),
+      // Kept per guild (dungeon-board-cache.ts): scoring every run took 5-15 s and was repeated after every change of the guild.
+      dungeonBoardCache.get(prisma, guild.id, () => markGuildChanged(guild.id)),
       nextRaidRoster(prisma, guild.id),
       itemInsights(prisma, guild.id).catch(() => []),
       upcomingRaidsForAddon(prisma, guild.id),

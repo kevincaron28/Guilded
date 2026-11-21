@@ -421,7 +421,8 @@ export async function dungeonRating(database: Pick<PrismaClient, "dungeonRun"> &
   const eligible = timed ? runs.map(run => {
     const rosterLevels: Record<string, number> = {};
     for (const p of run.players) {
-      const found = p.character && !levelRecorded({ ...run, players: run.players.map(q => ({ ...q, member: null })) }, p.character)
+      // (levelRecorded only reads the run's party names, so no per-player copy of the run is needed.)
+      const found = p.character && !levelRecorded(run, p.character)
         ? foreverNameMatches(roster, p.character, (r: { name: string }) => r.name)[0] as { level: number | null } | undefined : undefined;
       if (found?.level) rosterLevels[p.character.trim().toLowerCase()] = found.level;
     }
@@ -486,8 +487,17 @@ export function ratingWithRoles(runs: RatingRun[], rules: BracketedRules, everyo
   const roles = ["TANK", "HEALER", "DAMAGER"].map(role => ({ role, rows: calculateDungeonRating(runs.map(run => ({ ...run,
     players: run.players.map(p => { const match = (rules.evidencePolicy === "current-v2" ? integrityRole(playerIntegrityOf(run, p.character)) : dungeonRole(p.role)) === dungeonRole(role);
       return { ...p, member: match ? p.member : null, inGuild: match && p.inGuild === true, rated: match }; }) })), rules, everyone) }));
+  // The runs each row's levels are read from: foreverSameName only ever matches names that share their first word, so the runs are
+  // indexed by it instead of every row scanning every run (rows x runs x players, the 10 s standings rebuild of 20 Nov 2026).
+  const firstWord = (value: string | undefined) => (String(value ?? "").split("-")[0]!.trim().replace(/\s+/g, " ").normalize("NFC").toLowerCase().split(" ")[0]) ?? "";
+  const byFirstWord = new Map<string, RatingRun[]>();
+  for (const run of runs) for (const key of new Set(run.players.map(p => firstWord(p.character)))) {
+    if (!key) continue;
+    const list = byFirstWord.get(key);
+    if (list) list.push(run); else byFirstWord.set(key, [run]);
+  }
   return calculateDungeonRating(runs, rules, everyone).map(row => {
-    const levels = runs.flatMap(run => {
+    const levels = (byFirstWord.get(firstWord(row.character)) ?? []).flatMap(run => {
       if (!run.players.some(p => (p.memberId ?? (isUnlinkedRating(row.memberId) ? UNLINKED_RATING_PREFIX + (p.character ?? "").trim().toLowerCase() : null)) === row.memberId && foreverSameName(p.character ?? "", row.character ?? ""))) return [];
       const metadata = run.competitionData as { players?: { name: string; level?: number }[] } | null;
       return metadata?.players?.filter(p => p.name === row.character && Number.isInteger(p.level)).map(p => p.level!) ?? [];

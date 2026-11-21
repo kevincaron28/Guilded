@@ -8,6 +8,7 @@ import { DEFAULT_DUNGEON_CONFIG, dungeonConfig, formatDuration, type DungeonConf
 import { dungeonRating, hasDungeonRating } from "./dungeon-rating.js";
 import { currentIntegrityPolicy, UPLOAD_GRACE_MS } from "./dungeon-integrity.js";
 import { currentEdition } from "./edition-context.js";
+import { invalidateDungeonBoard } from "./dungeon-board-cache.js";
 
 // Officer corrections for the dungeon challenge (roadmap D7). Points are
 // never edited or deleted: every change is a new DungeonPointTransaction,
@@ -37,7 +38,7 @@ export async function invalidateRun(database: Db, guildId: string, runRef: strin
     }
     const revoked = await tx.dungeonAchievement.deleteMany({ where: { runId: run.id } });
     return { run, players: given.length, reversed, achievementsRevoked: revoked.count };
-  });
+  }).then((result) => { invalidateDungeonBoard(guildId); return result; });
 }
 
 // Manual points (negative takes points away). Counts for the current season.

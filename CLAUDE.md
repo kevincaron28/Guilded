@@ -66,7 +66,7 @@ feature).
 9.3.6 is published (GitHub release v9.3.6 is the latest, tag at e2997f82, the website download and the bot, 16 November 2026); CurseForge approved 16 November 2026 (Guilded file 9649625, Guilded Dungeons file 9649626; the website points at them); the Store package waits for the 9.3.4 certification. 
 9.3.5 is published (GitHub release v9.3.5 is the latest, tag at 57c07a23, the website download and the bot, 15 November 2026); CurseForge 9.3.5 is approved (Guilded file 9642051, Guilded Dungeons file 9642052) and the Store 9.3.5.0 package is to be submitted. 9.3.4 is published (GitHub release v9.3.4 is the latest, tag at 6bc7c755, the website download and the bot, 15 November 2026); CurseForge 9.3.4 was approved on 15 November 2026 (Guilded file 9632579, Guilded Dungeons file 9632613) and the Store 9.3.4.0 package was submitted the same day, in certification as Submission 13 ("Guild Sync Companion"). 9.3.3 is published (GitHub release v9.3.3 is the latest, tag at f849e748, the website download and the bot, 15 November 2026); CurseForge 9.3.3 is approved (Guilded file 9624204, Guilded Dungeons file 9624207). 9.3.2 was published 14 November 2026 and its CurseForge files were approved (Guilded file 9620000, Guilded Dungeons file 9620020; the website pointer #937 is merged). The bot is live on 0ffb684b or later with #940 and #942. The Store has the 9.3.3.0 ("Guild Sync Companion") package submitted on 15 November 2026 and in certification; the 9.3.2.0 submission was cancelled and Partner Center kept the number 13. Dungeon Season 1 runs with the boss-skip rule since 14 November 2026 22:35 UTC. Check each provider live before claiming status. WoW Forever launched 4 November 2026; its
 first raids open 9 December.
-Production uses Aiven PostgreSQL; retained Neon configuration is historical.
+Production uses a self-hosted PostgreSQL 18 on a second Always Free Oracle VM ("Guilded-DB", private IP in the bot's VCN, moved from Aiven on 20 November 2026; nightly dumps on the bot server); Aiven and Neon settings are kept only as fallbacks.
 Guilded supports WoW Forever only: the other WoW editions were removed on 7 November 2026
 (`docs/plans/FOREVER_ONLY_REMOVAL.md`); stored rows of other editions stay readable and new uploads from them are
 refused (`assertForeverEdition` in `companion/game-edition.mjs`). Message earning covers accessible guild
@@ -170,7 +170,7 @@ Character links (linking audit T3, 10 November 2026; `src/services/character-mov
 
 ## No database or Discord access from here
 
-Cloud sandboxes may not reach production Aiven or Discord and may have no
+Cloud sandboxes may not reach the production database or Discord and may have no
 `.env.local` (gitignored; contains credentials). Check actual local access
 without printing secrets; retained Neon settings do not identify production.
 Consequences:

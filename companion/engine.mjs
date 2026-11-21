@@ -326,6 +326,7 @@ export function createEngine(initialConfig, hooks = {}) {
   let pendingParked = [];
   let lastParkedWait = "";
   let lastText = null;
+  let writtenNames = undefined;
   let watchRestarts = 0;
   let watchStartedAt = 0;
   let watchGaveUpAt = 0;
@@ -902,7 +903,7 @@ export function createEngine(initialConfig, hooks = {}) {
   // One standings answer: written to the addon folder (unless unchanged), and what it says about
   // the bot (features, stored entries) remembered. `waitSeconds` long-polls.
   async function fetchStandings(epoch, options = {}) {
-    const result = await writeStandings({ ...config }, controller.signal, { etag: options.force ? null : etag, waitSeconds: options.waitSeconds, lock: fileLock });
+    const result = await writeStandings({ ...config }, controller.signal, { etag: options.force ? null : etag, namesKey: writtenNames, waitSeconds: options.waitSeconds, lock: fileLock });
     if (!result.notModified && !result.unchanged) heartbeat.wrote();
     if (epoch !== generation) return result;
     state.standingsError = null;
@@ -914,6 +915,8 @@ export function createEngine(initialConfig, hooks = {}) {
     }
     etag = result.etag;
     lastText = result.text ?? null;
+    // 9.4.7: the PC character names the written dungeon board was shaped for; a change rewrites the file (standings.mjs).
+    writtenNames = result.namesKey;
     features = new Set(Array.isArray(result.body?.features) ? result.body.features : []);
     ack = acknowledgements(result.body);
     if (pendingRunCheck && pendingRunCheck.ids.length) {
@@ -1122,7 +1125,7 @@ export function createEngine(initialConfig, hooks = {}) {
     // Track L: the signed-in Discord name for the in-game "Linked to Discord as" line; the next
     // standings fetch writes it (no restart).
     setLinkedAccount(account) { config = { ...config, discordAccount: account }; etag = null; },
-    async configure(next) { await this.stop(); state.device = null; state.syncEvidence = {}; state.syncPhase = "waiting-save"; state.lastUpload = null; state.lastStandings = null; state.lastUploadBytes = null; state.error = null; state.standingsError = null; config = accountLevel(next); etag = null; ack = null; runsFullAt = null; features = new Set(); gzipOff = false; lastFile = null; lastText = null; return this.start(); },
+    async configure(next) { await this.stop(); state.device = null; state.syncEvidence = {}; state.syncPhase = "waiting-save"; state.lastUpload = null; state.lastStandings = null; state.lastUploadBytes = null; state.error = null; state.standingsError = null; config = accountLevel(next); etag = null; ack = null; runsFullAt = null; features = new Set(); gzipOff = false; lastFile = null; lastText = null; writtenNames = undefined; return this.start(); },
     uploadNow() { if (config.wowEnabled !== false) scheduleUpload(0); if (poe) track(poe.pollNow()); },
     // The tray's "Refresh in-game standings now" always fetches and writes the full answer.
     refreshStandings: () => { const pending = config.personal ? personalUpload() : refreshStandings({ force: true }); track(pending); return pending; }

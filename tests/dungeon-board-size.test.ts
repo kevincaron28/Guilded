@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -123,6 +123,50 @@ describe("Standings.lua's dungeon board", () => {
       rmSync(join(root, "WTF"), { recursive: true, force: true });
       answer({});
       expect(shapes((await writeStandings({ ...config, watchFile: fresh })).text!)).toBe("Meo Un:full,Second Alt:full,Linked Main:full,Guild Mate:full");
+    } finally {
+      vi.unstubAllGlobals();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("writes the file again when this PC's characters change, even when the bot's answer did not", async () => {
+    const root = mkdtempSync(join(tmpdir(), "qg-board-names-"));
+    try {
+      const saved = join(root, "WTF", "Account", "ACC", "SavedVariables");
+      mkdirSync(saved, { recursive: true });
+      mkdirSync(join(root, "Interface", "AddOns", "Guilded"), { recursive: true });
+      const watchFile = join(saved, "Guilded.lua");
+      const play = (characters: string[]) => writeFileSync(watchFile, `GuildedDB = { version = 3, character = { name = ${JSON.stringify(characters[0])}, realm = "", gameEdition = "forever" },
+        myCharacters = { ${characters.map(c => `[${JSON.stringify(c)}] = { name = ${JSON.stringify(c)} }`).join(", ")} } }`);
+      const template = fed.profiles[0]!;
+      const dungeonBoard = { ...fed, profiles: ["Meo Un", "New Alt", "Guild Mate"].map(name => ({ ...template, name, characters: [] })) };
+      const sent: (string | null)[] = [];
+      vi.stubGlobal("fetch", vi.fn(async (_url: unknown, init: { headers: Record<string, string> }) => {
+        const since = init.headers["if-none-match"] ?? null;
+        sent.push(since);
+        return since === "e1" ? { ok: false, status: 304, headers: new Headers({ etag: "e1" }), json: async () => ({}) }
+          : { ok: true, status: 200, headers: new Headers({ etag: "e1" }), json: async () => ({ protocolVersion: 2, updatedAt: AT, baseGp: 0, standings: [], gameEdition: "forever", accounts: {}, dungeonBoard }) };
+      }));
+      const config = { watchFile, uploadUrl: "https://bot.example", guildDiscordId: "1", companionCredential: "c".repeat(43), dataAddon: false };
+      const shapes = (text: string) => {
+        lua.run(`GuildedDungeonBoard = nil\n${text.replace(/^GuildedLinked[\s\S]*$/m, "")}`);
+        return lua.run(`local t = {} for _, p in ipairs(GuildedDungeonBoard.profiles) do t[#t+1] = p.name .. ":" .. (p.brief and "brief" or "full") end return table.concat(t, ",")`);
+      };
+      play(["Meo Un"]);
+      const first = await writeStandings(config);
+      expect(shapes(first.text!)).toBe("Meo Un:full,New Alt:brief,Guild Mate:brief");
+      // Same characters: the ETag goes, the bot says "not modified", nothing is written.
+      const same = await writeStandings(config, undefined, { etag: "e1", namesKey: first.namesKey });
+      expect(same.notModified).toBe(true);
+      expect(sent.at(-1)).toBe("e1");
+      // A character played here for the first time: the ETag is left out, the answer comes back whole and the file holds its profile.
+      play(["Meo Un", "New Alt"]);
+      const next = await writeStandings(config, undefined, { etag: "e1", namesKey: first.namesKey });
+      expect(sent.at(-1)).toBeNull();
+      expect(next.notModified).toBe(false);
+      expect(next.unchanged).toBe(false);
+      expect(shapes(readFileSync(join(root, "Interface", "AddOns", "Guilded", "Standings.lua"), "utf8"))).toBe("Meo Un:full,New Alt:full,Guild Mate:brief");
+      expect((await writeStandings(config, undefined, { etag: "e1", namesKey: next.namesKey })).notModified).toBe(true);
     } finally {
       vi.unstubAllGlobals();
       rmSync(root, { recursive: true, force: true });

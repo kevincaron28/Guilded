@@ -286,8 +286,9 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
     // picture-less embed of the reduced message, and it takes its text line (`dropField`) off the post. Without it the text line stays.
     const extraStored = payload["extraCard"] && typeof payload["extraCard"] === "object" ? payload["extraCard"] as { card?: unknown; member?: unknown; dropField?: unknown } : null;
     const extra = card && extraStored ? await draw(extraStored.card, extraStored.member) : { definition: null, png: null };
-    // A post that asks for it (the duel cards) tries again later when the picture could not be drawn (the renderer was busy), before settling for the text.
-    if (cardDefinition && !card && payload["retryCard"] === true && job.attempts < 3) throw Object.assign(new Error("Card renderer busy"), { code: "card-busy" });
+    // Every card post tries again later when the picture could not be drawn (the renderer draws two at a time and answers busy), before
+    // settling for the text. Only duel and season cards did (`retryCard`); the 20 Nov daily recap went out as text (21 Nov 2026).
+    if (cardDefinition && !card && job.attempts < 3) throw Object.assign(new Error("Card renderer busy"), { code: "card-busy" });
     // Nobody is notified, except the users a job names explicitly (the hall of fame's opt-in MVP ping).
     const users = Array.isArray(payload["mentionUsers"]) ? payload["mentionUsers"].filter((id): id is string => typeof id === "string" && /^\d{17,20}$/.test(id)).slice(0, 10) : [];
     // The post as it goes out with the picture (the reduced card-only message) or, when the picture is refused, as the full text post.

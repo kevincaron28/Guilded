@@ -252,16 +252,26 @@ function ns.requestGuildDungeonBoard()
   local board = current()
   ns.comm.send(PREFIX, "REQUEST|" .. ((board and board.updatedAt) or "0"), "GUILD")
 end
+-- The board the companion wrote (Standings.lua) replaces the saved one when it is newer. Returns true when it did.
+local function adoptFileBoard()
+  local d, file, saved = ns.getDb(), GuildedDungeonBoard, current()
+  local fresh = false
+  if d and type(file) == "table" and type(file.updatedAt) == "string" and (not saved or not saved.updatedAt or file.updatedAt > saved.updatedAt) then d.dungeonBoard = file; fresh = true end
+  if current() then GuildedDungeonBoard = current() end
+  return fresh
+end
+-- (9.4.8) The guild's saved data was switched or repaired after login (Forever settles the guild a few seconds late): the
+-- data now loaded may hold an older board, so the companion's newer one is taken again (it waited for a /reload before).
+ns.onGuildDataSwitched = function()
+  if adoptFileBoard() and ns.onDungeonChange then pcall(ns.onDungeonChange) end
+end
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("PLAYER_ENTERING_WORLD"); frame:RegisterEvent("CHAT_MSG_ADDON")
 frame:SetScript("OnEvent", function(_, event, prefix, text, channel, sender)
   if event == "PLAYER_ENTERING_WORLD" then
     ns.comm.register(PREFIX)
-    local d, file, saved = ns.getDb(), GuildedDungeonBoard, current()
     -- A board the companion just brought from Discord is shared at once, by any member.
-    local fresh = false
-    if d and type(file) == "table" and type(file.updatedAt) == "string" and (not saved or not saved.updatedAt or file.updatedAt > saved.updatedAt) then d.dungeonBoard = file; fresh = true end
-    if current() then GuildedDungeonBoard = current() end
+    local fresh = adoptFileBoard()
     if C_Timer then C_Timer.After(25, function()
       if ns.isOfficer() or fresh then share() end
       ns.requestGuildDungeonBoard()

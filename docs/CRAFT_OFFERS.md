@@ -1,7 +1,7 @@
 # Crafter offers
 
 A crafter can offer to make something; members buy it or ask for it from the same craft board.
-Off until an officer turns it on for the Discord server. Guilded never handles gold: the price is
+On by default in every Discord server (owner rule, 21 November 2026); an officer turns it off with `/config craft offers`. Guilded never handles gold: the price is
 free text and the trade happens in game.
 
 ## Turn it on or off

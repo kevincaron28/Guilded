@@ -1137,8 +1137,8 @@ model GuildSettings {
   craftLadderEnabled       Boolean @default(true)
   craftLadderChannelId     String?
   craftLadderMessageId     String?
-  // Crafter offers (sell a craft) are off until an officer turns them on with /craft offer-setting.
-  craftOffersEnabled       Boolean @default(false)
+  // Crafter offers (sell a craft): on by default (owner rule, 21 Nov 2026); officers turn them off with /config craft offers.
+  craftOffersEnabled       Boolean @default(true)
   // Crafting orders in game (docs/plans/CRAFTING_ORDERS.md): craft requests on the addon's Orders page. On by default; /craft orders-setting.
   craftOrdersInGame        Boolean @default(true)
   // Private (officers and raid leaders) channel where gear/readiness checks are posted.

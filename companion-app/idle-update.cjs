@@ -5,6 +5,8 @@
 //
 // Rules (the owner wants an unattended update to end with the companion back in the tray, never on screen):
 // - idle means: window hidden (a minimized window counts as in use for 30 minutes), WoW closed, no sync running;
+//   (9.4.8) an update that has waited WAIT_FOR_WOW_MS no longer waits for WoW: players who keep WoW open all day never
+//   reached "WoW closed" (owner PC, 21 Nov 2026). The restart takes about a minute and never happens during a sync;
 // - the restart marker is written before the installer starts, so the restarted companion stays hidden;
 // - the companion is NOT quit by this code: the installer asks it to quit (quit-for-update, saves settings) and
 //   restarts it. If the installer fails to start or exits with an error, the companion is still running;
@@ -13,6 +15,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const MINIMIZED_IN_USE_MS = 30 * 60 * 1000;
+const WAIT_FOR_WOW_MS = 2 * 60 * 60 * 1000;
 // The installer restarts the companion within a minute or so of starting; a marker older than this is a leftover
 // (a failed or cancelled install) and must not hide the window of a manual start.
 const MARKER_FRESH_MS = 5 * 60 * 1000;
@@ -79,7 +82,7 @@ function syncBlocks({ phase, addonAutoUpdating = false, unreadable = false }) {
 /**
  * @returns {{ install: boolean, reason: string }}
  */
-function decideIdle({ verdict, window = {}, now = Date.now(), wowRunning = false, syncBusy = false, active = false, autoUpdate = true, failure = null }) {
+function decideIdle({ verdict, window = {}, now = Date.now(), wowRunning = false, syncBusy = false, active = false, autoUpdate = true, failure = null, waitingSince = null }) {
   if (autoUpdate === false) return { install: false, reason: "disabled" };
   if (!verdict || verdict.action !== "install") return { install: false, reason: "nothing-staged" };
   if (active) return { install: false, reason: "busy" };
@@ -90,7 +93,9 @@ function decideIdle({ verdict, window = {}, now = Date.now(), wowRunning = false
   } else if (window.visible) {
     return { install: false, reason: "window-open" };
   }
-  if (wowRunning) return { install: false, reason: "wow-running" };
+  // A download from before 9.4.8 has no time: it has waited long enough.
+  const waited = Number.isFinite(waitingSince) ? now - waitingSince : Infinity;
+  if (wowRunning && waited < WAIT_FOR_WOW_MS) return { install: false, reason: "wow-running" };
   if (syncBusy) return { install: false, reason: "sync-running" };
   return { install: true, reason: "idle" };
 }
@@ -171,7 +176,7 @@ function createIdleInstaller(deps) {
       const config = deps.getConfig();
       const verdict = await inspect();
       if (verdict.action === "clear") { note(`downloaded update not usable (${verdict.reason})`); return { started: false, reason: `clear-${verdict.reason}`, verdict }; }
-      const decision = decideIdle({ verdict, window: deps.window(), now: now(), wowRunning: deps.wowRunning(), syncBusy: deps.syncBusy(), active: false, autoUpdate: config.autoUpdate, failure: config.updateFailure });
+      const decision = decideIdle({ verdict, window: deps.window(), now: now(), wowRunning: deps.wowRunning(), syncBusy: deps.syncBusy(), active: false, autoUpdate: config.autoUpdate, failure: config.updateFailure, waitingSince: Date.parse(config.pendingUpdate?.downloadedAt ?? "") });
       if (verdict.action === "none") return { started: false, reason: decision.reason };
       if (!decision.install) { note(`install when idle: waiting (${decision.reason})`); return { started: false, reason: decision.reason }; }
       const disk = deps.checkDisk();
@@ -212,4 +217,4 @@ function createIdleInstaller(deps) {
   return { run, inspect, isActive: () => active };
 }
 
-module.exports = { createIdleInstaller, decideIdle, backoffMs, recordFailure, inBackoff, markerIsFresh, consumeMarker, readMarker, wowBlocks, syncBlocks, hashFileAsync, MARKER_NAME, INSTALLER_ARGS, MINIMIZED_IN_USE_MS, MARKER_FRESH_MS, MARKER_REFRESH_MS };
+module.exports = { createIdleInstaller, decideIdle, backoffMs, recordFailure, inBackoff, markerIsFresh, consumeMarker, readMarker, wowBlocks, syncBlocks, hashFileAsync, MARKER_NAME, INSTALLER_ARGS, MINIMIZED_IN_USE_MS, WAIT_FOR_WOW_MS, MARKER_FRESH_MS, MARKER_REFRESH_MS };

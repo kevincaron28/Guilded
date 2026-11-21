@@ -20,7 +20,7 @@ function staged(version = "9.3.2") {
   const bytes = Buffer.from(`installer ${version}`);
   const file = join(directory, `Guilded.Companion.Setup.${version}.exe`);
   writeFileSync(file, bytes);
-  return { file, pending: { version, file, sha256: createHash("sha256").update(bytes).digest("hex"), attempts: 0 } };
+  return { file, pending: { version, file, sha256: createHash("sha256").update(bytes).digest("hex"), attempts: 0, downloadedAt: "2026-11-14T12:00:00.000Z" } };
 }
 
 class FakeInstaller extends EventEmitter { unref = vi.fn(); }
@@ -128,6 +128,18 @@ describe("the idle install runs the whole flow", () => {
     const c = setup(); c.state.visible = true;
     expect((await c.installer.run()).reason).toBe("window-open");
     for (const t of [a, b, c]) expect(t.deps.spawn).not.toHaveBeenCalled();
+  });
+
+  it("stops waiting for WoW once the update has waited two hours (WoW open all day, 21 Nov 2026)", async () => {
+    const t = setup(); t.state.wow = true;
+    t.state.clock += 60 * 60 * 1000;
+    expect((await t.installer.run()).reason).toBe("wow-running");
+    t.state.clock += 61 * 60 * 1000;
+    expect((await t.installer.run()).started).toBe(true);
+    expect(t.deps.spawn).toHaveBeenCalledTimes(1);
+    // Still never during a sync or with the window open.
+    expect(idle.decideIdle({ verdict: { action: "install", version: "9.3.2" }, wowRunning: true, syncBusy: true, waitingSince: 0, now: 3 * 60 * 60 * 1000 }).reason).toBe("sync-running");
+    expect(idle.decideIdle({ verdict: { action: "install", version: "9.3.2" }, wowRunning: true, window: { visible: true }, waitingSince: 0, now: 3 * 60 * 60 * 1000 }).reason).toBe("window-open");
   });
 
   it("treats a minimized window as in use for 30 minutes, then as idle", async () => {

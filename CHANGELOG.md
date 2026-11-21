@@ -2,7 +2,7 @@
 
 ## 9.4.8 — 21 November 2026
 
-Prepared 21 November 2026. In-game checks: docs/V9_4_8_RELEASE_ACCEPTANCE.md.
+Published 21 November 2026 (GitHub v9.4.8, website download and installer, bot). In-game checks: docs/V9_4_8_RELEASE_ACCEPTANCE.md.
 
 Addon:
 

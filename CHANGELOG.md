@@ -1,5 +1,18 @@
 # Changelog
 
+## 9.4.7 — 21 November 2026
+
+Prepared 21 November 2026. Needs in-game checks (see docs/V9_4_7_RELEASE_ACCEPTANCE.md).
+
+Companion and addon:
+
+- The dungeon board written into every member's game is about 93% smaller: guildmates keep what the game shows of them (points, bracket, role points, best runs), your own characters keep everything; officers keep guildmates' runs for the relay. On for everyone, no setting; older addons read the smaller file the same way (#1225).
+
+Bot (already live):
+
+- Standings: the season's dungeon rules are checked once instead of once per run; the board builds in about 1.5 s instead of 10.6 s (#1222).
+- No database lock on every community tick; one failing activity or server no longer stops the others; posts to a deleted or forbidden channel stop retrying after a day and show in /setup system status (retry with /setup system retry); quieter logs (#1226).
+
 ## 9.4.6 — 21 November 2026
 
 Published 21 November 2026 (GitHub v9.4.6, website download and installer). Needs in-game checks (see docs/V9_4_6_RELEASE_ACCEPTANCE.md).

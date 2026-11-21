@@ -1,5 +1,25 @@
 # Changelog
 
+## 9.4.8 — 21 November 2026
+
+Prepared 21 November 2026. In-game checks: docs/V9_4_8_RELEASE_ACCEPTANCE.md.
+
+Addon:
+
+- `/guilded score Lebowski Holyroller` looks up the whole name (it read only the first word) (#1234).
+- On the login where the guild data is repaired or switched, the companion's newer dungeon board is used at once (the per-dungeon lines were missing until a /reload) (#1234).
+- `/guilded score` gives your current level's bracket and that bracket's runs, as the Dungeons panel does (#1236).
+- More chat and window lines in French; wording polish.
+
+Companion:
+
+- A downloaded update that has waited two hours installs even while WoW is open (still never during an upload or with the window open) (#1235).
+
+Bot (already live):
+
+- Every card post retries a busy picture renderer before falling back to text (the 20 Nov daily recap came out as text) (#1231).
+- Crafter offers are on by default in every server; officers can turn them off (#1233).
+
 ## 9.4.7 — 21 November 2026
 
 Published 21 November 2026 (GitHub v9.4.7, website download and installer). Needs in-game checks (see docs/V9_4_7_RELEASE_ACCEPTANCE.md).

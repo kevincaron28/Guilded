@@ -22,7 +22,9 @@ const colorOf = (color: string) => (/^#[0-9a-fA-F]{6}$/.test(color) ? color : IN
 export async function renderRecordCard(card: ScoreCard, art: Buffer): Promise<{ png: Buffer; report: TextReport[] }> {
   const v = card.record!, c = new CardCanvas();
   const tie = v.previousSec !== undefined && v.previousSec === v.newSec, first = v.previousSec === undefined;
-  const headline = v.headline ?? `${v.ribbon.toUpperCase()} !`;
+  // Fallback for cards queued before the headline existed: the French ribbons all read "... record de ...", so only they get the
+  // space before "!" (English ones read "NEW GUILD RECORD!").
+  const headline = v.headline ?? `${v.ribbon.toUpperCase()}${/\brecord de\b/i.test(v.ribbon) ? " !" : "!"}`;
   // Shades: the top carries the headline, the middle the time, the bottom the party panel; the painting stays visible between.
   c.gradient(0, 0, CARD_W, 340, "v", [[0, "#000", 0.55], [1, "#000", 0.08]]);
   c.gradient(0, 0, 820, 340, "h", [[0, "#000", 0.38], [1, "#000", 0]]);

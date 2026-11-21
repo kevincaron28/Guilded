@@ -352,3 +352,46 @@ describe("world PvP places", () => {
     expect(s!.run(`local r, d = DB.worldPvp.recent[1], DB.worldPvp.deathsRecent[1]; return table.concat({ tostring(r.m), tostring(r.x), tostring(r.y), tostring(r.a), tostring(d.m), tostring(d.x), tostring(d.y), r.z, d.z }, ",")`)).toBe("nil,nil,nil,nil,nil,nil,nil,Z,Z");
   });
 });
+
+describe("world PvP kills when the honor line is not readable (WoW Forever, 21 Nov 2026)", () => {
+  // Evidence: the owner's SavedVariables had the honorable-kills milestone (hk:1) reached while worldPvp.total.kills stayed 0.
+  function withStat() {
+    setup();
+    s!.run(`HK = 10; function GetPVPLifetimeStats() return HK end
+      NS.worldPvp.baselineHK()`);
+  }
+  const statUp = () => s!.run(`HK = HK + 1; fire_event("PLAYER_PVP_KILLS_CHANGED")`);
+
+  it("counts a kill from the honorable-kills statistic when no honor line arrives", () => {
+    withStat();
+    statUp();
+    expect(stat("total", "kills")).toBe("1");
+    expect(s!.run(`return DB.worldPvp.events[1].k .. "|" .. DB.worldPvp.recent[1].n:sub(1, 1)`)).toBe("kill|?");
+  });
+
+  it("counts a kill once when the honor line and the statistic both announce it, in either order", () => {
+    withStat();
+    s!.run(`fire_event("CHAT_MSG_COMBAT_HONOR_GAIN", "Thug dies, honorable kill Rank: Private (12 Honor Points)")`);
+    statUp();
+    expect(stat("total", "kills")).toBe("1");
+    s!.run(`CLOCK = CLOCK + 30`);
+    statUp();
+    s!.run(`fire_event("CHAT_MSG_COMBAT_HONOR_GAIN", "Other dies, honorable kill Rank: Private (12 Honor Points)")`);
+    expect(stat("total", "kills")).toBe("2");
+  });
+
+  it("does not count battleground kills raised by the statistic, nor later", () => {
+    withStat();
+    s!.run(`INST = true`);
+    statUp();
+    s!.run(`INST = false; CLOCK = CLOCK + 30`);
+    s!.run(`fire_event("PLAYER_PVP_KILLS_CHANGED")`);
+    expect(stat("total", "kills")).toBe("0");
+  });
+
+  it("keeps unnamed kills apart for the bot's repeat-victim limit", () => {
+    withStat();
+    for (let i = 0; i < 3; i++) { statUp(); s!.run(`CLOCK = CLOCK + 30`); }
+    expect(s!.run(`return DB.worldPvp.recent[1].n ~= DB.worldPvp.recent[2].n and "distinct" or "same"`)).toBe("distinct");
+  });
+});

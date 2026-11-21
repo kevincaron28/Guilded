@@ -101,7 +101,7 @@ export function layout(input: LayoutInput): string {
   const frenchCanonical = frenchUrl(canonical);
   const here2 = input.lang === "fr" ? frenchCanonical : canonical;
   const alternates = input.noindex ? "" : `<link rel="canonical" href="${here2}"><link rel="alternate" hreflang="en" href="${canonical}"><link rel="alternate" hreflang="fr" href="${frenchCanonical}"><link rel="alternate" hreflang="x-default" href="${canonical}"><meta property="og:url" content="${here2}">`;
-  return `<!doctype html><html lang="${input.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`
+  return `<!doctype html><html lang="${input.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="google-adsense-account" content="ca-pub-6948243189424271">`
     + `<title>${escapeHtml(input.documentTitle ?? `${input.title} · Guilded`)}</title><meta name="description" content="${description}">${input.noindex ? '<meta name="robots" content="noindex">' : alternates}`
     // Link previews (Discord, social sites): a pasted page shows its title, summary and the logo.
     + `<meta property="og:site_name" content="Guilded"><meta property="og:type" content="website"><meta property="og:title" content="${escapeHtml(input.documentTitle ?? input.title)}">`

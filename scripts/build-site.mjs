@@ -43,6 +43,7 @@ const hashes = structuredData.map(match => `'sha256-${createHash("sha256").updat
 // site/analytics.json. Empty means no analytics script and an unchanged security policy.
 const analyticsToken = JSON.parse(readFileSync("site/analytics.json", "utf8")).cloudflareBeaconToken ?? "";
 if (analyticsToken && !/^[a-f0-9]{32}$/.test(analyticsToken)) throw new Error("site/analytics.json: cloudflareBeaconToken must be 32 hexadecimal characters");
+const ADSENSE_ACCOUNT = '<meta name="google-adsense-account" content="ca-pub-6948243189424271">';
 const beacon = analyticsToken ? `<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"${analyticsToken}"}'></script>` : "";
 let headersFile = readFileSync("site/_headers", "utf8").replace("script-src 'self'", `script-src 'self' ${hashes}${analyticsToken ? " https://static.cloudflareinsights.com" : ""}`);
 if (analyticsToken) headersFile = headersFile.replace("connect-src 'self'", "connect-src 'self' https://cloudflareinsights.com");
@@ -213,6 +214,9 @@ function languageAlternates(directory) {
     let html = readFileSync(path, 'utf8');
     const canonical = /<link rel="canonical" href="([^"]+)"/.exec(html)?.[1];
     if (beacon && !path.includes("/creator/") && !html.includes("cloudflareinsights")) { html = html.replace("</head>", `${beacon}</head>`); writeFileSync(path, html); }
+    // AdSense site ownership: Google's reviewer reads this tag in the page head (docs/plans/ADS_CONSENT.md). Inert on
+    // its own; the ad script itself only loads after a consent choice, on the Worker's allowed pages.
+    if (/<head[\s>]/i.test(html) && !html.includes('name="google-adsense-account"')) { html = html.replace(/<head(\s[^>]*)?>/i, (head) => `${head}${ADSENSE_ACCOUNT}`); writeFileSync(path, html); }
     if (!canonical || !html.includes('data-fr=')) continue;
     const french = new URL(canonical);
     if (canonical.startsWith(origin)) {

@@ -25,10 +25,16 @@ Original rollback note: delete the variable. Pages go back to the strict policy 
   Accept loads `adsbygoogle.js?client=ca-pub-6948243189424271` (async, crossorigin anonymous), personalised; Decline loads the same loader non-personalised. Auto ads are switched on
   in AdSense; there are no manual ad units.
 - Allowed: home (`/`, `/fr/`), `/leaderboards/**` and `/players/**` (also inside `/forever/`), `/g/<slug>/`, the
-  guides hub and the dungeons, EPGP, Discord bot and link-character guides, and the kcaron.top creator page.
+  guides hub and the dungeons, EPGP, Discord bot, link-character and troubleshooting guides, the command reference
+  `/reference/` (21 Nov 2026), and the kcaron.top creator page.
   Never: download, companion, install, start, self-host, officers, sign-in, `/me`, owner, `/api`, `/downloads`,
   `releases.json`, any `.json/.xml/.png` file. Hall of Fame has no web page yet, so nothing to allow.
-- `wrangler.jsonc`: `/guide/*`, `/fr/*`, `/ads.txt`, `/consent.js` run the Worker first, so static guide pages can get the banner.
+- `wrangler.jsonc`: `/guide/*`, `/fr/*`, `/reference`, `/reference/`, `/ads.txt`, `/consent.js` run the Worker first, so static pages can get the banner.
+  A new static ad page needs its path here too, or the asset store answers it without the Worker.
+- Every built page head names the account (`<meta name="google-adsense-account" content="ca-pub-6948243189424271">`,
+  added by `scripts/build-site.mjs`; the bot's `web-layout.ts` and `guild-page.ts` write it too). It loads nothing.
+- The banner uses the site's design tokens (`--kc-*`, same values as fallbacks on bot pages) and follows the
+  site's EN/FR switch (`kc-language` event from `site/language.js`) without a reload.
 - `ads.txt` is answered by the Worker on every host (including `guilded.kcaron.top` after the canonical redirect is on:
   it is excluded from that redirect).
 - Privacy page: "Advertising and cookies" / "Publicité et témoins" sections in `docs/PRIVACY.md`, naming Kevin Caron as the

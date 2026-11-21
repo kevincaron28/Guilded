@@ -9,7 +9,8 @@ export const adsOn = (env) => String(env?.GUILDED_ADS ?? "").trim().toLowerCase(
 
 const CREATOR_HOSTS = ["kcaron.top", "www.kcaron.top"];
 // Public pages only. Never downloads, the companion, install, sign-in, accounts, officers, or anything a program fetches.
-const GUIDES = /^\/guide\/(?:|dungeons\/?|epgp\/?|discord-bot\/?|link-character\/?)$/;
+// Reading pages: the guides hub, the content guides and the command reference (21 Nov 2026: + troubleshooting, reference).
+const GUIDES = /^\/(?:guide\/(?:|dungeons\/?|epgp\/?|discord-bot\/?|link-character\/?|troubleshooting\/?)|reference\/?)$/;
 const DATA_PAGE = /^\/(?:leaderboards|players)(?:\/|$)/;
 const GUILD_PAGE = /^\/g\/[a-z0-9-]{1,40}\/?$/;
 const FILE = /\.[a-z0-9]{2,5}$/i;

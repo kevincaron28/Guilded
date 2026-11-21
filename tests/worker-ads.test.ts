@@ -40,11 +40,11 @@ describe("the switch is off by default", () => {
 describe("page allow-list", () => {
   const url = (host: string, path: string) => new URL(`https://${host}${path}`);
   it("allows the public pages", () => {
-    for (const path of ["/", "/fr/", "/guide/dungeons/", "/guide/epgp/", "/fr/guide/dungeons/", "/leaderboards/", "/leaderboards/?lang=fr", "/forever/leaderboards/", "/leaderboards/character/Kevin-Forever", "/players/x", "/g/quebec-gold/"]) expect(adPage(url("guildedwow.com", path)), path).toBe(true);
+    for (const path of ["/", "/fr/", "/guide/dungeons/", "/guide/epgp/", "/fr/guide/dungeons/", "/leaderboards/", "/leaderboards/?lang=fr", "/forever/leaderboards/", "/leaderboards/character/Kevin-Forever", "/players/x", "/g/quebec-gold/", "/guide/troubleshooting/", "/reference/", "/fr/reference/", "/forever/reference/"]) expect(adPage(url("guildedwow.com", path)), path).toBe(true);
     for (const path of ["/", "/creator/"]) expect(adPage(url("kcaron.top", path)), path).toBe(true);
   });
   it("refuses downloads, install, companion, sign-in, accounts, officers and program fetches", () => {
-    for (const path of ["/download/", "/companion/", "/start/", "/guide/install/", "/guide/companion/", "/guide/start/", "/guide/officers/", "/guide/self-host/", "/me/", "/me/settings", "/auth/login", "/owner/", "/officers/", "/recruitment/", "/docs/PRIVACY", "/forever/", "/api/v1/hub", "/downloads/Guilded.Companion.Setup.exe", "/releases.json", "/leaderboards/summary.json", "/leaderboards/run/r1/card.png", "/health", "/g/quebec-gold/extra", "/community/"]) expect(adPage(url("guildedwow.com", path)), path).toBe(false);
+    for (const path of ["/download/", "/companion/", "/start/", "/guide/install/", "/guide/companion/", "/guide/start/", "/guide/officers/", "/guide/self-host/", "/me/", "/me/settings", "/auth/login", "/owner/", "/officers/", "/recruitment/", "/docs/PRIVACY", "/forever/", "/api/v1/hub", "/downloads/Guilded.Companion.Setup.exe", "/releases.json", "/leaderboards/summary.json", "/leaderboards/run/r1/card.png", "/health", "/g/quebec-gold/extra", "/community/", "/reference/commands.json", "/mobile/", "/delete-my-data/", "/quebec-gold/"]) expect(adPage(url("guildedwow.com", path)), path).toBe(false);
     expect(adPage(url("kcaron.top", "/support"))).toBe(false);
     expect(adPage(url("kcaron.top", "/ads.txt"))).toBe(false);
   });
@@ -95,15 +95,17 @@ describe("consent script", () => {
     const make = (tag: string): Fake => ({ tag, children: [], listeners: {}, style: {}, parentNode: null, setAttribute() {}, appendChild(child: Fake) { this.children.push(child); return child; }, addEventListener(type: string, fn: () => void) { this.listeners[type] = fn; } });
     const head = make("head"); const body = make("body"); const footer = make("footer");
     const store = new Map<string, string>(stored ? [["guilded_ad_consent", stored]] : []);
-    const document = { documentElement: { lang }, readyState: "complete", head, body, getElementById: () => null, createElement: make, querySelector: () => footer, addEventListener: () => undefined };
+    const events: Record<string, (event: { detail: string }) => void> = {};
+    const document = { documentElement: { lang }, readyState: "complete", head, body, getElementById: () => null, createElement: make, querySelector: () => footer, addEventListener: (type: string, fn: (event: { detail: string }) => void) => { events[type] = fn; } };
     const win: Record<string, unknown> = {};
     const localStorage = storageThrows ? { getItem() { throw new Error("blocked"); }, setItem() { throw new Error("blocked"); } } : { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => store.set(k, v) };
     vm.runInNewContext(CONSENT_SCRIPT, { window: Object.assign(win, { localStorage, location: { reload: vi.fn() }, document }), document });
     const scripts = () => head.children.filter((c) => c.tag === "script");
-    const banner = () => body.children.find((c) => c.className === "gc-banner");
+    // The fake has no parentNode, so a closed banner stays in the list: the newest one is the shown one.
+    const banner = () => [...body.children].reverse().find((c) => c.className === "gc-banner");
     const buttons = () => banner()?.children[1]?.children ?? [];
     const click = (index: number) => buttons()[index]?.listeners["click"]?.();
-    return { footer, store, scripts, banner, buttons, click, win };
+    return { footer, store, scripts, banner, buttons, click, win, events };
   }
   it("loads nothing before a choice, and shows both buttons", () => {
     const { scripts, buttons, footer } = run("en", null);
@@ -133,6 +135,19 @@ describe("consent script", () => {
     expect(run("en", "decline").banner()).toBeUndefined();
     expect(run("en", "accept").scripts()).toHaveLength(1);
   });
+  it("follows the site's EN/FR switch (kc-language) without a reload", () => {
+    const r = run("en", null);
+    r.events["kc-language"]?.({ detail: "fr" });
+    expect(r.buttons().map((b) => b.textContent)).toEqual(["Accepter", "Refuser"]);
+    expect(r.footer.children[0]?.children[0]?.textContent).toBe("Choix de témoins");
+    expect(r.scripts()).toHaveLength(0);
+    r.events["kc-language"]?.({ detail: "en" });
+    expect(r.buttons().map((b) => b.textContent)).toEqual(["Accept", "Decline"]);
+  });
+  it("uses the site's design tokens, with the same values as fallbacks", () => {
+    expect(CONSENT_SCRIPT).toContain("var(--kc-accent,#d9b66f)");
+    expect(CONSENT_SCRIPT).toContain("var(--kc-surface,#1a2023)");
+  });
   it("survives blocked storage", () => {
     const r = run("en", null, true);
     expect(r.scripts()).toHaveLength(0);
@@ -149,6 +164,8 @@ describe("configuration in wrangler.jsonc", () => {
     expect(config.vars.GUILDED_ADS).toBe("on");
     expect(config.vars.GUILDED_ORIGIN_URL).toBe("https://bot.kcaron.top");
     expect(config.keep_vars).toBe(true);
+    // A static ad page only gets the banner if the Worker answers it before the asset store.
+    expect(config.assets.run_worker_first).toEqual(expect.arrayContaining(["/", "/guide/*", "/fr/*", "/reference", "/reference/", "/g/*", "/forever/*"]));
     expect(config.routes.map((route: { pattern: string }) => route.pattern).sort()).toEqual(["guilded.kcaron.top", "guildedwow.com", "www.guildedwow.com"]);
   });
 });

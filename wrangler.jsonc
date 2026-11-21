@@ -79,6 +79,8 @@
       "/api/*",
       "/health",
       "/g/*",
+      "/reference",
+      "/reference/",
       "/quebec-gold/cores",
       "/quebec-gold/cores/",
       "/quebec-gold/wow",

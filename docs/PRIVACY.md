@@ -165,7 +165,8 @@ Delete my data. Addon-observed local presence was never uploaded to that feature
 
 ### Advertising and cookies
 
-Some public pages of guildedwow.com (the home page, the public leaderboards, player and guild pages, a few guides) and
+Some public pages of guildedwow.com (the home page, the public leaderboards, player and guild pages, the command
+reference and some guides) and
 the creator page kcaron.top may show advertising from Google AdSense. Ads never appear on download, companion,
 install, sign-in or account pages, in the addon, the companion or the phone app.
 
@@ -399,7 +400,7 @@ par l'addon n'est pas téléversée vers cette fonction.
 ### Publicité et témoins
 
 Certaines pages publiques de guildedwow.com (l'accueil, les classements publics, les pages de joueurs et de guildes,
-quelques guides) et la page de créateur kcaron.top peuvent afficher de la publicité Google AdSense. Aucune publicité
+la référence des commandes et certains guides) et la page de créateur kcaron.top peuvent afficher de la publicité Google AdSense. Aucune publicité
 n'apparaît sur les pages de téléchargement, du compagnon, d'installation, de connexion ou de compte, ni dans
 l'addon, le compagnon ou l'application mobile.
 

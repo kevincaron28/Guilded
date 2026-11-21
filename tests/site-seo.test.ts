@@ -39,6 +39,16 @@ describe("search-engine fixes in the Worker", () => {
 describe("built site", () => {
   const out = "dist/site";
   const locs = () => [...readFileSync(`${out}/sitemap.xml`, "utf8").matchAll(/<loc>([^<]+)<\/loc>/g)].map(match => match[1]!);
+  it("names the AdSense account once in the head of every built page", () => {
+    const pages = ["index.html", "download/index.html", "guide/dungeons/index.html", "reference/index.html", "docs/PRIVACY.html", "companion/index.html", "404.html"];
+    for (const page of pages) {
+      const html = readFileSync(`${out}/${page}`, "utf8");
+      const head = html.slice(0, html.indexOf("</head>"));
+      expect(head.match(/<meta name="google-adsense-account" content="ca-pub-6948243189424271">/g), page).toHaveLength(1);
+      // The tag alone loads nothing: no Google script is ever written into a built page.
+      expect(html, page).not.toContain("googlesyndication");
+    }
+  });
   it("lists only https://guildedwow.com URLs and no redirecting page", () => {
     const urls = locs();
     expect(urls.length).toBeGreaterThan(5);

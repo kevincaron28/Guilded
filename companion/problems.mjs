@@ -17,6 +17,7 @@ export const PROBLEM_IDS = Object.freeze([
   "addon-outdated",
   "saved-file-missing",
   "saved-file-not-updated",
+  "saved-file-unreadable",
   "upload-rejected",
   "parked-record-damaged",
   "wow-running-update",
@@ -25,6 +26,9 @@ export const PROBLEM_IDS = Object.freeze([
 
 // The text describeError() gives for a missing or never-saved file (companion/engine.mjs).
 const NOT_SAVED_YET = /Guilded hasn't saved yet/;
+// (21 Nov 2026) The saved file exists but cannot be read (too big, too many values, broken Lua): every upload and standings
+// update stops until it is fixed, so it is shown and reported, never only logged.
+const UNREADABLE = /SavedVariables (?:contains too many Lua values|exceeds the|could not be read)|was not found in the SavedVariables file|\[\d+:\d+\] (?:unexpected|'.+' expected)/i;
 const UNREACHABLE = /Could not reach the bot|took too long to answer|temporarily unavailable|\((?:502|503|504|52\d|530)\)/i;
 const SIGNED_OUT = /\(401\)|refused this companion|Sign in with Discord again|Pair this companion again/i;
 // "Upload failed (400): reason" (engine.mjs) or the size limit message, which also never retries.
@@ -159,6 +163,9 @@ export function companionProblems(input = {}) {
     else if (changed !== null && others !== null && others - changed > NOT_SAVED_WITH_OTHERS_MS) add("saved-file-not-updated", { moved: false, days: Math.floor((others - changed) / 86_400_000) });
   }
 
+  const readErrors = [state.uploadError, state.standingsError].filter((value) => typeof value === "string");
+  if (readErrors.some((value) => UNREADABLE.test(value))) add("saved-file-unreadable", { tooBig: readErrors.some((value) => /too many Lua values|exceeds the/i.test(value)) });
+
   // A refusal with the bot's reason. Shown on screen only: the report never carries the reason.
   if (!problems.has("sign-in-expired") && !problems.has("bot-unreachable")) {
     const upload = typeof state.uploadError === "string" ? state.uploadError : "";
@@ -207,6 +214,7 @@ const SAFE = {
   "addon-outdated": { installed: "version", current: "version" },
   "saved-file-missing": { chosen: "boolean", othersSaved: "boolean" },
   "saved-file-not-updated": { moved: "boolean", days: "number" },
+  "saved-file-unreadable": { tooBig: "boolean" },
   "upload-rejected": { status: "number", applyError: "boolean" },
   "parked-record-damaged": { stuck: "boolean" },
   "wow-running-update": { installed: "version", running: "version" },

@@ -107,6 +107,11 @@ function needsYou({ config, state, problems, savedFile, update, otherAccount, up
   if (save) return item("settings-not-saved", "bad", ["Your settings could not be saved."], ["Restart Windows, then open the companion again."], [{ action: "problems", label: "See how to fix" }]);
   const disk = has(problems, "disk-space-low");
   if (disk) return item("disk-space-low", "bad", ["Not enough disk space: {0} MB free.", disk.data.freeMb], ["Free some space; the companion carries on."], [{ action: "storage", label: "Open Storage settings" }]);
+  const unreadable = has(problems, "saved-file-unreadable");
+  if (unreadable) {
+    return item("saved-file-unreadable", "bad", ["The companion cannot read Guilded's saved file."],
+      [unreadable.data.tooBig ? "It is too big. Nothing is sent until this is fixed: update the companion and the addon, then /reload." : "Nothing is sent until this is fixed: update the companion and the addon, then /reload. Keep the file; tell your officer if this stays."], []);
+  }
   const parked = has(problems, "parked-record-damaged");
   if (parked) {
     return parked.data.stuck

@@ -2454,22 +2454,59 @@ local function compactRealm(realm)
   return (string.gsub(realm, "%s+", ""))
 end
 
--- The key already stored for this guild name: the active data's key first, then a parked one. Used when the game
--- gives no realm at all (Forever 1.60.1 hides realm names), so the existing key stays the identity.
+-- How much guild data a saved set holds (roster entries and dungeon runs): the tie-break between two stored keys.
+local function guildDataWeight(data)
+  local n = 0
+  if type(data) ~= "table" then return n end
+  for _ in pairs(type(data.roster) == "table" and data.roster or {}) do n = n + 1 end
+  local runs = type(data.dungeon) == "table" and data.dungeon.runs
+  for _ in pairs(type(runs) == "table" and runs or {}) do n = n + 1 end
+  return n
+end
+
+-- The key already stored for this guild name. Used when the game gives no realm at all (Forever 1.60.1 hides realm
+-- names), so the existing key stays the identity. (9.4.6) Several keys of one guild name can be stored: the real
+-- "Guild-<realm>" key, an old spaced spelling already merged into it (mergedIntoHome) and a "Guild-" key that 9.4.4
+-- created when the realm went blank (it parked the real data). The order is: never an alias already merged into another
+-- key, a key with a realm over "Guild-", the compact realm spelling over a spaced one, the active key over a parked one,
+-- the one holding more data, then the alphabetical first. Only a guild never stored gets "Guild-" (in currentGuildKey).
 local function storedKeyForGuild(guildName)
   local prefix = guildName .. "-"
   local function matches(key)
     return type(key) == "string" and string.sub(key, 1, #prefix) == prefix and not string.find(string.sub(key, #prefix + 1), "-", 1, true)
   end
-  if db and matches(db.guildKey) then return db.guildKey end
-  if db and type(db.otherGuilds) == "table" then
-    local best
-    for key in pairs(db.otherGuilds) do
-      if matches(key) and (not best or key < best) then best = key end
-    end
-    return best
+  local candidates = {}
+  local function consider(key, data, active)
+    if not matches(key) then return end
+    local realm = string.sub(key, #prefix + 1)
+    candidates[#candidates + 1] = { key = key, data = data, rank = {
+      (type(data) == "table" and data.mergedIntoHome) and 0 or 1,
+      realm ~= "" and 1 or 0,
+      string.find(realm, "%s") and 0 or 1,
+      active and 1 or 0,
+    } }
   end
-  return nil
+  if not db then return nil end
+  consider(db.guildKey, db, true)
+  if type(db.otherGuilds) == "table" then
+    for key, data in pairs(db.otherGuilds) do
+      if key ~= db.guildKey then consider(key, data, false) end
+    end
+  end
+  local function better(a, b)
+    for i = 1, #a.rank do
+      if a.rank[i] ~= b.rank[i] then return a.rank[i] > b.rank[i] end
+    end
+    a.weight = a.weight or guildDataWeight(a.data)
+    b.weight = b.weight or guildDataWeight(b.data)
+    if a.weight ~= b.weight then return a.weight > b.weight end
+    return a.key < b.key
+  end
+  local best
+  for _, candidate in ipairs(candidates) do
+    if not best or better(candidate, best) then best = candidate end
+  end
+  return best and best.key or nil
 end
 
 -- Returns the guild key, the key built from this character's own realm (same form), and that key
@@ -2502,9 +2539,70 @@ local HOME_WAIT_SECONDS = rawget(_G, "GUILDED_TEST_HOME_WAIT") or 20
 local homeWaitStart, homeWaitOver
 local function homeNow() return (GetServerTime and GetServerTime()) or time() end
 local function guildPart(text) return (string.match(text, "^(.*)%-[^%-]*$")) or text end
+-- A key with its realm part written without spaces (the guild name keeps its own spaces: "Quebec Gold-CAMWOWUS2Realm2PvP").
+local function compactGuildKey(text)
+  local guild, realm = string.match(text, "^(.*)%-([^%-]*)$")
+  if not guild then return text end
+  return guild .. "-" .. compactRealm(realm)
+end
 -- Never merged between guild keys: points are only ever owned by the key that earned them.
 local function isLedgerField(field)
   return field == "epgp" or field == "dkp" or string.find(string.lower(tostring(field)), "ledger", 1, true) ~= nil
+end
+
+-- (9.4.6) Moves into `home` what a second saved set of the SAME guild holds and `home` lacks: whole sections `home`
+-- has empty (never points, settings or bookkeeping), and every dungeon run by id. A run both hold stays home's copy
+-- (marked synced when the other copy was confirmed by the bot). Whatever moved, or was a duplicate run, leaves `from`,
+-- so nothing is saved twice and the companion never sends a run from both places. Returns sections moved, runs moved.
+local FOLD_SKIP = { settings = true, mergedIntoHome = true, parkedAt = true }
+local function foldGuildData(home, from)
+  local sections, runsMoved = 0, 0
+  if type(home) ~= "table" or type(from) ~= "table" or home == from then return sections, runsMoved end
+  for field, value in pairs(from) do
+    local have = home[field]
+    local empty = have == nil or (type(have) == "table" and next(have) == nil)
+    if not FOLD_SKIP[field] and not KEEP_AT_ROOT[field] and not isLedgerField(field) and empty
+      and not (type(value) == "table" and next(value) == nil) then
+      home[field] = value
+      sections = sections + 1
+    end
+  end
+  for field in pairs(home) do
+    if from[field] ~= nil and from[field] == home[field] then from[field] = nil end
+  end
+  local fromRuns = type(from.dungeon) == "table" and type(from.dungeon.runs) == "table" and from.dungeon.runs
+  if fromRuns and type(home.dungeon) == "table" then
+    if type(home.dungeon.runs) ~= "table" then home.dungeon.runs = {} end
+    local homeRuns = home.dungeon.runs
+    local ids = {}
+    for id in pairs(fromRuns) do ids[#ids + 1] = id end
+    for _, id in ipairs(ids) do
+      local run, mine = fromRuns[id], homeRuns[id]
+      if mine == nil then
+        homeRuns[id] = run
+        runsMoved = runsMoved + 1
+      elseif type(run) == "table" and type(mine) == "table" and run.synced and not mine.synced then
+        mine.synced = run.synced
+      end
+      fromRuns[id] = nil
+    end
+  end
+  return sections, runsMoved
+end
+
+-- (9.4.6) An older spelling of this guild's key ("Guild-CAMWOW US2 Realm 2 PvP") that an earlier merge already folded
+-- into it (mergedIntoHome): move any run it still holds into the loaded data and drop it, unless it holds points.
+local function dropMergedAliases(key)
+  if type(db.otherGuilds) ~= "table" then return end
+  local drop = {}
+  for otherKey, parked in pairs(db.otherGuilds) do
+    if otherKey ~= key and type(parked) == "table" and parked.mergedIntoHome == key and type(otherKey) == "string"
+      and compactGuildKey(otherKey) ~= otherKey and compactGuildKey(otherKey) == key then
+      foldGuildData(db, parked)
+      if not hasPoints(parked) and not hasUnsyncedRun(parked) then drop[#drop + 1] = otherKey end
+    end
+  end
+  for _, otherKey in ipairs(drop) do db.otherGuilds[otherKey] = nil end
 end
 
 local function resolveGuildData()
@@ -2513,9 +2611,10 @@ local function resolveGuildData()
   if not key then return nil end
   local edition = ns.util.gameEdition()
   local oldEdition = db.guildEdition or edition
-  -- Saved before the realm was written without spaces: the same key, spelled the old way.
+  -- Saved before the realm was written without spaces: the same key, spelled the old way. (9.4.6) Not when data is
+  -- already parked under the compact spelling: renaming would hide it behind the loaded key; the alias repair below folds it.
   if edition == "forever" and oldEdition == edition and db.guildKey and db.guildKey ~= key
-    and compactRealm(db.guildKey) == key then
+    and compactGuildKey(db.guildKey) == key and not (type(db.otherGuilds) == "table" and db.otherGuilds[key]) then
     db.guildKey = key
   end
   -- Forever: the guild's home realm may not have arrived with the guild name. Until it does (or
@@ -2540,7 +2639,11 @@ local function resolveGuildData()
     db.guildEdition = edition
     return "recorded"
   end
-  if db.guildKey == key and oldEdition == edition then db.guildEdition = edition; return "same" end
+  if db.guildKey == key and oldEdition == edition then
+    db.guildEdition = edition
+    if edition == "forever" then dropMergedAliases(key) end
+    return "same"
+  end
   local old = db.guildKey
   db.otherGuilds = db.otherGuilds or {}
   -- Saved before the guild's home realm was used: the key was built from this character's own
@@ -2573,6 +2676,27 @@ local function resolveGuildData()
   -- known) belongs to the same guild: copy what the home data does not already have into it,
   -- once. Points are never merged; they stay under the old key.
   local mergedFields
+  -- (9.4.6) Repair: the loaded data sat under another spelling of this same guild's key while the real data was parked
+  -- under this key. 9.4.4 did that when Forever 1.60.1 blanked the realm ("Guild-" took over and parked "Guild-<realm>"),
+  -- and an alt's guild switch could restore the old spaced spelling. The real data comes back and what the other
+  -- spelling recorded meanwhile is folded into it (runs by id, sections it lacks; points never). The rest stays parked,
+  -- marked merged, so it is never chosen again; the half-year trim forgets it.
+  local blankKey = guildPart(key) .. "-"
+  if incoming and edition == "forever" and oldEdition == edition and old ~= key and guildPart(old) == guildPart(key)
+    and key ~= blankKey and (old == blankKey or compactGuildKey(old) == key) then
+    local sections, runs = foldGuildData(incoming, parked)
+    parked.mergedIntoHome = key
+    for field, value in pairs(incoming) do db[field] = value end
+    db.parkedAt = nil
+    db.mergedIntoHome = nil
+    db.guildKey = key
+    db.guildEdition = edition
+    ensureDb()
+    dropMergedAliases(key)
+    message(string.format(L("Guild data repaired: %s is loaded again and what was saved under %s meanwhile was added to it (%d sections, %d dungeon runs). EP/GP is never merged. /reload is recommended."),
+      key, old, sections, runs))
+    return "repaired"
+  end
   if incoming and edition == "forever" and oldEdition == edition and guildPart(old) == guildPart(key)
     and (old == ownRealmKey or old == rawOwnKey) and not parked.mergedIntoHome then
     mergedFields = 0
@@ -2596,6 +2720,7 @@ local function resolveGuildData()
   db.guildKey = key
   db.guildEdition = edition
   ensureDb()
+  if edition == "forever" and restored then dropMergedAliases(key) end
   if mergedFields then
     message(string.format(L("Saved data under %s was merged into %s (%d sections). EP/GP stays under the old name. /reload is recommended."), old, key, mergedFields))
     return "merged"

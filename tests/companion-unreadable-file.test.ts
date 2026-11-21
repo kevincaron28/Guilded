@@ -23,6 +23,6 @@ describe("saved file that cannot be read", () => {
   it("asks the member to act and reports only the allowlisted flag", () => {
     const problems = companionProblems({ state: { uploadError: tooMany } });
     expect(mainStatus({ state: { uploadError: tooMany }, problems }).needsYou).toMatchObject({ id: "saved-file-unreadable", tone: "bad" });
-    expect(reportableProblems([{ id: "saved-file-unreadable", data: { tooBig: true, path: "C:\secret" } }])).toEqual([{ id: "saved-file-unreadable", tooBig: true }]);
+    expect(reportableProblems([{ id: "saved-file-unreadable", data: { tooBig: true, path: "C:/Users/someone/secret" } }])).toEqual([{ id: "saved-file-unreadable", tooBig: true }]);
   });
 });

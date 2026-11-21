@@ -2,7 +2,7 @@
 
 ## 9.4.6 — 21 November 2026
 
-Prepared 21 November 2026. Needs in-game checks (see docs/V9_4_6_RELEASE_ACCEPTANCE.md).
+Published 21 November 2026 (GitHub v9.4.6, website download and installer). Needs in-game checks (see docs/V9_4_6_RELEASE_ACCEPTANCE.md).
 
 Addon:
 

@@ -97,7 +97,7 @@ import {
   cleanupDungeonGroups, DUNGEON_GROUP_PREFIX, handleDungeonGroupButton, handleDungeonGuideButton, handleDungeonGuideModal, handleDungeonGuideSelect
 } from "./commands/dungeon-group.js";
 import { DUNGEON_GUIDE_PREFIX } from "./services/dungeon-guide.js";
-import { answerMessage, FAQ_MODAL_PREFIX, handleFaqModal } from "./commands/faq.js";
+import { answerCandidate, answerMessage, FAQ_MODAL_PREFIX, handleFaqModal } from "./commands/faq.js";
 import { GROUP_ALERT_OPEN_ID, GROUP_ALERT_PREFIX, handleGroupAlertComponent, openGroupAlerts } from "./commands/group-alerts.js";
 import { runDailyRecaps, runWeeklyRecords, runWeeklyReports } from "./commands/stats.js";
 import { runAutoDecay } from "./services/auto-decay.js";
@@ -780,7 +780,7 @@ if (config.MESSAGE_CONTENT_INTENT) {
     });
   });
   client.on(Events.MessageCreate, (message) => {
-    if (!message.guildId || !hostedPilot.allows(message.guildId)) return;
+    if (!message.guildId || !hostedPilot.allows(message.guildId) || !answerCandidate(message)) return;
     void (async () => {
       const scope = await interactionGuildScope(prisma, {discordId:message.guildId!,userId:message.author.id,channelId:message.channelId,parentId:"parentId" in message.channel ? message.channel.parentId : null});
       if (scope) await runInGuildScope(scope, () => answerMessage(message, answerCommandList));

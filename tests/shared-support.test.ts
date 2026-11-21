@@ -18,7 +18,7 @@ vi.mock("../src/services/answers.js", async importOriginal => ({
   ...await importOriginal<typeof import("../src/services/answers.js")>(),
   askAi: mocks.ai, guildFacts: mocks.privateFacts, scheduleAnswer: mocks.schedule
 }));
-import { answerMessage, forgetAnswerSettings } from "../src/commands/faq.js";
+import { answerCandidate, answerMessage, forgetAnswerSettings } from "../src/commands/faq.js";
 import { installationAnswer, looksLikeInstallationQuestion } from "../src/services/answers.js";
 import { gettingStartedPost } from "../src/services/bot-messages.js";
 
@@ -35,6 +35,17 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.budget.mockResolvedValue(true);
   forgetAnswerSettings("discord");
+});
+
+describe("answer channel pre-check", () => {
+  it("skips bot posts, relay webhooks, system messages and short text before any database lookup", () => {
+    const message = (over: Record<string, unknown> = {}) => ({ author: { bot: false }, system: false, webhookId: null, content: "how do I link?", ...over }) as never;
+    expect(answerCandidate(message())).toBe(true);
+    expect(answerCandidate(message({ author: { bot: true } }))).toBe(false);
+    expect(answerCandidate(message({ webhookId: "relay" }))).toBe(false);
+    expect(answerCandidate(message({ system: true }))).toBe(false);
+    expect(answerCandidate(message({ content: " ok " }))).toBe(false);
+  });
 });
 
 describe("shared Guilded support", () => {

@@ -1,12 +1,12 @@
 # 9.4.7 release acceptance
 
-Status: prepared 21 November 2026, not yet published.
+Status: published 21 November 2026.
 
 | Provider | State |
 | --- | --- |
-| GitHub | not yet published. |
-| Installer | not yet built or published. |
-| CurseForge | not yet uploaded. |
+| GitHub | v9.4.7 published (tag 7e6862c0). |
+| Installer | server and R2 mirror, sha256 6bdc9d11…. |
+| CurseForge | 9727952 / 9727953 in review. |
 | Microsoft Store | 9.4.7.0 after Submission 22 (9.4.6.0) clears certification. |
 | Bot | already live. |
 

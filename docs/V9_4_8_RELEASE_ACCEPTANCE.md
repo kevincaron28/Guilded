@@ -1,14 +1,14 @@
 # 9.4.8 release acceptance
 
-Status: prepared 21 November 2026, not yet published.
+Status: published 21 November 2026.
 
 | Provider | State |
 | --- | --- |
-| GitHub | not yet published. |
-| Installer | not yet built or published. |
+| GitHub | v9.4.8 published (tag 74ed92f3). |
+| Installer | server and R2 mirror, sha256 88a480db…. |
 | CurseForge | not yet uploaded. |
 | Microsoft Store | 9.4.8.0 after Submission 23 (9.4.7.0) clears certification. |
-| Bot | already live. |
+| Bot | live 9.4.8 (74ed92f3). |
 
 ## Checked in game before release (9.4.7, owner PC, 21 November 2026)
 

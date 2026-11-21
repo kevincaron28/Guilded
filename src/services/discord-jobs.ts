@@ -20,6 +20,13 @@ export async function enqueueDiscordJob(database: Db, guildId: string, key: stri
 }
 
 export function retryDelay(attempt: number): number { return Math.min(3_600_000, 30_000 * 2 ** Math.min(Math.max(attempt - 1, 0), 7)); }
+
+// Discord answers that will not change by retrying: the channel or server is gone, the bot may not post there, or DMs are closed.
+// They used to retry every hour forever (each one an invalid request counted against the bot). After about a day of
+// attempts the job stops as FAILED; a newer refresh of the same post, or an officer's /system retry, revives it.
+const PERMANENT_DISCORD_CODES = new Set(["10003", "10004", "50001", "50007", "50013"]);
+export const PERMANENT_FAILURE_ATTEMPTS = 24;
+export function givesUp(code: string, attempts: number): boolean { return PERMANENT_DISCORD_CODES.has(code) && attempts >= PERMANENT_FAILURE_ATTEMPTS; }
 const available = (now: Date): Prisma.DiscordJobWhereInput => ({ status: "PENDING", nextAttemptAt: { lte: now }, OR: [{ lockedUntil: null }, { lockedUntil: { lte: now } }] });
 
 // Atomic lease + revision check protects a refresh enqueued during a slow Discord call.
@@ -35,7 +42,7 @@ export async function deliverDiscordJob(database: Db, id: string, send: (job: Di
   } catch (error) {
     // Do not store request bodies, credentials or arbitrary exception text in the dashboard.
     const code = error && typeof error === "object" && "code" in error ? String(error.code).slice(0, 30) : "delivery-unavailable";
-    await database.discordJob.updateMany({ where: { id, leaseToken: token, revision: job.revision }, data: { lastError: code, nextAttemptAt: new Date(Date.now() + retryDelay(job.attempts)) } });
+    await database.discordJob.updateMany({ where: { id, leaseToken: token, revision: job.revision }, data: { lastError: code, nextAttemptAt: new Date(Date.now() + retryDelay(job.attempts)), ...(givesUp(code, job.attempts) ? { status: "FAILED" } : {}) } });
   } finally {
     await database.discordJob.updateMany({ where: { id, leaseToken: token }, data: { leaseToken: null, lockedUntil: null } });
   }

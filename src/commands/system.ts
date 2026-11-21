@@ -21,7 +21,7 @@ export async function executeSystem(interaction: ChatInputCommandInteraction): P
   const guild = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
   const sub = interaction.options.getSubcommand();
   if (sub === "retry") {
-    await prisma.discordJob.updateMany({ where: { guildId: guild.id, status: "PENDING" }, data: { nextAttemptAt: new Date() } });
+    await prisma.discordJob.updateMany({ where: { guildId: guild.id, status: { in: ["PENDING", "FAILED"] } }, data: { status: "PENDING", nextAttemptAt: new Date() } });
     await runDiscordJobs(interaction.client);
   }
   const settings = await guildService.getSettings(guild.id);

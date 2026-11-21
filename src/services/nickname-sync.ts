@@ -171,7 +171,7 @@ export async function syncNicknames(prisma: PrismaClient, guild: Guild, options:
   const row = await prisma.guild.findUnique({ where: guildWhere(guild.id), select: { id: true, gameEdition: true, settings: { select: { nicknameSyncEnabled: true, nicknameFormat: true } } } });
   if (!row) return none("This server is not set up yet.");
   if (row.settings?.nicknameSyncEnabled === false) return none("Nickname sync is off.");
-  if (!botCanRename(guild)) return none("I need the Manage Nicknames permission.");
+  if (!botCanRename(guild)) return none(NICKNAME_PERMISSION_SKIP);
   const format = row.settings?.nicknameFormat && validNicknameFormat(row.settings?.nicknameFormat) ? row.settings?.nicknameFormat : DEFAULT_NICKNAME_FORMAT;
   const [members, records] = await Promise.all([
     prisma.member.findMany({
@@ -262,11 +262,25 @@ export function shouldLogNicknameSync(guildId: string, line: string, result: Nic
   lastNicknameLines.set(guildId, { line, at: now });
   return true;
 }
-export function resetNicknameLogThrottle(): void { lastNicknameLines.clear(); }
+export function resetNicknameLogThrottle(): void { lastNicknameLines.clear(); permissionNoted.clear(); }
+
+// A server where the bot lacks Manage Nicknames is a setting, not an event: officers see it in /setup status
+// ("Give the bot role the Manage Nicknames permission"). The log names those servers in ONE line, once per day
+// (or when a new one joins the list), instead of one line per server.
+export const NICKNAME_PERMISSION_SKIP = "I need the Manage Nicknames permission.";
+const permissionNoted = new Map<string, number>();
+export function permissionSkipLine(guildIds: string[], now = Date.now()): string | null {
+  const fresh = guildIds.filter((id) => { const at = permissionNoted.get(id); return at === undefined || now - at >= NICKNAME_LOG_REPEAT_MS; });
+  for (const id of [...permissionNoted.keys()]) if (!guildIds.includes(id)) permissionNoted.delete(id);
+  if (!fresh.length) return null;
+  for (const id of guildIds) permissionNoted.set(id, now);
+  return `Nickname sync: waiting for the Manage Nicknames permission in ${guildIds.length} server(s) (shown in /setup status): ${guildIds.join(", ")}`;
+}
 
 // The scheduled run, next to the hourly rank roles. A server with several in-game guilds is synced once per guild; the log line
 // adds them up (the last guild alone used to be reported, so an empty one hid the rest).
 export async function syncAllNicknames(prisma: PrismaClient, guilds: Iterable<Guild>, report: (error: unknown) => void, log: (line: string) => void = console.log): Promise<void> {
+  const waitingForPermission: string[] = [];
   for (const guild of guilds) {
     const total: NicknameSyncResult = { changes: [], applied: 0, failed: 0, skipped: null, stats: emptyStats() };
     let ran = false;
@@ -278,7 +292,10 @@ export async function syncAllNicknames(prisma: PrismaClient, guilds: Iterable<Gu
     }).catch(report);
     // One line per server, always, so a quiet sync is explained in the logs.
     // (Repeats of an unchanged quiet outcome are held back: two small servers wrote the same line every cycle, 122 times in 48 h.)
+    if (ran && total.skipped === NICKNAME_PERMISSION_SKIP && !total.changes.length) { waitingForPermission.push(guild.id); continue; }
     const line = describeNicknameSync(guild.id, ran ? total : undefined);
     if (shouldLogNicknameSync(guild.id, line, ran ? total : undefined)) log(line);
   }
+  const waiting = permissionSkipLine(waitingForPermission);
+  if (waiting) log(waiting);
 }

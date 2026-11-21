@@ -7,6 +7,9 @@ import { normalizeExportIdentities, characterReference, characterId } from "./ch
 
 const iso = (epoch) => new Date(Number(epoch) * 1000).toISOString();
 export const MAX_SAVED_VARIABLE_CHARACTERS = 16_000_000;
+// Values in one SavedVariables file. 21 Nov 2026: 500,000 stopped every upload of an officer whose file (4.1 MB) carried parked
+// copies of the guild after the Forever 1.60.1 realm hotfix. Sized with the character limit above (a value takes 4+ characters).
+export const MAX_LUA_NODES = 4_000_000;
 
 // SavedVariables and compact backups may use Lua decimal byte escapes, which
 // JSON.parse cannot decode. Decode their UTF-8 bytes without evaluating Lua.
@@ -88,7 +91,7 @@ export function readDatabase(lua, name = "GuildedDB") {
   if (typeof lua !== "string" || lua.length > MAX_SAVED_VARIABLE_CHARACTERS) throw new Error("SavedVariables exceeds the 16-million-character parsing limit. Keep your original file and ask an officer for help.");
   let nodes = 0;
   const ast = luaparse.parse(lua.replace(/^\uFEFF/, ""), { onCreateNode() {
-    if (++nodes > 500_000) throw new Error("SavedVariables contains too many Lua values. Keep your original file and ask an officer for help.");
+    if (++nodes > MAX_LUA_NODES) throw new Error("SavedVariables contains too many Lua values. Keep your original file and ask an officer for help.");
   } });
   const assignment = ast.body.find((statement) =>
     statement.type === "AssignmentStatement" &&

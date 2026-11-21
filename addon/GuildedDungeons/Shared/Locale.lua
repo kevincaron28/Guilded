@@ -3279,6 +3279,7 @@ local DE = {
   ["Guild realm changed from \"%s\" to \"%s\": your saved data was kept (same guild name)."] = "Gildenrealm von \226\128\158%s\226\128\156 zu \226\128\158%s\226\128\156 ge\195\164ndert: Deine gespeicherten Daten wurden behalten (gleicher Gildenname).",
   ["Saved data under %s was merged into %s (%d sections). EP/GP stays under the old name. /reload is recommended."] = "Unter %s gespeicherte Daten wurden in %s zusammengef\195\188hrt (%d Abschnitte). EP/GP bleiben unter dem alten Namen. /reload wird empfohlen.",
   ["Guild changed: now using the saved data for %s (%s). Data for %s is kept and comes back if you play there. /reload is recommended."] = "Gilde gewechselt: Es werden die gespeicherten Daten f\195\188r %s verwendet (%s). Die Daten f\195\188r %s bleiben erhalten und kommen zur\195\188ck, wenn du dort spielst. /reload wird empfohlen.",
+  ["Guild data repaired: %s is loaded again and what was saved under %s meanwhile was added to it (%d sections, %d dungeon runs). EP/GP is never merged. /reload is recommended."] = "Gildendaten repariert: %s ist wieder geladen, und was in der Zwischenzeit unter %s gespeichert wurde, wurde hinzugef\195\188gt (%d Abschnitte, %d Dungeonl\195\164ufe). EP/GP werden nie zusammengef\195\188hrt. /reload wird empfohlen.",
   ["restored"] = "wiederhergestellt",
   ["new"] = "neu",
   -- Promotion alts (20 Nov 2026)
@@ -5600,6 +5601,7 @@ local ES = {
   ["Guild realm changed from \"%s\" to \"%s\": your saved data was kept (same guild name)."] = "El reino de la hermandad cambi\195\179 de \"%s\" a \"%s\": se conservaron tus datos guardados (mismo nombre de hermandad).",
   ["Saved data under %s was merged into %s (%d sections). EP/GP stays under the old name. /reload is recommended."] = "Los datos guardados en %s se fusionaron en %s (%d secciones). EP/GP siguen bajo el nombre antiguo. Se recomienda /reload.",
   ["Guild changed: now using the saved data for %s (%s). Data for %s is kept and comes back if you play there. /reload is recommended."] = "Hermandad cambiada: se usan los datos guardados de %s (%s). Los datos de %s se conservan y vuelven si juegas all\195\173. Se recomienda /reload.",
+  ["Guild data repaired: %s is loaded again and what was saved under %s meanwhile was added to it (%d sections, %d dungeon runs). EP/GP is never merged. /reload is recommended."] = "Datos de hermandad reparados: %s vuelve a estar cargado y lo guardado mientras tanto en %s se le a\195\177adi\195\179 (%d secciones, %d mazmorras). EP/GP nunca se fusionan. Se recomienda /reload.",
   ["restored"] = "restaurados",
   ["new"] = "nuevos",
   -- Promotion alts (20 Nov 2026)
@@ -7048,6 +7050,7 @@ FR["Saved data under %s was merged into %s (%d sections). EP/GP stays under the 
 FR["Guild changed: now using the saved data for %s (%s). Data for %s is kept and comes back if you play there. /reload is recommended."] = "Guilde chang\195\169e : utilisation des donn\195\169es enregistr\195\169es pour %s (%s). Les donn\195\169es de %s sont conserv\195\169es et reviennent si vous y jouez. Un /reload est conseill\195\169."
 FR["restored"] = "restaur\195\169es"
 FR["new"] = "nouvelles"
+FR["Guild data repaired: %s is loaded again and what was saved under %s meanwhile was added to it (%d sections, %d dungeon runs). EP/GP is never merged. /reload is recommended."] = "Donn\195\169es de guilde r\195\169par\195\169es : %s est de nouveau charg\195\169 et ce qui a \195\169t\195\169 enregistr\195\169 sous %s entre-temps y a \195\169t\195\169 ajout\195\169 (%d sections, %d donjons). Les EP/GP ne sont jamais fusionn\195\169s. Un /reload est conseill\195\169."
 -- Promotion alts (20 Nov 2026)
 FR["%s is now the main (was %s): give rank %s, then move %s to Alt"] = "%s est maintenant le principal (avant : %s) : donnez le rang %s, puis passez %s au rang Alt"
 FR["%s - maybe an alt (note says alt) (%s)"] = "%s - peut-\195\170tre un alt (la note dit alt) (%s)"

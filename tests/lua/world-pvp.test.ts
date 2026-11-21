@@ -395,3 +395,129 @@ describe("world PvP kills when the honor line is not readable (WoW Forever, 21 N
     expect(s!.run(`return DB.worldPvp.recent[1].n ~= DB.worldPvp.recent[2].n and "distinct" or "same"`)).toBe("distinct");
   });
 });
+
+describe("world PvP victims (enrichment only; the statistic stays the one count)", () => {
+  function withUnits() {
+    setup();
+    s!.run(`HK = 10; function GetPVPLifetimeStats() return HK end
+      NS.worldPvp.baselineHK()
+      UNITS = {}
+      function UnitExists(u) return UNITS[u] ~= nil end
+      function UnitIsPlayer(u) return UNITS[u] and UNITS[u].player ~= false end
+      function UnitIsEnemy(a, u) return UNITS[u] and UNITS[u].enemy ~= false end
+      function UnitCanAttack(a, u) return UNITS[u] and UNITS[u].enemy ~= false end
+      function UnitIsDeadOrGhost(u) return UNITS[u] and UNITS[u].dead == true end
+      function UnitFactionGroup(u) return u == "player" and "Alliance" or (UNITS[u] and UNITS[u].faction or "Horde") end
+      function UnitName(u) return UNITS[u] and UNITS[u].name or "Tester" end
+      function UnitClass(u) return "Mage", UNITS[u] and UNITS[u].class or "MAGE" end
+      function UnitLevel(u) return UNITS[u] and UNITS[u].level or 12 end
+      function GetGuildInfo(u) return UNITS[u] and UNITS[u].guild or nil end
+      function UnitGUID(u) return u == "player" and "Player-1-ME" or (UNITS[u] and UNITS[u].guid) end
+      function UnitIsMindControlled(u) return UNITS[u] and UNITS[u].mc == true end
+      function see(u, t) UNITS[u] = t; fire_event(u == "target" and "PLAYER_TARGET_CHANGED" or "UPDATE_MOUSEOVER_UNIT") end`);
+  }
+  const enemy = () => `{ name = "Grim Rook", guid = "Player-1-AAA", class = "MAGE", level = 14, guild = "The Wolves" }`;
+  const row = (i = 1) => s!.run(`local r = DB.worldPvp.recent[${i}]; return r.n .. "|" .. tostring(r.c) .. "|" .. tostring(r.l) .. "|" .. tostring(r.g)`);
+  const statUp = () => s!.run(`HK = HK + 1; fire_event("PLAYER_PVP_KILLS_CHANGED")`);
+  const unnamed = (i = 1) => s!.run(`return DB.worldPvp.recent[${i}].n:sub(1, 1)`) === "?";
+
+  it("names the victim from the honor line and adds class, level and guild seen on the target", () => {
+    withUnits();
+    s!.run(`see("target", ${enemy()})`);
+    s!.run(`fire_event("CHAT_MSG_COMBAT_HONOR_GAIN", "Grim Rook dies, honorable kill Rank: Private (12 Honor Points)")`);
+    statUp();
+    expect(stat("total", "kills")).toBe("1");
+    expect(row()).toBe("Grim Rook|MAGE|14|The Wolves");
+  });
+
+  it("names a kill the statistic counted first when the honor line follows", () => {
+    withUnits();
+    statUp();
+    expect(unnamed()).toBe(true);
+    s!.run(`CLOCK = CLOCK + 1; fire_event("CHAT_MSG_COMBAT_HONOR_GAIN", "Grim Rook dies, honorable kill Rank: Private (12 Honor Points)")`);
+    expect(stat("total", "kills")).toBe("1");
+    expect(row().split("|")[0]).toBe("Grim Rook");
+  });
+
+  it("uses PARTY_KILL for my own killing blow and never someone else's", () => {
+    withUnits();
+    s!.run(`see("mouseover", ${enemy()})`);
+    s!.run(`fire_event("PARTY_KILL", "Player-1-OTHER", "Player-1-AAA")`);
+    statUp();
+    expect(unnamed()).toBe(true);
+    s!.run(`CLOCK = CLOCK + 30; see("mouseover", ${enemy()}); fire_event("PARTY_KILL", "Player-1-ME", "Player-1-AAA")`);
+    statUp();
+    expect(row(2)).toBe("Grim Rook|MAGE|14|The Wolves");
+    expect(stat("total", "kills")).toBe("2");
+  });
+
+  it("falls back to the enemy seen dying within five seconds, and not one that died longer ago", () => {
+    withUnits();
+    s!.run(`see("target", ${enemy()}); UNITS.target.dead = true; fire_event("UNIT_HEALTH", "target")`);
+    s!.run(`CLOCK = CLOCK + 2`);
+    statUp();
+    expect(row()).toBe("Grim Rook|MAGE|14|The Wolves");
+    s!.run(`CLOCK = CLOCK + 30; see("target", { name = "Old Corpse", guid = "Player-1-BBB", dead = true }); CLOCK = CLOCK + 8`);
+    statUp();
+    expect(unnamed(2)).toBe(true);
+  });
+
+  it("does not take a Feign Death for a death", () => {
+    withUnits();
+    s!.run(`see("target", ${enemy()}); UNITS.target.dead = true; fire_event("UNIT_HEALTH", "target")`);
+    s!.run(`CLOCK = CLOCK + 2; UNITS.target.dead = false; fire_event("UNIT_HEALTH", "target"); CLOCK = CLOCK + 1`);
+    statUp();
+    expect(stat("total", "kills")).toBe("1"); // the statistic is still the count
+    expect(unnamed()).toBe(true);
+  });
+
+  it("skips an unreadable honor line (secret or foreign wording) but still counts the kill", () => {
+    withUnits();
+    s!.run(`NS.isSecret = function(v) return v == "SECRET" end`);
+    expect(s!.run(`return tostring(NS.worldPvp.noteKill("SECRET"))`)).toBe("false");
+    s!.run(`COMBATLOG_HONORGAIN = nil; COMBATLOG_HONORGAIN_NO_RANK = nil`);
+    expect(s!.run(`return tostring(NS.worldPvp.victim("Grim Rook dies, honorable kill Rank: Private (12 Honor Points)"))`)).toBe("nil");
+    statUp();
+    expect(stat("total", "kills")).toBe("1");
+  });
+
+  it("reads the no-rank honor line from its own global string", () => {
+    withUnits();
+    s!.run(`COMBATLOG_HONORGAIN_NO_RANK = "%s dies, honorable kill (%d Honor Points)"`);
+    expect(s!.run(`return NS.worldPvp.victim("Grim Rook dies, honorable kill (5 Honor Points)")`)).toBe("Grim Rook");
+  });
+
+  it("counts and names nothing during a duel, and again after it", () => {
+    withUnits();
+    s!.run(`fire_event("DUEL_REQUESTED", "Rival")`);
+    s!.run(`see("target", ${enemy()})`);
+    statUp();
+    expect(stat("total", "kills")).toBe("0");
+    s!.run(`fire_event("DUEL_FINISHED"); CLOCK = CLOCK + 30`);
+    statUp();
+    expect(stat("total", "kills")).toBe("1");
+  });
+
+  it("ignores friendly, same-faction, mind-controlled and non-player units", () => {
+    withUnits();
+    s!.run(`see("target", { name = "Pal", guid = "Player-1-P", enemy = false, dead = true })`);
+    s!.run(`see("mouseover", { name = "Twin", guid = "Player-1-T", faction = "Alliance", dead = true })`);
+    s!.run(`see("target", { name = "Puppet", guid = "Player-1-M", mc = true, dead = true })`);
+    s!.run(`see("target", { name = "Wolf", guid = "Creature-1", player = false, dead = true })`);
+    statUp();
+    expect(unnamed()).toBe(true);
+  });
+
+  it("expires entries after 30 seconds", () => {
+    withUnits();
+    s!.run(`see("target", ${enemy()}); UNITS.target.dead = true; fire_event("UNIT_HEALTH", "target"); CLOCK = CLOCK + 40`);
+    statUp();
+    expect(unnamed()).toBe(true);
+  });
+
+  it("observing without any unit APIs is harmless", () => {
+    setup();
+    expect(s!.run(`return tostring(NS.worldPvp.observe("target"))`)).toBe("true");
+    expect(s!.run(`return tostring(NS.worldPvp.observe("party1"))`)).toBe("false");
+  });
+});

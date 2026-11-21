@@ -6,8 +6,8 @@ The owner gave 12 items on 19 November 2026 ("we will be working on 9.4 today â€
 
 | Track | State | PRs |
 |---|---|---|
-| T1 Timeouts and sync health | Mostly done. Open: T1.5 (answer first, work in the background) is not built. | #1116 (empty realm, failure reasons, parallel phases), #1122 (jittered retries, 18 s timeout, known-run deltas), #1080 (deploy warm-up), #1147 (companion split uploads, prune only after a full send) |
-| T2 Companion auto-update | Partly done. Done: staged rollout, visible failures, x-sha256. Open: release signing (owner decision: key custody), rollback, delta updates. | #1122 |
+| T1 Timeouts and sync health | Done. T1.5 (answer first, work after) is built: the apply is answered after a 2.5 s grace, applies never overlap per guild, failures are told and retried. | #1116 (empty realm, failure reasons, parallel phases), #1122 (jittered retries, 18 s timeout, known-run deltas), #1080 (deploy warm-up), #1147 (companion split uploads, prune only after a full send) |
+| T2 Companion auto-update | Mostly done. Done: staged rollout, visible failures, x-sha256, rollback (#1160). Open: release signing (owner decision: key custody), delta updates. | #1122 |
 | T3 Clear, short Discord messages | Done | #1124, #1132 |
 | T4 Recap card and repeated information | Done | #1124, #1143, #1144 |
 | T5 World PvP everywhere | Done | #1117 |

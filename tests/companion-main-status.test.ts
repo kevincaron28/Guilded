@@ -95,7 +95,7 @@ describe("mainStatus: four lines and one needs-you line", () => {
       if (Array.isArray(value)) { if (typeof value[0] === "string") keys.add(value[0]); }
       else if (value && typeof value === "object") for (const child of Object.values(value)) walk(child);
     };
-    const problemIds = ["settings-not-saved", "disk-space-low", "sign-in-expired", "bot-unreachable", "addon-missing", "addon-wrong-edition", "addon-outdated", "saved-file-missing", "saved-file-not-updated", "upload-rejected", "parked-record-damaged", "wow-running-update", "companion-outdated"];
+    const problemIds = ["settings-not-saved", "disk-space-low", "sign-in-expired", "bot-unreachable", "addon-missing", "addon-wrong-edition", "addon-outdated", "saved-file-missing", "saved-file-not-updated", "saved-file-unreadable", "upload-rejected", "parked-record-damaged", "wow-running-update", "companion-outdated"];
     const data = { freeMb: 1, offline: true, chosen: false, latest: "9.2.0", store: true };
     const configs = [{}, signedIn, { device: true, deviceSecret: "s", watchFile: FILE }, { wowEnabled: false }, { companionCredential: "c", syncEnabled: false, watchFile: FILE }];
     const states = [{}, { syncPhase: "uploading" }, { running: true, lastUpload: { at: "2026-11-13T10:00:00.000Z" } }, { device: { status: "choose", guild: { name: "G" } } }, { device: { status: "no-guild", guild: { name: "G" } } }, { device: { status: "synced", server: "S" } }, { zeroSetupFailures: 1 }];

@@ -1213,5 +1213,8 @@
   "Those runs are not sent until it is fixed. Restart the companion; if this stays, tell your officer.": "Ces parcours ne sont pas envoyés tant que ce n’est pas réglé. Redémarrez le compagnon; si cela persiste, prévenez votre officier.",
   "A saved list of runs for other guilds was damaged and has been reset.": "Une liste enregistrée de parcours pour d’autres guildes était abîmée et a été réinitialisée.",
   "Some runs of other guilds may be sent again. A copy was kept next to it as a .bad file.": "Certains parcours d’autres guildes pourraient être renvoyés. Une copie a été conservée à côté, dans un fichier .bad.",
-  "A saved list of runs for other guilds was damaged.": "Une liste enregistrée de parcours pour d’autres guildes était abîmée."
+  "A saved list of runs for other guilds was damaged.": "Une liste enregistrée de parcours pour d’autres guildes était abîmée.",
+  "The companion cannot read Guilded's saved file.": "Le compagnon ne peut pas lire le fichier enregistré de Guilded.",
+  "It is too big. Nothing is sent until this is fixed: update the companion and the addon, then /reload.": "Il est trop gros. Rien n’est envoyé tant que ce n’est pas corrigé : mettez à jour le compagnon et l’addon, puis tapez /reload.",
+  "Nothing is sent until this is fixed: update the companion and the addon, then /reload. Keep the file; tell your officer if this stays.": "Rien n’est envoyé tant que ce n’est pas corrigé : mettez à jour le compagnon et l’addon, puis tapez /reload. Gardez le fichier ; prévenez votre officier si ça reste."
 }

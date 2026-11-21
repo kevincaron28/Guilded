@@ -85,7 +85,7 @@ const PROBLEM_TEXT = {
   'settings-not-saved': 'Your settings could not be saved.', 'disk-space-low': 'Not enough disk space.', 'sign-in-expired': 'Your Discord sign-in expired.',
   'bot-unreachable': "Guilded's server is not answering.", 'addon-missing': 'The Guilded addon is not installed.', 'addon-wrong-edition': 'The wrong version of the addon is installed.',
   'addon-outdated': 'Your Guilded addon is older than this companion.', 'saved-file-missing': 'Waiting for WoW to save your addon data.', 'saved-file-not-updated': 'Waiting for WoW to save your addon data.',
-  'upload-rejected': 'Guilded refused your last sync.', 'parked-record-damaged': 'A saved list of runs for other guilds was damaged.', 'wow-running-update': 'Restart WoW to use the updated addon.', 'companion-outdated': 'A new version of the companion is out.'
+  'upload-rejected': 'Guilded refused your last sync.', 'parked-record-damaged': 'A saved list of runs for other guilds was damaged.', 'saved-file-unreadable': 'The companion cannot read Guilded\'s saved file.', 'wow-running-update': 'Restart WoW to use the updated addon.', 'companion-outdated': 'A new version of the companion is out.'
 };
 
 // ---- actions: each one is an existing IPC call ----

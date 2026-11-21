@@ -7,8 +7,8 @@ import { currentEdition } from "./edition-context.js";
 type Db = Pick<PrismaClient, "craftOffer" | "guildSettings" | "recipeKnown" | "character" | "craftRequest">;
 
 // Crafter offers: a crafter lists something they can make, members answer it, and the answer
-// becomes an ordinary craft request (claim, status and completion stay as they are). Off until an
-// officer turns it on for the Discord server. Guilded never handles gold: the price is free text
+// becomes an ordinary craft request (claim, status and completion stay as they are). On by default
+// (owner rule, 21 Nov 2026); an officer turns it off for the Discord server. Guilded never handles gold: the price is free text
 // and the trade happens in game.
 
 export const OFFER_LIMITS = { activePerCrafter: 3, perDay: 6, maxDays: 30, defaultDays: 7 } as const;

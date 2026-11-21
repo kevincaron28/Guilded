@@ -75,17 +75,23 @@ export function createCommunityService(database: PrismaClient) {
     // A monthly season whose calendar month (guild time) is over is archived and followed by the
     // next one: same game, channels, audience and participation rules. One that still has an open
     // activity, pending evidence or a pending nomination waits; the next check tries again.
+    // Runs every community tick for every server: when no monthly season belongs to an earlier month it returns
+    // without the in-game points read or the locked transaction (both used to run every tick, holding a pool connection).
     async rotateMonthly(guildId: string, now = new Date()) {
-      const due = await database.communitySeason.findMany({ where: { guildId, status: "ACTIVE", monthly: true, game: "DISCORD" }, select: { id: true, createdAt: true, game: true } });
+      const month = (date: Date, timezone: string) => { const parts = localParts(date, timezone); return parts.year * 12 + parts.month; };
+      const active = await database.communitySeason.findMany({ where: { guildId, status: "ACTIVE", monthly: true }, select: { id: true, createdAt: true, game: true } });
+      if (!active.length) return [];
+      const zone = (await database.guildSettings.findUnique({ where: { guildId }, select: { timezone: true } }))?.timezone ?? "America/Toronto";
+      const due = active.filter(row => month(row.createdAt, zone) < month(now, zone));
+      if (!due.length) return [];
       const preloaded = new Map<string, Awaited<ReturnType<typeof preload>>>();
       for (const row of due) preloaded.set(row.id, await preload(guildId, row, now));
       return locked(guildId, async tx => {
         const settings = await tx.guildSettings.findUnique({ where: { guildId }, select: { timezone: true, language: true } });
         const timezone = settings?.timezone ?? "America/Toronto", lang = asLang(settings?.language);
-        const month = (date: Date) => { const parts = localParts(date, timezone); return parts.year * 12 + parts.month; };
         const rotated: { ended: CommunitySeason; started: CommunitySeason }[] = [];
         for (const row of await tx.communitySeason.findMany({ where: { guildId, status: "ACTIVE", monthly: true }, include: { participation: true, badgeConfig: true } })) {
-          if (month(row.createdAt) >= month(now)) continue;
+          if (month(row.createdAt, timezone) >= month(now, timezone)) continue;
           if (await tx.communityActivity.count({ where: { seasonId: row.id, status: "OPEN" } })
             || await tx.communityEntry.count({ where: { activity: { seasonId: row.id, kind: "CHALLENGE", status: { not: "CANCELLED" } }, status: "PENDING" } })
             || await tx.communityKudos.count({ where: { seasonId: row.id, status: "PENDING" } })) continue;
@@ -318,9 +324,16 @@ export function createCommunityService(database: PrismaClient) {
     },
     async tick(guildId: string, now = new Date()) {
       const due = await database.communityActivity.findMany({ where: { season: { guildId }, status: "OPEN", endsAt: { lte: now } }, take: 50, orderBy: { endsAt: "asc" } });
-      for (const row of due) await this.close(guildId, row.id, false, now);
-      await locked(guildId, async tx => {
-        const reminders = await tx.communityActivity.findMany({ where: { season: { guildId, status: "ACTIVE" }, kind: "EVENT", status: "OPEN", reminderAt: null, startsAt: { gt: now, lte: new Date(now.getTime() + 60 * 60_000) } }, include: { season: true }, take: 25 });
+      // One activity that cannot close (a timeout, a bad row) no longer holds back the others or the reminders;
+      // the first failure is still thrown at the end so it gets reported, and the next tick tries it again.
+      let failure: { error: unknown } | null = null;
+      for (const row of due) {
+        try { await this.close(guildId, row.id, false, now); } catch (error) { failure ??= { error }; }
+      }
+      const reminderWhere = { season: { guildId, status: "ACTIVE" }, kind: "EVENT", status: "OPEN", reminderAt: null, startsAt: { gt: now, lte: new Date(now.getTime() + 60 * 60_000) } } satisfies Prisma.CommunityActivityWhereInput;
+      // Most ticks have no reminder due: check before taking the guild lock (and a pool connection) for nothing.
+      if (await database.communityActivity.count({ where: reminderWhere })) await locked(guildId, async tx => {
+        const reminders = await tx.communityActivity.findMany({ where: reminderWhere, include: { season: true }, take: 25 });
         for (const row of reminders) {
           const settings = await tx.guildSettings.findUnique({ where: { guildId }, select: { language: true } });
           const channelId = communityActivityChannel(row);
@@ -328,6 +341,7 @@ export function createCommunityService(database: PrismaClient) {
           await tx.communityActivity.update({ where: { id: row.id }, data: { reminderAt: now } });
         }
       });
+      if (failure) throw failure.error;
     },
     async board(guildId: string, seasonId: string) {
       const current = await season(database, guildId, seasonId, false);

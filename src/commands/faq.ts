@@ -191,10 +191,17 @@ async function answerSettings(discordGuildId: string, name: string) {
 }
 
 // A question worth an AI answer: it asks something (a "?") or names the bot.
+/**
+ * Whether a message could get an answer at all: a member's own text of 3+ characters. main.ts checks it before the
+ * guild-scope lookup (several queries), which used to run for every message, bot posts and relay webhooks included.
+ */
+export function answerCandidate(message: Pick<Message, "author" | "system" | "content" | "webhookId">): boolean {
+  return !message.author.bot && !message.system && !message.webhookId && message.content.trim().length >= 3;
+}
+
 export async function answerMessage(message: Message, productReference: string): Promise<void> {
-  if (message.author.bot || message.system || !message.inGuild()) return;
+  if (!answerCandidate(message) || !message.inGuild()) return;
   const text = message.content.trim();
-  if (text.length < 3) return;
   const where = await answerSettings(message.guild.id, message.guild.name);
   if (!where.channelId || message.channelId !== where.channelId) return;
   const userKey = `${where.guildId}:${message.author.id}`;

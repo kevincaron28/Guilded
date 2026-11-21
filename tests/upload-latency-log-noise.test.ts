@@ -7,7 +7,7 @@ import { z } from "zod";
 import { applyFinishedLine, shouldLogStandings, resetStandingsHeartbeat, STANDINGS_HEARTBEAT_MS } from "../src/companion-api.js";
 import { clearGuildMembershipCache, guildMembership, withOwnNames } from "../src/services/guild-participants.js";
 import { pairingCandidatesWhere } from "../src/services/character-pairing.js";
-import { NICKNAME_LOG_REPEAT_MS, resetNicknameLogThrottle, shouldLogNicknameSync, type NicknameSyncResult } from "../src/services/nickname-sync.js";
+import { NICKNAME_LOG_REPEAT_MS, permissionSkipLine, resetNicknameLogThrottle, shouldLogNicknameSync, type NicknameSyncResult } from "../src/services/nickname-sync.js";
 
 describe("import-apply-finished", () => {
   it("says late=1 only for an apply that ended after the answer went out", () => {
@@ -52,6 +52,17 @@ describe("nickname sync log throttle", () => {
     expect(shouldLogNicknameSync("g", "line B", { ...quiet, applied: 2 }, t0 + 3_800_000)).toBe(true);
     expect(shouldLogNicknameSync("g", "line B", undefined, t0 + 3_900_000)).toBe(true); // did not run: always
     expect(shouldLogNicknameSync("g", "line B", quiet, t0 + 3_900_000 + NICKNAME_LOG_REPEAT_MS + 1)).toBe(true);
+  });
+
+  it("names every server missing Manage Nicknames in one line, once a day or when the list grows", () => {
+    const t0 = 7_000_000;
+    expect(permissionSkipLine([], t0)).toBeNull();
+    expect(permissionSkipLine(["a", "b"], t0)).toBe("Nickname sync: waiting for the Manage Nicknames permission in 2 server(s) (shown in /setup status): a, b");
+    expect(permissionSkipLine(["a", "b"], t0 + 3_600_000)).toBeNull(); // the next hourly run: quiet
+    expect(permissionSkipLine(["a", "b", "c"], t0 + 7_200_000)).toContain("in 3 server(s)"); // a new server joins
+    expect(permissionSkipLine(["a"], t0 + 10_800_000)).toBeNull(); // one got the permission: nothing new to say
+    expect(permissionSkipLine(["a", "b"], t0 + 14_400_000)).toContain("a, b"); // b lost it again
+    expect(permissionSkipLine(["a", "b"], t0 + 14_400_000 + NICKNAME_LOG_REPEAT_MS)).not.toBeNull(); // daily reminder
   });
 });
 

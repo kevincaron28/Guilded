@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deliverDiscordJob, enqueueDiscordJob, retryDelay } from "../src/services/discord-jobs.js";
+import { deliverDiscordJob, enqueueDiscordJob, givesUp, PERMANENT_FAILURE_ATTEMPTS, retryDelay } from "../src/services/discord-jobs.js";
 
 function store() {
   let row: Record<string, unknown> = { id: "job", guildId: "guild", key: "board", kind: "DUNGEON_BOARD", payload: {}, status: "PENDING", revision: 1, attempts: 0, nextAttemptAt: new Date(0), lockedUntil: null, leaseToken: null };
@@ -40,6 +40,22 @@ describe("durable Discord delivery", () => {
     let second = true;
     await deliverDiscordJob(s.db, "job", async () => { second = await deliverDiscordJob(s.db, "job", async () => { throw new Error("must not send"); }); });
     expect(second).toBe(false);
+  });
+  it("stops retrying a post Discord keeps refusing for good, and a newer refresh revives it", async () => {
+    const s = store();
+    const refuse = (code: number) => async () => { throw Object.assign(new Error("refused"), { code }); };
+    let at = Date.now();
+    for (let i = 1; i < PERMANENT_FAILURE_ATTEMPTS; i++) { at += 4_000_000; await deliverDiscordJob(s.db, "job", refuse(50001), new Date(at)); }
+    expect(s.row()["status"]).toBe("PENDING");
+    at += 4_000_000; await deliverDiscordJob(s.db, "job", refuse(50001), new Date(at));
+    expect(s.row()["status"]).toBe("FAILED");
+    await enqueueDiscordJob(s.db, "guild", "board", "DUNGEON_BOARD");
+    expect(s.row()["status"]).toBe("PENDING");
+    // A passing outage (network, 5xx, rate limit) keeps retrying however long it lasts.
+    expect(givesUp("delivery-unavailable", 500)).toBe(false);
+    expect(givesUp("500", 500)).toBe(false);
+    expect(givesUp("10003", PERMANENT_FAILURE_ATTEMPTS - 1)).toBe(false);
+    expect(givesUp("10003", PERMANENT_FAILURE_ATTEMPTS)).toBe(true);
   });
   it("caps retry backoff and starts at 30 seconds", () => {
     expect(retryDelay(1)).toBe(30000);

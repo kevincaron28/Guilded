@@ -9,7 +9,7 @@ import { withEdition } from "./services/edition-context.js";
 import { guildWhere, interactionGuildScope, entityGuildScope, runInGuildScope, withGuildScope, forEachGuildScope } from "./services/guild-scope.js";
 import { RETIRED_COMMANDS, retiredHandler } from "./commands/moved.js";
 import { executeLeaderboard } from "./commands/leaderboard.js";
-import type { Interaction } from "discord.js";
+import type { Guild, Interaction } from "discord.js";
 import { allowedBridgeApps, handleRawBridgePacket } from "./services/game-bridge-link.js";
 import { hostedPilot, pilotGuildScope, replacePilotApprovals, replacePilotLite } from "./hosted-pilot.js";
 import { runRaidNightChecks } from "./services/raid-night-check.js";
@@ -68,6 +68,7 @@ import { handleDungeonTimeline } from "./commands/dungeon-post.js";
 import { DUNGEON_TIMELINE_PREFIX } from "./services/dungeon-announce.js";
 import { syncAllRankRoles } from "./services/rank-roles.js";
 import { syncAllNicknames } from "./services/nickname-sync.js";
+import { eachGuild } from "./services/each-guild.js";
 import { createMemberSync, handleMemberJoined, handleMemberUpdated } from "./services/member-sync.js";
 import { onMemberChanged } from "./services/member-sync-events.js";
 import { postAllWeeklyPromotions } from "./services/promotion.js";
@@ -96,7 +97,7 @@ import {
   cleanupDungeonGroups, DUNGEON_GROUP_PREFIX, handleDungeonGroupButton, handleDungeonGuideButton, handleDungeonGuideModal, handleDungeonGuideSelect
 } from "./commands/dungeon-group.js";
 import { DUNGEON_GUIDE_PREFIX } from "./services/dungeon-guide.js";
-import { answerMessage, FAQ_MODAL_PREFIX, handleFaqModal } from "./commands/faq.js";
+import { answerCandidate, answerMessage, FAQ_MODAL_PREFIX, handleFaqModal } from "./commands/faq.js";
 import { GROUP_ALERT_OPEN_ID, GROUP_ALERT_PREFIX, handleGroupAlertComponent, openGroupAlerts } from "./commands/group-alerts.js";
 import { runDailyRecaps, runWeeklyRecords, runWeeklyReports } from "./commands/stats.js";
 import { runAutoDecay } from "./services/auto-decay.js";
@@ -349,12 +350,15 @@ client.once(Events.ClientReady, (readyClient) => {
     }
     await registerCommandsEverywhere();
   })().catch((error: unknown) => { commandRegistration.failed("startup", error); reportJobError("Command registration")(error); });
-  const voice = async () => { for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) await participationTracker.sampleVoice(guild); };
+  // One server at a time, each failure reported for its server without stopping the others (each-guild.ts).
+  const perGuild = (source: string, operation?: string) => (error: unknown, guild: Guild) =>
+    reportJobError(source, { guildId: guild.id, guildName: guild.name, ...(operation ? { operation } : {}) })(error);
+  const voice = () => eachGuild(readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values(), guild => participationTracker.sampleVoice(guild), perGuild("Participation voice checkpoint"));
   void voice().catch(reportJobError("Participation voice checkpoint"));
   setInterval(() => void voice().catch(reportJobError("Participation voice checkpoint")), 30_000);
   setInterval(() => void (async () => {
-    for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) await activityTotals.voice(guild);
-    for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) await voiceTime.tick(guild);
+    await eachGuild(readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values(), guild => activityTotals.voice(guild), perGuild("Activity totals"));
+    await eachGuild(readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values(), guild => voiceTime.tick(guild), perGuild("Activity totals"));
     await activityTotals.flush();
     await voiceTime.flush();
   })().catch(reportJobError("Activity totals")), VOICE_TICK_MS);
@@ -427,12 +431,10 @@ client.once(Events.ClientReady, (readyClient) => {
     if (reconcilingEvents) return;
     reconcilingEvents = true;
     try {
-      for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) {
-        await withReportContext({ guildId: guild.id, guildName: guild.name, operation: "scheduled-events.reconcile" }, () => forEachGuildScope(prisma, guild.id, async () => {
-          const record = await prisma.guild.findUnique({ where: guildWhere(guild.id), select: { id: true } });
-          if (record) await queueGuildScheduledEvents(prisma, record.id);
-        }));
-      }
+      await eachGuild(readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values(), guild => withReportContext({ guildId: guild.id, guildName: guild.name, operation: "scheduled-events.reconcile" }, () => forEachGuildScope(prisma, guild.id, async () => {
+        const record = await prisma.guild.findUnique({ where: guildWhere(guild.id), select: { id: true } });
+        if (record) await queueGuildScheduledEvents(prisma, record.id);
+      })), perGuild("Discord scheduled events", "scheduled-events.reconcile"));
     } finally { reconcilingEvents = false; }
   };
   void reconcileEvents().catch(reportJobError("Discord scheduled events"));
@@ -617,7 +619,7 @@ client.once(Events.ClientReady, (readyClient) => {
   setInterval(() => {
     if (repairing) return;
     repairing = true;
-    (async () => { for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) await withReportContext({ guildId: guild.id, guildName: guild.name, operation: "raid-signup.repair" }, () => forEachGuildScope(prisma, guild.id, () => repairCoreRaids(guild))); })()
+    eachGuild(readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values(), guild => withReportContext({ guildId: guild.id, guildName: guild.name, operation: "raid-signup.repair" }, () => forEachGuildScope(prisma, guild.id, () => repairCoreRaids(guild))), perGuild("Raid signup repair", "raid-signup.repair"))
       .catch(reportJobError("Raid signup repair")).finally(() => { repairing = false; });
   }, 5 * 60 * 1000);
   // Weekly guild report (if enabled): checked hourly.
@@ -633,14 +635,10 @@ client.once(Events.ClientReady, (readyClient) => {
     // The owner console's optional daily digest (off unless the owner turned it on).
     ownerConsole.digestTick().catch(reportJobError("Owner console digest"));
     // Re-evaluate snapshot age even when nobody clicks a signup or uploads new gear.
-    (async () => {
-      for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) {
-        await withReportContext({ guildId: guild.id, guildName: guild.name, operation: "character-display.refresh" }, () => forEachGuildScope(prisma, guild.id, async () => {
-          const record = await guildService.ensureGuild(guild.id, guild.name);
-          await queueCharacterDisplayRefresh(prisma, record.id);
-        }));
-      }
-    })().catch(reportJobError("Character display refresh"));
+    eachGuild(readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values(), guild => withReportContext({ guildId: guild.id, guildName: guild.name, operation: "character-display.refresh" }, () => forEachGuildScope(prisma, guild.id, async () => {
+      const record = await guildService.ensureGuild(guild.id, guild.name);
+      await queueCharacterDisplayRefresh(prisma, record.id);
+    })), perGuild("Character display refresh", "character-display.refresh")).catch(reportJobError("Character display refresh"));
     runWeeklyReports(readyClient).catch(reportJobError("Weekly report check"));
     // 9.1: the daily recap card, once per server day (on by default, officers switch it off with /officer reports posts recap-posts:false).
     runDailyRecaps(readyClient).catch(reportJobError("Daily recap check"));
@@ -782,7 +780,7 @@ if (config.MESSAGE_CONTENT_INTENT) {
     });
   });
   client.on(Events.MessageCreate, (message) => {
-    if (!message.guildId || !hostedPilot.allows(message.guildId)) return;
+    if (!message.guildId || !hostedPilot.allows(message.guildId) || !answerCandidate(message)) return;
     void (async () => {
       const scope = await interactionGuildScope(prisma, {discordId:message.guildId!,userId:message.author.id,channelId:message.channelId,parentId:"parentId" in message.channel ? message.channel.parentId : null});
       if (scope) await runInGuildScope(scope, () => answerMessage(message, answerCommandList));

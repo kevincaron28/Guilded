@@ -11,9 +11,9 @@ describe("French typography", () => {
     expect(frenchTypography("un ; deux")).toBe(`un${N}; deux`);
   });
 
-  it("adds the missing space when a word is glued to ? or !", () => {
-    expect(frenchTypography("Bravo!")).toBe(`Bravo${N}!`);
-    expect(frenchTypography("Prêt? Allons-y!")).toBe(`Prêt${N}? Allons-y${N}!`);
+  it("follows Québec usage: a word glued to ? or ! stays as written", () => {
+    expect(frenchTypography("Bravo!")).toBe("Bravo!");
+    expect(frenchTypography("Prêt? Allons-y!")).toBe("Prêt? Allons-y!");
   });
 
   it("leaves URLs, times, shortcodes and query strings alone", () => {

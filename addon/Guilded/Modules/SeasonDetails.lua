@@ -106,6 +106,9 @@ local function respond(text, sender, replyTo)
   local board, season = boardAt(index)
   if not board or board.updatedAt ~= stamp or not season or season.detailsAvailable == nil then return end
   local profile = detail.profile(season, sender)
+  -- 9.4.7: a member's companion writes a guildmate's runs brief (no run references, targets or bosses). An officer whose file
+  -- holds only that leaves the answer to one whose file is complete (an officer's companion writes every guildmate's runs).
+  if profile and profile.brief then return end
   local header = { "S", encode(season.id), season.ratingVersion or 0,
     profile and profile.points or 0, season.detailsAvailable and "1" or "0", season.provisionalTargets and "1" or "0" }
   -- Version 6 adds the relayed profile's bracket and its best-N (older clients refuse version 6 anyway).

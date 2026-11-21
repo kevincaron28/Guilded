@@ -1,7 +1,7 @@
 import { cleanRunCards } from "./run-cards.mjs";
-import { standingsToLua, linkedAsLua, linkedMapLua, linkedMapKey } from "./standings-format.mjs";
+import { standingsToLua, linkedAsLua, linkedMapLua, linkedMapKey, ownProfileMatcher } from "./standings-format.mjs";
 export { standingsToLua } from "./standings-format.mjs";
-import { readFile, writeFile, rename, rm } from "node:fs/promises";
+import { readFile, readdir, writeFile, rename, rm } from "node:fs/promises";
 import { readSavedText } from "./saved-file.mjs";
 import { credentialHeaders, requestJson, protocolSupported, MIN_KNOWN_PROTOCOL } from "./request.mjs";
 import { writeDataAddon } from "./data-addon.mjs";
@@ -22,6 +22,31 @@ export function resolveStandingsPath(config) {
   const wtf = parts.findIndex((part) => part.toLowerCase() === "wtf");
   if (wtf < 1) return null;
   return join(parts.slice(0, wtf).join(sep) || sep, "Interface", "AddOns", "Guilded", "Standings.lua");
+}
+
+// The characters of the install's other WoW account folders (WTF\Account\<acct>\SavedVariables): Standings.lua is one file for
+// every account of the install, so each of them keeps its own dungeon profile complete (9.4.7). Best effort: an unreadable folder
+// adds nothing.
+async function otherAccountNames(config) {
+  const watch = String(config.watchFile ?? "");
+  if (!watch.toLowerCase().endsWith(".lua")) return [];
+  const parts = watch.split(/[\\/]/);
+  const at = parts.findIndex((part, index) => part.toLowerCase() === "account" && parts[index - 1]?.toLowerCase() === "wtf");
+  const files = new Set((Array.isArray(config.watchFiles) ? config.watchFiles : []).filter((file) => typeof file === "string" && file !== watch));
+  if (at > 0 && parts.length > at + 2) {
+    const accounts = parts.slice(0, at + 1).join(sep) || sep;
+    try {
+      for (const entry of (await readdir(accounts, { withFileTypes: true })).slice(0, 20)) {
+        if (entry.isDirectory() && entry.name !== parts[at + 1]) files.add(join(accounts, entry.name, ...parts.slice(at + 2)));
+      }
+    } catch { /* no account folder list: only the configured accounts */ }
+  }
+  const names = [];
+  for (const file of files) {
+    try { names.push(...(await readSavedIdentity(file)).entries.flatMap((entry) => typeof entry?.name === "string" ? [entry.name] : [])); }
+    catch { /* no Guilded save in that account */ }
+  }
+  return names;
 }
 
 // Older bots stamp every answer with the time of the request; compare the rest so an unchanged
@@ -87,7 +112,13 @@ export async function writeStandings(config, signal, options = {}) {
   const self = [...tally.entries()].sort((x, y) => y[1] - x[1])[0]?.[0];
   const linked = account ? mine.filter(({ member }) => member === self).map(({ name }) => ({ name, discord: account, confirmed: true })) : [];
   // Runs of a parked guild the bot acknowledged stay in the accepted list (the answer above only knows this server's guild).
-  const text = standingsToLua(withRecordReceipts(body, await readRecord(config))) + linkedAsLua(config.discordAccount) + linkedMapLua(linked, body.updatedAt ?? new Date().toISOString());
+  // 9.4.7 ("shrink the board"): only this PC's own characters get their complete dungeon profile (runs, bosses, scenarios, per-role
+  // runs); a guildmate's is written as much as the addon reads of it (standings-format.mjs). An officer's file keeps every
+  // guildmate's runs complete for the officer relay. Nothing known about this PC yet: everything complete, as before.
+  const own = ownProfileMatcher([...ownNames, ...await otherAccountNames(config),
+    ...(self ? [...owners.entries()].filter(([, member]) => member === self).map(([character]) => character) : [])]);
+  const officer = Array.isArray(body.officerInvites) || !!body.promotion;
+  const text = standingsToLua(withRecordReceipts(body, await readRecord(config)), own ? { own, officer } : null) + linkedAsLua(config.discordAccount) + linkedMapLua(linked, body.updatedAt ?? new Date().toISOString());
   if (config.writeStandingsEnabled === false) return { notModified: false, etag, body, path, text: null, count: body.standings.length, unchanged: true, downloadedOnly: true, botVersion: body.botVersion };
   // 9.3.0: Guilded Dungeons alone (no Guilded folder): it has no standings, only the run receipts. They go to its own
   // Accepted.lua, so it stops resending runs the bot holds and shows why one earned nothing.

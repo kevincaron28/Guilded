@@ -229,13 +229,34 @@ export function routeTargetAt(rules: BracketedRules, key: string, endedAt: Date 
   return change?.targetSec ?? route.targetSec;
 }
 
-/** A stored version 6 rule set must equal what its own routes and brackets produce. */
+/**
+ * A stored version 6 rule set must equal what its own routes and brackets produce.
+ * The answer is remembered per rules object, and per content for a few recent rule sets (21 Nov 2026, profiled in production:
+ * the standings dungeon board called this once per run and rebuilt the whole rule set each time, 11.6 s of a 12 s build).
+ * Rule sets are stored JSON that nothing edits in place: a change is a new object (reviseRules, a new season row).
+ */
+const bracketedValidity = new WeakMap<object, boolean>();
+const bracketedValidityByContent = new Map<string, boolean>();
+const CONTENT_MEMORY = 16;
 export function validBracketedRules(value: unknown): value is BracketedRules {
   if (!value || typeof value !== "object" || (value as { version?: unknown }).version !== 6) return false;
+  const known = bracketedValidity.get(value);
+  if (known !== undefined) return known;
+  let content: string | undefined;
+  try { content = JSON.stringify(value); } catch { content = undefined; }
+  const byContent = content === undefined ? undefined : bracketedValidityByContent.get(content);
+  if (byContent !== undefined) { bracketedValidity.set(value, byContent); return byContent; }
   const r = value as BracketedRules;
+  let valid: boolean;
   try {
-    return sameJson(r, createBracketedDungeonRules(bracketedInput(r)));
-  } catch { return false; }
+    valid = sameJson(r, createBracketedDungeonRules(bracketedInput(r)));
+  } catch { valid = false; }
+  bracketedValidity.set(value, valid);
+  if (content !== undefined) {
+    if (bracketedValidityByContent.size >= CONTENT_MEMORY) bracketedValidityByContent.delete(bracketedValidityByContent.keys().next().value as string);
+    bracketedValidityByContent.set(content, valid);
+  }
+  return valid;
 }
 /** The inputs a stored rule set is built from (what createBracketedDungeonRules takes). */
 function bracketedInput(r: BracketedRules): Record<string, unknown> {

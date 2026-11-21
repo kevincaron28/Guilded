@@ -268,11 +268,11 @@ local function clockText(seconds)
   return string.format("%d:%02d", math.floor(seconds / 60), seconds % 60)
 end
 
-function scores.detailText(name)
-  local total, count = scores.scoreOf(name)
+function scores.detailText(name, level)
+  local total, count, bracketKey = scores.scoreOf(name, level)
   if total == nil then return L("No current season score received yet.") end
   local out = { ns.displayName(name) .. ": " .. L("Your season score") .. " " .. total }
-  local snapshot = ns.seasonDetails and ns.seasonDetails.get(1, name)
+  local snapshot = ns.seasonDetails and ns.seasonDetails.get(1, name, bracketKey)
   for _, line in ipairs(snapshot and snapshot.profile and snapshot.profile.details or {}) do
     out[#out + 1] = string.format("  %s: %d (+%d)  %s", line.name, line.points, line.speedBonus, clockText(line.durationSec))
   end
@@ -362,7 +362,9 @@ ns.commandHandlers["score"] = function(args)
   -- WoW Forever names have two words ("Lebowski Holyroller"): the whole argument is the name, not its first word.
   if what then what = table.concat(args, " ") end
   local name = (what and ns.normalizeName and ns.normalizeName(what)) or (ns.playerName and ns.playerName())
-  for line in string.gmatch(scores.detailText(name), "[^\n]+") do ns.message(line) end
+  -- Your own score is your current level's bracket, as in the Dungeons panel (21 Nov 2026: it said 734 from 15-29 at level 35).
+  local level = (not what or name == (ns.playerName and ns.playerName())) and UnitLevel and UnitLevel("player") or nil
+  for line in string.gmatch(scores.detailText(name, level), "[^\n]+") do ns.message(line) end
 end
 ns.commandHelp = ns.commandHelp or {}
 table.insert(ns.commandHelp, "/guilded score [player|top [bracket]] - dungeon scores from the runs Guilded recorded")

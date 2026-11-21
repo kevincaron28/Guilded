@@ -21,6 +21,28 @@ describe("scores and the companion's board after a guild switch", () => {
     expect(session.run("return SEEN")).toBe("Lebowski Holyroller");
   });
 
+  it("gives your own score for your current level's bracket", () => {
+    session = newLuaSession();
+    session.run(`NS = {}; GuildedDB = nil`);
+    session.load("Core.lua");
+    session.load("Modules/Scores.lua");
+    session.load("Modules/SeasonDetails.lua");
+    session.run(`fire_event("PLAYER_LOGIN")
+      local me = NS.playerName()
+      NS.scores.isMember = function() return true end
+      NS.getDb().dungeonBoard = { season = "S1", status = "ACTIVE", updatedAt = "x", detailsAvailable = true, ratingVersion = 6,
+        brackets = { { key = "15-29", min = 15, max = 29, bestCount = 5 }, { key = "30-44", min = 30, max = 44, bestCount = 5 } },
+        profiles = {
+          { name = me, points = 734, bracket = "15-29", details = { { dungeonKey = "43", name = "Wailing Caverns", points = 734, speedBonus = 0, durationSec = 60 } } },
+          { name = me, points = 372, bracket = "30-44", details = { { dungeonKey = "47", name = "Razorfen Kraul", points = 372, speedBonus = 0, durationSec = 60 } } } } }
+      UnitLevel = function() return 35 end
+      OUT = {}
+      NS.message = function(text) OUT[#OUT + 1] = text end
+      NS.commandHandlers["score"]({})`);
+    expect(session.run("return OUT[1]")).toContain("372");
+    expect(session.run("return OUT[2]")).toContain("Razorfen Kraul");
+  });
+
   it("takes the companion's newer board again when the guild data is switched after login", () => {
     session = newLuaSession();
     session.run(`NS = {}; GuildedDB = nil`);

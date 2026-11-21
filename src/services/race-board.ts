@@ -19,6 +19,7 @@ import { classColor, ladderMeta, scoreCardPng, type ScoreCard } from "./score-ca
 import { moveColumn, moveFields, trackRanks, type Movements } from "./ladder-snapshots.js";
 import { isOwnBoard } from "./board-identity.js";
 import { RANK_MAX_AGE_MS } from "./rank-roles.js";
+import { quebecLine } from "./fr-quebec-voice.js";
 
 // The live "Race to 60" leaderboard and Hall of Fame (8.5, track B1). The channel's FIRST message is the live board: the
 // top N guild characters (default 50, officers pick 10-50) with class, race, level bar, professions, last seen and the
@@ -176,7 +177,7 @@ export function raceBoardEmbed(data: RaceBoardData, lang: Lang, options: { image
     const rows = hall ? data.rows.filter(row => row.level >= LEVEL_CAP).sort((a, b) => (a.reachedMaxAt?.getTime() ?? 0) - (b.reachedMaxAt?.getTime() ?? 0) || a.name.localeCompare(b.name))
       : leaderboardOrder(data.rows).slice(0, options.image ? SHORT_LEADERS : clampTop(options.top)); // with the card, the embed only names the leaders
     const shown = Math.min(clampTop(options.top), CARD_ROWS, data.total);
-    const head = hall ? t(`**${data.finished}** characters reached level ${LEVEL_CAP}, in arrival order.`, `**${data.finished}** personnages ont atteint le niveau ${LEVEL_CAP}, par ordre d'arrivée.`)
+    const head = hall ? (fr ? quebecLine("hallHead", String(data.finished), { n: data.finished }) : `**${data.finished}** characters reached level ${LEVEL_CAP}, in arrival order.`)
       : options.image ? t(`Top **${shown}** of **${data.total}** characters on the card · **${data.finished}** at level ${LEVEL_CAP}. Leaders:`, `Top **${shown}** sur **${data.total}** personnages sur la carte · **${data.finished}** au niveau ${LEVEL_CAP}. En tête :`)
       : t(`Top **${rows.length}** of **${data.total}** characters · **${data.finished}** at level ${LEVEL_CAP}.`, `Top **${rows.length}** sur **${data.total}** personnages · **${data.finished}** au niveau ${LEVEL_CAP}.`);
     const lines: string[] = [];
@@ -262,7 +263,7 @@ export function hallEmbed(entry: HallRecord, lang: Lang, guildId = "", nameKey =
   if (entry.reachedAt.getTime() > entry.firstSeenAt.getTime()) lines.push(t(`${days} day${days === 1 ? "" : "s"} after first being seen in the guild`, `${days} jour${days === 1 ? "" : "s"} après sa première apparition dans la guilde`));
   if (entry.professions) lines.push(canonicalProfessionText(entry.professions).split(", ").map(part => { const match = /^(.*?)\s+(\d+)$/.exec(part); return match ? `${professionName(match[1] ?? part, lang)} ${match[2]}` : professionName(part, lang); }).join(", "));
   if (entry.memberDiscordId) lines.push(`<@${entry.memberDiscordId}>`);
-  const embed = new EmbedBuilder().setColor(0xffd100).setTitle(t(`🏆 #${entry.order} to reach ${LEVEL_CAP}`, `🏆 N° ${entry.order} à atteindre le niveau ${LEVEL_CAP}`)).setDescription(lines.join("\n"))
+  const embed = new EmbedBuilder().setColor(0xffd100).setTitle(fr ? quebecLine("hallTitle", `${entry.order}:${entry.name}`, { order: entry.order }) : `🏆 #${entry.order} to reach ${LEVEL_CAP}`).setDescription(lines.join("\n"))
     .setFooter({ text: `${HALL_MARKER} • ${guildId} • ${nameKey}`.slice(0, 2048) });
   return image ? embed.setImage(`attachment://${image}`) : embed;
 }

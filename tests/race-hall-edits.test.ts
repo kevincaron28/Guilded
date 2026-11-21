@@ -172,7 +172,7 @@ describe("officer Hall of Fame edits", () => {
     const payload = (edit.mock.calls[0] as unknown[])[0] as { files: unknown[]; attachments: unknown[]; embeds: { toJSON(): { title?: string; description?: string } }[] };
     expect(payload.attachments).toEqual([]);
     expect(payload.files).toHaveLength(1);
-    expect(payload.embeds[0]!.toJSON().title).toBe("🏆 N° 1 à atteindre le niveau 60");
+    expect(payload.embeds[0]!.toJSON().title).toMatch(/^🏆 .*[nN]° 1 à atteindre le niveau 60/); // Québec voice variants
     expect(payload.embeds[0]!.toJSON().description).toContain("Aria Stone");
   });
   it("re-sends the post when the old message is gone, refuses a clashing name and a bad class, and ignores an empty edit", async () => {

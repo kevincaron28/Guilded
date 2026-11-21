@@ -11,6 +11,7 @@ import { cardDate } from "./card-format.js";
 import { placement, ratingApplies, rateSeason, ratingSeasonName, ratingStandings, seasonOf, showChange, showRating, type RatedDuel } from "./duel-rating.js";
 import { ratingFooter } from "./duel-rules.js";
 import { ratingStartOf } from "./duels.js";
+import { quebecLine } from "./fr-quebec-voice.js";
 
 // One Discord card per counted duel (9.3, owner decision 13 November 2026). Drawn on delivery from the stored definition, so it
 // is queued like every other card post: a MESSAGE job on the "duelCard" route (switch and channel re-checked at delivery), delayed
@@ -71,6 +72,10 @@ export function withExtras(duels: readonly DuelCardInput[], history: readonly (H
  * own health changes (WoW Forever restricts the combat log), so they are close, not exact; that is explained here and in the docs, not on the card.
  * Only known numbers appear; damage dealt is the opponent's damage taken.
  */
+/** The stable key of one duel's voice lines (the same duel always reads the same). */
+const duelKey = (duel: DuelCardInput) => `${duel.winnerCharacter}:${duel.loserCharacter}:${duel.endedAt instanceof Date ? duel.endedAt.getTime() : String(duel.endedAt)}`;
+const koText = (duel: DuelCardInput, fr: boolean) => duel.reason === "retreat" ? (fr ? quebecLine("duelFled", duelKey(duel)) : "Opponent fled") : (fr ? quebecLine("duelKo", duelKey(duel)) : "Won by knockout");
+
 function extras(duel: DuelCardInput, fr: boolean): Pick<DuelVisual, "time" | "pills"> & { winner: NonNullable<DuelSide["stats"]>; loser: NonNullable<DuelSide["stats"]> } {
   const s = duel.stats ?? {}, t = (en: string, french: string) => fr ? french : en;
   const side = (dealt?: number, taken?: number, heal?: number, left?: number) => [
@@ -79,7 +84,7 @@ function extras(duel: DuelCardInput, fr: boolean): Pick<DuelVisual, "time" | "pi
     ...(heal !== undefined ? [{ label: t("Healing", "Soins"), value: compactNumber(heal) }] : []),
     ...(left !== undefined ? [{ label: t("Health", "Vie"), value: `${left}%` }] : [])];
   const pills: NonNullable<DuelVisual["pills"]> = [];
-  if (isUpset(duel)) pills.push({ text: t("Upset!", "Surprise !"), kind: "upset" });
+  if (isUpset(duel)) pills.push({ text: fr ? quebecLine("duelUpset", duelKey(duel)) : "Upset!", kind: "upset" });
   const h = duel.headToHead;
   if (h && h.wins + h.losses >= 2) pills.push({ text: `${t("Head to head", "Face à face")} ${h.wins}-${h.losses}` });
   if (duel.rank) pills.push({ text: `${t("Rank", "Rang")} #${duel.rank}` });
@@ -94,7 +99,7 @@ const level = (value: number | null) => value ? String(value) : "—";
 function faceOff(duel: DuelCardInput, lang: Lang, winner: DuelSide, loser: DuelSide, strip: string): DuelVisual {
   const fr = lang === "fr", lv = (value: number | null) => value ? `${fr ? "Niv." : "Lv"} ${value}` : undefined;
   const known = Boolean(duel.winnerLevel || duel.loserLevel), x = extras(duel, fr);
-  return { label: fr ? "Résultat du duel" : "Duel result", outcome: duel.reason === "retreat" ? (fr ? "Adversaire en fuite" : "Opponent fled") : (fr ? "Victoire par K.O." : "Won by knockout"),
+  return { label: fr ? "Résultat du duel" : "Duel result", outcome: koText(duel, fr),
     ...(known ? { levels: `${lv(duel.winnerLevel) ?? (fr ? "Niv. ?" : "Lv ?")} vs ${duel.loserLevel ?? "?"}` } : {}),
     strip: strip.slice(0, 200), date: cardDate(duel.endedAt, lang), ...(x.time ? { time: x.time } : {}), ...(x.pills ? { pills: x.pills } : {}),
     winner: { ...winner, character: duel.winnerCharacter, level: lv(duel.winnerLevel), ...(x.winner.length ? { stats: x.winner } : {}) },
@@ -113,7 +118,7 @@ export function duelResultCard(duel: DuelCardInput, lang: Lang, classes: ClassBo
     const change = (value: number) => r.rated ? showChange(value) : "0";
     return {
       eyebrow: `Guilded · ${t("PvP", "JcJ")}`, title: t("Duel result", "Résultat du duel"),
-      subtitle: `${fled ? t("Opponent fled", "Adversaire en fuite") : t("Won by knockout", "Victoire par K.O.")}`,
+      subtitle: koText(duel, fr),
       backdrop: { kind: "board", key: "duel" },
       stats: [
         { label: t("Rating", "Cote"), value: change(r.winnerDelta), accent: "gold", note: where(r.winnerScore, r.winnerPlacement) },
@@ -134,7 +139,7 @@ export function duelResultCard(duel: DuelCardInput, lang: Lang, classes: ClassBo
   }
   return {
     eyebrow: `Guilded · ${t("PvP", "JcJ")}`, title: t("Duel result", "Résultat du duel"),
-    subtitle: fled ? t("Opponent fled", "Adversaire en fuite") : t("Won by knockout", "Victoire par K.O."),
+    subtitle: koText(duel, fr),
     backdrop: { kind: "board", key: "duel" },
     stats: [
       { label: t("Points", "Points"), value: `+${duel.points}`, accent: "gold", note: t(`${duel.winnerScore} in total`, `${duel.winnerScore} au total`) },
@@ -161,7 +166,7 @@ export function duelSummaryCard(duels: readonly DuelCardInput[], lang: Lang, cla
   const fr = lang === "fr", t = (en: string, french: string) => fr ? french : en;
   const shown = duels.slice(0, SUMMARY_ROWS);
   return {
-    eyebrow: `Guilded · ${t("PvP", "JcJ")}`, title: t("More duels", "Autres duels"),
+    eyebrow: `Guilded · ${t("PvP", "JcJ")}`, title: fr ? quebecLine("duelSummaryTitle", duels.map(duel => duelKey(duel)).join("|")) : "More duels",
     subtitle: t(plural(lang, duels.length + omitted, ["more duel counted", "more duels counted"], ["", ""]), plural(lang, duels.length + omitted, ["", ""], ["autre duel compté", "autres duels comptés"])),
     backdrop: { kind: "board", key: "duel" },
     stats: [{ label: t("Duels", "Duels"), value: String(duels.length + omitted), accent: "gold" }, ...(duels.some(duel => duel.rating) ? [] : [{ label: t("Points", "Points"), value: String(omittedPoints + duels.reduce((sum, duel) => sum + duel.points, 0)) }])],
@@ -178,7 +183,9 @@ export function duelFallbackEmbed(duel: DuelCardInput, lang: Lang, names: FullNa
   const fr = lang === "fr", t = (en: string, french: string) => fr ? french : en;
   const winner = displayCharacterName(duel.winnerCharacter, names), loser = displayCharacterName(duel.loserCharacter, names);
   const verb = duel.reason === "retreat" ? t("won (opponent fled) against", "gagne (adversaire en fuite) contre") : t("beat", "bat");
-  return new EmbedBuilder().setColor(DUEL_COLOR).setDescription(`⚔️ **${winner}** ${verb} ${loser} — ${duel.rating ? `${duel.rating.rated ? showChange(duel.rating.winnerDelta) : "0"} ${t("rating", "cote")}` : `+${duel.points} pts`}${duel.winnerStreak > 1 ? ` · ${streakText(duel.winnerStreak, lang)}` : ""}`.slice(0, 400));
+  // French servers: a big upset or a big rating swing gets a short joke on a second line (the facts stay first).
+  const quip = !fr ? "" : isUpset(duel) ? quebecLine("duelUpsetLine", duelKey(duel)) : duel.rating?.rated && Math.abs(duel.rating.winnerDelta) >= 20 ? quebecLine("duelSwing", duelKey(duel)) : "";
+  return new EmbedBuilder().setColor(DUEL_COLOR).setDescription(`⚔️ **${winner}** ${verb} ${loser} — ${duel.rating ? `${duel.rating.rated ? showChange(duel.rating.winnerDelta) : "0"} ${t("rating", "cote")}` : `+${duel.points} pts`}${duel.winnerStreak > 1 ? ` · ${streakText(duel.winnerStreak, lang)}` : ""}${quip ? `\n${quip}` : ""}`.slice(0, 400));
 }
 
 const summaryFallback = (duels: readonly DuelCardInput[], lang: Lang, names: FullNameBook, omitted = 0) => new EmbedBuilder().setColor(DUEL_COLOR).setDescription(

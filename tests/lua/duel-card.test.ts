@@ -277,7 +277,7 @@ describe("end-of-duel card", () => {
     playDuel(lua, "Bob Smith has defeated Kev Caron in a duel");
     const text = lua.run(`return table.concat(NS.duels.cardLines(NS.duels.lastCard), "\\n")`);
     expect(text).toContain("Durée 1:24");
-    expect(text).toContain("Revanche ? Ciblez Bob Smith et choisissez Duel.");
+    expect(text).toContain("Revanche ? Cible Bob Smith et choisis Duel.");
   });
 });
 

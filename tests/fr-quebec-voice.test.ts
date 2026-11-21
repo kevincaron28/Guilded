@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { FR_TEXT } from "../src/i18n-fr.js";
 import { allVariants, QUEBEC_SACRES, QUEBEC_SWEARING, quebecLine, variantCount, variantIndex, type VoiceEvent } from "../src/services/fr-quebec-voice.js";
 
-const EVENTS: VoiceEvent[] = ["promotion", "promotionKicker", "achievement", "mvp", "weeklyMvp", "top3", "badge", "welcome", "joined", "guildRecord", "personalBest", "rookie"];
+const EVENTS: VoiceEvent[] = ["promotion", "promotionKicker", "achievement", "mvp", "weeklyMvp", "top3", "badge", "welcome", "joined", "guildRecord", "personalBest", "rookie", "duelKo", "duelFled", "duelUpset", "duelSwing", "duelUpsetLine", "duelSummaryTitle", "hallTitle", "hallHead", "anniversary"];
 
 describe("Québécois voice rotation", () => {
   it("is deterministic: the same key gives the same line", () => {
@@ -74,7 +74,7 @@ describe("formal French text stays free of sacres", () => {
   });
 
   it("only the celebratory services import the voice module", () => {
-    const allowed = new Set(["promotion", "card-promotion", "achievement-announce", "community-honors", "community-badge-delivery", "housekeeping", "invite-channel", "dungeon-announce", "fr-quebec-voice"]);
+    const allowed = new Set(["promotion", "card-promotion", "achievement-announce", "community-honors", "community-badge-delivery", "housekeeping", "invite-channel", "dungeon-announce", "duel-card", "race-board", "server-anniversary", "fr-quebec-voice"]);
     const offenders: string[] = [];
     const dirs = ["src/services", "src/commands"];
     for (const dir of dirs) {

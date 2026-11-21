@@ -9,7 +9,30 @@ WoW Forever (level cap 60) launched 4 November 2026; its first raids open 9 Dece
 Guilded supports WoW Forever only (the other editions were removed 7 November) and PoE2 is hidden ([WoW Forever only](docs/FOREVER_ONLY_FOCUS.md)).
 Release history: [CHANGELOG.md](CHANGELOG.md). Older roadmap text, including every finished
 request list: [roadmap history](docs/archive/ROADMAP-history.md).
-Latest (20 November 2026): 9.4.3 is published on GitHub and the website (9.4.2 before it). See "Start here — 19 November 2026" for the open lists.
+Latest (21 November 2026): 9.4.7 is published on GitHub, the website, CurseForge and the bot. See "Start here — 21 November 2026" for the open lists.
+
+## Start here — 21 November 2026
+
+**State (21 November 2026, about 12:00 UTC):** 9.4.7 is published (GitHub latest, website and R2 installer, CurseForge 9727952/9727953 approved, bot live). Store: 9.4.6.0 live, 9.4.7.0 (Submission 23) in certification. Production database: self-hosted PostgreSQL 18 on the free Guilded-DB VM since 20 Nov 23:27 UTC (queries ~2 ms).
+
+**Every owner request of 19–21 November is done on main**, checked against the transcript (about 110 messages): links and names (#1138–#1140, #1155, #1157), group levels (#1142, #1171), podium and weekly recap cards (#1143, #1144), data-loss fixes (9.4.2, #1147–#1151), promotion cards per rank (#1158, #1161, #1174), Krol'dok band 40–44 (#1173), Krol'dok/Alcaz recovery (nothing left), French voice: vous, Québécois, Québec voice in duels, race to 60 and the addon (#1170, #1172, #1180, #1206, #1211), first-time setup, dungeon names, crafting polish (#1175, #1176, #1185, #1187, #1188), alts (#1177), Armory roster (#1178), exact character ids always on (#1183, #1186, #1189, #1210), layer swap and call for help (#1194), duel card and stats (#1197, #1200), podium background (#1199), WoW portraits (#1192, #1198), record card (#1207), the 1.60.1 realm hotfix and guild data repair (#1202, #1219), world PvP kills with names and the kills/deaths map (#1216, #1220), standings speed (#1217, #1222), upload speed (#1209), board shrink on by default (#1225), bot fix round (#1226), Discord polish (#1212).
+
+**Fixed 21 Nov:** the daily recap of 20 Nov went out as text because the card renderer was busy; every card post now retries before falling back to text (#1231). The uptime alarm was false since 19 Nov (leaderboards title changed, #1230).
+
+**Still open, Claude can do:**
+- Oracle A1 bot move: "keep retrying" (owner, 20 Nov) stopped after the database move; resume retries every 20–30 min or drop it (the database move already gave the speed).
+- Character id coverage report (`scripts/character-id-coverage.ts`) now that uploads flow again.
+- `GUILDED_ORIGIN_TOKEN` verification on the bot and the Worker (S1).
+- Backup size check; R2.7 visual regression in CI (plan in `docs/plans/VISUAL_REGRESSION.md`); T2 delta updates.
+- About 30 rarer English-only addon chat lines; the safe proposals in the Discord polish report; `site/pages/mobile.md` still says "Coming soon on Google Play".
+- Item previews and crafter offers are still off by default, against the 21 Nov rule (features ON by default, no opt-in): turn them on.
+
+**Owner or real-client only:**
+- In game on 9.4.7: one "Guild data repaired" line, runs upload, officer windows after a drag, an open-world kill with a name, no blocked-action popup, the smaller Dungeons board (`docs/V9_4_7_RELEASE_ACCEPTANCE.md`).
+- Two-player tests: On my way and layer join, duel stats, Layer help.
+- Manage Nicknames for the bot in High Guard and The Beard; finish `/setup start` in K Caron Projects and The Beard.
+- Season 2: `/guilded-season season2-review` then `season2-activate` on 5–7 Dec; one run each in Krol'dok, Alcaz, Blackmaw and Shaper's Terrace before 9 Dec.
+- T2 release signing key custody; polish picks (OQLF spacing, embed palette, ™); A1 fallback if Oracle never has capacity (Pay As You Go or a small paid VM); Cloudflare analytics check; link-guide screenshots; Google Play closed-test steps.
 
 ## 9.4 — owner list of 19 November 2026
 
@@ -22,7 +45,7 @@ Every request of 16 November, with its PR and status, is in "Start here — 16 N
 - **(a) Secret achievements** — hidden until earned (mystery entry "???" and "+N secret" in counts on Discord, website, app and addon; normal with a "Secret" tag once earned). First one: killed by the Son of Arugal (NPC 2529), this PR. More secrets later are one line in the addon's `KILLED_BY` table plus one catalogue row. Needs a companion release (new `secret` milestone kind) and the addon.
 - **(b) Guild promotions rework (PR #1024).** Auto-promote follows the bot's rule only (`GuildedPromotion.ready`, matched by rank name); no timer: officers get a small "N ready to promote" alert, a Ready to promote panel and one click per member ("Promote next (N left)"); the Alt rank is never promoted into or out of; the bot announces promotions in the officer log only (when a roster upload shows a rank moving up). Real-client checks owed: one-click promote on Forever, no blocked-action popup, the officer-log line after the next upload.
 
-## Start here — 19 November 2026
+## Historical: Start here — 19 November 2026 (superseded by 21 November above)
 
 **State (19 November 2026, about 23:30 UTC, checked against `origin/main` 780a88bb):**
 - **Published:** 9.4.0 (#1129), then 9.4.1 (#1145, published in #1146). GitHub v9.4.1 is latest, the website installer is swapped, CurseForge 9707178/9707179 is in review, the bot runs 9.4.1. Store: 9.4.0.0 is live (Submission 17); 9.4.1.0 is in certification (Submission 18). Check each provider live before claiming status.

@@ -10,7 +10,7 @@
 
 <div class="actions"><a class="button" href="{{ANDROID_APK_URL}}">Download for Android <span aria-hidden="true">↓</span></a><a class="button secondary" href="{{ANDROID_RELEASE_URL}}">GitHub <span aria-hidden="true">↗</span></a></div>
 
-A free **preview** of the Guilded phone app for Android: check your guild's raid roster, reserves, loot wishlist and standings, and get raid reminders. It is a sideloaded preview, version {{ANDROID_VERSION}}, not on Google Play yet. After you open the file, Android asks you to allow installing from your browser: allow it once, then install. The app tells you when a newer version is ready and updates its content by itself.
+A free **preview** of the Guilded phone app for Android: check your guild's raid roster, reserves, loot wishlist and standings, and get raid reminders. It is a sideloaded preview, version {{ANDROID_VERSION}}, not on the public Google Play yet (it is in closed testing there). After you open the file, Android asks you to allow installing from your browser: allow it once, then install. The app tells you when a newer version is ready and updates its content by itself.
 
 **Install it on your phone in three taps:**
 

@@ -1,5 +1,24 @@
 # Changelog
 
+## 9.4.6 — 21 November 2026
+
+Prepared 21 November 2026. Needs in-game checks (see docs/V9_4_6_RELEASE_ACCEPTANCE.md).
+
+Addon:
+
+- World PvP kills count again: a kill counts when the game's honorable-kills total rises, not only from the honor chat line (WoW Forever's line was unreadable, so kills stayed at 0) (#1216). The victim is named from the honor line, the killing blow, or an enemy player seen dying by nameplate, target or mouseover; duels and Feign Death never count (#1220).
+- Guild data survives Blizzard's 1.60.1 hotfix that hides the realm: a guild is never taken for a new one because its realm went blank, and a save that already parked the guild's data is repaired at login, runs merged without duplicates, points untouched (#1219).
+- Officer windows stay beside each other after being dragged and open in front; with no room, one officer side window at a time (#1214).
+- Québec voice for the French guild-chat milestones, duel card and call for help lines (#1211).
+
+Companion:
+
+- Reads saved files up to 4 million values (an officer's 4.1 MB file stopped every upload) (#1215), and shows "cannot read Guilded's saved file" instead of only logging it (#1218).
+
+Bot (already live):
+
+- Standings rebuild in well under the old 10-15 s: the dungeon board is kept per guild and rebuilt only after a dungeon change (#1217). The website PvP map shows kills and deaths, not calls for help (#1216). Character ids decide the last name lookups (#1210). Discord polish (#1212). Production database moved to a free Oracle VM next to the bot (queries ~2 ms).
+
 ## 9.4.5 — 20 November 2026
 
 Published 20 November 2026 (GitHub v9.4.5, website download and installer). Officer windows checked in game on 20 November; the help flow and duel stats still need a two-player check (see docs/V9_4_5_RELEASE_ACCEPTANCE.md).

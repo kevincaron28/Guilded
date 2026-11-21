@@ -68,6 +68,50 @@ describe("monthly community seasons", () => {
     const manual = seasonStore([{ ...october, monthly: false }]);
     expect(await manual.service.rotateMonthly("guild", new Date("2026-12-02T12:00:00Z"))).toEqual([]);
   });
+
+  it("takes no lock and reads no points when no season is due (it runs every tick)", async () => {
+    const { service, tx } = seasonStore([{ ...october }]);
+    expect(await service.rotateMonthly("guild", new Date("2026-10-20T12:00:00Z"))).toEqual([]);
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+    expect(tx.communityPoint.findMany).not.toHaveBeenCalled();
+    const none = seasonStore([]);
+    expect(await none.service.rotateMonthly("guild", new Date("2026-12-02T12:00:00Z"))).toEqual([]);
+    expect(none.tx.$executeRaw).not.toHaveBeenCalled();
+  });
+});
+
+describe("community activity tick", () => {
+  function tickStore(due: Row[], reminders = 0) {
+    const tx = {
+      $executeRaw: vi.fn(async () => 1),
+      communityActivity: {
+        findMany: vi.fn(async () => due),
+        findFirst: vi.fn(async ({ where }: { where: Row }) => {
+          if (where["id"] === "broken") throw new Error("Transaction already closed");
+          return { ...due.find(row => row["id"] === where["id"]), season: { status: "ACTIVE" } };
+        }),
+        count: vi.fn(async () => reminders),
+        update: vi.fn(async ({ where, data }: { where: Row; data: Row }) => ({ id: where["id"], ...data }))
+      },
+      communityEntry: { count: vi.fn(async () => 0) },
+      discordJob: { upsert: vi.fn(async (args: { create: Row }) => args.create), updateMany: vi.fn(async () => ({ count: 1 })) }
+    };
+    const database = { ...tx, $transaction: <T>(work: (transaction: typeof tx) => Promise<T>) => work(tx) };
+    return { service: createCommunityService(database as unknown as PrismaClient), tx };
+  }
+  const past = new Date("2026-11-20T10:00:00Z"), now = new Date("2026-11-20T12:00:00Z");
+
+  it("closes the other due activities when one fails, then reports the failure", async () => {
+    const { service, tx } = tickStore([{ id: "broken", kind: "QUIZ", status: "OPEN", endsAt: past }, { id: "fine", kind: "QUIZ", status: "OPEN", endsAt: past }]);
+    await expect(service.tick("guild", now)).rejects.toThrow("Transaction already closed");
+    expect(tx.communityActivity.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "fine" }, data: expect.objectContaining({ status: "CLOSED" }) }));
+  });
+
+  it("does not take the guild lock when nothing is due and no reminder is near", async () => {
+    const { service, tx } = tickStore([]);
+    await service.tick("guild", now);
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
 });
 
 describe("past raid signup posts", () => {

@@ -110,7 +110,7 @@ export async function notify(discordGuild: DiscordGuild | null, content: string 
     const target = await notifyAddress(discordGuild, kind, coreId);
     if (!target) return;
     const text = typeof content === "string" ? content : content(target.lang);
-    await durableMessage(discordGuild, target.guildId, target.channelId, { embeds: [new EmbedBuilder().setDescription(text.slice(0, 1900)).setColor(0xd4a017)] }, kind, coreId);
+    await durableMessage(discordGuild, target.guildId, target.channelId, { embeds: [new EmbedBuilder().setDescription(text.slice(0, 1900)).setColor(0xd4af37)] }, kind, coreId);
   } catch (error) {
     console.error("Failed to post notification", error);
   }

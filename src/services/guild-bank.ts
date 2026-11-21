@@ -176,7 +176,7 @@ export async function postWeeklyGuildBank(db: WeeklyDb, discordGuild: DiscordGui
   if (!text) return false;
   const channel = await discordGuild.channels.fetch(settings.logChannelId).catch(() => null);
   if (!channel?.isTextBased() || !("send" in channel)) return false;
-  await channel.send({ embeds: [new EmbedBuilder().setColor(0xc9a227).setTitle(lang === "fr" ? "🏦 Banque de guilde : la semaine" : "🏦 Guild bank: this week").setDescription(text)], allowedMentions: { parse: [] } });
+  await channel.send({ embeds: [new EmbedBuilder().setColor(0xd4af37).setTitle(lang === "fr" ? "🏦 Banque de guilde : la semaine" : "🏦 Guild bank: this week").setDescription(text)], allowedMentions: { parse: [] } });
   await db.guildSettings.update({ where: { guildId: guild.id }, data: { guildBankLastPostAt: now } });
   return true;
 }

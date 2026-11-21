@@ -133,7 +133,7 @@ export async function alertLowStock(client: Client, db: AlertDb, guildId: string
   const t = say(lang);
   const channel = await client.channels.fetch(settings.logChannelId).catch(() => null);
   if (!channel?.isTextBased() || !("send" in channel)) return false;
-  await channel.send({ embeds: [new EmbedBuilder().setColor(0xc9a227).setTitle(t("🏦 Guild bank: running low", "🏦 Banque de guilde : stock bas"))
+  await channel.send({ embeds: [new EmbedBuilder().setColor(0xd4af37).setTitle(t("🏦 Guild bank: running low", "🏦 Banque de guilde : stock bas"))
     .setDescription([...lowStockLines(fresh, lang), "", t("Have / target. Change targets with `/officer bank stock`; turn these off with `/officer bank settings stock_alerts:False`.",
       "Disponible / cible. Modifiez les cibles avec `/officer bank stock`; désactivez avec `/officer bank settings stock_alerts:False`.")].join("\n").slice(0, 3900))],
     allowedMentions: { parse: [] } });
@@ -166,7 +166,7 @@ export function requestCard(request: RequestWithMember, lang: Lang, have?: numbe
     `${ICON[request.status]} ${statusWord(request.status, lang)}${request.handledBy ? ` · <@${request.handledBy}>` : ""}${request.reply ? ` · "${request.reply.slice(0, 200)}"` : ""}`,
     request.source === "addon" ? t("Asked in game.", "Demandé en jeu.") : ""
   ].filter(Boolean);
-  const embed = new EmbedBuilder().setColor(open ? 0xc9a227 : request.status === "FULFILLED" ? 0x2e7d32 : 0x777777)
+  const embed = new EmbedBuilder().setColor(open ? 0xd4af37 : request.status === "FULFILLED" ? 0x2e7d32 : 0x777777)
     .setTitle(t("📦 Guild bank request", "📦 Demande à la banque de guilde")).setDescription(lines.join("\n")).setFooter({ text: request.id });
   const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(
     ...(request.status === "PENDING" ? [new ButtonBuilder().setCustomId(`${BANK_REQUEST_PREFIX}${request.id}:APPROVED`).setLabel(t("Approve", "Approuver")).setStyle(ButtonStyle.Secondary)] : []),

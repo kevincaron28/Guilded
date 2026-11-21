@@ -211,7 +211,7 @@ async function groupEmbed(groupId: string): Promise<EmbedBuilder> {
   const waiting = signups.filter((s) => s.status === "WAITLISTED").map((s) => `${s.member.displayName} (${ROLE_LABEL[s.role]})`);
   const inGroup = signups.filter((s) => s.status === "SIGNED_UP").length;
   const embed = new EmbedBuilder()
-    .setColor(group.status === "CLOSED" ? 0x808080 : 0xd4a017)
+    .setColor(group.status === "CLOSED" ? 0x808080 : 0xd4af37)
     .setTitle(`${info.emoji} ${group.title}`)
     .setDescription(tx(lang, info.label))
     .addFields(

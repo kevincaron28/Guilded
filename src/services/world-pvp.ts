@@ -153,7 +153,7 @@ export function worldPvpCard(data: WorldPvpData, lang: Lang, classes: ClassBook 
   const fr = lang === "fr";
   return {
     eyebrow: `Guilded · ${fr ? "JcJ" : "PvP"}`, title: fr ? "JcJ en monde ouvert" : "World PvP",
-    subtitle: `${data.season ? `${officialSeasonName(data.season.number, lang)} · ` : ""}${fr ? "Cette semaine (reset du mardi) · victoires, défenses, appels à l'aide, morts et V/M (victoires par mort)" : "This week (Tuesday reset) · kills, defends, calls answered, deaths and K/D"}`,
+    subtitle: data.season ? `${officialSeasonName(data.season.number, lang)} · ${fr ? "cette semaine" : "this week"}` : fr ? "Cette semaine · reset du mardi" : "This week · Tuesday reset",
     backdrop: { kind: "board", key: "world-pvp" },
     stats: [], footer: reportedFooter(lang),
     ladder: {

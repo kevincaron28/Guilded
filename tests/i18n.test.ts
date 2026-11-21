@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { frenchTypography as fr } from "../src/fr-typography.js";
 import { asLang, t } from "../src/i18n.js";
 import { raidReportEmbed } from "../src/commands/raid-report.js";
 
@@ -7,7 +8,7 @@ describe("translations", () => {
     expect(asLang("fr")).toBe("fr");
     expect(asLang(null)).toBe("en");
     expect(t("fr", "reminder", { raid: "Onyxia", when: "dans 1 heure", mentions: "@Kev" }))
-      .toBe("⏰ **Onyxia** commence dans 1 heure. On vous attend : @Kev");
+      .toBe(fr("⏰ **Onyxia** commence dans 1 heure. On vous attend : @Kev"));
     expect(t("en", "reply.waitlisted", { role: "Tank" })).toContain("Tank is full");
   });
 

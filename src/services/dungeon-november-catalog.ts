@@ -86,7 +86,7 @@ export function novemberCatalogEmbeds(lang: Lang): EmbedBuilder[] {
   const candidates = catalog.routes.filter(r => r.rating === "candidate-pending-verification");
   const participation = catalog.routes.filter(r => r.rating === "participation-only");
   const names = (rows: Entry[]) => rows.map(r => r.name).join("\n");
-  return [new EmbedBuilder().setColor(0xd4a017)
+  return [new EmbedBuilder().setColor(0xd4af37)
     .setTitle(fr ? "4 novembre · catalogue en préparation" : "November 4 · planning catalog")
     .setDescription(fr
       ? "35 donjons/ailes à préparer pour la participation; aucun parcours coté activé pour novembre. La sélection bêta et ses archives ne changent pas. Une annonce ou une liste communautaire ne prouve pas la validation en jeu au lancement."

@@ -1,4 +1,5 @@
 import { ChannelType, Collection } from "discord.js";
+import { frenchTypography as fr } from "../src/fr-typography.js";
 import { describe, expect, it, vi } from "vitest";
 import { PermissionFlagsBits } from "discord.js";
 import { deleteCoreDiscord, guildViewerRoleIds, openCoreChannels, setupCoreDiscord } from "../src/services/core-channels.js";
@@ -323,7 +324,7 @@ describe("answer channel: raid-schedule fast path", () => {
   it("answers in French when the guild's language is fr", async () => {
     const database = fakeScheduleDatabase({ cores: [{ name: "Coeur Mardi", schedule: "Mardis 20h" }] });
     const answer = await scheduleAnswer(database as never, "g1", "America/New_York", "fr");
-    expect(answer).toContain("Horaire de raid :");
+    expect(answer).toContain(fr("Horaire de raid :"));
     expect(answer).toContain("**Coeur Mardi** — Mardis 20h");
   });
 });

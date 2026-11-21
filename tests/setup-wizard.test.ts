@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
+import { frenchTypography as fr } from "../src/fr-typography.js";
 import { guildService, requireGuildContext } from "../src/commands/context.js";
 
 const settings = {
@@ -193,7 +194,7 @@ describe("setup wizard in French", () => {
       expect(roles).toContain("(facultatif)");
       const checklist = (await renderStep(8, guild as never, "g1", "")).embeds[0]!.toJSON().description ?? "";
       expect(checklist).toContain("❌ Salon des inscriptions aux raids");
-      expect(checklist).toContain("Appuyez sur « Créer les salons manquants »");
+      expect(checklist).toContain(fr("Appuyez sur « Créer les salons manquants »"));
     } finally {
       settings.language = "en";
     }

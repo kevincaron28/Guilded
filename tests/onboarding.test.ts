@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { frenchTypography as fr } from "../src/fr-typography.js";
 import { MessageFlags } from "discord.js";
 
 const db = vi.hoisted(() => ({
@@ -237,8 +238,8 @@ describe("game menu and pairing", () => {
     const interaction = click("onboard:pair:g1", fakeGuild(member));
     await handleOnboardingInteraction(interaction as never);
     const description = interaction.editReply.mock.calls[0]![0].embeds[0].data.description;
-    expect(description).toContain("Personnage principal : **Ray**");
-    expect(description).toContain("Alt : **Other**");
+    expect(description).toContain(fr("Personnage principal : **Ray**"));
+    expect(description).toContain(fr("Alt : **Other**"));
     const instructions = interaction.editReply.mock.calls[0]![0].embeds[0].data.fields[1].value;
     expect(instructions).not.toContain("/guilded verify");
     expect(instructions).toContain("confirmé à la prochaine synchronisation");

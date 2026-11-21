@@ -11,6 +11,9 @@ const FAKE = `
   function fake(l, b, w, h, shown)
     local f = { l = l, b = b, w = w, h = h, shown = shown, pts = {} }
     function f:IsShown() return self.shown end
+    function f:Hide() self.shown = false end
+    function f:SetDontSavePosition(v) self.noSave = v end
+    function f:SetUserPlaced(v) self.userPlaced = v end
     function f:GetLeft() return self.l end
     function f:GetRight() return self.l + self.w end
     function f:GetBottom() return self.b end
@@ -60,18 +63,46 @@ describe("util.placeBeside", () => {
     expect(s!.run(`local a, b = GuildedRosterAdmin, GuildedPanel; return tostring(a.l >= b.l and a.l + a.w <= b.l + b.w and a.b >= b.b and a.b + a.h <= b.b + b.h)`)).toBe("true");
   });
 
-  it("with the main window and Roster admin filling the width, covers Roster admin squarely and is raised (seen in game 20 Nov)", () => {
+  it("with the main window and Roster admin filling the width, closes Roster admin and goes beside the main window (seen in game 20 Nov)", () => {
     setup();
     s!.run(`GuildedPanel = fake(60, 300, 590, 600, true); GuildedRosterAdmin = fake(660, 400, 520, 430, true); GuildedPromotionPanel = fake(0, 0, 480, 400, false)
       UIParent.GetWidth = function() return 1200 end; raised = false; function GuildedPromotionPanel:Raise() raised = true end
       function GuildedPromotionPanel:SetFrameStrata(s) self.strata = s end`);
-    s!.run(`NS.util.placeBeside(GuildedPromotionPanel)`);
+    s!.run(`NS.util.placeBeside(GuildedPromotionPanel); GuildedPromotionPanel.shown = true`);
+    expect(s!.run(`return tostring(GuildedRosterAdmin.shown) .. " " .. tostring(GuildedPanel.shown)`)).toBe("false true");
     expect(s!.run(`return tostring(overlaps(GuildedPromotionPanel, GuildedPanel))`)).toBe("false");
-    expect(s!.run(`local a, b = GuildedPromotionPanel, GuildedRosterAdmin; return tostring(a.l == b.l and a.b + a.h == b.b + b.h)`)).toBe("true");
-    expect(s!.run(`return tostring(raised) .. " " .. tostring(GuildedPromotionPanel.strata)`)).toBe("true FULLSCREEN");
-    // With room again it goes back beside, on the normal strata.
-    s!.run(`GuildedRosterAdmin.shown = false; UIParent.GetWidth = function() return 1920 end; NS.util.placeBeside(GuildedPromotionPanel)`);
-    expect(s!.run(`return tostring(GuildedPromotionPanel.strata)`)).toBe("DIALOG");
+    expect(s!.run(`return tostring(GuildedPromotionPanel.l + GuildedPromotionPanel.w <= 1200)`)).toBe("true");
+    expect(s!.run(`return tostring(raised) .. " " .. tostring(GuildedPromotionPanel.strata)`)).toBe("true DIALOG");
+  });
+
+  it("covers one window squarely, one strata up, only when the screen is narrower than it and the main window", () => {
+    setup();
+    s!.run(`GuildedPanel = fake(60, 300, 590, 600, true); GuildedPromotionPanel = fake(0, 0, 480, 400, false)
+      UIParent.GetWidth = function() return 900 end; function GuildedPromotionPanel:SetFrameStrata(s) self.strata = s end`);
+    s!.run(`NS.util.placeBeside(GuildedPromotionPanel)`);
+    expect(s!.run(`local a, b = GuildedPromotionPanel, GuildedPanel; return tostring(a.l == b.l and a.b + a.h == b.b + b.h)`)).toBe("true");
+    expect(s!.run(`return tostring(GuildedPromotionPanel.strata)`)).toBe("FULLSCREEN");
+  });
+
+  it("never lets WoW save a dragged window's spot, and places again one frame later (a restored spot is undone)", () => {
+    setup();
+    s!.run(`TIMERS = {}; C_Timer = { After = function(_, fn) TIMERS[#TIMERS + 1] = fn end }
+      GuildedPanel = fake(560, 200, 600, 600, true); GuildedRosterAdmin = fake(300, 100, 720, 580, false)`);
+    s!.run(`NS.util.placeBeside(GuildedRosterAdmin); GuildedRosterAdmin.shown = true`);
+    expect(s!.run(`return tostring(GuildedRosterAdmin.noSave) .. " " .. tostring(GuildedRosterAdmin.userPlaced)`)).toBe("true false");
+    s!.run(`GuildedRosterAdmin.l = 600; GuildedRosterAdmin.b = 250`); // WoW puts the window back where it was once dragged
+    expect(s!.run(`return tostring(overlaps(GuildedRosterAdmin, GuildedPanel))`)).toBe("true");
+    s!.run(`for _, fn in ipairs(TIMERS) do fn() end`);
+    expect(s!.run(`return tostring(overlaps(GuildedRosterAdmin, GuildedPanel))`)).toBe("false");
+  });
+
+  it("is raised above the other shown officer windows", () => {
+    setup();
+    s!.run(`GuildedPanel = fake(560, 200, 600, 600, true); GuildedPanel.level = 40; function GuildedPanel:GetFrameLevel() return self.level end
+      GuildedRosterAdmin = fake(300, 100, 720, 580, false); GuildedRosterAdmin.level = 1
+      function GuildedRosterAdmin:GetFrameLevel() return self.level end; function GuildedRosterAdmin:SetFrameLevel(v) self.level = v end`);
+    s!.run(`NS.util.placeBeside(GuildedRosterAdmin)`);
+    expect(s!.run(`return tostring(GuildedRosterAdmin.level > 40)`)).toBe("true");
   });
 
   it("does nothing when no other Guilded window is shown", () => {

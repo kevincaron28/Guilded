@@ -12,6 +12,8 @@
 local addonName, ns = ...
 ns = ns or {}
 
+local function L(text) return ns.L and ns.L(text) or text end
+
 local DAYS_AHEAD = 14
 local SYNC_DAYS_AHEAD = 30
 local WAIT_SECONDS = 3
@@ -84,7 +86,7 @@ local function report(result)
   local db = ns.getDb and ns.getDb()
   if db then db.calendarCheck = result end
   if not result.apiPresent then
-    ns.message("Calendar check: this client has NO calendar API for addons. Calendar sync isn't possible here.")
+    ns.message(L("Calendar check: this client has NO calendar API for addons. Calendar sync isn't possible here."))
     return
   end
   local missing = {}
@@ -92,22 +94,22 @@ local function report(result)
     if not present then table.insert(missing, name) end
   end
   table.sort(missing)
-  ns.message("Calendar check: calendar API found." .. (#missing > 0 and (" Missing: " .. table.concat(missing, ", ")) or " All needed functions are present."))
-  ns.message("Can this character create events: " .. (result.canAddEvent == nil and "unknown" or (result.canAddEvent and "yes" or "no")))
+  ns.message(L("Calendar check: calendar API found.") .. " " .. (#missing > 0 and string.format(L("Missing: %s"), table.concat(missing, ", ")) or L("All needed functions are present.")))
+  ns.message(string.format(L("Can this character create events: %s"), L(result.canAddEvent == nil and "unknown" or (result.canAddEvent and "yes" or "no"))))
   local kinds = {}
   for kind, count in pairs(result.eventsByType) do table.insert(kinds, kind .. " " .. count) end
   table.sort(kinds)
-  ns.message(string.format("Next %d days: %s.", DAYS_AHEAD, #kinds > 0 and table.concat(kinds, ", ") or "no events at all"))
+  ns.message(string.format(L("Next %d days: %s."), DAYS_AHEAD, #kinds > 0 and table.concat(kinds, ", ") or L("no events at all")))
   if #result.guildEvents > 0 then
     for i = 1, math.min(8, #result.guildEvents) do
       local event = result.guildEvents[i]
-      ns.message(string.format("  Guild event: %s - %s", event.date, event.title))
+      ns.message("  " .. string.format(L("Guild event: %s - %s"), event.date, event.title))
     end
   else
-    ns.message("No guild events found. To test fully, have an officer create a test guild event in the calendar, then run this again.")
+    ns.message(L("No guild events found. To test fully, have an officer create a test guild event in the calendar, then run this again."))
   end
-  if #result.errors > 0 then ns.message("Errors: " .. table.concat(result.errors, " | ")) end
-  ns.message("Saved. Send a screenshot of these lines (or /guilded export) so we know what to build.")
+  if #result.errors > 0 then ns.message(string.format(L("Errors: %s"), table.concat(result.errors, " | "))) end
+  ns.message(L("Saved. Send a screenshot of these lines (or /guilded export) so we know what to build."))
 end
 
 -- The calendar loads asynchronously: ask for it, then scan once the game
@@ -118,7 +120,7 @@ frame:SetScript("OnEvent", function(self)
   waiting = false
   self:UnregisterEvent("CALENDAR_UPDATE_EVENT_LIST")
   local ok, err = pcall(function() report(scan()) end)
-  if not ok then ns.message("Calendar check failed: " .. tostring(err)) end
+  if not ok then ns.message(string.format(L("Calendar check failed: %s"), tostring(err))) end
 end)
 
 local function check()
@@ -128,7 +130,7 @@ local function check()
   end
   waiting = true
   frame:RegisterEvent("CALENDAR_UPDATE_EVENT_LIST")
-  ns.message("Checking the in-game calendar...")
+  ns.message(L("Checking the in-game calendar..."))
   pcall(function() if has("OpenCalendar") then C_Calendar.OpenCalendar() end end)
   if C_Timer and C_Timer.After then
     C_Timer.After(WAIT_SECONDS, function()
@@ -143,8 +145,6 @@ end
 
 local calendar = {}
 ns.calendar = calendar
-
-local function L(text) return ns.L and ns.L(text) or text end
 
 -- A date and clock reading taken as UTC -> seconds since 1970 (date math in Util.lua).
 local function utcEpoch(y, m, d, hour, minute, second)

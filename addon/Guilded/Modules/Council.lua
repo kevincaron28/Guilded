@@ -506,14 +506,14 @@ end
 -- /guilded sim council: fake raiders answer the open item (test raids).
 ns.simulateCouncil = function()
   local session = council.current
-  if not session or not session.open then ns.message("Open the loot council first (/guilded council start ...)."); return end
+  if not session or not session.open then ns.message(L("Open the loot council first (/guilded council start ...).")); return end
   local names = ns.SIM_NAMES or {}
   local pick = { "bis", "up", "os", "up", "pass" }
   if session.kind == "priority" then pick = { "want", "os", "pass", "want", "want" } end
   for i = 1, math.min(#pick, #names) do
     addResponse(names[i], pick[i], i == 2 and "Old Sword (60)" or "", nil, nil)
   end
-  ns.message("Added fake answers. Close or wait for the timer, then Award.")
+  ns.message(L("Added fake answers. Close or wait for the timer, then Award."))
 end
 
 -- ---------------------------------------------------------------------

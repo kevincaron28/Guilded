@@ -20,7 +20,7 @@ local clearSimDungeons -- defined with /guilded sim dungeon below
 
 local function simStart()
   local raid = ns.getActiveRaid and ns.getActiveRaid()
-  if raid then ns.message("A raid is already active (" .. raid.title .. "). /guilded end it first."); return end
+  if raid then ns.message(string.format(L("A raid is already active (%s). /guilded end it first."), tostring(raid.title))); return end
   ns.runCommand("start [TEST] Simulated raid")
   raid = ns.getActiveRaid()
   if not raid then return end
@@ -32,18 +32,18 @@ local function simStart()
     if name ~= "Testindia" then d.presence[raid.id][name] = { firstSeen = ns.now(), lastSeen = ns.now(), test = true } end
   end
   ns.runCommand("attendance Testbravo LATE")
-  ns.message("Test raid started with " .. (#SIM_NAMES - 1) .. " fake raiders in the group. Try the Raid and EPGP tabs, then /guilded sim end.")
+  ns.message(string.format(L("Test raid started with %d fake raiders in the group. Try the Raid and EPGP tabs, then /guilded sim end."), #SIM_NAMES - 1))
 end
 
 local function simEnd()
   local raid = ns.getActiveRaid and ns.getActiveRaid()
-  if not raid or not raid.test then ns.message("No test raid running. /guilded sim start first."); return end
+  if not raid or not raid.test then ns.message(L("No test raid running. /guilded sim start first.")); return end
   for _, boss in ipairs(SIM_BOSSES) do ns.runCommand("boss " .. boss) end
   ns.runCommand("attendance seen")
   ns.runCommand("loot Testcharlie [Test Helm of Testing] 30")
   ns.runCommand("gp Testcharlie 30 Test Helm of Testing")
   ns.runCommand("end")
-  ns.message("Test raid ended. /reload to save it; the companion will send it to Discord. /guilded sim clear removes it.")
+  ns.message(L("Test raid ended. /reload to save it; the companion will send it to Discord. /guilded sim clear removes it."))
 end
 
 -- Removes every test raid and everything recorded during one.
@@ -103,7 +103,7 @@ local function simDungeon(minutesArg)
   root.dungeon = root.dungeon or {}
   root.dungeon.runs = root.dungeon.runs or {}
   local minutes = tonumber(minutesArg) or (20 + math.random(0, 10))
-  if minutes < 1 or minutes > 300 then ns.message("Minutes must be from 1 to 300."); return end
+  if minutes < 1 or minutes > 300 then ns.message(L("Minutes must be from 1 to 300.")); return end
   local ended = GetServerTime and GetServerTime() or time()
   local duration = math.floor(minutes * 60)
   local id = string.format("SIM-%d-%s", ended, ns.playerName())
@@ -143,20 +143,20 @@ end
 
 ns.commandHandlers = ns.commandHandlers or {}
 ns.commandHandlers["sim"] = function(args)
-  if not ns.isOfficer() then ns.message("Only officers can run test raids."); return end
+  if not ns.isOfficer() then ns.message(L("Only officers can run test raids.")); return end
   local action = string.lower(args[1] or "")
   if action == "start" then simStart()
   elseif action == "end" then simEnd()
   elseif action == "clear" then simClear()
   elseif action == "dungeon" then
-    if ns.moduleActive and not ns.moduleActive("dungeon") then ns.message("The Dungeons module is off (/guilded modules)."); return end
+    if ns.moduleActive and not ns.moduleActive("dungeon") then ns.message(L("The Dungeons module is off (/guilded modules).")); return end
     simDungeon(args[2])
   elseif action == "bids" then
-    if ns.moduleActive and not ns.moduleActive("bidding") then ns.message("GP bidding is off (/guilded modules).")
-    elseif ns.simulateBids then ns.simulateBids() else ns.message("GP bidding is not loaded.") end
+    if ns.moduleActive and not ns.moduleActive("bidding") then ns.message(L("GP bidding is off (/guilded modules)."))
+    elseif ns.simulateBids then ns.simulateBids() else ns.message(L("GP bidding is not loaded.")) end
   elseif action == "council" then
-    if ns.moduleActive and not ns.moduleActive("council") then ns.message("Loot council is off (/guilded modules).")
-    elseif ns.simulateCouncil then ns.simulateCouncil() else ns.message("Loot council is not loaded.") end
+    if ns.moduleActive and not ns.moduleActive("council") then ns.message(L("Loot council is off (/guilded modules)."))
+    elseif ns.simulateCouncil then ns.simulateCouncil() else ns.message(L("Loot council is not loaded.")) end
   else
     ns.message("/guilded sim start | end | bids (fake bids on open bidding) | council (fake answers) | dungeon [minutes] | clear")
   end

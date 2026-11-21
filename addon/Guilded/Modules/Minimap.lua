@@ -2103,7 +2103,7 @@ refresh = function()
     local account = name and db.epgp[name]
     local discord = name and ns.getStanding and ns.getStanding(name)
     if not name then
-      ui.epgpInfo:SetText("Pick a player at the top (target them, or Me / Group...).")
+      ui.epgpInfo:SetText(L("Pick a player at the top (target them, or Me / Group...)."))
     else
       -- Discord = the bot's official totals; "this PC" = entries recorded
       -- here that may not have been imported yet.

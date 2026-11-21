@@ -1742,7 +1742,7 @@ local function showFullHelp()
       if type(line) ~= "table" or officer or not line.officer then message(text) end
     end
   end
-  message("/guilded modules - turn optional parts (bidding, dungeons...) on or off")
+  message(L("/guilded modules - turn optional parts (bidding, dungeons...) on or off"))
 end
 
 -- /guilded help: the few commands a member needs. Every other command keeps working and is listed by /guilded help all.
@@ -2138,11 +2138,11 @@ local function modulesCommand(args)
   local scope = "self"
   if action == "guild" then scope = "guild"; table.remove(args, 2); action = string.lower(args[2] or "list") end
   if action == "list" then
-    message("Modules (Core raid/EPGP/loot/gear and standings always run):")
+    message(L("Modules (Core raid/EPGP/loot/gear and standings always run):"))
     for _, module in ipairs(ns.MODULES) do
       message(string.format("  %s (%s) - %s: %s", module.name, module.key, module.desc, moduleStateText(module.key)))
     end
-    message("/guilded modules on|off <module> - just for you. Officers: /guilded modules guild on|off <module> - for everyone.")
+    message(L("/guilded modules on|off <module> - just for you. Officers: /guilded modules guild on|off <module> - for everyone."))
     return
   end
   if action ~= "on" and action ~= "off" then message("Usage: /guilded modules [list] | on|off <module> | guild on|off <module>"); return end
@@ -2151,7 +2151,7 @@ local function modulesCommand(args)
   if not moduleByKey[key] then
     local keys = {}
     for _, module in ipairs(ns.MODULES) do table.insert(keys, module.key) end
-    message("Unknown module '" .. wanted .. "'. Modules: " .. table.concat(keys, ", "))
+    message(string.format(L("Unknown module '%s'. Modules: %s"), wanted, table.concat(keys, ", ")))
     return
   end
   local name = moduleByKey[key].name

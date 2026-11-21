@@ -83,8 +83,8 @@ ns.commandHandlers["chat"] = function(args)
       say(L(MAKE_IT))
       return
     end
-    say("Guilded's own lines now go to the Guilded chat tab. /guilded chat off to go back.")
-    if frame.AddMessage then frame:AddMessage("|cffd4af37[Guilded]|r This tab shows Guilded's messages.") end
+    say(L("Guilded's own lines now go to the Guilded chat tab. /guilded chat off to go back."))
+    if frame.AddMessage then frame:AddMessage("|cffd4af37[Guilded]|r " .. L("This tab shows Guilded's messages.")) end
   elseif action == "off" then
     s.chatTab = false
     -- The window stays (closing it from here would taint the chat frames, see above).

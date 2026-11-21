@@ -1,11 +1,11 @@
 # 9.4.6 release acceptance
 
-Status: prepared 21 November 2026, not yet published.
+Status: published 21 November 2026.
 
 | Provider | State |
 | --- | --- |
-| GitHub | not yet published. |
-| Installer | not yet built or published. |
+| GitHub | v9.4.6 published (tag 0c62426e). |
+| Installer | server and R2 mirror, sha256 b92e0753…. |
 | CurseForge | not yet uploaded. |
 | Microsoft Store | 9.4.6.0 after certification. |
 | Bot | already live. |

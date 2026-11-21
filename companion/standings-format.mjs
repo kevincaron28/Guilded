@@ -80,40 +80,106 @@ function weekField(board) {
 }
 
 // Serialize only known fields; all names go through the existing Lua string escaper.
+// A Lua table field, left out when its value is nil: `{ a = nil }` and `{}` are the same table, so a nil field is only bytes.
+const field = (name, value) => value === "nil" ? "" : `${name} = ${value}, `;
+const luaTable = (fields) => `{ ${fields.join("").replace(/, $/, "")} }`;
+const luaInteger = (n, max = 100000) => Number.isInteger(n) && n >= 0 && n <= max ? n : "nil";
 function guidanceToLua(g) {
   if (!g || !Array.isArray(g.routes)) return "nil";
-  const integer = n => Number.isInteger(n) && n >= 0 && n <= 100000 ? n : "nil";
-  return `{ level = ${integer(g.level)}, bestCount = ${integer(g.bestCount)}, routes = { ${g.routes.slice(0, 100).map(r => {
+  return luaTable([field("level", luaInteger(g.level)), field("bestCount", luaInteger(g.bestCount)), field("routes", `{ ${g.routes.slice(0, 100).map(r => {
     const n = r.next;
-    const next = n ? `{ durationSec = ${integer(n.durationSec)}, gain = ${integer(n.gain)}, total = ${integer(n.total)}, pushedOut = { ${(n.pushedOut ?? []).slice(0, 20).map(luaString).join(", ")} } }` : "nil";
-    return `{ key = ${luaString(r.key)}, name = ${luaString(r.name)}, targetSec = ${integer(r.targetSec)}, fit = ${luaString(r.fit)}, penaltyPercent = ${integer(r.penaltyPercent)}, next = ${next} }`;
-  }).join(", ")} } }`;
+    const next = n ? luaTable([field("durationSec", luaInteger(n.durationSec)), field("gain", luaInteger(n.gain)), field("total", luaInteger(n.total)), field("pushedOut", `{ ${(n.pushedOut ?? []).slice(0, 20).map(luaString).join(", ")} }`)]) : "nil";
+    return luaTable([field("key", luaString(r.key)), field("name", luaString(r.name)), field("targetSec", luaInteger(r.targetSec)), field("fit", luaString(r.fit)), field("penaltyPercent", luaInteger(r.penaltyPercent)), field("next", next)]);
+  }).join(", ")} }`)]);
 }
 
 function ratingDetailsToLua(details) {
-  return (details ?? []).map(d => `{ dungeonKey = ${luaString(d.dungeonKey ?? String(d.instanceId))}, instanceId = ${Math.trunc(d.instanceId)}, name = ${luaString(d.name)}, points = ${Math.trunc(d.points)}, counted = ${typeof d.counted === "boolean" ? String(d.counted) : "nil"}, speedBonus = ${Math.trunc(d.speedBonus)}, durationSec = ${Math.trunc(d.durationSec)}, targetSec = ${d.targetSec == null ? "nil" : Math.trunc(d.targetSec)}, runRef = ${luaString(d.runRef)}, unrankedReason = ${d.unrankedReason ? luaString(d.unrankedReason) : "nil"}, ${Number.isInteger(d.penaltyPercent) ? `penaltyPercent = ${d.penaltyPercent}, ` : ""}bosses = { ${(d.bosses ?? []).map(b => `{ id = ${Math.trunc(b.id)}, name = ${luaString(b.name)}, durationSec = ${Math.trunc(b.durationSec)}, runRef = ${luaString(b.runRef)} }`).join(", ")} } }`);
+  return (details ?? []).map(d => luaTable([field("dungeonKey", luaString(d.dungeonKey ?? String(d.instanceId))), field("instanceId", Math.trunc(d.instanceId)), field("name", luaString(d.name)), field("points", Math.trunc(d.points)),
+    field("counted", typeof d.counted === "boolean" ? String(d.counted) : "nil"), field("speedBonus", Math.trunc(d.speedBonus)), field("durationSec", Math.trunc(d.durationSec)), field("targetSec", d.targetSec == null ? "nil" : Math.trunc(d.targetSec)),
+    field("runRef", luaString(d.runRef)), field("unrankedReason", d.unrankedReason ? luaString(d.unrankedReason) : "nil"), Number.isInteger(d.penaltyPercent) ? field("penaltyPercent", d.penaltyPercent) : "",
+    field("bosses", `{ ${(d.bosses ?? []).map(b => `{ id = ${Math.trunc(b.id)}, name = ${luaString(b.name)}, durationSec = ${Math.trunc(b.durationSec)}, runRef = ${luaString(b.runRef)} }`).join(", ")} }`)]));
 }
-function seasonFields(board) {
-  if (board.detailsAvailable === undefined) return "";
-  const details = (board.profiles ?? []).map(profile => {
-    const runs = ratingDetailsToLua(profile.details);
-    const roles = Array.isArray(profile.roles) ? `{ ${profile.roles.filter(r => snapshotDungeonRole(r.role)).map(r =>
-      `{ role = ${luaString(snapshotDungeonRole(r.role))}, points = ${Math.trunc(r.points)}, guidance = ${guidanceToLua(r.guidance)}, details = { ${ratingDetailsToLua(r.details).join(", ")} } }`).join(", ")} }` : "nil";
-    return `{ name = ${luaString(profile.name)}, points = ${Math.trunc(profile.points)}, ${bracketField(profile)}characters = { ${(profile.characters ?? []).map(luaString).join(", ")} }, details = { ${runs.join(", ")} }, roles = ${roles}, guidance = ${guidanceToLua(profile.guidance)} }`;
+// A guildmate's runs as the addon reads them (9.4.7, "shrink the board"): `/guilded score <name>` prints each run's name, points,
+// speed bonus and time, the guild ranking counts them and the best-N order sorts them by points and key. Their bosses, run
+// references, targets and reasons only ever show on the player's own panel, and the officer relay sends only from full profiles.
+// Each is one call of the file's local `briefRun`, which builds exactly that table, with the dungeon's name from the file's local
+// name list (`names`: name -> position): a dungeon's name is written once instead of once per guildmate.
+function briefDetailsToLua(details, names) {
+  return (details ?? []).map(d => {
+    const name = String(d.name);
+    if (!names.has(name)) names.set(name, names.size + 1);
+    return `briefRun(${luaString(d.dungeonKey ?? String(d.instanceId))}, ${names.get(name)}, ${Math.trunc(d.points)}, ${Math.trunc(d.speedBonus)}, ${Math.trunc(d.durationSec)})`;
   });
+}
+// The two file locals brief runs use (before the board's first line; they end with the file).
+const briefRunLocals = (names) => [
+  `local briefRunNames = { ${[...names.keys()].map(luaString).join(", ")} }`,
+  "local function briefRun(dungeonKey, name, points, speedBonus, durationSec) return { dungeonKey = dungeonKey, name = briefRunNames[name], points = points, speedBonus = speedBonus, durationSec = durationSec } end"
+];
+const profileRoles = (profile) => Array.isArray(profile.roles) ? profile.roles.filter(r => snapshotDungeonRole(r.role)) : null;
+function fullProfileToLua(profile) {
+  const roles = profileRoles(profile);
+  return luaTable([field("name", luaString(profile.name)), field("points", Math.trunc(profile.points)), bracketField(profile), field("characters", `{ ${(profile.characters ?? []).map(luaString).join(", ")} }`),
+    field("details", `{ ${ratingDetailsToLua(profile.details).join(", ")} }`),
+    field("roles", roles ? `{ ${roles.map(r => luaTable([field("role", luaString(snapshotDungeonRole(r.role))), field("points", Math.trunc(r.points)), field("guidance", guidanceToLua(r.guidance)),
+      field("details", `{ ${ratingDetailsToLua(r.details).join(", ")} }`)])).join(", ")} }` : "nil"),
+    field("guidance", guidanceToLua(profile.guidance))]);
+}
+// A guildmate's profile (9.4.7): what any addon (9.4.x included) reads of someone else's profile. Their score, bracket, alts and
+// role totals (the unit tooltip), and their runs: complete for an officer (the officer relay answers members without a companion
+// from them), brief for a member (marked `brief`; a 9.4.7 officer addon never relays one). Improvement scenarios and per-role runs
+// are only ever shown for the player's own characters, so a guildmate's are left out.
+function guildmateProfileToLua(profile, officer, names) {
+  const roles = profileRoles(profile);
+  return luaTable([field("name", luaString(profile.name)), field("points", Math.trunc(profile.points)), bracketField(profile), field("characters", `{ ${(profile.characters ?? []).map(luaString).join(", ")} }`),
+    field("details", `{ ${(officer ? ratingDetailsToLua(profile.details) : briefDetailsToLua(profile.details, names)).join(", ")} }`),
+    // `details = {}` keeps a role a table the score panel can count, should a profile ever be one of the player's own after all.
+    field("roles", roles ? `{ ${roles.map(r => `{ role = ${luaString(snapshotDungeonRole(r.role))}, points = ${Math.trunc(r.points)}, details = {} }`).join(", ")} }` : "nil"),
+    officer ? "" : "brief = true, "]);
+}
+
+// Names compared the way the addon's character keys are, loosely: lowercase, no realm, single spaces. Loose on purpose (also the
+// first word, since older runs and addons store bare first names): a guildmate kept complete by mistake only costs bytes.
+const nameKey = (name) => String(name ?? "").normalize("NFC").split("-")[0].trim().replace(/\s+/g, " ").toLowerCase();
+const firstWord = (name) => nameKey(name).split(" ")[0];
+/**
+ * Which profiles of the board are written complete (9.4.7): those of this PC's own characters (every WoW account folder of the
+ * install, and the characters the bot holds for the signed-in member). `null` (nothing known about this PC) keeps every profile
+ * complete, as before.
+ */
+export function ownProfileMatcher(names) {
+  const keys = new Set(), words = new Set();
+  for (const name of names ?? []) {
+    const key = nameKey(name);
+    if (!key) continue;
+    keys.add(key); words.add(firstWord(name));
+  }
+  if (!keys.size) return null;
+  const mine = (name) => keys.has(nameKey(name)) || words.has(firstWord(name));
+  return (profile) => mine(profile.name) || (profile.characters ?? []).some(mine);
+}
+
+// `shape` (9.4.7): { own: (profile) => boolean, officer } writes guildmates' profiles as guildmateProfileToLua does; without it every
+// profile is complete (the public score file, and a PC whose characters are not known yet).
+function seasonFields(board, shape, names) {
+  if (board.detailsAvailable === undefined) return "";
+  const details = (board.profiles ?? []).map(profile => !shape?.own || shape.own(profile) ? fullProfileToLua(profile) : guildmateProfileToLua(profile, shape.officer === true, names));
   const catalog = (board.catalog ?? []).map(d => `{ dungeonKey = ${luaString(d.dungeonKey ?? String(d.instanceId))}, instanceId = ${Math.trunc(d.instanceId)}, name = ${luaString(d.name)}, targetSec = ${d.targetSec == null ? "nil" : Math.trunc(d.targetSec)}, minLevel = ${d.minLevel ?? "nil"}, maxLevel = ${d.maxLevel ?? "nil"}, provisional = ${d.provisional === true ? "true" : "false"}${typeof d.bracket === "string" ? `, bracket = ${luaString(d.bracket)}` : ""} }`);
   return `provisionalTargets = ${board.provisionalTargets === true ? "true" : "false"}, id = ${luaString(board.id ?? "")}, ratingVersion = ${Math.trunc(board.ratingVersion ?? 0)}, detailsAvailable = ${board.detailsAvailable === true ? "true" : "false"}, ${bracketList(board)}profiles = { ${details.join(", ")} }, catalog = { ${catalog.join(", ")} }, `;
 }
 
-export function dungeonBoardToLua(board, updatedAt, variable = "GuildedDungeonBoard") {
+/** @param {{ own: (profile: any) => boolean, officer?: boolean } | null} [shape] */
+export function dungeonBoardToLua(board, updatedAt, variable = "GuildedDungeonBoard", shape = null) {
   if (!board) return [`${variable} = nil`];
-  return [
-    `${variable} = { season = ${luaString(board.season)}, status = ${luaString(board.status ?? "ACTIVE")}, updatedAt = ${luaString(updatedAt)}, ${seasonDates(board)}${seasonFields(board)}${weekField(board)}rows = {`,
+  const names = new Map();
+  const lines = [
+    `${variable} = { season = ${luaString(board.season)}, status = ${luaString(board.status ?? "ACTIVE")}, updatedAt = ${luaString(updatedAt)}, ${seasonDates(board)}${seasonFields(board, shape, names)}${weekField(board)}rows = {`,
     ...board.rows.map(row => `  { name = ${luaString(row.name)}, ${bracketField(row)}points = ${Math.trunc(row.points)} },`),
     "}, history = {",
-    ...(board.history ?? []).map(past => ` { season = ${luaString(past.season)}, status = ${luaString(past.status)}, ${seasonDates(past)}${seasonFields(past)}rows = { ${past.rows.map(row => `{ name = ${luaString(row.name)}, ${bracketField(row)}points = ${Math.trunc(row.points)} }`).join(", ")} } },`),
+    ...(board.history ?? []).map(past => ` { season = ${luaString(past.season)}, status = ${luaString(past.status)}, ${seasonDates(past)}${seasonFields(past, shape, names)}rows = { ${past.rows.map(row => `{ name = ${luaString(row.name)}, ${bracketField(row)}points = ${Math.trunc(row.points)} }`).join(", ")} } },`),
     "} }"
   ];
+  return names.size ? [...briefRunLocals(names), ...lines] : lines;
 }
 
 export function publicScoreToLua(board) {
@@ -182,7 +248,8 @@ export function promotionToLua(promotion) {
   ];
 }
 
-export function standingsToLua(data) {
+/** @param {any} data @param {{ own: (profile: any) => boolean, officer?: boolean } | null} [shape] */
+export function standingsToLua(data, shape = null) {
   const rows = data.standings.map((row) =>
     `    { name = ${luaString(row.character)}, ${row.displayName ? `displayName = ${luaString(row.displayName)}, ` : ""}ep = ${Math.trunc(row.ep)}, gp = ${Math.trunc(row.gp)}, main = ${row.main ? "true" : "false"}, account = ${luaString(data.accounts?.[row.character] ?? "")} },`
   );
@@ -215,7 +282,7 @@ export function standingsToLua(data) {
     ...runCardsToLua(data.runCards),
     "",
     "-- Dungeon points this season (top 10), for the addon's Dungeons tab.",
-    ...dungeonBoardToLua(data.dungeonBoard, data.updatedAt),
+    ...dungeonBoardToLua(data.dungeonBoard, data.updatedAt, "GuildedDungeonBoard", shape),
     "",
     "-- Item tooltips: who wishlisted an item and what it usually costs (key = lowercase item name).",
     ...((data.items ?? []).length ? [

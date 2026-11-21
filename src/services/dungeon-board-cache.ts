@@ -1,4 +1,5 @@
 import { addonDungeonBoard } from "./dungeon-stats.js";
+import { feedDungeonBoard } from "./dungeon-board-feed.js";
 
 // The dungeon board of the companion standings feed (the season ladders, every character's per-dungeon details, role scores and
 // guidance: about 1.4 MB of JSON for the main guild). Building it scores every run of the season, which took 5-15 s of CPU, and the
@@ -29,7 +30,8 @@ export function createDungeonBoardCache(options: DungeonBoardCacheOptions = {}) 
   const maxAgeMs = options.maxAgeMs ?? 600_000;
   const retryMs = options.retryMs ?? 60_000;
   const now = options.now ?? Date.now;
-  const build = options.build ?? ((database, guildId) => addonDungeonBoard(database, guildId));
+  // Without the fields nobody reads (dungeon-board-feed.ts).
+  const build = options.build ?? (async (database, guildId) => feedDungeonBoard(await addonDungeonBoard(database, guildId)));
   const log = options.log ?? ((message: string) => console.info(message));
   const entries = new Map<string, Entry>();
   const firstBuilds = new Map<string, Promise<Board>>();

@@ -6,8 +6,8 @@ Status: published 22 November 2026.
 | --- | --- |
 | GitHub | v9.5.0 published (tag f4aae37f). |
 | Installer | server and R2 mirror, sha256 4a0ce35e…. |
-| CurseForge | not yet uploaded. |
-| Microsoft Store | not yet submitted. |
+| CurseForge | approved 22 November 2026 (Guilded file 9753953, Guilded Dungeons file 9753954); the website points at them. |
+| Microsoft Store | 9.5.0.0 submitted 22 November 2026 (Submission 24, replacing the cancelled 9.4.8.0 review), in certification, publishes on pass. |
 | Bot | live (a83eced6 and later). |
 
 ## Checks owed

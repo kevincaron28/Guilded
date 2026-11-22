@@ -75,18 +75,21 @@ export function memberTrendCard(rows: readonly StatSnapshot[], days: 30 | 90, gu
   };
 }
 
-export function memberTrendEmbed(card: ScoreCard, lang: Lang): EmbedBuilder {
+export function memberTrendEmbed(card: ScoreCard, lang: Lang, withImage = true): EmbedBuilder {
   const trend = card.trend!;
   const lines = trend.tiles.map(tile => `**${tile.label}**: ${tile.value} (${tile.deltas.map(d => `${d.label} ${d.text}`).join(", ")})`);
-  return new EmbedBuilder().setColor(0xffd100).setTitle(`${lang === "fr" ? "Tendance des membres" : "Member trend"} · ${card.title}`.slice(0, 256))
-    .setDescription([...(trend.emptyNote ? [trend.emptyNote] : []), ...lines].join("\n")).setImage("attachment://member-trend.png");
+  const embed = new EmbedBuilder().setColor(0xffd100).setTitle(`${lang === "fr" ? "Tendance des membres" : "Member trend"} · ${card.title}`.slice(0, 256))
+    .setDescription([...(trend.emptyNote ? [trend.emptyNote] : []), ...lines].join("\n"));
+  // Only point at the attachment when it exists: Discord refuses an embed that references a missing file.
+  if (withImage) embed.setImage("attachment://member-trend.png");
+  return embed;
 }
 
 export async function memberTrendMessage(db: Pick<PrismaClient, "guildStatSnapshot">, guildId: string, days: 30 | 90, guildName: string, lang: Lang, today = new Date()) {
   const rows = await recentSnapshots(db, guildId, days + 90);
   const card = memberTrendCard(rows, days, guildName, lang, today);
-  const png = await scoreCardPng(card);
-  return { empty: Boolean(card.trend?.emptyNote), payload: { embeds: [memberTrendEmbed(card, lang)], files: png ? [new AttachmentBuilder(png, { name: "member-trend.png" })] : [], allowedMentions: { parse: [] as never[] } } };
+  const png = await scoreCardPng(card).catch(() => null);
+  return { empty: Boolean(card.trend?.emptyNote), payload: { embeds: [memberTrendEmbed(card, lang, Boolean(png))], files: png ? [new AttachmentBuilder(png, { name: "member-trend.png" })] : [], allowedMentions: { parse: [] as never[] } } };
 }
 
 type WeeklyDb = Pick<PrismaClient, "guild" | "guildSettings" | "guildStatSnapshot">;

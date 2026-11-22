@@ -24,9 +24,11 @@ export function retryDelay(attempt: number): number { return Math.min(3_600_000,
 // Discord answers that will not change by retrying: the channel or server is gone, the bot may not post there, or DMs are closed.
 // They used to retry every hour forever (each one an invalid request counted against the bot). After about a day of
 // attempts the job stops as FAILED; a newer refresh of the same post, or an officer's /system retry, revives it.
-const PERMANENT_DISCORD_CODES = new Set(["10003", "10004", "50001", "50007", "50013"]);
+const PERMANENT_DISCORD_CODES = new Set(["10003", "10004", "10013", "20062", "50001", "50007", "50013", "50035"]);
 export const PERMANENT_FAILURE_ATTEMPTS = 24;
-export function givesUp(code: string, attempts: number): boolean { return PERMANENT_DISCORD_CODES.has(code) && attempts >= PERMANENT_FAILURE_ATTEMPTS; }
+// Any other failure (no Discord code: "Channel unavailable", "Card renderer busy", a board that cannot be built) stops after about two days.
+export const ANY_FAILURE_ATTEMPTS = 48;
+export function givesUp(code: string, attempts: number): boolean { return (PERMANENT_DISCORD_CODES.has(code) && attempts >= PERMANENT_FAILURE_ATTEMPTS) || attempts >= ANY_FAILURE_ATTEMPTS; }
 const available = (now: Date): Prisma.DiscordJobWhereInput => ({ status: "PENDING", nextAttemptAt: { lte: now }, OR: [{ lockedUntil: null }, { lockedUntil: { lte: now } }] });
 
 // Atomic lease + revision check protects a refresh enqueued during a slow Discord call.
@@ -248,8 +250,9 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
     // delayed retry never posts twice. Until 9.0.5 it sat in the footer ("Guilded delivery <id>", seen by members); it
     // now sits in the link of an embed without a title, which Discord does not show. Old footers still match.
     const marker = `Guilded delivery ${job.id}`, link = deliveryLink(job.id);
-    const recent = await channel.messages.fetch({ limit: 100 });
-    if (recent.some(message => message.author.id === guild.client.user?.id && message.embeds.some(embed => embed.footer?.text.includes(marker) || embed.url === link))) return;
+    // Without Read Message History the check is skipped (the nonce still covers most duplicates) instead of failing the post.
+    const recent = await channel.messages.fetch({ limit: 100 }).catch(() => null);
+    if (recent?.some(message => message.author.id === guild.client.user?.id && message.embeds.some(embed => embed.footer?.text.includes(marker) || embed.url === link))) return;
     // The card is drawn first: a post may carry a reduced card-only message for when the picture is available.
     // An optional card is drawn here from its stored definition; without an image the post still goes out.
     const { scoreCardPng } = await import("./score-card.js");

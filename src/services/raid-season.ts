@@ -174,8 +174,8 @@ export async function rotateRaidSeasons(database: Pick<PrismaClient, "raidSeason
 /** The officer-log notice for an open officer season that blocks the automatic one. */
 export function openOfficerSeasonNotice(lang: string, officerSeason: string, season: string): string {
   return lang === "fr"
-    ? `La saison de raid « ${officerSeason} » est toujours ouverte, alors la présence de ${season} n'a pas démarré automatiquement. Fermez-la avec la commande /raid season pour démarrer ${season} automatiquement, ou continuez à l'utiliser.`
-    : `The raid season "${officerSeason}" is still open, so ${season} attendance did not start automatically. Close it with the /raid season command to start ${season} attendance automatically, or keep using it.`;
+    ? `La saison de raid « ${officerSeason} » est toujours ouverte, alors la présence de ${season} n'a pas démarré automatiquement. Fermez-la avec la commande /lead season pour démarrer ${season} automatiquement, ou continuez à l'utiliser.`
+    : `The raid season "${officerSeason}" is still open, so ${season} attendance did not start automatically. Close it with the /lead season command to start ${season} attendance automatically, or keep using it.`;
 }
 
 const noticed = new Set<string>();

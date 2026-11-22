@@ -62,7 +62,9 @@ export async function replyWithCommandError(
   }
   const content = isMemberAnswer(error)
     ? (error as Error).message
-    : "The command could not be completed. Please try again or contact an officer.";
+    : interaction.locale?.startsWith("fr")
+      ? "La commande n'a pas pu être exécutée. Réessayez ou contactez un officier."
+      : "The command could not be completed. Please try again or contact an officer.";
   if (interaction.deferred && !interaction.replied) {
     await interaction.editReply({ content });
   } else if (interaction.replied) {

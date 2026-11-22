@@ -44,8 +44,8 @@ Details: [hosted bot guide](/docs/HOSTED_PILOT.html).
 4. **After approval, connect the companion.** Members install the [Windows companion](/companion/) (Microsoft Store first),
    choose *Sign in with Discord*, then your server. At least one officer should run it: members
    who only use the addon reach Discord through an officer's sync.
-5. **Go public when you are ready.** Create your guild page with `/guildpage create`, then
-   `/guildpage publish`. Open recruitment with `/recruit set`. Publish your dungeon runs with
+5. **Go public when you are ready.** Create your guild page with `/mod page create`, then
+   `/mod page publish`. Open recruitment with `/mod recruit set`. Publish your dungeon runs with
    `/mod leaderboard`. Share a one-night raid spot with `/raid pug share`.
 
 Raid cores and GP prices: `/core setup`, `/core edit` and `/core items`. The [EP/GP guide](/docs/EPGP_GUIDE.html)

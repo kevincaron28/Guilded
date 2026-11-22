@@ -8,7 +8,7 @@ vi.mock("../src/database.js", () => ({ prisma: {
 } }));
 vi.mock("../src/commands/context.js", () => ({ requireGuildContext: async () => ({ guildId: "g1" }), guildService: { getSettings: async () => ({ language: "en" }) } }));
 
-import { buildTrend, isTrendPostDue, memberTrendCard, postWeeklyMemberTrend, trendDelta } from "../src/services/member-trend.js";
+import { buildTrend, isTrendPostDue, memberTrendCard, memberTrendEmbed, postWeeklyMemberTrend, trendDelta } from "../src/services/member-trend.js";
 import { scoreCardPng } from "../src/services/score-card.js";
 import { executeStatsFeed, statsFeedCommand } from "../src/commands/stats-feed.js";
 import type { StatSnapshot } from "../src/services/stat-snapshots.js";
@@ -159,5 +159,10 @@ describe("member trend edge cases (16 Nov 2026 sweep)", () => {
     const guild = { id: "d1", name: "QG", channels: { fetch: async () => ({ isTextBased: () => true, send }) } };
     expect(await postWeeklyMemberTrend(db, guild as never, new Date("2026-11-18T12:00:00Z"))).toBe(false);
     expect(send).not.toHaveBeenCalled();
+  });
+  it("the embed only points at the picture when one was drawn", () => {
+    const card = memberTrendCard(days(3, () => ({ joins: 2, leaves: 1 })), 30, "G", "en");
+    expect(memberTrendEmbed(card, "en").toJSON().image?.url).toBe("attachment://member-trend.png");
+    expect(memberTrendEmbed(card, "en", false).toJSON().image).toBeUndefined();
   });
 });

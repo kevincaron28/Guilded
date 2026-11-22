@@ -163,7 +163,7 @@ export async function handleOfficerButton(interaction: ButtonInteraction, deps: 
       }
       case "reopen": {
         if (raid.status !== "CANCELLED") { await reply(interaction, pick(lang, "This raid is not cancelled.", "Ce raid n'est pas annulé.")); return; }
-        if (raid.scheduledAt.getTime() <= Date.now()) { await reply(interaction, pick(lang, "The start time has passed: edit the time first with /raid edit, or create a new raid.", "L'heure est passée : créez un nouveau raid.")); return; }
+        if (raid.scheduledAt.getTime() <= Date.now()) { await reply(interaction, pick(lang, "The start time has passed: edit the time first with /lead edit, or create a new raid.", "L'heure est passée : créez un nouveau raid.")); return; }
         await interaction.deferUpdate();
         await deps.db.raid.update({ where: { id: raid.id }, data: { status: "PLANNED" } });
         await audit(deps, guildId, actorId, "RAID_OFFICER", raid.id, { change: "reopen", title: raid.title });

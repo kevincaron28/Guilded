@@ -12,7 +12,7 @@ export function donationGold(copper: bigint): string {
 }
 import { bankItems } from "./guild-bank-member.js";
 import { displayCharacterName, loadFullNameBook } from "./character-display.js";
-import { guildChannelLikes, wowChatChannel, type WowChatDb } from "./wow-chat.js";
+import { guildChannelLikes, guildPostable, wowChatChannel, type WowChatDb } from "./wow-chat.js";
 import { combinedDonationCard, combinedDonationText, donationCard, donationText, type DonorTotal } from "./card-donation.js";
 import { textlessEmbed } from "./card-only.js";
 import { withGuildScope } from "./guild-scope.js";
@@ -104,7 +104,7 @@ export async function announceBankDonations(db: DonationDb, discordGuild: Parame
   if (!pending.length) return 0;
   const settings = await db.guildSettings.findUnique({ where: { guildId }, select: { language: true, guildBankDonationCards: true } });
   const enabled = settings?.guildBankDonationCards !== false;
-  const channelId = enabled ? await wowChatChannel(db, guildId, guildChannelLikes(discordGuild)) : null;
+  const channelId = enabled ? await wowChatChannel(db, guildId, guildChannelLikes(discordGuild), guildPostable(discordGuild as never)) : null;
   const from = new Date(Math.min(...pending.map((r) => r.at.getTime())) - DONATION_SAME_LINE_MS);
   const seenBefore: DonationRow[] = await db.guildBankTransaction.findMany({ where: { guildId, type: { in: ["deposit", "Deposit", "DEPOSIT"] }, donationSeenAt: { not: null }, at: { gte: from } }, take: 2_000,
     select: { id: true, kind: true, type: true, actor: true, itemId: true, itemName: true, count: true, amount: true, at: true, createdAt: true } });
@@ -154,7 +154,7 @@ export async function backfillBankDonations(db: DonationDb, discordGuild: Parame
     return 0;
   }
   if (await db.guildBankTransaction.findFirst({ where: { guildId, donationSeenAt: null }, select: { id: true } })) return 0; // new donors first
-  const channelId = await wowChatChannel(db, guildId, guildChannelLikes(discordGuild));
+  const channelId = await wowChatChannel(db, guildId, guildChannelLikes(discordGuild), guildPostable(discordGuild as never));
   if (!channelId) return 0;
   const hour = await db.discordJob.count({ where: { guildId, key: { startsWith: DONATION_JOB_PREFIX }, createdAt: { gte: new Date(now.getTime() - 3_600_000) } } });
   const gap = await db.discordJob.count({ where: { guildId, key: { startsWith: BACKFILL_JOB_PREFIX }, createdAt: { gte: new Date(now.getTime() - BACKFILL_GAP_MS) } } });

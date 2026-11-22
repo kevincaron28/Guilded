@@ -235,6 +235,13 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
       if (address.guildId !== job.guildId) return; // A reset retired this guild identity.
       channelId = address.channelId;
     }
+    // Donor and promotion cards queued for a channel the bot cannot post in (a game-linked guild chat, Discord error 20062: 22 Nov 2026)
+    // go to the next WoW chat choice instead of retrying there forever.
+    if (job.key.startsWith("bank-donation:") || job.key.startsWith("promotion-congrats:")) {
+      const { guildChannelLikes, guildPostable, wowChatChannel } = await import("./wow-chat.js");
+      const postable = guildPostable(guild);
+      if (!await postable(channelId)) channelId = await wowChatChannel(prisma, job.guildId, guildChannelLikes(guild), postable) ?? channelId;
+    }
     const channel = await guild.channels.fetch(channelId);
     if (!channel?.isTextBased()) throw new Error("Channel unavailable");
     // Discord only retains nonce deduplication briefly, so the post also carries the job id, checked after a crash so a

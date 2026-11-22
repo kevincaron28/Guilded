@@ -138,6 +138,7 @@ function snapshot.read(force)
   end
   local result = { at = now, count = count, complete = showsOffline and count <= MAX_MEMBERS, members = members,
     motd = motdText, info = infoText, textAt = textAt }
+  if ns.guildEvents and ns.guildEvents.onSnapshot then pcall(ns.guildEvents.onSnapshot, saved, result, now) end
   db.guildSnapshot = result
   return result
 end

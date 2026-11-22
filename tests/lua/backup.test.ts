@@ -89,8 +89,7 @@ describe("Backup.lua", () => {
     // ...this PC's own settings stay.
     expect(s.run(`return tostring(DB.settings.ledgerSync) .. ":" .. tostring(DB.settings.ledgerSyncSeen) .. ":" .. tostring(DB.settings.chatTab) .. ":" .. DB.settings.panelPoint[1]`)).toBe("false:nil:false:TOP");
     expect(s.run(`return tostring(DB.myCharacters.Naomine ~= nil) .. ":" .. tostring(DB.myCharacters.Kev)`)).toBe("true:nil");
-    // The officer's /guilded verify code would hand this player's characters to the officer.
-    expect(s.run(`return DB.verifyCode`)).toBe("KLMNPQRS");
+    // (/guilded verify was retired in 9.4.1: its code is no longer a per-PC field, so a restore may carry the backup's value.)
     s.run(`NS.backup.undo()`);
     expect(s.run(`return tostring(DB.settings.activeCore) .. ":" .. tostring(DB.settings.chatTab) .. ":" .. DB.settings.panelPoint[1]`)).toBe("nil:false:TOP");
   });

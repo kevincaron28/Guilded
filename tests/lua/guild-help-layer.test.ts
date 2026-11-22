@@ -356,14 +356,14 @@ describe("Help guildmates: one setting", () => {
     expect(callFrom("Bob-Realm")).toBe("line");
   });
 
-  it("the opt-in auto-invite for plain layer requests stays separate and off by default", () => {
+  it("the auto-invite for plain layer requests is on by default, separate from calls for help, and the member's off keeps the window", () => {
     setup();
-    expect(run(`return tostring(NS.layerInvite.autoInvite())`)).toBe("false");
+    expect(run(`return tostring(NS.layerInvite.autoInvite())`)).toBe("true");
     heard("Ann", "REQ|5|12|Elwynn Forest");
-    expect(invites()).toBe("");
-    run(`NS.callForHelp.dismiss(); NS.layerInvite.setAutoInvite(true)`);
+    expect(invites()).toBe("Ann");
+    run(`NS.callForHelp.dismiss(); NS.layerInvite.setAutoInvite(false)`);
     heard("Bo", "REQ|6|12|Elwynn Forest");
-    expect(invites()).toBe("Bo");
+    expect(invites()).toBe("Ann");
   });
 });
 
@@ -389,6 +389,7 @@ describe("the quick layer swap without a call for help", () => {
 describe("older addons (9.4.4 formats)", () => {
   it("a plain REQ from an older addon still shows in the window, and its CLAIM and DONE still close it", () => {
     setup();
+    run(`NS.layerInvite.setAutoInvite(false)`);
     heard("Ann", "REQ|5|12|Elwynn Forest");
     expect(run(`return tostring(FR.GuildedLayerToast.isOpen)`)).toBe("true");
     heard("Bo", "CLAIM|Ann|5|12");

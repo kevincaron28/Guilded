@@ -37,7 +37,7 @@ page.TABS = {
 -- Where each optional part (ns.MODULES in Core.lua) is listed: its tab. A part that is not named here lands in
 -- Advanced, so a part added later still has a switch.
 local MODULE_TAB = {
-  chattab = "chat", chattags = "chat", guildlog = "chat",
+  chattab = "chat", chattags = "chat", guildlog = "chat", guildevents = "chat",
   milestones = "announce",
   dungeon = "dungeons", scores = "dungeons", battleground = "dungeons", duels = "dungeons", worldpvp = "dungeons", guildmap = "dungeons",
   bidding = "raids", council = "raids", reserve = "raids", imports = "raids", consumables = "raids", calendar = "raids",
@@ -220,7 +220,7 @@ function page.allEntries()
   add({ tab = "dungeons", group = "Call for help", kind = "action", label = "Mute 10 min", who = "me", saved = "(this session only)",
     desc = "No call for help windows for 10 minutes (until you log out or reload).", run = function() run("sos mute") end })
   -- (9.4) Layer invite: the same switches as /guilded layer helper on|off and /guilded layer auto on|off.
-  check("dungeons", "Layer invite", "Auto-invite layer requests on my continent", "Off by default. When a guildmate on your continent asks for a layer, Guilded invites them at once (only when you are alone or lead your party, out of combat and outside instances) and shows a short notice. If the game refuses, you get the Invite window instead.", "me", "GuildedDB.layer.auto",
+  check("dungeons", "Layer invite", "Auto-invite layer requests on my continent", "On by default. When a guildmate on your continent asks for a layer, Guilded invites them at once (only when you are alone or lead your party, out of combat and outside instances) and shows a short notice. If the game refuses, you get the Invite window instead.", "me", "GuildedDB.layer.auto",
     function() return ns.layerInvite and ns.layerInvite.autoInvite and ns.layerInvite.autoInvite() or false end,
     function(on) run("layer auto " .. (on and "on" or "off")) end, { wide = true })
   add({ tab = "dungeons", group = "Call for help", kind = "action", label = "Reset call window", who = "me", saved = "settings.helpPos",

@@ -2068,6 +2068,7 @@ ns.MODULES = {
   { key = "sim", name = "Test tools", desc = "fake raid and dungeon runs for officers", commands = { "sim" } },
   { key = "guildmap", name = "Guild map", desc = "guildmates on your world map and minimap", commands = { "map" } },
   { key = "scores", name = "Dungeon scores", desc = "a dungeon score per player from recorded runs, on tooltips", commands = { "score" } },
+  { key = "guildevents", name = "Guild events", desc = "joins, leaves and rank changes in your chat, and a list of the recent ones", commands = { "events" } },
   { key = "guildlog", name = "Guild event log", desc = "joins, leaves, promotions and removals, kept longer than the game keeps them", commands = { "guildlog" } },
   { key = "recruit", name = "Recruiting", desc = "officers' prospect list", commands = { "recruit" } },
   { key = "chattags", name = "Main names in chat", desc = "the main's name next to an alt in guild and officer chat", commands = { "chattags" } },

@@ -2127,7 +2127,7 @@ local function check()
   local lines = {}
   for name, ok in pairs(features) do table.insert(lines, (ok and "OK " or "NO ") .. name) end
   table.sort(lines)
-  ns.message("Dungeon tracking on this client: " .. table.concat(lines, ", "))
+  ns.message(L("Dungeon tracking on this client:") .. " " .. table.concat(lines, ", "))
   local instance = compat.instance()
   if instance then
     local bosses = compat.dungeonBosses(instance.id)

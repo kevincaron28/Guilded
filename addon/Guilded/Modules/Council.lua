@@ -343,7 +343,7 @@ local function openSession(args, opts)
     last = last - 1
   end
   local item = table.concat(args, " ", 1, last)
-  if item == "" then ns.message("Usage: /guilded council start <item or shift-click link> [seconds]"); return end
+  if item == "" then ns.message(L("Usage:") .. " /guilded council start <item or shift-click link> [seconds]"); return end
   local id = string.format("%d%03d", time(), math.random(0, 999))
   council.current = {
     id = id, item = item, seconds = seconds, endsAt = clock() + seconds,
@@ -616,7 +616,7 @@ local function showPopup()
     updatePopup()
     popup:Show()
   end)
-  if not ok then ns.message("Council popup failed: " .. tostring(err)) return end
+  if not ok then ns.message(L("Council popup failed:") .. " " .. tostring(err)) return end
   if ticker then ticker:Cancel() end
   if C_Timer and C_Timer.NewTicker then
     ticker = C_Timer.NewTicker(1, function()
@@ -643,7 +643,7 @@ ns.commandHandlers["council"] = function(args)
   elseif action == "priority" then
     -- /guilded council priority <GP> <item> [seconds]
     local price = tonumber(args[1])
-    if not price or price < 0 or #args < 2 then ns.message("Usage: /guilded council priority <GP> <item or link> [seconds]"); return end
+    if not price or price < 0 or #args < 2 then ns.message(L("Usage:") .. " /guilded council priority <GP> <item or link> [seconds]"); return end
     table.remove(args, 1)
     openSession(args, { kind = "priority", price = math.floor(price) })
   elseif action == "close" then

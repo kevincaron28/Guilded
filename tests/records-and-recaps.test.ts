@@ -178,7 +178,7 @@ describe("daily recap", () => {
     const recap = await dailyRecap(base as never, "g1", "2026-11-06", "America/Toronto");
     expect(recap.worldPvp).toEqual({ kills: 30, defends: 4, helped: 5 });
     expect(dailyRecapEmbed(recap, "fr").data.description).toContain("30 victoires · 4 défenses · 5 appels répondus");
-    expect(JSON.stringify(dailyRecapCard(recap, "en", "G"))).toContain("World PvP this week");
+    expect(JSON.stringify(dailyRecapCard(recap, "en", "G"))).toContain("World PvP · 7 days");
     // A quiet day posts nothing, even in a week with world PvP.
     const quiet = await dailyRecap({ ...base, levelRaceEntry: empty } as never, "g1", "2026-11-06", "America/Toronto");
     expect(quiet.worldPvp).toBeUndefined();

@@ -115,3 +115,12 @@ describe("previous holders", () => {
     expect(db.dungeonRun.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ durationSec: 3915, id: { not: "run1" } }) }));
   });
 });
+
+describe("record card: a holder in the party (22 Nov 2026 audit)", () => {
+  it("never dethrones someone who is in the group; a group beating its own time says so", () => {
+    const own = { ...clear, previousPlayers: ["Alda Stonehelm"] };
+    expect(recordCard(run(), own, "fr").record).toMatchObject({ previousHolders: [], rankLabel: "Bat son propre record" });
+    const mixed = { ...clear, previousPlayers: ["Alda Stonehelm", "Fenn Ashgrove"] };
+    expect(recordCard(run(), mixed, "en").record).toMatchObject({ previousHolders: ["Fenn Ashgrove"], rankLabel: "#1 in the guild", dethroneLabel: "Dethrones" });
+  });
+});

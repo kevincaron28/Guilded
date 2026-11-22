@@ -53,7 +53,7 @@ import { createGuildDirectory, prismaGuildDirectoryStore } from "./services/guil
 import { calendarEventsWithin, discordCalendarEvents, mergeCalendarEvents } from "./services/discord-calendar.js";
 import { createAuditService } from "./services/audit.js";
 import { followUpImport } from "./services/import-followup.js";
-import { applyAttempts, applyFailureLogLine, applyWithRetry, classifyApplyFailure, type ApplyFailure } from "./services/import-apply-failure.js";
+import { applyAttempts, applyFailureLogLine, applyFailureText, applyWithRetry, classifyApplyFailure, type ApplyFailure } from "./services/import-apply-failure.js";
 import { exchangeCharacterPairingCode, findPairingServer, hashCompanionSecret, issueMemberCredential } from "./services/character-pairing.js";
 import { linkVerifiedCharacters, tellVerified } from "./services/character-verify.js";
 import { tellLinkConflicts } from "./services/link-conflict-dm.js";
@@ -1832,7 +1832,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         // (officers get the notice in the officer channel below). Closed DMs are skipped quietly.
         if (late && !access.officer && !failure.transient && !outcome.applied && client && shouldTellApplyFailure(`member:${guild.id}:${createdBy}:${failure.reason}`) && !/already been applied/i.test(outcome.error instanceof Error ? outcome.error.message : "")) {
           const text = settings?.language === "fr"
-            ? `⚠️ **Guilded** : votre dernier envoi du companion a été reçu mais n'a pas pu être appliqué : ${failure.message} [${failure.reason}]\nRien n'en a été importé. Un officier peut regarder le journal du bot ; le prochain envoi réessaie.`
+            ? `⚠️ **Guilded** : votre dernier envoi du companion a été reçu mais n'a pas pu être appliqué : ${applyFailureText(failure, "fr")} [${failure.reason}]\nRien n'en a été importé. Un officier peut regarder le journal du bot ; le prochain envoi réessaie.`
             : `⚠️ **Guilded**: your last companion upload was received but could not be applied: ${failure.message} [${failure.reason}]\nNothing from it was imported. An officer can check the bot's log; the next upload tries again.`;
           inBackground("Member notice for a failed late apply", async () => { await client.users.send(createdBy, { content: text, allowedMentions: { parse: [] } }).catch(() => undefined); });
         }
@@ -1848,9 +1848,9 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const tellOfficers = async (told: ApplyFailure, attempts: number) => {
           if (!access.officer || !shouldTellApplyFailure(`${guild.id}:${told.reason}:${told.message}`)) return;
           const discordGuild = client ? await client.guilds.fetch(guild.discordId).catch(() => null) : null;
-          // The reason stays as the classifier wrote it (it matches the server log); the frame is in the guild's language.
+          // The bracketed reason code matches the server log; the sentence and the frame follow the guild's language.
           await notify(discordGuild, settings?.language === "fr"
-            ? `⚠️ **Import de l'addon non appliqué** (envoi de <@${createdBy}>) : ${told.message}${attempts > 1 ? ` (${attempts} essais)` : ""} [${told.reason}]\nRien n'a été importé. Corrigez la cause, ou appliquez-le à la main : \`/setup import apply id:${job.importId}\`.`
+            ? `⚠️ **Import de l'addon non appliqué** (envoi de <@${createdBy}>) : ${applyFailureText(told, "fr")}${attempts > 1 ? ` (${attempts} essais)` : ""} [${told.reason}]\nRien n'a été importé. Corrigez la cause, ou appliquez-le à la main : \`/setup import apply id:${job.importId}\`.`
             : `⚠️ **Addon import not applied** (upload by <@${createdBy}>): ${told.message}${attempts > 1 ? ` (${attempts} tries)` : ""} [${told.reason}]\nNothing from it was imported. Fix the cause, or apply it by hand: \`/setup import apply id:${job.importId}\`.`, "officer");
         };
         if (failure.transient) retryApplyLater({ guildId: guild.id, discordId: guild.discordId, importId: job.importId, createdBy, since: uploadStartedAt, officer: !!access.officer, tellOfficers });

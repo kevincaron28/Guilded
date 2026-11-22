@@ -119,7 +119,9 @@ export function goldText(copper: bigint | number | null | undefined): string {
   if (copper === null || copper === undefined) return "?";
   const value = BigInt(copper);
   const g = value / 10000n, s = (value / 100n) % 100n, c = value % 100n;
-  return g >= 1000n ? `${g.toLocaleString("en-US")}g` : `${g}g ${s}s ${c}c`;
+  if (g >= 1000n) return `${g.toLocaleString("en-US")}g`;
+  // No empty parts: "125g 40s", "50g", "75s" (owner, 21 Nov 2026 for donor cards; 22 Nov audit: everywhere gold is shown).
+  return [g ? `${g}g` : "", s ? `${s}s` : "", c ? `${c}c` : ""].filter(Boolean).join(" ") || "0c";
 }
 
 type Db = Pick<PrismaClient, "guildBankContents" | "guildBankGold" | "guildBankTransaction">;

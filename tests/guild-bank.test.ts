@@ -90,9 +90,9 @@ describe("reading it back", () => {
 
   it("the weekly post says who moved what and the gold change, and nothing when the bank did not move", () => {
     const text = weeklyBankText(rows, 4_000_000n, 5_000_000n, "en")!;
-    expect(text).toContain("Gold now: **500g 0s 0c** (+100g 0s 0c this week)");
-    expect(text).toContain("• **Dude Lebowski**: +25g 0s 0c · 5 item(s) in");
-    expect(text).toContain("• **Walter Sobchak**: −0g 12s 0c · 2 item(s) out");
+    expect(text).toContain("Gold now: **500g** (+100g this week)");
+    expect(text).toContain("• **Dude Lebowski**: +25g · 5 item(s) in");
+    expect(text).toContain("• **Walter Sobchak**: −12s · 2 item(s) out");
     expect(weeklyBankText([], 1n, 2n, "en")).toBeNull();
   });
 

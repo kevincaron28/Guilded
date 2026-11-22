@@ -296,36 +296,38 @@ function medallion(id: string, cx: number, cy: number, ring: number, color: stri
  */
 export async function renderUnlockHero(spec: UnlockHeroSpec): Promise<RenderedCard> {
   const c = new CardCanvas(), { tint } = ACCENTS.achievement, mid = CARD_W / 2, shown = spec.unlocks.slice(0, 3);
-  // Shade only where text sits, so the painting stays bright: a soft edge round the card, a pill behind the label, and a band under the badge.
+  // Shade only where text sits, so the painting stays bright (owner, 22 Nov 2026: the old dark band hid the lower half of the painting):
+  // a soft edge round the card, a pill behind the label, a light fade at the foot, and a soft shadow under each line of text. The card
+  // kit still lays a patch behind any line the painting leaves under the contrast floor.
   c.raw(`<defs><radialGradient id="vig" cx="50%" cy="42%" r="78%"><stop offset=".6" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".45"/></radialGradient></defs><rect width="${CARD_W}" height="${CARD_H}" fill="url(#vig)"/>`);
   c.rect(mid - 230, 16, 460, 50, "#000", { opacity: 0.78, rx: 25 });
-  c.gradient(0, 236, CARD_W, CARD_H - 236, "v", [[0, "#000", 0], [0.16, "#000", 0.84], [1, "#000", 0.88]]);
+  c.gradient(0, 300, CARD_W, CARD_H - 300, "v", [[0, "#000", 0], [0.45, "#000", 0.32], [1, "#000", 0.62]]);
   await c.text(spec.label, mid, 26, { size: 28, face: "title", color: tint, spacing: 800, anchor: "c", maxW: 700 });
   if (shown.length === 1) {
     const u = shown[0]!;
     c.raw(medallion("hero0", mid, 192, 112, u.color, u.icon));
-    await c.text(u.name, mid, 318, { size: 60, face: "title", color: u.color, anchor: "c", maxW: 1060 });
+    await c.text(u.name, mid, 318, { size: 60, face: "title", color: u.color, anchor: "c", maxW: 1060, shadow: true });
     // "WoW Forever" is the only edition left, so a group that just says it adds nothing next to the name.
     const group = u.group && !/^(wow )?forever$/i.test(u.group.trim()) ? u.group : undefined;
-    await c.text([spec.player, u.tier, group].filter(Boolean).join("  ·  "), mid, 396, { size: 32, face: "bold", anchor: "c", maxW: 1060 });
+    await c.text([spec.player, u.tier, group].filter(Boolean).join("  ·  "), mid, 396, { size: 32, face: "bold", anchor: "c", maxW: 1060, shadow: true });
     if (u.detail) {
       // A description that needs two lines is split near the middle, not left with one orphan word on the second.
       const lines = wrapLines(u.detail, u.detail.length > 70 ? Math.min(70, Math.ceil(u.detail.length / 2) + 6) : 70, 2);
-      for (const [i, line] of lines.entries()) await c.text(line, mid, 444 + i * 36, { size: 28, color: SUB, anchor: "c", maxW: 1080 });
+      for (const [i, line] of lines.entries()) await c.text(line, mid, 444 + i * 36, { size: 28, color: SUB, anchor: "c", maxW: 1080, shadow: true });
     }
   } else {
     const step = shown.length === 2 ? 420 : 370;
     for (const [i, u] of shown.entries()) {
       const cx = Math.round(mid + (i - (shown.length - 1) / 2) * step);
       c.raw(medallion(`hero${i}`, cx, 186, 92, u.color, u.icon));
-      await c.text(u.name, cx, 300, { size: 32, face: "bold", color: u.color, anchor: "c", maxW: step - 30 });
+      await c.text(u.name, cx, 300, { size: 32, face: "bold", color: u.color, anchor: "c", maxW: step - 30, shadow: true });
       const meta = [u.tier, u.group].filter(Boolean).join(" · ");
-      if (meta) await c.text(meta, cx, 342, { size: 24, color: SUB, anchor: "c", maxW: step - 30 });
+      if (meta) await c.text(meta, cx, 342, { size: 24, color: SUB, anchor: "c", maxW: step - 30, shadow: true });
     }
-    await c.text(spec.player, mid, 410, { size: 38, face: "title", anchor: "c", maxW: 1000 });
+    await c.text(spec.player, mid, 410, { size: 38, face: "title", anchor: "c", maxW: 1000, shadow: true });
   }
   if (spec.progress) {
-    await c.text(spec.progress.text, mid, 532, { size: 26, color: SUB, anchor: "c", maxW: 1000 });
+    await c.text(spec.progress.text, mid, 532, { size: 26, color: SUB, anchor: "c", maxW: 1000, shadow: true });
     const w = 560, x = mid - w / 2, fill = Math.max(8, Math.round(w * Math.min(1, Math.max(0, spec.progress.ratio))));
     c.rect(x, 574, w, 16, "#ffffff", { opacity: 0.18, rx: 8 });
     c.rect(x, 574, fill, 16, "#ffd100", { rx: 8 });

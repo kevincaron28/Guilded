@@ -1,4 +1,4 @@
-import { ChannelType, EmbedBuilder, type Guild as DiscordGuild } from "discord.js";
+import { EmbedBuilder, type Guild as DiscordGuild } from "discord.js";
 import { quebecLine } from "./fr-quebec-voice.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { characterName, displayCharacterName, fullNameBook, cleanCharacterName } from "./character-display.js";
@@ -10,7 +10,7 @@ import { postToLogChannel } from "./housekeeping.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
 import { promotionCard } from "./card-promotion.js";
 import { textlessEmbed } from "./card-only.js";
-import { communityChannelNames } from "../setup-names.js";
+import { guildChannelLikes, wowChatChannel, type ChannelLike, type WowChatDb } from "./wow-chat.js";
 
 // 8.5 track C5: the promotion panel. Officers set a rule (default: in Discord, a linked character at rank "Initiate"
 // for 7+ days, optional minimum level). The bot computes "Ready to promote" and "Not in Discord yet". Read-only:
@@ -243,43 +243,19 @@ export function promotionCongratsText(who: string, rankName: string, lang: "en" 
 type CongratsDb = Pick<PrismaClient, "guildSettings" | "member" | "discordJob" | "communitySeason" | "communityHonors">;
 export interface PromotionEvent { name: string; rankName: string; memberId?: string | null }
 
-/** The few channel fields the chat lookup needs; discord.js channels and REST channel objects (parent_id) both reduce to this. */
-export interface ChannelLike { id: string; name?: string | null; type: number; parentId?: string | null }
-const COMMUNITY_CATEGORY = /community|communaut/i;
+// The channel lookups moved to wow-chat.ts (21 Nov 2026), shared with the guild bank donor cards; re-exported for existing callers.
+export { findCommunityChatChannelId, guildChannelLikes, type ChannelLike } from "./wow-chat.js";
 
 /**
- * The community chat channel (setup-names.ts COMMUNITY_CHANNEL_SPECS "chat": community-chat / chat-communauté, plus legacy names): the text
- * channel with one of those names inside a Community category, found the same way community-setup.ts finds it. Pure, so the live path
- * (guild channel cache) and scripts/announce-recent-promotions.ts (REST channel list) share it. Null when there is none.
+ * Where the congratulations go (owner request, 21 Nov 2026): the WoW chat channel (wow-chat.ts: the officer's choice, else chat-wow and
+ * similar names, else the community chat, else the season announcements or hall-of-fame channel). `channels` is the server's channel list.
  */
-export function findCommunityChatChannelId(channels: Iterable<ChannelLike>): string | null {
-  const all = [...channels];
-  const categories = new Set(all.filter((c) => c.type === ChannelType.GuildCategory && COMMUNITY_CATEGORY.test(c.name ?? "")).map((c) => c.id));
-  const names = communityChannelNames("chat");
-  return all.find((c) => c.type === ChannelType.GuildText && !!c.parentId && categories.has(c.parentId) && names.includes(c.name ?? ""))?.id ?? null;
-}
-
-/** A discord.js guild's cached channels as ChannelLike rows (empty for a partial guild, as in tests). */
-export function guildChannelLikes(discordGuild: { channels?: { cache?: { values(): Iterable<{ id: string; name?: string | null; type: number; parentId?: string | null }> } } } | undefined): ChannelLike[] {
-  return [...(discordGuild?.channels?.cache?.values() ?? [])].map((c) => ({ id: c.id, name: c.name ?? null, type: c.type, parentId: c.parentId ?? null }));
-}
-
-/**
- * Where the congratulations go (owner request, 20 Nov 2026): the community chat channel; when the server has none, the public community
- * season's announcements channel, else the hall-of-fame channel the weekly MVP post uses. `channels` is the server's channel list.
- */
-export async function promotionCongratsChannel(db: Pick<PrismaClient, "communitySeason" | "communityHonors">, guildId: string, channels: Iterable<ChannelLike> = []): Promise<string | null> {
-  const chat = findCommunityChatChannelId(channels);
-  if (chat) return chat;
-  const season = await db.communitySeason.findFirst({ where: { guildId, game: "DISCORD", audienceRoleId: null, announcementChannelId: { not: null } }, orderBy: { createdAt: "desc" }, select: { announcementChannelId: true } });
-  if (season?.announcementChannelId) return season.announcementChannelId;
-  return (await db.communityHonors.findUnique({ where: { guildId }, select: { channelId: true } }))?.channelId ?? null;
-}
+export const promotionCongratsChannel = (db: WowChatDb, guildId: string, channels: Iterable<ChannelLike> = []): Promise<string | null> => wowChatChannel(db, guildId, channels);
 
 /**
  * One public post per promoted member (owner request, 19 Nov 2026): on by default, officers switch it off with
- * `/officer promotion rule congrats:false`. Never for the Alt rank (alts are not promotions). Goes to the community chat channel, else the
- * community season's announcements or hall-of-fame channel (promotionCongratsChannel). Queued as a Discord job whose
+ * `/officer promotion rule congrats:false`. Never for the Alt rank (alts are not promotions). Goes to the WoW chat channel
+ * (promotionCongratsChannel). Queued as a Discord job whose
  * key is the member, the rank and the day, so the same promotion seen in two uploads is posted once. Pings only the linked member.
  */
 export async function postPromotionCongrats(db: CongratsDb, discordGuild: Pick<DiscordGuild, "members"> & Parameters<typeof guildChannelLikes>[0], guildId: string, promotions: readonly PromotionEvent[], now = new Date()): Promise<number> {

@@ -52,7 +52,8 @@ const EMBLEMS = {
   anvil: '<path d="M8 20 H50 Q56 20 56 28 H40 Q36 34 36 40 V46 H44 V54 H20 V46 H28 V40 Q28 34 24 28 H8 Z"/>',
   star: '<path d="M32 6 L39 24 L58 25 L43 37 L48 56 L32 45 L16 56 L21 37 L6 25 L25 24 Z"/>',
   crown: '<path d="M8 48 L12 20 L24 34 L32 14 L40 34 L52 20 L56 48 Z"/><path d="M8 56 H56"/>',
-  people: '<circle cx="24" cy="22" r="9"/><path d="M6 54 Q6 36 24 36 Q42 36 42 54 Z"/><circle cx="46" cy="26" r="7"/><path d="M40 40 Q58 38 58 54 H46"/>'
+  people: '<circle cx="24" cy="22" r="9"/><path d="M6 54 Q6 36 24 36 Q42 36 42 54 Z"/><circle cx="46" cy="26" r="7"/><path d="M40 40 Q58 38 58 54 H46"/>',
+  chest: '<path d="M8 28 H56 V56 H8 Z"/><path d="M8 28 Q8 10 32 10 Q56 10 56 28"/><path d="M8 36 H56"/><path d="M28 32 H36 V42 H28 Z"/>'
 } as const;
 export type EmblemKind = keyof typeof EMBLEMS;
 

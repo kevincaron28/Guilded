@@ -172,6 +172,11 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
       const [{ refreshPromotionText }, { promotionCongratsText }] = await Promise.all([import("./character-portrait.js"), import("./promotion.js")]);
       refreshPromotionText(payload, promotionUserId(job.key), settings?.language === "fr" ? "fr" : "en", promotionCongratsText);
     }
+    if (job.key.startsWith("bank-donation:")) {
+      // Guild bank donor cards (21 Nov 2026): an officer who switched them off after a card was queued stops it here too.
+      const settings = await prisma.guildSettings.findUnique({ where: { guildId: job.guildId }, select: { guildBankDonationCards: true } });
+      if (settings?.guildBankDonationCards === false) return;
+    }
     const route = payload["route"];
     if (route === "dungeon") {
       const settings = await prisma.guildSettings.findUnique({ where: { guildId: job.guildId }, select: { dungeonChannelId: true, notifyChannelId: true } });
@@ -259,6 +264,28 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
         };
         const base = definition;
         definition = await withCharacterPortrait(base, portraitSourcesFor(prisma, await sharedPortraits(), job.guildId, definition.promotion.character || definition.promotion.name, userId, avatar)).catch(() => base);
+        return { definition, png: await scoreCardPng(definition).catch(() => null) };
+      }
+      // Guild bank donor cards (21 Nov 2026): the items' game icons, and the donor's Armory picture, else the linked member's Discord
+      // avatar, else the card's chest emblem. Best effort: any failure draws the card without them.
+      if (definition?.donation && job.key.startsWith("bank-donation:")) {
+        const { withDonationIcons } = await import("./card-donation.js");
+        const { itemData } = await import("../item-data.js");
+        const base = definition;
+        definition = await withDonationIcons(base, async (itemId) => (await itemData.lookup({ itemId, name: "", verified: true }))?.iconUrl).catch(() => base);
+        const character = definition.donation?.character;
+        if (character && !definition.donation?.combined) {
+          const donorUserId = typeof payload["donorUserId"] === "string" && /^\d{17,20}$/.test(payload["donorUserId"]) ? payload["donorUserId"] : "";
+          const { withCharacterPortrait, portraitSourcesFor } = await import("./character-portrait.js");
+          const { downloadImage } = await import("./card-member.js");
+          const avatar = async () => {
+            if (!donorUserId) return null;
+            const member = await guild.members.fetch(donorUserId).catch(() => null);
+            return member ? await downloadImage(member.displayAvatarURL({ extension: "png", size: 256, forceStatic: true })).catch(() => null) : null;
+          };
+          const withIcons = definition;
+          definition = await withCharacterPortrait(withIcons, portraitSourcesFor(prisma, await sharedPortraits(), job.guildId, character, donorUserId, avatar)).catch(() => withIcons);
+        }
         return { definition, png: await scoreCardPng(definition).catch(() => null) };
       }
       // Duel face-off cards (21 Nov 2026): a round portrait per fighter (Armory picture, else the owner's Discord avatar, else a ring).

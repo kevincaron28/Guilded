@@ -79,6 +79,7 @@ import { handleLinkMoveButton, LINK_MOVE_PREFIX } from "./services/link-conflict
 import { handleCharacterDm } from "./services/dm-character-link.js";
 import { handleInviteDm, handleInviteRequestInteraction, INVITE_REQUEST_PREFIX } from "./services/invite-request.js";
 import { postAllWeeklyGuildBanks } from "./services/guild-bank.js";
+import { sweepBankDonations } from "./services/bank-donations.js";
 import { postAllWeeklyMemberTrends } from "./services/member-trend.js";
 import { runInviteChannelSweeps, scheduleInviteCleanups } from "./services/invite-cleanup.js";
 import { DROP_PREFIX, handleInviteConfirmButton, handleRequesterLeft, KEEP_PREFIX, sweepDepartedRequesters, sweepInviteExpiry } from "./services/invite-expiry.js";
@@ -416,6 +417,8 @@ client.once(Events.ClientReady, (readyClient) => {
   setInterval(() => void postAllWeeklyPromotions(prisma, readyClient.guilds.cache.values(), reportJobError("Weekly promotions")), 60 * 60_000);
   // 9.0, on by default: at most one weekly guild bank summary per server, only when the bank moved.
   setInterval(() => void postAllWeeklyGuildBanks(prisma, readyClient.guilds.cache.values(), reportJobError("Weekly guild bank")), 60 * 60_000);
+  // 21 Nov 2026, on by default: a thank-you card in the WoW chat channel for new guild bank donors (bank-donations.ts).
+  setInterval(() => void sweepBankDonations(prisma, readyClient.guilds.cache, reportJobError("Guild bank donor cards")).catch(reportJobError("Guild bank donor cards")), 5 * 60_000);
   // Officer member-trend card: once a week after the weekly report, officer log channel only, on by default.
   setInterval(() => void postAllWeeklyMemberTrends(prisma, readyClient.guilds.cache.values(), reportJobError("Weekly member trend")), 60 * 60_000);
   // First run a few minutes after start-up (a deploy restarts the hourly clock), then hourly.

@@ -1,5 +1,26 @@
 # Changelog
 
+## 9.5.0 — 22 November 2026
+
+Prepared 22 November 2026. In-game checks: docs/V9_5_0_RELEASE_ACCEPTANCE.md.
+
+Addon:
+- Guild events feed: joins, leaves and rank changes in chat (at most three at a time) and a list with `/guilded events`; on by default, off in Settings (#1253).
+- Smaller saved file: merged guild leftovers drop their stale board copies (#1248).
+- The last English-only lines are translated; layer auto-invite stays off by default (#1258).
+
+Companion:
+- Version 9.5.0 (no functional change).
+
+Phone app 0.5.1:
+- Raid sign-up from the phone (I'm in, Maybe, Can't come) with reminders 24 h, 2 h and 1 h before; the News tab works (#1249, #1252, #1256, #1259).
+
+Bot (already live):
+- French in tu for members, French command names and descriptions, French error messages (#1254, #1257).
+- Discord Linked Roles: your verified WoW character on your Discord profile (#1255).
+- Guild bank donor cards, also for everyone who gave before (#1242, #1244); cards skip game-linked chat channels (#1246).
+- Discord audit fixes: officer log in French, record and achievement cards, recap PvP line, member trend card, gold without empty parts (#1245, #1247); job queue, overlap guards, autocomplete (#1250, #1251).
+
 ## 9.4.8 — 21 November 2026
 
 Published 21 November 2026 (GitHub v9.4.8, website download and installer, bot). In-game checks: docs/V9_4_8_RELEASE_ACCEPTANCE.md.

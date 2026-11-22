@@ -14,7 +14,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../src/database.js", () => ({ prisma: mocks.prisma }));
 vi.mock("../src/permissions.js", () => ({ hasPermission: mocks.hasPermission }));
 vi.mock("../src/commands/context.js", () => ({ requireGuildContext: mocks.context }));
-vi.mock("../src/services/rank-roles.js", () => ({ syncRankRoles: mocks.sync, previewRankRoles: mocks.preview, formatRankRolePreview: () => "PREVIEW TEXT" }));
+vi.mock("../src/services/rank-roles.js", () => ({ syncRankRoles: mocks.sync, previewRankRoles: mocks.preview, formatRankRolePreview: () => "PREVIEW TEXT",
+  formatHeldRemovals: (held?: number, reason?: string | null) => held ? `HELD ${held}: ${reason}` : "" }));
 
 import { executeRankRoles, handleRankRolesButton } from "../src/commands/rank-roles.js";
 
@@ -168,6 +169,20 @@ describe("/mod rankroles", () => {
     const ready = interaction("sync");
     await executeRankRoles(ready as never);
     expect(ready.editReply.mock.calls[0]?.[0].content).toBe("Everyone already has the right rank role.");
+
+    // Removals are listed with the reason, and held removals are explained.
+    mocks.sync.mockResolvedValue({ changes: [{ discordUserId: "u2", add: [], remove: ["officier"], best: { index: 4, name: "Member" } }, { discordUserId: "u3", add: [], remove: ["officier"], left: true }],
+      applied: 0, failed: 0, skipped: null, held: 1, heldReason: "cap" });
+    const losing = interaction("sync");
+    await executeRankRoles(losing as never);
+    const shown = losing.editReply.mock.calls[0]?.[0].content as string;
+    expect(shown).toContain("• <@u2>: −<@&officier> (best rank: Member)");
+    expect(shown).toContain("• <@u3>: −<@&officier> (left the guild)");
+    expect(shown).toContain("HELD 1: cap");
+    mocks.sync.mockResolvedValue({ changes: [], applied: 0, failed: 0, skipped: null, held: 2, heldReason: "partial" });
+    const allHeld = interaction("sync");
+    await executeRankRoles(allHeld as never);
+    expect(allHeld.editReply.mock.calls[0]?.[0].content).toBe("Nobody changes this run.\nHELD 2: partial");
 
     mocks.sync.mockResolvedValue({ changes: [], applied: 0, failed: 0, skipped: "A mapped role no longer exists. Map that rank again." });
     const skipped = interaction("sync", { apply: true });

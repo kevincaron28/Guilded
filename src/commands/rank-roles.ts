@@ -1,7 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags, SlashCommandBuilder, type ButtonInteraction, type ChatInputCommandInteraction, type GuildMember } from "discord.js";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
-import { formatRankRolePreview, previewRankRoles, syncRankRoles } from "../services/rank-roles.js";
+import { formatHeldRemovals, formatRankRolePreview, previewRankRoles, syncRankRoles } from "../services/rank-roles.js";
 import { requireGuildContext } from "./context.js";
 
 export const RANK_ROLES_BUTTON_PREFIX = "rankroles:";
@@ -125,8 +125,13 @@ export async function executeRankRoles(interaction: ChatInputCommandInteraction)
   const result = await syncRankRoles(prisma, interaction.guild, { dryRun: !apply });
   const send = (content: string) => interaction.editReply({ content: content.slice(0, 1990), allowedMentions: { parse: [] } });
   if (result.skipped) { await send(result.skipped); return; }
-  if (!result.changes.length) { await send("Everyone already has the right rank role."); return; }
-  const lines = result.changes.slice(0, 15).map((c) => `• <@${c.discordUserId}>: ${[...c.add.map((r) => `+<@&${r}>`), ...c.remove.map((r) => `−<@&${r}>`)].join(" ")}`);
+  const held = formatHeldRemovals(result.held, result.heldReason);
+  if (!result.changes.length) { await send(held ? `Nobody changes this run.\n${held}` : "Everyone already has the right rank role."); return; }
+  // Removals are listed too (−role, with the reason), so officers see who would lose a role before applying.
+  const why = (c: (typeof result.changes)[number]) => !c.remove.length ? "" : c.left ? " (left the guild)" : ` (best rank: ${c.best?.name ?? c.best?.index ?? "?"})`;
+  const lines = result.changes.slice(0, 15).map((c) => `• <@${c.discordUserId}>: ${[...c.add.map((r) => `+<@&${r}>`), ...c.remove.map((r) => `−<@&${r}>`)].join(" ")}${why(c)}`);
+  if (result.changes.length > 15) lines.push(`• +${result.changes.length - 15} more`);
+  if (held) lines.push(held);
   await send(apply
     ? `Changed ${result.applied} member(s)${result.failed ? `, ${result.failed} failed` : ""}.\n${lines.join("\n")}`
     : `Preview: ${result.changes.length} member(s) would change (nothing was changed). Run again with apply:true.\n${lines.join("\n")}`);

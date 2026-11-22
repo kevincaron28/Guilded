@@ -15,6 +15,7 @@ import { withEdition } from "./services/edition-context.js";
 import { addonName } from "./services/addon-name.js";
 import { characterKey, realmKey } from "../companion/character-identity.mjs";
 import { relayProfessions } from "./services/profession-relay.js";
+import { createLinkedRolesWeb } from "./services/linked-roles-web.js";
 import { retiredAvailabilityRoute, retiredPicturesRoute, retiredToolsRoute } from "./services/retired-pages.js";
 import { autoLinkUnclaimed } from "./services/character-autolink.js";
 import { linkUploaderCharacters, repairMissingLinks } from "./services/upload-linking.js";
@@ -408,7 +409,7 @@ export function createSiteApp(client?: Client) {
   const devices = createDevicePages(prismaDeviceStore(prisma));
   const privacyWeb = createPrivacyWeb(prisma);
   const memberData = createMemberData(memberDataStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")));
-  const routes: WebRoute[] = [retiredToolsRoute, signInPage, retiredPicturesRoute, retiredAvailabilityRoute, devices.route, memberData.route, createRaidProgressWeb(prisma).route, leaderboards.route, liveNewsFeed().route, directory.route, privacyWeb.route, achievementsWeb.route, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route, createMeCharacterActions(prisma, { client }).route];
+  const routes: WebRoute[] = [retiredToolsRoute, signInPage, retiredPicturesRoute, retiredAvailabilityRoute, devices.route, memberData.route, createRaidProgressWeb(prisma).route, leaderboards.route, liveNewsFeed().route, directory.route, privacyWeb.route, achievementsWeb.route, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route, createMeCharacterActions(prisma, { client }).route, createLinkedRolesWeb(prisma, webAuthConfig(config)).route];
   // One basic page (owner, 15 Nov 2026): your characters (read-only), connected devices, your data, recruitment card and applications.
   const meSections: MeSectionInput[] = [
     meSection({ id: "characters", group: "overview", render: charactersMeSection(discordUserId => memberLinkStatus(prisma, discordUserId), meCharacterList(prisma)) }),

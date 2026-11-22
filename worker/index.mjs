@@ -512,7 +512,7 @@ async function route(request, env, ctx) {
     // dungeon leaderboards. Rendered by the bot; the session cookie is for this host only.
     // Inside an edition's section only the public data pages exist (checked above).
     const web = !creator && url.pathname.length <= 200
-      && /^\/(?:auth\/(?:login|callback|logout)|recruitment(?:\/[A-Za-z0-9._~/-]*)?|me(?:\/[A-Za-z0-9._~/-]*)?|players(?:\/[A-Za-z0-9._~/-]*)?|leaderboards(?:\/[A-Za-z0-9._~%/-]*)?)$/.test(pagePath);
+      && /^\/(?:auth\/(?:login|callback|logout|linked-roles(?:\/callback)?)|recruitment(?:\/[A-Za-z0-9._~/-]*)?|me(?:\/[A-Za-z0-9._~/-]*)?|players(?:\/[A-Za-z0-9._~/-]*)?|leaderboards(?:\/[A-Za-z0-9._~%/-]*)?)$/.test(pagePath);
     // The phone app's News tab (GET /news/headlines.json): public headlines and links, read-only, no cookies.
     const newsFeed = !creator && url.pathname === "/news/headlines.json";
     if (!api && !health && !guildPage && !web && !newsFeed) {
@@ -620,7 +620,7 @@ async function route(request, env, ctx) {
         const location = upstream.headers.get("location");
         const redirect = location ? new URL(location, target) : null;
         // Only the initiating auth route may redirect the browser to its provider.
-        if (web && redirect && redirect.origin === "https://discord.com" && redirect.pathname === "/oauth2/authorize" && url.pathname === "/auth/login") {
+        if (web && redirect && redirect.origin === "https://discord.com" && redirect.pathname === "/oauth2/authorize" && (url.pathname === "/auth/login" || url.pathname === "/auth/linked-roles")) {
           return new Response(null, { status: upstream.status, headers: withCookies({ location: redirect.href, "cache-control": "no-store" }, upstream) });
         }
         if (web && request.method === "POST" && url.pathname === "/me/battlenet/start"

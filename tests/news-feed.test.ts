@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { createNewsFeed, parseHeadlines } from "../src/services/news-feed.js";
-import type { WebContext } from "../src/services/web-app.js";
+import { isWebPath, type WebContext } from "../src/services/web-app.js";
+
+describe("the bot web server reaches the news route", () => {
+  it("lists /news/headlines.json among its web paths (the phone app News tab got 404 without it)", () => {
+    expect(isWebPath("/news/headlines.json")).toBe(true);
+    expect(isWebPath("/news/other.json")).toBe(false);
+  });
+});
 
 const xml = `<?xml version="1.0"?><rss version="2.0"><channel><title>Wowhead</title><ttl>30</ttl>
 <item><title><![CDATA[WoW: Forever &amp; Friends]]></title><link>https://www.wowhead.com/news=1/forever</link><pubDate>Fri, 06 Nov 2026 22:18:40 -0600</pubDate><description>FULL ARTICLE TEXT</description></item>

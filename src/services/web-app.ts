@@ -52,7 +52,9 @@ export interface WebAppDeps {
   meSections?: MeSectionInput[];
 }
 
-const PATHS = /^\/(?:auth\/(?:login|callback|logout)|recruitment(?:\/.*)?|me(?:\/.*)?|players(?:\/.*)?|leaderboards(?:\/.*)?)$/;
+// news/headlines.json is the phone app's News tab (news-feed.ts). It was missing here, so that route never ran and the tab always
+// got a 404 (22 Nov 2026).
+const PATHS = /^\/(?:auth\/(?:login|callback|logout)|recruitment(?:\/.*)?|me(?:\/.*)?|players(?:\/.*)?|leaderboards(?:\/.*)?|news\/headlines\.json)$/;
 export const isWebPath = (path: string) => path.length <= 200 && PATHS.test(path);
 const ID = /^[a-z0-9]{20,40}$/;
 const MAX_FORM = 16_000;

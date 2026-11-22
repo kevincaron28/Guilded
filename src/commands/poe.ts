@@ -18,7 +18,7 @@ export const poeCommand = new SlashCommandBuilder().setName("poe").setDescriptio
     .addBooleanOption(option => option.setName("guild").setDescription("Show guild activity instead of only yours")));
 
 export async function executePoe(interaction: ChatInputCommandInteraction): Promise<void> {
-  if (!interaction.guild) { await interaction.reply({ content: "Use this in your server / À utiliser dans votre serveur.", flags: MessageFlags.Ephemeral }); return; }
+  if (!interaction.guild) { await interaction.reply({ content: "Use this in your server / À utiliser dans ton serveur.", flags: MessageFlags.Ephemeral }); return; }
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const context = await requireGuildContext(interaction);
   if (!context) return;
@@ -46,14 +46,14 @@ export async function executePoe(interaction: ChatInputCommandInteraction): Prom
     const box = "```\n" + pair.code + "\n```";
     await interaction.editReply(T(
       `${companion}\n${box}Only for a companion older than 7.2: paste this code there (the current companion has nothing to paste: press **Sign in with Discord** in its window) (one use, expires <t:${Math.floor(pair.expiresAt.getTime() / 1000)}:R>; keep it private).\nAlready connected for WoW? Enable PoE2 in the same companion; no new code needed. Your other companion connections stay active; manage devices on the website.`,
-      `${companion}\n${box}Seulement pour un compagnon plus ancien que 7.2 : collez ce code dedans (le compagnon actuel n'a rien à coller : appuyez sur **Se connecter avec Discord** dans sa fenêtre) (usage unique, expire <t:${Math.floor(pair.expiresAt.getTime() / 1000)}:R>; gardez-le privé).\nDéjà connecté pour WoW ? Activez PoE2 dans le même compagnon; aucun nouveau code nécessaire. Vos autres connexions compagnon restent actives; gérez vos appareils sur le site.`
+      `${companion}\n${box}Seulement pour un compagnon plus ancien que 7.2 : colle ce code dedans (le compagnon actuel n'a rien à coller : appuie sur **Se connecter avec Discord** dans sa fenêtre) (usage unique, expire <t:${Math.floor(pair.expiresAt.getTime() / 1000)}:R>; garde-le privé).\nDéjà connecté pour WoW ? Active PoE2 dans le même compagnon; aucun nouveau code nécessaire. Tes autres connexions compagnon restent actives; gère tes appareils sur le site.`
     ));
     return;
   }
   const embed = new EmbedBuilder().setColor(0xbb9145).setFooter({ text: notice });
   if (sub === "runs") {
     const rows = await service.recent(guildId, memberId, interaction.options.getString("league")?.trim());
-    embed.setTitle(T("PoE2 — Your map visits", "PoE2 — Vos visites de cartes")).setDescription(rows.map(row =>
+    embed.setTitle(T("PoE2 — Your map visits", "PoE2 — Tes visites de cartes")).setDescription(rows.map(row =>
       `**${escapeMarkdown(poeAreaName(row.areaId))}** · ${T("area level", "niveau de zone")} ${row.areaLevel} · ${row.durationSeconds === null ? T("time unknown", "durée inconnue") : `${Math.round(row.durationSeconds / 60)} min`}\n${escapeMarkdown(row.character)} · ${escapeMarkdown(row.league)} · ${row.mode} · <t:${Math.floor(row.startedAt.getTime() / 1000)}:f>`
     ).join("\n\n").slice(0, 4000) || T("No visits yet. /poe status", "Aucune visite. /poe status"));
   } else if (sub === "summary") {
@@ -67,7 +67,7 @@ export async function executePoe(interaction: ChatInputCommandInteraction): Prom
   } else {
     embed.setTitle("PoE2 — Companion").setDescription(T(
       `Tracking: **${settings?.poeTrackingEnabled ? "enabled" : "paused"}**\n1. An officer enables /poe setup enabled:true.\n2. Use /poe pair, or keep your existing companion pairing.\n3. In companion Settings, enable PoE2, choose logs/Client.txt from your PoE2 install and enter your character, league and mode. WoW can be switched off.\n4. Save and start. New map visits appear after the next area change. /poe runs · /poe summary\n\nOnly map timing is shared with your guild. Chat and paths are never uploaded. Change the declared character/league before playing another character. Challenges and reviewed points use /community.`,
-      `Suivi : **${settings?.poeTrackingEnabled ? "activé" : "en pause"}**\n1. Un officier active /poe setup enabled:true.\n2. Utilisez /poe pair ou gardez le jumelage existant.\n3. Dans Settings du compagnon, activez PoE2, choisissez logs/Client.txt de votre installation PoE2 et indiquez personnage, ligue et mode. WoW peut être désactivé.\n4. Save and start. Les nouvelles visites arrivent au prochain changement de zone. /poe runs · /poe summary\n\nSeule la durée des cartes est partagée avec la guilde. Aucune conversation ni chemin de fichier envoyé. Changez le personnage/la ligue déclarés avant de changer de personnage en jeu. Les défis et points révisés utilisent /community.`));
+      `Suivi : **${settings?.poeTrackingEnabled ? "activé" : "en pause"}**\n1. Un officier active /poe setup enabled:true.\n2. Utilise /poe pair ou garde le jumelage existant.\n3. Dans Settings du compagnon, active PoE2, choisis logs/Client.txt de ton installation PoE2 et indique personnage, ligue et mode. WoW peut être désactivé.\n4. Save and start. Les nouvelles visites arrivent au prochain changement de zone. /poe runs · /poe summary\n\nSeule la durée des cartes est partagée avec la guilde. Aucune conversation ni chemin de fichier envoyé. Change le personnage/la ligue déclarés avant de changer de personnage en jeu. Les défis et points révisés utilisent /community.`));
   }
   await interaction.editReply({ embeds: [embed], allowedMentions: { parse: [] } });
 }

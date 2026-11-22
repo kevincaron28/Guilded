@@ -48,7 +48,7 @@ const NOTICE = {
   en: (latest: string, current: string, url: string) =>
     `🔔 **Guilded ${latest} is available.** This bot runs ${current}. Whoever hosts this bot: back up, then update it. Release notes, the addon and the companion installer: ${url}`,
   fr: (latest: string, current: string, url: string) =>
-    `🔔 **Guilded ${latest} est disponible.** Ce bot utilise la version ${current}. La personne qui héberge ce bot : faites une sauvegarde, puis mettez-le à jour. Notes de version, addon et installateur du compagnon : ${url}`
+    `🔔 **Guilded ${latest} est disponible.** Ce bot utilise la version ${current}. La personne qui héberge ce bot : fais une sauvegarde, puis mets-le à jour. Notes de version, addon et installateur du compagnon : ${url}`
 };
 
 type Options = { current?: string; fetchImpl?: typeof fetch; clientId?: string | undefined; enabled?: boolean };

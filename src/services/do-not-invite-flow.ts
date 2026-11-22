@@ -45,7 +45,7 @@ export async function promptDepartures(discordGuild: DiscordGuild | undefined | 
     const text = fresh.length === 1
       ? t(lang, `**${fresh[0]!.name}** left the guild. Add to do-not-invite?`, `**${fresh[0]!.name}** a quitté la guilde. L'ajouter à la liste à ne pas réinviter?`)
       : t(lang, `${fresh.length} people left the guild. Add any of them to do-not-invite?`, `${fresh.length} personnes ont quitté la guilde. En ajouter à la liste à ne pas réinviter?`) + `\n${list}`
-        + (fresh.length > shown.length ? t(lang, `\nOnly the first ${shown.length} have buttons; use /mod dni add for the others.`, `\nSeules les ${shown.length} premières ont des boutons; utilisez /mod dni add pour les autres.`) : "");
+        + (fresh.length > shown.length ? t(lang, `\nOnly the first ${shown.length} have buttons; use /mod dni add for the others.`, `\nSeules les ${shown.length} premières ont des boutons; utilise /mod dni add pour les autres.`) : "");
     await channel.send({
       content: `${text}\n_${t(lang, "Nothing is added unless an officer clicks. Default: one year.", "Rien n'est ajouté sans le clic d'un officier. Par défaut : un an.")}_`, allowedMentions: { parse: [] },
       components: shown.map((row) => new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -108,9 +108,9 @@ export async function executeAppeal(interaction: ChatInputCommandInteraction): P
   const lang = await langOfDiscord(interaction.guildId);
   if (!interaction.guild || !interaction.guildId) { await say("Use this in the guild's Discord server."); return; }
   const mine = await service.forUser(interaction.guildId, interaction.user.id);
-  if (!mine.length) { await say(t(lang, "The officers have nothing recorded for this Discord account here. If you were told otherwise, ask an officer directly.", "Les officiers n'ont rien d'inscrit pour ce compte Discord ici. Si on vous a dit le contraire, écrivez directement à un officier.")); return; }
+  if (!mine.length) { await say(t(lang, "The officers have nothing recorded for this Discord account here. If you were told otherwise, ask an officer directly.", "Les officiers n'ont rien d'inscrit pour ce compte Discord ici. Si on t'a dit le contraire, écris directement à un officier.")); return; }
   const open = mine.filter((entry) => entry.status === "ACTIVE");
-  if (!open.length) { await say(t(lang, "Your appeal is already with the officers. They decide; you will not be pinged here.", "Votre appel est déjà entre les mains des officiers. Ils décident; vous ne serez pas mentionné ici.")); return; }
+  if (!open.length) { await say(t(lang, "Your appeal is already with the officers. They decide; you will not be pinged here.", "Ton appel est déjà entre les mains des officiers. Ils décident; tu ne seras pas mentionné ici.")); return; }
   const message = (interaction.options.getString("message") ?? "").trim().slice(0, 500);
   const seen = new Set<string>();
   let sent = 0;
@@ -130,6 +130,6 @@ export async function executeAppeal(interaction: ChatInputCommandInteraction): P
     }).catch(() => undefined);
     sent++;
   }
-  await say(sent ? t(lang, "Your appeal was sent to the officers. They decide, and they may contact you on Discord.", "Votre appel a été envoyé aux officiers. Ils décident et pourraient vous écrire sur Discord.")
-    : t(lang, "Could not reach the officers' log. Please message an officer directly.", "Impossible de joindre le journal des officiers. Écrivez directement à un officier."));
+  await say(sent ? t(lang, "Your appeal was sent to the officers. They decide, and they may contact you on Discord.", "Ton appel a été envoyé aux officiers. Ils décident et pourraient t'écrire sur Discord.")
+    : t(lang, "Could not reach the officers' log. Please message an officer directly.", "Impossible de joindre le journal des officiers. Écris directement à un officier."));
 }

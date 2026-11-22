@@ -129,7 +129,7 @@ export async function handleCommunityHub(interaction: HubInteraction): Promise<v
   const season = await resolveCommunitySeason(prisma, guild, record.id, actor, id, organizer);
   const T = (en: string, fr: string) => say(lang, en, fr);
   if (season.status !== "ACTIVE" && ["dice", "thanks", "nominate"].includes(action)) {
-    await interaction.editReply({ content: T("This season is archived. Choose an active season.", "Cette saison est archivée. Choisissez une saison en cours."), components: [new ActionRowBuilder<ButtonBuilder>().addComponents(communityHubButton("archives", "none", T("Choose season", "Choisir une saison")))] }); return;
+    await interaction.editReply({ content: T("This season is archived. Choose an active season.", "Cette saison est archivée. Choisis une saison en cours."), components: [new ActionRowBuilder<ButtonBuilder>().addComponents(communityHubButton("archives", "none", T("Choose season", "Choisir une saison")))] }); return;
   }
   if (action === "select") { await interaction.editReply(await communityHubReply(guild, record.id, actor, season, lang)); return; }
   let content: string;
@@ -177,7 +177,7 @@ export async function handleCommunityHub(interaction: HubInteraction): Promise<v
     await postNominationCards(guild, prisma, record.id).catch(() => undefined);
     content = T("Nomination saved for independent officer review.", "Nomination enregistrée pour validation indépendante.");
   } else if (action === "templates") {
-    await interaction.editReply({ content: T("Choose a template, fill its details, then submit to publish. Polls: /organize poll create. Existing Discord events provide optional reminders.", "Choisissez un modèle, remplis les détails, puis envoyez pour publier. Sondages : /organize poll create. Les événements Discord offrent les rappels facultatifs."), components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
+    await interaction.editReply({ content: T("Choose a template, fill its details, then submit to publish. Polls: /organize poll create. Existing Discord events provide optional reminders.", "Choisis un modèle, remplis les détails, puis envoie pour publier. Sondages : /organize poll create. Les événements Discord offrent les rappels facultatifs."), components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
       communityHubButton("template-quiz", season.id, "Quiz").setDisabled(season.game !== "DISCORD"), communityHubButton("template-gaming", season.id, T("Gaming night", "Soirée gaming")), communityHubButton("template-challenge", season.id, T("Cooperative challenge", "Défi coopératif")))] }); return;
   } else if (action.startsWith("create-") && interaction.isModalSubmit()) {
     const kind = action.slice(7);

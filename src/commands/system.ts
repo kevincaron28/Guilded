@@ -13,7 +13,7 @@ export const systemCommand = new SlashCommandBuilder().setName("system").setDesc
 
 /** Deliveries the queue stopped after Discord refused them for about a day (discord-jobs.ts givesUp). */
 export const stoppedDeliveriesLine = (count: number): string =>
-  `${count} post(s) stopped: Discord refused them for a day (channel deleted, no access or DMs closed). Fix it, then retry. / ${count} publication(s) arrêtée(s) : Discord les refuse depuis un jour (salon supprimé, accès refusé ou MP fermés). Corrigez, puis relancez.`;
+  `${count} post(s) stopped: Discord refused them for a day (channel deleted, no access or DMs closed). Fix it, then retry. / ${count} publication(s) arrêtée(s) : Discord les refuse depuis un jour (salon supprimé, accès refusé ou MP fermés). Corrige, puis relance.`;
 
 export const REQUIRED_BOT_PERMISSIONS = ["ViewChannel", "SendMessages", "EmbedLinks", "AttachFiles", "ReadMessageHistory", "ManageChannels", "ManageRoles", "ManageMessages", "PinMessages", "AddReactions", "CreatePublicThreads", "SendMessagesInThreads", "ManageThreads", "Connect", "Speak", "MoveMembers", "KickMembers", "BanMembers", "ModerateMembers", "CreateEvents"] as const;
 
@@ -34,7 +34,7 @@ export async function executeSystem(interaction: ChatInputCommandInteraction): P
   const administrator = me.permissions.has(PermissionFlagsBits.Administrator);
   const permissions = `Administrator: ${administrator ? "enabled — remove after granting the permissions below / activé" : "off / désactivé"}\n${missing.length ? `Missing / Manquantes: ${missing.join(", ")}` : "Required permissions granted / Permissions requises accordées"}`;
   if (sub === "permissions") {
-    await interaction.editReply({ content: `${permissions}\n\n${REQUIRED_BOT_PERMISSIONS.join(", ")}\nPlace the bot's role above roles it manages. Channel overrides can still deny access. / Placez le rôle du bot au-dessus des rôles qu'il gère.`, allowedMentions: { parse: [] } });
+    await interaction.editReply({ content: `${permissions}\n\n${REQUIRED_BOT_PERMISSIONS.join(", ")}\nPlace the bot's role above roles it manages. Channel overrides can still deny access. / Place le rôle du bot au-dessus des rôles qu'il gère.`, allowedMentions: { parse: [] } });
     return;
   }
   const [paired, latest, waiting, pending, delivered, stopped] = await Promise.all([
@@ -60,7 +60,7 @@ export async function executeSystem(interaction: ChatInputCommandInteraction): P
   const commandAccess = blocked === null
     ? "Could not read Integrations settings / Réglages d'intégration illisibles"
     : blocked.length
-      ? `Hidden from / Masquées pour : ${formatBlocked(blocked)}\nGive Raid Leader "Manage Events", or allow these roles in Server Settings > Integrations > Guilded. / Donnez « Gérer les événements » ou autorisez ces rôles dans Intégrations.`
+      ? `Hidden from / Masquées pour : ${formatBlocked(blocked)}\nGive Raid Leader "Manage Events", or allow these roles in Server Settings > Integrations > Guilded. / Donne « Gérer les événements » ou autorise ces rôles dans Intégrations.`
       : "Officer roles can see /lead and /officer / Les rôles d'officier voient /lead et /officer";
   const time = (date: Date | null | undefined) => date ? `<t:${Math.floor(date.getTime() / 1000)}:R>` : "none / aucune";
   const embed = new EmbedBuilder().setColor(pending.length || stopped || channelProblems.length || blocked?.length ? 0xe0a33a : 0x36a863).setTitle("Guilded — Sync / Synchronisation")

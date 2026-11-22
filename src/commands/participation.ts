@@ -33,7 +33,7 @@ export const participationCommand = new SlashCommandBuilder().setName("participa
     limits.forEach(([name, , min, max], index) => settings.addIntegerOption(o => o.setName(name).setDescription(descriptions[index]!).setDescriptionLocalizations({ fr: french[index]! }).setMinValue(min).setMaxValue(max)));
     return settings.addStringOption(o => o.setName("emojis").setDescription("Positive emojis or custom IDs, comma-separated").setDescriptionLocalizations({ fr: "Emojis positifs ou identifiants, séparés par virgules" }).setMaxLength(300));
   })
-  .addSubcommand(sub => seasonOption(sub.setName("status").setDescription("Your progress and guild goal").setDescriptionLocalizations({ fr: "Vos progrès et objectif de guilde" }), false))
+  .addSubcommand(sub => seasonOption(sub.setName("status").setDescription("Your progress and guild goal").setDescriptionLocalizations({ fr: "Tes progrès et objectif de guilde" }), false))
   .addSubcommand(sub => seasonOption(sub.setName("channels").setDescription("Officer: message earning coverage").setDescriptionLocalizations({ fr: "Officiers : couverture des gains de messages" }), false)
     .addIntegerOption(o => o.setName("page").setDescription("Page").setMinValue(1)))
   .addSubcommand(sub => reasonOption(seasonOption(sub.setName("nominate").setDescription("Recognize a helper").setDescriptionLocalizations({ fr: "Reconnaître l'entraide" }))
@@ -65,7 +65,7 @@ export async function executeParticipation(interaction: ChatInputCommandInteract
   let content = "";
   if (sub === "settings") {
     const selected = interaction.options.getChannel("channel"), remove = interaction.options.getBoolean("remove") ?? false;
-    if (remove && !selected) throw new Error("Choisissez un salon / Select a channel.");
+    if (remove && !selected) throw new Error("Choisis un salon / Select a channel.");
     if (selected) {
       const target = await guild.channels.fetch(selected.id);
       if (!target || !supportsParticipationMessages(target.type) || target.id === guild.afkChannelId) throw new Error("Salon de messages ou vocal hors AFK requis / Non-AFK message or voice channel required.");
@@ -92,14 +92,14 @@ export async function executeParticipation(interaction: ChatInputCommandInteract
     const earning = season.status === "ACTIVE" && !!season.participation?.enabled;
     const rows = await participationChannelCoverage(guild, member, rules, earning);
     const page = interaction.options.getInteger("page") ?? 1, pages = Math.max(1, Math.ceil(rows.length / 20));
-    if (page > pages) throw new Error(T(`Choose a page from 1 to ${pages}.`, `Choisissez une page de 1 à ${pages}.`));
+    if (page > pages) throw new Error(T(`Choose a page from 1 to ${pages}.`, `Choisis une page de 1 à ${pages}.`));
     const labels = { enabled: T("eligible", "admissible"), unavailable: T("bot cannot access", "inaccessible au bot"),
       excluded: T("excluded by settings", "exclu par les réglages"), paused: T("earning paused", "gains en pause") };
     content = `**${T("Message earning coverage", "Couverture des gains de messages")} · ${communitySeasonLabel(season, lang)}**\n` +
       `${T("Earning", "Gains")} : ${earning ? T("enabled", "activés") : T("paused", "en pause")} · ${rules.messageDailyCap} ${T("message points/day", "points de messages/jour")} · ${rules.reactionDailyCap} ${T("reaction points/day", "points de réactions/jour")}\n` +
       rows.slice((page - 1) * 20, page * 20).map(row => `<#${row.id}> — ${labels[row.state]}${row.posts ? T(" (posts)", " (publications)") : ""}${row.history ? "" : T("; reaction history unavailable", "; historique des réactions inaccessible")}`).join("\n") +
-      `\nPage ${page}/${pages}\n` + T("Only channels you can view are listed. All-channel mode includes accessible public/private threads and forum/media posts. Private threads require existing membership or moderation access; the bot never joins automatically. Restricted lists match exact channel IDs, not future child threads.", "Seuls les salons que vous pouvez voir sont listés. Le mode tous salons inclut les fils publics/privés accessibles et les publications de forum/média. Les fils privés exigent un accès existant ou de modération; le bot ne les rejoint pas automatiquement. Les listes restreintes visent les identifiants exacts, pas les futurs fils.") +
-      `\n` + T(`1 message point per 5 minutes across all channels; daily caps, season audience, 7-day account age and ${rules.minimumMemberDays}-day membership still apply. Bots, webhooks and system messages do not earn. Use /participation status for your progress.`, `1 point de message par 5 minutes, tous salons confondus; plafonds, audience de saison, compte de 7 jours et présence de ${rules.minimumMemberDays} jours restent requis. Les bots, webhooks et messages système ne rapportent rien. /participation status affiche vos progrès.`) +
+      `\nPage ${page}/${pages}\n` + T("Only channels you can view are listed. All-channel mode includes accessible public/private threads and forum/media posts. Private threads require existing membership or moderation access; the bot never joins automatically. Restricted lists match exact channel IDs, not future child threads.", "Seuls les salons que tu peux voir sont listés. Le mode tous salons inclut les fils publics/privés accessibles et les publications de forum/média. Les fils privés exigent un accès existant ou de modération; le bot ne les rejoint pas automatiquement. Les listes restreintes visent les identifiants exacts, pas les futurs fils.") +
+      `\n` + T(`1 message point per 5 minutes across all channels; daily caps, season audience, 7-day account age and ${rules.minimumMemberDays}-day membership still apply. Bots, webhooks and system messages do not earn. Use /participation status for your progress.`, `1 point de message par 5 minutes, tous salons confondus; plafonds, audience de saison, compte de 7 jours et présence de ${rules.minimumMemberDays} jours restent requis. Les bots, webhooks et messages système ne rapportent rien. /participation status affiche tes progrès.`) +
       `\n${config.MESSAGE_CONTENT_INTENT ? T("Short/duplicate message filtering is enabled.", "Le filtrage des messages courts/répétés est activé.") : T("Message text access is off; timing and caps still apply.", "L’accès au texte est désactivé; délais et plafonds restent actifs.")}`;
   } else if (sub === "status") {
     const summary = await service.summary(context.guildId, seasonId, actor);

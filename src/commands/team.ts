@@ -64,7 +64,7 @@ export const teamCommand = new SlashCommandBuilder().setName("team").setDescript
 
 const leaderActions = new Set(["create", "member", "schedule", "session", "attendance", "lineup", "archive"]);
 async function actor(i: ChatInputCommandInteraction | ButtonInteraction) {
-  if (!i.guild) throw new Error("Use this in your server / Utilisez ceci dans votre serveur.");
+  if (!i.guild) throw new Error("Use this in your server / Utilise ceci dans ton serveur.");
   return i.guild.members.fetch(i.user.id);
 }
 
@@ -93,7 +93,7 @@ export async function executeTeam(i: ChatInputCommandInteraction) {
       goal: i.options.getString("goal"), schedule: i.options.getString("schedule", true), timezone: i.options.getString("timezone") ?? settings?.timezone ?? "America/Toronto",
       durationMinutes: i.options.getInteger("minutes") ?? 120, tanks: i.options.getInteger("tanks"), healers: i.options.getInteger("healers"), dps: i.options.getInteger("dps") });
     await fillTeamSessions(prisma, ctx.guildId, core.id);
-    await i.editReply({ content: t(`Created ${core.name}. Add regulars and substitutes with /team member. Posts are queued in <#${core.channelId}>.`, `${core.name} créé. Ajoutez les titulaires et remplaçants avec /team member. Publications en attente dans <#${core.channelId}>.`), allowedMentions: { parse: [] } });
+    await i.editReply({ content: t(`Created ${core.name}. Add regulars and substitutes with /team member. Posts are queued in <#${core.channelId}>.`, `${core.name} créé. Ajoute les titulaires et remplaçants avec /team member. Publications en attente dans <#${core.channelId}>.`), allowedMentions: { parse: [] } });
   } else if (sub === "list") {
     const teams = await prisma.activityCore.findMany({ where: { guildId: ctx.guildId, archived: false }, orderBy: { name: "asc" } });
     const visible = [];
@@ -126,7 +126,7 @@ export async function executeTeam(i: ChatInputCommandInteraction) {
         await updateTeamSchedule(prisma, ctx.guildId, core.id, i.options.getString("schedule", true), i.options.getString("timezone") ?? core.timezone, i.options.getInteger("minutes") ?? core.durationMinutes);
         await fillTeamSessions(prisma, ctx.guildId, core.id);
       } else await archiveTeam(prisma, ctx.guildId, core.id);
-      await i.editReply({ content: sub === "schedule" ? t("Schedule saved. Published sessions keep their times; cancel individual sessions with /team session.", "Horaire enregistré. Les séances publiées gardent leur heure; annulez-les avec /team session.") : t("Team updated. Posts are queued for refresh.", "Core mis à jour. Actualisation des messages en attente.") });
+      await i.editReply({ content: sub === "schedule" ? t("Schedule saved. Published sessions keep their times; cancel individual sessions with /team session.", "Horaire enregistré. Les séances publiées gardent leur heure; annule-les avec /team session.") : t("Team updated. Posts are queued for refresh.", "Core mis à jour. Actualisation des messages en attente.") });
     }
   } else {
     const id = i.options.getString("session", true);

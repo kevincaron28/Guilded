@@ -146,12 +146,12 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
     const fr = settings?.language === "fr";
     const say = (en: string, french: string) => fr ? french : en;
     await interaction.editReply({
-      content: say(`Core **${core.name}** created. Add your players with \`/core add\`.`, `Core **${core.name}** créé. Ajoutez vos joueurs avec \`/core add\`.`)
+      content: say(`Core **${core.name}** created. Add your players with \`/core add\`.`, `Core **${core.name}** créé. Ajoute tes joueurs avec \`/core add\`.`)
         + (core.weeklySchedule ? say(`
 📅 ${created.length} raid(s) prepared for the next 6 days. Schedule: **${core.schedule}** (${core.weeklyTimezone}). Next week is added automatically. Change the schedule with \`/core edit\`.`,
           `
-📅 ${created.length} raid(s) préparé(s) pour les 6 prochains jours. Horaire : **${core.schedule}** (${core.weeklyTimezone}). La prochaine semaine s'ajoute automatiquement. Modifiez l'horaire avec \`/core edit\`.`) : "")
-        + (!core.weeklySchedule ? say(` Set the automatic schedule in \`/core edit\`, or create a raid with \`/lead create core:${core.name}\`.`, ` Configure l'horaire automatique dans \`/core edit\`, ou créez un raid avec \`/lead create core:${core.name}\`.`) : "")
+📅 ${created.length} raid(s) préparé(s) pour les 6 prochains jours. Horaire : **${core.schedule}** (${core.weeklyTimezone}). La prochaine semaine s'ajoute automatiquement. Modifie l'horaire avec \`/core edit\`.`) : "")
+        + (!core.weeklySchedule ? say(` Set the automatic schedule in \`/core edit\`, or create a raid with \`/lead create core:${core.name}\`.`, ` Configure l'horaire automatique dans \`/core edit\`, ou crée un raid avec \`/lead create core:${core.name}\`.`) : "")
         + (made?.categoryId ? say(` Its channels are ready${made.chatChannelId ? ` (<#${made.chatChannelId}>)` : ""}.`, ` Ses salons sont prêts${made.chatChannelId ? ` (<#${made.chatChannelId}>)` : ""}.`) : "")
         + (discord.error ? say(` Its channels could not be made: ${discord.error} It uses the shared channels until then (\`/core edit\` > Create channels & role).`, ` Ses salons n'ont pas pu être créés : ${discord.error} Il utilise les salons communs en attendant (\`/core edit\` > Créer salons et rôle).`) : "")
     });
@@ -241,7 +241,7 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
     const pool = interaction.options.getString("pool");
     if (settings?.coreLootOnly) {
       if (pool === "shared") throw new Error("Chaque core garde ses propres EP/GP : le pool partagé est désactivé.");
-      if (interaction.options.getString("loot_mode") === "DEFAULT") throw new Error("Choisissez le système de butin de ce core : GP bids, council, reserves ou priority.");
+      if (interaction.options.getString("loot_mode") === "DEFAULT") throw new Error("Choisis le système de butin de ce core : GP bids, council, reserves ou priority.");
       data["separatePool"] = true;
       if (data["lootMode"] === null) data["lootMode"] = core.lootMode ?? settings.lootMode;
     }

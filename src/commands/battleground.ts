@@ -129,7 +129,7 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
     const posted = enabled ? await updateBgLadder(i.guild) : false;
     await i.editReply({ content: enabled
       ? t(`Battleground ladder ${posted ? "posted" : "on; it appears once the ladder channel exists (/setup)"}. It is edited in place, separate from the duel ladder.`, `Classement des champs de bataille ${posted ? "publié" : "activé ; il apparaîtra quand le salon du classement existera (/setup)"}. Il est modifié sur place, distinct de celui des duels.`)
-      : t("Battleground ladder off. The existing message stays; delete it if you wish.", "Classement des champs de bataille désactivé. Le message existant reste ; supprimez-le si vous le souhaitez."), allowedMentions: { parse: [] } }); return;
+      : t("Battleground ladder off. The existing message stays; delete it if you wish.", "Classement des champs de bataille désactivé. Le message existant reste ; supprime-le si tu le souhaites."), allowedMentions: { parse: [] } }); return;
   }
   if (sub === "world") {
     const week = await loadWorldPvpExtras(prisma, ctx.guildId);
@@ -142,7 +142,7 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
       await prisma.guildSettings.update({ where: { guildId: ctx.guildId }, data: { [extra.column]: enabled, ...(extra.value === "recap" && enabled ? { pvpRecapLastWeek: weekKeyOf(new Date()) - 1 } : {}) } });
       if (enabled) await updateBgLadder(i.guild);
       await i.editReply({ content: enabled
-        ? t("On: " + extra.label + ". On by default; switch it off with enabled:false. It appears on the ladder message and in /bg world; the weekly recap goes to the PvP channel.", "Activé : " + extra.labelFr + ". Activé par défaut ; désactivez-le avec enabled:false. Il apparaît sur le message du classement et dans /bg world ; le récap hebdo va dans le salon JcJ.")
+        ? t("On: " + extra.label + ". On by default; switch it off with enabled:false. It appears on the ladder message and in /bg world; the weekly recap goes to the PvP channel.", "Activé : " + extra.labelFr + ". Activé par défaut ; désactive-le avec enabled:false. Il apparaît sur le message du classement et dans /bg world ; le récap hebdo va dans le salon JcJ.")
         : t("Off: " + extra.label + ".", "Désactivé : " + extra.labelFr + "."), allowedMentions: { parse: [] } }); return;
     }
   }
@@ -158,7 +158,7 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
     const enabled = command?.options.getBoolean("enabled", true) ?? false;
     await prisma.guildSettings.update({ where: { guildId: ctx.guildId }, data: { pvpModuleEnabled: enabled } });
     await i.editReply({ content: enabled
-      ? t("PvP channels on (the default). Run /setup and press Create missing channels: it adds one PvP category (groups, results, ladder) and adopts battleground channels you already have. Nothing is posted until then.", "Salons JcJ activés (par défaut). Lancez /setup et appuyez sur Créer les salons manquants : une catégorie JcJ (groupes, résultats, classement) est ajoutée et vos salons de champs de bataille existants sont repris. Rien n'est publié avant.")
+      ? t("PvP channels on (the default). Run /setup and press Create missing channels: it adds one PvP category (groups, results, ladder) and adopts battleground channels you already have. Nothing is posted until then.", "Salons JcJ activés (par défaut). Lance /setup et appuie sur Créer les salons manquants : une catégorie JcJ (groupes, résultats, classement) est ajoutée et tes salons de champs de bataille existants sont repris. Rien n'est publié avant.")
       : t("PvP channels off. Existing channels and boards stay as they are.", "Salons JcJ désactivés. Les salons et tableaux existants restent en place."), allowedMentions: { parse: [] } }); return;
   }
   if (sub === "group-finder") {
@@ -171,12 +171,12 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
   if (sub === "duel-board") {
     const enabled = command?.options.getBoolean("enabled", true) ?? false;
     const settings = await prisma.guildSettings.findUniqueOrThrow({ where: { guildId: ctx.guildId }, select: { duelBoardChannelId: true } });
-    if (enabled && !settings.duelBoardChannelId) { await i.editReply({ content: t("The duel ladder channel does not exist yet: run /setup and press Create missing channels.", "Le salon du classement des duels n'existe pas encore : lancez /setup et appuyez sur Créer les salons manquants.") }); return; }
+    if (enabled && !settings.duelBoardChannelId) { await i.editReply({ content: t("The duel ladder channel does not exist yet: run /setup and press Create missing channels.", "Le salon du classement des duels n'existe pas encore : lance /setup et appuie sur Créer les salons manquants.") }); return; }
     await prisma.guildSettings.update({ where: { guildId: ctx.guildId }, data: { duelBoardEnabled: enabled } });
     const posted = enabled ? await updateDuelBoard(i.guild) : false;
     await i.editReply({ content: enabled
       ? t(`Live duel board ${posted ? "posted" : "saved; it appears on the next refresh"} in <#${settings.duelBoardChannelId}>. It is edited in place, never re-posted.`, `Tableau des duels ${posted ? "publié" : "enregistré ; il apparaîtra au prochain rafraîchissement"} dans <#${settings.duelBoardChannelId}>. Il est modifié sur place, jamais republié.`)
-      : t("Live duel board off. The existing message stays; delete it if you wish.", "Tableau des duels désactivé. Le message existant reste ; supprimez-le si vous le souhaitez."), allowedMentions: { parse: [] } }); return;
+      : t("Live duel board off. The existing message stays; delete it if you wish.", "Tableau des duels désactivé. Le message existant reste ; supprime-le si tu le souhaites."), allowedMentions: { parse: [] } }); return;
   }
   if (sub === "season-cards") {
     const enabled = command?.options.getBoolean("enabled", true) ?? false;
@@ -209,13 +209,13 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
       await i.editReply({ embeds: [embed], ...(png ? { files: [new AttachmentBuilder(png, { name: "match.png" })] } : {}), allowedMentions: { parse: [] } }); return;
     }
     const description = rows.length ? rows.map(row => `${escapeMarkdown(row.id)} · ${escapeMarkdown(row.gameEdition)} · ${escapeMarkdown(row.mode)} · ${escapeMarkdown(row.bracket)}\n<t:${Math.floor(row.endedAt.getTime() / 1000)}:f> · ${row.outcome} · ${row.status}`).join("\n\n")
-      : t("No personal reports. The paired Companion uploads your postmatch reports automatically.", "Aucun rapport personnel. Le Compagnon lié importe vos rapports après match automatiquement.");
+      : t("No personal reports. The paired Companion uploads your postmatch reports automatically.", "Aucun rapport personnel. Le Compagnon lié importe tes rapports après match automatiquement.");
     await i.editReply({ embeds: [new EmbedBuilder().setTitle(t("My recent reports (up to 25)", "Mes rapports récents (25 maximum)")).setDescription(description.slice(0, 4000))
       .setFooter({ text: t("Private · /bg result report:<ID> · /bg correct report:<ID> reason:<reason>", "Privé · /bg result report:<ID> · /bg correct report:<ID> reason:<motif>") })], allowedMentions: { parse: [] } }); return;
   }
   if (sub === "correct") {
     await correctBattlegroundReport(prisma, ctx.guildId, ctx.memberId, text("report", true), text("reason", true));
-    await i.editReply({ content: t("Your report is withdrawn from statistics. The correction is retained in your private history.", "Votre rapport est retiré des statistiques. La correction reste dans votre historique privé."), allowedMentions: { parse: [] } }); return;
+    await i.editReply({ content: t("Your report is withdrawn from statistics. The correction is retained in your private history.", "Ton rapport est retiré des statistiques. La correction reste dans ton historique privé."), allowedMentions: { parse: [] } }); return;
   }
   if (sub === "stats") {
     const mode = text("mode"), bracket = text("bracket");
@@ -247,8 +247,8 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
     const scoreOf = (row: (typeof standings)[number]) => mode === "points" ? `${row.score} pts` : row.placement ? t(`placement ${row.placement.duels}/${row.placement.needDuels}`, `placement ${row.placement.duels}/${row.placement.needDuels}`) : showRating(row.score);
     const lines = standings.map((row) => `**${row.rank ?? "·"}.** ${escapeMarkdown(row.name)} — ${scoreOf(row)} · ${row.wins}${t("W", "V")} ${row.losses}${t("L", "D")} (${percent(row.winRate)}) · ${streakText(row.streak, fr ? "fr" : "en")}`);
     await i.editReply({ embeds: [new EmbedBuilder().setTitle(t("Guild duel leaderboard", "Classement des duels de la guilde"))
-      .setDescription(lines.length ? lines.join("\n") : t("No duel recorded yet. Duel a guildmate with the Guilded addon and companion on.", "Aucun duel enregistré. Affrontez un membre de la guilde avec l'addon et le compagnon Guilded."))
-      .setFooter({ text: mode === "rating" && season ? `${duels} ${t("counted duels", "duels comptés")} · ${ratingFooter(fr ? "fr" : "en", ratingSeasonName(season.id, fr ? "fr" : "en"), startsAt)}`.slice(0, 2000) : t(`${duels} counted duels · ${guild.gameEdition} · score: 10 per win, +2 per level the opponent is above you, -2 per level below (0-20) · no rewards`, `${duels} duels comptés · ${guild.gameEdition} · score : 10 par victoire, +2 par niveau de l'adversaire au-dessus de vous, -2 en dessous (0-20) · aucune récompense`) })], allowedMentions: { parse: [] } }); return;
+      .setDescription(lines.length ? lines.join("\n") : t("No duel recorded yet. Duel a guildmate with the Guilded addon and companion on.", "Aucun duel enregistré. Affronte un membre de la guilde avec l'addon et le compagnon Guilded."))
+      .setFooter({ text: mode === "rating" && season ? `${duels} ${t("counted duels", "duels comptés")} · ${ratingFooter(fr ? "fr" : "en", ratingSeasonName(season.id, fr ? "fr" : "en"), startsAt)}`.slice(0, 2000) : t(`${duels} counted duels · ${guild.gameEdition} · score: 10 per win, +2 per level the opponent is above you, -2 per level below (0-20) · no rewards`, `${duels} duels comptés · ${guild.gameEdition} · score : 10 par victoire, +2 par niveau de l'adversaire au-dessus de toi, -2 en dessous (0-20) · aucune récompense`) })], allowedMentions: { parse: [] } }); return;
   }
   if (sub === "panel") {
     await i.editReply({ components: [battlegroundPanel(fr, ctx.guildId), battlegroundRecordPanel(fr, ctx.guildId)], embeds: [new EmbedBuilder().setTitle(t("Battlegrounds", "Champs de bataille")).setDescription(t(
@@ -260,7 +260,7 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
     const channel = await requireTeamChannel(i.guild, command?.options.getChannel("channel", true).id ?? input?.channelId ?? i.channelId ?? "", actor);
     if (!normalRealm()) throw new Error(t("Battleground groups are off on Hardcore realms.", "Les groupes de champs de bataille sont désactivés sur les royaumes Hardcore."));
     const start = text("start", true);
-    if (!/T.*(?:Z|[+-]\d{2}:\d{2})$/.test(start)) throw new Error(t("Include the time zone offset (for example 2026-11-20T20:00-05:00).", "Incluez le décalage horaire (par exemple 2026-11-20T20:00-05:00)."));
+    if (!/T.*(?:Z|[+-]\d{2}:\d{2})$/.test(start)) throw new Error(t("Include the time zone offset (for example 2026-11-20T20:00-05:00).", "Inclus le décalage horaire (par exemple 2026-11-20T20:00-05:00)."));
     const guild = await prisma.guild.findUniqueOrThrow({ where: { id: ctx.guildId }, select: { gameEdition: true } });
     const mode = text("mode", true);
     const session = await createBattleground(prisma, ctx.guildId, {
@@ -287,8 +287,8 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
     const finder = (await loadPvpGroups(prisma, ctx.guildId, i.guild.id, sub === "mine" ? ctx.memberId : null)).slice(0, 5).map(group => pvpGroupLine(group, fr ? "fr" : "en"));
     await i.editReply(visible.length || finder.length ? { embeds: [new EmbedBuilder().setTitle(t("Upcoming groups", "Groupes à venir")).setDescription([...finder, ...visible.map(s => `${escapeMarkdown(s.core.name)} · <t:${Math.floor(s.scheduledAt.getTime() / 1000)}:F>\n/bg view session:${s.id}`)].join("\n\n").slice(0, 4000))], allowedMentions: { parse: [] } }
       : { content: sub === "mine"
-        ? t("You have not joined any groups. Press Who's looking to find one, or Create to start your own.", "Vous n'avez rejoint aucun groupe. Appuyez sur Qui cherche pour en trouver un, ou sur Créer pour lancer le vôtre.")
-        : t("No open groups yet. Press Create to start one; leaders can also plan a session with /bg create.", "Aucun groupe ouvert pour le moment. Appuyez sur Créer pour en lancer un ; les responsables peuvent aussi planifier une séance avec /bg create.") });
+        ? t("You have not joined any groups. Press Who's looking to find one, or Create to start your own.", "Tu n'as rejoint aucun groupe. Appuie sur Qui cherche pour en trouver un, ou sur Créer pour lancer le tien.")
+        : t("No open groups yet. Press Create to start one; leaders can also plan a session with /bg create.", "Aucun groupe ouvert pour le moment. Appuie sur Créer pour en lancer un ; les responsables peuvent aussi planifier une séance avec /bg create.") });
     return;
   }
   const id = text("session", true);
@@ -330,10 +330,10 @@ export function battlegroundCreateModal(mode: string, faction: string, fr: boole
 export function battlegroundJoinModal(fr: boolean, guildId: string) {
   return new ModalBuilder().setCustomId(`${BG_PREFIX}${guildId}:join-form`).setTitle(fr ? "Rejoindre un groupe" : "Join a group")
     .addComponents(bgField("session", fr ? "ID de séance (/bg upcoming)" : "Session ID (/bg upcoming)", "c...", 40),
-      bgField("character", fr ? "Votre personnage-royaume" : "Your character-realm", "Name-Realm", 120),
+      bgField("character", fr ? "Ton personnage-royaume" : "Your character-realm", "Name-Realm", 120),
       bgField("role", fr ? "Rôle : TANK, HEALER ou DPS" : "Role: TANK, HEALER or DPS", "DPS", 6),
       bgField("faction", "Faction : Alliance / Horde", "Alliance", 8),
-      bgField("normal", fr ? "Sans Hardcore : écrivez normal" : "Not Hardcore: type normal", "normal", 6));
+      bgField("normal", fr ? "Sans Hardcore : écris normal" : "Not Hardcore: type normal", "normal", 6));
 }
 
 export function battlegroundFormInput(i: Pick<ModalSubmitInteraction, "customId" | "fields" | "channelId">): BgInput {

@@ -242,7 +242,7 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
 
   if (step === 0) {
     embed.setDescription([
-      "🗣️ **Language / Langue** — choose with the buttons below / choisissez avec les boutons ci-dessous. Roles, channels and messages will use it. / Les rôles, salons et messages l'utiliseront.",
+      "🗣️ **Language / Langue** — choose with the buttons below / choisis avec les boutons ci-dessous. Roles, channels and messages will use it. / Les rôles, salons et messages l'utiliseront.",
       "",
       T("This takes about **2 minutes**. Every step is buttons and menus — nothing to type."),
       "",
@@ -475,7 +475,7 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
   if (step === BG_SETUP_STEP) {
     const fr = lang === "fr";
     embed.setTitle(fr ? "JcJ — module facultatif" : "Battlegrounds — optional module").setDescription(fr
-      ? "Installer/réparer crée uniquement les salons manquants et actualise les panneaux statiques. Les salons existants gardent leurs accès et leur historique. Sans Gérer les salons, choisissez les salons ci-dessous. Aucun enregistrement, consentement, classement ou envoi automatique activé."
+      ? "Installer/réparer crée uniquement les salons manquants et actualise les panneaux statiques. Les salons existants gardent leurs accès et leur historique. Sans Gérer les salons, choisis les salons ci-dessous. Aucun enregistrement, consentement, classement ou envoi automatique activé."
       : "Install/repair creates only missing channels and updates static panels. Existing channels retain access and history. Without Manage Channels, select the existing channels below. No capture, consent, ranking or automatic posting is enabled.");
     components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
       button("bg-install", fr ? "Installer / réparer les panneaux" : "Install / repair panels", ButtonStyle.Success),
@@ -1254,7 +1254,7 @@ export async function greetNewGuild(guild: DiscordGuild, lite = false): Promise<
     embeds: [new EmbedBuilder().setTitle(`${BRAND.emoji} Thanks for adding ${BRAND.name}!`).setColor(BRAND.color)
       // The server's language is not chosen yet at this point, so both languages.
       .setDescription("A server admin should run **`/setup start`** now — it's a 2-minute, click-through guide (no typing). You pick English or Français on its first screen.\n\n"
-        + "Un administrateur devrait lancer **`/setup start`** maintenant — un guide de 2 minutes, avec des boutons (rien à écrire). Vous choisirez English ou Français sur le premier écran.\n\n`/help`"
+        + "Un administrateur devrait lancer **`/setup start`** maintenant — un guide de 2 minutes, avec des boutons (rien à écrire). Tu choisiras English ou Français sur le premier écran.\n\n`/help`"
         + (lite ? `\n\n**${BRAND.name} Lite**: ${LITE_SUMMARY.en}\n${LITE_SUMMARY.fr}` : ""))]
   }).catch(() => undefined);
 }

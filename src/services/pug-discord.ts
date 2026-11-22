@@ -35,7 +35,7 @@ export function pugPostPayload(request: RequestView, signups: { role: string; st
   const want: PugCounts = { TANK: request.wantTank, HEALER: request.wantHealer, DPS: request.wantDps };
   const open = openCounts(request, signups);
   const embed = new EmbedBuilder().setColor(0xe67e22)
-    .setAuthor({ name: pt(lang, "🌐 OTHER GUILD'S RAID — not yours", "🌐 RAID D'UNE AUTRE GUILDE — pas la vôtre") })
+    .setAuthor({ name: pt(lang, "🌐 OTHER GUILD'S RAID — not yours", "🌐 RAID D'UNE AUTRE GUILDE — pas la tienne") })
     .setTitle(escapeMarkdown(request.raidTitle).slice(0, 200))
     .setDescription(pt(lang, `**${escapeMarkdown(request.guild.name)}** is looking for PUGs. Their officers approve every sign-up.`, `**${escapeMarkdown(request.guild.name)}** cherche des joueurs externes. Ses officiers approuvent chaque inscription.`))
     .addFields(
@@ -117,7 +117,7 @@ export function pugNoticePayload(request: RequestView & { status: string }, sign
       { name: pt(lang, `Waiting (${pending.length})`, `En attente (${pending.length})`), value: pending.slice(0, 8).map(line).join("\n").slice(0, 1000) || "—" },
       { name: pt(lang, `Accepted guests (${accepted.length})`, `Invités acceptés (${accepted.length})`), value: accepted.map(line).join("\n").slice(0, 1000) || "—" }
     )
-    .setFooter({ text: pt(lang, "Guests are not on your roster or server automatically: invite accepted players in game.", "Les invités ne rejoignent ni votre liste ni votre serveur automatiquement : invitez-les en jeu.") });
+    .setFooter({ text: pt(lang, "Guests are not on your roster or server automatically: invite accepted players in game.", "Les invités ne rejoignent ni ta liste ni ton serveur automatiquement : invite-les en jeu.") });
   const buttons: ButtonBuilder[] = [];
   if (request.status === "OPEN") {
     if (pending.length) buttons.push(new ButtonBuilder().setCustomId(`${PUG_PREFIX}rv:${request.id}`).setStyle(ButtonStyle.Primary).setLabel(pt(lang, "Review guests", "Examiner")));

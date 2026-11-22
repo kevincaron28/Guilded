@@ -43,7 +43,7 @@ export async function dispatchGroupWatches(client: Client, database: PrismaClien
           send: async (userId, current) => {
             const channel = await guild.channels.fetch(current.channelId);
             if (channel?.type !== ChannelType.GuildText) throw new Error("Target channel unavailable");
-            const text = setting.language === "fr" ? "Une place correspond à vos préférences" : "An opening matches your preferences";
+            const text = setting.language === "fr" ? "Une place correspond à tes préférences" : "An opening matches your preferences";
             const message = await channel.send({ content: `<@${userId}> ${text}: https://discord.com/channels/${guild.id}/${current.channelId}/${current.messageId}`,
               allowedMentions: { users: [userId], roles: [], parse: [] } });
             return message.id;

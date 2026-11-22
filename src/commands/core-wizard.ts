@@ -228,7 +228,7 @@ export async function runCoreWizard(interaction: ChatInputCommandInteraction): P
         await i.deferUpdate();
         const chosen = i.values[0] ?? "DEFAULT";
         const settings = await guildService.getSettings(guildId);
-        if (settings?.coreLootOnly && chosen === "DEFAULT") throw new Error("Choisissez la méthode de butin de ce core.");
+        if (settings?.coreLootOnly && chosen === "DEFAULT") throw new Error("Choisis la méthode de butin de ce core.");
         await prisma.raidCore.update({ where: { id: coreId }, data: { lootMode: chosen === "DEFAULT" ? null : asLootMode(chosen), ...(settings?.coreLootOnly ? { separatePool: true } : {}) } });
         await interaction.editReply(await rulesStep(coreId, guildId, chosen === "DEFAULT" ? "Loot follows the guild again." : `Loot in this core: ${LOOT_MODE_LABEL[asLootMode(chosen)]}.`));
         return;

@@ -38,7 +38,7 @@ export async function executeAutomation(i: ChatInputCommandInteraction) {
     if (action !== "status") {
       const old = recurringScheduleSchema.safeParse(plan?.settings);
       const clock = i.options.getString("time");
-      if (clock && !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(clock)) throw new Error("Use HH:mm / Utilisez HH:mm.");
+      if (clock && !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(clock)) throw new Error("Use HH:mm / Utilise HH:mm.");
       const quiet = watchWindow(i.options.getString("quiet") ?? (old.success ? `${formatMinute(old.data.quietStart)}-${formatMinute(old.data.quietEnd)}` : "22:00-08:00"));
       plan = await configureRecap(prisma, ctx.guildId, ctx.memberId, {
         timezone: i.options.getString("timezone") ?? (old.success ? old.data.timezone : settings?.timezone ?? "America/Toronto"),
@@ -52,10 +52,10 @@ export async function executeAutomation(i: ChatInputCommandInteraction) {
       const schedule = recurringScheduleSchema.parse(plan.settings);
       content += `\n${scheduleText(schedule, fr)}\n${t("Last delivery", "Dernier envoi")}: ${plan.status}${plan.lastAttemptAt ? ` · <t:${Math.floor(plan.lastAttemptAt.getTime() / 1000)}:f>` : ""}`;
     }
-    content += "\n" + t("One private DM per week, only to you. Pause: /automation recap action:off. Uncertain deliveries are held, never blindly resent.", "Un MP par semaine, seulement pour vous. Pause : /automation recap action:off. Un envoi incertain n'est jamais renvoyé automatiquement.");
+    content += "\n" + t("One private DM per week, only to you. Pause: /automation recap action:off. Uncertain deliveries are held, never blindly resent.", "Un MP par semaine, seulement pour toi. Pause : /automation recap action:off. Un envoi incertain n'est jamais renvoyé automatiquement.");
   } else if (sub === "question") {
     let plan = await prisma.weeklyQuestionPlan.findUnique({ where: { guildId: ctx.guildId } });
-    if (!plan) throw new Error("Save /organize poll weekly-preview first / Enregistrez d'abord /organize poll weekly-preview.");
+    if (!plan) throw new Error("Save /organize poll weekly-preview first / Enregistre d'abord /organize poll weekly-preview.");
     if (action === "off") {
       await configureQuestionAutomation(prisma, ctx.guildId, i.user.id, false, { start: 1320, end: 480 });
       await i.editReply({ content: t("Weekly question automation paused.", "Publication automatique de la question suspendue.") });
@@ -73,7 +73,7 @@ export async function executeAutomation(i: ChatInputCommandInteraction) {
   } else {
     if (action === "on") {
       const channelId = i.options.getChannel("channel")?.id;
-      if (!channelId) throw new Error("Choose the destination channel / Choisissez le salon.");
+      if (!channelId) throw new Error("Choose the destination channel / Choisis le salon.");
       if (!await automationChannelAccess(i.guild, i.user.id, channelId)) throw new Error("Channel permission unavailable / Accès au salon indisponible.");
       await prisma.guildSettings.update({ where: { guildId: ctx.guildId }, data: { targetedAlertsEnabled: true, targetedAlertsChannelId: channelId, targetedAlertsAutomationApprovedBy: i.user.id } });
     } else if (action === "off") {

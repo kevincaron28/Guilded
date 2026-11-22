@@ -17,7 +17,7 @@ export const retiredToolsRoute: WebRoute = async (ctx, kit) => {
   if (!RETIRED_TOOLS.test(ctx.request.path)) return null;
   const { t, lang } = ctx;
   const body = `<h1>${t("These tools are not on the website", "Ces outils ne sont pas sur le site")}</h1>`
-    + `<p>${t("Your characters, calendar, raid plans, loot lists, badges and guild tools live in Discord (ask your guild's bot with its commands), in the Guilded addon in the game, and in the Guilded phone app.", "Vos personnages, votre calendrier, vos plans de raid, vos listes de butin, vos badges et les outils de guilde sont dans Discord (les commandes du bot de votre guilde), dans l'addon Guilded en jeu et dans l'application mobile Guilded.")}</p>`
+    + `<p>${t("Your characters, calendar, raid plans, loot lists, badges and guild tools live in Discord (ask your guild's bot with its commands), in the Guilded addon in the game, and in the Guilded phone app.", "Tes personnages, ton calendrier, tes plans de raid, tes listes de butin, tes badges et les outils de guilde sont dans Discord (les commandes du bot de ta guilde), dans l'addon Guilded en jeu et dans l'application mobile Guilded.")}</p>`
     + `<p><a class="button" href="${link("/leaderboards/", lang)}">${t("See the leaderboards", "Voir les classements")}</a></p>`;
   return kit.page(200, t("Tools moved", "Outils déplacés"), body, { noindex: true });
 };

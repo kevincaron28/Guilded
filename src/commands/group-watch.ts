@@ -23,7 +23,7 @@ export async function executeGroupWatch(interaction: ChatInputCommandInteraction
   let alert = await prisma.groupAlert.findFirst({ where: { guildId, memberId } });
   if (action === "save") {
     const roles = interaction.options.getString("roles"), available = interaction.options.getString("available");
-    if (!roles || !available) throw new Error(fr ? "Précisez roles et available pour enregistrer." : "Provide roles and available to save preferences.");
+    if (!roles || !available) throw new Error(fr ? "Précise roles et available pour enregistrer." : "Provide roles and available to save preferences.");
     const type = interaction.options.getString("type") ?? "both";
     const weekdays = (interaction.options.getString("weekdays") ?? "0,1,2,3,4,5,6").split(",").map(value => value.trim());
     if (weekdays.some(value => !/^[0-6]$/.test(value))) throw new Error(fr ? "Jours : nombres de 0 à 6 séparés par des virgules." : "Weekdays: comma-separated numbers from 0 to 6.");
@@ -40,7 +40,7 @@ export async function executeGroupWatch(interaction: ChatInputCommandInteraction
   } else if (!["status", "matches"].includes(action)) throw new Error("Unknown watch action.");
   const parsed = groupSubscriptionSchema.safeParse(alert?.subscription);
   if (!parsed.success || !alert) {
-    await interaction.editReply({ content: fr ? "Aucune préférence ciblée. Utilisez action:save avec roles et available." : "No targeted preferences yet. Use action:save with roles and available.", allowedMentions: { parse: [] } });
+    await interaction.editReply({ content: fr ? "Aucune préférence ciblée. Utilise action:save avec roles et available." : "No targeted preferences yet. Use action:save with roles and available.", allowedMentions: { parse: [] } });
     return;
   }
   const pref = parsed.data, clock = (minute: number) => `${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`;

@@ -126,7 +126,7 @@ export async function executeRaidSeason(interaction: ChatInputCommandInteraction
     await interaction.reply({
       content: seasons.length
         ? seasons.map((season) => `• **${season.name}** — ${stamp(season.startsAt)} → ${season.endsAt ? stamp(season.endsAt) : say("now", "maintenant")}`).join("\n")
-        : say("No raid season yet. Start one with `/lead season name:<name>` (add `start:2026-09-01` to begin it in the past).", "Aucune saison de raid. Commencez-en une avec `/lead season name:<nom>` (ajoutez `start:2026-09-01` pour la faire débuter dans le passé)."),
+        : say("No raid season yet. Start one with `/lead season name:<name>` (add `start:2026-09-01` to begin it in the past).", "Aucune saison de raid. Commences-en une avec `/lead season name:<nom>` (ajoute `start:2026-09-01` pour la faire débuter dans le passé)."),
       flags: MessageFlags.Ephemeral
     });
     return;

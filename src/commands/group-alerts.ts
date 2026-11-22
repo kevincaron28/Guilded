@@ -29,7 +29,7 @@ export function alertPanel(lang: Lang, alert: (Pick<GroupAlert, "kinds" | "roles
     const parsed = groupSubscriptionSchema.safeParse(alert.subscription);
     const active = parsed.success && parsed.data.optedIn && Date.parse(parsed.data.expiresAt) > Date.now();
     return { content: lang === "fr"
-      ? `**Alertes ciblées : ${active ? "préférences actives" : "désactivées/expirées"}**\nConsultez les limites et l’état d’envoi avec \`/dungeon watch action:status\`, vos résultats avec \`action:matches\`, ou modifiez vos préférences avec \`action:save\`.`
+      ? `**Alertes ciblées : ${active ? "préférences actives" : "désactivées/expirées"}**\nConsulte les limites et l’état d’envoi avec \`/dungeon watch action:status\`, tes résultats avec \`action:matches\`, ou modifie tes préférences avec \`action:save\`.`
       : `**Targeted alerts: ${active ? "preferences active" : "off/expired"}**\nCheck limits and delivery status with \`/dungeon watch action:status\`, see matches with \`action:matches\`, or change preferences with \`action:save\`.`,
     components: [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(`${GROUP_ALERT_PREFIX}off`).setLabel(T("Turn my alerts off")).setStyle(ButtonStyle.Secondary).setDisabled(!active))] };
   }

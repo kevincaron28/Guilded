@@ -62,14 +62,14 @@ type Refresh = typeof updateCommunityLeaderboard;
 export async function ensureCommunitySetup(guild: DiscordGuild, database: PrismaClient, guildId: string, lang: Lang, actorId: string,
   refresh: Refresh = updateCommunityLeaderboard): Promise<string> {
   const me = guild.members.me;
-  if (!me) throw new Error(say(lang, "I can't see my own member in this server yet. Try again in a moment.", "Je ne vois pas encore mon propre membre sur ce serveur. Réessayez dans un instant."));
+  if (!me) throw new Error(say(lang, "I can't see my own member in this server yet. Try again in a moment.", "Je ne vois pas encore mon propre membre sur ce serveur. Réessaie dans un instant."));
   await guild.roles.fetch();
   await guild.channels.fetch();
   const reason = `${BRAND.name} /setup`;
   const done: string[] = [];
 
   const categories = guild.channels.cache.filter(channel => channel.type === ChannelType.GuildCategory && COMMUNITY_CATEGORY.test(channel.name));
-  if (categories.size > 1) throw new Error(say(lang, "There are several Community categories. Keep one, then press the button again.", "Il y a plusieurs catégories Communauté. Gardez-en une, puis appuyez de nouveau sur le bouton."));
+  if (categories.size > 1) throw new Error(say(lang, "There are several Community categories. Keep one, then press the button again.", "Il y a plusieurs catégories Communauté. Gardes-en une, puis appuie de nouveau sur le bouton."));
   const category = categories.first() ?? await guild.channels.create({ name: COMMUNITY_CATEGORY_NAMES[lang], type: ChannelType.GuildCategory, reason });
   if (category.type !== ChannelType.GuildCategory) throw new Error("Community category unavailable.");
   const inCategory = (names: string[]) => guild.channels.cache.find(channel => channel.type === ChannelType.GuildText && channel.parentId === category.id && names.includes(channel.name));
@@ -135,7 +135,7 @@ export async function ensureCommunitySetup(guild: DiscordGuild, database: Prisma
     await createParticipationService(database).configure(guildId, season.id, true, rules);
     lines.push(say(lang,
       "Participation rewards are on with the default rules: messages and reactions in every text channel, and shared time in every voice channel (2 points per 15 minutes, two members together). Change them with `/setup participation settings`.",
-      "Les récompenses de participation sont activées avec les règles par défaut : messages et réactions dans tous les salons textuels, et temps partagé dans tous les salons vocaux (2 points par 15 minutes, deux membres ensemble). Modifiez-les avec `/setup participation settings`."));
+      "Les récompenses de participation sont activées avec les règles par défaut : messages et réactions dans tous les salons textuels, et temps partagé dans tous les salons vocaux (2 points par 15 minutes, deux membres ensemble). Modifie-les avec `/setup participation settings`."));
   }
   // The podium and the hub now show the season and whether participation earns points.
   await refresh(rest, database, guild.id, me.id);

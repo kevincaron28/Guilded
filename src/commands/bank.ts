@@ -78,7 +78,7 @@ export async function executeBank(interaction: ChatInputCommandInteraction): Pro
   const memberSearch = isOfficer(interaction) || settings?.guildBankMemberSearch !== false;
 
   if (subcommand === "search") {
-    if (!memberSearch) { await reply(t("Officers turned off member bank search here. Ask an officer.", "Les officiers ont désactivé la recherche dans la banque ici. Demandez à un officier.")); return; }
+    if (!memberSearch) { await reply(t("Officers turned off member bank search here. Ask an officer.", "Les officiers ont désactivé la recherche dans la banque ici. Demande à un officier.")); return; }
     const { observedAt, items } = await loadItems(context.guildId);
     await reply(searchReplyText(items, interaction.options.getString("item", true), observedAt, lang));
     return;
@@ -91,7 +91,7 @@ export async function executeBank(interaction: ChatInputCommandInteraction): Pro
     const match = memberSearch ? resolveBankItem((await loadItems(context.guildId)).items, item) : null;
     const request = await bankService.request(context.guildId, context.memberId, match?.name ?? item, quantity, note, { itemId: match?.id ?? null, source: "discord" });
     await reply(t(`Request sent: ${quantity} × ${match ? itemMarkdown(match.id, match.name) : `**${request.item}**`}. You'll get a DM when an officer handles it (\`/bank mine\` shows it too).`,
-      `Demande envoyée : ${quantity} × ${match ? itemMarkdown(match.id, match.name) : `**${request.item}**`}. Vous recevrez un MP quand un officier la traitera (\`/bank mine\` l'affiche aussi).`));
+      `Demande envoyée : ${quantity} × ${match ? itemMarkdown(match.id, match.name) : `**${request.item}**`}. Tu recevras un MP quand un officier la traitera (\`/bank mine\` l'affiche aussi).`));
     await postRequestCard(interaction.client, prisma, request).catch((error: unknown) => console.warn("Bank request card failed", error));
     return;
   }
@@ -99,7 +99,7 @@ export async function executeBank(interaction: ChatInputCommandInteraction): Pro
     const requests = await bankService.mine(context.guildId, context.memberId);
     await reply(requests.length
       ? requests.map((r) => `${statusIcon(r.status)} ${r.quantity} × ${r.itemId ? itemMarkdown(r.itemId, r.item) : `**${r.item}**`} — ${statusWord(r.status, lang)}${r.reply ? ` ("${r.reply}")` : ""} \`${r.id}\``).join("\n")
-      : t("You have no bank requests.", "Vous n'avez aucune demande à la banque."));
+      : t("You have no bank requests.", "Tu n'as aucune demande à la banque."));
     return;
   }
   if (subcommand === "cancel") {
@@ -119,7 +119,7 @@ export async function executeBank(interaction: ChatInputCommandInteraction): Pro
       const match = resolveBankItem(items, itemText);
       const known = match ?? await prisma.guildBankTarget.findFirst({ where: { guildId: context.guildId, itemName: { equals: itemText.trim(), mode: "insensitive" } } })
         .then((row) => row ? { id: row.itemId, name: row.itemName } : null);
-      if (!known) { await reply(t("Pick an item from the list: minimums use the item as the bank last showed it.", "Choisissez un objet de la liste : les minimums utilisent l'objet tel que la banque l'a montré.")); return; }
+      if (!known) { await reply(t("Pick an item from the list: minimums use the item as the bank last showed it.", "Choisis un objet de la liste : les minimums utilisent l'objet tel que la banque l'a montré.")); return; }
       if (min === 0) {
         await prisma.guildBankTarget.deleteMany({ where: { guildId: context.guildId, itemId: known.id } });
         await reply(t(`No minimum for ${itemMarkdown(known.id, known.name)} any more.`, `Plus de minimum pour ${itemMarkdown(known.id, known.name)}.`));
@@ -159,7 +159,7 @@ export async function executeBank(interaction: ChatInputCommandInteraction): Pro
     if (channel) data.bankRequestChannelId = channel.id;
     if (wowChat) data.wowChatChannelId = wowChat.id;
     const saved = Object.keys(data).length && settings ? await prisma.guildSettings.update({ where: { guildId: context.guildId }, data }) : settings;
-    if (!saved) { await reply(t("Run /setup first.", "Lancez d'abord /setup.")); return; }
+    if (!saved) { await reply(t("Run /setup first.", "Lance d'abord /setup.")); return; }
     const on = (value: boolean) => value ? t("on", "activé") : t("off", "désactivé");
     await reply([
       `${t("Member search (contents only, never the ledger)", "Recherche des membres (contenu seulement, jamais le registre)")}: **${on(saved.guildBankMemberSearch)}**`,

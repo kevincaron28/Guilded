@@ -143,7 +143,7 @@ export async function respondToSession(db: PrismaClient, guildId: string, sessio
     const bg = readBattlegroundPlan(core.battlegroundPlan);
     if (bg && chosen) assertBattlegroundCharacter(bg, chosen);
     if (bg && status === "CONFIRMED" && (!bgConfirmation?.normalRealm || bgConfirmation.faction !== bg.faction)) {
-      throw new Error("Confirm normal realm and faction with /bg join / Confirmez royaume normal et faction avec /bg join.");
+      throw new Error("Confirm normal realm and faction with /bg join / Confirme royaume normal et faction avec /bg join.");
     }
     const data = { status, role: selectedRole, ...(chosen ? { characterId: chosen.id } : {}),
       ...(previous?.lineupOverride === "SELECTED" && (status !== "CONFIRMED" || previous.role !== selectedRole) ? { lineupOverride: null } : {}),

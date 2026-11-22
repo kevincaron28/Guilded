@@ -9,15 +9,15 @@ const pick = (text: Bilingual, lang: Lang) => (lang === "fr" ? text.fr : text.en
 
 const POE2_ANSWER: Bilingual = {
   en: "**Path of Exile 2 companion**: run the Guilded companion (desktop app) while you play. It reads PoE2's Client.txt log, records your areas and level-ups for your diary and uploads them to the bot. Pair it first with `/character link`, then check `/poe` for your diary.",
-  fr: "**Compagnon Path of Exile 2** : lancez le compagnon Guilded (application bureau) pendant que vous jouez. Il lit le journal Client.txt de PoE2, note vos zones et niveaux pour votre journal et les envoie au bot. Jumelez-le d'abord avec `/character link`, puis consultez `/poe` pour votre journal."
+  fr: "**Compagnon Path of Exile 2** : lance le compagnon Guilded (application bureau) pendant que tu joues. Il lit le journal Client.txt de PoE2, note tes zones et niveaux pour ton journal et les envoie au bot. Jumele-le d'abord avec `/character link`, puis consulte `/poe` pour ton journal."
 };
 const PAIRING_ANSWER: Bilingual = {
   en: "**Linking and pairing**: run `/character link` in Discord. **No companion:** DM the bot your character's full name (or type it in the guild-invite channel); the link is confirmed at the next sync, and you get a DM. **Companion:** choose **Sign in with Discord** in it, then press **Connect** on the page that opens; nothing to type. Each player has their own connection; there is no shared upload token. Stopped working? Sign in again (companions older than 7.2: `/character link` also gives a one-time code). Need the companion? Get it from the Microsoft Store, or use the direct download that updates itself: https://guildedwow.com/companion/",
-  fr: "**Lien et jumelage** : lancez `/character link` dans Discord. **Sans compagnon :** envoyez en MP au bot le nom complet de votre personnage (ou écrivez-le dans le salon d'invitation); le lien est confirmé à la prochaine synchronisation, et vous recevez un MP. **Avec le compagnon :** choisissez **Sign in with Discord**, puis appuyez sur **Relier** sur la page qui s'ouvre; rien à taper. Chaque joueur a sa propre connexion; il n'y a pas de jeton partagé. Ça ne marche plus? Reconnectez-vous (compagnons plus anciens que 7.2 : `/character link` donne aussi un code à usage unique). Il vous faut le compagnon ? Prenez-le sur le Microsoft Store, ou le téléchargement direct qui se met à jour seul : https://guildedwow.com/companion/?lang=fr"
+  fr: "**Lien et jumelage** : lance `/character link` dans Discord. **Sans compagnon :** envoie en MP au bot le nom complet de ton personnage (ou écris-le dans le salon d'invitation); le lien est confirmé à la prochaine synchronisation, et tu reçois un MP. **Avec le compagnon :** choisis **Sign in with Discord**, puis appuie sur **Relier** sur la page qui s'ouvre; rien à taper. Chaque joueur a sa propre connexion; il n'y a pas de jeton partagé. Ça ne marche plus? Reconnecte-toi (compagnons plus anciens que 7.2 : `/character link` donne aussi un code à usage unique). Il te faut le compagnon ? Prends-le sur le Microsoft Store, ou le téléchargement direct qui se met à jour seul : https://guildedwow.com/companion/?lang=fr"
 };
 const SYNC_ANSWER: Bilingual = {
   en: "**Data not syncing?** 1) Make sure the companion is running and paired (`/character link`). 2) In WoW, `/reload` or log out so SavedVariables are written to disk. 3) Check the companion shows no error and your addon version matches the bot (`/help`). 4) Wait a minute and try `/character profile`. Still stuck? Ask an officer to run `/setup system`.",
-  fr: "**Les données ne se synchronisent pas?** 1) Vérifiez que le compagnon tourne et est jumelé (`/character link`). 2) Dans WoW, faites `/reload` ou déconnectez-vous pour écrire les SavedVariables. 3) Vérifiez que le compagnon n'affiche pas d'erreur et que la version de l'addon correspond au bot (`/help`). 4) Attendez une minute et essayez `/character profile`. Toujours bloqué? Demandez à un officier de lancer `/setup system`."
+  fr: "**Les données ne se synchronisent pas?** 1) Vérifie que le compagnon tourne et est jumelé (`/character link`). 2) Dans WoW, fais `/reload` ou déconnecte-toi pour écrire les SavedVariables. 3) Vérifie que le compagnon n'affiche pas d'erreur et que la version de l'addon correspond au bot (`/help`). 4) Attends une minute et essaie `/character profile`. Toujours bloqué? Demande à un officier de lancer `/setup system`."
 };
 
 export function looksLikePoe2Question(text: string): boolean {
@@ -48,12 +48,12 @@ const SEEDS: Seed[] = [
     triggers: { en: ["install addon", "addon install", "addon zip"], fr: ["installer addon", "installation addon", "zip addon"] },
     answer: {
       en: "**Addon install**: download the Guilded addon zip, extract the `Guilded` folder into `World of Warcraft/_classic_/Interface/AddOns` (use the folder for your client), restart WoW and enable it on the character screen.",
-      fr: "**Installation de l'addon** : téléchargez le zip de l'addon Guilded, extrayez le dossier `Guilded` dans `World of Warcraft/_classic_/Interface/AddOns` (selon votre client), redémarrez WoW et activez-le à l'écran des personnages."
+      fr: "**Installation de l'addon** : télécharge le zip de l'addon Guilded, extrais le dossier `Guilded` dans `World of Warcraft/_classic_/Interface/AddOns` (selon ton client), redémarre WoW et active-le à l'écran des personnages."
     }
   },
   {
     triggers: { en: ["attunement", "attunements", "attuned"], fr: ["attunement", "attunements", "harmonisation"] },
-    answer: { en: "**Attunements**: `/character attunement` shows your progress toward each raid key and who is ready. The addon keeps it up to date from your game data.", fr: "**Attunements** : `/character attunement` montre votre progression vers chaque clé de raid et qui est prêt. L'addon la met à jour depuis vos données de jeu." }
+    answer: { en: "**Attunements**: `/character attunement` shows your progress toward each raid key and who is ready. The addon keeps it up to date from your game data.", fr: "**Attunements** : `/character attunement` montre ta progression vers chaque clé de raid et qui est prêt. L'addon la met à jour depuis tes données de jeu." }
   },
   {
     triggers: { en: ["warcraft logs", "wcl", "logs link"], fr: ["warcraft logs", "wcl", "lien logs"] },
@@ -61,19 +61,19 @@ const SEEDS: Seed[] = [
   },
   {
     triggers: { en: ["wishlist", "wish list", "my wishlist"], fr: ["wishlist", "liste de souhaits", "ma wishlist"] },
-    answer: { en: "**Wishlist**: set the items you want with `/character wishlist`. Officers see them when loot drops.", fr: "**Wishlist** : indiquez les objets que vous voulez avec `/character wishlist`. Les officiers les voient quand le butin tombe." }
+    answer: { en: "**Wishlist**: set the items you want with `/character wishlist`. Officers see them when loot drops.", fr: "**Wishlist** : indique les objets que tu veux avec `/character wishlist`. Les officiers les voient quand le butin tombe." }
   },
   {
     triggers: { en: ["group alerts", "dungeon alert", "lfg alert"], fr: ["alertes de groupe", "alerte donjon", "alerte lfg"] },
-    answer: { en: "**Group alerts**: use `/dungeon` to open or join a group; the bot pings members who opted in for that dungeon.", fr: "**Alertes de groupe** : utilisez `/dungeon` pour ouvrir ou rejoindre un groupe; le bot mentionne les membres inscrits à ce donjon." }
+    answer: { en: "**Group alerts**: use `/dungeon` to open or join a group; the bot pings members who opted in for that dungeon.", fr: "**Alertes de groupe** : utilise `/dungeon` pour ouvrir ou rejoindre un groupe; le bot mentionne les membres inscrits à ce donjon." }
   },
   {
     triggers: { en: ["dkp", "epgp", "my points"], fr: ["dkp", "epgp", "mes points"] },
-    answer: { en: "**EPGP / DKP**: `/epgp` shows your standing and priority. Points are awarded for raids and loot costs GP.", fr: "**EPGP / DKP** : `/epgp` montre votre rang et votre priorité. Les points sont donnés pour les raids et le butin coûte du GP." }
+    answer: { en: "**EPGP / DKP**: `/epgp` shows your standing and priority. Points are awarded for raids and loot costs GP.", fr: "**EPGP / DKP** : `/epgp` montre ton rang et ta priorité. Les points sont donnés pour les raids et le butin coûte du GP." }
   },
   {
     triggers: { en: ["professions", "profession", "who crafts"], fr: ["metiers", "metier", "qui fabrique"] },
-    answer: { en: "**Professions**: record yours with `/character profession`, and ask for crafts with `/craft`.", fr: "**Métiers** : enregistrez les vôtres avec `/character profession`, et demandez des fabrications avec `/craft`." }
+    answer: { en: "**Professions**: record yours with `/character profession`, and ask for crafts with `/craft`.", fr: "**Métiers** : enregistre les tiens avec `/character profession`, et demande des fabrications avec `/craft`." }
   }
 ];
 
@@ -104,7 +104,7 @@ export function suggestFaq<T extends { triggers: string[] }>(entries: T[], text:
   return best;
 }
 export const suggestionText = (triggers: string[], lang: Lang): string =>
-  lang === "fr" ? `Je ne suis pas sûr, vouliez-vous dire : **${triggers[0]}** ? Demandez avec ces mots et je vous répondrai.` : `I'm not sure, did you mean: **${triggers[0]}**? Ask with those words and I'll answer.`;
+  lang === "fr" ? `Je ne suis pas sûr, voulais-tu dire : **${triggers[0]}** ? Demande avec ces mots et je te répondrai.` : `I'm not sure, did you mean: **${triggers[0]}**? Ask with those words and I'll answer.`;
 
 // Unanswered questions (in memory, per guild) so officers can see what members ask that has no answer.
 const unanswered = new Map<string, string[]>();
@@ -120,4 +120,4 @@ export function recordUnanswered(guildId: string, question: string): void {
 export const listUnanswered = (guildId: string): string[] => unanswered.get(guildId) ?? [];
 export const unansweredHeader = (lang: Lang): string => (lang === "fr" ? "Questions sans réponse récentes :" : "Recent unanswered questions:");
 export const importedText = (added: number, lang: Lang): string =>
-  lang === "fr" ? `${added} réponse(s) par défaut ajoutée(s). Modifiez-les avec /mod faq edit.` : `Added ${added} default answer(s). Edit them with /mod faq edit.`;
+  lang === "fr" ? `${added} réponse(s) par défaut ajoutée(s). Modifie-les avec /mod faq edit.` : `Added ${added} default answer(s). Edit them with /mod faq edit.`;

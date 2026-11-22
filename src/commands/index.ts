@@ -138,7 +138,7 @@ const character = new MergedCommand("character", "Link your characters; profile,
   { command: readinessCommand, handler: executeReadiness, as: "readiness", only: ["me"] }
 ], { command: characterCommand, handler: executeCharacter, except: CHARACTER_OFFICER })
   .setNameLocalizations({ fr: "personnage" })
-  .setDescriptionLocalizations({ fr: "Lier vos personnages; profil, métiers, souhaits et préparation." });
+  .setDescriptionLocalizations({ fr: "Lier tes personnages; profil, métiers, souhaits et préparation." });
 
 const raid = new MergedCommand("raid", "Raids: signups, progress, reports and Warcraft Logs.", [
   { command: pugCommand, handler: executePug, as: "pug" },

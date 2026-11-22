@@ -214,7 +214,7 @@ export interface DeviceRunReceipts { acceptedRunRefs: string[]; /** (9.4) Refs o
 export interface DeviceNotice { en: string; fr: string }
 export const DEVICE_PVP_NOTICE: DeviceNotice = {
   en: "Sign in with Discord to count your PvP on the boards.",
-  fr: "Connectez-vous avec Discord pour que votre JcJ compte dans les classements."
+  fr: "Connecte-toi avec Discord pour que ton JcJ compte dans les classements."
 };
 
 export type DeviceUploadAnswer =

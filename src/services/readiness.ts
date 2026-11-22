@@ -19,7 +19,7 @@ export interface RaidReadinessSnapshot {
 export function assessRaidReadiness(snapshot: RaidReadinessSnapshot, now = new Date(), lang: "en" | "fr" = "en"): { status: RaidReadinessStatus; reason?: string } {
   const level = snapshot.character.level;
   const required = raidLevel(), fr = lang === "fr";
-  if (!level || !Number.isInteger(level) || level < 1) return { status: "UNKNOWN", reason: fr ? `Niveau du personnage inconnu : synchronisez l'addon pour vérifier le niveau ${required}.` : `Character level missing; sync the addon to verify level ${required} eligibility.` };
+  if (!level || !Number.isInteger(level) || level < 1) return { status: "UNKNOWN", reason: fr ? `Niveau du personnage inconnu : synchronise l'addon pour vérifier le niveau ${required}.` : `Character level missing; sync the addon to verify level ${required} eligibility.` };
   if (level < required) {
     const left = required - level;
     return { status: "LEVELLING", reason: fr ? `Niveau ${level}/${required} — encore ${left} niveau${left > 1 ? "x" : ""}.` : `Level ${level}/${required} — ${left} level${left > 1 ? "s" : ""} to go.` };
@@ -30,7 +30,7 @@ export function assessRaidReadiness(snapshot: RaidReadinessSnapshot, now = new D
   }
   if (snapshot.status === "NOT_READY" || snapshot.findings.some(f => f.severity === "ERROR")) return { status: "NOT_READY" };
   if (snapshot.status === "PARTIAL" || snapshot.findings.some(f => f.severity === "WARNING")) return { status: "PARTIAL" };
-  return snapshot.status === "READY" ? { status: "READY" } : { status: "UNKNOWN", reason: fr ? "Aucune vérification d'équipement complète : synchronisez l'addon." : "No complete gear check; sync the addon." };
+  return snapshot.status === "READY" ? { status: "READY" } : { status: "UNKNOWN", reason: fr ? "Aucune vérification d'équipement complète : synchronise l'addon." : "No complete gear check; sync the addon." };
 }
 
 export interface ReadinessFindingInput {

@@ -19,10 +19,10 @@ export const LFG_ROLE_NAMES: Record<GroupKind, string> = {
 
 export function dungeonSignupGuideText(lang: Lang): string {
   return (lang === "fr" ? [
-    "**Recherche de groupe : donjons et JcJ (PvP)**", "• Appuyez sur le bouton ci-dessous, choisissez l'activité (donjon, champ de bataille, arène ou JcJ en monde ouvert), puis précisez l'heure et ce que vous cherchez.",
+    "**Recherche de groupe : donjons et JcJ (PvP)**", "• Appuie sur le bouton ci-dessous, choisis l'activité (donjon, champ de bataille, arène ou JcJ en monde ouvert), puis précise l'heure et ce que tu cherches.",
     "• Donjon : 1 tank, 1 soigneur et 3 DPS. JcJ : tout rôle, de 2 à 40 joueurs. Les joueurs en trop vont en file d'attente.",
     "• Un salon vocal privé est créé au départ et supprimé quand il reste vide. Un groupe ouvert expire après 24 h.",
-    "• Utilisez le salon leveling pour les annonces de leveling. 🔔 Mes alertes de groupe vous prévient des groupes qui vous conviennent.",
+    "• Utilise le salon leveling pour les annonces de leveling. 🔔 Mes alertes de groupe te prévient des groupes qui te conviennent.",
     "• `/dungeon rules` explique la cote par personnage et les points de communauté par compte, avec les bonus et limites configurés."
   ] : [
     "**Group finder: dungeons and PvP**", "• Press the button below, pick the activity (dungeon, battleground, arena or world PvP), then say when and what you need.",

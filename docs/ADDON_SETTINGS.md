@@ -31,7 +31,7 @@ messages and saved keys did not change. No saved key was renamed or dropped.
 | Dungeons and PvP | Call for help | Call for help alerts (Window, Chat line, Off) | `settings.helpAlert` | you |
 | | | Play a sound / Quiet in combat | `settings.helpSound`, `settings.helpQuiet` | you |
 | | | Help guildmates (calls for help in my zone and layer requests; On my way brings me onto the caller's layer). Replaces "Loud alert for calls in my zone" and "Show guildmates' layer requests"; `/guilded sos defender on|off` and `/guilded layer helper on|off` still work | `settings.helpGuildmates` (the old `settings.helpDefender` and `GuildedDB.layer.helper` are still written, and an explicit off in either starts the new one off) | you |
-| | Layer invite | Auto-invite layer requests on my continent (on by default since 9.4.9, the member's off is saved as `false`; plain requests only, calls for help need no opt-in) | `GuildedDB.layer.auto` | you |
+| | Layer invite | Auto-invite layer requests on my continent (off by default; plain requests only, calls for help need no opt-in) | `GuildedDB.layer.auto` | you |
 | | | Key binding "Ask for a layer invite" (Options > Keybindings > Guilded), the minimap quick menu entry "Layer invite", `/guilded layer` and the Layer page: the quick layer swap with no call for help | none | you |
 | | | Post my calls in guild chat | `settings.helpGuildChat` | what guildmates see from you |
 | | | Mute 10 min / Reset call window | session only / `settings.helpPos` | you |

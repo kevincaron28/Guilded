@@ -39,6 +39,13 @@ export function recordCard(run: DungeonImportResult, item: DungeonHighlightItem,
   const ribbon = item.kind === "first" ? (fr ? "Premier record de la guilde" : "First guild record")
     : tie ? (fr ? "Record de guilde égalé" : "Guild record tied") : (fr ? "Nouveau record de guilde" : "New guild record");
   const party = (runCard.dungeon?.party ?? []).slice(0, 5).map(member => ({ name: member.name, color: member.color, role: member.role, roleLabel: member.roleLabel, guild: member.guild, character: member.character }));
+  // A holder who is in this party beat their own time: "Dethrones Vaneesia Main" on Vaneesia Main's run read wrong (22 Nov 2026 audit).
+  // Only the others are dethroned; when the whole old group is back, the card says so instead.
+  const key = (name: string) => name.trim().toLowerCase();
+  const inParty = new Set(party.flatMap(member => [member.name, member.character ?? ""]).filter(Boolean).map(key));
+  const holders = previousSec === undefined ? [] : (item.previousPlayers ?? []).slice(0, 5);
+  const others = holders.filter(name => !inParty.has(key(name)));
+  const ownRecord = holders.length > 0 && others.length === 0;
   return {
     eyebrow: fr ? "Guilded · Record de donjon" : "Guilded · Dungeon record", title: runCard.title, subtitle: runCard.subtitle,
     stats: [], footer: fr ? "Le chrono démarre au premier combat" : "Times start at the first pull",
@@ -47,11 +54,12 @@ export function recordCard(run: DungeonImportResult, item: DungeonHighlightItem,
       diffLabel: previousSec === undefined ? (fr ? "Premier temps" : "First time") : recordDiff(newSec, previousSec),
       oldLabel: previousSec === undefined ? (fr ? "Aucun temps avant celui-ci" : "No time before this one") : `${fr ? "Ancien record" : "Previous record"} ${formatDuration(previousSec)}`,
       party, partyLabel: fr ? "Le groupe" : "The party",
-      previousHolders: previousSec === undefined ? [] : (item.previousPlayers ?? []).slice(0, 5),
+      previousHolders: ownRecord ? [] : others,
       previousLabel: fr ? "Détenu avant par :" : "Held before by:",
       headline: item.kind === "first" ? (fr ? "PREMIER RECORD !" : "FIRST RECORD!") : tie ? (fr ? "RECORD ÉGALÉ !" : "RECORD TIED!") : (fr ? "NOUVEAU RECORD !" : "NEW RECORD!"),
       // A new record is, by definition, the guild's best for this dungeon.
-      rankLabel: item.kind === "first" ? (fr ? "Premier clear de la guilde" : "Guild's first clear") : tie ? (fr ? "Égale le n° 1 de la guilde" : "Ties the guild's #1") : (fr ? "1er de la guilde" : "#1 in the guild"),
+      rankLabel: item.kind === "first" ? (fr ? "Premier clear de la guilde" : "Guild's first clear") : tie ? (fr ? "Égale le n° 1 de la guilde" : "Ties the guild's #1")
+        : ownRecord ? (fr ? "Bat son propre record" : "Beats their own record") : (fr ? "1er de la guilde" : "#1 in the guild"),
       oldWord: fr ? "ancien" : "was", dethroneLabel: tie ? (fr ? "Partagé avec" : "Shared with") : (fr ? "Détrône" : "Dethrones")
     }
   };

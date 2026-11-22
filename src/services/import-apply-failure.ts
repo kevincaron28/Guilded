@@ -54,6 +54,28 @@ const SAY: Record<ApplyFailureReason, string> = {
   unknown: "an unexpected error stopped it"
 };
 
+const SAY_FR: Record<ApplyFailureReason, string> = {
+  "transaction-timeout": "la base de données était occupée par d'autres envois et l'import a expiré",
+  "pool-timeout": "la base de données n'avait pas de connexion libre à temps",
+  "write-conflict": "un autre envoi modifiait les mêmes données au même moment",
+  "database-unreachable": "la base de données était injoignable",
+  database: "une erreur de base de données l'a arrêté",
+  "already-applied": "il était déjà appliqué",
+  "not-found": "l'envoi est introuvable",
+  edition: "les données sont d'une autre édition de WoW",
+  "guild-scope": "les données appartiennent à une autre guilde ou à un autre royaume",
+  "invalid-payload": "les données envoyées sont illisibles",
+  rejected: "l'import l'a refusé",
+  unknown: "une erreur inattendue l'a arrêté"
+};
+
+/** The failure in the server's language (22 Nov 2026 audit: French officer logs showed the English sentence). The import's own rule texts stay as written. */
+export function applyFailureText(failure: ApplyFailure, lang: "en" | "fr"): string {
+  if (lang !== "fr" || failure.reason === "rejected" || failure.reason === "guild-scope" || failure.reason === "edition") return failure.message;
+  const say = SAY_FR[failure.reason];
+  return `${say[0]!.toUpperCase()}${say.slice(1)}${failure.code ? ` (${failure.code})` : ""}.`;
+}
+
 function errorCode(error: unknown): string | null {
   const raw = error && typeof error === "object" && "code" in error ? String((error as { code: unknown }).code) : "";
   return /^(?:P\d{4}|E[A-Z]{2,25})$/.test(raw) ? raw : null;

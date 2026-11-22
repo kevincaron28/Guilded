@@ -13,6 +13,7 @@ import { displayCharacterName, loadFullNameBook } from "./character-display.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
 import type { DungeonScene } from "./dungeon-art.js";
 import { worldPvpWeekLine, type WorldPvpWeekLine } from "./world-pvp.js";
+import { pvpSub } from "./world-pvp-sub.js";
 
 // 9.1 daily recap (docs/plans/RECORDS_AND_RECAPS.md): one card per server day, posted after midnight in the server's
 // timezone for the day that ended, only when something happened. On by default (rule 5), officers switch it off; it posts to
@@ -130,7 +131,7 @@ export function dailyRecapCard(recap: DailyRecap, lang: Lang, guildName: string)
     ...(recap.pvp?.topDueler ? [{ name: recap.pvp.topDueler.name, sub: t("Most duel wins", "Le plus de duels gagnés"), right: `×${recap.pvp.topDueler.wins}`, rightTone: "red" as const }] : []),
     ...(recap.pvp?.bgPlayed && !bgInStrip ? [{ name: t(`${recap.pvp.bgWon}/${recap.pvp.bgPlayed} won`, `${recap.pvp.bgWon}/${recap.pvp.bgPlayed} gagnés`), sub: t("Battlegrounds", "Champs de bataille") }] : [])
   ];
-  if (recap.worldPvp) pvpRows.push({ name: t("World PvP this week", "JcJ en monde ouvert cette semaine"), sub: t(`${recap.worldPvp.kills} kills · ${recap.worldPvp.defends} defends · ${recap.worldPvp.helped} calls answered`, `${recap.worldPvp.kills} victoires · ${recap.worldPvp.defends} défenses · ${recap.worldPvp.helped} appels répondus`), right: String(recap.worldPvp.kills), rightTone: "red" as const } as never);
+  if (recap.worldPvp) pvpRows.push({ name: t("World PvP · 7 days", "JcJ monde ouvert · 7 j"), sub: pvpSub(recap.worldPvp, t), right: String(recap.worldPvp.kills), rightTone: "red" as const } as never);
   if (pvpRows.length) sections.push({ title: t("PvP", "JcJ"), rows: pvpRows });
 
   return {

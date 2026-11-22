@@ -341,9 +341,11 @@ export async function renderUnlockHero(spec: UnlockHeroSpec): Promise<RenderedCa
     if (spec.chip) {
       // The rank sits on the painting: a pill of its own behind it, or the contrast guard darkens the whole card for this one word.
       const w = Math.min(240, await c.width(spec.chip.text, 24)) + 24;
-      // Clear of the avatar's ring (3 px) with a gap of its own, centred under it.
-      c.rect(left + size / 2 - w / 2, top + size + 14, w, 36, "#000", { opacity: 0.78, rx: 18 });
-      await c.text(spec.chip.text, left + size / 2, top + size + 18, { size: 24, color: spec.chip.color, anchor: "c", maxW: 240 });
+      // Clear of the avatar's ring (3 px) with a gap of its own, centred under it, but never past the card's left edge (22 Nov 2026 audit:
+      // a long rank such as "Goldmaking Moderator" was cut off).
+      const pillX = Math.max(16, left + size / 2 - w / 2);
+      c.rect(pillX, top + size + 14, w, 36, "#000", { opacity: 0.78, rx: 18 });
+      await c.text(spec.chip.text, pillX + w / 2, top + size + 18, { size: 24, color: spec.chip.color, anchor: "c", maxW: 240 });
     }
   }
   const art = await sharp(spec.art).resize(CARD_W, CARD_H, { fit: "cover" }).removeAlpha().toBuffer();

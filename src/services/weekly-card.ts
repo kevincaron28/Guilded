@@ -5,6 +5,7 @@ import type { ScoreCard } from "./score-card.js";
 import type { DungeonScene } from "./dungeon-art.js";
 import type { WeeklyReport } from "./weekly-report.js";
 import { dungeonShare } from "./community-ingame.js";
+import { pvpSub } from "./world-pvp-sub.js";
 
 // The weekly report card (9.3): the headline of the guild's week (raids, boss kills, dungeon clears against the week before) and
 // the players of the week. It replaces the report's first embed; the cores and dungeon embeds stay as text under it, and the
@@ -33,7 +34,7 @@ export function weeklyReportCard(report: WeeklyReport, lang: Lang, timeZone?: st
   // A quiet week (no raid, few names) would leave most of the card empty: the week before is the next useful fact.
   if (rows.length < 2 && (report.previous.raids > 0 || report.previous.bossKills > 0))
     rows.push({ name: t("Last week", "Semaine passée"), sub: `${plural(lang, report.previous.raids, ["raid", "raids"], ["raid", "raids"])} · ${plural(lang, report.previous.bossKills, ["boss kill", "boss kills"], ["victoire", "victoires"])}` });
-  if (report.worldPvp) rows.push({ name: t("World PvP", "JcJ en monde ouvert"), sub: t(`${report.worldPvp.kills} kills · ${report.worldPvp.defends} defends · ${report.worldPvp.helped} calls answered`, `${report.worldPvp.kills} victoires · ${report.worldPvp.defends} défenses · ${report.worldPvp.helped} appels répondus`), right: String(report.worldPvp.kills), rightTone: "red" });
+  if (report.worldPvp) rows.push({ name: t("World PvP", "JcJ en monde ouvert"), sub: pvpSub(report.worldPvp, t), right: String(report.worldPvp.kills), rightTone: "red" });
   return {
     eyebrow: t("Guilded · Weekly report", "Guilded · Bilan hebdo"), title: t("The guild's week", "La semaine de la guilde"),
     subtitle: `${t("Week", "Semaine")} ${day(report.weekStart)} → ${day(report.weekEnd)}`,

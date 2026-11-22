@@ -3,6 +3,8 @@ import { prisma } from "../database.js";
 import { createGuildService } from "../services/guild.js";
 import { createErrorReportService, isMemberAnswer } from "../services/error-report.js";
 import { BRAND } from "../brand.js";
+import { asLang } from "../i18n.js";
+import { frenchErrorMessage } from "../services/error-fr.js";
 import { currentGuildScope } from "../services/guild-scope.js";
 
 export const guildService = createGuildService(prisma);
@@ -38,6 +40,17 @@ export async function requireGuildContext(
 /** Discord error 10062 "Unknown interaction": the 3-second window had passed, so no answer can be sent. */
 export const isExpiredInteraction = (error: unknown): boolean => typeof error === "object" && error !== null && (error as { code?: number }).code === 10062;
 
+/** French when the member's Discord app is in French or the server language is French. */
+async function prefersFrench(interaction: ChatInputCommandInteraction): Promise<boolean> {
+  if (interaction.locale?.startsWith("fr")) return true;
+  if (!interaction.guildId) return false;
+  try {
+    return asLang((await guildService.getSettings(interaction.guildId))?.language) === "fr";
+  } catch {
+    return false;
+  }
+}
+
 export async function replyWithCommandError(
   interaction: ChatInputCommandInteraction,
   error: unknown
@@ -60,11 +73,10 @@ export async function replyWithCommandError(
       userId: interaction.user.id
     });
   }
-  const content = isMemberAnswer(error)
+  const english = isMemberAnswer(error)
     ? (error as Error).message
-    : interaction.locale?.startsWith("fr")
-      ? "La commande n'a pas pu être exécutée. Réessayez ou contactez un officier."
-      : "The command could not be completed. Please try again or contact an officer.";
+    : "The command could not be completed. Please try again or contact an officer.";
+  const content = await prefersFrench(interaction) ? frenchErrorMessage(english) : english;
   if (interaction.deferred && !interaction.replied) {
     await interaction.editReply({ content });
   } else if (interaction.replied) {

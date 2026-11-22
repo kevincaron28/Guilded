@@ -64,6 +64,7 @@ import { executePromotion, promotionCommand, promotionStatusCommand } from "./pr
 import { executeInvites, invitesCommand } from "./invites.js";
 import { executePug, pugCommand } from "./pug.js";
 import { executePugs, pugsCommand } from "./pug-requests.js";
+import { withFrenchPicker } from "./localize.js";
 
 applyFrenchNames();
 
@@ -251,6 +252,9 @@ for (const command of commands) {
   const permissions = HIDDEN_FROM_MEMBERS[command.name];
   if (permissions !== undefined) (command as { setDefaultMemberPermissions(value: bigint): unknown }).setDefaultMemberPermissions(permissions);
 }
+
+// French command picker: descriptions for every subcommand and option (localize.ts).
+for (const command of commands) withFrenchPicker(command as unknown as { toJSON(): unknown });
 
 const commandNames = commands.map((command) => command.name);
 if (new Set(commandNames).size !== commandNames.length) {

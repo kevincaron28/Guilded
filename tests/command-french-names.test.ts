@@ -38,11 +38,12 @@ describe("French names for the member commands", () => {
     expect(problems).toEqual([]);
   });
 
-  it("keeps each command's text, French included, under Discord's 6000-character cap with localizations", () => {
+  // Discord (docs, 2026): 8000 characters per command, counting only the longest localization of each field.
+  it("keeps each command's text under Discord's 8000-character cap, longest localization per field", () => {
+    const longest = (base: string | undefined, loc: Record<string, string> | undefined) => Math.max(base?.length ?? 0, ...Object.values(loc ?? {}).map((text) => text.length));
     const size = (node: Node & { description?: string; value?: unknown; choices?: unknown[] }): number =>
-      node.name.length + (node.description?.length ?? 0) + (typeof node.value === "string" ? node.value.length : 0)
-      + Object.values(node.name_localizations ?? {}).join("").length + Object.values(node.description_localizations ?? {}).join("").length
+      longest(node.name, node.name_localizations) + longest(node.description, node.description_localizations) + (typeof node.value === "string" ? node.value.length : 0)
       + [...(node.options ?? []), ...(node.choices ?? [])].reduce<number>((sum, child) => sum + size(child as never), 0);
-    for (const name of ["help", "character", "craft", "promotion", "report"]) expect(size(top(name) as never), name).toBeLessThan(6000);
+    for (const name of ["help", "character", "craft", "promotion", "report"]) expect(size(top(name) as never), name).toBeLessThan(7500);
   });
 });

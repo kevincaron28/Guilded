@@ -150,6 +150,12 @@ local function trimBulk(root)
       if parked.parkedAt < forget and not hasUnsyncedRun(parked) and not hasPoints(parked) then
         root.otherGuilds[key] = nil
       else
+        -- (audit) A leftover already folded into the real key (mergedIntoHome: the blank-realm "Guild-" copy, an old spaced
+        -- spelling) keeps its records but not the copies of what the companion and guildmates rebuild: the standings
+        -- board was 1.5 MB of the owner's 4.3 MB saved file. The real key has its own.
+        if parked.mergedIntoHome then
+          parked.dungeonBoard, parked.standings, parked.peerRoster = nil, nil, nil
+        end
         trimOldest(parked.events, PARKED_EVENT_KEEP)
         if type(parked.guildLog) == "table" then
           trimOldest(parked.guildLog.events, PARKED_LOG_KEEP, function(event) return type(event) == "table" and type(event.at) == "number" and event.at < oldAt end)

@@ -93,6 +93,21 @@ describe("guild key with a blank realm: the incident repair", () => {
     expect(again.chat().some(line => line.includes("Guild data repaired") || line.includes("Guild changed"))).toBe(false);
   });
 
+  it("trims the rebuildable board copies from a merged leftover but keeps its records and any unmerged guild's board", () => {
+    const lua = start(`{ version = 4, guildKey = "${REAL}", guildEdition = "forever", roster = { Kev = {} }, settings = { officers = {} },
+      dungeonBoard = { updatedAt = "2026-11-22" },
+      otherGuilds = {
+        ["${BLANK}"] = { mergedIntoHome = "${REAL}", parkedAt = 1795219221, duels = { blank = true }, dungeonBoard = { big = true }, standings = { a = 1 }, peerRoster = { b = 2 } },
+        ["Alt Guild-Realm"] = { parkedAt = 1795219221, dungeonBoard = { alt = true }, roster = { A = {} } },
+      } }`);
+    lua.run("NS.trimBulk(GuildedDB)");
+    const parked = `GuildedDB.otherGuilds["${BLANK}"]`;
+    expect(lua.run(`return tostring(${parked}.dungeonBoard) .. tostring(${parked}.standings) .. tostring(${parked}.peerRoster)`)).toBe("nilnilnil");
+    expect(lua.run(`return tostring(${parked}.duels.blank)`)).toBe("true");
+    expect(lua.run(`return tostring(GuildedDB.otherGuilds["Alt Guild-Realm"].dungeonBoard.alt)`)).toBe("true");
+    expect(lua.run("return GuildedDB.dungeonBoard.updatedAt")).toBe("2026-11-22");
+  });
+
   it("keeps a spaced alias that still holds points or a run only it has", () => {
     const lua = start(`{ version = 4, guildKey = "${BLANK}", guildEdition = "forever", roster = {}, settings = { officers = {} },
       otherGuilds = {

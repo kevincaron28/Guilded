@@ -11,7 +11,7 @@ const words = {
   title: { en: "Raid progress", fr: "Progression en raid" },
   intro: { en: "Guilds ranked by raid bosses killed, then by who finished first. Only guilds that share their runs publicly are listed.", fr: "Les guildes classées par boss de raid tués, puis par qui a fini en premier. Seules les guildes qui partagent leurs parcours publiquement sont listées." },
   opens: { en: "Raids open {date}", fr: "Les raids ouvrent le {date}" },
-  opensBody: { en: "WoW Forever's first raids open on {date}. Install Guilded and its companion now: your guild's first kills will appear here by themselves.", fr: "Les premiers raids de WoW Forever ouvrent le {date}. Installez Guilded et son compagnon dès maintenant : les premières victoires de votre guilde apparaîtront ici toutes seules." },
+  opensBody: { en: "WoW Forever's first raids open on {date}. Install Guilded and its companion now: your guild's first kills will appear here by themselves.", fr: "Les premiers raids de WoW Forever ouvrent le {date}. Installe Guilded et son compagnon dès maintenant : les premières victoires de ta guilde apparaîtront ici toutes seules." },
   none: { en: "No raid kill has been recorded yet. Guilds that share their runs publicly appear here after their first boss.", fr: "Aucune victoire en raid n'a encore été enregistrée. Les guildes qui partagent leurs parcours publiquement apparaissent ici après leur premier boss." },
   failed: { en: "Raid progress is unavailable right now.", fr: "La progression en raid est indisponible pour le moment." },
   guilds: { en: "GUILDS", fr: "GUILDES" },

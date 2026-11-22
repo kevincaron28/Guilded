@@ -238,8 +238,8 @@ export async function syncSignupEmbed(discordGuild: DiscordGuild, guildId: strin
 
 // DMs players moved off the waitlist. Best effort: closed DMs are ignored,
 // and the updated signup embed shows the change anyway.
-async function tellPromoted(
-  interaction: { client: ChatInputCommandInteraction["client"] },
+export async function tellPromoted(
+  interaction: { client: Pick<ChatInputCommandInteraction["client"], "users"> },
   promoted: Array<{ raidId: string; role: RaidRole; member: { discordUserId: string } }>
 ): Promise<void> {
   for (const signup of promoted) {
@@ -257,8 +257,8 @@ async function tellPromoted(
 }
 
 // Tells a player a core member took their slot (they're first on the waitlist).
-async function tellBumped(
-  client: ChatInputCommandInteraction["client"],
+export async function tellBumped(
+  client: Pick<ChatInputCommandInteraction["client"], "users">,
   bumped: { raidId: string; role: RaidRole; member: { discordUserId: string } } | null
 ): Promise<void> {
   if (!bumped) return;

@@ -27,17 +27,17 @@ const words = {
   active: { en: "NOW", fr: "EN COURS" },
   cleared: { en: "all clear", fr: "terminé" },
   attackers: { en: "Attackers", fr: "Attaquants" },
-  you: { en: "you", fr: "vous" },
+  you: { en: "you", fr: "toi" },
   share: { en: "Share my position with the guild", fr: "Partager ma position avec la guilde" },
-  shareOn: { en: "On by default. Turning it off deletes every position of yours stored by Guilded, and new ones are not kept.", fr: "Activé par défaut. Le couper efface toutes vos positions gardées par Guilded, et les nouvelles ne sont pas conservées." },
-  shareOff: { en: "Off: Guilded keeps none of your positions, and guildmates do not see you here.", fr: "Désactivé : Guilded ne garde aucune de vos positions, et les membres ne vous voient pas ici." },
+  shareOn: { en: "On by default. Turning it off deletes every position of yours stored by Guilded, and new ones are not kept.", fr: "Activé par défaut. Le couper efface toutes tes positions gardées par Guilded, et les nouvelles ne sont pas conservées." },
+  shareOff: { en: "Off: Guilded keeps none of your positions, and guildmates do not see you here.", fr: "Désactivé : Guilded ne garde aucune de tes positions, et les membres ne te voient pas ici." },
   confirmTitle: { en: "Stop sharing?", fr: "Arrêter le partage ?" },
-  confirmBody: { en: "Your stored positions are deleted now. Your calls for help stay, without their map position.", fr: "Vos positions gardées sont effacées maintenant. Vos appels à l'aide restent, sans leur position sur la carte." },
+  confirmBody: { en: "Your stored positions are deleted now. Your calls for help stay, without their map position.", fr: "Tes positions gardées sont effacées maintenant. Tes appels à l'aide restent, sans leur position sur la carte." },
   confirmYes: { en: "Stop and delete", fr: "Arrêter et effacer" },
   cancel: { en: "Cancel", fr: "Annuler" },
   noPlace: { en: "not on a map", fr: "hors carte" },
   failed: { en: "The guild map is unavailable right now.", fr: "La carte de la guilde est indisponible pour le moment." },
-  sample: { en: "Sample map with made-up zones. Sign in to see your guild.", fr: "Carte d'exemple aux zones inventées. Connectez-vous pour voir votre guilde." }
+  sample: { en: "Sample map with made-up zones. Sign in to see your guild.", fr: "Carte d'exemple aux zones inventées. Connecte-toi pour voir ta guilde." }
 } as const;
 const w = (key: keyof typeof words, lang: Lang) => words[key][lang];
 

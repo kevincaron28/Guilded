@@ -10,6 +10,11 @@ export class ApiError extends Error {
   }
 }
 
+/** The raid's sign-up deadline has passed (the server's 409 with `closed`). */
+export class SignupClosedError extends ApiError {
+  constructor(readonly closesAt: string | null) { super("Signups are closed for this raid.", 409); }
+}
+
 export interface Summary {
   season: string;
   ratedRunsThisWeek: number;
@@ -574,6 +579,21 @@ export class GuildedClient {
   async changeCharacter(action: "main" | "unlink", characterId: string): Promise<unknown> {
     const { status, body } = await this.call(`/api/v1/me/characters/${action}`, { method: "POST", body: { character: characterId } });
     if (status !== 200) throw new ApiError(messageOf(body, "That change was not saved."), status);
+    return body;
+  }
+
+  /** My own answer on each upcoming raid of one server (0.5.1). 404/405: this server does not offer sign-up from the phone yet. */
+  async mySignups(guildDiscordId: string): Promise<unknown> {
+    const { status, body } = await this.call(`/api/v1/me/raid-signups?guild=${encodeURIComponent(guildDiscordId)}`);
+    if (status !== 200) throw new ApiError(messageOf(body, "Your raid answers could not be loaded."), status);
+    return body;
+  }
+
+  /** I'm in / Maybe / Can't come for one raid. The server applies the post's own rules (role caps, waitlist, deadline). */
+  async signUp(guildDiscordId: string, raidId: string, choice: "YES" | "MAYBE" | "NO", role?: "TANK" | "HEALER" | "DPS"): Promise<unknown> {
+    const { status, body } = await this.call("/api/v1/me/raid-signup", { method: "POST", body: { guildDiscordId, raidId, choice, ...(role ? { role } : {}) } });
+    if (status === 409 && record(body)?.closed === true) throw new SignupClosedError(str(record(body)?.closesAt));
+    if (status !== 200) throw new ApiError(messageOf(body, "That answer was not saved."), status);
     return body;
   }
 

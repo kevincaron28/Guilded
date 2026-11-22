@@ -10,13 +10,22 @@ const work = () => vi.fn().mockResolvedValue({ id: "phone" });
 describe("mobile raid alerts", () => {
   it("detects moved, renamed, cancelled and due raids while excluding finished reminders", () => {
     expect(mobileRaidChanges({ moved: state, renamed: state, cancelled: state, finished: { ...state, at: "2026-11-04T10:00:00Z" } }, {
-      moved: { ...state, at: "2026-11-05T12:00:00Z" }, renamed: { ...state, title: "New title" }, due: state
+      moved: { ...state, at: "2026-11-07T12:00:00Z" }, renamed: { ...state, title: "New title" }, due: state
     }, now).map(a => [a.raidId, a.kind])).toEqual([
       ["moved", "changed"], ["renamed", "changed"], ["cancelled", "cancelled"], ["renamed", "reminder"], ["due", "reminder"]
     ]);
   });
+  it("adds a 24 hour and a 2 hour reminder, each only in the quarter hour before its moment", () => {
+    const at = (ms: number) => ({ title: "Raid", at: new Date(now.getTime() + ms).toISOString(), revision: "r" });
+    const reminders = (ms: number) => mobileRaidChanges({}, { a: at(ms) }, now).map(alert => [alert.kind, alert.lead ?? "1h"]);
+    expect(reminders(86_400_000 - 60_000)).toEqual([["reminder", 86_400_000]]);
+    expect(reminders(7_200_000 - 60_000)).toEqual([["reminder", 7_200_000]]);
+    expect(reminders(1_800_000)).toEqual([["reminder", "1h"]]);
+    expect(reminders(40_000_000)).toEqual([]);
+    expect(reminders(86_400_000 - 1_000_000)).toEqual([]);
+  });
   it("keeps revision identity while comparing only visible schedule details", () => {
-    const next = { ...state, revision: "2026-11-04T12:01:00Z", at: "2026-11-05T12:00:00Z" };
+    const next = { ...state, revision: "2026-11-04T12:01:00Z", at: "2026-11-07T12:00:00Z" };
     expect(mobileRaidChanges({ a: next }, { a: { ...next, revision: now.toISOString() } }, now)).toEqual([]);
     expect(raidSnapshot([{ id: "a", title: "Raid", scheduledAt: new Date(state.at), updatedAt: now }])).toEqual({ a: state });
   });

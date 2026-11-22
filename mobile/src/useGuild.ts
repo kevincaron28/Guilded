@@ -6,8 +6,9 @@ import { errorText } from "./errors";
 import { t, type Lang } from "./i18n";
 import { PushSetupError, pushToken, syncRaidReminders, type ReminderSync } from "./notify";
 import { planReminders, soonRaids } from "./reminders";
+import { parseSignupAnswer, parseSignups, type Choice, type MySignup, type RaidRoleName } from "./signups";
 import { sampleHubBody, sampleManageBody, sampleStandingsBody } from "./sample";
-import { clearSession, readLang, readOrigin, readReminders, readSession, renewSession, saveLang, saveReminders, type Session } from "./storage";
+import { clearSession, onSessionCleared, readLang, readOrigin, readReminders, readSession, renewSession, saveLang, saveReminders, type Session } from "./storage";
 
 // The signed-in guild, shared by every tab (moved out of the old GuildScreen for the five-tab shell).
 // Storage keys and the session format are unchanged.
@@ -58,9 +59,13 @@ export function useGuild(defaultOrigin: string) {
   const [pushBusy, setPushBusy] = useState(false);
   const [pushNotice, setPushNotice] = useState<string | null>(null);
   const [pushNeedsSettings, setPushNeedsSettings] = useState(false);
+  // My own answer per upcoming raid (0.5.1), by raid id. Reminders skip a raid answered "Can't come".
+  const [answers, setAnswers] = useState<Record<string, MySignup>>({});
   const snapshotRef = useRef<Snapshot | null>(null);
   snapshotRef.current = snapshot;
   const sessionRef = useRef<Session | null>(null);
+  const previewRef = useRef(false);
+  previewRef.current = preview;
   const inFlight = useRef(false);
   sessionRef.current = session;
 
@@ -77,6 +82,9 @@ export function useGuild(defaultOrigin: string) {
     })();
     return () => { active = false; };
   }, []);
+
+  // A screen that met a revoked sign-in (401) erased it from the phone: the app follows and shows the signed-out screens.
+  useEffect(() => onSessionCleared(() => { if (!previewRef.current) { setSession(null); setSnapshot(null); setAnswers({}); setRemoteOn(false); } }), []);
 
   const load = useCallback(async (original: Session) => {
     if (inFlight.current) return;
@@ -111,6 +119,8 @@ export function useGuild(defaultOrigin: string) {
       return;
     }
     void client.deviceStatus(current.guildDiscordId).then(setRemoteOn).catch(() => {});
+    // A server without the route (older bot) leaves the buttons off; a failed read keeps the answers already shown.
+    void client.mySignups(current.guildDiscordId).then((body) => setAnswers(parseSignups(body))).catch(() => {});
     const now = Date.now();
     if (hub.status === "fulfilled") void writeCache(guildCacheKey(current.guildDiscordId, "hub"), hub.value, now);
     if (manage.status === "fulfilled") void writeCache(guildCacheKey(current.guildDiscordId, "manage"), manage.value, now);
@@ -147,7 +157,8 @@ export function useGuild(defaultOrigin: string) {
   }, [ready, preview, session, load]);
 
   const raids = snapshot?.standings?.raids;
-  const planned = useMemo(() => planReminders(raids ?? [], Date.now(), lang), [raids, lang]);
+  const declinedIds = useMemo(() => new Set(Object.values(answers).filter((answer) => answer.status === "CANCELLED").map((answer) => answer.raidId)), [answers]);
+  const planned = useMemo(() => planReminders(raids ?? [], Date.now(), lang, declinedIds), [raids, lang, declinedIds]);
   const imminent = useMemo(() => soonRaids(raids ?? []), [raids]);
 
   useEffect(() => {
@@ -157,6 +168,22 @@ export function useGuild(defaultOrigin: string) {
     void syncRaidReminders(remindersOn && !remoteOn, planned, session?.guildDiscordId).then((result) => { if (active) setReminderSync(result); });
     return () => { active = false; };
   }, [snapshot, preview, remindersOn, remoteOn, planned, session?.guildDiscordId]);
+
+  /**
+   * I'm in / Maybe / Can't come on one raid. Throws the server's refusal (SignupClosedError, or an ApiError with its reason).
+   * The sample guild answers on this phone only.
+   */
+  const answerRaid = async (raidId: string, choice: Choice, role?: RaidRoleName): Promise<MySignup> => {
+    let saved: MySignup | null;
+    if (preview || !session || session.personal) {
+      const before = answers[raidId];
+      saved = { raidId, status: choice === "NO" ? "CANCELLED" : choice === "MAYBE" ? "MAYBE" : "SIGNED_UP", role: role ?? before?.role ?? "DPS", late: false, closesAt: null };
+    } else saved = parseSignupAnswer(await new GuildedClient(session.apiOrigin, session.companionCredential).signUp(session.guildDiscordId, raidId, choice, role));
+    if (!saved) throw new ApiError("The server answer was not understood.", 502);
+    const answer = saved;
+    setAnswers((current) => ({ ...current, [raidId]: answer }));
+    return answer;
+  };
 
   const setLang = (next: Lang) => { setLangState(next); void saveLang(next); };
   const setRemindersOn = (on: boolean) => { setRemindersState(on); if (!preview) void saveReminders(on); };
@@ -187,6 +214,7 @@ export function useGuild(defaultOrigin: string) {
     setPreview(false);
     setSession(null);
     setSnapshot(null);
+    setAnswers({});
     setRemoteOn(false);
     setPushNotice(null);
   };
@@ -206,6 +234,7 @@ export function useGuild(defaultOrigin: string) {
     if (remindersOn) void syncRaidReminders(false, []);
     setSession(null);
     setSnapshot(null);
+    setAnswers({});
     setRemoteOn(false);
     setPushNotice(null);
     return "deleted";
@@ -220,7 +249,7 @@ export function useGuild(defaultOrigin: string) {
   return {
     lang, setLang, ready, session, setSession, preview, startPreview, leave, deleteMyData, refresh,
     originDraft, setOriginDraft, snapshot, setSnapshot, loading,
-    remindersOn, setRemindersOn, planned, imminent, reminderSync,
+    remindersOn, setRemindersOn, planned, imminent, reminderSync, answers, answerRaid,
     remoteOn, pushBusy, pushNotice, pushNeedsSettings, togglePush,
     hasGuild, signedIn, guildName
   };

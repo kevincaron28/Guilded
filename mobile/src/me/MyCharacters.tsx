@@ -12,7 +12,7 @@ import { isMeCharacters, parseMeCharacters, type MeCharacter } from "./meData";
 
 const words = {
   title: { en: "My characters", fr: "Mes personnages" },
-  intro: { en: "Every character linked to you, with its Discord server and in-game guild rank.", fr: "Tous les personnages liés à vous, avec leur serveur Discord et leur rang dans la guilde en jeu." },
+  intro: { en: "Every character linked to you, with its Discord server and in-game guild rank.", fr: "Tous les personnages liés à toi, avec leur serveur Discord et leur rang dans la guilde en jeu." },
   main: { en: "Main", fr: "Principal" },
   alt: { en: "Alt", fr: "Alt" },
   makeMain: { en: "Make main", fr: "Rendre principal" },
@@ -24,14 +24,14 @@ const words = {
   level: { en: "Level", fr: "Niveau" },
   confirmed: { en: "Confirmed", fr: "Confirmé" },
   reported: { en: "Reported", fr: "Rapporté" },
-  empty: { en: "No linked character yet. Send the Guilded bot your character's full name in a Discord message, or sign the Windows companion in.", fr: "Aucun personnage lié. Envoyez au bot Guilded le nom complet du personnage en message privé Discord, ou connectez le compagnon Windows." },
-  failed: { en: "Your characters are unavailable right now.", fr: "Vos personnages sont indisponibles pour le moment." },
+  empty: { en: "No linked character yet. Send the Guilded bot your character's full name in a Discord message, or sign the Windows companion in.", fr: "Aucun personnage lié. Envoie au bot Guilded le nom complet du personnage en message privé Discord, ou connecte le compagnon Windows." },
+  failed: { en: "Your characters are unavailable right now.", fr: "Tes personnages sont indisponibles pour le moment." },
   unlinkTitle: { en: "Unlink this character?", fr: "Délier ce personnage ?" },
-  unlinkBody: { en: "{name} leaves your list on this Discord server. Its history is kept and the officers see a line in the log. You can link it back later with /character list in Discord.", fr: "{name} quitte votre liste sur ce serveur Discord. Son historique est conservé et les officiers voient une ligne dans le journal. Vous pourrez le relier plus tard avec /character list dans Discord." },
+  unlinkBody: { en: "{name} leaves your list on this Discord server. Its history is kept and the officers see a line in the log. You can link it back later with /character list in Discord.", fr: "{name} quitte ta liste sur ce serveur Discord. Son historique est conservé et les officiers voient une ligne dans le journal. Tu pourras le relier plus tard avec /character list dans Discord." },
   cancel: { en: "Keep it", fr: "Le garder" },
   yesUnlink: { en: "Yes, unlink", fr: "Oui, délier" },
   changed: { en: "Done.", fr: "C'est fait." },
-  notSaved: { en: "That could not be done right now. Try again later.", fr: "Impossible pour le moment. Réessayez plus tard." }
+  notSaved: { en: "That could not be done right now. Try again later.", fr: "Impossible pour le moment. Réessaie plus tard." }
 } as const;
 const w = (key: keyof typeof words, lang: Lang) => words[key][lang];
 

@@ -111,7 +111,7 @@ describe("layer invite: asking", () => {
     expect(msgs()).not.toContain("takes effect once");
     s!.run(`IsInGuild = function() return false end; MSGS = {}`);
     s!.run(`NS.commandHandlers.layer({ "auto", "off" })`);
-    expect(s!.run(`return tostring(DB.layer.auto)`)).toBe("false");
+    expect(s!.run(`return tostring(DB.layer.auto)`)).toBe("nil");
     expect(msgs()).toContain("(takes effect once you are in a guild)");
     expect(msgs()).not.toContain("Join a guild");
     s!.run(`MSGS = {}; NS.commandHandlers.layer({ "helper", "off" })`);
@@ -128,7 +128,7 @@ describe("layer invite: asking", () => {
 describe("layer invite: a helper", () => {
   it("is asked only once per request and sees nothing from another continent", () => {
     setup(12); login();
-    s!.run(`DB.layer = { helper = true, auto = false }`);
+    s!.run(`DB.layer = { helper = true }`);
     heard("Ann", "REQ|77|13|Stormwind");
     expect(toastShown()).toBe("false");
     expect(openList()).toBe("");
@@ -145,7 +145,7 @@ describe("layer invite: a helper", () => {
 
   it("ignores my own echo and non-members and bad messages", () => {
     setup(12); login();
-    s!.run(`DB.layer = { helper = true, auto = false }`);
+    s!.run(`DB.layer = { helper = true }`);
     heard("Kev", "REQ|1|12|Elwynn Forest");
     heard("Stranger", "REQ|2|12|Elwynn Forest");
     heard("Ann", "REQ|3|x|Elwynn Forest");
@@ -157,7 +157,6 @@ describe("layer invite: a helper", () => {
 
   it("shows the request at once by default (Help guildmates is on), and shows nothing once it is switched off", () => {
     setup(12); login();
-    s!.run(`NS.layerInvite.setAutoInvite(false)`);
     heard("Ann", "REQ|5|12|Elwynn Forest");
     expect(s!.run(`return FR.GuildedLayerToast.mode`)).toBe("request");
     s!.run(`FR.GuildedLayerToast:Hide(); FR.GuildedLayerToast.isOpen = false`);
@@ -170,7 +169,7 @@ describe("layer invite: a helper", () => {
 
   it("does not show requests to a helper in a raid, in an instance or with a full party", () => {
     setup(12); login();
-    s!.run(`DB.layer = { helper = true, auto = false }; GROUP = 5`);
+    s!.run(`DB.layer = { helper = true }; GROUP = 5`);
     heard("Ann", "REQ|5|12|Elwynn Forest");
     s!.run(`GROUP = 1; INST = true`);
     heard("Bo", "REQ|6|12|Elwynn Forest");
@@ -179,7 +178,7 @@ describe("layer invite: a helper", () => {
 
   it("in combat only prints one chat line: no toast, no message sent, nothing stolen from the keyboard", () => {
     setup(12); login();
-    s!.run(`DB.layer = { helper = true, auto = false }; IN_COMBAT = true`);
+    s!.run(`DB.layer = { helper = true }; IN_COMBAT = true`);
     heard("Ann", "REQ|5|12|Elwynn Forest");
     expect(toastShown()).toBe("false");
     expect(sentCount()).toBe(0);
@@ -196,7 +195,7 @@ describe("layer invite: a helper", () => {
 
   it("Invite sends the party invite directly (9.4) and never touches the chat box; without the API it shows the copy box", () => {
     setup(12); login();
-    s!.run(`DB.layer = { helper = true, auto = false }`);
+    s!.run(`DB.layer = { helper = true }`);
     heard("Ann", "REQ|5|12|Elwynn Forest");
     s!.run(`FR.GuildedLayerToast.invite:GetScript("OnClick")(FR.GuildedLayerToast.invite)`);
     expect(s!.run(`return table.concat(INV, ",") .. ":" .. #COPIED .. ":" .. #OPENED`)).toBe("Ann:0:0");
@@ -210,7 +209,7 @@ describe("layer invite: a helper", () => {
 describe("layer invite: the first accept closes the request", () => {
   it("the helper's click sends CLAIM, closes it for the helper and for every other helper who hears it", () => {
     setup(12); login();
-    s!.run(`DB.layer = { helper = true, auto = false }`);
+    s!.run(`DB.layer = { helper = true }`);
     heard("Ann", "REQ|5|12|Elwynn Forest");
     s!.run(`FR.GuildedLayerToast.invite:GetScript("OnClick")(FR.GuildedLayerToast.invite)`);
     expect(sent()).toBe("GuildedLayer:GUILD:CLAIM|Ann|5|12");
@@ -218,7 +217,7 @@ describe("layer invite: the first accept closes the request", () => {
     expect(toastShown()).toBe("false");
     // A second helper's toast for the same request closes when the first CLAIM arrives.
     setup(12); login();
-    s!.run(`DB.layer = { helper = true, auto = false }`);
+    s!.run(`DB.layer = { helper = true }`);
     heard("Ann", "REQ|5|12|Elwynn Forest");
     expect(toastShown()).toBe("true");
     heard("Bo", "CLAIM|Ann|5|12");
@@ -245,7 +244,7 @@ describe("layer invite: the first accept closes the request", () => {
 
   it("a request and a claim run out on their own", () => {
     setup(12); login();
-    s!.run(`DB.layer = { helper = true, auto = false }`);
+    s!.run(`DB.layer = { helper = true }`);
     heard("Ann", "REQ|5|12|Elwynn Forest");
     s!.run(`CLOCK = CLOCK + 301; NS.layerInvite.tick()`);
     expect(openList()).toBe("");
@@ -259,7 +258,7 @@ describe("layer invite: the first accept closes the request", () => {
 describe("layer invite: receiver-side limits", () => {
   it("ignores a second request from the same sender within the pause, whatever the id", () => {
     setup(12); login();
-    s!.run(`DB.layer = { helper = true, auto = false }`);
+    s!.run(`DB.layer = { helper = true }`);
     heard("Ann", "REQ|1|12|Elwynn Forest");
     heard("Ann", "REQ|2|12|Elwynn Forest");
     heard("Ann", "REQ|3|12|Elwynn Forest");
@@ -271,18 +270,18 @@ describe("layer invite: receiver-side limits", () => {
 
   it("bounds what it remembers and what it queues", () => {
     setup(12); login();
-    s!.run(`DB.layer = { helper = true, auto = false }`);
+    s!.run(`DB.layer = { helper = true }`);
     for (let i = 0; i < 150; i++) heard(`P${i}`, `REQ|${i}|99|Somewhere`);
     expect(s!.run(`local seen = NS.layerInvite.counts(); return seen`)).toBe("100");
     setup(12); login();
-    s!.run(`DB.layer = { helper = true, auto = false }`);
+    s!.run(`DB.layer = { helper = true }`);
     for (let i = 0; i < 12; i++) heard(`Q${i}`, `REQ|${i}|12|Elwynn Forest`);
     expect(s!.run(`local _, waiting = NS.layerInvite.counts(); return waiting`)).toBe("5");
   });
 
   it("does not lose a request when the continent cannot be read yet", () => {
     setup(12); login();
-    s!.run(`DB.layer = { helper = true, auto = false }; REAL = C_Map.GetBestMapForUnit; C_Map.GetBestMapForUnit = function() return nil end`);
+    s!.run(`DB.layer = { helper = true }; REAL = C_Map.GetBestMapForUnit; C_Map.GetBestMapForUnit = function() return nil end`);
     heard("Ann", "REQ|1|12|Elwynn Forest");
     expect(openList()).toBe("");
     s!.run(`C_Map.GetBestMapForUnit = REAL`);
@@ -295,7 +294,7 @@ describe("layer invite: receiver-side limits", () => {
 describe("layer invite: CLAIM rules", () => {
   it("does nothing for a request this client does not hold, from the asker, or from a non-member", () => {
     setup(12); login();
-    s!.run(`DB.layer = { helper = true, auto = false }`);
+    s!.run(`DB.layer = { helper = true }`);
     heard("Ann", "REQ|5|12|Elwynn Forest");
     heard("Ann", "CLAIM|Ann|5|12");
     heard("Bo", "CLAIM|Zed|9|12");
@@ -322,7 +321,7 @@ describe("layer invite: CLAIM rules", () => {
 describe("layer invite: combat and placement", () => {
   it("hides the window when combat starts and brings it back after, if the request is still open", () => {
     setup(12); login();
-    s!.run(`DB.layer = { helper = true, auto = false }`);
+    s!.run(`DB.layer = { helper = true }`);
     heard("Ann", "REQ|5|12|Elwynn Forest");
     expect(toastShown()).toBe("true");
     s!.run(`IN_COMBAT = true; fire_event("PLAYER_REGEN_DISABLED")`);
@@ -338,7 +337,7 @@ describe("layer invite: combat and placement", () => {
 
   it("hangs below the call-for-help toast's box when that exists", () => {
     setup(12); login();
-    s!.run(`DB.layer = { helper = true, auto = false }; CFH = CreateFrame("Frame"); NS.callForHelp = { footprint = function() return CFH end }`);
+    s!.run(`DB.layer = { helper = true }; CFH = CreateFrame("Frame"); NS.callForHelp = { footprint = function() return CFH end }`);
     heard("Ann", "REQ|5|12|Elwynn Forest");
     expect(s!.run(`local p = FR.GuildedLayerToast.pts; local last = p[#p]; return tostring(last[1]) .. ":" .. tostring(last[2] == CFH) .. ":" .. tostring(last[3])`)).toBe("TOPLEFT:true:BOTTOMLEFT");
   });
@@ -377,15 +376,12 @@ describe("layer invite: auto-invite opt-in and direct party invites", () => {
   const copied = () => s!.run(`return table.concat(COPIED, ",")`);
   const mode = () => s!.run(`return tostring(FR.GuildedLayerToast and FR.GuildedLayerToast.mode)`);
 
-  it("is on by default (9.4.9): a request on my continent is invited by itself; a member's own off keeps the window", () => {
+  it("is off by default: a request is never invited by itself, it shows the window with an Invite button", () => {
     withDirect();
-    expect(s!.run(`return tostring(NS.layerInvite.autoInvite())`)).toBe("true");
-    heard("Ann", "REQ|5|12|Elwynn Forest");
-    expect(invites()).toBe("Ann");
-    s!.run(`NS.commandHandlers.layer({ "layer", "auto", "off" }); FR.GuildedLayerToast.isOpen = false`);
     expect(s!.run(`return tostring(NS.layerInvite.autoInvite())`)).toBe("false");
-    heard("Bo", "REQ|6|12|Elwynn Forest");
-    expect(invites()).toBe("Ann");
+    heard("Ann", "REQ|5|12|Elwynn Forest");
+    expect(invites()).toBe("");
+    expect(mode()).toBe("request");
   });
 
   it("on: invites a same-continent request when it arrives, claims it, and shows a short notice (no chat line)", () => {

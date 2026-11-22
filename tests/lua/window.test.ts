@@ -279,13 +279,13 @@ describe("the tools window (sidebar and Home page)", () => {
     // The shared frame mock does not keep a check state: give the two boxes one, then draw the page again.
     s.run(`for _, b in pairs(NS.layerInvite.pageBoxes) do b.SetChecked = function(self, v) self.c = v and true or false end; b.GetChecked = function(self) return self.c == true end end; NS.layerInvite.refreshPage()`);
     const boxes = () => s.run(`local b = NS.layerInvite.pageBoxes; return tostring(b.helper:GetChecked()) .. "," .. tostring(b.auto:GetChecked())`);
-    expect(boxes()).toBe("true,true");
-    s.run(`local b = NS.layerInvite.pageBoxes; b.auto:SetChecked(false); b.auto.scripts.OnClick(b.auto)`);
-    expect(s.run(`return tostring(NS.getDb().layer.auto) .. "," .. tostring(NS.layerInvite.autoInvite())`)).toBe("false,false");
     expect(boxes()).toBe("true,false");
-    // Same getters and setters as Settings: turning it back on from the command (what Settings runs) shows on the page.
-    s.run(`NS.commandHandlers["layer"]({ "layer", "auto", "on" }); NS.layerInvite.refreshPage()`);
+    s.run(`local b = NS.layerInvite.pageBoxes; b.auto:SetChecked(true); b.auto.scripts.OnClick(b.auto)`);
+    expect(s.run(`return tostring(NS.getDb().layer.auto) .. "," .. tostring(NS.layerInvite.autoInvite())`)).toBe("true,true");
     expect(boxes()).toBe("true,true");
+    // Same getters and setters as Settings: turning it off from the command (what Settings runs) shows on the page.
+    s.run(`NS.commandHandlers["layer"]({ "layer", "auto", "off" }); NS.layerInvite.refreshPage()`);
+    expect(boxes()).toBe("true,false");
     // In combat the switch only changes the saved setting.
     s.run(`IN_COMBAT = true; InCombatLockdown = function() return true end; local b = NS.layerInvite.pageBoxes; b.helper:SetChecked(false); b.helper.scripts.OnClick(b.helper)`);
     expect(s.run(`return tostring(NS.layerInvite.helper())`)).toBe("false");

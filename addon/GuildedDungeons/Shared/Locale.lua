@@ -3100,7 +3100,7 @@ local DE = {
   ["On the do-not-invite list"] = "Auf der Nicht-einladen-Liste",
   ["Party Invite buttons invite directly."] = "Gruppen-Einladen-Schaltfl\195\164chen laden direkt ein.",
   ["Party Invite buttons show the /invite line to paste."] = "Gruppen-Einladen-Schaltfl\195\164chen zeigen die /invite-Zeile zum Einf\195\188gen.",
-  ["On by default. When a guildmate on your continent asks for a layer, Guilded invites them at once (only when you are alone or lead your party, out of combat and outside instances) and shows a short notice. If the game refuses, you get the Invite window instead."] = "Standardm\195\164\195\159ig aus. Wenn ein Gildenmitglied auf deinem Kontinent um einen Layer bittet, l\195\164dt Guilded es sofort ein (nur wenn du allein oder Gruppenanf\195\188hrer bist, au\195\159erhalb von Kampf und Instanzen) und zeigt einen kurzen Hinweis. Lehnt das Spiel ab, bekommst du stattdessen das Einladen-Fenster.",
+  ["Off by default. When a guildmate on your continent asks for a layer, Guilded invites them at once (only when you are alone or lead your party, out of combat and outside instances) and shows a short notice. If the game refuses, you get the Invite window instead."] = "Standardm\195\164\195\159ig aus. Wenn ein Gildenmitglied auf deinem Kontinent um einen Layer bittet, l\195\164dt Guilded es sofort ein (nur wenn du allein oder Gruppenanf\195\188hrer bist, au\195\159erhalb von Kampf und Instanzen) und zeigt einen kurzen Hinweis. Lehnt das Spiel ab, bekommst du stattdessen das Einladen-Fenster.",
   ["Guild invites"] = "Gildeneinladungen",
   ["/guilded layer auto on|off"] = "/guilded layer auto on|off",
   ["/guilded layer direct on|off"] = "/guilded layer direct on|off",
@@ -5474,7 +5474,7 @@ local ES = {
   ["On the do-not-invite list"] = "En la lista de no invitar",
   ["Party Invite buttons invite directly."] = "Los botones Invitar del grupo invitan directamente.",
   ["Party Invite buttons show the /invite line to paste."] = "Los botones Invitar del grupo muestran la l\195\173nea /invite para pegar.",
-  ["On by default. When a guildmate on your continent asks for a layer, Guilded invites them at once (only when you are alone or lead your party, out of combat and outside instances) and shows a short notice. If the game refuses, you get the Invite window instead."] = "Activado por defecto. Cuando un miembro de la hermandad de tu continente pide una capa, Guilded lo invita al instante (solo si est\195\161s solo o eres l\195\173der del grupo, fuera de combate y de instancias) y muestra un aviso breve. Si el juego lo rechaza, recibes la ventana Invitar en su lugar.",
+  ["Off by default. When a guildmate on your continent asks for a layer, Guilded invites them at once (only when you are alone or lead your party, out of combat and outside instances) and shows a short notice. If the game refuses, you get the Invite window instead."] = "Desactivado por defecto. Cuando un miembro de la hermandad de tu continente pide una capa, Guilded lo invita al instante (solo si est\195\161s solo o eres l\195\173der del grupo, fuera de combate y de instancias) y muestra un aviso breve. Si el juego lo rechaza, recibes la ventana Invitar en su lugar.",
   ["Guild invites"] = "Invitaciones de hermandad",
   ["/guilded layer auto on|off"] = "/guilded layer auto on|off",
   ["/guilded layer direct on|off"] = "/guilded layer direct on|off",
@@ -6995,7 +6995,7 @@ FR["Guildmates who ask for a layer on your continent are invited at once (when y
 FR["Layer requests are no longer invited by themselves."] = "Les demandes de couche ne sont plus invit\195\169es automatiquement."
 FR["Party Invite buttons invite directly."] = "Les boutons Inviter du groupe invitent directement."
 FR["Party Invite buttons show the /invite line to paste."] = "Les boutons Inviter du groupe affichent la ligne /invite \195\160 coller."
-FR["On by default. When a guildmate on your continent asks for a layer, Guilded invites them at once (only when you are alone or lead your party, out of combat and outside instances) and shows a short notice. If the game refuses, you get the Invite window instead."] = "D\195\169sactiv\195\169 par d\195\169faut. Quand un membre de la guilde sur votre continent demande une couche, Guilded l'invite tout de suite (seulement si vous \195\170tes seul ou chef de groupe, hors combat et hors instance) et affiche un court avis. Si le jeu refuse, vous avez la fen\195\170tre Inviter \195\160 la place."
+FR["Off by default. When a guildmate on your continent asks for a layer, Guilded invites them at once (only when you are alone or lead your party, out of combat and outside instances) and shows a short notice. If the game refuses, you get the Invite window instead."] = "D\195\169sactiv\195\169 par d\195\169faut. Quand un membre de la guilde sur votre continent demande une couche, Guilded l'invite tout de suite (seulement si vous \195\170tes seul ou chef de groupe, hors combat et hors instance) et affiche un court avis. Si le jeu refuse, vous avez la fen\195\170tre Inviter \195\160 la place."
 
 -- 9.4 Crafting window: sub-tabs.
 FR["Craft for the guild"] = "Fabriquer pour la guilde"

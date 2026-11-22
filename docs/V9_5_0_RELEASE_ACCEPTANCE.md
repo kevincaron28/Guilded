@@ -1,11 +1,11 @@
 # 9.5.0 release acceptance
 
-Status: prepared 22 November 2026.
+Status: published 22 November 2026.
 
 | Provider | State |
 | --- | --- |
-| GitHub | not yet published. |
-| Installer | not yet built. |
+| GitHub | v9.5.0 published (tag f4aae37f). |
+| Installer | server and R2 mirror, sha256 4a0ce35e…. |
 | CurseForge | not yet uploaded. |
 | Microsoft Store | not yet submitted. |
 | Bot | live (a83eced6 and later). |

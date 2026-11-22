@@ -2,7 +2,7 @@
 
 ## 9.5.0 — 22 November 2026
 
-Prepared 22 November 2026. In-game checks: docs/V9_5_0_RELEASE_ACCEPTANCE.md.
+Published 22 November 2026 (GitHub v9.5.0, website download and installer, bot). In-game checks: docs/V9_5_0_RELEASE_ACCEPTANCE.md.
 
 Addon:
 - Guild events feed: joins, leaves and rank changes in chat (at most three at a time) and a list with `/guilded events`; on by default, off in Settings (#1253).

@@ -3,6 +3,13 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
 import { goldText } from "./guild-bank.js";
+
+/** Gold on a donor card without empty parts: "125g 40s", "50g", "75s" (owner review 22 Nov 2026: "0c" read as noise). */
+export function donationGold(copper: bigint): string {
+  if (copper >= 10_000_000n) return goldText(copper);
+  const g = copper / 10000n, s = (copper / 100n) % 100n, c = copper % 100n;
+  return [g ? `${g}g` : "", s ? `${s}s` : "", c ? `${c}c` : ""].filter(Boolean).join(" ") || "0c";
+}
 import { bankItems } from "./guild-bank-member.js";
 import { displayCharacterName, loadFullNameBook } from "./character-display.js";
 import { guildChannelLikes, wowChatChannel, type WowChatDb } from "./wow-chat.js";
@@ -137,7 +144,7 @@ async function donorTotals(db: DonationDb, guildId: string, groups: readonly Don
     const linked = await db.character.findMany({ where: { guildId, OR: [{ name: { equals: group.actor.trim(), mode: "insensitive" } }, { displayName: { equals: name, mode: "insensitive" } }, { name: { equals: first, mode: "insensitive" } }] },
       select: { name: true, displayName: true, member: { select: { discordUserId: true } } }, take: 5 }).catch(() => []);
     const owners = [...new Set(linked.map((c) => c.member?.discordUserId).filter((id): id is string => !!id && /^\d{17,20}$/.test(id)))];
-    out.set(group, { userId: owners.length === 1 ? owners[0]! : null, total: { name, character: name, gold: group.copper > 0n ? goldText(group.copper) : null,
+    out.set(group, { userId: owners.length === 1 ? owners[0]! : null, total: { name, character: name, gold: group.copper > 0n ? donationGold(group.copper) : null,
       items: group.items.map((i) => ({ ...i, ...(i.itemId !== null && quality.has(i.itemId) ? { quality: quality.get(i.itemId) } : {}) })) } });
   }
   return out;

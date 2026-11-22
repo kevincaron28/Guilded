@@ -154,7 +154,7 @@ describe("announcing donors end to end", () => {
     expect(job.payload["donorUserId"]).toBe("123456789012345678");
     expect((job.payload["message"] as { content: string }).content).toBe("🎁 Merci <@123456789012345678> pour ton don à la banque de guilde !");
     const card = job.payload["card"] as { donation: { name: string; lines: { text: string }[] } };
-    expect(card.donation.lines.map((l) => l.text)).toEqual(["125g 0s 0c", "20 × Linen Cloth"]);
+    expect(card.donation.lines.map((l) => l.text)).toEqual(["125g", "20 × Linen Cloth"]);
     expect(db.lines.every((l) => l.donationSeenAt)).toBe(true);
   });
   it("lines stamped by the migration (the backlog) never post", async () => {
@@ -209,4 +209,11 @@ describe("donor card", () => {
     expect((await renderDonationCard(donationCard("en", { ...donor, items: [] })))?.length).toBeGreaterThan(1000);
     expect((await renderDonationCard(combinedDonationCard("fr", [donor, { ...donor, name: "Lina", items: [] }, { ...donor, name: "Marc", gold: null }])))?.length).toBeGreaterThan(1000);
   }, 60_000);
+});
+
+describe("donationGold", () => {
+  it("leaves out empty parts", async () => {
+    const { donationGold } = await import("../src/services/bank-donations.js");
+    expect([donationGold(1_254_000n), donationGold(500_000n), donationGold(7_500n), donationGold(1_250_050n)]).toEqual(["125g 40s", "50g", "75s", "125g 50c"]);
+  });
 });

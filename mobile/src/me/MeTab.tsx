@@ -1,3 +1,4 @@
+import { errorText } from "../errors";
 import { useRef, useState } from "react";
 import { KeyboardAvoidingView, Linking, Platform, Pressable, Text, View } from "react-native";
 import { t } from "../i18n";
@@ -104,7 +105,7 @@ function DeleteMyData({ guild }: { guild: GuildState }) {
     try {
       if (await guild.deleteMyData() === "unavailable") setProblem(t(lang, "deleteUnavailable"));
     } catch (error) {
-      setProblem(error instanceof Error ? error.message : t(lang, "deleteUnavailable"));
+      setProblem(errorText(error, lang, t(lang, "deleteUnavailable")));
     } finally {
       sending.current = false;
     }

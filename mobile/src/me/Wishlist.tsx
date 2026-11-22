@@ -1,3 +1,4 @@
+import { errorText } from "../errors";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { GuildedClient, type ManageView, type WishCharacter } from "../api";
@@ -42,7 +43,7 @@ export function Wishlist({ lang, preview, session, manage, error, onChange }: {
       }
       setItem("");
     } catch (caught) {
-      setNotice(caught instanceof Error ? caught.message : t(lang, "add"));
+      setNotice(errorText(caught, lang, t(lang, "add")));
     } finally { setBusy(false); }
   };
 
@@ -57,7 +58,7 @@ export function Wishlist({ lang, preview, session, manage, error, onChange }: {
         onChange(await new GuildedClient(session.apiOrigin, session.companionCredential).manage(session.guildDiscordId));
       }
     } catch (caught) {
-      setNotice(caught instanceof Error ? caught.message : t(lang, "remove"));
+      setNotice(errorText(caught, lang, t(lang, "remove")));
     }
   };
 

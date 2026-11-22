@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState } from "react-native";
 import { guildCacheKey, clearGuildCaches, readCache, writeCache } from "./cache";
 import { ApiError, GuildedClient, parseHub, parseManage, parseStandings, type HubView, type ManageView, type StandingsView } from "./api";
+import { errorText } from "./errors";
 import { t, type Lang } from "./i18n";
 import { PushSetupError, pushToken, syncRaidReminders, type ReminderSync } from "./notify";
 import { planReminders, soonRaids } from "./reminders";
@@ -96,9 +97,9 @@ export function useGuild(defaultOrigin: string) {
     // A view that failed to refresh keeps its saved copy (shown with "last updated"); only a view with nothing saved shows the error.
     const previous = snapshotRef.current;
     const errors: Snapshot["errors"] = {};
-    if (hub.status === "rejected" && !previous?.hub) errors.hub = hub.reason instanceof Error ? hub.reason.message : t(lang, "loading");
-    if (manage.status === "rejected" && !previous?.manage) errors.manage = manage.reason instanceof Error ? manage.reason.message : t(lang, "loading");
-    if (standings.status === "rejected" && !previous?.standings) errors.standings = standings.reason instanceof Error ? standings.reason.message : t(lang, "loading");
+    if (hub.status === "rejected" && !previous?.hub) errors.hub = errorText(hub.reason, lang, t(lang, "loading"));
+    if (manage.status === "rejected" && !previous?.manage) errors.manage = errorText(manage.reason, lang, t(lang, "loading"));
+    if (standings.status === "rejected" && !previous?.standings) errors.standings = errorText(standings.reason, lang, t(lang, "loading"));
     const unauthorized = [hub, manage, standings].some((result) => result.status === "rejected" && result.reason instanceof ApiError && result.reason.status === 401);
     if (unauthorized) {
       await clearSession();
@@ -169,7 +170,7 @@ export function useGuild(defaultOrigin: string) {
       if (sessionRef.current?.companionCredential !== session.companionCredential) return;
       setRemoteOn(!remoteOn);
     } catch (error) {
-      setPushNotice(error instanceof Error ? error.message : t(lang, "alertsDenied"));
+      setPushNotice(error instanceof PushSetupError ? error.message : errorText(error, lang, t(lang, "alertsDenied")));
       setPushNeedsSettings(error instanceof PushSetupError && error.needsSettings);
     }
     finally { setPushBusy(false); }

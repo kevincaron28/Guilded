@@ -1,3 +1,4 @@
+import { errorText } from "../errors";
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { ApiError, GuildedClient } from "../api";
@@ -57,7 +58,7 @@ export function AlbumScreen({ lang, session }: { lang: Lang; session: Session | 
       .then((data) => { if (active) setAlbum(data); })
       .catch(async (e: unknown) => {
         if (e instanceof ApiError && e.status === 401) await clearSession();
-        if (active) setError(e instanceof Error ? e.message : w("failed", lang));
+        if (active) setError(errorText(e, lang, w("failed", lang)));
       });
     return () => { active = false; };
   }, [session, lang, attempt]);

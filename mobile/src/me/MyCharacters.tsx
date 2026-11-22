@@ -1,3 +1,4 @@
+import { errorText } from "../errors";
 import { useRef, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { ApiError, GuildedClient } from "../api";
@@ -49,7 +50,7 @@ export function MyCharacters({ lang, session }: { lang: Lang; session: Session }
       await feed.reload();
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) await clearSession();
-      setProblem(error instanceof ApiError && error.status === 403 ? w("notSaved", lang) : error instanceof Error ? error.message : w("notSaved", lang));
+      setProblem(error instanceof ApiError && error.status === 403 ? w("notSaved", lang) : errorText(error, lang, w("notSaved", lang)));
     } finally { sending.current = false; setBusy(null); }
   };
   const confirmUnlink = (character: MeCharacter) => Alert.alert(w("unlinkTitle", lang), w("unlinkBody", lang).replace("{name}", character.name), [

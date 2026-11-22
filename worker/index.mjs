@@ -513,7 +513,9 @@ async function route(request, env, ctx) {
     // Inside an edition's section only the public data pages exist (checked above).
     const web = !creator && url.pathname.length <= 200
       && /^\/(?:auth\/(?:login|callback|logout)|recruitment(?:\/[A-Za-z0-9._~/-]*)?|me(?:\/[A-Za-z0-9._~/-]*)?|players(?:\/[A-Za-z0-9._~/-]*)?|leaderboards(?:\/[A-Za-z0-9._~%/-]*)?)$/.test(pagePath);
-    if (!api && !health && !guildPage && !web) {
+    // The phone app's News tab (GET /news/headlines.json): public headlines and links, read-only, no cookies.
+    const newsFeed = !creator && url.pathname === "/news/headlines.json";
+    if (!api && !health && !guildPage && !web && !newsFeed) {
       if (url.pathname.startsWith("/api/")) return failure(404, "Not found");
       return localizedAsset(request, env);
     }
@@ -575,7 +577,7 @@ async function route(request, env, ctx) {
         // Build from a fixed origin and the path, never a user-supplied destination.
         target = new URL(origins[attempt % origins.length]);
         target.pathname = pagePath;
-        target.search = health || guildPage ? "" : url.search;
+        target.search = health || guildPage || newsFeed ? "" : url.search;
         // A removed edition's old section (a form post; page views were redirected above) is served as WoW Forever.
         if (section) target.searchParams.set("edition", section.retired ? "forever" : section.edition);
         const remaining = ORIGIN_BUDGET_MS - (Date.now() - startedAt);

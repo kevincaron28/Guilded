@@ -30,8 +30,9 @@ const w = (key: keyof typeof words, lang: Lang) => words[key][lang];
 
 const isSummary = (data: unknown): data is Summary => typeof data === "object" && data !== null && Array.isArray((data as Summary).topRuns);
 
-function useSummary(origin: string) {
-  return useCachedResource<Summary>(cacheKey("summary", origin), async () => parseSummary(await getJsonBounded(`${origin}/leaderboards/summary.json`)), isSummary);
+// The server names the season, the dungeons and the level ranges in the asked language (?lang=fr), so the saved copy is per language.
+function useSummary(origin: string, lang: Lang) {
+  return useCachedResource<Summary>(cacheKey("summary", origin, lang), async () => parseSummary(await getJsonBounded(`${origin}/leaderboards/summary.json?lang=${lang}`)), isSummary);
 }
 
 function SummaryCard({ origin, lang, feed }: { origin: string; lang: Lang; feed: ReturnType<typeof useSummary> }) {
@@ -78,7 +79,7 @@ function DuelsBoard({ origin, lang }: { origin: string; lang: Lang }) {
 
 export function StatsTab({ origin, lang }: { origin: string; lang: Lang }) {
   const [section, setSection] = useState<Section>("dungeons");
-  const summary = useSummary(origin);
+  const summary = useSummary(origin, lang);
   // Android Back from Duels returns to Dungeons.
   useBack(section !== "dungeons", () => setSection("dungeons"));
   const picker = <View style={styles.sections}><SegmentedTabs options={(["dungeons", "duels", "raids"] as const).map((value) => ({ value, label: w(value, lang) }))} value={section} onChange={setSection} /></View>;

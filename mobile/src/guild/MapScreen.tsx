@@ -1,3 +1,4 @@
+import { errorText } from "../errors";
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Switch, Text, View, type LayoutChangeEvent } from "react-native";
 import { ApiError, GuildedClient } from "../api";
@@ -59,7 +60,7 @@ export function MapScreen({ lang, session }: { lang: Lang; session: Session | nu
       .then((data) => { if (active) setMap(data); })
       .catch(async (e: unknown) => {
         if (e instanceof ApiError && e.status === 401) await clearSession();
-        if (active) setError(e instanceof Error ? e.message : w("failed", lang));
+        if (active) setError(errorText(e, lang, w("failed", lang)));
       });
     return () => { active = false; };
   }, [session, lang, attempt]);
@@ -78,7 +79,7 @@ export function MapScreen({ lang, session }: { lang: Lang; session: Session | nu
       setSaving(true);
       new GuildedClient(session.apiOrigin, session.companionCredential).setMapSharing(session.guildDiscordId, share)
         .then((next) => setMap(next))
-        .catch((e: unknown) => setError(e instanceof Error ? e.message : w("failed", lang)))
+        .catch((e: unknown) => setError(errorText(e, lang, w("failed", lang))))
         .finally(() => setSaving(false));
     };
     if (share) { run(); return; }

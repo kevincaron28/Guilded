@@ -46,7 +46,9 @@ export const bankCommand = new SlashCommandBuilder()
     .addBooleanOption((o) => o.setName("member_search").setDescription("Members can search the contents"))
     .addBooleanOption((o) => o.setName("request_posts").setDescription("Post request cards"))
     .addChannelOption((o) => o.setName("request_channel").setDescription("Request card channel (default: log)").addChannelTypes(ChannelType.GuildText))
-    .addBooleanOption((o) => o.setName("stock_alerts").setDescription("Alert below an item's minimum")));
+    .addBooleanOption((o) => o.setName("stock_alerts").setDescription("Alert below an item's minimum"))
+    .addBooleanOption((o) => o.setName("donation_cards").setDescription("Thank donors with a card in WoW chat"))
+    .addChannelOption((o) => o.setName("wow_chat").setDescription("WoW chat for donor and promotion cards").addChannelTypes(ChannelType.GuildText)));
 
 const isOfficer = (interaction: ChatInputCommandInteraction | ButtonInteraction) => !!interaction.member && hasPermission(interaction.member as GuildMember, "officer");
 
@@ -143,15 +145,19 @@ export async function executeBank(interaction: ChatInputCommandInteraction): Pro
     return;
   }
   if (subcommand === "settings") {
-    const data: { guildBankMemberSearch?: boolean; guildBankRequestPosts?: boolean; guildBankStockAlerts?: boolean; bankRequestChannelId?: string } = {};
+    const data: { guildBankMemberSearch?: boolean; guildBankRequestPosts?: boolean; guildBankStockAlerts?: boolean; bankRequestChannelId?: string; guildBankDonationCards?: boolean; wowChatChannelId?: string } = {};
     const memberSearchOn = interaction.options.getBoolean("member_search");
     const posts = interaction.options.getBoolean("request_posts");
     const alerts = interaction.options.getBoolean("stock_alerts");
+    const donations = interaction.options.getBoolean("donation_cards");
     const channel = interaction.options.getChannel("request_channel");
+    const wowChat = interaction.options.getChannel("wow_chat");
     if (memberSearchOn !== null) data.guildBankMemberSearch = memberSearchOn;
     if (posts !== null) data.guildBankRequestPosts = posts;
     if (alerts !== null) data.guildBankStockAlerts = alerts;
+    if (donations !== null) data.guildBankDonationCards = donations;
     if (channel) data.bankRequestChannelId = channel.id;
+    if (wowChat) data.wowChatChannelId = wowChat.id;
     const saved = Object.keys(data).length && settings ? await prisma.guildSettings.update({ where: { guildId: context.guildId }, data }) : settings;
     if (!saved) { await reply(t("Run /setup first.", "Lancez d'abord /setup.")); return; }
     const on = (value: boolean) => value ? t("on", "activé") : t("off", "désactivé");
@@ -159,6 +165,8 @@ export async function executeBank(interaction: ChatInputCommandInteraction): Pro
       `${t("Member search (contents only, never the ledger)", "Recherche des membres (contenu seulement, jamais le registre)")}: **${on(saved.guildBankMemberSearch)}**`,
       `${t("Request cards for officers", "Cartes de demande pour les officiers")}: **${on(saved.guildBankRequestPosts)}** · ${saved.bankRequestChannelId ? `<#${saved.bankRequestChannelId}>` : t("log channel", "salon de journal")}`,
       `${t("Low-stock alerts", "Alertes de stock bas")}: **${on(saved.guildBankStockAlerts)}**`,
+      `${t("Donor thank-you cards", "Cartes de remerciement des donateurs")}: **${on(saved.guildBankDonationCards)}**`,
+      `${t("WoW chat (donor and promotion cards)", "Chat WoW (cartes de dons et de promotions)")}: ${saved.wowChatChannelId ? `<#${saved.wowChatChannelId}>` : t("found by name (chat-wow, guild-chat…)", "trouvé par son nom (chat-wow, chat-guilde…)")}`,
       `${t("Weekly summary", "Résumé hebdomadaire")}: **${on(saved.guildBankWeeklyEnabled)}** (\`/officer stats bank\`)`
     ].join("\n"));
     return;

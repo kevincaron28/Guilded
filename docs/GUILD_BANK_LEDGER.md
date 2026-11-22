@@ -81,7 +81,21 @@ by default; officers turn each off with `/officer bank settings`.
   items below minimum and the open request count. In game: `/guilded gbank low`. Off switch for
   alerts: `/officer bank settings stock_alerts:False`.
 
-Not built (the plan holds them): withdrawal watch, bank alts and mailbox, donation recognition, gold
+- **Donor thank-you cards (21 Nov 2026).** New deposits (items and gold, never withdrawals, moves or repairs) get a
+  card in the WoW chat channel, in the promotion card's style: the donor's full name, Armory picture (else the
+  linked member's Discord avatar, else a chest), gold, the largest items with their game icons and "and N more",
+  and a warm FR/EN line (`src/services/bank-donations.ts`, `card-donation.ts`). A donor's deposits share one card
+  once nothing new from them arrived for 15 minutes. Never the backlog (the migration stamped every stored line,
+  and a line dated more than 24 h before it was received is passed over), never twice (each line is stamped
+  `donationSeenAt` before its card is queued; a line matching a seen one within 6 h is a re-upload), gold-only
+  deposits under 10 gold are skipped, and at most 3 cards per server per hour (the last one thanks the rest
+  together). On by default; off switch: `/officer bank settings donation_cards:False`.
+- **WoW chat channel.** Donor cards and promotion congratulations share one destination (`src/services/wow-chat.ts`):
+  `/officer bank settings wow_chat:#channel`, else a text channel named chat-wow / wow-chat / guild-chat / chat-guilde /
+  guilde-chat (emoji, separators and accents ignored, a WoW category preferred: Québec Gold's `chat-wow`), else
+  the community chat, else the season announcements or hall-of-fame channel.
+
+Not built (the plan holds them): withdrawal watch, bank alts and mailbox, gold
 goals, item assignment, mail-draft helper. The plan's dedicated "Bank requests" channel created by
 `/setup` is replaced by an optional officer-chosen channel, to stay clear of `/setup`'s size limit.
 

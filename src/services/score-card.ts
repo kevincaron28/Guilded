@@ -67,6 +67,8 @@ export interface ScoreCard { eyebrow?: string; title: string; subtitle: string; 
   weekly?: WeeklyVisual;
   /** The promotion congratulations card (card-promotion.ts): one design per rank tier. */
   promotion?: PromotionVisual;
+  /** 21 Nov 2026: the guild bank donor thank-you card (card-donation.ts), the promotion card's family. */
+  donation?: DonationVisual;
   /** 9.1: the new guild record card, drawn by card-next-recap.ts. */
   record?: RecordVisual;
   /** Officer member-trend card (member-trend.ts), drawn by member-trend-card.ts. */
@@ -92,6 +94,14 @@ export interface WeeklyVisual {
 /** Rank tiers of the promotion card: each has its own colour, emblem and background. Unknown rank names are "neutral". */
 export type PromotionTier = "initiate" | "member" | "officer" | "leader" | "neutral";
 export interface PromotionVisual { tier: PromotionTier; kicker: string; name: string; character: string; rankLabel: string; rank: string }
+
+/**
+ * One line of the donation card: an item ("20 × Linen Cloth", with its id so delivery can add the game icon), the gold ("125g 40s 0c"),
+ * a donor of a combined card ("Kev Caron: 12 items · 50g") or the "and 3 more" line. `icon` is added at delivery (base64), never stored.
+ */
+export interface DonationLine { kind: "item" | "gold" | "donor" | "more"; text: string; itemId?: number | undefined; quality?: number | undefined; icon?: string | undefined }
+/** The guild bank donor card: one donor (`character` names the character whose Armory picture delivery looks up) or several (`combined`). */
+export interface DonationVisual { kicker: string; name: string; character?: string | undefined; thanks: string; lines: DonationLine[]; combined?: boolean | undefined }
 
 /** A recap: up to three panels, each a title and up to five rows (name in its colour, a line under it, a value on the right). */
 export interface RecapVisual { theme: DungeonArtTheme; sections: { title: string; rows: CardRow[] }[] }

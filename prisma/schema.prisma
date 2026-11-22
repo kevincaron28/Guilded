@@ -1097,6 +1097,10 @@ model GuildSettings {
   // 9.0 guild bank ledger: weekly summary in the officer log channel (on by default; /officer stats bank).
   guildBankWeeklyEnabled   Boolean @default(true)
   guildBankLastPostAt      DateTime?
+  // 21 Nov 2026: a thank-you card in the WoW chat channel for each guild bank donor (on by default; /officer bank settings donation_cards).
+  guildBankDonationCards   Boolean @default(true)
+  // 21 Nov 2026: the WoW chat channel for donor and promotion cards (/officer bank settings wow_chat); unset = found by name (wow-chat.ts).
+  wowChatChannelId         String?
   // Weekly member-trend card in the officer log channel (on by default; /officer stats trend-post).
   memberTrendPostEnabled   Boolean @default(true)
   memberTrendLastPostAt    DateTime?
@@ -3750,8 +3754,12 @@ model GuildBankTransaction {
   at           DateTime
   reportedById String?
   createdAt    DateTime @default(now())
+  // 21 Nov 2026 donation cards (bank-donations.ts): set once the line was announced or passed over. Rows stored before the
+  // feature were stamped by its migration, so the backlog is never announced.
+  donationSeenAt DateTime?
 
   @@index([guildId, at])
+  @@index([guildId, donationSeenAt])
 }
 
 // 9.1 minimum stock (docs/plans/GUILD_BANK.md): officers keep at least `minCount` of an item in

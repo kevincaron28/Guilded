@@ -24,6 +24,7 @@ export async function renderNextCard(card: ScoreCard, options: { branded?: boole
   const recapped = await renderRecapKind(card, fit);
   if (recapped) return recapped;
   if (card.promotion) return (await import("./card-promotion.js")).renderPromotionCard(card);
+  if (card.donation) return (await import("./card-donation.js")).renderDonationCard(card);
   if (card.weekly) return (await import("./card-podium.js")).renderWeeklyHonorsCard(card);
   if (card.ladder && card.backdrop?.key === "community" && card.ladder.boards.some((board) => board.rows.length)) return (await import("./card-podium.js")).renderCommunityPodium(card);
   if (card.ladder) return ladderCard(card);

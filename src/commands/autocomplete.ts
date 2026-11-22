@@ -1,3 +1,4 @@
+import { guildWhere } from "../services/guild-scope.js";
 import { WITH_DETACHED } from "../services/character-move.js";
 import type { AutocompleteInteraction, GuildMember } from "discord.js";
 import { currentEdition } from "../services/edition-context.js";
@@ -39,13 +40,16 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
   let numeric: { name: string; value: number }[] | null = null;
   try {
     if (!interaction.guildId || !interaction.guild) return;
-    const guild = await guildService.ensureGuild(interaction.guildId, interaction.guild.name);
+    // Autocomplete fires on every keystroke: read the guild and member first and write only when one is missing (ensureGuild and
+    // ensureMember upsert, and ensureMember used to overwrite a nickname-derived displayName with the Discord username each time).
+    const guild = await prisma.guild.findUnique({ where: guildWhere(interaction.guildId) }) ?? await guildService.ensureGuild(interaction.guildId, interaction.guild.name);
     const settings = await guildService.getSettings(guild.id);
     const focused = interaction.options.getFocused(true);
     const query = String(focused.value ?? "");
     const { legacy: command, sub: legacySub } = resolveCommand(commands, interaction);
     const subcommand = legacySub;
-    const member = await guildService.ensureMember(guild.id, interaction.user.id, interaction.user.username);
+    const member = await prisma.member.findUnique({ where: { guildId_discordUserId: { guildId: guild.id, discordUserId: interaction.user.id } } })
+      ?? await guildService.ensureMember(guild.id, interaction.user.id, interaction.user.username);
     const timeZone = settings?.timezone ?? "America/Toronto";
     const language = settings?.language ?? "en";
 
@@ -187,5 +191,6 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
   } catch (error) {
     console.warn(`Autocomplete failed: ${error instanceof Error ? error.message : String(error)}`);
   }
-  await interaction.respond(numeric ?? choices).catch(() => undefined);
+  // Discord allows 25 choices, names and string values up to 100 characters; a violation would silently show no suggestions.
+  await interaction.respond(numeric ? numeric.slice(0, 25).map(item => ({ ...item, name: item.name.slice(0, 100) })) : choices.slice(0, 25).map(item => ({ ...item, name: item.name.slice(0, 100), value: typeof item.value === "string" ? item.value.slice(0, 100) : item.value }))).catch(() => undefined);
 }

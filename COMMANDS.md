@@ -121,10 +121,10 @@ choice, `/config loot-mode`). Pick it in `/core setup` (step 3, the loot system 
 | **Item prices** button (`/core edit` or `/core setup`) | The easiest way: a list already filled in with the core's prices, then the items people wishlisted or were given before that have no price yet, with the average GP paid as a suggestion. Edit the numbers and save; lines left as `= ?` are skipped |
 | `/guilded price <item> <GP>` (in game, officers) | Set a price for the core you are running. `/guilded drop` also asks for a price when an item has none. Prices set in game reach Discord with the next companion upload (the newer price wins) |
 | **Item prices** button in `/core setup` | Paste a list into a form |
-| `/officer loot priority item:<item> [raid:<raid>]` (officers) | Who is next for an item: the wishlist members of the raid's core, highest PR first (that core's pool when it has its own), with the price |
-| `/officer loot award item player [gp]` | In priority raids, leaving out `gp` charges the item's set price |
+| `/lead loot priority item:<item> [raid:<raid>]` (officers) | Who is next for an item: the wishlist members of the raid's core, highest PR first (that core's pool when it has its own), with the price |
+| `/lead loot award item player [gp]` | In priority raids, leaving out `gp` charges the item's set price |
 
-`/officer loot auction` and `/loot bid` only work for GP bids cores; the other systems tell you how they work.
+`/lead loot auction` and `/loot bid` only work for GP bids cores; the other systems tell you how they work.
 
 **In game** the officer's addon knows each core's system, prices and own-pool standings from the
 companion (they arrive with the standings). Which core is being run: the raid the bot expects next,
@@ -380,7 +380,7 @@ also works. `/help` reminds leaders of this. `/core`, `/team`, `/report`, `/part
 | `/bank mine` / `/bank cancel <id>` | Your requests / cancel an open one |
 | `/craft request <item> [profession] [quantity] [materials] [note]` | Ask a guild crafter to make something; shows who has that profession |
 | `/craft list [profession]` / **I'll craft it** button | Crafters: see open requests, and take one with the button on its craft board post |
-| `/craft permissions` | Officers: put the craft board permissions right (members talk in a request post and press its buttons; only the bot and leadership start posts) |
+| `/config craft permissions` | Officers: put the craft board permissions right (members talk in a request post and press its buttons; only the bot and leadership start posts) |
 | `/craft done <id>` / `release <id>` / `mine` / `cancel <id>` | Finish, give back, see yours, or cancel. The requester gets DMs |
 
 ### Dungeon challenge
@@ -439,22 +439,22 @@ Approve, and a raid can never be paid twice.
 
 | Command | What it does |
 | --- | --- |
-| `/officer epgp award-ep <player> <amount> <reason>` | Give EP |
-| `/officer epgp award-gp <player> <amount> <reason>` | Charge GP |
+| `/lead epgp award-ep <player> <amount> <reason>` | Give EP |
+| `/lead epgp award-gp <player> <amount> <reason>` | Charge GP |
 | `/epgp history player:<member>` | Anyone's history, with entry IDs |
-| `/officer epgp reverse <entry> <reason>` | Undo a mistaken entry (adds the opposite entry; both stay in history) |
-| `/officer epgp decay [weekly:true\|false]` | Apply the EPGP decay now; `weekly:true` makes it automatic after every weekly reset (Tuesday 15:00 UTC), each pool by its own percent |
+| `/lead epgp reverse <entry> <reason>` | Undo a mistaken entry (adds the opposite entry; both stay in history) |
+| `/lead epgp decay [weekly:true\|false]` | Apply the EPGP decay now; `weekly:true` makes it automatic after every weekly reset (Tuesday 15:00 UTC), each pool by its own percent |
 
 ### Officers
 
 | Command | What it does |
 | --- | --- |
-| `/report inactive [days]` | Members not seen in game for N days (default 30): a read-only report, nobody is changed |
+| `/officer reports inactive [days]` | Members not seen in game for N days (default 30): a read-only report, nobody is changed |
 | `/officer export table:<standings\|ledger\|loot\|attendance\|roster>` | A CSV file of this server's data, only you see it: standings (EP, GP, PR per point pool), the EPGP ledger, loot history, raid attendance or the roster. UTF-8 with a byte-order mark, so Excel shows accents; opens in Google Sheets too. Was `/report export` before 7.0. The companion's *Export to spreadsheet* and `/guilded sheet` in game export the addon's own data |
-| `/report guild` | Class / race / level mix, retention at 30 / 60 / 90 days, and what needs attention |
+| `/officer reports guild` | Class / race / level mix, retention at 30 / 60 / 90 days, and what needs attention |
 | `/organize poll create <question> <option1> <option2> [option3-5] [closes]` / `/organize poll close <poll>` | Poll answered with buttons; one vote each, changeable; the result bars update live |
-| `/officer loot award <item> <player> [gp] [boss] [raid] [offspec]` | Give an item straight to a player (loot council or manual); GP is charged only if you give a price; `offspec:true` charges the core's off-spec share of it (50% by default); lands in `/loot history` |
-| `/config loot-mode <EPGP\|Council>` | Council mode turns `/officer loot auction` and `/loot bid` off; officers decide with `/officer loot award` |
+| `/lead loot award <item> <player> [gp] [boss] [raid] [offspec]` | Give an item straight to a player (loot council or manual); GP is charged only if you give a price; `offspec:true` charges the core's off-spec share of it (50% by default); lands in `/loot history` |
+| `/config loot-mode <EPGP\|Council>` | Council mode turns `/lead loot auction` and `/loot bid` off; officers decide with `/lead loot award` |
 | `/officer character unclaimed` / `link <name> <player>` / `autolink` | Characters the addons reported that nobody has linked: list them, link one by hand, or link every one whose name matches a Discord member |
 | `/config auto-import <true/false>` | Apply what the companion uploads by itself (ledger, attendance, loot, dungeon runs, gear checks, discovered characters) with no `/setup import apply`. Also a button in `/setup start` step 7 |
 | `/setup start` | **Start here.** Guided setup: roles, channels (core, dungeon, extras; one button makes the whole WoW section under a "Guilded" category), welcome, EPGP values. `/setup start status:true` shows the checklist |
@@ -463,7 +463,7 @@ Approve, and a raid can never be paid twice.
 | `/setup testraid finish <raid> [via_addon]` | Play it: attendance (late, no-show, walk-in), boss kills, loot, end, EP proposal. `via_addon` sends attendance through `/setup import apply` instead |
 | `/setup testraid dungeon [minutes] [deaths]` | Fake dungeon run by 5 test characters through the real import: points, records, `[TEST]` announcement. Run twice to see the weekly repeat share |
 | `/setup testraid cleanup` | Delete every test raid, test dungeon run and fake raider with their EPGP, points and loot. Real data is untouched |
-| `/officer loot auction <item> <minimum> <increment> <duration> [boss] [raid]` / `/officer loot close <auction>` | Run a GP auction (boss/raid show up in loot history) |
+| `/lead loot auction <item> <minimum> <increment> <duration> [boss] [raid]` / `/lead loot close <auction>` | Run a GP auction (boss/raid show up in loot history) |
 | `/setup import upload <file>` then `/setup import apply <id>` | Preview then apply an addon export. Entries already imported are skipped; in-game raids fill Discord attendance and list no-shows and walk-ins |
 | `/setup import held [dismiss] [restore]` | Addon entries the bot could not place yet (unlinked character, no raid core chosen, loot with no core raid) and why. Everything else in the upload is imported; a held entry imports by itself on a later sync once its cause is fixed. `dismiss:<code>` drops one for good, `restore:<code>` undoes that |
 | `/officer dungeon invalidate <run> <reason>` | A run stops counting and its points are taken back (records update by themselves) |
@@ -484,13 +484,13 @@ Approve, and a raid can never be paid twice.
 | `/mod recruit set open:<true\|false> [core] [classes] [roles] [days] [times] [language] [faction] [realm] [note]` | The guild's listing on guilded.kcaron.top/recruitment/ (or one core's, with `core`). Empty options keep their value; `none` clears a text. Approved servers only. Website applications arrive in the applications channel (or the officer log) with Accept / Decline / Spam |
 | `/mod recruit status` | This server's listings and the public page |
 | `/mod leaderboard` | Sharing is always on; shows the window. Copies this guild's valid completed dungeon runs to guilded.kcaron.top/leaderboards/ (checked like personal uploads; every 15 minutes) |
-| `/tag set` / `/tag delete` | Manage saved answers |
+| `/setup tags set` / `/setup tags delete` | Manage saved answers |
 | `/setup selfroles <title> <role1> [role2..5]` | Post a role button panel |
 | `/config view` | Show settings |
 | `/config set <setting> <value>` | Attendance / late / boss-kill EP, auction defaults, decay %, **base GP**, raid reminder minutes, full-clear bonus |
 | `/config channel` | Where raid started/ended, boss kills, loot awards, EPGP changes, and raid reports are announced |
 | `/config weekly-report <true\|false>` | Post `/report stats` for the week in the notify channel every 7 days |
-| `/bank list [status]` / `/bank handle <id> <Approve\|Fulfilled\|Deny> [reply]` | Guild bank queue (new requests also appear in the log channel) |
+| `/officer bank list [status]` / `/officer bank handle <id> <Approve\|Fulfilled\|Deny> [reply]` | Guild bank queue (new requests also appear in the log channel) |
 | `/config welcome [channel] [message] [send_to] [role_prompt] [preview]` | Welcome message: in a channel, by DM, or both. The game roles, the rules channel, "rules required first" and the one-time reminder are set in `/setup start` step 5. `preview:true` sends it to you |
 | `/config farewell` | Leave message |
 | `/config timezone <zone>` | Timezone for typed raid times (also in `/setup start`) |
@@ -552,7 +552,7 @@ A **raid core** is a named roster (e.g. "Tuesday MC core"); a guild can have sev
 
 ### Point pools
 
-By default everyone has **one guild pool** of EP/GP, whatever raid core they raid with. A core can opt into **its own pool** (`/core rules pool:separate`): from then on its raids pay attendance and boss EP into that pool, GP from its loot auctions and `/officer loot award` is charged to it, and its standings are separate. Use the `core:` option on `/epgp balance`, `history`, `leaderboard` and `/officer epgp award-ep`, `award-gp`, `decay` to work on a pool; without it you get the guild pool (`/epgp balance` also lists your standing in every separate pool). Decay uses the core's own percentage when set. The in-game standings (`/guilded standings`, Standings.lua) show the **guild pool** only. A core that has points in its own pool can't be deleted or switched back to the shared pool.
+By default everyone has **one guild pool** of EP/GP, whatever raid core they raid with. A core can opt into **its own pool** (`/core rules pool:separate`): from then on its raids pay attendance and boss EP into that pool, GP from its loot auctions and `/lead loot award` is charged to it, and its standings are separate. Use the `core:` option on `/epgp balance`, `history`, `leaderboard` and `/lead epgp award-ep`, `award-gp`, `decay` to work on a pool; without it you get the guild pool (`/epgp balance` also lists your standing in every separate pool). Decay uses the core's own percentage when set. The in-game standings (`/guilded standings`, Standings.lua) show the **guild pool** only. A core that has points in its own pool can't be deleted or switched back to the shared pool.
 
 ## Automatic character sync
 
@@ -567,7 +567,7 @@ The addon's `/guilded character` and `/guilded share` lines can be pasted into `
 
 ## Fewer things to type
 
-Where a value comes from a fixed list you pick it instead of typing: **class** and **profession** are dropdowns (`/character add`, `/apply`, `/character profession`, `/craft`). These offer suggestions as you type, and anything else still works: **spec** (for the class you chose), **race**, **your characters** (`/character profession set`, `/character attunement`, `/character wishlist`), **attunement names** already in use, **wishlist items** the guild has seen, **tag names**, **raid titles** you used before, **raid times** ("friday 8pm" shows the exact moment it means), **EP/GP reasons**, **auction length**. `/character add` no longer needs the realm (it uses your guild's). `/officer loot auction` only needs the item: minimum bid, increment and length come from `/config` unless you fill them in.
+Where a value comes from a fixed list you pick it instead of typing: **class** and **profession** are dropdowns (`/character add`, `/apply`, `/character profession`, `/craft`). These offer suggestions as you type, and anything else still works: **spec** (for the class you chose), **race**, **your characters** (`/character profession set`, `/character attunement`, `/character wishlist`), **attunement names** already in use, **wishlist items** the guild has seen, **tag names**, **raid titles** you used before, **raid times** ("friday 8pm" shows the exact moment it means), **EP/GP reasons**, **auction length**. `/character add` no longer needs the realm (it uses your guild's). `/lead loot auction` only needs the item: minimum bid, increment and length come from `/config` unless you fill them in.
 
 ## The craft board
 
@@ -585,6 +585,6 @@ Officers: `/setup start status:true` → **Battlegrounds (optional)** → **Inst
 
 The module saves guild-scoped category, groups/results/statistics channel and panel IDs. Repeat installs update the same static panels. Existing channel history and access remain unchanged. Creating channels needs Manage Channels and a configured member role; otherwise use the three existing-channel menus. Each selection installs only its own panel. Missing pin permission leaves a manual-pin instruction. Channels owned by another guild scope are rejected; ambiguous unsaved categories require manual selection.
 
-`/bg setup` displays guidance only. Installation does not enable capture, member consent, recurring results, rankings or awards. Each player chooses `/bg privacy`. Statistics describe provisional player participations, not certified unique matches or MMR.
+`/bg setup` displays guidance only. Installation does not enable capture, member consent, recurring results, rankings or awards. Each player chooses `/character privacy`. Statistics describe provisional player participations, not certified unique matches or MMR.
 
 Repair bounds: concurrent installs are serialized within the bot process. A lost message ID can be recovered from pinned messages or the most recent 100 messages; keep guides pinned. If category creation succeeds but saving its ID fails, choose its channels manually instead of creating a second category. Never run multiple bot workers as concurrent setup writers.

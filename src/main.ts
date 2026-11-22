@@ -354,16 +354,19 @@ client.once(Events.ClientReady, (readyClient) => {
   // One server at a time, each failure reported for its server without stopping the others (each-guild.ts).
   const perGuild = (source: string, operation?: string) => (error: unknown, guild: Guild) =>
     reportJobError(source, { guildId: guild.id, guildName: guild.name, ...(operation ? { operation } : {}) })(error);
-  const voice = () => eachGuild(readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values(), guild => participationTracker.sampleVoice(guild), perGuild("Participation voice checkpoint"));
+  // A run that outlasts its interval (slow database, backup) must not stack a second copy on the small connection pool.
+  const noOverlap = <T>(run: () => Promise<T>) => { let busy = false; return async (): Promise<T | undefined> => { if (busy) return undefined; busy = true; try { return await run(); } finally { busy = false; } }; };
+  const voice = noOverlap(() => eachGuild(readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values(), guild => participationTracker.sampleVoice(guild), perGuild("Participation voice checkpoint")));
   void voice().catch(reportJobError("Participation voice checkpoint"));
   setInterval(() => void voice().catch(reportJobError("Participation voice checkpoint")), 30_000);
-  setInterval(() => void (async () => {
+  const activityTick = noOverlap(async () => {
     await eachGuild(readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values(), guild => activityTotals.voice(guild), perGuild("Activity totals"));
     await eachGuild(readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values(), guild => voiceTime.tick(guild), perGuild("Activity totals"));
     await activityTotals.flush();
     await voiceTime.flush();
-  })().catch(reportJobError("Activity totals")), VOICE_TICK_MS);
-  const communityActivities = () => runCommunityActivities(readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values(), reportJobError("Community honors"), reportJobError("Community activities"));
+  });
+  setInterval(() => void activityTick().catch(reportJobError("Activity totals")), VOICE_TICK_MS);
+  const communityActivities = noOverlap(() => runCommunityActivities(readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values(), reportJobError("Community honors"), reportJobError("Community activities")));
   void (async () => {
     for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) {
       const created = await adoptCommunityHonors(guild, prisma).catch(reportJobError("Community honors setup"));
@@ -425,7 +428,8 @@ client.once(Events.ClientReady, (readyClient) => {
   setTimeout(() => void syncAllNicknames(prisma, readyClient.guilds.cache.values(), reportJobError("Nickname sync")), 3 * 60_000);
   setInterval(() => void syncAllNicknames(prisma, readyClient.guilds.cache.values(), reportJobError("Nickname sync")), 60 * 60_000);
   // Crafter offers past their time are closed (a no-op for servers that never turned them on).
-  setInterval(() => void sweepCraftOffers(readyClient).catch(reportJobError("Craft offer expiry")), 10 * 60_000);
+  const craftOfferSweep = noOverlap(() => sweepCraftOffers(readyClient));
+  setInterval(() => void craftOfferSweep().catch(reportJobError("Craft offer expiry")), 10 * 60_000);
   void queueExpiredPolls(prisma).catch(reportJobError("Poll expiry"));
   setInterval(() => void queueExpiredPolls(prisma).catch(reportJobError("Poll expiry")), 60_000);
   // Repair missing event jobs after a restart and advance game nights at their times.
@@ -594,18 +598,22 @@ client.once(Events.ClientReady, (readyClient) => {
   };
   void recurring();
   setInterval(() => void recurring(), 5 * 60_000);
+  const raidReminderRun = noOverlap(() => runRaidReminders(readyClient, prisma));
+  const cooldownPingRun = noOverlap(() => runCooldownPings(readyClient, prisma));
+  const wclDiscoveryRun = noOverlap(() => runWclDiscovery(readyClient, prisma));
+  const dungeonGroupCleanupRun = noOverlap(() => cleanupDungeonGroups(readyClient));
   // Raid reminders: checked every 5 minutes so a "60 minutes before" ping
   // lands within a few minutes of that mark.
   setInterval(() => {
-    runRaidReminders(readyClient, prisma).catch(reportJobError("Raid reminder check"));
+    void raidReminderRun().catch(reportJobError("Raid reminder check"));
   }, 5 * 60 * 1000);
   // Profession cooldowns: a DM to members who asked for it, when one of theirs is ready.
   setInterval(() => {
-    runCooldownPings(readyClient, prisma).catch(reportJobError("Cooldown pings"));
+    void cooldownPingRun().catch(reportJobError("Cooldown pings"));
   }, 10 * 60 * 1000);
   // Warcraft Logs: new reports of the guild set with /config wcl-guild, every 10 minutes.
   setInterval(() => {
-    runWclDiscovery(readyClient, prisma).catch(reportJobError("Warcraft Logs check"));
+    void wclDiscoveryRun().catch(reportJobError("Warcraft Logs check"));
   }, 10 * 60 * 1000);
   // Signup posts of raids that ended more than a day ago are removed (the raid itself is kept).
   const cleanupRaids = async () => {
@@ -616,7 +624,7 @@ client.once(Events.ClientReady, (readyClient) => {
   setInterval(() => void cleanupRaids(), 6 * 60 * 60 * 1000);
   // Dungeon group voice channels: deleted after a few empty minutes.
   setInterval(() => {
-    cleanupDungeonGroups(readyClient).catch(reportJobError("Dungeon group cleanup"));
+    void dungeonGroupCleanupRun().catch(reportJobError("Dungeon group cleanup"));
   }, 2 * 60 * 1000);
   let repairing = false;
   setInterval(() => {

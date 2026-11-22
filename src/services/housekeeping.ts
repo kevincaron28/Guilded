@@ -23,6 +23,7 @@ export const DEFAULT_WELCOME_TEMPLATE =
   + "or `/character add` to link a character if you're already a member. "
   + "Get the addon: https://www.curseforge.com/wow/addons/guilded";
 export const DEFAULT_FAREWELL_TEMPLATE = "{username} has left {guild}. o7";
+export const DEFAULT_FAREWELL_TEMPLATE_FR = "{username} a quitté {guild}. o7";
 
 interface TemplateVars {
   mention: string;
@@ -234,7 +235,7 @@ export async function handleMemberLeave(discordGuild: DiscordGuild, member: Guil
   const channel = await discordGuild.channels.fetch(settings.farewellChannelId).catch(() => null);
   if (!channel?.isTextBased()) return;
 
-  const text = renderTemplate(settings.farewellMessageTemplate ?? DEFAULT_FAREWELL_TEMPLATE, {
+  const text = renderTemplate(settings.farewellMessageTemplate ?? (settings.language === "fr" ? DEFAULT_FAREWELL_TEMPLATE_FR : DEFAULT_FAREWELL_TEMPLATE), {
     mention: username,
     username,
     guildName: discordGuild.name,

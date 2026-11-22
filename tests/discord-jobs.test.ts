@@ -51,9 +51,12 @@ describe("durable Discord delivery", () => {
     expect(s.row()["status"]).toBe("FAILED");
     await enqueueDiscordJob(s.db, "guild", "board", "DUNGEON_BOARD");
     expect(s.row()["status"]).toBe("PENDING");
-    // A passing outage (network, 5xx, rate limit) keeps retrying however long it lasts.
-    expect(givesUp("delivery-unavailable", 500)).toBe(false);
-    expect(givesUp("500", 500)).toBe(false);
+    // A passing outage (network, 5xx, rate limit) keeps retrying for about two days, then stops; linked-lobby (20062) and invalid-body (50035) refusals count as permanent.
+    expect(givesUp("delivery-unavailable", 47)).toBe(false);
+    expect(givesUp("delivery-unavailable", 48)).toBe(true);
+    expect(givesUp("20062", PERMANENT_FAILURE_ATTEMPTS)).toBe(true);
+    expect(givesUp("50035", PERMANENT_FAILURE_ATTEMPTS)).toBe(true);
+    expect(givesUp("500", 47)).toBe(false);
     expect(givesUp("10003", PERMANENT_FAILURE_ATTEMPTS - 1)).toBe(false);
     expect(givesUp("10003", PERMANENT_FAILURE_ATTEMPTS)).toBe(true);
   });

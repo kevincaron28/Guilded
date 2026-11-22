@@ -1219,7 +1219,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   const found = resolveCommand(commands, interaction);
   const handler = found.handler ?? handlers.get(found.legacy);
   if (!handler) {
-    await interaction.reply({ content: "That command is not available.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: interaction.locale?.startsWith("fr") ? "Cette commande n'est pas disponible." : "That command is not available.", flags: MessageFlags.Ephemeral });
     return;
   }
   try {

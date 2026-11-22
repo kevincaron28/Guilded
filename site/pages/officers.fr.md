@@ -48,7 +48,7 @@ Détails : [guide du bot hébergé](/docs/HOSTED_PILOT.html#fr).
    serveur. Au moins un officier devrait l'utiliser : les membres qui n'ont que l'addon passent par
    la synchro d'un officier pour rejoindre Discord.
 5. **Passez en public quand vous êtes prêts.** Créez la page de votre guilde avec
-   `/guildpage create`, puis `/guildpage publish`. Ouvrez le recrutement avec `/recruit set`.
+   `/mod page create`, puis `/mod page publish`. Ouvrez le recrutement avec `/mod recruit set`.
    Publiez vos donjons avec `/mod leaderboard`. Partagez une place de raid d'un soir avec
    `/raid pug share`.
 

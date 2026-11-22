@@ -109,7 +109,7 @@ describe("names", () => {
 });
 
 it("draws a long French footer (shrunk to fit) rather than cutting it at a character count", async () => {
-  const base: ScoreCard = { title: "Duels", subtitle: "x", stats: [], footer: "Score : 10 par victoire, +2 par niveau de l'adversaire au-dessus de vous, -2 par niveau en dessous (0-20) · 5 duels par paire et par jour au plus · aucune récompense" };
+  const base: ScoreCard = { title: "Duels", subtitle: "x", stats: [], footer: "Score : 10 par victoire, +2 par niveau de l'adversaire au-dessus de toi, -2 par niveau en dessous (0-20) · 5 duels par paire et par jour au plus · aucune récompense" };
   const short = await scoreCardPng({ ...base, footer: "court" }), long = await scoreCardPng(base);
   expect(await pixelsDiffer(short!, long!)).toBe(true);
 }, 20_000);

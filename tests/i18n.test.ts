@@ -8,7 +8,7 @@ describe("translations", () => {
     expect(asLang("fr")).toBe("fr");
     expect(asLang(null)).toBe("en");
     expect(t("fr", "reminder", { raid: "Onyxia", when: "dans 1 heure", mentions: "@Kev" }))
-      .toBe(fr("⏰ **Onyxia** commence dans 1 heure. On vous attend : @Kev"));
+      .toBe(fr("⏰ **Onyxia** commence dans 1 heure. On t'attend : @Kev"));
     expect(t("en", "reply.waitlisted", { role: "Tank" })).toContain("Tank is full");
   });
 

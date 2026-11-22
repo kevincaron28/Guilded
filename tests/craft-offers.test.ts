@@ -123,7 +123,7 @@ describe("offer post", () => {
     expect(en.fields?.find((f) => f.name === "Price")?.value).toBe("Ask the crafter");
     expect(en.footer?.text).toContain("never handles gold");
     const fr = offerEmbed(offer() as never, "fr").toJSON();
-    expect(fr.fields?.find((f) => f.name === "Prix")?.value).toBe("Demandez à l'artisan");
+    expect(fr.fields?.find((f) => f.name === "Prix")?.value).toBe("Demande à l'artisan");
     expect(fr.footer?.text).toContain("jamais l'or");
   });
 });

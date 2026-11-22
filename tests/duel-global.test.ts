@@ -266,7 +266,7 @@ describe("global duels: the page and JSON", () => {
   it("tells a player without a companion that other players' companions carry their data", async () => {
     const hub = (await get("2026-12-10T12:00:00Z")("/leaderboards/")).body;
     expect(hub).not.toMatch(/sign in and connect the companion/i);
-    expect((await get("2026-12-10T12:00:00Z")("/leaderboards/?lang=fr")).body).not.toMatch(/reliez le compagnon : votre premier/i);
+    expect((await get("2026-12-10T12:00:00Z")("/leaderboards/?lang=fr")).body).not.toMatch(/relie le compagnon : ton premier/i);
   });
   it("lists the seasons the phone app can ask for with ?when=", async () => {
     const json = JSON.parse((await get("2026-12-10T12:00:00Z")("/leaderboards/duels.json")).body) as { season: string; seasons: { id: string; label: string }[] };

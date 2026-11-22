@@ -86,7 +86,7 @@ describe("private character connection instructions", () => {
   it("says the same thing whether or not an officer's companion synced recently (no verify wait notice)", async () => {
     mocks.db.guild.findUnique.mockResolvedValue({ officerSyncAt: null });
     const never = await characterLinkPrompt(mocks.db as never, "guild1", "member1", "server1", "fr");
-    expect(never.embeds[0]!.data.fields![1]!.value).toContain("Envoyez-moi en MP");
+    expect(never.embeds[0]!.data.fields![1]!.value).toContain("Envoie-moi en MP");
     expect(never.embeds[0]!.data.fields![1]!.value).not.toContain("Aucun compagnon d'officier");
     expect(mocks.db.guild.findUnique).not.toHaveBeenCalled();
   });
@@ -120,7 +120,7 @@ describe("private character connection instructions", () => {
     try {
       const reply = await characterLinkPrompt(mocks.db as never, "guild1", "member1", "server1", "fr", "companion");
       expect(reply.components[0]!.toJSON().components.map((button) => "custom_id" in button ? button.custom_id : "link")).toEqual(["onboard:paircode:server1"]);
-      expect(reply.embeds[0]!.data.fields![0]!.value).toContain("Demandez à un officier où télécharger le compagnon");
+      expect(reply.embeds[0]!.data.fields![0]!.value).toContain("Demande à un officier où télécharger le compagnon");
     } finally { mocks.config.DISCORD_CLIENT_ID = appId; }
   });
 
@@ -147,9 +147,9 @@ describe("private character connection instructions", () => {
     });
     await executeCharacterLink(interaction as never);
     const reply = interaction.editReply.mock.calls[0]![0];
-    expect(reply.embeds[0].data.title).toBe("🔗 Lier vos personnages WoW");
+    expect(reply.embeds[0].data.title).toBe("🔗 Lier tes personnages WoW");
     expect(reply.embeds[0].data.fields[0].value).not.toContain("/guilded verify");
-    expect(reply.embeds[0].data.fields[0].value).toContain("Envoyez-moi en MP");
+    expect(reply.embeds[0].data.fields[0].value).toContain("Envoie-moi en MP");
     expect(reply.embeds[0].data.fields).toHaveLength(1);
     expect(reply.components[0].toJSON().components.at(-1)).toMatchObject({ custom_id: "onboard:paircode:server1" });
     expect(mocks.issueCode).not.toHaveBeenCalled();
@@ -167,7 +167,7 @@ describe("private character connection instructions", () => {
     });
     mocks.importCharacter.mockResolvedValue({ action: "created", name: "NewCharacter", isMain });
     await executeCharacterLink(interaction as never);
-    expect(interaction.editReply.mock.calls[0]![0].content).toContain(isMain ? "comme votre principal" : "comme un alt");
+    expect(interaction.editReply.mock.calls[0]![0].content).toContain(isMain ? "comme ton principal" : "comme un alt");
     expect(interaction.editReply.mock.calls[0]![0].content).toContain(isMain ? "compagnon est facultatif" : "Aucun compagnon n'est requis");
     expect(mocks.issueCode).not.toHaveBeenCalled();
     expect(mocks.importCharacter.mock.calls[0]![3]).toBeUndefined();

@@ -7,7 +7,7 @@ const N = " ";
 describe("French typography", () => {
   it("puts a non-breaking space before : ; ! ?", () => {
     expect(frenchTypography("Statut : prêt")).toBe(`Statut${N}: prêt`);
-    expect(frenchTypography("Vous êtes prêt ? Oui !")).toBe(`Vous êtes prêt${N}? Oui${N}!`);
+    expect(frenchTypography("Tu es prêt ? Oui !")).toBe(`Tu es prêt${N}? Oui${N}!`);
     expect(frenchTypography("un ; deux")).toBe(`un${N}; deux`);
   });
 
@@ -23,7 +23,7 @@ describe("French typography", () => {
   });
 
   it("keeps « quotes » with their text", () => {
-    expect(frenchTypography("Appuyez sur « Créer ceux qui manquent » : fini")).toBe(`Appuyez sur «${N}Créer ceux qui manquent${N}»${N}: fini`);
+    expect(frenchTypography("Appuie sur « Créer ceux qui manquent » : fini")).toBe(`Appuie sur «${N}Créer ceux qui manquent${N}»${N}: fini`);
   });
 
   it("is idempotent and does not touch English", () => {
@@ -35,6 +35,6 @@ describe("French typography", () => {
   it("applies to French templates only, never to the values put into them", () => {
     expect(t("fr", "signup.openSpots")).toContain(`libres${N}:`);
     expect(t("en", "signup.openSpots")).toContain("spots: ");
-    expect(tx("fr", "Preview sent{where}. Try the buttons!", { where: " :x" })).toBe(`Aperçu envoyé :x. Essayez les boutons${N}!`);
+    expect(tx("fr", "Preview sent{where}. Try the buttons!", { where: " :x" })).toBe(`Aperçu envoyé :x. Essaie les boutons${N}!`);
   });
 });

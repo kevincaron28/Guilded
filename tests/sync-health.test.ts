@@ -94,9 +94,9 @@ describe("sync health cost and wording", () => {
     expect(credentials).toHaveBeenCalledTimes(2);
   });
   it("describes in both languages and summarises for the developer", () => {
-    const issue = { signal: "silent" as const, who: "Ana", detail: "companion silent for 30 h", fix: { en: "Open it.", fr: "Ouvrez-le." } };
+    const issue = { signal: "silent" as const, who: "Ana", detail: "companion silent for 30 h", fix: { en: "Open it.", fr: "Ouvre-le." } };
     expect(describeSyncIssues([issue], "en")).toContain("Open it.");
-    expect(describeSyncIssues([issue], "fr")).toContain("Ouvrez-le.");
+    expect(describeSyncIssues([issue], "fr")).toContain("Ouvre-le.");
     expect(describeSyncIssues([], "en")).toMatch(/No sync problem/);
     expect(developerSummary([{ name: "QG", issues: [] }])).toBeNull();
     expect(developerSummary([{ name: "QG", issues: [issue] }])).toContain("1 silent");

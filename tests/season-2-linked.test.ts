@@ -176,7 +176,7 @@ describe("an officer's open-ended raid season", () => {
     const post = async (id: string, text: string) => { posted.push([id, text]); };
     expect(await announceBlockedRaidSeasons(out, 2, post)).toBe(2);
     expect(posted[0]![1]).toBe(openOfficerSeasonNotice("en", "Autumn", "Season 2"));
-    expect(posted[0]![1]).toContain("/raid season");
+    expect(posted[0]![1]).toContain("/lead season");
     expect(posted[1]![1]).toContain("Saison 2");
     // The next ticks: still blocked, no second notice. A new official season gets its own.
     const again = await rotateRaidSeasons(w.db, { number: 2, start: SEASON2 }, NOW, allowAll, "forever");

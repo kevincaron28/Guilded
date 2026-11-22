@@ -67,6 +67,18 @@ export const FR_MEMBER_TEXT: Record<string, string> = {
   "for {amount} GP": "pour {amount} GP",
   "(its set price)": "(son prix fixe)",
   "off-spec": "hors-spé",
+  // EPGP
+  "No core is set up yet. Start with /core setup.": "Aucun core configuré. Commence avec /core setup.",
+  "Guild pool": "Réserve de la guilde",
+  "{name} shares the guild pool. Turn on its own pool with /core rules pool:separate first.": "{name} partage la réserve de la guilde. Active d'abord sa propre réserve avec /core rules pool:separate.",
+  "{name} pool": "Réserve {name}",
+  "Only EPGP officers can view someone else's history.": "Seuls les officiers EPGP peuvent voir l'historique d'un autre joueur.",
+  "No EPGP recorded.": "Aucun EPGP enregistré.",
+  "under min EP": "sous le EP minimum",
+  "Ranked by merit = PR x attendance over the last 30 days. Ledger is unaffected.": "Classé par mérite = PR x présence des 30 derniers jours. Le registre n'est pas touché.",
+  "Att = attendance over the last 30 days (Present = 1, Late = 0.5).": "Prés = présence des 30 derniers jours (Présent = 1, En retard = 0,5).",
+  "PR = EP / (GP + {base} base GP).": "PR = EP / (GP + {base} GP de base).",
+  "Under {min} EP: listed last.": "Sous {min} EP : listé en dernier.",
   // Raid leader errors
   "Signups are closed for this raid.": "Les inscriptions sont fermées pour ce raid.",
   "Every slot of this raid is taken: no call needed.": "Toutes les places de ce raid sont prises : pas besoin d'appel.",

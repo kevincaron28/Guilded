@@ -1,3 +1,4 @@
+import { errorText } from "../errors";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { GuildedClient, apiOrigin } from "../api";
@@ -49,7 +50,7 @@ export function SignIn({ lang, setLang, originDraft, setOriginDraft, defaultOrig
       } catch (caught) {
         if (stopped) return;
         setPending(null);
-        setError(caught instanceof Error ? caught.message : t(lang, "signInTitle"));
+        setError(errorText(caught, lang, t(lang, "signInTitle")));
       }
     };
     timer = setTimeout(() => void tick(), 1500);
@@ -58,7 +59,7 @@ export function SignIn({ lang, setLang, originDraft, setOriginDraft, defaultOrig
 
   const originOrError = (): string | null => {
     try { return apiOrigin(originDraft || defaultOrigin); }
-    catch (caught) { setError(caught instanceof Error ? caught.message : t(lang, "advanced")); return null; }
+    catch (caught) { setError(errorText(caught, lang, t(lang, "advanced"))); return null; }
   };
 
   const start = async () => {
@@ -72,7 +73,7 @@ export function SignIn({ lang, setLang, originDraft, setOriginDraft, defaultOrig
       setPending({ ...started, origin });
       await Linking.openURL(started.url).catch(() => setError(t(lang, "openPageFailed")));
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : t(lang, "signInTitle"));
+      setError(errorText(caught, lang, t(lang, "signInTitle")));
     } finally { setBusy(false); }
   };
 
@@ -88,7 +89,7 @@ export function SignIn({ lang, setLang, originDraft, setOriginDraft, defaultOrig
       await saveSession(session);
       onSession(session);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : t(lang, "connect"));
+      setError(errorText(caught, lang, t(lang, "connect")));
     } finally { setBusy(false); }
   };
 

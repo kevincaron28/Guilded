@@ -469,6 +469,16 @@ describe("WoW Forever section", () => {
     }
     expect(upstream).not.toHaveBeenCalled();
   });
+  it("forwards the phone app's news headlines to the bot, read-only and without cookies", async () => {
+    const upstream = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(async () => Response.json({ items: [] }));
+    vi.stubGlobal("fetch", upstream);
+    const answer = await worker.fetch(new Request(site + "/news/headlines.json?x=1", { headers: { cookie: "guilded_session=secret" } }), env);
+    expect(answer.status).toBe(200);
+    expect(upstream.mock.calls[0]![0]).toBe("https://guildedqc.duckdns.org/news/headlines.json");
+    expect((upstream.mock.calls[0]![1].headers as Headers).get("cookie")).toBeNull();
+    expect((await worker.fetch(new Request(site + "/news/headlines.json", { method: "POST" }), env)).status).toBe(405);
+    expect(upstream).toHaveBeenCalledTimes(1);
+  });
   it("sends the section's data pages to the bot as WoW Forever", async () => {
     const upstream = vi.fn<(url: string) => Promise<Response>>(async () => new Response("board", { headers: { "content-type": "text/html" } })); vi.stubGlobal("fetch", upstream);
     const board = await page("/forever/leaderboards/guilds/?lang=fr");

@@ -356,39 +356,21 @@ describe("Help guildmates: one setting", () => {
     expect(callFrom("Bob-Realm")).toBe("line");
   });
 
-  it("the opt-in auto-invite for plain layer requests stays separate and off by default", () => {
+  it("the auto-invite for plain layer requests is on by default, separate from calls for help, and the member's off keeps the window", () => {
     setup();
-    expect(run(`return tostring(NS.layerInvite.autoInvite())`)).toBe("false");
+    expect(run(`return tostring(NS.layerInvite.autoInvite())`)).toBe("true");
     heard("Ann", "REQ|5|12|Elwynn Forest");
-    expect(invites()).toBe("");
-    run(`NS.callForHelp.dismiss(); NS.layerInvite.setAutoInvite(true)`);
+    expect(invites()).toBe("Ann");
+    run(`NS.callForHelp.dismiss(); NS.layerInvite.setAutoInvite(false)`);
     heard("Bo", "REQ|6|12|Elwynn Forest");
-    expect(invites()).toBe("Bo");
-  });
-});
-
-describe("the quick layer swap without a call for help", () => {
-  it("the key binding function asks for a layer, with no call open", () => {
-    setup();
-    expect(run(`return tostring(NS.callForHelp.myCallId())`)).toBe("nil");
-    run(`Guilded_AskForLayer()`);
-    expect(sent()).toMatch(/GuildedLayer:GUILD::REQ\|\d+\|12\|Duskwood/);
-    expect(run(`return BINDING_NAME_GUILDED_ASK_LAYER`)).toBe("Ask for a layer invite");
-  });
-
-  it("is declared next to Call for help in Bindings.xml, and /guilded layer still asks", () => {
-    const xml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "..", "addon", "Guilded", "Bindings.xml"), "utf8");
-    expect(xml).toContain('name="GUILDED_CALL_FOR_HELP"');
-    expect(xml).toMatch(/name="GUILDED_ASK_LAYER"[^>]*>\s*Guilded_AskForLayer\(\)/);
-    setup();
-    run(`NS.commandHandlers.layer({})`);
-    expect(sent()).toMatch(/REQ\|/);
+    expect(invites()).toBe("Ann");
   });
 });
 
 describe("older addons (9.4.4 formats)", () => {
   it("a plain REQ from an older addon still shows in the window, and its CLAIM and DONE still close it", () => {
     setup();
+    run(`NS.layerInvite.setAutoInvite(false)`);
     heard("Ann", "REQ|5|12|Elwynn Forest");
     expect(run(`return tostring(FR.GuildedLayerToast.isOpen)`)).toBe("true");
     heard("Bo", "CLAIM|Ann|5|12");

@@ -368,7 +368,7 @@ function loot.drop(args)
     last = last - 1
   end
   local item = table.concat(args, " ", 1, last)
-  if item == "" then ns.message("Usage: /guilded drop <item link> [seconds]   (mode: /guilded drop mode)") return end
+  if item == "" then ns.message(L("Usage:") .. " /guilded drop <item link> [seconds]   (mode: /guilded drop mode)") return end
   local mode = loot.mode()
   seconds = seconds or DEFAULT_SECONDS[mode]
 
@@ -672,7 +672,7 @@ ns.commandHandlers["price"] = function(args)
   local last = #args
   local gp = tonumber(args[last] or "")
   if last < 2 or not gp then
-    ns.message("Usage: /guilded price <item link or name> <GP>   (the price is kept for the raid core being run)")
+    ns.message(L("Usage:") .. " /guilded price <item link or name> <GP>   (" .. L("the price is kept for the raid core being run") .. ")")
     return
   end
   local item = table.concat(args, " ", 1, last - 1)

@@ -1040,14 +1040,14 @@ ns.commandHandlers["recipes"] = function(args)
   table.remove(args, 1)
   if action == "who" or action == "craft" then
     local query = table.concat(args, " ")
-    if query == "" then ns.message("Usage: /guilded recipes who <item link or name>") return end
+    if query == "" then ns.message(L("Usage:") .. " /guilded recipes who <item link or name>") return end
     ns.message(whoText(query))
   elseif action == "mine" or action == "list" then ns.message(mineText())
   elseif action == "mats" or action == "materials" then
     local count = tonumber(args[#args])
     if count and #args > 1 then table.remove(args) else count = 1 end
     local query = table.concat(args, " ")
-    if query == "" then ns.message("Usage: /guilded recipes mats <item link> [count]") return end
+    if query == "" then ns.message(L("Usage:") .. " /guilded recipes mats <item link> [count]") return end
     ns.message(matsText(query, count))
   elseif action == "tooltip" then
     local mode = string.lower(args[1] or "")

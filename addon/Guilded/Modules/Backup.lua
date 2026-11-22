@@ -36,9 +36,8 @@ local KEEP = { version = true, guildKey = true, guildEdition = true, otherGuilds
 -- What belongs to the PC, not to the guild's records: a restore keeps the receiving PC's own
 -- values (16 October: a restore turned ledger sync on, listed the player as their own sync
 -- partner and opened a chat tab, all copied from the officer who made the backup).
--- verifyCode (/guilded verify) links every character of this account to one Discord member: a
--- restored officer's code would hand the receiving player's characters to that officer.
-local PER_PC_FIELDS = { myCharacters = true, bridgeCompanionGuild = true, verifyCode = true }
+-- (/guilded verify and its verifyCode were retired in 9.4.1.)
+local PER_PC_FIELDS = { myCharacters = true, bridgeCompanionGuild = true }
 local PER_PC_SETTINGS = {
   guildRealmAliases = true,
   setupMode = true, setupModeAuto = true, connectedHintShown = true, ledgerSync = true, ledgerSyncSeen = true, ledgerSyncMatch = true, officerBridge = true,

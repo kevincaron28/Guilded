@@ -86,6 +86,7 @@ Modules\DungeonStats.lua
 Modules\DungeonScorePanel.lua
 Modules\Perf.lua
 Modules\GuildLog.lua
+Modules\GuildEvents.lua
 Modules\Recruit.lua
 Modules\ChatTags.lua
 Modules\GuildBank.lua

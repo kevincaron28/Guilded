@@ -425,7 +425,7 @@ local function officerChange(action, args)
   if not (s and s.host) then ns.message(L("No reserve list is open. An officer opens one with /guilded reserve open.")); return end
   local name = ns.normalizeName(args[1])
   local id = itemId(table.concat(args, " ", 2))
-  if not name or (action == "ADD" and not id) then ns.message("Usage: /guilded reserve add <player> <item link>"); return end
+  if not name or (action == "ADD" and not id) then ns.message(L("Usage:") .. " /guilded reserve add <player> <item link>"); return end
   if not isHost() then ns.message(L("Only the officer who opened the list can change it.")); return end
   remember(s, id, table.concat(args, " ", 2))
   if action == "ADD" then
@@ -484,7 +484,7 @@ end
 local function rollFor(itemText)
   if not needOfficer() then return end
   local id = itemId(itemText)
-  if not id then ns.message("Usage: /guilded reserve roll <item link>"); return end
+  if not id then ns.message(L("Usage:") .. " /guilded reserve roll <item link>"); return end
   local s = state()
   if s then remember(s, id, itemText) end
   local found = holders(id)
@@ -520,7 +520,7 @@ local function awardTo(args)
   local itemText = table.concat(args, " ", 2)
   local gp = 0
   local id = itemId(itemText)
-  if not (name and id) then ns.message("Usage: /guilded reserve award <player> <item link> [GP]"); return end
+  if not (name and id) then ns.message(L("Usage:") .. " /guilded reserve award <player> <item link> [GP]"); return end
   -- A trailing number after a plain item id is the GP; after a link it can only be the GP.
   local trailing = string.match(itemText, "|r%s+(%d+)%s*$") or (string.match(itemText, "^%s*%d+%s+(%d+)%s*$"))
   if trailing then gp = tonumber(trailing) end

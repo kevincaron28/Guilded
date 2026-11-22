@@ -161,7 +161,7 @@ local function openBidding(args)
   end
   local item = table.concat(args, " ", 2, last)
   if not minimum or minimum < 0 or item == "" then
-    ns.message("Usage: /guilded bid start <min GP> <item or shift-click link> [seconds]")
+    ns.message(L("Usage:") .. " /guilded bid start <min GP> <item or shift-click link> [seconds]")
     return
   end
   local id = string.format("%d%03d", time(), math.random(0, 999))
@@ -374,7 +374,7 @@ local function showPopup()
     updatePopup()
     popup:Show()
   end)
-  if not ok then ns.message("Bid popup failed: " .. tostring(err)) return end
+  if not ok then ns.message(L("Bid popup failed:") .. " " .. tostring(err)) return end
   -- Countdown once a second while the popup is open.
   if ticker then ticker:Cancel() end
   if C_Timer and C_Timer.NewTicker then

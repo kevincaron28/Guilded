@@ -2725,7 +2725,7 @@ end
 local function scrollDebug()
   local scroll = ui.guildScroll
   local tab = ui.tabs[ui.currentTab or 0]
-  if not scroll or not tab then ns.message("scroll debug: open a long page first (Guild, Standings)."); return end
+  if not scroll or not tab then ns.message(L("Scroll debug: open a long page first (Guild, Standings).")); return end
   local page = tab.page
   local function call(frame, name, ...)
     if not frame or type(frame[name]) ~= "function" then return "n/a" end
@@ -2769,7 +2769,7 @@ local function togglePanel()
       if ui.currentTab then selectTab(ui.currentTab) end
     end
   end)
-  if not ok then ns.message("Tools window failed to open: " .. tostring(err)) end
+  if not ok then ns.message(L("Tools window failed to open:") .. " " .. tostring(err)) end
 end
 
 -- Minimap button shortcuts (8.5.0):
@@ -3101,7 +3101,7 @@ frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 frame:RegisterEvent("PLAYER_LOGIN")
 frame:SetScript("OnEvent", function(_, event)
   local ok, err = pcall(init)
-  if not ok then ns.message("Minimap button failed to load: " .. tostring(err)) end
+  if not ok then ns.message(L("Minimap button failed to load:") .. " " .. tostring(err)) end
   -- First login on a new PC: the saved settings can appear after the world loads.
   if event == "PLAYER_LOGIN" and C_Timer and C_Timer.After then
     C_Timer.After(5, function() pcall(applySettings) end)

@@ -133,7 +133,6 @@ function module.setHelpGuildmates(on)
   if type(db) == "table" then
     db.layer = type(db.layer) == "table" and db.layer or {}
     db.layer.helper = on
-    if not on then db.layer.auto = nil end
   end
   if not on and module.dismissAll then module.dismissAll() end
   return true

@@ -5,7 +5,7 @@
 --   /guilded layer cancel          close my own request
 --   /guilded layer helper on|off   alias of "Help guildmates" (9.5, one switch with /guilded sos guildmates on|off): whether
 --                                  guildmates' requests and calls for help show the small "Guild calls" window to me
---   /guilded layer auto on|off     (9.4, opt-in, off by default) a request on my continent is invited at once, with no
+--   /guilded layer auto on|off     (9.4, on by default since 9.4.9) a request on my continent is invited at once, with no
 --                                  click (alone or as party leader, out of combat and instances); a short notice says so
 --   /guilded layer direct on|off   (9.4) party Invite buttons invite directly (on by default); off shows the line to paste
 --
@@ -86,8 +86,8 @@ local function data()
   return db.layer
 end
 
--- The opt-in: requests from my continent pop up at once (off by default).
-function module.autoInvite() return data().auto == true end
+-- (9.4.9) On by default (owner, 21 Nov: no opt-in switches); a member's own off is saved as false.
+function module.autoInvite() return data().auto ~= false end
 
 local function callHelp() return ns.callForHelp end
 
@@ -101,10 +101,9 @@ function module.setHelper(on)
   local c = callHelp()
   if c and c.setHelpGuildmates and c.setHelpGuildmates(on) then return end
   data().helper = on and true or false
-  if not on then data().auto = nil end
 end
 function module.setAutoInvite(on)
-  data().auto = on and true or nil
+  data().auto = on and true or false
   if on then module.setHelper(true) end      -- auto-invite means "show me the requests"
 end
 
@@ -709,7 +708,7 @@ function module.buildPage(page, helpers)
     return box
   end
   local helperBox = switch("Help guildmates", "On by default. A small window when a guildmate on your continent asks to be invited onto another layer, or calls for help in your zone. The same switch as /guilded sos guildmates on|off.", -78, "helper", module.helper)
-  local autoBox = switch("Auto-invite layer requests on my continent", "Off by default. When a guildmate on your continent asks for a layer, Guilded invites them at once (only when you are alone or lead your party, out of combat and outside instances) and shows a short notice. If the game refuses, you get the Invite window instead.", -102, "auto", module.autoInvite)
+  local autoBox = switch("Auto-invite layer requests on my continent", "On by default. When a guildmate on your continent asks for a layer, Guilded invites them at once (only when you are alone or lead your party, out of combat and outside instances) and shows a short notice. If the game refuses, you get the Invite window instead.", -102, "auto", module.autoInvite)
   module.pageBoxes = { helper = helperBox, auto = autoBox }
   local autoHelp = at(newLabel(page, "Alone or party leader, out of combat and instances.", "GameFontDisableSmall"), page, 28, -124)
   at(newLabel(page, "Open requests", "GameFontNormal"), page, 0, -146)

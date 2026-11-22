@@ -4,11 +4,16 @@ import { memberRank, planRankRoles, RANK_MAX_AGE_MS, syncAllRankRoles, syncRankR
 const now = new Date("2026-11-04T12:00:00Z");
 const fresh = new Date("2026-11-03T12:00:00Z");
 const stale = new Date("2026-10-01T12:00:00Z");
+// A guild whose ranks an officer's full roster confirmed today (the partial-roster guard passes), nobody marked gone.
+const fullRoster = () => ({
+  character: { findMany: vi.fn(async () => Array.from({ length: 10 }, () => ({ guildRankAt: fresh }))) },
+  guildRosterEntry: { findMany: vi.fn(async () => []) }
+});
 const links = [{ rankIndex: 0, discordRoleId: "gm" }, { rankIndex: 1, discordRoleId: "officer" }, { rankIndex: 4, discordRoleId: "member" }];
 
 describe("a member's rank", () => {
-  it("uses the main character, else the highest-ranking one", () => {
-    expect(memberRank([{ isMain: false, guildRankIndex: 1, guildRankAt: fresh }, { isMain: true, guildRankIndex: 4, guildRankAt: fresh }], now)).toBe(4);
+  it("uses the best fresh rank of any character, main or alt", () => {
+    expect(memberRank([{ isMain: false, guildRankIndex: 1, guildRankAt: fresh }, { isMain: true, guildRankIndex: 4, guildRankAt: fresh }], now)).toBe(1);
     expect(memberRank([{ isMain: false, guildRankIndex: 4, guildRankAt: fresh }, { isMain: false, guildRankIndex: 1, guildRankAt: fresh }], now)).toBe(1);
   });
   it("ignores unknown and stale ranks", () => {
@@ -26,21 +31,27 @@ describe("a member's rank", () => {
 describe("planning rank roles", () => {
   const plan = (rank: number | null, roles: string[]) => planRankRoles(links, [{ discordUserId: "u", rank, roleIds: new Set(roles) }]);
   it("adds the rank's role and removes other mapped roles only", () => {
-    expect(plan(1, ["member", "other"])).toEqual([{ discordUserId: "u", add: ["officer"], remove: ["member"] }]);
+    expect(plan(1, ["member", "other"])).toMatchObject([{ discordUserId: "u", add: ["officer"], remove: ["member"] }]);
   });
   it("does nothing when the member is already right", () => {
     expect(plan(4, ["member", "other"])).toEqual([]);
   });
   it("leaves members with an unknown or unmapped rank alone", () => {
     expect(plan(null, ["officer"])).toEqual([]);
-    expect(plan(7, ["officer", "member"])).toEqual([]);
+    expect(plan(null, ["officer", "member"])).toEqual([]);
   });
   it("does nothing without mappings", () => {
     expect(planRankRoles([], [{ discordUserId: "u", rank: 1, roleIds: new Set() }])).toEqual([]);
   });
   it("promotes a guild master and demotes an officer without touching other roles", () => {
-    expect(plan(0, ["officer", "member", "other"])).toEqual([{ discordUserId: "u", add: ["gm"], remove: ["officer", "member"] }]);
-    expect(plan(4, ["officer", "other"])).toEqual([{ discordUserId: "u", add: ["member"], remove: ["officer"] }]);
+    expect(plan(0, ["officer", "member", "other"])).toMatchObject([{ discordUserId: "u", add: ["gm"], remove: ["officer", "member"] }]);
+    expect(plan(4, ["officer", "other"])).toMatchObject([{ discordUserId: "u", add: ["member"], remove: ["officer"] }]);
+  });
+  it("an unmapped rank loses only the roles mapped above it (demotion), and keeps those mapped below it", () => {
+    // Rank 2 is between officer (1) and member (4): it loses officer, keeps member, gains nothing.
+    expect(plan(2, ["officer", "member"])).toEqual([{ discordUserId: "u", add: [], remove: ["officer"], best: { index: 2, name: null } }]);
+    // Rank 7 is below every mapped rank.
+    expect(plan(7, ["officer", "member"])[0]?.remove).toEqual(["officer", "member"]);
   });
 });
 
@@ -57,7 +68,8 @@ describe("syncing a server", () => {
     const prisma = {
       guild: { findUnique: vi.fn(async () => opts.missingGuild ? null : ({ id: "g1", settings: opts.enabled === undefined ? null : { rankRolesEnabled: opts.enabled } })) },
       guildRankRole: { findMany: vi.fn(async () => opts.links ?? links) },
-      member: { findMany: vi.fn(async () => people) }
+      member: { findMany: vi.fn(async () => people) },
+      ...fullRoster()
     };
     const roleOf = (id: string) => opts.absentRoleId === id ? undefined : { id, name: id, editable: opts.editable ?? true };
     const fetch = vi.fn(async () => { if (opts.fetchError) throw new Error("Unknown Member"); return opts.inDiscord === false ? null : member; });
@@ -138,7 +150,8 @@ describe("syncing a server", () => {
     const prisma = {
       guild: { findUnique: vi.fn(async () => ({ id: "g1", settings: null })) },
       guildRankRole: { findMany: vi.fn(async () => links) },
-      member: { findMany: vi.fn(async () => people) }
+      member: { findMany: vi.fn(async () => people) },
+      ...fullRoster()
     };
     const guild = {
       id: "d1", roles: { cache: { get: (id: string) => ({ id, name: id, editable: true }) } },
@@ -158,7 +171,8 @@ describe("syncing a server", () => {
     const prisma = {
       guild: { findUnique: vi.fn(async () => ({ id: "g1", settings: null })) },
       guildRankRole: { findMany: vi.fn(async () => links) },
-      member: { findMany: vi.fn(async () => [{ discordUserId: "u1", characters: [{ isMain: true, guildRankIndex: 1, guildRankAt: fresh }] }]) }
+      member: { findMany: vi.fn(async () => [{ discordUserId: "u1", characters: [{ isMain: true, guildRankIndex: 1, guildRankAt: fresh }] }]) },
+      ...fullRoster()
     };
     const guild = { id: "d1", roles: { cache: { get: (id: string) => ({ id, name: id, editable: true }) } }, members: { cache, fetch: vi.fn() } };
     const result = await syncRankRoles(prisma as never, guild as never, { now });

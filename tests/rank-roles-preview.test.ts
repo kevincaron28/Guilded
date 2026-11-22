@@ -16,7 +16,9 @@ function setup(opts: { enabled?: boolean; people?: { id: string; name: string; r
   const prisma = {
     guild: { findUnique: vi.fn(async () => ({ id: "g1", settings: opts.enabled === undefined ? null : { rankRolesEnabled: opts.enabled } })) },
     guildRankRole: { findMany: vi.fn(async () => { throw new Error("the preview must use the proposed mapping"); }) },
-    member: { findMany: vi.fn(async () => people.map((person) => ({ discordUserId: person.id, characters: [{ isMain: true, guildRankIndex: person.rank, guildRankAt: fresh }] }))) }
+    member: { findMany: vi.fn(async () => people.map((person) => ({ discordUserId: person.id, characters: [{ isMain: true, name: person.name, wowId: null, gameEdition: "forever", guildRankIndex: person.rank, guildRankName: null, guildRankAt: fresh }] }))) },
+    character: { findMany: vi.fn(async () => people.map(() => ({ guildRankAt: fresh }))) },
+    guildRosterEntry: { findMany: vi.fn(async () => []) }
   };
   const guild = { id: "d1", roles: { cache: { get: (id: string) => ({ id, name: id, editable: true }) } }, members: { cache: members, fetch: vi.fn() } };
   return { prisma, guild, add };
@@ -37,7 +39,7 @@ describe("rank roles preview", () => {
     const text = formatRankRolePreview(preview, 1);
     expect(text).toContain("Rank 1 → <@&officer>: **2** member(s) would get it (Alice, Bob)");
     expect(text).not.toContain("Rank 4");
-    expect(text).toContain("1 member(s) would lose");
+    expect(text).toContain("<@&officer>: **1** member(s) would lose it (rank below the role's ranks, or left the guild) (Cara)");
   });
 
   it("previews even while rank roles are off (turning them on is what is being decided)", async () => {

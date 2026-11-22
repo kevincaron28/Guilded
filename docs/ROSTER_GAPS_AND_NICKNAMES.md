@@ -17,6 +17,16 @@ Bots and members holding an ignored role are left out (`/officer roster ignore r
 - If the bot lacks Manage Nicknames the sync quietly does nothing and `/setup` warns. `/setup` adds an optional "Nickname sync permission" check (Manage Nicknames) while the sync is on.
 - Needs Manage Nicknames. It is deliberately not in `REQUIRED_BOT_PERMISSIONS`, so servers that never use the feature are not asked for it.
 
+## Rank roles (`/mod rankroles`), on by default
+Officers map a WoW guild rank to a Discord role (`/mod rankroles set rank:2 role:@Officier`); the sync runs hourly and right after an upload changes a member's rank (`src/services/rank-roles.ts`). Only mapped roles are ever added or removed. Rules (21 November 2026, owner: "if an officer is removed in game remove the role only; two officer characters must not break it"):
+- **A member's rank** is the best (lowest index) rank among all their linked characters whose rank an upload confirmed in the last 14 days, main or alt. Two officer characters, or an officer alt with a member main, count as officer. Detached (unlinked) characters and characters that left the guild never count. Members with no fresh rank, without a linked character, and Discord-only officers are never touched.
+- **Mapped rank**: the member gets that rank's role and loses the other mapped roles.
+- **Unmapped rank**: the member loses a mapped role only when their rank is below every rank mapped to it (a demoted officer loses @Officier and gets nothing else). Ranks above it (guild master, co-GM) keep what they have and are given nothing.
+- **Left the guild**: a character counts as gone when the newest *complete* roster marked its roster row `inGuild=false` (`guild-data.ts`), within 14 days and after the character's last rank reading. When every linked character is gone, the member loses every mapped role.
+- **Partial-roster guard**: the stored roster keeps no "complete" flag, so removals wait for the whole run when fewer than half of the guild's fresh ranks (14 days) were confirmed in the last 48 hours (an officer's full roster confirms every listed character's rank). Additions still happen.
+- **Cap**: at most 5 members lose a role per run; the rest follow on the next runs. Each removal is one line in the officer log channel (`logChannelId`), in the server language: "@X lost @Officier: no character at rank Officer anymore (best: Member)." / "@X lost @Officier: all their characters left the guild."
+- `/mod rankroles sync` (preview by default) and the `set` / `enabled` previews list who would lose which role and how many removals are held, before anything is applied.
+
 ## Who's who board (C2)
 Posts in the bot guide channel until an officer picks one: `/officer roster whoswho channel:#...` (`on:false` switches it off). One bot message (up to 3 embeds, ~5400 characters) edited in place, each member with main in bold then alts. Large guilds are cut at the limit and the footer says "N of M". Refreshed every 30 minutes with the other boards, via `discord-jobs.ts` (`WHOS_WHO_BOARD`).
 

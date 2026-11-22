@@ -30,7 +30,8 @@ function world(opts: Opts = {}) {
     },
     member: { findMany: find },
     memberNickname: { findMany: vi.fn().mockResolvedValue([]), upsert: vi.fn().mockResolvedValue({}) },
-    guildRankRole: { findMany: vi.fn().mockResolvedValue([{ rankIndex: 1, discordRoleId: "role1" }]) }
+    guildRankRole: { findMany: vi.fn().mockResolvedValue([{ rankIndex: 1, discordRoleId: "role1" }]) },
+    guildRosterEntry: { findMany: vi.fn().mockResolvedValue([]) }
   };
   return { prisma, guild, members, find };
 }

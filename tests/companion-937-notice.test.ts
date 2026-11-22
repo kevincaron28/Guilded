@@ -105,6 +105,6 @@ describe("pass", () => {
     const content: string[] = [];
     const client = { users: { fetch: async () => ({ send: async (m: { content: string }) => { content.push(m.content); } }) } } as never;
     await runNoticePass(client, fakeDb("fr") as never, opts);
-    expect(content[0]).toContain("Votre compagnon");
+    expect(content[0]).toContain("Ton compagnon");
   });
 });

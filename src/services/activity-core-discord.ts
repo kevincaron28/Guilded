@@ -28,7 +28,7 @@ export function teamRosterEmbed(core: Team, fr: boolean) {
   const t = (en: string, french: string) => teamText(fr, en, french);
   const embed = new EmbedBuilder().setColor(core.kind === "PVP" ? 0xb14565 : 0x4186b8)
     .setTitle(`${core.kind === "PVP" ? "⚔️" : "🗝️"} ${clean(core.name)}`)
-    .setDescription([core.goal ? clean(core.goal) : t("A weekly team. Confirm separately for each session.", "Un core hebdomadaire. Confirmez chaque séance séparément."),
+    .setDescription([core.goal ? clean(core.goal) : t("A weekly team. Confirm separately for each session.", "Un core hebdomadaire. Confirme chaque séance séparément."),
       core.archived ? t("Archived", "Archivé") : `${core.weeklySchedule ?? t("Schedule paused", "Horaire en pause")} (${core.timezone})`,
       `${core.durationMinutes} min · ${core.tanks} 🛡️ / ${core.healers} 💚 / ${core.dps} ⚔️`,
       t("Manage: /team member · /team schedule · /team sessions", "Gérer : /team member · /team schedule · /team sessions")].join("\n"));
@@ -51,7 +51,7 @@ export function teamSessionEmbed(session: Session, fr: boolean) {
     .setTitle(`${clean(core.name)} · ${states[session.status]}`)
     .setDescription((bg ? `${clean(battlegroundDescription(bg, fr))}\n` : "") + `${stamp(session.scheduledAt)} → <t:${Math.floor(session.endsAt.getTime() / 1000)}:t>\n`
       + `${session.openRecruitment ? t("Recruitment open to members who can see this channel.", "Recrutement ouvert aux membres ayant accès au salon.") : t("Team members and substitutes first.", "Membres du core et remplaçants en priorité.")}\n`
-      + t("Roster membership is not a confirmation. Regulars have priority; extra players wait.", "Être dans le core ne confirme pas votre présence. Les titulaires sont prioritaires; les autres attendent.")
+      + t("Roster membership is not a confirmation. Regulars have priority; extra players wait.", "Être dans le core ne confirme pas ta présence. Les titulaires sont prioritaires; les autres attendent.")
       + `\n${["TANK", "HEALER", "DPS"].map((role, i) => `${["🛡️", "💚", "⚔️"][i]} ${session.responses.filter(r => r.role === role && r.status === "CONFIRMED").length}/${[core.tanks, core.healers, core.dps][i]}`).join(" · ")}`);
   for (const state of ["CONFIRMED", "WAITLISTED", "TENTATIVE", "ABSENT"]) {
     embed.addFields({ name: labels[state]!, value: session.responses.filter(r => r.status === state)
@@ -111,7 +111,7 @@ export async function deliverTeamPost(guild: Guild, db: PrismaClient, guildId: s
       ...session.responses.filter(r => r.status === "CONFIRMED").map(r => r.member.discordUserId)])]
       .filter(userId => !session.responses.some(r => r.member.discordUserId === userId && r.status === "ABSENT")).slice(0, 40);
     await channel.send({ content: users.map(u => `<@${u}>`).join(" "), embeds: [new EmbedBuilder()
-      .setDescription(`${clean(session.core.name)} · ${stamp(session.scheduledAt)}\n${teamText(fr, "Check your session confirmation and lineup.", "Vérifiez votre confirmation et la composition du groupe.")}`)
+      .setDescription(`${clean(session.core.name)} · ${stamp(session.scheduledAt)}\n${teamText(fr, "Check your session confirmation and lineup.", "Vérifie ta confirmation et la composition du groupe.")}`)
       .setFooter({ text: marker })], allowedMentions: { parse: [], users }, nonce: `r${id.slice(-24)}`, enforceNonce: true });
     return;
   }

@@ -2,7 +2,7 @@
 //
 // Only celebratory lines live here: promotions, achievements, MVP and top 3, badges, welcome, records.
 // Error messages, privacy and data text, moderation, setup, admin and officer tools, help and FAQ never
-// use this module (tests/fr-quebec-voice.test.ts enforces it): they stay clear French with "vous".
+// use this module (tests/fr-quebec-voice.test.ts enforces it): they stay clear French with "tu".
 //
 // To tone the whole thing down, set QUEBEC_SWEARING to false: every line then uses its joual-only variant
 // (same slang, no sacres). Each event has a few variants; the one shown is chosen from a stable key so the

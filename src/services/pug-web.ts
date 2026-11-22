@@ -42,14 +42,14 @@ export function createPugWeb(db: PrismaClient, allows: (discordGuildId: string) 
       try {
         await signUpForPug(db, { requestId: ctx.form?.get("request") ?? "", discordUserId: ctx.account.discordUserId, displayName: ctx.account.displayName ?? ctx.account.username,
           role: ctx.form?.get("role") ?? "", characterName: ctx.form?.get("character") ?? "", characterClass: ctx.form?.get("class") ?? null, note: ctx.form?.get("note") ?? null }, allows, ctx.now);
-        notice = `<p class="notice">${t("Sent. The host guild's officers will accept or decline. You are not in their roster until they do; contact them in game.", "Envoyé. Les officiers de la guilde hôte accepteront ou refuseront. Vous n'êtes pas dans leur liste avant cela; contactez-les en jeu.")}</p>`;
+        notice = `<p class="notice">${t("Sent. The host guild's officers will accept or decline. You are not in their roster until they do; contact them in game.", "Envoyé. Les officiers de la guilde hôte accepteront ou refuseront. Tu n'es pas dans leur liste avant cela; contacte-les en jeu.")}</p>`;
       } catch (error) {
         if (!(error instanceof PugError)) throw error;
         notice = `<p class="notice">${h(error.message)}</p>`;
       }
     }
     const requests = await publicPugRequests(db, currentEdition(), allows, ctx.now);
-    const body = `<h1>${title}</h1>${notice}<p>${t("Raids from guilds that joined the Guilded PUG board and want outside players. Each sign-up is approved by the host guild's officers; you only share your Discord name, character, class, role and note with them. Requests disappear when the raid starts or fills.", "Raids de guildes inscrites au tableau PUG de Guilded qui cherchent des joueurs externes. Chaque inscription est approuvée par les officiers de la guilde hôte; vous ne partagez avec eux que votre nom Discord, personnage, classe, rôle et note. Les demandes disparaissent au début du raid ou quand il est complet.")}</p>`
+    const body = `<h1>${title}</h1>${notice}<p>${t("Raids from guilds that joined the Guilded PUG board and want outside players. Each sign-up is approved by the host guild's officers; you only share your Discord name, character, class, role and note with them. Requests disappear when the raid starts or fills.", "Raids de guildes inscrites au tableau PUG de Guilded qui cherchent des joueurs externes. Chaque inscription est approuvée par les officiers de la guilde hôte; tu ne partages avec eux que ton nom Discord, personnage, classe, rôle et note. Les demandes disparaissent au début du raid ou quand il est complet.")}</p>`
       + (requests.length ? `<div class="cards">${requests.map(request => card(ctx, request, Boolean(ctx.account))).join("")}</div>` : `<p class="muted">${t("No guild is asking for PUGs right now.", "Aucune guilde ne cherche de joueurs externes pour l'instant.")}</p>`);
     return kit.page(200, title, body, { noindex: true });
   };

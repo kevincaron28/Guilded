@@ -116,7 +116,7 @@ export async function correctBattlegroundReport(db: PrismaClient, guildId: strin
   return db.$transaction(async tx => {
     await lock(tx, guildId); await requireMember(tx, guildId, memberId);
     const report = await tx.battlegroundReport.findFirst({ where: { guildId, memberId, OR: [{ id: reportId }, { reportId }] } });
-    if (!report) throw new Error("Your report was not found / Votre rapport est introuvable.");
+    if (!report) throw new Error("Your report was not found / Ton rapport est introuvable.");
     if (report.premadeNonce) await tx.battlegroundReport.updateMany({ where: { guildId, premadeNonce: report.premadeNonce }, data: { corroborated: false } });
     return tx.battlegroundReport.update({ where: { id: report.id }, data: { status: "WITHDRAWN", correctedAt: new Date(), correctionReason: note, corroborated: false } });
   });

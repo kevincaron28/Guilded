@@ -242,7 +242,7 @@ describe("the DM fallback", () => {
 
   it("writes the French DM for a French server", () => {
     const message = offerMessage("fr", "Québec Gold", { deviceId: "d", guildId: "g1", characters: [{ name: "Amy Jones", realm: "Forever", className: "Mage", level: 20 }], taken: [], snoozedUntil: null, dmAt: null });
-    expect(message.content).toContain(fr("Les lier à vous ?"));
+    expect(message.content).toContain(fr("Les lier à toi ?"));
   });
 });
 

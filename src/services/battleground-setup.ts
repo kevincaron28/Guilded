@@ -38,18 +38,18 @@ const posting = [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessag
 const PANEL_TEXT: Record<BgPanelPart, Record<Lang, string>> = {
   groups: {
     en: "**Find a PvP group.** Press **Create** to start one: it gets its own post here with Tank, Healer and DPS buttons, a waiting list and an optional voice channel, and it closes after 24 hours. **Who's looking** shows the open groups, **My groups** yours, **Upcoming** the ones starting soon.",
-    fr: "**Trouver un groupe JcJ.** Appuyez sur **Créer** pour en lancer un : il a son propre message ici avec les boutons Tank, Soigneur et DPS, une liste d'attente et un salon vocal facultatif, et il se ferme après 24 h. **Qui cherche** montre les groupes ouverts, **Mes groupes** les vôtres, **À venir** ceux qui commencent bientôt."
+    fr: "**Trouver un groupe JcJ.** Appuie sur **Créer** pour en lancer un : il a son propre message ici avec les boutons Tank, Soigneur et DPS, une liste d'attente et un salon vocal facultatif, et il se ferme après 24 h. **Qui cherche** montre les groupes ouverts, **Mes groupes** les tiens, **À venir** ceux qui commencent bientôt."
   },
   results: {
     en: "**Your battleground results.** After each match, the Guilded addon sends your result. Press **My results** to see your history (only you see it). `/bg result` shows one match; `/bg correct` removes a wrong report.",
-    fr: "**Vos résultats en champ de bataille.** Après chaque match, l'addon Guilded envoie votre résultat. Appuyez sur **Mes résultats** pour voir votre historique (vous seul le voyez). `/bg result` montre un match; `/bg correct` retire un rapport erroné."
+    fr: "**Tes résultats en champ de bataille.** Après chaque match, l'addon Guilded envoie ton résultat. Appuie sur **Mes résultats** pour voir ton historique (toi seul le vois). `/bg result` montre un match; `/bg correct` retire un rapport erroné."
   },
   stats: {
     en: "**The guild's battleground ladder.** The board below updates by itself: wins, then win rate, by battleground and level bracket, from the members' reports after each match (not verified by Blizzard). Press **Statistics** for more detail.",
-    fr: "**Le classement de la guilde en champ de bataille.** Le tableau ci-dessous se met à jour tout seul : victoires, puis taux de victoire, par champ de bataille et tranche de niveaux, d'après les rapports des membres après chaque match (non vérifiés par Blizzard). Appuyez sur **Statistiques** pour plus de détails."
+    fr: "**Le classement de la guilde en champ de bataille.** Le tableau ci-dessous se met à jour tout seul : victoires, puis taux de victoire, par champ de bataille et tranche de niveaux, d'après les rapports des membres après chaque match (non vérifiés par Blizzard). Appuie sur **Statistiques** pour plus de détails."
   }
 };
-const PANEL_NOTE: Record<Lang, string> = { en: "Button answers are private: only you see them.", fr: "Les réponses aux boutons sont privées : vous seul les voyez." };
+const PANEL_NOTE: Record<Lang, string> = { en: "Button answers are private: only you see them.", fr: "Les réponses aux boutons sont privées : toi seul les vois." };
 /** Panels made before 9.0.5 were found by this footer; it is still recognised so they are edited, never duplicated. */
 const legacyMarker = (guildId: string, part: BgPanelPart) => `Guilded BG setup • ${guildId} • ${part}`;
 /** True when `message` is this bot's panel for `part` (current text in either language, or the old footer). */
@@ -121,14 +121,14 @@ async function install(guild: DiscordGuild, db: PrismaClient, guildId: string, l
       db.activityCore.findFirst({ where: { guildId: { not: guildId }, guild: { discordId: guild.id }, channelId: id } }),
       db.wowGuildChannel.findUnique({ where: { discordId_channelId: { discordId: guild.id, channelId: id } } })
     ]);
-    if (other || core || activity || (binding && binding.scopeGuildId !== guildId)) fail("This channel belongs to another guild scope. Select a separate channel.", "Ce salon appartient à une autre guilde. Choisissez un salon distinct.");
+    if (other || core || activity || (binding && binding.scopeGuildId !== guildId)) fail("This channel belongs to another guild scope. Select a separate channel.", "Ce salon appartient à une autre guilde. Choisis un salon distinct.");
   };
   const fetchChannel = async (id: string) => {
     await checkOwner(id);
     const channel = await guild.channels.fetch(id);
     if (!channel || channel.guild.id !== guild.id) fail("Channel unavailable in this server.", "Salon indisponible sur ce serveur.");
     if (channel!.parentId) await checkOwner(channel!.parentId);
-    if (!channel!.permissionsFor(actor)?.has(PermissionFlagsBits.ViewChannel)) fail("You cannot view this channel.", "Vous ne pouvez pas voir ce salon.");
+    if (!channel!.permissionsFor(actor)?.has(PermissionFlagsBits.ViewChannel)) fail("You cannot view this channel.", "Tu ne peux pas voir ce salon.");
     return channel!;
   };
   // Repair confirmed deletions only; permission/network failures must never create replacements.
@@ -149,9 +149,9 @@ async function install(guild: DiscordGuild, db: PrismaClient, guildId: string, l
   }
   if (selection) {
     const chosen = await fetchChannel(selection.channelId);
-    if (chosen.type !== ChannelType.GuildText || !chosen.permissionsFor(me)?.has(posting)) fail("Choose a text channel where I can view, read history, send and embed links.", "Choisissez un salon texte où je peux voir, lire l’historique, envoyer et intégrer des liens.");
+    if (chosen.type !== ChannelType.GuildText || !chosen.permissionsFor(me)?.has(posting)) fail("Choose a text channel where I can view, read history, send and embed links.", "Choisis un salon texte où je peux voir, lire l’historique, envoyer et intégrer des liens.");
     const fields = BG_SETUP_FIELDS[selection.part];
-    if (BG_SETUP_PARTS.some(p => p !== selection.part && settings[BG_SETUP_FIELDS[p].channel] === chosen.id)) fail("Use a separate channel for each panel.", "Utilisez un salon distinct pour chaque panneau.");
+    if (BG_SETUP_PARTS.some(p => p !== selection.part && settings[BG_SETUP_FIELDS[p].channel] === chosen.id)) fail("Use a separate channel for each panel.", "Utilise un salon distinct pour chaque panneau.");
     if (settings[fields.channel] !== chosen.id) await save({ [fields.channel]: chosen.id, [fields.message]: null });
     // Selection installs only this panel; no unrelated channel is created.
   }
@@ -160,7 +160,7 @@ async function install(guild: DiscordGuild, db: PrismaClient, guildId: string, l
   let categoryId = settings.bgCategoryId;
   if (!selection && !categoryId && legacy) {
     const category = await fetchChannel(legacy.category);
-    if (category.type !== ChannelType.GuildCategory) fail("Legacy category is unavailable; select channels manually.", "Catégorie précédente indisponible; choisissez les salons manuellement.");
+    if (category.type !== ChannelType.GuildCategory) fail("Legacy category is unavailable; select channels manually.", "Catégorie précédente indisponible; choisis les salons manuellement.");
     categoryId = category.id;
     await save({ bgCategoryId: categoryId });
   }
@@ -172,7 +172,7 @@ async function install(guild: DiscordGuild, db: PrismaClient, guildId: string, l
     if (parent?.type === ChannelType.GuildCategory) { categoryId = parent.id; await save({ bgCategoryId: categoryId }); }
   }
   if (!selection && !categoryId && BG_SETUP_PARTS.some(p => !settings[BG_SETUP_FIELDS[p].channel])) {
-    if (!me.permissions.has(PermissionFlagsBits.ManageChannels)) fail("Manage Channels is missing. Use the existing-channel menus instead.", "Gérer les salons manque. Utilisez les menus de salons existants.");
+    if (!me.permissions.has(PermissionFlagsBits.ManageChannels)) fail("Manage Channels is missing. Use the existing-channel menus instead.", "Gérer les salons manque. Utilise les menus de salons existants.");
     const memberRoleId = scope.memberRoleId ?? settings.memberRoleId;
     // Without a member role the category is visible to everyone (boards stay read-only for members); the note at the end says so.
     gated = Boolean(memberRoleId && memberRoleId !== guild.id && guild.roles.cache.has(memberRoleId));
@@ -180,7 +180,7 @@ async function install(guild: DiscordGuild, db: PrismaClient, guildId: string, l
     const name = `${PVP_SETUP_NAMES[lang].category} · ${scope.guild.name} · ${scope.guild.gameEdition}`.slice(0, 100);
     const oldName = `${BG_SETUP_NAMES[lang].category} · ${scope.guild.name} · ${scope.guild.gameEdition}`.slice(0, 100);
     const matches = guild.channels.cache.filter(c => c.type === ChannelType.GuildCategory && (c.name === name || c.name === oldName));
-    if (matches.size) fail("An unsaved category has this name. Select its existing channels manually to avoid duplicates.", "Une catégorie non enregistrée porte ce nom. Choisissez ses salons manuellement pour éviter les doublons.");
+    if (matches.size) fail("An unsaved category has this name. Select its existing channels manually to avoid duplicates.", "Une catégorie non enregistrée porte ce nom. Choisis ses salons manuellement pour éviter les doublons.");
     {
       const category = await guild.channels.create({ name, type: ChannelType.GuildCategory, permissionOverwrites: gated ? [
         { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
@@ -204,20 +204,20 @@ async function install(guild: DiscordGuild, db: PrismaClient, guildId: string, l
     let id = settings[fields.channel];
     if (!id && legacy && !selection && part !== "duels") {
       const old = await fetchChannel(legacy[part].channel);
-      if (old.type !== ChannelType.GuildText || old.parentId !== categoryId) fail("Legacy layout changed. Select channels manually.", "La disposition précédente a changé. Choisissez les salons manuellement.");
+      if (old.type !== ChannelType.GuildText || old.parentId !== categoryId) fail("Legacy layout changed. Select channels manually.", "La disposition précédente a changé. Choisis les salons manuellement.");
       id = old.id;
       await save({ [fields.channel]: id, [fields.message]: legacy[part].message });
     }
     if (!id) {
-      if (!categoryId) fail("Select an existing channel.", "Choisissez un salon existant.");
+      if (!categoryId) fail("Select an existing channel.", "Choisis un salon existant.");
       const category = await fetchChannel(categoryId!);
       if (category.type !== ChannelType.GuildCategory) throw new Error(say(lang, "Saved category is not a category.", "La catégorie enregistrée est invalide."));
       const matches = guild.channels.cache.filter(c => c.type === ChannelType.GuildText && c.parentId === categoryId && pvpChannelNames(part).includes(c.name));
-      if (matches.size > 1) fail("Several matching channels exist; select one manually.", "Plusieurs salons correspondent; choisissez-en un manuellement.");
+      if (matches.size > 1) fail("Several matching channels exist; select one manually.", "Plusieurs salons correspondent; choisis-en un manuellement.");
       const existing = matches.first();
       if (existing) { await checkOwner(existing.id); id = existing.id; }
       else {
-        if (!category.permissionsFor(me)?.has(PermissionFlagsBits.ManageChannels)) fail("Manage Channels is missing. Select an existing channel.", "Gérer les salons manque. Choisissez un salon existant.");
+        if (!category.permissionsFor(me)?.has(PermissionFlagsBits.ManageChannels)) fail("Manage Channels is missing. Select an existing channel.", "Gérer les salons manque. Choisis un salon existant.");
         const overwrites = category.permissionOverwrites.cache.map(o => ({ id: o.id, type: o.type, allow: o.allow.bitfield, deny: o.deny.bitfield }));
         if (part !== "groups") {
           const noPosting = PermissionFlagsBits.SendMessages | PermissionFlagsBits.SendMessagesInThreads | PermissionFlagsBits.CreatePublicThreads | PermissionFlagsBits.CreatePrivateThreads;
@@ -240,7 +240,7 @@ async function install(guild: DiscordGuild, db: PrismaClient, guildId: string, l
       await save({ [fields.channel]: id });
     }
     const channel = await fetchChannel(id!);
-    if (channel.type !== ChannelType.GuildText || !channel.permissionsFor(me)?.has(posting)) fail("Cannot post this panel. Grant view/history/send/embed access or select another channel.", "Impossible de publier ce panneau. Accordez voir/historique/envoyer/liens ou choisissez un autre salon.");
+    if (channel.type !== ChannelType.GuildText || !channel.permissionsFor(me)?.has(posting)) fail("Cannot post this panel. Grant view/history/send/embed access or select another channel.", "Impossible de publier ce panneau. Accorde voir/historique/envoyer/liens ou choisis un autre salon.");
     const text = channel as TextChannel;
     if (part === "duels") { notes.push(`<#${text.id}>`); continue; }
     const payload = bgSetupPanel(part, guildId, lang);
@@ -255,7 +255,7 @@ async function install(guild: DiscordGuild, db: PrismaClient, guildId: string, l
       const pinned = await text.messages.fetchPins();
       const candidates = [...recent.values(), ...pinned.items.map(p => p.message)].filter(m => isBgPanel(m, me.id, guildId, part));
       const unique = [...new Map(candidates.map(m => [m.id, m])).values()];
-      if (unique.length > 1) fail("Multiple panels found; repair the saved message ID before retrying.", "Plusieurs panneaux trouvés; corrigez l’ID du message avant de réessayer.");
+      if (unique.length > 1) fail("Multiple panels found; repair the saved message ID before retrying.", "Plusieurs panneaux trouvés; corrige l’ID du message avant de réessayer.");
       message = unique[0] ?? null;
     }
     if (message) await message.edit({ content: payload.content, embeds: payload.embeds, components: payload.components, allowedMentions: { parse: [] } });
@@ -264,7 +264,7 @@ async function install(guild: DiscordGuild, db: PrismaClient, guildId: string, l
     if (!message.pinned && text.permissionsFor(me)?.has(PermissionFlagsBits.PinMessages)) await message.pin("Guilded battleground guide");
     notes.push(`<#${text.id}>${message.pinned ? "" : say(lang, " (pin manually)", " (épingler manuellement)")}`);
   }
-  const openNote = openCategory ? say(lang, " These channels are visible to everyone because no member role is set: set one in /setup step 6, then restrict the PvP category.", " Ces salons sont visibles par tous car aucun rôle membre n'est défini : choisissez-en un à l'étape 6 de /setup, puis restreignez la catégorie JcJ.") : "";
+  const openNote = openCategory ? say(lang, " These channels are visible to everyone because no member role is set: set one in /setup step 6, then restrict the PvP category.", " Ces salons sont visibles par tous car aucun rôle membre n'est défini : choisis-en un à l'étape 6 de /setup, puis restreins la catégorie JcJ.") : "";
   return say(lang, `Battleground panels saved: ${notes.join(", ")}. No automation or consent settings changed.${openNote}`, `Panneaux JcJ enregistrés : ${notes.join(", ")}. Aucun réglage d’automatisation ou de consentement modifié.${openNote}`);
 }
 

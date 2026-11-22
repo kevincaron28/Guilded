@@ -71,12 +71,12 @@ export async function handleAchievementShare(i: ButtonInteraction): Promise<void
   const channel = i.channel;
   // The member must be able to post here themselves: the button is not a way around channel permissions.
   if (!channel || channel.isDMBased() || !channel.permissionsFor(i.user)?.has([PermissionFlagsBits.SendMessages, PermissionFlagsBits.AttachFiles])) {
-    await reply(t("You cannot post in this channel.", "Vous ne pouvez pas écrire dans ce salon."));
+    await reply(t("You cannot post in this channel.", "Tu ne peux pas écrire dans ce salon."));
     return;
   }
   const now = Date.now(), last = lastShared.get(i.user.id) ?? 0;
   if (now - last < SHARE_COOLDOWN_MS) {
-    await reply(t(`Please wait ${Math.ceil((SHARE_COOLDOWN_MS - (now - last)) / 1000)} s before sharing again.`, `Patientez ${Math.ceil((SHARE_COOLDOWN_MS - (now - last)) / 1000)} s avant de partager à nouveau.`));
+    await reply(t(`Please wait ${Math.ceil((SHARE_COOLDOWN_MS - (now - last)) / 1000)} s before sharing again.`, `Patiente ${Math.ceil((SHARE_COOLDOWN_MS - (now - last)) / 1000)} s avant de partager à nouveau.`));
     return;
   }
   const settings = await prisma.guildSettings.findUnique({ where: { guildId: ctx.guildId }, select: { achievementsEnabled: true } });

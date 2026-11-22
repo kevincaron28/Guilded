@@ -529,7 +529,7 @@ export function ratingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, r
     ? "**Bêta : les 8 meilleurs donjons/ailes distincts comptent.** Tous les participants doivent rester niveau 30. 1 600 à la cible; maximum 3 200. La couverture au-delà de 8 reste visible, sans points supplémentaires."
     : "**Beta: your best 8 distinct dungeons/wings count.** All participants must remain level 30. 1,600 at target; maximum 3,200. Coverage beyond 8 remains visible without extra points.");
   if (timed && (rules as { version: number }).version === 5) lines.push(fr
-    ? "**Niveau 60 : vos 8 meilleurs parcours distincts comptent.** Tous les participants doivent rester niveau 60. 1 600 à la cible; maximum 3 200. Preuves de parcours requises; couverture supplémentaire visible sans inflation."
+    ? "**Niveau 60 : tes 8 meilleurs parcours distincts comptent.** Tous les participants doivent rester niveau 60. 1 600 à la cible; maximum 3 200. Preuves de parcours requises; couverture supplémentaire visible sans inflation."
     : "**Level 60: your best 8 distinct routes count.** All participants must remain level 60. 1,600 at target; maximum 3,200. Required route evidence must be recorded; extra coverage stays visible without inflation.");
   if (speed) lines.push(fr ? "Cibles figées pour la saison. 15 % plus rapide = +10 ; 30 % = +20. Sans cible : 100."
     : "Targets are fixed for the season. 15% faster = +10; 30% = +20. No target: 100.");
@@ -539,7 +539,7 @@ export function ratingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, r
     const dungeonLabel = timed ? (fr ? "donjon(s) classé(s)" : "ranked dungeon(s)") : (fr ? "donjon(s)" : "dungeon(s)");
     lines.push(`${rank === 1 ? "🏅" : `${rank}.`} **${escapeMarkdown(row.name).slice(0, 100)}** · **${row.points}** · ${scoredDungeons} ${dungeonLabel}`);
   }
-  if (!rows.length && !cardDrawn) lines.push(timed ? (fr ? "Terminez un donjon calibré pour établir votre score." : "Complete a calibrated dungeon to establish your score.") : fr ? "Le premier nouveau donjon admissible rapporte 100." : "Your first eligible new dungeon earns 100.");
+  if (!rows.length && !cardDrawn) lines.push(timed ? (fr ? "Termine un donjon calibré pour établir ton score." : "Complete a calibrated dungeon to establish your score.") : fr ? "Le premier nouveau donjon admissible rapporte 100." : "Your first eligible new dungeon earns 100.");
   return new EmbedBuilder().setColor(0x8b5cf6).setTitle(`${fr ? "🏅 Exploration" : "🏅 Exploration rating"} · ${seasonName}`.slice(0, 256))
     .setDescription(lines.join("\n\n"))
     .setFooter({ text: fr ? "Boss final détecté + présence ≥ 80 %. Points de communauté séparés." : "Detected final boss + ≥80% presence. Community points are separate." });
@@ -588,9 +588,9 @@ function bracketRatingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, r
   const embed = new EmbedBuilder().setColor(0x8b5cf6).setFooter({ text: footerText(fr, rules) });
   if (chosen) {
     const own = rows.filter(row => row.bracket === chosen.key);
-    lines.push(fr ? `**${bracketLabel(chosen, true)} : vos ${chosen.bestCount} meilleurs parcours distincts comptent.**` : `**${bracketLabel(chosen, false)}: your best ${chosen.bestCount} distinct routes count.**`);
+    lines.push(fr ? `**${bracketLabel(chosen, true)} : tes ${chosen.bestCount} meilleurs parcours distincts comptent.**` : `**${bracketLabel(chosen, false)}: your best ${chosen.bestCount} distinct routes count.**`);
     if (!cardDrawn) lines.push(...own.slice(0, 10).map(row => rankLine(own, row, fr)));
-    if (!own.length && !cardDrawn) lines.push(fr ? "Terminez un parcours calibré de cette tranche pour établir votre score." : "Complete a calibrated route in this bracket to establish your score.");
+    if (!own.length && !cardDrawn) lines.push(fr ? "Termine un parcours calibré de cette tranche pour établir ton score." : "Complete a calibrated route in this bracket to establish your score.");
     return embed.setTitle(`🏅 ${bracketLabel(chosen, fr)} · ${seasonName}${rules.provisionalTargets ? fr ? " · provisoire" : " · provisional" : ""}`.slice(0, 256)).setDescription(lines.join("\n\n").slice(0, 4096));
   }
   for (const b of cardDrawn ? [] : rules.brackets) {

@@ -90,14 +90,14 @@ export async function executeRoster(interaction: ChatInputCommandInteraction): P
       await interaction.editReply(t(`Nickname sync is off. ${restored} nickname(s) restored.`, `Synchro des pseudos désactivée. ${restored} pseudo(s) restauré(s).`));
       return;
     }
-    if (!enabled) { await reply(t("Nickname sync is **off**. Turn it on with `on:true`. It is on by default.", "La synchro des pseudos est **désactivée**. Activez-la avec `on:true`. Elle est activée par défaut.")); return; }
+    if (!enabled) { await reply(t("Nickname sync is **off**. Turn it on with `on:true`. It is on by default.", "La synchro des pseudos est **désactivée**. Active-la avec `on:true`. Elle est activée par défaut.")); return; }
     if (!botCanRename(interaction.guild)) { await reply(t("Saved, but I need the **Manage Nicknames** permission (and my role above the members) to rename anyone.", "Enregistré, mais il me faut la permission **Gérer les pseudos** (et mon rôle au-dessus des membres).")); return; }
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const result = await syncNicknames(prisma, interaction.guild, { dryRun: !apply });
     const shown = format ?? settings?.nicknameFormat ?? DEFAULT_NICKNAME_FORMAT;
     const sample = result.changes.slice(0, 8).map((c) => `• <@${c.discordUserId}> → ${c.nickname}`).join("\n");
     await interaction.editReply({
-      content: result.skipped ?? `${t("Format", "Format")}: \`${shown}\`\n${apply ? t(`Renamed ${result.applied} member(s), ${result.failed} failed.`, `${result.applied} membre(s) renommé(s), ${result.failed} échec(s).`) : t(`${result.changes.length} change(s) would be made. Add \`apply:true\` to run them now (it also runs every hour).`, `${result.changes.length} changement(s) prévu(s). Ajoutez \`apply:true\` pour les faire maintenant (aussi chaque heure).`)}\n${sample}`,
+      content: result.skipped ?? `${t("Format", "Format")}: \`${shown}\`\n${apply ? t(`Renamed ${result.applied} member(s), ${result.failed} failed.`, `${result.applied} membre(s) renommé(s), ${result.failed} échec(s).`) : t(`${result.changes.length} change(s) would be made. Add \`apply:true\` to run them now (it also runs every hour).`, `${result.changes.length} changement(s) prévu(s). Ajoute \`apply:true\` pour les faire maintenant (aussi chaque heure).`)}\n${sample}`,
       allowedMentions: { parse: [] }
     });
     return;
@@ -113,7 +113,7 @@ export async function executeRoster(interaction: ChatInputCommandInteraction): P
       ? t("Guildmate map is **on**: signed-in members of this guild see last-seen positions, a heat map and calls for help in the phone app. Never public; each member can turn their own sharing off there, which deletes their positions.",
         "La carte des membres est **activée** : les membres connectés de cette guilde voient les dernières positions, une carte de chaleur et les appels à l'aide dans l'application mobile. Jamais publique ; chaque membre peut y couper son partage, ce qui efface ses positions.")
       : t("Guildmate map is **off**: nobody sees it and new positions are not stored. Turn it on with `on:true`.",
-        "La carte des membres est **désactivée** : personne ne la voit et les nouvelles positions ne sont pas gardées. Activez-la avec `on:true`."));
+        "La carte des membres est **désactivée** : personne ne la voit et les nouvelles positions ne sont pas gardées. Active-la avec `on:true`."));
     return;
   }
 
@@ -127,7 +127,7 @@ export async function executeRoster(interaction: ChatInputCommandInteraction): P
       ? t("Game chat link is **on**: when a member's guild chat is relayed here by WoW's Discord link, I link the character it names to them. A character another member holds is never moved (one line in the officer log). Turn it off with `on:false`.",
         "Le lien du clavardage en jeu est **activé** : quand le lien Discord de WoW relaie le clavardage de guilde d'un membre ici, je lie le personnage nommé à ce membre. Un personnage lié à un autre membre n'est jamais déplacé (une ligne dans le journal des officiers). Désactive-le avec `on:false`.")
       : t("Game chat link is **off**: relayed guild chat links nothing. Turn it on with `on:true`.",
-        "Le lien du clavardage en jeu est **désactivé** : le clavardage relayé ne lie rien. Activez-le avec `on:true`."));
+        "Le lien du clavardage en jeu est **désactivé** : le clavardage relayé ne lie rien. Active-le avec `on:true`."));
     return;
   }
 }

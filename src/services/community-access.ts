@@ -46,9 +46,9 @@ export async function resolveCommunitySeason(database: PrismaClient, guild: Guil
     await communityAccess(guild, userId, row, organizer);
     return row;
   }
-  if (organizer) throw new Error("Choisissez une saison / Select a season.");
+  if (organizer) throw new Error("Choisis une saison / Select a season.");
   const seasons = (await accessibleCommunitySeasons(database, guild, guildId, userId)).filter(s => s.game === "DISCORD" && s.status === "ACTIVE");
-  if (seasons.length !== 1) throw new Error("Aucune saison Discord active accessible. Consultez /community seasons / No accessible active Discord season. See /community seasons.");
+  if (seasons.length !== 1) throw new Error("Aucune saison Discord active accessible. Consulte /community seasons / No accessible active Discord season. See /community seasons.");
   return seasons[0]!;
 }
 

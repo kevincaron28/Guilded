@@ -12,7 +12,7 @@ export async function executeDeleteMyData(interaction: ChatInputCommandInteracti
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const confirmId = `deletemydata:${interaction.id}:yes`, cancelId = `deletemydata:${interaction.id}:no`;
   const intro = fr
-    ? "**Supprimer mes données — rien n’a été supprimé pour l’instant.**\nCela retire votre compte du site, vos personnages dans toutes les guildes où vous êtes, et vos données personnelles (rapports JcJ, succès, jalons, alertes, identifiants d’appairage et du compagnon, badges). Votre nom Discord devient « Deleted member » dans les fiches de membre; les points, le butin et les présences de raid restent dans l’historique de chaque guilde sous ce nom. Les sauvegardes et les messages Discord déjà publiés ne sont pas modifiés. **Ceci est définitif.**"
+    ? "**Supprimer mes données — rien n’a été supprimé pour l’instant.**\nCela retire ton compte du site, tes personnages dans toutes les guildes où tu es, et tes données personnelles (rapports JcJ, succès, jalons, alertes, identifiants d’appairage et du compagnon, badges). Ton nom Discord devient « Deleted member » dans les fiches de membre; les points, le butin et les présences de raid restent dans l’historique de chaque guilde sous ce nom. Les sauvegardes et les messages Discord déjà publiés ne sont pas modifiés. **Ceci est définitif.**"
     : "**Delete my data — nothing has been deleted yet.**\nThis removes your website account, your characters in every server where you are a member, and your personal records (battleground reports, achievements, milestones, alerts, pairing and companion credentials, badges). Your Discord name on member records becomes “Deleted member”; points, loot and raid attendance stay in each guild’s history under that name. Backups and Discord messages already posted are not changed. **This cannot be undone.**";
   await interaction.editReply({ content: intro, allowedMentions: { parse: [] }, components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(confirmId).setLabel(fr ? "Oui, tout supprimer" : "Yes, delete everything").setStyle(ButtonStyle.Danger),
@@ -30,11 +30,11 @@ export async function executeDeleteMyData(interaction: ChatInputCommandInteracti
     await choice.deferUpdate();
     const done = await deleteMyData(prisma, interaction.user.id);
     await interaction.editReply({ content: fr
-      ? `Vos données ont été supprimées : ${done.characters} personnage(s) et ${done.account ? "votre compte du site" : "aucun compte du site"}. Pour effacer aussi ce PC, appuyez sur « Réinitialiser ce compagnon » dans le compagnon.`
+      ? `Tes données ont été supprimées : ${done.characters} personnage(s) et ${done.account ? "ton compte du site" : "aucun compte du site"}. Pour effacer aussi ce PC, appuie sur « Réinitialiser ce compagnon » dans le compagnon.`
       : `Your data was deleted: ${done.characters} character(s) and ${done.account ? "your website account" : "no website account"}. To clear this PC too, press “Reset this companion” in the companion.`, components: [] });
   } catch (error) {
     onError(error);
     // The token may be dead by now (that can be why we are here): never throw from the failure message.
-    await interaction.editReply({ content: fr ? "La suppression n’a pas pu être effectuée. Réessayez, ou demandez-la dans la communauté de soutien Guilded." : "The deletion could not be completed. Try again, or ask in the Guilded support community.", components: [] }).catch(() => undefined);
+    await interaction.editReply({ content: fr ? "La suppression n’a pas pu être effectuée. Réessaie, ou demande-la dans la communauté de soutien Guilded." : "The deletion could not be completed. Try again, or ask in the Guilded support community.", components: [] }).catch(() => undefined);
   }
 }

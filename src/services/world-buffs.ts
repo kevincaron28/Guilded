@@ -26,7 +26,7 @@ export const worldBuffsSupported = (edition: GameEdition) => WORLD_BUFF_EDITIONS
 // Checked before anything is saved or posted (the command checks before its public reply).
 export function validateDrop(buff: string, dropsAt: Date, now = new Date()): void {
   if (!isWorldBuff(buff)) throw new Error("Unknown world buff / Buff mondial inconnu.");
-  if (dropsAt.getTime() <= now.getTime()) throw new Error("Pick a time in the future. / Choisissez une heure à venir.");
+  if (dropsAt.getTime() <= now.getTime()) throw new Error("Pick a time in the future. / Choisis une heure à venir.");
   if (dropsAt.getTime() - now.getTime() > MAX_AHEAD_MS) throw new Error("Drops can be announced up to 7 days ahead. / Annonces jusqu'à 7 jours à l'avance.");
 }
 

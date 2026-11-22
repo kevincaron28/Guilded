@@ -93,8 +93,8 @@ export function seasonStartCard(season: SeasonInfo, lang: Lang, timeZone?: strin
     ],
     rowsLabel: t("How it works", "Comment ça marche"),
     rows: [
-      { name: t("Run dungeons with the addon", "Faites des donjons avec l'addon"), sub: t("Valid runs count towards your season score", "Les parcours valides comptent pour votre score de saison") },
-      { name: t("Follow the board", "Suivez le classement"), sub: t("The top 3 are announced when the season ends", "Le top 3 est annoncé à la fin de la saison") }
+      { name: t("Run dungeons with the addon", "Fais des donjons avec l'addon"), sub: t("Valid runs count towards your season score", "Les parcours valides comptent pour ton score de saison") },
+      { name: t("Follow the board", "Suis le classement"), sub: t("The top 3 are announced when the season ends", "Le top 3 est annoncé à la fin de la saison") }
     ],
     footer: t("New season · Rules are shared by all guilds · No rewards · guildedwow.com", "Nouvelle saison · Règles communes à toutes les guildes · Aucune récompense · guildedwow.com")
   };

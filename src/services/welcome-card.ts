@@ -15,14 +15,14 @@ export function welcomeCard(lang: Lang, input: { name: string; guildName: string
   const fr = lang === "fr", t = (en: string, french: string) => fr ? french : en;
   const guildName = [...input.guildName].length > 28 ? `${[...input.guildName].slice(0, 27).join("")}…` : input.guildName;
   const list: { name: string; sub: string }[] = [];
-  if (steps.rules) list.push({ name: t("Read and accept the rules", "Lisez et acceptez les règles"), sub: t("Use the Rules button on the welcome message", "Utilisez le bouton des règles du message de bienvenue") });
-  if (steps.games) list.push({ name: t("Pick your games", "Choisissez vos jeux"), sub: t("So you see the right channels", "Pour voir les bons salons") });
-  list.push({ name: t("Link your character", "Liez votre personnage"), sub: t("/character link shows how, in a few steps", "/character link explique comment, en quelques étapes") });
+  if (steps.rules) list.push({ name: t("Read and accept the rules", "Lis et accepte les règles"), sub: t("Use the Rules button on the welcome message", "Utilise le bouton des règles du message de bienvenue") });
+  if (steps.games) list.push({ name: t("Pick your games", "Choisis tes jeux"), sub: t("So you see the right channels", "Pour voir les bons salons") });
+  list.push({ name: t("Link your character", "Lie ton personnage"), sub: t("/character link shows how, in a few steps", "/character link explique comment, en quelques étapes") });
   return {
     eyebrow: t("Guilded · Welcome", "Guilded · Bienvenue"), title: input.name,
     subtitle: t(`Welcome to ${guildName}!`, `Bienvenue dans ${guildName} !`),
     backdrop: { kind: "board", key: "member-welcome", fallbackKey: "activity" },
-    stats: [{ label: t("Members", "Membres"), value: input.memberCount.toLocaleString(fr ? "fr-CA" : "en-CA"), accent: "gold", note: t("You are one of us now", "Vous faites partie de la gang") }],
+    stats: [{ label: t("Members", "Membres"), value: input.memberCount.toLocaleString(fr ? "fr-CA" : "en-CA"), accent: "gold", note: t("You are one of us now", "Tu fais partie de la gang") }],
     rowsLabel: t("Start here", "Pour commencer"),
     rows: list.map((row, index) => ({ ...row, name: `${index + 1}. ${row.name}` })),
     footer: t("Welcome · The server's own welcome message and buttons come with this card · guildedwow.com", "Bienvenue · Le message et les boutons du serveur accompagnent cette carte · guildedwow.com")

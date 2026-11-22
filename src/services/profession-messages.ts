@@ -72,13 +72,13 @@ export function professionSummaryEmbed(post: ProfessionPost, lang: Lang, guildId
   for (const row of post.skilled.slice(0, MAX_CRAFTER_LINES)) lines.push(crafterLine({ character: row.character, skill: row.skillLevel, lastSeen: row.lastSeen }, lastSeenText(row.lastSeen, lang, now), now, name));
   if (post.skilled.length > MAX_CRAFTER_LINES) lines.push(t(`…and ${post.skilled.length - MAX_CRAFTER_LINES} more`, `…et ${post.skilled.length - MAX_CRAFTER_LINES} autres`));
   if (post.recipes.length) {
-    lines.push("", `**${t("Recipes", "Recettes")}** (${post.recipes.length}) — ${t("every recipe is listed below, by category; click a name for its item page, or use the Details menu to see the item and request it", "toutes les recettes sont listées plus bas, par catégorie; cliquez un nom pour sa page d'objet, ou utilisez le menu Détails pour voir l'objet et le demander")}`);
+    lines.push("", `**${t("Recipes", "Recettes")}** (${post.recipes.length}) — ${t("every recipe is listed below, by category; click a name for its item page, or use the Details menu to see the item and request it", "toutes les recettes sont listées plus bas, par catégorie; clique un nom pour sa page d'objet, ou utilise le menu Détails pour voir l'objet et le demander")}`);
     for (const group of groupByCategory(post.recipes)) {
       const message = jump?.firstMessage.get(group.key);
       const label = `${categoryLabel(group.key, lang)} (${group.recipes.length})`;
       lines.push(message && jump ? `• [${label}](https://discord.com/channels/${jump.discordGuildId}/${jump.threadId}/${message})` : `• ${label}`);
     }
-  } else lines.push("", t("No recipe recorded yet. Open this profession's window in game with Guilded to add yours.", "Aucune recette enregistrée. Ouvrez la fenêtre de ce métier en jeu avec Guilded pour ajouter les vôtres."));
+  } else lines.push("", t("No recipe recorded yet. Open this profession's window in game with Guilded to add yours.", "Aucune recette enregistrée. Ouvre la fenêtre de ce métier en jeu avec Guilded pour ajouter les tiens."));
   return new EmbedBuilder().setColor(COLOR).setTitle(professionTitle(post.profession, lang).slice(0, 256)).setDescription(lines.join("\n").slice(0, 4096))
     .setFooter({ text: `${PROFESSION_POST_MARKER} • ${guildId} • ${t("From members' profession scans", "Tiré des relevés de métiers des membres")}`.slice(0, 2048) });
 }

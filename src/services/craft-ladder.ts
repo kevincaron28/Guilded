@@ -84,7 +84,7 @@ export function craftLadderEmbed(standings: readonly CrafterStanding[], lang: La
   // With the picture the top 3 repeat the card, so the embed keeps only its title (9.3).
   if (!(image && standings.length)) embed.setDescription(standings.length ? standings.slice(0, 10).map((row, index) =>
     `${["🥇", "🥈", "🥉"][index] ?? `**${index + 1}.**`} ${escapeMarkdown(row.name).slice(0, 40)} — ${row.points} ${t("pt", "pt")} · ${row.month} ${t("in 30 days", "en 30 jours")}`).join("\n")
-    : t("No finished crafts yet. Ask on the craft board!", "Aucune commande terminée. Demandez sur le tableau d'artisanat!"));
+    : t("No finished crafts yet. Ask on the craft board!", "Aucune commande terminée. Demande sur le tableau d'artisanat!"));
   if (image && standings.length) embed.setImage(`attachment://${image}`);
   return embed.setFooter({ text: t("1 point per finished order on the crafting board", "1 point par commande terminée sur le tableau d'artisanat") });
 }

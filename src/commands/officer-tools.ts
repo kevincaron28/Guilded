@@ -142,7 +142,7 @@ export async function handleOfficerButton(interaction: ButtonInteraction, deps: 
       case "cancel":
         if (raid.status === "COMPLETED" || raid.status === "CANCELLED") { await reply(interaction, pick(lang, "This raid cannot be cancelled.", "Ce raid ne peut pas être annulé.")); return; }
         await interaction.update({
-          content: `⚠️ ${pick(lang, "Cancel", "Annuler")} ${raidLine(raid, lang)}\n${pick(lang, "The signup post will show Cancelled. Nobody is messaged unless you choose the ping option.", "Le message d'inscription indiquera Annulé. Personne n'est contacté sauf si vous choisissez l'option avec mention.")}`,
+          content: `⚠️ ${pick(lang, "Cancel", "Annuler")} ${raidLine(raid, lang)}\n${pick(lang, "The signup post will show Cancelled. Nobody is messaged unless you choose the ping option.", "Le message d'inscription indiquera Annulé. Personne n'est contacté sauf si tu choisis l'option avec mention.")}`,
           components: [row(
             button(officerId("raid", raid.id, "cancel-ok"), pick(lang, "Confirm cancel", "Confirmer"), ButtonStyle.Danger),
             button(officerId("raid", raid.id, "cancel-ping"), pick(lang, "Cancel + ping signed-up", "Annuler + mentionner"), ButtonStyle.Danger),
@@ -163,7 +163,7 @@ export async function handleOfficerButton(interaction: ButtonInteraction, deps: 
       }
       case "reopen": {
         if (raid.status !== "CANCELLED") { await reply(interaction, pick(lang, "This raid is not cancelled.", "Ce raid n'est pas annulé.")); return; }
-        if (raid.scheduledAt.getTime() <= Date.now()) { await reply(interaction, pick(lang, "The start time has passed: edit the time first with /lead edit, or create a new raid.", "L'heure est passée : créez un nouveau raid.")); return; }
+        if (raid.scheduledAt.getTime() <= Date.now()) { await reply(interaction, pick(lang, "The start time has passed: edit the time first with /lead edit, or create a new raid.", "L'heure est passée : crée un nouveau raid.")); return; }
         await interaction.deferUpdate();
         await deps.db.raid.update({ where: { id: raid.id }, data: { status: "PLANNED" } });
         await audit(deps, guildId, actorId, "RAID_OFFICER", raid.id, { change: "reopen", title: raid.title });
@@ -205,7 +205,7 @@ export async function handleOfficerButton(interaction: ButtonInteraction, deps: 
     case "archive":
       if (core.archivedAt) { await reply(interaction, pick(lang, "Already archived.", "Déjà archivé.")); return; }
       await interaction.update({
-        content: `⚠️ ${pick(lang, "Archive", "Archiver")} ${coreLine(core, lang)}\n${pick(lang, "Its roster stops taking applications and automatic weekly raids stop. Members, raids, loot history and channels are kept; you can unarchive any time.", "Le roster n'accepte plus de candidatures et les raids hebdomadaires automatiques s'arrêtent. Membres, raids, historique de butin et salons sont conservés; vous pouvez désarchiver.")}`,
+        content: `⚠️ ${pick(lang, "Archive", "Archiver")} ${coreLine(core, lang)}\n${pick(lang, "Its roster stops taking applications and automatic weekly raids stop. Members, raids, loot history and channels are kept; you can unarchive any time.", "Le roster n'accepte plus de candidatures et les raids hebdomadaires automatiques s'arrêtent. Membres, raids, historique de butin et salons sont conservés; tu peux désarchiver.")}`,
         components: [row(button(officerId("core", core.id, "archive-ok"), pick(lang, "Confirm archive", "Confirmer"), ButtonStyle.Danger), button(officerId("core", core.id, "menu"), pick(lang, "Keep active", "Garder actif")))]
       });
       return;
@@ -229,7 +229,7 @@ export async function handleOfficerButton(interaction: ButtonInteraction, deps: 
         await audit(deps, guildId, actorId, "CORE_OFFICER", core.id, { change: "application-channel", channelId: result.channelId, created: result.created });
         await interaction.editReply({ content: `📋 ${pick(lang, "Applications for", "Les candidatures pour")} **${core.name}** → <#${result.channelId}> (${pick(lang, "officers only", "officiers seulement")})` });
       } catch {
-        await interaction.editReply({ content: pick(lang, "I could not create the channel: give my role \"Manage Channels\" and try again.", "Je n'ai pas pu créer le salon : donnez « Gérer les salons » à mon rôle puis réessayez.") });
+        await interaction.editReply({ content: pick(lang, "I could not create the channel: give my role \"Manage Channels\" and try again.", "Je n'ai pas pu créer le salon : donne « Gérer les salons » à mon rôle puis réessaie.") });
       }
       return;
     }
@@ -306,7 +306,7 @@ export async function handleOfficerModal(interaction: ModalSubmitInteraction, de
     }
     const officerText = interaction.fields.getTextInputValue("officer");
     const role = interaction.guild ? resolveRole(officerText, interaction.guild.roles) : { id: null };
-    if (!role) throw new Error(pick(lang, "I could not find that role. Use its exact name, a mention or its id, or \"none\".", "Rôle introuvable. Utilisez son nom exact, une mention, son id, ou « aucun »."));
+    if (!role) throw new Error(pick(lang, "I could not find that role. Use its exact name, a mention or its id, or \"none\".", "Rôle introuvable. Utilise son nom exact, une mention, son id, ou « aucun »."));
     const data = {
       name, schedule: interaction.fields.getTextInputValue("schedule").trim().slice(0, 100) || null,
       lootRulesNote: interaction.fields.getTextInputValue("loot").trim().slice(0, 300) || null, officerRoleId: role.id

@@ -61,18 +61,18 @@ export function createRosterDashboard(store: RosterDashboardStore) {
     if (guildId.length > 64) return kit.page(400, title, t("Invalid guild selection.", "Sélection de guilde invalide."), { noindex: true });
     let filters: RosterFilters;
     try { filters = rosterFilters(query); }
-    catch { return kit.page(400, title, t("Check the filters and level range.", "Vérifiez les filtres et la plage de niveaux."), { noindex: true }); }
+    catch { return kit.page(400, title, t("Check the filters and level range.", "Vérifie les filtres et la plage de niveaux."), { noindex: true }); }
     try {
       if (!guildId) {
-        if (ctx.request.path.endsWith("/export")) return kit.page(400, title, t("Choose a guild first.", "Choisissez d'abord une guilde."), { noindex: true });
+        if (ctx.request.path.endsWith("/export")) return kit.page(400, title, t("Choose a guild first.", "Choisis d'abord une guilde."), { noindex: true });
         const guilds = await store.guilds(ctx.account.discordUserId);
-        return kit.page(200, title, `<h1>${title}</h1><p>${t("Choose a guild. Access requires your current officer role and active Guilded membership.", "Choisissez une guilde. Votre rôle actuel d'officier et une adhésion Guilded active sont requis.")}</p>`
+        return kit.page(200, title, `<h1>${title}</h1><p>${t("Choose a guild. Access requires your current officer role and active Guilded membership.", "Choisis une guilde. Ton rôle actuel d'officier et une adhésion Guilded active sont requis.")}</p>`
           + (guilds.length ? `<ul>${guilds.map(guild => `<li><a href="${h(link(PATH, lang, { guild: guild.id, edition: guild.edition }))}">${h(guild.name)} · ${h(guild.edition)}</a></li>`).join("")}</ul>`
-            : `<p>${t("No eligible guilds are available. Check your membership and officer role in Discord.", "Aucune guilde admissible. Vérifiez votre adhésion et votre rôle d'officier dans Discord.")}</p>`), { noindex: true });
+            : `<p>${t("No eligible guilds are available. Check your membership and officer role in Discord.", "Aucune guilde admissible. Vérifie ton adhésion et ton rôle d'officier dans Discord.")}</p>`), { noindex: true });
       }
       if (query.get("view") === "gaps" && !ctx.request.path.endsWith("/export")) {
         const gaps = await store.gaps?.(ctx.account.discordUserId, guildId);
-        if (!gaps) return kit.page(403, title, t("This view is unavailable with your current membership and permissions.", "Cette vue n'est pas accessible avec votre adhésion et vos permissions actuelles."), { noindex: true });
+        if (!gaps) return kit.page(403, title, t("This view is unavailable with your current membership and permissions.", "Cette vue n'est pas accessible avec ton adhésion et tes permissions actuelles."), { noindex: true });
         const back = h(link(PATH, lang, { guild: guildId, edition: query.get("edition") ?? "" }));
         const list = (items: string[]) => items.length ? `<ul>${items.map(item => `<li>${item}</li>`).join("")}</ul>` : `<p>—</p>`;
         const invites = inviteLines(gaps.notInGuild);
@@ -84,10 +84,10 @@ export function createRosterDashboard(store: RosterDashboardStore) {
           + `<section class="card"><h2>${t("In the guild, nobody claimed", "Dans la guilde, personne ne l'a réclamé")} (${gaps.unclaimed.length})</h2>${list(gaps.unclaimed.map(row => `${h(row.name)} · ${h(row.className)}${row.level ? ` ${row.level}` : ""}`))}</section>`, { noindex: true });
       }
       const snapshot = await store.load(ctx.account.discordUserId, guildId);
-      if (!snapshot) return kit.page(403, title, t("This roster is unavailable with your current membership and permissions.", "Cet effectif n'est pas accessible avec votre adhésion et vos permissions actuelles."), { noindex: true });
+      if (!snapshot) return kit.page(403, title, t("This roster is unavailable with your current membership and permissions.", "Cet effectif n'est pas accessible avec ton adhésion et tes permissions actuelles."), { noindex: true });
       const available = (filter: string, values: (string | null)[]) => !filter || filter === UNKNOWN || values.includes(filter);
       if (!available(filters.className, snapshot.characters.map(row => row.className)) || !available(filters.race, snapshot.characters.map(row => row.race)) || !available(filters.profession, snapshot.characters.flatMap(row => row.professions))) {
-        return kit.page(400, title, `<p>${t("A filter no longer matches this roster. Clear the filters and try again.", "Un filtre ne correspond plus à cet effectif. Effacez les filtres et réessayez.")}</p><p><a href="${h(link(PATH, lang, { guild: guildId, edition: snapshot.guild.edition }))}">${t("Clear filters", "Effacer les filtres")}</a></p>`, { noindex: true });
+        return kit.page(400, title, `<p>${t("A filter no longer matches this roster. Clear the filters and try again.", "Un filtre ne correspond plus à cet effectif. Efface les filtres et réessaie.")}</p><p><a href="${h(link(PATH, lang, { guild: guildId, edition: snapshot.guild.edition }))}">${t("Clear filters", "Effacer les filtres")}</a></p>`, { noindex: true });
       }
       const rows = filterRoster(snapshot.characters, filters);
       if (ctx.request.path.endsWith("/export")) {
@@ -137,7 +137,7 @@ export function createRosterDashboard(store: RosterDashboardStore) {
         + `<nav aria-label="${t("Roster pages", "Pages des effectifs")}">${page > 1 ? `<a href="${href({ page: String(page - 1) })}">${t("Previous", "Précédent")}</a> · ` : ""}${page} / ${pageCount}${page < pageCount ? ` · <a href="${href({ page: String(page + 1) })}">${t("Next", "Suivant")}</a>` : ""}</nav>`;
       return kit.page(200, title, body, { noindex: true, languageParams: { guild: guildId, edition: snapshot.guild.edition, q: filters.q, class: filters.className, race: filters.race, profession: filters.profession, kind: filters.kind, activity: filters.activity, min: filters.min?.toString(), max: filters.max?.toString(), page: String(page) } });
     } catch {
-      return kit.page(503, title, t("The roster could not be loaded. Try again shortly; no data was changed.", "Impossible de charger l'effectif. Réessayez sous peu; aucune donnée n'a été modifiée."), { noindex: true });
+      return kit.page(503, title, t("The roster could not be loaded. Try again shortly; no data was changed.", "Impossible de charger l'effectif. Réessaie sous peu; aucune donnée n'a été modifiée."), { noindex: true });
     }
   };
   return { route, meSection };

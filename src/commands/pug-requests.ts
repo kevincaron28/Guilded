@@ -73,12 +73,12 @@ export async function executePugs(interaction: ChatInputCommandInteraction): Pro
     await joinPugBoard(prisma, guild.id, channel.id, interaction.user.id, allows);
     await interaction.editReply(pt(lang,
       `This guild joined the PUG board: other guilds' requests for your WoW edition appear in <#${channel.id}>, each tagged as another guild's raid. Nothing is shared about your members. Officers can block any guild from its post, and /raid pugs leave undoes this.`,
-      `Cette guilde a rejoint le tableau PUG : les demandes d'autres guildes pour votre édition de WoW apparaissent dans <#${channel.id}>, chacune marquée comme raid d'une autre guilde. Rien n'est partagé sur vos membres. Les officiers peuvent bloquer une guilde depuis son message, et /raid pugs leave annule tout.`));
+      `Cette guilde a rejoint le tableau PUG : les demandes d'autres guildes pour ton édition de WoW apparaissent dans <#${channel.id}>, chacune marquée comme raid d'une autre guilde. Rien n'est partagé sur tes membres. Les officiers peuvent bloquer une guilde depuis son message, et /raid pugs leave annule tout.`));
     return;
   }
   if (sub === "leave") {
     const { channelId } = await leavePugBoard(prisma, guild.id, allows);
-    await interaction.editReply(channelId ? pt(lang, "Left the PUG board. Your requests are closed and posts are being removed; the channel was kept.", "Tableau PUG quitté. Vos demandes sont fermées et les messages sont retirés; le canal est conservé.") : pt(lang, "This guild had not joined the board.", "Cette guilde n'avait pas rejoint le tableau."));
+    await interaction.editReply(channelId ? pt(lang, "Left the PUG board. Your requests are closed and posts are being removed; the channel was kept.", "Tableau PUG quitté. Tes demandes sont fermées et les messages sont retirés; le canal est conservé.") : pt(lang, "This guild had not joined the board.", "Cette guilde n'avait pas rejoint le tableau."));
     return;
   }
   if (sub === "ask") {
@@ -88,7 +88,7 @@ export async function executePugs(interaction: ChatInputCommandInteraction): Pro
       hours: interaction.options.getInteger("hours") ?? PUG_LIMITS.maxHours, note: interaction.options.getString("note")
     }, allows);
     await interaction.editReply(pt(lang, `PUG request created. It is being posted to ${posts} guild${posts === 1 ? "" : "s"} playing your edition. You will get one message in the raid channel as sign-ups arrive, and you accept or decline each guest.`,
-      `Demande créée. Elle est en cours de publication dans ${posts} guilde${posts === 1 ? "" : "s"} de votre édition. Vous recevrez un message dans le canal du raid à mesure des inscriptions, et vous acceptez ou refusez chaque invité.`));
+      `Demande créée. Elle est en cours de publication dans ${posts} guilde${posts === 1 ? "" : "s"} de ton édition. Tu recevras un message dans le canal du raid à mesure des inscriptions, et tu acceptes ou refuse chaque invité.`));
     return;
   }
   if (sub === "close") {
@@ -166,7 +166,7 @@ async function handle(interaction: ButtonInteraction | ModalSubmitInteraction): 
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     await signUpForPug(prisma, { requestId: id, discordUserId: interaction.user.id, displayName: member.displayName, role: extra, characterName: text(interaction, "character"),
       characterClass: text(interaction, "class"), note: text(interaction, "note"), sourceGuild: interaction.guild.name }, allows);
-    await interaction.editReply(pt(lang, "Sent. The host guild's officers will accept or decline; you are not in their roster until they do. Contact them in game.", "Envoyé. Les officiers de la guilde hôte accepteront ou refuseront; vous n'êtes pas dans leur liste avant cela. Contactez-les en jeu."));
+    await interaction.editReply(pt(lang, "Sent. The host guild's officers will accept or decline; you are not in their roster until they do. Contact them in game.", "Envoyé. Les officiers de la guilde hôte accepteront ou refuseront; tu n'es pas dans leur liste avant cela. Contacte-les en jeu."));
     return;
   }
   if (interaction.isButton() && action === "blk") {
@@ -225,7 +225,7 @@ async function handle(interaction: ButtonInteraction | ModalSubmitInteraction): 
   if (interaction.isButton() && (action === "ok" || action === "no")) {
     await interaction.deferUpdate();
     const result = await decidePugSignup(prisma, id, request.guildId, action === "ok", allows);
-    await interaction.editReply({ content: result === "already-decided" ? pt(hostLang, "Already decided.", "Déjà traité.") : result === "accepted" ? pt(hostLang, "Accepted. Invite them in game; they are not added to your roster or server automatically.", "Accepté. Invitez-les en jeu; ils ne sont pas ajoutés automatiquement.") : pt(hostLang, "Declined.", "Refusé."), components: [] });
+    await interaction.editReply({ content: result === "already-decided" ? pt(hostLang, "Already decided.", "Déjà traité.") : result === "accepted" ? pt(hostLang, "Accepted. Invite them in game; they are not added to your roster or server automatically.", "Accepté. Invite-les en jeu; ils ne sont pas ajoutés automatiquement.") : pt(hostLang, "Declined.", "Refusé."), components: [] });
     return;
   }
   throw new PugError("Unknown PUG action.");

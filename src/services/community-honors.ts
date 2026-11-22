@@ -215,7 +215,7 @@ export function monthlyHonorsMessage(lang: Lang, season: { name: string; number:
     .setFooter({ text: say(lang, "Guilded · Hall of fame", "Guilded · Palmarès") });
   if (rookie) embed.addFields({ name: ROOKIE_ROLE[lang], value: say(lang,
     `${who(names, rookie.userId)} — **${n(rookie.points)} pts** across **${rookie.activeDays} active days**. ${n(rookie.messages)} messages · ${n(rookie.reactions)} reactions · ${n(rookie.voiceHours)} h in voice. They hold the role until the next monthly award!`,
-    `${who(names, rookie.userId)} — **${n(rookie.points)} pts**, **${rookie.activeDays} jours actifs**. ${n(rookie.messages)} messages · ${n(rookie.reactions)} réactions · ${n(rookie.voiceHours)} h en vocal. Le rôle est à vous jusqu’au prochain palmarès mensuel !`) });
+    `${who(names, rookie.userId)} — **${n(rookie.points)} pts**, **${rookie.activeDays} jours actifs**. ${n(rookie.messages)} messages · ${n(rookie.reactions)} réactions · ${n(rookie.voiceHours)} h en vocal. Le rôle est à toi jusqu’au prochain palmarès mensuel !`) });
   return { content: say(lang, `🏆 Congratulations to the community's top 3: ${places.flat().map(id => who(names, id)).join(", ")}!`, quebecLine("top3", `${season.number}:${places.flat().join(",")}`, { names: places.flat().map(id => who(names, id)).join(", ") })), embeds: [embed.toJSON()] };
 }
 

@@ -140,7 +140,7 @@ const ACTIVITY_LADDERS: AchievementDef[] = [
   ...ladder("reactions-received", "reactionsReceived", [
     [10, "bronze", "Noticed", "Remarqué"], [50, "silver", "Well Liked", "Apprécié"], [250, "gold", "Crowd Favourite", "Chouchou du public"],
     [1000, "platinum", "Guild Icon", "Icône de la guilde"], [5000, "epic", "Beloved", "Adulé"]
-  ], (n, fr) => fr ? `Recevoir ${grouped(n, true)} réactions sur vos messages.` : `Receive ${grouped(n, false)} reactions on your messages.`),
+  ], (n, fr) => fr ? `Recevoir ${grouped(n, true)} réactions sur tes messages.` : `Receive ${grouped(n, false)} reactions on your messages.`),
   ...ladder("points", "communityPoints", [
     [100, "bronze", "Contributor", "Contributeur"], [500, "bronze", "Steady Earner", "Gagnant constant"], [1000, "silver", "Point Collector", "Collectionneur de points"],
     [2500, "gold", "Season Standout", "Éclat de la saison"], [5000, "platinum", "Leaderboard Climber", "Grimpeur du classement"], [10000, "epic", "Top of the Board", "Tête du classement"],
@@ -241,7 +241,7 @@ const BASE_ACHIEVEMENTS: AchievementDef[] = [
   def("dungeon-runs-50", "guild", "gold", "dungeonRuns", 50, ["Dungeon Veteran", "Complete 50 guild dungeon runs."], ["Vétéran des donjons", "Terminer 50 donjons de guilde."]),
   def("dungeon-runs-100", "guild", "epic", "dungeonRuns", 100, ["Centurion of the Depths", "Complete 100 guild dungeon runs."], ["Centurion des profondeurs", "Terminer 100 donjons de guilde."]),
 
-  def("dungeon-variety-1", "guild", "bronze", "dungeonVariety", 1, ["First Dungeon Clear", "Complete your first dungeon with the guild."], ["Premier donjon terminé", "Terminer votre premier donjon avec la guilde."]),
+  def("dungeon-variety-1", "guild", "bronze", "dungeonVariety", 1, ["First Dungeon Clear", "Complete your first dungeon with the guild."], ["Premier donjon terminé", "Terminer ton premier donjon avec la guilde."]),
   def("dungeon-variety-10", "guild", "gold", "dungeonVariety", 10, ["Dungeon Collector", "Complete 10 different dungeons with the guild."], ["Collectionneur de donjons", "Terminer 10 donjons différents avec la guilde."]),
   def("duel-streak-5", "guild", "gold", "duelStreak", 5, ["Unbeaten", "Win 5 guild duels in a row."], ["Invaincu", "Gagner 5 duels de guilde d'affilée."]),
   def("duel-beat-top", "guild", "epic", "beatTopDuelist", 1, ["Giant Slayer", "Beat the guild's top duelist in a duel."], ["Tueur de géant", "Battre le meilleur duelliste de la guilde en duel."]),

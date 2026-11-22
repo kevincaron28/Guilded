@@ -108,13 +108,13 @@ export function battlegroundEndCard(row: BgCardRow, recent: BgCardRow[] = [], la
       { label: t("Format", "Format"), value: row.mode, note: t(`Bracket ${row.bracket}`, `Tranche ${row.bracket}`) }
     ],
     backdrop: { kind: "battleground", key: mapArtKey(row.mapId), fallbackKey: "default" },
-    rowsLabel: row.party?.length ? BG_PARTY_LABEL[lang] : t("Your recent matches", "Vos matchs récents"),
+    rowsLabel: row.party?.length ? BG_PARTY_LABEL[lang] : t("Your recent matches", "Tes matchs récents"),
     rows: row.party?.length ? row.party.slice(0, 6).map(p => ({ name: p.name, color: classColor(p.className) })) : recent.slice(0, 5).map(r => ({ name: mapName(r.mapId, lang), sub: `${cardDate(r.endedAt, lang, timeZone)} · ${r.mode}`, right: word(r.outcome), rightTone: tone(r.outcome), color: r.reportId === row.reportId ? "#ffd100" : undefined })),
     badges: [
       { text: row.corroborated ? t("Matches a party member's report", "Concorde avec un autre rapport") : t("Provisional result", "Résultat provisoire"), tone: row.corroborated ? "ok" : "warn" },
       ...(row.status !== "PROVISIONAL" ? [{ text: row.status.toLowerCase(), tone: "muted" as const }] : [])
     ],
-    footer: t("Private to you · Your own post-match report · Not Blizzard verified · no honor or ranking implied", "Privé · Votre propre rapport d'après-match · Non vérifié par Blizzard · aucun honneur ni classement")
+    footer: t("Private to you · Your own post-match report · Not Blizzard verified · no honor or ranking implied", "Privé · Ton propre rapport d'après-match · Non vérifié par Blizzard · aucun honneur ni classement")
   };
 }
 
@@ -151,7 +151,7 @@ export function achievementsCard(name: string, items: AchievementCardItem[], lan
       ...(POE_TRACKING_ENABLED ? [{ text: `PoE2 ${count("poe2")}`, tone: "muted" as const }] : []),
       ...(next ? [{ text: t(`Next: ${label(next.def)} ${Math.min(next.value, next.def.threshold)}/${next.def.threshold}`, `Prochain : ${label(next.def)} ${Math.min(next.value, next.def.threshold)}/${next.def.threshold}`), tone: "ok" as const }] : [])
     ],
-    footer: t(`Earned from synced characters, runs, raid attendance${POE_TRACKING_ENABLED ? " and your own PoE2 log" : ""} · No points · guildedwow.com`, `Obtenus à partir des personnages synchronisés, donjons, présences aux raids${POE_TRACKING_ENABLED ? " et de votre journal PoE2" : ""} · Aucun point · guildedwow.com`)
+    footer: t(`Earned from synced characters, runs, raid attendance${POE_TRACKING_ENABLED ? " and your own PoE2 log" : ""} · No points · guildedwow.com`, `Obtenus à partir des personnages synchronisés, donjons, présences aux raids${POE_TRACKING_ENABLED ? " et de ton journal PoE2" : ""} · Aucun point · guildedwow.com`)
   };
 }
 

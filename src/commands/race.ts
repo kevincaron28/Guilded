@@ -19,7 +19,7 @@ export function parseHallDate(text: string | null, now = new Date()): Date | nul
 
 export function addRaceSubcommand(sub: SlashCommandSubcommandBuilder): SlashCommandSubcommandBuilder {
   return sub.setName("race").setDescription("Race to 60 and Hall of Fame")
-    .setDescriptionLocalizations({ fr: "Course au 60 : proches de votre niveau, tableau officiers" })
+    .setDescriptionLocalizations({ fr: "Course au 60 : proches de ton niveau, tableau officiers" })
     .addStringOption(o => o.setName("action").setDescription("What to do").setDescriptionLocalizations({ fr: "Action" }).setRequired(true)
       .addChoices(...RACE_ACTIONS.map(value => ({ name: value, value }))))
     .addChannelOption(o => o.setName("channel").setDescription("Officers: board channel").setDescriptionLocalizations({ fr: "Officiers : salon du tableau (défaut : course-au-60)" })
@@ -41,7 +41,7 @@ export async function executeRace(interaction: ChatInputCommandInteraction, cont
     const edition = (await prisma.guild.findUnique({ where: { id: context.guildId }, select: { gameEdition: true } }))?.gameEdition ?? "forever";
     const mine = await prisma.character.findMany({ where: { memberId: context.memberId, level: { not: null } }, select: { name: true, level: true }, orderBy: { level: "desc" } });
     const top = mine[0];
-    if (!top?.level) { await reply(t("None of your characters has a reported level yet.", "Aucun de vos personnages n'a encore de niveau rapporté.")); return; }
+    if (!top?.level) { await reply(t("None of your characters has a reported level yet.", "Aucun de tes personnages n'a encore de niveau rapporté.")); return; }
     if (top.level >= LEVEL_CAP) { await reply(t(`${escapeMarkdown(top.name)} is already level ${LEVEL_CAP}.`, `${escapeMarkdown(top.name)} est déjà niveau ${LEVEL_CAP}.`)); return; }
     const data = await loadRaceBoardData(prisma, context.guildId, edition);
     const rows = nearLevel(data.rows, top.level, new Set(mine.map(row => row.name.toLowerCase())));
@@ -68,7 +68,7 @@ export async function executeRace(interaction: ChatInputCommandInteraction, cont
   }
   if (action === "board-off") {
     await prisma.guildSettings.update({ where: { guildId: context.guildId }, data: { raceBoardEnabled: false } });
-    await reply(t("Race to 60 board off. The existing message stays; delete it if you wish.", "Tableau de la course au 60 désactivé. Le message existant reste ; supprimez-le si vous le souhaitez."));
+    await reply(t("Race to 60 board off. The existing message stays; delete it if you wish.", "Tableau de la course au 60 désactivé. Le message existant reste ; supprime-le si tu le souhaites."));
     return;
   }
   if (action === "board-on") {
@@ -77,9 +77,9 @@ export async function executeRace(interaction: ChatInputCommandInteraction, cont
     const picked = interaction.options.getChannel("channel");
     const made = picked || settings?.raceBoardChannelId ? null : await createRaceChannel(interaction.guild, settings?.memberRoleId ?? null, fr ? "fr" : "en").catch(() => null);
     const channelId = picked?.id ?? settings?.raceBoardChannelId ?? made?.id ?? null;
-    const openNote = made?.open ? t(" It is visible to everyone because no member role is set; restrict it later.", " Il est visible par tous car aucun rôle membre n'est défini ; restreignez-le plus tard.") : "";
+    const openNote = made?.open ? t(" It is visible to everyone because no member role is set; restrict it later.", " Il est visible par tous car aucun rôle membre n'est défini ; restreins-le plus tard.") : "";
     if (!channelId) {
-      await interaction.editReply({ content: t("Pick the channel with the channel option: I could not create the race-to-60 channel (needs Manage Channels).", "Choisissez le salon avec l'option channel : je n'ai pas pu créer le salon course-au-60 (il faut Gérer les salons).") });
+      await interaction.editReply({ content: t("Pick the channel with the channel option: I could not create the race-to-60 channel (needs Manage Channels).", "Choisis le salon avec l'option channel : je n'ai pas pu créer le salon course-au-60 (il faut Gérer les salons).") });
       return;
     }
     await prisma.guildSettings.update({ where: { guildId: context.guildId }, data: { raceBoardEnabled: true, raceBoardChannelId: channelId, ...(picked && picked.id !== settings?.raceBoardChannelId ? { raceBoardMessageId: null } : {}) } });
@@ -89,11 +89,11 @@ export async function executeRace(interaction: ChatInputCommandInteraction, cont
 }
 
 const hallError = (error: HallEditError, fr: boolean) => ({
-  "not-found": fr ? "Aucune entrée du temple ne correspond (utilisez hall-list pour voir les numéros)." : "No Hall of Fame entry matches (hall-list shows the numbers).",
-  ambiguous: fr ? "Plusieurs entrées correspondent : utilisez le numéro." : "Several entries match: use the number.",
+  "not-found": fr ? "Aucune entrée du temple ne correspond (utilise hall-list pour voir les numéros)." : "No Hall of Fame entry matches (hall-list shows the numbers).",
+  ambiguous: fr ? "Plusieurs entrées correspondent : utilise le numéro." : "Several entries match: use the number.",
   exists: fr ? "Ce personnage est déjà dans le temple." : "That character is already in the Hall of Fame.",
-  "bad-class": fr ? "Classe inconnue (ou manquante : indiquez class pour un personnage absent du tableau)." : "Unknown class (or missing: give class for a character that is not on the board).",
-  "bad-date": fr ? "Date invalide : écrivez AAAA-MM-JJ, pas dans le futur." : "Invalid date: write YYYY-MM-DD, not in the future."
+  "bad-class": fr ? "Classe inconnue (ou manquante : indique class pour un personnage absent du tableau)." : "Unknown class (or missing: give class for a character that is not on the board).",
+  "bad-date": fr ? "Date invalide : écris AAAA-MM-JJ, pas dans le futur." : "Invalid date: write YYYY-MM-DD, not in the future."
 })[error];
 
 // Officers keep the permanent Hall of Fame right (8.5 audit): list, add a missed character, remove a wrong entry, correct a detail.
@@ -106,7 +106,7 @@ async function executeHall(interaction: ChatInputCommandInteraction, context: { 
     return;
   }
   const name = interaction.options.getString("name")?.trim();
-  if (!name) { await reply(t("Give the character's name or number in the name option.", "Indiquez le nom ou le numéro du personnage dans l'option name.")); return; }
+  if (!name) { await reply(t("Give the character's name or number in the name option.", "Indique le nom ou le numéro du personnage dans l'option name.")); return; }
   const channelId = settings?.raceBoardChannelId;
   const channel = channelId && interaction.guild ? await interaction.guild.channels.fetch(channelId).catch(() => null) : null;
   if (!channel?.isTextBased() || !("send" in channel)) { await reply(t("The Race to 60 channel is not set up (see board-on).", "Le salon de la course au 60 n'est pas configuré (voir board-on).")); return; }

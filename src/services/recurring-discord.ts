@@ -65,7 +65,7 @@ export async function runRecurringDeliveries(client: Client, db: PrismaClient, n
               return !!channel && "permissionsFor" in channel && !!channel.permissionsFor(member)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory]);
             });
             const fr = setting.language === "fr";
-            const message = await personalWeeklyRecapMessage(result, fr ? "fr" : "en", fr ? "Votre bilan privé · Pause : /automation recap action:off" : "Your private recap · Pause: /automation recap action:off", await loadCardTimeZone(db, setting.guildId));
+            const message = await personalWeeklyRecapMessage(result, fr ? "fr" : "en", fr ? "Ton bilan privé · Pause : /automation recap action:off" : "Your private recap · Pause: /automation recap action:off", await loadCardTimeZone(db, setting.guildId));
             // Recheck after loading private data, immediately before transmission.
             const authorized = await authorize();
             const current = await db.recurringRecap.findUnique({ where: { memberId: recap.memberId } });

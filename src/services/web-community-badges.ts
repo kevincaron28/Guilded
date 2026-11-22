@@ -22,7 +22,7 @@ export function createWebCommunityBadges(database: PrismaClient, client: Client 
     if ([guildId, seasonId, owner].some(value => value && value.length > 64)) return page(400, t("Invalid selection.", "Sélection invalide."));
     if (!guildId) {
       const guilds = await access.guilds(user);
-      return page(200, `<h1>${title}</h1><ul>${guilds.map(guild => `<li><a href="${h(link(path, lang, { guild: guild.id }))}">${h(guild.name)}</a></li>`).join("")}</ul><p>${t("You can also use /community badges in Discord.", "Vous pouvez aussi utiliser /community badges dans Discord.")}</p>`);
+      return page(200, `<h1>${title}</h1><ul>${guilds.map(guild => `<li><a href="${h(link(path, lang, { guild: guild.id }))}">${h(guild.name)}</a></li>`).join("")}</ul><p>${t("You can also use /community badges in Discord.", "Tu peux aussi utiliser /community badges dans Discord.")}</p>`);
     }
     if (!client || !await access.authorize(user, guildId)) return page(403, t("Access denied.", "Accès refusé."));
     return withGuildScope(database, guildId, async () => {

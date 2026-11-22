@@ -3,11 +3,11 @@ export const CORE_RAID_SIZES: readonly number[] = [10, 20, 25, 30, 40];
 
 export function coreComposition(size: string, tanks: string, healers: string, dps: string) {
   const values = [size, tanks, healers, dps].map(value => value.trim());
-  if (!values.every(value => /^\d{1,2}$/.test(value))) throw new Error("Enter whole numbers for size, tanks, healers and DPS / Indiquez des nombres entiers.");
+  if (!values.every(value => /^\d{1,2}$/.test(value))) throw new Error("Enter whole numbers for size, tanks, healers and DPS / Indique des nombres entiers.");
   const [raidSize, tankLimit, healerLimit, dpsLimit] = values.map(Number) as [number, number, number, number];
   const supported = CORE_RAID_SIZES.includes(raidSize);
   if (!supported || tankLimit + healerLimit + dpsLimit !== raidSize) {
-    throw new Error("Choose 10, 20, 25, 30 or 40 players; tanks + healers + DPS must equal that size / Choisissez 10, 20, 25, 30 ou 40 joueurs; la somme des rôles doit correspondre.");
+    throw new Error("Choose 10, 20, 25, 30 or 40 players; tanks + healers + DPS must equal that size / Choisis 10, 20, 25, 30 ou 40 joueurs; la somme des rôles doit correspondre.");
   }
   return { raidSize, tankLimit, healerLimit, dpsLimit };
 }

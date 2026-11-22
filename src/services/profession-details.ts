@@ -25,7 +25,7 @@ export function professionDetailsRow(post: ProfessionPost, lang: Lang): ActionRo
   const id = `${PROFESSION_DETAILS_PREFIX}${professionKey(post.profession)}`;
   if (groups.length === 1 && groups[0]!.recipes.length <= MAX_OPTIONS) return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(recipeMenu(id, groups[0]!.recipes, lang));
   const menu = new StringSelectMenuBuilder().setCustomId(id)
-    .setPlaceholder(fr ? "Détails : choisissez une catégorie…" : "Details: pick a category…")
+    .setPlaceholder(fr ? "Détails : choisis une catégorie…" : "Details: pick a category…")
     .addOptions(groups.slice(0, MAX_OPTIONS).map(group => ({ label: `${categoryLabel(group.key, lang)} (${group.recipes.length})`.slice(0, 100), value: group.key })));
   return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
 }

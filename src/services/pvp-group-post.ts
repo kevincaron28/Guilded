@@ -67,7 +67,7 @@ export function pvpGroupCard(data: PvpPostData, lang: Lang): ScoreCard {
       { label: t("Open until", "Ouvert jusqu'à"), value: expiryText(pvpExpiresAt(data.createdAt), lang, data.timeZone), note: t("24 h after posting", "24 h après la publication") }
     ],
     rowsLabel: t(`In the group · ${data.members.length}/${data.size}`, `Dans le groupe · ${data.members.length}/${data.size}`),
-    footer: t("Press a role button on the post to join", "Appuyez sur un rôle sur le message pour rejoindre"),
+    footer: t("Press a role button on the post to join", "Appuie sur un rôle sur le message pour rejoindre"),
     dungeon: {
       theme: { a: "#7f1d1d", b: "#d4a017", motif: "fire", seed },
       party: data.members.slice(0, 40).map(player => ({ name: player.name, color: player.color ?? "#cbd5e1", role: player.role, roleLabel: roleName(player.role, fr), guild: true, ...(player.level !== undefined ? { level: player.level } : {}) })),

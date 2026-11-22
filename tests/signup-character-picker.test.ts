@@ -27,7 +27,7 @@ describe("private signup character selection", () => {
     expect(await pickSignupCharacter(i as never, 'guild', 'member')).toBeNull();
     const send = acknowledged ? i.followUp : i.editReply;
     expect(send).toHaveBeenCalledWith(expect.objectContaining({ content: expect.stringContaining('/character link'), components: [] }));
-    expect(send.mock.calls[0]![0].content).toContain('Choisissez votre personnage');
+    expect(send.mock.calls[0]![0].content).toContain('Choisis ton personnage');
     expect(i.message.awaitMessageComponent).not.toHaveBeenCalled();
   });
   it("pages beyond 25 choices and only accepts the initiating user's private components", async () => {
@@ -59,7 +59,7 @@ describe("private signup character selection", () => {
   });
   it.each([
     ["en", "Which character", "Your character", "Previous", "Next", "Selected character", "Selection expired"],
-    ["fr", "Quel personnage", "Votre personnage", "Précédents", "Suivants", "Personnage choisi", "Choix expiré"]
+    ["fr", "Quel personnage", "Ton personnage", "Précédents", "Suivants", "Personnage choisi", "Choix expiré"]
   ])("uses the guild's %s language throughout selection and expiry", async (language, prompt, placeholder, previous, next, selected, expired) => {
     findSettings.mockResolvedValue({ language });
     findMany.mockResolvedValue(Array.from({ length: 26 }, (_, id) => character(id)));

@@ -40,7 +40,7 @@ describe("self-role panels with prerequisites", () => {
     await handleSelfRoleButton(interaction as never);
     expect(member.roles.add).not.toHaveBeenCalled();
     expect(member.roles.remove).not.toHaveBeenCalled();
-    expect(interaction.editReply).toHaveBeenCalledWith(expect.objectContaining({ content: "Vous devez d'abord avoir ce rôle : <@&exile>" }));
+    expect(interaction.editReply).toHaveBeenCalledWith(expect.objectContaining({ content: "Tu dois d'abord avoir ce rôle : <@&exile>" }));
   });
 
   it("lets an eligible member remove their existing role", async () => {
@@ -83,7 +83,7 @@ describe("self-role panels with prerequisites", () => {
     second.guild.members.fetch.mockRejectedValue(new Error("Unknown member"));
     await handleSelfRoleButton(second.interaction as never);
     expect(second.member.roles.add).not.toHaveBeenCalled();
-    expect(second.interaction.editReply).toHaveBeenCalledWith({ content: "Vous ne faites plus partie de ce serveur." });
+    expect(second.interaction.editReply).toHaveBeenCalledWith({ content: "Tu ne fais plus partie de ce serveur." });
   });
 
   it.each(["selfrole:errant:", "selfrole:errant:exile:extra", "selfrole:errant:errant", "selfrole:"])("fails closed for malformed panels (%s)", async (id) => {

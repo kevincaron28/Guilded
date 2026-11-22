@@ -8,6 +8,7 @@ import { hasPermission } from "../permissions.js";
 import { effectiveRules } from "../services/core-rules.js";
 import { createRaidCoreService } from "../services/raid-core.js";
 import { guildService, requireGuildContext } from "./context.js";
+import { asLang, tx } from "../i18n.js";
 import { BRAND } from "../brand.js";
 import { coreContext } from "../services/core-context.js";
 import { CORE_REQUIRED } from "../services/core-loot-policy.js";
@@ -57,6 +58,7 @@ export async function executeEpgp(interaction: ChatInputCommandInteraction): Pro
   if (!context) return;
   const subcommand = interaction.options.getSubcommand();
   const settings = await guildService.getSettings(context.guildId);
+  const lang = asLang(settings?.language);
   // The pool this command works on: the guild pool, or a core that keeps its own points.
   let coreName = interaction.options.getString("core");
   if (settings?.coreLootOnly && subcommand !== "reverse") {
@@ -68,17 +70,17 @@ export async function executeEpgp(interaction: ChatInputCommandInteraction): Pro
         const own = await epgpService.getStanding(context.memberId, effectiveRules(settings, core).baseGp, core.id);
         return `**${core.name}** — EP ${own.ep} | GP ${own.gp} | PR ${own.pr.toFixed(3)}`;
       }));
-      await interaction.reply({ content: lines.join("\n").slice(0, 1900) || "Aucun core configuré. Commence avec /core setup.", flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: lines.join("\n").slice(0, 1900) || tx(lang, "No core is set up yet. Start with /core setup."), flags: MessageFlags.Ephemeral });
       return;
     } else throw new Error(CORE_REQUIRED);
   }
   // minEp: a core's minimum EP (the guild pool has none).
-  let pool: { id: string | null; name: string; baseGp: number; decay: number; minEp: number } = { id: null, name: "Guild pool", baseGp: settings?.baseGp ?? 0, decay: settings?.epgpDecayPercent ?? 0.1, minEp: 0 };
+  let pool: { id: string | null; name: string; baseGp: number; decay: number; minEp: number } = { id: null, name: tx(lang, "Guild pool"), baseGp: settings?.baseGp ?? 0, decay: settings?.epgpDecayPercent ?? 0.1, minEp: 0 };
   if (coreName) {
     const core = await createRaidCoreService(prisma).byIdOrName(context.guildId, coreName);
-    if (!core.separatePool) throw new Error(`${core.name} shares the guild pool. Turn on its own pool with /core rules pool:separate first.`);
+    if (!core.separatePool) throw new Error(tx(lang, "{name} shares the guild pool. Turn on its own pool with /core rules pool:separate first.", { name: core.name }));
     const rules = effectiveRules(settings, core);
-    pool = { id: core.id, name: `${core.name} pool`, baseGp: rules.baseGp, decay: rules.decayPercent, minEp: rules.minEp };
+    pool = { id: core.id, name: tx(lang, "{name} pool", { name: core.name }), baseGp: rules.baseGp, decay: rules.decayPercent, minEp: rules.minEp };
   }
   const baseGp = pool.baseGp;
   const standing = await epgpService.getStanding(context.memberId, baseGp, pool.id);
@@ -87,7 +89,7 @@ export async function executeEpgp(interaction: ChatInputCommandInteraction): Pro
     if (!coreName) {
       for (const core of (await createRaidCoreService(prisma).list(context.guildId)).filter((c) => c.separatePool)) {
         const other = await epgpService.getStanding(context.memberId, effectiveRules(settings, core).baseGp, core.id);
-        lines.push(`**${core.name} pool** — EP: **${other.ep}** | GP: **${other.gp}** | PR: **${other.pr.toFixed(3)}**`);
+        lines.push(`**${tx(lang, "{name} pool", { name: core.name })}** — EP: **${other.ep}** | GP: **${other.gp}** | PR: **${other.pr.toFixed(3)}**`);
       }
     }
     await interaction.reply({ content: lines.join("\n"), flags: MessageFlags.Ephemeral });
@@ -99,7 +101,7 @@ export async function executeEpgp(interaction: ChatInputCommandInteraction): Pro
     let shown = standing;
     if (other && other.id !== interaction.user.id) {
       if (!officer(interaction)) {
-        await interaction.reply({ content: "Only EPGP officers can view someone else's history.", flags: MessageFlags.Ephemeral });
+        await interaction.reply({ content: tx(lang, "Only EPGP officers can view someone else's history."), flags: MessageFlags.Ephemeral });
         return;
       }
       memberId = (await guildService.ensureMember(context.guildId, other.id, other.username)).id;
@@ -127,9 +129,9 @@ export async function executeEpgp(interaction: ChatInputCommandInteraction): Pro
     scored.sort((a, b) => Number(a.belowMin) - Number(b.belowMin) || b.score - a.score);
     await interaction.reply({ embeds: [new EmbedBuilder().setTitle(`${BRAND.emoji} ${BRAND.name} EPGP${pool.id ? ` — ${pool.name}` : ""}`).setDescription(
       scored.length
-        ? scored.map((row, i) => `${i + 1}. ${row.member.displayName} - EP ${row.standing.ep} | GP ${row.standing.gp} | PR ${row.standing.pr.toFixed(3)} | Att ${Math.round(row.rate * 100)}%${merit ? ` | Merit ${row.score.toFixed(3)}` : ""}${row.belowMin ? " | under min EP" : ""}`).join("\n")
-        : "No EPGP recorded."
-    ).setFooter({ text: (merit ? "Ranked by merit = PR x attendance over the last 30 days. Ledger is unaffected." : "Att = attendance over the last 30 days (Present = 1, Late = 0.5).") + (baseGp > 0 ? ` PR = EP / (GP + ${baseGp} base GP).` : "") + (pool.minEp > 0 ? ` Under ${pool.minEp} EP: listed last.` : "") })] });
+        ? scored.map((row, i) => `${i + 1}. ${row.member.displayName} - EP ${row.standing.ep} | GP ${row.standing.gp} | PR ${row.standing.pr.toFixed(3)} | Att ${Math.round(row.rate * 100)}%${merit ? ` | Merit ${row.score.toFixed(3)}` : ""}${row.belowMin ? ` | ${tx(lang, "under min EP")}` : ""}`).join("\n")
+        : tx(lang, "No EPGP recorded.")
+    ).setFooter({ text: tx(lang, merit ? "Ranked by merit = PR x attendance over the last 30 days. Ledger is unaffected." : "Att = attendance over the last 30 days (Present = 1, Late = 0.5).") + (baseGp > 0 ? ` ${tx(lang, "PR = EP / (GP + {base} base GP).", { base: baseGp })}` : "") + (pool.minEp > 0 ? ` ${tx(lang, "Under {min} EP: listed last.", { min: pool.minEp })}` : "") })] });
     return;
   }
   if (!officer(interaction)) {

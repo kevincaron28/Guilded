@@ -11,10 +11,10 @@ export async function executeCooperativeGoal(interaction: ChatInputCommandIntera
   if (target !== null || pause !== null || seasonId !== null || metric !== null) {
     const member = await interaction.guild!.members.fetch(interaction.user.id);
     if (!hasPermission(member as GuildMember, "officer")) throw new Error(fr ? "Seuls les officiers configurent l’objectif." : "Only officers can configure the goal.");
-    if (pause !== null && (target !== null || seasonId !== null || metric !== null)) throw new Error(fr ? "Séparez pause et configuration." : "Use pause separately from configuration.");
+    if (pause !== null && (target !== null || seasonId !== null || metric !== null)) throw new Error(fr ? "Sépare pause et configuration." : "Use pause separately from configuration.");
     if (pause !== null) await prisma.cooperativeGoal.updateMany({ where: { guildId }, data: { paused: pause } });
     else {
-      if (target === null || !seasonId) throw new Error(fr ? "Choisissez goal et season ensemble." : "Choose goal and season together.");
+      if (target === null || !seasonId) throw new Error(fr ? "Choisis goal et season ensemble." : "Choose goal and season together.");
       await saveCooperativeGoal(prisma, guildId, interaction.user.id, { target, seasonId, metric: metric ?? "dungeons" });
     }
   }

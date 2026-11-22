@@ -15,15 +15,15 @@ export function approvalWelcome(guildName: string, lang: Lang = "en") {
     .setColor(BRAND.color)
     .setTitle(`${BRAND.emoji} ${BRAND.name} — ${name}`)
     .setDescription((fr ? [
-      `**Votre serveur est approuvé.** ${BRAND.name} est actif sur **${name}**.`,
-      "Lancez **`/setup start`** : un guide de 2 minutes (English ou Français au premier écran).",
+      `**Ton serveur est approuvé.** ${BRAND.name} est actif sur **${name}**.`,
+      "Lance **`/setup start`** : un guide de 2 minutes (English ou Français au premier écran).",
       `Les officiers installent l'addon : ${ADDON_URL} · Besoin d'aide ? \`/help\``
     ] : [
       `**Your server was approved.** ${BRAND.name} is active on **${name}**.`,
       "Run **`/setup start`**: a 2-minute guide (English or Français on its first screen).",
       `Officers install the addon: ${ADDON_URL} · Need help? \`/help\``
     ]).join("\n"))
-    .setFooter({ text: fr ? "Vous recevez ceci car vous êtes propriétaire du serveur." : "You receive this because you own the server." });
+    .setFooter({ text: fr ? "Tu reçois ceci car tu es propriétaire du serveur." : "You receive this because you own the server." });
 }
 
 // One private message to the approved server's owner. Never throws: closed DMs or a
@@ -41,7 +41,7 @@ export async function welcomeApprovedOwner(client: Client, guild: Guild): Promis
 }
 
 export const liteIdleNotice = (lang: Lang = "en") => lang === "fr"
-  ? `${BRAND.emoji} **${BRAND.name} Lite** : personne ne l'a utilisé ici depuis 30 jours. Il quittera le serveur dans 7 jours, sauf si quelqu'un lance une commande (par exemple \`/help\`). Vous pourrez le réinviter.`
+  ? `${BRAND.emoji} **${BRAND.name} Lite** : personne ne l'a utilisé ici depuis 30 jours. Il quittera le serveur dans 7 jours, sauf si quelqu'un lance une commande (par exemple \`/help\`). Tu pourras le réinviter.`
   : `${BRAND.emoji} **${BRAND.name} Lite**: unused here for 30 days. It leaves in 7 days unless someone runs a command (for example \`/help\`). You can add it back any time.`;
 export const LITE_IDLE_NOTICE = liteIdleNotice("en");
 

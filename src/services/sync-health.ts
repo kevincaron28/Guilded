@@ -29,7 +29,7 @@ export const KNOWN_BROKEN_VERSIONS: Readonly<Record<string, string>> = {
   "9.3.7": "stops syncing after the website auto-update"
 };
 export function brokenVersionNote(version: string | null | undefined): string | null { return version ? (KNOWN_BROKEN_VERSIONS[version] ?? null) : null; }
-const FIX_BROKEN = { en: "Ask them to run the latest Guilded Companion installer from the website (it replaces the broken version).", fr: "Demandez-leur de lancer le dernier installateur du Guilded Companion depuis le site (il remplace la version défectueuse)." };
+const FIX_BROKEN = { en: "Ask them to run the latest Guilded Companion installer from the website (it replaces the broken version).", fr: "Demande-leur de lancer le dernier installateur du Guilded Companion depuis le site (il remplace la version défectueuse)." };
 
 export const SUMMARY_PREFIX = "🩺 **Sync health";
 const HOUR = 3_600_000;
@@ -37,8 +37,8 @@ const lower = (value: string) => value.toLowerCase();
 const firstName = (value: string) => lower(value.split("-")[0] ?? value);
 const ago = (now: Date, then: Date) => { const hours = Math.max(1, Math.round((now.getTime() - then.getTime()) / HOUR)); return hours >= 48 ? `${Math.round(hours / 24)} d` : `${hours} h`; };
 
-const FIX_OPEN = { en: "Ask them to open the companion (and /reload in game if it is already open).", fr: "Demandez-leur d'ouvrir le companion (et /reload en jeu s'il est déjà ouvert)." };
-const FIX_UPDATE = { en: "Ask them to update the addon and the companion, then /reload.", fr: "Demandez-leur de mettre à jour l'addon et le companion, puis /reload." };
+const FIX_OPEN = { en: "Ask them to open the companion (and /reload in game if it is already open).", fr: "Demande-leur d'ouvrir le companion (et /reload en jeu s'il est déjà ouvert)." };
+const FIX_UPDATE = { en: "Ask them to update the addon and the companion, then /reload.", fr: "Demande-leur de mettre à jour l'addon et le companion, puis /reload." };
 const FIX_DEV = { en: "Developer attention: see the bot's receipts for this reason.", fr: "À voir par le développeur : reçus du bot pour cette raison." };
 
 /** The raw findings for one server. Five signals, one bounded query each (the carried-run signal needs two). */
@@ -146,7 +146,7 @@ export async function collectSyncIssues(db: Db, guildId: string, now = new Date(
   if (reports.length) {
     for (const row of reports) {
       const parts = [row.parked > 0 ? `${row.parked} record${row.parked === 1 ? "" : "s"} parked (not sent yet)` : "", row.damaged ? "its parked-uploads file was damaged" : ""].filter(Boolean);
-      issues.push({ signal: "parked", who: row.memberId ? (lastSync.get(row.memberId)?.name ?? "a member") : `PC ${row.ownerKey.slice(-8)}`, detail: parts.join(", "), fix: row.damaged ? { en: "Ask them to open the companion and press Repair.", fr: "Demandez-leur d'ouvrir le companion et d'utiliser Réparer." } : FIX_OPEN });
+      issues.push({ signal: "parked", who: row.memberId ? (lastSync.get(row.memberId)?.name ?? "a member") : `PC ${row.ownerKey.slice(-8)}`, detail: parts.join(", "), fix: row.damaged ? { en: "Ask them to open the companion and press Repair.", fr: "Demande-leur d'ouvrir le companion et d'utiliser Réparer." } : FIX_OPEN });
     }
   }
   return issues.slice(0, limit);

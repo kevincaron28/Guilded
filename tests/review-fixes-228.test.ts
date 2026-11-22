@@ -33,7 +33,7 @@ describe("bounded replies", () => {
   it("a full world-buff list of maximum-length drops stays under 2,000 characters, whole lines only", () => {
     const drop = { id: "d", buff: "ONYXIA", dropsAt: new Date("2026-11-10T20:00:00Z"), location: "L".repeat(60), note: "N".repeat(120), createdBy: "123456789012345678" };
     const lines = Array.from({ length: 15 }, () => worldBuffLine(drop, "fr"));
-    const text = worldBuffListText("Prochains buffs mondiaux (dans votre fuseau horaire)", lines, "none");
+    const text = worldBuffListText("Prochains buffs mondiaux (dans ton fuseau horaire)", lines, "none");
     expect(text.length).toBeLessThanOrEqual(2000);
     expect(text).toMatch(/… \+\d+$/);
     expect(text.split("\n").slice(1, -1).every((line) => line === lines[0])).toBe(true);

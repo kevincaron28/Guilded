@@ -91,8 +91,8 @@ export function searchReplyText(items: readonly BankItem[], query: string, obser
     `Au <t:${Math.floor(observedAt.getTime() / 1000)}:R> (dernière ouverture de la banque avec Guilded).`);
   if (!hits.length) return `${t(`Not in the guild bank: **${query.replace(/[*_`~|]/g, "").slice(0, 80)}**.`, `Pas dans la banque de guilde : **${query.replace(/[*_`~|]/g, "").slice(0, 80)}**.`)}\n${seen}`;
   const lines = hits.slice(0, 15).map((item) => `• ${itemMarkdown(item.id, item.name)} ×${item.count} — ${item.tabs.map((tab) => `${tab.name.replace(/[*_`~|]/g, "")}${item.tabs.length > 1 ? ` ×${tab.count}` : ""}`).join(", ")}`);
-  if (hits.length > 15) lines.push(t(`…and ${hits.length - 15} more. Type more of the name.`, `…et ${hits.length - 15} de plus. Précisez le nom.`));
-  return [...lines, "", seen, t("Ask for one with `/bank request`.", "Demandez-en avec `/bank request`.")].join("\n").slice(0, 1990);
+  if (hits.length > 15) lines.push(t(`…and ${hits.length - 15} more. Type more of the name.`, `…et ${hits.length - 15} de plus. Précise le nom.`));
+  return [...lines, "", seen, t("Ask for one with `/bank request`.", "Demandes-en avec `/bank request`.")].join("\n").slice(0, 1990);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -135,7 +135,7 @@ export async function alertLowStock(client: Client, db: AlertDb, guildId: string
   if (!channel?.isTextBased() || !("send" in channel)) return false;
   await channel.send({ embeds: [new EmbedBuilder().setColor(0xd4af37).setTitle(t("🏦 Guild bank: running low", "🏦 Banque de guilde : stock bas"))
     .setDescription([...lowStockLines(fresh, lang), "", t("Have / target. Change targets with `/officer bank stock`; turn these off with `/officer bank settings stock_alerts:False`.",
-      "Disponible / cible. Modifiez les cibles avec `/officer bank stock`; désactivez avec `/officer bank settings stock_alerts:False`.")].join("\n").slice(0, 3900))],
+      "Disponible / cible. Modifie les cibles avec `/officer bank stock`; désactive avec `/officer bank settings stock_alerts:False`.")].join("\n").slice(0, 3900))],
     allowedMentions: { parse: [] } });
   return true;
 }
@@ -218,7 +218,7 @@ export async function dmRequester(client: Client, request: RequestWithMember, la
   const t = say(lang);
   await client.users.send(request.member.discordUserId, {
     content: `${ICON[request.status]} ${t(`Your guild bank request for ${request.quantity} × ${requestItem(request)} was ${statusWord(request.status, lang)}`,
-      `Votre demande de ${request.quantity} × ${requestItem(request)} à la banque de guilde a été ${statusWord(request.status, lang)}`)}${request.reply ? `: "${request.reply}"` : "."}`,
+      `Ta demande de ${request.quantity} × ${requestItem(request)} à la banque de guilde a été ${statusWord(request.status, lang)}`)}${request.reply ? `: "${request.reply}"` : "."}`,
     allowedMentions: { parse: [] }
   }).catch(() => undefined);
 }

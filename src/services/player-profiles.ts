@@ -144,8 +144,8 @@ export function createPlayerProfiles(store: ProfileStore, achievements?: Profile
       const score = scoreRun(run, publicRules());
       return `<tr><td><a href="${link(runPath(run.runId), lang, { edition: run.gameEdition ?? "forever" })}">${escapeHtml(run.dungeonName)}</a></td><td>${run.endedAt.toISOString().slice(0, 10)}</td><td>${formatDuration(run.durationSec)}</td><td>${score ? `${score.points}` : "—"}</td><td>${run.confirmations >= 2 ? t("Party confirmed", "Confirmé par le groupe") : t("One upload", "Un envoi")}</td></tr>`;
     }).join("");
-    return `<h2>${t("Characters", "Personnages")}</h2>${characters ? `<ul>${characters}</ul>` : `<p>${t("No linked characters yet. Link a character in your guild's Discord, or upload a completed run with your personal companion.", "Aucun personnage lié. Liez un personnage dans le Discord de votre guilde ou envoyez un donjon terminé avec votre compagnon personnel.")}</p>`}`
-      + `<h2>${t("Recent public runs", "Donjons publics récents")}</h2><p>${t("Latest 50 accepted runs. Open a character for seasonal scores and best runs. Uploads are community reports, not Blizzard verification.", "Les 50 derniers donjons acceptés. Ouvrez un personnage pour ses scores saisonniers et meilleurs donjons. Les envois sont des rapports communautaires, sans vérification de Blizzard.")}</p>`
+    return `<h2>${t("Characters", "Personnages")}</h2>${characters ? `<ul>${characters}</ul>` : `<p>${t("No linked characters yet. Link a character in your guild's Discord, or upload a completed run with your personal companion.", "Aucun personnage lié. Lie un personnage dans le Discord de ta guilde ou envoie un donjon terminé avec ton compagnon personnel.")}</p>`}`
+      + `<h2>${t("Recent public runs", "Donjons publics récents")}</h2><p>${t("Latest 50 accepted runs. Open a character for seasonal scores and best runs. Uploads are community reports, not Blizzard verification.", "Les 50 derniers donjons acceptés. Ouvre un personnage pour ses scores saisonniers et meilleurs donjons. Les envois sont des rapports communautaires, sans vérification de Blizzard.")}</p>`
       + (runs ? `<div class="table-wrap"><table><thead><tr><th>${t("Dungeon", "Donjon")}</th><th>Date (UTC)</th><th>${t("Duration", "Durée")}</th><th>Score</th><th>${t("Evidence", "Confirmation")}</th></tr></thead><tbody>${runs}</tbody></table></div>` : `<p>${t("No public runs yet.", "Aucun donjon public pour le moment.")}</p>`);
   }
   const route: WebRoute = async (ctx, kit) => {
@@ -194,8 +194,8 @@ export function createPlayerProfiles(store: ProfileStore, achievements?: Profile
       if (!stored) return "";
       const profile = stored;
       const { t, lang } = ctx;
-      return `<h2>${t("Your player profile", "Votre profil joueur")}</h2><p>${t("Everything is shared: your display name, linked characters, badges and public runs appear on your public profile and the leaderboards. Pairing codes and application messages stay private.", "Tout est partagé : votre nom affiché, vos personnages liés, vos badges et vos donjons publics apparaissent sur votre profil public et les classements. Les codes et messages de candidature restent privés.")}</p>`
-        + `<p><a href="${link(path(profile.id), lang)}">${t("View your public profile", "Voir votre profil public")}</a></p>`
+      return `<h2>${t("Your player profile", "Ton profil joueur")}</h2><p>${t("Everything is shared: your display name, linked characters, badges and public runs appear on your public profile and the leaderboards. Pairing codes and application messages stay private.", "Tout est partagé : ton nom affiché, tes personnages liés, tes badges et tes donjons publics apparaissent sur ton profil public et les classements. Les codes et messages de candidature restent privés.")}</p>`
+        + `<p><a href="${link(path(profile.id), lang)}">${t("View your public profile", "Voir ton profil public")}</a></p>`
         + details(ctx, profile);
     }
   };

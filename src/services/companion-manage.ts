@@ -262,7 +262,7 @@ export function createCompanionManage(database: PrismaClient) {
         for (const key of keys) if ((action.base[key] ?? null) !== current[key]) throw new ManageError(STALE, 409);
         const settings = await database.guildSettings.findUnique({ where: { guildId }, select: { coreLootOnly: true } });
         if (settings?.coreLootOnly && keys.includes("lootMode") && action.changes.lootMode === null) {
-          throw new ManageError("Choisissez le système de butin de ce core : GP bids, council, reserves ou priority.");
+          throw new ManageError("Choisis le système de butin de ce core : GP bids, council, reserves ou priority.");
         }
         const data: Record<string, string | number | null> = {};
         for (const key of keys) {

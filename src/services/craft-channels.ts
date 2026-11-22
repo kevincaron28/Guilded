@@ -134,7 +134,7 @@ export async function pingCrafters(db: PingDb, request: Pick<Request, "guildId" 
   const t = (en: string, fr: string) => lang === "fr" ? fr : en;
   const ids = chosen.map((c) => c.discordUserId);
   await send(`${ids.map((id) => `<@${id}>`).join(" ")} ${t(`your recipe is wanted: ${request.quantity}× **${clean(request.item)}** for ${clean(request.requester.displayName)}. Press **I'll craft it** if you can.`,
-    `votre recette est demandée : ${request.quantity}× **${clean(request.item)}** pour ${clean(request.requester.displayName)}. Appuyez sur **Je le fabrique** si vous pouvez.`)}\n-# ${t("You get these because you turned on crafter pings (/craft notify).", "Vous les recevez parce que vous avez activé les alertes d'artisan (/craft notify).")}`, ids);
+    `ta recette est demandée : ${request.quantity}× **${clean(request.item)}** pour ${clean(request.requester.displayName)}. Appuie sur **Je le fabrique** si tu peux.`)}\n-# ${t("You get these because you turned on crafter pings (/craft notify).", "Tu les reçois parce que tu as activé les alertes d'artisan (/craft notify).")}`, ids);
   await db.craftNotify.updateMany({ where: { guildId: request.guildId, profession, memberId: { in: chosen.map((c) => c.memberId) } }, data: { lastPingAt: now } });
   return chosen.length;
 }

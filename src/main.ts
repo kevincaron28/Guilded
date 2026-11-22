@@ -23,7 +23,7 @@ import { fillGuildWeeklyRaids } from "./services/core-weekly-raids.js";
 import { runTeamSchedules } from "./services/activity-core.js";
 import { autocompleteTeam, executeTeam, handleTeamButton } from "./commands/team.js";
 import { TEAM_BUTTON_PREFIX } from "./services/activity-core-discord.js";
-import { guildService } from "./commands/context.js";
+import { guildService, interactionLang } from "./commands/context.js";
 import { adoptCommunityHonors } from "./services/community-honors.js";
 import { rememberRookieJoin } from "./services/monthly-rookie.js";
 import { COMMUNITY_PREFIX, executeCommunity, handleCommunityButton, handleCommunityModal, runCommunityActivities } from "./commands/community.js";
@@ -127,7 +127,7 @@ import { scheduleWeeklyRecap } from "./services/world-pvp-extras.js";
 import { refreshExistingBotGuides } from "./services/bot-messages.js";
 import { refreshBgPanels } from "./services/battleground-setup.js";
 import { BACKUP_DIR, runBackup } from "./services/backup.js";
-import { asLang } from "./i18n.js";
+import { asLang, tx } from "./i18n.js";
 import { queueSeasonEndCards, queueSeasonStartCard } from "./services/season-cards.js";
 import { loadClassBook } from "./services/ladder-classes.js";
 import { freezeSeasonRules, loadOfficialWindows, officialWindowAt, rotateOfficialSeasons, startOfficialSeason } from "./services/official-seasons.js";
@@ -816,7 +816,7 @@ client.on(Events.InteractionCreate, async interaction => {
         ?? await interactionGuildScope(prisma, { discordId: interaction.guildId, userId: interaction.user.id, channelId: interaction.channelId, parentId: interaction.channel && "parentId" in interaction.channel ? interaction.channel.parentId : null }) : null;
     if (scope && interaction.guild) {
       const member = await interaction.guild.members.fetch(interaction.user.id);
-      if (scope.memberRoleId && !member.permissions.has("Administrator") && !member.roles.cache.has(scope.memberRoleId)) throw new Error("You need this in-game guild's member role.");
+      if (scope.memberRoleId && !member.permissions.has("Administrator") && !member.roles.cache.has(scope.memberRoleId)) throw new Error(tx(await interactionLang(interaction), "You need this in-game guild's member role."));
       await runInGuildScope(scope, () => handleGuildInteraction(interaction));
     } else await handleGuildInteraction(interaction);
   } catch (error) {
@@ -837,14 +837,14 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   }
   // A setup wizard screen whose collector is gone (bot restarted, or the wizard timed out): say so instead of "This interaction failed".
   if (interaction.isMessageComponent() && interaction.customId.startsWith("setup:") && !isLiveSetupMessage(interaction.message.id)) {
-    await interaction.reply({ content: "This setup screen has expired. Run `/setup start` again; your choices are saved. / Cet écran de configuration a expiré. Relancez `/setup start`; vos choix sont enregistrés.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
+    await interaction.reply({ content: "This setup screen has expired. Run `/setup start` again; your choices are saved. / Cet écran de configuration a expiré. Relance `/setup start`; tes choix sont enregistrés.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
     return;
   }
   if (interaction.isButton() && interaction.customId.startsWith(DNI_PREFIX)) {
     try { await handleDniButton(interaction); }
     catch (error) {
       reportInteractionError("Do-not-invite button", interaction, error);
-      if (!interaction.replied && !interaction.deferred) await interaction.reply({ content: "Could not do that. Try /mod dni.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
+      if (!interaction.replied && !interaction.deferred) await interaction.reply({ content: tx(await interactionLang(interaction), "Could not do that. Try /mod dni."), flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
     return;
   }
@@ -855,7 +855,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   if (interaction.isButton() && interaction.customId === PROMOTION_STATUS_BUTTON) {
     await handlePromotionButton(interaction).catch(async (error: unknown) => {
       reportInteractionError("Promotion status", interaction, error);
-      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demandez à un officier.";
+      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demande à un officier.";
       if (interaction.deferred && !interaction.replied) await interaction.editReply({ content }).catch(() => undefined);
       else if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     });
@@ -865,7 +865,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
     try { await pilotRequests.handle(interaction); }
     catch (error) {
       reportInteractionError("Pilot approval", interaction, error);
-      const content = "Unable to apply this decision. Check the pilot capacity and host configuration, then retry. / Décision impossible : vérifiez la limite du pilote et la configuration, puis réessayez.";
+      const content = "Unable to apply this decision. Check the pilot capacity and host configuration, then retry. / Décision impossible : vérifie la limite du pilote et la configuration, puis réessaie.";
       if (interaction.deferred) await interaction.editReply(content).catch(() => undefined);
       else if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
@@ -947,7 +947,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   if (interaction.isButton() && interaction.customId.startsWith(LINK_MOVE_PREFIX)) {
     await handleLinkMoveButton(interaction, prisma).catch(async (error: unknown) => {
       reportInteractionError("Character move undo button", interaction, error);
-      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demandez à un officier.";
+      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demande à un officier.";
       if (interaction.deferred) await interaction.editReply({ content }).catch(() => undefined);
       else if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     });
@@ -956,7 +956,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   if ((interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) && interaction.customId.startsWith(PANEL_PREFIX)) {
     await handlePanelInteraction(interaction, prisma).catch(async (error: unknown) => {
       reportInteractionError("Character panel", interaction, error);
-      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demandez à un officier.";
+      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demande à un officier.";
       if (interaction.deferred) await interaction.editReply({ content }).catch(() => undefined);
       else if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     });
@@ -965,7 +965,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   if ((interaction.isButton() || interaction.isStringSelectMenu()) && interaction.customId.startsWith(LINKED_PREFIX)) {
     await handleLinkedButton(interaction, prisma).catch(async (error: unknown) => {
       reportInteractionError("Linked characters button", interaction, error);
-      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demandez à un officier.";
+      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demande à un officier.";
       if (interaction.deferred) await interaction.editReply({ content }).catch(() => undefined);
       else if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     });
@@ -977,7 +977,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
       : interaction.isButton() && interaction.customId.startsWith(`${INVITE_REQUEST_PREFIX}done:`) ? handleInviteDoneButton(interaction, prisma) : handleInviteRequestInteraction(interaction, prisma);
     await handler.catch(async (error: unknown) => {
       reportInteractionError("Guild invite request", interaction, error);
-      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demandez à un officier.";
+      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demande à un officier.";
       if (interaction.deferred && !interaction.replied) await interaction.editReply({ content }).catch(() => undefined);
       else if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     });
@@ -986,7 +986,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   if (interaction.isButton() && interaction.customId.startsWith(GAME_REMINDER_PREFIX)) {
     await handleGameReminderButton(interaction).catch(async (error: unknown) => {
       reportInteractionError("Game reminders", interaction, error);
-      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demandez à un officier.";
+      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demande à un officier.";
       if (interaction.deferred && !interaction.replied) await interaction.editReply({ content, components: [] }).catch(() => undefined);
       else if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     });
@@ -995,7 +995,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   if ((interaction.isButton() || interaction.isStringSelectMenu()) && interaction.customId.startsWith(ONBOARD_PREFIX)) {
     await handleOnboardingInteraction(interaction).catch(async (error: unknown) => {
       reportInteractionError("Onboarding", interaction, error);
-      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demandez à un officier.";
+      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demande à un officier.";
       if (interaction.deferred && !interaction.replied) await interaction.editReply({ content, components: [], embeds: [] }).catch(() => undefined);
       else if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     });
@@ -1070,21 +1070,21 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   if (interaction.isStringSelectMenu() && interaction.customId === `${DUNGEON_GUIDE_PREFIX}kind`) {
     await handleDungeonGuideSelect(interaction).catch((error: unknown) => {
       reportInteractionError("Group finder menu", interaction, error);
-      if (!interaction.replied) void interaction.reply({ content: "Could not open the group form.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
+      if (!interaction.replied) void interactionLang(interaction).then((lang) => interaction.reply({ content: tx(lang, "Could not open the group form."), flags: MessageFlags.Ephemeral })).catch(() => undefined);
     });
     return;
   }
   if (interaction.isButton() && interaction.customId === GROUP_ALERT_OPEN_ID) {
     await openGroupAlerts(interaction).catch((error: unknown) => {
       reportInteractionError("Group alerts button", interaction, error);
-      if (!interaction.replied) void interaction.reply({ content: "Could not open your group alerts.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
+      if (!interaction.replied) void interactionLang(interaction).then((lang) => interaction.reply({ content: tx(lang, "Could not open your group alerts."), flags: MessageFlags.Ephemeral })).catch(() => undefined);
     });
     return;
   }
   if ((interaction.isButton() || interaction.isStringSelectMenu()) && interaction.customId.startsWith(GROUP_ALERT_PREFIX)) {
     await handleGroupAlertComponent(interaction).catch((error: unknown) => {
       reportInteractionError("Group alerts", interaction, error);
-      if (!interaction.replied) void interaction.reply({ content: "Could not save your group alerts.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
+      if (!interaction.replied) void interactionLang(interaction).then((lang) => interaction.reply({ content: tx(lang, "Could not save your group alerts."), flags: MessageFlags.Ephemeral })).catch(() => undefined);
     });
     return;
   }
@@ -1092,7 +1092,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
     await handleDungeonGuideButton(interaction).catch((error: unknown) => {
       reportInteractionError("Dungeon signup guide button", interaction, error);
       if (!interaction.replied) {
-        void interaction.reply({ content: "Could not open the dungeon group form.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
+        void interactionLang(interaction).then((lang) => interaction.reply({ content: tx(lang, "Could not open the dungeon group form."), flags: MessageFlags.Ephemeral })).catch(() => undefined);
       }
     });
     return;
@@ -1102,7 +1102,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
       await handleDungeonGroupButton(interaction);
     } catch (error) {
       reportInteractionError("Dungeon group button", interaction, error);
-      const content = error instanceof Error && error.message.length < 200 ? error.message : "Could not update the group.";
+      const content = error instanceof Error && error.message.length < 200 ? error.message : tx(await interactionLang(interaction), "Could not update the group.");
       if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
     return;
@@ -1110,7 +1110,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   if (interaction.isButton() && interaction.customId.startsWith(RANK_ROLES_BUTTON_PREFIX)) {
     await handleRankRolesButton(interaction).catch((error: unknown) => {
       reportInteractionError("Rank roles preview", interaction, error);
-      if (!interaction.replied) void interaction.reply({ content: "That didn't work, try again.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
+      if (!interaction.replied) void interactionLang(interaction).then((lang) => interaction.reply({ content: tx(lang, "That didn't work, try again."), flags: MessageFlags.Ephemeral })).catch(() => undefined);
     });
     return;
   }
@@ -1140,7 +1140,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
       await handleRaidSignupButton(interaction);
     } catch (error) {
       reportInteractionError("Raid signup button", interaction, error);
-      const content = error instanceof Error ? error.message : "Could not update your signup.";
+      const content = error instanceof Error ? error.message : tx(await interactionLang(interaction), "Could not update your signup.");
       if (interaction.replied || interaction.deferred) await interaction.editReply({ content, components: [] }).catch(() => undefined);
       else await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
@@ -1151,7 +1151,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
       await handleRaidSpecSelect(interaction);
     } catch (error) {
       reportInteractionError("Raid spec choice", interaction, error);
-      const content = error instanceof Error ? error.message : "Could not change your spec.";
+      const content = error instanceof Error ? error.message : tx(await interactionLang(interaction), "Could not change your spec.");
       if (interaction.replied || interaction.deferred) await interaction.editReply({ content, components: [] }).catch(() => undefined);
       else await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
@@ -1174,14 +1174,14 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   if (interaction.isButton() && interaction.customId.startsWith(WEB_APPLY_PREFIX)) {
     await handleWebApplicationButton(interaction, prismaWebStore(prisma)).catch(async (error: unknown) => {
       reportInteractionError("Website application button", interaction, error);
-      if (!interaction.replied) await interaction.reply({ content: "Could not save this answer, try again. / Réponse non enregistrée, réessayez.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
+      if (!interaction.replied) await interaction.reply({ content: "Could not save this answer, try again. / Réponse non enregistrée, réessaie.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
     });
     return;
   }
   if (interaction.isButton() && interaction.customId.startsWith(APPLY_PREFIX)) {
     await handleApplyButton(interaction).catch(async (error: unknown) => {
       reportInteractionError("Application button", interaction, error);
-      const content = error instanceof Error ? error.message : "Impossible d'ouvrir votre candidature.";
+      const content = error instanceof Error ? error.message : "Impossible d'ouvrir ta candidature.";
       if (interaction.replied || interaction.deferred) await interaction.editReply({ content, components: [] }).catch(() => undefined);
       else await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     });
@@ -1193,10 +1193,11 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
     } catch (error) {
       reportInteractionError("Self-role button", interaction, error);
       if (!interaction.replied) {
+        const roleFailure = tx(await interactionLang(interaction), "Could not update that role. Please try again or contact an officer.");
         if (interaction.deferred) {
-          await interaction.editReply({ content: "Could not update that role. Please try again or contact an officer." }).catch(() => undefined);
+          await interaction.editReply({ content: roleFailure }).catch(() => undefined);
         } else {
-          await interaction.reply({ content: "Could not update that role. Please try again or contact an officer.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
+          await interaction.reply({ content: roleFailure, flags: MessageFlags.Ephemeral }).catch(() => undefined);
         }
       }
     }
@@ -1227,7 +1228,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   const found = resolveCommand(commands, interaction);
   const handler = found.handler ?? handlers.get(found.legacy);
   if (!handler) {
-    await interaction.reply({ content: interaction.locale?.startsWith("fr") ? "Cette commande n'est pas disponible." : "That command is not available.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: tx(await interactionLang(interaction), "That command is not available."), flags: MessageFlags.Ephemeral });
     return;
   }
   try {

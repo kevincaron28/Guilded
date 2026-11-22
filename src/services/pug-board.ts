@@ -11,7 +11,7 @@ export function pugBoardPayload(raids: PublicRaid[], lang: "en" | "fr", now = ne
   const embed = new EmbedBuilder().setTitle(fr ? "Places de raid — autres guildes" : "Open raids — other guilds")
     .setURL(`https://guildedwow.com/recruitment/?kind=raids&edition=${currentEdition()}`)
     .setDescription(fr
-      ? "Rejoignez le Discord hôte, puis utilisez son inscription. Actualisé chaque minute; une place doit être confirmée chez l'hôte."
+      ? "Rejoins le Discord hôte, puis utilise son inscription. Actualisé chaque minute; une place doit être confirmée chez l'hôte."
       : "Join the host Discord, then use its signup post. Refreshed every minute; confirm your spot with the host.")
     .setTimestamp(now).setFooter({ text: fr ? "Toutes les annonces et filtres sur le site Guilded" : "All listings and filters on the Guilded website" });
   for (const raid of raids.slice(0, 8)) {

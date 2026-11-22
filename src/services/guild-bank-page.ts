@@ -96,14 +96,14 @@ export function createGuildBankPage(database: PrismaClient, access: GuildDashboa
     try {
       if (!guildId) {
         const guilds = await members.guilds(ctx.account.discordUserId);
-        return kit.page(200, title, `<h1>${title}</h1><p>${t("Choose a guild.", "Choisissez une guilde.")}</p><ul>${guilds.map(g => `<li><a href="${h(link("/me/guild-bank", lang, { guild: g.id, edition: g.edition }))}">${h(g.name)} · ${h(g.edition)}</a></li>`).join("")}</ul>`, { noindex: true });
+        return kit.page(200, title, `<h1>${title}</h1><p>${t("Choose a guild.", "Choisis une guilde.")}</p><ul>${guilds.map(g => `<li><a href="${h(link("/me/guild-bank", lang, { guild: g.id, edition: g.edition }))}">${h(g.name)} · ${h(g.edition)}</a></li>`).join("")}</ul>`, { noindex: true });
       }
       // Officers see everything; members (9.1) the contents and the search, unless officers turned it off.
       const officerGuild = await access.authorize(ctx.account.discordUserId, guildId);
       const guild = officerGuild ?? (memberAccess ? await memberAccess.authorize(ctx.account.discordUserId, guildId) : null);
       const settings = guild && !officerGuild ? await database.guildSettings.findUnique({ where: { guildId }, select: { guildBankMemberSearch: true } }) : null;
       if (!guild || (!officerGuild && settings?.guildBankMemberSearch === false)) {
-        return kit.page(403, title, t("These records are unavailable with your current membership and permissions.", "Ces données ne sont pas accessibles avec votre adhésion et vos permissions actuelles."), { noindex: true });
+        return kit.page(403, title, t("These records are unavailable with your current membership and permissions.", "Ces données ne sont pas accessibles avec ton adhésion et tes permissions actuelles."), { noindex: true });
       }
       const officer = !!officerGuild;
       const bank = officer ? await loadGuildBank(database, guildId, days)
@@ -117,10 +117,10 @@ export function createGuildBankPage(database: PrismaClient, access: GuildDashboa
         + (officer ? ` · <a href="${h(link("/me/statistics", lang, { guild: guild.id, edition: guild.edition }))}">${t("Statistics", "Statistiques")}</a></p>`
           + `<p>${[7, 30, 90, 365].map(n => n === days ? `<strong>${n} ${t("days", "jours")}</strong>` : `<a href="${h(link("/me/guild-bank", lang, { guild: guild.id, edition: guild.edition, days: String(n) }))}">${n} ${t("days", "jours")}</a>`).join(" · ")}</p>`
           : `</p><p>${t("What the bank held when someone last opened it with Guilded. Ask for an item with /bank request in Discord or /guilded gbank request in game.",
-            "Ce que la banque contenait à sa dernière ouverture avec Guilded. Demandez un objet avec /bank request dans Discord ou /guilded gbank request en jeu.")}</p>`);
+            "Ce que la banque contenait à sa dernière ouverture avec Guilded. Demande un objet avec /bank request dans Discord ou /guilded gbank request en jeu.")}</p>`);
       return kit.page(200, title, style + header + search + body, { noindex: true, languageParams: { guild: guild.id, edition: guild.edition } });
     } catch {
-      return kit.page(503, title, t("These records could not be loaded. Try again shortly; no data was changed.", "Impossible de charger ces données. Réessayez sous peu; aucune donnée n'a été modifiée."), { noindex: true });
+      return kit.page(503, title, t("These records could not be loaded. Try again shortly; no data was changed.", "Impossible de charger ces données. Réessaie sous peu; aucune donnée n'a été modifiée."), { noindex: true });
     }
   };
   return { route };

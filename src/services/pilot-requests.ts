@@ -200,14 +200,14 @@ export function createPilotRequests(client: Client, options: Options) {
       }
       const full = (options.liteLimit ?? 0) > 0;
       const auto = autoDate(request);
-      const autoNote = auto ? `\n\nApprobation automatique le ${auto} si le serveur a lancé /setup start, compte au moins ${options.autoApprove!.members} membres et a servi dans les 7 derniers jours. Bloquez avant pour refuser.\nApproved automatically on ${auto} if the server ran /setup start, has at least ${options.autoApprove!.members} members and was used in the last 7 days. Block before then to refuse.` : "";
+      const autoNote = auto ? `\n\nApprobation automatique le ${auto} si le serveur a lancé /setup start, compte au moins ${options.autoApprove!.members} membres et a servi dans les 7 derniers jours. Bloque avant pour refuser.\nApproved automatically on ${auto} if the server ran /setup start, has at least ${options.autoApprove!.members} members and was used in the last 7 days. Block before then to refuse.` : "";
       const user = await client.users.fetch(await owner());
       const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder().setCustomId(`${PILOT_REQUEST_PREFIX}approve:${guild.id}:${request.nonce}`).setLabel("Approuver / Approve").setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId(`${PILOT_REQUEST_PREFIX}block:${guild.id}:${request.nonce}`).setLabel("Bloquer / Block").setStyle(ButtonStyle.Danger));
       const message = await user.send({ content: `**Guilded — demande d’accès / access request**\nServeur / Server: **${escapeMarkdown(guild.name).slice(0,200)}**\nID: \`${guild.id}\`\nMembres / Members: ${guild.memberCount}\nPropriétaire / Owner ID: \`${guild.ownerId}\`\n\n${request.status === "lite"
         ? "Accès Lite accordé automatiquement (configuration, aide, FAQ, rapports de bugs, groupes de donjon, inscriptions simples). Approuver débloque tout. Bloquer fait quitter le serveur et empêche les nouvelles demandes.\nLite access granted automatically (setup, help, FAQ, bug reports, dungeon groups, basic signups). Approve unlocks everything. Block leaves the server and suppresses repeat requests."
-        : `Aucun accès avant votre approbation${full ? " (places Lite complètes)" : ""}. Bloquer fait quitter le serveur et empêche les nouvelles demandes.\nNo access until you approve${full ? " (Lite slots full)" : ""}. Block leaves the server and suppresses repeat requests.`}${autoNote}`, components: [row], allowedMentions: { parse: [] } });
+        : `Aucun accès avant ton approbation${full ? " (places Lite complètes)" : ""}. Bloquer fait quitter le serveur et empêche les nouvelles demandes.\nNo access until you approve${full ? " (Lite slots full)" : ""}. Block leaves the server and suppresses repeat requests.`}${autoNote}`, components: [row], allowedMentions: { parse: [] } });
       request.messageId = message.id; await save(state);
     }); },
     async handle(interaction: ButtonInteraction) {

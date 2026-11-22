@@ -19,7 +19,7 @@ export function pvpGroupModal(fr: boolean, guildId: string) {
     new TextInputBuilder().setCustomId(id).setLabel(label).setPlaceholder(placeholder).setStyle(TextInputStyle.Short).setMaxLength(max).setRequired(required));
   return new ModalBuilder().setCustomId(`bgui:${guildId}:${PVP_FORM_ACTION}`).setTitle(fr ? "⚔️ Groupe JcJ" : "⚔️ PvP group")
     .addComponents(
-      field("title", fr ? "Quoi, quand, qui cherchez-vous" : "What, when, and who you need", fr ? "ex. Goulet des Chanteguerres à 21 h, niveau 60" : "e.g. Warsong Gulch at 9pm, level 60", 80, true),
+      field("title", fr ? "Quoi, quand, qui cherches-tu" : "What, when, and who you need", fr ? "ex. Goulet des Chanteguerres à 21 h, niveau 60" : "e.g. Warsong Gulch at 9pm, level 60", 80, true),
       field("size", fr ? `Taille du groupe (2 à 40, défaut ${PVP_DEFAULT_SIZE})` : `Group size (2 to 40, default ${PVP_DEFAULT_SIZE})`, String(PVP_DEFAULT_SIZE), 2, false),
       field("levels", fr ? "Niveaux (facultatif)" : "Levels (optional)", fr ? "ex. 10-19, 60 ou 55+" : "e.g. 10-19, 60 or 55+", 9, false));
 }
@@ -43,12 +43,12 @@ export async function createPvpGroupFromModal(interaction: ModalSubmitInteractio
   const form = parsePvpForm({ title: interaction.fields.getTextInputValue("title"), size: interaction.fields.getTextInputValue("size"), levels: interaction.fields.getTextInputValue("levels") });
   const open = await prisma.dungeonGroup.count({ where: { guildId: record.id, kind: { in: ["PVP", "WORLDPVP"] }, leaderId: member.id, status: { in: ["OPEN", "STARTED"] } } });
   if (open >= PVP_OPEN_PER_LEADER) {
-    throw new Error(fr ? `Vous avez déjà ${open} groupes JcJ ouverts : fermez-en un avant d'en créer un autre.` : `You already have ${open} open PvP groups: close one before starting another.`);
+    throw new Error(fr ? `Tu as déjà ${open} groupes JcJ ouverts : fermes-en un avant d'en créer un autre.` : `You already have ${open} open PvP groups: close one before starting another.`);
   }
   const group = await service.create({ guildId: record.id, title: form.title, leaderId: member.id, channelId: channel.id, kind: "PVP", activity: "battleground", size: form.size, minLevel: form.minLevel, maxLevel: form.maxLevel });
   await postGroup(guild, channel as GuildTextBasedChannel, group, interaction.user.id, lang);
   await interaction.editReply({ content: fr
-    ? `Groupe publié dans <#${channel.id}>. Choisissez votre rôle avec les boutons ; **Démarrer** crée le salon vocal (ou il démarre à ${group.maxSize} joueurs). Le groupe expire après 24 h.`
+    ? `Groupe publié dans <#${channel.id}>. Choisis ton rôle avec les boutons ; **Démarrer** crée le salon vocal (ou il démarre à ${group.maxSize} joueurs). Le groupe expire après 24 h.`
     : `Posted your group in <#${channel.id}>. Pick your role with the buttons; **Start now** creates the voice channel (or it starts at ${group.maxSize} players). The group expires after 24 hours.` });
 }
 

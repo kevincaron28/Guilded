@@ -67,7 +67,7 @@ export async function handleDungeonGuideButton(interaction: ButtonInteraction): 
   const lang = asLang(settings?.language);
   if (!finderIsMerged(settings)) { await interaction.showModal(dungeonGroupModal(lang, "DUNGEON")); return; }
   const fr = lang === "fr";
-  await interaction.reply({ flags: MessageFlags.Ephemeral, content: fr ? "Quel type de groupe cherchez-vous ?" : "What kind of group are you looking for?",
+  await interaction.reply({ flags: MessageFlags.Ephemeral, content: fr ? "Quel type de groupe cherches-tu ?" : "What kind of group are you looking for?",
     components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder().setCustomId(DUNGEON_GUIDE_KIND_ID)
       .setPlaceholder(fr ? "Donjon, champ de bataille, arène ou JcJ en monde ouvert" : "Dungeon, battleground, arena or world PvP")
       .addOptions(offeredActivities(true).map(id => ({ label: activityLabel(id, lang), value: id, emoji: FINDER_ACTIVITIES[id].emoji, description: fr ? FINDER_ACTIVITIES[id].hintFr : FINDER_ACTIVITIES[id].hintEn }))))] });
@@ -160,7 +160,7 @@ export async function handleDungeonGuideModal(interaction: ModalSubmitInteractio
   if (isPvpKind(kind)) {
     const open = await prisma.dungeonGroup.count({ where: { guildId: record.id, kind: { in: ["PVP", "WORLDPVP"] }, leaderId: member.id, status: { in: ["OPEN", "STARTED"] } } });
     if (open >= PVP_OPEN_PER_LEADER) {
-      throw new Error(lang === "fr" ? `Vous avez déjà ${open} groupes JcJ ouverts : fermez-en un avant d'en créer un autre.` : `You already have ${open} open PvP groups: close one before starting another.`);
+      throw new Error(lang === "fr" ? `Tu as déjà ${open} groupes JcJ ouverts : fermes-en un avant d'en créer un autre.` : `You already have ${open} open PvP groups: close one before starting another.`);
     }
   }
   const title = interaction.fields.getTextInputValue("title").trim();

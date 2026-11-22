@@ -68,14 +68,14 @@ export function communityLeaderboardCard(input: {
 
   const guide = new EmbedBuilder().setColor(0x2b8a78)
     .setTitle(say(lang, "✨ TAKE YOUR PLACE", "✨ À TOI DE JOUER"))
-    .setDescription(say(lang, "You can join halfway through a season. Pick one activity and make your first move.", "Même si la saison est commencée, vous pouvez embarquer. Choisissez une activité et lancez-vous !"))
-    .addFields({ name: say(lang, "🎲 A little luck, every day", "🎲 Votre chance du jour"),
-      value: active ? say(lang, "Click Roll the dice below. One roll per day: **+2 pts**, or **+5 pts** on 90–100. Existing rounds keep their saved rewards.", "Cliquez sur Lancer le dé ci-dessous. Un lancer par jour : **+2 pts**, ou **+5 pts** sur 90–100. Les rondes existantes gardent leurs gains.") : say(lang, "Daily dice return with the next active Discord season.", "Les dés quotidiens reviennent avec la prochaine saison Discord.") })
-    .addFields({ name: say(lang, "🎮 Play, help, celebrate", "🎮 Jouez, aidez, participez"), value: say(lang,
+    .setDescription(say(lang, "You can join halfway through a season. Pick one activity and make your first move.", "Même si la saison est commencée, tu peux embarquer. Choisis une activité et lance-toi !"))
+    .addFields({ name: say(lang, "🎲 A little luck, every day", "🎲 Ta chance du jour"),
+      value: active ? say(lang, "Click Roll the dice below. One roll per day: **+2 pts**, or **+5 pts** on 90–100. Existing rounds keep their saved rewards.", "Clique sur Lancer le dé ci-dessous. Un lancer par jour : **+2 pts**, ou **+5 pts** sur 90–100. Les rondes existantes gardent leurs gains.") : say(lang, "Daily dice return with the next active Discord season.", "Les dés quotidiens reviennent avec la prochaine saison Discord.") })
+    .addFields({ name: say(lang, "🎮 Play, help, celebrate", "🎮 Joue, aide, participe"), value: say(lang,
       "Join gaming nights, answer quizzes and complete challenges. Attendance and challenge evidence are confirmed by organizers.\nChat, reactions and shared voice time earn points only when participation rewards are enabled; check `/participation status`.",
-      "Rejoignez les soirées, répondez aux quiz et relevez les défis. Un organisateur confirme les présences et les preuves des défis.\nLes messages, réactions et moments en vocal rapportent des points quand les récompenses de participation sont activées : `/participation status`.") })
-    .addFields({ name: say(lang, "📊 Your next step", "📊 Suivez votre progression"), value: season
-      ? say(lang, "My points shows your score, available balance and participation progress privately. Spending lottery points keeps your earned score intact.", "Mes points affiche votre score, votre solde et votre participation en privé. Dépenser des points dans une loterie ne diminue pas votre score gagné.")
+      "Rejoins les soirées, réponds aux quiz et relève les défis. Un organisateur confirme les présences et les preuves des défis.\nLes messages, réactions et moments en vocal rapportent des points quand les récompenses de participation sont activées : `/participation status`.") })
+    .addFields({ name: say(lang, "📊 Your next step", "📊 Suis ta progression"), value: season
+      ? say(lang, "My points shows your score, available balance and participation progress privately. Spending lottery points keeps your earned score intact.", "Mes points affiche ton score, ton solde et ta participation en privé. Dépenser des points dans une loterie ne diminue pas ton score gagné.")
       : say(lang, "An organizer starts the season with `/organize start-season`. No points or prizes are awarded until activities are configured.", "Un organisateur lance la saison avec `/organize start-season`. Les activités annoncent leurs points et leurs récompenses.") })
     .setFooter({ text: say(lang, "Good company beats spam. Every genuine contribution counts. Guilded ⚜️", "Du bon temps, pas du spam. Chaque vraie contribution compte. Guilded ⚜️") });
   const links = new ActionRowBuilder<ButtonBuilder>();

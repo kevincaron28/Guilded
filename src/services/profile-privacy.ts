@@ -129,15 +129,15 @@ export function privacyReply(lang: string, action: "hide" | "show" | "status", h
   const delay = fr ? `Les pages publiques se mettent à jour en ${HIDE_DELAY_MINUTES} minutes environ.` : `Public pages catch up within about ${HIDE_DELAY_MINUTES} minutes.`;
   if (action === "status") {
     return fr
-      ? (hiddenNow ? "Votre profil est **masqué** sur les pages publiques (annuaire, classements, joueurs, donjons et duels). Dans une partie publique vous apparaissez comme « Joueur masqué ». `/character privacy show` le rétablit." : "Votre profil est **public** (valeur par défaut). `/character privacy hide` vous retire des pages publiques.")
+      ? (hiddenNow ? "Ton profil est **masqué** sur les pages publiques (annuaire, classements, joueurs, donjons et duels). Dans une partie publique tu apparais comme « Joueur masqué ». `/character privacy show` le rétablit." : "Ton profil est **public** (valeur par défaut). `/character privacy hide` te retire des pages publiques.")
       : (hiddenNow ? "Your profile is **hidden** on the public pages (directory, leaderboards, player, dungeon and duel pages). In a public group you show as “Hidden player”. `/character privacy show` brings it back." : "Your profile is **public** (the default). `/character privacy hide` takes you off the public pages.");
   }
   if (action === "hide") {
     return fr
-      ? `Votre profil est masqué sur les pages publiques : annuaire, classements, pages de joueur, donjons et duels (vos personnages liés, aussi ceux liés plus tard). Dans un donjon ou un duel public, vous apparaissez comme « Joueur masqué » ; le résultat des autres reste. Les tableaux et cartes de votre serveur Discord ne changent pas. ${delay}`
+      ? `Ton profil est masqué sur les pages publiques : annuaire, classements, pages de joueur, donjons et duels (tes personnages liés, aussi ceux liés plus tard). Dans un donjon ou un duel public, tu apparais comme « Joueur masqué » ; le résultat des autres reste. Les tableaux et cartes de ton serveur Discord ne changent pas. ${delay}`
       : `Your profile is hidden on the public pages: directory, leaderboards, player pages, dungeon and duel listings (your linked characters, including ones linked later). In a public run or duel you show as “Hidden player”; everyone else's results stay. Your own Discord server's boards and cards do not change. ${delay}`;
   }
   return fr
-    ? `Votre profil est de nouveau public. ${delay}`
+    ? `Ton profil est de nouveau public. ${delay}`
     : `Your profile is public again. ${delay}`;
 }

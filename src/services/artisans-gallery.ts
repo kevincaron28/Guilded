@@ -123,7 +123,7 @@ export function createArtisansGallery(deps: GalleryDeps) {
     try {
       if (!guildId) {
         const guilds = await deps.access.guilds(ctx.account.discordUserId);
-        return kit.page(200, title, `<h1>${title}</h1><p>${t("Choose your guild.", "Choisissez votre guilde.")}</p><ul>${guilds.map(guild => `<li><a href="${h(link(GALLERY_PATH, lang, { guild: guild.id, edition: guild.edition }))}">${h(guild.name)} · ${h(guild.edition)}</a></li>`).join("")}</ul>${guilds.length ? "" : `<p>${t("No guild found where you are a member.", "Aucune guilde où vous êtes membre.")}</p>`}`, { noindex: true });
+        return kit.page(200, title, `<h1>${title}</h1><p>${t("Choose your guild.", "Choisis ta guilde.")}</p><ul>${guilds.map(guild => `<li><a href="${h(link(GALLERY_PATH, lang, { guild: guild.id, edition: guild.edition }))}">${h(guild.name)} · ${h(guild.edition)}</a></li>`).join("")}</ul>${guilds.length ? "" : `<p>${t("No guild found where you are a member.", "Aucune guilde où tu es membre.")}</p>`}`, { noindex: true });
       }
       const guild = await deps.access.authorize(ctx.account.discordUserId, guildId);
       if (!guild) return kit.page(403, title, t("The gallery is only for members of this guild.", "La galerie est réservée aux membres de cette guilde."), { noindex: true });
@@ -172,11 +172,11 @@ ${person.notable.length ? `<p>${t("Notable recipes", "Recettes notables")}: ${pe
         + `<p class="muted">${t("Searching by reagent needs the recipe materials, which Guilded does not collect yet.", "La recherche par composant demande les matériaux des recettes, que Guilded ne collecte pas encore.")}</p>`
         + (q && !data.recipes.length && !data.crafters.length ? `<p>${t("No known matching recipe or crafter. This does not prove nobody can craft it.", "Aucune recette ou aucun artisan correspondant connu. Cela ne prouve pas que personne ne peut la fabriquer.")}</p>` : "")
         + (recipeCards.length ? `<h2>${t("Recipes", "Recettes")}</h2>${recipeCards.join("")}` : "")
-        + (data.truncated ? `<p class="notice">${t("Only the first matches are shown. Type more of the name.", "Seuls les premiers résultats sont affichés. Précisez le nom.")}</p>` : "")
+        + (data.truncated ? `<p class="notice">${t("Only the first matches are shown. Type more of the name.", "Seuls les premiers résultats sont affichés. Précise le nom.")}</p>` : "")
         + (crafterCards ? `<h2>${t("Crafters", "Artisans")}</h2><div class="cards">${crafterCards}</div>` : "");
       return kit.page(failed ? 400 : 200, title, body, { noindex: true, languageParams: { ...params, q } });
     } catch {
-      return kit.page(503, title, t("The gallery could not be loaded. Try again shortly; no data was changed.", "Impossible de charger la galerie. Réessayez sous peu; aucune donnée n'a été modifiée."), { noindex: true });
+      return kit.page(503, title, t("The gallery could not be loaded. Try again shortly; no data was changed.", "Impossible de charger la galerie. Réessaie sous peu; aucune donnée n'a été modifiée."), { noindex: true });
     }
   };
 

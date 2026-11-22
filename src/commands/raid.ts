@@ -17,7 +17,7 @@ import { scoreCardPng } from "../services/score-card.js";
 import { executeRaidHistory, executeRaidSeason } from "./raid-season.js";
 import { bossProgress } from "../services/progress.js";
 import { parseRaidTime } from "../services/raid-time.js";
-import { asLang, t, type Lang } from "../i18n.js";
+import { asLang, t, tx, type Lang } from "../i18n.js";
 import { createRaidService, DpsKindFullError, SignupsClosedError } from "../services/raid.js";
 import { coreSpotLabel, createRaidCoreService } from "../services/raid-core.js";
 import { buildSignupEmbed, openKindSpots, openSpots } from "../services/signup-embed.js";
@@ -549,9 +549,9 @@ async function recordVoiceAttendance(interaction: ChatInputCommandInteraction, g
 // bench (its replacements) is pinged; nobody else is.
 async function postFillCall(interaction: ChatInputCommandInteraction, guildId: string, raidId: string): Promise<void> {
   const raid = await raidService.getStatus(raidId, guildId);
-  if (raid.status !== "PLANNED") throw new Error("Signups are closed for this raid.");
   const settings = await guildService.getSettings(guildId);
   const lang = asLang(settings?.language);
+  if (raid.status !== "PLANNED") throw new Error(tx(lang, "Signups are closed for this raid."));
   const everyone = await raidService.signups(raidId, guildId);
   const core = raid.coreId
     ? await prisma.raidCore.findUnique({ where: { id: raid.coreId }, select: { name: true, members: { select: { memberId: true, bench: true, member: { select: { discordUserId: true } } } } } })
@@ -563,7 +563,7 @@ async function postFillCall(interaction: ChatInputCommandInteraction, guildId: s
   const missing = core?.members.filter((m) => !m.bench && !answered.has(m.memberId)).length ?? 0;
   const bench = core?.members.filter((m) => m.bench && !answered.has(m.memberId)).map((m) => m.member.discordUserId) ?? [];
   if (!free.length && !missing && raid.tankLimit !== null && raid.healerLimit !== null && raid.dpsLimit !== null) {
-    throw new Error("Every slot of this raid is taken: no call needed.");
+    throw new Error(tx(lang, "Every slot of this raid is taken: no call needed."));
   }
   const when = Math.floor(raid.scheduledAt.getTime() / 1000);
   const spots = free.length || freeKinds.length

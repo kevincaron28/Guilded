@@ -110,7 +110,7 @@ export async function loadRosterGaps(db: Db, discordGuild: Pick<DiscordGuild, "m
 export function formatRosterGaps(gaps: RosterGaps, lang: "en" | "fr"): { text: string; invites: string } {
   const t = (en: string, fr: string) => lang === "fr" ? fr : en;
   const lines: string[] = [];
-  if (!gaps.syncFresh) lines.push(t("⚠️ No officer upload in the last 14 days: \"not in the guild\" may be wrong. Run the companion as an officer first.", "⚠️ Aucun envoi d'officier depuis 14 jours : « hors de la guilde » peut être inexact. Lancez d'abord le compagnon en tant qu'officier."));
+  if (!gaps.syncFresh) lines.push(t("⚠️ No officer upload in the last 14 days: \"not in the guild\" may be wrong. Run the companion as an officer first.", "⚠️ Aucun envoi d'officier depuis 14 jours : « hors de la guilde » peut être inexact. Lance d'abord le compagnon en tant qu'officier."));
   const invites = inviteLines(gaps.notInGuild);
   lines.push(`**${t("In Discord, not in the guild", "Dans Discord, pas dans la guilde")}** (${gaps.notInGuild.length})`);
   lines.push(...gaps.notInGuild.slice(0, 15).map((row) => `• ${row.displayName.slice(0, 32)} — \`/ginvite ${row.inviteName}\`${row.others.length ? ` (+${row.others.length})` : ""}`));

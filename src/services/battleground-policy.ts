@@ -53,7 +53,7 @@ export function assertBattlegroundStart(plan: BattlegroundPlan, lineup: { role: 
 export function battlegroundDescription(plan: BattlegroundPlan, fr: boolean) {
   const policy = battlegroundQueuePolicy(plan);
   return `${plan.edition} · ${plan.mode} · ${plan.map} · ${plan.minLevel}–${plan.maxLevel} · ${plan.faction}\n`
-    + (policy ? (fr ? "File : solo ou duo avec soigneur. Vérifiez votre admissibilité en jeu." : "Queue: solo or duo with a healer. Check eligibility in game.")
+    + (policy ? (fr ? "File : solo ou duo avec soigneur. Vérifie ton admissibilité en jeu." : "Queue: solo or duo with a healer. Check eligibility in game.")
       : (fr ? "Planification seulement — règles de file non vérifiées; démarrage bloqué." : "Planning only — queue rules unverified; starting is blocked."))
     + "\n" + (fr ? "Faction et royaume normal à confirmer en jeu. Aucune capture ni statistique activée." : "Confirm faction and normal realm in game. Capture and statistics are off.");
 }

@@ -29,12 +29,12 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "Also there when you need them: `/dungeon` · `/bank` · `/community` · `/epgp` · `/loot` · `/apply` · `/team` · `/bg` · `/participation` · `/tag` · `/poe`"
     ],
     fr: [
-      "**Nouveau ?** [guildedwow.com/start](https://guildedwow.com/start/?lang=fr) — installez l'addon, puis [le compagnon Windows](https://guildedwow.com/companion/?lang=fr) (« Guild Sync Companion » dans le Microsoft Store ; il synchronise tout seul). Toutes les commandes : [guildedwow.com/reference](https://guildedwow.com/reference/?lang=fr)",
-      "`/character link` — liez vos personnages WoW : envoyez-moi en MP le nom complet du personnage, ou écrivez-le dans le salon d'invitation · `/character profile` · `/character privacy`",
-      "`/promotion status` — ce qu'il vous reste avant le prochain rang",
+      "**Nouveau ?** [guildedwow.com/start](https://guildedwow.com/start/?lang=fr) — installe l'addon, puis [le compagnon Windows](https://guildedwow.com/companion/?lang=fr) (« Guild Sync Companion » dans le Microsoft Store ; il synchronise tout seul). Toutes les commandes : [guildedwow.com/reference](https://guildedwow.com/reference/?lang=fr)",
+      "`/character link` — lie tes personnages WoW : envoie-moi en MP le nom complet du personnage, ou écris-le dans le salon d'invitation · `/character profile` · `/character privacy`",
+      "`/promotion status` — ce qu'il te reste avant le prochain rang",
       "`/craft request` — demander à un artisan · `/craft who` — qui peut le fabriquer",
       "`/leaderboard` — cote des donjons ; `board:` records de la guilde, JcJ, points de communauté ou EPGP",
-      "`/raid progress` · `/raid report` — inscrivez-vous avec les boutons des annonces de raid",
+      "`/raid progress` · `/raid report` — inscris-toi avec les boutons des annonces de raid",
       "`/report bug` — signaler un problème au développeur · `/help` — cette liste",
       "Aussi là au besoin : `/dungeon` · `/bank` · `/community` · `/epgp` · `/loot` · `/apply` · `/team` · `/bg` · `/participation` · `/tag` · `/poe`"
     ]
@@ -49,11 +49,11 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/team create` · `/team schedule` · `/team lineup` — weekly dungeon/PvP teams"
     ],
     fr: [
-      "Les outils des chefs de raid sont sous `/lead`. Discord le montre à qui a « Gérer les événements » : donnez cette permission au rôle Chef de raid, ou autorisez le rôle sur `/lead` dans Paramètres du serveur → Intégrations → Guilded",
+      "Les outils des chefs de raid sont sous `/lead`. Discord le montre à qui a « Gérer les événements » : donne cette permission au rôle Chef de raid, ou autorise le rôle sur `/lead` dans Paramètres du serveur → Intégrations → Guilded",
       "`/lead create` (heures comme `vendredi 20h`) · `/lead edit` · `/lead start` · `/lead end` (propose les EP à approuver)",
       "`/lead attendance` · `/lead boss` · `/lead note` · `/lead award-ep` · `/lead readiness-raid` — qui est prêt pour ce soir",
       "`/lead season` · `/lead history` — présences sur une saison · `/lead wcl-report url:` — un rapport Warcraft Logs",
-      "`/core setup` — noyau de raid guidé et soirées (`mardi 20h; jeudi 20h`) ; ajustez ou arrêtez dans `/core edit` → 📅 · les membres postulent avec le bouton du roster",
+      "`/core setup` — noyau de raid guidé et soirées (`mardi 20h; jeudi 20h`) ; ajuste ou arrête dans `/core edit` → 📅 · les membres postulent avec le bouton du roster",
       "`/team create` · `/team schedule` · `/team lineup` — cores de donjon/JcJ"
     ]
   },
@@ -74,7 +74,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
     ],
     fr: [
       "`/setup start` — configuration guidée · `/config` — tous les réglages (`/config craft` : l'artisanat) · `/setup guild` — guildes en jeu",
-      "Les membres ne voient pas `/officer`, `/lead`, `/organize`, `/mod`, `/setup` ni `/config`. Officier sans « Gérer le serveur » non plus : autorisez le rôle dans Paramètres → Intégrations → Guilded",
+      "Les membres ne voient pas `/officer`, `/lead`, `/organize`, `/mod`, `/setup` ni `/config`. Officier sans « Gérer le serveur » non plus : autorise le rôle dans Paramètres → Intégrations → Guilded",
       "`/officer character link` — lier un personnage signalé à son propriétaire · `/officer character unclaimed` · `/officer roster gaps`",
       "`/officer reports inactive` · `/officer reports guild` · `/officer bank handle` · `/officer dungeon` · `/officer export table:` (CSV)",
       "`/setup import upload` · `/setup import held` (données de l'addon) · `/setup testraid start` · `/setup system status`",

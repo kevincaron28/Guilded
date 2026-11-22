@@ -83,7 +83,7 @@ export function shortText(text: string | null | undefined, limit: number, label:
 const CHARACTER = /^[\p{L}][\p{L}' ]{1,30}(?:-[\p{L}0-9' ]{2,30})?$/u;
 export function characterName(text: string): string {
   const trimmed = text.trim().replace(/\s+/g, " ");
-  if (!CHARACTER.test(trimmed)) throw new RecruitmentError("Enter your character's name (letters only, 2-30). / Entrez le nom de votre personnage (lettres seulement, 2 à 30).");
+  if (!CHARACTER.test(trimmed)) throw new RecruitmentError("Enter your character's name (letters only, 2-30). / Entre le nom de ton personnage (lettres seulement, 2 à 30).");
   return trimmed;
 }
 

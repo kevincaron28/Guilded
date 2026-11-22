@@ -16,7 +16,7 @@ export async function createBattleground(db: PrismaClient, guildId: string, inpu
   }
   return db.$transaction(async tx => {
     const guild = await tx.guild.findUniqueOrThrow({ where: { id: guildId }, select: { gameEdition: true } });
-    if (guild.gameEdition !== plan.edition) throw new Error("Use this guild's edition / Utilisez l'édition de cette guilde.");
+    if (guild.gameEdition !== plan.edition) throw new Error("Use this guild's edition / Utilise l'édition de cette guilde.");
     const core = await tx.activityCore.create({ data: {
       guildId, name, nameKey: name.toLowerCase(), kind: "PVP", channelId: input.channelId,
       battlegroundPlan: plan, ...slots, ...scheduleData("off", "UTC", input.durationMinutes),

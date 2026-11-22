@@ -279,10 +279,10 @@ try {
 
     // Core-only loot preserves historical entries while rejecting new global writes.
     await database.guildSettings.upsert({ where: { guildId: guild.id }, create: { guildId: guild.id, coreLootOnly: true, weeklyReportEnabled: true, weeklyReportChannelId: "wow-reports" }, update: { coreLootOnly: true, weeklyReportEnabled: true, weeklyReportChannelId: "wow-reports" } });
-    await assert.rejects(createEpgpService(database).awardEP({ guildId: guild.id, memberId: member.id, amount: 10, reason: "No core", createdBy: "policy-test" }), /Choisissez un core/);
+    await assert.rejects(createEpgpService(database).awardEP({ guildId: guild.id, memberId: member.id, amount: 10, reason: "No core", createdBy: "policy-test" }), /Choisis un core/);
     const raidForLoot = await database.raid.findFirstOrThrow({ where: { title: "Release mirrored raid" } });
     await createLootService(database).awardDirect({ guildId: guild.id, memberId: member.id, itemName: "Core council loot", gp: 0, raidId: raidForLoot.id, awardedBy: "policy-test" });
-    await assert.rejects(createLootService(database).awardDirect({ guildId: guild.id, memberId: member.id, itemName: "Unscoped council loot", gp: 0, awardedBy: "policy-test" }), /Choisissez un core/);
+    await assert.rejects(createLootService(database).awardDirect({ guildId: guild.id, memberId: member.id, itemName: "Unscoped council loot", gp: 0, awardedBy: "policy-test" }), /Choisis un core/);
     const missingCore = await service.preview(guild.id, { ...payload, epgpTransactions: [{ ...payload.epgpTransactions[0], sourceRef: "missing-core", coreId: undefined }] }, "policy-test");
     const unscoped = await service.record(guild.id, missingCore.snapshot, "unscoped", "policy-test");
     // The entry with no core is held for review; the rest of the upload is not blocked.
@@ -315,8 +315,8 @@ try {
     await charCores.addBackup(guild.id, core.id, member.id, alt.id, "DPS");
     const charRaid = await raids.create({ guildId: guild.id, coreId: core.id, title: "Character signup fixture A", scheduledAt: new Date(Date.now() + 86400000), createdBy: "character-test", dpsLimit: 1 });
     const altRaid = await raids.create({ guildId: guild.id, coreId: otherCore.id, title: "Character signup fixture B", scheduledAt: new Date(Date.now() + 2 * 86400000), createdBy: "character-test", dpsLimit: 1 });
-    await assert.rejects(raids.signup(charRaid.id, guild.id, member.id, "DPS"), /Choisissez votre personnage/);
-    await assert.rejects(raids.signup(charRaid.id, guild.id, member.id, "DPS", "AVAILABLE", bob.id), /Choisissez votre personnage/);
+    await assert.rejects(raids.signup(charRaid.id, guild.id, member.id, "DPS"), /Choisis ton personnage/);
+    await assert.rejects(raids.signup(charRaid.id, guild.id, member.id, "DPS", "AVAILABLE", bob.id), /Choisis ton personnage/);
     await raids.signup(charRaid.id, guild.id, contender.id, "DPS", "AVAILABLE", bob.id);
     const signed = await raids.signup(charRaid.id, guild.id, member.id, "DPS", "AVAILABLE", character.id);
     assert.equal(signed.status, "SIGNED_UP");
@@ -336,7 +336,7 @@ try {
     assert.ok(charResults.every(row => row.characterId && row.characterRealm === "ReleaseTest"));
     const applications = createApplicationService(database);
     const applicationInput = { guildId: guild.id, memberId: member.id, coreId: core.id, character: "UntrustedName", characterId: alt.id, className: "Warrior", spec: "Frost", experience: "Experienced", availability: "Evenings" };
-    await assert.rejects(applications.create({ ...applicationInput, characterId: bob.id }), /Choisissez votre personnage/);
+    await assert.rejects(applications.create({ ...applicationInput, characterId: bob.id }), /Choisis ton personnage/);
     const characterApplication = await applications.create(applicationInput);
     assert.equal(characterApplication.characterId, alt.id);
     assert.equal(characterApplication.character, "ReleaseAlt-ReleaseTest");

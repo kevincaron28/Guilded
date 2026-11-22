@@ -67,7 +67,7 @@ export const dungeonCommand = new SlashCommandBuilder()
   .addSubcommand((sub) => sub.setName("group").setDescription("Form a dungeon group: a signup post with buttons and a temporary voice channel")
     .addStringOption((o) => o.setName("title").setDescription("e.g. Deadmines, need tank + healer").setMinLength(3).setMaxLength(80).setRequired(true)))
   .addSubcommand((sub) => sub.setName("alerts").setDescription("Your group alerts: get pinged for groups your level and roles fit")
-    .setDescriptionLocalizations({ fr: "Vos alertes de groupe : être mentionné pour les groupes à votre niveau et vos rôles" }));
+    .setDescriptionLocalizations({ fr: "Tes alertes de groupe : être mentionné pour les groupes à ton niveau et tes rôles" }));
 
 function dungeonOption(interaction: ChatInputCommandInteraction): number | null {
   const raw = interaction.options.getString("dungeon");
@@ -236,8 +236,8 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
         ? lang === "fr" ? "🏆 Les records et défis sont annoncés sur les parcours." : "🏆 Records and challenges are called out on run posts."
         : lang === "fr" ? "Les records et défis ne sont plus annoncés. Ils restent enregistrés (tableau et bilans)." : "Records and challenges are no longer called out. They are still recorded (board and recaps).");
       if (otherGuilds !== null) lines.push(otherGuilds
-        ? lang === "fr" ? "🤝 Les parcours de vos membres faits avec d'autres guildes sont reçus et ajoutés à votre classement." : "🤝 Runs your members did in a party with other guilds are received and added to your board."
-        : lang === "fr" ? "Vous ne recevez plus les parcours faits avec d'autres guildes (ceux déjà reçus restent). Ce réglage ne change pas ce que les autres guildes reçoivent de vous." : "You no longer receive runs done in a party with other guilds (the ones already received stay). This setting does not change what other guilds receive from you.");
+        ? lang === "fr" ? "🤝 Les parcours de tes membres faits avec d'autres guildes sont reçus et ajoutés à ton classement." : "🤝 Runs your members did in a party with other guilds are received and added to your board."
+        : lang === "fr" ? "Tu ne reçois plus les parcours faits avec d'autres guildes (ceux déjà reçus restent). Ce réglage ne change pas ce que les autres guildes reçoivent de toi." : "You no longer receive runs done in a party with other guilds (the ones already received stay). This setting does not change what other guilds receive from you.");
       await interaction.reply({ content: lines.join("\n"), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
       return;
     }

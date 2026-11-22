@@ -56,32 +56,32 @@ let applied = false;
 export function applyFrenchNames(): void {
   if (applied) return;
   applied = true;
-  localize(helpCommand as unknown as Localizable, { name: "aide", description: "Que puis-je faire ici ? Liste les commandes à votre disposition." });
-  localize(profileCommand as unknown as Localizable, { name: "profil", description: "Voir votre profil de membre." });
-  localize(professionCommand as unknown as Localizable, { name: "metier", description: "Gérer les métiers de vos personnages.", options: MEMBER_OPTIONS });
-  localize(attunementCommand as unknown as Localizable, { description: "Suivre les harmonisations de raid de vos personnages.", options: MEMBER_OPTIONS });
-  localize(wishlistCommand as unknown as Localizable, { name: "souhaits", description: "Les objets que vos personnages souhaitent obtenir.", options: MEMBER_OPTIONS });
-  localize(characterCommand as unknown as Localizable, { subs: { unlink: { name: "delier", description: "Délier un personnage (le vôtre ; un officier peut délier celui d'un autre)." } } });
+  localize(helpCommand as unknown as Localizable, { name: "aide", description: "Que puis-je faire ici ? Liste les commandes à ta disposition." });
+  localize(profileCommand as unknown as Localizable, { name: "profil", description: "Voir ton profil de membre." });
+  localize(professionCommand as unknown as Localizable, { name: "metier", description: "Gérer les métiers de tes personnages.", options: MEMBER_OPTIONS });
+  localize(attunementCommand as unknown as Localizable, { description: "Suivre les harmonisations de raid de tes personnages.", options: MEMBER_OPTIONS });
+  localize(wishlistCommand as unknown as Localizable, { name: "souhaits", description: "Les objets que tes personnages souhaitent obtenir.", options: MEMBER_OPTIONS });
+  localize(characterCommand as unknown as Localizable, { subs: { unlink: { name: "delier", description: "Délier un personnage (le tien ; un officier peut délier celui d'un autre)." } } });
   // Commands restructure (November 2026): /personnage lier replaces pair, import and claim; /personnage guilde replaces /wow.
   localize(characterLinkCommand as unknown as Localizable, {
     subs: {
-      link: { name: "lier", description: "Comment lier vos personnages, ou collez une ligne ou un code de l'addon." },
-      guild: { name: "guilde", description: "Votre guilde en jeu : la liste, ou en choisir une." }
+      link: { name: "lier", description: "Comment lier tes personnages, ou colle une ligne ou un code de l'addon." },
+      guild: { name: "guilde", description: "Ta guilde en jeu : la liste, ou en choisir une." }
     },
     options: { line_or_code: "ligne_ou_code", main: "principal", guild: "guilde" }
   });
   localize(craftCommand as unknown as Localizable, {
     name: "artisanat",
-    description: "Demandez aux artisans de la guilde de fabriquer un objet, ou prenez des demandes.",
+    description: "Demande aux artisans de la guilde de fabriquer un objet, ou prends des demandes.",
     subs: {
       request: { name: "demander", description: "Demander à un artisan de la guilde de fabriquer un objet." },
       list: { name: "liste", description: "Les demandes ouvertes que les artisans peuvent prendre." },
       who: { name: "qui", description: "Qui, dans la guilde, peut fabriquer un objet." },
-      mine: { name: "mes-demandes", description: "Vos demandes ouvertes et celles que vous fabriquez." },
-      offer: { name: "proposer", description: "Proposer un objet que vous savez fabriquer." }
+      mine: { name: "mes-demandes", description: "Tes demandes ouvertes et celles que tu fabriques." },
+      offer: { name: "proposer", description: "Proposer un objet que tu sais fabriquer." }
     },
     options: { item: "objet", profession: "metier" }
   });
-  localize(promotionStatusCommand as unknown as Localizable, { name: "promotion", description: "Voyez ce qu'il vous reste à faire pour être promu.", subs: { status: { name: "statut", description: "Votre progression vers le prochain rang (privé)." } } });
+  localize(promotionStatusCommand as unknown as Localizable, { name: "promotion", description: "Vois ce qu'il te reste à faire pour être promu.", subs: { status: { name: "statut", description: "Ta progression vers le prochain rang (privé)." } } });
   localize(bugCommand as unknown as Localizable, { name: "bug", description: "Aperçu, puis envoi privé d'un signalement de bogue au développeur." });
 }

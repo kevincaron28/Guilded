@@ -52,7 +52,7 @@ export function createCommunityService(database: PrismaClient) {
   return {
     async startSeason(guildId: string, data: { name: string; game: string; channelId: string; audienceRoleId: string | null; actorId: string }) {
       if (!(COMMUNITY_GAMES as readonly string[]).includes(data.game) || !data.name.trim() || data.name.length > 80) fail("Saison invalide / Invalid season.");
-      if (data.game !== "DISCORD" && !data.audienceRoleId) fail("Choisissez le rôle du jeu / Choose the game's role.");
+      if (data.game !== "DISCORD" && !data.audienceRoleId) fail("Choisis le rôle du jeu / Choose the game's role.");
       return locked(guildId, async tx => {
         if (await tx.communitySeason.findFirst({ where: { guildId, game: data.game, status: "ACTIVE" } })) fail("Une saison est déjà active pour ce jeu / A season is already active for this game.");
         const counter = await tx.communitySeasonCounter.upsert({ where: { guildId_game: { guildId, game: data.game } }, create: { guildId, game: data.game, nextNumber: 2 }, update: { nextNumber: { increment: 1 } } });
@@ -120,7 +120,7 @@ export function createCommunityService(database: PrismaClient) {
       return locked(guildId, async tx => {
         const row = await season(tx, guildId, seasonId, false);
         if (row.status === "ENDED") return row;
-        if (await tx.communityActivity.count({ where: { seasonId, status: "OPEN" } })) fail("Fermez les activités avant la saison / Close activities before ending the season.");
+        if (await tx.communityActivity.count({ where: { seasonId, status: "OPEN" } })) fail("Ferme les activités avant la saison / Close activities before ending the season.");
         if (await tx.communityEntry.count({ where: { activity: { seasonId, kind: "CHALLENGE", status: { not: "CANCELLED" } }, status: "PENDING" } })) fail("Traite les preuves en attente avant d'archiver / Review pending evidence before archiving.");
         if (await tx.communityKudos.count({ where: { seasonId, status: "PENDING" } })) fail("Traite les nominations avant d'archiver / Review helper nominations before archiving.");
         const final = finalOf(row, standings(await tx.communityPoint.findMany({ where: { seasonId: row.id } })), inGame);
@@ -246,7 +246,7 @@ export function createCommunityService(database: PrismaClient) {
       });
     },
     async review(guildId: string, id: string, userId: string, actorId: string, decision: string, note: string) {
-      if (userId === actorId) fail("Vous ne pouvez pas valider votre résultat / You cannot review your own result.");
+      if (userId === actorId) fail("Tu ne peux pas valider ton résultat / You cannot review your own result.");
       if (!["APPROVE", "REJECT", "REVERSE"].includes(decision) || !note.trim() || note.length > 300) fail("Décision et motif requis / Decision and reason required.");
       return locked(guildId, async tx => {
         const row = await activity(tx, guildId, id, "CHALLENGE");
@@ -302,7 +302,7 @@ export function createCommunityService(database: PrismaClient) {
       return locked(guildId, async tx => {
         const row = await activity(tx, guildId, id);
         if (row.status !== "OPEN") return row;
-        if (!cancel && row.kind === "LOTTERY" && row.endsAt > now) fail("Attendez la fermeture annoncée / Wait until the announced closing time.");
+        if (!cancel && row.kind === "LOTTERY" && row.endsAt > now) fail("Attends la fermeture annoncée / Wait until the announced closing time.");
         if (!cancel && row.kind === "EVENT" && row.startsAt! > now) fail("La soirée n'a pas commencé / Event has not started.");
         let result: Prisma.InputJsonValue = {};
         if (row.kind === "LOTTERY") {

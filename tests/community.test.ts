@@ -212,7 +212,7 @@ describe("community state transitions", () => {
   });
   it("cannot self-approve a claim and reverses with an appended ledger entry", async () => {
     const s = store({ ...activity, kind: "CHALLENGE", rules: { instructions: "Finish with proof", points: 20 } as never });
-    await expect(s.service.review("guild", "activity", "member", "member", "APPROVE", "Confirmed")).rejects.toThrow(/votre résultat/);
+    await expect(s.service.review("guild", "activity", "member", "member", "APPROVE", "Confirmed")).rejects.toThrow(/ton résultat/);
     s.tx.communityEntry.findUnique.mockResolvedValue({ id: "entry", status: "PENDING" });
     const entry = await s.service.review("guild", "activity", "member", "officer", "APPROVE", "Confirmed");
     s.tx.communityEntry.findUnique.mockResolvedValue(entry);
@@ -237,7 +237,7 @@ describe("community state transitions", () => {
   it("will not archive open activities or pending evidence", async () => {
     const s = store();
     s.tx.communityActivity.count.mockResolvedValue(1);
-    await expect(s.service.endSeason("guild", "season")).rejects.toThrow(/Fermez les activités/);
+    await expect(s.service.endSeason("guild", "season")).rejects.toThrow(/Ferme les activités/);
     s.tx.communityActivity.count.mockResolvedValue(0);
     s.tx.communityEntry.count.mockResolvedValue(1);
     await expect(s.service.endSeason("guild", "season")).rejects.toThrow(/preuves en attente/);

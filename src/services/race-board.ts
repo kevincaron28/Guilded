@@ -199,7 +199,7 @@ export function raceBoardEmbed(data: RaceBoardData, lang: Lang, options: { image
   }
   if (options.image && data.total) embed.setImage(`attachment://${options.image}`);
   const note = data.rosterStale && data.rosterAt ? t(` · roster last updated ${data.rosterAt.toISOString().slice(0, 10)}`, ` · liste de la guilde mise à jour le ${data.rosterAt.toISOString().slice(0, 10)}`) : "";
-  return embed.setFooter({ text: t("/character race near finds partners at your level", "/character race near trouve des partenaires de votre niveau") + note });
+  return embed.setFooter({ text: t("/character race near finds partners at your level", "/character race near trouve des partenaires de ton niveau") + note });
 }
 
 export interface HallRecord { order: number; name: string; className: string; race: string | null; reachedAt: Date; firstSeenAt: Date; professions: string | null; memberDiscordId: string | null;
@@ -695,11 +695,11 @@ export async function ensureRaceBoard(discordGuild: DiscordGuild, guildId: strin
     if (!channelId) {
       await discordGuild.channels.fetch();
       const named = discordGuild.channels.cache.filter(c => c.type === ChannelType.GuildText && ["race-to-60", "course-au-60"].includes(c.name));
-      if (named.size > 1) return say("Several race-to-60 channels exist: pick one with /character race board-on.", "Plusieurs salons course-au-60 existent : choisissez-en un avec /character race board-on.");
+      if (named.size > 1) return say("Several race-to-60 channels exist: pick one with /character race board-on.", "Plusieurs salons course-au-60 existent : choisis-en un avec /character race board-on.");
       const made = named.size ? null : await createRaceChannel(discordGuild, settings.memberRoleId ?? null, lang);
       channelId = named.first()?.id ?? made?.id ?? null;
-      openNote = made?.open ? say(" It is visible to everyone because no member role is set; restrict it later.", " Il est visible par tous car aucun rôle membre n'est défini; restreignez-le plus tard.") : "";
-      if (!channelId) return say("Race to 60 board: pick its channel with /character race board-on (I need Manage Channels to create one).", "Tableau de la course au 60 : choisissez son salon avec /character race board-on (il me faut Gérer les salons pour en créer un).");
+      openNote = made?.open ? say(" It is visible to everyone because no member role is set; restrict it later.", " Il est visible par tous car aucun rôle membre n'est défini; restreins-le plus tard.") : "";
+      if (!channelId) return say("Race to 60 board: pick its channel with /character race board-on (I need Manage Channels to create one).", "Tableau de la course au 60 : choisis son salon avec /character race board-on (il me faut Gérer les salons pour en créer un).");
       await guildService.updateSettings(guildId, { raceBoardChannelId: channelId });
     }
     const posted = await updateRaceBoard(discordGuild);

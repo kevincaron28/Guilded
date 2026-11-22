@@ -75,7 +75,7 @@ export async function executeStats(interaction: ChatInputCommandInteraction): Pr
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const lang = asLang((await guildService.getSettings(context.guildId))?.language);
     if (interaction.options.getInteger("days") !== null || interaction.options.getString("core") !== null) {
-      await interaction.editReply({ content: lang === "fr" ? "Le bilan personnel utilise la dernière semaine complète. Retirez les filtres days/core." : "Personal recap uses the last complete week. Remove the days/core filters.", allowedMentions: { parse: [] } });
+      await interaction.editReply({ content: lang === "fr" ? "Le bilan personnel utilise la dernière semaine complète. Retire les filtres days/core." : "Personal recap uses the last complete week. Remove the days/core filters.", allowedMentions: { parse: [] } });
       return;
     }
     await interaction.editReply({ ...await personalWeeklyRecapMessage(await personalWeeklyRecap(prisma, context.guildId, interaction.user.id), lang, undefined, await loadCardTimeZone(prisma, context.guildId)), allowedMentions: { parse: [] } });

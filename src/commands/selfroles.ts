@@ -31,14 +31,14 @@ const COPY = {
   },
   fr: {
     officers: "Seuls les officiers, maîtres de guilde et administrateurs peuvent créer ces panneaux.",
-    toggle: "Cliquez sur un bouton pour ajouter ou retirer le rôle.",
+    toggle: "Clique sur un bouton pour ajouter ou retirer le rôle.",
     requires: "Rôle préalable :",
-    invalid: "Ce panneau de rôles est invalide. Demandez à un officier de le remplacer.",
+    invalid: "Ce panneau de rôles est invalide. Demande à un officier de le remplacer.",
     missing: "Ce rôle n'existe plus.",
     unsafe: "Ce rôle possède des permissions de gestion ou de modération et ne peut pas être attribué librement.",
     hierarchy: "Je ne peux pas attribuer ce rôle : il est au-dessus du mien. Un officier doit déplacer mon rôle plus haut.",
-    member: "Vous ne faites plus partie de ce serveur.",
-    prerequisite: "Vous devez d'abord avoir ce rôle :",
+    member: "Tu ne fais plus partie de ce serveur.",
+    prerequisite: "Tu dois d'abord avoir ce rôle :",
     added: "Rôle ajouté :",
     removed: "Rôle retiré :"
   }

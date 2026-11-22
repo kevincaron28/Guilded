@@ -24,7 +24,7 @@ const STRINGS = {
   "signup.benchFree": { en: "Bench available ({count})", fr: "Remplaçants disponibles ({count})" },
   "signup.openSpots": { en: "Open spots: anyone in the guild can sign up to fill", fr: "Places libres : tout membre de la guilde peut s'inscrire pour compléter" },
   "signup.waitlist": { en: "Waitlist (in order)", fr: "Liste d'attente (en ordre)" },
-  "signup.footer.open": { en: "Click a button below to sign up.", fr: "Cliquez un bouton ci-dessous pour vous inscrire." },
+  "signup.footer.open": { en: "Click a button below to sign up.", fr: "Clique un bouton ci-dessous pour t'inscrire." },
   "signup.footer.closed": { en: "Raid ID: {id}", fr: "ID du raid : {id}" },
   "signup.localTime": { en: "Local time", fr: "Heure locale" },
   "signup.lock": { en: "Signups lock {hours} h before the start ({when}).", fr: "Les inscriptions ferment {hours} h avant le début ({when})." },
@@ -40,11 +40,11 @@ const STRINGS = {
   "role.MELEE": { en: "Melee DPS", fr: "DPS mêlée" },
   "role.RANGED": { en: "Ranged DPS", fr: "DPS distance" },
   "signup.dpsSplit": { en: "{melee} melee · {ranged} ranged", fr: "{melee} mêlée · {ranged} distance" },
-  "signup.specPrompt": { en: "Playing a different spec for this raid?", fr: "Vous jouez une autre spé pour ce raid?" },
+  "signup.specPrompt": { en: "Playing a different spec for this raid?", fr: "Tu joues une autre spé pour ce raid?" },
   "signup.specCurrent": { en: "Current spec ({spec})", fr: "Spé actuelle ({spec})" },
   "reply.specSaved": { en: "Spec for this raid: **{spec}** ({kind}).", fr: "Spé pour ce raid : **{spec}** ({kind})." },
-  "reply.specCleared": { en: "Back to your character's current spec.", fr: "Retour à la spé actuelle de votre personnage." },
-  "reply.kindFull": { en: "{kind} spots are full for this raid, so your spec was not changed.", fr: "Les places {kind} sont pleines pour ce raid : votre spé n’a pas changé." },
+  "reply.specCleared": { en: "Back to your character's current spec.", fr: "Retour à la spé actuelle de ton personnage." },
+  "reply.kindFull": { en: "{kind} spots are full for this raid, so your spec was not changed.", fr: "Les places {kind} sont pleines pour ce raid : ton spé n’a pas changé." },
   "signup.section.late": { en: "LATE", fr: "EN RETARD" },
   "signup.section.tentative": { en: "TENTATIVE", fr: "PEUT-ÊTRE" },
   "signup.section.waitlist": { en: "WAITLIST", fr: "LISTE D'ATTENTE" },
@@ -69,34 +69,34 @@ const STRINGS = {
   "button.dps": { en: "⚔️ DPS", fr: "⚔️ DPS" },
   "button.maybe": { en: "❔ Maybe", fr: "❔ Peut-être" },
   "button.cancel": { en: "✖ Can't come", fr: "✖ Absent" },
-  "reply.signedUp": { en: "You're signed up as **{role}**. Click another role to switch, or Can't come to drop out.", fr: "Vous êtes inscrit comme **{role}**. Cliquez un autre rôle pour changer, ou Absent pour vous retirer." },
-  "reply.maybe": { en: "You're marked as **maybe** ({role}). Click a role when you're sure.", fr: "Vous êtes noté **peut-être** ({role}). Cliquez un rôle quand vous serez certain." },
+  "reply.signedUp": { en: "You're signed up as **{role}**. Click another role to switch, or Can't come to drop out.", fr: "Tu es inscrit comme **{role}**. Clique un autre rôle pour changer, ou Absent pour te retirer." },
+  "reply.maybe": { en: "You're marked as **maybe** ({role}). Click a role when you're sure.", fr: "Tu es noté **peut-être** ({role}). Clique un rôle quand tu seras certain." },
   "fill.title": { en: "📣 **Players wanted: {raid}**{core}, {time} ({relative})", fr: "📣 **Joueurs recherchés : {raid}**{core}, {time} ({relative})" },
   "fill.spots": { en: "Open spots: {spots}", fr: "Places libres : {spots}" },
   "fill.any": { en: "any role", fr: "tous les rôles" },
   "fill.missing": { en: "{count} core member(s) have not signed up yet: anyone in the guild can fill in.", fr: "{count} membre(s) du core ne sont pas encore inscrits : tout membre de la guilde peut compléter." },
-  "fill.link": { en: "Sign up here: {link}", fr: "Inscrivez-vous ici : {link}" },
-  "fill.command": { en: "Sign up with the buttons on the raid post.", fr: "Inscrivez-vous avec les boutons de l'annonce du raid." },
-  "fill.bench": { en: "Bench, you're up:", fr: "Remplaçants, c'est votre tour :" },
-  "reply.clash": { en: "⚠️ You are also signed up for **{raid}** at {time}, close to this one. Cancel one if you can't do both.", fr: "⚠️ Vous êtes aussi inscrit à **{raid}** à {time}, proche de celui-ci. Annulez-en un si vous ne pouvez pas faire les deux." },
-  "reply.waitlisted": { en: "{role} is full, so you're on the **waitlist**. You'll get a DM if a spot opens.", fr: "{role} est complet : vous êtes sur la **liste d'attente**. Vous recevrez un message privé si une place se libère." },
-  "reply.notSignedUp": { en: "You weren't signed up, so there's nothing to cancel.", fr: "Vous n'étiez pas inscrit, rien à annuler." },
+  "fill.link": { en: "Sign up here: {link}", fr: "Inscris-toi ici : {link}" },
+  "fill.command": { en: "Sign up with the buttons on the raid post.", fr: "Inscris-toi avec les boutons de l'annonce du raid." },
+  "fill.bench": { en: "Bench, you're up:", fr: "Remplaçants, c'est ton tour :" },
+  "reply.clash": { en: "⚠️ You are also signed up for **{raid}** at {time}, close to this one. Cancel one if you can't do both.", fr: "⚠️ Tu es aussi inscrit à **{raid}** à {time}, proche de celui-ci. Annules-en un si tu ne peux pas faire les deux." },
+  "reply.waitlisted": { en: "{role} is full, so you're on the **waitlist**. You'll get a DM if a spot opens.", fr: "{role} est complet : tu es sur la **liste d'attente**. Tu recevras un message privé si une place se libère." },
+  "reply.notSignedUp": { en: "You weren't signed up, so there's nothing to cancel.", fr: "Tu n'étais pas inscrit, rien à annuler." },
   "signup.closes": { en: "Signups close", fr: "Fin des inscriptions" },
   "signup.lateLegend": { en: "⏰ arriving late", fr: "⏰ arrivera en retard" },
   "button.late": { en: "⏰ Late", fr: "⏰ En retard" },
-  "reply.late": { en: "Marked as **late**. Click Late again to undo.", fr: "Noté **en retard**. Cliquez En retard de nouveau pour annuler." },
-  "reply.notLate": { en: "You're no longer marked late.", fr: "Vous n'êtes plus noté en retard." },
-  "reply.lateNeedsSignup": { en: "Pick a role first, then click Late.", fr: "Choisissez d'abord un rôle, puis cliquez En retard." },
-  "reply.signupsClosed": { en: "Signups closed {when}. Ask a raid leader if you still need a spot; Can't come and Late still work.", fr: "Inscriptions fermées {when}. Demandez à un chef de raid s'il vous faut une place; Absent et En retard fonctionnent encore." },
-  "dm.outbid": { en: "You were outbid on **{item}**: the top bid is now {amount} GP. Bid again with `/loot bid` before it closes {when}.", fr: "Votre offre sur **{item}** a été dépassée : la meilleure offre est maintenant de {amount} GP. Enchérissez de nouveau avec `/loot bid` avant la fermeture {when}." },
+  "reply.late": { en: "Marked as **late**. Click Late again to undo.", fr: "Noté **en retard**. Clique En retard de nouveau pour annuler." },
+  "reply.notLate": { en: "You're no longer marked late.", fr: "Tu n'es plus noté en retard." },
+  "reply.lateNeedsSignup": { en: "Pick a role first, then click Late.", fr: "Choisis d'abord un rôle, puis clique En retard." },
+  "reply.signupsClosed": { en: "Signups closed {when}. Ask a raid leader if you still need a spot; Can't come and Late still work.", fr: "Inscriptions fermées {when}. Demande à un chef de raid s'il te faut une place; Absent et En retard fonctionnent encore." },
+  "dm.outbid": { en: "You were outbid on **{item}**: the top bid is now {amount} GP. Bid again with `/loot bid` before it closes {when}.", fr: "Ton offre sur **{item}** a été dépassée : la meilleure offre est maintenant de {amount} GP. Enchéris de nouveau avec `/loot bid` avant la fermeture {when}." },
   "worldbuff.unsupported": { en: "World-buff drops are for WoW Forever guilds.", fr: "Les buffs mondiaux concernent les guildes WoW Forever." },
   "worldbuff.announced": { en: "World-buff drop announced:", fr: "Buff mondial annoncé :" },
-  "worldbuff.title": { en: "Upcoming world-buff drops (shown in your time zone)", fr: "Prochains buffs mondiaux (dans votre fuseau horaire)" },
-  "worldbuff.none": { en: "No drops announced. Add one with /raid worldbuff.", fr: "Aucune annonce. Ajoutez-en une avec /raid worldbuff." },
+  "worldbuff.title": { en: "Upcoming world-buff drops (shown in your time zone)", fr: "Prochains buffs mondiaux (dans ton fuseau horaire)" },
+  "worldbuff.none": { en: "No drops announced. Add one with /raid worldbuff.", fr: "Aucune annonce. Ajoutes-en une avec /raid worldbuff." },
   "worldbuff.removed": { en: "Removed:", fr: "Retiré :" },
-  "reply.cancelled": { en: "Got it, you're marked as not coming.", fr: "C'est noté, vous ne venez pas." },
-  "dm.bumped": { en: "A core member took your {role} slot in **{raid}**. You're now first on the waitlist and will move up if a slot opens.", fr: "Un membre du noyau a pris votre place de {role} pour **{raid}**. Vous êtes maintenant premier sur la liste d'attente et passerez en tête si une place se libère." },
-  "dm.promoted": { en: "A {role} slot opened in **{raid}** ({when}). You're off the waitlist and signed up.", fr: "Une place de {role} s'est libérée pour **{raid}** ({when}). Vous n'êtes plus en attente : vous êtes inscrit." },
+  "reply.cancelled": { en: "Got it, you're marked as not coming.", fr: "C'est noté, tu ne viens pas." },
+  "dm.bumped": { en: "A core member took your {role} slot in **{raid}**. You're now first on the waitlist and will move up if a slot opens.", fr: "Un membre du noyau a pris ta place de {role} pour **{raid}**. Tu es maintenant premier sur la liste d'attente et passeras en tête si une place se libère." },
+  "dm.promoted": { en: "A {role} slot opened in **{raid}** ({when}). You're off the waitlist and signed up.", fr: "Une place de {role} s'est libérée pour **{raid}** ({when}). Tu n'es plus en attente : tu es inscrit." },
 
   // Reminders
   "reminder": { en: "⏰ **{raid}** starts {when}. See you there: {mentions}", fr: "⏰ **{raid}** commence {when}. On vous attend : {mentions}" },
@@ -157,10 +157,10 @@ const STRINGS = {
   // Welcome
   "welcome.default": {
     en: "Welcome to {guild}, {mention}! Use the buttons below to get started: they answer privately, only you see the replies.",
-    fr: "Bienvenue dans la gang de {guild}, {mention} ! Servez-vous des boutons ci-dessous pour bien commencer : les réponses sont privées, vous seul les voyez."
+    fr: "Bienvenue dans la gang de {guild}, {mention} ! Sers-toi des boutons ci-dessous pour bien commencer : les réponses sont privées, toi seul les vois."
   },
-  "welcome.added": { en: "Added **{role}**. You can pick more, or click again to remove it.", fr: "**{role}** ajouté. Vous pouvez en choisir d'autres, ou recliquer pour le retirer." },
-  "welcome.removed": { en: "Removed **{role}**. Click again to get it back.", fr: "**{role}** retiré. Recliquez pour le récupérer." },
+  "welcome.added": { en: "Added **{role}**. You can pick more, or click again to remove it.", fr: "**{role}** ajouté. Tu peux en choisir d'autres, ou recliquer pour le retirer." },
+  "welcome.removed": { en: "Removed **{role}**. Click again to get it back.", fr: "**{role}** retiré. Reclique pour le récupérer." },
 
   // Onboarding (services/onboarding.ts): the welcome buttons, the pinned panel and their private answers.
   "onboard.button.rules": { en: "📜 Rules", fr: "📜 Règles" },
@@ -169,93 +169,93 @@ const STRINGS = {
   "onboard.button.steps": { en: "✅ First steps", fr: "✅ Premiers pas" },
   "onboard.button.accept": { en: "I have read and accept the rules", fr: "J'ai lu et j'accepte les règles" },
   "onboard.button.chat": { en: "💬 WoW chat ↔ Discord", fr: "💬 Clavardage WoW ↔ Discord" },
-  "onboard.panel.chat": { en: "💬 **WoW chat ↔ Discord** — how guild chat reaches Discord, and how to link your character.", fr: "💬 **Clavardage WoW ↔ Discord** — comment le clavardage de guilde arrive sur Discord, et comment lier votre personnage." },
+  "onboard.panel.chat": { en: "💬 **WoW chat ↔ Discord** — how guild chat reaches Discord, and how to link your character.", fr: "💬 **Clavardage WoW ↔ Discord** — comment le clavardage de guilde arrive sur Discord, et comment lier ton personnage." },
   "onboard.chat.guide": {
     en: "**Guild chat and Discord**\n• Blizzard's own Discord link, if your guild leader set it up, shows guild chat in a channel (ask an officer). It does not know who you are here.\n• To link your character: press **Request a guild invite** (or type your full character name in <#{channel}>). Already in the guild? DM me the full name, or use `/character link`. It is confirmed at the next sync.",
-    fr: "**Clavardage de guilde et Discord**\n• Le lien Discord de Blizzard, si le chef de guilde l'a activé, affiche le clavardage de guilde dans un salon (demandez à un officier). Il ne sait pas qui vous êtes ici.\n• Pour lier votre personnage : appuyez sur **Demander une invitation de guilde** (ou écrivez son nom complet dans <#{channel}>). Déjà dans la guilde ? Envoyez-moi le nom complet en MP, ou utilisez `/character link`. Le lien est confirmé à la prochaine synchronisation."
+    fr: "**Clavardage de guilde et Discord**\n• Le lien Discord de Blizzard, si le chef de guilde l'a activé, affiche le clavardage de guilde dans un salon (demande à un officier). Il ne sait pas qui tu es ici.\n• Pour lier ton personnage : appuie sur **Demander une invitation de guilde** (ou écris son nom complet dans <#{channel}>). Déjà dans la guilde ? Envoie-moi le nom complet en MP, ou utilise `/character link`. Le lien est confirmé à la prochaine synchronisation."
   },
   "onboard.chat.guideNoChannel": {
     en: "**Guild chat and Discord**\n• Blizzard's own Discord link, if your guild leader set it up, shows guild chat in a channel (ask an officer). It does not know who you are here.\n• To link your character: DM me its full name, or use `/character link`. It is confirmed at the next sync.",
-    fr: "**Clavardage de guilde et Discord**\n• Le lien Discord de Blizzard, si le chef de guilde l'a activé, affiche le clavardage de guilde dans un salon (demandez à un officier). Il ne sait pas qui vous êtes ici.\n• Pour lier votre personnage : envoyez-moi son nom complet en MP, ou utilisez `/character link`. Le lien est confirmé à la prochaine synchronisation."
+    fr: "**Clavardage de guilde et Discord**\n• Le lien Discord de Blizzard, si le chef de guilde l'a activé, affiche le clavardage de guilde dans un salon (demande à un officier). Il ne sait pas qui tu es ici.\n• Pour lier ton personnage : envoie-moi son nom complet en MP, ou utilise `/character link`. Le lien est confirmé à la prochaine synchronisation."
   },
   "onboard.panel.title": { en: "👋 Start here", fr: "👋 Commence ici" },
   "onboard.panel.intro": {
     en: "Welcome to **{guild}**! These buttons answer privately: only you see the replies.",
-    fr: "Bienvenue sur **{guild}** ! Ces boutons répondent en privé : vous seul voyez les réponses."
+    fr: "Bienvenue sur **{guild}** ! Ces boutons répondent en privé : tu es le seul à voir les réponses."
   },
-  "onboard.panel.rules": { en: "📜 **Rules** — read {channel}, then confirm.", fr: "📜 **Règles** — lis {channel}, puis confirmez." },
+  "onboard.panel.rules": { en: "📜 **Rules** — read {channel}, then confirm.", fr: "📜 **Règles** — lis {channel}, puis confirme." },
   "onboard.panel.games": { en: "🎮 **Pick my games** — each game you pick opens its channels.", fr: "🎮 **Choisir mes jeux** — chaque jeu choisi ouvre ses salons." },
-  "onboard.panel.pair": { en: "🔗 **Link my WoW character** — optional: link your main/alts to Discord with the addon. The companion is optional too.", fr: "🔗 **Lier mon personnage WoW** — facultatif : lie votre principal et vos alts à Discord avec l'addon. Le compagnon est aussi facultatif." },
-  "onboard.panel.steps": { en: "✅ **First steps** — your personal checklist.", fr: "✅ **Premiers pas** — votre liste personnelle." },
-  "onboard.steps.title": { en: "**Your first steps on {guild}**", fr: "**Vos premiers pas sur {guild}**" },
+  "onboard.panel.pair": { en: "🔗 **Link my WoW character** — optional: link your main/alts to Discord with the addon. The companion is optional too.", fr: "🔗 **Lier mon personnage WoW** — facultatif : lie ton principal et tes alts à Discord avec l'addon. Le compagnon est aussi facultatif." },
+  "onboard.panel.steps": { en: "✅ **First steps** — your personal checklist.", fr: "✅ **Premiers pas** — ta liste personnelle." },
+  "onboard.steps.title": { en: "**Your first steps on {guild}**", fr: "**Tes premiers pas sur {guild}**" },
   "onboard.steps.rules": { en: "Read and accept the rules", fr: "Lire et accepter les règles" },
-  "onboard.steps.games": { en: "Pick your games", fr: "Choisir vos jeux" },
-  "onboard.steps.character": { en: "Link your WoW character", fr: "Lier votre personnage WoW" },
-  "onboard.steps.characterOptional": { en: "Link your WoW character (optional; the addon works on its own)", fr: "Lier votre personnage WoW (facultatif; l'addon fonctionne seul)" },
-  "onboard.steps.professionsOptional": { en: "Share your professions (optional): `/profession set` or sync your addon", fr: "Partager vos métiers (facultatif) : `/profession set` ou synchroniser votre addon" },
-  "onboard.steps.firstRaidOptional": { en: "Confirm your first raid signup (optional): open your guild's signup post and choose a role", fr: "Confirmer votre première inscription à un raid (facultatif) : ouvrez l'annonce de votre guilde et choisissez un rôle" },
-  "onboard.steps.next": { en: "Use the buttons below for what is left.", fr: "Servez-vous des boutons ci-dessous pour ce qu'il reste." },
-  "onboard.steps.done": { en: "Your Discord access is ready! WoW character linking and the companion are optional. `/help` lists your commands.", fr: "Votre accès Discord est prêt ! Le lien du personnage WoW et le compagnon sont facultatifs. `/help` montre vos commandes." },
+  "onboard.steps.games": { en: "Pick your games", fr: "Choisir tes jeux" },
+  "onboard.steps.character": { en: "Link your WoW character", fr: "Lier ton personnage WoW" },
+  "onboard.steps.characterOptional": { en: "Link your WoW character (optional; the addon works on its own)", fr: "Lier ton personnage WoW (facultatif; l'addon fonctionne seul)" },
+  "onboard.steps.professionsOptional": { en: "Share your professions (optional): `/profession set` or sync your addon", fr: "Partager tes métiers (facultatif) : `/profession set` ou synchroniser ton addon" },
+  "onboard.steps.firstRaidOptional": { en: "Confirm your first raid signup (optional): open your guild's signup post and choose a role", fr: "Confirmer ta première inscription à un raid (facultatif) : ouvre l'annonce de ta guilde et choisis un rôle" },
+  "onboard.steps.next": { en: "Use the buttons below for what is left.", fr: "Sers-toi des boutons ci-dessous pour ce qu'il reste." },
+  "onboard.steps.done": { en: "Your Discord access is ready! WoW character linking and the companion are optional. `/help` lists your commands.", fr: "Ton accès Discord est prêt ! Le lien du personnage WoW et le compagnon sont facultatifs. `/help` montre tes commandes." },
   "onboard.rules.prompt": {
     en: "Read the rules in {channel}, then press the button below.",
-    fr: "Lisez les règles dans {channel}, puis appuyez sur le bouton ci-dessous."
+    fr: "Lis les règles dans {channel}, puis appuie sur le bouton ci-dessous."
   },
   "onboard.rules.first": { en: "One thing first: the rules.", fr: "Une chose d'abord : les règles." },
-  "onboard.rules.thanks": { en: "Thanks, your acceptance of the rules is recorded.", fr: "Merci, votre acceptation des règles est enregistrée." },
-  "onboard.rules.already": { en: "You already accepted the rules. They stay in {channel}.", fr: "Vous avez déjà accepté les règles. Elles restent dans {channel}." },
+  "onboard.rules.thanks": { en: "Thanks, your acceptance of the rules is recorded.", fr: "Merci, ton acceptation des règles est enregistrée." },
+  "onboard.rules.already": { en: "You already accepted the rules. They stay in {channel}.", fr: "Tu as déjà accepté les règles. Elles restent dans {channel}." },
   "onboard.roleFailed": {
     en: "I couldn't give you your role: an officer needs to move my role above it (Server Settings > Roles).",
-    fr: "Je n'ai pas pu vous donner votre rôle : un officier doit placer mon rôle au-dessus (Paramètres du serveur > Rôles)."
+    fr: "Je n'ai pas pu te donner ton rôle : un officier doit placer mon rôle au-dessus (Paramètres du serveur > Rôles)."
   },
   "onboard.games.prompt": {
     en: "Pick what you play (several choices are fine). Untick a game to leave its channels.",
-    fr: "Choisissez ce à quoi vous jouez (plusieurs choix possibles). Décochez un jeu pour quitter ses salons."
+    fr: "Choisis ce à quoi tu joues (plusieurs choix possibles). Décoche un jeu pour quitter ses salons."
   },
-  "onboard.games.placeholder": { en: "Your games", fr: "Vos jeux" },
+  "onboard.games.placeholder": { en: "Your games", fr: "Tes jeux" },
   "onboard.games.saved": { en: "Saved: {roles}.", fr: "Enregistré : {roles}." },
-  "onboard.games.none": { en: "You have no game selected.", fr: "Vous n'avez aucun jeu sélectionné." },
+  "onboard.games.none": { en: "You have no game selected.", fr: "Tu n'as aucun jeu sélectionné." },
   "onboard.games.failed": {
     en: "I couldn't change {roles}: an officer needs to move my role above them (Server Settings > Roles).",
     fr: "Je n'ai pas pu modifier {roles} : un officier doit placer mon rôle au-dessus (Paramètres du serveur > Rôles)."
   },
-  "onboard.gone": { en: "That isn't offered here anymore. Ask an officer.", fr: "Ce n'est plus offert ici. Demandez à un officier." },
-  "pair.statusTitle": { en: "Where you stand", fr: "Où vous en êtes" },
+  "onboard.gone": { en: "That isn't offered here anymore. Ask an officer.", fr: "Ce n'est plus offert ici. Demande à un officier." },
+  "pair.statusTitle": { en: "Where you stand", fr: "Où tu en es" },
   // Commands restructure (November 2026): /character link, and the answer of a subcommand that moved.
   "command.moved": { en: "This moved to {target}.", fr: "Ceci a été déplacé vers {target}." },
-  "link.title": { en: "🔗 Link your WoW characters", fr: "🔗 Lier vos personnages WoW" },
+  "link.title": { en: "🔗 Link your WoW characters", fr: "🔗 Lier tes personnages WoW" },
   "link.waysTitle": { en: "Two simple ways (pick one)", fr: "Deux façons simples (choisis-en une)" },
   "link.ways": {
     en: "1. **DM me** your character's full name (First Last).\n2. **Type it** in the guild-invite channel.\nEither way, the link is confirmed at the next sync (an officer's or your companion's).",
-    fr: "1. **Envoyez-moi en MP** le nom complet de votre personnage (Prénom Nom).\n2. **Écrivez-le** dans le salon d'invitation de la guilde.\nDans les deux cas, le lien est confirmé à la prochaine synchronisation (celle d'un officier ou de votre compagnon)."
+    fr: "1. **Envoie-moi en MP** le nom complet de ton personnage (Prénom Nom).\n2. **Écris-le** dans le salon d'invitation de la guilde.\nDans les deux cas, le lien est confirmé à la prochaine synchronisation (celle d'un officier ou de ton compagnon)."
   },
-  "link.pasteTitle": { en: "Have a line or a code?", fr: "Vous avez une ligne ou un code ?" },
+  "link.pasteTitle": { en: "Have a line or a code?", fr: "Tu as une ligne ou un code ?" },
   "link.paste": {
     en: "Paste the line from `/guilded character` (or the code from `/guilded share`) into `/character link line_or_code:`. The Windows companion links every character on your PC by itself. A character that isn't yours? `/character unlink`.",
-    fr: "Collez la ligne de `/guilded character` (ou le code de `/guilded share`) dans `/character link line_or_code:`. Le compagnon Windows lie tout seul tous les personnages de votre PC. Un personnage qui n'est pas à vous ? `/character unlink`."
+    fr: "Colle la ligne de `/guilded character` (ou le code de `/guilded share`) dans `/character link line_or_code:`. Le compagnon Windows lie tout seul tous les personnages de ton PC. Un personnage qui n'est pas à toi ? `/character unlink`."
   },
-  "pair.title": { en: "🔗 Your WoW characters", fr: "🔗 Vos personnages WoW" },
-  "pair.linked": { en: "✅ **Already linked to your Discord account on this server:**", fr: "✅ **Déjà liés à votre compte Discord sur ce serveur :**" },
+  "pair.title": { en: "🔗 Your WoW characters", fr: "🔗 Tes personnages WoW" },
+  "pair.linked": { en: "✅ **Already linked to your Discord account on this server:**", fr: "✅ **Déjà liés à ton compte Discord sur ce serveur :**" },
   "pair.main": { en: "⭐ Main: **{name}** — {realm}", fr: "⭐ Personnage principal : **{name}** — {realm}" },
   "pair.alt": { en: "• Alt: **{name}** — {realm}", fr: "• Alt : **{name}** — {realm}" },
   "pair.more": { en: "`/character list` shows the rest.", fr: "`/character list` montre les autres." },
-  "pair.none": { en: "No WoW character is linked to your Discord account on this server yet.", fr: "Aucun personnage WoW n'est encore lié à votre compte Discord sur ce serveur." },
+  "pair.none": { en: "No WoW character is linked to your Discord account on this server yet.", fr: "Aucun personnage WoW n'est encore lié à ton compte Discord sur ce serveur." },
   "pair.addonDefault": {
     en: "**Install the [Guilded addon](https://www.curseforge.com/wow/addons/guilded)** (or your officers' matching download) for the WoW version you play, then link your characters below. The addon works in game even if you never link.",
-    fr: "**Installez l'[addon Guilded](https://www.curseforge.com/wow/addons/guilded)** (ou la version de vos officiers) pour la version de WoW que vous jouez, puis liez vos personnages ci-dessous. L'addon fonctionne en jeu même si vous ne liez jamais."
+    fr: "**Installe l'[addon Guilded](https://www.curseforge.com/wow/addons/guilded)** (ou la version de tes officiers) pour la version de WoW que tu joues, puis lie tes personnages ci-dessous. L'addon fonctionne en jeu même si tu ne lies jamais."
   },
-  "pair.nameTitle": { en: "🎮 No Windows PC? Send the name instead", fr: "🎮 Pas de PC Windows ? Envoyez le nom à la place" },
+  "pair.nameTitle": { en: "🎮 No Windows PC? Send the name instead", fr: "🎮 Pas de PC Windows ? Envoie le nom à la place" },
   "pair.name": {
     en: "DM me your character's full name (First Last), or type it in the guild-invite channel. It is confirmed at the next sync of an officer's or your own companion.",
-    fr: "Envoyez-moi en MP le nom complet de votre personnage (Prénom Nom), ou écrivez-le dans le salon d'invitation. Le lien est confirmé à la prochaine synchronisation du compagnon d'un officier ou du vôtre."
+    fr: "Envoie-moi en MP le nom complet de ton personnage (Prénom Nom), ou écris-le dans le salon d'invitation. Le lien est confirmé à la prochaine synchronisation du compagnon d'un officier ou du tien."
   },
   "verify.linked": {
     en: "✅ **{name}** is now linked to your Discord account on **{server}** as {kind} (from the code you pasted in game). Not your character? Use `/character unlink` there.",
-    fr: "✅ **{name}** est maintenant lié à votre compte Discord sur **{server}** comme {kind} (d'après le code collé en jeu). Ce n'est pas votre personnage ? Utilisez `/character unlink` là-bas."
+    fr: "✅ **{name}** est maintenant lié à ton compte Discord sur **{server}** comme {kind} (d'après le code collé en jeu). Ce n'est pas ton personnage ? Utilise `/character unlink` là-bas."
   },
   // 8.5 track F / ROADMAP 5: the linked-characters DM and its button (companion-link-dm.ts).
   "invite.prelinked": {
     en: "✅ **{name}** joined **{server}** and is now linked to your Discord account as {kind}, because you asked for that invite. Not your character? Use `/character unlink` there.",
-    fr: "✅ **{name}** a rejoint **{server}** et est maintenant lié à votre compte Discord comme {kind}, parce que vous avez demandé cette invitation. Ce n'est pas votre personnage ? Utilisez `/character unlink` là-bas."
+    fr: "✅ **{name}** a rejoint **{server}** et est maintenant lié à ton compte Discord comme {kind}, parce que tu as demandé cette invitation. Ce n'est pas ton personnage ? Utilise `/character unlink` là-bas."
   },
   "invite.notify.people": {
     en: "{mentions} — **{name}** is asking for a guild invite and you look online in game (any guild member can invite).",
@@ -263,7 +263,7 @@ const STRINGS = {
   },
   "invite.notify.wrongFaction": {
     en: "**{name}** seems to be on the other faction: this guild is **{faction}**, and a guild can only invite characters of its own faction. Please ask again with a **{faction}** character.",
-    fr: "**{name}** semble être de l'autre faction : cette guilde est **{faction}**, et une guilde ne peut inviter que des personnages de sa propre faction. Redemandez avec un personnage **{faction}**."
+    fr: "**{name}** semble être de l'autre faction : cette guilde est **{faction}**, et une guilde ne peut inviter que des personnages de sa propre faction. Redemande avec un personnage **{faction}**."
   },
   "invite.done.note": {
     en: "✅ **{name}** joined the guild. Welcome!",
@@ -275,78 +275,78 @@ const STRINGS = {
   },
   "linked.first": {
     en: "✅ You're linked on **{server}**. Your Guilded companion proved these characters are yours, so there is nothing more to do:",
-    fr: "✅ Vous êtes lié sur **{server}**. Votre compagnon Guilded a prouvé que ces personnages sont à vous, il n'y a donc plus rien à faire :"
+    fr: "✅ Tu es lié sur **{server}**. Ton compagnon Guilded a prouvé que ces personnages sont à toi, il n'y a donc plus rien à faire :"
   },
   "linked.added": {
     en: "✅ New on **{server}**: {names} now linked to you. All your linked characters:",
-    fr: "✅ Nouveau sur **{server}** : {names} maintenant lié(s) à vous. Tous vos personnages liés :"
+    fr: "✅ Nouveau sur **{server}** : {names} maintenant lié(s) à toi. Tous tes personnages liés :"
   },
   "linked.hint": {
     en: "Not yours? Press **This isn't my character** below (or `/character unlink` on the server). You confirm first, and you can always link it back. `/character list` shows this list any time.",
-    fr: "Pas à vous ? Appuyez sur **Ce n'est pas mon personnage** ci-dessous (ou `/character unlink` sur le serveur). Vous confirmez d'abord, et vous pouvez toujours le relier à nouveau. `/character list` affiche cette liste en tout temps."
+    fr: "Pas à toi ? Appuie sur **Ce n'est pas mon personnage** ci-dessous (ou `/character unlink` sur le serveur). Tu confirmes d'abord, et tu peux toujours le relier à nouveau. `/character list` affiche cette liste en tout temps."
   },
-  "dmlink.linked": { en: "✅ Linked **{name}** to you on **{server}**.", fr: "✅ **{name}** est maintenant lié à vous sur **{server}**." },
-  "dmlink.mine": { en: "**{name}** is already linked to you on **{server}**.", fr: "**{name}** est déjà lié à vous sur **{server}**." },
+  "dmlink.linked": { en: "✅ Linked **{name}** to you on **{server}**.", fr: "✅ **{name}** est maintenant lié à toi sur **{server}**." },
+  "dmlink.mine": { en: "**{name}** is already linked to you on **{server}**.", fr: "**{name}** est déjà lié à toi sur **{server}**." },
   "dmlink.other": { en: "**{name}** on **{server}** is already linked to another member, so I did not move it.", fr: "**{name}** sur **{server}** est déjà lié à un autre membre, je ne l'ai donc pas déplacé." },
-  "dmlink.otherHow": { en: "If it is really yours, install the Guilded companion and sign in with Discord: that proves it and takes it over.", fr: "Si c'est vraiment le vôtre, installez le compagnon Guilded et connectez-vous avec Discord : cela le prouve et le reprend." },
-  "dmlink.none": { en: "I don't know **{name}** yet. Send me the full name again (first AND last), or type it in the guild-invite channel on the server.", fr: "Je ne connais pas encore **{name}**. Renvoyez-moi le nom complet (prénom ET nom), ou écrivez-le dans le salon d'invitation de guilde du serveur." },
-  "dmlink.hint": { en: "Not yours? Press **This isn't my character** below. You confirm first, and you can always link it back.", fr: "Pas à vous ? Appuyez sur **Ce n'est pas mon personnage** ci-dessous. Vous confirmez d'abord, et vous pouvez toujours le relier à nouveau." },
-  "dmlink.offer": { en: "**{name}** is also known on **{server}**: type its full name in the guild-invite channel there to link it.", fr: "**{name}** est aussi connu sur **{server}** : écrivez son nom complet dans le salon d'invitation de guilde là-bas pour le lier." },
+  "dmlink.otherHow": { en: "If it is really yours, install the Guilded companion and sign in with Discord: that proves it and takes it over.", fr: "Si c'est vraiment le tien, installe le compagnon Guilded et connecte-toi avec Discord : cela le prouve et le reprend." },
+  "dmlink.none": { en: "I don't know **{name}** yet. Send me the full name again (first AND last), or type it in the guild-invite channel on the server.", fr: "Je ne connais pas encore **{name}**. Renvoie-moi le nom complet (prénom ET nom), ou écris-le dans le salon d'invitation de guilde du serveur." },
+  "dmlink.hint": { en: "Not yours? Press **This isn't my character** below. You confirm first, and you can always link it back.", fr: "Pas à toi ? Appuie sur **Ce n'est pas mon personnage** ci-dessous. Tu confirmes d'abord, et tu peux toujours le relier à nouveau." },
+  "dmlink.offer": { en: "**{name}** is also known on **{server}**: type its full name in the guild-invite channel there to link it.", fr: "**{name}** est aussi connu sur **{server}** : écris son nom complet dans le salon d'invitation de guilde là-bas pour le lier." },
   "linked.notMine": { en: "This isn't my character: {name}", fr: "Ce n'est pas mon personnage : {name}" },
   "linked.notMineMenu": { en: "This isn't my character… pick one", fr: "Ce n'est pas mon personnage… choisis-en un" },
-  "linked.confirm": { en: "Unlink **{name}**? Its history is kept and you can link it back any time.", fr: "Délier **{name}** ? Son historique est conservé et vous pouvez le relier à nouveau en tout temps." },
+  "linked.confirm": { en: "Unlink **{name}**? Its history is kept and you can link it back any time.", fr: "Délier **{name}** ? Son historique est conservé et tu peux le relier à nouveau en tout temps." },
   "linked.yes": { en: "Yes, unlink", fr: "Oui, délier" },
   "linked.keep": { en: "Keep it", fr: "Le garder" },
   "linked.kept": { en: "👍 Kept. Nothing changed.", fr: "👍 Gardé. Rien n'a changé." },
   "linked.back": { en: "Link it back", fr: "Le relier à nouveau" },
-  "linked.relinked": { en: "✅ **{name}** is linked to you again.", fr: "✅ **{name}** est de nouveau lié à vous." },
+  "linked.relinked": { en: "✅ **{name}** is linked to you again.", fr: "✅ **{name}** est de nouveau lié à toi." },
   "linked.backOld": {
     en: "That button is more than 7 days old. Use `/character list`, then **Link a character**: it is in the list, or type its name.",
-    fr: "Ce bouton a plus de 7 jours. Utilisez `/character list`, puis **Lier un personnage** : il est dans la liste, ou écrivez son nom."
+    fr: "Ce bouton a plus de 7 jours. Utilise `/character list`, puis **Lier un personnage** : il est dans la liste, ou écris son nom."
   },
-  "linked.backRemoved": { en: "An officer removed that character from you, so only an officer can link it again.", fr: "Un officier vous a retiré ce personnage : seul un officier peut le relier." },
+  "linked.backRemoved": { en: "An officer removed that character from you, so only an officer can link it again.", fr: "Un officier t'a retiré ce personnage : seul un officier peut le relier." },
   "linked.backGone": { en: "That character is not waiting to be linked back any more (already linked, or someone else has it). `/character list` shows what is linked.", fr: "Ce personnage n'attend plus d'être relié (déjà lié, ou à quelqu'un d'autre). `/character list` affiche ce qui est lié." },
   "linked.wrongServer": { en: "Wrong server", fr: "Mauvais serveur" },
-  "claim.ask": { en: "Your Guilded companion on a PC also reported **{count}** other character(s) on **{server}**:\n{list}\n\nLink them to you?", fr: "Votre compagnon Guilded sur un PC a aussi signalé **{count}** autre(s) personnage(s) sur **{server}** :\n{list}\n\nLes lier à vous ?" },
-  "claim.taken": { en: "Already linked to someone else (use **This isn't my character** or ask an officer): {names}", fr: "Déjà lié à quelqu'un d'autre (utilisez **Ce n'est pas mon personnage** ou demandez à un officier) : {names}" },
+  "claim.ask": { en: "Your Guilded companion on a PC also reported **{count}** other character(s) on **{server}**:\n{list}\n\nLink them to you?", fr: "Ton compagnon Guilded sur un PC a aussi signalé **{count}** autre(s) personnage(s) sur **{server}** :\n{list}\n\nLes lier à toi ?" },
+  "claim.taken": { en: "Already linked to someone else (use **This isn't my character** or ask an officer): {names}", fr: "Déjà lié à quelqu'un d'autre (utilise **Ce n'est pas mon personnage** ou demande à un officier) : {names}" },
   "claim.link": { en: "Link them", fr: "Les lier" },
   "claim.later": { en: "Not now", fr: "Pas maintenant" },
   "claim.off": { en: "Don't send these", fr: "Ne plus m'envoyer ça" },
-  "claim.offDone": { en: "👍 OK, no more of these messages. You can still link characters with /character list.", fr: "👍 D'accord, plus de ces messages. Vous pouvez toujours lier des personnages avec /character list." },
-  "claim.done": { en: "✅ Linked to you on **{server}**: {names}", fr: "✅ Lié(s) à vous sur **{server}** : {names}" },
+  "claim.offDone": { en: "👍 OK, no more of these messages. You can still link characters with /character list.", fr: "👍 D'accord, plus de ces messages. Tu peux toujours lier des personnages avec /character list." },
+  "claim.done": { en: "✅ Linked to you on **{server}**: {names}", fr: "✅ Lié(s) à toi sur **{server}** : {names}" },
   "claim.nothing": { en: "Nothing left to link: those characters are already linked, or were unlinked on purpose.", fr: "Rien à lier : ces personnages sont déjà liés, ou ont été déliés volontairement." },
   "claim.snoozed": { en: "👍 OK. I will not ask again for 7 days.", fr: "👍 D'accord. Je ne redemande pas avant 7 jours." },
   "claim.gone": { en: "That offer is not available any more.", fr: "Cette offre n'est plus disponible." },
   "linked.unlinked": {
     en: "✅ **{name}** is unlinked from you on **{server}**. Pressed by mistake? **Link it back** below works for 7 days, and **Link a character** in `/character list` always does.",
-    fr: "✅ **{name}** n'est plus lié à vous sur **{server}**. Appuyé par erreur ? **Le relier à nouveau** ci-dessous marche 7 jours, et **Lier un personnage** dans `/character list` marche toujours."
+    fr: "✅ **{name}** n'est plus lié à toi sur **{server}**. Appuyé par erreur ? **Le relier à nouveau** ci-dessous marche 7 jours, et **Lier un personnage** dans `/character list` marche toujours."
   },
   "linked.gone": {
     en: "That character is already unlinked. `/character list` shows what is linked.",
     fr: "Ce personnage est déjà délié. `/character list` affiche ce qui est lié."
   },
   "linked.notYours": { en: "Only the member this message was sent to can use it.", fr: "Seul le membre à qui ce message est adressé peut l'utiliser." },
-  "panel.title": { en: "**Your characters on {server}**", fr: "**Vos personnages sur {server}**" },
-  "panel.empty": { en: "Nothing is linked to you yet. Press **Link a character**, or log in with the Guilded Companion once and they link by themselves.", fr: "Aucun personnage n'est encore lié à vous. Appuyez sur **Lier un personnage**, ou ouvrez le jeu une fois avec le compagnon Guilded : ils se lient tout seuls." },
+  "panel.title": { en: "**Your characters on {server}**", fr: "**Tes personnages sur {server}**" },
+  "panel.empty": { en: "Nothing is linked to you yet. Press **Link a character**, or log in with the Guilded Companion once and they link by themselves.", fr: "Aucun personnage n'est encore lié à toi. Appuie sur **Lier un personnage**, ou ouvre le jeu une fois avec le compagnon Guilded : ils se lient tout seuls." },
   "panel.link": { en: "Link a character", fr: "Lier un personnage" },
   "panel.refresh": { en: "Refresh", fr: "Actualiser" },
   "panel.mainMenu": { en: "Set as main…", fr: "Définir comme principal…" },
   "panel.unlinkMenu": { en: "Unlink…", fr: "Délier…" },
-  "panel.mainDone": { en: "✅ **{name}** is now your main.", fr: "✅ **{name}** est maintenant votre principal." },
-  "panel.unlinkAsk": { en: "Unlink **{name}**? Its history is kept and you can link it back any time.", fr: "Délier **{name}** ? Son historique est conservé et vous pouvez le relier à nouveau en tout temps." },
+  "panel.mainDone": { en: "✅ **{name}** is now your main.", fr: "✅ **{name}** est maintenant ton principal." },
+  "panel.unlinkAsk": { en: "Unlink **{name}**? Its history is kept and you can link it back any time.", fr: "Délier **{name}** ? Son historique est conservé et tu peux le relier à nouveau en tout temps." },
   "panel.unlinkYes": { en: "Yes, unlink", fr: "Oui, délier" },
   "panel.cancel": { en: "Cancel", fr: "Annuler" },
-  "panel.pick": { en: "Pick the character to link. Not in the list? Log in with it once and sync, then Refresh.", fr: "Choisissez le personnage à lier. Pas dans la liste ? Ouvrez le jeu avec lui une fois et synchronisez, puis Actualisez." },
-  "panel.pickNone": { en: "No unlinked character is waiting yet. Log in with it once with the Guilded Companion; it shows up here within a minute. Or type its name.", fr: "Aucun personnage non lié n'attend pour l'instant. Ouvrez le jeu avec lui une fois avec le compagnon Guilded : il apparaît ici en une minute. Ou écris son nom." },
-  "panel.pickMenu": { en: "Pick a character…", fr: "Choisissez un personnage…" },
+  "panel.pick": { en: "Pick the character to link. Not in the list? Log in with it once and sync, then Refresh.", fr: "Choisis le personnage à lier. Pas dans la liste ? Ouvre le jeu avec lui une fois et synchronise, puis Actualise." },
+  "panel.pickNone": { en: "No unlinked character is waiting yet. Log in with it once with the Guilded Companion; it shows up here within a minute. Or type its name.", fr: "Aucun personnage non lié n'attend pour l'instant. Ouvre le jeu avec lui une fois avec le compagnon Guilded : il apparaît ici en une minute. Ou écris son nom." },
+  "panel.pickMenu": { en: "Pick a character…", fr: "Choisis un personnage…" },
   "panel.typeName": { en: "Type the name", fr: "Écrire le nom" },
   "panel.modalTitle": { en: "Link a character", fr: "Lier un personnage" },
   "panel.modalLabel": { en: "Character name", fr: "Nom du personnage" },
-  "panel.linkedOne": { en: "✅ Linked **{name}** as {kind}. A message follows with a button in case it is not yours.", fr: "✅ **{name}** lié comme {kind}. Un message suit avec un bouton au cas où il ne serait pas à vous." },
-  "panel.kindMain": { en: "your main", fr: "votre principal" },
+  "panel.linkedOne": { en: "✅ Linked **{name}** as {kind}. A message follows with a button in case it is not yours.", fr: "✅ **{name}** lié comme {kind}. Un message suit avec un bouton au cas où il ne serait pas à toi." },
+  "panel.kindMain": { en: "your main", fr: "ton principal" },
   "panel.kindAlt": { en: "an alt", fr: "un alt" },
-  "panel.claimFailed": { en: "That character is not available to link. If it is yours, ask an officer.", fr: "Ce personnage n'est pas disponible à lier. S'il est à vous, demandez à un officier." },
-  "panel.tooMany": { en: "Too many tries. Wait a few minutes, or ask an officer.", fr: "Trop d'essais. Attendez quelques minutes, ou demandez à un officier." },
+  "panel.claimFailed": { en: "That character is not available to link. If it is yours, ask an officer.", fr: "Ce personnage n'est pas disponible à lier. S'il est à toi, demande à un officier." },
+  "panel.tooMany": { en: "Too many tries. Wait a few minutes, or ask an officer.", fr: "Trop d'essais. Attends quelques minutes, ou demande à un officier." },
   "panel.page": { en: "Page {page} of {pages} ({hidden} more character(s) on the other pages)", fr: "Page {page} sur {pages} ({hidden} autre(s) personnage(s) sur les autres pages)" },
   "panel.prev": { en: "◀ Previous", fr: "◀ Précédent" },
   "panel.next": { en: "Next ▶", fr: "Suivant ▶" },
@@ -359,11 +359,11 @@ const STRINGS = {
     fr: "{user} a délié {name} depuis le panneau des personnages (il peut le relier à nouveau)."
   },
 
-  "panel.hint": { en: "Tip: `/character list` opens your panel: link, set your main and unlink with buttons.", fr: "Astuce : `/character list` ouvre votre panneau : lier, définir votre principal et délier avec des boutons." },
-  "panel.noServer": { en: "You are not a member of that server any more.", fr: "Vous n'êtes plus membre de ce serveur." },
+  "panel.hint": { en: "Tip: `/character list` opens your panel: link, set your main and unlink with buttons.", fr: "Astuce : `/character list` ouvre ton panneau : lier, définir ton principal et délier avec des boutons." },
+  "panel.noServer": { en: "You are not a member of that server any more.", fr: "Tu n'es plus membre de ce serveur." },
   "linked.wrongServerHelp": {
     en: "Linked to the wrong server? Open the **Guilded Companion** on your PC, go to Advanced, select that server under *Active connection*, then press **Remove this server**. It only forgets the connection on your PC and stops uploading there; nothing is deleted on the server. For a single character, use **This isn't my character** instead.",
-    fr: "Lié au mauvais serveur ? Ouvrez le **compagnon Guilded** sur votre PC, allez dans Avancé, choisissez ce serveur sous *Active connection*, puis appuyez sur **Remove this server**. Cela oublie seulement la connexion sur votre PC et arrête les envois là-bas ; rien n'est supprimé sur le serveur. Pour un seul personnage, utilisez plutôt **Ce n'est pas mon personnage**."
+    fr: "Lié au mauvais serveur ? Ouvre le **compagnon Guilded** sur ton PC, va dans Avancé, choisis ce serveur sous *Active connection*, puis appuie sur **Remove this server**. Cela oublie seulement la connexion sur ton PC et arrête les envois là-bas ; rien n'est supprimé sur le serveur. Pour un seul personnage, utilise plutôt **Ce n'est pas mon personnage**."
   },
   "linked.officerLog": {
     en: "{user} unlinked {name} themselves (confirmed; automation won't link it back, they can).",
@@ -371,7 +371,7 @@ const STRINGS = {
   },
   "linked.button": { en: "My characters", fr: "Mes personnages" },
   "linked.add": { en: "Add another", fr: "Ajouter un autre" },
-  "panel.moreServers": { en: "You are in more servers than shown. Use /character in the server you want.", fr: "Vous êtes dans plus de serveurs que ceux affichés. Utilisez /character dans le serveur voulu." },
+  "panel.moreServers": { en: "You are in more servers than shown. Use /character in the server you want.", fr: "Tu es dans plus de serveurs que ceux affichés. Utilise /character dans le serveur voulu." },
   "panel.whichServer": { en: "Which server?", fr: "Quel serveur ?" },
   "linked.level": { en: "level {level}", fr: "niveau {level}" },
   "linked.main": { en: "main", fr: "principal" },
@@ -384,143 +384,143 @@ const STRINGS = {
   "linkmove.proof.officer": { en: "an officer", fr: "un officier" },
   "linkmove.gained": {
     en: "🔁 **{name}** is now linked to you on **{server}**. It was linked to another member; your proof ({proof}) is stronger than theirs ({other}), so it moved with its history. Not your character? Press the button and it goes back.",
-    fr: "🔁 **{name}** est maintenant lié à vous sur **{server}**. Il était lié à un autre membre; votre preuve ({proof}) est plus forte que la sienne ({other}), il a donc été transféré avec son historique. Ce n'est pas votre personnage ? Appuyez sur le bouton et il retourne d'où il vient."
+    fr: "🔁 **{name}** est maintenant lié à toi sur **{server}**. Il était lié à un autre membre; ta preuve ({proof}) est plus forte que la sienne ({other}), il a donc été transféré avec son historique. Ce n'est pas ton personnage ? Appuie sur le bouton et il retourne d'où il vient."
   },
   "linkmove.lost": {
     en: "🔁 **{name}** was moved from you to another member on **{server}**: their proof ({proof}) is stronger than yours ({other}). Nothing was deleted. If it is yours, press the button: you get it back and an officer decides.",
-    fr: "🔁 **{name}** a été transféré de vous à un autre membre sur **{server}** : sa preuve ({proof}) est plus forte que la vôtre ({other}). Rien n'a été supprimé. S'il est à vous, appuyez sur le bouton : tu le récupères et un officier tranche."
+    fr: "🔁 **{name}** a été transféré de toi à un autre membre sur **{server}** : sa preuve ({proof}) est plus forte que la tienne ({other}). Rien n'a été supprimé. S'il est à toi, appuie sur le bouton : tu le récupères et un officier tranche."
   },
   "linkmove.queued": {
     en: "⚖️ **{name}** is already linked to another member on **{server}**, with the same kind of proof as yours ({proof}). Nothing changed. The officers were told and will decide.",
-    fr: "⚖️ **{name}** est déjà lié à un autre membre sur **{server}**, avec le même genre de preuve que la vôtre ({proof}). Rien n'a changé. Les officiers ont été avisés et vont trancher."
+    fr: "⚖️ **{name}** est déjà lié à un autre membre sur **{server}**, avec le même genre de preuve que la tienne ({proof}). Rien n'a changé. Les officiers ont été avisés et vont trancher."
   },
   "linkmove.weaker": {
     en: "**{name}** is already linked to another member on **{server}** with stronger proof ({other}) than yours ({proof}), so it stays there. If it is yours, sign in with Discord in the Guilded companion, or ask an officer.",
-    fr: "**{name}** est déjà lié à un autre membre sur **{server}** avec une preuve plus forte ({other}) que la vôtre ({proof}), il reste donc là. S'il est à vous, connectez-vous avec Discord dans le compagnon Guilded, ou demandez à un officier."
+    fr: "**{name}** est déjà lié à un autre membre sur **{server}** avec une preuve plus forte ({other}) que la tienne ({proof}), il reste donc là. S'il est à toi, connecte-toi avec Discord dans le compagnon Guilded, ou demande à un officier."
   },
   "linkmove.notMine": { en: "Not mine, undo", fr: "Pas à moi, annuler" },
   "linkmove.mine": { en: "It is mine, undo", fr: "Il est à moi, annuler" },
-  "linkmove.undone": { en: "Done: **{name}** went back to the member who had it. It will not be linked to you again by itself.", fr: "C'est fait : **{name}** est retourné au membre qui l'avait. Il ne sera plus lié à vous automatiquement." },
-  "linkmove.contested": { en: "Done: **{name}** is linked to you again. The officers were told and will decide who keeps it.", fr: "C'est fait : **{name}** est de nouveau lié à vous. Les officiers ont été avisés et vont décider qui le garde." },
-  "linkmove.tooLate": { en: "This can no longer be undone here (it was already undone, unlinked or decided by an officer). Ask an officer.", fr: "Ça ne peut plus être annulé ici (déjà annulé, délié ou décidé par un officier). Demandez à un officier." },
+  "linkmove.undone": { en: "Done: **{name}** went back to the member who had it. It will not be linked to you again by itself.", fr: "C'est fait : **{name}** est retourné au membre qui l'avait. Il ne sera plus lié à toi automatiquement." },
+  "linkmove.contested": { en: "Done: **{name}** is linked to you again. The officers were told and will decide who keeps it.", fr: "C'est fait : **{name}** est de nouveau lié à toi. Les officiers ont été avisés et vont décider qui le garde." },
+  "linkmove.tooLate": { en: "This can no longer be undone here (it was already undone, unlinked or decided by an officer). Ask an officer.", fr: "Ça ne peut plus être annulé ici (déjà annulé, délié ou décidé par un officier). Demande à un officier." },
   "linkmove.logMoved": { en: "🔁 {name} moved from <@{from}> to <@{to}>: stronger proof ({proof} over {other}). History kept; both were told and can undo.", fr: "🔁 {name} transféré de <@{from}> à <@{to}> : preuve plus forte ({proof} contre {other}). Historique conservé; les deux ont été avisés et peuvent annuler." },
-  "linkmove.logQueued": { en: "⚖️ {name} is linked to <@{from}> and <@{to}> claims it with the same proof ({proof}). Nothing changed: decide with `/officer character move`.", fr: "⚖️ {name} est lié à <@{from}> et <@{to}> le réclame avec la même preuve ({proof}). Rien n'a changé : tranchez avec `/officer character move`." },
+  "linkmove.logQueued": { en: "⚖️ {name} is linked to <@{from}> and <@{to}> claims it with the same proof ({proof}). Nothing changed: decide with `/officer character move`.", fr: "⚖️ {name} est lié à <@{from}> et <@{to}> le réclame avec la même preuve ({proof}). Rien n'a changé : tranche avec `/officer character move`." },
   "linkmove.logUndone": { en: "↩️ <@{to}> said {name} is not theirs: it went back to <@{from}>.", fr: "↩️ <@{to}> a dit que {name} n'est pas à lui : il est retourné à <@{from}>." },
   "linkmove.logContested": { en: "⚖️ <@{from}> took {name} back after it moved to <@{to}> on stronger proof. It stays with <@{from}> until an officer decides with `/officer character move`.", fr: "⚖️ <@{from}> a repris {name} après son transfert à <@{to}> sur une preuve plus forte. Il reste à <@{from}> jusqu'à ce qu'un officier tranche avec `/officer character move`." },
   "linked.none": {
     en: "You have no linked characters yet. Open the Guilded companion, or use `/character link` on the server.",
-    fr: "Vous n'avez pas encore de personnage lié. Ouvrez le compagnon Guilded, ou utilisez `/character link` sur le serveur."
+    fr: "Tu n'as pas encore de personnage lié. Ouvre le compagnon Guilded, ou utilise `/character link` sur le serveur."
   },
   // 8.5 batch 3 (#13/#14): the guild-invite channel (invite-channel.ts).
   "invite.hint": {
     en: "I could not read a full character name. Write it as **First Last** (WoW Forever names have both), for example `Lebowski Holyroller`. This message disappears in a moment.",
-    fr: "Je n'ai pas pu lire un nom de personnage complet. Écrivez-le comme **Prénom Nom** (les noms de WoW Forever ont les deux), par exemple `Lebowski Holyroller`. Ce message disparaît dans un instant."
+    fr: "Je n'ai pas pu lire un nom de personnage complet. Écris-le comme **Prénom Nom** (les noms de WoW Forever ont les deux), par exemple `Lebowski Holyroller`. Ce message disparaît dans un instant."
   },
   "invite.dm": {
     en: "Welcome to **{server}**! To be invited to the guild in game, post your **full character name** (first and last name) in <#{channel}>. An officer will invite you, and I will put a ✅ on your message when it is done.",
-    fr: "Bienvenue sur **{server}** ! Pour être invité dans la guilde en jeu, écrivez le **nom complet de votre personnage** (prénom et nom) dans <#{channel}>. Un officier vous invitera, et je mettrai un ✅ sur votre message quand ce sera fait."
+    fr: "Bienvenue sur **{server}** ! Pour être invité dans la guilde en jeu, écris le **nom complet de ton personnage** (prénom et nom) dans <#{channel}>. Un officier t'invitera, et je mettrai un ✅ sur ton message quand ce sera fait."
   },
   "invite.button": { en: "Request a guild invite", fr: "Demander une invitation de guilde" },
   "invite.modalTitle": { en: "Guild invite", fr: "Invitation de guilde" },
   "invite.modalLabel": { en: "Full character name (First Last)", fr: "Nom complet du personnage (Prénom Nom)" },
   "invite.invalid": {
     en: "That does not look like a full character name. Write it as **First Last**, for example `Lebowski Holyroller`.",
-    fr: "Ça ne ressemble pas à un nom de personnage complet. Écrivez-le comme **Prénom Nom**, par exemple `Lebowski Holyroller`."
+    fr: "Ça ne ressemble pas à un nom de personnage complet. Écris-le comme **Prénom Nom**, par exemple `Lebowski Holyroller`."
   },
   "invite.confirmed": {
     en: "✅ Your request is in <#{channel}>. An officer will invite you in game, and a ✅ will appear on it when it is done.",
-    fr: "✅ Votre demande est dans <#{channel}>. Un officier vous invitera en jeu, et un ✅ apparaîtra dessus quand ce sera fait."
+    fr: "✅ Ta demande est dans <#{channel}>. Un officier t'invitera en jeu, et un ✅ apparaîtra dessus quand ce sera fait."
   },
-  "invite.duplicate": { en: "You already asked for this character, so nothing was added. An officer will get to it.", fr: "Vous avez déjà demandé pour ce personnage, rien n'a été ajouté. Un officier s'en occupera." },
+  "invite.duplicate": { en: "You already asked for this character, so nothing was added. An officer will get to it.", fr: "Tu as déjà demandé pour ce personnage, rien n'a été ajouté. Un officier s'en occupera." },
   "invite.stillWant": {
     en: "Still want to join **{server}**? You asked for a guild invite for **{name}** and we have not seen the character join yet. If we hear nothing in {days} days, the request is closed (you can ask again any time).",
-    fr: "Vous voulez toujours rejoindre **{server}** ? Vous avez demandé une invitation de guilde pour **{name}** et on n'a pas encore vu le personnage la rejoindre. Sans nouvelles dans {days} jours, la demande sera fermée (vous pouvez en refaire une quand vous voulez)."
+    fr: "Tu veux toujours rejoindre **{server}** ? Tu as demandé une invitation de guilde pour **{name}** et on n'a pas encore vu le personnage la rejoindre. Sans nouvelles dans {days} jours, la demande sera fermée (tu peux en refaire une quand tu veux)."
   },
-  "invite.keepButton": { en: "Yes, keep me on the list", fr: "Oui, gardez-moi sur la liste" },
+  "invite.keepButton": { en: "Yes, keep me on the list", fr: "Oui, garde-moi sur la liste" },
   "invite.dropButton": { en: "No, cancel", fr: "Non, annuler" },
-  "invite.kept": { en: "✅ Thanks, you stay on the list. An officer will try again.", fr: "✅ Merci, vous restez sur la liste. Un officier va réessayer." },
-  "invite.dropped": { en: "Done, your request is cancelled. Ask again whenever you like.", fr: "C'est fait, votre demande est annulée. Redemandez quand vous voulez." },
+  "invite.kept": { en: "✅ Thanks, you stay on the list. An officer will try again.", fr: "✅ Merci, tu restes sur la liste. Un officier va réessayer." },
+  "invite.dropped": { en: "Done, your request is cancelled. Ask again whenever you like.", fr: "C'est fait, ta demande est annulée. Redemande quand tu veux." },
   "invite.alreadyClosed": { en: "This request is already closed or handled.", fr: "Cette demande est déjà fermée ou traitée." },
   "invite.notYours": { en: "This question is for the member who asked.", fr: "Cette question s'adresse au membre qui a fait la demande." },
   "invite.confirmName": { en: "I'll invite **{name}**, is that right?", fr: "J'invite **{name}**, c'est bien ça ?" },
   "invite.yesButton": { en: "Yes", fr: "Oui" },
   "invite.fixButton": { en: "No, let me fix it", fr: "Non, je corrige" },
-  "invite.fixPrompt": { en: "No problem. Type just your full character name, first and last, for example `Lebowski Holyroller`.", fr: "Pas de problème. Écrivez seulement le nom complet de votre personnage, prénom et nom, par exemple `Lebowski Holyroller`." },
+  "invite.fixPrompt": { en: "No problem. Type just your full character name, first and last, for example `Lebowski Holyroller`.", fr: "Pas de problème. Écris seulement le nom complet de ton personnage, prénom et nom, par exemple `Lebowski Holyroller`." },
   "invite.needLast": {
     en: "I found the first name **{first}**, but WoW Forever names have a last name too. Type your full character name, first and last.",
-    fr: "J'ai trouvé le prénom **{first}**, mais les noms de WoW Forever ont aussi un nom de famille. Écrivez le nom complet de votre personnage, prénom et nom."
+    fr: "J'ai trouvé le prénom **{first}**, mais les noms de WoW Forever ont aussi un nom de famille. Écris le nom complet de ton personnage, prénom et nom."
   },
-  "invite.recorded": { en: "✅ Got it, **{name}** is on the list. An officer will invite you in game.", fr: "✅ C'est noté, **{name}** est sur la liste. Un officier vous invitera en jeu." },
+  "invite.recorded": { en: "✅ Got it, **{name}** is on the list. An officer will invite you in game.", fr: "✅ C'est noté, **{name}** est sur la liste. Un officier t'invitera en jeu." },
   // Owner, 18 Nov 2026: tell requesters they can find a member online themselves and whisper them.
   "invite.whoTip": {
     en: "Faster: in game, type `/who g-\"{guild}\"` to see who is online in **{guild}**, then whisper one of them, for example `/w First Last Can I have a guild invite?`",
-    fr: "Plus rapide : en jeu, tapez `/who g-\"{guild}\"` pour voir qui est en ligne dans **{guild}**, puis chuchote à l'un d'eux, par exemple `/w Prénom Nom Je peux avoir une invitation de guilde ?`"
+    fr: "Plus rapide : en jeu, tape `/who g-\"{guild}\"` pour voir qui est en ligne dans **{guild}**, puis chuchote à l'un d'eux, par exemple `/w Prénom Nom Je peux avoir une invitation de guilde ?`"
   },
-  "invite.questionExpired": { en: "That question timed out. Type your full character name again.", fr: "Cette question a expiré. Écrivez de nouveau le nom complet de votre personnage." },
+  "invite.questionExpired": { en: "That question timed out. Type your full character name again.", fr: "Cette question a expiré. Écris de nouveau le nom complet de ton personnage." },
   "invite.doneButton": { en: "✅ Invited / joined", fr: "✅ Invité / a joint la guilde" },
   "invite.doneOfficers": { en: "Only officers can mark an invite as done.", fr: "Seuls les officiers peuvent marquer une invitation comme faite." },
-  "invite.unavailable": { en: "Guild invites are not open on this server right now. Ask an officer.", fr: "Les invitations de guilde ne sont pas ouvertes sur ce serveur pour le moment. Demandez à un officier." },
+  "invite.unavailable": { en: "Guild invites are not open on this server right now. Ask an officer.", fr: "Les invitations de guilde ne sont pas ouvertes sur ce serveur pour le moment. Demande à un officier." },
   "verify.taken": {
     en: "**{name}** sent your Discord link code, but it is already linked to someone else on **{server}**. Ask an officer to move it to you.",
-    fr: "**{name}** a envoyé votre code de lien Discord, mais il est déjà lié à quelqu'un d'autre sur **{server}**. Demandez à un officier de vous le transférer."
+    fr: "**{name}** a envoyé ton code de lien Discord, mais il est déjà lié à quelqu'un d'autre sur **{server}**. Demande à un officier de te le transférer."
   },
   "pair.optionalTitle": { en: "Optional: sync with the Windows companion", fr: "Facultatif : synchroniser avec le compagnon Windows" },
   "pair.optional": {
     en: "Optional: the free Windows companion syncs your saved data. Press **Connect optional companion**, install it (Microsoft Store, or https://guildedwow.com/companion/), choose **Sign in with Discord**, then **Connect**. Your linked characters stay linked.",
-    fr: "Facultatif : le compagnon Windows gratuit synchronise vos données. Appuyez sur **Connecter le compagnon (facultatif)**, installez-le (Microsoft Store, ou https://guildedwow.com/companion/?lang=fr), choisissez **Connexion avec Discord**, puis **Relier**. Vos personnages liés restent liés."
+    fr: "Facultatif : le compagnon Windows gratuit synchronise tes données. Appuie sur **Connecter le compagnon (facultatif)**, installe-le (Microsoft Store, ou https://guildedwow.com/companion/?lang=fr), choisis **Connexion avec Discord**, puis **Relier**. Tes personnages liés restent liés."
   },
   "pair.connectOptional": { en: "Connect optional companion", fr: "Connecter le compagnon (facultatif)" },
   "pair.addAlts": {
     en: "Your main is already linked. Alts link by themselves at the next sync, or with your companion's **Sync now** (every character that logged in on this PC). Nothing to do per alt.",
-    fr: "Votre principal est déjà lié. Vos alts se lient tout seuls à la prochaine synchronisation, ou avec la **Sync now** de votre compagnon (chaque personnage connecté sur ce PC). Rien à faire par alt."
+    fr: "Ton principal est déjà lié. Tes alts se lient tout seuls à la prochaine synchronisation, ou avec la **Sync now** de ton compagnon (chaque personnage connecté sur ce PC). Rien à faire par alt."
   },
   "pair.codeTitle": { en: "🔑 Code for companions older than 7.2", fr: "🔑 Code pour les compagnons plus anciens que 7.2" },
   "pair.code": {
     en: "```\n{code}\n```Only for a companion older than 7.2 that has a field for it (the current companion has nothing to paste: press **Sign in with Discord** in its window, or just update it). Expires {expires} · one use · keep it private. Your other companions stay connected.",
-    fr: "```\n{code}\n```Seulement pour un compagnon plus ancien que 7.2 qui a un champ pour cela (le compagnon actuel n'a rien à coller : appuyez sur **Se connecter avec Discord** dans sa fenêtre, ou mettez-le simplement à jour). Expire {expires} · usage unique · garde-le privé. Vos autres compagnons restent reliés."
+    fr: "```\n{code}\n```Seulement pour un compagnon plus ancien que 7.2 qui a un champ pour cela (le compagnon actuel n'a rien à coller : appuie sur **Se connecter avec Discord** dans sa fenêtre, ou mets-le simplement à jour). Expire {expires} · usage unique · garde-le privé. Tes autres compagnons restent reliés."
   },
   "pair.codeButton": { en: "Older companion? Get a code", fr: "Ancien compagnon ? Obtenir un code" },
   "pair.online": { en: "Get the Windows companion", fr: "Obtenir le compagnon Windows" },
-  "pair.openOnline": { en: "Get the Windows companion (Microsoft Store first) with the button below, then open it.", fr: "Obtenez le compagnon Windows (Microsoft Store d'abord) avec le bouton ci-dessous, puis ouvrez-le." },
-  "pair.askLink": { en: "Ask an officer where to download your guild's companion.", fr: "Demandez à un officier où télécharger le compagnon de votre guilde." },
-  "pair.syncTitle": { en: "🔗 Link all your characters: 2 steps (Windows)", fr: "🔗 Lier tous vos personnages : 2 étapes (Windows)" },
+  "pair.openOnline": { en: "Get the Windows companion (Microsoft Store first) with the button below, then open it.", fr: "Obtiens le compagnon Windows (Microsoft Store d'abord) avec le bouton ci-dessous, puis ouvre-le." },
+  "pair.askLink": { en: "Ask an officer where to download your guild's companion.", fr: "Demande à un officier où télécharger le compagnon de ta guilde." },
+  "pair.syncTitle": { en: "🔗 Link all your characters: 2 steps (Windows)", fr: "🔗 Lier tous tes personnages : 2 étapes (Windows)" },
   "pair.sync": {
     en: "1. {companion} Open it and press **Sign in with Discord**, then **Connect** on the page that opens. Nothing to type; it finds your WoW folder by itself.\n2. In WoW, log in and type `/reload` once. The app shows a green **✓** when you are linked: your main and every alt that logged in on this PC link at once.",
-    fr: "1. {companion} Ouvrez-le et appuyez sur **Sign in with Discord**, puis **Relier** sur la page qui s'ouvre. Rien à taper; il trouve tout seul votre dossier WoW.\n2. Dans WoW, connectez-vous et tapez `/reload` une fois. L'application affiche un **✓** vert quand vous êtes lié : votre principal et chaque alt connecté sur ce PC se lient d'un coup."
+    fr: "1. {companion} Ouvre-le et appuie sur **Sign in with Discord**, puis **Relier** sur la page qui s'ouvre. Rien à taper; il trouve tout seul ton dossier WoW.\n2. Dans WoW, connecte-toi et tape `/reload` une fois. L'application affiche un **✓** vert quand tu es lié : ton principal et chaque alt connecté sur ce PC se lient d'un coup."
   },
   "pair.checkTitle": { en: "Check the result", fr: "Vérifier le résultat" },
   "pair.check": {
     en: "After a sync, `/character list` shows your main and alts.",
-    fr: "Après une synchro, `/character list` montre votre principal et vos alts."
+    fr: "Après une synchro, `/character list` montre ton principal et tes alts."
   },
   "character.created": { en: "Linked", fr: "Lié" },
   "character.updated": { en: "Updated", fr: "Mis à jour" },
-  "character.mainKind": { en: "your main", fr: "votre principal" },
+  "character.mainKind": { en: "your main", fr: "ton principal" },
   "character.altKind": { en: "an alt", fr: "un alt" },
   "character.linkResult": { en: "✅ {action} **{name}** as {kind}.", fr: "✅ {action} **{name}** comme {kind}." },
   "character.mainNext": {
     en: "Check `/character list`. To add an alt, repeat `/guilded character` → `/character link` on that alt and leave **main** unset. The companion is optional.",
-    fr: "Vérifiez `/character list`. Pour ajouter un alt, répétez `/guilded character` → `/character link` sur l'alt et laissez **main** vide. Le compagnon est facultatif."
+    fr: "Vérifie `/character list`. Pour ajouter un alt, répète `/guilded character` → `/character link` sur l'alt et laisse **main** vide. Le compagnon est facultatif."
   },
   "character.altNext": {
     en: "Your existing main stays the same. Check `/character list`. No companion is required for this link.",
-    fr: "Votre principal existant reste le même. Vérifiez `/character list`. Aucun compagnon n'est requis pour ce lien."
+    fr: "Ton principal existant reste le même. Vérifie `/character list`. Aucun compagnon n'est requis pour ce lien."
   },
   "gamerem.dm": {
     en: "Hi! You are in **{guild}** but have not picked a game yet. Pick yours to open its channels. It takes a few seconds.",
-    fr: "Salut ! Vous êtes dans **{guild}**, mais vous n'avez pas encore choisi de jeu. Choisissez le vôtre pour ouvrir ses salons. Ça prend quelques secondes."
+    fr: "Salut ! Tu es dans **{guild}**, mais tu n'as pas encore choisi de jeu. Choisis le tien pour ouvrir ses salons. Ça prend quelques secondes."
   },
   "gamerem.dm.again": {
     en: "Hi again! You still have no game picked in **{guild}**. Pick yours to open its channels, or press Stop reminders and we will not write again.",
-    fr: "Re-salut ! Vous n'avez toujours pas choisi de jeu dans **{guild}**. Choisissez le vôtre pour ouvrir ses salons, ou appuyez sur Arrêter les rappels et on ne vous écrira plus."
+    fr: "Re-salut ! Tu n'as toujours pas choisi de jeu dans **{guild}**. Choisis le tien pour ouvrir ses salons, ou appuie sur Arrêter les rappels et on ne t'écrira plus."
   },
   "gamerem.button.channel": { en: "Open the server", fr: "Ouvrir le serveur" },
   "gamerem.button.stop": { en: "Stop reminders", fr: "Arrêter les rappels" },
-  "gamerem.stopped": { en: "Done: no more reminders from this server. You can still pick your games any time.", fr: "C'est fait : plus aucun rappel de ce serveur. Vous pouvez toujours choisir vos jeux en tout temps." },
+  "gamerem.stopped": { en: "Done: no more reminders from this server. You can still pick your games any time.", fr: "C'est fait : plus aucun rappel de ce serveur. Tu peux toujours choisir tes jeux en tout temps." },
   "gamerem.title": { en: "**Members with no game yet:** {count} (page {page}/{pages})", fr: "**Membres sans jeu choisi :** {count} (page {page}/{pages})" },
   "gamerem.empty": { en: "Everyone has picked a game. 🎉", fr: "Tout le monde a choisi un jeu. 🎉" },
-  "gamerem.notConfigured": { en: "This server has no game roles yet: pick them in `/setup start` (games step).", fr: "Ce serveur n'a pas encore de rôles de jeu : choisissez-les dans `/setup start` (étape des jeux)." },
-  "gamerem.unreadable": { en: "I could not read the member list right now. Try again in a minute.", fr: "Je n'ai pas pu lire la liste des membres. Réessayez dans une minute." },
+  "gamerem.notConfigured": { en: "This server has no game roles yet: pick them in `/setup start` (games step).", fr: "Ce serveur n'a pas encore de rôles de jeu : choisis-les dans `/setup start` (étape des jeux)." },
+  "gamerem.unreadable": { en: "I could not read the member list right now. Try again in a minute.", fr: "Je n'ai pas pu lire la liste des membres. Réessaie dans une minute." },
   "gamerem.rules": { en: "rules", fr: "règles" },
   "gamerem.joined": { en: "joined {when}", fr: "arrivé {when}" },
   "gamerem.joinedUnknown": { en: "join date unknown", fr: "date d'arrivée inconnue" },
@@ -538,29 +538,29 @@ const STRINGS = {
   "gamerem.result.stopped": { en: "Skipped, asked to stop: {count}.", fr: "Ignorés, ont demandé d'arrêter : {count}." },
   "gamerem.result.closed": { en: "Skipped, DMs closed: {count}.", fr: "Ignorés, MP fermés : {count}." },
   "gamerem.result.capped": { en: "Skipped, already reminded {max} times: {count}.", fr: "Ignorés, déjà rappelés {max} fois : {count}." },
-  "gamerem.cooldown": { en: "\"Remind all\" was already used this week. You can use it again {when}. You can still remind a page or one member.", fr: "« Rappeler tous » a déjà été utilisé cette semaine. Vous pourrez le refaire {when}. Vous pouvez encore rappeler une page ou un membre." },
+  "gamerem.cooldown": { en: "\"Remind all\" was already used this week. You can use it again {when}. You can still remind a page or one member.", fr: "« Rappeler tous » a déjà été utilisé cette semaine. Tu pourras le refaire {when}. Tu peux encore rappeler une page ou un membre." },
   "gamerem.result.recent": { en: "Skipped, reminded in the last 24 hours: {count}.", fr: "Ignorés, rappelés depuis moins de 24 h : {count}." },
   "gamerem.result.gone": { en: "Skipped, already picked a game, left or a bot: {count}.", fr: "Ignorés, jeu déjà choisi, parti ou robot : {count}." },
   "gamerem.auto.on": { en: "Automatic reminder **on**: a member with no game gets one private message a day after joining, and one more a week later at most. Never more.", fr: "Rappel automatique **activé** : un membre sans jeu reçoit un message privé un jour après son arrivée, puis un seul autre une semaine plus tard au plus. Jamais plus." },
   "gamerem.auto.off": { en: "Automatic reminder **off**. Officers can still send reminders from `/officer reports games`.", fr: "Rappel automatique **désactivé**. Les officiers peuvent toujours envoyer des rappels depuis `/officer reports games`." },
   "onboard.nudge": {
     en: "Hi! You joined **{guild}** yesterday and a step or two is still open. This is the only reminder you will get.",
-    fr: "Salut ! Vous avez rejoint **{guild}** hier et il vous reste une étape ou deux. C'est le seul rappel que vous recevrez."
+    fr: "Salut ! Tu as rejoint **{guild}** hier et il te reste une étape ou deux. C'est le seul rappel que tu recevras."
   },
 
   // Getting started guide
   "guide.title": { en: "⚜️ Getting started with Guilded", fr: "⚜️ Bien commencer avec Guilded" },
   "guide.companionShort": {
     en: "**Optional companion:** `/character link` opens the connection instructions. Choose **Sign in with Discord**, then the exact guild/edition. Use one connection profile per guild. Sync your main first, then alts with that connection; no new pairing for each alt.",
-    fr: "**Compagnon facultatif :** `/character link` ouvre les instructions. Choisissez **Sign in with Discord**, puis la bonne guilde/édition. Utilisez un profil de connexion par guilde. Synchronisez votre principal, puis vos alts avec ce profil; aucun nouveau jumelage pour chaque alt."
+    fr: "**Compagnon facultatif :** `/character link` ouvre les instructions. Choisis **Sign in with Discord**, puis la bonne guilde/édition. Utilise un profil de connexion par guilde. Synchronise ton principal, puis tes alts avec ce profil; aucun nouveau jumelage pour chaque alt."
   },
   "guide.installShort": {
     en: "**Install Guilded**\n1. Get the matching file at https://guildedwow.com/#start (WoW Forever). Close WoW and extract `Guilded` into the active client's `Interface\\AddOns` folder. Check `Interface\\AddOns\\Guilded\\Guilded.toc`.\n2. Enable the addon, enter the game and `/reload`. **In-game only** works without Discord. Guilded Dungeons is the separate dungeon-only addon.\n3. To connect, `/character link` shows your private instructions. In the Windows companion choose **Sign in with Discord**, then the right guild/edition. Select that client's SavedVariables and addon folders; keep a separate profile for each guild. Sync your main first, then alts.\n4. For several guilds in one Discord, `/character guild` and `/character guild` select the context; channel bindings take priority. Preserve Forever first/last names and Blizzard realm names from the addon. Never share pairing codes.",
-    fr: "**Installer Guilded**\n1. Prenez le bon fichier sur https://guildedwow.com/#start (WoW Forever). Fermez WoW et décompressez `Guilded` dans `Interface\\AddOns` du client utilisé. Vérifiez `Interface\\AddOns\\Guilded\\Guilded.toc`.\n2. Activez l'addon, entrez en jeu et faites `/reload`. **En jeu uniquement** fonctionne sans Discord. Guilded Dungeons est l'addon séparé pour les donjons.\n3. Pour connecter, `/character link` donne les instructions privées. Dans le compagnon Windows, choisissez **Sign in with Discord**, puis la bonne guilde/édition. Sélectionnez les dossiers SavedVariables et addon de ce client; gardez un profil par guilde. Synchronisez votre principal, puis vos alts.\n4. Avec plusieurs guildes dans un Discord, `/character guild` et `/character guild` choisissent le contexte; les salons associés ont priorité. Gardez les prénoms/noms Forever et les royaumes Blizzard fournis par l'addon. Ne partage jamais vos codes."
+    fr: "**Installer Guilded**\n1. Prends le bon fichier sur https://guildedwow.com/#start (WoW Forever). Ferme WoW et décompresse `Guilded` dans `Interface\\AddOns` du client utilisé. Vérifie `Interface\\AddOns\\Guilded\\Guilded.toc`.\n2. Active l'addon, entre en jeu et fais `/reload`. **En jeu uniquement** fonctionne sans Discord. Guilded Dungeons est l'addon séparé pour les donjons.\n3. Pour connecter, `/character link` donne les instructions privées. Dans le compagnon Windows, choisis **Sign in with Discord**, puis la bonne guilde/édition. Sélectionne les dossiers SavedVariables et addon de ce client; garde un profil par guilde. Synchronise ton principal, puis tes alts.\n4. Avec plusieurs guildes dans un Discord, `/character guild` et `/character guild` choisissent le contexte; les salons associés ont priorité. Garde les prénoms/noms Forever et les royaumes Blizzard fournis par l'addon. Ne partage jamais tes codes."
   },
   "guide.body": {
     en: "**Guilded** tracks your guild's dungeons, duels, crafts and raids from the WoW addon and posts the results here.\n\n**Get started**\n1) Install the addon (required): {url}\n2) Optional, Windows: the companion sends your game data to Discord. [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) or [direct download](https://guildedwow.com/companion/). Sign in with Discord to confirm your characters.\n3) Play. Runs and duels show up in the guild channels, and `/help` lists what you can use.\n\n**Bot commands**\n`/help` · `/character link` (link your characters: paste the line it gives you into WoW chat) · `/character list` · `/dungeon leaderboard` · `/bg duels` · `/craft request` · `/report bug`\n\n**Addon commands (in game)**\n`/guilded` (open the window) · `/guilded companion` · `/guilded sync` · `/gdg` (dungeon groups, Guilded Dungeons addon) · `/gsos` (call for help) · `/guilded diag` (for bug reports)\n\n[Full 3-step guide](https://guildedwow.com/start/)",
-    fr: "**Guilded** suit les donjons, duels, métiers et raids de votre guilde depuis l'addon WoW et publie les résultats ici.\n\n**Pour commencer**\n1) Installez l'addon (obligatoire) : {url}\n2) Facultatif, Windows : le compagnon envoie vos données de jeu vers Discord. [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) ou [téléchargement direct](https://guildedwow.com/companion/?lang=fr). Se connecter avec Discord confirme vos personnages.\n3) Jouez. Les donjons et duels apparaissent dans les salons de la guilde, et `/help` liste ce que vous pouvez utiliser.\n\n**Commandes du bot**\n`/help` · `/character link` (lier vos personnages : collez la ligne obtenue dans le clavardage WoW) · `/character list` · `/dungeon leaderboard` · `/bg duels` · `/craft request` · `/report bug`\n\n**Commandes de l'addon (en jeu)**\n`/guilded` (ouvrir la fenêtre) · `/guilded companion` · `/guilded sync` · `/gdg` (groupes de donjon, addon Guilded Dungeons) · `/gsos` (appel à l'aide) · `/guilded diag` (pour les rapports de bug)\n\n[Guide complet en 3 étapes](https://guildedwow.com/start/?lang=fr)"
+    fr: "**Guilded** suit les donjons, duels, métiers et raids de ta guilde depuis l'addon WoW et publie les résultats ici.\n\n**Pour commencer**\n1) Installe l'addon (obligatoire) : {url}\n2) Facultatif, Windows : le compagnon envoie tes données de jeu vers Discord. [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) ou [téléchargement direct](https://guildedwow.com/companion/?lang=fr). Se connecter avec Discord confirme tes personnages.\n3) Joue. Les donjons et duels apparaissent dans les salons de la guilde, et `/help` liste ce que tu peux utiliser.\n\n**Commandes du bot**\n`/help` · `/character link` (lier tes personnages : colle la ligne obtenue dans le clavardage WoW) · `/character list` · `/dungeon leaderboard` · `/bg duels` · `/craft request` · `/report bug`\n\n**Commandes de l'addon (en jeu)**\n`/guilded` (ouvrir la fenêtre) · `/guilded companion` · `/guilded sync` · `/gdg` (groupes de donjon, addon Guilded Dungeons) · `/gsos` (appel à l'aide) · `/guilded diag` (pour les rapports de bug)\n\n[Guide complet en 3 étapes](https://guildedwow.com/start/?lang=fr)"
   },
 
   // Help
@@ -570,14 +570,14 @@ const STRINGS = {
   "help.epgpOfficers": { en: "EPGP Officers", fr: "Officiers EPGP" },
   "help.officers": { en: "Officers", fr: "Officiers" },
   "help.support": { en: "Guilded is free. A coffee helps pay for the bot's hosting and new features: [ko-fi.com/wowguilded](https://ko-fi.com/wowguilded)", fr: "Guilded est gratuit. Un café aide à payer l'hébergement du bot et les nouveautés : [ko-fi.com/wowguilded](https://ko-fi.com/wowguilded)" },
-  "help.footer": { en: "In game: click the gold coin on the minimap, or type /guilded help. Get the addon: curseforge.com/wow/addons/guilded", fr: "En jeu : cliquez la pièce d'or près de la minicarte, ou tapez /guilded help. Obtenez l'addon : curseforge.com/wow/addons/guilded" },
+  "help.footer": { en: "In game: click the gold coin on the minimap, or type /guilded help. Get the addon: curseforge.com/wow/addons/guilded", fr: "En jeu : clique la pièce d'or près de la minicarte, ou tape /guilded help. Obtiens l'addon : curseforge.com/wow/addons/guilded" },
 
   // Dungeon challenge
   "dungeon.board.week": { en: "🏰 Dungeon points — this week", fr: "🏰 Points de donjon — cette semaine" },
   "dungeon.board.season": { en: "🏰 Dungeon points — {season}", fr: "🏰 Points de donjon — {season}" },
   "dungeon.board.all": { en: "🏰 Dungeon points — all time", fr: "🏰 Points de donjon — depuis le début" },
   "dungeon.board.dungeon": { en: "Only {dungeon}", fr: "Seulement {dungeon}" },
-  "dungeon.board.empty": { en: "No points yet. Run a dungeon with the addon installed, then an officer imports it.", fr: "Aucun point pour l'instant. Faites un donjon avec l'addon installé, puis un officier l'importe." },
+  "dungeon.board.empty": { en: "No points yet. Run a dungeon with the addon installed, then an officer imports it.", fr: "Aucun point pour l'instant. Fais un donjon avec l'addon installé, puis un officier l'importe." },
   "dungeon.records.title": { en: "⏱️ Guild records", fr: "⏱️ Records de la guilde" },
   "dungeon.records.one": { en: "⏱️ Fastest {dungeon} clears", fr: "⏱️ {dungeon} les plus rapides" },
   "dungeon.records.empty": { en: "No completed runs yet.", fr: "Aucun donjon terminé pour l'instant." },

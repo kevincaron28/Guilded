@@ -19,7 +19,7 @@ import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./disc
 // (track D3) and a link to its post when it exists.
 export async function professionDirectoryText(database: Pick<PrismaClient, "professionSkill"> & Partial<Pick<PrismaClient, "recipeKnown">>, guildId: string, lang: Lang = "en", links: ReadonlyMap<string, string> = new Map(), now = new Date()): Promise<string> {
   const header = lang === "fr"
-    ? "**Artisans de la guilde**\nChaque métier a son message à jour avec les recettes et les artisans. `/craft who item:` cherche une recette (avec dernière présence). `/craft request` : demander une fabrication. Ouvrez vos métiers avec Guilded : un officier en ligne avec le compagnon peut relayer vos recettes."
+    ? "**Artisans de la guilde**\nChaque métier a son message à jour avec les recettes et les artisans. `/craft who item:` cherche une recette (avec dernière présence). `/craft request` : demander une fabrication. Ouvre tes métiers avec Guilded : un officier en ligne avec le compagnon peut relayer tes recettes."
     : "**Guild profession directory**\nEach profession has its own always-updated post with recipes and crafters. `/craft who item:` finds a recipe (with last seen). `/craft request` arranges a craft. Open profession windows with Guilded. An online officer with the companion can relay your recipes.";
   let text = `${header}
 ${professionLegend(lang)}`;

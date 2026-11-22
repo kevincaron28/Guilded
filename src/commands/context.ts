@@ -6,6 +6,7 @@ import { BRAND } from "../brand.js";
 import { asLang } from "../i18n.js";
 import { frenchErrorMessage } from "../services/error-fr.js";
 import { currentGuildScope } from "../services/guild-scope.js";
+import { asLang, type Lang } from "../i18n.js";
 
 export const guildService = createGuildService(prisma);
 export const errorReportService = createErrorReportService(prisma);
@@ -35,6 +36,22 @@ export async function requireGuildContext(
     "displayName" in interaction.member ? interaction.member.displayName : interaction.member.nick ?? interaction.user.displayName
   );
   return { guildId: guild.id, memberId: member.id };
+}
+
+/** The guild's language for member-facing text (English when the settings cannot be read). */
+export async function memberLang(guildId: string): Promise<Lang> {
+  return asLang((await guildService.getSettings(guildId).catch(() => null))?.language);
+}
+
+/** The language of the guild an interaction came from, for failure replies (English outside a guild or when it cannot be read). */
+export async function interactionLang(interaction: { guildId: string | null }): Promise<Lang> {
+  if (!interaction.guildId) return "en";
+  try {
+    const record = await prisma.guild.findFirst({ where: { discordId: interaction.guildId }, select: { id: true } });
+    return record ? await memberLang(record.id) : "en";
+  } catch {
+    return "en";
+  }
 }
 
 /** Discord error 10062 "Unknown interaction": the 3-second window had passed, so no answer can be sent. */

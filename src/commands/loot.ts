@@ -10,7 +10,8 @@ import { coreForRaid, effectiveRules, LOOT_MODE_LABEL } from "../services/core-r
 import { createItemValueService } from "../services/item-values.js";
 import { describePriority, priorityFor } from "../services/loot-priority.js";
 import { guildService, requireGuildContext } from "./context.js";
-import { asLang, t } from "../i18n.js";
+import { asLang, t, tx } from "../i18n.js";
+import { LOOT_MODE_LABEL_FR } from "../services/core-rules.js";
 import { readPricingPolicy } from "../services/raid-pricing.js";
 
 const lootService = createLootService(prisma);
@@ -53,12 +54,13 @@ export async function executeLoot(interaction: ChatInputCommandInteraction): Pro
   const context = await requireGuildContext(interaction);
   if (!context) return;
   const subcommand = interaction.options.getSubcommand();
+  const lang = asLang((await guildService.getSettings(context.guildId))?.language);
   if (subcommand === "reserves") {
     await interaction.reply({ content: await describeReserves(prisma, context.guildId, interaction.options.getString("item") ?? undefined), flags: MessageFlags.Ephemeral });
     return;
   }
   if ((subcommand === "auction" || subcommand === "close" || subcommand === "award" || subcommand === "priority") && !officer(interaction)) {
-    await interaction.reply({ content: "Only officers, Guild Masters, or administrators can manage auctions.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: tx(lang, "Only officers, Guild Masters, or administrators can manage auctions."), flags: MessageFlags.Ephemeral });
     return;
   }
   // Loot council can be set for the whole guild (/config loot-mode) or for one
@@ -73,15 +75,15 @@ export async function executeLoot(interaction: ChatInputCommandInteraction): Pro
     const channelCore = await coreContext(prisma, context.guildId, interaction.channelId);
     if (channelCore) {
       const raids = await prisma.raid.findMany({ where: { guildId: context.guildId, coreId: channelCore.id, status: "ACTIVE" }, take: 2 });
-      if (raids.length !== 1) throw new Error("Choose raid: to use this core's loot rules and history.");
+      if (raids.length !== 1) throw new Error(tx(lang, "Choose raid: to use this core's loot rules and history."));
       raidForMode = raids[0]?.id ?? null;
     }
   }
-  if (raidForMode && !await prisma.raid.findFirst({ where: { id: raidForMode, guildId: context.guildId }, select: { id: true } })) throw new Error("That raid does not belong to this guild.");
+  if (raidForMode && !await prisma.raid.findFirst({ where: { id: raidForMode, guildId: context.guildId }, select: { id: true } })) throw new Error(tx(lang, "That raid does not belong to this guild."));
   const raidCore = await coreForRaid(prisma, context.guildId, raidForMode);
   const rules = effectiveRules(guildSettings, raidCore);
   if (guildSettings?.coreLootOnly && ["auction", "award", "priority", "bid"].includes(subcommand) && !raidCore?.separatePool) {
-    throw new Error("Le butin est propre à chaque core. Choisissez raid: avec un raid de core.");
+    throw new Error(tx(lang, "Loot is kept per core. Choose raid: with a core raid."));
   }
   const lootMode = rules.lootMode;
   if (subcommand === "priority") {
@@ -115,7 +117,7 @@ export async function executeLoot(interaction: ChatInputCommandInteraction): Pro
         itemLink: itemName, baseGp: basePrice, finalGp: gp ?? 0, response: offspec ? "offspec" : "main", source: "officer", provisional: true, via: "discord" } } : {}),
       bossName: interaction.options.getString("boss") ?? undefined, awardedBy: interaction.user.id
     });
-    await interaction.reply({ content: `**${award.itemName}** awarded to ${user.username}${award.amount ? ` for ${award.amount} GP${usedSetPrice ? " (its set price)" : ""}${offspec ? ` (off-spec, ${rules.offspecPercent}%)` : ""}` : ""}.`, allowedMentions: { parse: [] } });
+    await interaction.reply({ content: tx(lang, "**{item}** awarded to {user}", { item: award.itemName, user: user.username }) + (award.amount ? ` ${tx(lang, "for {amount} GP", { amount: award.amount })}${usedSetPrice ? ` ${tx(lang, "(its set price)")}` : ""}${offspec ? ` (${tx(lang, "off-spec")}, ${rules.offspecPercent}%)` : ""}` : "") + ".", allowedMentions: { parse: [] } });
     await notify(interaction.guild, notifications.lootAwarded(award.itemName, award.member.displayName, award.amount), "loot", raidCore?.id ?? null);
     return;
   }
@@ -125,7 +127,7 @@ export async function executeLoot(interaction: ChatInputCommandInteraction): Pro
       RESERVE: "players reserve items before the raid (`/guilded reserve` in game, `/loot reserves` here) and the reservers of a dropped item roll for it. Officers record the award with `/lead loot award`.",
       PRIORITY: "every item has a set GP price and goes to the highest PR of the players who want it (wishlist here, the popup in game). `/lead loot priority` shows who is next; `/lead loot award` charges the set price."
     };
-    await interaction.reply({ content: `This raid uses **${LOOT_MODE_LABEL[lootMode]}**: ${how[lootMode]}`, flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: tx(lang, "This raid uses **{mode}**: {how}", { mode: lang === "fr" ? LOOT_MODE_LABEL_FR[lootMode] : LOOT_MODE_LABEL[lootMode], how: tx(lang, how[lootMode] ?? "") }), flags: MessageFlags.Ephemeral });
     return;
   }
   if (subcommand === "auction") {
@@ -140,7 +142,7 @@ export async function executeLoot(interaction: ChatInputCommandInteraction): Pro
       raidId: raidForMode ?? undefined
     });
     const wanting = await wishlistService.countWanting(context.guildId, auction.itemName);
-    await interaction.reply(`Auction **${auction.itemName}** started. ID: \`${auction.id}\`; closes <t:${Math.floor(auction.closesAt.getTime() / 1000)}:R>.${wanting > 0 ? ` Wishlisted by ${wanting} raider(s).` : ""}`);
+    await interaction.reply(`${tx(lang, "Auction **{item}** started. ID: `{id}`; closes {when}.", { item: auction.itemName, id: auction.id, when: `<t:${Math.floor(auction.closesAt.getTime() / 1000)}:R>` })}${wanting > 0 ? ` ${tx(lang, "Wishlisted by {count} raider(s).", { count: wanting })}` : ""}`);
     return;
   }
   if (subcommand === "bid") {
@@ -149,10 +151,9 @@ export async function executeLoot(interaction: ChatInputCommandInteraction): Pro
       memberId: context.memberId,
       amount: interaction.options.getInteger("amount", true)
     });
-    await interaction.reply({ content: `Bid of **${bid.amount} GP** placed.`, flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: tx(lang, "Bid of **{amount} GP** placed.", { amount: bid.amount }), flags: MessageFlags.Ephemeral });
     // Best effort, like the waitlist DMs: closed DMs are ignored.
     if (bid.outbid) {
-      const lang = asLang((await guildService.getSettings(context.guildId))?.language);
       await interaction.client.users.send(bid.outbid.discordUserId, t(lang, "dm.outbid", {
         item: bid.auction.itemName, amount: String(bid.amount), when: `<t:${Math.floor(bid.auction.closesAt.getTime() / 1000)}:R>`
       })).catch(() => undefined);
@@ -160,11 +161,11 @@ export async function executeLoot(interaction: ChatInputCommandInteraction): Pro
     return;
   }
   if (subcommand === "close") {
-    if (!await prisma.auction.findFirst({ where: { id: interaction.options.getString("auction", true), guildId: context.guildId }, select: { id: true } })) throw new Error("That auction does not belong to this guild.");
+    if (!await prisma.auction.findFirst({ where: { id: interaction.options.getString("auction", true), guildId: context.guildId }, select: { id: true } })) throw new Error(tx(lang, "That auction does not belong to this guild."));
     const result = await lootService.closeAuction(interaction.options.getString("auction", true), interaction.user.id);
     await interaction.reply(result.award
-      ? `Auction closed. **${result.award.itemName}** awarded for **${result.award.amount} GP**.`
-      : "Auction closed with no bids.");
+      ? tx(lang, "Auction closed. **{item}** awarded for **{amount} GP**.", { item: result.award.itemName, amount: result.award.amount })
+      : tx(lang, "Auction closed with no bids."));
     if (result.award) {
       await notify(interaction.guild, notifications.lootAwarded(result.award.itemName, result.award.member.displayName, result.award.amount), "loot", (await coreForRaid(prisma, context.guildId, result.auction.raidId))?.id ?? null);
     }
@@ -188,5 +189,5 @@ export async function executeLoot(interaction: ChatInputCommandInteraction): Pro
     if (text.length + line.length > 1900) break;
     text += `${line}\n`;
   }
-  await interaction.reply({ content: text || "No loot has been awarded yet.", allowedMentions: { parse: [] } });
+  await interaction.reply({ content: text || tx(lang, "No loot has been awarded yet."), allowedMentions: { parse: [] } });
 }

@@ -3,11 +3,11 @@ import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } f
 import { prisma } from "../database.js";
 import { findProfessionHolders, professionCoverage } from "../services/profession-search.js";
 import { professionDirectoryText } from "../services/profession-directory.js";
-import { asLang } from "../i18n.js";
+import { asLang, tx, type Lang } from "../i18n.js";
 import { describeCooldowns } from "../services/recipes.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { PROFESSIONS } from "../wow-data.js";
-import { LINK_NEXT_STEP, pickOwnCharacter } from "../services/own-character.js";
+import { linkNextStep, pickOwnCharacter } from "../services/own-character.js";
 
 export const professionCommand = new SlashCommandBuilder()
   .setName("profession")
@@ -40,10 +40,10 @@ export const professionCommand = new SlashCommandBuilder()
     .setDescription("How many characters have each profession, and who is highest."));
 
 // Discord messages are capped at 2000 characters.
-function fit(lines: string[], header: string): string {
+function fit(lines: string[], header: string, lang: Lang): string {
   let text = header;
   for (const [index, line] of lines.entries()) {
-    if (text.length + line.length + 1 > 1900) return `${text}\n…and ${lines.length - index} more`;
+    if (text.length + line.length + 1 > 1900) return `${text}\n${tx(lang, "…and {count} more", { count: lines.length - index })}`;
     text += `\n${line}`;
   }
   return text;
@@ -53,10 +53,10 @@ export async function executeProfession(interaction: ChatInputCommandInteraction
   const context = await requireGuildContext(interaction);
   if (!context) return;
   const subcommand = interaction.options.getSubcommand();
+  const lang = asLang((await guildService.getSettings(context.guildId))?.language);
 
   if (subcommand === "directory") {
     await interaction.deferReply();
-    const lang = asLang((await guildService.getSettings(context.guildId))?.language);
     await interaction.editReply({ content: await professionDirectoryText(prisma, context.guildId, lang), allowedMentions: { parse: [] } });
     return;
   }
@@ -65,9 +65,9 @@ export async function executeProfession(interaction: ChatInputCommandInteraction
     const query = interaction.options.getString("profession", true);
     const holders = await findProfessionHolders(prisma, context.guildId, query);
     const lines = holders.map((holder) =>
-      `**${cleanCharacterName(holder.character)}**${holder.isMain ? "" : " (alt)"} - ${holder.profession} ${holder.skillLevel} (${holder.member})`);
+      `**${cleanCharacterName(holder.character)}**${holder.isMain ? "" : ` (${tx(lang, "alt")})`} - ${holder.profession} ${holder.skillLevel} (${holder.member})`);
     await interaction.reply({
-      content: holders.length ? fit(lines, `Characters with **${query}**:`) : `Nobody has ${query} recorded yet.`,
+      content: holders.length ? fit(lines, tx(lang, "Characters with **{query}**:", { query }), lang) : tx(lang, "Nobody has {query} recorded yet.", { query }),
       flags: MessageFlags.Ephemeral
     });
     return;
@@ -75,9 +75,9 @@ export async function executeProfession(interaction: ChatInputCommandInteraction
   if (subcommand === "coverage") {
     const coverage = await professionCoverage(prisma, context.guildId);
     const lines = coverage.map((row) =>
-      `**${row.profession}**: ${row.characters} character(s), top ${row.topSkill} (${row.topCharacter})`);
+      tx(lang, "**{profession}**: {count} character(s), top {skill} ({name})", { profession: row.profession, count: row.characters, skill: row.topSkill, name: row.topCharacter }));
     await interaction.reply({
-      content: coverage.length ? fit(lines, "Guild profession coverage:") : "No professions recorded yet.",
+      content: coverage.length ? fit(lines, tx(lang, "Guild profession coverage:"), lang) : tx(lang, "No professions recorded yet."),
       flags: MessageFlags.Ephemeral
     });
     return;
@@ -89,7 +89,7 @@ export async function executeProfession(interaction: ChatInputCommandInteraction
     const own = await guildService.listCharacters(context.memberId);
     const mine = interaction.options.getBoolean("mine") ?? false;
     const list = await describeCooldowns(prisma, context.guildId, mine ? { characters: own.map((character) => character.name) } : {});
-    await interaction.reply({ content: `${notify === null ? "" : `${notify ? "I will DM you when a cooldown of yours is ready." : "No more cooldown DMs."}\n\n`}${list}`.slice(0, 1990), flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: `${notify === null ? "" : `${notify ? tx(lang, "I will DM you when a cooldown of yours is ready.") : tx(lang, "No more cooldown DMs.")}\n\n`}${list}`.slice(0, 1990), flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -98,13 +98,13 @@ export async function executeProfession(interaction: ChatInputCommandInteraction
     const lines = characters.flatMap((character) =>
       character.professions.map((skill) => `${displayCharacterName(character)}: ${skill.profession} ${skill.skillLevel}`)
     );
-    await interaction.reply({ content: lines.length ? lines.join("\n") : `No professions recorded. ${characters.length ? "Add one with /character profession set, or let the addon scan them." : LINK_NEXT_STEP}`, flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: lines.length ? lines.join("\n") : `${tx(lang, "No professions recorded.")} ${characters.length ? tx(lang, "Add one with /character profession set, or let the addon scan them.") : linkNextStep(lang)}`, flags: MessageFlags.Ephemeral });
     return;
   }
 
-  const character = pickOwnCharacter(characters, interaction.options.getString("character"));
+  const character = pickOwnCharacter(characters, interaction.options.getString("character"), lang);
   const profession = interaction.options.getString("profession", true).trim();
   const skill = interaction.options.getInteger("skill", true);
   await guildService.setProfession(character.id, profession, skill);
-  await interaction.reply({ content: `Recorded ${profession} ${skill} for ${displayCharacterName(character)}.`, flags: MessageFlags.Ephemeral });
+  await interaction.reply({ content: tx(lang, "Recorded {profession} {skill} for {name}.", { profession, skill, name: displayCharacterName(character) }), flags: MessageFlags.Ephemeral });
 }

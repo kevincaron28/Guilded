@@ -2,7 +2,8 @@ import { displayCharacterName } from "../services/character-display.js";
 import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { createWishlistService, PRIORITY_LABELS } from "../services/wishlist.js";
-import { guildService, requireGuildContext } from "./context.js";
+import { guildService, memberLang, requireGuildContext } from "./context.js";
+import { tx } from "../i18n.js";
 import { pickOwnCharacter } from "../services/own-character.js";
 
 const wishlistService = createWishlistService(prisma);
@@ -26,28 +27,30 @@ export async function executeWishlist(interaction: ChatInputCommandInteraction):
   const context = await requireGuildContext(interaction);
   if (!context) return;
   const subcommand = interaction.options.getSubcommand();
+  const lang = await memberLang(context.guildId);
+  const priorityLabel = (priority: number): string => tx(lang, PRIORITY_LABELS[priority] ?? String(priority));
 
   if (subcommand === "item") {
     const itemName = interaction.options.getString("item", true);
     const entries = await wishlistService.whoWants(context.guildId, itemName);
     await interaction.reply({
       content: entries.length
-        ? [`Wanted by ${entries.length}:`, ...entries.map((entry) => `${PRIORITY_LABELS[entry.priority] ?? entry.priority} - ${displayCharacterName(entry.character)} (${entry.character.className})`)].join("\n")
-        : "Nobody has that item on their wishlist.",
+        ? [tx(lang, "Wanted by {count}:", { count: entries.length }), ...entries.map((entry) => `${priorityLabel(entry.priority)} - ${displayCharacterName(entry.character)} (${entry.character.className})`)].join("\n")
+        : tx(lang, "Nobody has that item on their wishlist."),
       flags: MessageFlags.Ephemeral
     });
     return;
   }
 
   const characters = await guildService.listCharacters(context.memberId);
-  const character = pickOwnCharacter(characters, interaction.options.getString("character"));
+  const character = pickOwnCharacter(characters, interaction.options.getString("character"), lang);
 
   if (subcommand === "list") {
     const entries = await wishlistService.list(character.id);
     await interaction.reply({
       content: entries.length
-        ? entries.map((entry) => `${PRIORITY_LABELS[entry.priority] ?? entry.priority}: ${entry.itemName}`).join("\n")
-        : `${displayCharacterName(character)} has no wishlist items.`,
+        ? entries.map((entry) => `${priorityLabel(entry.priority)}: ${entry.itemName}`).join("\n")
+        : tx(lang, "{name} has no wishlist items.", { name: displayCharacterName(character) }),
       flags: MessageFlags.Ephemeral
     });
     return;
@@ -56,9 +59,9 @@ export async function executeWishlist(interaction: ChatInputCommandInteraction):
   const itemName = interaction.options.getString("item", true);
   if (subcommand === "add") {
     const entry = await wishlistService.add(character.id, itemName, interaction.options.getInteger("priority") ?? 2);
-    await interaction.reply({ content: `Added ${entry.itemName} to ${displayCharacterName(character)}'s wishlist (${PRIORITY_LABELS[entry.priority]}).`, flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: tx(lang, "Added {item} to {name}'s wishlist ({priority}).", { item: entry.itemName, name: displayCharacterName(character), priority: priorityLabel(entry.priority) }), flags: MessageFlags.Ephemeral });
     return;
   }
   await wishlistService.remove(character.id, itemName);
-  await interaction.reply({ content: `Removed ${itemName.trim()} from ${displayCharacterName(character)}'s wishlist.`, flags: MessageFlags.Ephemeral });
+  await interaction.reply({ content: tx(lang, "Removed {item} from {name}'s wishlist.", { item: itemName.trim(), name: displayCharacterName(character) }), flags: MessageFlags.Ephemeral });
 }

@@ -2,7 +2,8 @@ import { displayCharacterName } from "../services/character-display.js";
 import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { createAttunementService } from "../services/attunement.js";
-import { guildService, requireGuildContext } from "./context.js";
+import { guildService, memberLang, requireGuildContext } from "./context.js";
+import { tx } from "../i18n.js";
 import { pickOwnCharacter } from "../services/own-character.js";
 
 const attunementService = createAttunementService(prisma);
@@ -25,15 +26,16 @@ export async function executeAttunement(interaction: ChatInputCommandInteraction
   const context = await requireGuildContext(interaction);
   if (!context) return;
   const subcommand = interaction.options.getSubcommand();
+  const lang = await memberLang(context.guildId);
   const characters = await guildService.listCharacters(context.memberId);
-  const character = pickOwnCharacter(characters, interaction.options.getString("character"));
+  const character = pickOwnCharacter(characters, interaction.options.getString("character"), lang);
 
   if (subcommand === "list") {
     const attunements = await attunementService.list(character.id);
     await interaction.reply({
       content: attunements.length
         ? attunements.map((a) => `${a.completed ? "✅" : "❌"} ${a.name}`).join("\n")
-        : "No attunements recorded for this character.",
+        : tx(lang, "No attunements recorded for this character."),
       flags: MessageFlags.Ephemeral
     });
     return;
@@ -42,5 +44,5 @@ export async function executeAttunement(interaction: ChatInputCommandInteraction
   const name = interaction.options.getString("name", true);
   const completed = interaction.options.getBoolean("completed") ?? true;
   await attunementService.set(character.id, name, completed, "discord");
-  await interaction.reply({ content: `Recorded ${name} as ${completed ? "completed" : "not completed"} for ${displayCharacterName(character)}.`, flags: MessageFlags.Ephemeral });
+  await interaction.reply({ content: tx(lang, completed ? "Recorded {name} as completed for {character}." : "Recorded {name} as not completed for {character}.", { name, character: displayCharacterName(character) }), flags: MessageFlags.Ephemeral });
 }

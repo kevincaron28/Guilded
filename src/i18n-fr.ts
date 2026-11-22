@@ -3,7 +3,10 @@
 // shows the English text. tests/i18n-fr.test.ts checks placeholders and that every text used by
 // the /setup guide, its checklist and the craft board has an entry.
 
+import { FR_MEMBER_TEXT } from "./i18n-fr-member.js";
+
 export const FR_TEXT: Record<string, string> = {
+  ...FR_MEMBER_TEXT,
   "Only officers can use /officer dungeon.": "Seuls les officiers peuvent utiliser /officer dungeon.",
   "Dungeon scoring settings are locked for all guilds. Season targets, level bands and penalties are shared and frozen. Changes wait for a future shared season; existing scores and history are preserved.": "Les réglages de pointage des donjons sont verrouillés pour toutes les guildes. Les cibles de saison, les tranches de niveau et les pénalités sont communes et figées. Les changements attendront une prochaine saison commune; les scores et l'historique existants sont conservés.",
   "No dungeon points recorded yet. Pick a member, character or run, or add why:true to see why a run scored as it did.": "Aucun point de donjon enregistré. Choisissez un membre, un personnage ou un parcours, ou ajoutez why:true pour voir pourquoi un parcours a ce score.",

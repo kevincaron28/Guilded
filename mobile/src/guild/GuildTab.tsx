@@ -54,7 +54,7 @@ export function GuildTab({ guild, defaultOrigin, focus }: { guild: GuildState; d
     </> : null}
     {section === "map" ? <MapScreen lang={lang} session={preview ? null : session} /> : null}
     {section === "raids" ? (snapshot?.errors.standings && !standings ? <RetryCard lang={lang} message={snapshot.errors.standings} onRetry={() => void guild.refresh()} />
-      : <Raids lang={lang} hub={hub} manage={manage} standings={standings} />) : null}
+      : <Raids lang={lang} hub={hub} manage={manage} standings={standings} answers={guild.answers} preview={preview} {...(preview || (session && !session.personal) ? { onAnswer: guild.answerRaid } : {})} />) : null}
     {(manage?.raidLeader || hub?.raidLeader) ? <Text style={common.note}>{t(lang, "leaderNote")}</Text> : null}
   </Screen>;
 }

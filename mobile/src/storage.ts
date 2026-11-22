@@ -77,6 +77,16 @@ export async function saveSession(session: Session): Promise<void> {
   await persistSession(session, ++sessionEpoch);
 }
 
+const clearedListeners = new Set<() => void>();
+/**
+ * Called after the stored sign-in is erased, wherever that happens (a screen that met a 401 erases it too), so the app state can
+ * follow and show the signed-out screens at once. Returns the way to stop listening.
+ */
+export function onSessionCleared(listener: () => void): () => void {
+  clearedListeners.add(listener);
+  return () => { clearedListeners.delete(listener); };
+}
+
 export async function clearSession(): Promise<void> {
   sessionEpoch++;
   const operation = sessionWrites.catch(() => {}).then(async () => {
@@ -85,6 +95,7 @@ export async function clearSession(): Promise<void> {
   });
   sessionWrites = operation;
   await operation;
+  for (const listener of [...clearedListeners]) { try { listener(); } catch { /* a listener must not break sign-out */ } }
 }
 
 /** Write-ahead renewal makes a lost response recoverable after the old secret rotates. */

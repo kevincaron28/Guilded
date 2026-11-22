@@ -20,7 +20,7 @@ export function Alerts({ lang, preview, remindersOn, setRemindersOn, planned, im
     {preview ? <Text style={common.muted}>{t(lang, "alertsWeb")}</Text> : null}
     {!preview && sync && !sync.supported ? <Text style={common.muted}>{t(lang, "alertsWeb")}</Text> : null}
     {!preview && sync && sync.supported && !sync.granted ? <Text style={common.error}>{t(lang, "alertsDenied")}</Text> : null}
-    {planned.length === 0 ? <EmptyState art="season" boxed message={t(lang, "noReminders")} /> : planned.map((reminder) => <View key={reminder.id} style={common.row}>
+    {planned.length === 0 ? <EmptyState art="season" boxed message={t(lang, "noReminders")} /> : planned.map((reminder) => <View key={`${reminder.id}-${reminder.leadMs}`} style={common.row}>
       <View style={{ flex: 1 }}>
         <Text style={common.body}>{reminder.title}</Text>
         <Text style={common.muted}>{formatWhen(reminder.fireAt, lang)} · {reminder.body}</Text>

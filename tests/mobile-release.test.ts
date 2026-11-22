@@ -9,7 +9,7 @@ describe("mobile release links", () => {
     const config = JSON.parse(readFileSync("mobile/app.json", "utf8")).expo;
     const pkg = JSON.parse(readFileSync("mobile/package.json", "utf8"));
     const eas = JSON.parse(readFileSync("mobile/eas.json", "utf8"));
-    expect(config.version).toBe("0.5.0");
+    expect(config.version).toBe("0.5.1");
     expect(pkg.version).toBe(config.version);
     expect(config.android.versionCode).toBe(3);
     expect(config.ios.buildNumber).toBe("3");

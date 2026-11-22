@@ -13,7 +13,11 @@ const enrollment = z.object({ enabled: z.boolean(), expoPushToken: z.string().re
   .refine(input => !input.enabled || !!input.expoPushToken, { message: "A push token is required to enable mobile alerts." });
 type RaidState = { title: string; at: string; revision: string };
 type Snapshot = Record<string, RaidState>;
-type Alert = { raidId: string; kind: "reminder" | "changed" | "cancelled"; state: RaidState };
+// `lead` is set only on the early reminders (24 h and 2 h before); the one-hour reminder keeps its original shape and delivery key.
+type Alert = { raidId: string; kind: "reminder" | "changed" | "cancelled"; state: RaidState; lead?: number };
+const EARLY_REMINDERS_MS = [86_400_000, 7_200_000];
+// A tick runs every minute: an early reminder is due in the quarter hour before its moment, so enrolling late never sends a stale 24 h notice.
+const EARLY_WINDOW_MS = 900_000;
 type RaidRow = { id: string; title: string; scheduledAt: Date; updatedAt: Date };
 export const raidSnapshot = (raids: RaidRow[]): Snapshot => Object.fromEntries(raids.map(r => [r.id, { title: r.title, at: r.scheduledAt.toISOString(), revision: r.updatedAt.toISOString() }]));
 export function mobileRaidChanges(previous: Snapshot, current: Snapshot, now: Date): Alert[] {
@@ -26,6 +30,7 @@ export function mobileRaidChanges(previous: Snapshot, current: Snapshot, now: Da
   for (const [id, state] of Object.entries(current)) {
     const left = Date.parse(state.at) - now.getTime();
     if (left > 0 && left <= 3_600_000) result.push({ raidId: id, kind: "reminder", state });
+    for (const lead of EARLY_REMINDERS_MS) if (left > lead - EARLY_WINDOW_MS && left <= lead) result.push({ raidId: id, kind: "reminder", state, lead });
   }
   return result;
 }
@@ -122,7 +127,7 @@ export async function runMobileAlerts(database: PrismaClient, client: Client, no
       const changes = mobileRaidChanges(previous, snapshot, now);
       await database.$transaction(async tx => {
         for (const alert of changes) {
-          const identity = alert.kind === "reminder" ? { raidId: alert.raidId, kind: alert.kind, at: alert.state.at } : alert;
+          const identity = alert.kind === "reminder" ? { raidId: alert.raidId, kind: alert.kind, at: alert.state.at, ...(alert.lead ? { lead: alert.lead } : {}) } : alert;
           const key = createHash("sha256").update(JSON.stringify([device.generation, identity])).digest("hex");
           await tx.mobileDelivery.upsert({ where: { deviceId_eventKey: { deviceId: device.id, eventKey: key } }, create: { deviceId: device.id, eventKey: key, generation: device.generation, expiresAt: alert.kind === "reminder" ? new Date(alert.state.at) : new Date(now.getTime() + 86_400_000), payload: alert as unknown as Prisma.InputJsonValue }, update: {} });
         }
@@ -158,7 +163,7 @@ export async function runMobileAlerts(database: PrismaClient, client: Client, no
       const stillEnabled = await database.mobileDevice.count({ where: { id: device.id, generation: delivery.generation, enabled: true, expoPushToken: device.expoPushToken, credential: { revokedAt: null, member: { status: "ACTIVE" } } } });
       if (!stillEnabled) { await drop(database, delivery.id); continue; }
       const fr = device.locale === "fr";
-      const response = await send("https://exp.host/--/api/v2/push/send", { method: "POST", headers: expoHeaders(), signal: AbortSignal.timeout(10_000), body: JSON.stringify({ to: device.expoPushToken, title: alert.state.title, body: alert.kind === "reminder" ? (fr ? "Le raid commence dans moins d’une heure." : "Your raid starts within an hour.") : alert.kind === "cancelled" ? (fr ? "Ce raid est annulé." : "This raid was cancelled.") : (fr ? "Les détails du raid ont changé." : "Raid details changed."), data: { type: "raid", guildDiscordId: owner.guild.discordId, raidId: alert.raidId, kind: alert.kind }, sound: "default", channelId: "raids", ttl: alert.kind === "reminder" ? Math.max(1, Math.floor((Date.parse(alert.state.at) - now.getTime()) / 1000)) : 86_400 }) });
+      const response = await send("https://exp.host/--/api/v2/push/send", { method: "POST", headers: expoHeaders(), signal: AbortSignal.timeout(10_000), body: JSON.stringify({ to: device.expoPushToken, title: alert.state.title, body: alert.kind === "reminder" ? (alert.lead === 86_400_000 ? (fr ? "Le raid commence demain, dans 24 heures." : "Your raid starts in 24 hours.") : alert.lead === 7_200_000 ? (fr ? "Le raid commence dans 2 heures." : "Your raid starts in 2 hours.") : fr ? "Le raid commence dans moins d’une heure." : "Your raid starts within an hour.") : alert.kind === "cancelled" ? (fr ? "Ce raid est annulé." : "This raid was cancelled.") : (fr ? "Les détails du raid ont changé." : "Raid details changed."), data: { type: "raid", guildDiscordId: owner.guild.discordId, raidId: alert.raidId, kind: alert.kind }, sound: "default", channelId: "raids", ttl: alert.kind === "reminder" ? Math.max(1, Math.floor((Date.parse(alert.state.at) - now.getTime()) / 1000)) : 86_400 }) });
       if (!response.ok) throw new Error("push unavailable");
       const result = await response.json() as { data?: { status?: string; id?: string; details?: { error?: string } } };
       if (result.data?.details?.error === "DeviceNotRegistered") { await retireToken(database, device.id, device.generation, hashCompanionSecret(device.expoPushToken)); await drop(database, delivery.id); continue; }

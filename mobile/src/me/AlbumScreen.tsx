@@ -9,7 +9,7 @@ import { EmptyState, Medal as MedalRing, ProgressBar, RetryCard, SegmentedTabs, 
 
 const words = {
   title: { en: "Badge album", fr: "Album de badges" },
-  intro: { en: "One card for every achievement. A card unlocks when you really earn it: no packs, no luck, nothing to buy.", fr: "Une carte pour chaque succès. Une carte se débloque quand vous le méritez vraiment : pas de paquets, pas de chance, rien à acheter." },
+  intro: { en: "One card for every achievement. A card unlocks when you really earn it: no packs, no luck, nothing to buy.", fr: "Une carte pour chaque succès. Une carte se débloque quand tu le mérites vraiment : pas de paquets, pas de chance, rien à acheter." },
   all: { en: "All cards", fr: "Toutes les cartes" },
   mine: { en: "Unlocked", fr: "Débloquées" },
   of: { en: "unlocked", fr: "débloquées" },
@@ -19,9 +19,9 @@ const words = {
   locked: { en: "Locked", fr: "Verrouillée" },
   how: { en: "How to earn", fr: "Comment l'obtenir" },
   unlockedOn: { en: "Unlocked", fr: "Débloquée le" },
-  empty: { en: "Nothing unlocked yet. Play, and your first card will appear here.", fr: "Rien de débloqué pour l'instant. Jouez, et votre première carte apparaîtra ici." },
+  empty: { en: "Nothing unlocked yet. Play, and your first card will appear here.", fr: "Rien de débloqué pour l'instant. Joue, et ta première carte apparaîtra ici." },
   failed: { en: "The album is unavailable right now.", fr: "L'album est indisponible pour le moment." },
-  sample: { en: "Sample cards. Sign in to see your own.", fr: "Cartes d'exemple. Connectez-vous pour voir les vôtres." }
+  sample: { en: "Sample cards. Sign in to see your own.", fr: "Cartes d'exemple. Connecte-toi pour voir les tiennes." }
 } as const;
 const w = (key: keyof typeof words, lang: Lang) => words[key][lang];
 

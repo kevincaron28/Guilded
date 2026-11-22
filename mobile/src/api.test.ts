@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GuildedClient, apiOrigin, discordEventLink, parseGrant, parseHub, parseManage, parseStandings, parseSummary, fetchBounded, readTextBounded, withMine } from "./api";
-import { notificationId, planReminders, soonRaids } from "./reminders";
+import { REMINDER_LEADS_MS, REMINDER_LEAD_MS, notificationId, planReminders, soonRaids } from "./reminders";
 import { sampleHubBody, sampleManageBody, sampleStandingsBody } from "./sample";
 
 afterEach(() => (vi.unstubAllGlobals(), vi.useRealTimers()));
@@ -39,19 +39,19 @@ describe("mobile companion client", () => {
     expect(discordEventLink("see https://example.com/events/1/2")).toBeNull();
   });
 
-  it("schedules a reminder an hour before, and skips a raid that is already inside that hour", () => {
+  it("schedules a reminder a day, two hours and an hour before, and skips a raid that is already inside that hour", () => {
     const now = Date.parse("2026-11-03T12:00:00.000Z");
     const raids = [
       { id: "past", title: "Past", at: "2026-11-03T11:00:00.000Z", core: null },
       { id: "soon", title: "Soon", at: "2026-11-03T12:20:00.000Z", core: "Thursday" },
       { id: "later", title: "Later", at: "2026-11-05T12:00:00.000Z", core: "Sunday" }
     ];
-    expect(planReminders(raids, now).map((reminder) => reminder.id)).toEqual(["later"]);
-    expect(planReminders(raids, now)[0]?.fireAt).toBe("2026-11-05T11:00:00.000Z");
+    expect(planReminders(raids, now).map((reminder) => reminder.id)).toEqual(["later", "later", "later"]);
+    expect(planReminders(raids, now).map((reminder) => reminder.fireAt)).toEqual(["2026-11-04T12:00:00.000Z", "2026-11-05T10:00:00.000Z", "2026-11-05T11:00:00.000Z"]);
     expect(soonRaids(raids, now).map((raid) => raid.id)).toEqual(["soon"]);
     expect(notificationId("discord:raid/1")).toBe("guilded-raid-discord%3Araid%2F1");
     const standings = parseStandings(sampleStandingsBody);
-    expect(soonRaids(standings.raids).length + planReminders(standings.raids).length).toBe(standings.raids.length);
+    expect(soonRaids(standings.raids).length + new Set(planReminders(standings.raids).map((reminder) => reminder.id)).size).toBe(standings.raids.length);
   });
 
   it("sends the companion credential to the hub and refuses a sign-in page on another site", async () => {
@@ -89,8 +89,11 @@ describe("mobile companion client", () => {
 
   it("plans the nearest unique raids first and preserves distinct notification IDs", () => {
     const raids = [4, 2, 3].map((hour) => ({ id: String(hour), title: "Raid", core: null, at: new Date(hour * 3_600_000).toISOString() }));
-    expect(planReminders([...raids, raids[1]!], 0).map((raid) => raid.id)).toEqual(["2", "3", "4"]);
+    expect([...new Set(planReminders([...raids, raids[1]!], 0).map((raid) => raid.id))]).toEqual(["2", "3", "4"]);
+    expect(planReminders(raids, -90_000_000).map((raid) => raid.id)).toHaveLength(9);
     expect(notificationId("a/b")).not.toBe(notificationId("ab"));
+    expect(new Set(REMINDER_LEADS_MS.map((lead) => notificationId("x", lead))).size).toBe(3);
+    expect(notificationId("x")).toBe(notificationId("x", REMINDER_LEAD_MS));
   });
 
   it("bounds a stalled request with an abort", async () => {

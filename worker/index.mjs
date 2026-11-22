@@ -125,6 +125,8 @@ const apiMethods = new Map([
   ["/api/v1/me/characters/main", ["POST"]],
   ["/api/v1/me/characters/unlink", ["POST"]],
   ["/api/v1/me/promotion", ["GET"]],
+  ["/api/v1/me/raid-signups", ["GET"]],
+  ["/api/v1/me/raid-signup", ["POST"]],
   // Guilded Collection (phone card game): read, open the daily pack, craft.
   ["/api/v1/companion/cards", ["GET"]],
   ["/api/v1/companion/cards/open", ["POST"]],

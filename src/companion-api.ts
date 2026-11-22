@@ -25,6 +25,8 @@ import { claimOffer, offerByDm, offerByDmToUsers, offersFor, snoozeOffer } from 
 import { companionMe } from "./services/companion-me.js";
 import { albumFor } from "./services/companion-album.js";
 import { makeMainFor, mePromotionFor, meCharactersFor, unlinkFor } from "./services/me-api.js";
+import { mySignupsFor, signUpFor } from "./services/mobile-raid-signup.js";
+import { createRaidService } from "./services/raid.js";
 import { applyWorldPvpUpload, parseWorldPvpUploads } from "./services/world-pvp.js";
 import { applyPvpEvents, parsePvpEvents } from "./services/world-pvp-events.js";
 import { applyRaidKills, createRaidProgressWeb, parseRaidKills } from "./services/raid-progress.js";
@@ -942,7 +944,10 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const isMeMain = request.method === "POST" && url.pathname === "/api/v1/me/characters/main";
       const isMeUnlink = request.method === "POST" && url.pathname === "/api/v1/me/characters/unlink";
       const isMePromotion = request.method === "GET" && url.pathname === "/api/v1/me/promotion";
-      const isMeApi = isMeCharacters || isMeMain || isMeUnlink || isMePromotion;
+      // Phone app 0.5.1: the member's own answer on each upcoming raid, and sign up / maybe / can't come (services/mobile-raid-signup.ts).
+      const isMeSignups = request.method === "GET" && url.pathname === "/api/v1/me/raid-signups";
+      const isMeSignup = request.method === "POST" && url.pathname === "/api/v1/me/raid-signup";
+      const isMeApi = isMeCharacters || isMeMain || isMeUnlink || isMePromotion || isMeSignups || isMeSignup;
       // Guilded Collection (TCG stage 1): the phone's card collection, daily pack and crafting. Signed-in member only.
       const isCards = (request.method === "GET" && url.pathname === "/api/v1/companion/cards") || (request.method === "POST" && (url.pathname === "/api/v1/companion/cards/open" || url.pathname === "/api/v1/companion/cards/craft"));
       // Guilded Clash (TCG stage C): matches against the AI or a PvE boss. Signed-in member only; ids travel in the query or body.
@@ -1273,6 +1278,28 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         if (!discordUserId) { recordFailure(address); json(response, 401, { error: "This companion link is no longer valid. Sign in with Discord again." }); return; }
         if (isMeCharacters) { privateJson(response, await meCharactersFor(prisma, discordUserId)); return; }
         if (isMePromotion) { privateJson(response, await mePromotionFor(prisma, discordUserId, (id) => hostedPilot.allows(id))); return; }
+        if (isMeSignups) { privateJson(response, await mySignupsFor(prisma, discordUserId, url.searchParams.get("guild"), (id) => hostedPilot.allows(id))); return; }
+        if (isMeSignup) {
+          if (!allowCompanionRevocation(`raid-signup:${discordUserId}`)) { json(response, 429, { error: "Too many changes. Wait a minute and try again." }); return; }
+          const answer = await readBody(request).catch(() => null) as Record<string, unknown> | null;
+          if (!answer || typeof answer !== "object") { json(response, 400, { error: "A JSON body is required." }); return; }
+          const outcome = await signUpFor(prisma, createRaidService(prisma), discordUserId, answer, (id) => hostedPilot.allows(id), async (effects) => {
+            // What the post's buttons do after a change: refresh the signup post, tell a promoted or bumped player. Never fails the answer.
+            if (!client) return;
+            try {
+              const { syncSignupEmbed, tellBumped, tellPromoted } = await import("./commands/raid.js");
+              await tellBumped(client, effects.bumped);
+              await tellPromoted({ client }, effects.promoted);
+              await syncSignupEmbed(await client.guilds.fetch(effects.guildDiscordId), effects.guildId, effects.raidId);
+            } catch (error) { console.warn("Phone app: raid sign-up follow-up failed:", error instanceof Error ? error.message : String(error)); }
+          });
+          if (outcome.status === "ok") { privateJson(response, { ok: true, signup: outcome.signup }); return; }
+          if (outcome.status === "invalid") { json(response, 400, { error: "That sign-up answer is not valid." }); return; }
+          if (outcome.status === "gone") { json(response, 404, { error: "That raid is no longer open." }); return; }
+          if (outcome.status === "closed") { json(response, 409, { error: "Signups are closed for this raid.", closed: true, closesAt: outcome.closesAt }); return; }
+          json(response, 409, { error: outcome.message });
+          return;
+        }
         if (!allowCompanionRevocation(`me-characters:${discordUserId}`)) { json(response, 429, { error: "Too many changes. Wait a minute and try again." }); return; }
         const body = await readBody(request).catch(() => null) as { character?: unknown } | null;
         if (!body || typeof body !== "object") { json(response, 400, { error: "A JSON body is required." }); return; }

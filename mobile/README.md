@@ -1,6 +1,6 @@
 # Guilded Mobile
 
-Android and iOS share this Expo SDK 58 project. Mobile version **0.5.0**
+Android and iOS share this Expo SDK 58 project. Mobile version **0.5.1**
 (the Android versionCode is kept and raised by EAS on each store build) is separate from the bot,
 addon and Windows companion version. Both store identifiers are
 `top.kcaron.guilded`; the Expo slug is `guilded-mobile`.
@@ -23,6 +23,21 @@ bot, addon and Windows companion version). Store identifiers are
 - **Alerts**: raid reminders on this phone, plus help-call, dungeon and raid
   vacancy alerts listed as switched off until push lands (PR #345).
 - **News**: Wowhead headlines and the Blizzard news link. Public.
+**0.5.1** (22 November 2026, owner decisions; JavaScript-only, so it can ship as an update or a store build; version fields only, nothing built or submitted):
+
+- **Raid sign-up from the phone**: on the Raids part of the Guild tab, each raid made by the bot has a role (Tank, Healer, DPS) and **I'm in / Maybe /
+  Can't come**. The server applies the Discord post's own rules (role caps, melee/ranged seats, waitlist, core priority, the deadline), refreshes the
+  signup post and tells a promoted or bumped player, as the post's buttons do. Routes, under the companion sign-in: `GET /api/v1/me/raid-signups?guild=<discord id>`
+  (my answer on each upcoming raid) and `POST /api/v1/me/raid-signup` (body `{ guildDiscordId, raidId, choice: YES|MAYBE|NO, role? }`), served by
+  `src/services/mobile-raid-signup.ts` and allow-listed in `worker/index.mjs`. A Discord scheduled event (id `discord:...`) has no sign-up list: no buttons.
+  The sample guild answers on the phone only. 409 `closed` is the deadline.
+- **Reminders a day, two hours and an hour before** each raid (local notifications, identifiers `guilded-raid-<id>` for the hour and `... 24h` / `... 2h`), none for a
+  raid answered "Can't come". The bot's push sends the same three (`mobileRaidChanges`, `lead` on the early ones) once push is on; push replaces the local ones.
+- French copy now uses **tu** (owner decision, 22 November 2026).
+- Fixes from the audit: 401 on any screen signs the app out at once (`onSessionCleared`), the duel ladder note no longer names a date, the roster rank line is not repeated,
+  one Android channel name ("Raids"). Remote notifications are **on** in `app.json` (`enableRemoteNotifications: true`): an iOS build needs the APNs key in EAS; see
+  "Push setup" below.
+
 **0.5.0** (19 November 2026, owner: "finish the applications and website"; a new runtime version, so it ships as a store build, not an update): the app catches up with the 9.4 website and bot.
 
 - **My characters** (Me tab, signed in): every character linked to you with its Discord server, in-game guild rank, level, main or alt and
@@ -316,3 +331,18 @@ verification: Guilded signs in with Discord, not Google, and calls no Google API
    remote alerts such as calls for help; on-device reminders work without it.
 
 Total cost: USD 25 once. Until then, the free preview APK on GitHub stays available.
+
+## Push setup (what the owner provides; nothing here is built or changed yet)
+
+Local reminders work without any of this. Remote push (changes, cancellations and the three reminders reaching a phone with the app closed) is already coded on
+both sides (`src/services/mobile-alerts.ts`, `mobile/src/notify.ts`, the Alerts tab switch). It starts working when:
+
+1. **Firebase (Android).** console.firebase.google.com: create a project, add an Android app with package `top.kcaron.guilded`, download `google-services.json`.
+   In EAS (expo.dev, project `guilded-mobile`, environment `production`): create a **file** variable `GOOGLE_SERVICES_JSON` with that file. Then, in the project's
+   **Credentials** for Android, upload a Firebase service-account key for **FCM V1** (Firebase: Project settings, Service accounts, Generate new private key). Never commit either file.
+2. **Apple (iOS).** With the Apple Developer account: let EAS create the push key (`npx eas-cli credentials`, iOS, Push Notifications), or give it an APNs key (.p8) with its key id and team id.
+3. **Expo access token.** expo.dev, Account settings, Access tokens: create one. Add it as the GitHub secret `EXPO_TOKEN` (enables the manual OTA workflow) and, if
+   the bot should send with an authorised Expo account, as `EXPO_ACCESS_TOKEN` in the bot's environment (`src/config.ts`; `expoHeaders` uses it).
+4. **A store build with push**: `npx eas-cli build --platform android --profile production` (not `production-no-push`) and the iOS production build. The version name changes only in a reviewed PR.
+5. **Check** on a real phone: Alerts tab, switch on "Remote alerts", accept the permission; the bot's next minute tick registers the token; raise a test raid a day ahead and watch
+   the 24 h / 2 h / 1 h pushes (the bot sends them even when the phone's local reminders are off).

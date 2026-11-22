@@ -1,3 +1,5 @@
+import { RaidAnswer } from "./RaidAnswer";
+import { signable, type Choice, type MySignup, type RaidRoleName } from "../signups";
 import { useState } from "react";
 import { Linking, Pressable, Text, View } from "react-native";
 import { discordEventLink, withMine, type CoreBoard, type HubView, type ManageView, type StandingsView } from "../api";
@@ -32,7 +34,7 @@ export function Characters({ lang, hub, error }: { lang: Lang; hub: HubView | nu
       </View>
       <Text style={common.muted}>{[character.spec, character.className].filter(Boolean).join(" ")}{character.level ? ` · ${t(lang, "level")} ${character.level}` : ""}</Text>
       <Text style={common.muted}>{[character.realm, character.edition].filter(Boolean).join(" · ")}</Text>
-      <Text style={common.body}>{t(lang, "rank")}: {character.rank ?? t(lang, "noRank")}</Text>
+      <Text style={common.body}>{character.rank ? `${t(lang, "rank")}: ${character.rank}` : t(lang, "noRank")}</Text>
       {character.guildName ? <Text style={common.muted}>{character.guildName}{character.current ? "" : ` · ${t(lang, "otherServer")}`}</Text> : null}
       {character.cores.map((core) => <Text key={`${character.id}-${core.name}-${core.role}`} style={common.body}>{core.name} · {roleLabel(core.role, lang)}{core.bench ? ` · ${t(lang, "bench")}` : ""}{core.trial ? ` · ${t(lang, "trial")}` : ""}{core.backup ? ` · ${t(lang, "backup")}` : ""}</Text>)}
     </View>)}
@@ -64,7 +66,13 @@ export function Reserves({ lang, hub, error }: { lang: Lang; hub: HubView | null
   </>;
 }
 
-export function Raids({ lang, hub, manage, standings, error }: { lang: Lang; hub: HubView | null; manage: ManageView | null; standings: StandingsView | null; error?: string }) {
+export function Raids({ lang, hub, manage, standings, error, answers, onAnswer, preview = false }: {
+  lang: Lang; hub: HubView | null; manage: ManageView | null; standings: StandingsView | null; error?: string;
+  /** My answer per raid id and the way to give one (not given: the buttons stay off, e.g. a personal sign-in). */
+  answers?: Record<string, MySignup>; onAnswer?: (raidId: string, choice: Choice, role?: RaidRoleName) => Promise<MySignup>; preview?: boolean;
+}) {
+  // Only bot-made raids have a sign-up list; the sample guild answers on the phone itself.
+  const answerable = (id: string) => Boolean(onAnswer) && (preview || signable(id));
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<StandingSort>("pr");
   if (error && !standings) return <Text style={common.error}>{error}</Text>;
@@ -84,15 +92,17 @@ export function Raids({ lang, hub, manage, standings, error }: { lang: Lang; hub
         <Text style={common.body}>{t(lang, "signedUp")}</Text>
         {next.players.map((player) => <Text key={`${player.name}-${player.role}`} style={common.muted}>{player.name} · {roleLabel(player.role, lang)}</Text>)}
         {next.maybe.length ? <Text style={common.muted}>{t(lang, "maybe")}: {next.maybe.join(", ")}</Text> : null}
+        {onAnswer && answerable(next.id) ? <RaidAnswer lang={lang} raidId={next.id} mine={answers?.[next.id]} onAnswer={onAnswer} /> : null}
       </>}
     </View>
     <Text style={common.label}>{t(lang, "upcoming")}</Text>
     {standings.raids.length === 0 ? <Text style={common.muted}>{t(lang, "noUpcoming")}</Text> : standings.raids.map((raid) => {
       const link = discordEventLink(raid.note);
-      return <View key={raid.id} style={common.row}>
+      return <View key={raid.id} style={[common.row, { flexWrap: "wrap" }]}>
         <View style={{ flex: 1 }}>
           <Text style={common.body}>{raid.title}</Text>
           <Text style={common.muted}>{formatWhen(raid.at, lang)}{raid.core ? ` · ${raid.core}` : ""}</Text>
+          {onAnswer && answerable(raid.id) && raid.id !== next?.id ? <RaidAnswer lang={lang} raidId={raid.id} mine={answers?.[raid.id]} onAnswer={onAnswer} /> : null}
         </View>
         {link ? <Pressable onPress={() => void Linking.openURL(link).catch(() => {})} accessibilityRole="link" style={common.textButton}><Text style={common.textButtonLabel}>{t(lang, "openDiscord")}</Text></Pressable> : null}
       </View>;

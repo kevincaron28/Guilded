@@ -9,7 +9,7 @@ import { Card, EmptyState, Glyph, LastUpdated, RetryCard, colors, usePullToRefre
 const words = {
   kicker: { en: "WOW NEWS", fr: "NOUVELLES WOW" },
   title: { en: "Headlines", fr: "Manchettes" },
-  intro: { en: "Headlines only. Tap one to read it on the publisher's site.", fr: "Seulement les manchettes. Touchez-en une pour la lire sur le site de l'éditeur." },
+  intro: { en: "Headlines only. Tap one to read it on the publisher's site.", fr: "Seulement les manchettes. Touches-en une pour la lire sur le site de l'éditeur." },
   via: { en: "Headlines from Wowhead", fr: "Manchettes de Wowhead" },
   blizzard: { en: "Open Blizzard news", fr: "Ouvrir les nouvelles de Blizzard" },
   empty: { en: "No headlines right now.", fr: "Aucune manchette pour le moment." },

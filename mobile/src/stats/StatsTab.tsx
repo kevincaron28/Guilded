@@ -19,7 +19,7 @@ const words = {
   duels: { en: "Duels", fr: "Duels" },
   duelTitle: { en: "Duel ladder", fr: "Classement des duels" },
   duelIntro: { en: "Rated duels between players, the same as the website.", fr: "Les duels cotés entre joueurs, comme sur le site." },
-  duelClosed: { en: "The duel ladder opens on 1 December 2026. Duels fought before then are not rated.", fr: "Le classement des duels ouvre le 1er décembre 2026. Les duels livrés avant cette date ne sont pas cotés." },
+  duelClosed: { en: "The duel ladder is not open yet. Check back soon.", fr: "Le classement des duels n'est pas encore ouvert. Reviens bientôt." },
   duelNone: { en: "Nobody is ranked yet this season.", fr: "Personne n'est encore classé cette saison." },
   duelFailed: { en: "The duel ladder is unavailable right now.", fr: "Le classement des duels est indisponible pour le moment." },
   record: { en: "W-L", fr: "V-D" },

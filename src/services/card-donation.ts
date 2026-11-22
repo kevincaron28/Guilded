@@ -115,8 +115,10 @@ export function donorSummary(donor: DonorTotal, lang: Lang): string {
 const FOOTER = { en: "Seen in the guild bank log", fr: "Vu dans le journal de la banque de guilde" } as const;
 
 /** The card for one donor (stored on the Discord job, drawn at delivery). */
-export function donationCard(lang: Lang, donor: DonorTotal): ScoreCard {
-  const kicker = t(lang, "Thank you!", "Merci !"), thanks = t(lang, "for the donation to the guild bank", "pour ton don à la banque de guilde");
+export function donationCard(lang: Lang, donor: DonorTotal, past = false): ScoreCard {
+  // `past`: the backfill card (22 Nov 2026), one per donor for everything stored before the cards existed.
+  const kicker = t(lang, "Thank you!", "Merci !"), thanks = past ? t(lang, "for all your donations to the guild bank", "pour tous tes dons à la banque de guilde")
+    : t(lang, "for the donation to the guild bank", "pour ton don à la banque de guilde");
   return { title: kicker, subtitle: `${donor.name} · ${thanks}`, stats: [], footer: FOOTER[lang],
     donation: { kicker, name: donor.name, character: donor.character, thanks, lines: donationLines(donor, lang) } };
 }
@@ -133,7 +135,8 @@ export function combinedDonationCard(lang: Lang, donors: readonly DonorTotal[]):
 }
 
 /** The post's text line, server language. `who` is a mention or a bold name. */
-export function donationText(who: string, lang: Lang): string {
+export function donationText(who: string, lang: Lang, past = false): string {
+  if (past) return t(lang, `🎁 Thank you ${who} for everything you have given the guild bank!`, `🎁 Merci ${who} pour tout ce que tu as donné à la banque de guilde !`);
   return t(lang, `🎁 Thank you ${who} for your donation to the guild bank!`, `🎁 Merci ${who} pour ton don à la banque de guilde !`);
 }
 

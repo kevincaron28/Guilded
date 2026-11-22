@@ -54,6 +54,20 @@ const key = (name: string) => name.trim().normalize("NFC").toLowerCase();
 const sameLine = (a: DonationRow, b: DonationRow) => a.kind === b.kind && key(a.actor) === key(b.actor) && a.itemId === b.itemId && a.count === b.count
   && a.amount === b.amount && Math.abs(a.at.getTime() - b.at.getTime()) <= DONATION_SAME_LINE_MS;
 
+/** Pure: one donor's lines summed (gold, and each item's count). */
+export function donorGroup(rows: DonationRow[]): DonorGroup {
+  const items = new Map<string, { itemId: number | null; name: string; count: number }>();
+  let copper = 0n;
+  for (const r of rows) {
+    if (r.kind === "money") { copper += r.amount ?? 0n; continue; }
+    const k = r.itemId !== null ? `#${r.itemId}` : `n:${key(r.itemName ?? "")}`;
+    const entry = items.get(k) ?? { itemId: r.itemId, name: r.itemName?.trim() || (r.itemId ? `Item ${r.itemId}` : "?"), count: 0 };
+    entry.count += r.count ?? 1;
+    items.set(k, entry);
+  }
+  return { actor: rows[0]!.actor, rows, copper, items: [...items.values()] };
+}
+
 /** Pure: what to announce from a server's unseen lines. `seenBefore` are already stamped lines near them (duplicate check). */
 export function planDonations(pending: readonly DonationRow[], seenBefore: readonly DonationRow[], options: { now: Date; enabled: boolean; cardsLeft: number }): DonationPlan {
   const seen: string[] = [], waiting = new Map<string, DonationRow[]>();
@@ -69,17 +83,8 @@ export function planDonations(pending: readonly DonationRow[], seenBefore: reado
   for (const rows of waiting.values()) {
     const newest = Math.max(...rows.map((r) => r.createdAt.getTime()));
     if (options.now.getTime() - newest < DONATION_SETTLE_MS) continue; // still depositing: wait for the visit to end
-    const items = new Map<string, { itemId: number | null; name: string; count: number }>();
-    let copper = 0n;
-    for (const r of rows) {
-      if (r.kind === "money") { copper += r.amount ?? 0n; continue; }
-      const k = r.itemId !== null ? `#${r.itemId}` : `n:${key(r.itemName ?? "")}`;
-      const entry = items.get(k) ?? { itemId: r.itemId, name: r.itemName?.trim() || (r.itemId ? `Item ${r.itemId}` : "?"), count: 0 };
-      entry.count += r.count ?? 1;
-      items.set(k, entry);
-    }
-    const group: DonorGroup = { actor: rows[0]!.actor, rows, copper, items: [...items.values()] };
-    if (!group.items.length && copper < BigInt(DONATION_MIN_COPPER)) { seen.push(...rows.map((r) => r.id)); continue; }
+    const group = donorGroup(rows);
+    if (!group.items.length && group.copper < BigInt(DONATION_MIN_COPPER)) { seen.push(...rows.map((r) => r.id)); continue; }
     ready.push(group);
   }
   if (!options.enabled) return { seen: [...seen, ...ready.flatMap((g) => g.rows.map((r) => r.id))], single: [], combined: [] };
@@ -132,6 +137,58 @@ export async function announceBankDonations(db: DonationDb, discordGuild: Parame
   return queued;
 }
 
+export const BACKFILL_JOB_PREFIX = `${DONATION_JOB_PREFIX}backfill:`;
+export const BACKFILL_GAP_MS = 20 * 60_000;
+
+/**
+ * The backfill (owner, 22 Nov 2026: "give one to everybody who deposited since we created the guild"): every deposit stored before the
+ * donor cards existed was flagged `donationBackfill` by its migration. Each sweep thanks at most one past donor, oldest first, with one
+ * card for everything they gave (all their characters together when they are linked to one member), at most one card every
+ * BACKFILL_GAP_MS and inside the hourly DONATION_CARDS_PER_HOUR budget it shares with new donors, who always go first. A donor's lines are
+ * claimed before the card is queued, so nobody is thanked twice. Switched off: the backlog is dropped. Returns the number of cards queued.
+ */
+export async function backfillBankDonations(db: DonationDb, discordGuild: Parameters<typeof guildChannelLikes>[0], guildId: string, now = new Date()): Promise<number> {
+  const settings = await db.guildSettings.findUnique({ where: { guildId }, select: { language: true, guildBankDonationCards: true } });
+  if (settings?.guildBankDonationCards === false) {
+    await db.guildBankTransaction.updateMany({ where: { guildId, donationBackfill: true }, data: { donationBackfill: false } });
+    return 0;
+  }
+  if (await db.guildBankTransaction.findFirst({ where: { guildId, donationSeenAt: null }, select: { id: true } })) return 0; // new donors first
+  const channelId = await wowChatChannel(db, guildId, guildChannelLikes(discordGuild));
+  if (!channelId) return 0;
+  const hour = await db.discordJob.count({ where: { guildId, key: { startsWith: DONATION_JOB_PREFIX }, createdAt: { gte: new Date(now.getTime() - 3_600_000) } } });
+  const gap = await db.discordJob.count({ where: { guildId, key: { startsWith: BACKFILL_JOB_PREFIX }, createdAt: { gte: new Date(now.getTime() - BACKFILL_GAP_MS) } } });
+  if (hour >= DONATION_CARDS_PER_HOUR || gap > 0) return 0;
+  const rows: DonationRow[] = await db.guildBankTransaction.findMany({ where: { guildId, donationBackfill: true }, orderBy: { at: "asc" }, take: 20_000,
+    select: { id: true, kind: true, type: true, actor: true, itemId: true, itemName: true, count: true, amount: true, at: true, createdAt: true } });
+  if (!rows.length) return 0;
+  const byActor = new Map<string, DonationRow[]>();
+  for (const r of rows) byActor.set(key(r.actor), [...(byActor.get(key(r.actor)) ?? []), r]);
+  // Oldest donor first; their linked member's other characters join the same card.
+  const firstAt = (g: DonorGroup) => Math.min(...g.rows.map((r) => r.at.getTime()));
+  const groups = [...byActor.values()].map(donorGroup).sort((a, b) => firstAt(a) - firstAt(b) || a.actor.localeCompare(b.actor));
+  const facts = await donorTotals(db, guildId, groups);
+  const first = groups[0]!, userId = facts.get(first)!.userId;
+  const mine = userId ? groups.filter((g) => facts.get(g)!.userId === userId) : [first];
+  const group = mine.length === 1 ? first : donorGroup(mine.flatMap((g) => g.rows).sort((a, b) => a.at.getTime() - b.at.getTime()));
+  const ids = group.rows.map((r) => r.id);
+  const claimed = await db.guildBankTransaction.updateMany({ where: { id: { in: ids }, donationBackfill: true }, data: { donationBackfill: false } });
+  if (claimed.count !== ids.length) return 0;
+  const lang: Lang = settings?.language === "fr" ? "fr" : "en";
+  const total = { ...facts.get(first)!.total, gold: group.copper > 0n ? donationGold(group.copper) : null,
+    items: mine.length === 1 ? facts.get(first)!.total.items : mine.flatMap((g) => facts.get(g)!.total.items).reduce<DonorTotal["items"]>((all, item) => {
+      const same = all.find((i) => (i.itemId !== null ? i.itemId === item.itemId : i.name === item.name));
+      if (same) same.count += item.count; else all.push({ ...item });
+      return all;
+    }, []) };
+  const who = userId ? `<@${userId}>` : `**${total.name}**`;
+  const text = donationText(who, lang, true);
+  await enqueueDiscordJob(db, guildId, `${BACKFILL_JOB_PREFIX}${group.rows[0]!.id}`, "MESSAGE", { channelId, message: { content: text },
+    card: JSON.parse(JSON.stringify(donationCard(lang, total, true))), ...(userId ? { donorUserId: userId } : {}),
+    cardOnly: { content: text, embeds: [textlessEmbed(0xd4af37)] } });
+  return 1;
+}
+
 /** Each donor's card facts: the full Forever name, the linked member (for the avatar), gold text and items with their quality. */
 async function donorTotals(db: DonationDb, guildId: string, groups: readonly DonorGroup[]): Promise<Map<DonorGroup, { total: DonorTotal; userId: string | null }>> {
   const book = await loadFullNameBook(db, guildId, groups.map((g) => g.actor));
@@ -156,12 +213,14 @@ export async function sweepBankDonations(db: DonationDb & Pick<PrismaClient, "gu
   if (running) return;
   running = true;
   try {
-    const rows = await db.guildBankTransaction.findMany({ where: { donationSeenAt: null }, distinct: ["guildId"], select: { guildId: true }, take: 200 });
-    for (const { guildId } of rows) {
+    const fresh = await db.guildBankTransaction.findMany({ where: { donationSeenAt: null }, distinct: ["guildId"], select: { guildId: true }, take: 200 });
+    const backlog = await db.guildBankTransaction.findMany({ where: { donationBackfill: true }, distinct: ["guildId"], select: { guildId: true }, take: 200 });
+    for (const guildId of new Set([...fresh, ...backlog].map((r) => r.guildId))) {
       const guild = await db.guild.findUnique({ where: { id: guildId }, select: { discordId: true } }).catch(() => null);
       const discordGuild = guild ? guilds.get(guild.discordId) : undefined;
       if (!discordGuild) continue;
       await withGuildScope(db, guildId, () => announceBankDonations(db, discordGuild, guildId, now)).catch(report);
+      if (backlog.some((r) => r.guildId === guildId)) await withGuildScope(db, guildId, () => backfillBankDonations(db, discordGuild, guildId, now)).catch(report);
     }
   } finally { running = false; }
 }

@@ -86,7 +86,7 @@ describe("a main change swaps the ranks", () => {
     expect(en).toContain("Boo Alt — alt of Boo Main (Newbie)");
     expect(en).toContain("Main not in the guild");
     const fr = formatPromotionPlan(result, NO_VOICE, "fr");
-    expect(fr).toContain("donnez à New Main le rang Initiate et passez Old Main au rang Alt");
+    expect(fr).toContain("donne à New Main le rang Initiate et passe Old Main au rang Alt");
     expect(fr).toContain("Alts à passer au rang Alt");
   });
 });

@@ -99,7 +99,7 @@ const STRINGS = {
   "dm.promoted": { en: "A {role} slot opened in **{raid}** ({when}). You're off the waitlist and signed up.", fr: "Une place de {role} s'est libérée pour **{raid}** ({when}). Tu n'es plus en attente : tu es inscrit." },
 
   // Reminders
-  "reminder": { en: "⏰ **{raid}** starts {when}. See you there: {mentions}", fr: "⏰ **{raid}** commence {when}. On t'attend : {mentions}" },
+  "reminder": { en: "⏰ **{raid}** starts {when}. See you there: {mentions}", fr: "⏰ **{raid}** commence {when}. On vous attend : {mentions}" },
 
   // Notifications
   "notify.raidStarted": { en: "⚔️ Raid started: **{raid}**", fr: "⚔️ Raid commencé : **{raid}**" },
@@ -259,7 +259,7 @@ const STRINGS = {
   },
   "invite.notify.people": {
     en: "{mentions} — **{name}** is asking for a guild invite and you look online in game (any guild member can invite).",
-    fr: "{mentions} — **{name}** demande une invitation de guilde et tu sembles en ligne dans le jeu (tout membre de la guilde peut inviter)."
+    fr: "{mentions} — **{name}** demande une invitation de guilde et vous semblez en ligne dans le jeu (tout membre de la guilde peut inviter)."
   },
   "invite.notify.wrongFaction": {
     en: "**{name}** seems to be on the other faction: this guild is **{faction}**, and a guild can only invite characters of its own faction. Please ask again with a **{faction}** character.",

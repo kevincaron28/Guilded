@@ -24,7 +24,7 @@ describe("promotion status", () => {
     expect(text).toContain("pas encore dans le roster");
     expect(progress([], 500).ready).toBe(false);
     expect(text).not.toContain("<#");
-    expect(formatProgress(progress([], 200), "fr", "123")).toContain("ou écrivez-le dans <#123>");
+    expect(formatProgress(progress([], 200), "fr", "123")).toContain("ou écris-le dans <#123>");
     expect(formatProgress(progress([], 200), "en", "123")).toContain("or type it in <#123>");
   });
   it("shows days left and respects the switches", () => {

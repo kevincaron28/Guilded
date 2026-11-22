@@ -190,7 +190,7 @@ describe("rule 6: officer switches", () => {
     const db = fake([row({ createdAt: new Date(NOW.getTime() - 5 * DAY) })], [{ guildId: "g1", discordId: "d1", language: "fr" }]);
     const { client, sent } = discordFake();
     await sweepInviteExpiry(client as never, db as never, NOW);
-    expect(sent[0]!.content).toContain("Vous voulez toujours rejoindre");
+    expect(sent[0]!.content).toContain("Tu veux toujours rejoindre");
   });
 });
 

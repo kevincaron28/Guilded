@@ -3,7 +3,6 @@ import { prisma } from "../database.js";
 import { createGuildService } from "../services/guild.js";
 import { createErrorReportService, isMemberAnswer } from "../services/error-report.js";
 import { BRAND } from "../brand.js";
-import { asLang } from "../i18n.js";
 import { frenchErrorMessage } from "../services/error-fr.js";
 import { currentGuildScope } from "../services/guild-scope.js";
 import { asLang, type Lang } from "../i18n.js";

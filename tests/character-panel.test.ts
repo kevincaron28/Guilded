@@ -128,7 +128,7 @@ describe("character panel", () => {
   it("lists only the member's attached characters, in French, with the controls", async () => {
     world.characters.push(ch("a", "m1", "Ray", true), ch("b", "m1", "Rayne"), ch("c", "m2", "Other"), ch("d", "m1", "Old", false, new Date()));
     const view = await characterPanel(database(), "u1", "dg1");
-    expect(view.content).toContain("Vos personnages");
+    expect(view.content).toContain("Tes personnages");
     expect(view.content).toContain("Ray");
     expect(view.content).not.toContain("Other");
     expect(view.content).not.toContain("Old");

@@ -49,7 +49,7 @@ export function communityLeaderboardCard(input: {
     .setTitle(say(lang, "🏆 THE COMMUNITY PODIUM", "🏆 LE PODIUM DE LA GANG"))
     .setDescription(say(lang,
       "Every game night, helping hand and challenge makes this community stronger, and so does every dungeon, battleground and duel. **Your next point starts here.**\n💬 Discord · 🏰 Dungeons · ⚔️ PvP (battlegrounds, duels, open world)",
-      "Une soirée, un coup de main, un défi, mais aussi chaque donjon, champ de bataille et duel : c’est la gang qui fait vivre la communauté. **Ta prochaine place au classement commence ici !**\n💬 Discord · 🏰 Donjons · ⚔️ JcJ (champs de bataille, duels, monde ouvert)"))
+      "Une soirée, un coup de main, un défi, mais aussi chaque donjon, champ de bataille et duel : c’est la gang qui fait vivre la communauté. **Votre prochaine place au classement commence ici !**\n💬 Discord · 🏰 Donjons · ⚔️ JcJ (champs de bataille, duels, monde ouvert)"))
     .setFooter({ text: `${boardMarker(lang)} · ${say(lang, "Ties share a rank · Earned points, not wallet balance", "Ex æquo = même rang · Points gagnés, pas le solde")}` });
   // With the card attached it shows the whole table (names, split, total, rank, season and member count): the text keeps only the gang's
   // total, which the card does not show. Without a picture (cards off or not drawn) the text carries the full top 10 as before.

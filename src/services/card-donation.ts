@@ -175,5 +175,5 @@ export async function withDonationIcons(card: ScoreCard, iconUrl: (itemId: numbe
 /** The combined post's text line. */
 export function combinedDonationText(names: readonly string[], lang: Lang): string {
   const shown = names.length > 8 ? [...names.slice(0, 7), t(lang, `${names.length - 7} others`, `${names.length - 7} autres`)] : names;
-  return t(lang, `🎁 Thank you ${joinNames(shown, lang)} for your donations to the guild bank!`, `🎁 Merci à ${joinNames(shown, lang)} pour tes dons à la banque de guilde !`);
+  return t(lang, `🎁 Thank you ${joinNames(shown, lang)} for your donations to the guild bank!`, `🎁 Merci à ${joinNames(shown, lang)} pour vos dons à la banque de guilde !`);
 }

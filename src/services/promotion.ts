@@ -10,7 +10,7 @@ import { postToLogChannel } from "./housekeeping.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
 import { promotionCard } from "./card-promotion.js";
 import { textlessEmbed } from "./card-only.js";
-import { guildChannelLikes, wowChatChannel, type ChannelLike, type WowChatDb } from "./wow-chat.js";
+import { guildChannelLikes, guildPostable, wowChatChannel, type ChannelLike, type Postable, type WowChatDb } from "./wow-chat.js";
 
 // 8.5 track C5: the promotion panel. Officers set a rule (default: in Discord, a linked character at rank "Initiate"
 // for 7+ days, optional minimum level). The bot computes "Ready to promote" and "Not in Discord yet". Read-only:
@@ -250,7 +250,7 @@ export { findCommunityChatChannelId, guildChannelLikes, type ChannelLike } from 
  * Where the congratulations go (owner request, 21 Nov 2026): the WoW chat channel (wow-chat.ts: the officer's choice, else chat-wow and
  * similar names, else the community chat, else the season announcements or hall-of-fame channel). `channels` is the server's channel list.
  */
-export const promotionCongratsChannel = (db: WowChatDb, guildId: string, channels: Iterable<ChannelLike> = []): Promise<string | null> => wowChatChannel(db, guildId, channels);
+export const promotionCongratsChannel = (db: WowChatDb, guildId: string, channels: Iterable<ChannelLike> = [], postable?: Postable): Promise<string | null> => wowChatChannel(db, guildId, channels, postable);
 
 /**
  * One public post per promoted member (owner request, 19 Nov 2026): on by default, officers switch it off with
@@ -263,7 +263,7 @@ export async function postPromotionCongrats(db: CongratsDb, discordGuild: Pick<D
   if (settings?.promotionCongratsEnabled === false) return 0;
   const todo = promotions.filter((p) => p.memberId && !isAltRank(p.rankName)).slice(0, 10);
   if (!todo.length) return 0;
-  const channelId = await promotionCongratsChannel(db, guildId, guildChannelLikes(discordGuild));
+  const channelId = await promotionCongratsChannel(db, guildId, guildChannelLikes(discordGuild), guildPostable(discordGuild as never));
   if (!channelId) return 0;
   const members = await db.member.findMany({ where: { id: { in: todo.map((p) => p.memberId!) } }, select: { id: true, discordUserId: true, displayName: true } });
   const lang = settings?.language === "fr" ? "fr" : "en";

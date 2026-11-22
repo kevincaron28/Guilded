@@ -90,6 +90,11 @@ by default; officers turn each off with `/officer bank settings`.
   `donationSeenAt` before its card is queued; a line matching a seen one within 6 h is a re-upload), gold-only
   deposits under 10 gold are skipped, and at most 3 cards per server per hour (the last one thanks the rest
   together). On by default; off switch: `/officer bank settings donation_cards:False`.
+- **Past donors backfill (22 Nov 2026, owner request).** Every deposit stored before the donor cards existed is
+  flagged `donationBackfill` by migration 20270314090000. Each sweep thanks one past donor, oldest first, with one card
+  for everything they gave ("for all your donations"; a linked member's characters share it), at most one card every
+  20 minutes and inside the shared 3-per-hour budget, new donors first. It only covers what officers' uploads stored
+  (the game's bank log keeps a limited history). Switching donor cards off drops the backlog.
 - **WoW chat channel.** Donor cards and promotion congratulations share one destination (`src/services/wow-chat.ts`):
   `/officer bank settings wow_chat:#channel`, else a text channel named chat-wow / wow-chat / guild-chat / chat-guilde /
   guilde-chat (emoji, separators and accents ignored, a WoW category preferred: Québec Gold's `chat-wow`), else

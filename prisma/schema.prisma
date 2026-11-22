@@ -3757,9 +3757,13 @@ model GuildBankTransaction {
   // 21 Nov 2026 donation cards (bank-donations.ts): set once the line was announced or passed over. Rows stored before the
   // feature were stamped by its migration, so the backlog is never announced.
   donationSeenAt DateTime?
+  // 22 Nov 2026 backfill (owner: thank everyone who ever deposited): true on the backlog's deposit lines until the paced backfill
+  // thanks their donor once (bank-donations.ts backfillBankDonations).
+  donationBackfill Boolean @default(false)
 
   @@index([guildId, at])
   @@index([guildId, donationSeenAt])
+  @@index([guildId, donationBackfill])
 }
 
 // 9.1 minimum stock (docs/plans/GUILD_BANK.md): officers keep at least `minCount` of an item in

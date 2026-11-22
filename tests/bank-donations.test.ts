@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ChannelType } from "discord.js";
 import { findWowChatChannelId, plainChannelName, wowChatChannel, type ChannelLike } from "../src/services/wow-chat.js";
 import { promotionCongratsChannel } from "../src/services/promotion.js";
-import { announceBankDonations, planDonations, DONATION_CARDS_PER_HOUR, DONATION_MIN_COPPER, DONATION_SETTLE_MS, type DonationRow } from "../src/services/bank-donations.js";
+import { announceBankDonations, backfillBankDonations, BACKFILL_GAP_MS, planDonations, DONATION_CARDS_PER_HOUR, DONATION_MIN_COPPER, DONATION_SETTLE_MS, type DonationRow } from "../src/services/bank-donations.js";
 import { combinedDonationCard, combinedDonationText, donationCard, donationLines, donationText, renderDonationCard, withDonationIcons, downloadIcon } from "../src/services/card-donation.js";
 import { applyGuildBank } from "../src/services/guild-bank.js";
 import { unbrandCard } from "../src/services/score-card.js";
@@ -104,22 +104,25 @@ describe("planning donor cards", () => {
 
 /** A small in-memory database: bank lines, settings, jobs. */
 function memoryDb(settings: Record<string, unknown> = { language: "fr", guildBankDonationCards: true }) {
-  const lines: (DonationRow & { guildId: string; tab: number | null; tab2: number | null; reportedById: string | null; donationSeenAt: Date | null })[] = [];
+  const lines: (DonationRow & { guildId: string; tab: number | null; tab2: number | null; reportedById: string | null; donationSeenAt: Date | null; donationBackfill?: boolean })[] = [];
   const jobs = new Map<string, { payload: Record<string, unknown>; createdAt: Date }>();
+  const clock = { now: NOW };
   const match = (r: (typeof lines)[number], where: Record<string, unknown>) => {
     if (where["guildId"] && r.guildId !== where["guildId"]) return false;
     if ("donationSeenAt" in where) { const w = where["donationSeenAt"]; if (w === null ? r.donationSeenAt !== null : r.donationSeenAt === null) return false; }
     const at = where["at"] as { gte?: Date } | undefined; if (at?.gte && r.at < at.gte) return false;
     const id = where["id"] as { in?: string[] } | undefined; if (id?.in && !id.in.includes(r.id)) return false;
     const type = where["type"] as { in?: string[] } | undefined; if (type?.in && !type.in.includes(r.type)) return false;
+    if ("donationBackfill" in where && !!r.donationBackfill !== where["donationBackfill"]) return false;
     return true;
   };
   const db = {
-    lines, jobs,
+    lines, jobs, clock,
     guildBankTransaction: {
       findMany: async ({ where }: { where: Record<string, unknown> }) => lines.filter((r) => match(r, where)).map((r) => ({ ...r })),
+      findFirst: async ({ where }: { where: Record<string, unknown> }) => lines.find((r) => match(r, where)) ?? null,
       create: async ({ data }: { data: Record<string, unknown> }) => { lines.push({ id: `l${lines.length + 1}`, itemName: null, createdAt: new Date(), donationSeenAt: null, ...data } as never); return data; },
-      updateMany: async ({ where, data }: { where: Record<string, unknown>; data: { donationSeenAt: Date } }) => { const hit = lines.filter((r) => match(r, where)); for (const r of hit) r.donationSeenAt = data.donationSeenAt; return { count: hit.length }; }
+      updateMany: async ({ where, data }: { where: Record<string, unknown>; data: Record<string, unknown> }) => { const hit = lines.filter((r) => match(r, where)); for (const r of hit) Object.assign(r, data); return { count: hit.length }; }
     },
     guildBankContents: { findUnique: async () => null, upsert: async () => null },
     guildBankGold: { findMany: async () => [], create: async () => null },
@@ -127,8 +130,9 @@ function memoryDb(settings: Record<string, unknown> = { language: "fr", guildBan
     communitySeason: { findFirst: async () => null }, communityHonors: { findUnique: async () => null },
     character: { findMany: async () => [{ name: "Kev", displayName: "Kev Caron", member: { discordUserId: "123456789012345678" } }] },
     discordJob: {
-      count: async () => [...jobs.values()].filter((j) => j.createdAt.getTime() >= NOW.getTime() - 3_600_000).length,
-      upsert: async ({ where, create }: { where: { guildId_key: { key: string } }; create: { payload: Record<string, unknown> } }) => { jobs.set(where.guildId_key.key, { payload: create.payload, createdAt: NOW }); return create; }
+      count: async ({ where }: { where: { key?: { startsWith: string }; createdAt?: { gte: Date } } }) => [...jobs.entries()].filter(([k, j]) => (!where.key || k.startsWith(where.key.startsWith))
+        && j.createdAt.getTime() >= (where.createdAt?.gte ?? new Date(NOW.getTime() - 3_600_000)).getTime()).length,
+      upsert: async ({ where, create }: { where: { guildId_key: { key: string } }; create: { payload: Record<string, unknown> } }) => { jobs.set(where.guildId_key.key, { payload: create.payload, createdAt: clock.now }); return create; }
     }
   };
   return db;
@@ -171,6 +175,64 @@ describe("announcing donors end to end", () => {
     expect(await announceBankDonations(db as never, guild, "g", NOW)).toBe(0);
     expect(db.jobs.size).toBe(0);
     expect(db.lines.every((l) => l.donationSeenAt)).toBe(true);
+  });
+});
+
+describe("backfill of past donors", () => {
+  /** The backlog as the migration leaves it: stamped seen, flagged for the backfill. */
+  const backlog = (db: ReturnType<typeof memoryDb>, actor: string, kind: "item" | "money", at: string, extra: Partial<DonationRow> = {}) => db.lines.push({
+    id: `b${db.lines.length + 1}`, guildId: "g", kind, type: "deposit", actor, itemId: kind === "item" ? 2589 : null, itemName: kind === "item" ? "Linen Cloth" : null,
+    count: kind === "item" ? 5 : null, amount: kind === "money" ? 30_000n : null, at: new Date(at), createdAt: new Date(at), tab: null, tab2: null, reportedById: null,
+    donationSeenAt: new Date("2026-11-22T03:45:00Z"), donationBackfill: true, ...extra });
+
+  it("one card per donor, oldest first, everything they gave, paced and never twice", async () => {
+    const db = memoryDb({ language: "en", guildBankDonationCards: true });
+    db.character.findMany = async () => [];
+    backlog(db, "Lina Belle", "money", "2026-11-10T10:00:00Z");
+    backlog(db, "Kev Caron", "item", "2026-11-05T10:00:00Z");
+    backlog(db, "Kev Caron", "money", "2026-11-12T10:00:00Z", { amount: 5n }); // tiny gold still counts in the backfill
+    backlog(db, "Kev Caron", "item", "2026-11-15T10:00:00Z", { count: 7 });
+    expect(await backfillBankDonations(db as never, guild, "g", NOW)).toBe(1);
+    const [key, job] = [...db.jobs.entries()][0]!;
+    expect(key.startsWith("bank-donation:backfill:")).toBe(true);
+    expect((job.payload["message"] as { content: string }).content).toBe("🎁 Thank you **Kev Caron** for everything you have given the guild bank!");
+    const card = job.payload["card"] as { donation: { name: string; thanks: string; lines: { text: string }[] } };
+    expect(card.donation.thanks).toBe("for all your donations to the guild bank");
+    expect(card.donation.lines.map((l) => l.text)).toEqual(["5c", "12 × Linen Cloth"]);
+    // Same sweep window: the 20-minute gap holds the next card.
+    expect(await backfillBankDonations(db as never, guild, "g", NOW)).toBe(0);
+    db.clock.now = new Date(NOW.getTime() + BACKFILL_GAP_MS + 1);
+    const later = new Date(db.clock.now.getTime() + 1);
+    expect(await backfillBankDonations(db as never, guild, "g", later)).toBe(1);
+    expect((db.jobs.get([...db.jobs.keys()][1]!)!.payload["message"] as { content: string }).content).toContain("Lina Belle");
+    expect(db.lines.every((l) => !l.donationBackfill)).toBe(true);
+    expect(await backfillBankDonations(db as never, guild, "g", new Date(later.getTime() + 2 * BACKFILL_GAP_MS))).toBe(0);
+    expect(db.jobs.size).toBe(2);
+  });
+  it("a member's characters share one card", async () => {
+    const db = memoryDb({ language: "fr", guildBankDonationCards: true });
+    db.character.findMany = async () => [{ name: "Kev", displayName: "Kev Caron", member: { discordUserId: "123456789012345678" } }];
+    backlog(db, "Kev Caron", "item", "2026-11-05T10:00:00Z");
+    backlog(db, "Kev Alt", "money", "2026-11-06T10:00:00Z");
+    expect(await backfillBankDonations(db as never, guild, "g", NOW)).toBe(1);
+    const job = [...db.jobs.values()][0]!;
+    expect((job.payload["message"] as { content: string }).content).toBe("🎁 Merci <@123456789012345678> pour tout ce que tu as donné à la banque de guilde !");
+    expect((job.payload["card"] as { donation: { lines: { text: string }[] } }).donation.lines.map((l) => l.text)).toEqual(["3g", "5 × Linen Cloth"]);
+    expect(db.lines.every((l) => !l.donationBackfill)).toBe(true);
+  });
+  it("new donors go first, the hourly budget is shared, and switched off drops the backlog", async () => {
+    const db = memoryDb({ language: "en", guildBankDonationCards: true });
+    backlog(db, "Kev Caron", "item", "2026-11-05T10:00:00Z");
+    db.lines.push({ ...db.lines[0]!, id: "fresh", donationSeenAt: null, donationBackfill: false });
+    expect(await backfillBankDonations(db as never, guild, "g", NOW)).toBe(0);
+    db.lines.pop();
+    for (let i = 0; i < 3; i++) db.jobs.set(`bank-donation:r${i}`, { payload: {}, createdAt: new Date(NOW.getTime() - 30 * 60_000) });
+    expect(await backfillBankDonations(db as never, guild, "g", NOW)).toBe(0);
+    const off = memoryDb({ language: "en", guildBankDonationCards: false });
+    backlog(off, "Kev Caron", "item", "2026-11-05T10:00:00Z");
+    expect(await backfillBankDonations(off as never, guild, "g", NOW)).toBe(0);
+    expect(off.lines[0]!.donationBackfill).toBe(false);
+    expect(off.jobs.size).toBe(0);
   });
 });
 

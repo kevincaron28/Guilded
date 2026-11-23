@@ -98,6 +98,6 @@ describe("season label under Recent runs", () => {
       P = NS.dungeonScorePanel.build(UIParent)
       P.runView:Refresh()`);
     const text = s.run("return P.runView.recent.text");
-    expect(text).toMatch(/^The Hall of Thanes - 22:25 - COMPLETED - \d\d\/\d\d \d\d:\d\d - Season: Beta Best 8\n\nOlder - 1:00 - COMPLETED - \d\d\/\d\d \d\d:\d\d$/);
+    expect(text).toMatch(/^The Hall of Thanes - 22:25 - COMPLETED - \d\d\/\d\d \d\d:\d\d - Beta Best 8\n\nOlder - 1:00 - COMPLETED - \d\d\/\d\d \d\d:\d\d$/);
   });
 });

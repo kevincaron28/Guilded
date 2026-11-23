@@ -63,15 +63,26 @@ describe("util.placeBeside", () => {
     expect(s!.run(`local a, b = GuildedRosterAdmin, GuildedPanel; return tostring(a.l >= b.l and a.l + a.w <= b.l + b.w and a.b >= b.b and a.b + a.h <= b.b + b.h)`)).toBe("true");
   });
 
-  it("with the main window and Roster admin filling the width, closes Roster admin and goes beside the main window (seen in game 20 Nov)", () => {
+  it("with the main window and Roster admin filling the width, goes over the main window and keeps Roster admin visible (9.5.4)", () => {
     setup();
     s!.run(`GuildedPanel = fake(60, 300, 590, 600, true); GuildedRosterAdmin = fake(660, 400, 520, 430, true); GuildedPromotionPanel = fake(0, 0, 480, 400, false)
       UIParent.GetWidth = function() return 1200 end; raised = false; function GuildedPromotionPanel:Raise() raised = true end
       function GuildedPromotionPanel:SetFrameStrata(s) self.strata = s end`);
     s!.run(`NS.util.placeBeside(GuildedPromotionPanel); GuildedPromotionPanel.shown = true`);
+    expect(s!.run(`return tostring(GuildedRosterAdmin.shown) .. " " .. tostring(GuildedPanel.shown)`)).toBe("true true");
+    expect(s!.run(`return tostring(overlaps(GuildedPromotionPanel, GuildedRosterAdmin))`)).toBe("false");
+    expect(s!.run(`local a, b = GuildedPromotionPanel, GuildedPanel; return tostring(a.l >= b.l and a.l + a.w <= b.l + b.w)`)).toBe("true");
+    expect(s!.run(`return tostring(raised) .. " " .. tostring(GuildedPromotionPanel.strata)`)).toBe("true FULLSCREEN");
+  });
+
+  it("when the window is wider than the main window and nothing is free, closes the other side window and goes beside the main window (seen in game 20 Nov)", () => {
+    setup();
+    s!.run(`GuildedPanel = fake(60, 300, 400, 600, true); GuildedRosterAdmin = fake(480, 400, 520, 430, true); GuildedPromotionPanel = fake(0, 0, 480, 400, false)
+      UIParent.GetWidth = function() return 1000 end; raised = false; function GuildedPromotionPanel:Raise() raised = true end
+      function GuildedPromotionPanel:SetFrameStrata(s) self.strata = s end`);
+    s!.run(`NS.util.placeBeside(GuildedPromotionPanel); GuildedPromotionPanel.shown = true`);
     expect(s!.run(`return tostring(GuildedRosterAdmin.shown) .. " " .. tostring(GuildedPanel.shown)`)).toBe("false true");
     expect(s!.run(`return tostring(overlaps(GuildedPromotionPanel, GuildedPanel))`)).toBe("false");
-    expect(s!.run(`return tostring(GuildedPromotionPanel.l + GuildedPromotionPanel.w <= 1200)`)).toBe("true");
     expect(s!.run(`return tostring(raised) .. " " .. tostring(GuildedPromotionPanel.strata)`)).toBe("true DIALOG");
   });
 

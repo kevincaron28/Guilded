@@ -1013,7 +1013,7 @@ local function matsText(query, count)
   local lines = { string.format(L("Materials for %d x %s:"), count, nameFor(key)) }
   for _, mat in ipairs(mats) do
     local need = mat.count * count
-    local have = GetItemCount and GetItemCount(mat.id, true) or nil
+    local have = ns.craftOrders and ns.craftOrders.haveCount and ns.craftOrders.haveCount(mat.id) or (GetItemCount and GetItemCount(mat.id, true) or nil)
     table.insert(lines, string.format("%d x %s%s", need, mat.name, have and string.format(" (%s %d)", L("you have"), have) or ""))
   end
   return table.concat(lines, "\n")

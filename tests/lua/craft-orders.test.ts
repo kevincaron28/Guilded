@@ -877,3 +877,16 @@ describe("the Crafting page: scrolling list (20 Nov 2026 polish)", () => {
     expect(Number(s!.run("return VIEW.dProf.y"))).toBeLessThan(oneLine);
   });
 });
+
+describe("reagent counts by item id (9.5.4)", () => {
+  it("counts the bag slots when GetItemCount gives no number, and never shows nil", () => {
+    setup();
+    s!.run(`GetItemCount = function() return nil end
+      C_Container = { GetContainerNumSlots = function(bag) return bag == 0 and 3 or 0 end,
+        GetContainerItemID = function(bag, slot) return (bag == 0 and slot <= 2) and 2589 or nil end,
+        GetContainerItemInfo = function(bag, slot) return { stackCount = slot == 1 and 7 or 2 } end }`);
+    expect(s!.run(`return tostring(NS.craftOrders.haveCount(2589))`)).toBe("9");
+    expect(s!.run(`return tostring(NS.craftOrders.haveCount(12345))`)).toBe("0");
+    expect(s!.run(`return tostring(NS.craftOrders.haveCount("2589"))`)).toBe("9");
+  });
+});

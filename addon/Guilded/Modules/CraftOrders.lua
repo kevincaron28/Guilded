@@ -241,6 +241,44 @@ function orders.list(all)
   return rows
 end
 
+-- (9.5.4) How many of an item (by numeric id) you carry: bags, and the bank when the game knows it. GetItemCount was nil for some
+-- ids on WoW Forever (the row showed "?/1 Lion Meat"), so a nil answer falls back to counting the bag slots; never nil.
+local function bagItemCount(id)
+  local container = C_Container
+  local slots = (container and container.GetContainerNumSlots) or GetContainerNumSlots
+  local itemId = (container and container.GetContainerItemID) or GetContainerItemID
+  local info = container and container.GetContainerItemInfo
+  if not (slots and itemId) then return 0 end
+  local total = 0
+  for bag = 0, 4 do
+    for slot = 1, (slots(bag) or 0) do
+      if itemId(bag, slot) == id then
+        local stack = 1
+        if info then
+          local ok, result = pcall(info, bag, slot)
+          if ok and type(result) == "table" then stack = tonumber(result.stackCount) or 1 end
+        elseif GetContainerItemInfo then
+          local ok, _, count = pcall(GetContainerItemInfo, bag, slot)
+          if ok then stack = tonumber(count) or 1 end
+        end
+        total = total + stack
+      end
+    end
+  end
+  return total
+end
+function orders.haveCount(id)
+  id = tonumber(id)
+  if not id then return 0 end
+  local count
+  if GetItemCount then
+    local ok, value = pcall(GetItemCount, id, true)
+    if ok and type(value) == "number" then count = value end
+  end
+  if count == nil then count = bagItemCount(id) end
+  return count
+end
+
 -- Reagents of a recipe you know, times the order's count, with what is in your bags (and bank).
 function orders.reagents(order)
   -- (9.5.2) Your own profession scan first, else the reagents shipped with the addon (Data/Reagents.lua).
@@ -249,7 +287,7 @@ function orders.reagents(order)
   local rows = {}
   for _, mat in ipairs(mats) do
     local need = (tonumber(mat.count) or 1) * math.max(1, tonumber(order.qty) or 1)
-    local have = GetItemCount and GetItemCount(mat.id, true) or nil
+    local have = orders.haveCount(mat.id)
     rows[#rows + 1] = { id = mat.id, name = mat.name or ("item " .. tostring(mat.id)), need = need, have = have }
   end
   return rows

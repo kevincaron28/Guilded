@@ -1,5 +1,17 @@
 # Changelog
 
+## 9.5.3 — 23 November 2026
+
+Prepared 23 November 2026. In-game checks: docs/V9_5_3_RELEASE_ACCEPTANCE.md.
+
+Addon:
+- Dungeon runs no longer record where players died or the squares they walked through (the death map left the cards in 9.3.8); saved runs drop both at login, so the saved file shrinks. /guilded maptrace is gone; a death-position line from an older guildmate is ignored (#1275).
+- At most 300 stored dungeon runs, oldest confirmed copies first (#1274).
+- The Backup window Close button is translated (#1272).
+
+Companion:
+- Version 9.5.3 (no functional change).
+
 ## 9.5.2 — 23 November 2026
 
 Published 23 November 2026 (GitHub v9.5.2, website download and installer, bot). In-game checks: docs/V9_5_2_RELEASE_ACCEPTANCE.md.

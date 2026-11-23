@@ -1179,3 +1179,26 @@ describe("taint guard: the window holds no secure frame", () => {
     expect(buttonShown(s)).toBe("true");
   });
 });
+
+describe("Officer Gear table (9.5.5)", () => {
+  it("keeps one line per member in every column, each with a name, clipped to the column", () => {
+    const s = openWindow(1);
+    s.run(`NS.ready.gearColumns = function()
+      return { name = { "|cffffd100Alpha One|r", "|cffffd100Beta Two with a very long character name|r", "|cffffd100Gamma|r" },
+        level = { "60", "53", "-" }, itemLevel = { "62", "50", "-" },
+        problems = { "", "|cffff6060" .. string.rep("no enchant: Chest, ", 6) .. "|r", "" },
+        seen = { "today", "3 d ago", "-" }, full = {}, fullByRow = { false, "x", false } }, 3
+    end
+    NS.windowState().selectTabByName("Gear")`);
+    const names = s.run(`return NS.windowState().gearColumns.name.text`).split("\n");
+    expect(names).toHaveLength(3);
+    expect(names[0]).toContain("Alpha One");
+    expect(names[1]).toContain("...");
+    expect(names[2]).toContain("Gamma");
+    const problems = s.run(`return NS.windowState().gearColumns.problems.text`).split("\n");
+    expect(problems).toHaveLength(3);
+    expect(problems[1]!.replace(/\|c[0-9a-f]{8}|\|r/g, "").length).toBeLessThanOrEqual(36);
+    // Word wrap is never switched off: the game then draws only the first line of a multi-line column.
+    expect(s.run(`return tostring(NS.windowState().gearColumns.name.wordWrap)`)).not.toBe("false");
+  });
+});

@@ -72,3 +72,11 @@ these rules.
    `COMPAT_WRITE=1 npx vitest run tests/compat-guard.test.ts` and review the diff of `wire-shape.json`:
    new optional fields are fine; anything else needs an `allow` entry.
 4. Update the window: when a release leaves it, delete its fixtures only after `MIN_COMPANION` has moved past it.
+
+## Game actions WoW Forever refuses to addons
+
+Known on interface 16001 (client 1.60.x); the addon never relies on them and falls back to a copy box the player pastes:
+
+- Guild invite (`C_GuildInfo.Invite`, `GuildInvite`): refused from events, secure macro buttons, chat-box lines and, confirmed 23 Nov 2026 (9.5.1 owner test), the hardware click of a plain Button. From 9.5.2 the API is skipped on Forever (`inviteDirect.guildTry` re-enables it for testing). Details: docs/plans/GUILD_INVITE_DIRECT_TEST.md.
+- Guild notes and automatic guild chat lines: refused (9.0.5, 9.3.8).
+- Party invite (`C_PartyInfo.InviteUnit`): works, kept direct with a per-build refusal memory.

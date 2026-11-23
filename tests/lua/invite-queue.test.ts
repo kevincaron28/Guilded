@@ -107,7 +107,7 @@ describe("InviteQueue.lua", () => {
   // 9.5.1: the guild Invite button calls the invite API inside its own click first; a refusal falls back to the copy box.
   it("invites straight from the click when the game takes it: no copy box, row marked invited, one chat line", () => {
     const s = withQueue();
-    s.run("GuildInvite = GUILD_INVITE_FN; NS.inviteQueue.open()");
+    s.run("DB.inviteDirect = { guildTry = true }; GuildInvite = GUILD_INVITE_FN; NS.inviteQueue.open()");
     click(s, 1);
     expect(s.run("return #SENT .. SENT[1]")).toBe("1Amy Archer");
     expect(s.run("return #COPIED")).toBe("0");
@@ -116,7 +116,7 @@ describe("InviteQueue.lua", () => {
   });
   it("remembers a refusal for this client build, shows the copy box at once and never tries the guild API again", () => {
     const s = withQueue();
-    s.run("GuildInvite = function(name) SENT[#SENT + 1] = name; UTILNS.util.noteInviteBlocked('UNKNOWN') end; NS.inviteQueue.open()");
+    s.run("DB.inviteDirect = { guildTry = true }; GuildInvite = function(name) SENT[#SENT + 1] = name; UTILNS.util.noteInviteBlocked('UNKNOWN') end; NS.inviteQueue.open()");
     click(s, 1);
     expect(s.run("return #SENT")).toBe("1");
     expect(s.run("return #COPIED .. COPIED[1]")).toBe("1/ginvite Amy Archer");
@@ -125,9 +125,22 @@ describe("InviteQueue.lua", () => {
     expect(s.run("return #SENT")).toBe("1"); // not tried again
     expect(s.run("return #COPIED")).toBe("2");
   });
+  // 23 Nov 2026 (owner, 9.5.1): WoW Forever refused the guild invite even from a click, so on Forever it is never called.
+  it("on WoW Forever never calls the guild invite API: the copy box comes first, with no refusal to remember", () => {
+    const s = withQueue();
+    s.run(`GetBuildInfo = function() return "1.60.1", "71037", "Nov 20 2026", 16001 end; GuildInvite = GUILD_INVITE_FN; NS.inviteQueue.open()`);
+    click(s, 1);
+    expect(s.run("return #SENT")).toBe("0");
+    expect(s.run("return #COPIED .. COPIED[1]")).toBe("1/ginvite Amy Archer");
+    expect(s.run("return tostring(DB.inviteDirect and DB.inviteDirect.refusedGuild)")).toBe("nil");
+    // A hand-set inviteDirect.guildTry = true brings the attempt back (for a future client build).
+    s.run("DB.inviteDirect = { guildTry = true }");
+    click(s, 1);
+    expect(s.run("return #SENT")).toBe("1");
+  });
   it("does not invite directly in combat, without invite rights, or after the player switched direct invites off", () => {
     const s = withQueue();
-    s.run("GuildInvite = GUILD_INVITE_FN; NS.inviteQueue.open(); IN_COMBAT = true");
+    s.run("DB.inviteDirect = { guildTry = true }; GuildInvite = GUILD_INVITE_FN; NS.inviteQueue.open(); IN_COMBAT = true");
     click(s, 1);
     s.run("IN_COMBAT = false; CAN = false");
     click(s, 1);

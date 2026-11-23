@@ -102,9 +102,9 @@ describe("protected calls only where the player's click runs them (taint)", () =
     // guild invite, macro buttons and addon-written chat lines). Only util.partyInvite calls it: out of combat, alone or as
     // leader, inside ns.guardedCall, and never again on a client build that refused it once. Guild invites stay copy-box.
     ["party invites", /\bInviteUnit\b/, ["addon/Guilded/Util.lua", "addon/GuildedDungeons/Shared/Util.lua"]],
-    // (9.5.1) On 9 Nov 2026 the guild invite API was refused to addon code on WoW Forever even from a click ("Guilded tried to
-    // call UNKNOWN()"). A candidate to confirm in game: util.guildInvite calls it only inside the Invite button's own click,
-    // out of combat, inside ns.guardedCall, and never again on a client build that refused it once (the copy box takes over).
+    // (9.5.2) On 9 Nov 2026 and again on 23 Nov 2026 (owner test of 9.5.1, from the click of a plain button) WoW Forever
+    // refused the guild invite API. util.guildInvite therefore skips it on Forever unless inviteDirect.guildTry is set by hand;
+    // the copy box is the default. The API stays confined to Util.lua for clients that may take it.
     ["guild invites", /\b(?:C_GuildInfo\.Invite|GuildInvite)\b/, ["addon/Guilded/Util.lua", "addon/GuildedDungeons/Shared/Util.lua"]],
     ["guild rank, kick and note changes", /\b(?:GuildPromote|GuildDemote|GuildUninvite|GuildRosterSetPublicNote|GuildRosterSetOfficerNote|SetGuildMemberRank|SetGuildRankOrder|RemoveFromGuild)\b/, [
       "addon/Guilded/Modules/RosterTools.lua"   // roster admin, confirmed per click; refusals remembered per build

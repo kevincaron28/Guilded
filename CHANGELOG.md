@@ -1,5 +1,17 @@
 # Changelog
 
+## 9.5.1 — 23 November 2026
+
+Prepared 23 November 2026. In-game checks: docs/V9_5_1_RELEASE_ACCEPTANCE.md.
+
+Addon:
+- The Ready to promote alert has an X: it hides until the number of members ready changes or your next login (#1263).
+- Invite tries the guild invite straight from your click (out of combat, with invite rights); if WoW Forever refuses it, Guilded remembers that for this client build and shows the copy box as before (#1263).
+- A game call refused as UNKNOWN() now records the Guilded file and line that made it, so the next report names the cause (#1263).
+
+Companion:
+- Version 9.5.1 (no functional change).
+
 ## 9.5.0 — 22 November 2026
 
 Published 22 November 2026 (GitHub v9.5.0, website download and installer, bot). In-game checks: docs/V9_5_0_RELEASE_ACCEPTANCE.md.

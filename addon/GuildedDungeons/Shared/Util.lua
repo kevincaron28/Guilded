@@ -794,6 +794,13 @@ end
 function util.guildInvite(name)
   if type(name) ~= "string" or name == "" or isSecret(name) or name:find("[|%c]") then return false end
   if util.inCombat() or not util.directInviteOn("guild") then return false end
+  -- (9.5.2) Owner test of 23 Nov 2026: WoW Forever refuses C_GuildInfo.Invite even from the click of a plain button ("Guilded has
+  -- been blocked from an action only available to the Blizzard UI", then the copy box). So on Forever the API is not called at
+  -- all, not even once per build: the copy box comes first. inviteDirect.guildTry = true (set by hand) re-enables the attempt.
+  if util.isForever() then
+    local state = directState()
+    if not (state and state.guildTry == true) then return false end
+  end
   if CanGuildInvite and not CanGuildInvite() then return false end
   local invite = (C_GuildInfo and C_GuildInfo.Invite) or GuildInvite
   if type(invite) ~= "function" then return false end

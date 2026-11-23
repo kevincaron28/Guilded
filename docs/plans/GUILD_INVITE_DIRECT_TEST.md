@@ -1,6 +1,14 @@
-# Direct guild invite from the Invite button (9.5.1 candidate)
+# Direct guild invite from the Invite button (9.5.1 candidate, refused on WoW Forever)
 
-Status: implemented, not confirmed in game. WoW is never launched by an agent session.
+Status: REFUSED on WoW Forever (owner test, 23 Nov 2026). From 9.5.2 the guild Invite button never calls the API on Forever: the copy box comes first, no popup. Party invites stay direct. WoW is never launched by an agent session.
+
+## Result of the owner test (23 Nov 2026, 9.5.1)
+Clicking **Invite** for "Suce Mafleche" showed "Guilded has been blocked from an action only available to the Blizzard UI", then the copy box opened with `/ginvite Suce Mafleche` (the fallback worked). So `C_GuildInfo.Invite` is refused on WoW Forever even straight from the hardware click of a plain Button, with the bare name, out of combat. Same answer as 9 Nov (#681). The saved file (written 23 Nov 04:44) predates this test, so no file:line frames from #1263 are recorded for it yet; they appear after the next /reload.
+
+## What 9.5.2 does
+`util.guildInvite` returns false at once when `util.isForever()` (interface 16001) unless `GuildedDB.inviteDirect.guildTry == true` (set by hand to re-test a future client build). Nothing is called, nothing is remembered as refused, no popup. Other clients keep the 9.5.1 behaviour below. Test: `tests/lua/invite-queue.test.ts`.
+
+## The 9.5.1 candidate (kept for non-Forever clients)
 
 ## What was known
 - 9 Nov 2026 (#681): `GuildInvite` called from the click of a plain button was refused on WoW Forever ("Guilded tried to call UNKNOWN()", ADDON_ACTION_FORBIDDEN).

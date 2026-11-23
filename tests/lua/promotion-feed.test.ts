@@ -34,7 +34,7 @@ function panelSession(luaFile: string) {
   `);
   s.load("Modules/RosterTools.lua");
   s.load("Modules/Promotion.lua");
-  s.run('NS.util.gameEdition=function() return EDITION end; NS.util.address=function(n) return n end; ROWS[2].rankName="Initiate"; ROWS[3].rankName="Initiate"; fire_event("GUILD_ROSTER_UPDATE"); NS.promotion.observe()');
+  s.run('NS.promotion.directAllowed=function() return true end; NS.util.gameEdition=function() return EDITION end; NS.util.address=function(n) return n end; ROWS[2].rankName="Initiate"; ROWS[3].rankName="Initiate"; fire_event("GUILD_ROSTER_UPDATE"); NS.promotion.observe()');
   s.run(luaFile);
   return s;
 }

@@ -52,7 +52,7 @@ function setup(feed: string | null = FEED(), ranks = DEFAULT_RANKS, calibrated =
   `);
   s.load("Modules/RosterTools.lua");
   s.load("Modules/Promotion.lua");
-  s.run("NS.util.gameEdition=function() return EDITION end; NS.util.address=function(n) return n end; NS.isOfficer = function() return true end");
+  s.run("NS.promotion.directAllowed=function() return true end; NS.util.gameEdition=function() return EDITION end; NS.util.address=function(n) return n end; NS.isOfficer = function() return true end");
   if (calibrated) s.run('DB.rosterRankBase = { build = "1", base = 1, confirmed = true }');
   if (feed) s.run(feed);
   s.run('CLOCK=100; fire_event("GUILD_ROSTER_UPDATE")');
@@ -161,7 +161,7 @@ describe("no Alt-named rank: manual only", () => {
   it("never falls back to the lowest rank: nothing is offered and the manual line is shown", () => {
     setup(FEED(), '{ "Guild Master", "Officer", "Veteran", "Member", "Initiate", "Newbie", "Trial" }');
     expect(s.run("return tostring(NS.rosterTools.altRankIndex(NS.rosterTools.snapshot()))")).toBe("nil");
-    expect(s.run("local ok, m = NS.promotion.moveToAlt('Dee-Realm'); return tostring(ok) .. ':' .. m")).toContain("Move to the Alt rank from the guild roster");
+    expect(s.run("local ok, m = NS.promotion.moveToAlt('Dee-Realm'); return tostring(ok) .. ':' .. m")).toContain("Copy the command, paste it in chat");
     expect(s.run("return #NS.promotion.alts() .. ':' .. #NS.promotion.swaps()")).toContain(":0"); // no swap without an Alt rank
     expect(calls()).toBe("0");
   });

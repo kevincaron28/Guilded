@@ -20,6 +20,8 @@
     "addon:editions": "node scripts/build-addon-editions.mjs",
     "addon:verify-editions": "node scripts/verify-edition-zips.mjs",
     "dungeons:sync": "node scripts/build-dungeons-addon.mjs",
+    "reagents:extract": "node scripts/extract-recipes.mjs",
+    "reagents:build": "node scripts/build-reagents.mjs",
     "dungeons:zip": "node scripts/build-dungeons-addon.mjs --zip",
     "locale": "node scripts/addon-locale.mjs",
     "lint": "eslint .",

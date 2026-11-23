@@ -1,0 +1,593 @@
+id,name
+118,Minor Healing Potion
+159,Refreshing Spring Water
+723,Goretusk Liver
+729,Stringy Vulture Meat
+730,Murloc Eye
+731,Goretusk Snout
+765,Silverleaf
+769,Chunk of Boar Meat
+774,Malachite
+783,Light Hide
+785,Mageroyal
+814,Flask of Oil
+818,Tigerseye
+929,Healing Potion
+1015,Lean Wolf Flank
+1080,Tough Condor Meat
+1081,Crisp Spider Meat
+1179,Ice Cold Milk
+1205,Melon Juice
+1206,Moss Agate
+1210,Shadowgem
+1251,Linen Bandage
+1288,Large Venom Sac
+1468,Murloc Fin
+1475,Small Venom Sac
+1529,Jade
+1645,Moonberry Juice
+1705,Lesser Moonstone
+1708,Sweet Nectar
+2251,Gooey Spider Leg
+2289,Scroll of Strength II
+2312,Fine Leather Gloves
+2313,Medium Armor Kit
+2318,Light Leather
+2319,Medium Leather
+2320,Coarse Thread
+2321,Fine Thread
+2324,Bleach
+2325,Black Dye
+2447,Peacebloom
+2449,Earthroot
+2450,Briarthorn
+2452,Swiftthistle
+2453,Bruiseweed
+2454,Elixir of Minor Strength
+2455,Minor Mana Potion
+2456,Minor Rejuvenation Potion
+2457,Elixir of Minor Agility
+2458,Elixir of Minor Fortitude
+2459,Swiftness Potion
+2570,Linen Cloak
+2589,Linen Cloth
+2592,Wool Cloth
+2594,Flagon of Dwarven Honeymead
+2596,Skin of Dwarven Stout
+2604,Red Dye
+2605,Green Dye
+2672,Stringy Wolf Meat
+2673,Coyote Meat
+2674,Crawler Meat
+2675,Crawler Claw
+2677,Boar Ribs
+2678,Mild Spices
+2686,Thunder Ale
+2692,Hot Spices
+2723,Bottle of Dalaran Noir
+2770,Copper Ore
+2771,Tin Ore
+2772,Iron Ore
+2775,Silver Ore
+2776,Gold Ore
+2835,Rough Stone
+2836,Coarse Stone
+2838,Heavy Stone
+2840,Copper Bar
+2841,Bronze Bar
+2842,Silver Bar
+2863,Coarse Sharpening Stone
+2870,Shining Silver Breastplate
+2880,Weak Flux
+2886,Crag Boar Rib
+2894,Rhapsody Malt
+2924,Crocolisk Meat
+2928,Dust of Decay
+2930,Essence of Pain
+2934,Ruined Leather Scraps
+2996,Bolt of Linen Cloth
+2997,Bolt of Woolen Cloth
+3013,Scroll of Protection
+3030,Razor Arrow
+3172,Boar Intestines
+3173,Bear Meat
+3174,Spider Ichor
+3182,Spider's Silk
+3355,Wild Steelbloom
+3356,Kingsblood
+3357,Liferoot
+3358,Khadgar's Whisker
+3369,Grave Moss
+3371,Empty Vial
+3372,Leaded Vial
+3383,Elixir of Wisdom
+3385,Lesser Mana Potion
+3389,Elixir of Lesser Defense
+3390,Elixir of Lesser Agility
+3391,Elixir of Ogre Strength
+3404,Buzzard Wing
+3466,Strong Flux
+3470,Rough Grinding Stone
+3478,Coarse Grinding Stone
+3486,Heavy Grinding Stone
+3575,Iron Bar
+3576,Tin Bar
+3577,Gold Bar
+3667,Tender Crocolisk Meat
+3685,Raptor Egg
+3712,Turtle Meat
+3713,Soothing Spices
+3730,Big Bear Meat
+3731,Lion Meat
+3818,Fadeleaf
+3819,Wintersbite
+3820,Stranglekelp
+3821,Goldthorn
+3823,Lesser Invisibility Potion
+3824,Shadow Oil
+3827,Mana Potion
+3829,Frost Oil
+3857,Coal
+3858,Mithril Ore
+3859,Steel Bar
+3860,Mithril Bar
+3864,Citrine
+4096,Coarse Gorilla Hair
+4231,Cured Light Hide
+4232,Medium Hide
+4233,Cured Medium Hide
+4234,Heavy Leather
+4235,Heavy Hide
+4236,Cured Heavy Hide
+4243,Fine Leather Tunic
+4246,Fine Leather Belt
+4253,Toughened Leather Gloves
+4255,Green Leather Armor
+4265,Heavy Armor Kit
+4289,Salt
+4291,Silken Thread
+4304,Thick Leather
+4305,Bolt of Silk Cloth
+4306,Silk Cloth
+4320,Spidersilk Boots
+4337,Thick Spider's Silk
+4338,Mageweave Cloth
+4339,Bolt of Mageweave
+4340,Gray Dye
+4341,Yellow Dye
+4342,Purple Dye
+4357,Rough Blasting Powder
+4359,Handful of Copper Bolts
+4360,Rough Copper Bomb
+4361,Copper Tube
+4363,Copper Modulator
+4364,Coarse Blasting Powder
+4368,Flying Tiger Goggles
+4371,Bronze Tube
+4375,Whirring Bronze Gizmo
+4377,Heavy Blasting Powder
+4380,Big Bronze Bomb
+4382,Bronze Framework
+4385,Green Tinted Goggles
+4387,Iron Strut
+4389,Gyrochronatom
+4394,Big Iron Bomb
+4397,Gnomish Cloaking Device
+4399,Wooden Stock
+4400,Heavy Stock
+4402,Small Flame Sac
+4404,Silver Contact
+4405,Crude Scope
+4407,Accurate Scope
+4461,Raptor Hide
+4470,Simple Wood
+4536,Shiny Red Apple
+4589,Long Elegant Feather
+4603,Raw Spotted Yellowtail
+4605,Red-speckled Mushroom
+4611,Blue Pearl
+4625,Firebloom
+4655,Giant Clam Meat
+5051,Dig Rat
+5082,Thin Kodo Leather
+5116,Long Tail Feather
+5173,Deathweed
+5373,Lucky Charm
+5465,Small Spider Leg
+5466,Scorpid Stinger
+5467,Kodo Meat
+5468,Soft Frenzy Flesh
+5469,Strider Meat
+5470,Thunder Lizard Tail
+5471,Stag Meat
+5498,Small Lustrous Pearl
+5500,Iridescent Pearl
+5503,Clam Meat
+5504,Tangy Clam Meat
+5507,Ornate Spyglass
+5633,Great Rage Potion
+5635,Sharp Claw
+5637,Large Fang
+5784,Slimy Murloc Scale
+5785,Thick Murloc Scale
+5966,Guardian Gloves
+6037,Truesilver Bar
+6048,Shadow Protection Potion
+6217,Copper Rod
+6260,Blue Dye
+6261,Orange Dye
+6289,Raw Longjaw Mud Snapper
+6291,Raw Brilliant Smallfish
+6303,Raw Slitherskin Mackerel
+6308,Raw Bristle Whisker Catfish
+6317,Raw Loch Frenzy
+6338,Silver Rod
+6358,Oily Blackmouth
+6359,Firefin Snapper
+6361,Raw Rainbow Fin Albacore
+6362,Raw Rockscale Cod
+6370,Blackmouth Oil
+6371,Fire Oil
+6452,Anti-Venom
+6453,Strong Anti-Venom
+6470,Deviate Scale
+6471,Perfect Deviate Scale
+6522,Deviate Fish
+6530,Nightcrawlers
+6662,Elixir of Giant Growth
+6889,Small Egg
+7067,Elemental Earth
+7068,Elemental Fire
+7069,Elemental Air
+7070,Elemental Water
+7071,Iron Buckle
+7072,Naga Scale
+7075,Core of Earth
+7076,Essence of Earth
+7077,Heart of Fire
+7078,Essence of Fire
+7079,Globe of Water
+7080,Essence of Water
+7081,Breath of Wind
+7082,Essence of Air
+7191,Fused Wiring
+7286,Black Whelp Scale
+7287,Red Whelp Scale
+7387,Dusky Belt
+7392,Green Whelp Scale
+7428,Shadowcat Hide
+7909,Aquamarine
+7910,Star Ruby
+7911,Truesilver Ore
+7912,Solid Stone
+7966,Solid Grinding Stone
+7971,Black Pearl
+7972,Ichor of Undeath
+7974,Zesty Clam Meat
+8146,Wicked Claw
+8150,Deeprock Salt
+8151,Flask of Mojo
+8152,Flask of Big Mojo
+8153,Wildvine
+8154,Scorpid Scale
+8165,Worn Dragonscale
+8167,Turtle Scale
+8168,Jet Black Feather
+8169,Thick Hide
+8170,Rugged Leather
+8171,Rugged Hide
+8172,Cured Thick Hide
+8173,Thick Armor Kit
+8343,Heavy Silken Thread
+8365,Raw Mithril Head Trout
+8368,Thick Wolfhide
+8544,Mageweave Bandage
+8766,Morning Glory Dew
+8831,Purple Lotus
+8836,Arthas' Tears
+8838,Sungrass
+8839,Blindweed
+8845,Ghost Mushroom
+8846,Gromsblood
+8923,Essence of Agony
+8924,Dust of Deterioration
+8925,Crystal Vial
+8949,Elixir of Agility
+8951,Elixir of Defense
+8959,Raw Spinefin Halibut
+9060,Inlaid Mithril Cylinder
+9061,Goblin Rocket Fuel
+9206,Elixir of Greater Strength
+9210,Ghost Dye
+9224,Potion of Demon Slaying
+9260,Volatile Rum
+9262,Black Vitriol
+10026,Black Mageweave Boots
+10284,Simple Flour
+10285,Shadow Silk
+10286,Heart of the Wild
+10290,Pink Dye
+10308,Scroll of Intellect IV
+10500,Fire Goggles
+10502,Spellpower Goggles Xtreme
+10505,Solid Blasting Powder
+10507,Solid Dynamite
+10518,Parachute Cloak
+10543,Goblin Construction Helmet
+10546,Deadly Scope
+10558,Gold Power Core
+10559,Mithril Tube
+10560,Unstable Trigger
+10561,Mithril Casing
+10576,Mithril Mechanical Dragonling
+10586,The Big One
+10588,Goblin Rocket Helmet
+10592,Catseye Draught
+10620,Thorium Ore
+10647,Engineer's Ink
+10648,Blank Parchment
+10938,Lesser Magic Essence
+10939,Greater Magic Essence
+10940,Strange Dust
+10978,Small Glimmering Shard
+10998,Lesser Astral Essence
+11040,Morrowgrain
+11082,Greater Astral Essence
+11083,Soul Dust
+11084,Large Glimmering Shard
+11128,Golden Rod
+11134,Lesser Mystic Essence
+11135,Greater Mystic Essence
+11137,Vision Dust
+11138,Small Glowing Shard
+11139,Large Glowing Shard
+11144,Truesilver Rod
+11174,Lesser Nether Essence
+11175,Greater Nether Essence
+11176,Dream Dust
+11177,Small Radiant Shard
+11178,Large Radiant Shard
+11184,Blue Power Crystal
+11185,Green Power Crystal
+11186,Red Power Crystal
+11188,Yellow Power Crystal
+11291,Star Wood
+11370,Dark Iron Ore
+11371,Dark Iron Bar
+11382,Blood of the Mountain
+11754,Black Diamond
+12037,Mystery Meat
+12184,Raptor Flesh
+12202,Tiger Meat
+12203,Red Wolf Meat
+12204,Heavy Kodo Meat
+12205,White Spider Meat
+12206,Tender Crab Meat
+12207,Giant Egg
+12208,Tender Wolf Meat
+12223,Meaty Bat Wing
+12359,Thorium Bar
+12360,Arcanite Bar
+12361,Blue Sapphire
+12363,Arcane Crystal
+12364,Huge Emerald
+12365,Dense Stone
+12607,Brilliant Chromatic Scale
+12644,Dense Grinding Stone
+12655,Enchanted Thorium Bar
+12662,Demonic Rune
+12735,Frayed Abomination Stitching
+12753,Skin of Shadow
+12784,Arcanite Reaper
+12790,Arcanite Champion
+12794,Masterwork Stormhammer
+12796,Hammer of the Titans
+12797,Frostguard
+12799,Large Opal
+12800,Azerothian Diamond
+12803,Living Essence
+12804,Powerful Mojo
+12808,Essence of Undeath
+12809,Guardian Stone
+12810,Enchanted Leather
+12811,Righteous Orb
+12938,Blood of Heroes
+13180,Stratholme Holy Water
+13422,Stonescale Eel
+13423,Stonescale Oil
+13444,Major Mana Potion
+13458,Greater Nature Protection Potion
+13463,Dreamfoil
+13464,Golden Sansam
+13465,Mountain Silversage
+13466,Plaguebloom
+13467,Icecap
+13468,Black Lotus
+13510,Flask of the Titans
+13511,Flask of Distilled Wisdom
+13512,Flask of Supreme Power
+13513,Flask of Chromatic Resistance
+13754,Raw Glossy Mightfish
+13755,Raw Winter Squid
+13756,Raw Summer Bass
+13758,Raw Redgill
+13759,Raw Nightfin Snapper
+13760,Raw Sunscale Salmon
+13888,Darkclaw Lobster
+13889,Raw Whitescale Salmon
+13890,Raw Plated Armorfish
+13893,Large Raw Mightfish
+13926,Golden Pearl
+14044,Cindercloth Cloak
+14047,Runecloth
+14048,Bolt of Runecloth
+14227,Ironweb Spider Silk
+14256,Felcloth
+14341,Rune Thread
+14342,Mooncloth
+14343,Small Brilliant Shard
+14344,Large Brilliant Shard
+14530,Heavy Runecloth Bandage
+15407,Cured Rugged Hide
+15408,Heavy Scorpid Scale
+15409,Refined Deeprock Salt
+15410,Scale of Onyxia
+15412,Green Dragonscale
+15414,Red Dragonscale
+15415,Blue Dragonscale
+15416,Black Dragonscale
+15417,Devilsaur Leather
+15419,Warbear Leather
+15420,Ironfeather
+15422,Frostsaber Leather
+15423,Chimera Leather
+15564,Rugged Armor Kit
+15992,Dense Blasting Powder
+15994,Thorium Widget
+16000,Thorium Tube
+16005,Dark Iron Bomb
+16006,Delicate Arcanite Converter
+16202,Lesser Eternal Essence
+16203,Greater Eternal Essence
+16204,Illusion Dust
+16206,Arcanite Rod
+16583,Demonic Figurine
+17010,Fiery Core
+17011,Lava Core
+17012,Core Leather
+17034,Maple Seed
+17035,Stranglethorn Seed
+17056,Light Feather
+17194,Holiday Spices
+17196,Holiday Spirits
+17202,Snowball
+17203,Sulfuron Ingot
+18168,Force Reactive Disk
+18240,Ogre Tannin
+18251,Core Armor Kit
+18255,Runn Tum Tuber
+18256,Imbued Vial
+18262,Elemental Sharpening Stone
+18512,Larval Acid
+18562,Elementium Ore
+18567,Elemental Flux
+18631,Truesilver Transformer
+18984,Dimensional Ripper - Everlook
+18986,Ultrasafe Transporter: Gadgetzan
+19441,Huge Venom Sac
+19726,Bloodvine
+19767,Primal Bat Leather
+19768,Primal Tiger Leather
+19774,Souldarite
+19943,Massive Mojo
+20381,Dreamscale
+20424,Sandworm Meat
+20498,Silithid Chitin
+20500,Light Silithid Carapace
+20501,Heavy Silithid Carapace
+20520,Dark Rune
+20725,Nexus Crystal
+20867,Onyx Idol
+20868,Lambent Idol
+20870,Jasper Idol
+20871,Obsidian Idol
+20872,Vermillion Idol
+20873,Alabaster Idol
+20874,Idol of the Sun
+20875,Idol of Night
+20876,Idol of Death
+20877,Idol of the Sage
+20878,Idol of Rebirth
+20879,Idol of Life
+20881,Idol of Strife
+20882,Idol of War
+21024,Chimaerok Tenderloin
+21071,Raw Sagefish
+21153,Raw Greater Sagefish
+22202,Small Obsidian Shard
+22203,Large Obsidian Shard
+22682,Frozen Rune
+23567,DEPRECATED ITEM
+211422,
+213369,Faintly Glowing Leather
+213370,Irradiated Leather Scraps
+213371,Crate of Tainted Gniodine Solution
+213372,
+213373,Reflective Scrapmetal
+213376,Low-Background Truesilver Plates
+213378,Unstable Microfilament
+213379,Hyperconductive Arcano-Filament
+213381,Pile of Tarnished Gears
+213383,Polished Truesilver Gears
+215430,Gnomeregan Fallout
+220688,
+220689,
+221021,
+221312,
+227813,
+234003,
+234004,
+234005,
+234006,
+234007,
+234008,
+234009,
+234010,
+234011,
+234012,Hive Thistle
+236656,
+238737,
+238786,
+238787,
+238788,
+239016,Holy Salts
+239017,Exquisite Spices
+247786,Mote of Magic
+248815,Heavy Thorium Ore
+248819,Fel Crystal
+248820,Torbernite
+248821,Demonsage
+248822,Death Lotus
+248823,Marefoil
+248824,Fel Hide
+248825,Fel Leather
+249274,Stranglevine
+249391,Pyrite
+249399,Frilled Lichen
+249409,Cerulean Dye
+249410,Sulfuric Acid
+249424,Rosecap
+249425,Bauxite
+249426,Pitchblende
+249427,Pristine Leather
+249428,Pristine Hide
+249429,Pristine Scale
+249430,Magenta Dye
+249431,Viridian Dye
+249432,Sandpaper
+249726,Azerothium Bar
+249796,Hyjal Berries
+251290,Legionite Bar
+251291,Heavy Thorium Bar
+251524,Whimsyfin
+252948,
+255007,Golem Isospring
+255645,Swollen Venom Sac
+260784,SAF-T Tabs
+260794,EZ-Thro Wrap
+260796,No Slip SAF-T Padding
+260799,SAF-T Bell
+260801,EZ-Thro Fireproof Fuse
+260804,SAF-T Casing
+260808,EZ-Thro Tru-Trigger
+260813,SAF-T Tube
+260815,EZ-Thro Shell
+260823,Dimensional Transporter - Mt. Hyjal
+272941,Thick Logs
+273125,Lich's Index Finger
+273127,Golem Heart
+273128,Maker's Spark
+273129,Essence of Anarchy
+273130,Undeath Engine
+273131,Bottled Screams
+274030,Malleable Essence of Nature

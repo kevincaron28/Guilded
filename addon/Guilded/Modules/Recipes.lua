@@ -79,6 +79,76 @@ local function keyFromLink(link)
 end
 recipes.keyFromLink = keyFromLink
 
+-- ---------------------------------------------------------------------
+-- What a recipe needs: your own profession scan first, else the shipped list
+-- ---------------------------------------------------------------------
+-- (9.5.2) Data/Reagents.lua (generated from data/recipes/*.csv, docs/RECIPE_REAGENTS.md) lists the reagents of every recipe, so
+-- the Crafting tab shows them before anyone opens a profession window. What the game's own window says wins (WoW Forever may
+-- change a recipe), and a difference is noted in /guilded diag (kind RECIPES) so the CSV can be corrected.
+local function reagentName(id, fallbackName)
+  local name
+  if GetItemInfo then
+    local ok, value = pcall(GetItemInfo, id)
+    if ok and type(value) == "string" and value ~= "" and not (ns.isSecret and ns.isSecret(value)) then name = value end
+  end
+  if name then return name end
+  if type(fallbackName) == "string" and fallbackName ~= "" then return fallbackName end
+  local data = ns.reagentData
+  return data and data.names and data.names[id] or ("item " .. tostring(id))
+end
+
+-- The shipped reagents of a recipe key as { { id, count, name }, ... } plus how many one craft makes, or nil.
+function recipes.shippedMats(key)
+  local data = ns.reagentData
+  local row = data and data.recipes and key and data.recipes[key]
+  if type(row) ~= "table" then return nil end
+  local mats = {}
+  for i = 2, #row, 2 do mats[#mats + 1] = { id = row[i], count = row[i + 1], name = reagentName(row[i]) } end
+  return mats, row[1] or 1
+end
+
+-- Reagents for a recipe key: { { id, count, name }, ... }, "scan" or "data", and the count one craft makes. Nil when unknown.
+function recipes.matsFor(key)
+  if not key then return nil end
+  local b = book()
+  local scanned = b and b.mats and b.mats[key]
+  if type(scanned) == "table" and #scanned > 0 then
+    local _, produced = recipes.shippedMats(key)
+    return scanned, "scan", produced
+  end
+  local mats, produced = recipes.shippedMats(key)
+  if mats then return mats, "data", produced end
+  return nil
+end
+
+-- Notes, once per recipe and session (at most 8 of each), where the game's window disagrees with the shipped list or has a
+-- recipe the list lacks. Quiet: only /guilded diag shows it.
+local noted, notedCount = {}, { differ = 0, missing = 0 }
+local function sameReagents(live, shipped)
+  if #live ~= #shipped then return false end
+  local want = {}
+  for _, m in ipairs(shipped) do want[m.id] = m.count end
+  for _, m in ipairs(live) do if want[m.id] ~= m.count then return false end end
+  return true
+end
+local function describeMats(list)
+  local parts = {}
+  for _, m in ipairs(list) do parts[#parts + 1] = string.format("%dx%d", m.count or 0, m.id or 0) end
+  return table.concat(parts, " ")
+end
+function recipes.compareWithShipped(key, mats, name)
+  if not key or type(mats) ~= "table" or #mats == 0 or noted[key] then return end
+  local shipped = recipes.shippedMats(key)
+  local kind = shipped and (not sameReagents(mats, shipped)) and "differ" or (not shipped and "missing" or nil)
+  if not kind or notedCount[kind] >= 8 then return end
+  noted[key] = true
+  notedCount[kind] = notedCount[kind] + 1
+  if ns.logDiagnostic then
+    ns.logDiagnostic("RECIPES", string.format(kind == "differ" and "%s (%d): the game lists %s, the shipped data %s" or "%s (%d): not in the shipped data, the game lists %s%s",
+      tostring(name or key), key, describeMats(mats), kind == "differ" and describeMats(shipped) or ""))
+  end
+end
+
 local function cleanText(text)
   return (string.gsub(tostring(text or ""), "[|;,~]", ""))
 end
@@ -450,7 +520,13 @@ function recipes.store(read)
   local changed = not (before and sameKeys(before.keys, read.keys))
   if changed then b.people[me][read.profession] = { v = serverTime(), keys = read.keys } end
   for key, name in pairs(read.names) do b.names[key] = name end
-  for key, mats in pairs(read.mats) do b.mats[key] = mats end
+  for key, mats in pairs(read.mats) do
+    -- An empty reading (the window gave no reagents) never replaces what is known; a real one wins over the shipped data.
+    if #mats > 0 then
+      b.mats[key] = mats
+      pcall(recipes.compareWithShipped, key, mats, read.names and read.names[key])
+    end
+  end
   -- Cooldowns of this profession are replaced by what the window says now.
   local kept = {}
   for _, cooldown in ipairs(b.cooldowns[me] or {}) do
@@ -929,7 +1005,7 @@ local function matsText(query, count)
     local keys = keysNamed(query)
     key = keys[1]
   end
-  local mats = b and key and b.mats[key]
+  local mats = key and recipes.matsFor(key)
   if not mats then
     return L("Guilded only knows the materials of recipes you know yourself. Open the profession window, then try again.")
   end

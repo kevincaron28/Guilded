@@ -36,6 +36,7 @@ Modules\Council.lua
 Modules\Loot.lua
 Modules\LocalGuild.lua
 Modules\Reserve.lua
+Data\Reagents.lua
 Modules\Recipes.lua
 Modules\Calendar.lua
 Modules\RaidSignup.lua

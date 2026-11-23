@@ -612,8 +612,14 @@ function build()
     highlight:SetSize(396, 24); highlight:Hide()
     local label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     label:SetPoint("TOPLEFT", 18, -92); label:SetWidth(250); label:SetJustifyH("LEFT")
-    local button = ns.util.inviteButton(f, "guild", buttonText, 82, 22, function(name, shown, line)
-      module.hint(shown, line) -- before the mark: the clicked name still counts as waiting
+    local button = ns.util.inviteButton(f, "guild", buttonText, 82, 22, function(name, shown, line, direct)
+      -- (9.5.1) direct: the game took the invite from the click itself, so there is no line to copy; its own answer
+      -- (invited, already in a guild, unknown name) arrives in chat and is read as before.
+      if direct then
+        if ns.message then ns.message(string.format(L("Invited %s."), name)) end
+      else
+        module.hint(shown, line) -- before the mark: the clicked name still counts as waiting
+      end
       module.markInvited(name)
       module.refresh()
     end)

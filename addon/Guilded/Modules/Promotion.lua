@@ -552,6 +552,12 @@ function module.updateAlert()
     alert:SetScript("OnClick", function(_, button)
       if button == "RightButton" then dismissedAt = alert.count; alert:Hide() else module.open() end
     end)
+    -- (9.5.1) A visible close button (right-click was the only way): hides the alert until the number of ready members
+    -- changes or the next login. It is a child of the alert, so it goes away with it, and it never opens the panel.
+    alert.close = CreateFrame("Button", nil, alert, "UIPanelButtonTemplate")
+    alert.close:SetSize(22, 24); alert.close:SetPoint("LEFT", alert, "RIGHT", 2, 0)
+    alert.close:SetText("X")
+    alert.close:SetScript("OnClick", function() dismissedAt = alert.count; alert:Hide() end)
   end
   alert.count = count
   alert:SetText(string.format(L("%d ready to promote"), count))

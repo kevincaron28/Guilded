@@ -15,7 +15,8 @@ function withQueue(officer = true): LuaSession {
     time = function() return CLOCKS end
     function GetServerTime() return CLOCKS end
     function CanGuildInvite() return CAN end
-    function GuildInvite(name) SENT[#SENT + 1] = name end
+    -- The direct guild invite (9.5.1) is off unless a test sets GuildInvite = GUILD_INVITE_FN: the copy box is the default path.
+    GUILD_INVITE_FN = function(name) SENT[#SENT + 1] = name end
     function C_GuildInfo_Invite() end
     IN_COMBAT = false
     CLOCK = 0
@@ -102,6 +103,38 @@ describe("InviteQueue.lua", () => {
     expect(s.run("return #CHAT")).toBe("1");
     expect(s.run(String.raw`return tostring(NS.inviteQueue.sections().invited[1].sent ~= nil)`)).toBe("true");
     expect(s.run("return #SENT")).toBe("0");
+  });
+  // 9.5.1: the guild Invite button calls the invite API inside its own click first; a refusal falls back to the copy box.
+  it("invites straight from the click when the game takes it: no copy box, row marked invited, one chat line", () => {
+    const s = withQueue();
+    s.run("GuildInvite = GUILD_INVITE_FN; NS.inviteQueue.open()");
+    click(s, 1);
+    expect(s.run("return #SENT .. SENT[1]")).toBe("1Amy Archer");
+    expect(s.run("return #COPIED")).toBe("0");
+    expect(s.run("return CHAT[#CHAT]")).toBe("Invited Amy Archer.");
+    expect(s.run(String.raw`return tostring(NS.inviteQueue.sections().invited[1].sent ~= nil)`)).toBe("true");
+  });
+  it("remembers a refusal for this client build, shows the copy box at once and never tries the guild API again", () => {
+    const s = withQueue();
+    s.run("GuildInvite = function(name) SENT[#SENT + 1] = name; UTILNS.util.noteInviteBlocked('UNKNOWN') end; NS.inviteQueue.open()");
+    click(s, 1);
+    expect(s.run("return #SENT")).toBe("1");
+    expect(s.run("return #COPIED .. COPIED[1]")).toBe("1/ginvite Amy Archer");
+    expect(s.run("return tostring(DB.inviteDirect.refusedGuild ~= nil) .. tostring(UTILNS.util.directInviteRefused('guild')) .. tostring(UTILNS.util.directInviteRefused())")).toBe("truetruefalse");
+    click(s, 1);
+    expect(s.run("return #SENT")).toBe("1"); // not tried again
+    expect(s.run("return #COPIED")).toBe("2");
+  });
+  it("does not invite directly in combat, without invite rights, or after the player switched direct invites off", () => {
+    const s = withQueue();
+    s.run("GuildInvite = GUILD_INVITE_FN; NS.inviteQueue.open(); IN_COMBAT = true");
+    click(s, 1);
+    s.run("IN_COMBAT = false; CAN = false");
+    click(s, 1);
+    s.run("CAN = true; UTILNS.util.setDirectInvite(false)");
+    click(s, 1);
+    expect(s.run("return #SENT")).toBe("0");
+    expect(s.run("return #COPIED")).toBe("3");
   });
   it("says which line to type when there is no copy box", () => {
     const s = withQueue();

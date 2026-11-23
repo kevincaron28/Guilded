@@ -1,0 +1,18 @@
+[Unit]
+Description=Guilded encrypted database backup to Cloudflare R2
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=guilded
+EnvironmentFile=/opt/guilded/.env.local
+EnvironmentFile=/etc/guilded-backup.env
+WorkingDirectory=/opt/guilded
+ExecStart=/usr/bin/node scripts/offsite-backup.mjs backup
+# Yield to the bot on the small server; a dump is a streamed, low-memory job.
+Nice=19
+IOSchedulingClass=idle
+MemoryMax=250M
+NoNewPrivileges=true
+PrivateTmp=true

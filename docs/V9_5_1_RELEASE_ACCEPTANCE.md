@@ -1,14 +1,14 @@
 # 9.5.1 release acceptance
 
-Status: prepared 23 November 2026.
+Status: published 23 November 2026.
 
 | Provider | State |
 | --- | --- |
-| GitHub | pending |
-| Installer | pending |
-| CurseForge | pending |
+| GitHub | v9.5.1 published (tag 58938af1). |
+| Installer | server and R2 mirror, sha256 a3b67e03…. |
+| CurseForge | uploaded 23 November 2026 (Guilded file 9764450, Guilded Dungeons file 9764451), in review. |
 | Microsoft Store | not submitted: companion unchanged; 9.5.0.0 stays in certification (Submission 24). |
-| Bot | no bot change. |
+| Bot | live 9.5.1 (58938af1; no bot code change). |
 
 ## Checks owed
 

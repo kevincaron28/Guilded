@@ -18,6 +18,7 @@ All of it goes to the Guilded server the member signed in to (default `https://g
 | `POST /api/v1/addon-pairings` | a pairing code and an optional Discord server id | the alternative sign-in |
 | every signed-in request | the companion credential (header `x-companion-credential`), stored in the device keychain (`expo-secure-store`) | identifies the member's account |
 | `GET /api/v1/hub`, `/manage`, `/standings`, `/companion/achievements`, `/companion/guild-map` | the Discord server id and the language | reads the guild's data |
+| `GET /api/v1/me/raid-signups`, `POST /api/v1/me/raid-signup` | the server id, raid id, answer (I'm in, Maybe, Can't come) and role | the member's own raid sign-up |
 | `POST /api/v1/manage` | wishlist edits (item name, priority, character) | the member's raid wishlist |
 | `POST /api/v1/companion/guild-map` | `share: true/false` | the member's map-sharing switch (off deletes their positions on the server) |
 | `POST /api/v1/companion/logout` | the server id | sign out |

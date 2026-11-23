@@ -67,7 +67,7 @@ It is for guilds that use the Guilded Discord bot. Sign in with the same Discord
 GUILD
 • Roster: your characters, guild ranks, raid cores and soft reserves.
 • Guild map: where guildmates were last seen outdoors, a heat map of where the guild plays, and recent calls for help with the time and the attackers. Only signed-in members of your guild see it. It is never public, and you can stop sharing your position at any time, which deletes it.
-• Raids: the next raid, who signed up, upcoming raids and EP/GP standings.
+• Raids: the next raid, who signed up, upcoming raids and EP/GP standings. Answer I'm in, Maybe or Can't come, with your role, right from the app.
 
 STATS
 • This week on Guilded: rated dungeon runs and the best runs of the week.
@@ -78,7 +78,7 @@ ME
 • Your raid wishlist, saved with the guild.
 
 ALERTS
-• A reminder on this phone 60 minutes before each raid you can see.
+• Reminders on this phone 24 hours, 2 hours and 1 hour before each raid you can see (none for a raid you can't attend).
 
 NEWS
 • Recent World of Warcraft headlines with a link to read them on the publisher's site, and a link to Blizzard's news page.
@@ -108,7 +108,7 @@ Elle s'adresse aux guildes qui utilisent le bot Discord Guilded. Connectez-vous 
 GUILDE
 • Membres : vos personnages, rangs de guilde, cores de raid et soft reserves.
 • Carte de la guilde : où les membres ont été vus dehors pour la dernière fois, une carte de chaleur des endroits où joue la guilde, et les appels à l'aide récents avec l'heure et les attaquants. Seuls les membres connectés de votre guilde la voient. Elle n'est jamais publique, et vous pouvez arrêter de partager votre position à tout moment, ce qui l'efface.
-• Raids : le prochain raid, les inscrits, les raids à venir et le classement EP/GP.
+• Raids : le prochain raid, les inscrits, les raids à venir et le classement EP/GP. Réponds J'y vais, Peut-être ou Je ne peux pas, avec ton rôle, directement dans l'app.
 
 STATS
 • Cette semaine sur Guilded : les donjons cotés et les meilleurs donjons de la semaine.
@@ -119,7 +119,7 @@ MOI
 • Votre liste de souhaits de raid, gardée avec la guilde.
 
 ALERTES
-• Un rappel sur ce téléphone 60 minutes avant chaque raid que vous voyez.
+• Des rappels sur ce téléphone 24 heures, 2 heures et 1 heure avant chaque raid que tu vois (aucun pour un raid où tu ne peux pas aller).
 
 NOUVELLES
 • Les manchettes récentes de World of Warcraft, avec un lien pour les lire sur le site de l'éditeur, et un lien vers les nouvelles de Blizzard.

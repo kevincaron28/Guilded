@@ -124,6 +124,21 @@ describe("blocked calls and diagnostics", () => {
     expect(s.run("local d = GuildedDB.diagnostics; return d[#d].detail")).not.toContain("in combat");
   });
 
+  // 9.5.1: the refusal event is raised inside the refused call, so the stack names the Guilded code that made it.
+  it("adds the Guilded frames of the call stack to an unnamed refusal and survives a missing or odd debugstack", () => {
+    const s = loggedIn(`
+      function debugstack() return "Interface/AddOns/Guilded/Core.lua:2950: in function <Guilded/Core.lua:2948>\\nInterface/AddOns/Guilded/Modules/Foo.lua:77: in function 'bar'\\n[C]: in ?\\nInterface/AddOns/Blizzard_X/X.lua:5: in ?" end
+    `);
+    s.run(`fire_event("ADDON_ACTION_FORBIDDEN", "Guilded", "UNKNOWN()")`);
+    const detail = s.run("local d = GuildedDB.diagnostics; return d[#d].detail");
+    expect(detail).toContain("<Core.lua:2950 < Modules/Foo.lua:77>");
+    expect(detail).not.toContain("Blizzard_X");
+    s.run(`function debugstack() error("nope") end; fire_event("ADDON_ACTION_FORBIDDEN", "Guilded", "UNKNOWN()")`);
+    expect(s.run("local d = GuildedDB.diagnostics; return d[#d].detail")).not.toContain("Core.lua:");
+    s.run(`debugstack = nil; fire_event("ADDON_ACTION_FORBIDDEN", "Guilded", "UNKNOWN()")`);
+    expect(s.run("local d = GuildedDB.diagnostics; return d[#d].kind")).toBe("ADDON_ACTION_FORBIDDEN");
+  });
+
   it("does not list name-migration debug lines for ordinary members in /guilded diag", () => {
     const s = loggedIn(`GetGuildInfo = function() return "Test Guild", "Member", 5 end`);
     s.run(`GuildedDB.nameMigration = { flagged = { a = { table = "roster", key = "El", candidates = { "El Chacal", "El Daron" }, reason = "shared first name" } } }`);

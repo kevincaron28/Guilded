@@ -2985,6 +2985,19 @@ local function onEvent(_, event, ...)
         context[#context + 1] = "last event " .. (age < 1 and "<1 s" or age < 5 and "<5 s" or "5+ s") .. " ago"
       end
       if #context > 0 then detail = detail .. " {" .. table.concat(context, ", ") .. "}" end
+      -- (9.5.1) The game raises this event inside the refused call, so Guilded's own frames on the call stack name the code
+      -- that made it (file:line, at most four), which "UNKNOWN()" and the last-event hint cannot. Read-only, never refuses.
+      if type(debugstack) == "function" then
+        local okStack, stack = pcall(debugstack, 2, 14, 0)
+        if okStack and type(stack) == "string" and not isSecret(stack) then
+          local frames = {}
+          for path, line in string.gmatch(stack, "AddOns/Guilded/([%w_/%.]+%.lua):(%d+)") do
+            frames[#frames + 1] = path .. ":" .. line
+            if #frames >= 4 then break end
+          end
+          if #frames > 0 then detail = detail .. " <" .. table.concat(frames, " < ") .. ">" end
+        end
+      end
       local named = type(blockedFunction) == "string" and string.gsub(blockedFunction, "%(%)$", "") or nil
       if named and ns.guildSnapshot and ns.guildSnapshot.onBlocked then pcall(ns.guildSnapshot.onBlocked, named) end
       -- (9.4) A direct invite test that the game refused is remembered for this client build (Util.lua).

@@ -1,6 +1,6 @@
 # Guilded 9.5.5 release notes
 
-Prepared 23 November 2026. Protocol 2, WoW Forever only. Addon changes; the companion only changes its version number.
+Published 23 November 2026. Protocol 2, WoW Forever only. Addon changes; the companion only changes its version number.
 
 Real-client checks: docs/V9_5_5_RELEASE_ACCEPTANCE.md.
 

@@ -14,9 +14,9 @@
   },
   "guilded": {
     "github": {
-      "version": "9.5.3",
+      "version": "9.5.4",
       "stage": "release",
-      "url": "https://github.com/kevincaron28/Guilded/releases/tag/v9.5.3"
+      "url": "https://github.com/kevincaron28/Guilded/releases/tag/v9.5.4"
     },
     "curseforge": {
       "version": "9.5.1",
@@ -30,15 +30,15 @@
       }
     },
     "companionDirect": {
-      "version": "9.5.3",
+      "version": "9.5.4",
       "url": "https://github.com/kevincaron28/Guilded/releases/latest/download/Guilded.Companion.Setup.exe",
       "siteUrl": "https://guilded.kcaron.top/downloads/Guilded.Companion.Setup.exe",
-      "size": 122738891,
-      "sha256": "5bb22d1349493536b2cabeb6fc93c4ed56bf58e11f446b55b9e3e262d1d97b63"
+      "size": 122739044,
+      "sha256": "7b55ce85b0a2aa34f4b9cad13386281eadae8d609c12bfdcb77868e974d949a2"
     },
     "addonZips": {
-      "Guilded-v9.5.3-forever.zip": "3039155d91906f5ed9617ca0cadd90548ed4d9d0a0a3733ef5352b0f540707b7",
-      "GuildedDungeons-v9.5.3-forever.zip": "cf2ceb45872aba02bff2b129cb6224ded654d37ef9acf4efc2de0cdba7c78a40"
+      "Guilded-v9.5.4-forever.zip": "1caf31367da5af45646a06bcd4e6aca3bd440299adb7a0bb7e363fa9d13b6f50",
+      "GuildedDungeons-v9.5.4-forever.zip": "949f3dbf8e9e2382ca25e061785b6ede21c0f2a97058a7dccfe63a5c46ee0238"
     },
     "microsoftStore": {
       "version": "9.4.1",

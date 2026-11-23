@@ -2,7 +2,7 @@
 
 ## 9.5.4 — 23 November 2026
 
-Prepared 23 November 2026. In-game checks: docs/V9_5_4_RELEASE_ACCEPTANCE.md.
+Published 23 November 2026 (GitHub v9.5.4, website download and installer, bot). In-game checks: docs/V9_5_4_RELEASE_ACCEPTANCE.md.
 
 Addon (#1278, from docs/plans/IN_GAME_AUDIT_2026-11-23.md):
 - Ready to promote no longer hides Roster admin; the dungeons window opens in front of the main window.

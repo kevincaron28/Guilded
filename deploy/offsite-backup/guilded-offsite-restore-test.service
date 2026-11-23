@@ -1,0 +1,18 @@
+[Unit]
+Description=Guilded monthly restore test of the newest off-site backup
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=guilded
+EnvironmentFile=/opt/guilded/.env.local
+EnvironmentFile=/etc/guilded-backup.env
+WorkingDirectory=/opt/guilded
+ExecStart=/usr/bin/node scripts/offsite-backup.mjs restore-test
+# Yield to the bot on the small server; a dump is a streamed, low-memory job.
+Nice=19
+IOSchedulingClass=idle
+MemoryMax=300M
+NoNewPrivileges=true
+PrivateTmp=true

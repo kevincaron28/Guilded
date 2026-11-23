@@ -405,3 +405,57 @@ ensure_free_disk() {
   echo "Still only $((avail / 1024)) MB free under $base (need $((min_kb / 1024 / 1024)) GB)."
   return 1
 }
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Prebuilt releases (.github/workflows/bot-build.yml). GitHub's runners do the npm ci, the Prisma client and the
+# companion bundle; the 1 GB server downloads the finished tarball, checks it and unpacks it as the staging directory.
+# Nothing here stops the bot or touches /opt/guilded: it only creates a staging directory next to it, exactly like
+# prepare_application, so the caller's activation step is the same for both paths.
+PREBUILT_REPO="${PREBUILT_REPO:-kevincaron28/Guilded}"
+PREBUILT_BASE="${PREBUILT_BASE:-https://github.com/$PREBUILT_REPO/releases/download}"
+# How long an auto run waits for the build of its commit (it starts as soon as main moves). 0 = do not wait.
+PREBUILT_WAIT_SECONDS="${PREBUILT_WAIT_SECONDS:-600}"
+
+prebuilt_url() { printf '%s/bot-build-%s/guilded-bot-%s.tar.gz%s' "$PREBUILT_BASE" "$1" "$1" "${2:-}"; }
+
+# True when the checksum file of this commit's build can be fetched; waits up to PREBUILT_WAIT_SECONDS for the build.
+wait_for_prebuilt() {
+  local sha="$1" waited=0
+  while :; do
+    curl -fsSL --connect-timeout 15 --max-time 60 -o /dev/null "$(prebuilt_url "$sha" .sha256)" 2>/dev/null && return 0
+    [ "$waited" -ge "$PREBUILT_WAIT_SECONDS" ] && return 1
+    [ "$waited" -eq 0 ] && echo "The prebuilt bot for $sha is not published yet; waiting up to ${PREBUILT_WAIT_SECONDS}s for the GitHub build."
+    sleep 20; waited=$((waited + 20))
+  done
+}
+
+# Downloads, verifies and unpacks the prebuilt bot for the full commit sha $3 into a new staging directory (STAGED_APP).
+# Returns 1 (and leaves STAGED_APP set when one was created, for the caller to discard) on any problem.
+prepare_prebuilt_application() {
+  local app="$1" owner="$2" sha="$3" name="guilded-bot-$3.tar.gz" total_started download
+  total_started="$(date +%s)"
+  [ -d "$app" ] && [ ! -L "$app" ] || return 1
+  case "$sha" in [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*) ;; *) echo "No commit to fetch a prebuilt bot for."; return 1 ;; esac
+  command -v curl >/dev/null && command -v sha256sum >/dev/null && command -v tar >/dev/null || { echo "curl, sha256sum and tar are needed for a prebuilt update."; return 1; }
+  wait_for_prebuilt "$sha" || { echo "No prebuilt bot is published for $sha."; return 1; }
+  STAGED_APP="$(mktemp -d "${app}.stage.XXXXXXXX")" || return 1
+  chmod 700 "$STAGED_APP"
+  download="$STAGED_APP/.download"
+  mkdir "$download" || return 1
+  timed_step "download" curl -fsSL --retry 3 --retry-delay 5 --connect-timeout 20 --max-time 900 -o "$download/$name" "$(prebuilt_url "$sha")" || return 1
+  curl -fsSL --retry 3 --connect-timeout 20 --max-time 60 -o "$download/$name.sha256" "$(prebuilt_url "$sha" .sha256)" || return 1
+  # The checksum file must name this very asset; a mismatch or a different name stops here, before anything is unpacked.
+  [ "$(awk 'NR==1{sub(/^\*/, "", $2); print $2}' "$download/$name.sha256")" = "$name" ] || { echo "The checksum file does not describe $name."; return 1; }
+  ( cd "$download" && sha256sum -c "$name.sha256" >/dev/null ) || { echo "Checksum mismatch for $name; not using it."; return 1; }
+  timed_step "unpack" tar -xzf "$download/$name" -C "$STAGED_APP" --no-same-owner || return 1
+  rm -rf -- "$download"
+  [ "$(cat "$STAGED_APP/.build-sha" 2>/dev/null || true)" = "$sha" ] || { echo "The package is not the build of $sha."; return 1; }
+  for need in package.json node_modules/.bin/tsx node_modules/.bin/prisma src/generated/prisma/client.ts scripts/db-update-start.mjs companion-app/renderer/ui-bundle.js; do
+    [ -e "$STAGED_APP/$need" ] || { echo "The package is incomplete: $need is missing."; return 1; }
+  done
+  for envfile in .env .env.local; do
+    if [ -f "$app/$envfile" ]; then cp -p "$app/$envfile" "$STAGED_APP/$envfile" || return 1; fi
+  done
+  if [ "$(id -u)" -eq 0 ]; then chown -R "$owner:$owner" "$STAGED_APP" || return 1; fi
+  echo "[prepare] prebuilt $sha unpacked in $(( $(date +%s) - total_started ))s"
+}

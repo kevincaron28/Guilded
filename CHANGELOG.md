@@ -1,5 +1,18 @@
 # Changelog
 
+## 9.5.5 — 23 November 2026
+
+Prepared 23 November 2026. In-game checks: docs/V9_5_5_RELEASE_ACCEPTANCE.md.
+
+Addon (#1281, found testing 9.5.4 in game):
+- The officer Gear table shows every member's name, problems and last check again (9.5.4 showed only the first row).
+- The Settings switches no longer overlap.
+- Open raids shows its snapshot time as today 13:46.
+- The dungeons window no longer covers the main Guilded window.
+
+Companion:
+- Version 9.5.5 (no functional change).
+
 ## 9.5.4 — 23 November 2026
 
 Published 23 November 2026 (GitHub v9.5.4, website download and installer, bot). In-game checks: docs/V9_5_4_RELEASE_ACCEPTANCE.md.

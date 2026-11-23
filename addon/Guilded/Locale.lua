@@ -2435,6 +2435,7 @@ local DE = {
   ["%s - waiting for the Discord rule"] = "%s - wartet auf die Discord-Regel",
   ["Promote from the guild roster: right-click the name, then Promote (or set the rank to Member)."] = "In der Gildenliste bef\195\182rdern: Namen rechtsklicken, dann Bef\195\182rdern (oder Rang Mitglied setzen).",
   ["Copy name"] = "Namen kopieren",
+  -- NEEDS NATIVE REVIEW (9.5.2): the nine promotion copy-mode lines below (Copy command ... paste it in chat) are machine-written.
   ["Copy command"] = "Befehl kopieren",
   ["Done"] = "Erledigt",
   ["copied, waiting"] = "kopiert, wartet",
@@ -4818,6 +4819,7 @@ local ES = {
   ["%s - waiting for the Discord rule"] = "%s - espera la regla de Discord",
   ["Promote from the guild roster: right-click the name, then Promote (or set the rank to Member)."] = "Asciende desde la lista de la hermandad: clic derecho en el nombre y Ascender (o rango Miembro).",
   ["Copy name"] = "Copiar nombre",
+  -- NEEDS NATIVE REVIEW (9.5.2): the nine promotion copy-mode lines below (Copy command ... paste it in chat) are machine-written.
   ["Copy command"] = "Copiar comando",
   ["Done"] = "Hecho",
   ["copied, waiting"] = "copiado, en espera",

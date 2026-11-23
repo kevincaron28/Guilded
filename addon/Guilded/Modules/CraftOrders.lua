@@ -243,8 +243,8 @@ end
 
 -- Reagents of a recipe you know, times the order's count, with what is in your bags (and bank).
 function orders.reagents(order)
-  local book = ns.recipes and ns.recipes.book and ns.recipes.book()
-  local mats = book and order.key and book.mats[order.key]
+  -- (9.5.2) Your own profession scan first, else the reagents shipped with the addon (Data/Reagents.lua).
+  local mats = ns.recipes and ns.recipes.matsFor and order.key and ns.recipes.matsFor(order.key)
   if type(mats) ~= "table" then return nil end
   local rows = {}
   for _, mat in ipairs(mats) do

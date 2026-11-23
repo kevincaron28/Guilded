@@ -1,0 +1,2 @@
+Extracted by scripts/extract-recipes.mjs from the WoW Forever tables (wago.tools DB2 export, product wowf, build 1.60.1.71037).
+Tables: SkillLineAbility, SpellEffect, SpellReagents, SpellName, ItemSparse. 2502 recipes; 0 abilities without reagents and 139 without an item or enchant effect were skipped.

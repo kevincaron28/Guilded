@@ -251,6 +251,20 @@ describe("the Crafting page: Request tab (favourites, recent, tree, filter, deta
   const rowsText = () => found().split("\n");
   const reagents = () => s!.run("local t = {} for _, r in ipairs(VIEW.dReagents) do if r.frame.shown then t[#t + 1] = r.text.text end end return table.concat(t, ',')");
 
+  // 9.5.2: the shipped reagent list fills the detail pane for a recipe whose profession window was never opened.
+  it("shows the shipped reagents (have/need) for a recipe the scan has not read, and your own scan still wins", () => {
+    withBook();
+    s!.load("Data/Reagents.lua");
+    s!.run(`local f = VIEW.resultRows[2].frame; f.scripts.OnClick(f)`);
+    s!.run(`local f = VIEW.resultRows[5].frame; f.scripts.OnClick(f)`);
+    expect(s!.run("return VIEW.dTitle.text")).toContain("Woolen Cape");
+    expect(reagents()).toBe("|cffff40400/1|r Bolt of Woolen Cloth,|cffff40400/1|r Fine Thread");
+    expect(s!.run("return tostring(VIEW.dReagentNote.shown)")).toBe("false");
+    // Key 2580 was scanned (and differs from the shipped list): the scan wins.
+    expect(s!.run("local m, source = NS.recipes.matsFor(2580); return source .. m[1].name .. m[1].count")).toBe("scanLinen Cloth3");
+    expect(s!.run("local m, source = NS.recipes.matsFor(2584); return source .. m[1].id")).toBe("data2997");
+  });
+
   it("groups the known recipes by profession; a click opens a group and a recipe fills the detail pane", () => {
     withBook();
     expect(rowsText()).toEqual(["|cffffd100+ Alchemy (1)|r", "|cffffd100+ Tailoring (3)|r"]);

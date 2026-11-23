@@ -1,0 +1,4 @@
+# Your own recipe lines. One line per recipe, same columns as recipes.csv. A line REPLACES the extracted recipe with the same key,
+# a new key ADDS a recipe, and profession "-" REMOVES one. Then run: npm run reagents:build   (docs/RECIPE_REAGENTS.md)
+# key,profession,spell,count,name,reagents,reagent_names
+key,profession,spell,count,name,reagents,reagent_names

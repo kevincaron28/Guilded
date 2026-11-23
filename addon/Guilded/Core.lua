@@ -310,7 +310,7 @@ local function logDiagnostic(kind, detail, foreign)
     table.remove(list, removeIndex)
   end
   -- Slow-handler timings are recorded quietly; only real problems print.
-  if not foreign and kind ~= "SLOW" and kind ~= "SEND" then
+  if not foreign and kind ~= "SLOW" and kind ~= "SEND" and kind ~= "RECIPES" then
     message("|cffff5555[Diagnostic]|r " .. kind .. ": " .. detail .. " (see /guilded diag)")
   end
 end

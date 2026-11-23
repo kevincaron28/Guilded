@@ -45,6 +45,11 @@ local TERMINAL = { COMPLETED = true, ABANDONED = true, INVALID = true, ERROR = t
 -- (9.0) Guildmates' runs nobody's bot confirmed are dropped after this long (the bot takes
 -- relayed runs up to 30 days old, so older copies can never reach it).
 local KEEP_PEER_DAYS = 45
+-- (9.5.3) Saved-file size (the owner's file held 1.5 MB of runs): at most MAX_RUNS stored runs, oldest first (confirmed copies, then
+-- guildmates' unconfirmed ones, then our own unconfirmed ones last), and the death-map points of a run the bot has confirmed are dropped
+-- after TRIM_SYNCED_DAYS: the bot already holds them.
+local MAX_RUNS = 300
+local TRIM_SYNCED_DAYS = 7
 local REPLAY_DAYS = 30
 local REPLAY_RUNS = 10
 -- The note a 9.1.3 bot gave an unsigned companion for a guildmate's run it refused (see markSynced).
@@ -1303,6 +1308,23 @@ function dungeon.markSynced()
     if (confirmed and at < cutoff) or (not confirmed and not ours and at < peerCutoff) then
       d.runs[id] = nil
       dungeon.stats.pruned = dungeon.stats.pruned + 1
+    elseif confirmed and run.deathPoints and at < now() - TRIM_SYNCED_DAYS * 86400 then
+      run.deathPoints = nil
+    end
+  end
+  do
+    local list = {}
+    for id, run in pairs(d.runs) do
+      local confirmed = run.synced or run.syncedVia
+      local ours = mine and run.players and run.players[mine]
+      list[#list + 1] = { id = id, at = run.endedAt or run.detectedAt or 0, class = confirmed and 0 or (ours and 2 or 1) }
+    end
+    if #list > MAX_RUNS then
+      table.sort(list, function(x, y) if x.class ~= y.class then return x.class < y.class end if x.at ~= y.at then return x.at < y.at end return x.id < y.id end)
+      for i = 1, #list - MAX_RUNS do
+        d.runs[list[i].id] = nil
+        dungeon.stats.pruned = dungeon.stats.pruned + 1
+      end
     end
   end
   -- Carried runs of other players: taken ones go after the synced window, untaken ones when the companion would no longer read them.

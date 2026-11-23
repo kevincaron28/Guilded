@@ -7,6 +7,8 @@
 -- protected guild action, and RosterTools refuses to stack requests until the roster verified the last one, so
 -- the batch is a step-through: one member per click. Each promotion goes through the reviewed RosterTools engine
 -- (fresh roster, permission check, audit, verification on the next roster event). The Alt rank is never promoted.
+-- (9.5.2) On WoW Forever the panel is in copy mode by default: it copies the game's own /gpromote and /gdemote line, one row per
+-- member, and never calls the rank functions (docs/plans/PROMOTION_COPY_MODE.md).
 -- Manual helper (19 Nov 2026): WoW Forever refuses addon guild actions, and an alt rank directly above a member
 -- would catch the one-step promote. Then the panel only lists who is ready, opens the guild roster and copies names:
 -- the officer promotes by hand. The addon never calls a promotion in that mode.
@@ -37,6 +39,29 @@ local function feed()
   if type(data) == "table" and type(data.ready) == "table" and type(data.fromRank) == "string" and data.fromRank ~= "" then return data end
 end
 module.feed = feed
+
+-- (9.5.2) WoW Forever refuses addon guild actions even from a click (guild invite, confirmed 23 Nov 2026; notes, chat lines and
+-- secure macros before), and the rank functions are protected on every client. So on Forever the panel does not call them: it
+-- copies the game's own slash command (/gpromote Name, /gdemote Name: typed by the player, so the game allows them), one row per
+-- member. GuildedDB.promoteTry = true brings the direct one-click path back for testing a future client build.
+function module.directAllowed()
+  local d = db()
+  if d and d.promoteTry == true then return true end
+  return not (ns.util and ns.util.isForever and ns.util.isForever())
+end
+local COPY_DAYS = 3
+-- Marks that survive a reload: character key -> { from = rank index it was copied at, to = rank index it should reach, at, done }.
+local function marks()
+  local d = db(); if type(d) ~= "table" then return {} end
+  d.promoCopied = type(d.promoCopied) == "table" and d.promoCopied or {}
+  return d.promoCopied
+end
+local function setMark(item, done)
+  local m = marks()
+  local old = m[item.key]
+  m[item.key] = { from = item.rankIndex, to = item.target, at = nowSeconds(), done = done or (old and old.done and old.from == item.rankIndex) or nil }
+  return m[item.key]
+end
 
 function module.rule()
   local f = feed()
@@ -212,11 +237,12 @@ local function altKeys(snapshot)
   return keys
 end
 
-local ALT_MANUAL_LINE = "Move to the Alt rank from the guild roster: right-click the name, then set the rank to Alt."
+local ALT_MANUAL_LINE = "Copy the command, paste it in chat and press Enter, once per rank. The list updates when the roster changes."
 -- One rank change, one click: the same reviewed path a promotion uses (fresh roster, permission check, audit, verification,
 -- rank-number base calibration, per-build refusal memory). `dest` is a rank index.
 function module.changeRank(name, dest)
   local tools = ns.rosterTools
+  if not module.directAllowed() then return false, L(ALT_MANUAL_LINE) end
   if not tools or not tools.authorized() then return false, L("Current officer access is required.") end
   if type(name) ~= "string" or name == "" or name:find("[\t\r\n]") then return false, L("Unknown or ambiguous character.") end
   if tools.isBlocked and tools.isBlocked("setrank") then return false, L(ALT_MANUAL_LINE) end
@@ -239,6 +265,7 @@ end
 -- sends it. Refused without an alt-named rank, and into the last rank before the rank numbering has been calibrated.
 function module.moveToAlt(name)
   local tools = ns.rosterTools
+  if not module.directAllowed() then return false, L(ALT_MANUAL_LINE) end
   local snapshot = tools and tools.authorized() and tools.snapshot()
   if not snapshot then return false, L("Refresh the full guild roster first.") end
   local dest = tools.altRankIndex(snapshot)
@@ -293,11 +320,12 @@ end
 -- above a ready member. `ready` is the list module.ready() returned (optional).
 function module.manual(ready)
   local tools = ns.rosterTools
+  if not module.directAllowed() then return true end
   if tools and tools.isBlocked and tools.isBlocked("promote") then return true end
   if ready then for _, item in ipairs(ready) do if item.altInWay then return true end end end
   return false
 end
-local MANUAL_LINE = "Promote from the guild roster: right-click the name, then Promote (or set the rank to Member)."
+local MANUAL_LINE = "Copy the command, paste it in chat and press Enter. The list updates when the roster changes."
 function module.openGuildRoster()
   if not outOfCombat() then return false, L("Promote next: not while in combat.") end
   for _, name in ipairs({ "ToggleGuildFrame", "ToggleCommunitiesFrame" }) do
@@ -353,12 +381,31 @@ function module.ready()
         if f and not listed then stats.notListed = stats.notListed + 1 else stats.tooLow = stats.tooLow + 1 end
       else
         stats.listed = stats.listed + 1
-        out[#out + 1] = { key = key, name = row.name, display = row.display, days = days, level = level, rank = row.rankName, fromBot = listed, exhausted = (tried[key] or 0) >= module.MAX_TRIES,
-          altInWay = tools.altInWay and not tools.canSetRank() and tools.altInWay(snapshot, row) or false }
+        local target = tools.promoteTarget and tools.promoteTarget(snapshot, row) or row.rank - 1
+        local m = marks()[key]
+        if m and (m.from ~= row.rank or at - (m.at or 0) > COPY_DAYS * DAY) then marks()[key] = nil; m = nil end
+        if m and m.done then stats.doneHidden = (stats.doneHidden or 0) + 1
+        else
+          out[#out + 1] = { key = key, name = row.name, display = row.display, days = days, level = level, rank = row.rankName, fromBot = listed, exhausted = (tried[key] or 0) >= module.MAX_TRIES,
+            altInWay = tools.altInWay and not tools.canSetRank() and tools.altInWay(snapshot, row) or false,
+            rankIndex = row.rank, target = target, steps = math.max(1, row.rank - target), copied = m ~= nil }
+        end
       end
     end
   end
-  table.sort(out, function(a, b) if a.days ~= b.days then return a.days > b.days end return a.display < b.display end)
+  -- A copied promotion that passed through an alt rank on its way (two /gpromote steps): the member now sits in the alt rank,
+  -- so the loop above skipped them. Offer the next step until they reach the rank asked for.
+  for key, m in pairs(marks()) do
+    local row = snapshot.rows[key]
+    if type(m) ~= "table" or not row or at - (m.at or 0) > COPY_DAYS * DAY or row.rank <= (m.to or -1) or row.rank > (m.from or 0) then marks()[key] = nil
+    elseif row.rank < m.from and not m.done then
+      out[#out + 1] = { key = key, name = row.name, display = row.display, days = 0, rank = row.rankName, fromBot = false, exhausted = false, continuing = true,
+        rankIndex = row.rank, target = m.to, steps = row.rank - m.to, copied = false }
+    end
+  end
+  table.sort(out, function(a, b)
+    if (a.continuing or false) ~= (b.continuing or false) then return a.continuing == true end
+    if a.days ~= b.days then return a.days > b.days end return a.display < b.display end)
   return out, rule
 end
 
@@ -411,7 +458,7 @@ end
 function module.actionable()
   local ready = module.ready()
   local n = 0
-  if ready then for _, item in ipairs(ready) do if not item.exhausted then n = n + 1 end end end
+  if ready then for _, item in ipairs(ready) do if not item.exhausted and not item.copied then n = n + 1 end end end
   return n, ready
 end
 
@@ -419,6 +466,7 @@ end
 -- roster to verify this one first (RosterTools refuses to stack requests).
 function module.promote(name)
   local tools = ns.rosterTools
+  if not module.directAllowed() then return false, L(MANUAL_LINE) end
   if not tools or not tools.authorized() then return false, L("Current officer access is required.") end
   if type(name) ~= "string" or name == "" or name:find("[\t\r\n]") then return false, L("Unknown or ambiguous character.") end
   if tools.isBlocked and tools.isBlocked("promote") then return false, L(tools.blockedMessage("promote")) end
@@ -443,11 +491,55 @@ function module.promote(name)
   return true, L("Promotion requested. Wait for the roster to confirm it before the next one.")
 end
 
+-- Copy mode: the game's own command for one rank step. The copy box opens (the player copies it with Ctrl+C and pastes it in
+-- chat); the row is marked "copied" until the roster shows the new rank.
+function module.promoteLine(item) return "/gpromote " .. tostring(item.display) end
+function module.copyLine(line, steps)
+  if ns.showCopyText then pcall(ns.showCopyText, line, L("Copy with Ctrl+C, then paste in chat")) end
+  if steps and steps > 1 then
+    return true, string.format(L("%d steps: paste %s once per rank. The list updates as the roster changes."), steps, line)
+  end
+  return true, string.format(L("Paste in chat: %s"), line)
+end
+function module.copyPromote(item)
+  if type(item) ~= "table" or not item.display or item.display == "" then return false, L("Unknown or ambiguous character.") end
+  if item.rankIndex and item.target then setMark(item) end
+  return module.copyLine(module.promoteLine(item), item.steps)
+end
+-- The command for one alt-section row (a swap's give-rank step is a promotion, everything else moves down to the Alt rank).
+function module.altCommand(entry)
+  local tools = ns.rosterTools
+  local snapshot = tools and tools.snapshot()
+  local key = entry.swap and (entry.swap.needGive and entry.swap.to.key or entry.swap.from.key) or entry.alt and entry.alt.key
+  local display = entry.swap and (entry.swap.needGive and entry.swap.to.display or entry.swap.from.display) or entry.alt and entry.alt.display
+  local row = snapshot and key and snapshot.rows[key]
+  if not display then return nil end
+  if entry.swap and entry.swap.needGive then
+    return "/gpromote " .. display, row and math.max(1, row.rank - entry.swap.rankIndex) or 1
+  end
+  local dest = snapshot and tools.altRankIndex and tools.altRankIndex(snapshot)
+  return "/gdemote " .. display, row and dest and math.max(1, dest - row.rank) or 1
+end
+-- "Done": the officer promoted the member another way; hide the row until the roster says otherwise.
+function module.markDone(item)
+  if type(item) ~= "table" or not item.rankIndex or not item.target then return false end
+  setMark(item, true)
+  return true
+end
+
 -- "Promote next": the first member the list still offers. Called from a click only.
 function module.promoteNext()
   local _, ready = module.actionable()
   if not ready then return false, L("Refresh the full guild roster first.") end
-  if module.manual(ready) then return false, L(MANUAL_LINE) end
+  if module.manual(ready) then
+    for _, item in ipairs(ready) do
+      if not item.exhausted and not item.copied then
+        local ok, message = module.copyPromote(item)
+        return ok, message, item.display
+      end
+    end
+    return false, L("Nobody is ready to promote yet.")
+  end
   for _, item in ipairs(ready) do
     if not item.exhausted and not item.altInWay then
       local ok, message = module.promote(item.name)
@@ -464,10 +556,10 @@ function module.onKey()
   if not (ns.isOfficer and ns.isOfficer()) then say(L("Officers only.")); return false end
   if not outOfCombat() then say(L("Promote next: not while in combat.")); return false end
   local tools = ns.rosterTools
-  if tools and tools.isBlocked and tools.isBlocked("promote") then say(L(MANUAL_LINE)); return false end
   if tools and tools.requestRoster then tools.requestRoster() end
   local ok, message, display = module.promoteNext()
-  if ok then say(string.format(L("Promotion requested: %s. Wait for the roster to confirm it before the next one."), display or "?"))
+  if ok and module.manual() then say(message)
+  elseif ok then say(string.format(L("Promotion requested: %s. Wait for the roster to confirm it before the next one."), display or "?"))
   else say(message or L("Nobody is ready to promote yet.")) end
   return ok
 end
@@ -568,7 +660,7 @@ end
 -- ----- the panel ---------------------------------------------------------------
 
 local window, rows, altRows = nil, {}, {}
-local PANEL_W, LABEL_W, BUTTON_X = 480, 340, 370
+local PANEL_W, LABEL_W, BUTTON_X = 540, 340, 370
 -- One line per row, cut with "..." when it is too long; the full text shows in a tooltip on hover.
 local function oneLine(label)
   if label.SetWordWrap then label:SetWordWrap(false) end
@@ -601,11 +693,14 @@ function module.refresh()
   for i = 1, MAX_ROWS do
     local row, item = rows[i], ready and ready[i]
     if item then
-      row.button:SetText(manual and L("Copy name") or L("Promote"))
-      row.label:SetText(string.format("%s%s - %d %s%s%s", item.display, item.level and (" " .. item.level) or "", item.days, L("days"), item.fromBot and " (Discord)" or "",
+      row.button:SetText(manual and L("Copy command") or L("Promote"))
+      row.label:SetText(string.format("%s%s - %d %s%s%s%s%s", item.display, item.level and (" " .. item.level) or "", item.days, L("days"), item.fromBot and " (Discord)" or "",
+        (manual and item.steps and item.steps > 1) and (" - " .. string.format(L("%d steps"), item.steps)) or "",
+        item.copied and (" - " .. L("copied, waiting")) or "",
         item.exhausted and (" - " .. L("Tried several times; promote from the guild roster.")) or ""))
       row.item = item; row.label:Show(); row.button:Show(); shown = i
-    else row.item = nil; row.label:Hide(); row.button:Hide() end
+      if row.done then if manual and item.rankIndex then row.done:Show() else row.done:Hide() end end
+    else row.item = nil; row.label:Hide(); row.button:Hide(); if row.done then row.done:Hide() end end
   end
   -- Members who are not ready yet fill the free rows, without a button.
   for i = shown + 1, MAX_ROWS do
@@ -613,10 +708,10 @@ function module.refresh()
     if entry then row.label:SetText(waitingText(entry)); row.label:Show() end
   end
   local actionable = 0
-  if ready then for _, item in ipairs(ready) do if not item.exhausted then actionable = actionable + 1 end end end
+  if ready then for _, item in ipairs(ready) do if not item.exhausted and not item.copied then actionable = actionable + 1 end end end
   if manual then
-    window.all:SetText(L("Open guild roster"))
-    if window.all.SetEnabled then window.all:SetEnabled(true) end
+    window.all:SetText(string.format(L("Copy next command (%d left)"), actionable))
+    if window.all.SetEnabled then window.all:SetEnabled(actionable > 0) end
     window.tip:SetText(L(MANUAL_LINE))
   else
     window.all:SetText(string.format(L("Promote next (%d left)"), actionable))
@@ -635,12 +730,12 @@ function module.refresh()
     if e and e.swap then
       local s = e.swap
       row.label:SetText(string.format(L("%s is now the main (was %s): give rank %s, then move %s to Alt"), s.to.display, s.from.display, tostring(s.rankName), s.from.display) .. (s.needGive and " (1/2)" or " (2/2)"))
-      row.button:SetText(manual and L("Copy name") or (s.needGive and L("Give rank") or (module.isArmed(s.from.name) and L("Confirm") or L("Move to Alt"))))
+      row.button:SetText(manual and L("Copy command") or (s.needGive and L("Give rank") or (module.isArmed(s.from.name) and L("Confirm") or L("Move to Alt"))))
       row.item = e; row.label:Show(); row.button:Show()
     elseif e and e.alt then
       local a = e.alt
       row.label:SetText(a.hint and string.format(L("%s - maybe an alt (note says alt) (%s)"), a.display, tostring(a.rankName)) or string.format(L("%s - alt of %s (%s)"), a.display, tostring(a.main), tostring(a.rankName)))
-      row.button:SetText(manual and L("Copy name") or (module.isArmed(a.name) and L("Confirm") or L("Move to Alt")))
+      row.button:SetText(manual and L("Copy command") or (module.isArmed(a.name) and L("Confirm") or L("Move to Alt")))
       row.item = e; row.label:Show(); if a.hint then row.button:Hide() else row.button:Show() end
     else row.item = nil; row.label:Hide(); row.button:Hide() end
   end
@@ -696,11 +791,6 @@ function module.open()
   local all = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
   all:SetPoint("TOPLEFT", 18, -82); all:SetSize(230, 24); all:SetText(string.format(L("Promote next (%d left)"), 0))
   all:SetScript("OnClick", function()
-    if f.manual then
-      local opened, why = module.openGuildRoster()
-      f.status:SetText(opened and L(MANUAL_LINE) or why or "")
-      return
-    end
     local ok, message = module.promoteNext()
     f.status:SetText(message or "")
     if ok then module.refresh() end
@@ -716,14 +806,22 @@ function module.open()
     button:SetScript("OnClick", function()
       if not row.item then return end
       if f.manual then
-        if ns.showCopyText then ns.showCopyText(row.item.display, L("Copy name")) end
-        f.status:SetText(L(MANUAL_LINE))
+        local _, message = module.copyPromote(row.item)
+        f.status:SetText(message or "")
+        module.refresh()
         return
       end
       local ok, message = module.promote(row.item.name)
       f.status:SetText(message or "")
       if ok then button:Hide() end
     end)
+    -- Copy mode only: "Done" hides the row when the officer promoted the member another way (the roster then confirms).
+    row.done = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    row.done:SetPoint("TOPLEFT", BUTTON_X + 94, y); row.done:SetSize(56, 22); row.done:SetText(L("Done"))
+    row.done:SetScript("OnClick", function()
+      if row.item and module.markDone(row.item) then module.refresh() end
+    end)
+    row.done:Hide()
     rows[i] = row
   end
   -- Alts and main changes (20 Nov 2026).
@@ -739,10 +837,12 @@ function module.open()
     local row = { label = label, button = button }
     button:SetScript("OnClick", function()
       local e = row.item; if not e then return end
-      local display = e.swap and (e.swap.needGive and e.swap.to.display or e.swap.from.display) or e.alt.display
       if f.manual then
-        if ns.showCopyText then ns.showCopyText(display, L("Copy name")) end
-        f.status:SetText(L(ALT_MANUAL_LINE))
+        local line, steps = module.altCommand(e)
+        if line then
+          local _, message = module.copyLine(line, steps)
+          f.status:SetText(message or "")
+        end
         return
       end
       local ok, message

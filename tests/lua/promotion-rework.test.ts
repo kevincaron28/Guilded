@@ -46,7 +46,7 @@ function setup(feed: string | null = FEED(), ranks = '{ "Guild Master", "Officer
   s.load("Modules/RosterTools.lua");
   s.load("Modules/Promotion.lua");
   s.load("Modules/OfficerNotes.lua");
-  s.run('NS.util.gameEdition=function() return EDITION end; NS.util.address=function(n) return n end');
+  s.run('NS.promotion.directAllowed=function() return true end; NS.util.gameEdition=function() return EDITION end; NS.util.address=function(n) return n end');
   if (feed) s.run(feed);
   return s;
 }
@@ -168,7 +168,8 @@ describe("one click, one promotion, verified before it counts", () => {
   it("a game refusal (blocked action) is remembered per client build and stops the offers", () => {
     setup(); roster();
     s.run("NS.promotion.promoteNext(); NS.rosterTools.onBlocked()");
-    expect(s.run("local ok, msg = NS.promotion.promoteNext(); return tostring(ok)")).toBe("false");
+    // After a refusal the panel is in copy mode: the next press copies the game command and calls nothing.
+    expect(s.run("local ok, msg = NS.promotion.promoteNext(); return tostring(ok)")).toBe("true");
     expect(calls()).toBe("Amy-Realm");
   });
 });
@@ -290,7 +291,7 @@ describe("manual helper and the alt rank in the way (19 Nov 2026)", () => {
     setup(FEED(), ALT_ABOVE); s.run(rows); roster();
     expect(s.run("return tostring(NS.promotion.manual(NS.promotion.ready()))")).toBe("true");
     expect(s.run("local ok, msg = NS.promotion.promote('Amy-Realm'); return tostring(ok)")).toBe("false");
-    expect(s.run("local ok = NS.promotion.promoteNext(); return tostring(ok)")).toBe("false");
+    expect(s.run("local ok = NS.promotion.promoteNext(); return tostring(ok)")).toBe("true"); // copies /gpromote, calls nothing
     s.run("GuildedPromoteNext_OnKey()");
     expect(calls()).toBe("");
   });
@@ -354,13 +355,11 @@ describe("manual helper and the alt rank in the way (19 Nov 2026)", () => {
     s.run('NS.promotion.open()');
     expect(s.run("return tostring(NS.promotion.manual())")).toBe("true");
     const texts = s.run("return TEXTS()");
-    expect(texts).toContain("Open guild roster");
-    expect(texts).toContain("Copy name");
+    expect(texts).toContain("Copy next command");
+    expect(texts).toContain("Copy command");
     expect(texts).not.toContain("Promote next");
-    s.run('OPENED=0; function ToggleGuildFrame() OPENED=OPENED+1 end; FRAME("Open guild roster").scripts.OnClick()');
-    expect(s.run("return OPENED")).toBe("1");
-    s.run('COPIED=nil; NS.showCopyText=function(t) COPIED=t end; FRAME("Copy name").scripts.OnClick()');
-    expect(s.run("return COPIED")).toMatch(/Amy|Bob/);
+    s.run('COPIED=nil; NS.showCopyText=function(t) COPIED=t end; FRAME("Copy command").scripts.OnClick()');
+    expect(s.run("return COPIED")).toMatch(/^[/]gpromote (Amy|Bob)/);
     expect(calls()).toBe("");
   });
   it("the panel sits above the Roster admin window and shows the rule from the feed", () => {
@@ -404,5 +403,73 @@ describe("Ready to promote layout (20 Nov 2026)", () => {
     for (const w of labels) expect(Number(w) + 18).toBeLessThanOrEqual(370);
     // Two ready members and one waiting: far shorter than the old fixed 12-row height (250 + 18 * 26 = 718).
     expect(Number(s.run(`local h = 9999 for _, f in ipairs(FRAMES) do local fh = rawget(f, "height"); if fh and fh > 150 and fh < h then h = fh end end return h`))).toBeLessThan(500);
+  });
+});
+
+// 23 Nov 2026 (9.5.2): WoW Forever refuses addon guild actions even from a click, so the panel copies the game's own
+// slash command instead of calling the rank functions.
+describe("copy mode on WoW Forever (9.5.2)", () => {
+  const ALT_ABOVE = '{ "Guild Master", "Officer", "Veteran", "Member", "Alt", "Initiate" }';
+  const reload = () => s.load("Modules/Promotion.lua"); // a fresh module: directAllowed is the real one
+  const setupCopy = (ranks?: string, extra = "") => {
+    setup(FEED(), ranks); if (extra) s.run(extra); reload(); s.run("NS.util.isForever = function() return true end"); roster();
+  };
+  it("is the default on Forever: no rank call is ever made, the row copies /gpromote and is marked", () => {
+    setupCopy();
+    s.run("SetGuildMemberRank=function(i,r) CALLS[#CALLS+1]={i,r} end; GuildPromote=function(n) CALLS[#CALLS+1]={n} end; COPIED={}; NS.showCopyText=function(t) COPIED[#COPIED+1]=t end");
+    expect(s.run("return tostring(NS.promotion.manual())")).toBe("true");
+    expect(s.run("local ok = NS.promotion.promote('Amy-Realm'); return tostring(ok)")).toBe("false");
+    s.run("NS.promotion.open()");
+    expect(s.run("return TEXTS()")).toContain("Copy next command (2 left)");
+    s.run('FRAME("Copy command").scripts.OnClick()');
+    expect(s.run("return COPIED[1]")).toBe("/gpromote Amy-Realm");
+    expect(calls()).toBe("");
+    // Marked: shown as copied, the alert count drops, and the mark is saved for the next login.
+    expect(s.run("return tostring(NS.promotion.ready()[1].copied) .. NS.promotion.actionable()")).toBe("true1");
+    expect(s.run("return tostring(NS.getDb().promoCopied['amy-realm'] ~= nil or next(NS.getDb().promoCopied) ~= nil)")).toBe("true");
+    expect(s.run("return TEXTS()")).toContain("copied, waiting");
+    // After a reload (a fresh module reading the same saved table) the mark is still there.
+    reload(); roster(120);
+    expect(s.run("return tostring(NS.promotion.ready()[1].copied)")).toBe("true");
+  });
+  it("the roster confirming the new rank clears the mark; Done hides a row until then", () => {
+    setupCopy();
+    s.run("NS.showCopyText=function() end; local r = NS.promotion.ready(); NS.promotion.copyPromote(r[1])");
+    confirm(2, 3, 130);
+    expect(ready()).toBe("Bob-Realm");
+    expect(s.run("return tostring(next(NS.getDb().promoCopied))")).toBe("nil");
+    s.run("NS.promotion.markDone(NS.promotion.ready()[1])");
+    expect(ready()).toBe("");
+    expect(s.run("return NS.promotion.actionable()")).toBe("0");
+  });
+  it("an alt rank directly above takes two /gpromote steps; the second is offered once the member sits in the alt rank", () => {
+    setupCopy(ALT_ABOVE, "ROWS[2].rank=5; ROWS[3].rank=5; ROWS[4].rank=4; ROWS[5].rank=5");
+    s.run("COPIED={}; NS.showCopyText=function(t) COPIED[#COPIED+1]=t end");
+    expect(s.run("local r = NS.promotion.ready()[1]; return r.steps .. ':' .. r.target")).toBe("2:3");
+    expect(s.run("local ok, m = NS.promotion.copyPromote(NS.promotion.ready()[1]); return m")).toContain("2 steps");
+    confirm(2, 4, 140); // the first /gpromote landed in the Alt rank
+    expect(s.run("local r = NS.promotion.ready()[1]; return r.name .. ':' .. r.steps .. ':' .. tostring(r.continuing)")).toBe("Amy-Realm:1:true");
+    confirm(2, 3, 150); // the second reached Member
+    expect(ready()).toBe("Bob-Realm");
+    expect(s.run("return tostring(NS.getDb().promoCopied['amy-realm'])")).toBe("nil");
+  });
+  it("the key binding copies the next command and calls nothing", () => {
+    setupCopy();
+    s.run("NS.isOfficer = function() return true end; COPIED={}; NS.showCopyText=function(t) COPIED[#COPIED+1]=t end; MESSAGES={}");
+    s.run("GuildedPromoteNext_OnKey()");
+    expect(s.run("return COPIED[1]")).toBe("/gpromote Amy-Realm");
+    expect(s.run("return table.concat(MESSAGES, '|')")).toContain("/gpromote Amy-Realm");
+    expect(calls()).toBe("");
+  });
+  it("moving an alt copies /gdemote with the step count", () => {
+    setupCopy(undefined, "NS.getDb().promotionAlts = nil");
+    s.run("COPIED={}; NS.showCopyText=function(t) COPIED[#COPIED+1]=t end");
+    const line = s.run("local snap = NS.rosterTools.snapshot(); local row = snap.rows['cy-realm']; local l, n = NS.promotion.altCommand({ alt = { key = 'amy-realm', display = 'Amy-Realm' } }); return l .. ':' .. n");
+    expect(line).toBe("/gdemote Amy-Realm:1");
+  });
+  it("GuildedDB.promoteTry brings the direct one-click path back", () => {
+    setupCopy(undefined, "NS.getDb().promoteTry = true");
+    expect(s.run("return tostring(NS.promotion.directAllowed())")).toBe("true");
+    expect(s.run("return tostring(NS.promotion.manual(NS.promotion.ready()))")).toBe("false");
   });
 });

@@ -21,7 +21,7 @@ function setup() {
   s.load("Modules/RosterTools.lua");
   s.load("Modules/RosterProfessions.lua");
   s.load("Modules/Promotion.lua");
-  s.run('NS.util.gameEdition=function() return EDITION end; NS.util.address=function(n) return n end; fire_event("GUILD_ROSTER_UPDATE")');
+  s.run('NS.promotion.directAllowed=function() return true end; NS.util.gameEdition=function() return EDITION end; NS.util.address=function(n) return n end; fire_event("GUILD_ROSTER_UPDATE")');
   return s;
 }
 

@@ -31,12 +31,12 @@ describe("saved dungeon runs stay bounded", () => {
     expect(s.run("local n = 0 for _ in pairs(NS.dungeon.savedRuns()) do n = n + 1 end return n")).toBe("300");
     expect(s.run("return tostring(NS.dungeon.savedRuns().own0 ~= nil) .. tostring(NS.dungeon.savedRuns().c0 ~= nil) .. tostring(NS.dungeon.savedRuns().c309 ~= nil)")).toBe("truetruefalse");
   });
-  it("drops the death points of a confirmed run after a week, never an unconfirmed one", () => {
+  it("drops the death points of every saved run (9.5.3: no longer kept)", () => {
     start();
     seed("old", 86400 * 10, ", synced = true, deathPoints = { { name = 'A', x = 0.1, y = 0.2, map = 1 } }");
     seed("new", 3600, ", synced = true, deathPoints = { { name = 'A', x = 0.1, y = 0.2, map = 1 } }");
     seed("mine", 86400 * 10, ", deathPoints = { { name = 'A', x = 0.1, y = 0.2, map = 1 } }");
     s.run("GuildedDungeonAccepted = {}; NS.dungeon.markSynced()");
-    expect(s.run("local r = NS.dungeon.savedRuns(); return tostring(r.old.deathPoints) .. tostring(r.new.deathPoints ~= nil) .. tostring(r.mine.deathPoints ~= nil)")).toBe("niltruetrue");
+    expect(s.run("local r = NS.dungeon.savedRuns(); return tostring(r.old.deathPoints) .. tostring(r.new.deathPoints ~= nil) .. tostring(r.mine.deathPoints ~= nil)")).toBe("nilfalsefalse");
   });
 });

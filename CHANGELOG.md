@@ -1,5 +1,21 @@
 # Changelog
 
+## 9.5.4 — 23 November 2026
+
+Prepared 23 November 2026. In-game checks: docs/V9_5_4_RELEASE_ACCEPTANCE.md.
+
+Addon (#1278, from docs/plans/IN_GAME_AUDIT_2026-11-23.md):
+- Ready to promote no longer hides Roster admin; the dungeons window opens in front of the main window.
+- Crafting shows how many of each reagent you have in your bags (0 instead of ?).
+- Dungeons and Roster admin open their windows directly; Officer sub-tabs fit one row (Admin, Roster, Tools).
+- Home hides the companion links and Discord help once you are linked; the raid core, run and loot buttons moved off Home.
+- Settings grouped with a help line; Digest and Names switches renamed Login summary and Main names in chat; duplicate companion links removed.
+- Readable fixes: Season 1 (not Season: Season 1), Open raids times as today 12:26, wider Gear columns, No EP/GP recorded yet, wrapped Best next improvement, tooltips below their tabs, Diagnostics in a copy box.
+- Layer auto-invite saved as on by 9.5.0 is reset once to off (the owner rule); a member's later choice is kept.
+
+Companion:
+- Version 9.5.4 (no functional change).
+
 ## 9.5.3 — 23 November 2026
 
 Published 23 November 2026 (GitHub v9.5.3, website download and installer, bot). In-game checks: docs/V9_5_3_RELEASE_ACCEPTANCE.md.

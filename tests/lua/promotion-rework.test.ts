@@ -106,6 +106,18 @@ describe("nothing is promoted without a click", () => {
     expect(s.run('return tostring(FRAME("Promote next") ~= nil)')).toBe("true");
     expect(calls()).toBe("");
   });
+  it("the alert has an X: it hides until the number of ready members changes, and never opens the panel", () => {
+    setup(); roster();
+    expect(s.run('return tostring(FRAME("2 ready to promote").shown)')).toBe("true");
+    s.run('FRAME("X").scripts.OnClick()');
+    expect(s.run('return tostring(FRAME("2 ready to promote").shown)')).toBe("false");
+    expect(s.run('return tostring(FRAME("Promote next") ~= nil)')).toBe("false");
+    roster(300); // same count: stays hidden
+    expect(s.run('return tostring(FRAME("2 ready to promote").shown)')).toBe("false");
+    s.run("ROWS[3].rank = 3"); roster(400); // one fewer ready: back, with its X
+    expect(s.run('return tostring(FRAME("1 ready to promote").shown)')).toBe("true");
+    expect(s.run('return tostring(FRAME("X") ~= nil)')).toBe("true");
+  });
   it("the officer switch turns the alert off and keeps its saved key", () => {
     setup(); roster();
     s.run('NS.officerNotes.command({"officer","auto","promote","off"})');

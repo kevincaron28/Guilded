@@ -724,15 +724,17 @@ local function directState()
   db.inviteDirect = type(db.inviteDirect) == "table" and db.inviteDirect or {}
   return db.inviteDirect
 end
-function util.directInviteRefused()
+-- kind "guild" (9.5.1) keeps its own refusal memory (refusedGuild): a refused guild invite must not stop party invites.
+function util.directInviteRefused(kind)
   local state = directState()
-  return state ~= nil and state.refused ~= nil and state.refused == clientBuild()
+  local key = kind == "guild" and "refusedGuild" or "refused"
+  return state ~= nil and state[key] ~= nil and state[key] == clientBuild()
 end
 -- On unless the player switched it off or the game refused it on this build.
-function util.directInviteOn()
+function util.directInviteOn(kind)
   local state = directState()
   if state and state.off == true then return false end
-  return not util.directInviteRefused()
+  return not util.directInviteRefused(kind)
 end
 function util.setDirectInvite(on)
   local state = directState()
@@ -755,7 +757,8 @@ end
 local directAttempt   -- { at = GetTime(), refused = bool } while (and just after) a direct invite runs
 local function recordRefusal()
   local state = directState()
-  if state then state.refused = clientBuild() end
+  local guild = directAttempt and directAttempt.kind == "guild"
+  if state then state[guild and "refusedGuild" or "refused"] = clientBuild() end
   if directAttempt then directAttempt.refused = true end
 end
 -- Core.lua calls this on every ADDON_ACTION_BLOCKED/FORBIDDEN naming Guilded. True when it was the party invite.
@@ -777,6 +780,25 @@ function util.partyInvite(name, why, allowRaid)
   if type(invite) ~= "function" then return false end
   directAttempt = { at = GetTime and GetTime() or 0, refused = false }
   ns.guardedCall = { name = "C_PartyInfo.InviteUnit (" .. tostring(why or "party invite") .. ")" }
+  local ok = pcall(invite, name)
+  ns.guardedCall = nil
+  if not ok then recordRefusal() end
+  return not directAttempt.refused
+end
+
+-- (9.5.1) A guild invite straight from the click: C_GuildInfo.Invite (or GuildInvite) called inside the OnClick of the plain
+-- Invite button, nothing deferred, the pattern Fast Guild Invite - Revived uses on Retail. Guilded's own try of 9 Nov 2026
+-- (#681) was refused on WoW Forever ("Guilded tried to call UNKNOWN()"), so this is a candidate to confirm in game, not a
+-- known-good path: a refusal is remembered per client build (state.refusedGuild) and the button shows the copy box from
+-- then on. Never in combat, never without CanGuildInvite, and the name has no realm part.
+function util.guildInvite(name)
+  if type(name) ~= "string" or name == "" or isSecret(name) or name:find("[|%c]") then return false end
+  if util.inCombat() or not util.directInviteOn("guild") then return false end
+  if CanGuildInvite and not CanGuildInvite() then return false end
+  local invite = (C_GuildInfo and C_GuildInfo.Invite) or GuildInvite
+  if type(invite) ~= "function" then return false end
+  directAttempt = { at = GetTime and GetTime() or 0, refused = false, kind = "guild" }
+  ns.guardedCall = { name = "C_GuildInfo.Invite (Invite button)" }
   local ok = pcall(invite, name)
   ns.guardedCall = nil
   if not ok then recordRefusal() end
@@ -805,7 +827,7 @@ function util.inviteButton(parent, kind, text, width, height, onClick)
   local function tr(textKey) return ns.L and ns.L(textKey) or textKey end
   button:SetScript("OnClick", function()
     if not line then return end
-    if kind == "party" and util.partyInvite(target, "Invite button") then
+    if (kind == "party" and util.partyInvite(target, "Invite button")) or (kind == "guild" and util.guildInvite(target)) then
       if ns.message and button.quiet ~= true then ns.message(string.format(tr("Invited %s."), target)) end
       if onClick then onClick(target, false, line, true) end
       return

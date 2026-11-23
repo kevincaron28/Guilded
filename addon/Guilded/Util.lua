@@ -153,6 +153,22 @@ local function placeOnce(frame, gap)
     end
   end
   local left, spotTop = findSpot()
+  local covering = false
+  if not left then
+    -- 9.5.4: no room beside the others. Before any side window is closed (Ready to promote hid Roster admin), go over the
+    -- MAIN window's top-left when this window fits inside its width: the other side windows stay fully visible.
+    local mainRect
+    for _, o in ipairs(others) do if o.main then mainRect = o end end
+    if mainRect and w <= (mainRect.r - mainRect.l) then
+      local l = math.max(0, math.min(sw - w, mainRect.l))
+      local t = math.max(h, math.min(sh, mainRect.t))
+      local clear = true
+      for _, o in ipairs(others) do
+        if not o.main and l < o.r and l + w > o.l and t > o.b and t - h < o.t then clear = false end
+      end
+      if clear then left, spotTop, covering = l, t, true end
+    end
+  end
   if not left then
     local closed = false
     for _, o in ipairs(others) do
@@ -163,7 +179,6 @@ local function placeOnce(frame, gap)
       if #others > 0 then left, spotTop = findSpot() end
     end
   end
-  local covering = false
   if not left and #others > 0 then
     -- Screen narrower than this window and the main one: cover ONE window squarely (its top-left), never half of it.
     local pick = others[1]

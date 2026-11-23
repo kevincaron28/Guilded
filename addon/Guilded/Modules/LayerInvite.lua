@@ -103,6 +103,14 @@ function module.setHelper(on)
   data().helper = on and true or false
   if not on then data().auto = nil end
 end
+-- 9.5.4: 9.5.0 (#1253) briefly saved the opt-in as on for people who loaded it. Reset it to off ONCE (flag in the saved file);
+-- after that the member's own choice is never touched.
+function module.resetAutoOnce()
+  local db = ns.getDb and ns.getDb()
+  if not db or db.layerAutoReset954 then return end
+  db.layerAutoReset954 = true
+  if type(db.layer) == "table" and db.layer.auto == true then db.layer.auto = nil end
+end
 function module.setAutoInvite(on)
   data().auto = on and true or nil
   if on then module.setHelper(true) end      -- auto-invite means "show me the requests"
@@ -839,9 +847,10 @@ frame:SetScript("OnEvent", function(_, event, ...)
   local ok, err = pcall(function()
     if event == "PLAYER_LOGIN" then
       ns.comm.register(PREFIX)
+      pcall(module.resetAutoOnce)
       frame:SetScript("OnUpdate", function(_, dt)
         since = since + (dt or 0)
-        if since >= 1 then since = 0; tick() end
+        if since >= 1 then since = 0; module.resetAutoOnce(); tick() end
       end)
     elseif event == "CHAT_MSG_ADDON" then
       local prefix, text, channel, sender = args[1], args[2], args[3], args[4]

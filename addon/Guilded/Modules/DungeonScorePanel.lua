@@ -175,11 +175,11 @@ local TAB_Y, PAGE_Y = -38, -66
 local BOARD_ROWS, BOARD_ROW, BOARD_Y, BOARD_BAR_X = 12, 18, PAGE_Y - 48, 200
 local RUN_HINT = "Recording starts and ends by itself in a dungeon. Use these only to fix a run."
 
-local function tip(widget, text)
+local function tip(widget, text, anchor)
   if not (widget and text) then return widget end
   widget:SetScript("OnEnter", function(self)
     if not GameTooltip then return end
-    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:SetOwner(self, anchor or "ANCHOR_TOP")
     GameTooltip:AddLine(L(type(text) == "function" and text() or text), 1, 1, 1, true)
     GameTooltip:Show()
   end)
@@ -306,7 +306,7 @@ local function buildRun(pane, width)
       for n, player in pairs(saved.players or {}) do if ns.normalizeName(n) == ns.normalizeName(ns.playerName()) then mine = player end end
       local deaths = mine and mine.deaths ~= nil and (" - " .. string.format(L("%d deaths"), tonumber(mine.deaths) or 0)) or ""
       lines[#lines + 1] = (saved.name or "?") .. " - " .. duration(saved.durationSec or 0) .. " - " .. L(saved.state or "") .. deaths .. (when and (" - " .. when) or "")
-        .. (season and (" - " .. string.format(L("Season: %s"), season)) or "")
+        .. (season and (" - " .. season) or "")
     end
     self.recent:SetText(#lines > 0 and table.concat(lines, "\n\n") or L("No saved dungeon result yet."))
     self.timer:SetText(L("Live timer") .. ": " .. L(ns.runResults and ns.runResults.timerEnabled() and "on" or "off"))
@@ -608,10 +608,14 @@ function view.build(parent, compact)
       -- Guild board: where you stand, the top score and the average.
       -- (9.3.4) One line: the guild's best is row 1 just below, so it is dropped when the full line would wrap.
       local summary = ns.dungeonStats and ns.dungeonStats.boardSummary(model.rows, name)
+      if self.nextLine.SetWordWrap then self.nextLine:SetWordWrap(false) end
       self.nextLine:SetText(ns.dungeonStats and ns.dungeonStats.boardLine(summary) or "")
       local lineWidth = textWidth(self.nextLine)
       if lineWidth and lineWidth > (self.width or 440) - 32 then self.nextLine:SetText(ns.dungeonStats.boardLine(summary, true)) end
     elseif easiest then
+      -- 9.5.4: this line wraps onto a second one (it was cut at "Hover for the scen...").
+      if self.nextLine.SetWordWrap then self.nextLine:SetWordWrap(true) end
+      if self.nextLine.SetMaxLines then self.nextLine:SetMaxLines(2) end
       self.nextLine:SetText("|cffffd100" .. L("Best next improvement") .. ":|r " .. easiest.name .. " (+" .. easiest.next.gain .. "). " .. L("Hover for the scenario."))
     else
       self.nextLine:SetText("")
@@ -636,9 +640,9 @@ function view.build(parent, compact)
 
   -- Tabs under the title: My season, Guild board, Runs.
   pane.tabs = {
-    season = tip(button(pane, "My season", 16, TAB_Y, 104, function() setTab("season") end), "Your season score, the best next improvement and your best run per dungeon."),
-    board = tip(button(pane, "Guild board", 124, TAB_Y, 104, function() setTab("board") end), "The guild's season ranking, this month or this week."),
-    run = tip(button(pane, "Runs", 232, TAB_Y, 88, function() setTab("run") end), "The run being recorded now and your recent runs."),
+    season = tip(button(pane, "My season", 16, TAB_Y, 104, function() setTab("season") end), "Your season score, the best next improvement and your best run per dungeon.", "ANCHOR_BOTTOM"),
+    board = tip(button(pane, "Guild board", 124, TAB_Y, 104, function() setTab("board") end), "The guild's season ranking, this month or this week.", "ANCHOR_BOTTOM"),
+    run = tip(button(pane, "Runs", 232, TAB_Y, 88, function() setTab("run") end), "The run being recorded now and your recent runs.", "ANCHOR_BOTTOM"),
   }
   pane.seasonTab = pane.tabs.season
   pane.rankingToggle = pane.tabs.board
@@ -688,8 +692,9 @@ function view.build(parent, compact)
     pane.period = pane.period == "week" and "month" or "week"; pane.guildRanking = true; pane.page = 1; pane:Refresh()
   end), "Switch the guild board between this month (the season) and this week.")
   pane.periodButton:Hide()
-  -- Inside the game's dungeon finder, Close closes the finder (not just this page).
-  button(pane, "Close", width - 78, -8, 62, function()
+  -- Inside the game's dungeon finder the finder's own X closes it (9.5.4: no second Close button there);
+  -- the stand-alone window has no X, so it keeps Close.
+  if not compact then button(pane, "Close", width - 78, -8, 62, function()
     -- Close always works: hide this page first, then the finder; if the game's panel manager
     -- ignores the request (a window it does not track hides nothing), hide it directly.
     if view.chrome and view.chrome:IsShown() then
@@ -699,7 +704,7 @@ function view.build(parent, compact)
       ns.util.hideWindow(finder)
       if finder and finder.IsShown and finder:IsShown() and not (InCombatLockdown and InCombatLockdown()) then finder:Hide() end
     else pane:Hide() end
-  end)
+  end) end
   -- Shown on the season tabs only; the Runs tab has its own page.
   pane.seasonParts = { pane.summary, pane.nextLine, pane.seasonTitle, pane.seasonRows }
   pane.runView = buildRun(pane, width)
@@ -742,6 +747,11 @@ function view.open(mode)
     if view.window then view.window:Hide() end
     local finder = LFGParentFrame or PVEFrame or LFGFrame
     ns.util.showWindow(finder)
+    -- 9.5.4: the finder opened behind the main Guilded window (both are windows of the dialog layer or below): bring it to the front.
+    if finder and finder.SetFrameStrata then
+      pcall(finder.SetFrameStrata, finder, "DIALOG")
+      if finder.Raise then pcall(finder.Raise, finder) end
+    end
     if mode then view.pane.mode = mode end
     view.showAttached()
     view.pane:Refresh()

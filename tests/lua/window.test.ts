@@ -134,8 +134,8 @@ describe("the five member tabs", () => {
       expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].group`), name).toBe(group);
     }
     s.run(`NS.windowState().selectTabByName("Dungeons")`);
-    expect(s.run("return tostring(openedMode)")).toBe("nil"); // the page opens in the Guilded window; its button opens the dungeons window
-    expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].group`)).toBe("Dungeons");
+    expect(s.run("return tostring(openedMode)")).toBe("run"); // 9.5.4: the entry opens the dungeons window directly, no page in between
+    expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].group`)).toBe("Settings");
   });
 
   it("opens Standings from the Guild page and Dungeons from its tab", () => {
@@ -144,11 +144,9 @@ describe("the five member tabs", () => {
     s.run(`for _, t in ipairs(NS.windowState().tabs) do if t.name == "Standings" then t.button.scripts.OnClick() end end`);
     expect(s.run("return NS.windowState().tabs[NS.windowState().currentTab].name")).toBe("Standings");
     s.run(`NS.windowState().groupButtons.Dungeons.scripts.OnClick()`);
-    // The tab you click is the page you see; nothing opens by itself and the selection stays on it.
-    expect(s.run("return tostring(openedMode)")).toBe("nil");
-    expect(s.run("return NS.windowState().tabs[NS.windowState().currentTab].name")).toBe("Dungeons");
-    s.run(`for _, f in ipairs(FRAMES) do if f.text == "Open dungeons window" then f.scripts.OnClick() end end`);
+    // 9.5.4: the Dungeons entry opens the dungeons window itself; the Guilded window keeps the page it showed.
     expect(s.run("return openedMode")).toBe("run");
+    expect(s.run("return NS.windowState().tabs[NS.windowState().currentTab].name")).toBe("Standings");
   });
   it("shows the raid-night tools to a raid leader or officer under Raids, not hidden until a raid starts", () => {
     const s = openWindow(1);
@@ -194,11 +192,11 @@ describe("the section row split and the save wording", () => {
     expect(lines[1]).toBeGreaterThanOrEqual(2);
   });
 
-  it("lays the Officer group out on two balanced lines", () => {
+  it("lays the Officer group out on one line (9.5.4: short labels)", () => {
     const s = openWindow(1);
     s.run(`NS.windowState().groupButtons.Officer.scripts.OnClick()`);
     const perLine = s.run(`local n = {}; for _, r in ipairs(NS.windowState().sectionLayout) do n[r.line + 1] = (n[r.line + 1] or 0) + 1 end; return table.concat(n, "+")`);
-    expect(perLine).toBe("3+3");
+    expect(perLine).toBe("6");
   });
 
   it("names the save button in the status line after what it does", () => {
@@ -452,13 +450,13 @@ describe("the tools window (sidebar and Home page)", () => {
         NS.commandHandlers[name] = function(args) CALLED[#CALLED + 1] = name .. ":" .. table.concat(args or {}, ",") end
       end
       NS.windowState().selectTabByName("Info")`);
-    const labels = ["Who runs which version", "Data relay status", "Sync EP/GP history now", "Interface options", "Digest off", "Invite queue", "Pending loot rolls"];
+    const labels = ["Who runs which version", "Data relay status", "Sync EP/GP history now", "Interface options", "Login summary off", "Invite queue", "Pending loot rolls"];
     for (const label of labels) s.run(`for _, f in ipairs(FRAMES) do if f.text == "${label}" and f.scripts.OnClick then f.scripts.OnClick(f) end end`);
     expect(s.run(`return table.concat(CALLED, ";")`)).toBe("peers:;relay:;ledgersync:now;options:;digest:off;invites:;lootroll:");
   });
 
   it("officers see every group in order; members only what they can use", () => {
-    expect(visibleTabs(openWindow(1))).toBe("Home,Guild overview,Crafting,Me,Open raids,Layer invite,Standings,Gear,Ready,Reserves,Signups,Calendar,Raid,EPGP,Local guild,Roster admin,Officer tools,Loot,Council,Duels,Tools");
+    expect(visibleTabs(openWindow(1))).toBe("Home,Guild overview,Crafting,Me,Open raids,Layer invite,Standings,Gear,Ready,Reserves,Signups,Calendar,Raid,EPGP,Local guild,Officer tools,Loot,Council,Duels,Tools");
     session?.close();
     expect(visibleTabs(openWindow(5))).toBe("Home,Guild overview,Crafting,Me,Open raids,Layer invite,Standings,Reserves,Signups,Duels,Tools");
   });

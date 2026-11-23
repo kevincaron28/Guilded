@@ -478,3 +478,16 @@ describe("layer invite: auto-invite opt-in and direct party invites", () => {
     expect(s!.run(`return tostring(NS.util.partyInvite("Cy"))`)).toBe("false");
   });
 });
+
+describe("layer auto-invite reset (9.5.4)", () => {
+  it("resets a saved auto = true to off once, then never touches the member's own choice again", () => {
+    setup();
+    s!.run(`DB.layer = { auto = true }`);
+    login();
+    expect(s!.run(`return tostring(NS.layerInvite.autoInvite())`)).toBe("false");
+    expect(s!.run(`return tostring(DB.layerAutoReset954)`)).toBe("true");
+    s!.run(`NS.layerInvite.setAutoInvite(true)`);
+    login();
+    expect(s!.run(`return tostring(NS.layerInvite.autoInvite())`)).toBe("true");
+  });
+});

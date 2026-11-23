@@ -29,7 +29,7 @@ function browser.statusText(role, realm)
   if not fresh then return L("Open raids need a fresh companion snapshot. Sync the companion, then /reload. Browse the website for current spots.") end
   local lines = {
     L("Open raids - other guilds welcome guests."),
-    L("Snapshot from:") .. " " .. clean(GuildedPublicRaids.fetchedAt),
+    L("Snapshot from:") .. " " .. clean(ns.util.whenText(GuildedPublicRaids.fetchedAt) or GuildedPublicRaids.fetchedAt),
     L("Counts may change. Join the host Discord and confirm there. Reload after companion sync."),
     ""
   }
@@ -37,7 +37,7 @@ function browser.statusText(role, realm)
   for i = 1, math.min(#rows, 8) do
     local row = rows[i]
     lines[#lines + 1] = string.format("%d. %s - %s", i, clean(row.title), clean(row.guildName))
-    lines[#lines + 1] = clean(row.at) .. " UTC | " .. clean(row.realm) .. " | " .. clean(row.faction) .. " | " .. clean(row.language)
+    lines[#lines + 1] = clean(ns.util.whenText(row.at) or (tostring(row.at or "") .. " UTC")) .. " | " .. clean(row.realm) .. " | " .. clean(row.faction) .. " | " .. clean(row.language)
     lines[#lines + 1] = string.format(L("Tank: %d | Healer: %d | DPS: %d"), row.tanks or 0, row.healers or 0, row.dps or 0)
     lines[#lines + 1] = ""
   end

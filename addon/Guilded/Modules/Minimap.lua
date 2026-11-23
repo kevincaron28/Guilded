@@ -1002,13 +1002,28 @@ local function copyBox(parent, text, width)
   return box
 end
 
+-- (9.5.4) A command that prints several lines (Diagnostics, All commands) shows them in a copy box of its own instead of
+-- leaving only the last line in the one-line status at the bottom of the window.
+local function runInBox(command, title)
+  ui.capture = {}
+  run(command)
+  local lines = ui.capture
+  ui.capture = nil
+  if #lines > 1 and ns.showCopyText then
+    local text = table.concat(lines, "\n"):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    ns.showCopyText(text, title)
+  end
+end
+
 local function buildGeneralSettings(page)
   at(newButton(page, "Guilded setup", 170, function() run("setup") end), page, PAGE_WIDTH - 170, -64)
   local everyone = {
-    { "Diagnostics", "diag" }, { "Raid status", "status" }, { "All commands", "help" }, { "Addon version", "version" }
+    { "Diagnostics", "diag", true }, { "Raid status", "status" }, { "All commands", "help", true }, { "Addon version", "version" }
   }
   for i, item in ipairs(everyone) do
-    at(newButton(page, L(item[1]), 136, function() run(item[2]) end), page, ((i - 1) % 3) * 142, -math.floor((i - 1) / 3) * 28)
+    at(newButton(page, L(item[1]), 136, function()
+      if item[3] then runInBox(item[2], L(item[1])) else run(item[2]) end
+    end), page, ((i - 1) % 3) * 142, -math.floor((i - 1) / 3) * 28)
   end
   at(newButton(page, L("Hide minimap button"), 180, function() run("minimap hide") end), page, 0, -64)
   -- All settings, grouped in tabs with a description of each, are in the game's own options (Modules/SettingsPage.lua).
@@ -1021,15 +1036,15 @@ local function buildGeneralSettings(page)
 
   -- Personal switches (moved here from the Info page in 9.2).
   for i, def in ipairs({
-    { "Digest on", "digest", { "on" }, "Show what changed since your last login, once at login." },
-    { "Digest off", "digest", { "off" }, "Stop the login digest." },
-    { "Names on", "chattags", { "on" }, "Show an alt's main name in guild and officer chat." },
-    { "Names off", "chattags", { "off" }, "Stop showing main names in chat." },
+    { "Login summary on", "digest", { "on" }, "Show what changed since your last login, once at login." },
+    { "Login summary off", "digest", { "off" }, "Stop the login summary." },
+    { "Main names in chat on", "chattags", { "on" }, "Show an alt's main name in guild and officer chat." },
+    { "Main names in chat off", "chattags", { "off" }, "Stop showing main names in chat." },
   }) do
-    tip(at(newButton(page, def[1], 84, function()
+    tip(at(newButton(page, def[1], 138, function()
       local handler = ns.commandHandlers and ns.commandHandlers[def[2]]
       if handler then handler(def[3]) end
-    end), page, (i - 1) * 90, -300), def[4]) -- their own row, below the window size row
+    end), page, (i - 1) * 144, -300), def[4]) -- their own row, below the window size row
   end
   -- Announcements (merged in from their own page in 9.2).
   if ui.announcementsBlock then ui.announcementsBlock(page, -146) end
@@ -1046,21 +1061,16 @@ local function buildGeneralSettings(page)
   local resetSize = tip(at(newButton(page, "Reset", 60, function() run("menu scale reset") end), page, 158, -274), "Normal size, back in the middle of the screen")
   resetSize:ClearAllPoints(); resetSize:SetPoint("LEFT", bigger, "RIGHT", 4, 0)
 
-  -- Get the companion (8.5.0): addons cannot open web pages, so the links are here to copy.
-  at(newLabel(page, L("Get the Windows companion (select a link, Ctrl+C):"), "GameFontNormalSmall"), page, 0, -332)
-  if ns.companionLink then
-    at(copyBox(page, ns.companionLink.SHORT, 250), page, 6, -348)
-    at(copyBox(page, ns.companionLink.DIRECT, 250), page, 270, -348)
-    local steps = at(newLabel(page, table.concat(ns.companionLink.steps(), "\n"), "GameFontHighlightSmall"), page, 0, -374)
-    steps:SetWidth(PAGE_WIDTH - 40)
-    steps:SetJustifyH("LEFT")
-  end
+  -- (9.5.4) The companion download links are on Home until the character is linked; they are not repeated here.
 
   local help = at(newLabel(page,
     L("Minimap button hidden? /guilded minimap show. Problem? Press Diagnostics and send a screenshot to an officer. A key can open this window: Options > Keybindings > Guilded.")
       .. " " .. L("Guilded is free. A coffee helps pay for hosting: kcaron.top/support"),
-    "GameFontHighlightSmall"), page, 0, -432)
+    "GameFontHighlightSmall"), page, 0, -358)
   help:SetWidth(PAGE_WIDTH - 40)
+  -- One line of help for the four switches above it (9.5.4).
+  local switchHelp = at(newLabel(page, L("Login summary: what changed since your last login. Main names: an alt's main name shown in guild chat."), "GameFontDisableSmall"), page, 0, -330)
+  switchHelp:SetWidth(PAGE_WIDTH - 40)
 
   -- Optional modules: your own switch, and (officers) the guild-wide one. There are more of
   -- these than fit in the page, so they scroll instead of running off the bottom of the window.
@@ -1160,8 +1170,9 @@ local function buildGearPage(page)
   local intro = at(newLabel(page, "Each member's last gear check, shared by their own Guilded. Members without Guilded are not listed.", "GameFontHighlightSmall"), page, 0, 0)
   intro:SetWidth(PAGE_WIDTH)
   -- (9.3.4) Aligned columns: one text per column, one line per member, so the numbers line up.
-  local x = { name = 0, level = 176, itemLevel = 222, problems = 280, seen = PAGE_WIDTH - 72 }
-  local w = { name = 170, level = 36, itemLevel = 44, problems = PAGE_WIDTH - 280 - 78, seen = 70 }
+  -- 9.5.4: wider Level and iLvl columns (the numbers showed as "53...") and no cut for the short columns.
+  local x = { name = 0, level = 160, itemLevel = 216, problems = 280, seen = PAGE_WIDTH - 72 }
+  local w = { name = 156, level = 52, itemLevel = 58, problems = PAGE_WIDTH - 280 - 78, seen = 70 }
   local justify = { name = "LEFT", level = "RIGHT", itemLevel = "RIGHT", problems = "LEFT", seen = "LEFT" }
   ui.gearHeaders = {}
   for key, text in pairs({ name = "Player", level = "Level", itemLevel = "iLvl", problems = "Problems", seen = "Last check" }) do
@@ -1173,7 +1184,7 @@ local function buildGearPage(page)
   for key in pairs(x) do
     local column = at(newLabel(page, "", "GameFontHighlightSmall"), page, x[key], -54)
     column:SetWidth(w[key]); column:SetJustifyH(justify[key])
-    if column.SetWordWrap then column:SetWordWrap(false) end
+    if column.SetWordWrap then column:SetWordWrap(key == "level" or key == "itemLevel") end
     ui.gearColumns[key] = column
   end
   ui.gearList = ui.gearColumns.name -- its height sets the scroll range
@@ -1417,19 +1428,17 @@ local function buildHomePage(page)
   link("Dungeons", "Dungeons", 178, -18, 170, "Your dungeon runs and the guild's dungeon boards.")
   link("Standings", "Guild tools", 356, -18, 170, "Opens Guilded inside the game's guild window: standings, crafting.")
   link("Calendar", "Calendar", 0, -56, 170, "Opens Guilded inside the game's calendar.")
-  officerOnly(link("Raid", "Run a raid", 178, -56, 170, "Start a raid, record bosses and attendance."))
-  officerOnly(link("Loot", "Give loot", 356, -56, 170, "Bids, council and direct loot."))
-  officerOnly(link("Local guild", "Pick a raid core", 0, -94, 170, "Choose or create the raid core (team) that loot and standings use."))
-  link("Layer invite", "Change layer", 178, -94, 170, "Ask guildmates on your continent to invite you, so you land on their layer.")
+  link("Layer invite", "Change layer", 178, -56, 170, "Ask guildmates on your continent to invite you, so you land on their layer.")
+  -- 9.5.4: the raid core, raid and loot buttons left Home (they stay under Raids and Officer).
 
   -- Linking to Discord, in the open: the Windows app does it in one step; a name sent to the bot is the fallback (no code box since November 2026).
   ui.linkWidgets = {}
   local function linkWidget(widget) table.insert(ui.linkWidgets, widget) return widget end
-  linkWidget(below(newLabel(page, "Link to Discord", "GameFontNormal"), 0, -138))
+  linkWidget(below(newLabel(page, "Link to Discord", "GameFontNormal"), 0, -100))
   if ns.companionLink then
-    linkWidget(tip(below(newButton(page, "Get the companion", 170, function() ns.companionLink.openCopyWindow() end, 24), PAGE_WIDTH - 170, -134), "Opens a box with the download link to copy (Ctrl+C). The game cannot open web pages."))
+    linkWidget(tip(below(newButton(page, "Get the companion", 170, function() ns.companionLink.openCopyWindow() end, 24), PAGE_WIDTH - 170, -96), "Opens a box with the download link to copy (Ctrl+C). The game cannot open web pages."))
   end
-  ui.linkStatus = linkWidget(below(newLabel(page, "", "GameFontHighlightSmall"), 0, -158))
+  ui.linkStatus = below(newLabel(page, "", "GameFontHighlightSmall"), 0, -120)
   -- The scrolled page shows 574 px of the 582 (the scroll bar's margin): full-width text stops 16 px short of the edge.
   local HOME_WIDTH = PAGE_WIDTH - 16
   ui.linkStatus:SetWidth(HOME_WIDTH)
@@ -1442,13 +1451,13 @@ local function buildHomePage(page)
 
   -- Get the companion (8.5.0): links to copy, since an addon cannot open a web page.
   if ns.companionLink then
-    below(newLabel(page, L("Get the Windows companion (select a link, Ctrl+C):"), "GameFontNormal"), 0, -242)
+    linkWidget(below(newLabel(page, L("Get the Windows companion (select a link, Ctrl+C):"), "GameFontNormal"), 0, -204))
     -- One under the other, each as wide as the page: the direct link (62 characters) did not fit beside the short one.
     ui.companionBoxes = {
-      below(copyBox(page, ns.companionLink.SHORT, HOME_WIDTH - 12), 6, -262),
-      below(copyBox(page, ns.companionLink.DIRECT, HOME_WIDTH - 12), 6, -286),
+      linkWidget(below(copyBox(page, ns.companionLink.SHORT, HOME_WIDTH - 12), 6, -224)),
+      linkWidget(below(copyBox(page, ns.companionLink.DIRECT, HOME_WIDTH - 12), 6, -248)),
     }
-    local steps = below(newLabel(page, table.concat(ns.companionLink.steps(), "\n"), "GameFontHighlightSmall"), 0, -318)
+    local steps = linkWidget(below(newLabel(page, table.concat(ns.companionLink.steps(), "\n"), "GameFontHighlightSmall"), 0, -280))
     steps:SetWidth(HOME_WIDTH)
     steps:SetJustifyH("LEFT")
   end
@@ -1766,13 +1775,15 @@ local TAB_DEFS = {
   { name = "Signups", label = "Raid sign-up", hint = "sign up for raids, with role counts", group = "Raids", module = "raidsignup", build = function(page) if ns.raidSignup and ns.raidSignup.buildPage then ns.raidSignup.buildPage(page, { newLabel = newLabel, newButton = newButton, at = at, width = PAGE_WIDTH }) end end },
   { name = "Calendar", group = "Officer", module = "calendar", officer = true, build = buildCalendarPage },
   { name = "Raid", hint = "run a raid: start, bosses, attendance", group = "Raids", officer = true, usesPlayer = true, build = buildRaidPage },
-  { name = "EPGP", label = "Administration", hint = "award EP and GP", group = "Officer", officer = true, usesPlayer = true, build = buildEpgpPage },
+  { name = "EPGP", label = "Admin", hint = "award EP and GP", group = "Officer", officer = true, usesPlayer = true, build = buildEpgpPage },
   { name = "Local guild", group = "Officer", officer = true, build = buildLocalGuildPage },
-  { name = "Roster admin", group = "Officer", officer = true, build = buildRosterAdminPage },
-  { name = "Officer tools", hint = "guild log, prospects, guild bank, imports", group = "Officer", officer = true, build = buildOfficerToolsPage },
+  { name = "Roster admin", label = "Roster", hint = "change guild ranks and notes in bulk", group = "Officer", officer = true, build = buildRosterAdminPage,
+    link = function() if ns.openRosterAdmin then ns.openRosterAdmin() end end },
+  { name = "Officer tools", label = "Tools", hint = "guild log, prospects, guild bank, imports", group = "Officer", officer = true, build = buildOfficerToolsPage },
   { name = "Loot", hint = "bids and loot", group = "Raids", lootModes = { EPGP = true }, officer = true, usesPlayer = true, build = buildLootPage },
   { name = "Council", hint = "loot council: BiS / upgrade / off-spec answers", group = "Raids", module = "council", lootModes = { COUNCIL = true, PRIORITY = true }, officer = true, usesPlayer = true, build = buildCouncilPage },
-  { name = "Dungeons", hint = "your runs and the guild's dungeon boards", group = "Dungeons", available = function() return ns.dungeonScorePanel ~= nil end, build = buildDungeonsPage },
+  { name = "Dungeons", hint = "your runs and the guild's dungeon boards", group = "Dungeons", available = function() return ns.dungeonScorePanel ~= nil end, build = buildDungeonsPage,
+    link = function() if ns.dungeonScorePanel then ns.dungeonScorePanel.open("run") end end },
   { name = "Duels", hint = "guild duel leaderboard", group = "Guild", module = "duels", build = function(page) if ns.duels and ns.duels.buildPage then ns.duels.buildPage(page, { newLabel = newLabel, at = at, width = PAGE_WIDTH }) end end },
   { name = "Tools", label = "Settings", hint = "switch parts on or off, announcements, diagnostics, advanced", group = "Settings", build = buildSettingsPage }
 }
@@ -2033,9 +2044,13 @@ local function refreshHome(db, officer, me)
   if ui.linkStatus then
     local inGuild = not IsInGuild or IsInGuild()
     local show = not localOnly and inGuild
-    for _, widget in ipairs(ui.linkWidgets or {}) do if show then widget:Show() else widget:Hide() end end
+    local state = show and ns.verifyStatus and ns.verifyStatus() or {}
+    -- 9.5.4: once the character is linked, the download links and the how-to go away; only the status line stays.
+    local help = show and not state.linked
+    ui.homeLinked = show and state.linked == true
+    for _, widget in ipairs(ui.linkWidgets or {}) do if help then widget:Show() else widget:Hide() end end
+    if show then ui.linkStatus:Show() else ui.linkStatus:Hide() end
     if show then
-      local state = ns.verifyStatus and ns.verifyStatus() or {}
       ui.linkStatus:SetText(state.linked and ("|cff55dd55" .. L("Linked to Discord.") .. "|r")
         or state.pending and ("|cffffcc33" .. L("Waiting for the next sync to confirm your link.") .. "|r")
         or ("|cffff7755" .. L("Not linked to Discord yet.") .. "|r"))
@@ -2235,7 +2250,13 @@ refresh = function()
     local lines = { ns.standingsSource and ns.standingsSource() or L("Local ledger (this PC)") }
     if updatedAt then lines[#lines + 1] = string.format(L("Top by PR (snapshot, %s):"), ns.util.whenText(updatedAt) or updatedAt) end
     if #rows == 0 then table.insert(lines, L("No characters in this view.")) end
-    for i = 1, math.min(15, #rows) do
+    -- 9.5.4: when nobody has any EP or GP yet, one line instead of an alphabetical list of zeros.
+    local anyPoints = false
+    for _, r in ipairs(rows) do
+      if (tonumber(r.row.ep) or 0) ~= 0 or (tonumber(r.row.gp) or 0) ~= 0 or (tonumber(r.row.pr) or 0) ~= 0 then anyPoints = true; break end
+    end
+    if #rows > 0 and not anyPoints then table.insert(lines, L("No EP/GP recorded yet.")) end
+    for i = 1, anyPoints and math.min(15, #rows) or 0 do
       local r = rows[i]
       table.insert(lines, string.format("%2d. %-14s PR %.2f   EP %d / GP %d", i, ns.displayName(r.name), r.row.pr, r.row.ep, r.row.gp))
     end
@@ -2281,7 +2302,7 @@ updateGuildScroll = function()
   elseif tab.name == "Home" then
     -- Greeting and "Right now" (54), the gear check, then the Discord block ending with the companion steps
     -- (the last label hangs 312 below the gear text): the whole page scrolls instead of being cut at the bottom.
-    height = 54 + textHeight(ui.homeNow) + 16 + 16 + 6 + textHeight(ui.homeGear) + 312 + (ui.homeSteps and textHeight(ui.homeSteps) or 0) + 12
+    height = 54 + textHeight(ui.homeNow) + 16 + 16 + 6 + textHeight(ui.homeGear) + (ui.homeLinked and 140 or 274) + (ui.homeSteps and not ui.homeLinked and textHeight(ui.homeSteps) or 0) + 12
   elseif tab.name == "Layer invite" then height = 330 -- the last of five request rows ends near y=-316
   elseif tab.name == "EPGP" then height = 252 -- the lowest widget ends near y=-218, a 22 px button
   elseif tab.name == "Roster admin" then height = 36 + 30 + 40
@@ -2528,8 +2549,11 @@ local function buildPanel()
     ui.tabs[i] = { name = def.name, label = def.label, hint = def.hint, group = def.group, officer = def.officer, leader = def.leader, module = def.module, lootModes = def.lootModes, usesPlayer = def.usesPlayer, link = def.link, available = def.available, page = page, button = tabButton }
     tabButton:SetScript("OnEnter", function(self)
       if not GameTooltip then return end
-      -- To the left of the sidebar, so the tooltip never covers the page being read.
-      GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+      -- To the left of the sidebar, so the tooltip never covers the page being read. A section button (9.5.4) sits in a row
+      -- at the top of the page: its tooltip goes below it, not over its neighbours.
+      local inRow = false
+      for _, entry in ipairs(ui.sectionLayout or {}) do if entry.name == def.name then inRow = true end end
+      GameTooltip:SetOwner(self, inRow and "ANCHOR_BOTTOM" or "ANCHOR_LEFT")
       GameTooltip:AddLine(L(def.label or def.name))
       if def.hint then GameTooltip:AddLine(L(def.hint), 1, 1, 1) end
       GameTooltip:Show()
@@ -2543,6 +2567,7 @@ local function buildPanel()
   ui.status:SetWidth(PAGE_WIDTH)
   ui.status:SetHeight(24)
   ns.onMessage = function(text)
+    if ui.capture then ui.capture[#ui.capture + 1] = text end
     if ui.status then ui.status:SetText(text) end
   end
   ns.onSetupChange = function() refresh() end
@@ -2696,6 +2721,8 @@ selectTabByNameNow = function(name)
   for i, tab in ipairs(ui.tabs) do
     if tab.name == name then
       if not panel:IsShown() then panel:Show(); ui.lastOfficer = nil; refresh() end
+      -- 9.5.4: Dungeons and Roster admin are windows of their own; the entry opens the window, there is no page in between.
+      if tab.link and tabListed(tab, ns.isOfficer()) then tab.link(); return end
       if tab.visible then selectTab(i) end
       return
     end

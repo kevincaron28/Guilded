@@ -2,7 +2,7 @@
 
 ## 9.5.5 — 23 November 2026
 
-Prepared 23 November 2026. In-game checks: docs/V9_5_5_RELEASE_ACCEPTANCE.md.
+Published 23 November 2026 (GitHub v9.5.5, website download and installer, bot). In-game checks: docs/V9_5_5_RELEASE_ACCEPTANCE.md.
 
 Addon (#1281, found testing 9.5.4 in game):
 - The officer Gear table shows every member's name, problems and last check again (9.5.4 showed only the first row).

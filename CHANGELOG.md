@@ -2,7 +2,7 @@
 
 ## 9.5.1 — 23 November 2026
 
-Prepared 23 November 2026. In-game checks: docs/V9_5_1_RELEASE_ACCEPTANCE.md.
+Published 23 November 2026 (GitHub v9.5.1, website download and installer, bot). In-game checks: docs/V9_5_1_RELEASE_ACCEPTANCE.md.
 
 Addon:
 - The Ready to promote alert has an X: it hides until the number of members ready changes or your next login (#1263).

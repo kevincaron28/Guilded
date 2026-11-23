@@ -582,7 +582,7 @@ local function buildPublicRaidsPage(page)
     ui.pugPage = math.max(1, math.min(ui.pugPage, count))
     local text = ns.publicRaids.statusText(ui.pugRole, ui.pugRealm:GetText())
     -- Summary and stale state are always visible. Rows have individual copy buttons.
-    ui.pugStatus:SetText(fresh and (L("Snapshot from:") .. " " .. tostring(GuildedPublicRaids.fetchedAt) .. "\n" ..
+    ui.pugStatus:SetText(fresh and (L("Snapshot from:") .. " " .. tostring(ns.util.whenText(GuildedPublicRaids.fetchedAt) or GuildedPublicRaids.fetchedAt) .. "\n" ..
       L("Counts may change. Join the host Discord and confirm there. Reload after companion sync.")) or text)
     for i, entry in ipairs(ui.pugRows) do
       local index = (ui.pugPage - 1) * 3 + i
@@ -1034,17 +1034,26 @@ local function buildGeneralSettings(page)
   officerOnly(at(newButton(page, "Backup", 136, function() run("backup") end), page, 0, -116))
   officerOnly(tip(at(newButton(page, "Officer setup", 136, function() run("officer list") end), page, 142, -116), "Who counts as an officer in this guild."))
 
-  -- Personal switches (moved here from the Info page in 9.2).
-  for i, def in ipairs({
-    { "Login summary on", "digest", { "on" }, "Show what changed since your last login, once at login." },
-    { "Login summary off", "digest", { "off" }, "Stop the login summary." },
-    { "Main names in chat on", "chattags", { "on" }, "Show an alt's main name in guild and officer chat." },
-    { "Main names in chat off", "chattags", { "off" }, "Stop showing main names in chat." },
-  }) do
-    tip(at(newButton(page, def[1], 138, function()
-      local handler = ns.commandHandlers and ns.commandHandlers[def[2]]
-      if handler then handler(def[3]) end
-    end), page, (i - 1) * 144, -300), def[4]) -- their own row, below the window size row
+  -- Personal switches (moved here from the Info page in 9.2). 9.5.5: each button is as wide as its text and the two pairs are on
+  -- two rows, so a long (translated) label never runs into its neighbour.
+  do
+    local rows = {
+      { { "Login summary on", "digest", { "on" }, "Show what changed since your last login, once at login." },
+        { "Login summary off", "digest", { "off" }, "Stop the login summary." } },
+      { { "Main names in chat on", "chattags", { "on" }, "Show an alt's main name in guild and officer chat." },
+        { "Main names in chat off", "chattags", { "off" }, "Stop showing main names in chat." } },
+    }
+    for r, row in ipairs(rows) do
+      local x = 0
+      for _, def in ipairs(row) do
+        local width = math.min(PAGE_WIDTH / 2 - 4, math.max(110, #L(def[1]) * 7 + 24))
+        tip(at(newButton(page, def[1], width, function()
+          local handler = ns.commandHandlers and ns.commandHandlers[def[2]]
+          if handler then handler(def[3]) end
+        end), page, x, -300 - (r - 1) * 28), def[4])
+        x = x + width + 6
+      end
+    end
   end
   -- Announcements (merged in from their own page in 9.2).
   if ui.announcementsBlock then ui.announcementsBlock(page, -146) end
@@ -1066,10 +1075,10 @@ local function buildGeneralSettings(page)
   local help = at(newLabel(page,
     L("Minimap button hidden? /guilded minimap show. Problem? Press Diagnostics and send a screenshot to an officer. A key can open this window: Options > Keybindings > Guilded.")
       .. " " .. L("Guilded is free. A coffee helps pay for hosting: kcaron.top/support"),
-    "GameFontHighlightSmall"), page, 0, -358)
+    "GameFontHighlightSmall"), page, 0, -384)
   help:SetWidth(PAGE_WIDTH - 40)
   -- One line of help for the four switches above it (9.5.4).
-  local switchHelp = at(newLabel(page, L("Login summary: what changed since your last login. Main names: an alt's main name shown in guild chat."), "GameFontDisableSmall"), page, 0, -330)
+  local switchHelp = at(newLabel(page, L("Login summary: what changed since your last login. Main names: an alt's main name shown in guild chat."), "GameFontDisableSmall"), page, 0, -358)
   switchHelp:SetWidth(PAGE_WIDTH - 40)
 
   -- Optional modules: your own switch, and (officers) the guild-wide one. There are more of
@@ -1166,6 +1175,21 @@ local function readyTooltip(anchor, entry)
 end
 
 -- Officers: every guildmate's last shared gear check (Ready.lua's gearText), best item level first.
+-- Clips one column line to `limit` characters with "...", keeping its colour code and never cutting a multi-byte character.
+local function gearClip(line, limit)
+  line = tostring(line or "")
+  local color, body = line:match("^(|c%x%x%x%x%x%x%x%x)(.*)|r$")
+  body = body or line
+  if #body > limit then
+    body = body:sub(1, limit - 3)
+    while #body > 0 and body:byte(-1) >= 128 and body:byte(-1) < 192 do body = body:sub(1, -2) end
+    if #body > 0 and body:byte(-1) >= 192 then body = body:sub(1, -2) end
+    body = body .. "..."
+  end
+  return color and (color .. body .. "|r") or body
+end
+ui.gearClip = gearClip
+local GEAR_LIMIT = { name = 24, level = 4, itemLevel = 6, problems = 36, seen = 12 }
 local function buildGearPage(page)
   local intro = at(newLabel(page, "Each member's last gear check, shared by their own Guilded. Members without Guilded are not listed.", "GameFontHighlightSmall"), page, 0, 0)
   intro:SetWidth(PAGE_WIDTH)
@@ -1184,7 +1208,9 @@ local function buildGearPage(page)
   for key in pairs(x) do
     local column = at(newLabel(page, "", "GameFontHighlightSmall"), page, x[key], -54)
     column:SetWidth(w[key]); column:SetJustifyH(justify[key])
-    if column.SetWordWrap then column:SetWordWrap(key == "level" or key == "itemLevel") end
+    -- 9.5.5: word wrap stays on (off, the game draws only the first line of a multi-line text: the rows below the first lost their name,
+    -- problems and time in 9.5.4). A line that is too long is clipped by gearClip below, so one member stays one line.
+    if column.SetWordWrap then column:SetWordWrap(true) end
     ui.gearColumns[key] = column
   end
   ui.gearList = ui.gearColumns.name -- its height sets the scroll range
@@ -1783,7 +1809,13 @@ local TAB_DEFS = {
   { name = "Loot", hint = "bids and loot", group = "Raids", lootModes = { EPGP = true }, officer = true, usesPlayer = true, build = buildLootPage },
   { name = "Council", hint = "loot council: BiS / upgrade / off-spec answers", group = "Raids", module = "council", lootModes = { COUNCIL = true, PRIORITY = true }, officer = true, usesPlayer = true, build = buildCouncilPage },
   { name = "Dungeons", hint = "your runs and the guild's dungeon boards", group = "Dungeons", available = function() return ns.dungeonScorePanel ~= nil end, build = buildDungeonsPage,
-    link = function() if ns.dungeonScorePanel then ns.dungeonScorePanel.open("run") end end },
+    link = function()
+      if not ns.dungeonScorePanel then return end
+      ns.dungeonScorePanel.open("run")
+      -- 9.5.5: the dungeons window and the main window drew over each other (its side icons over the crafting list): the main one steps aside.
+      local main = _G.GuildedPanel
+      if main and main.IsShown and main:IsShown() and not (InCombatLockdown and InCombatLockdown()) then main:Hide() end
+    end },
   { name = "Duels", hint = "guild duel leaderboard", group = "Guild", module = "duels", build = function(page) if ns.duels and ns.duels.buildPage then ns.duels.buildPage(page, { newLabel = newLabel, at = at, width = PAGE_WIDTH }) end end },
   { name = "Tools", label = "Settings", hint = "switch parts on or off, announcements, diagnostics, advanced", group = "Settings", build = buildSettingsPage }
 }
@@ -2266,7 +2298,11 @@ refresh = function()
     local cols, count = ns.ready.gearColumns()
     ui.gearFull = cols.fullByRow
     ui.gearRowCount = count
-    for key, column in pairs(ui.gearColumns) do column:SetText(table.concat(cols[key], "\n")) end
+    for key, column in pairs(ui.gearColumns) do
+      local lines = {}
+      for i, line in ipairs(cols[key]) do lines[i] = gearClip(line, GEAR_LIMIT[key] or 40) end
+      column:SetText(table.concat(lines, "\n"))
+    end
     -- Nothing shared yet: the explanation instead of an empty table.
     ui.gearEmpty:SetText(count == 0 and ns.ready.gearText() or "")
     for _, head in pairs(ui.gearHeaders) do if count == 0 then head:Hide() else head:Show() end end

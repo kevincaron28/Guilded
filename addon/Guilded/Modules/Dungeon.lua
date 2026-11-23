@@ -46,10 +46,8 @@ local TERMINAL = { COMPLETED = true, ABANDONED = true, INVALID = true, ERROR = t
 -- relayed runs up to 30 days old, so older copies can never reach it).
 local KEEP_PEER_DAYS = 45
 -- (9.5.3) Saved-file size (the owner's file held 1.5 MB of runs): at most MAX_RUNS stored runs, oldest first (confirmed copies, then
--- guildmates' unconfirmed ones, then our own unconfirmed ones last), and the death-map points of a run the bot has confirmed are dropped
--- after TRIM_SYNCED_DAYS: the bot already holds them.
+-- guildmates' unconfirmed ones, then our own unconfirmed ones last).
 local MAX_RUNS = 300
-local TRIM_SYNCED_DAYS = 7
 local REPLAY_DAYS = 30
 local REPLAY_RUNS = 10
 -- The note a 9.1.3 bot gave an unsigned companion for a guildmate's run it refused (see markSynced).
@@ -230,99 +228,9 @@ local function newRun(instance)
   return run
 end
 
--- Death positions (9.1): where in the dungeon the group fell, for the death map on the run card.
--- Each client records its OWN death (position of the player unit) and tells the group with a separate
--- DPOS message, so older clients that do not know it simply ignore it. Positions are thousandths (0..1000)
--- of the map, per uiMapID; at most MAX_DEATH_POINTS per run. Unknown positions (indoor maps that return
--- nothing or 0,0) are never recorded.
-local MAX_DEATH_POINTS = 60
-local function playerPosition()
-  if not (C_Map and C_Map.GetBestMapForUnit and C_Map.GetPlayerMapPosition) then return nil end
-  local okMap, mapId = pcall(C_Map.GetBestMapForUnit, "player")
-  if not okMap or type(mapId) ~= "number" or ns.isSecret(mapId) or mapId <= 0 then return nil end
-  local okPos, position = pcall(C_Map.GetPlayerMapPosition, mapId, "player")
-  if not okPos or type(position) ~= "table" or not position.GetXY then return nil end
-  local okXY, x, y = pcall(position.GetXY, position)
-  if not okXY or type(x) ~= "number" or type(y) ~= "number" or ns.isSecret(x) or ns.isSecret(y) then return nil end
-  if x < 0 or x > 1 or y < 0 or y > 1 or (x == 0 and y == 0) then return nil end
-  return math.floor(x * 1000 + 0.5), math.floor(y * 1000 + 0.5), mapId
-end
-local function addDeathPoint(run, name, x, y, mapId)
-  if type(run) ~= "table" or type(name) ~= "string" then return false end
-  x, y, mapId = tonumber(x), tonumber(y), tonumber(mapId)
-  if not x or not y or not mapId or x < 0 or x > 1000 or y < 0 or y > 1000 or mapId <= 0 or mapId > 100000 then return false end
-  run.deathPoints = run.deathPoints or {}
-  if #run.deathPoints >= MAX_DEATH_POINTS then return false end
-  table.insert(run.deathPoints, { name = name, x = math.floor(x) / 1000, y = math.floor(y) / 1000, map = math.floor(mapId) })
-  return true
-end
-
--- Traced dungeon maps (9.2): while a run is active inside an instance, a light breadcrumb of where the player walked, so the
--- bot can draw an accurate outline of each dungeon floor in the same coordinates as the death positions. Positions are snapped
--- to a TRACE_GRID x TRACE_GRID grid of the floor's map (uiMapID) and kept only as a set of cells per floor: no timestamps, no
--- order. Short steps between two samples are filled in a straight line (a long jump, a teleport or a floor change never draws a
--- corridor). At most MAX_TRACE_CELLS per run. Stored as run.trace = { { map = id, cells = "key,key,..." } } (key = cx * grid + cy)
--- so SavedVariables and the companion read it simply. Only the recorder's own export uploads it; nothing is sent to the group.
--- On by default; members turn it off with /guilded maptrace off.
-local TRACE_GRID, MAX_TRACE_CELLS, TRACE_SECONDS, TRACE_MAX_STEP = 200, 600, 1.5, 12
-local traceSets, lastTrace = {}, nil
-local function traceOn()
-  local s = ns.getSettings and ns.getSettings()
-  return not (s and (s.dungeonTrace == false or s.mapShare == false))
-end
-local function traceEntry(run, mapId)
-  run.trace = run.trace or {}
-  for _, entry in ipairs(run.trace) do if entry.map == mapId then return entry end end
-  local entry = { map = mapId, cells = "" }
-  table.insert(run.trace, entry)
-  return entry
-end
-local function traceCount(run)
-  local count = 0
-  for _, entry in ipairs(run.trace or {}) do for _ in string.gmatch(entry.cells or "", "%d+") do count = count + 1 end end
-  return count
-end
-local function addTraceCell(run, mapId, cx, cy)
-  if cx < 0 or cy < 0 or cx >= TRACE_GRID or cy >= TRACE_GRID then return false end
-  local id = tostring(run.id) .. ":" .. mapId
-  local set = traceSets[id]
-  local entry = traceEntry(run, mapId)
-  if not set then
-    set = {}
-    for key in string.gmatch(entry.cells or "", "%d+") do set[tonumber(key)] = true end
-    traceSets[id] = set
-  end
-  local key = cx * TRACE_GRID + cy
-  if set[key] then return true end
-  run.traceCount = run.traceCount or traceCount(run)
-  if run.traceCount >= MAX_TRACE_CELLS then return false end
-  set[key] = true
-  entry.cells = entry.cells == "" and tostring(key) or (entry.cells .. "," .. key)
-  run.traceCount = run.traceCount + 1
-  return true
-end
--- One breadcrumb sample (called by a ticker every TRACE_SECONDS; tests call it directly).
-local function traceSample()
-  local d = db()
-  local run = d and d.current
-  if not run or run.state == "INVALID" or not traceOn() or not (ns.util and ns.util.inInstance and ns.util.inInstance()) then lastTrace = nil; return false end
-  local x, y, mapId = playerPosition()
-  if not x then return false end
-  local cx = math.min(TRACE_GRID - 1, math.floor(x * TRACE_GRID / 1000))
-  local cy = math.min(TRACE_GRID - 1, math.floor(y * TRACE_GRID / 1000))
-  local last = lastTrace
-  if last and last.run == run.id and last.map == mapId then
-    local dx, dy = cx - last.cx, cy - last.cy
-    local steps = math.max(math.abs(dx), math.abs(dy))
-    if steps > 1 and steps <= TRACE_MAX_STEP then
-      for i = 1, steps - 1 do addTraceCell(run, mapId, last.cx + math.floor(dx * i / steps + 0.5), last.cy + math.floor(dy * i / steps + 0.5)) end
-    end
-  end
-  addTraceCell(run, mapId, cx, cy)
-  lastTrace = { run = run.id, map = mapId, cx = cx, cy = cy }
-  return true
-end
-ns.dungeonTrace = { sample = traceSample, grid = TRACE_GRID, maxCells = MAX_TRACE_CELLS, enabled = traceOn }
+-- (9.5.3) Death positions (9.1) and traced dungeon maps (9.2) are no longer recorded: no card or page drew them, and they
+-- made the saved file heavier. Saved runs lose them at the next sync check (dungeon.markSynced), and a DPOS line from an
+-- older guildmate is ignored.
 
 local function save(run)
   local d = db()
@@ -938,11 +846,7 @@ local function onAddonMessage(text, sender, delivery)
       player.deaths = math.max(player.deaths or 0, tonumber(count) or 0)
     end
   elseif kind == "DPOS" then
-    local id, name, x, y, mapId = string.match(text, "^DPOS|([^|]+)|([^|]+)|(%d+)|(%d+)|(%d+)$")
-    name = name and ns.normalizeName(name)
-    local target = (run and run.id == id) and run or (d and d.runs[id or ""])
-    -- Only the player's own death position, only for a player already in that run.
-    if target and name == sender and target.players[name] then addDeathPoint(target, name, x, y, mapId) end
+    -- (9.5.3) Death positions are no longer kept; older clients still send them.
   elseif kind == "END" then
     local id, state, endedAt, reason = string.match(text, "^END|([^|]+)|(%u+)|(%d+)|(.*)$")
     -- Only the run's recorder or the group leader can end the run for everyone, and only
@@ -1211,10 +1115,6 @@ local function onEvent(_, event, ...)
       run.players[me()] = mine
       mine.addon = true
       mine.deaths = (mine.deaths or 0) + 1
-      local x, y, mapId = playerPosition()
-      if x and addDeathPoint(run, me(), x, y, mapId) then
-        send(string.format("DPOS|%s|%s|%d|%d|%d", run.id, me(), x, y, mapId))
-      end
       save(run)
       send(string.format("DEATH|%s|%s|%d", run.id, me(), mine.deaths))
     end
@@ -1308,10 +1208,11 @@ function dungeon.markSynced()
     if (confirmed and at < cutoff) or (not confirmed and not ours and at < peerCutoff) then
       d.runs[id] = nil
       dungeon.stats.pruned = dungeon.stats.pruned + 1
-    elseif confirmed and run.deathPoints and at < now() - TRIM_SYNCED_DAYS * 86400 then
-      run.deathPoints = nil
+    else
+      run.deathPoints, run.trace, run.traceCount = nil, nil, nil
     end
   end
+  if d.current then d.current.deathPoints, d.current.trace, d.current.traceCount = nil, nil, nil end
   do
     local list = {}
     for id, run in pairs(d.runs) do
@@ -2250,22 +2151,5 @@ if C_Timer and C_Timer.NewTicker then
     local d = db()
     if d and d.current then pcall(evaluate) end
   end)
-  -- Traced dungeon maps: one breadcrumb sample every TRACE_SECONDS while a run is active.
-  C_Timer.NewTicker(TRACE_SECONDS, function()
-    if ns.moduleActive and not ns.moduleActive("dungeon") then return end
-    local d = db()
-    if d and d.current then pcall(traceSample) end
-  end)
 end
 
--- /guilded maptrace on | off: the member's own switch for traced dungeon maps (on by default).
-ns.commandHandlers = ns.commandHandlers or {}
-ns.commandHandlers["maptrace"] = function(args)
-  local s = ns.getSettings and ns.getSettings()
-  local word = string.lower(type(args) == "table" and tostring(args[1] or "") or "")
-  if s and (word == "on" or word == "off") then s.dungeonTrace = word == "on" end
-  ns.message(traceOn() and L("Dungeon map tracing is on: in dungeons, Guilded notes the map squares you walk through (no times) to draw the dungeon's map. /guilded maptrace off stops it.")
-    or L("Dungeon map tracing is off. /guilded maptrace on turns it back on."))
-end
-ns.commandHelp = ns.commandHelp or {}
-table.insert(ns.commandHelp, "/guilded maptrace on | off - help draw accurate dungeon maps from the squares you walk through in dungeons (no times); ON by default")

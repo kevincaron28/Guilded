@@ -1,0 +1,65 @@
+name: Bot release build
+# Builds the deployable bot (source, dependencies, Prisma client, companion bundle) on GitHub's runners so the 1 GB
+# server never runs npm ci during a deploy. deploy/update.sh downloads this asset for the commit it is deploying.
+# The release is a pre-release marked "not latest", so it never replaces the product release on the downloads page.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths: ['deploy/**', '.github/workflows/bot-build.yml', 'package.json', 'package-lock.json', 'scripts/db-update-start.mjs']
+  workflow_dispatch:
+concurrency:
+  group: bot-build
+  cancel-in-progress: false
+permissions:
+  contents: write # publishing a build needs it; pull-request runs from forks get a read-only token and never publish
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DISCORD_TOKEN: placeholder
+      DISCORD_CLIENT_ID: '123'
+      DISCORD_GUILD_ID: '456'
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/placeholder
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run prisma:generate
+      - run: npm run companion:build
+      - name: Package
+        run: bash deploy/package-release.sh "$GITHUB_SHA" "$RUNNER_TEMP/bot-release"
+      - name: Smoke test the server's unpack path on this package
+        run: |
+          set -euo pipefail
+          serve="$RUNNER_TEMP/serve/bot-build-$GITHUB_SHA"
+          mkdir -p "$serve" "$RUNNER_TEMP/live"
+          cp "$RUNNER_TEMP/bot-release/"guilded-bot-* "$serve/"
+          bash -c 'source deploy/application-update.sh
+            PREBUILT_BASE="file://$RUNNER_TEMP/serve"; PREBUILT_WAIT_SECONDS=0
+            prepare_prebuilt_application "$RUNNER_TEMP/live" "$(id -un)" "$GITHUB_SHA"
+            cd "$STAGED_APP" && node --import tsx -e "import(\"./src/generated/prisma/client.ts\").then(() => console.log(\"the packaged Prisma client loads\"))"'
+      - name: Publish the asset (pre-release, not latest)
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="bot-build-$GITHUB_SHA"
+          if gh release view "$tag" >/dev/null 2>&1; then gh release delete "$tag" --yes --cleanup-tag; fi
+          gh release create "$tag" --target "$GITHUB_SHA" --prerelease --latest=false \
+            --title "Bot build ${GITHUB_SHA::8}" \
+            --notes "Deployable bot build for commit $GITHUB_SHA, used by deploy/update.sh. Not a product release." \
+            "$RUNNER_TEMP/bot-release/guilded-bot-$GITHUB_SHA.tar.gz" "$RUNNER_TEMP/bot-release/guilded-bot-$GITHUB_SHA.tar.gz.sha256"
+      - name: Keep the newest 6 bot builds
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release list --limit 100 --json tagName,createdAt --jq '[.[] | select(.tagName | startswith("bot-build-"))] | sort_by(.createdAt) | reverse | .[6:] | .[].tagName' \
+            | while read -r old; do [ -n "$old" ] && gh release delete "$old" --yes --cleanup-tag; done

@@ -9,7 +9,25 @@
 # Order: prepare everything (copy, dependencies, client, bundle) while the old bot keeps running; then stop,
 # swap directories, start. The downtime is the swap plus the start step plus the bot's own boot.
 # Safe to run again. If the new version does not start it tells you how to go back.
+#
+# Prebuilt releases: GitHub Actions builds the bot (dependencies, Prisma client, companion bundle) for every commit on main
+# (.github/workflows/bot-build.yml). By default this script downloads that build for the commit it is deploying, checks its
+# checksum and unpacks it, so nothing heavy runs on the small server. If the build is missing it falls back to building here.
+#   sudo bash deploy/update.sh                    prebuilt when available, otherwise build on the server
+#   sudo bash deploy/update.sh --build-on-server  the old path: npm ci / prisma generate / bundle on this server
+#   sudo bash deploy/update.sh --prebuilt         prebuilt only; stop instead of building here
+# GUILDED_BUILD_ON_SERVER=1 does the same as --build-on-server.
 set -euo pipefail
+
+BUILD_MODE=auto
+for arg in "$@"; do
+  case "$arg" in
+    --build-on-server) BUILD_MODE=server ;;
+    --prebuilt) BUILD_MODE=prebuilt ;;
+    *) echo "Unknown option: $arg (use --build-on-server or --prebuilt)"; exit 1 ;;
+  esac
+done
+[ "${GUILDED_BUILD_ON_SERVER:-}" = 1 ] && BUILD_MODE=server
 
 if [ "$(id -u)" -ne 0 ]; then echo "Run with sudo:  sudo bash deploy/update.sh"; exit 1; fi
 
@@ -69,19 +87,36 @@ if ! ensure_free_disk "$APP" "$MIN_FREE_KB"; then
   exit 1
 fi
 
-say "Preparing dependencies and the companion interface bundle outside the running application"
-command -v rsync >/dev/null || apt-get install -y rsync
-if ! prepare_application "$SRC" "$APP" guilded; then
-  if [ -z "${STAGED_APP:-}" ]; then
-    STAGE_NOTE="No staging directory was created."
-  elif discard_own_staging "$STAGED_APP"; then
-    STAGE_NOTE="This run's private staging directory was removed."
+PREPARED=0
+if [ "$BUILD_MODE" != server ]; then
+  say "Fetching the prebuilt bot from GitHub"
+  if prepare_prebuilt_application "$APP" "$WHO" "$(sudo -u "$WHO" git -C "$SRC" rev-parse HEAD)"; then
+    PREPARED=1
   else
-    STAGE_NOTE="Could not remove this run's staging directory: ${STAGED_APP:-not created}."
+    if [ -n "${STAGED_APP:-}" ]; then discard_own_staging "$STAGED_APP" || echo "Could not remove the staging directory: $STAGED_APP"; STAGED_APP=""; fi
+    if [ "$BUILD_MODE" = prebuilt ]; then
+      echo "The prebuilt bot could not be used and --prebuilt was given; the running application was not replaced or stopped."
+      exit 1
+    fi
+    echo "Falling back to building on this server."
   fi
-  echo "Preparation failed; the running application was not replaced or stopped."
-  echo "$STAGE_NOTE"
-  exit 1
+fi
+
+if [ "$PREPARED" != 1 ]; then
+  say "Preparing dependencies and the companion interface bundle outside the running application"
+  command -v rsync >/dev/null || apt-get install -y rsync
+  if ! prepare_application "$SRC" "$APP" guilded; then
+    if [ -z "${STAGED_APP:-}" ]; then
+      STAGE_NOTE="No staging directory was created."
+    elif discard_own_staging "$STAGED_APP"; then
+      STAGE_NOTE="This run's private staging directory was removed."
+    else
+      STAGE_NOTE="Could not remove this run's staging directory: ${STAGED_APP:-not created}."
+    fi
+    echo "Preparation failed; the running application was not replaced or stopped."
+    echo "$STAGE_NOTE"
+    exit 1
+  fi
 fi
 say "Stopping the bot and activating the prepared application"
 STOPPED_AT="$(date +%s)"

@@ -33,10 +33,12 @@ export function AlertsTab({ guild, onSignIn }: { guild: GuildState; onSignIn: ()
       {guild.pushNeedsSettings ? <Pressable onPress={() => void Linking.openSettings().catch(() => {})} accessibilityRole="button" accessibilityLabel={t(lang, "openSettings")} style={common.secondary}>
         <Text style={common.secondaryText}>{t(lang, "openSettings")}</Text>
       </Pressable> : null}
-      {PUSH_ROWS.map((key) => <View key={key} style={common.row}>
-        <Text style={[common.body, { flex: 1 }]}>{t(lang, key)}</Text>
-        <Switch value={false} disabled trackColor={{ true: colors.green, false: colors.line }} accessibilityLabel={t(lang, key)} />
-      </View>)}
+    </Card>
+    {/* Not sent by the server yet: a plain list instead of switches that can never be turned on. */}
+    <Card edge={null}>
+      <Text style={common.label}>{t(lang, "pushLater").toUpperCase()}</Text>
+      <Text style={common.muted}>{t(lang, "pushLaterBody")}</Text>
+      {PUSH_ROWS.map((key) => <Text key={key} style={common.body}>{`· ${t(lang, key)}`}</Text>)}
     </Card>
   </Screen>;
 }

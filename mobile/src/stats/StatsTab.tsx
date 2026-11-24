@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { getJsonBounded, parseSummary, type Summary } from "../api";
 import { cacheKey } from "../cache";
-import { t, type Lang } from "../i18n";
+import { classLabel, t, type Lang } from "../i18n";
 import { PublicBoards, SeasonPicker } from "../PublicBoards";
 import { classColor, fetchDuels, type Duels } from "../publicApi";
 import { Card, EmptyState, Glyph, LastUpdated, RankNumber, RetryCard, Row, SegmentedTabs, StatTile, colors, usePullToRefresh } from "../ui";
@@ -24,7 +24,9 @@ const words = {
   duelFailed: { en: "The duel ladder is unavailable right now.", fr: "Le classement des duels est indisponible pour le moment." },
   record: { en: "W-L", fr: "V-D" },
   duelsCounted: { en: "duels counted", fr: "duels comptés" },
-  placement: { en: "In placement", fr: "En classement initial" }
+  placement: { en: "In placement", fr: "En classement initial" },
+  duelPage: { en: "Duel stats on the website", fr: "Statistiques de duels sur le site" },
+  pvpPage: { en: "World PvP and battlegrounds on the website", fr: "JcJ sauvage et champs de bataille sur le site" }
 } as const;
 const w = (key: keyof typeof words, lang: Lang) => words[key][lang];
 
@@ -72,9 +74,18 @@ function DuelsBoard({ origin, lang }: { origin: string; lang: Lang }) {
         {duels.players.length === 0 ? <EmptyState art="duel" message={w("duelNone", lang)} /> : duels.players.slice(0, 50).map((p) => <Row key={`${p.name}-${p.realm ?? ""}`}
           leading={<RankNumber rank={p.rank ?? 0} />}
           name={p.name} nameColor={classColor(p.className)}
-          sub={[p.className, p.level ? `${p.level}` : null, p.guild, `${w("record", lang)} ${p.wins}-${p.losses}`, p.ranked ? null : w("placement", lang)].filter(Boolean).join(" · ")} score={p.rating} />)}
+          sub={[classLabel(p.className, lang), p.level ? `${t(lang, "level")} ${p.level}` : null, p.guild, `${w("record", lang)} ${p.wins}-${p.losses}`, p.ranked ? null : w("placement", lang)].filter(Boolean).join(" · ")} score={p.rating} />)}
       </Card>}
+    {/* World PvP and the per-duel stats have no public JSON yet: the website pages show them. */}
+    <WebLink url={`${origin}/leaderboards/duels/?lang=${lang}`} label={w("duelPage", lang)} />
+    <WebLink url={`${origin}/leaderboards/pvp/?lang=${lang}`} label={w("pvpPage", lang)} />
   </ScrollView>;
+}
+
+function WebLink({ url, label }: { url: string; label: string }) {
+  return <Pressable onPress={() => void Linking.openURL(url).catch(() => {})} accessibilityRole="link" accessibilityLabel={label} style={styles.link}>
+    <Text style={[styles.linkText, { flex: 1 }]}>{label}</Text><Glyph name="external" />
+  </Pressable>;
 }
 
 export function StatsTab({ origin, lang }: { origin: string; lang: Lang }) {

@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { ApiError, GuildedClient } from "../api";
 import { guildCacheKey } from "../cache";
-import type { Lang } from "../i18n";
+import { classLabel, type Lang } from "../i18n";
 import { clearSession, type Session } from "../storage";
 import { Card, ClassName, EmptyState, LastUpdated, RetryCard, colors } from "../ui";
 import { common } from "../ui/common";
@@ -70,7 +70,7 @@ export function MyCharacters({ lang, session }: { lang: Lang; session: Session }
           <ClassName name={character.name} className={character.className} style={{ fontSize: 16, flex: 1 }} />
           <Text style={common.pill}>{character.isMain ? w("main", lang) : w("alt", lang)}</Text>
         </View>
-        <Text style={common.muted}>{[character.className, character.level ? `${w("level", lang)} ${character.level}` : null, character.trusted ? w("confirmed", lang) : w("reported", lang)].filter(Boolean).join(" · ")}</Text>
+        <Text style={common.muted}>{[classLabel(character.className, lang), character.level ? `${w("level", lang)} ${character.level}` : null, character.trusted ? w("confirmed", lang) : w("reported", lang)].filter(Boolean).join(" · ")}</Text>
         <Text style={common.body}>{w("server", lang)}: {character.serverName || "-"}</Text>
         <Text style={common.body}>{w("inGame", lang)}: {character.inGuild && character.serverName ? `${character.serverName}${character.guildRank ? ` · ${w("rank", lang)} ${character.guildRank}` : ""}` : w("notSeen", lang)}</Text>
         <View style={styles.actions}>

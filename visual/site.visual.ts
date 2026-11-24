@@ -26,12 +26,13 @@ async function isolate(page: Page) {
 /** Freeze what changes without the design changing: version numbers and dates in the text become fixed tokens. */
 async function freezeDynamicText(page: Page) {
   await page.evaluate((months) => {
-    const version = /\b\d+\.\d+\.\d+(?:\.\d+)?\b/g;
+    const version = /(?<![\w.])v?\d+\.\d+\.\d+(?:\.\d+)?(?![\w.]*\w)/g; // 9.5.6, v9.5.6, 9.5.0.0
+    const checksum = /\b[0-9a-f]{64}\b/g; // the SHA-256 lines on the download page change every release
     const dates = new RegExp(String.raw`\b\d{1,2}(?:st|nd|rd|th|er)? (?:${months}) \d{4}\b|\b(?:${months}) \d{1,2},? \d{4}\b|\b\d{4}-\d{2}-\d{2}\b`, "gi");
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
       const text = node.nodeValue ?? "";
-      const frozen = text.replace(version, "0.0.0").replace(dates, "1 January 2026");
+      const frozen = text.replace(checksum, "0".repeat(64)).replace(version, "0.0.0").replace(dates, "1 January 2026");
       if (frozen !== text) node.nodeValue = frozen;
     }
   }, MONTHS);

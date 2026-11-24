@@ -1,3 +1,4 @@
+import type { Feed } from "./feed";
 // Fictional guild used by "Look at a sample guild". It is not a Discord account and it
 // never leaves the phone. The same parsers that read the live API read this payload.
 
@@ -40,6 +41,19 @@ export const sampleHubBody = {
     ]
   }
 };
+
+/** The sample guild's activity feed (made-up names, the last few days). */
+export function sampleFeed(now = Date.now()): Feed {
+  const at = (hours: number) => new Date(now - hours * 3_600_000).toISOString();
+  return { days: 14, items: [
+    { kind: "raidKill", at: at(2), actor: "Lucifron", boss: "Lucifron", instance: "Molten Core" },
+    { kind: "donation", at: at(5), actor: "Borin", copper: 250000 },
+    { kind: "promote", at: at(26), actor: "Mira", target: "Cindra", rank: "Raider" },
+    { kind: "join", at: at(30), actor: "Cindra" },
+    { kind: "donation", at: at(50), actor: "Aelira", item: "Runecloth", count: 20 },
+    { kind: "leave", at: at(72), actor: "Tobin" }
+  ] };
+}
 
 export const sampleManageBody = {
   me: { officer: false, raidLeader: false },

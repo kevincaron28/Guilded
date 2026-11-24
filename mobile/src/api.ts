@@ -608,6 +608,14 @@ export class GuildedClient {
     return body;
   }
 
+  /** The guild activity feed of one server (0.6.0). 404/405: this server does not offer it yet. */
+  async guildFeed(guildDiscordId: string): Promise<unknown> {
+    const { status, body } = await this.call(`/api/v1/me/guild-feed?guild=${encodeURIComponent(guildDiscordId)}`);
+    if (status === 404 || status === 405) throw new ApiError("This Guilded address does not publish the guild activity yet.", status);
+    if (status !== 200) throw new ApiError(messageOf(body, "The guild activity could not be loaded."), status);
+    return body;
+  }
+
   /** What I still need to be promoted, per server. */
   async mePromotion(): Promise<unknown> {
     const { status, body } = await this.call("/api/v1/me/promotion");

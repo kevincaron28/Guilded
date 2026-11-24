@@ -7,6 +7,7 @@ import { revokeCompanionCredential } from "./services/companion-revoke.js";
 import { credentialBySecret, renewCompanionCredential } from "./services/companion-renew.js";
 import { allowMobileReport, mobileReportText } from "./services/mobile-app-report.js";
 import { createErrorReportService } from "./services/error-report.js";
+import { guildFeedFor } from "./services/mobile-guild-feed.js";
 import { MobileCredentialUnknown, configureMobileDevice, mobileDeviceStatus, retireMobileDevice } from "./services/mobile-alerts.js";
 import { guildScopeOf, guildWhere, loadGuildScope, runInGuildScope, withGuildScope } from "./services/guild-scope.js";
 import { hostedPilot } from "./hosted-pilot.js";
@@ -948,7 +949,9 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // Phone app 0.5.1: the member's own answer on each upcoming raid, and sign up / maybe / can't come (services/mobile-raid-signup.ts).
       const isMeSignups = request.method === "GET" && url.pathname === "/api/v1/me/raid-signups";
       const isMeSignup = request.method === "POST" && url.pathname === "/api/v1/me/raid-signup";
-      const isMeApi = isMeCharacters || isMeMain || isMeUnlink || isMePromotion || isMeSignups || isMeSignup;
+      // Phone app 0.6.0: the guild activity feed of the member's own guild (services/mobile-guild-feed.ts).
+      const isMeGuildFeed = request.method === "GET" && url.pathname === "/api/v1/me/guild-feed";
+      const isMeApi = isMeCharacters || isMeMain || isMeUnlink || isMePromotion || isMeSignups || isMeSignup || isMeGuildFeed;
       // Guilded Collection (TCG stage 1): the phone's card collection, daily pack and crafting. Signed-in member only.
       const isCards = (request.method === "GET" && url.pathname === "/api/v1/companion/cards") || (request.method === "POST" && (url.pathname === "/api/v1/companion/cards/open" || url.pathname === "/api/v1/companion/cards/craft"));
       // Guilded Clash (TCG stage C): matches against the AI or a PvE boss. Signed-in member only; ids travel in the query or body.
@@ -1280,6 +1283,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         if (isMeCharacters) { privateJson(response, await meCharactersFor(prisma, discordUserId)); return; }
         if (isMePromotion) { privateJson(response, await mePromotionFor(prisma, discordUserId, (id) => hostedPilot.allows(id))); return; }
         if (isMeSignups) { privateJson(response, await mySignupsFor(prisma, discordUserId, url.searchParams.get("guild"), (id) => hostedPilot.allows(id))); return; }
+        if (isMeGuildFeed) { privateJson(response, await guildFeedFor(prisma, discordUserId, url.searchParams.get("guild"), (id) => hostedPilot.allows(id))); return; }
         if (isMeSignup) {
           if (!allowCompanionRevocation(`raid-signup:${discordUserId}`)) { json(response, 429, { error: "Too many changes. Wait a minute and try again." }); return; }
           const answer = await readBody(request).catch(() => null) as Record<string, unknown> | null;

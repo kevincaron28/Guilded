@@ -1,4 +1,5 @@
 import { serializeRaidPosts, syncRaidPosts } from "../services/raid-signup-posts.js";
+import { queueRaidSpotPush } from "../services/mobile-notices.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "../services/discord-jobs.js";
 import {
   ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, SlashCommandBuilder, StringSelectMenuBuilder,
@@ -245,7 +246,7 @@ export async function tellPromoted(
   for (const signup of promoted) {
     const raid = await prisma.raid.findUnique({
       where: { id: signup.raidId },
-      select: { title: true, scheduledAt: true, guild: { select: { settings: { select: { language: true } } } } }
+      select: { guildId: true, title: true, scheduledAt: true, isTest: true, guild: { select: { settings: { select: { language: true } } } } }
     });
     const lang = asLang(raid?.guild.settings?.language);
     await interaction.client.users.send(signup.member.discordUserId, t(lang, "dm.promoted", {
@@ -253,6 +254,9 @@ export async function tellPromoted(
       raid: raid?.title ?? "raid",
       when: raid ? `<t:${Math.floor(raid.scheduledAt.getTime() / 1000)}:F>` : ""
     })).catch(() => undefined);
+    // Phone app 0.6.0: the same news as a push on the member's phones that have push and "raid spots" on.
+    if (raid && !raid.isTest) await queueRaidSpotPush(prisma, { guildId: raid.guildId, discordUserId: signup.member.discordUserId, raidId: signup.raidId, role: signup.role, title: raid.title, scheduledAt: raid.scheduledAt })
+      .catch(() => undefined);
   }
 }
 

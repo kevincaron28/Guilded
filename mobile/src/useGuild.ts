@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState } from "react-native";
 import { guildCacheKey, clearGuildCaches, readCache, writeCache } from "./cache";
-import { ApiError, GuildedClient, parseHub, parseManage, parseStandings, type HubView, type ManageView, type StandingsView } from "./api";
+import { ApiError, GuildedClient, parseHub, parseManage, parseStandings, type HubView, type ManageView, type PushKinds, type StandingsView } from "./api";
 import { errorText } from "./errors";
 import { t, type Lang } from "./i18n";
 import { PushSetupError, pushToken, syncRaidReminders, type ReminderSync } from "./notify";
@@ -56,6 +56,7 @@ export function useGuild(defaultOrigin: string) {
   const [remindersOn, setRemindersState] = useState(false);
   const [reminderSync, setReminderSync] = useState<ReminderSync | null>(null);
   const [remoteOn, setRemoteOn] = useState(false);
+  const [pushKinds, setPushKinds] = useState<PushKinds>({ helpCalls: true, raidSpots: true });
   const [pushBusy, setPushBusy] = useState(false);
   const [pushNotice, setPushNotice] = useState<string | null>(null);
   const [pushNeedsSettings, setPushNeedsSettings] = useState(false);
@@ -118,7 +119,7 @@ export function useGuild(defaultOrigin: string) {
       setLoading(false);
       return;
     }
-    void client.deviceStatus(current.guildDiscordId).then(setRemoteOn).catch(() => {});
+    void client.deviceState(current.guildDiscordId).then((state) => { setRemoteOn(state.enabled); setPushKinds({ helpCalls: state.helpCalls, raidSpots: state.raidSpots }); }).catch(() => {});
     // A server without the route (older bot) leaves the buttons off; a failed read keeps the answers already shown.
     void client.mySignups(current.guildDiscordId).then((body) => setAnswers(parseSignups(body))).catch(() => {});
     const now = Date.now();
@@ -202,6 +203,20 @@ export function useGuild(defaultOrigin: string) {
     }
     finally { setPushBusy(false); }
   };
+  /** Turns one of the two optional pushes on or off (push itself stays on). */
+  const setPushKind = async (kind: keyof PushKinds, on: boolean) => {
+    if (!session || session.personal || preview || pushBusy || !remoteOn) return;
+    setPushBusy(true); setPushNotice(null);
+    try {
+      const token = await pushToken();
+      await new GuildedClient(session.apiOrigin, session.companionCredential).device(session.guildDiscordId, true, lang, token, { [kind]: on });
+      if (sessionRef.current?.companionCredential !== session.companionCredential) return;
+      setPushKinds((current) => ({ ...current, [kind]: on }));
+    } catch (error) {
+      setPushNotice(error instanceof PushSetupError ? error.message : errorText(error, lang, t(lang, "alertsDenied")));
+    }
+    finally { setPushBusy(false); }
+  };
   const refresh = async () => { if (!preview && session && !session.personal) await load(session); };
 
   const leave = async () => {
@@ -250,7 +265,7 @@ export function useGuild(defaultOrigin: string) {
     lang, setLang, ready, session, setSession, preview, startPreview, leave, deleteMyData, refresh,
     originDraft, setOriginDraft, snapshot, setSnapshot, loading,
     remindersOn, setRemindersOn, planned, imminent, reminderSync, answers, answerRaid,
-    remoteOn, pushBusy, pushNotice, pushNeedsSettings, togglePush,
+    remoteOn, pushBusy, pushNotice, pushNeedsSettings, togglePush, pushKinds, setPushKind,
     hasGuild, signedIn, guildName
   };
 }

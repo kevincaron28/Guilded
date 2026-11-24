@@ -441,6 +441,9 @@ export function discordEventLink(note: string): string | null {
   return match ? match[0] : null;
 }
 
+/** The two non-raid pushes a phone can turn off (phone app 0.6.0): a guildmate's call for help, a raid spot opening up. */
+export interface PushKinds { helpCalls: boolean; raidSpots: boolean }
+
 export class GuildedClient {
   constructor(readonly origin: string, private readonly credential: string | null = null) {}
 
@@ -529,10 +532,18 @@ export class GuildedClient {
     if (status !== 200) throw new ApiError("The session could not be renewed. Please try again.", status);
   }
 
-  async device(guildDiscordId: string, enabled: boolean, locale: "en" | "fr", expoPushToken?: string): Promise<void> {
-    const { status, body } = await this.call("/api/v1/mobile/device", { method: "POST", body: { guildDiscordId, enabled, locale, ...(expoPushToken ? { expoPushToken } : {}) } });
+  async device(guildDiscordId: string, enabled: boolean, locale: "en" | "fr", expoPushToken?: string, kinds?: Partial<PushKinds>): Promise<void> {
+    const { status, body } = await this.call("/api/v1/mobile/device", { method: "POST", body: { guildDiscordId, enabled, locale, ...(expoPushToken ? { expoPushToken } : {}), ...(kinds ?? {}) } });
     if (status === 404 || status === 405) throw new ApiError("Push alerts are not available on this server yet. Device reminders still work.", status);
     if (status !== 200) throw new ApiError(messageOf(body, "Raid alerts could not be updated."), status);
+  }
+
+  /** Push on or off plus the two optional kinds (0.6.0). An older bot sends only `enabled`: the kinds read as on. */
+  async deviceState(guildDiscordId: string): Promise<{ enabled: boolean } & PushKinds> {
+    const { status, body } = await this.call(`/api/v1/mobile/device?guild=${encodeURIComponent(guildDiscordId)}`);
+    if (status !== 200) throw new ApiError(messageOf(body, "Raid alerts could not be checked."), status);
+    const row = record(body);
+    return { enabled: row?.enabled === true, helpCalls: row?.helpCalls !== false, raidSpots: row?.raidSpots !== false };
   }
 
   async deviceStatus(guildDiscordId: string): Promise<boolean> {

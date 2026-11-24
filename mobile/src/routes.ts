@@ -1,8 +1,8 @@
 import { APP_LINK_ORIGINS } from "./links";
 
-export type GuildSection = "characters" | "reserves" | "wishlist" | "raids" | "alerts";
+export type GuildSection = "characters" | "reserves" | "wishlist" | "raids" | "alerts" | "map";
 export interface MobileRoute { section: GuildSection; guildDiscordId?: string; raidId?: string }
-const sections: GuildSection[] = ["characters", "reserves", "wishlist", "raids", "alerts"];
+const sections: GuildSection[] = ["characters", "reserves", "wishlist", "raids", "alerts", "map"];
 
 /** App links carry destinations, never credentials or untrusted external URLs. */
 export function mobileRoute(url: string): MobileRoute | null {
@@ -22,7 +22,10 @@ export function mobileRoute(url: string): MobileRoute | null {
 export function notificationRoute(data: unknown): MobileRoute | null {
   if (!data || typeof data !== "object") return null;
   const row = data as Record<string, unknown>;
-  if (row.type !== "raid" || typeof row.guildDiscordId !== "string" || !/^\d{5,30}$/.test(row.guildDiscordId)) return null;
+  if (typeof row.guildDiscordId !== "string" || !/^\d{5,30}$/.test(row.guildDiscordId)) return null;
+  // A guildmate's call for help (0.6.0) opens the guild map, where the call is listed.
+  if (row.type === "help") return { section: "map", guildDiscordId: row.guildDiscordId };
+  if (row.type !== "raid") return null;
   return { section: "raids", guildDiscordId: row.guildDiscordId, ...(typeof row.raidId === "string" && row.raidId.length <= 200 ? { raidId: row.raidId } : {}) };
 }
 
@@ -34,6 +37,7 @@ export function routeTarget(route: MobileRoute): { tab: TabName; part?: GuildPar
     case "alerts": return { tab: "alerts" };
     case "wishlist": return { tab: "me" };
     case "raids": return { tab: "guild", part: "raids" };
+    case "map": return { tab: "guild", part: "map" };
     default: return { tab: "guild", part: "roster" };
   }
 }

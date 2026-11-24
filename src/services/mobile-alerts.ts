@@ -7,14 +7,21 @@ import { hashCompanionSecret } from "./character-pairing.js";
 import { credentialBySecret } from "./companion-renew.js";
 import { loadGuildScope } from "./guild-scope.js";
 import { config } from "../config.js";
+import { cleanCharacterName } from "./character-display.js";
 import { mergeCalendarEvents } from "./discord-calendar.js";
 
-const enrollment = z.object({ enabled: z.boolean(), expoPushToken: z.string().regex(/^(?:ExponentPushToken|ExpoPushToken)\[[A-Za-z0-9_-]{10,200}\]$/).optional(), locale: z.enum(["en", "fr"]).default("en") })
+const enrollment = z.object({ enabled: z.boolean(), expoPushToken: z.string().regex(/^(?:ExponentPushToken|ExpoPushToken)\[[A-Za-z0-9_-]{10,200}\]$/).optional(), locale: z.enum(["en", "fr"]).default("en"),
+  // Phone app 0.6.0 (optional, additive): the two non-raid pushes. Left out, the stored choice stays (on by default).
+  helpCalls: z.boolean().optional(), raidSpots: z.boolean().optional() })
   .refine(input => !input.enabled || !!input.expoPushToken, { message: "A push token is required to enable mobile alerts." });
 type RaidState = { title: string; at: string; revision: string };
 type Snapshot = Record<string, RaidState>;
 // `lead` is set only on the early reminders (24 h and 2 h before); the one-hour reminder keeps its original shape and delivery key.
 type Alert = { raidId: string; kind: "reminder" | "changed" | "cancelled"; state: RaidState; lead?: number };
+/** A guildmate's call for help (help) or a raid seat that opened up for this member (spot): queued by mobile-notices.ts. */
+export type NoticeAlert =
+  | { kind: "help"; helpCallId: string; character: string; zone: string; at: string }
+  | { kind: "spot"; raidId: string; role: string; state: { title: string; at: string } };
 const EARLY_REMINDERS_MS = [86_400_000, 7_200_000];
 // A tick runs every minute: an early reminder is due in the quarter hour before its moment, so enrolling late never sends a stale 24 h notice.
 const EARLY_WINDOW_MS = 900_000;
@@ -37,6 +44,13 @@ export function mobileRaidChanges(previous: Snapshot, current: Snapshot, now: Da
 /** The phone's sign-in was not found (revoked, replaced more than a day ago, or never issued). Answered as 401. */
 export class MobileCredentialUnknown extends Error {
   constructor() { super("This device connection is no longer valid. Sign in again."); }
+}
+/** Push state of the device that holds this secret: on or off, and the two optional kinds (on by default). */
+export async function mobileDeviceStatus(database: PrismaClient, secret: string, now = new Date()): Promise<{ enabled: boolean; helpCalls: boolean; raidSpots: boolean }> {
+  const credential = await database.companionCredential.findFirst({ where: { ...credentialBySecret(secret, now), revokedAt: null }, select: { id: true } });
+  if (!credential) throw new MobileCredentialUnknown();
+  const device = await database.mobileDevice.findUnique({ where: { credentialId: credential.id }, select: { enabled: true, helpCalls: true, raidSpots: true } });
+  return { enabled: device?.enabled ?? false, helpCalls: device?.helpCalls ?? true, raidSpots: device?.raidSpots ?? true };
 }
 /** Whether push alerts are on for the device that holds this secret. */
 export async function mobileDeviceEnabled(database: PrismaClient, secret: string, now = new Date()): Promise<boolean> {
@@ -64,7 +78,8 @@ export async function configureMobileDevice(database: PrismaClient, secret: stri
     const previous = await tx.mobileDevice.findUnique({ where: { credentialId: credential.id } });
     const initial = input.enabled && (!previous?.enabled || previous.expoPushToken !== input.expoPushToken);
     const snapshot = initial ? raidSnapshot(await tx.raid.findMany({ where: { guildId: credential.member.guildId, status: "PLANNED", isTest: false, scheduledAt: { gt: new Date() } } })) : undefined;
-    const data = { enabled: input.enabled, expoPushToken: input.enabled ? input.expoPushToken! : null, locale: input.locale, ...(!input.enabled ? { snapshot: {} } : snapshot ? { snapshot } : {}) };
+    const data = { enabled: input.enabled, expoPushToken: input.enabled ? input.expoPushToken! : null, locale: input.locale,
+      ...(input.helpCalls !== undefined ? { helpCalls: input.helpCalls } : {}), ...(input.raidSpots !== undefined ? { raidSpots: input.raidSpots } : {}), ...(!input.enabled ? { snapshot: {} } : snapshot ? { snapshot } : {}) };
     const device = await tx.mobileDevice.upsert({ where: { credentialId: credential.id }, create: { credentialId: credential.id, ...data }, update: data });
     if (!input.enabled || initial) {
       await tx.mobileDelivery.updateMany({ where: { deviceId: device.id, status: { in: ["PENDING", "ACCEPTED"] } }, data: { status: "DROPPED", payload: {}, tokenHash: null, receiptId: null, receiptCheckAt: null } });
@@ -146,7 +161,14 @@ export async function runMobileAlerts(database: PrismaClient, client: Client, no
     if (!claim.count) continue;
     try {
       const device = await database.mobileDevice.findUnique({ where: { id: delivery.deviceId }, include: { credential: { include: { member: { include: { guild: true } } } } } });
-      const alert = delivery.payload as unknown as Alert;
+      const notice = delivery.payload as unknown as NoticeAlert | Alert;
+      if (notice.kind === "help" || notice.kind === "spot") {
+        if (!device) { await drop(database, delivery.id); continue; }
+        const outcome = await deliverNotice(database, client, device, delivery, notice, now, send);
+        if (outcome === "drop") await drop(database, delivery.id);
+        continue;
+      }
+      const alert = notice;
       if (!device?.enabled || !device.expoPushToken || device.generation !== delivery.generation || device.credential.revokedAt || device.credential.member.status !== "ACTIVE") { await drop(database, delivery.id); continue; }
       const owner = device.credential.member;
       const member = await liveMember(database, client, owner.guildId, owner.guild.discordId, owner.discordUserId);
@@ -175,6 +197,51 @@ export async function runMobileAlerts(database: PrismaClient, client: Client, no
     } finally { await database.mobileDelivery.update({ where: { id: delivery.id }, data: { lockedUntil: null } }); }
   }
 }
+type DeliveryRow = { id: string; generation: number };
+type DeviceRow = { id: string; enabled: boolean; expoPushToken: string | null; generation: number; locale: string; helpCalls: boolean; raidSpots: boolean;
+  credential: { revokedAt: Date | null; member: { guildId: string; discordUserId: string; status: string; guild: { discordId: string } } } };
+/** A call for help older than this is not pushed any more (companion uploads can arrive a few minutes late). */
+export const HELP_PUSH_FRESH_MS = 20 * 60_000;
+/** The push text of a help call or an opened raid spot, in the phone's language. */
+export function noticeText(notice: NoticeAlert, fr: boolean): { title: string; body: string } {
+  if (notice.kind === "help") return {
+    title: fr ? "Appel à l'aide" : "Call for help",
+    body: fr ? `${cleanCharacterName(notice.character)} demande de l'aide à ${notice.zone}.` : `${cleanCharacterName(notice.character)} needs help in ${notice.zone}.`
+  };
+  return {
+    title: notice.state.title,
+    body: fr ? "Une place s'est libérée : tu es dans le raid." : "A spot opened up: you are in the raid."
+  };
+}
+/** Sends one help or spot notice. "drop" when it no longer applies (switched off, call cleared or stale, raid gone); a failed send throws for a retry. */
+async function deliverNotice(database: PrismaClient, client: Client, device: DeviceRow, delivery: DeliveryRow, notice: NoticeAlert, now: Date, send: typeof fetch): Promise<"sent" | "drop"> {
+  if (!device.enabled || !device.expoPushToken || device.generation !== delivery.generation || device.credential.revokedAt || device.credential.member.status !== "ACTIVE") return "drop";
+  if (notice.kind === "help" ? !device.helpCalls : !device.raidSpots) return "drop";
+  const owner = device.credential.member;
+  const member = await liveMember(database, client, owner.guildId, owner.guild.discordId, owner.discordUserId);
+  if (!member) return "drop";
+  if (notice.kind === "help") {
+    const call = await database.guildHelpCall.findFirst({ where: { id: notice.helpCallId, guildId: owner.guildId }, select: { clearedAt: true, calledAt: true } });
+    if (!call || call.clearedAt || now.getTime() - call.calledAt.getTime() > HELP_PUSH_FRESH_MS) return "drop";
+  } else {
+    const raid = await database.raid.findFirst({ where: { id: notice.raidId, guildId: owner.guildId, isTest: false }, select: { status: true, scheduledAt: true, signupChannelId: true } });
+    if (!raid || raid.status !== "PLANNED" || raid.scheduledAt <= now || !await canSeeRaid(member, raid.signupChannelId)) return "drop";
+  }
+  const fr = device.locale === "fr";
+  const text = noticeText(notice, fr);
+  const data = notice.kind === "help"
+    ? { type: "help", guildDiscordId: owner.guild.discordId }
+    : { type: "raid", guildDiscordId: owner.guild.discordId, raidId: notice.raidId, kind: "spot" };
+  const ttl = notice.kind === "help" ? 900 : Math.max(1, Math.floor((Date.parse(notice.state.at) - now.getTime()) / 1000));
+  const response = await send("https://exp.host/--/api/v2/push/send", { method: "POST", headers: expoHeaders(), signal: AbortSignal.timeout(10_000), body: JSON.stringify({ to: device.expoPushToken, ...text, data, sound: "default", channelId: "raids", ttl }) });
+  if (!response.ok) throw new Error("push unavailable");
+  const result = await response.json() as { data?: { status?: string; id?: string; details?: { error?: string } } };
+  if (result.data?.details?.error === "DeviceNotRegistered") { await retireToken(database, device.id, device.generation, hashCompanionSecret(device.expoPushToken)); return "drop"; }
+  if (result.data?.status !== "ok" || !result.data.id) throw new Error("push rejected");
+  await database.mobileDelivery.updateMany({ where: { id: delivery.id, status: "PENDING", generation: delivery.generation }, data: { status: "ACCEPTED", expiresAt: new Date(now.getTime() + 86_400_000), receiptId: result.data.id, receiptCheckAt: new Date(now.getTime() + 15 * 60_000), tokenHash: hashCompanionSecret(device.expoPushToken) } });
+  return "sent";
+}
+
 // One line at most every ten minutes, with a count. Only the error's class and code are logged: Prisma and Discord
 // messages can echo arguments, and push tokens and member ids must never reach the logs.
 const DEVICE_FAILURE_LOG_MS = 600_000;

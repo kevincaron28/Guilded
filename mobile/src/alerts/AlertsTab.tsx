@@ -4,10 +4,12 @@ import type { GuildState } from "../useGuild";
 import { Card, Screen, SignInCard, colors } from "../ui";
 import { common } from "../ui/common";
 import { Alerts } from "./AlertsList";
+import type { PushKinds } from "../api";
 
-// Alerts tab: on-device raid reminders today. Help-call, dungeon and raid-vacancy alerts are listed as switched-off
-// rows until the server sends them (raid push is live with PR #345; server hook: onHelpCallStored in src/services/guild-map.ts).
-const PUSH_ROWS: CopyKey[] = ["pushHelp", "pushDungeon", "pushRaid"];
+// Alerts tab: on-device raid reminders, then push from the guild server (src/services/mobile-alerts.ts, mobile-notices.ts).
+// 0.6.0: help calls and raid spots are sent (each with its own switch); the dungeon-group alert is still to come.
+const PUSH_KINDS: { key: keyof PushKinds; label: CopyKey }[] = [{ key: "helpCalls", label: "pushHelp" }, { key: "raidSpots", label: "pushRaid" }];
+const PUSH_ROWS: CopyKey[] = ["pushDungeon"];
 
 export function AlertsTab({ guild, onSignIn }: { guild: GuildState; onSignIn: () => void }) {
   const { lang } = guild;
@@ -29,6 +31,12 @@ export function AlertsTab({ guild, onSignIn }: { guild: GuildState; onSignIn: ()
         <Switch value={guild.remoteOn} disabled={guild.preview || guild.pushBusy || !guild.session || guild.session.personal} onValueChange={() => void guild.togglePush()}
           trackColor={{ true: colors.green, false: colors.line }} accessibilityLabel={t(lang, "pushRemote")} />
       </View>
+      {PUSH_KINDS.map((kind) => <View key={kind.key} style={common.row}>
+        <Text style={[common.body, { flex: 1 }, !guild.remoteOn && { color: colors.muted }]}>{t(lang, kind.label)}</Text>
+        <Switch value={guild.remoteOn && guild.pushKinds[kind.key]} disabled={!guild.remoteOn || guild.pushBusy || guild.preview} onValueChange={(on) => void guild.setPushKind(kind.key, on)}
+          trackColor={{ true: colors.green, false: colors.line }} accessibilityLabel={t(lang, kind.label)} />
+      </View>)}
+      {!guild.remoteOn ? <Text style={common.muted}>{t(lang, "pushKindsNote")}</Text> : null}
       {guild.pushNotice ? <Text accessibilityRole="alert" style={common.muted}>{guild.pushNotice}</Text> : null}
       {guild.pushNeedsSettings ? <Pressable onPress={() => void Linking.openSettings().catch(() => {})} accessibilityRole="button" accessibilityLabel={t(lang, "openSettings")} style={common.secondary}>
         <Text style={common.secondaryText}>{t(lang, "openSettings")}</Text>

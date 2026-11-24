@@ -9,6 +9,9 @@ export interface ReminderSync {
   error?: string;
 }
 
+// One Android channel ("raids", kept for older builds) carries raid alerts, raid spots and guildmates' calls for help (0.6.0).
+const CHANNEL_NAME = "Raids & guild calls";
+
 let revision = 0;
 let queue: Promise<unknown> = Promise.resolve();
 
@@ -21,7 +24,7 @@ export function syncRaidReminders(enabled: boolean, reminders: PlannedReminder[]
       const Notifications = await import("expo-notifications");
       Notifications.setNotificationHandler({ handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: false, shouldSetBadge: false }) });
       if (request !== revision) return { supported: true, granted: false, scheduled: 0 };
-      if (Platform.OS === "android") await Notifications.setNotificationChannelAsync("raids", { name: "Raids", importance: Notifications.AndroidImportance.DEFAULT });
+      if (Platform.OS === "android") await Notifications.setNotificationChannelAsync("raids", { name: CHANNEL_NAME, importance: Notifications.AndroidImportance.DEFAULT });
       // Keep the previous calendar if permission lookup fails. Cancellation happens only once
       // the replacement is valid, or when the owner explicitly disables reminders.
       let granted = !enabled;
@@ -69,7 +72,7 @@ export async function pushToken(): Promise<string> {
   const projectId = Constants.easConfig?.projectId ?? Constants.expoConfig?.extra?.eas?.projectId;
   if (typeof projectId !== "string" || !projectId) throw new PushSetupError("Push alerts will be available when this app is linked to its Expo project. Device reminders work now.");
   const Notifications = await import("expo-notifications");
-  if (Platform.OS === "android") await Notifications.setNotificationChannelAsync("raids", { name: "Raids", importance: Notifications.AndroidImportance.DEFAULT });
+  if (Platform.OS === "android") await Notifications.setNotificationChannelAsync("raids", { name: CHANNEL_NAME, importance: Notifications.AndroidImportance.DEFAULT });
   let permission = await Notifications.getPermissionsAsync();
   if (!permission.granted && permission.canAskAgain !== false) permission = await Notifications.requestPermissionsAsync();
   if (!permission.granted) throw new PushSetupError("Notifications are off for Guilded in phone settings. Open settings and allow them, then switch alerts on again.", permission.canAskAgain === false);

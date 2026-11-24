@@ -2,7 +2,7 @@
 
 ## 9.5.6 — 23 November 2026
 
-Prepared 23 November 2026. In-game checks: docs/V9_5_6_RELEASE_ACCEPTANCE.md.
+Published 23 November 2026 (GitHub v9.5.6, website download and installer, bot). In-game checks: docs/V9_5_6_RELEASE_ACCEPTANCE.md.
 
 Addon (#1287):
 - Old runs the bot already has no longer come back as waiting for the companion. Since 9.5.3 the 300-run cap dropped old confirmed runs, a guildmate's catch-up sent them back, and they showed as waiting on every reload. Dropped runs now leave a tombstone for 45 days and re-forwards of them are ignored; a run in the companion's confirmed list never counts as waiting.

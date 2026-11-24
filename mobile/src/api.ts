@@ -608,6 +608,20 @@ export class GuildedClient {
     return body;
   }
 
+  /** Who in my guild can make items matching `query`, and my open requests (0.6.0). */
+  async crafting(guildDiscordId: string, query: string): Promise<unknown> {
+    const { status, body } = await this.call(`/api/v1/me/crafting?guild=${encodeURIComponent(guildDiscordId)}&q=${encodeURIComponent(query)}`);
+    if (status === 404 || status === 405) throw new ApiError("This Guilded address does not offer crafting from the phone yet.", status);
+    if (status !== 200) throw new ApiError(messageOf(body, "Crafting could not be loaded."), status);
+    return body;
+  }
+
+  /** A craft request for a recipe somebody in the guild knows; the server posts it on the craft board. */
+  async requestCraft(guildDiscordId: string, itemKey: number, quantity: number, note?: string, character?: string): Promise<void> {
+    const { status, body } = await this.call("/api/v1/me/craft-request", { method: "POST", body: { guildDiscordId, itemKey, quantity, ...(note ? { note } : {}), ...(character ? { character } : {}) } });
+    if (status !== 200) throw new ApiError(messageOf(body, "That request was not sent."), status);
+  }
+
   /** The guild activity feed of one server (0.6.0). 404/405: this server does not offer it yet. */
   async guildFeed(guildDiscordId: string): Promise<unknown> {
     const { status, body } = await this.call(`/api/v1/me/guild-feed?guild=${encodeURIComponent(guildDiscordId)}`);

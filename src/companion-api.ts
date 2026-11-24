@@ -8,6 +8,7 @@ import { credentialBySecret, renewCompanionCredential } from "./services/compani
 import { allowMobileReport, mobileReportText } from "./services/mobile-app-report.js";
 import { createErrorReportService } from "./services/error-report.js";
 import { guildFeedFor } from "./services/mobile-guild-feed.js";
+import { craftingFor, requestCraftFor } from "./services/mobile-crafting.js";
 import { MobileCredentialUnknown, configureMobileDevice, mobileDeviceStatus, retireMobileDevice } from "./services/mobile-alerts.js";
 import { guildScopeOf, guildWhere, loadGuildScope, runInGuildScope, withGuildScope } from "./services/guild-scope.js";
 import { hostedPilot } from "./hosted-pilot.js";
@@ -951,7 +952,10 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const isMeSignup = request.method === "POST" && url.pathname === "/api/v1/me/raid-signup";
       // Phone app 0.6.0: the guild activity feed of the member's own guild (services/mobile-guild-feed.ts).
       const isMeGuildFeed = request.method === "GET" && url.pathname === "/api/v1/me/guild-feed";
-      const isMeApi = isMeCharacters || isMeMain || isMeUnlink || isMePromotion || isMeSignups || isMeSignup || isMeGuildFeed;
+      // Phone app 0.6.0: crafting from the phone (services/mobile-crafting.ts).
+      const isMeCrafting = request.method === "GET" && url.pathname === "/api/v1/me/crafting";
+      const isMeCraftRequest = request.method === "POST" && url.pathname === "/api/v1/me/craft-request";
+      const isMeApi = isMeCharacters || isMeMain || isMeUnlink || isMePromotion || isMeSignups || isMeSignup || isMeGuildFeed || isMeCrafting || isMeCraftRequest;
       // Guilded Collection (TCG stage 1): the phone's card collection, daily pack and crafting. Signed-in member only.
       const isCards = (request.method === "GET" && url.pathname === "/api/v1/companion/cards") || (request.method === "POST" && (url.pathname === "/api/v1/companion/cards/open" || url.pathname === "/api/v1/companion/cards/craft"));
       // Guilded Clash (TCG stage C): matches against the AI or a PvE boss. Signed-in member only; ids travel in the query or body.
@@ -1283,6 +1287,35 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         if (isMeCharacters) { privateJson(response, await meCharactersFor(prisma, discordUserId)); return; }
         if (isMePromotion) { privateJson(response, await mePromotionFor(prisma, discordUserId, (id) => hostedPilot.allows(id))); return; }
         if (isMeSignups) { privateJson(response, await mySignupsFor(prisma, discordUserId, url.searchParams.get("guild"), (id) => hostedPilot.allows(id))); return; }
+        if (isMeCrafting) { privateJson(response, await craftingFor(prisma, discordUserId, url.searchParams.get("guild"), url.searchParams.get("q"), (id) => hostedPilot.allows(id))); return; }
+        if (isMeCraftRequest) {
+          if (!allowCompanionRevocation(`craft-request:${discordUserId}`)) { json(response, 429, { error: "Too many requests. Wait a minute and try again." }); return; }
+          const body = await readBody(request).catch(() => null) as Record<string, unknown> | null;
+          if (!body || typeof body !== "object") { json(response, 400, { error: "A JSON body is required." }); return; }
+          const outcome = await requestCraftFor(prisma, discordUserId, body, (id) => hostedPilot.allows(id));
+          if (outcome.status !== "ok") {
+            if (outcome.status === "refused") json(response, 409, { error: outcome.message });
+            else if (outcome.status === "gone") json(response, 404, { error: "Nobody in the guild knows that recipe any more." });
+            else json(response, 400, { error: "That craft request is not valid." });
+            return;
+          }
+          markGuildChanged(outcome.guildId);
+          privateJson(response, { ok: true, id: outcome.id });
+          // Posted like a Discord or in-game request (forum post or the craft orders line, the asked crafter pinged). Never fails the answer;
+          // a request that did not reach Discord stays in the guild's open list and every addon's Orders page.
+          if (client && !postingCraftRequests.has(outcome.id)) {
+            postingCraftRequests.add(outcome.id);
+            void (async () => {
+              try {
+                if (!await craftRequestNeedsPost(outcome.id)) return;
+                const discordGuild = await client.guilds.fetch(outcome.guildDiscordId).catch(() => null);
+                await withGuildScope(prisma, outcome.guildId, () => postCraftRequest(discordGuild, outcome.id, outcome.asked));
+              } catch (error) { console.warn("Phone app: craft request post failed:", error instanceof Error ? error.message : String(error)); }
+              finally { postingCraftRequests.delete(outcome.id); }
+            })();
+          }
+          return;
+        }
         if (isMeGuildFeed) { privateJson(response, await guildFeedFor(prisma, discordUserId, url.searchParams.get("guild"), (id) => hostedPilot.allows(id))); return; }
         if (isMeSignup) {
           if (!allowCompanionRevocation(`raid-signup:${discordUserId}`)) { json(response, 429, { error: "Too many changes. Wait a minute and try again." }); return; }

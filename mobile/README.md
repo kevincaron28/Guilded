@@ -37,6 +37,10 @@ bot, addon and Windows companion version). Store identifiers are
 - **Guild activity** (Guild tab, Activity part): the last 14 days of joins, departures, removals, promotions and demotions (the in-game
   guild log the addon reads), guild bank gifts and raid boss kills, newest first and grouped by day. `GET /api/v1/me/guild-feed?guild=<id>`
   (`src/services/mobile-guild-feed.ts`, active members of that server only, allow-listed in `worker/index.mjs`). Offline copy, erased on sign-out.
+- **Crafting from the phone** (Guild tab, Crafting part): search an item (2+ letters) to see who in the guild can make it (the recipes their
+  addons scanned), pick a quantity and optionally the crafter, add a note, **Ask for it**; my open requests below. `GET /api/v1/me/crafting?guild=&q=`
+  and `POST /api/v1/me/craft-request` (`src/services/mobile-crafting.ts`): the same request as `/craft request` (craft.ts limits), only for a recipe
+  somebody knows, then posted like the others (`postCraftRequest`). Both allow-listed in the Worker.
 
 **0.5.2** (24 November 2026, tester update; JavaScript-only, nothing built or submitted): polish found walking the app at 390 x 800.
 

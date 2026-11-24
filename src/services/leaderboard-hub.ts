@@ -112,8 +112,10 @@ export const emptyBox = (title: string, lines: string[], art?: EmptyArt): string
 export const emptyPage = (title: string, lines: string[], art: EmptyArt): string =>
   `<style>.hub-empty{border:1px dashed var(--line);border-radius:12px;padding:16px;background:rgba(255,255,255,.02);max-width:560px}${EMPTY_ART_CSS}</style>${emptyBox(title, lines, art)}`;
 
+/** The section header's own style, for a page that does not carry the hub styles (the raid progress page). */
+export const SECTION_ART_CSS = ".sec-art{display:block;width:100%;height:auto;aspect-ratio:1600/360;object-fit:cover;border-radius:12px;border:1px solid var(--line);margin:0 0 14px}";
 /** Painted section header (1600 x 360, WebP at 1600 and 800 wide) at the very top of a leaderboard page, so it loads eagerly; decorative, so the alt text is empty. */
-export const sectionArt = (kind: "dungeons" | "players" | "duels" | "guilds" | "pvp"): string =>
+export const sectionArt = (kind: "dungeons" | "players" | "duels" | "guilds" | "pvp" | "raids"): string =>
   `<img class="sec-art" src="/images/web/header-${kind}-1600.webp" srcset="/images/web/header-${kind}-800.webp 800w, /images/web/header-${kind}-1600.webp 1600w" sizes="(max-width:900px) 100vw, 900px" alt="" width="1600" height="360" loading="eager" fetchpriority="high">`;
 
 /** The body of a bot-served "not found" page (never empty): the painted 404 picture, one sentence and a way home. EN/FR through `t`. */

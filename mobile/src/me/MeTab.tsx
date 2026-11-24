@@ -8,7 +8,9 @@ import { common } from "../ui/common";
 
 import { Language } from "../guild/SignIn";
 import { AlbumScreen } from "./AlbumScreen";
+import { CharacterPage } from "./CharacterPage";
 import { MyCharacters } from "./MyCharacters";
+import type { MeCharacter } from "./meData";
 import { PromotionCard } from "./PromotionCard";
 import { Wishlist } from "./Wishlist";
 import { DELETE_INFO_URL, PRIVACY_URL } from "../links";
@@ -25,6 +27,8 @@ const clashParts: typeof clashEntry | null = process.env.EXPO_PUBLIC_GUILDED_CLA
 export function MeTab({ guild, onSignIn }: { guild: GuildState; onSignIn: () => void }) {
   const { lang, session, preview, snapshot } = guild;
   const [clash, setClash] = useState(false);
+  // 0.6.0: one of my characters' page (ranks, runs, duels) shown in place of the Me list; Android Back and its link return.
+  const [page, setPage] = useState<MeCharacter | null>(null);
   const hub = snapshot?.hub ?? null;
   // Guilded Clash opens in place of the Me list (the bottom tabs stay). Sample guild and signed out: the local sample game.
   if (clash && clashParts) return <Screen><clashParts.ClashHome lang={lang} session={preview ? null : session} defaultClass={hub?.characters.find((c) => c.isMain)?.className ?? null} onBack={() => setClash(false)} /></Screen>;
@@ -33,12 +37,13 @@ export function MeTab({ guild, onSignIn }: { guild: GuildState; onSignIn: () => 
     {clashParts ? <clashParts.ClashTeaser lang={lang} onOpen={() => setClash(true)} /> : null}
     <Settings guild={guild} />
   </Screen>;
+  if (page && session && !preview) return <Screen><CharacterPage lang={lang} origin={session.apiOrigin} name={page.name} className={page.className} level={page.level} onBack={() => setPage(null)} /></Screen>;
   const characters = hub?.characters ?? [];
   return <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
     <Screen onRefresh={guild.refresh}>
       {preview ? <Text style={common.banner}>{t(lang, "sampleBanner")}</Text> : null}
       {session && !preview ? <>
-        <MyCharacters lang={lang} session={session} />
+        <MyCharacters lang={lang} session={session} onOpen={setPage} />
         <PromotionCard lang={lang} session={session} />
       </> : guild.hasGuild ? <>
         <Text style={common.label}>{t(lang, "profile").toUpperCase()}</Text>

@@ -73,6 +73,19 @@ members exchange is game data (characters, ranks, wishlist item names, in-game l
 Content rating: submitted on 15 November 2026 with the answers in [play-content-rating.md](play-content-rating.md).
 Result: Everyone / PEGI 3 / Google Play 3+, with no interactive element.
 
+## Release notes (0.6.0)
+
+Release name: `0.6.0 (closed test)`.
+
+```
+<en-CA>
+New: guild activity (who joined, rank changes, bank gifts, raid kills), crafting from the phone (see who can make an item and ask for it), a page for each of your characters (dungeon ranks, recent runs, duel record), and push alerts when a guildmate calls for help or a raid spot opens up for you. Thanks for testing; tell us what breaks.
+</en-CA>
+<fr-CA>
+Nouveau : l'activité de la guilde (arrivées, rangs, dons à la banque, victoires en raid), l'artisanat depuis le téléphone (qui peut fabriquer un objet, et le demander), une page pour chacun de tes personnages (rangs en donjon, donjons récents, duels) et des alertes push quand un membre appelle à l'aide ou qu'une place de raid se libère pour toi. Merci de tester, dis-nous ce qui cloche.
+</fr-CA>
+```
+
 ## Release notes (0.5.2)
 
 Release name: `0.5.2 (closed test)`. Paste into the closed-test release of the 0.5.2 bundle (each under 500 characters).

@@ -41,6 +41,9 @@ bot, addon and Windows companion version). Store identifiers are
   addons scanned), pick a quantity and optionally the crafter, add a note, **Ask for it**; my open requests below. `GET /api/v1/me/crafting?guild=&q=`
   and `POST /api/v1/me/craft-request` (`src/services/mobile-crafting.ts`): the same request as `/craft request` (craft.ts limits), only for a recipe
   somebody knows, then posted like the others (`postCraftRequest`). Both allow-listed in the Worker.
+- **My character page** (Me tab, My characters, **Details**): the character's dungeon rank in each level bracket (#4 of 120, points), its 10 newest
+  runs of the season (rated or not), its duel record (rating, W-L, rank, best streak) and a pointer to the badge album. Public numbers from
+  `/leaderboards/boards.json?player=<name>` and `/leaderboards/duels.json?player=<name>` (additive `player` part; a hidden profile never matches). Offline copy.
 
 **0.5.2** (24 November 2026, tester update; JavaScript-only, nothing built or submitted): polish found walking the app at 390 x 800.
 

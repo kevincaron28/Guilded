@@ -456,6 +456,25 @@ describe("leaderboard and personal pages", () => {
     expect((await request("POST", "/leaderboards/boards.json")).status).not.toBe(200);
   });
 
+  // Phone app 0.6.0 "my character": ?player= adds one character's ranks and newest runs; nothing changes without it.
+  it("adds one character's ranks and recent runs to the phone boards with ?player=", async () => {
+    const { request } = setup();
+    const plain = JSON.parse((await request("GET", "/leaderboards/boards.json?lang=en")).body) as { player?: unknown; brackets: { key: string; characters: { name: string; points: number }[] }[] };
+    expect(plain.player).toBeUndefined();
+    const bracket = plain.brackets.find((b) => b.characters.length > 0)!;
+    const top = bracket.characters[0]!;
+    const mine = JSON.parse((await request("GET", `/leaderboards/boards.json?lang=en&player=${encodeURIComponent(top.name.toUpperCase())}`)).body) as {
+      player: { brackets: { key: string; rank: number; points: number; of: number }[]; runs: { dungeon: string; endedAt: string; durationSec: number }[] } };
+    expect(mine.player.brackets).toContainEqual(expect.objectContaining({ key: bracket.key, rank: 1, points: top.points }));
+    for (const row of mine.player.brackets) expect(row.of).toBeGreaterThanOrEqual(row.rank);
+    expect(mine.player.runs.length).toBeGreaterThan(0);
+    expect(mine.player.runs.length).toBeLessThanOrEqual(10);
+    const dates = mine.player.runs.map((run) => run.endedAt);
+    expect(dates).toEqual([...dates].sort().reverse());
+    const nobody = JSON.parse((await request("GET", "/leaderboards/boards.json?player=Nobody%20Here")).body) as { player: { brackets: unknown[]; runs: unknown[] } };
+    expect(nobody.player).toEqual({ brackets: [], runs: [] });
+  });
+
   // 0.4.0 season selector: the JSON lists the seasons it can serve and ?season= picks one (an unknown id means the current one).
   it("lists the seasons the phone boards can show and accepts ?season=", async () => {
     const { request } = setup();

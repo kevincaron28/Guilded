@@ -16,6 +16,7 @@ const words = {
   main: { en: "Main", fr: "Principal" },
   alt: { en: "Alt", fr: "Alt" },
   makeMain: { en: "Make main", fr: "Rendre principal" },
+  details: { en: "Details", fr: "Détails" },
   unlink: { en: "Unlink", fr: "Délier" },
   server: { en: "Discord server", fr: "Serveur Discord" },
   inGame: { en: "In-game guild", fr: "Guilde en jeu" },
@@ -36,7 +37,7 @@ const words = {
 const w = (key: keyof typeof words, lang: Lang) => words[key][lang];
 
 /** My characters (0.5.0): the member's own characters with their server and rank, Make main, and Unlink after a confirmation. Signed-in only. */
-export function MyCharacters({ lang, session }: { lang: Lang; session: Session }) {
+export function MyCharacters({ lang, session, onOpen }: { lang: Lang; session: Session; /** 0.6.0: opens the character's page (ranks, runs, duels). */ onOpen?: (character: MeCharacter) => void }) {
   const feed = useCachedResource<MeCharacter[]>(guildCacheKey("me", "characters"), async () => parseMeCharacters(await new GuildedClient(session.apiOrigin, session.companionCredential).meCharacters()), isMeCharacters);
   const [busy, setBusy] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -74,6 +75,9 @@ export function MyCharacters({ lang, session }: { lang: Lang; session: Session }
         <Text style={common.body}>{w("server", lang)}: {character.serverName || "-"}</Text>
         <Text style={common.body}>{w("inGame", lang)}: {character.inGuild && character.serverName ? `${character.serverName}${character.guildRank ? ` · ${w("rank", lang)} ${character.guildRank}` : ""}` : w("notSeen", lang)}</Text>
         <View style={styles.actions}>
+          {onOpen ? <Pressable onPress={() => onOpen(character)} accessibilityRole="button" accessibilityLabel={`${w("details", lang)}, ${character.name}`} style={styles.action}>
+            <Text style={common.textButtonLabel}>{w("details", lang)}</Text>
+          </Pressable> : null}
           {character.isMain ? null : <Pressable onPress={() => void run("main", character.id)} disabled={busy !== null} accessibilityRole="button" accessibilityLabel={`${w("makeMain", lang)}, ${character.name}`} accessibilityState={{ disabled: busy !== null }} style={[styles.action, busy !== null && common.disabled]}>
             <Text style={common.textButtonLabel}>{busy === character.id ? "…" : w("makeMain", lang)}</Text>
           </Pressable>}

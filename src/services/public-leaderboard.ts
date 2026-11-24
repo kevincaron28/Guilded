@@ -69,6 +69,11 @@ export interface LeaderPlayer { character: string; displayName?: string | null; 
   hidden?: boolean;
   /** In-game guild name the uploader saw for this player (optional, arrives with addon 9.3.0): only enriches pages. */
   guild?: string | null }
+/** The name key a ?player= search compares (case, spaces and a doubled first name do not matter); empty for nothing usable. */
+export const playerKey = (name: string | null | undefined): string => {
+  const text = (name ?? "").trim().slice(0, 60);
+  return text.length >= 2 ? characterId({ character: text, realm: "" }).split("\0")[0]!.replace(/\s+/g, " ") : "";
+};
 export interface LeaderRun extends ScoreRun {
   deaths: number | null; bracket: string | null; season: string; players: LeaderPlayer[];
   /** Set when several uploads of one clear were read as this run (public-run-merge.ts). */
@@ -1901,7 +1906,11 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     if (!globalOpen()) return send(404, { error: "not found" });
     await ensureIndex(ctx);
     const { board, seasonId } = await globalBoard(ctx);
+    // Phone app 0.6.0 ("my character"): ?player=<name> adds that character's own row, from the whole board (not only the 100 listed).
+    const wanted = playerKey(ctx.request.query.get("player"));
+    const mine = wanted ? board.rows.find((row) => playerKey(row.name) === wanted) : undefined;
     return send(200, {
+      ...(mine ? { player: { rank: mine.rank || null, rating: Math.round(mine.score), wins: mine.wins, losses: mine.losses, streak: mine.streak, bestStreak: mine.bestStreak, ranked: mine.ranked, lastDuelAt: mine.lastAt.toISOString() } } : {}),
       rules: { id: RATING.id, since: RATING_START.toISOString(), text: ratingRuleLines(ctx.lang, RATING_START) }, season: seasonId, duels: board.duels,
       // ?when=<id> picks a season; `seasons` lists the ids the phone app may ask for, newest first.
       seasons: ratingSeasonIds(now(), RATING_START).map((id) => ({ id, label: ratingSeasonName(id, ctx.lang) })),
@@ -1958,7 +1967,23 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const byRole = await cached(`board-roles:${period.id}:${period.from?.getTime() ?? ""}`, async () => ROLES.map((role) => ({ role, scores: new Map(characterScores(all, rules, (player) => (rules.evidencePolicy === "current-v2" ? integrityRole(player.integrity) : dungeonRole(player.role)) === role).map((r) => [`${r.bracket} ${characterId(r.player)}`, r.points] as const)) })));
     const roleScoresOf = (row: ScoreRow) => Object.fromEntries(byRole.map(({ role, scores: list }) => [role, list.get(`${row.bracket} ${characterId(row.player)}`) ?? null]));
     // ?season=<id> picks a season; an unknown id falls back to the current one. `seasons` lists the ids the app may ask for.
+    // Phone app 0.6.0 ("my character"): ?player=<name> adds that character's rank in every bracket where it is rated and its
+    // 10 newest runs of the season. Public numbers only (the same as the full ranking pages); a hidden profile never matches.
+    const wanted = playerKey(ctx.request.query.get("player"));
+    const playerPart = wanted ? (() => {
+      const isWanted = (p: LeaderPlayer) => !p.hidden && [p.displayName ?? "", p.character, ...(p.aliases ?? [])].some((name) => name && playerKey(name) === wanted);
+      const brackets = rules.brackets.flatMap((b) => {
+        const rows = scores.filter((row) => row.bracket === b.key);
+        const at = rows.findIndex((row) => isWanted(row.player as LeaderPlayer));
+        return at < 0 ? [] : [{ key: b.key, name: bracketName(ctx, b.key), rank: at + 1, points: rows[at]!.points, of: rows.length }];
+      });
+      const runs = all.flatMap((run) => { const p = (run.players as LeaderPlayer[]).find(isWanted); return p ? [{ run, p }] : []; })
+        .sort((a, b) => b.run.endedAt.getTime() - a.run.endedAt.getTime()).slice(0, 10)
+        .map(({ run, p }) => { const score = rateRun(run, rules, p).score; return { dungeon: localDungeonName(run, ctx.lang), bracket: score ? bracketName(ctx, score.bracket) : null, points: score?.points ?? null, durationSec: run.durationSec, endedAt: run.endedAt.toISOString() }; });
+      return { brackets, runs };
+    })() : undefined;
     const body = JSON.stringify({
+      ...(playerPart ? { player: playerPart } : {}),
       season: periodName(ctx, period), seasonId: period.id, seasons: periods.map((p) => ({ id: p.id, label: periodName(ctx, p) })),
       brackets: rules.brackets.map((b) => ({
         key: b.key, name: bracketName(ctx, b.key),

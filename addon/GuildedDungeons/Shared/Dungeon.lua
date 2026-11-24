@@ -648,12 +648,48 @@ local function recoverOne(run)
   return false
 end
 
+-- (9.5.6) A run this PC already confirmed and then dropped (the 300-run cap, the 30-day window) must never come back: a guildmate's
+-- catch-up forwards it again, it would be stored as new and unsynced and wait for the companion every session. d.dropped[id] is a
+-- tombstone (the run's end time), kept KEEP_PEER_DAYS and at most MAX_DROPPED ids; a run the bot already listed in
+-- GuildedDungeonAccepted counts as dropped too.
+local MAX_DROPPED = 3000
+function dungeon.isDropped(id)
+  if not id then return false end
+  local d = db()
+  if d and type(d.dropped) == "table" and d.dropped[id] then return true end
+  return type(GuildedDungeonAccepted) == "table" and (function()
+    for _, accepted in ipairs(GuildedDungeonAccepted) do if accepted == id then return true end end
+    return false
+  end)()
+end
+
+local function tombstone(d, id, run)
+  if type(d.dropped) ~= "table" then d.dropped = {} end
+  d.dropped[id] = tonumber(run.endedAt) or tonumber(run.detectedAt) or now()
+end
+
+local function trimTombstones(d)
+  if type(d.dropped) ~= "table" then return end
+  local floor = now() - KEEP_PEER_DAYS * 86400
+  local count, list = 0, {}
+  for id, at in pairs(d.dropped) do
+    if type(at) ~= "number" or at < floor then d.dropped[id] = nil
+    else count = count + 1; list[#list + 1] = id end
+  end
+  if count > MAX_DROPPED then
+    table.sort(list, function(x, y) if d.dropped[x] ~= d.dropped[y] then return d.dropped[x] < d.dropped[y] end return x < y end)
+    for i = 1, count - MAX_DROPPED do d.dropped[list[i]] = nil end
+  end
+  if next(d.dropped) == nil then d.dropped = nil end
+end
+
 -- A run someone else reported: keep it, or merge into our copy (more
 -- reporters = more trust; deaths take the highest count anyone saw).
 local function storePeerRun(run, sender, delivery)
   local d = db()
   if not d or not run.id then return end
   local existing = d.runs[run.id]
+  if not existing and dungeon.isDropped(run.id) then return end
   -- (9.3.1) A summary that came through the party or raid never changes a run this PC already holds (a stranger in the group
   -- cannot add reporters or players, recover or replace a guild run): only the guild's own copies merge.
   if existing and delivery ~= nil and delivery ~= "GUILD" then return end
@@ -1207,6 +1243,7 @@ function dungeon.markSynced()
     local confirmed = run.synced or run.syncedVia
     local ours = mine and run.players and run.players[mine]
     if (confirmed and at < cutoff) or (not confirmed and not ours and at < peerCutoff) then
+      if confirmed then tombstone(d, id, run) end
       d.runs[id] = nil
       dungeon.stats.pruned = dungeon.stats.pruned + 1
     else
@@ -1224,11 +1261,13 @@ function dungeon.markSynced()
     if #list > MAX_RUNS then
       table.sort(list, function(x, y) if x.class ~= y.class then return x.class < y.class end if x.at ~= y.at then return x.at < y.at end return x.id < y.id end)
       for i = 1, #list - MAX_RUNS do
+        if list[i].class == 0 then tombstone(d, list[i].id, d.runs[list[i].id]) end
         d.runs[list[i].id] = nil
         dungeon.stats.pruned = dungeon.stats.pruned + 1
       end
     end
   end
+  trimTombstones(d)
   -- Carried runs of other players: taken ones go after the synced window, untaken ones when the companion would no longer read them.
   for id, run in pairs(d.carried or {}) do
     local at = type(run) == "table" and (run.endedAt or run.detectedAt) or 0
@@ -1276,8 +1315,11 @@ function dungeon.waitingRuns()
   local d = db()
   local list = {}
   local deviceOnly = type(GuildedCompanion) == "table" and GuildedCompanion.mode == "device"
-  for _, run in pairs(d and d.runs or {}) do
-    if not run.synced and not run.syncedVia and TERMINAL[run.state] and (not deviceOnly or playedHere(run)) then list[#list + 1] = run end
+  for id, run in pairs(d and d.runs or {}) do
+    if not run.synced and not run.syncedVia and TERMINAL[run.state] and (not deviceOnly or playedHere(run)) then
+      -- (9.5.6) The bot already listed it as received: it is confirmed, whatever this copy says.
+      if dungeon.isDropped(id) then run.synced = true else list[#list + 1] = run end
+    end
   end
   return list
 end
@@ -1359,7 +1401,7 @@ end
 function dungeon.storeForwarded(run, reporter, via)
   local d = db()
   if not d or not run or not run.id or not run.players or not run.players[reporter] then return false end
-  local isNew = d.runs[run.id] == nil
+  local isNew = d.runs[run.id] == nil and not dungeon.isDropped(run.id) -- (9.5.6) a dropped run is ignored, not new
   storePeerRun(run, reporter)
   if isNew and d.runs[run.id] then d.runs[run.id].forwardedBy = via end
   if isNew and ns.onDungeonChange then pcall(ns.onDungeonChange) end

@@ -1,5 +1,5 @@
 <p class="eyebrow">FREE · WOW FOREVER</p>
-<h1>Download Guilded</h1>
+<h1>Download Guilded today (THROWAWAY visual-regression proof)</h1>
 <p class="lead">Everything is free. Start with the addon. Add the rest only if you need it.</p>
 
 <h2 id="addon" class="step">1. The addon</h2><img class="step-art" src="/images/web/step-addon.webp" alt="" width="160" height="160" loading="lazy">

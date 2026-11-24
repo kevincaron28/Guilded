@@ -5,6 +5,8 @@ import { enqueueDiscordJob } from "./discord-jobs.js";
 import { assertLotteryGame, challengeRules, COMMUNITY_GAMES, COMMUNITY_REWARDS, dicePoints, drawWinners, eventRules, evidenceReference, lotteryRules, quizRules, standings } from "./community-rules.js";
 import { communityActivityChannel, communityMonthName, communitySeasonLabel } from "./community-display.js";
 import { asLang } from "../i18n.js";
+import { communitySeasonStartCard } from "./community-cards.js";
+import { textlessEmbed } from "./card-only.js";
 import { localParts } from "./raid-time.js";
 import type { Standing } from "./community-rules.js";
 import { loadInGamePoints, boardWindow, scoringForSeason, mergedSeasonStandings, mergeStandings, type InGamePoints } from "./community-ingame.js";
@@ -107,7 +109,9 @@ export function createCommunityService(database: PrismaClient) {
 🟢 **${communitySeasonLabel(started, lang)}** commence, tout le monde repart à zéro !`
             : `🏁 **${communitySeasonLabel(ended, lang)}** is over: the final standings are archived.
 🟢 **${communitySeasonLabel(started, lang)}** starts now, and everyone starts from zero!`;
-          await enqueueDiscordJob(tx, guildId, `community-season:${started.id}`, "MESSAGE", { channelId: started.announcementChannelId ?? started.channelId, message: { content: text, allowedMentions: { parse: [] } } });
+          await enqueueDiscordJob(tx, guildId, `community-season:${started.id}`, "MESSAGE", { channelId: started.announcementChannelId ?? started.channelId, message: { content: text, allowedMentions: { parse: [] } },
+            // 24 Nov 2026: the new season is a card; the text keeps the line about the season that ended.
+            card: json(communitySeasonStartCard(lang, communitySeasonLabel(started, lang), communitySeasonLabel(ended, lang))), cardOnly: { content: text.split("\n")[0]!, embeds: [textlessEmbed(0x2ecc71)] } });
           rotated.push({ ended, started });
         }
         return rotated;

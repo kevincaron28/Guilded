@@ -1,4 +1,5 @@
-import { escapeMarkdown, PermissionFlagsBits, type Guild } from "discord.js";
+import { escapeMarkdown, PermissionFlagsBits, type AttachmentBuilder, type Guild } from "discord.js";
+import { communitySeasonLabel } from "./community-display.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { assertCommunityChannelAudience, communityAccess } from "./community-access.js";
 import { COMMUNITY_MILESTONES } from "./community-badge-rules.js";
@@ -11,6 +12,17 @@ export function milestoneMessage(name: string, threshold: number, lang: Lang) {
     ? quebecLine("badge", `${safe}:${threshold}`, { name: safe, threshold })
     : `🏅 Congratulations **${safe}**! You reached **${threshold} community points** this season. Your badge is saved in /community badges. Thank you for being part of the community!`,
     allowedMentions: { parse: [] as [], users: [] as string[], roles: [] as string[] } };
+}
+
+/** The milestone's badge card as a file, or null when it cannot be drawn (the post then goes out as text). */
+async function milestoneCardFile(guild: Guild, userId: string, name: string, threshold: number, lang: Lang, season: { name: string; number?: number }): Promise<AttachmentBuilder | null> {
+  try {
+    const [{ scoreCardPng }, { withDiscordMember }, { communityMilestoneCard }, { cardAttachment }] = await Promise.all([import("./score-card.js"), import("./card-member.js"), import("./community-cards.js"), import("./card-alt.js")]);
+    const base = communityMilestoneCard(lang, name, threshold, communitySeasonLabel(season, lang));
+    const card = await withDiscordMember(guild, base, userId).catch(() => base);
+    const png = await scoreCardPng(card);
+    return png ? cardAttachment(png, "community-badge.png") : null;
+  } catch { return null; }
 }
 
 // Deliberately at-most-once: Discord cannot guarantee deduplication indefinitely.
@@ -54,7 +66,9 @@ export async function deliverCommunityBadges(guild: Guild, database: PrismaClien
       if (score < threshold) {
         await database.communityBadge.updateMany({ where: { id: row.id, delivery: "PENDING" }, data: { delivery: "CANCELLED" } }); continue;
       }
-      await attemptBadgeDelivery(database, row.id, guildId, async () => (await channel.send({ ...milestoneMessage(member.displayName, threshold, lang), nonce: row.id.slice(-25), enforceNonce: true })).id, new Date(), cfg.channelId);
+      // 24 Nov 2026: the milestone comes with its painted badge card. Best effort and drawn before the send is claimed: no picture, the text alone goes out as before.
+      const card = await milestoneCardFile(guild, row.userId, member.displayName, threshold, lang, row.season);
+      await attemptBadgeDelivery(database, row.id, guildId, async () => (await channel.send({ ...milestoneMessage(member.displayName, threshold, lang), ...(card ? { files: [card] } : {}), nonce: row.id.slice(-25), enforceNonce: true })).id, new Date(), cfg.channelId);
     } catch (error) {
       // Unknown member and an explicit access denial are terminal for this post.
       // Keep the badge itself; regaining access must not replay congratulations.

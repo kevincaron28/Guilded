@@ -11,6 +11,7 @@ import { enqueueDiscordJob } from "./discord-jobs.js";
 import { weeklyRookieCard } from "./rookie-card.js";
 import { weeklyHonorsCard } from "./weekly-honors-card.js";
 import { textlessEmbed } from "./card-only.js";
+import { communityFinalCard } from "./community-cards.js";
 import { retryTransientTransaction, SHORT_TRANSACTION } from "./transaction-retry.js";
 import { dateAfter, dayStart, participationDay, participationWeek } from "./participation-rules.js";
 import { monthlyRookie, rookieMemberLookup, ROOKIE_ROLE, WEEKLY_ROOKIE_ROLE, weeklyRookie, type MonthlyRookie, type RookieMemberLookup } from "./monthly-rookie.js";
@@ -217,6 +218,17 @@ export function monthlyHonorsMessage(lang: Lang, season: { name: string; number:
     `${who(names, rookie.userId)} — **${n(rookie.points)} pts** across **${rookie.activeDays} active days**. ${n(rookie.messages)} messages · ${n(rookie.reactions)} reactions · ${n(rookie.voiceHours)} h in voice. They hold the role until the next monthly award!`,
     `${who(names, rookie.userId)} — **${n(rookie.points)} pts**, **${rookie.activeDays} jours actifs**. ${n(rookie.messages)} messages · ${n(rookie.reactions)} réactions · ${n(rookie.voiceHours)} h en vocal. Le rôle est à toi jusqu’au prochain palmarès mensuel !`) });
   return { content: say(lang, `🏆 Congratulations to the community's top 3: ${places.flat().map(id => who(names, id)).join(", ")}!`, quebecLine("top3", `${season.number}:${places.flat().join(",")}`, { names: places.flat().map(id => who(names, id)).join(", ") })), embeds: [embed.toJSON()] };
+}
+
+/**
+ * 24 Nov 2026: the monthly post carries the season's final top as a card (the podium layout of the community leaderboard). With the card
+ * drawn the text keeps only what the card cannot show (the congratulations line and the notes); without it the full embed goes out as before.
+ */
+export function monthlyHonorsPost(lang: Lang, season: { name: string; number: number; endedAt?: Date | null }, board: Standing[], names: Names, rookie: MonthlyRookie | null, timezone?: string) {
+  const message = monthlyHonorsMessage(lang, season, board, names, rookie);
+  const notes = message.embeds.map(embed => ({ ...(embed.color === undefined ? {} : { color: embed.color }), ...(embed.fields?.length ? { fields: embed.fields } : {}), ...(embed.footer ? { footer: embed.footer } : {}) }));
+  const card = communityFinalCard(lang, communitySeasonLabel(season, lang), board, names, season.endedAt ?? new Date(), timezone);
+  return { message, card, cardOnly: { ...(message.content ? { content: message.content } : {}), embeds: [...notes, textlessEmbed(ROLE_COLORS.month[0])] } };
 }
 
 export interface HonorsHistory {
@@ -440,7 +452,7 @@ export async function advanceCommunityHonors(database: PrismaClient, guildId: st
       await tx.communityHonorAward.createMany({ skipDuplicates: true, data: places.flatMap((ids, i) => ids.map(userId => ({ guildId, kind: "MONTH", period: ended.id, place: i + 1, userId, points: points.get(userId) ?? null }))) });
       if (rookie) await tx.communityHonorAward.createMany({ skipDuplicates: true, data: [{ guildId, kind: "MONTH_ROOKIE", period: ended.id, userId: rookie.userId, points: rookie.points }] });
       if (honors.channelId && (places[0].length || rookie)) {
-        await enqueueDiscordJob(tx, guildId, `community-month:${ended.id}`, "MESSAGE", { channelId: honors.channelId, message: JSON.parse(JSON.stringify(monthlyHonorsMessage(lang, ended, board, names, rookie))) });
+        await enqueueDiscordJob(tx, guildId, `community-month:${ended.id}`, "MESSAGE", { channelId: honors.channelId, ...JSON.parse(JSON.stringify(monthlyHonorsPost(lang, ended, board, names, rookie, timezone))) });
       }
       result.seasonId = ended.id;
     }

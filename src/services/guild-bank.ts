@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { cardAttachment } from "./card-alt.js";
 import { EmbedBuilder, type Guild as DiscordGuild } from "discord.js";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { forEachGuildScope, guildWhere } from "./guild-scope.js";
@@ -137,7 +138,7 @@ export async function loadGuildBank(db: Db, guildId: string, days = 30, now = ne
 
 /** The weekly officer post: who put in or took out what. Nothing when the bank did not move. */
 export function weeklyBankText(rows: Parameters<typeof summarizeLedger>[0], goldBefore: bigint | null, goldNow: bigint | null, lang: "en" | "fr",
-  extra: { low?: readonly LowItem[]; openRequests?: number } = {}): string | null {
+  extra: { low?: readonly LowItem[]; openRequests?: number; /** The card carries the gold, the top depositors and the request count: only the per-member lines and the low-stock list stay as text. */ compact?: boolean } = {}): string | null {
   if (!rows.length) return null;
   const t = (en: string, fr: string) => lang === "fr" ? fr : en;
   const people = summarizeLedger(rows).slice(0, 15).map((p) => {
@@ -149,12 +150,22 @@ export function weeklyBankText(rows: Parameters<typeof summarizeLedger>[0], gold
   // 9.1: top depositors, what is below its minimum and how many requests wait.
   const givers = summarizeLedger(rows).filter((p) => p.deposited > 0n || p.itemsIn > 0)
     .sort((a, b) => Number(b.deposited - a.deposited) || b.itemsIn - a.itemsIn).slice(0, 3);
-  const extraLines = [
+  const extraLines = extra.compact ? [...(extra.low?.length ? [`${t("Below minimum", "Sous le minimum")}:`, ...lowStockLines(extra.low, lang, 8)] : [])] : [
     ...(givers.length ? [`${t("Top depositors", "Meilleurs donateurs")}: ${givers.map((p) => `**${p.actor}**`).join(", ")}`] : []),
     ...(extra.low?.length ? [`${t("Below minimum", "Sous le minimum")}:`, ...lowStockLines(extra.low, lang, 8)] : []),
     ...(extra.openRequests ? [`${t("Open bank requests", "Demandes ouvertes")}: **${extra.openRequests}** (\`/officer bank list\`)`] : [])
   ];
-  return [goldLine, `${rows.length} ${t("log line(s) this week", "ligne(s) de journal cette semaine")}`, ...(extraLines.length ? ["", ...extraLines] : []), "", ...people].filter((line, i) => line || i > 0).join("\n").slice(0, 3900);
+  return [...(extra.compact ? [] : [goldLine]), `${rows.length} ${t("log line(s) this week", "ligne(s) de journal cette semaine")}`, ...(extraLines.length ? ["", ...extraLines] : []), "", ...people].filter((line, i) => line || i > 0).join("\n").slice(0, 3900);
+}
+
+/** The weekly card's picture (null when it cannot be drawn). */
+async function bankWeekPng(rows: Parameters<typeof summarizeLedger>[0], before: bigint | null, now: bigint | null, lang: "en" | "fr", low: readonly LowItem[], openRequests: number): Promise<Buffer | null> {
+  const [{ guildBankWeekCard }, { scoreCardPng }] = await Promise.all([import("./guild-bank-card.js"), import("./score-card.js")]);
+  const delta = now !== null && before !== null ? now - before : null;
+  const givers = summarizeLedger(rows).filter(p => p.deposited > 0n || p.itemsIn > 0).sort((a, b) => Number(b.deposited - a.deposited) || b.itemsIn - a.itemsIn).slice(0, 3)
+    .map(p => ({ name: p.actor, gift: [p.deposited ? `+${goldText(p.deposited)}` : "", p.itemsIn ? (lang === "fr" ? `${p.itemsIn} objet(s)` : `${p.itemsIn} item(s)`) : ""].filter(Boolean).join(" · ") }));
+  return scoreCardPng(guildBankWeekCard(lang, { goldNow: now === null ? null : goldText(now), change: delta === null ? "" : `${delta >= 0n ? "+" : "−"}${goldText(delta >= 0n ? delta : -delta)}`, changeTone: delta === null ? null : delta >= 0n ? "green" : "red",
+    logLines: rows.length, openRequests, low, givers }));
 }
 
 const DAY = 86_400_000;
@@ -178,7 +189,12 @@ export async function postWeeklyGuildBank(db: WeeklyDb, discordGuild: DiscordGui
   if (!text) return false;
   const channel = await discordGuild.channels.fetch(settings.logChannelId).catch(() => null);
   if (!channel?.isTextBased() || !("send" in channel)) return false;
-  await channel.send({ embeds: [new EmbedBuilder().setColor(0xd4af37).setTitle(lang === "fr" ? "🏦 Banque de guilde : la semaine" : "🏦 Guild bank: this week").setDescription(text)], allowedMentions: { parse: [] } });
+  // 24 Nov 2026: the headline figures are a card; the post keeps the per-member lines and the low-stock list. Best effort: without the picture the whole text goes out as before.
+  const png = await bankWeekPng(rows, before?.money ?? null, latest?.money ?? null, lang, low, openRequests).catch(() => null);
+  const compact = png ? weeklyBankText(rows, before?.money ?? null, latest?.money ?? null, lang, { low, openRequests, compact: true }) : null;
+  const embed = new EmbedBuilder().setColor(0xd4af37).setDescription(compact ?? text);
+  if (png) embed.setImage("attachment://bank-week.png"); else embed.setTitle(lang === "fr" ? "🏦 Banque de guilde : la semaine" : "🏦 Guild bank: this week");
+  await channel.send({ embeds: [embed], ...(png ? { files: [cardAttachment(png, "bank-week.png")] } : {}), allowedMentions: { parse: [] } });
   await db.guildSettings.update({ where: { guildId: guild.id }, data: { guildBankLastPostAt: now } });
   return true;
 }

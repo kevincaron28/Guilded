@@ -2,7 +2,7 @@ import { initializeCommunityBadgeHistory, communityBadgeShelf, configureCommunit
 import { badgeLabel, COMMUNITY_MILESTONE_LABEL } from "../services/community-badge-rules.js";
 import { deliverCommunityBadges } from "../services/community-badge-delivery.js";
 import { guildWhere } from "../services/guild-scope.js";
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, ModalBuilder, PermissionFlagsBits, SlashCommandBuilder, TextInputBuilder, TextInputStyle, type ButtonInteraction, type ChatInputCommandInteraction, type Guild, type ModalSubmitInteraction, type SlashCommandSubcommandBuilder, type SlashCommandSubcommandsOnlyBuilder, MessageFlags } from "discord.js";
+import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, ModalBuilder, PermissionFlagsBits, SlashCommandBuilder, TextInputBuilder, TextInputStyle, type ButtonInteraction, type ChatInputCommandInteraction, type Guild, type ModalSubmitInteraction, type SlashCommandSubcommandBuilder, type SlashCommandSubcommandsOnlyBuilder, MessageFlags } from "discord.js";
 import type { CommunityActivity, CommunitySeason } from "../generated/prisma/client.js";
 import { prisma } from "../database.js";
 import { asLang, type Lang } from "../i18n.js";
@@ -138,6 +138,7 @@ export async function executeCommunity(interaction: ChatInputCommandInteraction)
   const current = seasonId || ["dice", "wallet", "leaderboard", "hub", "badges"].includes(sub) ? await resolveCommunitySeason(prisma, guild, context.guildId, actor, seasonId, organizer) : null;
   const row = id ? await getActivity(guild, context.guildId, id, actor, kind, organizer) : null;
   let content = "";
+  let shelf: Buffer | null = null;
   if (sub === "honors" || sub === "honors-preview" || sub === "honors-settings") {
     await interaction.editReply(await honorsReply(guild, context.guildId, sub, actor, lang, interaction));
     return;
@@ -147,6 +148,12 @@ export async function executeCommunity(interaction: ChatInputCommandInteraction)
     await access(guild, target, current!);
     await initializeCommunityBadgeHistory(prisma, context.guildId, current!.id);
     const badges = await communityBadgeShelf(prisma, current!.id, actor, target);
+    // 24 Nov 2026: the shelf is also drawn with its painted badges (best effort; the text list stays).
+    if (badges?.length) {
+      const [{ communityShelfCard }, { scoreCardPng }] = await Promise.all([import("../services/community-cards.js"), import("../services/score-card.js")]);
+      const label = (await guild.members.fetch(target).catch(() => null))?.displayName ?? say(lang, "Member", "Membre");
+      shelf = await scoreCardPng(communityShelfCard(lang, label, communitySeasonLabel(current!, lang), badges)).catch(() => null);
+    }
     if (!badges) content = say(lang, "Season not found.", "Saison introuvable.");
     else content = say(lang, "Season badges", "Badges de saison") + " · " + COMMUNITY_MILESTONE_LABEL + "\n" +
       (badges.map(badge => badgeLabel(badge.code, lang) + " · " + (badge.earnedAt ? badge.earnedAt.toISOString().slice(0, 10) : say(lang, "Historical; date unknown", "Historique; date inconnue"))).join("\n") || say(lang, "No badges recorded yet.", "Aucun badge enregistré.")) + "\n\n" +
@@ -286,7 +293,7 @@ export async function executeCommunity(interaction: ChatInputCommandInteraction)
     await service.close(context.guildId, row!.id, sub === "cancel");
     content = say(lang, "Activity closed. The announcement will update shortly.", "Activité fermée. L'annonce sera mise à jour sous peu.");
   }
-  await interaction.editReply({ content: content.slice(0, 1950) || say(lang, "Done.", "Terminé."), allowedMentions: { parse: [] } });
+  await interaction.editReply({ content: content.slice(0, 1950) || say(lang, "Done.", "Terminé."), ...(shelf ? { files: [new AttachmentBuilder(shelf, { name: "badges.png" })] } : {}), allowedMentions: { parse: [] } });
 }
 
 async function validateEventVenue(guild: Guild, channelId: string, voiceId: string): Promise<void> {

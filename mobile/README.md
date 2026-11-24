@@ -1,6 +1,6 @@
 # Guilded Mobile
 
-Android and iOS share this Expo SDK 58 project. Mobile version **0.5.1**
+Android and iOS share this Expo SDK 58 project. Mobile version **0.5.2**
 (the Android versionCode is kept and raised by EAS on each store build) is separate from the bot,
 addon and Windows companion version. Both store identifiers are
 `top.kcaron.guilded`; the Expo slug is `guilded-mobile`.
@@ -21,8 +21,21 @@ bot, addon and Windows companion version). Store identifiers are
   public leaderboards (Dungeons, Duels, Raids). Public; the app opens here when signed out.
 - **Me**: my characters (with Make main and Unlink), what I still need to be promoted, badges (album), wishlist, language and sign-out.
 - **Alerts**: raid reminders on this phone, plus help-call, dungeon and raid
-  vacancy alerts listed as switched off until push lands (PR #345).
+  vacancy alerts listed under "Coming later" until the server sends them.
 - **News**: Wowhead headlines and the Blizzard news link. Public.
+
+**0.5.2** (24 November 2026, tester update; JavaScript-only, nothing built or submitted): polish found walking the app at 390 x 800.
+
+- Class names read like the game and in French ("PALADIN" -> Paladin, "WARLOCK" -> Démoniste) on the boards, the duel ladder, the roster, Me and the map; roles read Tank / Healer (Soigneur) / DPS.
+- "WoW Forever" / "forever" is no longer printed on every row and header (Guilded is Forever only); guild rows lose the repeated "No public page".
+- Duel rows say "Level 14" instead of a bare 14; two links under the ladder open the website's duel stats and the World PvP page (no public JSON for those yet).
+- The English Raids intro no longer says signing up happens only in Discord (the French one was already right).
+- Alerts: the three alerts the server does not send yet are a plain "Coming later" list, not switches that can never turn on.
+- The first-launch picture has a fixed height (at most a quarter of the screen): on small phones it pushed the title below the fold.
+- The sample guild's characters are level 60 and 58 (WoW Forever's cap), not 80.
+
+Version 0.5.2 is a new runtime (`appVersion` policy), so it reaches testers as a store build (`production` profile), not as an update to 0.5.1.
+
 **0.5.1** (22 November 2026, owner decisions; JavaScript-only, so it can ship as an update or a store build; version fields only, nothing built or submitted):
 
 - **Raid sign-up from the phone**: on the Raids part of the Guild tab, each raid made by the bot has a role (Tank, Healer, DPS) and **I'm in / Maybe /

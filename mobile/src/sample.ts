@@ -8,19 +8,19 @@ export const sampleHubBody = {
   link: { battleNet: true, characters: true, battleTag: "Northwind#1234" },
   characters: [
     {
-      id: "char-aelira", name: "Aelira", displayName: null, realm: "Silvermoon", className: "Shaman", spec: "Restoration", level: 80,
+      id: "char-aelira", name: "Aelira", displayName: null, realm: "Silvermoon", className: "Shaman", spec: "Restoration", level: 60,
       isMain: true, edition: "forever", rank: "Raider",
       guild: { name: "Northwind", edition: "forever", current: true, discordId: "100", serverName: "Northwind" },
       cores: [{ id: "core-thu", name: "Thursday", role: "HEALER", bench: false, trial: false, backup: false, lootMode: "RESERVE" }]
     },
     {
-      id: "char-borin", name: "Borin", displayName: null, realm: "Silvermoon", className: "Warrior", spec: "Protection", level: 80,
+      id: "char-borin", name: "Borin", displayName: null, realm: "Silvermoon", className: "Warrior", spec: "Protection", level: 60,
       isMain: false, edition: "forever", rank: "Raider",
       guild: { name: "Northwind", edition: "forever", current: true, discordId: "100", serverName: "Northwind" },
       cores: [{ id: "core-thu", name: "Thursday", role: "TANK", bench: true, trial: false, backup: false, lootMode: "RESERVE" }]
     },
     {
-      id: "char-cindra", name: "Cindra", displayName: null, realm: "Silvermoon", className: "Mage", spec: "Frost", level: 78,
+      id: "char-cindra", name: "Cindra", displayName: null, realm: "Silvermoon", className: "Mage", spec: "Frost", level: 58,
       isMain: false, edition: "forever", rank: null,
       guild: { name: "Northwind", edition: "forever", current: true, discordId: "100", serverName: "Northwind" },
       cores: []

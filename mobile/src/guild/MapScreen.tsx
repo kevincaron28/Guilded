@@ -6,7 +6,7 @@ import {
   HEAT_COLS, HEAT_ROWS, attackersLine, classColor, continentTabs, heatLevel, sampleGuildMap, timeAgo,
   type GuildMap, type HelpPin, type MapMate
 } from "../guildMap";
-import type { Lang } from "../i18n";
+import { classLabel, type Lang } from "../i18n";
 import { clearSession, type Session } from "../storage";
 import { Card, EmptyState, RetryCard, Row, SegmentedTabs, colors as theme } from "../ui";
 
@@ -142,7 +142,7 @@ export function MapScreen({ lang, session }: { lang: Lang; session: Session | nu
         <Text style={styles.subheading}>{w("mates", lang)}</Text>
         {map.mates.length ? map.mates.slice(0, 60).map((mate) => <Row key={key(mate)} onPress={() => { if (mate.continentId !== null) { setContinent(mate.continentId); setPicked(key(mate)); } }}
           leading={<View style={[styles.swatch, { backgroundColor: classColor(mate.className) }]} />}
-          name={`${mate.name}${mate.mine ? ` (${w("you", lang)})` : ""}${mate.level ? ` · ${mate.level}` : ""}${mate.className ? ` ${mate.className}` : ""}`}
+          name={`${mate.name}${mate.mine ? ` (${w("you", lang)})` : ""}${mate.level ? ` · ${mate.level}` : ""}${mate.className ? ` ${classLabel(mate.className, lang)}` : ""}`}
           sub={`${mate.zone}${mate.continentId === null ? ` · ${w("noPlace", lang)}` : ""}`}
           trailing={<Text style={styles.muted}>{timeAgo(mate.seenAt, now, lang)}</Text>} />)
           : <EmptyState message={w("empty", lang)} />}

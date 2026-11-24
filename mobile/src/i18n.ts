@@ -58,7 +58,7 @@ const copy = {
   priority: { en: "Priority", fr: "Priorité" },
   add: { en: "Add", fr: "Ajouter" },
   remove: { en: "Remove", fr: "Retirer" },
-  raidIntro: { en: "Upcoming raids and EP/GP standings for your guild. Signing up still happens in Discord.", fr: "Raids à venir et classement EP/GP de ta guilde. Tu peux t'inscrire ici ou dans Discord." },
+  raidIntro: { en: "Upcoming raids and EP/GP standings for your guild. Sign up here or in Discord.", fr: "Raids à venir et classement EP/GP de ta guilde. Tu peux t'inscrire ici ou dans Discord." },
   nextRaid: { en: "Next raid", fr: "Prochain raid" },
   noNextRaid: { en: "No raid is scheduled in the next day and a half.", fr: "Aucun raid n'est prévu dans le prochain jour et demi." },
   upcoming: { en: "Upcoming", fr: "À venir" },
@@ -109,7 +109,9 @@ const copy = {
   deleteUnavailable: { en: "This server cannot delete from the phone yet. The page below explains how.", fr: "Ce serveur ne peut pas encore supprimer depuis le téléphone. La page ci-dessous explique comment faire." },
   mapShareHere: { en: "Sharing your map position is switched in the Map section of the Guild tab.", fr: "Le partage de ta position se règle dans la section Carte de l'onglet Guilde." },
   pushTitle: { en: "Raid alerts from your guild server", fr: "Alertes de raid de ton serveur de guilde" },
-  pushBody: { en: "Raid changes, cancellations and reminders reach you even when the app is closed. Push replaces the on-device reminders so nothing arrives twice. The rows below are still to come.", fr: "Changements, annulations et rappels de raid te parviennent même appli fermée. Le push remplace les rappels de l'appareil pour éviter les doublons. Les lignes ci-dessous arrivent plus tard." },
+  pushBody: { en: "Raid changes, cancellations and reminders reach you even when the app is closed. Push replaces the on-device reminders so nothing arrives twice.", fr: "Changements, annulations et rappels de raid te parviennent même appli fermée. Le push remplace les rappels de l'appareil pour éviter les doublons." },
+  pushLater: { en: "Coming later", fr: "À venir" },
+  pushLaterBody: { en: "These alerts are not sent yet. They will appear here when your guild server sends them.", fr: "Ces alertes ne sont pas encore envoyées. Elles apparaîtront ici quand ton serveur de guilde les enverra." },
   pushRemote: { en: "Push alerts for raids", fr: "Alertes push pour les raids" },
   pushHelp: { en: "Call for help from a guildmate nearby", fr: "Appel à l'aide d'un membre proche" },
   pushDungeon: { en: "A dungeon group needs your role", fr: "Un groupe de donjon cherche ton rôle" },
@@ -200,6 +202,26 @@ export function lootModeLabel(mode: string | null, lang: Lang): string {
     PRIORITY: { en: "EPGP priority", fr: "Priorité EP/GP" }
   };
   return labels[mode ?? ""]?.[lang] ?? mode ?? (lang === "fr" ? "Règle de la guilde" : "Guild default");
+}
+
+const CLASS_NAMES: Record<string, { en: string; fr: string }> = {
+  warrior: { en: "Warrior", fr: "Guerrier" }, paladin: { en: "Paladin", fr: "Paladin" }, hunter: { en: "Hunter", fr: "Chasseur" },
+  rogue: { en: "Rogue", fr: "Voleur" }, priest: { en: "Priest", fr: "Prêtre" }, shaman: { en: "Shaman", fr: "Chaman" },
+  mage: { en: "Mage", fr: "Mage" }, warlock: { en: "Warlock", fr: "Démoniste" }, druid: { en: "Druid", fr: "Druide" }
+};
+
+/** A WoW class in the member's language ("PALADIN", "paladin" and "Paladin" all read "Paladin"; "WARLOCK" reads "Démoniste" in French). */
+export function classLabel(className: string | null | undefined, lang: Lang): string {
+  if (!className) return "";
+  const known = CLASS_NAMES[className.toLowerCase().replace(/[^a-z]/g, "")];
+  if (known) return known[lang];
+  return className.charAt(0).toUpperCase() + className.slice(1).toLowerCase();
+}
+
+/** Guilded is WoW Forever only (since 7 November 2026): the edition ("forever", "WoW Forever") on every row says nothing, so it is not shown. */
+export function shownEdition(value: string | null | undefined): string | null {
+  if (!value) return null;
+  return /^(wow\s*)?forever$/i.test(value.trim()) ? null : value;
 }
 
 export function roleLabel(role: string, lang: Lang): string {

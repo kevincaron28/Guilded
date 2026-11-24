@@ -73,6 +73,19 @@ members exchange is game data (characters, ranks, wishlist item names, in-game l
 Content rating: submitted on 15 November 2026 with the answers in [play-content-rating.md](play-content-rating.md).
 Result: Everyone / PEGI 3 / Google Play 3+, with no interactive element.
 
+## Release notes (0.5.2)
+
+Release name: `0.5.2 (closed test)`. Paste into the closed-test release of the 0.5.2 bundle (each under 500 characters).
+
+```
+<en-CA>
+Sign up for raids from the phone (I'm in, Maybe, Can't come) with reminders a day, two hours and an hour before. Polish: class names read like the game and in French, cleaner leaderboard rows, levels on the duel ladder, links to duel stats and World PvP, a first-launch screen that fits small phones. Thanks for testing; tell us what breaks.
+</en-CA>
+<fr-CA>
+Inscris-toi aux raids depuis le téléphone (J'y vais, Peut-être, Je ne peux pas) avec des rappels un jour, deux heures et une heure avant. Finition : noms de classes en français, classements plus clairs, niveaux au classement des duels, liens vers les statistiques de duels et le JcJ sauvage, un premier écran adapté aux petits téléphones. Merci de tester, dis-nous ce qui cloche.
+</fr-CA>
+```
+
 ## Release notes (0.3.0)
 
 Release name: `0.3.0 (closed test)`. Console wants each language in a tag, 500 characters at most each. The tags must

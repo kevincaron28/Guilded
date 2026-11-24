@@ -3,7 +3,7 @@ import { signable, type Choice, type MySignup, type RaidRoleName } from "../sign
 import { useState } from "react";
 import { Linking, Pressable, Text, View } from "react-native";
 import { discordEventLink, withMine, type CoreBoard, type HubView, type ManageView, type StandingsView } from "../api";
-import { formatPr, formatWhen, lootModeLabel, roleLabel, t, type Lang } from "../i18n";
+import { classLabel, formatPr, formatWhen, lootModeLabel, roleLabel, shownEdition, t, type Lang } from "../i18n";
 import { classesOf, filterCharacters, filterStandings, filtersActive, noFilters, type CharacterSort, type RosterFilters, type StandingSort } from "../rosterFilter";
 import { EmptyState, shownName } from "../ui";
 import { common } from "../ui/common";
@@ -27,13 +27,13 @@ export function Characters({ lang, hub, error }: { lang: Lang; hub: HubView | nu
     {hub.characters.length >= CONTROLS_FROM ? <RosterControls lang={lang} search={filters.search} onSearch={(search) => setFilters({ ...filters, search })}
       classes={classesOf(hub.characters)} className={filters.className} onClass={(className) => setFilters({ ...filters, className })}
       role={filters.role} onRole={(role) => setFilters({ ...filters, role })} sorts={CHARACTER_SORTS} sort={sort} onSort={setSort} /> : null}
-    {hub.characters.length === 0 ? <EmptyState art="guild" message={t(lang, "noCharacters")} /> : shown.length === 0 && filtersActive(filters) ? <Text style={common.muted}>{t(lang, "noMatches")}</Text> : shown.map((character) => <View key={character.id} style={common.hero} accessible accessibilityLabel={[shownName(character), character.className, character.level ? `${t(lang, "level")} ${character.level}` : null, character.realm].filter(Boolean).join(", ")}>
+    {hub.characters.length === 0 ? <EmptyState art="guild" message={t(lang, "noCharacters")} /> : shown.length === 0 && filtersActive(filters) ? <Text style={common.muted}>{t(lang, "noMatches")}</Text> : shown.map((character) => <View key={character.id} style={common.hero} accessible accessibilityLabel={[shownName(character), classLabel(character.className, lang), character.level ? `${t(lang, "level")} ${character.level}` : null, character.realm].filter(Boolean).join(", ")}>
       <View style={common.titleRow}>
         <Text style={[common.heroTitle, { flexShrink: 1 }]}>{shownName(character)}</Text>
-        <Text style={common.pill}>{character.isMain ? t(lang, "main") : character.className}</Text>
+        <Text style={common.pill}>{character.isMain ? t(lang, "main") : classLabel(character.className, lang)}</Text>
       </View>
-      <Text style={common.muted}>{[character.spec, character.className].filter(Boolean).join(" ")}{character.level ? ` · ${t(lang, "level")} ${character.level}` : ""}</Text>
-      <Text style={common.muted}>{[character.realm, character.edition].filter(Boolean).join(" · ")}</Text>
+      <Text style={common.muted}>{[character.spec, classLabel(character.className, lang)].filter(Boolean).join(" ")}{character.level ? ` · ${t(lang, "level")} ${character.level}` : ""}</Text>
+      <Text style={common.muted}>{[character.realm, shownEdition(character.edition)].filter(Boolean).join(" · ")}</Text>
       <Text style={common.body}>{character.rank ? `${t(lang, "rank")}: ${character.rank}` : t(lang, "noRank")}</Text>
       {character.guildName ? <Text style={common.muted}>{character.guildName}{character.current ? "" : ` · ${t(lang, "otherServer")}`}</Text> : null}
       {character.cores.map((core) => <Text key={`${character.id}-${core.name}-${core.role}`} style={common.body}>{core.name} · {roleLabel(core.role, lang)}{core.bench ? ` · ${t(lang, "bench")}` : ""}{core.trial ? ` · ${t(lang, "trial")}` : ""}{core.backup ? ` · ${t(lang, "backup")}` : ""}</Text>)}

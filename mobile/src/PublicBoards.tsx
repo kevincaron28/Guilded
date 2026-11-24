@@ -4,7 +4,7 @@ import { cacheKey } from "./cache";
 import { classColor, classMix, fetchBoards, fetchPublicGuild, type BoardBracket, type Boards, type PublicGuild } from "./publicApi";
 import { useCachedResource } from "./useCachedResource";
 import { useBack } from "./useBack";
-import type { Lang } from "./i18n";
+import { classLabel, roleLabel, shownEdition, type Lang } from "./i18n";
 import { Card, EmptyState, Glyph, LastUpdated, RankNumber, RetryCard, Row, colors, usePullToRefresh } from "./ui";
 
 const words = {
@@ -21,7 +21,6 @@ const words = {
   noCores: { en: "This guild has not published its cores.", fr: "Cette guilde n'a pas publié ses cores." },
   standings: { en: "EP/GP standings", fr: "Classement EP/GP" },
   professionsNote: { en: "Professions are not part of a guild's public page, so they stay in the Guild tab after sign-in.", fr: "Les métiers ne font pas partie de la page publique d'une guilde; ils restent dans l'onglet Guilde après connexion." },
-  noPage: { en: "No public page", fr: "Pas de page publique" },
   bench: { en: "bench", fr: "banc" },
   trial: { en: "trial", fr: "essai" }
 } as const;
@@ -75,15 +74,15 @@ export function PublicBoards({ origin, lang, header, onPull }: { origin: string;
     {boards ? <SeasonPicker lang={lang} seasons={boards.seasons} value={season ?? boards.seasonId} onChange={(id) => { setSeason(id === boards.seasons[0]?.id ? undefined : id); setBracket(0); }} /> : null}
     <LastUpdated lang={lang} savedAt={feed.savedAt} stale={feed.stale && feed.failed} />
     {!boards && feed.failed ? <RetryCard lang={lang} message={w("failed", lang)} onRetry={feed.retry} style={styles.card} /> : !boards ? <ActivityIndicator color={colors.gold} /> : <>
-      {boards.brackets.length > 1 && <View style={styles.tabs}>{boards.brackets.map((b, i) => <Pressable key={b.key} onPress={() => setBracket(i)} style={[styles.chip, i === bracket && styles.chipOn]} accessibilityRole="button" accessibilityState={{ selected: i === bracket }}><Text style={[styles.chipText, i === bracket && styles.chipTextOn]}>{b.name}</Text></Pressable>)}</View>}
+      {boards.brackets.length > 1 && <View style={styles.tabs}>{boards.brackets.map((b, i) => <Pressable key={b.key} onPress={() => setBracket(i)} style={[styles.chip, i === bracket && styles.chipOn]} accessibilityRole="button" accessibilityLabel={b.name} accessibilityState={{ selected: i === bracket }}><Text style={[styles.chipText, i === bracket && styles.chipTextOn]}>{b.name}</Text></Pressable>)}</View>}
       {current && <>
         <Text style={styles.label}>{w("characters", lang).toUpperCase()}</Text>
         <Card style={styles.card}>{current.characters.length === 0 ? <EmptyState art="pvp" message={w("none", lang)} /> : current.characters.map((c) => <Row key={`${c.rank}-${c.name}`}
           leading={<><Place origin={origin} rank={c.rank} />{classIconFile(c.className) ? <Image source={{ uri: web(origin, classIconFile(c.className)!) }} style={styles.classIcon} accessible={false} /> : null}</>}
-          name={c.name} nameColor={classColor(c.className)} sub={[c.className, c.role, c.realm].filter(Boolean).join(" · ")} score={c.points} />)}</Card>
+          name={c.name} nameColor={classColor(c.className)} sub={[classLabel(c.className, lang), c.role ? roleLabel(c.role, lang) : null, shownEdition(c.realm)].filter(Boolean).join(" · ")} score={c.points} />)}</Card>
         <Text style={styles.label}>{w("guilds", lang).toUpperCase()}</Text>
         <Card style={styles.card}>{current.guilds.length === 0 ? <EmptyState art="pvp" message={w("none", lang)} /> : current.guilds.map((g) => <Row key={g.id}
-          leading={<Place origin={origin} rank={g.rank} />} name={g.name} sub={g.slug ? null : w("noPage", lang)} score={g.points} trailing={g.slug ? <Glyph name="next" /> : undefined}
+          leading={<Place origin={origin} rank={g.rank} />} name={g.name} score={g.points} trailing={g.slug ? <Glyph name="next" /> : undefined}
           onPress={() => { if (g.slug) setSlug(g.slug); }} disabled={!g.slug} />)}</Card>
       </>}
     </>}
@@ -104,14 +103,14 @@ function PublicGuildView({ origin, lang, slug, onBack }: { origin: string; lang:
       {guild.intro ? <Text style={styles.intro}>{guild.intro}</Text> : null}
       {mix.length > 0 && <><Text style={styles.label}>{w("mix", lang).toUpperCase()}</Text>
         <Card style={styles.card}>{mix.map((m) => <View key={m.className} style={styles.mixRow}>
-          <Text style={[styles.mixName, { color: classColor(m.className) }]}>{m.className}</Text>
+          <Text style={[styles.mixName, { color: classColor(m.className) }]}>{classLabel(m.className, lang)}</Text>
           <View style={styles.barTrack}><View style={[styles.bar, { width: `${Math.round((m.count / biggest) * 100)}%`, backgroundColor: classColor(m.className) }]} /></View>
           <Text style={styles.mixCount}>{m.count}</Text></View>)}</Card></>}
       <Text style={styles.label}>{w("cores", lang).toUpperCase()}</Text>
       {guild.cores.length === 0 ? <EmptyState art="guild" boxed message={w("noCores", lang)} style={styles.card} /> : guild.cores.map((core) => <Card key={core.name} style={styles.card}>
         <Text style={styles.coreName}>{core.name}</Text>
         {core.schedule ? <Text style={styles.sub}>{core.schedule}</Text> : null}
-        {core.roster.map((m) => <View key={m.name} style={styles.rosterRow}><Text style={[styles.name, { color: classColor(m.className), flex: 1 }]}>{m.name}</Text><Text style={styles.sub}>{[m.className, m.role, m.bench ? w("bench", lang) : "", m.trial ? w("trial", lang) : ""].filter(Boolean).join(" · ")}</Text></View>)}
+        {core.roster.map((m) => <View key={m.name} style={styles.rosterRow}><Text style={[styles.name, { color: classColor(m.className), flex: 1 }]}>{m.name}</Text><Text style={styles.sub}>{[classLabel(m.className, lang), roleLabel(m.role, lang), m.bench ? w("bench", lang) : "", m.trial ? w("trial", lang) : ""].filter(Boolean).join(" · ")}</Text></View>)}
         {core.ranking.length > 0 && <><Text style={[styles.label, { marginTop: 14 }]}>{w("standings", lang).toUpperCase()}</Text>
           {core.ranking.slice(0, 10).map((r, i) => <View key={r.name} style={styles.rosterRow}><RankNumber rank={i + 1} /><Text style={[styles.name, { flex: 1 }]}>{r.name}</Text><Text style={styles.score}>{r.pr.toFixed(2)}</Text></View>)}</>}
       </Card>)}

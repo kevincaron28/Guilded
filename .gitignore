@@ -37,3 +37,7 @@ link-coverage.md
 # Firebase credentials never go in the repo (owner keeps them in Documents/guilded-secrets)
 google-services.json
 *firebase-adminsdk*.json
+
+# Visual regression output (diff images are uploaded by CI; baselines under visual/baselines are committed)
+visual/results/
+visual/report/

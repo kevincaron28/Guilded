@@ -1,0 +1,56 @@
+name: Website visual regression
+# R2.7: screenshots of the key static pages at 390 and 1280 px, compared with the baselines in visual/baselines.
+# Fails (and uploads the diff images) when a page changes past the threshold in playwright.config.ts.
+# Baselines are made on this Linux runner only: run this workflow by hand with "update" ticked, download the
+# "visual-baselines" artifact, copy it over visual/baselines and commit it (docs/VISUAL_REGRESSION.md).
+on:
+  pull_request:
+    paths: ['site/**', 'scripts/build-site.mjs', 'scripts/preview-site.mjs', 'worker/localized-assets.mjs', 'visual/**', 'playwright.config.ts', 'package.json', 'package-lock.json', '.github/workflows/visual.yml']
+  push:
+    branches: [main]
+    paths: ['site/**', 'scripts/build-site.mjs', 'visual/**', 'playwright.config.ts']
+  workflow_dispatch:
+    inputs:
+      update:
+        description: 'Make new baselines instead of comparing (uploads them as an artifact)'
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  visual:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run site:build
+      - name: Make new baselines
+        if: github.event_name == 'workflow_dispatch' && inputs.update
+        run: npm run visual:update
+      - name: Upload the new baselines
+        if: github.event_name == 'workflow_dispatch' && inputs.update
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: visual-baselines
+          path: visual/baselines
+          if-no-files-found: error
+      - name: Compare with the committed baselines
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.update) }}
+        run: npm run visual
+      - name: Upload the diff images and report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: visual-diff
+          path: |
+            visual/results
+            visual/report
+          if-no-files-found: ignore

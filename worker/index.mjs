@@ -129,6 +129,9 @@ const apiMethods = new Map([
   ["/api/v1/me/raid-signup", ["POST"]],
   // Phone app 0.6.0: the guild activity feed (joins, departures, ranks, bank gifts, raid kills) of the member's own guild.
   ["/api/v1/me/guild-feed", ["GET"]],
+  // Phone app 0.6.0: who in my guild can craft an item, my open requests, and a new craft request.
+  ["/api/v1/me/crafting", ["GET"]],
+  ["/api/v1/me/craft-request", ["POST"]],
   // Guilded Collection (phone card game): read, open the daily pack, craft.
   ["/api/v1/companion/cards", ["GET"]],
   ["/api/v1/companion/cards/open", ["POST"]],

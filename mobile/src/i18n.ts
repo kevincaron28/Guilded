@@ -90,6 +90,7 @@ const copy = {
   tabNews: { en: "News", fr: "Nouvelles" },
   roster: { en: "Roster", fr: "Membres" },
   activity: { en: "Activity", fr: "Activité" },
+  crafting: { en: "Crafting", fr: "Artisanat" },
   signInCardTitle: { en: "Sign in to see this", fr: "Connecte-toi pour voir ceci" },
   signInCardBody: { en: "Your characters, badges, wishlist and raid reminders need the Discord sign-in. Leaderboards and news work without it.", fr: "Tes personnages, badges, liste de souhaits et rappels de raid demandent la connexion Discord. Les classements et les nouvelles fonctionnent sans elle." },
   signInGo: { en: "Sign in or look at a sample guild", fr: "Se connecter ou voir une guilde d'exemple" },

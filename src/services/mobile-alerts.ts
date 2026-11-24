@@ -7,6 +7,7 @@ import { hashCompanionSecret } from "./character-pairing.js";
 import { credentialBySecret } from "./companion-renew.js";
 import { loadGuildScope } from "./guild-scope.js";
 import { config } from "../config.js";
+import { cleanCharacterName } from "./character-display.js";
 import { mergeCalendarEvents } from "./discord-calendar.js";
 
 const enrollment = z.object({ enabled: z.boolean(), expoPushToken: z.string().regex(/^(?:ExponentPushToken|ExpoPushToken)\[[A-Za-z0-9_-]{10,200}\]$/).optional(), locale: z.enum(["en", "fr"]).default("en"),
@@ -205,7 +206,7 @@ export const HELP_PUSH_FRESH_MS = 20 * 60_000;
 export function noticeText(notice: NoticeAlert, fr: boolean): { title: string; body: string } {
   if (notice.kind === "help") return {
     title: fr ? "Appel à l'aide" : "Call for help",
-    body: fr ? `${notice.character} demande de l'aide à ${notice.zone}.` : `${notice.character} needs help in ${notice.zone}.`
+    body: fr ? `${cleanCharacterName(notice.character)} demande de l'aide à ${notice.zone}.` : `${cleanCharacterName(notice.character)} needs help in ${notice.zone}.`
   };
   return {
     title: notice.state.title,

@@ -45,7 +45,7 @@ jobs:
       - name: Compare with the committed baselines
         if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.update) }}
         run: npm run visual
-      - name: Upload the diff images and report
+      - name: Upload the diff images and report (and any baseline Playwright just wrote because it was missing)
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -53,4 +53,5 @@ jobs:
           path: |
             visual/results
             visual/report
+            visual/baselines
           if-no-files-found: ignore

@@ -121,6 +121,18 @@ describe("mobile companion client", () => {
     expect(JSON.parse(calls[0]![1].body)).toEqual({ nextCredential: "n".repeat(43) });
     expect(JSON.parse(calls[1]![1].body)).toEqual({ guildDiscordId: "123456", enabled: true, locale: "fr", expoPushToken: "ExponentPushToken[abc]" });
     expect(await client.deviceStatus("123456")).toBe(true);
+    // An older bot answers only `enabled`: both optional pushes read as on.
+    expect(await client.deviceState("123456")).toEqual({ enabled: true, helpCalls: true, raidSpots: true });
+  });
+
+  it("sends one push kind change and reads the stored kinds (0.6.0)", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true, enabled: true, helpCalls: false, raidSpots: true }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new GuildedClient("https://guilded.kcaron.top", "current-credential-0123456789");
+    await client.device("123456", true, "en", "ExponentPushToken[abc]", { helpCalls: false });
+    const calls = fetchMock.mock.calls as unknown as [URL, { body: string }][];
+    expect(JSON.parse(calls[0]![1].body)).toEqual({ guildDiscordId: "123456", enabled: true, locale: "en", expoPushToken: "ExponentPushToken[abc]", helpCalls: false });
+    expect(await client.deviceState("123456")).toEqual({ enabled: true, helpCalls: false, raidSpots: true });
   });
 
   it("deletes the member's data with the confirm word, and tells a server without the route apart from a refusal", async () => {

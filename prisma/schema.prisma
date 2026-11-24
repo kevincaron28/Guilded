@@ -3340,6 +3340,10 @@ model MobileDevice {
   expoPushToken String? @unique
   enabled Boolean @default(false)
   locale String @default("en")
+  // Phone app 0.6.0: which non-raid pushes this phone wants (a guildmate's call for help, a raid spot opening up for me).
+  // On by default (owner rule); older apps never send them and keep the defaults.
+  helpCalls Boolean @default(true)
+  raidSpots Boolean @default(true)
   snapshot Json @default("{}")
   createdAt DateTime @default(now())
   generation Int @default(0)

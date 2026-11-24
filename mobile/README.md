@@ -1,6 +1,6 @@
 # Guilded Mobile
 
-Android and iOS share this Expo SDK 58 project. Mobile version **0.5.2**
+Android and iOS share this Expo SDK 58 project. Mobile version **0.6.0**
 (the Android versionCode is kept and raised by EAS on each store build) is separate from the bot,
 addon and Windows companion version. Both store identifiers are
 `top.kcaron.guilded`; the Expo slug is `guilded-mobile`.
@@ -23,6 +23,17 @@ bot, addon and Windows companion version). Store identifiers are
 - **Alerts**: raid reminders on this phone, plus help-call, dungeon and raid
   vacancy alerts listed under "Coming later" until the server sends them.
 - **News**: Wowhead headlines and the Blizzard news link. Public.
+
+**0.6.0** (planned, 24 November 2026, owner's list; one store build when the four pull requests are in; the bot parts deploy with the bot):
+
+- **Push for help calls and raid spots.** A guildmate's call for help in game reaches every other member's phone that has push on
+  (title "Call for help", "<name> needs help in <zone>"; a tap opens the guild map). A member moved off a raid's waiting list gets
+  "A spot opened up: you are in the raid" (a tap opens Raids). Each has its own switch under the push switch in Alerts, on by default.
+  Server: `MobileDevice.helpCalls` / `raidSpots` (migration `20270315090000_mobile_alert_kinds`), optional `helpCalls` and `raidSpots`
+  on `POST /api/v1/mobile/device` and in its `GET` answer (additive: older apps send and read only `enabled`), queued by
+  `src/services/mobile-notices.ts` (from `onHelpCallStored` in `src/main.ts` and `tellPromoted` in `src/commands/raid.ts`) and sent by
+  `runMobileAlerts`. Calls older than 20 minutes are not pushed, at most one help push per phone every 5 minutes, and a call cleared
+  in game before the send is dropped. Both go on the existing Android channel `raids` (now named "Raids & guild calls").
 
 **0.5.2** (24 November 2026, tester update; JavaScript-only, nothing built or submitted): polish found walking the app at 390 x 800.
 

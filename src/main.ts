@@ -116,6 +116,8 @@ import { handleAutocomplete } from "./commands/autocomplete.js";
 import { prisma } from "./database.js";
 import { runRaidReminders } from "./services/reminders.js";
 import { runMobileAlerts } from "./services/mobile-alerts.js";
+import { queueHelpCallPush } from "./services/mobile-notices.js";
+import { onHelpCallStored } from "./services/guild-map.js";
 import { queueExpiredPolls } from "./services/poll-expiry.js";
 import { runCooldownPings } from "./services/recipes.js";
 import { updateDungeonLeaderboard } from "./services/dungeon-leaderboard.js";
@@ -332,6 +334,12 @@ client.once(Events.ClientReady, (readyClient) => {
   };
   void mobileAlerts().catch(reportJobError("Mobile raid alerts"));
   setInterval(() => void mobileAlerts().catch(reportJobError("Mobile raid alerts")), 60_000);
+  // Phone app 0.6.0: a guildmate's call for help reaches the other members' phones (push and "help calls" on), sent at once
+  // rather than on the next minute tick. Listener errors never fail the upload (guild-map.ts catches them).
+  onHelpCallStored(async (call) => {
+    if (mobileSchemaUnavailable) return;
+    if (await queueHelpCallPush(prisma, call)) void mobileAlerts().catch(reportJobError("Mobile raid alerts"));
+  });
   // Cross-guild PUG requests: close finished ones, retire orphaned posts (delivery itself runs in the job queue).
   const sweepPugs = () => void sweepPugRequests(prisma, hostedPilot.allows).catch(reportJobError("PUG board sweep"));
   sweepPugs();

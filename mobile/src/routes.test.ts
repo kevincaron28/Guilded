@@ -14,6 +14,10 @@ describe("mobile destinations", () => {
     expect(notificationRoute({ type: "raid", guildDiscordId: "123456", raidId: "raid-1", url: "https://evil.example" })).toEqual({ section: "raids", guildDiscordId: "123456", raidId: "raid-1" });
     expect(notificationRoute({ type: "raid", guildDiscordId: "oops" })).toBeNull();
     expect(notificationRoute({ url: "guilded://raids" })).toBeNull();
+    // 0.6.0: a guildmate's call for help opens the guild map; unknown types still go nowhere.
+    expect(notificationRoute({ type: "help", guildDiscordId: "123456", raidId: "x" })).toEqual({ section: "map", guildDiscordId: "123456" });
+    expect(notificationRoute({ type: "help", guildDiscordId: "oops" })).toBeNull();
+    expect(notificationRoute({ type: "dungeon", guildDiscordId: "123456" })).toBeNull();
   });
 });
 

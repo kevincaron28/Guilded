@@ -7,7 +7,7 @@ import { revokeCompanionCredential } from "./services/companion-revoke.js";
 import { credentialBySecret, renewCompanionCredential } from "./services/companion-renew.js";
 import { allowMobileReport, mobileReportText } from "./services/mobile-app-report.js";
 import { createErrorReportService } from "./services/error-report.js";
-import { MobileCredentialUnknown, configureMobileDevice, mobileDeviceEnabled, retireMobileDevice } from "./services/mobile-alerts.js";
+import { MobileCredentialUnknown, configureMobileDevice, mobileDeviceStatus, retireMobileDevice } from "./services/mobile-alerts.js";
 import { guildScopeOf, guildWhere, loadGuildScope, runInGuildScope, withGuildScope } from "./services/guild-scope.js";
 import { hostedPilot } from "./hosted-pilot.js";
 import { assertForeverEdition, GameEditionError, gameEditionOf } from "./services/game-edition.js";
@@ -1420,10 +1420,10 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       }
       if (isImport && headerOf(request, "x-companion-health")) void recordHealthReport(prisma, { guildId: guild.id, ownerKey: `member:${access.memberId ?? access.actorId}`, memberId: access.memberId ?? null, header: headerOf(request, "x-companion-health"), version: clientVersion });
       if (isMobileDevice) {
-        const enabled = request.method === "GET"
-          ? await mobileDeviceEnabled(prisma, header as string)
-          : (await configureMobileDevice(prisma, header as string, payload)).enabled;
-        json(response, 200, { ok: true, enabled });
+        // helpCalls and raidSpots are additive (phone app 0.6.0); older apps read only `enabled`.
+        if (request.method === "GET") { json(response, 200, { ok: true, ...await mobileDeviceStatus(prisma, header as string) }); return; }
+        const device = await configureMobileDevice(prisma, header as string, payload);
+        json(response, 200, { ok: true, enabled: device.enabled, helpCalls: device.helpCalls, raidSpots: device.raidSpots });
         return;
       }
       if (isMapView || isMapEdit) {

@@ -34,6 +34,9 @@ bot, addon and Windows companion version). Store identifiers are
   `src/services/mobile-notices.ts` (from `onHelpCallStored` in `src/main.ts` and `tellPromoted` in `src/commands/raid.ts`) and sent by
   `runMobileAlerts`. Calls older than 20 minutes are not pushed, at most one help push per phone every 5 minutes, and a call cleared
   in game before the send is dropped. Both go on the existing Android channel `raids` (now named "Raids & guild calls").
+- **Guild activity** (Guild tab, Activity part): the last 14 days of joins, departures, removals, promotions and demotions (the in-game
+  guild log the addon reads), guild bank gifts and raid boss kills, newest first and grouped by day. `GET /api/v1/me/guild-feed?guild=<id>`
+  (`src/services/mobile-guild-feed.ts`, active members of that server only, allow-listed in `worker/index.mjs`). Offline copy, erased on sign-out.
 
 **0.5.2** (24 November 2026, tester update; JavaScript-only, nothing built or submitted): polish found walking the app at 390 x 800.
 

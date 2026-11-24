@@ -275,6 +275,15 @@ describe("global duels: the page and JSON", () => {
     const asked = JSON.parse((await get("2026-12-10T12:00:00Z")(`/leaderboards/duels.json?when=${json.season}`)).body) as { season: string };
     expect(asked.season).toBe(json.season);
   });
+  it("adds one player's own duel row with ?player= (phone app 0.6.0)", async () => {
+    const json = JSON.parse((await get("2026-12-10T12:00:00Z")("/leaderboards/duels.json")).body) as { player?: unknown; players: { name: string; rating: number; wins: number; losses: number }[] };
+    expect(json.player).toBeUndefined();
+    const first = json.players[0]!;
+    const mine = JSON.parse((await get("2026-12-10T12:00:00Z")(`/leaderboards/duels.json?player=${encodeURIComponent(first.name.toLowerCase())}`)).body) as { player: { rating: number; wins: number; losses: number } };
+    expect(mine.player).toMatchObject({ rating: first.rating, wins: first.wins, losses: first.losses });
+    const nobody = JSON.parse((await get("2026-12-10T12:00:00Z")("/leaderboards/duels.json?player=Nobody%20Here")).body) as { player?: unknown };
+    expect(nobody.player).toBeUndefined();
+  });
   it("lists everyone in the JSON and opens one player from a duel history", async () => {
     const json = JSON.parse((await get("2026-12-10T12:00:00Z")("/leaderboards/duels.json")).body) as { rules: { id: string }; season: string; players: { name: string; rank: number | null; realm: string }[]; recent: { winner: string; confirmedByBoth: boolean }[] };
     expect(json.rules.id).toBe("rating-v1");

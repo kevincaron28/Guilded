@@ -40,3 +40,45 @@ describe("saved dungeon runs stay bounded", () => {
     expect(s.run("local r = NS.dungeon.savedRuns(); return tostring(r.old.deathPoints) .. tostring(r.new.deathPoints ~= nil) .. tostring(r.mine.deathPoints ~= nil)")).toBe("nilfalsefalse");
   });
 });
+
+// 9.5.6: a confirmed run dropped by the cap came back through a guildmate's catch-up as new and unsynced, every session.
+describe("dropped runs do not come back (tombstones)", () => {
+  const forward = (id: string, ago: number) => s.run(`
+    local run = { id = ${JSON.stringify(id)}, state = "COMPLETED", instanceId = 33, name = "Gnomeregan",
+      startedAt = CLOCK - ${ago} - 900, endedAt = CLOCK - ${ago}, recorder = "Crashing Hunt",
+      players = { ["Crashing Hunt"] = { presentSec = 900 } }, encounters = {} }
+    return tostring(NS.dungeon.storeForwarded(run, "Crashing Hunt", "Friend")) .. tostring(NS.dungeon.savedRuns()[${JSON.stringify(id)}] ~= nil)`);
+  it("ignores a forwarded copy of a run the cap dropped, and nothing waits", () => {
+    start();
+    for (let i = 0; i < 310; i++) seed(`c${i}`, 3600 + i, ", synced = true");
+    s.run("GuildedDungeonAccepted = {}; NS.dungeon.markSynced()");
+    expect(s.run("return tostring(NS.dungeon.savedRuns().c309 ~= nil) .. tostring(NS.dungeon.isDropped('c309'))")).toBe("falsetrue");
+    expect(forward("c309", 3600 + 309)).toBe("falsefalse");
+    expect(s.run("return #NS.dungeon.waitingRuns()")).toBe("0");
+    // still ignored on a later login (the tombstone is saved) and after another prune
+    s.run("NS.dungeon.markSynced()");
+    expect(forward("c309", 3600 + 309)).toBe("falsefalse");
+  });
+  it("ignores a dropped run older than the peer window's start but still tombstoned, and a run the bot listed", () => {
+    start();
+    seed("aged", 86400 * 40, ", synced = true");
+    s.run("GuildedDungeonAccepted = {}; NS.dungeon.markSynced()");
+    expect(s.run("return tostring(NS.dungeon.savedRuns().aged ~= nil)")).toBe("false");
+    expect(forward("aged", 86400 * 40)).toBe("falsefalse");
+    s.run("GuildedDungeonAccepted = { 'listed' }");
+    expect(forward("listed", 3600)).toBe("falsefalse");
+  });
+  it("waitingRuns marks a run the bot already listed as synced instead of counting it", () => {
+    start();
+    seed("late", 3600, "");
+    expect(s.run("return #NS.dungeon.waitingRuns()")).toBe("1");
+    s.run("GuildedDungeonAccepted = { 'late' }");
+    expect(s.run("return #NS.dungeon.waitingRuns()")).toBe("0");
+    expect(s.run("return tostring(NS.dungeon.savedRuns().late.synced)")).toBe("true");
+  });
+  it("keeps tombstones bounded", () => {
+    start();
+    s.run("NS.getDb().dungeon.dropped = {}; for i = 1, 3100 do NS.getDb().dungeon.dropped['t' .. i] = CLOCK - i end; NS.dungeon.markSynced()");
+    expect(s.run("local n = 0 for _ in pairs(NS.getDb().dungeon.dropped) do n = n + 1 end return n")).toBe("3000");
+  });
+});

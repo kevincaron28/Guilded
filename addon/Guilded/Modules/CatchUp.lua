@@ -324,10 +324,20 @@ local function reconcile(kind, holder, list)
   end
   local mine = catchUp.collect(kind)
   local wanted, extra = {}, {}
+  -- (9.5.6) Runs this PC confirmed and dropped (tombstones, or listed by the bot) are not asked for again.
+  local droppedKeys = {}
+  if kind == "R" and ns.dungeon and ns.dungeon.isDropped then
+    local d = ns.getDb and ns.getDb()
+    local dungeonDb = d and d.dungeon
+    for id in pairs(dungeonDb and type(dungeonDb.dropped) == "table" and dungeonDb.dropped or {}) do droppedKeys[keyOf(hashText(tostring(id)))] = true end
+    for _, id in ipairs(type(GuildedDungeonAccepted) == "table" and GuildedDungeonAccepted or {}) do
+      if type(id) == "string" then droppedKeys[keyOf(hashText(id))] = true end
+    end
+  end
   for key, synced in pairs(theirs) do
     local held = mine[key]
     if not held then
-      if #wanted < MAX_WANT then table.insert(wanted, key) end
+      if #wanted < MAX_WANT and not droppedKeys[key] then table.insert(wanted, key) end
     elseif synced and kind == "R" and not held.item.synced and not held.item.syncedVia then
       -- Their bot already stored it: stop replaying it, and let it age out like a synced run.
       held.item.syncedVia = holder

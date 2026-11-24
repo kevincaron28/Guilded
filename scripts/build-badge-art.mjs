@@ -18,7 +18,9 @@ export const TIERS = ["bronze", "silver", "gold", "platinum", "epic", "legendary
 /** The first approved batch (13 November 2026): one emblem per family. More are added by file name, never in code. */
 export const FAMILY_EMBLEMS = ["dungeons-gate", "raids-banner", "duels-blades", "pvp-helm", "professions-anvil", "levelling-axe", "guild-horn", "seasons-laurel", "ingame-star"];
 /** The second approved batch (13 November 2026, the rest of set A): finer emblems that metrics and achievements name in src/services/badge-art.ts. */
-export const MORE_EMBLEMS = ["duels-flame", "duels-throne", "dungeons-key", "dungeons-map", "dungeons-torch", "guild-brazier", "guild-hand", "guild-pouch", "guild-sparkle-hand", "guild-sun-tablet", "guild-trophy", "ingame-banner", "ingame-boot", "ingame-scroll", "levelling-cap", "professions-first-laurel", "professions-gem", "professions-mortar", "professions-tools-crown", "pvp-drum", "raids-horn", "raids-siege", "raids-skull", "seasons-attendee", "seasons-helper", "seasons-organizer"];
+export const MORE_EMBLEMS = ["duels-flame", "duels-throne", "dungeons-key", "dungeons-map", "dungeons-torch", "guild-brazier", "guild-hand", "guild-pouch", "guild-sparkle-hand", "guild-sun-tablet", "guild-trophy", "ingame-banner", "ingame-boot", "ingame-scroll", "levelling-cap", "professions-first-laurel", "professions-gem", "professions-mortar", "professions-tools-crown", "pvp-drum", "raids-horn", "raids-siege", "raids-skull", "seasons-attendee", "seasons-helper", "seasons-organizer",
+  // Third batch (24 November 2026): gold held, auction house, secrets.
+  "guild-coins", "guild-scales", "guild-secret"];
 export const ALL_EMBLEMS = [...FAMILY_EMBLEMS, ...MORE_EMBLEMS];
 /** Painted role emblems for the dungeon run card (tank, healer, damage; 14 November 2026). Source files are <key>-CHOSEN.png; one 128 px size. */
 export const ROLE_EMBLEMS = ["tank", "healer", "damage"];

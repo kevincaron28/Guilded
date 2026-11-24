@@ -43,10 +43,10 @@ export function badgeFamily(def: Pick<AchievementDef, "metric" | "en">): BadgeFa
 /** Finer emblems by metric (all owner-approved 13 November 2026). A name whose file is missing is ignored and the badge keeps its family emblem. */
 export const METRIC_EMBLEMS: Record<string, string> = {
   messagesSent: "guild-sun-tablet", voiceHours: "guild-horn", reactionsGiven: "guild-hand", reactionsReceived: "guild-sparkle-hand", communityPoints: "guild-pouch", mvpWeeks: "guild-trophy",
-  activeDays: "guild-brazier", serverAnniversaries: "guild-brazier",
-  // Gold and auction badges drew the family horn; the coin pouch is the closest painted emblem until a dedicated coins emblem exists (card coverage audit, 24 Nov 2026).
-  goldTier: "guild-pouch", auctionSoldTier: "guild-pouch", auctionProfitTier: "guild-pouch", wowEditionCap: "levelling-cap", wowMaxLevel: "levelling-cap",
-  professionsMastered: "professions-gem", professionFirsts: "professions-first-laurel", rareRecipes: "professions-mortar"
+  activeDays: "guild-brazier", serverAnniversaries: "guild-brazier", wowEditionCap: "levelling-cap", wowMaxLevel: "levelling-cap",
+  professionsMastered: "professions-gem", professionFirsts: "professions-first-laurel", rareRecipes: "professions-mortar",
+  // 24 November 2026 (generated, pre-approved art): gold held, the auction house ladders and secrets had only the guild horn.
+  goldTier: "guild-coins", auctionSoldTier: "guild-scales", auctionProfitTier: "guild-scales", secretMilestone: "guild-secret"
 };
 /** Finer emblems by achievement id (these win over the metric's). */
 export const ITEM_EMBLEMS: Record<string, string> = {

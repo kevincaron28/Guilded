@@ -6,7 +6,7 @@ import { gunzipSync } from "node:zlib";
 import { acknowledgements, pruneAcknowledged, pruneOldRaids } from "../companion/delta.mjs";
 import { guardedStandings, writeDataAddon } from "../companion/data-addon.mjs";
 import { standingsToLua } from "../companion/standings.mjs";
-import { createEngine } from "../companion/engine.mjs";
+import { createEngine, quietPollGapMs } from "../companion/engine.mjs";
 import { newLuaSession } from "./lua/harness.js";
 
 const dirs: string[] = [];
@@ -144,6 +144,7 @@ describe("GuildedData, the companion's own addon folder", () => {
 // A bot that knows the newer protocol: ETag, gzip uploads, acknowledgements and long polls.
 function newerBot(options: { ledger: string[] }) {
   const calls: { url: string; since: string | null; wait: string | null }[] = [];
+  const times: { kind: "poll" | "upload"; at: number }[] = [];
   const uploads: unknown[] = [];
   let version = 1;
   const body = () => ({
@@ -156,15 +157,17 @@ function newerBot(options: { ledger: string[] }) {
     const target = new URL(String(url));
     if (target.pathname === "/api/v1/standings") {
       calls.push({ url: target.pathname, since: target.searchParams.get("since"), wait: target.searchParams.get("wait") });
+      times.push({ kind: "poll", at: Date.now() });
       const etag = `"v${version}"`;
       if (target.searchParams.get("since") === etag) return { ok: false, status: 304, headers: new Headers({ etag }), json: async () => ({}) };
       return { ok: true, status: 200, headers: new Headers({ etag }), json: async () => body() };
     }
     const raw = init?.headers?.["content-encoding"] === "gzip" ? gunzipSync(init.body as Buffer).toString("utf8") : String(init?.body);
     uploads.push({ encoding: init?.headers?.["content-encoding"] ?? null, payload: JSON.parse(raw) });
+    times.push({ kind: "upload", at: Date.now() });
     return { ok: true, status: 201, headers: new Headers(), json: async () => ({ autoApplied: { epgp: 1, discovered: 0 }, botVersion: "6.2.0" }) };
   });
-  return { fetch, calls, uploads, bump: () => { version++; } };
+  return { fetch, calls, uploads, times, bump: () => { version++; } };
 }
 
 const savedFile = `GuildedDB = {
@@ -173,6 +176,12 @@ const savedFile = `GuildedDB = {
     { ["id"] = "Kev-1-2", ["epAmount"] = 5, ["gpAmount"] = 0, ["type"] = "EP_AWARD", ["reason"] = "Boss kill" },
   } } },
 }`;
+
+describe("live standings quiet backoff (Cloudflare Worker request budget)", () => {
+  it("polls 2 s after a change, then 15 s, 30 s, 60 s ... at most 5 minutes after answers with nothing new", () => {
+    expect([0, 1, 2, 3, 4, 5, 6, 50].map(quietPollGapMs)).toEqual([2_000, 15_000, 30_000, 60_000, 120_000, 240_000, 300_000, 300_000]);
+  });
+});
 
 describe("companion engine with a newer bot", () => {
   it("does not restart timers when stopped during its initial standings request", async () => {
@@ -223,8 +232,10 @@ describe("companion engine with a newer bot", () => {
       expect(readFileSync(join(game.data, "Standings.lua"), "utf8")).toContain("ep = 10");
       // Long polls carry the ETag (also as `since`, for the website proxy).
       await vi.waitFor(() => expect(bot.calls.some((call) => call.since === "\"v1\"" && call.wait === "12")).toBe(true));
-      // A change on the bot reaches the addon folder without waiting minutes.
+      // A change on the bot reaches the addon folder by the next poll. This fake bot answers "nothing new" at once instead of
+      // holding the request, so the engine is in its quiet backoff (25 Nov 2026): at most 5 minutes between polls.
       bot.bump();
+      await vi.advanceTimersByTimeAsync(5 * 60_000);
       // The engine announces a write only after BOTH files and its ETag are ready.
       // Polling the main file used to observe the rename before the refresh finished,
       // then overwrite it while the worker was still writing GuildedData.
@@ -234,12 +245,30 @@ describe("companion engine with a newer bot", () => {
       // An addon update replaced Standings.lua with the empty one it ships: written again.
       const beforeRepair = bot.calls.length;
       writeFileSync(game.standings, "GuildedStandings = { updatedAt = nil, baseGp = 0, players = {} }\n");
+      await vi.advanceTimersByTimeAsync(5 * 60_000);
       await vi.waitFor(() => expect(writes).toHaveBeenCalledTimes(3), { timeout: 6000 });
       expect(readFileSync(game.standings, "utf8")).toContain("ep = 20");
-      expect(bot.calls.slice(beforeRepair)).toEqual([
+      // The first poll after the damage notices it and fetches the full answer once.
+      const after = bot.calls.slice(beforeRepair);
+      const forced = after.findIndex((call) => call.since === null);
+      expect(forced).toBeGreaterThan(0);
+      expect(after.slice(forced - 1, forced + 1)).toEqual([
         { url: "/api/v1/standings", since: '"v2"', wait: "12" },
         { url: "/api/v1/standings", since: null, wait: null }
       ]);
+      expect(after.filter((call) => call.since === null)).toHaveLength(1);
+      // Quiet: "nothing new" answers space the polls out (15 s, 30 s, ... up to 5 minutes), not one every 2 seconds.
+      const quietStart = bot.calls.length;
+      await vi.advanceTimersByTimeAsync(30 * 60_000);
+      expect(bot.calls.length - quietStart).toBeLessThanOrEqual(12);
+      // A save of the WoW file is uploaded and ends the quiet wait: the receipts come back within seconds.
+      writeFileSync(game.file, savedFile.replace("Boss kill", "Boss kill again"));
+      await vi.advanceTimersByTimeAsync(31_000);
+      await vi.waitFor(() => expect(bot.uploads).toHaveLength(2));
+      await vi.advanceTimersByTimeAsync(1_000);
+      const uploadedAt = bot.times.filter((entry) => entry.kind === "upload").at(-1)!.at;
+      // Within a second of the upload, not at the end of a 5-minute quiet wait.
+      expect(bot.times.some((entry) => entry.kind === "poll" && entry.at >= uploadedAt && entry.at - uploadedAt <= 1_000)).toBe(true);
       expect(errors).toEqual([]);
     } finally { await engine.stop(); }
   }, 20_000);

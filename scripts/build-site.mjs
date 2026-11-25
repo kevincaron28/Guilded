@@ -11,6 +11,7 @@ import { keepPage, stripPoe, withoutPoe } from "../site/focus.mjs";
 import { writeMobileAssociations } from "./mobile-associations.mjs";
 import { deepenShallowClone } from "./git-history.mjs";
 import { buildDungeonThumbs } from "./dungeon-thumbs.mjs";
+import { CONSENT_SCRIPT } from "../worker/consent-script.mjs";
 
 const guides = ["PRIVACY", "HOSTED_PILOT", "SUPPORT_GUILDED", "OWNER_WALKTHROUGH", "QUICK_START", "MEMBER_INSTALL", "DUNGEONS_GUIDE", "EPGP_GUIDE", "GUILD_OWNER_SETUP", "DEPLOY_ORACLE", "AI_SETUP_HELP", "AUTOMATION_QUICK_START"];
 // The public address written into canonical links, the sitemap and robots.txt (docs/plans/GUILDEDWOW_DOMAIN.md).
@@ -203,7 +204,12 @@ for (const page of pages) {
   writeFileSync(`${out}/404.html`, `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#111312"><meta name="robots" content="noindex"><title data-en="Page not found · Guilded" data-fr="Page introuvable · Guilded">Page not found · Guilded</title><link rel="icon" href="/favicon.png" type="image/png"><link rel="stylesheet" href="/design-tokens.css"><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/atelier.css"><script src="/site.js" defer></script><script src="/language.js" type="module"></script></head><body class="site-page features-page"><a class="skip" href="#main">${b('Skip to content', 'Aller au contenu')}</a>${siteHeader('/', false, null, true)}<main class="guide not-found" id="main" tabindex="-1"><img class="nf-art" src="/images/web/404-1200.webp" srcset="/images/web/404-800.webp 800w, /images/web/404-1200.webp 1200w" sizes="(max-width:1000px) 100vw, 1000px" alt="" width="1200" height="675" fetchpriority="high"><div class="nf-text"><span class="nf-code">404</span><h1>${b('This page wandered off', 'Cette page s’est égarée')}</h1><p>${b('The address may be old or mistyped. Head back to the start and pick up from there.', 'L’adresse est peut-être ancienne ou mal écrite. Revenez à l’accueil et reprenez à partir de là.')}</p><p><a class="button" href="/">${b('Go home', 'Retour à l’accueil')}</a></p></div></main><footer class="site-footer">${siteFooterCols('/', { bilingual: true })}</footer></body></html>`);
 }
 writeFileSync(`${out}/sitemap.xml`, `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${publicUrls.map(path => `<url><loc>${origin}${path}</loc></url>`).join('')}</urlset>\n`);
-writeFileSync(`${out}/robots.txt`, `User-agent: *\nAllow: /\nDisallow: /me\nDisallow: /me/\nDisallow: /auth/\nDisallow: /api/\nDisallow: /health\nDisallow: /owner\nDisallow: /owner/\nSitemap: ${origin}/sitemap.xml\nSitemap: ${origin}/recruitment/guilds/sitemap.xml\nSitemap: ${origin}/leaderboards/sitemap.xml\n`);
+// The ad consent banner as a plain file (25 Nov 2026): served by Cloudflare's static assets, it no longer runs the Worker on
+// every ad page view. Pages name it only while GUILDED_ADS is on (worker/ads.mjs withAds); the Worker keeps its own copy.
+writeFileSync(`${out}/consent.js`, CONSENT_SCRIPT);
+// Crawl-delay (25 Nov 2026): every crawled leaderboard page is a Worker request (free plan: 100,000 a day) and crawlers made
+// a third of them. Bing, Yandex and most AI crawlers honour it; Google ignores it.
+writeFileSync(`${out}/robots.txt`, `User-agent: *\nCrawl-delay: 10\nAllow: /\nDisallow: /me\nDisallow: /me/\nDisallow: /auth/\nDisallow: /api/\nDisallow: /health\nDisallow: /owner\nDisallow: /owner/\nSitemap: ${origin}/sitemap.xml\nSitemap: ${origin}/recruitment/guilds/sitemap.xml\nSitemap: ${origin}/leaderboards/sitemap.xml\n`);
 // Each bilingual public page has crawlable EN/FR alternatives. The Worker
 // renders ?lang=fr on the server, including for clients without JavaScript.
 function languageAlternates(directory) {

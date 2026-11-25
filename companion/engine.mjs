@@ -265,6 +265,17 @@ function describeApiError(status, apiError) {
 const LONG_POLL_SECONDS = 12;
 // Two standings requests are never closer than this, whatever the bot answers.
 const MIN_POLL_GAP_MS = 2_000;
+// (25 Nov 2026) Quiet backoff. Every long poll is one request on the website's Cloudflare Worker (free plan: 100,000 a day),
+// and a poll every 12 seconds per connection, day and night, was ~60,000 of them. The addon reads the written files only at
+// login or /reload, so after a "nothing new" answer the next poll waits 15 s, then 30 s, 60 s... up to 5 minutes. Any changed
+// answer, a save of the WoW file and every upload end the wait, so receipts for a run just sent still arrive within seconds.
+const QUIET_FIRST_GAP_MS = 15_000;
+const QUIET_MAX_GAP_MS = 5 * 60_000;
+/** The pause before the next live standings poll after `quiet` "nothing new" answers in a row (0: the bot just sent a change). */
+export function quietPollGapMs(quiet) {
+  if (!(quiet > 0)) return MIN_POLL_GAP_MS;
+  return Math.min(QUIET_MAX_GAP_MS, QUIET_FIRST_GAP_MS * 2 ** Math.min(quiet - 1, 10));
+}
 // Safety net for the folder watch, which can miss a save on some Windows setups.
 const FILE_CHECK_MS = 30_000;
 // A folder watch that gave up (antivirus, backup software) is tried again this often, and one
@@ -391,6 +402,19 @@ export function createEngine(initialConfig, hooks = {}) {
     const timer = setTimeout(done, ms);
     signal.addEventListener("abort", done, { once: true });
   });
+  // The live standings loop's quiet wait (quietPollGapMs): it also ends early when wakeLiveStandings() is called.
+  let liveWake = null;
+  let liveQuiet = 0;
+  const quietPause = (ms, epoch) => new Promise((resolve) => {
+    if (epoch !== generation) { resolve(); return; }
+    const signal = controller.signal;
+    const done = () => { clearTimeout(timer); signal.removeEventListener("abort", done); if (liveWake === done) liveWake = null; resolve(); };
+    const timer = setTimeout(done, ms);
+    signal.addEventListener("abort", done, { once: true });
+    liveWake = done;
+  });
+  // Something the bot will answer about (an upload, runs sent): ask again now, and promptly for the next few answers.
+  function wakeLiveStandings() { liveQuiet = 0; liveWake?.(); }
 
   async function fileStamp(path) {
     try { const info = await stat(path); return `${info.mtimeMs}:${info.size}`; } catch { return null; }
@@ -589,7 +613,7 @@ export function createEngine(initialConfig, hooks = {}) {
           // Sent: not asked again for the same runs within the hour; the standings answer that follows turns them into receipts (or not).
           kind = "unconfirmed";
           log("info", `Dungeon runs of ${key}: ${runs.length} sent.`);
-          if (state.standingsMode !== "live") track(refreshStandings());
+          if (state.standingsMode !== "live") track(refreshStandings()); else wakeLiveStandings();
         } else log("warn", `Dungeon runs of ${key}: the bot answered ${response.status}; they will be sent again later.`);
       } catch (error) {
         if (epoch !== generation) return;
@@ -828,8 +852,8 @@ export function createEngine(initialConfig, hooks = {}) {
       log(body.applyError || body.autoApplied?.held ? "warn" : "ok", message + leftNote);
       // 9.3.0: the dungeon runs this upload carried; the standings answer that follows says how many the bot holds.
       if (sentLine && pendingRunCheck.ids.length) log("info", sentLine.message);
-      // A live standings connection hears about the change by itself.
-      if (state.standingsMode !== "live") track(refreshStandings());
+      // A live standings connection hears about the change by itself once its quiet wait is ended.
+      if (state.standingsMode !== "live") track(refreshStandings()); else wakeLiveStandings();
     } else if (response.status === 409 && body.importId) {
       const failed = Boolean(body.applyError);
       const message = failed
@@ -968,6 +992,7 @@ export function createEngine(initialConfig, hooks = {}) {
   async function liveStandings(epoch) {
     let errors = 0;
     let sameAnswers = 0;
+    liveQuiet = 0;
     while (state.running && epoch === generation) {
       const startedAt = Date.now();
       const sent = etag;
@@ -980,6 +1005,7 @@ export function createEngine(initialConfig, hooks = {}) {
         // Do not spin; ask every few minutes instead.
         sameAnswers = !result.notModified && sent && result.etag === sent ? sameAnswers + 1 : 0;
         if (sameAnswers >= 3 || (!result.notModified && !result.etag)) { startInterval(epoch); return; }
+        liveQuiet = result.notModified ? liveQuiet + 1 : 0;
       } catch (error) {
         if (epoch !== generation) return;
         state.standingsError = describeError(error);
@@ -989,6 +1015,7 @@ export function createEngine(initialConfig, hooks = {}) {
         await sleep(Math.min(300_000, 5_000 * 2 ** Math.min(errors - 1, 6)), epoch);
         continue;
       }
+      if (liveQuiet > 0) { await quietPause(quietPollGapMs(liveQuiet), epoch); continue; }
       const elapsed = Date.now() - startedAt;
       if (elapsed < MIN_POLL_GAP_MS) await sleep(MIN_POLL_GAP_MS - elapsed, epoch);
     }

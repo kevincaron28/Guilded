@@ -1,14 +1,14 @@
 # 9.5.7 release acceptance
 
-Status: prepared 25 November 2026.
+Status: published 25 November 2026.
 
 | Provider | State |
 | --- | --- |
-| GitHub | pending |
-| Installer | pending |
-| CurseForge | pending |
+| GitHub | v9.5.7 published (tag b047716d). |
+| Installer | server and R2 mirror, sha256 ef55576a…. |
+| CurseForge | uploaded 25 November 2026 (Guilded file 9803958, Guilded Dungeons file 9803959), in review. |
 | Microsoft Store | pending: 9.5.7.0 (companion changed). |
-| Bot | pending (no bot code change since the live #1293-#1300 deploys). |
+| Bot | deployed by the coordinator after the GitHub release (no bot code change). |
 
 ## Checks owed
 

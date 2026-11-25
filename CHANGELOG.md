@@ -1,5 +1,23 @@
 # Changelog
 
+## 9.5.7 — 25 November 2026
+
+Prepared 25 November 2026. In-game checks: docs/V9_5_7_RELEASE_ACCEPTANCE.md.
+
+Companion (#1300):
+- The live standings poll backs off while nothing changes: after a "nothing new" answer the next poll waits 15 s, then 30 s, up to 5 minutes; a change, a save or an upload ends the wait. A quiet connection makes about 280 requests a day instead of about 7,000, which keeps the website's Worker under its daily limit. The addon still reads the files at login or /reload, so nothing changes in game.
+
+Website (#1300, already live):
+- consent.js is served as a static file and robots.txt asks crawlers for a 10-second delay.
+
+Bot (already live):
+- New Discord cards: community badge, shelf, season, final top and bank week; gold badges use the pouch (#1293).
+- New card paintings, a painted raids header and three badge emblems (#1295).
+- Server routes for phone app 0.6.0: push alerts, the guild activity feed, crafting and the character page (#1296–#1299). The phone app keeps its own version.
+
+Addon:
+- Version 9.5.7 (no functional change).
+
 ## 9.5.6 — 23 November 2026
 
 Published 23 November 2026 (GitHub v9.5.6, website download and installer, bot). In-game checks: docs/V9_5_6_RELEASE_ACCEPTANCE.md.

@@ -48,7 +48,7 @@ describe("signup deadline", () => {
     const start = new Date(Date.now() - HOUR);
     const raid = { id: "r", guildId: "g", title: "Onyxia", scheduledAt: start, signupsCloseAt: new Date(start.getTime() - 2 * HOUR), repeatWeekly: true, isTest: false, weeklyOccurrence: null, createdBy: "o", description: null, tankLimit: 2, healerLimit: 8, dpsLimit: 30, coreId: null, bosses: [] };
     const create = vi.fn(async ({ data }) => data);
-    const service = createRaidService({ raid: { findFirst: vi.fn().mockResolvedValueOnce(raid).mockResolvedValueOnce(null), create } } as never);
+    const service = createRaidService({ raid: { findFirst: vi.fn().mockResolvedValue(raid), findMany: vi.fn().mockResolvedValue([]), create } } as never);
     const next = await service.createNextRepeat("r", "g");
     expect(next?.signupsCloseAt).toEqual(new Date(start.getTime() + 7 * 24 * HOUR - 2 * HOUR));
   });

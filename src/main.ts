@@ -20,10 +20,13 @@ import { commandSetFor } from "./commands/lite.js";
 import { gateOutcome, serverWideCommand, skipsGuildScope } from "./services/interaction-gate.js";
 import { ensureCoreDiscord } from "./services/raid-core.js";
 import { fillGuildWeeklyRaids } from "./services/core-weekly-raids.js";
+import { runRaidNudges } from "./services/raid-nudge.js";
+import { createRaidService } from "./services/raid.js";
+import { runAuctionAutoClose } from "./services/auction-close.js";
 import { runTeamSchedules } from "./services/activity-core.js";
 import { autocompleteTeam, executeTeam, handleTeamButton } from "./commands/team.js";
 import { TEAM_BUTTON_PREFIX } from "./services/activity-core-discord.js";
-import { guildService, interactionLang } from "./commands/context.js";
+import { buttonErrorText, guildService, interactionLang } from "./commands/context.js";
 import { adoptCommunityHonors } from "./services/community-honors.js";
 import { rememberRookieJoin } from "./services/monthly-rookie.js";
 import { COMMUNITY_PREFIX, executeCommunity, handleCommunityButton, handleCommunityModal, runCommunityActivities } from "./commands/community.js";
@@ -607,6 +610,27 @@ client.once(Events.ClientReady, (readyClient) => {
   void recurring();
   setInterval(() => void recurring(), 5 * 60_000);
   const raidReminderRun = noOverlap(() => runRaidReminders(readyClient, prisma));
+  const raidNudgeRun = noOverlap(() => runRaidNudges(readyClient, prisma));
+  const auctionCloseRun = noOverlap(() => runAuctionAutoClose(readyClient, prisma));
+  // A weekly raid nobody ended still gets its next week posted.
+  const weeklyRollRun = noOverlap(async () => {
+    for (const rolled of await createRaidService(prisma).rollStaleWeekly(new Date(), pilotGuildScope)) {
+      const record = await prisma.guild.findUnique({ where: { id: rolled.guildId }, select: { discordId: true } });
+      const discordGuild = record ? readyClient.guilds.cache.get(record.discordId) : undefined;
+      if (!discordGuild || !hostedPilot.allows(discordGuild.id)) continue;
+      await withGuildScope(prisma, rolled.guildId, () => syncSignupEmbed(discordGuild, rolled.guildId, rolled.id));
+    }
+  });
+  setInterval(() => {
+    void raidNudgeRun().catch(reportJobError("Day-before raid message"));
+  }, 5 * 60 * 1000);
+  setInterval(() => {
+    void weeklyRollRun().catch(reportJobError("Weekly raid roll-over"));
+  }, 15 * 60 * 1000);
+  // Loot auctions close by themselves when their time is up.
+  setInterval(() => {
+    void auctionCloseRun().catch(reportJobError("Auction auto-close"));
+  }, 15_000);
   const cooldownPingRun = noOverlap(() => runCooldownPings(readyClient, prisma));
   const wclDiscoveryRun = noOverlap(() => runWclDiscovery(readyClient, prisma));
   const dungeonGroupCleanupRun = noOverlap(() => cleanupDungeonGroups(readyClient));
@@ -1012,7 +1036,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   if (interaction.isModalSubmit() && interaction.customId.startsWith(FAQ_MODAL_PREFIX)) {
     await handleFaqModal(interaction).catch((error: unknown) => {
       if (!(error instanceof Error && error.message.length < 200)) reportInteractionError("Answer form", interaction, error);
-      if (!interaction.replied) void interaction.reply({ content: error instanceof Error ? error.message : "Could not save the answer.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
+      if (!interaction.replied) void buttonErrorText(interaction, error, "Could not save the answer.").then((content) => interaction.reply({ content, flags: MessageFlags.Ephemeral })).catch(() => undefined);
     });
     return;
   }
@@ -1023,11 +1047,10 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   if (interaction.isModalSubmit() && interaction.customId.startsWith(`${DUNGEON_GUIDE_PREFIX}create`)) {
     await handleDungeonGuideModal(interaction).catch((error: unknown) => {
       reportInteractionError("Dungeon group form", interaction, error);
-      if (interaction.deferred) {
-        void interaction.editReply({ content: error instanceof Error ? error.message : "Could not post the dungeon group." }).catch(() => undefined);
-      } else if (!interaction.replied) {
-        void interaction.reply({ content: error instanceof Error ? error.message : "Could not post the dungeon group.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
-      }
+      void buttonErrorText(interaction, error, "Could not post the dungeon group.").then(async (content) => {
+        if (interaction.deferred) await interaction.editReply({ content });
+        else if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral });
+      }).catch(() => undefined);
     });
     return;
   }
@@ -1137,7 +1160,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
       else await handleOfficerModal(interaction);
     } catch (error) {
       reportInteractionError("Officer tools", interaction, error);
-      const content = error instanceof Error && error.message.length < 200 ? error.message : "Could not apply that change.";
+      const content = await buttonErrorText(interaction, error, "Could not apply that change.");
       if (interaction.replied || interaction.deferred) await interaction.editReply({ content, components: [] }).catch(() => undefined);
       else await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
@@ -1148,7 +1171,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
       await handleRaidSignupButton(interaction);
     } catch (error) {
       reportInteractionError("Raid signup button", interaction, error);
-      const content = error instanceof Error ? error.message : tx(await interactionLang(interaction), "Could not update your signup.");
+      const content = await buttonErrorText(interaction, error, "Could not update your signup.");
       if (interaction.replied || interaction.deferred) await interaction.editReply({ content, components: [] }).catch(() => undefined);
       else await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
@@ -1159,7 +1182,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
       await handleRaidSpecSelect(interaction);
     } catch (error) {
       reportInteractionError("Raid spec choice", interaction, error);
-      const content = error instanceof Error ? error.message : tx(await interactionLang(interaction), "Could not change your spec.");
+      const content = await buttonErrorText(interaction, error, "Could not change your spec.");
       if (interaction.replied || interaction.deferred) await interaction.editReply({ content, components: [] }).catch(() => undefined);
       else await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
@@ -1170,7 +1193,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
       await handleEpAwardButton(interaction);
     } catch (error) {
       reportInteractionError("EP award button", interaction, error);
-      const content = error instanceof Error ? error.message : "Could not record the EP award.";
+      const content = await buttonErrorText(interaction, error, "Could not record the EP award.");
       if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
     return;

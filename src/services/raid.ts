@@ -69,6 +69,12 @@ export class DpsKindFullError extends Error {
 }
 
 const HOUR_MS = 3_600_000;
+const WEEK_MS = 7 * 24 * HOUR_MS;
+// A weekly raid nobody ended gets its next week this long after its start (and only if it is not ancient).
+export const STALE_WEEKLY_AFTER_MS = 12 * HOUR_MS;
+export const STALE_WEEKLY_LOOKBACK_MS = 14 * 24 * HOUR_MS;
+/** Same weekly slot: a whole number of weeks apart, give or take half a day (a changed hour, a clock change). */
+const sameSlot = (a: Date, b: Date) => { const rest = Math.abs(a.getTime() - b.getTime()) % WEEK_MS; return Math.min(rest, WEEK_MS - rest) <= 12 * HOUR_MS; };
 function deadline(scheduledAt: Date, hours: number, now = new Date()): Date {
   if (!Number.isInteger(hours) || hours < 1 || hours > 168) throw new Error("The signup deadline must be 1 to 168 hours before the start.");
   const closesAt = new Date(scheduledAt.getTime() - hours * HOUR_MS);
@@ -205,17 +211,17 @@ export function createRaidService(database: PrismaClient) {
       });
     },
 
-    // For a weekly raid that just ended: creates the next one, seven days on
-    // (or the first such date still in the future). Null if it is not weekly.
+    // For a weekly raid that ended, was cancelled (a skipped week) or was never ended: creates the next one,
+    // seven days on (or the first such date still in the future). Null if it is not weekly.
     async createNextRepeat(raidId: string, guildId: string, now = new Date()) {
       const raid = await database.raid.findFirst({ where: { id: raidId, guildId }, include: { bosses: { orderBy: { sortOrder: "asc" } } } });
       if (!raid || !raid.repeatWeekly || raid.isTest || raid.weeklyOccurrence) return null;
-      const week = 7 * 24 * 3_600_000;
-      let next = raid.scheduledAt.getTime() + week;
-      while (next <= now.getTime()) next += week;
-      // A cancelled or already-created follow-up must not be duplicated.
-      const existing = await database.raid.findFirst({ where: { guildId, title: raid.title, scheduledAt: new Date(next), status: { not: "CANCELLED" } }, select: { id: true } });
-      if (existing) return null;
+      let next = raid.scheduledAt.getTime() + WEEK_MS;
+      while (next <= now.getTime()) next += WEEK_MS;
+      // A later raid of this series (same title, core and weekly slot) is the follow-up already: even a cancelled one,
+      // so a skipped or stopped week never comes back. The same title on another weekday is a separate series.
+      const later = await database.raid.findMany({ where: { guildId, title: raid.title, coreId: raid.coreId ?? null, scheduledAt: { gt: raid.scheduledAt } }, select: { scheduledAt: true } });
+      if (later.some((other) => sameSlot(other.scheduledAt, raid.scheduledAt))) return null;
       return database.raid.create({
         data: {
           guildId, title: raid.title, scheduledAt: new Date(next), createdBy: raid.createdBy, description: raid.description,
@@ -226,6 +232,24 @@ export function createRaidService(database: PrismaClient) {
           ...(raid.bosses.length > 0 ? { bosses: { create: raid.bosses.map((boss, sortOrder) => ({ name: boss.name, sortOrder })) } } : {})
         }
       });
+    },
+
+    // Weekly raids that started long enough ago and were never ended or cancelled: their next week is created.
+    // `scope` limits the guilds looked at (the hosted pilot list).
+    async rollStaleWeekly(now = new Date(), scope: { guild?: { discordId: { in: string[] } } } = {}) {
+      const stale = await database.raid.findMany({
+        where: { ...scope, repeatWeekly: true, isTest: false, weeklyOccurrence: null, status: { in: ["PLANNED", "ACTIVE"] },
+          scheduledAt: { lte: new Date(now.getTime() - STALE_WEEKLY_AFTER_MS), gte: new Date(now.getTime() - STALE_WEEKLY_LOOKBACK_MS) } },
+        select: { id: true, guildId: true },
+        orderBy: { scheduledAt: "desc" },
+        take: 100
+      });
+      const created: { id: string; guildId: string }[] = [];
+      for (const raid of stale) {
+        const next = await this.createNextRepeat(raid.id, raid.guildId, now);
+        if (next) created.push({ id: next.id, guildId: raid.guildId });
+      }
+      return created;
     },
 
     setSignupMessage(raidId: string, guildId: string, channelId: string, messageId: string) {
@@ -246,6 +270,8 @@ export function createRaidService(database: PrismaClient) {
       rangedLimit?: number | null;
       // Hours before the start; 0 removes the deadline.
       signupsCloseHours?: number;
+      // Weekly repeat on or off (off ends the series).
+      repeatWeekly?: boolean;
     }) {
       return locked(raidId, async tx => {
         const raid = await getRaid(raidId, guildId, tx);
@@ -269,7 +295,9 @@ export function createRaidService(database: PrismaClient) {
             ...(signupsCloseAt === undefined ? {} : { signupsCloseAt }),
             ...(input.title === undefined ? {} : { title: input.title.trim() }),
             ...(input.description === undefined ? {} : { description: input.description?.trim() || null }),
-            ...(input.scheduledAt === undefined ? {} : { scheduledAt: input.scheduledAt }),
+            // A new time gets its reminders again.
+            ...(input.scheduledAt === undefined ? {} : { scheduledAt: input.scheduledAt, ...(input.scheduledAt.getTime() === raid.scheduledAt.getTime() ? {} : { reminderSentAt: null, nudgeSentAt: null }) }),
+            ...(input.repeatWeekly === undefined ? {} : { repeatWeekly: input.repeatWeekly }),
             ...(input.tankLimit === undefined ? {} : { tankLimit: input.tankLimit }),
             ...(input.healerLimit === undefined ? {} : { healerLimit: input.healerLimit }),
             ...(input.dpsLimit === undefined ? {} : { dpsLimit: input.dpsLimit }),
@@ -283,11 +311,12 @@ export function createRaidService(database: PrismaClient) {
       });
     },
 
-    async cancel(raidId: string, guildId: string) {
+    // stopRepeating also ends a weekly series; without it, cancelling skips one week.
+    async cancel(raidId: string, guildId: string, options: { stopRepeating?: boolean } = {}) {
       const raid = await getRaid(raidId, guildId);
       if (raid.status === "COMPLETED") throw new Error("Completed raids cannot be cancelled.");
       if (raid.status === "CANCELLED") throw new Error("Raid is already cancelled.");
-      return database.raid.update({ where: { id: raid.id }, data: { status: "CANCELLED" } });
+      return database.raid.update({ where: { id: raid.id }, data: { status: "CANCELLED", ...(options.stopRepeating ? { repeatWeekly: false } : {}) } });
     },
 
     // AVAILABLE takes a role slot, or joins the waitlist when that role is
@@ -302,7 +331,7 @@ export function createRaidService(database: PrismaClient) {
         const byCharacter = (await tx.guildSettings?.findUnique({ where: { guildId }, select: { characterSignups: true } }))?.characterSignups ?? false;
         const character = characterValue || byCharacter ? await ownedSignupCharacter(tx, guildId, memberId, characterValue) : null;
         if (character && await tx.raidSignup.findFirst({ where: { raidId, characterId: character.id, memberId: { not: memberId }, status: { not: "CANCELLED" } } })) {
-          throw new Error("Ce personnage est déjà inscrit à ce raid. Une inscription par personnage et une place par personne.");
+          throw new Error("This character is already signed up for this raid: one signup per character and one spot per person.");
         }
         if (character) assertRealm(character, await raidRealm(raid, memberId, tx), raid.title);
         const identity = byCharacter ? `${memberId}:${character?.id}` : memberId;
@@ -531,6 +560,17 @@ export function createRaidService(database: PrismaClient) {
           ...(input.notes === undefined ? {} : { notes: input.notes.trim() || null })
         }
       });
+    },
+
+    // A boss not typed at creation: added at the end of the list.
+    async addBoss(raidId: string, guildId: string, name: string) {
+      const raid = await getRaid(raidId, guildId);
+      if (raid.status === "CANCELLED") throw new Error("This raid is cancelled.");
+      const clean = name.trim();
+      if (clean.length < 2 || clean.length > 60) throw new Error("A boss name is 2 to 60 characters.");
+      const count = await database.raidBoss.count({ where: { raidId: raid.id } });
+      if (count >= 40) throw new Error("This raid already has 40 bosses.");
+      return database.raidBoss.create({ data: { raidId: raid.id, name: clean, sortOrder: count } });
     },
 
     async setBossStatus(raidId: string, guildId: string, bossId: string, status: RaidBossStatus) {

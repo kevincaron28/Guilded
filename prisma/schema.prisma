@@ -703,6 +703,8 @@ model Auction {
   // Optional context so loot history can show where an item came from.
   raidId       String?
   bossName     String?
+  // Where the auction was started: the closing message goes there.
+  channelId    String?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   guild        Guild         @relation(fields: [guildId], references: [id], onDelete: Cascade)
@@ -954,6 +956,8 @@ model GuildSettings {
   notifyChannelId          String?
   // Ping signed-up members this many minutes before a raid (0 = off).
   raidReminderMinutes      Int       @default(60)
+  // The day before a raid, one message for those who have not answered or answered Maybe.
+  raidNudge                Boolean   @default(true)
   // Extra EP proposed when every planned boss of a raid dies.
   epCompletionBonus        Int       @default(0)
   // Weekly guild report posted to the notify channel.
@@ -1311,6 +1315,8 @@ model Raid {
   mirrorSignupMessageId String?
   // Optional: no new signups or role changes after this; Can't come and Late still work.
   signupsCloseAt  DateTime?
+  // When the day-before message went out (once per scheduled time).
+  nudgeSentAt     DateTime?
   // Raids created for a raid core give that core's members signup priority.
   coreId          String?
   core            RaidCore?        @relation(fields: [coreId], references: [id], onDelete: SetNull)

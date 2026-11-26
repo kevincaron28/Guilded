@@ -130,7 +130,7 @@ describe("weekly raids", () => {
 
   it("creates the next raid one week later with the same setup", async () => {
     const create = vi.fn().mockResolvedValue({ id: "r2" });
-    const database = { raid: { findFirst: vi.fn().mockResolvedValueOnce(base).mockResolvedValueOnce(null), create } } as never;
+    const database = { raid: { findFirst: vi.fn().mockResolvedValue(base), findMany: vi.fn().mockResolvedValue([]), create } } as never;
     await createRaidService(database).createNextRepeat("r1", "guild", new Date("2026-10-02T03:00:00Z"));
     const data = create.mock.calls[0]![0].data;
     expect(data.scheduledAt).toEqual(new Date("2026-10-09T00:00:00Z"));
@@ -140,7 +140,7 @@ describe("weekly raids", () => {
 
   it("skips ahead when the raid ended weeks late, and ignores non-weekly raids", async () => {
     const create = vi.fn().mockResolvedValue({ id: "r2" });
-    const late = { raid: { findFirst: vi.fn().mockResolvedValueOnce(base).mockResolvedValueOnce(null), create } } as never;
+    const late = { raid: { findFirst: vi.fn().mockResolvedValue(base), findMany: vi.fn().mockResolvedValue([]), create } } as never;
     await createRaidService(late).createNextRepeat("r1", "guild", new Date("2026-10-20T00:00:00Z"));
     expect(create.mock.calls[0]![0].data.scheduledAt).toEqual(new Date("2026-10-23T00:00:00Z"));
     const once = { raid: { findFirst: vi.fn().mockResolvedValue({ ...base, repeatWeekly: false }), create: vi.fn() } } as never;
@@ -149,8 +149,36 @@ describe("weekly raids", () => {
 
   it("does not duplicate a follow-up that already exists", async () => {
     const create = vi.fn();
-    const database = { raid: { findFirst: vi.fn().mockResolvedValueOnce(base).mockResolvedValueOnce({ id: "r2" }), create } } as never;
-    expect(await createRaidService(database).createNextRepeat("r1", "guild", new Date("2026-10-02T03:00:00Z"))).toBeNull();
+    // A cancelled follow-up counts too (no status filter), as does one moved by a few hours.
+    for (const scheduledAt of ["2026-10-09T00:00:00Z", "2026-10-09T01:00:00Z", "2026-10-15T23:00:00Z"]) {
+      const findMany = vi.fn().mockResolvedValue([{ scheduledAt: new Date(scheduledAt) }]);
+      const database = { raid: { findFirst: vi.fn().mockResolvedValue(base), findMany, create } } as never;
+      expect(await createRaidService(database).createNextRepeat("r1", "guild", new Date("2026-10-02T03:00:00Z"))).toBeNull();
+      expect(findMany.mock.calls[0]![0].where).toEqual({ guildId: "guild", title: "Karazhan", coreId: "c1", scheduledAt: { gt: base.scheduledAt } });
+    }
     expect(create).not.toHaveBeenCalled();
+  });
+
+  it("keeps a second weekly raid of the same title on another day", async () => {
+    const create = vi.fn().mockResolvedValue({ id: "r2" });
+    const findMany = vi.fn().mockResolvedValue([{ scheduledAt: new Date("2026-10-04T00:00:00Z") }]);
+    const database = { raid: { findFirst: vi.fn().mockResolvedValue(base), findMany, create } } as never;
+    expect(await createRaidService(database).createNextRepeat("r1", "guild", new Date("2026-10-02T03:00:00Z"))).toEqual({ id: "r2" });
+  });
+
+  it("creates the next week for weekly raids nobody ended", async () => {
+    const create = vi.fn().mockResolvedValue({ id: "r2" });
+    const findMany = vi.fn().mockResolvedValueOnce([{ id: "r1", guildId: "guild" }]).mockResolvedValue([]);
+    const database = { raid: { findFirst: vi.fn().mockResolvedValue({ ...base, status: "PLANNED" }), findMany, create } } as never;
+    expect(await createRaidService(database).rollStaleWeekly(new Date("2026-10-02T14:00:00Z"))).toEqual([{ id: "r2", guildId: "guild" }]);
+    expect(findMany.mock.calls[0]![0].where).toMatchObject({ repeatWeekly: true, isTest: false, weeklyOccurrence: null, status: { in: ["PLANNED", "ACTIVE"] },
+      scheduledAt: { lte: new Date("2026-10-02T02:00:00Z"), gte: new Date("2026-09-18T14:00:00Z") } });
+  });
+
+  it("cancelling skips one week unless the series is stopped", async () => {
+    const update = vi.fn(async ({ data }) => data);
+    const database = { raid: { findFirst: vi.fn().mockResolvedValue({ ...base, status: "PLANNED" }), update } } as never;
+    expect(await createRaidService(database).cancel("r1", "guild")).toEqual({ status: "CANCELLED" });
+    expect(await createRaidService(database).cancel("r1", "guild", { stopRepeating: true })).toEqual({ status: "CANCELLED", repeatWeekly: false });
   });
 });

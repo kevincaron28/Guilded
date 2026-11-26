@@ -7,7 +7,7 @@ export const OFFICER_PREFIX = "offt:";
 
 export type OfficerKind = "raid" | "core";
 export type OfficerAction =
-  | "menu" | "edit" | "cancel" | "cancel-ok" | "cancel-ping" | "reopen" | "lock" | "unlock"
+  | "menu" | "edit" | "cancel" | "cancel-ok" | "cancel-ping" | "cancel-stop" | "reopen" | "lock" | "unlock"
   | "archive" | "archive-ok" | "unarchive" | "appchan";
 
 export const officerId = (kind: OfficerKind, entityId: string, action: OfficerAction) => `${OFFICER_PREFIX}${kind}:${entityId}:${action}`;

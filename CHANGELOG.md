@@ -2,7 +2,7 @@
 
 ## 9.5.8 — 26 November 2026
 
-Prepared 26 November 2026. In-game checks: docs/V9_5_8_RELEASE_ACCEPTANCE.md.
+Published 26 November 2026 (GitHub v9.5.8, website download and installer, bot). In-game checks: docs/V9_5_8_RELEASE_ACCEPTANCE.md.
 
 Companion (#1308, #1112):
 - Choose folder saves and watches the WoW account right away; with several accounts it lists them, and each account has a checkbox under Advanced.

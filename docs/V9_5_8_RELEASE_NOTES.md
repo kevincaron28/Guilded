@@ -1,6 +1,6 @@
 # Guilded 9.5.8 release notes
 
-Prepared 26 November 2026. Protocol 2, WoW Forever only. Companion, addon and bot changes; one bot database migration (20270323090000_reserve_requests).
+Published 26 November 2026. Protocol 2, WoW Forever only. Companion, addon and bot changes; one bot database migration (20270323090000_reserve_requests).
 
 Real-client checks: docs/V9_5_8_RELEASE_ACCEPTANCE.md.
 

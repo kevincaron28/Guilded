@@ -2095,8 +2095,8 @@ local function check()
   local instance = compat.instance()
   if instance then
     local bosses = compat.dungeonBosses(instance.id)
-    ns.message(string.format("Here: %s (id %s, %s, difficulty %s). Final boss from journal: %s", instance.name, tostring(instance.id),
-      instance.type, tostring(instance.difficultyId), bosses and bosses[#bosses].name or "not available (use Complete)"))
+    ns.message(string.format(L("Here: %s (id %s, %s, difficulty %s). Final boss from journal: %s"), instance.name, tostring(instance.id),
+      instance.type, tostring(instance.difficultyId), bosses and bosses[#bosses].name or L("not available (use Complete)")))
   end
 end
 
@@ -2133,7 +2133,7 @@ local function handleDungeonCommand(args)
     if not canControl() then ns.message(L("Only the group leader or an officer can do that.")) return end
     finish("ABANDONED", "manual")
   else
-    ns.message("/guilded dungeon status | results | start | complete | abandon | check | carry on|off")
+    ns.message(L("/guilded dungeon status | results | start | complete | abandon | check | carry on|off"))
   end
 end
 ns.commandHandlers["dungeon"] = function(args)

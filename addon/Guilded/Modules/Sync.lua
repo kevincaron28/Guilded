@@ -616,13 +616,13 @@ local function receiveModules(text, sender)
   local off, names = {}, {}
   for key in string.gmatch(list or "", "[%a]+") do
     off[key] = true
-    table.insert(names, ns.moduleName and ns.moduleName(key) or key)
+    table.insert(names, L(ns.moduleName and ns.moduleName(key) or key))
   end
   if not ns.applyGuildModules(off, updatedAt, by ~= "" and by or sender) then return end
   ns.helloMessage(string.format(L("Guild module settings from %s: %s. /guilded modules for details."), by ~= "" and by or sender, #names > 0 and string.format(L("off: %s"), table.concat(names, ", ")) or L("everything on")))
   for _, module in ipairs(ns.MODULES or {}) do
     if ns.moduleEnabled(module.key) and not ns.moduleActive(module.key) then
-      ns.helloMessage(module.name .. " was turned back on - /reload to start it.")
+      ns.helloMessage(string.format(L("%s was turned back on - /reload to start it."), L(module.name)))
     end
   end
   if ns.onModulesChange then pcall(ns.onModulesChange) end

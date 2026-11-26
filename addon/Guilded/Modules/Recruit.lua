@@ -134,7 +134,7 @@ ns.commandHandlers["recruit"] = function(args)
     local entry = recruit.set(args[1], string.lower(args[2]), table.concat(args, " ", 3))
     ns.message(entry and line(entry) or L("Could not save that prospect."))
   else
-    ns.message("/guilded recruit add <name> [note] | <name> contacted|invited|declined|joined [note] | remove <name> | list [status] | copy")
+    ns.message(L("/guilded recruit add <name> [note] | <name> contacted|invited|declined|joined [note] | remove <name> | list [status] | copy"))
   end
 end
 

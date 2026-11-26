@@ -34,7 +34,7 @@ function module.chooseSetup(mode, quiet)
   s.setupModeAuto = nil
   if setupPanel then setupPanel:Hide() end
   if ns.onSetupChange then ns.onSetupChange() end
-  if not quiet then ns.message(L(mode == "local" and "In-game only selected. Your saved data and guild permissions are preserved." or "Connected setup selected. Pair the companion when you are ready; your saved data is preserved.")) end
+  if not quiet then ns.message(L(mode == "local" and "In-game only selected. Your saved data and guild permissions are preserved." or "Connected setup selected. Start the companion when you are ready; your saved data is preserved.")) end
   return true
 end
 

@@ -386,9 +386,9 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       T("🔒 **Rules required first:** {state}", { state: onOff(rulesGateActive(settings)) }),
       T("⏰ **One reminder after a day:** {state}", { state: onOff(settings.onboardingNudge) }),
       "",
-      T("The welcome message and a pinned **Start here** panel in the welcome channel carry the same buttons: rules, game menu, WoW character pairing and a personal checklist. Every answer is private. Game roles (up to 25, create them first in Server Settings → Roles) let people see only the games they picked."),
+      T("The welcome message and a pinned **Start here** panel in the welcome channel carry the same buttons: rules, game menu, linking your WoW character and a personal checklist. Every answer is private. Game roles (up to 25, create them first in Server Settings → Roles) let people see only the games they picked."),
       "",
-      T("**Rules required first:** nobody picks a game or pairs before accepting the rules, and the applicant role (step 6) is given on acceptance instead of on join."),
+      T("**Rules required first:** nobody picks a game or links a character before accepting the rules, and the applicant role (step 6) is given on acceptance instead of on join."),
       "",
       T("Press **Send me a preview** to see exactly what new people get.")
     ].join("\n"));
@@ -1185,7 +1185,7 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
             await guildService.updateSettings(guildId, { rulesGate: !current.rulesGate });
             note = current.rulesGate
               ? T("Rules are no longer required first. The applicant role is given on join again.")
-              : T("Rules are required first: nobody picks a game or pairs before accepting them, and the applicant role is given on acceptance.");
+              : T("Rules are required first: nobody picks a game or links a character before accepting them, and the applicant role is given on acceptance.");
           }
         } else if (action === "welcome-nudge") {
           const current = await guildService.getSettings(guildId);

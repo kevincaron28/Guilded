@@ -320,7 +320,7 @@ ns.commandHandlers["bridge"] = function(args)
     if mode == "on" then d.bridgeCompanionGuild = key end
     if mode == "on" then capture(); share() end
   elseif mode == "refresh" then request()
-  elseif mode ~= "status" then ns.message("/guilded bridge on | off | refresh | status"); return end
+  elseif mode ~= "status" then ns.message(L("/guilded bridge on | off | refresh | status")); return end
   capture()
   local settings = d and d.settings and d.settings.officerBridge
   local data = d and d.officerBridge

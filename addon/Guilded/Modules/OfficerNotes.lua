@@ -78,7 +78,7 @@ function module.command(args)
   local keys = { which }
   if which == "all" then keys = module.KEYS end
   if (mode ~= "on" and mode ~= "off") or (which ~= "all" and not KEY_SET[which]) then
-    ns.message("/guilded officer auto status | promote on|off")
+    ns.message(L("/guilded officer auto status | promote on|off"))
     return
   end
   for _, key in ipairs(keys) do module.set(key, mode == "on") end

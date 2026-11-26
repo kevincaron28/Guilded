@@ -2819,7 +2819,7 @@ local function scrollDebug()
 end
 ns.commandHandlers = ns.commandHandlers or {}
 ns.commandHandlers.debug = function(args)
-  if args[1] == "scroll" then scrollDebug() else ns.message("/guilded debug scroll") end
+  if args[1] == "scroll" then scrollDebug() else ns.message(L("/guilded debug scroll")) end
 end
 
 local function togglePanel()
@@ -3072,7 +3072,7 @@ ns.commandHandlers["menu"] = function(args)
   elseif wanted == "smaller" then scale = scale - 0.1
   elseif wanted == "reset" then scale = 1; s.panelPoint = nil
   elseif tonumber(wanted) then scale = tonumber(wanted)
-  else ns.message("/guilded menu scale bigger | smaller | reset | <0.6 to 1.5>") return end
+  else ns.message(L("/guilded menu scale bigger | smaller | reset | <0.6 to 1.5>")) return end
   scale = math.max(0.6, math.min(1.5, math.floor(scale * 10 + 0.5) / 10))
   s.panelScale = scale ~= 1 and scale or nil
   if panel then

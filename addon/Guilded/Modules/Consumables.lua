@@ -502,7 +502,7 @@ ns.commandHandlers["consumes"] = function(args)
       return
     end
     report()
-  else ns.message("/guilded consumes [scan] | me | penalty <0-100>") end
+  else ns.message(L("/guilded consumes [scan] | me | penalty <0-100>")) end
 end
 ns.commandHelp = ns.commandHelp or {}
 table.insert(ns.commandHelp, { officer = true, text = "/guilded consumes - who in your group is missing a flask/elixir or food (also /guilded consumes me)" })

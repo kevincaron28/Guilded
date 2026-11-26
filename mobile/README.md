@@ -20,11 +20,10 @@ bot, addon and Windows companion version). Store identifiers are
 - **Stats**: this week's summary (`GET /leaderboards/summary.json`) and the
   public leaderboards (Dungeons, Duels, Raids). Public; the app opens here when signed out.
 - **Me**: my characters (with Make main and Unlink), what I still need to be promoted, badges (album), wishlist, language and sign-out.
-- **Alerts**: raid reminders on this phone, plus help-call, dungeon and raid
-  vacancy alerts listed under "Coming later" until the server sends them.
+- **Alerts**: raid reminders on this phone (24 hours, 2 hours and 60 minutes before), and push for help calls and raid spots.
 - **News**: Wowhead headlines and the Blizzard news link. Public.
 
-**0.6.0** (planned, 24 November 2026, owner's list; one store build when the four pull requests are in; the bot parts deploy with the bot):
+**0.6.0** (24 November 2026, owner's list; the bot parts deploy with the bot):
 
 - **Push for help calls and raid spots.** A guildmate's call for help in game reaches every other member's phone that has push on
   (title "Call for help", "<name> needs help in <zone>"; a tap opens the guild map). A member moved off a raid's waiting list gets
@@ -149,13 +148,14 @@ Shared pieces live in `src/ui/`; the signed-in state is `src/useGuild.ts`.
 - **Wishlist** uses `GET` and `POST /api/v1/manage` (`wishlist.set` and
   `wishlist.remove`) for your own characters.
 - **Raids** uses `GET /api/v1/standings` (upcoming raids, the next raid's
-  roster, EP/GP) and the core boards on `/api/v1/manage`. Signing up stays in
-  Discord. Item prices and roster edits stay on the Windows companion.
-- **Alerts** are on-device reminders, off until you turn them on. The phone
-  schedules a local notification 60 minutes before each upcoming raid it
-  already downloaded. There is no push server and no Discord DM. A raid that
-  starts inside the hour is shown and not scheduled. Open the app now and then
-  so the list stays current.
+  roster, EP/GP) and the core boards on `/api/v1/manage`. Members answer a raid
+  made by the bot from the phone (see 0.5.1). Item prices and roster edits stay
+  on the Windows companion.
+- **Alerts** are off until you turn them on. The phone schedules local reminders
+  24 hours, 2 hours and 60 minutes before each upcoming raid it already
+  downloaded (none for a raid answered "Can't come"); once push is on, the bot
+  sends them instead, with the help-call and raid-spot alerts (0.6.0). A raid
+  that starts too soon for a reminder is shown and not scheduled.
 - **Map** (Track M) uses `GET` and `POST /api/v1/companion/guild-map`: where
   guildmates were last seen outdoors (dots on a plain grid with zone names, no
   game map art), a 28-day heat map of where the guild plays, and calls for help
@@ -163,8 +163,7 @@ Shared pieces live in `src/ui/`; the signed-in state is `src/useGuild.ts`.
   same guild only, never public. Positions arrive with companion uploads, so
   they are last seen, not live. **Share my position** is on by default; turning
   it off deletes the member's stored positions. Officers: `/officer roster map`.
-  Defender push alerts wait for PR #345 (hook: `onHelpCallStored` in
-  `src/services/guild-map.ts`).
+  Calls for help also reach the other members' phones by push (0.6.0).
 - **Look at a sample guild** fills those screens with fictional names. It does
   not sign in and does not call the bot.
 
@@ -334,9 +333,9 @@ upload.
   after the deploy; phone builds do not need that header.
 - **Discord OAuth.** No new redirect URI. Sign-in still finishes on
   `https://guilded.kcaron.top/auth/callback`, which is the website's existing
-  Discord redirect. The phone never becomes an OAuth client. Remote push is
-  off in `app.json` (`enableRemoteNotifications: false`), so an Apple push key
-  is not required for the 60-minute reminders.
+  Discord redirect. The phone never becomes an OAuth client. Remote push is on
+  in `app.json` (`enableRemoteNotifications: true`): an iOS build needs the APNs
+  key in EAS, and Android needs the FCM V1 credentials described above.
 - **Store accounts and signing**, as above. The app id is `top.kcaron.guilded`
   on both stores. Create the store listings in that name before the first
   upload.

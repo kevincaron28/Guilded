@@ -656,7 +656,7 @@ ns.commandHandlers["council"] = function(args)
     -- A member answering from the keyboard, e.g. /guilded council bis
     if council.incoming then respond(WORDS[action]) else ns.message(L("No loot council is open for you.")) end
   else
-    ns.message("/guilded council start <item> [seconds] | priority <GP> <item> [seconds] | close | award [player] [GP] | cancel | status | vote <player>  -  members: bis | upgrade | os | want | pass")
+    ns.message(L("/guilded council start <item> [seconds] | priority <GP> <item> [seconds] | close | award [player] [GP] | cancel | status | vote <player>  -  members: bis | upgrade | os | want | pass"))
   end
 end
 ns.commandHandlers["lc"] = ns.commandHandlers["council"]

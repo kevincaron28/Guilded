@@ -234,7 +234,7 @@ ns.commandHandlers["import"] = function(args)
   elseif what == "tmb" then
     ns.showPasteBox(L("Import That's My BiS"), L("Paste the That's My BiS export for Gargul, or lines of itemID,player1,player2 in priority order."), imports.importTmb)
   else
-    ns.message("/guilded import softres | tmb | tmb clear")
+    ns.message(L("/guilded import softres | tmb | tmb clear"))
   end
 end
 ns.commandHandlers["tmb"] = function(args)

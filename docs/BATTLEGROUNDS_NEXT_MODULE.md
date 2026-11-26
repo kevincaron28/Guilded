@@ -10,7 +10,7 @@ release records in `docs/V8_4_0_RELEASE_ACCEPTANCE.md` and `docs/archive/` hold 
 
 ### 8.5 track B: PvP channels and the ladder
 
-- **One PvP category.** The module is on by default (`/battleground pvp-module enabled:false` switches it off); `/setup`
+- **One PvP category.** The module is on by default (`/bg pvp-module enabled:false` switches it off); `/setup`
   adds the category (`⚔️ PvP` / `⚔️ JcJ`) with `pvp-results` and
   `pvp-ladder` (`groupes-pvp`, `resultats-pvp`, `classement-pvp` in French) through the
   button "Create missing channels". Channels already saved in the settings, or already named
@@ -21,7 +21,7 @@ release records in `docs/V8_4_0_RELEASE_ACCEPTANCE.md` and `docs/archive/` hold 
   place and on by default: the **duel ladder** (`duel-board.ts`, `DuelResult`: wins, losses, win rate, streaks) and the
   **battleground ladder** (`bg-ladder.ts`: consented player reports per mode and bracket, wins, losses, draws, win rate,
   games; the capture records no kills, so none are shown; labelled player reports, not verified matches).
-  `/battleground bg-ladder enabled:false` switches the second one off.
+  `/bg bg-ladder enabled:false` switches the second one off.
 - **Where they live (owner batch 3 #10: duels and battlegrounds are separate).** The **duel ladder** has its own channel,
   `duel-ladder` / `classement-duels` (`GuildSettings.duelBoardChannelId`, no static panel: the live board is the content).
   The **battleground ladder** stays in the statistics channel (`bgStatsChannelId`), which new servers get as `bg-ladder` /

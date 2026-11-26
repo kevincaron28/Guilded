@@ -1137,7 +1137,7 @@ ns.commandHandlers["recipes"] = function(args)
     local sent = recipes.shareMine()
     ns.message(sent > 0 and L("Sending your recipes to the guild.") or L("Open your profession windows once so Guilded can read your recipes."))
   else
-    ns.message("/guilded recipes who <item> | mine | mats <item> [count] | share   -   /guilded cooldowns [mine]")
+    ns.message(L("/guilded recipes who <item> | mine | mats <item> [count] | share   -   /guilded cooldowns [mine]"))
   end
 end
 

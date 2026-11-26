@@ -14,7 +14,7 @@ that a queue. On by default in every server, with off switches; automatic action
    itself after 45 seconds (officers are never hinted). Reading text needs `MESSAGE_CONTENT_INTENT=true`; without it the
    channel is simply not watched, and the reaction and DM parts still work.
 3. **Officers see the queue.**
-   - Discord: `/mod invites list`, `/mod invites done name:<First Last>`, `/mod invites settings` (`queue`, `dm`, `role`).
+   - Discord: `/mod invites list`, `/mod invites record name:<First Last> stage:invited`, `/mod invites settings` (`queue`, `dm`, `role`).
      It lives under `/mod` because `/officer` is at Discord's size limit.
    - In game: the officer's companion writes `GuildedInvites` into `Standings.lua` (officer uploads only, names only, no Discord
      IDs; `personal` part of the standings feed). The addon's **To invite** panel (`/guilded invites`, `Modules/InviteQueue.lua`)
@@ -22,7 +22,7 @@ that a queue. On by default in every server, with off switches; automatic action
      and prints a one-line reminder 25 seconds after login. `/guilded invites list` gives copyable `/ginvite First Last` lines.
      The list never leaves the officer's computer (it is not rebroadcast over the guild channel).
 4. **Done.** A name is done when it appears in an officer's roster upload, or when an officer reacts ✅ on the post, or with
-   `/mod invites done`. The bot then adds ✅ on every waiting post of that name and removes its 👀.
+   `/mod invites record name:<First Last> stage:invited`. The bot then adds ✅ on every waiting post of that name and removes its 👀.
 5. **Role DM.** When a member is given the server's World of Warcraft role (chosen with `/mod invites settings role:`, else the
    first role named like "World of Warcraft" / "WoW"), the bot sends one DM linking the channel and asking for the full
    character name. Once per member (`InviteDm`), skipped when they already posted or have a linked character, quiet when DMs

@@ -24,7 +24,7 @@ for (const entry of readdirSync(root, { recursive: true })) {
   const file = String(entry).replaceAll("\\", "/");
   if (!/\.(lua|toc|md)$/.test(file)) continue;
   const text = readFileSync(join(root, file), "utf8");
-  if (/[^\x00-\x7F]/.test(text)) throw new Error(`Non-ASCII content in GuildedDungeons/${file}`);
+  if (file.endsWith(".toc") ? text.charCodeAt(0) === 0xFEFF : /[^\x00-\x7F]/.test(text)) throw new Error(`Non-ASCII content in GuildedDungeons/${file}`);
   if (/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/.test(text)) throw new Error(`Control characters in GuildedDungeons/${file}`);
   if (file.endsWith(".lua") && !files.includes(file)) throw new Error(`GuildedDungeons/${file} is not listed in GuildedDungeons.toc`);
 }

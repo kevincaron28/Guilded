@@ -108,7 +108,7 @@ ns.commandHandlers.localcore = function(args)
   elseif action == "rules" then ok = localGuild.configure(core and core.id, (args[2] or ""):upper(), args[3] or "1")
   elseif action == "add" then ok = localGuild.member(core and core.id, args[2], (args[3] or "DPS"):upper(), args[4] or "main")
   elseif action == "remove" then ok = localGuild.remove(core and core.id, args[2], args[3] == "confirm")
-  else ns.message(localGuild.describe()); ns.message("/guilded localcore create <name> | rules EPGP|COUNCIL|RESERVE|PRIORITY [1-10] | add <player> TANK|HEALER|DPS main|bench | remove <player> confirm"); return end
+  else ns.message(localGuild.describe()); ns.message(L("/guilded localcore create <name> | rules EPGP|COUNCIL|RESERVE|PRIORITY [1-10] | add <player> TANK|HEALER|DPS main|bench | remove <player> confirm")); return end
   ns.message(L(ok and "Local core saved. Use Save now or log out to write SavedVariables." or "Local core unchanged. Check the selected core, values and officer permissions."))
 end
 ns.commandHelp[#ns.commandHelp + 1] = { officer = true, text = "/guilded localcore - local cores, loot rules and rosters; no Discord required" }

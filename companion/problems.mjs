@@ -172,7 +172,8 @@ export function companionProblems(input = {}) {
     const refused = REJECTED.exec(upload);
     if (refused && !["401", "429"].includes(refused[1]) && Number(refused[1]) < 500) add("upload-rejected", { status: Number(refused[1]), reason: refused[2].trim().slice(0, 300) || null });
     else if (TOO_LARGE.test(upload)) add("upload-rejected", { status: 413, reason: upload.slice(0, 300) });
-    else if (state.syncPhase === "apply-error") add("upload-rejected", { status: null, reason: null, applyError: true });
+    // The line the engine logged for it holds the bot's reason.
+    else if (state.syncPhase === "apply-error") add("upload-rejected", { status: null, reason: typeof state.lastUpload?.message === "string" ? state.lastUpload.message.slice(0, 300) : null, applyError: true });
   }
 
   // WoW reads addon files only when it starts: a newer Guilded on disk than the one that last saved

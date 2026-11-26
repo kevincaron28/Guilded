@@ -24,7 +24,8 @@ const MAX_PENDING = 2_000;
 const LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 /** What the companion receives: the same fields as POST /api/v1/addon-pairings. */
-export type SignInGrant = { companionCredential: string; personal: true } | { companionCredential: string; personal?: false; guildDiscordId: string; wowGuildId?: string; gameEdition?: string; wowGuildName?: string };
+/** personalChosen: the member picked "public leaderboards only" knowing it replaces guild sync; a companion keeps its guild sync without it. */
+export type SignInGrant = { companionCredential: string; personal: true; personalChosen?: true } | { companionCredential: string; personal?: false; guildDiscordId: string; wowGuildId?: string; gameEdition?: string; wowGuildName?: string };
 
 interface Pending {
   confirm: string; expiresAt: number; grant: SignInGrant | null; approving?: boolean; failures?: number;
@@ -244,8 +245,10 @@ export function companionSignInRoute(deps: SignInPageDeps): WebRoute {
         return kit.page(403, title, `<h1>${t("That server does not know your guild", "Ce serveur ne connaît pas votre guilde")}</h1><p>${t("The characters in your saved game files belong to a guild this Discord server has not set up. Go back and pick the server of your guild. If your guild has no server yet, ask an officer to run /setup there.", "Les personnages de vos fichiers de jeu appartiennent à une guilde que ce serveur Discord n'a pas configurée. Revenez en arrière et choisissez le serveur de votre guilde. Si votre guilde n'en a pas encore, demandez à un officier de lancer /setup.")}</p><p><a href="${link("/me/companion", lang, { request: requestId })}">${t("Go back and choose again", "Revenir et choisir de nouveau")}</a></p>`, { noindex: true });
       }
       if (choice !== "personal" && !selected) return notAvailable();
+      // Preselected because nothing else is listed is not a choice; picked next to a server, or after the warning below, is.
+      const personalChosen = selectable.length > 0 || Boolean(prefer);
       const issue = async (): Promise<SignInGrant | null> => {
-        if (choice === "personal") return { companionCredential: await deps.issuePersonal(account.id, deviceName), personal: true };
+        if (choice === "personal") return { companionCredential: await deps.issuePersonal(account.id, deviceName), personal: true, ...(personalChosen ? { personalChosen } : {}) };
         const credential = selected ? await deps.issueGuild(account, selected.discordId, selected.wowGuildId, deviceName) : null;
         return credential && selected ? { companionCredential: credential, guildDiscordId: selected.discordId,
           ...(selected.wowGuildId ? { wowGuildId: selected.wowGuildId, wowGuildName: selected.name } : {}), ...(selected.gameEdition ? { gameEdition: selected.gameEdition } : {}) } : null;
@@ -268,7 +271,12 @@ export function companionSignInRoute(deps: SignInPageDeps): WebRoute {
     }
     const radio = (value: string, label: string, hint: string, checked: boolean) =>
       `<label class="choice"><input type="radio" name="choice" value="${escapeHtml(value)}"${checked ? " checked" : ""}> <strong>${label}</strong><br><span class="muted">${hint}</span></label>`;
-    const personal = radio("personal", t("Public dungeon leaderboards only", "Classements publics des donjons seulement"), t("No guild needed: your finished dungeon runs (Guilded Dungeons or Guilded) go to the public leaderboards.", "Aucune guilde requise : vos donjons terminés (Guilded Dungeons ou Guilded) vont aux classements publics."), servers.length === 0);
+    // A companion that already syncs a guild (device key) and an account in no server: leaderboards only would end that sync,
+    // so it is not preselected and the page says what to do instead.
+    const endsGuildSync = Boolean(prefer) && servers.length === 0;
+    const personalRadio = radio("personal", t("Public dungeon leaderboards only", "Classements publics des donjons seulement"), t("No guild needed: your finished dungeon runs (Guilded Dungeons or Guilded) go to the public leaderboards.", "Aucune guilde requise : vos donjons terminés (Guilded Dungeons ou Guilded) vont aux classements publics."), servers.length === 0 && !endsGuildSync);
+    // Then it must be picked: the browser asks for it instead of the page answering "not available".
+    const personal = endsGuildSync ? personalRadio.replace('type="radio"', 'type="radio" required') : personalRadio;
     // One server (the usual case) is chosen already; the leaderboards-only choice waits under "Other choices".
     const choices = servers.length === 1 && !others.length
       ? `<input type="hidden" name="choice" value="${escapeHtml(servers[0]!.wowGuildId ?? servers[0]!.discordId)}"><p class="choice"><strong>${escapeHtml(servers[0]!.name)}</strong><br><span class="muted">${t("Your guild's addon data and standings sync with this Discord server.", "Les données de l'addon et les classements de guilde se synchronisent avec ce serveur Discord.")}</span></p>`
@@ -286,6 +294,7 @@ export function companionSignInRoute(deps: SignInPageDeps): WebRoute {
         : `<p class="notice">${t("Only continue if you just chose Sign in with Discord in your own Guilded companion. If someone sent you this link, close the page.", "Continuez seulement si vous venez de choisir Connexion avec Discord dans votre propre compagnon Guilded. Si quelqu'un vous a envoyé ce lien, fermez la page.")}</p>`)
       + `<form method="post" action="/me/companion"><input type="hidden" name="csrf" value="${escapeHtml(ctx.csrf ?? "")}"><input type="hidden" name="lang" value="${lang}"><input type="hidden" name="request" value="${escapeHtml(requestId)}">`
       + (needsCode ? `<p><label>${t("Code from your companion", "Code de votre compagnon")}<br><input name="code" autocomplete="off" required maxlength="7" pattern="[A-Za-z0-9]{3}-?[A-Za-z0-9]{3}" placeholder="ABC-DEF" style="width:9em;font-size:20px;text-transform:uppercase"></label></p>` : "")
+      + (endsGuildSync ? `<p class="notice">${t("Your companion already syncs your guild, and this Discord account is in no server that uses Guilded. Connecting it to the public leaderboards would stop that guild sync. Close this page to keep it, or sign in with the Discord account that is in your guild's server.", "Votre compagnon synchronise déjà votre guilde, et ce compte Discord n'est dans aucun serveur qui utilise Guilded. Le relier aux classements publics arrêterait cette synchronisation. Fermez cette page pour la garder, ou connectez-vous avec le compte Discord qui est dans le serveur de votre guilde.")}</p>` : "")
       + `<h2>${t("Link it to", "Le relier à")}</h2>${noneMatch ? `<p class="notice">${t("None of your Discord servers has set up the guild of your saved game files yet. Pick the one you are sure about, or ask an officer of your guild to run /setup.", "Aucun de vos serveurs Discord n'a encore configuré la guilde de vos fichiers de jeu. Choisissez celui dont vous êtes certain, ou demandez à un officier de votre guilde de lancer /setup.")}</p>` : ""}${choices}`
       + `<details><summary>${t("Other choices", "Autres choix")}</summary>${otherServers}${servers.length === 1 ? `<p class="muted">${t("Pick this instead of your server to send only your own dungeon runs:", "Choisissez ceci au lieu de votre serveur pour n'envoyer que vos propres donjons :")}</p>${personal.replace('type="radio"', 'type="checkbox"').replace('name="choice"', 'name="personalOnly"')}` : ""}`
       + `<p><label>${t("Device name", "Nom de l'appareil")}<input name="deviceName" maxlength="80" value="${escapeHtml(device)}"></label></p></details>`

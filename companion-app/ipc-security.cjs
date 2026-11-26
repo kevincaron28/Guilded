@@ -27,6 +27,8 @@ function validateIpc(channel, args) {
   } else if (channel === "set-autostart" || channel === "set-auto-update" || channel === "set-online") { if (typeof value !== "boolean") fail(); }
   // Zero-setup companion: "Advanced: choose server", a Discord server ID or "" for automatic.
   else if (channel === "set-account") { object(value, new Set(["file", "on"])); text(value.file, 1024); if (typeof value.on !== "boolean") fail(); }
+  // "Choose folder" with several accounts: main.cjs accepts only a file it found in that folder.
+  else if (channel === "use-wow-account") text(value, 1024);
   else if (channel === "device-choose-server") { if (typeof value !== "string" || !/^(\d{5,25})?$/.test(value)) fail(); }
   else if (channel === "claim-offer-answer") { object(value, new Set(["deviceId", "action"])); text(value.deviceId, 64); if (!["link", "later"].includes(value.action)) fail(); }
   else if (channel === "export-sheets") { if (value !== undefined && value !== null) text(value, 40); }

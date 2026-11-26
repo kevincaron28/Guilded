@@ -80,7 +80,8 @@ async function importStoreCredential({ config, userData, localAppData, appData, 
   for (const dir of folders.filter((d) => path.resolve(d).toLowerCase() !== own)) {
     let stored = null;
     try { stored = await readSettings(dir); } catch { stored = null; }
-    if (!hasCredential(stored)) continue;
+    // A leaderboards-only sign-in would replace this device's guild sync: it is not taken over.
+    if (!hasCredential(stored) || (stored.personal === true && config.device === true)) continue;
     const patch = {};
     for (const key of CREDENTIAL_FIELDS) if (stored[key] !== undefined && stored[key] !== "") patch[key] = stored[key];
     // Keep this install's own server pick when it has one.

@@ -78,7 +78,7 @@ export async function uploadPersonalRuns(config, signal, onEvidence = () => {}) 
   }, signal, UPLOAD_TIMEOUT_MS);
   if (!response.ok) {
     const error = new Error(response.status === 401
-      ? "The website refused this companion. Choose Sign in with Discord again in Connection & setup."
+      ? "The website refused this companion. Choose Switch account in Advanced to sign in again."
       : `Sending runs failed (${response.status}): ${answer.error ?? "unknown error"}`);
     error.retryable = response.status === 429 || response.status >= 500;
     error.retryAfterMs = retryAfterOf(response);

@@ -127,7 +127,7 @@ export function deviceMessage(summary) {
   if (summary.status === "synced") return summary.guild
     ? `Syncing to ${summary.server} (from your guild ${summary.guild.name}). Your characters show as reported until you sign in with Discord.`
     : `Syncing to ${summary.server}.`;
-  if (summary.status === "choose") return `Several Discord servers set up your guild ${summary.guild?.name ?? ""}. Choose yours on the Sync page, under Advanced: choose server.`;
+  if (summary.status === "choose") return `Several Discord servers set up your guild ${summary.guild?.name ?? ""}. Choose yours in Advanced, under Guild server.`;
   if (summary.status === "claimed") return "This companion was confirmed with Discord: choose Sign in with Discord once more to finish.";
   return summary.guild
     ? `Your guild ${summary.guild.name}${summary.guild.realm ? ` (realm ${summary.guild.realm})` : ""} isn't set up on Discord yet. Your data waits here; ask an officer to run /setup on your guild's Discord.`

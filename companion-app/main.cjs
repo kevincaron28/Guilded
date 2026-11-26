@@ -248,7 +248,7 @@ function refreshUpdate() {
   if (!Notification.isSupported()) return;
   const notice = new Notification({
     title: T("Guilded Companion {0} is available", update.version),
-    body: update.installer ? T("You have {0}. Click, then choose Update now.", app.getVersion()) : T("You have {0}. Click to open the download page.", app.getVersion()),
+    body: update.installer ? T("You have {0}. Click, then choose Update.", app.getVersion()) : T("You have {0}. Click to open the download page.", app.getVersion()),
     icon: asset("icon.png")
   });
   notice.on("click", () => { if (update?.installer && win) { win.show(); win.focus(); } else void shell.openExternal(update?.url || updates.RELEASES_PAGE); });
@@ -511,7 +511,7 @@ async function maybeStoreUpdate() {
     // Still here: the update was declined, failed or had nothing to install. Keep the button.
     fs.rmSync(restartMarkerFile(), { force: true });
     if (!result.ok) { config.storeUpdateFailedAt = new Date().toISOString(); storePageUpdate = { version: check.version || "", url: STORE_UPDATES }; }
-    pushLog({ time: new Date().toISOString(), level: result.ok ? "info" : "warn", message: result.ok ? E("Microsoft Store update finished.") : E("Microsoft Store update did not finish ({0}). Use Store updates.", String(result.state || result.error || "unknown")) });
+    pushLog({ time: new Date().toISOString(), level: result.ok ? "info" : "warn", message: result.ok ? E("Microsoft Store update finished.") : E("Microsoft Store update did not finish ({0}). Choose Open Microsoft Store in Advanced.", String(result.state || result.error || "unknown")) });
     return next;
   } catch (error) {
     config.storeUpdateFailedAt = now;
@@ -636,6 +636,7 @@ function addonAction() {
 }
 let shownProblems = "";
 function onState(raw) {
+  noteDeviceSync(raw);
   const state = { ...raw, zeroSetupFailures };
   refreshUpdate(state);
   const status = health(state);
@@ -831,7 +832,7 @@ async function removeAllDataAndQuit(skipPrompt = false) {
     cancelId: 0,
     title: T("Remove all data?"),
     message: T("Stop the companion and remove its saved data from this PC?"),
-    detail: T("This revokes your saved online connections, turns off Start with Windows and deletes your local settings and unsent PoE2 observations. Your game files are untouched.")
+    detail: T("This revokes your saved online connections, turns off Start with Windows and deletes your local settings and unsent data. Your game files are untouched.")
   });
   if (choice !== 1) return false;
   // Stop requests before revocation, including any outstanding sign-in.
@@ -842,7 +843,7 @@ async function removeAllDataAndQuit(skipPrompt = false) {
     dialog.showMessageBoxSync(win ?? undefined, {
       type: "warning", buttons: [T("OK")],
       message: T("Some online connections could not be revoked."),
-      detail: T("Local data will still be removed. Revoke those connections from your Guilded account or /character link when the server is reachable.")
+      detail: T("Local data will still be removed. Revoke those connections on the Connected devices page of the Guilded website when the server is reachable.")
     });
   }
   await setAutostart(false);
@@ -1228,21 +1229,42 @@ registerIpc("device-choose-server", async (_event, discordId) => {
 // A pairing code or a Discord sign-in: both end with the same credential and settings.
 async function applyPairing(next, result) {
   if (!result.ok) return result;
+  // A sign-in that matched no server answers "public leaderboards only". Applying it to a PC that
+  // syncs a guild would stop that sync without a word: keep the guild settings and say what to do.
+  // Only a leaderboards choice the member made on the page (personalChosen, newer bots) replaces them.
+  if (result.personal && result.personalChosen !== true && syncsGuild()) {
+    void Promise.resolve(engineModules.revokeSavedConnections?.({ uploadUrl: result.uploadUrl || next?.uploadUrl || config.uploadUrl || engineModules.HOSTED_UPLOAD_URL, companionCredential: result.companionCredential, guildDiscordId: "" })).catch(() => {});
+    pushLog({ time: new Date().toISOString(), level: "warn", message: E("The sign-in was for public leaderboards only, so it was not applied: this PC keeps its guild sync.") });
+    return { ok: false, message: T("Nothing changed: that sign-in was for public leaderboards only, which would stop this PC's guild sync. Sign in with the Discord account that is in your guild's Discord server, or join that server first.") };
+  }
   // Zero-setup companion: the sign-in claims this PC's device key, so what it reported becomes the
   // member's (confirmed by the next, signed-in upload). The device key is not needed afterwards.
   if (engineModules.deviceSync.hasDeviceKey(config) && !result.personal) {
     const claimed = await engineModules.deviceSync.claimDevice({ ...config, uploadUrl: result.uploadUrl || config.uploadUrl }, result.companionCredential);
     pushLog({ time: new Date().toISOString(), level: claimed.ok ? "info" : "warn", message: claimed.ok ? E("This PC's earlier uploads now belong to your Discord account.") : E("This PC's earlier uploads could not be moved to your Discord account ({0}); your next sync sends them again.", claimed.status ?? "offline") });
   }
-  if (engineModules.deviceSync.hasDeviceKey(config) || config.device) config = { ...config, deviceSecret: undefined, device: false, deviceServer: undefined };
+  if (engineModules.deviceSync.hasDeviceKey(config) || config.device) config = { ...config, deviceSecret: undefined, device: false, deviceServer: undefined, deviceSynced: undefined };
   // A personal code pairs a personal account (public dungeon runs, no guild).
   config = { ...config, ...next, gameEdition: result.gameEdition, wowGuildId: result.wowGuildId, wowGuildName: result.wowGuildName, ...(result.uploadUrl ? { uploadUrl: result.uploadUrl } : {}), pairingCode: "", companionCredential: result.companionCredential, personal: result.personal === true, guildDiscordId: result.personal ? "" : result.guildDiscordId || next.guildDiscordId || config.guildDiscordId };
   await saveConfig();
   const started = await engine.configure(config);
   return {
     ok: true,
-    message: started ? result.message : T("{0} Finish the remaining settings and choose Save and start.", result.message)
+    message: started ? result.message : T("{0} Syncing has not started yet: check the WoW folder in Advanced, or press Repair.", M(result.message))
   };
+}
+/** True when this PC sends a guild's data: a guild sign-in, or a device key the bot has synced to a server. */
+function syncsGuild() {
+  if (config.companionCredential) return !config.personal && Boolean(config.guildDiscordId);
+  if (!config.device || !config.deviceSecret) return false;
+  const status = engine?.state()?.device?.status;
+  // deviceSynced remembers it across a restart, before the first upload has answered (noteDeviceSync).
+  return config.deviceSynced === true || status === "synced" || status === "choose";
+}
+function noteDeviceSync(state) {
+  if (!config.device || config.deviceSynced === true || state?.device?.status !== "synced") return;
+  config.deviceSynced = true;
+  void saveConfig().catch(() => {}); // a failed save is logged by saveConfig
 }
 
 
@@ -1529,7 +1551,32 @@ registerIpc("repair", async () => {
 });
 registerIpc("set-online", (_event, value) => { online = value; if (engine) onState(engine.state()); return true; });
 // Folder picker (8.5, track F3): opens at the WoW install folder and finds the account folders
-// below whatever the member picks. One account: the page fills it in. Several: the member chooses.
+// below whatever the member picks. The account that is clearly the one is saved and watched at once;
+// with several, the window lists them and the member can pick another (use-wow-account).
+// The accounts of the last pick: use-wow-account takes one of these, never any path from the window.
+let pickedAccounts = [];
+const samePath = (a, b) => String(a ?? "").replaceAll("\\", "/").toLowerCase() === String(b ?? "").replaceAll("\\", "/").toLowerCase();
+const accountChoices = () => (pickedAccounts.length > 1 ? pickedAccounts.map((entry) => ({ path: entry.path, account: entry.account, game: entry.game, exists: entry.exists, savedAt: entry.modifiedMs ? new Date(entry.modifiedMs).toISOString() : null, chosen: samePath(entry.path, config.watchFile) })) : []);
+/** Watches this account's saved file from now on: saved, synced, and said in one line. */
+async function useAccount(entry) {
+  const declined = Array.isArray(config.accountsDeclined) ? config.accountsDeclined.filter((file) => !samePath(file, entry.path)) : undefined;
+  config = { ...config, watchFile: entry.path, wowEnabled: true, ...(declined ? { accountsDeclined: declined } : {}) };
+  await saveConfig();
+  pushLog({ time: new Date().toISOString(), level: "info", message: E("WoW folder chosen: watching {0}.", entry.path) });
+  await engine.configure(config);
+  // A PC with no device key yet gets one now instead of at the next 5-minute try.
+  void zeroSetupStep().catch((error) => pushLog({ time: new Date().toISOString(), level: "warn", message: E("Automatic setup will try again: {0}", error instanceof Error ? error.message : String(error)) }));
+  engine.uploadNow();
+  await refreshSavedFile();
+  return entry.exists ? T("WoW folder saved. Watching the account {0}.", entry.account)
+    : T("WoW folder saved for the account {0}. Log in to WoW with Guilded enabled, then type /reload.", entry.account);
+}
+registerIpc("use-wow-account", async (_event, file) => {
+  const entry = pickedAccounts.find((candidate) => samePath(candidate.path, file));
+  if (!entry) return { ok: false, message: T("Press Choose folder again."), accounts: [] };
+  const message = await useAccount(entry);
+  return { ok: true, message, accounts: accountChoices() };
+});
 registerIpc("pick-wow-folder", async () => {
   const found = searchWow(savedNames(), engineModules.isOtherEditionFolder, wowSearchOptions());
   const start = pickerStart(config.watchFile, found.entries, found.installs);
@@ -1539,10 +1586,13 @@ registerIpc("pick-wow-folder", async () => {
     properties: ["openDirectory"]
   });
   if (result.canceled || !result.filePaths[0]) return { canceled: true, accounts: [] };
-  const accounts = accountsUnder(result.filePaths[0], savedNames(), engineModules.isOtherEditionFolder);
-  const picked = pickSavedVariables(accounts.filter((entry) => entry.exists));
-  return {
-    canceled: false,
-    accounts: accounts.map((entry) => ({ path: entry.path, account: entry.account, game: entry.game, exists: entry.exists, savedAt: entry.modifiedMs ? new Date(entry.modifiedMs).toISOString() : null, suggested: !!picked && picked.path === entry.path }))
-  };
+  pickedAccounts = accountsUnder(result.filePaths[0], savedNames(), engineModules.isOtherEditionFolder);
+  if (!pickedAccounts.length) return { canceled: false, ok: false, message: T("No World of Warcraft account was found in that folder. Log in to the game once, then choose your World of Warcraft folder."), accounts: [] };
+  const withData = pickedAccounts.filter((entry) => entry.exists);
+  // The account already watched stays, unless it never saved and another one has.
+  const current = pickedAccounts.find((entry) => samePath(entry.path, config.watchFile) && (entry.exists || !withData.length));
+  const chosen = current || pickPrimaryAccount(withData) || (pickedAccounts.length === 1 ? pickedAccounts[0] : null);
+  if (!chosen) return { canceled: false, ok: false, message: T("Several WoW accounts were found. Choose yours below."), accounts: accountChoices() };
+  const message = await useAccount(chosen);
+  return { canceled: false, ok: true, message, accounts: accountChoices() };
 });

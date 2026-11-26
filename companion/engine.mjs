@@ -40,7 +40,7 @@ export function validateConfig(config) {
   if (!config.uploadUrl) problems.push("The bot address is not set.");
   const linked = typeof config.companionCredential === "string" && config.companionCredential.length >= 32;
   if (isDeviceMode(config)) { /* zero-setup: the bot finds the server from the in-game guild */ }
-  else if (!linked) problems.push("Connect your account first: choose Sign in with Discord (or enter a pairing code) in Connection & setup.");
+  else if (!linked) problems.push("Connect your account first: choose Sign in with Discord.");
   // Personal mode (leaderboards only, from Sign in with Discord or a /me/ code) has no guild: only public dungeon runs.
   else if (!config.guildDiscordId && !config.personal) problems.push("The Discord server ID is not set.");
   if (config.uploadUrl) { try { checkUrl(config.uploadUrl); } catch (error) { problems.push(error.message); } }
@@ -49,7 +49,7 @@ export function validateConfig(config) {
 
 // Checks the bot address and token without changing anything.
 export async function testConnection(config) {
-  if (typeof config.companionCredential !== "string" || config.companionCredential.length < 32) return { ok: false, message: "Connect your account first: choose Sign in with Discord (or enter a pairing code) in Connection & setup." };
+  if (typeof config.companionCredential !== "string" || config.companionCredential.length < 32) return { ok: false, message: "Connect your account first: choose Sign in with Discord." };
   if (!config.uploadUrl) return { ok: false, message: "The bot address is not set." };
   if (!config.personal && !config.guildDiscordId) return { ok: false, message: "The Discord server ID is not set." };
   try {
@@ -93,9 +93,9 @@ function pairingResult(config, body) {
     return { ok: false, message: "The bot response did not include a valid companion credential." };
   }
   if (body.personal === true) {
-    return { ok: true, personal: true, companionCredential: body.companionCredential, guildDiscordId: "", message: "Leaderboards account connected. Your finished dungeon runs go to the public leaderboards (guilded.kcaron.top/leaderboards/). In step 2, choose GuildedDungeons.lua or Guilded.lua (with both addons, both are read), then Save and start." };
+    return { ok: true, personal: true, ...(body.personalChosen === true ? { personalChosen: true } : {}), companionCredential: body.companionCredential, guildDiscordId: "", message: "Leaderboards account connected. Your finished dungeon runs go to the public leaderboards (guilded.kcaron.top/leaderboards/)." };
   }
-  return { ok: true, personal: false, message: config.wowEnabled === false ? "Discord account paired. Your PoE2 observations will belong to this account; choose your PoE2 settings and Save and start." : "Discord account paired. The companion links your own character on its next upload; the guild import still follows its usual apply setting.", companionCredential: body.companionCredential, guildDiscordId: typeof body.guildDiscordId === "string" ? body.guildDiscordId : config.guildDiscordId,
+  return { ok: true, personal: false, message: config.wowEnabled === false ? "Discord account paired. Your PoE2 observations will belong to this account." : "Discord account paired. The companion links your own character on its next upload; the guild import still follows its usual apply setting.", companionCredential: body.companionCredential, guildDiscordId: typeof body.guildDiscordId === "string" ? body.guildDiscordId : config.guildDiscordId,
     ...(typeof body.wowGuildId === "string" && body.wowGuildId ? { wowGuildId: body.wowGuildId } : {}),
     ...(typeof body.wowGuildName === "string" && body.wowGuildName ? { wowGuildName: body.wowGuildName } : {}),
     ...(GAME_EDITIONS.includes(body.gameEdition) ? { gameEdition: body.gameEdition } : {}) };
@@ -805,7 +805,7 @@ export function createEngine(initialConfig, hooks = {}) {
     // The bot says whether this server knows the character's in-game guild; a wrong connection is warned about, never silent.
     if (body.serverWowGuild) {
       state.guildWarning = body.serverWowGuild.known === false
-        ? `This character's guild${full.wowGuild ? ` (${full.wowGuild})` : ""} isn't set up in ${current.profileName || current.wowGuildName || body.serverWowGuild.name || "this server"}. If this is the wrong server, remove it in the companion's Advanced settings.`
+        ? `This character's guild${full.wowGuild ? ` (${full.wowGuild})` : ""} isn't set up in ${current.profileName || current.wowGuildName || body.serverWowGuild.name || "this server"}. If this is the wrong server, choose Switch account in Advanced and pick your guild's server.`
         : null;
       if (state.guildWarning) log("warn", state.guildWarning);
       // The server knows this guild: remember it, so its runs can still go here when Guilded parks the guild later.

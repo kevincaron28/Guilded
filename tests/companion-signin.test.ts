@@ -274,6 +274,20 @@ describe("/me/companion", () => {
     expect(issued[0]).toMatch(/^personal:/);
     expect(await signIn.poll(started.requestId)).toEqual({ companionCredential: "p".repeat(43), personal: true });
   });
+  it("does not preselect leaderboards only when that would end a companion's guild sync", async () => {
+    const { signIn, request, signedIn } = setup([]);
+    const started = signIn.start({ prefer: "Quebec Gold" })!;
+    const target = `/me/companion?request=${started.requestId}&lang=en`;
+    const { cookie } = await signedIn(target);
+    const page = await request("GET", target, { cookie });
+    expect(page.body).toContain('value="personal"');
+    expect(page.body).not.toContain('value="personal" checked');
+    expect(page.body).toContain("Your companion already syncs your guild");
+    const csrf = /name="csrf" value="([^"]+)"/.exec(page.body)![1]!;
+    await request("POST", "/me/companion", { cookie, origin: SITE, "content-type": "application/x-www-form-urlencoded" }, `csrf=${encodeURIComponent(csrf)}&request=${encodeURIComponent(started.requestId)}&choice=personal&code=${started.confirm}`);
+    // Picked after the warning: the grant says so, and the companion applies it.
+    expect(await signIn.poll(started.requestId)).toEqual({ companionCredential: "p".repeat(43), personal: true, personalChosen: true });
+  });
   it("issues only one credential when two approval requests overlap", async () => {
     let release!: () => void, entered!: () => void;
     const waiting = new Promise<void>(resolve => { release = resolve; });
@@ -391,6 +405,14 @@ describe("companion engine sign-in", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(reply(410, { error: "This sign-in expired." })));
     // 410 (expired, or forgotten by a bot restart) is flagged so the app starts a new request by itself.
     expect(await waitForSignIn({ uploadUrl: "" }, "r".repeat(43), { sleep: async () => {} })).toMatchObject({ ok: false, expired: true, message: expect.stringContaining("expired") });
+  });
+
+  it("passes on that leaderboards only was the member's own choice", async () => {
+    const body = { status: "approved", personal: true, companionCredential: "p".repeat(43) };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(reply(200, { ...body, personalChosen: true })));
+    expect(await waitForSignIn({ uploadUrl: "" }, "r".repeat(43))).toMatchObject({ ok: true, personal: true, personalChosen: true });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(reply(200, body)));
+    expect(await waitForSignIn({ uploadUrl: "" }, "r".repeat(43))).not.toHaveProperty("personalChosen");
   });
 
   it("stops waiting at the request's own expiry and passes it on (8.5 fresh-PC test)", async () => {

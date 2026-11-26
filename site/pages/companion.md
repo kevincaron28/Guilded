@@ -38,9 +38,9 @@ The companion works on **Windows only**. There is no Mac or Linux version and no
 
 **Signing in with Discord is optional.** Until you sign in, your characters are shown as reported by your PC; press **Sign in with Discord** in the companion to confirm them and unlock Discord messages.
 
-That's all. The companion **updates itself**: new versions download in the background and install when you quit or restart it, or at once with **Update now** in its window.
+That's all. The companion **updates itself**: new versions download in the background and install when you quit or restart it, or at once with **Update** in its window.
 
-**Several WoW accounts on this PC?** Each one syncs by itself. When the companion finds Guilded's data on another account (WoW1, WoW2…), it asks once in its window whether that account is yours too: **Yes, sync it too** adds it, **No, not mine** leaves it alone for good (for a partner who plays on the same PC with their own Discord). Every account then gets its own line under **Advanced → WoW accounts**, with a checkbox to change the answer later. Log in once on a new account and type `/reload` so WoW saves its data.
+**Several WoW accounts on this PC?** Each one syncs by itself. When the companion finds Guilded's data on another account (WoW1, WoW2…), it asks once in its window whether that account is yours too: **Yes** adds it, **No** leaves it alone for good (for a partner who plays on the same PC with their own Discord). Every account then gets its own line under **Advanced → WoW accounts**, with a checkbox to change the answer later. Log in once on a new account and type `/reload` so WoW saves its data.
 
 **Already have Guilded Companion from the Microsoft Store (listed there as Guild Sync Companion)?** This installer replaces it and keeps your settings and Discord link, so you only have one. Prefer the Store? [Get it from Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) instead: it is Store-signed and the Store updates it (to update right away, choose **Open Microsoft Store** in the companion window).
 

@@ -8,6 +8,7 @@ const db = vi.hoisted(() => ({
   member: { findMany: vi.fn() },
   reserveList: { findUnique: vi.fn() },
   itemReserve: { findMany: vi.fn() },
+  reserveRequest: { findMany: vi.fn() },
   raidCore: { findMany: vi.fn() }
 }));
 const baseline = vi.fn();
@@ -28,6 +29,7 @@ beforeEach(() => {
   db.raidCore.findMany.mockResolvedValue([]);
   db.reserveList.findUnique.mockResolvedValue(null);
   db.itemReserve.findMany.mockResolvedValue([]);
+  db.reserveRequest.findMany.mockResolvedValue([]);
   db.member.findMany.mockResolvedValue([]);
 });
 
@@ -47,13 +49,17 @@ describe("hub: my characters", () => {
 });
 
 describe("hub: reserves are read-only", () => {
-  it("shows the addon's list and marks the member's own reserves, and offers no write", async () => {
+  it("shows the addon's list and marks the member's own reserves, and keeps it read-only for older apps", async () => {
     db.member.findMany.mockResolvedValue([{ guild: { id: "g1", name: "Quebec Gold", gameEdition: "forever" }, characters: [{ id: "c1", name: "Thrall", displayName: null, realm: "R", className: "Shaman", spec: null, level: 60, isMain: true, gameEdition: "forever", coreSpots: [], coreBackups: [] }] }]);
     db.reserveList.findUnique.mockResolvedValue({ active: true, open: true, title: "MC", perPlayer: 2, keeper: "Boss", syncedAt: new Date("2026-11-03T10:00:00Z") });
     db.itemReserve.findMany.mockResolvedValue([
       { character: "Thrall", realm: "r", itemId: 1, itemName: "Sulfuras" }, { character: "Other", realm: "R", itemId: 1, itemName: "Sulfuras" }, { character: "Other", realm: "R", itemId: 2, itemName: "Eye" }
     ]);
+    db.reserveRequest.findMany.mockResolvedValue([{ itemName: "Eye", character: "Thrall", remove: false }]);
     const { reserves } = await hub.view("g1", member, null);
+    // Newer apps may ask for a change; only the caller's own waiting requests are listed.
+    expect(reserves.remote).toEqual({ pending: [{ itemName: "Eye", character: "Thrall", remove: false }] });
+    expect(db.reserveRequest.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ guildId: "g1", member: { discordUserId: "discord-1" } }) }));
     expect(reserves.writable).toBe(false);
     expect(reserves.mineCount).toBe(1);
     expect(reserves.items.find((i) => i.itemId === 1)).toMatchObject({ mine: true, characters: ["Thrall", "Other"] });

@@ -210,6 +210,7 @@ model Guild {
   coreItemValues      CoreItemValue[]
   professionCooldowns ProfessionCooldown[]
   itemReserves        ItemReserve[]
+  reserveRequests    ReserveRequest[]
   raidCores           RaidCore[]
   raidSeasons         RaidSeason[]
   dungeonGroups       DungeonGroup[]
@@ -526,6 +527,7 @@ model Member {
   bids                AuctionBid[]
   lootAwards          LootAward[]
   applications        Application[]
+  reserveRequests     ReserveRequest[]
   craftRequests       CraftRequest[]               @relation("CraftRequester")
   craftsClaimed       CraftRequest[]               @relation("CraftCrafter")
   craftsRelayed       CraftRequest[]               @relation("CraftRelayer")
@@ -1991,6 +1993,24 @@ model ItemReserve {
 
   @@unique([guildId, character, realm, itemId])
   @@index([guildId, itemId])
+}
+
+// A reserve asked for from Discord or the phone, waiting for the loot keeper's addon (services/reserve-requests.ts).
+model ReserveRequest {
+  id        String   @id @default(cuid())
+  guildId   String
+  memberId  String
+  character String
+  realm     String
+  itemId    Int?
+  itemName  String
+  remove    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, createdAt])
+  @@index([memberId])
 }
 
 // One recipe a character knows, from the addon's profession scan (/guilded recipes).

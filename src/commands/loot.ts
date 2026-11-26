@@ -4,13 +4,15 @@ import { createLootService } from "../services/loot.js";
 import { notifications, notify } from "../services/notify.js";
 import { createWishlistService } from "../services/wishlist.js";
 import { describeReserves } from "../services/reserves.js";
+import { placeReserve, removeReserve, type ReserveOutcome } from "../services/reserve-requests.js";
+import { characterName } from "../services/character-display.js";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
 import { coreForRaid, effectiveRules, LOOT_MODE_LABEL } from "../services/core-rules.js";
 import { createItemValueService } from "../services/item-values.js";
 import { describePriority, priorityFor } from "../services/loot-priority.js";
 import { guildService, requireGuildContext } from "./context.js";
-import { asLang, t, tx } from "../i18n.js";
+import { asLang, t, tx, type Lang } from "../i18n.js";
 import { LOOT_MODE_LABEL_FR } from "../services/core-rules.js";
 import { readPricingPolicy } from "../services/raid-pricing.js";
 
@@ -44,10 +46,37 @@ export const lootCommand = new SlashCommandBuilder()
     .addStringOption((o) => o.setName("raid").setDescription("Raid, to use its core's roster, prices and pool (start typing its name)").setAutocomplete(true)))
   .addSubcommand((sub) => sub.setName("history").setDescription("View awarded loot.").addStringOption(o => o.setName("core").setDescription("Raid core (defaults to this channel)").setAutocomplete(true)))
   .addSubcommand((sub) => sub.setName("reserves").setDescription("Who soft-reserved what (the list kept in the game addon).")
-    .addStringOption((o) => o.setName("item").setDescription("Only this item (part of its name), or one character's reserves").setMaxLength(100)));
+    .addStringOption((o) => o.setName("item").setDescription("Only this item (part of its name), or one character's reserves").setMaxLength(100)))
+  .addSubcommand((sub) => sub.setName("reserve").setDescription("Soft-reserve an item on the loot keeper's open list.")
+    .addStringOption((o) => o.setName("item").setDescription("Item link, Wowhead link, number or name").setRequired(true).setAutocomplete(true).setMaxLength(300))
+    .addStringOption((o) => o.setName("character").setDescription("Your character (default: your main)").setAutocomplete(true)))
+  .addSubcommand((sub) => sub.setName("unreserve").setDescription("Take back one of your soft reserves.")
+    .addStringOption((o) => o.setName("item").setDescription("Item link, Wowhead link, number or name").setRequired(true).setAutocomplete(true).setMaxLength(300))
+    .addStringOption((o) => o.setName("character").setDescription("Your character (default: your main)").setAutocomplete(true)));
 
 function officer(interaction: ChatInputCommandInteraction): boolean {
   return !!interaction.member && hasPermission(interaction.member as Parameters<typeof hasPermission>[0], "officer");
+}
+
+/** One of the member's own characters: the picked one, else the main. */
+async function ownReserveCharacter(memberId: string, picked: string | null) {
+  const rows = await prisma.character.findMany({ where: { memberId }, orderBy: [{ isMain: "desc" }, { name: "asc" }], take: 50 });
+  if (!picked) return rows[0] ?? null;
+  const wanted = picked.trim().toLowerCase();
+  const found = rows.find((row) => row.id === picked || row.name.toLowerCase() === wanted || characterName(row).toLowerCase() === wanted);
+  if (!found) throw new Error("That character is not one of yours.");
+  return found;
+}
+
+export function reserveAnswer(lang: Lang, outcome: ReserveOutcome, character: string): string {
+  const values = { item: outcome.itemName, character };
+  if (outcome.kind === "cancelled") return tx(lang, "Cancelled: **{item}** for **{character}** had not reached the game yet.", values);
+  if (outcome.kind === "kept") return tx(lang, "**{item}** stays reserved for **{character}**.", values);
+  if (outcome.kind === "removal") return tx(lang, "**{item}** will be removed for **{character}** at the loot keeper's next /reload.", values);
+  const lines = [tx(lang, "Asked: **{item}** for **{character}**. It is added at the loot keeper's next /reload; check with /loot reserves.", values)];
+  if (outcome.replaced) lines.push(tx(lang, "It replaces your earlier reserve (one per player)."));
+  if (!outcome.itemId) lines.push(tx(lang, "Guilded does not know this item's number, so the loot keeper adds it by hand. For an automatic reserve, give its link or its Wowhead address."));
+  return lines.join("\n");
 }
 
 export async function executeLoot(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -56,7 +85,18 @@ export async function executeLoot(interaction: ChatInputCommandInteraction): Pro
   const subcommand = interaction.options.getSubcommand();
   const lang = asLang((await guildService.getSettings(context.guildId))?.language);
   if (subcommand === "reserves") {
-    await interaction.reply({ content: await describeReserves(prisma, context.guildId, interaction.options.getString("item") ?? undefined), flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: await describeReserves(prisma, context.guildId, interaction.options.getString("item") ?? undefined, new Date(), lang), flags: MessageFlags.Ephemeral });
+    return;
+  }
+  if (subcommand === "reserve" || subcommand === "unreserve") {
+    const character = await ownReserveCharacter(context.memberId, interaction.options.getString("character"));
+    if (!character) {
+      await interaction.reply({ content: tx(lang, "Link your character first (/character link), then reserve."), flags: MessageFlags.Ephemeral });
+      return;
+    }
+    const input = { guildId: context.guildId, memberId: context.memberId, character: character.name, realm: character.realm, item: interaction.options.getString("item", true) };
+    const outcome = subcommand === "reserve" ? await placeReserve(prisma, input) : await removeReserve(prisma, input);
+    await interaction.reply({ content: reserveAnswer(lang, outcome, characterName(character)), flags: MessageFlags.Ephemeral });
     return;
   }
   if ((subcommand === "auction" || subcommand === "close" || subcommand === "award" || subcommand === "priority") && !officer(interaction)) {
@@ -124,7 +164,7 @@ export async function executeLoot(interaction: ChatInputCommandInteraction): Pro
   if (lootMode !== "EPGP" && (subcommand === "auction" || subcommand === "bid")) {
     const how: Record<string, string> = {
       COUNCIL: "officers decide. In game, officers open the loot council (answer BiS, Upgrade, Off-spec or Pass in the popup) and award with `/lead loot award` or in the Council tab; add the item to your `/character wishlist` to state interest.",
-      RESERVE: "players reserve items before the raid (`/guilded reserve` in game, `/loot reserves` here) and the reservers of a dropped item roll for it. Officers record the award with `/lead loot award`.",
+      RESERVE: "players reserve items before the raid (`/loot reserve` here or `/guilded reserve` in game) and the reservers of a dropped item roll for it. Officers record the award with `/lead loot award`.",
       PRIORITY: "every item has a set GP price and goes to the highest PR of the players who want it (wishlist here, the popup in game). `/lead loot priority` shows who is next; `/lead loot award` charges the set price."
     };
     await interaction.reply({ content: tx(lang, "This raid uses **{mode}**: {how}", { mode: lang === "fr" ? LOOT_MODE_LABEL_FR[lootMode] : LOOT_MODE_LABEL[lootMode], how: tx(lang, how[lootMode] ?? "") }), flags: MessageFlags.Ephemeral });

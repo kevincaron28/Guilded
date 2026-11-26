@@ -114,7 +114,9 @@ cooldowns (all transmutes) are merged into one line. The companion exports it as
 
 ## Reserve.lua
 
-Soft reserves. The officer who runs `/guilded reserve open` is the keeper: members' `ADD|id|name`
+Soft reserves. Requests made in Discord (`/loot reserve`) or on the phone arrive in the companion file
+(`GuildedReserveRequests`); the keeper applies each once at login, `/reload` or unlock (`reserve.applyRemote`).
+The officer who runs `/guilded reserve open` is the keeper: members' `ADD|id|name`
 and `DEL|id` go to them by whisper, they check the limit and the lock, then share the list
 to the guild (`STATE|open|limit|title`, `CLR`, `L|name=id,id;...` in chunks under 255
 characters, `DONE` to close). Members accept the list only from an officer. Items are stored by

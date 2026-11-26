@@ -30,6 +30,7 @@ import { communityChoices } from "../services/community-choices.js";
 import { worldBuffDropChoices } from "./world-buffs.js";
 import { dniChoices } from "./do-not-invite.js";
 import { raidPresetChoices } from "../services/raid-presets.js";
+import { reserveItemSuggestions } from "../services/reserve-requests.js";
 import { bankItemChoices } from "./bank.js";
 
 // Routes every autocomplete request (see setAutocomplete(true) on ID
@@ -85,7 +86,10 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
     } else if (focused.name === "character" && command === "apply") {
       const characters = await prisma.character.findMany({ where: { memberId: member.id, name: { contains: query, mode: "insensitive" } }, orderBy: { name: "asc" }, take: 25 });
       choices = characters.map(character => ({ name: `${characterName(character)} — ${character.realm}`.slice(0, 100), value: settings?.characterSignups ? character.id : addonName(character.name, character.realm) }));
-    } else if (focused.name === "character" && ["profession", "attunement", "wishlist"].includes(command)) {
+    } else if (command === "loot" && focused.name === "item" && (subcommand === "reserve" || subcommand === "unreserve")) {
+      choices = (await reserveItemSuggestions(prisma, guild.id, query, member.id, subcommand === "unreserve"))
+        .map((name) => ({ name: name.slice(0, 100), value: name.slice(0, 100) }));
+    } else if (focused.name === "character" && ["profession", "attunement", "wishlist", "loot"].includes(command)) {
       choices = await ownCharacterChoices(prisma, member.id, query);
     } else if (command === "core" && focused.name === "character") {
       // The characters of the player picked in the same command (or your own).

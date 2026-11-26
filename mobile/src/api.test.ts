@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { GuildedClient, apiOrigin, discordEventLink, parseGrant, parseHub, parseManage, parseStandings, parseSummary, fetchBounded, readTextBounded, withMine } from "./api";
+import { GuildedClient, apiOrigin, discordEventLink, parseGrant, parseHub, parseReserveAnswer, parseManage, parseStandings, parseSummary, fetchBounded, readTextBounded, withMine } from "./api";
 import { REMINDER_LEADS_MS, REMINDER_LEAD_MS, notificationId, planReminders, soonRaids } from "./reminders";
 import { sampleHubBody, sampleManageBody, sampleStandingsBody } from "./sample";
 
@@ -30,6 +30,9 @@ describe("mobile companion client", () => {
     ]);
     expect(hub.reserves.mineCount).toBe(1);
     expect(hub.reserves.writable).toBeUndefined();
+    expect(hub.reserves.remote).toBeNull(); // an older server takes no requests
+    expect(parseReserveAnswer({ ok: true, outcome: { kind: "requested", itemName: "Ring", itemId: null, replaced: true } })).toEqual({ kind: "requested", itemName: "Ring", known: false, replaced: true });
+    expect(() => parseReserveAnswer({ ok: true })).toThrow("not understood");
     const manage = parseManage(sampleManageBody);
     expect(manage.characters[0]?.wishlist.map((wish) => wish.priority)).toEqual([1, 2]);
     const standings = parseStandings(sampleStandingsBody);

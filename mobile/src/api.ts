@@ -112,6 +112,8 @@ export interface ReserveView {
   items: { itemName: string; characters: string[]; mine: boolean }[];
   mineCount: number;
   cores: { name: string; lootMode: string | null; reservesPerPlayer: number | null }[];
+  /** Present while the list is open and the server takes requests from the phone: mine that wait for the loot keeper's game. */
+  remote: { pending: { itemName: string; character: string; remove: boolean }[] } | null;
 }
 
 export interface HubView {
@@ -276,7 +278,15 @@ function parseReserves(value: unknown): ReserveView {
     if (!core || !name) return [];
     return [{ name, lootMode: str(core.lootMode), reservesPerPlayer: num(core.reservesPerPlayer) }];
   }) : [];
+  const remote = record(row?.remote);
+  const pending = Array.isArray(remote?.pending) ? remote.pending.flatMap((entry) => {
+    const wanted = record(entry);
+    const itemName = str(wanted?.itemName);
+    const character = str(wanted?.character);
+    return itemName && character ? [{ itemName, character, remove: bool(wanted?.remove) }] : [];
+  }) : [];
   return {
+    remote: remote ? { pending } : null,
     list: list ? {
       active: bool(list.active),
       open: bool(list.open),
@@ -288,6 +298,16 @@ function parseReserves(value: unknown): ReserveView {
     mineCount: num(row?.mineCount) ?? items.filter((item) => item.mine).length,
     cores
   };
+}
+
+export interface ReserveAnswer { kind: "requested" | "removal" | "cancelled" | "kept"; itemName: string; known: boolean; replaced: boolean }
+
+export function parseReserveAnswer(body: unknown): ReserveAnswer {
+  const outcome = record(record(body)?.outcome);
+  const kind = outcome?.kind;
+  const itemName = str(outcome?.itemName);
+  if (!outcome || !itemName || (kind !== "requested" && kind !== "removal" && kind !== "cancelled" && kind !== "kept")) throw new ApiError("The server answer was not understood.", 502);
+  return { kind, itemName, known: num(outcome.itemId) !== null, replaced: bool(outcome.replaced) };
 }
 
 export function parseHub(body: unknown): HubView {
@@ -606,6 +626,13 @@ export class GuildedClient {
     if (status === 409 && record(body)?.closed === true) throw new SignupClosedError(str(record(body)?.closesAt));
     if (status !== 200) throw new ApiError(messageOf(body, "That answer was not saved."), status);
     return body;
+  }
+
+  /** Ask for a soft reserve on the open list, or take one back. The loot keeper's game applies it at the next /reload. */
+  async reserve(guildDiscordId: string, characterId: string, item: string, remove: boolean): Promise<ReserveAnswer> {
+    const { status, body } = await this.call("/api/v1/me/reserve", { method: "POST", body: { guildDiscordId, characterId, item, remove } });
+    if (status !== 200) throw new ApiError(messageOf(body, "That reserve was not sent."), status);
+    return parseReserveAnswer(body);
   }
 
   /** Who in my guild can make items matching `query`, and my open requests (0.6.0). */

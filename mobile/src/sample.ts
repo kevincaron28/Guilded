@@ -28,6 +28,7 @@ export const sampleHubBody = {
     }
   ],
   reserves: {
+    remote: null,
     writable: false,
     list: { active: true, open: true, title: "Barrow Deeps", perPlayer: 2, keeper: "officer", syncedAt: "2026-11-03T17:40:00.000Z" },
     items: [

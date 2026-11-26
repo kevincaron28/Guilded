@@ -53,7 +53,7 @@ export function GuildTab({ guild, defaultOrigin, focus }: { guild: GuildState; d
       {snapshot?.errors.hub && !hub ? <RetryCard lang={lang} message={snapshot.errors.hub} onRetry={() => void guild.refresh()} /> : <>
         <Characters lang={lang} hub={hub} />
         <Text style={common.label}>{t(lang, "reserves").toUpperCase()}</Text>
-        <Reserves lang={lang} hub={hub} />
+        <Reserves lang={lang} hub={hub} session={preview ? null : session} onChanged={() => void guild.refresh()} />
       </>}
     </> : null}
     {section === "activity" ? <FeedScreen lang={lang} session={preview ? null : session} /> : null}

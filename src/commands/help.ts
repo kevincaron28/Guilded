@@ -69,6 +69,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/officer reports inactive` · `/officer reports guild` · `/officer bank handle` · `/officer dungeon` · `/officer export table:` (CSV)",
       "`/setup import upload` · `/setup import held` (addon data) · `/setup testraid start` · `/setup system status`",
       "`/mod application list` · `/mod faq` — answers · `/mod dni` · `/setup tags set` · `/setup participation claims` · `/setup selfroles`",
+      "`/mod page create` · `/mod page publish` — your guild web page · `/mod recruit set` · `/mod invites list` · `/mod rankroles set` · `/officer promotion rule`",
       "`/organize poll create` · `/organize start-season` · `/organize lottery create` · `/organize gaming create` · `/organize quiz` · `/organize honors-settings`",
       "An officer's guild-wide off switch for chat milestones wins over members' settings"
     ],
@@ -79,6 +80,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/officer reports inactive` · `/officer reports guild` · `/officer bank handle` · `/officer dungeon` · `/officer export table:` (CSV)",
       "`/setup import upload` · `/setup import held` (données de l'addon) · `/setup testraid start` · `/setup system status`",
       "`/mod application list` · `/mod faq` — réponses · `/mod dni` · `/setup tags set` · `/setup participation claims` · `/setup selfroles`",
+      "`/mod page create` · `/mod page publish` — la page web de la guilde · `/mod recruit set` · `/mod invites list` · `/mod rankroles set` · `/officer promotion rule`",
       "`/organize poll create` · `/organize start-season` · `/organize lottery create` · `/organize gaming create` · `/organize quiz` · `/organize honors-settings`",
       "Le réglage d'un officier pour couper les jalons l'emporte"
     ]

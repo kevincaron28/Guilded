@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 
-const PAGES = ["/guide/start/", "/guide/install/", "/guide/companion/", "/guide/link-character/", "/guide/dungeons/", "/guide/officers/", "/guide/epgp/", "/guide/discord-bot/", "/guide/self-host/", "/guide/troubleshooting/"];
+const PAGES = ["/guide/start/", "/guide/install/", "/guide/companion/", "/guide/link-character/", "/guide/dungeons/", "/guide/officers/", "/guide/raid-night/", "/guide/epgp/", "/guide/discord-bot/", "/guide/self-host/", "/guide/troubleshooting/"];
 
 function guideMatches(text, query) {
   const source = readFileSync("site/site.js", "utf8");

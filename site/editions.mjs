@@ -6,7 +6,7 @@ import { editionSection } from './nav.mjs';
 export const WOW_EDITIONS = [
   {
     id: 'forever', name: 'WoW Forever', label: ['Forever', 'Forever'],
-    family: ['CUSTOM CLIENT · 1.60', 'CLIENT PERSONNALISÉ · 1.60'],
+    family: ['GAME VERSION 1.60', 'VERSION DU JEU 1.60'],
     summary: ['The dedicated WoW Forever build.', 'La version dédiée à WoW Forever.'],
     folder: ['Follow the install guide for the right game folder. The beta used a different folder; use the one beside the Forever game you launch.', 'Suivez le guide d’installation pour le bon dossier de jeu. La bêta en utilisait un autre; prenez celui à côté du jeu Forever que vous lancez.'],
     detail: ['Guild standings, EP/GP, loot, crafting and dungeon recording for the Forever client, with free public dungeon leaderboards.', 'Classements, EP/GP, butin, artisanat et enregistrement des donjons pour le client Forever, avec des classements de donjons publics et gratuits.']
@@ -51,7 +51,7 @@ const foreverLaunch = `<section aria-labelledby="dates-title"><h2 id="dates-titl
   + `<li>${text('Create your raid cores for your 10- and 20-player teams with /core setup, and set GP prices with /core items.', 'Créez vos cores de raid pour vos équipes de 10 et 20 joueurs avec /core setup, et fixez les prix en GP avec /core items.')}</li>`
   + `<li>${text('Review the editable December preset on the Windows companion’s Raid prices page. Enabling it is an explicit officer choice; existing pools keep their rules.', 'Consultez le préréglage de décembre modifiable dans la page Prix de raid du compagnon Windows. Son activation exige un choix explicite d’un officier; les réserves existantes conservent leurs règles.')} <a href="/companion/?tab=pricing">${text('Raid prices', 'Prix de raid')}</a> · <a href="/companion/?tab=leaderboards">${text('Leaderboards', 'Classements')}</a></li>`
   + `<li>${text('Share the member install guide so everyone has the addon before the first raid.', 'Partagez le guide d’installation des membres pour que tout le monde ait l’addon avant le premier raid.')} <a href="/docs/MEMBER_INSTALL.html">${text('Member install guide', 'Guide d’installation')}</a></li>`
-  + `<li>${text('Recruit: publish your guild page (/guildpage create, then /guildpage publish) and open recruitment with /recruit set.', 'Recrutez : publiez la page de votre guilde (/guildpage create, puis /guildpage publish) et ouvrez le recrutement avec /recruit set.')}</li></ol></section>`;
+  + `<li>${text('Recruit: publish your guild page (/mod page create, then /mod page publish) and open recruitment with /mod recruit set.', 'Recrutez : publiez la page de votre guilde (/mod page create, puis /mod page publish) et ouvrez le recrutement avec /mod recruit set.')}</li></ol></section>`;
 
 /** The WoW Forever hub page (/forever/): its leaderboard first, then its download, guilds and first steps. */
 export function editionHubs(version, curseforge = {}) {

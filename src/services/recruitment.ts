@@ -1,4 +1,4 @@
-import { CLASSES, WEEKDAYS } from "../wow-data.js";
+import { FOREVER_CLASSES, WEEKDAYS } from "../wow-data.js";
 
 // Recruitment listings (7.0, roadmap request 5): the structured fields officers set with
 // /mod recruit, the filters on /recruitment/, and the rules for applications and player cards.
@@ -13,8 +13,7 @@ export type ListingRole = typeof LISTING_ROLES[number];
 
 const FRENCH_CLASSES: Record<string, string> = {
   guerrier: "Warrior", paladin: "Paladin", chasseur: "Hunter", voleur: "Rogue", pretre: "Priest", pretresse: "Priest",
-  chaman: "Shaman", mage: "Mage", demoniste: "Warlock", druide: "Druid", "chevalier de la mort": "Death Knight",
-  moine: "Monk", "chasseur de demons": "Demon Hunter", evocateur: "Evoker"
+  chaman: "Shaman", mage: "Mage", demoniste: "Warlock", druide: "Druid"
 };
 const ROLE_WORDS: Record<string, ListingRole> = {
   tank: "TANK", tanks: "TANK", heal: "HEALER", heals: "HEALER", healer: "HEALER", healers: "HEALER", soigneur: "HEALER", soigneurs: "HEALER",
@@ -34,14 +33,14 @@ export class RecruitmentError extends Error {}
 
 export function className(text: string): string | null {
   const key = plain(text);
-  const english = CLASSES.find((name) => plain(name) === key || plain(name).replace(/\s/g, "") === key.replace(/\s/g, ""));
+  const english = FOREVER_CLASSES.find((name) => plain(name) === key || plain(name).replace(/\s/g, "") === key.replace(/\s/g, ""));
   return english ?? FRENCH_CLASSES[key] ?? null;
 }
 
 // "Warrior, prêtre / mage" -> ["Warrior", "Priest", "Mage"]; "any" -> [] (every class).
 export function parseClasses(text: string): string[] {
   if (NONE.has(plain(text))) return [];
-  // "Warrior Priest" (spaces only) is two classes; "Death Knight" is one.
+  // "Warrior Priest" (spaces only) is two classes.
   const names = words(text).flatMap((part) => {
     const name = className(part);
     if (name) return [name];
@@ -49,7 +48,7 @@ export function parseClasses(text: string): string[] {
     if (each.every(Boolean)) return each as string[];
     throw new RecruitmentError(`Unknown class: ${part}. Use names such as Warrior, Priest, Mage (or French).`);
   });
-  return CLASSES.filter((name) => names.includes(name));
+  return FOREVER_CLASSES.filter((name) => names.includes(name));
 }
 
 export function parseRoles(text: string): ListingRole[] {

@@ -32,7 +32,8 @@ export const FOOTER_COLUMNS = {
 export const FOOTER_NAV = [
   { key: "start", column: "product", href: "/start/", en: "Start here", fr: "Commencer ici" },
   { key: "download", column: "product", href: "/editions/", en: "Get the addon", fr: "Obtenir l’addon" },
-  { key: "features", column: "product", href: "/features/", en: "Features", fr: "Fonctions" },
+  // The features live on the home page; the old /features/ address redirects there.
+  { key: "features", column: "product", href: "/#features", en: "Features", fr: "Fonctions" },
   { key: "officers", column: "product", href: "/officers/", en: "For officers", fr: "Pour les officiers" },
   { key: "companion", column: "product", href: "/companion/", en: "Companion app", fr: "Application compagnon" },
   { key: "mobile", column: "product", href: "/mobile/", en: "Phone app", fr: "Application mobile" },
@@ -146,12 +147,12 @@ export function localizedHref(href, lang) {
   if (/(?:^|\/)docs\/(?:QUICK_START|MEMBER_INSTALL|DUNGEONS_GUIDE|EPGP_GUIDE|HOSTED_PILOT|SUPPORT_GUILDED)(?:\.html)?$/.test(path)) {
     return base + (hash && hash !== "fr" ? `#${hash}` : lang === "fr" ? "#fr" : "");
   }
-  if (!/^(?:\/?|(?:.*\/)?index\.html|(?:.*\/)?(?:features|officers|start|download|reference|guide|community)\/|(?:.*\/)?editions\/(?:[a-z-]+\/)?|\/companion\/|\/(?:(?:forever|classic-era|tbc|mists|retail)\/)?(?:leaderboards|recruitment|players)(?:\/.*)?|\/me(?:\/.*)?|(?:.*\/)?(?:forever|classic-era|tbc|mists|retail)\/)$/.test(path)) return href;
+  if (!/^(?:\/?|(?:.*\/)?index\.html|(?:.*\/)?(?:features|officers|start|download|reference|guide|community)\/|(?:(?:\/fr)?\/|(?:\.\.\/)+)(?:guides?\/[a-z-]+|mobile|status|delete-my-data|quebec-gold)\/|(?:.*\/)?editions\/(?:[a-z-]+\/)?|\/companion\/|\/(?:(?:forever|classic-era|tbc|mists|retail)\/)?(?:leaderboards|recruitment|players)(?:\/.*)?|\/me(?:\/.*)?|(?:.*\/)?(?:forever|classic-era|tbc|mists|retail)\/)$/.test(path)) return href;
   const query = new URLSearchParams(search);
   // Absolute marketing pages use /fr/<same path>. Relative links, data pages and the companion
   // stay on ?lang= so a link still works from any directory and the Worker can route it.
   const bare = path.startsWith("/") ? (path.replace(/^\/fr(?=\/|$)/, "") || "/") : "";
-  const folder = bare === "/" || /^\/(?:features|officers|start|download|reference|community)\//.test(bare) || /^\/guide(?:\/|$)/.test(bare) || /^\/editions(?:\/|$)/.test(bare) ? bare : null;
+  const folder = bare === "/" || /^\/(?:features|officers|start|download|reference|community|mobile|status|delete-my-data|quebec-gold)\//.test(bare) || /^\/guides?(?:\/|$)/.test(bare) || /^\/editions(?:\/|$)/.test(bare) ? bare : null;
   if (folder) {
     query.delete("lang");
     const rest = query.toString();

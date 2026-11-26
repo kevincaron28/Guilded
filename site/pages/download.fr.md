@@ -13,6 +13,7 @@
 <p>L’addon fonctionne seul. Le compagnon envoie vos données enregistrées à Discord et au site, tout de suite. Il est facultatif : sans lui, le compagnon d’un autre joueur peut quand même transporter vos donjons et vos duels aux classements. Windows seulement. Version <strong>{{COMPANION_DIRECT_VERSION}}</strong>.</p>
 <div class="actions"><a class="button" href="https://apps.microsoft.com/detail/9N680XX3QFL9">Microsoft Store <span aria-hidden="true">↗</span></a><a class="button secondary" href="{{COMPANION_DIRECT_URL}}">Exe direct (non signé) <span aria-hidden="true">↓</span></a></div>
 <p class="small">Windows peut avertir à la première ouverture. SHA-256 : <code>{{COMPANION_DIRECT_SHA256}}</code></p>
+<p>Sur Mac, Linux ou un téléphone, il n’y a pas de compagnon à installer. Utilisez l’addon ci-dessus : vous apparaissez quand même aux classements quand le compagnon d’un autre joueur envoie vos donjons et vos duels.</p>
 
 <h2 id="discord" class="step">3. Bot Discord</h2><img class="step-art" src="/images/web/step-discord.webp" alt="" width="160" height="160" loading="lazy">
 <p>Pour la personne qui tient le serveur Discord.</p>

@@ -8,7 +8,7 @@ Easiest: the [Start here page](https://guilded.kcaron.top/start/) walks you thro
 2. **Get the companion (optional, Windows only).** It sends your saved game data to Discord and the website. [Latest from Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9), or the [direct GitHub download](https://github.com/kevincaron28/Guilded/releases/latest) (unsigned: Windows may warn you).
 3. **Sign in with Discord in the companion (optional).** The addon works without it. Pairing and sync are then automatic. A new companion opens on **Link everything**: one list shows Discord, Battle.net (optional; WoW Forever characters may not appear there) and your characters, each with its next step. After you sign in, the companion finds your saved data when one account has it and proves your characters from it, with no code to type. Skip it any time; sending the bot your character's full name and the website keep working.
 
-Nothing shows on the website or in Discord? WoW only saves your data on `/reload` or when you log out. [Public leaderboards](https://guilded.kcaron.top/leaderboards/) need no sign-in. Every dungeon run, character and raid report page has a shareable image card. Optional: `/bg privacy` and `/bg history` in Discord keep private battleground records from your paired companion; nothing is posted or awarded automatically.
+Nothing shows on the website or in Discord? WoW only saves your data on `/reload` or when you log out. [Public leaderboards](https://guilded.kcaron.top/leaderboards/) need no sign-in. Every dungeon run, character and raid report page has a shareable image card.
 
 Optional weekly recaps and alerts: [automation quick start](AUTOMATION_QUICK_START.md).
 
@@ -30,7 +30,7 @@ Le plus simple : la [page Commencer ici](https://guilded.kcaron.top/start/?lang=
 2. **Obtenez le compagnon (facultatif, Windows seulement).** Il envoie vos données de jeu enregistrées vers Discord et le site. [Dernière version du Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9), ou le [téléchargement direct GitHub](https://github.com/kevincaron28/Guilded/releases/latest) (non signé : Windows peut vous avertir).
 3. **Connectez-vous avec Discord dans le compagnon (facultatif).** L’addon fonctionne sans. Le lien et la synchronisation sont ensuite automatiques.
 
-Rien ne s’affiche sur le site ou dans Discord ? WoW n’enregistre vos données que sur `/reload` ou à la déconnexion. Les [classements publics](https://guilded.kcaron.top/leaderboards/?lang=fr) n’exigent aucune connexion. Chaque page de donjon, de personnage et de rapport de raid a une carte image à partager. Facultatif : `/bg privacy` et `/bg history` sur Discord gardent vos rapports de champ de bataille privés du compagnon lié; rien n’est publié ni attribué automatiquement.
+Rien ne s’affiche sur le site ou dans Discord ? WoW n’enregistre vos données que sur `/reload` ou à la déconnexion. Les [classements publics](https://guilded.kcaron.top/leaderboards/?lang=fr) n’exigent aucune connexion. Chaque page de donjon, de personnage et de rapport de raid a une carte image à partager.
 
 Récapitulatifs et alertes facultatifs : [guide d’automatisation](https://guilded.kcaron.top/docs/AUTOMATION_QUICK_START.html?lang=fr#fr).
 

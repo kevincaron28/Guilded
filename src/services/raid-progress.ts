@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { PrismaClient } from "../generated/prisma/client.js";
-import { escapeHtml, link } from "./web-layout.js";
+import { escapeHtml, link, utcDateTime } from "./web-layout.js";
 import { factionTag, guildFactions } from "./guild-faction.js";
 import { registerLeaderboardCache } from "./leaderboard-cache-hooks.js";
 import { SECTION_ART_CSS, sectionArt } from "./leaderboard-hub.js";
@@ -193,8 +193,8 @@ const guildHref = (guild: BoardGuild, lang: "en" | "fr") => link(`/leaderboards/
 
 export function raidBoardBody(board: RaidBoard, ctx: Pick<WebContext, "t" | "lang" | "now">): string {
   const { t, lang } = ctx;
-  const date = (d: Date) => d.toISOString().slice(0, 16).replace("T", " ") + " UTC";
-  const opens = RAIDS_OPEN_AT.toISOString().slice(0, 10);
+  const date = (d: Date) => utcDateTime(d, lang);
+  const opens = RAIDS_OPEN_AT.toLocaleDateString(lang === "fr" ? "fr-CA" : "en-CA", { timeZone: "UTC", dateStyle: "long" });
   let body = `<style>${SECTION_ART_CSS}</style>${sectionArt("raids")}<p class="eyebrow">Guilded</p><h1>${t("Raid progress", "Progression en raid")}</h1>`
     + `<p class="muted">${t("Guilds ranked by raid bosses killed, then by who finished first. Kills are recorded by the guild's own members through the Guilded addon; a kill counts when most of the raid is from the guild.", "Les guildes classées par boss de raid tués, puis par qui a fini en premier. Les victoires sont enregistrées par les membres de la guilde avec l'addon Guilded ; une victoire compte quand la majorité du raid vient de la guilde.")}</p>`;
   if (!board.rows.length) {

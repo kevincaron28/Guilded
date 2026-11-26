@@ -6,7 +6,7 @@ import { participationMode, unmappedMap } from "./dungeon-participation.js";
 import { withIntegrityWindow } from "./dungeon-integrity.js";
 import { formatDuration } from "./dungeon-rules.js";
 
-// Officer view (`/dungeon-admin audit why:true`): for a run or a player, every reason a run does or does not count on this
+// Officer view (`/officer dungeon audit why:true`): for a run or a player, every reason a run does or does not count on this
 // guild's boards, using the very functions the importer and the boards use. Read only; changes nothing.
 
 type Db = Pick<PrismaClient, "dungeonRun" | "dungeonSeason" | "character">;

@@ -154,7 +154,7 @@ export async function handleDungeonGuideModal(interaction: ModalSubmitInteractio
   const targetId = finderChannelFor(settings, activityId);
   const channel = targetId ? await guild.channels.fetch(targetId).catch(() => null) : null;
   if (!channel?.isTextBased() || !("send" in channel)) {
-    throw new Error("I can't post in the configured group finder channel. Check /setup status and channel permissions.");
+    throw new Error("I can't post in the configured group finder channel. Check /setup start status:true and channel permissions.");
   }
   const lang = asLang(settings?.language);
   if (isPvpKind(kind)) {

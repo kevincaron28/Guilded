@@ -10,7 +10,7 @@ import { askUnlink } from "../services/companion-link-dm.js";
 import { postToLogChannel } from "../services/housekeeping.js";
 import { hasPermission } from "../permissions.js";
 import { guildService, requireGuildContext } from "./context.js";
-import { CLASSES } from "../wow-data.js";
+import { FOREVER_CLASSES } from "../wow-data.js";
 import { characterLinkHelp } from "../services/character-link-prompt.js";
 import { unlinkCharacter } from "../services/character-verify.js";
 import { asLang, t, type Lang } from "../i18n.js";
@@ -33,7 +33,7 @@ export const characterCommand = new SlashCommandBuilder()
     .setDescription("Link a character to your profile.")
     .addStringOption((option) => option.setName("name").setDescription("Character name").setRequired(true))
     .addStringOption((option) => option.setName("class").setDescription("Class (pick from the list)").setRequired(true)
-      .addChoices(...CLASSES.map((name) => ({ name, value: name }))))
+      .addChoices(...FOREVER_CLASSES.map((name) => ({ name, value: name }))))
     .addBooleanOption((option) => option.setName("main").setDescription("Set as your main character").setRequired(true))
     .addStringOption((option) => option.setName("realm").setDescription("Realm (default: the one your guild already uses)"))
     .addStringOption((option) => option.setName("spec").setDescription("Specialization (pick or type)").setAutocomplete(true))

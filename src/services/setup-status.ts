@@ -161,10 +161,10 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en", now = new Date
       label: T("EPGP point values (base GP set)"),
       ok: facts.epgpConfigured,
       optional: true,
-      fix: T("Defaults work, but base GP is 0: run /setup start step 7 and press \"Use recommended values\".")
+      fix: T("Defaults work, but base GP is 0: run /setup start, step 7, and press \"Use recommended values\".")
     },
-    { label: T("Raid reminders"), ok: facts.remindersOn, optional: true, fix: T("Optional: turn them on in /setup step 7.") },
-    { label: T("Weekly guild report"), ok: facts.weeklyReportOn, optional: true, fix: T("Optional: turn it on in /setup step 7.") },
+    { label: T("Raid reminders"), ok: facts.remindersOn, optional: true, fix: T("Optional: turn them on in /setup start, step 7.") },
+    { label: T("Weekly guild report"), ok: facts.weeklyReportOn, optional: true, fix: T("Optional: turn it on in /setup start, step 7.") },
     {
       label: T("At least one companion account connected"),
       ok: facts.companionPaired,

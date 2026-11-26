@@ -38,7 +38,7 @@ export async function createPvpGroupFromModal(interaction: ModalSubmitInteractio
   const targetId = finderChannelFor(settings, "BATTLEGROUND");
   const channel = targetId ? await guild.channels.fetch(targetId).catch(() => null) : null;
   if (!channel?.isTextBased() || !("send" in channel)) {
-    throw new Error(fr ? "Le salon de recherche de groupe n'existe pas encore : un officier lance /setup puis Créer les salons manquants." : "The group finder channel does not exist yet: an officer runs /setup, then Create missing channels.");
+    throw new Error(fr ? "Le salon de recherche de groupe n'existe pas encore : un officier lance /setup start puis Créer les salons manquants." : "The group finder channel does not exist yet: an officer runs /setup start, then Create missing channels.");
   }
   const form = parsePvpForm({ title: interaction.fields.getTextInputValue("title"), size: interaction.fields.getTextInputValue("size"), levels: interaction.fields.getTextInputValue("levels") });
   const open = await prisma.dungeonGroup.count({ where: { guildId: record.id, kind: { in: ["PVP", "WORLDPVP"] }, leaderId: member.id, status: { in: ["OPEN", "STARTED"] } } });

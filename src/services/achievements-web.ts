@@ -97,7 +97,7 @@ export function createAchievementsWeb(db: Db, allows: (discordGuildId: string) =
     const details = (def: (typeof ACHIEVEMENTS)[number]) => {
       const r = row(def.id);
       const edition = def.edition ? `<p><strong>${t("Edition", "Édition")}:</strong> ${escapeHtml(EDITION_LABEL[def.edition][lang])} · ${t("only characters of this edition count", "seuls les personnages de cette édition comptent")}</p>` : "";
-      const state = r.earnedAt ? `<p><strong>${escapeHtml(statusOf(def))}</strong></p>${showProgress ? `<p>${t("Share it in Discord: run /achievements, then press “Share to channel”.", "Partage-le sur Discord : lance /achievements, puis « Partager dans le salon ».")}</p>` : ""}`
+      const state = r.earnedAt ? `<p><strong>${escapeHtml(statusOf(def))}</strong></p>${showProgress ? `<p>${t("Share it in Discord: run /character achievements, then press “Share to channel”.", "Partage-le sur Discord : lance /character achievements, puis « Partager dans le salon ».")}</p>` : ""}`
         : showProgress ? `<p>${t("Progress", "Progression")}: ${Math.min(r.value, def.threshold)}/${def.threshold}</p>${bar(def, r.value)}` : `<p>${t("Locked", "Verrouillé")}</p>`;
       if (hid(def)) return `<h4 style="margin:0 0 4px">${escapeHtml(t("Secret achievement", "Succès secret"))}</h4>${def[lang].description ? `<p>${escapeHtml(def[lang].description)}</p>` : ""}<p>${t("Hidden until earned.", "Caché jusqu'à ce qu'il soit obtenu.")}</p>`;
       return `<h4 style="margin:0 0 4px">${escapeHtml(def[lang].name)}</h4><p><strong>${t("How to earn", "Comment l'obtenir")}:</strong> ${escapeHtml(def[lang].description)}</p><p><strong>${t("Tier", "Niveau")}:</strong> ${tierOf(def)}</p>${edition}${state}`;

@@ -1,5 +1,5 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
-import { CLASSES } from "../wow-data.js";
+import { FOREVER_CLASSES } from "../wow-data.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
 
 // Cross-guild PUG board (opt-in). A request belongs to one raid of one guild; every guild that
@@ -188,7 +188,7 @@ export interface PugSignupInput {
 
 export function normalizeClass(value: string | null | undefined): string | null {
   const text = clean(value, 20).toLowerCase();
-  return CLASSES.find(name => name.toLowerCase() === text) ?? null;
+  return FOREVER_CLASSES.find(name => name.toLowerCase() === text) ?? null;
 }
 
 /** Members of the requesting guild use its normal signup; members of a guild it blocked cannot sign up either. */

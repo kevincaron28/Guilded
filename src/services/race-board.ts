@@ -20,6 +20,7 @@ import { moveColumn, moveFields, trackRanks, type Movements } from "./ladder-sna
 import { isOwnBoard } from "./board-identity.js";
 import { RANK_MAX_AGE_MS } from "./rank-roles.js";
 import { quebecLine } from "./fr-quebec-voice.js";
+import { FOREVER_CLASSES } from "../wow-data.js";
 
 // The live "Race to 60" leaderboard and Hall of Fame (8.5, track B1). The channel's FIRST message is the live board: the
 // top N guild characters (default 50, officers pick 10-50) with class, race, level bar, professions, last seen and the
@@ -39,9 +40,8 @@ const CARD_ROWS = 50, SHORT_LEADERS = 3, GAINERS = 5, DESCRIPTION_BUDGET = 3800;
 /** WoW Forever launched on 4 November 2026 (Season 1 opens at 23:00 UTC that day); "time to 60" counts from here. */
 export const LAUNCH_AT = new Date("2026-11-04T23:00:00Z");
 export const RACE_CARD_FILE = "race.png", HALL_CARD_FILE = "hall-60.png";
-export const KNOWN_CLASSES = ["Warrior", "Paladin", "Hunter", "Rogue", "Priest", "Death Knight", "Shaman", "Mage", "Warlock", "Monk", "Druid", "Demon Hunter", "Evoker"] as const;
-/** The class as the board spells it, from any capitalisation; null when it is not a class. */
-export const normalizeClass = (value: string | null | undefined) => KNOWN_CLASSES.find(name => name.toLowerCase() === (value ?? "").trim().replace(/\s+/g, " ").toLowerCase()) ?? null;
+/** The class as the board spells it, from any capitalisation; null when it is not a WoW Forever class. */
+export const normalizeClass = (value: string | null | undefined) => FOREVER_CLASSES.find(name => name.toLowerCase() === (value ?? "").trim().replace(/\s+/g, " ").toLowerCase()) ?? null;
 
 export interface RaceChar { aliasKeys?: string[]; key: string; name: string; className: string; race: string | null; level: number; memberId: string | null; discordId: string | null; professions: string[]; lastSeenAt: Date | null }
 export interface RaceEntryState { level: number; reachedMaxAt: Date | null; weekStartLevel: number; weekStartedAt: Date;

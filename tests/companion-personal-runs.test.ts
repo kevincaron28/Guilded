@@ -104,7 +104,7 @@ describe("personal companion mode", () => {
       expect(result.message).toBe("Public leaderboards: 1 new, 0 confirmed, 0 already sent.");
       expect(readFileSync(join(root, "Interface", "AddOns", "GuildedDungeons", "Accepted.lua"), "utf8")).toContain('"QG-1", "QG-2"');
       vi.stubGlobal("fetch", vi.fn(async () => Response.json({ error: "no" }, { status: 401 })));
-      await expect(uploadPersonalRuns({ watchFile: join(saved, "GuildedDungeons.lua"), uploadUrl: "https://guilded.kcaron.top", companionCredential: "c".repeat(40) })).rejects.toThrow("Sign in with Discord again");
+      await expect(uploadPersonalRuns({ watchFile: join(saved, "GuildedDungeons.lua"), uploadUrl: "https://guilded.kcaron.top", companionCredential: "c".repeat(40) })).rejects.toThrow("Choose Switch account in Advanced");
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
 

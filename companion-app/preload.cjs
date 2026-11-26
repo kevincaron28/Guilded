@@ -30,6 +30,7 @@ contextBridge.exposeInMainWorld("companion", {
   openStorageSettings: () => ipcRenderer.invoke("open-storage-settings"),
   setOnline: (online) => ipcRenderer.invoke("set-online", online),
   pickWowFolder: () => ipcRenderer.invoke("pick-wow-folder"),
+  useWowAccount: (file) => ipcRenderer.invoke("use-wow-account", file),
   recoverSync: () => ipcRenderer.invoke("recover-sync"),
   openUpdate: () => ipcRenderer.invoke("open-update"),
   installUpdate: () => ipcRenderer.invoke("install-update"),

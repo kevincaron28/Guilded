@@ -20,7 +20,10 @@ select { background: var(--panel); border: 1px solid var(--line); border-radius:
 .line[data-tone="bad"] .dot { background: var(--bad); }
 .label { color: var(--muted); }
 .value { display: flex; flex-direction: column; min-width: 0; }
-.detail { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.detail { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+/* Wrapped status explanations can outgrow the fixed window: the main view scrolls instead of squeezing. */
+#home { overflow-y: auto; }
+#home > * { flex-shrink: 0; }
 .needs { border: 1px solid var(--warn); border-radius: 8px; padding: 9px 12px; background: var(--panel); }
 .needs[data-tone="bad"] { border-color: var(--bad); }
 .needs p { margin: 0 0 2px; font-weight: 600; }
@@ -43,6 +46,13 @@ button:disabled { opacity: .5; cursor: default; }
 .mono { font-family: Consolas, monospace; font-size: 12px; word-break: break-all; }
 .plain { list-style: none; margin: 0; padding: 0; max-height: 140px; overflow-y: auto; }
 .check { display: block; margin: 3px 0; }
+.plain li { margin: 4px 0; overflow-wrap: anywhere; }
+.plain .note { display: block; color: var(--muted); font-size: 12px; }
+/* Repair results, the folder chooser and All problems show everything: the Advanced view scrolls. */
+.plain.tall { max-height: none; }
+.results li[data-status="fixed"] strong { color: var(--ok); }
+.results li[data-status="needs-you"] strong { color: var(--warn); }
+.results li[data-status="failed"] strong { color: var(--bad); }
 
 /* Header band (13 Nov 2026): the approved companion banner behind the title of the main window only. Text stays light
    in both colour schemes; the painting is dark on the left where the title sits. The Advanced view keeps its plain header. */

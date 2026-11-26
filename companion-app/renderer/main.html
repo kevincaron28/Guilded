@@ -34,7 +34,9 @@
   <div id="advanced" class="shell" hidden>
     <header class="top"><button type="button" id="btnBack" class="link">← Back</button><div class="title"><strong>Advanced</strong></div></header>
     <div class="scroll">
-      <section><h2>World of Warcraft</h2><p id="advFolder" class="mono"></p><div class="row"><button type="button" id="btnFolder" class="small">Choose folder</button><button type="button" id="btnFind" class="small">Find WoW again</button></div></section>
+      <section><h2>World of Warcraft</h2><p id="advFolder" class="mono"></p><div class="row"><button type="button" id="btnFolder" class="small">Choose folder</button><button type="button" id="btnFind" class="small">Find WoW again</button></div>
+        <p id="folderResult" role="status"></p><ul id="folderChoices" class="plain tall"></ul>
+        <p id="findResult" role="status"></p><ul id="findList" class="plain tall results"></ul></section>
       <section><h2>Discord</h2><p id="advDiscord"></p><div class="row"><button type="button" id="btnSignIn" class="small">Sign in with Discord</button><button type="button" id="btnSwitch" class="small">Switch account</button></div>
         <label id="serverRow" hidden>Guild server <select id="serverList"></select> <button type="button" id="btnServer" class="small">Use this server</button></label>
         <p><a id="linkConnections" href="#" class="inline">Connections (website)</a></p></section>
@@ -50,9 +52,9 @@
           <label class="check">Source guild <input id="grmGuild" maxlength="120" autocomplete="off"></label><label class="check">Source realm <input id="grmRealm" maxlength="120" autocomplete="off"></label>
           <label class="check"><input type="checkbox" id="grmPrivate"> Include private notes and full history</label><div class="row"><button type="button" id="btnGRM" class="small">Choose GRM backup and preview</button></div><p id="grmResult" role="status"></p></details></section>
       <section><h2>Officers</h2><p>Officers: server settings are in Discord with /setup, and server data exports with /officer export.</p></section>
-      <section><h2>Repair</h2><p>Checks the game folder, the addon and the connection, and fixes what it can.</p><div class="row"><button type="button" id="btnRepair" class="small">Repair</button><button type="button" id="btnReinstall" class="small">Reinstall the addon</button></div><p id="repairResult" role="status"></p></section>
-      <section id="accountsSection" hidden><h2>WoW accounts</h2><p>Each WoW account on this PC with Guilded's data. Untick one to stop syncing it, tick it to sync again.</p><ul id="accountList" class="plain"></ul></section>
-      <section><h2>All problems</h2><ul id="problemList" class="plain"></ul><p id="noProblems">No problems.</p></section>
+      <section><h2>Repair</h2><p>Checks the game folder, the addon and the connection, and fixes what it can.</p><div class="row"><button type="button" id="btnRepair" class="small">Repair</button><button type="button" id="btnReinstall" class="small">Reinstall the addon</button></div><p id="repairResult" role="status"></p><ul id="repairList" class="plain tall results"></ul></section>
+      <section id="accountsSection" hidden><h2>WoW accounts</h2><p>Each WoW account on this PC with Guilded's data. Untick one to stop syncing it, tick it to sync again.</p><ul id="accountList" class="plain tall"></ul><p id="accountsResult" role="status"></p></section>
+      <section id="problemsSection"><h2>All problems</h2><ul id="problemList" class="plain tall"></ul><p id="noProblems">No problems.</p></section>
       <section><h2>Activity</h2><ul id="activity" class="plain mono"></ul><div class="row"><button type="button" id="btnReport" class="small">Copy support report</button></div><p id="reportNote" role="status"></p></section>
       <section><h2>Privacy</h2><p>The companion sends only your Guilded addon's saved data and your finished dungeon runs, to your guild's Discord server through Guilded. It reads no other game or personal files. You can see and erase your data on your Guilded page.</p><p><a href="https://guildedwow.com/docs/PRIVACY.html" target="_blank" rel="noopener">Privacy policy ↗</a> · <a href="https://guildedwow.com/companion/" target="_blank" rel="noopener">Help and details ↗</a></p></section>
       <section><h2>Reset this companion</h2><p>Removes this PC's settings, link and unsent data, then quits. Your game files are untouched.</p><div class="row"><button type="button" id="btnReset" class="small danger">Reset this companion</button></div></section>

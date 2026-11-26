@@ -65,9 +65,9 @@ async function runRepair(deps) {
         const parts = choice.path.split(/[\\/]/);
         add("folder", "fixed", "Found your WoW account folder again: {0}", `${parts.at(-6) ?? ""} > ${parts.at(-3) ?? ""}`);
       } else if (choice) add("folder", "ok", "Your WoW folder is chosen; WoW has not saved Guilded data there yet.");
-      else if (found.entries.length > 1) add("folder", "needs-you", "Several WoW accounts were found. Choose WoW folder and pick yours.");
+      else if (found.entries.length > 1) add("folder", "needs-you", "Several WoW accounts were found. Press Choose folder and pick yours.");
       else if (found.installs.length) add("folder", "needs-you", "Found World of Warcraft, but no account folder yet. Start WoW, log in once, then press Repair again.");
-      else add("folder", "needs-you", "No World of Warcraft folder was found. Choose WoW folder and pick it yourself.");
+      else add("folder", "needs-you", "No World of Warcraft folder was found. Press Choose folder and pick it yourself.");
     }
   }
 
@@ -100,14 +100,14 @@ async function runRepair(deps) {
     try { me = await deps.me(); } catch { me = null; }
     if (me?.ok) {
       add("signin", "ok", "Signed in to Discord as {0}.", me.account?.displayName || me.account?.username || "?");
-      if (me.personal) add("link", "needs-you", me.join?.serverName ? "Signed in for public dungeon rankings only. Join {0} on Discord, then press Link to my guild." : "Signed in for public dungeon rankings only. Join your guild's Discord, then press Link to my guild.", me.join?.serverName || "");
+      if (me.personal) add("link", "needs-you", me.join?.serverName ? "Signed in for public dungeon rankings only. Join {0} on Discord, then press Switch account." : "Signed in for public dungeon rankings only. Join your guild's Discord, then press Switch account.", me.join?.serverName || "");
       else add("link", "ok", "Linked to your guild's Discord server.");
     } else if (me?.unreachable) {
       add("signin", "failed", "Guilded's server did not answer. Your sign-in is kept; press Repair again in a minute.");
     } else if (me?.unsupported) {
       add("signin", "ok", "Signed in (this Guilded server is older and cannot show more).");
     } else {
-      add("signin", "needs-you", "Your Discord sign-in is no longer valid. Press Sign in with Discord again.");
+      add("signin", "needs-you", "Your Discord sign-in is no longer valid. Press Switch account to sign in again.");
     }
   }
 
@@ -115,8 +115,8 @@ async function runRepair(deps) {
   if (deps.syncConfigured()) {
     if (deps.syncRunning()) add("sync", "ok", "Sync is running.");
     else {
-      try { await deps.restartSync(); add("sync", deps.syncRunning() ? "fixed" : "failed", deps.syncRunning() ? "Restarted the sync." : "The sync did not start. Open Problems to see why."); }
-      catch { add("sync", "failed", "The sync did not start. Open Problems to see why."); }
+      try { await deps.restartSync(); add("sync", deps.syncRunning() ? "fixed" : "failed", deps.syncRunning() ? "Restarted the sync." : "The sync did not start. See All problems in Advanced."); }
+      catch { add("sync", "failed", "The sync did not start. See All problems in Advanced."); }
     }
   }
   return results;

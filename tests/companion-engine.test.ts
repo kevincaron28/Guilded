@@ -96,7 +96,7 @@ describe("companion engine", () => {
   it("lists what is missing from a config", () => {
     expect(validateConfig({})).toHaveLength(3);
     expect(validateConfig(config("a.lua"))).toEqual([]);
-    expect(validateConfig({ ...config("a.lua"), companionCredential: "short" })[0]).toContain("pair");
+    expect(validateConfig({ ...config("a.lua"), companionCredential: "short" })[0]).toContain("Sign in with Discord");
     expect(validateConfig({ ...config("a.lua"), guildDiscordId: "" })).toEqual(["The Discord server ID is not set."]);
   });
 

@@ -70,6 +70,8 @@ function accountLine({ config, state, problems, me = null }) {
   const linked = Boolean(config.companionCredential);
   const device = !linked && config.device === true && Boolean(config.deviceSecret);
   if (has(problems, "sign-in-expired")) return line("account", "bad", ["Signed out"], null, { action: "sign-in", label: "Sign in with Discord" });
+  // Leaderboards only: dungeon runs go out, the guild does not. Said in amber, with the way back.
+  if (linked && config.personal) return line("account", "warn", ["Leaderboards only: your guild is not synced"], ["To sync your guild, join its Discord server, then press Switch account."], { action: "sign-in-switch", label: "Switch account" });
   if (linked) {
     const name = me?.account?.displayName || me?.account?.username || null;
     return line("account", "ok", name ? ["{0} (Discord)", name] : ["Signed in with Discord"], null, { action: "sign-in-switch", label: "Switch account" });
@@ -160,6 +162,51 @@ export function mainStatus(input = {}) {
     tone: worst,
     syncNow: { enabled: (linked || device) && Boolean(config.watchFile) && state.syncPhase !== "uploading", busy: state.syncPhase === "uploading" }
   };
+}
+
+const UPDATE_AND_REPORT = ["Update the companion and the addon, then type /reload in WoW. If it stays, press Copy support report below and send it with /report bug in Discord."];
+
+/**
+ * One entry of "All problems" in Advanced: what is wrong, the server's reason when it gave one, and what to do.
+ * `title` and `fix` are an English key plus values; `reason` is the server's own text (or null).
+ * @param {{ id: string, data?: Record<string, any> }} problem
+ * @returns {{ id: string, title: any[], reason: string | null, fix: any[] | null }}
+ */
+export function problemHelp(problem) {
+  const id = problem.id;
+  const data = problem.data ?? {};
+  const help = (title, fix, reason = null) => ({ id, title, reason, fix });
+  const addonFix = ["Exit World of Warcraft, then press Reinstall the addon above."];
+  const saveFix = ["In WoW, check that the Guilded addon is enabled, then type /reload or log out."];
+  switch (id) {
+    case "settings-not-saved": return help(["Your settings could not be saved."], ["Restart Windows, then open the companion again."]);
+    case "disk-space-low": return help(["Not enough disk space: {0} MB free.", data.freeMb], ["Free some space with Windows Settings > Storage; the companion carries on."]);
+    case "sign-in-expired": return help(["Your Discord sign-in expired."], ["Press Switch account above to sign in again."]);
+    case "bot-unreachable": return data.offline
+      ? help(["This PC is offline"], ["Check your internet connection. Your data waits here and is sent as soon as it is back."])
+      : help(["Guilded's server is not answering."], ["Your data waits here and is sent as soon as it is back."]);
+    case "addon-missing": return help(["The Guilded addon is not installed."], addonFix);
+    case "addon-wrong-edition": return help(["The wrong version of the addon is installed."], addonFix);
+    case "addon-outdated": return help(["Your Guilded addon is older than this companion."], addonFix);
+    case "saved-file-missing": return help(["Waiting for WoW to save your addon data."], data.chosen === false ? ["Press Choose folder above and pick your World of Warcraft folder."] : saveFix);
+    case "saved-file-not-updated": return data.moved
+      ? help(["Your addon data seems to be in another WoW folder now."], ["Press Use the new folder on the main window."])
+      : help(["Waiting for WoW to save your addon data."], saveFix);
+    case "saved-file-unreadable": return help(["The companion cannot read Guilded's saved file."],
+      [data.tooBig ? "It is too big. Nothing is sent until this is fixed: update the companion and the addon, then /reload." : "Nothing is sent until this is fixed: update the companion and the addon, then /reload. Keep the file; tell your officer if this stays."]);
+    case "upload-rejected": return help([data.applyError ? "Guilded received your data but could not apply it." : "Guilded refused your last sync."],
+      data.status === 403 ? ["Check under Discord above that you signed in to your guild's server, or ask an officer of your guild."]
+        : data.applyError || data.status === 413 ? UPDATE_AND_REPORT
+          : ["Ask an officer of your guild, or press Copy support report below and send it with /report bug in Discord."],
+      typeof data.reason === "string" && data.reason ? data.reason : null);
+    case "parked-record-damaged": return data.stuck
+      ? help(["A saved list of runs for other guilds is damaged."], ["Those runs are not sent until it is fixed. Restart the companion; if this stays, tell your officer."])
+      : help(["A saved list of runs for other guilds was damaged and has been reset."], ["Some runs of other guilds may be sent again. A copy was kept next to it as a .bad file."]);
+    case "wow-running-update": return help(["Restart WoW to use the updated addon."], ["Exit World of Warcraft completely, then start it again."]);
+    case "companion-outdated": return help([data.unfinished ? "The update did not finish." : "A new version of the companion is out."],
+      [data.store ? "Press Open Microsoft Store above." : "Update it from the main window."]);
+    default: return help([id], null);
+  }
 }
 
 /** At least this long between two automatic opens (a member's own click is never limited). */

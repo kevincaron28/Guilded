@@ -87,6 +87,10 @@ describe("Store sign-in taken over by a device-only install (9.1.4)", () => {
     expect(await importStoreCredential({ ...t, config: { deviceSecret: "dk" }, readSettings: read({ deviceSecret: "other" }) })).toBeNull();
     expect(await importStoreCredential({ ...t, config: { deviceSecret: "dk" }, readSettings: async () => { throw new Error("locked"); } })).toBeNull();
   });
+  it("does not take a leaderboards-only sign-in over a device that syncs a guild", async () => {
+    const t = setup();
+    expect(await importStoreCredential({ ...t, config: { device: true, deviceSecret: "dk" }, readSettings: read({ companionCredential: CREDENTIAL, personal: true }) })).toBeNull();
+  });
   it("also looks in the store-settings-backup the installer leaves", async () => {
     const t = setup();
     const backup = path.join(t.userData, "store-settings-backup");

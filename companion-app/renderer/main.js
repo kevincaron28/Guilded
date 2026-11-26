@@ -76,31 +76,108 @@ function renderAdvanced() {
   $('storeUpdate').hidden = !storePackage;
   $('btnStore').hidden = !storePackage;
   $('autoUpdateRow').hidden = storePackage;
+  renderAccounts();
   const problems = snapshot.problems || [];
   $('noProblems').hidden = problems.length > 0;
-  $('problemList').replaceChildren(...problems.map((problem) => { const item = document.createElement('li'); item.textContent = T(PROBLEM_TEXT[problem.id] || problem.id); return item; }));
+  $('problemList').replaceChildren(...problems.map(problemItem));
   $('activity').replaceChildren(...logs.slice(-30).reverse().map((entry) => { const item = document.createElement('li'); item.textContent = `${new Date(entry.time).toLocaleTimeString(languageUI.language)} ${M(entry.message)}`; return item; }));
 }
-const PROBLEM_TEXT = {
-  'settings-not-saved': 'Your settings could not be saved.', 'disk-space-low': 'Not enough disk space.', 'sign-in-expired': 'Your Discord sign-in expired.',
-  'bot-unreachable': "Guilded's server is not answering.", 'addon-missing': 'The Guilded addon is not installed.', 'addon-wrong-edition': 'The wrong version of the addon is installed.',
-  'addon-outdated': 'Your Guilded addon is older than this companion.', 'saved-file-missing': 'Waiting for WoW to save your addon data.', 'saved-file-not-updated': 'Waiting for WoW to save your addon data.',
-  'upload-rejected': 'Guilded refused your last sync.', 'parked-record-damaged': 'A saved list of runs for other guilds was damaged.', 'saved-file-unreadable': 'The companion cannot read Guilded\'s saved file.', 'wow-running-update': 'Restart WoW to use the updated addon.', 'companion-outdated': 'A new version of the companion is out.'
-};
+const element = (tag, text, className) => { const el = document.createElement(tag); if (text !== undefined) el.textContent = text; if (className) el.className = className; return el; };
+// All problems: what is wrong, the server's reason when it gave one, and what to do.
+function problemItem(problem) {
+  const help = window.guildedProblemHelp(problem);
+  const item = element('li');
+  item.append(element('strong', words(help.title)));
+  if (help.reason) item.append(element('span', T('Reason: {0}', M(help.reason)), 'note'));
+  if (help.fix) item.append(element('span', words(help.fix), 'note'));
+  return item;
+}
+// Advanced > WoW accounts: one switch per account (the first one is changed with Choose folder).
+function renderAccounts() {
+  const rows = snapshot.accountRows || [];
+  $('accountsSection').hidden = !rows.length;
+  const items = rows.map((row) => {
+    const [key, ...values] = row.text;
+    // "{0}: {1}" is an account and its error: the error is the part to translate.
+    const shown = values.map((value, index) => (value && typeof value === 'object' && value.ago ? ago(value.ago) : key === '{0}: {1}' && index === 1 ? M(value) : value));
+    return { file: row.file, on: row.on, first: row.first, text: T(key, ...shown) };
+  });
+  const wanted = items.length ? JSON.stringify(items) : '';
+  // Redrawn only when something changed, so a state update never takes the focus from a switch.
+  if (($('accountList').dataset.rows || '') === wanted) return;
+  $('accountList').dataset.rows = wanted;
+  $('accountList').replaceChildren(...items.map((row) => {
+    const item = element('li'), label = element('label', undefined, 'check'), box = element('input');
+    box.type = 'checkbox'; box.checked = row.on; box.disabled = row.first;
+    box.onchange = async () => {
+      box.disabled = true;
+      try { await api.setAccount(row.file, box.checked); } catch (error) { $('accountsResult').textContent = M(error?.message) || T('This action could not be completed.'); }
+      $('accountList').dataset.rows = 'stale';
+      await reload();
+    };
+    label.append(box, ' ', row.text);
+    item.append(label);
+    return item;
+  }));
+}
+// Choose folder: the saved answer, and (with several accounts) one button per account to pick another.
+function showFolderAnswer(answer) {
+  $('folderResult').textContent = answer?.message ? M(answer.message) : '';
+  $('folderChoices').replaceChildren(...(answer?.accounts || []).map((entry) => {
+    const item = element('li'), button = element('button', entry.chosen ? T('Watching') : T('Use this account'), 'small');
+    button.type = 'button'; button.disabled = entry.chosen === true;
+    button.onclick = () => run('use-wow-account', entry.path);
+    item.append(button, ' ', `${entry.account} · ${entry.game} · ${entry.exists ? T('Saved {0}', ago(entry.savedAt)) : T('Nothing saved yet')}`);
+    return item;
+  }));
+}
+// Repair lists what each step did, under the button that was pressed.
+const REPAIR_STATUS = { ok: 'OK', fixed: 'Fixed', 'needs-you': 'Needs you', failed: 'Failed' };
+const TRANSLATED_VALUES = new Set(['The Guilded addon could not be installed: {0}', 'Settings not saved since {0}: {1}', 'Settings not saved since this start: {1}']);
+function repairItem(result) {
+  const [key, ...values] = result.text;
+  const item = element('li'); item.dataset.status = result.status;
+  item.append(element('strong', T(REPAIR_STATUS[result.status] || result.status)), ' · ', T(key, ...(TRANSLATED_VALUES.has(key) ? values.map((value) => (typeof value === 'string' ? M(value) : value)) : values)));
+  return item;
+}
+async function runRepair(summary, list) {
+  const buttons = [$('btnFind'), $('btnRepair')];
+  for (const button of buttons) button.disabled = true;
+  for (const id of ['findResult', 'repairResult']) $(id).textContent = '';
+  for (const id of ['findList', 'repairList']) $(id).replaceChildren();
+  summary.textContent = T('Checking…');
+  try {
+    const answer = await api.repair();
+    summary.textContent = T('Repair: {0} fixed, {1} need you, {2} failed.', answer.summary.fixed, answer.summary.needsYou, answer.summary.failed);
+    list.replaceChildren(...answer.results.map(repairItem));
+  } catch (error) { summary.textContent = M(error?.message) || T('This action could not be completed.'); }
+  for (const button of buttons) button.disabled = false;
+  await reload();
+}
 
 // ---- actions: each one is an existing IPC call ----
-async function run(action) {
+async function run(action, value) {
   say('');
   try {
     switch (action) {
       case 'sign-in': return await runSignIn(false);
       case 'sign-in-switch': return await runSignIn(true);
-      case 'pick-wow-folder': { const result = await api.pickWowFolder(); if (result?.message) say(result.message, result.ok !== false); return; }
+      case 'pick-wow-folder': case 'use-wow-account': {
+        const answer = action === 'pick-wow-folder' ? await api.pickWowFolder() : await api.useWowAccount(value);
+        if (answer?.canceled) return;
+        showFolderAnswer(answer);
+        say(answer?.message, answer?.ok !== false);
+        // Several accounts: the list to choose from is in Advanced.
+        if (answer?.accounts?.length) showAdvanced(true, 'folderResult');
+        await reload();
+        return;
+      }
       case 'install-addon': { const answer = await api.installAddon(); say(answer.message, answer.ok); return; }
       case 'retry': startSyncNote(T('Trying again.')); await api.recoverSync(); await api.uploadNow(); return;
       case 'sync-now': startSyncNote(T('Syncing now.')); await api.uploadNow(); return;
       case 'toggle-tracking': await api.toggleTracking(); return;
-      case 'problems': case 'choose-server': showAdvanced(true); return;
+      case 'problems': showAdvanced(true, 'problemsSection'); return;
+      case 'choose-server': showAdvanced(true, 'serverRow'); return;
       case 'storage': await api.openStorageSettings(); return;
       case 'switch-folder': { const answer = await api.switchLiveFolder(); if (answer?.path) say(T('Switched. Now watching {0}', answer.path)); return; }
       case 'account-yes': case 'account-no': {
@@ -122,6 +199,8 @@ async function run(action) {
 }
 
 async function runSignIn(switchAccount) {
+  // The progress and the answer show on the main window.
+  if (!$('advanced').hidden) showAdvanced(false);
   say(T('Opening Discord sign-in…'));
   const started = switchAccount ? await api.signInSwitch() : await api.signInStart({});
   if (!started.ok) { say(started.message || T('The sign-in could not start. Check your internet connection, then try again.'), false); return; }
@@ -192,19 +271,21 @@ async function reload() {
 }
 
 // ---- Advanced view ----
-function showAdvanced(on) {
+function showAdvanced(on, target) {
   $('home').hidden = on; $('advanced').hidden = !on;
   document.title = on ? T('Advanced') + ' · ' + T('Guilded Companion') : T('Guilded Companion');
   if (on) $('btnBack').focus(); else $('btnAdvanced').focus();
+  // "See why" and friends land on their section, not at the top.
+  if (on && target) $(target).scrollIntoView({ block: 'start' });
 }
 $('btnAdvanced').onclick = () => showAdvanced(true);
 $('btnBack').onclick = () => showAdvanced(false);
 document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !$('advanced').hidden) showAdvanced(false); });
 $('btnSync').onclick = () => run('sync-now');
 $('btnFolder').onclick = () => run('pick-wow-folder');
-$('btnFind').onclick = async () => { const answer = await api.repair(); $('repairResult').textContent = answer?.summary ? T('Repair: {0} fixed, {1} need you, {2} failed.', answer.summary.fixed, answer.summary.needsYou, answer.summary.failed) : ''; await reload(); };
-$('btnRepair').onclick = $('btnFind').onclick;
-$('btnReinstall').onclick = async () => { const answer = await api.reinstallAddon(); say(answer?.message, answer?.ok !== false); };
+$('btnFind').onclick = () => runRepair($('findResult'), $('findList'));
+$('btnRepair').onclick = () => runRepair($('repairResult'), $('repairList'));
+$('btnReinstall').onclick = async () => { $('repairList').replaceChildren(); $('repairResult').textContent = T('Checking…'); const answer = await api.reinstallAddon(); $('repairResult').textContent = M(answer?.message) || ''; };
 $('btnSignIn').onclick = () => run('sign-in');
 $('btnSwitch').onclick = () => run('sign-in-switch');
 $('btnServer').onclick = async () => { const answer = await api.deviceChooseServer($('serverList').value); say(answer?.message, answer?.ok !== false); };

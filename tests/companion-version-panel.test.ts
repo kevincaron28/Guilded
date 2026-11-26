@@ -71,7 +71,7 @@ describe("the same update guidance everywhere", () => {
     const en = readFileSync("site/pages/companion.md", "utf8");
     const frPage = readFileSync("site/pages/companion.fr.md", "utf8");
     expect(en).toContain("choose **Open Microsoft Store** in the companion window");
-    expect(en).toContain("or at once with **Update now** in its window");
+    expect(en).toContain("or at once with **Update** in its window");
     expect(frPage).toContain("choisissez **Ouvrir Microsoft Store** dans la fenêtre du compagnon");
     expect(frPage).toContain("ou tout de suite avec **Mettre à jour** dans sa fenêtre");
   });

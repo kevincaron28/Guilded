@@ -146,13 +146,13 @@ automatic; `/guilded recipes mine` is only a way to inspect the stored result.
 
 **Several WoW accounts on one PC (WoW1, WoW2…).** Each syncs by itself. When the
 companion finds Guilded's data on another account of the same WoW, it asks once in
-the companion window whether that account is yours too: **Yes, sync it too** adds it;
-**No, not mine** (a partner who plays on this PC with their own Discord) is
+the companion window whether that account is yours too: **Yes** adds it;
+**No** (a partner who plays on this PC with their own Discord) is
 remembered and never asked again. Each account then has its own line under **Advanced > WoW accounts**, with a checkbox to change the answer later.
 Log in once on a new account and `/reload` so WoW saves its data.
 
 Signing in on another companion adds a device; your other companions stay
-connected. Remove a device under Connections on the website. **Update now** in the companion window opens the new version's
+connected. Remove a device under Connections on the website. **Update** in the companion window opens the new version's
 installer, which shows its progress and restarts the companion; if an update does
 not finish, the next start offers **Run the installer**.
 
@@ -250,7 +250,7 @@ ne se termine pas, le prochain démarrage propose de lancer l'installateur.
 **Plusieurs comptes WoW sur un PC (WoW1, WoW2…) :** chacun se synchronise tout
 seul. Quand le compagnon trouve des données Guilded sur un autre compte du même
 WoW, il demande une seule fois, dans sa fenêtre, si ce compte est à
-vous aussi : **Oui, le synchroniser aussi** l'ajoute; **Non, pas le mien** (un ou
+vous aussi : **Oui** l'ajoute; **Non** (un ou
 une partenaire qui joue sur ce PC avec son propre Discord) est retenu et il ne
 redemande plus. Chaque compte a ensuite sa ligne sous **Avancé → Comptes WoW**, avec une case
 pour changer la réponse plus tard. Connectez-vous une fois sur un nouveau compte et faites `/reload`.

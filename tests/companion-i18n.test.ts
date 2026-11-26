@@ -25,6 +25,30 @@ describe('companion French presentation', () => {
       visit(source);
     }
   });
+  // Activity lines are written with E (English, for startup.log) and translated when shown.
+  it('translates every Activity line written with E', () => {
+    const source = ts.createSourceFile('main.cjs', readFileSync(new URL('../companion-app/main.cjs', import.meta.url), 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+    const keys: string[] = [];
+    const literals = (node: ts.Node | undefined) => {
+      if (!node) return;
+      if (ts.isStringLiteral(node)) keys.push(node.text);
+      else if (ts.isConditionalExpression(node)) { literals(node.whenTrue); literals(node.whenFalse); }
+    };
+    function visit(node: ts.Node) {
+      if (ts.isCallExpression(node) && node.expression.getText(source) === 'E') literals(node.arguments[0]);
+      ts.forEachChild(node, visit);
+    }
+    visit(source);
+    expect(keys.length).toBeGreaterThan(20);
+    for (const key of keys) {
+      expect(fr[key], key).toBeTypeOf('string');
+      // The filled line is found again at display time (a key that is all slot cannot be).
+      if (!key.startsWith('{')) {
+        const filled = translate('en', key, 'A1', 'B2', 'C3');
+        expect(message('fr', filled), key).toBe(translate('fr', key, 'A1', 'B2', 'C3'));
+      }
+    }
+  });
   it('uses French variants but retains English and arbitrary user data', () => {
     expect(normalizeLanguage('fr-CA')).toBe('fr');
     expect(normalizeLanguage('de')).toBe('en');

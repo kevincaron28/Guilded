@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import type { AddonReserves } from "../integrations/addon.js";
+import { cleanCharacterName } from "./character-display.js";
 import { pendingReserveRequests, settleReserveRequests } from "./reserve-requests.js";
 import { tx as translate, type Lang } from "../i18n.js";
 
@@ -56,7 +57,7 @@ export async function describeReserves(database: Db, guildId: string, query?: st
   const head = [`**${T("Soft reserves")}**${list.title ? ` — ${list.title}` : ""}`, T("{count} per player", { count: list.perPlayer }), list.open ? T("open") : T("locked"),
     ...(list.keeper ? [T("kept by {name}", { name: list.keeper })] : []), T("synced {when}", { when: ago(lang, list.syncedAt, now) })].join(" · ");
   const waiting = requests.length ? [`**${T("Waiting for the loot keeper's /reload")}**`,
-    ...requests.map((row) => `• ${row.remove ? `${T("Remove")}: ` : ""}**${row.itemName}** — ${row.character}`)] : [];
+    ...requests.map((row) => `• ${row.remove ? `${T("Remove")}: ` : ""}**${row.itemName}** — ${cleanCharacterName(row.character)}`)] : [];
   if (shown.length === 0 && !waiting.length) return `${head}\n${needle ? T("Nothing matches \"{query}\".", { query: query!.trim() }) : T("Nobody has reserved yet.")}`;
   const byItem = new Map<number, { name: string; who: string[] }>();
   for (const row of shown) {

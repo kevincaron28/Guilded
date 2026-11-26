@@ -19,7 +19,7 @@ local MAX_NAMES = 40
 -- recorded with the names the event gives, and the bot keeps the matching list (src/services/raid-progress.ts).
 rp.KNOWN = {}
 
-local function active() return not ns.moduleActive or ns.moduleActive("dungeon") end
+local function L(text) return ns.L and ns.L(text) or text end
 local function epoch() local ok, v = pcall(GetServerTime); return ok and tonumber(v) or time() end
 local function plain(text, limit)
   text = tostring(text or ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("[|;~%c]", ""):gsub("^%s+", ""):gsub("%s+$", "")
@@ -72,7 +72,6 @@ end
 
 -- Records one boss kill. Returns the stored row, or nil when it is not a raid kill (or a copy of one already recorded).
 function rp.record(encounterId, name, difficultyId, groupSize)
-  if not active() then return nil end
   if secret(encounterId) or not tonumber(encounterId) then return nil end
   local instance = raidInstance()
   local s = store()
@@ -135,7 +134,7 @@ ns.commandHandlers["raidprogress"] = function()
   if #rows == 0 then say(ns.L and ns.L("No raid boss kills recorded yet. Guilded records them when a boss dies in a raid.") or "No raid boss kills recorded yet.") return end
   for i = 1, math.min(#rows, 8) do
     local row = rows[i]
-    say(string.format("%s - %s (%d/%d in guild)", row.instance, row.boss ~= "" and row.boss or tostring(row.encounterId), row.guildCount, row.groupSize))
+    say(string.format(L("%s - %s (%d/%d in guild)"), row.instance, row.boss ~= "" and row.boss or tostring(row.encounterId), row.guildCount, row.groupSize))
   end
 end
 ns.commandHelp = ns.commandHelp or {}

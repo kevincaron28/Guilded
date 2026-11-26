@@ -80,6 +80,6 @@ member's main character.
   the same kind, and freed seats promote the earliest waiting player of that kind.
   A spec change into a full kind is refused and the old spec is kept. Players whose
   kind is unknown count against the DPS cap only.
-- **Elsewhere:** `/lead roster`, `/lead fill`, the core roster (DPS field shows the
-  split), `/who` (damage specs say melee or ranged) and recruitment listings
+- **Elsewhere:** `/raid roster`, `/lead fill`, the core roster (DPS field shows the
+  split), `/character who` (damage specs say melee or ranged) and recruitment listings
   (`/mod recruit roles: melee, ranged`; such a listing still matches a DPS search).

@@ -603,7 +603,7 @@ local function handle(args)
     ms.setEnabled(a == "on")
     ns.message(a == "on" and L("Milestone announcements are ON. /guilded announce off turns them off.") or L("Milestone announcements are OFF."))
   elseif a == "guild" then
-    if b ~= "on" and b ~= "off" then ns.message("/guilded announce guild on | off"); return end
+    if b ~= "on" and b ~= "off" then ns.message(L("/guilded announce guild on | off")); return end
     if ms.setGuildOff(b == "off") then
       ns.message(b == "off" and L("Milestone announcements are turned off for the whole guild by an officer.") or L("Milestone announcements are allowed for the guild again."))
     else ns.message(L("Officer or guild-master rank is required for this command.")) end
@@ -612,7 +612,7 @@ local function handle(args)
       if a == kind and (b == "on" or b == "off") then ms.setEnabled(b == "on", kind); status(); return end
     end
     status()
-    ns.message("/guilded announce on | off | level|dungeon|hk|duel|prof|ach|secret|gold|auction on|off | guild on|off (officers)")
+    ns.message(L("/guilded announce on | off | level|dungeon|hk|duel|prof|ach|secret|gold|auction on|off | guild on|off (officers)"))
   end
 end
 ns.commandHandlers = ns.commandHandlers or {}

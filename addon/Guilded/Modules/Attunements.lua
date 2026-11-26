@@ -172,7 +172,7 @@ function module.command(args)
       index = index + 1
     end
     local name = string.gsub(table.concat(words, " "), '"', "")
-    if name == "" then ns.message("/guilded attune track \"<name>\" quest <id> ... | rep <factionId> <standing 1-8> | untrack \"<name>\"") return end
+    if name == "" then ns.message(L("/guilded attune track \"<name>\" quest <id> ... | rep <factionId> <standing 1-8> | untrack \"<name>\"")) return end
     name = ns.canonicalKey and ns.canonicalKey(name) or name
     s.attuneTracked = s.attuneTracked or {}
     for i = #s.attuneTracked, 1, -1 do
@@ -190,7 +190,7 @@ function module.command(args)
     elseif kind == "rep" and #numbers >= 1 then
       table.insert(s.attuneTracked, { name = name, reputation = { numbers[1], numbers[2] or REVERED } })
     else
-      ns.message("/guilded attune track \"<name>\" quest <id> ... | rep <factionId> <standing 1-8>")
+      ns.message(L("/guilded attune track \"<name>\" quest <id> ... | rep <factionId> <standing 1-8>"))
       return
     end
     ns.message(string.format(L("Tracking %s. It is recorded by itself once you complete it."), name))

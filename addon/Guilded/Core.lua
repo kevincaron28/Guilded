@@ -481,7 +481,7 @@ end
 
 local function bossKill(name)
   if not activeRaid then message(L("Start a raid first.")); return end
-  if not name or name == "" then message("Usage: /guilded boss <name>"); return end
+  if not name or name == "" then message(L("Usage: /guilded boss <name>")); return end
   db.bosses[activeRaid.id] = db.bosses[activeRaid.id] or {}
   table.insert(db.bosses[activeRaid.id], { name = name, at = now(), by = playerName() })
   logEvent("BOSS_KILL", { raid = activeRaid.id, boss = name })
@@ -570,7 +570,7 @@ local function changeEpgp(rawName, rawAmount, reason, kind, quiet)
   local amount = tonumber(rawAmount)
   if amount then amount = math.floor(amount + 0.5) end
   if not name or not amount or amount <= 0 or amount > MAX_EPGP_AMOUNT then
-    message(string.format("Usage: /guilded %s <player> <amount 1-%d> [reason]", spec.command, MAX_EPGP_AMOUNT)); return
+    message(string.format(L("Usage: /guilded %s <player> <amount 1-%d> [reason]"), spec.command, MAX_EPGP_AMOUNT)); return
   end
   -- The bot requires a reason of at least 3 characters on import.
   if not reason or string.len(reason) < 3 then reason = "Manual adjustment" .. (reason and reason ~= "" and (": " .. reason) or "") end
@@ -764,7 +764,7 @@ end
 local function raidNote(text)
   if not activeRaid then message(L("Start a raid first.")); return end
   text = string.gsub(text or "", "[|%c]", "")
-  if text == "" then message("Usage: /guilded note <text>"); return end
+  if text == "" then message(L("Usage: /guilded note <text>")); return end
   activeRaid.notes = activeRaid.notes or {}
   table.insert(activeRaid.notes, { at = now(), by = playerName(), text = string.sub(text, 1, 200) })
   logEvent("RAID_NOTE", { raid = activeRaid.id, text = text })
@@ -835,8 +835,8 @@ local function takeSnapshot(label)
   table.insert(db.snapshots, { at = now(), label = label or "", raid = activeRaid and activeRaid.id or nil, names = names })
   while #db.snapshots > 50 do table.remove(db.snapshots, 1) end
   if activeRaid then recordPresence() end
-  message(string.format("Snapshot%s: %d player(s)%s.", (label and label ~= "") and (" '" .. label .. "'") or "", #names,
-    activeRaid and (" in raid '" .. activeRaid.title .. "'") or " (no raid running, so not counted for attendance)"))
+  message(string.format(L("Snapshot%s: %d player(s)%s."), (label and label ~= "") and (" '" .. label .. "'") or "", #names,
+    activeRaid and string.format(L(" in raid '%s'"), activeRaid.title) or L(" (no raid running, so not counted for attendance)")))
 end
 
 local function listSnapshots()
@@ -1483,14 +1483,14 @@ inspectReadiness = function(silent, target, tries)
   if not silent then
     local detail = ""
     if missing > 0 then
-      detail = " Empty slots: " .. table.concat(missingSlots, ", ") .. "."
+      detail = string.format(L(" Empty slots: %s."), table.concat(missingSlots, ", "))
     elseif snapshot.status == "PARTIAL" then
       for _, finding in ipairs(snapshot.findings) do
         if finding.severity == "WARNING" then detail = detail .. " " .. finding.message end
       end
     end
-    local ilvl = snapshot.itemLevel and (" Item level " .. snapshot.itemLevel .. ".") or ""
-    message("Readiness captured: " .. snapshot.status .. "." .. detail .. ilvl)
+    local ilvl = snapshot.itemLevel and string.format(L(" Item level %s."), tostring(snapshot.itemLevel)) or ""
+    message(string.format(L("Readiness captured: %s.%s%s"), snapshot.status, detail, ilvl))
   end
 end
 
@@ -1593,7 +1593,7 @@ local function recordLoot(args)
     last = last - 1
   end
   local item = table.concat(args, " ", 3, last)
-  if not name or item == "" then message("Usage: /guilded loot <player> <item> [cost]"); return end
+  if not name or item == "" then message(L("Usage: /guilded loot <player> <item> [cost]")); return end
   -- The id lets the bot import each loot row into Discord loot history
   -- exactly once; the boss is the last one killed in this raid, if any.
   local bosses = activeRaid and db.bosses[activeRaid.id]
@@ -1630,7 +1630,7 @@ local function showIdentity()
   if not ns.compat or not ns.compat.identity then return end
   local id = ns.compat.identity()
   local raw = id.raw
-  message("Saved data belongs to guild: " .. tostring(db and db.guildKey or "(not known yet)"))
+  message(string.format(L("Saved data belongs to guild: %s"), tostring(db and db.guildKey or L("(not known yet)"))))
   message(string.format("Identity: name=%s realm=%s (GetRealmName=%s, normalized=%s, UnitName realm=%s, full=%s)",
     id.name, id.hasRealm and id.realm or "(none)", tostring(raw.realmName), tostring(raw.normalizedRealm),
     tostring(raw.unitNameRealm), tostring(raw.fullName)))
@@ -1671,15 +1671,15 @@ local function showDiagnostics(args)
   if #own == 0 then
     message(L("No Guilded problems recorded."))
   else
-    message(string.format("Last %d Guilded problem(s):", math.min(5, #own)))
+    message(string.format(L("Last %d Guilded problem(s):"), math.min(5, #own)))
     list(own)
   end
   if #foreign == 0 then return end
   if all then
-    message(string.format("Last %d from other addons:", math.min(5, #foreign)))
+    message(string.format(L("Last %d from other addons:"), math.min(5, #foreign)))
     list(foreign)
   else
-    message(string.format("%d problem(s) from other addons were also recorded; they are not Guilded's. /guilded diag all lists them.", #foreign))
+    message(string.format(L("%d problem(s) from other addons were also recorded; they are not Guilded's. /guilded diag all lists them."), #foreign))
   end
 end
 
@@ -1703,17 +1703,17 @@ local function officerCommand(args)
   if not isGuildMaster() then message(L("Only the guild master can change officer settings.")); return end
   if action == "add" or action == "remove" then
     local name = normalizeName(args[3])
-    if not name then message("Usage: /guilded officer add|remove <name>"); return end
+    if not name then message(L("Usage: /guilded officer add|remove <name>")); return end
     db.settings.officers[name] = action == "add" or nil
-    message(name .. (action == "add" and " added as" or " removed as") .. " an addon officer.")
+    message(string.format(action == "add" and L("%s added as an addon officer.") or L("%s removed as an addon officer."), name))
   elseif action == "rank" then
     local rank = tonumber(args[3])
     local on = string.lower(args[4] or "")
-    if not rank or (on ~= "on" and on ~= "off") then message("Usage: /guilded officer rank <index> on|off"); return end
+    if not rank or (on ~= "on" and on ~= "off") then message(L("Usage: /guilded officer rank <index> on|off")); return end
     db.settings.officerRanks[rank] = on == "on" or nil
     message(string.format(on == "on" and L("Guild rank index %s is now an officer rank.") or L("Guild rank index %s is no longer an officer rank."), tostring(rank)))
   else
-    message("Usage: /guilded officer list | add <name> | remove <name> | rank <index> on|off | auto status|professions|epgp|promote|greet|all on|off")
+    message(L("Usage: /guilded officer list | add <name> | remove <name> | rank <index> on|off | auto status|professions|epgp|promote|greet|all on|off"))
   end
 end
 
@@ -1721,31 +1721,31 @@ end
 -- plain strings (everyone) or { officer = true, text = "..." }.
 local function showFullHelp()
   local officer = isOfficer()
-  message("|cffffd100Everyday|r")
-  message("/guilded menu (or click the minimap coin) | inspect | status | roster | standings [player] | diag | version")
-  message("/guilded attune <key> [clear] - mark your own attunement")
-  message("/guilded snapshot [label] | list - record who is in the group right now (officers)")
-  message("/guilded enchants - show or change the missing-enchant check (on/off, starting level)")
-  message("/guilded slots level <n> - from which level empty gear slots count as not ready (default 60)")
-  message("/guilded share - one paste with your character, gear check, consumables and attunements (Discord: /character link)")
-  message("/guilded character - copy a line to link this character in Discord (/character link)")
-  message("/guilded sheet standings|loot|attendance|raids|dungeons - copy a table to paste into Excel or Google Sheets")
+  message(L("|cffffd100Everyday|r"))
+  message(L("/guilded menu (or click the minimap coin) | inspect | status | roster | standings [player] | diag | version"))
+  message(L("/guilded attune <key> [clear] - mark your own attunement"))
+  message(L("/guilded snapshot [label] | list - record who is in the group right now (officers)"))
+  message(L("/guilded enchants - show or change the missing-enchant check (on/off, starting level)"))
+  message(L("/guilded slots level <n> - from which level empty gear slots count as not ready (default 60)"))
+  message(L("/guilded share - one paste with your character, gear check, consumables and attunements (Discord: /character link)"))
+  message(L("/guilded character - copy a line to link this character in Discord (/character link)"))
+  message(L("/guilded sheet standings|loot|attendance|raids|dungeons - copy a table to paste into Excel or Google Sheets"))
   if officer then
-    message("|cffffd100Officer|r")
-    message("Officer: /guilded start [title] | end | attendance <name>|group|seen [PRESENT|ABSENT|LATE] | boss <name> | summary (what the raid recorded, to copy)")
-    message("Officer: /guilded note <text> | template save <name> [title] | template list | attendance roster | raid discard | undo (takes back your last award)")
-    message("/guilded raids [n] - recent raids, one line each, to copy | raids report [n] - each player's attendance, loot and EP")
-    message("Officer: /guilded award <name>|group <amount> [reason] | gp <name> <amount> [reason] | deduct <name> <amount> [reason] | gpdeduct <name> <amount> [reason]")
-    message("Officer: /guilded loot <name> <item> [cost] | export | attune <player> <key> [clear] | officer list|add|remove|rank")
-    message("Officer: /guilded void [player] - take back the newest EP/GP entry you made (for that player); Discord reverses it")
+    message(L("|cffffd100Officer|r"))
+    message(L("Officer: /guilded start [title] | end | attendance <name>|group|seen [PRESENT|ABSENT|LATE] | boss <name> | summary (what the raid recorded, to copy)"))
+    message(L("Officer: /guilded note <text> | template save <name> [title] | template list | attendance roster | raid discard | undo (takes back your last award)"))
+    message(L("/guilded raids [n] - recent raids, one line each, to copy | raids report [n] - each player's attendance, loot and EP"))
+    message(L("Officer: /guilded award <name>|group <amount> [reason] | gp <name> <amount> [reason] | deduct <name> <amount> [reason] | gpdeduct <name> <amount> [reason]"))
+    message(L("Officer: /guilded loot <name> <item> [cost] | export | attune <player> <key> [clear] | officer list|add|remove|rank"))
+    message(L("Officer: /guilded void [player] - take back the newest EP/GP entry you made (for that player); Discord reverses it"))
   end
-  message("|cffffd100More|r")
+  message(L("|cffffd100More|r"))
   for _, line in pairs(ns.commandHelp or {}) do
     local text = type(line) == "table" and line.text or line
     -- Lines for a module that is off are left out ("/guilded casino ..." -> casino).
     local key = ns.commandModuleOf and ns.commandModuleOf(string.match(text or "", "^/guilded (%a+)"))
     if not key or ns.moduleActive(key) then
-      if type(line) ~= "table" or officer or not line.officer then message(text) end
+      if type(line) ~= "table" or officer or not line.officer then message(L(text)) end
     end
   end
   message(L("/guilded modules - turn optional parts (bidding, dungeons...) on or off"))
@@ -2119,10 +2119,10 @@ end
 local function moduleStateText(key)
   local s = moduleSettings() or {}
   local guildOff = s.guildModules and s.guildModules.off and s.guildModules.off[key]
-  if guildOff then return "off for the guild" .. (s.guildModules.by and (" (" .. s.guildModules.by .. ")") or "") end
-  if s.modules and s.modules[key] == false then return "off (your choice)" end
-  if not activeAtLogin[key] then return "on after /reload" end
-  return "on"
+  if guildOff then return L("off for the guild") .. (s.guildModules.by and (" (" .. s.guildModules.by .. ")") or "") end
+  if s.modules and s.modules[key] == false then return L("off (your choice)") end
+  if not activeAtLogin[key] then return L("on after /reload") end
+  return L("on")
 end
 ns.moduleStateText = moduleStateText
 
@@ -2147,12 +2147,12 @@ local function modulesCommand(args)
   if action == "list" then
     message(L("Modules (Core raid/EPGP/loot/gear and standings always run):"))
     for _, module in ipairs(ns.MODULES) do
-      message(string.format("  %s (%s) - %s: %s", module.name, module.key, module.desc, moduleStateText(module.key)))
+      message(string.format("  %s (%s) - %s: %s", L(module.name), module.key, L(module.desc), moduleStateText(module.key)))
     end
     message(L("/guilded modules on|off <module> - just for you. Officers: /guilded modules guild on|off <module> - for everyone."))
     return
   end
-  if action ~= "on" and action ~= "off" then message("Usage: /guilded modules [list] | on|off <module> | guild on|off <module>"); return end
+  if action ~= "on" and action ~= "off" then message(L("Usage: /guilded modules [list] | on|off <module> | guild on|off <module>")); return end
   local wanted = string.lower(args[3] or "")
   local key = MODULE_ALIASES[wanted] or wanted
   if not moduleByKey[key] then
@@ -2161,7 +2161,7 @@ local function modulesCommand(args)
     message(string.format(L("Unknown module '%s'. Modules: %s"), wanted, table.concat(keys, ", ")))
     return
   end
-  local name = moduleByKey[key].name
+  local name = L(moduleByKey[key].name)
   if scope == "guild" then
     if not requireOfficer() then return end
     local off = {}
@@ -2169,21 +2169,21 @@ local function modulesCommand(args)
     off[key] = action == "off" or nil
     ns.applyGuildModules(off, (GetServerTime and GetServerTime()) or time(), playerName())
     if ns.onGuildModulesChanged then pcall(ns.onGuildModulesChanged) end
-    message(name .. " is now " .. action .. " for the whole guild (shared with online members).")
+    message(string.format(L("%s is now %s for the whole guild (shared with online members)."), name, L(action)))
   else
     s.modules = s.modules or {}
     if action == "on" then s.modules[key] = nil else s.modules[key] = false end
     if action == "off" then
-      message(name .. " is off for you. /guilded modules on " .. key .. " to turn it back on.")
+      message(string.format(L("%s is off for you. /guilded modules on %s to turn it back on."), name, key))
     elseif s.guildModules and s.guildModules.off and s.guildModules.off[key] then
-      message(name .. " is turned off for the whole guild by an officer, so it stays off.")
+      message(string.format(L("%s is turned off for the whole guild by an officer, so it stays off."), name))
     end
   end
   if action == "on" and scope == "self" and ns.moduleEnabled(key) then
-    if activeAtLogin[key] then message(name .. " is on for you.")
-    else message(name .. " is on. Type /reload to start it.") end
+    if activeAtLogin[key] then message(string.format(L("%s is on for you."), name))
+    else message(string.format(L("%s is on. Type /reload to start it."), name)) end
   elseif action == "on" and scope == "guild" and ns.moduleEnabled(key) and not activeAtLogin[key] then
-    message(name .. " is on. Type /reload to start it.")
+    message(string.format(L("%s is on. Type /reload to start it."), name))
   end
   if ns.onModulesChange then pcall(ns.onModulesChange) end
 end
@@ -2202,14 +2202,14 @@ local function command(text)
   if action == "help" then
     if string.lower(args[2] or "") == "all" then showFullHelp() else showHelp() end
   elseif action == "status" then
-    message(activeRaid and ("Active raid: " .. activeRaid.title .. " (started " .. activeRaid.startedAt .. ")") or "No active raid.")
+    message(activeRaid and string.format(L("Active raid: %s (started %s)"), activeRaid.title, activeRaid.startedAt) or L("No active raid."))
   elseif action == "roster" then
     local names = {}
     for name in pairs(db.roster) do
       if isGuildMember(name) then table.insert(names, name) end
     end
     table.sort(names)
-    message(#names .. " guild member(s): " .. table.concat(names, ", "))
+    message(string.format(L("%d guild member(s): %s"), #names, table.concat(names, ", ")))
   elseif action == "snapshot" then
     if string.lower(args[2] or "") == "list" then listSnapshots()
     elseif requireOfficer() then takeSnapshot(table.concat(args, " ", 2)) end
@@ -2318,7 +2318,7 @@ local function command(text)
       target, keyStart = candidate, 3
     end
     local key = table.concat(args, " ", keyStart)
-    if key == "" then message("Usage: /guilded attune <key> [clear] | /guilded attune <player> <key> [clear]"); return end
+    if key == "" then message(L("Usage: /guilded attune <key> [clear] | /guilded attune <player> <key> [clear]")); return end
     if target ~= playerName() and not requireOfficer() then return end
     setAttunement(target, key, completed)
   elseif action == "inspect" then inspectReadiness()
@@ -2328,7 +2328,7 @@ local function command(text)
   elseif action == "modules" or action == "module" then modulesCommand(args)
   elseif commandModule[action] and not ns.moduleActive(commandModule[action]) then
     local key = commandModule[action]
-    message(ns.moduleName(key) .. " is " .. moduleStateText(key) .. ". /guilded modules to see or change it.")
+    message(string.format(L("%s is %s. /guilded modules to see or change it."), L(ns.moduleName(key)), moduleStateText(key)))
   elseif ns.removedCommands[action] then
     local removed = ns.removedCommands[action]
     if type(removed) == "table" and removed.since == false then

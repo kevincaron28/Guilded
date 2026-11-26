@@ -158,7 +158,7 @@ ns.commandHandlers["sim"] = function(args)
     if ns.moduleActive and not ns.moduleActive("council") then ns.message(L("Loot council is off (/guilded modules)."))
     elseif ns.simulateCouncil then ns.simulateCouncil() else ns.message(L("Loot council is not loaded.")) end
   else
-    ns.message("/guilded sim start | end | bids (fake bids on open bidding) | council (fake answers) | dungeon [minutes] | clear")
+    ns.message(L("/guilded sim start | end | bids (fake bids on open bidding) | council (fake answers) | dungeon [minutes] | clear"))
   end
 end
 ns.commandHelp = ns.commandHelp or {}

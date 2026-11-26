@@ -611,7 +611,7 @@ ns.commandHandlers["reserve"] = function(args)
   elseif action == "award" then awardTo(args)
   elseif action == "list" or action == "status" or action == "mine" or action == "" then ns.message(reserve.statusText(30))
   else
-    ns.message("/guilded reserve <item link> | remove <link> | list | who <link>   -   officers: open [per player] [title] | lock | unlock | clear | add <player> <link> | roll <link> | award <player> <link> [GP]")
+    ns.message(L("/guilded reserve <item link> | remove <link> | list | who <link>   -   officers: open [per player] [title] | lock | unlock | clear | add <player> <link> | roll <link> | award <player> <link> [GP]"))
   end
 end
 ns.commandHandlers["res"] = ns.commandHandlers["reserve"]

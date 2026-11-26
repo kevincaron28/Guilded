@@ -658,7 +658,7 @@ ns.commandHandlers["drop"] = function(args)
       if s then s.lootMode = wanted end
       ns.message(describe())
     else
-      ns.message("/guilded drop mode EPGP | COUNCIL | RESERVE | PRIORITY | auto")
+      ns.message(L("/guilded drop mode EPGP | COUNCIL | RESERVE | PRIORITY | auto"))
     end
     if ns.onLootChange then pcall(ns.onLootChange) end
     return

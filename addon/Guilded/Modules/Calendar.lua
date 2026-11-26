@@ -555,7 +555,7 @@ ns.commandHandlers["calendar"] = function(args)
     if not ns.isOfficer() then ns.message(L("Only officers can do that.")) return end
     calendar.createMissing()
   else
-    ns.message("/guilded calendar check | sync | list | create [n]")
+    ns.message(L("/guilded calendar check | sync | list | create [n]"))
   end
 end
 ns.commandHelp = ns.commandHelp or {}

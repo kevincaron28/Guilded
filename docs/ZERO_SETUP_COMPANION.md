@@ -33,7 +33,7 @@ confirmed.
    and the companion says "Your guild … isn't set up on Discord yet". Guilded Lite servers are left
    out (`hostedPilot.allows`).
 4. **Reported.** The bot stores the characters as `DeviceCharacter` rows of the device, never as a
-   member's `Character`. Officers see them in `/roster gaps` under "Reported by a companion without
+   member's `Character`. Officers see them in `/officer roster gaps` under "Reported by a companion without
    Discord sign-in" (until a member links them).
 5. **Claim.** Sign in with Discord in the same companion (the usual flow). The sign-in start sends
    the device key, so the website's server list puts the device's server first. After the sign-in,
@@ -69,7 +69,7 @@ sets `claimedMemberId` to null through the foreign key.
    `/setup` registered (QG), `/reload`.
 2. Open the companion, choose nothing. Within a minute the window shows the **Last sync** line and, under Advanced, the server it syncs to
    (from your guild <guild>), with the button *Sign in with Discord* to confirm your characters.
-3. In Discord, as an officer: `/roster gaps` lists the character under "Reported by a companion
+3. In Discord, as an officer: `/officer roster gaps` lists the character under "Reported by a companion
    without Discord sign-in".
 4. On a character whose guild is not set up anywhere: the card says "Your guild … isn't set up on
    Discord yet".

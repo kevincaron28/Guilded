@@ -8,14 +8,18 @@ Master role, or Administrator), or the specific Discord role named.
 ## In game: `/guilded`
 
 **Easiest way: click the gold coin on the minimap** (or type `/guilded menu`).
-The window has a **sidebar** on the left with the pages grouped under headings:
+The window has a **sidebar** on the left:
 
-- **Overview:** **Home** (what is going on right now, your standing from Discord, your gear check, and whether your data has reached Discord, with big buttons for the common things), **Me**, **Standings**
-- **Raid night** (officers): **Raid**, **EPGP**, **Loot**
-- **Fun and runs:** **Dungeons**, **Games**
-- **System:** **Tools** (switch optional parts on or off, diagnostics)
+- **Home:** what is going on, your standing from Discord, your gear check and attunements (**My character**), and whether your data has reached Discord
+- **Guild:** guild overview, standings, duels
+- **Layer:** ask guildmates for a layer invite
+- **Dungeons:** your runs and the guild's dungeon boards
+- **Crafting:** find a crafter, request an item, your professions
+- **Raids:** open raids, raid sign-up, soft reserves, the ready check (leaders), and for officers the raid, loot and council pages
+- **Officer** (officers): gear, calendar, EP and GP, local guild, roster, tools
+- **Settings:** switch optional parts on or off, announcements, diagnostics
 
-Hover a page name for what it is for. The **Player** box (target someone, or **Me** / **Group...**) only appears on pages that act on a player. **Send to Discord** at the bottom of the sidebar saves your data (a UI reload) so the companion can upload it, and the label above it says whether anything is waiting. Buttons that affect everyone (whole-group EP, end raid) need a second click to confirm. Right-click the coin to check your gear. Everything also works as a typed command. Names are case-insensitive (`bob` = `Bob`).
+Hover a page name for what it is for. The **Player** box (target someone, or **Me** / **Group...**) only appears on pages that act on a player. **Send to Discord** at the bottom of the sidebar saves your data (a UI reload) so the companion can upload it, and the label above it says whether anything is waiting. Buttons that affect everyone (whole-group EP, end raid) need a second click to confirm. Right-click the coin for a quick menu. Everything also works as a typed command. Names are case-insensitive (`bob` = `Bob`).
 
 ### Everyone
 
@@ -270,33 +274,6 @@ window's **Officer tools** page. Nothing here is sent to Discord.
 | `/guilded officer rank <index> on\|off` | Make a guild rank count as officer (0 = GM, 1 = next rank...) |
 | `/guilded officer add\|remove <name>` | Make one person an addon officer |
 
-### Raid tools (Raid tools tab, raid leaders and assistants)
-
-| Command | What it does |
-| --- | --- |
-| `/guilded rt mark <1-8\|clear>` | Raid target icon on your target (8 = skull, 7 = cross ...) |
-| `/guilded rt tanks` / `rt clear` | Kill-order icons on the group's tanks (roles from the raid frame, or main tanks) / every icon off the group |
-| `/guilded rt plan save <boss> = line; line; ...` | Save a boss plan (officers and raid leaders; up to 8 lines) |
-| `/guilded rt plan share <boss>` | Open the plan on every raider's screen (raiders with Guilded). Before the pull: nothing is sent in combat |
-| `/guilded rt plan post <boss>` | The plan in raid chat, one line each, for players without the addon |
-| `/guilded rt plan show\|delete <boss>` / `rt plan list` / `rt check` | See, delete or list plans; what this client allows |
-
-World markers (the coloured floor markers) are the numbered buttons on the Raid tools page: the game only places them from a click on a secure button.
-
-### Roll games (fun only: no gold, nothing owed)
-
-Anyone in a party or raid can run one; your client is the referee. Players type `1` in party/raid chat to join and use the game's own `/roll`; they don't need the addon.
-
-| Command | What it does |
-| --- | --- |
-| `/guilded games highroll [max]` | Everyone rolls, the highest wins (a tie rolls off) |
-| `/guilded games deathroll [max]` | Everyone rolls, the lowest is out, again until one is left |
-| `/guilded games duel <player> [max]` | Two players, classic deathroll: each rolls the last number, whoever rolls 1 loses |
-| `/guilded games roll` / `remind` / `add <p>` / `remove <p>` / `cancel` / `status` | Call the roll, nudge, add or remove a player, stop, see what is running |
-| `/guilded games explain highroll\|deathroll\|duel` | Post the game's rules in party/raid chat (or /say when not grouped) so new players can join in; the Games page has a button for each |
-
-The gold casino (wagers, house games, the debt ledger) was removed on purpose: gambling gold inside a guild is too risky.
-
 ## Discord bot
 
 Tips: wherever a command asks for a raid, auction, request, or entry, **start
@@ -310,18 +287,18 @@ Small commands sit under a parent, so typing `/` shows a short list. Members see
 
 | Command | What is under it |
 | --- | --- |
-| `/setup` | `start` (the guided setup), `config` (every setting; `config channel` picks where each kind of post goes), `testraid`, `selfroles` |
+| `/setup` | `start` (the guided setup), `testraid`, `selfroles`, `system` (sync status, delivery retries, permissions), `reset`, `uninstall`, and the groups `guild`, `import`, `participation`, `tags` |
+| `/config` | every setting; `config channel which:...` picks where each kind of post goes, `config craft` has the craft board switches |
 | `/character` | `link`, `add`, `list`, `unlink`, ..., plus `who`, `profession`, `attunement`, `wishlist`, `readiness` |
 | `/raid` | signups, progress, reports, plus `wcl check` / `wcl list` (Warcraft Logs) |
 | `/epgp` | your EPGP: `balance`, `history`, `leaderboard` |
 | `/dungeon` | the challenge: leaderboard, records, groups, alerts |
-| `/lead` | Raid Leaders: `create`, `edit`, `cancel`, `start`, `end`, `attendance`, `boss`, `note`, `award-ep`, `fill`, `season`, `history`, `wcl-report`, `readiness-member`, `readiness-raid` |
-| `/officer` | Officers: `epgp` (award-ep, award-gp, decay, reverse), `loot` (auction, award, close, priority), `dungeon` (the challenge's officer tools), `character` (unclaimed, link, autolink), `export` (CSV files) |
+| `/lead` | Raid Leaders: `create`, `edit`, `cancel`, `start`, `end`, `attendance`, `boss`, `note`, `award-ep`, `fill`, `season`, `history`, `epgp` (award-ep, award-gp, decay, reverse), `loot` (auction, award, close, priority), `wcl-report`, `readiness-member`, `readiness-raid` |
+| `/officer` | Officers: `dungeon` (the challenge's officer tools), `character` (unclaimed, link, move, autolink), `bank`, `reports` (inactive, guild, games, posts), `export` (CSV files), `stats`, `roster`, `promotion` |
 | `/organize` | Community organizers: seasons, quizzes, honors, and creating and running lotteries, gaming nights and challenges |
-| `/mod` | moderation, plus `application` (handle guild applications), `page` (the guild web page), `recruit` (the website's recruitment listing) and `leaderboard` (share runs on the public leaderboards) |
+| `/mod` | moderation, plus `application` (handle guild applications), `dni` (do-not-invite list), `faq` (answers), `invites`, `rankroles`, `page` (the guild web page), `recruit` (the website's recruitment listing) and `leaderboard` (share runs on the public leaderboards) |
 | `/setup import` | `upload` (preview an addon file), `apply` (apply it), `held` (entries waiting, and why) |
-| `/report` | `stats`, `inactive`, `guild` (health), `ping` (is the bot online), `bug` |
-| `/setup` | `start`, `testraid`, `selfroles`, `system` (sync status, delivery retries, permissions; was `/system`), `reset`, `uninstall` (was `/uninstall`) |
+| `/report` | `stats`, `ping` (is the bot online), `bug` |
 | `/character profile` | your profile (was `/profile`) |
 | `/help` `/loot` `/craft` `/bank` `/apply` `/core` `/tag` | unchanged (`/loot` keeps `bid`, `history`, `reserves`) |
 
@@ -475,7 +452,7 @@ Approve, and a raid can never be paid twice.
 | `/guilded-season status` / `next <date> [hour] [time_zone] [name]` / `cancel` | **Bot owner only**, in the bot's home server: the season calendar every guild and the public leaderboards follow. `next` ends the current season at that start (default 15:00 America/Los_Angeles) |
 | `/officer dungeon recalibrate <route>` | Read-only timed-run evidence for future shared rules. Current targets cannot be edited |
 | `/mod application list` / `view` / `approve` / `reject` / `trial [days] [sponsor]` | Handle applications. A trial lasts 14 days unless you give `days`; the sponsor is you unless you pick someone. When it ends, the officer log says so once (approve or reject; nothing changes by itself). The website's Raid teams page shows each trial's end and sponsor |
-| `/mod dni add <name> <reason> [realm] [user]` / `remove <entry>` / `list` | Officers' private do-not-invite list. When a listed character applies, or a listed Discord account joins the server, the officer log gets a warning; nothing is blocked |
+| `/mod dni add <name> [kind] [reason] [expiry] [user]` / `list` / `clear <entry>` / `alias <entry> <name>` / `appeal-status` | Officers' private do-not-invite list. When a listed character applies, or a listed Discord account joins the server, the officer log gets a warning; nothing is blocked |
 | `/mod warn` / `timeout` / `kick` / `ban` / `history` | Moderation (logged) |
 | `/mod faq channel [#channel]` | The answer channel: members ask there and the bot replies (needs `MESSAGE_CONTENT_INTENT=true` on the server, after turning on Message Content Intent in the Discord Developer Portal). Empty = off |
 | `/mod faq add` / `edit <entry>` / `remove <entry>` / `list` | Officer-written answers: trigger words (one per line) and the answer. A message containing every word of a trigger gets that answer; the most specific trigger wins |
@@ -488,24 +465,23 @@ Approve, and a raid can never be paid twice.
 | `/setup selfroles <title> <role1> [role2..5]` | Post a role button panel |
 | `/config view` | Show settings |
 | `/config set <setting> <value>` | Attendance / late / boss-kill EP, auction defaults, decay %, **base GP**, raid reminder minutes, full-clear bonus |
-| `/config channel` | Where raid started/ended, boss kills, loot awards, EPGP changes, and raid reports are announced |
+| `/config channel which:Announcements` | Where raid started/ended, boss kills, loot awards, EPGP changes, and raid reports are announced |
 | `/config weekly-report <true\|false>` | Post `/report stats` for the week in the notify channel every 7 days |
 | `/officer bank list [status]` / `/officer bank handle <id> <Approve\|Fulfilled\|Deny> [reply]` | Guild bank queue (new requests also appear in the log channel) |
 | `/config welcome [channel] [message] [send_to] [role_prompt] [preview]` | Welcome message: in a channel, by DM, or both. The game roles, the rules channel, "rules required first" and the one-time reminder are set in `/setup start` step 5. `preview:true` sends it to you |
 | `/config farewell` | Leave message |
 | `/config timezone <zone>` | Timezone for typed raid times (also in `/setup start`) |
 | `/config roles` | Auto-assigned applicant/member roles |
-| `/config channel` | Where raid signup embeds and raid reminders go |
-| `/config channel` | Where join/leave/moderation logs go |
+| `/config channel which:Raid signups and reminders` | Where raid signup embeds and raid reminders go |
+| `/config channel which:Officer log` | Where join/leave/moderation logs go |
 | `/config wcl-guild [guild] [off]` | Set the guild's Warcraft Logs page link; from then on the bot finds new public reports by itself every 10 minutes (last 3 days), posts each in the raid logs channel, matches it to the raid by time and sends the officer check to the officer log |
-| `/config channel` | Where raid summaries (raid reports, Warcraft Logs) go; default: the notify channel |
-| `/config channel` | Where loot awards and EP/GP changes go; default: the notify channel |
-| `/config channel` | Channel showing each raid core's roster as one live message |
-| `/config channel` | Private channel (officers and raid leaders only) where the raid readiness board is posted. `/setup start` step 4 can create it with the right permissions |
-| `/config channel` | Where craft requests are posted so crafters see them; default: the officer log |
-| `/config channel` | Private channel (officers only) where new `/apply` applications are announced; default: the officer log. `/setup start` step 3 can create it with the right permissions |
-| `/config channel` | Channel with one auto-updated dungeon leaderboard message (refreshed after every dungeon import) |
-| `/config channel` | Channel for dungeon signups; setting it posts the pinned group-creation guide automatically. `/setup start status:true` checks the channel and guide; `/dungeon guide` repairs a missing guide |
+| `/config channel which:Raid readiness (private)` | Private channel (officers and raid leaders only) where the raid readiness board is posted. `/setup start` step 4 can create it with the right permissions |
+| `/config channel which:Craft board` | Where craft requests are posted so crafters see them; default: the officer log |
+| `/config channel which:Applications (private)` | Private channel (officers only) where new `/apply` applications are announced; default: the officer log. `/setup start` step 3 can create it with the right permissions |
+| `/config channel which:Dungeon leaderboard` | Channel with one auto-updated dungeon leaderboard message (refreshed after every dungeon import) |
+| `/config channel which:Dungeon signups` | Channel for dungeon signups; setting it posts the pinned group-creation guide automatically. `/setup start status:true` checks the channel and guide; `/dungeon guide` repairs a missing guide |
+| `/config channel which:Dungeon runs and records` | Where dungeon runs and new records are posted |
+| `/config channel which:Bot guide` | The channel with the pinned bot guide |
 | `/config merit <true\|false>` | Rank the leaderboard by PR x attendance |
 | `/config character-signups <true\|false>` | Raid signups, applications and core spots need one of the member's linked characters (a picker appears when they have several). Says how many active members have no linked character yet |
 | `/config starboard [channel] [stars] [disable]` | Messages with that many ⭐ (default 3) are reposted in the channel, with the count kept up to date. Only messages every starboard reader could already see; never bots or the starboard itself. Without the Message Content intent, reposts show the author and a link, not the text |

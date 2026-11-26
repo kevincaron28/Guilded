@@ -162,7 +162,7 @@ ns.commandHandlers["invite"] = function(args)
     ns.message(#missing == 0 and string.format(L("Everyone signed up for %s is in your group."), tostring(raid.title))
       or string.format(L("%d signed up for %s but not in your group: %s"), #missing, tostring(raid.title), table.concat(missing, ", ")))
   elseif action == "raid" then inviteRaid()
-  else ns.message("/guilded invite raid | missing") end
+  else ns.message(L("/guilded invite raid | missing")) end
 end
 ns.commandHandlers["autoinvite"] = function(args)
   if ns.moduleActive and not ns.moduleActive("autoinvite") then return end

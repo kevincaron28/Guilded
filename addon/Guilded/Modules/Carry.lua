@@ -1000,11 +1000,11 @@ ns.commandHandlers["carry"] = function(args)
     local want = string.lower((args and args[2]) or "")
     if want == "off" then s.noAsk = true; ns.message(L("Asking for a carrier is off. Guild and group carriers still work."))
     elseif want == "on" then s.noAsk = nil; carry.scheduleAsk(ASK_BACKOFF[1]); ns.message(L("Asking for a carrier is on."))
-    else ns.message("/guilded carry ask on | off") end
+    else ns.message(L("/guilded carry ask on | off")) end
     return
   elseif choice == "guild" then
     local want = string.lower((args and args[2]) or "")
-    if want ~= "on" and want ~= "off" then ns.message("/guilded carry guild on | off"); return end
+    if want ~= "on" and want ~= "off" then ns.message(L("/guilded carry guild on | off")); return end
     if setGuildOff(want == "off") then
       ns.message(want == "off" and L("Carrying records is turned off for the whole guild by an officer.") or L("Carrying records is allowed for the guild again."))
     else ns.message(L("Officer or guild-master rank is required for this command.")) end

@@ -406,7 +406,7 @@ ns.commandHandlers["bid"] = function(args)
   elseif action == "status" then
     ns.message(bidding.statusText())
   else
-    ns.message("/guilded bid start <min GP> <item> [seconds] | close | award | cancel | status")
+    ns.message(L("/guilded bid start <min GP> <item> [seconds] | close | award | cancel | status"))
   end
 end
 ns.commandHelp = ns.commandHelp or {}

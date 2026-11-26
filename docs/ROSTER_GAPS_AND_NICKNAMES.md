@@ -27,8 +27,8 @@ Officers map a WoW guild rank to a Discord role (`/mod rankroles set rank:2 role
 - **Cap**: at most 5 members lose a role per run; the rest follow on the next runs. Each removal is one line in the officer log channel (`logChannelId`), in the server language: "@X lost @Officier: no character at rank Officer anymore (best: Member)." / "@X lost @Officier: all their characters left the guild."
 - `/mod rankroles sync` (preview by default) and the `set` / `enabled` previews list who would lose which role and how many removals are held, before anything is applied.
 
-## Who's who board (C2)
-Posts in the bot guide channel until an officer picks one: `/officer roster whoswho channel:#...` (`on:false` switches it off). One bot message (up to 3 embeds, ~5400 characters) edited in place, each member with main in bold then alts. Large guilds are cut at the limit and the footer says "N of M". Refreshed every 30 minutes with the other boards, via `discord-jobs.ts` (`WHOS_WHO_BOARD`).
+## Who's who board (C2, retired in 9.0.2)
+The bot no longer creates or edits this post: mains and alts are on the roster card, `/character profile` and the guild page. `/setup start` offers to delete a post an older version made.
 
 ## Roster picture (C3)
 `src/services/roster-visual.ts`: class counts by level band (same query and bands as `/officer reports guild`) and a profession grid (crafters, top skill, red when nobody has it). Drawn as a share card (`score-card.ts` roster layout) attached to `/officer reports guild`, and as inline SVG charts on the roster dashboard.

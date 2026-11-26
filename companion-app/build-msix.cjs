@@ -19,7 +19,7 @@ function storeConfig(identity, preview = false) {
     appx: { identityName: identity.name, publisher: xml(identity.publisher), publisherDisplayName: xml(identity.publisherDisplayName),
       applicationId: "GuildedCompanion", displayName: preview ? `${STORE_DISPLAY_NAME} Local Preview` : STORE_DISPLAY_NAME,
       languages: ["en-US", "fr-FR"], minVersion: "10.0.19041.0", maxVersionTested: "10.0.22621.0",
-      capabilities: ["runFullTrust"], addAutoLaunchExtension: false, customExtensionsPath: "build/store-startup.xml",
+      capabilities: ["runFullTrust"], addAutoLaunchExtension: false, backgroundColor: "#041a48", customExtensionsPath: "build/store-startup.xml",
       artifactName: `Guilded.Companion.${metadata.version}.x64.${preview ? "LOCAL-PREVIEW" : "STORE-SUBMISSION"}.msix` }
   };
 }

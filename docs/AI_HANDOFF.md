@@ -27,18 +27,14 @@ _Empty._
 
 ## Ready for Claude
 
-Only R2.7 is open, and it belongs to Grok Bot. Every other item that was listed here shipped:
+Nothing is open. Every item that was listed here shipped:
 - S7 mobile dependencies: #1069.
 - SEO3 canonical and hreflang: #1071.
 - SEO4 redirects, sitemap lastmod and robots: #1072.
 - W1–W4 Worker hardening (client IP header, HSTS, no-framing, SHA-pinned Actions): #1031. `GUILDED_ORIGIN_TOKEN` is set on the bot.
 - R1.7 analytics: #1040, with the beacon live on guildedwow.com.
 - R2.6 phone app page: #1153.
-
-### R2.7. Visual regression in CI (Medium, Approved by Kevin 10 Nov 2026)
-- **Owner:** Grok Bot. The plan is in `docs/plans/VISUAL_REGRESSION.md` (#1153).
-- **Spec:** On each PR, Playwright compares screenshots of six key pages (home, download, guide, reference, leaderboards, community) at 390 and 1280, plus `/fr/download/`.
-- **Acceptance:** the job is green on an unchanged tree, and it fails when one of those screenshots changes past the agreed diff.
+- R2.7 visual regression in CI: #1292 (Playwright, `.github/workflows/visual.yml`, `docs/VISUAL_REGRESSION.md`; leaderboards are bot-served and skipped, `/fr/download/` is checked as `?lang=fr` plus a slug test).
 
 ## In progress
 

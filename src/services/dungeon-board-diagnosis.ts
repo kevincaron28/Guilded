@@ -85,8 +85,8 @@ export function emptyBoardNote(diagnosis: BoardDiagnosis, lang: "en" | "fr"): st
     : "No dungeon run has reached the bot yet. The Guilded Companion must be running on a PC with the addon (signing in with Discord is optional), then /reload or log out in game after the dungeon.";
   const top = diagnosis.reasons.slice(0, 3).map(item => `${item.runs} × ${item.reason}`).join("; ");
   return fr
-    ? `Aucun parcours classé : ${diagnosis.received} reçu(s), aucun ne compte (${top}). Détail : /dungeon-admin audit why:true.`
-    : `No ranked run yet: ${diagnosis.received} received, none counted (${top}). Details: /dungeon-admin audit why:true.`;
+    ? `Aucun parcours classé : ${diagnosis.received} reçu(s), aucun ne compte (${top}). Détail : /officer dungeon audit why:true.`
+    : `No ranked run yet: ${diagnosis.received} received, none counted (${top}). Details: /officer dungeon audit why:true.`;
 }
 
 export function boardDiagnosisReport(guildName: string, diagnosis: BoardDiagnosis): string {

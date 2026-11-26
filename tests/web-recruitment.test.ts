@@ -156,8 +156,11 @@ describe("recruitment listing page", () => {
   });
 
   it("parses officers' words and matches filters", () => {
-    expect(parseClasses("prêtre, Mage / death knight")).toEqual(["Priest", "Mage", "Death Knight"]);
+    expect(parseClasses("prêtre, Mage / druide")).toEqual(["Priest", "Mage", "Druid"]);
     expect(parseClasses("Warrior Priest")).toEqual(["Warrior", "Priest"]);
+    // WoW Forever has no Death Knight, Monk, Demon Hunter or Evoker, in either language.
+    for (const retail of ["death knight", "Monk", "moine", "Evoker", "chasseur de démons"]) expect(() => parseClasses(retail)).toThrow("Unknown class");
+    for (const picker of ["Death+Knight", "Monk"]) expect(readFilters(new URLSearchParams(`class=${picker}`)).className).toBeNull();
     expect(parseClasses("any")).toEqual([]);
     expect(() => parseClasses("Bard")).toThrow("Unknown class");
     expect(parseRoles("heal dps")).toEqual(["HEALER", "DPS"]);

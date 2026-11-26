@@ -25,7 +25,7 @@ import type { GuildSettings } from "../generated/prisma/client.js";
 import { prisma } from "../database.js";
 import { config } from "../config.js";
 import { classLeaderRoleName, hasPermission, isPermissionRole, permissionRoleNames, roleNamesFor, type Permission } from "../permissions.js";
-import { CLASSES } from "../wow-data.js";
+import { FOREVER_CLASSES } from "../wow-data.js";
 import { commandVisibility } from "../services/command-visibility.js";
 import { inviteChannelCandidates, pickInviteChannel } from "../services/invite-extras.js";
 import { formatChecks, publicSharingNotice, setupChecks, setupComplete, type ChannelFact, type SetupFacts } from "../services/setup-status.js";
@@ -298,8 +298,8 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
     // One Class Leader role per class, picked from a menu (only the classes your guild plays).
     components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder()
       .setCustomId("setup:class-leaders").setPlaceholder(T("Create a Class Leader role per class..."))
-      .setMinValues(1).setMaxValues(CLASSES.length)
-      .addOptions(CLASSES.map((className) => ({
+      .setMinValues(1).setMaxValues(FOREVER_CLASSES.length)
+      .addOptions(FOREVER_CLASSES.map((className) => ({
         label: classLeaderRoleName(className, lang),
         value: className,
         ...(guild.roles.cache.some((role) => role.name === classLeaderRoleName(className, "en") || role.name === classLeaderRoleName(className, "fr")) ? { description: T("Already exists") } : {})
@@ -587,7 +587,7 @@ async function createOptionalRoles(guild: DiscordGuild, lang: Lang): Promise<str
 async function createClassLeaderRoles(guild: DiscordGuild, lang: Lang, classes: string[]): Promise<string> {
   await guild.roles.fetch();
   const created: string[] = [];
-  for (const className of classes.filter((name) => (CLASSES as readonly string[]).includes(name))) {
+  for (const className of classes.filter((name) => (FOREVER_CLASSES as readonly string[]).includes(name))) {
     const scope = currentGuildScope();
     if (scope?.permissionRoles) {
       const key = `classLeader:${className}`;

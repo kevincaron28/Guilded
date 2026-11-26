@@ -15,7 +15,7 @@ import { notifyInteractive, resolveNotifyChannel } from "../services/notify.js";
 import { hasPermission } from "../permissions.js";
 import { requireGuildContext, guildService } from "./context.js";
 import { asLang, type Lang } from "../i18n.js";
-import { CLASSES } from "../wow-data.js";
+import { CLASSES, FOREVER_CLASSES } from "../wow-data.js";
 import { pickSignupCharacter } from "./signup-character-picker.js";
 import { ownedSignupCharacter } from "../services/signup-character.js";
 
@@ -44,7 +44,7 @@ export const applyCommand = new SlashCommandBuilder()
   .addStringOption((o) => o.setName("core").setDescription("Raid core you're applying to (start typing its name)").setAutocomplete(true).setRequired(true))
   .addStringOption((o) => o.setName("character").setDescription("Your character and realm").setAutocomplete(true).setRequired(true))
   .addStringOption((o) => o.setName("class").setDescription("Class (pick from the list)").setRequired(true)
-    .addChoices(...CLASSES.map((name) => ({ name, value: name }))))
+    .addChoices(...FOREVER_CLASSES.map((name) => ({ name, value: name }))))
   .addStringOption((o) => o.setName("spec").setDescription("Specialization (pick or type)").setRequired(true).setAutocomplete(true))
   .addStringOption((o) => o.setName("experience").setDescription("Raid experience").setRequired(true))
   .addStringOption((o) => o.setName("availability").setDescription("Availability (pick or type)").setRequired(true).setAutocomplete(true))

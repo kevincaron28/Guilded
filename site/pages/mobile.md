@@ -4,10 +4,10 @@
 
 <h2>What it does</h2>
 <ul>
-<li><strong>Guild</strong>: the roster, reserves, the map and raid sign-ups once you sign in with Discord.</li>
+<li><strong>Guild</strong>: the roster, reserves, guild activity, the map and raid sign-ups once you sign in with Discord. Search who can craft an item and send them a request.</li>
 <li><strong>Stats</strong>: this week's summary and the public dungeon, duel and raid leaderboards. No sign-in needed.</li>
 <li><strong>Me</strong>: your linked characters (make one your main, or unlink one), what you still need for your next promotion, badges and your wishlist.</li>
-<li><strong>Alerts</strong>: raid reminders on this phone.</li>
+<li><strong>Alerts</strong>: raid reminders on this phone, and push notifications for raid changes, a freed raid spot or a guildmate's call for help.</li>
 <li><strong>News</strong>: WoW headlines in one place.</li>
 </ul>
 <p>The app is in English and French. It reads the same data as the website and the Discord bot, so nothing needs to be set up twice.</p>

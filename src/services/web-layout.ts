@@ -27,6 +27,10 @@ export function langFrom(query: URLSearchParams, acceptLanguage: string | undefi
 
 export const tr = (lang: Lang) => (en: string, fr: string) => (lang === "fr" ? fr : en);
 
+/** A readable date and time in the page language, marked UTC ("November 4, 2026 at 11:00 p.m. UTC"). */
+export const utcDateTime = (value: Date, lang: Lang) =>
+  `${value.toLocaleString(lang === "fr" ? "fr-CA" : "en-CA", { timeZone: "UTC", dateStyle: "long", timeStyle: "short" })} UTC`;
+
 // An internal link that keeps the page language.
 export function link(path: string, lang: Lang, params: Record<string, string | null | undefined> = {}): string {
   const [base, hash = ""] = editionHref(path, currentEdition()).split("#");
@@ -66,7 +70,7 @@ textarea{min-height:120px}button,.button{cursor:pointer;border:0;font:inherit}bu
 .who{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;justify-content:flex-end;font-size:13px;color:var(--muted);margin:8px 0 0}.who button.link{font-size:13px}
 .notice{background:var(--panel);border-left:3px solid var(--gold);padding:12px 16px;margin:16px 0}.trust-confirmed{color:#7bc47f}.trust-reported{color:var(--gold)}.error{border-left-color:#e07a6b}
 .code{font:700 28px/1.2 ui-monospace,Consolas,monospace;letter-spacing:.12em;color:var(--gold)}
-@media(max-width:480px){main{padding-top:16px}h1{font-size:32px;margin:0 0 8px}h2{margin:24px 0 10px}.table-wrap{overflow-x:visible}}`;
+@media(max-width:480px){main{padding-top:16px}h1{font-size:32px;margin:0 0 8px}h2{margin:24px 0 10px}}`;
 
 export interface LayoutInput {
   shareImage?: string;
@@ -87,7 +91,8 @@ export function layout(input: LayoutInput): string {
     ? [`<span>${t("Signed in as", "Connecté :")} <strong>${escapeHtml(input.account.displayName ?? input.account.username)}</strong></span>`,
       `<a href="${link("/me/", input.lang)}">${t("My page", "Ma page")}</a>`,
       `<form class="inline" method="post" action="/auth/logout"><input type="hidden" name="csrf" value="${escapeHtml(input.csrf ?? "")}"><button class="link" type="submit">${t("Sign out", "Déconnexion")}</button></form>`]
-    : input.signInOn ? [`<a href="${escapeHtml(link("/auth/login", input.lang, { return: link(input.path, input.lang, input.languageParams) }))}">${t("Sign in with Discord", "Connexion avec Discord")}</a>`] : [];
+    // A page that already offers the sign-in button does not repeat it under the page.
+    : input.signInOn && !input.body.includes('href="/auth/login') ? [`<a href="${escapeHtml(link("/auth/login", input.lang, { return: link(input.path, input.lang, input.languageParams) }))}">${t("Sign in with Discord", "Connexion avec Discord")}</a>`] : [];
   const here = link(input.path, input.lang, input.languageParams);
   const languages = input.lang === "fr" ? { en: link(input.path, other, input.languageParams), fr: here } : { en: here, fr: link(input.path, other, input.languageParams) };
   const description = escapeHtml((input.description ?? input.title).slice(0, 160));

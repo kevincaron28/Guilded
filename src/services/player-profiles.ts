@@ -7,7 +7,7 @@ import { gameEditionOf } from "./game-edition.js";
 import { formatDuration } from "./dungeon-rules.js";
 import { currentEdition } from "./edition-context.js";
 import { classLabel, roleLabel, ROLES } from "./recruitment.js";
-import { CLASSES } from "../wow-data.js";
+import { FOREVER_CLASSES } from "../wow-data.js";
 import { escapeHtml, link, options } from "./web-layout.js";
 import type { WebContext, WebRoute } from "./web-app.js";
 
@@ -32,7 +32,7 @@ export function readPlayerFilters(query: URLSearchParams, edition: string): Play
   const role = query.get("role") ?? "";
   return {
     q: text("q"), edition, realm: text("realm") || null, guild: text("guild") || null,
-    className: (CLASSES as readonly string[]).includes(className) ? className : null,
+    className: (FOREVER_CLASSES as readonly string[]).includes(className) ? className : null,
     role: (ROLES as readonly string[]).includes(role) ? role : null
   };
 }
@@ -163,7 +163,7 @@ export function createPlayerProfiles(store: ProfileStore, achievements?: Profile
       const any = { value: "", label: t("Any", "Tous") };
       const form = `<form class="filters" method="get" action="/players/"><input type="hidden" name="lang" value="${lang}">`
         + `<div><label for="q">${t("Character", "Personnage")}</label><input id="q" name="q" type="search" maxlength="${TEXT_MAX}" value="${escapeHtml(filters.q)}"></div>`
-        + `<div><label for="class">${t("Class", "Classe")}</label><select id="class" name="class">${options([any, ...CLASSES.map((name) => ({ value: name, label: classLabel(name, lang) }))], filters.className)}</select></div>`
+        + `<div><label for="class">${t("Class", "Classe")}</label><select id="class" name="class">${options([any, ...FOREVER_CLASSES.map((name) => ({ value: name, label: classLabel(name, lang) }))], filters.className)}</select></div>`
         + `<div><label for="role">${t("Role", "Rôle")}</label><select id="role" name="role">${options([any, ...ROLES.map((role) => ({ value: role, label: roleLabel(role, lang) }))], filters.role)}</select></div>`
         + `<div><label for="realm">${t("Realm", "Royaume")}</label><input id="realm" name="realm" maxlength="${TEXT_MAX}" value="${escapeHtml(filters.realm ?? "")}"></div>`
         + `<div><label for="guild">${t("Guild", "Guilde")}</label><input id="guild" name="guild" maxlength="${TEXT_MAX}" value="${escapeHtml(filters.guild ?? "")}"></div>`

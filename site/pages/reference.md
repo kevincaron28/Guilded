@@ -43,8 +43,9 @@ Everything else is there when you need it.
 | `/leaderboard` `board:` | Dungeon rating (default), guild records, PvP duels, community points or EPGP | Everyone |
 | `/epgp` `balance` `history` `leaderboard` | Your EP, GP and priority; the guild board | Everyone |
 | `/loot` `bid` `history` `reserves` | Bid on an auction; loot history; soft reserves | Everyone |
-| `/craft` `request` `list` `who` `mine` `claim` `done` `release` `cancel` | Ask crafters for an item, or pick up requests | Everyone |
-| `/bank` `request` `mine` `cancel` | Ask the guild bank for an item | Everyone |
+| `/craft` `request` `list` `who` `mine` `done` `release` `cancel` | Ask crafters for an item; claim a request with the **I'll craft it** button on its post, then mark it done | Everyone |
+| `/craft` `offer` `offers` `withdraw` `notify` `top` `history` | Offer your recipes, get pinged for requests, see the top crafters | Everyone |
+| `/bank` `search` `request` `mine` `cancel` | See what the guild bank holds; ask it for an item | Everyone |
 | `/apply` | Apply to a raid core | Everyone |
 | `/tag` `show` `list` | Post a saved text (raid rules, consumables) | Everyone |
 | `/community` `hub` `seasons` `leaderboard` `wallet` `dice` `badges` `honors` | Community points, seasons, badges and hall of fame | Everyone |
@@ -58,7 +59,7 @@ Everything else is there when you need it.
 
 | Command | What it does | Who |
 | --- | --- | --- |
-| `/raid` `signup` `cancel-signup` `status` `roster` | Sign up for a raid; see who is coming | Everyone |
+| `/raid` `status` `roster` `cancel-signup` | Who is coming; cancel your signup (sign up with the buttons on the raid post) | Everyone |
 | `/raid` `progress` `report` | Boss progression; the summary of a finished raid | Everyone |
 | `/raid wcl` `list` | Recent Warcraft Logs reports pulled in | Everyone |
 | `/raid` `worldbuff` `worldbuffs` `worldbuff-remove` | Announce and list world-buff drops | Everyone |
@@ -70,7 +71,8 @@ Everything else is there when you need it.
 | `/core` `setup` `edit` `create` `add` `character` `remove` `rules` `items` `post` `rename` `delete` | Build and run raid cores (rosters, bench, point rules, item prices) | Raid Leaders |
 | `/team` `show` `list` `sessions` `view` `respond` | Weekly dungeon and PvP cores: roster, sessions, your answer | Everyone |
 | `/team` `create` `member` `schedule` `session` `attendance` `lineup` `archive` | Run a weekly core | Team leaders |
-| `/bg` `panel` `join` `leave` `mine` `upcoming` `view` `history` `privacy` | Battleground groups and your own private reports | Everyone |
+| `/bg` `panel` `join` `leave` `mine` `upcoming` `view` `history` `result` `correct` | Battleground groups and your own private reports | Everyone |
+| `/bg` `stats` `duels` `world` | Battleground participation reports; the duel leaderboard; world PvP this week | Everyone |
 | `/bg` `create` `manage` `setup` | Plan and manage battleground sessions | Leaders |
 
 ### PUG board
@@ -87,9 +89,9 @@ Everything else is there when you need it.
 | Command | What it does | Who |
 | --- | --- | --- |
 | `/dungeon` `leaderboard` `season` `records` `player` `history` | Season rating, fastest clears, a player's runs (`player` offers your guild's characters as you type; your own stats are private) | Everyone |
-| `/dungeon` `archive` `hall-of-fame` `rules` `catalog` `keystones` `together` | Past seasons, scoring rules, dungeon list, this week's team goal | Everyone |
-| `/dungeon` `group` `alerts` `watch` | Form a group with a voice channel; get pinged for groups that fit you | Everyone |
-| `/officer dungeon` `invalidate` `award` `audit` `config` `goal` `announce` | Correct a run, adjust guild points, read the point history; the weekly together goal and record callouts | Officers |
+| `/dungeon` `archive` `hall-of-fame` `rules` `catalog` `together` | Past seasons, scoring rules, dungeon list, this week's team goal | Everyone |
+| `/dungeon` `group` `guide` `alerts` `watch` | Form a group with a voice channel; get pinged for groups that fit you | Everyone |
+| `/officer dungeon` `invalidate` `award` `audit` `config` `flagged` `sync` `goal` `announce` | Correct a run, adjust guild points, read the point history; review unlikely runs and stuck syncs; the weekly together goal and record callouts | Officers |
 | `/organize dungeon-seasons preview` | See the current and next dungeon seasons | Organizers |
 
 ### Officers and setup
@@ -102,19 +104,23 @@ Everything else is there when you need it.
 | `/config` `view` `set` `welcome` `farewell` `roles` `channel` `timezone` `weekly-report` … | Server settings: welcome, roles, time zone, reports, loot mode, auto-import | Officers |
 | `/lead epgp` `award-ep` `award-gp` `decay` `reverse` | Give, decay or undo EP and GP | Officers |
 | `/lead loot` `auction` `award` `close` `priority` | Run loot auctions and awards | Officers |
-| `/officer character` `unclaimed` `link` `autolink` | Link reported characters to Discord members | Officers |
+| `/officer character` `unclaimed` `link` `move` `autolink` `claimdm` | Link reported characters to Discord members; move one with its history | Officers |
+| `/officer roster` `gaps` `ignore` `nicknames` `map` `gamelink` | Unlinked members and characters; nickname sync, phone guildmate map, linking from game chat | Officers |
+| `/officer promotion` `list` `rule` | Who is ready for the next rank; the promotion rule | Officers |
+| `/officer stats` `feed` `trend` `toggle` `cards` `bank` | Sheets feed, member trend, daily statistics and related switches | Officers |
 | `/officer export` | Download standings, EPGP, loot, attendance or roster as CSV | Officers |
 | `/setup import` `upload` `apply` `held` | Preview and apply addon data | Officers |
 | `/mod` `warn` `timeout` `kick` `ban` `history` | Moderation | Officers |
 | `/mod` `application` `dni` | Review applications; do-not-invite list | Officers |
 | `/mod` `faq` | The answer channel: write answers the bot replies with | Officers |
+| `/mod invites` `list` `extra` `record` `settings` `tidy` `questions` `post` | The guild invite queue and its settings | Officers |
 | `/mod` `page` `recruit` `leaderboard` `rankroles` | Public guild page, recruitment listing, public leaderboards, rank roles | Officers |
 | `/officer reports` `inactive` `guild` `games` `remind` `auto-remind` `posts` | Inactive members; guild health; game reminders; daily recap and weekly records posts | Officers |
 | `/organize` | Community seasons, quizzes, honors, lotteries, gaming nights, challenges | Organizers |
 | `/organize poll` `create` `close` `weekly` `news` | Polls, the weekly question, and news posts | Officers |
 | `/setup participation` `settings` `channels` `claims` `review` `reverse` | Participation settings, nominations and awards | Officers |
 | `/setup guild` `add` `channel` `roles` | Add an in-game guild; bind a channel; set its roles | Officers |
-| `/poe setup` | Turn PoE2 tracking on or off | Officers |
+| `/poe setup` | Turn PoE2 tracking on or off | Officers | <!--poe-->
 | `/automation` `question` `vacancies` | Automatic weekly question and dungeon-group matches | Officers |
 | `/setup tags` `set` `delete` | Create or remove saved texts | Officers |
 | `/config craft` `offers` `posts` `orders` `permissions` `notify` | Craft board switches and permissions | Officers |
@@ -186,7 +192,7 @@ Type `/guilded` (or `/gd`) in game. A bare `/guilded` opens the window; `/guilde
 | `/guilded ready` · `consumes` | Who in your group is ready; who is missing flask or food | Officers and group leaders |
 | `/guilded export` · `import softres\|tmb\|history` | Export data; import soft reserves, TMB or loot history | Officers |
 | `/guilded invite raid\|missing` · `autoinvite` | Invite the signed-up raiders; a /ginvite line for whisperers | Officers |
-| `/guilded recruit` · `welcome` | Prospect list; whisper new guild members | Officers |
+| `/guilded recruit` | Prospect list | Officers |
 | `/guilded officer list\|add\|remove\|rank` | Who counts as an officer | Officers |
 | `/guilded ledgersync` · `bridge` · `rosteradmin` · `sim` | Share EP/GP between officers; companion bridge; roster tools; test raid | Officers |
 
@@ -194,11 +200,12 @@ Type `/guilded` (or `/gd`) in game. A bare `/guilded` opens the window; `/guilde
 
 | Tab | What it shows | Who |
 | --- | --- | --- |
-| Home · My character · Open raids | What is going on, your gear check, raids with room for you | Everyone |
-| Standings · Crafting | Guild standings and recipes | Everyone |
-| Ready · Reserves · Loot · Council | Raid-night checks, soft reserves, bids and council answers | Leaders / Everyone / Officers |
-| Raid · Administration · Gear | Run a raid, award EP/GP, item level per member | Officers |
-| Calendar · Local guild · Roster admin · Officer tools | Guild calendar, no-Discord setup, roster tools, log and imports | Officers |
+| Home · My character | What is going on, your data and your gear check | Everyone |
+| Guild overview · Standings · Duels | Classes and levels, standings, the duel leaderboard | Everyone |
+| Layer invite · Dungeons · Crafting | Ask for another layer; your runs and the dungeon boards; find a crafter and request an item | Everyone |
+| Open raids · Raid sign-up · Ready · Reserves | Raids with room, signing up, raid-night checks, soft reserves | Everyone (Ready: officers and group leaders) |
+| Raid · Loot · Council | Run a raid; bids and council answers (shown for the loot system your core uses) | Officers |
+| Gear · Admin · Calendar · Local guild · Roster · Tools | Item level per member, EP/GP, guild calendar, no-Discord setup, roster tools, log and imports | Officers |
 | Settings | Switch parts on or off, diagnostics | Everyone |
 
 ### Companion addons
@@ -218,6 +225,6 @@ features. Full steps: [Companion app](https://guildedwow.com/companion/).
 | What it does | Sends your addon's saved data to Discord and the website, and brings standings back into the game |
 | Where to get it | [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) (recommended, updates itself) or the [direct download](https://guildedwow.com/downloads/Guilded.Companion.Setup.exe) (unsigned fallback) |
 | Platform | Windows only. No Mac, Linux or browser version |
-| First run | Choose **Sign in with Discord**, pick your server (or public leaderboards only), choose your saved data |
+| First run | Nothing to set up: it finds your WoW folder and your guild's Discord by itself. **Sign in with Discord** is optional and confirms your characters |
 | After playing | `/reload` in WoW and the companion syncs |
 | Who should run it | Every member who wants Discord features; at least one officer per guild |

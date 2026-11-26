@@ -57,7 +57,7 @@ describe("nickname sync log throttle", () => {
   it("names every server missing Manage Nicknames in one line, once a day or when the list grows", () => {
     const t0 = 7_000_000;
     expect(permissionSkipLine([], t0)).toBeNull();
-    expect(permissionSkipLine(["a", "b"], t0)).toBe("Nickname sync: waiting for the Manage Nicknames permission in 2 server(s) (shown in /setup status): a, b");
+    expect(permissionSkipLine(["a", "b"], t0)).toBe("Nickname sync: waiting for the Manage Nicknames permission in 2 server(s) (shown in /setup start status:true): a, b");
     expect(permissionSkipLine(["a", "b"], t0 + 3_600_000)).toBeNull(); // the next hourly run: quiet
     expect(permissionSkipLine(["a", "b", "c"], t0 + 7_200_000)).toContain("in 3 server(s)"); // a new server joins
     expect(permissionSkipLine(["a"], t0 + 10_800_000)).toBeNull(); // one got the permission: nothing new to say

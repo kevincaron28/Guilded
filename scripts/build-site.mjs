@@ -63,7 +63,7 @@ const renderVersions = content => content.replaceAll("{{GUILDED_VERSION}}", vers
   .replaceAll("{{ANDROID_VERSION}}", publishedMobile.android.version).replaceAll("{{ANDROID_APK_URL}}", publishedMobile.android.apkUrl)
   .replaceAll("{{ANDROID_RELEASE_URL}}", publishedMobile.android.releaseUrl).replaceAll("{{ANDROID_SHA256}}", publishedMobile.android.sha256);
 // Static pages link relative to the site root (so a project subpath works); bot pages stay absolute.
-const staticHref = prefix => item => item.bot || item.key === "companion" || /^https?:/.test(item.href) ? item.href : prefix + item.href.slice(1);
+const staticHref = prefix => item => item.bot || item.key === "companion" || /^(?:https?:|\/#)/.test(item.href) ? item.href : prefix + item.href.slice(1);
 const bilingualLabel = ({ en, fr }) => en === fr ? en : `<span data-en="${en}" data-fr="${fr}">${en}</span>`;
 // The header's WoW version switcher (site/nav.mjs). A page of one edition shows "Playing: Retail";
 // elsewhere it reads "Your WoW" until site.js finds the visitor's remembered edition.

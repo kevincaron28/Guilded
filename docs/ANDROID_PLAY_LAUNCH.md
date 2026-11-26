@@ -127,8 +127,9 @@ Each card needs **Save**, and some need **Submit**. The dashboard ticks them off
    the test (who tested, what feedback, what changed). Review usually takes about 7 days.
 2. After approval: **Test and release → Production** → **Create new release** → **Add from library** (the tested
    bundle) → release notes → **Next** → **Countries / regions** → **Save** → **Send for review**.
-3. When it is live: update `site/releases.json` (`mobile.android`) and `/companion/` so they point at the Play listing
-   instead of the GitHub APK (a site PR, done by an agent).
+3. The website already points at the Play listing (Google Play badge on every download place; the old APK addresses
+   redirect there). When it is live: set `mobile.android.stage` to `production` in `site/releases.json`, which removes the
+   "In testing: join the test" line under the badge (a one-line site PR, done by an agent).
 
 ## Later
 

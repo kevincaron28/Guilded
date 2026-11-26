@@ -6,21 +6,13 @@
 <p class="micro">Free · Windows 10 and 11 · about 120 MB · updates itself</p>
 </section>
 
-<h2 id="android">Android app (preview)</h2>
+<h2 id="android">Android app</h2>
 
-<div class="actions"><a class="button" href="{{ANDROID_APK_URL}}">Download for Android <span aria-hidden="true">↓</span></a><a class="button secondary" href="{{ANDROID_RELEASE_URL}}">GitHub <span aria-hidden="true">↗</span></a></div>
+{{PLAY_BADGE}}
 
-A free **preview** of the Guilded phone app for Android: check your guild's raid roster, reserves, loot wishlist and standings, and get raid reminders. It is a sideloaded preview, version {{ANDROID_VERSION}}, not on the public Google Play yet (it is in closed testing there). After you open the file, Android asks you to allow installing from your browser: allow it once, then install. The app tells you when a newer version is ready and updates its content by itself.
+The free Guilded phone app: check your guild's raid roster, reserves, loot wishlist and standings, and get raid reminders. Install it from Google Play, open **Guilded** and sign in with Discord. iPhone is not available yet.
 
-**Install it on your phone in three taps:**
-
-1. Tap **Download for Android** (about 74 MB). If your browser asks, keep the file.
-2. Open the downloaded file. Android asks once to **allow installs from your browser**: allow it, then tap **Install**.
-3. Open **Guilded** and sign in with Discord.
-
-If Android says the app can't be installed because it conflicts with an older Guilded, **uninstall the old Guilded app first**, then install again. Version {{ANDROID_VERSION}} (preview). The GitHub copy of an older build is still on the [release page]({{ANDROID_RELEASE_URL}}).
-
-SHA-256 of the file: `{{ANDROID_SHA256}}`. You can compare it with the checksum shown by a file-hash tool before installing.
+If you installed an older Guilded app from this website, **uninstall it first**, then install from Google Play.
 
 ## Do I need the Windows companion?
 

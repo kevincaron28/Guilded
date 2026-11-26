@@ -5,8 +5,8 @@
     "path": "mobile/",
     "title": "Guilded on your phone",
     "titleFr": "Guilded sur votre téléphone",
-    "description": "The free Guilded phone app: your guild, the public leaderboards and raid reminders. Coming soon on Google Play.",
-    "descriptionFr": "L’application mobile gratuite de Guilded : votre guilde, les classements publics et les rappels de raid. Bientôt sur Google Play.",
+    "description": "The free Guilded phone app: your guild, the public leaderboards and raid reminders, from Google Play.",
+    "descriptionFr": "L’application mobile gratuite de Guilded : votre guilde, les classements publics et les rappels de raid, sur Google Play.",
     "lang": "en",
     "draft": false
   },
@@ -27,8 +27,8 @@
     "path": "download/",
     "title": "Download Guilded — addon, companion and Discord bot",
     "titleFr": "Télécharger Guilded — addon, compagnon et bot Discord",
-    "description": "Everything is free. Start with the WoW Forever addon, then add the Windows companion, the Discord bot or the Android preview only if you need them.",
-    "descriptionFr": "Tout est gratuit. Commencez par l’addon WoW Forever, puis ajoutez le compagnon Windows, le bot Discord ou l’aperçu Android seulement si vous en avez besoin.",
+    "description": "Everything is free. Start with the WoW Forever addon, then add the Windows companion, the Discord bot or the Android app only if you need them.",
+    "descriptionFr": "Tout est gratuit. Commencez par l’addon WoW Forever, puis ajoutez le compagnon Windows, le bot Discord ou l’application Android seulement si vous en avez besoin.",
     "lang": "en",
     "draft": false
   },

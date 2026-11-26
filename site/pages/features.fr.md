@@ -76,7 +76,7 @@ L’application Android montre les classements, votre guilde, vos raids et vos b
 <figure><a href="/images/phone/clash-pvp-10-ladder.webp"><img src="/images/phone/clash-pvp-10-ladder.webp" alt="Classement mondial (exemple, données fictives)" width="360" height="740" loading="lazy"></a><figcaption><strong>Classement mondial.</strong> Le classement du mois, mondial ou pour votre serveur.</figcaption></figure>
 </div>
 
-<div class="actions"><a class="button" href="{{ANDROID_APK_URL}}" download>Télécharger pour Android <span aria-hidden="true">↓</span></a></div>
+{{PLAY_BADGE}}
 
 ## Nouveau dans la 9.0
 

@@ -76,7 +76,7 @@ The Android app shows the leaderboards, your guild, your raids and your badges, 
 <figure><a href="/images/phone/clash-pvp-10-ladder.webp"><img src="/images/phone/clash-pvp-10-ladder.webp" alt="Global ladder (sample, made-up data)" width="360" height="740" loading="lazy"></a><figcaption><strong>Global ladder.</strong> The monthly ladder, global or for your server.</figcaption></figure>
 </div>
 
-<div class="actions"><a class="button" href="{{ANDROID_APK_URL}}" download>Download for Android <span aria-hidden="true">↓</span></a></div>
+{{PLAY_BADGE}}
 
 ## New in 9.0
 

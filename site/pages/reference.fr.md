@@ -43,7 +43,7 @@ Le reste est là au besoin.
 | `/promotion` `status` | Ce qu’il vous reste avant le prochain rang | Tout le monde |
 | `/leaderboard` `board:` | Cote des donjons (par défaut), records de la guilde, duels JcJ, points de communauté ou EPGP | Tout le monde |
 | `/epgp` `balance` `history` `leaderboard` | Vos EP, GP et priorité ; le classement de la guilde | Tout le monde |
-| `/loot` `bid` `history` `reserves` `reserve` `unreserve` | Miser aux enchères ; historique du butin ; voir, placer ou retirer des réservations | Tout le monde |
+| `/loot` `bid` `history` `reserves` | Miser aux enchères ; historique du butin ; réserves | Tout le monde |
 | `/craft` `request` `list` `who` `mine` `done` `release` `cancel` | Demander un objet aux artisans ; prendre une demande avec le bouton **Je le fabrique** sur sa publication, puis la marquer terminée | Tout le monde |
 | `/craft` `offer` `offers` `withdraw` `notify` `top` `history` | Proposer vos recettes, être mentionné pour les demandes, voir les meilleurs artisans | Tout le monde |
 | `/bank` `search` `request` `mine` `cancel` | Voir ce que contient la banque de guilde ; lui demander un objet | Tout le monde |

@@ -42,7 +42,7 @@ Everything else is there when you need it.
 | `/promotion` `status` | What is left before your next rank | Everyone |
 | `/leaderboard` `board:` | Dungeon rating (default), guild records, PvP duels, community points or EPGP | Everyone |
 | `/epgp` `balance` `history` `leaderboard` | Your EP, GP and priority; the guild board | Everyone |
-| `/loot` `bid` `history` `reserves` `reserve` `unreserve` | Bid on an auction; loot history; see, place or take back soft reserves | Everyone |
+| `/loot` `bid` `history` `reserves` | Bid on an auction; loot history; soft reserves | Everyone |
 | `/craft` `request` `list` `who` `mine` `done` `release` `cancel` | Ask crafters for an item; claim a request with the **I'll craft it** button on its post, then mark it done | Everyone |
 | `/craft` `offer` `offers` `withdraw` `notify` `top` `history` | Offer your recipes, get pinged for requests, see the top crafters | Everyone |
 | `/bank` `search` `request` `mine` `cancel` | See what the guild bank holds; ask it for an item | Everyone |

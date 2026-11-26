@@ -6,11 +6,12 @@ Character counts were checked against Play's limits (see the table at the end). 
 [play-data-safety.md](play-data-safety.md), and the content-rating answers are in [play-content-rating.md](play-content-rating.md).
 
 This listing describes the five-tab app without Guilded Clash (the card game is on hold and is not in the Play build),
-version 0.4.0. Screenshot sizes and what each one must show: [play-screenshots.md](play-screenshots.md). The Play
+version 0.6.0. The texts and screenshots below were saved in Play Console on 26 November 2026, not yet sent for review. Screenshot sizes and what each one must show: [play-screenshots.md](play-screenshots.md). The Play
 Console steps for the closed test: [play-console-checklist.md](play-console-checklist.md).
 
 **Decided by the owner on 15 November 2026:** the Play name is **`Guild Sync Companion`**, the label under the
-phone icon stays `Guilded`, and the first bundle goes out **without push** (profile `production-no-push`).
+phone icon stays `Guilded`, and the first bundle goes out **without push** (profile `production-no-push`). Since then
+Firebase was connected and 0.6.0 is built with push (profile `production`).
 The options that were weighed:
 
 | Option | For | Against |
@@ -54,7 +55,7 @@ already there, not in the title.
 **Short description** (80 max):
 
 ```
-Your guild's roster, map, raids, badges and leaderboards, right on your phone.
+Guild activity, raids, crafting, map and leaderboards on your phone.
 ```
 
 **Full description** (4,000 max):
@@ -66,24 +67,29 @@ It is for guilds that use the Guilded Discord bot. Sign in with the same Discord
 
 GUILD
 • Roster: your characters, guild ranks, raid cores and soft reserves.
-• Guild map: where guildmates were last seen outdoors, a heat map of where the guild plays, and recent calls for help with the time and the attackers. Only signed-in members of your guild see it. It is never public, and you can stop sharing your position at any time, which deletes it.
+• Activity: the last 14 days in your guild, with who joined or left, rank changes, guild bank gifts and raid boss kills.
+• Crafting: search for an item, see who in the guild can make it, ask for it and follow your open requests.
+• Map: where guildmates were last seen outdoors, a heat map of where the guild plays, and recent calls for help with the time and the attackers. Only signed-in members of your guild see it. It is never public, and you can stop sharing your position at any time, which deletes it.
 • Raids: the next raid, who signed up, upcoming raids and EP/GP standings. Answer I'm in, Maybe or Can't come, with your role, right from the app.
 
 STATS
 • This week on Guilded: rated dungeon runs and the best runs of the week.
-• Public dungeon leaderboards for characters and guilds, the same as the website.
+• Public dungeon leaderboards for characters and guilds, the duel ladder and raid progress, the same as the website.
 
 ME
-• Your characters and a badge album: one card for every achievement you really earned. No packs, no luck, nothing to buy.
+• Your characters, with a page for each one: dungeon ranks, recent runs and duel record.
+• What you still need for a promotion, where your server uses promotion rules.
+• A badge album: one card for every achievement you really earned. No packs, no luck, nothing to buy.
 • Your raid wishlist, saved with the guild.
 
 ALERTS
 • Reminders on this phone 24 hours, 2 hours and 1 hour before each raid you can see (none for a raid you can't attend).
+• Optional push alerts for raid changes, when a guildmate calls for help in game, and when a raid spot opens up for you from the waiting list.
 
 NEWS
 • Recent World of Warcraft headlines with a link to read them on the publisher's site, and a link to Blizzard's news page.
 
-Want to look around first? Open the sample guild: every screen works with made-up names, without signing in.
+Want to look around first? Open the sample guild to try the guild screens with made-up names, without signing in.
 
 Free, no ads, nothing to buy. Positions and calls for help are kept only for your guild, for a limited time, and "Delete my data" in the app's settings removes your data (backups and Discord messages already posted are not changed).
 
@@ -95,38 +101,43 @@ Guilded is a fan-made tool. It is not affiliated with or endorsed by Blizzard En
 **Description courte** (80 max) :
 
 ```
-Membres, carte, raids, badges et classements de votre guilde, sur votre mobile.
+Activité, raids, artisanat, carte et classements de ta guilde sur ton mobile.
 ```
 
 **Description complète** (4 000 max) :
 
 ```
-Guild Sync Companion est l'appli mobile de Guilded. Elle garde votre guilde World of Warcraft avec vous quand vous êtes loin du jeu.
+Guild Sync Companion est l'appli mobile de Guilded. Elle garde ta guilde World of Warcraft avec toi quand tu es loin du jeu.
 
-Elle s'adresse aux guildes qui utilisent le bot Discord Guilded. Connectez-vous avec le même compte Discord que dans votre guilde : l'appli affiche ce que votre guilde partage déjà avec vous.
+Elle s'adresse aux guildes qui utilisent le bot Discord Guilded. Connecte-toi avec le même compte Discord que dans ta guilde : l'appli affiche ce que ta guilde partage déjà avec toi.
 
 GUILDE
-• Membres : vos personnages, rangs de guilde, cores de raid et soft reserves.
-• Carte de la guilde : où les membres ont été vus dehors pour la dernière fois, une carte de chaleur des endroits où joue la guilde, et les appels à l'aide récents avec l'heure et les attaquants. Seuls les membres connectés de votre guilde la voient. Elle n'est jamais publique, et vous pouvez arrêter de partager votre position à tout moment, ce qui l'efface.
-• Raids : le prochain raid, les inscrits, les raids à venir et le classement EP/GP. Réponds J'y vais, Peut-être ou Je ne peux pas, avec ton rôle, directement dans l'app.
+• Membres : tes personnages, les rangs de guilde, les cores de raid et les soft reserves.
+• Activité : les 14 derniers jours de la guilde, avec les arrivées et les départs, les changements de rang, les dons à la banque et les victoires en raid.
+• Artisanat : cherche un objet, vois qui dans la guilde peut le fabriquer, demande-le et suis tes demandes ouvertes.
+• Carte : où les membres ont été vus dehors pour la dernière fois, une carte de chaleur des endroits où joue la guilde, et les appels à l'aide récents avec l'heure et les attaquants. Seuls les membres connectés de ta guilde la voient. Elle n'est jamais publique, et tu peux arrêter de partager ta position à tout moment, ce qui l'efface.
+• Raids : le prochain raid, les inscrits, les raids à venir et le classement EP/GP. Réponds J'y vais, Peut-être ou Je ne peux pas, avec ton rôle, directement dans l'appli.
 
 STATS
 • Cette semaine sur Guilded : les donjons cotés et les meilleurs donjons de la semaine.
-• Les classements publics des donjons, personnages et guildes, comme sur le site.
+• Les classements publics des donjons (personnages et guildes), le classement des duels et la progression des raids, comme sur le site.
 
 MOI
-• Vos personnages et un album de badges : une carte pour chaque succès vraiment obtenu. Pas de paquets, pas de chance, rien à acheter.
-• Votre liste de souhaits de raid, gardée avec la guilde.
+• Tes personnages, avec une page pour chacun : rangs en donjon, donjons récents et duels.
+• Ce qui te manque pour une promotion, si ton serveur a des règles de promotion.
+• Un album de badges : une carte pour chaque succès vraiment obtenu. Pas de paquets, pas de chance, rien à acheter.
+• Ta liste de souhaits de raid, gardée avec la guilde.
 
 ALERTES
 • Des rappels sur ce téléphone 24 heures, 2 heures et 1 heure avant chaque raid que tu vois (aucun pour un raid où tu ne peux pas aller).
+• Des alertes push facultatives pour les changements de raid, quand un membre appelle à l'aide en jeu et quand une place de raid se libère pour toi sur la liste d'attente.
 
 NOUVELLES
 • Les manchettes récentes de World of Warcraft, avec un lien pour les lire sur le site de l'éditeur, et un lien vers les nouvelles de Blizzard.
 
-Envie de jeter un œil d'abord ? Ouvrez la guilde d'exemple : chaque écran fonctionne avec des noms inventés, sans connexion.
+Envie de jeter un œil d'abord ? Ouvre la guilde d'exemple pour essayer les écrans de guilde avec des noms inventés, sans connexion.
 
-Gratuit, sans publicité, rien à acheter. Les positions et les appels à l'aide sont gardés seulement pour votre guilde, pour une durée limitée, et « Supprimer mes données » dans les réglages de l'appli efface vos données (les sauvegardes et les messages Discord déjà publiés ne sont pas modifiés).
+Gratuit, sans publicité, rien à acheter. Les positions et les appels à l'aide sont gardés seulement pour ta guilde, pour une durée limitée, et « Supprimer mes données » dans les réglages de l'appli efface tes données (les sauvegardes et les messages Discord déjà publiés ne sont pas modifiés).
 
 Guilded est un outil créé par des fans. Il n'est ni affilié à Blizzard Entertainment ni approuvé par elle. World of Warcraft est une marque de commerce de Blizzard Entertainment, Inc.
 ```
@@ -137,28 +148,29 @@ Guilded est un outil créé par des fans. Il n'est ni affilié à Blizzard Enter
 | --- | --- | --- |
 | App icon | 512 × 512 PNG, 32-bit | [`icon-512.png`](icon-512.png) (exported from `mobile/assets/icon.png`) |
 | Feature graphic | 1024 × 500 PNG or JPG, no transparency | [`feature-graphic-1024x500.png`](feature-graphic-1024x500.png) (source: [`feature-graphic.html`](feature-graphic.html)) |
-| Phone screenshots | 2–8, 16:9 or 9:16, 320–3840 px per side | [`screenshots/`](screenshots/): seven at 1080 × 1920 |
+| Phone screenshots | 2–8, 16:9 or 9:16, 320–3840 px per side | [`screenshots/`](screenshots/): eight English and, in `fr-CA/`, eight French, 1080 × 1920 |
 
-Screenshots, in upload order:
+Screenshots, in upload order (the same file names in `screenshots/` and `screenshots/fr-CA/`):
 
-1. `01-stats.png`: Stats, this week's summary
-2. `02-guild-roster.png`: Guild, roster (sample guild)
-3. `03-guild-map.png`: Guild, map with heat map and a help pin
-4. `04-guild-raids.png`: Guild, raids
-5. `05-me-profile.png`: Me, characters
-6. `06-me-badges.png`: Me, badge album
-7. `07-alerts.png`: Alerts
+1. `01-guild-activity.png`: Guild, activity
+2. `02-guild-raids.png`: Guild, raids with the member's answer
+3. `03-crafting.png`: Guild, crafting
+4. `04-character.png`: Me, one character's page
+5. `05-guild-map.png`: Guild, map with heat map and a help pin
+6. `06-alerts.png`: Alerts
+7. `07-stats.png`: Stats, this week's summary
+8. `08-guild-roster.png`: Guild, roster
 
-All of them come from the Expo web export of the five-tab build, with the **sample guild** and made-up leaderboard data.
-They hold no real names and no personal data. The public endpoints were answered with fictional data while capturing,
-so live player names never appear. To regenerate them, see [`capture-screenshots.mjs`](capture-screenshots.mjs).
+All of them come from the Expo web export of the app, signed in to a local mock server that answers with **made-up
+data** only. They hold no real names and no personal data, and nothing is requested from the live service while
+capturing. To regenerate them, see [`capture-screenshots.mjs`](capture-screenshots.mjs).
 No Blizzard art is used. The feature graphic says "Your guild" rather than "WoW", to keep trademarks out of the artwork.
 
-## Length check (15 Nov 2026)
+## Length check (26 Nov 2026)
 
 | Text | Characters | Limit |
 | --- | --- | --- |
-| EN short | 78 | 80 |
-| FR short | 79 | 80 |
-| EN full | 1,782 | 4,000 |
-| FR full | 2,078 | 4,000 |
+| EN short | 68 | 80 |
+| FR short | 77 | 80 |
+| EN full | 2,460 | 4,000 |
+| FR full | 2,853 | 4,000 |

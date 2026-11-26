@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 import Constants from "expo-constants";
+import { t, type CopyKey } from "./i18n";
 import { notificationId, type PlannedReminder } from "./reminders";
 
 export interface ReminderSync {
@@ -59,23 +60,23 @@ export function syncRaidReminders(enabled: boolean, reminders: PlannedReminder[]
 
 /** Why push could not be set up. `needsSettings` means Android will not ask again: the member must allow notifications in phone settings. */
 export class PushSetupError extends Error {
-  constructor(message: string, readonly needsSettings = false) { super(message); this.name = "PushSetupError"; }
+  constructor(readonly key: CopyKey, readonly needsSettings = false) { super(t("en", key)); this.name = "PushSetupError"; }
 }
 
 /**
  * The Expo push token for this phone, asking for notification permission first (Android 13+ shows the POST_NOTIFICATIONS
- * prompt once the "raids" channel exists, so the channel is created before asking). Throws PushSetupError with a sentence
- * the Alerts tab shows as it is.
+ * prompt once the "raids" channel exists, so the channel is created before asking). Throws PushSetupError with the copy key
+ * of a sentence the Alerts tab shows in the member's language.
  */
 export async function pushToken(): Promise<string> {
-  if (Platform.OS === "web") throw new PushSetupError("Push alerts need an installed iPhone or Android app.");
+  if (Platform.OS === "web") throw new PushSetupError("pushNeedsInstall");
   const projectId = Constants.easConfig?.projectId ?? Constants.expoConfig?.extra?.eas?.projectId;
-  if (typeof projectId !== "string" || !projectId) throw new PushSetupError("Push alerts will be available when this app is linked to its Expo project. Device reminders work now.");
+  if (typeof projectId !== "string" || !projectId) throw new PushSetupError("pushNotLinked");
   const Notifications = await import("expo-notifications");
   if (Platform.OS === "android") await Notifications.setNotificationChannelAsync("raids", { name: CHANNEL_NAME, importance: Notifications.AndroidImportance.DEFAULT });
   let permission = await Notifications.getPermissionsAsync();
   if (!permission.granted && permission.canAskAgain !== false) permission = await Notifications.requestPermissionsAsync();
-  if (!permission.granted) throw new PushSetupError("Notifications are off for Guilded in phone settings. Open settings and allow them, then switch alerts on again.", permission.canAskAgain === false);
+  if (!permission.granted) throw new PushSetupError("pushPermissionOff", permission.canAskAgain === false);
   try { return (await Notifications.getExpoPushTokenAsync({ projectId })).data; }
-  catch { throw new PushSetupError("Push alerts are not set up in this build. Device reminders still work."); }
+  catch { throw new PushSetupError("pushNotInBuild"); }
 }

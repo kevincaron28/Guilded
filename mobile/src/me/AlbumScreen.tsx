@@ -25,11 +25,16 @@ const words = {
 } as const;
 const w = (key: keyof typeof words, lang: Lang) => words[key][lang];
 
-const sampleBody = { cards: [
-  { id: "s1", name: "Dungeon Regular", description: "Complete 10 dungeons.", tier: "bronze", tierLabel: "Bronze", tierColor: "#cd7f32", set: "Sample set", rank: 1, threshold: 10, earnedAt: new Date(Date.now() - 86400000).toISOString() },
-  { id: "s2", name: "Dungeon Veteran", description: "Complete 50 dungeons.", tier: "silver", tierLabel: "Silver", tierColor: "#c9d1d9", set: "Sample set", rank: 2, threshold: 50, earnedAt: null },
-  { id: "s3", name: "Raid Regular", description: "Attend 5 raids.", tier: "gold", tierColor: "#ffd100", tierLabel: "Gold", set: "Sample set", rank: null, threshold: 5, earnedAt: null }
-] };
+/** The sample album, in the member's language (a signed-in album is translated by the server). */
+const sampleBody = (lang: Lang) => {
+  const say = (en: string, fr: string) => lang === "fr" ? fr : en;
+  const set = say("Sample set", "Série d'exemple");
+  return { cards: [
+    { id: "s1", name: say("Dungeon Regular", "Habitué des donjons"), description: say("Complete 10 dungeons.", "Termine 10 donjons."), tier: "bronze", tierLabel: "Bronze", tierColor: "#cd7f32", set, rank: 1, threshold: 10, earnedAt: new Date(Date.now() - 86400000).toISOString() },
+    { id: "s2", name: say("Dungeon Veteran", "Vétéran des donjons"), description: say("Complete 50 dungeons.", "Termine 50 donjons."), tier: "silver", tierLabel: say("Silver", "Argent"), tierColor: "#c9d1d9", set, rank: 2, threshold: 50, earnedAt: null },
+    { id: "s3", name: say("Raid Regular", "Habitué des raids"), description: say("Attend 5 raids.", "Participe à 5 raids."), tier: "gold", tierColor: "#ffd100", tierLabel: say("Gold", "Or"), set, rank: null, threshold: 5, earnedAt: null }
+  ] };
+};
 
 /** The painted badge (tier frame + emblem, served by the site) when the card has an emblem; the plain code-drawn medal when it has none or a picture cannot load. */
 function Medal({ card, earned, origin }: { card: AlbumCard; earned: boolean; origin: string | null }) {
@@ -53,7 +58,7 @@ export function AlbumScreen({ lang, session }: { lang: Lang; session: Session | 
   useEffect(() => {
     let active = true;
     setError(null);
-    if (!session) { setAlbum(parseAlbum(sampleBody)); return () => { active = false; }; }
+    if (!session) { setAlbum(parseAlbum(sampleBody(lang))); return () => { active = false; }; }
     new GuildedClient(session.apiOrigin, session.companionCredential).album(lang)
       .then((data) => { if (active) setAlbum(data); })
       .catch(async (e: unknown) => {

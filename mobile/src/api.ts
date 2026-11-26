@@ -622,6 +622,12 @@ export class GuildedClient {
     if (status !== 200) throw new ApiError(messageOf(body, "That request was not sent."), status);
   }
 
+  /** Cancels one of my own craft requests. 404/405 from an older server reads as "not offered". */
+  async cancelCraft(guildDiscordId: string, id: string): Promise<void> {
+    const { status, body } = await this.call("/api/v1/me/craft-request/cancel", { method: "POST", body: { guildDiscordId, id } });
+    if (status !== 200) throw new ApiError(messageOf(body, "That request was not cancelled."), status);
+  }
+
   /** The guild activity feed of one server (0.6.0). 404/405: this server does not offer it yet. */
   async guildFeed(guildDiscordId: string): Promise<unknown> {
     const { status, body } = await this.call(`/api/v1/me/guild-feed?guild=${encodeURIComponent(guildDiscordId)}`);

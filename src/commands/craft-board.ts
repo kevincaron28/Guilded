@@ -441,6 +441,10 @@ export async function announceOrderChanges(client: Client, discordGuildId: strin
         : change.action === "done" ? tx(lang, "✅ Your {item} is crafted by {crafter}. Check your mail or arrange a trade.", { item, crafter })
         : null;
       if (text) await client.users.send(request.requester.discordUserId, { content: text, allowedMentions: { parse: [] } }).catch(() => undefined);
+      // A cancel made outside Discord tells the crafter who had taken it, as the Discord button does.
+      if (change.action === "cancel" && request.crafter) {
+        await client.users.send(request.crafter.discordUserId, { content: tx(lang, "The craft request for {item} was cancelled.", { item }), allowedMentions: { parse: [] } }).catch(() => undefined);
+      }
     } catch (error) {
       console.warn("Craft order update from the game failed to reach Discord", error);
     }

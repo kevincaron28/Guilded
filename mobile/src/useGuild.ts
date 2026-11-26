@@ -198,7 +198,7 @@ export function useGuild(defaultOrigin: string) {
       if (sessionRef.current?.companionCredential !== session.companionCredential) return;
       setRemoteOn(!remoteOn);
     } catch (error) {
-      setPushNotice(error instanceof PushSetupError ? error.message : errorText(error, lang, t(lang, "alertsDenied")));
+      setPushNotice(error instanceof PushSetupError ? t(lang, error.key) : errorText(error, lang, t(lang, "alertsDenied")));
       setPushNeedsSettings(error instanceof PushSetupError && error.needsSettings);
     }
     finally { setPushBusy(false); }
@@ -213,7 +213,7 @@ export function useGuild(defaultOrigin: string) {
       if (sessionRef.current?.companionCredential !== session.companionCredential) return;
       setPushKinds((current) => ({ ...current, [kind]: on }));
     } catch (error) {
-      setPushNotice(error instanceof PushSetupError ? error.message : errorText(error, lang, t(lang, "alertsDenied")));
+      setPushNotice(error instanceof PushSetupError ? t(lang, error.key) : errorText(error, lang, t(lang, "alertsDenied")));
     }
     finally { setPushBusy(false); }
   };

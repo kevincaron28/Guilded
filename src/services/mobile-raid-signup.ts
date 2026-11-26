@@ -21,7 +21,7 @@ export type SignupResult =
   | { status: "closed"; closesAt: string | null }
   | { status: "refused"; message: string };
 
-type Db = Pick<PrismaClient, "member" | "raid">;
+type Db = Pick<PrismaClient, "member" | "raid" | "guildSettings" | "character">;
 type Raids = Pick<RaidService, "signup" | "cancelSignup">;
 type Promoted = Awaited<ReturnType<RaidService["cancelSignup"]>>["promoted"];
 export interface SignupEffects { guildId: string; guildDiscordId: string; raidId: string; promoted: Promoted; bumped: Awaited<ReturnType<RaidService["signup"]>>["bumped"] }
@@ -33,6 +33,17 @@ async function memberIn(database: Db, discordUserId: string, guildDiscordId: unk
 
 const view = (raidId: string, closesAt: Date | null, row: { status: SignupState; role: RaidRole; late: boolean } | null | undefined): MySignup =>
   ({ raidId, status: row?.status ?? null, role: row?.role ?? null, late: row?.late ?? false, closesAt: closesAt ? closesAt.toISOString() : null });
+
+/**
+ * The character a phone answer is for, on a server with character sign-ups on (the phone has no picker): the one already on this
+ * raid's sign-up, else the main. Undefined elsewhere, and when there is neither: raidService then takes the only character or says so.
+ */
+async function signupCharacterFor(database: Db, member: { id: string; guildId: string }, signedUpAs: string | null | undefined): Promise<string | undefined> {
+  const settings = await database.guildSettings.findUnique({ where: { guildId: member.guildId }, select: { characterSignups: true } });
+  if (!settings?.characterSignups) return undefined;
+  if (signedUpAs) return signedUpAs;
+  return (await database.character.findFirst({ where: { memberId: member.id, isMain: true }, select: { id: true } }))?.id;
+}
 
 /** The member's own answer on each upcoming raid of one server (empty when they are not in it). */
 export async function mySignupsFor(database: Db, discordUserId: string, guildDiscordId: unknown, allows: (id: string) => boolean = () => true, now = new Date()): Promise<{ raids: MySignup[] }> {
@@ -57,7 +68,7 @@ export async function signUpFor(
   if (!member) return { status: "gone" };
   const raid = await database.raid.findFirst({
     where: { id: raidId, guildId: member.guildId, isTest: false }, select: { id: true, status: true, signupsCloseAt: true,
-      signups: { where: { memberId: member.id }, select: { status: true, role: true, late: true }, take: 1 } }
+      signups: { where: { memberId: member.id }, select: { status: true, role: true, late: true, characterId: true }, take: 1 } }
   });
   if (!raid || raid.status !== "PLANNED") return { status: "gone" };
   const existing = raid.signups[0];
@@ -73,7 +84,8 @@ export async function signUpFor(
     // Maybe keeps the current role (DPS when there is none), as the post's Maybe button does.
     const active = existing && existing.status !== "CANCELLED" ? existing : null;
     const role = (input.role as RaidRole | undefined) ?? active?.role ?? "DPS";
-    const saved = await raids.signup(raid.id, member.guildId, member.id, role, choice === "MAYBE" ? "MAYBE" : "AVAILABLE", undefined, true);
+    const character = await signupCharacterFor(database, member, existing?.characterId);
+    const saved = await raids.signup(raid.id, member.guildId, member.id, role, choice === "MAYBE" ? "MAYBE" : "AVAILABLE", character, true);
     await after({ guildId: member.guildId, guildDiscordId, raidId: raid.id, promoted: saved.promoted, bumped: saved.bumped });
     return { status: "ok", signup: view(raid.id, raid.signupsCloseAt, saved as { status: SignupState; role: RaidRole; late: boolean }) };
   } catch (error) {

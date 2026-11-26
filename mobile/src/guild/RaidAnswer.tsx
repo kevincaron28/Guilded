@@ -53,6 +53,9 @@ export function RaidAnswer({ lang, raidId, mine, onAnswer }: { lang: Lang; raidI
       </View>
     </>}
     {status ? <Text style={common.muted} accessibilityLiveRegion="polite">{status}</Text> : null}
+    {/* A role tap alone changes nothing on the server: say how to save it, so nobody thinks they switched. */}
+    {!shut && role && mine?.role && role !== mine.role && (current === "YES" || current === "MAYBE")
+      ? <Text style={common.error} accessibilityRole="alert">{t(lang, "signupRoleChanged", { choice: t(lang, current === "YES" ? "signupYes" : "signupMaybe") })}</Text> : null}
     {problem ? <Text style={common.error} accessibilityRole="alert">{problem}</Text> : null}
   </View>;
 }

@@ -29,7 +29,11 @@ const words = {
   claimed: { en: "claimed by {name}", fr: "prise par {name}" },
   forYou: { en: "you are crafting it", fr: "tu la fabriques" },
   failed: { en: "Crafting is unavailable right now.", fr: "L'artisanat est indisponible pour le moment." },
-  notSent: { en: "That request was not sent.", fr: "Cette demande n'a pas été envoyée." }
+  notSent: { en: "That request was not sent.", fr: "Cette demande n'a pas été envoyée." },
+  cancelIt: { en: "Cancel request", fr: "Annuler la demande" },
+  confirmCancel: { en: "Tap again to cancel", fr: "Touche encore pour annuler" },
+  cancelled: { en: "Request cancelled.", fr: "Demande annulée." },
+  notCancelled: { en: "That request was not cancelled.", fr: "Cette demande n'a pas été annulée." }
 } as const;
 const w = (key: keyof typeof words, lang: Lang) => words[key][lang];
 
@@ -43,7 +47,22 @@ export function CraftScreen({ lang, session }: { lang: Lang; session: Session | 
   const [done, setDone] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const latest = useRef(0);
-
+  // Cancelling takes two taps: the first arms the button for that request.
+  const [arming, setArming] = useState<string | null>(null);
+  const cancelling = useRef(false);
+  const cancelRequest = async (id: string) => {
+    if (arming !== id) { setArming(id); return; }
+    if (cancelling.current) return;
+    cancelling.current = true; setDone(null); setError(null);
+    try {
+      if (session) await new GuildedClient(session.apiOrigin, session.companionCredential).cancelCraft(session.guildDiscordId, id);
+      setDone(session ? w("cancelled", lang) : w("sampleSent", lang));
+      setReload((n) => n + 1);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) await clearSession();
+      setError(errorText(e, lang, w("notCancelled", lang)));
+    } finally { cancelling.current = false; setArming(null); }
+  };
   // Searches 400 ms after the last key, and loads my requests on open; an older answer never replaces a newer one.
   useEffect(() => {
     const request = ++latest.current;
@@ -83,8 +102,13 @@ export function CraftScreen({ lang, session }: { lang: Lang; session: Session | 
       </Pressable>) : null}
     <Text style={common.label}>{w("mine", lang)}</Text>
     {!data ? null : data.requests.length === 0 ? <Text style={common.muted}>{w("noMine", lang)}</Text> : data.requests.map((row) => <View key={row.id} style={common.row}>
-      <Text style={[common.body, { flex: 1 }]}>{row.quantity > 1 ? `${row.quantity} × ` : ""}{row.item}</Text>
-      <Text style={common.muted}>{!row.mine ? w("forYou", lang) : row.status === "CLAIMED" ? w("claimed", lang).replace("{name}", row.crafter ?? "?") : w("open", lang)}</Text>
+      <View style={{ flex: 1 }}>
+        <Text style={common.body}>{row.quantity > 1 ? `${row.quantity} × ` : ""}{row.item}</Text>
+        <Text style={common.muted}>{!row.mine ? w("forYou", lang) : row.status === "CLAIMED" ? w("claimed", lang).replace("{name}", row.crafter ?? "?") : w("open", lang)}</Text>
+      </View>
+      {row.mine ? <Pressable onPress={() => void cancelRequest(row.id)} accessibilityRole="button" accessibilityLabel={`${w(arming === row.id ? "confirmCancel" : "cancelIt", lang)}, ${row.item}`} style={{ minHeight: 44, justifyContent: "center" }}>
+        <Text style={common.textButtonLabel}>{w(arming === row.id ? "confirmCancel" : "cancelIt", lang)}</Text>
+      </Pressable> : null}
     </View>)}
   </>;
 }

@@ -1,6 +1,6 @@
 # Guilded privacy / Confidentialité
 
-Last updated / Dernière mise à jour : 12 November / novembre 2026.
+Last updated / Dernière mise à jour : 26 November / novembre 2026.
 
 ## English
 
@@ -29,25 +29,48 @@ its own operator; contact that operator about its hosting and retention choices.
 
 ### Information used and why
 
-On Android, public rankings are available without signing in. Connecting a guild
-stores a device credential in Android-backed secure storage. The phone uses it
-to request your guild data and send wishlist changes to the server you selected.
-Discord handles browser sign-in. The fictional sample guild needs no guild account.
+On Android, public rankings and news are available without signing in. Connecting
+a guild stores a device credential in Android-backed secure storage. The phone
+uses it to read your data and your guild's data from the server you selected, and
+the app renews it from time to time. Discord handles browser sign-in. The fictional
+sample guild needs no guild account.
+
+Signed in, the app sends only what you ask it to do:
+
+- your wishlist changes (item, priority and character);
+- your raid answers (I'm in, Maybe or Can't come) and role;
+- making one of your characters your main, or unlinking it;
+- the text of a crafting search, used to answer it and not stored;
+- craft requests: the item, quantity, an optional character and an optional note of
+  up to 300 characters, which your guild can see;
+- your map-sharing switch (turning it off deletes your stored positions);
+- signing out, and **Delete my data**.
+
+If the app breaks and you press **Send error report**, it sends the error text, a
+short technical trace with links and file paths removed, the app version, platform
+and screen name, without your name, sign-in or guild data. Nothing is sent
+automatically.
 
 Local reminders use the raid schedule already downloaded by your phone. If you
-enable remote raid alerts, your guild server associates an Expo push token and
-language preference with your device connection. It processes upcoming raid
-details and delivery status so it can send reminders and schedule changes.
-Expo and Firebase Cloud Messaging process the token and notification payload
-for Android delivery. Notification text can appear on your lock screen.
-Turn off remote alerts in the app while connected to stop server delivery.
+enable push alerts, your guild server associates an Expo push token, your alert
+choices (raids, calls for help, open raid spots) and your language with your device
+connection, and keeps raid details and delivery status so it can send reminders,
+schedule changes and cancellations. A call-for-help alert shows the caller's
+character name and zone. Expo and Firebase Cloud Messaging process the token and
+notification text for Android delivery, and that text can appear on your lock screen.
+Turn off push alerts in the app while connected to stop server delivery.
 If you lose access to the phone, revoke the connection through your Guilded
 account. Android notification settings also let you silence the app.
 
-Builds configured for Expo Updates contact Expo to check for a compatible app
-update. These requests include technical information such as the app platform,
-update channel and runtime version. Request account or associated data deletion
-using the contact instructions below.
+The app keeps the last public boards and news and your guild views on the phone so
+they show offline. Signing out or **Delete my data** erases the saved guild views;
+clearing the app's storage in Android erases everything it saved.
+
+At each launch, builds configured for Expo Updates contact Expo to check for a
+compatible app update. The request includes the app version, platform, update
+channel and a random installation identifier that is not tied to your account.
+In the app, **Me > Settings > Delete my data** deletes your account data; you can
+also ask using the contact instructions below.
 
 Optional weekly recap delivery stores your chosen schedule, timezone, quiet hours,
 on/off preference and latest delivery receipt. It sends a private Discord message
@@ -126,8 +149,9 @@ standalone editions can store configuration as JSON; protect access to your
 Windows account and do not share configuration files or pairing codes.
 
 The configured Guilded server receives synchronized records. Project hosting uses
-Oracle infrastructure, Aiven PostgreSQL and Cloudflare delivery; providers process
-the information needed to deliver their services. Independently hosted guilds
+Oracle servers, including a PostgreSQL database the project runs itself (moved from
+Aiven on 20 November 2026) with nightly backups, and Cloudflare delivery; providers
+process the information needed to deliver their services. Independently hosted guilds
 choose their own infrastructure. Discord handles sign-in and guild messages;
 Microsoft handles Store installation and updates. External services have their
 own privacy notices. Data may be processed outside your country.
@@ -255,28 +279,52 @@ serveur a son propre exploitant, à contacter pour son hébergement et sa conser
 
 ### Données utilisées et finalités
 
-Sur Android, les classements publics sont accessibles sans connexion. Lorsque
-vous connectez une guilde, le téléphone conserve un identifiant de connexion
-dans le stockage sécurisé d’Android. Il l’utilise pour consulter les données de
-guilde et envoyer vos modifications de liste de souhaits au serveur choisi.
-Discord gère la connexion dans le navigateur. La guilde fictive est accessible
-sans compte de guilde.
+Sur Android, les classements publics et les nouvelles sont accessibles sans
+connexion. Lorsque vous connectez une guilde, le téléphone conserve un identifiant
+de connexion dans le stockage sécurisé d’Android. Il l’utilise pour consulter vos
+données et celles de votre guilde sur le serveur choisi, et l’appli le renouvelle de
+temps à autre. Discord gère la connexion dans le navigateur. La guilde fictive est
+accessible sans compte de guilde.
+
+Une fois connectée, l’appli n’envoie que ce que vous lui demandez de faire :
+
+- vos modifications de liste de souhaits (objet, priorité et personnage) ;
+- vos réponses aux raids (présent, peut-être ou absent) et votre rôle ;
+- le choix d’un de vos personnages comme principal, ou sa dissociation ;
+- le texte d’une recherche d’artisanat, qui sert à y répondre et n’est pas conservé ;
+- les demandes d’artisanat : l’objet, la quantité, un personnage facultatif et une
+  note facultative d’au plus 300 caractères, que votre guilde peut voir ;
+- l’interrupteur de partage sur la carte (le couper efface vos positions gardées) ;
+- la déconnexion et **Supprimer mes données**.
+
+Si l’appli plante et que vous appuyez sur **Envoyer le rapport d’erreur**, elle
+envoie le texte de l’erreur, une courte trace technique sans liens ni chemins de
+fichiers, la version de l’appli, la plateforme et le nom de l’écran, sans votre nom,
+votre connexion ni les données de guilde. Rien n’est envoyé automatiquement.
 
 Les rappels locaux utilisent le calendrier déjà téléchargé sur le téléphone.
-Si vous activez les alertes à distance, le serveur associe un jeton Expo et une
-préférence de langue à votre connexion. Il traite les renseignements sur les
-raids à venir et le suivi des envois pour vous informer des rappels et des
-changements. Expo et Firebase Cloud Messaging traitent le jeton et le contenu
-pour livrer les alertes Android. Le texte peut apparaître sur l’écran verrouillé.
-Désactivez les alertes à distance dans l’appli lorsque vous avez une connexion.
-Si vous perdez le téléphone, révoquez la connexion depuis votre compte Guilded.
-Les réglages Android permettent aussi de mettre les notifications en sourdine.
+Si vous activez les alertes poussées, le serveur associe à votre connexion un jeton
+Expo, vos choix d’alertes (raids, appels à l’aide, places de raid libérées) et votre
+langue, et garde les renseignements sur les raids et le suivi des envois pour vous
+envoyer les rappels, les changements et les annulations. Une alerte d’appel à l’aide
+montre le nom du personnage qui appelle et sa zone. Expo et Firebase Cloud Messaging
+traitent le jeton et le texte pour livrer les alertes Android, et ce texte peut
+apparaître sur l’écran verrouillé. Désactivez les alertes poussées dans l’appli
+lorsque vous avez une connexion. Si vous perdez le téléphone, révoquez la connexion
+depuis votre compte Guilded. Les réglages Android permettent aussi de mettre les
+notifications en sourdine.
 
-Les versions configurées pour Expo Updates contactent Expo pour vérifier la
-disponibilité d’une mise à jour compatible. La requête inclut des données
-techniques comme la plateforme, le canal et la version d’exécution. Pour
-demander la suppression du compte ou de ses données, utilisez les coordonnées
-ci-dessous.
+L’appli garde sur le téléphone les derniers classements publics, les nouvelles et vos
+vues de guilde pour les afficher hors ligne. La déconnexion ou **Supprimer mes
+données** efface les vues de guilde enregistrées ; effacer le stockage de l’appli dans
+Android efface tout ce qu’elle a enregistré.
+
+À chaque lancement, les versions configurées pour Expo Updates contactent Expo pour
+vérifier la disponibilité d’une mise à jour compatible. La requête inclut la version
+de l’appli, la plateforme, le canal et un identifiant d’installation aléatoire qui
+n’est pas lié à votre compte. Dans l’appli, **Moi > Réglages > Supprimer mes
+données** efface les données de votre compte ; vous pouvez aussi le demander avec les
+coordonnées ci-dessous.
 
 Le compagnon utilise les fichiers de jeu sélectionnés pour la synchronisation.
 Les données WoW peuvent comprendre les noms et royaumes des personnages, la guilde
@@ -359,7 +407,9 @@ Les éditions autonomes existantes peuvent conserver la configuration en JSON;
 protégez votre compte Windows et ne partagez pas ces fichiers ni vos codes.
 
 Le serveur Guilded configuré reçoit les données synchronisées. Le service du
-projet utilise Oracle, Aiven PostgreSQL et Cloudflare; ces fournisseurs traitent
+projet utilise des serveurs Oracle, dont une base de données PostgreSQL que le projet
+exploite lui-même (déplacée d’Aiven le 20 novembre 2026) avec des sauvegardes
+quotidiennes, et Cloudflare; ces fournisseurs traitent
 les données nécessaires à leurs services. Les guildes autonomes choisissent leurs
 fournisseurs. Discord gère la connexion et les messages; Microsoft gère le Store
 et ses mises à jour. Leurs politiques s'appliquent également. Le traitement peut

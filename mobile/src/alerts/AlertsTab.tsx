@@ -1,5 +1,6 @@
 import { Linking, Pressable, Switch, Text, View } from "react-native";
 import { t, type CopyKey } from "../i18n";
+import { SignInAgain } from "../guild/SignInAgain";
 import type { GuildState } from "../useGuild";
 import { Card, Screen, SignInCard, colors } from "../ui";
 import { common } from "../ui/common";
@@ -7,9 +8,8 @@ import { Alerts } from "./AlertsList";
 import type { PushKinds } from "../api";
 
 // Alerts tab: on-device raid reminders, then push from the guild server (src/services/mobile-alerts.ts, mobile-notices.ts).
-// 0.6.0: help calls and raid spots are sent (each with its own switch); the dungeon-group alert is still to come.
+// 0.6.0: help calls and raid spots are sent, each with its own switch.
 const PUSH_KINDS: { key: keyof PushKinds; label: CopyKey }[] = [{ key: "helpCalls", label: "pushHelp" }, { key: "raidSpots", label: "pushRaid" }];
-const PUSH_ROWS: CopyKey[] = ["pushDungeon"];
 
 export function AlertsTab({ guild, onSignIn }: { guild: GuildState; onSignIn: () => void }) {
   const { lang } = guild;
@@ -17,11 +17,12 @@ export function AlertsTab({ guild, onSignIn }: { guild: GuildState; onSignIn: ()
   if (guild.session?.personal && !guild.preview) return <Screen>
     <Text style={common.title}>{t(lang, "personalTitle")}</Text>
     <Text style={common.intro}>{t(lang, "personalBody")}</Text>
+    <SignInAgain guild={guild} onDone={onSignIn} />
   </Screen>;
   if (!guild.hasGuild) return <Screen><SignInCard lang={lang} onSignIn={onSignIn} /></Screen>;
   return <Screen onRefresh={guild.refresh}>
     {guild.preview ? <Text style={common.banner}>{t(lang, "sampleBanner")}</Text> : null}
-    <Alerts lang={lang} preview={guild.preview} remindersOn={guild.remindersOn} setRemindersOn={guild.setRemindersOn}
+    <Alerts lang={lang} preview={guild.preview} remindersOn={guild.remindersOn} remoteOn={guild.remoteOn} setRemindersOn={guild.setRemindersOn}
       planned={guild.planned} imminent={guild.imminent} sync={guild.reminderSync} />
     <Card>
       <Text style={common.heroTitle}>{t(lang, "pushTitle")}</Text>
@@ -41,12 +42,6 @@ export function AlertsTab({ guild, onSignIn }: { guild: GuildState; onSignIn: ()
       {guild.pushNeedsSettings ? <Pressable onPress={() => void Linking.openSettings().catch(() => {})} accessibilityRole="button" accessibilityLabel={t(lang, "openSettings")} style={common.secondary}>
         <Text style={common.secondaryText}>{t(lang, "openSettings")}</Text>
       </Pressable> : null}
-    </Card>
-    {/* Not sent by the server yet: a plain list instead of switches that can never be turned on. */}
-    <Card edge={null}>
-      <Text style={common.label}>{t(lang, "pushLater").toUpperCase()}</Text>
-      <Text style={common.muted}>{t(lang, "pushLaterBody")}</Text>
-      {PUSH_ROWS.map((key) => <Text key={key} style={common.body}>{`· ${t(lang, key)}`}</Text>)}
     </Card>
   </Screen>;
 }

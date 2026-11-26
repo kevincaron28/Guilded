@@ -175,13 +175,15 @@ export async function runMobileAlerts(database: PrismaClient, client: Client, no
       if (!member) { await drop(database, delivery.id); continue; }
       const discordEventId = alert.raidId.startsWith("discord:") ? alert.raidId.slice(8) : null;
       const event = discordEventId ? (await client.rest.get(Routes.guildScheduledEvents(owner.guild.discordId)) as APIGuildScheduledEvent[]).find(e => e.id === discordEventId && e.guild_id === owner.guild.discordId) : null;
-      const raid = discordEventId ? null : await database.raid.findFirst({ where: { id: alert.raidId, guildId: owner.guildId, isTest: false } });
+      const raid = discordEventId ? null : await database.raid.findFirst({ where: { id: alert.raidId, guildId: owner.guildId, isTest: false }, include: { signups: { where: { memberId: owner.id }, select: { status: true }, take: 1 } } });
       if (event && !await canSeeRaid(member, event.channel_id)) { await drop(database, delivery.id); continue; }
       if (raid && !await canSeeRaid(member, raid.signupChannelId)) { await drop(database, delivery.id); continue; }
       const valid = discordEventId
         ? alert.kind === "cancelled" ? !event || event.status === 4 : event?.status === 1 && new Date(event.scheduled_start_time).toISOString() === alert.state.at && event.name.slice(0, 30) === alert.state.title && Date.parse(alert.state.at) > now.getTime()
         : alert.kind === "cancelled" ? !raid || raid.status === "CANCELLED" : raid?.status === "PLANNED" && raid.scheduledAt.toISOString() === alert.state.at && raid.title.slice(0, 30) === alert.state.title && raid.scheduledAt > now;
       if (!valid) { await drop(database, delivery.id); continue; }
+      // "Can't come" gets no reminder, as the app promises. Read at delivery time, so a late answer counts; changes and cancellations still arrive.
+      if (alert.kind === "reminder" && raid?.signups?.[0]?.status === "CANCELLED") { await drop(database, delivery.id); continue; }
       const stillEnabled = await database.mobileDevice.count({ where: { id: device.id, generation: delivery.generation, enabled: true, expoPushToken: device.expoPushToken, credential: { revokedAt: null, member: { status: "ACTIVE" } } } });
       if (!stillEnabled) { await drop(database, delivery.id); continue; }
       const fr = device.locale === "fr";

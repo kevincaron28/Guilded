@@ -15,6 +15,8 @@ Une page pour l’officier qui mène le raid : avant, pendant et après. Les rè
    tapent `/guilded reserve` suivi d’un lien d’objet (Maj + clic), ou chuchotent `res` et le lien à cet
    officier. C’est le jeu de cet officier qui garde la liste, il doit donc être en ligne. Tapez
    `/guilded reserve lock` au début du raid.
+   Tant que la liste est ouverte, les membres peuvent aussi demander avec `/loot reserve` sur Discord ou
+   dans l’application ; la demande est ajoutée au prochain `/reload` de cet officier.
 5. **Mettez tout le monde à jour :** l’addon et le compagnon doivent être à la version courante.
 
 ## Pendant

@@ -23,7 +23,9 @@
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0b0c0b"
+        "backgroundImage": "./assets/adaptive-background.png",
+        "monochromeImage": "./assets/adaptive-monochrome.png",
+        "backgroundColor": "#041a48"
       },
       "intentFilters": [
         {
@@ -73,6 +75,7 @@
       [
         "expo-notifications",
         {
+          "icon": "./assets/notification-icon.png",
           "color": "#d5ad57",
           "defaultChannel": "raids",
           "enableRemoteNotifications": true

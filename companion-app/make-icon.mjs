@@ -1,11 +1,13 @@
 import { copyFileSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-const source = fileURLToPath(new URL("../docs/branding/guilded-logo-400.png", import.meta.url));
+// The emblem without lettering for the app, installer and tray (readable at 16 px); the lettered logo inside the window.
+const source = fileURLToPath(new URL("./branding/emblem.png", import.meta.url));
+const lettered = fileURLToPath(new URL("../docs/branding/guilded-logo-400.png", import.meta.url));
 const assets = fileURLToPath(new URL("./assets/", import.meta.url));
 mkdirSync(assets, { recursive: true });
-// Use the owner's logo throughout the app, installer and tray.
+// Use the owner's emblem for the app, installer and tray.
 for (const name of ["icon.png", "tray-ok.png", "tray-error.png", "tray-setup.png"]) copyFileSync(source, assets + "/" + name);
-copyFileSync(source, fileURLToPath(new URL("./renderer/logo.png", import.meta.url)));
+copyFileSync(lettered, fileURLToPath(new URL("./renderer/logo.png", import.meta.url)));
 
 // Problems panel (8.5): the same logo with a red "!" for the tray, and the "!" alone for the
 // taskbar overlay. Without sharp (a root dependency) the tray falls back to tray-error.png.

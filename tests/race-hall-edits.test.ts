@@ -129,7 +129,9 @@ describe("officer Hall of Fame edits", () => {
     expect(await addHallEntry(db as never, channel as never, "g1", { name: "Somebody Else", className: "wizard" }, [], "en")).toEqual({ ok: false, error: "bad-class" });
     expect(await addHallEntry(db as never, channel as never, "g1", { name: "Off Board", className: "mage" }, [], "en")).toEqual({ ok: false, error: "exists" });
     expect(channel.send).not.toHaveBeenCalled();
-    expect((await addHallEntry(db as never, channel as never, "g1", { name: "Somebody Else", className: "death knight" }, [], "en"))).toMatchObject({ ok: true, entry: { className: "Death Knight", order: 2 } });
+    // A class that WoW Forever does not have cannot be picked.
+    expect(await addHallEntry(db as never, channel as never, "g1", { name: "Somebody Else", className: "death knight" }, [], "en")).toEqual({ ok: false, error: "bad-class" });
+    expect((await addHallEntry(db as never, channel as never, "g1", { name: "Somebody Else", className: " warlock " }, [], "en"))).toMatchObject({ ok: true, entry: { className: "Warlock", order: 2 } });
   });
   it("brings back a removed entry under its old number", async () => {
     const { db, rows } = fakeDb([stored({ id: "e0", nameKey: "aria stone", order: 1, name: "Aria Stone", removed: true, posted: false })]);

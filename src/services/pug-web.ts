@@ -2,7 +2,7 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import { currentEdition } from "./edition-context.js";
 import { PUG_EDITION_LABEL, pugRoleLabel } from "./pug-discord.js";
 import { PUG_ROLES, PugError, publicPugRequests, signUpForPug, type PublicPugRequest } from "./pug-requests.js";
-import { CLASSES } from "../wow-data.js";
+import { FOREVER_CLASSES } from "../wow-data.js";
 import { escapeHtml as h, link } from "./web-layout.js";
 import type { WebContext, WebRoute } from "./web-app.js";
 
@@ -22,7 +22,7 @@ export function createPugWeb(db: PrismaClient, allows: (discordGuildId: string) 
       ? `<form method="post" action="${h(link(PUG_PAGE, lang))}"><input type="hidden" name="csrf" value="${h(ctx.csrf ?? "")}"><input type="hidden" name="request" value="${h(request.id)}">
 <label>${t("Role", "Rôle")} <select name="role">${PUG_ROLES.filter(role => request.open[role] > 0).map(role => `<option value="${role}">${h(pugRoleLabel(role, lang))}</option>`).join("")}</select></label>
 <label>${t("Character", "Personnage")} <input name="character" required minlength="2" maxlength="24"></label>
-<label>${t("Class", "Classe")} <select name="class"><option value="">—</option>${CLASSES.map(name => `<option>${h(name)}</option>`).join("")}</select></label>
+<label>${t("Class", "Classe")} <select name="class"><option value="">—</option>${FOREVER_CLASSES.map(name => `<option>${h(name)}</option>`).join("")}</select></label>
 <label>${t("Note", "Note")} <input name="note" maxlength="120"></label>
 <button class="button" type="submit">${t("Sign up", "S'inscrire")}</button></form>`
       : `<p><a class="button" href="${h(link("/auth/login", lang, { return: link(PUG_PAGE, lang) }))}">${t("Sign in with Discord to sign up", "Connexion avec Discord pour s'inscrire")}</a></p>`;

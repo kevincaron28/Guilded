@@ -9,6 +9,7 @@
 <li data-guide><a href="/guide/link-character/"><img class="guide-icon" src="/images/web/guide-link.webp" alt="" width="48" height="48" loading="lazy">Link your character<small>Connect your Discord and your characters.</small></a></li>
 <li data-guide><a href="/guide/dungeons/"><img class="guide-icon" src="/images/web/guide-dungeons.webp" alt="" width="48" height="48" loading="lazy">Dungeons and scores<small>How runs are counted and scored.</small></a></li>
 <li data-guide><a href="/guide/officers/"><img class="guide-icon" src="/images/web/guide-officers.webp" alt="" width="48" height="48" loading="lazy">Officers<small>Run your guild with Guilded.</small></a></li>
+<li data-guide><a href="/guide/raid-night/"><img class="guide-icon" src="/images/web/guide-officers.webp" alt="" width="48" height="48" loading="lazy">Raid night<small>Signups, reserves, attendance and loot.</small></a></li>
 <li data-guide><a href="/guide/epgp/"><img class="guide-icon" src="/images/web/guide-epgp.webp" alt="" width="48" height="48" loading="lazy">EP/GP and loot<small>Standings, rules and loot.</small></a></li>
 <li data-guide><a href="/guide/discord-bot/"><img class="guide-icon" src="/images/web/guide-discord.webp" alt="" width="48" height="48" loading="lazy">Add the Discord bot<small>Optional, for your server.</small></a></li>
 <li data-guide><a href="/guide/self-host/"><img class="guide-icon" src="/images/web/guide-selfhost.webp" alt="" width="48" height="48" loading="lazy">Host your own bot<small>For the technical.</small></a></li>

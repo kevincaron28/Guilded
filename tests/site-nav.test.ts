@@ -88,8 +88,8 @@ describe("site menu", () => {
 
   it("keeps French across the product, guide and public-page navigation", () => {
     const html = page("/leaderboards/", "fr");
-    expect(html).toContain('href="/fr/features/"');
-    expect(html).toContain('href="/guides/install/"');
+    expect(html).toContain('href="/fr/#features"');
+    expect(html).toContain('href="/fr/guides/install/"');
     expect(html).not.toContain("QUICK_START");
     expect(html).not.toContain("MEMBER_INSTALL");
     expect(html).toContain('href="/fr/editions/"');
@@ -101,6 +101,13 @@ describe("site menu", () => {
     expect(localizedHref("../../editions/classic-era/?lang=fr", "en")).toBe("../../editions/classic-era/?lang=en");
     expect(localizedHref("/companion/?tab=cores&lang=en#rules", "fr")).toBe("/companion/?tab=cores&lang=fr#rules");
     expect(localizedHref("/companion/?lang=fr", "en")).toBe("/companion/?lang=en");
+    // Guide articles and the other static pages keep a French visitor on their French address.
+    for (const path of ["/guide/install/", "/guide/link-character/", "/guides/link/", "/mobile/", "/status/", "/delete-my-data/", "/quebec-gold/"]) {
+      expect(localizedHref(path, "fr")).toBe(`/fr${path}`);
+      expect(localizedHref(`/fr${path}`, "en")).toBe(path);
+    }
+    expect(localizedHref("../../mobile/", "fr")).toBe("../../mobile/?lang=fr");
+    expect(localizedHref("/g/quebec-gold/", "fr")).toBe("/g/quebec-gold/");
     expect(localizedHref("../docs/MEMBER_INSTALL.html#fr", "en")).toBe("../docs/MEMBER_INSTALL.html");
     expect(localizedHref("../docs/MEMBER_INSTALL.html#quick-fixes", "fr")).toBe("../docs/MEMBER_INSTALL.html#quick-fixes");
   });

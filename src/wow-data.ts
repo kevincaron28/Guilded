@@ -2,10 +2,10 @@
 // Classes are a fixed choice (fits Discord's 25-choice limit); races, specs and
 // the rest are suggestions (autocomplete): typing anything else still works.
 
-export const CLASSES = [
-  "Warrior", "Paladin", "Hunter", "Rogue", "Priest", "Shaman", "Mage", "Warlock", "Druid",
-  "Death Knight", "Monk", "Demon Hunter", "Evoker"
-] as const;
+// WoW Forever's classes: every list a person picks or filters from.
+export const FOREVER_CLASSES = ["Warrior", "Paladin", "Hunter", "Rogue", "Priest", "Shaman", "Mage", "Warlock", "Druid"] as const;
+// Every class a stored row may name (old rows from the removed editions stay readable). Not for pickers.
+export const CLASSES = [...FOREVER_CLASSES, "Death Knight", "Monk", "Demon Hunter", "Evoker"] as const;
 
 export const RACES = [
   "Human", "Dwarf", "Night Elf", "Gnome", "Draenei", "Worgen", "Pandaren",
@@ -32,6 +32,10 @@ export const SPECS: Record<string, string[]> = {
   "Demon Hunter": ["Havoc", "Vengeance", "Devourer"],
   Evoker: ["Devastation", "Preservation", "Augmentation"]
 };
+
+// The specs to suggest: Forever's classes with the Classic talent trees (no Outlaw rogue, no Guardian druid).
+export const FOREVER_SPECS: Record<string, string[]> = Object.fromEntries(FOREVER_CLASSES.map((name) =>
+  [name, SPECS[name]!.filter((spec) => !(name === "Rogue" && spec === "Outlaw") && !(name === "Druid" && spec === "Guardian"))]));
 
 export const EP_REASONS = ["Raid attendance", "Boss kill", "On-time bonus", "Consumables", "Standby / bench", "Correction"];
 export const GP_REASONS = ["Loot: ", "Tier piece", "Off-spec item", "Correction"];

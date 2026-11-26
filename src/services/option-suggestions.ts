@@ -1,6 +1,6 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { currentEdition } from "./edition-context.js";
-import { AVAILABILITY, DURATIONS, EP_REASONS, GP_REASONS, PROFESSIONS, RACES, REVERSE_REASONS, SPECS, WEEKDAYS, pick } from "../wow-data.js";
+import { AVAILABILITY, DURATIONS, EP_REASONS, FOREVER_SPECS, GP_REASONS, PROFESSIONS, RACES, REVERSE_REASONS, WEEKDAYS, pick } from "../wow-data.js";
 import { formatRaidTime, parseRaidTime } from "./raid-time.js";
 
 // What autocomplete offers for the free-text options of the slash commands.
@@ -14,8 +14,8 @@ export const availabilitySuggestions = (query: string) => pick(AVAILABILITY, que
 
 // Specs for the class already chosen in the same command; every spec when none is.
 export function specSuggestions(className: string | null, query: string): Suggestion[] {
-  const known = className ? SPECS[className] : undefined;
-  return pick(known ?? [...new Set(Object.values(SPECS).flat())], query);
+  const known = className ? FOREVER_SPECS[className] : undefined;
+  return pick(known ?? [...new Set(Object.values(FOREVER_SPECS).flat())], query);
 }
 
 export function reasonSuggestions(subcommand: string | null, query: string): Suggestion[] {

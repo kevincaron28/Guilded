@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { commands } from "../src/commands/index.js";
-import { CLASSES, PROFESSIONS, SPECS, pick } from "../src/wow-data.js";
+import { FOREVER_CLASSES, PROFESSIONS, SPECS, pick } from "../src/wow-data.js";
 import { durationSuggestions, reasonSuggestions, specSuggestions, timeSuggestions } from "../src/services/option-suggestions.js";
 
-type Option = { name: string; description: string; required?: boolean; options?: Option[]; choices?: unknown[]; autocomplete?: boolean; type: number };
+type Option = { name: string; description: string; required?: boolean; options?: Option[]; choices?: { name: string }[]; autocomplete?: boolean; type: number };
 
 // Discord rejects a command when these are wrong, and the bot would fail to
 // register any command at all, so check the rules for every command here.
@@ -60,7 +60,11 @@ describe("slash command definitions follow Discord's rules", () => {
   it("offers dropdowns for class and profession", () => {
     const find = (command: string, ...path: string[]) =>
       path.reduce<Option | undefined>((node, name) => node?.options?.find((entry) => entry.name === name), all.find((entry) => entry.name === command));
-    expect(find("character", "add", "class")?.choices).toHaveLength(CLASSES.length);
+    // Pickers offer WoW Forever's classes only.
+    for (const choices of [find("character", "add", "class")?.choices, find("apply", "class")?.choices]) {
+      expect(choices?.map((choice) => choice.name)).toEqual([...FOREVER_CLASSES]);
+    }
+    expect(specSuggestions(null, "").map((row) => row.value).join()).not.toMatch(/Brewmaster|Havoc|Devastation|Unholy|Outlaw|Guardian/);
     expect(find("character", "profession", "set", "profession")?.choices).toHaveLength(PROFESSIONS.length);
     expect(find("character", "add", "spec")?.autocomplete).toBe(true);
     expect(find("character", "add", "realm")?.required).toBeFalsy();

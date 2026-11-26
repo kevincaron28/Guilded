@@ -121,6 +121,17 @@
     "draft": false
   },
   {
+    "source": "guide-raid-night.md",
+    "sourceFr": "guide-raid-night.fr.md",
+    "path": "guide/raid-night/",
+    "title": "Raid night",
+    "titleFr": "La soirée de raid",
+    "description": "Before, during and after a raid with Guilded: signups, reserves, attendance and loot.",
+    "descriptionFr": "Avant, pendant et après un raid avec Guilded : inscriptions, réservations, présences et butin.",
+    "lang": "en",
+    "draft": false
+  },
+  {
     "source": "guide-epgp.md",
     "sourceFr": "guide-epgp.fr.md",
     "path": "guide/epgp/",

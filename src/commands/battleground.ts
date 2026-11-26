@@ -128,7 +128,7 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
     await prisma.guildSettings.update({ where: { guildId: ctx.guildId }, data: { bgLadderEnabled: enabled } });
     const posted = enabled ? await updateBgLadder(i.guild) : false;
     await i.editReply({ content: enabled
-      ? t(`Battleground ladder ${posted ? "posted" : "on; it appears once the ladder channel exists (/setup)"}. It is edited in place, separate from the duel ladder.`, `Classement des champs de bataille ${posted ? "publié" : "activé ; il apparaîtra quand le salon du classement existera (/setup)"}. Il est modifié sur place, distinct de celui des duels.`)
+      ? t(`Battleground ladder ${posted ? "posted" : "on; it appears once the ladder channel exists (/setup start)"}. It is edited in place, separate from the duel ladder.`, `Classement des champs de bataille ${posted ? "publié" : "activé ; il apparaîtra quand le salon du classement existera (/setup start)"}. Il est modifié sur place, distinct de celui des duels.`)
       : t("Battleground ladder off. The existing message stays; delete it if you wish.", "Classement des champs de bataille désactivé. Le message existant reste ; supprime-le si tu le souhaites."), allowedMentions: { parse: [] } }); return;
   }
   if (sub === "world") {
@@ -158,7 +158,7 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
     const enabled = command?.options.getBoolean("enabled", true) ?? false;
     await prisma.guildSettings.update({ where: { guildId: ctx.guildId }, data: { pvpModuleEnabled: enabled } });
     await i.editReply({ content: enabled
-      ? t("PvP channels on (the default). Run /setup and press Create missing channels: it adds one PvP category (groups, results, ladder) and adopts battleground channels you already have. Nothing is posted until then.", "Salons JcJ activés (par défaut). Lance /setup et appuie sur Créer les salons manquants : une catégorie JcJ (groupes, résultats, classement) est ajoutée et tes salons de champs de bataille existants sont repris. Rien n'est publié avant.")
+      ? t("PvP channels on (the default). Run /setup start and press Create missing channels: it adds one PvP category (groups, results, ladder) and adopts battleground channels you already have. Nothing is posted until then.", "Salons JcJ activés (par défaut). Lance /setup start et appuie sur Créer les salons manquants : une catégorie JcJ (groupes, résultats, classement) est ajoutée et tes salons de champs de bataille existants sont repris. Rien n'est publié avant.")
       : t("PvP channels off. Existing channels and boards stay as they are.", "Salons JcJ désactivés. Les salons et tableaux existants restent en place."), allowedMentions: { parse: [] } }); return;
   }
   if (sub === "group-finder") {
@@ -171,7 +171,7 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
   if (sub === "duel-board") {
     const enabled = command?.options.getBoolean("enabled", true) ?? false;
     const settings = await prisma.guildSettings.findUniqueOrThrow({ where: { guildId: ctx.guildId }, select: { duelBoardChannelId: true } });
-    if (enabled && !settings.duelBoardChannelId) { await i.editReply({ content: t("The duel ladder channel does not exist yet: run /setup and press Create missing channels.", "Le salon du classement des duels n'existe pas encore : lance /setup et appuie sur Créer les salons manquants.") }); return; }
+    if (enabled && !settings.duelBoardChannelId) { await i.editReply({ content: t("The duel ladder channel does not exist yet: run /setup start and press Create missing channels.", "Le salon du classement des duels n'existe pas encore : lance /setup start et appuie sur Créer les salons manquants.") }); return; }
     await prisma.guildSettings.update({ where: { guildId: ctx.guildId }, data: { duelBoardEnabled: enabled } });
     const posted = enabled ? await updateDuelBoard(i.guild) : false;
     await i.editReply({ content: enabled

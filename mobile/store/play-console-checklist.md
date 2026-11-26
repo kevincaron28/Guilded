@@ -66,7 +66,7 @@ Every card needs **Save**; some need **Submit**. The answers are ready:
 | # | Step | Who |
 | --- | --- | --- |
 | 4.1 | App name, short and full description: the English blocks of [play-listing.md](play-listing.md). | Agent types |
-| 4.2 | Icon `icon-512.png`, feature graphic `feature-graphic-1024x500.png`, the seven phone screenshots in number order ([play-screenshots.md](play-screenshots.md)). | Agent uploads |
+| 4.2 | Icon `icon-512.png`, feature graphic `feature-graphic-1024x500.png`, the eight phone screenshots (each language has its own set) in number order ([play-screenshots.md](play-screenshots.md)). | Agent uploads |
 | 4.3 | **Save**. Then **Manage translations → Add your own translation text → French (Canada) – fr-CA**, paste the French blocks, **Save**. | Agent types, **Owner** checks the French |
 | 4.4 | **Store settings**: category **Entertainment** (not Social: Play then asks for a "Child safety standards" declaration meant for dating and social apps), email `support@guildedwow.com`, website `https://guildedwow.com` → **Save**. Check first that a message sent to that address reaches the owner. | **Owner** |
 

@@ -13,7 +13,7 @@ import { createCoreApplicationChannel } from "../services/core-channels.js";
 import { syncCoreRoster } from "../services/raid-core.js";
 import { officerId, officerModalId, parseOfficerId, parseOfficerModalId, type OfficerAction } from "../services/officer-buttons.js";
 import { guildService } from "./context.js";
-import { syncSignupEmbed } from "./raid.js";
+import { nextWeeklyText, syncSignupEmbed } from "./raid.js";
 
 // Officer buttons on the raid signup post and on a core's roster post (see services/officer-buttons.ts).
 // Every click and every modal submission re-checks the clicker's current Officer role and that the
@@ -142,23 +142,30 @@ export async function handleOfficerButton(interaction: ButtonInteraction, deps: 
       case "cancel":
         if (raid.status === "COMPLETED" || raid.status === "CANCELLED") { await reply(interaction, pick(lang, "This raid cannot be cancelled.", "Ce raid ne peut pas être annulé.")); return; }
         await interaction.update({
-          content: `⚠️ ${pick(lang, "Cancel", "Annuler")} ${raidLine(raid, lang)}\n${pick(lang, "The signup post will show Cancelled. Nobody is messaged unless you choose the ping option.", "Le message d'inscription indiquera Annulé. Personne n'est contacté sauf si tu choisis l'option avec mention.")}`,
+          content: `⚠️ ${pick(lang, "Cancel", "Annuler")} ${raidLine(raid, lang)}\n${pick(lang, "The signup post will show Cancelled. Nobody is messaged unless you choose the ping option.", "Le message d'inscription indiquera Annulé. Personne n'est contacté sauf si tu choisis l'option avec mention.")}${raid.repeatWeekly ? `\n${pick(lang, "It repeats weekly: cancelling skips this week and posts the next one, unless you end the repeat.", "Il revient chaque semaine : annuler saute cette semaine et publie le prochain, sauf si tu arrêtes la répétition.")}` : ""}`,
           components: [row(
             button(officerId("raid", raid.id, "cancel-ok"), pick(lang, "Confirm cancel", "Confirmer"), ButtonStyle.Danger),
             button(officerId("raid", raid.id, "cancel-ping"), pick(lang, "Cancel + ping signed-up", "Annuler + mentionner"), ButtonStyle.Danger),
+            ...(raid.repeatWeekly ? [button(officerId("raid", raid.id, "cancel-stop"), pick(lang, "Cancel + end weekly", "Annuler + fin hebdo"), ButtonStyle.Danger)] : []),
             button(officerId("raid", raid.id, "menu"), pick(lang, "Keep raid", "Garder")))]
         });
         return;
       case "cancel-ok":
+      case "cancel-stop":
       case "cancel-ping": {
         await interaction.deferUpdate();
-        const cancelled = await createRaidService(deps.db).cancel(raid.id, guildId);
+        const stopRepeating = id.action === "cancel-stop";
+        const raids = createRaidService(deps.db);
+        const cancelled = await raids.cancel(raid.id, guildId, { stopRepeating });
         const ping = id.action === "cancel-ping";
         await audit(deps, guildId, actorId, "RAID_OFFICER", raid.id, { change: "cancel", title: cancelled.title, ping });
         await refreshed();
+        // A weekly raid: cancelling skips this week, so the next one is posted.
+        const next = await raids.createNextRepeat(raid.id, guildId);
+        if (next) await deps.refreshRaid(interaction, guildId, next.id);
         let pinged = 0;
         if (ping) pinged = await pingSignedUp(interaction, deps, raid, lang);
-        await interaction.editReply({ content: `🚫 ${pick(lang, "Cancelled", "Annulé")}: **${cancelled.title}**${ping ? ` · ${pick(lang, `${pinged} member(s) pinged`, `${pinged} membre(s) mentionné(s)`)}` : ""}`, components: [] });
+        await interaction.editReply({ content: `🚫 ${pick(lang, "Cancelled", "Annulé")}: **${cancelled.title}**${ping ? ` · ${pick(lang, `${pinged} member(s) pinged`, `${pinged} membre(s) mentionné(s)`)}` : ""}${next ? `\n${nextWeeklyText(lang, next)}` : ""}${stopRepeating ? `\n${pick(lang, "The weekly repeat is off.", "La répétition hebdomadaire est arrêtée.")}` : ""}`, components: [] });
         return;
       }
       case "reopen": {

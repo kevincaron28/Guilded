@@ -445,6 +445,7 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       T("• Weekly decay: **{percent}%**", { percent: Math.round(settings.epgpDecayPercent * 100) }),
       T("**Recommended:** 10 attendance / 5 late / 5 per boss / 10 full clear / base GP 100 / 10% decay. Fine-tune later with `/config set`."),
       "",
+      T("📋 **Day-before raid message** (no answer or Maybe): **{nudge}**", { nudge: onOff(settings.raidNudge !== false) }),
       T("⏰ **Raid reminders:** {reminders}   📊 **Weekly report:** {weekly}   🤖 **Auto-apply uploads:** {auto}", {
         reminders: settings.raidReminderMinutes > 0 ? T("on ({minutes} min before start)", { minutes: settings.raidReminderMinutes }) : T("off"),
         weekly: onOff(settings.weeklyReportEnabled), auto: onOff(settings.autoApplyImports)
@@ -456,6 +457,7 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         button("epgp-recommended", T("Use recommended values"), ButtonStyle.Success),
         button("reminders", settings.raidReminderMinutes > 0 ? T("Turn reminders off") : T("Turn reminders on (60 min)")),
+        button("raid-nudge", settings.raidNudge !== false ? T("Day-before message: on") : T("Day-before message: off"), settings.raidNudge !== false ? ButtonStyle.Success : ButtonStyle.Secondary),
         button("weekly", settings.weeklyReportEnabled ? T("Turn weekly report off") : T("Turn weekly report on")),
         button("auto-import", settings.autoApplyImports ? T("Auto-apply uploads: on") : T("Auto-apply uploads: off"), settings.autoApplyImports ? ButtonStyle.Success : ButtonStyle.Secondary)
       ),
@@ -1199,6 +1201,13 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
           const on = (settings?.raidReminderMinutes ?? 0) > 0;
           await guildService.updateSettings(guildId, { raidReminderMinutes: on ? 0 : 60 });
           note = on ? T("Raid reminders off.") : T("Raid reminders on: signed-up players get pinged 60 minutes before start.");
+        } else if (action === "raid-nudge") {
+          const settings = await guildService.getSettings(guildId);
+          const on = settings?.raidNudge !== false;
+          await guildService.updateSettings(guildId, { raidNudge: !on });
+          note = on
+            ? T("Day-before raid message off.")
+            : T("Day-before raid message on: those who have not answered or answered Maybe get one mention about a day before.");
         } else if (action === "auto-import") {
           const current = await guildService.getSettings(guildId);
           await guildService.updateSettings(guildId, { autoApplyImports: !current?.autoApplyImports });

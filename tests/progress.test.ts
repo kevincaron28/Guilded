@@ -24,4 +24,17 @@ describe("boss progression", () => {
     ]);
     expect(progress[1]?.lastKill.toISOString()).toBe("2026-10-08T22:00:00.000Z");
   });
+
+  it("counts kills the addon recorded, once when also marked on Discord", async () => {
+    const recorded = (bossName: string, killedAt: string) => ({ bossName, instanceName: "Molten Core", killedAt: new Date(killedAt) });
+    const database = {
+      raidBoss: { findMany: async () => [kill("Lucifron", "2026-12-10T03:00:00Z", "MC night", "2026-12-10T01:00:00Z")] },
+      raidKill: { findMany: async () => [recorded("lucifron", "2026-12-10T01:20:00Z"), recorded("Magmadar", "2026-12-10T02:00:00Z"), recorded("Lucifron", "2026-12-17T01:20:00Z")] }
+    };
+    const progress = await bossProgress(database as never, "g1");
+    expect(progress.map((row) => [row.boss, row.kills, row.firstKillRaid])).toEqual([
+      ["Lucifron", 2, "Molten Core"],
+      ["Magmadar", 1, "Molten Core"]
+    ]);
+  });
 });

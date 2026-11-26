@@ -19,6 +19,7 @@ import { executeRaidHistory, executeRaidSeason } from "./raid-season.js";
 import { bossProgress } from "../services/progress.js";
 import { parseRaidTime } from "../services/raid-time.js";
 import { asLang, t, tx, type Lang } from "../i18n.js";
+import { siteUrl } from "../site-url.js";
 import { createRaidService, DpsKindFullError, SignupsClosedError } from "../services/raid.js";
 import { coreSpotLabel, createRaidCoreService } from "../services/raid-core.js";
 import { buildSignupEmbed, openKindSpots, openSpots } from "../services/signup-embed.js";
@@ -35,7 +36,6 @@ import { voiceAttendancePlan, voiceAttendanceSummary } from "../services/voice-a
 
 const raidService = createRaidService(prisma);
 
-const roleLabel: Record<RaidRole, string> = { TANK: "Tank", HEALER: "Healer", DPS: "DPS" };
 
 export const raidCommand = new SlashCommandBuilder()
   .setName("raid")
@@ -62,7 +62,7 @@ export const raidCommand = new SlashCommandBuilder()
     .addStringOption((o) => o.setName("season").setDescription("Season (default: the current one)").setAutocomplete(true))
     .addStringOption((o) => o.setName("core").setDescription("Only this raid core").setAutocomplete(true))
     .addUserOption((o) => o.setName("player").setDescription("Only this member's raids")))
-  .addSubcommand((sub) => sub.setName("report").setDescription("Raid summary: duration, raiders, bosses, EP, loot. Posts it for everyone.")
+  .addSubcommand((sub) => sub.setName("report").setDescription("Raid summary. Raid leaders post it once the raid has ended.")
     .addStringOption((o) => o.setName("raid").setDescription("Raid").setAutocomplete(true).setRequired(true)))
   .addSubcommand((sub) => sub.setName("award-ep").setDescription("Propose EP for a raid from attendance and boss kills; approve with a button.")
     .addStringOption((o) => o.setName("raid").setDescription("Raid").setAutocomplete(true).setRequired(true)))
@@ -80,12 +80,14 @@ export const raidCommand = new SlashCommandBuilder()
     .addIntegerOption((o) => o.setName("dps").setDescription("DPS cap").setMinValue(0))
     .addIntegerOption((o) => o.setName("melee").setDescription("Melee cap").setMinValue(0))
     .addIntegerOption((o) => o.setName("ranged").setDescription("Ranged cap").setMinValue(0))
-    .addIntegerOption((o) => o.setName("close_hours").setDescription("Close signups N hours before (0: never)").setMinValue(0).setMaxValue(168)))
+    .addIntegerOption((o) => o.setName("close_hours").setDescription("Close signups N hours before (0: never)").setMinValue(0).setMaxValue(168))
+    .addBooleanOption((o) => o.setName("weekly").setDescription("Repeat weekly")))
   .addSubcommand((sub) => sub.setName("fill").setDescription("Short on players? Post the open spots for the whole guild and ping the core's bench.")
     .addStringOption((o) => o.setName("raid").setDescription("Raid").setAutocomplete(true).setRequired(true))
     .addStringOption((o) => o.setName("message").setDescription("Optional extra text").setMaxLength(300)))
   .addSubcommand((sub) => sub.setName("cancel").setDescription("Cancel a raid.")
-    .addStringOption((o) => o.setName("raid").setDescription("Raid").setAutocomplete(true).setRequired(true)))
+    .addStringOption((o) => o.setName("raid").setDescription("Raid").setAutocomplete(true).setRequired(true))
+    .addBooleanOption((o) => o.setName("stop_weekly").setDescription("Also end the weekly repeat")))
   .addSubcommand((sub) => sub.setName("cancel-signup").setDescription("Cancel your raid signup.")
     .addStringOption((o) => o.setName("raid").setDescription("Raid").setAutocomplete(true).setRequired(true)))
   .addSubcommand((sub) => sub.setName("status").setDescription("View raid status.")
@@ -98,7 +100,7 @@ export const raidCommand = new SlashCommandBuilder()
     .addStringOption((o) => o.setName("raid").setDescription("Raid").setAutocomplete(true).setRequired(true)))
   .addSubcommand((sub) => sub.setName("boss").setDescription("Mark a raid boss's kill status.")
     .addStringOption((o) => o.setName("raid").setDescription("Raid").setAutocomplete(true).setRequired(true))
-    .addStringOption((o) => o.setName("name").setDescription("Boss name").setRequired(true))
+    .addStringOption((o) => o.setName("name").setDescription("Boss name").setAutocomplete(true).setRequired(true))
     .addStringOption((o) => o.setName("status").setDescription("Boss status").setRequired(true)
       .addChoices(
         { name: "Killed", value: "KILLED" },
@@ -292,10 +294,20 @@ async function inferCoreId(guildId: string, title: string): Promise<string | nul
   return cores.length === 1 ? (cores[0]?.id ?? null) : null;
 }
 
+/** The reply that names next week's raid and how to end the series. */
+export function nextWeeklyText(lang: Lang, next: { title: string; scheduledAt: Date }): string {
+  const when = `<t:${Math.floor(next.scheduledAt.getTime() / 1000)}:F>`;
+  return lang === "fr"
+    ? `Raid hebdomadaire : le prochain **${next.title}** est prévu le ${when}. Pour sauter une semaine : /lead cancel. Pour arrêter la répétition : /lead edit avec weekly:False.`
+    : `Weekly raid: the next **${next.title}** is set for ${when}. Skip a week with /lead cancel; end the repeat with /lead edit weekly:False.`;
+}
+
 export async function executeRaid(interaction: ChatInputCommandInteraction): Promise<void> {
   const context = await requireGuildContext(interaction);
   if (!context) return;
   const subcommand = interaction.options.getSubcommand();
+  const lang = asLang((await guildService.getSettings(context.guildId))?.language);
+  const say = (en: string, fr: string) => lang === "fr" ? fr : en;
   const management = ["create", "edit", "cancel", "start", "end", "attendance", "attendance-voice", "boss", "note", "award-ep", "fill"].includes(subcommand);
   if (management) requireRaidLeader(interaction);
   // These post or edit the signup message (and a core's mirror) before answering, which can take
@@ -344,25 +356,31 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
     // Discord shows <t:...> in each reader's own timezone, so this doubles as a check.
     const when = Math.floor(raid.scheduledAt.getTime() / 1000);
     const coreNote = core
-      ? ` for the **${core.name}** core (its ${core.members.length} members get signup priority)${coreGuessed ? " — guessed from your other raids/cores, pass core: to change it" : ""}`
+      ? say(` for the **${core.name}** core (its ${core.members.length} members get signup priority)${coreGuessed ? " — guessed from your other raids/cores, pass core: to change it" : ""}`,
+        ` pour le core **${core.name}** (ses ${core.members.length} membres ont la priorité)${coreGuessed ? " — deviné d'après vos autres raids et cores; ajoutez core: pour le changer" : ""}`)
       : "";
-    await interaction.editReply({ content: `Created raid **${raid.title}** for <t:${when}:F> (<t:${when}:R>)${coreNote}. If that time looks wrong, fix it with \`/lead edit\`.` });
+    await interaction.editReply({ content: say(`Created raid **${raid.title}** for <t:${when}:F> (<t:${when}:R>)${coreNote}. If that time looks wrong, fix it with \`/lead edit\`.`,
+      `Raid **${raid.title}** créé pour <t:${when}:F> (<t:${when}:R>)${coreNote}. Si l'heure semble fausse, corrigez-la avec \`/lead edit\`.`) });
     return;
   }
 
   if (subcommand === "progress") {
     const progress = await bossProgress(prisma, context.guildId);
     const day = (date: Date) => `<t:${Math.floor(date.getTime() / 1000)}:d>`;
-    const lines = progress.map((boss) =>
-      `**${boss.boss}** - first kill ${day(boss.firstKill)} (${boss.firstKillRaid}), ${boss.kills} kill${boss.kills === 1 ? "" : "s"}, latest ${day(boss.lastKill)}`);
+    const lines = progress.map((boss) => say(
+      `**${boss.boss}** - first kill ${day(boss.firstKill)} (${boss.firstKillRaid}), ${boss.kills} kill${boss.kills === 1 ? "" : "s"}, latest ${day(boss.lastKill)}`,
+      `**${boss.boss}** - première victoire ${day(boss.firstKill)} (${boss.firstKillRaid}), ${boss.kills} victoire${boss.kills === 1 ? "" : "s"}, dernière ${day(boss.lastKill)}`));
     let text = "";
     for (const line of lines) {
-      if (text.length + line.length > 3900) break;
+      if (text.length + line.length > 3700) break;
       text += `${line}\n`;
     }
+    const board = siteUrl(lang === "fr" ? "/leaderboards/raids/?lang=fr" : "/leaderboards/raids/");
+    const empty = say("No boss kills recorded yet. The addon records them in raids; leaders can also mark them with /lead boss.",
+      "Aucun boss vaincu pour l'instant. L'addon les enregistre en raid; les chefs peuvent aussi les noter avec /lead boss.");
     await interaction.reply({ embeds: [new EmbedBuilder().setTitle(`${BRAND.emoji} ${BRAND.name} progression`)
-      .setDescription(text || "No boss kills recorded yet. Mark kills with /lead boss.")
-      .setFooter({ text: `${progress.length} boss(es) killed` })] });
+      .setDescription(`${text || `${empty}\n`}[${say("Raid progress board", "Tableau de progression des raids")}](${board})`)
+      .setFooter({ text: say(`${progress.length} boss(es) killed`, `${progress.length} boss vaincu(s)`) })] });
     return;
   }
 
@@ -384,44 +402,51 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
     const { promoted } = await raidService.cancelSignup(raidId, context.guildId, context.memberId);
     if (interaction.guild) await syncSignupEmbed(interaction.guild, context.guildId, raidId);
     await tellPromoted(interaction, promoted);
-    await interaction.reply({ content: "Your raid signup was cancelled.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: say("Your raid signup was cancelled.", "Votre inscription au raid est annulée."), flags: MessageFlags.Ephemeral });
     return;
   }
   if (subcommand === "report") {
     const report = await buildRaidReport(prisma, context.guildId, raidId);
-    const lang = asLang((await guildService.getSettings(context.guildId))?.language);
-    const raid = await prisma.raid.findFirst({ where: { id: raidId, guildId: context.guildId }, select: { coreId: true } });
-    if (raid?.coreId) {
+    const raid = await prisma.raid.findFirst({ where: { id: raidId, guildId: context.guildId }, select: { coreId: true, status: true } });
+    const leader = !!interaction.member && hasPermission(interaction.member as Parameters<typeof hasPermission>[0], "raidLeader");
+    // Posting for everyone: a raid leader, once the raid has ended. Anyone else sees a private copy.
+    const publish = leader && raid?.status === "COMPLETED";
+    if (publish && raid.coreId) {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const posted = await postRaidReport(interaction.guild, context.guildId, raidId);
-      await interaction.editReply({ content: posted ? "Posted in this core's raid reports channel." : "No report channel is configured for this core." });
+      await interaction.editReply({ content: posted ? say("Posted in this core's raid reports channel.", "Publié dans le salon des rapports de ce core.") : say("No report channel is configured for this core.", "Aucun salon de rapports n'est réglé pour ce core.") });
     } else {
+      await interaction.deferReply(publish ? {} : { flags: MessageFlags.Ephemeral });
       const png = await scoreCardPng(raidEndCard(report, lang, await loadCardTimeZone(prisma, context.guildId))).catch(() => null);
       const embed = raidReportEmbed(report, lang);
       if (png) embed.setImage("attachment://raid.png");
-      await interaction.reply({ embeds: [embed], ...(png ? { files: [new AttachmentBuilder(png, { name: "raid.png" })] } : {}), allowedMentions: { parse: [] } });
+      const note = leader && !publish ? say("Only you can see this. End the raid with `/lead end` to post it.", "Vous seul voyez ceci. Terminez le raid avec `/lead end` pour le publier.") : null;
+      await interaction.editReply({ ...(note ? { content: note } : {}), embeds: [embed], ...(png ? { files: [new AttachmentBuilder(png, { name: "raid.png" })] } : {}), allowedMentions: { parse: [] } });
     }
     return;
   }
   if (subcommand === "award-ep") {
-    await showEpProposal(interaction, context.guildId, raidId, "Proposed EP (nothing is recorded until you approve):");
+    await showEpProposal(interaction, context.guildId, raidId, say("Proposed EP (nothing is recorded until you approve):", "EP proposés (rien n'est enregistré avant votre approbation) :"));
     return;
   }
   if (subcommand === "note") {
     const note = await raidService.addNote(raidId, context.guildId, interaction.options.getString("text", true), interaction.user.id,
       interaction.options.getString("boss") ?? undefined);
-    await interaction.reply({ content: `Note added${note.bossName ? ` for **${note.bossName}**` : ""}. It shows in \`/raid status\`.`, flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: say(`Note added${note.bossName ? ` for **${note.bossName}**` : ""}. It shows in \`/raid status\`.`,
+      `Note ajoutée${note.bossName ? ` pour **${note.bossName}**` : ""}. Elle apparaît dans \`/raid status\`.`), flags: MessageFlags.Ephemeral });
     return;
   }
   if (subcommand === "status") {
     const raid = await raidService.getStatus(raidId, context.guildId);
-    const bosses = raid.bosses.length ? raid.bosses.map((boss) => `${boss.status === "KILLED" ? "✅" : "⬜"} ${boss.name}`).join("\n") : "No bosses recorded.";
+    const bosses = raid.bosses.length ? raid.bosses.map((boss) => `${boss.status === "KILLED" ? "✅" : "⬜"} ${boss.name}`).join("\n") : say("No bosses recorded.", "Aucun boss inscrit.");
     // Notes are officer-written; only raid leaders see them.
     const canSeeNotes = !!interaction.member && hasPermission(interaction.member as Parameters<typeof hasPermission>[0], "raidLeader");
     const notes = canSeeNotes && raid.notes.length
       ? `\n\n**Notes**\n${raid.notes.map((note) => `• ${note.bossName ? `[${note.bossName}] ` : ""}${note.body}`).join("\n")}`
       : "";
-    const text = `**${raid.title}** — ${raid.status}\nStart: <t:${Math.floor(raid.scheduledAt.getTime() / 1000)}:F>\nSignups: ${raid._count.signups}\nAttendance records: ${raid._count.attendance}\n${bosses}${notes}`;
+    const statusWord = say(raid.status, ({ PLANNED: "PRÉVU", ACTIVE: "EN COURS", COMPLETED: "TERMINÉ", CANCELLED: "ANNULÉ" } as const)[raid.status]);
+    const weekly = raid.repeatWeekly ? say("\nRepeats weekly", "\nRevient chaque semaine") : "";
+    const text = `**${raid.title}** — ${statusWord}\n${say("Start", "Début")}: <t:${Math.floor(raid.scheduledAt.getTime() / 1000)}:F>${weekly}\n${say("Signups", "Inscriptions")}: ${raid._count.signups}\n${say("Attendance records", "Présences notées")}: ${raid._count.attendance}\n${bosses}${notes}`;
     await interaction.reply({ content: text.length > 1950 ? `${text.slice(0, 1940)}…` : text, flags: MessageFlags.Ephemeral });
     return;
   }
@@ -429,11 +454,11 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
     const roster = await raidService.roster(raidId, context.guildId);
     // DPS players show melee or ranged when their spec (or the one picked for this raid) is known.
     const kinds = new Map((await raidService.signups(raidId, context.guildId)).map((signup) => [signup.id, signup.role === "DPS" ? signupDpsKind(signup) : null]));
-    const kindLabel = { MELEE: "melee", RANGED: "ranged" } as const;
+    const kindLabel = { MELEE: say("melee", "mêlée"), RANGED: say("ranged", "à distance") };
     await interaction.reply({ content: roster.length ? roster.map((signup) => {
       const kind = kinds.get(signup.id);
-      return `• ${signup.characterName ? cleanCharacterName(signup.characterName) : signup.member.displayName} (<@${signup.member.discordUserId}>) — ${roleLabel[signup.role]}${kind ? ` (${kindLabel[kind]})` : ""}${signup.late ? " ⏰ late" : ""}`;
-    }).join("\n") : "No members are signed up.", flags: MessageFlags.Ephemeral });
+      return `• ${signup.characterName ? cleanCharacterName(signup.characterName) : signup.member.displayName} (<@${signup.member.discordUserId}>) — ${t(lang, `role.${signup.role}` as const)}${kind ? ` (${kindLabel[kind]})` : ""}${signup.late ? say(" ⏰ late", " ⏰ en retard") : ""}`;
+    }).join("\n") : say("No members are signed up.", "Personne n'est inscrit."), flags: MessageFlags.Ephemeral });
     return;
   }
   if (subcommand === "edit") {
@@ -446,7 +471,9 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
     const melee = interaction.options.getInteger("melee");
     const ranged = interaction.options.getInteger("ranged");
     const closeHours = interaction.options.getInteger("close_hours");
+    const weekly = interaction.options.getBoolean("weekly");
     const raid = await raidService.edit(raidId, context.guildId, {
+      ...(weekly === null ? {} : { repeatWeekly: weekly }),
       ...(closeHours === null ? {} : { signupsCloseHours: closeHours }),
       ...(title === null ? {} : { title }),
       ...(time === null ? {} : { scheduledAt: await readRaidTime(context.guildId, time) }),
@@ -459,7 +486,6 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
     });
     if (interaction.guild) await syncSignupEmbed(interaction.guild, context.guildId, raidId);
     await tellPromoted(interaction, raid.promoted);
-    const lang = asLang((await guildService.getSettings(context.guildId))?.language);
     await interaction.editReply({
       content: lang === "fr"
         ? `Raid **${raid.title}** mis à jour.${raid.promoted.length ? ` ${raid.promoted.length} joueur(s) ont quitté la liste d’attente.` : ""}`
@@ -468,9 +494,14 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
     return;
   }
   if (subcommand === "cancel") {
-    const raid = await raidService.cancel(raidId, context.guildId);
+    const stopRepeating = interaction.options.getBoolean("stop_weekly") ?? false;
+    const raid = await raidService.cancel(raidId, context.guildId, { stopRepeating });
     if (interaction.guild) await syncSignupEmbed(interaction.guild, context.guildId, raidId);
-    await interaction.editReply({ content: `Cancelled raid **${raid.title}**.` });
+    // Cancelling a weekly raid skips that week: the next one is posted right away.
+    const next = await raidService.createNextRepeat(raidId, context.guildId);
+    if (next && interaction.guild) await syncSignupEmbed(interaction.guild, context.guildId, next.id);
+    await interaction.editReply({ content: say(`Cancelled raid **${raid.title}**.`, `Raid **${raid.title}** annulé.`)
+      + (next ? ` ${nextWeeklyText(lang, next)}` : "") + (stopRepeating ? say(" The weekly repeat is off.", " La répétition hebdomadaire est arrêtée.") : "") });
     return;
   }
   if (subcommand === "start" || subcommand === "end") {
@@ -480,16 +511,16 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
     if (interaction.guild) await syncSignupEmbed(interaction.guild, context.guildId, raidId);
     if (subcommand === "end") {
       // Ending a raid shows the proposed EP with Approve / Cancel buttons.
-      await showEpProposal(interaction, context.guildId, raidId, `Ended raid **${raid.title}**.`);
+      await showEpProposal(interaction, context.guildId, raidId, say(`Ended raid **${raid.title}**.`, `Raid **${raid.title}** terminé.`));
     } else {
-      await interaction.editReply({ content: `Started raid **${raid.title}**.` });
+      await interaction.editReply({ content: say(`Started raid **${raid.title}**.`, `Raid **${raid.title}** commencé.`) });
     }
     await notify(interaction.guild, subcommand === "start" ? notifications.raidStarted(raid.title) : notifications.raidEnded(raid.title));
     if (subcommand === "end") {
       const next = await raidService.createNextRepeat(raidId, context.guildId);
       if (next) {
         if (interaction.guild) await syncSignupEmbed(interaction.guild, context.guildId, next.id);
-        await interaction.followUp({ content: `Weekly raid: the next **${next.title}** is set for <t:${Math.floor(next.scheduledAt.getTime() / 1000)}:F>. Cancel it with /lead cancel if you skip a week.`, flags: MessageFlags.Ephemeral }).catch(() => undefined);
+        await interaction.followUp({ content: nextWeeklyText(lang, next), flags: MessageFlags.Ephemeral }).catch(() => undefined);
       }
     }
     return;
@@ -497,10 +528,13 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
   if (subcommand === "boss") {
     const bossName = interaction.options.getString("name", true);
     const status = interaction.options.getString("status", true) as RaidBossStatus;
-    const boss = await prisma.raidBoss.findFirst({ where: { raidId, name: { equals: bossName, mode: "insensitive" } } });
-    if (!boss) throw new Error(`Boss "${bossName}" was not found for this raid.`);
+    // A boss not typed when the raid was created is added now.
+    const found = await prisma.raidBoss.findFirst({ where: { raidId, name: { equals: bossName.trim(), mode: "insensitive" } } });
+    const boss = found ?? await raidService.addBoss(raidId, context.guildId, bossName);
     const updated = await raidService.setBossStatus(raidId, context.guildId, boss.id, status);
-    await interaction.reply({ content: `Marked **${updated.name}** as ${updated.status}.`, flags: MessageFlags.Ephemeral });
+    const word = updated.status === "KILLED" ? say("killed", "vaincu") : say("pending", "à faire");
+    await interaction.reply({ content: say(`Marked **${updated.name}** as ${word}.`, `**${updated.name}** est noté ${word}.`)
+      + (found ? "" : say(" (Added to this raid's bosses.)", " (Ajouté aux boss de ce raid.)")), flags: MessageFlags.Ephemeral });
     if (updated.status === "KILLED") {
       const raid = await prisma.raid.findUnique({ where: { id: raidId }, select: { title: true } });
       await notify(interaction.guild, notifications.bossKilled(updated.name, raid?.title ?? "raid"));

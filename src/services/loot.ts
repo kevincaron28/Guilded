@@ -13,6 +13,7 @@ export interface CreateAuctionInput {
   createdBy: string;
   raidId?: string | undefined;
   bossName?: string | undefined;
+  channelId?: string | undefined;
 }
 
 // Bids best first, in EPGP Classic's bidding order: bidders with at least the minimum EP before those
@@ -49,7 +50,8 @@ export function createLootService(database: PrismaClient) {
           closesAt: new Date(Date.now() + input.durationSeconds * 1000),
           createdBy: input.createdBy,
           raidId: input.raidId?.trim() || null,
-          bossName: input.bossName?.trim() || null
+          bossName: input.bossName?.trim() || null,
+          channelId: input.channelId ?? null
         }
       });
     },

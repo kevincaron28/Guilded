@@ -56,8 +56,14 @@ export async function interactionLang(interaction: { guildId: string | null }): 
 /** Discord error 10062 "Unknown interaction": the 3-second window had passed, so no answer can be sent. */
 export const isExpiredInteraction = (error: unknown): boolean => typeof error === "object" && error !== null && (error as { code?: number }).code === 10062;
 
+/** What a failed button or menu tells the member: the service's own answer (translated), else the fallback. */
+export async function buttonErrorText(interaction: { locale?: string; guildId: string | null }, error: unknown, fallback: string): Promise<string> {
+  const english = isMemberAnswer(error) ? (error as Error).message : fallback;
+  return await prefersFrench(interaction) ? frenchErrorMessage(english) : english;
+}
+
 /** French when the member's Discord app is in French or the server language is French. */
-async function prefersFrench(interaction: ChatInputCommandInteraction): Promise<boolean> {
+async function prefersFrench(interaction: { locale?: string; guildId: string | null }): Promise<boolean> {
   if (interaction.locale?.startsWith("fr")) return true;
   if (!interaction.guildId) return false;
   try {

@@ -126,6 +126,7 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
         `EPGP base GP: ${settings.baseGp} (PR = EP / (GP + base))`,
         `Full-clear EP bonus: ${settings.epCompletionBonus}`,
         `Raid reminders: ${settings.raidReminderMinutes > 0 ? `${settings.raidReminderMinutes} min before start` : "off"}`,
+        `Day-before raid message (no answer or Maybe): ${settings.raidNudge !== false ? "on" : "off"} (/setup start, raid step)`,
         `Notifications: ${settings.notifyChannelId ? `<#${settings.notifyChannelId}>` : "disabled"}`,
         `Dungeon posts: ${settings.dungeonChannelId ? `<#${settings.dungeonChannelId}>` : "notify channel"}`,
         "Raid reports and loot logs: each raid core's own channels",

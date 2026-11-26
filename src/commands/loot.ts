@@ -179,7 +179,8 @@ export async function executeLoot(interaction: ChatInputCommandInteraction): Pro
       durationSeconds: interaction.options.getInteger("duration") ?? guildSettings?.auctionDurationSec ?? 60,
       createdBy: interaction.user.id,
       bossName: interaction.options.getString("boss") ?? undefined,
-      raidId: raidForMode ?? undefined
+      raidId: raidForMode ?? undefined,
+      channelId: interaction.channelId
     });
     const wanting = await wishlistService.countWanting(context.guildId, auction.itemName);
     await interaction.reply(`${tx(lang, "Auction **{item}** started. ID: `{id}`; closes {when}.", { item: auction.itemName, id: auction.id, when: `<t:${Math.floor(auction.closesAt.getTime() / 1000)}:R>` })}${wanting > 0 ? ` ${tx(lang, "Wishlisted by {count} raider(s).", { count: wanting })}` : ""}`);

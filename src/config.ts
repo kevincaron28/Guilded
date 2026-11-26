@@ -54,7 +54,8 @@ const environmentSchema = z.object({
   WCL_CLIENT_ID: blankAsUndefined(z.string().min(1).optional()),
   WCL_CLIENT_SECRET: blankAsUndefined(z.string().min(1).optional()),
   // Site used when /raid wcl gets a bare report code instead of a full link.
-  WCL_BASE_URL: z.string().url().default("https://www.warcraftlogs.com"),
+  // The site bare report codes belong to: WoW Forever has its own.
+  WCL_BASE_URL: z.string().url().default("https://forever.warcraftlogs.com"),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
   // Optional: a channel (any guild the bot is in) that gets a live feed of
   // captured command/job errors and /report bug submissions. Without it,

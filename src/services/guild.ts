@@ -123,6 +123,7 @@ export function createGuildService(database: PrismaClient) {
       epgpDecayPercent?: number;
       baseGp?: number;
       raidReminderMinutes?: number;
+      raidNudge?: boolean;
       epCompletionBonus?: number;
       notifyChannelId?: string | null;
       dungeonChannelId?: string | null;

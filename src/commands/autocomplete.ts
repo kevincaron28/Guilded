@@ -104,6 +104,14 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
       choices = await itemSuggestions(prisma, guild.id, query);
     } else if (command === "tag" && focused.name === "name") {
       choices = await tagSuggestions(prisma, guild.id, query);
+    } else if (command === "raid" && subcommand === "boss" && focused.name === "name") {
+      // The picked raid's bosses, the ones still to kill first. A new name can be typed.
+      const raidId = interaction.options.getString("raid");
+      const bosses = raidId
+        ? await prisma.raidBoss.findMany({ where: { raidId, raid: { guildId: guild.id }, name: { contains: query.trim(), mode: "insensitive" } }, orderBy: { sortOrder: "asc" }, take: 40 })
+        : [];
+      choices = [...bosses].sort((a, b) => Number(a.status === "KILLED") - Number(b.status === "KILLED")).slice(0, 25)
+        .map((boss) => ({ name: `${boss.status === "KILLED" ? "✔ " : ""}${boss.name}`.slice(0, 100), value: boss.name.slice(0, 100) }));
     } else if (command === "raid" && focused.name === "title") {
       choices = await raidTitleSuggestions(prisma, guild.id, query);
     } else if (command === "raid" && focused.name === "preset") {

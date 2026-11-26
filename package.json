@@ -53,7 +53,9 @@
     "worker:build": "npm run site:build && wrangler deploy --dry-run",
     "worker:deploy": "npm run site:build && wrangler deploy",
     "ledger:compact": "node companion/ledger-compact.mjs",
-    "store:package": "node scripts/store-package.mjs"
+    "store:package": "node scripts/store-package.mjs",
+    "visual": "playwright test",
+    "visual:update": "playwright test --update-snapshots"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.1",
@@ -67,6 +69,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "1.65.1",
     "@types/node": "^24.19.2",
     "@typescript/native": "npm:typescript@^7.0.2",
     "esbuild": "^0.28.2",

@@ -320,14 +320,14 @@ export async function hostedDownload(request, env, ctx, url = new URL(request.ur
   return github();
 }
 
-// The Android phone app (APK) lives on the R2 mirror (dl.kcaron.top); this short website address redirects there so the
-// button on the site is one tap on a phone. The bytes never pass through the Worker.
-const ANDROID_APK = /^\/downloads\/(Guilded-Android(?:-\d{1,3}\.\d{1,3}\.\d{1,3}(?:-[a-z]+-\d{1,3})?)?\.apk)$/;
+// The Android app comes from Google Play only (26 November 2026). The old APK addresses, short and versioned, move there
+// for good so links already shared keep working.
+const ANDROID_APK = /^\/downloads\/Guilded-Android(?:-\d{1,3}\.\d{1,3}\.\d{1,3}(?:-[a-z]+-\d{1,3})?)?\.apk$/;
+const ANDROID_STORE = "https://play.google.com/store/apps/details?id=top.kcaron.guilded";
 export function androidDownload(request, url = new URL(request.url)) {
-  const match = ANDROID_APK.exec(url.pathname);
-  if (!match) return null;
+  if (!ANDROID_APK.test(url.pathname)) return null;
   if (!["GET", "HEAD"].includes(request.method)) return failure(405, "Method not allowed");
-  return new Response(null, { status: 302, headers: { location: `https://dl.kcaron.top/${match[1]}`, "cache-control": "no-store" } });
+  return new Response(null, { status: 301, headers: { location: ANDROID_STORE, "cache-control": "public, max-age=3600" } });
 }
 
 // Guilded's own public home. guildedwow.com is canonical (docs/plans/GUILDEDWOW_DOMAIN.md); guilded.kcaron.top keeps

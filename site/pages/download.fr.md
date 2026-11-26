@@ -19,6 +19,5 @@
 <div class="actions"><a class="button" href="https://discord.com/oauth2/authorize?client_id=1552633893587394590&amp;scope=bot+applications.commands&amp;integration_type=0&amp;permissions=2269718837849168">Ajouter à Discord <span aria-hidden="true">↗</span></a><a class="text-link" href="/officers/">Ce que les officiers règlent →</a></div>
 
 <h2 id="phone">Téléphone</h2>
-<p>Aperçu Android <strong>{{ANDROID_VERSION}}</strong>. iOS n’est pas encore offert.</p>
-<div class="actions"><a class="button secondary" href="{{ANDROID_APK_URL}}">APK Android <span aria-hidden="true">↓</span></a></div>
-<p class="small">SHA-256 : <code>{{ANDROID_SHA256}}</code></p>
+<p>Guilded pour Android : votre guilde, les classements et vos rappels de raid. iOS n’est pas encore offert.</p>
+{{PLAY_BADGE}}

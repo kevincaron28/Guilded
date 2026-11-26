@@ -20,6 +20,5 @@
 <div class="actions"><a class="button" href="https://discord.com/oauth2/authorize?client_id=1552633893587394590&amp;scope=bot+applications.commands&amp;integration_type=0&amp;permissions=2269718837849168">Add to Discord <span aria-hidden="true">↗</span></a><a class="text-link" href="/officers/">What officers set up →</a></div>
 
 <h2 id="phone">Phone</h2>
-<p>Android preview <strong>{{ANDROID_VERSION}}</strong>. iOS is not available yet.</p>
-<div class="actions"><a class="button secondary" href="{{ANDROID_APK_URL}}">Android APK <span aria-hidden="true">↓</span></a></div>
-<p class="small">SHA-256: <code>{{ANDROID_SHA256}}</code></p>
+<p>Guilded for Android: your guild, the leaderboards and raid reminders. iOS is not available yet.</p>
+{{PLAY_BADGE}}

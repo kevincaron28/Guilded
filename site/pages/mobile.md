@@ -13,6 +13,7 @@
 <p>The app is in English and French. It reads the same data as the website and the Discord bot, so nothing needs to be set up twice.</p>
 
 <h2>Get it</h2>
-<p><strong>The Android app is in closed testing on Google Play</strong> and opens to everyone after testing. Until then, the Android preview is on the <a href="/download/#phone">download page</a>. iPhone is not available yet.</p>
+{{PLAY_BADGE}}
+<p>iPhone is not available yet.</p>
 
 <p class="small">Guilded is a free, independent project. It is not affiliated with Blizzard Entertainment.</p>

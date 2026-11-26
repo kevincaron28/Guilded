@@ -1,4 +1,5 @@
 /* global Request, Response */
+import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { androidDownload, hostedDownload } from "../worker/index.mjs";
 
@@ -80,13 +81,17 @@ describe("companion installer served from the bot's server (8 Nov 2026)", () => 
   });
 });
 
-describe("Android app (APK) redirect to the R2 mirror (9 Nov 2026)", () => {
+describe("old Android APK addresses move to Google Play (26 Nov 2026)", () => {
   const ask = (path, method = "GET") => androidDownload(new Request(`https://guilded.kcaron.top${path}`, { method }));
-  it("redirects the short and versioned names to dl.kcaron.top", () => {
+  it("answers 301 to the Play listing for the short and versioned names", () => {
+    const listing = JSON.parse(readFileSync("site/releases.json", "utf8")).mobile.android.storeUrl;
+    expect(listing).toBe("https://play.google.com/store/apps/details?id=top.kcaron.guilded");
     for (const name of ["Guilded-Android.apk", "Guilded-Android-0.2.0-preview-2.apk"]) {
-      const response = ask(`/downloads/${name}`);
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(`https://dl.kcaron.top/${name}`);
+      for (const method of ["GET", "HEAD"]) {
+        const response = ask(`/downloads/${name}`, method);
+        expect(response.status).toBe(301);
+        expect(response.headers.get("location")).toBe(listing);
+      }
     }
   });
   it("ignores other paths and refuses writes", () => {

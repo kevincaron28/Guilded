@@ -2,14 +2,9 @@
   "verifiedAt": "2026-11-17",
   "mobile": {
     "android": {
-      "version": "0.2.0",
-      "build": "preview 2 (versionCode 2)",
-      "stage": "preview",
-      "apkUrl": "https://guilded.kcaron.top/downloads/Guilded-Android.apk",
-      "mirrorUrl": "https://dl.kcaron.top/Guilded-Android.apk",
-      "releaseUrl": "https://github.com/kevincaron28/Guilded/releases/tag/mobile-v0.2.0-preview",
-      "size": 77082979,
-      "sha256": "2c4122fb50bd55acf3662f269c7e974fb758e0f283f231ee9a9f2acdb1643be3"
+      "stage": "testing",
+      "storeUrl": "https://play.google.com/store/apps/details?id=top.kcaron.guilded",
+      "testingUrl": "https://play.google.com/apps/testing/top.kcaron.guilded"
     }
   },
   "guilded": {

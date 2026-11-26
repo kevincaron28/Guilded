@@ -59,9 +59,18 @@ const startEditions = french => {
   return `<div class="start-editions">${buttons}</div><p class="small">${french ? "Fermez WoW avant d’installer." : "Close WoW before you install."}</p>`;
 };
 const renderVersions = content => content.replaceAll("{{GUILDED_VERSION}}", version).replaceAll("{{GUILDED_CURSEFORGE_VERSION}}", publishedGuilded.curseforge.version)
-  .replaceAll("{{COMPANION_DIRECT_URL}}", publishedGuilded.companionDirect.siteUrl ?? publishedGuilded.companionDirect.url).replaceAll("{{COMPANION_DIRECT_VERSION}}", publishedGuilded.companionDirect.version).replaceAll("{{COMPANION_DIRECT_SHA256}}", publishedGuilded.companionDirect.sha256)
-  .replaceAll("{{ANDROID_VERSION}}", publishedMobile.android.version).replaceAll("{{ANDROID_APK_URL}}", publishedMobile.android.apkUrl)
-  .replaceAll("{{ANDROID_RELEASE_URL}}", publishedMobile.android.releaseUrl).replaceAll("{{ANDROID_SHA256}}", publishedMobile.android.sha256);
+  .replaceAll("{{COMPANION_DIRECT_URL}}", publishedGuilded.companionDirect.siteUrl ?? publishedGuilded.companionDirect.url).replaceAll("{{COMPANION_DIRECT_VERSION}}", publishedGuilded.companionDirect.version).replaceAll("{{COMPANION_DIRECT_SHA256}}", publishedGuilded.companionDirect.sha256);
+// The Android app comes from Google Play only: Google's own badge (served by Google, unaltered) linking to the listing.
+// While releases.json says stage "testing", a line under it links to the closed test; "production" removes that line.
+const playBadge = french => {
+  const { stage, storeUrl, testingUrl } = publishedMobile.android;
+  const image = `https://play.google.com/intl/en_us/badges/static/images/badges/${french ? "fr-ca" : "en"}_badge_web_generic.png`;
+  const testing = stage === "testing" ? `<p class="small play-testing">${french ? "En test : " : "In testing: "}<a href="${testingUrl}">${french ? "rejoindre le test" : "join the test"}</a></p>` : "";
+  const legal = french ? "Google Play et le logo Google Play sont des marques de commerce de Google LLC." : "Google Play and the Google Play logo are trademarks of Google LLC.";
+  return `<div class="play-download"><a class="play-badge" href="${storeUrl}"><img src="${image}" alt="${french ? "L’obtenir sur Google Play" : "Get it on Google Play"}" width="194" height="75" loading="lazy"></a>${testing}<p class="small play-legal">${legal}</p></div>`;
+};
+// The home page is one document for both languages: both badges, the language switch shows one.
+const homePlayBadge = `<div class="android-phone"><div data-language-copy="en" lang="en">${playBadge(false)}</div><div data-language-copy="fr" lang="fr" hidden>${playBadge(true)}</div></div>`;
 // Static pages link relative to the site root (so a project subpath works); bot pages stay absolute.
 const staticHref = prefix => item => item.bot || item.key === "companion" || /^https?:/.test(item.href) ? item.href : prefix + item.href.slice(1);
 const bilingualLabel = ({ en, fr }) => en === fr ? en : `<span data-en="${en}" data-fr="${fr}">${en}</span>`;
@@ -78,7 +87,7 @@ const homeNav = versionMenu("/", null, { bilingual: true }) + navLinks({ href: s
 const homeFooter = footerLinks({ href: staticHref(""), label: bilingualLabel, columnLabel: key => bilingualLabel(FOOTER_COLUMNS[key]), ariaLabel: "Site map" }).replace("<nav ", '<nav data-label-en="Site map" data-label-fr="Plan du site" ');
 for (const name of ["index.html", "style.css", "site.js", "design-tokens.css", "atelier.css", "language.js", "nav.mjs"]) {
   // The home page's version cards open each edition's hub (/forever/, /retail/...).
-  const content = renderVersions(readFileSync(`site/${name}`, "utf8")).replace("{{SITE_NAV}}", homeNav).replace("{{FOOTER_COLS}}", homeFooter).replace("{{EDITION_CARDS}}", editionCards({ hubs: true }));
+  const content = renderVersions(readFileSync(`site/${name}`, "utf8")).replace("{{HOME_PLAY_BADGE}}", homePlayBadge).replace("{{SITE_NAV}}", homeNav).replace("{{FOOTER_COLS}}", homeFooter).replace("{{EDITION_CARDS}}", editionCards({ hubs: true }));
   writeFileSync(`${out}/${name}`, name === "index.html" ? content.replaceAll(OLD_ORIGIN, origin).replaceAll("/images/social/guilded-card.png", "/images/social/og-home.jpg") : content);
 }
 cpSync("site/fonts", `${out}/fonts`, { recursive: true });
@@ -185,7 +194,7 @@ for (const page of pages) {
   const pageText = (en, fr) => bilingual ? `<span data-en="${escape(en)}" data-fr="${escape(fr)}">${en}</span>` : french ? fr : en;
   const descriptionAttributes = bilingual ? ` data-content-en="${escape(page.description)}" data-content-fr="${escape(page.descriptionFr)}"` : '';
   const titleAttributes = bilingual ? ` data-content-en="${escape(page.title)}" data-content-fr="${escape(page.titleFr)}"` : '';
-  const fill = (markdown, fr) => renderVersions(stripPoe(markdown)).replaceAll("{{START_EDITIONS}}", startEditions(fr));
+  const fill = (markdown, fr) => renderVersions(stripPoe(markdown)).replaceAll("{{START_EDITIONS}}", startEditions(fr)).replaceAll("{{PLAY_BADGE}}", playBadge(fr));
   const enBody = page.body ?? marked.parse(fill(readFileSync(`site/pages/${page.source}`, "utf8"), french));
   const body = page.sourceFr ? `<div data-language-copy="en" lang="en">${enBody}</div><div data-language-copy="fr" lang="fr" hidden>${marked.parse(fill(readFileSync(`site/pages/${page.sourceFr}`, "utf8"), true))}</div>` : enBody;
   const communityLabel = (en, fr) => page.community ? `<span data-en="${en}" data-fr="${fr}">${en}</span>` : fr;

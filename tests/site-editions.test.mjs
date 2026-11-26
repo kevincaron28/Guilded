@@ -94,10 +94,11 @@ describe('website refresh', () => {
   it('uses light images and a large link preview', () => {
     expect(statSync('dist/site/logo-88.webp').size).toBeLessThan(10_000);
     expect(statSync('dist/site/logo.png').size).toBeLessThan(150_000);
+    // Google's Play badge is the one PNG: it is Google's own file, which the brand rules do not let us convert.
     const home = page('index.html');
     expect(home).toContain('<meta property="og:image" content="https://guildedwow.com/images/social/og-home.jpg">');
     expect(home).toContain('<meta name="twitter:card" content="summary_large_image">');
-    expect([...home.matchAll(/<img src="([^"]+)"/g)].map(match => match[1]).filter(src => src.endsWith('.png'))).toEqual([]);
+    expect([...home.matchAll(/<img src="([^"]+)"/g)].map(match => match[1]).filter(src => src.endsWith('.png') && !src.startsWith('https://play.google.com/intl/en_us/badges/'))).toEqual([]);
     expect(page('docs/QUICK_START.html')).toContain('images/social/guilded-card.png');
     expect(page('editions/forever/index.html')).toContain('href="../../favicon.png"');
   });

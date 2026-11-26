@@ -522,9 +522,15 @@ form { margin: 22px 0 0; }
   main{max-width:none}
   table{font-size:11px}
 }
-/* Android app download: shown on phones only; the full steps are on the companion page. */
+/* Google Play badge. The image carries Google's required clear space, so no padding is added around it. */
+.play-download{margin:8px 0 18px}
+.play-badge{display:inline-block;line-height:0}
+.play-badge img{width:194px;height:auto;border:0;background:none}
+.play-download p{margin:0}
+.play-download .play-legal{font-size:11px;margin-top:4px}
+/* On the home page the badge is shown on phones only. */
 .android-phone{display:none}
-@media (max-width:760px) and (pointer:coarse){.android-phone{display:inline-flex}}
+@media (max-width:760px) and (pointer:coarse){.android-phone{display:block}}
 /* Phone-app screenshots on the Features page: tall pictures in a compact grid. */
 .phone-gallery { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin: 20px 0 24px; }
 .phone-gallery figure { margin: 0; min-width: 0; }

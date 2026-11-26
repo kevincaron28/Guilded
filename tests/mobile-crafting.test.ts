@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { craftingFor, requestCraftFor } from "../src/services/mobile-crafting.js";
+import { cancelCraftRequestFor, craftingFor, requestCraftFor } from "../src/services/mobile-crafting.js";
 
 const recipes = [
   { itemKey: 6450, itemName: "Heavy Silk Bandage", profession: "First Aid", character: "Mira" },
@@ -48,5 +48,26 @@ describe("crafting from the phone", () => {
     const full = db();
     full.craftRequest.count.mockResolvedValue(10);
     expect(await requestCraftFor(full as never, "user", { guildDiscordId: "123456", itemKey: 6450 })).toEqual({ status: "refused", message: "You already have 10 open craft requests." });
+  });
+});
+
+describe("cancelling a craft request from the phone", () => {
+  const open = (requesterId: string, status = "OPEN") => {
+    const database = db();
+    const row = { id: "r1", guildId: "g1", requesterId, crafterId: null, status };
+    return { ...database, craftRequest: { ...database.craftRequest, findFirst: vi.fn(async () => row), update: vi.fn(async () => row) } };
+  };
+  it("cancels my own open request", async () => {
+    const database = open("m1");
+    expect(await cancelCraftRequestFor(database as never, "user", { guildDiscordId: "123456", id: "r1" })).toEqual({ status: "ok", id: "r1", guildId: "g1", guildDiscordId: "123456", memberId: "m1" });
+    expect(database.craftRequest.update).toHaveBeenCalledWith({ where: { id: "r1" }, data: { status: "CANCELLED" } });
+  });
+  it("refuses someone else's request, a closed one, a bad id and a non-member", async () => {
+    const other = open("m2");
+    expect(await cancelCraftRequestFor(other as never, "user", { guildDiscordId: "123456", id: "r1" })).toMatchObject({ status: "refused" });
+    expect(other.craftRequest.update).not.toHaveBeenCalled();
+    expect(await cancelCraftRequestFor(open("m1", "DONE") as never, "user", { guildDiscordId: "123456", id: "r1" })).toMatchObject({ status: "refused" });
+    expect(await cancelCraftRequestFor(open("m1") as never, "user", { guildDiscordId: "123456", id: 7 })).toEqual({ status: "invalid" });
+    expect(await cancelCraftRequestFor(db(null) as never, "user", { guildDiscordId: "123456", id: "r1" })).toEqual({ status: "gone" });
   });
 });

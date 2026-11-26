@@ -3,7 +3,7 @@ import { signable, type Choice, type MySignup, type RaidRoleName } from "../sign
 import { useState } from "react";
 import { Linking, Pressable, Text, View } from "react-native";
 import { discordEventLink, withMine, type CoreBoard, type HubView, type ManageView, type StandingsView } from "../api";
-import { classLabel, formatPr, formatWhen, lootModeLabel, roleLabel, shownEdition, t, type Lang } from "../i18n";
+import { classLabel, formatPr, formatWhen, lootModeLabel, roleLabel, shownEdition, specClassLabel, t, type Lang } from "../i18n";
 import { classesOf, filterCharacters, filterStandings, filtersActive, noFilters, type CharacterSort, type RosterFilters, type StandingSort } from "../rosterFilter";
 import { EmptyState, shownName } from "../ui";
 import { common } from "../ui/common";
@@ -32,7 +32,7 @@ export function Characters({ lang, hub, error }: { lang: Lang; hub: HubView | nu
         <Text style={[common.heroTitle, { flexShrink: 1 }]}>{shownName(character)}</Text>
         <Text style={common.pill}>{character.isMain ? t(lang, "main") : classLabel(character.className, lang)}</Text>
       </View>
-      <Text style={common.muted}>{[character.spec, classLabel(character.className, lang)].filter(Boolean).join(" ")}{character.level ? ` · ${t(lang, "level")} ${character.level}` : ""}</Text>
+      <Text style={common.muted}>{specClassLabel(character.spec, character.className, lang)}{character.level ? ` · ${t(lang, "level")} ${character.level}` : ""}</Text>
       <Text style={common.muted}>{[character.realm, shownEdition(character.edition)].filter(Boolean).join(" · ")}</Text>
       <Text style={common.body}>{character.rank ? `${t(lang, "rank")}: ${character.rank}` : t(lang, "noRank")}</Text>
       {character.guildName ? <Text style={common.muted}>{character.guildName}{character.current ? "" : ` · ${t(lang, "otherServer")}`}</Text> : null}

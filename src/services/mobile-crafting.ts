@@ -50,6 +50,22 @@ export async function craftingFor(database: Db, discordUserId: string, guildDisc
 
 export type CraftRequestOutcome = { status: "ok"; id: string; guildId: string; guildDiscordId: string; asked?: string } | { status: "invalid" | "gone" } | { status: "refused"; message: string };
 
+export type CraftCancelOutcome = { status: "ok"; id: string; guildId: string; guildDiscordId: string; memberId: string } | { status: "invalid" | "gone" } | { status: "refused"; message: string };
+
+/** The requester cancels their own open or claimed request from the phone (the Discord button's rule; officer overrides stay in Discord). */
+export async function cancelCraftRequestFor(database: Pick<PrismaClient, "member" | "craftRequest">, discordUserId: string, input: { guildDiscordId?: unknown; id?: unknown },
+  allows: (id: string) => boolean = () => true): Promise<CraftCancelOutcome> {
+  if (typeof input.id !== "string" || !/^[A-Za-z0-9_-]{1,40}$/.test(input.id)) return { status: "invalid" };
+  const member = await memberIn(database, discordUserId, input.guildDiscordId, allows);
+  if (!member) return { status: "gone" };
+  try {
+    await createCraftService(database).cancel(member.guildId, input.id, member.id, false);
+    return { status: "ok", id: input.id, guildId: member.guildId, guildDiscordId: input.guildDiscordId as string, memberId: member.id };
+  } catch (error) {
+    return { status: "refused", message: error instanceof Error ? error.message : "That request was not cancelled." };
+  }
+}
+
 /** A new request from the phone. The item must be one somebody in the guild can make (a known recipe), so a typo never posts. */
 export async function requestCraftFor(database: Db, discordUserId: string, input: { guildDiscordId?: unknown; itemKey?: unknown; quantity?: unknown; note?: unknown; character?: unknown },
   allows: (id: string) => boolean = () => true): Promise<CraftRequestOutcome> {

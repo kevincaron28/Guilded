@@ -152,7 +152,7 @@ export function MapScreen({ lang, session }: { lang: Lang; session: Session | nu
     <Card>
       <View style={styles.row}>
         <Text style={[styles.text, { flex: 1 }]}>{w("share", lang)}</Text>
-        <Switch value={map.sharing} disabled={saving} onValueChange={changeSharing} trackColor={{ true: colors.green, false: colors.line }} thumbColor={colors.text} />
+        <Switch accessibilityLabel={w("share", lang)} value={map.sharing} disabled={saving} onValueChange={changeSharing} trackColor={{ true: colors.green, false: colors.line }} thumbColor={colors.text} />
       </View>
       <Text style={styles.muted}>{map.sharing ? w("shareOn", lang) : w("shareOff", lang)}</Text>
       {error ? <Text style={[styles.muted, { color: colors.red }]}>{error}</Text> : null}

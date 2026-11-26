@@ -29,6 +29,10 @@ export function parseHeadlines(xml: string): Headline[] {
     const link = plain(tag(match[1]!, "link") ?? "");
     let url = "";
     try { const parsed = new URL(link); if (parsed.protocol === "https:" && /(^|\.)wowhead\.com$/.test(parsed.hostname)) url = parsed.href; } catch { /* not a URL */ }
+    // The feed covers every WoW game and names it per item. Guilded is WoW Forever only: another game's item is left out
+    // (an item without a category is kept, so a feed change never empties the tab).
+    const category = plain(tag(match[1]!, "category") ?? "");
+    if (category && category.toLowerCase() !== "forever") continue;
     const date = Date.parse(plain(tag(match[1]!, "pubDate") ?? ""));
     if (title && url) out.push({ title, url, publishedAt: Number.isFinite(date) ? new Date(date).toISOString() : null });
     if (out.length >= MAX_ITEMS) break;

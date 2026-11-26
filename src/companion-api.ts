@@ -8,7 +8,7 @@ import { credentialBySecret, renewCompanionCredential } from "./services/compani
 import { allowMobileReport, mobileReportText } from "./services/mobile-app-report.js";
 import { createErrorReportService } from "./services/error-report.js";
 import { guildFeedFor } from "./services/mobile-guild-feed.js";
-import { craftingFor, requestCraftFor } from "./services/mobile-crafting.js";
+import { cancelCraftRequestFor, craftingFor, requestCraftFor } from "./services/mobile-crafting.js";
 import { MobileCredentialUnknown, configureMobileDevice, mobileDeviceStatus, retireMobileDevice } from "./services/mobile-alerts.js";
 import { guildScopeOf, guildWhere, loadGuildScope, runInGuildScope, withGuildScope } from "./services/guild-scope.js";
 import { hostedPilot } from "./hosted-pilot.js";
@@ -955,7 +955,8 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // Phone app 0.6.0: crafting from the phone (services/mobile-crafting.ts).
       const isMeCrafting = request.method === "GET" && url.pathname === "/api/v1/me/crafting";
       const isMeCraftRequest = request.method === "POST" && url.pathname === "/api/v1/me/craft-request";
-      const isMeApi = isMeCharacters || isMeMain || isMeUnlink || isMePromotion || isMeSignups || isMeSignup || isMeGuildFeed || isMeCrafting || isMeCraftRequest;
+      const isMeCraftCancel = request.method === "POST" && url.pathname === "/api/v1/me/craft-request/cancel";
+      const isMeApi = isMeCharacters || isMeMain || isMeUnlink || isMePromotion || isMeSignups || isMeSignup || isMeGuildFeed || isMeCrafting || isMeCraftRequest || isMeCraftCancel;
       // Guilded Collection (TCG stage 1): the phone's card collection, daily pack and crafting. Signed-in member only.
       const isCards = (request.method === "GET" && url.pathname === "/api/v1/companion/cards") || (request.method === "POST" && (url.pathname === "/api/v1/companion/cards/open" || url.pathname === "/api/v1/companion/cards/craft"));
       // Guilded Clash (TCG stage C): matches against the AI or a PvE boss. Signed-in member only; ids travel in the query or body.
@@ -1288,6 +1289,26 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         if (isMePromotion) { privateJson(response, await mePromotionFor(prisma, discordUserId, (id) => hostedPilot.allows(id))); return; }
         if (isMeSignups) { privateJson(response, await mySignupsFor(prisma, discordUserId, url.searchParams.get("guild"), (id) => hostedPilot.allows(id))); return; }
         if (isMeCrafting) { privateJson(response, await craftingFor(prisma, discordUserId, url.searchParams.get("guild"), url.searchParams.get("q"), (id) => hostedPilot.allows(id))); return; }
+        if (isMeCraftCancel) {
+          if (!allowCompanionRevocation(`craft-cancel:${discordUserId}`)) { json(response, 429, { error: "Too many requests. Wait a minute and try again." }); return; }
+          const body = await readBody(request).catch(() => null) as Record<string, unknown> | null;
+          if (!body || typeof body !== "object") { json(response, 400, { error: "A JSON body is required." }); return; }
+          const outcome = await cancelCraftRequestFor(prisma, discordUserId, body, (id) => hostedPilot.allows(id));
+          if (outcome.status !== "ok") {
+            if (outcome.status === "refused") json(response, 409, { error: outcome.message });
+            else if (outcome.status === "gone") json(response, 404, { error: "That craft request is not in your guild." });
+            else json(response, 400, { error: "That craft request is not valid." });
+            return;
+          }
+          markGuildChanged(outcome.guildId);
+          privateJson(response, { ok: true, id: outcome.id });
+          // The Discord post and the crafter hear about it, like a cancel from the addon. Never fails the answer.
+          if (client) {
+            void withGuildScope(prisma, outcome.guildId, () => announceOrderChanges(client, outcome.guildDiscordId, [{ requestId: outcome.id, action: "cancel", memberId: outcome.memberId, character: "" }]))
+              .catch((error: unknown) => console.warn("Phone app: craft cancel update failed:", error instanceof Error ? error.message : String(error)));
+          }
+          return;
+        }
         if (isMeCraftRequest) {
           if (!allowCompanionRevocation(`craft-request:${discordUserId}`)) { json(response, 429, { error: "Too many requests. Wait a minute and try again." }); return; }
           const body = await readBody(request).catch(() => null) as Record<string, unknown> | null;

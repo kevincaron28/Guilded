@@ -28,6 +28,12 @@ describe("news headlines", () => {
     expect(JSON.stringify(items)).not.toContain("ARTICLE");
   });
 
+  it("leaves out other games' headlines and keeps an item with no category", () => {
+    const item = (n: number, category: string) => `<item><title>H${n}</title><link>https://www.wowhead.com/news=${n}</link>${category}</item>`;
+    const feed = `<rss><channel>${item(1, "<category>Forever</category>")}${item(2, "<category>Live</category>")}${item(3, "<category><![CDATA[PTR]]></category>")}${item(4, "")}</channel></rss>`;
+    expect(parseHeadlines(feed).map((headline) => headline.title)).toEqual(["H1", "H4"]);
+  });
+
   it("fetches at most once per 30 minutes however many phones ask", async () => {
     let time = 1_000_000;
     const fetchFeed = vi.fn(async () => xml);

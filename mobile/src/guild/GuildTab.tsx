@@ -11,6 +11,7 @@ import { CraftScreen } from "./CraftScreen";
 import { FeedScreen } from "./FeedScreen";
 import { MapScreen } from "./MapScreen";
 import { SignIn } from "./SignIn";
+import { SignInAgain } from "./SignInAgain";
 
 type Section = "roster" | "activity" | "crafting" | "map" | "raids";
 
@@ -31,6 +32,7 @@ export function GuildTab({ guild, defaultOrigin, focus }: { guild: GuildState; d
     return <Screen>
       <Text style={common.title}>{t(lang, "personalTitle")}</Text>
       <Text style={common.intro}>{t(lang, "personalBody")}</Text>
+      <SignInAgain guild={guild} />
     </Screen>;
   }
 

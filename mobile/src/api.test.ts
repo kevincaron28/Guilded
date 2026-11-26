@@ -34,7 +34,7 @@ describe("mobile companion client", () => {
     expect(manage.characters[0]?.wishlist.map((wish) => wish.priority)).toEqual([1, 2]);
     const standings = parseStandings(sampleStandingsBody);
     expect(standings.nextRaid?.players).toHaveLength(2);
-    expect(withMine(standings.standings, [{ name: "Aelira", realm: "Silvermoon" }]).find((row) => row.mine)?.character).toBe("Aelira-Silvermoon");
+    expect(withMine(standings.standings, [{ name: "Aelira", realm: "Stonehall" }]).find((row) => row.mine)?.character).toBe("Aelira-Stonehall");
     expect(discordEventLink(standings.raids[1]?.note ?? "")).toBe("https://discord.com/events/100/200");
     expect(discordEventLink("see https://example.com/events/1/2")).toBeNull();
   });

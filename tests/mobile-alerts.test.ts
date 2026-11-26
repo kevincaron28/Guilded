@@ -92,6 +92,26 @@ describe("mobile raid alerts", () => {
     expect(deviceUpdate).toHaveBeenCalledWith({ where: { id: "phone", generation: 1, expoPushToken: device.expoPushToken }, data: { enabled: false, expoPushToken: null, generation: { increment: 1 }, snapshot: {} } });
     policy.mockRestore();
   });
+  it.each([["CANCELLED", 0], ["SIGNED_UP", 1], [undefined, 1]] as const)("reminds by the member's answer at delivery time (%s)", async (status, sent) => {
+    const policy = vi.spyOn(hostedPilot, "allows").mockReturnValue(true);
+    const raid = { id: "r", title: state.title, scheduledAt: new Date(state.at), updatedAt: now, signupChannelId: "private", status: "PLANNED", signups: status ? [{ status }] : [] };
+    const device = { id: "phone", enabled: true, generation: 1, expoPushToken: "ExpoPushToken[abcdefghijk]", locale: "en", snapshot: {}, credential: { revokedAt: null, member: { id: "m", guildId: "g", discordUserId: "u", status: "ACTIVE", guild: { discordId: "discord" } } } };
+    const findFirst = vi.fn().mockResolvedValue(raid), update = vi.fn();
+    const database = {
+      guild: { findFirst: vi.fn().mockResolvedValue({ id: "g", scopeKey: "default" }) },
+      raid: { findMany: vi.fn().mockResolvedValue([]), findFirst },
+      mobileDevice: { findFirst: work(), count: vi.fn().mockResolvedValue(1), findMany: vi.fn().mockResolvedValue([]), findUnique: vi.fn().mockResolvedValue(device) },
+      mobileDelivery: { deleteMany: vi.fn(), updateMany: vi.fn().mockResolvedValue({ count: 1 }), update, findMany: vi.fn(async ({ where }) => where.status === "PENDING" ? [{ id: "d", deviceId: "phone", generation: 1, attempts: 0, payload: { raidId: "r", kind: "reminder", state } }] : []) }
+    };
+    const member = { guild: { channels: { fetch: vi.fn().mockResolvedValue({ permissionsFor: () => ({ has: () => true }) }) } } };
+    const client = { rest: { get: vi.fn().mockResolvedValue([]) }, guilds: { fetch: vi.fn().mockResolvedValue({ members: { fetch: vi.fn().mockResolvedValue(member) } }) } };
+    const send = vi.fn().mockResolvedValue(Response.json({ data: { status: "ok", id: "ticket" } }));
+    await runMobileAlerts(database as never, client as never, now, send);
+    expect(send).toHaveBeenCalledTimes(sent);
+    expect(findFirst.mock.calls[0]![0].include.signups.where).toEqual({ memberId: "m" });
+    if (!sent) expect(update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "DROPPED" }) }));
+    policy.mockRestore();
+  });
   it("uses optional Expo access-token headers without exposing them in stored payloads", () => {
     expect(expoHeaders("example-test-token")).toEqual({ "content-type": "application/json", authorization: "Bearer example-test-token" });
   });

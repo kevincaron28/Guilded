@@ -6,9 +6,11 @@ import { SignupsClosedError } from "../src/services/raid.js";
 const RAID = "r".repeat(24), OTHER = "o".repeat(24);
 const GUILD = "123456789012345678";
 
-function setup(raid: object | null = { id: RAID, status: "PLANNED", signupsCloseAt: null, signups: [] }) {
+function setup(raid: object | null = { id: RAID, status: "PLANNED", signupsCloseAt: null, signups: [] }, characters: { byCharacter?: boolean; main?: string } = {}) {
   const database = {
     member: { findFirst: vi.fn(async ({ where }: { where: { guild: { discordId: string } } }) => where.guild.discordId === GUILD ? { id: "m1", guildId: "g1" } : null) },
+    guildSettings: { findUnique: vi.fn(async () => ({ characterSignups: characters.byCharacter ?? false })) },
+    character: { findFirst: vi.fn(async () => characters.main ? { id: characters.main } : null) },
     raid: { findFirst: vi.fn(async ({ where }: { where: { id: string } }) => where.id === RAID ? raid : null), findMany: vi.fn(async () => [{ id: RAID, signupsCloseAt: null, signups: [{ status: "MAYBE", role: "HEALER", late: false }] }]) }
   };
   const raids = {
@@ -27,6 +29,17 @@ describe("phone raid sign-up", () => {
     expect(result).toMatchObject({ status: "ok", signup: { raidId: RAID, status: "SIGNED_UP", role: "TANK" } });
     expect(raids.signup).toHaveBeenCalledWith(RAID, "g1", "m1", "TANK", "AVAILABLE", undefined, true);
     expect(after).toHaveBeenCalledOnce();
+  });
+  it("names a character where sign-ups are per character: the signed-up one, else the main", async () => {
+    const signed = setup({ id: RAID, status: "PLANNED", signupsCloseAt: null, signups: [{ status: "CANCELLED", role: "TANK", late: false, characterId: "c-alt" }] }, { byCharacter: true, main: "c-main" });
+    await signed.call({ raidId: RAID, guildDiscordId: GUILD, choice: "YES" });
+    expect(signed.raids.signup).toHaveBeenCalledWith(RAID, "g1", "m1", "DPS", "AVAILABLE", "c-alt", true);
+    const fresh = setup(undefined, { byCharacter: true, main: "c-main" });
+    await fresh.call({ raidId: RAID, guildDiscordId: GUILD, choice: "MAYBE" });
+    expect(fresh.raids.signup).toHaveBeenCalledWith(RAID, "g1", "m1", "DPS", "MAYBE", "c-main", true);
+    const off = setup(undefined, { main: "c-main" });
+    await off.call({ raidId: RAID, guildDiscordId: GUILD, choice: "YES" });
+    expect(off.raids.signup).toHaveBeenCalledWith(RAID, "g1", "m1", "DPS", "AVAILABLE", undefined, true);
   });
   it("keeps the current role on Maybe and defaults to DPS without one", async () => {
     const withRole = setup({ id: RAID, status: "PLANNED", signupsCloseAt: null, signups: [{ status: "SIGNED_UP", role: "HEALER", late: false }] });

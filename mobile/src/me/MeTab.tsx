@@ -1,7 +1,7 @@
 import { errorText } from "../errors";
 import { useRef, useState } from "react";
 import { KeyboardAvoidingView, Linking, Platform, Pressable, Text, View } from "react-native";
-import { classLabel, t } from "../i18n";
+import { classLabel, specClassLabel, t } from "../i18n";
 import type { GuildState } from "../useGuild";
 import { Card, ClassName, EmptyState, Glyph, Screen, SignInCard, colors, shownName } from "../ui";
 import { common } from "../ui/common";
@@ -53,7 +53,7 @@ export function MeTab({ guild, onSignIn }: { guild: GuildState; onSignIn: () => 
               <ClassName name={shownName(character)} className={character.className} style={{ fontSize: 16, flex: 1 }} />
               <Text style={common.pill}>{character.isMain ? t(lang, "main") : classLabel(character.className, lang)}</Text>
             </View>
-            <Text style={common.muted}>{[character.spec, classLabel(character.className, lang)].filter(Boolean).join(" ")}{character.level ? ` · ${t(lang, "level")} ${character.level}` : ""}</Text>
+            <Text style={common.muted}>{specClassLabel(character.spec, character.className, lang)}{character.level ? ` · ${t(lang, "level")} ${character.level}` : ""}</Text>
           </Card>)}
       </> : null}
       <Text style={common.label}>{t(lang, "badges").toUpperCase()}</Text>

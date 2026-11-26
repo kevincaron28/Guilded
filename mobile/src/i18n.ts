@@ -112,11 +112,15 @@ const copy = {
   mapShareHere: { en: "Sharing your map position is switched in the Map section of the Guild tab.", fr: "Le partage de ta position se règle dans la section Carte de l'onglet Guilde." },
   pushTitle: { en: "Raid alerts from your guild server", fr: "Alertes de raid de ton serveur de guilde" },
   pushBody: { en: "Raid changes, cancellations and reminders reach you even when the app is closed. Push replaces the on-device reminders so nothing arrives twice.", fr: "Changements, annulations et rappels de raid te parviennent même appli fermée. Le push remplace les rappels de l'appareil pour éviter les doublons." },
-  pushLater: { en: "Coming later", fr: "À venir" },
-  pushLaterBody: { en: "These alerts are not sent yet. They will appear here when your guild server sends them.", fr: "Ces alertes ne sont pas encore envoyées. Elles apparaîtront ici quand ton serveur de guilde les enverra." },
+  alertsReplaced: { en: "Push alerts are on, so your guild server sends these reminders.", fr: "Les alertes push sont activées : c'est ton serveur de guilde qui envoie ces rappels." },
+  alertsFailed: { en: "Notifications could not be updated. Retry or check phone settings.", fr: "Les notifications n'ont pas pu être mises à jour. Réessaie ou vérifie les réglages du téléphone." },
+  pushNeedsInstall: { en: "Push alerts need an installed iPhone or Android app.", fr: "Les alertes push demandent l'application installée sur iPhone ou Android." },
+  pushNotLinked: { en: "Push alerts will be available when this app is linked to its Expo project. Device reminders work now.", fr: "Les alertes push seront offertes quand l'application sera liée à son projet Expo. Les rappels sur l'appareil fonctionnent déjà." },
+  pushPermissionOff: { en: "Notifications are off for Guilded in phone settings. Open settings and allow them, then switch alerts on again.", fr: "Les notifications sont désactivées pour Guilded dans les réglages du téléphone. Ouvre les réglages, autorise-les, puis réactive les alertes." },
+  pushNotInBuild: { en: "Push alerts are not set up in this build. Device reminders still work.", fr: "Les alertes push ne sont pas configurées dans cette version. Les rappels sur l'appareil fonctionnent quand même." },
+  signInAgain: { en: "Sign in again", fr: "Me reconnecter" },
   pushRemote: { en: "Push alerts for raids", fr: "Alertes push pour les raids" },
   pushHelp: { en: "A guildmate calls for help in game", fr: "Un membre de la guilde appelle à l'aide en jeu" },
-  pushDungeon: { en: "A dungeon group needs your role", fr: "Un groupe de donjon cherche ton rôle" },
   pushRaid: { en: "A raid spot opens up for you (waiting list)", fr: "Une place de raid se libère pour toi (liste d'attente)" },
   pushKindsNote: { en: "Push must be on for these two.", fr: "Le push doit être activé pour ces deux-là." },
   thisWeek: { en: "This week on Guilded", fr: "Cette semaine sur Guilded" },
@@ -167,6 +171,7 @@ const copy = {
   signupNoDone: { en: "You said you can't come.", fr: "Tu as dit que tu ne peux pas venir." },
   signupClosed: { en: "Signups are closed for this raid.", fr: "Les inscriptions sont fermées pour ce raid." },
   signupFailed: { en: "Your answer was not saved. Try again.", fr: "Ta réponse n'a pas été enregistrée. Réessaie." },
+  signupRoleChanged: { en: "Tap {choice} again to save this role.", fr: "Touche encore {choice} pour enregistrer ce rôle." },
   errOffline: { en: "Guilded could not be reached. Check the connection and try again.", fr: "Impossible de joindre Guilded. Vérifie la connexion et réessaie." },
   errServer: { en: "Guilded is busy right now. Try again in a moment.", fr: "Guilded est occupé en ce moment. Réessaie dans un instant." },
   errBusy: { en: "Too many tries. Wait a minute and try again.", fr: "Trop d'essais. Attends une minute et réessaie." },
@@ -225,6 +230,22 @@ export function classLabel(className: string | null | undefined, lang: Lang): st
 export function shownEdition(value: string | null | undefined): string | null {
   if (!value) return null;
   return /^(wow\s*)?forever$/i.test(value.trim()) ? null : value;
+}
+
+// Talent specs as the addon and Discord store them (English), with the French client's names.
+const SPEC_NAMES_FR: Record<string, string> = {
+  arms: "Armes", fury: "Fureur", protection: "Protection", holy: "Sacré", retribution: "Vindicte", beastmastery: "Maîtrise des bêtes",
+  marksmanship: "Précision", survival: "Survie", assassination: "Assassinat", combat: "Combat", subtlety: "Finesse", discipline: "Discipline",
+  shadow: "Ombre", elemental: "Élémentaire", enhancement: "Amélioration", restoration: "Restauration", arcane: "Arcanes", fire: "Feu",
+  frost: "Givre", affliction: "Affliction", demonology: "Démonologie", destruction: "Destruction", balance: "Équilibre", feral: "Farouche",
+  feralcombat: "Combat farouche"
+};
+
+/** Spec and class together in the member's language: "Restoration Shaman", or "Chaman Restauration" in French. Unknown specs pass through. */
+export function specClassLabel(spec: string | null | undefined, className: string | null | undefined, lang: Lang): string {
+  const named = spec && lang === "fr" ? SPEC_NAMES_FR[spec.toLowerCase().replace(/[^a-z]/g, "")] ?? spec : spec;
+  const parts = lang === "fr" ? [classLabel(className, lang), named] : [named, classLabel(className, lang)];
+  return parts.filter(Boolean).join(" ");
 }
 
 export function roleLabel(role: string, lang: Lang): string {

@@ -1,5 +1,5 @@
 import { Pressable, Text, TextInput, View } from "react-native";
-import { roleLabel, t, type CopyKey, type Lang } from "../i18n";
+import { classLabel, roleLabel, t, type CopyKey, type Lang } from "../i18n";
 import { ROLES, type RoleFilter } from "../rosterFilter";
 import { colors } from "../ui";
 import { common } from "../ui/common";
@@ -20,7 +20,7 @@ export function RosterControls<S extends string>({ lang, search, onSearch, class
       accessibilityLabel={t(lang, "searchPlaceholder")} returnKeyType="search" clearButtonMode="while-editing" style={common.input} />
     {classes && classes.length > 1 && onClass ? <View style={common.chips} accessibilityLabel={t(lang, "filterClass")}>
       {chip("all-classes", t(lang, "filterAll"), !className, () => onClass(null), `${t(lang, "filterClass")}: ${t(lang, "filterAll")}`)}
-      {classes.map((value) => chip(value, value, className === value, () => onClass(className === value ? null : value), `${t(lang, "filterClass")}: ${value}`))}
+      {classes.map((value) => chip(value, classLabel(value, lang), className === value, () => onClass(className === value ? null : value), `${t(lang, "filterClass")}: ${classLabel(value, lang)}`))}
     </View> : null}
     {onRole ? <View style={common.chips} accessibilityLabel={t(lang, "filterRole")}>
       {chip("all-roles", t(lang, "filterAll"), !role, () => onRole(null), `${t(lang, "filterRole")}: ${t(lang, "filterAll")}`)}

@@ -26,8 +26,8 @@ Une page pour l’officier qui mène le raid : avant, pendant et après. Les rè
 3. Butin : suivez la méthode de votre guilde. Avec les réservations, `/guilded reserve who` suivi de
    l’objet montre qui l’a réservé, `/guilded reserve roll` lance les dés entre eux, et
    `/guilded reserve award` note le gagnant.
-4. Enchères de butin sur Discord : `/lead loot auction`, puis `/lead loot close` quand les mises sont
-   terminées.
+4. Enchères de butin sur Discord : `/lead loot auction`. Elle se ferme d’elle-même à la fin du temps
+   prévu ; `/lead loot close` la termine plus tôt.
 
 ## Après
 

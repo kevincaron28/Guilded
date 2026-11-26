@@ -25,7 +25,8 @@ One page for the officer running the raid: before, during and after. The loot ru
 3. Loot: use your guild’s method. With soft reserves, `/guilded reserve who` with the item shows who
    reserved it, `/guilded reserve roll` rolls between them, and `/guilded reserve award` records the
    winner.
-4. Discord loot auctions: `/lead loot auction`, then `/lead loot close` when bidding ends.
+4. Discord loot auctions: `/lead loot auction`. It closes by itself when its time is up; `/lead loot close`
+   ends it early.
 
 ## After
 

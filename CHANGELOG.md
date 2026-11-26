@@ -1,5 +1,38 @@
 # Changelog
 
+## 9.5.8 — 26 November 2026
+
+Prepared 26 November 2026. In-game checks: docs/V9_5_8_RELEASE_ACCEPTANCE.md.
+
+Companion (#1308, #1112):
+- Choose folder saves and watches the WoW account right away; with several accounts it lists them, and each account has a checkbox under Advanced.
+- Repair and All problems show each step, the server's reason and what to do next.
+- A sign-in that only matched "public leaderboards" no longer replaces a guild sync you already have; the website asks you to choose.
+- Messages name the buttons that really exist (Switch account, Choose folder, Update); French updated.
+- New window, installer and tray icon from the painted emblem (#1303); Electron 45.4.1.
+
+Soft reserves (#1310):
+- Members can reserve from Discord (/loot reserve, /loot unreserve) or from the phone while the loot keeper's list is open. The companion hands the request to the keeper's game, the addon applies it at the next login, /reload or unlock, and the keeper's next upload settles it. Bot migration 20270323090000_reserve_requests.
+
+Raid nights before 9 December (#1309):
+- /raid report only for raid leaders, once the raid has ended.
+- Weekly raids: no duplicate follow-up for a moved or cancelled week, an unended raid still gets its next week, cancelling can end the repeat, a new time sends the reminder again.
+- A day-before message for members with no answer or "Maybe" (on by default; officers turn it off in /setup start, raid step).
+- Loot auctions close by themselves; /raid boss suggests the raid's bosses; /raid progress includes the kills the addon recorded; Warcraft Logs raid picker in French and for WoW Forever.
+
+Addon (#1312):
+- Help, usage and module lines that stayed English on French, German and Spanish clients are translated.
+- Raid boss kills are recorded even when the Dungeons module is off.
+- French addon list descriptions have their accents.
+
+Website and guides (#1307):
+- French pages stay French, class pickers offer WoW Forever's classes only, commands that do not exist are replaced by the real ones, fuller guides in English and French, and a new raid night guide.
+
+Phone app (server side, #1305, #1311):
+- No push reminder after "Can't come", per-character raid sign-ups, cancel your own craft request. The phone app keeps its own version.
+
+Behind the scenes: screenshot checks of the website in CI (#1292), dependency updates (#1270).
+
 ## 9.5.7 — 25 November 2026
 
 Published 25 November 2026 (GitHub v9.5.7, website download and installer, bot). In-game checks: docs/V9_5_7_RELEASE_ACCEPTANCE.md.

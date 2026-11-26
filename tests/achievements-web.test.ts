@@ -120,13 +120,13 @@ describe("achievements on the website", () => {
     expect(html).toContain("How to earn:");
     expect(html).toContain("only characters of this edition count");
     expect(html).toContain("Progress: 41/60");
-    expect(html).toContain("run /achievements");
+    expect(html).toContain("run /character achievements");
     expect(html).toContain("(hover:hover)");
     expect(html).toContain(":focus-visible");
   });
   it("shows no progress or share hint to visitors, and the details panel is bilingual", async () => {
     const html = await createAchievementsWeb(fakeDb({ publicProfile: true }) as never, allows).publicSection(ctx("/players/x", "fr"), "a".repeat(24));
-    expect(html).not.toContain("run /achievements");
+    expect(html).not.toContain("run /character achievements");
     expect(html).toContain("Comment l'obtenir");
     expect(html).toContain("Forever : niveau 60 (max)");
     expect(html).toContain("seuls les personnages de cette édition comptent");

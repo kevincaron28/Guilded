@@ -274,7 +274,7 @@ export function permissionSkipLine(guildIds: string[], now = Date.now()): string
   for (const id of [...permissionNoted.keys()]) if (!guildIds.includes(id)) permissionNoted.delete(id);
   if (!fresh.length) return null;
   for (const id of guildIds) permissionNoted.set(id, now);
-  return `Nickname sync: waiting for the Manage Nicknames permission in ${guildIds.length} server(s) (shown in /setup status): ${guildIds.join(", ")}`;
+  return `Nickname sync: waiting for the Manage Nicknames permission in ${guildIds.length} server(s) (shown in /setup start status:true): ${guildIds.join(", ")}`;
 }
 
 // The scheduled run, next to the hourly rank roles. A server with several in-game guilds is synced once per guild; the log line

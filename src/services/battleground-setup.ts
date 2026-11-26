@@ -264,7 +264,7 @@ async function install(guild: DiscordGuild, db: PrismaClient, guildId: string, l
     if (!message.pinned && text.permissionsFor(me)?.has(PermissionFlagsBits.PinMessages)) await message.pin("Guilded battleground guide");
     notes.push(`<#${text.id}>${message.pinned ? "" : say(lang, " (pin manually)", " (épingler manuellement)")}`);
   }
-  const openNote = openCategory ? say(lang, " These channels are visible to everyone because no member role is set: set one in /setup step 6, then restrict the PvP category.", " Ces salons sont visibles par tous car aucun rôle membre n'est défini : choisis-en un à l'étape 6 de /setup, puis restreins la catégorie JcJ.") : "";
+  const openNote = openCategory ? say(lang, " These channels are visible to everyone because no member role is set: set one in /setup start, step 6, then restrict the PvP category.", " Ces salons sont visibles par tous car aucun rôle membre n'est défini : choisis-en un à l'étape 6 de /setup start, puis restreins la catégorie JcJ.") : "";
   return say(lang, `Battleground panels saved: ${notes.join(", ")}. No automation or consent settings changed.${openNote}`, `Panneaux JcJ enregistrés : ${notes.join(", ")}. Aucun réglage d’automatisation ou de consentement modifié.${openNote}`);
 }
 

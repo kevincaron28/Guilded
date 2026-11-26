@@ -83,7 +83,7 @@ const EXACT: Record<string, string> = {
   "A group title must be 3 to 80 characters.": "Le titre d'un groupe doit compter de 3 à 80 caractères.",
   "You are not in this group.": "Tu n'es pas dans ce groupe.",
   "I can't post in that channel. Set a dungeon signups channel in /setup.": "Je ne peux pas publier dans ce salon. Définis un salon d'inscriptions aux donjons dans /setup.",
-  "I can't post in the configured group finder channel. Check /setup status and channel permissions.": "Je ne peux pas publier dans le salon de recherche de groupe configuré. Vérifie /setup status et les permissions du salon.",
+  "I can't post in the configured group finder channel. Check /setup start status:true and channel permissions.": "Je ne peux pas publier dans le salon de recherche de groupe configuré. Vérifie /setup start status:true et les permissions du salon.",
   "Only the group leader or a raid leader can start the group.": "Seul le chef du groupe ou un chef de raid peut démarrer le groupe.",
   "Only the group leader or a raid leader can close the group.": "Seul le chef du groupe ou un chef de raid peut fermer le groupe.",
   "This group has already started.": "Ce groupe a déjà commencé.",

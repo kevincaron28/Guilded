@@ -1,6 +1,6 @@
 import { currentEdition, withEdition } from "./edition-context.js";
 import { gameEditionOf } from "../../companion/game-edition.mjs";
-import { CLASSES } from "../wow-data.js";
+import { FOREVER_CLASSES } from "../wow-data.js";
 import {
   authorizeUrl, checkCsrf, clearCookie, csrfToken, exchangeCode, hashToken, newToken, parseCookies, readStateCookie, safeReturnPath,
   sameOrigin, serializeCookie, SESSION_COOKIE, SESSION_DAYS, sign, STATE_COOKIE, stateCookie, unsign, type WebAuthConfig
@@ -193,7 +193,7 @@ export function createWebApp(deps: WebAppDeps) {
       filters.kind === "all" || filters.kind === "raids" ? `<h2>${t("Open raid spots", "Places de raid disponibles")} (${raids.length})</h2><p>${t("One raid night, no guild commitment. Counts come from confirmed Discord signups. Join the host server, then use its signup post; a spot is not reserved until confirmed there.", "Une soirée de raid, sans engagement de guilde. Les places viennent des inscriptions Discord confirmées. Rejoignez le serveur hôte puis son annonce; la place doit y être confirmée.")}</p>`
         + (raids.length ? `<div class="cards">${raids.map(raid => publicRaidCard(ctx, raid)).join("")}</div>` : `<p class="muted">${t("No open raid spot right now. Officers: share a raid night with /raid pug share in Discord and it shows up here.", "Aucune place de raid pour l'instant. Officiers : partagez une soirée de raid avec /raid pug share dans Discord et elle s'affiche ici.")}</p>`) : "",
       filters.kind === "players" || filters.kind === "raids" ? "" : `<h2>${t("Recruiting now", "Recrutent en ce moment")} <span class="tag">(${listings.length})</span></h2>`
-        + (listings.length ? `<div class="cards">${listings.map((listing) => listingCard(ctx, listing)).join("")}</div>` : `<p class="muted">${t("No guild matches these filters yet. Officers: list your guild or a raid core with /mod recruit set in Discord.", "Aucune guilde ne correspond encore à ces filtres. Officiers : publiez votre guilde ou un core de raid avec /recruit set dans Discord.")} <a href="/officers/?lang=${lang}">${t("Guide for officers", "Guide des officiers")}</a></p>`),
+        + (listings.length ? `<div class="cards">${listings.map((listing) => listingCard(ctx, listing)).join("")}</div>` : `<p class="muted">${t("No guild matches these filters yet. Officers: list your guild or a raid core with /mod recruit set in Discord.", "Aucune guilde ne correspond encore à ces filtres. Officiers : publiez votre guilde ou un core de raid avec /mod recruit set dans Discord.")} <a href="/officers/?lang=${lang}">${t("Guide for officers", "Guide des officiers")}</a></p>`),
       filters.kind === "guild" || filters.kind === "core" || filters.kind === "raids" || !deps.auth ? "" : `<h2>${t("Players looking for a guild", "Joueurs qui cherchent une guilde")} <span class="tag">(${cards.length})</span></h2>`
         + `<p><a href="${link("/me/", lang)}">${t("Post or edit your own card", "Publier ou modifier votre fiche")}</a></p>`
         + (cards.length ? `<div class="cards">${cards.map((card) => playerCard(ctx, card)).join("")}</div>` : `<p class="muted">${t("No player card matches these filters yet. Looking for a guild? Post your card: officers can find you here.", "Aucune fiche ne correspond encore à ces filtres. Vous cherchez une guilde ? Publiez votre fiche : les officiers vous trouveront ici.")}</p>`)
@@ -206,7 +206,7 @@ export function createWebApp(deps: WebAppDeps) {
     const any = { value: "", label: t("Any", "Tous") };
     return `<form class="filters" method="get" action="/recruitment/"><input type="hidden" name="lang" value="${lang}">`
       + `<div><label for="kind">${t("Show", "Afficher")}</label><select id="kind" name="kind">${options([{ value: "all", label: t("Everything", "Tout") }, { value: "guild", label: t("Guilds", "Guildes") }, { value: "core", label: t("Raid cores", "Cores de raid") }, { value: "raids", label: t("Open raid spots", "Places de raid") }, { value: "players", label: t("Players", "Joueurs") }], filters.kind)}</select></div>`
-      + `<div><label for="class">${t("Class", "Classe")}</label><select id="class" name="class">${options([any, ...CLASSES.map((name) => ({ value: name, label: classLabel(name, lang) }))], filters.className)}</select></div>`
+      + `<div><label for="class">${t("Class", "Classe")}</label><select id="class" name="class">${options([any, ...FOREVER_CLASSES.map((name) => ({ value: name, label: classLabel(name, lang) }))], filters.className)}</select></div>`
       + `<div><label for="role">${t("Role", "Rôle")}</label><select id="role" name="role">${options([any, ...ROLES.map((role) => ({ value: role, label: roleLabel(role, lang) }))], filters.role)}</select></div>`
       + `<div><label for="faction">${t("Faction", "Faction")}</label><select id="faction" name="faction">${options([any, ...FACTIONS.map((value) => ({ value, label: factionLabel(value, lang) }))], filters.faction)}</select></div>`
       + `<div><label for="language">${t("Language", "Langue")}</label><select id="language" name="language">${options([any, { value: "en", label: languageLabel("en", lang) }, { value: "fr", label: languageLabel("fr", lang) }], filters.language)}</select></div>`
@@ -301,7 +301,7 @@ export function createWebApp(deps: WebAppDeps) {
       + (error ? `<p class="notice error">${escapeHtml(error)}</p>` : "")
       + `<form method="post" action="/recruitment/apply/${listing.id}"><input type="hidden" name="csrf" value="${escapeHtml(ctx.csrf ?? "")}"><input type="hidden" name="lang" value="${lang}"><input type="hidden" name="edition" value="${currentEdition()}">`
       + `<label for="character">${t("Character name", "Nom du personnage")}</label><input id="character" name="character" required maxlength="61" value="${escapeHtml(form?.get("character") ?? "")}">`
-      + `<label for="class">${t("Class", "Classe")}</label><select id="class" name="class" required>${options([{ value: "", label: "—" }, ...CLASSES.map((name) => ({ value: name, label: classLabel(name, lang) }))], form?.get("class"))}</select>`
+      + `<label for="class">${t("Class", "Classe")}</label><select id="class" name="class" required>${options([{ value: "", label: "—" }, ...FOREVER_CLASSES.map((name) => ({ value: name, label: classLabel(name, lang) }))], form?.get("class"))}</select>`
       + `<label for="role">${t("Role", "Rôle")}</label><select id="role" name="role" required>${options([{ value: "", label: "—" }, ...ROLES.map((role) => ({ value: role, label: roleLabel(role, lang) }))], form?.get("role"))}</select>`
       + `<label for="message">${t("Message to the officers", "Message aux officiers")}</label><textarea id="message" name="message" required maxlength="${LIMITS.messageLength}">${escapeHtml(form?.get("message") ?? "")}</textarea>`
       + `<p class="tag">${t("The officers see your Discord name with the application. You will get their answer by Discord message when possible, and on your page.", "Les officiers voient votre nom Discord avec la candidature. Vous recevrez leur réponse par message Discord si possible, et sur votre page.")}</p>`
@@ -348,7 +348,7 @@ export function createWebApp(deps: WebAppDeps) {
       error ? `<p class="notice error">${escapeHtml(error)}</p>` : "",
       `<form method="post" action="/me/card"><input type="hidden" name="csrf" value="${escapeHtml(ctx.csrf ?? "")}"><input type="hidden" name="lang" value="${lang}"><input type="hidden" name="edition" value="${currentEdition()}">`
         + `<label for="character">${t("Character name", "Nom du personnage")}</label><input id="character" name="character" required maxlength="61" value="${escapeHtml(value("character"))}">`
-        + `<label for="className">${t("Class", "Classe")}</label><select id="className" name="className" required>${options([{ value: "", label: "—" }, ...CLASSES.map((name) => ({ value: name, label: classLabel(name, lang) }))], value("className"))}</select>`
+        + `<label for="className">${t("Class", "Classe")}</label><select id="className" name="className" required>${options([{ value: "", label: "—" }, ...FOREVER_CLASSES.map((name) => ({ value: name, label: classLabel(name, lang) }))], value("className"))}</select>`
         + `<label for="role">${t("Role", "Rôle")}</label><select id="role" name="role" required>${options([{ value: "", label: "—" }, ...ROLES.map((role) => ({ value: role, label: roleLabel(role, lang) }))], value("role"))}</select>`
         + `<label for="level">${t("Level", "Niveau")}</label><input id="level" name="level" inputmode="numeric" maxlength="2" value="${escapeHtml(value("level"))}">`
         + `<label for="realm">${t("Realm", "Royaume")}</label><input id="realm" name="realm" maxlength="40" value="${escapeHtml(value("realm"))}">`

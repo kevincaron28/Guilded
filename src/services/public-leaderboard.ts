@@ -8,7 +8,7 @@ import { normalizeLeaderRuns } from "./public-run-merge.js";
 import { challengeClock, readChallenge } from "./challenge-evidence.js";
 import { DEFAULT_DUNGEON_BRACKETS, routeTargetAt } from "./dungeon-november-rules.js";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
-import { CLASSES } from "../wow-data.js";
+import { FOREVER_CLASSES } from "../wow-data.js";
 import { formatDuration } from "./dungeon-rules.js";
 import { issuePersonalCode, type PersonalStore } from "./personal-pairing.js";
 import { GAIN_STEP, MIN_ROLE_RUNS, planImprovements, roleScores, roleSummary, type ImprovementPlan, type RoutePlan } from "./public-guidance.js";
@@ -24,7 +24,7 @@ import { guildBanner } from "./guild-banner.js";
 import { classBorder, dungeonHeader, dungeonThumb } from "./dungeon-thumb.js";
 import { HUB_CSS, HUB_EMBLEMS, emptyBox, emptyPage, hubTabs, notFoundBody, movement, podium, searchForm, sectionArt, strip, trendBars, type PodiumEntry } from "./leaderboard-hub.js";
 import { climbers, dungeonMilestones, newcomers, rankMovement, recordsBroken } from "./leaderboard-highlights.js";
-import { escapeHtml, link, options } from "./web-layout.js";
+import { escapeHtml, link, options, utcDateTime } from "./web-layout.js";
 import { SITEMAP_PAGE_SIZE, parseSitemapPath, sitemapFiles, sitemapIndex, sitemapUrlset, type SitemapEntry, type SitemapKind } from "./leaderboard-sitemap.js";
 import { siteUrl } from "../site-url.js";
 import { breadcrumbLd, ldGraph, publicUrl, seoTitle } from "./leaderboard-seo.js";
@@ -48,8 +48,6 @@ import { emptyPvp, guildPvpPanel, loadPvpData, playerPvpPanel, pvpHubParts, pvpP
 import { className as canonicalClass } from "./recruitment.js";
 import { weekKeyOf } from "./world-pvp.js";
 
-// WoW Forever's classes (no Death Knight, Monk, Demon Hunter or Evoker).
-const FOREVER_CLASSES = CLASSES.filter(name => !["Death Knight", "Monk", "Demon Hunter", "Evoker"].includes(name));
 
 // Public dungeon leaderboards (7.0, roadmap request 6; 7.1 season pages). Layout inspired by
 // Raider.IO, built from our own data and words: /leaderboards/ (this week's top runs and top
@@ -653,7 +651,7 @@ table.dense td,table.dense th{padding:5px 8px;font-size:14px;white-space:nowrap}
 thead th{position:sticky;top:0;background:var(--bg);z-index:1}
 .bracket-switch{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 12px}.bracket-switch a{min-height:44px;display:inline-flex;align-items:center;padding:0 14px;border:1px solid var(--line);border-radius:6px;text-decoration:none;color:var(--text)}.bracket-switch a.on{background:var(--gold);color:#111;border-color:var(--gold)}
 .class-name{font-weight:600}
-@media(max-width:480px){.table-wrap{overflow-x:visible}table.rank-cards,table.rank-cards tbody,table.rank-cards tr,table.rank-cards td{display:block;width:auto;white-space:normal}table.rank-cards thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}table.rank-cards tr{border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin:0 0 8px}table.rank-cards td{border:0;padding:2px 0}table.rank-cards td.num{text-align:left}}</style>`;
+@media(max-width:480px){.table-wrap:has(>table.rank-cards){overflow-x:visible}table.rank-cards,table.rank-cards tbody,table.rank-cards tr,table.rank-cards td{display:block;width:auto;white-space:normal}table.rank-cards thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}table.rank-cards tr{border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin:0 0 8px}table.rank-cards td{border:0;padding:2px 0}table.rank-cards td.num{text-align:left}}</style>`;
 
 export interface LeaderboardDeps { store: LeaderboardStore; personal: PersonalStore | null; now?: () => Date; cacheMs?: number;
   /** The owner's season calendar (official-seasons.ts); the seeded Season 1 when left out. */
@@ -874,9 +872,8 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
         : t(`${n} ranked runs have no recorded role: they count in the overall score only.`, `${n} essais classés n'ont pas de rôle enregistré : ils comptent seulement dans le score global.`)}</p>` : "");
   }
 
-  const utcBoundary = (value: Date) => value.toISOString().slice(0, 19).replace("T", " ") + " UTC";
-  const periodRange = (ctx: WebContext, period: PublicPeriod) => `${period.from ? utcBoundary(period.from) : ctx.t("earliest records", "premiers essais")} → ${period.to ? utcBoundary(period.to) : ctx.t("ongoing", "en cours")}`;
-  const periodDates = (ctx: WebContext, period: PublicPeriod) => `<p class="muted">${ctx.t("Selected period", "Période sélectionnée")}${ctx.t(":", " :")} ${escapeHtml(periodName(ctx, period))} · ${period.from ? utcBoundary(period.from) : ctx.t("earliest records", "premiers essais")} → ${period.to ? utcBoundary(period.to) + " (" + ctx.t("exclusive", "exclu") + ")" : ctx.t("ongoing", "en cours")}</p>`;
+  const periodRange = (ctx: WebContext, period: PublicPeriod) => `${period.from ? utcDateTime(period.from, ctx.lang) : ctx.t("earliest records", "premiers essais")} → ${period.to ? utcDateTime(period.to, ctx.lang) : ctx.t("ongoing", "en cours")}`;
+  const periodDates = (ctx: WebContext, period: PublicPeriod) => `<p class="muted">${ctx.t("Selected period", "Période sélectionnée")}${ctx.t(":", " :")} ${escapeHtml(periodName(ctx, period))} · ${period.from ? utcDateTime(period.from, ctx.lang) : ctx.t("earliest records", "premiers essais")} → ${period.to ? utcDateTime(period.to, ctx.lang) + " (" + ctx.t("exclusive", "exclu") + ")" : ctx.t("ongoing", "en cours")}</p>`;
   const intro = (ctx: WebContext, period: PublicPeriod) => currentEdition() !== "forever"
     ? `${sectionArt("dungeons")}<p class="eyebrow">Guilded · ${escapeHtml(periodName(ctx, period))}</p><h1>${ctx.t("Dungeon leaderboards", "Classements des donjons")}</h1><p>${ctx.t("Runs from this WoW edition only. Dungeon ratings require reviewed season routes and targets; Mythic+ has a separate keystone leaderboard.", "Essais de cette version de WoW seulement. Les cotes nécessitent des parcours et cibles de saison vérifiés ; Mythic+ possède son propre classement de clés.")}</p>`
     : `${sectionArt("dungeons")}<p class="eyebrow">Guilded · ${escapeHtml(periodName(ctx, period))}</p><h1>${ctx.t("Dungeon leaderboards", "Classements des donjons")}</h1>`

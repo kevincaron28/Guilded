@@ -44,8 +44,9 @@ Le reste est là au besoin.
 | `/leaderboard` `board:` | Cote des donjons (par défaut), records de la guilde, duels JcJ, points de communauté ou EPGP | Tout le monde |
 | `/epgp` `balance` `history` `leaderboard` | Vos EP, GP et priorité ; le classement de la guilde | Tout le monde |
 | `/loot` `bid` `history` `reserves` | Miser aux enchères ; historique du butin ; réserves | Tout le monde |
-| `/craft` `request` `list` `who` `mine` `claim` `done` `release` `cancel` | Demander un objet aux artisans, ou prendre des demandes | Tout le monde |
-| `/bank` `request` `mine` `cancel` | Demander un objet à la banque de guilde | Tout le monde |
+| `/craft` `request` `list` `who` `mine` `done` `release` `cancel` | Demander un objet aux artisans ; prendre une demande avec le bouton **Je le fabrique** sur sa publication, puis la marquer terminée | Tout le monde |
+| `/craft` `offer` `offers` `withdraw` `notify` `top` `history` | Proposer vos recettes, être mentionné pour les demandes, voir les meilleurs artisans | Tout le monde |
+| `/bank` `search` `request` `mine` `cancel` | Voir ce que contient la banque de guilde ; lui demander un objet | Tout le monde |
 | `/apply` | Postuler à un core de raid | Tout le monde |
 | `/tag` `show` `list` | Afficher un texte enregistré (règles de raid, consommables) | Tout le monde |
 | `/community` `hub` `seasons` `leaderboard` `wallet` `dice` `badges` `honors` | Points de communauté, saisons, badges et palmarès | Tout le monde |
@@ -59,7 +60,7 @@ Le reste est là au besoin.
 
 | Commande | Ce qu’elle fait | Qui |
 | --- | --- | --- |
-| `/raid` `signup` `cancel-signup` `status` `roster` | S’inscrire à un raid ; voir qui vient | Tout le monde |
+| `/raid` `status` `roster` `cancel-signup` | Voir qui vient ; annuler votre inscription (on s’inscrit avec les boutons de l’annonce du raid) | Tout le monde |
 | `/raid` `progress` `report` | Progression des boss ; résumé d’un raid terminé | Tout le monde |
 | `/raid wcl` `list` | Derniers rapports Warcraft Logs importés | Tout le monde |
 | `/raid` `worldbuff` `worldbuffs` `worldbuff-remove` | Annoncer et lister les world buffs | Tout le monde |
@@ -71,7 +72,8 @@ Le reste est là au besoin.
 | `/core` `setup` `edit` `create` `add` `character` `remove` `rules` `items` `post` `rename` `delete` | Créer et gérer les cores (rosters, banc, règles de points, prix des objets) | Chefs de raid |
 | `/team` `show` `list` `sessions` `view` `respond` | Cores hebdomadaires de donjon et de JcJ : roster, séances, votre réponse | Tout le monde |
 | `/team` `create` `member` `schedule` `session` `attendance` `lineup` `archive` | Gérer un core hebdomadaire | Chefs d’équipe |
-| `/bg` `panel` `join` `leave` `mine` `upcoming` `view` `history` `privacy` | Groupes de champ de bataille et vos rapports privés | Tout le monde |
+| `/bg` `panel` `join` `leave` `mine` `upcoming` `view` `history` `result` `correct` | Groupes de champ de bataille et vos rapports privés | Tout le monde |
+| `/bg` `stats` `duels` `world` | Rapports de participation aux champs de bataille ; classement des duels ; JcJ mondial de la semaine | Tout le monde |
 | `/bg` `create` `manage` `setup` | Planifier et gérer les séances de champ de bataille | Chefs |
 
 ### Tableau des PUG
@@ -88,9 +90,9 @@ Le reste est là au besoin.
 | Commande | Ce qu’elle fait | Qui |
 | --- | --- | --- |
 | `/dungeon` `leaderboard` `season` `records` `player` `history` | Cote de saison, meilleurs temps, parcours d’un joueur | Tout le monde |
-| `/dungeon` `archive` `hall-of-fame` `rules` `catalog` `keystones` `together` | Saisons passées, règles de pointage, liste des donjons, objectif d’équipe de la semaine | Tout le monde |
-| `/dungeon` `group` `alerts` `watch` | Former un groupe avec un canal vocal ; être prévenu des groupes qui vous conviennent | Tout le monde |
-| `/officer dungeon` `invalidate` `award` `audit` `config` `goal` `announce` | Corriger une partie, ajuster les points de guilde, lire l’historique ; l’objectif commun de la semaine et les annonces de records | Officiers |
+| `/dungeon` `archive` `hall-of-fame` `rules` `catalog` `together` | Saisons passées, règles de pointage, liste des donjons, objectif d’équipe de la semaine | Tout le monde |
+| `/dungeon` `group` `guide` `alerts` `watch` | Former un groupe avec un canal vocal ; être prévenu des groupes qui vous conviennent | Tout le monde |
+| `/officer dungeon` `invalidate` `award` `audit` `config` `flagged` `sync` `goal` `announce` | Corriger une partie, ajuster les points de guilde, lire l’historique ; examiner les parties douteuses et les synchronisations bloquées ; l’objectif commun de la semaine et les annonces de records | Officiers |
 | `/organize dungeon-seasons preview` | Voir les saisons de donjon en cours et à venir | Organisateurs |
 
 ### Officiers et configuration
@@ -103,19 +105,23 @@ Le reste est là au besoin.
 | `/config` `view` `set` `welcome` `farewell` `roles` `channel` `timezone` `weekly-report` … | Réglages du serveur : accueil, rôles, fuseau horaire, rapports, mode de butin, import automatique | Officiers |
 | `/lead epgp` `award-ep` `award-gp` `decay` `reverse` | Donner, réduire ou annuler des EP et GP | Officiers |
 | `/lead loot` `auction` `award` `close` `priority` | Mener les enchères et attribuer le butin | Officiers |
-| `/officer character` `unclaimed` `link` `autolink` | Lier les personnages signalés à des membres Discord | Officiers |
+| `/officer character` `unclaimed` `link` `move` `autolink` `claimdm` | Lier les personnages signalés à des membres Discord ; en déplacer un avec son historique | Officiers |
+| `/officer roster` `gaps` `ignore` `nicknames` `map` `gamelink` | Membres et personnages non liés ; synchronisation des surnoms, carte des coéquipiers sur le téléphone, liaison par la discussion du jeu | Officiers |
+| `/officer promotion` `list` `rule` | Qui est prêt pour le prochain rang ; la règle de promotion | Officiers |
+| `/officer stats` `feed` `trend` `toggle` `cards` `bank` | Flux pour les feuilles de calcul, évolution des membres, statistiques quotidiennes et réglages liés | Officiers |
 | `/officer export` | Télécharger classements, EPGP, butin, présences ou roster en CSV | Officiers |
 | `/setup import` `upload` `apply` `held` | Prévisualiser et appliquer les données de l’addon | Officiers |
 | `/mod` `warn` `timeout` `kick` `ban` `history` | Modération | Officiers |
 | `/mod` `application` `dni` | Examiner les candidatures ; liste « ne pas inviter » | Officiers |
 | `/mod` `faq` | Le canal de réponses : rédiger les réponses du bot | Officiers |
+| `/mod invites` `list` `extra` `record` `settings` `tidy` `questions` `post` | La file des invitations de guilde et ses réglages | Officiers |
 | `/mod` `page` `recruit` `leaderboard` `rankroles` | Page publique de la guilde, recrutement, classements publics, rôles de rang | Officiers |
 | `/officer reports` `inactive` `guild` `games` `remind` `auto-remind` `posts` | Membres inactifs ; santé de la guilde ; rappels de jeu ; bilan quotidien et records de la semaine | Officiers |
 | `/organize` | Saisons communautaires, quiz, palmarès, loteries, soirées de jeu, défis | Organisateurs |
 | `/organize poll` `create` `close` `weekly` `news` | Sondages, question de la semaine et nouvelles | Officiers |
 | `/setup participation` `settings` `channels` `claims` `review` `reverse` | Réglages de participation, nominations et récompenses | Officiers |
 | `/setup guild` `add` `channel` `roles` | Ajouter une guilde en jeu ; lier un canal ; régler ses rôles | Officiers |
-| `/poe setup` | Activer ou suspendre le suivi PoE2 | Officiers |
+| `/poe setup` | Activer ou suspendre le suivi PoE2 | Officiers | <!--poe-->
 | `/automation` `question` `vacancies` | Question hebdomadaire automatique et correspondances de groupes de donjon | Officiers |
 | `/setup tags` `set` `delete` | Créer ou supprimer des textes enregistrés | Officiers |
 | `/config craft` `offers` `posts` `orders` `permissions` `notify` | Réglages et permissions du tableau d’artisanat | Officiers |
@@ -187,7 +193,7 @@ Les lignes « Officiers » demandent le rang d’officier dans votre guilde WoW.
 | `/guilded ready` · `consumes` | Qui est prêt dans votre groupe ; qui manque de flacon ou de nourriture | Officiers et chefs de groupe |
 | `/guilded export` · `import softres\|tmb\|history` | Exporter ; importer réserves, TMB ou historique de butin | Officiers |
 | `/guilded invite raid\|missing` · `autoinvite` | Inviter les inscrits au raid ; une ligne /ginvite pour ceux qui chuchotent | Officiers |
-| `/guilded recruit` · `welcome` | Liste de recrues potentielles ; chuchoter aux nouveaux membres | Officiers |
+| `/guilded recruit` | Liste de recrues potentielles | Officiers |
 | `/guilded officer list\|add\|remove\|rank` | Qui compte comme officier | Officiers |
 | `/guilded ledgersync` · `bridge` · `rosteradmin` · `sim` | Partager les EP/GP entre officiers ; pont du compagnon ; outils de roster ; raid de test | Officiers |
 
@@ -195,11 +201,12 @@ Les lignes « Officiers » demandent le rang d’officier dans votre guilde WoW.
 
 | Onglet | Ce qu’il montre | Qui |
 | --- | --- | --- |
-| Home · My character · Open raids | Ce qui se passe, votre équipement, les raids avec de la place | Tout le monde |
-| Standings · Crafting | Classements et recettes | Tout le monde |
-| Ready · Reserves · Loot · Council | Vérifications de soirée de raid, réserves, mises et réponses du conseil | Chefs / Tout le monde / Officiers |
-| Raid · Administration · Gear | Mener un raid, donner des EP/GP, niveau d’objet par membre | Officiers |
-| Calendar · Local guild · Roster admin · Officer tools | Calendrier, configuration sans Discord, outils de roster, journal et imports | Officiers |
+| Home · My character | Ce qui se passe, vos données et la vérification de votre équipement | Tout le monde |
+| Guild overview · Standings · Duels | Classes et niveaux, classements, classement des duels | Tout le monde |
+| Layer invite · Dungeons · Crafting | Demander un autre layer ; vos parties et les classements de donjons ; trouver un artisan et demander un objet | Tout le monde |
+| Open raids · Raid sign-up · Ready · Reserves | Raids avec de la place, inscription, vérifications de soirée de raid, réservations | Tout le monde (Ready : officiers et chefs de groupe) |
+| Raid · Loot · Council | Mener un raid ; mises et réponses du conseil (affichés selon le système de butin du core) | Officiers |
+| Gear · Admin · Calendar · Local guild · Roster · Tools | Niveau d’objet par membre, gestion des EP/GP, calendrier de guilde, configuration sans Discord, outils de roster, journal et imports | Officiers |
 | Settings | Activer ou désactiver des parties, diagnostic | Tout le monde |
 
 ### Addons compagnons
@@ -219,6 +226,6 @@ Discord et le site. Toutes les étapes : [Application compagnon](https://guilded
 | Ce qu’il fait | Envoie les données enregistrées de votre addon à Discord et au site, et rapporte les classements dans le jeu |
 | Où l’obtenir | [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) (recommandé, mise à jour automatique) ou le [téléchargement direct](https://guildedwow.com/downloads/Guilded.Companion.Setup.exe) (solution de rechange non signée) |
 | Plateforme | Windows seulement. Pas de version Mac, Linux ni navigateur |
-| Première ouverture | Choisir **Connexion avec Discord**, sélectionner votre serveur (ou les classements publics seulement), puis vos données |
+| Première ouverture | Rien à configurer : il trouve tout seul votre dossier WoW et le Discord de votre guilde. **Se connecter avec Discord** est facultatif et confirme vos personnages |
 | Après avoir joué | `/reload` dans WoW et le compagnon synchronise |
 | Qui devrait l’utiliser | Chaque membre qui veut les fonctions Discord ; au moins un officier par guilde |

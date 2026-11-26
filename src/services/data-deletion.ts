@@ -164,6 +164,7 @@ async function deleteWithinTransaction(database: PrismaClient, discordUserId: st
     await tx.poeMapVisit.deleteMany({ where: own });
     await tx.guildMapSighting.deleteMany({ where: own });
     await tx.guildHelpCall.deleteMany({ where: own });
+    await tx.reserveRequest.deleteMany({ where: own });
     await tx.characterPairing.deleteMany({ where: own });
     await tx.characterVerifyCode.deleteMany({ where: own });
     await tx.characterVerifyClaim.deleteMany({ where: own });

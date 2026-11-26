@@ -189,6 +189,13 @@ reservers roll for it. Items are kept by item id, so **shift-click the item**.
 3. Officer, when the raid starts: `/guilded reserve lock`.
 4. When an item drops: `/guilded reserve who [link]`, then `/guilded reserve roll [link]` (a high roll between only the reservers), then `/guilded reserve award <player> [link] [GP]` (records the loot and uses up that reserve).
 
+Outside the game: while the list is open, members can ask in Discord (`/loot reserve`, `/loot unreserve`) or in the
+phone app. The request reaches the keeper's addon through the companion file and is applied at the keeper's next login,
+`/reload` or unlock, then shows on the list after the keeper's next upload. A request needs an item link, Wowhead link
+or item number (or a name Guilded already knows) to be added automatically; otherwise the keeper is told in chat and
+adds it by hand. Requests that are never applied are dropped after 7 days, and when the list is locked or cleared.
+The loot keeper must be an officer running the companion.
+
 The list also reaches Discord: the companion sends it with the rest of the export and
 `/loot reserves [item]` shows it there (see below). It is shared with the guild automatically, shows on item tooltips ("Reserved by ...")
 and puts reservers first in the loot council list. It survives `/reload`.
@@ -366,6 +373,7 @@ also works. `/help` reminds leaders of this. `/core`, `/team`, `/report`, `/part
 | `/epgp balance` / `history` / `leaderboard` | Your EP, GP, PR, and the leaderboard |
 | `/loot bid <auction> <amount>` | Bid GP on an auction. Whoever was leading gets a DM that they were outbid |
 | `/loot reserves [item]` | Who soft-reserved what, from the list kept in the game addon (`/guilded reserve`). It updates when the companion uploads. Type part of an item name, or a character name, to narrow it |
+| `/loot reserve <item>` / `unreserve <item>` `[character]` | Ask for a soft reserve on the open list, or take one back. Give an item link, Wowhead link, number or name; it is applied at the loot keeper's next /reload |
 | `/loot history` | Awarded loot: item, boss/raid, winner, GP, GP before → after, who awarded it, date |
 | `/character readiness me` | Your latest gear check from the addon |
 | `/character attunement set` / `list` | Your characters' attunements |

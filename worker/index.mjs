@@ -127,6 +127,8 @@ const apiMethods = new Map([
   ["/api/v1/me/promotion", ["GET"]],
   ["/api/v1/me/raid-signups", ["GET"]],
   ["/api/v1/me/raid-signup", ["POST"]],
+  // Phone app: ask for or take back a soft reserve on the loot keeper's open list.
+  ["/api/v1/me/reserve", ["POST"]],
   // Phone app 0.6.0: the guild activity feed (joins, departures, ranks, bank gifts, raid kills) of the member's own guild.
   ["/api/v1/me/guild-feed", ["GET"]],
   // Phone app 0.6.0: who in my guild can craft an item, my open requests, and a new craft request.

@@ -321,6 +321,9 @@ export function standingsToLua(data, shape = null) {
     "-- Crafting orders in game: Discord craft requests for the Crafting page (Modules/CraftOrders.lua).",
     ...craftOrdersToLua(data.craftOrders, data.updatedAt),
     "",
+    "-- Reserves asked for in Discord or on the phone, for the loot keeper (Modules/Reserve.lua).",
+    ...reserveRequestsToLua(data.reserveRequests, data.updatedAt),
+    "",
     "-- Officers only: names waiting for a guild invite (full Forever names), for the addon's To invite panel.",
     ...(Array.isArray(data.officerInvites) ? [
       `GuildedInvites = { fetchedAt = ${luaString(data.updatedAt ?? "")}, names = {`,
@@ -336,6 +339,14 @@ export function standingsToLua(data, shape = null) {
     ] : ["GuildedDni = nil"]),
     ""
   ].join("\n");
+}
+
+// Reserve requests: at most 200; nothing when absent (older bots send none).
+export function reserveRequestsToLua(requests, updatedAt) {
+  const rows = (Array.isArray(requests) ? requests : []).slice(0, 200)
+    .filter((r) => r && typeof r.id === "string" && /^[A-Za-z0-9_-]{6,40}$/.test(r.id) && typeof r.name === "string" && r.name && ["ADD", "DEL"].includes(r.op))
+    .map((r) => `  { id = ${luaString(r.id)}, name = ${luaString(r.name.slice(0, 80))}, op = ${luaString(r.op)}, item = ${Number.isSafeInteger(r.item) && r.item > 0 ? r.item : "nil"}, itemName = ${luaString(typeof r.itemName === "string" ? r.itemName.slice(0, 100) : "")}, at = ${Number.isSafeInteger(r.at) && r.at > 0 ? r.at : 0} },`);
+  return rows.length ? [`GuildedReserveRequests = { at = ${luaString(typeof updatedAt === "string" ? updatedAt : "")}, requests = {`, ...rows, "} }"] : ["GuildedReserveRequests = nil"];
 }
 
 // Crafting orders: at most 50 (open, claimed, and done in the last day); off when officers turned them off.

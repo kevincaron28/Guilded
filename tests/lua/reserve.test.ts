@@ -111,6 +111,38 @@ describe("Reserve.lua keeper side", () => {
     expect(holders(s, 1)).toBe("Ann");
   });
 
+  it("applies Discord and phone requests once, only for the open list and only as keeper", () => {
+    const s = withReserve("Boss", true);
+    cmd(s, "open");
+    s.run(`local now = os.time()
+      GuildedReserveRequests = { requests = {
+        { id = "req000001", name = "Ann", op = "ADD", item = 19364, itemName = "Ashkandi", at = now },
+        { id = "req000002", name = "Bob", op = "ADD", item = nil, itemName = "Mystery Blade", at = now },
+        { id = "req000003", name = "Cy", op = "ADD", item = 17063, itemName = "Band of Accuria", at = now - 86400 },
+      } }`);
+    expect(s.run("return NS.reserve.applyRemote()")).toBe("2"); // the older one was made for an earlier list
+    expect(holders(s, 19364)).toBe("Ann");
+    expect(holders(s, 17063)).toBe("");
+    expect(s.run("return table.concat(CHAT_LOG, '|')")).toContain("Bob wants Mystery Blade");
+    cmd(s, `remove Ann ${SWORD}`);
+    expect(s.run("return NS.reserve.applyRemote()")).toBe("0"); // never twice
+    expect(holders(s, 19364)).toBe("");
+    s.run(`GuildedReserveRequests = { requests = { { id = "req000004", name = "Ann", op = "ADD", item = 19364, itemName = "Ashkandi", at = os.time() } } }`);
+    cmd(s, "lock");
+    expect(s.run("return NS.reserve.applyRemote()")).toBe("0");
+    cmd(s, "unlock"); // unlocking applies what waited
+    expect(holders(s, 19364)).toBe("Ann");
+    s.run(`GuildedReserveRequests = { requests = { { id = "req000005", name = "Ann", op = "DEL", item = 19364, itemName = "Ashkandi", at = os.time() } } }`);
+    expect(s.run("return NS.reserve.applyRemote()")).toBe("1");
+    expect(holders(s, 19364)).toBe("");
+  });
+
+  it("members ignore the companion's reserve requests", () => {
+    const s = withReserve("Ray", false);
+    s.run(`GuildedReserveRequests = { requests = { { id = "req000001", name = "Ann", op = "ADD", item = 19364, at = os.time() } } }`);
+    expect(s.run("return NS.reserve.applyRemote()")).toBe("0");
+  });
+
   it("takes whispers from players without the addon", () => {
     const s = withReserve("Boss", true);
     cmd(s, "open");

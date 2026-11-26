@@ -29,6 +29,7 @@ import { companionMe } from "./services/companion-me.js";
 import { albumFor } from "./services/companion-album.js";
 import { makeMainFor, mePromotionFor, meCharactersFor, unlinkFor } from "./services/me-api.js";
 import { mySignupsFor, signUpFor } from "./services/mobile-raid-signup.js";
+import { reserveFor } from "./services/mobile-reserve.js";
 import { createRaidService } from "./services/raid.js";
 import { applyWorldPvpUpload, parseWorldPvpUploads } from "./services/world-pvp.js";
 import { applyPvpEvents, parsePvpEvents } from "./services/world-pvp-events.js";
@@ -73,6 +74,7 @@ import { RETRY_OUTCOME, saveRunReceipts } from "./services/dungeon-import.js";
 import { retryWriteConflict, serializeByKey } from "./services/transaction-retry.js";
 import { alertLowStock, bankForAddon, parseAddonBankRequests, postRequestCard } from "./services/guild-bank-member.js";
 import { createBankService } from "./services/bank.js";
+import { reserveRequestsForAddon } from "./services/reserve-requests.js";
 import { applyOrderActions, applyOrderRequests, craftOrdersForAddon, parseAddonOrderActions, parseAddonOrderRequests, unpostedGameRequests } from "./services/craft-orders.js";
 import { applyBoardVotes, applyRelayedBoardVotes, boardEnabled, createBoardService, parseAddonBoardPosts, parseAddonBoardVotes } from "./services/guild-board.js";
 import { asLang } from "./i18n.js";
@@ -614,7 +616,7 @@ export async function standingsParts(guild: { id: string; discordId: string }, a
     const lootRead = lootRulesForAddon(prisma, guild.id, async (coreId, coreBaseGp) =>
       (await createEpgpService(prisma).getGuildStandings(guild.id, coreBaseGp, coreId)).map((row) => ({ character: addonName(row.character, row.realm), ...(row.displayName ? { displayName: row.displayName } : {}), main: row.main, ep: row.ep, gp: row.gp })));
     lootRead.catch(() => undefined);
-    const [loot, dungeonBoard, nextRaid, items, botRaids, craftOrders] = await Promise.all([
+    const [loot, dungeonBoard, nextRaid, items, botRaids, craftOrders, reserveRequests] = await Promise.all([
       lootRead,
       // Kept per guild (dungeon-board-cache.ts): scoring every run took 5-15 s and was repeated after every change of the guild.
       dungeonBoardCache.get(prisma, guild.id, () => markGuildChanged(guild.id)),
@@ -622,11 +624,13 @@ export async function standingsParts(guild: { id: string; discordId: string }, a
       itemInsights(prisma, guild.id).catch(() => []),
       upcomingRaidsForAddon(prisma, guild.id),
       // Crafting orders in game (craft-orders.ts): Discord craft requests for the addon's Orders page; the same for everyone.
-      craftOrdersForAddon(prisma, guild.id)
+      craftOrdersForAddon(prisma, guild.id),
+      // Reserves asked for in Discord or on the phone, for the loot keeper's addon (Modules/Reserve.lua).
+      reserveRequestsForAddon(prisma, guild.id)
     ]);
-    return { loot, dungeonBoard, nextRaid, items, botRaids, craftOrders };
+    return { loot, dungeonBoard, nextRaid, items, botRaids, craftOrders, reserveRequests };
   });
-  const [{ loot, dungeonBoard, nextRaid, items, botRaids, craftOrders }, bank, officerInvites, officerDni, pilotRaids, scheduledEvents] = await Promise.all([
+  const [{ loot, dungeonBoard, nextRaid, items, botRaids, craftOrders, reserveRequests }, bank, officerInvites, officerDni, pilotRaids, scheduledEvents] = await Promise.all([
     guildReads,
     // 9.1 guild bank (guild-bank-member.ts): contents to search in game, the low list, this member's requests.
     bankForAddon(prisma, guild.id, access.memberId, !!access.officer),
@@ -650,7 +654,7 @@ export async function standingsParts(guild: { id: string; discordId: string }, a
   // Shared: the same for every member, so it sets the stamp. Discord events are filtered
   // per member and dungeon/ledger acknowledgements do not change what the addon shows.
   return {
-    shared: { accounts, baseGp, craftOrders, dungeonBoard, nextRaid, items, loot: loot ? { ...loot, cores: loot.cores.map((core) => ({ ...core, accounts })) } : null, standings },
+    shared: { accounts, baseGp, craftOrders, ...(reserveRequests.length ? { reserveRequests } : {}), dungeonBoard, nextRaid, items, loot: loot ? { ...loot, cores: loot.cores.map((core) => ({ ...core, accounts })) } : null, standings },
     personal: { acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, runNotes, ...(Object.keys(pendingRunNotes).length ? { pendingRunNotes } : {}), ...(Object.keys(runCards).length ? { runCards } : {}), raids, ...(promotion ? { promotion } : {}),
       ...(officerInvites ? { officerInvites } : {}),
       ...(access.officer && officerDni ? { officerDni } : {}),
@@ -950,13 +954,15 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // Phone app 0.5.1: the member's own answer on each upcoming raid, and sign up / maybe / can't come (services/mobile-raid-signup.ts).
       const isMeSignups = request.method === "GET" && url.pathname === "/api/v1/me/raid-signups";
       const isMeSignup = request.method === "POST" && url.pathname === "/api/v1/me/raid-signup";
+      // Phone app: ask for or take back a soft reserve (services/mobile-reserve.ts).
+      const isMeReserve = request.method === "POST" && url.pathname === "/api/v1/me/reserve";
       // Phone app 0.6.0: the guild activity feed of the member's own guild (services/mobile-guild-feed.ts).
       const isMeGuildFeed = request.method === "GET" && url.pathname === "/api/v1/me/guild-feed";
       // Phone app 0.6.0: crafting from the phone (services/mobile-crafting.ts).
       const isMeCrafting = request.method === "GET" && url.pathname === "/api/v1/me/crafting";
       const isMeCraftRequest = request.method === "POST" && url.pathname === "/api/v1/me/craft-request";
       const isMeCraftCancel = request.method === "POST" && url.pathname === "/api/v1/me/craft-request/cancel";
-      const isMeApi = isMeCharacters || isMeMain || isMeUnlink || isMePromotion || isMeSignups || isMeSignup || isMeGuildFeed || isMeCrafting || isMeCraftRequest || isMeCraftCancel;
+      const isMeApi = isMeCharacters || isMeMain || isMeUnlink || isMePromotion || isMeSignups || isMeSignup || isMeReserve || isMeGuildFeed || isMeCrafting || isMeCraftRequest || isMeCraftCancel;
       // Guilded Collection (TCG stage 1): the phone's card collection, daily pack and crafting. Signed-in member only.
       const isCards = (request.method === "GET" && url.pathname === "/api/v1/companion/cards") || (request.method === "POST" && (url.pathname === "/api/v1/companion/cards/open" || url.pathname === "/api/v1/companion/cards/craft"));
       // Guilded Clash (TCG stage C): matches against the AI or a PvE boss. Signed-in member only; ids travel in the query or body.
@@ -1356,6 +1362,17 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           if (outcome.status === "invalid") { json(response, 400, { error: "That sign-up answer is not valid." }); return; }
           if (outcome.status === "gone") { json(response, 404, { error: "That raid is no longer open." }); return; }
           if (outcome.status === "closed") { json(response, 409, { error: "Signups are closed for this raid.", closed: true, closesAt: outcome.closesAt }); return; }
+          json(response, 409, { error: outcome.message });
+          return;
+        }
+        if (isMeReserve) {
+          if (!allowCompanionRevocation(`reserve:${discordUserId}`)) { json(response, 429, { error: "Too many changes. Wait a minute and try again." }); return; }
+          const wanted = await readBody(request).catch(() => null) as Record<string, unknown> | null;
+          if (!wanted || typeof wanted !== "object") { json(response, 400, { error: "A JSON body is required." }); return; }
+          const outcome = await reserveFor(prisma, discordUserId, wanted, (id) => hostedPilot.allows(id));
+          if (outcome.status === "ok") { privateJson(response, { ok: true, outcome: outcome.outcome }); return; }
+          if (outcome.status === "invalid") { json(response, 400, { error: "That reserve request is not valid." }); return; }
+          if (outcome.status === "gone") { json(response, 404, { error: "That character is not one of yours." }); return; }
           json(response, 409, { error: outcome.message });
           return;
         }

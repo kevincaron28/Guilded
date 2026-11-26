@@ -15,6 +15,8 @@ One page for the officer running the raid: before, during and after. The loot ru
    `/guilded reserve open`. Members type `/guilded reserve` followed by a shift-clicked item link, or
    whisper `res` and the item link to that officer. That officer’s game keeps the list, so they need to be
    online. Type `/guilded reserve lock` when the raid starts.
+   While the list is open, members can also ask with `/loot reserve` in Discord or in the phone app; the
+   request is added at that officer’s next `/reload`.
 5. **Update everyone:** the addon and the companion should be on the current version.
 
 ## During

@@ -1,4 +1,6 @@
 import { RaidAnswer } from "./RaidAnswer";
+import { ReserveForm } from "./ReserveForm";
+import type { Session } from "../storage";
 import { signable, type Choice, type MySignup, type RaidRoleName } from "../signups";
 import { useState } from "react";
 import { Linking, Pressable, Text, View } from "react-native";
@@ -41,7 +43,7 @@ export function Characters({ lang, hub, error }: { lang: Lang; hub: HubView | nu
   </>;
 }
 
-export function Reserves({ lang, hub, error }: { lang: Lang; hub: HubView | null; error?: string }) {
+export function Reserves({ lang, hub, error, session, onChanged }: { lang: Lang; hub: HubView | null; error?: string; session?: Session | null; onChanged?: () => void }) {
   if (error) return <Text style={common.error}>{error}</Text>;
   if (!hub) return null;
   const reserves = hub.reserves;
@@ -52,6 +54,7 @@ export function Reserves({ lang, hub, error }: { lang: Lang; hub: HubView | null
       <Text style={common.muted}>{t(lang, "reservesIntro")}</Text>
       {soft.length ? <Text style={common.body}>{t(lang, "coresUsing")}: {soft.map((core) => `${core.name} (${t(lang, "perPlayer", { count: core.reservesPerPlayer ?? 0 })})`).join(", ")}</Text> : <Text style={common.muted}>{t(lang, "noSoftReserveCores")}</Text>}
     </View>
+    {session && reserves.remote ? <ReserveForm lang={lang} hub={hub} session={session} onChanged={onChanged} /> : null}
     {!reserves.list?.active ? <EmptyState art="runs" boxed message={t(lang, "noReserveList")} /> : <View style={common.hero}>
       <View style={common.titleRow}>
         <Text style={[common.heroTitle, { flexShrink: 1 }]}>{reserves.list.title || t(lang, "reserves")}</Text>

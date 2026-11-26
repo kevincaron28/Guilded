@@ -11,6 +11,8 @@
 --     rolls between only them. /guilded reserve award <player> <item> records the loot
 --     and uses up that reserve.
 --   * Item tooltips say who reserved the item; the loot council list puts reservers first.
+--   * Reserves asked for in Discord or on the phone arrive with the companion's file; the
+--     keeper's addon applies them at login or /reload (applyRemote below).
 --
 -- Items are stored by item id, so a link is needed (shift-click). The list lives in the
 -- guild's saved data and survives /reload.
@@ -331,6 +333,46 @@ local function hostChange(action, name, id, replyTo, reply)
 end
 
 -- ---------------------------------------------------------------------
+-- Requests from Discord and the phone (GuildedReserveRequests, written by the companion)
+-- ---------------------------------------------------------------------
+
+local SEEN_DAYS = 14
+
+-- The keeper applies each request once: only to an open list, and only if it was made after
+-- that list was opened. Returns how many were handled.
+function reserve.applyRemote()
+  local s = state()
+  local file = rawget(_G, "GuildedReserveRequests")
+  if not (s and isHost() and s.open and type(file) == "table" and type(file.requests) == "table") then return 0 end
+  if ns.isOfficer and not ns.isOfficer() then return 0 end
+  local now = time()
+  s.remoteSeen = s.remoteSeen or {}
+  for id, when in pairs(s.remoteSeen) do
+    if now - when > SEEN_DAYS * 86400 then s.remoteSeen[id] = nil end
+  end
+  local handled = 0
+  for _, request in ipairs(file.requests) do
+    local key = type(request) == "table" and request.id
+    local name = key and ns.normalizeName(request.name)
+    -- Five minutes of slack for a computer clock that runs ahead of the bot's.
+    if type(key) == "string" and name and not s.remoteSeen[key] and (tonumber(request.at) or 0) >= (s.openedAt or 0) - 300 then
+      s.remoteSeen[key] = now
+      handled = handled + 1
+      local id = tonumber(request.item)
+      local label = string.gsub(type(request.itemName) == "string" and request.itemName or "", "[|;=,]", "")
+      if id and id > 0 then
+        if label ~= "" and not s.names[id] then s.names[id] = label end
+        local _, text = hostChange(request.op == "DEL" and "DEL" or "ADD", name, id, nil, nil)
+        ns.message(string.format(L("From Discord, %s: %s"), name, text or ""))
+      elseif request.op ~= "DEL" then
+        ns.message(string.format(L("From Discord, %s wants %s. Add it with: /guilded reserve add %s <shift-click the item>"), name, label, name))
+      end
+    end
+  end
+  return handled
+end
+
+-- ---------------------------------------------------------------------
 -- Player actions
 -- ---------------------------------------------------------------------
 
@@ -389,7 +431,7 @@ local function openList(args)
   local title = table.concat(args, " ", first)
   s.open, s.limit, s.title, s.host, s.hostSender = true, limit, title, ns.playerName(), nil
   carryPlus(s)
-  s.entries, s.listWeek = {}, resetWeek()
+  s.entries, s.listWeek, s.openedAt = {}, resetWeek(), time()
   changed()
   shareNow()
   announce(string.format(L("Soft reserves are open%s: %d per player. Reserve with /guilded reserve [item link], or whisper me: res [item link]."),
@@ -405,6 +447,7 @@ local function setLocked(locked)
   changed()
   shareNow()
   announce(locked and L("Soft reserves are locked.") or L("Soft reserves are open again."))
+  if not locked then reserve.applyRemote() end
 end
 
 local function clearList()
@@ -464,7 +507,7 @@ function reserve.importEntries(map, title, names)
   if players == 0 then return nil, L("No reserves found in that text.") end
   carryPlus(s)
   s.open, s.limit, s.title, s.host, s.hostSender = true, math.min(MAX_LIMIT, most), title or "", ns.playerName(), nil
-  s.entries, s.listWeek = entries, resetWeek()
+  s.entries, s.listWeek, s.openedAt = entries, resetWeek(), time()
   for id, name in pairs(names or {}) do s.names[id] = name end
   changed()
   shareNow()
@@ -630,6 +673,8 @@ local function onEvent(_, event, ...)
       C_Timer.After(15, function()
         local s = state()
         if s and not isHost() then sendAddon("REQ", shareChannel()) end
+        local ok, err = pcall(reserve.applyRemote)
+        if not ok and ns.logDiagnostic then ns.logDiagnostic("LUA_ERROR", "reserve: " .. tostring(err)) end
       end)
     end
   elseif event == "CHAT_MSG_WHISPER" then

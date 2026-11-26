@@ -3,6 +3,7 @@ import { z } from "zod";
 import { effectiveRules } from "./core-rules.js";
 import { ManageError, type ManageAccess, type ManageResult } from "./companion-manage.js";
 import type { SetupCheck } from "./setup-status.js";
+import { REQUEST_TTL_MS } from "./reserve-requests.js";
 
 // The companion's hub (Home, My characters, Reserves, Server). Everything here reads or writes
 // through the same tables and rules as Discord and the website; the roles come from
@@ -87,7 +88,9 @@ export function createCompanionHub(database: PrismaClient, hooks: HubHooks = {})
 
   // Soft reserves are kept in the game addon and replaced wholesale by each officer upload
   // (reserves.ts), so the app only shows them: a write here would vanish at the next sync.
-  async function reserves(guildId: string, mine: HubCharacter[]) {
+  // The phone can ask for a change (services/mobile-reserve.ts); `remote` holds the member's own
+  // requests that wait for the loot keeper's game.
+  async function reserves(guildId: string, mine: HubCharacter[], discordUserId: string) {
     const [list, settings, cores] = await Promise.all([
       database.reserveList.findUnique({ where: { guildId } }),
       database.guildSettings.findUnique({ where: { guildId } }),
@@ -103,9 +106,13 @@ export function createCompanionHub(database: PrismaClient, hooks: HubHooks = {})
       if (ownKeys.has(`${row.character.toLowerCase()}\0${row.realm.toLowerCase()}`)) entry.mine = true;
       byItem.set(row.itemId, entry);
     }
+    const waiting = list?.active && list.open
+      ? await database.reserveRequest.findMany({ where: { guildId, member: { discordUserId }, createdAt: { gte: new Date(Date.now() - REQUEST_TTL_MS) } }, orderBy: { createdAt: "asc" } })
+      : null;
     return {
-      // False on purpose: see above. The app says where to reserve instead of offering a button.
+      // False on purpose: see above. Older apps say where to reserve instead of offering a button.
       writable: false,
+      ...(waiting ? { remote: { pending: waiting.map((row) => ({ itemName: row.itemName, character: row.character, remove: row.remove })) } } : {}),
       list: list ? { active: list.active, open: list.open && list.active, title: list.title, perPlayer: list.perPlayer, keeper: list.keeper, syncedAt: list.syncedAt.toISOString() } : null,
       items: [...byItem.values()].slice(0, 500),
       mineCount: rows.filter((row) => ownKeys.has(`${row.character.toLowerCase()}\0${row.realm.toLowerCase()}`)).length,
@@ -148,7 +155,7 @@ export function createCompanionHub(database: PrismaClient, hooks: HubHooks = {})
         updatedAt: new Date().toISOString(),
         guild: { name: guild.name, edition: guild.gameEdition },
         characters: mine,
-        reserves: await reserves(guildId, mine),
+        reserves: await reserves(guildId, mine, access.actorId),
         server: access.officer ? await server(guildId, checks) : null
       };
     },

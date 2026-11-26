@@ -135,12 +135,19 @@ const EXACT: Record<string, string> = {
   "Only Officers or Guild Masters can turn crafter offers on or off.": "Seuls les officiers ou maîtres de guilde peuvent activer ou désactiver les offres d'artisans.",
   "Only Officers or Guild Masters can change these.": "Seuls les officiers ou maîtres de guilde peuvent changer ces réglages.",
   "Only Officers or Guild Masters can turn the profession posts on or off.": "Seuls les officiers ou maîtres de guilde peuvent activer ou désactiver les publications par métier.",
-  "Only Officers or Guild Masters can turn in-game crafting orders on or off.": "Seuls les officiers ou maîtres de guilde peuvent activer ou désactiver les commandes d'artisanat en jeu."
+  "Only Officers or Guild Masters can turn in-game crafting orders on or off.": "Seuls les officiers ou maîtres de guilde peuvent activer ou désactiver les commandes d'artisanat en jeu.",
+  "No soft-reserve list is open. An officer opens one in game with /guilded reserve open; it appears here when the companion uploads.": "Aucune liste de réservations n'est ouverte. Un officier en ouvre une en jeu avec /guilded reserve open; elle apparaît ici quand le compagnon envoie les données.",
+  "Give the item's name, link or number.": "Donne le nom, le lien ou le numéro de l'objet.",
+  "That item is already reserved for this character.": "Cet objet est déjà réservé pour ce personnage.",
+  "Too many reserve changes are waiting. Ask the loot keeper to /reload first.": "Trop de changements de réservations sont en attente. Demande d'abord au responsable du butin de faire /reload.",
+  "This character has no reserve for that item.": "Ce personnage n'a pas réservé cet objet.",
+  "That character is not one of yours.": "Ce personnage n'est pas l'un des tiens."
 };
 
 type Rule = [RegExp, (...groups: string[]) => string];
 
 const PATTERNS: Rule[] = [
+  [/^You already have (\d+) reserves\. Remove one first\.$/, (count) => `Tu as déjà ${count} réservations. Retires-en une d'abord.`],
   [/^That request is already (\w+)\.$/, (status) => `Cette demande est déjà ${STATUS_FR[status] ?? status}.`],
   [/^You already have (\d+) active offers\. Withdraw one with \/craft withdraw first\.$/, (n) => `Tu as déjà ${n} offres actives. Retires-en une d'abord avec /craft withdraw.`],
   [/^None of your characters has "(.+)" recorded\. Open your profession window with Guilded so the recipe is scanned, or set unverified:true to post it labelled as unverified\.$/, (item) => `Aucun de tes personnages n'a « ${item} » d'enregistré. Ouvre ta fenêtre de métier avec Guilded pour que la recette soit lue, ou mets unverified:true pour la publier comme non vérifiée.`],

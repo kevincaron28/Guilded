@@ -5,38 +5,38 @@ Character counts were checked against Play's limits (see the table at the end). 
 [docs/ANDROID_PLAY_LAUNCH.md](../../docs/ANDROID_PLAY_LAUNCH.md). The data-safety answers are in
 [play-data-safety.md](play-data-safety.md), and the content-rating answers are in [play-content-rating.md](play-content-rating.md).
 
-This listing describes the five-tab app without Guilded Clash (the card game is on hold and is not in the Play build),
-version 0.6.0. The texts and screenshots below were saved in Play Console on 26 November 2026, not yet sent for review. Screenshot sizes and what each one must show: [play-screenshots.md](play-screenshots.md). The Play
+This listing describes the five-tab app without Guilded Clash (the card game is on hold and is not in the Play build).
+The texts below are the search-friendly rewrite of 27 November 2026 (Testers Community ASO report, score 56/100 for
+the earlier text). **Send them for review together with the 0.7.0 build, not before:** two lines describe things that
+are in the code but not in the 0.6.0 build testers have (asking for a soft reserve from the phone, and cancelling a
+craft request). Screenshot sizes and what each one must show: [play-screenshots.md](play-screenshots.md). The Play
 Console steps for the closed test: [play-console-checklist.md](play-console-checklist.md).
 
-**Decided by the owner on 15 November 2026:** the Play name is **`Guild Sync Companion`**, the label under the
-phone icon stays `Guilded`, and the first bundle goes out **without push** (profile `production-no-push`). Since then
-Firebase was connected and 0.6.0 is built with push (profile `production`).
-The options that were weighed:
+## The name
 
-| Option | For | Against |
-| --- | --- | --- |
-| 1. `Guild Sync Companion` | The name the Microsoft Store already accepted for the Windows companion: one name on both stores, and no clash with the other "Guilded" on Play. | Members who search "Guilded" will not find it by name; the header inside the app and the website still say Guilded. |
-| 2. `Guild Sync` | Same family as the Store name, shorter, and fits a phone app that shows the guild instead of uploading for it. | A new name that is used nowhere else yet; a little generic, so check that Play has no app of that exact name before choosing it. |
-| 3. `Guilded: guild companion` | Keeps the name members know and says what the app is. Search still finds "Guilded". | Still starts with the other product's name, so Play can refuse it or act on a complaint later; a forced rename after launch costs a new review. |
+| Language | App name (30 max) |
+| --- | --- |
+| English (en-CA) | `Guild Sync Companion for WoW` |
+| French (fr-CA) | `Guild Sync Companion pour WoW` |
 
-Chosen: **1**, because it is already accepted elsewhere and cannot be confused with the other app. Plain
-`Guilded` is not proposed: another app of that name is on Play. Whatever is chosen, the package id
-(`top.kcaron.guilded`) and the name on the phone's home screen (`Guilded`, from `app.json`) do not change.
+The label under the phone icon stays `Guilded` (from `name` in `mobile/app.json`; owner decision), and the package id
+stays `top.kcaron.guilded`.
 
-Background: The Microsoft Store refused "Guilded Companion" on 3 November 2026
-(naming rule 10.1.1.1), and "Guilded" was also the name of a chat app that had a Play listing. Play can refuse a title it
-reads as another product's name. The label under the icon comes from `name` in `mobile/app.json` and is `Guilded`
-and stays so (owner decision); changing it later is a one-line change and a new build.
-Do not put "World of
-Warcraft" or "WoW" in the title or the icon: a game's name is allowed in the description, with the disclaimer that is
-already there, not in the title.
+- **Changed on 27 November 2026.** The owner asked for the search words "WoW guild companion" in the title. "for WoW"
+  says the app works with the game without presenting itself as the game's own app. "Guild Sync: WoW Guild Companion"
+  would hold the exact phrase but is 31 characters.
+- **This replaces the 15 November rule** that kept "WoW" out of the title. The risk behind that rule is unchanged: Play
+  can refuse a title that uses another company's trademark. If it does, go back to `Guild Sync Companion` (both
+  languages) and keep the rest of the text; the description may name the game, with the disclaimer. Keep "World of
+  Warcraft" and "WoW" out of the icon and the artwork.
+- **Not allowed:** `Guilded Companion` (the Microsoft Store refused it on 3 November 2026, naming rule 10.1.1.1) and
+  plain `Guilded` (another app of that name is on Play).
+- The Windows companion keeps its Microsoft Store name, `Guild Sync Companion`.
 
 ## App details
 
 | Field | Value |
 | --- | --- |
-| App name (30 max) | `Guild Sync Companion` |
 | Default language | English (Canada) – en-CA (what the existing Play app was created with; the English text below goes there) |
 | Translation | French (Canada) – fr-CA (text below) |
 | App or game | App |
@@ -55,43 +55,59 @@ already there, not in the title.
 **Short description** (80 max):
 
 ```
-Guild activity, raids, crafting, map and leaderboards on your phone.
+Follow raids, crafting, maps and rankings with your WoW guild companion app.
 ```
 
 **Full description** (4,000 max):
 
 ```
-Guild Sync Companion is the phone app of Guilded. It keeps your World of Warcraft guild with you when you are away from the game.
+Guild Sync Companion is a WoW guild companion for guilds that use the Guilded Discord bot. Stay organized and close to your guild when you are away from your computer: answer raid signups, find a crafter, see where guildmates were last seen and follow the leaderboards from your phone.
 
-It is for guilds that use the Guilded Discord bot. Sign in with the same Discord account you use with your guild, and the app shows what your guild already shares with you.
+WHY USE IT
+• Save time: check the next raid and answer it in a few taps.
+• Stay on schedule: get reminders before raid night.
+• Help each other: know when a guildmate calls for help in game.
+• Find a crafter: search an item and ask someone in your guild to make it.
+• Check it without a signal: your last guild screens and leaderboards stay on the phone.
 
-GUILD
-• Roster: your characters, guild ranks, raid cores and soft reserves.
-• Activity: the last 14 days in your guild, with who joined or left, rank changes, guild bank gifts and raid boss kills.
-• Crafting: search for an item, see who in the guild can make it, ask for it and follow your open requests.
-• Map: where guildmates were last seen outdoors, a heat map of where the guild plays, and recent calls for help with the time and the attackers. Only signed-in members of your guild see it. It is never public, and you can stop sharing your position at any time, which deletes it.
-• Raids: the next raid, who signed up, upcoming raids and EP/GP standings. Answer I'm in, Maybe or Can't come, with your role, right from the app.
+RAIDS AND LOOT
+• Next raid: the time, who signed up and the raids coming in the next weeks.
+• Sign up with I'm in, Maybe or Can't come and your role. The rules of your Discord signup apply, including role limits, the waiting list and the deadline.
+• EP/GP standings, with your own characters shown first.
+• Soft reserves: see the list and ask for an item while the loot keeper's list is open.
+• Wishlist: save the items you want, in order of priority.
 
-STATS
-• This week on Guilded: rated dungeon runs and the best runs of the week.
-• Public dungeon leaderboards for characters and guilds, the duel ladder and raid progress, the same as the website.
+GUILD LIFE
+• Roster: your characters with class, level, guild rank and raid core.
+• Activity: the last 14 days, with joins and departures, rank changes, guild bank gifts and raid boss kills.
+• Crafting: see who can make an item, set a quantity, add a note, then follow or cancel your open requests.
+• Guild map: where guildmates were last seen outdoors, a heat map of where your guild plays, and recent calls for help with the time and the attackers. Only signed-in members of your guild see it. You can stop sharing your position at any time, which deletes it.
 
-ME
-• Your characters, with a page for each one: dungeon ranks, recent runs and duel record.
-• What you still need for a promotion, where your server uses promotion rules.
-• A badge album: one card for every achievement you really earned. No packs, no luck, nothing to buy.
-• Your raid wishlist, saved with the guild.
+YOUR CHARACTERS
+• A page for each character: dungeon ranks, recent runs and duel record.
+• Choose your main character.
+• See what you still need for a promotion, where your server uses promotion rules.
+• Badge album: one card for each achievement you earned. No packs and no luck involved.
 
-ALERTS
-• Reminders on this phone 24 hours, 2 hours and 1 hour before each raid you can see (none for a raid you can't attend).
-• Optional push alerts for raid changes, when a guildmate calls for help in game, and when a raid spot opens up for you from the waiting list.
+LEADERBOARDS AND NEWS, NO SIGN-IN NEEDED
+• This week's rated dungeon runs and the best runs.
+• Public dungeon leaderboards for characters and guilds, by season.
+• The duel ladder and raid progress.
+• World of Warcraft headlines with links to the publisher's site and to Blizzard news.
 
-NEWS
-• Recent World of Warcraft headlines with a link to read them on the publisher's site, and a link to Blizzard's news page.
+ALERTS YOU CONTROL
+• Switch on raid reminders: 24 hours, 2 hours and 1 hour before. None for a raid you can't attend.
+• Optional push alerts for raid changes, calls for help and a raid spot that opens for you from the waiting list.
 
-Want to look around first? Open the sample guild to try the guild screens with made-up names, without signing in.
+HOW TO START
+1. Your guild uses the Guilded bot on its Discord server.
+2. Sign in with the Discord account you use with your guild.
+3. Choose your server on the Guilded page and type the code your phone shows.
+Not in a Guilded guild yet? Open the sample guild and explore with made-up names.
 
-Free, no ads, nothing to buy. Positions and calls for help are kept only for your guild, for a limited time, and "Delete my data" in the app's settings removes your data (backups and Discord messages already posted are not changed).
+Game information comes from your guild's Guilded addon and Windows companion uploads, so it is as recent as the latest upload. Item prices and roster edits stay in Discord and on the Windows companion.
+
+Available in English and French. No ads and nothing to buy. Positions and calls for help are shown only to your guild and kept for a limited time. "Delete my data" in the app removes your data (backups and Discord messages already posted are not changed).
 
 Guilded is a fan-made tool. It is not affiliated with or endorsed by Blizzard Entertainment. World of Warcraft is a trademark of Blizzard Entertainment, Inc.
 ```
@@ -101,46 +117,68 @@ Guilded is a fan-made tool. It is not affiliated with or endorsed by Blizzard En
 **Description courte** (80 max) :
 
 ```
-Activité, raids, artisanat, carte et classements de ta guilde sur ton mobile.
+Suis tes raids, la carte et les classements avec ton compagnon de guilde WoW.
 ```
 
 **Description complète** (4 000 max) :
 
 ```
-Guild Sync Companion est l'appli mobile de Guilded. Elle garde ta guilde World of Warcraft avec toi quand tu es loin du jeu.
+Guild Sync Companion est un compagnon de guilde WoW pour les guildes qui utilisent le bot Discord Guilded. Reste organisé et près de ta guilde loin de ton ordinateur : réponds aux raids, trouve un artisan, vois où les membres ont été vus et suis les classements sur ton mobile.
 
-Elle s'adresse aux guildes qui utilisent le bot Discord Guilded. Connecte-toi avec le même compte Discord que dans ta guilde : l'appli affiche ce que ta guilde partage déjà avec toi.
+POURQUOI L'UTILISER
+• Gagne du temps : vois le prochain raid et réponds en quelques touches.
+• Sois à l'heure : reçois des rappels avant la soirée de raid.
+• Entraidez-vous : sache quand un membre appelle à l'aide en jeu.
+• Trouve un artisan : cherche un objet et demande-le à quelqu'un de ta guilde.
+• Consulte sans réseau : tes derniers écrans de guilde et les classements restent sur le mobile.
 
-GUILDE
-• Membres : tes personnages, les rangs de guilde, les cores de raid et les soft reserves.
-• Activité : les 14 derniers jours de la guilde, avec les arrivées et les départs, les changements de rang, les dons à la banque et les victoires en raid.
-• Artisanat : cherche un objet, vois qui dans la guilde peut le fabriquer, demande-le et suis tes demandes ouvertes.
-• Carte : où les membres ont été vus dehors pour la dernière fois, une carte de chaleur des endroits où joue la guilde, et les appels à l'aide récents avec l'heure et les attaquants. Seuls les membres connectés de ta guilde la voient. Elle n'est jamais publique, et tu peux arrêter de partager ta position à tout moment, ce qui l'efface.
-• Raids : le prochain raid, les inscrits, les raids à venir et le classement EP/GP. Réponds J'y vais, Peut-être ou Je ne peux pas, avec ton rôle, directement dans l'appli.
+RAIDS ET BUTIN
+• Prochain raid : l'heure, les inscrits et les raids des prochaines semaines.
+• Inscris-toi avec J'y vais, Peut-être ou Je ne peux pas, avec ton rôle. Les règles de l'inscription Discord s'appliquent : limites par rôle, liste d'attente et échéance.
+• Classement EP/GP, avec tes personnages en premier.
+• Soft reserves : vois la liste et demande un objet tant que la liste du responsable du butin est ouverte.
+• Liste de souhaits : garde les objets voulus, par priorité.
 
-STATS
-• Cette semaine sur Guilded : les donjons cotés et les meilleurs donjons de la semaine.
-• Les classements publics des donjons (personnages et guildes), le classement des duels et la progression des raids, comme sur le site.
+LA VIE DE GUILDE
+• Membres : tes personnages avec classe, niveau, rang de guilde et core de raid.
+• Activité : les 14 derniers jours, avec les arrivées et les départs, les rangs, les dons à la banque et les boss de raid vaincus.
+• Artisanat : vois qui peut fabriquer un objet, choisis la quantité, ajoute une note, puis suis ou annule tes demandes.
+• Carte de guilde : où les membres ont été vus dehors, une carte de chaleur des endroits où joue ta guilde et les appels à l'aide récents avec l'heure et les attaquants. Seuls les membres connectés de ta guilde la voient. Tu peux arrêter de partager ta position à tout moment, ce qui l'efface.
 
-MOI
-• Tes personnages, avec une page pour chacun : rangs en donjon, donjons récents et duels.
-• Ce qui te manque pour une promotion, si ton serveur a des règles de promotion.
-• Un album de badges : une carte pour chaque succès vraiment obtenu. Pas de paquets, pas de chance, rien à acheter.
-• Ta liste de souhaits de raid, gardée avec la guilde.
+TES PERSONNAGES
+• Une page par personnage : rangs en donjon, donjons récents et duels.
+• Choisis ton personnage principal.
+• Vois ce qui te manque pour une promotion, si ton serveur a des règles de promotion.
+• Album de badges : une carte par succès obtenu. Pas de paquets ni de hasard.
 
-ALERTES
-• Des rappels sur ce téléphone 24 heures, 2 heures et 1 heure avant chaque raid que tu vois (aucun pour un raid où tu ne peux pas aller).
-• Des alertes push facultatives pour les changements de raid, quand un membre appelle à l'aide en jeu et quand une place de raid se libère pour toi sur la liste d'attente.
+CLASSEMENTS ET NOUVELLES, SANS CONNEXION
+• Les donjons cotés de la semaine et les meilleurs.
+• Les classements publics des donjons, personnages et guildes, par saison.
+• Le classement des duels et la progression des raids.
+• Les manchettes de World of Warcraft, avec des liens vers le site de l'éditeur et les nouvelles de Blizzard.
 
-NOUVELLES
-• Les manchettes récentes de World of Warcraft, avec un lien pour les lire sur le site de l'éditeur, et un lien vers les nouvelles de Blizzard.
+DES ALERTES À TON CHOIX
+• Active les rappels de raid : 24 heures, 2 heures et 1 heure avant. Aucun pour un raid où tu ne peux pas aller.
+• Alertes push facultatives : changements de raid, appels à l'aide et place de raid qui se libère pour toi.
 
-Envie de jeter un œil d'abord ? Ouvre la guilde d'exemple pour essayer les écrans de guilde avec des noms inventés, sans connexion.
+POUR COMMENCER
+1. Ta guilde utilise le bot Guilded sur son serveur Discord.
+2. Connecte-toi avec le compte Discord que tu utilises avec ta guilde.
+3. Choisis ton serveur sur la page Guilded et tape le code affiché sur ton mobile.
+Pas encore de guilde Guilded ? Ouvre la guilde d'exemple, avec des noms inventés.
 
-Gratuit, sans publicité, rien à acheter. Les positions et les appels à l'aide sont gardés seulement pour ta guilde, pour une durée limitée, et « Supprimer mes données » dans les réglages de l'appli efface tes données (les sauvegardes et les messages Discord déjà publiés ne sont pas modifiés).
+L'information du jeu vient des envois de l'addon Guilded et du compagnon Windows de ta guilde : elle date du dernier envoi. Les prix des objets et les changements de roster restent dans Discord et sur le compagnon Windows.
+
+Offerte en français et en anglais. Sans publicité et rien à acheter. Les positions et les appels à l'aide sont montrés seulement à ta guilde et gardés pour une durée limitée. « Supprimer mes données » dans l'appli efface tes données (les sauvegardes et les messages Discord déjà publiés ne changent pas).
 
 Guilded est un outil créé par des fans. Il n'est ni affilié à Blizzard Entertainment ni approuvé par elle. World of Warcraft est une marque de commerce de Blizzard Entertainment, Inc.
 ```
+
+## When 0.7.0 is final
+
+The phone app 0.7.0 is being built (help, sharing, rating, an in-app privacy page, a walkthrough, Back to leave, a
+keyboard fix and a feedback button were requested). None of them is in the texts above. After it is uploaded, check
+what shipped and add one short section only for what is really there, inside the 4,000-character limit.
 
 ## Graphics
 
@@ -166,11 +204,13 @@ data** only. They hold no real names and no personal data, and nothing is reques
 capturing. To regenerate them, see [`capture-screenshots.mjs`](capture-screenshots.mjs).
 No Blizzard art is used. The feature graphic says "Your guild" rather than "WoW", to keep trademarks out of the artwork.
 
-## Length check (26 Nov 2026)
+## Length check (27 Nov 2026)
 
 | Text | Characters | Limit |
 | --- | --- | --- |
-| EN short | 68 | 80 |
+| EN name | 28 | 30 |
+| FR name | 29 | 30 |
+| EN short | 76 | 80 |
 | FR short | 77 | 80 |
-| EN full | 2,460 | 4,000 |
-| FR full | 2,853 | 4,000 |
+| EN full | 3,379 | 4,000 |
+| FR full | 3,702 | 4,000 |

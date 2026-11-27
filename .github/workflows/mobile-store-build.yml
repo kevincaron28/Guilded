@@ -1,0 +1,132 @@
+name: Guilded mobile store build (GitHub runner)
+# Builds the Android store bundle (.aab) on a GitHub runner with `eas build --local`, for months when the Expo
+# plan has no cloud builds left. Manual only (Run workflow). EAS still keeps the signing key (the same upload key
+# as the cloud builds) and the versionCode (remote source, raised by one per build). It never uploads to Google
+# Play: the bundle is a run artifact, and the owner uploads it. The eas-cli and bundletool versions are pinned:
+# raise them in a reviewed change.
+#
+# Secrets: EXPO_TOKEN (already set for mobile-update.yml) and, for the production profile, GOOGLE_SERVICES_JSON
+# holding the contents of the Firebase google-services.json file. EAS keeps that file as a secret variable that
+# only its own builders can read, so a local build needs its own copy.
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: EAS build profile (production-no-push ships without Firebase push)
+        type: choice
+        options:
+          - production
+          - production-no-push
+        default: production
+permissions:
+  contents: read
+concurrency:
+  group: mobile-store-build
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      FIREBASE_FILE_CONTENT: ${{ secrets.GOOGLE_SERVICES_JSON }}
+      PROFILE: ${{ inputs.profile }}
+      EAS_CLI: eas-cli@27.11.0
+      BUNDLETOOL_VERSION: 1.18.3
+      # Maven Central sometimes answers 429 (Too Many Requests): Gradle retries each download with a backoff.
+      GRADLE_OPTS: -Dorg.gradle.internal.repository.max.retries=8 -Dorg.gradle.internal.repository.initial.backoff=2000 -Dorg.gradle.internal.http.connectionTimeout=120000 -Dorg.gradle.internal.http.socketTimeout=120000
+    steps:
+      - name: Check the secrets
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then echo "::error::The EXPO_TOKEN repository secret is not set."; exit 1; fi
+          if [ "$PROFILE" = "production" ] && [ -z "$FIREBASE_FILE_CONTENT" ]; then
+            echo "::error::The production profile needs the GOOGLE_SERVICES_JSON repository secret (the contents of google-services.json). Use production-no-push for a bundle without push."
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Check the Android SDK on the runner
+        run: |
+          if [ -z "$ANDROID_HOME" ] || [ ! -d "$ANDROID_HOME" ]; then echo "::error::The runner has no Android SDK (ANDROID_HOME)."; exit 1; fi
+          echo "Android SDK: $ANDROID_HOME"
+      - run: npm ci
+        working-directory: mobile
+      - run: npm run typecheck
+        working-directory: mobile
+      - run: npx --no-install expo install --check
+        working-directory: mobile
+      - name: Write the Firebase file
+        if: inputs.profile == 'production'
+        run: |
+          file="$RUNNER_TEMP/google-services.json"
+          printf '%s' "$FIREBASE_FILE_CONTENT" > "$file"
+          node -e 'const c = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); if (!c.client?.some(x => x.client_info?.android_client_info?.package_name === "top.kcaron.guilded")) { console.error("google-services.json has no client for top.kcaron.guilded"); process.exit(1); }' "$file"
+          echo "GOOGLE_SERVICES_JSON=$file" >> "$GITHUB_ENV"
+      - name: Build the bundle with eas build --local
+        working-directory: mobile
+        run: |
+          set -o pipefail
+          for attempt in 1 2 3; do
+            log="$RUNNER_TEMP/build-$attempt.log"
+            if npx --yes "$EAS_CLI" build --platform android --profile "$PROFILE" --local --non-interactive --output "$RUNNER_TEMP/guilded.aab" 2>&1 | tee "$log"; then
+              exit 0
+            fi
+            # Retry only a rate limit from a package repository; any other failure stops the job.
+            if [ "$attempt" -lt 3 ] && grep -qE '(^|[^0-9])429([^0-9]|$)|Too Many Requests' "$log"; then
+              echo "::warning::A download was rate limited (429); trying again in $((attempt * 90)) s. The next attempt uses the next versionCode."
+              sleep $((attempt * 90))
+              continue
+            fi
+            exit 1
+          done
+      - name: Check the bundle (version, versionCode, signing key)
+        id: check
+        run: |
+          set -euo pipefail
+          aab="$RUNNER_TEMP/guilded.aab"
+          tool="$RUNNER_TEMP/bundletool.jar"
+          curl -fsSL --retry 5 -o "$tool" "https://github.com/google/bundletool/releases/download/$BUNDLETOOL_VERSION/bundletool-all-$BUNDLETOOL_VERSION.jar"
+          name=$(java -jar "$tool" dump manifest --bundle "$aab" --xpath /manifest/@android:versionName)
+          code=$(java -jar "$tool" dump manifest --bundle "$aab" --xpath /manifest/@android:versionCode)
+          package=$(java -jar "$tool" dump manifest --bundle "$aab" --xpath /manifest/@package)
+          expected=$(node -p 'require("./mobile/app.json").expo.version')
+          if [ "$package" != "top.kcaron.guilded" ]; then echo "::error::Package is $package"; exit 1; fi
+          if [ "$name" != "$expected" ]; then echo "::error::versionName $name, app.json says $expected"; exit 1; fi
+          fingerprint() { keytool -printcert -jarfile "$1" | sed -n 's/^[[:space:]]*SHA256: //p' | head -1; }
+          new_cert=$(fingerprint "$aab")
+          if [ -z "$new_cert" ]; then echo "::error::The bundle is not signed."; exit 1; fi
+          # The last store bundle EAS built in the cloud was signed with the upload key Google Play knows.
+          (cd mobile && npx --yes "$EAS_CLI" build:list --platform android --status finished --limit 40 --json --non-interactive) > "$RUNNER_TEMP/builds.json"
+          node -e '
+            const builds = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+            const last = builds.find(b => ["production", "production-no-push", "store"].includes(b.buildProfile) && /\.aab$/.test(b.artifacts?.applicationArchiveUrl || ""));
+            if (!last) { console.error("No earlier store bundle on EAS to compare the signing key with."); process.exit(1); }
+            console.log(`${last.artifacts.applicationArchiveUrl} ${last.appBuildVersion} ${last.appVersion}`);
+          ' "$RUNNER_TEMP/builds.json" > "$RUNNER_TEMP/last.txt"
+          read -r last_url last_code last_name < "$RUNNER_TEMP/last.txt"
+          curl -fsSL --retry 5 -o "$RUNNER_TEMP/last.aab" "$last_url"
+          last_cert=$(fingerprint "$RUNNER_TEMP/last.aab")
+          if [ "$new_cert" != "$last_cert" ]; then echo "::error::Signing key differs from the $last_name ($last_code) store bundle: $new_cert vs $last_cert"; exit 1; fi
+          if [ "$code" -le "$last_code" ]; then echo "::error::versionCode $code is not above the last store bundle's $last_code"; exit 1; fi
+          {
+            echo "## Guilded mobile $name (versionCode $code)"
+            echo ""
+            echo "- Package: \`$package\`, profile \`$PROFILE\`"
+            echo "- Upload key SHA-256: \`$new_cert\` (same as $last_name, versionCode $last_code)"
+            echo "- Not uploaded to Google Play: download the artifact below and upload it by hand."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "artifact=guilded-$name-$code-$PROFILE" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.check.outputs.artifact }}
+          path: ${{ runner.temp }}/guilded.aab
+          if-no-files-found: error
+          retention-days: 30

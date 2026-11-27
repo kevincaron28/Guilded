@@ -80,6 +80,8 @@ eas build -p android --profile production
 
 Use the preview APK for installation. Save the production AAB for Play. Check the binary's merged permissions, signing fingerprint and actual versionCode before submission. Keep deployment, store submission and update publication separate from building.
 
+**When the Expo plan has no cloud builds left** (the free plan's Android builds reset on the 1st of each month), build the store bundle on GitHub instead: Actions → "Guilded mobile store build (GitHub runner)" → Run workflow, profile `production`. `.github/workflows/mobile-store-build.yml` runs `eas build --local` on an Ubuntu runner (Java 17, the runner's Android SDK), so it uses no Expo build credit; EAS still signs it with the same upload key and raises the versionCode. The job checks the bundle's versionName against `mobile/app.json`, that its versionCode is above the last store bundle on EAS, and that its signing certificate matches that bundle's, then keeps it 30 days as a run artifact (`guilded-<version>-<versionCode>-<profile>`). It never uploads to Play. It needs the repository secrets `EXPO_TOKEN` and `GOOGLE_SERVICES_JSON` (the contents of the Firebase `google-services.json`: EAS keeps its copy as a secret only its own builders can read). A Maven Central 429 is retried up to twice; each retry takes the next versionCode.
+
 For a future approved JS-only fix, use the same project, channel and compatible runtime as the installed build:
 
 ```sh

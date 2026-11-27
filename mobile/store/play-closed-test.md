@@ -73,6 +73,19 @@ members exchange is game data (characters, ranks, wishlist item names, in-game l
 Content rating: submitted on 15 November 2026 with the answers in [play-content-rating.md](play-content-rating.md).
 Result: Everyone / PEGI 3 / Google Play 3+, with no interactive element.
 
+## Release notes (0.7.0)
+
+Release name: `0.7.0 (closed test)`. From the Testers Community report.
+
+```
+<en-CA>
+Thanks for your feedback! The keyboard no longer hides the sign-in fields. New in Settings: Help & FAQ, the privacy policy inside the app, Report a problem, Rate this app and Share this app. A new four-step walkthrough shows the tabs and how to sign in, and Back on the main screen now asks before closing the app.
+</en-CA>
+<fr-CA>
+Merci pour vos commentaires! Le clavier ne cache plus les champs de connexion. Nouveau dans les Réglages : Aide et FAQ, la politique de confidentialité dans l'appli, Signaler un problème, Noter l'appli et Partager l'appli. Une nouvelle visite en quatre étapes montre les onglets et la connexion, et Retour sur l'écran principal demande avant de fermer l'appli.
+</fr-CA>
+```
+
 ## Release notes (0.6.0)
 
 Release name: `0.6.0 (closed test)`.

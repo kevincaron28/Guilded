@@ -28,7 +28,7 @@ The app refuses `http` addresses except on the device itself (`apiOrigin` in `mo
 | `POST /api/v1/companion/logout` | the server id | sign out |
 | `POST /api/v1/companion/delete-my-data` | the confirm word | Delete my data, after the member confirms on the screen |
 | `POST /api/v1/companion/renew` | a new credential | renews the sign-in |
-| `POST /api/v1/mobile/report` | the error text, a short stack with links and file paths removed, the app version, the platform and the screen name; no sign-in, name, token or guild data | **only when a person presses "Send error report"** on the app's error screen after something broke. Nothing is sent automatically. The server files one bug report and answers a short reference. Rate-limited to five per network per hour |
+| `POST /api/v1/mobile/report` | the error text, a short stack with links and file paths removed, the app version, the platform and the screen name; no sign-in, name, token or guild data | **only when a person presses "Send error report"** on the app's error screen after something broke, or **Send** on Me > Settings > Report a problem (0.7.0: a problem or an idea, up to 1,500 characters the person types, with the same version, platform and screen name). Nothing is sent automatically. The server files one bug report and answers a short reference. Rate-limited to five per network per hour |
 | `GET`/`POST /api/v1/mobile/device` | the server id, the Expo push token, the alert switches (raids, calls for help, raid spots) and the language | push alerts, only after the member turns alerts on |
 | `GET https://u.expo.dev/<project id>` (Expo Updates, once per launch) | the app version, the update channel, the platform and a random installation id the update library makes on the phone (not tied to the account) | fetches a newer JavaScript bundle of the same app version |
 | public: leaderboards, weekly summary, raid progress, guild pages, `/news/headlines.json` | nothing personal | public data |
@@ -62,7 +62,7 @@ audio, storage, media and overlay permissions.
 | Category → type | What it covers | Collected | Shared | Processed ephemerally | Required or optional | Purposes |
 | --- | --- | --- | --- | --- | --- | --- |
 | Personal info → **User IDs** | the companion credential tied to the member's Discord account | Yes | No | No | Optional (Stats, News and the sample guild work without signing in) | App functionality, Account management |
-| App activity → **Other user-generated content** | wishlist items, the note on a craft request | Yes | No | No | Optional | App functionality |
+| App activity → **Other user-generated content** | wishlist items, the note on a craft request, the text of a Report a problem (0.7.0) | Yes | No | No | Optional | App functionality |
 | App activity → **Other actions** | raid answers, craft requests, Make main and Unlink, the map-sharing switch | Yes | No | No | Optional | App functionality |
 | App activity → **In-app search history** | the crafting search text | Yes | No | **Yes** (so Play does not show it on the listing) | Optional | App functionality |
 | App info and performance → **Crash logs** | only the error report a person sends from the error screen | Yes | No | No | Optional (a button the person presses; nothing is sent automatically) | App functionality, Analytics (Play's "Analytics" includes diagnosing crashes) |

@@ -9,7 +9,7 @@ describe("mobile release links", () => {
     const config = JSON.parse(readFileSync("mobile/app.json", "utf8")).expo;
     const pkg = JSON.parse(readFileSync("mobile/package.json", "utf8"));
     const eas = JSON.parse(readFileSync("mobile/eas.json", "utf8"));
-    expect(config.version).toBe("0.6.0");
+    expect(config.version).toBe("0.7.0");
     expect(pkg.version).toBe(config.version);
     expect(config.android.versionCode).toBe(3);
     expect(config.ios.buildNumber).toBe("3");
@@ -48,8 +48,10 @@ describe("mobile release links", () => {
   it("opens no account page of the website except the sign-in approval page", () => {
     // The website retired its account pages (/me/...). The app keeps only /me/companion, the page a member approves
     // a sign-in on, and deletes data through the API. Guilded Clash is out of the build, so its files are not read.
+    // privacyText.ts is the published policy as text (0.7.0, generated from docs/PRIVACY.md): it names website paths in
+    // its sentences, and its only tappable links are https links to Google and the support Discord.
     const sources = readdirSync("mobile/src", { recursive: true, encoding: "utf8" }).map(file => file.replace(/\\/g, "/"))
-      .filter(file => /\.tsx?$/.test(file) && !file.startsWith("clash/") && !file.endsWith(".test.ts"));
+      .filter(file => /\.tsx?$/.test(file) && !file.startsWith("clash/") && !file.endsWith(".test.ts") && file !== "privacyText.ts");
     for (const file of [...sources.map(file => `mobile/src/${file}`), "mobile/App.tsx"]) {
       const text = readFileSync(file, "utf8").replaceAll("/me/companion", "");
       // A web path, not a folder of the app: "/me" that does not follow a letter or a dot (as in "./src/me/MeTab").

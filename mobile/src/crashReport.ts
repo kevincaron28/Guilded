@@ -34,3 +34,12 @@ export async function sendErrorReport(origin: string, report: ErrorReport): Prom
   if (!response.ok || typeof ref !== "string" || !ref) throw new ApiError("The report could not be sent.", response.status);
   return ref;
 }
+
+/** Splits feedback into the report route's fields: the first 380 characters as the message, the rest as details (1200 at most). */
+export function feedbackReport(kind: "problem" | "idea", text: string, version: string | undefined, platform: string) {
+  const clean = text.trim().slice(0, 1500);
+  const head = `${kind === "idea" ? "Idea" : "Problem"} (app feedback): `;
+  const report = buildReport(head + clean.slice(0, 380), { version, platform, screen: `feedback from ${currentReportScreen() || "me"}`.slice(0, 40) });
+  // buildReport already clipped and scrubbed the message (links and file paths); the rest of the text goes the same way.
+  return { ...report, stack: clip(scrub(clean.slice(380)), 1200) };
+}

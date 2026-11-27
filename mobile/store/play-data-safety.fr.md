@@ -16,7 +16,7 @@ seulement, sauf la vérification des mises à jour.
 | --- | --- |
 | Un identifiant de connexion (lié au compte Discord du membre), gardé dans le stockage sécurisé d'Android | Sert à reconnaître le compte du membre : c'est un **identifiant d'utilisateur**. |
 | L'identifiant du serveur Discord et la langue | Servent à lire les données de la guilde; ce ne sont pas des données personnelles. |
-| Les changements de la liste de souhaits (nom d'objet, priorité, personnage) et la note d'une demande d'artisanat | Contenu écrit par le membre et gardé avec la guilde : **autre contenu généré par l'utilisateur**. |
+| Les changements de la liste de souhaits (nom d'objet, priorité, personnage), la note d'une demande d'artisanat et le texte de Signaler un problème (0.7.0, envoyé seulement quand la personne appuie sur Envoyer) | Contenu écrit par le membre et gardé avec la guilde : **autre contenu généré par l'utilisateur**. |
 | Les réponses aux raids, les demandes d'artisanat (objet, quantité, personnage), « Principal » et « Délier » pour ses propres personnages, l'interrupteur de partage de la carte | Actions du membre : **autres actions**. La position vient du jeu sur le PC, jamais du téléphone : **aucune localisation**. |
 | Le texte de la recherche d'artisanat | **Historique de recherche dans l'appli**. Le serveur s'en sert pour répondre et ne le garde pas : traitement éphémère. |
 | Le rapport d'erreur, seulement quand une personne touche « Envoyer le rapport d'erreur » | Texte de l'erreur, courte pile sans liens ni chemins, version, plateforme et écran; aucun nom, jeton ou donnée de guilde : **journaux de plantage**. |

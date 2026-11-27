@@ -23,7 +23,8 @@ and readiness have a version **A** (0.7.0 is available on the closed track) and 
    only if guild members really tested the app; otherwise delete it.
 3. **Release 0.7.0 to the closed track and check what shipped** against version A: in-app privacy policy, rate, share,
    help and FAQ, walkthrough, Back to leave the app, keyboard fix, feedback. Delete anything that did not ship.
-4. **Send the store listing with 0.7.0** (Publishing overview): the descriptions in [play-listing.md](play-listing.md).
+4. **Send the store listing with 0.7.0:** save the names and descriptions in [play-listing.md](play-listing.md) in
+   Play Console (not yet done on 27 November), then send them from Publishing overview.
 5. **Check Data safety against 0.7.0.** If the new feedback option sends anything new from the phone, update
    [play-data-safety.md](play-data-safety.md) and the form first.
 6. **Get testers to open 0.7.0 and use it.** Google can ask for more testing when engagement is low.

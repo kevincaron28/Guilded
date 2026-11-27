@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState } from "react-native";
 import { guildCacheKey, clearGuildCaches, readCache, writeCache } from "./cache";
+import { reviewMoment } from "./review";
 import { ApiError, GuildedClient, parseHub, parseManage, parseStandings, type HubView, type ManageView, type PushKinds, type StandingsView } from "./api";
 import { errorText } from "./errors";
 import { t, type Lang } from "./i18n";
@@ -124,6 +125,8 @@ export function useGuild(defaultOrigin: string) {
     void client.mySignups(current.guildDiscordId).then((body) => setAnswers(parseSignups(body))).catch(() => {});
     const now = Date.now();
     if (hub.status === "fulfilled") void writeCache(guildCacheKey(current.guildDiscordId, "hub"), hub.value, now);
+    // 0.7.0: the guild refreshed fine; review.ts allows the review sheet once, from the third session, never in the first minute.
+    if (hub.status === "fulfilled") void reviewMoment();
     if (manage.status === "fulfilled") void writeCache(guildCacheKey(current.guildDiscordId, "manage"), manage.value, now);
     if (standings.status === "fulfilled") void writeCache(guildCacheKey(current.guildDiscordId, "standings"), standings.value, now);
     const fellBack = [hub, manage, standings].some((result) => result.status === "rejected") && Boolean(previous);
@@ -183,6 +186,8 @@ export function useGuild(defaultOrigin: string) {
     if (!saved) throw new ApiError("The server answer was not understood.", 502);
     const answer = saved;
     setAnswers((current) => ({ ...current, [raidId]: answer }));
+    // 0.7.0: a raid sign-up saved is a good moment for the one-time review sheet (review.ts decides; never in the sample).
+    if (!preview && choice === "YES") void reviewMoment();
     return answer;
   };
 

@@ -1,12 +1,13 @@
 import { errorText } from "../errors";
-import { useEffect, useState } from "react";
-import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextInputInstance } from "react-native";
 import { GuildedClient, apiOrigin } from "../api";
 import { t, type Lang } from "../i18n";
 import { saveOrigin, saveSession, type Session } from "../storage";
 import { colors } from "../ui";
 import { common } from "../ui/common";
 import { useBack } from "../useBack";
+import { useKeyboardScroll } from "../useKeyboardScroll";
 
 // Discord sign-in (the companion flow), a pairing code, and the sample guild. Moved from GuildScreen.
 
@@ -22,11 +23,14 @@ export function SignIn({ lang, setLang, originDraft, setOriginDraft, defaultOrig
 }) {
   const [pending, setPending] = useState<{ requestId: string; confirm: string; expiresAt: string; url: string; origin: string } | null>(null);
   const [code, setCode] = useState("");
+  const serverRef = useRef<TextInputInstance>(null);
   const [serverId, setServerId] = useState("");
   const [advanced, setAdvanced] = useState(false);
   const [pairOpen, setPairOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // 0.7.0: the keyboard no longer covers the pairing code, server ID or server address fields (Testers Community report).
+  const keyboard = useKeyboardScroll();
 
   useEffect(() => {
     if (!pending) return;
@@ -96,7 +100,8 @@ export function SignIn({ lang, setLang, originDraft, setOriginDraft, defaultOrig
   // Android Back while the code is showing returns to the form instead of leaving the app.
   useBack(pending !== null, () => setPending(null));
 
-  return <ScrollView contentContainerStyle={common.content} keyboardShouldPersistTaps="handled">
+  return <ScrollView ref={keyboard.scroll} contentContainerStyle={[common.content, { paddingBottom: 24 + keyboard.height }]} keyboardShouldPersistTaps="handled"
+    keyboardDismissMode="on-drag" onScroll={keyboard.onScroll} scrollEventThrottle={16}>
     <Language lang={lang} setLang={setLang} />
     <Text style={common.kicker}>{t(lang, "guildKicker")}</Text>
     <Text style={common.title} accessibilityRole="header">{t(lang, "signInTitle")}</Text>
@@ -124,14 +129,16 @@ export function SignIn({ lang, setLang, originDraft, setOriginDraft, defaultOrig
       <Text style={common.textButtonLabel}>{t(lang, pairOpen ? "pairingHide" : "pairingLabel")}</Text>
     </Pressable>
     {pairOpen ? <>
-      <TextInput value={code} onChangeText={setCode} autoCapitalize="characters" autoCorrect={false} placeholder={t(lang, "pairingPlaceholder")} accessibilityLabel={t(lang, "pairingPlaceholder")} placeholderTextColor={colors.muted} style={common.input} />
-      <TextInput value={serverId} onChangeText={setServerId} autoCorrect={false} placeholder={t(lang, "serverIdPlaceholder")} accessibilityLabel={t(lang, "serverIdPlaceholder")} placeholderTextColor={colors.muted} style={common.input} keyboardType="number-pad" />
+      <TextInput value={code} onChangeText={setCode} autoCapitalize="characters" autoCorrect={false} placeholder={t(lang, "pairingPlaceholder")} accessibilityLabel={t(lang, "pairingPlaceholder")} placeholderTextColor={colors.muted} style={common.input}
+        onFocus={keyboard.reveal} returnKeyType="next" onSubmitEditing={() => serverRef.current?.focus()} blurOnSubmit={false} />
+      <TextInput ref={serverRef} value={serverId} onChangeText={setServerId} onFocus={keyboard.reveal} returnKeyType="done" onSubmitEditing={keyboard.dismiss} autoCorrect={false} placeholder={t(lang, "serverIdPlaceholder")} accessibilityLabel={t(lang, "serverIdPlaceholder")} placeholderTextColor={colors.muted} style={common.input} keyboardType="number-pad" />
       <Pressable onPress={() => void pair()} disabled={busy || !code.trim()} accessibilityRole="button" accessibilityState={{ disabled: busy || !code.trim() }} style={[common.secondary, (busy || !code.trim()) && common.disabled]}><Text style={common.secondaryText}>{t(lang, "connect")}</Text></Pressable>
+      {keyboard.height ? <Pressable onPress={keyboard.dismiss} accessibilityRole="button" style={common.textButton}><Text style={common.textButtonLabel}>{t(lang, "hideKeyboard")}</Text></Pressable> : null}
     </> : null}
     <Pressable onPress={() => setAdvanced((open) => !open)} accessibilityRole="button" accessibilityState={{ expanded: advanced }} style={common.textButton}><Text style={common.textButtonLabel}>{t(lang, "advanced")}</Text></Pressable>
     {advanced ? <>
       <Text style={common.muted}>{t(lang, "serverAddressHelp")}</Text>
-      <TextInput value={originDraft} onChangeText={setOriginDraft} autoCapitalize="none" autoCorrect={false} keyboardType="url" placeholder={defaultOrigin} accessibilityLabel={t(lang, "advanced")} placeholderTextColor={colors.muted} style={common.input} />
+      <TextInput value={originDraft} onChangeText={setOriginDraft} autoCapitalize="none" autoCorrect={false} keyboardType="url" onFocus={keyboard.reveal} returnKeyType="done" onSubmitEditing={keyboard.dismiss} placeholder={defaultOrigin} accessibilityLabel={t(lang, "advanced")} placeholderTextColor={colors.muted} style={common.input} />
     </> : null}
   </ScrollView>;
 }

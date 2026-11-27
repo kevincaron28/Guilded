@@ -9,3 +9,8 @@ export const PRIVACY_URL = `${DEFAULT_WEB_ORIGIN}/docs/PRIVACY`;
  * does not offer the route yet. One constant, so the address can follow the website when its deletion page moves.
  */
 export const DELETE_INFO_URL = `${DEFAULT_WEB_ORIGIN}/delete-my-data/`;
+/** The app's Play listing (Share this app, and Rate this app where the in-app review sheet is not available). */
+export const PLAY_URL = "https://play.google.com/store/apps/details?id=top.kcaron.guilded";
+export const PLAY_MARKET_URL = "market://details?id=top.kcaron.guilded";
+/** The Guilded support community (the contact named in docs/PRIVACY.md). */
+export const SUPPORT_URL = "https://discord.gg/YjzFwtP64V";

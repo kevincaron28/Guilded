@@ -13,10 +13,13 @@ import { MyCharacters } from "./MyCharacters";
 import type { MeCharacter } from "./meData";
 import { PromotionCard } from "./PromotionCard";
 import { Wishlist } from "./Wishlist";
-import { DELETE_INFO_URL, PRIVACY_URL } from "../links";
+import { DEFAULT_WEB_ORIGIN, DELETE_INFO_URL } from "../links";
+import { openRating, shareApp } from "../review";
+import { FeedbackScreen, HelpScreen, PrivacyScreen } from "./InfoScreens";
 import * as clashEntry from "../clash/entry";
 
 const linkRow = { flexDirection: "row", alignItems: "center", gap: 8 } as const;
+const settingRow = { alignSelf: "stretch", justifyContent: "space-between", borderBottomWidth: 1, borderColor: colors.line } as const;
 
 // Guilded Clash is on hold (owner, 14 November 2026): hidden, not deleted. metro.config.js resolves this module
 // to an empty one unless the build sets EXPO_PUBLIC_GUILDED_CLASH=1, so a store bundle carries neither the game
@@ -29,13 +32,18 @@ export function MeTab({ guild, onSignIn }: { guild: GuildState; onSignIn: () => 
   const [clash, setClash] = useState(false);
   // 0.6.0: one of my characters' page (ranks, runs, duels) shown in place of the Me list; Android Back and its link return.
   const [page, setPage] = useState<MeCharacter | null>(null);
+  // 0.7.0: Help & FAQ, the privacy policy and Report a problem open over the Me tab (Settings).
+  const [info, setInfo] = useState<Info | null>(null);
+  if (info === "privacy") return <PrivacyScreen lang={lang} onBack={() => setInfo(null)} />;
+  if (info === "help") return <HelpScreen lang={lang} onBack={() => setInfo(null)} />;
+  if (info === "feedback") return <FeedbackScreen lang={lang} origin={session?.apiOrigin ?? DEFAULT_WEB_ORIGIN} onBack={() => setInfo(null)} />;
   const hub = snapshot?.hub ?? null;
   // Guilded Clash opens in place of the Me list (the bottom tabs stay). Sample guild and signed out: the local sample game.
   if (clash && clashParts) return <Screen><clashParts.ClashHome lang={lang} session={preview ? null : session} defaultClass={hub?.characters.find((c) => c.isMain)?.className ?? null} onBack={() => setClash(false)} /></Screen>;
   if (!guild.signedIn) return <Screen>
     <SignInCard lang={lang} onSignIn={onSignIn} />
     {clashParts ? <clashParts.ClashTeaser lang={lang} onOpen={() => setClash(true)} /> : null}
-    <Settings guild={guild} />
+    <Settings guild={guild} onOpen={setInfo} />
   </Screen>;
   if (page && session && !preview) return <Screen><CharacterPage lang={lang} origin={session.apiOrigin} name={page.name} className={page.className} level={page.level} onBack={() => setPage(null)} /></Screen>;
   const characters = hub?.characters ?? [];
@@ -66,20 +74,29 @@ export function MeTab({ guild, onSignIn }: { guild: GuildState; onSignIn: () => 
           onChange={(next) => guild.setSnapshot((current) => current ? { ...current, manage: next } : current)} />
         <Text style={common.muted}>{t(lang, "mapShareHere")}</Text>
       </> : null}
-      <Settings guild={guild} />
+      <Settings guild={guild} onOpen={setInfo} />
       <Pressable onPress={() => void guild.leave()} accessibilityRole="button" style={common.secondary}><Text style={common.secondaryText}>{preview ? t(lang, "closeSample") : t(lang, "signOut")}</Text></Pressable>
     </Screen>
   </KeyboardAvoidingView>;
 }
 
-function Settings({ guild }: { guild: GuildState }) {
+type Info = "privacy" | "help" | "feedback";
+
+function Settings({ guild, onOpen }: { guild: GuildState; onOpen: (info: Info) => void }) {
+  const lang = guild.lang;
+  // 0.7.0 (Testers Community feedback): Help & FAQ, the privacy policy inside the app, Report a problem, Rate and Share.
+  const row = (label: string, onPress: () => void, external = false) => <Pressable key={label} onPress={onPress} accessibilityRole={external ? "link" : "button"} accessibilityLabel={label} style={[common.textButton, linkRow, settingRow]}>
+    <Text style={common.textButtonLabel}>{label}</Text>{external ? <Glyph name="external" /> : <Glyph name="next" />}
+  </Pressable>;
   return <>
-    <Text style={common.label}>{t(guild.lang, "settings").toUpperCase()}</Text>
-    <Text style={common.muted} accessibilityRole="header">{t(guild.lang, "language")}</Text>
-    <Language lang={guild.lang} setLang={guild.setLang} />
-    <Pressable onPress={() => void Linking.openURL(PRIVACY_URL).catch(() => {})} accessibilityRole="link" accessibilityLabel={t(guild.lang, "privacyPolicy")} style={[common.textButton, linkRow]}>
-      <Text style={common.textButtonLabel}>{t(guild.lang, "privacyPolicy")}</Text><Glyph name="external" />
-    </Pressable>
+    <Text style={common.label}>{t(lang, "settings").toUpperCase()}</Text>
+    <Text style={common.muted} accessibilityRole="header">{t(lang, "language")}</Text>
+    <Language lang={lang} setLang={guild.setLang} />
+    {row(t(lang, "helpFaq"), () => onOpen("help"))}
+    {row(t(lang, "privacyPolicy"), () => onOpen("privacy"))}
+    {row(t(lang, "reportProblem"), () => onOpen("feedback"))}
+    {row(t(lang, "rateApp"), () => void openRating(), true)}
+    {row(t(lang, "shareApp"), () => void shareApp(lang))}
     <DeleteMyData guild={guild} />
   </>;
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Image, Linking, Platform, Pressable, StyleSheet, Text, View, type ImageSourcePropType } from "react-native";
+import { ActivityIndicator, Image, Linking, Platform, Pressable, StyleSheet, Text, ToastAndroid, View, type ImageSourcePropType } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import Constants from "expo-constants";
 import * as Updates from "expo-updates";
@@ -7,7 +7,8 @@ import { checkForNewApk, type ApkRelease } from "./src/apkUpdate";
 import { DEFAULT_WEB_ORIGIN } from "./src/links";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { backTarget, mobileRoute, notificationRoute, routeTarget, type GuildPart, type MobileRoute } from "./src/routes";
-import { useBack } from "./src/useBack";
+import { doubleBackToExit, setBackFallback, useBack } from "./src/useBack";
+import { countSession } from "./src/review";
 import { ErrorBoundary } from "./src/ErrorBoundary";
 import { setReportScreen } from "./src/crashReport";
 import { Intro } from "./src/Intro";
@@ -62,6 +63,14 @@ function GuildedApp() {
   // Android Back: from any other tab it goes to the home tab, and only from there leaves the app.
   useBack(backTarget(tab, home) !== null, () => setChosen(null));
   useEffect(() => { setReportScreen(tab); }, [tab]);
+  // 0.7.0 (Testers Community report): on the home tab with nothing open, Back asks for a second press before leaving.
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    setBackFallback(doubleBackToExit(() => ToastAndroid.show(t(lang, "pressBackAgain"), ToastAndroid.SHORT)));
+    return () => setBackFallback(null);
+  }, [lang]);
+  // Counts launches for the one-time review sheet (review.ts).
+  useEffect(() => { void countSession(); }, []);
 
   // First launch: three short intro screens, once (signed-in phones and a skipped intro never see them again).
   const [intro, setIntro] = useState<"unknown" | "show" | "done">("unknown");

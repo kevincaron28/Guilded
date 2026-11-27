@@ -1,6 +1,6 @@
 # Guilded Mobile
 
-Android and iOS share this Expo SDK 58 project. Mobile version **0.6.0**
+Android and iOS share this Expo SDK 58 project. Mobile version **0.7.0**
 (the Android versionCode is kept and raised by EAS on each store build) is separate from the bot,
 addon and Windows companion version. Both store identifiers are
 `top.kcaron.guilded`; the Expo slug is `guilded-mobile`.
@@ -22,6 +22,23 @@ bot, addon and Windows companion version). Store identifiers are
 - **Me**: my characters (with Make main and Unlink), what I still need to be promoted, badges (album), wishlist, language and sign-out.
 - **Alerts**: raid reminders on this phone (24 hours, 2 hours and 60 minutes before), and push for help calls and raid spots.
 - **News**: Wowhead headlines and the Blizzard news link. Public.
+
+**0.7.0** (27 November 2026, from the Testers Community report before the production application; a new runtime version and a new
+native module, so it ships as a store build, version code 16 from EAS):
+
+- **Sign-in keyboard**: the pairing code, server ID and server address fields scroll above the keyboard (`src/useKeyboardScroll.ts`:
+  since Android 15 apps draw edge to edge and the window no longer shrinks for the keyboard), with Next/Done keys and **Hide keyboard**.
+- **Privacy policy inside the app** (Me > Settings), with a contents list that jumps to each section. The text is generated from
+  `docs/PRIVACY.md` by `node mobile/scripts/gen-privacy.mjs` (`src/privacyText.ts`); `tests/mobile-privacy-text.test.ts` fails when they drift.
+- **Help & FAQ** (Me > Settings): sign-in and pairing, sync, alerts, raids and crafting, common problems, in English and Québec French (`src/helpText.ts`).
+- **Report a problem** (Me > Settings): a problem or an idea, filed through the existing `POST /api/v1/mobile/report` (like `/report bug`, a
+  reference back; version, platform and screen only), plus the Guilded support community link. There is no support e-mail address.
+- **Rate this app** opens the Play listing (Google asks apps not to start the in-app review sheet from a button). The **in-app review sheet**
+  (`expo-store-review`, Google Play In-App Review API) is asked for once, ever, after a raid sign-up or a guild refresh, from the third
+  session and never in the first minute of a launch (`src/review.ts`). **Share this app** opens the system share sheet with the Play link.
+- **First-run walkthrough** in four swipeable steps: the app, the five tabs, how to sign in, reminders and the sample guild.
+- **Android Back on the home screen** asks for a second press ("Press Back again to exit") instead of closing the app
+  (`src/useBack.ts`: one Back stack for every layer, with that as the last step).
 
 **0.6.0** (24 November 2026, owner's list; the bot parts deploy with the bot):
 

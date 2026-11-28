@@ -28,7 +28,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      # Raw secret: the first step strips whitespace (a pasted token can end in CR/LF, which Node refuses in an
+      # Authorization header) and exports the clean EXPO_TOKEN for every later step.
+      RAW_EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       FIREBASE_FILE_CONTENT: ${{ secrets.GOOGLE_SERVICES_JSON }}
       PROFILE: ${{ inputs.profile }}
       EAS_CLI: eas-cli@27.11.0
@@ -38,7 +40,10 @@ jobs:
     steps:
       - name: Check the secrets
         run: |
-          if [ -z "$EXPO_TOKEN" ]; then echo "::error::The EXPO_TOKEN repository secret is not set."; exit 1; fi
+          token=$(printf '%s' "$RAW_EXPO_TOKEN" | tr -d '\r\n\t ')
+          if [ -z "$token" ]; then echo "::error::The EXPO_TOKEN repository secret is not set."; exit 1; fi
+          echo "::add-mask::$token"
+          echo "EXPO_TOKEN=$token" >> "$GITHUB_ENV"
           if [ "$PROFILE" = "production" ] && [ -z "$FIREBASE_FILE_CONTENT" ]; then
             echo "::error::The production profile needs the GOOGLE_SERVICES_JSON repository secret (the contents of google-services.json). Use production-no-push for a bundle without push."
             exit 1

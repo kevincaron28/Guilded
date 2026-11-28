@@ -36,6 +36,14 @@ describe("mobile release links", () => {
     // Expo-managed credentials: no keystore, no Play key and no submit step in the job.
     expect(workflow).not.toMatch(/eas[- ]submit|\bsubmit\b --|keystore|credentialsSource|PLAY_SERVICE_ACCOUNT/i);
     expect(workflow).toContain("Signing key differs");
+    // A pasted token can end in CR/LF (Node then refuses the Authorization header): both workflows export a clean copy.
+    for (const text of [workflow, readFileSync(".github/workflows/mobile-update.yml", "utf8")]) {
+      expect(text).toContain("RAW_EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}");
+      expect(text).not.toMatch(/^\s+EXPO_TOKEN: \$\{\{/m);
+      expect(text).toContain("tr -d '\\r\\n\\t '");
+      expect(text).toContain('echo "::add-mask::$token"');
+      expect(text).toContain('echo "EXPO_TOKEN=$token" >> "$GITHUB_ENV"');
+    }
     expect(workflow).toContain("actions/upload-artifact@");
     for (const line of workflow.split("\n").filter(row => /uses: /.test(row))) expect(line, line).toMatch(/@[0-9a-f]{40} # v/);
   });
